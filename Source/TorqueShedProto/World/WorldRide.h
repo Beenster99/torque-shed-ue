@@ -63,6 +63,7 @@ struct RoadPoint
 	bool OneWay = false;   // [OSM stage 5] no centre line
 	bool Dual = false;     // [OSM stage 5C] one half of a dual carriageway: a central reservation on its offside
 	unsigned char Banked = 0;   // [OSM stage 5E] the map's embankment (1) or cutting (2) under it: a steeper, cleaner bank
+	unsigned char Park = 0;     // [OSM stage 5D] the map's parking as the road runs: left in bits 0-1, right 2-3 (RoadX::Across)
 	double Shoulder = 0.0; // [OSM stage 5C] a motorway's hard shoulder on its nearside (m, within Half), 0 none
 	signed char Near = 0;  // [OSM stage 5C] its nearside on a one-way road: 1 its left as its points run, -1 its right
 };

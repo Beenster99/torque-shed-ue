@@ -806,6 +806,11 @@ int main(int Argc, char** Argv)
 						}
 					if (X->Has(RoadExtra::Embankment)) { ++Embanked; EmbankedM += G.Edges[E].Length; }
 					if (X->Has(RoadExtra::Cutting)) { ++Cut; CutM += G.Edges[E].Length; }
+					if (Bays == 0 && (X->ParkLeft == RoadExtra::ParkBays || X->ParkRight == RoadExtra::ParkBays))
+					{
+						const P2& Mid = G.Edges[E].Line[G.Edges[E].Line.size() / 2];
+						std::printf("  mapped parking bays (%s) at %.0f, %.0f\n", G.ClassOf(int(E)).c_str(), Mid.X, Mid.Z);
+					}
 					for (int Pk : {X->ParkLeft, X->ParkRight}) { NoPark += Pk == RoadExtra::NoParking || Pk == RoadExtra::NoStopping ? 1 : 0; Bays += Pk == RoadExtra::ParkBays ? 1 : 0; }
 				}
 			std::printf("  mapped embankments %d (%.0f m), cuttings %d (%.0f m); kerbs mapped no parking %d, parking bays %d\n", Embanked, EmbankedM, Cut, CutM, NoPark, Bays);
@@ -1002,7 +1007,7 @@ int main(int Argc, char** Argv)
 				P2 Dir = On[K + 1].At - On[K].At;
 				Dir = Dir * (1.0 / std::fmax(1e-9, Dir.Length()));
 				const P2 Left(Dir.Z, -Dir.X);
-				std::printf("Section across road %d (half %.1f, banked %d, height %.2f):\n", Hit.Which, Hit.Half, Hit.Banked, Hit.Height);
+				std::printf("Section across road %d (half %.1f, banked %d, parking %d, height %.2f):\n", Hit.Which, Hit.Half, Hit.Banked, int(On[size_t(Hit.Index)].Park), Hit.Height);
 				for (double Across = -40.0; Across <= 40.0; Across += 2.0)
 				{
 					const P2 P = Hit.Foot + Left * Across;

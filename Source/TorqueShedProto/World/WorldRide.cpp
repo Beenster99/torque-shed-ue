@@ -240,15 +240,18 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	// The road as the map drew it, and which road each of its points is on.
 	std::vector<P2> Raw;
 	std::vector<int> Owner;
+	std::vector<char> OwnerBack;   // [OSM stage 5D] (ridden from its node B to A)
 	{
 		int Node = From;
 		for (int E : Path)
 		{
 			const std::vector<P2> Piece = G.LineFrom(E, Node);
+			const char Back = G.Edges[size_t(E)].A != Node ? 1 : 0;
 			for (size_t I = Raw.empty() ? 0 : 1; I < Piece.size(); ++I)
 			{
 				Raw.push_back(Piece[I]);
 				Owner.push_back(E);
+				OwnerBack.push_back(Back);
 			}
 			Node = G.OtherEnd(E, Node);
 		}
@@ -282,7 +285,10 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			const RoadX::Across Ax = RoadX::Of(G, OwnerEdge, RoadLine::WidthOf(G.ClassOf(OwnerEdge)));
 			Halves[I] = Ax.Half;
 			KnotLanes[I] = Ax.Lanes;
-			KnotOneWay[I] = char((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0) | (Ax.Banked << 2));   // ([5E] 4 embankment, 8 cutting)
+			// ([5E] 4 embankment, 8 cutting; [5D] the map's parking as the ride runs, left 16-32, right 64-128)
+			const bool Back = OwnerBack[std::min(J + 1, Raw.size() - 1)] != 0;
+			const int ParkL = Back ? Ax.ParkRight : Ax.ParkLeft, ParkR = Back ? Ax.ParkLeft : Ax.ParkRight;
+			KnotOneWay[I] = static_cast<char>(static_cast<unsigned char>((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0) | (Ax.Banked << 2) | (ParkL << 4) | (ParkR << 6)));
 			KnotShoulder[I] = Ax.Shoulder;
 			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
 		}
@@ -646,7 +652,9 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Lanes = Lanes != nullptr && I < Lanes->size() ? (*Lanes)[I] : 0;
 		P.OneWay = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 1) != 0;
 		P.Dual = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 2) != 0;
-		P.Banked = OneWays != nullptr && I < OneWays->size() ? static_cast<unsigned char>(((*OneWays)[I] >> 2) & 3) : 0;
+		const unsigned Code = OneWays != nullptr && I < OneWays->size() ? static_cast<unsigned char>((*OneWays)[I]) : 0u;
+		P.Banked = static_cast<unsigned char>((Code >> 2) & 3u);
+		P.Park = static_cast<unsigned char>((Code >> 4) & 15u);
 		P.Shoulder = Shoulders != nullptr && I < Shoulders->size() ? (*Shoulders)[I] : 0.0;
 		P.Near = P.OneWay ? static_cast<signed char>(KeepLeft() ? 1 : -1) : 0;
 		P.Bridge = Kind[I] == 1;
@@ -913,6 +921,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		P.Dual = Ax.Dual;
 		P.Shoulder = Ax.Shoulder;
 		P.Banked = static_cast<unsigned char>(Ax.Banked);   // [OSM stage 5E]
+		P.Park = static_cast<unsigned char>(Ax.ParkLeft | (Ax.ParkRight << 2));   // [OSM stage 5D] (laid as the edge runs)
 		P.Near = Ax.OneWay ? static_cast<signed char>(NearSide) : 0;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
@@ -1740,6 +1749,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		Portal[3] = {0.34f, 0.33f, 0.3f}, Grass[3] = {0.088f, 0.105f, 0.04f};
 	static constexpr float Yellow[3] = {0.78f, 0.52f, 0.03f};   // [OSM stage 5D] no-parking lines
 	static constexpr double YellowReach = 12.0;
+	static constexpr float RedLine[3] = {0.55f, 0.04f, 0.03f};   // [OSM stage 5D] no stopping
+	static constexpr double BayDeepest = 2.0, BayLong = 6.0;       // marked parking bays (m)
 	const int Count = int(Pts.size());
 	struct Row
 	{
@@ -1749,6 +1760,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		bool OneWay = false;
 		double Shoulder = 0.0;  // [OSM stage 5C] (RoadPoint's)
 		int Near = 0;
+		int Park = 0;           // [OSM stage 5D] (RoadPoint's)
 		bool Deck = false;
 		double Bank = 0.0;
 		bool Bore = false, Mouth = false;   // in a tunnel; at one of its ends
@@ -1774,6 +1786,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.OneWay = P.OneWay;
 		R.Shoulder = P.Shoulder;
 		R.Near = P.Near;
+		R.Park = P.Park;
 		R.Along = P.Along;
 		R.Deck = P.Bridge;
 		R.Bank = P.Bank;
@@ -2360,6 +2373,33 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// [OSM stage 5D] Double yellow lines along a town street's kerbs near a junction (no parking
 		// within 10 m of one, as the Highway Code has it): 75 mm lines 75 mm apart, 0.25 m off the kerb,
 		// for YellowReach m from a side road's ends and either side of a mouth onto the ride's road.
+		// ([OSM stage 5D] and wherever the map says: no parking, double yellow; no stopping, double red;
+		// marked bays, a line 2 m out from the kerb with a tick across every 6 m)
+		if (Half >= 2.4 && !A.Deck && !A.Bore)
+			for (double Side : {1.0, -1.0})
+			{
+				const int Code = (A.Park >> (Side > 0.0 ? 0 : 2)) & 3;
+				const size_t At0 = size_t(First) + K;
+				if (Code == 0 || (Code == 3 && Half < 2.9) || (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0)) continue;
+				if (Code == 3)
+				{
+					// (as deep as a car, less on a narrow street: a lane's width left between)
+					const double BayDeep = std::clamp(Half - 1.2, 1.6, BayDeepest);
+					Strip(A, B, Side * (A.Half - BayDeep) + 0.05, Side * (A.Half - BayDeep) - 0.05, Side * (B.Half - BayDeep) + 0.05, Side * (B.Half - BayDeep) - 0.05, PaintLift, PaintLift, Paint);
+					for (double Tick = std::ceil(A.Along / BayLong) * BayLong; Tick < B.Along && B.Along > A.Along; Tick += BayLong)
+					{
+						const double T0 = (Tick - A.Along) / (B.Along - A.Along), T1 = std::fmin(1.0, (Tick + 0.1 - A.Along) / (B.Along - A.Along));
+						const Row Ta = Between(A, B, T0), Tb = Between(A, B, T1);
+						const double Lo = std::fmin(Side * (Ta.Half - 0.05), Side * (Ta.Half - BayDeep)), Hi = std::fmax(Side * (Ta.Half - 0.05), Side * (Ta.Half - BayDeep));
+						Strip(Ta, Tb, Hi, Lo, Hi, Lo, PaintLift, PaintLift, Paint);
+					}
+					continue;
+				}
+				// (no-parking's lines from the junction rule below are drawn there instead)
+				if (Code == 1 && StreetRow[K] != 0 && StreetRow[K + 1] != 0) continue;
+				for (const double In : {0.29, 0.44})
+					Strip(A, B, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, PaintLift, PaintLift, Code == 2 ? RedLine : Yellow);
+			}
 		if (StreetRow[K] != 0 && StreetRow[K + 1] != 0 && Half >= 2.4)
 		{
 			const size_t At0 = size_t(First) + K;
@@ -2373,7 +2413,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				NearJunction = A.Along < YellowReach || Pts.back().Along - B.Along < YellowReach;
 			for (double Side : {1.0, -1.0})
 			{
-				if (!NearJunction) break;
+				if (!NearJunction && ((A.Park >> (Side > 0.0 ? 0 : 2)) & 3) != 1) continue;
 				if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
 				for (const double In : {0.29, 0.44})
 					Strip(A, B, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, PaintLift, PaintLift, Yellow);

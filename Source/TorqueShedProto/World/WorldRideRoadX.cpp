@@ -30,6 +30,9 @@ Across Of(const Region& G, int Edge, double RuleWidth)
 	Out.Dual = Out.OneWay && !X->Half.empty() && !X->Has(RoadExtra::Roundabout);
 	Out.Lanes = X->Lanes;
 	Out.Banked = X->Has(RoadExtra::Embankment) ? 1 : X->Has(RoadExtra::Cutting) ? 2 : 0;
+	const auto Kerb = [](int Park) { return Park == RoadExtra::NoParking ? 1 : Park == RoadExtra::NoStopping ? 2 : Park == RoadExtra::ParkBays ? 3 : 0; };
+	Out.ParkLeft = Kerb(X->ParkLeft);
+	Out.ParkRight = Kerb(X->ParkRight);
 	const std::string& Class = G.ClassOf(Edge);
 	if (X->Width > 0.0)
 	{
