@@ -78,6 +78,18 @@ def mat(name, col=None, finish=None):
         nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
         nt.links.new(nz.outputs["Fac"], bp.inputs["Height"])
         nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    if DETAIL["on"] and not spec.get("alpha") and not spec.get("emit"):
+        # slight wear: no surface on a used bike has one even gloss, so break the roughness up a little
+        tc = nt.nodes.new("ShaderNodeTexCoord")
+        nz = nt.nodes.new("ShaderNodeTexNoise")
+        nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 9.0, 6.0
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        r0 = spec.get("rough", 0.5)
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 0.3, 0.75
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = max(0.02, r0 * 0.75), min(1.0, r0 * 1.3 + 0.06)
+        nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+        nt.links.new(nz.outputs["Fac"], mr.inputs["Value"])
+        nt.links.new(mr.outputs["Result"], b.inputs["Roughness"])
     _mats[key] = m
     return m
 
@@ -1370,6 +1382,64 @@ def definition(model, c):
                     cone(f"badge{sg}", (q[0], sg * (q[1] - 9), q[2]), (q[0], sg * (q[1] + 1.5), q[2]), 24, 22, mat("chrome"), 32)
                     cone(f"badgein{sg}", (q[0], sg * (q[1] + 1.5), q[2]), (q[0], sg * (q[1] + 2.5), q[2]), 18, 17, mat("paint", c["body_c"]), 32)
 
+    # real lamp: clear glass over a bright reflector with two projector eyes, instead of a white slab
+    glass = bpy.data.materials.new("lampglass")
+    glass.use_nodes = True
+    gb = glass.node_tree.nodes["Principled BSDF"]
+    gb.inputs["Transmission Weight"].default_value, gb.inputs["Roughness"].default_value, gb.inputs["IOR"].default_value = 1.0, 0.03, 1.45
+    for i, shp in enumerate(model["front_end"]):
+        if shp.get("cls") != "lens" or "pts" not in shp or shp.get("round"):
+            continue
+        hit = [o for o in bpy.data.objects if o.name.startswith(f"lens{i}") and o.type == "MESH"]
+        if not hit:
+            continue
+        for o in hit:
+            o.data.materials[0] = glass
+        pp = shapes.dense(shp["pts"], True, shp.get("t", 0.8))
+        cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+        pillow(f"reflector{i}", [(cx_ + (q[0] - cx_) * 0.9 + 2, cz_ + (q[1] - cz_) * 0.9 - 1) for q in pp], -74, 74, mat("chrome"), 3, 10)
+        for sg in (-1, 1):
+            cone(f"eye{i}{sg}", (cx_ - 2, sg * 38, cz_), (cx_ + 13, sg * 38, cz_), 21, 19, mat("chrome"), 28)
+            cone(f"eyeglass{i}{sg}", (cx_ + 13, sg * 38, cz_), (cx_ + 15.5, sg * 38, cz_), 17, 12, mat("lens"), 28)
+    # engine castings: a ribbed ring on each side cover, cooling ribs under the sump, an oil filter and a starter motor
+    alu = mat("alu")
+    for k, cv in enumerate(eng.get("covers", [])):
+        cc_, r_ = cv["c"], cv["r"]
+        for sg in (-1, 1):
+            y0 = sg * (wide / 2 + 2)
+            cone(f"coverring{k}{sg}", P(cc_, y0), P(cc_, y0 + sg * 7), r_ * 0.62, r_ * 0.56, alu, 40)
+            cone(f"coverboss{k}{sg}", P(cc_, y0 + sg * 7), P(cc_, y0 + sg * 13), r_ * 0.26, r_ * 0.2, alu, 24)
+            for j in range(6):
+                a_ = math.radians(60 * j)
+                p0 = (cc_[0] + r_ * 0.28 * math.cos(a_), cc_[1] + r_ * 0.28 * math.sin(a_))
+                p1 = (cc_[0] + r_ * 0.56 * math.cos(a_), cc_[1] + r_ * 0.56 * math.sin(a_))
+                cone(f"coverrib{k}{sg}{j}", P(p0, y0 + sg * 8), P(p1, y0 + sg * 6), 3.2, 3.2, alu, 8)
+    zb = min(q[1] for q in case)
+    xb = [q[0] for q in case if q[1] < zb + 30]
+    if xb:
+        xa, xz = min(xb) + 30, max(xb) - 30
+        for j in range(7):
+            x_ = xa + (xz - xa) * j / 6
+            prism(f"sumprib{j}", [(x_ - 3, zb - 9), (x_ + 3, zb - 9), (x_ + 3, zb + 12), (x_ - 3, zb + 12)], -wide / 2 + 46, wide / 2 - 46, alu, 1.0)
+        xf = max(q[0] for q in case if q[1] < zb + 90)
+        cone("oilfilter", (xf - 34, -40, zb + 52), (xf + 34, -40, zb + 44), 33, 33, dark, 24)
+        cone("oilfilterend", (xf + 34, -40, zb + 44), (xf + 41, -40, zb + 43), 33, 22, dark, 24)
+    cone("starter", (cs_[0] - 40, -wide / 2 + 40, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), 30, 30, dark, 24)
+    cone("starterend", (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 84, cs_[1] + 96), 30, 20, steel, 24)
+    # seat base: a moulded pan under the foam, so the seat reads as a pad on a base and not one soft lump
+    if st:
+        outline = shapes.dense(st["pts"], True, st.get("t", 1.0))
+        xs = [q[0] for q in outline]
+        x0, x1, spec = min(xs), max(xs), WIDTHS["seat"]
+        low = []
+        for k in range(10, 91, 5):
+            tb = shapes.top_bottom(outline, x0 + (x1 - x0) * k / 100)
+            if tb:
+                low.append((x0 + (x1 - x0) * k / 100, tb[1]))
+        if len(low) > 3:
+            wmin = min(shapes.lerp_table(spec["w"], k / 100) for k in range(15, 86, 5))
+            pillow("seatpan", [(q[0], q[1] - 5) for q in low] + [(q[0], q[1] + 13) for q in reversed(low)], -wmin * 0.93, wmin * 0.93, dark, 3, 8)
+
 
 def studio(scene):
     bpy.ops.mesh.primitive_plane_add(size=40, location=(0.7, 0, 0))
@@ -1393,13 +1463,18 @@ def studio(scene):
                 if hasattr(sky, k_):
                     setattr(sky, k_, v_)
             nt.links.new(sky.outputs[0], nt.nodes["Background"].inputs[0])
-            nt.nodes["Background"].inputs[1].default_value = 0.22
+            nt.nodes["Background"].inputs[1].default_value = 0.06
         except Exception as ex:      # no sky texture in this Blender: keep the plain studio world
             print("sky skipped:", ex)
+        for k_, v_ in (("look", "AgX - Medium High Contrast"), ("exposure", -0.55)):
+            try:
+                setattr(scene.view_settings, k_, v_)
+            except Exception as ex:
+                print("view setting skipped:", ex)
         fm = bpy.data.materials.new("tarmac")
         fm.use_nodes = True
         fb = fm.node_tree.nodes["Principled BSDF"]
-        fb.inputs["Base Color"].default_value = (0.02, 0.02, 0.022, 1)
+        fb.inputs["Base Color"].default_value = (0.035, 0.035, 0.038, 1)
         fb.inputs["Roughness"].default_value = 0.86
         nz, bp = fm.node_tree.nodes.new("ShaderNodeTexNoise"), fm.node_tree.nodes.new("ShaderNodeBump")
         nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 260.0, 8.0
