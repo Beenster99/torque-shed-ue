@@ -88,7 +88,7 @@ def corvano_adventure():
     base = load("corvano_naked")
     m = copy.deepcopy(base)
     m.pop("kit", None)
-    m.update(name="Corvano adventure (working title A1)", family="Adventure", rev="C")
+    m.update(name="Corvano adventure (working title A1)", family="Adventure", rev="D")
     DZ, FR, RR, WB = 50, 330, 320, 1560
     g0, r0 = base["geometry"], base["wheels"]["front"]["tyre_r"]
     raise_bike(m, DZ, RR)
@@ -105,13 +105,9 @@ def corvano_adventure():
 
     def h(pts, cls, t=0.5):
         return {"pts": pts, "cls": cls, "t": t, "part": "head"}
-    # the nose, from beenster's overdrawing (14 Nov): a long beak reaching out over the front wheel, stepping
-    # up past the lamp to the base of a tall screen; its underside stays clear of the tyre at full compression
-    fe = [h([[1540, 918, 1], [1474, 988], [1462, 1002, 1], [1384, 1098], [1374, 1114, 1], [1250, 1124, 1], [1196, 1100, 1], [1186, 1000],
-             [1198, 936, 1], [1300, 918], [1440, 915], [1534, 906, 1]], "body", 0.5),
-          h([[1394, 1062, 1], [1452, 992], [1432, 974, 1], [1366, 1032, 1]], "lens", 0.3),
-          h([[1222, 1118, 1], [1268, 1110, 1], [1280, 1166, 1], [1236, 1174, 1]], "plastic", 0),
-          h([[1380, 1108, 1], [1244, 1298, 1], [1228, 1290, 1], [1350, 1100, 1]], "screen", 0)] + fe
+    # the lamp, clocks and tall screen; the beak itself is one piece with the fairing (below)
+    fe = [h([[1222, 1118, 1], [1268, 1110, 1], [1280, 1166, 1], [1236, 1174, 1]], "plastic", 0),
+          h([[1436, 1090, 1], [1206, 1350, 1], [1226, 1310, 1], [1306, 1140, 1]], "screen", 0)] + fe
     m["front_end"] = fe
     m["front_caliper"] = [[p[0] + WB - g0["wheelbase"], p[1] + FR - r0] + p[2:] for p in base["front_caliper"]]
     b = m["body"]
@@ -134,12 +130,16 @@ def corvano_adventure():
     b["plate_hanger"] = [{"tube": 18, "pts": [[-120, 936], [-236, 800], [-286, 700]], "cls": "plastic", "t": 0.6, "front": True},
                          {"pts": [[-278, 724, 1], [-294, 732, 1], [-330, 642, 1], [-314, 634, 1]], "cls": "plate", "t": 0},
                          {"pts": [[-272, 742, 1], [-262, 736, 1], [-280, 700, 1], [-290, 706, 1]], "cls": "redlens", "t": 0}]
-    # the three-quarter fairing: down from the nose and tank, past the radiator and round under the engine,
-    # cut back round the front cylinder so the engine's rear half stays on show
+    # beak and three-quarter fairing are ONE continuous piece (beenster's second overdrawing, 14 Nov): from the
+    # beak tip the lower edge sweeps back and down in a single line past the radiator to a point low beside
+    # the engine; the top steps up to the screen; the rear edge is cut back round the front cylinder. The
+    # beak's centre line stays 45 mm clear of the tyre with the fork fully compressed.
     b["panels"] = b["panels"] + [
-        {"pts": [[1198, 938, 1], [1190, 860], [1152, 740], [1150, 560], [1138, 500], [1076, 410], [1052, 292, 1], [960, 262], [806, 262, 1], [800, 300, 1],
-                 [900, 332], [1006, 402], [1040, 520, 1], [1002, 640], [986, 770], [1040, 918, 1]], "cls": "body", "t": 0.5, "fairing": True},
-        {"pts": [[1150, 826, 1], [1168, 744], [1122, 644, 1], [1082, 694, 1]], "cls": "plastic", "t": 0.5},
+        {"pts": [[1374, 1114, 1], [1250, 1124, 1], [1196, 1100], [1191, 1012, 1], [941, 972, 1], [888, 762, 1], [993, 669], [947, 577, 1], [993, 524],
+                 [1059, 419], [1020, 340, 1], [1086, 432], [1151, 538], [1178, 617], [1204, 690], [1270, 790], [1323, 860], [1402, 884], [1520, 888],
+                 [1575, 878, 1], [1570, 894, 1], [1504, 975, 1], [1494, 990, 1], [1420, 1090, 1], [1410, 1104, 1]], "cls": "body", "t": 0.35, "fairing": True},
+        {"pts": [[1420, 1040, 1], [1476, 972], [1456, 952, 1], [1392, 1008, 1]], "cls": "lens", "t": 0.3},
+        {"pts": [[1120, 800, 1], [1140, 720], [1090, 640, 1], [1050, 690, 1]], "cls": "plastic", "t": 0.5},
         {"tube": 12, "pts": [[260, 992], [60, 1032], [-150, 1056]], "cls": "dark"},
         {"tube": 10, "pts": [[40, 1034], [70, 990]], "cls": "dark"}, {"tube": 10, "pts": [[-120, 1052], [-100, 1000]], "cls": "dark"}]
     # one large silencer, swept up along the swingarm side
