@@ -91,6 +91,10 @@ const double STRUGGLE_CRANK = 1.8;
 // further from its own, so both together still stop in the road tests' range (SimTest/realism_test).
 const double BRAKE_KEEP_FRONT = 0.55;
 const double BRAKE_KEEP_REAR = 0.2;
+// Linked brakes (a ride mode setting): how much of the front lever the back brake gets, and of the
+// pedal the front, as Honda's and BMW's linked systems share them.
+const double LINK_FRONT_TO_REAR = 0.5;
+const double LINK_REAR_TO_FRONT = 0.3;
 const double AIR_DENSITY = 1.2;
 const double AIR_REV_PITCH = 7.0;
 } // namespace
@@ -289,7 +293,11 @@ void BikeSim::Step(double Delta)
 	// feet down, reduced to this), so the bike neither rolls back down a hill nor topples. Not while
 	// they're walking it backwards.
 	const bool Parked = std::fabs(Speed) < 1.0 && Throttle < 0.05 && !Paddling;
-	double RearGrip = Parked ? std::max(RearBrake, 1.0) : RearBrake;
+	// Linked brakes: what each wheel's brake gets from both levers.
+	double RearIn = RearBrake, FrontIn = FrontBrake;
+	if (Build.LinkedBrakes >= 1) RearIn = std::max(RearIn, FrontBrake * LINK_FRONT_TO_REAR);
+	if (Build.LinkedBrakes >= 2) FrontIn = std::max(FrontIn, RearBrake * LINK_REAR_TO_FRONT);
+	double RearGrip = Parked ? std::max(RearIn, 1.0) : RearIn;
 	if (!Wheels[0].Contact && Wheels[1].Contact && PitchAngle > DegToRad(1.5))
 	{
 		const double Over = PitchAngle - WheelieTarget();
@@ -297,7 +305,7 @@ void BikeSim::Step(double Delta)
 		const double Ahead = Over + std::max(Rising, 0.0) * 0.45;   // where it'll be in a moment
 		if (Ahead > 0.0) RearGrip = std::max(RearGrip, Clamp(Ahead * 4.0, 0.0, 1.0) * Steadiness());
 	}
-	double FrontGrip = Parked ? std::max(FrontBrake, 0.8) : FrontBrake;
+	double FrontGrip = Parked ? std::max(FrontIn, 0.8) : FrontIn;
 	if (!Wheels[1].Contact && Wheels[0].Contact && PitchAngle < -DegToRad(3.0))
 	{
 		const double Over = -PitchAngle - (BodyShift >= 0.25 ? STOPPIE_PITCH : STOPPIE_SKIM);
