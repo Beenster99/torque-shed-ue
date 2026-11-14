@@ -172,7 +172,8 @@ def build(family, names):
         res = checks.check(m, fams) + checks.deck(m, fams)
         pk = checks.packing(m)
         if pk is not None:
-            res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
+            lim = fams[m["family"].lower()].get("packing_max", checks.PACKING_MAX)
+            res.append((pk <= lim, f"empty space inside the bike {pk * 100:.0f}% (at most {lim * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
     import copy
@@ -262,7 +263,8 @@ def build_wave(slug, title, lede, names):
         res = checks.check(m, fams) + checks.deck(m, fams)
         pk = checks.packing(m)
         if pk is not None:
-            res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
+            lim = fams[m["family"].lower()].get("packing_max", checks.PACKING_MAX)
+            res.append((pk <= lim, f"empty space inside the bike {pk * 100:.0f}% (at most {lim * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
     h.append("</div>")

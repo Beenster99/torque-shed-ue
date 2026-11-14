@@ -204,7 +204,7 @@ def kit_parts(model, fams):
         gap = min(math.hypot(p[0] - c0[0], p[1] - c0[1]) for p in sides if p[1] < 640) - rt
         low = min(p[1] for p in sides)
         out.append((gap >= 20 and low >= low_need, f"fairing sides: {gap:.0f} mm behind the front tyre at ride height, {low:.0f} mm off the ground (needs 20 and {low_need})"))
-    pans = [p for shp in model["body"].get("panels", []) if shp.get("cls") == "body" and not shp.get("cowl") and not shp.get("fairing") for p in pts_of(shp) if p[1] < 420]
+    pans = [p for shp in model["body"].get("panels", []) if shp.get("cls") == "body" and "pts" in shp and not shp.get("cowl") and not shp.get("fairing") for p in pts_of(shp) if p[1] < 420]
     if pans:
         gap = min(math.hypot(p[0] - c[0], p[1] - c[1]) for p in pans) - rt
         low = min(p[1] for p in pans)
@@ -263,7 +263,8 @@ if __name__ == "__main__":
         res = check(m, fams) + deck(m, fams)
         pk = packing(m)
         if pk is not None:
-            res.append((pk <= PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {PACKING_MAX * 100:.0f}%)"))
+            lim = fams[m["family"].lower()].get("packing_max", PACKING_MAX)   # a long raked cruiser frame keeps an open triangle ahead of the engine
+            res.append((pk <= lim, f"empty space inside the bike {pk * 100:.0f}% (at most {lim * 100:.0f}%)"))
         for ok, msg in res:
             bad += not ok
             print("  ", "ok  " if ok else "FAIL", msg)
