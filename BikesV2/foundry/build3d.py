@@ -841,16 +841,28 @@ def build(model):
             elif shp.get("fairing"):
                 # a fairing side: outside the engine over the cases, closing in to the nose and the keel
                 xf = max(q[0] for q in pp)
+                sport = model["family"].lower() == "sport"
 
                 def wrap(x, z, xf=xf):
-                    t = max(0.0, min(1.0, (xf - x) / 260.0))
+                    t = max(0.0, min(1.0, (xf - x) / (420.0 if sport else 260.0)))
                     t = t * t * (3 - 2 * t)
                     k = 0.86 + 0.14 * max(0.0, min(1.0, (z - 190) / 170.0))
-                    return (104 + (wide / 2 + 52 - 104) * t) * k
+                    y0 = 110 if sport else 104      # a sport fairing meets the nose, then opens out past the fork legs
+                    return (y0 + (wide / 2 + 52 - y0) * t) * k
                 for s in (-1, 1):
                     skin(f"fairing{i}{s}", pp, wrap, s, m_)
             elif shp.get("cowl"):
-                pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
+                if model["family"].lower() == "sport":
+                    # a sport nose: full width at the bars, drawn in to a point over the front wheel
+                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.45, 150], [0.75, 105], [1, 26]], "n": 2.6, "bottom": 0.8}, m_)
+                else:
+                    pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
+            elif shp.get("winglet"):
+                # an aerofoil: a thin blade standing out from each side of the nose
+                for s in (-1, 1):
+                    prism(f"winglet{i}{s}", [tuple(q[:2]) for q in pp], s * 70, s * 182, m_, 3)
+            elif shp["cls"] == "screen":
+                pillow(f"pscreen{i}", pp, -96, 96, mat("screen"), 30, 70)
             elif low:
                 pillow(f"belly{i}", pp, -125, 125, m_, 22, 50)
             else:
@@ -912,7 +924,10 @@ def build(model):
         if round_lamp and shp.get("part") == "head" and (shp.get("round") or shp["cls"] in ("lens", "chromef")):
             continue
         if shp["cls"] == "lens":
-            pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
+            if model["family"].lower() == "sport":      # slim lamps let into the point of the nose
+                pillow(f"lens{i}", [(q[0] + 5, q[1] - 2) for q in pp], -46, 46, mat("lens"), 6, 20)
+            else:
+                pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
         elif shp["cls"] == "screen":
             pillow(f"screen{i}", pp, -105, 105, mat("screen"), 30, 70)
         elif shp.get("bar_end"):
