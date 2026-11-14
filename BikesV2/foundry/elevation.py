@@ -352,6 +352,12 @@ def draw(model):
         sh.path(cal, "caliper", True, 0.8)
     for shp in body.get("front_guard", []):
         sh.path(pts_of(shp), shp["cls"], True, shp.get("t", 1.0))
+    if any(shp.get("shroud") for shp in body.get("front_guard", [])) and model["family"].lower() == "sport":
+        # a sport mudguard and its fork blades are one moulding: no line where the blade meets the arc
+        for shp in body["front_guard"]:
+            if "arc" in shp:
+                a_ = dict(shp["arc"], r0=shp["arc"]["r0"] + 2.5, r1=shp["arc"]["r1"] - 2.5, a0=shp["arc"]["a0"] + 1.5, a1=shp["arc"]["a1"] - 1.5)
+                sh.path(pts_of({"arc": a_}), shp["cls"], True, 1.0, "style='stroke:none'")
 
     # ---- controls: bars, risers, levers, mirror, lamp, dash
     for shp in model.get("front_end", []):

@@ -67,6 +67,7 @@ def bars_at_lock(model):
     import shapes
     pan = model["body"].get("panels", [])
     cowl = [shapes.dense(s["pts"], True, s.get("t", 1.0)) for s in pan if s.get("cowl")]
+    ears = [(shapes.dense(s["pts"], True, s.get("t", 1.0)), s["w"]) for s in pan if s.get("ear")]   # flared hand shields
     side = [shapes.dense(s["pts"], True, s.get("t", 1.0)) for s in pan if s.get("fairing")]
     fe = [s for s in model.get("front_end", []) if s.get("part") != "head"]
     grip = next((s["at"] for s in fe if s.get("circle") and s.get("clipon")), None)
@@ -102,6 +103,8 @@ def bars_at_lock(model):
                 for dx_, dz_ in ((0, 0), (m_, 0), (-m_, 0), (0, m_), (0, -m_)):
                     if abs(q[1]) < 150 + m_ and any(inside(c_, q[0] + dx_, q[2] + dz_) for c_ in cowl):
                         worst = min(worst or ("nose fairing", deg), ("nose fairing", deg), key=lambda w: abs(w[1]))
+                    if any(abs(q[1]) < shapes.lerp_table(w_, q[2]) + m_ and inside(c_, q[0] + dx_, q[2] + dz_) for c_, w_ in ears):
+                        worst = min(worst or ("nose fairing's flared side", deg), ("nose fairing's flared side", deg), key=lambda w: abs(w[1]))
                     if 100 < abs(q[1]) < 300 and any(inside(c_, q[0] + dx_, q[2] + dz_) for c_ in side):
                         worst = worst or ("fairing side", deg)
     if worst:

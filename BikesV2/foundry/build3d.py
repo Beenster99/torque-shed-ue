@@ -552,6 +552,50 @@ def arc_band(name, a, hw, material):
     return ob
 
 
+def guard_blade(name, a, blade, hw, material):
+    """A sport front mudguard and its fork blades as ONE moulding (beenster, 14 Nov): the crowned shell
+    over the tyre, with its two side edges drawn down into the blades that run to the axle. How far
+    down the side goes at each point round the wheel is read off the drawn blade outline, then faired
+    so the blade grows out of the guard in a curve."""
+    lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 9, 80, 12
+    c = tuple(a["c"])
+
+    def depth(deg):
+        th, best = math.radians(deg), lo - 8
+        for rho in range(int(hi), 24, -3):
+            if _inside(blade, c[0] + rho * math.cos(th), c[1] + rho * math.sin(th)):
+                best = min(best, rho)
+        return best
+    rin = [depth(a["a0"] + (a["a1"] - a["a0"]) * i / segs) for i in range(segs + 1)]
+    for _ in range(5):
+        rin = [rin[0]] + [0.25 * rin[i - 1] + 0.5 * rin[i] + 0.25 * rin[i + 1] for i in range(1, segs)] + [rin[segs]]
+    span = abs(a["a1"] - a["a0"])
+    tip = min(0.2, math.degrees(hw * 0.55 / hi) / span)
+    verts, faces = [], []
+    for i in range(segs + 1):
+        f = i / segs
+        k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
+        ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
+        crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        ye = crown[-1][1]
+        skirt = []
+        for q in range(1, K + 1):
+            rho = lo + (rin[i] - lo) * q / K
+            t_ = min(1.0, (lo - rho) / 95.0)
+            skirt.append((rho, ye + (144 - ye) * t_ * t_ * (3 - 2 * t_)))
+        sec = [(r, -y) for r, y in skirt[::-1]] + crown + skirt
+        for r, y in sec:
+            verts.append(V(c[0] + r * math.cos(ang), y, c[1] + r * math.sin(ang)))
+    m = n + 2 * K
+    for i in range(segs):
+        for q in range(m - 1):
+            faces.append((i * m + q, (i + 1) * m + q, (i + 1) * m + q + 1, i * m + q + 1))
+    ob = mesh_obj(name, verts, faces, material, True, 0, sharp=False)
+    sol = ob.modifiers.new("shell", "SOLIDIFY")
+    sol.thickness, sol.offset = 4 * MM, 1
+    return ob
+
+
 def build(model):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _mats.clear()
@@ -867,7 +911,12 @@ def build(model):
         if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
             continue
         m_ = paint if shp["cls"] == "body" else mat("plastic")
-        if "arc" in shp:
+        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike else None
+        if "arc" in shp and blade_ and shp in body.get("front_guard", []):
+            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
+        elif shp.get("shroud") and sport_bike:
+            pass                          # part of the one-piece mudguard above
+        elif "arc" in shp:
             arc_band(f"guard{i}", shp["arc"], 72 if shp["arc"]["c"][0] > 100 else 100, m_)
         else:
             pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
@@ -957,6 +1006,14 @@ def build(model):
                     for n_, (cut, shp_) in enumerate(zip(cuts, cut_shapes)):
                         if not shp_.get("reveal"):      # an air channel: a dark duct wall set back inside the opening
                             skin(f"duct{i}{n_}{s}", cut, lambda x, z: wrap(x, z) - 26, s, mat("plastic"), stations=30, rows=12, thick=3.0)
+            elif shp.get("ear"):
+                # the nose's flared sides: hand shields standing out ahead of the grips, widest at bar
+                # height, above the cutaway the bars swing through (beenster's red line, 14 Nov)
+                def earf(x, z, w_=shp["w"]):
+                    t_ = max(0.0, min(1.0, (1350 + g["wheelbase"] - 1440 - x) / 130.0))
+                    return 147 + (shapes.lerp_table(w_, z) - 147) * t_ * t_ * (3 - 2 * t_)
+                for s in (-1, 1):
+                    skin(f"ear{i}{s}", pp, earf, s, m_, stations=50, rows=18, thick=5.0)
             elif shp.get("cowl"):
                 if model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel
@@ -1003,7 +1060,12 @@ def build(model):
             ys = [150, 128, 118, 60][:len(q)] + [60] * max(0, len(q) - 4)
             smooth_tube(f"platearm{i}", [(v[0], y, v[1]) for v, y in zip(q, ys)], shp["tube"] / 2 * 0.8, mat("alu_dark"))
             continue
-        if "arc" in shp:
+        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike else None
+        if "arc" in shp and blade_ and shp in body.get("front_guard", []):
+            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
+        elif shp.get("shroud") and sport_bike:
+            pass                          # part of the one-piece mudguard above
+        elif "arc" in shp:
             arc_band(f"platearm{i}", shp["arc"], 60, mat("plastic"))
             continue
         pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
