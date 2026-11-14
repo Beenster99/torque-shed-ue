@@ -20,7 +20,7 @@ SUB = {"S1": [430, 800], "S2": [161, 796], "S3": [455, 760], "S4": [250, 784]}
 
 
 def draft(name, spec):
-    base, c = load(spec["base"]), load("hartwell_cafe")
+    base, c = (spec["base_fn"]() if "base_fn" in spec else load(spec["base"])), load("hartwell_cafe")
     m = copy.deepcopy(base)
     kit = m.pop("kit", None)
     m.update(name=spec["title"], family="Cafe", rev="A")
@@ -70,7 +70,27 @@ def draft(name, spec):
     return path
 
 
+def lodestar_base():
+    """Lodestar has no naked: its cafe stands on the same V-twin and double cradle as its classic."""
+    from classic_draft import lodestar_base as lb
+    m = lb()
+    m["geometry"] = dict(m["geometry"], wheelbase=m["geometry"]["wheelbase"] + 35)
+    m["frame"]["nodes"]["D1"] = [1044, 446]
+    for cy in m["engine"]["cylinders"]:        # the cafe's higher tank line takes taller barrels
+        cy["length"] = 244
+    m["engine"]["extras"][-1] = {"pts": [[700, 862, 1], [1040, 868, 1], [1084, 800, 1], [1040, 742], [760, 760], [690, 800, 1]], "cls": "plastic", "t": 0.6}
+    return m
+
+
+def lodestar(m):
+    c = load("hartwell_cafe")
+    m["shock"] = dict(copy.deepcopy(c["shock"]), bottom=[60, 370], twin=True)
+    m["frame"]["nodes"]["B"] = list(c["frame"]["nodes"]["B"])
+    m["colours"] = dict(m["colours"], seat="#2a1c16", rim="#C9CED3", fork="#C9CED3")
+
+
 DRAFTS = {
+    "lodestar_cafe": {"base_fn": lodestar_base, "title": "Lodestar cafe (working title C1)", "style": [lodestar]},
     "corvano_cafe": {"base": "corvano_naked", "title": "Corvano cafe (working title C1)", "kit_exhaust": 2},
     "kazeda_cafe": {"base": "kazeda_naked", "title": "Kazeda cafe (working title C1)", "kit_exhaust": 0},
     "rheinhart_cafe": {"base": "rheinhart_naked", "title": "Rheinhart cafe (working title C1)", "nodes": {"S3": [300, 778]}},
