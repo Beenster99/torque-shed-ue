@@ -1323,11 +1323,41 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		// [OSM stage 5B] A fork (the two a narrow gap apart, as a roundabout's one-way arms where they part,
 		// or an arm running onto the ring): no corner between them, just across from the one's edge to the
 		// other's. The roads curve apart, so a corner along their headings would fill the nose between them.
+		// Where they run on side by side (a slip road merging), the tarmac between their facing edges out
+		// to where those part (the nose), so no ground shows between them.
 		if (Gap < KnotFork)
 		{
+			// (each one's facing edge, out from the junction, while the other's tarmac is within a hair of it)
+			const auto FacingEdge = [this](const KnotArm& Of, const KnotArm& Other, double Sign, std::vector<P2>& Into)
+			{
+				const std::vector<RoadPoint>& Pts = RoadOf(Of.Which);
+				const int N = int(Pts.size());
+				NearOpts Opts;
+				Opts.OnlyRoad = Other.Which;
+				for (int Kp = 1; Kp < N; ++Kp)
+				{
+					const int At = Of.End == 0 ? Kp : N - 1 - Kp;
+					const int Prev = Of.End == 0 ? At - 1 : At + 1;
+					const RoadPoint& P = Pts[size_t(At)];
+					if (P.Along > Pts[size_t(Of.End == 0 ? 0 : N - 1)].Along + KnotNoseMost || P.Along < Pts[size_t(Of.End == 0 ? 0 : N - 1)].Along - KnotNoseMost) break;
+					P2 D = P.At - Pts[size_t(Prev)].At;
+					const double L = D.Length();
+					if (L < 1e-9) continue;
+					D = D * (1.0 / L);
+					const P2 Edge = P.At + P2(-D.Z, D.X) * (Sign * P.Half);
+					NearHit Hit;
+					if (!NearestOf(Edge.X, Edge.Z, Opts, Hit) || Hit.Dist - Hit.Half > 0.25) break;
+					Into.push_back(Edge);
+				}
+			};
+			std::vector<P2> AlongA, AlongB;
+			FacingEdge(A, B, 1.0, AlongA);
+			FacingEdge(B, A, -1.0, AlongB);
 			Rim.push_back(EdgeA);
 			Outward.push_back(Qa);
 			Edged.push_back(0);
+			for (const P2& Pt : AlongA) { Rim.push_back(Pt); Outward.push_back(Qa); Edged.push_back(0); }
+			for (size_t J = AlongB.size(); J-- > 0;) { Rim.push_back(AlongB[J]); Outward.push_back(Qb * -1.0); Edged.push_back(0); }
 			Rim.push_back(EdgeB);
 			Outward.push_back(Qb * -1.0);
 			Edged.push_back(0);
@@ -1475,6 +1505,22 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 	double Out = Lie;
 	if (Hit.Dist <= Flat || std::isnan(Lie)) Out = Hit.Dist <= Flat + Blend ? Under : Lie;
 	else if (Hit.Dist < Flat + Blend) Out = Under + (Lie - Under) * Smooth01((Hit.Dist - Flat) / Blend);
+	// [OSM stage 5C] Where two roads' tarmac overlaps (lanes merging, a slip road joining), under the lower
+	// of the two a few centimetres apart, so the land shows through neither.
+	// (not on the ride's own road: the others lie just under it there)
+	if (Hit.Dist <= Flat && Wider <= 0.0 && !Hit.Deck && !Hit.Bore && !(Hit.Which == 0 && Hit.Dist <= Hit.Half))
+	{
+		NearOpts Other = Opts;
+		Other.NotRoad = Hit.Which;
+		NearHit Also;
+		if (NearestOf(X, Z, Other, Also) && !Also.Deck && !Also.Bore && Also.Dist <= Also.Half + 0.5)
+		{
+			// (its surface as drawn: a side road settled onto a greater one where it joins it)
+			const double Drawn = Also.Which == 0 ? Also.Height + Also.Cross : JoinedHeight(Also.Which, P2(X, Z), Also.Height + Also.Cross);
+			const double Low = Drawn - Sink;
+			if (Low < Out && Out - Low < OverlapStep) Out = Low;
+		}
+	}
 	return std::isnan(Clear) ? Out : std::fmin(Out, Clear);
 }
 

@@ -712,17 +712,71 @@ int main(int Argc, char** Argv)
 			++Shown;
 		}
 	}
+	if (const char* ProbeAt = std::getenv("WORLD_RIDE_PROBE"))
+	{
+		// (the roads round a point x,z: each one's nearest bit, how far, how wide, which way)
+		P2 Q;
+		std::sscanf(ProbeAt, "%lf,%lf", &Q.X, &Q.Z);
+		Rect Round;
+		Round.X0 = Q.X - 300.0; Round.Z0 = Q.Z - 300.0; Round.X1 = Q.X + 300.0; Round.Z1 = Q.Z + 300.0;
+		Plan->LayBlocks(Round);
+		RidePlan::NearOpts O;
+		for (int Guard = 0; Guard < 6; ++Guard)
+		{
+			RidePlan::NearHit H;
+			if (!Plan->NearestOf(Q.X, Q.Z, O, H) || H.Dist > 30.0) break;
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(H.Which);
+			std::printf("  probe: road %d (%zu points, %.0f m) at %.1f m along, %.2f m off its middle (half %.2f), height %.2f, one way %d dual %d\n", H.Which, Pts.size(), Pts.empty() ? 0.0 : Pts.back().Along, H.Along, H.Dist, H.Half,
+				H.Height, int(Pts[size_t(H.Index)].OneWay), int(Pts[size_t(H.Index)].Dual));
+			std::printf("    ground there %.2f\n", Plan->Ground(Q.X, Q.Z));
+			O.NotRoad = H.Which;
+			// (only one road can be left out at a time: the next nearest after this one)
+		}
+	}
 	if (std::getenv("WORLD_RIDE_DUALS") != nullptr)
 	{
 		// [OSM stage 5C] The dual carriageways: the region's edges the map pairs, and how much of the
 		// ride's road is one half of one, with its other half found across from it.
 		int Edges = 0, Paired = 0;
+		std::map<std::string, int> ByClass;
 		for (size_t E = 0; E < Plan->Area.Roads.Edges.size(); ++E)
 		{
 			const RoadExtra* X = Plan->Area.Roads.ExtraOf(int(E));
 			if (X == nullptr || X->Half.empty()) continue;
 			++Edges;
 			Paired += X->Has(RoadExtra::Roundabout) ? 0 : 1;
+			char Key[96];
+			std::snprintf(Key, sizeof(Key), "%s lanes %d width %.0f", Plan->Area.Roads.ClassOf(int(E)).c_str(), X->Lanes, X->Width);
+			++ByClass[Key];
+		}
+		for (const auto& Kv : ByClass)
+			if (Kv.second >= 5) std::printf("  %d halves: %s\n", Kv.second, Kv.first.c_str());
+		// (where slip roads meet a dual carriageway's half: the first few)
+		int Slips = 0;
+		const Region& G = Plan->Area.Roads;
+		for (size_t E = 0; E < G.Edges.size() && Slips < 6; ++E)
+		{
+			const std::string& Class = G.ClassOf(int(E));
+			const RoadExtra* Xe = G.ExtraOf(int(E));
+			if (G.Edges[E].Oneway == 0 || (Xe != nullptr && (!Xe->Half.empty() || Xe->Has(RoadExtra::Roundabout))) || (Class != "motorway" && Class != "trunk")) continue;
+			for (int Nd : {G.Edges[E].A, G.Edges[E].B})
+				for (size_t F = 0; F < G.Edges.size(); ++F)
+				{
+					const RoadExtra* X = G.ExtraOf(int(F));
+					if (F == E || X == nullptr || X->Half.empty() || (G.Edges[F].A != Nd && G.Edges[F].B != Nd)) continue;
+					if (Slips++ < 6) std::printf("  %s meets %s at %.0f, %.0f\n", Class.c_str(), G.ClassOf(int(F)).c_str(), G.Nodes[size_t(Nd)].X, G.Nodes[size_t(Nd)].Z);
+					break;
+				}
+		}
+		// (the ride's way by class, where the class changes: onto and off the fast roads)
+		std::string Was;
+		double Run = 0.0;
+		for (const auto& St : Plan->MadeSteps)
+		{
+			const std::string& Class = Plan->Area.Roads.ClassOf(St.Edge);
+			if (Class != Was) std::printf("  at %.0f m along the way: %s\n", Run, Class.c_str());
+			Was = Class;
+			Run += Plan->Area.Roads.Edges[size_t(St.Edge)].Length;
 		}
 		double DualM = 0.0, FoundM = 0.0, GapSum = 0.0, Proud = -1e9;
 		P2 ProudAt;
@@ -929,6 +983,14 @@ int main(int Argc, char** Argv)
 				Centre = Plan->PlaceRecipes[Nth].At;
 				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
 			}
+		}
+		else if (std::getenv("WORLD_RIDE_MESH_AT") != nullptr)
+		{
+			// (or a place: x,z in the ride's frame, its roads laid round it)
+			std::sscanf(std::getenv("WORLD_RIDE_MESH_AT"), "%lf,%lf", &Centre.X, &Centre.Z);
+			Rect Round;
+			Round.X0 = Centre.X - 300.0; Round.Z0 = Centre.Z - 300.0; Round.X1 = Centre.X + 300.0; Round.Z1 = Centre.Z + 300.0;
+			Plan->LayBlocks(Round);
 		}
 		else if (std::getenv("WORLD_RIDE_DUAL") != nullptr)
 		{

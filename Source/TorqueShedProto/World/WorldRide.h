@@ -389,7 +389,8 @@ public:
 	};
 	// [OSM stage 5B] Two of a knot's roads less than this far apart (radians, about 50 degrees) are a fork:
 	// no rounded corner between them.
-	static constexpr double KnotFork = 0.87;
+	static constexpr double OverlapStep = 0.3;   // (GroundOf: two roads' tarmac overlapping less than this apart in height)
+	static constexpr double KnotFork = 0.87, KnotNoseMost = 40.0;   // (a fork's tarmac between them reaches this far out at most)
 	// A knot's fan, its corners' shoulders, into Out (in Out's own origin).
 	void KnotPiece(const Knot& K, RideMesh& Out) const;
 	// [ride anywhere] Every road: 0 is the ride's own; every other road of the area (its network) is
