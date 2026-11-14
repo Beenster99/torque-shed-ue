@@ -517,6 +517,7 @@
    }
   },
   "mx": {
+   "packing_max": 0.16,
    "name": "MX",
    "defines": "Light single, long travel, high mudguards, number boards",
    "layouts": [
