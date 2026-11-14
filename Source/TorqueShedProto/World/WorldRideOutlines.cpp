@@ -261,7 +261,7 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 							double Sum = 0.0;
 							for (size_t I = 0; I < Ring.size(); ++I) Sum += Ring[I].X * Ring[(I + 1) % Ring.size()].Z - Ring[(I + 1) % Ring.size()].X * Ring[I].Z;
 							const double Dm = R.A[0].N, Floors = R.A[2].N;
-							const double Height = Dm >= 0.0 ? Dm * 0.1 : Floors > 0.0 ? Floors * 3.2 + 1.0 : 0.0;
+							const double Height = Dm >= 0.0 ? Dm * 0.1 : 0.0;
 							BuildingLook Look;
 							// (the drawer's words: class, roof shape, roof colour, roof material, wall material, wall colour)
 							Look.Words[0] = Word(3); Look.Words[1] = Word(4); Look.Words[2] = Word(6); Look.Words[3] = Word(5); Look.Words[4] = Word(7); Look.Words[5] = Word(8);
@@ -271,6 +271,7 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 								Look.At = P2(Bp.X, Bp.Z);
 								P.B = std::move(Bp);
 								P.Look = Look;
+								P.Floors = Floors > 0.0 ? Floors : 0.0;
 								Made->push_back(std::move(P));
 							}
 						}
