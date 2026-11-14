@@ -3069,10 +3069,10 @@
   "paint": [
    {
     "name": "Oxblood",
-    "note": "deep red with a black frame",
+    "note": "deep red with the frame painted to match",
     "colours": {
      "body": "#6B1A22",
-     "frame": "#17181b"
+     "frame": "#5A161D"
     }
    },
    {

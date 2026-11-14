@@ -288,13 +288,13 @@ def bars_z(tx, tz):
 BARS = [("Pull-backs", "tall bars pulled back on risers", bars_pull), ("Ape hangers", "high ape hangers", bars_ape),
         ("Drag bars", "short flat bars on a tall riser", bars_drag), ("Z-bars", "angular bars with sharp corners", bars_z)]
 PAINT = [("Midnight blue", "blue with a bright bare frame", {"body": "#23408E", "frame": "#B9BDC2"}),
-         ("Oxblood", "deep red with a black frame", {"body": "#6B1A22", "frame": "#17181b"}),
+         ("Oxblood", "deep red with the frame painted to match", {"body": "#6B1A22", "frame": "#5A161D"}),
          ("Burnt orange", "orange with a black frame", {"body": "#C8571B", "frame": "#15161a"}),
          ("Gloss black", "black with a bright bare frame", {"body": "#141518", "frame": "#B9BDC2"}),
          ("Gold", "gold with a black frame", {"body": "#B8892B", "frame": "#17181b"}),
          ("Sea green", "green with a cream frame", {"body": "#1F6F6B", "frame": "#D9D2BE"})]
 CHOP_BASE = {"lodestar": (0, 0, "Upswept slim pipes", 0), "hartwell": (1, 1, "Megaphone each side", 1), "kazeda": (2, 2, "Stacked straight pipes", 2)}
-CHOP = {"lodestar": (1880, 43.0, 1000, 800, 230), "hartwell": (1760, 38.0, 900, 720, 200), "kazeda": (1900, 45.0, 1030, 830, 250)}
+CHOP = {"lodestar": (1880, 43.0, 1000, 800, 230), "hartwell": (1680, 35.0, 800, 640, 180), "kazeda": (1900, 45.0, 900, 720, 250)}
 
 
 def chopper(brand="lodestar"):
@@ -343,13 +343,22 @@ def chopper(brand="lodestar"):
     ht = (tx - 22 * math.sin(rk) + 40 * math.cos(rk), tz - 22 * math.cos(rk) - 40 * math.sin(rk))
     slope = (ht[1] - B[1]) / (ht[0] - B[0])
     O = (640.0, B[1] + slope * (640 - B[0]))
+    if brand != "lodestar":
+        # every chopper backbone passes through the same point where tank meets seat, so seats and tanks swap
+        # between frames; the backbone's angle and the seat post top are each frame's own
+        w0, r0_, l0 = CHOP["lodestar"][:3]
+        a0 = math.radians(r0_)
+        h0 = (round(w0 - l0 * math.sin(a0), 1) - 22 * math.sin(a0) + 40 * math.cos(a0), round(FR + l0 * math.cos(a0), 1) - 22 * math.cos(a0) - 40 * math.sin(a0))
+        zn = 640 + (h0[1] - 640) / (h0[0] - 470) * 170
+        slope = (ht[1] - zn) / (ht[0] - 640)
+        B, O = [470, round(zn - slope * 170, 1)], (640.0, zn)
     ang = math.atan(slope)
     eu, en = (math.cos(ang), math.sin(ang)), (-math.sin(ang), math.cos(ang))
 
     def on_tube(u, v, flag=None):
         return [round(O[0] + eu[0] * u + en[0] * v, 1), round(O[1] + eu[1] * u + en[1] * v, 1)] + ([1] if flag else [])
     # a long teardrop: full and high right behind the headstock, tapering back to a point at the seat (beenster, 14 Nov)
-    U = math.hypot(ht[0] - O[0], ht[1] - O[1]) - 46
+    U = min(math.hypot(ht[0] - O[0], ht[1] - O[1]) - 46, 600)      # a long gooseneck leaves bare backbone ahead of the tank
     tank, seat = _teardrop(on_tube, U), copy.deepcopy(KING)
     tails = chop_tails(RR)
     m = {
@@ -429,7 +438,7 @@ def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
     saddle with a separate pillion pad on the rear guard, a short sissy loop and one upswept megaphone each side."""
     from cruiser_draft import shifted_engine
     m.update(name="Hartwell chopper (working title H2)", brand="hartwell", rev="A", engine_label="air-cooled look parallel twin")
-    m["colours"] = {"body": "#6B1A22", "frame": "#17181b", "rim": "#C7CBD0", "fork": "#D5D8DC", "accent": "#E8DDBE", "seat": "#5a3a26"}
+    m["colours"] = {"body": "#6B1A22", "frame": "#5A161D", "rim": "#C7CBD0", "fork": "#D5D8DC", "accent": "#E8DDBE", "seat": "#5a3a26"}
     e = shifted_engine("hartwell_naked", 0, -18)
     for cy in e["cylinders"]:
         cy["fins"] = True
@@ -437,6 +446,16 @@ def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
     e["extras"] = [x[1], x[3], lo["extras"][1],
                    {"pts": [[690, 700, 1], [650, 690], [630, 650], [650, 610], [690, 600, 1], [712, 650]], "cls": "chromef", "t": 0.7}]
     m["engine"] = e
+    # Hartwell's own frame: a wishbone. Slim twin downtubes with a forward kink, a curved seat post, arched
+    # upper stays and a lower rail that sweeps up to the axle, tied by an upright strut ahead of the wheel.
+    n = m["frame"]["nodes"]
+    n.update({"D2": [990, 226], "K": [1128, 560], "R1": [214, 612], "R2": [250, 230]})
+    n.pop("N")
+    m["frame"]["tubes"] = [{"path": ["B", "R1", "AX"], "w": 24, "t": 0.7}, {"path": ["P", "R2", "AX"], "w": 24, "t": 0.7},
+                           {"path": ["R1", "R2"], "w": 18, "t": 0},
+                           {"path": ["head_t", "B", "P"], "w": 32, "t": 0.6},
+                           {"path": ["head_b", "K", "D2", "P"], "w": 28, "t": 0.6}]
+    m["frame_label"] = "rigid wishbone frame, no rear suspension"
     m["exhaust"] = {"headers": [{"pts": [[985, 582], [1000, 500], [1006, 410], [984, 322], [924, 288], [600, 282], [220, 286]], "w": 44, "front": True}],
                     "cans": [{"a": [220, 286], "b": [-230, 400], "w": 72, "front": True}]}
     b = m["body"]
@@ -465,6 +484,18 @@ def kazeda_chop(m, tx, tz, on_tube, U, RR, lo):
     e["extras"] = [{"pts": [[790, 690, 1], [700, 716], [640, 700], [620, 640], [650, 596], [730, 590, 1], [800, 620, 1]], "cls": "chromef", "t": 0.7}, lo["extras"][1],
                    {"pts": [[560, 610, 1], [470, 620], [410, 596], [396, 520, 1], [430, 452], [520, 440, 1], [566, 500, 1]], "cls": "plastic", "t": 0.8}]
     m["engine"] = e
+    # Kazeda's own frame: a gooseneck digger. The headstock is pushed far forward and low on a long flat
+    # backbone with a second top tube under it, the downtube drops well ahead of the engine, every joint is
+    # sharp, and three straight stays each side run to the axle.
+    n = m["frame"]["nodes"]
+    n.update({"D2": [1100, 226], "M": [478, 520]})
+    n.pop("N")
+    m["frame"]["tubes"] = [{"path": ["B", "AX"], "w": 26}, {"path": ["M", "AX"], "w": 20}, {"path": ["P", "AX"], "w": 26},
+                           {"path": ["head_t", "B", "P"], "w": 38, "t": 0},
+                           {"path": ["head_b", "D2", "P"], "w": 34, "t": 0},
+                           {"path": ["head_b", "M"], "w": 24, "t": 0}]
+    m["frame_label"] = "rigid gooseneck frame, no rear suspension"
+    m["hangers"] = [tf(h, lambda x, z: (x + 96, z)) for h in m["hangers"][:3]] + m["hangers"][3:]
     m["exhaust"] = {"headers": [{"pts": [[1016, 650], [1040, 540], [1046, 430], [1016, 316], [946, 262], [780, 244], [660, 246]], "w": 50, "front": True}],
                     "cans": [{"a": [660, 240], "b": [10, 252], "w": 58, "front": True}, {"a": [640, 300], "b": [70, 322], "w": 58, "front": True}]}
     b = m["body"]
