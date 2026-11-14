@@ -437,7 +437,7 @@ def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
     rigid frame, a shorter fork with less rake, a small round peanut tank, tall ape hanger bars, a thin flat
     saddle with a separate pillion pad on the rear guard, a short sissy loop and one upswept megaphone each side."""
     from cruiser_draft import shifted_engine
-    m.update(name="Hartwell chopper (working title H2)", brand="hartwell", rev="A", engine_label="air-cooled look parallel twin")
+    m.update(name="Hartwell chopper (working title H2)", brand="hartwell", rev="B", engine_label="air-cooled look parallel twin")
     m["colours"] = {"body": "#6B1A22", "frame": "#5A161D", "rim": "#C7CBD0", "fork": "#D5D8DC", "accent": "#E8DDBE", "seat": "#5a3a26"}
     e = shifted_engine("hartwell_naked", 0, -18)
     for cy in e["cylinders"]:
@@ -446,16 +446,18 @@ def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
     e["extras"] = [x[1], x[3], lo["extras"][1],
                    {"pts": [[690, 700, 1], [650, 690], [630, 650], [650, 610], [690, 600, 1], [712, 650]], "cls": "chromef", "t": 0.7}]
     m["engine"] = e
-    # Hartwell's own frame: a wishbone. Slim twin downtubes with a forward kink, a curved seat post, arched
-    # upper stays and a lower rail that sweeps up to the axle, tied by an upright strut ahead of the wheel.
+    # Hartwell's own frame: a drop basket (beenster's blue overdrawing, 14 Nov 22:37). A short top piece runs back
+    # from the foot of the headstock, then the downtube drops straight down in front of the engine and turns
+    # under it; a curved seat post, arched upper stays and an upright strut ahead of the rear wheel.
     n = m["frame"]["nodes"]
-    n.update({"D2": [990, 226], "K": [1128, 560], "R1": [214, 612], "R2": [250, 230]})
+    n.update({"D2": [962, 226], "J": [1080, 846], "D": [1048, 300], "R1": [214, 612], "R2": [250, 230]})
     n.pop("N")
     m["frame"]["tubes"] = [{"path": ["B", "R1", "AX"], "w": 24, "t": 0.7}, {"path": ["P", "R2", "AX"], "w": 24, "t": 0.7},
                            {"path": ["R1", "R2"], "w": 18, "t": 0},
                            {"path": ["head_t", "B", "P"], "w": 32, "t": 0.6},
-                           {"path": ["head_b", "K", "D2", "P"], "w": 28, "t": 0.6}]
-    m["frame_label"] = "rigid wishbone frame, no rear suspension"
+                           {"path": ["head_b", "J", "D", "D2", "P"], "w": 28, "t": 0.3}]
+    m["hangers"] = [tf(h, lambda x, z: (x + 44, z)) for h in m["hangers"][:3]] + m["hangers"][3:]
+    m["frame_label"] = "rigid drop basket frame, no rear suspension"
     m["exhaust"] = {"headers": [{"pts": [[985, 582], [1000, 500], [1006, 410], [984, 322], [924, 288], [600, 282], [220, 286]], "w": 44, "front": True}],
                     "cans": [{"a": [220, 286], "b": [-230, 400], "w": 72, "front": True}]}
     b = m["body"]

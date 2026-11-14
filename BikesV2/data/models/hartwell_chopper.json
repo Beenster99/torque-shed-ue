@@ -2,9 +2,9 @@
  "name": "Hartwell chopper (working title H2)",
  "brand": "hartwell",
  "family": "Chopper",
- "rev": "A",
+ "rev": "B",
  "engine_label": "air-cooled look parallel twin",
- "frame_label": "rigid wishbone frame, no rear suspension",
+ "frame_label": "rigid drop basket frame, no rear suspension",
  "colours": {
   "body": "#6B1A22",
   "frame": "#5A161D",
@@ -397,16 +397,20 @@
     226
    ],
    "D2": [
-    990,
+    962,
     226
    ],
    "AX": [
     30,
     330
    ],
-   "K": [
-    1128,
-    560
+   "J": [
+    1080,
+    846
+   ],
+   "D": [
+    1048,
+    300
    ],
    "R1": [
     214,
@@ -456,12 +460,13 @@
    {
     "path": [
      "head_b",
-     "K",
+     "J",
+     "D",
      "D2",
      "P"
     ],
     "w": 28,
-    "t": 0.6
+    "t": 0.3
    }
   ],
   "plates": [],
@@ -645,11 +650,11 @@
    "tube": 16,
    "pts": [
     [
-     1004,
+     1048,
      300
     ],
     [
-     1078,
+     1122,
      332
     ]
    ],
@@ -658,7 +663,7 @@
   {
    "circle": 17,
    "at": [
-    1082,
+    1126,
     334
    ],
    "cls": "bolt"
@@ -667,11 +672,11 @@
    "tube": 10,
    "pts": [
     [
-     1082,
+     1126,
      334
     ],
     [
-     1114,
+     1158,
      388
     ]
    ],
