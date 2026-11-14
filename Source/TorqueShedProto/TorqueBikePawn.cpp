@@ -1202,6 +1202,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
 		(void)bMph;
+		// (robot:mph:N sets it for the rest of the run.)
+		if (TestRobotMph > 0.f) AutoMph = TestRobotMph;
 		const double Want = TestMove >= 0 ? TestMps : AutoMph / 2.23694;
 		const V3 P = Sim->Position;
 		int32 Ahead = Near;

@@ -174,6 +174,8 @@ public:
 	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
 	FString TestRideLog() const;
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+	// [test] robot:mph:N: the speed the robot holds (default 36 mph, or -TorqueAutoMph=).
+	static inline float TestRobotMph = 0.f;
 	// The test's stop: brakes on while the robot steers (bOn), then the robot off, the brakes left on.
 	void TestStop(bool bOn)
 	{
