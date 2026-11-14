@@ -100,12 +100,17 @@ def bench(m):
     # support struts for both mudguards, and the plate under the rear one
     wb = m["geometry"]["wheelbase"]
     fr = m["wheels"]["front"]["tyre_r"]
-    b["plate_hanger"] = [{"tube": 10, "pts": [[285, 744], [-250, 622]], "cls": "steelt", "front": True},
-                         {"tube": 9, "pts": [[wb - 8, fr + 30], [wb - 290, fr + 172]], "cls": "steelt", "front": True},
+    b["plate_hanger"] = [{"tube": 9, "pts": [[wb - 8, fr + 30], [wb - 290, fr + 172]], "cls": "steelt", "front": True},
                          {"tube": 9, "pts": [[wb + 8, fr + 30], [wb + 222, fr + 262]], "cls": "steelt", "front": True},
                          {"pts": [[-372, 468, 1], [-388, 474, 1], [-420, 384, 1], [-404, 378, 1]], "cls": "plate", "t": 0}]
     m["fit"] = dict(m.get("fit", {}), plate_hanger=True)
-    b["panels"] = [{"pts": [[640, 772, 1], [560, 756], [450, 756], [420, 736, 1], [470, 650], [555, 600, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7}]
+    # the side cover fills the whole triangle under the seat, back to the shock top (beenster, 14 Nov)
+    b["panels"] = [{"pts": [[640, 772, 1], [560, 756], [430, 752], [262, 748, 1], [300, 700], [370, 640], [450, 596], [540, 578, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7}]
+    # classics carry no pillion footpeg hanger: drop the high hanger tube and its peg
+    hg = m.get("hangers", [])
+    high = [h for h in hg if h.get("tube") and max(q[1] for q in h["pts"]) > 700]
+    ends = [h["pts"][-1] for h in high]
+    m["hangers"] = [h for h in hg if h not in high and not (h.get("circle") and any(math.hypot(h["at"][0] - e[0], h["at"][1] - e[1]) < 20 for e in ends))]
     sw = m["swingarm"]
     if sw.get("cls") == "alu" and not sw.get("shaft"):      # a two-sided swingarm takes the classic pair of shocks
         m["shock"] = {"top": [285, 744], "bottom": [95, 398], "twin": True}
