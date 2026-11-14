@@ -918,7 +918,7 @@ def build(model):
                 ring_ = [tuple(q[:2]) for q in pp[::max(1, len(pp) // 28)]]
                 cx_ = sum(q[0] for q in ring_) / len(ring_)
                 cz_ = sum(q[1] for q in ring_) / len(ring_)
-                secs = [(118, 1.0, 1.9, 0), (170, 0.9, 1.3, -10), (225, 0.72, 0.7, -24), (262, 0.5, 0.3, -34)]
+                secs = [(120, 1.0, 1.5, 0), (190, 0.92, 1.1, -8), (255, 0.8, 0.7, -20), (312, 0.62, 0.3, -32)]
                 for s in (-1, 1):
                     vs, fs = [], []
                     for y_, kx, kz, dz in secs:
