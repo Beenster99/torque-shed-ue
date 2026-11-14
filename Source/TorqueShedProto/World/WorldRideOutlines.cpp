@@ -26,7 +26,17 @@ struct RidePlan::OutlineStore
 	std::mutex Lock;
 	std::map<std::string, CellZip> Cells;
 	std::map<std::string, std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> TilesRead;   // "ROW_COL/TX_TZ"
+	std::vector<std::string> Notes;   // what each cell's first read came to, for the log (TakeOutlineNotes)
 };
+
+std::vector<std::string> RidePlan::TakeOutlineNotes() const
+{
+	std::vector<std::string> Out;
+	if (!Outlines) return Out;
+	std::lock_guard<std::mutex> Lock(Outlines->Lock);
+	Out.swap(Outlines->Notes);
+	return Out;
+}
 
 std::shared_ptr<RidePlan::OutlineStore> RidePlan::NewOutlineStore()
 {
@@ -208,6 +218,10 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 							break;
 						}
 				}
+				const auto Have = Idx->Buildings.find(Name);
+				St.Notes.push_back(Z->State == 1
+					? "cell " + Name + ": outlines read (" + std::to_string(Z->Entries.size() - 1) + " tiles, " + std::to_string(Z->Zip.size() / 1024) + " KB)"
+					: "cell " + Name + ": no outlines (" + (Have == Idx->Buildings.end() ? "not in the index" : "zip not had or unreadable") + "), the cell's own boxes");
 			}
 			if (Z->State != 1) continue;
 		}

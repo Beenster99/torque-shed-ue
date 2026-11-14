@@ -668,6 +668,7 @@ public:
 	struct OutlineStore;
 	static std::shared_ptr<OutlineStore> NewOutlineStore();
 	std::shared_ptr<OutlineStore> Outlines = NewOutlineStore();
+	std::vector<std::string> TakeOutlineNotes() const;   // [towns stage 3] each cell's outlines read since last asked
 	void WildTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// [OSM stage 3] What a square's buildings came to (for the tests and the report).
 	struct BuildingTally
