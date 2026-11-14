@@ -103,8 +103,8 @@
   "humid_swell": 1.5,
   "dull_mie": 12.0,
   "dull_rayleigh": 0.08,
-  "dull_mie_clouds": 4.0,
-  "dull_rayleigh_clouds": 0.35,
+  "dull_mie_clouds": 6.0,
+  "dull_rayleigh_clouds": 0.2,
   "fog_dull": 2.0,
   "fog_wet": 3.0,
   "fog_night_glow": 0.006
@@ -259,7 +259,8 @@
     "cape_depth": 0.0,
     "sheet": 1.0
    }
-  }
+  },
+  "extinction_scale": 8.0
  },
  "kinds_rules": {
   "_": "Stage 3: which kind of cloud each layer shows. Every rule is a band blended across, never a switch.",

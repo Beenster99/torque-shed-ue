@@ -106,6 +106,10 @@ struct Looks
 	// How dense the cloud is (MPC_Sky Density: the material's extinction scale) in rain, at least
 	// (each kind's own density is its row in Kinds).
 	double DensityRain = 1.6;
+	// What the material's extinction is multiplied by, on top of every kind's density (build 143's bench:
+	// overcast and full cover drew as a pale blue haze, the cloud far too thin to see through as grey).
+	// Tune on the bench with no rebuild: higher is thicker, greyer cloud.
+	double ExtinctionScale = 8.0;
 	// How grey the cloud's own colour is (MPC_Sky Albedo): white, and under rain.
 	double AlbedoFair = 1.0, AlbedoRain = 0.7;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun

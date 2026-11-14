@@ -532,6 +532,25 @@
     "humidity": 99,
     "visibility": 300
    }
+  },
+  {
+   "name": "42_cumulus_under_cirrus",
+   "note": "cumulus with cirrus above: the cirrus must sit BEHIND the cumulus",
+   "day": 172,
+   "sun": 40,
+   "look": "horizon",
+   "yaw": 200,
+   "weather": {
+    "preset": "sunny",
+    "cloud": 70,
+    "low": 45,
+    "mid": 0,
+    "high": 40,
+    "cape": 500,
+    "cloud_base": 1100,
+    "humidity": 70,
+    "code": 2
+   }
   }
  ]
 }
