@@ -249,5 +249,29 @@ def build(family, names):
     return out
 
 
+def build_wave(slug, title, lede, names):
+    """A review page for a wave of new models from more than one family: drawing, checks and any
+    3D pictures per model. (Kits, mixes and the pool join the family pages once drawings are approved.)"""
+    fams = json.load(open(os.path.join(ROOT, "data", "families.json")))["families"]
+    head = review_page.HEAD.replace("<title>Bike Models V2 Brands and Families</title>", f"<title>{title}</title>")
+    head = head.replace("\n</style>\n", EXTRA + elevation.CSS + "\n</style>\n")
+    h = [head, '<div class="wrap">', f'<header><span class="eyebrow">Bike Models V2 · Phase 3</span><h1>{title}</h1><p class="lede">{lede}</p></header>']
+    for n in names:
+        m = elevation.load(n)
+        res = checks.check(m, fams) + checks.deck(m, fams)
+        pk = checks.packing(m)
+        if pk is not None:
+            res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
+        li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
+        h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
+    h.append("</div>")
+    out = os.path.join(ROOT, "out", f"{slug}.html")
+    open(out, "w").write("\n".join(h))
+    return out
+
+
 if __name__ == "__main__":
-    print(build(sys.argv[1], sys.argv[2:]))
+    if sys.argv[1] == "--wave":   # --wave <slug> "<title>" "<lede>" <model> ...
+        print(build_wave(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]))
+    else:
+        print(build(sys.argv[1], sys.argv[2:]))
