@@ -535,22 +535,23 @@
   },
   {
    "name": "42_cumulus_under_cirrus",
-   "note": "cumulus with cirrus above: the cirrus must sit BEHIND the cumulus",
+   "note": "cumulus with cirrus above, looking 30 deg up: the cirrus must sit BEHIND the cumulus",
    "day": 172,
    "sun": 40,
    "look": "horizon",
    "yaw": 200,
    "weather": {
     "preset": "sunny",
-    "cloud": 70,
+    "cloud": 84,
     "low": 45,
     "mid": 0,
-    "high": 40,
+    "high": 70,
     "cape": 500,
     "cloud_base": 1100,
     "humidity": 70,
     "code": 2
-   }
+   },
+   "pitch": 30
   }
  ]
 }

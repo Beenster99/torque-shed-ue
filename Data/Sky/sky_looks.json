@@ -104,7 +104,7 @@
   "dull_mie": 12.0,
   "dull_rayleigh": 0.08,
   "dull_mie_clouds": 6.0,
-  "dull_rayleigh_clouds": 0.2,
+  "dull_rayleigh_clouds": 0.06,
   "fog_dull": 2.0,
   "fog_wet": 3.0,
   "fog_night_glow": 0.006

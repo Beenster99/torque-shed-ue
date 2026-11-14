@@ -101,6 +101,7 @@ private:
 		double SolarHour = 12.0;
 		FString Look;     // horizon (default), up, sun, away
 		double Yaw = 0.0; // for horizon: degrees from north, clockwise
+		double Pitch = 4.0; // for horizon: degrees up
 		FString Note;
 	};
 	TArray<FShot> Shots;

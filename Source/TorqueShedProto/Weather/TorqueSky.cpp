@@ -563,6 +563,7 @@ bool ATorqueSky::LoadBench(const FString& File)
 		Shot.Name = UTF8_TO_TCHAR(J.Str("name", "shot").c_str());
 		Shot.Look = UTF8_TO_TCHAR(J.Str("look", "horizon").c_str());
 		Shot.Yaw = J.Num("yaw", 0.0);
+		Shot.Pitch = J.Num("pitch", 4.0);
 		Shot.Note = UTF8_TO_TCHAR(J.Str("note").c_str());
 		Shot.Lat = J.Num("lat", 54.35);
 		Shot.Day = (int32)J.Num("day", 172.0);
@@ -626,7 +627,7 @@ void ATorqueSky::ShowShot(const FShot& Shot)
 	TorqueSky::SunAt(Shot.Lat, Shot.Day, Shot.SolarHour, E, Bearing);
 	// (The levels: x east, y south; a bearing from north, clockwise, as a yaw.)
 	auto YawOf = [](double FromNorth) { return (float)FMath::RadiansToDegrees(FMath::Atan2(-FMath::Cos(FMath::DegreesToRadians(FromNorth)), FMath::Sin(FMath::DegreesToRadians(FromNorth)))); };
-	FRotator Rot(4.0f, YawOf(Shot.Yaw), 0.0f);
+	FRotator Rot((float)Shot.Pitch, YawOf(Shot.Yaw), 0.0f);
 	if (Shot.Look == TEXT("up")) Rot = FRotator(89.0f, 0.0f, 0.0f);
 	else if (Shot.Look == TEXT("sun")) Rot = FRotator(FMath::Clamp((float)E, 4.0f, 60.0f), YawOf(Bearing), 0.0f);
 	else if (Shot.Look == TEXT("away")) Rot = FRotator(8.0f, YawOf(Bearing + 180.0), 0.0f);

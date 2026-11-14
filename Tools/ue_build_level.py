@@ -3042,7 +3042,9 @@ float best = 0.0;
         float lp = saturate(lumps[ly]);
         float shp = saturate(lerp(nv[0], nv[1], lp) * 0.65 + broad * 0.35);
         float dn = saturate((shp * profile - (1.0 - cv)) / 0.18);
-        dn = max(dn, saturate(profile * 1.5) * smoothstep(0.9, 1.0, cv));
+        // (a closed sky: every point cloud, thicker and thinner by the shape noise so a deck seen from
+        // below shows its lumps, not a flat sheet: build 146's bench, straight up at full cover)
+        dn = max(dn, saturate(profile * 1.5) * (0.35 + 0.65 * shp) * smoothstep(0.85, 1.0, cv));
         float erode = lerp(nv[1] * 0.7 + nv[2] * 0.3, nv[2], lp);
         dn = saturate(dn - (1.0 - erode) * 0.8 * saturate(raggeds[ly]) * (1.0 - dn * 0.5));
         best = max(best, dn * densities[ly]);
