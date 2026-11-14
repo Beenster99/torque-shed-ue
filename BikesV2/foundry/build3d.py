@@ -1194,7 +1194,133 @@ def build(model):
         for s in (-1, 1):
             n3 = nodes.get("S3", (470, 780))
             tube(f"pillionhanger{s}", [(n3[0], s * 112, n3[1]), (pegs[1][0], s * 168, pegs[1][1])], 8, mat("alu_dark"))
+    if DETAIL["on"]:
+        definition(model, locals())
     return dict(A=A, F=F, wb=wb)
+
+
+DETAIL = {"on": False}      # --definition: the Definition pass parts, on top of the outline build
+
+
+def sphere(name, at, r, material):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=r * MM, location=V(*at), segments=20, ring_count=12)
+    ob = bpy.context.object
+    ob.name = name
+    ob.data.materials.append(material)
+    bpy.ops.object.shade_smooth()
+    return ob
+
+
+def definition(model, c):
+    """Definition pass (plan doc, 14 Nov): the connective and close-look detail a real bike has, added on top of
+    the outline build without moving any part, so every fit and clearance check still holds. Hoses and cables,
+    cast lugs at the frame joints, plug caps and leads, fork seals, lamp bezel, filler cap bolts, seat seams."""
+    F, uf, nb, fk, top = c["F"], c["uf"], c["nb"], c["fk"], c["top"]
+    eng, crank, wide, nodes, half, fr, framem = c["eng"], c["crank"], c["wide"], c["nodes"], c["half"], c["fr"], c["framem"]
+    body, deck = model["body"], model.get("deck", {"nose": [700, 850]})
+    nose = deck["nose"]
+    hose, steel, dark = mat("rubber"), mat("steel"), mat("plastic")
+
+    def P(q, y):
+        return (q[0], y, q[1])
+    # frame joints: a smooth cast lug wherever main tubes meet
+    seen = set()
+    for tb in fr["tubes"]:
+        if tb.get("cls") == "sub":
+            continue
+        for n_ in tb["path"]:
+            if n_ in seen or n_ in ("head_t", "head_b"):
+                continue
+            seen.add(n_)
+            for sg in (-1, 1):
+                sphere(f"lug_{n_}{sg}", P(nodes[n_], sg * half(nodes[n_])), tb.get("w", 26) / 2 + 3.5, framem)
+    # fork seals and pinch bolts
+    stan = add(F, uf, fk["slider_top"])
+    for sg in (-1, 1):
+        y = sg * 105
+        tube(f"forkseal{sg}", [P(add(stan, uf, -12), y), P(add(stan, uf, 4), y)], 31.5, dark)
+        for d_ in (-14, 22):
+            q = add(add(F, uf, d_), nb, -30)
+            cone(f"pinch{sg}{d_}", P(q, y - 12), P(q, y + 12), 5, 5, steel, 8)
+        for at in (fk["length"] - 22, fk["lower_yoke"]):
+            q = add(add(F, uf, at), nb, -36)
+            cone(f"yokebolt{sg}{at}", P(q, y - 10), P(q, y + 10), 6, 6, steel, 8)
+    # brake hoses: front caliper up the fork leg to the right bar, rear caliper along the swingarm
+    cal = model.get("front_caliper")
+    grip = next((s_["at"] for s_ in model["front_end"] if s_.get("circle") == 20), [top[0] - 60, top[1] + 60])
+    if cal:
+        cc = (sum(q[0] for q in cal) / len(cal), sum(q[1] for q in cal) / len(cal))
+        smooth_tube("brakehose_f", [P(cc, -92), P(add(cc, uf, 90), -128), P(add(add(F, uf, fk["slider_top"]), nb, -40), -132),
+                                    P(add(add(F, uf, fk["lower_yoke"]), nb, -70), -96), P(add(top, nb, -70), -70), (grip[0] + 70, -150, grip[1] - 6), (grip[0] + 30, -190, grip[1] - 4)], 5, hose)
+        cone("brakeres", (grip[0] + 26, -196, grip[1] + 2), (grip[0] + 26, -196, grip[1] + 24), 17, 17, dark, 20)
+    rc = model.get("rear_caliper")
+    piv = model["swingarm"]["pivot"]
+    if rc:
+        cc = (sum(q[0] for q in rc["body"]) / len(rc["body"]), sum(q[1] for q in rc["body"]) / len(rc["body"]))
+        smooth_tube("brakehose_r", [P(cc, -100), (cc[0] + 90, -118, cc[1] + 40), (piv[0] - 120, -128, piv[1] + 30), (piv[0] + 30, -150, piv[1] + 70), (piv[0] + 40, -168, piv[1] + 130)], 5, hose)
+        cone("rearres", (piv[0] + 40, -168, piv[1] + 124), (piv[0] + 40, -168, piv[1] + 170), 15, 15, dark, 16)
+    # clutch and throttle cables from the bars down past the headstock
+    cs_ = eng["countershaft"]
+    smooth_tube("clutchcable", [(grip[0] + 30, 190, grip[1] - 4), (grip[0] + 80, 150, grip[1] - 10), P(add(top, nb, -60), 60), P(add(add(F, uf, fk["lower_yoke"]), nb, 40), 70),
+                                (crank[0] + 90, wide / 2 - 20, crank[1] + 190), (cs_[0] + 60, wide / 2 + 2, cs_[1] + 70)], 4, hose)
+    for k in (0, 1):
+        smooth_tube(f"throttle{k}", [(grip[0] + 20, -186, grip[1] - 14 - 8 * k), (grip[0] + 90, -140, grip[1] - 20), P(add(top, nb, -56), -40 - 14 * k),
+                                     P(add(add(F, uf, fk["lower_yoke"] + 40), nb, 50), -60), (nose[0] + 170, -70, nose[1] - 30)], 3.5, hose)
+    # radiator hoses with clips
+    r = model.get("radiator")
+    if r and eng["cylinders"]:
+        u = unit(r["angle"])
+        a, b = tuple(r["at"]), add(tuple(r["at"]), u, r["len"])
+        cy = eng["cylinders"][0]
+        uc = unit(cy["angle"])
+        headend = add(crank, uc, cy["start"] + cy["length"] + cy["head"] * 0.5)
+        runs = (("radhose_t", [P(add(b, u, -18), 118), (b[0] - 50, 132, b[1] + 6), ((b[0] + headend[0]) / 2, 124, (b[1] + headend[1]) / 2 + 30), (headend[0] + 20, 84, headend[1] + 10), P(headend, 60)]),
+                ("radhose_b", [P(add(a, u, 18), -118), (a[0] - 40, -128, a[1] - 20), (crank[0] + 150, -wide / 2 + 10, crank[1] + 60), (crank[0] + 110, -wide / 2 + 36, crank[1] + 30)]))
+        for nm, pts in runs:
+            smooth_tube(nm, pts, 13, hose)
+            for e_ in (0, -1):
+                d0, d1 = pts[e_], pts[1 if e_ == 0 else -2]
+                k_ = 0.25
+                cone(nm + f"clip{e_}", tuple(d0[i] + (d1[i] - d0[i]) * k_ for i in range(3)), tuple(d0[i] + (d1[i] - d0[i]) * (k_ + 0.12) for i in range(3)), 15, 15, steel, 16)
+    # plug caps and leads on separate cylinders
+    if eng["layout"] not in ("inline4", "triple"):
+        for i, cy in enumerate(eng["cylinders"]):
+            uc = unit(cy["angle"])
+            q = add(crank, uc, cy["start"] + cy["length"] + cy["head"] * 0.55)
+            rr_ = cy["bore_w"] / 2 + 10
+            cone(f"plugcap{i}", P(q, rr_ - 4), P(q, rr_ + 34), 9, 7, dark, 12)
+            smooth_tube(f"pluglead{i}", [P(q, rr_ + 30), (q[0] - 10, rr_ + 46, q[1] + 30), (nose[0] + 120, 86, nose[1] - 50), (nose[0] + 90, 50, nose[1] - 24)], 3.5, hose)
+    # lamp bezel behind a flat lens
+    for i, shp in enumerate(model["front_end"]):
+        if shp.get("cls") == "lens" and "pts" in shp and not shp.get("round") and model["family"].lower() != "sport":
+            pp = shapes.dense(shp["pts"], True, shp.get("t", 0.8))
+            cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+            pillow(f"bezel{i}", [(cx_ + (q[0] - cx_) * 1.12 + 11, cz_ + (q[1] - cz_) * 1.16 - 3) for q in pp], -90, 90, mat("chrome"), 5, 14)
+    # filler cap: a ring of small bolts
+    for i, cp in enumerate(body.get("caps", [])):
+        for k in range(6):
+            a_ = math.radians(60 * k + 30)
+            x_, y_ = cp["at"][0] + cp["r"] * 0.74 * math.cos(a_), cp["r"] * 0.74 * math.sin(a_)
+            cone(f"capbolt{i}{k}", (x_, y_, cp["at"][1] + 1), (x_, y_, cp["at"][1] + 6.5), 2.6, 2.6, steel, 8)
+    # seat seams: a raised stitched seam along each shoulder of the seat
+    st = next((s_ for s_ in body.get("seat", []) if s_.get("cls") == "seat"), None)
+    if st:
+        outline = shapes.dense(st["pts"], True, st.get("t", 1.0))
+        xs = [q[0] for q in outline]
+        x0, x1, spec = min(xs), max(xs), WIDTHS["seat"]
+        for sg in (-1, 1):
+            pts = []
+            for k in range(8, 93, 4):
+                u = k / 100
+                tb = shapes.top_bottom(outline, x0 + (x1 - x0) * u)
+                if not tb:
+                    continue
+                w = shapes.lerp_table(spec["w"], u) * (0.3 + 0.7 * math.sqrt(1.0 - (1.0 - min(1.0, min(u, 1 - u) / 0.1)) ** 2))
+                zc, h = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2
+                f_ = 0.7
+                pts.append((x0 + (x1 - x0) * u, sg * w * f_, zc + h * (1 - f_ ** spec["n"]) ** (1 / spec["n"]) + 0.5))
+            if len(pts) > 3:
+                smooth_tube(f"seam{sg}", pts, 2.4, mat("seat"))
 
 
 def studio(scene):
@@ -1210,6 +1336,13 @@ def studio(scene):
         L = bpy.context.object
         L.data.energy, L.data.size, L.data.shape = energy, size, "DISK"
         L.rotation_euler = _look(loc, (0.7, 0, 0.6))
+    if DETAIL["on"]:
+        # long softboxes overhead and to the side, so paint, chrome and glass have something real to reflect
+        for loc, size, energy in (((0.7, 0.0, 3.6), (5.0, 0.7), 70), ((0.7, 3.2, 1.4), (4.2, 0.45), 36), ((3.8, -0.6, 1.2), (0.5, 2.4), 18)):
+            bpy.ops.object.light_add(type="AREA", location=loc)
+            L = bpy.context.object
+            L.data.shape, L.data.size, L.data.size_y, L.data.energy = "RECTANGLE", size[0], size[1], energy
+            L.rotation_euler = _look(loc, (0.7, 0, 0.6))
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.use_denoising = True
@@ -1309,6 +1442,9 @@ if __name__ == "__main__":
     elif ka:
         model = mix.apply_kit(model, *ka)
         name = f"{name}_kit{''.join(str(x) for x in ka[:4])}{''.join('x' + str(x) for x in ka[4])}"
+    if "--definition" in sys.argv:
+        DETAIL["on"] = True
+        name += "_def"
     build(model)
     if "--glb" in sys.argv:
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
