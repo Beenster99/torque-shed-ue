@@ -82,13 +82,13 @@ def raise_bike(m, dz, rear_r):
 def corvano_adventure():
     """The adventure lead, drawn again (beenster, 14 Nov: start again from a big Italian V4 adventure tourer,
     reference only). Corvano's V-twin and trellis stood up on longer suspension with a 19 inch cast front
-    wheel; a pointed nose fairing with a slanted lamp and a tall screen; a big humped tank whose side panels
-    sweep down past the radiator; a stepped seat, a short high tail with a rack, a sump guard, hand guards
-    and a short low silencer on the swingarm side."""
+    wheel. Shapes from beenster's overdrawing: a long distinctive beak under a tall screen, a three-quarter
+    fairing, a long flatter tank, a long rear section comfortable for two with a rack, hand guards and one
+    large silencer swept up the swingarm side."""
     base = load("corvano_naked")
     m = copy.deepcopy(base)
     m.pop("kit", None)
-    m.update(name="Corvano adventure (working title A1)", family="Adventure", rev="B")
+    m.update(name="Corvano adventure (working title A1)", family="Adventure", rev="C")
     DZ, FR, RR, WB = 50, 330, 320, 1560
     g0, r0 = base["geometry"], base["wheels"]["front"]["tyre_r"]
     raise_bike(m, DZ, RR)
@@ -104,32 +104,49 @@ def corvano_adventure():
     fe.append({"pts": [[grip[0] + 54, grip[1] + 20, 1], [grip[0] + 70, grip[1] - 28, 1], [grip[0] + 22, grip[1] - 46, 1], [grip[0] + 30, grip[1] - 8, 1]], "cls": "plastic", "t": 0.5})
 
     def h(pts, cls, t=0.5):
-        return {"pts": [[round(tx + p[0], 1), round(tz + p[1], 1)] + list(p[2:]) for p in pts], "cls": cls, "t": t, "part": "head"}
-    fe = [h([[-46, 44, 1], [70, 34], [150, -18], [236, -92, 1], [218, -112, 1], [124, -106], [62, -150, 1], [-12, -142, 1], [-52, -40]], "body", 0.6),
-          h([[104, -18, 1], [168, -60], [152, -84, 1], [86, -56, 1]], "lens", 0.3),
-          h([[-12, 60, 1], [34, 50, 1], [46, 112, 1], [2, 120, 1]], "plastic", 0),
-          h([[80, 30, 1], [6, 246, 1], [-10, 240, 1], [52, 22, 1]], "screen", 0)] + fe
+        return {"pts": pts, "cls": cls, "t": t, "part": "head"}
+    # the nose, from beenster's overdrawing (14 Nov): a long beak reaching out over the front wheel, stepping
+    # up past the lamp to the base of a tall screen; its underside stays clear of the tyre at full compression
+    fe = [h([[1540, 918, 1], [1474, 988], [1462, 1002, 1], [1384, 1098], [1374, 1114, 1], [1250, 1124, 1], [1196, 1100, 1], [1186, 1000],
+             [1198, 936, 1], [1300, 918], [1440, 915], [1534, 906, 1]], "body", 0.5),
+          h([[1394, 1062, 1], [1452, 992], [1432, 974, 1], [1366, 1032, 1]], "lens", 0.3),
+          h([[1222, 1118, 1], [1268, 1110, 1], [1280, 1166, 1], [1236, 1174, 1]], "plastic", 0),
+          h([[1380, 1108, 1], [1244, 1298, 1], [1228, 1290, 1], [1350, 1100, 1]], "screen", 0)] + fe
     m["front_end"] = fe
     m["front_caliper"] = [[p[0] + WB - g0["wheelbase"], p[1] + FR - r0] + p[2:] for p in base["front_caliper"]]
     b = m["body"]
     b["front_guard"] = [{"arc": {"c": [WB, FR], "r0": FR + 18, "r1": FR + 44, "a0": 70, "a1": 150}, "cls": "body"}] + \
                        [move(s, WB - g0["wheelbase"], FR - r0) for s in base["body"]["front_guard"] if s.get("shroud")]
-    # the big tank: longer, with its hump pushed forward, and a side panel sweeping down past the radiator
-    tk = b["tank"][0]["pts"]
-    x0, zb = min(p[0] for p in tk), min(p[1] for p in tk)
-    for s in b["tank"]:
-        s["pts"] = [[round(x0 + (p[0] - x0) * 1.15, 1), round(zb + (p[1] - zb) * (1.0 + 0.14 * min(1.0, max(0.0, (p[0] - x0) / 300)) if p[1] > zb + 40 else 1.0), 1)] + p[2:] for p in s["pts"]]
-    b["caps"] = [dict(c, at=[round(x0 + (c["at"][0] - x0) * 1.15, 1), round(zb + (c["at"][1] - zb) * 1.12, 1)]) for c in b.get("caps", [])]
+    # a long, flatter tank falling to the seat
+    b["tank"] = [{"pts": [[1172, 1010, 1], [1136, 1076], [1050, 1104], [940, 1100], [830, 1066], [740, 1000], [690, 950, 1], [690, 902, 1], [1166, 918, 1], [1188, 960]], "cls": "body"},
+                 {"pts": [[1110, 1052], [1040, 1076], [940, 1072], [850, 1044]], "cls": "hl", "closed": False}]
+    b["caps"] = [{"at": [1000, 1100], "r": 15, "cls": "plastic"}]
+    # the long rear: a stepped seat for two on a tail that runs back past the rear axle to a kicked-up tip
+    b["seat"] = [{"pts": [[718, 962, 1], [640, 914], [560, 892], [470, 892], [400, 908], [350, 942], [300, 964], [180, 982], [40, 998], [-70, 1006, 1],
+                          [-60, 960, 1], [60, 950], [200, 930], [330, 900], [440, 852], [560, 842], [704, 884, 1]], "cls": "seat"},
+                 {"pts": [[640, 902], [560, 880], [470, 880], [408, 894]], "cls": "stitch", "closed": False},
+                 {"pts": [[340, 934], [300, 952], [180, 970], [40, 986]], "cls": "stitch", "closed": False}]
+    b["tail"] = [{"pts": [[470, 862, 1], [330, 904], [200, 934], [60, 954], [-60, 966], [-182, 1042, 1], [-192, 1012, 1], [-110, 930], [20, 890], [200, 850], [340, 800], [470, 790, 1]], "cls": "body", "t": 0.7},
+                 {"pts": [[-176, 1034, 1], [-196, 1024, 1], [-186, 1004, 1], [-166, 1012, 1]], "cls": "redlens", "t": 0}]
+    b["behind"] = [{"pts": [[470, 790, 1], [340, 800], [200, 850], [20, 890], [-110, 930, 1], [-100, 900, 1], [30, 858], [200, 814], [340, 768], [466, 762, 1]], "cls": "plastic fender", "t": 0.8, "slim": True}]
+    n = m["frame"]["nodes"]
+    n.update(S2=[-50, 950], S4=[60, 900])
+    b["plate_hanger"] = [{"tube": 18, "pts": [[-120, 936], [-236, 800], [-286, 700]], "cls": "plastic", "t": 0.6, "front": True},
+                         {"pts": [[-278, 724, 1], [-294, 732, 1], [-330, 642, 1], [-314, 634, 1]], "cls": "plate", "t": 0},
+                         {"pts": [[-272, 742, 1], [-262, 736, 1], [-280, 700, 1], [-290, 706, 1]], "cls": "redlens", "t": 0}]
+    # the three-quarter fairing: down from the nose and tank, past the radiator and round under the engine,
+    # cut back round the front cylinder so the engine's rear half stays on show
     b["panels"] = b["panels"] + [
-        {"pts": [[1180, 968, 1], [1240, 900], [1222, 790], [1150, 690], [1076, 640, 1], [996, 690, 1], [1008, 800], [1036, 930, 1]], "cls": "body", "t": 0.6},
-        {"pts": [[1176, 866, 1], [1196, 800], [1136, 722, 1], [1094, 762, 1]], "cls": "plastic", "t": 0.5},
-        {"pts": [[1014, 402, 1], [966, 296, 1], [724, 264, 1], [612, 292, 1], [700, 314, 1], [930, 342, 1]], "cls": "cast", "t": 0},
-        {"tube": 12, "pts": [[340, 986], [150, 1016], [40, 1016]], "cls": "dark"},
-        {"tube": 10, "pts": [[140, 1016], [190, 950]], "cls": "dark"}]
+        {"pts": [[1198, 938, 1], [1190, 860], [1152, 740], [1150, 560], [1138, 500], [1076, 410], [1052, 292, 1], [960, 262], [806, 262, 1], [800, 300, 1],
+                 [900, 332], [1006, 402], [1040, 520, 1], [1002, 640], [986, 770], [1040, 918, 1]], "cls": "body", "t": 0.5, "fairing": True},
+        {"pts": [[1150, 826, 1], [1168, 744], [1122, 644, 1], [1082, 694, 1]], "cls": "plastic", "t": 0.5},
+        {"tube": 12, "pts": [[260, 992], [60, 1032], [-150, 1056]], "cls": "dark"},
+        {"tube": 10, "pts": [[40, 1034], [70, 990]], "cls": "dark"}, {"tube": 10, "pts": [[-120, 1052], [-100, 1000]], "cls": "dark"}]
+    # one large silencer, swept up along the swingarm side
     hd = m["exhaust"]["headers"]
     m["exhaust"] = {"side": "left",
-                    "headers": [dict(hd[0], pts=hd[0]["pts"][:9] + [[500, 400]]), dict(hd[1], pts=hd[1]["pts"][:3] + [[490, 470], [500, 400]])],
-                    "cans": [{"a": [500, 400], "b": [236, 462], "w": 108, "front": True}]}
+                    "headers": [dict(hd[0], pts=hd[0]["pts"][:8] + [[560, 372]]), dict(hd[1], pts=hd[1]["pts"][:3] + [[520, 480], [560, 372]])],
+                    "cans": [{"a": [560, 372], "b": [50, 640], "w": 136, "front": True}]}
     b["overall"] = [-RR - 40, WB + FR + 10]
     m["frame_label"] = "steel trellis, engine as part of the frame, long-travel suspension"
     return m
