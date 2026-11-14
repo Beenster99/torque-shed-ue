@@ -169,6 +169,52 @@ def road_material_scanned(L, tex, roles):
         road = g.mix(own, road, tar)
         hard = tar
         near = tar
+    # The verge (build 147; beenster on 146: "remove these green road borders and blend the road into the
+    # side"): the shoulder's colour runs from grit at the tarmac's edge (0.072, 0.078, 0.045) to the verge's
+    # grass (0.10, 0.16, 0.03) a metre out (World/WorldRide's VergeGrass). Along that line, the land's own
+    # grass scan, graded as M_RideLandScan grades it, breaks through the grit in a ragged edge by the
+    # grit's stones and a fine wobble; the outer shoulder is all grass, so it meets the land unseen.
+    if "grass" in tex:
+        grit_c, lawn_c = (0.072, 0.078, 0.045), (0.10, 0.16, 0.03)
+        vspan = tuple(b - a for a, b in zip(grit_c, lawn_c))
+        vspan2 = sum(v * v for v in vspan)
+        vrel = g.op(unreal.MaterialExpressionSubtract, vc, g.const(grit_c))
+        vdot = g.node(unreal.MaterialExpressionDotProduct, -600)
+        g.link(vrel, vdot, "A")
+        g.link(g.const(vspan), vdot, "B")
+        valong = g.op(unreal.MaterialExpressionMultiply, vdot, const_b=1.0 / vspan2)
+        von = g.op(unreal.MaterialExpressionAdd, g.const(grit_c), g.op(unreal.MaterialExpressionMultiply, g.const(vspan), valong))
+        voff = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, voff, "A")
+        g.link(von, voff, "B")
+        vnear = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, g.const(0.014), voff), const_b=140.0))
+        vends = g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, valong, const_b=0.15), const_b=8.0)),
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), valong), const_b=8.0)))
+        vnear = g.op(unreal.MaterialExpressionMultiply, vnear, vends)
+        lawn = g.layer(tex["grass"], roles["grass"]["tile_m"])
+        lawn[0] = g.op(unreal.MaterialExpressionMultiply, lawn[0], const_b=0.75)
+        lgrey = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(lawn[0], lgrey)
+        g.link(g.const(1.0), lgrey, "Fraction")
+        lawn[0] = g.lerp(lgrey, lawn[0], g.const(1.6))
+        g.y += 140
+        # (the grit: the gravel scan, darkened to worn road dirt, else the old flat colour)
+        if gravel_key:
+            grit = list(grav)
+            grit[0] = g.op(unreal.MaterialExpressionMultiply, grav[0], g.const((0.62, 0.6, 0.55)))
+        else:
+            grit = own
+        wob = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.02, -0.5, 0.5, -1200, g.y + 200),
+                   g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.004, -0.5, 0.5, -1200, g.y + 400), const_b=1.5))
+        g.y += 140
+        # (grass from about a third of the way out, ragged by the wobble)
+        lawny = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.3), g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.35)),
+                     const_b=7.0))
+        verge = g.mix(grit, lawn, lawny)
+        road = g.mix(road, verge, vnear)
     # Wet: the tarmac dark and glossy (as Buttertubs' road), the gravel darker but still rough; dry keeps a
     # floor so there's no white sheen.
     wet = L.wetness(g)
@@ -614,6 +660,36 @@ def scanned_trees(L, kit):
             why.append("%s: %s" % (name, e))
             return None
 
+    def ready_materials(path):
+        """A static copy's materials made fit for the ride's instanced trees: a Megaplant's are made for
+        its skeletal mesh, and a material not flagged for instanced static meshes draws as the default
+        grey checker in a packaged game (the base material's usage flags)."""
+        try:
+            sm = unreal.load_asset(path.split(".")[0])
+            done = []
+            for m in sm.get_editor_property("static_materials"):
+                mi = m.get_editor_property("material_interface")
+                base = mi.get_base_material() if mi else None
+                if base is None or base.get_path_name() in done:
+                    continue
+                done.append(base.get_path_name())
+                changed = False
+                for flag in ("used_with_instanced_static_meshes", "used_with_nanite"):
+                    try:
+                        if not base.get_editor_property(flag):
+                            base.set_editor_property(flag, True)
+                            changed = True
+                    except Exception:
+                        pass
+                if changed:
+                    unreal.MaterialEditingLibrary.recompile_material(base)
+                    unreal.EditorAssetLibrary.save_loaded_asset(base)
+                    log("scanned trees: %s now flagged for instanced static meshes and Nanite" % base.get_path_name())
+            return True
+        except Exception as e:
+            why.append("%s materials: %s" % (path.rsplit(".", 1)[-1], e))
+            return None
+
     for kind, words in spec["kinds"].items():
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
@@ -626,6 +702,8 @@ def scanned_trees(L, kit):
         if skels:
             # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
             made = [m for m in (static_of_skeletal(p) for p in skels) if m]
+            for m in made:
+                ready_materials(m)
             log("scanned trees: %s: %d whole trees from its skeletal meshes (%s)%s" % (kind, len(made),
                 ", ".join(p.rsplit(".", 1)[-1] for p in skels), ("; " + "; ".join(why[-3:])) if not made and why else ""))
             got = made or got

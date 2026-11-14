@@ -1352,7 +1352,8 @@ int main()
 						for (size_t V = 0; V < Bore.Vertices(); ++V)
 						{
 							const double X = Bore.OriginX + Bore.Pos[V * 3], Y = Bore.Pos[V * 3 + 1], Z = Bore.OriginZ + Bore.Pos[V * 3 + 2];
-							const bool Green = Bore.Col[V * 3 + 1] > Bore.Col[V * 3] * 1.15 && Bore.Col[V * 3 + 1] > Bore.Col[V * 3 + 2] * 1.5;
+							// (the hill's grass, not the verge's brighter grass on the shoulders: build 147)
+							const bool Green = Bore.Col[V * 3 + 1] > Bore.Col[V * 3] * 1.15 && Bore.Col[V * 3 + 1] > Bore.Col[V * 3 + 2] * 1.5 && Bore.Col[V * 3 + 1] < 0.13f;
 							if (Green) ++Grass;
 							else if (Bore.Col[V * 3] > 0.3f && Bore.Col[V * 3] < 0.4f) ++Wall;
 							const double D = std::hypot(X - Pm.At.X, Z - Pm.At.Z);
@@ -1363,7 +1364,7 @@ int main()
 						for (size_t T = 0; T + 2 < Bore.Idx.size(); T += 3)
 						{
 							const uint32_t Va = Bore.Idx[T], Vb = Bore.Idx[T + 1], Vc = Bore.Idx[T + 2];
-							if (!(Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3] * 1.15 && Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3 + 2] * 1.5)) continue;
+							if (!(Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3] * 1.15 && Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3 + 2] * 1.5 && Bore.Col[Va * 3 + 1] < 0.13f)) continue;
 							const float* A3 = &Bore.Pos[Va * 3], * B3 = &Bore.Pos[Vb * 3], * C3 = &Bore.Pos[Vc * 3];
 							++LidTris;
 							if (double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) > 0.0) ++LidUp;

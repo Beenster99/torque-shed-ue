@@ -1248,7 +1248,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		}
 		return Y + 0.012;
 	};
-	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f};
+	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, VergeGrass[3] = {0.10f, 0.16f, 0.03f};
 	const auto Vertex = [&Out](const P2& At, double Y, const float* Colour)
 	{
 		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
@@ -1345,8 +1345,8 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		if (Edged[I] == 0) continue;
 		const size_t J = I + 1;
 		const uint32_t In0 = Vertex(Rim[I], RimH[I] - 0.012, Verge), In1 = Vertex(Rim[J], RimH[J] - 0.012, Verge);
-		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - 0.012 - ShoulderDip, Verge), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - 0.012 - ShoulderDip, Verge);
-		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - 0.012 - ShoulderDrop, Verge), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - 0.012 - ShoulderDrop, Verge);
+		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - 0.012 - ShoulderDip, VergeGrass), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - 0.012 - ShoulderDip, VergeGrass);
+		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - 0.012 - ShoulderDrop, VergeGrass), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - 0.012 - ShoulderDrop, VergeGrass);
 		Tri(In0, In1, Mid1); Tri(In0, Mid1, Mid0); Tri(Mid0, Mid1, Out1); Tri(Mid0, Out1, Out0);
 	}
 }
@@ -1576,6 +1576,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	const double PaintFrom = Which == 0 ? -1.0 : 12.0, PaintTo = Which == 0 ? 1e18 : Mine->Length - 12.0;
 	// (the Godot game's colours, linear: tarmac, the verge (worn grass and grit: the Godot gravel read as a pale
 	// band beside the road in build 140), paint)
+	// [build 147] (and the verge's grass: the shoulder runs from grit at the tarmac's edge to grass, which
+	// M_RideRoad draws in the land's grass scan with a ragged edge; beenster, build 146: "remove these green
+	// road borders and blend the road into the side")
+	static constexpr float VergeGrass[3] = {0.10f, 0.16f, 0.03f};
 	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, Paint[3] = {0.83f, 0.83f, 0.75f},
 		Stone[3] = {0.2f, 0.19f, 0.17f}, Tile[3] = {0.51f, 0.49f, 0.43f}, Concrete[3] = {0.21f, 0.21f, 0.2f}, Soot[3] = {0.06f, 0.06f, 0.06f},
 		Portal[3] = {0.34f, 0.33f, 0.3f}, Grass[3] = {0.088f, 0.105f, 0.04f};
@@ -1634,6 +1638,17 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		M.Col.push_back(Colour[0]); M.Col.push_back(Colour[1]); M.Col.push_back(Colour[2]);
 	};
 	// A strip between two rows from OffA to OffB (left to right: OffA the greater), up-facing.
+	// (a strip whose A edge is one colour and B edge another)
+	const auto Graded = [&Into, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* ColourA, const float* ColourB)
+	{
+		RideMesh& M = *Into;
+		const uint32_t V = uint32_t(M.Vertices());
+		Put(R0, A0, LiftA, ColourA);
+		Put(R0, B0, LiftB, ColourB);
+		Put(R1, A1, LiftA, ColourA);
+		Put(R1, B1, LiftB, ColourB);
+		M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
+	};
 	const auto Strip = [&Into, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* Colour, bool BothSides = false)
 	{
 		RideMesh& M = *Into;
@@ -2064,13 +2079,13 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const Row Sa = ShoulderFrom[Sd] > 0.0 ? Between(A, B, ShoulderFrom[Sd]) : A, Sb = ShoulderTo[Sd] < 1.0 ? Between(A, B, ShoulderTo[Sd]) : B;
 				if (Sd == 0)
 				{
-					Strip(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, Verge);
-					Strip(Sa, Sb, Sa.Half + Shoulder, Sa.Half + ShoulderFlat, Sb.Half + Shoulder, Sb.Half + ShoulderFlat, -ShoulderDrop, -ShoulderDip, Verge);
+					Graded(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, VergeGrass, Verge);
+					Strip(Sa, Sb, Sa.Half + Shoulder, Sa.Half + ShoulderFlat, Sb.Half + Shoulder, Sb.Half + ShoulderFlat, -ShoulderDrop, -ShoulderDip, VergeGrass);
 				}
 				else
 				{
-					Strip(Sa, Sb, -Sa.Half, -Sa.Half - ShoulderFlat, -Sb.Half, -Sb.Half - ShoulderFlat, 0.0, -ShoulderDip, Verge);
-					Strip(Sa, Sb, -Sa.Half - ShoulderFlat, -Sa.Half - Shoulder, -Sb.Half - ShoulderFlat, -Sb.Half - Shoulder, -ShoulderDip, -ShoulderDrop, Verge);
+					Graded(Sa, Sb, -Sa.Half, -Sa.Half - ShoulderFlat, -Sb.Half, -Sb.Half - ShoulderFlat, 0.0, -ShoulderDip, Verge, VergeGrass);
+					Strip(Sa, Sb, -Sa.Half - ShoulderFlat, -Sa.Half - Shoulder, -Sb.Half - ShoulderFlat, -Sb.Half - Shoulder, -ShoulderDip, -ShoulderDrop, VergeGrass);
 				}
 			}
 		}
@@ -2215,8 +2230,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					Out0 = At3(CurveOut[S], CurveH[S] - ShoulderDrop), Out1 = At3(CurveOut[S + 1], CurveH[S + 1] - ShoulderDrop);
 				Quad3(In0, In1, Mid1, In0, Sky, Verge, false);
 				Quad3(In0, Mid1, Mid0, In0, Sky, Verge, false);
-				Quad3(Mid0, Mid1, Out1, Mid0, Sky, Verge, false);
-				Quad3(Mid0, Out1, Out0, Mid0, Sky, Verge, false);
+				Quad3(Mid0, Mid1, Out1, Mid0, Sky, VergeGrass, false);
+				Quad3(Mid0, Out1, Out0, Mid0, Sky, VergeGrass, false);
 			}
 		}
 		for (int S = 0; S + 1 < 2 * (Segs + 1); ++S) Quad3(Hub3, At3(Rim[S], RimH[S]), At3(Rim[S + 1], RimH[S + 1]), Hub3, Sky, Tarmac, false);
