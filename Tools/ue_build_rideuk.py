@@ -489,7 +489,10 @@ def grass_materials(L, kit):
     log("grass materials: M_RideFoliage%s, %d scanned instances" % (", M_RideFoliageScan" if master else "", len(copied)))
 
 
-SCAN_DEST = "/Game/RideUK/ScannedTrees"
+# (outside /Game/RideUK, which DefaultGame.ini always cooks: the copies cook only when the kit plants them,
+# so while scanned_trees.json is off they stay out of the package; round 144 cooked them, +452 MB)
+SCAN_DEST = "/Game/ScannedTrees"
+OLD_SCAN_DEST = "/Game/RideUK/ScannedTrees"
 
 
 def scanned_trees(L, kit):
@@ -552,6 +555,14 @@ def scanned_trees(L, kit):
         return None
 
     why = []
+    if unreal.EditorAssetLibrary.does_directory_exist(OLD_SCAN_DEST):
+        # (round 144's copies, moved out of the always-cooked folder rather than made again)
+        if unreal.EditorAssetLibrary.does_directory_exist(SCAN_DEST):
+            unreal.EditorAssetLibrary.delete_directory(OLD_SCAN_DEST)
+            log("scanned trees: %s deleted (%s already made)" % (OLD_SCAN_DEST, SCAN_DEST))
+        else:
+            ok = unreal.EditorAssetLibrary.rename_directory(OLD_SCAN_DEST, SCAN_DEST)
+            log("scanned trees: %s moved to %s%s" % (OLD_SCAN_DEST, SCAN_DEST, "" if ok else " (FAILED: delete it in the editor)"))
 
     def static_of_skeletal(path):
         """A Megaplant's whole tree is a SkeletalMesh (its bones sway in the wind): a static copy of it,
