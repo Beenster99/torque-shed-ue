@@ -83,10 +83,14 @@ const double LEAN_TC_FULL = 0.873;
 const double STAB_SETTLE = 0.08;
 const double STRUGGLE_FROM = 0.35;
 const double STRUGGLE_CRANK = 1.8;
-// How near the tyre's peak slip a hard stop works (the rider, or ABS). Godot's 0.55 stopped every road
-// bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m against 34-37); 0.45 puts
-// them in range (SimTest/realism_test).
-const double BRAKE_KEEP = 0.45;
+// How near the tyre's peak slip a hard stop works (the rider, or ABS), front and back. Godot's 0.55 on
+// both stopped every road bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m
+// against 34-37), and 0.45 on both put them in range but left the front brake alone soft: 0.74 g, where
+// a real bike's front alone does 0.8-0.9 g and the back adds little once it goes light (build 146,
+// beenster: "braking was weak", riding on the front only). The front works nearer its peak and the back
+// further from its own, so both together still stop in the road tests' range (SimTest/realism_test).
+const double BRAKE_KEEP_FRONT = 0.55;
+const double BRAKE_KEEP_REAR = 0.2;
 const double AIR_DENSITY = 1.2;
 const double AIR_REV_PITCH = 7.0;
 } // namespace
@@ -1196,7 +1200,7 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 	{
 		// The rider (or ABS) eases the brake before it goes past the grip left with the cornering.
 		const double Left = std::max(std::sqrt(std::max(1.0 - Sy * Sy, 0.0)), 0.25);
-		const double Allowed = Left * BRAKE_KEEP + CARELESS_SLIP * (1.0 - Care) / Care;
+		const double Allowed = Left * (IsFront ? BRAKE_KEEP_FRONT : BRAKE_KEEP_REAR) + CARELESS_SLIP * (1.0 - Care) / Care;
 		if ((OmegaNew * REff - VLong) / Vden / Kp < -Allowed)
 		{
 			OmegaNew = std::max((VLong - Allowed * Kp * Vden) / REff, 0.0);

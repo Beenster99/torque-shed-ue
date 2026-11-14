@@ -2846,6 +2846,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		Dash.Step(*Sim, Throttle, Sim->EngineOn, DeltaSeconds);
 		TripSpeedKm += FMath::Abs(Sim->Speed) * DeltaSeconds / 1000.0;
 		TripLogTime += DeltaSeconds;
+		BrakeLogHeld[0] += FrontBrake > 0.02 ? DeltaSeconds : 0.0;
+		BrakeLogHeld[1] += RearBrake > 0.02 ? DeltaSeconds : 0.0;
 		if ((TripLogClock += DeltaSeconds) >= 10.0)
 		{
 			TripLogClock = 0.0;
@@ -4732,6 +4734,12 @@ void ATorqueBikePawn::TripLog(const TCHAR* Why)
 	UE_LOG(LogTemp, Log, TEXT("Torque trip (%s): dash %.3f km, speed x time %.3f km, %s, %.1f s ridden, now %.1f km/h"),
 		Why, Dash.TripKm, TripSpeedKm, bYard ? TEXT("in the yard (no route)") : *FString::Printf(TEXT("Buttertubs route %.3f km of %.3f"), DoneM / 1000.0, RouteLengthM / 1000.0),
 		TripLogTime, FMath::Abs(Sim->Speed) * 3.6);
+	// The brakes over the same stretch: how long each lever was on, where it is now, and the discs' heat
+	// (build 146's front disc ran up to 625 °C on Ride UK's hills).
+	UE_LOG(LogTemp, Log, TEXT("Torque brakes: front on %.1f s, rear on %.1f s of the last %.0f s, levers now %.2f / %.2f, discs %.0f / %.0f C, pads %.0f / %.0f C, gear %d"),
+		BrakeLogHeld[0], BrakeLogHeld[1], TripLogClock > 0.0 ? TripLogClock : 10.0, FrontBrake, RearBrake, Sim->Heat.Discs[0], Sim->Heat.Discs[1],
+		Sim->Heat.Pads[0], Sim->Heat.Pads[1], Sim->Gear);
+	BrakeLogHeld[0] = BrakeLogHeld[1] = 0.0;
 }
 
 void ATorqueBikePawn::DrawHud()
