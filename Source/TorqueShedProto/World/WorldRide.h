@@ -923,6 +923,27 @@ public:
 		std::shared_ptr<const SiteModel> Model;
 		double Turn = 0.0;
 	};
+	// [OSM stage 5B] The roundabouts: the map's roundabout edges joined into closed rings (IndexRings).
+	struct RoadRing
+	{
+		std::vector<int> Edges, Nodes;   // round it, each edge from the node before it
+		std::vector<P2> Line;            // its mapped line round, closed (the first point not repeated)
+		P2 Mid;
+		double Radius = 0.0;             // the mean distance of its line from Mid (m)
+		double Stray = 0.0;              // how far its line strays from that circle at most (m)
+		bool Circle = false;             // near enough a circle to be drawn as one
+		bool Mini = false;               // small enough to be a mini-roundabout
+		bool Clockwise = false;          // its edges run clockwise seen from above
+	};
+	std::vector<RoadRing> RoadRings;
+	std::unordered_map<int, int> RingOfNode;   // a node on a ring: which
+	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12;
+	void IndexRings();
+	int RoundRings();   // the rings near a circle made true arcs (before any road is laid): how many
+	static constexpr double RingStep = 2.0;
+	int RingAt(int Node) const;   // the ring a node is on, -1 none
+	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
+	std::vector<unsigned char> RoundEdge;   // by edge: 1 on a ring drawn as a circle (IndexRings)
 	std::vector<PlaceRecipe> PlaceRecipes;
 	std::vector<SiteNote> SiteNotes;   // [places stage 5] the notes for this ride's places (IndexPlaces)
 	std::vector<int> SightNote;        // for each of Area.Roads.Sights its note in SiteNotes, -1 none

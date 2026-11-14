@@ -712,6 +712,46 @@ int main(int Argc, char** Argv)
 			++Shown;
 		}
 	}
+	if (std::getenv("WORLD_RIDE_RINGS") != nullptr)
+	{
+		// [OSM stage 5B] The roundabouts the map marks, and how round each is.
+		Plan->IndexRings();
+		int Round = 0, Mini = 0;
+		for (const RidePlan::RoadRing& Rg : Plan->RoadRings) { Round += Rg.Circle ? 1 : 0; Mini += Rg.Mini ? 1 : 0; }
+		std::printf("Rings: %d (%d near a circle, %d mini)\n", int(Plan->RoadRings.size()), Round, Mini);
+		// (the rings the ride goes round: how well its smoothed road keeps to each)
+		for (size_t I = 0; I < Plan->RoadRings.size(); ++I)
+		{
+			const RidePlan::RoadRing& Rg = Plan->RoadRings[I];
+			bool Ridden = false;
+			for (const auto& St : Plan->MadeSteps)
+				for (int E : Rg.Edges) Ridden = Ridden || St.Edge == E;
+			if (!Ridden) continue;
+			double Least = 1e9, Most = 0.0, Tightest = 1e9;
+			int On = 0;
+			for (size_t K = 2; K + 2 < Plan->Road.size(); ++K)
+			{
+				const double D = Plan->Road[K].At.DistanceTo(Rg.Mid);
+				if (D > Rg.Radius + 12.0) continue;
+				++On;
+				Least = std::fmin(Least, D);
+				Most = std::fmax(Most, D);
+				// (the bend: the circle through this point and those two either side)
+				const P2 A = Plan->Road[K - 2].At, B = Plan->Road[K].At, C = Plan->Road[K + 2].At;
+				const double Ab = A.DistanceTo(B), Bc = B.DistanceTo(C), Ac = A.DistanceTo(C);
+				const double Cross = std::fabs((B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X));
+				if (Cross > 1e-9) Tightest = std::fmin(Tightest, Ab * Bc * Ac / (2.0 * Cross));
+			}
+			std::printf("  ridden ring %zu (radius %.1f%s): %d road knots within 12 m, %.1f to %.1f m from its middle, tightest bend %.1f m\n", I, Rg.Radius,
+				Rg.Circle ? ", a circle" : "", On, Least, Most, Tightest);
+		}
+		for (size_t I = 0; I < Plan->RoadRings.size() && I < 20; ++I)
+		{
+			const RidePlan::RoadRing& Rg = Plan->RoadRings[I];
+			std::printf("  ring %zu at %.0f, %.0f: radius %.1f m, strays %.1f m, %zu edges, %zu points%s%s\n", I, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Stray, Rg.Edges.size(), Rg.Line.size(),
+				Rg.Circle ? ", a circle" : "", Rg.Clockwise ? ", clockwise" : ", anticlockwise");
+		}
+	}
 	if (const char* LinesAt = std::getenv("WORLD_RIDE_LINES_AT"))
 	{
 		// The walls, hedges and fences mapped within 80 m of lat,lon, and the roads' points there.

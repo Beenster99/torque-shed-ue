@@ -224,6 +224,9 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	const std::function<void(const std::string&)>& Said, const P2* StartAt)
 {
 	const auto Tell = [&Said](const std::string& Text) { if (Said) Said(Text); };
+	// [OSM stage 5B] The roundabouts found and the round ones made true circles, before any road is laid.
+	R->IndexRings();
+	if (R->RoundRings() > 0) R->IndexRings();
 	const Region& G = R->Area.Roads;
 	const std::vector<RideStep>& Steps = R->MadeSteps;
 	const int From = Steps.front().From;
@@ -254,6 +257,8 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	for (size_t I = 0; I < Raw.size(); ++I)
 	{
 		Fair[I] = RoadLine::FairOf(G.ClassOf(Owner[I]));
+		// [OSM stage 5B] (round a roundabout drawn as a circle: kept to it, not faired across the island)
+		if (R->OnRoundRing(Owner[I])) Fair[I] = 0.0;
 		if (I > 0) RawAlong[I] = RawAlong[I - 1] + Raw[I].DistanceTo(Raw[I - 1]);
 	}
 	Tell("Smoothing the road");
@@ -801,7 +806,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		}
 	}
 	const std::string& Class = G.ClassOf(int(E));
-	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, std::vector<double>(Raw.size(), RoadLine::FairOf(Class)));
+	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, std::vector<double>(Raw.size(), OnRoundRing(E) ? 0.0 : RoadLine::FairOf(Class)));
 	// (the knots stop at the last whole step: on to the junction itself, so no road ends short of it)
 	if (Line.empty() || Line.back().DistanceTo(Raw.back()) > 0.3) Line.push_back(Raw.back());
 	if (Line.size() < 2) return false;
