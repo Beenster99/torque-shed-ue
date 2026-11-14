@@ -1285,6 +1285,34 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			const P3 Lo3 = At3(F.At.X + Face.X * 0.15, Y + 0.85, F.At.Z + Face.Z * 0.15), Hi3 = At3(F.At.X - Face.X * 0.15, Y + 1.25, F.At.Z - Face.Z * 0.15);
 			const auto Pt = [&](const P3& C, double Su) { return At3(C.X + U.X * Su * 0.55, C.Y, C.Z + U.Z * Su * 0.55); };
 			Quad(Out, Pt(Lo3, -1.0), Pt(Lo3, 1.0), Pt(Hi3, 1.0), Pt(Hi3, -1.0), At3(F.At.X + Face.X * 50.0, Y + 60.0, F.At.Z + Face.Z * 50.0), Shade(Grey, 1.6), true);
+			if (!F.Text.empty())
+			{
+				// [places stage 7] A place's board lettered: what it is ("Stone circle"), then its note in
+				// lines of up to 26 letters, dark on the pale panel, read up close.
+				static const Rgb Ink = {0.03f, 0.03f, 0.035f};
+				const size_t Bar = F.Text.find('|');
+				std::vector<std::string> Lines = {F.Text.substr(0, Bar)};
+				if (Bar != std::string::npos)
+				{
+					std::string Line, Word;
+					const std::string Note = F.Text.substr(Bar + 1) + " ";
+					for (char C : Note)
+					{
+						if (C != ' ') { Word += C; continue; }
+						if (!Line.empty() && Line.size() + 1 + Word.size() > 26) { Lines.push_back(Line); Line.clear(); }
+						Line += (Line.empty() ? "" : " ") + Word;
+						Word.clear();
+					}
+					if (!Line.empty()) Lines.push_back(Line);
+				}
+				for (size_t L = 0; L < Lines.size() && L < 4; ++L)
+				{
+					// (down the sloping panel: each line a little lower and further forward)
+					const double T = 0.8 - 0.2 * double(L) - (L > 0 ? 0.1 : 0.0);
+					const P3 C = At3(Lo3.X + (Hi3.X - Lo3.X) * T + Face.X * 0.05, Lo3.Y + (Hi3.Y - Lo3.Y) * T, Lo3.Z + (Hi3.Z - Lo3.Z) * T + Face.Z * 0.05);
+					Label(C, Face, L == 0 ? 0.07 : 0.045, Lines[L], Ink);
+				}
+			}
 			break;
 		}
 		case PlaceBoard:

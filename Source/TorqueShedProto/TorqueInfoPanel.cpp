@@ -7,6 +7,7 @@
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerController.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueProfile.h"
 #include "TorqueBikePawn.h"
 #include "Weather/WeatherModel.h"
 #include "World/TorqueRideWorld.h"
@@ -950,6 +951,34 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 					TorqueUi::Polygon(Canvas, Tri, Accent);
 				}
 				RY += RowH;
+			}
+		}});
+	}
+
+	// 7. [places stage 7] The places visited: yours (your profile's list) and each co-op rider's count and last.
+	{
+		TArray<FString> Lines;
+		const FTorqueProfile& Me = FTorqueProfile::Mine();
+		const FString MyLast = Me.LastVisitedName();
+		Lines.Add(Me.Visited.Num() == 0 ? FString(TEXT("You: none yet. Ride to a place's board or its view spot."))
+			: FString::Printf(TEXT("You: %d place%s, last %s"), Me.Visited.Num(), Me.Visited.Num() == 1 ? TEXT("") : TEXT("s"), *MyLast));
+		if (World->GetNetMode() != NM_Standalone)
+			for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+			{
+				const ATorquePlayerState* TPS = Cast<ATorquePlayerState>((*It)->GetPlayerState());
+				if (*It == Bike || !TPS || TPS->PlacesVisited <= 0) continue;
+				Lines.Add(FString::Printf(TEXT("%s: %d place%s, last %s"), *TPS->GetPlayerName(), TPS->PlacesVisited, TPS->PlacesVisited == 1 ? TEXT("") : TEXT("s"), *TPS->LastPlace));
+			}
+		if (Lines.Num() > 6) Lines.SetNum(6);
+		const float LineH = 17.0f * S;
+		Parts.Add({HeadH + Lines.Num() * LineH + 4.0f * S, 35, [=](float Y)
+		{
+			Heading(TEXT("PLACES VISITED"), FString(), Y);
+			float LY = Y + HeadH;
+			for (const FString& L : Lines)
+			{
+				TorqueUi::TextFit(Canvas, L, TX, LY, 13.5f * S, CW, Dim);
+				LY += LineH;
 			}
 		}});
 	}

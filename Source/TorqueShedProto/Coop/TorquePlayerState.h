@@ -46,6 +46,10 @@ public:
 	// [Ride UK] The journey code (the host's, ATorqueGameState::RideJourney) whose road this player's
 	// game has planned, ready to set off on it ("" for none).
 	UPROPERTY(Replicated) FString RideReadyFor;
+	// [places stage 7] How many places this player has visited (their profile's list) and the last, for the
+	// others' info panels.
+	UPROPERTY(Replicated) int32 PlacesVisited = 0;
+	UPROPERTY(Replicated) FString LastPlace;
 	UFUNCTION(Server, Reliable) void ServerSetRideReady(const FString& Code);
 	// [co-op] This player's change to the shared journey in the Route planner (everyone plans it).
 	UFUNCTION(Server, Reliable) void ServerSetRideJourney(const FString& Code, const FString& Name);
@@ -55,6 +59,7 @@ public:
 
 	// From the owning player's game; the host passes it on to everyone.
 	UFUNCTION(Server, Reliable) void ServerSetActivity(const FString& What);
+	UFUNCTION(Server, Reliable) void ServerSetPlaces(int32 Count, const FString& Last);   // [places stage 7]
 	UFUNCTION(Server, Reliable) void ServerSetLook(const FString& NewName, uint8 NewColour);
 	UFUNCTION(Server, Reliable) void ServerSetBay(int32 NewBay);
 	UFUNCTION(Server, Reliable) void ServerSetRiderStyle(uint8 NewStyle);
