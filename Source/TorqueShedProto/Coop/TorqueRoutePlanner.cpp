@@ -1,6 +1,7 @@
 #include "Coop/TorqueRoutePlanner.h"
 
 #include "Coop/TorquePlayerController.h"
+#include "Coop/TorqueSettings.h"
 #include "Coop/TorqueUi.h"
 #include "World/CellStore.h"
 #include "World/TorqueRideWorld.h"
@@ -12,6 +13,9 @@
 #include "Engine/Canvas.h"
 #include "Engine/Texture2D.h"
 #include "GameFramework/PlayerController.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformProcess.h"
@@ -21,6 +25,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Weather/WeatherModel.h"
 
 #include <algorithm>
 #include <cmath>
@@ -184,6 +189,54 @@ FString FTorqueRoutePlanner::NameAt(double Lat, double Lon) const
 	const TorqueWorld::Route::Place* P = W->Places().Near(Lat, Lon, 3000.0);
 	if (P && TorqueWorld::Route::GroundMetres(Lat, Lon, P->Lat, P->Lon) < 8000.0) return TRPI::ToF(P->Name);
 	return FString();
+}
+
+void FTorqueRoutePlanner::AskRouteSky(const TorqueWorld::RideSummary& Sum, int32 Count)
+{
+	RouteSky->For = Count;
+	RouteSky->Line.Reset();
+	// (Only with the internet asked for: live weather or "about this place" on, as the info panel.)
+	const FTorqueSettings& Set = FTorqueSettings::Get();
+	if (Sum.Line.size() < 2 || (!Set.bPlaceLookup && Set.WeatherMode != FTorqueSettings::WeatherLive)) return;
+	std::vector<std::pair<double, double>> Line;
+	Line.reserve(Sum.Line.size());
+	for (const TorqueWorld::Geo& G : Sum.Line) Line.push_back({G.Lat, G.Lon});
+	// A stop about every 10 km, 3 to 16 of them.
+	const int32 Stops = FMath::Clamp(FMath::RoundToInt32(Sum.Metres / 10000.0) + 1, 3, 16);
+	const double RideS = FMath::Max(Sum.Minutes, 1.0) * 60.0;
+	TSharedRef<std::vector<TorqueWeather::RouteStop>> Points = MakeShared<std::vector<TorqueWeather::RouteStop>>(TorqueWeather::RouteStops(Line, Stops, RideS));
+	TArray<FString> Names;
+	for (const TorqueWeather::RouteStop& P : *Points) Names.Add(NameAt(P.Lat, P.Lon));
+	const int32 Hours = FMath::CeilToInt32(RideS / 3600.0) + 2;
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(UTF8_TO_TCHAR(TorqueWeather::OpenMeteoRouteUrl(*Points, Hours).c_str()));
+	Req->SetVerb(TEXT("GET"));
+	Req->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	Req->SetTimeout(15.0f);
+	const long long Start = FDateTime::UtcNow().ToUnixTimestamp();
+	const bool bImperial = Set.Units == 1;
+	TSharedRef<FRouteSky> Sky = RouteSky;
+	Req->OnProcessRequestComplete().BindLambda([Sky, Points, Names, Start, bImperial, Count](FHttpRequestPtr, FHttpResponsePtr Resp, bool bConnected)
+	{
+		Sky->bBusy = false;
+		if (Sky->For != Count) return;   // (the journey changed meanwhile)
+		std::string Why = "no answer";
+		int Utc = 0;
+		if (bConnected && Resp.IsValid() && EHttpResponseCodes::IsOk(Resp->GetResponseCode())
+			&& TorqueWeather::ParseRouteWeather(TCHAR_TO_UTF8(*Resp->GetContentAsString()), Start, *Points, &Why, &Utc))
+		{
+			std::vector<std::string> Called;
+			for (const FString& N : Names) Called.push_back(TCHAR_TO_UTF8(*N));
+			Sky->Line = UTF8_TO_TCHAR(TorqueWeather::RouteWords(*Points, Called, Start, Utc, bImperial).c_str());
+			UE_LOG(LogTemp, Log, TEXT("Torque weather: along the journey (%d stops): %s"), int32(Points->size()), *Sky->Line);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque weather: the journey's weather failed: %s"), UTF8_TO_TCHAR(Why.c_str()));
+		}
+	});
+	RouteSky->bBusy = true;
+	Req->ProcessRequest();
 }
 
 void FTorqueRoutePlanner::Say(const FString& Text)
@@ -931,6 +984,13 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 			if (!Sum.StopsLine.empty())
 			{
 				Ui::TextFit(Canvas, TEXT("On the way: ") + TRPI::ToF(Sum.StopsLine), X0, TY, 13.0f * S, PW, FLinearColor(0.75f, 0.9f, 1.0f, 0.9f));
+				TY += 18.0f * S;
+			}
+			// [skies stage 6] The weather on the way, if setting off now.
+			if (RouteSky->For != W->PreviewCount() && !RouteSky->bBusy) AskRouteSky(Sum, W->PreviewCount());
+			if (!RouteSky->Line.IsEmpty() && RouteSky->For == W->PreviewCount())
+			{
+				Ui::TextFit(Canvas, TEXT("Weather: ") + RouteSky->Line, X0, TY, 13.0f * S, PW, FLinearColor(0.8f, 0.86f, 1.0f, 0.95f));
 				TY += 18.0f * S;
 			}
 			// [stage 8] What of the map is thin on the way.

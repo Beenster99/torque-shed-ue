@@ -629,6 +629,14 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 	}
 }
 
+FString ATorqueGameState::ComingText() const
+{
+	// [skies stage 6] From the near grid's forecast hours ("rain in about an hour").
+	if (!GridNow.Valid()) return FString();
+	const double Since = (double)FMath::Max<int64>(FDateTime::UtcNow().ToUnixTimestamp() - GridFetchedNow, 0);
+	return UTF8_TO_TCHAR(TorqueWeather::ComingWords(GridNow, Since).c_str());
+}
+
 FString ATorqueGameState::WeatherText(bool bImperial) const
 {
 	static const TCHAR* Kinds[] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
@@ -638,7 +646,11 @@ FString ATorqueGameState::WeatherText(bool bImperial) const
 		: FString::Printf(TEXT("%lld hours ago"), Mins / 60);
 	switch ((ETorqueWeatherSource)Net.Source)
 	{
-	case ETorqueWeatherSource::Live: return FString::Printf(TEXT("Live: %s (updated %s)"), *Words, *Ago);
+	case ETorqueWeatherSource::Live:
+	{
+		const FString Coming = ComingText();
+		return FString::Printf(TEXT("Live: %s (updated %s)%s%s"), *Words, *Ago, Coming.IsEmpty() ? TEXT("") : TEXT("; "), *Coming);
+	}
 	case ETorqueWeatherSource::LiveLastKnown: return FString::Printf(TEXT("Live, last known: %s (no connection; from %s)"), *Words, *Ago);
 	case ETorqueWeatherSource::LiveWaiting: return TEXT("Live: asking the weather service...");
 	case ETorqueWeatherSource::LiveOffline: return FString::Printf(TEXT("Live: no connection, changing by itself meanwhile (%s now)"), Kinds[FMath::Clamp(Weather, 0, 2)]);
@@ -924,61 +936,78 @@ void ATorqueGameState::SetGrid(const TorqueWeather::Grid& G, int64 FetchedAt, do
 	UpdateHere();
 }
 
+namespace
+{
+// A grid as it goes over the network and back: its points, their ground and its forecast hours.
+void GridToNet(const TorqueWeather::Grid& G, int64 FetchedAt, FTorqueWeatherGridNet& Out)
+{
+	Out.N = G.Valid() ? G.N : 0;
+	Out.Lat = G.Lat;
+	Out.Lon = G.Lon;
+	Out.StepM = (float)G.StepM;
+	Out.Points.Reset();
+	Out.Elevation.Reset();
+	Out.Ahead.Reset();
+	Out.AheadIn.Reset();
+	Out.FetchedAt = FetchedAt;
+	if (!G.Valid()) return;
+	for (size_t I = 0; I < G.Points.size(); ++I)
+	{
+		Out.Points.Add(NetOf(G.Points[I]));
+		Out.Elevation.Add((float)G.Elevation[I]);
+	}
+	for (size_t H = 0; H < G.Ahead.size() && H < G.AheadIn.size(); ++H)
+	{
+		if (G.Ahead[H].size() != G.Points.size()) break;
+		for (const TorqueWeather::State& S : G.Ahead[H]) Out.Ahead.Add(NetOf(S));
+		Out.AheadIn.Add((float)G.AheadIn[H]);
+	}
+}
+
+TorqueWeather::Grid GridOfNet(const FTorqueWeatherGridNet& In)
+{
+	TorqueWeather::Grid G;
+	if (In.N < 2 || In.Points.Num() != In.N * In.N || In.Elevation.Num() != In.Points.Num()) return G;
+	G.N = In.N;
+	G.Lat = In.Lat;
+	G.Lon = In.Lon;
+	G.StepM = In.StepM;
+	for (int32 I = 0; I < In.Points.Num(); ++I)
+	{
+		G.Points.push_back(StateOf(In.Points[I]));
+		G.Elevation.push_back(In.Elevation[I]);
+	}
+	const int32 Per = In.Points.Num();
+	for (int32 H = 0; H < In.AheadIn.Num() && (H + 1) * Per <= In.Ahead.Num(); ++H)
+	{
+		std::vector<TorqueWeather::State> Hour;
+		Hour.reserve(Per);
+		for (int32 I = 0; I < Per; ++I) Hour.push_back(StateOf(In.Ahead[H * Per + I]));
+		G.Ahead.push_back(std::move(Hour));
+		G.AheadIn.push_back(In.AheadIn[H]);
+	}
+	return G;
+}
+} // namespace
+
 void ATorqueGameState::SendGrid()
 {
 	if (!HasAuthority()) return;
-	GridNet.N = GridNow.Valid() ? GridNow.N : 0;
-	GridNet.Lat = GridNow.Lat;
-	GridNet.Lon = GridNow.Lon;
-	GridNet.StepM = (float)GridNow.StepM;
-	GridNet.Points.Reset();
-	GridNet.Elevation.Reset();
-	if (GridNow.Valid())
-		for (int32 I = 0; I < GridNow.N * GridNow.N; ++I)
-		{
-			GridNet.Points.Add(NetOf(GridNow.Points[I]));
-			GridNet.Elevation.Add((float)GridNow.Elevation[I]);
-		}
-	GridNet.FetchedAt = GridFetchedNow;
+	GridToNet(GridNow, GridFetchedNow, GridNet);
 	ForceNetUpdate();
 }
 
 void ATorqueGameState::SendWide()
 {
 	if (!HasAuthority()) return;
-	WideNet.N = GridWide.Valid() ? GridWide.N : 0;
-	WideNet.Lat = GridWide.Lat;
-	WideNet.Lon = GridWide.Lon;
-	WideNet.StepM = (float)GridWide.StepM;
-	WideNet.Points.Reset();
-	WideNet.Elevation.Reset();
-	if (GridWide.Valid())
-		for (int32 I = 0; I < GridWide.N * GridWide.N; ++I)
-		{
-			WideNet.Points.Add(NetOf(GridWide.Points[I]));
-			WideNet.Elevation.Add((float)GridWide.Elevation[I]);
-		}
-	WideNet.FetchedAt = GridWideAt;
+	GridToNet(GridWide, GridWideAt, WideNet);
 	ForceNetUpdate();
 }
 
 void ATorqueGameState::OnRep_WideGrid()
 {
 	if (HasAuthority()) return;
-	TorqueWeather::Grid G;
-	if (WideNet.N >= 2 && WideNet.Points.Num() == WideNet.N * WideNet.N && WideNet.Elevation.Num() == WideNet.Points.Num())
-	{
-		G.N = WideNet.N;
-		G.Lat = WideNet.Lat;
-		G.Lon = WideNet.Lon;
-		G.StepM = WideNet.StepM;
-		for (int32 I = 0; I < WideNet.Points.Num(); ++I)
-		{
-			G.Points.push_back(StateOf(WideNet.Points[I]));
-			G.Elevation.push_back(WideNet.Elevation[I]);
-		}
-	}
-	GridWide = G;
+	GridWide = GridOfNet(WideNet);
 	GridWideAt = WideNet.FetchedAt;
 }
 
@@ -1002,19 +1031,7 @@ TorqueSky::MapGrids ATorqueGameState::SkyGrids() const
 void ATorqueGameState::OnRep_Grid()
 {
 	if (HasAuthority()) return;
-	TorqueWeather::Grid G;
-	if (GridNet.N >= 2 && GridNet.Points.Num() == GridNet.N * GridNet.N && GridNet.Elevation.Num() == GridNet.Points.Num())
-	{
-		G.N = GridNet.N;
-		G.Lat = GridNet.Lat;
-		G.Lon = GridNet.Lon;
-		G.StepM = GridNet.StepM;
-		for (int32 I = 0; I < GridNet.Points.Num(); ++I)
-		{
-			G.Points.push_back(StateOf(GridNet.Points[I]));
-			G.Elevation.push_back(GridNet.Elevation[I]);
-		}
-	}
+	const TorqueWeather::Grid G = GridOfNet(GridNet);
 	// (Joining: at once. Later: eased in, as the host's shared weather is.)
 	SetGrid(G, GridNet.FetchedAt, HereAt < 0.0 ? 0.0 : 240.0);
 }

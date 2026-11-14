@@ -72,6 +72,10 @@ struct FTorqueWeatherGridNet
 	UPROPERTY() TArray<FTorqueWeatherNet> Points;
 	UPROPERTY() TArray<float> Elevation;
 	UPROPERTY() int64 FetchedAt = 0;   // seconds since 1970: how long its showers have drifted
+	// [skies stage 6] The forecast's hours, whole grids one after another (N x N each), and how long
+	// after the fetch each hour is, s: every machine moves toward the same forecast at the same pace.
+	UPROPERTY() TArray<FTorqueWeatherNet> Ahead;
+	UPROPERTY() TArray<float> AheadIn;
 };
 
 // Where the weather now comes from.
@@ -109,6 +113,8 @@ public:
 	float GetDayLight() const { return DayLight; }
 	// "Live: 9 °C, light rain, wind SW 18 mph", or "sunny", for the menu and the HUD.
 	FString WeatherText(bool bImperial) const;
+	// [skies stage 6] What the forecast says is coming here, in words ("rain in about an hour"; "" for nothing).
+	FString ComingText() const;
 	// The host only (ignored elsewhere): change it for everyone, fading over FadeSeconds (0: at once).
 	void SetWeather(int32 NewWeather, float FadeSeconds = 20.0f);
 	// The host only: Settings' Weather has changed (FTorqueSettings::WeatherMode); go to it.
