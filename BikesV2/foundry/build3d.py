@@ -508,6 +508,11 @@ def loft(name, outline, spec, material, stations=96, ring=44, smooth_lines=True)
             z = zc + h * math.copysign(abs(sn) ** e, sn)
             if sn < 0:
                 y *= 1 - (1 - spec["bottom"]) * abs(sn)
+            kc = spec.get("knee")
+            if kc and 0.08 < sn < 0.72 and kc[0] < u < kc[1]:
+                # a knee recess let into the flank: two clean edges along the side of the tank
+                fall = math.sin(math.pi * (u - kc[0]) / (kc[1] - kc[0])) ** 0.6
+                y *= 1 - kc[2] * fall * math.sin(math.pi * (sn - 0.08) / 0.64) ** 0.7
             row.append(V(x, y, z))
         rows.append(row)
     verts = [v for r in rows for v in r]
@@ -908,6 +913,8 @@ def build(model):
         shp = body[part][0]
         outline = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
         spec = model.get("widths", {}).get(part, WIDTHS[part])
+        if DETAIL["on"] and part == "tank" and model["family"].lower() in ("naked", "cafe", "classic", "sport"):
+            spec = dict(spec, knee=(0.04, 0.6, 0.16))
         loft(part, outline, spec, (mat("seat", hex_rgb(col["seat"])) if col.get("seat") else mat("seat")) if part == "seat" else paint)
     for i, shp in enumerate(body.get("tail", [])[1:]):
         if shp["cls"] == "redlens":
