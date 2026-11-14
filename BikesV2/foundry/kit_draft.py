@@ -239,6 +239,37 @@ for _b in ("hartwell", "corvano", "kazeda", "rheinhart", "lodestar"):
 del KITS["hartwell_cruiser"]
 
 
+def adventure_kit(brand):
+    """Adventure kits are about travel: screens, silencers and luggage on the same approved body."""
+    clocks = {"pts": [[1222, 1118, 1], [1268, 1110, 1], [1280, 1166, 1], [1236, 1174, 1]], "cls": "plastic", "t": 0}
+
+    def screen(pts):
+        return lambda m: [copy.deepcopy(clocks), {"pts": pts, "cls": "screen", "t": 0}]
+    return {
+        "base": {"tank_seat": "Touring", "tail": "Standard", "front": "Tall screen", "exhaust": "Large silencer"},
+        "tank_seat": [("Rally", "lower, slimmer tank and a flatter one-piece seat", dict(low=0.9, fit=True), dict(flatten=0.25, top_only=True)),
+                      ("Long range", "fuller tank and a deeper stepped pillion seat", dict(front=1.06, fit=True), dict(step=10))],
+        "tail": [("Kicked", "tail tip lifted higher", dict(tip_dz=28)), ("Flat", "lower, flatter tail tip", dict(tip_dz=-26))],
+        "front": [("Rally screen", "short screen cut low for standing up", screen([[1436, 1090, 1], [1290, 1250, 1], [1306, 1216, 1], [1340, 1126, 1]])),
+                  ("Touring screen", "taller screen with a lip at the top", screen([[1436, 1090, 1], [1186, 1404, 1], [1172, 1436, 1], [1200, 1340], [1300, 1140, 1]]))],
+        "exhaust": [("Slim high", "slimmer silencer carried high", lambda h: {"headers": h, "cans": [{"a": [560, 372], "b": [80, 610], "w": 100, "front": True}]}),
+                    ("Low slung", "silencer kept low beside the wheel, clear of the luggage", lambda h: {"headers": h, "cans": [{"a": [560, 372], "b": [90, 470], "w": 124, "front": True}]})],
+        "extras": [{"name": "Panniers", "note": "hard cases either side of the tail",
+                    "add": {"panels": [{"pts": [[130, 900, 1], [-180, 920, 1], [-204, 896], [-198, 610], [-176, 580, 1], [110, 566, 1], [138, 596]], "cls": "plastic", "t": 0.3},
+                                       {"pts": [[132, 820], [-200, 838]], "cls": "hl", "closed": False}]}},
+                   {"name": "Top box", "note": "hard case on the rack",
+                    "add": {"panels": [{"pts": [[-10, 1060, 1], [0, 1240], [-20, 1262, 1], [-210, 1262, 1], [-232, 1240], [-224, 1078, 1]], "cls": "plastic", "t": 0.3},
+                                       {"pts": [[-2, 1196], [-230, 1196]], "cls": "hl", "closed": False}]}},
+                   {"name": "Crash bars", "note": "steel bars round the fairing and engine",
+                    "add": {"panels": [{"tube": 14, "pts": [[1130, 900], [1236, 780], [1200, 600], [1070, 500]], "cls": "steelt", "front": True, "t": 0.5},
+                                       {"tube": 12, "pts": [[1216, 690], [1100, 690]], "cls": "steelt", "front": True}]}}],
+    }
+
+
+for _b in ("corvano", "hartwell", "kazeda", "varga", "rheinhart"):
+    KITS[_b + "_adventure"] = adventure_kit(_b)
+
+
 def draft(name):
     path = os.path.join(ROOT, "data", "models", name + ".json")
     m = json.load(open(path))

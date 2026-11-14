@@ -177,6 +177,74 @@ def ring(c, r0, r1, a0, a1, step=10):
     return pts
 
 
+# ---- the chopper library: every tank, seat, sissy bar and pipe is drawn once and offered on all three bikes ----
+def _teardrop(T, U):
+    return [T(4, 6, 1), T(0.16 * U, 40), T(0.4 * U, 86), T(0.64 * U, 124), T(0.83 * U, 134), T(0.95 * U, 110), T(U, 54, 1), T(U - 8, -26, 1), T(0.5 * U, -30), T(20, -16, 1)]
+
+
+def _bullet(T, U):
+    V = 0.9 * U
+    return [T(4, 6, 1), T(0.12 * V, 26), T(0.26 * V, 84), T(0.5 * V, 124), T(0.76 * V, 122), T(0.94 * V, 84), T(V, 30), T(V - 10, -26, 1), T(0.5 * V, -34), T(20, -16, 1)]
+
+
+def _coffin(T, U):
+    return [T(4, 6, 1), T(30, 76, 1), T(0.8 * U, 106, 1), T(U, 52, 1), T(U - 10, -26, 1), T(20, -16, 1)]
+
+
+def _peanut(T, U):
+    return [T(4, 6, 1), T(0.14 * U, 30), T(0.3 * U, 86), T(0.48 * U, 110), T(0.64 * U, 98), T(0.75 * U, 54), T(0.77 * U, 6), T(0.74 * U, -26, 1), T(0.4 * U, -32), T(20, -16, 1)]
+
+
+UNDER = [[-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632]]
+KING = [[668, 762, 1], [600, 706], [500, 676], [404, 682], [336, 716], [304, 784, 1], [220, 802], [90, 798], [22, 784, 1]] + UNDER + [[662, 700, 1]]
+SADDLE = [[670, 746, 1], [596, 702], [500, 680], [410, 682], [350, 698], [318, 722, 1], [296, 752, 1], [210, 764], [90, 760], [24, 744, 1]] + UNDER + [[658, 696, 1]]
+BANANA = [[668, 742, 1], [600, 700], [500, 672], [400, 676], [300, 704], [190, 752], [90, 794], [36, 806], [4, 790, 1]] + UNDER + [[662, 700, 1]]
+SOLO = [[668, 748, 1], [600, 704], [500, 678], [400, 682], [330, 708], [290, 728], [230, 706], [170, 690, 1], [176, 656, 1]] + UNDER[2:] + [[662, 700, 1]]
+PAIRS = [("Teardrop and king seat", "long teardrop tank up to the headstock, stepped king and queen seat", _teardrop, KING),
+         ("Bullet and saddle", "fat round tank, thin flat saddle with a pillion pad", _bullet, SADDLE),
+         ("Coffin and banana", "flat-sided coffin tank, banana seat swept up the rear guard", _coffin, BANANA),
+         ("Peanut and solo", "small tank set back with bare backbone to the headstock, solo saddle", _peanut, SOLO)]
+
+
+def chop_tails(RR):
+    guard = [{"pts": ring([0, RR], RR + 12, RR + 32, 50, 160), "cls": "body", "t": 0.9},
+             {"pts": [[-318, 470, 1], [-342, 482, 1], [-330, 516, 1], [-306, 504, 1]], "cls": "redlens", "t": 0.3}]
+
+    def bar(*pts, **kw):
+        return dict({"tube": 12, "pts": [list(q) for q in pts], "cls": "steelt", "front": True}, **kw)
+    tall = [bar((-6, RR + 30), (-56, 700)), bar((-56, 700), (-128, 1150)), bar((-128, 1150), (-166, 1336)), bar((-166, 1336), (-140, 1352))]
+    return [("Tall sissy bar and back rest", "tall bar with a padded back rest",
+             guard + [{"pts": [[30, 790, 1], [-28, 960], [-80, 1152, 1], [-120, 1140, 1], [-76, 950], [-44, 770], [-34, 720, 1]], "cls": "seat", "t": 0.8}] + tall),
+            ("Short loop and pad", "short sissy loop with a small pad",
+             guard + [{"pts": [[24, 746, 1], [-22, 850], [-52, 944, 1], [-88, 934, 1], [-66, 850], [-44, 770], [-34, 720, 1]], "cls": "seat", "t": 0.8},
+                      bar((-6, RR + 30), (-56, 700)), bar((-56, 700), (-96, 960)), bar((-96, 960), (-74, 990), (-50, 960), t=0.5)]),
+            ("Bare guard", "no sissy bar, just the guard and its stay", guard + [bar((-6, RR + 30), (-40, 700))]),
+            ("Tall bare bar", "tall chrome bar with no back rest", guard + tall + [bar((-90, 916), (-40, 930), (-78, 990), t=0.5)])]
+
+
+def low_end(h):
+    """A header cut where its sweep down from the engine reaches the low run back."""
+    k = next((i for i, q in enumerate(h["pts"]) if q[1] < 360 and q[0] < 700), len(h["pts"]) - 1)
+    return dict(h, pts=copy.deepcopy(h["pts"][:k + 1]))
+
+
+def chop_pipes(headers):
+    hs = [low_end(h) for h in headers]
+
+    def end(h):
+        return list(h["pts"][-1][:2])
+
+    def run(h, x, dz=0):
+        return dict(h, pts=h["pts"] + [[x, end(h)[1] + dz]])
+    up = [run(h, -50 + 20 * i, 8) for i, h in enumerate(hs)]
+    mg = [run(h, 220 + 40 * i) for i, h in enumerate(hs)]
+    return {"Upswept slim pipes": ("slim pipes that kick up behind the axle", {"headers": up, "cans": [{"a": end(h), "b": [end(h)[0] - 150, end(h)[1] + 114], "w": 56, "front": True} for h in up]}),
+            "Megaphones": ("upswept megaphones", {"headers": mg, "cans": [{"a": end(h), "b": [-230 + 30 * i, end(h)[1] + 110], "w": 72, "front": True} for i, h in enumerate(mg)]}),
+            "Drag pipes": ("short straight pipes cut off under the seat", {"headers": hs, "cans": [{"a": end(h), "b": [end(h)[0] - 420, end(h)[1] + 4], "w": 58, "front": True} for h in hs]}),
+            "Fishtails": ("long low silencers with nipped ends", {"headers": hs, "cans": [{"a": end(h), "b": [-220 + 30 * i, end(h)[1] + 16], "w": 72, "front": True, "nip": True} for i, h in enumerate(hs)]})}
+
+
+CHOP_BASE = {"lodestar": (0, 0, "Upswept slim pipes"), "hartwell": (1, 1, "Megaphone each side"), "kazeda": (2, 2, "Stacked straight pipes")}
 CHOP = {"lodestar": (1880, 43.0, 1000, 800, 230), "hartwell": (1760, 38.0, 900, 720, 200), "kazeda": (1900, 45.0, 1030, 830, 250)}
 
 
@@ -238,11 +306,8 @@ def chopper(brand="lodestar"):
         return [round(O[0] + eu[0] * u + en[0] * v, 1), round(O[1] + eu[1] * u + en[1] * v, 1)] + ([1] if flag else [])
     # a long teardrop: full and high right behind the headstock, tapering back to a point at the seat (beenster, 14 Nov)
     U = math.hypot(ht[0] - O[0], ht[1] - O[1]) - 46
-    tank = [on_tube(4, 6, 1), on_tube(0.16 * U, 40), on_tube(0.4 * U, 86), on_tube(0.64 * U, 124), on_tube(0.83 * U, 134), on_tube(0.95 * U, 110),
-            on_tube(U, 54, 1), on_tube(U - 8, -26, 1), on_tube(0.5 * U, -30), on_tube(20, -16, 1)]
-    seat = [[668, 762, 1], [600, 706], [500, 676], [404, 682], [336, 716], [304, 784, 1], [220, 802], [90, 798], [22, 784, 1],
-            [-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632], [662, 700, 1]]
-    rest = [[30, 790, 1], [-28, 960], [-80, 1152, 1], [-120, 1140, 1], [-76, 950], [-44, 770], [-34, 720, 1]]
+    tank, seat = _teardrop(on_tube, U), copy.deepcopy(KING)
+    tails = chop_tails(RR)
     m = {
         "name": "Lodestar chopper (working title H1)", "brand": "lodestar", "family": "Chopper", "rev": "B",
         "engine_label": "45 degree V-twin", "frame_label": "rigid steel frame, no rear suspension",
@@ -275,20 +340,40 @@ def chopper(brand="lodestar"):
             "overall": [-RR - 40, WB + FR + 20],
             "behind": [],
             "front_guard": [{"arc": {"c": [WB, FR], "r0": FR + 10, "r1": FR + 22, "a0": 78, "a1": 122}, "cls": "chromef"}],
-            "tail": [{"pts": ring([0, RR], RR + 12, RR + 32, 50, 160), "cls": "body", "t": 0.9},
-                     {"pts": [[-318, 470, 1], [-342, 482, 1], [-330, 516, 1], [-306, 504, 1]], "cls": "redlens", "t": 0.3}],
+            "tail": copy.deepcopy(tails[CHOP_BASE[brand][1]][2]),
             "seat": [{"pts": seat, "cls": "seat"},
                      {"pts": [[590, 692], [500, 664], [404, 670], [344, 700]], "cls": "stitch", "closed": False},
                      {"pts": [[14, 800], [-34, 960], [-84, 1130]], "cls": "stitch", "closed": False}],
             "tank": [{"pts": tank, "cls": "body"},
                      {"pts": [on_tube(0.45 * U, 76), on_tube(0.64 * U, 104), on_tube(0.82 * U, 112), on_tube(0.93 * U, 92)], "cls": "hl", "closed": False}],
-            "panels": [{"pts": rest, "cls": "seat", "t": 0.8}, {"tube": 12, "pts": [[-6, RR + 30], [-56, 700]], "cls": "steelt", "front": True}, {"tube": 12, "pts": [[-56, 700], [-128, 1150]], "cls": "steelt", "front": True},
-                       {"tube": 12, "pts": [[-128, 1150], [-166, 1336]], "cls": "steelt", "front": True}, {"tube": 12, "pts": [[-166, 1336], [-140, 1352]], "cls": "steelt", "front": True}],
+            "panels": [],
             "caps": [{"at": on_tube(0.76 * U, 130), "r": 13, "cls": "chromef"}],
             "plate_hanger": []},
     }
     if brand != "lodestar":
         STYLES[brand](m, tx, tz, on_tube, U, RR, e)
+    # the bespoke kit: everything in the chopper library that this bike does not already wear
+    bp, bt, bx = CHOP_BASE[brand]
+
+    def lamp_at(tg, k):
+        return [dict(s_, pts=[[round(tg[0] + (q[0] - lc[0]) * k, 1), round(tg[1] + (q[1] - lc[1]) * k, 1)] + q[2:] for q in s_["pts"]]) for s_ in copy.deepcopy(lamp)]
+    dial = {"circle": 30, "at": [tx + 34, tz + 26], "cls": "plastic"}
+    fx, fz = math.sin(rk), -math.cos(rk)          # down the fork
+    pipes = chop_pipes(m["exhaust"]["headers"])
+    roll = [{"pts": ring([yoke[0] + 64 - 150 * fx, yoke[1] + 30 - 150 * fz], 2, 44, 0, 360, 30), "cls": "seat", "t": 0.9},
+            {"tube": 6, "pts": [[yoke[0] + 64 - 150 * fx, yoke[1] + 76 - 150 * fz], [yoke[0] + 64 - 150 * fx, yoke[1] - 16 - 150 * fz]], "cls": "chromef", "front": True}]
+    from kit_draft import BAG
+    m["kit"] = {
+        "base": {"tank_seat": PAIRS[bp][0], "tail": tails[bt][0], "front": "Low lamp", "exhaust": bx},
+        "tank_seat": [{"name": nm, "note": note, "tank": [{"pts": fn(on_tube, U), "cls": "body"}], "seat": [{"pts": copy.deepcopy(st), "cls": "seat"}]}
+                      for i, (nm, note, fn, st) in enumerate(PAIRS) if i != bp],
+        "tail": [{"name": nm, "note": note, "tail": copy.deepcopy(shp)} for i, (nm, note, shp) in enumerate(tails) if i != bt],
+        "front": [{"name": "High lamp", "note": "the lamp up at the top yoke", "head": lamp_at((yoke[0] + 92 - 150 * fx, yoke[1] + 6 - 150 * fz), 0.8) + [dial]},
+                  {"name": "Twin lamps", "note": "two small lamps one above the other", "head": lamp_at((yoke[0] + 86 - 48 * fx, yoke[1] + 6 - 48 * fz), 0.5) + lamp_at((yoke[0] + 86 + 48 * fx, yoke[1] + 6 + 48 * fz), 0.5) + [dial]}],
+        "exhaust": [{"name": nm, "note": note, "exhaust": ex} for nm, (note, ex) in pipes.items() if nm != bx and not (brand == "hartwell" and nm == "Megaphones")][:3],
+        "extras": [{"name": "Saddlebag", "note": "leather bag on the rear stays", "add": {"panels": copy.deepcopy(BAG)}},
+                   {"name": "Tool roll", "note": "leather roll strapped across the fork", "add": {"panels": roll}}],
+    }
     return m
 
 
@@ -316,22 +401,15 @@ def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
         {"tube": 8, "pts": [[tx - 134, tz + 206], [tx - 138, tz + 226]], "cls": "dark"},
         {"circle": 34, "at": [tx - 140, tz + 240], "cls": "chromef", "mirror": True}]
     b = m["body"]
-    V = 0.9 * U
-    tank = [on_tube(4, 6, 1), on_tube(0.12 * V, 26), on_tube(0.26 * V, 84), on_tube(0.5 * V, 124), on_tube(0.76 * V, 122), on_tube(0.94 * V, 84),
-            on_tube(V, 30), on_tube(V - 10, -26, 1), on_tube(0.5 * V, -34), on_tube(20, -16, 1)]
+    tank = _bullet(on_tube, U)
     b["tank"] = [{"pts": tank, "cls": "body"},
                  {"pts": [on_tube(0.4 * U, 96), on_tube(0.58 * U, 106), on_tube(0.76 * U, 92)], "cls": "hl", "closed": False},
                  {"pts": [on_tube(0.2 * U, 22), on_tube(0.5 * U, 34), on_tube(0.84 * U, 22)], "cls": "stitch", "closed": False}]
     b["caps"] = [{"at": on_tube(0.6 * U, 124), "r": 13, "cls": "chromef"}]
-    seat = [[670, 746, 1], [596, 702], [500, 680], [410, 682], [350, 698], [318, 722, 1], [296, 752, 1], [210, 764], [90, 760], [24, 744, 1],
-            [-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632], [658, 696, 1]]
+    seat = copy.deepcopy(SADDLE)
     b["seat"] = [{"pts": seat, "cls": "seat"},
                  {"pts": [[590, 688], [500, 668], [410, 670], [352, 686]], "cls": "stitch", "closed": False},
                  {"pts": [[280, 744], [200, 752], [90, 748], [36, 736]], "cls": "stitch", "closed": False}]
-    b["panels"] = [{"pts": [[24, 746, 1], [-22, 850], [-52, 944, 1], [-88, 934, 1], [-66, 850], [-44, 770], [-34, 720, 1]], "cls": "seat", "t": 0.8},
-                   {"tube": 12, "pts": [[-6, RR + 30], [-56, 700]], "cls": "steelt", "front": True},
-                   {"tube": 12, "pts": [[-56, 700], [-96, 960]], "cls": "steelt", "front": True},
-                   {"tube": 12, "pts": [[-96, 960], [-74, 990], [-50, 960]], "cls": "steelt", "front": True, "t": 0.5}]
 
 
 def kazeda_chop(m, tx, tz, on_tube, U, RR, lo):
@@ -359,16 +437,14 @@ def kazeda_chop(m, tx, tz, on_tube, U, RR, lo):
         {"tube": 8, "pts": [[tx - 126, tz + 96], [tx - 132, tz + 150]], "cls": "dark"},
         {"pts": [[tx - 160, tz + 150, 1], [tx - 160, tz + 180, 1], [tx - 104, tz + 180, 1], [tx - 104, tz + 150, 1]], "cls": "chromef", "mirror": True}]
     b = m["body"]
-    tank = [on_tube(4, 6, 1), on_tube(30, 76, 1), on_tube(0.8 * U, 106, 1), on_tube(U, 52, 1), on_tube(U - 10, -26, 1), on_tube(20, -16, 1)]
+    tank = _coffin(on_tube, U)
     b["tank"] = [{"pts": tank, "cls": "body"},
                  {"pts": [on_tube(84, 56), on_tube(0.78 * U, 82), on_tube(0.94 * U, 46)], "cls": "hl", "closed": False},
                  {"pts": [on_tube(60, 14), on_tube(U - 30, 4)], "cls": "stitch", "closed": False}]
     b["caps"] = [{"at": on_tube(0.6 * U, 96), "r": 13, "cls": "chromef"}]
-    seat = [[668, 742, 1], [600, 700], [500, 672], [400, 676], [300, 704], [190, 752], [90, 794], [36, 806], [4, 790, 1],
-            [-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632], [662, 700, 1]]
+    seat = copy.deepcopy(BANANA)
     b["seat"] = [{"pts": seat, "cls": "seat"},
                  {"pts": [[596, 686], [500, 660], [400, 664], [300, 692], [190, 740], [70, 790]], "cls": "stitch", "closed": False}]
-    b["panels"] = [{"tube": 12, "pts": [[-6, RR + 30], [-40, 700]], "cls": "steelt", "front": True}]
 
 
 STYLES = {"hartwell": hartwell_chop, "kazeda": kazeda_chop}
