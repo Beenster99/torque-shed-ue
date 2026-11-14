@@ -200,7 +200,10 @@ def lodestar_chopper():
 
     def on_tube(u, v, flag=None):
         return [round(O[0] + eu[0] * u + en[0] * v, 1), round(O[1] + eu[1] * u + en[1] * v, 1)] + ([1] if flag else [])
-    tank = [on_tube(6, 14, 1), on_tube(40, 74), on_tube(120, 110), on_tube(220, 114), on_tube(300, 92), on_tube(346, 44, 1), on_tube(340, -24, 1), on_tube(14, -24, 1)]
+    # a long teardrop: full and high right behind the headstock, tapering back to a point at the seat (beenster, 14 Nov)
+    U = math.hypot(ht[0] - O[0], ht[1] - O[1]) - 46
+    tank = [on_tube(4, 6, 1), on_tube(0.16 * U, 40), on_tube(0.4 * U, 86), on_tube(0.64 * U, 124), on_tube(0.83 * U, 134), on_tube(0.95 * U, 110),
+            on_tube(U, 54, 1), on_tube(U - 8, -26, 1), on_tube(0.5 * U, -30), on_tube(20, -16, 1)]
     seat = [[668, 762, 1], [600, 706], [500, 676], [404, 682], [336, 716], [304, 784, 1], [220, 802], [90, 798], [22, 784, 1],
             [-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632], [662, 700, 1]]
     rest = [[30, 790, 1], [-28, 960], [-80, 1152, 1], [-120, 1140, 1], [-76, 950], [-44, 770], [-34, 720, 1]]
@@ -242,10 +245,10 @@ def lodestar_chopper():
                      {"pts": [[590, 692], [500, 664], [404, 670], [344, 700]], "cls": "stitch", "closed": False},
                      {"pts": [[14, 800], [-34, 960], [-84, 1130]], "cls": "stitch", "closed": False}],
             "tank": [{"pts": tank, "cls": "body"},
-                     {"pts": [on_tube(70, 82), on_tube(140, 98), on_tube(230, 98), on_tube(296, 74)], "cls": "hl", "closed": False}],
+                     {"pts": [on_tube(0.45 * U, 76), on_tube(0.64 * U, 104), on_tube(0.82 * U, 112), on_tube(0.93 * U, 92)], "cls": "hl", "closed": False}],
             "panels": [{"pts": rest, "cls": "seat", "t": 0.8}, {"tube": 12, "pts": [[-6, RR + 30], [-56, 700]], "cls": "steelt", "front": True}, {"tube": 12, "pts": [[-56, 700], [-128, 1150]], "cls": "steelt", "front": True},
                        {"tube": 12, "pts": [[-128, 1150], [-166, 1336]], "cls": "steelt", "front": True}, {"tube": 12, "pts": [[-166, 1336], [-140, 1352]], "cls": "steelt", "front": True}],
-            "caps": [{"at": on_tube(190, 112), "r": 13, "cls": "chromef"}],
+            "caps": [{"at": on_tube(0.76 * U, 130), "r": 13, "cls": "chromef"}],
             "plate_hanger": []},
     }
     return m
