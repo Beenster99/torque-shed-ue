@@ -3733,6 +3733,21 @@ void ATorqueBikePawn::UpdateRider()
 			// (The lever follows the clutch as it's let out: Sim->Clutch, how far it's in.)
 			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), FMath::Max(Lever, ClutchFingers));
 			In.LeverPull[0] = FMath::Max(FMath::Max3(PullShift, Held, Lever), FMath::Clamp(Sim->Clutch, 0.0, 1.0)) * FMath::Clamp(In.LeverFingers[0] * 2.0, 0.0, 1.0);
+			// [rider pose] For the tests: the clutch hand every 0.1 s for 3 s after pulling away from a stop.
+			const double LogDt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0;
+			if (FMath::Abs(Sim->Speed) < 0.2) PullAwayLogT = 0.0;
+			else if (PullAwayLogT >= 0.0)
+			{
+				PullAwayLogT += LogDt;
+				if (PullAwayLogT >= PullAwayLogNext)
+				{
+					UE_LOG(LogTemp, Log, TEXT("Torque: rider clutch: %.1f s after pulling away, %.1f km/h, gear %d, clutch in %.2f%s, fingers on %.2f, lever pulled %.2f"),
+						PullAwayLogT, Sim->Speed * 3.6, Sim->Gear, Sim->Clutch, Sim->ClutchIn ? TEXT(" (held)") : TEXT(""), In.LeverFingers[0], In.LeverPull[0]);
+					PullAwayLogNext = PullAwayLogT + 0.1;
+				}
+				if (PullAwayLogT > 3.0) PullAwayLogT = -1.0;
+			}
+			if (PullAwayLogT == 0.0) PullAwayLogNext = 0.0;
 		}
 		for (int32 S = 0; S < 2; ++S)
 			if (TestLeverHold[S] >= 0.0)
