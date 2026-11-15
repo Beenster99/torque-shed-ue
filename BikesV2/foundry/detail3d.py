@@ -480,6 +480,15 @@ def headlamp(model, c):
     lens = next((s_ for i, s_ in head if s_.get("cls") == "lens" and "pts" in s_), None)
     if not lens or any(s_.get("round") for i, s_ in head):
         return
+    if model["family"].lower() == "sport":
+        # a faired bike keeps its lamps let into the nose; only the display is built here
+        house = next((s_ for i, s_ in head if s_.get("cls") == "plastic" and "pts" in s_), None)
+        for i, s_ in head:
+            if s_ is house:
+                drop(f"front{i}")
+        if nose_lamps(model, c):
+            drop("lens", "lensrim", "eye", "reflector")
+        return display(model, c, head, None, house)  # the one dark shape in a sport nose is the display
     for i, s_ in head:
         drop(f"front{i}", f"lens{i}", f"bezel{i}", f"reflector{i}", f"eye{i}", f"eyeglass{i}", f"clock{i}", f"clockrim{i}")
     xs, zs = [q[0] for q in lens["pts"]], [q[1] for q in lens["pts"]]
@@ -516,8 +525,15 @@ def headlamp(model, c):
             B.smooth_tube(f"lampstay{sg}{n_}", [(q_[0], sg * 76, q_[1]), (q_[0] + 22, sg * 70, org[1] + (q_[1] - org[1]) * 0.5), (org[0] - 70, sg * hy * 0.74, org[1] + (10 if n_ else -10))], 5, B.mat("alu_dark"))
     # the clear cover: a shallow dome over the whole face
     rings("lampcover", org, [(4, 0.9, 0), (11, 0.84, 0), (17, 0.66, 0), (20, 0.4, 0), (21, 0.12, 0)], glass_mat(), hy, hz, close=(False, True))
+    display(model, c, head, house)
+
+
+def display(model, c, head, house, dash=None):
+    """The display: a slim tablet on a bracket, its face square to the rider's eyes."""
+    F, uf, nb, fk = c["F"], c["uf"], c["nb"], c["fk"]
+    plastic = B.mat("plastic")
     # the display: a slim tablet on a bracket, its face square to the rider's eyes
-    dash = next((s_ for i, s_ in head if s_ is not house and s_.get("cls") == "plastic" and "pts" in s_), None)
+    dash = dash or next((s_ for i, s_ in head if s_ is not house and s_.get("cls") == "plastic" and "pts" in s_), None)
     top = c["top"]
     dc = (sum(q[0] for q in dash["pts"]) / len(dash["pts"]), sum(q[1] for q in dash["pts"]) / len(dash["pts"])) if dash else (top[0] + 60, top[1] + 40)
     eye = (c["model_hip"] + 80, 1560)
@@ -535,6 +551,100 @@ def headlamp(model, c):
     yk = B.add(B.add(F, uf, fk["length"] - 12), nb, -34)
     for sg in (-1, 1):
         B.smooth_tube(f"dashstay{sg}", [(yk[0], sg * 40, yk[1]), ((yk[0] + back[0]) / 2 + 6, sg * 36, (yk[1] + back[1]) / 2), (back[0], sg * 30, back[1])], 5.5, B.mat("alu_dark"))
+
+
+def _trees(prefixes):
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    out = []
+    for o in bpy.data.objects:
+        if o.type != "MESH" or not o.name.startswith(tuple(prefixes)):
+            continue
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        mw = ev.matrix_world
+        out.append(BVHTree.FromPolygons([mw @ v.co for v in me.vertices], [tuple(p.vertices) for p in me.polygons]))
+        ev.to_mesh_clear()
+    return out
+
+
+def _cast(trees, a, b, axis, s):
+    """The outermost point (mm along the axis) where a ray from outside meets the parts. axis "x": a ray from
+    the front at y = a, z = b. axis "y": a ray from side s at x = a, z = b."""
+    from mathutils import Vector
+    org, d = (Vector((4.0, a * B.MM, b * B.MM)), Vector((-1, 0, 0))) if axis == "x" else (Vector((a * B.MM, s * 0.8, b * B.MM)), Vector((0, -s, 0)))
+    best = None
+    for t in trees:
+        loc = t.ray_cast(org, d)[0]
+        if loc is not None:
+            v = loc.x if axis == "x" else loc.y * s
+            best = v if best is None or v > best else best
+    return None if best is None else best / B.MM
+
+
+def side_hit(prefixes, x, z, s):
+    """Where a ray from the side (s = 1 left, -1 right) at (x, z) first meets a built part whose name starts
+    with one of the prefixes: (x, y, z) in mm, or None."""
+    v = _cast(_trees(prefixes), x, z, "y", s)
+    return None if v is None else (x, s * v, z)
+
+
+def skin_patch(name, trees, outline, material, lift=1.5, axis="x", s=1):
+    """A thin patch lying on the surface of built parts (a lamp let into a nose, a flush indicator): the
+    outline is drawn square-on (y, z from the front, or x, z from the side) and every point of the patch is
+    dropped onto the surface, then lifted off it by a hair so it reads as its own part."""
+    outline = chaikin(outline, 2)
+    m = len(outline)
+    ca, cb = sum(q[0] for q in outline) / m, sum(q[1] for q in outline) / m
+    verts, faces, last = [], [], None
+    for k in (1.0, 0.75, 0.5, 0.25):
+        for a_, b_ in outline:
+            a, b = ca + (a_ - ca) * k, cb + (b_ - cb) * k
+            v = _cast(trees, a, b, axis, s)
+            last = v if v is not None else last
+            if last is None:
+                return None
+            verts.append(B.V(last + lift, a, b) if axis == "x" else B.V(a, s * (last + lift), b))
+    v = _cast(trees, ca, cb, axis, s) or last
+    verts.append(B.V(v + lift, ca, cb) if axis == "x" else B.V(ca, s * (v + lift), cb))
+    for r in range(3):
+        for i_ in range(m):
+            i2 = (i_ + 1) % m
+            faces.append((r * m + i_, r * m + i2, (r + 1) * m + i2, (r + 1) * m + i_))
+    faces += [(3 * m + i_, 3 * m + (i_ + 1) % m, 4 * m) for i_ in range(m)]
+    ob = B.mesh_obj(name, verts, faces, material, True, 0, False)
+    B.bm_fix_normals(ob)
+    return ob
+
+
+def nose_lamps(model, c):
+    """Sport lamps: a slim slanted eye each side let flush into the nose (reference: modern sport fairings).
+    A gloss black surround, a smoked lens, a bright running-light blade along the top and two projector eyes."""
+    lens = next((v for v in model["body"].get("panels", []) if v.get("cls") == "lens"), None)
+    trees = _trees(("cowl",))
+    if not lens or not trees:
+        return False
+    dz = sum(q[1] for q in lens["pts"]) / len(lens["pts"]) - 790
+    black = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
+    smoke = surf("lampsmoke", (0.05, 0.055, 0.065), 1.0, 0.06, wear=0.0)
+    ring = surf("bezel", (0.05, 0.05, 0.055), 0.85, 0.3)
+    eye = [(26, 772), (60, 768), (104, 786), (124, 806), (112, 812), (70, 800), (30, 790)]
+    ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
+    drl = [(34, 787), (70, 797), (108, 808), (110, 804.5), (72, 793), (36, 783.5)]
+    made = False
+    for s in (-1, 1):
+        f = lambda pts, k=1.0: [(s * (ey + (y - ey) * k), ez + (z - ez) * k + dz) for y, z in pts]
+        if not skin_patch(f"noselamp{s}", trees, f(eye, 1.16), black, 1.0):
+            continue
+        made = True
+        skin_patch(f"noselens{s}", trees, f(eye, 0.94), smoke, 1.8)
+        skin_patch(f"nosedrl{s}", trees, f(drl), glow("drl", (0.9, 0.95, 1.0), 4.0), 2.6)
+        for n_, (py, pz) in enumerate(((56, 779), (86, 789))):
+            circ = lambda r: [(s * py + r * math.cos(2 * math.pi * k / 10), pz + dz + r * math.sin(2 * math.pi * k / 10)) for k in range(10)]
+            skin_patch(f"noseeye{s}{n_}", trees, circ(8.5), ring, 2.6)
+            skin_patch(f"noseeyeglass{s}{n_}", trees, circ(6.6), glass_mat(), 3.0)
+            skin_patch(f"noseeyeled{s}{n_}", trees, circ(2.6), glow("bulb", (1.0, 0.97, 0.9), 2.0), 3.3)
+    return made
 
 
 def grip_mat(length, rmax, rbody=17.2):
@@ -780,7 +890,19 @@ def indicators(model, c):
     drop("indstalk", "indicator", "rindstalk", "rindicator")
     variant = model.get("detail", {}).get("indicators", VARIANT.get("indicators", "led"))
     hb = c["head_b"]
+    cowl = next((v for v in model["body"].get("panels", []) if v.get("cowl")), None) if model["family"].lower() == "sport" else None
+    trees = _trees(("cowl", "ear")) if cowl else []
     for s in (-1, 1):
+        if trees:
+            # a faired bike: a slim amber blade let flush into the flank of the nose, no stalks
+            x0, x1 = min(q[0] for q in cowl["pts"]), max(q[0] for q in cowl["pts"])
+            z0, z1 = min(q[1] for q in cowl["pts"]), max(q[1] for q in cowl["pts"])
+            bx, bz = x0 + (x1 - x0) * 0.66, z0 + (z1 - z0) * 0.5
+            blade_ = [(bx - 34, bz - 9), (bx + 30, bz + 2), (bx + 36, bz + 9), (bx - 30, bz + 1)]
+            if skin_patch(f"ind_f{s}_lens", trees, blade_, glow("amberled", (1.0, 0.42, 0.02), 1.2), 1.4, "y", s):
+                grow = lambda k: [(bx + (x - bx) * k, bz + (z - bz) * k * 1.5) for x, z in blade_]
+                skin_patch(f"ind_f{s}_pod", trees, grow(1.2), B.mat("plastic"), 0.8, "y", s)
+                continue
         indicator(f"ind_f{s}", (hb[0] + 60, s * 92, hb[1] + 40), s, 1, variant)
     tl = next((shp for shp in model["body"].get("tail", []) if shp.get("cls") == "redlens"), None)
     if tl:
@@ -975,8 +1097,25 @@ def controls(model, c):
         # mirror: a stem from the perch, a ball joint, and a shaped head with the glass facing back
         root = (bx + 4, yc, bz + 18)
         mc = (bx - 2, s * 318, bz + 150)
-        B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
-        B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[1] if False else mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
+        cowl = next((v for v in model["body"].get("panels", []) if v.get("cowl")), None) if model["family"].lower() == "sport" else None
+        hit = None
+        if cowl:
+            # a faired bike carries its mirrors on the fairing: a short aero stem out of the cowl's shoulder
+            cx0, cx1 = min(q[0] for q in cowl["pts"]), max(q[0] for q in cowl["pts"])
+            cz1 = max(q[1] for q in cowl["pts"])
+            for zz in (cz1 - 26, cz1 - 40, cz1 - 60):
+                hit = side_hit(("cowl", "ear"), cx0 + (cx1 - cx0) * 0.42, zz, s)
+                if hit:
+                    break
+        if hit:
+            root = (hit[0], hit[1] - s * 6, hit[2])
+            mc = (root[0] - 34, root[1] + s * 150, root[2] + 58)
+            B.cone(f"mirrorboss{s}", root, (root[0], root[1] + s * 12, root[2] + 3), 12, 9, plastic, 16)
+            strap(f"mstalk{s}", [(root[0], root[1] + s * 8, root[2] + 2), (root[0] - 8, root[1] + s * 48, root[2] + 22), (mc[0] + 16, mc[1] - s * 52, mc[2] - 12), (mc[0] + 14, mc[1] - s * 8, mc[2] - 4)],
+                  [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], plastic)
+        else:
+            B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
+            B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
         outline = chaikin([(s * -86, -10), (s * -64, 30), (s * 10, 44), (s * 76, 32), (s * 86, -4), (s * 58, -36), (s * -52, -40)], 3)
         if s == -1:
             outline = outline[::-1]
@@ -1824,6 +1963,8 @@ def welds(model, c):
 
 SHOTS = {
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
+    "nose": ((2500, -620, 1020), (1420, 0, 840), 60),
+    "cockpit": ((250, -260, 1420), (1250, 0, 900), 40),
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),
     "lamp": ((2350, -900, 1150), (1230, -40, 930), 70),
     "bars": ((560, -700, 1500), (1080, -60, 1060), 50),
