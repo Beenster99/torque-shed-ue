@@ -147,6 +147,45 @@ int main()
 		std::printf("      sign lettering: %zu letters in the alphabet, %zu triangles for six names\n", SignFontNow() ? SignFontNow()->Glyphs.size() : size_t(0), Tris);
 		Check(Ok, "sign lettering: Leyburn, Llanfairpwllgwyngyll, A684 and Welsh and Gaelic names set with every letter, none overlapping, facing the reader");
 	}
+	// [OSM stage 6A] The plates and symbols: every warning triangle drawn facing its reader (none of its
+	// triangles turned away), its back facing away, within the triangle's outline; a word plate as wide as
+	// its words and its border.
+	{
+		bool Ok = SignFontNow() != nullptr;
+		size_t Tris = 0;
+		for (int Sym = 0; Sym < SignPlate::SymKinds && Ok; ++Sym)
+		{
+			RideMesh Face, Back;
+			SignPlate::Frame F;
+			F.X = 10.0; F.Y = 2.0; F.Z = -5.0; F.Fx = 0.6; F.Fz = 0.8;
+			SignPlate::Warning(Face, Back, F, 0.9, Sym, Sym == SignPlate::SymSteepDown ? "17%" : "");
+			Ok = Ok && Face.Idx.size() >= 3 * 20 && !Back.Idx.empty();
+			const auto Facing = [](const RideMesh& M, size_t T)
+			{
+				const float* A = &M.Pos[M.Idx[T] * 3];
+				const float* B = &M.Pos[M.Idx[T + 1] * 3];
+				const float* C = &M.Pos[M.Idx[T + 2] * 3];
+				const double Ux = B[0] - A[0], Uy = B[1] - A[1], Uz = B[2] - A[2], Vx = C[0] - A[0], Vy = C[1] - A[1], Vz = C[2] - A[2];
+				return (Uy * Vz - Uz * Vy) * 0.6 + (Ux * Vy - Uy * Vx) * 0.8;   // (the normal's x times Face.x, z times Face.z)
+			};
+			for (size_t T = 0; T < Face.Idx.size(); T += 3)
+			{
+				const double Nf = Facing(Face, T);
+				const float* A = &Face.Pos[Face.Idx[T] * 3];
+				// (in the triangle's plane through its middle, within its outline: 0.9 m across, its middle the centroid)
+				const double Across = (A[0] - 10.0) * 0.8 - (A[2] + 5.0) * 0.6, Up = A[1] - 2.0;
+				Ok = Ok && Nf >= 0.0 && std::fabs(Across) <= 0.46 && Up >= -0.27 && Up <= 0.53;
+			}
+			for (size_t T = 0; T < Back.Idx.size(); T += 3) Ok = Ok && Facing(Back, T) <= 0.0;
+			Tris += Face.Idx.size() / 3;
+		}
+		RideMesh Plate, Back;
+		const float Paper[3] = {1.0f, 1.0f, 1.0f}, Ink[3] = {0.0f, 0.0f, 0.0f};
+		double W = 0.0, H = 0.0, Wide = 0.0;
+		Ok = Ok && SignPlate::WordPlate(Plate, Back, SignPlate::Frame(), 0.1, "Frenchgate", Paper, Ink, W, H) && SignText::Width("Frenchgate", 0.1, Wide) && W > Wide && H > 0.2;
+		std::printf("      warning symbols: %d, %zu triangles; a street plate %.2f by %.2f m\n", int(SignPlate::SymKinds), Tris, W, H);
+		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name");
+	}
 
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
 	{
@@ -1038,6 +1077,36 @@ int main()
 						Check(Built > 0 && Plan->FurnitureCount(RidePlan::NameSign) >= 2 && Plan->FurnitureCount(RidePlan::Limit30) >= 2 && Plan->FurnitureCount(RidePlan::LimitNational) >= 2
 								&& Plan->FurnitureCount(RidePlan::StreetLamp) > 3 && Plan->FurnitureCount(RidePlan::PowerPole) > 10 && Plan->FurnitureCount(RidePlan::FieldGate) > 10 && OnRoad == 0 && Labels == 1,
 							"the road's furniture: villages named and signed 30 coming in and national limit going out, lamps through them, poles, gates in the walls, none of it on a road");
+						// [OSM stage 6B] The warnings: a triangle of a size Britain's signs come in, 0.5 m or more off the
+						// road, none within 10 m of another sign facing the same way, each drawn in its square's signs.
+						{
+							int Warns = 0, Hills = 0, Bad = 0, Crowded = 0, Drawn = 0;
+							std::vector<const RidePlan::Furnish*> Standing;
+							for (const RidePlan::Furnish& F : Plan->Furniture)
+							{
+								const bool Sign = F.Kind == RidePlan::NameSign || F.Kind == RidePlan::Limit30 || F.Kind == RidePlan::LimitNational || F.Kind == RidePlan::WarnSign;
+								if (!Sign) continue;
+								for (const RidePlan::Furnish* O : Standing)
+									if (O->At.DistanceTo(F.At) < 10.0 && O->Face.X * F.Face.X + O->Face.Z * F.Face.Z > 0.5 && (O->Kind == RidePlan::WarnSign || F.Kind == RidePlan::WarnSign)) ++Crowded;
+								Standing.push_back(&F);
+								if (F.Kind != RidePlan::WarnSign) continue;
+								++Warns;
+								Hills += F.Size == SignPlate::SymSteepDown || F.Size == SignPlate::SymSteepUp ? 1 : 0;
+								RidePlan::NearHit Hit;
+								const bool Near = Plan->NearestOf(F.At.X, F.At.Z, RidePlan::NearOpts(), Hit);
+								const bool SizeOk = F.Big == 0.6 || F.Big == 0.75 || F.Big == 0.9 || F.Big == 1.2;
+								if (!SizeOk || (Near && Hit.Dist < Hit.Half + 0.5 + F.Big * 0.5 - 0.05) || F.Size < 0.0 || F.Size >= SignPlate::SymKinds) ++Bad;
+								if (Drawn == 0)
+								{
+									RideMesh Stands;
+									Plan->SceneryTile(std::floor(F.At.X / 64.0) * 64.0, std::floor(F.At.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
+									Drawn = Stands.Signs && Stands.Signs->Idx.size() >= 3 * 40 ? 1 : -1;
+								}
+							}
+							std::printf("      warnings: %d (%d hills), %d street name plates; %d too near the road or of a wrong size, %d crowding another sign\n", Warns, Hills,
+								Plan->FurnitureCount(RidePlan::StreetPlate), Bad, Crowded);
+							Check(Warns > 0 && Bad == 0 && Crowded == 0 && Drawn == 1, "the warnings: Britain's sizes, back from the road, never crowding another sign, drawn in the signs' layer");
+						}
 						int Churches = 0, Pubs = 0;
 						for (unsigned char Role : Plan->BuildingRole) { Churches += Role == 1 ? 1 : 0; Pubs += Role == 2 ? 1 : 0; }
 						std::printf("      and %d phone boxes, %d pub signs (%d pubs), %d churches with towers, %d level crossing barriers\n", Plan->FurnitureCount(RidePlan::PhoneBox),

@@ -487,9 +487,9 @@ int main(int Argc, char** Argv)
 					const double FurnMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - FurnT0).count();
 					std::map<int, int> ByKind;
 					for (const RidePlan::Furnish* F : FurnHere) ++ByKind[F->Kind];
-					std::printf("  the network's furniture there: %zu in %.0f ms (lamps %d, chevrons %d, post boxes %d, bus stops %d, benches %d, cattle grids %d, traffic lights %d, beacons %d)\n",
+					std::printf("  the network's furniture there: %zu in %.0f ms (lamps %d, chevrons %d, post boxes %d, bus stops %d, benches %d, cattle grids %d, traffic lights %d, beacons %d, warnings %d)\n",
 						FurnHere.size(), FurnMs, ByKind[RidePlan::StreetLamp], ByKind[RidePlan::Chevron], ByKind[RidePlan::PostBox], ByKind[RidePlan::BusStop],
-						ByKind[RidePlan::Seat], ByKind[RidePlan::CattleGrid], ByKind[RidePlan::TrafficSignal], ByKind[RidePlan::Beacon]);
+						ByKind[RidePlan::Seat], ByKind[RidePlan::CattleGrid], ByKind[RidePlan::TrafficSignal], ByKind[RidePlan::Beacon], ByKind[RidePlan::WarnSign]);
 				}
 				RidePlan::NearHit Hit;
 				const bool On = Plan->NearestOf(Rx, Rz, RidePlan::NearOpts(), Hit);
@@ -1421,6 +1421,19 @@ int main(int Argc, char** Argv)
 				F != nullptr ? F->Name.c_str() : "");
 		}
 		std::printf("Limit signs: %d roundels, %d national\n", Plan->FurnitureCount(RidePlan::Limit30), Plan->FurnitureCount(RidePlan::LimitNational));
+		{
+			// [OSM stage 6B] the warnings by symbol, and the street name plates
+			int BySym[TorqueWorld::SignPlate::SymKinds] = {};
+			for (const RidePlan::Furnish& F : Plan->Furniture)
+				if (F.Kind == RidePlan::WarnSign && F.Size >= 0.0 && F.Size < TorqueWorld::SignPlate::SymKinds) ++BySym[int(F.Size)];
+			std::printf("Warning signs: %d (bends %d, double bends %d, hills %d, junctions %d, roundabouts %d, lights %d, humps %d, cattle grids %d); street name plates %d\n",
+				Plan->FurnitureCount(RidePlan::WarnSign), BySym[0] + BySym[1], BySym[2] + BySym[3], BySym[10] + BySym[11], BySym[4] + BySym[5] + BySym[6] + BySym[7], BySym[8], BySym[9], BySym[12], BySym[14],
+				Plan->FurnitureCount(RidePlan::StreetPlate));
+			if (std::getenv("WORLD_RIDE_WARNINGS") != nullptr)
+				for (const RidePlan::Furnish& F : Plan->Furniture)
+					if (F.Kind == RidePlan::WarnSign || F.Kind == RidePlan::StreetPlate)
+						std::printf("  %s %d %s at %.0f,%.0f facing %.2f,%.2f size %.2f\n", F.Kind == RidePlan::WarnSign ? "warn" : "plate", int(F.Size), F.Text.c_str(), F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Big);
+		}
 		for (const RidePlan::RideStop& S : Plan->Stops)
 			if (S.Kind >= RidePlan::StopInn) std::printf("  stop %s at %.2f km: %s\n", RidePlan::StopName(S.Kind), S.Along / 1000.0, S.Name.c_str());
 		const RidePlan::RideNav N0 = Plan->NavAt(Plan->Road[0].At.X, Plan->Road[0].At.Z);

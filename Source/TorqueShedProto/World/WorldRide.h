@@ -593,6 +593,9 @@ public:
 	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier,
 		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, PlaceBoard,
 		TrafficSignal, Beacon,   // [OSM stage 5D] a traffic light facing the traffic (Size its cycle's start, s), a zebra crossing's beacon
+		// [OSM stage 6B] a warning triangle (Size its symbol, SignPlate::ESymbol; Big its side, m; Text a hill's
+		// gradient, "20%", or the words of a plate under it), a street's name plate (Text; Big its capitals, m)
+		WarnSign, StreetPlate,
 		FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
 	struct Furnish
 	{
@@ -603,6 +606,7 @@ public:
 		double Height = 0.0; // the ground (or the road) under it
 		uint32_t Id = 0;     // [OSM stage 2] a hash of the map's own id (0 for one placed by rule): its variant
 		bool Mapped = true;  // the map put it there (not a rule)
+		double Big = 0.0;    // [OSM stage 6] a sign's size (WarnSign, StreetPlate)
 	};
 	std::vector<Furnish> Furniture;
 	int FurnitureCount(int Kind) const;

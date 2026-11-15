@@ -55,6 +55,160 @@ const Rgb CoverColour[10] = {
 };
 const Rgb NoCover = {0.088f, 0.105f, 0.04f};
 const Rgb Scar = {0.2f, 0.195f, 0.18f};   // (limestone showing on the steepest ground)
+
+// [OSM stage 6B] A warning a road's shape asks for: what (SignPlate::ESymbol, Text a hill's gradient),
+// where the danger starts (Along) for the traffic going Way (+1 the way the road's points run, -1 back).
+struct Hazard
+{
+	double Along = 0.0;
+	int Way = 1;
+	int Symbol = 0;
+	std::string Text;
+};
+// How far before a danger its warning stands, and the triangle's side, by the limit (Britain's Traffic
+// Signs Manual, chapter 4's table: 45 m at 30 mph to 200 m at 70; 600 mm to 1200 mm), a narrow road's no
+// more than 750 mm.
+double WarnBefore(int Mph) { return Mph <= 30 ? 45.0 : Mph <= 40 ? 65.0 : Mph <= 50 ? 100.0 : Mph <= 60 ? 150.0 : 200.0; }
+double WarnSide(int Mph, double Half) { const double S = Mph <= 30 ? 0.6 : Mph <= 40 ? 0.75 : Mph <= 60 ? 0.9 : 1.2; return Half < 2.8 ? std::fmin(S, 0.75) : S; }
+// The road's bends too tight for its limit (a comfortable 3 m/s2 across at no more than 0.65 of it) and
+// turning 40 degrees or more, and its hills of 10% or more, each way. A bend in a built-up stretch gets
+// none; a bend another's sign already covers (within 150 m after it, the same way) gets none; two
+// bends the opposite ways within 120 m are a double bend. Mph: the limit at a point (0 none: no warning).
+template <typename FMph>
+void ShapeHazards(const std::vector<RoadPoint>& Pts, const std::vector<unsigned char>& BuiltUp, const FMph& Mph, std::vector<Hazard>& Out)
+{
+	using namespace SignPlate;
+	const double Pi = 3.14159265358979323846;
+	const size_t N = Pts.size();
+	if (N < 3) return;
+	std::vector<double> Radius(N, 1e9), Turn(N, 0.0);
+	for (size_t I = 0; I < N; ++I)
+	{
+		size_t A = I, B = I;
+		while (A > 0 && Pts[I].Along - Pts[A].Along < 15.0) --A;
+		while (B + 1 < N && Pts[B].Along - Pts[I].Along < 15.0) ++B;
+		if (A == I || B == I) continue;
+		const P2 U = Pts[I].At - Pts[A].At, V = Pts[B].At - Pts[I].At;
+		double T = std::atan2(V.Z, V.X) - std::atan2(U.Z, U.X);
+		while (T > Pi) T -= 2.0 * Pi;
+		while (T < -Pi) T += 2.0 * Pi;
+		Turn[I] = T;
+		if (std::fabs(T) > 1e-4) Radius[I] = (Pts[B].Along - Pts[A].Along) / std::fabs(T);
+	}
+	const auto Tight = [&](size_t I)
+	{
+		const int Limit = Mph(Pts[I].Along);
+		if (Limit <= 0) return false;
+		const double V = Limit * 0.44704 * 0.65;
+		return Radius[I] < V * V / 3.0;
+	};
+	struct Bend { double From = 0.0, To = 0.0; bool Right = false; };
+	std::vector<Bend> Bends;
+	for (size_t I = 0; I < N; ++I)
+	{
+		if (!Tight(I) || (I < BuiltUp.size() && BuiltUp[I])) continue;
+		size_t J = I;
+		while (J + 1 < N && Tight(J + 1) && (Turn[J + 1] > 0.0) == (Turn[I] > 0.0)) ++J;
+		double Whole = 0.0;
+		for (size_t K = I + 1; K <= J; ++K) Whole += Turn[K] * (Pts[K].Along - Pts[K - 1].Along) / 30.0;
+		bool Busy = false;
+		for (size_t K = I; K <= J && !Busy; ++K) Busy = K < BuiltUp.size() && BuiltUp[K];
+		if (std::fabs(Whole) >= 40.0 * Pi / 180.0 && !Busy)
+		{
+			Bend B;
+			// (from where it starts to turn: the window's half before the first tight point)
+			B.From = std::fmax(0.0, Pts[I].Along - 10.0);
+			B.To = std::fmin(Pts[N - 1].Along, Pts[J].Along + 10.0);
+			B.Right = Turn[I] > 0.0;   // (a right-hand bend as the points run turns clockwise seen from above, Turn > 0)
+			Bends.push_back(B);
+		}
+		I = J;
+	}
+	for (int Way : {1, -1})
+	{
+		std::vector<Bend> Seen = Bends;
+		if (Way < 0)
+		{
+			std::reverse(Seen.begin(), Seen.end());
+			for (Bend& B : Seen) B.Right = !B.Right;
+		}
+		const auto Start = [Way](const Bend& B) { return Way > 0 ? B.From : B.To; };
+		const auto End = [Way](const Bend& B) { return Way > 0 ? B.To : B.From; };
+		double Covered = Way > 0 ? -1e9 : 1e9;
+		for (size_t K = 0; K < Seen.size(); ++K)
+		{
+			const Bend& B = Seen[K];
+			if ((Start(B) - Covered) * Way < 0.0) { Covered = End(B) + Way * 150.0; continue; }
+			Hazard H;
+			H.Along = Start(B);
+			H.Way = Way;
+			H.Symbol = B.Right ? SymBendRight : SymBendLeft;
+			Covered = End(B) + Way * 150.0;
+			if (K + 1 < Seen.size() && Seen[K + 1].Right != B.Right && (Start(Seen[K + 1]) - End(B)) * Way < 120.0)
+			{
+				H.Symbol = B.Right ? SymDoubleBendRight : SymDoubleBendLeft;
+				Covered = End(Seen[K + 1]) + Way * 150.0;
+				++K;
+			}
+			Out.push_back(H);
+		}
+	}
+	// The hills: the gradient over 50 m; a stretch of 10% or more at least 40 m long (gaps under 60 m
+	// closed), its steepest shown rounded down to the figures signs use.
+	const auto HeightAt = [&Pts, N](double Along)
+	{
+		size_t Lo = 0, Hi = N;
+		while (Hi - Lo > 1)
+		{
+			const size_t M = (Lo + Hi) / 2;
+			if (Pts[M].Along <= Along) Lo = M;
+			else Hi = M;
+		}
+		if (Lo + 1 >= N) return Pts[N - 1].Height;
+		const double T = std::clamp((Along - Pts[Lo].Along) / std::fmax(1e-6, Pts[Lo + 1].Along - Pts[Lo].Along), 0.0, 1.0);
+		return Pts[Lo].Height + (Pts[Lo + 1].Height - Pts[Lo].Height) * T;
+	};
+	const double Length = Pts[N - 1].Along;
+	std::vector<double> Grade(N, 0.0);
+	for (size_t I = 0; I < N; ++I)
+	{
+		const double A = Pts[I].Along;
+		if (A < 25.0 || A > Length - 25.0) continue;
+		Grade[I] = (HeightAt(A + 25.0) - HeightAt(A - 25.0)) / 50.0;
+	}
+	for (int Up : {1, -1})
+	{
+		for (size_t I = 0; I < N; ++I)
+		{
+			if (Grade[I] * Up < 0.1) continue;
+			size_t J = I;
+			double Steepest = 0.0;
+			for (size_t K = I; K < N; ++K)
+			{
+				if (Grade[K] * Up >= 0.1) { J = K; Steepest = std::fmax(Steepest, Grade[K] * Up); continue; }
+				if (Pts[K].Along - Pts[J].Along > 60.0) break;
+			}
+			if (Pts[J].Along - Pts[I].Along >= 40.0)
+			{
+				static const int Figures[] = {33, 25, 20, 17, 14, 12, 10};
+				int Shown = 10;
+				for (int F : Figures)
+					if (Steepest * 100.0 >= F - 0.01) { Shown = F; break; }
+				// (going the way the points run it climbs where Up is +1; coming back it falls)
+				for (int Way : {1, -1})
+				{
+					Hazard H;
+					H.Way = Way;
+					H.Along = Way > 0 ? std::fmax(0.0, Pts[I].Along - 25.0) : std::fmin(Length, Pts[J].Along + 25.0);
+					H.Symbol = Up * Way > 0 ? SymSteepUp : SymSteepDown;
+					H.Text = std::to_string(Shown) + "%";
+					Out.push_back(H);
+				}
+			}
+			I = J;
+		}
+	}
+}
 } // namespace
 
 void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float* Out) const
@@ -972,6 +1126,247 @@ void RidePlan::IndexFurniture()
 		F.Height = Ground(F.At.X, F.At.Z);
 		Put(F);
 	}
+	// [OSM stage 6B] The warnings, in Britain (its own triangles): where the road's shape or what is on it
+	// asks for one, the distance before it and the size the limit there sets, on the traffic's side, 0.7 m
+	// or more back from the edge. None within 10 m of another sign facing the same way (it moves back up
+	// to 30 m, else it is left out): the more important placed first.
+	if (Uk)
+	{
+		const auto MphAt = [this](double Along)
+		{
+			const LimitStretch* L = LimitAt(std::clamp(Along, 0.0, Length));
+			return L != nullptr ? ShownLimit(L->Kmh) : 0;
+		};
+		// (and no two warnings within 40 m of each other the same way: the lesser left out, not crowded in)
+		struct Standing { P2 At, Face; bool Warning; };
+		std::vector<Standing> Signs;
+		for (const Furnish& F : Furniture)
+			if (F.Kind == NameSign || F.Kind == Limit30 || F.Kind == LimitNational) Signs.push_back({F.At, F.Face, false});
+		const auto Clear = [&Signs](const P2& At, const P2& Face, double Apart)
+		{
+			for (const Standing& S : Signs)
+				if (S.At.DistanceTo(At) < (S.Warning ? Apart : 10.0) && S.Face.X * Face.X + S.Face.Z * Face.Z > 0.5) return false;
+			return true;
+		};
+		const auto Warn = [&](const Hazard& H)
+		{
+			const int Mph = MphAt(H.Along - H.Way * 40.0);
+			if (Mph <= 0) return;
+			const double Before = WarnBefore(Mph);
+			// (a warning already near where this one's would stand, the same way: this one is left out)
+			{
+				const size_t K = PointAt(std::clamp(H.Along - H.Way * Before, 0.0, Length));
+				if (!Clear(Verge(K, H.Way * Keep, 1.0), Dir(K) * -double(H.Way), 40.0)) return;
+			}
+			for (double Extra = 0.0; Extra <= 30.0; Extra += 5.0)
+			{
+				const double Along = H.Along - H.Way * (Before + Extra);
+				if (Along < 0.0 || Along > Length) return;
+				const size_t K = PointAt(Along);
+				Furnish F;
+				F.Kind = WarnSign;
+				F.Mapped = false;
+				F.Size = H.Symbol;
+				F.Text = H.Text;
+				F.Big = WarnSide(Mph, Road[K].Half);
+				F.At = Verge(K, H.Way * Keep, 0.7 + F.Big * 0.5);
+				F.Face = Dir(K) * -double(H.Way);
+				F.Height = Ground(F.At.X, F.At.Z);
+				const P2 Across(F.Face.Z, -F.Face.X);
+				if (!Clear(F.At, F.Face, 10.0) || !OffAll(F.At, 0.6) || !OffAll(F.At + Across * (F.Big * 0.5), 0.5) || !OffAll(F.At - Across * (F.Big * 0.5), 0.5)) continue;
+				Signs.push_back({F.At, F.Face, true});
+				Put(F);
+				return;
+			}
+		};
+		std::vector<Hazard> Ahead;
+		// Roundabouts on a road of 40 mph or more: where the ride's road comes onto a ring, each way.
+		for (const RoadRing& Ring : RoadRings)
+		{
+			const double Reach = Ring.Radius + 2.0;
+			for (size_t I = 0; I < Road.size(); ++I)
+			{
+				if (Road[I].At.DistanceTo(Ring.Mid) >= Reach) continue;
+				size_t J = I;
+				while (J + 1 < Road.size() && Road[J + 1].At.DistanceTo(Ring.Mid) < Reach) ++J;
+				for (int Way : {1, -1})
+				{
+					Hazard H;
+					H.Way = Way;
+					H.Along = Way > 0 ? Road[I].Along : Road[J].Along;
+					H.Symbol = SignPlate::SymRoundabout;
+					if (MphAt(H.Along - Way * 60.0) >= 40 && (Way > 0 ? I > 0 : J + 1 < Road.size())) Ahead.push_back(H);
+				}
+				I = J;
+			}
+		}
+		// Traffic lights out of town (40 mph or more), for the traffic they govern.
+		for (const MappedMark& M : MainMapped)
+		{
+			if (M.Kind != "traffic_signals") continue;
+			for (int Way : {1, -1})
+			{
+				if (M.Dir != 0 && M.Dir != Way) continue;
+				Hazard H;
+				H.Way = Way;
+				H.Along = M.Along;
+				H.Symbol = SignPlate::SymSignals;
+				if (MphAt(M.Along - Way * 60.0) >= 40) Ahead.push_back(H);
+			}
+		}
+		// Side roads and crossroads on a fast road (50 mph or more, not built up) where the ride's road is
+		// the greater and the other a classified road (tertiary or more): which side as each way reads it.
+		{
+			struct Meet { double Along = 0.0; bool Left = false, Right = false; };
+			std::vector<Meet> Meets;
+			for (int Which : Planned)
+			{
+				const SideRoad* Sd = SideOf(Which);
+				if (Sd == nullptr || Sd->Track || Sd->Edge < 0) continue;
+				const std::string& Class = G.ClassOf(Sd->Edge);
+				if (Class != "tertiary" && Class != "secondary" && Class != "primary" && Class != "trunk" && Class != "tertiary_link" && Class != "secondary_link" && Class != "primary_link") continue;
+				for (const Mouth& M : Sd->Mouths)
+				{
+					if (!M.Is || !M.GiveWay || M.Ring || M.MainIndex < 0 || size_t(M.MainIndex) >= Road.size()) continue;
+					const size_t I = size_t(M.MainIndex);
+					if (BuiltUp[I]) continue;
+					const P2 D = Dir(I);
+					const bool Left = M.Across.X * D.Z - M.Across.Z * D.X > 0.0;
+					Meet Mt;
+					Mt.Along = Road[I].Along;
+					(Left ? Mt.Left : Mt.Right) = true;
+					Meets.push_back(Mt);
+				}
+			}
+			std::sort(Meets.begin(), Meets.end(), [](const Meet& A, const Meet& B) { return A.Along < B.Along; });
+			for (size_t K = 0; K < Meets.size(); ++K)
+			{
+				Meet Mt = Meets[K];
+				while (K + 1 < Meets.size() && Meets[K + 1].Along - Mt.Along < 20.0)
+				{
+					Mt.Left = Mt.Left || Meets[K + 1].Left;
+					Mt.Right = Mt.Right || Meets[K + 1].Right;
+					++K;
+				}
+				for (int Way : {1, -1})
+				{
+					if (MphAt(Mt.Along - Way * 60.0) < 50) continue;
+					Hazard H;
+					H.Way = Way;
+					H.Along = Mt.Along;
+					const bool L = Way > 0 ? Mt.Left : Mt.Right, R = Way > 0 ? Mt.Right : Mt.Left;
+					H.Symbol = L && R ? SignPlate::SymCrossroads : L ? SignPlate::SymSideLeft : SignPlate::SymSideRight;
+					Ahead.push_back(H);
+				}
+			}
+		}
+		// The bends and the hills.
+		ShapeHazards(Road, BuiltUp, MphAt, Ahead);
+		// Road humps: before the first of each run of them (humps within 150 m of each other), each way.
+		{
+			std::vector<double> Humps;
+			for (const MappedMark& M : MainMapped)
+				if (M.Kind == "hump" || M.Kind == "table" || M.Kind == "cushion" || M.Kind == "bump") Humps.push_back(M.Along);
+			std::sort(Humps.begin(), Humps.end());
+			for (size_t K = 0; K < Humps.size(); ++K)
+			{
+				size_t J = K;
+				while (J + 1 < Humps.size() && Humps[J + 1] - Humps[J] < 150.0) ++J;
+				for (int Way : {1, -1})
+				{
+					Hazard H;
+					H.Way = Way;
+					H.Along = Way > 0 ? Humps[K] : Humps[J];
+					H.Symbol = SignPlate::SymHumps;
+					Ahead.push_back(H);
+				}
+				K = J;
+			}
+		}
+		// The map's cattle grids across the ride's road: the danger sign and its "Cattle grid" plate.
+		for (size_t Fi = 0; Fi < Furniture.size(); ++Fi)
+		{
+			const Furnish& F = Furniture[Fi];
+			if (F.Kind != CattleGrid) continue;
+			NearOpts Opts;
+			NearHit Hit;
+			if (!NearestOf(F.At.X, F.At.Z, Opts, Hit) || Hit.Which != 0 || Hit.Index < 0 || size_t(Hit.Index) >= Road.size()) continue;
+			for (int Way : {1, -1})
+			{
+				Hazard H;
+				H.Way = Way;
+				H.Along = Road[size_t(Hit.Index)].Along;
+				H.Symbol = SignPlate::SymDanger;
+				H.Text = "Cattle grid";
+				Ahead.push_back(H);
+			}
+		}
+		for (const Hazard& H : Ahead) Warn(H);
+		// The streets' names: a plate at the corner of each named street that meets the ride's road where
+		// it is built up, on the street's left as it is turned into, facing the ride's road, at the back
+		// of the pavement.
+		const auto InBuilding = [this, &G](const P2& P, double Margin)
+		{
+			for (int Dz = -1; Dz <= 1; ++Dz)
+				for (int Dx = -1; Dx <= 1; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+					{
+						const Building& H = G.Buildings[size_t(B)];
+						const double C = std::cos(H.Yaw), S = std::sin(H.Yaw), Ex = P.X - H.X, Ez = P.Z - H.Z;
+						if (std::fabs(Ex * C - Ez * S) < H.W * 0.5 + Margin && std::fabs(Ex * S + Ez * C) < H.D * 0.5 + Margin) return true;
+					}
+				}
+			return false;
+		};
+		std::vector<std::pair<P2, std::string>> Named;   // (one plate for a street within 60 m)
+		for (int Which : Planned)
+		{
+			const SideRoad* Sd = SideOf(Which);
+			if (Sd == nullptr || Sd->Track || Sd->Edge < 0 || Sd->Pts.size() < 2) continue;
+			const RoadEdge& E = G.Edges[size_t(Sd->Edge)];
+			const std::string Called = E.Name > 0 && size_t(E.Name) < G.Names.size() ? G.Names[size_t(E.Name)] : std::string();
+			if (Called.empty() || !StreetClass(G.ClassOf(Sd->Edge))) continue;
+			for (int End = 0; End < 2; ++End)
+			{
+				const Mouth& M = Sd->Mouths[End];
+				if (!M.Is || M.Ring || M.MainIndex < 0 || size_t(M.MainIndex) >= Road.size() || !BuiltUp[size_t(M.MainIndex)]) continue;
+				double Wide = 0.0;
+				if (!SignText::Width(Called, 0.1, Wide)) continue;
+				const double Half = End == 0 ? Sd->Pts.front().Half : Sd->Pts.back().Half, W = Wide + 0.2;
+				const P2 Left(M.Away.Z, -M.Away.X);
+				Furnish F;
+				F.Kind = StreetPlate;
+				F.Mapped = false;
+				F.Text = Called;
+				F.Big = 0.1;
+				F.Face = M.Away * -1.0;
+				const P2 Across(F.Face.Z, -F.Face.X);
+				// (past the corner's rounding, the street's left first, then its right; never against a house)
+				bool Found = false;
+				for (double Sigma : {1.0, -1.0})
+				{
+					P2 Corner, AlongMain;
+					double Reach = 0.0;
+					MouthCorner(M, Road[size_t(M.MainIndex)].At, Half, Sigma, Corner, AlongMain, Reach);
+					F.At = M.At + M.Away * (Reach + 0.5) + Left * (Sigma * (Half + 2.4 + W * 0.5));
+					if (std::any_of(Named.begin(), Named.end(), [&F](const std::pair<P2, std::string>& N) { return N.second == F.Text && N.first.DistanceTo(F.At) < 60.0; })) break;
+					if (!OffAll(F.At, 1.0) || !OffAll(F.At + Across * (W * 0.5), 0.8) || !OffAll(F.At - Across * (W * 0.5), 0.8)) continue;
+					if (InBuilding(F.At, W * 0.5 + 0.8)) continue;
+					Found = true;
+					break;
+				}
+				if (!Found) continue;
+				F.Height = Ground(F.At.X, F.At.Z);
+				{
+					Named.emplace_back(F.At, F.Text);
+					Put(F);
+				}
+			}
+		}
+	}
 }
 
 int RidePlan::CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const
@@ -1142,6 +1537,42 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				for (double Sv : {1.0, -1.0})
 					Quad(Out.SignsOf(), Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
 			}
+			break;
+		}
+		case WarnSign:
+		{
+			// [OSM stage 6B] Its triangle's foot 1.5 m up (over its plate's, if it has words under it), on a
+			// post behind it, its back grey.
+			const double S = F.Big > 0.0 ? F.Big : 0.75;
+			const bool Hill = F.Size == SignPlate::SymSteepDown || F.Size == SignPlate::SymSteepUp;
+			const std::string Words = Hill ? std::string() : F.Text;
+			double Wp = 0.0, Hp = 0.0, Foot = Y + 1.5;
+			static const float Ink[3] = {Black.R, Black.G, Black.B}, Paper[3] = {White.R, White.G, White.B};
+			if (!Words.empty() && SignText::Width(Words, S * 0.09, Wp))
+			{
+				SignPlate::Frame P;
+				P.X = F.At.X; P.Z = F.At.Z; P.Y = Foot + S * 0.09 * 1.2; P.Fx = Face.X; P.Fz = Face.Z;
+				if (SignPlate::WordPlate(Out.SignsOf(), Out, P, S * 0.09, Words, Paper, Ink, Wp, Hp)) Foot += Hp + 0.05;
+			}
+			SignPlate::Frame T;
+			T.X = F.At.X; T.Z = F.At.Z; T.Y = Foot + S * 0.2887; T.Fx = Face.X; T.Fz = Face.Z;
+			Post(F.At.X - Face.X * 0.06, F.At.Z - Face.Z * 0.06, Y - 0.3, T.Y + S * 0.35, 0.04, 0.036, Grey);
+			SignPlate::Warning(Out.SignsOf(), Out, T, S, int(F.Size), Hill ? F.Text : std::string());
+			break;
+		}
+		case StreetPlate:
+		{
+			// [OSM stage 6B] A street's name, black on white with a black border, on two short posts.
+			static const float Ink[3] = {Black.R, Black.G, Black.B}, Paper[3] = {White.R, White.G, White.B};
+			const double Cap = F.Big > 0.0 ? F.Big : 0.1;
+			double Wide = 0.0;
+			if (!SignText::Width(F.Text, Cap, Wide)) break;
+			const double W = Wide + Cap * 2.0, H = Cap * 2.4;
+			SignPlate::Frame P;
+			P.X = F.At.X; P.Z = F.At.Z; P.Y = Y + 0.75 + H * 0.5; P.Fx = Face.X; P.Fz = Face.Z;
+			for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * (W * 0.5 - 0.12) - Face.X * 0.05, F.At.Z + Side.Z * Su * (W * 0.5 - 0.12) - Face.Z * 0.05, Y - 0.2, P.Y + H * 0.5, 0.03, 0.03, Grey);
+			double Wp = 0.0, Hp = 0.0;
+			SignPlate::WordPlate(Out.SignsOf(), Out, P, Cap, F.Text, Paper, Ink, Wp, Hp);
 			break;
 		}
 		case StreetLamp:
@@ -2439,6 +2870,44 @@ std::vector<RidePlan::Furnish> RidePlan::RoadFurniture(int Which) const
 				if (OffAll(F.At, 0.8)) Put(F);
 			}
 		I = J;
+	}
+	// [OSM stage 6B] Its bends' and hills' warnings, in Britain, as the ride's road's: where the warning
+	// fits on this road before the danger (not within 25 m of its ends: a junction's corner is no bend).
+	if (Britain())
+	{
+		const int Mapped = Mine->Edge >= 0 ? G.Edges[size_t(Mine->Edge)].Limit : 0;
+		const std::string Class = Mine->Edge >= 0 ? G.ClassOf(Mine->Edge) : std::string();
+		const auto MphAt = [&](double Along)
+		{
+			if (Mapped > 0) return ShownLimit(Mapped);
+			return Busy[PointAt(Along)] ? 30 : Class == "motorway" ? 70 : 60;
+		};
+		std::vector<Hazard> Ahead;
+		ShapeHazards(Pts, Busy, MphAt, Ahead);
+		const double Keep2 = KeepLeft() ? 1.0 : -1.0;
+		std::vector<std::pair<P2, P2>> Placed;
+		for (const Hazard& H : Ahead)
+		{
+			if (H.Along < 25.0 || H.Along > Mine->Length - 25.0) continue;
+			const int Mph = MphAt(H.Along);
+			const double Along = H.Along - H.Way * WarnBefore(Mph);
+			if (Along < 10.0 || Along > Mine->Length - 10.0) continue;
+			const size_t K = PointAt(Along);
+			Furnish F;
+			F.Kind = WarnSign;
+			F.Mapped = false;
+			F.Size = H.Symbol;
+			F.Text = H.Text;
+			F.Big = WarnSide(Mph, Pts[K].Half);
+			F.At = Verge(K, H.Way * Keep2, 0.7 + F.Big * 0.5);
+			F.Face = Dir(K) * -double(H.Way);
+			F.Height = Ground(F.At.X, F.At.Z);
+			const P2 Across(F.Face.Z, -F.Face.X);
+			if (std::any_of(Placed.begin(), Placed.end(), [&F](const std::pair<P2, P2>& P) { return P.first.DistanceTo(F.At) < 40.0 && P.second.X * F.Face.X + P.second.Z * F.Face.Z > 0.5; })) continue;
+			if (!OffAll(F.At, 0.6) || !OffAll(F.At + Across * (F.Big * 0.5), 0.5) || !OffAll(F.At - Across * (F.Big * 0.5), 0.5)) continue;
+			Placed.emplace_back(F.At, F.Face);
+			Put(F);
+		}
 	}
 	return Out;
 }

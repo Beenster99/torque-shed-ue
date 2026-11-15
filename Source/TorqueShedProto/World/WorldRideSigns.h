@@ -46,4 +46,61 @@ bool Width(const std::string& Utf8, double CapHigh, double& Wide);
 // there is no font or it lacks a letter (the caller falls back to a RideMesh::Label).
 bool Set(RideMesh& Into, double X, double Y, double Z, double FaceX, double FaceZ, double CapHigh, const std::string& Utf8, const float Colour[3], int Align = 0);
 } // namespace SignText
+
+// [OSM stage 6A] A sign's plates and symbols, flat in an upright plane facing the reader: shapes made as
+// a convex outline round corner centres (each corner rounded by Round), so a border is the same outline
+// drawn Round less and the fill inside it. All in metres about the plate's middle: u to the reader's
+// right, v up. Each triangle wound to face the reader (Face, a level unit direction towards them).
+namespace SignPlate
+{
+struct Frame
+{
+	double X = 0.0, Y = 0.0, Z = 0.0;   // the plate's middle
+	double Fx = 0.0, Fz = 1.0;          // towards the reader
+};
+struct Shape
+{
+	std::vector<double> Corners;   // u, v each, anticlockwise (one for a roundel)
+	double Round = 0.0;
+	int Segments = 32;             // round a roundel
+};
+Shape Roundel(double Radius);
+// A triangle Side across (as the sign's size is given: its sharp outline's side), its middle (the
+// centroid) at 0; point up (a warning) or down (give way); corners rounded Side * 0.07.
+Shape Triangle(double Side, bool PointUp = true);
+Shape Rect(double W, double H, double Round);
+// A rectangle with its end at Point (-1 the reader's left, +1 right) brought to a point (a direction
+// sign's flag, a fingerpost's arm): W along its whole length to the tip, H high, the point Tip long.
+Shape Flag(double W, double H, int Point, double Tip, double Round);
+// The shape's outline Inset in from its edge (u, v each, anticlockwise).
+std::vector<double> Outline(const Shape& S, double Inset);
+// The shape filled (Inset in from its edge), Proud m out towards the reader.
+void Fill(RideMesh& Into, const Frame& At, const Shape& S, double Inset, double Proud, const float Colour[3]);
+// A band round its edge, from Inset to Inset + Wide in.
+void Band(RideMesh& Into, const Frame& At, const Shape& S, double Inset, double Wide, double Proud, const float Colour[3]);
+// The whole plate: its back (Back, facing away, Proud - 0.02), its border Rim m wide in Edge and its face
+// in Ground inside it (Into). Rim 0 for none.
+void Plate(RideMesh& Into, RideMesh& Back, const Frame& At, const Shape& S, const float Ground[3], double Rim, const float Edge[3], const float BackColour[3], double Proud = 0.0);
+// A convex polygon (u, v each, either winding) and a line Wide m thick along points (u, v each).
+void Poly(RideMesh& Into, const Frame& At, const std::vector<double>& Uv, double Proud, const float Colour[3]);
+void Stroke(RideMesh& Into, const Frame& At, const std::vector<double>& Uv, double Wide, double Proud, const float Colour[3]);
+// A stroke ended by an arrowhead at its last point, Head m long.
+void Arrow(RideMesh& Into, const Frame& At, const std::vector<double>& Uv, double Wide, double Head, double Proud, const float Colour[3]);
+
+// The warning triangles' symbols (Britain's: the Traffic Signs Regulations' diagrams, drawn simply).
+enum ESymbol
+{
+	SymBendLeft, SymBendRight, SymDoubleBendLeft, SymDoubleBendRight,   // 512, 513 (the first bend to the left or right)
+	SymCrossroads, SymSideLeft, SymSideRight, SymTJunction,            // 504.1, 506.1, 505.1
+	SymRoundabout, SymSignals, SymSteepDown, SymSteepUp,              // 510, 543, 523.1, 524.1 (Figure the gradient)
+	SymHumps, SymNarrows, SymDanger,                                  // 557.1, 516, 562 (other danger: with a plate)
+	SymKinds
+};
+// A warning sign: the red-bordered white triangle Side across with its symbol in black (and Figure,
+// "20%", on a hill's), Proud out from At; its back grey into Back. Its middle is At (the centroid).
+void Warning(RideMesh& Into, RideMesh& Back, const Frame& At, double Side, int Symbol, const std::string& Figure);
+// A rectangular plate of words: white, a black border and black capitals CapHigh m tall (or Ink on
+// Ground), wide enough for them; false if a letter is missing (nothing drawn). Its size into W, H.
+bool WordPlate(RideMesh& Into, RideMesh& Back, const Frame& At, double CapHigh, const std::string& Utf8, const float Ground[3], const float Ink[3], double& W, double& H);
+} // namespace SignPlate
 } // namespace TorqueWorld
