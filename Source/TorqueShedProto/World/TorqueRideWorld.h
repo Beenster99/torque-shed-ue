@@ -275,6 +275,24 @@ private:
 	// [build 147] The game thread's costs, logged every 5 seconds (World/RideCosts.h).
 	int32 CostFrames = 0;
 	double CostSince = 0.0, CostWorstFrame = 0.0;
+	// [perf, build 150] What the whole frame costs, averaged over the 5 s (the engine's game, render and
+	// GPU times, summed each frame), and frames that took far too long (logged as "Ride hitch:", with
+	// any garbage collection in them).
+	double FrameGameMs = 0.0, FrameRenderMs = 0.0, FrameGpuMs = 0.0;
+	double LastTickWall = 0.0, LastTickOwnMs = 0.0;
+	// [perf, build 150] -TorqueRideAB=1: one run measures what each part of the picture costs. Step by
+	// step something is turned off (a console variable, or a kind of the ride's things hidden), the
+	// frame measured, and put back; each step logged as "Ride A/B:". See TickAB in the .cpp.
+	void TickAB(float DeltaSeconds);
+	void HideForAB(int32 What, bool bHide);
+	int32 ABStep = -1;
+	double ABSince = 0.0, ABGame = 0.0, ABRender = 0.0, ABGpu = 0.0, ABWall = 0.0;
+	int32 ABFrames = 0;
+	bool bABProfiled = false;
+	TArray<TPair<FString, FString>> ABWas;   // the step's console variables as they were
+	// [perf, build 150] The graphics preset's foliage level (sg.FoliageQuality, 0 low .. 4 cinematic) as a
+	// share of the grass's and the trees' reach: Epic and Cinematic 1, High 0.8, Medium 0.6, Low 0.45.
+	float PresetReach(bool bTree) const;
 	TSet<int64> GrowTried;
 	void TryGrow(const FVector2D& At);
 	void Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried);

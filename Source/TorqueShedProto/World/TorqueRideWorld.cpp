@@ -39,6 +39,10 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "Scalability.h"
+#include "UObject/UObjectGlobals.h"
 #include "RenderCore.h"
 #include "RHI.h"
 
@@ -1079,10 +1083,192 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 	}
 }
 
+namespace TRProbe
+{
+// [perf, build 150] Garbage collection's time (game thread), summed until the ride's Tick takes it, so
+// a hitch says whether it was the collector.
+double GcStartedAt = 0.0, GcSumMs = 0.0;
+void WatchGc()
+{
+	static bool bWatching = false;
+	if (bWatching) return;
+	bWatching = true;
+	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddLambda([]() { GcStartedAt = FPlatformTime::Seconds(); });
+	FCoreUObjectDelegates::GetPostGarbageCollect().AddLambda([]()
+	{
+		if (GcStartedAt > 0.0) GcSumMs += (FPlatformTime::Seconds() - GcStartedAt) * 1000.0;
+		GcStartedAt = 0.0;
+	});
+}
+double TakeGcMs()
+{
+	const double Taken = GcSumMs;
+	GcSumMs = 0.0;
+	return Taken;
+}
+FString CVarText(const TCHAR* Name)
+{
+	const IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name);
+	return V ? V->GetString() : FString(TEXT("-"));
+}
+// The A/B run's steps: what each turns off (console variables, "name=value;..."), and which of the
+// ride's things it hides (1 trees, 2 grass and small plants, 4 ground, roads, walls and buildings).
+struct FABStep
+{
+	const TCHAR* Label;
+	const TCHAR* Vars;
+	int32 Hide;
+};
+const FABStep ABSteps[] = {
+	{TEXT("as set"), TEXT(""), 0},
+	{TEXT("drawn at half size (r.ScreenPercentage 50)"), TEXT("r.ScreenPercentage=50"), 0},
+	{TEXT("no trees"), TEXT(""), 1},
+	{TEXT("no grass or small plants"), TEXT(""), 2},
+	{TEXT("no ground, roads, walls or buildings drawn"), TEXT(""), 4},
+	{TEXT("no virtual shadow maps"), TEXT("r.Shadow.Virtual.Enable=0"), 0},
+	{TEXT("no shadows"), TEXT("r.ShadowQuality=0"), 0},
+	{TEXT("no volumetric clouds"), TEXT("r.VolumetricCloud=0"), 0},
+	{TEXT("no volumetric fog"), TEXT("r.VolumetricFog=0"), 0},
+	{TEXT("no Lumen"), TEXT("r.DynamicGlobalIlluminationMethod=0;r.ReflectionMethod=2"), 0},
+	{TEXT("Lumen without hardware ray tracing"), TEXT("r.Lumen.HardwareRayTracing=0"), 0},
+	{TEXT("no Nanite"), TEXT("r.Nanite=0"), 0},
+	{TEXT("FXAA instead of TSR/TAA"), TEXT("r.AntiAliasingMethod=1"), 0},
+	{TEXT("as set again"), TEXT(""), 0},
+};
+constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
+constexpr double ABSettle = 3.0, ABMeasure = 10.0;
+} // namespace TRProbe
+
+float ATorqueRideWorld::PresetReach(bool bTree) const
+{
+	// (so Medium really does less: until build 150 the ride's own plants took no notice of the preset,
+	// and beenster's Epic -> Medium changed nothing)
+	static const float GrassReach[5] = {0.45f, 0.6f, 0.8f, 1.0f, 1.0f};
+	static const float TreeReach[5] = {0.6f, 0.75f, 0.9f, 1.0f, 1.0f};
+	const int32 Level = FMath::Clamp(Scalability::GetQualityLevels().FoliageQuality, 0, 4);
+	return bTree ? TreeReach[Level] : GrassReach[Level];
+}
+
+void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
+{
+	if (What & 3)
+		for (const auto& Square : TilePlants)
+			for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Kind : Square.Value)
+				if (UInstancedStaticMeshComponent* C = Kind.Get())
+				{
+					const bool bIsTree = C->ComponentHasTag(TEXT("RideTree"));
+					if ((bIsTree && (What & 1)) || (!bIsTree && (What & 2))) C->SetVisibility(!bHide);
+				}
+	if (What & 4)
+	{
+		auto Show = [bHide](UProceduralMeshComponent* P)
+		{
+			if (!P) return;
+			URidePart* R = Cast<URidePart>(P);
+			if (R && R->Look) R->Look->SetVisibility(!bHide);
+			else P->SetVisibility(!bHide);
+		};
+		for (const auto& Have : Tiles) Show(Have.Value);
+		for (const auto& Have : TileExtras) Show(Have.Value);
+		for (const auto& Have : TileWater) Show(Have.Value);
+		for (const auto& Have : RoadParts) Show(Have.Value);
+		for (UProceduralMeshComponent* Hero : HeroParts) Show(Hero);
+	}
+}
+
+void ATorqueRideWorld::TickAB(float DeltaSeconds)
+{
+	// -TorqueRideAB=1 (and -TorqueRideABAfter=<s>, 20 by default: the squares round the rider made
+	// first). Best parked or standing still, so each step sees the same view. Each step: 3 s to settle,
+	// 10 s measured. Its console variables are set as the console sets them, and put back after.
+	static const bool bAB = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideAB="), On) && On != 0; }();
+	static const double ABAfter = []() { float Secs = 20.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABAfter="), Secs); return double(FMath::Max(Secs, 0.0f)); }();
+	if (!bAB || ABStep >= TRProbe::ABCount) return;
+	ABSince += DeltaSeconds;
+	auto StartStep = [this](int32 Which)
+	{
+		ABStep = Which;
+		ABSince = 0.0;
+		ABGame = ABRender = ABGpu = ABWall = 0.0;
+		ABFrames = 0;
+		ABWas.Reset();
+		if (Which >= TRProbe::ABCount) return;
+		const TRProbe::FABStep& Doing = TRProbe::ABSteps[Which];
+		TArray<FString> Pairs;
+		FString(Doing.Vars).ParseIntoArray(Pairs, TEXT(";"));
+		for (const FString& Pair : Pairs)
+		{
+			FString Name, Value;
+			if (!Pair.Split(TEXT("="), &Name, &Value)) continue;
+			if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(*Name))
+			{
+				ABWas.Emplace(Name, V->GetString());
+				V->Set(*Value, ECVF_SetByConsole);
+			}
+		}
+		if (Doing.Hide) HideForAB(Doing.Hide, true);
+		UE_LOG(LogTemp, Display, TEXT("Ride A/B: step %d of %d, %s"), Which + 1, TRProbe::ABCount, Doing.Label);
+	};
+	if (ABStep < 0)
+	{
+		if (ABSince < ABAfter) return;
+		StartStep(0);
+		return;
+	}
+	if (ABSince < TRProbe::ABSettle) return;
+	ABGame += FPlatformTime::ToMilliseconds(GGameThreadTime);
+	ABRender += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+	ABGpu += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+	ABWall += double(DeltaSeconds);
+	++ABFrames;
+	// (one frame's GPU passes, with their sizes, logged by the engine: says whether the screen
+	// percentage and upscaler are really in use, and what the GPU's ms go on)
+	if (ABStep == 0 && !bABProfiled && ABSince > TRProbe::ABSettle + 5.0 && GEngine)
+	{
+		bABProfiled = true;
+		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
+	}
+	if (ABSince < TRProbe::ABSettle + TRProbe::ABMeasure) return;
+	const TRProbe::FABStep& Done = TRProbe::ABSteps[ABStep];
+	const double Frames = double(FMath::Max(ABFrames, 1));
+	UE_LOG(LogTemp, Display, TEXT("Ride A/B: %-45s %5.1f fps; game %5.1f ms, render %5.1f ms, GPU %5.1f ms (%d frames)"),
+		Done.Label, ABWall > 0.0 ? ABFrames / ABWall : 0.0, ABGame / Frames, ABRender / Frames, ABGpu / Frames, ABFrames);
+	for (const TPair<FString, FString>& Was : ABWas)
+		if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(*Was.Key)) V->Set(*Was.Value, ECVF_SetByConsole);
+	if (Done.Hide) HideForAB(Done.Hide, false);
+	StartStep(ABStep + 1);
+	if (ABStep >= TRProbe::ABCount) UE_LOG(LogTemp, Display, TEXT("Ride A/B: done"));
+}
+
 void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
+	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
+	TRProbe::WatchGc();
+	{
+		const double WallNow = FPlatformTime::Seconds();
+		FrameGameMs += FPlatformTime::ToMilliseconds(GGameThreadTime);
+		FrameRenderMs += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+		FrameGpuMs += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+		const double GapMs = LastTickWall > 0.0 ? (WallNow - LastTickWall) * 1000.0 : 0.0;
+		const double InGc = TRProbe::TakeGcMs();
+		// (Unreal caps a frame's DeltaSeconds at 0.4 s, which is why every town's worst frame read 400 ms:
+		// this is the real gap)
+		if (GapMs > 150.0)
+		{
+			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d"),
+				GapMs, InGc, LastTickOwnMs, Asked.Num(), RoadAsked.Num());
+		}
+		LastTickWall = WallNow;
+	}
+	struct FOwnTime
+	{
+		double& Out;
+		double T0;
+		~FOwnTime() { Out = (FPlatformTime::Seconds() - T0) * 1000.0; }
+	} OwnTime{LastTickOwnMs, FPlatformTime::Seconds()};
+	TickAB(DeltaSeconds);
 	// [build 147] Where the game thread's time goes, every 5 seconds: each system's ms a frame (its
 	// worst single call), the squares placed, and the frame's own time (game thread and all).
 	{
@@ -1139,10 +1325,33 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				for (const auto& Square : TileWords) Words += Square.Value.Num();
 				for (const auto& Square : StreetLights) Lamps += Square.Value.Num();
 				for (const auto& Piece : RoadLights) Lamps += Piece.Value.Num();
-				UE_LOG(LogTemp, Display, TEXT("Ride frame: game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
-					FPlatformTime::ToMilliseconds(GGameThreadTime), FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)),
+				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
+					FrameGameMs / CostFrames, FrameRenderMs / CostFrames, FrameGpuMs / CostFrames,
 					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
 			}
+			// [perf, build 150] How the picture is drawn, logged when it changes: the output size, the screen
+			// percentage and what really draws at it, the anti-aliasing / upscaler, and the expensive parts.
+			{
+				FIntPoint OutSize(0, 0);
+				if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport) OutSize = GEngine->GameViewport->Viewport->GetSizeXY();
+				const IConsoleVariable* PctVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
+				const float Pct = PctVar ? PctVar->GetFloat() : 100.0f;
+				const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+				const FString View = FString::Printf(TEXT("output %dx%d, r.ScreenPercentage %s (%dx%d if applied; mode %s, dynamic res %s), anti-aliasing %s (4 TSR, 2 TAA), DLSS %s; presets view %d shadows %d GI %d reflections %d foliage %d effects %d; Nanite %s, VSM %s, Lumen GI %s/reflections %s, HW RT %s, clouds %s (steps %s), fog %s, view distance %s"),
+					OutSize.X, OutSize.Y, *TRProbe::CVarText(TEXT("r.ScreenPercentage")), int32(OutSize.X * Pct / 100.0f), int32(OutSize.Y * Pct / 100.0f),
+					*TRProbe::CVarText(TEXT("r.ScreenPercentage.Mode")), *TRProbe::CVarText(TEXT("r.DynamicRes.OperationMode")), *TRProbe::CVarText(TEXT("r.AntiAliasingMethod")),
+					*TRProbe::CVarText(TEXT("r.NGX.DLSS.Enable")), Q.ViewDistanceQuality, Q.ShadowQuality, Q.GlobalIlluminationQuality, Q.ReflectionQuality, Q.FoliageQuality, Q.EffectsQuality,
+					*TRProbe::CVarText(TEXT("r.Nanite")), *TRProbe::CVarText(TEXT("r.Shadow.Virtual.Enable")), *TRProbe::CVarText(TEXT("r.DynamicGlobalIlluminationMethod")),
+					*TRProbe::CVarText(TEXT("r.ReflectionMethod")), *TRProbe::CVarText(TEXT("r.Lumen.HardwareRayTracing")), *TRProbe::CVarText(TEXT("r.VolumetricCloud")),
+					*TRProbe::CVarText(TEXT("r.VolumetricCloud.ViewRaySampleMaxCount")), *TRProbe::CVarText(TEXT("r.VolumetricFog")), *TRProbe::CVarText(TEXT("r.ViewDistanceScale")));
+				static FString LastView;
+				if (View != LastView)
+				{
+					LastView = View;
+					UE_LOG(LogTemp, Display, TEXT("Ride view: %s"), *View);
+				}
+			}
+			FrameGameMs = FrameRenderMs = FrameGpuMs = 0.0;
 			S = RideCosts::FSums();
 			CostFrames = 0;
 			CostSince = 0.0;
@@ -1821,7 +2030,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
-		if (TRWI::Unseen(Key, S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
+		const float PlantReach = PresetReach(bTree);
+		if (TRWI::Unseen(Key, PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
 		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
 		static const bool bNoTrees = []() { int32 On = 1; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideTrees="), On) && On == 0; }();
 		if (bTree && bNoTrees) continue;
@@ -1845,7 +2055,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bAffectDynamicIndirectLighting = bTree;
 		Ism->bVisibleInRayTracing = false;
 		Ism->WorldPositionOffsetDisableDistance = bTree ? 8000 : 2500;
-		const float Cull = S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
+		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
 		Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
