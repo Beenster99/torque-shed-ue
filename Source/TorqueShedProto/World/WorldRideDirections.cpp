@@ -151,7 +151,9 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		return L > 1e-9 ? D * (1.0 / L) : P2(1.0, 0.0);
 	};
 	const double Keep = KeepLeft() ? 1.0 : -1.0;
-	const auto CapFor = [](int Mph) { return Mph <= 30 ? 0.07 : Mph <= 40 ? 0.1 : Mph <= 50 ? 0.125 : Mph <= 60 ? 0.15 : 0.2; };
+	// (the plan's letter heights: 100 mm capitals at 30, 150 mm at 40 to 50, 250 mm at 60 to 70; a lane's
+	// signs no bigger than 150 mm)
+	const auto CapFor = [](int Mph) { return Mph <= 30 ? 0.1 : Mph <= 50 ? 0.15 : 0.25; };
 	const auto MphAt = [this](double Along)
 	{
 		const LimitStretch* L = LimitAt(std::clamp(Along, 0.0, Length));
@@ -269,7 +271,8 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		const size_t I = PointAt(J.Along);
 		const RoadFact* Fact = FactAt(J.Along);
 		const int Rank = Fact != nullptr ? ClassRank(Fact->Class) : RideRank;
-		const int Scheme = Rank == 0 ? SignPlate::SchemeMotorway : Rank >= 1 && Rank <= 2 ? SignPlate::SchemePrimary : SignPlate::SchemeLocal;
+		// (in Britain's mapping trunk is a primary route, green; primary is any other A road, white as a B road's)
+		const int Scheme = Rank == 0 ? SignPlate::SchemeMotorway : Rank == 1 ? SignPlate::SchemePrimary : SignPlate::SchemeLocal;
 		// [6D] Brown signs: the nearest place worth seeing (8 km or less, not already in sight of the ride's
 		// road) by each side road, a brown flag at the junction pointing to it, for the traffic each way.
 		for (int Way : {1, -1})
@@ -395,7 +398,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			// The advance sign, as far before the junction as a warning would stand, on the traffic's side.
 			const int Mph = MphAt(J.Along - Way * 60.0);
 			if (Mph <= 0) continue;
-			const double Cap = CapFor(Mph);
+			const double Cap = Rank >= 3 ? std::fmin(0.15, CapFor(Mph)) : CapFor(Mph);
 			double W = 0.0, H = 0.0;
 			if (!SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), Cap, Scheme, Arms, W, H)) continue;
 			// (no further back than 20 m short of the junction before it: down to 30 m before this one)
@@ -431,7 +434,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			}
 			const int MphOn = MphAt(J.Along + Way * 60.0);
 			if (MphOn <= 0) continue;
-			const double CapOn = CapFor(MphOn);
+			const double CapOn = Rank >= 3 ? std::fmin(0.15, CapFor(MphOn)) : CapFor(MphOn);
 			if (!SignPlate::ConfirmBoard(nullptr, nullptr, SignPlate::Frame(), CapOn, Scheme, Lines, W, H)) continue;
 			for (double Extra = 0.0; Extra <= 40.0; Extra += 10.0)
 			{
@@ -451,6 +454,64 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 				if (std::isnan(F.Height) || !OffAll(F.At, 0.6) || !OffAll(F.At + Across * (W * 0.5), 0.5) || !OffAll(F.At - Across * (W * 0.5), 0.5)) continue;
 				Out.push_back(F);
 				break;
+			}
+		}
+	}
+	// [6D/6E] Boundaries: where the ride's road crosses a mapped county or country border and the places
+	// either side (3 km off along the road) are in different ones, a white board each way naming the one
+	// being entered: the county's name; a country's welcome ("Croeso i Gymru" above "Welcome to Wales").
+	for (const FeatureLine& L : G.Scenery.Lines)
+	{
+		if ((L.Kind != "region_border" && L.Kind != "country_border") || L.Line.size() < 2) continue;
+		for (size_t S = 0; S + 1 < L.Line.size(); ++S)
+		{
+			const P2 A = L.Line[S], B = L.Line[S + 1];
+			for (size_t K = 0; K + 1 < Road.size(); ++K)
+			{
+				const P2 C = Road[K].At, D = Road[K + 1].At;
+				if (std::fmax(C.X, D.X) < std::fmin(A.X, B.X) || std::fmin(C.X, D.X) > std::fmax(A.X, B.X) || std::fmax(C.Z, D.Z) < std::fmin(A.Z, B.Z) || std::fmin(C.Z, D.Z) > std::fmax(A.Z, B.Z)) continue;
+				const auto Side = [](const P2& P, const P2& Q, const P2& R) { return (Q.X - P.X) * (R.Z - P.Z) - (Q.Z - P.Z) * (R.X - P.X); };
+				if ((Side(A, B, C) > 0.0) == (Side(A, B, D) > 0.0) || (Side(C, D, A) > 0.0) == (Side(C, D, B) > 0.0)) continue;
+				const double Cross = Road[K].Along;
+				for (int Way : {1, -1})
+				{
+					const size_t From = PointAt(std::clamp(Cross - Way * 3000.0, 0.0, Length)), Into = PointAt(std::clamp(Cross + Way * 3000.0, 0.0, Length));
+					const std::string Was = PlaceAt(Road[From].At.X, Road[From].At.Z), Now = PlaceAt(Road[Into].At.X, Road[Into].At.Z);
+					if (Was.empty() || Now.empty() || Was == Now) continue;
+					const size_t Ca = Was.rfind(", "), Cb = Now.rfind(", ");
+					const std::string CountryWas = Ca == std::string::npos ? Was : Was.substr(Ca + 2), CountryNow = Cb == std::string::npos ? Now : Now.substr(Cb + 2);
+					const std::string County = Cb == std::string::npos ? std::string() : Now.substr(0, Cb);
+					std::string Words;
+					if (CountryNow != CountryWas)
+						Words = CountryNow == "Wales" ? "Croeso i Gymru\tWelcome to Wales" : "Welcome to " + CountryNow;
+					else if (L.Kind == "region_border" && !County.empty())
+						Words = County;
+					if (Words.empty()) continue;
+					std::string Lines;
+					for (char Ch : Words) Lines += Ch == '\t' ? '|' : Ch;
+					const int Mph = MphAt(Cross);
+					const double Cap = Mph <= 30 ? 0.1 : 0.15;
+					double W = 0.0, H = 0.0;
+					if (!SignPlate::ConfirmBoard(nullptr, nullptr, SignPlate::Frame(), Cap, SignPlate::SchemeLocal, Lines, W, H)) continue;
+					for (double Off = 5.0; Off <= 35.0; Off += 10.0)
+					{
+						const double At = Cross + Way * Off;
+						if (At < 5.0 || At > Length - 5.0) break;
+						const size_t Kk = PointAt(At);
+						Furnish F;
+						F.Kind = BoundarySign;
+						F.Mapped = false;
+						F.Big = Cap;
+						F.Text = Lines;
+						F.At = Verge(Kk, Way * Keep, 0.7 + W * 0.5);
+						F.Face = Dir(Kk) * -double(Way);
+						F.Height = Ground(F.At.X, F.At.Z);
+						const P2 Across(F.Face.Z, -F.Face.X);
+						if (std::isnan(F.Height) || !OffAll(F.At, 0.6) || !OffAll(F.At + Across * (W * 0.5), 0.5) || !OffAll(F.At - Across * (W * 0.5), 0.5)) continue;
+						Out.push_back(F);
+						break;
+					}
+				}
 			}
 		}
 	}

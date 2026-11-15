@@ -57,6 +57,27 @@ const Rgb CoverColour[10] = {
 const Rgb NoCover = {0.088f, 0.105f, 0.04f};
 const Rgb Scar = {0.2f, 0.195f, 0.18f};   // (limestone showing on the steepest ground)
 
+// [OSM stage 6A/6E] A place's name board: as wide as its words set (both of them, a second-language name
+// first and "|" between, the wider), H high for one line or two.
+double NameBoardWide(const std::string& Text, double* High = nullptr)
+{
+	double Most = 0.0;
+	int Lines = 0;
+	size_t From = 0;
+	for (;;)
+	{
+		const size_t Bar = Text.find('|', From);
+		const std::string One = Text.substr(From, Bar == std::string::npos ? std::string::npos : Bar - From);
+		double Wd = 0.0;
+		Most = std::fmax(Most, SignText::Width(One, 0.22 * SignText::CapOfEm, Wd) ? Wd + 0.5 : 0.5 + 0.17 * double(One.size()));
+		++Lines;
+		if (Bar == std::string::npos) break;
+		From = Bar + 1;
+	}
+	if (High != nullptr) *High = Lines > 1 ? 0.8 : 0.5;
+	return Most;
+}
+
 // [OSM stage 6B] A warning a road's shape asks for: what (SignPlate::ESymbol, Text a hill's gradient),
 // where the danger starts (Along) for the traffic going Way (+1 the way the road's points run, -1 back).
 struct Hazard
@@ -806,7 +827,13 @@ void RidePlan::IndexFurniture()
 		for (const TorqueFit::Json& Pl : G.Places)
 		{
 			const double D = std::hypot(Pl.Num("x") - Mid.X, Pl.Num("z") - Mid.Z);
-			if (D < Best) { Best = D; Called = Pl.Str("name"); }
+			if (D >= Best) continue;
+			Best = D;
+			Called = Pl.Str("name");
+			// [OSM stage 6E] its Welsh or Gaelic name above, where the map gives a second one (a "name2" the
+			// places bake carries)
+			const std::string Second = Pl.Str("name2");
+			if (Uk && !Second.empty() && Second != Called) Called = Second + "|" + Called;
 		}
 		for (int Way = 0; Way < 2; ++Way)
 		{
@@ -820,7 +847,7 @@ void RidePlan::IndexFurniture()
 				Furnish F;
 				F.Kind = Kind;
 				// (a board stands across the way, so its near edge, not its middle, is kept clear of the road)
-				const double Wide = Kind == NameSign ? 0.5 + 0.17 * double(Words.size()) : 0.8;
+				const double Wide = Kind == NameSign ? NameBoardWide(Words) : 0.8;
 				F.At = Verge(K, Side, 0.7 + Wide * 0.5);
 				F.Face = Dir(K) * Back;   // (towards the traffic coming in)
 				F.Text = Words;
@@ -1503,14 +1530,24 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		{
 		case NameSign:
 		{
-			const double W = 0.5 + 0.17 * double(F.Text.size()), H = 0.5;
-			for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Y - 0.3, Y + 1.95, 0.045, 0.04, Grey);
-			const P3 Mid = At3(F.At.X, Y + 1.55, F.At.Z);
+			double H = 0.5;
+			const double W = NameBoardWide(F.Text, &H);
+			for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Y - 0.3, Y + 1.7 + H * 0.5, 0.045, 0.04, Grey);
+			const P3 Mid = At3(F.At.X, Y + 1.3 + H * 0.5, F.At.Z);
 			Board(Mid, Face, W + 0.08, H + 0.08, Grey, -0.01);
 			Board(Mid, Face * -1.0, W + 0.08, H + 0.08, Grey, 0.03);
 			SignBoard(Mid, Face, W + 0.04, H + 0.04, Black, 0.05);
 			SignBoard(Mid, Face, W, H, White, 0.06);
-			Label(At3(Mid.X + Face.X * 0.07, Mid.Y, Mid.Z + Face.Z * 0.07), Face, 0.22, F.Text, Black);
+			const size_t Bar = F.Text.find('|');
+			if (Bar == std::string::npos) Label(At3(Mid.X + Face.X * 0.07, Mid.Y, Mid.Z + Face.Z * 0.07), Face, 0.22, F.Text, Black);
+			else
+			{
+				// ([OSM stage 6E] the Welsh or Gaelic name above the English, Gaelic in a second colour)
+				static const Rgb GaelicGreen = {0.0f, 0.16f, 0.07f};
+				const bool Gaelic = PlaceAt(F.At.X, F.At.Z).find("Scotland") != std::string::npos;
+				Label(At3(Mid.X + Face.X * 0.07, Mid.Y + 0.17, Mid.Z + Face.Z * 0.07), Face, 0.22, F.Text.substr(0, Bar), Gaelic ? GaelicGreen : Black);
+				Label(At3(Mid.X + Face.X * 0.07, Mid.Y - 0.17, Mid.Z + Face.Z * 0.07), Face, 0.22, F.Text.substr(Bar + 1), Black);
+			}
 			break;
 		}
 		case Limit30:
@@ -1579,6 +1616,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		}
 		case DirAdvance:
 		case DirConfirm:
+		case BoundarySign:
 		{
 			// [OSM stage 6C] A direction sign: its board's foot 1.2 m up, on two posts behind it (one under a
 			// narrow board).

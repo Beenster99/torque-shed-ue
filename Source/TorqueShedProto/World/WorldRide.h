@@ -602,6 +602,7 @@ public:
 		// [OSM stage 6D] a brown sign's flag to a place worth seeing (Text as SignPlate::FlagBoard's), a
 		// fingerpost (Text its arms: "hx,hz;Place\tmiles|..." each pointing along (hx, hz); Big its capitals)
 		BrownFlag, Fingerpost,
+		BoundarySign,   // [OSM stage 6D/6E] a county's or country's board where the road crosses its border (Text its lines, "|" between)
 		FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
 	struct Furnish
 	{
