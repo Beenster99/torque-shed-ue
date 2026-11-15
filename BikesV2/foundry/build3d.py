@@ -1652,6 +1652,10 @@ if __name__ == "__main__":
     if "--game" in sys.argv:
         print("game files in", export_game(name, model))
         sys.exit(0)
+    if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
+        import clip3d
+        clip3d.run(name, "--clip-accept" in sys.argv)
+        sys.exit(0)
     samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
     if "--shots" in sys.argv:      # close-up pictures of single areas, for checking the Definition pass
         import detail3d
