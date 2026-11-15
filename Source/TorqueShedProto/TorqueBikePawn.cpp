@@ -1815,6 +1815,17 @@ bool ATorqueBikePawn::GetOff()
 	else if (TyreF.Contact) ParkGround = TyreF.ContactPos;
 	else if (UWorld* World = GetWorld())
 		if (GroundTrace(World, ToUE(Sim->Position + V3(0.0, 0.3, 0.0)), ToUE(Sim->Position - V3(0.0, 3.0, 0.0)), Params, Hit)) ParkGround = ToSim(Hit.ImpactPoint);
+	// [build 149] Pitched along the slope, as the tyres touch it: held level on a hill, the front tyre
+	// stood in the road going up and the back one in the air going down (beenster, Eccles Road, 148).
+	ParkPitch = 0.0;
+	if (TyreF.Contact && TyreR.Contact)
+	{
+		const V3 Along = TyreF.ContactPos - TyreR.ContactPos;
+		const double Flat = std::sqrt(Along.x * Along.x + Along.z * Along.z);
+		if (Flat > 0.3) ParkPitch = FMath::Clamp(std::atan2(Along.y, Flat), -0.45, 0.45);
+	}
+	else
+		PitchToGround();
 	ChooseStand();
 	// The rider steps off to the left (the side stand's side), facing the way the bike points.
 	const FVector Ahead = DirToUE(V3(Fwd.x, 0.0, Fwd.z)).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
@@ -1866,6 +1877,7 @@ void ATorqueBikePawn::TakeOver(const FVector& Feet, double Yaw, bool bRide)
 	if (bPushing) LetGoBike();
 	const V3 Fwd = Sim->Basis.Z * -1.0;
 	ParkHeading = std::atan2(-Fwd.x, -Fwd.z);
+	ParkPitch = FMath::Clamp(std::asin(FMath::Clamp(Fwd.y, -1.0, 1.0)), -0.45, 0.45);   // [build 149] as their bike stood
 	ChooseStand();
 	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
 	ParkGround = Sim->Position - Sim->Basis * V3(0.0, AxleUp + ParkLift, 0.0);
@@ -1964,12 +1976,36 @@ bool ATorqueBikePawn::GetOn()
 	return true;
 }
 
+void ATorqueBikePawn::PitchToGround()
+{
+	// The ground traced under each tyre (from just above it: from higher, a cutting's moor collision
+	// over the road is found first), the bike pitched from one to the other and stood between them.
+	ParkPitch = 0.0;
+	UWorld* World = GetWorld();
+	if (!World) return;
+	const double Half = 0.5 * std::fabs(Sim->Wheels[0].Centre.z - Sim->Wheels[1].Centre.z);
+	if (Half < 0.2) return;
+	const V3 Ahead(-std::sin(ParkHeading), 0.0, -std::cos(ParkHeading));   // (ParkHeading is atan2(-fwd.x, -fwd.z))
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueParkPitch), true, this);
+	V3 Under[2];
+	for (int32 E = 0; E < 2; ++E)
+	{
+		const V3 Tyre = ParkGround + Ahead * (E == 0 ? Half : -Half);
+		FHitResult Hit;
+		if (!GroundTrace(World, ToUE(Tyre + V3(0.0, 0.6, 0.0)), ToUE(Tyre - V3(0.0, 1.5, 0.0)), Params, Hit)) return;
+		Under[E] = ToSim(Hit.ImpactPoint);
+	}
+	ParkPitch = FMath::Clamp(std::atan2(Under[0].y - Under[1].y, 2.0 * Half), -0.45, 0.45);
+	ParkGround = (Under[0] + Under[1]) * 0.5;
+}
+
 void ATorqueBikePawn::HoldParked()
 {
 	// Stood on its stand: leaned over about the line its tyres touch the ground along (side stand),
 	// or lifted (centre stand). No riding physics; the engine ticks over (or winds down, off).
 	const M3 Heading = M3::AxisAngle(V3(0.0, 1.0, 0.0), ParkHeading);
-	Sim->Basis = Heading * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
+	// (pitched along the slope first, about its own side axis: + nose up)
+	Sim->Basis = Heading * M3::AxisAngle(V3(1.0, 0.0, 0.0), ParkPitch) * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
 	// The wheels are drawn where the suspension left them (Centre, body space, up by its compression),
 	// so the body stands that much lower to keep the tyres on the road, not a sag's height above it.
 	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
@@ -2197,6 +2233,7 @@ void ATorqueBikePawn::FollowPusher()
 	ParkGround = ToSim(At);
 	ParkHeading = std::atan2(-Ahead.X, -Ahead.Y);   // (sim: x east = UE X, z south = UE Y)
 	ParkLean = ParkLift = 0.0;
+	PitchToGround();   // [build 149] pushed up or down a hill, along it
 }
 
 double ATorqueBikePawn::TestSpeedMph() const { return FMath::Abs(Sim->Speed) * 2.23694; }

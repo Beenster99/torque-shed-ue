@@ -490,6 +490,10 @@ private:
 	FString FootNote;
 	TorqueSim::V3 ParkGround;
 	double ParkHeading = 0.0, ParkLean = 0.0, ParkLift = 0.0;
+	// [build 149] Nose up (+) or down along the slope it's parked on (radians), so both tyres sit on
+	// the road on a hill; and finding it from the ground traced under each tyre.
+	double ParkPitch = 0.0;
+	void PitchToGround();
 	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
 	FString SideStandPart, CentreStandPart;
 	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
