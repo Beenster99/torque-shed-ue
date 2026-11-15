@@ -59,6 +59,8 @@ public:
 	void Own();
 	// True once after the ride mode or one of its settings changed: the pawn puts Set() on the sim.
 	bool TakeModeDirty();
+	// [test] Sets one of the mode in use's settings as the screen would (not saved): whether it changed.
+	bool SetModeRow(TorqueSim::ModeRow Row, int32 Value);
 	bool HasTft() const { return bTft; }
 	bool HasPhone() const { return bPhone; }
 	bool HasMap() const { return bTft || bPhone; }

@@ -33,6 +33,8 @@ public:
 	std::map<std::string, int> Give() const;
 
 	int Do(Press P, double SpeedMs, double Throttle);
+	// [test] One of the mode in use's settings set straight (as if picked on the screen): whether it changed.
+	bool SetNow(TorqueSim::ModeRow R, int Value);
 	void Tick(double Dt);
 	// Fills the screen's own part of a State (the view, the lists, the aids' boxes, the notice).
 	void Fill(State& St) const;

@@ -250,6 +250,13 @@ void UTorqueTftComponent::Own()
 		TileRT = UKismetRenderingLibrary::CreateRenderTarget2D(this, FMath::RoundToInt(TTI::TileW), FMath::RoundToInt(TTI::TileH), RTF_RGBA8_SRGB, FLinearColor::Black);
 }
 
+bool UTorqueTftComponent::SetModeRow(TorqueSim::ModeRow Row, int32 Value)
+{
+	const bool bChanged = Menu.SetNow(Row, Value);
+	if (bChanged) bModeDirty = true;
+	return bChanged;
+}
+
 bool UTorqueTftComponent::TakeModeDirty()
 {
 	const bool bWas = bModeDirty;

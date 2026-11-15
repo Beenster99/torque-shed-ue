@@ -4348,8 +4348,15 @@ FString ATorqueBikePawn::TestTft(const FString& What)
 	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
 	else if (W == TEXT("arrange")) Tft->ToggleArrange();
 	else if (W == TEXT("cruise")) ToggleCruise();
-	return FString::Printf(TEXT("tft: %s, cruise %d (%.1f m/s), power mode %.2f, engine brake %.2f, abs %d%d"), *Tft->Describe(), bCruise ? 1 : 0, CruiseMs,
-		Sim ? Sim->Build.PowerMode : 0.0, Sim ? Sim->Build.EngineBrake : 0.0, Sim && Sim->Build.AbsFront ? 1 : 0, Sim && Sim->Build.AbsRear ? 1 : 0);
+	else if (W.StartsWith(TEXT("linked")))
+	{
+		// [test] tft:linked0 / linked1 / linked2: the linked brakes setting of the mode in use.
+		Tft->SetModeRow(TorqueSim::ModeRow::Linked, FCString::Atoi(*W.RightChop(6)));
+		if (Tft->TakeModeDirty()) ApplyRideMode();
+	}
+	return FString::Printf(TEXT("tft: %s, cruise %d (%.1f m/s), power mode %.2f, engine brake %.2f, abs %d%d, linked brakes %d (%s)"), *Tft->Describe(), bCruise ? 1 : 0, CruiseMs,
+		Sim ? Sim->Build.PowerMode : 0.0, Sim ? Sim->Build.EngineBrake : 0.0, Sim && Sim->Build.AbsFront ? 1 : 0, Sim && Sim->Build.AbsRear ? 1 : 0,
+		Sim ? Sim->Build.LinkedBrakes : 0, bModeBase && ModeBase.Aids.Modes ? TEXT("on the mode screen") : TEXT("no ride modes on this dash"));
 }
 
 FString ATorqueBikePawn::TestLights(const FString& What)
