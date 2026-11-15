@@ -13,6 +13,7 @@
 #include "TorqueAudio/TorqueSfx.h"
 #include "HAL/PlatformTime.h"
 #include "World/TorqueWorldSubsystem.h"
+#include "World/TorqueRideWorld.h"
 #include "Engine/GameInstance.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/LightComponent.h"
@@ -266,8 +267,18 @@ FString ATorquePlayerController::AddWaypoint(double Lat, double Lon, const FStri
 	UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
 	UWorld* World = GetWorld();
 	if (!Real || !World) return TEXT("No Route planner in this game");
+	const FString Short = Name.Left(TorqueWorld::Route::MaxName);
+	// Riding a Ride UK journey (beenster, build 146: "the satnav should add it as a waypoint (and
+	// retain our final destination)"): the sat nav goes by the place and then on to the finish as
+	// before. The journey being ridden isn't changed under the riders (in co-op it's everyone's).
+	if (World->GetMapName().Contains(TEXT("RideUK")) && ATorqueRideWorld::SetWaypoint(Lat, Lon, Short))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s (%.5f, %.5f) for the sat nav"), *Short, Lat, Lon);
+		return FString::Printf(TEXT("%s is a waypoint: the sat nav goes by it, then on to the finish"), *Short);
+	}
+	// Otherwise the Route planner's journey: the place goes in as a stop before where it ends (the
+	// planner's, else the one the riders share, else the last kept); with none, here to the place.
 	auto Cut = [](const FString& S) { return std::string(TCHAR_TO_UTF8(*S.Left(TorqueWorld::Route::MaxName))); };
-	// The journey as it stands: the planner's, else the one the riders share, else the last kept.
 	TorqueWorld::RouteRequest Now;
 	FString NowTitle;
 	bool bHave = false;
@@ -281,33 +292,34 @@ FString ATorquePlayerController::AddWaypoint(double Lat, double Lon, const FStri
 			bHave = TorqueWorld::Route::FromCode(TCHAR_TO_UTF8(*GS->RideJourney), Now) && Now.Pins.size() >= 2;
 	if (!bHave) bHave = Real->LastJourney(Now, NowTitle) && Now.Pins.size() >= 2;
 	TorqueWorld::RouteRequest New;
-	New.Mode = bHave && TorqueWorld::Route::IsStyle(Now.Mode) ? Now.Mode : std::string("scenic");
-	New.Pins.push_back({HereLat, HereLon, Cut(HereName.IsEmpty() ? FString(TEXT("Here")) : HereName)});
-	New.Pins.push_back({Lat, Lon, Cut(Name)});
-	// Riding a Ride UK journey: on to where it ends, so the place is a stop on the way.
-	FString Then;
-	if (bHave && World->GetMapName().Contains(TEXT("RideUK")))
+	FString Kept;
+	if (bHave && int32(Now.Pins.size()) < TorqueWorld::Route::MaxPins)
 	{
-		const TorqueWorld::RoutePin& End = Now.Pins.back();
-		if (TorqueWorld::Route::GroundMetres(End.Lat, End.Lon, Lat, Lon) > 1000.0 && TorqueWorld::Route::GroundMetres(End.Lat, End.Lon, HereLat, HereLon) > 1000.0)
-		{
-			New.Pins.push_back(End);
-			Then = FString(UTF8_TO_TCHAR(End.Name.c_str()));
-		}
+		New = Now;
+		if (!TorqueWorld::Route::IsStyle(New.Mode)) New.Mode = "main";
+		New.Pins.insert(New.Pins.end() - 1, TorqueWorld::RoutePin{Lat, Lon, Cut(Short)});
+		Kept = FString(UTF8_TO_TCHAR(New.Pins.back().Name.c_str()));
 	}
-	const FString JourneyName = FString::Printf(TEXT("%s to %s%s"), *FString(UTF8_TO_TCHAR(New.Pins.front().Name.c_str())), *Name.Left(TorqueWorld::Route::MaxName),
-		Then.IsEmpty() ? TEXT("") : *(TEXT(" and on to ") + Then));
+	else
+	{
+		New.Mode = bHave && TorqueWorld::Route::IsStyle(Now.Mode) ? Now.Mode : std::string("scenic");
+		New.Pins.push_back({HereLat, HereLon, Cut(HereName.IsEmpty() ? FString(TEXT("Here")) : HereName)});
+		New.Pins.push_back({Lat, Lon, Cut(Short)});
+	}
+	const FString First(UTF8_TO_TCHAR(New.Pins.front().Name.c_str())), Last(UTF8_TO_TCHAR(New.Pins.back().Name.c_str()));
+	const FString JourneyName = FString::Printf(TEXT("%s to %s"), First.IsEmpty() ? TEXT("the start") : *First, Last.IsEmpty() ? TEXT("the finish") : *Last);
 	const FString Code = FString(UTF8_TO_TCHAR(TorqueWorld::Route::CodeOf(New).c_str()));
-	if (Planner) Planner->SetJourney(New, JourneyName);   // (its own hooks send it on in co-op)
+	if (Planner) Planner->SetJourney(New, FString());   // (its own hooks send it on in co-op; it names it)
 	if (GetNetMode() != NM_Standalone)
 	{
 		if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->ServerSetRideJourney(Code, JourneyName);
 	}
 	Real->KeepJourney(New, JourneyName);
-	UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s (%.5f, %.5f): journey '%s' %s"), *Name, Lat, Lon, *JourneyName, *Code);
+	UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s (%.5f, %.5f): journey '%s' (%d pins) %s"), *Short, Lat, Lon, *JourneyName, int32(New.Pins.size()), *Code);
 	const bool bHost = GetNetMode() != NM_Client;
-	return FString::Printf(TEXT("%s is a waypoint. %s"), *Name,
-		bHost ? TEXT("Esc > Plan a ride to ride there") : TEXT("It's in the Route planner for everyone; the host sets off"));
+	const FString Where = Kept.IsEmpty() ? FString::Printf(TEXT("%s is a waypoint."), *Short)
+		: FString::Printf(TEXT("%s is a waypoint on the way to %s."), *Short, *Kept);
+	return Where + (bHost ? TEXT(" Esc > Plan a ride to ride it") : TEXT(" It's in the Route planner for everyone; the host sets off"));
 }
 
 void ATorquePlayerController::OpenPlanner()

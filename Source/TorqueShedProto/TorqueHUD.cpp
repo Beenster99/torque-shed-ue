@@ -701,7 +701,7 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 				Canvas->K2_DrawLine(Tip, Tip - Dir * (9.0f * G) - Side * (8.0f * G), Thick, FLinearColor::White);
 			}
 			Say(FTorqueDash::NavDistance(D.NavTo, bMetric), RX + 62.0f, NY + 30.0f, 22.0f, FLinearColor::White);
-			const FString What = D.NavTurn == 9 ? (D.NavOnto.IsEmpty() ? FString(TEXT("Finish")) : TEXT("Finish: ") + D.NavOnto)
+			const FString What = D.NavTurn == 9 ? (D.NavOnto.IsEmpty() ? FString(D.bNavVia ? TEXT("Waypoint") : TEXT("Finish")) : (D.bNavVia ? TEXT("Waypoint: ") : TEXT("Finish: ")) + D.NavOnto)
 				: (D.NavExit > 0 ? FTorqueDash::ExitWords(D.NavExit) : FTorqueDash::NavWords(D.NavTurn)) + (D.NavOnto.IsEmpty() ? FString() : TEXT(", ") + D.NavOnto);
 			Say(What.Left(30), RX + 62.0f, NY + 50.0f, 13.0f, Dim(0.8f));
 			Say(FString::Printf(TEXT("%s to go"), *FTorqueDash::NavDistance(D.NavLeft, bMetric)), RX + 62.0f, NY + 66.0f, 12.0f, Dim(0.6f));
