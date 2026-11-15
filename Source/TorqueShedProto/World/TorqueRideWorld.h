@@ -31,6 +31,7 @@
 #include "TorqueFoliage.h"
 
 #include <memory>
+#include <string>
 
 #include "TorqueRideWorld.generated.h"
 
@@ -128,6 +129,9 @@ public:
 	static FString TakePhoto();
 	// Where the diary keeps its rides and photos.
 	static FString DiaryFolder();
+
+	// [places] The ride's plan, read-only, for the info panel (null with no ride).
+	const TorqueWorld::RidePlan* GetPlan() const { return Plan.get(); }
 
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;

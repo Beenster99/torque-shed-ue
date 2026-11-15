@@ -605,8 +605,8 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		if (!N.Kind.IsEmpty()) continue;
 		const ATorqueRideWorld* RW = nullptr;
 		for (TActorIterator<ATorqueRideWorld> It(World); It; ++It) { RW = *It; break; }
-		if (!RW || !RW->Plan) break;
-		const TorqueWorld::Region& G = RW->Plan->Area.Roads;
+		if (!RW || !RW->GetPlan()) break;
+		const TorqueWorld::Region& G = RW->GetPlan()->Area.Roads;
 		const TorqueWorld::P2 At = TorqueWorld::Frame(G.FrameLat, G.FrameLon).FromGeo(N.Lat, N.Lon);
 		bool bByQid = false;
 		const int Found = G.FindSight(TCHAR_TO_UTF8(*N.Qid), At.X, At.Z, 250.0, &bByQid);
