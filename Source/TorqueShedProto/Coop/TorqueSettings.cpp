@@ -325,6 +325,18 @@ void FTorqueSettings::Apply(UWorld* World) const
 		// Every scalability setting put back as its group's level says (Unreal only sets the ones whose
 		// level changed), so the rows below start from the preset each time.
 		Scalability::SetQualityLevels(Scalability::GetQualityLevels(), true);
+		// Whether Lumen really is on (beenster, build 148: "is this actually Lumen?"): Unreal turns Lumen's
+		// light and reflections off below High global illumination / reflection quality.
+		{
+			auto CVarInt = [](const TCHAR* Name) {
+				const IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name);
+				return V ? V->GetInt() : -1;
+			};
+			const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+			UE_LOG(LogTemp, Display, TEXT("Torque graphics: preset %d, GI quality %d, reflections %d; GI method %d (1 Lumen), Lumen diffuse allowed %d, reflection method %d (1 Lumen), hardware ray tracing %d; brightness %.2f"),
+				Quality, Q.GlobalIlluminationQuality, Q.ReflectionQuality, CVarInt(TEXT("r.DynamicGlobalIlluminationMethod")),
+				CVarInt(TEXT("r.Lumen.DiffuseIndirect.Allow")), CVarInt(TEXT("r.ReflectionMethod")), CVarInt(TEXT("r.Lumen.HardwareRayTracing")), Brightness);
+		}
 		// HDR output, only where the screen has it (and back off when the setting is off).
 		if (G->SupportsHDRDisplayOutput() && G->IsHDREnabled() != bHdr) G->EnableHDRDisplayOutput(bHdr);
 	}

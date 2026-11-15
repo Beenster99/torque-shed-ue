@@ -82,7 +82,7 @@ struct Looks
 	// capture of a low sun's sky comes out dim. Less of it as the sky dulls (the dull sky light has its own).
 	Curve SkyFill{{{-6.0, 1.0}, {0.0, 1.8}, {10.0, 1.9}, {20.0, 1.6}, {35.0, 1.25}, {60.0, 1.1}}};
 	// By day the camera may open this many stops below the level's lowest exposure (a hill's shadow, under
-	// trees), and further as the sun is lower than the level's own (ExposureBuiltDeg): the clear sky's light
+	// trees; only under a bright sky: build 148's drizzle came out washed out with it), and further as the sun is lower than the level's own (ExposureBuiltDeg): the clear sky's light
 	// at that height against now, times ExposureFollowSun, at most ExposureFollowMost stops.
 	double ExposureShadeOpen = 1.5, ExposureBuiltDeg = 32.0, ExposureFollowSun = 1.0, ExposureFollowMost = 3.0;
 	// The engine's local exposure: how much of the scene's contrast stays in the shadows and in the
@@ -132,6 +132,15 @@ struct Looks
 	// (Tools/ue_build_level.py reads it from this file).
 	double CloudPhaseG = 0.6, CloudPhaseG2 = -0.3, CloudPhaseBlend = 0.3;
 	double CloudMsContribution = 0.6, CloudMsOcclusion = 0.35, CloudMsEccentricity = 0.6, CloudMsOctaves = 2.0;
+	// Under a dull sky the bounced light is turned down to this share (build 148: a drizzly overcast came
+	// out washed out and white; a deck's base is grey because little light gets through it).
+	double CloudMsDull = 0.3;
+	// The cloud's ray marching (build 148: the drizzle's grey sky sparkled with white dots that flickered
+	// every frame, the deck too dense for the samples): the engine's samples along the view and the
+	// shadow, times its own (more is smoother and costs the GPU), and the most the material's density may
+	// be (times 0.1 per metre; the rain deck asked for 12.8). CloudGroundLight (0 or 1, built into the
+	// material) lights the cloud's base from the ground.
+	double CloudViewSamples = 2.0, CloudShadowSamples = 2.0, DensityMost = 8.0, CloudGroundLight = 0.0;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
 	// (so the sun is never dimmed twice).
 	double DeckFrom = 0.7, DeckTo = 0.95;
@@ -310,6 +319,7 @@ struct Sky
 	double ExposureStops = 0.0;  // added to the level's exposure bias
 	double ExposureOpenStops = 0.0;   // by day, how far below the level's lowest exposure the camera may open
 	double SkyFill = 1.0;        // the sky light in the shade, times the level's (on top of SkyLightScale)
+	double CloudMs = 1.0;        // the cloud's bounced light, times CloudMsContribution (less under a dull sky)
 	// The cloud you see (stage 2): one layer drawn, the low and middle cloud as one.
 	Layer Low, Mid, High;
 	double Cover = 0.0;          // the real cover of the drawn layer

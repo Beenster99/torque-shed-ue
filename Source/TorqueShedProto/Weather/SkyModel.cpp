@@ -66,7 +66,9 @@ const NamedNumber Numbers[] = {
 	{"local_shadow_contrast", &Looks::LocalShadowContrast}, {"local_highlight_contrast", &Looks::LocalHighlightContrast},
 	{"cloud_phase_g", &Looks::CloudPhaseG}, {"cloud_phase_g2", &Looks::CloudPhaseG2}, {"cloud_phase_blend", &Looks::CloudPhaseBlend},
 	{"cloud_ms_contribution", &Looks::CloudMsContribution}, {"cloud_ms_occlusion", &Looks::CloudMsOcclusion},
-	{"cloud_ms_eccentricity", &Looks::CloudMsEccentricity}, {"cloud_ms_octaves", &Looks::CloudMsOctaves},
+	{"cloud_ms_eccentricity", &Looks::CloudMsEccentricity}, {"cloud_ms_octaves", &Looks::CloudMsOctaves}, {"cloud_ms_dull", &Looks::CloudMsDull},
+	{"cloud_view_samples", &Looks::CloudViewSamples}, {"cloud_shadow_samples", &Looks::CloudShadowSamples},
+	{"density_most", &Looks::DensityMost}, {"cloud_ground_light", &Looks::CloudGroundLight},
 	{"humid_from", &Looks::HumidFrom}, {"humid_swell", &Looks::HumidSwell},
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},
@@ -281,8 +283,11 @@ Sky Compute(const Inputs& In, const Looks& L)
 	// hill's shadow, further as the sun is lower than the level's own.
 	S.SkyFill = Lerp(1.0, std::max(L.SkyFill.At(E), 0.0), S.DayLight * (1.0 - S.Dull));
 	const double Lower = Ev100(ClearSkyLux(L.ExposureBuiltDeg, L)) - Ev100(S.ClearLux);
-	S.ExposureOpenStops = S.DayLight * (std::max(L.ExposureShadeOpen, 0.0)
+	// (Only under a bright sky, where there are shadows to see into: a dull sky already opens the camera
+	// ExposureDullStops and three stops lower; with this as well build 148's drizzle came out washed out.)
+	S.ExposureOpenStops = S.DayLight * (1.0 - S.Dull) * (std::max(L.ExposureShadeOpen, 0.0)
 		+ std::min(std::max(Lower * L.ExposureFollowSun, 0.0), std::max(L.ExposureFollowMost, 0.0)));
+	S.CloudMs = Lerp(1.0, Clamp01(L.CloudMsDull), S.Dull);
 
 	// The air: how far you can see across the whole range (crisp at 50 km, pale at 12), swelled by damp.
 	const double Km = W.Visibility / 1000.0;

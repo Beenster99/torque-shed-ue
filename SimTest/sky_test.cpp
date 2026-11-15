@@ -831,6 +831,13 @@ int main()
 		Check(June.SkyFill < Nov.SkyFill && June.ExposureOpenStops < Nov.ExposureOpenStops, "a high summer sun needs less of both");
 		Check(Near(Night.SkyFill, 1.0, 1e-6) && Near(Night.ExposureOpenStops, 0.0, 1e-6), "at night neither (the night's exposure is its own)");
 		Check(Grey.SkyFill < 1.05, "under overcast the dull sky light has it already");
+		// (build 148: a drizzly overcast came out washed out and white)
+		const Sky Drizzle = At(TorqueWeather::Preset(TorqueWeather::Wet), 17.0, true, false, Lk);
+		std::printf("  overcast at 17: may open %.2f, bounced light x%.2f; drizzle: %.2f, x%.2f; clear: x%.2f\n",
+			Grey.ExposureOpenStops, Grey.CloudMs, Drizzle.ExposureOpenStops, Drizzle.CloudMs, Nov.CloudMs);
+		Check(Grey.ExposureOpenStops < 0.2 && Drizzle.ExposureOpenStops < 0.2, "under a dull sky the camera opens no further than it did before 148");
+		Check(Grey.CloudMs < 0.5 && Nov.CloudMs > 0.95, "a dull deck keeps a grey base (less bounced light), fair cumulus keeps it all");
+		Check(Lk.DensityMost >= 1.0 && Lk.CloudViewSamples >= 1.0, "the cloud's density capped and its samples raised (148's flickering white dots)");
 		Check(Lk.CloudMsOctaves == 2.0 && Lk.CloudPhaseG > 0.3 && Lk.CloudMsContribution > 0.3, "the cloud scatters the sun many times, forward (white cumulus, silver linings)");
 	}
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
