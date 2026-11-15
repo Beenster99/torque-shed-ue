@@ -344,6 +344,36 @@ void RidePlan::IndexScenery()
 		}
 }
 
+// [build 149] A length of hedge from A to B (Ya, Yb its foot's heights) as the hedge models laid end to
+// end along it (beenster, build 148: the hedges "look like something from roblox"): each a 4.2 m
+// length of real twigs and leaves (Tools/make_hedges.py), planted every 3.9 m or so, sunk Down into
+// the ground, Size its scale (a bank's hedge is smaller), turned either way round and each its own
+// model, so no two neighbours match.
+void RidePlan::HedgePlants(const P2& A, const P2& B, double Ya, double Yb, double Down, double Size, RideMesh& Out) const
+{
+	const double Len = A.DistanceTo(B);
+	if (Len < 0.4) return;
+	const int Count = std::max(1, int(std::lround(Len / 3.9)));
+	const double Yaw0 = std::atan2(B.Z - A.Z, B.X - A.X);
+	for (int K = 0; K < Count; ++K)
+	{
+		const double T = (K + 0.5) / Count;
+		const P2 At = A + (B - A) * T;
+		const double Roll = RideSceneBits::Chance(At.X, At.Z, 71);
+		RidePlant P;
+		P.Kind = uint16_t(HedgeKind);
+		P.X = float(At.X - Out.OriginX);
+		P.Z = float(At.Z - Out.OriginZ);
+		P.Y = float(Ya + (Yb - Ya) * T + Down);
+		P.Yaw = float(Yaw0 + (Roll < 0.5 ? 0.0 : 3.141592653589793));
+		// (as long as its share of the piece, a little over so the lengths meet; 0.55 at the least)
+		P.Scale = float(Size * std::clamp(Len / Count / 3.9, 0.55, 1.12) * (0.94 + 0.12 * RideSceneBits::Chance(At.X, At.Z, 72)));
+		P.Height = 0.0f;   // (Scale, not a height: PlacePlants)
+		P.Pick = float(RideSceneBits::Chance(At.X, At.Z, 73));
+		Out.Plants.push_back(P);
+	}
+}
+
 void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const
 {
 	Out = RideMesh();
@@ -573,9 +603,15 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								}
 								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + BankHigh, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + BankHigh, Pb.Z + Side.Z * 0.55),
 									At3(Pb.X - Side.X * 0.55, Gb + BankHigh, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + BankHigh, Pa.Z - Side.Z * 0.55), Sky, Turf);
-								Leafy(BankHigh - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
+								if (RealHedges) HedgePlants(Pa, Pb, Ga + BankHigh, Gb + BankHigh, -0.25, 0.7, Out);
+								else Leafy(BankHigh - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
 							}
 							else Stretch(1.15, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
+							continue;
+						}
+						if (Hedge && Fine && RealHedges)
+						{
+							HedgePlants(Pa, Pb, Ga, Gb, -0.05, 1.0, Out);
 							continue;
 						}
 						if (Hedge && Fine)
@@ -1048,21 +1084,40 @@ void RidePlan::IndexFurniture()
 		const P2 At(Poi.Num("x"), Poi.Num("z"));
 		const int Home = NearestBuilding(At.X, At.Z, 30.0);
 		if (Home >= 0) BuildingRole[size_t(Home)] = 2;
-		if (Called.empty()) continue;
+		if (Called.empty() || Home < 0) continue;
+		// (a guest house, a B&B or a lodge the map calls an inn has no sign: only a pub's, beenster build 148)
+		if (What == "inn")
+		{
+			bool Lodging = false;
+			for (const char* Word : {"Guest House", "Guesthouse", "B&B", "Bed and Breakfast", "Bed & Breakfast", "Lodge", "Cottage", "Farm", "Apartments"})
+				Lodging = Lodging || Called.find(Word) != std::string::npos;
+			if (Lodging) continue;
+		}
+		// The pub's name on its own front wall, the one facing the road (beenster, build 148: "only pub
+		// signs and they should be on the building facade itself"), not on a post by the road.
+		const Building& B = G.Buildings[size_t(Home)];
 		NearOpts Opts;
 		NearHit Hit;
-		if (!NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist > Hit.Half + 40.0 || Hit.Deck || Hit.Bore) continue;
-		const P2 Off = At - Hit.Foot;
-		const double Len = Off.Length();
-		if (Len < 1e-3) continue;
-		const P2 Toward = Off * (1.0 / Len);
+		if (!NearestOf(B.X, B.Z, Opts, Hit) || Hit.Dist > Hit.Half + 40.0 || Hit.Deck || Hit.Bore) continue;
+		// (the building's own axes, as WorldRideBuildings lays it: x across, z deep)
+		const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+		const P2 Ax(Cs, -Sn), Az(Sn, Cs);
+		const P2 ToRoad = Hit.Foot - P2(B.X, B.Z);
+		const double Ux = (ToRoad.X * Ax.X + ToRoad.Z * Ax.Z) / std::fmax(B.W * 0.5, 0.5), Uz = (ToRoad.X * Az.X + ToRoad.Z * Az.Z) / std::fmax(B.D * 0.5, 0.5);
+		const bool OnX = std::fabs(Ux) >= std::fabs(Uz);
+		const P2 Out = OnX ? Ax * (Ux >= 0.0 ? 1.0 : -1.0) : Az * (Uz >= 0.0 ? 1.0 : -1.0);
+		const double Wall = OnX ? B.W : B.D, Deep = OnX ? B.D : B.W;
+		if (Wall < 4.0 || Deep < 3.0) continue;
 		Furnish F;
 		F.Kind = PubSign;
-		F.At = Hit.Foot + Toward * (Hit.Half + 1.3);
-		F.Face = P2(Toward.Z, -Toward.X);   // (the board hangs along the road, read from either way)
+		F.At = P2(B.X, B.Z) + Out * (Deep * 0.5);
+		F.Face = Out;
+		F.Size = std::fmin(Wall - 1.0, 6.5);   // (the board's most width: the wall less its corners)
+		F.Big = B.Height;
 		F.Text = Called;
-		F.Height = Ground(F.At.X, F.At.Z);
-		if (OffAll(F.At, 0.9)) Put(F);
+		F.Height = Ground(B.X, B.Z);   // (the building's own ground: its walls stand on it)
+		// (none where the map's wall stands on the road's own footprint: it would hang over the riders)
+		if (!std::isnan(F.Height) && std::isnan(RoadHeight(F.At.X, F.At.Z))) Put(F);
 	}
 	for (const TorqueFit::Json& Mark : G.Landmarks)
 	{
@@ -1884,24 +1939,20 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		}
 		case PubSign:
 		{
-			// A post, an arm out over the verge, and the board hanging from it with the pub's name both sides.
-			Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 3.4, Wood);
-			// (Side is towards the road: the arm reaches out over the verge; the board painted one of a pub's colours)
-			const P2 Arm = F.At + Side * 0.6;
-			Box(Out, (F.At.X + Arm.X) * 0.5, (F.At.Z + Arm.Z) * 0.5, Side, 0.65, 0.04, Y + 3.2, Y + 3.3, Wood);
+			// On the pub's front wall (F.At on the wall, Face out of it): a painted fascia board along it over
+			// the ground floor's windows, the name in cream letters, a moulded edge round it; F.Size is the
+			// widest it may be, F.Big the building's height.
 			static const Rgb Paints[4] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
+			static const Rgb Cream = {0.70f, 0.64f, 0.48f};
 			const Rgb& Paint = Paints[std::min(3, int(Chance(F.At.X, F.At.Z, 52) * 4.0))];
-			const double W = std::fmax(0.8, std::fmin(1.3, 0.25 + 0.05 * double(F.Text.size())));
-			const P3 Mid = At3(Arm.X, Y + 2.55, Arm.Z);
-			Board(Mid, Face, W, 0.9, Shade(Wood, 1.4), 0.02);
-			Board(Mid, Face * -1.0, W, 0.9, Shade(Wood, 1.4), 0.02);
-			Board(Mid, Face, W - 0.1, 0.8, Paint, 0.03);
-			Board(Mid, Face * -1.0, W - 0.1, 0.8, Paint, 0.03);
-			for (int Back = 0; Back < 2; ++Back)
-			{
-				const P2 N = Back ? Face * -1.0 : Face;
-				Label(At3(Mid.X + N.X * 0.045, Mid.Y, Mid.Z + N.Z * 0.045), N, std::fmin(0.12, 0.9 * (W - 0.2) / std::fmax(1.0, double(F.Text.size()) * 0.55)), F.Text, Shade(White, 1.1));
-			}
+			const double Letters = double(F.Text.size());
+			const double W = std::clamp(0.8 + 0.2 * Letters, 2.0, std::fmax(2.0, F.Size));
+			const double Hb = 0.55;
+			const double Lift = F.Big > 5.0 ? 2.75 : std::fmax(2.2, F.Big * 0.5);
+			const P3 Mid = At3(F.At.X, Y + Lift, F.At.Z);
+			Board(Mid, Face, W + 0.12, Hb + 0.12, Shade(Paint, 0.6), 0.03);
+			Board(Mid, Face, W, Hb, Paint, 0.06);
+			Label(At3(Mid.X + Face.X * 0.075, Mid.Y, Mid.Z + Face.Z * 0.075), Face, std::fmin(0.3, 0.9 * (W - 0.3) / std::fmax(1.0, Letters * 0.6)), F.Text, Cream);
 			break;
 		}
 		case CrossingBarrier:

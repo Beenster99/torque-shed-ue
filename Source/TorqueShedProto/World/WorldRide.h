@@ -550,6 +550,8 @@ public:
 	// mapped lines, buildings on their footprints, stand-in trees under the mapped canopy. Coarse is how
 	// far apart the square's points are: past 4 m things are made more plainly.
 	void SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const;
+	// [build 149] A hedge's piece from A to B as hedge models (Out's Plants, about its origin).
+	void HedgePlants(const P2& A, const P2& B, double Ya, double Yb, double Down, double Size, RideMesh& Out) const;
 	// The grass, rushes, heather and bracken on a square of ground (the finest squares: Coarse 4 m or
 	// less) and its trees (squares of 8 m or less, the far models past 4 m), as Tools/make_foliage.py
 	// lays Buttertubs' out but from the cells' cover, slope and canopy: carpets of grass near every
@@ -557,7 +559,7 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 30, FirstTree = 18;
+	static constexpr int PlantKinds = 31, FirstTree = 18, HedgeKind = 30;
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
 	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
 	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
@@ -582,6 +584,9 @@ public:
 	// Set before the ground is made: trees come as plants (PlantsTile) and not as stand-in shapes
 	// (SceneryTile); how many of the grass's plants are kept (0..1).
 	bool RealTrees = false;
+	// [build 149] Set with RealTrees when the game has hedge models (plant kind "hedge"): the finest
+	// squares' hedges are then those models laid along their lines (HedgePlants), not lumpy shapes.
+	bool RealHedges = false;
 	double GrassDensity = 1.0;
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;

@@ -619,28 +619,21 @@ void RidePlan::IndexPlaces()
 		AddStop(std::move(Stop));
 	}
 
-	// Each stop's board: the first place's name, a plain marker post for a place with none.
+	// Each stop: no name board of its own (beenster, build 148: "WAY too many signs for buildings - only
+	// pub signs"; the sat nav and the info panel still name it).
 	for (size_t I = 0; I < PlaceStops.size(); ++I)
 	{
 		const PlaceStop& S = PlaceStops[I];
-		Furnish F;
-		F.Kind = PlaceBoard;
-		F.At = S.Board;
-		F.Face = S.Face;
-		F.Text = PlaceStopName(int(I));
-		F.Height = Ground(S.Board.X, S.Board.Z);
-		F.Id = uint32_t(I + 1);
-		if (std::isnan(F.Height)) continue;
-		Scene->Furniture[SceneKey(F.At.X, F.At.Z)].push_back(int(Furniture.size()));
-		Furniture.push_back(std::move(F));
-		// [places stage 5] Beside a stop off the road (not a street's): an information board about the
-		// place, and a bench looking out at it where it is somewhere to sit and look (the kit's models).
+		// [places stage 5] Beside a stop off the road (not a street's) at somewhere out in the open to sit
+		// and look: an information board about the place, and a bench looking out at it (the kit's models).
+		// A building has neither.
 		if (S.How == PlaceStreet) continue;
 		const P2 Along(S.Face.Z, -S.Face.X);
 		const std::string& Kind = G.Sights[size_t(S.Sights[0])].Kind;
 		const bool Scenic = Kind == "viewpoint" || Kind == "peak" || Kind == "hillfort" || Kind == "stone_circle" || Kind == "standing_stone" || Kind == "waterfall" || Kind == "dam"
 			|| Kind == "castle_ruin" || Kind == "ruin" || Kind == "lighthouse" || Kind == "battlefield";
-		for (int Extra = 0; Extra < (Scenic ? 2 : 1); ++Extra)
+		if (!Scenic) continue;
+		for (int Extra = 0; Extra < 2; ++Extra)
 		{
 			Furnish E;
 			E.Kind = Extra == 0 ? InfoBoard : Seat;
@@ -744,9 +737,9 @@ void RidePlan::IndexPlaces()
 				++Gates;
 			}
 		}
-		// (the view spot: a marker post, and a bench facing the place where it is somewhere to sit and look)
+		// (the view spot: a bench facing the place where it is somewhere to sit and look; no marker post)
 		const bool Scenic = Place.Kind != "church" && Place.Kind != "cathedral" && Place.Kind != "industrial_heritage";
-		for (int Extra = 0; Extra < (Scenic ? 2 : 1); ++Extra)
+		for (int Extra = 1; Extra < (Scenic ? 2 : 1); ++Extra)
 		{
 			Furnish E;
 			E.Kind = Extra == 0 ? PlaceBoard : Seat;

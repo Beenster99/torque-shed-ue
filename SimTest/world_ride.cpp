@@ -1316,6 +1316,127 @@ int main(int Argc, char** Argv)
 			}
 		}
 	}
+	// [build 149] WORLD_RIDE_GROWCHECK=lat,lon: the ride grown there (as the game grows it when a rider
+	// roams near the edge of what was read), and how far its roads' heights moved from the old plan's,
+	// for the roads already laid round that place (the game's pieces drawn before the growth).
+	if (const char* GrowAt = std::getenv("WORLD_RIDE_GROWCHECK"))
+	{
+		double La = 0.0, Lo = 0.0;
+		if (std::sscanf(GrowAt, "%lf,%lf", &La, &Lo) == 2)
+		{
+			const P2 C = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+			Rect Round;
+			Round.X0 = C.X - 1500.0; Round.Z0 = C.Z - 1500.0; Round.X1 = C.X + 1500.0; Round.Z1 = C.Z + 1500.0;
+			Plan->LayBlocks(Round);
+			std::string Why;
+			const std::shared_ptr<RidePlan> Grown = RidePlan::Grow(Cells, Heights, *Plan, C.X, C.Z, &Why);
+			if (!Grown) std::printf("growcheck: not grown: %s\n", Why.c_str());
+			else
+			{
+				int Roads = 0, Moved = 0, Points = 0, MovedPoints = 0;
+				double Worst = 0.0;
+				int WorstRoad = -1;
+				for (const int W : Plan->RoadsNear(Round, false))
+				{
+					const std::vector<RoadPoint>& A = Plan->RoadOf(W);
+					const std::vector<RoadPoint>& B = Grown->RoadOf(W);
+					if (A.empty() || B.empty()) continue;
+					++Roads;
+					bool Any = A.size() != B.size();
+					for (size_t K = 0; K < std::min(A.size(), B.size()); ++K)
+					{
+						++Points;
+						const double D = std::fabs(A[K].Height - B[K].Height) + A[K].At.DistanceTo(B[K].At);
+						if (D > 0.03) { Any = true; ++MovedPoints; }
+						if (D > Worst) { Worst = D; WorstRoad = W; }
+					}
+					Moved += Any ? 1 : 0;
+				}
+				std::printf("growcheck: %zu cells to %zu; %d roads laid in both, %d moved (%d of %d points by over 3 cm; worst %.2f m on road %d), %zu redrawn by the game's rule\n",
+					Plan->Area.Cells.size(), Grown->Area.Cells.size(), Roads, Moved, MovedPoints, Points, Worst, WorstRoad, Grown->RedrawRoads.size());
+			}
+		}
+	}
+	// [build 149] WORLD_RIDE_COVER=lat,lon,R: the land over the laid roads within R m of a place, at the finest
+	// level (256 m squares, 4 m cells) and the middle one (1 km, 8 m): every road point whose land, as its
+	// square's mesh draws it, stands over the road's surface (beenster, build 148: the road in slabs with
+	// the ground between them, at Brierley Green).
+	if (const char* Cover = std::getenv("WORLD_RIDE_COVER"))
+	{
+		double La = 0.0, Lo = 0.0, Reach = 150.0;
+		if (std::sscanf(Cover, "%lf,%lf,%lf", &La, &Lo, &Reach) >= 2)
+		{
+			const P2 C = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+			Rect Round;
+			Round.X0 = C.X - Reach - 300.0; Round.Z0 = C.Z - Reach - 300.0; Round.X1 = C.X + Reach + 300.0; Round.Z1 = C.Z + Reach + 300.0;
+			Plan->LayBlocks(Round);
+			for (int Level = 0; Level < 2; ++Level)
+			{
+				const double Size = Level == 0 ? 256.0 : 1024.0;
+				const int Across = Level == 0 ? 64 : 128, N = Across + 1;
+				std::map<std::pair<long long, long long>, std::shared_ptr<RideMesh>> Made;
+				const auto LandAt = [&](double X, double Z)
+				{
+					const long long Sx = (long long)std::floor(X / Size), Sz = (long long)std::floor(Z / Size);
+					std::shared_ptr<RideMesh>& M = Made[{Sx, Sz}];
+					if (!M) { M = std::make_shared<RideMesh>(); Plan->LandTile(double(Sx) * Size, double(Sz) * Size, Size, Across, *M); }
+					if (M->Vertices() < size_t(N) * N) return std::nan("");
+					const double Step = Size / Across, U = (X - double(Sx) * Size) / Step, V = (Z - double(Sz) * Size) / Step;
+					const int I = std::min(int(U), Across - 1), J = std::min(int(V), Across - 1);
+					const double Tu = U - I, Tv = V - J;
+					const auto Y = [&](int Ii, int Jj) { return double(M->Pos[(size_t(Jj) * N + Ii) * 3 + 1]); };
+					const double A = Y(I, J), B = Y(I + 1, J), Cc = Y(I, J + 1), D = Y(I + 1, J + 1);
+					return Tu + Tv <= 1.0 ? A + (B - A) * Tu + (Cc - A) * Tv : D + (Cc - D) * (1.0 - Tu) + (B - D) * (1.0 - Tv);
+				};
+				int Points = 0, Over = 0;
+				double Worst = 0.0;
+				P2 WorstAt;
+				for (const int W : Plan->RoadsNear(Round, false))
+				{
+					const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+					for (size_t K = 0; K + 1 < Pts.size(); ++K)
+					{
+						const P2 Dir0 = Pts[K + 1].At - Pts[K].At;
+						const double Len = Dir0.Length();
+						if (Len < 1e-6) continue;
+						const P2 Side(Dir0.Z / Len, -Dir0.X / Len);
+						for (double T = 0.0; T < 1.0; T += 0.25)
+						{
+							const P2 P = Pts[K].At + Dir0 * T;
+							if (P.DistanceTo(C) > Reach || Pts[K].Bridge || Pts[K].Tunnel) continue;
+							const double Road = Pts[K].Height + (Pts[K + 1].Height - Pts[K].Height) * T;
+							for (double Aside : {-0.7, 0.0, 0.7})
+							{
+								const P2 Q = P + Side * (Aside * Pts[K].Half);
+								const double L = LandAt(Q.X, Q.Z);
+								if (std::isnan(L)) continue;
+								++Points;
+								if (L > Road + 0.08) { ++Over; if (L - Road > Worst) { Worst = L - Road; WorstAt = Q; } }
+							}
+						}
+					}
+				}
+				// (every road with a point within 12 m of the worst spot: which, how far, its height there)
+				if (Worst > 0.0)
+					for (const int W : Plan->RoadsNear(Round, false))
+					{
+						const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+						for (size_t K = 0; K < Pts.size(); ++K)
+							if (Pts[K].At.DistanceTo(WorstAt) < 12.0)
+							{
+								std::printf("  near the worst: road %d point %zu of %zu, %.1f m off, height %.2f%s%s\n", W, K, Pts.size(), Pts[K].At.DistanceTo(WorstAt), Pts[K].Height,
+									Pts[K].Bridge ? " bridge" : "", Pts[K].Tunnel ? " tunnel" : "");
+								for (size_t Q = 0; Q < Pts.size(); ++Q)
+									if (Pts[Q].At.DistanceTo(WorstAt) < 30.0) std::printf("      %zu: %.1f, %.1f along %.1f height %.2f ground %.2f land %.2f half %.1f\n", Q, Pts[Q].At.X - WorstAt.X, Pts[Q].At.Z - WorstAt.Z, Pts[Q].Along, Pts[Q].Height,
+										Plan->Ground(Pts[Q].At.X, Pts[Q].At.Z), Plan->Land->Height(Pts[Q].At.X, Pts[Q].At.Z), Pts[Q].Half);
+								break;
+							}
+					}
+				const Geo G = Plan->Area.Roads.FrameOf().ToGeo(WorstAt.X, WorstAt.Z);
+				std::printf("cover, %s level: %d of %d road points under the land (worst %.2f m at %.5f, %.5f)\n", Level == 0 ? "finest" : "middle", Over, Points, Worst, G.Lat, G.Lon);
+			}
+		}
+	}
 	if (std::getenv("WORLD_RIDE_MESH") != nullptr)
 	{
 		// Every road's triangles within 45 m of a place along the ride (WORLD_RIDE_MESH_KM, or the first
@@ -1370,8 +1491,15 @@ int main(int Argc, char** Argv)
 		}
 		else if (std::getenv("WORLD_RIDE_MESH_AT") != nullptr)
 		{
-			// (or a place: x,z in the ride's frame, its roads laid round it)
-			std::sscanf(std::getenv("WORLD_RIDE_MESH_AT"), "%lf,%lf", &Centre.X, &Centre.Z);
+			// (or a place: x,z in the ride's frame, its roads laid round it; "ll:lat,lon" a place on the map)
+			const char* MeshAt = std::getenv("WORLD_RIDE_MESH_AT");
+			double La = 0.0, Lo = 0.0;
+			if (std::sscanf(MeshAt, "ll:%lf,%lf", &La, &Lo) == 2)
+			{
+				Centre = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+				std::printf("mesh at %.5f, %.5f: %.1f, %.1f in the frame\n", La, Lo, Centre.X, Centre.Z);
+			}
+			else std::sscanf(MeshAt, "%lf,%lf", &Centre.X, &Centre.Z);
 			Rect Round;
 			Round.X0 = Centre.X - 300.0; Round.Z0 = Centre.Z - 300.0; Round.X1 = Centre.X + 300.0; Round.Z1 = Centre.Z + 300.0;
 			Plan->LayBlocks(Round);

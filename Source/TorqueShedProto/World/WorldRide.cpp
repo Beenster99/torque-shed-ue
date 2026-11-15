@@ -863,15 +863,18 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 	const RoadX::Across Ax = RoadX::Of(G, int(E), RoadLine::WidthOf(Class));   // [OSM stage 5]
 	const double Half = Ax.Half;
+	// (each end eased to the ground's height at its junction over 30 m, or over half the road where it is
+	// shorter than 60 m: beenster, build 148, Brierley Green. A 10 m link between two junctions had its
+	// first end pulled three quarters of the way to the far end's height, a metre and more off the
+	// junction every other road there meets at, so the ground, cut to the junction, buried it)
+	const double EaseOver = std::fmax(1.0, std::fmin(30.0, Side.Length * 0.5));
 	for (size_t I = 0; I < Line.size(); ++I)
-	{
 		for (int End = 0; End < 2; ++End)
 		{
 			if (Meets[End]) continue;
 			const double From = End == 0 ? Along[I] : Side.Length - Along[I];
-			H[I] += (EndH[End] - H[I]) * (1.0 - Smooth01(From / 30.0));
+			H[I] += (EndH[End] - H[I]) * (1.0 - Smooth01(From / EaseOver));
 		}
-	}
 	// (no ramp steeper than 1 in 5 from all that, then the ride's road's own height where it is near)
 	for (int Round = 0; Round < 3; ++Round)
 	{
@@ -884,6 +887,20 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		{
 			const double Lim = 0.2 * (Along[I] - Along[I - 1]);
 			H[I - 1] = std::fmin(std::fmax(H[I - 1], H[I] - Lim), H[I] + Lim);
+		}
+	}
+	// (and its ends back on their junctions' heights, should the ramp limit have moved them, eased over
+	// enough road to add at most 3 in 8 to its own 1 in 5: a short, steep link between two junctions still meets both)
+	for (int End = 0; End < 2; ++End)
+	{
+		if (Meets[End]) continue;
+		const double Off = EndH[End] - (End == 0 ? H.front() : H.back());
+		if (std::fabs(Off) < 0.01) continue;
+		const double Over = std::fmax(1.0, std::fmin(Side.Length, std::fabs(Off) * 4.0));
+		for (size_t I = 0; I < Line.size(); ++I)
+		{
+			const double From = End == 0 ? Along[I] : Side.Length - Along[I];
+			H[I] += Off * (1.0 - Smooth01(From / Over));
 		}
 	}
 	// Where it is by the ride's road. At a junction it has no deck of its own; where it goes over or
@@ -1744,6 +1761,17 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
 		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
+		// [build 149] (the hedges' models, which the scenery laid along their lines)
+		if (!Stands->Plants.empty())
+		{
+			for (RidePlant P : Stands->Plants)
+			{
+				P.X += float(Stands->OriginX - Out.OriginX);
+				P.Z += float(Stands->OriginZ - Out.OriginZ);
+				Out.Plants.push_back(P);
+			}
+			Stands->Plants.clear();
+		}
 		AnimalsTile(X0, Z0, Size, Out.Animals);
 		PropsTile(X0, Z0, Size, Out.Props);   // [OSM stage 2]
 	}
@@ -2454,7 +2482,6 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					// country now its last few centimetres crumble into grit, as far in as each metre's own, and
 					// the grass comes up over a ragged lip of dirt: both runs of colour M_RideRoad breaks up with
 					// the gravel and grass scans' own shapes, so the edge is worn, not drawn)
-					static constexpr float EdgeGrit[3] = {0.095f, 0.088f, 0.07f};
 					const double S = Sd == 0 ? 1.0 : -1.0;
 					const auto Wob = [Which, Sd](double At, int Salt)
 					{
@@ -2465,16 +2492,19 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					for (int St = 0; St < Steps; ++St)
 					{
 						const Row R0 = Between(Sa, Sb, double(St) / Steps), R1 = Between(Sa, Sb, double(St + 1) / Steps);
-						const double C0 = 0.08 + 0.4 * Wob(R0.Along, 91) * Wob(R0.Along * 2.3, 92), C1 = 0.08 + 0.4 * Wob(R1.Along, 91) * Wob(R1.Along * 2.3, 92);
-						const double L0 = 0.12 + 0.35 * Wob(R0.Along, 93), L1 = 0.12 + 0.35 * Wob(R1.Along, 93);
+						const double C0 = 0.12 + 0.2 * Wob(R0.Along, 91) * Wob(R0.Along * 2.3, 92), C1 = 0.12 + 0.2 * Wob(R1.Along, 91) * Wob(R1.Along * 2.3, 92);
+						const double L0 = 0.3 + 0.25 * Wob(R0.Along, 93), L1 = 0.3 + 0.25 * Wob(R1.Along, 93);
 						// (offsets out from the edge, as the band runs left to right on this side)
 						const auto Band = [&](double From0, double To0, double From1, double To1, double LiftFrom, double LiftTo, const float* ColFrom, const float* ColTo)
 						{
 							if (S > 0.0) Graded(R0, R1, R0.Half + To0, R0.Half + From0, R1.Half + To1, R1.Half + From1, LiftTo, LiftFrom, ColTo, ColFrom);
 							else Graded(R0, R1, -R0.Half - From0, -R0.Half - To0, -R1.Half - From1, -R1.Half - To1, LiftFrom, LiftTo, ColFrom, ColTo);
 						};
-						Band(-C0, 0.0, -C1, 0.0, 0.004, 0.004, Tarmac, EdgeGrit);
-						Band(0.0, L0, 0.0, L1, 0.0, -ShoulderDip * 0.5, Verge, VergeGrass);
+						// (beenster, build 148: no border strip. The tarmac runs right to its edge and the grass
+						// comes over it: one band from C in on the tarmac to L out, its colour running from the
+						// verge's key, which M_RideRoad draws as the tarmac's own scan, to the grass; the
+						// material's ragged grass line falls about a third of the way across, at the edge)
+						Band(-C0, L0, -C1, L1, 0.004, -ShoulderDip * 0.5, Verge, VergeGrass);
 						Band(L0, ShoulderFlat, L1, ShoulderFlat, -ShoulderDip * 0.5, -ShoulderDip, VergeGrass, VergeGrass);
 						Band(ShoulderFlat, Shoulder, ShoulderFlat, Shoulder, -ShoulderDip, -ShoulderDrop, VergeGrass, VergeGrass);
 					}
@@ -2510,7 +2540,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					// the middle out to the tarmac's own at its edges, each side its own way, and thinning to
 					// nothing at its ends: M_RideRoad lets the gravel scan's stones break through the tarmac
 					// along that run of colour, as on a gravel track's tongue)
-					static constexpr float LaneGrit[3] = {0.095f, 0.088f, 0.07f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
+					// (beenster, build 148: still too stark, "like sandstone poured on the road": the core now only
+					// 55% of the way from tarmac to grit, so the material shows mostly tarmac with grey chippings
+					// through it, and M_RideRoad's gravel is greyed to the road's own tone)
+					static constexpr float LaneGrit[3] = {0.022f + 0.55f * 0.073f, 0.022f + 0.55f * 0.066f, 0.025f + 0.55f * 0.045f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
 					const auto Wob = [Which](double S, int Salt)
 					{
 						const double F = std::floor(S * 0.7), T = S * 0.7 - F, E = T * T * (3.0 - 2.0 * T);

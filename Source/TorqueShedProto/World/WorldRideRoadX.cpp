@@ -170,6 +170,10 @@ Mark Paint(double From, double To, double Left, double Right)
 // [OSM stage 5D] A crossing's zig-zag line along the road from A0 to A1 (either way round), centred Lat
 // across it: marks 2 m long that swing 0.3 m side to side, each drawn as a staircase of short pieces of
 // a 0.1 m line (from a rider's eye, a zig-zag).
+// (beenster, build 148: "the zigzag markings on the roads should be removed": off; a crossing keeps
+// its stripes and give-way lines)
+bool GZigZags = false;
+
 void ZigZag(double A0, double A1, double Lat, std::vector<Mark>& Out)
 {
 	const double Lo = std::fmin(A0, A1), Hi = std::fmax(A0, A1);
@@ -220,6 +224,7 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 	// road ends sooner).
 	const auto CrossingZigZags = [&Pts, &Made, RoadLen](double At, double Clear, double Half)
 	{
+		if (!GZigZags) return;
 		size_t Near = 0;
 		for (size_t P = 1; P < Pts.size(); ++P)
 			if (std::fabs(Pts[P].Along - At) < std::fabs(Pts[Near].Along - At)) Near = P;

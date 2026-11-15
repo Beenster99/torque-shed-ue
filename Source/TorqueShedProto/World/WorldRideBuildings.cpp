@@ -426,27 +426,109 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const P3 Ma = Local((U0 + U1) * 0.5, Sg * (HalfShort + D * 0.5), 0.0), Mb = Local((U0 + U1) * 0.5 + 1.0, Sg * (HalfShort + D * 0.5), 0.0);
 				Box(Out, Ma.X, Ma.Z, P2(Mb.X - Ma.X, Mb.Z - Ma.Z), std::fmax(0.01, (U1 - U0) * 0.5), D * 0.5 + 0.02, Base + Lo, Base + Hi, C);
 			};
+			// [build 149] Windows and doors as a builder makes them (beenster, build 148: "I thought we would have
+			// windows, lintels, different doors ... This is not as good as Buttertubs"): each opening has its
+			// reveal (the wall's own return, or a dressed stone surround), standing 15 cm proud of the glass so the
+			// glass reads set back in the wall; a projecting sill and a lintel (dressed stone, a brick soldier
+			// arch, or none on a rendered wall); a painted frame; and its glazing (sash: Georgian six over six or
+			// Victorian two over two; casement: two lights and top lights; mullion: stone mullions and a
+			// transom). Doors: a stone step, a reveal, a fanlight over most, and one of four leaves (six-panel,
+			// Victorian half-glazed, a cottage's ledged planks, a modern part-glazed door), knocker and letter
+			// plate, and on some a hood. All plain boxes and quads in the near squares only: a few hundred
+			// triangles a house.
+			const auto Slab = [&](double U0, double U1, double Lo, double Hi, double D0, double D1, const Rgb& C)
+			{
+				const P3 Ma = Local((U0 + U1) * 0.5, Sg * (HalfShort + (D0 + D1) * 0.5), 0.0), Mb = Local((U0 + U1) * 0.5 + 1.0, Sg * (HalfShort + (D0 + D1) * 0.5), 0.0);
+				Box(Out, Ma.X, Ma.Z, P2(Mb.X - Ma.X, Mb.Z - Ma.Z), std::fmax(0.005, (U1 - U0) * 0.5), std::fmax(0.005, (D1 - D0) * 0.5), Base + Lo, Base + Hi, C);
+			};
+			// (a flat face D out from the wall, U0 to U1, Lo to Hi)
+			const auto Face = [&](double U0, double U1, double Lo, double Hi, double D, const Rgb& C)
+			{
+				const double At = Sg * (HalfShort + D);
+				Quad(Out, Local(U0, At, Lo), Local(U1, At, Lo), Local(U1, At, Hi), Local(U0, At, Hi), Away, C);
+			};
+			// (the house's joinery paint, mostly white, by street; its reveals the wall's own colour, darker in the return)
+			static const Rgb Joinery[5] = {{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.62f, 0.62f, 0.60f}, {0.02f, 0.025f, 0.02f}, {0.03f, 0.07f, 0.04f}};
+			const Rgb& Paint = Joinery[std::min(4, int((0.6 * Chance(StreetX, StreetZ, 63) + 0.4 * Chance(B.X, B.Z, 63)) * 5.0))];
+			const Rgb Reveal = Surrounds ? StoneTrim : Shade(Wall, Rendered ? 0.8 : 0.72);
+			const double RevW = Surrounds ? 0.17 : 0.11, RevD = 0.15;   // (the reveal's face across, and how far it stands out of the glass)
+			const auto Opening = [&](double U, double Lo, double W, double H, bool Sill)
+			{
+				Slab(U - W * 0.5 - RevW, U - W * 0.5, Lo, Lo + H, 0.0, RevD, Reveal);   // (the jambs)
+				Slab(U + W * 0.5, U + W * 0.5 + RevW, Lo, Lo + H, 0.0, RevD, Reveal);
+				if (Surrounds)
+					Slab(U - W * 0.5 - RevW - 0.04, U + W * 0.5 + RevW + 0.04, Lo + H, Lo + H + 0.24, 0.0, RevD + 0.03, StoneTrim);   // (a stone lintel)
+				else if (Brick)
+				{
+					Slab(U - W * 0.5 - 0.12, U + W * 0.5 + 0.12, Lo + H, Lo + H + 0.22, 0.0, RevD - 0.02, Shade(Wall, 0.62));   // (a soldier arch)
+				}
+				else Slab(U - W * 0.5 - RevW, U + W * 0.5 + RevW, Lo + H, Lo + H + 0.1, 0.0, RevD, Reveal);   // (the head)
+				if (Sill)
+				{
+					const Rgb SillC = Surrounds || Rendered ? StoneTrim : Shade(StoneTrim, 0.85);
+					Slab(U - W * 0.5 - RevW - 0.06, U + W * 0.5 + RevW + 0.06, Lo - 0.1, Lo, 0.0, RevD + 0.07, SillC);
+				}
+			};
 			const auto Window = [&](double U, double Lo, double W, double H, int Salt)
 			{
+				Opening(U, Lo, W, H, true);
 				Flat(U - W * 0.5, U + W * 0.5, Lo, Lo + H, Glass, 0.0);
-				if (Surrounds)
-				{
-					Bar(U - W * 0.5 - 0.08, U + W * 0.5 + 0.08, Lo - 0.12, Lo, 0.12, StoneTrim);       // (the sill)
-					Bar(U - W * 0.5 - 0.12, U + W * 0.5 + 0.12, Lo + H, Lo + H + 0.2, 0.06, StoneTrim);   // (the lintel)
-				}
-				static const Rgb Paint = {0.55f, 0.55f, 0.53f};
+				// (the frame: 6 cm of paint round the glass, just proud of it; flat faces, the reveal gives the depth)
+				const double F0 = 0.04, F1 = 0.075, Fw = 0.06;
+				Face(U - W * 0.5, U - W * 0.5 + Fw, Lo, Lo + H, F0 + 0.004, Paint);
+				Face(U + W * 0.5 - Fw, U + W * 0.5, Lo, Lo + H, F0 + 0.004, Paint);
+				Face(U - W * 0.5, U + W * 0.5, Lo + H - Fw, Lo + H, F0 + 0.005, Paint);
+				Face(U - W * 0.5, U + W * 0.5, Lo, Lo + Fw * 1.4, F0 + 0.005, Paint);
+				const double In0 = U - W * 0.5 + Fw, In1 = U + W * 0.5 - Fw, Iw = In1 - In0, Bot = Lo + Fw * 1.4, Tp = Lo + H - Fw;
+				const double Gb = 0.022;   // (a glazing bar)
+				const auto Vbar = [&](double Uc, double Y0, double Y1, double Wd) { Face(Uc - Wd * 0.5, Uc + Wd * 0.5, Y0, Y1, F0 + 0.007, Paint); };
+				const auto Hbar = [&](double Yc, double Wd) { Face(In0, In1, Yc - Wd * 0.5, Yc + Wd * 0.5, F0 + 0.008, Paint); };
 				switch (Look.Window)
 				{
 				case LocalLook::Mullion:
-					for (int M = 1; M < 3 && W > 0.9; ++M) Bar(U - W * 0.5 + W * M / 3.0 - 0.04, U - W * 0.5 + W * M / 3.0 + 0.04, Lo, Lo + H, 0.08, Surrounds ? StoneTrim : Paint);
+				{
+					// (stone mullions between two or three lights, a transom across the tall ones)
+					const int Lights = W > 1.1 ? 3 : 2;
+					for (int M = 1; M < Lights; ++M)
+						Slab(In0 + Iw * M / Lights - 0.05, In0 + Iw * M / Lights + 0.05, Bot, Tp, 0.0, RevD - 0.02, Surrounds ? StoneTrim : Paint);
+					if (H > 1.2) Slab(In0, In1, Bot + (Tp - Bot) * 0.68 - 0.04, Bot + (Tp - Bot) * 0.68 + 0.04, 0.0, RevD - 0.02, Surrounds ? StoneTrim : Paint);
+					// (leaded lights' small panes in the older ones)
+					if (Chance(B.X + U, B.Z + Lo, 64) < 0.5)
+						for (int M = 0; M < Lights; ++M)
+						{
+							const double Pa0 = In0 + Iw * M / Lights + 0.05, Pa1 = In0 + Iw * (M + 1) / Lights - 0.05;
+							Face(Pa0, Pa1, (Bot + Tp) * 0.5 - 0.006, (Bot + Tp) * 0.5 + 0.006, 0.05, Shade(Paint, 0.2));
+							Face((Pa0 + Pa1) * 0.5 - 0.006, (Pa0 + Pa1) * 0.5 + 0.006, Bot, Tp, 0.05, Shade(Paint, 0.2));
+						}
 					break;
+				}
 				case LocalLook::Sash:
-					Bar(U - W * 0.5, U + W * 0.5, Lo + H * 0.5 - 0.03, Lo + H * 0.5 + 0.03, 0.04, Paint);
-					Bar(U - 0.02, U + 0.02, Lo, Lo + H, 0.03, Paint);
+				{
+					// (two sashes, the top one a hair proud of the bottom; the meeting rail; Georgian six over six
+					// in the older streets, Victorian two over two else)
+					const double Meet = (Bot + Tp) * 0.5;
+					Slab(In0, In1, Meet - 0.035, Meet + 0.035, F0, F1 + 0.01, Paint);
+					Face(In0, In1, Meet + 0.035, Tp, F0 + 0.003, Shade(Glass, 1.05));
+					const bool Georgian = Chance(StreetX + 3.0, StreetZ, 65) < 0.45;
+					if (Georgian)
+					{
+						for (int M = 1; M < 3; ++M) Vbar(In0 + Iw * M / 3.0, Bot, Tp, Gb);
+						Hbar((Bot + Meet) * 0.5, Gb);
+						Hbar((Meet + Tp) * 0.5, Gb);
+					}
+					else Vbar(U, Bot, Tp, Gb * 1.3);
 					break;
+				}
 				case LocalLook::Casement:
-					Bar(U - 0.03, U + 0.03, Lo, Lo + H, 0.04, Paint);
+				{
+					// (two side-hung lights with a mullion between, and top lights over a transom)
+					const double Tr = Bot + (Tp - Bot) * 0.7;
+					Vbar(U, Bot, Tp, 0.06);
+					Face(In0, In1, Tr - 0.03, Tr + 0.03, F0 + 0.009, Paint);
+					if (Chance(B.X + U, B.Z + Lo, 66) < 0.35)
+						for (int M = 1; M < 3; ++M) { Vbar(In0 + Iw * M / 3.0, Tr, Tp, Gb); }
 					break;
+				}
 				}
 				// (after dark a share of them lit, warm, a hair proud of the glass)
 				if (Chance(B.X + U * 3.1, B.Z + Lo * 7.0 + Sg * 13.0 + Salt, 61) < 0.4)
@@ -460,12 +542,113 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const auto Door = [&](double U, double W, double H, int Salt)
 			{
 				const Tint& T = Look.Doors[int(Chance(B.X + U, B.Z + Salt, 62) * 4.0) & 3];
-				Flat(U - W * 0.5, U + W * 0.5, 0.0, H, Rgb{T.R, T.G, T.B}, 0.0);
-				if (Surrounds)
+				const Rgb Leaf = {T.R, T.G, T.B};
+				// (a wide door, a shop's or a hall's, keeps the plain painted leaf: two of them)
+				const bool Wide = W > 1.3;
+				const int Style = Wide ? 0 : int(Chance(B.X + U * 1.7, B.Z + Salt, 67) * 4.0) & 3;   // 0 six-panel, 1 half-glazed Victorian, 2 ledged planks, 3 modern
+				const bool Fan = !Wide && Style != 2 && Style != 3 && H > 1.95;
+				const double Lh = Fan ? H - 0.4 : H;   // (the leaf, under its fanlight)
+				// (the step: a stone slab, 15 cm, out past the reveal)
+				Slab(U - W * 0.5 - 0.18, U + W * 0.5 + 0.18, std::fmax(Sunk, -1.2), 0.15, 0.0, 0.42, Shade(StoneTrim, 0.9));
+				Opening(U, 0.15, W, H - 0.15, false);
+				// (the door frame, and the leaf set 5 cm back in it)
+				Slab(U - W * 0.5, U - W * 0.5 + 0.07, 0.15, H, 0.03, 0.08, Paint);
+				Slab(U + W * 0.5 - 0.07, U + W * 0.5, 0.15, H, 0.03, 0.08, Paint);
+				Slab(U - W * 0.5, U + W * 0.5, H - 0.07, H, 0.03, 0.08, Paint);
+				const double D0 = U - W * 0.5 + 0.07, D1 = U + W * 0.5 - 0.07, Dw = D1 - D0, Lo = 0.15, Hi = Lh - (Fan ? 0.0 : 0.07);
+				Flat(D0, D1, Lo, Hi, Leaf, 0.0);
+				const double Lf = 0.04;   // (the leaf's face, out from the wall: what its panels stand on)
+				if (Fan)
 				{
-					Bar(U - W * 0.5 - 0.14, U - W * 0.5, 0.0, H, 0.08, StoneTrim);
-					Bar(U + W * 0.5, U + W * 0.5 + 0.14, 0.0, H, 0.08, StoneTrim);
-					Bar(U - W * 0.5 - 0.14, U + W * 0.5 + 0.14, H, H + 0.22, 0.08, StoneTrim);
+					// (a transom bar and the fanlight's glass over it, spoked on a Georgian one)
+					Slab(D0, D1, Lh - 0.03, Lh + 0.04, 0.03, 0.08, Paint);
+					Flat(D0, D1, Lh + 0.04, H - 0.07, Glass, 0.0);
+					if (Style == 0)
+						for (int K = 1; K < 4; ++K) Face(D0 + Dw * K / 4.0 - 0.012, D0 + Dw * K / 4.0 + 0.012, Lh + 0.04, H - 0.07, 0.046, Paint);
+				}
+				const Rgb Raised = Shade(Leaf, 1.25), Sunk2 = Shade(Leaf, 0.7);
+				// (a panel: its sunk field, a moulding's shadow line round it, and the raised middle)
+				const auto Panel = [&](double U0, double U1, double Y0, double Y1, bool Glazed)
+				{
+					Face(U0, U1, Y0, Y1, Lf + 0.004, Glazed ? Glass : Sunk2);
+					if (!Glazed) Face(U0 + 0.035, U1 - 0.035, Y0 + 0.035, Y1 - 0.035, Lf + 0.012, Raised);
+					Face(U0 - 0.012, U1 + 0.012, Y1, Y1 + 0.012, Lf + 0.006, Raised);
+					Face(U0 - 0.012, U1 + 0.012, Y0 - 0.012, Y0, Lf + 0.006, Raised);
+				};
+				const double Sw = 0.11, Mid = (D0 + D1) * 0.5;   // (stiles)
+				switch (Style)
+				{
+				case 0:
+				{
+					if (Wide)
+					{
+						// (a pair of leaves, two long panels each)
+						for (int K = 0; K < 2; ++K)
+						{
+							const double A0 = D0 + K * Dw * 0.5 + Sw * 0.7, A1 = D0 + (K + 1) * Dw * 0.5 - Sw * 0.7;
+							Panel(A0, A1, Lo + 0.25, Lo + (Hi - Lo) * 0.42, false);
+							Panel(A0, A1, Lo + (Hi - Lo) * 0.5, Hi - 0.2, false);
+						}
+						Face(Mid - 0.01, Mid + 0.01, Lo, Hi, Lf + 0.006, Sunk2);
+						break;
+					}
+					// (six panels: two short over the lock rail, two tall above, two at the foot)
+					const double Rows[4] = {Lo + 0.16, Lo + (Hi - Lo) * 0.36, Lo + (Hi - Lo) * 0.44, Hi - 0.13};
+					for (double Su : {-1.0, 1.0})
+					{
+						const double A0 = Su < 0 ? D0 + Sw : Mid + Sw * 0.4, A1 = Su < 0 ? Mid - Sw * 0.4 : D1 - Sw;
+						Panel(A0, A1, Rows[0], Rows[1], false);
+						Panel(A0, A1, Rows[2], Rows[2] + (Rows[3] - Rows[2]) * 0.62, false);
+						Panel(A0, A1, Rows[2] + (Rows[3] - Rows[2]) * 0.7, Rows[3], false);
+					}
+					break;
+				}
+				case 1:
+				{
+					// (Victorian: two glazed panels over the lock rail, two below)
+					for (double Su : {-1.0, 1.0})
+					{
+						const double A0 = Su < 0 ? D0 + Sw : Mid + Sw * 0.4, A1 = Su < 0 ? Mid - Sw * 0.4 : D1 - Sw;
+						Panel(A0, A1, Lo + 0.16, Lo + (Hi - Lo) * 0.42, false);
+						Panel(A0, A1, Lo + (Hi - Lo) * 0.5, Hi - 0.13, true);
+					}
+					break;
+				}
+				case 2:
+				{
+					// (a cottage's ledged and braced door: upright boards, three ledges and the braces between)
+					for (double Ub = D0 + 0.12; Ub < D1 - 0.05; Ub += 0.12) Face(Ub - 0.006, Ub + 0.006, Lo, Hi, Lf + 0.003, Sunk2);
+					for (double Yl : {Lo + 0.2, (Lo + Hi) * 0.5, Hi - 0.2}) Slab(D0 + 0.03, D1 - 0.03, Yl - 0.06, Yl + 0.06, Lf, Lf + 0.025, Raised);
+					// (a small light in the top on some)
+					if (Chance(B.X + U, B.Z + Salt, 68) < 0.4) Face(Mid - 0.15, Mid + 0.15, Hi - 0.45, Hi - 0.25, Lf + 0.004, Glass);
+					break;
+				}
+				default:
+				{
+					// (a modern door: a tall narrow light off to one side, and a flush leaf)
+					const double G0 = D0 + Dw * 0.55, G1 = D1 - 0.12;
+					Face(G0, G1, Lo + 0.55, Hi - 0.15, Lf + 0.004, Glass);
+					Face(G0 - 0.02, G1 + 0.02, Lo + 0.53, Lo + 0.55, Lf + 0.006, Raised);
+					Face(G0 - 0.02, G1 + 0.02, Hi - 0.15, Hi - 0.13, Lf + 0.006, Raised);
+					break;
+				}
+				}
+				if (!Wide)
+				{
+					// (brass: a letter plate on the lock rail, a knob by the lock, a knocker on the panelled ones)
+					static const Rgb Brass = {0.42f, 0.30f, 0.09f}, Iron = {0.02f, 0.02f, 0.02f};
+					const Rgb& Metal = Style == 2 ? Iron : Brass;
+					Slab(Mid - 0.14, Mid + 0.14, Lo + (Hi - Lo) * 0.39, Lo + (Hi - Lo) * 0.39 + 0.06, Lf, Lf + 0.03, Metal);
+					const double Knob = Chance(B.X, B.Z + Salt, 69) < 0.5 ? D0 + 0.08 : D1 - 0.08;
+					Slab(Knob - 0.03, Knob + 0.03, Lo + 0.95, Lo + 1.01, Lf, Lf + 0.07, Metal);
+					if (Style == 0) Slab(Mid - 0.05, Mid + 0.05, Lo + (Hi - Lo) * 0.7, Lo + (Hi - Lo) * 0.7 + 0.14, Lf, Lf + 0.03, Metal);
+				}
+				// (a hood over some: a flat lead-topped canopy on two brackets)
+				if (!Wide && Chance(B.X + U, B.Z, 70) < 0.35 && Eaves > H + 0.9)
+				{
+					Slab(U - W * 0.5 - 0.3, U + W * 0.5 + 0.3, H + 0.3, H + 0.42, 0.0, 0.5, Paint);
+					Slab(U - W * 0.5 - 0.3, U + W * 0.5 + 0.3, H + 0.42, H + 0.45, 0.0, 0.52, Shade(Slate, 0.8));
+					for (double Su : {-1.0, 1.0}) Slab(U + Su * (W * 0.5 + 0.2) - 0.04, U + Su * (W * 0.5 + 0.2) + 0.04, H + 0.05, H + 0.3, 0.0, 0.35, Paint);
 				}
 			};
 			const bool Front = Sg == DoorSide;
@@ -583,9 +766,10 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				for (int Bay = 1; Bay < Bays; Bay += 2) Chimney(-HalfLong + Bay * BayW, Top - 1.0);
 			else if (Look.Chimney == LocalLook::GableEnds && Shape == ERoof::Gabled)
 			{
-				// (each stack 10 cm proud of its gable: flush, the two faces fought, beenster build 141)
-				Chimney(-HalfLong + 0.2, Eaves);
-				if (HalfLong > 3.0 || Chance(B.X, B.Z, 12) < 0.5) Chimney(HalfLong - 0.2, Eaves);
+				// (each stack just inside its gable: its outer face 4 cm in from the brickwork, so it neither
+				// sticks out past the wall, beenster build 148, nor fights the wall's own face, build 141)
+				Chimney(-HalfLong + 0.34, Eaves);
+				if (HalfLong > 3.0 || Chance(B.X, B.Z, 12) < 0.5) Chimney(HalfLong - 0.34, Eaves);
 			}
 			else Chimney((Chance(B.X, B.Z, 12) - 0.5) * HalfLong * 0.8, Top - 1.0);
 		}
