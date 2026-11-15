@@ -468,6 +468,24 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		TorqueFit::PartMesh Glb;
 		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
 		const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
+		// [rider pose] The clutch or brake lever's own blade (not the hose or banjo made in code under
+		// the same glb): its pin, at the blade's near end (lever.glb's own coordinates, as the warp
+		// takes them: about 0.040, -0.010, -0.002), upright in the glb, placed as the blade is.
+		int32 LeverSide = INDEX_NONE;
+		if (P.Glb == "controls/lever.glb" && !P.Code && !P.Made && P.Warp && P.Copies.empty())
+		{
+			const TorqueSim::V3 PinG(0.040, -0.010, -0.002);
+			const TorqueSim::V3 UpG(0.040, 0.000, -0.002);
+			const FVector Pin(TSCI::ToUe(P.Warp(PinG)));
+			const FVector PinAxis = (FVector(TSCI::ToUe(P.Warp(UpG))) - Pin).GetSafeNormal();
+			LeverSide = Pin.Y < 0.0 ? 0 : 1;
+			if (OutFrame)
+			{
+				OutFrame->bLever[LeverSide] = true;
+				OutFrame->LeverPin[LeverSide] = Pin;
+				OutFrame->LeverAxis[LeverSide] = PinAxis.IsNearlyZero() ? FVector::UpVector : PinAxis;
+			}
+		}
 		for (const TorqueFit::PartSurface& S : Drawn.Surfaces)
 		{
 			// Surfaces behind a full fairing's side panels, as Godot hides them (_hide_covered).
@@ -500,6 +518,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
 			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
+			if (LeverSide != INDEX_NONE) C->ComponentTags.Add(LeverSide == 0 ? FName(TEXT("Lever:0")) : FName(TEXT("Lever:1")));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
 			if (OutGauges && !P.Gauge.empty())

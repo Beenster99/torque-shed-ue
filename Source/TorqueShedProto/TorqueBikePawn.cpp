@@ -743,22 +743,24 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 					const FBox Box = C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
 					GripBox[Box.GetCenter().Y < 0.0 ? 0 : 1] += Box;
 				}
-			// [rider pose] The drawn clutch and brake levers (the lever glb's own meshes, not its hose or
-			// banjo): the largest under 25 cm each side.
+			// [rider pose] The drawn clutch and brake levers: the lever glb's own blade (tagged "Lever:0" /
+			// "Lever:1" as it's drawn), not the hose or banjo that share its glb, and each one's pin
+			// (beenster, build 146: the brake hose swung with the lever).
 			{
-				static const FName LeverTag(TEXT("Part:controls/lever.glb"));
-				double Biggest[2] = {0.0, 0.0};
-				for (int32 S = 0; S < 2; ++S) { CatLever[S] = nullptr; bCatLeverRest[S] = false; }
+				static const FName LeverTags[2] = {FName(TEXT("Lever:0")), FName(TEXT("Lever:1"))};
+				for (int32 S = 0; S < 2; ++S)
+				{
+					CatLever[S] = nullptr;
+					bCatLeverRest[S] = false;
+					CatLeverPin[S] = Frame.LeverPin[S];
+					CatLeverAxis[S] = Frame.LeverAxis[S];
+				}
 				for (UStaticMeshComponent* C : ModelParts)
-					if (C && C->GetStaticMesh() && C->ComponentHasTag(LeverTag))
-					{
-						const FBox Box = C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
-						const double Size = Box.GetSize().GetMax();
-						const int32 LeverSide = Box.GetCenter().Y < 0.0 ? 0 : 1;
-						if (Size > 4.0 && Size < 25.0 && Size > Biggest[LeverSide]) { Biggest[LeverSide] = Size; CatLever[LeverSide] = C; }
-					}
-				UE_LOG(LogTemp, Log, TEXT("Torque: rider levers drawn: clutch %s (%.1f cm), brake %s (%.1f cm)"),
-					CatLever[0].IsValid() ? TEXT("yes") : TEXT("no"), Biggest[0], CatLever[1].IsValid() ? TEXT("yes") : TEXT("no"), Biggest[1]);
+					for (int32 S = 0; S < 2; ++S)
+						if (C && C->GetStaticMesh() && Frame.bLever[S] && C->ComponentHasTag(LeverTags[S]) && !CatLever[S].IsValid()) CatLever[S] = C;
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider levers drawn: clutch %s (pin %s, up %s), brake %s (pin %s, up %s)"),
+					CatLever[0].IsValid() ? TEXT("yes") : TEXT("no"), *CatLeverPin[0].ToCompactString(), *CatLeverAxis[0].ToCompactString(),
+					CatLever[1].IsValid() ? TEXT("yes") : TEXT("no"), *CatLeverPin[1].ToCompactString(), *CatLeverAxis[1].ToCompactString());
 			}
 			// No drawn grips (a style whose bars don't take them): the layout's.
 			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
@@ -3826,26 +3828,33 @@ void ATorqueBikePawn::UpdateRider()
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
 			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]) * LeverFit[S]);
 		}
-		// [rider pose] A catalogue bike's levers swing back about their perches' pins (upright) toward
-		// the grips as they're pulled, 28 degrees at full pull (beenster: see them pulled).
+		// [rider pose] A catalogue bike's levers swing back about their perches' pins toward the grips
+		// as they're pulled, 28 degrees at full pull (beenster: see them pulled). Only the blade: the
+		// hose and banjo stay on the master cylinder (beenster, build 146).
 		for (int32 S = 0; S < 2; ++S)
 		{
 			UStaticMeshComponent* LeverC = CatLever[S].Get();
 			if (!LeverC) continue;
 			if (!bCatLeverRest[S])
 			{
-				// (Which way round the pin takes the blade back toward the rider: the blade's middle from
-				// the pin turned each way. Set by rotation alone: the brake's lever is drawn mirrored, and a
-				// mirrored FTransform doesn't compose.)
+				// The blade's vertices are drawn in the holder's space, so its rest transform (to the steer
+				// group it's on now) takes the pin there too. Which way round the pin takes the blade back
+				// toward the rider: the blade's middle turned each way about it.
 				CatLeverRest[S] = LeverC->GetRelativeTransform();
 				bCatLeverRest[S] = true;
-				const FVector Arm = LeverC->GetStaticMesh() ? LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(CatLeverRest[S]).GetCenter() - CatLeverRest[S].GetLocation() : FVector::ZeroVector;
+				const FVector PinAt = CatLeverRest[S].TransformPosition(CatLeverPin[S]);
+				const FVector PinUp = CatLeverRest[S].TransformVectorNoScale(CatLeverAxis[S]).GetSafeNormal();
+				CatLeverPin[S] = PinAt;
+				CatLeverAxis[S] = PinUp.IsNearlyZero() ? FVector::UpVector : PinUp;
+				const FVector Arm = LeverC->GetStaticMesh() ? LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(CatLeverRest[S]).GetCenter() - PinAt : FVector::ZeroVector;
 				const double Ra = FMath::DegreesToRadians(20.0);
-				CatLeverSign[S] = FQuat(FVector::UpVector, Ra).RotateVector(Arm).X <= FQuat(FVector::UpVector, -Ra).RotateVector(Arm).X ? 1.0 : -1.0;
-				UE_LOG(LogTemp, Log, TEXT("Torque: rider lever %d: blade %s from its pin, swings %s"), S, *Arm.ToCompactString(), CatLeverSign[S] > 0.0 ? TEXT("+") : TEXT("-"));
+				CatLeverSign[S] = FQuat(CatLeverAxis[S], Ra).RotateVector(Arm).X <= FQuat(CatLeverAxis[S], -Ra).RotateVector(Arm).X ? 1.0 : -1.0;
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider lever %d: pin %s, up %s, blade %s from it, swings %s"), S, *PinAt.ToCompactString(),
+					*CatLeverAxis[S].ToCompactString(), *Arm.ToCompactString(), CatLeverSign[S] > 0.0 ? TEXT("+") : TEXT("-"));
 			}
-			const FQuat Swing(FVector::UpVector, FMath::DegreesToRadians(28.0 * FMath::Clamp(In.LeverPull[S], 0.0, 1.0)) * CatLeverSign[S]);
-			LeverC->SetRelativeLocationAndRotation(CatLeverRest[S].GetLocation(), Swing * CatLeverRest[S].GetRotation());
+			const FQuat Swing(CatLeverAxis[S], FMath::DegreesToRadians(28.0 * FMath::Clamp(In.LeverPull[S], 0.0, 1.0)) * CatLeverSign[S]);
+			const FVector RestAt = CatLeverRest[S].GetLocation();
+			LeverC->SetRelativeLocationAndRotation(CatLeverPin[S] + Swing.RotateVector(RestAt - CatLeverPin[S]), Swing * CatLeverRest[S].GetRotation());
 		}
 		In.GripFit[0] = GripDelta[0] * GripFitMove[0];
 		In.GripFit[1] = GripDelta[1] * GripFitMove[1];
