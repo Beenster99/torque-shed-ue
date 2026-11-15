@@ -528,6 +528,43 @@ def headlamp(model, c):
     display(model, c, head, house)
 
 
+def round_lamp(model, c):
+    """A classic round headlamp (cafe, classic): a painted bowl, a rolled chrome rim, a deep chrome reflector
+    with a projector in the middle behind a domed clear glass, and a bracket each side clamped to the fork."""
+    import shapes
+    head = [(i, s_) for i, s_ in enumerate(model.get("front_end", [])) if s_.get("part") == "head"]
+    bowl_ = next((s_ for i, s_ in head if s_.get("round")), None)
+    if not bowl_:
+        return
+    for i, s_ in head:
+        if "pts" in s_:
+            drop(f"front{i}", f"lens{i}", f"bezel{i}", f"reflector{i}", f"eye{i}", f"eyeglass{i}")
+    drop("lamprim", "lampglass")
+    bowl = shapes.dense(bowl_["pts"], True, bowl_.get("t", 1.0))
+    x0, x1 = min(q[0] for q in bowl), max(q[0] for q in bowl)
+    zc = (min(q[1] for q in bowl) + max(q[1] for q in bowl)) / 2
+    R = (max(q[1] for q in bowl) - min(q[1] for q in bowl)) / 2
+    chrome, dark = B.mat("chrome"), B.mat("plastic")
+    fx = _cast(_trees(("forktube", "forkouter")), 105, zc, "x", 1)
+    twin = any(s_.get("twin") for i, s_ in head)
+    for yl in ((-R - 6, R + 6) if twin else (0,)):
+        o, ax = (x1, yl, zc), (1, 0, 0)
+        lathe(f"lamprim{yl}", o, ax, [(-9, R + 0.5), (-9, R + 4.5), (-2, R + 6.5), (6, R + 6.5), (11, R + 4), (12, R), (9, R - 4), (2, R - 5), (2, R + 0.5), (-9, R + 0.5)], chrome, 64, sharp=False, caps=False)
+        lathe(f"lampreflector{yl}", o, ax, [(3, R - 5), (-8, R * 0.86), (-24, R * 0.66), (-38, R * 0.42), (-46, R * 0.24), (-48, 0)], chrome, 64, sharp=False, caps=False)
+        lathe(f"lampshield{yl}", o, ax, [(-46, 0), (-46, R * 0.25), (-20, R * 0.25), (-12, R * 0.2), (-8, R * 0.1), (-7, 0)], surf("smokechrome", (0.2, 0.2, 0.22), 1.0, 0.1, wear=0.0), 32, sharp=False, caps=False)
+        lathe(f"lampdrl{yl}", o, ax, [(2.5, R - 6), (2.5, R - 10), (4, R - 10), (4, R - 6), (2.5, R - 6)], glow("drl", (1.0, 0.97, 0.9), 1.6), 64, caps=False)
+        lathe(f"lampglass{yl}", o, ax, [(5, R - 4.5), (11, R * 0.9), (17, R * 0.66), (21, R * 0.36), (22.5, 0)], glass_mat(), 64, sharp=False, caps=False)
+    if fx is not None and not twin:
+        # the brackets: a flat arm from each side of the bowl back to a split clamp on the fork leg
+        xb, xf_ = x0 + 0.62 * (x1 - x0), fx - 31
+        d = (-c["uf"][0], 0, -c["uf"][1]) if c["uf"][1] < 0 else (c["uf"][0], 0, c["uf"][1])
+        for s in (-1, 1):
+            B.prism(f"lampear{s}", [(xb + 16, zc - 15), (xb + 16, zc + 15), (xb - 10, zc + 20), (xf_ - 8, zc + 24), (xf_ - 8, zc - 24), (xb - 10, zc - 20)], s * (R - 3) if s > 0 else s * 72, s * 72 if s > 0 else s * (R - 3), dark, 2.0)
+            lathe(f"lampearclamp{s}", (xf_, s * 105, zc), d, [(-16, 31.5), (-16, 36.5), (16, 36.5), (16, 31.5), (-16, 31.5)], dark, 36, caps=False)
+            B.prism(f"lampearweb{s}", [(xf_ - 30, zc - 14), (xf_ - 30, zc + 14), (xf_ + 6, zc + 14), (xf_ + 6, zc - 14)], s * 70 if s > 0 else s * 78, s * 78 if s > 0 else s * 70, dark, 2.0)
+            bolt(f"lampearbolt{s}", (xb, s * 73, zc), (0, s, 0), 6.5, 4, chrome)
+
+
 def display(model, c, head, house, dash=None):
     """The display: a slim tablet on a bracket, its face square to the rider's eyes."""
     F, uf, nb, fk = c["F"], c["uf"], c["nb"], c["fk"]
@@ -655,7 +692,7 @@ def tail_lamp(model, c):
     straight back, two square LED units side by side behind one red lens. The rear indicators grow out of
     the same housing, one each side, so the bike is complete with the number plate hanger taken off."""
     tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
-    if not tl or model["family"].lower() != "sport":
+    if not tl or model["family"].lower() not in ("sport", "cafe"):
         return
     zs = [q[1] for q in tl["pts"]]
     xf, zc, hh = max(q[0] for q in tl["pts"]), (max(zs) + min(zs)) / 2, (max(zs) - min(zs)) / 2
@@ -681,7 +718,7 @@ def plate_mount(model, c):
     body = model["body"]
     arm = next((h for h in body.get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
     tail = body.get("tail", [None])[0]
-    if not arm or not tail or model["family"].lower() != "sport" or not model.get("fit", {}).get("plate_hanger", True):
+    if not arm or not tail or model["family"].lower() not in ("sport", "cafe") or not model.get("fit", {}).get("plate_hanger", True):
         return
     import shapes
     drop("platemount")
@@ -1400,8 +1437,8 @@ def mudguard_fixings(model, c):
     paint = guard.data.materials[0]
     arc = next(v["arc"] for v in model["body"]["front_guard"] if "arc" in v)
     r_edge = arc["r1"] + 4 - 17
-    if model["family"].lower() == "sport":
-        r_edge = arc["r0"] + 5 - 28      # the sport shell sits tight on the tyre (build3d.guard_blade, tight)
+    if model["family"].lower() in ("sport", "cafe"):
+        r_edge = model["wheels"]["front"]["tyre_r"] + 11 - 28      # the shell sits tight on the tyre (build3d.guard_blade, tight)
     fw = (-nb[0], -nb[1])
     FY, n = 105.0, 21
     # along the leg: (t from the axle, reach forward of the leg's middle, half width across)
@@ -2166,7 +2203,7 @@ def hugger(model, c):
                     bpy.data.objects.remove(ob, do_unlink=True)
     R_ = model["wheels"]["rear"]["tyre_r"]
     plastic = surf("huggerplastic", (0.03, 0.03, 0.033), 0.0, 0.42, bump=(0.2, 0.5), wear=0.15)
-    g_ = 20 if model["family"].lower() == "sport" else 0      # sport: closer still to the tyre (beenster, sport round 2)
+    g_ = 20 if model["family"].lower() in ("sport", "cafe") else 0      # sport: closer still to the tyre (beenster, sport round 2)
     B.arc_band("hugger", {"c": A, "r0": R_ + 30 - g_, "r1": R_ + 40 - g_ * 1.7, "a0": 20, "a1": 68}, 94, plastic)
     top = [tuple(q[:2]) for q in sw["outline"]]
 
@@ -2329,6 +2366,7 @@ SHOTS = {
     "seat": ((-250, -900, 1500), (420, 0, 880), 55),
     "rear": ((-700, -1150, 600), (60, -90, 330), 60),
     "rearq": ((-2500, -2700, 1500), (650, 0, 560), 70),
+    "rearq_front": ((3600, -2600, 1450), (700, 0, 520), 70),
     "rearq_low": ((-1500, -1900, 620), (480, -40, 520), 55),
     "service": ((1500, 1150, 1750), (830, 0, 770), 60, ("tank", "cap")),
     "indicator": ((1900, -900, 950), (1270, -180, 830), 110),
@@ -2382,6 +2420,7 @@ def run(build3d, model, c):
     c["model_hip"] = model["geometry"].get("hip_x", 520)
     front_end(model, c)
     headlamp(model, c)
+    round_lamp(model, c)
     controls(model, c)
     engine(model, c)
     silencers(model, c)        # (engines not yet detailed return early, before their exhaust)

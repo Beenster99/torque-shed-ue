@@ -606,7 +606,7 @@ def guard_blade(name, a, blade, hw, material, tight=False):
     so the blade grows out of the guard in a curve."""
     lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 25 if DETAIL["on"] else 9, 80, 12
     if tight and DETAIL["on"]:
-        hi = a["r0"] + 5      # the crown a few mm off the tread, the edges following the tyre's shoulder down (beenster, sport round 2)
+        hi = tight + 11      # the crown a few mm off the tread, the edges following the tyre's shoulder down (beenster, sport round 2)
     c = tuple(a["c"])
 
     def mould(u, f):
@@ -1026,7 +1026,7 @@ def build(model):
         m_ = paint if shp["cls"] == "body" else mat("plastic")
         blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
         if "arc" in shp and blade_ and shp in body.get("front_guard", []):
-            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_, tight=sport_bike)
+            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_, tight=model["wheels"]["front"]["tyre_r"] if model["family"].lower() in ("sport", "cafe") else False)
         elif shp.get("shroud") and (sport_bike or DETAIL["on"]):
             pass                          # part of the one-piece mudguard above
         elif "arc" in shp:
@@ -1082,7 +1082,7 @@ def build(model):
                             y += 22 * fl * max(0.0, min(1.0, (z - 745) / 55.0)) ** 2
                         d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
                         y = 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
-                        if DETAIL["on"] and z < 470:
+                        if DETAIL["on"] and z < 500:
                             # the belly tapers in to a prow where the two sides meet behind the front tyre
                             # (beenster, sport round 1): full width 280 mm back, drawn in to the middle at the front
                             d2 = max(0.0, min(1.0, (lead_s(z) - x) / 280.0))
@@ -1094,7 +1094,7 @@ def build(model):
                     return (104 + (wide / 2 + 52 - 104) * t) * k
                 fair_wrap["f"] = wrap
                 for s in (-1, 1):
-                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16, holes=cuts)
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=(60 if DETAIL["on"] else 30) if sport else 16, holes=cuts)
                 if sport and DETAIL["on"]:
                     # behind the nose flare the fairing's top edge turns in to meet the cowl: a shelf that closes
                     # the slot you could see down between the two (beenster's yellow mark, sport round 2)

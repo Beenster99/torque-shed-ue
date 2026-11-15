@@ -22,22 +22,38 @@ items = [
 ]
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
-figs = []
-for tag, title, slug, cap in items:
-    p = R + tag + '.png'
+def fig(p, title, cap, save_as):
     if not os.path.exists(p):
-        continue
-    shutil.copy(p, dst + 'kazeda_sport_r2_' + slug + '.png')
+        return None
+    shutil.copy(p, dst + save_as)
     im = Image.open(p).convert('RGB')
     if im.width > 1400:
         im = im.resize((1400, int(im.height * 1400 / im.width)))
     b = io.BytesIO()
     im.save(b, 'JPEG', quality=82)
-    figs.append(f'<figure><img alt="{title}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{title}</strong> {cap}</figcaption></figure>')
+    return f'<figure><img alt="{title}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{title}</strong> {cap}</figcaption></figure>'
+
+
+figs = [f for f in (fig(R + tag + '.png', title, cap, 'kazeda_sport_r2_' + slug + '.png') for tag, title, slug, cap in items) if f]
+# the rest of the family, built automatically from the signed-off lead bike
+OTHERS = [
+    ('corvano_sport', 'Corvano sport', 'V-twin in a trellis, the short deep fairing, silencer under the tail, five Y-spoke wheels.'),
+    ('hartwell_sport', 'Hartwell sport', 'Triple in a tube frame, the straight-edged fairing with gill slats, turbine wheels.'),
+    ('varga_sport', 'Varga sport', 'Parallel twin in a bright trellis, the wedge fairing with a separate belly pan, seven-blade wheels.'),
+]
+others = []
+for key, title, cap in OTHERS:
+    for tag, view in (('rearq_front', 'front quarter'), ('rearq', 'rear quarter')):
+        f = fig(os.path.join(ROOT, 'out', 'renders', f'{key}_def_shot_{tag}.png'), f'{title}, {view}', cap if tag == 'rearq_front' else '', f'{key}_def_{tag}.png')
+        if f:
+            others.append(f)
 body = '''<main>
 <div class="k">Bike Models V2 · Definition pass · Sport</div>
-<h1>Kazeda sport, markup round 2</h1>
-<p class="lede">Your eight points from round 2, each with its own close-up. Still unfinished and not part of this round: the engine behind the fairing is plain, the swingarm and the underside of the tail are bare, and the screen and fairing edges have no fixings yet. Rendered straight from the model, nothing retouched.</p>
-<div class="grid">''' + '\n'.join(figs) + '</div>\n</main>'
+<h1>Kazeda sport, signed off</h1>
+<p class="lede">Signed off on 15 November after two rounds of markup. The pictures show the eight points from round 2, each with its own close-up. Still unfinished and not part of this round: the engine behind the fairing is plain, the swingarm and the underside of the tail are bare, and the screen and fairing edges have no fixings yet. Rendered straight from the model, nothing retouched.</p>
+<div class="grid">''' + '\n'.join(figs) + '</div>' + ('''
+<h1 style="margin-top:48px">The other sport bikes</h1>
+<p class="lede">Built automatically from the signed-off Kazeda: the same tail with its light and indicators, mudguards, tank base, chain and outlet rules, on each brand's own frame, engine, fairing and wheels. First look, not yet gone over by hand.</p>
+<div class="grid">''' + '\n'.join(others) + '</div>' if others else '') + '\n</main>'
 open(os.path.join(ROOT, 'out', 'sport_definition.html'), 'w').write(head + body)
 print(len(figs), len(head + body))
