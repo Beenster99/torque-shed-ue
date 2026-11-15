@@ -75,7 +75,7 @@
   "exposure_wet_stops": 1.9,
   "direct_trust": 0.5,
   "direct_trust_from_deg": 8.0,
-  "_shade": "The light in a hill's shadow by day (build 147): sky_fill is the sky light times the level's by the sun's height (degrees), less as the sky dulls; under a bright sky only, the camera may open exposure_shade_open stops below the level's lowest, and more as the sun is lower than exposure_built_deg (times exposure_follow_sun, at most exposure_follow_most); local_* are the engine's local exposure (lower lifts the shade, not the sky).",
+  "_shade": "The light in a hill's shadow by day (build 147): sky_fill is the sky light times the level's by the sun's height (degrees), less as the sky dulls; under a bright sky only, the camera may open exposure_shade_open stops below the level's lowest, and more as the sun is lower than exposure_built_deg (times exposure_follow_sun, at most exposure_follow_most); local_* are the engine's local exposure (lower lifts the shade, not the sky). Build 148 (with Lumen off at Medium) looked pale all the time at 1.9x / 1.5 + 1.0 x up to 3 stops / 0.6: now gentler.",
   "sky_fill": [
    [
     -6,
@@ -83,30 +83,30 @@
    ],
    [
     0,
-    1.8
-   ],
-   [
-    10,
-    1.9
-   ],
-   [
-    20,
-    1.6
-   ],
-   [
-    35,
     1.25
    ],
    [
-    60,
+    10,
+    1.3
+   ],
+   [
+    20,
+    1.2
+   ],
+   [
+    35,
     1.1
+   ],
+   [
+    60,
+    1.0
    ]
   ],
-  "exposure_shade_open": 1.5,
+  "exposure_shade_open": 0.5,
   "exposure_built_deg": 32.0,
-  "exposure_follow_sun": 1.0,
-  "exposure_follow_most": 3.0,
-  "local_shadow_contrast": 0.6,
+  "exposure_follow_sun": 0.5,
+  "exposure_follow_most": 1.5,
+  "local_shadow_contrast": 0.7,
   "local_highlight_contrast": 0.75
  },
  "air": {

@@ -80,14 +80,16 @@ struct Looks
 	// in the shadow of a hill"). The sky light by day, times the level's (on top of SkyLightDull), by the
 	// sun's height in degrees: the lower the sun, the more of the day's light is the sky's, and the engine's
 	// capture of a low sun's sky comes out dim. Less of it as the sky dulls (the dull sky light has its own).
-	Curve SkyFill{{{-6.0, 1.0}, {0.0, 1.8}, {10.0, 1.9}, {20.0, 1.6}, {35.0, 1.25}, {60.0, 1.1}}};
+	// (Build 148 at 1.9 / 1.5 stops + the sun's full difference / 0.6 local contrast looked pale all the
+	// time, with Lumen off at Medium quality: gentler since.)
+	Curve SkyFill{{{-6.0, 1.0}, {0.0, 1.25}, {10.0, 1.3}, {20.0, 1.2}, {35.0, 1.1}, {60.0, 1.0}}};
 	// By day the camera may open this many stops below the level's lowest exposure (a hill's shadow, under
 	// trees; only under a bright sky: build 148's drizzle came out washed out with it), and further as the sun is lower than the level's own (ExposureBuiltDeg): the clear sky's light
 	// at that height against now, times ExposureFollowSun, at most ExposureFollowMost stops.
-	double ExposureShadeOpen = 1.5, ExposureBuiltDeg = 32.0, ExposureFollowSun = 1.0, ExposureFollowMost = 3.0;
+	double ExposureShadeOpen = 0.5, ExposureBuiltDeg = 32.0, ExposureFollowSun = 0.5, ExposureFollowMost = 1.5;
 	// The engine's local exposure: how much of the scene's contrast stays in the shadows and in the
 	// highlights (lower lifts the shade without lifting the sky). The level's were 0.7 and 0.75.
-	double LocalShadowContrast = 0.6, LocalHighlightContrast = 0.75;
+	double LocalShadowContrast = 0.7, LocalHighlightContrast = 0.75;
 
 	// --- Air (stage 1) ---
 	// The haze by how far you can see (km): times the level's, over 8 km (below that the fog takes

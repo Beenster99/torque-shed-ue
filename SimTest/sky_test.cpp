@@ -827,7 +827,7 @@ int main()
 		const Sky Grey = At(TorqueWeather::Preset(TorqueWeather::Overcast), 17.0, true, false, Lk);
 		std::printf("  sun 17: sky light x%.2f, may open %.2f stops; sun 58: x%.2f, %.2f; night: x%.2f, %.2f; overcast at 17: x%.2f\n",
 			Nov.SkyFill, Nov.ExposureOpenStops, June.SkyFill, June.ExposureOpenStops, Night.SkyFill, Night.ExposureOpenStops, Grey.SkyFill);
-		Check(Nov.SkyFill > 1.4 && Nov.ExposureOpenStops > 2.0, "a low November sun: the shade gets more sky light and the camera may open up");
+		Check(Nov.SkyFill > 1.15 && Nov.ExposureOpenStops > 0.8 && Nov.SkyFill < 1.4 && Nov.ExposureOpenStops < 1.5, "a low November sun: the shade gets a little more sky light and the camera may open up a little (148 was pale with more)");
 		Check(June.SkyFill < Nov.SkyFill && June.ExposureOpenStops < Nov.ExposureOpenStops, "a high summer sun needs less of both");
 		Check(Near(Night.SkyFill, 1.0, 1e-6) && Near(Night.ExposureOpenStops, 0.0, 1e-6), "at night neither (the night's exposure is its own)");
 		Check(Grey.SkyFill < 1.05, "under overcast the dull sky light has it already");
