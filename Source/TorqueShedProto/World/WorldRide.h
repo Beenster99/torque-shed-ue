@@ -719,8 +719,31 @@ public:
 		double Level = 0.0;   // a reservoir's water
 		uint32_t Id = 0;
 		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
+		bool Flowing = false;   // a river's or canal's own outline (its water runs: WaterRuns), not a lake's
 	};
 	std::vector<FieldArea> FieldAreas;
+	// [beenster, build 147: "flat water surfaces and well formed banks for rivers, streams, brooks, lakes and
+	// the coastal shoreline"] (World/WorldRideWater.cpp) Each of the map's rivers, streams and canals as a run
+	// of points every WaterStep m down it (turned to run downhill), each with its water's level (never rising
+	// downstream, level across), its half width (a river's from the water the land's cover and the map's
+	// outlines show either side of it) and its depth. Ground cuts its channel and banks round them (and
+	// presses a lake's bed and the sea's under their water), WaterTile draws their water level across.
+	struct WaterRun
+	{
+		int Kind = 0;   // as Stream's: 0 a river, 1 a stream, 2 a canal
+		std::vector<P2> At;
+		std::vector<float> Surface, Half, Depth;
+	};
+	std::vector<WaterRun> WaterRuns;
+	std::unordered_map<long long, std::vector<std::pair<int, int>>> WaterNear;   // (run, first point) by every WaterCell square within reach
+	std::unordered_map<long long, char> StillCells;   // the FieldCell squares a lake's outline covers
+	static constexpr double WaterStep = 3.0, WaterCell = 32.0, BankRun = 1.2, BankReach = 14.0;
+	void IndexWater();   // (after IndexFields)
+	// The run nearest (X, Z) within its bank's reach: how far from its middle, its water's level, half
+	// width and depth there, and its kind.
+	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr) const;
+	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
+	double StillLevel(double X, double Z) const;
 	void IndexFields();
 	int FieldAt(double X, double Z) const;   // the field area here (FieldAreas), -1 none
 	void FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const;

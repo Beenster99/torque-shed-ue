@@ -348,6 +348,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
+	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
 	R->IndexWild();      // [OSM stage 2 batch D]
 	R->IndexTowers();    // [towns stage 2]
 	R->IndexPlaceRecipes();   // [places stage 3] (after the towers and the churches' buildings)
@@ -1544,6 +1545,30 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 	const bool RailBed = !std::isnan(Lie) && NearRail(X, Z, RailDist, RailTop, RailOn, nullptr, &RailRoom) && (RailOn == 0 || RailOn == 3) && RailDist <= RailRoom;
 	const double RailLevel = RailTop - 0.47, RailRise = std::fmax(0.0, RailDist - RailBedHalf) / 1.5;
 	if (RailBed) Lie = std::fmin(std::fmax(Lie, RailLevel - RailRise), RailLevel + RailRise);
+	// [build 147 feedback] Water's channels and beds (World/WorldRideWater.cpp): a river's, stream's or
+	// canal's bed under its level, a lip just over the level at its edge, its bank rising BankRun across
+	// for each metre up to the land; a lake's bed under its level; the sea's under the sea.
+	if (!std::isnan(Lie))
+	{
+		double WDist = 0.0, WSurf = 0.0, WHalf = 0.0, WDepth = 0.0;
+		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth))
+		{
+			if (WDist < WHalf)
+			{
+				const double U = WDist / WHalf;
+				Lie = std::fmin(Lie, WSurf + 0.05 - (WDepth + 0.05) * (1.0 - U * U));
+			}
+			else
+			{
+				const double Out = WDist - WHalf;
+				Lie = std::fmin(Lie, WSurf + 0.06 + Out / BankRun);
+				if (Out < 1.2) Lie = std::fmax(Lie, WSurf + 0.06 + Out * 0.15);
+			}
+		}
+		const double Still = StillLevel(X, Z);
+		if (!std::isnan(Still)) Lie = std::fmin(Lie, Still - 0.6);
+		if (Lie < 12.0 && Land->SeaAt(X, Z)) Lie = std::fmin(Lie, -0.9);
+	}
 	NearOpts Opts;
 	Opts.NoBores = NoBores;
 	NearHit Hit;

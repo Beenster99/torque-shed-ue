@@ -2096,7 +2096,7 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 		std::vector<int> Here;
 		FieldsIn(X0, Z0, Size, Here);
 		for (int Fa : Here)
-			if (FieldAreas[size_t(Fa)].Kind == FieldReservoir) { Reservoirs = true; MappedWater.push_back(Fa); }
+			if (FieldAreas[size_t(Fa)].Kind == FieldReservoir) { Reservoirs = true; MappedWater.push_back(Fa); }   // (a river's own outline: kept dry of the cover's water too)
 	}
 	for (int J = 0; J < N; ++J)
 		for (int I = 0; I < N; ++I)
@@ -2107,19 +2107,25 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 			if (W != 2 && Reservoirs)
 			{
 				const int Fa = FieldAt(X, Z);
-				if (Fa >= 0 && FieldAreas[size_t(Fa)].Kind == FieldReservoir)
+				if (Fa >= 0 && FieldAreas[size_t(Fa)].Kind == FieldReservoir && !FieldAreas[size_t(Fa)].Flowing)
 				{
 					W = 3;
 					Held[size_t(J) * N + I] = FieldAreas[size_t(Fa)].Level;
 				}
 				// [OSM stage 4] (the land's cover is 10 m squares from space, a little off the map: where the
 				// map draws a lake or river's own shape, the cover's water beside that shape is dry land)
-				else if (W == 1)
+				else if (W == 1 && !MappedWater.empty())
 					for (int Wa : MappedWater)
 					{
 						const FieldArea& A = FieldAreas[size_t(Wa)];
 						if (X >= A.MinX - 15.0 && X <= A.MaxX + 15.0 && Z >= A.MinZ - 15.0 && Z <= A.MaxZ + 15.0) { W = 0; break; }
 					}
+			}
+			// ([build 147 feedback] a river's water by the land's cover is its run's, drawn level across)
+			if (W == 1)
+			{
+				double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+				if (NearWater(X, Z, Wd, Ws, Wh, Wdp) && Wd < Wh + 12.0) W = 0;
 			}
 			// (never on a road: a causeway or a road along a lake's edge stays dry)
 			if (W != 0)
@@ -2194,7 +2200,7 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					if (Wet[V] == 0) continue;
 					Any = true;
 					Sea = Sea || Wet[V] == 2;
-					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? std::fmax(Held[V], double(Sheet.Pos[V * 3 + 1]) + 0.05)
+					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? Held[V]
 						: !std::isnan(Lake[V]) ? Lake[V] : double(Sheet.Pos[V * 3 + 1]) + 0.12;
 					Lowest = std::fmin(Lowest, Level[K]);
 				}
@@ -2211,97 +2217,50 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				Out.Idx.insert(Out.Idx.end(), {Base, Base + 2, Base + 1, Base + 1, Base + 2, Base + 3});
 			}
 	}
-	// The map's rivers, streams and canals the cover doesn't hold: a ribbon along each, on the finer squares.
-	if (Step > 8.5 || !Scene || Scene->Streams.empty()) return;
-	const Region& G = Area.Roads;
+	// The map's rivers, streams and canals (WaterRuns): their water level across at each point's level,
+	// out under the lip of each bank, on the finer squares.
+	if (Step > 8.5 || WaterNear.empty()) return;
 	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
-	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	const auto LeftOf = [](const WaterRun& Run, size_t I)
+	{
+		const size_t Count = Run.At.size();
+		const P2 D = Run.At[std::min(Count - 1, I + 1)] - Run.At[I > 0 ? I - 1 : 0];
+		const double L = D.Length();
+		return L > 1e-9 ? P2(D.Z / L, -D.X / L) : P2(1.0, 0.0);
+	};
+	const int CellX0 = int(std::floor(X0 / WaterCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / WaterCell)), CellZ0 = int(std::floor(Z0 / WaterCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / WaterCell));
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
 		{
 			const long long Key = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
-			const auto It = Scene->Streams.find(Key);
-			if (It == Scene->Streams.end()) continue;
-			for (int S : It->second)
+			const auto It = WaterNear.find(Key);
+			if (It == WaterNear.end()) continue;
+			for (const std::pair<int, int>& Bit : It->second)
 			{
-				const Stream& Flow = G.Streams[size_t(S)];
-				const double Wide = Flow.Kind == 0 ? 7.0 : Flow.Kind == 2 ? 6.0 : 2.2;
-				// (beenster, build 141: small streams were "a series of squares": each 3 m bit was its own flat
-				// piece at its own height. Now one ribbon: stations every 3 m or less, shared by the bits either
-				// side and mitred at the map's corners, each at the lowest ground across the stream there, so
-				// it runs down its valley without steps or gaps)
-				const auto LeftAt = [&Flow](size_t I, bool End)
+				const WaterRun& Run = WaterRuns[size_t(Bit.first)];
+				const size_t I = size_t(Bit.second);
+				const P2 A = Run.At[I], B = Run.At[I + 1];
+				const P2 Mid = (A + B) * 0.5;
+				// (each bit once: in the square its middle is in)
+				if (int(std::floor(Mid.X / WaterCell)) != Cx || int(std::floor(Mid.Z / WaterCell)) != Cz || !Inside(Mid)) continue;
+				if (Land->SeaAt(Mid.X, Mid.Z) || !std::isnan(StillLevel(Mid.X, Mid.Z))) continue;   // (the sea's or a lake's own water)
+				const double Ha = Run.Half[I] + 0.35, Hb = Run.Half[I + 1] + 0.35;
 				{
-					// (at a corner of the map's line, the two segments' directions averaged)
-					const P2 A = Flow.Line[I], B = Flow.Line[I + 1];
-					P2 D = (B - A) * (1.0 / std::fmax(1e-6, A.DistanceTo(B)));
-					const size_t J = End ? I + 1 : I;
-					if (End ? J + 1 < Flow.Line.size() : J > 0)
-					{
-						const P2 Pa = End ? Flow.Line[J] : Flow.Line[J - 1], Pb = End ? Flow.Line[J + 1] : Flow.Line[J];
-						const double L2 = Pa.DistanceTo(Pb);
-						if (L2 > 1e-6)
-						{
-							const P2 D2 = (Pb - Pa) * (1.0 / L2);
-							const P2 Sum = D + D2;
-							const double Ls = std::hypot(Sum.X, Sum.Z);
-							if (Ls > 0.3) D = Sum * (1.0 / Ls);
-						}
-					}
-					return P2(D.Z, -D.X);
-				};
-				const double Half = Wide * 0.5;
-				const auto LevelAt = [&](const P2& P, const P2& L)
-				{
-					double Lie = 1e9;
-					for (const P2& Q : {P, P + L * Half, P - L * Half})
-					{
-						const double Y = Ground(Q.X, Q.Z, Step);
-						if (!std::isnan(Y)) Lie = std::fmin(Lie, Y);
-					}
-					return Lie > 1e8 ? std::nan("") : Lie + (Flow.Kind == 2 ? 0.2 : 0.1);
-				};
-				for (size_t I = 0; I + 1 < Flow.Line.size(); ++I)
-				{
-					const P2 A = Flow.Line[I], B = Flow.Line[I + 1];
-					const P2 Mid = (A + B) * 0.5;
-					if (SceneKey(Mid.X, Mid.Z) != Key || !Inside(Mid)) continue;
-					const double Len = A.DistanceTo(B);
-					if (Len < 0.2) continue;
-					const P2 Dir = (B - A) * (1.0 / Len), Along(Dir.Z, -Dir.X);
-					const P2 StartLeft = LeftAt(I, false), EndLeft = LeftAt(I, true);
-					const int Bits = std::max(1, int(std::ceil(Len / 3.0)));
-					const Rgb C = Flow.Kind == 2 ? LakeWater : RiverWater;
-					P2 Pa = A, La = StartLeft;
-					double Ya = LevelAt(Pa, La);
-					for (int K = 0; K < Bits; ++K)
-					{
-						const P2 Pb = A + (B - A) * (double(K + 1) / Bits);
-						const P2 Lb = K + 1 == Bits ? EndLeft : Along;
-						const double Yb = LevelAt(Pb, Lb);
-						const P2 Pm = (Pa + Pb) * 0.5;
-						bool Draw = !std::isnan(Ya) && !std::isnan(Yb) && Land->Cover(Pm.X, Pm.Z) != Terrain::CoverWater && !Land->SeaAt(Pm.X, Pm.Z);
-						if (Draw)
-						{
-							NearOpts Opts;
-							NearHit Hit;
-							Draw = !(NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Half + 1.5);   // (under the road: a culvert)
-						}
-						if (Draw)
-						{
-							const uint32_t Base = uint32_t(Out.Vertices());
-							Put(Pa.X + La.X * Half, Ya, Pa.Z + La.Z * Half, C);
-							Put(Pa.X - La.X * Half, Ya, Pa.Z - La.Z * Half, C);
-							Put(Pb.X + Lb.X * Half, Yb, Pb.Z + Lb.Z * Half, C);
-							Put(Pb.X - Lb.X * Half, Yb, Pb.Z - Lb.Z * Half, C);
-							// (Left is the stream's left going down it, so these face up whichever way it runs)
-							Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
-						}
-						Pa = Pb;
-						La = Lb;
-						Ya = Yb;
-					}
+					// (under a road, not a bridge: a culvert)
+					NearOpts Opts;
+					Opts.NoDecks = true;
+					NearHit Hit;
+					if (NearestOf(Mid.X, Mid.Z, Opts, Hit) && Hit.Dist <= Hit.Half + 1.0 && Run.Kind == 1) continue;
 				}
+				const P2 La = LeftOf(Run, I), Lb = LeftOf(Run, I + 1);
+				const Rgb C = Run.Kind == 2 ? LakeWater : RiverWater;
+				const uint32_t Base = uint32_t(Out.Vertices());
+				Put(A.X + La.X * Ha, Run.Surface[I], A.Z + La.Z * Ha, C);
+				Put(A.X - La.X * Ha, Run.Surface[I], A.Z - La.Z * Ha, C);
+				Put(B.X + Lb.X * Hb, Run.Surface[I + 1], B.Z + Lb.Z * Hb, C);
+				Put(B.X - Lb.X * Hb, Run.Surface[I + 1], B.Z - Lb.Z * Hb, C);
+				// (left is the run's left going down it, so these face up)
+				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
 			}
 		}
 }

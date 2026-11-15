@@ -853,6 +853,24 @@ int main(int Argc, char** Argv)
 			for (const auto& [Key, A] : Squares)
 				std::printf("  tall %s at %d, %d: %.1f m up, colour %.2f %.2f %.2f, %d triangles\n", Tag.c_str(), Key.first * 8, Key.second * 8, A[0], A[1], A[2], A[3], int(A[4]));
 	}
+	if (const char* WaterAt = std::getenv("WORLD_RIDE_WATER"))
+	{
+		// (the water runs and lakes within r m of the ride's start: each run's points there with its level,
+		// half width and the land's own height; each lake's level)
+		const double Reach = std::atof(WaterAt);
+		const P2 Start = Plan->Road[0].At;
+		for (size_t Wr = 0; Wr < Plan->WaterRuns.size(); ++Wr)
+		{
+			const RidePlan::WaterRun& Run = Plan->WaterRuns[Wr];
+			for (size_t I = 0; I < Run.At.size(); I += 3)
+				if (Run.At[I].DistanceTo(Start) < Reach)
+					std::printf("  water run %zu (kind %d) at %.0f, %.0f: level %.2f half %.1f depth %.1f ground %.2f land %.2f\n", Wr, Run.Kind, Run.At[I].X - Start.X, Run.At[I].Z - Start.Z, double(Run.Surface[I]), double(Run.Half[I]), double(Run.Depth[I]), Plan->Ground(Run.At[I].X, Run.At[I].Z),
+						Plan->Land->Height(Run.At[I].X, Run.At[I].Z));
+		}
+		for (const RidePlan::FieldArea& F : Plan->FieldAreas)
+			if (F.Kind == RidePlan::FieldReservoir && std::hypot((F.MinX + F.MaxX) * 0.5 - Start.X, (F.MinZ + F.MaxZ) * 0.5 - Start.Z) < Reach + 200.0)
+				std::printf("  water area %s at %.0f, %.0f (%.0f x %.0f m): level %.2f\n", F.Flowing ? "flowing" : "still", (F.MinX + F.MaxX) * 0.5 - Start.X, (F.MinZ + F.MaxZ) * 0.5 - Start.Z, F.MaxX - F.MinX, F.MaxZ - F.MinZ, F.Level);
+	}
 	if (std::getenv("WORLD_RIDE_DUALS") != nullptr)
 	{
 		// [OSM stage 5C] The dual carriageways: the region's edges the map pairs, and how much of the
