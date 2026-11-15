@@ -991,8 +991,8 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			// [perf, build 148] Where the whole frame goes (the engine's own last-frame figures, as stat unit
 			// shows them), and how much of the ride is in the scene: what to cut when a town is slow.
 			{
-				int32 Looks = 0, Hidden = 0, Ism = 0, IsmShadow = 0, Words = 0, Lamps = 0;
-				int64 Instances = 0;
+				int32 Looks = 0, Hidden = 0, Ism = 0, IsmShadow = 0, Words = 0, Lamps = 0, TreeGroups = 0;
+				int64 Instances = 0, TreeCount = 0;
 				auto CountPart = [&Looks, &Hidden](const UProceduralMeshComponent* P)
 				{
 					if (const URidePart* R = Cast<URidePart>(P))
@@ -1012,13 +1012,18 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 							++Ism;
 							if (C->CastShadow) ++IsmShadow;
 							Instances += C->GetInstanceCount();
+							if (C->ComponentHasTag(TEXT("RideTree")))
+							{
+								++TreeGroups;
+								TreeCount += C->GetInstanceCount();
+							}
 						}
 				for (const auto& Square : TileWords) Words += Square.Value.Num();
 				for (const auto& Square : StreetLights) Lamps += Square.Value.Num();
 				for (const auto& Piece : RoadLights) Lamps += Piece.Value.Num();
-				UE_LOG(LogTemp, Display, TEXT("Ride frame: game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants), %d sign words, %d lamps"),
+				UE_LOG(LogTemp, Display, TEXT("Ride frame: game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
 					FPlatformTime::ToMilliseconds(GGameThreadTime), FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)),
-					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, Words, Lamps);
+					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
 			}
 			S = RideCosts::FSums();
 			CostFrames = 0;
@@ -1657,6 +1662,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
+		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
+		static const bool bNoTrees = []() { int32 On = 1; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideTrees="), On) && On == 0; }();
+		if (bTree && bNoTrees) continue;
 		// As ATorqueFoliage makes its parts (see TorqueFoliage.cpp): no collision, shadows only from the
 		// taller plants and cached while they sway, out of Lumen's and the ray tracer's scenes.
 		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
@@ -1681,6 +1689,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
 		Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
+		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
 		AddInstanceComponent(Ism);
