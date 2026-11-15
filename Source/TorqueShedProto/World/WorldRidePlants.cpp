@@ -15,12 +15,12 @@ namespace
 const char* const KindNames[RidePlan::PlantKinds] = {
 	"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "tuft_a", "tuft_b", "tussock_a", "tussock_b", "matgrass", "far_a", "far_b",
 	"rush_a", "rush_b", "heather_twig_a", "heather_twig_b", "heather_a", "heather_b", "bracken",
-	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel"};
+	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel", "hedge"};
 
 enum Kind : uint16_t
 {
 	CarpetGreen, CarpetMoor, CarpetFarGreen, CarpetFarMoor, TuftA, TuftB, TussockA, TussockB, MatGrass, FarA, FarB, RushA, RushB,
-	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel
+	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel, Hedge
 };
 
 // The cover ids the baker writes (Terrain::Cover).

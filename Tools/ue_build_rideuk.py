@@ -102,6 +102,7 @@ def road_material_scanned(L, tex, roles):
     # Patches of a fresher, darker surface dressing and paler, older tarmac, tens of metres long.
     patch = g.mask_noise(0.0012, -2.0, 3.0)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.08), g.const(0.8), patch))
+    tar_scan = list(road)   # (the tarmac's own scan: the verge's inner end, build 149)
     # Which strips are tarmac: the vertex colour within a hair of the tarmac's own (0.022, 0.022, 0.025),
     # so nothing else drawn in this material (dark glass, black paint) takes the scan.
     vc = g.node(unreal.MaterialExpressionVertexColor)
@@ -158,11 +159,12 @@ def road_material_scanned(L, tex, roles):
         grav = g.layer(tex[gravel_key], roles[gravel_key]["tile_m"])
         # (the Megascans scan is paler than ambientCG's dark wet gravel, the fallback: each its own tint and middle)
         megascan = "ue" in roles[gravel_key]
-        tint, middle = ((1.05, 1.04, 1.0), 0.22) if megascan else ((1.5, 1.48, 1.4), 0.15)
-        # (the Dales' tracks are limestone chippings: the scan a little greyer, a little paler)
+        # (beenster, build 148: the grit "like sandstone poured on the road": grey chippings now, near the
+        # tarmac's own tone, the scan almost all its colour taken out and darkened towards the road)
+        tint, middle = ((0.78, 0.78, 0.79), 0.22) if megascan else ((1.1, 1.1, 1.12), 0.15)
         gdull = g.node(unreal.MaterialExpressionDesaturation, -600)
         g.link(grav[0], gdull)
-        g.link(g.const(0.35), gdull, "Fraction")
+        g.link(g.const(0.85), gdull, "Fraction")
         grav[0] = g.op(unreal.MaterialExpressionMultiply, gdull, g.const(tint))
         # Its stones' height from the scan's brightness (with its AO in it), and a slow wobble so the edge
         # isn't a line across the road.
@@ -186,10 +188,13 @@ def road_material_scanned(L, tex, roles):
         hard = tar
         near = tar
     # The verge (build 147; beenster on 146: "remove these green road borders and blend the road into the
-    # side"): the shoulder's colour runs from grit at the tarmac's edge (0.072, 0.078, 0.045) to the verge's
-    # grass (0.10, 0.16, 0.03) a metre out (World/WorldRide's VergeGrass). Along that line, the land's own
-    # grass scan, graded as M_RideLandScan grades it, breaks through the grit in a ragged edge by the
-    # grit's stones and a fine wobble; the outer shoulder is all grass, so it meets the land unseen.
+    # side"): the shoulder's colour runs from (0.072, 0.078, 0.045) at its inner end to the verge's grass
+    # (0.10, 0.16, 0.03) out on the shoulder (World/WorldRide's VergeGrass). Along that line, the land's own
+    # grass scan, graded as M_RideLandScan grades it, breaks through in a ragged edge by a fine wobble; the
+    # outer shoulder is all grass, so it meets the land unseen. Build 149 (beenster on 148: "have the
+    # roadside butt up against the grass and have it merge over", no pale border): the inner end is the
+    # tarmac's own scan, not grit, and the band starts a little in on the tarmac, so the grass grows over
+    # the road's edge.
     if "grass" in tex:
         grit_c, lawn_c = (0.072, 0.078, 0.045), (0.10, 0.16, 0.03)
         vspan = tuple(b - a for a, b in zip(grit_c, lawn_c))
@@ -216,16 +221,12 @@ def road_material_scanned(L, tex, roles):
         g.link(g.const(1.0), lgrey, "Fraction")
         lawn[0] = g.lerp(lgrey, lawn[0], g.const(1.6))
         g.y += 140
-        # (the grit: the gravel scan, darkened to worn road dirt, else the old flat colour)
-        if gravel_key:
-            grit = list(grav)
-            grit[0] = g.op(unreal.MaterialExpressionMultiply, grav[0], g.const((0.62, 0.6, 0.55)))
-        else:
-            grit = own
+        # (the inner end: the tarmac's own scan, so the road runs on under the grass)
+        grit = tar_scan
         wob = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.02, -0.5, 0.5, -1200, g.y + 200),
                    g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.004, -0.5, 0.5, -1200, g.y + 400), const_b=1.5))
         g.y += 140
-        # (grass from about a third of the way out, ragged by the wobble)
+        # (grass from about a third of the way out, ragged by the wobble: at the tarmac's edge, give or take)
         lawny = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
                      g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.3), g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.35)),
                      const_b=7.0))
@@ -816,6 +817,67 @@ def scanned_trees(L, kit):
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
 
 
+HEDGE_DEST = "/Game/RideUK/Hedges"
+
+
+def hedge_kit(L, kit):
+    """[build 149] The hedges (beenster, build 148: "look like something from roblox"): Tools/make_hedges.py's
+    4.2 m lengths of hedge (Data/RideUK/Hedges/SM_Tree_hedge_<n>.glb) imported as Nanite foliage with
+    the trees' material, added to the kit's "Trees" as kind "hedge"; World/TorqueRideWorld lays them
+    end to end along the map's hedge lines on the finest squares (RidePlan::HedgePlants). A scanned
+    hedge from Fab (a static mesh whose path holds one of scanned_trees.json's "hedge_words") takes
+    their place, scaled to a 4.2 m length. Changes the kit in place."""
+    if "Trees" not in kit:
+        return
+    rows = kit["Trees"]["species"]
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Hedges")
+    norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
+    spec_f = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "scanned_trees.json")
+    words = [norm(w) for w in (json.load(open(spec_f)).get("hedge_words", []) if os.path.exists(spec_f) else []) if norm(w)]
+    skip = [norm(w) for w in ("lod", "billboard", "impostor", "leaf", "leaves", "atlas", "branch", "twig", "decal")]
+    theirs = []
+    if words:
+        for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
+            pkg = str(a.package_name)
+            if str(a.asset_class_path.asset_name) != "StaticMesh" or pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+                continue
+            n = norm(pkg)
+            if any(w in n for w in words) and not any(k in n for k in skip):
+                theirs.append("%s.%s" % (pkg, a.asset_name))
+    # (a template row: a hawthorn's, else any of ours, for the material and the trees' settings)
+    template = next((r for r in rows if r["name"].startswith("SM_Tree_hawthorn_")), None) or next((r for r in rows if r.get("material")), None)
+    if template is None:
+        log("hedges: no tree rows in the kit to copy; hedges stay as shapes")
+        return
+    if theirs:
+        theirs = sorted(theirs)[:4]
+        b = [unreal.load_asset(p).get_bounding_box() for p in theirs]
+        longest = sum(max(x.max.x - x.min.x, x.max.y - x.min.y) for x in b) / len(b)
+        r = dict(template)
+        r.update({"name": "SM_Tree_hedge_scan", "mesh": "", "material": "", "variants": theirs, "variant_materials": [],
+                  "native_mesh": True, "scale_multiplier": 420.0 / max(longest, 1.0), "cast_shadow": True,
+                  "cull_distance": 60000.0})
+        rows.append(r)
+        log("hedges: %d scanned hedge models from Fab (%s)" % (len(theirs), theirs[0].rsplit("/", 1)[-1]))
+        return
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        log("hedges: none (python Tools/make_hedges.py); hedges stay as shapes")
+        return
+    meshes = L.import_glbs(folder, HEDGE_DEST)
+    for name, mesh in sorted(meshes.items()):
+        L.foliage_nanite(mesh)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        r = dict(template)
+        r.update({"name": name, "mesh": mesh.get_path_name(), "variants": [], "variant_materials": [],
+                  "native_mesh": False, "scale_multiplier": 1.0, "cast_shadow": True, "cull_distance": 60000.0})
+        rows.append(r)
+    log("hedges: %d hedge models (%s)" % (len(meshes), ", ".join(sorted(meshes))))
+
+
 def place_kit(kit):
     """The ride's plant kit: two TorqueFoliage actors that plant nothing themselves (Density 0), tagged
     RideGrass and RideTrees, with Buttertubs' species; World/TorqueRideWorld lays them out as it goes."""
@@ -1011,6 +1073,7 @@ def build():
     kit = read_kit(L)
     grass_materials(L, kit)
     scanned_trees(L, kit)
+    hedge_kit(L, kit)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)

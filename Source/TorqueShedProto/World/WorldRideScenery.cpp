@@ -344,6 +344,36 @@ void RidePlan::IndexScenery()
 		}
 }
 
+// [build 149] A length of hedge from A to B (Ya, Yb its foot's heights) as the hedge models laid end to
+// end along it (beenster, build 148: the hedges "look like something from roblox"): each a 4.2 m
+// length of real twigs and leaves (Tools/make_hedges.py), planted every 3.9 m or so, sunk Down into
+// the ground, Size its scale (a bank's hedge is smaller), turned either way round and each its own
+// model, so no two neighbours match.
+void RidePlan::HedgePlants(const P2& A, const P2& B, double Ya, double Yb, double Down, double Size, RideMesh& Out) const
+{
+	const double Len = A.DistanceTo(B);
+	if (Len < 0.4) return;
+	const int Count = std::max(1, int(std::lround(Len / 3.9)));
+	const double Yaw0 = std::atan2(B.Z - A.Z, B.X - A.X);
+	for (int K = 0; K < Count; ++K)
+	{
+		const double T = (K + 0.5) / Count;
+		const P2 At = A + (B - A) * T;
+		const double Roll = RideSceneBits::Chance(At.X, At.Z, 71);
+		RidePlant P;
+		P.Kind = uint16_t(HedgeKind);
+		P.X = float(At.X - Out.OriginX);
+		P.Z = float(At.Z - Out.OriginZ);
+		P.Y = float(Ya + (Yb - Ya) * T + Down);
+		P.Yaw = float(Yaw0 + (Roll < 0.5 ? 0.0 : 3.141592653589793));
+		// (as long as its share of the piece, a little over so the lengths meet; 0.55 at the least)
+		P.Scale = float(Size * std::clamp(Len / Count / 3.9, 0.55, 1.12) * (0.94 + 0.12 * RideSceneBits::Chance(At.X, At.Z, 72)));
+		P.Height = 0.0f;   // (Scale, not a height: PlacePlants)
+		P.Pick = float(RideSceneBits::Chance(At.X, At.Z, 73));
+		Out.Plants.push_back(P);
+	}
+}
+
 void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const
 {
 	Out = RideMesh();
@@ -573,9 +603,15 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								}
 								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + BankHigh, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + BankHigh, Pb.Z + Side.Z * 0.55),
 									At3(Pb.X - Side.X * 0.55, Gb + BankHigh, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + BankHigh, Pa.Z - Side.Z * 0.55), Sky, Turf);
-								Leafy(BankHigh - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
+								if (RealHedges) HedgePlants(Pa, Pb, Ga + BankHigh, Gb + BankHigh, -0.25, 0.7, Out);
+								else Leafy(BankHigh - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
 							}
 							else Stretch(1.15, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
+							continue;
+						}
+						if (Hedge && Fine && RealHedges)
+						{
+							HedgePlants(Pa, Pb, Ga, Gb, -0.05, 1.0, Out);
 							continue;
 						}
 						if (Hedge && Fine)

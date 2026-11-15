@@ -3,6 +3,8 @@
  "enabled": true,
  "_enabled": "hub, round 143: off. Megaplants whole trees are SkeletalMesh / ProceduralVegetation assets; the only StaticMeshes are leaf, bud and decoration parts, which got planted as trees. Since 144 scanned_trees() turns the whole-tree SkeletalMeshes into static Nanite copies (Geometry Script, /Game/ScannedTrees: outside the always-cooked /Game/RideUK, so they cook only when planted) and, while off, logs a trial of what it would plant. Turn on once that log names whole trees. Build 147: ON (beenster asked where the Megaplants were); the copies' base materials are flagged for instanced static meshes and Nanite.",
  "most": 6,
+ "hedge_words": ["hedgerow", "hedge row", "privet hedge", "beech hedge", "hornbeam hedge", "boxwood hedge", "laurel hedge", "hedge"],
+ "_hedge_words": "A scanned hedge (any static mesh under /Game whose path holds one of these) takes the place of our own hedge models (Tools/make_hedges.py) in hedgerows.",
  "skip": ["billboard", "impostor", "branch", "twig", "debris", "stump", "fallen", "leaves", "atlas", "sapling", "seedling", "leaf", "bud", "decoration", "needle"],
  "kinds": {
   "oak": ["english oak", "european oak", "common oak"],

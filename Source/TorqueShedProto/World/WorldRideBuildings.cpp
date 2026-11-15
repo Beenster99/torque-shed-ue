@@ -583,9 +583,10 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				for (int Bay = 1; Bay < Bays; Bay += 2) Chimney(-HalfLong + Bay * BayW, Top - 1.0);
 			else if (Look.Chimney == LocalLook::GableEnds && Shape == ERoof::Gabled)
 			{
-				// (each stack 10 cm proud of its gable: flush, the two faces fought, beenster build 141)
-				Chimney(-HalfLong + 0.2, Eaves);
-				if (HalfLong > 3.0 || Chance(B.X, B.Z, 12) < 0.5) Chimney(HalfLong - 0.2, Eaves);
+				// (each stack just inside its gable: its outer face 4 cm in from the brickwork, so it neither
+				// sticks out past the wall, beenster build 148, nor fights the wall's own face, build 141)
+				Chimney(-HalfLong + 0.34, Eaves);
+				if (HalfLong > 3.0 || Chance(B.X, B.Z, 12) < 0.5) Chimney(HalfLong - 0.34, Eaves);
 			}
 			else Chimney((Chance(B.X, B.Z, 12) - 0.5) * HalfLong * 0.8, Top - 1.0);
 		}
