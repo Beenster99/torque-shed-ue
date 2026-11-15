@@ -1428,13 +1428,13 @@ int main(int Argc, char** Argv)
 			int BySym[TorqueWorld::SignPlate::SymKinds] = {};
 			for (const RidePlan::Furnish& F : Plan->Furniture)
 				if (F.Kind == RidePlan::WarnSign && F.Size >= 0.0 && F.Size < TorqueWorld::SignPlate::SymKinds) ++BySym[int(F.Size)];
-			std::printf("Warning signs: %d (bends %d, double bends %d, hills %d, junctions %d, roundabouts %d, lights %d, humps %d, cattle grids %d); street name plates %d; direction signs %d before junctions, %d after\n",
+			std::printf("Warning signs: %d (bends %d, double bends %d, hills %d, junctions %d, roundabouts %d, lights %d, humps %d, cattle grids %d); street name plates %d; direction signs %d before junctions, %d after; %d brown signs, %d fingerposts\n",
 				Plan->FurnitureCount(RidePlan::WarnSign), BySym[0] + BySym[1], BySym[2] + BySym[3], BySym[10] + BySym[11], BySym[4] + BySym[5] + BySym[6] + BySym[7], BySym[8], BySym[9], BySym[12], BySym[14],
-				Plan->FurnitureCount(RidePlan::StreetPlate), Plan->FurnitureCount(RidePlan::DirAdvance), Plan->FurnitureCount(RidePlan::DirConfirm));
+				Plan->FurnitureCount(RidePlan::StreetPlate), Plan->FurnitureCount(RidePlan::DirAdvance), Plan->FurnitureCount(RidePlan::DirConfirm), Plan->FurnitureCount(RidePlan::BrownFlag), Plan->FurnitureCount(RidePlan::Fingerpost));
 			if (std::getenv("WORLD_RIDE_WARNINGS") != nullptr)
 				for (const RidePlan::Furnish& F : Plan->Furniture)
-					if (F.Kind == RidePlan::WarnSign || F.Kind == RidePlan::StreetPlate || F.Kind == RidePlan::DirAdvance || F.Kind == RidePlan::DirConfirm)
-						std::printf("  %s %d %s at %.0f,%.0f facing %.2f,%.2f size %.2f\n", F.Kind == RidePlan::WarnSign ? "warn" : F.Kind == RidePlan::StreetPlate ? "plate" : F.Kind == RidePlan::DirAdvance ? "ads" : "confirm", int(F.Size), F.Text.c_str(), F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Big);
+					if (F.Kind == RidePlan::WarnSign || F.Kind == RidePlan::StreetPlate || F.Kind == RidePlan::DirAdvance || F.Kind == RidePlan::DirConfirm || F.Kind == RidePlan::BrownFlag || F.Kind == RidePlan::Fingerpost)
+						std::printf("  %s %d %s at %.0f,%.0f facing %.2f,%.2f size %.2f\n", F.Kind == RidePlan::WarnSign ? "warn" : F.Kind == RidePlan::StreetPlate ? "plate" : F.Kind == RidePlan::DirAdvance ? "ads" : F.Kind == RidePlan::DirConfirm ? "confirm" : F.Kind == RidePlan::BrownFlag ? "brown" : "finger", int(F.Size), F.Text.c_str(), F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Big);
 		}
 		for (const RidePlan::RideStop& S : Plan->Stops)
 			if (S.Kind >= RidePlan::StopInn) std::printf("  stop %s at %.2f km: %s\n", RidePlan::StopName(S.Kind), S.Along / 1000.0, S.Name.c_str());

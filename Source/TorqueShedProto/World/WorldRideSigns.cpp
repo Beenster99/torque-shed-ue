@@ -557,8 +557,9 @@ namespace
 {
 void SchemeColours(int Scheme, const float*& Ground, const float*& Ink)
 {
-	static const float White[3] = {0.75f, 0.75f, 0.74f}, Black[3] = {0.012f, 0.012f, 0.012f}, Green[3] = {0.0f, 0.13f, 0.05f}, Blue[3] = {0.0f, 0.05f, 0.25f};
-	Ground = Scheme == SchemePrimary ? Green : Scheme == SchemeMotorway ? Blue : White;
+	static const float White[3] = {0.75f, 0.75f, 0.74f}, Black[3] = {0.012f, 0.012f, 0.012f}, Green[3] = {0.0f, 0.13f, 0.05f}, Blue[3] = {0.0f, 0.05f, 0.25f},
+		Brown[3] = {0.16f, 0.055f, 0.02f};
+	Ground = Scheme == SchemePrimary ? Green : Scheme == SchemeMotorway ? Blue : Scheme == SchemeBrown ? Brown : White;
 	Ink = Scheme == SchemeLocal ? Black : White;
 }
 std::vector<std::string> Split(const std::string& Text, char By)

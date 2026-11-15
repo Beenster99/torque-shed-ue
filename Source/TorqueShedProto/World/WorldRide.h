@@ -599,6 +599,9 @@ public:
 		// [OSM stage 6C] a junction's advance direction sign (Text its arms, SignPlate::AdvanceBoard's; Size its
 		// scheme, SignPlate::EScheme; Big its capitals, m), a route confirmation sign after it (Text its lines)
 		DirAdvance, DirConfirm,
+		// [OSM stage 6D] a brown sign's flag to a place worth seeing (Text as SignPlate::FlagBoard's), a
+		// fingerpost (Text its arms: "hx,hz;Place\tmiles|..." each pointing along (hx, hz); Big its capitals)
+		BrownFlag, Fingerpost,
 		FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
 	struct Furnish
 	{

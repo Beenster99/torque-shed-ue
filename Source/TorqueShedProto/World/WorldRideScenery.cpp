@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <string>
 
 namespace TorqueWorld
@@ -1150,10 +1151,18 @@ void RidePlan::IndexFurniture()
 		};
 		// [OSM stage 6C] The direction signs first: they matter most (none within 50 m of another the same
 		// way, and a warning keeps 40 m from them).
-		for (const Furnish& D : DirectionSigns())
-			if (Clear(D.At, D.Face, 50.0))
+		const std::vector<Furnish> Directions = DirectionSigns();
+		for (const Furnish& D : Directions)
+			if ((D.Kind == DirAdvance || D.Kind == DirConfirm) && Clear(D.At, D.Face, 50.0))
 			{
 				Signs.push_back({D.At, D.Face, true});
+				Put(D);
+			}
+		// ([6D] then the brown signs and fingerposts, 10 m from any other)
+		for (const Furnish& D : Directions)
+			if (D.Kind != DirAdvance && D.Kind != DirConfirm && Clear(D.At, D.Face, 10.0))
+			{
+				Signs.push_back({D.At, D.Face, false});
 				Put(D);
 			}
 		const auto Warn = [&](const Hazard& H)
@@ -1587,6 +1596,64 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * W * 0.3 - Face.X * 0.07, F.At.Z + Side.Z * Su * W * 0.3 - Face.Z * 0.07, Y - 0.3, P.Y + H * 0.45, R, R * 0.9, Grey);
 			if (Advance) SignPlate::AdvanceBoard(&Out.SignsOf(), &Out, P, Cap, int(F.Size), F.Text, W, H);
 			else SignPlate::ConfirmBoard(&Out.SignsOf(), &Out, P, Cap, int(F.Size), F.Text, W, H);
+			break;
+		}
+		case BrownFlag:
+		{
+			// [OSM stage 6D] A brown sign's flag on a post behind it, its foot 1.2 m up.
+			const double Cap = F.Big > 0.0 ? F.Big : 0.08;
+			double W = 0.0, H = 0.0;
+			if (!SignPlate::FlagBoard(nullptr, nullptr, SignPlate::Frame(), Cap, int(F.Size), F.Text, W, H)) break;
+			SignPlate::Frame P;
+			P.X = F.At.X; P.Z = F.At.Z; P.Y = Y + 1.2 + H * 0.5; P.Fx = Face.X; P.Fz = Face.Z;
+			// (the post under the flag's square end)
+			const double Su = F.Text[0] == '<' ? 1.0 : -1.0;
+			Post(F.At.X + Side.X * Su * (W * 0.5 - 0.15) - Face.X * 0.05, F.At.Z + Side.Z * Su * (W * 0.5 - 0.15) - Face.Z * 0.05, Y - 0.3, P.Y + H * 0.4, 0.045, 0.04, Grey);
+			SignPlate::FlagBoard(&Out.SignsOf(), &Out, P, Cap, int(F.Size), F.Text, W, H);
+			break;
+		}
+		case Fingerpost:
+		{
+			// [OSM stage 6D] A white post with a ball on top and an arm for each road, each lettered both
+			// sides, the highest 2.3 m up.
+			static const Rgb Paint = {0.62f, 0.62f, 0.6f};
+			const double Cap = F.Big > 0.0 ? F.Big : 0.055;
+			Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.55, 0.055, 0.045, Paint);
+			{
+				RideShapes::Paint Pp;
+				Pp.R = Paint.R; Pp.G = Paint.G; Pp.B = Paint.B;
+				RideShapes::Column(Out, RideShapes::Pt(F.At.X, Y + 2.55, F.At.Z), 0.07, 0.07, 0.1, 8, Pp, 0.0);
+			}
+			double Arm = Y + 2.35;
+			size_t From = 0;
+			while (From < F.Text.size() && Arm > Y + 1.3)
+			{
+				size_t End = F.Text.find('|', From);
+				if (End == std::string::npos) End = F.Text.size();
+				const std::string One = F.Text.substr(From, End - From);
+				From = End + 1;
+				const size_t Semi = One.find(';');
+				if (Semi == std::string::npos) continue;
+				double Hx = 0.0, Hz = 0.0;
+				if (std::sscanf(One.c_str(), "%lf,%lf", &Hx, &Hz) != 2) continue;
+				const double Hl = std::hypot(Hx, Hz);
+				if (Hl < 1e-6) continue;
+				Hx /= Hl; Hz /= Hl;
+				const std::string Words = One.substr(Semi + 1);
+				double W = 0.0, H = 0.0;
+				if (!SignPlate::FlagBoard(nullptr, nullptr, SignPlate::Frame(), Cap, SignPlate::SchemeLocal, ">" + Words, W, H)) continue;
+				// (each face's reader's right runs along the arm one way, the other's the other: (Face.z, -Face.x))
+				for (int Sd : {1, -1})
+				{
+					SignPlate::Frame P;
+					P.Fx = -Hz * Sd; P.Fz = Hx * Sd;
+					P.X = F.At.X + Hx * (W * 0.5 + 0.06) + P.Fx * 0.02;
+					P.Z = F.At.Z + Hz * (W * 0.5 + 0.06) + P.Fz * 0.02;
+					P.Y = Arm;
+					SignPlate::FlagBoard(&Out.SignsOf(), &Out, P, Cap, SignPlate::SchemeLocal, (Sd > 0 ? ">" : "<") + Words, W, H);
+				}
+				Arm -= H + 0.05;
+			}
 			break;
 		}
 		case StreetPlate:

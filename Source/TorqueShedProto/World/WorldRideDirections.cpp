@@ -3,6 +3,8 @@
 #include "WorldRideSigns.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <iterator>
 #include <cmath>
 #include <functional>
 #include <queue>
@@ -79,6 +81,29 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		}
 	}
 	if (Towns.empty()) return Out;
+	// [6D] The places worth a brown sign, each at the junction nearest it within 600 m (and how far off it).
+	struct Seen { std::string Name; int Node = -1; double Off = 0.0; };
+	std::vector<Seen> Sights;
+	{
+		static const char* const Worth[] = {"cathedral", "abbey", "castle", "castle_ruin", "lighthouse", "windmill", "watermill", "pier", "hillfort", "historic_house",
+			"battlefield", "museum", "attraction", "waterfall", "cave", "stone_circle", "industrial_heritage"};
+		for (const Sight& S : G.Sights)
+		{
+			if (S.Name.empty() || std::none_of(std::begin(Worth), std::end(Worth), [&S](const char* K) { return S.Kind == K; })) continue;
+			// (none in sight of the ride's road: within 300 m of it)
+			NearOpts Opts;
+			NearHit Hit;
+			if (NearestOf(S.At.X, S.At.Z, Opts, Hit) && Hit.Which == 0 && Hit.Dist < 300.0) continue;
+			int Best = -1;
+			double BestD = 600.0;
+			for (size_t N = 0; N < G.Nodes.size(); ++N)
+			{
+				const double D = G.Nodes[N].DistanceTo(S.At);
+				if (D < BestD) { BestD = D; Best = int(N); }
+			}
+			if (Best >= 0) Sights.push_back({S.Name, Best, BestD});
+		}
+	}
 	const auto Dir = [this](size_t I)
 	{
 		const size_t A = I > 0 ? I - 1 : 0, B = std::min(Road.size() - 1, I + 1);
@@ -149,6 +174,9 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		return Best;
 	};
 	const auto Link = [&G](int E) { const std::string& C = G.ClassOf(E); return C == "motorway" || C.find("_link") != std::string::npos; };
+	// (each place worth seeing signed once each way: from the junction nearest it)
+	struct Brown { Furnish F; std::string Name; int Way = 0; double D = 0.0; };
+	std::vector<Brown> Browned;
 	std::vector<double> Dist(G.Nodes.size(), 1e18);
 	std::vector<int> Branch(G.Nodes.size(), -1);
 	std::vector<int> Touched;
@@ -179,7 +207,14 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		const size_t Ij = std::min(Road.size() - 1, size_t(std::lower_bound(Road.begin(), Road.end(), J.Along, [](const RoadPoint& P, double A) { return P.Along < A; }) - Road.begin()));
 		bool Major = false;
 		for (int E : Sides) Major = Major || ClassRank(G.ClassOf(E)) <= 3;
-		if (Sides.empty() || !Worth || !Lesser || Slips || (Ij < BuiltUp.size() && BuiltUp[Ij] && !Major)) continue;
+		const bool Town = Ij < BuiltUp.size() && BuiltUp[Ij];
+		// (what this junction gets: map-type signs; [6D] a fingerpost where only lanes meet the ride's road out
+		// of town; a brown sign where a place worth seeing is off one of its side roads)
+		const bool Signed = !Sides.empty() && Worth && Lesser && !Slips && !(Town && !Major);
+		const bool Fingers = !Sides.empty() && !Worth && !Slips && !Town && RideRank >= 3;
+		const bool Browns = !Sides.empty() && !Slips && !Sights.empty();
+		if (!Signed && !Fingers && !Browns) continue;
+		const double Reach = Signed ? 60000.0 : 25000.0;
 		// The shortest way to every junction within 60 km, and which road out of this one it starts by.
 		for (int N : Touched) { Dist[size_t(N)] = 1e18; Branch[size_t(N)] = -1; }
 		Touched.clear();
@@ -193,7 +228,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			const Item Top = Open.top();
 			Open.pop();
 			const int N = Top.second;
-			if (Top.first > Dist[size_t(N)] || Top.first > 60000.0) continue;
+			if (Top.first > Dist[size_t(N)] || Top.first > Reach) continue;
 			for (int E : G.Adjacent[size_t(N)])
 			{
 				if (ClassRank(G.ClassOf(E)) < 0) continue;
@@ -235,8 +270,103 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		const RoadFact* Fact = FactAt(J.Along);
 		const int Rank = Fact != nullptr ? ClassRank(Fact->Class) : RideRank;
 		const int Scheme = Rank == 0 ? SignPlate::SchemeMotorway : Rank >= 1 && Rank <= 2 ? SignPlate::SchemePrimary : SignPlate::SchemeLocal;
+		// [6D] Brown signs: the nearest place worth seeing (8 km or less, not already in sight of the ride's
+		// road) by each side road, a brown flag at the junction pointing to it, for the traffic each way.
 		for (int Way : {1, -1})
 		{
+			if (!Browns) break;
+			const P2 Going = Dir(I) * double(Way);
+			const P2 LeftOf(Going.Z, -Going.X);
+			const Seen* Best = nullptr;
+			double BestD = 8000.0, BestSide = 0.0;
+			for (const Seen& S : Sights)
+			{
+				const int E = Branch[size_t(S.Node)];
+				if (E < 0 || std::find(Sides.begin(), Sides.end(), E) == Sides.end()) continue;
+				const double D = Dist[size_t(S.Node)] + S.Off;
+				const P2 H = HeadingOut(E, J.Node);
+				const double Sd = H.X * LeftOf.X + H.Z * LeftOf.Z;
+				if (D >= BestD || std::fabs(Sd) < 0.4) continue;
+				Best = &S;
+				BestD = D;
+				BestSide = Sd;
+			}
+			if (Best == nullptr) continue;
+			const std::string Words = std::string(BestSide > 0.0 ? "<" : ">") + Best->Name + "\t" + SignPlate::Miles(std::fmax(BestD, 402.0));
+			const int Mph = MphAt(J.Along - Way * 30.0);
+			const double Cap = std::fmin(0.1, CapFor(Mph));
+			double W = 0.0, H = 0.0;
+			if (Mph <= 0 || !SignPlate::FlagBoard(nullptr, nullptr, SignPlate::Frame(), Cap, SignPlate::SchemeBrown, Words, W, H)) continue;
+			for (double Back = 15.0; Back <= 35.0; Back += 10.0)
+			{
+				const double At = J.Along - Way * Back;
+				if (At < 10.0 || At > Length - 10.0 || Back > Gap(J.Along, -Way) - 10.0) break;
+				const size_t K = PointAt(At);
+				Furnish F;
+				F.Kind = BrownFlag;
+				F.Mapped = false;
+				F.Size = SignPlate::SchemeBrown;
+				F.Big = Cap;
+				F.Text = Words;
+				F.At = Verge(K, Way * Keep, 0.7 + W * 0.5);
+				F.Face = Dir(K) * -double(Way);
+				F.Height = Ground(F.At.X, F.At.Z);
+				const P2 Across(F.Face.Z, -F.Face.X);
+				if (std::isnan(F.Height) || !OffAll(F.At, 0.6) || !OffAll(F.At + Across * (W * 0.5), 0.5) || !OffAll(F.At - Across * (W * 0.5), 0.5)) continue;
+				Browned.push_back({F, Best->Name, Way, BestD});
+				break;
+			}
+		}
+		// [6D] A fingerpost: an arm for each road out (the ride's road both ways too) with its nearest place
+		// and the miles, on the corner of a lane's mouth.
+		if (Fingers)
+		{
+			std::string Arms;
+			int Count = 0;
+			std::vector<int> Outs = Sides;
+			Outs.push_back(Before);
+			Outs.push_back(After);
+			for (int E : Outs)
+			{
+				const Named* Near = nullptr;
+				for (const Named& T : Towns)
+				{
+					if (Branch[size_t(T.Node)] != E) continue;
+					const double D = Dist[size_t(T.Node)];
+					if (D >= 400.0 && D <= 25000.0 && (Near == nullptr || D < Dist[size_t(Near->Node)])) Near = &T;
+				}
+				if (Near == nullptr) continue;
+				const P2 H = HeadingOut(E, J.Node);
+				char Head[48];
+				std::snprintf(Head, sizeof(Head), "%.3f,%.3f;", H.X, H.Z);
+				Arms += (Arms.empty() ? "" : "|") + std::string(Head) + Near->Name + "\t" + SignPlate::Miles(Dist[size_t(Near->Node)]);
+				++Count;
+			}
+			if (Count >= 2)
+			{
+				// (on the first lane's corner, its left or its right, wherever is off every road)
+				const P2 H = HeadingOut(Sides[0], J.Node);
+				const P2 L(H.Z, -H.X);
+				const double Half = 2.5;
+				for (double Sigma : {1.0, -1.0})
+				{
+					Furnish F;
+					F.Kind = Fingerpost;
+					F.Mapped = false;
+					F.Big = 0.055;
+					F.Text = Arms;
+					F.At = G.Nodes[size_t(J.Node)] + H * 9.0 + L * (Sigma * (Half + 1.6));
+					F.Face = H * -1.0;
+					F.Height = Ground(F.At.X, F.At.Z);
+					if (std::isnan(F.Height) || !OffAll(F.At, 1.4)) continue;
+					Out.push_back(F);
+					break;
+				}
+			}
+		}
+		for (int Way : {1, -1})
+		{
+			if (!Signed) break;
 			const P2 Going = Dir(I) * double(Way);
 			const P2 LeftOf(Going.Z, -Going.X);
 			const int Ahead = Way > 0 ? After : Before;
@@ -324,6 +454,9 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			}
 		}
 	}
+	for (const Brown& B : Browned)
+		if (std::none_of(Browned.begin(), Browned.end(), [&B](const Brown& O) { return &O != &B && O.Name == B.Name && O.Way == B.Way && (O.D < B.D || (O.D == B.D && &O < &B)); }))
+			Out.push_back(B.F);
 	return Out;
 }
 } // namespace TorqueWorld

@@ -110,7 +110,7 @@ bool WordPlate(RideMesh& Into, RideMesh& Back, const Frame& At, double CapHigh, 
 
 // [OSM stage 6C] Direction signs, in a scheme: Britain's white with black words and border (local
 // roads), green with white (primary routes), blue with white (motorways). CapHigh their capitals' height.
-enum EScheme { SchemeLocal = 0, SchemePrimary = 1, SchemeMotorway = 2 };
+enum EScheme { SchemeLocal = 0, SchemePrimary = 1, SchemeMotorway = 2, SchemeBrown = 3 };   // (brown: tourist signs, white words)
 // A map-type advance direction sign: the road ahead as a stem with an arrow at its top and each side
 // road an arm off it with its arrow, the places each way at its end. Arms: "^Hawes;Leyburn|<Askrigg|>Reeth"
 // ('^' ahead, '<' left, '>' right; places by ';'). Its size into W, H; drawn only when Into is given
