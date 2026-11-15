@@ -384,6 +384,19 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 			SetFloatProperty(Cloud, TEXT("LayerHeight"), HeightKm);
 			Cloud->MarkRenderStateDirty();
 		}
+		// The ray marching's samples (build 148's flickering white dots), by name as above.
+		const float ViewSamples = (float)FMath::Clamp(Looks.CloudViewSamples, 0.25, 8.0);
+		const float ShadowSamples = (float)FMath::Clamp(Looks.CloudShadowSamples, 0.25, 8.0);
+		if (ViewSamples != AppliedViewSamples || ShadowSamples != AppliedShadowSamples)
+		{
+			AppliedViewSamples = ViewSamples;
+			AppliedShadowSamples = ShadowSamples;
+			const bool bView = SetFloatProperty(Cloud, TEXT("ViewSampleCountScale"), ViewSamples);
+			const bool bShadow = SetFloatProperty(Cloud, TEXT("ShadowViewSampleCountScale"), ShadowSamples);
+			Cloud->MarkRenderStateDirty();
+			UE_LOG(LogTemp, Log, TEXT("Torque sky: cloud samples x%.2f along the view (%s), x%.2f along the shadow (%s)"),
+				ViewSamples, bView ? TEXT("set") : TEXT("NOT set"), ShadowSamples, bShadow ? TEXT("set") : TEXT("NOT set"));
+		}
 	}
 	auto SetMpc = [W](UMaterialParameterCollection* Mpc, const TCHAR* Name, float Value) {
 		if (Mpc && Mpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, Mpc, FName(Name), Value);
@@ -391,7 +404,8 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	if (SkyMpc)
 	{
 		SetMpc(SkyMpc, TEXT("Cover"), (float)S.CoverShown);
-		SetMpc(SkyMpc, TEXT("Density"), (float)(S.Density * Looks.ExtinctionScale));
+		const double DensityMost = FMath::Max(Looks.DensityMost, 0.1);
+		SetMpc(SkyMpc, TEXT("Density"), (float)FMath::Min(S.Density * Looks.ExtinctionScale, DensityMost));
 		SetMpc(SkyMpc, TEXT("Albedo"), (float)S.Albedo);
 		SetMpc(SkyMpc, TEXT("Shape"), (float)S.Shape);
 		// Stage 3: the two layers' bands and looks, the high sheet and the halo.
@@ -405,7 +419,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidCover"), (float)Mi.CoverShown);
 		SetMpc(SkyMpc, TEXT("MidBottom"), (float)Mi.Bottom);
 		SetMpc(SkyMpc, TEXT("MidTop"), (float)Mi.Top);
-		SetMpc(SkyMpc, TEXT("MidDensity"), (float)(Mi.Look.Density * Looks.ExtinctionScale));
+		SetMpc(SkyMpc, TEXT("MidDensity"), (float)FMath::Min(Mi.Look.Density * Looks.ExtinctionScale, DensityMost));
 		SetMpc(SkyMpc, TEXT("MidShape"), (float)Mi.Look.Shape);
 		SetMpc(SkyMpc, TEXT("MidLumps"), (float)Mi.Look.Lumps);
 		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);
@@ -416,7 +430,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("CloudPhaseG"), (float)Looks.CloudPhaseG);
 		SetMpc(SkyMpc, TEXT("CloudPhaseG2"), (float)Looks.CloudPhaseG2);
 		SetMpc(SkyMpc, TEXT("CloudPhaseBlend"), (float)Looks.CloudPhaseBlend);
-		SetMpc(SkyMpc, TEXT("CloudMsContribution"), (float)Looks.CloudMsContribution);
+		SetMpc(SkyMpc, TEXT("CloudMsContribution"), (float)(Looks.CloudMsContribution * S.CloudMs));
 		SetMpc(SkyMpc, TEXT("CloudMsOcclusion"), (float)Looks.CloudMsOcclusion);
 		SetMpc(SkyMpc, TEXT("CloudMsEccentricity"), (float)Looks.CloudMsEccentricity);
 		SetMpc(SkyMpc, TEXT("HighCover"), (float)S.HighShown);

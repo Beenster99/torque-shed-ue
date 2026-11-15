@@ -75,38 +75,22 @@
   "exposure_wet_stops": 1.9,
   "direct_trust": 0.5,
   "direct_trust_from_deg": 8.0,
-  "_shade": "The light in a hill's shadow by day (build 147): sky_fill is the sky light times the level's by the sun's height (degrees), less as the sky dulls; the camera may open exposure_shade_open stops below the level's lowest, and more as the sun is lower than exposure_built_deg (times exposure_follow_sun, at most exposure_follow_most); local_* are the engine's local exposure (lower lifts the shade, not the sky).",
+  "_shade": "The light in a hill's shadow by day: sky_fill is the sky light times the level's by the sun's height (degrees), less as the sky dulls; under a bright sky only, the camera may open exposure_shade_open stops below the level's lowest, and more as the sun is lower than exposure_built_deg (times exposure_follow_sun, at most exposure_follow_most); local_* are the engine's local exposure. ALL OFF (147's light) since build 148 looked washed out with them (1.9x sky light, up to 4 stops more exposure, local shadows 0.6): beenster's dark shade in 147 was at Medium quality, where Lumen is off. Raise gently only if a shade at Epic is still too dark.",
   "sky_fill": [
    [
     -6,
     1.0
    ],
    [
-    0,
-    1.8
-   ],
-   [
-    10,
-    1.9
-   ],
-   [
-    20,
-    1.6
-   ],
-   [
-    35,
-    1.25
-   ],
-   [
-    60,
-    1.1
+    90,
+    1.0
    ]
   ],
-  "exposure_shade_open": 1.5,
+  "exposure_shade_open": 0.0,
   "exposure_built_deg": 32.0,
-  "exposure_follow_sun": 1.0,
-  "exposure_follow_most": 3.0,
-  "local_shadow_contrast": 0.6,
+  "exposure_follow_sun": 0.0,
+  "exposure_follow_most": 1.5,
+  "local_shadow_contrast": 0.7,
   "local_highlight_contrast": 0.75
  },
  "air": {
@@ -295,14 +279,20 @@
   },
   "extinction_scale": 8.0,
   "deck_dims_sun": 0.0,
-  "_scatter": "How the cloud scatters the sun (build 147: grey, blotchy cumulus). cloud_phase_g the forward lobe (silver linings towards the sun), cloud_phase_g2 the back lobe, cloud_phase_blend between them; cloud_ms_* the light bounced about inside the cloud: its share, how much the cloud shades it, how forward it goes. cloud_ms_octaves (0..2) is built into the material: change it and rebuild the level.",
+  "_scatter": "How the cloud scatters the sun (build 147: grey, blotchy cumulus). cloud_phase_g the forward lobe (silver linings towards the sun), cloud_phase_g2 the back lobe, cloud_phase_blend between them; cloud_ms_* the light bounced about inside the cloud: its share, how much the cloud shades it, how forward it goes. cloud_ms_octaves (0..2) is built into the material: change it and rebuild the level. cloud_ms_dull: the share of the bounced light left under a dull sky (a deck's base stays grey).",
   "cloud_phase_g": 0.6,
   "cloud_phase_g2": -0.3,
   "cloud_phase_blend": 0.3,
   "cloud_ms_contribution": 0.6,
   "cloud_ms_occlusion": 0.35,
   "cloud_ms_eccentricity": 0.6,
-  "cloud_ms_octaves": 2
+  "cloud_ms_octaves": 2,
+  "cloud_ms_dull": 0.2,
+  "_marching": "The cloud's ray marching (build 148: the grey drizzle sky sparkled and flickered): cloud_view_samples and cloud_shadow_samples are times the engine's samples (more is smoother, costs GPU; restart only); density_most caps the material's density (x 0.1 per metre); cloud_ground_light 0/1 lights the base from the ground (built into the material: rebuild the level).",
+  "cloud_view_samples": 2.0,
+  "cloud_shadow_samples": 2.0,
+  "density_most": 8.0,
+  "cloud_ground_light": 0
  },
  "kinds_rules": {
   "_": "Stage 3: which kind of cloud each layer shows. Every rule is a band blended across, never a switch.",

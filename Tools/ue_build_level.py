@@ -3280,8 +3280,9 @@ def cloud_material():
     else:
         adv = g.node(adv_cls, -300)
         octaves = int(max(0, min(2, round(sky_look("cloud_ms_octaves", 2)))))
-        for k, v in (("multi_scattering_approximation_octave_count", octaves), ("ground_contribution", True),
-                     ("clamp_multi_scattering_contribution", True), ("ray_march_volume_shadow", True)):
+        # (the ground's light on the base: off by default, build 148's flickering sky)
+        for k, v in (("multi_scattering_approximation_octave_count", octaves), ("ground_contribution", bool(sky_look("cloud_ground_light", 0))),
+                     ("clamp_multi_scattering_contribution", True)):
             if not try_set(adv, k, v):
                 unreal.log_warning("[Torque] cloud material: advanced output has no %s" % k)
         pins = (("CloudPhaseG", "const_phase_g", ("PhaseG", "Phase G")),
