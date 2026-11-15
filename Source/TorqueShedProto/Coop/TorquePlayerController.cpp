@@ -236,6 +236,19 @@ void ATorquePlayerController::Open(EPage P)
 	FirstRow = 0;
 }
 
+void ATorquePlayerController::OpenSkyPresets()
+{
+	SkyListBackRow = Selected;
+	SkyListBackFirst = FirstRow;
+	Open(EPage::SkyPresets);
+	// The list opens on the sky held.
+	const FTorqueSettings& S = FTorqueSettings::Get();
+	if (S.WeatherMode != FTorqueSettings::WeatherPreset) return;
+	const TArray<FRow> List = Rows();
+	for (int32 I = 0; I < List.Num(); ++I)
+		if (List[I].Value == TEXT("held")) Selected = I;
+}
+
 void ATorquePlayerController::Back()
 {
 	if (Stack.Num() > 0)
@@ -490,8 +503,16 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("weather"))
 	{
 		// (At once, for the tests: the menu's own changes fade.)
-		S.WeatherMode = FMath::Clamp(N, 0, FTorqueSettings::WeatherLive);
-		if (GS) GS->WeatherModeChanged(0.0f);
+		// (A preset sky by its key: set:weather=valley_fog.)
+		if (!Value.IsEmpty() && !FChar::IsDigit(Value[0]) && Value[0] != TEXT('-'))
+		{
+			if (GS) GS->ChooseSkyPreset(Value);
+		}
+		else
+		{
+			S.WeatherMode = FMath::Clamp(N, 0, FTorqueSettings::WeatherPreset);
+			if (GS) GS->WeatherModeChanged(0.0f);
+		}
 	}
 	else if (F == TEXT("units")) S.Units = Value == TEXT("metric") || Value == TEXT("0") ? 0 : 1;
 	else if (F == TEXT("telemetry")) S.bTelemetry = bOn;
@@ -522,7 +543,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("shading")) S.Shading = FMath::Clamp(N, -1, 4);
 	else if (F == TEXT("anisotropy")) S.Anisotropy = FMath::Clamp(N, -1, 4);
 	else
-		return FString::Printf(TEXT("set what? fov, timeofday, daynight, daylength, weather (0 auto .. 3 wet, 4 live), units, telemetry, fps, autoshift, recentre, ")
+		return FString::Printf(TEXT("set what? fov, timeofday, daynight, daylength, weather (0 auto .. 3 wet, 4 live, 5 preset, or a preset sky's key), units, telemetry, fps, autoshift, recentre, ")
 			TEXT("lookintocorner, brightness, sharpness, bloom, quality, shadows, drawdistance, fog, clouds, ao, avatarshadows, aa, hdr, filmgrain, vignette, ")
 			TEXT("lensflares, ca, dof, postprocess, shading, anisotropy (not %s)"), *Field);
 	S.Apply(GetWorld());
@@ -642,6 +663,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	if (Page == EPage::Credits) return TEXT("MAP DATA");
 	if (Page == EPage::Route) return TEXT("ROUTE PLANNER");
+	if (Page == EPage::SkyPresets) return TEXT("PRESET SKY");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
@@ -825,6 +847,36 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			if (!Credit.Split(TEXT(":"), &Source, &Tail)) Source = TEXT("Map data");
 			Add(Source, FString(), Credit, []() {});
 		}
+		break;
+	}
+	case EPage::SkyPresets:
+	{
+		// The drop-down's list: every preset sky under its group; choosing one loads it and goes back.
+		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+		const FString HeldKey = S.WeatherMode == FTorqueSettings::WeatherPreset ? S.WeatherPresetKey : FString();
+		std::string Group = "\x01";
+		for (const TorqueSky::NamedSky& Each : ATorqueGameState::SkyPresets())
+		{
+			if (Each.Group != Group)
+			{
+				Group = Each.Group;
+				if (!Group.empty()) Heading(FString(UTF8_TO_TCHAR(Group.c_str())).ToUpper());
+			}
+			const FString Key = UTF8_TO_TCHAR(Each.Key.c_str());
+			Add(UTF8_TO_TCHAR(Each.Label.c_str()), Key == HeldKey ? FString(TEXT("held")) : FString(), UTF8_TO_TCHAR(Each.Note.c_str()),
+				[this, GS, Key]() {
+					if (GS) GS->ChooseSkyPreset(Key);
+					Changed();
+					Back();
+					Selected = SkyListBackRow;
+					FirstRow = SkyListBackFirst;
+				});
+		}
+		Add(TEXT("Back"), FString(), FString(), [this]() {
+			Back();
+			Selected = SkyListBackRow;
+			FirstRow = SkyListBackFirst;
+		});
 		break;
 	}
 	case EPage::RideBike:
@@ -1067,18 +1119,31 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					});
 			}
 			{
-				// Live first (the default), then the choices the game always had.
-				static const int32 Order[] = {FTorqueSettings::WeatherLive, 0, 1, 2, 3};
-				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads"), TEXT("Live")};
+				// Live first (the default), then the choices the game always had, then a preset sky held.
+				static const int32 Order[] = {FTorqueSettings::WeatherLive, 0, 1, 2, 3, FTorqueSettings::WeatherPreset};
+				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads"), TEXT("Live"),
+					TEXT("Preset sky")};
 				const FString NowText = GS ? FString::Printf(TEXT(" Now: %s."), *GS->WeatherText(S.Units == 1)) : FString();
 				const FString Hint = S.WeatherMode == FTorqueSettings::WeatherLive
 					? FString::Printf(TEXT("The real weather where you ride, updated every 15 minutes. Weather data by Open-Meteo.com (CC BY 4.0).%s"), *NowText)
 					: FString::Printf(TEXT("%s while riding changes it now.%s"), *FTorqueKeys::Text(ETorqueKey::Weather), *NowText);
-				Setting(TEXT("Weather"), Kinds[FMath::Clamp(S.WeatherMode, 0, 4)], Hint, [GS, &S](int32 D) {
+				Setting(TEXT("Weather"), Kinds[FMath::Clamp(S.WeatherMode, 0, FTorqueSettings::WeatherPreset)], Hint, [GS, &S](int32 D) {
 						int32 I = 0;
 						while (I < (int32)UE_ARRAY_COUNT(Order) - 1 && Order[I] != S.WeatherMode) ++I;
 						S.WeatherMode = Order[Wrap(I + D, (int32)UE_ARRAY_COUNT(Order))];
 						if (GS) GS->WeatherModeChanged();
+					});
+				HostOnly();
+				// A drop-down of preset skies, for testing the skies quickly (beenster, Nov 14): Enter opens the
+				// list, Left / Right steps through it here; the weather key steps it while riding.
+				const FString Held = GS ? GS->SkyPresetLabel() : FString();
+				Add(TEXT("Preset sky"), Held.IsEmpty() ? FString(TEXT("Choose...")) : Held,
+					FString::Printf(TEXT("Load a ready-made sky: fair, grey, rain, high cloud, mist and fog, evening light, storms and snow, recorded days (Data/Sky/presets.json). Held, %s while riding steps to the next"),
+						*FTorqueKeys::Text(ETorqueKey::Weather)),
+					[this]() { OpenSkyPresets(); },
+					[this, GS](int32 D) {
+						if (GS) GS->ChooseSkyPreset(FString(), D);
+						Changed();
 					});
 				HostOnly();
 			}

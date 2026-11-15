@@ -13,6 +13,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "TorqueShedNet.h"
 #include "Weather/WeatherModel.h"
+#include "Weather/SkyModel.h"
 #include "Interfaces/IHttpRequest.h"
 #include "TorqueGameState.generated.h"
 
@@ -53,6 +54,8 @@ struct FTorqueWeatherNet
 	UPROPERTY() float Wind700From = 245.0f;
 	UPROPERTY() float Wind300 = 28.0f;
 	UPROPERTY() float Wind300From = 255.0f;
+	UPROPERTY() float Rh300 = -1.0f;    // [skies stage 7] the air 9 km up (contrails)
+	UPROPERTY() float T300 = -45.0f;
 	// ETorqueWeatherSource, and when the live weather was fetched (seconds since 1970, 0 for never).
 	UPROPERTY() uint8 Source = 0;
 	UPROPERTY() int64 FetchedAt = 0;
@@ -71,6 +74,10 @@ struct FTorqueWeatherGridNet
 	UPROPERTY() TArray<FTorqueWeatherNet> Points;
 	UPROPERTY() TArray<float> Elevation;
 	UPROPERTY() int64 FetchedAt = 0;   // seconds since 1970: how long its showers have drifted
+	// [skies stage 6] The forecast's hours, whole grids one after another (N x N each), and how long
+	// after the fetch each hour is, s: every machine moves toward the same forecast at the same pace.
+	UPROPERTY() TArray<FTorqueWeatherNet> Ahead;
+	UPROPERTY() TArray<float> AheadIn;
 };
 
 // Where the weather now comes from.
@@ -108,10 +115,29 @@ public:
 	float GetDayLight() const { return DayLight; }
 	// "Live: 9 °C, light rain, wind SW 18 mph", or "sunny", for the menu and the HUD.
 	FString WeatherText(bool bImperial) const;
+	// [skies stage 6] What the forecast says is coming here, in words ("rain in about an hour"; "" for nothing).
+	FString ComingText() const;
+	// [skies stage 7] For the sky: the Kp index and the dust (below 0 not known), and a preset's meteors an
+	// hour (below 0: the date's own).
+	float GetSkyKp() const { return SkyKp; }
+	float GetSkyDust() const { return SkyDust; }
+	float GetPresetMeteors() const { return PresetMeteors; }
 	// The host only (ignored elsewhere): change it for everyone, fading over FadeSeconds (0: at once).
 	void SetWeather(int32 NewWeather, float FadeSeconds = 20.0f);
 	// The host only: Settings' Weather has changed (FTorqueSettings::WeatherMode); go to it.
 	void WeatherModeChanged(float FadeSeconds = 20.0f);
+	// The weather grids for the sky's weather map and rain shafts (skies stage 4): the near one and the
+	// wide one (none when the weather isn't live), each with how long its showers have drifted.
+	TorqueSky::MapGrids SkyGrids() const;
+	// The preset skies to load (Data/Sky/presets.json, read again when the file changes), for Settings'
+	// Preset sky and the weather key while one is held.
+	static const std::vector<TorqueSky::NamedSky>& SkyPresets();
+	// The host only: hold the preset sky Key for everyone, at once (Settings' Weather goes to Preset sky),
+	// and move the clock to its sun when it has one (not with the real clock). Dir instead steps from the
+	// one held (+1 the next, -1 the one before).
+	void ChooseSkyPreset(const FString& Key, int32 Dir = 0);
+	// The preset sky held ("Valley fog"), or empty when the weather isn't one.
+	FString SkyPresetLabel() const;
 
 	// The clock: hours (0 .. 24), or -1 while the sun is where the level was built with it.
 	float GetHour() const { return Hour; }
@@ -150,6 +176,9 @@ private:
 	int32 Mode = 1;                 // the host's: FTorqueSettings::WeatherMode, or the launch's -TorqueWeather=
 	double NetSentAt = -1.0, AppliedAt = -1.0;
 	void GoToMode(float FadeSeconds);
+	void HoldPreset(float FadeSeconds);
+	// The clock hour today here at which the sun stands Elevation degrees up (after noon when bEvening).
+	float HourForSun(double Elevation, bool bEvening) const;
 	void TickWeather(float DeltaSeconds);
 	void SendNet();
 	void SetFromState(const TorqueWeather::State& S);
@@ -198,9 +227,13 @@ private:
 	static constexpr int32 GRID_N = 5;
 	static constexpr double GRID_STEP_M = 2500.0;
 	// The wider ring (skies stage 4): 7 x 7 points 12 km apart, about 70 km across, asked every half hour
-	// by the host, for the weather you can see coming (showers over the next dale). Host only for now.
+	// by the host, for the weather you can see coming (showers over the next dale).
 	TorqueWeather::Grid GridWide;
 	int64 GridWideAt = 0;
+	// (Sent to everyone, so every machine draws the same weather map and rain shafts.)
+	UPROPERTY(ReplicatedUsing = OnRep_WideGrid) FTorqueWeatherGridNet WideNet;
+	UFUNCTION() void OnRep_WideGrid();
+	void SendWide();
 	double NextWideIn = 20.0;
 	bool bFetchingWide = false;
 	double WideLat = 0.0, WideLon = 0.0;
@@ -208,6 +241,17 @@ private:
 	static constexpr int32 WIDE_N = 7;
 	static constexpr double WIDE_STEP_M = 12000.0;
 	void FetchWide();
+	// [skies stage 7] The space weather (NOAA's planetary Kp index, every three hours: the aurora) and the
+	// dust in the air (Open-Meteo's air quality, every hour: Saharan dust), the host's, sent to everyone;
+	// -1 not known. A preset sky may set them (and a day of the year, and the meteors an hour) to show off.
+	UPROPERTY(Replicated) float SkyKp = -1.0f;
+	UPROPERTY(Replicated) float SkyDust = -1.0f;
+	int32 PresetDay = -1;
+	float PresetMeteors = -1.0f;
+	double NextKpIn = 15.0, NextDustIn = 25.0;
+	bool bFetchingKp = false, bFetchingDust = false;
+	void FetchKp();
+	void FetchDust();
 	// For the sky: the lowest ground of the weather's points (metres above sea level; -1 none), and the
 	// heaviest rain round about, carried on the wind and fading with distance (mm/h).
 	double ValleyAslNow() const;
@@ -225,6 +269,11 @@ private:
 	double SunElevationNow = 30.0, AppliedSunElevation = -1000.0;   // the sun's height, degrees
 	bool bRealSunNow = false;   // the sun is the real one (Real time of day, or the bench)
 	bool bSunHeld = false;      // [test] the bench holds the sun's day and place
+	// The night sky (skies stage 5): the moment (seconds since 1970, UTC) a clock hour stands for, today
+	// (or the bench's day, SkyDay) where the weather is from.
+	int32 SkyDay = -1;
+	double SkyShiftDays = 0.0;   // (a preset sky's moon: the night sky's clock moved this many days)
+	double SkyUnixAt(float ClockHour) const;
 	UPROPERTY(Transient) TObjectPtr<ATorqueSky> Sky;
 	UPROPERTY(Replicated) FVector2D SkyDriftLow = FVector2D::ZeroVector;    // metres east, north
 	UPROPERTY(Replicated) FVector2D SkyDriftMid = FVector2D::ZeroVector;

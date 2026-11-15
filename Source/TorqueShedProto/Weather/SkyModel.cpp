@@ -3,6 +3,7 @@
 #include <initializer_list>
 
 #include "../Fit/FitJson.h"
+#include "StormSky.h"
 
 #include <algorithm>
 #include <cmath>
@@ -86,6 +87,32 @@ const NamedNumber Numbers[] = {
 	{"mist_humid_from", &Looks::MistHumidFrom}, {"mist_humid_full", &Looks::MistHumidFull}, {"mist_calm_ms", &Looks::MistCalmMs},
 	{"mist_windy_ms", &Looks::MistWindyMs}, {"mist_clear_to", &Looks::MistClearTo}, {"mist_gone_deg", &Looks::MistGoneDeg},
 	{"mist_depth_m", &Looks::MistDepthM}, {"mist_extinction", &Looks::MistExtinction}, {"rainbow_sun_most_deg", &Looks::RainbowSunMostDeg}, {"rainbow_rain_mm", &Looks::RainbowRainMm},
+	{"base_fog_band_m", &Looks::BaseFogBandM}, {"base_fog_boost", &Looks::BaseFogBoost},
+	{"map_px", &Looks::MapPx}, {"map_size_m", &Looks::MapSizeM}, {"map_repaint_s", &Looks::MapRepaintS}, {"map_move_m", &Looks::MapMoveM},
+	{"map_gain", &Looks::MapGain}, {"map_rain_mm", &Looks::MapRainMm},
+	{"shaft_rain_mm", &Looks::ShaftRainMm}, {"shaft_full_mm", &Looks::ShaftFullMm}, {"shaft_spacing_m", &Looks::ShaftSpacingM},
+	{"shaft_nearest_m", &Looks::ShaftNearestM}, {"shaft_farthest_m", &Looks::ShaftFarthestM}, {"shaft_most", &Looks::ShaftMost},
+	{"shaft_radius_m", &Looks::ShaftRadiusM},
+	{"moon_takes_over_deg", &Looks::MoonTakesOverDeg}, {"moon_light_of_sun", &Looks::MoonLightOfSun}, {"moon_sky_scale", &Looks::MoonSkyScale},
+	{"moon_disc_of_sun", &Looks::MoonDiscOfSun}, {"earth_shine", &Looks::EarthShine}, {"stars_from_deg", &Looks::StarsFromDeg},
+	{"stars_full_deg", &Looks::StarsFullDeg}, {"star_gain", &Looks::StarGain}, {"milky_way_gain", &Looks::MilkyWayGain},
+	{"moon_washes", &Looks::MoonWashes}, {"sky_glow", &Looks::SkyGlow}, {"shaft_opacity", &Looks::ShaftOpacity}, {"shaft_light", &Looks::ShaftLight}, {"rainbow_opacity", &Looks::RainbowOpacity},
+	{"thunder_cape_from", &Looks::ThunderCapeFrom}, {"thunder_cape_full", &Looks::ThunderCapeFull}, {"thunder_rain_mm", &Looks::ThunderRainMm},
+	{"thunder_top_m", &Looks::ThunderTopM}, {"anvil_from", &Looks::AnvilFrom}, {"anvil_full", &Looks::AnvilFull},
+	{"flashes_per_min", &Looks::FlashesPerMin}, {"ground_share", &Looks::GroundShare}, {"storm_spacing_m", &Looks::StormSpacingM},
+	{"storm_farthest_m", &Looks::StormFarthestM}, {"flash_cloud_glow", &Looks::FlashCloudGlow}, {"flash_radius_m", &Looks::FlashRadiusM},
+	{"flash_light_cd", &Looks::FlashLightCd}, {"bolt_farthest_m", &Looks::BoltFarthestM}, {"bolt_width_m", &Looks::BoltWidthM}, {"bolt_nits", &Looks::BoltNits},
+	{"sound_mps", &Looks::SoundMps}, {"thunder_farthest_m", &Looks::ThunderFarthestM}, {"thunder_near_m", &Looks::ThunderNearM},
+	{"thunder_volume", &Looks::ThunderVolume}, {"hail_cape", &Looks::HailCape}, {"hail_freeze_m", &Looks::HailFreezeM},
+	{"snow_sky_light", &Looks::SnowSkyLight}, {"snow_sun_share", &Looks::SnowSunShare},
+	{"sun_dog_most", &Looks::SunDogMost}, {"contrail_cold_c", &Looks::ContrailColdC}, {"contrail_rh_from", &Looks::ContrailRhFrom},
+	{"contrail_rh_full", &Looks::ContrailRhFull}, {"contrail_most", &Looks::ContrailMost}, {"fogbow_most", &Looks::FogbowMost},
+	{"glory_most", &Looks::GloryMost}, {"aurora_pole_lat", &Looks::AuroraPoleLat}, {"aurora_pole_lon", &Looks::AuroraPoleLon},
+	{"aurora_oval_deg", &Looks::AuroraOvalDeg}, {"aurora_kp_step", &Looks::AuroraKpStep}, {"aurora_seen_beyond", &Looks::AuroraSeenBeyond},
+	{"aurora_gain", &Looks::AuroraGain}, {"nlc_from_day", &Looks::NlcFromDay}, {"nlc_to_day", &Looks::NlcToDay},
+	{"nlc_lat_from", &Looks::NlcLatFrom}, {"nlc_lat_to", &Looks::NlcLatTo}, {"nlc_gain", &Looks::NlcGain},
+	{"meteor_sporadic", &Looks::MeteorSporadic}, {"meteor_seen_share", &Looks::MeteorSeenShare}, {"meteor_gain", &Looks::MeteorGain},
+	{"dust_from", &Looks::DustFrom}, {"dust_full", &Looks::DustFull}, {"dust_mie", &Looks::DustMie}, {"dust_sun_warm", &Looks::DustSunWarm},
 };
 struct NamedKindFigure { const char* Name; double KindLook::*Field; };
 const NamedKindFigure KindFigures[] = {
@@ -292,6 +319,13 @@ Sky Compute(const Inputs& In, const Looks& L)
 	const double Rain = TorqueWeather::RainShow(W);
 	S.Low.Cover = Clamp01(W.LowCloud);
 	S.Low.BaseAsl = std::max(std::min(W.CloudBase, L.LowBaseMostM), In.GroundAsl + L.LowBaseLeastM);
+	// Riding up under a closed low base (stage 4): the air thickens into the cloud.
+	{
+		const double Eye = In.ViewAsl >= 0.0 ? In.ViewAsl : In.GroundAsl + 2.0;
+		const double Under = 1.0 - Smooth((S.Low.BaseAsl - Eye) / std::max(L.BaseFogBandM, 1.0));
+		S.BaseFog = Under * Smooth((Clamp01(W.LowCloud) - 0.6) / 0.3);
+		S.FogScale *= 1.0 + std::max(L.BaseFogBoost, 0.0) * S.BaseFog;
+	}
 	S.Low.Wind = W.Wind850;
 	S.Low.WindFrom = W.Wind850From;
 	S.Mid.Cover = Clamp01(W.MidCloud);
@@ -355,6 +389,11 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.LowDrawn.Look = Blend({Cumulus, Stratocumulus, Stratus, Nimbostratus, Towering});
 	S.MidDrawn.Look = Blend({Altocumulus, Altostratus, Nimbostratus});
 	S.Low.TopAsl = S.Low.BaseAsl + S.LowDrawn.Look.DepthM + S.LowDrawn.Look.CapeDepth * Heap;
+	// A thunderstorm (stage 7): the towers reach up to the top of the weather (about 10 km) and spread
+	// out there in an anvil.
+	S.Thunder = TorqueStorm::Thunderiness(W, L);
+	S.Low.TopAsl = std::max(S.Low.TopAsl, Lerp(S.Low.TopAsl, L.ThunderTopM, S.Thunder * std::max(S.Weight[Towering], 0.5)));
+	S.Anvil = Smooth((S.Thunder - L.AnvilFrom) / std::max(L.AnvilFull - L.AnvilFrom, 0.05));
 	S.Mid.BaseAsl = std::max(L.MidBaseM, S.Low.BaseAsl + 300.0);
 	// (nimbostratus is one thick cloud from the low base up: the middle layer joins it)
 	S.Mid.BaseAsl = Lerp(S.Mid.BaseAsl, std::max(S.Low.TopAsl - 600.0, S.Low.BaseAsl + 300.0), S.Weight[Nimbostratus]);
@@ -408,7 +447,90 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.SunAngle = std::min(S.SunAngle + L.VeilWidenDeg * Veil + L.GlassWidenDeg * Glass, std::max(L.SunWideDeg, S.SunAngle));
 	S.SunDisc = Clamp01(1.0 - S.SunAngle / std::max(L.DiscHideOverDeg, 1e-3));
 	S.CloudShadows = In.bClouds ? 1.0 - Deck : 0.0;   // (the drawn deck darkens the ground by its own shadow)
+
+	// The night (stage 5): the moon's light once the sun's is gone, the stars and the Milky Way.
+	{
+		const double MoonE = In.MoonElevation;
+		const double Bright = MoonE > -90.0 ? std::pow(10.0, -0.4 * (0.026 * std::fabs(In.MoonPhaseAngle) + 4.0e-9 * std::pow(In.MoonPhaseAngle, 4.0))) : 0.0;
+		const bool bUp = MoonE > 0.5 && E < L.MoonTakesOverDeg;
+		S.MoonTakeover = bUp ? 1.0 : 0.0;
+		// (low, the moon's light comes through more air; under cloud, as the sun's does)
+		const double MoonAir = Smooth(MoonE / 8.0) * (0.4 + 0.6 * Smooth(MoonE / 30.0));
+		const double Night = Smooth((L.MoonTakesOverDeg - E) / 4.0);
+		S.MoonLight = bUp ? L.MoonLightOfSun * Bright * MoonAir * Night * S.SunShare : 0.0;
+		if (bUp)
+		{
+			S.MieScale *= Lerp(1.0, L.MoonSkyScale, Night);
+			S.RayleighScale *= Lerp(1.0, L.MoonSkyScale, Night);
+		}
+		S.MoonDisc = MoonE > -1.0 ? L.MoonDiscOfSun * Bright : 0.0;
+		const double Dark = Smooth((L.StarsFromDeg - E) / std::max(L.StarsFromDeg - L.StarsFullDeg, 0.1));
+		const double Washed = 1.0 - Clamp01(L.MoonWashes) * Bright * Smooth(MoonE / 10.0);
+		const double Sees = In.bClouds ? 1.0 : 1.0 - Clamp01(W.Cloud);   // (drawn clouds hide them themselves)
+		S.Stars = Dark * Sees * (0.6 + 0.4 * Washed);
+		S.MilkyWay = Dark * Dark * Sees * Washed * (1.0 - Smooth((W.Humidity - 85.0) / 15.0) * 0.5) * Smooth((Km - 15.0) / 25.0);
+		S.Glow = L.SkyGlow * (1.0 - S.DayLight);
+	}
 	S.LegacyShadow = In.bClouds ? 1.0 : L.LegacyShadow.At(W.Cloud);
+
+	// Storms (stage 7): hail and snow (white curtains), and under snow cloud a flat, bright light.
+	S.Hail = TorqueStorm::Haily(W, L);
+	S.Snowing = TorqueStorm::Snowy(W);
+	S.SkyLightScale *= Lerp(1.0, L.SnowSkyLight, S.Snowing * S.Dull);
+	S.SunShare *= Lerp(1.0, L.SnowSunShare, S.Snowing);
+	S.SunScale *= Lerp(1.0, L.SnowSunShare, S.Snowing);
+
+	// Rare skies (stage 7).
+	{
+		const double SunOut = 1.0 - Smooth((S.Block - 0.4) / 0.4);
+		// Sun dogs: thin ice cloud (wisps or a veil) with the sun low and not behind thicker cloud.
+		const double Ice = S.High.Cover * (0.4 * S.Weight[Cirrus] + S.Weight[Cirrostratus]);
+		S.SunDogs = L.SunDogMost * Smooth(Ice / 0.4) * (1.0 - S.Cover) * Smooth(E / 3.0) * (1.0 - Smooth((E - 32.0) / 10.0));
+		// Contrails that linger and spread: cold, damp air 9 km up (no figure, none).
+		if (W.Rh300 >= 0.0)
+			S.Contrails = L.ContrailMost * Smooth((L.ContrailColdC - W.T300) / 4.0)
+				* Smooth((W.Rh300 - L.ContrailRhFrom) / std::max(L.ContrailRhFull - L.ContrailRhFrom, 1.0)) * (1.0 - Smooth((S.Cover - 0.5) / 0.4));
+		// A fogbow in thin fog with the sun out behind you (low); a glory seen from above lying fog.
+		const double Foggy = 1.0 - Smooth((W.Visibility - 1000.0) / 3000.0);
+		const double Eye = In.ViewAsl >= 0.0 ? In.ViewAsl : In.GroundAsl + 2.0;
+		const double Above = S.FogTopAsl >= 0.0 ? Smooth((Eye - S.FogTopAsl) / 20.0) : 0.0;
+		const double LowSun = Smooth(E / 2.0) * (1.0 - Smooth((E - 30.0) / 10.0));
+		// (the sun shows through fog that lies shallow, with a top, even when the feed counts it as cloud)
+		const double ThinSun = std::max(SunOut, S.FogTopAsl >= 0.0 ? 0.8 : 0.0);
+		S.Fogbow = L.FogbowMost * Foggy * ThinSun * LowSun * (1.0 - Above);
+		S.Glory = L.GloryMost * Above * SunOut * LowSun;
+		// The aurora: dark, and the oval come far enough south for this Kp (clear sky to the north is
+		// the cloud's own business: drawn behind it).
+		const double Dark = Smooth((-12.0 - E) / 4.0);
+		if (In.Kp >= 0.0)
+		{
+			const double MagLat = TorqueStorm::GeomagneticLat(In.Lat, In.Lon, L.AuroraPoleLat, L.AuroraPoleLon);
+			const double Edge = L.AuroraOvalDeg - L.AuroraKpStep * In.Kp;   // the oval's southern edge
+			const double Reach = MagLat - (Edge - L.AuroraSeenBeyond);      // degrees inside where it is seen at all
+			S.Aurora = Dark * Smooth(Reach / 3.0);
+			// (on the horizon at the limit, overhead under the oval's edge)
+			S.AuroraTopDeg = Lerp(6.0, 70.0, Smooth(Reach / std::max(L.AuroraSeenBeyond, 1.0)));
+			S.AuroraBearing = TorqueStorm::BearingTo(In.Lat, In.Lon, L.AuroraPoleLat, L.AuroraPoleLon);
+		}
+		// Noctilucent cloud: summer nights, the sun 6 to 16 degrees down, mid-high latitudes.
+		const double Season = Smooth((In.DayOfYear - L.NlcFromDay) / 10.0) * (1.0 - Smooth((In.DayOfYear - (L.NlcToDay - 10.0)) / 10.0));
+		const double Twilight = Smooth((-6.0 - E) / 2.0) * (1.0 - Smooth((-14.0 - E) / 2.0));
+		const double AbsLat = std::fabs(In.Lat);
+		const double NlcBand = Smooth((AbsLat - L.NlcLatFrom) / 2.0) * (1.0 - Smooth((AbsLat - L.NlcLatTo) / 2.0));
+		// (they come some nights, not all: a slow hash of the day)
+		const unsigned DayHash = static_cast<unsigned>(In.DayOfYear) * 2654435761u;
+		const double Tonight = ((DayHash >> 16) & 255u) / 255.0 < 0.35 ? 1.0 : 0.0;
+		S.Noctilucent = Season * Twilight * NlcBand * Tonight;
+		// Meteors: the year's rate, seen as the stars are.
+		S.MeteorsPerHour = (In.MeteorRate >= 0.0 ? In.MeteorRate : TorqueStorm::MeteorRate(In.DayOfYear, L)) * S.Stars * (1.0 - Clamp01(W.Cloud) * 0.9);
+		// Saharan dust: a thicker, warmer haze, the sun reddened.
+		if (In.Dust >= 0.0)
+		{
+			S.Dust = Smooth((In.Dust - L.DustFrom) / std::max(L.DustFull - L.DustFrom, 1.0));
+			S.MieScale *= 1.0 + L.DustMie * S.Dust;
+			S.SunWarm = L.DustSunWarm * S.Dust;
+		}
+	}
 	return S;
 }
 
@@ -433,10 +555,176 @@ void StateFromJson(const TorqueFit::Json& J, TorqueWeather::State& S)
 		{"direct", &TorqueWeather::State::DirectSun, 1.0}, {"diffuse", &TorqueWeather::State::DiffuseSun, 1.0},
 		{"wind850", &TorqueWeather::State::Wind850, 1.0}, {"wind850_from", &TorqueWeather::State::Wind850From, 1.0},
 		{"wind700", &TorqueWeather::State::Wind700, 1.0}, {"wind700_from", &TorqueWeather::State::Wind700From, 1.0},
-		{"wind300", &TorqueWeather::State::Wind300, 1.0}, {"wind300_from", &TorqueWeather::State::Wind300From, 1.0},
+		{"wind300", &TorqueWeather::State::Wind300, 1.0}, {"wind300_from", &TorqueWeather::State::Wind300From, 1.0}, {"rh300", &TorqueWeather::State::Rh300, 1.0}, {"t300", &TorqueWeather::State::T300, 1.0},
 	};
 	for (const F& Each : Fields)
 		if (const TorqueFit::Json* V = J.Get(Each.Name); V && V->IsNumber()) S.*(Each.Field) = V->N * Each.Scale;
 	if (const TorqueFit::Json* V = J.Get("code"); V && V->IsNumber()) S.Code = static_cast<int>(V->N);
+}
+
+std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root)
+{
+	std::vector<NamedSky> Out;
+	const TorqueFit::Json* List = Root.Get("skies");
+	if (!List || !List->IsArray()) return Out;
+	for (const TorqueFit::Json& J : List->A)
+	{
+		if (!J.IsObject()) continue;
+		NamedSky Sky;
+		Sky.Key = J.Str("key");
+		Sky.Label = J.Str("label", Sky.Key);
+		Sky.Group = J.Str("group");
+		Sky.Note = J.Str("note");
+		Sky.Recorded = J.Str("recorded");
+		const TorqueFit::Json* Weather = J.Get("weather");
+		if (Sky.Key.empty() || (!Weather && Sky.Recorded.empty())) continue;
+		if (FindSky(Out, Sky.Key)) continue;   // (the first of a key is the one)
+		if (Weather) StateFromJson(*Weather, Sky.Weather);
+		if (const TorqueFit::Json* Sun = J.Get("sun"); Sun && Sun->IsNumber()) Sky.Sun = std::clamp(Sun->N, -89.0, 89.0);
+		Sky.bEvening = J.Flag("evening", false);
+		Sky.Showers = std::clamp(static_cast<int>(J.Num("showers_around", 0.0)), 0, 20);
+		Sky.ShowerRainMm = std::max(J.Num("shower_rain", 4.0), 0.5);
+		Sky.Moon = J.Str("moon");
+		Sky.Kp = J.Num("kp", -1.0);
+		Sky.Dust = J.Num("dust", -1.0);
+		Sky.MeteorsPerHour = J.Num("meteors_per_hour", -1.0);
+		Sky.Day = static_cast<int>(J.Num("day", -1.0));
+		Out.push_back(std::move(Sky));
+	}
+	return Out;
+}
+
+TorqueWeather::Grid ShowersAround(const TorqueWeather::State& Base, double Lat, double Lon, int Showers, double RainMm, unsigned Seed)
+{
+	TorqueWeather::Grid G;
+	G.N = 7;
+	G.Lat = Lat;
+	G.Lon = Lon;
+	G.StepM = 12000.0;
+	G.Points.assign(49, Base);
+	G.Elevation.assign(49, 300.0);
+	unsigned X = Seed * 2654435761u + 12345u;
+	auto Next = [&X]() { X ^= X << 13; X ^= X >> 17; X ^= X << 5; return X; };
+	for (int K = 0, Tries = 0; K < Showers && Tries < 200; ++Tries)
+	{
+		const int I = static_cast<int>(Next() % 49u);
+		TorqueWeather::State& P = G.Points[I];
+		if (I == 24 || P.Rain >= RainMm) continue;   // (not the centre; not twice)
+		P.Rain = RainMm * (0.6 + 0.4 * ((Next() % 1000u) / 999.0));
+		P.LowCloud = std::max(P.LowCloud, 0.85);
+		P.Cloud = std::max(P.Cloud, P.LowCloud);
+		P.Cape = std::max(P.Cape, 800.0);
+		P.Code = 81;
+		P.RoadWet = 1.0;
+		++K;
+	}
+	return G;
+}
+
+const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& Key)
+{
+	for (const NamedSky& Sky : Skies)
+		if (Sky.Key == Key) return &Sky;
+	return nullptr;
+}
+
+TorqueWeather::State MapWeatherAt(const MapGrids& G, double Lat, double Lon)
+{
+	const bool bNear = G.Near && G.Near->Valid(), bWide = G.Wide && G.Wide->Valid();
+	if (!bNear && !bWide) return TorqueWeather::State();
+	if (!bNear) return TorqueWeather::GridAt(*G.Wide, Lat, Lon, 0.0, G.WideDriftS);
+	const TorqueWeather::State Close = TorqueWeather::GridAt(*G.Near, Lat, Lon, 0.0, G.NearDriftS);
+	if (!bWide) return Close;
+	// The near grid inside its square, easing into the wide one over its last step.
+	double E = 0.0, N = 0.0;
+	TorqueWeather::MetresBetween(G.Near->Lat, G.Near->Lon, Lat, Lon, E, N);
+	const double Half = (G.Near->N - 1) * 0.5 * G.Near->StepM;
+	const double Out = std::max(std::fabs(E), std::fabs(N));
+	const double W = 1.0 - Smooth((Out - (Half - G.Near->StepM)) / std::max(G.Near->StepM, 1.0));
+	if (W >= 1.0) return Close;
+	const TorqueWeather::State Far = TorqueWeather::GridAt(*G.Wide, Lat, Lon, 0.0, G.WideDriftS);
+	return W <= 0.0 ? Far : TorqueWeather::Blend(Far, Close, W);
+}
+
+WeatherMap PaintWeatherMap(const MapGrids& G, double Lat, double Lon, const Looks& L)
+{
+	WeatherMap M;
+	if (!G.Any()) return M;
+	M.Px = std::clamp(static_cast<int>(L.MapPx), 8, 256);
+	M.SizeM = std::max(L.MapSizeM, 1000.0);
+	M.Bgra.assign(static_cast<size_t>(M.Px) * M.Px * 4, 0);
+	auto Byte = [](double V) { return static_cast<unsigned char>(std::lround(Clamp01(V) * 255.0)); };
+	for (int Row = 0; Row < M.Px; ++Row)
+		for (int Col = 0; Col < M.Px; ++Col)
+		{
+			const double East = ((Col + 0.5) / M.Px - 0.5) * M.SizeM;
+			const double North = (0.5 - (Row + 0.5) / M.Px) * M.SizeM;
+			double PLat = 0.0, PLon = 0.0;
+			TorqueWeather::Offset(Lat, Lon, East, North, PLat, PLon);
+			const TorqueWeather::State W = MapWeatherAt(G, PLat, PLon);
+			unsigned char* T = &M.Bgra[(static_cast<size_t>(Row) * M.Px + Col) * 4];
+			T[0] = Byte(W.Rain / std::max(L.MapRainMm, 0.1));
+			T[1] = Byte(W.MidCloud);
+			T[2] = Byte(W.LowCloud);
+			T[3] = Byte(W.Cape / 2000.0);
+		}
+	const TorqueWeather::State Here = MapWeatherAt(G, Lat, Lon);
+	M.HereLow = Clamp01(Here.LowCloud);
+	M.HereMid = Clamp01(Here.MidCloud);
+	return M;
+}
+
+std::vector<RainShaft> FindRainShafts(const MapGrids& G, double Lat, double Lon, const Looks& L)
+{
+	std::vector<RainShaft> Out;
+	if (!G.Any() || L.ShaftMost < 1.0) return Out;
+	// A lattice fixed to the ground (round the grid's own snapped centre), carried on the wind as the
+	// grids' showers are, so a shaft drifts across the land with its shower and doesn't jump as you ride.
+	const TorqueWeather::Grid& Ref = (G.Wide && G.Wide->Valid()) ? *G.Wide : *G.Near;
+	const double DriftS = (G.Wide && G.Wide->Valid()) ? G.WideDriftS : G.NearDriftS;
+	double WE = 0.0, WN = 0.0;
+	for (const TorqueWeather::State& P : Ref.Points)
+	{
+		const double To = (P.WindFrom + 180.0) * 3.14159265358979 / 180.0;
+		WE += std::sin(To) * P.Wind;
+		WN += std::cos(To) * P.Wind;
+	}
+	WE /= static_cast<double>(std::max<size_t>(Ref.Points.size(), 1));
+	WN /= static_cast<double>(std::max<size_t>(Ref.Points.size(), 1));
+	double DE = WE * std::max(DriftS, 0.0), DN = WN * std::max(DriftS, 0.0);
+	const double Most = (Ref.N - 1) * 0.5 * Ref.StepM, Len = std::sqrt(DE * DE + DN * DN);
+	if (Len > Most && Len > 0.0) { DE *= Most / Len; DN *= Most / Len; }
+	double CamE = 0.0, CamN = 0.0;
+	TorqueWeather::MetresBetween(Ref.Lat, Ref.Lon, Lat, Lon, CamE, CamN);
+	const double Step = std::max(L.ShaftSpacingM, 500.0);
+	const int Reach = static_cast<int>(std::ceil(L.ShaftFarthestM / Step)) + 1;
+	const int I0 = static_cast<int>(std::floor((CamE - DE) / Step)), J0 = static_cast<int>(std::floor((CamN - DN) / Step));
+	for (int I = I0 - Reach; I <= I0 + Reach; ++I)
+		for (int J = J0 - Reach; J <= J0 + Reach; ++J)
+		{
+			// (a fixed jitter per cell, so the shafts don't stand in rows)
+			const unsigned H = static_cast<unsigned>(I) * 73856093u ^ static_cast<unsigned>(J) * 19349663u;
+			const double Jx = ((H & 1023u) / 1023.0 - 0.5) * 0.6, Jy = (((H >> 10) & 1023u) / 1023.0 - 0.5) * 0.6;
+			const double PE = (I + 0.5 + Jx) * Step + DE, PN = (J + 0.5 + Jy) * Step + DN;
+			const double E = PE - CamE, N = PN - CamN;
+			const double Dist = std::sqrt(E * E + N * N);
+			if (Dist < L.ShaftNearestM || Dist > L.ShaftFarthestM) continue;
+			double PLat = 0.0, PLon = 0.0;
+			TorqueWeather::Offset(Ref.Lat, Ref.Lon, PE, PN, PLat, PLon);
+			const TorqueWeather::State W = MapWeatherAt(G, PLat, PLon);
+			if (W.Rain < L.ShaftRainMm) continue;
+			RainShaft R;
+			R.East = E;
+			R.North = N;
+			R.Strength = Lerp(0.35, 1.0, Smooth((W.Rain - L.ShaftRainMm) / std::max(L.ShaftFullMm - L.ShaftRainMm, 0.1)));
+			// (showers from unstable air narrower and darker; steady rain wider and fainter)
+			const double Convect = Smooth(W.Cape / 800.0);
+			R.RadiusM = L.ShaftRadiusM * Lerp(1.6, 0.8, Convect) * (0.8 + 0.4 * (((H >> 20) & 255u) / 255.0));
+			R.White = std::max(TorqueStorm::Snowy(W), TorqueStorm::Haily(W, L));
+			Out.push_back(R);
+		}
+	std::sort(Out.begin(), Out.end(), [](const RainShaft& A, const RainShaft& B) { return A.Strength > B.Strength; });
+	if (Out.size() > static_cast<size_t>(L.ShaftMost)) Out.resize(static_cast<size_t>(L.ShaftMost));
+	return Out;
 }
 } // namespace TorqueSky

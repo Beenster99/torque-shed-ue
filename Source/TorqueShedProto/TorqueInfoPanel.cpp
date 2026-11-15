@@ -713,6 +713,8 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		if (W.Visibility < 5000.0)
 			Lines.Add(W.Visibility < 1000.0 ? FString::Printf(TEXT("Visibility %d m"), FMath::RoundToInt(W.Visibility / 10.0) * 10)
 				: FString::Printf(TEXT("Visibility %.1f km"), W.Visibility / 1000.0));
+		// [skies stage 6] What the forecast says is coming here.
+		if (const FString Coming = GS->ComingText(); !Coming.IsEmpty() && Src == ETorqueWeatherSource::Live) Lines.Add(TEXT("Coming: ") + Coming);
 		const FString Words = Capital(UTF8_TO_TCHAR(TorqueWeather::CodeWords(W.Code).c_str()));
 		const EIcon Icon = IconOf(W.Code, W.Cloud);
 		const float LineH = 17.0f * S;

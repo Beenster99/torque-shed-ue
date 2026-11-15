@@ -279,6 +279,29 @@ SKY_PARAMS = (
     ("HighOpacity", 0.75),  # how solid it is at full cover
     ("HighDriftX", 0.0), ("HighDriftY", 0.0),
     ("Halo", 0.0),          # the 22 degree halo round the sun in a veil
+    # Stage 4: the weather map (a texture ATorqueSky paints from the real weather round about: R low
+    # cover, G middle, B rain), centred on MapX/MapY (metres along x and y), MapSize metres across;
+    # MapOn 0 off .. 1 (live weather); the cloud draws the map's difference from the covers at its centre.
+    ("MapX", 0.0), ("MapY", 0.0), ("MapSize", 90000.0), ("MapOn", 0.0), ("MapHereLow", 0.0), ("MapHereMid", 0.0),
+    ("Rainbow", 0.0),       # how bright the rainbow is drawn, 0 none
+    ("ShaftLight", 0.012),  # how much of the sun's light a rain shaft gives back (its grey)
+    # Stage 5, the night: the stars' clock (local sidereal time, degrees) and the latitude; how much of
+    # the stars and the Milky Way shows (nits for Sirius, and at the Milky Way's brightest); the moon
+    # and the sun as unit vectors east / north / up; the moon disc's brightness (nits) and earthshine
+    # (of it); the towns' glow round the horizon (nits).
+    ("Lst", 0.0), ("Lat", 54.3), ("Stars", 0.0), ("MilkyWay", 0.0),
+    ("MoonE", 0.0), ("MoonN", 0.0), ("MoonU", -1.0), ("SunE", 0.0), ("SunN", 0.0), ("SunU", 1.0),
+    ("MoonDisc", 0.0), ("EarthShine", 0.004), ("SkyGlow", 0.0),
+    # Stage 7, storms: the storm cloud's anvil (0 .. 1); a lightning flash's glow in the cloud (nits), where
+    # (metres from the camera along x and y) and how wide (metres).
+    ("Anvil", 0.0), ("Flash", 0.0), ("FlashX", 0.0), ("FlashY", 0.0), ("FlashR", 5000.0),
+    # Rare skies: sun dogs, contrails, the fogbow and the glory (0 .. 1 each); the aurora (nits), the height
+    # of its top (degrees) and its bearing (degrees from north); noctilucent cloud (nits); the meteor in
+    # the sky now: where it starts (degrees up, bearing), its way (degrees from straight down), how long
+    # (degrees), how far along (0 .. 1) and how bright (nits, 0 none).
+    ("SunDogs", 0.0), ("Contrails", 0.0), ("Fogbow", 0.0), ("Glory", 0.0),
+    ("Aurora", 0.0), ("AuroraTop", 20.0), ("AuroraBearing", 345.0), ("Nlc", 0.0),
+    ("MeteorEl", 45.0), ("MeteorAz", 0.0), ("MeteorDir", 0.0), ("MeteorLen", 10.0), ("MeteorAlong", 0.0), ("Meteor", 0.0),
 )
 _sky_mpc = None
 
@@ -3005,7 +3028,10 @@ CLOUD_HLSL = r"""
 float3 ws[8] = { W0, W1, W2, WB, M0, M1, M2, MB };
 float bottoms[2] = { LowBottom, MidBottom };
 float tops[2] = { LowTop, MidTop };
-float covers[2] = { Cover, MidCover };
+float4 mp = WeatherMap.SampleLevel(WeatherMapSampler, saturate(MapUV), 0);
+float2 edge = min(MapUV, 1.0 - MapUV);
+float inMap = saturate(MapOn) * saturate(min(edge.x, edge.y) / 0.08);
+float covers[2] = { saturate(Cover + inMap * (mp.r - MapHereLow)), saturate(MidCover + inMap * (mp.g - MapHereMid)) };
 float shapes[2] = { Shape, MidShape };
 float lumps[2] = { LowLumps, MidLumps };
 float raggeds[2] = { LowRagged, MidRagged };
@@ -3021,6 +3047,10 @@ float best = 0.0;
         float heaped = saturate(h / 0.07) * saturate((1.0 - h) / 0.65);
         float deck = saturate(h / 0.04) * saturate((1.0 - h) / 0.2);
         float profile = lerp(heaped, deck, sh);
+        // (a thunderstorm's anvil: the low layer's top spreading out flat, beyond the towers' own cover)
+        float anv = ly == 0 ? saturate(Anvil) * smoothstep(0.80, 0.87, h) * (1.0 - smoothstep(0.95, 1.0, h)) : 0.0;
+        profile = max(profile, anv * 1.4);
+        cv = max(cv, anv * 0.8);
         float nv[3] = { 0.0, 0.0, 0.0 };
         [unroll] for (int i = 0; i < 3; i++)
         {
@@ -3043,7 +3073,9 @@ float best = 0.0;
         float lp = saturate(lumps[ly]);
         float shp = saturate(lerp(nv[0], nv[1], lp) * 0.65 + broad * 0.35);
         float dn = saturate((shp * profile - (1.0 - cv)) / 0.18);
-        dn = max(dn, saturate(profile * 1.5) * smoothstep(0.9, 1.0, cv));
+        // (a closed sky: every point cloud, thicker and thinner by the shape noise so a deck seen from
+        // below shows its lumps, not a flat sheet: build 146's bench, straight up at full cover)
+        dn = max(dn, saturate(profile * 1.5) * (0.35 + 0.65 * shp) * smoothstep(0.85, 1.0, cv));
         float erode = lerp(nv[1] * 0.7 + nv[2] * 0.3, nv[2], lp);
         dn = saturate(dn - (1.0 - erode) * 0.8 * saturate(raggeds[ly]) * (1.0 - dn * 0.5));
         best = max(best, dn * densities[ly]);
@@ -3053,6 +3085,14 @@ return best * 0.1;
 """
 
 # The cloud's own colour at a point (stage 3): its layer's grey, darker towards the base.
+# A lightning flash lighting the cloud round it from inside (stage 7): the flash's glow (nits) falling
+# off over FlashR metres from it, only where there is cloud.
+CLOUD_FLASH_HLSL = r"""
+float2 d = P - float2(FlashX, FlashY);
+float fall = exp(-dot(d, d) / max(FlashR * FlashR, 1.0));
+return Flash * fall * saturate(Ext * 40.0) * float3(0.82, 0.86, 1.0);
+"""
+
 CLOUD_ALBEDO_HLSL = r"""
 float hl = (NormAlt - LowBottom) / max(LowTop - LowBottom, 0.001);
 float hm = (NormAlt - MidBottom) / max(MidTop - MidBottom, 0.001);
@@ -3100,7 +3140,8 @@ def cloud_material():
     try_set(c, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     floats = ("NormAlt", "Cover", "Shape", "Density", "LowBottom", "LowTop", "LowLumps", "LowRagged",
               "MidCover", "MidBottom", "MidTop", "MidShape", "MidLumps", "MidRagged", "MidDensity")
-    names = ("W0", "W1", "W2", "WB", "M0", "M1", "M2", "MB") + floats + ("CloudTex",)
+    floats = floats + ("MapOn", "MapHereLow", "MapHereMid", "Anvil")
+    names = ("W0", "W1", "W2", "WB", "M0", "M1", "M2", "MB") + floats + ("CloudTex", "MapUV", "WeatherMap")
     ins = []
     for n in names:
         ci = unreal.CustomInput()
@@ -3140,6 +3181,54 @@ def cloud_material():
             f = g.node(unreal.MaterialExpressionFrac, -600)
             link(d, f, "")
             link(f, c, pin)
+    # The weather map's place (stage 4): the point from the camera (camera-relative, so small floats:
+    # round 141's lesson), plus how far the camera is from the map's centre (MapX/MapY, metres, set by
+    # ATorqueSky every frame), over its size, + 0.5: 0 .. 1 across the map.
+    cwp = g.node(unreal.MaterialExpressionWorldPosition, -1000)
+    rel_ok = False
+    wpo = getattr(unreal, "WorldPositionIncludedOffsets", None)
+    if wpo is not None:
+        for nm in ("WPT_CAMERA_RELATIVE", "WPT_CAMERA_RELATIVE_WORLD_POSITION"):
+            if hasattr(wpo, nm) and try_set(cwp, "world_position_shader_offset", getattr(wpo, nm)):
+                rel_ok = True
+                break
+    cq = g.node(unreal.MaterialExpressionDivide, -950, const_b=100.0)
+    link(cwp, cq, "A")
+    src = cq
+    if not rel_ok:
+        cam = g.node(unreal.MaterialExpressionCameraPositionWS, -1000)
+        camq = g.node(unreal.MaterialExpressionDivide, -950, const_b=100.0)
+        link(cam, camq, "A")
+        src = g.node(unreal.MaterialExpressionSubtract, -900)
+        link(q, src, "A")
+        link(camq, src, "B")
+    mq = g.node(unreal.MaterialExpressionComponentMask, -850, r=True, g=True, b=False, a=False)
+    link(src, mq, "")
+    mc = g.node(unreal.MaterialExpressionAppendVector, -900)
+    link(sky_param(g, "MapX"), mc, "A")
+    link(sky_param(g, "MapY"), mc, "B")
+    ms = g.node(unreal.MaterialExpressionAdd, -800)
+    link(mq, ms, "A")
+    link(mc, ms, "B")
+    md = g.node(unreal.MaterialExpressionDivide, -750)
+    link(ms, md, "A")
+    link(sky_param(g, "MapSize"), md, "B")
+    mu = g.node(unreal.MaterialExpressionAdd, -700, const_b=0.5)
+    link(md, mu, "A")
+    if not rel_ok:
+        # (no camera-relative position in this engine: the point less the camera, frac'd for small
+        # floats; the map then repeats beyond its edge, faded at each edge by the code)
+        unreal.log_warning("[Torque] cloud material: no camera-relative position; the weather map repeats beyond its edge")
+        mf = g.node(unreal.MaterialExpressionFrac, -650)
+        link(mu, mf, "")
+        mu = mf
+    link(mu, c, "MapUV")
+    flash = _custom(g, CLOUD_FLASH_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ("P", "FlashX", "FlashY", "FlashR", "Flash", "Ext"))
+    link(mq, flash, "P")
+    for n in ("FlashX", "FlashY", "FlashR", "Flash"):
+        link(sky_param(g, n), flash, n)
+    link(c, flash, "Ext")
+    link(g.node(unreal.MaterialExpressionTextureObjectParameter, parameter_name="WeatherMap", texture=nt), c, "WeatherMap")
     attr = g.node(unreal.MaterialExpressionCloudSampleAttribute)
     link(attr, c, "NormAlt", "NormAltitudeInLayer")
     link(attr, alb, "NormAlt", "NormAltitudeInLayer")
@@ -3154,7 +3243,7 @@ def cloud_material():
     # Volume outputs: albedo (base colour), extinction (subsurface colour), no glow of its own.
     for src, prop in ((alb, unreal.MaterialProperty.MP_BASE_COLOR),
                       (c, unreal.MaterialProperty.MP_SUBSURFACE_COLOR),
-                      (g.const(0.0), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
+                      (flash, unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
         if not mel.connect_material_property(src, "", prop):
             bad.append(str(prop))
     mel.recompile_material(g.m)
@@ -3207,6 +3296,24 @@ float p = lerp(wisp, veil, saturate(Sheet));
 p = max(p, Fine.b * 0.6 * (1.0 - saturate(Sheet)) * saturate(Cover * 2.0 - 0.6));
 float cv = saturate(Cover);
 float o = saturate((p - (1.0 - cv) * 0.9) / 0.35) * Opacity;
+// (stage 7) contrails that linger: long straight trails along a few flight paths, some spread wide
+float trails = 0.0;
+float2 dirs[3] = { float2(0.94, 0.34), float2(0.26, 0.97), float2(-0.77, 0.64) };
+[unroll] for (int k = 0; k < 3; k++)
+{
+    float2 tg = dirs[k];
+    float2 nm = float2(-tg.y, tg.x);
+    float across = dot(P, nm) / 4000.0 + k * 0.37;
+    float lane = floor(across);
+    float hsh = frac(sin(lane * 12.9898 + k * 78.233) * 43758.5453);
+    float hsh2 = frac(hsh * 91.17 + 0.31);
+    float w = 0.012 + 0.05 * hsh2;
+    float ln = exp(-pow((frac(across) - 0.5) / w, 2.0));
+    float along = dot(P, tg) / 60000.0 + hsh * 7.0;
+    float seg = smoothstep(0.0, 0.05, frac(along)) * (1.0 - smoothstep(0.55 + 0.3 * hsh2, 0.6 + 0.3 * hsh2, frac(along)));
+    trails = max(trails, ln * seg * step(0.45, hsh) * lerp(0.9, 0.35, hsh2));
+}
+o = max(o, saturate(Contrails) * trails);
 o *= 1.0 - saturate((Dist - 110000.0) / 40000.0);
 return o;
 """
@@ -3218,6 +3325,20 @@ float iso = 0.0796;
 float a = acos(c);
 float ring = exp(-pow((a - 0.384) / 0.02, 2.0)) * Halo;
 float3 lit = Illum * (iso * 0.7 + hg * 0.3 + ring * 0.3);
+// (stage 7) sun dogs: a bright patch each side of a low sun, at its height, 22 degrees out (farther as it
+// climbs), red on the side towards the sun
+float3 v = normalize(V);
+float3 l = normalize(Ld);
+float ev = asin(clamp(v.z, -1.0, 1.0));
+float es = asin(clamp(l.z, -1.0, 1.0));
+float az = atan2(v.y, v.x) - atan2(l.y, l.x);
+az = atan2(sin(az), cos(az));
+float off = 0.384 / max(cos(es), 0.5);
+float dx = (abs(az) - off) * cos(es);
+float dy = ev - es;
+float spread = exp(-dy * dy / (0.02 * 0.02));
+float3 dog = float3(exp(-pow((dx + 0.004) / 0.008, 2.0)), exp(-pow(dx / 0.01, 2.0)), exp(-pow((dx - 0.006) / 0.014, 2.0)));
+lit += Illum * SunDogs * 0.6 * dog * spread;
 return lit + Illum * float3(0.35, 0.45, 0.6) * 0.015;
 """
 
@@ -3277,7 +3398,7 @@ def high_cloud_material():
     try_set(op, "code", HIGH_OPACITY_HLSL)
     try_set(op, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     ins = []
-    for n in ("Big", "Fine", "Cover", "Sheet", "Opacity", "Dist"):
+    for n in ("Big", "Fine", "Cover", "Sheet", "Opacity", "Dist", "P", "Contrails"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
@@ -3288,12 +3409,14 @@ def high_cloud_material():
     link(sky_param(g, "HighSheet"), op, "Sheet")
     link(sky_param(g, "HighOpacity"), op, "Opacity")
     link(dist_m, op, "Dist")
+    link(qd, op, "P")
+    link(sky_param(g, "Contrails"), op, "Contrails")
     # Its light: the sun's at that height, through the atmosphere, if this engine has the node.
     lt = g.node(unreal.MaterialExpressionCustom, -400)
     try_set(lt, "code", HIGH_LIGHT_HLSL)
     try_set(lt, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
     ins = []
-    for n in ("Illum", "CosA", "Halo"):
+    for n in ("Illum", "CosA", "Halo", "V", "Ld", "SunDogs"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
@@ -3309,11 +3432,16 @@ def high_cloud_material():
         link(neg, dot, "A")
         link(g.node(dir_cls), dot, "B")
         link(dot, lt, "CosA")
+        link(neg, lt, "V")
+        link(g.node(dir_cls), lt, "Ld")
     else:
         unreal.log_warning("[Torque] no sky atmosphere light nodes: the high cloud is lit flat")
         link(g.const((300.0, 290.0, 280.0)), lt, "Illum")
         link(g.const(0.0), lt, "CosA")
+        link(g.const((0.0, 0.0, 1.0)), lt, "V")
+        link(g.const((0.0, 0.0, 1.0)), lt, "Ld")
     link(sky_param(g, "Halo"), lt, "Halo")
+    link(sky_param(g, "SunDogs"), lt, "SunDogs")
     for src, prop in ((lt, unreal.MaterialProperty.MP_EMISSIVE_COLOR), (op, unreal.MaterialProperty.MP_OPACITY)):
         if not mel.connect_material_property(src, "", prop):
             bad.append(str(prop))
@@ -3352,6 +3480,449 @@ def high_cloud_sheet(reuse=False):
         pass
     log("high cloud sheet placed")
     return a
+
+
+# A rain shaft (stage 4): a grey curtain under a far shower, thickest in the middle, streaked, fading at
+# its sides (seen edge on) and at the top (into the cloud base) and bottom (into the land).
+RAIN_SHAFT_HLSL = r"""
+float side = pow(saturate(abs(NdotV)), 1.5);
+float h = saturate(LocalZ / 100.0 + 0.5);
+float vert = saturate(h / 0.15) * saturate((1.0 - h) / 0.1);
+float streak = lerp(0.55 + 0.45 * Streaks, 0.8 + 0.2 * Streaks, saturate(White));
+return saturate(Strength) * side * vert * streak * (1.0 + 0.35 * saturate(White));
+"""
+RAINBOW_HLSL = r"""
+float c = clamp(CosA, -1.0, 1.0);
+float a = degrees(acos(c));
+float3 p = float3(exp(-pow((a - 42.0) / 0.55, 2.0)), exp(-pow((a - 41.2) / 0.55, 2.0)), exp(-pow((a - 40.5) / 0.55, 2.0)));
+float3 s2 = float3(exp(-pow((a - 50.6) / 0.8, 2.0)), exp(-pow((a - 51.5) / 0.8, 2.0)), exp(-pow((a - 52.4) / 0.8, 2.0))) * 0.35;
+float inside = (1.0 - smoothstep(30.0, 41.0, a)) * smoothstep(20.0, 30.0, a) * 0.08;
+float3 bow = saturate(Strength) * (p + s2 + inside);
+// (stage 7) a fogbow: broad and white, a little inside the rainbow, faintly red outside, blue in
+float3 fb = exp(-pow((a - 39.0) / 2.6, 2.0)) * float3(1.0, 0.98, 0.97) + exp(-pow((a - 41.8) / 1.0, 2.0)) * float3(0.25, 0.08, 0.02)
+          + exp(-pow((a - 35.5) / 1.2, 2.0)) * float3(0.02, 0.05, 0.15);
+// and a glory: small coloured rings round the point opposite the sun (round your shadow on fog below)
+float3 gl = float3(exp(-pow((a - 2.6) / 0.45, 2.0)) + exp(-pow((a - 5.4) / 0.6, 2.0)) * 0.5,
+                   exp(-pow((a - 2.2) / 0.45, 2.0)) + exp(-pow((a - 4.8) / 0.6, 2.0)) * 0.5,
+                   exp(-pow((a - 1.6) / 0.4, 2.0)) + exp(-pow((a - 4.1) / 0.6, 2.0)) * 0.5) + exp(-a / 0.8) * 0.6;
+return Illum * 0.05 * (bow + saturate(Fogbow) * 0.6 * fb + saturate(Glory) * 0.8 * gl);
+"""
+
+
+def _custom(g, code, out_type, names):
+    c = g.node(unreal.MaterialExpressionCustom, -400)
+    try_set(c, "code", code)
+    try_set(c, "output_type", out_type)
+    ins = []
+    for n in names:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(c, "inputs", ins)
+    return c
+
+
+def rain_shaft_material():
+    """M_RideRainShaft (skies stage 4): the curtain of rain under a far shower, on a cylinder. Its
+    Strength (a parameter: ATorqueSky gives each shaft its own instance) fades it in and out."""
+    nt = cloud_noise_texture()
+    g = Graph(new_material("M_RideRainShaft"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    try_set(g.m, "compute_fog_per_pixel", True)
+    op = _custom(g, RAIN_SHAFT_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, ("NdotV", "LocalZ", "Streaks", "Strength", "White"))
+    white = g.node(unreal.MaterialExpressionScalarParameter, parameter_name="White", default_value=0.0)
+    link(white, op, "White")
+    nrm = g.node(unreal.MaterialExpressionVertexNormalWS)
+    view = g.node(unreal.MaterialExpressionCameraVectorWS)
+    dot = g.node(unreal.MaterialExpressionDotProduct, -600)
+    link(nrm, dot, "A")
+    link(view, dot, "B")
+    link(dot, op, "NdotV")
+    lp = g.node(unreal.MaterialExpressionLocalPosition)
+    lz = g.node(unreal.MaterialExpressionComponentMask, -650, r=False, g=False, b=True, a=False)
+    link(lp, lz, "")
+    link(lz, op, "LocalZ")
+    # Streaks: the noise stretched down the shaft, falling (local x and z of the 1 m cylinder, frac'd).
+    if nt is not None:
+        lx = g.node(unreal.MaterialExpressionComponentMask, -650, r=True, g=False, b=False, a=False)
+        link(lp, lx, "")
+        ux = g.node(unreal.MaterialExpressionMultiply, -600, const_b=0.08)
+        link(lx, ux, "A")
+        tm = g.node(unreal.MaterialExpressionTime)
+        fall = g.node(unreal.MaterialExpressionMultiply, -600, const_b=0.05)
+        link(tm, fall, "A")
+        vz = g.node(unreal.MaterialExpressionMultiply, -600, const_b=0.004)
+        link(lz, vz, "A")
+        vy = g.node(unreal.MaterialExpressionAdd, -550)
+        link(vz, vy, "A")
+        link(fall, vy, "B")
+        uv = g.node(unreal.MaterialExpressionAppendVector, -500)
+        link(ux, uv, "A")
+        link(vy, uv, "B")
+        fr = g.node(unreal.MaterialExpressionFrac, -480)
+        link(uv, fr, "")
+        smp = g.node(unreal.MaterialExpressionTextureSample, -450, texture=nt)
+        link(fr, smp, "UVs")
+        link(smp, op, "Streaks", "R")
+    else:
+        link(g.const(0.5), op, "Streaks")
+    link(g.node(unreal.MaterialExpressionScalarParameter, parameter_name="Strength", default_value=0.0), op, "Strength")
+    # Softly into the land (no hard line where it meets the ground).
+    fade = g.node(unreal.MaterialExpressionDepthFade, -350)
+    link(op, fade, "Opacity")
+    try_set(fade, "fade_distance_default", 30000.0)
+    # Its grey: the sun's light through the atmosphere there, dimmed as under a shower cloud.
+    illum_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightIlluminance", None)
+    col = g.node(unreal.MaterialExpressionMultiply, -350)
+    if illum_cls is not None:
+        link(g.node(illum_cls), col, "A")
+    else:
+        link(g.const((300.0, 290.0, 280.0)), col, "A")
+    # (stage 7: snow and hail are white curtains, giving back several times the light rain does)
+    whiten = g.node(unreal.MaterialExpressionMultiply, -380, const_b=5.0)
+    link(white, whiten, "A")
+    whiten1 = g.node(unreal.MaterialExpressionAdd, -370, const_b=1.0)
+    link(whiten, whiten1, "A")
+    shaft_light = g.node(unreal.MaterialExpressionMultiply, -360)
+    link(sky_param(g, "ShaftLight"), shaft_light, "A")
+    link(whiten1, shaft_light, "B")
+    link(shaft_light, col, "B")
+    for src, prop in ((col, unreal.MaterialProperty.MP_EMISSIVE_COLOR), (fade, unreal.MaterialProperty.MP_OPACITY)):
+        if not mel.connect_material_property(src, "", prop):
+            bad.append(str(prop))
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] rain shaft material M_RideRainShaft NOT used: %s" % "; ".join(bad))
+        return None
+    log("rain shaft material M_RideRainShaft made")
+    return g.m
+
+
+def rainbow_material():
+    """M_RideRainbow (skies stage 4): the bow 42 degrees from the point opposite the sun (and the faint
+    second one at 51, colours turned round), added over the view on a sphere round the camera; MPC_Sky's
+    Rainbow says how bright (0 none)."""
+    g = Graph(new_material("M_RideRainbow"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_ADDITIVE), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT),
+                 ("two_sided", True)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    illum_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightIlluminance", None)
+    dir_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightDirection", None)
+    if illum_cls is None or dir_cls is None:
+        unreal.log_warning("[Torque] no sky atmosphere light nodes: no rainbow")
+        return None
+    c = _custom(g, RAINBOW_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ("Illum", "CosA", "Strength", "Fogbow", "Glory"))
+    link(g.node(illum_cls), c, "Illum")
+    # The angle from the antisolar point: the view (away from the camera) against the sun's way, turned round.
+    view = g.node(unreal.MaterialExpressionCameraVectorWS)   # (from the point towards the camera)
+    dot = g.node(unreal.MaterialExpressionDotProduct, -600)
+    link(view, dot, "A")
+    link(g.node(dir_cls), dot, "B")
+    link(dot, c, "CosA")
+    link(sky_param(g, "Rainbow"), c, "Strength")
+    link(sky_param(g, "Fogbow"), c, "Fogbow")
+    link(sky_param(g, "Glory"), c, "Glory")
+    if not mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR):
+        bad.append("emissive")
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] rainbow material M_RideRainbow NOT used: %s" % "; ".join(bad))
+        return None
+    log("rainbow material M_RideRainbow made")
+    return g.m
+
+
+# The night sky (stage 5), drawn over the sky on a sphere round the camera: each point of the view turned
+# into right ascension and declination by the stars' clock and the latitude, the stars and the Milky Way
+# read from Data/Sky/stars.png there; the moon a disc lit on its sun side, with earthshine; the towns'
+# glow low round the horizon. (Level x east, y south, z up.)
+STARS_HLSL = r"""
+float3 d = normalize(-View);
+float3 enu = float3(d.x, -d.y, d.z);
+float sl = sin(radians(Lat)), cl = cos(radians(Lat));
+float xm = dot(enu, float3(0.0, -sl, cl));
+float xp = dot(enu, float3(0.0, cl, sl));
+float dec = asin(clamp(xp, -1.0, 1.0));
+float ha = atan2(-enu.x, xm);
+float ra = radians(Lst) - ha;
+float2 uv = float2(frac(ra / 6.28318530718), 0.5 - dec / 3.14159265359);
+float4 t = StarTex.SampleLevel(StarTexSampler, uv, 0);
+float up = enu.z;
+float thick = smoothstep(-0.02, 0.2, up);
+float3 col = pow(t.rgb, 2.2) * Stars * thick + pow(t.a, 2.2) * MilkyWay * float3(0.82, 0.84, 0.92) * thick;
+col += SkyGlow * float3(1.0, 0.62, 0.32) * exp(-max(up, 0.0) * 9.0) * smoothstep(-0.06, 0.0, up);
+float3 m = normalize(float3(MoonE, MoonN, MoonU));
+float3 sun = normalize(float3(SunE, SunN, SunU));
+float cm = dot(enu, m);
+float ang = acos(clamp(cm, -1.0, 1.0));
+float rm = 0.00454;
+[branch] if (ang < rm * 1.6 && MoonDisc > 0.0)
+{
+    float rr = saturate(ang / rm);
+    float3 side = enu - m * cm;
+    float sl2 = length(side);
+    side = sl2 > 1e-7 ? side / sl2 : float3(0.0, 0.0, 1.0);
+    float3 n = -m * sqrt(saturate(1.0 - rr * rr)) + side * rr;
+    float shade = smoothstep(-0.02, 0.06, dot(n, sun));
+    float disc = 1.0 - smoothstep(rm * 0.96, rm * 1.04, ang);
+    float limb = 0.8 + 0.2 * sqrt(saturate(1.0 - rr * rr));
+    // (the seas: a few soft darker patches, fixed to the face we see)
+    float3 east = normalize(cross(float3(0.0, 0.0, 1.0), m) + float3(1e-5, 0.0, 0.0));
+    float3 north = cross(m, east);
+    float2 f = float2(dot(side, east), dot(side, north)) * rr;
+    float seas = 1.0 - 0.25 * exp(-dot(f - float2(-0.25, 0.3), f - float2(-0.25, 0.3)) / 0.04)
+                     - 0.2 * exp(-dot(f - float2(0.2, 0.15), f - float2(0.2, 0.15)) / 0.03)
+                     - 0.18 * exp(-dot(f - float2(-0.1, -0.2), f - float2(-0.1, -0.2)) / 0.05);
+    col += disc * MoonDisc * (shade * limb * seas + EarthShine) * float3(1.0, 0.97, 0.92);
+}
+col += MoonDisc * 0.0015 * exp(-ang / 0.05) * float3(0.9, 0.92, 1.0) * thick;
+// (stage 7) The aurora: curtains over the geomagnetic pole's way, green below and red above, rippling.
+float az = atan2(enu.x, enu.y);
+float el = degrees(asin(clamp(up, -1.0, 1.0)));
+[branch] if (Aurora > 0.0 && el > -1.0)
+{
+    float daz = atan2(sin(az - radians(AuroraBearing)), cos(az - radians(AuroraBearing)));
+    float spreadA = exp(-daz * daz / (0.9 * 0.9));
+    float tm = Clock;
+    float folds = sin(daz * 9.0 + tm * 0.21 + sin(daz * 3.0 - tm * 0.07) * 2.5) * 0.5 + 0.5;
+    float rays = sin(daz * 70.0 + tm * 0.9 + sin(daz * 23.0 + tm * 0.3) * 3.0) * 0.5 + 0.5;
+    float curtain = pow(folds, 3.0) * (0.5 + 0.5 * rays);
+    float h = saturate(el / max(AuroraTop, 3.0));
+    float green = smoothstep(0.0, 0.08, h) * (1.0 - smoothstep(0.35, 0.75, h));
+    float red = smoothstep(0.45, 0.7, h) * (1.0 - smoothstep(0.9, 1.15, h));
+    float base = exp(-max(el, 0.0) / max(AuroraTop * 0.35, 1.0)) * 0.35;
+    col += Aurora * spreadA * (curtain * (green * float3(0.25, 1.0, 0.45) + red * float3(0.9, 0.2, 0.35) * 0.6) + base * float3(0.3, 0.9, 0.5));
+}
+// Noctilucent cloud: silver-blue wisps low over the sun's way (below the horizon), lit from below.
+[branch] if (Nlc > 0.0 && el > 0.0 && el < 20.0)
+{
+    float saz = atan2(sun.x, sun.y);
+    float dn = atan2(sin(az - saz), cos(az - saz));
+    float bandN = exp(-dn * dn / (0.8 * 0.8)) * smoothstep(1.0, 3.0, el) * (1.0 - smoothstep(9.0, 16.0, el));
+    float waves = sin(az * 60.0 + el * 2.0) * 0.5 + 0.5;
+    float billows = sin(az * 17.0 - el * 0.7 + sin(az * 5.0) * 2.0) * 0.5 + 0.5;
+    col += Nlc * bandN * (0.35 + 0.65 * waves * billows) * float3(0.72, 0.86, 1.0);
+}
+// A meteor: a short bright streak along its way across the sky, brightening and dying as it goes.
+[branch] if (Meteor > 0.0)
+{
+    float me = radians(MeteorEl), ma = radians(MeteorAz);
+    float3 m0 = float3(cos(me) * sin(ma), cos(me) * cos(ma), sin(me));
+    float3 eastM = normalize(cross(m0, float3(0.0, 0.0, 1.0)) + float3(1e-5, 0.0, 0.0));
+    float3 downM = normalize(cross(m0, eastM));
+    float md = radians(MeteorDir);
+    float3 way = normalize(downM * cos(md) + eastM * sin(md));
+    float len = radians(MeteorLen);
+    float headT = saturate(MeteorAlong);
+    float3 rel3 = enu - m0;
+    float along = dot(rel3, way);
+    float across = length(rel3 - way * along);
+    float onTrail = smoothstep(0.0, len * 0.1, along) * (1.0 - smoothstep(len * headT * 0.95, len * headT, along));
+    float tailFade = saturate(1.0 - (len * headT - along) / max(len * 0.6, 1e-4));
+    float life = sin(3.14159 * headT);
+    col += Meteor * life * onTrail * tailFade * exp(-across * across / (0.0006 * 0.0006)) * float3(0.92, 0.95, 1.0);
+}
+return col;
+"""
+
+
+def stars_texture():
+    """Data/Sky/stars.png (Tools/make_stars.py): the stars (RGB) and the Milky Way (A), linear, no mips
+    (read at full size: faint stars must not be filtered away)."""
+    f = os.path.join(os.path.dirname(data_dir()), "Sky", "stars.png")
+    if not os.path.exists(f):
+        unreal.log_warning("[Torque] no %s: run Tools/make_stars.py" % f)
+        return None
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", TEX_DEST + "/Sky"), ("destination_name", "T_Stars"),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    asset_tools.import_asset_tasks([t])
+    tex = unreal.load_asset(TEX_DEST + "/Sky/T_Stars")
+    if tex:
+        tex.set_editor_property("srgb", False)
+        try_set(tex, "compression_settings", unreal.TextureCompressionSettings.TC_BC7)
+        try_set(tex, "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        try_set(tex, "never_stream", True)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+def stars_material():
+    """M_RideStars (skies stage 5): the stars, the Milky Way, the moon and the towns' glow, added over
+    the sky on a sphere round the camera (behind the cirrus and the cloud: cloud fogging on). None if it
+    didn't go together."""
+    tex = stars_texture()
+    if tex is None or sky_mpc() is None:
+        return None
+    g = Graph(new_material("M_RideStars"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_ADDITIVE), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT),
+                 ("two_sided", True)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    for k in ("apply_cloud_fogging", "compute_fog_per_pixel"):
+        try_set(g.m, k, True)
+    names = ("View", "Lat", "Lst", "Stars", "MilkyWay", "SkyGlow", "MoonE", "MoonN", "MoonU", "SunE", "SunN", "SunU",
+             "MoonDisc", "EarthShine", "Aurora", "AuroraTop", "AuroraBearing", "Nlc",
+             "MeteorEl", "MeteorAz", "MeteorDir", "MeteorLen", "MeteorAlong", "Meteor", "Clock", "StarTex")
+    c = _custom(g, STARS_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, names)
+    link(g.node(unreal.MaterialExpressionCameraVectorWS), c, "View")
+    for n in names[1:-2]:
+        link(sky_param(g, n), c, n)
+    link(g.node(unreal.MaterialExpressionTime), c, "Clock")
+    link(g.node(unreal.MaterialExpressionTextureObject, texture=tex), c, "StarTex")
+    if not mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR):
+        bad.append("emissive")
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] stars material M_RideStars NOT used: %s" % "; ".join(bad))
+        return None
+    log("stars material M_RideStars made")
+    return g.m
+
+
+# A lightning fork (stage 7), drawn on a plane ATorqueSky stands up between the cloud base and the ground
+# facing the camera: a jagged channel (straight between kinks, the kinks smaller as they get finer) and two
+# branches splitting off it, glowing; Seed picks its shape, Strength how bright (nits), both per flash.
+# (Local position: the 1 m plane's x runs up the bolt once stood up, its y across.)
+BOLT_HLSL = r"""
+float v = saturate(0.5 - LP.x / 100.0);
+float u = LP.y / 100.0;
+float s = frac(Seed * 0.000173 + 0.123);
+float path = 0.0;
+float amp = 0.16;
+float freq = 3.0;
+[unroll] for (int i = 0; i < 5; i++)
+{
+    float x = v * freq + s * (17.0 + i * 5.3);
+    float i0 = floor(x);
+    float fr = frac(x);
+    float a = frac(sin(i0 * 12.9898 + s * 78.233 + i * 3.1) * 43758.5453);
+    float b = frac(sin((i0 + 1.0) * 12.9898 + s * 78.233 + i * 3.1) * 43758.5453);
+    path += (lerp(a, b, fr) - 0.5) * amp;
+    amp *= 0.5;
+    freq *= 2.3;
+}
+float w = 0.003 + 0.002 * (1.0 - v);
+float core = exp(-pow((u - path) / w, 2.0));
+float glow = exp(-pow((u - path) / (w * 14.0), 2.0)) * 0.22;
+float br = 0.0;
+[unroll] for (int k = 0; k < 2; k++)
+{
+    float v0 = 0.15 + 0.35 * frac(s * (31.1 + k * 7.0));
+    float len = 0.12 + 0.22 * frac(s * (57.7 + k * 3.0));
+    float dir = frac(s * (73.3 + k * 11.0)) < 0.5 ? -1.0 : 1.0;
+    float tb = (v - v0) / len;
+    [branch] if (tb > 0.0 && tb < 1.0)
+    {
+        float jag = (frac(sin(floor(v * 45.0) * 91.7 + s * 13.0 + k) * 4375.5) - 0.5) * 0.012;
+        float bx = path + dir * (v - v0) * 0.55 + jag;
+        br += exp(-pow((u - bx) / (w * 0.7), 2.0)) * (1.0 - tb) * 0.6;
+    }
+}
+float ends = smoothstep(0.0, 0.04, v) * (1.0 - smoothstep(0.985, 1.0, v));
+return (core + glow + br) * ends * Strength * float3(0.82, 0.87, 1.0);
+"""
+
+
+def bolt_material():
+    """M_RideBolt (skies stage 7): a lightning fork, added over the view on a plane. Seed and Strength are
+    parameters (ATorqueSky gives each bolt its own instance). None if it didn't go together."""
+    g = Graph(new_material("M_RideBolt"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_ADDITIVE), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT),
+                 ("two_sided", True)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    try_set(g.m, "compute_fog_per_pixel", True)
+    c = _custom(g, BOLT_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ("LP", "Seed", "Strength"))
+    link(g.node(unreal.MaterialExpressionLocalPosition), c, "LP")
+    link(g.node(unreal.MaterialExpressionScalarParameter, parameter_name="Seed", default_value=1.0), c, "Seed")
+    link(g.node(unreal.MaterialExpressionScalarParameter, parameter_name="Strength", default_value=0.0), c, "Strength")
+    if not mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR):
+        bad.append("emissive")
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] bolt material M_RideBolt NOT used: %s" % "; ".join(bad))
+        return None
+    log("bolt material M_RideBolt made")
+    return g.m
+
+
+def _sky_prop(label, tag, mesh_path, mat, scale):
+    mesh = unreal.load_asset(mesh_path)
+    if mat is None or mesh is None:
+        return None
+    a = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, -1000000), unreal.Rotator(0, 0, 0))
+    a.set_actor_label(label)
+    a.set_folder_path("Sky")
+    a.set_editor_property("tags", [unreal.Name(tag)])
+    a.set_actor_scale3d(unreal.Vector(*scale))
+    smc = a.get_component_by_class(unreal.StaticMeshComponent)
+    smc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    smc.set_static_mesh(mesh)
+    smc.set_material(0, mat)
+    for k, v in (("cast_shadow", False), ("affect_distance_field_lighting", False), ("visible_in_ray_tracing", False)):
+        try_set(smc, k, v)
+    try:
+        smc.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    except Exception:
+        pass
+    try:
+        a.set_actor_hidden_in_game(True)
+    except Exception:
+        pass
+    return a
+
+
+def rain_shafts_and_rainbow(reuse=False):
+    """Stage 4's and 5's pieces ATorqueSky moves about: 8 rain shafts (cylinders tagged TorqueRainShaft),
+    the rainbow (a sphere round the camera tagged TorqueRainbow) and the star dome (TorqueStarDome),
+    hidden until it uses them."""
+    shaft = unreal.load_asset(MAT_DIR + "/M_RideRainShaft") if reuse else rain_shaft_material()
+    bow = unreal.load_asset(MAT_DIR + "/M_RideRainbow") if reuse else rainbow_material()
+    n = 0
+    for i in range(8):
+        if _sky_prop("RainShaft%d" % i, "TorqueRainShaft", "/Engine/BasicShapes/Cylinder", shaft, (30.0, 30.0, 10.0)):
+            n += 1
+    b = _sky_prop("Rainbow", "TorqueRainbow", "/Engine/BasicShapes/Sphere", bow, (4000.0, 4000.0, 4000.0))
+    log("rain shafts placed: %d; rainbow %s" % (n, "placed" if b else "NOT placed"))
+    # The night sky (stage 5): a sphere 50 km round the camera, drawn before the cirrus sheet (which
+    # covers it) and behind the cloud.
+    stars = unreal.load_asset(MAT_DIR + "/M_RideStars") if reuse else stars_material()
+    dome = _sky_prop("StarDome", "TorqueStarDome", "/Engine/BasicShapes/Sphere", stars, (100000.0, 100000.0, 100000.0))
+    if dome:
+        try_set(dome.get_component_by_class(unreal.StaticMeshComponent), "translucency_sort_priority", -20)
+    log("star dome %s" % ("placed" if dome else "NOT placed"))
+    # Stage 7: four lightning forks (planes tagged TorqueBolt), stood up where a flash forks to the ground.
+    bolt = unreal.load_asset(MAT_DIR + "/M_RideBolt") if reuse else bolt_material()
+    nb = 0
+    for i in range(4):
+        if _sky_prop("Bolt%d" % i, "TorqueBolt", "/Engine/BasicShapes/Plane", bolt, (1000.0, 600.0, 1.0)):
+            nb += 1
+    log("lightning bolts placed: %d" % nb)
 
 
 def sky_and_camera(reuse_cloud_shadow=False):
@@ -3427,6 +3998,10 @@ def sky_and_camera(reuse_cloud_shadow=False):
         high_cloud_sheet(reuse=reuse_cloud_shadow)
     except Exception as e:
         unreal.log_warning("[Torque] no high cloud sheet: %s" % e)
+    try:
+        rain_shafts_and_rainbow(reuse=reuse_cloud_shadow)
+    except Exception as e:
+        unreal.log_warning("[Torque] no rain shafts or rainbow: %s" % e)
     ppv = spawn(unreal.PostProcessVolume)
     ppv.set_editor_property("unbound", True)
     pp = ppv.get_editor_property("settings")
