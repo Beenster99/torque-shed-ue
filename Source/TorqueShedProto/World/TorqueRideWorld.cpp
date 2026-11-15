@@ -46,10 +46,14 @@
 #include <cmath>
 
 // What the workers and the actor share: the squares made and waiting to be put in place.
+// [perf, build 149] A square's meshes as procedural mesh sections, readied on its worker (see PreparedNow).
+using FRidePrepared = TMap<const TorqueWorld::RideMesh*, FProcMeshSection>;
+
 struct FTorqueRideJobs
 {
 	FCriticalSection Lock;
 	TArray<TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>>> Made;
+	TMap<FIntVector, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>> Prepared;   // by square, beside Made
 	std::atomic<int32> Busy{0};
 	std::atomic<bool> bStop{false};
 };
@@ -82,6 +86,52 @@ double Away(const FVector2D& At, const FIntVector& Key)
 	const double X0 = Key.Y * S, Z0 = Key.Z * S;
 	const double Dx = FMath::Max3(X0 - At.X, 0.0, At.X - (X0 + S)), Dz = FMath::Max3(Z0 - At.Y, 0.0, At.Y - (Z0 + S));
 	return FMath::Sqrt(Dx * Dx + Dz * Dz);
+}
+
+// [perf, build 149] One mesh as MakePart's CreateMeshSection_LinearColor would make its section (the same
+// vertices, white where it has no colours, the colours' bytes unconverted, indices clamped to the
+// points), on a worker; meshes MakePart leaves out are left out here too.
+void Prepare(const TorqueWorld::RideMesh* M, FRidePrepared& Out)
+{
+	const int32 Count = M ? int32(M->Vertices()) : 0;
+	if (Count < 3 || M->Idx.size() < 3) return;
+	FProcMeshSection& Sec = Out.Add(M);
+	const bool bColoured = M->Col.size() == M->Pos.size();
+	const bool bAlpha = M->Alpha.size() == size_t(Count);
+	Sec.ProcVertexBuffer.SetNum(Count);
+	for (int32 I = 0; I < Count; ++I)
+	{
+		const size_t V = size_t(I) * 3;
+		FProcMeshVertex& Pt = Sec.ProcVertexBuffer[I];
+		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
+		Pt.Position = FVector(double(M->Pos[V]) * 100.0, double(M->Pos[V + 2]) * 100.0, double(M->Pos[V + 1]) * 100.0);
+		Pt.Normal = FVector(double(M->Nrm[V]), double(M->Nrm[V + 2]), double(M->Nrm[V + 1]));
+		Pt.UV0 = FVector2D(double(M->Uv[size_t(I) * 2]), double(M->Uv[size_t(I) * 2 + 1]));
+		Pt.Color = bColoured ? FLinearColor(M->Col[V], M->Col[V + 1], M->Col[V + 2], bAlpha ? M->Alpha[size_t(I)] : 1.0f).ToFColor(false) : FColor(255, 255, 255);
+		Pt.Tangent = FProcMeshTangent();
+		Sec.SectionLocalBox += Pt.Position;
+	}
+	const int32 Indices = int32(M->Idx.size() / 3) * 3;
+	Sec.ProcIndexBuffer.SetNumUninitialized(Indices);
+	for (int32 I = 0; I < Indices; ++I) Sec.ProcIndexBuffer[I] = FMath::Min(M->Idx[size_t(I)], uint32(Count - 1));
+	Sec.bSectionVisible = true;
+}
+
+void PrepareSquare(const TorqueWorld::RideMesh& Mesh, FRidePrepared& Out)
+{
+	Prepare(&Mesh, Out);
+	Prepare(Mesh.Water.get(), Out);
+	if (const TorqueWorld::RideMesh* E = Mesh.Extra.get())
+	{
+		Prepare(E, Out);
+		Prepare(E->Stone.get(), Out);
+		Prepare(E->Masonry.get(), Out);
+		Prepare(E->Render.get(), Out);
+		Prepare(E->Roofing.get(), Out);
+		Prepare(E->Brickwork.get(), Out);
+		Prepare(E->Night.get(), Out);
+		Prepare(E->Signals.get(), Out);
+	}
 }
 
 bool Overlap(const FIntVector& A, const FIntVector& B)
@@ -655,9 +705,12 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 		{
 			TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe> Mesh = MakeShared<TorqueWorld::RideMesh, ESPMode::ThreadSafe>();
 			if (!Share->bStop) Held->LandTile(Key.Y * Size, Key.Z * Size, Size, Cells, *Mesh);
+			TSharedPtr<FRidePrepared, ESPMode::ThreadSafe> Ready = MakeShared<FRidePrepared, ESPMode::ThreadSafe>();
+			if (!Share->bStop) TRWI::PrepareSquare(*Mesh, *Ready);
 			{
 				FScopeLock Hold(&Share->Lock);
 				Share->Made.Emplace(Key, Mesh);
+				Share->Prepared.Add(Key, Ready);
 			}
 			--Share->Busy;
 		});
@@ -702,6 +755,16 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 			++Section;
 			continue;
 		}
+		// [perf, build 149] Readied on the square's worker: only copied in here.
+		if (PreparedNow)
+			if (FProcMeshSection* Ready = PreparedNow->Find(Mesh))
+			{
+				Ready->bEnableCollision = bCollide;
+				Part->SetProcMeshSection(Section, *Ready);
+				if (Each.Value) Part->SetMaterial(Section, Each.Value);
+				++Section;
+				continue;
+			}
 		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
 		TArray<FVector> Points;
 		TArray<FVector> Normals;
@@ -1040,14 +1103,21 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	for (int32 N = 0; N < 4 && (N == 0 || (FPlatformTime::Seconds() - PlaceStart) * 1000.0 < 3.0); ++N)
 	{
 		TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>> One;
+		TSharedPtr<FRidePrepared, ESPMode::ThreadSafe> Ready;
 		{
 			FScopeLock Hold(&Jobs->Lock);
 			if (Jobs->Made.Num() == 0) break;
 			One = Jobs->Made[0];
 			Jobs->Made.RemoveAt(0);
+			Jobs->Prepared.RemoveAndCopyValue(One.Key, Ready);
 		}
 		Asked.Remove(One.Key);
-		if (One.Value.IsValid()) Place(One.Key, *One.Value, false);
+		if (One.Value.IsValid())
+		{
+			PreparedNow = Ready.Get();
+			Place(One.Key, *One.Value, false);
+			PreparedNow = nullptr;
+		}
 	}
 	TickBirds(DeltaSeconds);
 	// [stage 7] The street lamps come on as the light goes, and off in the morning.
@@ -1557,6 +1627,18 @@ bool ATorqueRideWorld::FindKit()
 				if (Name.StartsWith(TEXT("SM_TreeFar_") + Kind + TEXT("_"))) KindFar[K].Add(Kit.Num());
 			}
 			Kit.Add(S);
+		}
+		// [perf, build 149] A kind with near models (a scanned tree) but no far ones of its own is drawn far
+		// off by the far models of the kind that stands in for it, not by the scans: the far ring's
+		// trees are thousands, and full scanned trees there cost about 10 ms of GPU at Whaley Bridge
+		// (build 148). -TorqueRideFarScans=1 draws them as before.
+		static const bool bFarScans = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFarScans="), On) && On != 0; }();
+		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
+		{
+			const bool bScanned = KindNear[K].ContainsByPredicate([this](int32 Si) { return Kit[Si].Name.ToString().EndsWith(TEXT("_scan")); });
+			if (bFarScans && bScanned) KindFar[K] = KindNear[K];
+			const int32 Instead = TorqueWorld::RidePlan::PlantStandIn(K);
+			if (!bFarScans && KindFar[K].Num() == 0 && KindNear[K].Num() > 0 && Instead != K && KindFar[Instead].Num() > 0) KindFar[K] = KindFar[Instead];
 		}
 		// (a kind with near models but no far ones uses the near ones far off too, and the other way about;
 		// one with neither, the models of the kind that stands in for it: oak for ash and so on)

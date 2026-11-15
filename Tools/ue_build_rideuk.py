@@ -806,8 +806,10 @@ def scanned_trees(L, kit):
         found[kind] = got
         if not use:
             continue
-        # (ours of this kind go: the scanned ones take every tree of it, near and far)
-        rows[:] = [r for r in rows if not (r["name"].startswith("SM_Tree_%s_" % kind) or r["name"].startswith("SM_TreeFar_%s_" % kind))]
+        # (ours of this kind go near: the scanned ones take every near tree of it. Our far models stay
+        # for the trees past the finest squares: build 148 measured the scans at about 10 ms of GPU at
+        # Whaley Bridge, most of it from the far ring's thousands of full Nanite trees)
+        rows[:] = [r for r in rows if not r["name"].startswith("SM_Tree_%s_" % kind)]
         r = dict(template)
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})

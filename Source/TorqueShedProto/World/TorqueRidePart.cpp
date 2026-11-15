@@ -13,7 +13,9 @@
 
 namespace TRPart
 {
-TAutoConsoleVariable<int32> CVarStaticParts(TEXT("torque.RideStaticParts"), 1,
+// (off since build 149: build 148 measured no render gain at Whaley Bridge, render 4.9 ms against 4.6
+// without, while building the meshes cost the game thread in towns)
+TAutoConsoleVariable<int32> CVarStaticParts(TEXT("torque.RideStaticParts"), 0,
 	TEXT("Ride UK: draw the world's pieces as static meshes built at run time (1, cached draws) or as procedural meshes (0, the old way). Pieces made after the change follow it."));
 } // namespace TRPart
 

@@ -11,8 +11,9 @@
 // ground and the road: the bike's wheels and ground trace use it), hidden, so the renderer never
 // sees it; one that collides with nothing holds no sections at all.
 //
-// torque.RideStaticParts 0 (or -TorqueRideStatic=0 on the command line) draws the old way, for
-// comparing the two in one build.
+// Build 148 measured no render gain from it (Whaley Bridge: render 4.9 ms with, 4.6 without) and the
+// builds cost the game thread in towns, so since 149 it is off: torque.RideStaticParts 1 (or
+// -TorqueRideStatic=1) turns it on for comparing.
 #pragma once
 
 #include "CoreMinimal.h"

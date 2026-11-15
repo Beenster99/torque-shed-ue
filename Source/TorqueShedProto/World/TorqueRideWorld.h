@@ -37,6 +37,7 @@
 
 class UMaterialInterface;
 class UProceduralMeshComponent;
+struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
 namespace TorqueWorld
 {
@@ -151,6 +152,10 @@ private:
 	// One part of several meshes over the same origin, a section each in its own material (null meshes
 	// and empty ones are left out); null if all are empty.
 	UProceduralMeshComponent* MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow);
+	// [perf, build 149] The sections of the square being placed, readied on its worker (vertices in
+	// Unreal's frame, colours as bytes): MakePart takes a mesh's from here instead of building it on the
+	// game thread. Null outside Place, and for squares made on the game thread.
+	TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* PreparedNow = nullptr;
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
 	// The level's plant kit (see above): true if it has any grass or trees.
 	bool FindKit();
