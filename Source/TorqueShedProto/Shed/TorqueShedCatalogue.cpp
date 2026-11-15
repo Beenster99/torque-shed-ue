@@ -511,6 +511,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
+			if (OutFrame && P.Slot == "tank")
+				for (const FVector& V : Pos)
+					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
