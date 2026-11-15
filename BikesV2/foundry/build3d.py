@@ -589,6 +589,8 @@ def guard_blade(name, a, blade, hw, material):
     def depth(deg):
         th, best = math.radians(deg), (hi if DETAIL["on"] else lo - 8)     # Definition pass: no skirt at all away from the blades
         for rho in range(int(hi), 24, -3):
+            if DETAIL["on"]:
+                break      # Definition pass: the shell has no skirt; the fork shrouds are their own shape (detail3d.fork_shrouds)
             if _inside(blade, c[0] + rho * math.cos(th), c[1] + rho * math.sin(th)):
                 best = min(best, rho)
         return best
@@ -603,7 +605,7 @@ def guard_blade(name, a, blade, hw, material):
         k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
         # Definition pass: the edges of the shell just end, following the tyre; they do not curl in to a lip
-        edge = hi - 17 if DETAIL["on"] else lo
+        edge = hi - (5 + 12 * min(1.0, min(f, 1 - f) / 0.3)) if DETAIL["on"] else lo     # slim towards both tips
         if DETAIL["on"]:
             c70 = math.cos(math.radians(70))
             crown = [(edge + (hi - edge) * (math.cos(math.radians(u)) - c70) / (1 - c70), hw * k * math.sin(math.radians(u)) / math.sin(math.radians(70))) for u in (-70 + 140 * q / (n - 1) for q in range(n))]

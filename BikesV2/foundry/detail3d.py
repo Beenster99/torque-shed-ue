@@ -60,7 +60,7 @@ def surf(name, col, metallic=0.0, rough=0.5, coat=0.0, bump=None, wear=0.2):
     return m
 
 
-def lathe(name, p0, d, prof, material, segs=40, sharp=True, ell=(1.0, 1.0), uv=False, caps=True):
+def lathe(name, p0, d, prof, material, segs=40, sharp=True, ell=(1.0, 1.0), uv=False, caps=True, square=0.0):
     """Turn a profile [(t along the axis, radius)] about the axis through p0 (mm, 3D) along unit d.
     ell squashes the section to an oval; uv lays the skin out flat in millimetres (round, along)."""
     from mathutils import Vector
@@ -74,7 +74,10 @@ def lathe(name, p0, d, prof, material, segs=40, sharp=True, ell=(1.0, 1.0), uv=F
     for t, r in prof:
         for k in range(segs):
             w = 2 * math.pi * k / segs
-            q = a + ax * t + side * (r * ell[0] * math.cos(w)) + up * (r * ell[1] * math.sin(w))
+            cw_, sw_ = math.cos(w), math.sin(w)
+            if square:       # a rounded-square section in place of a round one (square = the superellipse power)
+                cw_, sw_ = math.copysign(abs(cw_) ** (2 / square), cw_), math.copysign(abs(sw_) ** (2 / square), sw_)
+            q = a + ax * t + side * (r * ell[0] * cw_) + up * (r * ell[1] * sw_)
             verts.append(B.V(q.x, q.y, q.z))
     for j in range(m - 1):
         for k in range(segs):
@@ -1001,16 +1004,64 @@ def controls(model, c):
 
 
 def mudguard_fixings(model, c):
-    """The mudguard's blades bolt to the fork bottoms: two button-head screws each side, in moulded bosses."""
-    F, uf = c["F"], c["uf"]
+    """Fork shrouds (beenster's markup and explanation, 15 Nov): the fork-mounted part of the front mudguard
+    sits on the FRONT of each fork leg. It is a U-shaped shell that wraps the front of the leg to turn
+    the air round it and keep stones off the fork, bolted to the fork foot at its rear edge low down,
+    and sweeping forward at the top into the edge of the shell over the tyre. Nothing behind the leg."""
+    F, uf, nb = c["F"], c["uf"], c["nb"]
     guard = next((o for o in bpy.data.objects if o.name.startswith("guard")), None)
     if not guard or not any(v.get("shroud") for v in model["body"].get("front_guard", [])):
         return
+    paint = guard.data.materials[0]
+    arc = next(v["arc"] for v in model["body"]["front_guard"] if "arc" in v)
+    r_edge = arc["r1"] + 4 - 17
+    fw = (-nb[0], -nb[1])
+    FY, n = 105.0, 21
+    # along the leg: (t from the axle, reach forward of the leg's middle, half width across)
+    tab = [(46, 20, 24), (54, 32, 33), (70, 36, 36), (150, 38, 36), (210, 44, 37), (255, 58, 38), (290, 82, 38), (r_edge - 14, 112, 38), (r_edge - 4, 128, 38)]
+    st = []
+    for k in range(len(tab) - 1):
+        (t0, a0, b0), (t1, a1, b1) = tab[k], tab[k + 1]
+        m_ = max(2, int((t1 - t0) / 8))
+        for q in range(m_):
+            u = q / m_
+            st.append((t0 + (t1 - t0) * u, a0 + (a1 - a0) * u, b0 + (b1 - b0) * u))
+    st.append(tab[-1])
+    for _ in range(3):
+        st = [st[0]] + [tuple(0.25 * st[i - 1][k] + 0.5 * st[i][k] + 0.25 * st[i + 1][k] for k in range(3)) for i in range(1, len(st) - 1)] + [st[-1]]
     for s in (-1, 1):
-        for t in (62, 118):
-            q = B.add(F, uf, t)
-            B.cone(f"guardboss{s}{t}", (q[0], s * 132, q[1]), (q[0], s * 149, q[1]), 10, 8.5, guard.data.materials[0], 20)
-            bolt(f"guardbolt{s}{t}", (q[0], s * 149, q[1]), (0, s, 0), 5.2, 2.6)
+        verts, faces = [], []
+        rows = []
+        for t, a, b in st:
+            o = B.add(F, uf, t)
+            row = []
+            for q in range(n):
+                ph = math.radians(-96 + 192 * q / (n - 1))       # inner side, round the front, to the outer side
+                d, y = a * math.cos(ph) ** 0.8 if math.cos(ph) > 0 else a * math.cos(ph), FY + b * math.sin(ph)
+                row.append((o[0] + fw[0] * d, y, o[1] + fw[1] * d))
+            rows.append(row)
+        # nothing stands above the shell: where the shroud sweeps forward at the top it follows the shell's edge
+        def under(x, y, z, rmax):
+            L_ = math.hypot(x - F[0], z - F[1])
+            k_ = min(1.0, rmax / L_)
+            return (F[0] + (x - F[0]) * k_, y, F[1] + (z - F[1]) * k_)
+        rows = [[under(x, y, z, r_edge - 3) for x, y, z in row] for row in rows]
+        # the shoulder: the top edge leans in under the edge of the shell
+        for lift, keep in ((4, 0.55), (7, 0.1)):
+            rows.append([under(x, 70 + (y - 70) * keep, z, r_edge - 3 + lift) for x, y, z in ((x + uf[0] * 20, y, z + uf[1] * 20) for x, y, z in rows[len(st) - 1])])
+        for row in rows:
+            verts += [B.V(x, s * y, z) for x, y, z in row]
+        for i in range(len(rows) - 1):
+            for q in range(n - 1):
+                faces.append((i * n + q, i * n + q + 1, (i + 1) * n + q + 1, (i + 1) * n + q))
+        ob = B.mesh_obj(f"guardshroud{s}", verts, faces, paint, True, 0, sharp=False)
+        B.bm_fix_normals(ob)
+        sol = ob.modifiers.new("shell", "SOLIDIFY")
+        sol.thickness, sol.offset = 3.5 * B.MM, 1
+        for t in (74, 128):
+            q = B.add(B.add(F, uf, t), fw, -4)
+            B.cone(f"guardboss{s}{t}", (q[0], s * (FY + 26), q[1]), (q[0], s * (FY + 39), q[1]), 9, 8, paint, 20)
+            bolt(f"guardbolt{s}{t}", (q[0], s * (FY + 39), q[1]), (0, s, 0), 5.2, 2.6)
 
 
 def set_mat(prefix, material):
@@ -1068,13 +1119,19 @@ def engine(model, c):
         base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
         headend = add(end, u, cy["head"])
         d3 = (u[0], 0, u[1])
-        prof = [(-6, r - 12), (0, r - 12), (0, r + 5), (9, r + 5), (9, r - 9)]
-        k = 16.0
-        while k < cy["length"] - 8:
-            prof += [(k, r - 9), (k, r + 1), (k + 2.4, r + 1), (k + 2.4, r - 9)]
+        # (beenster, 15 Nov) cooling fins are not rings round a pipe: the barrel is a squared casting and the
+        # fins follow it, growing wider towards the head, with the top two stepped back in under the head
+        prof = [(-6, r - 12), (0, r - 12), (0, r + 3), (9, r + 3), (9, r - 11)]
+        k, Lc = 16.0, cy["length"]
+        nf = int((Lc - 24) / 8.5)
+        j_ = 0
+        while k < Lc - 8:
+            rf = r - 5 + 13 * (j_ / max(1, nf - 1)) ** 0.8 - (7 if j_ >= nf - 1 else 3 if j_ == nf - 2 else 0)
+            prof += [(k, r - 11), (k, rf), (k + 2.4, rf), (k + 2.4, r - 11)]
             k += 8.5
-        prof += [(cy["length"] + 2, r - 9)]
-        lathe(f"barrel{i}", P(base, 0), d3, prof, silver, 44)
+            j_ += 1
+        prof += [(Lc + 2, r - 11)]
+        lathe(f"barrel{i}", P(base, 0), d3, prof, silver, 64, ell=(0.92, 1.0), square=4.6)
         for a_ in (45, 135, 225, 315):       # the four base nuts
             w = math.radians(a_)
             q = (base[0] + u[0] * 9 + n[0] * (r - 4) * math.cos(w), (r - 4) * math.sin(w), base[1] + u[1] * 9 + n[1] * (r - 4) * math.cos(w))
@@ -1694,6 +1751,7 @@ def welds(model, c):
         if nm == "head":
             continue
         for E, nxt in ((pts[0], pts[1]), (pts[-1], pts[-2])):
+            d = (nxt - E).normalized()
             host = None
             for hi, (hn, hp_, hr) in enumerate(R3):
                 if hi == ti:
@@ -1703,20 +1761,32 @@ def welds(model, c):
                     continue
                 if end and (hr < r or (hr == r and hi > ti)):
                     continue                      # two tube ends meet: only the smaller (or later) one is welded on
-                if host is None or (not end, hr) > (host[4], host[2]):
-                    host = (h, h0, hr, hn, not end)
+                al = abs(d.dot(h))                # 0 = square on, 1 = end to end
+                key = (al < 0.8, not end, hr, -al)
+                if host is None or key > host[5]:
+                    host = (h, h0, hr, hn, al, key)
             if not host:
                 continue
-            h, h0, R_, hn, _ = host
-            d = (nxt - E).normalized()
+            h, h0, R_, hn, al, _ = host
             e1 = d.cross(h)
-            if e1.length < 0.05:
-                continue
-            e1.normalize()
-            e2 = d.cross(e1)
-            seg = max(48, int(2 * math.pi * r / 0.8))
-            path = []
-            for k in range(seg):
+            if al >= 0.8 or e1.length < 0.05:
+                # tubes joined end to end, or nearly: a plain ring of weld round the butt joint itself
+                e1 = d.cross(Vector((0, 1, 0)))
+                if e1.length < 0.05:
+                    e1 = d.cross(Vector((0, 0, 1)))
+                e1.normalize()
+                e2 = d.cross(e1)
+                rr = max(r, R_ if al >= 0.8 else r) - 1.2
+                seg = max(48, int(2 * math.pi * rr / 0.8))
+                path = [E + d * (r * 0.55) + (e1 * math.cos(2 * math.pi * k / seg) + e2 * math.sin(2 * math.pi * k / seg)) * rr for k in range(seg)]
+            else:
+                e1.normalize()
+                e2 = d.cross(e1)
+                path = None
+            if path is None:
+                seg = max(48, int(2 * math.pi * r / 0.8))
+            for k in range(seg if path is None else 0):
+                path = path if k else []
                 w = 2 * math.pi * k / seg
                 wv = (E - h0) + (e1 * math.cos(w) + e2 * math.sin(w)) * (r + 0.6)
                 wp = wv - h * wv.dot(h)
@@ -1724,7 +1794,9 @@ def welds(model, c):
                 a_, b_, c_ = dp.dot(dp), 2 * wp.dot(dp), wp.dot(wp) - (R_ + 0.6) ** 2
                 disc = b_ * b_ - 4 * a_ * c_
                 t = (-b_ + math.sqrt(max(0.0, disc))) / (2 * a_)
+                t = min(t, 3.0 * R_)
                 path.append(h0 + wv + d * t)
+            seg = len(path)
             # the bead: a round section that swells and pinches along the joint, one ripple every 4 mm or so
             L_ = sum((path[k] - path[k - 1]).length for k in range(seg))
             nr = max(8, round(L_ / 3.2))
