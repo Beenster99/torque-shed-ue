@@ -39,6 +39,7 @@ void Face4(RideMesh& Out, const V3& A, const V3& B, const V3& C, const V3& D, co
 	Ny *= Sg;
 	Nz *= Sg;
 	const uint32_t V = uint32_t(Out.Vertices());
+	const double ShiftU = UvShift(A.X - Out.OriginX + A.Z - Out.OriginZ), ShiftW = UvShift(-A.Y);
 	for (const V3* Q : {&A, &B, &C, &D})
 	{
 		Out.Pos.push_back(float(Q->X - Out.OriginX));
@@ -47,8 +48,8 @@ void Face4(RideMesh& Out, const V3& A, const V3& B, const V3& C, const V3& D, co
 		Out.Nrm.push_back(float(Nx));
 		Out.Nrm.push_back(float(Ny));
 		Out.Nrm.push_back(float(Nz));
-		Out.Uv.push_back(float(Q->X - Out.OriginX + Q->Z - Out.OriginZ));
-		Out.Uv.push_back(float(-Q->Y));
+		Out.Uv.push_back(float(Q->X - Out.OriginX + Q->Z - Out.OriginZ - ShiftU));
+		Out.Uv.push_back(float(-Q->Y - ShiftW));
 		for (int K = 0; K < 3; ++K) Out.Col.push_back(float(Rgb[K] * Shade));
 	}
 	if (!Flip) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});

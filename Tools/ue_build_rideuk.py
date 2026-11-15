@@ -113,6 +113,22 @@ def road_material_scanned(L, tex, roles):
     own = [g.op(unreal.MaterialExpressionMultiply, vc, L.noise(g.m, 0.05, 0.8, 1.2, -1200, g.y + 200)),
            g.const((0.0, 0.0, 1.0)), g.const(0.8)]
     g.y += 140
+    # Pavements and kerbs (build 148; beenster on 147 in Whaley Bridge: the pavements "too low definition",
+    # a soft blotchy colour). A pavement's vertex colour (0.12, 0.118, 0.11, World/WorldRide's Paving) takes
+    # the tarmac's scan paler and greyer, a footway's asphalt; a kerb's (0.16, 0.16, 0.15) the same scan
+    # paler again and almost grey, as worn concrete kerbs, so both are as sharp as the road.
+    def keyed(rgb):
+        dk = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, dk, "A")
+        g.link(g.const(rgb), dk, "B")
+        return g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSubtract, g.const(0.012), dk), const_b=166.0))
+    for key, bright, grey in (((0.12, 0.118, 0.11), 1.45, 0.6), ((0.16, 0.16, 0.15), 2.3, 0.85)):
+        dull = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(road[0], dull)
+        g.link(g.const(grey), dull, "Fraction")
+        paler = [g.op(unreal.MaterialExpressionMultiply, dull, g.const(bright)), road[1], road[2]]
+        own = g.mix(own, paler, keyed(key))
     # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
     # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
     # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near

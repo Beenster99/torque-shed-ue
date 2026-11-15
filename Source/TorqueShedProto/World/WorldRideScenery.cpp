@@ -408,6 +408,31 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				Mask.G = Chance(F.Line[0].X, F.Line[0].Z, 8) < 0.5 ? 0.15f : 0.85f;
 				Mask.B = float(0.2 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 9));
 				RideMesh& Into = IsWall ? *Walls : Out;
+				// (beenster, build 147: "wall ends are missing". Where a dry stone wall stops, at a gateway, a
+				// road, a railway or its own end, it is closed off with an end face. Whether the next piece of
+				// it is drawn is asked of the line itself, so a wall running on into the next square has none.)
+				const size_t LineN = F.Line.size();
+				const bool Closed = LineN > 2 && F.Line.front().DistanceTo(F.Line.back()) < 0.05;
+				const auto BitsOf = [&](size_t Si) { return std::max(1, int(std::ceil(F.Line[Si].DistanceTo(F.Line[Si + 1]) / Step))); };
+				const auto Standing = [&](const P2& Qa, const P2& Qb)
+				{
+					const P2 Qm = (Qa + Qb) * 0.5;
+					return RailClear(Qm.X, Qm.Z) >= 2.6 && OffRoad(Qm.X, Qm.Z, 1.0) && OffRoad(Qa.X, Qa.Z, 1.0) && OffRoad(Qb.X, Qb.Z, 1.0) &&
+						!std::isnan(Ground(Qa.X, Qa.Z)) && !std::isnan(Ground(Qb.X, Qb.Z));
+				};
+				// (whether the wall carries on through At, from bit Kn of the line's segment Sn: its first
+				// piece if FromStart, else its last)
+				const auto CarriesOn = [&](const P2& At, size_t Sn, int Kn, bool FromStart)
+				{
+					const P2 Sa = F.Line[Sn], Sb = F.Line[Sn + 1];
+					if (Sa.DistanceTo(Sb) < 0.3) return false;
+					const int Bn = BitsOf(Sn);
+					P2 Got[2][2];
+					const int Cn = CutGaps(Sa + (Sb - Sa) * (double(Kn) / Bn), Sa + (Sb - Sa) * (double(Kn + 1) / Bn), Got);
+					if (Cn == 0) return false;
+					const P2 Qa = FromStart ? Got[0][0] : Got[Cn - 1][0], Qb = FromStart ? Got[0][1] : Got[Cn - 1][1];
+					return (FromStart ? Qa : Qb).DistanceTo(At) < 0.05 && Standing(Qa, Qb);
+				};
 				for (size_t I = 0; I + 1 < F.Line.size(); ++I)
 				{
 					const P2 A = F.Line[I], B = F.Line[I + 1];
@@ -559,6 +584,34 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							continue;
 						}
 						Stretch(Foot, Top, -0.4, High, Colour, IsWall);
+						if (IsWall && Fine)
+						{
+							const P2 BitA = A + (B - A) * (double(K) / Bits), BitB = A + (B - A) * (double(K + 1) / Bits);
+							bool OnBefore = false, OnAfter = false;
+							if (Pc == 0 && Pa.DistanceTo(BitA) < 0.05)
+							{
+								if (K > 0) OnBefore = CarriesOn(Pa, I, K - 1, false);
+								else if (I > 0) OnBefore = CarriesOn(Pa, I - 1, BitsOf(I - 1) - 1, false);
+								else if (Closed) OnBefore = CarriesOn(Pa, LineN - 2, BitsOf(LineN - 2) - 1, false);
+							}
+							if (Pc == Count - 1 && Pb.DistanceTo(BitB) < 0.05)
+							{
+								if (K + 1 < Bits) OnAfter = CarriesOn(Pb, I, K + 1, true);
+								else if (I + 2 < LineN) OnAfter = CarriesOn(Pb, I + 1, 0, true);
+								else if (Closed) OnAfter = CarriesOn(Pb, 0, 0, true);
+							}
+							// (an end face: across the wall, its foot to its top, and the top stones' end above it)
+							for (int End = 0; End < 2; ++End)
+							{
+								if (End == 0 ? OnBefore : OnAfter) continue;
+								const P2 E = End == 0 ? Pa : Pb;
+								const double Ge = End == 0 ? Ga : Gb;
+								const double Outward = End == 0 ? -1.0 : 1.0;
+								const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.6, E.Z + Dir.Z * Outward * 50.0);
+								Quad(Into, At3(E.X + Side.X * Foot, Ge - 0.4, E.Z + Side.Z * Foot), At3(E.X - Side.X * Foot, Ge - 0.4, E.Z - Side.Z * Foot),
+									At3(E.X - Side.X * Top, Ge + High, E.Z - Side.Z * Top), At3(E.X + Side.X * Top, Ge + High, E.Z + Side.Z * Top), Away, Mask, false, 0.22f);
+							}
+						}
 						// (beenster, build 141: walls "low def". Near a road on the finest squares, a dry stone wall
 						// has its coping: a row of upright stones along its top, each its own height and lean)
 						if (IsWall && Step <= 4.5)

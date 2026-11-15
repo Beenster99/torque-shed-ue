@@ -2911,12 +2911,33 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
 				const float* Looks[Lines - 1] = {KerbStone, KerbStone, Paving, nullptr, Paving};
 				P2 Kerbline[Lines][Segs + 1];
+				// (beenster, build 147, Whaley Bridge: "kerb lines don't match up". Each line round the corner is
+				// the same curve as the kerb's, drawn on its own corner: where the two roads' lines that far out
+				// from their edges meet, so on a tight corner it is a smaller curve, never one crossing itself,
+				// and it starts and ends square to each road, on the line its straight pavement runs on)
+				const P2 Dm = CurveDir[0], Ds = CurveDir[Segs];
+				const P2 ToCornerMain = Corner - OnMain, ToCornerSide = Corner - OnSide;
 				for (int Ln = 0; Ln < Lines; ++Ln)
+				{
+					const P2 A0 = OnMain + Dm * Outs[Ln], B0 = OnSide + Ds * Outs[Ln];
+					// (A0 + T ToCornerMain = B0 + R ToCornerSide)
+					const double Det = ToCornerMain.X * (-ToCornerSide.Z) - ToCornerMain.Z * (-ToCornerSide.X);
+					P2 C0 = Corner + (Dm + Ds) * (Outs[Ln] * 0.5);
+					if (std::fabs(Det) > 1e-6)
+					{
+						const P2 Rhs = B0 - A0;
+						const double T = (Rhs.X * (-ToCornerSide.Z) - Rhs.Z * (-ToCornerSide.X)) / Det;
+						if (T > -0.5 && T < 1.5) C0 = A0 + ToCornerMain * T;
+					}
 					for (int S = 0; S <= Segs; ++S)
 					{
-						Kerbline[Ln][S] = CurveAt[S] + CurveDir[S] * Outs[Ln];
+						const double U = double(S) / Segs;
+						Kerbline[Ln][S] = A0 * ((1.0 - U) * (1.0 - U)) + C0 * (2.0 * U * (1.0 - U)) + B0 * (U * U);
+						// (and never running back against the corner's own curve, so no strip folds over)
 						if (S > 0 && Dot(Kerbline[Ln][S] - Kerbline[Ln][S - 1], CurveAt[S] - CurveAt[S - 1]) <= 0.0) Kerbline[Ln][S] = Kerbline[Ln][S - 1];
+						if (Ln > 0 && Dot(Kerbline[Ln][S] - Kerbline[Ln - 1][S], CurveDir[S]) < 0.0) Kerbline[Ln][S] = Kerbline[Ln - 1][S];
 					}
+				}
 				for (int Ln = 0; Ln + 1 < Lines; ++Ln)
 				{
 					if (Looks[Ln] == nullptr) continue;

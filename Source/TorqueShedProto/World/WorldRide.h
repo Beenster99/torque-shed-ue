@@ -47,9 +47,17 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <cmath>
 
 namespace TorqueWorld
 {
+// (beenster, build 147: walls "very low def", their top stones smeared. The game draws these UVs at half
+// precision, a quarter metre apart at 300 m up a fell and half a metre 600 m along a square: each face's
+// metres of UV start again within UvRepeat of nought. 18 m is a whole number of every scan's repeat on
+// stone, masonry, moss and brick, so the faces still meet but where a face crosses a multiple of it.)
+constexpr double UvRepeat = 18.0;
+inline double UvShift(double At) { return std::floor(At / UvRepeat) * UvRepeat; }
+
 struct RoadPoint
 {
 	P2 At;
