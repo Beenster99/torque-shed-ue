@@ -457,6 +457,63 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			}
 		}
 	}
+	// [6F] Countdown markers before a motorway's exits: where a slip road leaves the ride's road on a
+	// motorway (bearing off ahead, on the nearside), three bars at 300 yards, two at 200, one at 100.
+	// (Junction numbers and gantries wait for the map's motorway_junction points in the roadx bake.)
+	for (size_t Pn = 1; Pn + 1 < PathNodes.size(); ++Pn)
+	{
+		const PathNode& J = PathNodes[Pn];
+		const int Before = PathNodes[Pn - 1].Next, After = J.Next;
+		if (J.Node < 0 || size_t(J.Node) >= G.Nodes.size() || Before < 0 || After < 0) continue;
+		if (G.ClassOf(Before) != "motorway" || G.ClassOf(After) != "motorway") continue;
+		const size_t I = PointAt(J.Along);
+		for (int Way : {1, -1})
+		{
+			// (a one-way carriageway only the way it runs)
+			if (Road[I].OneWay && Way < 0) continue;
+			const P2 Going = Dir(I) * double(Way);
+			const P2 NearSide = P2(Going.Z, -Going.X) * Keep;   // (the left in Britain)
+			bool Exit = false;
+			for (int E : G.Adjacent[size_t(J.Node)])
+			{
+				// (a slip road: mapped as a link, or as motorway where the bake keeps no links; one that can be
+				// ridden away from here, not one joining)
+				if (E == Before || E == After || (G.ClassOf(E) != "motorway_link" && G.ClassOf(E) != "motorway")) continue;
+				const RoadEdge& Ed = G.Edges[size_t(E)];
+				if (!(Ed.Oneway == 0 || (Ed.Oneway == 1 && Ed.A == J.Node) || (Ed.Oneway == -1 && Ed.B == J.Node))) continue;
+				const P2 H = HeadingOut(E, J.Node);
+				// (a slip runs alongside at first: which side it is on 100 m along it, against the ride's road there)
+				const bool FromA = Ed.A == J.Node;
+				P2 Far = FromA ? Ed.Line.back() : Ed.Line.front();
+				double Run = 0.0;
+				for (size_t Kk = 1; Kk < Ed.Line.size(); ++Kk)
+				{
+					const P2& P0 = FromA ? Ed.Line[Kk - 1] : Ed.Line[Ed.Line.size() - Kk];
+					const P2& P1 = FromA ? Ed.Line[Kk] : Ed.Line[Ed.Line.size() - 1 - Kk];
+					Run += P0.DistanceTo(P1);
+					if (Run >= 100.0) { Far = P1; break; }
+				}
+				const size_t Ka = PointAt(std::clamp(J.Along + Way * std::fmin(Run, 100.0), 0.0, Length));
+				const P2 Off = Far - Road[Ka].At;
+				Exit = Exit || (H.X * Going.X + H.Z * Going.Z > 0.5 && Off.X * NearSide.X + Off.Z * NearSide.Z > 2.0);
+			}
+			if (!Exit) continue;
+			for (int Bars = 3; Bars >= 1; --Bars)
+			{
+				const double At = J.Along - Way * Bars * 91.44;
+				if (At < 10.0 || At > Length - 10.0) continue;
+				const size_t K = PointAt(At);
+				Furnish F;
+				F.Kind = Countdown;
+				F.Mapped = false;
+				F.Size = Bars;
+				F.At = Verge(K, Way * Keep, 1.2 + 0.45);
+				F.Face = Dir(K) * -double(Way);
+				F.Height = Ground(F.At.X, F.At.Z);
+				if (!std::isnan(F.Height) && OffAll(F.At, 0.8)) Out.push_back(F);
+			}
+		}
+	}
 	// [6D/6E] Boundaries: where the ride's road crosses a mapped county or country border and the places
 	// either side (3 km off along the road) are in different ones, a white board each way naming the one
 	// being entered: the county's name; a country's welcome ("Croeso i Gymru" above "Welcome to Wales").

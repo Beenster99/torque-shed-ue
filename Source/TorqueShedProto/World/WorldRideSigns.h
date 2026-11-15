@@ -121,6 +121,9 @@ bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHig
 bool ConfirmBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Lines, double& W, double& H);
 // A junction's flag: pointing ('<' left or '>' right first) with its place and miles: "<Askrigg\t3".
 bool FlagBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Words, double& W, double& H);
+// [OSM stage 6F] A motorway exit's countdown marker: blue, Bars white stripes slanting up to the left (3 at
+// 300 yards, 2 at 200, 1 at 100), 0.9 by 1.2 m about At.
+void Countdown(RideMesh& Into, RideMesh& Back, const Frame& At, int Bars);
 // Miles as signs show them: halves under three ("½", "1½"), whole miles after; "" under a quarter.
 std::string Miles(double Metres);
 } // namespace SignPlate

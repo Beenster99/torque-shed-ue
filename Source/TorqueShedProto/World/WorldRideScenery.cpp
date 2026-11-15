@@ -1636,6 +1636,15 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			else SignPlate::ConfirmBoard(&Out.SignsOf(), &Out, P, Cap, int(F.Size), F.Text, W, H);
 			break;
 		}
+		case Countdown:
+		{
+			// [OSM stage 6F] Its plate's foot 0.9 m up, on two posts behind it.
+			SignPlate::Frame P;
+			P.X = F.At.X; P.Z = F.At.Z; P.Y = Y + 0.9 + 0.6; P.Fx = Face.X; P.Fz = Face.Z;
+			for (double Su : {-0.3, 0.3}) Post(F.At.X + Side.X * Su - Face.X * 0.05, F.At.Z + Side.Z * Su - Face.Z * 0.05, Y - 0.3, P.Y + 0.55, 0.04, 0.035, Grey);
+			SignPlate::Countdown(Out.SignsOf(), Out, P, int(F.Size));
+			break;
+		}
 		case BrownFlag:
 		{
 			// [OSM stage 6D] A brown sign's flag on a post behind it, its foot 1.2 m up.

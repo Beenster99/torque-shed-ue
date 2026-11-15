@@ -583,6 +583,21 @@ bool SetOn(RideMesh& Into, const Frame& At, double U, double V, double Cap, cons
 }
 } // namespace
 
+void Countdown(RideMesh& Into, RideMesh& Back, const Frame& At, int Bars)
+{
+	static const float Blue[3] = {0.0f, 0.05f, 0.25f}, White[3] = {0.75f, 0.75f, 0.74f}, Grey[3] = {0.16f, 0.16f, 0.165f};
+	const double W = 0.9, H = 1.2;
+	Plate(Into, Back, At, Rect(W, H, 0.04), Blue, 0.0, White, Grey);
+	const int N = std::clamp(Bars, 1, 3);
+	const double Band = 0.13, Pitch = H / 3.4;
+	for (int K = 0; K < N; ++K)
+	{
+		const double V = (double(N) - 1.0) * Pitch * 0.5 - double(K) * Pitch;
+		// (from the lower right up to the upper left, inside the plate's edge)
+		Poly(Into, At, {W * 0.4, V - 0.2, W * 0.4, V - 0.2 + Band, -W * 0.4, V + 0.2 + Band, -W * 0.4, V + 0.2}, 0.003, White);
+	}
+}
+
 std::string Miles(double Metres)
 {
 	const double M = Metres / 1609.344;

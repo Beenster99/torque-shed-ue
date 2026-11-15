@@ -197,6 +197,7 @@ int main()
 			Ok = Ok && SignPlate::ConfirmBoard(&Dir, &DirBack, SignPlate::Frame(), 0.15, SignPlate::SchemeLocal, "Hawes\t12|Leyburn\t28", Wd, Hd);
 			Ok = Ok && SignPlate::FlagBoard(&Dir, &DirBack, SignPlate::Frame(), 0.12, SignPlate::SchemeLocal, "<Askrigg\t3", Wd, Hd);
 			Ok = Ok && !SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), 0.15, 0, "^Hawes", Wd, Hd);   // (no side: no sign)
+			SignPlate::Countdown(Dir, DirBack, SignPlate::Frame(), 3);   // ([6F] a motorway exit's 300 yard marker)
 			for (size_t T = 0; T < Dir.Idx.size(); T += 3)
 			{
 				const float* A = &Dir.Pos[Dir.Idx[T] * 3];
