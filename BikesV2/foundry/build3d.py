@@ -696,12 +696,25 @@ def build(model):
         u = max(0.0, min(1.0, (430 - p[0]) / max(1.0, 430 - x_end)))
         return sub_w + (50 - sub_w) * u
 
+    frame_runs = [("head", [(head_t[0], 0, head_t[1]), (head_b[0], 0, head_b[1])], 31)]   # every tube as built, for the weld beads
+    SUB_OUT = 132      # Definition pass: the seat rails stay outside the side panels as far as the pillion hanger
     for i, tb in enumerate(fr["tubes"]):
         pts = [nodes[n] for n in tb["path"]]
         sub = tb.get("cls") == "sub"
         for s in (-1, 1):
             p3 = [(p[0], s * (sub_half(p) if sub else half(p)), p[1]) for p in pts]
+            if sub and DETAIL["on"] and "sub_y" not in fr:
+                # the visible rails run back outside the panels and stop at the hanger node; from there the
+                # rails carry on hidden inside the tail, so no tube cuts through the bodywork (beenster, round 4)
+                z3 = nodes.get("S3", (0, 770))[1]
+                first = [(p[0], s * (half(p) if p[0] >= 500 else (SUB_OUT if p[1] < z3 + 30 else 92)), p[1]) for p in pts[:2]]
+                tube(f"frame{i}{s}", first, tb["w"] / 2, framem)
+                frame_runs.append((f"frame{i}{s}", first, tb["w"] / 2))
+                if len(pts) > 2:
+                    tube(f"frame{i}{s}in", [(p[0], s * min(60, sub_half(p)), p[1]) for p in pts[1:]], tb["w"] / 2, framem)
+                continue
             tube(f"frame{i}{s}", p3, tb["w"] / 2, framem)
+            frame_runs.append((f"frame{i}{s}", p3, tb["w"] / 2))
         if sub:
             e_ = pts[-1]
             tube(f"framecross{i}", [(e_[0], -sub_half(e_), e_[1]), (e_[0], sub_half(e_), e_[1])], tb["w"] / 2, framem)
@@ -945,6 +958,8 @@ def build(model):
         spec = model.get("widths", {}).get(part, WIDTHS[part])
         if DETAIL["on"] and part == "tank" and model["family"].lower() in ("naked", "cafe", "classic", "sport"):
             spec = dict(spec, knee=(0.04, 0.6, 0.16))
+        if DETAIL["on"] and part == "tail" and trellis and "tail" not in model.get("widths", {}):
+            spec = dict(spec, w=[[0, 55], [0.4, 98], [1, 104]])      # the tail's front tucks in behind the side panels
         loft(part, outline, spec, (mat("seat", hex_rgb(col["seat"])) if col.get("seat") else mat("seat")) if part == "seat" else paint)
     for i, shp in enumerate(body.get("tail", [])[1:]):
         if shp["cls"] == "redlens":
