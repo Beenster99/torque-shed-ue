@@ -842,8 +842,9 @@ public:
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
-	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or more.
-	void FarBuildingsTile(double X0, double Z0, double Size, double Coarse, double MinArea, RideMesh& Out) const;
+	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or
+	// more, the biggest Most of them.
+	void FarBuildingsTile(double X0, double Z0, double Size, double Coarse, double MinArea, RideMesh& Out, size_t Most = 2500) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn

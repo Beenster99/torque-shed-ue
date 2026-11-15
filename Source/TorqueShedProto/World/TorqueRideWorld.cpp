@@ -334,6 +334,12 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.NavTo = N.ToTurn;
 	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
 	Dash.NavExit = N.Exit;   // [OSM stage 5B]
+	// [build 148] (the hub's robot rides look for it in the log: the HUD's words, once a roundabout)
+	if (N.Exit > 0 && N.Exit != Ride->LastNavExit)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s%s%s in %.0f m"), *FTorqueDash::ExitWords(N.Exit), N.Onto.empty() ? TEXT("") : TEXT(", "), UTF8_TO_TCHAR(N.Onto.c_str()), N.ToTurn);
+	}
+	Ride->LastNavExit = N.Exit;
 	Dash.NavLeft = N.ToFinish;
 	Dash.bAtFuel = N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0;
 	// [OSM stage 1] The road's facts.

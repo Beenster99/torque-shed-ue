@@ -933,6 +933,56 @@ int main(int Argc, char** Argv)
 			PropsAt += double(Mesh.Props.size());
 			Count(&Mesh, "ground", Lv);
 		}
+		// (WORLD_RIDE_DRAW_PARTS=1: the levels 0 and 1 squares' standing things by what draws them, and
+		// how long each takes)
+		if (std::getenv("WORLD_RIDE_DRAW_PARTS") != nullptr)
+			for (int Lv = 0; Lv <= 1; ++Lv)
+			{
+				std::map<std::string, std::array<double, 2>> Parts;
+				const auto Tris = [](const RideMesh& M)
+				{
+					double T = 0.0;
+					const std::function<void(const RideMesh*)> Add = [&](const RideMesh* Mm)
+					{
+						if (!Mm) return;
+						T += double(Mm->Idx.size() / 3);
+						for (const RideMesh* Sub : {Mm->Extra.get(), Mm->Stone.get(), Mm->Masonry.get(), Mm->Render.get(), Mm->Roofing.get(), Mm->Brickwork.get(), Mm->Night.get(), Mm->Signals.get(), Mm->Signs.get()}) Add(Sub);
+					};
+					Add(&M);
+					return T;
+				};
+				for (const std::array<long long, 3>& Key : Keys)
+				{
+					if (Key[0] != Lv) continue;
+					const double Sz = SizeOf(Lv), Kx = double(Key[1]) * Sz, Kz = double(Key[2]) * Sz;
+					const double StepHere = Sz / CellsOf[Lv];
+					const int Detail = StepHere <= 4.5 ? 2 : 1;
+					const auto Time = [&](const char* Name, const std::function<void(RideMesh&)>& Make)
+					{
+						RideMesh M;
+						M.OriginX = Kx;
+						M.OriginZ = Kz;
+						const auto Began = std::chrono::steady_clock::now();
+						Make(M);
+						Parts[Name][0] += Tris(M);
+						Parts[Name][1] += std::chrono::duration<double>(std::chrono::steady_clock::now() - Began).count();
+					};
+					Time("scenery (all)", [&](RideMesh& M) { Plan->SceneryTile(Kx, Kz, Sz, StepHere, M); });
+					Time("buildings", [&](RideMesh& M)
+					{
+						RideMesh Washed, Houses, Roofs, Bricks;
+						Plan->BuildingsTile(Kx, Kz, Sz, StepHere <= 4.5, Plan->LookHere(Kx + Sz * 0.5, Kz + Sz * 0.5), M, Washed, Houses, Roofs, Bricks);
+						for (RideMesh* Sub : {&Washed, &Houses, &Roofs, &Bricks}) { M.Idx.insert(M.Idx.end(), Sub->Idx.begin(), Sub->Idx.end()); }
+					});
+					Time("skyline", [&](RideMesh& M) { Plan->SkylineTile(Kx, Kz, Sz, Detail, M); });
+					Time("fields", [&](RideMesh& M) { Plan->FieldsTile(Kx, Kz, Sz, Detail, M); });
+					Time("wild", [&](RideMesh& M) { Plan->WildTile(Kx, Kz, Sz, Detail, M); });
+					Time("towers", [&](RideMesh& M) { Plan->TowersTile(Kx, Kz, Sz, Detail, M); });
+					Time("places", [&](RideMesh& M) { Plan->PlacesTile(Kx, Kz, Sz, Detail, M); });
+					Time("rings", [&](RideMesh& M) { Plan->RingsTile(Kx, Kz, Sz, Detail, M); });
+				}
+				for (const auto& [Name, A] : Parts) std::printf("Draw parts level %d: %-14s %9.0f triangles, %.2f s\n", Lv, Name.c_str(), A[0], A[1]);
+			}
 		int Pieces = 0;
 		for (const int Which : Plan->RoadsNear(Round, false))
 		{

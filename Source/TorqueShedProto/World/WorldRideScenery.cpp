@@ -662,7 +662,10 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 	std::shared_ptr<RideMesh> Roofs = std::make_shared<RideMesh>(), Bricks = std::make_shared<RideMesh>();
 	Roofs->OriginX = Bricks->OriginX = X0;
 	Roofs->OriginZ = Bricks->OriginZ = Z0;
-	BuildingsTile(X0, Z0, Size, Fine, Look, Out, *Washed, *Houses, *Roofs, *Bricks);
+	// (hub, build 148: the buildings were the game thread's biggest cost in towns, 32 ms a frame in York;
+	// past the finest squares, 400 m and more off, each is a plain block under its roof, as further out)
+	if (Fine) BuildingsTile(X0, Z0, Size, Fine, Look, Out, *Washed, *Houses, *Roofs, *Bricks);
+	else FarBuildingsTile(X0, Z0, Size, Coarse, 0.0, Out, 8000);
 
 	// Trees, where the map's canopy says there are some: stand-in shapes on a scattered grid, as tall
 	// as the canopy, broadleaved (round) or needleleaved (pointed).

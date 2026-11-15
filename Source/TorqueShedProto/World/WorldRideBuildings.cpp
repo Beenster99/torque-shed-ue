@@ -666,14 +666,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 // distance"): the coarse squares had no buildings at all, so villages and towns vanished past a few
 // hundred metres. Each building as a plain block under a plain pitched roof, its colours as the look
 // of the place would give it, 12 triangles; the small ones left out the farther the square.
-void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse, double MinArea, RideMesh& Out) const
+void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse, double MinArea, RideMesh& Out, size_t Most) const
 {
 	using namespace RideSceneBits;
 	if (!Scene || !Land) return;
 	const Region& G = Area.Roads;
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
 	static const Rgb Stone = {0.30f, 0.28f, 0.245f}, Slate = {0.085f, 0.085f, 0.095f}, StoneSlate = {0.17f, 0.155f, 0.13f};
-	// (the biggest first, and no more than 2,500 a square: a city's far square stays light)
+	// (the biggest first, and no more than Most a square: a city's far square stays light)
 	std::vector<std::pair<double, int>> Chosen;
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
@@ -687,7 +687,6 @@ void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse
 				Chosen.emplace_back(-B.W * B.D, Index);
 			}
 		}
-	constexpr size_t Most = 2500;
 	if (Chosen.size() > Most)
 	{
 		std::nth_element(Chosen.begin(), Chosen.begin() + std::ptrdiff_t(Most), Chosen.end());

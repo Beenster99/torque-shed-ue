@@ -165,6 +165,7 @@ private:
 	std::shared_ptr<const TorqueWorld::RoamArea> Roam;
 	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
 	FRideNavState NavState;
+	int32 LastNavExit = 0;      // [build 148] the roundabout exit the sat nav last said (for the log), 0 none
 	int32 LastPlaceStop = -1;   // [places stage 2] the place stop the rider was last at (for the log), -1 none
 	int32 LastViewSpot = -1;     // [places stage 7] the view spot the walker was last at, -1 none
 	bool bFirstVisitHere = false;   // [places stage 7] LastPlaceStop was new to this profile's visited list

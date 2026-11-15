@@ -23,6 +23,7 @@
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
 #include "World/TorqueRideWorld.h"
+#include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -716,7 +717,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
-		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb"))
+		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -735,6 +736,34 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			if (P.Num() >= 3) Said(Bike->TestPlaceAt(FCString::Atod(*P[1]), FCString::Atod(*P[2]), P.Num() > 3 ? FCString::Atod(*P[3]) : -90.0));
 			else Said(Bike->TestPlaceAt(0.0, 0.0, 0.0, false));
+			return true;
+		}
+		// [build 148] placestop[:N] (Ride UK): our bike put at the nearest place's stop (its car park,
+		// lay-by or pull-off), or stop N, stopped, so the sat nav says "Arrived: ..." and the log
+		// "Torque places: arrived at ..." (the robot keeps to the road and never rides into one).
+		if (Verb == TEXT("placestop"))
+		{
+			const ATorqueRideWorld* RideWorld = nullptr;
+			for (TActorIterator<ATorqueRideWorld> It(World); It; ++It) { RideWorld = *It; break; }
+			const TorqueWorld::RidePlan* RidePlanNow = RideWorld ? RideWorld->GetPlan() : nullptr;
+			if (!RidePlanNow || RidePlanNow->PlaceStops.empty()) { Warn(TEXT("no place stops here (not on Ride UK, or none on this ride)")); return true; }
+			const FVector Here = Bike->GetActorLocation();
+			int32 Pick = P.Num() > 1 ? FCString::Atoi(*P[1]) : -1;
+			if (Pick < 0 || Pick >= int32(RidePlanNow->PlaceStops.size()))
+			{
+				double Nearest = 1e30;
+				for (int32 K = 0; K < int32(RidePlanNow->PlaceStops.size()); ++K)
+				{
+					const TorqueWorld::P2& At = RidePlanNow->PlaceStops[size_t(K)].At;
+					const double D = FVector2D(At.X * 100.0 - Here.X, At.Z * 100.0 - Here.Y).Size();
+					if (D < Nearest) { Nearest = D; Pick = K; }
+				}
+			}
+			const TorqueWorld::RidePlan::PlaceStop& Stop = RidePlanNow->PlaceStops[size_t(Pick)];
+			// (facing its board, as a rider pulled in would)
+			const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(Stop.Board.Z - Stop.At.Z, Stop.Board.X - Stop.At.X));
+			Bike->TestPlaceAt(Stop.At.X * 100.0, Stop.At.Z * 100.0, Yaw);
+			Said(FString::Printf(TEXT("at stop %d of %d, '%s'"), Pick, int32(RidePlanNow->PlaceStops.size()), UTF8_TO_TCHAR(RidePlanNow->PlaceStopName(Pick).c_str())));
 			return true;
 		}
 		// [lights] lights[:state|dipped|main|fog|off|cycle|left|right|hazard|cancel|brake|nobrake|night|day]:
