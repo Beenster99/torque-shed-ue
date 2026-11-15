@@ -237,6 +237,15 @@ stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
 `Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
 
+The PC's test runs ride Ride UK rather than the Buttertubs level. The smoke ride is Hawes to Thwaite over
+the real Buttertubs Pass, ridden by the robot from what is kept on disk:
+`-TorqueRideUK=buttertubs -TorqueAutoRide -TorqueNoInput -TorqueSmoke -TorqueWorldOffline`, ending
+with one `Torque smoke: PASS` (or `FAIL`) line: whether it got there, the falls, the knocks, the time
+and the frame rate (`-TorqueSmokeMinutes=` gives up after that long, 25 by default). Run it once
+without `-TorqueWorldOffline` to keep its map on disk. The physics preset there is
+`-TorqueShedAction=physicsuk`: each style's launch, stop from 60 and full-lean bend on the level test
+pad, as before, then `climb` up the pass's steepest 300 m (`CLIMB PASS` or `CLIMB FAIL`).
+
 ### DLSS on the 4090
 
 The project starts on Lumen with hardware ray tracing, virtual shadow maps and TSR. For DLSS, download

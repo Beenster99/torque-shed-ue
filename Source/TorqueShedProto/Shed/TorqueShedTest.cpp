@@ -23,6 +23,7 @@
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
 #include "World/TorqueRideWorld.h"
+#include "World/TorqueWorldSubsystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -234,6 +235,21 @@ const TCHAR* const PhysicsSteps =
 	TEXT("log");
 #undef TORQUE_PHYSICS_STYLE
 
+// [tests off Buttertubs] The same on Ride UK (beenster, Nov 15: the Buttertubs level is to be retired):
+// each style's reference bike ridden out onto the real road from Hawes to Thwaite over the Buttertubs
+// Pass (planned once, from what is kept on disk with -TorqueWorldOffline), the launch, the stop from 60
+// and the full-lean bend on the level test pad laid at the ride's straightest stretch (so measured as
+// the old test area's were), then the climb up the pass's steepest 300 m on the real road; then back.
+#define TORQUE_PHYSICS_UK_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideuk:buttertubs,wait:6,ridelog,launch,brakestop:60:flat,lean:max,climb,back,wait:6,")
+const TCHAR* const PhysicsUkSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TORQUE_PHYSICS_UK_STYLE("classic") TORQUE_PHYSICS_UK_STYLE("cafe") TORQUE_PHYSICS_UK_STYLE("scrambler") TORQUE_PHYSICS_UK_STYLE("tourer")
+	TORQUE_PHYSICS_UK_STYLE("roader") TORQUE_PHYSICS_UK_STYLE("naked") TORQUE_PHYSICS_UK_STYLE("sport") TORQUE_PHYSICS_UK_STYLE("race")
+	TORQUE_PHYSICS_UK_STYLE("bobber") TORQUE_PHYSICS_UK_STYLE("chopper") TORQUE_PHYSICS_UK_STYLE("cruiser") TORQUE_PHYSICS_UK_STYLE("adventure")
+	TORQUE_PHYSICS_UK_STYLE("supermoto") TORQUE_PHYSICS_UK_STYLE("mx")
+	TEXT("log");
+#undef TORQUE_PHYSICS_UK_STYLE
+
 // [rider pose] The MetaHuman sat on every style's reference bike (the scratch bike above remade as
 // each), the robot riding it down the road, pictured side on from its right, from the front on the
 // left and from behind on the right, first as the pose was before the fit per bike
@@ -353,6 +369,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("outline")) FString(TSTI::OutlineSteps).ParseIntoArray(Preset, TEXT(","), true);   // [outline test]
 		else if (T == TEXT("radioflip")) FString(TSTI::RadioFlipSteps).ParseIntoArray(Preset, TEXT(","), true);   // [radio flip]
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("physicsuk")) FString(TSTI::PhysicsUkSteps).ParseIntoArray(Preset, TEXT(","), true);   // [tests off Buttertubs]
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -626,6 +643,59 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("off the bike, parked where it stands"));
 		return true;
 	}
+	if (Verb == TEXT("rideuk"))
+	{
+		// [tests off Buttertubs] rideuk[:SPEC] (default "hawes"; "buttertubs", or four numbers as
+		// rideuk:LAT:LON:LAT:LON): the bay's bike (bay:N) ridden out onto Ride UK, the ride planned
+		// the first time and ridden again after (the same spec); waits up to 5 minutes for our bike on it.
+		UTorqueWorldSubsystem* WS = GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>();
+		if (!WS) { Warn(TEXT("no world subsystem")); return true; }
+		if (!bRideUkAsked)
+		{
+			TArray<FString> Rest;
+			for (int32 I = 1; I < P.Num(); ++I) Rest.Add(P[I]);
+			const FString Spec = Rest.Num() > 0 ? FString::Join(Rest, TEXT(",")) : FString(TEXT("hawes"));
+			if (UTorqueBuildSubsystem* RB = UTorqueBuildSubsystem::Of(World))
+			{
+				if (RB->Exists(TestBay)) RB->SetMyBike(TestBay);
+			}
+			// (RideAgain refuses a ride that failed to plan: planned afresh then)
+			const bool bAgain = Spec == RideUkSpec && WS->Ride() != nullptr && WS->RideAgain();
+			const bool bAsked = bAgain || WS->StartRide(Spec);
+			if (!bAsked) { Warn(TEXT("refused (a ride is being planned already?)")); return true; }
+			RideUkSpec = Spec;
+			bRideUkAsked = true;
+			RideUkWaited = 0;
+			Said(FString::Printf(TEXT("riding bay %d's bike out onto Ride UK (%s)%s"), TestBay + 1, *Spec, bAgain ? TEXT(", planned already") : TEXT("")));
+			return false;
+		}
+		bool bOnIt = false;
+		if (World->GetMapName().Contains(TEXT("RideUK")))
+		{
+			for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+				if (It->IsLocallyControlled()) bOnIt = true;
+		}
+		if (bOnIt)
+		{
+			bRideUkAsked = false;
+			Said(FString::Printf(TEXT("on Ride UK after %d s"), RideUkWaited));
+			return true;
+		}
+		if (!WS->IsPlanningRide() && !WS->RideNote().IsEmpty() && !World->GetMapName().Contains(TEXT("RideUK")) && RideUkWaited > 5)
+		{
+			// (planned and failed: the note says why, as the log's "Torque ride UK: FAIL" did)
+			bRideUkAsked = false;
+			Warn(TEXT("RIDE UK FAILED: ") + WS->RideNote());
+			return true;
+		}
+		if (++RideUkWaited > 300)
+		{
+			bRideUkAsked = false;
+			Warn(TEXT("RIDE UK FAILED: never on the road after 5 minutes: ") + WS->RideNote());
+			return true;
+		}
+		return false;
+	}
 	if (Verb == TEXT("back") || Verb == TEXT("walkin"))
 	{
 		// [yard] On a bike in the shed's yard: park it and walk back in.
@@ -646,7 +716,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
-		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop"))
+		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -760,6 +830,28 @@ bool UTorqueShedTest::RunStep(const FString& S)
 				Bike->TestStartMove(bBikeHit ? 3 : 2, Mph, true);
 				bMoveStarted = true;
 				Said(FString::Printf(TEXT("getting up to %.0f mph to ride into %s"), Mph, bBikeHit ? TEXT("a stopped bike") : TEXT("a wall")));
+				Tries = 0;
+				return false;
+			}
+			if (Bike->TestMoveBusy())
+			{
+				Tries = 0;
+				return false;
+			}
+			bMoveStarted = false;
+			Said(Bike->TestMoveResult());
+			return true;
+		}
+		// [tests off Buttertubs] climb[:MPH] (default 30): up the ride's steepest 300 m on the real road
+		// (TestStartMove's Kind 5); CLIMB PASS or CLIMB FAIL in its line.
+		if (Verb == TEXT("climb"))
+		{
+			const double Mph = P.Num() > 1 ? FCString::Atod(*P[1]) : 30.0;
+			if (!bMoveStarted)
+			{
+				Bike->TestStartMove(5, Mph, false);
+				bMoveStarted = true;
+				Said(FString::Printf(TEXT("up the ride's steepest climb at up to %.0f mph"), Mph));
 				Tries = 0;
 				return false;
 			}

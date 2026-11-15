@@ -215,6 +215,11 @@ public:
 	// Kind 4 is a launch on the test pad, as SimTest/realism_test's: rolling at Mph (10) it stops, stands
 	// a second, then full throttle with the weight forward on the automatic box for 10 s; the log has
 	// 0-60 mph (and 0-30, 0-100 km/h) and the quarter of the way's speed.
+	// [tests off Buttertubs] Kind 5 is a climb on the real road: the steepest 300 m or more of the ride
+	// (the Buttertubs' 1 in 4 on Hawes to Thwaite), started at its foot rolling at Mph (30), the robot
+	// riding it at up to Mph and slowing for its bends; the log has the height, grade, time, the slowest
+	// and the average speed, and CLIMB PASS (at the top, no fall, never under 3 mph, 12 mph or more on
+	// average) or CLIMB FAIL.
 	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
 	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
@@ -545,6 +550,18 @@ private:
 	FString TestMoveText;
 	void TestMoveStep();
 	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps
+	// [tests off Buttertubs] The climb (Kind 5): where it ends on Line, the height to gain, its grade and
+	// its steepest 20 m, and the slowest it went.
+	int32 TestClimbEnd = 0;
+	double TestClimbRise = 0.0, TestClimbGrade = 0.0, TestClimbSteepest = 0.0, TestSlowest = 0.0;
+	// [tests off Buttertubs] -TorqueSmoke: a hands-off ride's verdict (Hawes to Thwaite on Ride UK): the
+	// falls, the knocks, the frames (after the first 20 s) and the time, as one "Torque smoke:" line at
+	// the end of the ride, or FAIL when it hasn't got there in -TorqueSmokeMinutes= (25).
+	void SmokeWatch(float Dt);
+	void SmokeReport(bool bReachedEnd);
+	int32 SmokeFalls = 0, SmokeHits = 0, SmokeHitsWas = -1, SmokeFrames = 0, SmokeSlow = 0;
+	double SmokeClock = 0.0, SmokeFrameSum = 0.0, SmokeWorst = 0.0;
+	bool bSmokeDown = false, bSmokeDone = false;
 	double TestFirstHit = 0.0, TestPreHit = 0.0;   // the first knock's speed into it, and the speed the step before
 	bool TestFirstBike = false;
 	// Kind 2 and 3's wall or stopped bike (only these, on the pad), the hits before it, and where it is.
