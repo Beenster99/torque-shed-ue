@@ -55,7 +55,8 @@ struct FTorqueRideJobs
 	TArray<TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>>> Made;
 	TMap<FIntVector, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>> Prepared;   // by square, beside Made
 	// [perf, build 149] Pieces of road made on workers (RidePlan::RoadPiece, then readied), by piece key.
-	TArray<TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>>> RoadMade;
+	// (with the plan it was made from: a piece from a plan since grown is dropped, its road may be redrawn)
+	TArray<TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>, std::shared_ptr<const TorqueWorld::RidePlan>>> RoadMade;
 	std::atomic<int32> RoadBusy{0};
 	std::atomic<int32> Busy{0};
 	std::atomic<bool> bStop{false};
@@ -1052,7 +1053,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 					}
 					{
 						FScopeLock Hold(&Share->Lock);
-						Share->RoadMade.Emplace(Key, Made, Ready);
+						Share->RoadMade.Emplace(Key, Made, Ready, Held);
 					}
 					--Share->RoadBusy;
 				});
@@ -1168,7 +1169,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		RideCosts::FScope Cost(RideCosts::Roads);
 		for (int32 N = 0; N < 2 && (N == 0 || (FPlatformTime::Seconds() - PlaceStart) * 1000.0 < 3.0); ++N)
 		{
-			TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>> Piece;
+			TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>, std::shared_ptr<const TorqueWorld::RidePlan>> Piece;
 			{
 				FScopeLock Hold(&Jobs->Lock);
 				if (Jobs->RoadMade.Num() == 0) break;
@@ -1177,6 +1178,8 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			}
 			const int64 PieceKey = Piece.Get<0>();
 			RoadAsked.Remove(PieceKey);
+			// (made from a plan that has grown since: dropped, UpdateRoad asks again from the new one)
+			if (Piece.Get<3>() != Plan) continue;
 			if (!RoadParts.Contains(PieceKey) && Piece.Get<1>().IsValid())
 				PlaceRoadPiece(PieceKey, *Piece.Get<1>(), Piece.Get<2>().Get(), false);
 		}
