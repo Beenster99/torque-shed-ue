@@ -1485,7 +1485,7 @@ int main()
 						float Highest = -1e9f, Lowest = 1e9f;
 						for (size_t V = 0; V < Deck.Vertices(); ++V) { Highest = std::fmax(Highest, Deck.Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Deck.Pos[V * 3 + 1]); }
 						std::printf("      %d bridges and %d tunnels on it; the first deck is %d knots\n", Plan->Bridges, Plan->Tunnels, First >= 0 ? Last - First + 1 : 0);
-						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() > Plain.Vertices() && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
+						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() >= 24 && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
 							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
 					// A tunnel (the fixture's ride has none, so 30 knots of it are called one): a tube with the
@@ -1533,7 +1533,7 @@ int main()
 						const double Cut = Plan->Ground(Pm.At.X, Pm.At.Z), FarOff = Plan->Ground(Pm.At.X, Pm.At.Z, 64.0), Lie = Plan->Land->Height(Pm.At.X, Pm.At.Z);
 						std::printf("      a tunnel of 30 knots at %.2f km: its roof %.1f m over the road, the hill's lid %.1f m; %d more points than the open road\n",
 							Pm.Along / 1000.0, Roof, LidLow, int(Bore.Vertices()) - int(Open.Vertices()));
-						Check(T0 > 0 && Bore.Vertices() > Open.Vertices() + 29 * 4 * 20 && Bore.Vertices() % 4 == 0 && Near(Roof, Top, 0.01) && LidLow >= Top + 0.59 && Grass > 29 * 14 * 4 - 1 && Wall > 0 && LidTris == 29 * 14 * 2 && LidUp == LidTris
+						Check(T0 > 0 && Bore.Vertices() > 29 * 4 * 20 &&   /* (the open road's ragged country edges are finer than its pieces) */ Bore.Vertices() % 4 == 0 && Near(Roof, Top, 0.01) && LidLow >= Top + 0.59 && Grass > 29 * 14 * 4 - 1 && Wall > 0 && LidTris == 29 * 14 * 2 && LidUp == LidTris
 							&& Near(Cut, Pm.Height + RoadLine::CrossHeight(0.0, Pm.Half, Pm.Bank) - RidePlan::Sink, 1e-6) && FarOff == Lie,
 							"a tunnel is a tube with an arched roof, the hill laid back over it clear of the arch and a headwall at each mouth; the far-off land has no cutting there");
 						{

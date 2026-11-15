@@ -2423,6 +2423,38 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					Band(PaveWide, PaveWide + 0.35, KerbHigh + 0.02, -ShoulderDrop, Paving);
 					continue;
 				}
+				if (!TownEdge && !A.Deck && !B.Deck)
+				{
+					// (beenster, build 147, Jenkin Chapel: the tarmac met the grass in a hard straight line. In the
+					// country now its last few centimetres crumble into grit, as far in as each metre's own, and
+					// the grass comes up over a ragged lip of dirt: both runs of colour M_RideRoad breaks up with
+					// the gravel and grass scans' own shapes, so the edge is worn, not drawn)
+					static constexpr float EdgeGrit[3] = {0.095f, 0.088f, 0.07f};
+					const double S = Sd == 0 ? 1.0 : -1.0;
+					const auto Wob = [Which, Sd](double At, int Salt)
+					{
+						const double F = std::floor(At * 0.8), T = At * 0.8 - F, E = T * T * (3.0 - 2.0 * T);
+						return RideSceneBits::Chance(double(Which * 2 + Sd), F, Salt) * (1.0 - E) + RideSceneBits::Chance(double(Which * 2 + Sd), F + 1.0, Salt) * E;
+					};
+					const int Steps = std::max(1, int(std::ceil((Sb.Along - Sa.Along) / 1.5)));
+					for (int St = 0; St < Steps; ++St)
+					{
+						const Row R0 = Between(Sa, Sb, double(St) / Steps), R1 = Between(Sa, Sb, double(St + 1) / Steps);
+						const double C0 = 0.08 + 0.4 * Wob(R0.Along, 91) * Wob(R0.Along * 2.3, 92), C1 = 0.08 + 0.4 * Wob(R1.Along, 91) * Wob(R1.Along * 2.3, 92);
+						const double L0 = 0.12 + 0.35 * Wob(R0.Along, 93), L1 = 0.12 + 0.35 * Wob(R1.Along, 93);
+						// (offsets out from the edge, as the band runs left to right on this side)
+						const auto Band = [&](double From0, double To0, double From1, double To1, double LiftFrom, double LiftTo, const float* ColFrom, const float* ColTo)
+						{
+							if (S > 0.0) Graded(R0, R1, R0.Half + To0, R0.Half + From0, R1.Half + To1, R1.Half + From1, LiftTo, LiftFrom, ColTo, ColFrom);
+							else Graded(R0, R1, -R0.Half - From0, -R0.Half - To0, -R1.Half - From1, -R1.Half - To1, LiftFrom, LiftTo, ColFrom, ColTo);
+						};
+						Band(-C0, 0.0, -C1, 0.0, 0.004, 0.004, Tarmac, EdgeGrit);
+						Band(0.0, L0, 0.0, L1, 0.0, -ShoulderDip * 0.5, Verge, VergeGrass);
+						Band(L0, ShoulderFlat, L1, ShoulderFlat, -ShoulderDip * 0.5, -ShoulderDip, VergeGrass, VergeGrass);
+						Band(ShoulderFlat, Shoulder, ShoulderFlat, Shoulder, -ShoulderDip, -ShoulderDrop, VergeGrass, VergeGrass);
+					}
+					continue;
+				}
 				if (Sd == 0)
 				{
 					Graded(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, VergeGrass, Edge);
@@ -2446,6 +2478,51 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				if (Tb - Ta < 1e-4) continue;
 				const Row Ma = Between(A, B, Ta), Mb = Between(A, B, Tb);
 				const double Up = MarkUp(Mk.Kind);
+				if (Mk.Kind == MarkGrit)
+				{
+					// (beenster, build 147, Rainow: the grit up a lane's middle had hard straight edges. Now a
+					// ragged band, wider and narrower as it goes, its colour running from the gravel's grit in
+					// the middle out to the tarmac's own at its edges, each side its own way, and thinning to
+					// nothing at its ends: M_RideRoad lets the gravel scan's stones break through the tarmac
+					// along that run of colour, as on a gravel track's tongue)
+					static constexpr float LaneGrit[3] = {0.095f, 0.088f, 0.07f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
+					const auto Wob = [Which](double S, int Salt)
+					{
+						const double F = std::floor(S * 0.7), T = S * 0.7 - F, E = T * T * (3.0 - 2.0 * T);
+						return RideSceneBits::Chance(double(Which), F, Salt) * (1.0 - E) + RideSceneBits::Chance(double(Which), F + 1.0, Salt) * E;
+					};
+					const double Mid = (Mk.Left + Mk.Right) * 0.5, Half0 = (Mk.Left - Mk.Right) * 0.5;
+					const int Steps = std::max(1, int(std::ceil((Mb.Along - Ma.Along) / 0.8)));
+					for (int St = 0; St < Steps; ++St)
+					{
+						const Row R0 = Between(Ma, Mb, double(St) / Steps), R1 = Between(Ma, Mb, double(St + 1) / Steps);
+						// (each row's core and outer edge each side, as the band thins to its ends)
+						const auto Edges = [&](const Row& R, double* E)
+						{
+							const double Ends = std::clamp(std::fmin(R.Along - Mk.From, Mk.To - R.Along) / 4.0, 0.0, 1.0);
+							const double Core = Half0 * (0.35 + 0.6 * Wob(R.Along, 81)) * Ends;
+							E[0] = Mid + Core + (0.25 + 0.5 * Wob(R.Along, 82)) * Ends;   // (left outer)
+							E[1] = Mid + Core * (0.7 + 0.5 * Wob(R.Along, 83));
+							E[2] = Mid - Core * (0.7 + 0.5 * Wob(R.Along, 84));
+							E[3] = Mid - Core - (0.25 + 0.5 * Wob(R.Along, 85)) * Ends;   // (right outer)
+						};
+						double E0[4], E1[4];
+						Edges(R0, E0);
+						Edges(R1, E1);
+						const float* Cols[4] = {LaneTar, LaneGrit, LaneGrit, LaneTar};
+						for (int Band = 0; Band < 3; ++Band)
+						{
+							RideMesh& M = *Into;
+							const uint32_t V = uint32_t(M.Vertices());
+							Put(R0, E0[Band], Up, Cols[Band]);
+							Put(R0, E0[Band + 1], Up, Cols[Band + 1]);
+							Put(R1, E1[Band], Up, Cols[Band]);
+							Put(R1, E1[Band + 1], Up, Cols[Band + 1]);
+							M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
+						}
+					}
+					continue;
+				}
 				// ([OSM stage 5] a hump's slice rises with it)
 				Strip(Ma, Mb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Up + Mk.RiseAt(Ma.Along), Up + Mk.RiseAt(Mb.Along), Mk.Colour);
 			}
