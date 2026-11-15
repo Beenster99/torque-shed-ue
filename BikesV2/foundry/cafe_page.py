@@ -7,18 +7,14 @@ s = open(os.path.join(ROOT, 'out', 'definition_proof.html')).read()
 head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<title>Cafe Definition</title>')
 R = os.path.join(ROOT, 'out', 'renders', 'hartwell_cafe_def_')
 items = [
-    ('q', 'Whole bike, front quarter', 'front_quarter', 'The cafe lead bike with everything agreed on the naked and the sport carried over.'),
-    ('shot_rearq', 'Rear quarter, exhaust side', 'rear_quarter', 'Seat hump cut square at the back for the brake light, clip-on bars, twin shocks.'),
-    ('side', 'Side view', 'side', 'Square-on, at the same scale as the drawings. The footrests are where the rider pose work put them.'),
-    ('shot_nose', 'Round headlamp', 'headlamp', 'New for the cafe and classic families: painted bowl, rolled chrome rim, deep reflector with a projector behind domed glass, and a bracket each side clamped to the fork leg.'),
-    ('shot_tail', 'Brake light and indicators', 'tail', 'The sport rule applied: the light faces straight back, let into the end of the hump, and the indicators grow out of its housing so the plate hanger can come off.'),
-    ('shot_rearq_front', 'Front quarter, left side', 'front_left', 'Chain side: the detailed chain and sprockets, the engine cases and the header pipe.'),
-    ('shot_guard_front', 'Front mudguard', 'front_mudguard', 'Down on the tyre as on the sport, with the fork shrouds on the front of each leg.'),
-    ('shot_hugger', 'Rear hugger and chain', 'hugger', 'Short hugger bolted to the swingarm, close to the tyre.'),
-    ('shot_rear', 'Silencer outlet', 'outlet', 'Open outlet, dark inside.'),
-    ('shot_midr', 'Engine, right side', 'engine_right', 'The parallel twin with its fins, covers and pipework.'),
-    ('shot_cockpit', 'Cockpit', 'cockpit', 'Clip-ons, twin clocks and the filler cap.'),
-    ('shot_clocks', 'Clock faces', 'clocks', 'Speedometer on the left, rev counter with its red band on the right: black faces, white marks, orange needles on chrome hubs, behind glass.'),
+    ('side', 'Side view', 'side', 'Points 1, 2, 8, 11: tank lower and slimmer, saddle lifted with the seat rail now under it, the black side panel filling the frame triangle, a squarer box-section swingarm. Black cast wheels (10).'),
+    ('shot_rearq', 'Rear quarter, exhaust side', 'rear_quarter', 'Points 12, 14, 15, 16: a big megaphone silencer on a fatter header pipe; real twin shocks with black progressive springs, alloy top eyes and preload collars, their bottom eyes on lugs by the rear hub.'),
+    ('shot_loop', 'Frame loop, brake light and indicators', 'loop', 'Point 3: the seat rails carry on as one hoop round the back of the saddle, and the hoop carries a traditional red lamp with an amber indicator on a chrome stalk each side.'),
+    ('shot_midr', 'Shocks, side panel and pillion peg', 'mid_right', 'Points 7 and 8: the pillion peg hangs from two legs spread along the rail so they make a triangle; the side panel covers the frame triangle.'),
+    ('shot_cockpit', 'Cockpit', 'cockpit', 'Points 4, 5, 6: bar-end mirrors, the dials in shallow tin cans (black here, chrome is an option), polished steel levers.'),
+    ('shot_nose', 'Headlamp', 'headlamp', 'Point 13: the headlamp is now about 170 mm across. Front indicators changed to match the traditional rear ones.'),
+    ('shot_rearq_front', 'Front quarter, left side', 'front_left', 'Point 9: a shorter, bobbed front mudguard.'),
+    ('q', 'Whole bike, front quarter', 'front_quarter', ''),
 ]
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
@@ -27,7 +23,7 @@ for tag, title, slug, cap in items:
     p = R + tag + '.png'
     if not os.path.exists(p):
         continue
-    shutil.copy(p, dst + 'hartwell_cafe_r1_' + slug + '.png')
+    shutil.copy(p, dst + 'hartwell_cafe_r2_' + slug + '.png')
     im = Image.open(p).convert('RGB')
     if im.width > 1400:
         im = im.resize((1400, int(im.height * 1400 / im.width)))
@@ -55,11 +51,11 @@ for key, title, cap in OTHERS:
         others.append(f'<figure><img alt="{title}, {view}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{title}, {view}</strong> {cap if tag == "rearq_front" else ""}</figcaption></figure>')
 body = '''<main>
 <div class="k">Bike Models V2 · Definition pass · Cafe</div>
-<h1>Hartwell cafe, first look</h1>
-<p class="lede">The cafe lead bike, built from the signed-off naked and sport work, with a new classic round headlamp. The clocks now have faces. Rendered straight from the model, nothing retouched.</p>
+<h1>Hartwell cafe, round 2</h1>
+<p class="lede">Your sixteen points from 15 November, each named under the picture that shows it. Rendered straight from the model, nothing retouched.</p>
 <div class="grid">''' + '\n'.join(figs) + '</div>' + ('''
 <h1 style="margin-top:48px">The other cafes</h1>
-<p class="lede">Built automatically from the Hartwell: the same seat hump with its light and indicators, round headlamp, clocks, mudguards and chain, on each brand's own frame, engine, exhaust, tank line and wheels. First look, not yet gone over by hand.</p>
+<p class="lede">Built automatically from the Hartwell: the same seat hump with its light and indicators, round headlamp, clocks, mudguards and chain, on each brand's own frame, engine, exhaust, tank line and wheels. These still follow the first-look Hartwell; they pick up the round 2 changes once the Hartwell is signed off.</p>
 <div class="grid">''' + '\n'.join(others) + '</div>' if others else '') + '\n</main>'
 open(os.path.join(ROOT, 'out', 'cafe_definition.html'), 'w').write(head + body)
 print(len(figs), len(head + body))

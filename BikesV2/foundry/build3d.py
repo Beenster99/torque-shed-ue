@@ -908,7 +908,7 @@ def build(model):
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174
     for s in sides:
-        pillow(f"swingarm{s}", so, s * ARM_IN, s * ARM_OUT, swm, 14, 20)
+        pillow(f"swingarm{s}", so, s * ARM_IN, s * ARM_OUT, swm, *((4, 7) if sw.get("square") else (14, 20)))      # square: a box section with only its edges eased
     piv = tuple(sw["pivot"])
     tube("pivot", [(piv[0], -ARM_OUT, piv[1]), (piv[0], ARM_OUT, piv[1])], 14, mat("steel"))
     tube("axle_r", [(A[0], -ARM_OUT + 6 if len(sides) == 2 else -60, A[1]), (A[0], ARM_OUT + 6, A[1])], 14, mat("steel"))
