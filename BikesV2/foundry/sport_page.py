@@ -8,11 +8,11 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 R = os.path.join(ROOT, 'out', 'renders', 'kazeda_sport_def_')
 items = [
     ('q', 'Whole bike, front quarter', 'front_quarter', 'Mirrors now stand on the fairing, not the bars. The naked headlamp that sat on top of the nose is gone.'),
-    ('shot_rearq', 'Rear quarter, exhaust side', 'rear_quarter', 'The pipes gather into a box under the engine and leave through a stubby outlet beside the belly pan. Rearset footrests with heel plates, hugger on the swingarm.'),
+    ('shot_rearq', 'Rear quarter, exhaust side', 'rear_quarter', 'The pipes gather into a box under the engine and leave through a stubby outlet beside the belly pan. Footrests with heel plates, hugger on the swingarm.'),
     ('side', 'Side view', 'side', 'Square-on, at the same scale as the drawings.'),
     ('shot_nose', 'Nose', 'nose', 'Slim slanted lamps let flush into the nose: black surround, smoked lens, a running-light blade and two projector eyes each side. Amber indicator blades flush in the flanks, no stalks.'),
     ('shot_cockpit', 'Cockpit', 'cockpit', 'Clip-on bars with the same grips, levers and switches as the naked, and the display behind the screen.'),
-    ('shot_midl', 'Frame and rearset, left side', 'frame_left', 'Beam frame with weld seams where the beam meets the cast pivot plate, pivot cap and mount bolts. The rider footrest is 95 mm back and 115 mm higher than the drawing, so the pedals clear the fairing.'),
+    ('shot_midl', 'Frame and footrest, left side', 'frame_left', 'Beam frame with weld seams where the beam meets the cast pivot plate, pivot cap and mount bolts. The footrests stay exactly where the rider pose work put them; the lower rear edge of the fairing is cut away round the pedals instead.'),
 ]
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
