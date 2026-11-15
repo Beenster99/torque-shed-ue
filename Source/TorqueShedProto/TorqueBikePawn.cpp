@@ -42,6 +42,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
+#include "Misc/App.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Engine/GameViewportClient.h"
@@ -1279,6 +1280,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 					bFinished = true;
 					const double Minutes = GetWorld() ? GetWorld()->GetTimeSeconds() / 60.0 : 0.0;
 					UE_LOG(LogTemp, Display, TEXT("Torque ride UK: reached the end of the ride, %.1f km, %.1f min in"), RouteLengthM / 1000.0, Minutes);
+					SmokeReport(true);   // [tests off Buttertubs]
 					if (bNoInput && !FParse::Param(FCommandLine::Get(), TEXT("TorqueLejog")) && FCString::Strifind(FCommandLine::Get(), TEXT("TorqueLejog=")) == nullptr)
 					{
 						FPlatformMisc::RequestExit(false, TEXT("TorqueAutoRideEnd"));
@@ -2350,8 +2352,9 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 {
 	bTestWantFlat = bFlat || Kind == 1;
 	bTestFlat = false;
-	TestMove = FMath::Clamp(Kind, 0, 4);
-	bTestWantFlat = bTestWantFlat || TestMove >= 2;
+	TestMove = FMath::Clamp(Kind, 0, 5);
+	bTestWantFlat = TestMove == 5 ? false : bTestWantFlat || TestMove >= 2;
+	TestSlowest = 1e9;
 	TestT30 = TestT60 = TestT100k = -1.0;
 	TestStill = 0.0;
 	bTestManualWas = bManual;
@@ -2408,6 +2411,62 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		const double Score = Stray + GradeWeight * Grade;
 		if (Score < BestScore) { BestScore = Score; Best = I; }
 	}
+	if (TestMove == 5)
+	{
+		// [tests off Buttertubs] The climb: the stretch of 300 m or more that gains the most height for
+		// its length, ridden from its foot (Line runs the way the ride goes, so only up it counts).
+		const double ClimbRun = 300.0;
+		double BestGrade = -1.0;
+		int32 Foot = -1, Top = -1;
+		for (int32 I = 0; I + 1 < Line.Num(); ++I)
+		{
+			double Run = 0.0;
+			int32 J = I;
+			while (J + 1 < Line.Num() && Run < ClimbRun)
+			{
+				Run += FVector2D(Line[J + 1].X - Line[J].X, Line[J + 1].Z - Line[J].Z).Size();
+				++J;
+			}
+			if (Run < ClimbRun) break;
+			const double Grade = (Line[J].Y - Line[I].Y) / Run;
+			if (Grade > BestGrade) { BestGrade = Grade; Foot = I; Top = J; }
+		}
+		if (Foot < 0)
+		{
+			TestMoveText = TEXT("CLIMB FAIL: no 300 m of road to climb on this ride");
+			UE_LOG(LogTemp, Log, TEXT("Torque: test climb: %s"), *TestMoveText);
+			TestMove = -1;
+			bTestAutoRide = bTestRobotWas;
+			Assist = TestAssistWas;
+			return;
+		}
+		// (its steepest 20 m, to say how steep it gets)
+		double Steepest = 0.0;
+		for (int32 I = Foot; I < Top; ++I)
+		{
+			double Run = 0.0;
+			int32 J = I;
+			while (J < Top && Run < 20.0)
+			{
+				Run += FVector2D(Line[J + 1].X - Line[J].X, Line[J + 1].Z - Line[J].Z).Size();
+				++J;
+			}
+			if (Run >= 20.0) Steepest = FMath::Max(Steepest, (Line[J].Y - Line[I].Y) / Run);
+		}
+		// (and on up while it still climbs, to the top of the hill or a kilometre more)
+		double Beyond = 0.0;
+		while (Top + 1 < Line.Num() && Beyond < 1000.0 && Line[Top + 1].Y >= Line[Top].Y - 0.5)
+		{
+			Beyond += FVector2D(Line[Top + 1].X - Line[Top].X, Line[Top + 1].Z - Line[Top].Z).Size();
+			++Top;
+		}
+		TestClimbEnd = Top;
+		TestClimbRise = Line[Top].Y - Line[Foot].Y;
+		TestClimbGrade = BestGrade;
+		TestClimbSteepest = Steepest;
+		Best = Foot;
+		BestScore = BestGrade;
+	}
 	if (!Sim->EngineOn) { Sim->StopEngine(); Sim->EngineOn = true; }   // (switched off on the key: the robot needs it)
 	Sim->Heat.WarmThrough();   // the road tests' bike is warmed through, as SimTest's
 	Sim->GhostLeft = 0.0;   // solid: the crash test hits things
@@ -2428,11 +2487,68 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	Sim->Gear = Gi;
 	Sim->Rpm = TestMps / Sim->Build.RearRadius * Sim->Build.OverallRatio(Gi) * 60.0 / (2.0 * PI);
 	UE_LOG(LogTemp, Log, TEXT("Torque: test %s starts at route point %d of %d (%.0f m of road, strays and grade score %.2f m), %.0f mph in gear %d%s"),
-		Kind == 0 ? TEXT("brakestop") : Kind == 1 ? TEXT("lean") : Kind == 2 ? TEXT("crash:wall") : TEXT("crash:bike"), Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
+		Kind == 0 ? TEXT("brakestop") : Kind == 1 ? TEXT("lean") : Kind == 2 ? TEXT("crash:wall") : Kind == 3 ? TEXT("crash:bike") : Kind == 4 ? TEXT("launch") : TEXT("climb"),
+		Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
+	if (TestMove == 5)
+	{
+		// (rolling up it from here: no settling on a straight first)
+		TestPhase = 1;
+		TestClock = TestDist = 0.0;
+		TestV0 = TestMps;
+		TestFromNear = Best;
+		TestY0 = Sim->Position.y;
+	}
 }
 
-// One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
-// sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
+void ATorqueBikePawn::SmokeWatch(float Dt)
+{
+	static const bool bSmoke = FParse::Param(FCommandLine::Get(), TEXT("TorqueSmoke"));
+	if (!bSmoke || bSmokeDone || Line.Num() < 2) return;
+	SmokeClock += Dt;
+	// (the falls: each time the rider comes off; the knocks: walls and bikes hit)
+	if (Sim->IsCrashed && !bSmokeDown)
+	{
+		++SmokeFalls;
+		UE_LOG(LogTemp, Warning, TEXT("Torque smoke: fell off at %.2f km of %.1f (%.0f s in)"), RouteLengthM * double(Near) / double(Line.Num() - 1) / 1000.0, RouteLengthM / 1000.0, SmokeClock);
+	}
+	bSmokeDown = Sim->IsCrashed;
+	if (SmokeHitsWas < 0) SmokeHitsWas = Sim->HitCount;
+	SmokeHits += Sim->HitCount - SmokeHitsWas;
+	SmokeHitsWas = Sim->HitCount;
+	// (the frames, once the first squares are in: their real length)
+	if (SmokeClock > 20.0)
+	{
+		const double Real = FApp::GetDeltaTime();
+		++SmokeFrames;
+		SmokeFrameSum += Real;
+		SmokeWorst = FMath::Max(SmokeWorst, Real);
+		if (Real > 0.05) ++SmokeSlow;
+	}
+	static float Minutes = 25.f;
+	static const bool bMinutes = FParse::Value(FCommandLine::Get(), TEXT("TorqueSmokeMinutes="), Minutes);
+	(void)bMinutes;
+	if (SmokeClock > Minutes * 60.0)
+	{
+		SmokeReport(false);
+		FPlatformMisc::RequestExit(false, TEXT("TorqueSmokeTimeOut"));
+	}
+}
+
+void ATorqueBikePawn::SmokeReport(bool bReachedEnd)
+{
+	static const bool bSmoke = FParse::Param(FCommandLine::Get(), TEXT("TorqueSmoke"));
+	if (!bSmoke || bSmokeDone) return;
+	bSmokeDone = true;
+	const double Km = RouteLengthM * (bReachedEnd ? 1.0 : double(Near) / double(FMath::Max(Line.Num() - 1, 1))) / 1000.0;
+	const double Fps = SmokeFrames > 0 ? double(SmokeFrames) / FMath::Max(SmokeFrameSum, 0.001) : 0.0;
+	const bool bPass = bReachedEnd && SmokeFalls == 0;
+	const FString Text = FString::Printf(TEXT("%s: %s %.1f km of %.1f in %.1f min (%.1f mph on average); %d fall(s), %d knock(s); %.1f fps on average, the worst frame %.0f ms, %d over 50 ms"),
+		bPass ? TEXT("PASS") : TEXT("FAIL"), bReachedEnd ? TEXT("rode the whole ride,") : TEXT("DID NOT REACH THE END,"), Km, RouteLengthM / 1000.0, SmokeClock / 60.0,
+		Km * 1000.0 / FMath::Max(SmokeClock, 1.0) * 2.23694, SmokeFalls, SmokeHits, Fps, SmokeWorst * 1000.0, SmokeSlow);
+	if (bPass) { UE_LOG(LogTemp, Display, TEXT("Torque smoke: %s"), *Text); }
+	else { UE_LOG(LogTemp, Error, TEXT("Torque smoke: %s"), *Text); }
+}
+
 void ATorqueBikePawn::HoldTestSpeed(double V)
 {
 	// Throttle by the gap (less of a base at a walking pace), and the back brake once it runs over: in
@@ -2444,9 +2560,11 @@ void ATorqueBikePawn::HoldTestSpeed(double V)
 	if (RearBrake > 0.0) Throttle = 0.0;
 }
 
+// One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
+// sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
 void ATorqueBikePawn::TestMoveStep()
 {
-	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TestMove == 3 ? TEXT("crash:bike") : TEXT("launch");
+	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TestMove == 3 ? TEXT("crash:bike") : TestMove == 4 ? TEXT("launch") : TEXT("climb");
 	const double Mph = TestMps * 2.23694;
 	auto Finish = [&](const FString& Text) {
 		TestMoveText = Text;
@@ -2473,7 +2591,28 @@ void ATorqueBikePawn::TestMoveStep()
 	const double V = Sim->Speed;
 	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
-		Finish(FString::Printf(TEXT("crashed (%s, %.1f s in, %.1f m)"), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		Finish(FString::Printf(TEXT("%scrashed (%s, %.1f s in, %.1f m)"), TestMove == 5 ? TEXT("CLIMB FAIL: ") : TEXT(""), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		return;
+	}
+	if (TestMove == 5)
+	{
+		// [tests off Buttertubs] The climb: the robot rides it (ReadInput: up to TestMps, slowing for
+		// the bends); this only watches, from the foot to the top.
+		TestDist += FMath::Abs(V) * SimDt;
+		if (TestClock > 1.0) TestSlowest = FMath::Min(TestSlowest, V);
+		const bool bStalled = !Sim->EngineOn && !Sim->IsStarting();
+		if (Near >= TestClimbEnd || bStalled || TestClock > 150.0)
+		{
+			const double Rose = Sim->Position.y - TestY0, Average = TestDist / FMath::Max(TestClock, 0.01);
+			const bool bTop = Near >= TestClimbEnd;
+			const double Slowest = TestSlowest > 1e8 ? V : TestSlowest;
+			const bool bPass = bTop && !bStalled && Slowest * 2.23694 >= 3.0 && Average * 2.23694 >= 12.0;
+			Finish(FString::Printf(TEXT("CLIMB %s: %s %.0f m up %.0f m of road (%.1f%% on average over its steepest 300 m, %.1f%% at its steepest 20 m) in %.1f s; ")
+				TEXT("%.1f mph on average, %.1f mph at the slowest, %.1f mph and gear %d at the end; engine %s, %.0f C"),
+				bPass ? TEXT("PASS") : TEXT("FAIL"), bTop ? TEXT("at the top,") : bStalled ? TEXT("STALLED,") : TEXT("NOT AT THE TOP after 150 s,"), Rose, TestDist,
+				100.0 * TestClimbGrade, 100.0 * TestClimbSteepest, TestClock, Average * 2.23694, Slowest * 2.23694, V * 2.23694, Sim->Gear,
+				bStalled ? TEXT("stalled") : TEXT("running"), Sim->Heat.Engine));
+		}
 		return;
 	}
 	if (TestPhase == 0)
@@ -2760,6 +2899,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	else
 	{
 		ReadInput(DeltaSeconds);
+		SmokeWatch(DeltaSeconds);   // [tests off Buttertubs]
 		// The telemetry overlay's strips: the last 12 seconds, ten samples a second.
 		if ((TelemetryClock += DeltaSeconds) >= 0.1)
 		{

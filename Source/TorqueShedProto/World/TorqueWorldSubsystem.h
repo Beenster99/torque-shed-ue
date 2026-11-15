@@ -64,10 +64,13 @@ public:
 
 	// The level a real-world ride is ridden in.
 	static const TCHAR* RideMap;
-	// Plans a ride and opens its level when it is ready. Spec: "hawes" (Hawes to Leyburn) or
-	// "latA,lonA,latB,lonB". False if one is being planned already.
+	// Plans a ride and opens its level when it is ready. Spec: "hawes" (Hawes to Leyburn), "buttertubs"
+	// (Hawes to Thwaite over the pass) or "latA,lonA,latB,lonB". False if one is being planned already.
 	bool StartRide(const FString& Spec);
 	bool IsPlanningRide() const { return bPlanning; }
+	// [tests off Buttertubs] The ride planned last ridden again, its level opened, without planning it
+	// again; false if there is none (or one is being planned).
+	bool RideAgain();
 	// What the planning is doing now, or why the last one failed ("" for nothing to say).
 	FString RideNote() const;
 	// The ride planned last (null before any): the game mode hands it to ATorqueRideWorld.

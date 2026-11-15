@@ -65,6 +65,14 @@ static std::string ToStd(const FString& Text)
 	return std::string(TCHAR_TO_UTF8(*Text));
 }
 
+// [tests off Buttertubs] -TorqueWorldOffline: nothing fetched whatever Settings say, so a test ride
+// is ridden from what is kept on disk alone (and fails at once, saying what is missing, if it isn't).
+static bool ForcedOffline()
+{
+	static const bool bForced = FParse::Param(FCommandLine::Get(), TEXT("TorqueWorldOffline"));
+	return bForced;
+}
+
 // GETs a URL (redirects followed): the HTTP code, 0 for no answer, and the body. Blocks, so never
 // on the game thread, which is the one that has to send it.
 static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const std::string& Url, std::string& Body)
@@ -156,7 +164,7 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		return Held && !Held->bOffline ? TWSI::BlockingGet(Held, Url, Body) : 0;
 	};
 	// [stage 8] Offline or not, before anything is asked for.
-	Shared->bOffline = FTorqueSettings::Get().bWorldOffline;
+	Shared->bOffline = FTorqueSettings::Get().bWorldOffline || TWSI::ForcedOffline();
 	Shared->Cells.Offline = Shared->bOffline;
 	// [towns stage 1] The famous towns' own looks, before any ride is planned.
 	{
@@ -311,7 +319,15 @@ bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
 	FString Title = TEXT("Hawes to Leyburn");
 	TArray<FString> Given;
 	Spec.ParseIntoArray(Given, TEXT(","), true);
-	if (Given.Num() == 4)
+	// [tests off Buttertubs] "buttertubs": Hawes to Thwaite over the real Buttertubs Pass (10.9 km,
+	// 364 m of climbing, 1 in 4 at its steepest), the smoke ride and the physics preset's climb.
+	if (Spec.TrimStartAndEnd().Equals(TEXT("buttertubs"), ESearchCase::IgnoreCase))
+	{
+		Ends[2] = 54.3792;
+		Ends[3] = -2.1652;
+		Title = TEXT("Hawes to Thwaite over the Buttertubs");
+	}
+	else if (Given.Num() == 4)
 	{
 		for (int32 I = 0; I < 4; ++I) Ends[I] = FCString::Atod(*Given[I].TrimStartAndEnd());
 		Title = TEXT("Ride UK");
@@ -379,6 +395,12 @@ void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> M
 	{
 		Note = FString(TEXT("Ride UK: ")) + (Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no ride was planned."));
 		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: FAIL: %s"), Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan"));
+		// [tests off Buttertubs] A smoke ride that can't be planned (offline, its cells not kept) ends now.
+		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueSmoke")))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Torque smoke: FAIL: the ride could not be planned (%s)"), Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan"));
+			FPlatformMisc::RequestExit(false, TEXT("TorqueSmokeNoRide"));
+		}
 		return;
 	}
 	if (!bRide)
@@ -392,6 +414,14 @@ void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> M
 		return;
 	}
 	TravelTo(Made);
+}
+
+bool UTorqueWorldSubsystem::RideAgain()
+{
+	// [tests off Buttertubs] (the physics preset rides out 14 times: the road planned once)
+	if (bPlanning || !Plan || !Plan->Ok) return false;
+	TorqueWorld::Files::Write(TWSI::ToStd(RideRouteFile()), Plan->RouteJson());
+	return TravelTo(Plan);
 }
 
 bool UTorqueWorldSubsystem::RidePreview()
@@ -590,8 +620,8 @@ void UTorqueWorldSubsystem::WorldSettingsChanged()
 	if (!Shared) return;
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	const bool bWasOffline = Shared->bOffline;
-	Shared->bOffline = Set.bWorldOffline;
-	Shared->Cells.Offline = Set.bWorldOffline;
+	Shared->bOffline = Set.bWorldOffline || TWSI::ForcedOffline();
+	Shared->Cells.Offline = Shared->bOffline;
 	// (the store's own count is read on workers as they fetch: an int, written here between rides)
 	const long long Limit = (long long)FMath::Clamp(Set.WorldCacheGb, 1, 200) * 1000000000LL;
 	Shared->Cells.Keep = TorqueWorld::Cache::CellsToKeep(Limit);
