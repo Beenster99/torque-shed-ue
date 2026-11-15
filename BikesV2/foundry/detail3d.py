@@ -651,28 +651,65 @@ def nose_lamps(model, c):
 
 
 def tail_lamp(model, c):
-    """The brake light (beenster, sport round 1): a dark housing let into the end of the tail, two square LED
-    units side by side behind one red lens."""
+    """The brake light (beenster, sport rounds 1 and 2): let into the square-cut end of the tail and facing
+    straight back, two square LED units side by side behind one red lens. The rear indicators grow out of
+    the same housing, one each side, so the bike is complete with the number plate hanger taken off."""
     tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
     if not tl or model["family"].lower() != "sport":
         return
-    pts = sorted([tuple(q[:2]) for q in tl["pts"]])[:2]
-    top, bot = max(pts, key=lambda q: q[1]), min(pts, key=lambda q: q[1])
-    L_ = math.hypot(top[0] - bot[0], top[1] - bot[1])
-    u = ((top[0] - bot[0]) / L_, (top[1] - bot[1]) / L_)
-    n = (-u[1], u[0]) if -u[1] < 0 else (u[1], -u[0])
-    org = ((top[0] + bot[0]) / 2 + n[0] * 2, (top[1] + bot[1]) / 2 + n[1] * 2)
-    hh = min(19.0, L_ / 2 - 3)
+    zs = [q[1] for q in tl["pts"]]
+    xf, zc, hh = max(q[0] for q in tl["pts"]), (max(zs) + min(zs)) / 2, (max(zs) - min(zs)) / 2
+    yw = side_hit(("tail",), xf + 10, zc, 1)
+    W = max(34.0, (abs(yw[1]) if yw is not None else 56.0) - 7)
+    org, n, u = (xf, zc), (-1.0, 0.0), (0.0, 1.0)
     drop("taillight")
-    slab("taillamphouse", org, n, u, [(y * 1.0, z) for y, z in sell(47, hh + 3, 1.0, 4.5, 40)], -22, 0, B.mat("plastic"), 2.0)
+    slab("taillamphouse", org, n, u, sell(W + 3, hh + 2.5, 1.0, 3.6, 40), -30, 1.2, B.mat("plastic"), 1.0)
     lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
     lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
     lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
-    slab("taillamplens", org, n, u, sell(44, hh, 1.0, 4.5, 40), 0, 3.2, lensm, 1.2)
+    slab("taillamplens", org, n, u, sell(W, hh, 1.0, 3.6, 40), 1.0, 4.2, lensm, 1.2)
     for sg in (-1, 1):
         # two square light units: a bright frame round a darker middle, as LED tail lamps show
-        slab(f"taillampled{sg}", org, n, u, [(sg * 22 + y, z) for y, z in sell(17, hh - 5, 1.0, 4.0, 28)], 3.0, 3.7, glow("tailred", (1.0, 0.03, 0.02), 2.6), 0)
-        slab(f"taillampcore{sg}", org, n, u, [(sg * 22 + y, z) for y, z in sell(12, hh - 9.5, 1.0, 4.0, 24)], 3.6, 4.1, lensm, 0)
+        slab(f"taillampled{sg}", org, n, u, [(sg * W * 0.5 + y, z) for y, z in sell(W * 0.38, hh - 4.5, 1.0, 4.0, 28)], 4.0, 4.7, glow("tailred", (1.0, 0.03, 0.02), 2.6), 0)
+        slab(f"taillampcore{sg}", org, n, u, [(sg * W * 0.5 + y, z) for y, z in sell(W * 0.27, hh - 8.5, 1.0, 4.0, 24)], 4.6, 5.1, lensm, 0)
+    c["tail_lamp"] = (xf, zc, W)
+
+
+def plate_mount(model, c):
+    """The number plate arm's fixing (beenster, sport round 2): a cast foot bolted flat to the underside of
+    the tail, with a web each side running down on to the arm, so the arm is plainly held."""
+    body = model["body"]
+    arm = next((h for h in body.get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
+    tail = body.get("tail", [None])[0]
+    if not arm or not tail or model["family"].lower() != "sport" or not model.get("fit", {}).get("plate_hanger", True):
+        return
+    import shapes
+    drop("platemount")
+    top = max(arm["pts"], key=lambda q: q[0])
+    tp = shapes.dense(tail["pts"], True, tail.get("t", 1.0))
+    under = lambda x: shapes.top_bottom(tp, x)[1]
+    x0 = top[0] - 12
+    d = (-60.0, under(x0 - 60) - under(x0))
+    L_ = math.hypot(*d)
+    al = (d[0] / L_, d[1] / L_)                    # along the underside, towards the rear
+    dn = (al[1], -al[0]) if -al[0] < 0 else (-al[1], al[0])
+    if dn[1] > 0:
+        dn = (-dn[0], -dn[1])
+    org = (x0, under(x0))
+    plastic = B.mat("plastic")
+    slab("platemount_foot", org, dn, al, sell(46, 66, 1.0, 5.0, 40), -9, 9, plastic, 2.5)
+    for k, (y, t) in enumerate(((-33, -50), (33, -50), (-33, 50), (33, 50))):
+        p = (org[0] + al[0] * t + dn[0] * 9, y, org[1] + al[1] * t + dn[1] * 9)
+        lathe(f"platemount_washer{k}", p, (dn[0], 0, dn[1]), [(0, 0), (0, 8.5), (1.4, 8.5), (1.4, 0)], B.mat("steel"), 20)
+        bolt(f"platemount_bolt{k}", (p[0] + dn[0] * 1.4, y, p[2] + dn[1] * 1.4), (dn[0], 0, dn[1]), 5.0, 4.2, B.mat("steel"))
+    ap = shapes.dense(arm["pts"], True, arm.get("t", 0))
+    xa = x0 - 150
+    tb = shapes.top_bottom(ap, xa)
+    if tb:
+        r_ = (org[0] + al[0] * 62 + dn[0] * 8, org[1] + al[1] * 62 + dn[1] * 8)
+        f_ = (org[0] - al[0] * 20 + dn[0] * 8, org[1] - al[1] * 20 + dn[1] * 8)
+        for s in (-1, 1):
+            B.prism(f"platemount_web{s}", [r_, f_, (xa + 60, shapes.top_bottom(ap, xa + 60)[0] - 6), (xa, tb[0] - 3)], s * 15 - 4, s * 15 + 4, plastic, 2.0)
 
 
 def bubble_screen(model, c):
@@ -1096,6 +1133,16 @@ def indicators(model, c):
     if tl:
         tx = sum(q[0] for q in tl["pts"]) / len(tl["pts"])
         tz = min(q[1] for q in tl["pts"]) - 25
+        if c.get("tail_lamp"):
+            # joined to the tail light's housing (beenster, sport round 2): a slim pod each side, grown out of
+            # the housing through the flank of the tail, amber LED lens facing back
+            xf, zc, W = c["tail_lamp"]
+            amber = glow("amberled", (1.0, 0.42, 0.02), 1.2)
+            for s in (-1, 1):
+                base = (xf + 13, s * (W - 14), zc)
+                lathe(f"ind_r{s}_pod", base, (0, s, 0), [(0, 0), (0, 13), (16, 13), (24, 10), (32, 8.6), (74, 8.2), (84, 6.4), (89, 3), (90, 0)], B.mat("plastic"), 28, sharp=False, ell=(0.8, 1.0))
+                lathe(f"ind_r{s}_lens", (base[0] - 3.6, base[1], base[2]), (0, s, 0), [(31, 0), (31, 6.8), (73, 6.6), (82, 5.0), (86, 2.4), (87, 0)], amber, 28, sharp=False, ell=(0.72, 1.0))
+            return
         arm = next((h for h in model["body"].get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
         if arm and model.get("fit", {}).get("plate_hanger", True) and model["family"].lower() == "sport":
             # on the plate hanger's arm, a stalk each side, as on the reference rear views
@@ -1353,6 +1400,8 @@ def mudguard_fixings(model, c):
     paint = guard.data.materials[0]
     arc = next(v["arc"] for v in model["body"]["front_guard"] if "arc" in v)
     r_edge = arc["r1"] + 4 - 17
+    if model["family"].lower() == "sport":
+        r_edge = arc["r0"] + 5 - 28      # the sport shell sits tight on the tyre (build3d.guard_blade, tight)
     fw = (-nb[0], -nb[1])
     FY, n = 105.0, 21
     # along the leg: (t from the axle, reach forward of the leg's middle, half width across)
@@ -1632,22 +1681,24 @@ def silencers(model, c):
             drop(f"canend{i}{sg}", f"canbore{i}{sg}")
             if B.is_belly(ex, 0):
                 # a stubby sport outlet: a rolled steel lip round one big open bore, dark with soot inside
-                soot = surf("soot", (0.006, 0.006, 0.006), 0.0, 0.95, wear=0.0)
+                soot = surf("pipeblack", (0.0015, 0.0015, 0.0015), 0.0, 1.0, wear=0.0)
+                soot.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0      # soot has no sheen, even edge-on
                 bright = surf("outletlip", (0.82, 0.82, 0.84), 0.85, 0.42, wear=0.1)
-                drop(f"can{i}{sg}")
+                drop(f"can{i}{sg}", f"canbaffle{i}{sg}", f"cancore{i}{sg}")
                 lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.12, rc), (L_ * 0.92, rc)], B.mat("exhaust"), 40, caps=False)
-                # a broad polished end ring, dished in to the bore, and the perforated core tube standing in it
-                lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 1.5), (L_ - 3, rc + 1.5), (L_ + 2, rc - 3), (L_ + 2, rc - 9), (L_ - 4, rc * 0.7), (L_ - 16, rc * 0.64)], bright, 40, caps=False)
-                lathe(f"canbore{i}{sg}", a3, d3, [(L_ - 14, rc * 0.645), (L_ - 60, rc * 0.64), (L_ - 60, 0)], soot, 36, caps=False)
-                lathe(f"canbaffle{i}{sg}", a3, d3, [(L_ - 58, rc * 0.5), (L_ + 12, rc * 0.5), (L_ + 14, rc * 0.48), (L_ + 14, rc * 0.42), (L_ + 12, rc * 0.41), (L_ - 58, rc * 0.41)], bright, 32, caps=False)
-                lathe(f"cancore{i}{sg}", a3, d3, [(L_ + 10, rc * 0.405), (L_ - 40, rc * 0.405), (L_ - 40, 0)], soot, 28, caps=False)
+                # hollow (beenster, sport round 2): a thin rolled lip round ONE wide open bore that runs most
+                # of the way up the can, black with soot, with the perforated core far down inside it
+                rb = rc * 0.8
+                lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 1.5), (L_ - 4, rc + 1.5), (L_ + 1, rc - 1.5), (L_ + 1, rb + 2), (L_ - 3, rb)], bright, 40, caps=False)
+                lathe(f"canbore{i}{sg}", a3, d3, [(L_ - 2.5, rb), (L_ * 0.3, rb), (L_ * 0.3, rb * 0.55), (L_ * 0.3, 0)], soot, 40, caps=False)
+                lathe(f"cancore{i}{sg}", a3, d3, [(L_ * 0.3, rb * 0.55), (L_ * 0.62, rb * 0.55), (L_ * 0.62, rb * 0.47), (L_ * 0.3, rb * 0.47)], B.mat("exhaust_black"), 28, caps=False)
             elif not can.get("nip"):
                 black = B.mat("exhaust_black")
                 lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 2), (L_ - 12, rc * 1.0), (L_ - 3, rc * 0.93), (L_, rc * 0.84), (L_ - 1.5, rc * 0.76), (L_ - 12, rc * 0.68), (L_ - 14, rc * 0.5)], black, 40, caps=False)
                 lathe(f"canpipe{i}{sg}", a3, d3, [(L_ - 20, rc * 0.52), (L_ + 9, rc * 0.52), (L_ + 11, rc * 0.5), (L_ + 11, rc * 0.455), (L_ + 9, rc * 0.44), (L_ - 20, rc * 0.44)], steel, 36, caps=False)
                 lathe(f"canbore{i}{sg}", a3, d3, [(L_ + 8, rc * 0.438), (L_ - 34, rc * 0.438), (L_ - 34, 0)], surf("soot", (0.006, 0.006, 0.006), 0.0, 0.95, wear=0.0), 36, caps=False)
             for a_ in (0.3, 0.86):       # rivet bands
-                lathe(f"canrivetband{i}{sg}{a_}", a3, d3, [(L_ * a_, rc + 0.4), (L_ * a_, rc + 2.2), (L_ * a_ + 12, rc + 2.2), (L_ * a_ + 12, rc + 0.4)], steel, 36)
+                lathe(f"canrivetband{i}{sg}{a_}", a3, d3, [(L_ * a_, rc + 0.4), (L_ * a_, rc + 2.2), (L_ * a_ + 12, rc + 2.2), (L_ * a_ + 12, rc + 0.4), (L_ * a_, rc + 0.4)], steel, 36, caps=False)      # a ring, not a disc: a capped band plugged the outlet
 
 
 def radiator(model, c, heads, wp, wp_y):
@@ -2115,7 +2166,8 @@ def hugger(model, c):
                     bpy.data.objects.remove(ob, do_unlink=True)
     R_ = model["wheels"]["rear"]["tyre_r"]
     plastic = surf("huggerplastic", (0.03, 0.03, 0.033), 0.0, 0.42, bump=(0.2, 0.5), wear=0.15)
-    B.arc_band("hugger", {"c": A, "r0": R_ + 30, "r1": R_ + 40, "a0": 20, "a1": 68}, 94, plastic)
+    g_ = 20 if model["family"].lower() == "sport" else 0      # sport: closer still to the tyre (beenster, sport round 2)
+    B.arc_band("hugger", {"c": A, "r0": R_ + 30 - g_, "r1": R_ + 40 - g_ * 1.7, "a0": 20, "a1": 68}, 94, plastic)
     top = [tuple(q[:2]) for q in sw["outline"]]
 
     def arm_top(x):
@@ -2129,7 +2181,7 @@ def hugger(model, c):
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
-            e = (A[0] + (R_ + 19) * math.cos(w), A[1] + (R_ + 19) * math.sin(w))
+            e = (A[0] + (R_ + 19 - g_ * 0.75) * math.cos(w), A[1] + (R_ + 19 - g_ * 0.75) * math.sin(w))
             fx = e[0] + (16 if k_ == 0 else 10)
             fz = arm_top(fx) - 2
             strap(f"huggerleg{s}{k_}", [(e[0], s * 84, e[1] + 4), (e[0] + 2, s * 100, e[1] - 6), ((e[0] + fx) / 2, s * 124, (e[1] + fz) / 2 + 12), (fx, s * 142, fz + 26), (fx, s * 146, fz + 5)],
@@ -2284,6 +2336,10 @@ SHOTS = {
     "heel": ((640, -950, 620), (560, -150, 440), 85),
     "grip": ((700, -620, 1330), (1060, -300, 1050), 85),
     "outlet": ((-650, -420, 1150), (80, -40, 860), 80),
+    "tail": ((-1150, -520, 1180), (-60, 0, 900), 70),
+    "prow": ((2300, 520, 330), (1150, 0, 330), 60, ("front", "guard", "shroud", "fork", "caliper")),
+    "cowlgap": ((1950, -950, 1020), (1240, -170, 800), 90),
+    "tankbase": ((500, -1500, 1050), (860, -100, 820), 80),
     "hugger": ((-250, 1050, 900), (260, 90, 500), 70),
     "weld": ((1250, -820, 1080), (930, -120, 740), 85),
     "weld2": ((420, -1000, 900), (640, -140, 700), 70),
@@ -2333,6 +2389,7 @@ def run(build3d, model, c):
     tank_cap(model, c)
     rear_end(model, c)
     tail_lamp(model, c)
+    plate_mount(model, c)
     bubble_screen(model, c)
     chain(model, c)
     indicators(model, c)
