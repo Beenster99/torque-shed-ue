@@ -565,6 +565,36 @@ def round_lamp(model, c):
             bolt(f"lampearbolt{s}", (xb, s * 73, zc), (0, s, 0), 6.5, 4, chrome)
 
 
+def clocks(model, c):
+    """Round clocks (cafe, classic): a black face with white minute marks and bolder numerals' marks round a
+    270 degree sweep, an orange needle on a chrome hub, behind flat glass in the chrome rim. Left is the
+    speedometer, right the rev counter with its red band."""
+    d_ = (-0.45 / math.hypot(0.45, 0.89), 0.89 / math.hypot(0.45, 0.89))
+    nb = (d_[1], -d_[0])
+    white = glow("dialwhite", (0.9, 0.9, 0.86), 0.5)
+    for i, s_ in enumerate(model.get("front_end", [])):
+        if not (s_.get("circle") and s_.get("part") == "head" and s_.get("cls") == "plastic"):
+            continue
+        drop(f"clockface{i}", f"clocktick{i}", f"clockneedle{i}", f"clockhub{i}", f"clockglass{i}")
+        r_, c_ = s_["circle"] * 1.2, s_["at"]
+        for s in (-1, 1):
+            yc = s * 46
+            org = (c_[0] + d_[0] * 24.4, c_[1] + d_[1] * 24.4)
+            # +y is the rider's left, so the sweep runs clockwise as the rider reads it
+            rot = lambda rad, a, w, r0, r1: [(yc - r0 * math.sin(a) + w * math.cos(a), r0 * math.cos(a) + w * math.sin(a)), (yc - r1 * math.sin(a) + w * math.cos(a), r1 * math.cos(a) + w * math.sin(a)),
+                                             (yc - r1 * math.sin(a) - w * math.cos(a), r1 * math.cos(a) - w * math.sin(a)), (yc - r0 * math.sin(a) - w * math.cos(a), r0 * math.cos(a) - w * math.sin(a))]
+            slab(f"clockface{i}{s}", org, d_, nb, [(yc + r_ * math.cos(2 * math.pi * k / 40), r_ * math.sin(2 * math.pi * k / 40)) for k in range(40)], 0, 0.4, surf("dialblack", (0.012, 0.012, 0.013), 0.0, 0.6, wear=0.0), 0)
+            for k in range(28):
+                a = math.radians(-135 + 270 * k / 27)
+                big = k % 3 == 0
+                red = s < 0 and k >= 23
+                slab(f"clocktick{i}{s}{k}", org, d_, nb, rot(0, a, 0.9 if big else 0.45, r_ * (0.72 if big else 0.82), r_ * 0.93), 0.4, 0.7, glow("dialred", (1.0, 0.05, 0.03), 0.8) if red else white, 0)
+            a = math.radians(-135 + 270 * (0.0 if s > 0 else 0.08))
+            slab(f"clockneedle{i}{s}", org, d_, nb, rot(0, a, 1.1, -r_ * 0.18, r_ * 0.84), 1.6, 2.2, glow("needle", (1.0, 0.32, 0.02), 1.2), 0)
+            lathe(f"clockhub{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(0.4, 0), (0.4, r_ * 0.16), (3.0, r_ * 0.14), (3.4, 0)], B.mat("chrome"), 24)
+            lathe(f"clockglass{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(4.2, 0), (4.2, r_ * 1.02), (5.0, r_ * 1.02), (5.0, 0)], glass_mat(), 40)
+
+
 def display(model, c, head, house, dash=None):
     """The display: a slim tablet on a bracket, its face square to the rider's eyes."""
     F, uf, nb, fk = c["F"], c["uf"], c["nb"], c["fk"]
@@ -2376,6 +2406,7 @@ SHOTS = {
     "outlet": ((-650, -420, 1150), (80, -40, 860), 80),
     "tail": ((-1150, -520, 1180), (-60, 0, 900), 70),
     "prow": ((2300, 520, 330), (1150, 0, 330), 60, ("front", "guard", "shroud", "fork", "caliper")),
+    "clocks": ((960, 0, 1250), (1225, 0, 1010), 80),
     "cowlgap": ((1950, -950, 1020), (1240, -170, 800), 90),
     "tankbase": ((500, -1500, 1050), (860, -100, 820), 80),
     "hugger": ((-250, 1050, 900), (260, 90, 500), 70),
@@ -2421,6 +2452,7 @@ def run(build3d, model, c):
     front_end(model, c)
     headlamp(model, c)
     round_lamp(model, c)
+    clocks(model, c)
     controls(model, c)
     engine(model, c)
     silencers(model, c)        # (engines not yet detailed return early, before their exhaust)

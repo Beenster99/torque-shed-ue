@@ -62,6 +62,11 @@ def draft(name, spec):
     sw = m["swingarm"]
     if sw.get("cls") == "alu" and not sw.get("shaft"):   # a two-sided swingarm takes the cafe's pair of shocks
         m["shock"] = copy.deepcopy(c["shock"])
+    # the lead bike's square tail end (a flat face for the lamp) and, where the brand runs cast wheels, its own style
+    m["widths"] = dict(m.get("widths", {}), tail=copy.deepcopy(c["widths"]["tail"]))
+    if spec.get("wheel"):
+        for w_ in ("front", "rear"):
+            m["wheels"][w_]["style"] = spec["wheel"]
     for fn in spec.get("style", []):
         fn(m)
     path = os.path.join(ROOT, "data", "models", name + ".json")
@@ -91,9 +96,9 @@ def lodestar(m):
 
 DRAFTS = {
     "lodestar_cafe": {"base_fn": lodestar_base, "title": "Lodestar cafe (working title C1)", "style": [lodestar]},
-    "corvano_cafe": {"base": "corvano_naked", "title": "Corvano cafe (working title C1)", "kit_exhaust": 2},
-    "kazeda_cafe": {"base": "kazeda_naked", "title": "Kazeda cafe (working title C1)", "kit_exhaust": 0},
-    "rheinhart_cafe": {"base": "rheinhart_naked", "title": "Rheinhart cafe (working title C1)", "nodes": {"S3": [300, 778]}},
+    "corvano_cafe": {"wheel": "twin5", "base": "corvano_naked", "title": "Corvano cafe (working title C1)", "kit_exhaust": 2},
+    "kazeda_cafe": {"wheel": "sickle5", "base": "kazeda_naked", "title": "Kazeda cafe (working title C1)", "kit_exhaust": 0},
+    "rheinhart_cafe": {"wheel": "web10", "base": "rheinhart_naked", "title": "Rheinhart cafe (working title C1)", "nodes": {"S3": [300, 778]}},
 }
 
 if __name__ == "__main__":
