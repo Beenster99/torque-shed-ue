@@ -1591,6 +1591,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			if (bPad || FTorqueKeys::Just(PC, Keys[I])) TftPress(I);
 		}
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftOverlay)) Tft->ToggleOverlay();
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftMap)) Tft->ToggleMapTile();
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftArrange)) Tft->ToggleArrange();
 		if (Tft->Arranging())
 		{
@@ -4346,6 +4347,7 @@ FString ATorqueBikePawn::TestTft(const FString& What)
 	else if (W == TEXT("up")) TftPress(2);
 	else if (W == TEXT("down")) TftPress(3);
 	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
+	else if (W == TEXT("map")) Tft->ToggleMapTile();
 	else if (W == TEXT("arrange")) Tft->ToggleArrange();
 	else if (W == TEXT("cruise")) ToggleCruise();
 	else if (W.StartsWith(TEXT("linked")))
