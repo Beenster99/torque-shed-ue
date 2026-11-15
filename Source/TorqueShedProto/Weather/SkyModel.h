@@ -80,13 +80,14 @@ struct Looks
 	// in the shadow of a hill"). The sky light by day, times the level's (on top of SkyLightDull), by the
 	// sun's height in degrees: the lower the sun, the more of the day's light is the sky's, and the engine's
 	// capture of a low sun's sky comes out dim. Less of it as the sky dulls (the dull sky light has its own).
-	// (Build 148 at 1.9 / 1.5 stops + the sun's full difference / 0.6 local contrast looked pale all the
-	// time, with Lumen off at Medium quality: gentler since.)
-	Curve SkyFill{{{-6.0, 1.0}, {0.0, 1.25}, {10.0, 1.3}, {20.0, 1.2}, {35.0, 1.1}, {60.0, 1.0}}};
+	// (OFF by default, 147's light: build 148 with 1.9 / 1.5 stops + the sun's full difference / 0.6 local
+	// contrast looked washed out at every quality. The 147 shade that was too dark was at Medium, where
+	// Lumen is off. The figures stay in sky_looks.json to raise gently if a shade at Epic is still dark.)
+	Curve SkyFill{{{-6.0, 1.0}, {90.0, 1.0}}};
 	// By day the camera may open this many stops below the level's lowest exposure (a hill's shadow, under
 	// trees; only under a bright sky: build 148's drizzle came out washed out with it), and further as the sun is lower than the level's own (ExposureBuiltDeg): the clear sky's light
 	// at that height against now, times ExposureFollowSun, at most ExposureFollowMost stops.
-	double ExposureShadeOpen = 0.5, ExposureBuiltDeg = 32.0, ExposureFollowSun = 0.5, ExposureFollowMost = 1.5;
+	double ExposureShadeOpen = 0.0, ExposureBuiltDeg = 32.0, ExposureFollowSun = 0.0, ExposureFollowMost = 1.5;
 	// The engine's local exposure: how much of the scene's contrast stays in the shadows and in the
 	// highlights (lower lifts the shade without lifting the sky). The level's were 0.7 and 0.75.
 	double LocalShadowContrast = 0.7, LocalHighlightContrast = 0.75;
@@ -136,7 +137,7 @@ struct Looks
 	double CloudMsContribution = 0.6, CloudMsOcclusion = 0.35, CloudMsEccentricity = 0.6, CloudMsOctaves = 2.0;
 	// Under a dull sky the bounced light is turned down to this share (build 148: a drizzly overcast came
 	// out washed out and white; a deck's base is grey because little light gets through it).
-	double CloudMsDull = 0.3;
+	double CloudMsDull = 0.2;
 	// The cloud's ray marching (build 148: the drizzle's grey sky sparkled with white dots that flickered
 	// every frame, the deck too dense for the samples): the engine's samples along the view and the
 	// shadow, times its own (more is smoother and costs the GPU), and the most the material's density may
