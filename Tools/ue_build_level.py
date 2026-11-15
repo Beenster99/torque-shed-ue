@@ -301,7 +301,31 @@ SKY_PARAMS = (
     ("SunDogs", 0.0), ("Contrails", 0.0), ("Fogbow", 0.0), ("Glory", 0.0),
     ("Aurora", 0.0), ("AuroraTop", 20.0), ("AuroraBearing", 345.0), ("Nlc", 0.0),
     ("MeteorEl", 45.0), ("MeteorAz", 0.0), ("MeteorDir", 0.0), ("MeteorLen", 10.0), ("MeteorAlong", 0.0), ("Meteor", 0.0),
+    # How the cloud scatters the sun (build 147's grey cumulus): the forward and back lobes and their blend,
+    # and the light bounced about inside the cloud: its share, how much the cloud shades it, how forward.
+    ("CloudPhaseG", 0.6), ("CloudPhaseG2", -0.3), ("CloudPhaseBlend", 0.3),
+    ("CloudMsContribution", 0.6), ("CloudMsOcclusion", 0.35), ("CloudMsEccentricity", 0.6),
 )
+
+
+def sky_look(name, default):
+    """A figure from Data/Sky/sky_looks.json (any group), for what has to be built into a material."""
+    f = os.path.join(os.path.dirname(data_dir()), "Sky", "sky_looks.json")
+    try:
+        def find(o):
+            if isinstance(o, dict):
+                if name in o and isinstance(o[name], (int, float)):
+                    return o[name]
+                for v in o.values():
+                    r = find(v)
+                    if r is not None:
+                        return r
+            return None
+        r = find(json.load(open(f)))
+        return default if r is None else r
+    except Exception as e:
+        unreal.log_warning("[Torque] couldn't read %s from %s: %s" % (name, f, e))
+        return default
 _sky_mpc = None
 
 
@@ -3245,6 +3269,36 @@ def cloud_material():
                       (flash, unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
         if not mel.connect_material_property(src, "", prop):
             bad.append(str(prop))
+    # How the cloud scatters the sun (build 147: fair weather cumulus came out grey and blotchy, lit by
+    # single scattering only). The advanced output: two lobes (the silver lining towards the sun) and the
+    # light bounced about inside, its figures from MPC_Sky (sky_looks.json, no rebuild); the number of
+    # bounces (cloud_ms_octaves, 0 .. 2) and the ground's light on the base are built in.
+    adv_cls = getattr(unreal, "MaterialExpressionVolumetricAdvancedMaterialOutput", None)
+    if adv_cls is None:
+        unreal.log_warning("[Torque] cloud material: no advanced volume output in this engine (single scattering only)")
+    else:
+        adv = g.node(adv_cls, -300)
+        octaves = int(max(0, min(2, round(sky_look("cloud_ms_octaves", 2)))))
+        for k, v in (("multi_scattering_approximation_octave_count", octaves), ("ground_contribution", True),
+                     ("clamp_multi_scattering_contribution", True), ("ray_march_volume_shadow", True)):
+            if not try_set(adv, k, v):
+                unreal.log_warning("[Torque] cloud material: advanced output has no %s" % k)
+        pins = (("CloudPhaseG", "const_phase_g", ("PhaseG", "Phase G")),
+                ("CloudPhaseG2", "const_phase_g2", ("PhaseG2", "Phase G2")),
+                ("CloudPhaseBlend", "const_phase_blend", ("PhaseBlend", "Phase Blend")),
+                ("CloudMsContribution", "const_multi_scattering_contribution", ("MultiScatteringContribution", "Multi-Scattering Contribution", "Multi Scattering Contribution")),
+                ("CloudMsOcclusion", "const_multi_scattering_occlusion", ("MultiScatteringOcclusion", "Multi-Scattering Occlusion", "Multi Scattering Occlusion")),
+                ("CloudMsEccentricity", "const_multi_scattering_eccentricity", ("MultiScatteringEccentricity", "Multi-Scattering Eccentricity", "Multi Scattering Eccentricity")))
+        wired = 0
+        for name, const, names in pins:
+            json_name = {"CloudPhaseG": "cloud_phase_g", "CloudPhaseG2": "cloud_phase_g2", "CloudPhaseBlend": "cloud_phase_blend",
+                         "CloudMsContribution": "cloud_ms_contribution", "CloudMsOcclusion": "cloud_ms_occlusion",
+                         "CloudMsEccentricity": "cloud_ms_eccentricity"}[name]
+            try_set(adv, const, float(sky_look(json_name, dict(SKY_PARAMS)[name])))   # (the figure built in, if no pin takes the parameter)
+            p = sky_param(g, name)
+            if any(mel.connect_material_expressions(p, "", adv, pin) for pin in names):
+                wired += 1
+        log("cloud material: multiple scattering %d octaves, %d of 6 figures from MPC_Sky (the rest built in from sky_looks.json)" % (octaves, wired))
     mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     try:   # (a material that didn't compile shows no instructions: the log says so for the round)

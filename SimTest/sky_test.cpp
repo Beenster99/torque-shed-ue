@@ -234,8 +234,9 @@ int main()
 		const Sky D = Compute(In, L);
 		In.Weather = Cu;
 		const Sky Broken = Compute(In, L);
+		// (build 147: fair weather cumulus 600 m deep before CAPE, was 1000; CAPE 600 still heaps it well over 1.5 km)
 		std::printf("  cumulus (half cover, CAPE 600): shape %.2f, %0.f m deep; the overcast's middle deck: shape %.2f\n", S.Shape, S.Low.TopAsl - S.Low.BaseAsl, D.MidDrawn.Look.Shape);
-		Check(S.Shape < 0.2 && D.MidDrawn.Look.Shape > 0.8 && S.Low.TopAsl - S.Low.BaseAsl > 2000.0, "heaped cumulus on an unstable day, a flat deck under overcast");
+		Check(S.Shape < 0.2 && D.MidDrawn.Look.Shape > 0.8 && S.Low.TopAsl - S.Low.BaseAsl > 1500.0, "heaped cumulus on an unstable day, a flat deck under overcast");
 		Check(Broken.CloudShadows > 0.99 && Broken.SunScale > 0.99, "broken cloud drawn: its own shadows, the sun not dimmed as well");
 		Check(D.CloudShadows > 0.99 && D.SunScale > 0.99, "a closed deck drawn: the sun stays whole and the deck shades it (its underside lit grey, not by the blue sky alone)");
 		{
@@ -814,6 +815,24 @@ int main()
 		Check(TorqueWeather::Load(TorqueWeather::Save(Saved), Back) && Near(Back.Rh300, 77.0, 0.5) && Near(Back.T300, -49.5, 0.05), "the air 9 km up is saved with the weather");
 	}
 
+	// The shade by day (build 147, beenster: "11am on a sunny day and I need to put my headlights on in the
+	// shadow of a hill"; a November 11am sun at 17 degrees, Kettleshulme).
+	{
+		std::printf("\nthe shade by day (build 147)\n");
+		Looks Lk;
+		std::string Why;
+		LoadLooks(ReadFile(std::string(TORQUE_SKY_DATA) + "/sky_looks.json"), Lk, &Why);
+		const State Sunny = TorqueWeather::Preset(TorqueWeather::Sunny);
+		const Sky Nov = At(Sunny, 17.0, true, false, Lk), June = At(Sunny, 58.0, true, false, Lk), Night = At(Sunny, -20.0, true, false, Lk);
+		const Sky Grey = At(TorqueWeather::Preset(TorqueWeather::Overcast), 17.0, true, false, Lk);
+		std::printf("  sun 17: sky light x%.2f, may open %.2f stops; sun 58: x%.2f, %.2f; night: x%.2f, %.2f; overcast at 17: x%.2f\n",
+			Nov.SkyFill, Nov.ExposureOpenStops, June.SkyFill, June.ExposureOpenStops, Night.SkyFill, Night.ExposureOpenStops, Grey.SkyFill);
+		Check(Nov.SkyFill > 1.4 && Nov.ExposureOpenStops > 2.0, "a low November sun: the shade gets more sky light and the camera may open up");
+		Check(June.SkyFill < Nov.SkyFill && June.ExposureOpenStops < Nov.ExposureOpenStops, "a high summer sun needs less of both");
+		Check(Near(Night.SkyFill, 1.0, 1e-6) && Near(Night.ExposureOpenStops, 0.0, 1e-6), "at night neither (the night's exposure is its own)");
+		Check(Grey.SkyFill < 1.05, "under overcast the dull sky light has it already");
+		Check(Lk.CloudMsOctaves == 2.0 && Lk.CloudPhaseG > 0.3 && Lk.CloudMsContribution > 0.3, "the cloud scatters the sun many times, forward (white cumulus, silver linings)");
+	}
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
 }

@@ -323,7 +323,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 			Sun->MarkRenderStateDirty();
 		}
 	}
-	if (Sky) Sky->SetIntensity(SkyIntensity * (float)S.SkyLightScale);
+	if (Sky) Sky->SetIntensity(SkyIntensity * (float)(S.SkyLightScale * S.SkyFill));
 	// A real camera opens up under cloud: the exposure follows (the level's histogram range was set for
 	// sun, so it clamped and overcast came out far too dark).
 	if (Ppv)
@@ -339,10 +339,19 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		const float Dull = (float)S.Dull;
 		const float Night = 1.0f - DayLight;
 		const float Out = FMath::Clamp(Open, 0.0f, 1.0f);
-		const float Lo = FMath::Lerp(ExposureMin - 3.0f * Dull, ExposureMin - FMath::Lerp(5.0f, 3.0f, Out), Night);
+		// By day the camera may open further in a hill's shadow, and as the sun is lower than the level's
+		// own (build 147: a November 11am in shade came out as dusk, held at the level's lowest exposure).
+		// Indoors (the shed under its own lights) less of it, so the shed keeps the look it had.
+		const float ShadeOpen = (float)S.ExposureOpenStops * FMath::Lerp(0.4f, 1.0f, Out);
+		const float Lo = FMath::Lerp(ExposureMin - 3.0f * Dull - ShadeOpen, ExposureMin - FMath::Lerp(5.0f, 3.0f, Out), Night);
 		const float Hi = FMath::Lerp(ExposureMax, ExposureMin - 2.0f, Night * Out);
 		Ppv->Settings.AutoExposureMinBrightness = Lo;
 		Ppv->Settings.AutoExposureMaxBrightness = FMath::Max(Hi, Lo + 0.5f);
+		// The engine's local exposure: the shade lifted without lifting the sky (sky_looks.json).
+		Ppv->Settings.bOverride_LocalExposureShadowContrastScale = true;
+		Ppv->Settings.bOverride_LocalExposureHighlightContrastScale = true;
+		Ppv->Settings.LocalExposureShadowContrastScale = (float)FMath::Clamp(Looks.LocalShadowContrast, 0.0, 1.0);
+		Ppv->Settings.LocalExposureHighlightContrastScale = (float)FMath::Clamp(Looks.LocalHighlightContrast, 0.0, 1.0);
 	}
 	if (Fog)
 	{
@@ -402,6 +411,14 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);
 		SetMpc(SkyMpc, TEXT("MidAlbedo"), (float)Mi.Albedo);
 		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
+		// How the cloud scatters the sun (build 147: grey, blotchy cumulus): its lobes and the light
+		// bounced about inside it.
+		SetMpc(SkyMpc, TEXT("CloudPhaseG"), (float)Looks.CloudPhaseG);
+		SetMpc(SkyMpc, TEXT("CloudPhaseG2"), (float)Looks.CloudPhaseG2);
+		SetMpc(SkyMpc, TEXT("CloudPhaseBlend"), (float)Looks.CloudPhaseBlend);
+		SetMpc(SkyMpc, TEXT("CloudMsContribution"), (float)Looks.CloudMsContribution);
+		SetMpc(SkyMpc, TEXT("CloudMsOcclusion"), (float)Looks.CloudMsOcclusion);
+		SetMpc(SkyMpc, TEXT("CloudMsEccentricity"), (float)Looks.CloudMsEccentricity);
 		SetMpc(SkyMpc, TEXT("HighCover"), (float)S.HighShown);
 		SetMpc(SkyMpc, TEXT("HighSheet"), (float)S.HighSheet);
 		SetMpc(SkyMpc, TEXT("HighOpacity"), (float)Looks.HighOpacity);
@@ -1059,9 +1076,9 @@ void ATorqueSky::TickMist()
 FString ATorqueSky::Describe() const
 {
 	const TorqueSky::Sky& S = Last;
-	return FString::Printf(TEXT("sun %.1f deg (light at %.1f), block %.2f, dull %.2f, %.0f lux (EV100 %.1f; clear sky %.0f), day light %.2f, sun x%.2f, sky light x%.2f, exposure %+.2f, mie x%.2f, rayleigh x%.2f, fog x%.2f; cloud %.0f%% (drawn %.2f, shape %.2f, density %.2f) %.0f-%.0f m, drifting %.1f m/s E %.1f m/s N, its shadows %.2f; clouds %s"),
-		S.SunElevation, S.LightElevation, S.Block, S.Dull, S.GroundLux, TorqueSky::Ev100(S.GroundLux), S.ClearLux, S.DayLight, S.SunScale, S.SkyLightScale,
-		S.ExposureStops, S.MieScale, S.RayleighScale, S.FogScale, S.Cover * 100.0, S.CoverShown, S.Shape, S.Density, S.BaseAsl, S.TopAsl, S.DriftE, S.DriftN,
+	return FString::Printf(TEXT("sun %.1f deg (light at %.1f), block %.2f, dull %.2f, %.0f lux (EV100 %.1f; clear sky %.0f), day light %.2f, sun x%.2f, sky light x%.2f (shade x%.2f), exposure %+.2f (may open %.1f), mie x%.2f, rayleigh x%.2f, fog x%.2f; cloud %.0f%% (drawn %.2f, shape %.2f, density %.2f) %.0f-%.0f m, drifting %.1f m/s E %.1f m/s N, its shadows %.2f; clouds %s"),
+		S.SunElevation, S.LightElevation, S.Block, S.Dull, S.GroundLux, TorqueSky::Ev100(S.GroundLux), S.ClearLux, S.DayLight, S.SunScale, S.SkyLightScale, S.SkyFill,
+		S.ExposureStops, S.ExposureOpenStops, S.MieScale, S.RayleighScale, S.FogScale, S.Cover * 100.0, S.CoverShown, S.Shape, S.Density, S.BaseAsl, S.TopAsl, S.DriftE, S.DriftN,
 		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"))
 		+ FString::Printf(TEXT("; kinds: low %s, middle %s, high %s (veil %.2f, halo %.2f); bands low %.2f-%.2f middle %.2f-%.2f"),
 			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),

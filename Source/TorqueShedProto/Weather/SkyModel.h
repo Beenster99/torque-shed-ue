@@ -76,6 +76,18 @@ struct Looks
 	// The feed's direct sunshine set against what a clear sky would give: how much it may move the
 	// cover's guess (0 never, 1 wholly), from this sun height (degrees) up.
 	double DirectTrust = 0.5, DirectTrustFromDeg = 8.0;
+	// The light in the shade (build 147, beenster: "11am on a sunny day and I need to put my headlights on
+	// in the shadow of a hill"). The sky light by day, times the level's (on top of SkyLightDull), by the
+	// sun's height in degrees: the lower the sun, the more of the day's light is the sky's, and the engine's
+	// capture of a low sun's sky comes out dim. Less of it as the sky dulls (the dull sky light has its own).
+	Curve SkyFill{{{-6.0, 1.0}, {0.0, 1.8}, {10.0, 1.9}, {20.0, 1.6}, {35.0, 1.25}, {60.0, 1.1}}};
+	// By day the camera may open this many stops below the level's lowest exposure (a hill's shadow, under
+	// trees), and further as the sun is lower than the level's own (ExposureBuiltDeg): the clear sky's light
+	// at that height against now, times ExposureFollowSun, at most ExposureFollowMost stops.
+	double ExposureShadeOpen = 1.5, ExposureBuiltDeg = 32.0, ExposureFollowSun = 1.0, ExposureFollowMost = 3.0;
+	// The engine's local exposure: how much of the scene's contrast stays in the shadows and in the
+	// highlights (lower lifts the shade without lifting the sky). The level's were 0.7 and 0.75.
+	double LocalShadowContrast = 0.6, LocalHighlightContrast = 0.75;
 
 	// --- Air (stage 1) ---
 	// The haze by how far you can see (km): times the level's, over 8 km (below that the fog takes
@@ -97,7 +109,7 @@ struct Looks
 	Curve CoverShown{{{0.0, 0.0}, {0.1, 0.12}, {0.25, 0.3}, {0.5, 0.52}, {0.75, 0.74}, {1.0, 1.0}}};
 	// A heaped cloud's depth, metres: fair weather cumulus, and taller with CAPE (metres more per
 	// 100 J/kg, up to CapeMostM). (Every other kind's depth is its row in Kinds.)
-	double LowHeapM = 1000.0, CapeDepthPer100 = 250.0, CapeMostM = 4500.0;
+	double LowHeapM = 600.0, CapeDepthPer100 = 250.0, CapeMostM = 4500.0;
 	// Middle cloud's base, metres above sea level.
 	double MidBaseM = 3200.0;
 	// The cloud base is never lower than this above the ground under the viewer, nor higher than
@@ -112,6 +124,14 @@ struct Looks
 	double ExtinctionScale = 8.0;
 	// How grey the cloud's own colour is (MPC_Sky Albedo): white, and under rain.
 	double AlbedoFair = 1.0, AlbedoRain = 0.7;
+	// How the cloud scatters the sun (the cloud material's advanced output, MPC_Sky Cloud*; build 147's
+	// cumulus came out grey and blotchy: single scattering only). The forward lobe (the silver lining
+	// looking towards the sun), the back lobe and how the two are blended; the light that has bounced
+	// about inside the cloud (without it a cumulus is grey all through): its share, how much the cloud
+	// shades it, how forward it still goes. CloudMsOctaves (0 .. 2) is built into the material
+	// (Tools/ue_build_level.py reads it from this file).
+	double CloudPhaseG = 0.6, CloudPhaseG2 = -0.3, CloudPhaseBlend = 0.3;
+	double CloudMsContribution = 0.6, CloudMsOcclusion = 0.35, CloudMsEccentricity = 0.6, CloudMsOctaves = 2.0;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
 	// (so the sun is never dimmed twice).
 	double DeckFrom = 0.7, DeckTo = 0.95;
@@ -125,7 +145,7 @@ struct Looks
 
 	// --- Kinds of cloud (stage 3) ---
 	KindLook Kinds[KindCount] = {
-		/* cumulus */       {0.0, 0.6, 0.55, 0.7, 0.15, 0.0, 1.0, 0.0},
+		/* cumulus */       {0.0, 0.45, 0.3, 0.8, 0.15, 0.0, 1.0, 0.0},
 		/* stratocumulus */ {0.75, 0.55, 0.35, 0.9, 0.3, 700.0, 0.0, 0.0},
 		/* stratus */       {1.0, 0.1, 0.1, 1.0, 0.15, 400.0, 0.0, 0.0},
 		/* nimbostratus */  {0.9, 0.2, 0.6, 1.6, 0.6, 3000.0, 0.0, 0.0},
@@ -288,6 +308,8 @@ struct Sky
 	double FogScale = 1.0;       // times the level's height fog (the viewer's haze included)
 	double FogGlow = 1.0, FogSunGlow = 1.0;       // the fog's own glow and its glow towards the sun, times the level's
 	double ExposureStops = 0.0;  // added to the level's exposure bias
+	double ExposureOpenStops = 0.0;   // by day, how far below the level's lowest exposure the camera may open
+	double SkyFill = 1.0;        // the sky light in the shade, times the level's (on top of SkyLightScale)
 	// The cloud you see (stage 2): one layer drawn, the low and middle cloud as one.
 	Layer Low, Mid, High;
 	double Cover = 0.0;          // the real cover of the drawn layer
