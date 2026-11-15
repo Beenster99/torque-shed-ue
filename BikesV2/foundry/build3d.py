@@ -438,6 +438,11 @@ def wheel(tag, c, w, width, rim_col, discs):
             (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
     if not game_tyre(tag, c, w, hw):
         revolve(tag + "_tyre", prof, c, mat("rubber"))
+    if DETAIL["on"] and w.get("style"):
+        # a wheel from the library (wheels3d.py) at this bike's rim size; the bike keeps its tyre and discs
+        import wheels3d
+        wheels3d.fit(sys.modules[__name__], tag, c, w, width)
+        return wheel_discs(tag, c, w, discs)
     rw = hw * 0.8
     rprof = [(rr + 8, rw), (rr + 8, rw - 8), (rr - 8, rw - 14), (rr - 22, 0), (rr - 8, -rw + 14), (rr + 8, -rw + 8), (rr + 8, -rw), (rr - 26, -rw + 6), (rr - 34, 0), (rr - 26, rw - 6)]
     revolve(tag + "_rim", rprof, c, mat("rim", rim_col))
@@ -468,6 +473,10 @@ def wheel(tag, c, w, width, rim_col, discs):
             quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
             pillow(f"{tag}_spoke{k}{side}", quad, -15, 15, mat("rim", rim_col), 5, 12)
     revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("rim", rim_col), 32)
+    wheel_discs(tag, c, w, discs)
+
+
+def wheel_discs(tag, c, w, discs):
     d = w.get("disc")
     for y in discs if d else []:
         revolve(f"{tag}_disc{y}", [(d, y + 2.5), (d, y - 2.5), (d - 36, y - 2.5), (d - 36, y + 2.5)], c, mat("steel"), 64)
@@ -584,12 +593,13 @@ def guard_blade(name, a, blade, hw, material):
             return 0.0
         along = math.sin(math.pi * min(1.0, max(0.0, f))) ** 0.5
         spine = 7.5 * math.exp(-(u / 15.0) ** 2) * along
-        shoulder = -2.6 * max(0.0, min(1.0, (abs(u) - 40.0) / 6.0)) * along
-        return spine + shoulder
+        return 0.0 * spine      # plain smooth shell: the spine and pressed shoulder read as a lip (beenster, 15 Nov)
 
     def depth(deg):
-        th, best = math.radians(deg), lo - 8
+        th, best = math.radians(deg), (hi if DETAIL["on"] else lo - 8)     # Definition pass: no skirt at all away from the blades
         for rho in range(int(hi), 24, -3):
+            if DETAIL["on"]:
+                break      # Definition pass: the shell has no skirt; the fork shrouds are their own shape (detail3d.fork_shrouds)
             if _inside(blade, c[0] + rho * math.cos(th), c[1] + rho * math.sin(th)):
                 best = min(best, rho)
         return best
@@ -603,12 +613,18 @@ def guard_blade(name, a, blade, hw, material):
         f = i / segs
         k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
-        crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) + mould(u, f), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        # Definition pass: the edges of the shell just end, following the tyre; they do not curl in to a lip
+        edge = hi - (5 + 12 * min(1.0, min(f, 1 - f) / 0.3)) if DETAIL["on"] else lo     # slim towards both tips
+        if DETAIL["on"]:
+            c70 = math.cos(math.radians(70))
+            crown = [(edge + (hi - edge) * (math.cos(math.radians(u)) - c70) / (1 - c70), hw * k * math.sin(math.radians(u)) / math.sin(math.radians(70))) for u in (-70 + 140 * q / (n - 1) for q in range(n))]
+        else:
+            crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) + mould(u, f), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
         ye = crown[-1][1]
         skirt = []
         for q in range(1, K + 1):
-            rho = lo + (rin[i] - lo) * q / K
-            t_ = min(1.0, (lo - rho) / 95.0)
+            rho = edge + (min(rin[i], edge) - edge) * q / K
+            t_ = min(1.0, (edge - rho) / 95.0)
             skirt.append((rho, ye + (144 - ye) * t_ * t_ * (3 - 2 * t_)))
         sec = [(r, -y) for r, y in skirt[::-1]] + crown + skirt
         for r, y in sec:
@@ -696,12 +712,25 @@ def build(model):
         u = max(0.0, min(1.0, (430 - p[0]) / max(1.0, 430 - x_end)))
         return sub_w + (50 - sub_w) * u
 
+    frame_runs = [("head", [(head_t[0], 0, head_t[1]), (head_b[0], 0, head_b[1])], 31)]   # every tube as built, for the weld beads
+    SUB_OUT = 132      # Definition pass: the seat rails stay outside the side panels as far as the pillion hanger
     for i, tb in enumerate(fr["tubes"]):
         pts = [nodes[n] for n in tb["path"]]
         sub = tb.get("cls") == "sub"
         for s in (-1, 1):
             p3 = [(p[0], s * (sub_half(p) if sub else half(p)), p[1]) for p in pts]
+            if sub and DETAIL["on"] and "sub_y" not in fr:
+                # the visible rails run back outside the panels and stop at the hanger node; from there the
+                # rails carry on hidden inside the tail, so no tube cuts through the bodywork (beenster, round 4)
+                z3 = nodes.get("S3", (0, 770))[1]
+                first = [(p[0], s * (half(p) if p[0] >= 500 else (SUB_OUT if p[1] < z3 + 30 else 92)), p[1]) for p in pts[:2]]
+                tube(f"frame{i}{s}", first, tb["w"] / 2, framem)
+                frame_runs.append((f"frame{i}{s}", first, tb["w"] / 2))
+                if len(pts) > 2:
+                    tube(f"frame{i}{s}in", [(p[0], s * min(60, sub_half(p)), p[1]) for p in pts[1:]], tb["w"] / 2, framem)
+                continue
             tube(f"frame{i}{s}", p3, tb["w"] / 2, framem)
+            frame_runs.append((f"frame{i}{s}", p3, tb["w"] / 2))
         if sub:
             e_ = pts[-1]
             tube(f"framecross{i}", [(e_[0], -sub_half(e_), e_[1]), (e_[0], sub_half(e_), e_[1])], tb["w"] / 2, framem)
@@ -945,6 +974,8 @@ def build(model):
         spec = model.get("widths", {}).get(part, WIDTHS[part])
         if DETAIL["on"] and part == "tank" and model["family"].lower() in ("naked", "cafe", "classic", "sport"):
             spec = dict(spec, knee=(0.04, 0.6, 0.16))
+        if DETAIL["on"] and part == "tail" and trellis and "tail" not in model.get("widths", {}):
+            spec = dict(spec, w=[[0, 55], [0.4, 98], [1, 104]])      # the tail's front tucks in behind the side panels
         loft(part, outline, spec, (mat("seat", hex_rgb(col["seat"])) if col.get("seat") else mat("seat")) if part == "seat" else paint)
     for i, shp in enumerate(body.get("tail", [])[1:]):
         if shp["cls"] == "redlens":
@@ -1620,6 +1651,10 @@ if __name__ == "__main__":
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
     if "--game" in sys.argv:
         print("game files in", export_game(name, model))
+        sys.exit(0)
+    if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
+        import clip3d
+        clip3d.run(name, "--clip-accept" in sys.argv)
         sys.exit(0)
     samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
     if "--shots" in sys.argv:      # close-up pictures of single areas, for checking the Definition pass
