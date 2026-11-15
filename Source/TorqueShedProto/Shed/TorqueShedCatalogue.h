@@ -58,6 +58,7 @@ struct FBikeFrame
 	// 10 cm of the middle and no lower than 2 cm under the hips (cm, the meshes' space; huge if none).
 	// Not the whole tank's box: an adventure tank's tail runs on back under the seat (beenster, 147).
 	double TankRearX = 1.0e9;
+	FString Style;                        // the layout style it was drawn as (for the logs)
 	bool bLever[2] = {false, false};
 	FVector LeverPin[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
