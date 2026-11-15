@@ -1064,7 +1064,14 @@ def build(model):
                             fl = max(0.0, min(1.0, (x - 960) / 80.0)) * max(0.0, min(1.0, (1250 - x) / 90.0))
                             y += 22 * fl * max(0.0, min(1.0, (z - 745) / 55.0)) ** 2
                         d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
-                        return 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
+                        y = 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
+                        if DETAIL["on"] and z < 470:
+                            # the belly tapers in to a prow where the two sides meet behind the front tyre
+                            # (beenster, sport round 1): full width 280 mm back, drawn in to the middle at the front
+                            d2 = max(0.0, min(1.0, (lead_s(z) - x) / 280.0))
+                            low = max(0.0, min(1.0, (470 - z) / 150.0))
+                            y *= 1 - low * 0.62 * (1 - d2 * d2 * (3 - 2 * d2))
+                        return y
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
@@ -1125,6 +1132,9 @@ def build(model):
                 cx_ = sum(q[0] for q in ring_) / len(ring_)
                 cz_ = sum(q[1] for q in ring_) / len(ring_)
                 secs = [(120, 1.0, 1.5, 0), (190, 0.92, 1.1, -8), (255, 0.8, 0.7, -20), (312, 0.62, 0.3, -32)]
+                if DETAIL["on"]:
+                    # the tip turns down into an end plate (beenster, sport round 1, from the reference front view)
+                    secs = [(120, 1.0, 1.4, 0), (190, 0.94, 1.0, -7), (255, 0.86, 0.62, -18), (288, 0.8, 0.45, -27), (302, 0.76, 0.38, -38), (309, 0.7, 0.32, -52), (311, 0.6, 0.26, -66)]
                 for s in (-1, 1):
                     vs, fs = [], []
                     for y_, kx, kz, dz in secs:

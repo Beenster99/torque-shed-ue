@@ -633,18 +633,206 @@ def nose_lamps(model, c):
     drl = [(34, 787), (70, 797), (108, 808), (110, 804.5), (72, 793), (36, 783.5)]
     made = False
     for s in (-1, 1):
-        f = lambda pts, k=1.0: [(s * (ey + (y - ey) * k), ez + (z - ez) * k + dz) for y, z in pts]
+        # the brand's signature: long slanted eyes that sweep out and up along the nose's own lines
+        g = lambda y, z: (22 + (y - 26) * 1.34, 770 + (z - 772) * 1.3)
+        f = lambda pts, k=1.0: [(s * g(ey + (y - ey) * k, ez + (z - ez) * k)[0], g(ey + (y - ey) * k, ez + (z - ez) * k)[1] + dz) for y, z in pts]
         if not skin_patch(f"noselamp{s}", trees, f(eye, 1.16), black, 1.0):
             continue
         made = True
         skin_patch(f"noselens{s}", trees, f(eye, 0.94), smoke, 1.8)
         skin_patch(f"nosedrl{s}", trees, f(drl), glow("drl", (0.9, 0.95, 1.0), 4.0), 2.6)
         for n_, (py, pz) in enumerate(((56, 779), (86, 789))):
+            py, pz = g(py, pz)
             circ = lambda r: [(s * py + r * math.cos(2 * math.pi * k / 10), pz + dz + r * math.sin(2 * math.pi * k / 10)) for k in range(10)]
-            skin_patch(f"noseeye{s}{n_}", trees, circ(8.5), ring, 2.6)
-            skin_patch(f"noseeyeglass{s}{n_}", trees, circ(6.6), glass_mat(), 3.0)
-            skin_patch(f"noseeyeled{s}{n_}", trees, circ(2.6), glow("bulb", (1.0, 0.97, 0.9), 2.0), 3.3)
+            skin_patch(f"noseeye{s}{n_}", trees, circ(10.5), ring, 2.6)
+            skin_patch(f"noseeyeglass{s}{n_}", trees, circ(8.2), glass_mat(), 3.0)
+            skin_patch(f"noseeyeled{s}{n_}", trees, circ(3.2), glow("bulb", (1.0, 0.97, 0.9), 2.0), 3.3)
     return made
+
+
+def tail_lamp(model, c):
+    """The brake light (beenster, sport round 1): a dark housing let into the end of the tail, two square LED
+    units side by side behind one red lens."""
+    tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
+    if not tl or model["family"].lower() != "sport":
+        return
+    pts = sorted([tuple(q[:2]) for q in tl["pts"]])[:2]
+    top, bot = max(pts, key=lambda q: q[1]), min(pts, key=lambda q: q[1])
+    L_ = math.hypot(top[0] - bot[0], top[1] - bot[1])
+    u = ((top[0] - bot[0]) / L_, (top[1] - bot[1]) / L_)
+    n = (-u[1], u[0]) if -u[1] < 0 else (u[1], -u[0])
+    org = ((top[0] + bot[0]) / 2 + n[0] * 2, (top[1] + bot[1]) / 2 + n[1] * 2)
+    hh = min(19.0, L_ / 2 - 3)
+    drop("taillight")
+    slab("taillamphouse", org, n, u, [(y * 1.0, z) for y, z in sell(47, hh + 3, 1.0, 4.5, 40)], -22, 0, B.mat("plastic"), 2.0)
+    lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
+    slab("taillamplens", org, n, u, sell(44, hh, 1.0, 4.5, 40), 0, 3.2, lensm, 1.2)
+    for sg in (-1, 1):
+        # two square light units: a bright frame round a darker middle, as LED tail lamps show
+        slab(f"taillampled{sg}", org, n, u, [(sg * 22 + y, z) for y, z in sell(17, hh - 5, 1.0, 4.0, 28)], 3.0, 3.7, glow("tailred", (1.0, 0.03, 0.02), 2.6), 0)
+        slab(f"taillampcore{sg}", org, n, u, [(sg * 22 + y, z) for y, z in sell(12, hh - 9.5, 1.0, 4.0, 24)], 3.6, 4.1, lensm, 0)
+
+
+def bubble_screen(model, c):
+    """The screen (beenster, sport round 1): thin clear Perspex, round at the bottom where it meets the nose,
+    its sides swept back, a low bubble over the clocks."""
+    sc_ = next((v for v in model["body"].get("panels", []) if v.get("cls") == "screen"), None)
+    if not sc_ or model["family"].lower() != "sport":
+        return
+    pts = [tuple(q[:2]) for q in sc_["pts"]]
+    lo = max(pts, key=lambda q: q[0])                      # where the screen leaves the nose
+    hi = max(pts, key=lambda q: q[1])                      # its top edge
+    mid = max((q for q in pts if q not in (lo, hi)), key=lambda q: q[0] + q[1])
+    drop("screen", "pscreen")
+
+    def centre(t):                                         # the leading line, a quadratic through the three
+        a_, b_ = (1 - t) ** 2, 2 * t * (1 - t)
+        ctrl = (2 * mid[0] - (lo[0] + hi[0]) / 2, 2 * mid[1] - (lo[1] + hi[1]) / 2)
+        return (a_ * lo[0] + b_ * ctrl[0] + t * t * hi[0], a_ * lo[1] + b_ * ctrl[1] + t * t * hi[1])
+    W, NT, NY = 128.0, 26, 24
+    verts, faces = [], []
+    for i in range(NT + 1):
+        t = i / NT
+        cx_, cz_ = centre(t)
+        # round at the bottom (a half circle in front view), then easing in to a rounded top
+        w = W * max(0.0, 1 - (1 - min(1.0, t / 0.17)) ** 3.4) ** (1 / 3.4) * (1 - 0.34 * max(0.0, (t - 0.17) / 0.83) ** 2)
+        w *= math.sqrt(max(0.0, 1 - max(0.0, (t - 0.9) / 0.1) ** 2 * 0.75))
+        for j in range(NY + 1):
+            f = -1 + 2 * j / NY
+            y = f * max(w, 0.5)
+            back = (40 + 90 * t) * (y / W) ** 2        # wrapped round the nose low down, swept back higher up
+            crown = 10 * (1 - f * f) * math.sin(math.pi * t)         # a low bubble
+            verts.append(B.V(cx_ - back + crown * 0.5, y, cz_ - 0.25 * back + crown * 0.4))
+    for i in range(NT):
+        for j in range(NY):
+            q = i * (NY + 1) + j
+            faces.append((q, q + 1, q + NY + 2, q + NY + 1))
+    ob = B.mesh_obj("screen", verts, faces, glass_mat("perspex", (0.82, 0.86, 0.9)), True, 0, False)
+    md = ob.modifiers.new("thick", "SOLIDIFY")
+    md.thickness = 2.6 * B.MM
+    B.bm_fix_normals(ob)
+    # four screen screws in rubber wellnuts along the lower edge
+    for sg in (-1, 1):
+        for t in (0.16, 0.36):
+            cx_, cz_ = centre(t)
+            w = W * max(0.0, 1 - (1 - min(1.0, t / 0.17)) ** 3.4) ** (1 / 3.4) * 0.9
+            back = (40 + 90 * t) * (w / W) ** 2
+            q = (cx_ - back + 3, sg * w, cz_ - 0.25 * back + 2)
+            B.cone(f"screenscrew{sg}{t}", q, (q[0] + 2, q[1] + sg * 3, q[2] + 1), 4.2, 3.6, B.mat("plastic"), 12)
+
+
+def chain(model, c):
+    """A real drive chain (beenster, 15 Nov): rollers on pins at a 5/8 inch pitch, waisted inner and outer
+    side plates in turn, round both sprockets, and sprockets with teeth and lightening holes."""
+    sw, eng = model["swingarm"], model["engine"]
+    if sw.get("shaft") or "sprocket_r" not in sw:
+        return
+    A, cs = c["A"], tuple(eng["countershaft"])
+    PITCH, Y = 15.875, 108.0
+    n_r = max(30, round(2 * math.pi * sw["sprocket_r"] / PITCH))
+    n_f = 15
+    rr, rf = PITCH / (2 * math.sin(math.pi / n_r)), PITCH / (2 * math.sin(math.pi / n_f))
+    drop("chain", "sprocket")
+    steel, dark = B.mat("steel"), surf("chainplate", (0.16, 0.16, 0.17), 1.0, 0.38, wear=0.3)
+    gold = surf("chaingold", (0.72, 0.5, 0.16), 1.0, 0.3, wear=0.25)
+    # sprockets
+    for tag, cen, R, n, ya, yb in (("sprocket", A, rr, n_r, Y - 3.2, Y + 3.2), ("sprocketfront", cs, rf, n_f, Y - 3.2, Y + 3.2)):
+        out = []
+        for k in range(n):
+            for da, dr in ((-0.5, -5.2), (-0.28, -4.6), (-0.12, 1.5), (0.0, 3.6), (0.12, 1.5), (0.28, -4.6)):
+                w = 2 * math.pi * (k + 0.5 + da) / n
+                out.append((cen[0] + (R + dr) * math.cos(w), cen[1] + (R + dr) * math.sin(w)))
+        ob = B.prism(tag, out, ya, yb, steel if tag == "sprocket" else dark, 0)
+        if tag == "sprocket":
+            cuts = []
+            for k in range(6):
+                w = 2 * math.pi * k / 6
+                for dw, rad_, r_ in ((0.0, R * 0.7, R * 0.13), (0.5, R * 0.58, R * 0.075)):
+                    q = (cen[0] + rad_ * math.cos(w + dw * math.pi / 3), cen[1] + rad_ * math.sin(w + dw * math.pi / 3))
+                    cuts.append(((q[0], ya - 4, q[1]), (q[0], yb + 4, q[1]), r_))
+            drill(ob, cuts, 0)
+            ob.data.polygons.foreach_set("use_smooth", [False] * len(ob.data.polygons))
+            for k in range(6):
+                w = 2 * math.pi * (k + 0.5) / 6
+                bolt(f"sprocketnut{k}", (cen[0] + R * 0.36 * math.cos(w), yb + 1, cen[1] + R * 0.36 * math.sin(w)), (0, 1, 0), 6.5, 6, steel, False)
+    # the loop: top run, round the rear sprocket, bottom run, round the gearbox sprocket
+    d = math.hypot(A[0] - cs[0], A[1] - cs[1])
+    th = math.atan2(A[1] - cs[1], A[0] - cs[0])
+    al = math.acos((rf - rr) / d)
+    path = []
+    u1 = (math.cos(th + al), math.sin(th + al))
+    u2 = (math.cos(th - al), math.sin(th - al))
+    p0, p1 = B.add(cs, u1, rf), B.add(A, u1, rr)
+    for k in range(200):
+        path.append((p0[0] + (p1[0] - p0[0]) * k / 200, p0[1] + (p1[1] - p0[1]) * k / 200))
+    for k in range(200):
+        w = th + al - 2 * al * k / 200
+        path.append((A[0] + rr * math.cos(w), A[1] + rr * math.sin(w)))
+    p0, p1 = B.add(A, u2, rr), B.add(cs, u2, rf)
+    for k in range(200):
+        path.append((p0[0] + (p1[0] - p0[0]) * k / 200, p0[1] + (p1[1] - p0[1]) * k / 200))
+    for k in range(120):
+        w = th - al - (2 * math.pi - 2 * al) * k / 120
+        path.append((cs[0] + rf * math.cos(w), cs[1] + rf * math.sin(w)))
+    cum = [0.0]
+    for a_, b_ in zip(path, path[1:] + path[:1]):
+        cum.append(cum[-1] + math.hypot(b_[0] - a_[0], b_[1] - a_[1]))
+    total = cum[-1]
+    n = 2 * round(total / PITCH / 2)
+    step, pins, j = total / n, [], 0
+    for k in range(n):
+        target = k * step
+        while cum[j + 1] < target:
+            j += 1
+        f = (target - cum[j]) / max(1e-9, cum[j + 1] - cum[j])
+        a_, b_ = path[j], path[(j + 1) % len(path)]
+        pins.append((a_[0] + (b_[0] - a_[0]) * f, a_[1] + (b_[1] - a_[1]) * f))
+    groups = {"chainrollers": ([], []), "chaininner": ([], []), "chainouter": ([], []), "chainpins": ([], [])}
+
+    def cyl(key, q, r, y0, y1, m=10):
+        vs, fs = groups[key]
+        b0 = len(vs)
+        for yy in (y0, y1):
+            vs += [B.V(q[0] + r * math.cos(2 * math.pi * e / m), yy, q[1] + r * math.sin(2 * math.pi * e / m)) for e in range(m)]
+        fs += [(b0 + e, b0 + (e + 1) % m, b0 + m + (e + 1) % m, b0 + m + e) for e in range(m)]
+        fs += [tuple(b0 + e for e in range(m))[::-1], tuple(b0 + m + e for e in range(m))]
+
+    def plate(key, a_, b_, y0, y1, r=7.4, waist=5.0):
+        vs, fs = groups[key]
+        L_ = math.hypot(b_[0] - a_[0], b_[1] - a_[1])
+        t_ = ((b_[0] - a_[0]) / L_, (b_[1] - a_[1]) / L_)
+        nn = (-t_[1], t_[0])
+        ring = []
+        for e in range(7):                                  # round one end
+            w = math.pi / 2 + math.pi * e / 6
+            ring.append((a_[0] + r * (math.cos(w) * t_[0] + math.sin(w) * nn[0]), a_[1] + r * (math.cos(w) * t_[1] + math.sin(w) * nn[1])))
+        mid_ = ((a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2)
+        ring.append((mid_[0] - nn[0] * waist, mid_[1] - nn[1] * waist))
+        for e in range(7):                                  # round the other
+            w = -math.pi / 2 + math.pi * e / 6
+            ring.append((b_[0] + r * (math.cos(w) * t_[0] + math.sin(w) * nn[0]), b_[1] + r * (math.cos(w) * t_[1] + math.sin(w) * nn[1])))
+        ring.append((mid_[0] + nn[0] * waist, mid_[1] + nn[1] * waist))
+        m, b0 = len(ring), len(vs)
+        for yy in (y0, y1):
+            vs += [B.V(q[0], yy, q[1]) for q in ring]
+        fs += [(b0 + e, b0 + (e + 1) % m, b0 + m + (e + 1) % m, b0 + m + e) for e in range(m)]
+        fs += [tuple(b0 + e for e in range(m))[::-1], tuple(b0 + m + e for e in range(m))]
+    for k, q in enumerate(pins):
+        nx = pins[(k + 1) % n]
+        cyl("chainrollers", q, 5.1, Y - 4.6, Y + 4.6)
+        cyl("chainpins", q, 2.6, Y - 11.2, Y + 11.2, 8)
+        if k % 2 == 0:
+            for sg in (-1, 1):
+                plate("chaininner", q, nx, Y + sg * 4.8, Y + sg * 6.8)
+        else:
+            for sg in (-1, 1):
+                plate("chainouter", q, nx, Y + sg * 7.2, Y + sg * 9.2)
+    for key, material in (("chainrollers", steel), ("chaininner", dark), ("chainouter", gold), ("chainpins", steel)):
+        vs, fs = groups[key]
+        ob = B.mesh_obj(key, vs, fs, material, False)
+        B.bm_fix_normals(ob)
 
 
 def grip_mat(length, rmax, rbody=17.2):
@@ -908,6 +1096,17 @@ def indicators(model, c):
     if tl:
         tx = sum(q[0] for q in tl["pts"]) / len(tl["pts"])
         tz = min(q[1] for q in tl["pts"]) - 25
+        arm = next((h for h in model["body"].get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
+        if arm and model.get("fit", {}).get("plate_hanger", True) and model["family"].lower() == "sport":
+            # on the plate hanger's arm, a stalk each side, as on the reference rear views
+            import shapes
+            ax = min(q[0] for q in arm["pts"]) + 0.42 * (max(q[0] for q in arm["pts"]) - min(q[0] for q in arm["pts"]))
+            tb = shapes.top_bottom(shapes.dense(arm["pts"], True, arm.get("t", 0)), ax)
+            if tb:
+                for s in (-1, 1):
+                    lathe(f"ind_r{s}_boss", (ax, s * 20, (tb[0] + tb[1]) / 2), (0, s, 0), [(0, 0), (0, 14), (6, 14), (9, 11), (9, 0)], B.mat("plastic"), 20)
+                    indicator(f"ind_r{s}", (ax, s * 27, (tb[0] + tb[1]) / 2), s, -1, variant)
+                return
         for s in (-1, 1):
             indicator(f"ind_r{s}", (tx + 30, s * 58, tz), s, -1, variant)
 
@@ -1406,7 +1605,17 @@ def exhaust_ports(model, c, heads):
         # lambda sensor boss a little way down the pipe
         k_ = min(len(hp["pts"]) - 2, 3)
         q0, q1 = tuple(hp["pts"][k_][:2]), tuple(hp["pts"][k_ + 1][:2])
-    # the clamp where the headers enter the silencer
+    silencers(model, c)
+
+
+def silencers(model, c):
+    """The silencers' own detail: inlet clamp and cone, the outlet, rivet bands."""
+    if c.get("_silencers_done"):
+        return
+    c["_silencers_done"] = True
+    ex = model["exhaust"]
+    both, left, under = (ex.get("side") == k_ for k_ in ("both", "left", "under"))
+    steel = B.mat("steel")
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
             if B.is_belly(ex, i):
@@ -1421,7 +1630,18 @@ def exhaust_ports(model, c, heads):
             # the outlet (beenster, round 4): a dished end cap with an open tail pipe standing out of it,
             # dark with soot inside, so the gases have a way out
             drop(f"canend{i}{sg}", f"canbore{i}{sg}")
-            if not can.get("nip"):
+            if B.is_belly(ex, 0):
+                # a stubby sport outlet: a rolled steel lip round one big open bore, dark with soot inside
+                soot = surf("soot", (0.006, 0.006, 0.006), 0.0, 0.95, wear=0.0)
+                bright = surf("outletlip", (0.82, 0.82, 0.84), 0.85, 0.42, wear=0.1)
+                drop(f"can{i}{sg}")
+                lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.12, rc), (L_ * 0.92, rc)], B.mat("exhaust"), 40, caps=False)
+                # a broad polished end ring, dished in to the bore, and the perforated core tube standing in it
+                lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 1.5), (L_ - 3, rc + 1.5), (L_ + 2, rc - 3), (L_ + 2, rc - 9), (L_ - 4, rc * 0.7), (L_ - 16, rc * 0.64)], bright, 40, caps=False)
+                lathe(f"canbore{i}{sg}", a3, d3, [(L_ - 14, rc * 0.645), (L_ - 60, rc * 0.64), (L_ - 60, 0)], soot, 36, caps=False)
+                lathe(f"canbaffle{i}{sg}", a3, d3, [(L_ - 58, rc * 0.5), (L_ + 12, rc * 0.5), (L_ + 14, rc * 0.48), (L_ + 14, rc * 0.42), (L_ + 12, rc * 0.41), (L_ - 58, rc * 0.41)], bright, 32, caps=False)
+                lathe(f"cancore{i}{sg}", a3, d3, [(L_ + 10, rc * 0.405), (L_ - 40, rc * 0.405), (L_ - 40, 0)], soot, 28, caps=False)
+            elif not can.get("nip"):
                 black = B.mat("exhaust_black")
                 lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 2), (L_ - 12, rc * 1.0), (L_ - 3, rc * 0.93), (L_, rc * 0.84), (L_ - 1.5, rc * 0.76), (L_ - 12, rc * 0.68), (L_ - 14, rc * 0.5)], black, 40, caps=False)
                 lathe(f"canpipe{i}{sg}", a3, d3, [(L_ - 20, rc * 0.52), (L_ + 9, rc * 0.52), (L_ + 11, rc * 0.5), (L_ + 11, rc * 0.455), (L_ + 9, rc * 0.44), (L_ - 20, rc * 0.44)], steel, 36, caps=False)
@@ -2044,6 +2264,9 @@ SHOTS = {
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
+    "stubby": ((-150, -820, 420), (440, -150, 270), 70),
+    "chain": ((120, 950, 470), (140, 108, 330), 75),
+    "chain_front": ((900, 1000, 520), (500, 108, 400), 75),
     "nose": ((2500, -620, 1020), (1420, 0, 840), 60),
     "cockpit": ((250, -260, 1420), (1250, 0, 900), 40),
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),
@@ -2105,9 +2328,13 @@ def run(build3d, model, c):
     headlamp(model, c)
     controls(model, c)
     engine(model, c)
+    silencers(model, c)        # (engines not yet detailed return early, before their exhaust)
     seat(model, c)
     tank_cap(model, c)
     rear_end(model, c)
+    tail_lamp(model, c)
+    bubble_screen(model, c)
+    chain(model, c)
     indicators(model, c)
     cables(model, c)
     mudguard_fixings(model, c)
