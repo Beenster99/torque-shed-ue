@@ -331,7 +331,9 @@ void FTorqueSettings::Apply(UWorld* World) const
 	const bool bDlss = Upscaler == 1 && HasDlss();
 	// TSR (DLSS takes over from it when on, and needs a temporal one under it), TAA, FXAA or none.
 	static const int32 AaMethods[4] = {4, 2, 1, 0};
-	SetCVar(TEXT("r.AntiAliasingMethod"), bDlss ? 4 : AaMethods[FMath::Clamp(AntiAliasing, 0, 3)]);
+	// (set as code sets it: the project's own r.AntiAliasingMethod, DefaultEngine.ini's renderer settings,
+	// outranks a game setting, so until build 148 this row was ignored and TSR always ran)
+	SetCVar(TEXT("r.AntiAliasingMethod"), bDlss ? 4 : AaMethods[FMath::Clamp(AntiAliasing, 0, 3)], ECVF_SetByCode);
 	SetCVar(TEXT("r.ScreenPercentage"), ScreenPercent(UpscaleMode));
 	// NVIDIA's DLSS 4.5 plugin (UE 5.8, v8.9): on or off; its quality is the screen percentage set
 	// above (Quality 66.7, Balanced 58, Performance 50, Ultra performance 33, and 100 is DLAA).

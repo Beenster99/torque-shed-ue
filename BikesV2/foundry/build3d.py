@@ -574,8 +574,18 @@ def guard_blade(name, a, blade, hw, material):
     over the tyre, with its two side edges drawn down into the blades that run to the axle. How far
     down the side goes at each point round the wheel is read off the drawn blade outline, then faired
     so the blade grows out of the guard in a curve."""
-    lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 9, 80, 12
+    lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 25 if DETAIL["on"] else 9, 80, 12
     c = tuple(a["c"])
+
+    def mould(u, f):
+        """Definition pass (reference: front mudguard moulding): a raised spine down the middle that is
+        tallest over the fork and dies away to the tips, and a pressed shoulder line each side of it."""
+        if not DETAIL["on"]:
+            return 0.0
+        along = math.sin(math.pi * min(1.0, max(0.0, f))) ** 0.5
+        spine = 7.5 * math.exp(-(u / 15.0) ** 2) * along
+        shoulder = -2.6 * max(0.0, min(1.0, (abs(u) - 40.0) / 6.0)) * along
+        return spine + shoulder
 
     def depth(deg):
         th, best = math.radians(deg), lo - 8
@@ -593,7 +603,7 @@ def guard_blade(name, a, blade, hw, material):
         f = i / segs
         k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
-        crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) + mould(u, f), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
         ye = crown[-1][1]
         skirt = []
         for q in range(1, K + 1):
@@ -1600,6 +1610,9 @@ if __name__ == "__main__":
         name = f"{name}_kit{''.join(str(x) for x in ka[:4])}{''.join('x' + str(x) for x in ka[4])}"
     if "--definition" in sys.argv:
         DETAIL["on"] = True
+        if "--indicators" in sys.argv:
+            import detail3d
+            detail3d.VARIANT["indicators"] = sys.argv[sys.argv.index("--indicators") + 1]
         name += "_def"
     build(model)
     if "--glb" in sys.argv:

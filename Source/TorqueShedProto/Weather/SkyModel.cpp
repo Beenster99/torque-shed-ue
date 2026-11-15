@@ -61,6 +61,12 @@ const NamedNumber Numbers[] = {
 	{"disc_hide_over_deg", &Looks::DiscHideOverDeg}, {"sky_light_dull", &Looks::SkyLightDull},
 	{"exposure_dull_stops", &Looks::ExposureDullStops}, {"exposure_wet_stops", &Looks::ExposureWetStops},
 	{"direct_trust", &Looks::DirectTrust}, {"direct_trust_from_deg", &Looks::DirectTrustFromDeg},
+	{"exposure_shade_open", &Looks::ExposureShadeOpen}, {"exposure_built_deg", &Looks::ExposureBuiltDeg},
+	{"exposure_follow_sun", &Looks::ExposureFollowSun}, {"exposure_follow_most", &Looks::ExposureFollowMost},
+	{"local_shadow_contrast", &Looks::LocalShadowContrast}, {"local_highlight_contrast", &Looks::LocalHighlightContrast},
+	{"cloud_phase_g", &Looks::CloudPhaseG}, {"cloud_phase_g2", &Looks::CloudPhaseG2}, {"cloud_phase_blend", &Looks::CloudPhaseBlend},
+	{"cloud_ms_contribution", &Looks::CloudMsContribution}, {"cloud_ms_occlusion", &Looks::CloudMsOcclusion},
+	{"cloud_ms_eccentricity", &Looks::CloudMsEccentricity}, {"cloud_ms_octaves", &Looks::CloudMsOctaves},
 	{"humid_from", &Looks::HumidFrom}, {"humid_swell", &Looks::HumidSwell},
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},
@@ -136,7 +142,7 @@ const TorqueFit::Json* FindKinds(const TorqueFit::Json& J)
 }
 const NamedCurve Curves[] = {
 	{"clear_lux", &Looks::ClearLux}, {"haze_by_km", &Looks::HazeByKm}, {"cover_shown", &Looks::CoverShown},
-	{"legacy_shadow", &Looks::LegacyShadow},
+	{"legacy_shadow", &Looks::LegacyShadow}, {"sky_fill", &Looks::SkyFill},
 };
 
 // The members of an object and of every object inside it (so the file can group its figures under
@@ -271,6 +277,12 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.SunDisc = Clamp01(1.0 - S.SunAngle / std::max(L.DiscHideOverDeg, 1e-3));
 	S.SkyLightScale = Lerp(1.0, L.SkyLightDull, S.Dull);
 	S.ExposureStops = S.Dull * Lerp(L.ExposureDullStops, L.ExposureWetStops, S.WetLook);
+	// The shade by day (build 147): more sky light the lower the sun, and a camera that may open up in a
+	// hill's shadow, further as the sun is lower than the level's own.
+	S.SkyFill = Lerp(1.0, std::max(L.SkyFill.At(E), 0.0), S.DayLight * (1.0 - S.Dull));
+	const double Lower = Ev100(ClearSkyLux(L.ExposureBuiltDeg, L)) - Ev100(S.ClearLux);
+	S.ExposureOpenStops = S.DayLight * (std::max(L.ExposureShadeOpen, 0.0)
+		+ std::min(std::max(Lower * L.ExposureFollowSun, 0.0), std::max(L.ExposureFollowMost, 0.0)));
 
 	// The air: how far you can see across the whole range (crisp at 50 km, pale at 12), swelled by damp.
 	const double Km = W.Visibility / 1000.0;

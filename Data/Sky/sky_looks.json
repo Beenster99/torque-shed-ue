@@ -74,7 +74,40 @@
   "exposure_dull_stops": 1.6,
   "exposure_wet_stops": 1.9,
   "direct_trust": 0.5,
-  "direct_trust_from_deg": 8.0
+  "direct_trust_from_deg": 8.0,
+  "_shade": "The light in a hill's shadow by day (build 147): sky_fill is the sky light times the level's by the sun's height (degrees), less as the sky dulls; the camera may open exposure_shade_open stops below the level's lowest, and more as the sun is lower than exposure_built_deg (times exposure_follow_sun, at most exposure_follow_most); local_* are the engine's local exposure (lower lifts the shade, not the sky).",
+  "sky_fill": [
+   [
+    -6,
+    1.0
+   ],
+   [
+    0,
+    1.8
+   ],
+   [
+    10,
+    1.9
+   ],
+   [
+    20,
+    1.6
+   ],
+   [
+    35,
+    1.25
+   ],
+   [
+    60,
+    1.1
+   ]
+  ],
+  "exposure_shade_open": 1.5,
+  "exposure_built_deg": 32.0,
+  "exposure_follow_sun": 1.0,
+  "exposure_follow_most": 3.0,
+  "local_shadow_contrast": 0.6,
+  "local_highlight_contrast": 0.75
  },
  "air": {
   "haze_by_km": [
@@ -136,7 +169,7 @@
     1
    ]
   ],
-  "low_heap_m": 1000.0,
+  "low_heap_m": 600.0,
   "cape_depth_per_100": 250.0,
   "cape_most_m": 4500.0,
   "mid_base_m": 3200.0,
@@ -171,9 +204,9 @@
    "_": "Each kind's look: shape 0 heaped .. 1 flat; lumps 0 big .. 1 small; ragged edges; density; base_dark; depth_m (+ cape_depth x the CAPE heap); sheet (high cloud: 0 wisps .. 1 veil).",
    "cumulus": {
     "shape": 0.0,
-    "lumps": 0.6,
-    "ragged": 0.55,
-    "density": 0.7,
+    "lumps": 0.45,
+    "ragged": 0.3,
+    "density": 0.8,
     "base_dark": 0.15,
     "depth_m": 0.0,
     "cape_depth": 1.0,
@@ -261,7 +294,15 @@
    }
   },
   "extinction_scale": 8.0,
-  "deck_dims_sun": 0.0
+  "deck_dims_sun": 0.0,
+  "_scatter": "How the cloud scatters the sun (build 147: grey, blotchy cumulus). cloud_phase_g the forward lobe (silver linings towards the sun), cloud_phase_g2 the back lobe, cloud_phase_blend between them; cloud_ms_* the light bounced about inside the cloud: its share, how much the cloud shades it, how forward it goes. cloud_ms_octaves (0..2) is built into the material: change it and rebuild the level.",
+  "cloud_phase_g": 0.6,
+  "cloud_phase_g2": -0.3,
+  "cloud_phase_blend": 0.3,
+  "cloud_ms_contribution": 0.6,
+  "cloud_ms_occlusion": 0.35,
+  "cloud_ms_eccentricity": 0.6,
+  "cloud_ms_octaves": 2
  },
  "kinds_rules": {
   "_": "Stage 3: which kind of cloud each layer shows. Every rule is a band blended across, never a switch.",
