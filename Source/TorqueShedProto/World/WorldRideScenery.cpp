@@ -7,6 +7,7 @@
 // scanned ones are placed in their stead.
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
+#include "WorldRideSigns.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1024,6 +1025,10 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
 	const auto Label = [&Out](const P3& At, const P2& Face, double Tall, const std::string& Words, const Rgb& Colour)
 	{
+		// ([OSM stage 6A] set as triangles in the signs' layer, capitals as tall as a text component's
+		// would draw them; a text component only for a letter the baked alphabet lacks)
+		const float Ink[3] = {Colour.R, Colour.G, Colour.B};
+		if (SignText::Set(Out.SignsOf(), At.X, At.Y, At.Z, Face.X, Face.Z, Tall * SignText::CapOfEm, Words, Ink)) return;
 		RideMesh::Label L;
 		L.X = float(At.X - Out.OriginX);
 		L.Y = float(At.Y);
@@ -1036,13 +1041,16 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		Out.Labels.push_back(L);
 	};
 	// A flat board facing Face (its back grey), its middle Mid, W by H.
-	const auto Board = [&Out](const P3& Mid, const P2& Face, double W, double H, const Rgb& Colour, double Proud)
+	const auto BoardInto = [](RideMesh& Into, const P3& Mid, const P2& Face, double W, double H, const Rgb& Colour, double Proud)
 	{
 		const P2 U(Face.Z, -Face.X);
 		const P3 C = At3(Mid.X + Face.X * Proud, Mid.Y, Mid.Z + Face.Z * Proud);
 		const auto Pt = [&](double Su, double Sv) { return At3(C.X + U.X * Su * W * 0.5, C.Y + Sv * H * 0.5, C.Z + U.Z * Su * W * 0.5); };
-		Quad(Out, Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(C.X + Face.X * 50.0, C.Y, C.Z + Face.Z * 50.0), Colour);
+		Quad(Into, Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(C.X + Face.X * 50.0, C.Y, C.Z + Face.Z * 50.0), Colour);
 	};
+	const auto Board = [&Out, &BoardInto](const P3& Mid, const P2& Face, double W, double H, const Rgb& Colour, double Proud) { BoardInto(Out, Mid, Face, W, H, Colour, Proud); };
+	// ([OSM stage 6A] a road sign's face: in the signs' layer, which shines back the headlight)
+	const auto SignBoard = [&Out, &BoardInto](const P3& Mid, const P2& Face, double W, double H, const Rgb& Colour, double Proud) { BoardInto(Out.SignsOf(), Mid, Face, W, H, Colour, Proud); };
 	// (beenster, build 141: the road furniture "a bit basic". Posts, lamp columns and poles are round
 	// and tapered now, ten sides near, five farther off)
 	const auto Post = [&Out, Fine](double X, double Z, double Lo, double Hi, double R0, double R1, const Rgb& Colour)
@@ -1088,9 +1096,9 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			const P3 Mid = At3(F.At.X, Y + 1.55, F.At.Z);
 			Board(Mid, Face, W + 0.08, H + 0.08, Grey, -0.01);
 			Board(Mid, Face * -1.0, W + 0.08, H + 0.08, Grey, 0.03);
-			Board(Mid, Face, W + 0.04, H + 0.04, Black, 0.05);
-			Board(Mid, Face, W, H, White, 0.06);
-			Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.22, F.Text, Black);
+			SignBoard(Mid, Face, W + 0.04, H + 0.04, Black, 0.05);
+			SignBoard(Mid, Face, W, H, White, 0.06);
+			Label(At3(Mid.X + Face.X * 0.07, Mid.Y, Mid.Z + Face.Z * 0.07), Face, 0.22, F.Text, Black);
 			break;
 		}
 		case Limit30:
@@ -1101,19 +1109,19 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			Disc(Out, At3(Mid.X - Face.X * 0.05, Mid.Y, Mid.Z - Face.Z * 0.05), Face * -1.0, 0.38, Grey);
 			if (F.Kind == Limit30)
 			{
-				Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, Red);
-				Disc(Out, At3(Mid.X + Face.X * 0.06, Mid.Y, Mid.Z + Face.Z * 0.06), Face, 0.30, White);
-				Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.3, F.Text, Black);
+				Disc(Out.SignsOf(), At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, Red);
+				Disc(Out.SignsOf(), At3(Mid.X + Face.X * 0.06, Mid.Y, Mid.Z + Face.Z * 0.06), Face, 0.30, White);
+				Label(At3(Mid.X + Face.X * 0.07, Mid.Y, Mid.Z + Face.Z * 0.07), Face, 0.3, F.Text, Black);
 			}
 			else
 			{
 				// (white, crossed by a black bar from top right to bottom left)
-				Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, White);
+				Disc(Out.SignsOf(), At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, White);
 				const P2 U(Face.Z, -Face.X);
 				const double Px = Mid.X + Face.X * 0.065, Pz = Mid.Z + Face.Z * 0.065, R = 0.36, T = 0.05;
 				const auto Pt = [&](double Su, double Sv) { return At3(Px + U.X * Su, Mid.Y + Sv, Pz + U.Z * Su); };
 				const double C = R * 0.7071;
-				Quad(Out, Pt(-C - T, -C + T), Pt(-C + T, -C - T), Pt(C + T, C - T), Pt(C - T, C + T), At3(Px + Face.X * 50.0, Mid.Y, Pz + Face.Z * 50.0), Black, true);
+				Quad(Out.SignsOf(), Pt(-C - T, -C + T), Pt(-C + T, -C - T), Pt(C + T, C - T), Pt(C - T, C + T), At3(Px + Face.X * 50.0, Mid.Y, Pz + Face.Z * 50.0), Black, true);
 			}
 			break;
 		}
@@ -1126,13 +1134,13 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			{
 				const P2 N = Back ? Face * -1.0 : Face;
 				const double Point = Back ? -F.Size : F.Size;   // +1: the tip to the reader's left
-				Board(Mid, N, 0.9, 0.7, Black, 0.03);
+				SignBoard(Mid, N, 0.9, 0.7, Black, 0.03);
 				const P2 U(N.Z, -N.X);   // (the reader's left, as they face it)
 				const double Px = Mid.X + N.X * 0.04, Pz = Mid.Z + N.Z * 0.04;
 				const auto Pt = [&](double Su, double Sv) { return At3(Px - U.X * Su * Point, Mid.Y + Sv, Pz - U.Z * Su * Point); };
 				const P3 Toward = At3(Px + N.X * 50.0, Mid.Y, Pz + N.Z * 50.0);
 				for (double Sv : {1.0, -1.0})
-					Quad(Out, Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
+					Quad(Out.SignsOf(), Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
 			}
 			break;
 		}
@@ -2282,6 +2290,9 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 			At3(C.X - Half.X + Proud.X, Hi, C.Z - Half.Z + Proud.Z), At3(C.X + Face.X * 50.0, (Lo + Hi) * 0.5, C.Z + Face.Z * 50.0), Board);
 		Quad(Out, At3(C.X - Half.X, Lo, C.Z - Half.Z), At3(C.X + Half.X, Lo, C.Z + Half.Z), At3(C.X + Half.X, Hi, C.Z + Half.Z), At3(C.X - Half.X, Hi, C.Z - Half.Z),
 			At3(C.X - Face.X * 50.0, (Lo + Hi) * 0.5, C.Z - Face.Z * 50.0), PostGrey);
+		// ([OSM stage 6A] lettered as triangles; a text component only for a letter the alphabet lacks)
+		static constexpr float Cream[3] = {0.9f, 0.9f, 0.9f};
+		if (SignText::Set(Out, C.X + Face.X * 0.06, (Lo + Hi) * 0.5, C.Z + Face.Z * 0.06, Face.X, Face.Z, 0.3 * SignText::CapOfEm, Plat.Name, Cream)) continue;
 		RideMesh::Label Words;
 		Words.X = float(C.X + Face.X * 0.07 - Out.OriginX);
 		Words.Y = float((Lo + Hi) * 0.5);

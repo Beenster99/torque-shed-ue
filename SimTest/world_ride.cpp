@@ -7,6 +7,7 @@
 #include "CellStore.h"
 #include "HeightTiles.h"
 #include "WorldFiles.h"
+#include "WorldRideSigns.h"
 #include <map>
 #include "WorldLoad.h"
 #include "WorldRide.h"
@@ -156,6 +157,8 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string GlyphText;   // [OSM stage 6A]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string SiteText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/landmarks_uk.json"), SiteText) && SetSiteTable(SiteText))
 		{
@@ -1275,7 +1278,7 @@ int main(int Argc, char** Argv)
 					RideMesh Stands;
 					Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Stands);
 					const RideMesh* Extra = Stands.Extra.get();
-					for (const RideMesh* Mesh : std::initializer_list<const RideMesh*>{&Stands, Extra, Stands.Signals.get(), Extra ? Extra->Signals.get() : nullptr})
+					for (const RideMesh* Mesh : std::initializer_list<const RideMesh*>{&Stands, Extra, Stands.Signals.get(), Extra ? Extra->Signals.get() : nullptr, Stands.Signs.get()})
 					{
 						if (Mesh == nullptr) continue;
 						const bool Lamps = Mesh == Stands.Signals.get() || (Extra && Mesh == Extra->Signals.get());

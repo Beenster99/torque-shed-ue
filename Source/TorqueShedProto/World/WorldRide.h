@@ -172,6 +172,19 @@ struct RideMesh
 		}
 		return *Signals;
 	}
+	// [OSM stage 6A] Road signs' faces and their lettering (M_RideSign: the vertex colour the paint's;
+	// it shines back the headlight after dark, as real signs' reflective sheeting does). Null for none.
+	std::shared_ptr<RideMesh> Signs;
+	RideMesh& SignsOf()
+	{
+		if (!Signs)
+		{
+			Signs = std::make_shared<RideMesh>();
+			Signs->OriginX = OriginX;
+			Signs->OriginZ = OriginZ;
+		}
+		return *Signs;
+	}
 	// Words on signs (a village's name, a speed limit): where (in the mesh's own origin, the middle of
 	// the words), which way they face (x, z), how tall a letter is (m), the words, and their colour.
 	struct Label
@@ -182,7 +195,7 @@ struct RideMesh
 	};
 	std::vector<Label> Labels;
 	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Roofing && Roofing->Vertices() > 0) || (Brickwork && Brickwork->Vertices() > 0) || (Night && Night->Vertices() > 0)
-		|| (Signals && Signals->Vertices() > 0); }
+		|| (Signals && Signals->Vertices() > 0) || (Signs && Signs->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
 	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).

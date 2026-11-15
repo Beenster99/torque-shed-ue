@@ -13,6 +13,7 @@
 #include "WorldRide.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
+#include "WorldRideSigns.h"
 #include "WorldRoadLine.h"
 #include "WorldRouteMap.h"
 #include "WorldRegion.h"
@@ -92,10 +93,59 @@ int main()
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
 	std::string TownText;
 	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
+	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
+	std::string GlyphText;
+	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
 	if (!Files::Read(Files::Join(Data, "godot_world.json"), Text) || !Json::Parse(Text, Ref))
 	{
 		std::printf("FAIL  no godot_world.json in %s\n", Data.c_str());
 		return 1;
+	}
+
+	// ------------------------------------------------------------------ [OSM stage 6A] the signs' lettering
+	{
+		// Every letter of three names set, none missing; each letter starts past the one before (a hair of
+		// overlap allowed, as the font's own spacing has); the triangles face the reader.
+		bool Ok = GlyphsRead && SignFontNow() != nullptr;
+		size_t Tris = 0;
+		for (const char* Name : {"Leyburn", "Llanfairpwllgwyngyll", "A684", "Ystradgynlais", "Ŵyddgrug", "Àird a’ Bhàigh"})
+		{
+			RideMesh M;
+			const float Ink[3] = {0.0f, 0.0f, 0.0f};
+			double Wide = 0.0;
+			const bool Set = SignText::Set(M, 10.0, 2.0, 5.0, 0.0, 1.0, 0.1, Name, Ink, -1) && SignText::Width(Name, 0.1, Wide);
+			Ok = Ok && Set && M.Idx.size() >= 3 && Wide > 0.0;
+			if (!Set) { std::printf("      not set: %s\n", Name); continue; }
+			// (each letter's span along the face: the font's glyphs in turn)
+			const std::shared_ptr<const SignFont> Font = SignFontNow();
+			double Pen = 0.0, LastEnd = -1e9;
+			for (const uint32_t C : SignText::CodePoints(Name))
+			{
+				if (C == 0x20u) { Pen += Font->Space; continue; }
+				const SignGlyph& G = Font->Glyphs.at(C);
+				double Lo = 1e9, Hi = -1e9;
+				for (size_t P = 0; P + 1 < G.Points.size(); P += 2) { Lo = std::fmin(Lo, Pen + G.Points[P]); Hi = std::fmax(Hi, Pen + G.Points[P]); }
+				if (Hi >= Lo && Lo < LastEnd - 0.06) { Ok = false; std::printf("      overlap in %s\n", Name); }
+				if (Hi >= Lo) LastEnd = Hi;
+				Pen += G.Width;
+			}
+			// (facing +z, the reader's side: every triangle's normal towards it)
+			for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
+			{
+				const float* A = &M.Pos[M.Idx[T] * 3];
+				const float* B = &M.Pos[M.Idx[T + 1] * 3];
+				const float* C = &M.Pos[M.Idx[T + 2] * 3];
+				const double Nz = double(B[0] - A[0]) * double(C[1] - A[1]) - double(B[1] - A[1]) * double(C[0] - A[0]);
+				if (Nz < -1e-12) { Ok = false; std::printf("      a triangle faces away in %s\n", Name); break; }
+			}
+			// (and it runs left to right as the reader sees it: facing +z the reader looks along -z, north, their right east, +x)
+			double MinX = 1e9, MaxX = -1e9;
+			for (size_t V = 0; V < M.Vertices(); ++V) { MinX = std::fmin(MinX, M.Pos[V * 3]); MaxX = std::fmax(MaxX, M.Pos[V * 3]); }
+			if (!(MinX >= 10.0 - 1e-4 && std::fabs((MaxX - MinX) - Wide) < Wide * 0.1 + 0.02)) { Ok = false; std::printf("      %s runs %.3f to %.3f, %.3f wide\n", Name, MinX, MaxX, Wide); }
+			Tris += M.Idx.size() / 3;
+		}
+		std::printf("      sign lettering: %zu letters in the alphabet, %zu triangles for six names\n", SignFontNow() ? SignFontNow()->Glyphs.size() : size_t(0), Tris);
+		Check(Ok, "sign lettering: Leyburn, Llanfairpwllgwyngyll, A684 and Welsh and Gaelic names set with every letter, none overlapping, facing the reader");
 	}
 
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
@@ -966,13 +1016,19 @@ int main()
 							double H = Plan->RoadHeight(F.At.X, F.At.Z);
 							if (!std::isnan(H)) ++OnRoad;
 						}
-						// (a square of ground with signs on it has their words)
+						// (a square of ground with signs on it has their words: [OSM stage 6A] lettered in its signs'
+						// layer, as many triangles as the name set alone has, and no text component for it)
 						for (const RidePlan::Furnish& F : Plan->Furniture)
 							if (F.Kind == RidePlan::NameSign)
 							{
-								RideMesh Stands;
+								RideMesh Stands, Alone;
 								Plan->SceneryTile(std::floor(F.At.X / 64.0) * 64.0, std::floor(F.At.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
-								for (const RideMesh::Label& L : Stands.Labels) Labels += L.Text == F.Text ? 1 : 0;
+								const float Ink[3] = {0.0f, 0.0f, 0.0f};
+								SignText::Set(Alone, 0.0, 0.0, 0.0, 1.0, 0.0, 0.1, F.Text, Ink);
+								bool Labelled = false;
+								for (const RideMesh::Label& L : Stands.Labels) Labelled = Labelled || L.Text == F.Text;
+								Labels = !Labelled && Stands.Signs && Alone.Idx.size() > 0 && Stands.Signs->Idx.size() >= Alone.Idx.size() ? 1 : 0;
+								std::printf("      the name sign '%s': %zu triangles of lettering, %zu in its square's signs\n", F.Text.c_str(), Alone.Idx.size() / 3, Stands.Signs ? Stands.Signs->Idx.size() / 3 : size_t(0));
 								break;
 							}
 						std::printf("      furniture: %d of %d road points built up; %d name signs, %d 30s, %d national limits, %d chevrons, %d lamps, %d cattle grids, %d poles, %d gates, %d post boxes; %d on a road\n",
@@ -1184,7 +1240,18 @@ int main()
 							const P2 Middle = Plan->Rails[size_t(Pl.Line)].At[size_t((Pl.First + Pl.Last) / 2)];
 							RideMesh Stands;
 							Plan->SceneryTile(std::floor(Middle.X / 64.0) * 64.0, std::floor(Middle.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
-							for (const RideMesh::Label& L : Stands.Labels) Named += L.Text == Pl.Name ? 1 : 0;
+							bool Has = false;
+							for (const RideMesh::Label& L : Stands.Labels) Has = Has || L.Text == Pl.Name;
+							// ([OSM stage 6A] or its name lettered in triangles: as many cream points as the name set alone)
+							RideMesh Alone;
+							const float Cream[3] = {0.9f, 0.9f, 0.9f};
+							if (!Has && SignText::Set(Alone, 0.0, 0.0, 0.0, 1.0, 0.0, 0.2, Pl.Name, Cream))
+							{
+								size_t CreamPoints = 0;
+								for (size_t V = 0; V < Stands.Vertices(); ++V) CreamPoints += Stands.Col[V * 3] == 0.9f && Stands.Col[V * 3 + 1] == 0.9f && Stands.Col[V * 3 + 2] == 0.9f ? 1 : 0;
+								Has = CreamPoints >= Alone.Vertices();
+							}
+							Named += Has ? 1 : 0;
 						}
 						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%%, bed beside the line %d of %d, %d platforms (%d named boards)\n",
 							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);

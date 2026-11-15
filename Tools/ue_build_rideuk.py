@@ -316,6 +316,37 @@ def signal_material(L):
     return g.m
 
 
+def sign_material(L):
+    """Road signs' faces and lettering (OSM stage 6A: RideMesh::Signs), their vertex colour the paint's.
+    By day plain paint, a little glossy. After dark (MPC_Weather's Night) they shine back the headlight as
+    real signs' reflective sheeting does: lit only in the beam (the middle of the view, a little below the
+    horizon, as the cat's eyes are), brightest near, gone by about 250 m; never glowing by themselves."""
+    g = L.Graph(L.new_material("M_RideSign", MAT_DIR))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    night = L.weather_param(g, "Night")
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    near = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.2), g.op(unreal.MaterialExpressionDivide, depth, g.const(25000.0))))
+    near = g.op(unreal.MaterialExpressionMultiply, near, near)
+    beam = g.const(1.0)
+    try:
+        sp = g.node(unreal.MaterialExpressionScreenPosition)
+        c2 = lambda a, b: g.node(unreal.MaterialExpressionConstant2Vector, r=a, g=b)
+        off = g.op(unreal.MaterialExpressionSubtract, sp, c2(0.5, 0.55), a_out="ViewportUV")
+        off = g.op(unreal.MaterialExpressionMultiply, off, c2(1.2, 1.8))
+        dist = g.op(unreal.MaterialExpressionDotProduct, off, off)
+        beam = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.0), dist))
+    except Exception as e:
+        unreal.log_warning("[Torque] ride UK: signs' beam not made (%s); they fade by distance only" % e)
+    shine = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, night, near), g.op(unreal.MaterialExpressionMultiply, beam, g.const(6.0)))
+    glow = g.op(unreal.MaterialExpressionMultiply, vc, shine)
+    L.mel.connect_material_property(vc, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    L.mel.connect_material_property(g.const(0.45), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
 def water_material(L):
     """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
     rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
@@ -466,6 +497,8 @@ def scanned_materials(L):
                            ("M_RideNight", lambda: night_material(L)),
                            # (OSM stage 5D: traffic lights and Belisha beacons, on the shared clock)
                            ("M_RideSignal", lambda: signal_material(L)),
+                           # (OSM stage 6A: road signs' faces and lettering, shining back the headlight)
+                           ("M_RideSign", lambda: sign_material(L)),
                            # (OSM stage 3: roofs coursed by their roofing, and brick walls in bond)
                            ("M_RideRoof", lambda: roof_material(L)),
                            ("M_RideBrick", lambda: brick_material(L)),

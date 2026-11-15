@@ -174,6 +174,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> NightMaterial;
 	// [OSM stage 5D] Traffic lights' and beacons' lamps (RideMesh::Signals; M_RideSignal, by MPC_Weather's Signals).
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SignalMaterial;
+	// [OSM stage 6A] Road signs' faces and lettering (RideMesh::Signs; M_RideSign, its vertex colour the paint's).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SignMaterial;
 	TMap<FIntVector, TArray<TWeakObjectPtr<class UPointLightComponent>>> StreetLights;
 	void DropStreetLights(const FIntVector& Key);
 	bool bStreetLightsOn = false;

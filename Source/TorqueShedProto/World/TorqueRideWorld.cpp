@@ -395,6 +395,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
 	NightMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideNight.M_RideNight"));
 	SignalMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSignal.M_RideSignal"));
+	SignMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSign.M_RideSign"));
 	RoofMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRoof.M_RideRoof"));
 	BrickMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideBrick.M_RideBrick"));
 	if (!LandMaterial || !RoadMaterial)
@@ -698,6 +699,8 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		Kinds.Emplace(Mesh.Extra->Night.get(), NightMaterial.Get());
 		// [OSM stage 5D] traffic lights' and beacons' lamps, cycling by the shared clock
 		Kinds.Emplace(Mesh.Extra->Signals.get(), SignalMaterial ? SignalMaterial.Get() : LampMaterial ? LampMaterial.Get() : NightMaterial.Get());
+		// [OSM stage 6A] road signs' faces and lettering, shining back the headlight after dark
+		Kinds.Emplace(Mesh.Extra->Signs.get(), SignMaterial ? SignMaterial.Get() : RoadMaterial.Get());
 		UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0);
 		if (Stands) TileExtras.Add(Key, Stands);
 		// [stage 7] The street lamps' lights, on the nearest squares only: warm, unshadowed, on after dark.

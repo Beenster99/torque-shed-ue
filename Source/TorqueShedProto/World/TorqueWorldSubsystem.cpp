@@ -34,6 +34,7 @@
 #include "Modules/ModuleManager.h"
 #include <set>
 #include "World/WorldRide.h"
+#include "World/WorldRideSigns.h"
 #include "World/TorqueRideWorld.h"
 
 #include <atomic>
@@ -163,6 +164,12 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
+		std::string GlyphText;
+		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));
+		const bool bGlyphs = TorqueWorld::Files::Read(GlyphsPath, GlyphText) && TorqueWorld::SetSignFont(GlyphText);
+		const std::shared_ptr<const TorqueWorld::SignFont> Font = TorqueWorld::SignFontNow();
+		UE_LOG(LogTemp, Display, TEXT("Torque world: sign letters: %d from Data/RideUK/sign_glyphs.json%s"), Font ? int32(Font->Glyphs.size()) : 0, bGlyphs ? TEXT("") : TEXT(" (none: signs fall back to text components)"));
 		// [places stage 5] The famous places' own notes (how many stones, a spire or not...).
 		std::string SiteText;
 		const std::string SitesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/landmarks_uk.json")));
