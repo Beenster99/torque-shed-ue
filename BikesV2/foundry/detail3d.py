@@ -1612,9 +1612,15 @@ def hugger(model, c):
     if model["family"].lower() not in ("naked", "sport", "cafe"):
         return
     drop("hugger")
+    # the old guard under the tail goes: the hugger replaces it (beenster, 15 Nov)
+    for i, shp in enumerate(model["body"].get("behind", [])):
+        if "fender" in shp.get("cls", ""):
+            for ob in list(bpy.data.objects):
+                if ob.name == f"behind{i}":
+                    bpy.data.objects.remove(ob, do_unlink=True)
     R_ = model["wheels"]["rear"]["tyre_r"]
     plastic = surf("huggerplastic", (0.03, 0.03, 0.033), 0.0, 0.42, bump=(0.2, 0.5), wear=0.15)
-    B.arc_band("hugger", {"c": A, "r0": R_ + 30, "r1": R_ + 40, "a0": 20, "a1": 112}, 94, plastic)
+    B.arc_band("hugger", {"c": A, "r0": R_ + 30, "r1": R_ + 40, "a0": 20, "a1": 68}, 94, plastic)
     top = [tuple(q[:2]) for q in sw["outline"]]
 
     def arm_top(x):
@@ -1764,6 +1770,8 @@ SHOTS = {
     "hugger": ((-250, 1050, 900), (260, 90, 500), 70),
     "weld": ((1250, -820, 1080), (930, -120, 740), 85),
     "weld2": ((420, -1000, 900), (640, -140, 700), 70),
+    "guard": ((2350, -1150, 760), (1430, -60, 480), 62),
+    "guard_front": ((2500, -420, 900), (1440, 0, 500), 70),
     "disc": ((1700, -1900, 380), (1470, -80, 300), 120),
 }
 

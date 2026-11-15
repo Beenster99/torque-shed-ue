@@ -584,11 +584,10 @@ def guard_blade(name, a, blade, hw, material):
             return 0.0
         along = math.sin(math.pi * min(1.0, max(0.0, f))) ** 0.5
         spine = 7.5 * math.exp(-(u / 15.0) ** 2) * along
-        shoulder = -2.6 * max(0.0, min(1.0, (abs(u) - 40.0) / 6.0)) * along
-        return spine + shoulder
+        return 0.0 * spine      # plain smooth shell: the spine and pressed shoulder read as a lip (beenster, 15 Nov)
 
     def depth(deg):
-        th, best = math.radians(deg), lo - 8
+        th, best = math.radians(deg), (hi if DETAIL["on"] else lo - 8)     # Definition pass: no skirt at all away from the blades
         for rho in range(int(hi), 24, -3):
             if _inside(blade, c[0] + rho * math.cos(th), c[1] + rho * math.sin(th)):
                 best = min(best, rho)
@@ -603,12 +602,18 @@ def guard_blade(name, a, blade, hw, material):
         f = i / segs
         k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
-        crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) + mould(u, f), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        # Definition pass: the edges of the shell just end, following the tyre; they do not curl in to a lip
+        edge = hi - 17 if DETAIL["on"] else lo
+        if DETAIL["on"]:
+            c70 = math.cos(math.radians(70))
+            crown = [(edge + (hi - edge) * (math.cos(math.radians(u)) - c70) / (1 - c70), hw * k * math.sin(math.radians(u)) / math.sin(math.radians(70))) for u in (-70 + 140 * q / (n - 1) for q in range(n))]
+        else:
+            crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) + mould(u, f), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
         ye = crown[-1][1]
         skirt = []
         for q in range(1, K + 1):
-            rho = lo + (rin[i] - lo) * q / K
-            t_ = min(1.0, (lo - rho) / 95.0)
+            rho = edge + (min(rin[i], edge) - edge) * q / K
+            t_ = min(1.0, (edge - rho) / 95.0)
             skirt.append((rho, ye + (144 - ye) * t_ * t_ * (3 - 2 * t_)))
         sec = [(r, -y) for r, y in skirt[::-1]] + crown + skirt
         for r, y in sec:
