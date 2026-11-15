@@ -37,7 +37,19 @@
  "wheels": [
   {"name": "Ten spoke", "note": "ten thin straight spokes", "set": {"spokes": 10, "straight": true, "spoke_w": 3.2, "wire": false}},
   {"name": "Three spoke", "note": "three broad spokes", "set": {"spokes": 3, "straight": true, "spoke_w": 10, "wire": false}},
-  {"name": "Wire", "note": "laced wire wheels", "set": {"wire": true}}
+  {"name": "Wire", "note": "laced wire wheels", "set": {"wire": true}},
+  {"name": "Seven swept spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "sweep7", "wire": false}},
+  {"name": "Five Y spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "y5", "wire": false}},
+  {"name": "Six hex web, machined face", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "hex6", "wire": false}},
+  {"name": "Ten spokes in five pairs", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "ten", "wire": false}},
+  {"name": "Ten turbine blades", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "turbine10", "wire": false}},
+  {"name": "Five straight spokes, bright inlay", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "five_inlay", "wire": false}},
+  {"name": "Five sickle spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "sickle5", "wire": false}},
+  {"name": "Five fine twin spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "twin5", "wire": false}},
+  {"name": "Petal web", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "web10", "wire": false}},
+  {"name": "Seven straight blades", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "blade7", "wire": false}},
+  {"name": "Five offset twin spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "offset5", "wire": false}},
+  {"name": "Six split spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "split6", "wire": false}}
  ],
  "silencers": [
   {"name": "Stubby", "note": "short fat can", "len": 215, "w": 104},

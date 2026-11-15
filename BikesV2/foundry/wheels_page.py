@@ -19,10 +19,18 @@ for i, (key, label, ref, fin, fd, fw, rd, rw) in enumerate(rows):
     note = f'From your reference picture {ref}.' if int(ref) else 'An extra of my own.'
     figs.append(f'<figure><img alt="{label}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{i + 1}. {label}</strong> Front {fd} x {float(fw):g} in, rear {rd} x {float(rw):g} in. Shown in {fin.replace("_", " ")}. {note}</figcaption></figure>')
 shutil.copy(os.path.join(ROOT, 'out', 'wheels', 'sheet.png'), dst + 'sheet.png')
+fitted = []
+for fn, cap in (('corvano_naked_pool000150_def_q.png', 'Style 12, six split spokes in bronze, on the Corvano naked.'),
+                ('corvano_naked_pool00050_def_shot_rearq.png', 'Style 2, five Y spokes in gunmetal, from the exhaust side.')):
+    p = os.path.join(ROOT, 'out', 'renders', fn)
+    if os.path.exists(p):
+        shutil.copy(p, dst + 'on_bike_' + fn)
+        b = io.BytesIO(); Image.open(p).convert('RGB').save(b, 'JPEG', quality=84)
+        fitted.append(f'<figure><img alt="{cap}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>On the bike.</strong> {cap}</figcaption></figure>')
 body = '''<main>
 <div class="k">Bike Models V2 · Wheels</div>
 <h1>Wheel styles, first selection</h1>
 <p class="lede">Twelve cast and forged styles, each built as a rear wheel (left) and a front wheel (right). Our own designs guided by your reference pictures; no maker's name or exact pattern is copied. Any style can be made in any size and any finish: gloss black, matt black, gunmetal, gold, anodised gold, bronze, chrome, carbon. Tell me which to keep, drop or change by number.</p>
-<div class="grid">''' + '\n'.join(figs) + '</div>\n</main>'
+<div class="grid">''' + '\n'.join(fitted + figs) + '</div>\n</main>'
 open(os.path.join(ROOT, 'out', 'wheel_styles.html'), 'w').write(head + body)
 print(len(rows), len(head + body))

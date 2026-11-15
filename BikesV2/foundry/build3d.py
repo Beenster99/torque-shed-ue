@@ -438,6 +438,11 @@ def wheel(tag, c, w, width, rim_col, discs):
             (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
     if not game_tyre(tag, c, w, hw):
         revolve(tag + "_tyre", prof, c, mat("rubber"))
+    if DETAIL["on"] and w.get("style"):
+        # a wheel from the library (wheels3d.py) at this bike's rim size; the bike keeps its tyre and discs
+        import wheels3d
+        wheels3d.fit(sys.modules[__name__], tag, c, w, width)
+        return wheel_discs(tag, c, w, discs)
     rw = hw * 0.8
     rprof = [(rr + 8, rw), (rr + 8, rw - 8), (rr - 8, rw - 14), (rr - 22, 0), (rr - 8, -rw + 14), (rr + 8, -rw + 8), (rr + 8, -rw), (rr - 26, -rw + 6), (rr - 34, 0), (rr - 26, rw - 6)]
     revolve(tag + "_rim", rprof, c, mat("rim", rim_col))
@@ -468,6 +473,10 @@ def wheel(tag, c, w, width, rim_col, discs):
             quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
             pillow(f"{tag}_spoke{k}{side}", quad, -15, 15, mat("rim", rim_col), 5, 12)
     revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("rim", rim_col), 32)
+    wheel_discs(tag, c, w, discs)
+
+
+def wheel_discs(tag, c, w, discs):
     d = w.get("disc")
     for y in discs if d else []:
         revolve(f"{tag}_disc{y}", [(d, y + 2.5), (d, y - 2.5), (d - 36, y - 2.5), (d - 36, y + 2.5)], c, mat("steel"), 64)

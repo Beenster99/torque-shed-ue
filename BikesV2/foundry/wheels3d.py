@@ -17,10 +17,18 @@ import sys
 import bpy
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import build3d as B
 import detail3d as D
 
-D.B = B
+B = None
+
+
+def use(b):
+    """Point the library (and the detail helpers) at the build3d module in use."""
+    global B
+    B = b
+    D.B = b
+
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "out", "wheels")
 INCH = 25.4
@@ -152,12 +160,12 @@ def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk
     return ob
 
 
-def wheel(tag, style, dia, width, rear):
+def wheel(tag, style, dia, width, rear, finish_name=None):
     """Build one wheel about the origin, axle along y. Returns its objects."""
     before = set(bpy.data.objects)
     st = STYLES[style]
     R, W = dia * INCH / 2, width * INCH
-    paint = finish(st["finish"])
+    paint = finish(finish_name or st["finish"])
     bright = D.surf("wheel_machined", (0.82, 0.83, 0.85), 1.0, 0.16, wear=0.05)
     steel = B.mat("steel")
     D.lathe(f"{tag}_rim", (0, 0, 0), (0, 1, 0), rim_profile(R, W, st["rim"]), paint, 96, caps=False)
@@ -199,6 +207,22 @@ def wheel(tag, style, dia, width, rear):
                     pts = [(min(0.93, max(0.08, f)), a, w, t) for f, a, w, t in pts]
                     bar(f"{tag}_inlay{bi}_{k}{sy}", pts, st["n"], k, bright, r_h, r_r, th_h, b_.get("curve", False), yo=sy * 1.0, flat=1.0, wk=wk)
     return [o for o in bpy.data.objects if o not in before]
+
+
+def fit(b, tag, c, w, tyre_width):
+    """Fit a library wheel to a bike: the style named in the model's wheel, at the bike's own rim size,
+    centred on the axle c (x, z). The bike keeps its own tyre, discs and valve."""
+    use(b)
+    objs = wheel(tag, w["style"], w["rim_r"] * 2 / INCH, tyre_width * 0.76 / INCH, tag == "rear", w.get("finish"))
+    keep = []
+    for o in objs:
+        if o.name.startswith(tag + "_valve"):
+            bpy.data.objects.remove(o, do_unlink=True)
+        else:
+            keep.append(o)
+    objs = keep
+    place(objs, (c[0], 0, c[1]), 0)
+    return objs
 
 
 def place(objs, loc, rot_z):
@@ -281,6 +305,8 @@ def sheet(styles):
 
 
 if __name__ == "__main__":
+    import build3d
+    use(build3d)
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     names = args or list(STYLES)
     if "--sheet-only" not in sys.argv:
