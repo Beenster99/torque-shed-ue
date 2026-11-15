@@ -1,5 +1,6 @@
 #include "World/TorqueRideWorld.h"
 #include "World/RideCosts.h"
+#include "World/TorqueRidePart.h"
 #include "World/WorldRoam.h"
 #include <algorithm>
 #include "TorqueDash.h"
@@ -10,6 +11,7 @@
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
@@ -37,6 +39,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
+#include "RenderCore.h"
+#include "RHI.h"
 
 #include <atomic>
 #include <cmath>
@@ -668,13 +672,35 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TorqueWorld::RideMesh
 
 UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow)
 {
-	UProceduralMeshComponent* Part = nullptr;
+	// [perf, build 148] Drawn as a static mesh built from the same triangles (World/TorqueRidePart.h):
+	// the procedural mesh then holds only what collides, hidden.
+	UStaticMesh* LookMesh = URidePart::StaticLooks() ? URidePart::BuildLook(this, Sections) : nullptr;
+	URidePart* Part = nullptr;
 	int32 Section = 0;
 	for (const TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>& Each : Sections)
 	{
 		const TorqueWorld::RideMesh* Mesh = Each.Key;
 		const int32 Count = Mesh ? int32(Mesh->Vertices()) : 0;
 		if (Count < 3 || Mesh->Idx.size() < 3) continue;
+		if (!Part)
+		{
+			Part = NewObject<URidePart>(this);
+			Part->bUseAsyncCooking = !bAtOnce;
+			Part->SetMobility(EComponentMobility::Movable);
+			Part->SetupAttachment(RootComponent);
+			Part->SetRelativeLocation(FVector(Mesh->OriginX * 100.0, Mesh->OriginZ * 100.0, 0.0));
+			Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
+			Part->SetCastShadow(bShadow && !LookMesh);
+			// (drawn by its look: the renderer never sees the procedural mesh)
+			if (LookMesh) Part->SetVisibility(false, false);
+			Part->RegisterComponent();
+		}
+		// (with a look, only what collides needs its triangles here)
+		if (LookMesh && !bCollide)
+		{
+			++Section;
+			continue;
+		}
 		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
 		TArray<FVector> Points;
 		TArray<FVector> Normals;
@@ -699,22 +725,25 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 		// (the plan winds its triangles anticlockwise seen from above, which is Unreal's front face too:
 		// the two frames name the same points)
 		for (uint32 Index : Mesh->Idx) Triangles.Add(int32(Index));
-		if (!Part)
-		{
-			Part = NewObject<UProceduralMeshComponent>(this);
-			Part->bUseAsyncCooking = !bAtOnce;
-			Part->SetMobility(EComponentMobility::Movable);
-			Part->SetupAttachment(RootComponent);
-			Part->SetRelativeLocation(FVector(Mesh->OriginX * 100.0, Mesh->OriginZ * 100.0, 0.0));
-			Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
-			Part->SetCastShadow(bShadow);
-			Part->RegisterComponent();
-		}
 		// (the colours are kept as they are, linear: M_RideRoad reads the vertex colour as the road's own,
 		// M_RideStone and M_RideMasonry as their masks)
 		Part->CreateMeshSection_LinearColor(Section, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
 		if (Each.Value) Part->SetMaterial(Section, Each.Value);
 		++Section;
+	}
+	if (Part && LookMesh)
+	{
+		UStaticMeshComponent* Drawn = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
+		Drawn->SetMobility(EComponentMobility::Movable);
+		Drawn->SetupAttachment(Part);
+		Drawn->SetStaticMesh(LookMesh);
+		Drawn->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Drawn->SetCollisionProfileName(TEXT("NoCollision"));
+		Drawn->SetCanEverAffectNavigation(false);
+		Drawn->SetGenerateOverlapEvents(false);
+		Drawn->SetCastShadow(bShadow);
+		Drawn->RegisterComponent();
+		Part->Look = Drawn;
 	}
 	return Part;
 }
@@ -865,6 +894,9 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 	Around.X0 = At.X - TRWI::RoadReach - 600.0; Around.Z0 = At.Y - TRWI::RoadReach - 600.0;
 	Around.X1 = At.X + TRWI::RoadReach + 600.0; Around.Z1 = At.Y + TRWI::RoadReach + 600.0;
 	std::vector<int> Roads = Plan->RoadsNear(Around, false);
+	// [perf, build 148] New pieces only while this look has had under 4 ms (the rest at the next look,
+	// a fifth of a second on, long before the rider is near them: they're laid 2.5 km out).
+	const double RoadStart = FPlatformTime::Seconds();
 	for (const auto& Have : RoadParts) Roads.push_back(int(Have.Key / 4096));
 	std::sort(Roads.begin(), Roads.end());
 	Roads.erase(std::unique(Roads.begin(), Roads.end()), Roads.end());
@@ -883,7 +915,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const bool bHave = RoadParts.Contains(Key);
 			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
 			const bool bEndsLaid = (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
-			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid)
+			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && (bAtOnce || (FPlatformTime::Seconds() - RoadStart) * 1000.0 < 4.0))
 			{
 				TorqueWorld::RideMesh Mesh;
 				Plan->RoadPiece(Which, First, Last, Mesh);
@@ -956,14 +988,48 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			}
 			UE_LOG(LogTemp, Display, TEXT("Ride costs: %d frames, %.1f ms a frame (worst %.0f); ours %.2f ms a frame:%s squares waiting %d"),
 				CostFrames, CostSince * 1000.0 / CostFrames, CostWorstFrame, All / CostFrames, *Line, Waiting);
+			// [perf, build 148] Where the whole frame goes (the engine's own last-frame figures, as stat unit
+			// shows them), and how much of the ride is in the scene: what to cut when a town is slow.
+			{
+				int32 Looks = 0, Hidden = 0, Ism = 0, IsmShadow = 0, Words = 0, Lamps = 0;
+				int64 Instances = 0;
+				auto CountPart = [&Looks, &Hidden](const UProceduralMeshComponent* P)
+				{
+					if (const URidePart* R = Cast<URidePart>(P))
+					{
+						if (R->Look) ++Looks;
+						if (!R->IsVisible()) ++Hidden;
+					}
+				};
+				for (const auto& Have : Tiles) CountPart(Have.Value);
+				for (const auto& Have : TileExtras) CountPart(Have.Value);
+				for (const auto& Have : TileWater) CountPart(Have.Value);
+				for (const auto& Have : RoadParts) CountPart(Have.Value);
+				for (const auto& Square : TilePlants)
+					for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Kind : Square.Value)
+						if (const UInstancedStaticMeshComponent* C = Kind.Get())
+						{
+							++Ism;
+							if (C->CastShadow) ++IsmShadow;
+							Instances += C->GetInstanceCount();
+						}
+				for (const auto& Square : TileWords) Words += Square.Value.Num();
+				for (const auto& Square : StreetLights) Lamps += Square.Value.Num();
+				for (const auto& Piece : RoadLights) Lamps += Piece.Value.Num();
+				UE_LOG(LogTemp, Display, TEXT("Ride frame: game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants), %d sign words, %d lamps"),
+					FPlatformTime::ToMilliseconds(GGameThreadTime), FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)),
+					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, Words, Lamps);
+			}
 			S = RideCosts::FSums();
 			CostFrames = 0;
 			CostSince = 0.0;
 			CostWorstFrame = 0.0;
 		}
 	}
-	// What the workers have made goes in place, a few a frame.
-	for (int32 N = 0; N < 4; ++N)
+	// What the workers have made goes in place, a few a frame: [perf, build 148] up to 4, but no more
+	// once 3 ms have gone on it (each now builds its static meshes here too: a frame stays a frame).
+	const double PlaceStart = FPlatformTime::Seconds();
+	for (int32 N = 0; N < 4 && (N == 0 || (FPlatformTime::Seconds() - PlaceStart) * 1000.0 < 3.0); ++N)
 	{
 		TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>> One;
 		{
