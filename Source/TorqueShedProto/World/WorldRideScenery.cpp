@@ -1085,6 +1085,8 @@ void RidePlan::IndexFurniture()
 		const int Home = NearestBuilding(At.X, At.Z, 30.0);
 		if (Home >= 0) BuildingRole[size_t(Home)] = 2;
 		if (Called.empty() || Home < 0) continue;
+		// (a guest house, a B&B or a hotel the map calls an inn has no sign: only a pub's, beenster build 148)
+		if (What == "inn" && Called.find(" Inn") == std::string::npos && Called.find("Arms") == std::string::npos && Called.find("Tavern") == std::string::npos) continue;
 		// The pub's name on its own front wall, the one facing the road (beenster, build 148: "only pub
 		// signs and they should be on the building facade itself"), not on a post by the road.
 		const Building& B = G.Buildings[size_t(Home)];
