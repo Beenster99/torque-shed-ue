@@ -831,9 +831,13 @@ public:
 		std::vector<P2> At;
 		std::vector<double> Top;
 		std::vector<unsigned char> On;
+		// (beenster, build 147: a house beside a line on a bank was buried in it) how far out from each
+		// point its bank may spread before a house: past that, a retaining wall (m, at least RailBedHalf)
+		std::vector<float> Room;
 		bool Disused = false;
 	};
 	std::vector<RailLine> Rails;
+	static constexpr double RailBedHalf = 5.0;
 	static constexpr double RailStep = 4.0, RailGauge = 1.435;
 	// A station's platform: along line Line from point First to Last, on the Side (+1 the left going
 	// along, -1 the right), with its name board.
@@ -846,7 +850,7 @@ public:
 	std::vector<Platform> Platforms;
 	// The nearest railway to (X, Z) within 40 m: how far, its ballast's top there, what it is on there
 	// (as RailLine::On), and whether it is disused. False with none that near.
-	bool NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused = nullptr) const;
+	bool NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused = nullptr, double* Room = nullptr) const;
 	// What the road's surface is made of (Ride UK stage 7: WorldRideSurface.cpp), as the tyres feel it
 	// and RoadTile draws it: patches of newer or older tarmac in the wheel tracks, the black tar banding
 	// round them and along old seams (slick in the wet), grit down the middle of a single-track lane,

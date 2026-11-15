@@ -1540,11 +1540,10 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 	// sloping 2 in 3 from there to meet it (not under a railway bridge, nor over its tunnel).
 	double RailDist = 0.0, RailTop = 0.0;
 	int RailOn = 0;
-	if (!std::isnan(Lie) && NearRail(X, Z, RailDist, RailTop, RailOn) && (RailOn == 0 || RailOn == 3))
-	{
-		const double Bed = RailTop - 0.47, Rise = std::fmax(0.0, RailDist - 5.0) / 1.5;
-		Lie = std::fmin(std::fmax(Lie, Bed - Rise), Bed + Rise);
-	}
+	double RailRoom = 1e9;
+	const bool RailBed = !std::isnan(Lie) && NearRail(X, Z, RailDist, RailTop, RailOn, nullptr, &RailRoom) && (RailOn == 0 || RailOn == 3) && RailDist <= RailRoom;
+	const double RailLevel = RailTop - 0.47, RailRise = std::fmax(0.0, RailDist - RailBedHalf) / 1.5;
+	if (RailBed) Lie = std::fmin(std::fmax(Lie, RailLevel - RailRise), RailLevel + RailRise);
 	NearOpts Opts;
 	Opts.NoBores = NoBores;
 	NearHit Hit;
@@ -1603,6 +1602,9 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 			if (Low < Out && Out - Low < OverlapStep) Out = Low;
 		}
 	}
+	// (beenster, build 147, Whaley Bridge: a road's bank cut away the bank a railway beside it stands on,
+	// leaving the line in the air. Off the road's bench the railway's own bank and cutting win.)
+	if (RailBed && Hit.Dist > Flat + 0.3) Out = std::fmax(Out, RailLevel - RailRise);
 	return std::isnan(Clear) ? Out : std::fmin(Out, Clear);
 }
 

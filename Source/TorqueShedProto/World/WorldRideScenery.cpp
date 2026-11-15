@@ -2416,7 +2416,7 @@ long long RailNearKey(double X, double Z, double Cell)
 }
 } // namespace
 
-bool RidePlan::NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused) const
+bool RidePlan::NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused, double* Room) const
 {
 	if (!Scene || Scene->RailNearBy.empty()) return false;
 	const auto It = Scene->RailNearBy.find(RailNearKey(X, Z, RailCell));
@@ -2437,6 +2437,7 @@ bool RidePlan::NearRail(double X, double Z, double& Dist, double& Top, int& On, 
 		Top = Run.Top[I] + (Run.Top[I + 1] - Run.Top[I]) * T;
 		On = Run.On[T < 0.5 ? I : I + 1];
 		if (Disused) *Disused = Run.Disused;
+		if (Room) *Room = Run.Room.size() == Run.At.size() ? double(Run.Room[T < 0.5 ? I : I + 1]) : 1e9;
 	}
 	return Found;
 }
@@ -2518,6 +2519,43 @@ void RidePlan::IndexRails()
 			At.push_back(Pts.back());
 			On.push_back(After[Pts.size() >= 2 ? Pts.size() - 2 : 0]);
 		}
+		// (beenster, build 147, Whaley Bridge: a line mapped alongside a road, its bed over the road's edge.
+		// Moved clear of a road it runs beside: its middle 3 m past the road's edge, eased in and out.)
+		{
+			std::vector<P2> Push(At.size(), P2(0.0, 0.0));
+			bool Any = false;
+			for (size_t K = 0; K < At.size(); ++K)
+			{
+				if (On[K] != 0) continue;
+				NearOpts Opts;
+				NearHit Hit;
+				if (!NearestOf(At[K].X, At[K].Z, Opts, Hit) || Hit.Deck || Hit.Bore || Hit.Dist >= Hit.Half + 3.0 || Hit.Dist < 0.5) continue;
+				const std::vector<RoadPoint>& Way = RoadOf(Hit.Which);
+				const size_t Ri = size_t(std::clamp(Hit.Index, 0, int(Way.size()) - 1)), Rn = Ri + 1 < Way.size() ? Ri + 1 : Ri, Rp = Ri + 1 < Way.size() ? Ri : (Ri > 0 ? Ri - 1 : Ri);
+				const P2 RoadDir = Way[Rn].At - Way[Rp].At;
+				const P2 LineDir = At[K + 1 < At.size() ? K + 1 : K] - At[K > 0 ? K - 1 : K];
+				const double Lr = RoadDir.Length(), Ll = LineDir.Length();
+				if (Lr < 1e-6 || Ll < 1e-6 || std::fabs(RoadDir.X * LineDir.Z - RoadDir.Z * LineDir.X) / (Lr * Ll) >= 0.34) continue;
+				const P2 Away = (At[K] - Hit.Foot) * (1.0 / Hit.Dist);
+				Push[K] = Away * (Hit.Half + 3.0 - Hit.Dist);
+				Any = true;
+			}
+			if (Any)
+			{
+				std::vector<P2> Eased(At.size(), P2(0.0, 0.0));
+				for (size_t K = 0; K < At.size(); ++K)
+				{
+					// (the greatest push within 8 m, faded over the next 12 m)
+					for (size_t J = K > 5 ? K - 5 : 0; J <= std::min(At.size() - 1, K + 5); ++J)
+					{
+						const double Gap = std::fabs(double(J) - double(K)) * RailStep, Keep = Gap <= 8.0 ? 1.0 : std::fmax(0.0, 1.0 - (Gap - 8.0) / 12.0);
+						const P2 P = Push[J] * Keep;
+						if (P.Length() > Eased[K].Length()) Eased[K] = P;
+					}
+				}
+				for (size_t K = 0; K < At.size(); ++K) At[K] = At[K] + Eased[K];
+			}
+		}
 		// The ground under it, and the stretches where the ride's land has it (each a line of its own).
 		std::vector<double> Lie(At.size());
 		for (size_t I = 0; I < At.size(); ++I) Lie[I] = Land->Height(At[I].X, At[I].Z);
@@ -2573,7 +2611,7 @@ void RidePlan::IndexRails()
 				}
 				Spans();
 				// The roads it meets: level with one it crosses, over one it bridges, under one that bridges it.
-				std::vector<double> Floor(Y.size(), -1e9), Ceiling(Y.size(), 1e9);
+				std::vector<double> Floor(Y.size(), -1e9), Ceiling(Y.size(), 1e9), Level(Y.size(), std::nan(""));
 				for (size_t K = 0; K < Y.size(); ++K)
 				{
 					NearOpts Opts;
@@ -2584,7 +2622,16 @@ void RidePlan::IndexRails()
 					else if (Run.On[K] == 1) Floor[K] = Surface + 6.0;
 					else if (!Hit.Deck && Hit.Dist <= Hit.Half + 0.6)
 					{
-						Floor[K] = Ceiling[K] = Surface - 0.27;   // (the rails' tops flush with the road)
+						// (beenster, build 147, Whaley Bridge: a line mapped alongside a road, within its width,
+						// is not a level crossing; only one that crosses it, 20 degrees or more across it)
+						const std::vector<RoadPoint>& Way = RoadOf(Hit.Which);
+						const size_t Ri = size_t(std::clamp(Hit.Index, 0, int(Way.size()) - 1)), Rn = Ri + 1 < Way.size() ? Ri + 1 : Ri, Rp = Ri + 1 < Way.size() ? Ri : (Ri > 0 ? Ri - 1 : Ri);
+						const P2 RoadDir = Way[Rn].At - Way[Rp].At;
+						const P2 LineDir = Run.At[K + 1 < Run.At.size() ? K + 1 : K] - Run.At[K > 0 ? K - 1 : K];
+						const double Lr = RoadDir.Length(), Ll = LineDir.Length();
+						const double Across = Lr > 1e-6 && Ll > 1e-6 ? std::fabs(RoadDir.X * LineDir.Z - RoadDir.Z * LineDir.X) / (Lr * Ll) : 1.0;
+						if (Across < 0.34) continue;
+						Floor[K] = Ceiling[K] = Level[K] = Surface - 0.27;   // (the rails' tops flush with the road)
 						Run.On[K] = 3;
 					}
 				}
@@ -2593,7 +2640,45 @@ void RidePlan::IndexRails()
 				for (size_t K = 1; K < Y.size(); ++K) { Floor[K] = std::fmax(Floor[K], Floor[K - 1] - Ramp); Ceiling[K] = std::fmin(Ceiling[K], Ceiling[K - 1] + Ramp); }
 				for (size_t K = Y.size() - 1; K-- > 0;) { Floor[K] = std::fmax(Floor[K], Floor[K + 1] - Ramp); Ceiling[K] = std::fmin(Ceiling[K], Ceiling[K + 1] + Ramp); }
 				for (size_t K = 0; K < Y.size(); ++K) Y[K] = std::fmax(std::fmin(Y[K], Ceiling[K]), Floor[K]);
+				// (beenster, build 147, Whaley Bridge: a crossing the line can't be level with, its bank's
+				// climb to a bridge nearby holding it metres over the road, is a bridge over the road)
+				{
+					std::vector<unsigned char> Lifted(Y.size(), 0);
+					for (size_t K = 0; K < Y.size(); ++K)
+						if (Run.On[K] == 3 && !std::isnan(Level[K]) && Y[K] > Level[K] + 1.0) Lifted[K] = 1;
+					// (and a bit either side: its abutments stand clear of the road's verge)
+					for (size_t K = 0; K < Y.size(); ++K)
+						if (Lifted[K] || (K > 0 && Lifted[K - 1]) || (K + 1 < Y.size() && Lifted[K + 1]))
+							if (Run.On[K] == 3 || Run.On[K] == 0) Run.On[K] = 1;
+				}
 				Run.Top = Y;
+				// (the room for its bank each side: to the nearest house, less 1.5 m)
+				Run.Room.assign(Y.size(), 1e9f);
+				for (size_t K = 0; K < Y.size(); ++K)
+				{
+					const P2 Q = Run.At[K];
+					double Near = 1e9;
+					for (int Dz = -1; Dz <= 1; ++Dz)
+						for (int Dx = -1; Dx <= 1; ++Dx)
+						{
+							const auto Hb = Scene->Buildings.find(SceneKey(Q.X + Dx * SceneCell, Q.Z + Dz * SceneCell));
+							if (Hb == Scene->Buildings.end()) continue;
+							for (int Bi : Hb->second)
+							{
+								const Building& H = G.Buildings[size_t(Bi)];
+								const double C = std::cos(H.Yaw), S = std::sin(H.Yaw), Ex = Q.X - H.X, Ez = Q.Z - H.Z;
+								const double U = std::fmax(0.0, std::fabs(Ex * C - Ez * S) - H.W * 0.5), V = std::fmax(0.0, std::fabs(Ex * S + Ez * C) - H.D * 0.5);
+								Near = std::fmin(Near, std::hypot(U, V));
+							}
+						}
+					Run.Room[K] = float(std::fmax(RailBedHalf, Near - 1.5));
+				}
+				{
+					// (steady along the line: the least within 12 m, so its walls run straight)
+					const std::vector<float> Was = Run.Room;
+					for (size_t K = 0; K < Was.size(); ++K)
+						for (size_t J = K > 3 ? K - 3 : 0; J <= std::min(Was.size() - 1, K + 3); ++J) Run.Room[K] = std::fmin(Run.Room[K], Was[J]);
+				}
 				Rails.push_back(std::move(Run));
 			}
 			From = To + 1;
@@ -2783,6 +2868,77 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 						Quad(Stone, Q0, Q1, Q2, Q3, Away, Mask, false, 0.3f);
 					}
 				}();
+				// (beenster, build 147, Whaley Bridge: a line on a bank beside a road hung in the air where the
+				// road's own bench took its ground. Where the land beside the line falls away more than its
+				// bank's shoulder, a stone retaining wall each side down to it, and a wall across each end.)
+				if (!Crossing && !Bridge && Fine)
+				{
+					// (the wall stands at the bed's shoulder where a road's bench took the land beside the
+					// line, or where its bank must stop short of a house)
+					const auto WallOff = [&](size_t K, double Sg)
+					{
+						const P2 L = LeftAt(Run, K), P = Run.At[K];
+						const auto Drop = [&](double Off)
+						{
+							const double G2 = Ground(P.X + L.X * Sg * Off, P.Z + L.Z * Sg * Off);
+							return std::isnan(G2) ? 0.0 : G2 - Run.Top[K];
+						};
+						// (never on a road's tarmac: where the line comes to a bridge over one at a slant)
+						const auto Clear = [&](double Off)
+						{
+							NearOpts Opts;
+							Opts.NoDecks = true;
+							NearHit Hit;
+							return !(NearestOf(P.X + L.X * Sg * Off, P.Z + L.Z * Sg * Off, Opts, Hit) && Hit.Dist <= Hit.Half + 0.5);
+						};
+						if (Drop(2.6) < -1.9) return Clear(2.6) ? 2.6 : 0.0;
+						const double Room = Run.Room.size() == Run.At.size() ? double(Run.Room[K]) : 1e9;
+						if (Room < 40.0 && Drop(Room + 0.6) < -2.4 && Clear(Room)) return Room;
+						return 0.0;
+					};
+					const auto FootAt = [&](size_t K, double Sg, double Off)
+					{
+						const P2 L = LeftAt(Run, K), P = Run.At[K];
+						const double Gs = Ground(P.X + L.X * Sg * (Off + 0.6), P.Z + L.Z * Sg * (Off + 0.6));
+						return std::isnan(Gs) ? -2.0 : std::fmin(-1.0, Gs - Run.Top[K] - 0.4);
+					};
+					const double Yb2 = Run.Top[I + 1];
+					for (double Sg : {1.0, -1.0})
+					{
+						double Oa2 = WallOff(I, Sg), Ob2 = WallOff(I + 1, Sg);
+						if (Oa2 <= 0.0 && Ob2 <= 0.0) continue;
+						if (Oa2 <= 0.0) Oa2 = Ob2;
+						if (Ob2 <= 0.0) Ob2 = Oa2;
+						Oa2 = Ob2 = std::fmin(Oa2, Ob2);
+						const P2 La2 = LeftAt(Run, I), Lb2 = LeftAt(Run, I + 1);
+						// (its top: the coping just over the land at its back, the ballast's level by the line)
+						const double Ta = Oa2 < 3.0 ? 0.35 : -0.47 - (Oa2 - RailBedHalf) / 1.5 + 0.35, Tb = Ob2 < 3.0 ? 0.35 : -0.47 - (Ob2 - RailBedHalf) / 1.5 + 0.35;
+						const double Da = FootAt(I, Sg, Oa2), Db = FootAt(I + 1, Sg, Ob2);
+						const P3 Qa0 = At3(A.X + La2.X * Sg * Oa2, Ya + Da, A.Z + La2.Z * Sg * Oa2), Qb0 = At3(B.X + Lb2.X * Sg * Ob2, Yb2 + Db, B.Z + Lb2.Z * Sg * Ob2);
+						const P3 Qa1 = At3(A.X + La2.X * Sg * Oa2, Ya + Ta, A.Z + La2.Z * Sg * Oa2), Qb1 = At3(B.X + Lb2.X * Sg * Ob2, Yb2 + Tb, B.Z + Lb2.Z * Sg * Ob2);
+						Quad(Stone, Qa0, Qb0, Qb1, Qa1, Beside(Run, I, Sg * 80.0, 0.0), Mask, false, 0.35f);
+						const P3 Ra1 = At3(A.X + La2.X * Sg * (Oa2 - 0.35), Ya + Ta, A.Z + La2.Z * Sg * (Oa2 - 0.35)), Rb1 = At3(B.X + Lb2.X * Sg * (Ob2 - 0.35), Yb2 + Tb, B.Z + Lb2.Z * Sg * (Ob2 - 0.35));
+						Quad(Stone, Qa1, Qb1, Rb1, Ra1, Sky, Shade(Mask, 1.1), false, 0.5f);
+						const P3 Ra0 = At3(A.X + La2.X * Sg * (Oa2 - 0.35), Ya + Ta - 1.0, A.Z + La2.Z * Sg * (Oa2 - 0.35)), Rb0 = At3(B.X + Lb2.X * Sg * (Ob2 - 0.35), Yb2 + Tb - 1.0, B.Z + Lb2.Z * Sg * (Ob2 - 0.35));
+						Quad(Stone, Ra0, Rb0, Rb1, Ra1, Beside(Run, I, -Sg * 80.0, 0.0), Mask, false, 0.35f);
+					}
+					// (the ends: across the line under the ballast, where the walls start or stop)
+					for (int End = 0; End < 2; ++End)
+					{
+						const size_t K = End == 0 ? I : I + 1;
+						const double Wl = WallOff(K, 1.0), Wr = WallOff(K, -1.0);
+						if (Wl <= 0.0 && Wr <= 0.0) continue;
+						const size_t Next = End == 0 ? (I > 0 ? I - 1 : I) : (I + 2 < Run.At.size() ? I + 2 : I + 1);
+						if (Next == K || Run.On[Next] != 0 || WallOff(Next, 1.0) > 0.0 || WallOff(Next, -1.0) > 0.0) continue;
+						const P2 P = Run.At[K], L = LeftAt(Run, K);
+						const double Ol = Wl > 0.0 ? Wl : 2.6, Or = Wr > 0.0 ? Wr : 2.6;
+						const double Down = std::fmin(FootAt(K, 1.0, Ol), FootAt(K, -1.0, Or));
+						const P2 Other = Run.At[End == 0 ? I + 1 : I];
+						const P3 Away50 = At3(P.X + (P.X - Other.X) * 50.0, Run.Top[K], P.Z + (P.Z - Other.Z) * 50.0);
+						Quad(Stone, At3(P.X + L.X * Ol, Run.Top[K] + Down, P.Z + L.Z * Ol), At3(P.X - L.X * Or, Run.Top[K] + Down, P.Z - L.Z * Or),
+							At3(P.X - L.X * Or, Run.Top[K] + 0.35, P.Z - L.Z * Or), At3(P.X + L.X * Ol, Run.Top[K] + 0.35, P.Z + L.Z * Ol), Away50, Mask, false, 0.35f);
+					}
+				}
 				if (Run.Disused) continue;   // (an old line: its cuttings and banks in the land, no track)
 				if (!Crossing && !Bridge)
 				{

@@ -771,6 +771,88 @@ int main(int Argc, char** Argv)
 			// (only one road can be left out at a time: the next nearest after this one)
 		}
 	}
+	if (const char* RailsNear = std::getenv("WORLD_RIDE_RAILS_NEAR"))
+	{
+		// (the railways within r m of the ride's start: each sample's place from the start, what it is on,
+		// its rails' top, the land's own height and the ground the game draws under it; and how many
+		// samples anywhere stand clear of the ground off a bridge)
+		const double Reach = std::atof(RailsNear);
+		const P2 Start = Plan->Road[0].At;
+		Rect Round;
+		Round.X0 = Start.X - Reach - 100.0; Round.Z0 = Start.Z - Reach - 100.0; Round.X1 = Start.X + Reach + 100.0; Round.Z1 = Start.Z + Reach + 100.0;
+		Plan->LayBlocks(Round);
+		int Floating = 0, Looked = 0;
+		for (size_t L = 0; L < Plan->Rails.size(); ++L)
+		{
+			const RidePlan::RailLine& Run = Plan->Rails[L];
+			for (size_t I = 0; I < Run.At.size(); ++I)
+			{
+				const P2 A = Run.At[I];
+				if (A.DistanceTo(Start) > Reach) continue;
+				const double G = Plan->Ground(A.X, A.Z), Lie = Plan->Land ? Plan->Land->Height(A.X, A.Z) : 0.0;
+				// (and 4 m to its side: the bank it stands on)
+				const P2 Next = Run.At[I + 1 < Run.At.size() ? I + 1 : I - 1];
+				P2 D = Next - A;
+				const double Len = std::fmax(1e-6, std::hypot(D.X, D.Z));
+				D = D * (1.0 / Len);
+				const double Gs = std::fmin(Plan->Ground(A.X + D.Z * 4.0, A.Z - D.X * 4.0), Plan->Ground(A.X - D.Z * 4.0, A.Z + D.X * 4.0));
+				++Looked;
+				const bool Hangs = (Run.On[I] == 0 || Run.On[I] == 3) && G < Run.Top[I] - 1.5;   // (a side that falls away has its retaining wall)
+				Floating += Hangs ? 1 : 0;
+				std::printf("  rail %zu.%zu at %.0f, %.0f: on %d top %.1f land %.1f ground %.1f side %.1f%s\n", L, I, A.X - Start.X, A.Z - Start.Z, int(Run.On[I]), Run.Top[I], Lie, G, Gs, Hangs ? "  FLOATING" : "");
+			}
+		}
+		std::printf("Rails near the start: %d samples, %d floating off a bridge\n", Looked, Floating);
+	}
+	if (const char* TallNear = std::getenv("WORLD_RIDE_TALL"))
+	{
+		// (what stands more than 6 m over the ground within r m of the ride's start, by layer, in 8 m squares:
+		// each square's top, its colour and how many triangles)
+		const double Reach = std::atof(TallNear);
+		const P2 Start = Plan->Road[0].At;
+		std::map<std::string, std::map<std::pair<int, int>, std::array<double, 5>>> Seen;
+		const std::function<void(const RideMesh*, const std::string&)> Walk = [&](const RideMesh* M, const std::string& Tag)
+		{
+			if (M == nullptr) return;
+			for (size_t T = 0; T + 2 < M->Idx.size(); T += 3)
+			{
+				const uint32_t V = M->Idx[T];
+				const double X = M->OriginX + M->Pos[V * 3], Y = M->Pos[V * 3 + 1], Z = M->OriginZ + M->Pos[V * 3 + 2];
+				if (std::hypot(X - Start.X, Z - Start.Z) > Reach) continue;
+				const double G = Plan->Ground(X, Z);
+				if (std::isnan(G) || Y - G < (std::getenv("WORLD_RIDE_TALL_M") ? std::atof(std::getenv("WORLD_RIDE_TALL_M")) : 6.0)) continue;
+				std::array<double, 5>& A = Seen[Tag][{int(std::floor((X - Start.X) / 8.0)), int(std::floor((Z - Start.Z) / 8.0))}];
+				A[0] = std::fmax(A[0], Y - G);
+				if (!M->Col.empty()) { A[1] = M->Col[V * 3]; A[2] = M->Col[V * 3 + 1]; A[3] = M->Col[V * 3 + 2]; }
+				A[4] += 1.0;
+			}
+			Walk(M->Extra.get(), Tag + ".extra");
+			Walk(M->Stone.get(), Tag + ".stone");
+			Walk(M->Masonry.get(), Tag + ".masonry");
+			Walk(M->Render.get(), Tag + ".render");
+			Walk(M->Roofing.get(), Tag + ".roof");
+			Walk(M->Brickwork.get(), Tag + ".brick");
+		};
+		for (double Tz = std::floor((Start.Z - Reach) / 256.0) * 256.0; Tz < Start.Z + Reach; Tz += 256.0)
+			for (double Tx = std::floor((Start.X - Reach) / 256.0) * 256.0; Tx < Start.X + Reach; Tx += 256.0)
+			{
+				RideMesh LandHere;
+				Plan->LandTile(Tx, Tz, 256.0, 64, LandHere);
+				Walk(&LandHere, "land");
+			}
+		for (double Tz = std::floor((Start.Z - Reach) / 64.0) * 64.0; Tz < Start.Z + Reach; Tz += 64.0)
+			for (double Tx = std::floor((Start.X - Reach) / 64.0) * 64.0; Tx < Start.X + Reach; Tx += 64.0)
+			{
+				RideMesh Stands;
+				Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Stands);
+				Walk(&Stands, "scenery");
+			}
+		for (const RidePlan::TallThing& T : Plan->Talls)
+			if (T.At.DistanceTo(Start) < Reach) std::printf("  tall thing kind %d at %.0f, %.0f: %.1f m high, radius %.1f\n", T.Kind, T.At.X - Start.X, T.At.Z - Start.Z, T.Height, T.Radius);
+		for (const auto& [Tag, Squares] : Seen)
+			for (const auto& [Key, A] : Squares)
+				std::printf("  tall %s at %d, %d: %.1f m up, colour %.2f %.2f %.2f, %d triangles\n", Tag.c_str(), Key.first * 8, Key.second * 8, A[0], A[1], A[2], A[3], int(A[4]));
+	}
 	if (std::getenv("WORLD_RIDE_DUALS") != nullptr)
 	{
 		// [OSM stage 5C] The dual carriageways: the region's edges the map pairs, and how much of the
