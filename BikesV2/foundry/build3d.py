@@ -665,8 +665,12 @@ def build(model):
     nodes.update(head_t=head_t, head_b=head_b)
 
     def half(p):
-        u = (head_t[0] - p[0]) / max(1.0, head_t[0] - 600)
-        return 22 + max(0.0, min(1.0, u)) * 118
+        u = max(0.0, min(1.0, (head_t[0] - p[0]) / max(1.0, head_t[0] - 600)))
+        if DETAIL["on"]:
+            # a real tube frame opens out quickly behind the steering head, so its sides pass outside the
+            # airbox and the cylinder heads instead of through them
+            return 30 + 110 * (1 - (1 - u) ** 2)
+        return 22 + u * 118
 
     eng = model["engine"]
     wide = 420 if eng["layout"] in ("inline4", "triple") else 300
@@ -759,7 +763,11 @@ def build(model):
         cs_ = tuple(eng["countershaft"])
         cone("sprocketcover", (cs_[0], wide / 2 - 40, cs_[1]), (cs_[0], wide / 2 + 6, cs_[1]), 52, 44, mat("engine_dark"), 32)
     for i, shp in enumerate(eng.get("extras", [])):
-        pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -112, 112, mat("plastic"), 26, 45)
+        hwa = 112
+        if DETAIL["on"]:      # the airbox stays inside the frame rails
+            hwa = max(44, min(112, min(half((x_, 0)) for x_ in (min(q[0] for q in shp["pts"]), max(q[0] for q in shp["pts"]))) + 14))
+            hwa = min(hwa, half((max(q[0] for q in shp["pts"]) - 40, 0)) - 18) if hwa > 60 else hwa
+        pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -hwa, hwa, mat("plastic"), min(26, hwa * 0.3), 45)
     r = model.get("radiator")
     if r:
         u = unit(r["angle"])

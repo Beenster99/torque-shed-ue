@@ -158,7 +158,7 @@ def disc(tag, c, d, y, s, game_id, arms=6, buttons=10, carrier=None):
     nb_ = 6 if arms >= 6 else 5
     for k in range(nb_):
         q = add(c, unit(360.0 / nb_ * k + 30), rh - 12)
-        bolt(f"{tag}_hubbolt{y}{k}", (q[0], y + s * 3, q[1]), (0, s, 0), 5.5, 4.5)
+        bolt(f"{tag}_hubbolt{y}{k}", (q[0], y + s * 3, q[1]), (0, s, 0), min(5.5, rh * 0.09), 4.5)
     for k in range(buttons):
         q = add(c, unit(360.0 / buttons * k + 12), rin + 0.5)
         B.cone(f"{tag}_button{y}{k}", (q[0], y - 4.6, q[1]), (q[0], y + 4.6, q[1]), 7.2, 7.2, B.mat("steel"), 18)
@@ -490,7 +490,6 @@ def headlamp(model, c):
     slab("dashglass", dc, n, u, [(y * 0.9, z * 0.86) for y, z in face], -1, 0.8, surf("screen", (0.004, 0.005, 0.008), 0.0, 0.04, coat=1.0, wear=0.0), 0)
     slab("dashrev", dc, n, u, [(-56, 22), (30, 22), (30, 27), (-56, 27)], 0.6, 1.1, glow("rev", (0.2, 0.75, 1.0), 2.5), 0)
     slab("dashrevred", dc, n, u, [(34, 22), (56, 22), (56, 27), (34, 27)], 0.6, 1.1, glow("revred", (1.0, 0.15, 0.05), 2.5), 0)
-    slab("dashspeed", dc, n, u, [(-18, -16), (18, -16), (18, 10), (-18, 10)], 0.6, 1.1, glow("digits", (0.85, 0.9, 1.0), 0.35), 0)
     back = (dc[0] - n[0] * 20, dc[1] - n[1] * 20)
     yk = B.add(B.add(F, uf, fk["length"] - 12), nb, -34)
     for sg in (-1, 1):
@@ -593,12 +592,548 @@ def controls(model, c):
                 bolt(f"barclampbolt{s}{dx}", (rz[0] + dx, s * 45, rz[1] + (15 if abs(dx) < 12 else 14)), (0, 0, 1), 4.5, 4)
 
 
+def set_mat(prefix, material):
+    for ob in bpy.data.objects:
+        if ob.name.startswith(prefix) and getattr(ob.data, "materials", None) is not None and len(ob.data.materials):
+            ob.data.materials[0] = material
+
+
+def heat_tint():
+    """Stainless header pipe that has been hot: straw, bronze and a little blue in patches."""
+    key = "d3_headertint"
+    if key in bpy.data.materials:
+        return bpy.data.materials[key]
+    m = bpy.data.materials.new(key)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    b.inputs["Metallic"].default_value, b.inputs["Roughness"].default_value = 1.0, 0.22
+    tc, nz, ramp = nt.nodes.new("ShaderNodeTexCoord"), nt.nodes.new("ShaderNodeTexNoise"), nt.nodes.new("ShaderNodeValToRGB")
+    nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 5.0, 2.0
+    el = ramp.color_ramp.elements
+    el[0].position, el[0].color = 0.3, (0.55, 0.53, 0.5, 1)
+    el[1].position, el[1].color = 0.7, (0.5, 0.33, 0.14, 1)
+    e = el.new(0.52)
+    e.color = (0.62, 0.5, 0.3, 1)
+    e = el.new(0.62)
+    e.color = (0.3, 0.26, 0.4, 1)
+    nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+    nt.links.new(nz.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    return m
+
+
+def engine(model, c):
+    """The engine as its separate castings, each with its own finish: sand-cast cases, finned barrels on
+    a base flange, square heads with cam end caps, valve covers bolted on, a clutch cover and an alternator
+    cover that are different parts, a water pump, rubber inlet stubs with clamps and throttle bodies, and
+    exhaust ports with a two-stud flange and collar where each header pipe starts."""
+    add, unit = B.add, B.unit
+    eng, crank, wide = c["eng"], c["crank"], c["wide"]
+    if eng["layout"] in ("inline4", "triple", "boxer"):
+        return
+    silver = B.mat("engine")
+    mag = surf("magcover", (0.2, 0.165, 0.12), 0.9, 0.4, bump=(1.0, 0.1))
+    blk = surf("crinkle", (0.022, 0.022, 0.024), 0.3, 0.62, bump=(0.4, 0.5))
+    steel, rubber, alu = B.mat("steel"), B.mat("rubber"), B.mat("alu")
+    heads = []
+    for i, cy in enumerate(eng["cylinders"]):
+        drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
+        u = unit(cy["angle"])
+        n = (-u[1], u[0])
+        if n[1] < 0:
+            n = (-n[0], -n[1])       # towards the middle of the V
+        r = cy["bore_w"] / 2
+        base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
+        headend = add(end, u, cy["head"])
+        d3 = (u[0], 0, u[1])
+        prof = [(-6, r - 12), (0, r - 12), (0, r + 5), (9, r + 5), (9, r - 9)]
+        k = 16.0
+        while k < cy["length"] - 8:
+            prof += [(k, r - 9), (k, r + 1), (k + 2.4, r + 1), (k + 2.4, r - 9)]
+            k += 8.5
+        prof += [(cy["length"] + 2, r - 9)]
+        lathe(f"barrel{i}", P(base, 0), d3, prof, silver, 44)
+        for a_ in (45, 135, 225, 315):       # the four base nuts
+            w = math.radians(a_)
+            q = (base[0] + u[0] * 9 + n[0] * (r - 4) * math.cos(w), (r - 4) * math.sin(w), base[1] + u[1] * 9 + n[1] * (r - 4) * math.cos(w))
+            bolt(f"basenut{i}{a_}", q, d3, 6.5, 6, steel, False)
+        hw = r + 9
+        B.pillow(f"cylhead{i}", [add(end, n, hw), add(headend, n, hw), add(headend, n, -hw), add(end, n, -hw)], -(r + 4), r + 4, silver, 7, 12)
+        cov = add(headend, u, 30)
+        cw = r - 3
+        B.pillow(f"cover{i}", [add(headend, n, cw), add(cov, n, cw - 12), add(cov, n, -cw + 12), add(headend, n, -cw)], -(r - 9), r - 9, mag, 9, 16)
+        B.prism(f"covergasket{i}", [add(headend, n, cw + 2), add(add(headend, u, 3), n, cw + 2), add(add(headend, u, 3), n, -cw - 2), add(headend, n, -cw - 2)], -(r - 6), r - 6, rubber, 0.5)
+        for sn in (-1, 1):
+            for sy in (-1, 1):
+                q = add(add(headend, u, 27), n, sn * (cw - 22))
+                bolt(f"coverbolt{i}{sn}{sy}", (q[0], sy * (r - 28), q[1]), d3, 5, 4.5)
+        hc = add(end, u, cy["head"] * 0.5)
+        for sy in (-1, 1):       # cam end caps
+            B.cone(f"camcap{i}{sy}", P(hc, sy * (r + 2)), P(hc, sy * (r + 11)), 27, 24, mag, 28)
+            for a_ in (30, 150, 270):
+                q = add(hc, unit(a_ + cy["angle"]), 19)
+                bolt(f"camcapbolt{i}{sy}{a_}", P(q, sy * (r + 11)), (0, sy, 0), 3.6, 3)
+        # plug cap and lead out of the valve cover
+        pc = add(cov, u, -2)
+        B.cone(f"plugcap{i}", P(pc, 0), P(add(pc, u, 30), 0), 10.5, 8.5, rubber, 16)
+        B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 28), 0), P(add(add(pc, u, 60), n, 20), 14), P(add(add(pc, u, 70), n, 80), 30)], 3.6, rubber)
+        # inlet: rubber stub, clamp, throttle body, injector
+        i3 = (n[0], 0, n[1])
+        lathe(f"inletstub{i}", P(add(hc, n, hw - 4), 0), i3, [(0, 30), (8, 30), (12, 27), (30, 27), (30, 22)], rubber, 32)
+        lathe(f"inletclamp{i}", P(add(hc, n, hw - 4), 0), i3, [(19, 27.4), (19, 28.6), (27, 28.6), (27, 27.4)], steel, 32)
+        lathe(f"throttle{i}", P(add(hc, n, hw - 4), 0), i3, [(28, 25), (40, 25), (44, 28), (62, 28), (66, 25), (96, 25), (96, 0)], alu, 32)
+        tq = add(add(hc, n, hw + 48), u, 0)
+        B.tube(f"throttleshaft{i}", [P(tq, -40), P(tq, 40)], 4, steel)
+        B.cone(f"throttlepulley{i}", P(tq, -44), P(tq, -36), 17, 17, B.mat("alu_dark"), 20)
+        inj = add(add(hc, n, hw + 24), u, 26)
+        B.cone(f"injector{i}", P(inj, 0), P(add(add(inj, u, 30), n, 14), 0), 8, 7, surf("injgreen", (0.1, 0.25, 0.12), 0, 0.5), 14)
+        heads.append((hc, u, r, i))
+    # side covers: clutch cover on the right, alternator cover on the left, different shapes and finishes
+    drop("sidecover", "sidedome", "coverring", "coverboss", "coverrib", "oilfilter")
+    for i, cv in enumerate(eng.get("covers", [])):
+        drop(f"bolt{i}")
+        cc_, r_ = tuple(cv["c"]), cv["r"]
+        for sg in (-1, 1):
+            p0 = P(cc_, sg * (wide / 2 - 28))
+            if sg == -1:
+                lathe(f"clutchcover{i}", p0, (0, sg, 0), [(0, r_ + 3), (6, r_ + 3), (6, r_), (26, r_ - 2), (34, r_ - 9), (37, r_ - 20), (37, r_ * 0.66), (41, r_ * 0.66), (44, r_ * 0.6), (44, 0)], mag, 64)
+                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], blk, 48)
+                for k_ in range(6):
+                    q = add(cc_, unit(60 * k_), r_ * 0.58)
+                    bolt(f"clutchcapbolt{i}{k_}", P(q, p0[1] + sg * 44), (0, sg, 0), 4, 3.5)
+                nb_ = cv.get("bolts", 8)
+            else:
+                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], blk, 64)
+                B.cone(f"altplug{i}", (p0[0], p0[1] + sg * 53, p0[2]), (p0[0], p0[1] + sg * 58, p0[2]), 15, 14, alu, 24)
+                B.cone(f"altplugslot{i}", (p0[0], p0[1] + sg * 57.4, p0[2]), (p0[0], p0[1] + sg * 58.3, p0[2]), 7, 7, rubber, 6)
+                nb_ = 6
+            rb = (r_ - 7) if sg == -1 else r_ * 0.9 - 6
+            for k_ in range(nb_):
+                q = add(cc_, unit(k_ * 360 / nb_ + 15), rb)
+                bolt(f"bolt{i}{sg}{k_}", P(q, p0[1] + sg * (6 if sg == -1 else 5)), (0, sg, 0), 5, 16)
+    case = B.shapes.dense(eng["case"], True, 0.9)
+    ccx, ccz = sum(q[0] for q in case) / len(case), sum(q[1] for q in case) / len(case)
+    inner = [(ccx + (q[0] - ccx) * 0.9, ccz + (q[1] - ccz) * 0.88) for q in case]
+    for sg in (-1, 1):       # the outer case halves: their own castings, bolted to the centre cases
+        ya, yb = sg * (wide / 2 - 34), sg * (wide / 2 - 14)
+        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
+    set_mat("crankcase", surf("sandcast", (0.42, 0.42, 0.43), 0.9, 0.5, bump=(1.4, 0.25)))
+    zb = min(q[1] for q in case)
+    xb = [q[0] for q in case if q[1] < zb + 34]
+    if xb:
+        drop("sumprib")
+        x0, x1 = min(xb) + 8, max(xb) - 8
+        pan = [(x0, zb + 16), (x1, zb + 16), (x1 - 10, zb - 12), (x0 + 16, zb - 14)]
+        B.pillow("sump", pan, -wide / 2 + 52, wide / 2 - 52, blk, 5, 8)
+        B.prism("sumpflange", [(x0 - 6, zb + 14), (x1 + 6, zb + 14), (x1 + 6, zb + 19), (x0 - 6, zb + 19)], -wide / 2 + 46, wide / 2 - 46, silver, 1)
+        nb_ = 6
+        for k_ in range(nb_):
+            for sy in (-1, 1):
+                bolt(f"sumpbolt{k_}{sy}", (x0 + (x1 - x0) * k_ / (nb_ - 1), sy * (wide / 2 - 50), zb + 14), (0, 0, -1), 4, 3.5)
+        B.cone("drainplug", ((x0 + x1) / 2, 0, zb - 13), ((x0 + x1) / 2, 0, zb - 20), 9, 9, steel, 6)
+    set_mat("sprocketcover", B.mat("plastic"))
+    # water pump low on the right of the case front, with its outlet stub
+    wp = (crank[0] + 118, crank[1] - 78)
+    y0 = -(wide / 2 - 16)
+    lathe("waterpump", P(wp, y0), (0, -1, 0), [(0, 40), (10, 40), (10, 36), (17, 36), (20, 33), (20, 15), (24, 13), (24, 0)], silver, 40)
+    for k_ in range(5):
+        q = add(wp, unit(72 * k_ + 20), 31)
+        bolt(f"pumpbolt{k_}", P(q, y0 - 12), (0, -1, 0), 3.8, 3.5)
+    B.cone("pumpstub", P(add(wp, (0.5, 0.86), 20), y0 - 12), P(add(wp, (0.5, 0.86), 62), y0 - 12), 13, 13, silver, 20)
+    # engine mounts: where a frame tube ends on the engine it ends in a boss with a bolt through it
+    half, nodes = c["half"], c["nodes"]
+    drop("lug_")
+    for nm, pn in nodes.items():
+        if not nm.startswith("M"):
+            continue
+        hw_ = half(pn)
+        for sg in (-1, 1):
+            B.cone(f"mountboss{nm}{sg}", P(pn, sg * (hw_ - 15)), P(pn, sg * (hw_ + 15)), 19, 19, c["framem"], 28)
+            B.cone(f"mountlug{nm}{sg}", P(pn, sg * (hw_ - 46)), P(pn, sg * (hw_ - 15)), 21, 18, silver, 24)
+            bolt(f"mountbolt{nm}{sg}", P(pn, sg * (hw_ + 15)), (0, sg, 0), 9, 7, steel, False)
+            B.cone(f"mountwasher{nm}{sg}", P(pn, sg * (hw_ + 15)), P(pn, sg * (hw_ + 17)), 13, 13, steel, 24)
+    exhaust_ports(model, c, heads)
+    radiator(model, c, heads, wp, y0)
+
+
+def exhaust_ports(model, c, heads):
+    add = B.add
+    ex = model["exhaust"]
+    both, left, under = (ex.get("side") == k_ for k_ in ("both", "left", "under"))
+    steel, silver = B.mat("steel"), B.mat("engine")
+    set_mat("header", heat_tint())
+    for i, hp in enumerate(ex["headers"]):
+        sg = 1 if left or ((both or under) and i == 0) else -1
+        y0 = sg * (60 if hp.get("front") else 40)
+        p0, p1 = tuple(hp["pts"][0][:2]), tuple(hp["pts"][1][:2])
+        L_ = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+        t = ((p1[0] - p0[0]) / L_, (p1[1] - p0[1]) / L_)
+        d3 = (t[0], 0, t[1])
+        rp = hp.get("w", 44) / 2 * 0.8
+        o = P(p0, y0)
+        lathe(f"port{i}", o, d3, [(-30, rp + 9), (-8, rp + 9), (-4, rp + 13), (-4, 0)], silver, 32)
+        lathe(f"portflange{i}", o, d3, [(-4, rp + 2), (-4, rp + 12), (2, rp + 12), (2, rp + 2)], steel, 32)
+        lathe(f"portcollar{i}", o, d3, [(2, rp + 0.5), (2, rp + 4.5), (14, rp + 4.5), (16, rp + 2.5), (16, rp + 0.5)], steel, 32)
+        for sy in (-1, 1):
+            q = (o[0], o[1] + sy * (rp + 14), o[2])
+            lathe(f"portear{i}{sy}", q, d3, [(-4, 0), (-4, 10.5), (2, 10.5), (2, 0)], steel, 20)
+            B.cone(f"portstud{i}{sy}", (q[0] - t[0] * 4, q[1], q[2] - t[1] * 4), (q[0] + t[0] * 15, q[1], q[2] + t[1] * 15), 3.4, 3.4, steel, 10)
+            bolt(f"portnut{i}{sy}", (q[0] + t[0] * 2, q[1], q[2] + t[1] * 2), d3, 6.5, 7, B.mat("gold"), False)
+        # lambda sensor boss a little way down the pipe
+        k_ = min(len(hp["pts"]) - 2, 3)
+        q0, q1 = tuple(hp["pts"][k_][:2]), tuple(hp["pts"][k_ + 1][:2])
+    # the clamp where the headers enter the silencer
+    for i, can in enumerate(ex.get("cans", [])):
+        for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
+            y0c, y1c = (58, 58) if under else (218, 228)
+            a3, b3 = (can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])
+            L_ = math.sqrt(sum((b3[k] - a3[k]) ** 2 for k in range(3)))
+            d3 = tuple((b3[k] - a3[k]) / L_ for k in range(3))
+            rc = can["w"] / 2 * 0.86
+            lathe(f"canclamp{i}{sg}", a3, d3, [(L_ * 0.02, rc * 0.62), (L_ * 0.02, rc * 0.62 + 3), (L_ * 0.02 + 14, rc * 0.62 + 3), (L_ * 0.02 + 14, rc * 0.62)], steel, 28)
+            lathe(f"cancone{i}{sg}", a3, d3, [(L_ * 0.03, rc * 0.6), (L_ * 0.14, rc)], B.mat("exhaust"), 36)
+            for a_ in (0.3, 0.86):       # rivet bands
+                lathe(f"canrivetband{i}{sg}{a_}", a3, d3, [(L_ * a_, rc + 0.4), (L_ * a_, rc + 2.2), (L_ * a_ + 12, rc + 2.2), (L_ * a_ + 12, rc + 0.4)], steel, 36)
+
+
+def radiator(model, c, heads, wp, wp_y):
+    """A radiator with a real core: flat tubes and fins between two side tanks, a pressure cap, a fan on
+    the back, brackets up to the frame, and hoses that run to the head and the pump with clips."""
+    add, unit = B.add, B.unit
+    r = model.get("radiator")
+    drop("radiator", "radcore", "radfin", "radhose")
+    if not r:
+        return
+    u = unit(r["angle"])
+    n = (-u[1], u[0])
+    if n[0] < 0:
+        n = (-n[0], -n[1])
+    a, Lr, hw = tuple(r["at"]), r["len"], r["w"] / 2
+    plastic, alu, steel = B.mat("plastic"), B.mat("alu"), B.mat("steel")
+    core = surf("radcore", (0.03, 0.03, 0.032), 0.7, 0.5, bump=(0.25, 0.9))
+
+    def R(t, d):
+        return add(add(a, u, t), n, d)
+    W = 126
+    B.prism("radcore", [R(8, hw - 3), R(Lr - 8, hw - 3), R(Lr - 8, -hw + 3), R(8, -hw + 3)], -W, W, core, 0.3)
+    verts, faces = [], []
+    k_ = 12.0
+    while k_ < Lr - 12:        # the flat water tubes, standing a little proud front and back
+        for d0, d1 in ((hw - 3, hw - 1.6), (-hw + 1.6, -hw + 3)):
+            o = len(verts)
+            for t_, d_ in ((k_, d0), (k_ + 2.2, d0), (k_ + 2.2, d1), (k_, d1)):
+                q = R(t_, d_)
+                verts += [B.V(q[0], -W, q[1]), B.V(q[0], W, q[1])]
+            for e in range(4):
+                e2 = (e + 1) % 4
+                faces.append((o + 2 * e, o + 2 * e2, o + 2 * e2 + 1, o + 2 * e + 1))
+        k_ += 8.0
+    B.mesh_obj("radtubes", verts, faces, B.mat("alu_dark"), False)
+    for sg in (-1, 1):
+        B.pillow(f"radtank{sg}", [R(0, hw + 2), R(Lr, hw + 2), R(Lr, -hw - 2), R(0, -hw - 2)], min(sg * W, sg * (W + 24)), max(sg * W, sg * (W + 24)), plastic, 5, 8)
+    for t_ in (4, Lr - 4):
+        B.prism(f"radrail{t_}", [R(t_ - 4, hw), R(t_ + 4, hw), R(t_ + 4, -hw), R(t_ - 4, -hw)], -W, W, alu, 0.8)
+    # pressure cap on the right tank
+    q = R(Lr, 0)
+    B.cone("radneck", P(q, -(W + 12)), P(add(q, u, 10), -(W + 12)), 13, 13, alu, 20)
+    B.cone("radcap", P(add(q, u, 10), -(W + 12)), P(add(q, u, 17), -(W + 12)), 17, 16, steel, 12)
+    # fan and shroud on the back
+    back = (-n[0], 0, -n[1])
+    fc = R(Lr * 0.5, -hw + 2)
+    lathe("fanshroud", P(fc, 0), back, [(0, 74), (16, 74), (16, 70), (2, 70)], plastic, 48)
+    lathe("fanhub", P(fc, 0), back, [(2, 22), (20, 22), (24, 16), (24, 0)], plastic, 24)
+    for k in range(7):
+        w = unit(360 / 7 * k)
+        tip = add(add(a, u, Lr * 0.5 + 66 * w[0]), n, -hw + 2)
+        ob = B.tube(f"fanblade{k}", [(fc[0] - n[0] * 10 + u[0] * 20 * w[0], 20 * w[1], fc[1] - n[1] * 10 + u[1] * 20 * w[0]),
+                                     (fc[0] - n[0] * 10 + u[0] * 66 * w[0], 66 * w[1], fc[1] - n[1] * 10 + u[1] * 66 * w[0])], 6, plastic)
+    # brackets from the top corners back to the frame
+    nodes, half = c["nodes"], c["half"]
+    tgt = nodes.get("D")
+    if tgt:
+        for sg in (-1, 1):
+            q0 = R(Lr - 6, -hw)
+            B.smooth_tube(f"radbracket{sg}", [P(q0, sg * 70), P(((q0[0] + tgt[0]) / 2, (q0[1] + tgt[1]) / 2 + 8), sg * (half(tgt) + 70) / 2), P(tgt, sg * half(tgt))], 5, B.mat("alu_dark"))
+    # hoses with clips: top from the left tank to the front head, bottom from the right tank to the pump
+    hose = surf("coolhose", (0.02, 0.02, 0.022), 0.0, 0.55)
+    front = max(heads, key=lambda h: h[0][0]) if heads else None
+    runs = []
+    if front:
+        hc, uh, rh, _ = front
+        s0 = R(Lr - 26, -hw - 2)
+        th = add(hc, uh, 10)
+        B.cone("thermostat", P(th, rh + 2), P(th, rh + 22), 17, 15, B.mat("engine"), 20)
+        runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -26), W + 14), P(((s0[0] + th[0]) / 2 - 10, (s0[1] + th[1]) / 2 + 26), W - 16), P(add(th, (0.3, 0.95), 36), rh + 34), P(th, rh + 20)]))
+    s1 = R(22, -hw - 2)
+    pq = add(wp, (0.5, 0.86), 60)
+    runs.append(("radhose_b", [P(s1, -(W + 12)), P(add(s1, n, -24), -(W + 14)), P((s1[0] - 30, s1[1] - 90), -(W + 10)), P((pq[0] + 70, pq[1] + 60), wp_y - 16), P(add(pq, (0.5, 0.86), 26), wp_y - 12), P(pq, wp_y - 12)]))
+    for nm, pts in runs:
+        B.smooth_tube(nm, pts, 11.5, hose)
+        for e_ in (0, -1):
+            d0, d1 = pts[e_], pts[1 if e_ == 0 else -2]
+            L_ = math.sqrt(sum((d1[k] - d0[k]) ** 2 for k in range(3))) or 1.0
+            dd = tuple((d1[k] - d0[k]) / L_ for k in range(3))
+            lathe(nm + f"clip{e_}", d0, dd, [(5, 11.8), (5, 13.4), (13, 13.4), (13, 11.8)], steel, 20)
+
+
+def tyre_mat(tag, c, w):
+    """Rubber for one tyre: a matt scrubbed tread, a satin sidewall, and fine moulded rings near the bead,
+    laid out from the wheel's own centre."""
+    m = bpy.data.materials.new("d3_tyre_" + tag)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (0.012, 0.012, 0.013, 1)
+    geo, sep, comb = nt.nodes.new("ShaderNodeNewGeometry"), nt.nodes.new("ShaderNodeSeparateXYZ"), nt.nodes.new("ShaderNodeCombineXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs[0])
+    sx, sz = nt.nodes.new("ShaderNodeMath"), nt.nodes.new("ShaderNodeMath")
+    sx.operation = sz.operation = "SUBTRACT"
+    sx.inputs[1].default_value, sz.inputs[1].default_value = c[0] * B.MM, c[1] * B.MM
+    nt.links.new(sep.outputs["X"], sx.inputs[0])
+    nt.links.new(sep.outputs["Z"], sz.inputs[0])
+    nt.links.new(sx.outputs[0], comb.inputs["X"])
+    nt.links.new(sz.outputs[0], comb.inputs["Y"])
+    ln = nt.nodes.new("ShaderNodeVectorMath")
+    ln.operation = "LENGTH"
+    nt.links.new(comb.outputs[0], ln.inputs[0])
+    rr, rt = w["rim_r"] * B.MM, w["tyre_r"] * B.MM
+    side = nt.nodes.new("ShaderNodeMapRange")       # 1 on the sidewall, 0 on the tread
+    side.inputs["From Min"].default_value, side.inputs["From Max"].default_value = rr + (rt - rr) * 0.62, rr + (rt - rr) * 0.8
+    side.inputs["To Min"].default_value, side.inputs["To Max"].default_value = 1.0, 0.0
+    nt.links.new(ln.outputs["Value"], side.inputs["Value"])
+    rough = nt.nodes.new("ShaderNodeMapRange")
+    rough.inputs["To Min"].default_value, rough.inputs["To Max"].default_value = 0.92, 0.5
+    nt.links.new(side.outputs[0], rough.inputs["Value"])
+    nt.links.new(rough.outputs[0], b.inputs["Roughness"])
+    wave = nt.nodes.new("ShaderNodeMath")
+    wave.operation = "SINE"
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    mul.inputs[1].default_value = 2 * math.pi / (2.4 * B.MM)
+    nt.links.new(ln.outputs["Value"], mul.inputs[0])
+    nt.links.new(mul.outputs[0], wave.inputs[0])
+    band = nt.nodes.new("ShaderNodeMapRange")       # rings only in a band above the rim
+    band.inputs["From Min"].default_value, band.inputs["From Max"].default_value = rr + (rt - rr) * 0.3, rr + (rt - rr) * 0.34
+    band.inputs["To Min"].default_value, band.inputs["To Max"].default_value = 1.0, 0.0
+    nt.links.new(ln.outputs["Value"], band.inputs["Value"])
+    band2 = nt.nodes.new("ShaderNodeMapRange")
+    band2.inputs["From Min"].default_value, band2.inputs["From Max"].default_value = rr + (rt - rr) * 0.16, rr + (rt - rr) * 0.2
+    nt.links.new(ln.outputs["Value"], band2.inputs["Value"])
+    amp0 = nt.nodes.new("ShaderNodeMath")
+    amp0.operation = "MULTIPLY"
+    nt.links.new(wave.outputs[0], amp0.inputs[0])
+    nt.links.new(band.outputs[0], amp0.inputs[1])
+    amp = nt.nodes.new("ShaderNodeMath")
+    amp.operation = "MULTIPLY"
+    nt.links.new(amp0.outputs[0], amp.inputs[0])
+    nt.links.new(band2.outputs[0], amp.inputs[1])
+    nz = nt.nodes.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 900.0, 4.0
+    addn = nt.nodes.new("ShaderNodeMath")
+    addn.operation = "ADD"
+    nt.links.new(amp.outputs[0], addn.inputs[0])
+    nt.links.new(nz.outputs["Fac"], addn.inputs[1])
+    bp = nt.nodes.new("ShaderNodeBump")
+    bp.inputs["Strength"].default_value, bp.inputs["Distance"].default_value = 0.3, 0.0005
+    nt.links.new(addn.outputs[0], bp.inputs["Height"])
+    nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
+def leather():
+    """Seat leather (reference: stitched seat): a fine grain all over, and a diamond-quilted panel on the
+    top where the rider sits, its grooves pressed into the surface."""
+    key = "d3_leather"
+    if key in bpy.data.materials:
+        return bpy.data.materials[key]
+    m = bpy.data.materials.new(key)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (0.014, 0.014, 0.016, 1)
+    b.inputs["Roughness"].default_value = 0.46
+    b.inputs["Sheen Weight"].default_value = 0.3
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    grain = nt.nodes.new("ShaderNodeTexVoronoi")
+    grain.inputs["Scale"].default_value = 1400.0
+    nt.links.new(tc.outputs["Object"], grain.inputs["Vector"])
+    # quilting: a square grid turned 45 degrees in plan, grooves where the distance to a cell edge is small
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.inputs["Rotation"].default_value = (0, 0, math.radians(45))
+    mp.inputs["Scale"].default_value = (1, 1, 0)
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    quilt = nt.nodes.new("ShaderNodeTexVoronoi")
+    quilt.feature = "DISTANCE_TO_EDGE"
+    quilt.inputs["Scale"].default_value = 1.0 / (46 * B.MM)
+    quilt.inputs["Randomness"].default_value = 0.0
+    nt.links.new(mp.outputs[0], quilt.inputs["Vector"])
+    groove = nt.nodes.new("ShaderNodeMapRange")
+    groove.inputs["From Min"].default_value, groove.inputs["From Max"].default_value = 0.0, 0.14
+    groove.interpolation_type = "SMOOTHSTEP"
+    nt.links.new(quilt.outputs["Distance"], groove.inputs["Value"])
+    geo, sep = nt.nodes.new("ShaderNodeNewGeometry"), nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["True Normal"], sep.inputs[0])
+    topm = nt.nodes.new("ShaderNodeMapRange")
+    topm.inputs["From Min"].default_value, topm.inputs["From Max"].default_value = 0.8, 0.88
+    nt.links.new(sep.outputs["Z"], topm.inputs["Value"])
+    mix = nt.nodes.new("ShaderNodeMix")           # off the top panel the groove value is 1 (flat)
+    mix.inputs["A"].default_value = 1.0
+    nt.links.new(topm.outputs[0], mix.inputs["Factor"])
+    nt.links.new(groove.outputs[0], mix.inputs["B"])
+    b1, b2 = nt.nodes.new("ShaderNodeBump"), nt.nodes.new("ShaderNodeBump")
+    b1.inputs["Strength"].default_value, b1.inputs["Distance"].default_value = 0.25, 0.0002
+    b2.inputs["Strength"].default_value, b2.inputs["Distance"].default_value = 0.7, 0.002
+    nt.links.new(grain.outputs["Distance"], b1.inputs["Height"])
+    nt.links.new(mix.outputs["Result"], b2.inputs["Height"])
+    nt.links.new(b1.outputs["Normal"], b2.inputs["Normal"])
+    nt.links.new(b2.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
+def dashes(name, path, dash, gap, r, material):
+    """Rows of stitches: short dashes along a 3D path (mm), all in one curve."""
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth, cu.bevel_resolution, cu.use_fill_caps = r * B.MM, 2, True
+    acc, on = 0.0, True
+    seg = [path[0]]
+    for a_, b_ in zip(path, path[1:]):
+        L_ = math.sqrt(sum((b_[k] - a_[k]) ** 2 for k in range(3)))
+        t = 0.0
+        while t < L_:
+            lim = dash if on else gap
+            step = min(L_ - t, lim - acc)
+            t += step
+            acc += step
+            q = tuple(a_[k] + (b_[k] - a_[k]) * t / L_ for k in range(3))
+            if on:
+                seg.append(q)
+            if acc >= lim - 1e-6:
+                if on and len(seg) > 1:
+                    sp = cu.splines.new("POLY")
+                    sp.points.add(len(seg) - 1)
+                    for pnt, v in zip(sp.points, seg):
+                        pnt.co = (*B.V(*v), 1)
+                on, acc, seg = not on, 0.0, [q]
+    ob = bpy.data.objects.new(name, cu)
+    bpy.context.collection.objects.link(ob)
+    cu.materials.append(material)
+    return ob
+
+
+def seat(model, c):
+    """The seat is a leather pad: no piping. A quilted top panel, plain sides, and the join between them
+    sewn with a double row of stitches."""
+    body = model["body"]
+    drop("seam")
+    lm = leather()
+    set_mat("seat", lm)
+    st = next((s_ for s_ in body.get("seat", []) if s_.get("cls") == "seat"), None)
+    if not st:
+        return
+    outline = B.shapes.dense(st["pts"], True, st.get("t", 1.0))
+    xs = [q[0] for q in outline]
+    x0, x1, spec = min(xs), max(xs), model.get("widths", {}).get("seat", B.WIDTHS["seat"])
+    thread = surf("thread", (0.25, 0.25, 0.26), 0.0, 0.7, wear=0.0)
+    for sg in (-1, 1):
+        for row, f_ in enumerate((0.74, 0.79)):
+            pts = []
+            for k in range(8, 93, 2):
+                u = k / 100
+                tb = B.shapes.top_bottom(outline, x0 + (x1 - x0) * u)
+                if not tb:
+                    continue
+                w = B.shapes.lerp_table(spec["w"], u) * (0.3 + 0.7 * math.sqrt(1.0 - (1.0 - min(1.0, min(u, 1 - u) / 0.1)) ** 2))
+                zc, h = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2
+                pts.append((x0 + (x1 - x0) * u, sg * w * f_, zc + h * (1 - f_ ** spec["n"]) ** (1 / spec["n"]) + 0.3))
+            if len(pts) > 3:
+                dashes(f"stitch{sg}{row}", pts, 4.2, 2.6, 0.75, thread)
+
+
+def tank_cap(model, c):
+    """A flush filler cap: a bolted ring let into the tank top, a hinged lid, and a cover over the lock."""
+    drop("filler", "capbolt")
+    steel = B.mat("steel")
+    for i, cp in enumerate(model["body"].get("caps", [])):
+        o = (cp["at"][0], 0, cp["at"][1] - 3)
+        lathe(f"capring{i}", o, (0, 0, 1), [(-8, 0), (-8, 46), (2, 46), (4.5, 43), (4.5, 37), (3, 36), (3, 0)], B.mat("alu_dark"), 48)
+        lathe(f"caplid{i}", o, (0, 0, 1), [(3, 35), (5.5, 34), (7, 28), (7.5, 0)], surf("caplid", (0.04, 0.04, 0.045), 0.9, 0.3), 48)
+        for k in range(5):
+            w = math.radians(72 * k + 36)
+            bolt(f"capbolt{i}{k}", (o[0] + 40 * math.cos(w), 40 * math.sin(w), o[2] + 4.5), (0, 0, 1), 2.8, 1.6)
+        B.cone(f"capkey{i}", (o[0] + 16, 0, o[2] + 7), (o[0] + 16, 0, o[2] + 9), 8, 7.5, steel, 20)
+        B.prism(f"caphinge{i}", [(o[0] - 37, o[2] + 4), (o[0] - 27, o[2] + 4), (o[0] - 27, o[2] + 9), (o[0] - 37, o[2] + 9)], -9, 9, B.mat("alu_dark"), 1)
+
+
+def rear_end(model, c):
+    """Rear brake and footrests: a small caliper on its carrier, a drilled disc on a spoked carrier, ribbed
+    footrests on their hangers, a gear lever and a brake pedal with toe pieces."""
+    A = c["A"]
+    wh = model["wheels"]["rear"]
+    rc = model.get("rear_caliper")
+    d = wh.get("disc")
+    steel, dark, rubber = B.mat("steel"), B.mat("alu_dark"), B.mat("rubber")
+    if d:
+        drop("rear_disc", "rear_carrier")
+        disc("rear", A, d, -82, -1, "drilled_220_rear", 5, 0)
+    if rc and d:
+        drop("rearcaliper")
+        cc = (sum(q[0] for q in rc["body"]) / len(rc["body"]), sum(q[1] for q in rc["body"]) / len(rc["body"]))
+        L_ = math.hypot(cc[0] - A[0], cc[1] - A[1])
+        cc = (A[0] + (cc[0] - A[0]) * (d - 14) / L_, A[1] + (cc[1] - A[1]) * (d - 14) / L_)
+        caliper("rearcaliper", A, cc, -82, -1, surf("caliper", (0.36, 0.36, 0.37), 0.9, 0.36), None, None, 0.6, False)
+    for wheel_, cen in (("front", c["F"]), ("rear", A)):
+        w = model["wheels"][wheel_]
+        set_mat(f"{wheel_}_tyre", tyre_mat(wheel_, cen, w))
+        # valve stem on the rim
+        q = B.add(cen, B.unit(200), w["rim_r"] - 24)
+        q1 = B.add(cen, B.unit(200), w["rim_r"] - 46)
+        B.cone(f"{wheel_}_valve", (q[0], 0, q[1]), (q1[0], 14, q1[1]), 3.2, 2.6, rubber, 10)
+        B.cone(f"{wheel_}_valvecap", (q1[0], 14, q1[1]), (q1[0] + (q1[0] - q[0]) * 0.3, 18, q1[1] + (q1[1] - q[1]) * 0.3), 3.4, 3.2, dark, 10)
+    pegs = [tuple(s_["at"]) for s_ in model.get("hangers", []) if s_.get("circle")]
+    drop("peg")
+    for i, p in enumerate(pegs):
+        for s in (-1, 1):
+            prof = [(0, 0), (0, 15), (6, 15), (8, 12)]
+            t = 12.0
+            while t < 74:
+                prof += [(t, 12), (t + 1.5, 13.6), (t + 4.5, 13.6), (t + 6, 12)]
+                t += 9.0
+            prof += [(80, 12), (82, 14), (86, 14), (88, 10), (88, 0)]
+            lathe(f"peg{i}{s}", (p[0], s * 172, p[1]), (0, s, 0), prof, B.mat("alu"), 24)
+            B.cone(f"pegpivot{i}{s}", (p[0] - 12, s * 170, p[1] - 12), (p[0] - 12, s * 184, p[1] - 12), 6, 6, steel, 6)
+    if pegs:
+        p = pegs[0]
+        # gear lever on the left: pivot by the peg, arm forward to a rubber toe piece, a rod up to the gearbox
+        piv = (p[0] + 6, p[1] + 26)
+        toe = (p[0] + 135, p[1] + 8)
+        B.cone("gearpivot", (piv[0], 176, piv[1]), (piv[0], 192, piv[1]), 11, 11, dark, 20)
+        B.smooth_tube("gearlever", [(piv[0], 184, piv[1]), (piv[0] + 50, 190, piv[1] - 14), (toe[0], 190, toe[1])], 6, dark)
+        lathe("geartoe", (toe[0], 186, toe[1]), (0, 1, 0), [(0, 5), (4, 5), (4, 10), (10, 11), (40, 11), (44, 9), (44, 0)], rubber, 20, sharp=False)
+        cs_ = c["eng"]["countershaft"]
+        B.tube("gearrod", [(piv[0] - 4, 178, piv[1] + 30), (cs_[0] + 40, 158, cs_[1] + 36)], 3.2, steel)
+        B.cone("geararm", (piv[0], 180, piv[1]), (piv[0] - 4, 178, piv[1] + 30), 6, 5, dark, 12)
+        # brake pedal on the right, and the rear master cylinder with its cup behind the hanger
+        B.cone("brakepivot", (piv[0], -176, piv[1]), (piv[0], -192, piv[1]), 11, 11, dark, 20)
+        B.smooth_tube("brakepedal", [(piv[0], -184, piv[1]), (piv[0] + 60, -196, piv[1] - 18), (toe[0] - 4, -200, toe[1] - 2)], 6, dark)
+        B.prism("brakepedaltip", [(toe[0] - 14, toe[1] - 6), (toe[0] + 16, toe[1] - 4), (toe[0] + 16, toe[1] + 3), (toe[0] - 14, toe[1] + 2)], -226, -196, dark, 1.2)
+        mcyl = (piv[0] - 36, piv[1] + 30)
+        B.cone("rearmaster", (mcyl[0], -168, mcyl[1]), (mcyl[0] - 14, -168, mcyl[1] + 62), 10, 10, dark, 20)
+        B.cone("rearmasterrod", (mcyl[0], -168, mcyl[1]), (piv[0] - 18, -176, piv[1] + 6), 3, 3, steel, 10)
+        drop("rearres")
+        B.cone("rearres", (mcyl[0] - 30, -150, mcyl[1] + 96), (mcyl[0] - 30, -150, mcyl[1] + 130), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
+        B.cone("rearrescap", (mcyl[0] - 30, -150, mcyl[1] + 130), (mcyl[0] - 30, -150, mcyl[1] + 137), 16.5, 16, B.mat("plastic"), 24)
+        B.smooth_tube("rearreshose", [(mcyl[0] - 30, -150, mcyl[1] + 96), (mcyl[0] - 26, -160, mcyl[1] + 76), (mcyl[0] - 14, -168, mcyl[1] + 60)], 3.5, rubber)
+
+
 SHOTS = {
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),
     "lamp": ((2350, -900, 1150), (1230, -40, 930), 70),
     "bars": ((560, -700, 1500), (1080, -60, 1060), 50),
-    "engine": ((900, -1500, 560), (800, -100, 440), 55),
+    "engine": ((1250, -1500, 700), (800, -100, 480), 50),
+    "engine_l": ((500, 1500, 650), (800, 100, 480), 50),
     "seat": ((-250, -900, 1500), (420, 0, 880), 55),
     "rear": ((-700, -1150, 600), (60, -90, 330), 60),
 }
@@ -633,3 +1168,7 @@ def run(build3d, model, c):
     front_end(model, c)
     headlamp(model, c)
     controls(model, c)
+    engine(model, c)
+    seat(model, c)
+    tank_cap(model, c)
+    rear_end(model, c)
