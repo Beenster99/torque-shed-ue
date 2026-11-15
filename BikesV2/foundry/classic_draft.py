@@ -140,6 +140,7 @@ def hartwell(m):
         e["pts"] = [[q[0], min(q[1], 806)] + q[2:] for q in e["pts"]]
     for cy in m["engine"]["cylinders"]:
         cy["fins"] = True
+    m["engine"]["layout"] = "parallel_twin"      # two finned barrels side by side, as its label says
     m.pop("radiator", None)
     # the pipe comes down the front of the engine and then runs flat all the way back past it
     m["exhaust"] = {"headers": [{"pts": [[985, 600], [992, 510], [1004, 440], [1004, 385], [984, 332], [935, 310], [700, 308], [520, 306]], "w": 44, "front": True}],

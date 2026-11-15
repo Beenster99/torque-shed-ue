@@ -742,6 +742,37 @@ def tail_lamp(model, c):
     c["tail_lamp"] = (xf, zc, W)
 
 
+def guard_lamp(model, c):
+    """The classic and cruiser brake light: a polished oval housing standing on the rear mudguard, its red
+    lens domed and facing straight back, a small clear window underneath to light the plate. The indicators
+    grow out of the housing's sides (the same rule as the sport and cafe tails)."""
+    if model["family"].lower() not in ("classic", "cruiser"):
+        return
+    tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
+    if not tl:       # a bobbed guard drawn with the panels carries its lamp there
+        pi = next((i for i, v in enumerate(model["body"].get("panels", [])) if v.get("cls") == "redlens"), None)
+        if pi is None:
+            return
+        tl = model["body"]["panels"][pi]
+        drop(f"panel{pi + len(model['body'].get('front_guard', []))}")      # build3d numbers the panels after the front guard's shapes
+    xs, zs = [q[0] for q in tl["pts"]], [q[1] for q in tl["pts"]]
+    zc, x0, x1 = (max(zs) + min(zs)) / 2 + 4, max(xs) + 26, min(xs) - 4
+    L, R, e = x0 - x1, 36.0, (0.72, 1.0)
+    drop("taillight", "guardlamp")
+    ax = (-1.0, 0.0, 0.0)
+    lathe("guardlampbody", (x0, 0, zc), ax, [(0, 0), (0, R * 0.42), (L * 0.3, R * 0.8), (L * 0.75, R), (L - 3, R), (L, R - 1.2), (L, 0)], B.mat("chrome"), 48, sharp=False, ell=e)
+    lathe("guardlamprim", (x1, 0, zc), ax, [(-2, R - 0.5), (-2, R + 1.6), (1.5, R + 2.2), (4.5, R + 1.2), (5, R - 3), (-2, R - 3)], B.mat("chrome"), 48, sharp=False, ell=e, caps=False)
+    lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
+    lathe("guardlamplens", (x1, 0, zc), ax, [(0, 0), (0, R - 2.6), (5, R - 3), (10, R - 7), (14, R - 16), (16, R - 28), (16.5, 0)], lensm, 48, sharp=False, ell=e)
+    lathe("guardlampbulb", (x1, 0, zc), ax, [(1, 0), (1, R * 0.36), (9, R * 0.3), (11, 0)], glow("tailred", (1.0, 0.03, 0.02), 2.6), 24, sharp=False, ell=e)
+    # the plate window: a clear strip let into the underside of the housing, lighting down on to the plate
+    slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-20, -9), (20, -9), (20, 9), (-20, 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
+    c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * 0.9 + 14)
+    c["tail_lamp_chrome"] = True
+
+
 def plate_mount(model, c):
     """The number plate arm's fixing (beenster, sport round 2): a cast foot bolted flat to the underside of
     the tail, with a web each side running down on to the arm, so the arm is plainly held."""
@@ -1197,6 +1228,8 @@ def indicators(model, c):
                 continue
         indicator(f"ind_f{s}", (hb[0] + 60, s * 92, hb[1] + 40), s, 1, variant)
     tl = next((shp for shp in model["body"].get("tail", []) if shp.get("cls") == "redlens"), None)
+    if not tl and c.get("tail_lamp"):
+        tl = {"pts": [list(c["tail_lamp"][:2])]}
     if tl:
         tx = sum(q[0] for q in tl["pts"]) / len(tl["pts"])
         tz = min(q[1] for q in tl["pts"]) - 25
@@ -1207,7 +1240,7 @@ def indicators(model, c):
             amber = glow("amberled", (1.0, 0.42, 0.02), 1.2)
             for s in (-1, 1):
                 base = (xf + 13, s * (W - 14), zc)
-                lathe(f"ind_r{s}_pod", base, (0, s, 0), [(0, 0), (0, 13), (16, 13), (24, 10), (32, 8.6), (74, 8.2), (84, 6.4), (89, 3), (90, 0)], B.mat("plastic"), 28, sharp=False, ell=(0.8, 1.0))
+                lathe(f"ind_r{s}_pod", base, (0, s, 0), [(0, 0), (0, 13), (16, 13), (24, 10), (32, 8.6), (74, 8.2), (84, 6.4), (89, 3), (90, 0)], B.mat("chrome" if c.get("tail_lamp_chrome") else "plastic"), 28, sharp=False, ell=(0.8, 1.0))
                 lathe(f"ind_r{s}_lens", (base[0] - 3.6, base[1], base[2]), (0, s, 0), [(31, 0), (31, 6.8), (73, 6.6), (82, 5.0), (86, 2.4), (87, 0)], amber, 28, sharp=False, ell=(0.72, 1.0))
             return
         arm = next((h for h in model["body"].get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
@@ -2407,6 +2440,7 @@ SHOTS = {
     "tail": ((-1150, -520, 1180), (-60, 0, 900), 70),
     "prow": ((2300, 520, 330), (1150, 0, 330), 60, ("front", "guard", "shroud", "fork", "caliper")),
     "clocks": ((960, 0, 1250), (1225, 0, 1010), 80),
+    "glamp": ((-1150, -560, 930), (-250, 0, 640), 70),
     "cowlgap": ((1950, -950, 1020), (1240, -170, 800), 90),
     "tankbase": ((500, -1500, 1050), (860, -100, 820), 80),
     "hugger": ((-250, 1050, 900), (260, 90, 500), 70),
@@ -2460,6 +2494,7 @@ def run(build3d, model, c):
     tank_cap(model, c)
     rear_end(model, c)
     tail_lamp(model, c)
+    guard_lamp(model, c)
     plate_mount(model, c)
     bubble_screen(model, c)
     chain(model, c)
