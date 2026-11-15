@@ -606,34 +606,43 @@ void UTorqueTftComponent::DrawOnHud(UCanvas* Canvas, float PlainTop)
 		}
 		const float Y = Canvas->SizeY * 0.16f;
 		TorqueUi::Text(Canvas, TEXT("ARRANGE THE HUD"), Canvas->SizeX * 0.5f, Y, 24.0f * U, TorqueUi::Accent, true, TorqueUi::EAlign::Centre);
-		TorqueUi::Text(Canvas, TEXT("Screen buttons (LB + D-pad, or 1 2 3 4): move.   Camera closer / farther: size.   F4: screen or map.   F5: done."),
+		TorqueUi::Text(Canvas, TEXT("Screen buttons (LB + D-pad, or 1 2 3 4): move.   Camera closer / farther: size.   F4 or F6: screen or map.   F5: done."),
 			Canvas->SizeX * 0.5f, Y + 34.0f * U, 16.0f * U, TorqueUi::Ink, false, TorqueUi::EAlign::Centre);
 	}
 }
 
+// beenster (Nov 15): a key of its own for each, the HUD's screen (F4) and its sat nav map (F6).
 void UTorqueTftComponent::ToggleOverlay()
 {
 	if (!bOwnBike) return;
-	FTorqueTftPrefs& P = FTorqueTftPrefs::Get();
 	if (bArrange)
 	{
-		// Arranging, the same key picks which of the two is moved.
+		// Arranging, either key picks which of the two is moved.
 		ArrangeNext();
 		return;
 	}
-	// Round: both, the screen only, the map only, neither (what the bike has of them).
-	const bool bCanScreen = bTft, bCanTile = HasMap();
-	if (bCanScreen && bCanTile)
-	{
-		const int32 Now = (P.bOverlay ? 0 : 2) + (P.bMapTile ? 0 : 1);   // 0 both, 1 screen, 2 map, 3 neither
-		const int32 To = (Now + 1) % 4;
-		P.bOverlay = To < 2;
-		P.bMapTile = (To % 2) == 0;
-	}
-	else if (bCanTile) P.bMapTile = !P.bMapTile;
-	else return;
+	if (!bTft) return;
+	FTorqueTftPrefs& P = FTorqueTftPrefs::Get();
+	P.bOverlay = !P.bOverlay;
 	P.Save();
-	Notice(P.bOverlay && P.bMapTile ? TEXT("HUD: screen and map") : P.bOverlay ? TEXT("HUD: screen") : P.bMapTile ? TEXT("HUD: map") : TEXT("HUD: plain"));
+	ScreenIn = 0.0;
+	Notice(P.bOverlay ? TEXT("HUD screen on") : TEXT("HUD screen off"));
+}
+
+void UTorqueTftComponent::ToggleMapTile()
+{
+	if (!bOwnBike) return;
+	if (bArrange)
+	{
+		ArrangeNext();
+		return;
+	}
+	if (!HasMap()) return;
+	FTorqueTftPrefs& P = FTorqueTftPrefs::Get();
+	P.bMapTile = !P.bMapTile;
+	P.Save();
+	TileIn = 0.0;
+	Notice(P.bMapTile ? TEXT("HUD map on") : TEXT("HUD map off"));
 }
 
 void UTorqueTftComponent::ToggleArrange()

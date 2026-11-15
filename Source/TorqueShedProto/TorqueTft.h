@@ -80,6 +80,7 @@ public:
 	// Arranging the HUD: on and off (saved as it goes off), which of the two is being moved, a nudge
 	// (steps right and down) and a size step.
 	void ToggleOverlay();
+	void ToggleMapTile();
 	void ToggleArrange();
 	bool Arranging() const { return bArrange; }
 	void ArrangeNext();
