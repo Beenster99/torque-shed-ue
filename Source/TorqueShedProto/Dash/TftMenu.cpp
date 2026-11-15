@@ -197,6 +197,15 @@ int Menu::Do(Press P, double SpeedMs, double Throttle)
 	}
 }
 
+bool Menu::SetNow(ModeRow R, int Value)
+{
+	if (Modes.empty() || !TorqueSim::RowOn(R, Caps)) return false;
+	ModeSet& S = Sets[size_t(Mode())];
+	const int Was = TorqueSim::RowValue(R, S);
+	TorqueSim::SetRow(R, S, Value);
+	return TorqueSim::RowValue(R, S) != Was;
+}
+
 void Menu::Tick(double Dt)
 {
 	if (NoticeFor > 0.0 && (NoticeFor -= Dt) <= 0.0) Notice.clear();
