@@ -157,6 +157,10 @@ private:
 	// game thread. Null outside Place, and for squares made on the game thread.
 	TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* PreparedNow = nullptr;
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
+	// [perf, build 149] A piece of road made (on a worker, or here with bAtOnce) put in place: its part,
+	// tagged Road, and its tunnel lamps. Ready: its sections readied on the worker, or null.
+	void PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Mesh, TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* Ready, bool bAtOnce);
+	TSet<int64> RoadAsked;   // pieces of road being made on a worker
 	// The level's plant kit (see above): true if it has any grass or trees.
 	bool FindKit();
 	// A square's grass and trees as instanced meshes, and taking them away again.

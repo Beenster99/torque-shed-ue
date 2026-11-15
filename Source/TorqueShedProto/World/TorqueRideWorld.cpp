@@ -54,6 +54,9 @@ struct FTorqueRideJobs
 	FCriticalSection Lock;
 	TArray<TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>>> Made;
 	TMap<FIntVector, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>> Prepared;   // by square, beside Made
+	// [perf, build 149] Pieces of road made on workers (RidePlan::RoadPiece, then readied), by piece key.
+	TArray<TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>>> RoadMade;
+	std::atomic<int32> RoadBusy{0};
 	std::atomic<int32> Busy{0};
 	std::atomic<bool> bStop{false};
 };
@@ -70,7 +73,8 @@ constexpr double Reach = 16000.0;
 constexpr int32 ShadowLevels = 2;        // the squares of these levels cast shadows (the far hills' are past the shadows' reach)
 constexpr int32 PiecePoints = 64;        // a piece of road: 256 m
 constexpr double RoadReach = 2500.0;
-constexpr int32 AtATime = 3;             // workers
+constexpr int32 AtATime = 6;             // workers (6 since build 149: the PC has 16 cores; was 3)
+constexpr int32 RoadsAtATime = 2;        // [perf, build 149] workers making pieces of road
 
 double SizeOf(int32 Level)
 {
@@ -960,6 +964,39 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	}
 }
 
+void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Mesh, TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* Ready, bool bAtOnce)
+{
+	// (a tunnel's lamps as a second section: they glow, and a few real lights under them)
+	TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Sections;
+	Sections.Emplace(&Mesh, RoadMaterial.Get());
+	if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
+	if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
+	PreparedNow = Ready;
+	UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
+	PreparedNow = nullptr;
+	if (Part)
+	{
+		Part->ComponentTags.Add(TEXT("Road"));
+		TArray<TWeakObjectPtr<UPointLightComponent>> Lights;
+		for (size_t L = 0; L + 2 < Mesh.Lights.size(); L += 3)
+		{
+			UPointLightComponent* Lamp = NewObject<UPointLightComponent>(this);
+			Lamp->SetMobility(EComponentMobility::Movable);
+			Lamp->SetupAttachment(Part);
+			Lamp->SetRelativeLocation(FVector(double(Mesh.Lights[L]) * 100.0, double(Mesh.Lights[L + 2]) * 100.0, double(Mesh.Lights[L + 1]) * 100.0));
+			Lamp->SetIntensityUnits(ELightUnits::Lumens);
+			Lamp->SetIntensity(2500.0f);
+			Lamp->SetAttenuationRadius(1800.0f);
+			Lamp->SetLightColor(FLinearColor(1.0f, 0.86f, 0.66f));
+			Lamp->SetCastShadows(false);
+			Lamp->RegisterComponent();
+			Lights.Add(Lamp);
+		}
+		if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
+	}
+	RoadParts.Add(Key, Part);
+}
+
 void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 {
 	// Every road (the ride's own, then those that meet it) in pieces of PiecePoints points; a piece's
@@ -970,9 +1007,6 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 	Around.X0 = At.X - TRWI::RoadReach - 600.0; Around.Z0 = At.Y - TRWI::RoadReach - 600.0;
 	Around.X1 = At.X + TRWI::RoadReach + 600.0; Around.Z1 = At.Y + TRWI::RoadReach + 600.0;
 	std::vector<int> Roads = Plan->RoadsNear(Around, false);
-	// [perf, build 148] New pieces only while this look has had under 4 ms (the rest at the next look,
-	// a fifth of a second on, long before the rider is near them: they're laid 2.5 km out).
-	const double RoadStart = FPlatformTime::Seconds();
 	for (const auto& Have : RoadParts) Roads.push_back(int(Have.Key / 4096));
 	std::sort(Roads.begin(), Roads.end());
 	Roads.erase(std::unique(Roads.begin(), Roads.end()), Roads.end());
@@ -991,37 +1025,37 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const bool bHave = RoadParts.Contains(Key);
 			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
 			const bool bEndsLaid = (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
-			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && (bAtOnce || (FPlatformTime::Seconds() - RoadStart) * 1000.0 < 4.0))
+			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && bAtOnce)
 			{
 				TorqueWorld::RideMesh Mesh;
 				Plan->RoadPiece(Which, First, Last, Mesh);
-				// (a tunnel's lamps as a second section: they glow, and a few real lights under them)
-				TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Sections;
-				Sections.Emplace(&Mesh, RoadMaterial.Get());
-				if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
-				if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
-				UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
-				if (Part)
+				PlaceRoadPiece(Key, Mesh, nullptr, true);
+			}
+			else if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && !RoadAsked.Contains(Key) && Jobs->RoadBusy.load() < TRWI::RoadsAtATime)
+			{
+				// [perf, build 149] Made on a worker (it was here, up to 125 ms a look in a town), put in
+				// place by Tick as it comes.
+				RoadAsked.Add(Key);
+				++Jobs->RoadBusy;
+				const std::shared_ptr<const TorqueWorld::RidePlan> Held = Plan;
+				const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
+				AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Key, Which, First, Last]()
 				{
-					Part->ComponentTags.Add(TEXT("Road"));
-					TArray<TWeakObjectPtr<UPointLightComponent>> Lights;
-					for (size_t L = 0; L + 2 < Mesh.Lights.size(); L += 3)
+					TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe> Made = MakeShared<TorqueWorld::RideMesh, ESPMode::ThreadSafe>();
+					TSharedPtr<FRidePrepared, ESPMode::ThreadSafe> Ready = MakeShared<FRidePrepared, ESPMode::ThreadSafe>();
+					if (!Share->bStop)
 					{
-						UPointLightComponent* Lamp = NewObject<UPointLightComponent>(this);
-						Lamp->SetMobility(EComponentMobility::Movable);
-						Lamp->SetupAttachment(Part);
-						Lamp->SetRelativeLocation(FVector(double(Mesh.Lights[L]) * 100.0, double(Mesh.Lights[L + 2]) * 100.0, double(Mesh.Lights[L + 1]) * 100.0));
-						Lamp->SetIntensityUnits(ELightUnits::Lumens);
-						Lamp->SetIntensity(2500.0f);
-						Lamp->SetAttenuationRadius(1800.0f);
-						Lamp->SetLightColor(FLinearColor(1.0f, 0.86f, 0.66f));
-						Lamp->SetCastShadows(false);
-						Lamp->RegisterComponent();
-						Lights.Add(Lamp);
+						Held->RoadPiece(Which, First, Last, *Made);
+						TRWI::Prepare(Made.Get(), *Ready);
+						TRWI::Prepare(Made->Glow.get(), *Ready);
+						TRWI::Prepare(Made->Night.get(), *Ready);
 					}
-					if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
-				}
-				RoadParts.Add(Key, Part);
+					{
+						FScopeLock Hold(&Share->Lock);
+						Share->RoadMade.Emplace(Key, Made, Ready);
+					}
+					--Share->RoadBusy;
+				});
 			}
 			else if (bHave && HowFar > TRWI::RoadReach + 500.0)
 			{
@@ -1127,6 +1161,24 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			PreparedNow = Ready.Get();
 			Place(One.Key, *One.Value, false);
 			PreparedNow = nullptr;
+		}
+	}
+	// [perf, build 149] The pieces of road the workers have made, likewise (two a frame, in the same 3 ms).
+	{
+		RideCosts::FScope Cost(RideCosts::Roads);
+		for (int32 N = 0; N < 2 && (N == 0 || (FPlatformTime::Seconds() - PlaceStart) * 1000.0 < 3.0); ++N)
+		{
+			TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>> Piece;
+			{
+				FScopeLock Hold(&Jobs->Lock);
+				if (Jobs->RoadMade.Num() == 0) break;
+				Piece = Jobs->RoadMade[0];
+				Jobs->RoadMade.RemoveAt(0);
+			}
+			const int64 PieceKey = Piece.Get<0>();
+			RoadAsked.Remove(PieceKey);
+			if (!RoadParts.Contains(PieceKey) && Piece.Get<1>().IsValid())
+				PlaceRoadPiece(PieceKey, *Piece.Get<1>(), Piece.Get<2>().Get(), false);
 		}
 	}
 	TickBirds(DeltaSeconds);
