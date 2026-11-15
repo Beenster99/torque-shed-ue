@@ -13,7 +13,7 @@ items=[
 ('shot_weld2','Frame welds, seat rail','welds_seat_rail','The seat rails now stay outside the side panels and tuck in under the seat.'),
 ('shot_heel','Heel plate','heel_plate','Brushed aluminium, drilled, bolted to the footrest hanger and cut away round the swingarm pivot nut.'),
 ('shot_hugger','Rear hugger','hugger','Half the length, on two moulded legs bolted to the top of the swingarm. The old guard under the tail is gone.'),
-('shot_guard','Front mudguard','front_mudguard','From your markup: a shroud on the front of each fork leg, bolted to the fork foot, sweeping forward into a plain slim shell. Nothing behind the leg.'),
+('shot_guard','Front mudguard','front_mudguard','From your markup: a shroud on the front of each fork leg, bolted to the fork foot, sweeping forward into a plain slim shell that now sits close to the tyre. Nothing behind the leg.'),
 ('shot_guard_front','Front mudguard from the front','front_mudguard_front',''),
 ('shot_junction','Pillion hanger and tail','pillion_hanger','Where the clipping was: cast hanger bolted to the rail at two points, tail tucked behind the side panel.'),
 ('shot_grip','Hand grip','grip','From your grip picture: diamond knurl all round, moulded slots with grey inserts, thin diagonal grooves, big flange, end collar.'),
