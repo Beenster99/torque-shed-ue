@@ -765,14 +765,13 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			// No drawn grips (a style whose bars don't take them): the layout's.
 			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
 			RiderGrip[0] = GripBox[0].IsValid ? GripBox[0].GetCenter() : FVector(RiderGrip[1].X, -RiderGrip[1].Y, RiderGrip[1].Z);
-			// The tank's back edge as drawn (the rider's crotch is kept behind it).
+			// The tank's back edge as drawn where the crotch meets it (the rider's crotch is kept behind
+			// it), moved as geometry mode moved the tank. Not the tank's whole box: an adventure tank's
+			// tail runs back under the seat, and that pushed the hips 20 cm back (beenster, build 147).
 			static const FName TankTag(TEXT("Slot:tank"));
-			FBox TankBox(ForceInit);
-			for (UStaticMeshComponent* C : ModelParts)
-				if (C && C->GetStaticMesh() && C->ComponentHasTag(TankTag))
-					TankBox += C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
-			RiderTankRearX = TankBox.IsValid ? TankBox.Min.X : 1.0e9;
-			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat %s, tank's back edge x %.1f"), *RiderSeat.ToCompactString(), TankBox.IsValid ? TankBox.Min.X : 0.0);
+			const bool bTankEdge = Frame.TankRearX < 1.0e8;
+			RiderTankRearX = bTankEdge ? MoveOf(TankTag).TransformPosition(FVector(Frame.TankRearX, 0.0, Frame.Seat.Z)).X : 1.0e9;
+			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat %s, tank's back edge x %.1f"), *RiderSeat.ToCompactString(), bTankEdge ? RiderTankRearX : 0.0);
 			bRiderLaidBack = Frame.bLaidBack;
 			bRiderOnLayout = true;
 			bRiderFitted = false;
