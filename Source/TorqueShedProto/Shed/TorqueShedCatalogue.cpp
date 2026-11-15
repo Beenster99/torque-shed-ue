@@ -441,6 +441,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		const FVector Knee(TSCI::ToUe(L.KneeR));
 		OutFrame->Knee = FVector(Knee.X, FMath::Abs(Knee.Y), Knee.Z);
 		OutFrame->BackDeg = Lay->LineNumber(L.Style, "5_rider", "back_deg", -100.0);
+		OutFrame->Style = TSCI::Ue(L.Style);
 		OutFrame->TankHalfW.Reset();
 		const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
 		for (const TorqueFit::LoftSection& Sec : Work.TankSecs)

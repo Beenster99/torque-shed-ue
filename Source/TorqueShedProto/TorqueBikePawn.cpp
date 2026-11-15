@@ -772,7 +772,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			static const FName TankTag(TEXT("Slot:tank"));
 			const bool bTankEdge = Frame.TankRearX < 1.0e8;
 			RiderTankRearX = bTankEdge ? MoveOf(TankTag).TransformPosition(FVector(Frame.TankRearX, 0.0, Frame.Seat.Z)).X : 1.0e9;
-			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat %s, tank's back edge x %.1f"), *RiderSeat.ToCompactString(), bTankEdge ? RiderTankRearX : 0.0);
+			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat (%s) %s, tank's back edge x %.1f"), *Frame.Style, *RiderSeat.ToCompactString(), bTankEdge ? RiderTankRearX : 0.0);
 			bRiderLaidBack = Frame.bLaidBack;
 			bRiderOnLayout = true;
 			bRiderFitted = false;
