@@ -75,6 +75,14 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
 	GConfig->GetInt(Section, TEXT("AntiAliasing"), AntiAliasing, Ini);
+	// [build 149] Until 148 the row was ignored and TSR always ran, whatever it said; 148 obeyed it and
+	// a saved TAA (picked when it did nothing) went soft at 4K upscaled. So it starts again at TSR,
+	// what everyone had been seeing, once; from then on it's the row's.
+	{
+		int32 AaRowWorks = 0;
+		GConfig->GetInt(Section, TEXT("AaRowWorks"), AaRowWorks, Ini);
+		if (AaRowWorks < 1) AntiAliasing = 0;
+	}
 	GConfig->GetInt(Section, TEXT("Shadows"), Shadows, Ini);
 	GConfig->GetInt(Section, TEXT("Textures"), Textures, Ini);
 	GConfig->GetInt(Section, TEXT("GlobalIllumination"), GlobalIllumination, Ini);
@@ -214,6 +222,7 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->SetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
 	GConfig->SetInt(Section, TEXT("AntiAliasing"), AntiAliasing, Ini);
+	GConfig->SetInt(Section, TEXT("AaRowWorks"), 1, Ini);
 	GConfig->SetInt(Section, TEXT("Shadows"), Shadows, Ini);
 	GConfig->SetInt(Section, TEXT("Textures"), Textures, Ini);
 	GConfig->SetInt(Section, TEXT("GlobalIllumination"), GlobalIllumination, Ini);

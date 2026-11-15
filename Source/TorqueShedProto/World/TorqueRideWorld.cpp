@@ -135,6 +135,15 @@ void PrepareSquare(const TorqueWorld::RideMesh& Mesh, FRidePrepared& Out)
 	}
 }
 
+// [perf, build 149] Instances culled nearer than a square of its level can ever be (a square of level
+// 1 and up is split before the rider comes within SplitWithin of it): never drawn there, so never
+// made. Build 148 had 5,700-11,700 plant groups in the scene, most of them on squares past every
+// grass's cull distance.
+bool Unseen(const FIntVector& Key, float CullCm)
+{
+	return Key.X > 0 && double(CullCm) < SplitWithin[Key.X] * 100.0 * 0.97;
+}
+
 bool Overlap(const FIntVector& A, const FIntVector& B)
 {
 	const double Sa = SizeOf(A.X), Sb = SizeOf(B.X);
@@ -1458,6 +1467,7 @@ void ATorqueRideWorld::PlaceAnimals(const FIntVector& Key, const TorqueWorld::Ri
 	for (TPair<int32, TArray<FTransform>>& Group : Groups)
 	{
 		const FTorqueFoliageSpecies& S = AnimalKit[Group.Key];
+		if (TRWI::Unseen(Key, FMath::Max(S.CullDistance, 20000.0f))) continue;
 		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
 		Ism->SetMobility(EComponentMobility::Movable);
 		Ism->SetupAttachment(RootComponent);
@@ -1560,6 +1570,7 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 	for (TPair<int32, TArray<FTransform>>& Group : Groups)
 	{
 		const FTorqueFoliageSpecies& S = PropKit[Group.Key];
+		if (TRWI::Unseen(Key, FMath::Max(S.CullDistance, 5000.0f))) continue;
 		// As the animals: no collision, no navigation; shadows only from the taller kinds (the kit says).
 		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
 		Ism->SetMobility(EComponentMobility::Movable);
@@ -1748,6 +1759,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
+		if (TRWI::Unseen(Key, S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
 		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
 		static const bool bNoTrees = []() { int32 On = 1; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideTrees="), On) && On == 0; }();
 		if (bTree && bNoTrees) continue;
