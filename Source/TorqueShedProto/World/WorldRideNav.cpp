@@ -70,6 +70,35 @@ bool Lodging(const std::string& Name)
 }
 } // namespace RideNavBits
 
+void RidePlan::FindPathNodes(int From, const std::vector<int>& Path, double RawLength)
+{
+	// ([OSM stage 6C] as FindTurnsAndStops makes them, ahead of it: the furniture's direction signs want
+	// the junctions before the turns are found)
+	PathNodes.clear();
+	if (Road.size() < 2 || Path.empty()) return;
+	const Region& G = Area.Roads;
+	const double Scale = RawLength > 1.0 ? Length / RawLength : 1.0;
+	int Node = From;
+	double Raw = 0.0;
+	PathNodes.push_back({From, Path[0], 0.0});
+	for (size_t I = 0; I < Path.size(); ++I)
+	{
+		Raw += G.Edges[size_t(Path[I])].Length;
+		Node = G.OtherEnd(Path[I], Node);
+		const P2 At = G.Nodes[size_t(Node)];
+		const double Guess = Raw * Scale;
+		double Best = 1e18, Found = Guess;
+		for (const RoadPoint& P : Road)
+		{
+			if (P.Along < Guess - 80.0) continue;
+			if (P.Along > Guess + 80.0) break;
+			const double D = P.At.DistanceTo(At);
+			if (D < Best) { Best = D; Found = P.Along; }
+		}
+		PathNodes.push_back({Node, I + 1 < Path.size() ? Path[I + 1] : -1, Found});
+	}
+}
+
 void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double RawLength)
 {
 	using namespace RideNavBits;

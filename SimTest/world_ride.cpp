@@ -159,6 +159,8 @@ int main(int Argc, char** Argv)
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
+		std::string PlaceText;   // [OSM stage 6C]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/World/uk_places.tsv"), PlaceText)) SetSignPlaces(PlaceText);
 		std::string SiteText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/landmarks_uk.json"), SiteText) && SetSiteTable(SiteText))
 		{
@@ -1426,13 +1428,13 @@ int main(int Argc, char** Argv)
 			int BySym[TorqueWorld::SignPlate::SymKinds] = {};
 			for (const RidePlan::Furnish& F : Plan->Furniture)
 				if (F.Kind == RidePlan::WarnSign && F.Size >= 0.0 && F.Size < TorqueWorld::SignPlate::SymKinds) ++BySym[int(F.Size)];
-			std::printf("Warning signs: %d (bends %d, double bends %d, hills %d, junctions %d, roundabouts %d, lights %d, humps %d, cattle grids %d); street name plates %d\n",
+			std::printf("Warning signs: %d (bends %d, double bends %d, hills %d, junctions %d, roundabouts %d, lights %d, humps %d, cattle grids %d); street name plates %d; direction signs %d before junctions, %d after\n",
 				Plan->FurnitureCount(RidePlan::WarnSign), BySym[0] + BySym[1], BySym[2] + BySym[3], BySym[10] + BySym[11], BySym[4] + BySym[5] + BySym[6] + BySym[7], BySym[8], BySym[9], BySym[12], BySym[14],
-				Plan->FurnitureCount(RidePlan::StreetPlate));
+				Plan->FurnitureCount(RidePlan::StreetPlate), Plan->FurnitureCount(RidePlan::DirAdvance), Plan->FurnitureCount(RidePlan::DirConfirm));
 			if (std::getenv("WORLD_RIDE_WARNINGS") != nullptr)
 				for (const RidePlan::Furnish& F : Plan->Furniture)
-					if (F.Kind == RidePlan::WarnSign || F.Kind == RidePlan::StreetPlate)
-						std::printf("  %s %d %s at %.0f,%.0f facing %.2f,%.2f size %.2f\n", F.Kind == RidePlan::WarnSign ? "warn" : "plate", int(F.Size), F.Text.c_str(), F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Big);
+					if (F.Kind == RidePlan::WarnSign || F.Kind == RidePlan::StreetPlate || F.Kind == RidePlan::DirAdvance || F.Kind == RidePlan::DirConfirm)
+						std::printf("  %s %d %s at %.0f,%.0f facing %.2f,%.2f size %.2f\n", F.Kind == RidePlan::WarnSign ? "warn" : F.Kind == RidePlan::StreetPlate ? "plate" : F.Kind == RidePlan::DirAdvance ? "ads" : "confirm", int(F.Size), F.Text.c_str(), F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Big);
 		}
 		for (const RidePlan::RideStop& S : Plan->Stops)
 			if (S.Kind >= RidePlan::StopInn) std::printf("  stop %s at %.2f km: %s\n", RidePlan::StopName(S.Kind), S.Along / 1000.0, S.Name.c_str());

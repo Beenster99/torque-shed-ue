@@ -50,6 +50,26 @@ std::shared_ptr<const SignFont> SignFontNow()
 	return GFont;
 }
 
+namespace
+{
+std::shared_ptr<const Route::Gazetteer> GPlaces;
+} // namespace
+
+bool SetSignPlaces(const std::string& Text)
+{
+	std::shared_ptr<Route::Gazetteer> Places = std::make_shared<Route::Gazetteer>();
+	if (!Places->Load(Text) || Places->Count() == 0) return false;
+	std::lock_guard<std::mutex> Hold(GFontLock);
+	GPlaces = Places;
+	return true;
+}
+
+std::shared_ptr<const Route::Gazetteer> SignPlacesNow()
+{
+	std::lock_guard<std::mutex> Hold(GFontLock);
+	return GPlaces;
+}
+
 namespace SignText
 {
 std::vector<uint32_t> CodePoints(const std::string& Utf8)
@@ -532,6 +552,164 @@ bool WordPlate(RideMesh& Into, RideMesh& Back, const Frame& At, double CapHigh, 
 	const double Rim = CapHigh * 0.16;
 	Plate(Into, Back, At, Rect(W, H, Rim * 1.5), Ground, Rim, Ink, Grey);
 	return SignText::Set(Into, At.X + At.Fx * 0.004, At.Y, At.Z + At.Fz * 0.004, At.Fx, At.Fz, CapHigh, Utf8, Ink, 0);
+}
+namespace
+{
+void SchemeColours(int Scheme, const float*& Ground, const float*& Ink)
+{
+	static const float White[3] = {0.75f, 0.75f, 0.74f}, Black[3] = {0.012f, 0.012f, 0.012f}, Green[3] = {0.0f, 0.13f, 0.05f}, Blue[3] = {0.0f, 0.05f, 0.25f};
+	Ground = Scheme == SchemePrimary ? Green : Scheme == SchemeMotorway ? Blue : White;
+	Ink = Scheme == SchemeLocal ? Black : White;
+}
+std::vector<std::string> Split(const std::string& Text, char By)
+{
+	std::vector<std::string> Out;
+	size_t From = 0;
+	for (;;)
+	{
+		const size_t At = Text.find(By, From);
+		Out.push_back(Text.substr(From, At == std::string::npos ? std::string::npos : At - From));
+		if (At == std::string::npos) break;
+		From = At + 1;
+	}
+	return Out;
+}
+// (words set at (U, V) on a frame's plate, a little proud)
+bool SetOn(RideMesh& Into, const Frame& At, double U, double V, double Cap, const std::string& Words, const float Ink[3], int Align)
+{
+	const double P = 0.004;
+	return SignText::Set(Into, At.X + At.Fz * U + At.Fx * P, At.Y + V, At.Z - At.Fx * U + At.Fz * P, At.Fx, At.Fz, Cap, Words, Ink, Align);
+}
+} // namespace
+
+std::string Miles(double Metres)
+{
+	const double M = Metres / 1609.344;
+	if (M < 0.25) return std::string();
+	if (M < 2.75)
+	{
+		const int Halves = std::max(1, int(std::lround(M * 2.0)));
+		const std::string Whole = Halves / 2 > 0 ? std::to_string(Halves / 2) : std::string();
+		return Halves % 2 ? Whole + "\xC2\xBD" : Whole;
+	}
+	return std::to_string(int(std::lround(M)));
+}
+
+bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Arms, double& W, double& H)
+{
+	W = H = 0.0;
+	std::vector<std::string> Ahead, Left, Right;
+	for (const std::string& Arm : Split(Arms, '|'))
+	{
+		if (Arm.size() < 2) continue;
+		std::vector<std::string>& To = Arm[0] == '^' ? Ahead : Arm[0] == '<' ? Left : Right;
+		for (const std::string& P : Split(Arm.substr(1), ';'))
+			if (!P.empty()) To.push_back(P);
+	}
+	if (Left.empty() && Right.empty()) return false;
+	const double C = CapHigh, Pitch = C * 1.9, Stem = C * 0.9, Side = C * 0.65, Reach = C * 2.2, Gap = C * 1.4, Margin = C * 1.1;
+	const auto Widest = [C](const std::vector<std::string>& L, double& Most)
+	{
+		Most = 0.0;
+		for (const std::string& P : L)
+		{
+			double Wd = 0.0;
+			if (!SignText::Width(P, C, Wd)) return false;
+			Most = std::fmax(Most, Wd);
+		}
+		return true;
+	};
+	double Wa = 0.0, Wl = 0.0, Wr = 0.0;
+	if (!Widest(Ahead, Wa) || !Widest(Left, Wl) || !Widest(Right, Wr)) return false;
+	// (about the junction on the stem: the sides' words beside their arms' ends, the ahead's over the stem)
+	const double SideTall = std::fmax(double(Left.size()), double(Right.size())) * Pitch;
+	const double StemTop = std::fmax(SideTall * 0.5, C * 1.2) + C * 0.9;
+	const double StemFoot = -std::fmax(SideTall * 0.5, C * 0.6) - C * 1.6;
+	const double AheadFoot = StemTop + C * 2.0;   // (over the arrow's head, C * 1.1 past the stem's top)
+	const double Top = Ahead.empty() ? StemTop + C * 1.2 : AheadFoot + double(Ahead.size()) * Pitch - (Pitch - C) * 0.5;
+	const double LeftEdge = -std::fmax(Left.empty() ? Stem : Reach + Gap + Wl, Wa * 0.5), RightEdge = std::fmax(Right.empty() ? Stem : Reach + Gap + Wr, Wa * 0.5);
+	const double U0 = LeftEdge - Margin, U1 = RightEdge + Margin, V0 = StemFoot - Margin * 0.4, V1 = Top + Margin * 0.7;
+	W = U1 - U0;
+	H = V1 - V0;
+	if (Into == nullptr || Back == nullptr) return true;
+	const float* Ground = nullptr;
+	const float* Ink = nullptr;
+	SchemeColours(Scheme, Ground, Ink);
+	static const float Grey[3] = {0.16f, 0.16f, 0.165f};
+	// (the board about its middle, so everything shifts by its middle's place about the junction)
+	const double Mu = (U0 + U1) * 0.5, Mv = (V0 + V1) * 0.5;
+	Plate(*Into, *Back, At, Rect(W, H, C * 0.6), Ground, C * 0.22, Ink, Grey);
+	const auto Line = [&](std::initializer_list<double> Uv) { std::vector<double> Out; bool X = true; for (double D : Uv) { Out.push_back(D - (X ? Mu : Mv)); X = !X; } return Out; };
+	Arrow(*Into, At, Line({0.0, StemFoot, 0.0, StemTop}), Stem, C * 1.1, 0.003, Ink);
+	if (!Left.empty()) Arrow(*Into, At, Line({0.0, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	if (!Right.empty()) Arrow(*Into, At, Line({0.0, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	bool Ok = true;
+	for (size_t K = 0; K < Left.size(); ++K) Ok = SetOn(*Into, At, -Reach - Gap - Mu, (double(Left.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch - Mv, C, Left[K], Ink, 1) && Ok;
+	for (size_t K = 0; K < Right.size(); ++K) Ok = SetOn(*Into, At, Reach + Gap - Mu, (double(Right.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch - Mv, C, Right[K], Ink, -1) && Ok;
+	for (size_t K = 0; K < Ahead.size(); ++K) Ok = SetOn(*Into, At, -Mu, AheadFoot + (double(Ahead.size()) - 1.0 - double(K)) * Pitch - Mv, C, Ahead[K], Ink, 0) && Ok;
+	return Ok;
+}
+
+bool ConfirmBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Lines, double& W, double& H)
+{
+	W = H = 0.0;
+	std::vector<std::pair<std::string, std::string>> Rows;
+	for (const std::string& L : Split(Lines, '|'))
+	{
+		const std::vector<std::string> Two = Split(L, '\t');
+		if (!Two[0].empty()) Rows.emplace_back(Two[0], Two.size() > 1 ? Two[1] : std::string());
+	}
+	if (Rows.empty()) return false;
+	const double C = CapHigh, Pitch = C * 1.9, Margin = C * 1.1;
+	double Wn = 0.0, Wd = 0.0;
+	for (const auto& R : Rows)
+	{
+		double A = 0.0, B = 0.0;
+		if (!SignText::Width(R.first, C, A) || !SignText::Width(R.second, C, B)) return false;
+		Wn = std::fmax(Wn, A);
+		Wd = std::fmax(Wd, B);
+	}
+	W = Wn + (Wd > 0.0 ? C * 1.5 + Wd : 0.0) + Margin * 2.0;
+	H = double(Rows.size()) * Pitch + Margin * 0.6;
+	if (Into == nullptr || Back == nullptr) return true;
+	const float* Ground = nullptr;
+	const float* Ink = nullptr;
+	SchemeColours(Scheme, Ground, Ink);
+	static const float Grey[3] = {0.16f, 0.16f, 0.165f};
+	Plate(*Into, *Back, At, Rect(W, H, C * 0.6), Ground, C * 0.22, Ink, Grey);
+	bool Ok = true;
+	for (size_t K = 0; K < Rows.size(); ++K)
+	{
+		const double V = (double(Rows.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch;
+		Ok = SetOn(*Into, At, -W * 0.5 + Margin, V, C, Rows[K].first, Ink, -1) && Ok;
+		if (!Rows[K].second.empty()) Ok = SetOn(*Into, At, W * 0.5 - Margin, V, C, Rows[K].second, Ink, 1) && Ok;
+	}
+	return Ok;
+}
+
+bool FlagBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Words, double& W, double& H)
+{
+	W = H = 0.0;
+	if (Words.size() < 2 || (Words[0] != '<' && Words[0] != '>')) return false;
+	const int Point = Words[0] == '<' ? -1 : 1;
+	const std::vector<std::string> Two = Split(Words.substr(1), '\t');
+	const double C = CapHigh, Tip = C * 1.6, Margin = C * 0.9;
+	double A = 0.0, B = 0.0;
+	const std::string Far = Two.size() > 1 ? Two[1] : std::string();
+	if (!SignText::Width(Two[0], C, A) || !SignText::Width(Far, C, B)) return false;
+	W = A + (B > 0.0 ? C * 1.0 + B : 0.0) + Margin * 2.0 + Tip;
+	H = C * 2.4;
+	if (Into == nullptr || Back == nullptr) return true;
+	const float* Ground = nullptr;
+	const float* Ink = nullptr;
+	SchemeColours(Scheme, Ground, Ink);
+	static const float Grey[3] = {0.16f, 0.16f, 0.165f};
+	Plate(*Into, *Back, At, Flag(W, H, Point, Tip, C * 0.3), Ground, C * 0.2, Ink, Grey);
+	// (the place from the flag's square end, its miles by the point)
+	const double Square = -Point * W * 0.5, Pointed = Point * (W * 0.5 - Tip);
+	bool Ok = SetOn(*Into, At, Square + Point * Margin, 0.0, C, Two[0], Ink, Point > 0 ? -1 : 1);
+	if (!Far.empty()) Ok = SetOn(*Into, At, Pointed - Point * Margin * 0.3, 0.0, C, Far, Ink, Point > 0 ? 1 : -1) && Ok;
+	return Ok;
 }
 } // namespace SignPlate
 } // namespace TorqueWorld

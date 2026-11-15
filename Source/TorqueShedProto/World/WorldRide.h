@@ -596,6 +596,9 @@ public:
 		// [OSM stage 6B] a warning triangle (Size its symbol, SignPlate::ESymbol; Big its side, m; Text a hill's
 		// gradient, "20%", or the words of a plate under it), a street's name plate (Text; Big its capitals, m)
 		WarnSign, StreetPlate,
+		// [OSM stage 6C] a junction's advance direction sign (Text its arms, SignPlate::AdvanceBoard's; Size its
+		// scheme, SignPlate::EScheme; Big its capitals, m), a route confirmation sign after it (Text its lines)
+		DirAdvance, DirConfirm,
 		FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
 	struct Furnish
 	{
@@ -617,6 +620,12 @@ public:
 	// Those standing in (X0, Z0)-(+Size) into Out, kept alive by Hold. Safe on any thread.
 	void NetworkFurniture(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<Furnish>>>& Hold, std::vector<const Furnish*>& Out) const;
 	std::vector<Furnish> RoadFurniture(int Which) const;    // (a laid road's lamps and chevrons)
+	// [OSM stage 6C] The direction signs of the ride's road's junctions (World/WorldRideDirections.cpp), in
+	// Britain: where a side road of tertiary or more (no greater than the ride's road) meets it, a map-type
+	// sign before it each way naming the places each road out leads to first (the shortest way there starts
+	// by it: the nearest town or village and a bigger place further on), and on a primary or secondary road
+	// the places ahead with their miles after it. Positioned, not yet put (IndexFurniture puts them first).
+	std::vector<Furnish> DirectionSigns() const;
 	std::vector<Furnish> BlockFurniture(const Rect& In) const;   // (the map's furniture in a block left by IndexFurniture)
 	std::vector<P2> MappedLamps;                            // the map's street lamps (IndexFurniture)
 	std::vector<unsigned char> MappedLeft;                  // by Scenery.Points: 1 for one IndexFurniture had no road for
@@ -1079,6 +1088,7 @@ public:
 		double Along = 0.0;
 	};
 	std::vector<PathNode> PathNodes;
+	void FindPathNodes(int From, const std::vector<int>& Path, double RawLength);   // ([OSM stage 6C] before the furniture; FindTurnsAndStops makes them again)
 	// [OSM stage 1] The road's facts along the ride (World/WorldRideFacts.cpp), worked out when the ride
 	// is planned. Facts: each stretch of the map's road the ride follows, From..To along it, with the
 	// limit the map gives (km/h, 0 none), its name, class and whether it is gravel. Limits: the limit

@@ -170,6 +170,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const bool bGlyphs = TorqueWorld::Files::Read(GlyphsPath, GlyphText) && TorqueWorld::SetSignFont(GlyphText);
 		const std::shared_ptr<const TorqueWorld::SignFont> Font = TorqueWorld::SignFontNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: sign letters: %d from Data/RideUK/sign_glyphs.json%s"), Font ? int32(Font->Glyphs.size()) : 0, bGlyphs ? TEXT("") : TEXT(" (none: signs fall back to text components)"));
+		// [OSM stage 6C] The places direction signs name (the Route planner's gazetteer, read again for the plan).
+		std::string SignPlaceText;
+		const std::string SignPlacesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/World/uk_places.tsv")));
+		const bool bSignPlaces = TorqueWorld::Files::Read(SignPlacesPath, SignPlaceText) && TorqueWorld::SetSignPlaces(SignPlaceText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: direction signs' places%s"), bSignPlaces ? TEXT(" read") : TEXT(": none (no direction signs)"));
 		// [places stage 5] The famous places' own notes (how many stones, a spire or not...).
 		std::string SiteText;
 		const std::string SitesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/landmarks_uk.json")));

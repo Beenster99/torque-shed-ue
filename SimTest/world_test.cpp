@@ -96,6 +96,10 @@ int main()
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;
 	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
+	// [OSM stage 6C] (the places direction signs name)
+	std::string PlaceText;
+	const bool SignPlacesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "World/uk_places.tsv"), PlaceText) && SetSignPlaces(PlaceText);
+	(void)SignPlacesRead;
 	if (!Files::Read(Files::Join(Data, "godot_world.json"), Text) || !Json::Parse(Text, Ref))
 	{
 		std::printf("FAIL  no godot_world.json in %s\n", Data.c_str());
@@ -183,8 +187,28 @@ int main()
 		const float Paper[3] = {1.0f, 1.0f, 1.0f}, Ink[3] = {0.0f, 0.0f, 0.0f};
 		double W = 0.0, H = 0.0, Wide = 0.0;
 		Ok = Ok && SignPlate::WordPlate(Plate, Back, SignPlate::Frame(), 0.1, "Frenchgate", Paper, Ink, W, H) && SignText::Width("Frenchgate", 0.1, Wide) && W > Wide && H > 0.2;
+		// [OSM stage 6C] direction signs: a map-type sign, a mileage sign and a flag drawn facing the reader,
+		// sized as measured; miles as signs give them
+		{
+			RideMesh Dir, DirBack;
+			double Wm = 0.0, Hm = 0.0, Wd = 0.0, Hd = 0.0;
+			const bool Measured = SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), 0.15, SignPlate::SchemePrimary, "^Hawes;Leyburn|<Askrigg", Wm, Hm);
+			Ok = Ok && Measured && SignPlate::AdvanceBoard(&Dir, &DirBack, SignPlate::Frame(), 0.15, SignPlate::SchemePrimary, "^Hawes;Leyburn|<Askrigg", Wd, Hd) && Wd == Wm && Hd == Hm && Wm > Hm;
+			Ok = Ok && SignPlate::ConfirmBoard(&Dir, &DirBack, SignPlate::Frame(), 0.15, SignPlate::SchemeLocal, "Hawes\t12|Leyburn\t28", Wd, Hd);
+			Ok = Ok && SignPlate::FlagBoard(&Dir, &DirBack, SignPlate::Frame(), 0.12, SignPlate::SchemeLocal, "<Askrigg\t3", Wd, Hd);
+			Ok = Ok && !SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), 0.15, 0, "^Hawes", Wd, Hd);   // (no side: no sign)
+			for (size_t T = 0; T < Dir.Idx.size(); T += 3)
+			{
+				const float* A = &Dir.Pos[Dir.Idx[T] * 3];
+				const float* B = &Dir.Pos[Dir.Idx[T + 1] * 3];
+				const float* C = &Dir.Pos[Dir.Idx[T + 2] * 3];
+				Ok = Ok && (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]) >= 0.0;   // (facing +z, the frame's own)
+			}
+			Ok = Ok && SignPlate::Miles(100.0).empty() && SignPlate::Miles(800.0) == "\xC2\xBD" && SignPlate::Miles(2400.0) == "1\xC2\xBD" && SignPlate::Miles(19312.0) == "12";
+			std::printf("      direction signs: a map-type sign %.2f by %.2f m at 150 mm capitals\n", Wm, Hm);
+		}
 		std::printf("      warning symbols: %d, %zu triangles; a street plate %.2f by %.2f m\n", int(SignPlate::SymKinds), Tris, W, H);
-		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name");
+		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name; direction signs and miles");
 	}
 
 	// ------------------------------------------------------------------ the grid and the map tiles' maths

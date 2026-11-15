@@ -5,6 +5,7 @@
 #pragma once
 
 #include "WorldRide.h"
+#include "WorldRoute.h"
 
 #include <cstdint>
 #include <memory>
@@ -29,6 +30,10 @@ struct SignFont
 // Reads the baked alphabet (its JSON): false if it isn't one, and the one before stays.
 bool SetSignFont(const std::string& Text);
 std::shared_ptr<const SignFont> SignFontNow();   // null until one is set
+// [OSM stage 6C] The places direction signs can name (Data/World/uk_places.tsv, as the Route planner's
+// gazetteer reads it), set once like the font: false if none read.
+bool SetSignPlaces(const std::string& Text);
+std::shared_ptr<const Route::Gazetteer> SignPlacesNow();   // null until set
 
 namespace SignText
 {
@@ -102,5 +107,21 @@ void Warning(RideMesh& Into, RideMesh& Back, const Frame& At, double Side, int S
 // A rectangular plate of words: white, a black border and black capitals CapHigh m tall (or Ink on
 // Ground), wide enough for them; false if a letter is missing (nothing drawn). Its size into W, H.
 bool WordPlate(RideMesh& Into, RideMesh& Back, const Frame& At, double CapHigh, const std::string& Utf8, const float Ground[3], const float Ink[3], double& W, double& H);
+
+// [OSM stage 6C] Direction signs, in a scheme: Britain's white with black words and border (local
+// roads), green with white (primary routes), blue with white (motorways). CapHigh their capitals' height.
+enum EScheme { SchemeLocal = 0, SchemePrimary = 1, SchemeMotorway = 2 };
+// A map-type advance direction sign: the road ahead as a stem with an arrow at its top and each side
+// road an arm off it with its arrow, the places each way at its end. Arms: "^Hawes;Leyburn|<Askrigg|>Reeth"
+// ('^' ahead, '<' left, '>' right; places by ';'). Its size into W, H; drawn only when Into is given
+// (false, nothing drawn, if a letter is missing or there are no places).
+bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Arms, double& W, double& H);
+// A route confirmation sign after a junction: the places ahead with their miles, a column each.
+// Lines: "Hawes\t12|Leyburn\t28".
+bool ConfirmBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Lines, double& W, double& H);
+// A junction's flag: pointing ('<' left or '>' right first) with its place and miles: "<Askrigg\t3".
+bool FlagBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Words, double& W, double& H);
+// Miles as signs show them: halves under three ("½", "1½"), whole miles after; "" under a quarter.
+std::string Miles(double Metres);
 } // namespace SignPlate
 } // namespace TorqueWorld

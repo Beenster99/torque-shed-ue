@@ -343,6 +343,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexScenery();
 	R->IndexRails();
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
+	R->FindPathNodes(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());   // [OSM stage 6C] (the direction signs' junctions)
 	R->IndexFurniture();
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)

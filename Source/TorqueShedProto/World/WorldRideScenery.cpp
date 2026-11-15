@@ -1148,6 +1148,14 @@ void RidePlan::IndexFurniture()
 				if (S.At.DistanceTo(At) < (S.Warning ? Apart : 10.0) && S.Face.X * Face.X + S.Face.Z * Face.Z > 0.5) return false;
 			return true;
 		};
+		// [OSM stage 6C] The direction signs first: they matter most (none within 50 m of another the same
+		// way, and a warning keeps 40 m from them).
+		for (const Furnish& D : DirectionSigns())
+			if (Clear(D.At, D.Face, 50.0))
+			{
+				Signs.push_back({D.At, D.Face, true});
+				Put(D);
+			}
 		const auto Warn = [&](const Hazard& H)
 		{
 			const int Mph = MphAt(H.Along - H.Way * 40.0);
@@ -1558,6 +1566,27 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			T.X = F.At.X; T.Z = F.At.Z; T.Y = Foot + S * 0.2887; T.Fx = Face.X; T.Fz = Face.Z;
 			Post(F.At.X - Face.X * 0.06, F.At.Z - Face.Z * 0.06, Y - 0.3, T.Y + S * 0.35, 0.04, 0.036, Grey);
 			SignPlate::Warning(Out.SignsOf(), Out, T, S, int(F.Size), Hill ? F.Text : std::string());
+			break;
+		}
+		case DirAdvance:
+		case DirConfirm:
+		{
+			// [OSM stage 6C] A direction sign: its board's foot 1.2 m up, on two posts behind it (one under a
+			// narrow board).
+			const double Cap = F.Big > 0.0 ? F.Big : 0.1;
+			double W = 0.0, H = 0.0;
+			const bool Advance = F.Kind == DirAdvance;
+			const bool Sized = Advance ? SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), Cap, int(F.Size), F.Text, W, H)
+									   : SignPlate::ConfirmBoard(nullptr, nullptr, SignPlate::Frame(), Cap, int(F.Size), F.Text, W, H);
+			if (!Sized) break;
+			SignPlate::Frame P;
+			P.X = F.At.X; P.Z = F.At.Z; P.Y = Y + 1.2 + H * 0.5; P.Fx = Face.X; P.Fz = Face.Z;
+			const double R = std::clamp(W * 0.012, 0.04, 0.07);
+			if (W < 1.0) Post(F.At.X - Face.X * 0.07, F.At.Z - Face.Z * 0.07, Y - 0.3, P.Y + H * 0.45, R, R * 0.9, Grey);
+			else
+				for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * W * 0.3 - Face.X * 0.07, F.At.Z + Side.Z * Su * W * 0.3 - Face.Z * 0.07, Y - 0.3, P.Y + H * 0.45, R, R * 0.9, Grey);
+			if (Advance) SignPlate::AdvanceBoard(&Out.SignsOf(), &Out, P, Cap, int(F.Size), F.Text, W, H);
+			else SignPlate::ConfirmBoard(&Out.SignsOf(), &Out, P, Cap, int(F.Size), F.Text, W, H);
 			break;
 		}
 		case StreetPlate:
