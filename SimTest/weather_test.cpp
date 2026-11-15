@@ -273,6 +273,94 @@ int main()
 		Check(Near(EquationOfTime(307), 16.4, 1.0), "the sundial runs ahead in early November");
 	}
 
+	// [skies stage 6] Toward the forecast, and the weather along a planned ride.
+	{
+		const int N = 3;
+		const double Step = 2500.0;
+		const std::string Url = OpenMeteoGridUrl(54.35, -2.2, N, Step);
+		Check(Url.find("forecast_hours=4") != std::string::npos && Url.find("cloud_cover_low,cloud_cover_mid") != std::string::npos,
+			"the grid asks for the next hours' cloud and rain too");
+		// Dry and fair now; rain and a deck coming in two hours. No wind, so nothing is carried.
+		auto Body = [N](long long Now, const char* Rain, const char* Cloud, const char* WindNow) {
+			std::string Out = "[";
+			for (int I = 0; I < N * N; ++I)
+			{
+				char Point[1400];
+				std::snprintf(Point, sizeof Point,
+					R"(%s{"elevation":300,"utc_offset_seconds":0,"current":{"time":%lld,"interval":900,"temperature_2m":10.0,"dew_point_2m":8.0,"precipitation":0.0,"cloud_cover":40,"cloud_cover_low":20,"wind_speed_10m":%s,"wind_direction_10m":270,"wind_gusts_10m":5.0,"weather_code":2,"visibility":20000},"hourly":{"time":[%lld,%lld,%lld,%lld],"precipitation":%s,"cloud_cover":%s,"temperature_2m":[10,10,9,9],"wind_speed_10m":[0,0,0,0],"wind_direction_10m":[270,270,270,270]}})",
+					I ? "," : "", Now, WindNow, Now - 600, Now + 3000, Now + 6600, Now + 10200, Rain, Cloud);
+				Out += Point;
+			}
+			return Out + "]";
+		};
+		const long long T0 = 1794265200;
+		Grid G;
+		std::string Why;
+		Check(ParseOpenMeteoGrid(Body(T0, "[0,0,2.0,2.0]", "[40,60,95,100]", "0"), 54.35, -2.2, N, Step, G, nullptr, nullptr, &Why) &&
+			G.Ahead.size() == 3 && Near(G.AheadIn[0], 3000.0, 0.1), "the forecast hours read as whole grids (3 to come)");
+		const State Now = GridAt(G, 54.35, -2.2, -2000.0, 0.0);
+		const State Mid = GridAt(G, 54.35, -2.2, -2000.0, 4800.0);
+		const State Then = GridAt(G, 54.35, -2.2, -2000.0, 6600.0);
+		std::printf("  rain now %.1f, in 80 min %.1f, in 110 min %.1f; cloud %.2f %.2f %.2f\n", Now.Rain, Mid.Rain, Then.Rain, Now.Cloud, Mid.Cloud, Then.Cloud);
+		Check(Now.Rain == 0.0 && Near(Now.Cloud, 0.4, 0.01), "  at the fetch: the weather as it is");
+		Check(Near(Mid.Rain, 1.0, 0.01) && Near(Then.Rain, 2.0, 0.01) && Near(Then.Cloud, 0.95, 0.01), "  then moving to what is coming");
+		Check(Near(GridAt(G, 54.35, -2.2, -2000.0, 1e6).Cloud, 1.0, 0.01), "  past the last hour it holds there");
+		double Worst = 0.0, WorstCloud = 0.0;
+		State Was = Now;
+		for (double S = 30.0; S < 12000.0; S += 30.0)
+		{
+			const State Is = GridAt(G, 54.35, -2.2, -2000.0, S);
+			Worst = std::max(Worst, std::fabs(Is.Rain - Was.Rain));
+			WorstCloud = std::max(WorstCloud, std::fabs(Is.Cloud - Was.Cloud));
+			Was = Is;
+		}
+		std::printf("  biggest step in 30 s: rain %.3f mm/h, cloud %.3f\n", Worst, WorstCloud);
+		Check(Worst < 0.05 && WorstCloud < 0.01, "  no pop on the way (every 30 s for over three hours)");
+		Check(ComingWords(G, 0.0) == "rain in about an hour", "the words say what is coming (\"rain in about an hour\")");
+		Check(ComingWords(G, 2000.0) == "rain within the hour", "  and nearer the time, \"rain within the hour\"");
+		// The next fetch, an hour on, finds the forecast it was moving to: no jump.
+		Grid Next;
+		ParseOpenMeteoGrid(Body(T0 + 3000, "[0,0,2.0,2.0]", "[60,60,95,100]", "0"), 54.35, -2.2, N, Step, Next);
+		Next.Points = G.Ahead[0];
+		Check(Near(GridAt(Next, 54.35, -2.2, -2000.0, 0.0).Cloud, GridAt(G, 54.35, -2.2, -2000.0, 3000.0).Cloud, 0.001), "  the next fetch carries on where it got to");
+		// With a wind, the fetched weather is carried at first and still arrives at the forecast.
+		Grid Windy;
+		ParseOpenMeteoGrid(Body(T0, "[0,0,2.0,2.0]", "[40,60,95,100]", "10"), 54.35, -2.2, N, Step, Windy);
+		Check(Near(GridAt(Windy, 54.35, -2.2, -2000.0, 3000.0).Cloud, 0.6, 0.01), "  a windy day reaches the forecast hour too");
+
+		// Along a ride: 100 km north, two hours; dry in the south, rain from the fourth stop on.
+		std::vector<std::pair<double, double>> Line;
+		for (int I = 0; I <= 100; ++I) Line.push_back({54.35 + 0.9 * I / 100.0, -2.2});
+		std::vector<RouteStop> Stops = RouteStops(Line, 6, 7200.0);
+		Check(Stops.size() == 6 && Near(Stops.back().Along, 100187.0, 300.0) && Near(Stops[3].EtaS, 4320.0, 1.0), "a ride's stops spread along it, each with when you'll be there");
+		const std::string RUrl = OpenMeteoRouteUrl(Stops, 4);
+		size_t Commas = 0;
+		for (char Ch : RUrl.substr(0, RUrl.find("&longitude"))) Commas += Ch == ',';
+		Check(Commas == 5 && RUrl.find("forecast_hours=4") != std::string::npos, "  asked for in one call");
+		auto RouteBody = [](long long Start, int WetFrom) {
+			std::string Out = "[";
+			for (int I = 0; I < 6; ++I)
+			{
+				char Point[600];
+				const char* R = I >= WetFrom ? "[1.5,1.5,1.5]" : "[0,0,0]";
+				std::snprintf(Point, sizeof Point, R"(%s{"elevation":200,"hourly":{"time":[%lld,%lld,%lld],"precipitation":%s,"cloud_cover":[90,90,90],"wind_gusts_10m":[8,8,8],"visibility":[20000,20000,20000]}})",
+					I ? "," : "", Start, Start + 3600, Start + 7200, R);
+				Out += Point;
+			}
+			return Out + "]";
+		};
+		const long long Start = 1794265200;   // (23:00 UTC)
+		const std::vector<std::string> Names = {"Hawes", "", "", "Shap", "", "Penrith"};
+		Check(ParseRouteWeather(RouteBody(Start, 3), Start, Stops, &Why), "  the answer reads");
+		const std::string Words = RouteWords(Stops, Names, Start, 0, false);
+		std::printf("  \"%s\"\n", Words.c_str());
+		Check(Words.rfind("Rain from near Shap (60 km in, about", 0) == 0 && Words.find("onwards") != std::string::npos, "  \"Rain from near Shap onwards\"");
+		ParseRouteWeather(RouteBody(Start, 9), Start, Stops);
+		Check(RouteWords(Stops, Names, Start, 0, true) == "Dry all the way", "  \"Dry all the way\"");
+		ParseRouteWeather(RouteBody(Start, 0), Start, Stops);
+		Check(RouteWords(Stops, Names, Start, 0, true) == "Rain all the way", "  \"Rain all the way\"");
+	}
+
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
 }

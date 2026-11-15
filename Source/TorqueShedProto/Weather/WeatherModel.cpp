@@ -88,6 +88,8 @@ State Blend(const State& A, const State& B, double T)
 	S.Wind700From = TurnLerp(A.Wind700From, B.Wind700From, T);
 	S.Wind300 = Lerp(A.Wind300, B.Wind300, T);
 	S.Wind300From = TurnLerp(A.Wind300From, B.Wind300From, T);
+	S.Rh300 = LerpKnown(A.Rh300, B.Rh300, T);
+	S.T300 = Lerp(A.T300, B.T300, T);
 	return S;
 }
 
@@ -326,19 +328,58 @@ constexpr const char* CurrentFields =
 	"temperature_2m,dew_point_2m,relative_humidity_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,"
 	"cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility,"
 	"cape,freezing_level_height,direct_radiation,diffuse_radiation,"
-	"wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa,wind_speed_300hPa,wind_direction_300hPa";
+	"wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa,wind_speed_300hPa,wind_direction_300hPa,"
+	"relative_humidity_300hPa,temperature_300hPa";
+// [skies stage 6] And by the hour, for the past rain (the road) and the hours coming (the forecast).
+constexpr const char* HourlyFields =
+	"precipitation,snowfall,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,dew_point_2m,"
+	"relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility,cape,freezing_level_height";
+// The grid asks for the hour it is in and three more.
+constexpr int GridAheadHours = 4;
+
+// One hour's row of an answer's "hourly" over Base (what the hour doesn't say stays as Base has it).
+State HourState(const TorqueFit::Json& Hourly, size_t I, const State& Base, double Elevation)
+{
+	using TorqueFit::Json;
+	State S = Base;
+	auto Val = [&Hourly, I](const char* Name, double& Out) {
+		const Json* A = Hourly.Get(Name);
+		if (!A || !A->IsArray() || I >= A->A.size() || !A->A[I].IsNumber()) return false;
+		Out = A->A[I].N;
+		return true;
+	};
+	double V = 0.0;
+	if (Val("precipitation", V)) S.Rain = std::max(V, 0.0);   // (the hour before: mm in it is mm an hour)
+	if (Val("snowfall", V)) S.Snow = std::max(V, 0.0);
+	if (Val("cloud_cover", V)) S.Cloud = Clamp01(V / 100.0);
+	if (Val("cloud_cover_low", V)) S.LowCloud = Clamp01(V / 100.0);
+	if (Val("cloud_cover_mid", V)) S.MidCloud = Clamp01(V / 100.0);
+	if (Val("cloud_cover_high", V)) S.HighCloud = Clamp01(V / 100.0);
+	if (Val("temperature_2m", V)) S.Air = V;
+	if (Val("relative_humidity_2m", V)) S.Humidity = std::min(std::max(V, 0.0), 100.0);
+	if (Val("dew_point_2m", V)) S.CloudBase = CloudBaseFrom(Elevation, S.Air, V);
+	if (Val("wind_speed_10m", V)) S.Wind = std::max(V, 0.0);
+	if (Val("wind_direction_10m", V)) S.WindFrom = V;
+	if (Val("wind_gusts_10m", V)) S.Gust = std::max(V, S.Wind);
+	if (Val("weather_code", V)) S.Code = static_cast<int>(V);
+	if (Val("visibility", V)) S.Visibility = std::max(V, 20.0);
+	if (Val("cape", V)) S.Cape = std::max(V, 0.0);
+	if (Val("freezing_level_height", V)) S.FreezingLevel = V;
+	return S;
+}
 } // namespace
 
 std::string OpenMeteoUrl(double Lat, double Lon)
 {
 	return "https://api.open-meteo.com/v1/forecast?" + LatLon("latitude", Lat, "longitude", Lon) +
 		"&current=" + std::string(CurrentFields) +
-		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime";
+		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime";   // (one place: no forecast)
 }
 
 namespace
 {
-bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Time, std::string* Error);
+bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Time, std::string* Error,
+	std::vector<long long>* AheadAt = nullptr, std::vector<State>* Ahead = nullptr);
 }
 
 bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::string* Error)
@@ -356,7 +397,8 @@ bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::s
 
 namespace
 {
-bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Time, std::string* Error)
+bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Time, std::string* Error,
+	std::vector<long long>* AheadAt, std::vector<State>* Ahead)
 {
 	using TorqueFit::Json;
 	if (Root.Flag("error"))
@@ -404,6 +446,8 @@ bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Tim
 	Aloft("wind_speed_850hPa", "wind_direction_850hPa", S.Wind850, S.Wind850From, 1.6);
 	Aloft("wind_speed_700hPa", "wind_direction_700hPa", S.Wind700, S.Wind700From, 2.3);
 	Aloft("wind_speed_300hPa", "wind_direction_300hPa", S.Wind300, S.Wind300From, 4.5);
+	S.Rh300 = Known("relative_humidity_300hPa") ? std::min(std::max(Cur->Num("relative_humidity_300hPa"), 0.0), 100.0) : -1.0;
+	S.T300 = Known("temperature_300hPa") ? Cur->Num("temperature_300hPa") : S.T300;
 
 	// The road: the rain of the last few hours (each hour's value is the hour before it), then this
 	// quarter hour's.
@@ -416,6 +460,17 @@ bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Tim
 			for (size_t I = 0; I < Times->A.size() && I < Rain->A.size(); ++I)
 				if (Now == 0 || static_cast<long long>(Times->A[I].N) <= Now) Hours.push_back(Rain->A[I].IsNumber() ? std::max(Rain->A[I].N, 0.0) : 0.0);
 	}
+	// [skies stage 6] The hours to come, each over now (what an hour doesn't say stays as now).
+	if (AheadAt && Ahead)
+		if (const Json* Hourly = Root.Get("hourly"); Hourly && Hourly->IsObject())
+			if (const Json* Times = Hourly->Get("time"); Times && Times->IsArray())
+				for (size_t I = 0; I < Times->A.size(); ++I)
+				{
+					const long long At = static_cast<long long>(Times->A[I].N);
+					if (Now == 0 || At <= Now) continue;
+					AheadAt->push_back(At);
+					Ahead->push_back(HourState(*Hourly, I, S, Root.Num("elevation", 0.0)));
+				}
 	double Water = RoadWaterAfter(Hours, S.Air, S.Wind, S.Cloud);
 	S.Puddles = PuddlesAfter(Hours, S.Air);
 	Water = RoadWaterStep(Water, S.Rain, S.Air, S.Wind, S.Cloud, Interval);
@@ -472,7 +527,8 @@ std::string OpenMeteoGridUrl(double Lat, double Lon, int N, double StepM)
 		}
 	return "https://api.open-meteo.com/v1/forecast?latitude=" + Lats + "&longitude=" + Lons +
 		"&current=" + std::string(CurrentFields) +
-		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime&timezone=auto";
+		"&hourly=" + std::string(HourlyFields) + "&past_hours=8&forecast_hours=" + std::to_string(GridAheadHours) +
+		"&wind_speed_unit=ms&timeformat=unixtime&timezone=auto";
 }
 
 bool ParseOpenMeteoGrid(const std::string& Body, double Lat, double Lon, int N, double StepM, Grid& Out,
@@ -512,46 +568,47 @@ bool ParseOpenMeteoGrid(const std::string& Body, double Lat, double Lon, int N, 
 	G.Lon = Lon;
 	G.StepM = StepM;
 	long long Latest = 0;
+	std::vector<std::vector<long long>> AheadAt(Want);
+	std::vector<std::vector<State>> AheadOf(Want);
 	for (size_t I = 0; I < Want; ++I)
 	{
 		const Json& P = Root.IsArray() ? Root.A[I] : Root;
 		State S;
 		long long When = 0;
-		if (!ParseOpenMeteoPoint(P, S, &When, Error)) return false;
+		if (!ParseOpenMeteoPoint(P, S, &When, Error, &AheadAt[I], &AheadOf[I])) return false;
 		G.Points.push_back(S);
 		G.Elevation.push_back(P.Num("elevation", 0.0));
 		Latest = std::max(Latest, When);
 		if (I == Want / 2 && UtcOffset) *UtcOffset = static_cast<int>(P.Num("utc_offset_seconds", 0.0));
+	}
+	// [skies stage 6] The forecast hours, as whole grids: only the hours every point has.
+	size_t Hours = AheadAt[0].size();
+	for (size_t I = 1; I < Want; ++I) Hours = std::min(Hours, AheadAt[I].size());
+	for (size_t H = 0; H < Hours; ++H)
+	{
+		bool bSame = true;
+		for (size_t I = 1; I < Want; ++I) bSame = bSame && AheadAt[I][H] == AheadAt[0][H];
+		if (!bSame) break;
+		std::vector<State> Hour;
+		Hour.reserve(Want);
+		for (size_t I = 0; I < Want; ++I) Hour.push_back(AheadOf[I][H]);
+		G.Ahead.push_back(std::move(Hour));
+		G.AheadIn.push_back(static_cast<double>(AheadAt[0][H] - Latest));
 	}
 	Out = G;
 	if (Time) *Time = Latest;
 	return true;
 }
 
-State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSeconds)
+namespace
 {
-	if (!G.Valid()) return State();
-	// Carried on the wind (the grid's mean): what is here now was upwind when it was fetched.
-	double Ex = 0.0, Ny = 0.0;
-	for (const State& P : G.Points)
-	{
-		const double To = (P.WindFrom + 180.0) * DegToRad;
-		Ex += std::sin(To) * P.Wind;
-		Ny += std::cos(To) * P.Wind;
-	}
-	Ex /= static_cast<double>(G.Points.size());
-	Ny /= static_cast<double>(G.Points.size());
-	const double Half = (G.N - 1) * 0.5;
-	double DriftE = Ex * std::max(DriftSeconds, 0.0), DriftN = Ny * std::max(DriftSeconds, 0.0);
-	const double Most = Half * G.StepM, Len = std::sqrt(DriftE * DriftE + DriftN * DriftN);
-	if (Len > Most) { DriftE *= Most / Len; DriftN *= Most / Len; }
-	double East = 0.0, North = 0.0;
-	MetresBetween(G.Lat, G.Lon, Lat, Lon, East, North);
-	const double Col = std::min(std::max((East - DriftE) / G.StepM + Half, 0.0), (double)(G.N - 1));
-	const double Row = std::min(std::max(Half - (North - DriftN) / G.StepM, 0.0), (double)(G.N - 1));
+// The weather between a grid's points (one of its hours: Pts), at a place in grid steps (Col, Row from
+// the north west), AslM metres up.
+State MixPoints(const Grid& G, const std::vector<State>& Pts, double Col, double Row, double AslM)
+{
 	const int C0 = std::min((int)Col, G.N - 2), R0 = std::min((int)Row, G.N - 2);
 	const double Tx = Col - C0, Ty = Row - R0;
-	auto At = [&G](int R, int C) -> const State& { return G.Points[R * G.N + C]; };
+	auto At = [&G, &Pts](int R, int C) -> const State& { return Pts[static_cast<size_t>(R * G.N + C)]; };
 	const State& A = At(R0, C0);
 	const State& B = At(R0, C0 + 1);
 	const State& C = At(R0 + 1, C0);
@@ -591,6 +648,8 @@ State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSec
 		Vec(&State::Wind700, &State::Wind700From, S.Wind700, S.Wind700From);
 		Vec(&State::Wind300, &State::Wind300From, S.Wind300, S.Wind300From);
 	}
+	S.Rh300 = A.Rh300 < 0.0 || B.Rh300 < 0.0 || C.Rh300 < 0.0 || D.Rh300 < 0.0 ? -1.0 : Mix(A.Rh300, B.Rh300, C.Rh300, D.Rh300);
+	S.T300 = Mix(A.T300, B.T300, C.T300, D.T300);
 	{
 		auto X = [](const State& P) { return std::sin(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
 		auto Y = [](const State& P) { return std::cos(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
@@ -601,6 +660,258 @@ State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSec
 	const double Ground = Mix(G.Elevation[R0 * G.N + C0], G.Elevation[R0 * G.N + C0 + 1], G.Elevation[(R0 + 1) * G.N + C0], G.Elevation[(R0 + 1) * G.N + C0 + 1]);
 	if (AslM > -1000.0) S.Air -= 0.0065 * (AslM - Ground);
 	return S;
+}
+} // namespace
+
+State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSeconds)
+{
+	if (!G.Valid()) return State();
+	// Carried on the wind (the grid's mean): what is here now was upwind when it was fetched.
+	double Ex = 0.0, Ny = 0.0;
+	for (const State& P : G.Points)
+	{
+		const double To = (P.WindFrom + 180.0) * DegToRad;
+		Ex += std::sin(To) * P.Wind;
+		Ny += std::cos(To) * P.Wind;
+	}
+	Ex /= static_cast<double>(G.Points.size());
+	Ny /= static_cast<double>(G.Points.size());
+	const double Half = (G.N - 1) * 0.5;
+	double DriftE = Ex * std::max(DriftSeconds, 0.0), DriftN = Ny * std::max(DriftSeconds, 0.0);
+	const double Most = Half * G.StepM, Len = std::sqrt(DriftE * DriftE + DriftN * DriftN);
+	if (Len > Most) { DriftE *= Most / Len; DriftN *= Most / Len; }
+	double East = 0.0, North = 0.0;
+	MetresBetween(G.Lat, G.Lon, Lat, Lon, East, North);
+	auto ColOf = [&G, Half](double E) { return std::min(std::max(E / G.StepM + Half, 0.0), (double)(G.N - 1)); };
+	auto RowOf = [&G, Half](double Nm) { return std::min(std::max(Half - Nm / G.StepM, 0.0), (double)(G.N - 1)); };
+	// [skies stage 6] Toward the forecast: the fetched weather carried on the wind at first, easing into
+	// the forecast hour by hour (which needs no carrying: it is for its own time).
+	int Hour = -1;
+	double T = 0.0;
+	AheadStep(G, DriftSeconds, Hour, T);
+	const State From = Hour < 0 ? MixPoints(G, G.Points, ColOf(East - DriftE), RowOf(North - DriftN), AslM)
+		: MixPoints(G, GridHour(G, Hour), ColOf(East), RowOf(North), AslM);
+	if (T <= 0.0) return From;
+	return Blend(From, MixPoints(G, GridHour(G, Hour + 1), ColOf(East), RowOf(North), AslM), T);
+}
+
+void AheadStep(const Grid& G, double DriftSeconds, int& Hour, double& T)
+{
+	Hour = -1;
+	T = 0.0;
+	const int Count = static_cast<int>(std::min(G.Ahead.size(), G.AheadIn.size()));
+	if (Count == 0) return;
+	const double D = std::max(DriftSeconds, 0.0);
+	double Was = 0.0;
+	for (int H = 0; H < Count; ++H)
+	{
+		const double Next = G.AheadIn[static_cast<size_t>(H)];
+		if (D < Next)
+		{
+			Hour = H - 1;
+			T = Next > Was ? Clamp01((D - Was) / (Next - Was)) : 1.0;
+			return;
+		}
+		Was = Next;
+	}
+	Hour = Count - 1;   // (past the last: held there)
+}
+
+const std::vector<State>& GridHour(const Grid& G, int Hour)
+{
+	if (Hour < 0 || Hour >= static_cast<int>(G.Ahead.size()) || G.Ahead[static_cast<size_t>(Hour)].size() != G.Points.size()) return G.Points;
+	return G.Ahead[static_cast<size_t>(Hour)];
+}
+
+namespace
+{
+// Wet enough to call rain, for the words.
+bool Falling(const State& S) { return S.Rain >= 0.3 || S.Snow >= 0.1; }
+std::string About(double Minutes)
+{
+	if (Minutes <= 50.0) return "within the hour";
+	char Buf[48];
+	if (Minutes < 100.0) return "in about an hour";
+	std::snprintf(Buf, sizeof(Buf), "in about %d hours", static_cast<int>(std::lround(Minutes / 60.0)));
+	return Buf;
+}
+} // namespace
+
+std::string ComingWords(const Grid& G, double SinceFetch)
+{
+	if (!G.Valid() || G.Ahead.empty()) return std::string();
+	const size_t Mid = static_cast<size_t>((G.N / 2) * G.N + G.N / 2);
+	int Hour = -1;
+	double T = 0.0;
+	AheadStep(G, SinceFetch, Hour, T);
+	const State Now = Blend(GridHour(G, Hour)[Mid], GridHour(G, Hour + (T > 0.0 ? 1 : 0))[Mid], T);
+	const bool bWet = Falling(Now);
+	for (int H = Hour + 1; H < static_cast<int>(G.Ahead.size()); ++H)
+	{
+		const State& Then = GridHour(G, H)[Mid];
+		// (An hour's rain fell in the hour before it: it starts, on average, half an hour sooner.)
+		const double Minutes = std::max((G.AheadIn[static_cast<size_t>(H)] - 1800.0 - SinceFetch) / 60.0, 10.0);
+		if (!bWet && Falling(Then)) return std::string(Then.Snow > Then.Rain * 0.5 ? "snow " : Then.Rain >= 4.0 ? "heavy rain " : "rain ") + About(Minutes);
+		if (bWet && !Falling(Then)) return "drying up " + About(Minutes);
+	}
+	const State& Last = G.Ahead.back()[Mid];
+	if (Now.Cloud >= 0.8 && Last.Cloud <= 0.45) return "brightening later";
+	if (Now.Cloud <= 0.4 && Last.Cloud >= 0.85) return "clouding over later";
+	if (Last.Gust >= Now.Gust + 6.0 && Last.Gust >= 15.0) return "the wind picking up later";
+	return std::string();
+}
+
+std::vector<RouteStop> RouteStops(const std::vector<std::pair<double, double>>& Line, int Count, double RideSeconds)
+{
+	std::vector<RouteStop> Out;
+	if (Line.empty() || Count <= 0) return Out;
+	std::vector<double> Along(Line.size(), 0.0);
+	for (size_t I = 1; I < Line.size(); ++I)
+	{
+		double E = 0.0, Nn = 0.0;
+		MetresBetween(Line[I - 1].first, Line[I - 1].second, Line[I].first, Line[I].second, E, Nn);
+		Along[I] = Along[I - 1] + std::sqrt(E * E + Nn * Nn);
+	}
+	const double Total = Along.back();
+	const int Stops = Total < 1.0 ? 1 : std::max(Count, 2);
+	size_t J = 0;
+	for (int K = 0; K < Stops; ++K)
+	{
+		const double Want = Stops == 1 ? 0.0 : Total * K / (Stops - 1);
+		while (J + 1 < Line.size() && Along[J + 1] < Want) ++J;
+		RouteStop R;
+		if (J + 1 < Line.size() && Along[J + 1] > Along[J])
+		{
+			const double T = Clamp01((Want - Along[J]) / (Along[J + 1] - Along[J]));
+			R.Lat = Lerp(Line[J].first, Line[J + 1].first, T);
+			R.Lon = Lerp(Line[J].second, Line[J + 1].second, T);
+		}
+		else
+		{
+			R.Lat = Line[J].first;
+			R.Lon = Line[J].second;
+		}
+		R.Along = Want;
+		R.EtaS = Total > 0.0 ? RideSeconds * Want / Total : 0.0;
+		Out.push_back(R);
+	}
+	return Out;
+}
+
+std::string OpenMeteoRouteUrl(const std::vector<RouteStop>& Stops, int Hours)
+{
+	std::string Lats, Lons;
+	char Buf[32];
+	for (const RouteStop& R : Stops)
+	{
+		std::snprintf(Buf, sizeof(Buf), "%s%.4f", Lats.empty() ? "" : ",", R.Lat);
+		Lats += Buf;
+		std::snprintf(Buf, sizeof(Buf), "%s%.4f", Lons.empty() ? "" : ",", R.Lon);
+		Lons += Buf;
+	}
+	return "https://api.open-meteo.com/v1/forecast?latitude=" + Lats + "&longitude=" + Lons + "&hourly=" + std::string(HourlyFields) +
+		"&forecast_hours=" + std::to_string(std::min(std::max(Hours, 1), 48)) + "&wind_speed_unit=ms&timeformat=unixtime&timezone=auto";
+}
+
+bool ParseRouteWeather(const std::string& Body, long long StartUnix, std::vector<RouteStop>& Stops, std::string* Error, int* UtcOffset)
+{
+	using TorqueFit::Json;
+	Json Root;
+	std::string Why;
+	if (!Json::Parse(Body, Root, &Why))
+	{
+		if (Error) *Error = "not JSON: " + Why;
+		return false;
+	}
+	if (Root.IsObject() && Root.Flag("error"))
+	{
+		if (Error) *Error = "the service said: " + Root.Str("reason");
+		return false;
+	}
+	const size_t Have = Root.IsArray() ? Root.A.size() : 1;
+	if (Have != Stops.size())
+	{
+		if (Error) *Error = "the answer has " + std::to_string(Have) + " places, not " + std::to_string(Stops.size());
+		return false;
+	}
+	bool bAny = false;
+	for (size_t I = 0; I < Stops.size(); ++I)
+	{
+		const Json& P = Root.IsArray() ? Root.A[I] : Root;
+		if (I == 0 && UtcOffset) *UtcOffset = static_cast<int>(P.Num("utc_offset_seconds", 0.0));
+		const Json* Hourly = P.Get("hourly");
+		const Json* Times = Hourly ? Hourly->Get("time") : nullptr;
+		if (!Times || !Times->IsArray() || Times->A.empty()) continue;
+		// The hour whose rain is the hour the rider is there: the first that ends after they arrive.
+		const double When = static_cast<double>(StartUnix) + Stops[I].EtaS;
+		size_t Best = Times->A.size() - 1;
+		for (size_t H = 0; H < Times->A.size(); ++H)
+			if (Times->A[H].N >= When) { Best = H; break; }
+		Stops[I].S = HourState(*Hourly, Best, State(), P.Num("elevation", 0.0));
+		Stops[I].bKnown = true;
+		bAny = true;
+	}
+	if (!bAny && Error) *Error = "no hours in the answer";
+	return bAny;
+}
+
+std::string RouteWords(const std::vector<RouteStop>& Stops, const std::vector<std::string>& Names, long long StartUnix, int UtcOffset, bool bImperial)
+{
+	std::vector<size_t> Known;
+	for (size_t I = 0; I < Stops.size(); ++I)
+		if (Stops[I].bKnown) Known.push_back(I);
+	if (Known.empty()) return std::string();
+	auto Where = [&](size_t I) {
+		char Buf[96];
+		const long long At = StartUnix + static_cast<long long>(Stops[I].EtaS) + UtcOffset;
+		const long long Quarter = ((At % 86400 + 86400) % 86400 + 450) / 900 % 96;
+		const double Dist = Stops[I].Along / (bImperial ? 1609.344 : 1000.0);
+		const std::string Name = I < Names.size() ? Names[I] : std::string();
+		std::snprintf(Buf, sizeof(Buf), "(%.0f %s in, about %02d:%02d)", Dist, bImperial ? "miles" : "km",
+			static_cast<int>(Quarter / 4), static_cast<int>(Quarter % 4 * 15));
+		return (Name.empty() ? std::string() : "near " + Name + " ") + Buf;
+	};
+	size_t WetCount = 0, FirstWet = Stops.size(), FirstDry = Stops.size(), FirstFog = Stops.size();
+	bool bSnow = false;
+	double Gust = 0.0;
+	for (size_t I : Known)
+	{
+		const State& S = Stops[I].S;
+		if (Falling(S))
+		{
+			++WetCount;
+			if (FirstWet == Stops.size()) FirstWet = I;
+			bSnow = bSnow || S.Snow > S.Rain * 0.5;
+		}
+		else if (FirstDry == Stops.size()) FirstDry = I;
+		if (S.Visibility < 1000.0 && FirstFog == Stops.size()) FirstFog = I;
+		Gust = std::max(Gust, S.Gust);
+	}
+	const std::string What = bSnow ? "Snow" : "Rain";
+	std::string Out;
+	if (WetCount == 0) Out = "Dry all the way";
+	else if (WetCount == Known.size()) Out = What + " all the way";
+	else
+	{
+		// Wet from somewhere on (and dry before it), dry from somewhere on, or here and there.
+		bool bWetOn = true, bDryOn = true;
+		for (size_t I : Known)
+		{
+			if (I >= FirstWet && !Falling(Stops[I].S)) bWetOn = false;
+			if (I >= FirstDry && Falling(Stops[I].S)) bDryOn = false;
+		}
+		if (bWetOn && FirstWet > Known.front()) Out = What + " from " + Where(FirstWet) + " onwards";
+		else if (bDryOn && FirstDry > Known.front()) Out = What + " at first, dry from " + Where(FirstDry);
+		else Out = (bSnow ? "Snow showers on the way, the first " : "Showers on the way, the first ") + Where(FirstWet);
+	}
+	if (FirstFog < Stops.size()) Out += "; fog " + Where(FirstFog);
+	if (Gust >= 17.0)
+	{
+		char Buf[40];
+		std::snprintf(Buf, sizeof(Buf), "; gusts to %.0f %s", bImperial ? Gust * 2.23694 : Gust * 3.6, bImperial ? "mph" : "km/h");
+		Out += Buf;
+	}
+	return Out;
 }
 
 State AddDifference(const State& Base, const State& Here, const State& Ref, double W)
@@ -744,6 +1055,9 @@ std::string Save(const State& S)
 	std::snprintf(Buf, sizeof(Buf), " %.3f %.3f %.3f %.1f %.0f %.0f %.1f %.1f %.1f %.0f %.1f %.0f %.1f %.0f", S.SnowDepth, S.MidCloud, S.HighCloud, S.Humidity,
 		S.Cape, S.FreezingLevel, S.DirectSun, S.DiffuseSun, S.Wind850, S.Wind850From, S.Wind700, S.Wind700From, S.Wind300, S.Wind300From);
 	Out += Buf;
+	// (and, after them, the air 9 km up: an older reader stops before it)
+	std::snprintf(Buf, sizeof(Buf), " %.0f %.1f", S.Rh300, S.T300);
+	Out += Buf;
 	return Out;
 }
 
@@ -761,7 +1075,11 @@ bool Load(const std::string& Text, State& Out)
 	State Sky = S;
 	if (Tag == "w2" && (In >> Sky.MidCloud >> Sky.HighCloud >> Sky.Humidity >> Sky.Cape >> Sky.FreezingLevel >> Sky.DirectSun >> Sky.DiffuseSun
 		>> Sky.Wind850 >> Sky.Wind850From >> Sky.Wind700 >> Sky.Wind700From >> Sky.Wind300 >> Sky.Wind300From))
+	{
 		S = Sky;
+		double Rh = -1.0, T = -45.0;
+		if (In >> Rh >> T) { S.Rh300 = Rh; S.T300 = T; }
+	}
 	else
 	{
 		// (A w1 save: no layers, so the middle takes the total and the light reads as it did.)

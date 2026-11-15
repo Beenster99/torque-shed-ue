@@ -518,6 +518,39 @@ int main(int Argc, char** Argv)
 				}
 			}
 		}
+		// [waypoint] WORLD_RIDE_VIA=lat,lon[,name]: the sat nav's way by a waypoint from a quarter of the
+		// way along, and how it says it as the rider goes (the info panel's click, beenster build 146).
+		if (const char* ViaEnv = std::getenv("WORLD_RIDE_VIA"))
+		{
+			double VLat = 0.0, VLon = 0.0;
+			char VName[64] = "the waypoint";
+			if (std::sscanf(ViaEnv, "%lf,%lf,%63[^\n]", &VLat, &VLon, VName) >= 2 && Plan->Road.size() > 8)
+			{
+				const P2 V = Plan->Area.Roads.FrameOf().FromGeo(VLat, VLon);
+				const RoadPoint& Rv = Plan->Road[Plan->Road.size() / 4];
+				const RoadPoint& Rv2 = Plan->Road[Plan->Road.size() / 4 + 1];
+				const double Hd = std::atan2(-(Rv2.At.X - Rv.At.X), -(Rv2.At.Z - Rv.At.Z));
+				const auto ViaT0 = std::chrono::steady_clock::now();
+				const std::shared_ptr<const RideDetour> Dv = Plan->DetourVia(Rv.At.X, Rv.At.Z, Hd, Rv.Along, V.X, V.Z, VName);
+				const double ViaMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ViaT0).count();
+				if (Dv == nullptr) std::printf("Waypoint %s: no way by it from %.2f km (%.1f ms)\n", VName, Rv.Along / 1000.0, ViaMs);
+				else
+				{
+					std::printf("Waypoint %s at (%.0f, %.0f): from %.2f km of %.2f, %.2f km there and back to the ride's road at %.2f km; reached at %.2f km, %.0f m from the place; %d turns (%.1f ms)\n",
+						VName, V.X, V.Z, Rv.Along / 1000.0, Plan->FinishM / 1000.0, Dv->Length / 1000.0, Dv->RejoinAlong / 1000.0, Dv->ViaAlong / 1000.0, Dv->Via.DistanceTo(V),
+						int(Dv->Turns.size()), ViaMs);
+					for (const RidePlan::RideTurn& Tn : Dv->Turns) std::printf("    at %.2f km turn %d onto %s\n", Tn.Along / 1000.0, Tn.Turn, Tn.Onto.c_str());
+					for (const double Frac : {0.0, 0.25, 0.5, 0.75, 0.99})
+					{
+						const size_t I = std::min(Dv->Line.size() - 1, size_t(Frac * double(Dv->Line.size() - 1)));
+						const RidePlan::RideNav Nv = Plan->NavDetour(*Dv, Dv->Line[I].X, Dv->Line[I].Z);
+						std::printf("    nav at %.2f km of the way: turn %d in %.0f m onto %s; %.2f km to the finish%s\n", Dv->Along[I] / 1000.0, Nv.Turn, Nv.ToTurn, Nv.Onto.c_str(),
+							Nv.ToFinish / 1000.0, Nv.OffRoute ? " (off route!)" : "");
+					}
+					std::printf("    the ride's own from there: %.2f km to the finish\n", (Plan->FinishM - Rv.Along) / 1000.0);
+				}
+			}
+		}
 		int Shown = 0;
 		for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 			for (const RidePlan::Mouth& M : Sd.Mouths)

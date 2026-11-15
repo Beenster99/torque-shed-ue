@@ -179,6 +179,80 @@ struct Looks
 	double MistExtinction = 0.6;
 	// A rainbow: rain about (falling, or in the cells the wind brings), the sun out and low behind you.
 	double RainbowSunMostDeg = 42.0, RainbowRainMm = 0.2;
+	// Under a low base: the air thickens into the cloud over the last BaseFogBandM below it (FogScale
+	// times up to 1 + BaseFogBoost, under a closed low deck).
+	double BaseFogBandM = 300.0, BaseFogBoost = 3.0;
+	// The weather map (the cloud drawn across the sky from the real weather round about, not one cover
+	// everywhere): MapPx texels a side over MapSizeM metres round the camera, painted again every
+	// MapRepaintS seconds or after MapMoveM; MapGain of the difference from the camera's cover is drawn.
+	double MapPx = 64.0, MapSizeM = 90000.0, MapRepaintS = 20.0, MapMoveM = 4000.0, MapGain = 1.0, MapRainMm = 10.0;
+	// Rain shafts under showers seen from afar: where the map's rain is over ShaftRainMm, on a lattice
+	// ShaftSpacingM apart, between ShaftNearestM and ShaftFarthestM from the camera, at most ShaftMost,
+	// each about ShaftRadiusM wide and ShaftOpacity at its heaviest (ShaftFullMm).
+	double ShaftRainMm = 0.8, ShaftFullMm = 4.0, ShaftSpacingM = 6000.0, ShaftNearestM = 2500.0, ShaftFarthestM = 40000.0;
+	double ShaftMost = 8.0, ShaftRadiusM = 1500.0, ShaftOpacity = 0.4;
+	double ShaftLight = 0.012;   // how much of the sun's light a shaft gives back (its grey)
+	// The rainbow drawn at full strength (its opacity).
+	double RainbowOpacity = 0.55;
+
+	// --- The night (stage 5) ---
+	// Once the sun is MoonTakesOverDeg down (its light gone) and the moon is up, the light points at the
+	// moon: MoonLightOfSun of the level's sun at a full moon high up (the real 0.25 lux would be black at
+	// the night's exposure; a moonlit road wants to be seen), less with the phase and near the horizon.
+	// The sky then lit by it is held to MoonSkyScale of its air (a moonlit sky is a deep, dark blue).
+	double MoonTakesOverDeg = -12.0, MoonLightOfSun = 0.001, MoonSkyScale = 0.15;
+	// The moon's disc, nits per lux of the level's sun at full (2,500 nits against 75,000 lux: about 0.03),
+	// and its earthshine (the dark part, of the lit's).
+	double MoonDiscOfSun = 0.03, EarthShine = 0.004;
+	// The stars come out from StarsFromDeg (sun below the horizon) to StarsFullDeg, StarGain nits for
+	// Sirius, the Milky Way MilkyWayGain at its brightest; a bright moon washes out MoonWashes of them.
+	double StarsFromDeg = -6.0, StarsFullDeg = -15.0, StarGain = 60.0, MilkyWayGain = 0.6, MoonWashes = 0.6;
+	// The glow of towns low round the horizon at night, nits (a dark Dales sky: low).
+	double SkyGlow = 0.08;
+
+	// --- Storms (stage 7) ---
+	// A thunderstorm: the feed's thunder codes (95 .. 99), or unstable air (CAPE from .. full, J/kg) with
+	// heavy enough rain (mm/h). Its cloud towers to ThunderTopM and spreads an anvil from AnvilFrom of it.
+	double ThunderCapeFrom = 500.0, ThunderCapeFull = 1500.0, ThunderRainMm = 2.0, ThunderTopM = 10500.0;
+	double AnvilFrom = 0.35, AnvilFull = 0.8;
+	// Lightning: each storm cell (a lattice StormSpacingM apart, out to StormFarthestM) flashes
+	// FlashesPerMin times a minute at full strength (fewer as it weakens), GroundShare of them forks to the
+	// ground. A flash lights the cloud round it (FlashCloudGlow, nits, over FlashRadiusM) and the land
+	// (a light of FlashLightCd candelas at the cloud base); a fork is drawn within BoltFarthestM.
+	double FlashesPerMin = 1.5, GroundShare = 0.3, StormSpacingM = 6000.0, StormFarthestM = 40000.0;
+	double FlashCloudGlow = 30.0, FlashRadiusM = 5000.0, FlashLightCd = 2.0e8, BoltFarthestM = 25000.0, BoltWidthM = 600.0;
+	double BoltNits = 4000.0;   // a fork's brightness at its flash's peak (times the level's sun over the real one's)
+	// Thunder: sound at SoundMps (about 3 s a km), heard out to ThunderFarthestM, full loudness within
+	// ThunderNearM, ThunderVolume overall.
+	double SoundMps = 343.0, ThunderFarthestM = 22000.0, ThunderNearM = 1500.0, ThunderVolume = 1.0;
+	// Hail (white curtains under a storm): the hail codes, or a storm this unstable (J/kg) with the
+	// freezing level under HailFreezeM.
+	double HailCape = 1500.0, HailFreezeM = 3500.0;
+	// Under snow cloud the light goes flat and bright: the sky light times SnowSkyLight, the sun's share
+	// times SnowSunShare (shadows soften).
+	double SnowSkyLight = 1.5, SnowSunShare = 0.7;
+
+	// --- Rare skies (stage 7) ---
+	// Sun dogs: bright patches 22 degrees either side of a low sun (under 40 degrees) in thin ice cloud.
+	double SunDogMost = 0.8;
+	// Contrails that linger: the air 9 km up colder than ContrailColdC and damp (RH from .. full, %).
+	double ContrailColdC = -40.0, ContrailRhFrom = 55.0, ContrailRhFull = 85.0, ContrailMost = 0.7;
+	// A fogbow (a broad white bow in thin fog with the sun behind you) and a glory (coloured rings round
+	// your shadow on fog below, seen from above it).
+	double FogbowMost = 0.5, GloryMost = 0.6;
+	// The aurora, from NOAA's Kp index: the oval's edge at AuroraOvalDeg - AuroraKpStep x Kp geomagnetic
+	// latitude (the pole at AuroraPoleLat, AuroraPoleLon), seen low in the north up to AuroraSeenBeyond
+	// degrees further south; AuroraGain nits at its brightest.
+	double AuroraPoleLat = 80.7, AuroraPoleLon = -72.7, AuroraOvalDeg = 67.5, AuroraKpStep = 1.8, AuroraSeenBeyond = 4.0, AuroraGain = 0.4;
+	// Noctilucent cloud: summer nights (days of the year from .. to) at these latitudes, the sun 6 to 16
+	// degrees down, low in the north; NlcGain nits.
+	double NlcFromDay = 145.0, NlcToDay = 220.0, NlcLatFrom = 50.0, NlcLatTo = 65.0, NlcGain = 0.25;
+	// Meteors: the sporadic ones an hour with no shower on, a share of them seen from one place, and how
+	// bright the brightest are (nits).
+	double MeteorSporadic = 6.0, MeteorSeenShare = 0.5, MeteorGain = 30.0;
+	// Saharan dust (Open-Meteo's air quality dust, micrograms per cubic metre): from .. full, the haze
+	// times 1 + DustMie, the sun warmed (redder) by DustSunWarm.
+	double DustFrom = 20.0, DustFull = 150.0, DustMie = 3.0, DustSunWarm = 0.6;
 };
 
 // Looks from sky_looks.json's text: whatever it names over the defaults. False (with why) when the text
@@ -244,6 +318,28 @@ struct Sky
 	double Mist = 0.0;           // valley mist in the hollows, 0 none .. 1 thick
 	double MistTopAsl = 0.0;     // and its top over the low ground
 	double Rainbow = 0.0;        // how strong a rainbow would be opposite the sun, 0 .. 1
+	double BaseFog = 0.0;        // how close under a closed low base the viewer is, 0 .. 1 (the air thickens into it)
+	// The night (stage 5).
+	double MoonTakeover = 0.0;   // 0 the light is the sun's .. 1 it points at the moon
+	double MoonLight = 0.0;      // the light's brightness then, times the level's sun
+	double MoonDisc = 0.0;       // the moon's disc, nits per lux of the level's sun (times it in the game)
+	double Stars = 0.0;          // how much of the stars shows, 0 .. 1 (times StarGain)
+	double MilkyWay = 0.0;       // and of the Milky Way
+	double Glow = 0.0;           // the towns' glow, nits
+	// Storms (stage 7).
+	double Thunder = 0.0;        // how thundery the sky here is, 0 .. 1 (the lightning's rate, the cloud's height)
+	double Anvil = 0.0;          // MPC_Sky Anvil: the storm cloud's flat top spreading, 0 .. 1
+	double Snowing = 0.0;        // snow falling here, 0 .. 1 (flat bright light; white curtains)
+	double Hail = 0.0;           // hail in the storm, 0 .. 1 (white curtains)
+	// Rare skies (stage 7).
+	double SunDogs = 0.0, Contrails = 0.0, Fogbow = 0.0, Glory = 0.0;
+	double Aurora = 0.0;         // how strong, 0 .. 1 (times AuroraGain)
+	double AuroraTopDeg = 0.0;   // how high its top stands, degrees above the horizon
+	double AuroraBearing = 0.0;  // the way it lies (the geomagnetic pole's way), degrees from north
+	double Noctilucent = 0.0;    // 0 .. 1 (times NlcGain), low in the sky over the sun's way
+	double MeteorsPerHour = 0.0; // seen from here now (the stars' darkness and the cloud allowing)
+	double Dust = 0.0;           // Saharan dust, 0 .. 1
+	double SunWarm = 0.0;        // how much warmer (redder) the sun's light is than the level's, 0 .. 1
 	double LegacyShadow = 1.0;   // MPC_Weather CloudShadow
 };
 
@@ -261,6 +357,16 @@ struct Inputs
 	double ValleyAsl = -1.0;
 	// Rain within the wider ring (stage 4's second grid), mm/h, at its wettest: a shower you can see coming.
 	double RainNear = 0.0;
+	// Stage 5: the moon from here (degrees up; below -90 none) and its phase angle (0 full .. 180 new).
+	double MoonElevation = -99.0;
+	double MoonPhaseAngle = 180.0;
+	// Stage 7: the place and the day (the aurora, noctilucent cloud, meteor showers), NOAA's planetary
+	// Kp index (below 0: not known) and the dust in the air (micrograms per cubic metre; below 0: not known).
+	double Lat = 54.3, Lon = -2.2;
+	int DayOfYear = 172;
+	double Kp = -1.0;
+	double Dust = -1.0;
+	double MeteorRate = -1.0;    // meteors an hour overhead in a dark sky (below 0: the date's)
 };
 
 // The sky.
@@ -278,6 +384,65 @@ void SunAt(double LatDeg, int DayOfYear, double SolarHours, double& Elevation, d
 // EV100 for a light, lux (an incident meter's).
 double Ev100(double Lux);
 
+// The weather map (stage 4): the real weather round about (the near grid, eased into the wide one)
+// across MapSizeM metres round (Lat, Lon), each grid carried on the wind for its seconds since fetched.
+// Bgra: Px x Px texels, row 0 the north, column 0 the west, 4 bytes each: B rain (0 .. MapRainMm mm/h),
+// G middle cover, R low cover, A how unstable (CAPE 0 .. 2000). Here*: the covers at the centre (the
+// material draws the difference from them, so the cloud over the camera stays the shared weather's).
+struct WeatherMap
+{
+	int Px = 0;
+	double SizeM = 0.0;
+	std::vector<unsigned char> Bgra;
+	double HereLow = 0.0, HereMid = 0.0;
+	bool Valid() const { return Px > 0 && (int)Bgra.size() == Px * Px * 4; }
+};
+struct MapGrids
+{
+	const TorqueWeather::Grid* Near = nullptr;
+	double NearDriftS = 0.0;
+	const TorqueWeather::Grid* Wide = nullptr;
+	double WideDriftS = 0.0;
+	bool Any() const { return (Near && Near->Valid()) || (Wide && Wide->Valid()); }
+};
+// The weather at a place from the grids (the near one inside its square, the wide one beyond).
+TorqueWeather::State MapWeatherAt(const MapGrids& G, double Lat, double Lon);
+WeatherMap PaintWeatherMap(const MapGrids& G, double Lat, double Lon, const Looks& L);
+// Rain shafts under the showers round (Lat, Lon): metres east and north of it, how wide, how strong (0 .. 1).
+// White (stage 7): 0 rain's grey .. 1 a white curtain of snow or hail.
+struct RainShaft { double East = 0.0, North = 0.0, RadiusM = 0.0, Strength = 0.0, White = 0.0; };
+std::vector<RainShaft> FindRainShafts(const MapGrids& G, double Lat, double Lon, const Looks& L);
+
 // A weather State from a JSON object naming any of its figures (the bench's and the tests' skies).
 void StateFromJson(const TorqueFit::Json& J, TorqueWeather::State& InOut);
+
+// A preset sky to load (Data/Sky/presets.json; Settings > Gameplay > Preset sky): its key (kept in the
+// settings), the menu's words, and its weather; or a recorded day (Data/Sky/days/<Recorded>.json, read
+// by the game). Sun: the sun's height the clock moves to today (Evening: after noon), or -99 to keep the clock.
+struct NamedSky
+{
+	std::string Key, Label, Group, Note, Recorded;
+	TorqueWeather::State Weather;
+	double Sun = -99.0;
+	bool bEvening = false;
+	// Showers round about (a made-up wide ring, so the weather map and rain shafts have something to
+	// show off a live day): how many, and how heavy (mm/h).
+	int Showers = 0;
+	double ShowerRainMm = 4.0;
+	// The moon to show (the sky's clock moved up to a fortnight to find it): "full", "new", "half" (first
+	// quarter: up in the afternoon and evening), or empty for today's.
+	std::string Moon;
+	// Stage 7, to show off a rare sky: the Kp index (the aurora), the dust (micrograms per cubic metre),
+	// the day of the year (noctilucent cloud, a meteor shower) and the meteors an hour; -1 for the real ones.
+	double Kp = -1.0, Dust = -1.0, MeteorsPerHour = -1.0;
+	int Day = -1;
+	bool HasSun() const { return Sun > -90.0; }
+};
+// The presets file's skies, in its order (any without a key or a weather left out).
+std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root);
+// A wide ring (7 x 7, 12 km apart) of Base's weather round (Lat, Lon), with Showers heavy showers
+// scattered over it (never on the centre, so the weather here stays Base's); the same Seed, the same ring.
+TorqueWeather::Grid ShowersAround(const TorqueWeather::State& Base, double Lat, double Lon, int Showers, double RainMm, unsigned Seed);
+// The one with this key (nullptr when there's none).
+const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& Key);
 } // namespace TorqueSky

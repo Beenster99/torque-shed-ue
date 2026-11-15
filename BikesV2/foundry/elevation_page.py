@@ -159,6 +159,51 @@ def swatch_section():
     return f"""<section><h2>Shared surface library</h2><p class="lede">Every model and every shared part uses only these {len(names)} surfaces, so parts from different brands sit together. Paint, frame, wheel and accent surfaces take the bike's own colours, and each brand has a house paint finish.</p><div class="sheet"><div class="sw">{"".join(figs)}</div></div></section>"""
 
 
+def kit_section(names):
+    """Each model's kit menu and six sample builds drawn from it."""
+    import mix
+    import random
+    kit_html, combos = [], 0
+    show = [(1, 2, 1, 1, (1,)), (2, 1, 2, 2, (2,)), (0, 0, 2, 1, (1, 2)), (1, 1, 1, 3, ()), (2, 2, 0, 3, (1,)), (0, 1, 1, 0, (2,))]
+    for n in names:
+        base = elevation.load(n)
+        kit = base.get("kit")
+        if not kit:
+            continue
+        nm = {p: mix.kit_names(base, p) for p in mix.KIT_PARTS}
+        xn = [v["name"] + " (" + v["note"] + ")" for v in kit.get("extras", [])]
+        count = 2 ** len(xn)
+        for p in mix.KIT_PARTS:
+            count *= len(nm[p])
+        more = [p for p in mix.KIT_MORE if kit.get(p)]
+        for p in more:
+            nm[p] = mix.kit_names(base, p)
+            count *= len(nm[p])
+        combos += count
+        rnd = random.Random(7)
+        def pick():
+            return mix.apply_kit(base, *[rnd.randrange(len(nm[p])) for p in mix.KIT_PARTS], [e + 1 for e in range(len(xn)) if rnd.random() < 0.5], **{p: rnd.randrange(len(nm[p])) for p in more})
+        diffs = sorted(mix.look_difference(pick(), pick()) for _ in range(150))
+        diffs = [d for d in diffs if d > 0] or [0]
+        figs = []
+        for k, args in enumerate(show):
+            args = tuple(min(a, len(nm[p]) - 1) for a, p in zip(args[:4], mix.KIT_PARTS)) + (args[4],)
+            v = mix.apply_kit(base, *args, **{p: (k * (2 if p == "paint" else 1) + 1) % len(nm[p]) for p in more})
+            v["dimensions"] = False
+            f = v["kit_fitted"]
+            v["name"] = base["brand"].title() + " kit build"
+            cap = f"{f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + ("".join(", " + x for x in f["extras"]) if f["extras"] else "")
+            cap += "".join(f", {f[p]} {p}" for p in more)
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{cap}.</figcaption></figure>')
+        def menu(p, label):
+            notes = ["as drawn above"] + [v["note"] for v in kit[p]]
+            return f"<li><b>{label}:</b> " + "; ".join(f"{a} ({b})" for a, b in zip(nm[p], notes)) + ".</li>"
+        kit_html.append(f"""<h3>{base['name'].split(' (')[0]} kit</h3><ul>{menu("tank_seat", "Tank and seat pairs")}{menu("tail", "Tails")}{menu("front", "Front ends")}{menu("exhaust", "Exhausts")}{menu("bars", "Bars") if "bars" in more else ""}{menu("paint", "Paint") if "paint" in more else ""}<li><b>Optional extras:</b> {"; ".join(xn)}.</li></ul><p>That gives {count} different bikes on this one frame, {"before" if "paint" not in more else "counting paint but before"} {"colour and before " if "paint" not in more else ""}any part from another brand. Every choice passes the fit and clearance checks. Measured side on over the parts a kit can change, two bikes picked at random differ by {diffs[len(diffs) // 2] * 100:.0f}% on average (from {diffs[0] * 100:.0f}% to {diffs[-1] * 100:.0f}%). Six of them:</p><div class="shots">{"".join(figs)}</div>""")
+    if kit_html:
+        return '<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs, tails, front ends and exhausts, plus optional extras. This is what stops two people who pick the same frame from ending up with the same bike. The tank and seat pairs also fit the other brand\'s frame.</p>' + "".join(kit_html) + "</section>"
+    return ""
+
+
 def build(family, names):
     fams = json.load(open(os.path.join(ROOT, "data", "families.json")))["families"]
     head = review_page.HEAD.replace("<title>Bike Models V2 Brands and Families</title>", f"<title>{fams[family]['name']} Side Elevations</title>")
@@ -172,7 +217,8 @@ def build(family, names):
         res = checks.check(m, fams) + checks.deck(m, fams)
         pk = checks.packing(m)
         if pk is not None:
-            res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
+            lim = fams[m["family"].lower()].get("packing_max", checks.PACKING_MAX)
+            res.append((pk <= lim, f"empty space inside the bike {pk * 100:.0f}% (at most {lim * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
     import copy
@@ -189,39 +235,7 @@ def build(family, names):
     import itertools
     import mix
     import random
-    kit_html, combos = [], 0
-    show = [(1, 2, 1, 1, (1,)), (2, 1, 2, 2, (2,)), (0, 0, 2, 1, (1, 2)), (1, 1, 1, 3, ()), (2, 2, 0, 3, (1,)), (0, 1, 1, 0, (2,))]
-    for n in names:
-        base = elevation.load(n)
-        kit = base.get("kit")
-        if not kit:
-            continue
-        nm = {p: mix.kit_names(base, p) for p in mix.KIT_PARTS}
-        xn = [v["name"] + " (" + v["note"] + ")" for v in kit.get("extras", [])]
-        count = 2 ** len(xn)
-        for p in mix.KIT_PARTS:
-            count *= len(nm[p])
-        combos += count
-        rnd = random.Random(7)
-        def pick():
-            return mix.apply_kit(base, *[rnd.randrange(len(nm[p])) for p in mix.KIT_PARTS], [e + 1 for e in range(len(xn)) if rnd.random() < 0.5])
-        diffs = sorted(mix.look_difference(pick(), pick()) for _ in range(150))
-        diffs = [d for d in diffs if d > 0] or [0]
-        figs = []
-        for args in show:
-            args = tuple(min(a, len(nm[p]) - 1) for a, p in zip(args[:4], mix.KIT_PARTS)) + (args[4],)
-            v = mix.apply_kit(base, *args)
-            v["dimensions"] = False
-            f = v["kit_fitted"]
-            v["name"] = base["brand"].title() + " kit build"
-            cap = f"{f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + ("".join(", " + x for x in f["extras"]) if f["extras"] else "")
-            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{cap}.</figcaption></figure>')
-        def menu(p, label):
-            notes = ["as drawn above"] + [v["note"] for v in kit[p]]
-            return f"<li><b>{label}:</b> " + "; ".join(f"{a} ({b})" for a, b in zip(nm[p], notes)) + ".</li>"
-        kit_html.append(f"""<h3>{base['brand'].title()} kit</h3><ul>{menu("tank_seat", "Tank and seat pairs")}{menu("tail", "Tails")}{menu("front", "Front ends")}{menu("exhaust", "Exhausts")}<li><b>Optional extras:</b> {"; ".join(xn)}.</li></ul><p>That gives {count} different bikes on this one frame, before colour and before any part from another brand. Every choice passes the fit and clearance checks. Measured side on over the parts a kit can change, two bikes picked at random differ by {diffs[len(diffs) // 2] * 100:.0f}% on average (from {diffs[0] * 100:.0f}% to {diffs[-1] * 100:.0f}%). Six of them:</p><div class="shots">{"".join(figs)}</div>""")
-    if kit_html:
-        h.append('<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs, tails, front ends and exhausts, plus optional extras. This is what stops two people who pick the same frame from ending up with the same bike. The tank and seat pairs also fit the other brand\'s frame.</p>' + "".join(kit_html) + "</section>")
+    h.append(kit_section(names))
     loaded = [elevation.load(n) for n in names]
     pairs = [(a, b) for a in loaded for b in loaded if a is not b]
     if pairs:
@@ -262,9 +276,11 @@ def build_wave(slug, title, lede, names):
         res = checks.check(m, fams) + checks.deck(m, fams)
         pk = checks.packing(m)
         if pk is not None:
-            res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
+            lim = fams[m["family"].lower()].get("packing_max", checks.PACKING_MAX)
+            res.append((pk <= lim, f"empty space inside the bike {pk * 100:.0f}% (at most {lim * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
+    h.append(kit_section(names))
     h.append("</div>")
     out = os.path.join(ROOT, "out", f"{slug}.html")
     open(out, "w").write("\n".join(h))

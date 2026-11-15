@@ -51,6 +51,12 @@ struct FBikeFrame
 	FVector Knee = FVector::ZeroVector;
 	TArray<FVector2D> TankHalfW;
 	double BackDeg = -100.0;              // [rider pose] the style's back lean, hips to neck, degrees forward of upright (beenster's marks; < -90: none)
+	// [rider pose] The clutch (0) and front brake (1) levers' pins as drawn: a point on each pin and
+	// up it, in the meshes' space (cm). The lever's own surfaces carry the tag "Lever:0" / "Lever:1"
+	// (not its hose or banjo, which share its glb), so only the blade swings about the pin.
+	bool bLever[2] = {false, false};
+	FVector LeverPin[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
 };
 // [dash] OutGauges: the clocks' working pieces among the meshes made (FittedPart::Gauge), for the
 // ridden bike to drive: in the meshes' own space (the bike's frame, cm), as the meshes are made.

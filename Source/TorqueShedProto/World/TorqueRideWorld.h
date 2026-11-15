@@ -31,6 +31,7 @@
 #include "TorqueFoliage.h"
 
 #include <memory>
+#include <string>
 
 #include "TorqueRideWorld.generated.h"
 
@@ -53,6 +54,12 @@ struct FRideNavState
 	std::shared_ptr<const TorqueWorld::RideDetour> Detour;
 	double OffSince = -1.0, LastTry = -1e9, Heading = 0.0;
 	FVector2D Prev = FVector2D(1e12, 1e12);
+	// [waypoint] A place picked in the info panel to go by (ATorqueRideWorld::SetWaypoint): where (the
+	// ride's frame), what it's called, whether Detour is the way by it, and when the way was last sought.
+	bool bVia = false, bDetourVia = false;
+	double ViaX = 0.0, ViaZ = 0.0, ViaTry = -1e9;
+	std::string ViaName;
+	int32 ViaReached = 0;   // goes up each time one is reached
 };
 struct FTorqueRideJobs;
 struct FTorqueDash;
@@ -93,6 +100,16 @@ public:
 	static void ViewSpotFor(const FVector& At, FTorqueDash& Dash);
 	// A place stop onto this profile's visited list: true when it's the first visit (and saved).
 	static bool VisitPlace(const TorqueWorld::RidePlan& InPlan, int32 Stop);
+	// [waypoint] The info panel's click (beenster, build 146: "the satnav should add it as a waypoint
+	// (and retain our final destination)"): the sat nav takes the rider by the place, by the map's
+	// roads, then back to the ride's road and on to the finish as before (RidePlan::DetourVia); the
+	// maps show the way and the waypoint. Reached within 150 m (or once past its junction), it's
+	// done. False with no ride. ClearWaypoint drops it (the ride's own way again).
+	static bool SetWaypoint(double Lat, double Lon, const FString& Name);
+	static void ClearWaypoint();
+	// Whether one is being gone to, and how many have been reached on this ride.
+	static bool HasWaypoint();
+	static int32 WaypointsReached();
 	// [ride anywhere] The world loaded round the ride and the way the sat nav is guiding the riders
 	// (World/WorldRoam.h), for the maps (the TFT's, the HUD's); null with no ride. Read on the game
 	// thread; each is a snapshot to keep, replaced (its Version up) when the area grows or the way
@@ -112,6 +129,9 @@ public:
 	static FString TakePhoto();
 	// Where the diary keeps its rides and photos.
 	static FString DiaryFolder();
+
+	// [places] The ride's plan, read-only, for the info panel (null with no ride).
+	const TorqueWorld::RidePlan* GetPlan() const { return Plan.get(); }
 
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;

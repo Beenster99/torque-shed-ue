@@ -13,6 +13,7 @@
 #include "TorqueAudio/TorqueSfx.h"
 #include "HAL/PlatformTime.h"
 #include "World/TorqueWorldSubsystem.h"
+#include "World/TorqueRideWorld.h"
 #include "Engine/GameInstance.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/LightComponent.h"
@@ -236,6 +237,19 @@ void ATorquePlayerController::Open(EPage P)
 	FirstRow = 0;
 }
 
+void ATorquePlayerController::OpenSkyPresets()
+{
+	SkyListBackRow = Selected;
+	SkyListBackFirst = FirstRow;
+	Open(EPage::SkyPresets);
+	// The list opens on the sky held.
+	const FTorqueSettings& S = FTorqueSettings::Get();
+	if (S.WeatherMode != FTorqueSettings::WeatherPreset) return;
+	const TArray<FRow> List = Rows();
+	for (int32 I = 0; I < List.Num(); ++I)
+		if (List[I].Value == TEXT("held")) Selected = I;
+}
+
 void ATorquePlayerController::Back()
 {
 	if (Stack.Num() > 0)
@@ -253,8 +267,18 @@ FString ATorquePlayerController::AddWaypoint(double Lat, double Lon, const FStri
 	UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
 	UWorld* World = GetWorld();
 	if (!Real || !World) return TEXT("No Route planner in this game");
+	const FString Short = Name.Left(TorqueWorld::Route::MaxName);
+	// Riding a Ride UK journey (beenster, build 146: "the satnav should add it as a waypoint (and
+	// retain our final destination)"): the sat nav goes by the place and then on to the finish as
+	// before. The journey being ridden isn't changed under the riders (in co-op it's everyone's).
+	if (World->GetMapName().Contains(TEXT("RideUK")) && ATorqueRideWorld::SetWaypoint(Lat, Lon, Short))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s (%.5f, %.5f) for the sat nav"), *Short, Lat, Lon);
+		return FString::Printf(TEXT("%s is a waypoint: the sat nav goes by it, then on to the finish"), *Short);
+	}
+	// Otherwise the Route planner's journey: the place goes in as a stop before where it ends (the
+	// planner's, else the one the riders share, else the last kept); with none, here to the place.
 	auto Cut = [](const FString& S) { return std::string(TCHAR_TO_UTF8(*S.Left(TorqueWorld::Route::MaxName))); };
-	// The journey as it stands: the planner's, else the one the riders share, else the last kept.
 	TorqueWorld::RouteRequest Now;
 	FString NowTitle;
 	bool bHave = false;
@@ -268,33 +292,34 @@ FString ATorquePlayerController::AddWaypoint(double Lat, double Lon, const FStri
 			bHave = TorqueWorld::Route::FromCode(TCHAR_TO_UTF8(*GS->RideJourney), Now) && Now.Pins.size() >= 2;
 	if (!bHave) bHave = Real->LastJourney(Now, NowTitle) && Now.Pins.size() >= 2;
 	TorqueWorld::RouteRequest New;
-	New.Mode = bHave && TorqueWorld::Route::IsStyle(Now.Mode) ? Now.Mode : std::string("scenic");
-	New.Pins.push_back({HereLat, HereLon, Cut(HereName.IsEmpty() ? FString(TEXT("Here")) : HereName)});
-	New.Pins.push_back({Lat, Lon, Cut(Name)});
-	// Riding a Ride UK journey: on to where it ends, so the place is a stop on the way.
-	FString Then;
-	if (bHave && World->GetMapName().Contains(TEXT("RideUK")))
+	FString Kept;
+	if (bHave && int32(Now.Pins.size()) < TorqueWorld::Route::MaxPins)
 	{
-		const TorqueWorld::RoutePin& End = Now.Pins.back();
-		if (TorqueWorld::Route::GroundMetres(End.Lat, End.Lon, Lat, Lon) > 1000.0 && TorqueWorld::Route::GroundMetres(End.Lat, End.Lon, HereLat, HereLon) > 1000.0)
-		{
-			New.Pins.push_back(End);
-			Then = FString(UTF8_TO_TCHAR(End.Name.c_str()));
-		}
+		New = Now;
+		if (!TorqueWorld::Route::IsStyle(New.Mode)) New.Mode = "main";
+		New.Pins.insert(New.Pins.end() - 1, TorqueWorld::RoutePin{Lat, Lon, Cut(Short)});
+		Kept = FString(UTF8_TO_TCHAR(New.Pins.back().Name.c_str()));
 	}
-	const FString JourneyName = FString::Printf(TEXT("%s to %s%s"), *FString(UTF8_TO_TCHAR(New.Pins.front().Name.c_str())), *Name.Left(TorqueWorld::Route::MaxName),
-		Then.IsEmpty() ? TEXT("") : *(TEXT(" and on to ") + Then));
+	else
+	{
+		New.Mode = bHave && TorqueWorld::Route::IsStyle(Now.Mode) ? Now.Mode : std::string("scenic");
+		New.Pins.push_back({HereLat, HereLon, Cut(HereName.IsEmpty() ? FString(TEXT("Here")) : HereName)});
+		New.Pins.push_back({Lat, Lon, Cut(Short)});
+	}
+	const FString First(UTF8_TO_TCHAR(New.Pins.front().Name.c_str())), Last(UTF8_TO_TCHAR(New.Pins.back().Name.c_str()));
+	const FString JourneyName = FString::Printf(TEXT("%s to %s"), First.IsEmpty() ? TEXT("the start") : *First, Last.IsEmpty() ? TEXT("the finish") : *Last);
 	const FString Code = FString(UTF8_TO_TCHAR(TorqueWorld::Route::CodeOf(New).c_str()));
-	if (Planner) Planner->SetJourney(New, JourneyName);   // (its own hooks send it on in co-op)
+	if (Planner) Planner->SetJourney(New, FString());   // (its own hooks send it on in co-op; it names it)
 	if (GetNetMode() != NM_Standalone)
 	{
 		if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->ServerSetRideJourney(Code, JourneyName);
 	}
 	Real->KeepJourney(New, JourneyName);
-	UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s (%.5f, %.5f): journey '%s' %s"), *Name, Lat, Lon, *JourneyName, *Code);
+	UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s (%.5f, %.5f): journey '%s' (%d pins) %s"), *Short, Lat, Lon, *JourneyName, int32(New.Pins.size()), *Code);
 	const bool bHost = GetNetMode() != NM_Client;
-	return FString::Printf(TEXT("%s is a waypoint. %s"), *Name,
-		bHost ? TEXT("Esc > Plan a ride to ride there") : TEXT("It's in the Route planner for everyone; the host sets off"));
+	const FString Where = Kept.IsEmpty() ? FString::Printf(TEXT("%s is a waypoint."), *Short)
+		: FString::Printf(TEXT("%s is a waypoint on the way to %s."), *Short, *Kept);
+	return Where + (bHost ? TEXT(" Esc > Plan a ride to ride it") : TEXT(" It's in the Route planner for everyone; the host sets off"));
 }
 
 void ATorquePlayerController::OpenPlanner()
@@ -490,8 +515,16 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("weather"))
 	{
 		// (At once, for the tests: the menu's own changes fade.)
-		S.WeatherMode = FMath::Clamp(N, 0, FTorqueSettings::WeatherLive);
-		if (GS) GS->WeatherModeChanged(0.0f);
+		// (A preset sky by its key: set:weather=valley_fog.)
+		if (!Value.IsEmpty() && !FChar::IsDigit(Value[0]) && Value[0] != TEXT('-'))
+		{
+			if (GS) GS->ChooseSkyPreset(Value);
+		}
+		else
+		{
+			S.WeatherMode = FMath::Clamp(N, 0, FTorqueSettings::WeatherPreset);
+			if (GS) GS->WeatherModeChanged(0.0f);
+		}
 	}
 	else if (F == TEXT("units")) S.Units = Value == TEXT("metric") || Value == TEXT("0") ? 0 : 1;
 	else if (F == TEXT("telemetry")) S.bTelemetry = bOn;
@@ -522,7 +555,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("shading")) S.Shading = FMath::Clamp(N, -1, 4);
 	else if (F == TEXT("anisotropy")) S.Anisotropy = FMath::Clamp(N, -1, 4);
 	else
-		return FString::Printf(TEXT("set what? fov, timeofday, daynight, daylength, weather (0 auto .. 3 wet, 4 live), units, telemetry, fps, autoshift, recentre, ")
+		return FString::Printf(TEXT("set what? fov, timeofday, daynight, daylength, weather (0 auto .. 3 wet, 4 live, 5 preset, or a preset sky's key), units, telemetry, fps, autoshift, recentre, ")
 			TEXT("lookintocorner, brightness, sharpness, bloom, quality, shadows, drawdistance, fog, clouds, ao, avatarshadows, aa, hdr, filmgrain, vignette, ")
 			TEXT("lensflares, ca, dof, postprocess, shading, anisotropy (not %s)"), *Field);
 	S.Apply(GetWorld());
@@ -642,6 +675,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	if (Page == EPage::Credits) return TEXT("MAP DATA");
 	if (Page == EPage::Route) return TEXT("ROUTE PLANNER");
+	if (Page == EPage::SkyPresets) return TEXT("PRESET SKY");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
@@ -825,6 +859,36 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			if (!Credit.Split(TEXT(":"), &Source, &Tail)) Source = TEXT("Map data");
 			Add(Source, FString(), Credit, []() {});
 		}
+		break;
+	}
+	case EPage::SkyPresets:
+	{
+		// The drop-down's list: every preset sky under its group; choosing one loads it and goes back.
+		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+		const FString HeldKey = S.WeatherMode == FTorqueSettings::WeatherPreset ? S.WeatherPresetKey : FString();
+		std::string Group = "\x01";
+		for (const TorqueSky::NamedSky& Each : ATorqueGameState::SkyPresets())
+		{
+			if (Each.Group != Group)
+			{
+				Group = Each.Group;
+				if (!Group.empty()) Heading(FString(UTF8_TO_TCHAR(Group.c_str())).ToUpper());
+			}
+			const FString Key = UTF8_TO_TCHAR(Each.Key.c_str());
+			Add(UTF8_TO_TCHAR(Each.Label.c_str()), Key == HeldKey ? FString(TEXT("held")) : FString(), UTF8_TO_TCHAR(Each.Note.c_str()),
+				[this, GS, Key]() {
+					if (GS) GS->ChooseSkyPreset(Key);
+					Changed();
+					Back();
+					Selected = SkyListBackRow;
+					FirstRow = SkyListBackFirst;
+				});
+		}
+		Add(TEXT("Back"), FString(), FString(), [this]() {
+			Back();
+			Selected = SkyListBackRow;
+			FirstRow = SkyListBackFirst;
+		});
 		break;
 	}
 	case EPage::RideBike:
@@ -1067,18 +1131,31 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					});
 			}
 			{
-				// Live first (the default), then the choices the game always had.
-				static const int32 Order[] = {FTorqueSettings::WeatherLive, 0, 1, 2, 3};
-				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads"), TEXT("Live")};
+				// Live first (the default), then the choices the game always had, then a preset sky held.
+				static const int32 Order[] = {FTorqueSettings::WeatherLive, 0, 1, 2, 3, FTorqueSettings::WeatherPreset};
+				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads"), TEXT("Live"),
+					TEXT("Preset sky")};
 				const FString NowText = GS ? FString::Printf(TEXT(" Now: %s."), *GS->WeatherText(S.Units == 1)) : FString();
 				const FString Hint = S.WeatherMode == FTorqueSettings::WeatherLive
 					? FString::Printf(TEXT("The real weather where you ride, updated every 15 minutes. Weather data by Open-Meteo.com (CC BY 4.0).%s"), *NowText)
 					: FString::Printf(TEXT("%s while riding changes it now.%s"), *FTorqueKeys::Text(ETorqueKey::Weather), *NowText);
-				Setting(TEXT("Weather"), Kinds[FMath::Clamp(S.WeatherMode, 0, 4)], Hint, [GS, &S](int32 D) {
+				Setting(TEXT("Weather"), Kinds[FMath::Clamp(S.WeatherMode, 0, FTorqueSettings::WeatherPreset)], Hint, [GS, &S](int32 D) {
 						int32 I = 0;
 						while (I < (int32)UE_ARRAY_COUNT(Order) - 1 && Order[I] != S.WeatherMode) ++I;
 						S.WeatherMode = Order[Wrap(I + D, (int32)UE_ARRAY_COUNT(Order))];
 						if (GS) GS->WeatherModeChanged();
+					});
+				HostOnly();
+				// A drop-down of preset skies, for testing the skies quickly (beenster, Nov 14): Enter opens the
+				// list, Left / Right steps through it here; the weather key steps it while riding.
+				const FString Held = GS ? GS->SkyPresetLabel() : FString();
+				Add(TEXT("Preset sky"), Held.IsEmpty() ? FString(TEXT("Choose...")) : Held,
+					FString::Printf(TEXT("Load a ready-made sky: fair, grey, rain, high cloud, mist and fog, evening light, storms and snow, recorded days (Data/Sky/presets.json). Held, %s while riding steps to the next"),
+						*FTorqueKeys::Text(ETorqueKey::Weather)),
+					[this]() { OpenSkyPresets(); },
+					[this, GS](int32 D) {
+						if (GS) GS->ChooseSkyPreset(FString(), D);
+						Changed();
 					});
 				HostOnly();
 			}

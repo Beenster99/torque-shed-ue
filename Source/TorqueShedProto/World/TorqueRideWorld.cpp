@@ -210,6 +210,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.bNav = Ride && Ride->Plan && Ride->Plan->Ok && !Ride->Plan->Turns.empty();
 	Dash.bAtFuel = false;
 	Dash.bNavRerouting = false;
+	Dash.bNavVia = false;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
 	const double X = At.X / 100.0, Z = At.Y / 100.0;
@@ -223,7 +224,69 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	const FVector2D Here(X, Z);
 	if (S.Prev.X < 1e11 && FVector2D::Distance(Here, S.Prev) > 2.0) S.Heading = FMath::Atan2(-(Here.X - S.Prev.X), -(Here.Y - S.Prev.Y));
 	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
-	if (!N.OffRoute)
+	// [waypoint] Going by a place picked in the info panel: its way, on or off the ride's road, until
+	// it's reached (then the way on is the way back to the ride's road, as after any detour).
+	bool bViaNav = false;
+	if (S.bVia)
+	{
+		RidePlan::RideNav Via;
+		bool bOnIt = false;
+		if (S.Detour && S.bDetourVia)
+		{
+			Via = Ride->Plan->NavDetour(*S.Detour, X, Z);
+			bOnIt = !Via.OffRoute;
+			const bool bThere = FVector2D::Distance(Here, FVector2D(S.ViaX, S.ViaZ)) < 150.0 ||
+				FVector2D::Distance(Here, FVector2D(S.Detour->Via.X, S.Detour->Via.Z)) < 40.0 || (bOnIt && Via.Along > S.Detour->ViaAlong + 10.0);
+			if (bThere)
+			{
+				S.bVia = S.bDetourVia = false;
+				++S.ViaReached;
+				UE_LOG(LogTemp, Log, TEXT("Torque sat nav: waypoint %s reached; on to the finish (%.2f km)"), *FString(UTF8_TO_TCHAR(S.ViaName.c_str())), Via.ToFinish / 1000.0);
+			}
+		}
+		if (S.bVia)
+		{
+			if (!bOnIt && Now - S.ViaTry > 4.0)
+			{
+				S.ViaTry = Now;
+				const std::shared_ptr<const TorqueWorld::RideDetour> Way = Ride->Plan->DetourVia(X, Z, S.Heading, Was, S.ViaX, S.ViaZ, S.ViaName);
+				if (Way)
+				{
+					S.Detour = Way;
+					S.bDetourVia = true;
+					Via = Ride->Plan->NavDetour(*Way, X, Z);
+					bOnIt = !Via.OffRoute;
+					Ride->Guide = TorqueWorld::GuideOfDetour(*Ride->Plan, *Way, Ride->Guide ? Ride->Guide->Version + 1 : 1);
+					OnRoamChanged.Broadcast();
+					UE_LOG(LogTemp, Log, TEXT("Torque sat nav: the way by %s: %.2f km, reached at %.2f km, %d turns, back on the ride's road at %.2f km"),
+						*FString(UTF8_TO_TCHAR(S.ViaName.c_str())), Way->Length / 1000.0, Way->ViaAlong / 1000.0, int32(Way->Turns.size()), Way->RejoinAlong / 1000.0);
+				}
+				else
+					UE_LOG(LogTemp, Log, TEXT("Torque sat nav: no way by %s yet (no road near it in the map loaded so far, or none there and back)"), *FString(UTF8_TO_TCHAR(S.ViaName.c_str())));
+			}
+			if (bOnIt)
+			{
+				bViaNav = true;
+				S.OffSince = -1.0;
+				N.OffRoute = false;
+				N.Turn = Via.Turn;
+				N.ToTurn = Via.ToTurn;
+				N.Onto = Via.Onto;
+				N.ToFinish = Via.ToFinish;
+				N.Road = Via.Road;
+				N.Limit = 0;
+				for (double& To : N.ToStop) To = -1.0;
+			}
+			else if (S.bDetourVia)
+			{
+				bViaNav = true;   // off the way by it: found again in a moment
+				N.OffRoute = true;
+				Dash.bNavRerouting = true;
+			}
+		}
+	}
+	if (bViaNav) {}
+	else if (!N.OffRoute)
 	{
 		S.OffSince = -1.0;
 		if (S.Detour) { S.Detour.reset(); Ride->Guide = TorqueWorld::GuideOfPlan(*Ride->Plan, Ride->Guide ? Ride->Guide->Version + 1 : 1); OnRoamChanged.Broadcast(); }
@@ -266,6 +329,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		else Dash.bNavRerouting = true;
 	}
 	Dash.bNavOff = N.OffRoute;
+	Dash.bNavVia = bViaNav && !N.OffRoute && N.Turn == RidePlan::Finish;
 	Dash.NavTurn = N.Turn;
 	Dash.NavTo = N.ToTurn;
 	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
@@ -361,6 +425,52 @@ std::shared_ptr<const TorqueWorld::RideGuide> ATorqueRideWorld::GuideNow()
 {
 	const ATorqueRideWorld* Ride = Current.Get();
 	return Ride ? Ride->Guide : nullptr;
+}
+
+bool ATorqueRideWorld::SetWaypoint(double Lat, double Lon, const FString& Name)
+{
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	const TorqueWorld::P2 At = Ride->Plan->Area.Roads.FrameOf().FromGeo(Lat, Lon);
+	FRideNavState& S = Ride->NavState;
+	S.bVia = true;
+	S.bDetourVia = false;   // (the next look finds the way by it, from wherever the rider is then)
+	S.ViaX = At.X;
+	S.ViaZ = At.Z;
+	S.ViaName = TCHAR_TO_UTF8(*Name.Left(40));
+	S.ViaTry = -1e9;
+	UE_LOG(LogTemp, Log, TEXT("Torque sat nav: waypoint %s at (%.0f, %.0f) in the ride's frame"), *Name, At.X, At.Z);
+	return true;
+}
+
+void ATorqueRideWorld::ClearWaypoint()
+{
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride) return;
+	FRideNavState& S = Ride->NavState;
+	if (!S.bVia) return;
+	S.bVia = false;
+	if (S.bDetourVia && Ride->Plan)
+	{
+		// (the ride's own way again, or the way back to it from off it, found as after any detour)
+		S.Detour.reset();
+		S.bDetourVia = false;
+		S.LastTry = -1e9;
+		Ride->Guide = TorqueWorld::GuideOfPlan(*Ride->Plan, Ride->Guide ? Ride->Guide->Version + 1 : 1);
+		OnRoamChanged.Broadcast();
+	}
+}
+
+bool ATorqueRideWorld::HasWaypoint()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride && Ride->NavState.bVia;
+}
+
+int32 ATorqueRideWorld::WaypointsReached()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride ? Ride->NavState.ViaReached : 0;
 }
 
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)

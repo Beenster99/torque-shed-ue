@@ -13,6 +13,7 @@
 #include "World/TorqueRideWorld.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/WorldRide.h"
+#include "World/TorqueRideWorld.h"
 
 #include "Camera/PlayerCameraManager.h"
 #include "Dom/JsonObject.h"
@@ -271,6 +272,8 @@ struct FIconPen
 struct FWaypoint
 {
 	bool bOn = false;
+	bool bSatNav = false;      // the Ride UK sat nav is going by it (ATorqueRideWorld::SetWaypoint)
+	int32 NavReachedAt = 0;    // ATorqueRideWorld::WaypointsReached when it was set
 	double Lat = 0.0, Lon = 0.0;
 	FString Name;
 };
@@ -569,10 +572,14 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	if (GWaypoint.bOn)
 	{
 		double Bearing = 0.0;
-		if (MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, Bearing) < 150.0)
+		// (on a Ride UK ride the sat nav says when it's reached: by the place, or past its junction)
+		const bool bNavDone = GWaypoint.bSatNav && ATorqueRideWorld::WaypointsReached() > GWaypoint.NavReachedAt;
+		if (bNavDone || MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, Bearing) < 150.0)
 		{
 			GWaypoint.bOn = false;
-			if (TPC) TPC->ShowNote(FString::Printf(TEXT("You've reached %s"), *GWaypoint.Name), 6.0);
+			if (GWaypoint.bSatNav) ATorqueRideWorld::ClearWaypoint();
+			if (TPC) TPC->ShowNote(GWaypoint.bSatNav ? FString::Printf(TEXT("You've reached %s: the sat nav takes you on to the finish"), *GWaypoint.Name)
+				: FString::Printf(TEXT("You've reached %s"), *GWaypoint.Name), 6.0);
 			UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s reached"), *GWaypoint.Name);
 		}
 		else
@@ -598,8 +605,8 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		if (!N.Kind.IsEmpty()) continue;
 		const ATorqueRideWorld* RW = nullptr;
 		for (TActorIterator<ATorqueRideWorld> It(World); It; ++It) { RW = *It; break; }
-		if (!RW || !RW->Plan) break;
-		const TorqueWorld::Region& G = RW->Plan->Area.Roads;
+		if (!RW || !RW->GetPlan()) break;
+		const TorqueWorld::Region& G = RW->GetPlan()->Area.Roads;
 		const TorqueWorld::P2 At = TorqueWorld::Frame(G.FrameLat, G.FrameLon).FromGeo(N.Lat, N.Lon);
 		bool bByQid = false;
 		const int Found = G.FindSight(TCHAR_TO_UTF8(*N.Qid), At.X, At.Z, 250.0, &bByQid);
@@ -651,7 +658,9 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 			GWaypoint.Lat = ToLat;
 			GWaypoint.Lon = ToLon;
 			GWaypoint.Name = Name;
+			GWaypoint.NavReachedAt = ATorqueRideWorld::WaypointsReached();
 			const FString Said = TPC ? TPC->AddWaypoint(ToLat, ToLon, Name, Lat, Lon, HereName) : FString::Printf(TEXT("%s is a waypoint"), *Name);
+			GWaypoint.bSatNav = ATorqueRideWorld::HasWaypoint();
 			if (TPC) TPC->ShowNote(Said, 7.0);
 		};
 	};
@@ -713,6 +722,8 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		if (W.Visibility < 5000.0)
 			Lines.Add(W.Visibility < 1000.0 ? FString::Printf(TEXT("Visibility %d m"), FMath::RoundToInt(W.Visibility / 10.0) * 10)
 				: FString::Printf(TEXT("Visibility %.1f km"), W.Visibility / 1000.0));
+		// [skies stage 6] What the forecast says is coming here.
+		if (const FString Coming = GS->ComingText(); !Coming.IsEmpty() && Src == ETorqueWeatherSource::Live) Lines.Add(TEXT("Coming: ") + Coming);
 		const FString Words = Capital(UTF8_TO_TCHAR(TorqueWeather::CodeWords(W.Code).c_str()));
 		const EIcon Icon = IconOf(W.Code, W.Cloud);
 		const float LineH = 17.0f * S;
@@ -832,7 +843,7 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 			if (!WayLine.IsEmpty())
 			{
 				LY += 19.0f * S;
-				const bool bOver = Clickable(TX - 4.0f * S, LY - 2.0f * S, CW + 8.0f * S, 19.0f * S, []() { GWaypoint.bOn = false; });
+				const bool bOver = Clickable(TX - 4.0f * S, LY - 2.0f * S, CW + 8.0f * S, 19.0f * S, []() { GWaypoint.bOn = false; if (GWaypoint.bSatNav) ATorqueRideWorld::ClearWaypoint(); });
 				TorqueUi::TextFit(Canvas, bOver ? FString(TEXT("Clear the waypoint")) : WayLine, TX, LY, 13.5f * S, CW, Accent, true);
 			}
 		}});

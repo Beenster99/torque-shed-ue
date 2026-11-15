@@ -1058,6 +1058,14 @@ public:
 	// of the ride's road ahead of Was that leaves least to ride to the finish, with its turns (the last
 	// onto the ride's road there, Onto its name). Null when they are on no road, or none gets back.
 	std::shared_ptr<const RideDetour> DetourFrom(double X, double Z, double Heading, double Was) const;
+	// [waypoint] The way by a place the rider picked (the info panel's waypoint; beenster, build 146:
+	// "add it as a waypoint and retain our final destination"): from where they are (on the ride's
+	// road, from its next junction; on another road, from the junction ahead as DetourFrom) by the
+	// map's roads to the junction nearest (ViaX, ViaZ), then on to the junction of the ride's road
+	// ahead that leaves least to ride to the finish. Its turns as DetourFrom's, with an arrival
+	// (Finish, onto ViaName) at the waypoint. Null with no junction within 3 km of it in the map
+	// loaded so far, or no way there and back.
+	std::shared_ptr<const RideDetour> DetourVia(double X, double Z, double Heading, double Was, double ViaX, double ViaZ, const std::string& ViaName) const;
 	// The sat nav along a detour (as NavAt; OffRoute when more than 40 m off it).
 	RideNav NavDetour(const RideDetour& D, double X, double Z) const;
 	// The junctions of the ride's road, each with how far along it is and the edge it leaves by (-1 the last).
@@ -1209,5 +1217,8 @@ struct RideDetour
 	std::vector<RidePlan::RideTurn> Turns;   // along Line; the last where it rejoins
 	double Length = 0.0;
 	double RejoinAlong = 0.0;                // how far along the ride's road it rejoins
+	// [waypoint] A way by a waypoint (RidePlan::DetourVia): how far along Line it is reached (-1 none), and where.
+	double ViaAlong = -1.0;
+	P2 Via;
 };
 } // namespace TorqueWorld

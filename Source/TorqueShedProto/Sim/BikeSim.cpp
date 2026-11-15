@@ -83,10 +83,18 @@ const double LEAN_TC_FULL = 0.873;
 const double STAB_SETTLE = 0.08;
 const double STRUGGLE_FROM = 0.35;
 const double STRUGGLE_CRANK = 1.8;
-// How near the tyre's peak slip a hard stop works (the rider, or ABS). Godot's 0.55 stopped every road
-// bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m against 34-37); 0.45 puts
-// them in range (SimTest/realism_test).
-const double BRAKE_KEEP = 0.45;
+// How near the tyre's peak slip a hard stop works (the rider, or ABS), front and back. Godot's 0.55 on
+// both stopped every road bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m
+// against 34-37), and 0.45 on both put them in range but left the front brake alone soft: 0.74 g, where
+// a real bike's front alone does 0.8-0.9 g and the back adds little once it goes light (build 146,
+// beenster: "braking was weak", riding on the front only). The front works nearer its peak and the back
+// further from its own, so both together still stop in the road tests' range (SimTest/realism_test).
+const double BRAKE_KEEP_FRONT = 0.55;
+const double BRAKE_KEEP_REAR = 0.2;
+// Linked brakes (a ride mode setting): how much of the front lever the back brake gets, and of the
+// pedal the front, as Honda's and BMW's linked systems share them.
+const double LINK_FRONT_TO_REAR = 0.5;
+const double LINK_REAR_TO_FRONT = 0.3;
 const double AIR_DENSITY = 1.2;
 const double AIR_REV_PITCH = 7.0;
 } // namespace
@@ -285,7 +293,11 @@ void BikeSim::Step(double Delta)
 	// feet down, reduced to this), so the bike neither rolls back down a hill nor topples. Not while
 	// they're walking it backwards.
 	const bool Parked = std::fabs(Speed) < 1.0 && Throttle < 0.05 && !Paddling;
-	double RearGrip = Parked ? std::max(RearBrake, 1.0) : RearBrake;
+	// Linked brakes: what each wheel's brake gets from both levers.
+	double RearIn = RearBrake, FrontIn = FrontBrake;
+	if (Build.LinkedBrakes >= 1) RearIn = std::max(RearIn, FrontBrake * LINK_FRONT_TO_REAR);
+	if (Build.LinkedBrakes >= 2) FrontIn = std::max(FrontIn, RearBrake * LINK_REAR_TO_FRONT);
+	double RearGrip = Parked ? std::max(RearIn, 1.0) : RearIn;
 	if (!Wheels[0].Contact && Wheels[1].Contact && PitchAngle > DegToRad(1.5))
 	{
 		const double Over = PitchAngle - WheelieTarget();
@@ -293,7 +305,7 @@ void BikeSim::Step(double Delta)
 		const double Ahead = Over + std::max(Rising, 0.0) * 0.45;   // where it'll be in a moment
 		if (Ahead > 0.0) RearGrip = std::max(RearGrip, Clamp(Ahead * 4.0, 0.0, 1.0) * Steadiness());
 	}
-	double FrontGrip = Parked ? std::max(FrontBrake, 0.8) : FrontBrake;
+	double FrontGrip = Parked ? std::max(FrontIn, 0.8) : FrontIn;
 	if (!Wheels[1].Contact && Wheels[0].Contact && PitchAngle < -DegToRad(3.0))
 	{
 		const double Over = -PitchAngle - (BodyShift >= 0.25 ? STOPPIE_PITCH : STOPPIE_SKIM);
@@ -1196,7 +1208,7 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 	{
 		// The rider (or ABS) eases the brake before it goes past the grip left with the cornering.
 		const double Left = std::max(std::sqrt(std::max(1.0 - Sy * Sy, 0.0)), 0.25);
-		const double Allowed = Left * BRAKE_KEEP + CARELESS_SLIP * (1.0 - Care) / Care;
+		const double Allowed = Left * (IsFront ? BRAKE_KEEP_FRONT : BRAKE_KEEP_REAR) + CARELESS_SLIP * (1.0 - Care) / Care;
 		if ((OmegaNew * REff - VLong) / Vden / Kp < -Allowed)
 		{
 			OmegaNew = std::max((VLong - Allowed * Kp * Vden) / REff, 0.0);

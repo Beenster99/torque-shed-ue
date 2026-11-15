@@ -1,0 +1,11 @@
+Data/Sky credits
+
+stars.png (Tools/make_stars.py): star positions, magnitudes and colours from the Yale Bright Star
+Catalogue, 5th revised edition (D. Hoffleit and W. H. Warren Jr., 1991), via the NASA Astronomical Data
+Center / Harvard-Smithsonian Center for Astrophysics. The Milky Way in its alpha channel is made by the
+script from the galaxy's shape, not from a photograph.
+
+The moon (Source/TorqueShedProto/Weather/NightSky.cpp): Paul Schlyter's method, "How to compute
+planetary positions".
+
+days/*.json: recorded hours from Open-Meteo.com (CC BY 4.0).

@@ -74,9 +74,12 @@ struct FTorqueSettings
 	float TimeOfDay = -1.0f;    // hours, -1 for the level's own light
 	bool bRealClock = false;    // the clock and sun follow the real time and date where you ride (weather plan stage 5)
 	// 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads, 4 live (the real
-	// weather where you ride; the default, as beenster chose: the host can switch it off any time).
+	// weather where you ride; the default, as beenster chose: the host can switch it off any time),
+	// 5 a preset sky held (WeatherPresetKey, one of Data/Sky/presets.json's; for testing the skies).
 	int32 WeatherMode = 4;
 	static constexpr int32 WeatherLive = 4;
+	static constexpr int32 WeatherPreset = 5;
+	FString WeatherPresetKey = TEXT("cumulus");
 	static const TArray<int32>& DayLengths();
 	FString SpeedText(double MetresPerSecond) const;   // "52 mph"
 	FString DistanceText(double Metres) const;         // "1.25 miles"

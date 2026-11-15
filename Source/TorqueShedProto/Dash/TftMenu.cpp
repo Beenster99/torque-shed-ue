@@ -27,6 +27,7 @@ const char* RowKey(ModeRow R)
 	case ModeRow::Wheelie: return "wheelie";
 	case ModeRow::Stability: return "stability";
 	case ModeRow::EngineBrake: return "engine_brake";
+	case ModeRow::Linked: return "linked_brakes";
 	default: return "suspension";
 	}
 }
