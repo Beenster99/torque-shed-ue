@@ -78,6 +78,18 @@ def mat(name, col=None, finish=None):
         nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
         nt.links.new(nz.outputs["Fac"], bp.inputs["Height"])
         nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    if DETAIL["on"] and not spec.get("alpha") and not spec.get("emit"):
+        # slight wear: no surface on a used bike has one even gloss, so break the roughness up a little
+        tc = nt.nodes.new("ShaderNodeTexCoord")
+        nz = nt.nodes.new("ShaderNodeTexNoise")
+        nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 9.0, 6.0
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        r0 = spec.get("rough", 0.5)
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 0.3, 0.75
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = max(0.02, r0 * 0.75), min(1.0, r0 * 1.3 + 0.06)
+        nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+        nt.links.new(nz.outputs["Fac"], mr.inputs["Value"])
+        nt.links.new(mr.outputs["Result"], b.inputs["Roughness"])
     _mats[key] = m
     return m
 
@@ -264,7 +276,15 @@ def pillow(name, poly, y0, y1, material, inset=14.0, zone=None, both=True, steps
     return ob
 
 
-def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0):
+def _inside(poly, x, z):
+    hit = False
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        if (a[1] > z) != (b[1] > z) and x < a[0] + (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]):
+            hit = not hit
+    return hit
+
+
+def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0, holes=()):
     """A thin shell whose side view is the outline poly and whose surface sits at y = side * f(x, z):
     a fairing side, drawn as one flat outline, that wraps out round the engine and closes in again
     towards the nose and keel. Built as an even grid between the outline's top and bottom lines."""
@@ -293,6 +313,17 @@ def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0):
     ob = mesh_obj(name, verts, faces, material, True, 0, sharp=False)
     sol = ob.modifiers.new("shell", "SOLIDIFY")
     sol.thickness, sol.offset = thick * MM, -1
+    if holes:      # openings cut clean through the shell: vents, air channels, engine reveals
+        bpy.context.view_layer.objects.active = ob
+        bpy.ops.object.modifier_apply(modifier=sol.name)
+        for n_, h in enumerate(holes):
+            cutter = prism(f"{name}cut{n_}", list(h), side * 30, side * 460, material, 0)
+            bm_fix_normals(cutter)      # outlines are drawn either way round
+            bo = ob.modifiers.new(f"cut{n_}", "BOOLEAN")
+            bo.operation, bo.object, bo.solver = "DIFFERENCE", cutter, "EXACT"
+            bpy.context.view_layer.objects.active = ob
+            bpy.ops.object.modifier_apply(modifier=bo.name)
+            bpy.data.objects.remove(cutter, do_unlink=True)
     return ob
 
 
@@ -489,6 +520,11 @@ def loft(name, outline, spec, material, stations=96, ring=44, smooth_lines=True)
             z = zc + h * math.copysign(abs(sn) ** e, sn)
             if sn < 0:
                 y *= 1 - (1 - spec["bottom"]) * abs(sn)
+            kc = spec.get("knee")
+            if kc and 0.08 < sn < 0.72 and kc[0] < u < kc[1]:
+                # a knee recess let into the flank: two clean edges along the side of the tank
+                fall = math.sin(math.pi * (u - kc[0]) / (kc[1] - kc[0])) ** 0.6
+                y *= 1 - kc[2] * fall * math.sin(math.pi * (sn - 0.08) / 0.64) ** 0.7
             row.append(V(x, y, z))
         rows.append(row)
     verts = [v for r in rows for v in r]
@@ -530,6 +566,50 @@ def arc_band(name, a, hw, material):
     faces += [tuple(range(m - 1, -1, -1)), tuple(segs * m + q for q in range(m))]
     ob = mesh_obj(name, verts, faces, material, True, 0)
     bm_fix_normals(ob)
+    return ob
+
+
+def guard_blade(name, a, blade, hw, material):
+    """A sport front mudguard and its fork blades as ONE moulding (beenster, 14 Nov): the crowned shell
+    over the tyre, with its two side edges drawn down into the blades that run to the axle. How far
+    down the side goes at each point round the wheel is read off the drawn blade outline, then faired
+    so the blade grows out of the guard in a curve."""
+    lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 9, 80, 12
+    c = tuple(a["c"])
+
+    def depth(deg):
+        th, best = math.radians(deg), lo - 8
+        for rho in range(int(hi), 24, -3):
+            if _inside(blade, c[0] + rho * math.cos(th), c[1] + rho * math.sin(th)):
+                best = min(best, rho)
+        return best
+    rin = [depth(a["a0"] + (a["a1"] - a["a0"]) * i / segs) for i in range(segs + 1)]
+    for _ in range(5):
+        rin = [rin[0]] + [0.25 * rin[i - 1] + 0.5 * rin[i] + 0.25 * rin[i + 1] for i in range(1, segs)] + [rin[segs]]
+    span = abs(a["a1"] - a["a0"])
+    tip = min(0.2, math.degrees(hw * 0.55 / hi) / span)
+    verts, faces = [], []
+    for i in range(segs + 1):
+        f = i / segs
+        k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
+        ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
+        crown = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        ye = crown[-1][1]
+        skirt = []
+        for q in range(1, K + 1):
+            rho = lo + (rin[i] - lo) * q / K
+            t_ = min(1.0, (lo - rho) / 95.0)
+            skirt.append((rho, ye + (144 - ye) * t_ * t_ * (3 - 2 * t_)))
+        sec = [(r, -y) for r, y in skirt[::-1]] + crown + skirt
+        for r, y in sec:
+            verts.append(V(c[0] + r * math.cos(ang), y, c[1] + r * math.sin(ang)))
+    m = n + 2 * K
+    for i in range(segs):
+        for q in range(m - 1):
+            faces.append((i * m + q, (i + 1) * m + q, (i + 1) * m + q + 1, i * m + q + 1))
+    ob = mesh_obj(name, verts, faces, material, True, 0, sharp=False)
+    sol = ob.modifiers.new("shell", "SOLIDIFY")
+    sol.thickness, sol.offset = 4 * MM, 1
     return ob
 
 
@@ -585,8 +665,12 @@ def build(model):
     nodes.update(head_t=head_t, head_b=head_b)
 
     def half(p):
-        u = (head_t[0] - p[0]) / max(1.0, head_t[0] - 600)
-        return 22 + max(0.0, min(1.0, u)) * 118
+        u = max(0.0, min(1.0, (head_t[0] - p[0]) / max(1.0, head_t[0] - 600)))
+        if DETAIL["on"]:
+            # a real tube frame opens out quickly behind the steering head, so its sides pass outside the
+            # airbox and the cylinder heads instead of through them
+            return 30 + 110 * (1 - (1 - u) ** 2)
+        return 22 + u * 118
 
     eng = model["engine"]
     wide = 420 if eng["layout"] in ("inline4", "triple") else 300
@@ -679,7 +763,11 @@ def build(model):
         cs_ = tuple(eng["countershaft"])
         cone("sprocketcover", (cs_[0], wide / 2 - 40, cs_[1]), (cs_[0], wide / 2 + 6, cs_[1]), 52, 44, mat("engine_dark"), 32)
     for i, shp in enumerate(eng.get("extras", [])):
-        pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -112, 112, mat("plastic"), 26, 45)
+        hwa = 112
+        if DETAIL["on"]:      # the airbox stays inside the frame rails
+            hwa = max(44, min(112, min(half((x_, 0)) for x_ in (min(q[0] for q in shp["pts"]), max(q[0] for q in shp["pts"]))) + 14))
+            hwa = min(hwa, half((max(q[0] for q in shp["pts"]) - 40, 0)) - 18) if hwa > 60 else hwa
+        pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -hwa, hwa, mat("plastic"), min(26, hwa * 0.3), 45)
     r = model.get("radiator")
     if r:
         u = unit(r["angle"])
@@ -730,7 +818,13 @@ def build(model):
 
             def at(t, a3=a3, b3=b3):
                 return tuple(a3[k] + (b3[k] - a3[k]) * t for k in range(3))
-            cone(f"caninlet{i}{sg}", at(-0.06), at(0.14), rc * 0.42, rc, mat("exhaust"), 36)
+            if can.get("nip"):      # a classic silencer: chrome, drawn in to a small outlet
+                cone(f"caninlet{i}{sg}", at(-0.02), at(0.1), rc * 0.5, rc, mat("chrome"), 36)
+                cone(f"can{i}{sg}", at(0.1), at(0.7), rc, rc, mat("chrome"), 36)
+                cone(f"cannip{i}{sg}", at(0.7), at(0.96), rc, rc * 0.52, mat("chrome"), 36)
+                cone(f"canend{i}{sg}", at(0.96), at(1.0), rc * 0.52, rc * 0.5, mat("chrome"), 36)
+                cone(f"canbore{i}{sg}", at(0.995), at(1.006), rc * 0.36, rc * 0.36, mat("rubber"), 24)
+                continue
             cone(f"can{i}{sg}", at(0.14), at(0.9), rc, rc, mat("exhaust_black" if can.get("dark") else "exhaust"), 36)
             cone(f"canband{i}{sg}", at(0.2), at(0.24), rc + 2.5, rc + 2.5, mat("steel"), 36)
             cone(f"canend{i}{sg}", at(0.9), at(1.0), rc + 2, rc * 0.9, mat("exhaust_black"), 36)
@@ -795,24 +889,42 @@ def build(model):
                     faces.append((base, base + 1, base + 2, base + 3))
             mesh_obj(f"chainlinks{sgn}", verts, faces, mat("alu_dark"), smooth=False)
     sk = model["shock"]
-    tube("shock", [(sk["top"][0], 0, sk["top"][1]), (sk["bottom"][0], 0, sk["bottom"][1])], 16, mat("alu_dark"))
-    # the shock is held at both ends: a bridge across the swingarm at the bottom (out to the one arm
-    # on a single-sided swingarm), and a cross tube between the frame sides at the top
     sb, st_ = sk["bottom"], sk["top"]
-    ya, yb = (-ARM_IN, ARM_IN) if len(sides) == 2 else (-34, ARM_IN + 4)
-    tube("shockbridge", [(sb[0], ya, sb[1]), (sb[0], yb, sb[1])], 20, swm)
-    cone("shockeye_b", (sb[0], -26, sb[1]), (sb[0], 26, sb[1]), 27, 27, mat("alu_dark"), 24)
-    tube("shockmount_t", [(st_[0], -70, st_[1]), (st_[0], 70, st_[1])], 12, framem)
-    cone("shockeye_t", (st_[0], -24, st_[1]), (st_[0], 24, st_[1]), 24, 24, mat("alu_dark"), 24)
-    L = math.hypot(sk["bottom"][0] - sk["top"][0], sk["bottom"][1] - sk["top"][1])
-    us = ((sk["bottom"][0] - sk["top"][0]) / L, (sk["bottom"][1] - sk["top"][1]) / L)
+    L = math.hypot(sb[0] - st_[0], sb[1] - st_[1])
+    us = ((sb[0] - st_[0]) / L, (sb[1] - st_[1]) / L)
     ns = (-us[1], us[0])
-    coil = []
-    for i in range(121):
-        t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 9 * i / 120
-        q = add(add(tuple(sk["top"]), us, t), ns, 27 * math.cos(a))
-        coil.append((q[0], 27 * math.sin(a), q[1]))
-    tube("spring", coil, 5, mat("accent", hex_rgb(col.get("accent", col["body"]))))
+    springm = mat("accent", hex_rgb(col.get("accent", col["body"])))
+    if sk.get("twin"):
+        # a pair of shocks: one each side, outside the swingarm at the bottom and on a stud from the
+        # seat rail at the top
+        y_t, y_b, rail = 150, ARM_OUT + 20, fr.get("sub_y", 84)
+        for s in (-1, 1):
+            tube(f"shock{s}", [(st_[0], s * y_t, st_[1]), (sb[0], s * y_b, sb[1])], 12, mat("alu_dark"))
+            tube(f"shockstud_t{s}", [(st_[0], s * (rail - 10), st_[1]), (st_[0], s * (y_t + 16), st_[1])], 9, framem)
+            tube(f"shockstud_b{s}", [(sb[0], s * (ARM_OUT - 14), sb[1]), (sb[0], s * (y_b + 16), sb[1])], 9, swm)
+            cone(f"shockeye_t{s}", (st_[0], s * (y_t - 12), st_[1]), (st_[0], s * (y_t + 12), st_[1]), 18, 18, mat("alu_dark"), 24)
+            cone(f"shockeye_b{s}", (sb[0], s * (y_b - 12), sb[1]), (sb[0], s * (y_b + 12), sb[1]), 18, 18, mat("alu_dark"), 24)
+            coil = []
+            for i in range(121):
+                t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 10 * i / 120
+                q = add(add(tuple(st_), us, t), ns, 21 * math.cos(a))
+                coil.append((q[0], s * (y_t + (y_b - y_t) * t / L) + 21 * math.sin(a), q[1]))
+            tube(f"spring{s}", coil, 4.5, springm)
+    else:
+        tube("shock", [(st_[0], 0, st_[1]), (sb[0], 0, sb[1])], 16, mat("alu_dark"))
+        # the shock is held at both ends: a bridge across the swingarm at the bottom (out to the one arm
+        # on a single-sided swingarm), and a cross tube between the frame sides at the top
+        ya, yb = (-ARM_IN, ARM_IN) if len(sides) == 2 else (-34, ARM_IN + 4)
+        tube("shockbridge", [(sb[0], ya, sb[1]), (sb[0], yb, sb[1])], 20, swm)
+        cone("shockeye_b", (sb[0], -26, sb[1]), (sb[0], 26, sb[1]), 27, 27, mat("alu_dark"), 24)
+        tube("shockmount_t", [(st_[0], -70, st_[1]), (st_[0], 70, st_[1])], 12, framem)
+        cone("shockeye_t", (st_[0], -24, st_[1]), (st_[0], 24, st_[1]), 24, 24, mat("alu_dark"), 24)
+        coil = []
+        for i in range(121):
+            t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 9 * i / 120
+            q = add(add(tuple(st_), us, t), ns, 27 * math.cos(a))
+            coil.append((q[0], 27 * math.sin(a), q[1]))
+        tube("spring", coil, 5, springm)
 
     # bodywork
     trellis = len([t for t in fr["tubes"] if t.get("cls") != "sub"]) >= 6
@@ -821,6 +933,8 @@ def build(model):
         shp = body[part][0]
         outline = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
         spec = model.get("widths", {}).get(part, WIDTHS[part])
+        if DETAIL["on"] and part == "tank" and model["family"].lower() in ("naked", "cafe", "classic", "sport"):
+            spec = dict(spec, knee=(0.04, 0.6, 0.16))
         loft(part, outline, spec, (mat("seat", hex_rgb(col["seat"])) if col.get("seat") else mat("seat")) if part == "seat" else paint)
     for i, shp in enumerate(body.get("tail", [])[1:]):
         if shp["cls"] == "redlens":
@@ -830,7 +944,12 @@ def build(model):
         if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
             continue
         m_ = paint if shp["cls"] == "body" else mat("plastic")
-        if "arc" in shp:
+        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
+        if "arc" in shp and blade_ and shp in body.get("front_guard", []):
+            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
+        elif shp.get("shroud") and (sport_bike or DETAIL["on"]):
+            pass                          # part of the one-piece mudguard above
+        elif "arc" in shp:
             arc_band(f"guard{i}", shp["arc"], 72 if shp["arc"]["c"][0] > 100 else 100, m_)
         else:
             pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
@@ -843,6 +962,10 @@ def build(model):
                 # a fairing side: outside the engine over the cases, closing in to the nose and the keel
                 xf = max(q[0] for q in pp)
                 sport = model["family"].lower() == "sport"
+
+                # the marks drawn on a fairing side (vents, slots) are cut through it in 3D
+                cut_shapes = [v for v in body.get("panels", []) if v.get("draw_only") and v["cls"] == "plastic"] if sport else []
+                cuts = [[tuple(q[:2]) for q in shapes.dense(v["pts"], True, v.get("t", 1.0))] for v in cut_shapes]
 
                 def lead(z, pp=pp):
                     """The fairing's leading edge at height z."""
@@ -862,24 +985,74 @@ def build(model):
                 def wrap(x, z, xf=xf):
                     k = 0.86 + 0.14 * max(0.0, min(1.0, (z - 190) / 170.0))
                     if sport:
-                        # full width over the engine, drawn in to the nose's own width at the top, and the
-                        # leading edge turned in round the front, so the fairing closes on the nose and
-                        # faces the wind either side of the fork instead of standing off as a flat plate
-                        t = max(0.0, min(1.0, (1330 - x) / 380.0))
-                        t = t * t * (3 - 2 * t)
-                        y = 152 + (wide / 2 + 52 - 152) * t
-                        d = max(0.0, min(1.0, (lead_s(z) - x) / 150.0))
-                        y = 122 + (y - 122) * math.sqrt(1 - (1 - d) ** 2)
-                        return y * k
+                        # taut flat panels, not a blown shell: a flat cheek opening out from the nose to a
+                        # hard shoulder line, a flat flank behind it, a flat V keel below, and the top
+                        # leaning in under the tank; the leading edge is turned in tight round the front
+                        y = 150 + 104 * max(0.0, min(1.0, (1330 - x) / 290.0))
+                        if x < 1040:
+                            y -= 26 * min(1.0, (1040 - x) / 420.0)
+                        if z < 430:
+                            u_ = max(0.0, min(1.0, (z - 140) / 290.0))      # the keel pinches in to the wheel's width in a curve
+                            y = 96 + (y + 26 * min(1.0, max(0.0, 1040 - x) / 420.0) - 96) * math.sqrt(1 - (1 - u_) ** 2)
+                        elif z > 690:
+                            y *= 1 - 0.16 * min(1.0, (z - 690) / 170.0)
+                            # the handlebar cutaway: under the bars the top edge turns outward in a small
+                            # lip, a wing that throws air off the rider's hands
+                            fl = max(0.0, min(1.0, (x - 960) / 80.0)) * max(0.0, min(1.0, (1250 - x) / 90.0))
+                            y += 22 * fl * max(0.0, min(1.0, (z - 745) / 55.0)) ** 2
+                        d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
+                        return 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
                 for s in (-1, 1):
-                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=110 if sport else 70)
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16, holes=cuts)
+                # the two sides join behind the front tyre in a curve: a chin bridge, low in the middle and
+                # rising to each leading edge, set back in the middle to clear the tyre on full compression
+                zs_ = [z_lo + 6 + n_ * 4 for n_ in range(int((min(340, z_hi) - z_lo - 6) / 4))]
+                z_n = max(zs_, key=lead_s) if zs_ else None
+                if sport and z_n and z_lo < 260 and lead_s(z_n) > 1040:
+                    zb, NT, NZ = max(z_lo + 10, z_n - 46), 16, 8
+                    vs, fs = [], []
+                    for back in (0, 1):
+                        for a_ in range(NT + 1):
+                            t_ = -1 + 2 * a_ / NT
+                            zt = z_n + 22 + 130 * t_ * t_
+                            for b_ in range(NZ + 1):
+                                z_ = zb + (zt - zb) * b_ / NZ
+                                vs.append(V(lead_s(z_) - 6 - 44 * (1 - t_ * t_) - 4 * back, t_ * (wrap(lead_s(z_) - 4, z_) - 2), z_))
+                    n1 = (NT + 1) * (NZ + 1)
+                    for a_ in range(NT):
+                        for b_ in range(NZ):
+                            q0 = a_ * (NZ + 1) + b_
+                            fs.append((q0, q0 + NZ + 1, q0 + NZ + 2, q0 + 1))
+                            fs.append((n1 + q0, n1 + q0 + 1, n1 + q0 + NZ + 2, n1 + q0 + NZ + 1))
+                    for a_ in range(NT):
+                        for b_ in (0, NZ):
+                            q0 = a_ * (NZ + 1) + b_
+                            fs.append((q0, q0 + NZ + 1, n1 + q0 + NZ + 1, n1 + q0))
+                    for b_ in range(NZ):
+                        for a_ in (0, NT):
+                            q0 = a_ * (NZ + 1) + b_
+                            fs.append((q0, q0 + 1, n1 + q0 + 1, n1 + q0))
+                    bm_fix_normals(mesh_obj(f"chin{i}", vs, fs, m_, True, 0, sharp=False))
+                    for n_, (cut, shp_) in enumerate(zip(cuts, cut_shapes)):
+                        if not shp_.get("reveal"):      # an air channel: a dark duct wall set back inside the opening
+                            skin(f"duct{i}{n_}{s}", cut, lambda x, z: wrap(x, z) - 26, s, mat("plastic"), stations=30, rows=12, thick=3.0)
+            elif shp.get("ear"):
+                # the nose's flared sides, ahead of the grips and the cutaway the bars swing through
+                # (beenster's red line, 14 Nov)
+                def earf(x, z, w_=shp["w"]):
+                    # one surface with the nose: it leaves the snout and widens in a straight line in
+                    # plan to the cutaway edge, a kite in front view with nothing standing above the nose
+                    t_ = max(0.0, min(1.0, (1500 + g["wheelbase"] - 1440 - x) / 240.0))
+                    return 96 + (shapes.lerp_table(w_, z) - 96) * t_
+                for s in (-1, 1):
+                    skin(f"ear{i}{s}", pp, earf, s, m_, stations=50, rows=18, thick=5.0)
             elif shp.get("cowl"):
                 if model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel
-                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 150], [1, 120]], "n": 3.2, "bottom": 1.0}, m_)
+                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 146], [1, 104]], "n": 4.6, "bottom": 1.0}, m_)
                 else:
                     pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
             elif shp.get("winglet"):
@@ -888,7 +1061,7 @@ def build(model):
                 ring_ = [tuple(q[:2]) for q in pp[::max(1, len(pp) // 28)]]
                 cx_ = sum(q[0] for q in ring_) / len(ring_)
                 cz_ = sum(q[1] for q in ring_) / len(ring_)
-                secs = [(118, 1.0, 1.9, 0), (170, 0.9, 1.3, -10), (225, 0.72, 0.7, -24), (262, 0.5, 0.3, -34)]
+                secs = [(120, 1.0, 1.5, 0), (190, 0.92, 1.1, -8), (255, 0.8, 0.7, -20), (312, 0.62, 0.3, -32)]
                 for s in (-1, 1):
                     vs, fs = [], []
                     for y_, kx, kz, dz in secs:
@@ -922,7 +1095,12 @@ def build(model):
             ys = [150, 128, 118, 60][:len(q)] + [60] * max(0, len(q) - 4)
             smooth_tube(f"platearm{i}", [(v[0], y, v[1]) for v, y in zip(q, ys)], shp["tube"] / 2 * 0.8, mat("alu_dark"))
             continue
-        if "arc" in shp:
+        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
+        if "arc" in shp and blade_ and shp in body.get("front_guard", []):
+            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
+        elif shp.get("shroud") and (sport_bike or DETAIL["on"]):
+            pass                          # part of the one-piece mudguard above
+        elif "arc" in shp:
             arc_band(f"platearm{i}", shp["arc"], 60, mat("plastic"))
             continue
         pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
@@ -965,7 +1143,11 @@ def build(model):
             continue
         if shp["cls"] == "lens":
             if model["family"].lower() == "sport":      # slim lamps let into the point of the nose
-                pillow(f"lens{i}", [(q[0] + 5, q[1] - 2) for q in pp], -46, 46, mat("lens"), 6, 20)
+                cx_ = sum(q[0] for q in pp) / len(pp)
+                cz_ = sum(q[1] for q in pp) / len(pp)
+                for s in (-1, 1):                     # a slim lamp each side, in a dark surround
+                    pillow(f"lens{i}{s}", [(q[0] + 9, q[1] - 2) for q in pp], s * 36, s * 90, mat("lens"), 5, 14)
+                    pillow(f"lensrim{i}{s}", [(cx_ + (q[0] - cx_) * 1.3 - 8, cz_ + (q[1] - cz_) * 1.3 - 2) for q in pp], s * 24, s * 104, mat("plastic"), 5, 14)
             else:
                 pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
         elif shp["cls"] == "screen":
@@ -1039,7 +1221,234 @@ def build(model):
         for s in (-1, 1):
             n3 = nodes.get("S3", (470, 780))
             tube(f"pillionhanger{s}", [(n3[0], s * 112, n3[1]), (pegs[1][0], s * 168, pegs[1][1])], 8, mat("alu_dark"))
+    if DETAIL["on"]:
+        definition(model, locals())
+        import detail3d
+        detail3d.run(sys.modules[__name__], model, locals())
     return dict(A=A, F=F, wb=wb)
+
+
+DETAIL = {"on": False}      # --definition: the Definition pass parts, on top of the outline build
+
+
+def sphere(name, at, r, material):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=r * MM, location=V(*at), segments=20, ring_count=12)
+    ob = bpy.context.object
+    ob.name = name
+    ob.data.materials.append(material)
+    bpy.ops.object.shade_smooth()
+    return ob
+
+
+def definition(model, c):
+    """Definition pass (plan doc, 14 Nov): the connective and close-look detail a real bike has, added on top of
+    the outline build without moving any part, so every fit and clearance check still holds. Hoses and cables,
+    cast lugs at the frame joints, plug caps and leads, fork seals, lamp bezel, filler cap bolts, seat seams."""
+    F, uf, nb, fk, top = c["F"], c["uf"], c["nb"], c["fk"], c["top"]
+    eng, crank, wide, nodes, half, fr, framem = c["eng"], c["crank"], c["wide"], c["nodes"], c["half"], c["fr"], c["framem"]
+    body, deck = model["body"], model.get("deck", {"nose": [700, 850]})
+    nose = deck["nose"]
+    hose, steel, dark = mat("rubber"), mat("steel"), mat("plastic")
+
+    def P(q, y):
+        return (q[0], y, q[1])
+    # frame joints: a smooth cast lug wherever main tubes meet
+    seen = set()
+    for tb in fr["tubes"]:
+        if tb.get("cls") == "sub":
+            continue
+        for n_ in tb["path"]:
+            if n_ in seen or n_ in ("head_t", "head_b"):
+                continue
+            seen.add(n_)
+            for sg in (-1, 1):
+                sphere(f"lug_{n_}{sg}", P(nodes[n_], sg * half(nodes[n_])), tb.get("w", 26) / 2 + 3.5, framem)
+    # fork seals and pinch bolts
+    stan = add(F, uf, fk["slider_top"])
+    for sg in (-1, 1):
+        y = sg * 105
+        tube(f"forkseal{sg}", [P(add(stan, uf, -12), y), P(add(stan, uf, 4), y)], 31.5, dark)
+        for d_ in (-14, 22):
+            q = add(add(F, uf, d_), nb, -30)
+            cone(f"pinch{sg}{d_}", P(q, y - 12), P(q, y + 12), 5, 5, steel, 8)
+        for at in (fk["length"] - 22, fk["lower_yoke"]):
+            q = add(add(F, uf, at), nb, -36)
+            cone(f"yokebolt{sg}{at}", P(q, y - 10), P(q, y + 10), 6, 6, steel, 8)
+    # brake hoses: front caliper up the fork leg to the right bar, rear caliper along the swingarm
+    cal = model.get("front_caliper")
+    grip = next((s_["at"] for s_ in model["front_end"] if s_.get("circle") == 20), [top[0] - 60, top[1] + 60])
+    if cal:
+        cc = (sum(q[0] for q in cal) / len(cal), sum(q[1] for q in cal) / len(cal))
+        smooth_tube("brakehose_f", [P(cc, -92), P(add(cc, uf, 90), -128), P(add(add(F, uf, fk["slider_top"]), nb, -40), -132),
+                                    P(add(add(F, uf, fk["lower_yoke"]), nb, -70), -96), P(add(top, nb, -70), -70), (grip[0] + 70, -150, grip[1] - 6), (grip[0] + 30, -190, grip[1] - 4)], 5, hose)
+        cone("brakeres", (grip[0] + 26, -196, grip[1] + 2), (grip[0] + 26, -196, grip[1] + 24), 17, 17, dark, 20)
+    rc = model.get("rear_caliper")
+    piv = model["swingarm"]["pivot"]
+    if rc:
+        cc = (sum(q[0] for q in rc["body"]) / len(rc["body"]), sum(q[1] for q in rc["body"]) / len(rc["body"]))
+        smooth_tube("brakehose_r", [P(cc, -100), (cc[0] + 90, -118, cc[1] + 40), (piv[0] - 120, -128, piv[1] + 30), (piv[0] + 30, -150, piv[1] + 70), (piv[0] + 40, -168, piv[1] + 130)], 5, hose)
+        cone("rearres", (piv[0] + 40, -168, piv[1] + 124), (piv[0] + 40, -168, piv[1] + 170), 15, 15, dark, 16)
+    # clutch and throttle cables from the bars down past the headstock
+    cs_ = eng["countershaft"]
+    smooth_tube("clutchcable", [(grip[0] + 30, 190, grip[1] - 4), (grip[0] + 80, 150, grip[1] - 10), P(add(top, nb, -60), 60), P(add(add(F, uf, fk["lower_yoke"]), nb, 40), 70),
+                                (crank[0] + 90, wide / 2 - 20, crank[1] + 190), (cs_[0] + 60, wide / 2 + 2, cs_[1] + 70)], 4, hose)
+    for k in (0, 1):
+        smooth_tube(f"throttle{k}", [(grip[0] + 20, -186, grip[1] - 14 - 8 * k), (grip[0] + 90, -140, grip[1] - 20), P(add(top, nb, -56), -40 - 14 * k),
+                                     P(add(add(F, uf, fk["lower_yoke"] + 40), nb, 50), -60), (nose[0] + 170, -70, nose[1] - 30)], 3.5, hose)
+    # radiator hoses with clips
+    r = model.get("radiator")
+    if r and eng["cylinders"]:
+        u = unit(r["angle"])
+        a, b = tuple(r["at"]), add(tuple(r["at"]), u, r["len"])
+        cy = eng["cylinders"][0]
+        uc = unit(cy["angle"])
+        headend = add(crank, uc, cy["start"] + cy["length"] + cy["head"] * 0.5)
+        runs = (("radhose_t", [P(add(b, u, -18), 118), (b[0] - 50, 132, b[1] + 6), ((b[0] + headend[0]) / 2, 124, (b[1] + headend[1]) / 2 + 30), (headend[0] + 20, 84, headend[1] + 10), P(headend, 60)]),
+                ("radhose_b", [P(add(a, u, 18), -118), (a[0] - 40, -128, a[1] - 20), (crank[0] + 150, -wide / 2 + 10, crank[1] + 60), (crank[0] + 110, -wide / 2 + 36, crank[1] + 30)]))
+        for nm, pts in runs:
+            smooth_tube(nm, pts, 13, hose)
+            for e_ in (0, -1):
+                d0, d1 = pts[e_], pts[1 if e_ == 0 else -2]
+                k_ = 0.25
+                cone(nm + f"clip{e_}", tuple(d0[i] + (d1[i] - d0[i]) * k_ for i in range(3)), tuple(d0[i] + (d1[i] - d0[i]) * (k_ + 0.12) for i in range(3)), 15, 15, steel, 16)
+    # plug caps and leads on separate cylinders
+    if eng["layout"] not in ("inline4", "triple"):
+        for i, cy in enumerate(eng["cylinders"]):
+            uc = unit(cy["angle"])
+            q = add(crank, uc, cy["start"] + cy["length"] + cy["head"] * 0.55)
+            rr_ = cy["bore_w"] / 2 + 10
+            cone(f"plugcap{i}", P(q, rr_ - 4), P(q, rr_ + 34), 9, 7, dark, 12)
+            smooth_tube(f"pluglead{i}", [P(q, rr_ + 30), (q[0] - 10, rr_ + 46, q[1] + 30), (nose[0] + 120, 86, nose[1] - 50), (nose[0] + 90, 50, nose[1] - 24)], 3.5, hose)
+    # lamp bezel behind a flat lens
+    for i, shp in enumerate(model["front_end"]):
+        if shp.get("cls") == "lens" and "pts" in shp and not shp.get("round") and model["family"].lower() != "sport":
+            pp = shapes.dense(shp["pts"], True, shp.get("t", 0.8))
+            cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+            pillow(f"bezel{i}", [(cx_ + (q[0] - cx_) * 1.12 + 11, cz_ + (q[1] - cz_) * 1.16 - 3) for q in pp], -90, 90, mat("chrome"), 5, 14)
+    # filler cap: a ring of small bolts
+    for i, cp in enumerate(body.get("caps", [])):
+        for k in range(6):
+            a_ = math.radians(60 * k + 30)
+            x_, y_ = cp["at"][0] + cp["r"] * 0.74 * math.cos(a_), cp["r"] * 0.74 * math.sin(a_)
+            cone(f"capbolt{i}{k}", (x_, y_, cp["at"][1] + 1), (x_, y_, cp["at"][1] + 6.5), 2.6, 2.6, steel, 8)
+    # seat seams: a raised stitched seam along each shoulder of the seat
+    st = next((s_ for s_ in body.get("seat", []) if s_.get("cls") == "seat"), None)
+    if st:
+        outline = shapes.dense(st["pts"], True, st.get("t", 1.0))
+        xs = [q[0] for q in outline]
+        x0, x1, spec = min(xs), max(xs), WIDTHS["seat"]
+        for sg in (-1, 1):
+            pts = []
+            for k in range(8, 93, 4):
+                u = k / 100
+                tb = shapes.top_bottom(outline, x0 + (x1 - x0) * u)
+                if not tb:
+                    continue
+                w = shapes.lerp_table(spec["w"], u) * (0.3 + 0.7 * math.sqrt(1.0 - (1.0 - min(1.0, min(u, 1 - u) / 0.1)) ** 2))
+                zc, h = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2
+                f_ = 0.7
+                pts.append((x0 + (x1 - x0) * u, sg * w * f_, zc + h * (1 - f_ ** spec["n"]) ** (1 / spec["n"]) + 0.5))
+            if len(pts) > 3:
+                smooth_tube(f"seam{sg}", pts, 2.4, mat("seat"))
+    # crankcase: a ring of bolts round each side, a filler cap and a sight glass
+    case = shapes.dense(eng["case"], True, 0.9)
+    ccx, ccz = sum(q[0] for q in case) / len(case), sum(q[1] for q in case) / len(case)
+    step = max(1, len(case) // 14)
+    for sg in (-1, 1):
+        y0 = sg * (wide / 2 - 26)
+        for k, q in enumerate(case[::step]):
+            d_ = math.hypot(q[0] - ccx, q[1] - ccz) or 1.0
+            b_ = (q[0] - (q[0] - ccx) / d_ * 40, q[1] - (q[1] - ccz) / d_ * 40)
+            cone(f"casebolt{sg}{k}", P(b_, y0), P(b_, y0 + sg * 9), 5.5, 5.5, steel, 6)
+    cone("oilcap", (crank[0] - 150, wide / 2 - 30, crank[1] + 70), (crank[0] - 150, wide / 2 - 4, crank[1] + 70), 17, 15, mat("alu"), 12)
+    cone("sightglass", (crank[0] - 120, -wide / 2 + 24, crank[1] - 70), (crank[0] - 120, -wide / 2 + 14, crank[1] - 70), 13, 13, mat("lens"), 20)
+    # axle nuts and the swingarm pivot caps: hexagons, not bare tube ends
+    for sg in (-1, 1):
+        cone(f"axlenut_f{sg}", (F[0], sg * 124, F[1]), (F[0], sg * 138, F[1]), 15, 15, steel, 6)
+        cone(f"axlenut_r{sg}", (c["A"][0], sg * 150, c["A"][1]), (c["A"][0], sg * 164, c["A"][1]), 17, 17, steel, 6)
+        cone(f"pivotcap{sg}", (piv[0], sg * 176, piv[1]), (piv[0], sg * 186, piv[1]), 15, 13, mat("alu"), 6)
+    # bodywork: a shut line along the waist of the tail and a round badge on each side of the tank
+    for part, f_y in (("tail", 1.0), ("tank", 1.0)):
+        shp = next((s_ for s_ in body.get(part, []) if s_.get("cls") == "body" and "pts" in s_), None)
+        if not shp:
+            continue
+        outline = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+        xs = [q[0] for q in outline]
+        x0, x1, spec = min(xs), max(xs), WIDTHS[part]
+
+        def side(u, dz=0.0):
+            tb = shapes.top_bottom(outline, x0 + (x1 - x0) * u)
+            w = shapes.lerp_table(spec["w"], u) * (0.3 + 0.7 * math.sqrt(1.0 - (1.0 - min(1.0, min(u, 1 - u) / 0.1)) ** 2))
+            return (x0 + (x1 - x0) * u, w, (tb[0] + tb[1]) / 2 + dz) if tb else None
+        for sg in (-1, 1):
+            if part == "tail":
+                pts = [side(k / 100) for k in range(14, 90, 6)]
+                pts = [(q[0], sg * (q[1] - 0.5), q[2]) for q in pts if q]
+                if len(pts) > 3:
+                    smooth_tube(f"shutline{sg}", pts, 1.6, dark)
+            else:
+                q = side(0.56, 14)
+                if q:
+                    cone(f"badge{sg}", (q[0], sg * (q[1] - 9), q[2]), (q[0], sg * (q[1] + 1.5), q[2]), 24, 22, mat("chrome"), 32)
+                    cone(f"badgein{sg}", (q[0], sg * (q[1] + 1.5), q[2]), (q[0], sg * (q[1] + 2.5), q[2]), 18, 17, mat("paint", c["body_c"]), 32)
+
+    # real lamp: clear glass over a bright reflector with two projector eyes, instead of a white slab
+    glass = bpy.data.materials.new("lampglass")
+    glass.use_nodes = True
+    gb = glass.node_tree.nodes["Principled BSDF"]
+    gb.inputs["Transmission Weight"].default_value, gb.inputs["Roughness"].default_value, gb.inputs["IOR"].default_value = 1.0, 0.03, 1.45
+    for i, shp in enumerate(model["front_end"]):
+        if shp.get("cls") != "lens" or "pts" not in shp or shp.get("round"):
+            continue
+        hit = [o for o in bpy.data.objects if o.name.startswith(f"lens{i}") and o.type == "MESH"]
+        if not hit:
+            continue
+        for o in hit:
+            o.data.materials[0] = glass
+        pp = shapes.dense(shp["pts"], True, shp.get("t", 0.8))
+        cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+        pillow(f"reflector{i}", [(cx_ + (q[0] - cx_) * 0.9 + 2, cz_ + (q[1] - cz_) * 0.9 - 1) for q in pp], -74, 74, mat("chrome"), 3, 10)
+        for sg in (-1, 1):
+            cone(f"eye{i}{sg}", (cx_ - 2, sg * 38, cz_), (cx_ + 13, sg * 38, cz_), 21, 19, mat("chrome"), 28)
+            cone(f"eyeglass{i}{sg}", (cx_ + 13, sg * 38, cz_), (cx_ + 15.5, sg * 38, cz_), 17, 12, mat("lens"), 28)
+    # engine castings: a ribbed ring on each side cover, cooling ribs under the sump, an oil filter and a starter motor
+    alu = mat("alu")
+    for k, cv in enumerate(eng.get("covers", [])):
+        cc_, r_ = cv["c"], cv["r"]
+        for sg in (-1, 1):
+            y0 = sg * (wide / 2 + 2)
+            cone(f"coverring{k}{sg}", P(cc_, y0), P(cc_, y0 + sg * 7), r_ * 0.62, r_ * 0.56, alu, 40)
+            cone(f"coverboss{k}{sg}", P(cc_, y0 + sg * 7), P(cc_, y0 + sg * 13), r_ * 0.26, r_ * 0.2, alu, 24)
+            for j in range(6):
+                a_ = math.radians(60 * j)
+                p0 = (cc_[0] + r_ * 0.28 * math.cos(a_), cc_[1] + r_ * 0.28 * math.sin(a_))
+                p1 = (cc_[0] + r_ * 0.56 * math.cos(a_), cc_[1] + r_ * 0.56 * math.sin(a_))
+                cone(f"coverrib{k}{sg}{j}", P(p0, y0 + sg * 8), P(p1, y0 + sg * 6), 3.2, 3.2, alu, 8)
+    zb = min(q[1] for q in case)
+    xb = [q[0] for q in case if q[1] < zb + 30]
+    if xb:
+        xa, xz = min(xb) + 30, max(xb) - 30
+        for j in range(7):
+            x_ = xa + (xz - xa) * j / 6
+            prism(f"sumprib{j}", [(x_ - 3, zb - 9), (x_ + 3, zb - 9), (x_ + 3, zb + 12), (x_ - 3, zb + 12)], -wide / 2 + 46, wide / 2 - 46, alu, 1.0)
+        xf = max(q[0] for q in case if q[1] < zb + 90)
+        cone("oilfilter", (xf - 34, -40, zb + 52), (xf + 34, -40, zb + 44), 33, 33, dark, 24)
+        cone("oilfilterend", (xf + 34, -40, zb + 44), (xf + 41, -40, zb + 43), 33, 22, dark, 24)
+    cone("starter", (cs_[0] - 40, -wide / 2 + 40, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), 30, 30, dark, 24)
+    cone("starterend", (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 84, cs_[1] + 96), 30, 20, steel, 24)
+    # seat base: a moulded pan under the foam, so the seat reads as a pad on a base and not one soft lump
+    if st:
+        outline = shapes.dense(st["pts"], True, st.get("t", 1.0))
+        xs = [q[0] for q in outline]
+        x0, x1, spec = min(xs), max(xs), WIDTHS["seat"]
+        low = []
+        for k in range(10, 91, 5):
+            tb = shapes.top_bottom(outline, x0 + (x1 - x0) * k / 100)
+            if tb:
+                low.append((x0 + (x1 - x0) * k / 100, tb[1]))
+        if len(low) > 3:
+            wmin = min(shapes.lerp_table(spec["w"], k / 100) for k in range(15, 86, 5))
+            pillow("seatpan", [(q[0], q[1] - 5) for q in low] + [(q[0], q[1] + 13) for q in reversed(low)], -wmin * 0.93, wmin * 0.93, dark, 3, 8)
 
 
 def studio(scene):
@@ -1055,6 +1464,41 @@ def studio(scene):
         L = bpy.context.object
         L.data.energy, L.data.size, L.data.shape = energy, size, "DISK"
         L.rotation_euler = _look(loc, (0.7, 0, 0.6))
+    if DETAIL["on"]:
+        # outdoors: sky light and a tarmac floor, so the bike is judged in the kind of light the game has
+        try:
+            nt = w.node_tree
+            sky = nt.nodes.new("ShaderNodeTexSky")
+            for k_, v_ in (("sun_elevation", math.radians(38)), ("sun_rotation", math.radians(235)), ("sun_intensity", 0.35)):
+                if hasattr(sky, k_):
+                    setattr(sky, k_, v_)
+            nt.links.new(sky.outputs[0], nt.nodes["Background"].inputs[0])
+            nt.nodes["Background"].inputs[1].default_value = 0.06
+        except Exception as ex:      # no sky texture in this Blender: keep the plain studio world
+            print("sky skipped:", ex)
+        for k_, v_ in (("look", "AgX - Medium High Contrast"), ("exposure", -0.55)):
+            try:
+                setattr(scene.view_settings, k_, v_)
+            except Exception as ex:
+                print("view setting skipped:", ex)
+        fm = bpy.data.materials.new("tarmac")
+        fm.use_nodes = True
+        fb = fm.node_tree.nodes["Principled BSDF"]
+        fb.inputs["Base Color"].default_value = (0.035, 0.035, 0.038, 1)
+        fb.inputs["Roughness"].default_value = 0.86
+        nz, bp = fm.node_tree.nodes.new("ShaderNodeTexNoise"), fm.node_tree.nodes.new("ShaderNodeBump")
+        nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 260.0, 8.0
+        bp.inputs["Strength"].default_value, bp.inputs["Distance"].default_value = 0.6, 0.004
+        fm.node_tree.links.new(nz.outputs["Fac"], bp.inputs["Height"])
+        fm.node_tree.links.new(bp.outputs["Normal"], fb.inputs["Normal"])
+        floor = next(o for o in scene.objects if o.type == "MESH" and o.data.materials and o.data.materials[0].name.startswith("floor"))
+        floor.data.materials[0] = fm
+        # long softboxes overhead and to the side, so paint, chrome and glass have something real to reflect
+        for loc, size, energy in (((0.7, 0.0, 3.6), (5.0, 0.7), 70), ((0.7, 3.2, 1.4), (4.2, 0.45), 36), ((3.8, -0.6, 1.2), (0.5, 2.4), 18)):
+            bpy.ops.object.light_add(type="AREA", location=loc)
+            L = bpy.context.object
+            L.data.shape, L.data.size, L.data.size_y, L.data.energy = "RECTANGLE", size[0], size[1], energy
+            L.rotation_euler = _look(loc, (0.7, 0, 0.6))
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.use_denoising = True
@@ -1154,6 +1598,9 @@ if __name__ == "__main__":
     elif ka:
         model = mix.apply_kit(model, *ka)
         name = f"{name}_kit{''.join(str(x) for x in ka[:4])}{''.join('x' + str(x) for x in ka[4])}"
+    if "--definition" in sys.argv:
+        DETAIL["on"] = True
+        name += "_def"
     build(model)
     if "--glb" in sys.argv:
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
@@ -1162,4 +1609,8 @@ if __name__ == "__main__":
         print("game files in", export_game(name, model))
         sys.exit(0)
     samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
+    if "--shots" in sys.argv:      # close-up pictures of single areas, for checking the Definition pass
+        import detail3d
+        print("shots in", detail3d.shots(sys.modules[__name__], name, sys.argv[sys.argv.index("--shots") + 1].split(","), samples))
+        sys.exit(0)
     print("renders in", render(name, samples, "--views" in sys.argv))

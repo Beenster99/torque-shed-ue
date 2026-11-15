@@ -240,6 +240,15 @@ def draw(model):
     # ---- behind: far-side exhaust can, rear hugger, plate hanger
     ex = model["exhaust"]
     def draw_can(can):
+        if can.get("nip"):      # a classic silencer: a plain round body drawn in to a small outlet, no end cap
+            a_, b_ = tuple(can["a"]), tuple(can["b"])
+            L = math.hypot(b_[0] - a_[0], b_[1] - a_[1])
+            u_ = ((b_[0] - a_[0]) / L, (b_[1] - a_[1]) / L)
+            n_ = (-u_[1], u_[0])
+            h_ = can["w"] / 2
+            pt = lambda d, o: (a_[0] + u_[0] * d + n_[0] * o, a_[1] + u_[1] * d + n_[1] * o)
+            sh.path([pt(0, h_ * 0.5), pt(L * 0.1, h_), pt(L * 0.7, h_), pt(L * 0.94, h_ * 0.52), pt(L, h_ * 0.5), pt(L, -h_ * 0.5), pt(L * 0.94, -h_ * 0.52), pt(L * 0.7, -h_), pt(L * 0.1, -h_), pt(0, -h_ * 0.5)], "chromef", True, 0.35)
+            return
         sh.tube([tuple(can["a"]), tuple(can["b"])], can["w"], "exh")
         sh.tube([add(tuple(can["b"]), (-1, 0), 0), add(tuple(can["b"]), ((can["b"][0] - can["a"][0]), (can["b"][1] - can["a"][1])), 0.06)], can["w"] - 16, "dark")
 
@@ -267,7 +276,8 @@ def draw(model):
     if rc:
         sh.path(rc["arm"], "cast", True, 0.5)
         sh.path(rc["body"], "caliper", True, 0.8)
-    sh.circ(piv, 26, "bolt")
+    if not sw.get("rigid"):
+        sh.circ(piv, 26, "bolt")
     if sw.get("shaft"):
         # shaft drive: the bevel box at the wheel, no chain or sprockets
         sh.circ(A, 78, sw.get("cls", "cast"))
@@ -276,14 +286,24 @@ def draw(model):
             sh.circ(add(A, unit(k * 60 + 30), 68), 5, "boltd")
     sh.circ(A, 38, sw.get("cls", "cast"))
     sh.circ(A, 16, "axle")
-    sk = model["shock"]
-    sa, sb = tuple(sk["top"]), tuple(sk["bottom"])
-    sh.tube([sa, sb], 30, "dark")
-    L = math.hypot(sb[0] - sa[0], sb[1] - sa[1])
-    us = ((sb[0] - sa[0]) / L, (sb[1] - sa[1]) / L)
-    ns = (-us[1], us[0])
-    coil = [add(add(sa, us, 40 + i * (L - 110) / 18), ns, 25 if i % 2 else -25) for i in range(19)]
-    sh.poly(coil, "spring", False)
+    sk = model.get("shock")      # a rigid (hardtail) frame has none
+
+    def draw_shock():
+        sa, sb = tuple(sk["top"]), tuple(sk["bottom"])
+        tw = sk.get("twin")
+        sh.tube([sa, sb], 22 if tw else 30, "dark")
+        L = math.hypot(sb[0] - sa[0], sb[1] - sa[1])
+        us = ((sb[0] - sa[0]) / L, (sb[1] - sa[1]) / L)
+        ns = (-us[1], us[0])
+        coil = [add(add(sa, us, 40 + i * (L - 110) / 18), ns, (20 if tw else 25) * (1 if i % 2 else -1)) for i in range(19)]
+        sh.poly(coil, "spring", False)
+        if tw:
+            sh.circ(sa, 15, "cast")
+            sh.circ(sa, 6, "boltd")
+            sh.circ(sb, 15, "cast")
+            sh.circ(sb, 6, "boltd")
+    if sk and not sk.get("twin"):       # a pair of shocks stands outside the frame and is drawn last, over the bodywork
+        draw_shock()
 
     # ---- exhaust headers (behind the engine)
     for hp in ex["headers"]:
@@ -342,6 +362,12 @@ def draw(model):
         sh.path(cal, "caliper", True, 0.8)
     for shp in body.get("front_guard", []):
         sh.path(pts_of(shp), shp["cls"], True, shp.get("t", 1.0))
+    if any(shp.get("shroud") for shp in body.get("front_guard", [])) and model["family"].lower() == "sport":
+        # a sport mudguard and its fork blades are one moulding: no line where the blade meets the arc
+        for shp in body["front_guard"]:
+            if "arc" in shp:
+                a_ = dict(shp["arc"], r0=shp["arc"]["r0"] + 2.5, r1=shp["arc"]["r1"] - 2.5, a0=shp["arc"]["a0"] + 1.5, a1=shp["arc"]["a1"] - 1.5)
+                sh.path(pts_of({"arc": a_}), shp["cls"], True, 1.0, "style='stroke:none'")
 
     # ---- controls: bars, risers, levers, mirror, lamp, dash
     for shp in model.get("front_end", []):
@@ -381,9 +407,17 @@ def draw(model):
     # ---- bodywork, back to front: tail, seat, tank, panels, trim lines
     for part in ("tail", "seat", "tank", "panels", "trim"):
         for shp in body.get(part, []):
+            if shp.get("ear"):      # the nose's flared sides: same side view as the nose itself
+                continue
+            if shp.get("tube"):     # rails, racks and sissy bars
+                sh.tube([tuple(q) for q in shp["pts"]], shp["tube"], shp["cls"], shp.get("t", 0.0))
+                continue
             sh.path(pts_of(shp), shp["cls"], shp.get("closed", True), shp.get("t", 1.0))
     for c in body.get("caps", []):
         sh.circ(tuple(c["at"]), c["r"], c["cls"])
+
+    if sk and sk.get("twin"):
+        draw_shock()
 
     # ---- dimensions and title block
     if model.get("dimensions", True):
