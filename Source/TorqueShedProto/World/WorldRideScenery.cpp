@@ -2336,6 +2336,23 @@ Rgb PathColour(const GroundShape& P)
 	if (P.Kind == "bridleway") return Dirt;
 	return Worn;   // (a path: trodden grass)
 }
+
+// [beenster, build 147] Whether a path's surface is loose (gravel, dirt, grass), and the colour its worn
+// middle takes so M_RideRoad draws it in a scan: a loose one on the gravel's run of colour (its stones),
+// a tarmac one in the tarmac's own; flags and setts keep their colour.
+bool PathIsLoose(const GroundShape& P)
+{
+	const std::string& S = P.Word;
+	return !(S == "asphalt" || S == "paved" || S == "concrete" || S == "paving_stones" || S == "sett" || S == "cobblestone" || S == "bricks");
+}
+
+Rgb PathScanColour(const GroundShape& P, const Rgb& Own)
+{
+	const std::string& S = P.Word;
+	if (S == "asphalt" || S == "paved") return Rgb{0.022f, 0.022f, 0.025f};
+	if (PathIsLoose(P)) return S == "gravel" || S == "fine_gravel" || S == "compacted" || S == "pebblestone" ? Rgb{0.095f, 0.088f, 0.07f} : Rgb{0.072f, 0.078f, 0.045f};
+	return Own;
+}
 }
 
 void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const
@@ -2377,20 +2394,50 @@ void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMes
 						NearHit Hit;
 						if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Half + 0.4) continue;   // (on or at the road: the road's own)
 						if (Land->Cover(Pm.X, Pm.Z) == Terrain::CoverWater || Land->SeaAt(Pm.X, Pm.Z)) continue;
-						double Y[4];
-						const P2 Q[4] = {Pa + Left * Half, Pb + Left * Half, Pb - Left * Half, Pa - Left * Half};
+						// (beenster, build 147, Jenkin Chapel: a path was a flat slab with hard straight edges on the
+						// grass. Now its worn middle in the colour M_RideRoad draws as its surface's scan, and each
+						// side a ragged lip from the verge's grit out to its grass, every 1.5 m its own width, laid
+						// down onto the ground at its outer edge, so the grass scan breaks through it as on a verge)
+						static const Rgb VergeGrit = {0.072f, 0.078f, 0.045f}, VergeLawn = {0.10f, 0.16f, 0.03f};
+						const auto Spread = [&](const P2& P, double Side, double& In, double& OutW)
+						{
+							const double Nx = std::round(P.X * 10.0), Nz = std::round(P.Z * 10.0);
+							In = Half * (0.7 + 0.35 * Chance(Nx, Nz, Side > 0.0 ? 101 : 102));
+							OutW = In + std::fmin(0.9, 0.25 + Half * 0.4 * Chance(Nx, Nz, Side > 0.0 ? 103 : 104));
+						};
+						double InA[2], OutA[2], InB[2], OutB[2];
+						Spread(Pa, 1.0, InA[0], OutA[0]); Spread(Pa, -1.0, InA[1], OutA[1]);
+						Spread(Pb, 1.0, InB[0], OutB[0]); Spread(Pb, -1.0, InB[1], OutB[1]);
+						// (left outer, left inner, right inner, right outer at each end)
+						const P2 Qa[4] = {Pa + Left * OutA[0], Pa + Left * InA[0], Pa - Left * InA[1], Pa - Left * OutA[1]};
+						const P2 Qb[4] = {Pb + Left * OutB[0], Pb + Left * InB[0], Pb - Left * InB[1], Pb - Left * OutB[1]};
+						double Ya[4], Yb[4];
 						bool Laid = true;
 						for (int C = 0; C < 4 && Laid; ++C)
 						{
-							// (on the ground's own mesh, at the higher of the corner and the line's middle, so the ground doesn't show through)
-							const double Edge = Ground(Q[C].X, Q[C].Z, Step), Centre = Ground(C == 0 || C == 3 ? Pa.X : Pb.X, C == 0 || C == 3 ? Pa.Z : Pb.Z, Step);
-							Laid = !std::isnan(Edge) && !std::isnan(Centre);
-							Y[C] = Laid ? std::fmax(Edge, Centre - 0.15) + Lift : 0.0;
+							// (the middle at the higher of its edge and the line's own ground, so the ground doesn't show
+							// through; the lips down to the ground)
+							const bool Lip = C == 0 || C == 3;
+							const double Ea = Ground(Qa[C].X, Qa[C].Z, Step), Eb = Ground(Qb[C].X, Qb[C].Z, Step), Ca = Ground(Pa.X, Pa.Z, Step), Cb = Ground(Pb.X, Pb.Z, Step);
+							Laid = !std::isnan(Ea) && !std::isnan(Eb) && !std::isnan(Ca) && !std::isnan(Cb);
+							Ya[C] = Lip ? Ea + 0.012 : std::fmax(Ea, Ca - 0.15) + Lift * 0.6;
+							Yb[C] = Lip ? Eb + 0.012 : std::fmax(Eb, Cb - 0.15) + Lift * 0.6;
 						}
 						if (!Laid) continue;
-						const double Wear = 0.88 + 0.24 * Chance(std::floor(Pm.X / 4.0), std::floor(Pm.Z / 4.0), 71);
-						Quad(Out, At3(Q[0].X, Y[0], Q[0].Z), At3(Q[1].X, Y[1], Q[1].Z), At3(Q[2].X, Y[2], Q[2].Z), At3(Q[3].X, Y[3], Q[3].Z),
-							At3(Pm.X, Y[0] + 100.0, Pm.Z), Shade(Base, Wear));
+						const Rgb Middle = PathScanColour(Way, Base);
+						const bool Grit = PathIsLoose(Way);
+						const Rgb Inner = Grit ? VergeGrit : Middle;
+						const auto Band = [&](int L, const Rgb& Cl, const Rgb& Cr)
+						{
+							const size_t Was = Out.Vertices();
+							Quad(Out, At3(Qa[L].X, Ya[L], Qa[L].Z), At3(Qb[L].X, Yb[L], Qb[L].Z), At3(Qb[L + 1].X, Yb[L + 1], Qb[L + 1].Z), At3(Qa[L + 1].X, Ya[L + 1], Qa[L + 1].Z),
+								At3(Pm.X, Ya[1] + 100.0, Pm.Z), Cl);
+							if (Out.Vertices() == Was + 4)
+								for (size_t V : {Was + 2, Was + 3}) { Out.Col[V * 3] = Cr.R; Out.Col[V * 3 + 1] = Cr.G; Out.Col[V * 3 + 2] = Cr.B; }
+						};
+						Band(0, VergeLawn, Inner);
+						Band(1, Middle, Middle);
+						Band(2, Inner, VergeLawn);
 					}
 				}
 			}
