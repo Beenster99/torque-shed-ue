@@ -1000,11 +1000,23 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				[&S](int32 D) { S.AntiAliasing = Wrap(S.AntiAliasing + D, 4); });
 		}
 		SettingF(TEXT("Sharpening"), Times(S.Sharpness), TEXT("Sharpens the picture after upscaling"), S.Sharpness, 0.0f, 1.0f, 0.05f);
+		// [perf, build 150] NVIDIA's frame generation and Reflex, when the plugin is in the build.
+		if (FTorqueSettings::HasFrameGen())
+			Toggle(TEXT("Frame generation"), S.bFrameGen, TEXT("NVIDIA DLSS frame generation on an RTX 40 or 50 card: about twice the frames on screen, with Reflex keeping the controls quick"));
+		else
+		{
+			Add(TEXT("Frame generation"), TEXT("Needs NVIDIA's DLSS plugin"), FString(), nullptr);
+			R.Last().bDisabled = true;
+		}
+		if (FTorqueSettings::HasReflex()) Toggle(TEXT("NVIDIA Reflex"), S.bReflex, TEXT("Cuts the delay between the controls and the screen (always on with frame generation)"));
 
 		Heading(TEXT("QUALITY"));
-		Setting(TEXT("Quality preset"), bCustom ? FString(TEXT("Custom")) : FString(Qualities[S.Quality]),
-			TEXT("Sets every quality option below at once. Changing one of them afterwards makes it Custom"), [&S](int32 D) {
-				S.Quality = FMath::Clamp(S.Quality + D, 0, 4);
+		// (Performance, after Cinematic: High's groups without Lumen, for 100+ fps; build 150)
+		Setting(TEXT("Quality preset"), bCustom ? FString(TEXT("Custom")) : S.bPerformance ? FString(TEXT("Performance")) : FString(Qualities[S.Quality]),
+			TEXT("Sets every quality option below at once. Performance is High without Lumen's lighting, for the most frames. Changing one of them afterwards makes it Custom"), [&S](int32 D) {
+				const int32 At = FMath::Clamp((S.bPerformance ? 5 : S.Quality) + D, 0, 5);
+				S.bPerformance = At == 5;
+				S.Quality = At == 5 ? 2 : At;
 				S.Shadows = S.Textures = S.GlobalIllumination = S.Reflections = S.Effects = S.Foliage = S.Fog = S.Clouds = -1;
 				S.PostProcess = S.Shading = S.Anisotropy = -1;
 				S.DrawDistance = 1.0f;

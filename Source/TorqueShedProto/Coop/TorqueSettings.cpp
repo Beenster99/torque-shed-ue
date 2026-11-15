@@ -71,6 +71,9 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("FrameCap"), FrameCap, Ini);
 	GConfig->GetBool(Section, TEXT("VSync"), bVSync, Ini);
 	GConfig->GetBool(Section, TEXT("MotionBlur"), bMotionBlur, Ini);
+	GConfig->GetBool(Section, TEXT("Performance"), bPerformance, Ini);
+	GConfig->GetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
+	GConfig->GetBool(Section, TEXT("Reflex"), bReflex, Ini);
 	GConfig->GetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
@@ -218,6 +221,9 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("FrameCap"), FrameCap, Ini);
 	GConfig->SetBool(Section, TEXT("VSync"), bVSync, Ini);
 	GConfig->SetBool(Section, TEXT("MotionBlur"), bMotionBlur, Ini);
+	GConfig->SetBool(Section, TEXT("Performance"), bPerformance, Ini);
+	GConfig->SetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
+	GConfig->SetBool(Section, TEXT("Reflex"), bReflex, Ini);
 	GConfig->SetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->SetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->SetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
@@ -295,6 +301,16 @@ bool FTorqueSettings::HdrAvailable()
 	return G && G->SupportsHDRDisplayOutput();
 }
 
+bool FTorqueSettings::HasFrameGen()
+{
+	return IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streamline.DLSSG.Enable")) != nullptr;
+}
+
+bool FTorqueSettings::HasReflex()
+{
+	return IConsoleManager::Get().FindConsoleVariable(TEXT("t.Streamline.Reflex.Enable")) != nullptr;
+}
+
 bool FTorqueSettings::HasDlss()
 {
 	// NVIDIA's DLSS plugin (free, from Fab) registers these when it's in the build and the GPU can.
@@ -334,6 +350,16 @@ void FTorqueSettings::Apply(UWorld* World) const
 		// Every scalability setting put back as its group's level says (Unreal only sets the ones whose
 		// level changed), so the rows below start from the preset each time.
 		Scalability::SetQualityLevels(Scalability::GetQualityLevels(), true);
+		// [perf, build 150] The Performance preset: below High where it costs most (GI and reflections at
+		// Medium turn Lumen off; foliage at Medium) unless a row says otherwise.
+		if (bPerformance)
+		{
+			Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+			if (GlobalIllumination < 0) Q.GlobalIlluminationQuality = 1;
+			if (Reflections < 0) Q.ReflectionQuality = 1;
+			if (Foliage < 0) Q.FoliageQuality = 1;
+			Scalability::SetQualityLevels(Q, true);
+		}
 		// Whether Lumen really is on (beenster, build 148: "is this actually Lumen?"): Unreal turns Lumen's
 		// light and reflections off below High global illumination / reflection quality.
 		{
@@ -350,6 +376,22 @@ void FTorqueSettings::Apply(UWorld* World) const
 		if (G->SupportsHDRDisplayOutput() && G->IsHDREnabled() != bHdr) G->EnableHDRDisplayOutput(bHdr);
 	}
 	const bool bDlss = Upscaler == 1 && HasDlss();
+	// [perf, build 150] Lighting. Until 150 the project fixed Lumen's hardware ray tracing at hit lighting
+	// (the dearest kind) for every preset. Now: hit lighting only at Cinematic reflections, Lumen's surface
+	// cache below that; and with the Performance preset no Lumen at all: the sky light's distance-field
+	// shadows and AO, and screen-space reflections. (Set as code sets them: the project's renderer
+	// settings outrank a game setting.)
+	{
+		const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+		SetCVar(TEXT("r.Lumen.HardwareRayTracing.LightingMode"), Q.ReflectionQuality >= 4 ? 2 : 0, ECVF_SetByCode);
+		SetCVar(TEXT("r.DynamicGlobalIlluminationMethod"), bPerformance && GlobalIllumination < 0 ? 0 : 1, ECVF_SetByCode);
+		SetCVar(TEXT("r.ReflectionMethod"), bPerformance && Reflections < 0 ? 2 : 1, ECVF_SetByCode);
+		SetCVar(TEXT("r.DistanceFieldAO"), 1, ECVF_SetByCode);
+	}
+	// [perf, build 150] Frame generation and Reflex (NVIDIA's plugin: Streamline). Frame generation needs
+	// DLSS (or at least a temporal upscaler) under it and Reflex on.
+	if (HasFrameGen()) SetCVar(TEXT("r.Streamline.DLSSG.Enable"), bFrameGen ? 1 : 0, ECVF_SetByCode);
+	if (HasReflex()) SetCVar(TEXT("t.Streamline.Reflex.Enable"), (bReflex || bFrameGen) ? 1 : 0, ECVF_SetByCode);
 	// TSR (DLSS takes over from it when on, and needs a temporal one under it), TAA, FXAA or none.
 	static const int32 AaMethods[4] = {4, 2, 1, 0};
 	// (set as code sets it: the project's own r.AntiAliasingMethod, DefaultEngine.ini's renderer settings,

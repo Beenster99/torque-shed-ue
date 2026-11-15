@@ -20,6 +20,16 @@ struct FTorqueSettings
 	int32 FrameCap = 0;         // frames per second, 0 for no cap
 	bool bVSync = false;
 	bool bMotionBlur = true;
+	// [perf, build 150] The Performance preset (beenster, Nov 15: 100+ fps): High's groups, no Lumen (a sky
+	// light with distance-field shadows and AO, screen-space reflections), shorter grass. Quality is 2 with it.
+	bool bPerformance = false;
+	// [perf, build 150] NVIDIA's frame generation (DLSS 3 on RTX 40 cards: a made-up frame between each
+	// real pair) and Reflex (holds back the queue of frames, so the controls answer sooner). Only with
+	// NVIDIA's DLSS plugin in the build; both off without it.
+	bool bFrameGen = false;
+	bool bReflex = true;
+	static bool HasFrameGen();
+	static bool HasReflex();
 	// Torque Shed's Graphics tab, the rest of it (graphics_tab.gd), as Unreal does each.
 	int32 Monitor = -1;         // the screen the game is on, -1 wherever it opens
 	float Brightness = 1.0f;    // 0.5 .. 1.5 (the display gamma, 2.2 at 1)
