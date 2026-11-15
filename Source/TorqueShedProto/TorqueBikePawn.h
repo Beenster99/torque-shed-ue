@@ -559,7 +559,7 @@ private:
 	// the end of the ride, or FAIL when it hasn't got there in -TorqueSmokeMinutes= (25).
 	void SmokeWatch(float Dt);
 	void SmokeReport(bool bReachedEnd);
-	int32 SmokeFalls = 0, SmokeHits = 0, SmokeHitsWas = -1, SmokeFrames = 0, SmokeSlow = 0;
+	int32 SmokeFalls = 0, SmokeKnockFalls = 0, SmokeHits = 0, SmokeHitsWas = -1, SmokeFrames = 0, SmokeSlow = 0;
 	double SmokeClock = 0.0, SmokeFrameSum = 0.0, SmokeWorst = 0.0;
 	bool bSmokeDown = false, bSmokeDone = false;
 	double TestFirstHit = 0.0, TestPreHit = 0.0;   // the first knock's speed into it, and the speed the step before

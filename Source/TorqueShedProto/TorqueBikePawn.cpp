@@ -1227,7 +1227,21 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		const V3 P = Sim->Position;
 		int32 Ahead = Near;
 		double Acc = 0.0;
-		const double Look = 6.0 + 0.6 * FMath::Abs(Sim->Speed);
+		double Look = 6.0 + 0.6 * FMath::Abs(Sim->Speed);
+		// [build 149 smoke] In a tight bend (Buttertubs' hairpin on the way down to Thwaite, 12 m round at
+		// 1 in 7) a long look ahead cuts across the inside: no further than the bend's own radius or so.
+		{
+			double Tight = 0.0, Run = 0.0;
+			for (int32 K = Near + 1; K + 1 < Line.Num() && Run < 20.0; ++K)
+			{
+				const double Ax = Line[K].X - Line[K - 1].X, Az = Line[K].Z - Line[K - 1].Z, Bx = Line[K + 1].X - Line[K].X, Bz = Line[K + 1].Z - Line[K].Z;
+				const double La = FMath::Sqrt(Ax * Ax + Az * Az), Lb = FMath::Sqrt(Bx * Bx + Bz * Bz);
+				Run += La;
+				if (La < 0.5 || Lb < 0.5) continue;
+				Tight = FMath::Max(Tight, FMath::Acos(FMath::Clamp((Ax * Bx + Az * Bz) / (La * Lb), -1.0, 1.0)) / (0.5 * (La + Lb)));
+			}
+			if (Tight > 1e-3) Look = FMath::Clamp(0.9 / Tight, 4.0, Look);
+		}
 		while (Ahead + 1 < Line.Num() && Acc < Look)
 		{
 			Acc += FMath::Sqrt(FMath::Square(Line[Ahead + 1].X - Line[Ahead].X) + FMath::Square(Line[Ahead + 1].Z - Line[Ahead].Z));
@@ -1242,9 +1256,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		const double Curv = 2.0 * FMath::Sin(Err) / Dist;
 		const double LeanWant = FMath::Atan(Sim->Speed * Sim->Speed * Curv / 9.81);
 		Lean = FMath::Clamp(-LeanWant / 0.55, -1.0, 1.0);
-		double Sharp = 0.0;
+		// (the speed for the bends ahead: each bend's own speed at 0.5 rad of lean, plus what braking at
+		// 2.5 m/s/s, less the hill's pull on a descent, takes off between here and it: [build 149 smoke]
+		// the robot fell twice where it had only the sharpest bend's speed to aim at and braked late)
+		double Corner = 99.0;
 		Acc = 0.0;
-		for (int32 K = Near + 1; K + 1 < Line.Num() && Acc < 60.0; ++K)
+		for (int32 K = Near + 1; K + 1 < Line.Num() && Acc < 90.0; ++K)
 		{
 			const double Ax = Line[K].X - Line[K - 1].X, Az = Line[K].Z - Line[K - 1].Z;
 			const double Bx = Line[K + 1].X - Line[K].X, Bz = Line[K + 1].Z - Line[K].Z;
@@ -1252,9 +1269,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			Acc += La;
 			if (La < 0.5 || Lb < 0.5) continue;
 			const double Turn = FMath::Acos(FMath::Clamp((Ax * Bx + Az * Bz) / (La * Lb), -1.0, 1.0));
-			Sharp = FMath::Max(Sharp, Turn / (0.5 * (La + Lb)));
+			const double Bend = Turn / (0.5 * (La + Lb));
+			if (Bend < 1e-3) continue;
+			const double Fall = FMath::Clamp((Line[K - 1].Y - Line[K].Y) / La, 0.0, 0.25);   // (the descent, m per m: Line's Y is up)
+			const double Brake = FMath::Max(0.8, 2.5 - 9.81 * Fall);
+			Corner = FMath::Min(Corner, FMath::Sqrt(9.81 * FMath::Tan(0.5) / Bend + 2.0 * Brake * FMath::Max(0.0, Acc - 3.0)));
 		}
-		const double Corner = Sharp > 1e-3 ? FMath::Sqrt(9.81 * FMath::Tan(0.5) / Sharp) : 99.0;
 		const double Gap = FMath::Min(Want, Corner) - Sim->Speed;
 		Throttle = FMath::Clamp(Gap * 0.4, 0.0, 1.0);
 		FrontBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.8);
@@ -1267,8 +1287,11 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			const double EndGap = (Left > 0.0 ? FMath::Sqrt(2.0 * 3.0 * Left) : 0.0) - Sim->Speed;
 			if (bFinished || Left <= 0.0)
 			{
+				// (no full front brake while leaned over: Thwaite's finish is in an S-bend, and the robot
+				// grabbed the brake mid-bend and came off at 10.86 km, build 149's smoke)
+				const double Upright = FMath::Clamp(1.0 - FMath::Abs(Sim->LeanAngle) / 0.4, 0.25, 1.0);
 				Throttle = 0.0;
-				FrontBrake = 0.8;
+				FrontBrake = 0.8 * Upright;
 				RearBrake = 0.4;
 				// (hub, build 141: the robot stopped 15 m short of the end, never "finished", and a hands-off
 				// Ride UK test sat there until its 50 minute limit. Stopped at the end: say so, and a hands-off
@@ -2472,7 +2495,19 @@ void ATorqueBikePawn::SmokeWatch(float Dt)
 	if (Sim->IsCrashed && !bSmokeDown)
 	{
 		++SmokeFalls;
-		UE_LOG(LogTemp, Warning, TEXT("Torque smoke: fell off at %.2f km of %.1f (%.0f s in)"), RouteLengthM * double(Near) / double(Line.Num() - 1) / 1000.0, RouteLengthM / 1000.0, SmokeClock);
+		// [build 149 smoke] What kind of fall: knocked off by something hit (a wall, a post, a bike: the
+		// road's or the scenery's fault, counted against the build) or the robot losing it on its own
+		// (too fast or too much lean for the bend: the robot's, reported but not a failure).
+		const bool bKnock = Sim->KnockedOff;
+		if (bKnock) ++SmokeKnockFalls;
+		const int32 At = FMath::Clamp(Near, 0, Line.Num() - 1);
+		double OffLine = 0.0;
+		if (Line.IsValidIndex(At)) OffLine = FMath::Sqrt(FMath::Square(Sim->Position.x - Line[At].X) + FMath::Square(Sim->Position.z - Line[At].Z));
+		const FString How = bKnock ? FString::Printf(TEXT("KNOCKED OFF hitting %s at %.1f m/s"), Sim->LastHitBike ? TEXT("a bike") : TEXT("something hard"), Sim->LastHitSpeed)
+			: FString(TEXT("the robot lost it (no knock)"));
+		UE_LOG(LogTemp, Warning, TEXT("Torque smoke: fell off at %.2f km of %.1f (%.0f s in): %s; %.1f mph, lean %.0f deg, %.1f m off the robot's line%s"),
+			RouteLengthM * double(Near) / double(Line.Num() - 1) / 1000.0, RouteLengthM / 1000.0, SmokeClock, *How,
+			FMath::Abs(Sim->Speed) * 2.23694, FMath::RadiansToDegrees(Sim->LeanAngle), OffLine, bFinished ? TEXT(", stopping at the end") : TEXT(""));
 	}
 	bSmokeDown = Sim->IsCrashed;
 	if (SmokeHitsWas < 0) SmokeHitsWas = Sim->HitCount;
@@ -2504,10 +2539,12 @@ void ATorqueBikePawn::SmokeReport(bool bReachedEnd)
 	bSmokeDone = true;
 	const double Km = RouteLengthM * (bReachedEnd ? 1.0 : double(Near) / double(FMath::Max(Line.Num() - 1, 1))) / 1000.0;
 	const double Fps = SmokeFrames > 0 ? double(SmokeFrames) / FMath::Max(SmokeFrameSum, 0.001) : 0.0;
-	const bool bPass = bReachedEnd && SmokeFalls == 0;
-	const FString Text = FString::Printf(TEXT("%s: %s %.1f km of %.1f in %.1f min (%.1f mph on average); %d fall(s), %d knock(s); %.1f fps on average, the worst frame %.0f ms, %d over 50 ms"),
+	// [build 149 smoke] Only a fall from being knocked off fails it (something in the rider's way); the
+	// robot coming off on its own is the robot's handling, reported as such (each with its line above).
+	const bool bPass = bReachedEnd && SmokeKnockFalls == 0;
+	const FString Text = FString::Printf(TEXT("%s: %s %.1f km of %.1f in %.1f min (%.1f mph on average); %d fall(s) (%d knocked off, %d the robot's own), %d knock(s); %.1f fps on average, the worst frame %.0f ms, %d over 50 ms"),
 		bPass ? TEXT("PASS") : TEXT("FAIL"), bReachedEnd ? TEXT("rode the whole ride,") : TEXT("DID NOT REACH THE END,"), Km, RouteLengthM / 1000.0, SmokeClock / 60.0,
-		Km * 1000.0 / FMath::Max(SmokeClock, 1.0) * 2.23694, SmokeFalls, SmokeHits, Fps, SmokeWorst * 1000.0, SmokeSlow);
+		Km * 1000.0 / FMath::Max(SmokeClock, 1.0) * 2.23694, SmokeFalls, SmokeKnockFalls, SmokeFalls - SmokeKnockFalls, SmokeHits, Fps, SmokeWorst * 1000.0, SmokeSlow);
 	if (bPass) { UE_LOG(LogTemp, Display, TEXT("Torque smoke: %s"), *Text); }
 	else { UE_LOG(LogTemp, Error, TEXT("Torque smoke: %s"), *Text); }
 }

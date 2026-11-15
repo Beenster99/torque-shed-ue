@@ -1292,6 +1292,37 @@ int main(int Argc, char** Argv)
 		if (!G.Buildings.empty()) { const Building& B = G.Buildings[0]; std::printf("  a building: %.0f %.0f, %.1f x %.1f, yaw %.2f, height %.1f, %d more\n", B.X, B.Z, B.W, B.D, B.Yaw, B.Height, int(B.More.size())); }
 	}
 	// [OSM stage 5E] WORLD_RIDE_SECTION=x,z: the ground across the road nearest there, against the land as it lies.
+	// [build 149 smoke] WORLD_RIDE_ALONG=from,to (km): the ride's road points between, with their height,
+	// grade, turn, tilt, width, bridges and the furniture near (the robot fell twice on the same spots).
+	if (const char* AlongEnv = std::getenv("WORLD_RIDE_ALONG"))
+	{
+		double FromKm = 0.0, ToKm = 0.0;
+		if (std::sscanf(AlongEnv, "%lf,%lf", &FromKm, &ToKm) == 2)
+		{
+			const std::vector<RoadPoint>& Rd = Plan->Road;
+			std::printf("ride length %.2f km\n", Rd.empty() ? 0.0 : Rd.back().Along / 1000.0);
+			for (size_t I = 1; I + 1 < Rd.size(); ++I)
+			{
+				if (Rd[I].Along < FromKm * 1000.0 || Rd[I].Along > ToKm * 1000.0) continue;
+				const double D = Rd[I + 1].Along - Rd[I - 1].Along;
+				const double Grade = (Rd[I + 1].Height - Rd[I - 1].Height) / std::fmax(D, 1e-6);
+				const P2 A = Rd[I].At - Rd[I - 1].At, B = Rd[I + 1].At - Rd[I].At;
+				const double Turn = std::atan2(A.X * B.Z - A.Z * B.X, A.X * B.X + A.Z * B.Z);
+				const double Hump = Rd[I].Height - 0.5 * (Rd[I - 1].Height + Rd[I + 1].Height);
+				const auto G = Plan->Area.Roads.FrameOf().ToGeo(Rd[I].At.X, Rd[I].At.Z);
+				std::printf("  %.3f km  h %.2f  grade %+.3f  crest %+.3f  turn %+.3f  bank %+.3f  half %.2f%s%s  (%.5f, %.5f)\n", Rd[I].Along / 1000.0, Rd[I].Height, Grade, Hump, Turn, Rd[I].Bank, Rd[I].Half,
+					Rd[I].Bridge ? " BRIDGE" : "", Rd[I].Tunnel ? " TUNNEL" : "", G.Lat, G.Lon);
+			}
+			for (const RidePlan::Furnish& F : Plan->Furniture)
+			{
+				RidePlan::NearHit H;
+				RidePlan::NearOpts O;
+				O.MainOnly = true;
+				if (!Plan->NearestOf(F.At.X, F.At.Z, O, H) || H.Along < FromKm * 1000.0 || H.Along > ToKm * 1000.0 || H.Dist > H.Half + 1.0) continue;
+				std::printf("  furniture kind %d at %.3f km, %.2f m off the middle (half %.2f)\n", F.Kind, H.Along / 1000.0, H.Dist, H.Half);
+			}
+		}
+	}
 	if (const char* Sect = std::getenv("WORLD_RIDE_SECTION"))
 	{
 		double Sx = 0.0, Sz = 0.0;
