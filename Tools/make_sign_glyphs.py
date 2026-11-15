@@ -27,7 +27,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT = os.path.join(ROOT, "Data", "RideUK", "sign_glyphs.json")
 FORMAT = 1
 # Curves are cut into straight pieces at most this far (in em) from the curve: at a letter 0.25 m high, about 3 mm.
-TOLERANCE = 0.012
+TOLERANCE = 0.08   # (a sign plate is read from a few metres: 0.012 gave 38 triangles a letter, this 25; beenster build 147 frame rate)
 
 LETTERS = (
     [chr(c) for c in range(0x21, 0x7F)]

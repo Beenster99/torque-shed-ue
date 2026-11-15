@@ -618,9 +618,11 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						{
 							NearOpts Opts;
 							NearHit Hit;
-							if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist < Hit.Half + 60.0)
+							// (beenster, build 147: 20 fps at Whaley Bridge. The top stones were most of a wall's triangles:
+							// within 30 m of the road now, each a little longer)
+							if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist < Hit.Half + 30.0)
 							{
-								const int Stones = std::max(1, int(Pa.DistanceTo(Pb) / 0.32));
+								const int Stones = std::max(1, int(Pa.DistanceTo(Pb) / 0.42));
 								const double Cw = Top * 1.15;
 								for (int Sn = 0; Sn < Stones; ++Sn)
 								{
@@ -2232,7 +2234,9 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 	{
 		Out.Pos.push_back(float(X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z - Out.OriginZ));
 		Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
-		Out.Uv.push_back(float(X / 8.0)); Out.Uv.push_back(float(Z / 8.0));
+		// (metres over 8 from a corner near the square, a whole 10 of M_RideWater's two ripples' repeats
+		// (0.9 and 2.3 to the unit) from the next square's: half precision UVs 40 km out were whole units)
+		Out.Uv.push_back(float((X - std::floor(Out.OriginX / 80.0) * 80.0) / 8.0)); Out.Uv.push_back(float((Z - std::floor(Out.OriginZ / 80.0) * 80.0) / 8.0));
 		Out.Col.push_back(C.R); Out.Col.push_back(C.G); Out.Col.push_back(C.B);
 	};
 	if (AnyWet)

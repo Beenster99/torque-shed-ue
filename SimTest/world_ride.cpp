@@ -853,6 +853,118 @@ int main(int Argc, char** Argv)
 			for (const auto& [Key, A] : Squares)
 				std::printf("  tall %s at %d, %d: %.1f m up, colour %.2f %.2f %.2f, %d triangles\n", Tag.c_str(), Key.first * 8, Key.second * 8, A[0], A[1], A[2], A[3], int(A[4]));
 	}
+	if (std::getenv("WORLD_RIDE_DRAW") != nullptr)
+	{
+		// (what the game draws standing at the ride's start, as ATorqueRideWorld::Wanted and UpdateRoad
+		// choose it: every square of ground at its level and every piece of road within reach, its
+		// triangles and sections by layer, and how long each level's squares take to make)
+		const P2 Start = Plan->Road[0].At;
+		const int Levels = 4;
+		const double Finest = 256.0, Reach = 16000.0, RoadReach = 2500.0;
+		const int CellsOf[Levels] = {64, 128, 64, 64};
+		const double SplitWithin[Levels] = {0.0, 400.0, 1500.0, 6000.0};
+		const auto SizeOf = [&](int Lv) { double Sz = Finest; for (int Q = 0; Q < Lv; ++Q) Sz *= 4.0; return Sz; };
+		const auto Away = [&](int Lv, long long Kx, long long Kz)
+		{
+			const double Sz = SizeOf(Lv), Ax = double(Kx) * Sz, Az = double(Kz) * Sz;
+			const double Dx = std::max({Ax - Start.X, 0.0, Start.X - (Ax + Sz)}), Dz = std::max({Az - Start.Z, 0.0, Start.Z - (Az + Sz)});
+			return std::hypot(Dx, Dz);
+		};
+		std::vector<std::array<long long, 3>> Keys, Open;
+		const double TopSize = SizeOf(Levels - 1);
+		for (long long Kz = (long long)std::floor((Start.Z - Reach) / TopSize); Kz <= (long long)std::floor((Start.Z + Reach) / TopSize); ++Kz)
+			for (long long Kx = (long long)std::floor((Start.X - Reach) / TopSize); Kx <= (long long)std::floor((Start.X + Reach) / TopSize); ++Kx)
+				if (Away(Levels - 1, Kx, Kz) <= Reach) Open.push_back({Levels - 1, Kx, Kz});
+		while (!Open.empty())
+		{
+			const std::array<long long, 3> Key = Open.back();
+			Open.pop_back();
+			if (Key[0] > 0 && Away(int(Key[0]), Key[1], Key[2]) < SplitWithin[Key[0]])
+			{
+				for (int Dz = 0; Dz < 4; ++Dz)
+					for (int Dx = 0; Dx < 4; ++Dx) Open.push_back({Key[0] - 1, Key[1] * 4 + Dx, Key[2] * 4 + Dz});
+			}
+			else Keys.push_back(Key);
+		}
+		Rect Round;
+		Round.X0 = Start.X - RoadReach - 600.0; Round.Z0 = Start.Z - RoadReach - 600.0; Round.X1 = Start.X + RoadReach + 600.0; Round.Z1 = Start.Z + RoadReach + 600.0;
+		Plan->LayBlocks(Round);
+		struct Tally { double Tris = 0.0, Verts = 0.0, Sections = 0.0; };
+		std::map<std::string, Tally> ByLayer[Levels + 1];
+		double Plants[Levels] = {0, 0, 0, 0}, Seconds[Levels] = {0, 0, 0, 0};
+		int Squares[Levels] = {0, 0, 0, 0};
+		std::map<int, int> PlantKinds;
+		double LightsAt = 0.0, Animals = 0.0, PropsAt = 0.0;
+		const std::function<void(const RideMesh*, const std::string&, int)> Count = [&](const RideMesh* M, const std::string& Tag, int Lv)
+		{
+			if (M == nullptr) return;
+			if (!M->Idx.empty())
+			{
+				Tally& Tl = ByLayer[Lv][Tag];
+				Tl.Tris += double(M->Idx.size() / 3);
+				Tl.Verts += double(M->Vertices());
+				Tl.Sections += 1.0;
+			}
+			Count(M->Extra.get(), Tag == "ground" ? "scenery" : Tag + ".extra", Lv);
+			Count(M->Stone.get(), "walls (stone)", Lv);
+			Count(M->Masonry.get(), "stone houses", Lv);
+			Count(M->Render.get(), "rendered houses", Lv);
+			Count(M->Roofing.get(), "roofs", Lv);
+			Count(M->Brickwork.get(), "brick", Lv);
+			Count(M->Water.get(), "water", Lv);
+			Count(M->Night.get(), "night", Lv);
+			Count(M->Signals.get(), "signals", Lv);
+			Count(M->Signs.get(), "signs", Lv);
+			Count(M->Glow.get(), "glow", Lv);
+		};
+		for (const std::array<long long, 3>& Key : Keys)
+		{
+			const int Lv = int(Key[0]);
+			const double Sz = SizeOf(Lv);
+			RideMesh Mesh;
+			const auto Made = std::chrono::steady_clock::now();
+			Plan->LandTile(double(Key[1]) * Sz, double(Key[2]) * Sz, Sz, CellsOf[Lv], Mesh);
+			Seconds[Lv] += std::chrono::duration<double>(std::chrono::steady_clock::now() - Made).count();
+			++Squares[Lv];
+			Plants[Lv] += double(Mesh.Plants.size());
+			for (const RidePlant& Pl : Mesh.Plants) ++PlantKinds[Pl.Kind];
+			LightsAt += double(Mesh.Lights.size() / 3) + (Mesh.Extra ? double(Mesh.Extra->Lights.size() / 3) : 0.0);
+			Animals += double(Mesh.Animals.size());
+			PropsAt += double(Mesh.Props.size());
+			Count(&Mesh, "ground", Lv);
+		}
+		int Pieces = 0;
+		for (const int Which : Plan->RoadsNear(Round, false))
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(Which);
+			const int Points = int(Pts.size());
+			if (Points < 2) continue;
+			for (int First = 0; First < Points - 1; First += 64)
+			{
+				const int Last = std::min(First + 64, Points - 1);
+				const RoadPoint& Mid = Pts[size_t((First + Last) / 2)];
+				if (Mid.At.DistanceTo(Start) >= RoadReach) continue;
+				RideMesh Mesh;
+				Plan->RoadPiece(Which, First, Last, Mesh);
+				++Pieces;
+				Count(&Mesh, "road", Levels);
+			}
+		}
+		double AllTris = 0.0, AllSections = 0.0;
+		for (int Lv = 0; Lv <= Levels; ++Lv)
+		{
+			if (Lv < Levels) std::printf("Draw level %d: %d squares of %.0f m, %.0f plants, made in %.2f s\n", Lv, Squares[Lv], SizeOf(Lv), Plants[Lv], Seconds[Lv]);
+			else std::printf("Draw roads: %d pieces within %.0f m\n", Pieces, RoadReach);
+			for (const auto& [Tag, Tl] : ByLayer[Lv])
+			{
+				std::printf("  %-18s %9.0f triangles %9.0f vertices %5.0f sections\n", Tag.c_str(), Tl.Tris, Tl.Verts, Tl.Sections);
+				AllTris += Tl.Tris;
+				AllSections += Tl.Sections;
+			}
+		}
+		std::printf("Draw total: %.0f triangles in %.0f sections; %.0f real lights, %.0f animals, %.0f props\n", AllTris, AllSections, LightsAt, Animals, PropsAt);
+		for (const auto& [Kind, Many] : PlantKinds) std::printf("  plants of kind %d: %d\n", Kind, Many);
+	}
 	if (const char* WaterAt = std::getenv("WORLD_RIDE_WATER"))
 	{
 		// (the water runs and lakes within r m of the ride's start: each run's points there with its level,
