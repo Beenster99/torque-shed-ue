@@ -377,6 +377,7 @@ private:
 	// [dash] The trip check: every 10 s of riding, a log line with the dash's trip next to speed x
 	// time, the route's progress and how far the clock says (TripLog).
 	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;
+	double BrakeLogHeld[2] = {0.0, 0.0};   // seconds each brake was on since the last trip line
 	void TripLog(const TCHAR* Why);
 	bool bShowHelp = true;
 	bool bPointing = false;   // [info] the pointer out to pick a place in the info panel (M)

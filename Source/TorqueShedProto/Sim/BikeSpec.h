@@ -92,6 +92,9 @@ struct BikeSpec
 	// rider changes mode): the share of full power it gives, how soft the first of the twistgrip is
 	// (0 as the cable pulls it), and how hard the engine brakes with the throttle shut (1 as built).
 	double PowerMode = 1.0, ThrottleSoft = 0.0, EngineBrake = 1.0;
+	// Linked brakes, as the ride mode sets them: 0 off (each lever its own wheel, the bike as built),
+	// 1 the front lever works the back brake too, 2 each lever works both (BikeSim's LINK_ shares).
+	int LinkedBrakes = 0;
 	// What the dash lets the rider set from the saddle, and the levels the dyno desk left them at.
 	struct AidCaps
 	{

@@ -51,6 +51,7 @@ const char* RowName(ModeRow R)
 	case ModeRow::Wheelie: return "Wheelie control";
 	case ModeRow::Stability: return "Stability control";
 	case ModeRow::EngineBrake: return "Engine braking";
+	case ModeRow::Linked: return "Linked brakes";
 	default: return "Suspension";
 	}
 }
@@ -66,6 +67,7 @@ const char* RowHelp(ModeRow R)
 	case ModeRow::Wheelie: return "Holds the front wheel down. 5 keeps it on the road, 1 lets it lift.";
 	case ModeRow::Stability: return "Calms a weave or a slide. 5 is firmest.";
 	case ModeRow::EngineBrake: return "How hard the engine slows the bike when you shut the throttle.";
+	case ModeRow::Linked: return "Front lever also works the back brake, or each lever works both. Off: each lever its own wheel.";
 	default: return "How the forks and shock are damped: soft for comfort, firm for sport.";
 	}
 }
@@ -119,7 +121,8 @@ bool RowOn(ModeRow R, const BikeSpec::AidCaps& Caps)
 	{
 	case ModeRow::Power:
 	case ModeRow::Response:
-	case ModeRow::EngineBrake: return Caps.Modes;
+	case ModeRow::EngineBrake:
+	case ModeRow::Linked: return Caps.Modes;
 	case ModeRow::Traction: return Caps.Traction;
 	case ModeRow::Abs: return Caps.Abs;
 	case ModeRow::Wheelie: return Caps.Wheelie;
@@ -135,7 +138,8 @@ void RowRange(ModeRow R, int& Lo, int& Hi)
 	case ModeRow::Power:
 	case ModeRow::Response:
 	case ModeRow::EngineBrake: Lo = 1; Hi = 3; break;
-	case ModeRow::Abs: Lo = 0; Hi = 2; break;
+	case ModeRow::Abs:
+	case ModeRow::Linked: Lo = 0; Hi = 2; break;
 	case ModeRow::Susp: Lo = 0; Hi = 3; break;
 	default: Lo = 0; Hi = 5; break;
 	}
@@ -152,6 +156,7 @@ int RowValue(ModeRow R, const ModeSet& S)
 	case ModeRow::Wheelie: return S.Wheelie;
 	case ModeRow::Stability: return S.Stability;
 	case ModeRow::EngineBrake: return S.EngineBrake;
+	case ModeRow::Linked: return S.Linked;
 	default: return S.Susp;
 	}
 }
@@ -175,6 +180,7 @@ void SetRow(ModeRow R, ModeSet& S, int Value)
 	case ModeRow::Wheelie: S.Wheelie = V; break;
 	case ModeRow::Stability: S.Stability = V; break;
 	case ModeRow::EngineBrake: S.EngineBrake = V; break;
+	case ModeRow::Linked: S.Linked = V; break;
 	default: S.Susp = V; break;
 	}
 }
@@ -187,6 +193,7 @@ std::string RowText(ModeRow R, int Value)
 	case ModeRow::Response: return Value <= 1 ? "Soft" : Value == 2 ? "Smooth" : "Sharp";
 	case ModeRow::EngineBrake: return Value <= 1 ? "Light" : Value == 2 ? "Normal" : "Strong";
 	case ModeRow::Abs: return Value <= 0 ? "Off" : Value == 1 ? "Front only" : "On";
+	case ModeRow::Linked: return Value <= 0 ? "Off" : Value == 1 ? "Front lever" : "Both levers";
 	case ModeRow::Susp: return Value <= 0 ? "Comfort" : Value == 1 ? "Road" : Value == 2 ? "Sport" : "Off-road";
 	default: return Value <= 0 ? std::string("Off") : std::to_string(Value);
 	}
@@ -227,6 +234,7 @@ void ApplyMode(BikeSpec& Live, const BikeSpec& Base, const ModeSet& S)
 	Live.Stability = C.Stability ? AidStrength(C.Firm, S.Stability) : 0.0;
 	Live.AbsFront = C.Abs && S.Abs >= 1;
 	Live.AbsRear = C.Abs && S.Abs >= 2;
+	Live.LinkedBrakes = S.Linked;
 	double Bump = 1.0, Rebound = 1.0, Preload = 0.0;
 	if (C.SemiActive) SuspOf(S.Susp, Bump, Rebound, Preload);
 	Live.FrontBump = Base.FrontBump * Bump;

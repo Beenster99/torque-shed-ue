@@ -31,16 +31,17 @@ struct ModeSet
 	int Abs = 2;           // 0 off, 1 front only (the back can lock: off-road), 2 both wheels
 	int EngineBrake = 2;   // 1 light, 2 as built, 3 strong
 	int Susp = 1;          // 0 comfort, 1 road, 2 sport, 3 off-road
+	int Linked = 0;        // linked brakes: 0 off, 1 the front lever works the back brake too, 2 each lever works both
 	bool operator==(const ModeSet& O) const
 	{
 		return Power == O.Power && Response == O.Response && Traction == O.Traction && Lean == O.Lean && Wheelie == O.Wheelie &&
-			Stability == O.Stability && Abs == O.Abs && EngineBrake == O.EngineBrake && Susp == O.Susp;
+			Stability == O.Stability && Abs == O.Abs && EngineBrake == O.EngineBrake && Susp == O.Susp && Linked == O.Linked;
 	}
 	bool operator!=(const ModeSet& O) const { return !(*this == O); }
 };
 
 // One of a mode's settings, as the screen lists and alters them.
-enum class ModeRow { Power, Response, Traction, Abs, Wheelie, Stability, EngineBrake, Susp, Count };
+enum class ModeRow { Power, Response, Traction, Abs, Wheelie, Stability, EngineBrake, Linked, Susp, Count };
 
 const char* ModeName(RideMode M);            // "Touring"
 const char* ModeKey(RideMode M);             // "touring" (saved under it)

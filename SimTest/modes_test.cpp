@@ -142,7 +142,7 @@ int main()
 			std::fabs(Live.LeanTraction - Base.LeanTraction) < 1e-9 && std::fabs(Live.AntiWheelie - Base.AntiWheelie) < 1e-9 &&
 			std::fabs(Live.Stability - Base.Stability) < 1e-9 && Live.AbsFront == Base.AbsFront && Live.AbsRear == Base.AbsRear &&
 			Live.PowerMode == 1.0 && Live.ThrottleSoft == 0.0 && Live.EngineBrake == 1.0 && Live.FrontBump == Base.FrontBump &&
-			Live.RearRebound == Base.RearRebound && Live.FrontPreload == Base.FrontPreload;
+			Live.RearRebound == Base.RearRebound && Live.FrontPreload == Base.FrontPreload && Live.LinkedBrakes == 0;
 		Expect(Same, Tune.empty() ? "stock levels: the same spec" : "the desk's own levels (traction 1, wheelie 5, ABS off, stability 2): the same spec");
 	}
 	{
@@ -165,6 +165,32 @@ int main()
 		Expect(S.PowerMode == 1.0 && S.ThrottleSoft < 0.0, "Sport: full power, a sharp throttle");
 		Expect(E.AbsFront && !E.AbsRear && E.TractionStrength < W.TractionStrength, "Enduro: the back wheel can lock and spin");
 		Expect(W.FrontBump == Adv.FrontBump, "no semi-active suspension: the damping stays");
+		{
+			ModeSet L = Touring;
+			TorqueSim::SetRow(TorqueSim::ModeRow::Linked, L, 1);
+			BikeSpec Lk = Adv;
+			TorqueSim::ApplyMode(Lk, Adv, L);
+			Expect(TorqueSim::RowOn(TorqueSim::ModeRow::Linked, Adv.Aids) && Lk.LinkedBrakes == 1 && TorqueSim::RowText(TorqueSim::ModeRow::Linked, 1) == "Front lever",
+				"Linked brakes on the screen: the front lever works the back brake too");
+			BikeSim A, B;
+			for (BikeSim* Sm : {&A, &B})
+			{
+				BikeSpec Sp = Sm == &A ? Adv : Lk;
+				Sp.TorqueRpm = {1000.0, 4000.0, 7000.0, 9000.0};
+				Sp.TorqueNm = {70.0, 95.0, 90.0, 70.0};
+				Sp.PeakTorque = 95.0;
+				Sp.PeakTorqueRpm = 4000.0;
+				Sp.Redline = 9000.0;
+				Sm->Setup(Sp);
+				Sm->Ray = FlatGround;
+				Sm->Place(TorqueSim::V3(0.0, 0.0, 0.0), 0.0);
+				Sm->AutoShift = true;
+				Sm->Assist = 0.5;
+				for (int I = 0; I < 6 * 120; ++I) { Sm->Throttle = Sm->Speed < 20.0 ? 1.0 : 0.3; Sm->Step(1.0 / 120.0); }
+				for (int I = 0; I < 120; ++I) { Sm->Throttle = 0.0; Sm->FrontBrake = 1.0; Sm->RearBrake = 0.0; Sm->Step(1.0 / 120.0); }
+			}
+			Expect(B.Speed < A.Speed - 0.5, "front lever alone, linked: slower after 1 s than unlinked");
+		}
 		const double Plain = Sprint(Adv, nullptr, 6.0), InTouring = Sprint(Adv, &Touring, 6.0), InWet = Sprint(Adv, &Wet, 6.0), InSport = Sprint(Adv, &Sport, 6.0);
 		char Line[200];
 		std::snprintf(Line, sizeof(Line), "6 s flat out: %.1f m/s as built, %.1f in Touring, %.1f in Wet, %.1f in Sport", Plain, InTouring, InWet, InSport);
