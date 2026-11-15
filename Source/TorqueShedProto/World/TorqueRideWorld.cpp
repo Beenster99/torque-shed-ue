@@ -131,6 +131,7 @@ void PrepareSquare(const TorqueWorld::RideMesh& Mesh, FRidePrepared& Out)
 		Prepare(E->Brickwork.get(), Out);
 		Prepare(E->Night.get(), Out);
 		Prepare(E->Signals.get(), Out);
+		Prepare(E->Signs.get(), Out);
 	}
 }
 
