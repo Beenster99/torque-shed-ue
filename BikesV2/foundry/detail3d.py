@@ -1409,7 +1409,9 @@ def exhaust_ports(model, c, heads):
     # the clamp where the headers enter the silencer
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
-            y0c, y1c = (58, 58) if under else (218, 228)
+            if B.is_belly(ex, i):
+                continue
+            y0c, y1c = B.can_y(ex, i, under)
             a3, b3 = (can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])
             L_ = math.sqrt(sum((b3[k] - a3[k]) ** 2 for k in range(3)))
             d3 = tuple((b3[k] - a3[k]) / L_ for k in range(3))
@@ -1796,8 +1798,85 @@ def rear_end(model, c):
             for q in ((p[0] + 30, p[1] + 108), (p[0] + 8, p[1] + 130)):
                 lathe(f"heelspacer{s}{q[0]}", (q[0], s * 178, q[1]), (0, s, 0), [(0, 0), (0, 6), (3, 6), (3, 0)], steel, 12)
                 bolt(f"heelbolt{s}{q[0]}", (q[0], s * 185, q[1]), (0, s, 0), 5.2, 2.6, steel)
+        # on a beam frame the pivot plates stand wider than a tube frame: the whole footrest moves out to
+        # sit on the plate's outer face instead of being buried in it
+        for s in (-1, 1):
+            hits = [side_hit(("spar",), p[0] + dx, p[1] + dz, s) for dx, dz in ((0, 0), (-20, 96), (20, 60), (6, 26), (40, 110), (-60, 60))]
+            dy = max([0.0] + [abs(h_[1]) + 3 - 181 for h_ in hits if h_])
+            if dy > 1:
+                shift_y(("peg0", "pegpivot0", "gearpivot", "gearlever", "geartoe", "geararm", "brakepivot", "brakepedal", "heelplate", "heelspacer", "heelbolt"), s, dy)
     hugger(model, c)
     pillion_hangers(model, c, pegs)
+    beam_frame(model, c)
+
+
+def shift_y(prefixes, s, dy):
+    """Move the built parts on side s (and the cutters that drill them) outwards by dy mm."""
+    for o in list(bpy.data.objects):
+        if o.type != "MESH" or not o.name.startswith(tuple(prefixes)) or not o.data.vertices:
+            continue
+        bpy.context.view_layer.update()
+        if sum((o.matrix_world @ v.co).y for v in o.data.vertices) * s <= 0:
+            continue
+        for ob in [o] + [m.object for m in o.modifiers if m.type == "BOOLEAN" and m.object]:
+            ob.location.y += s * dy * B.MM
+
+
+def beam_frame(model, c):
+    """A beam frame's own detail (reference: sport twin-spar frames): weld seams where the extruded beam
+    meets the cast steering head and the cast pivot plate, the swingarm pivot cap and the engine mount bolts
+    on the plate's outer face."""
+    plates = model["frame"].get("plates", [])
+    trees = _trees(("spar",))
+    if not plates or not trees:
+        return
+    import shapes
+    pp = shapes.dense(plates[0]["pts"], True, plates[0].get("t", 0.6))
+    xh = max(q[0] for q in pp)
+    sp = tuple(model["swingarm"]["pivot"])
+    framem = bpy.data.objects[next(o.name for o in bpy.data.objects if o.name.startswith("spar"))].data.materials[0]
+    steel = B.mat("steel")
+    for s in (-1, 1):
+        for n_, x in enumerate((xh - 135, sp[0] + 150)):
+            tb = shapes.top_bottom(pp, x)
+            if not tb:
+                continue
+            pts = []
+            for k in range(13):
+                z = tb[1] + 6 + (tb[0] - tb[1] - 12) * k / 12
+                xx = x + 10 * math.sin(k / 12 * math.pi)        # the seam bows a little, as a hand-laid weld does
+                y = _cast(trees, xx, z, "y", s)
+                if y is not None:
+                    pts.append((xx, s * (y - 0.8), z))
+            if len(pts) > 3:
+                weld_bead(f"sparweld{s}{n_}", pts, framem)
+        y = _cast(trees, sp[0], sp[1], "y", s)
+        if y is not None:
+            lathe(f"pivotcap{s}", (sp[0], s * (y - 2), sp[1]), (0, s, 0), [(0, 0), (0, 24), (5, 24), (7, 21), (7, 13), (4, 13), (4, 0)], steel, 32)
+            bolt(f"pivotnut{s}", (sp[0], s * (y + 2), sp[1]), (0, s, 0), 11, 5, steel, False)
+        for n_, (dx, dz) in enumerate(((95, 150), (60, -62), (150, 40))):
+            q = (sp[0] + dx, sp[1] + dz)
+            y = _cast(trees, q[0], q[1], "y", s)
+            if y is not None:
+                lathe(f"mountboss{s}{n_}", (q[0], s * (y - 2), q[1]), (0, s, 0), [(0, 0), (0, 13), (3, 13), (4.5, 11), (4.5, 0)], framem, 20)
+                bolt(f"sparbolt{s}{n_}", (q[0], s * (y + 2.5), q[1]), (0, s, 0), 6, 4, steel)
+
+
+def weld_bead(name, pts, material, r=3.4, pitch=3.4):
+    """A rippled weld bead along 3D points (mm): overlapping pools, each a little proud of the last."""
+    dense = []
+    for a_, b_ in zip(pts, pts[1:]):
+        L_ = math.sqrt(sum((b_[k] - a_[k]) ** 2 for k in range(3)))
+        n = max(1, int(L_ / pitch))
+        dense += [tuple(a_[k] + (b_[k] - a_[k]) * j / n for k in range(3)) for j in range(n)]
+    dense.append(pts[-1])
+    for k, q in enumerate(dense):
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=r * B.MM, location=B.V(*q), segments=10, ring_count=6)
+        ob = bpy.context.object
+        ob.name = f"{name}_{k}"
+        ob.scale = (1.25, 0.55, 1.0)
+        ob.data.materials.append(material)
+        bpy.ops.object.shade_smooth()
 
 
 def hugger(model, c):
@@ -1963,6 +2042,8 @@ def welds(model, c):
 
 SHOTS = {
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
+    "midl": ((560, 1700, 620), (560, 0, 470), 50),
+    "midr": ((560, -1700, 620), (560, 0, 470), 50),
     "nose": ((2500, -620, 1020), (1420, 0, 840), 60),
     "cockpit": ((250, -260, 1420), (1250, 0, 900), 40),
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),

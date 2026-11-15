@@ -432,6 +432,21 @@ def game_tyre(tag, c, w, hw):
     return True
 
 
+def is_belly(ex, i):
+    """A sport exhaust's first "can" low under the engine is a collector box on the centre line."""
+    cans = ex.get("cans", [])
+    return i == 0 and len(cans) > 1 and not cans[0].get("nip") and cans[0]["a"][1] < 300 and cans[0]["w"] >= 130
+
+
+def can_y(ex, i, under):
+    """Where a silencer sits across the bike at its two ends (mm from the centre line)."""
+    if is_belly(ex, i):
+        return (0, 0)
+    if is_belly(ex, 0):
+        return (128, 172)       # a stubby outlet angled out from the box, ahead of the rear tyre
+    return (58, 58) if under else (218, 228)
+
+
 def wheel(tag, c, w, width, rim_col, discs):
     rt, rr, hw = w["tyre_r"], w["rim_r"], width / 2
     prof = [(rr + 4, hw * 0.78), (rr + 30, hw * 0.98), (rt - 42, hw), (rt - 16, hw * 0.78), (rt - 3, hw * 0.4), (rt, 0),
@@ -835,6 +850,8 @@ def build(model):
         pts = shapes.dense(hp["pts"], False, 1.0)[::3] + [tuple(hp["pts"][-1][:2])]
         sg = 1 if left or ((both or under) and i == 0) else -1
         out_y = 58 if under else 214      # side silencers sit outside the swingarm
+        if is_belly(ex, 0):
+            out_y = 0                     # the pipes gather into a box under the engine, on the centre line
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
         if left:
             # stay tucked under the engine, then move out behind the sump and ahead of the swingarm,
@@ -851,9 +868,14 @@ def build(model):
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
-            y0c, y1c = (58, 58) if under else (218, 228)
+            y0c, y1c = can_y(ex, i, under)
             a3, b3 = (can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])
             rc = can["w"] / 2 * 0.86
+            if is_belly(ex, i):
+                # the collector box under the engine: a flat rounded box across the bike, not a round can
+                (ax_, az_), (bx_, bz_), h_ = can["a"], can["b"], can["w"] / 2 * 0.8
+                pillow(f"can{i}{sg}", [(ax_ + 14, az_ - h_ * 0.8), (ax_ + 14, az_ + h_ * 0.8), (bx_, bz_ + h_), (bx_, bz_ - h_)], -112, 112, mat("exhaust"), 26, 60)
+                continue
 
             def at(t, a3=a3, b3=b3):
                 return tuple(a3[k] + (b3[k] - a3[k]) * t for k in range(3))
