@@ -2,7 +2,7 @@
  "name": "Lodestar chopper (working title H1)",
  "brand": "lodestar",
  "family": "Chopper",
- "rev": "B",
+ "rev": "C",
  "engine_label": "45 degree V-twin",
  "frame_label": "rigid steel frame, no rear suspension",
  "colours": {
@@ -346,8 +346,9 @@
      -200,
      384
     ],
-    "w": 56,
-    "front": true
+    "w": 64,
+    "front": true,
+    "open": true
    },
    {
     "a": [
@@ -358,10 +359,12 @@
      -176,
      470
     ],
-    "w": 56,
-    "front": true
+    "w": 64,
+    "front": true,
+    "open": true
    }
-  ]
+  ],
+  "join": true
  },
  "swingarm": {
   "pivot": [
@@ -3319,5 +3322,16 @@
     }
    }
   ]
+ },
+ "detail": {
+  "heel_plate": "none",
+  "lamp": "fluted",
+  "levers": "steel",
+  "bars": "steel",
+  "mirrors": "steel",
+  "clocks": "chrome",
+  "indicators": "trad",
+  "grips": "plain",
+  "cap": "chrome"
  }
 }

@@ -1150,7 +1150,7 @@ def guard_lamp(model, c):
     """The classic and cruiser brake light: a polished oval housing standing on the rear mudguard, its red
     lens domed and facing straight back, a small clear window underneath to light the plate. The indicators
     grow out of the housing's sides (the same rule as the sport and cafe tails)."""
-    if model["family"].lower() not in ("classic", "cruiser"):
+    if model["family"].lower() not in ("classic", "cruiser", "chopper"):
         return
     tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
     if not tl:       # a bobbed guard drawn with the panels carries its lamp there
@@ -2719,7 +2719,7 @@ def seat(model, c):
     and across the pad where the rider's part ends."""
     body = model["body"]
     drop("seam")
-    quilt = model["family"].lower() in ("classic", "cruiser")
+    quilt = model["family"].lower() in ("classic", "cruiser", "chopper")
     lm = leather(quilt)
     set_mat("seat", lm)
     st = next((s_ for s_ in body.get("seat", []) if s_.get("cls") == "seat"), None)
@@ -2882,9 +2882,11 @@ def rear_end(model, c):
                 if ob is not None:
                     bpy.data.objects.remove(ob, do_unlink=True)
             mx, mz = sp[0] + 96, sp[1] - 166
+            if model["swingarm"].get("rigid"):
+                mz = sp[1] - 36       # a rigid frame's "pivot" is its bottom rail: the cylinder sits just above the rail, not under it
             B.cone("rearmaster", (mx, -170, mz), (mx - 62, -166, mz + 16), 11, 11, dark, 20)
             B.cone("rearmasterboot", (mx + 16, -171, mz - 4), (mx, -170, mz), 6, 10, rubber, 16)
-            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, p[1] - 80), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
+            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, max(p[1] - 80, mz - 6)), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
             B.cone("rearres", (mx - 50, -150, mz + 62), (mx - 50, -150, mz + 96), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
             B.cone("rearrescap", (mx - 50, -150, mz + 96), (mx - 50, -150, mz + 103), 16.5, 16, B.mat("plastic"), 24)
             B.smooth_tube("rearreshose", [(mx - 50, -150, mz + 62), (mx - 48, -156, mz + 40), (mx - 40, -165, mz + 22)], 3.5, rubber)
@@ -3145,6 +3147,9 @@ def welds(model, c):
 
 
 SHOTS = {
+    "side_long": ((930, -5600, 800), (930, 0, 660), 56),      # long bikes (choppers)
+    "front34_long": ((4300, -2500, 1400), (1000, 0, 680), 42),
+    "sissy": ((-1500, -900, 1350), (-60, 0, 880), 55),
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
