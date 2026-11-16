@@ -1358,6 +1358,9 @@ def build(model):
                 for s in (-1, 1):
                     # inside a tube frame the panels sit within the tubes, so the frame never cuts through them
                     y_a, y_b = (86, 120) if trellis else (128, 166)
+                    if shp.get("out_r") and s == -1:
+                        # the right-hand panel stands further out, with room behind it for the silencer (beenster, MX round 2)
+                        y_a, y_b = y_a + shp["out_r"], y_b + shp["out_r"]
                     if shp["cls"] == "plate":
                         y_a, y_b = y_b - 6, y_b + 5      # a number board stands proud of the panel it is on
                     pillow(f"panel{i}{s}", pp, s * y_a, s * y_b, m_, 4 if shp["cls"] == "plate" else 18, 30, both=False)
