@@ -1328,7 +1328,7 @@ void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
 							C->SetCastShadow(true);
 						}
 					}
-					if (bIsTree && (What & 32)) C->SetEvaluateWorldPositionOffset(!bHide);
+					if (bIsTree && (What & 32) && !C->ComponentHasTag(TEXT("RideImpostor"))) C->SetEvaluateWorldPositionOffset(!bHide);
 				}
 	if (What & 4)
 	{
@@ -2386,7 +2386,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bAffectDistanceFieldLighting = bTreeLit;
 		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
-		Ism->WorldPositionOffsetDisableDistance = bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
+		const bool bImpostor = bTree && S.Name.ToString().EndsWith(TEXT("_imp"));
+		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2396,6 +2398,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bFarCopy) Ism->MinDrawDistance = NearTreeM * 100.0f;
 		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
+		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
 		if (!bReused) AddInstanceComponent(Ism);
