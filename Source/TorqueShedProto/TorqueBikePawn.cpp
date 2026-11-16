@@ -1620,6 +1620,15 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftOverlay)) Tft->ToggleOverlay();
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftMap)) Tft->ToggleMapTile();
+		// The map's zoom: 5 and 6 (or the number pad's + and -); on the pad LB held and the right
+		// stick pushed up (in) or down (out), a step each push.
+		const double ZoomStick = bTftPad ? Either(Axis(EKeys::Gamepad_RightY), (double)Sony.RY) : 0.0;
+		const int32 StickNow = ZoomStick > 0.6 ? 1 : ZoomStick < -0.6 ? -1 : FMath::Abs(ZoomStick) < 0.3 ? 0 : TftStickWas;
+		const bool bStickPush = StickNow != 0 && StickNow != TftStickWas;
+		TftStickWas = StickNow;
+		if (bStickPush) bTftPadNav = true;
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftZoomIn) || (bStickPush && StickNow > 0)) Tft->ZoomBy(-1);
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftZoomOut) || (bStickPush && StickNow < 0)) Tft->ZoomBy(1);
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftArrange)) Tft->ToggleArrange();
 		if (Tft->Arranging())
 		{
@@ -4408,6 +4417,8 @@ FString ATorqueBikePawn::TestTft(const FString& What)
 	else if (W == TEXT("down")) TftPress(3);
 	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
 	else if (W == TEXT("map")) Tft->ToggleMapTile();
+	else if (W == TEXT("zoomin")) Tft->ZoomBy(-1);
+	else if (W == TEXT("zoomout")) Tft->ZoomBy(1);
 	else if (W == TEXT("arrange")) Tft->ToggleArrange();
 	else if (W == TEXT("cruise")) ToggleCruise();
 	else if (W.StartsWith(TEXT("linked")))

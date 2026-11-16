@@ -83,6 +83,9 @@ public:
 	// (steps right and down) and a size step.
 	void ToggleOverlay();
 	void ToggleMapTile();
+	// The sat nav map's zoom, everywhere it shows (the bike's screen, the phone, the HUD's tile):
+	// Step -1 closer in, 1 further out. False at either end.
+	bool ZoomBy(int32 Step);
 	void ToggleArrange();
 	bool Arranging() const { return bArrange; }
 	void ArrangeNext();

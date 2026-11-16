@@ -81,6 +81,8 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("TftDown"), TEXT("Bike's screen: down"), R, {EKeys::Four, EKeys::NumPadTwo}},
 	{TEXT("TftOverlay"), TEXT("HUD: the bike's screen on / off"), R, {EKeys::F4, FKey()}},
 	{TEXT("TftMap"), TEXT("HUD: the sat nav map on / off"), R, {EKeys::F6, FKey()}},
+	{TEXT("TftZoomIn"), TEXT("Sat nav map: zoom in (pad: hold LB, right stick up)"), R, {EKeys::Five, EKeys::Add}},
+	{TEXT("TftZoomOut"), TEXT("Sat nav map: zoom out (pad: hold LB, right stick down)"), R, {EKeys::Six, EKeys::Subtract}},
 	{TEXT("TftArrange"), TEXT("HUD: move and size the screen and the map"), R, {EKeys::F5, FKey()}},
 	{TEXT("Cruise"), TEXT("Cruise control on / off (when fitted)"), R, {EKeys::T, FKey()}},
 	{TEXT("Help"), TEXT("Help lines on / off"), FR, {EKeys::H, FKey()}},
