@@ -1610,6 +1610,18 @@ def build(model):
         definition(model, locals())
         import detail3d
         detail3d.run(sys.modules[__name__], model, locals())
+        # bespoke chopper parts to order: model detail.bespoke {"pegs": [design, metal], "covers": [design, metal]},
+        # or for a trial fit BIKE_BESPOKE="pegs=torpedo:gold,covers=spoked:gold"
+        bs = dict(model.get("detail", {}).get("bespoke", {}))
+        for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+            bs[kv.split("=")[0]] = kv.split("=")[1].split(":")
+        if bs:
+            import chopper_parts3d
+            chopper_parts3d.use(sys.modules[__name__])
+            if "pegs" in bs:
+                chopper_parts3d.fit_pegs(model, *bs["pegs"])
+            if "covers" in bs:
+                chopper_parts3d.fit_covers(model, *bs["covers"])
         lr = model.get("detail", {}).get("lock_relief")
         if lr:
             import lock_relief
