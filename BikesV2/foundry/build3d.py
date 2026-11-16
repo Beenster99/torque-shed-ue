@@ -637,6 +637,12 @@ def guard_blade(name, a, blade, hw, material, tight=False):
     for i in range(segs + 1):
         f = i / segs
         k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
+        if DETAIL["on"]:
+            # the front nose is rounded off in plan, a half oval and not a square-cut end (beenster, 16 Nov: ALL front mudguards)
+            ff = f if math.cos(math.radians(a["a0"])) > math.cos(math.radians(a["a1"])) else 1 - f
+            nose_f = math.degrees(hw * 1.15 / hi) / span
+            if ff < nose_f:
+                k = max(0.06, math.sqrt(max(0.0, 1 - (1 - ff / nose_f) ** 2)))
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
         # Definition pass: the edges of the shell just end, following the tyre; they do not curl in to a lip
         edge = hi - ((8 + 20 * min(1.0, min(f, 1 - f) / 0.3)) if tight else (5 + 12 * min(1.0, min(f, 1 - f) / 0.3))) if DETAIL["on"] else lo     # slim towards both tips

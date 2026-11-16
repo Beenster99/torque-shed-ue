@@ -1013,12 +1013,20 @@ def adventure_body(model, c):
             cx_, cz_ = (0.5 * (2 * p1[m] + (p2[m] - p0[m]) * f_ + (2 * p0[m] - 5 * p1[m] + 4 * p2[m] - p3[m]) * f_ * f_ + (3 * p1[m] - p0[m] - 3 * p2[m] + p3[m]) * f_ ** 3) for m in (0, 1))
             w = wt[k] + (wt[k + 1] - wt[k]) * f_
             tt = i / NT
-            w *= math.sqrt(max(0.02, 1 - (max(0.0, tt - 0.86) / 0.14) ** 2 * 0.8)) * (0.55 + 0.45 * min(1.0, tt / 0.1) ** 0.5)
+            w *= math.sqrt(max(0.02, 1 - (max(0.0, tt - 0.86) / 0.14) ** 2 * 0.8))
+            if sc.get("round"):      # round at the bottom, where it wraps round on top of the fairing (as the sport screens do)
+                w *= max(0.003, 1 - (1 - min(1.0, tt / 0.2)) ** 3.0) ** (1 / 3.0)
+            else:
+                w *= 0.55 + 0.45 * min(1.0, tt / 0.1) ** 0.5
+            wr = sc.get("wrap", 0.0026)
+            wr = wr[0] + (wr[1] - wr[0]) * min(1.0, tt / 0.45) if isinstance(wr, list) else wr
+            rise = sc.get("rise", -0.3)
+            rise = rise + (-0.3 - rise) * min(1.0, tt / 0.45) if "rise" in sc else -0.3
             for j in range(NY + 1):
                 g_ = -1 + 2 * j / NY
                 y = g_ * w
-                back = sc.get("wrap", 0.0026) * y * y
-                verts.append(B.V(cx_ - back, y, cz_ - 0.3 * back))
+                back = wr * y * y
+                verts.append(B.V(cx_ - back, y, cz_ + rise * back))
         for i in range(NT):
             for j in range(NY):
                 a = i * (NY + 1) + j
@@ -2382,8 +2390,8 @@ def silencers(model, c):
                 black = B.mat("exhaust_black")
                 lathe(f"caninlet{i}{sg}", a3, d3, [(-34, rh + 0.4), (-34, rh + 2.8), (L_ * 0.02, rh + 2.8), (L_ * 0.06, rh + 8), (L_ * 0.06, rh)], B.mat("exhaust"), 32, sharp=False, caps=False)
                 lathe(f"canclamp{i}{sg}", a3, d3, [(-22, rh + 2.8), (-22, rh + 6), (-8, rh + 6), (-8, rh + 2.8), (-22, rh + 2.8)], steel, 28, caps=False)
-                lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.04, hz_ * 0.36), (L_ * 0.2, hz_ * 0.9), (L_ * 0.27, hz_), (L_ * 0.93, hz_)], brushed(), 64, sharp=False, ell=el, caps=False, square=sq)
-                lathe(f"canshield{i}{sg}", a3, d3, [(L_ * 0.19, hz_ * 0.9 + 1), (L_ * 0.2, hz_ * 0.9 + 4), (L_ * 0.27, hz_ + 4), (L_ * 0.5, hz_ + 4), (L_ * 0.52, hz_ + 1)], black, 64, sharp=True, ell=el, caps=False, square=sq)
+                lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.03, hz_ * 0.3), (L_ * 0.12, hz_ * 0.56), (L_ * 0.24, hz_ * 0.9), (L_ * 0.32, hz_), (L_ * 0.93, hz_)], brushed(), 64, sharp=False, ell=el, caps=False, square=sq)
+                lathe(f"canshield{i}{sg}", a3, d3, [(L_ * 0.31, hz_ + 1), (L_ * 0.32, hz_ + 4), (L_ * 0.54, hz_ + 4), (L_ * 0.56, hz_ + 1)], black, 64, sharp=True, ell=el, caps=False, square=sq)
                 lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, hz_ + 1), (L_ * 0.91, hz_ + 3.5), (L_ - 6, hz_ + 3.5), (L_, hz_ - 3), (L_ - 3, hz_ - 9), (L_ - 12, hz_ - 10), (L_ - 12, 0)], black, 64, sharp=True, ell=el, caps=False, square=sq)
                 ro = min(hy_ * 0.74, hz_ * 0.4)
                 for k_, off in enumerate((-hz_ * 0.44, hz_ * 0.44)):
