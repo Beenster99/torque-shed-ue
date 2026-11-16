@@ -772,6 +772,51 @@ def beak_lamps(model, c):
         skin_patch(f"beakglass{s}", trees, grow(1.04), glass_mat(), 3.2, "y", s)
 
 
+def adventure_guards(model, c):
+    """What an adventure bike carries for rough ground: a hand guard round each lever (an alloy backbone from
+    the bar end round to the bar, a black shield on the front of it) and an alloy bash plate under the engine."""
+    if model["family"].lower() != "adventure":
+        return
+    drop("handguard", "bashplate")
+    grip = c.get("grip")
+    plastic, alu = B.mat("plastic"), B.mat("alu")
+    if grip:
+        gx, gz = grip[0], grip[1]
+        for s in (-1, 1):
+            B.smooth_tube(f"handguardbar{s}", [(gx - 6, s * 398, gz - 4), (gx + 30, s * 412, gz - 6), (gx + 84, s * 392, gz - 8), (gx + 96, s * 300, gz - 6), (gx + 78, s * 215, gz - 2), (gx + 14, s * 178, gz + 1)], 5.5, alu)
+            lathe(f"handguardend{s}", (gx - 6, s * 384, gz - 4), (0, s, 0), [(0, 0), (0, 13), (16, 13), (20, 9), (20, 0)], alu, 20)
+            # the shield: a shallow dished blade ahead of the lever, taller at the outer end
+            verts, faces, NY, NZ = [], [], 26, 12
+            for i_ in range(NY + 1):
+                u_ = i_ / NY
+                y = 196 + 212 * u_
+                h = (34 + 26 * math.sin(math.pi * min(1.0, u_ * 1.15)) ** 0.7) * (1 - 0.5 * max(0.0, u_ - 0.86) / 0.14)
+                for j_ in range(NZ + 1):
+                    v_ = 2 * j_ / NZ - 1
+                    x = gx + 104 - 0.0016 * (y - 300) ** 2 - 20 * v_ * v_ - (26 * (max(0.0, u_ - 0.8) / 0.2) ** 2)
+                    verts.append(B.V(x, s * y, gz - 2 + h * v_ + 8))
+            for i_ in range(NY):
+                for j_ in range(NZ):
+                    a_ = i_ * (NZ + 1) + j_
+                    faces.append((a_, a_ + 1, a_ + NZ + 2, a_ + NZ + 1))
+            ob = B.mesh_obj(f"handguard{s}", verts, faces, plastic, True, 0, False)
+            md = ob.modifiers.new("t", "SOLIDIFY")
+            md.thickness = 3.5 * B.MM
+            md.offset = 0
+    eng = model["engine"]
+    xs = [q[0] for q in eng["case"]]
+    x0, x1, zb = min(xs), max(xs), min(q[1] for q in eng["case"])
+    hd = [q for h_ in model["exhaust"]["headers"] for q in h_["pts"]]
+    zb = min([zb] + [q[1] - 24 for q in hd if x0 < q[0] < x1]) - 6      # under the pipes too, where they pass beneath the engine
+    plate = chaikin([(x1 + 70, zb + 150), (x1 + 44, zb + 70), (x1 - 10, zb + 18), (x1 - 90, zb), (x0 + 120, zb - 4), (x0 + 50, zb + 14), (x0 + 30, zb + 44),
+                     (x0 + 44, zb + 48), (x0 + 62, zb + 24), (x0 + 124, zb + 8), (x1 - 92, zb + 12), (x1 - 20, zb + 28), (x1 + 30, zb + 76), (x1 + 56, zb + 152)], 2)
+    B.prism("bashplate", plate, -128, 128, brushed(), 3.0)
+    for s in (-1, 1):      # its side cheeks, turned up to guard the cases, and the bolts that hold it
+        B.prism(f"bashplatecheek{s}", chaikin([(x1 - 10, zb + 20), (x1 - 90, zb + 2), (x0 + 120, zb - 2), (x0 + 56, zb + 16), (x0 + 90, zb + 62), (x1 - 60, zb + 74), (x1 + 20, zb + 70)], 2), min(s * 124, s * 128), max(s * 124, s * 128), brushed(), 1.0)
+        for bx in (x0 + 140, x1 - 80):
+            bolt(f"bashplatebolt{s}{bx}", (bx, s * 128, zb + 34), (0, s, 0), 6, 3, B.mat("steel"))
+
+
 def nose_lamps(model, c):
     """Sport lamps: a slim slanted eye each side let flush into the nose (reference: modern sport fairings).
     A gloss black surround, a smoked lens, a bright running-light blade along the top and two projector eyes."""
@@ -2843,6 +2888,7 @@ def run(build3d, model, c):
     headlamp(model, c)
     round_lamp(model, c)
     beak_lamps(model, c)
+    adventure_guards(model, c)
     clocks(model, c)
     controls(model, c)
     engine(model, c)

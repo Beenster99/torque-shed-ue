@@ -8,13 +8,13 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('corvano_adventure', 'Corvano adventure, first look', 'The adventure lead bike. The front is new for this family: a closed nose and beak across the bike with a headlamp let into each flank, and shaped tank shrouds behind it, in place of flat side panels. It already carries the lessons from the other bikes: real shock, bars straight through the grips, pipes run into the silencer, hollow outlet. Rendered straight from the model, nothing retouched. Known weak spots are listed in the thread.', [
+    ('corvano_adventure', 'Corvano adventure, first look (second pass)', 'The adventure lead bike. The front is new for this family: a closed nose and beak across the bike with a headlamp let into each flank, and shaped tank shrouds behind it, in place of flat side panels. It already carries the lessons from the other bikes: real shock, bars straight through the grips, pipes run into the silencer, hollow outlet. Rendered straight from the model, nothing retouched. Second pass added: hand guards, an alloy bash plate, a moulded number plate arm and a sharper beak.', [
         ('shot_rearq_front', 'Whole bike, front quarter', 'Nose, beak and screen, tank shrouds, trellis frame, long-travel fork.'),
         ('shot_rearq_l', 'Rear quarter, exhaust side', 'The big high silencer is on the left on this bike. Luggage rack, long two-up seat.'),
         ('shot_nose', 'Nose and headlamp', 'A headlamp each side of the beak, indicators on the fork brackets.'),
-        ('shot_midl', 'Engine and exhaust, left side', 'Both pipes into the one silencer.'),
+        ('shot_midl', 'Engine and exhaust, left side', 'Both pipes into the one silencer, the bash plate under the engine.'),
         ('shot_rearq', 'Rear quarter, right side', 'The open side of the rear wheel, shock and rear brake.'),
-        ('shot_cockpit', 'Cockpit', 'Wide bars, grips in line, screen ahead.'),
+        ('shot_cockpit', 'Cockpit', 'Wide bars with a hand guard round each lever, screen ahead.'),
         ('shot_rear', 'Rear wheel and brake', 'Rear disc, caliper and the swing arm.'),
     ]),
 ]
