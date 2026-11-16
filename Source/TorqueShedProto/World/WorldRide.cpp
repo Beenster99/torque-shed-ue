@@ -1149,6 +1149,15 @@ bool RidePlan::BlockLaid(double X, double Z) const
 	return It != Net->BlockState.end() && It->second == 2;
 }
 
+bool RidePlan::BlockLaidNow(double X, double Z) const
+{
+	if (Net == nullptr) return false;
+	std::unique_lock<std::mutex> Hold(Net->Lay, std::try_to_lock);
+	if (!Hold.owns_lock()) return false;
+	const auto It = Net->BlockState.find(BlockKey(BlockOf(X), BlockOf(Z)));
+	return It != Net->BlockState.end() && It->second == 2;
+}
+
 int RidePlan::BlocksLaid() const
 {
 	return Net == nullptr ? 0 : Net->Blocks.load();
@@ -1825,6 +1834,107 @@ double RidePlan::JoinedHeight(int Which, const P2& At, double Y) const
 	return Y;
 }
 
+void RidePlan::JoinSegs(int Which, double X0, double Z0, double X1, double Z1, JoinSet& Out) const
+{
+	Out = JoinSet();
+	Out.X0 = X0; Out.Z0 = Z0; Out.X1 = X1; Out.Z1 = Z1;
+	Out.Nx = std::max(1, int(std::ceil((X1 - X0) / JoinCell)));
+	Out.Nz = std::max(1, int(std::ceil((Z1 - Z0) / JoinCell)));
+	Out.Cells.resize(size_t(Out.Nx) * size_t(Out.Nz));
+	if (Net == nullptr) return;
+	std::shared_lock<std::shared_mutex> Hold(Net->Read);
+	const long long Cx0 = static_cast<long long>(std::floor(X0 / NearCell)) - 3, Cx1 = static_cast<long long>(std::floor(X1 / NearCell)) + 3;
+	const long long Cz0 = static_cast<long long>(std::floor(Z0 / NearCell)) - 3, Cz1 = static_cast<long long>(std::floor(Z1 / NearCell)) + 3;
+	for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
+		for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
+		{
+			const auto It = Net->Near.find(Cx * 4000037LL + Cz);
+			if (It == Net->Near.end()) continue;
+			for (const std::pair<int, int>& Entry : It->second)
+			{
+				if (Entry.first == Which) continue;
+				const std::vector<RoadPoint>& Pts = RoadOf(Entry.first);
+				const int S = Entry.second;
+				if (S + 1 >= int(Pts.size())) continue;
+				const RoadPoint& Pa = Pts[size_t(S)];
+				const RoadPoint& Pb = Pts[size_t(S) + 1];
+				if ((Pa.Bridge && Pb.Bridge) || (Pa.Tunnel && Pb.Tunnel)) continue;   // (NoDecks, NoBores)
+				// (only where its edge comes within JoinLean: further off it can't be the answer NearestIn gives)
+				const double Pad = std::fmax(Pa.Half, Pb.Half) + JoinLean + 0.05;
+				const double Sx0 = std::fmin(Pa.At.X, Pb.At.X) - Pad, Sx1 = std::fmax(Pa.At.X, Pb.At.X) + Pad;
+				const double Sz0 = std::fmin(Pa.At.Z, Pb.At.Z) - Pad, Sz1 = std::fmax(Pa.At.Z, Pb.At.Z) + Pad;
+				if (Sx1 < X0 || Sx0 > X1 || Sz1 < Z0 || Sz0 > Z1) continue;
+				JoinSeg J;
+				J.Which = Entry.first;
+				J.Cx = Cx;
+				J.Cz = Cz;
+				J.A = Pa.At;
+				J.B = Pb.At;
+				J.HalfA = Pa.Half; J.HalfB = Pb.Half;
+				J.HeightA = Pa.Height; J.HeightB = Pb.Height;
+				J.BankA = Pa.Bank; J.BankB = Pb.Bank;
+				const int Index = int(Out.Segs.size());
+				Out.Segs.push_back(J);
+				const int Gx0 = std::max(0, int(std::floor((Sx0 - X0) / JoinCell))), Gx1 = std::min(Out.Nx - 1, int(std::floor((Sx1 - X0) / JoinCell)));
+				const int Gz0 = std::max(0, int(std::floor((Sz0 - Z0) / JoinCell))), Gz1 = std::min(Out.Nz - 1, int(std::floor((Sz1 - Z0) / JoinCell)));
+				for (int Gz = Gz0; Gz <= Gz1; ++Gz)
+					for (int Gx = Gx0; Gx <= Gx1; ++Gx) Out.Cells[size_t(Gz) * size_t(Out.Nx) + size_t(Gx)].push_back(Index);
+			}
+		}
+}
+
+bool RidePlan::NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const
+{
+	// (scored as NearestOf scores them, among the bits it would look at from here)
+	Hit = JoinHit();
+	if (!Set.Holds(At)) return false;
+	const int Gx = std::min(Set.Nx - 1, int((At.X - Set.X0) / JoinCell)), Gz = std::min(Set.Nz - 1, int((At.Z - Set.Z0) / JoinCell));
+	const long long Px0 = static_cast<long long>(std::floor(At.X / NearCell)), Pz0 = static_cast<long long>(std::floor(At.Z / NearCell));
+	double Best = 1e18;
+	for (const int Index : Set.Cells[size_t(Gz) * size_t(Set.Nx) + size_t(Gx)])
+	{
+		const JoinSeg& J = Set.Segs[size_t(Index)];
+		if ((MainOnly && J.Which != 0) || J.Cx < Px0 - 3 || J.Cx > Px0 + 3 || J.Cz < Pz0 - 3 || J.Cz > Pz0 + 3) continue;
+		const P2 Ab = J.B - J.A;
+		const double L2 = Ab.X * Ab.X + Ab.Z * Ab.Z;
+		const double T = L2 > 1e-12 ? std::fmin(1.0, std::fmax(0.0, ((At.X - J.A.X) * Ab.X + (At.Z - J.A.Z) * Ab.Z) / L2)) : 0.0;
+		const double Px = J.A.X + Ab.X * T, Pz = J.A.Z + Ab.Z * T;
+		const double D2 = (At.X - Px) * (At.X - Px) + (At.Z - Pz) * (At.Z - Pz);
+		if (D2 > NearestReach * NearestReach) continue;
+		const double D = std::sqrt(D2);
+		const double HalfHere = J.HalfA + (J.HalfB - J.HalfA) * T;
+		const double Score = D - HalfHere - (J.Which == 0 ? 0.01 : 0.0);
+		if (Score >= Best) continue;
+		Best = Score;
+		Hit.Which = J.Which;
+		Hit.Dist = D;
+		Hit.Half = HalfHere;
+		Hit.Height = J.HeightA + (J.HeightB - J.HeightA) * T;
+		const double Len = std::sqrt(L2);
+		const double Off = Len > 1e-9 ? ((At.X - Px) * Ab.Z - (At.Z - Pz) * Ab.X) / Len : 0.0;
+		Hit.Cross = RoadLine::CrossHeight(Off, HalfHere, J.BankA + (J.BankB - J.BankA) * T);
+	}
+	return Hit.Which >= 0 && Hit.Dist - Hit.Half <= JoinLean;
+}
+
+double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const
+{
+	// (as JoinedHeight: the ride's road first, then whichever other road is nearest)
+	if (Which <= 0) return Y;
+	if (!Set.Holds(At)) return JoinedHeight(Which, At, Y);
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		JoinHit Hit;
+		if (!NearestIn(Set, At, Pass == 0, Hit) || Hit.Which > Which) continue;
+		const double Out2 = Hit.Dist - Hit.Half;
+		const double Theirs = Hit.Height + Hit.Cross - JoinSink;
+		if (std::fabs(Theirs - Y) > 1.2) continue;
+		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
+		return Theirs + (Y - Theirs) * T;
+	}
+	return Y;
+}
+
 void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 {
 	Out = RideMesh();
@@ -1903,7 +2013,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Nz = -Dir.Z * Rise / Nl;
 		Rows.push_back(R);
 	}
-	const auto Settle = [this, Which](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeight(Which, At, Y); };
+	// ([build 150] the other roads' bits near this piece gathered once for all its points; a point
+	// outside the box they were gathered for asks NearestOf itself)
+	JoinSet Joins;
+	if (Which > 0 && !Rows.empty())
+	{
+		double Jx0 = 1e18, Jz0 = 1e18, Jx1 = -1e18, Jz1 = -1e18, Reach = 0.0;
+		for (const Row& R : Rows)
+		{
+			Jx0 = std::fmin(Jx0, R.At.X); Jx1 = std::fmax(Jx1, R.At.X); Jz0 = std::fmin(Jz0, R.At.Z); Jz1 = std::fmax(Jz1, R.At.Z);
+			Reach = std::fmax(Reach, R.Half + R.Shoulder);
+		}
+		Reach += 12.0;   // (the verge and the kerbs beyond the shoulder)
+		JoinSegs(Which, Jx0 - Reach, Jz0 - Reach, Jx1 + Reach, Jz1 + Reach, Joins);
+	}
+	const auto Settle = [this, Which, &Joins](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeightFrom(Joins, Which, At, Y); };
 	// [places stage 2] The pull-offs made for places near this bit of road (drawn at its end; no grass
 	// shoulder where one runs along it).
 	std::vector<int> PullNear;
@@ -2220,6 +2344,13 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			Others.NoBores = true;
 			const auto OnOther = [&](const P2& P, double OwnHeight)
 			{
+				// ([build 150] from the bits gathered for the piece, the same answer: a point on another
+				// road's tarmac has that road's edge within JoinLean)
+				if (Joins.Holds(P))
+				{
+					JoinHit Near;
+					return NearestIn(Joins, P, false, Near) && Near.Dist < Near.Half && std::fabs(Near.Height - OwnHeight) < 1.5;
+				}
 				NearHit Hit;
 				return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half && std::fabs(Hit.Height - OwnHeight) < 1.5;
 			};

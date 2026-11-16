@@ -457,6 +457,9 @@ public:
 	std::vector<int> RoadsNear(const Rect& Box, bool Lay) const;
 	void LayBlocks(const Rect& Box) const;
 	bool BlockLaid(double X, double Z) const;
+	// [build 150] The same without waiting: false while a worker holds the blocks (laying one), so the game
+	// thread never stalls on it; ask again next time.
+	bool BlockLaidNow(double X, double Z) const;
 	int BlocksLaid() const;
 	// [ride anywhere] The ground wherever the riders roam: the fine tiles over a box and a tile round
 	// it fetched (a block's are, before its roads are laid, so their heights are final), and round a
@@ -541,6 +544,32 @@ public:
 	bool NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit) const;
 	// A side road's surface height Y at a point, settled onto a greater road it lies on or joins there.
 	double JoinedHeight(int Which, const P2& At, double Y) const;
+	// [build 150] The same for every point of one piece of road at a time: the bits of other roads (but
+	// Which, none on a deck or in a bore) NearestOf would look at anywhere in a box and whose edge comes
+	// within JoinLean of it, gathered once into a little grid (JoinSegs); then NearestIn finds what
+	// NearestOf would have for any point in the box whenever that road's edge is within JoinLean of it
+	// (York's road pieces spent most of their time in NearestOf).
+	struct JoinSeg
+	{
+		int Which = 0;
+		long long Cx = 0, Cz = 0;   // the NearCell square it is filed under
+		P2 A, B;
+		double HalfA = 0.0, HalfB = 0.0, HeightA = 0.0, HeightB = 0.0, BankA = 0.0, BankB = 0.0;
+	};
+	struct JoinSet
+	{
+		std::vector<JoinSeg> Segs;
+		double X0 = 0.0, Z0 = 0.0, X1 = -1.0, Z1 = -1.0;   // the box
+		int Nx = 0, Nz = 0;
+		std::vector<std::vector<int>> Cells;               // JoinCell squares of the box: the bits that can matter there
+		bool Holds(const P2& At) const { return At.X >= X0 && At.X <= X1 && At.Z >= Z0 && At.Z <= Z1; }
+	};
+	static constexpr double JoinCell = 8.0;
+	struct JoinHit { int Which = -1; double Dist = 0.0, Half = 0.0, Height = 0.0, Cross = 0.0; };
+	void JoinSegs(int Which, double X0, double Z0, double X1, double Z1, JoinSet& Out) const;
+	// (false if no road's edge is within JoinLean, else NearestOf's best: MainOnly the ride's road alone)
+	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const;
+	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
 	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
 

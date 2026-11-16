@@ -1272,19 +1272,24 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			const double Bend = Turn / (0.5 * (La + Lb));
 			if (Bend < 1e-3) continue;
 			const double Fall = FMath::Clamp((Line[K - 1].Y - Line[K].Y) / La, 0.0, 0.25);   // (the descent, m per m: Line's Y is up)
-			const double Brake = FMath::Max(0.8, 2.5 - 9.81 * Fall);
-			Corner = FMath::Min(Corner, FMath::Sqrt(9.81 * FMath::Tan(0.5) / Bend + 2.0 * Brake * FMath::Max(0.0, Acc - 3.0)));
+			// ([build 150 smoke] still off at 22 mph in two sharp junction bends, 12-17 m round, at 0.14 and
+			// 1.64 km: it arrived about 2 m/s over their speed, at the very edge of 0.5 rad. Now 0.42 rad,
+			// braking planned at 2 m/s/s, and the brake pulled harder for the same shortfall)
+			const double Brake = FMath::Max(0.8, 2.0 - 9.81 * Fall);
+			Corner = FMath::Min(Corner, FMath::Sqrt(9.81 * FMath::Tan(0.42) / Bend + 2.0 * Brake * FMath::Max(0.0, Acc - 3.0)));
 		}
 		const double Gap = FMath::Min(Want, Corner) - Sim->Speed;
 		Throttle = FMath::Clamp(Gap * 0.4, 0.0, 1.0);
-		FrontBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.8);
-		RearBrake = FrontBrake * 0.5;
+		FrontBrake = FMath::Clamp(-Gap * 0.5, 0.0, 0.8) * FMath::Clamp(1.0 - FMath::Abs(Sim->LeanAngle) / 0.7, 0.4, 1.0);
+		RearBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.4);
 		// A real-world ride's road ends where its route does (Buttertubs' runs on past the finish): the
 		// robot slows for the end, as for a corner, and stops there.
 		if (!FPaths::IsRelative(RouteFile) && Line.Num() > 1)
 		{
 			const double Left = RouteLengthM * (1.0 - double(Near) / double(Line.Num() - 1)) - 15.0;
-			const double EndGap = (Left > 0.0 ? FMath::Sqrt(2.0 * 3.0 * Left) : 0.0) - Sim->Speed;
+			// ([build 150 smoke] falls at 10.74 and 10.85 km, in Thwaite's S-bends before the finish: slow for
+			// the end sooner, at 2 m/s/s, and brake less while leaned)
+			const double EndGap = (Left > 0.0 ? FMath::Sqrt(2.0 * 2.0 * Left) : 0.0) - Sim->Speed;
 			if (bFinished || Left <= 0.0)
 			{
 				// (no full front brake while leaned over: Thwaite's finish is in an S-bend, and the robot
@@ -1313,8 +1318,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			else if (EndGap < Gap)
 			{
 				Throttle = FMath::Clamp(EndGap * 0.4, 0.0, 1.0);
-				FrontBrake = FMath::Clamp(-EndGap * 0.25, 0.0, 0.8);
-				RearBrake = FrontBrake * 0.5;
+				FrontBrake = FMath::Clamp(-EndGap * 0.5, 0.0, 0.8) * FMath::Clamp(1.0 - FMath::Abs(Sim->LeanAngle) / 0.7, 0.4, 1.0);
+				RearBrake = FMath::Clamp(-EndGap * 0.25, 0.0, 0.4);
 			}
 		}
 		if (bTestStopping)
