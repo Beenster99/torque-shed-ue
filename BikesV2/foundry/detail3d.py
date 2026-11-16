@@ -539,7 +539,7 @@ def round_lamp(model, c):
     for i, s_ in head:
         if "pts" in s_:
             drop(f"front{i}", f"lens{i}", f"bezel{i}", f"reflector{i}", f"eye{i}", f"eyeglass{i}")
-    drop("lamprim", "lampglass")
+    drop("lamprim", "lampglass", "lampproj", "lampled", "lampreflector", "lampdrl", "lampshield")
     bowl = shapes.dense(bowl_["pts"], True, bowl_.get("t", 1.0))
     x0, x1 = min(q[0] for q in bowl), max(q[0] for q in bowl)
     zc = (min(q[1] for q in bowl) + max(q[1] for q in bowl)) / 2
@@ -547,8 +547,28 @@ def round_lamp(model, c):
     chrome, dark = B.mat("chrome"), B.mat("plastic")
     fx = _cast(_trees(("forktube", "forkouter")), 105, zc, "x", 1)
     twin = any(s_.get("twin") for i, s_ in head)
+    led = model.get("detail", {}).get("lamp") == "led"
     for yl in ((-R - 6, R + 6) if twin else (0,)):
         o, ax = (x1, yl, zc), (1, 0, 0)
+        if led:
+            # a modern LED unit in the classic shell (beenster, cafe round 3; reference: LED projector lamp): gloss
+            # black inside, a halo ring round the edge, a small projector above a big one, LED blocks each side
+            blk = surf("lampblack", (0.008, 0.008, 0.01), 0.2, 0.1, wear=0.0)
+            lathe(f"lamprim{yl}", o, ax, [(-9, R + 0.5), (-9, R + 4.5), (-2, R + 6.5), (6, R + 6.5), (11, R + 4), (12, R), (9, R - 4), (2, R - 5), (2, R + 0.5), (-9, R + 0.5)], chrome, 64, sharp=False, caps=False)
+            lathe(f"lampreflector{yl}", o, ax, [(3, R - 5), (-6, R - 13), (-22, R * 0.8), (-30, R * 0.6), (-30, 0)], blk, 64, sharp=False, caps=False)
+            lathe(f"lampdrl{yl}", o, ax, [(2.5, R - 5.5), (0, R - 13), (1.5, R - 13.5), (4.5, R - 6), (2.5, R - 5.5)], glow("drl", (1.0, 0.97, 0.9), 1.6), 64, caps=False)
+            for nm, dz, rr in (("hi", 0.36 * R, 0.3 * R), ("lo", -0.36 * R, 0.43 * R)):
+                oo = (x1, yl, zc + dz)
+                lathe(f"lampproj{nm}{yl}", oo, ax, [(-28, rr + 6), (-4, rr + 6), (-2, rr + 4), (-2, rr), (-28, rr)], blk, 48, sharp=False, caps=False)
+                lathe(f"lampprojring{nm}{yl}", oo, ax, [(-3, rr + 6.5), (-0.5, rr + 6.5), (0.5, rr + 3), (-0.5, rr), (-3, rr)], chrome, 48, caps=False)
+                lathe(f"lampprojlens{nm}{yl}", oo, ax, [(-14, rr), (-9, rr * 0.95), (-3, rr * 0.72), (0, rr * 0.4), (1, 0)], glass_mat(), 48, sharp=False, caps=False)
+                lathe(f"lampprojback{nm}{yl}", oo, ax, [(-16, 0), (-16, rr), (-15, rr), (-15, 0)], glow("lampdip", (1.0, 0.97, 0.9), 0.9) if nm == "lo" else chrome, 32)
+            for sy, yy_, hz in ((-1, 0.56, 0.2), (1, 0.56, 0.2), (-1, 0.76, 0.13), (1, 0.76, 0.13)):
+                yb = yl + sy * yy_ * R
+                B.prism(f"lampled{yl}{sy}{yy_}", [(x1 - 24, zc + 0.06 * R - hz * R), (x1 - 5, zc + 0.06 * R - hz * R), (x1 - 5, zc + 0.06 * R + hz * R), (x1 - 24, zc + 0.06 * R + hz * R)], yb - 0.065 * R, yb + 0.065 * R, chrome, 2.0)
+                B.prism(f"lampledchip{yl}{sy}{yy_}", [(x1 - 22, zc + 0.06 * R - hz * R * 0.7), (x1 - 20, zc + 0.06 * R - hz * R * 0.7), (x1 - 20, zc + 0.06 * R + hz * R * 0.7), (x1 - 22, zc + 0.06 * R + hz * R * 0.7)], yb - 0.03 * R, yb + 0.03 * R, glow("ledchip", (1.0, 0.98, 0.92), 0.8), 0)
+            lathe(f"lampglass{yl}", o, ax, [(5, R - 4.5), (9, R * 0.9), (12, R * 0.6), (13.5, R * 0.3), (14, 0)], glass_mat(), 64, sharp=False, caps=False)
+            continue
         lathe(f"lamprim{yl}", o, ax, [(-9, R + 0.5), (-9, R + 4.5), (-2, R + 6.5), (6, R + 6.5), (11, R + 4), (12, R), (9, R - 4), (2, R - 5), (2, R + 0.5), (-9, R + 0.5)], chrome, 64, sharp=False, caps=False)
         lathe(f"lampreflector{yl}", o, ax, [(3, R - 5), (-8, R * 0.86), (-24, R * 0.66), (-38, R * 0.42), (-46, R * 0.24), (-48, 0)], chrome, 64, sharp=False, caps=False)
         lathe(f"lampshield{yl}", o, ax, [(-46, 0), (-46, R * 0.25), (-20, R * 0.25), (-12, R * 0.2), (-8, R * 0.1), (-7, 0)], surf("smokechrome", (0.2, 0.2, 0.22), 1.0, 0.1, wear=0.0), 32, sharp=False, caps=False)
@@ -588,9 +608,10 @@ def clocks(model, c):
             if can:
                 rc_, d3 = r_ + 3, (d_[0], 0, d_[1])
                 shell = B.mat("chrome") if can == "chrome" else surf("dialcan", (0.02, 0.02, 0.022), 0.6, 0.3, wear=0.1)
-                lathe(f"clockcan{i}{s}", (c_[0], yc, c_[1]), d3, [(-9, 0), (-9, rc_ - 4), (-6, rc_), (25, rc_), (25, 0)], shell, 48)
+                dp = 26 if can == "deep" else 9
+                lathe(f"clockcan{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp, 0), (-dp, rc_ - 4), (-dp + 3, rc_), (25, rc_), (25, 0)], shell, 48)
                 lathe(f"clockbezel{i}{s}", (c_[0], yc, c_[1]), d3, [(22, rc_), (24, rc_ + 1.8), (28, rc_ + 1.8), (29.6, rc_), (29.6, rc_ - 3), (25, rc_ - 3), (25, rc_)], B.mat("chrome"), 48, sharp=False, caps=False)
-                lathe(f"clockfoot{i}{s}", (c_[0], yc, c_[1]), d3, [(-30, 0), (-30, 8), (-9, 10), (-9, 0)], B.mat("alu_dark"), 20)
+                lathe(f"clockfoot{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp - 20, 0), (-dp - 20, 8), (-dp, 10), (-dp, 0)], B.mat("alu_dark"), 20)
             org = (c_[0] + d_[0] * 24.4, c_[1] + d_[1] * 24.4)
             # +y is the rider's left, so the sweep runs clockwise as the rider reads it
             rot = lambda rad, a, w, r0, r1: [(yc - r0 * math.sin(a) + w * math.cos(a), r0 * math.cos(a) + w * math.sin(a)), (yc - r1 * math.sin(a) + w * math.cos(a), r1 * math.cos(a) + w * math.sin(a)),
@@ -1895,12 +1916,12 @@ def silencers(model, c):
             if can.get("mega"):
                 # a megaphone (beenster, cafe round 2): one long brushed cone opening to a wide mouth, a short
                 # black reverse cone on the end, open and dark inside
-                r0, r1 = rc * 0.56, can["mega"] / 2
+                r0, r1 = max(rc * 0.56, ex["headers"][0].get("w", 44) / 2 * 0.8 + 1.2), can["mega"] / 2      # the inlet sleeves over the header
                 drop(f"can{i}{sg}", f"canband{i}{sg}", f"canend{i}{sg}", f"canbore{i}{sg}")
                 soot = surf("pipeblack", (0.0015, 0.0015, 0.0015), 0.0, 1.0, wear=0.0)
                 soot.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0
-                lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.02, r0), (L_ * 0.1, r0 + 1.5), (L_ * 0.8, r1), (L_ * 0.86, r1)], B.mat("exhaust"), 48, sharp=False, caps=False)
-                lathe(f"canclamp{i}{sg}", a3, d3, [(L_ * 0.03, r0), (L_ * 0.03, r0 + 3.5), (L_ * 0.03 + 16, r0 + 3.8), (L_ * 0.03 + 16, r0), (L_ * 0.03, r0)], steel, 28, caps=False)
+                lathe(f"can{i}{sg}", a3, d3, [(-30, r0), (L_ * 0.1, r0 + 1.5), (L_ * 0.8, r1), (L_ * 0.86, r1)], B.mat("exhaust"), 48, sharp=False, caps=False)
+                lathe(f"canclamp{i}{sg}", a3, d3, [(-24, r0), (-24, r0 + 3.5), (-8, r0 + 3.5), (-8, r0), (-24, r0)], steel, 28, caps=False)
                 lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.855, r1 + 1.2), (L_ * 0.875, r1 + 1.2), (L_, r1 * 0.8), (L_ + 1.5, r1 * 0.8 - 2), (L_ - 1, r1 * 0.8 - 4.5)], B.mat("exhaust_black"), 48, caps=False)
                 lathe(f"canbore{i}{sg}", a3, d3, [(L_ - 0.5, r1 * 0.8 - 4.5), (L_ * 0.82, r1 - 3), (L_ * 0.45, r1 * 0.55), (L_ * 0.45, 0)], soot, 48, caps=False)
                 lathe(f"canstrap{i}{sg}", a3, d3, [(L_ * 0.6, r0 + (r1 - r0) * 0.71 + 0.5), (L_ * 0.6, r0 + (r1 - r0) * 0.71 + 3), (L_ * 0.6 + 14, r0 + (r1 - r0) * 0.735 + 3), (L_ * 0.6 + 14, r0 + (r1 - r0) * 0.735 + 0.5), (L_ * 0.6, r0 + (r1 - r0) * 0.71 + 0.5)], steel, 36, caps=False)
@@ -1992,6 +2013,7 @@ def radiator(model, c, heads, wp, wp_y):
             B.smooth_tube(f"radbracket{sg}", [P(q0, sg * 70), P(((q0[0] + tgt[0]) / 2, (q0[1] + tgt[1]) / 2 + 8), sg * (half(tgt) + 70) / 2), P(tgt, sg * half(tgt))], 5, B.mat("alu_dark"))
     # hoses with clips: top from the left tank to the front head, bottom from the right tank to the pump
     hose = surf("coolhose", (0.02, 0.02, 0.022), 0.0, 0.55)
+    tidy = model.get("detail", {}).get("hoses") == "tidy"
     front = max(heads, key=lambda h: h[0][0]) if heads else None
     runs = []
     if front:
@@ -1999,10 +2021,13 @@ def radiator(model, c, heads, wp, wp_y):
         s0 = R(Lr - 26, -hw - 2)
         th = add(hc, uh, 10)
         B.cone("thermostat", P(th, rh + 2), P(th, rh + 22), 17, 15, B.mat("engine"), 20)
-        runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -26), W + 14), P(((s0[0] + th[0]) / 2 - 10, (s0[1] + th[1]) / 2 + 26), W - 16), P(add(th, (0.3, 0.95), 36), rh + 34), P(th, rh + 20)]))
+        if tidy:      # one clean bend from the tank's stub to the thermostat, no slack loop
+            runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -30), W + 12), P(((s0[0] - 30 + th[0]) / 2, (s0[1] + th[1]) / 2 + 8), (W + 12 + rh + 30) / 2), P(add(th, (0.3, 0.95), 30), rh + 30), P(th, rh + 20)]))
+        else:
+            runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -26), W + 14), P(((s0[0] + th[0]) / 2 - 10, (s0[1] + th[1]) / 2 + 26), W - 16), P(add(th, (0.3, 0.95), 36), rh + 34), P(th, rh + 20)]))
     s1 = R(22, -hw - 2)
     pq = add(wp, (0.5, 0.86), 60)
-    runs.append(("radhose_b", [P(s1, -(W + 12)), P(add(s1, n, -24), -(W + 14)), P((s1[0] - 30, s1[1] - 90), -(W + 10)), P((pq[0] + 70, pq[1] + 60), wp_y - 16), P(add(pq, (0.5, 0.86), 26), wp_y - 12), P(pq, wp_y - 12)]))
+    runs.append(("radhose_b", [P(s1, -(W + 12)), P(add(s1, n, -24), -(W + 14)), P((s1[0] - 44, s1[1] - 36) if tidy else (s1[0] - 30, s1[1] - 90), -(W + 10)), P((pq[0] + 70, pq[1] + 60), wp_y - 16), P(add(pq, (0.5, 0.86), 26), wp_y - 12), P(pq, wp_y - 12)]))
     for nm, pts in runs:
         B.smooth_tube(nm, pts, 11.5, hose)
         for e_ in (0, -1):
