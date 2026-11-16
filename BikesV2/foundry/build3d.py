@@ -1549,7 +1549,9 @@ def build(model):
             if clip:
                 # clip-ons: a clamp round each fork leg and a short bar straight out from it
                 tube(f"clamp{s}", [(rz[0] + 20, s * 96, rz[1] - 16), (rz[0] + 20, s * 96, rz[1] + 14)], 36, mat("alu_dark"))
-                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 8, s * 200, grip[1] + 2), (grip[0] - 4, s * 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+                # the last stretch runs dead straight along the grip's own centre line (the grip sat 11 degrees off the bar)
+                on_ = lambda y: (grip[0] - 6 * (y - 258) / 126, s * y, grip[1] - 4 * (y - 258) / 126)
+                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 9, s * 186, grip[1] + 2.5), on_(232), on_(258), on_(320), on_(384)], 11.5, mat("alu_dark"))
             else:
                 tube(f"riser{s}", [(top[0], s * 45, top[1]), (rz[0], s * 45, rz[1])], 15, mat("alu_dark"))
             tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
