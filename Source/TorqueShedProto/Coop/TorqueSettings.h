@@ -30,6 +30,8 @@ struct FTorqueSettings
 	bool bReflex = true;
 	static bool HasFrameGen();
 	static bool HasReflex();
+	// [perf, build 151] How many times Apply has run this session (the Ride view line says, so a run proves it).
+	static int32 Applied;
 	// Torque Shed's Graphics tab, the rest of it (graphics_tab.gd), as Unreal does each.
 	int32 Monitor = -1;         // the screen the game is on, -1 wherever it opens
 	float Brightness = 1.0f;    // 0.5 .. 1.5 (the display gamma, 2.2 at 1)

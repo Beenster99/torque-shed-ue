@@ -79,8 +79,13 @@ void ATorquePlayerController::BeginPlay()
 	Pad = MakeUnique<FSonyPad>();
 	// The player's saved graphics and sound (a fresh install, and test runs, keep the project's own).
 	FTorqueSettings& S = FTorqueSettings::Get();
-	const bool bTest = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
-	if (S.bSaved && !bTest) S.Apply(GetWorld());
+	// ([perf, build 151] -TorqueUseSettings: a robot run on the player's own settings. Round 150's fps gate
+	// ran "on beenster's config" under -TorqueNoInput, so none of it was applied: native 4K, no upscaling,
+	// the project's preset, whatever the config said; the same for 149's Medium against Epic)
+	const bool bUseSettings = FParse::Param(FCommandLine::Get(), TEXT("TorqueUseSettings"));
+	const bool bTest = !bUseSettings && (FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings")));
+	if ((S.bSaved || bUseSettings) && !bTest) S.Apply(GetWorld());
+	else UE_LOG(LogTemp, Display, TEXT("Torque graphics: the saved settings are NOT applied (%s): the project's own are in use"), S.bSaved ? TEXT("a test run; -TorqueUseSettings applies them") : TEXT("never saved"));
 	// A joined player: shed actions go to the host.
 	if (GetNetMode() == NM_Client)
 		if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->Forward.BindUObject(this, &ATorquePlayerController::ForwardShed);

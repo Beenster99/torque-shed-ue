@@ -81,6 +81,8 @@ TAutoConsoleVariable<int32> CVarPool(TEXT("torque.RidePool"), 1,
 	TEXT("Ride UK: pieces of the world let go are kept to be used again (1, build 150) or destroyed (0)."));
 TAutoConsoleVariable<float> CVarRegisterMs(TEXT("torque.RideRegisterMs"), 2.0f,
 	TEXT("Ride UK: ms a frame for putting waiting walls, buildings and water in the scene (0: each at once, as until 149)."));
+TAutoConsoleVariable<float> CVarRoadLookMs(TEXT("torque.RideRoadLookMs"), 1.5f,
+	TEXT("Ride UK: ms each look over the roads near the rider may take (every 0.2 s), carrying on next time (0: all at once, as until 150)."));
 TAutoConsoleVariable<int32> CVarRoadsRayTraced(TEXT("torque.RideRoadsRayTraced"), 0,
 	TEXT("Ride UK: pieces of road in the ray-tracing scene (1) or not (0, build 150). For pieces made after the change."));
 constexpr int32 Levels = 4;
@@ -1122,12 +1124,28 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 	TorqueWorld::Rect Around;
 	Around.X0 = At.X - TRWI::RoadReach - 600.0; Around.Z0 = At.Y - TRWI::RoadReach - 600.0;
 	Around.X1 = At.X + TRWI::RoadReach + 600.0; Around.Z1 = At.Y + TRWI::RoadReach + 600.0;
-	std::vector<int> Roads = Plan->RoadsNear(Around, false);
-	for (const auto& Have : RoadParts) Roads.push_back(int(Have.Key / 4096));
-	std::sort(Roads.begin(), Roads.end());
-	Roads.erase(std::unique(Roads.begin(), Roads.end()), Roads.end());
-	for (const int Which : Roads)
+	// [perf, build 151] The roads to look at, found again only when the rider has gone 150 m since (or the
+	// plan has grown), and looked at a few at a time within torque.RideRoadLookMs a call (round 150, York:
+	// this look over every road and piece near the rider was most of 8 ms a frame, worst 76 ms).
+	const bool bSlice = !bAtOnce && TRWI::CVarRoadLookMs.GetValueOnGameThread() > 0.0f;
+	if (!bSlice || RoadListPlan != Plan.get() || FVector2D::Distance(At, RoadListAt) > 150.0)
 	{
+		RoadList = Plan->RoadsNear(Around, false);
+		for (const auto& Have : RoadParts) RoadList.push_back(int(Have.Key / 4096));
+		std::sort(RoadList.begin(), RoadList.end());
+		RoadList.erase(std::unique(RoadList.begin(), RoadList.end()), RoadList.end());
+		RoadListPlan = Plan.get();
+		RoadListAt = At;
+		RoadCursor = 0;
+	}
+	const double LookStart = FPlatformTime::Seconds();
+	const double LookMs = TRWI::CVarRoadLookMs.GetValueOnGameThread();
+	const size_t RoadCount = RoadList.size();
+	for (size_t Looked = 0; Looked < RoadCount; ++Looked)
+	{
+		if (bSlice && Looked > 0 && (FPlatformTime::Seconds() - LookStart) * 1000.0 > LookMs) break;
+		if (RoadCursor >= RoadCount) RoadCursor = 0;
+		const int Which = RoadList[RoadCursor++];
 		const std::vector<TorqueWorld::RoadPoint>& Pts = Plan->RoadOf(Which);
 		const int32 Points = int32(Pts.size());
 		if (Points < 2) continue;
@@ -1240,7 +1258,14 @@ const FABStep ABSteps[] = {
 	{TEXT("as set again"), TEXT(""), 0},
 };
 constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
-constexpr double ABSettle = 3.0, ABMeasure = 10.0;
+// ([perf, build 151] 2 s to settle and 5 measured by default, -TorqueRideABSecs=<measured s>: round 150's
+// 90 s runs fitted only 4 of 14 steps at 3 + 10 s)
+double ABMeasureSecs()
+{
+	static const double Secs = []() { float Given = 5.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABSecs="), Given); return double(FMath::Clamp(Given, 2.0f, 30.0f)); }();
+	return Secs;
+}
+constexpr double ABSettle = 2.0;
 } // namespace TRProbe
 
 float ATorqueRideWorld::PresetReach(bool bTree) const
@@ -1282,11 +1307,11 @@ void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
 
 void ATorqueRideWorld::TickAB(float DeltaSeconds)
 {
-	// -TorqueRideAB=1 (and -TorqueRideABAfter=<s>, 20 by default: the squares round the rider made
-	// first). Best parked or standing still, so each step sees the same view. Each step: 3 s to settle,
-	// 10 s measured. Its console variables are set as the console sets them, and put back after.
+	// -TorqueRideAB=1 (and -TorqueRideABAfter=<s>, 12 by default: the squares round the rider made
+	// first). Best parked or standing still, so each step sees the same view. Each step: 2 s to settle,
+	// 5 s measured (-TorqueRideABSecs=), about 100 s for all 14. Its console variables are set as the console sets them, and put back after.
 	static const bool bAB = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideAB="), On) && On != 0; }();
-	static const double ABAfter = []() { float Secs = 20.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABAfter="), Secs); return double(FMath::Max(Secs, 0.0f)); }();
+	static const double ABAfter = []() { float Secs = 12.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABAfter="), Secs); return double(FMath::Max(Secs, 0.0f)); }();
 	if (!bAB || ABStep >= TRProbe::ABCount) return;
 	ABSince += DeltaSeconds;
 	auto StartStep = [this](int32 Which)
@@ -1327,12 +1352,12 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 	++ABFrames;
 	// (one frame's GPU passes, with their sizes, logged by the engine: says whether the screen
 	// percentage and upscaler are really in use, and what the GPU's ms go on)
-	if (ABStep == 0 && !bABProfiled && ABSince > TRProbe::ABSettle + 5.0 && GEngine)
+	if (ABStep == 0 && !bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
 	{
 		bABProfiled = true;
 		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
 	}
-	if (ABSince < TRProbe::ABSettle + TRProbe::ABMeasure) return;
+	if (ABSince < TRProbe::ABSettle + TRProbe::ABMeasureSecs()) return;
 	const TRProbe::FABStep& Done = TRProbe::ABSteps[ABStep];
 	const double Frames = double(FMath::Max(ABFrames, 1));
 	UE_LOG(LogTemp, Display, TEXT("Ride A/B: %-45s %5.1f fps; game %5.1f ms, render %5.1f ms, GPU %5.1f ms (%d frames)"),
@@ -1441,7 +1466,12 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				const IConsoleVariable* PctVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
 				const float Pct = PctVar ? PctVar->GetFloat() : 100.0f;
 				const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
-				const FString View = FString::Printf(TEXT("output %dx%d, r.ScreenPercentage %s (%dx%d if applied; mode %s, dynamic res %s), anti-aliasing %s (4 TSR, 2 TAA), DLSS %s; presets view %d shadows %d GI %d reflections %d foliage %d effects %d; Nanite %s, VSM %s, Lumen GI %s/reflections %s, HW RT %s, clouds %s (steps %s), fog %s, view distance %s"),
+				const FTorqueSettings& Saved = FTorqueSettings::Get();
+				const FString SettingsSaid = FString::Printf(TEXT("settings applied %d times (saved: preset %d%s, upscaler %s, render %.1f%%, frame gen %d); now r.NGX.DLSS.Enable %s, r.Streamline.DLSSG.Enable %s, Reflex %s; "),
+					FTorqueSettings::Applied, Saved.Quality, Saved.bPerformance ? TEXT(" Performance") : TEXT(""), Saved.Upscaler == 1 ? TEXT("DLSS") : TEXT("TSR"),
+					FTorqueSettings::ScreenPercent(Saved.UpscaleMode), Saved.bFrameGen ? 1 : 0, *TRProbe::CVarText(TEXT("r.NGX.DLSS.Enable")),
+					*TRProbe::CVarText(TEXT("r.Streamline.DLSSG.Enable")), *TRProbe::CVarText(TEXT("t.Streamline.Reflex.Enable")));
+				const FString View = SettingsSaid + FString::Printf(TEXT("output %dx%d, r.ScreenPercentage %s (%dx%d if applied; mode %s, dynamic res %s), anti-aliasing %s (4 TSR, 2 TAA), DLSS %s; presets view %d shadows %d GI %d reflections %d foliage %d effects %d; Nanite %s, VSM %s, Lumen GI %s/reflections %s, HW RT %s, clouds %s (steps %s), fog %s, view distance %s"),
 					OutSize.X, OutSize.Y, *TRProbe::CVarText(TEXT("r.ScreenPercentage")), int32(OutSize.X * Pct / 100.0f), int32(OutSize.Y * Pct / 100.0f),
 					*TRProbe::CVarText(TEXT("r.ScreenPercentage.Mode")), *TRProbe::CVarText(TEXT("r.DynamicRes.OperationMode")), *TRProbe::CVarText(TEXT("r.AntiAliasingMethod")),
 					*TRProbe::CVarText(TEXT("r.NGX.DLSS.Enable")), Q.ViewDistanceQuality, Q.ShadowQuality, Q.GlobalIlluminationQuality, Q.ReflectionQuality, Q.FoliageQuality, Q.EffectsQuality,
@@ -1461,16 +1491,21 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			{
 				const double AvgGame = FrameGameMs / CostFrames, AvgRender = FrameRenderMs / CostFrames, AvgGpu = FrameGpuMs / CostFrames;
 				double OursMs = 0.0, OursWorst = 0.0;
+				int32 WorstWhich = 0;
 				for (int32 W = 0; W < RideCosts::Count; ++W)
 				{
 					OursMs += S.Ms[W];
-					OursWorst = FMath::Max(OursWorst, S.Worst[W]);
+					if (S.Worst[W] > OursWorst)
+					{
+						OursWorst = S.Worst[W];
+						WorstWhich = W;
+					}
 				}
 				OursMs /= CostFrames;
 				auto Mark = [](double Have, double Most) { return Have <= Most ? TEXT("ok") : TEXT("OVER"); };
-				UE_LOG(LogTemp, Display, TEXT("Ride budget: GPU %.1f/14 %s, render %.1f/10 %s, game %.1f/10 %s, ours %.2f/3 %s, our worst job %.0f/8 %s, parts waiting %d, spare parts %d, spare plant groups %d"),
+				UE_LOG(LogTemp, Display, TEXT("Ride budget: GPU %.1f/14 %s, render %.1f/10 %s, game %.1f/10 %s, ours %.2f/3 %s, our worst job %.0f/8 %s (%s), parts waiting %d, spare parts %d, spare plant groups %d"),
 					AvgGpu, Mark(AvgGpu, 14.0), AvgRender, Mark(AvgRender, 10.0), AvgGame, Mark(AvgGame, 10.0), OursMs, Mark(OursMs, 3.0),
-					OursWorst, Mark(OursWorst, 8.0), ToRegister.Num(), Spare.Num(), SparePlants.Num());
+					OursWorst, Mark(OursWorst, 8.0), RideCosts::Name(WorstWhich), ToRegister.Num(), Spare.Num(), SparePlants.Num());
 			}
 			FrameGameMs = FrameRenderMs = FrameGpuMs = 0.0;
 			S = RideCosts::FSums();
@@ -1568,7 +1603,8 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		Update(At, false);
 	}
 	{
-		RideCosts::FScope Cost(RideCosts::Roads);
+		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
+		RideCosts::FScope Cost(RideCosts::RoadLook);
 		UpdateRoad(At, false);
 	}
 	// [ride anywhere] The ground round the rider fetched as they roam, on a worker, every 800 m: the

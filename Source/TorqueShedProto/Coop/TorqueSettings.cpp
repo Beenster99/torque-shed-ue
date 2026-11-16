@@ -301,6 +301,8 @@ bool FTorqueSettings::HdrAvailable()
 	return G && G->SupportsHDRDisplayOutput();
 }
 
+int32 FTorqueSettings::Applied = 0;
+
 bool FTorqueSettings::HasFrameGen()
 {
 	return IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streamline.DLSSG.Enable")) != nullptr;
@@ -328,6 +330,10 @@ bool FTorqueSettings::HasDlss()
 
 void FTorqueSettings::Apply(UWorld* World) const
 {
+	++Applied;
+	UE_LOG(LogTemp, Display, TEXT("Torque graphics: applying preset %d%s, upscaler %s (DLSS in build %d), render %.1f%%, AA row %d, frame generation %d (in build %d), Reflex %d"),
+		Quality, bPerformance ? TEXT(" (Performance)") : TEXT(""), Upscaler == 1 ? TEXT("DLSS") : TEXT("TSR"), HasDlss() ? 1 : 0, ScreenPercent(UpscaleMode), AntiAliasing,
+		bFrameGen ? 1 : 0, HasFrameGen() ? 1 : 0, bReflex ? 1 : 0);
 	if (UGameUserSettings* G = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
 		MoveToMonitor(Monitor);

@@ -32,6 +32,7 @@
 #include "World/TorqueRidePart.h"
 
 #include <memory>
+#include <vector>
 #include <string>
 
 #include "TorqueRideWorld.generated.h"
@@ -174,6 +175,12 @@ private:
 	// tagged Road, and its tunnel lamps. Ready: its sections readied on the worker, or null.
 	void PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Mesh, TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* Ready, bool bAtOnce);
 	TSet<int64> RoadAsked;   // pieces of road being made on a worker
+	// [perf, build 151] UpdateRoad's list of roads to look at, where and from which plan it was found, and
+	// where in it the next look starts.
+	std::vector<int> RoadList;
+	FVector2D RoadListAt = FVector2D(1e12, 1e12);
+	const void* RoadListPlan = nullptr;
+	size_t RoadCursor = 0;
 	// The level's plant kit (see above): true if it has any grass or trees.
 	bool FindKit();
 	// A square's grass and trees as instanced meshes, and taking them away again.
