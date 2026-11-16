@@ -98,8 +98,9 @@ TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting
 // draw as scans only within this many metres, in 128 m patches, and as the far models past it.
 TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
 	TEXT("Ride UK: near trees are drawn as scanned models within this many metres and as the far models past it (0: scans out to the whole near ring, as until 152). For squares made after the change."));
-TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 1,
-	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0)."));
+// ([build 154] off: round 153's specks didn't stop the PSO misses; URidePart now asks for its PSOs instead)
+TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
+	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
 	TEXT("Ride UK: trees sway in the wind out to this many metres (80 until 151). For squares made after the change."));
 constexpr int32 Levels = 4;
