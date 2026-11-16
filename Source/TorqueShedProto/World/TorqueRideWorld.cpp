@@ -646,7 +646,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		// has its models in M_RideFacade (Tools/ue_build_rideuk.py prop_kit), unless -TorqueRideFacadeKit=0
 		// (the hub's A/B: then drawn into the houses' own mesh, as 149).
 		bool bFacade = true;
-		for (int32 K = TorqueWorld::RidePlan::FirstFacade; K < TorqueWorld::RidePlan::PropKinds; ++K)
+		for (int32 K = TorqueWorld::RidePlan::FirstFacade; K < TorqueWorld::RidePlan::FacadeCoreEnd; ++K)
 		{
 			bFacade = bFacade && PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
 			if (bFacade)
@@ -2055,7 +2055,15 @@ void ATorqueRideWorld::FindProps()
 				if (!S.Mesh) continue;
 				const FString Name = S.Name.ToString();
 				for (int32 K = 0; K < RidePlan::PropKinds; ++K)
-					if (Name.StartsWith(FString(TEXT("SM_Prop_")) + UTF8_TO_TCHAR(RidePlan::PropName(K)) + TEXT("_"))) PropModels[K].Add(PropKit.Num());
+				{
+					// (SM_Prop_<kind>_<n> or _fab<n> only: "door_ledged_" also starts "door_ledged_light_0", which
+					// gave a plain ledged door, a casement or a mullion its sister kind's models, of other sizes)
+					const FString Prefix = FString(TEXT("SM_Prop_")) + UTF8_TO_TCHAR(RidePlan::PropName(K)) + TEXT("_");
+					if (!Name.StartsWith(Prefix)) continue;
+					FString Rest = Name.RightChop(Prefix.Len());
+					Rest.RemoveFromStart(TEXT("fab"));
+					if (Rest.IsNumeric()) PropModels[K].Add(PropKit.Num());
+				}
 				PropKit.Add(S);
 			}
 		}

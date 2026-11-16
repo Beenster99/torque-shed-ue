@@ -1,0 +1,29 @@
+{
+ "_about": "House types for Ride UK (towns plan stage 4), read by World/WorldRideStyle.cpp (SetHouseTypes) and used by World/WorldRideBuildings.cpp. A house is a cottage (detached, out of town) or one of a village row; in a town a detached house, a semi, one of a terrace (a row of three or more, from the map's outlines that share walls: WorldRideOutlines.cpp MarkRows) or a tenement (three floors or more). Each kind lists its periods: 'weight' how common, 'window' place (the region's own), sash, casement, mullion or modern; 'bay' the share with a bay window on the front (Tools/make_facade_kit.py bay_canted, bay_square), 'bay_two' of those how many run up two storeys, 'bay_square' how many are square rather than canted; 'hipped' the share of squarish ones the map gives no roof shape that are hipped (-1 or left out: the place's habit); 'hood' the share of doors under a hood; 'doors' the door styles it uses (panel6, victorian, ledged, modern). A row or a street takes one period and one bay choice together. A kind left out keeps the built-in figures (the same as these).",
+ "cottage": [
+  {"period": "old", "weight": 1, "window": "place", "bay": 0.03, "hood": 0.3 }
+ ],
+ "village_row": [
+  {"period": "victorian", "weight": 0.8, "window": "place", "bay": 0.2, "bay_two": 0.1, "hood": 0.3, "doors": ["panel6", "victorian", "ledged" ] },
+  {"period": "postwar", "weight": 0.2, "window": "modern", "hood": 0.15, "doors": ["modern", "panel6" ] }
+ ],
+ "detached": [
+  {"period": "victorian", "weight": 0.3, "window": "sash", "bay": 0.45, "bay_two": 0.35, "bay_square": 0.2, "hood": 0.3, "doors": ["panel6", "victorian" ] },
+  {"period": "interwar", "weight": 0.3, "window": "casement", "bay": 0.6, "bay_two": 0.7, "bay_square": 0.35, "hipped": 0.6, "hood": 0.25, "doors": ["victorian", "ledged" ] },
+  {"period": "postwar", "weight": 0.4, "window": "modern", "bay": 0.08, "bay_square": 1, "hipped": 0.3, "hood": 0.1, "doors": ["modern", "panel6" ] }
+ ],
+ "semi": [
+  {"period": "victorian", "weight": 0.2, "window": "sash", "bay": 0.6, "bay_two": 0.4, "bay_square": 0.1, "hood": 0.3, "doors": ["panel6", "victorian" ] },
+  {"period": "interwar", "weight": 0.5, "window": "casement", "bay": 0.85, "bay_two": 0.8, "bay_square": 0.25, "hipped": 0.75, "hood": 0.3, "doors": ["victorian", "ledged" ] },
+  {"period": "postwar", "weight": 0.3, "window": "modern", "bay": 0.05, "bay_square": 1, "hipped": 0.25, "hood": 0.1, "doors": ["modern", "panel6" ] }
+ ],
+ "terrace": [
+  {"period": "victorian", "weight": 0.72, "window": "sash", "bay": 0.5, "bay_two": 0.3, "bay_square": 0.1, "hood": 0.15, "doors": ["victorian", "panel6" ] },
+  {"period": "georgian", "weight": 0.08, "window": "sash", "bay": 0, "hood": 0.5, "doors": ["panel6" ] },
+  {"period": "interwar", "weight": 0.08, "window": "casement", "bay": 0.4, "bay_two": 0.6, "bay_square": 0.4, "hood": 0.3, "doors": ["victorian", "ledged" ] },
+  {"period": "modern", "weight": 0.12, "window": "modern", "bay": 0, "hood": 0.1, "doors": ["modern" ] }
+ ],
+ "tenement": [
+  {"period": "victorian", "weight": 1, "window": "sash", "bay": 0, "hood": 0, "doors": ["panel6", "victorian" ] }
+ ]
+}

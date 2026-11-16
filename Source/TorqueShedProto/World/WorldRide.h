@@ -693,8 +693,11 @@ public:
 		PropWinSash6, PropWinSash2, PropWinCasement, PropWinCasementTop, PropWinMullion, PropWinMullionLeaded,
 		PropSurStone, PropSurBrick, PropSurPlain,
 		PropDoorPanel6, PropDoorVictorian, PropDoorLedged, PropDoorLedgedLight, PropDoorModern, PropDoorDouble, PropDoorHood,
+		// [towns stage 4] Bay windows (Variant: storeys less one), placed only where the game has their models
+		PropBayCanted, PropBaySquare,
 		PropKinds };
 	static constexpr int FirstFacade = PropWinSash6;
+	static constexpr int FacadeCoreEnd = PropBayCanted;   // (the kinds the kit can't go without: it is off unless all have models)
 	// [fps plan step 2] Whether the houses' windows and doors come as the facade kit's instances (the game
 	// sets it when every facade kind has its models and -TorqueRideFacadeKit=0 isn't given), else drawn.
 	bool FacadeKit = false;
@@ -902,6 +905,8 @@ public:
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
+		int HouseKinds[6] = {};   // [towns stage 4] houses by HouseTypes::EKind (cottage, village row, detached, semi, terrace, tenement)
+		int BayWindows = 0;       // and the bay windows on them
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or

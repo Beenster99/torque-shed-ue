@@ -163,6 +163,110 @@ bool NamedTile(const std::string& Name, Tint& Out)
 	return true;
 }
 
+namespace
+{
+std::mutex HouseTypeLock;
+std::shared_ptr<const HouseTypes>& HouseTypeTable()
+{
+	static std::shared_ptr<const HouseTypes> Table;
+	return Table;
+}
+
+bool ReadHouseTypes(const std::string& Text, HouseTypes& Out)
+{
+	TorqueFit::Json Root;
+	if (!TorqueFit::Json::Parse(Text, Root) || !Root.IsObject()) return false;
+	static const char* const KindNames[HouseTypes::Kinds] = {"cottage", "village_row", "detached", "semi", "terrace", "tenement"};
+	for (int K = 0; K < HouseTypes::Kinds; ++K)
+	{
+		const TorqueFit::Json* Rows = Root.Get(KindNames[K]);
+		if (Rows == nullptr || !Rows->IsArray()) continue;
+		std::vector<HousePeriod> List;
+		for (const TorqueFit::Json& J : Rows->A)
+		{
+			HousePeriod P;
+			P.Name = J.Str("period");
+			P.Weight = std::max(0.0, J.Num("weight", 1.0));
+			const std::string Win = J.Str("window");
+			P.Window = Win == "sash" ? int(LocalLook::Sash) : Win == "casement" ? int(LocalLook::Casement) : Win == "mullion" ? int(LocalLook::Mullion) : Win == "modern" ? 3 : -1;
+			P.Bay = std::clamp(J.Num("bay", 0.0), 0.0, 1.0);
+			P.BayTwo = std::clamp(J.Num("bay_two", 0.0), 0.0, 1.0);
+			P.BaySquare = std::clamp(J.Num("bay_square", 0.0), 0.0, 1.0);
+			P.Hipped = J.Num("hipped", -1.0);
+			P.Hood = std::clamp(J.Num("hood", 0.35), 0.0, 1.0);
+			if (const TorqueFit::Json* D = J.Get("doors"))
+				if (D->IsArray())
+					for (const TorqueFit::Json& Dn : D->A)
+					{
+						const std::string& N = Dn.S;
+						const int Style = N == "panel6" ? 0 : N == "victorian" ? 1 : N == "ledged" ? 2 : N == "modern" ? 3 : -1;
+						if (Style >= 0) P.Doors.push_back(Style);
+					}
+			List.push_back(std::move(P));
+		}
+		Out.Periods[K] = std::move(List);
+	}
+	return true;
+}
+
+// (the built-in table: Data/RideUK/house_types.json's own figures, for a ride before it is read or without it)
+const char* const BuiltInHouseTypes = R"({
+ "cottage": [{"period": "old", "weight": 1, "window": "place", "bay": 0.03, "hood": 0.3}],
+ "village_row": [{"period": "victorian", "weight": 0.8, "window": "place", "bay": 0.2, "bay_two": 0.1, "hood": 0.3, "doors": ["panel6", "victorian", "ledged"]},
+  {"period": "postwar", "weight": 0.2, "window": "modern", "hood": 0.15, "doors": ["modern", "panel6"]}],
+ "detached": [{"period": "victorian", "weight": 0.3, "window": "sash", "bay": 0.45, "bay_two": 0.35, "bay_square": 0.2, "hood": 0.3, "doors": ["panel6", "victorian"]},
+  {"period": "interwar", "weight": 0.3, "window": "casement", "bay": 0.6, "bay_two": 0.7, "bay_square": 0.35, "hipped": 0.6, "hood": 0.25, "doors": ["victorian", "ledged"]},
+  {"period": "postwar", "weight": 0.4, "window": "modern", "bay": 0.08, "bay_square": 1, "hipped": 0.3, "hood": 0.1, "doors": ["modern", "panel6"]}],
+ "semi": [{"period": "victorian", "weight": 0.2, "window": "sash", "bay": 0.6, "bay_two": 0.4, "bay_square": 0.1, "hood": 0.3, "doors": ["panel6", "victorian"]},
+  {"period": "interwar", "weight": 0.5, "window": "casement", "bay": 0.85, "bay_two": 0.8, "bay_square": 0.25, "hipped": 0.75, "hood": 0.3, "doors": ["victorian", "ledged"]},
+  {"period": "postwar", "weight": 0.3, "window": "modern", "bay": 0.05, "bay_square": 1, "hipped": 0.25, "hood": 0.1, "doors": ["modern", "panel6"]}],
+ "terrace": [{"period": "victorian", "weight": 0.72, "window": "sash", "bay": 0.5, "bay_two": 0.3, "bay_square": 0.1, "hood": 0.15, "doors": ["victorian", "panel6"]},
+  {"period": "georgian", "weight": 0.08, "window": "sash", "bay": 0, "hood": 0.5, "doors": ["panel6"]},
+  {"period": "interwar", "weight": 0.08, "window": "casement", "bay": 0.4, "bay_two": 0.6, "bay_square": 0.4, "hood": 0.3, "doors": ["victorian", "ledged"]},
+  {"period": "modern", "weight": 0.12, "window": "modern", "bay": 0, "hood": 0.1, "doors": ["modern"]}],
+ "tenement": [{"period": "victorian", "weight": 1, "window": "sash", "bay": 0, "hood": 0, "doors": ["panel6", "victorian"]}]
+})";
+} // namespace
+
+const HousePeriod* HouseTypes::Pick(int Kind, double Chance) const
+{
+	if (Kind < 0 || Kind >= Kinds || Periods[Kind].empty()) return nullptr;
+	double Sum = 0.0;
+	for (const HousePeriod& P : Periods[Kind]) Sum += P.Weight;
+	double At = std::clamp(Chance, 0.0, 0.999999) * Sum;
+	for (const HousePeriod& P : Periods[Kind])
+	{
+		if (At < P.Weight) return &P;
+		At -= P.Weight;
+	}
+	return &Periods[Kind].back();
+}
+
+bool SetHouseTypes(const std::string& Text)
+{
+	auto Table = std::make_shared<HouseTypes>();
+	ReadHouseTypes(BuiltInHouseTypes, *Table);
+	HouseTypes Read;
+	if (!ReadHouseTypes(Text, Read)) return false;
+	for (int K = 0; K < HouseTypes::Kinds; ++K)
+		if (!Read.Periods[K].empty()) Table->Periods[K] = std::move(Read.Periods[K]);
+	std::lock_guard<std::mutex> Hold(HouseTypeLock);
+	HouseTypeTable() = std::move(Table);
+	return true;
+}
+
+std::shared_ptr<const HouseTypes> HouseTypesNow()
+{
+	std::lock_guard<std::mutex> Hold(HouseTypeLock);
+	if (!HouseTypeTable())
+	{
+		auto Table = std::make_shared<HouseTypes>();
+		ReadHouseTypes(BuiltInHouseTypes, *Table);
+		HouseTypeTable() = std::move(Table);
+	}
+	return HouseTypeTable();
+}
+
 bool SetTownTable(const std::string& Text)
 {
 	TorqueFit::Json Root;

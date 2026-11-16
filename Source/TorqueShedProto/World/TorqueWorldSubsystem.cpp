@@ -172,6 +172,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [towns stage 4] The house types and their periods (the built-in figures without the file).
+		std::string TypesText;
+		const std::string TypesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_types.json")));
+		const bool bTypes = TorqueWorld::Files::Read(TypesPath, TypesText) && TorqueWorld::SetHouseTypes(TypesText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: house types %s"), bTypes ? TEXT("from Data/RideUK/house_types.json") : TEXT("built in (Data/RideUK/house_types.json unreadable)"));
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));

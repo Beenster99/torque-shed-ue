@@ -157,6 +157,8 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string TypesText;   // [towns stage 4]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string PlaceText;   // [OSM stage 6C]
@@ -289,7 +291,11 @@ int main(int Argc, char** Argv)
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
 	// the game places them when it has them all.
-	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr) Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
+	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr)
+	{
+		Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
+		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
+	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	{
 		int Urban = 0, All = 0;
@@ -418,6 +424,8 @@ int main(int Argc, char** Argv)
 				Tally.HouseFloors[0], Tally.HouseMapped[0], Tally.HouseFloors[1], Tally.HouseMapped[1], Tally.HouseFloors[2], Tally.HouseMapped[2],
 				Tally.HousesByRoad, Tally.LongSideToRoad);
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
+			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
+				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows);
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.

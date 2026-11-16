@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <string>
 
 namespace TorqueWorld
@@ -53,6 +54,8 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	using namespace RideSceneBits;
 	if (!Scene || !Land) return;
 	const Region& G = Area.Roads;
+	const std::shared_ptr<const HouseTypes> Types = HouseTypesNow();   // [towns stage 4]
+	const bool Scots = std::strcmp(Look.Name, "lowlands") == 0 || std::strcmp(Look.Name, "highlands") == 0;
 	const auto Inside = [X0, Z0, Size](double X, double Z) { return X >= X0 && X < X0 + Size && Z >= Z0 && Z < Z0 + Size; };
 	const auto OffRoad = [this](double X, double Z, double Spare)
 	{
@@ -226,6 +229,22 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const bool Works = Kind == "hangar" || Kind == "stadium" || Kind == "grandstand" || Kind == "industrial" || Kind == "warehouse" || Kind == "retail"
 			|| Kind == "commercial" || WallMaterial == "metal" || WallMaterial == "concrete" || WallMaterial == "cement_block" || (WallMaterial.empty() && (IsIndustrial || (IsShed && !Timber)));
 		const bool Big = HalfShort > 6.0 || Works || IsBarn;   // (a barn or a shed: a low roof)
+		// [towns stage 4] What kind of house it is and when it was built (Data/RideUK/house_types.json): a
+		// cottage or one of a village row out of town; in a town a detached house, a semi, one of a terrace,
+		// or a tenement (Scotland's flats, three floors and up). A row takes one period, a street mostly one.
+		const bool InTown = TownLookAt(B.X, B.Z) != nullptr;
+		const bool LongRow = HalfLong * 2.0 >= 12.0 && HalfLong > HalfShort * 2.5;
+		int HouseKind = -1;
+		if (IsHouse && !Big)
+			HouseKind = InRow ? (!InTown ? HouseTypes::VillageRow : InRow->RowSize >= 3 ? HouseTypes::Terrace : HouseTypes::Semi)
+				: LongRow ? (InTown ? HouseTypes::Terrace : HouseTypes::VillageRow) : InTown ? HouseTypes::Detached : HouseTypes::Cottage;
+		if (InTown && Scots && (IsBlock || (IsHouse && Each.Floors >= 3.0))) HouseKind = HouseTypes::Tenement;
+		const double RowX = InRow ? InRow->RowSeed.X * 0.37 + 0.5 : StreetX, RowZ = InRow ? InRow->RowSeed.Z * 0.41 + 0.5 : StreetZ;
+		const bool OwnWay = HouseKind == HouseTypes::Detached || HouseKind == HouseTypes::Cottage;   // (a detached house more its own than a row's)
+		const HousePeriod* Period = HouseKind >= 0 && Types ? Types->Pick(HouseKind, OwnWay && Chance(B.X, B.Z, 85) < 0.35 ? Chance(B.X, B.Z, 81) : Chance(RowX, RowZ, 81)) : nullptr;
+		const bool PlainGlazing = Period && Period->Window == 3;   // (modern: casements, no bars)
+		const LocalLook::EWindow WinKind = Period && Period->Window >= 0 ? (PlainGlazing ? LocalLook::Casement : LocalLook::EWindow(Period->Window)) : Look.Window;
+		if (Tally && HouseKind >= 0) ++Tally->HouseKinds[HouseKind];
 		// The roof's shape: the map's, else gabled; a flat-roofed block where the map has tar paper
 		// or concrete on top.
 		enum class ERoof { Gabled, Hipped, Flat, Skillion };
@@ -243,10 +262,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		else if (RoofShape.empty() && IsHouse && !Big)
 		{
 			const double Area0 = HalfLong * HalfShort * 4.0;
-			const bool InTown = TownLookAt(B.X, B.Z) != nullptr;
+			// ([towns stage 4] as its period hipped them, where the period says: fewer where stone is the rule)
+			const double HipShare = Period && Period->Hipped >= 0.0 ? Period->Hipped * (InTown ? 1.0 : 0.4) * (0.35 + 0.65 * std::fmin(1.0, double(Look.BrickShare + Look.RenderShare)))
+				: InTown ? 0.12 + 0.45 * double(Look.BrickShare) : 0.06 + 0.2 * double(Look.BrickShare);
 			if (Each.Look != nullptr && Area0 < 22.0 && Chance(B.X, B.Z, 13) < 0.6) Shape = ERoof::Skillion;
-			else if (Area0 > 45.0 && Area0 < 170.0 && HalfLong < 1.7 * HalfShort
-				&& Chance(StreetX, StreetZ, 14) < (InTown ? 0.12 + 0.45 * double(Look.BrickShare) : 0.06 + 0.2 * double(Look.BrickShare)))
+			else if (Area0 > 45.0 && Area0 < 170.0 && HalfLong < 1.7 * HalfShort && Chance(RowX, RowZ, 14) < HipShare)
 				Shape = ERoof::Hipped;
 		}
 		// [towns stage 4] (a terrace's roofs run on from house to house: gabled through every party wall;
@@ -365,7 +385,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			if (IsHouse) { Tally->Hipped += Shape == ERoof::Hipped ? 1 : 0; Tally->LeanTo += Shape == ERoof::Skillion ? 1 : 0; }
 			if (IsHouse && Bays == 1)
 			{
-				const double WinH0 = Look.Window == LocalLook::Mullion ? 0.9 : Look.Window == LocalLook::Sash ? 1.45 : 1.0;
+				const double WinH0 = WinKind == LocalLook::Mullion ? 0.9 : WinKind == LocalLook::Sash ? 1.45 : 1.0;
 				const int Fl = std::clamp(1 + int((Eaves - 1.15 - WinH0) / 2.7), 1, 3);
 				++Tally->HouseFloors[Fl - 1];
 				if (B.Height > 2.0) ++Tally->HouseMapped[Fl - 1];
@@ -381,6 +401,16 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			}
 		}
 		const double BayW = HalfLong * 2.0 / Bays;
+		// [towns stage 4] A bay window on its front ground floor, as its period built them, the whole row or
+		// street alike: canted or square, one storey or two (the facade kit's, where the game has them).
+		int BayModel = -1;
+		bool BayTwo = false;
+		if (Period && FacadeKit && !Plain && Period->Bay > 0.0 && Chance(RowX, RowZ, 82) < Period->Bay)
+		{
+			BayModel = Chance(RowX, RowZ, 84) < Period->BaySquare ? PropBaySquare : PropBayCanted;
+			if (!PropModelled[BayModel]) BayModel = -1;
+			BayTwo = Chance(RowX, RowZ, 83) < Period->BayTwo;
+		}
 		// [towns stage 4] A row house's door: in a terrace the doors in pairs by the party walls (the first
 		// house's by its neighbour, the next's by it, and on); a semi's at its outer end.
 		bool DoorPlus = false;
@@ -558,12 +588,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			{
 				if (FacadeKit)
 				{
-					const int Type = Look.Window == LocalLook::Sash ? 0 : Look.Window == LocalLook::Casement ? 1 : 2;
+					const int Type = WinKind == LocalLook::Sash ? 0 : WinKind == LocalLook::Casement ? 1 : 2;
 					const int Fit = RideBuildingBits::FacadeSize(RideBuildingBits::WindowSizes[Type], 3, W, H);
 					if (Fit >= 0)
 					{
 						const int Model = Type == 0 ? (Chance(StreetX + 3.0, StreetZ, 65) < 0.45 ? PropWinSash6 : PropWinSash2)
-							: Type == 1 ? (Chance(B.X + U, B.Z + Lo, 66) < 0.35 ? PropWinCasementTop : PropWinCasement)
+							: Type == 1 ? (!PlainGlazing && Chance(B.X + U, B.Z + Lo, 66) < 0.35 ? PropWinCasementTop : PropWinCasement)
 							: (Chance(B.X + U, B.Z + Lo, 64) < 0.5 ? PropWinMullionLeaded : PropWinMullion);
 						Kit(Model, Fit, U, Lo, Paint, Surrounds ? StoneTrim : Paint, Paint);
 						Kit(SurroundKind, Type * 3 + Fit, U, Lo, Paint, Reveal, SillColour);
@@ -583,7 +613,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const double Gb = 0.022;   // (a glazing bar)
 				const auto Vbar = [&](double Uc, double Y0, double Y1, double Wd) { Face(Uc - Wd * 0.5, Uc + Wd * 0.5, Y0, Y1, F0 + 0.007, Paint); };
 				const auto Hbar = [&](double Yc, double Wd) { Face(In0, In1, Yc - Wd * 0.5, Yc + Wd * 0.5, F0 + 0.008, Paint); };
-				switch (Look.Window)
+				switch (WinKind)
 				{
 				case LocalLook::Mullion:
 				{
@@ -625,7 +655,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					const double Tr = Bot + (Tp - Bot) * 0.7;
 					Vbar(U, Bot, Tp, 0.06);
 					Face(In0, In1, Tr - 0.03, Tr + 0.03, F0 + 0.009, Paint);
-					if (Chance(B.X + U, B.Z + Lo, 66) < 0.35)
+					if (!PlainGlazing && Chance(B.X + U, B.Z + Lo, 66) < 0.35)
 						for (int M = 1; M < 3; ++M) { Vbar(In0 + Iw * M / 3.0, Tr, Tp, Gb); }
 					break;
 				}
@@ -643,7 +673,10 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const Rgb Leaf = DoorPick < 0.5 ? Rgb{std::fmin(1.0f, T.R * 1.8f), std::fmin(1.0f, T.G * 1.8f), std::fmin(1.0f, T.B * 1.8f)} : Bright[int(Chance(B.Z + U, B.X + Salt, 72) * 8.0) & 7];
 				// (a wide door, a shop's or a hall's, keeps the plain painted leaf: two of them)
 				const bool Wide = W > 1.3;
-				const int Style = Wide ? 0 : int(Chance(B.X + U * 1.7, B.Z + Salt, 67) * 4.0) & 3;   // 0 six-panel, 1 half-glazed Victorian, 2 ledged planks, 3 modern
+				const double StylePick = Chance(B.X + U * 1.7, B.Z + Salt, 67);
+				const int Style = Wide ? 0 : Period && !Period->Doors.empty() ? Period->Doors[std::min(Period->Doors.size() - 1, size_t(StylePick * double(Period->Doors.size())))]
+					: int(StylePick * 4.0) & 3;   // 0 six-panel, 1 half-glazed Victorian, 2 ledged planks, 3 modern ([towns stage 4] as its period's)
+				const double HoodShare = Period ? Period->Hood : 0.35;
 				if (FacadeKit)
 				{
 					const int Fit = Wide ? RideBuildingBits::FacadeSize(RideBuildingBits::WideDoorSizes, 2, W, H) : RideBuildingBits::FacadeSize(RideBuildingBits::DoorSizes, 2, W, H);
@@ -653,7 +686,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 							: Style == 2 ? (Chance(B.X + U, B.Z + Salt, 68) < 0.4 ? PropDoorLedgedLight : PropDoorLedged) : PropDoorModern;
 						Kit(Model, Fit, U, 0.0, Paint, StoneTrim, Leaf);
 						Kit(SurroundKind, 9 + (Wide ? 2 : 0) + Fit, U, 0.15, Paint, Reveal, StoneTrim);
-						if (!Wide && Chance(B.X + U, B.Z, 70) < 0.35 && Eaves > H + 0.9) Kit(PropDoorHood, Fit, U, 0.0, Paint, Paint, Paint);
+						if (!Wide && Chance(B.X + U, B.Z, 70) < HoodShare && Eaves > H + 0.9) Kit(PropDoorHood, Fit, U, 0.0, Paint, Paint, Paint);
 						return;
 					}
 				}
@@ -755,16 +788,23 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					if (Style == 0) Slab(Mid - 0.05, Mid + 0.05, Lo + (Hi - Lo) * 0.7, Lo + (Hi - Lo) * 0.7 + 0.14, Lf, Lf + 0.03, Metal);
 				}
 				// (a hood over some: a flat lead-topped canopy on two brackets)
-				if (!Wide && Chance(B.X + U, B.Z, 70) < 0.35 && Eaves > H + 0.9)
+				if (!Wide && Chance(B.X + U, B.Z, 70) < HoodShare && Eaves > H + 0.9)
 				{
 					Slab(U - W * 0.5 - 0.3, U + W * 0.5 + 0.3, H + 0.3, H + 0.42, 0.0, 0.5, Paint);
 					Slab(U - W * 0.5 - 0.3, U + W * 0.5 + 0.3, H + 0.42, H + 0.45, 0.0, 0.52, Shade(Slate, 0.8));
 					for (double Su : {-1.0, 1.0}) Slab(U + Su * (W * 0.5 + 0.2) - 0.04, U + Su * (W * 0.5 + 0.2) + 0.04, H + 0.05, H + 0.3, 0.0, 0.35, Paint);
 				}
 			};
+			// [towns stage 4] A bay window (the kit's) standing out of this wall at U, on the ground; its masonry
+			// the dressed stone's, its little roof the house's.
+			const auto BayAt = [&](double U, bool Two)
+			{
+				Kit(BayModel, Two ? 1 : 0, U, 0.0, Paint, StoneTrim, Shade(Roof, 0.9));
+				if (Tally) ++Tally->BayWindows;
+			};
 			const bool Front = Sg == DoorSide;
-			const double WinW = Look.Window == LocalLook::Mullion ? 1.3 : Look.Window == LocalLook::Sash ? 0.9 : 0.85;
-			const double WinH = Look.Window == LocalLook::Mullion ? 0.9 : Look.Window == LocalLook::Sash ? 1.45 : 1.0;
+			const double WinW = WinKind == LocalLook::Mullion ? 1.3 : WinKind == LocalLook::Sash ? 0.9 : 0.85;
+			const double WinH = WinKind == LocalLook::Mullion ? 0.9 : WinKind == LocalLook::Sash ? 1.45 : 1.0;
 			// (a floor of windows wherever its top, 0.15 m under the eaves, fits: build 145 drew a
 			// two-storey house's 5.3 m eaves with one row, a bungalow's look)
 			const int Floors = std::clamp(1 + int((Eaves - 1.15 - WinH) / 2.7), 1, 12);
@@ -828,11 +868,16 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					const double Wu2 = U0 + (Mirror ? BayW * 0.2 : BayW * 0.8);
 					if (Front) Door(Du, 0.9, 2.05, Bay);
 					else Window(Du, 1.0, WinW * 0.8, WinH, Bay + 40);
-					Window(Wu, 1.0, WinW, WinH, Bay);
+					// ([towns stage 4] its bay in place of the window beside the door: 2.4 m across, room for it
+					// between the door and the party wall; two storeys only where there are two)
+					const bool BayHere = Front && BayModel >= 0 && BayW >= 4.4 && Eaves > 3.7;
+					const bool BayUp = BayHere && BayTwo && Floors >= 2 && Eaves > 5.0;
+					if (BayHere) BayAt(Wu, BayUp);
+					else Window(Wu, 1.0, WinW, WinH, Bay);
 					if (Wide) Window(Wu2, 1.0, WinW, WinH, Bay + 20);
 					for (int Fl = 1; Fl < Floors; ++Fl)
 					{
-						Window(Wu, 1.0 + Fl * 2.7, WinW, WinH, Bay + Fl * 100);
+						if (!(BayUp && Fl == 1)) Window(Wu, 1.0 + Fl * 2.7, WinW, WinH, Bay + Fl * 100);
 						Window(Du, 1.0 + Fl * 2.7, WinW * 0.8, WinH, Bay + Fl * 100 + 50);
 						if (Wide) Window(Wu2, 1.0 + Fl * 2.7, WinW, WinH, Bay + Fl * 100 + 20);
 					}
@@ -844,6 +889,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				// in the middle (a shop's ground floor left plain for its front, to come).
 				const double Space = IsCivic ? 3.0 : 3.5;
 				const int Along = std::max(1, int(HalfLong * 2.0 / Space));
+				// ([towns stage 4] a house's bays on its front either side of its door, where they fit)
+				const bool Bays0 = Front && IsHouse && BayModel >= 0 && Along >= 2 && HalfLong * 2.0 / Along >= 3.4 && Eaves > 3.7;
+				const bool BaysUp = Bays0 && BayTwo && Floors >= 2 && Eaves > 5.0;
 				for (int Fl = 0; Fl < Floors; ++Fl)
 					for (int Wn = 0; Wn < Along; ++Wn)
 					{
@@ -854,6 +902,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 							continue;
 						}
 						if (IsShop && Fl == 0) continue;
+						if (Bays0 && std::abs(Wn - Along / 2) == 1 && Fl <= (BaysUp ? 1 : 0))
+						{
+							if (Fl == 0) BayAt(U, BaysUp);
+							continue;
+						}
 						Window(U, Y, IsCivic ? 1.0 : WinW, IsCivic ? std::fmin(2.0, 2.4) : WinH, Wn * 31 + Fl);
 					}
 			}

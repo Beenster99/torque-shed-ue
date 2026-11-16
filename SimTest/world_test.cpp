@@ -93,6 +93,9 @@ int main()
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
 	std::string TownText;
 	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
+	// [towns stage 4] (the house types)
+	std::string TypesText;
+	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;
 	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
@@ -1022,6 +1025,23 @@ int main()
 						std::printf("      towns: %zu in the table (%d with a colour it doesn't know); %d km squares here with a town look (%d counted from tags, %d of the table's towns)\n",
 							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
 						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
+					}
+					// [towns stage 4] The house types: every kind has its periods; a terrace mostly Victorian sashes
+					// with bays, an inter-war semi mostly hipped with bays; a pick always lands on a period.
+					{
+						const std::shared_ptr<const HouseTypes> Types = HouseTypesNow();
+						bool Every = Types != nullptr, Picks = Every;
+						for (int K = 0; Every && K < HouseTypes::Kinds; ++K)
+						{
+							Every = !Types->Periods[K].empty();
+							for (double P : {0.0, 0.37, 0.999}) Picks = Picks && Types->Pick(K, P) != nullptr;
+						}
+						const HousePeriod* Terrace = Every ? Types->Pick(HouseTypes::Terrace, 0.1) : nullptr;
+						const HousePeriod* Semi = Every ? Types->Pick(HouseTypes::Semi, 0.45) : nullptr;
+						const bool Right = Terrace && Terrace->Name == "victorian" && Terrace->Window == int(LocalLook::Sash) && Terrace->Bay > 0.3
+							&& Semi && Semi->Name == "interwar" && Semi->Hipped > 0.5 && Semi->Bay > 0.5;
+						std::printf("      house types: %s; terrace pick %s, semi pick %s\n", TypesRead ? "read" : "built in", Terrace ? Terrace->Name.c_str() : "-", Semi ? Semi->Name.c_str() : "-");
+						Check(TypesRead && Every && Picks && Right, "house types: the table read, every kind with its periods, terraces Victorian with bays, semis inter-war and hipped");
 					}
 					// [towns stage 2] The towers: drawn at their outlines and heights near, the tall ones far;
 					// no box building drawn inside one.
