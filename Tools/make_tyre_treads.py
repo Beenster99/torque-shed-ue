@@ -66,7 +66,8 @@ STEEL = {"name": "raw_steel", "doubleSided": True,
 SHAPED = {"sport": (0.46, 2.0), "touring": (0.47, 2.0), "sipes": (0.47, 2.0), "slick": (0.46, 2.0),
           "cruiser": (0.50, 2.3), "trail": (0.48, 2.2), "knobs": (0.47, 2.8), "studs": (0.47, 2.8),
           "blocks": (0.48, 2.6)}
-STEP_IN, STEP_DOWN = 0.045, 0.012       # the step under the tread's edge (half widths in, tyre heights down)
+STEP_IN, STEP_DOWN = 0.045, 0.012
+FLAT_WALL = ["sport", "touring", "sipes", "slick"]     # road tyres whose wall is flat with a second edge low down       # the step under the tread's edge (half widths in, tyre heights down)
 
 
 def shaped(tread):
@@ -114,6 +115,12 @@ def wall_runs(tread, lod):
     ey, _ = SHAPED[tread]
     sh = shoulder(tread, XB, (6, 3, 1)[lod])
     under = (1.0 - STEP_IN, ey - STEP_DOWN)
+    if tread in FLAT_WALL:
+        # A road tyre's wall (beenster's markup of the cross-section, 16 Nov): two edges. Under the
+        # tread's step the wall runs down flat, leaning in a little, to a second edge low down, and
+        # from there a short flat flank angles in to the bead.
+        return [(sh[0], sh[1]), ([(1.0, ey), under], None), ([under, (0.97, 0.40), (0.945, 0.11)], None),
+                ([(0.945, 0.11), (0.9, 0.0)], None)]
     # (Below y 0.434 the wall's x is 0.9 at the bead to 1.0 at the full width.)
     key = [under, (0.978, 0.40), (0.975, 0.28), (0.962, 0.16), (0.935, 0.06), (0.9, 0.0)]
     if lod >= 2:
