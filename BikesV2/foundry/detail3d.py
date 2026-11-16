@@ -528,6 +528,106 @@ def headlamp(model, c):
     display(model, c, head, house)
 
 
+def round_lamp(model, c):
+    """A classic round headlamp (cafe, classic): a painted bowl, a rolled chrome rim, a deep chrome reflector
+    with a projector in the middle behind a domed clear glass, and a bracket each side clamped to the fork."""
+    import shapes
+    head = [(i, s_) for i, s_ in enumerate(model.get("front_end", [])) if s_.get("part") == "head"]
+    bowl_ = next((s_ for i, s_ in head if s_.get("round")), None)
+    if not bowl_:
+        return
+    for i, s_ in head:
+        if "pts" in s_:
+            drop(f"front{i}", f"lens{i}", f"bezel{i}", f"reflector{i}", f"eye{i}", f"eyeglass{i}")
+    drop("lamprim", "lampglass", "lampproj", "lampled", "lampreflector", "lampdrl", "lampshield")
+    bowl = shapes.dense(bowl_["pts"], True, bowl_.get("t", 1.0))
+    x0, x1 = min(q[0] for q in bowl), max(q[0] for q in bowl)
+    zc = (min(q[1] for q in bowl) + max(q[1] for q in bowl)) / 2
+    R = (max(q[1] for q in bowl) - min(q[1] for q in bowl)) / 2
+    chrome, dark = B.mat("chrome"), B.mat("plastic")
+    fx = _cast(_trees(("forktube", "forkouter")), 105, zc, "x", 1)
+    twin = any(s_.get("twin") for i, s_ in head)
+    led = model.get("detail", {}).get("lamp") == "led"
+    for yl in ((-R - 6, R + 6) if twin else (0,)):
+        o, ax = (x1, yl, zc), (1, 0, 0)
+        if led:
+            # a modern LED unit in the classic shell (beenster, cafe round 3; reference: LED projector lamp): gloss
+            # black inside, a halo ring round the edge, a small projector above a big one, LED blocks each side
+            blk = surf("lampblack", (0.008, 0.008, 0.01), 0.2, 0.1, wear=0.0)
+            lathe(f"lamprim{yl}", o, ax, [(-9, R + 0.5), (-9, R + 4.5), (-2, R + 6.5), (6, R + 6.5), (11, R + 4), (12, R), (9, R - 4), (2, R - 5), (2, R + 0.5), (-9, R + 0.5)], chrome, 64, sharp=False, caps=False)
+            lathe(f"lampreflector{yl}", o, ax, [(3, R - 5), (-6, R - 13), (-22, R * 0.8), (-30, R * 0.6), (-30, 0)], blk, 64, sharp=False, caps=False)
+            lathe(f"lampdrl{yl}", o, ax, [(2.5, R - 5.5), (0, R - 13), (1.5, R - 13.5), (4.5, R - 6), (2.5, R - 5.5)], glow("drl", (1.0, 0.97, 0.9), 1.6), 64, caps=False)
+            for nm, dz, rr in (("hi", 0.36 * R, 0.3 * R), ("lo", -0.36 * R, 0.43 * R)):
+                oo = (x1, yl, zc + dz)
+                lathe(f"lampproj{nm}{yl}", oo, ax, [(-28, rr + 6), (-4, rr + 6), (-2, rr + 4), (-2, rr), (-28, rr)], blk, 48, sharp=False, caps=False)
+                lathe(f"lampprojring{nm}{yl}", oo, ax, [(-3, rr + 6.5), (-0.5, rr + 6.5), (0.5, rr + 3), (-0.5, rr), (-3, rr)], chrome, 48, caps=False)
+                lathe(f"lampprojlens{nm}{yl}", oo, ax, [(-14, rr), (-9, rr * 0.95), (-3, rr * 0.72), (0, rr * 0.4), (1, 0)], glass_mat(), 48, sharp=False, caps=False)
+                lathe(f"lampprojback{nm}{yl}", oo, ax, [(-16, 0), (-16, rr), (-15, rr), (-15, 0)], glow("lampdip", (1.0, 0.97, 0.9), 0.9) if nm == "lo" else chrome, 32)
+            for sy, yy_, hz in ((-1, 0.56, 0.2), (1, 0.56, 0.2), (-1, 0.76, 0.13), (1, 0.76, 0.13)):
+                yb = yl + sy * yy_ * R
+                B.prism(f"lampled{yl}{sy}{yy_}", [(x1 - 24, zc + 0.06 * R - hz * R), (x1 - 5, zc + 0.06 * R - hz * R), (x1 - 5, zc + 0.06 * R + hz * R), (x1 - 24, zc + 0.06 * R + hz * R)], yb - 0.065 * R, yb + 0.065 * R, chrome, 2.0)
+                B.prism(f"lampledchip{yl}{sy}{yy_}", [(x1 - 22, zc + 0.06 * R - hz * R * 0.7), (x1 - 20, zc + 0.06 * R - hz * R * 0.7), (x1 - 20, zc + 0.06 * R + hz * R * 0.7), (x1 - 22, zc + 0.06 * R + hz * R * 0.7)], yb - 0.03 * R, yb + 0.03 * R, glow("ledchip", (1.0, 0.98, 0.92), 0.8), 0)
+            lathe(f"lampglass{yl}", o, ax, [(5, R - 4.5), (9, R * 0.9), (12, R * 0.6), (13.5, R * 0.3), (14, 0)], glass_mat(), 64, sharp=False, caps=False)
+            continue
+        lathe(f"lamprim{yl}", o, ax, [(-9, R + 0.5), (-9, R + 4.5), (-2, R + 6.5), (6, R + 6.5), (11, R + 4), (12, R), (9, R - 4), (2, R - 5), (2, R + 0.5), (-9, R + 0.5)], chrome, 64, sharp=False, caps=False)
+        lathe(f"lampreflector{yl}", o, ax, [(3, R - 5), (-8, R * 0.86), (-24, R * 0.66), (-38, R * 0.42), (-46, R * 0.24), (-48, 0)], chrome, 64, sharp=False, caps=False)
+        lathe(f"lampshield{yl}", o, ax, [(-46, 0), (-46, R * 0.25), (-20, R * 0.25), (-12, R * 0.2), (-8, R * 0.1), (-7, 0)], surf("smokechrome", (0.2, 0.2, 0.22), 1.0, 0.1, wear=0.0), 32, sharp=False, caps=False)
+        lathe(f"lampdrl{yl}", o, ax, [(2.5, R - 6), (2.5, R - 10), (4, R - 10), (4, R - 6), (2.5, R - 6)], glow("drl", (1.0, 0.97, 0.9), 1.6), 64, caps=False)
+        lathe(f"lampglass{yl}", o, ax, [(5, R - 4.5), (11, R * 0.9), (17, R * 0.66), (21, R * 0.36), (22.5, 0)], glass_mat(), 64, sharp=False, caps=False)
+    if fx is not None and not twin:
+        # the brackets: a flat arm from each side of the bowl back to a split clamp on the fork leg
+        xb, xf_ = x0 + 0.62 * (x1 - x0), fx - 31
+        d = (-c["uf"][0], 0, -c["uf"][1]) if c["uf"][1] < 0 else (c["uf"][0], 0, c["uf"][1])
+        ea, eb = (R - 3, 72) if R < 72 else (R - 2, R + 4)      # a big bowl stands wider than the fork clamps' inner faces
+        for s in (-1, 1):
+            B.prism(f"lampear{s}", [(xb + 16, zc - 15), (xb + 16, zc + 15), (xb - 10, zc + 20), (xf_ - 8, zc + 24), (xf_ - 8, zc - 24), (xb - 10, zc - 20)], s * ea if s > 0 else s * eb, s * eb if s > 0 else s * ea, dark, 2.0)
+            lathe(f"lampearclamp{s}", (xf_, s * 105, zc), d, [(-16, 31.5), (-16, 36.5), (16, 36.5), (16, 31.5), (-16, 31.5)], dark, 36, caps=False)
+            B.prism(f"lampearweb{s}", [(xf_ - 30, zc - 14), (xf_ - 30, zc + 14), (xf_ + 6, zc + 14), (xf_ + 6, zc - 14)], s * 70 if s > 0 else s * 78, s * 78 if s > 0 else s * 70, dark, 2.0)
+            bolt(f"lampearbolt{s}", (xb, s * (eb + 1), zc), (0, s, 0), 6.5, 4, chrome)
+
+
+def clocks(model, c):
+    """Round clocks (cafe, classic): a black face with white minute marks and bolder numerals' marks round a
+    270 degree sweep, an orange needle on a chrome hub, behind flat glass in the chrome rim. Left is the
+    speedometer, right the rev counter with its red band."""
+    d_ = (-0.45 / math.hypot(0.45, 0.89), 0.89 / math.hypot(0.45, 0.89))
+    nb = (d_[1], -d_[0])
+    white = glow("dialwhite", (0.9, 0.9, 0.86), 0.5)
+    can = model.get("detail", {}).get("clocks")      # "can" or "chrome": shallow tin cylinders (beenster, cafe round 2)
+    if can:
+        for j, q in enumerate(model.get("front_end", [])):
+            if q.get("circle") and q.get("part") == "head":
+                drop(f"clock{j}-1", f"clock{j}1", f"clockrim{j}")
+    for i, s_ in enumerate(model.get("front_end", [])):
+        if not (s_.get("circle") and s_.get("part") == "head" and s_.get("cls") == "plastic"):
+            continue
+        drop(f"clockface{i}", f"clocktick{i}", f"clockneedle{i}", f"clockhub{i}", f"clockglass{i}", f"clockcan{i}", f"clockbezel{i}", f"clockfoot{i}")
+        r_, c_ = s_["circle"] * (1.45 if can else 1.2), s_["at"]
+        for s in (-1, 1):
+            yc = s * 46
+            if can:
+                rc_, d3 = r_ + 3, (d_[0], 0, d_[1])
+                shell = B.mat("chrome") if can == "chrome" else surf("dialcan", (0.02, 0.02, 0.022), 0.6, 0.3, wear=0.1)
+                dp = 26 if can == "deep" else 9
+                lathe(f"clockcan{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp, 0), (-dp, rc_ - 4), (-dp + 3, rc_), (25, rc_), (25, 0)], shell, 48)
+                lathe(f"clockbezel{i}{s}", (c_[0], yc, c_[1]), d3, [(22, rc_), (24, rc_ + 1.8), (28, rc_ + 1.8), (29.6, rc_), (29.6, rc_ - 3), (25, rc_ - 3), (25, rc_)], B.mat("chrome"), 48, sharp=False, caps=False)
+                lathe(f"clockfoot{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp - 20, 0), (-dp - 20, 8), (-dp, 10), (-dp, 0)], B.mat("alu_dark"), 20)
+            org = (c_[0] + d_[0] * 24.4, c_[1] + d_[1] * 24.4)
+            # +y is the rider's left, so the sweep runs clockwise as the rider reads it
+            rot = lambda rad, a, w, r0, r1: [(yc - r0 * math.sin(a) + w * math.cos(a), r0 * math.cos(a) + w * math.sin(a)), (yc - r1 * math.sin(a) + w * math.cos(a), r1 * math.cos(a) + w * math.sin(a)),
+                                             (yc - r1 * math.sin(a) - w * math.cos(a), r1 * math.cos(a) - w * math.sin(a)), (yc - r0 * math.sin(a) - w * math.cos(a), r0 * math.cos(a) - w * math.sin(a))]
+            slab(f"clockface{i}{s}", org, d_, nb, [(yc + r_ * math.cos(2 * math.pi * k / 40), r_ * math.sin(2 * math.pi * k / 40)) for k in range(40)], 0, 0.4, surf("dialblack", (0.012, 0.012, 0.013), 0.0, 0.6, wear=0.0), 0)
+            for k in range(28):
+                a = math.radians(-135 + 270 * k / 27)
+                big = k % 3 == 0
+                red = s < 0 and k >= 23
+                slab(f"clocktick{i}{s}{k}", org, d_, nb, rot(0, a, 0.9 if big else 0.45, r_ * (0.72 if big else 0.82), r_ * 0.93), 0.4, 0.7, glow("dialred", (1.0, 0.05, 0.03), 0.8) if red else white, 0)
+            a = math.radians(-135 + 270 * (0.0 if s > 0 else 0.08))
+            slab(f"clockneedle{i}{s}", org, d_, nb, rot(0, a, 1.1, -r_ * 0.18, r_ * 0.84), 1.6, 2.2, glow("needle", (1.0, 0.32, 0.02), 1.2), 0)
+            lathe(f"clockhub{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(0.4, 0), (0.4, r_ * 0.16), (3.0, r_ * 0.14), (3.4, 0)], B.mat("chrome"), 24)
+            lathe(f"clockglass{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(4.2, 0), (4.2, r_ * 1.02), (5.0, r_ * 1.02), (5.0, 0)], glass_mat(), 40)
+
+
 def display(model, c, head, house, dash=None):
     """The display: a slim tablet on a bracket, its face square to the rider's eyes."""
     F, uf, nb, fk = c["F"], c["uf"], c["nb"], c["fk"]
@@ -633,18 +733,362 @@ def nose_lamps(model, c):
     drl = [(34, 787), (70, 797), (108, 808), (110, 804.5), (72, 793), (36, 783.5)]
     made = False
     for s in (-1, 1):
-        f = lambda pts, k=1.0: [(s * (ey + (y - ey) * k), ez + (z - ez) * k + dz) for y, z in pts]
+        # the brand's signature: long slanted eyes that sweep out and up along the nose's own lines
+        g = lambda y, z: (22 + (y - 26) * 1.34, 770 + (z - 772) * 1.3)
+        f = lambda pts, k=1.0: [(s * g(ey + (y - ey) * k, ez + (z - ez) * k)[0], g(ey + (y - ey) * k, ez + (z - ez) * k)[1] + dz) for y, z in pts]
         if not skin_patch(f"noselamp{s}", trees, f(eye, 1.16), black, 1.0):
             continue
         made = True
         skin_patch(f"noselens{s}", trees, f(eye, 0.94), smoke, 1.8)
         skin_patch(f"nosedrl{s}", trees, f(drl), glow("drl", (0.9, 0.95, 1.0), 4.0), 2.6)
         for n_, (py, pz) in enumerate(((56, 779), (86, 789))):
+            py, pz = g(py, pz)
             circ = lambda r: [(s * py + r * math.cos(2 * math.pi * k / 10), pz + dz + r * math.sin(2 * math.pi * k / 10)) for k in range(10)]
-            skin_patch(f"noseeye{s}{n_}", trees, circ(8.5), ring, 2.6)
-            skin_patch(f"noseeyeglass{s}{n_}", trees, circ(6.6), glass_mat(), 3.0)
-            skin_patch(f"noseeyeled{s}{n_}", trees, circ(2.6), glow("bulb", (1.0, 0.97, 0.9), 2.0), 3.3)
+            skin_patch(f"noseeye{s}{n_}", trees, circ(10.5), ring, 2.6)
+            skin_patch(f"noseeyeglass{s}{n_}", trees, circ(8.2), glass_mat(), 3.0)
+            skin_patch(f"noseeyeled{s}{n_}", trees, circ(3.2), glow("bulb", (1.0, 0.97, 0.9), 2.0), 3.3)
     return made
+
+
+def tail_lamp(model, c):
+    """The brake light (beenster, sport rounds 1 and 2): let into the square-cut end of the tail and facing
+    straight back, two square LED units side by side behind one red lens. The rear indicators grow out of
+    the same housing, one each side, so the bike is complete with the number plate hanger taken off."""
+    tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
+    if not tl or model["family"].lower() not in ("sport", "cafe"):
+        return
+    zs = [q[1] for q in tl["pts"]]
+    xf, zc, hh = max(q[0] for q in tl["pts"]), (max(zs) + min(zs)) / 2, (max(zs) - min(zs)) / 2
+    yw = side_hit(("tail",), xf + 10, zc, 1)
+    W = max(34.0, (abs(yw[1]) if yw is not None else 56.0) - 7)
+    org, n, u = (xf, zc), (-1.0, 0.0), (0.0, 1.0)
+    drop("taillight")
+    slab("taillamphouse", org, n, u, sell(W + 3, hh + 2.5, 1.0, 3.6, 40), -30, 1.2, B.mat("plastic"), 1.0)
+    lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
+    slab("taillamplens", org, n, u, sell(W, hh, 1.0, 3.6, 40), 1.0, 4.2, lensm, 1.2)
+    for sg in (-1, 1):
+        # two square light units: a bright frame round a darker middle, as LED tail lamps show
+        slab(f"taillampled{sg}", org, n, u, [(sg * W * 0.5 + y, z) for y, z in sell(W * 0.38, hh - 4.5, 1.0, 4.0, 28)], 4.0, 4.7, glow("tailred", (1.0, 0.03, 0.02), 2.6), 0)
+        slab(f"taillampcore{sg}", org, n, u, [(sg * W * 0.5 + y, z) for y, z in sell(W * 0.27, hh - 8.5, 1.0, 4.0, 24)], 4.6, 5.1, lensm, 0)
+    c["tail_lamp"] = (xf, zc, W)
+
+
+def guard_lamp(model, c):
+    """The classic and cruiser brake light: a polished oval housing standing on the rear mudguard, its red
+    lens domed and facing straight back, a small clear window underneath to light the plate. The indicators
+    grow out of the housing's sides (the same rule as the sport and cafe tails)."""
+    if model["family"].lower() not in ("classic", "cruiser"):
+        return
+    tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
+    if not tl:       # a bobbed guard drawn with the panels carries its lamp there
+        pi = next((i for i, v in enumerate(model["body"].get("panels", [])) if v.get("cls") == "redlens"), None)
+        if pi is None:
+            return
+        tl = model["body"]["panels"][pi]
+        drop(f"panel{pi + len(model['body'].get('front_guard', []))}")      # build3d numbers the panels after the front guard's shapes
+    xs, zs = [q[0] for q in tl["pts"]], [q[1] for q in tl["pts"]]
+    zc, x0, x1 = (max(zs) + min(zs)) / 2 + 4, max(xs) + 26, min(xs) - 4
+    L, R, e = x0 - x1, 36.0, (0.72, 1.0)
+    drop("taillight", "guardlamp")
+    ax = (-1.0, 0.0, 0.0)
+    lathe("guardlampbody", (x0, 0, zc), ax, [(0, 0), (0, R * 0.42), (L * 0.3, R * 0.8), (L * 0.75, R), (L - 3, R), (L, R - 1.2), (L, 0)], B.mat("chrome"), 48, sharp=False, ell=e)
+    lathe("guardlamprim", (x1, 0, zc), ax, [(-2, R - 0.5), (-2, R + 1.6), (1.5, R + 2.2), (4.5, R + 1.2), (5, R - 3), (-2, R - 3)], B.mat("chrome"), 48, sharp=False, ell=e, caps=False)
+    lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
+    lathe("guardlamplens", (x1, 0, zc), ax, [(0, 0), (0, R - 2.6), (5, R - 3), (10, R - 7), (14, R - 16), (16, R - 28), (16.5, 0)], lensm, 48, sharp=False, ell=e)
+    lathe("guardlampbulb", (x1, 0, zc), ax, [(1, 0), (1, R * 0.36), (9, R * 0.3), (11, 0)], glow("tailred", (1.0, 0.03, 0.02), 2.6), 24, sharp=False, ell=e)
+    # the plate window: a clear strip let into the underside of the housing, lighting down on to the plate
+    slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-20, -9), (20, -9), (20, 9), (-20, 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
+    c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * 0.9 + 14)
+    c["tail_lamp_chrome"] = True
+
+
+def loop_lamp(model, c):
+    """The cafe racer's rear frame loop (beenster, cafe round 2): the seat rails carry on back as one hoop round
+    the back of the saddle, and the hoop is what the brake light and the indicators are mounted on. The
+    lamp is a traditional one: a red lens in a black housing; the indicators are amber lenses in chrome
+    shells on short stalks either side of it."""
+    lp = model["frame"].get("loop")
+    if not lp:
+        return
+    drop("frameloop", "looplamp", "ind_r")
+    i_ = next((i for i, tb in enumerate(model["frame"]["tubes"]) if tb["path"][-1] == "S2"), None)
+    ob = bpy.data.objects.get(f"frame{i_}1")
+    x2, z2 = c["nodes"]["S2"][0], c["nodes"]["S2"][1]
+    y2 = model["frame"].get("sub_y", 84)
+    if ob is not None:
+        co = [ob.matrix_world @ (p.co.to_3d() if hasattr(p.co, "to_3d") else p.co) for sp in getattr(ob.data, "splines", []) for p in (list(sp.bezier_points) + list(sp.points))] or [ob.matrix_world @ v.co for v in ob.data.vertices]
+        lo = min(q.x for q in co)
+        end = [q for q in co if q.x < lo + 0.004]
+        y2 = sum(abs(q.y) for q in end) / len(end) / B.MM
+    side = [(x2, y2, z2)]
+    for q in lp["pts"]:
+        # the hoop runs along the outside of the hump's flank, so it shows as a loop the saddle sits in
+        hit = side_hit(("tail",), q[0], q[2] + 12, 1) if q[1] > 60 else None
+        side.append((q[0], max(q[1], abs(hit[1]) + lp.get("w", 22) / 2 - 2) if hit is not None else q[1], q[2]))
+    print("frame loop:", [tuple(round(v) for v in q) for q in side])
+    path = side + [(q[0], -q[1], q[2]) for q in side[-2::-1]]
+    B.smooth_tube("frameloop", path, lp.get("w", 22) / 2, c["framem"])
+    xa, za = side[-1][0], side[-1][2]
+    r = lp.get("w", 22) / 2
+    # the lamp: on a pressed bracket welded to the back of the hoop
+    W, hh, zc, xf = 50.0, 23.0, za + 5, xa - r - 30
+    org, n, u = (xf, zc), (-1.0, 0.0), (0.0, 1.0)
+    black = B.mat("plastic")
+    B.prism("looplampbracket", [(xa - 4, za - 9), (xa - 4, za + 9), (xf + 27, zc + 14), (xf + 27, zc - 14)], -24, 24, c["framem"], 1.5)
+    slab("looplamphouse", org, n, u, sell(W + 3, hh + 3, 1.0, 3.2, 44), -27, 1.5, black, 3.0)
+    lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
+    lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
+    slab("looplamplens", org, n, u, sell(W, hh, 1.0, 3.2, 44), 1.0, 13, lensm, 5.0)
+    slab("looplampplate", (xf + 12, zc - hh - 2.5), (0.0, -1.0), (1.0, 0.0), [(-22, -8), (22, -8), (22, 8), (-22, 8)], -1.0, 1.4, glow("bulb", (1.0, 0.97, 0.9), 1.0), 0)
+    # traditional indicators: a chrome stalk out of the lamp's bracket each side, an amber lens in a chrome shell
+    for s in (-1, 1):
+        base = (xf + 16, s * (W - 2), zc)
+        indicator(f"ind_r{s}", base, s, -1, "trad")
+    c["loop_lamp"] = True
+
+
+def twin_shocks(model, c):
+    """Real twin shocks (beenster, cafe round 2; reference: the side view of a modern classic): an alloy top
+    eye on a stud from the frame, a black damper body, a chrome rod with its bump stop, a black progressive
+    spring between a top seat and a stepped preload collar, and a bottom eye bolted to a lug on the
+    swingarm close to the rear hub."""
+    sk = model["shock"]
+    if not (sk.get("twin") and sk.get("real")):
+        return
+    from mathutils import Vector
+    drop("shock", "spring")
+    st, sb = sk["top"], sk["bottom"]
+    rail, y_t, y_b = model["frame"].get("sub_y", 84), 150, 143
+    alu, steel, chrome = B.mat("alu"), B.mat("steel"), B.mat("chrome")
+    black = surf("shockblack", (0.018, 0.018, 0.02), 0.5, 0.32, wear=0.1)
+    for s in (-1, 1):
+        a, b = Vector((st[0], s * y_t, st[1])), Vector((sb[0], s * y_b, sb[1]))
+        L = (b - a).length
+        d = (b - a) / L
+        n1 = d.cross(Vector((0, 1, 0))).normalized()
+        n2 = d.cross(n1)
+        at, dt = tuple(a), tuple(d)
+        B.tube(f"shockstud_t{s}", [(st[0], s * (rail - 12), st[1]), (st[0], s * (y_t + 17), st[1])], 7, steel)
+        B.cone(f"shockeye_t{s}", (st[0], s * (y_t - 13), st[1]), (st[0], s * (y_t + 13), st[1]), 18, 18, alu, 28)
+        bolt(f"shocknut_t{s}", (st[0], s * (y_t + 14), st[1]), (0, s, 0), 9, 7, steel)
+        lathe(f"shocktop{s}", at, dt, [(13, 0), (13, 13), (30, 13), (34, 26), (38, 32.5), (45, 32.5), (47, 30), (47, 0)], alu, 36)
+        lathe(f"shockbody{s}", at, dt, [(47, 0), (47, 20), (L * 0.56, 20), (L * 0.56 + 3, 17), (L * 0.56 + 3, 0)], black, 32)
+        lathe(f"shockrod{s}", at, dt, [(L * 0.56, 0), (L * 0.56, 7), (L - 40, 7), (L - 40, 0)], chrome, 20)
+        lathe(f"shockbump{s}", at, dt, [(L * 0.57 + 3, 7), (L * 0.57 + 3, 13), (L * 0.57 + 9, 15), (L * 0.57 + 20, 14), (L * 0.57 + 25, 10), (L * 0.57 + 25, 7)], B.mat("rubber"), 20, sharp=False)
+        # the preload collar: stepped, so its notches read, under the bottom spring seat
+        lathe(f"shockcollar{s}", at, dt, [(L - 70, 0), (L - 70, 32.5), (L - 62, 32.5), (L - 62, 27), (L - 56, 27), (L - 56, 23), (L - 50, 23), (L - 46, 15), (L - 30, 14), (L - 30, 0)], alu, 36)
+        B.cone(f"shockeye_b{s}", (sb[0], s * (y_b - 12), sb[1]), (sb[0], s * (y_b + 12), sb[1]), 18, 18, alu, 28)
+        B.prism(f"shocklug{s}", [(sb[0] - 24, sb[1] - 36), (sb[0] + 24, sb[1] - 30), (sb[0] + 15, sb[1] + 10), (sb[0] - 15, sb[1] + 10)], min(s * (y_b - 20), s * (y_b - 13)), max(s * (y_b - 20), s * (y_b - 13)), alu, 2.5)
+        bolt(f"shocknut_b{s}", (sb[0], s * (y_b + 13), sb[1]), (0, s, 0), 9, 6, steel)
+        coil, t0, t1, N = [], 47.0, L - 70.0, 10.5
+        for k in range(241):
+            v = k / 240
+            w = 2 * math.pi * N * (v + 0.45 * v * v) / 1.45      # progressive: the coils close up towards the top
+            q = a + d * (t1 + (t0 - t1) * v) + n1 * (26 * math.cos(w)) + n2 * (26 * math.sin(w))
+            coil.append(tuple(q))
+        B.tube(f"spring{s}", coil, 4.6, black)
+
+
+def plate_mount(model, c):
+    """The number plate arm's fixing (beenster, sport round 2): a cast foot bolted flat to the underside of
+    the tail, with a web each side running down on to the arm, so the arm is plainly held."""
+    body = model["body"]
+    arm = next((h for h in body.get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
+    tail = body.get("tail", [None])[0]
+    if not arm or not tail or model["family"].lower() not in ("sport", "cafe") or not model.get("fit", {}).get("plate_hanger", True):
+        return
+    import shapes
+    drop("platemount")
+    top = max(arm["pts"], key=lambda q: q[0])
+    tp = shapes.dense(tail["pts"], True, tail.get("t", 1.0))
+    under = lambda x: shapes.top_bottom(tp, x)[1]
+    x0 = top[0] - 12
+    d = (-60.0, under(x0 - 60) - under(x0))
+    L_ = math.hypot(*d)
+    al = (d[0] / L_, d[1] / L_)                    # along the underside, towards the rear
+    dn = (al[1], -al[0]) if -al[0] < 0 else (-al[1], al[0])
+    if dn[1] > 0:
+        dn = (-dn[0], -dn[1])
+    org = (x0, under(x0))
+    plastic = B.mat("plastic")
+    slab("platemount_foot", org, dn, al, sell(46, 66, 1.0, 5.0, 40), -9, 9, plastic, 2.5)
+    for k, (y, t) in enumerate(((-33, -50), (33, -50), (-33, 50), (33, 50))):
+        p = (org[0] + al[0] * t + dn[0] * 9, y, org[1] + al[1] * t + dn[1] * 9)
+        lathe(f"platemount_washer{k}", p, (dn[0], 0, dn[1]), [(0, 0), (0, 8.5), (1.4, 8.5), (1.4, 0)], B.mat("steel"), 20)
+        bolt(f"platemount_bolt{k}", (p[0] + dn[0] * 1.4, y, p[2] + dn[1] * 1.4), (dn[0], 0, dn[1]), 5.0, 4.2, B.mat("steel"))
+    ap = shapes.dense(arm["pts"], True, arm.get("t", 0))
+    xa = x0 - 150
+    tb = shapes.top_bottom(ap, xa)
+    if tb:
+        r_ = (org[0] + al[0] * 62 + dn[0] * 8, org[1] + al[1] * 62 + dn[1] * 8)
+        f_ = (org[0] - al[0] * 20 + dn[0] * 8, org[1] - al[1] * 20 + dn[1] * 8)
+        for s in (-1, 1):
+            B.prism(f"platemount_web{s}", [r_, f_, (xa + 60, shapes.top_bottom(ap, xa + 60)[0] - 6), (xa, tb[0] - 3)], s * 15 - 4, s * 15 + 4, plastic, 2.0)
+
+
+def bubble_screen(model, c):
+    """The screen (beenster, sport round 1): thin clear Perspex, round at the bottom where it meets the nose,
+    its sides swept back, a low bubble over the clocks."""
+    sc_ = next((v for v in model["body"].get("panels", []) if v.get("cls") == "screen"), None)
+    if not sc_ or model["family"].lower() != "sport":
+        return
+    pts = [tuple(q[:2]) for q in sc_["pts"]]
+    lo = max(pts, key=lambda q: q[0])                      # where the screen leaves the nose
+    hi = max(pts, key=lambda q: q[1])                      # its top edge
+    mid = max((q for q in pts if q not in (lo, hi)), key=lambda q: q[0] + q[1])
+    drop("screen", "pscreen")
+
+    def centre(t):                                         # the leading line, a quadratic through the three
+        a_, b_ = (1 - t) ** 2, 2 * t * (1 - t)
+        ctrl = (2 * mid[0] - (lo[0] + hi[0]) / 2, 2 * mid[1] - (lo[1] + hi[1]) / 2)
+        return (a_ * lo[0] + b_ * ctrl[0] + t * t * hi[0], a_ * lo[1] + b_ * ctrl[1] + t * t * hi[1])
+    W, NT, NY = 128.0, 26, 24
+    verts, faces = [], []
+    for i in range(NT + 1):
+        t = i / NT
+        cx_, cz_ = centre(t)
+        # round at the bottom (a half circle in front view), then easing in to a rounded top
+        w = W * max(0.0, 1 - (1 - min(1.0, t / 0.17)) ** 3.4) ** (1 / 3.4) * (1 - 0.34 * max(0.0, (t - 0.17) / 0.83) ** 2)
+        w *= math.sqrt(max(0.0, 1 - max(0.0, (t - 0.9) / 0.1) ** 2 * 0.75))
+        for j in range(NY + 1):
+            f = -1 + 2 * j / NY
+            y = f * max(w, 0.5)
+            back = (40 + 90 * t) * (y / W) ** 2        # wrapped round the nose low down, swept back higher up
+            crown = 10 * (1 - f * f) * math.sin(math.pi * t)         # a low bubble
+            verts.append(B.V(cx_ - back + crown * 0.5, y, cz_ - 0.25 * back + crown * 0.4))
+    for i in range(NT):
+        for j in range(NY):
+            q = i * (NY + 1) + j
+            faces.append((q, q + 1, q + NY + 2, q + NY + 1))
+    ob = B.mesh_obj("screen", verts, faces, glass_mat("perspex", (0.82, 0.86, 0.9)), True, 0, False)
+    md = ob.modifiers.new("thick", "SOLIDIFY")
+    md.thickness = 2.6 * B.MM
+    B.bm_fix_normals(ob)
+    # four screen screws in rubber wellnuts along the lower edge
+    for sg in (-1, 1):
+        for t in (0.16, 0.36):
+            cx_, cz_ = centre(t)
+            w = W * max(0.0, 1 - (1 - min(1.0, t / 0.17)) ** 3.4) ** (1 / 3.4) * 0.9
+            back = (40 + 90 * t) * (w / W) ** 2
+            q = (cx_ - back + 3, sg * w, cz_ - 0.25 * back + 2)
+            B.cone(f"screenscrew{sg}{t}", q, (q[0] + 2, q[1] + sg * 3, q[2] + 1), 4.2, 3.6, B.mat("plastic"), 12)
+
+
+def chain(model, c):
+    """A real drive chain (beenster, 15 Nov): rollers on pins at a 5/8 inch pitch, waisted inner and outer
+    side plates in turn, round both sprockets, and sprockets with teeth and lightening holes."""
+    sw, eng = model["swingarm"], model["engine"]
+    if sw.get("shaft") or "sprocket_r" not in sw:
+        return
+    A, cs = c["A"], tuple(eng["countershaft"])
+    PITCH, Y = 15.875, 108.0
+    n_r = max(30, round(2 * math.pi * sw["sprocket_r"] / PITCH))
+    n_f = 15
+    rr, rf = PITCH / (2 * math.sin(math.pi / n_r)), PITCH / (2 * math.sin(math.pi / n_f))
+    drop("chain", "sprocket")
+    steel, dark = B.mat("steel"), surf("chainplate", (0.16, 0.16, 0.17), 1.0, 0.38, wear=0.3)
+    gold = surf("chaingold", (0.72, 0.5, 0.16), 1.0, 0.3, wear=0.25)
+    # sprockets
+    for tag, cen, R, n, ya, yb in (("sprocket", A, rr, n_r, Y - 3.2, Y + 3.2), ("sprocketfront", cs, rf, n_f, Y - 3.2, Y + 3.2)):
+        out = []
+        for k in range(n):
+            for da, dr in ((-0.5, -5.2), (-0.28, -4.6), (-0.12, 1.5), (0.0, 3.6), (0.12, 1.5), (0.28, -4.6)):
+                w = 2 * math.pi * (k + 0.5 + da) / n
+                out.append((cen[0] + (R + dr) * math.cos(w), cen[1] + (R + dr) * math.sin(w)))
+        ob = B.prism(tag, out, ya, yb, steel if tag == "sprocket" else dark, 0)
+        if tag == "sprocket":
+            cuts = []
+            for k in range(6):
+                w = 2 * math.pi * k / 6
+                for dw, rad_, r_ in ((0.0, R * 0.7, R * 0.13), (0.5, R * 0.58, R * 0.075)):
+                    q = (cen[0] + rad_ * math.cos(w + dw * math.pi / 3), cen[1] + rad_ * math.sin(w + dw * math.pi / 3))
+                    cuts.append(((q[0], ya - 4, q[1]), (q[0], yb + 4, q[1]), r_))
+            drill(ob, cuts, 0)
+            ob.data.polygons.foreach_set("use_smooth", [False] * len(ob.data.polygons))
+            for k in range(6):
+                w = 2 * math.pi * (k + 0.5) / 6
+                bolt(f"sprocketnut{k}", (cen[0] + R * 0.36 * math.cos(w), yb + 1, cen[1] + R * 0.36 * math.sin(w)), (0, 1, 0), 6.5, 6, steel, False)
+    # the loop: top run, round the rear sprocket, bottom run, round the gearbox sprocket
+    d = math.hypot(A[0] - cs[0], A[1] - cs[1])
+    th = math.atan2(A[1] - cs[1], A[0] - cs[0])
+    al = math.acos((rf - rr) / d)
+    path = []
+    u1 = (math.cos(th + al), math.sin(th + al))
+    u2 = (math.cos(th - al), math.sin(th - al))
+    p0, p1 = B.add(cs, u1, rf), B.add(A, u1, rr)
+    for k in range(200):
+        path.append((p0[0] + (p1[0] - p0[0]) * k / 200, p0[1] + (p1[1] - p0[1]) * k / 200))
+    for k in range(200):
+        w = th + al - 2 * al * k / 200
+        path.append((A[0] + rr * math.cos(w), A[1] + rr * math.sin(w)))
+    p0, p1 = B.add(A, u2, rr), B.add(cs, u2, rf)
+    for k in range(200):
+        path.append((p0[0] + (p1[0] - p0[0]) * k / 200, p0[1] + (p1[1] - p0[1]) * k / 200))
+    for k in range(120):
+        w = th - al - (2 * math.pi - 2 * al) * k / 120
+        path.append((cs[0] + rf * math.cos(w), cs[1] + rf * math.sin(w)))
+    cum = [0.0]
+    for a_, b_ in zip(path, path[1:] + path[:1]):
+        cum.append(cum[-1] + math.hypot(b_[0] - a_[0], b_[1] - a_[1]))
+    total = cum[-1]
+    n = 2 * round(total / PITCH / 2)
+    step, pins, j = total / n, [], 0
+    for k in range(n):
+        target = k * step
+        while cum[j + 1] < target:
+            j += 1
+        f = (target - cum[j]) / max(1e-9, cum[j + 1] - cum[j])
+        a_, b_ = path[j], path[(j + 1) % len(path)]
+        pins.append((a_[0] + (b_[0] - a_[0]) * f, a_[1] + (b_[1] - a_[1]) * f))
+    groups = {"chainrollers": ([], []), "chaininner": ([], []), "chainouter": ([], []), "chainpins": ([], [])}
+
+    def cyl(key, q, r, y0, y1, m=10):
+        vs, fs = groups[key]
+        b0 = len(vs)
+        for yy in (y0, y1):
+            vs += [B.V(q[0] + r * math.cos(2 * math.pi * e / m), yy, q[1] + r * math.sin(2 * math.pi * e / m)) for e in range(m)]
+        fs += [(b0 + e, b0 + (e + 1) % m, b0 + m + (e + 1) % m, b0 + m + e) for e in range(m)]
+        fs += [tuple(b0 + e for e in range(m))[::-1], tuple(b0 + m + e for e in range(m))]
+
+    def plate(key, a_, b_, y0, y1, r=7.4, waist=5.0):
+        vs, fs = groups[key]
+        L_ = math.hypot(b_[0] - a_[0], b_[1] - a_[1])
+        t_ = ((b_[0] - a_[0]) / L_, (b_[1] - a_[1]) / L_)
+        nn = (-t_[1], t_[0])
+        ring = []
+        for e in range(7):                                  # round one end
+            w = math.pi / 2 + math.pi * e / 6
+            ring.append((a_[0] + r * (math.cos(w) * t_[0] + math.sin(w) * nn[0]), a_[1] + r * (math.cos(w) * t_[1] + math.sin(w) * nn[1])))
+        mid_ = ((a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2)
+        ring.append((mid_[0] - nn[0] * waist, mid_[1] - nn[1] * waist))
+        for e in range(7):                                  # round the other
+            w = -math.pi / 2 + math.pi * e / 6
+            ring.append((b_[0] + r * (math.cos(w) * t_[0] + math.sin(w) * nn[0]), b_[1] + r * (math.cos(w) * t_[1] + math.sin(w) * nn[1])))
+        ring.append((mid_[0] + nn[0] * waist, mid_[1] + nn[1] * waist))
+        m, b0 = len(ring), len(vs)
+        for yy in (y0, y1):
+            vs += [B.V(q[0], yy, q[1]) for q in ring]
+        fs += [(b0 + e, b0 + (e + 1) % m, b0 + m + (e + 1) % m, b0 + m + e) for e in range(m)]
+        fs += [tuple(b0 + e for e in range(m))[::-1], tuple(b0 + m + e for e in range(m))]
+    for k, q in enumerate(pins):
+        nx = pins[(k + 1) % n]
+        cyl("chainrollers", q, 5.1, Y - 4.6, Y + 4.6)
+        cyl("chainpins", q, 2.6, Y - 11.2, Y + 11.2, 8)
+        if k % 2 == 0:
+            for sg in (-1, 1):
+                plate("chaininner", q, nx, Y + sg * 4.8, Y + sg * 6.8)
+        else:
+            for sg in (-1, 1):
+                plate("chainouter", q, nx, Y + sg * 7.2, Y + sg * 9.2)
+    for key, material in (("chainrollers", steel), ("chaininner", dark), ("chainouter", gold), ("chainpins", steel)):
+        vs, fs = groups[key]
+        ob = B.mesh_obj(key, vs, fs, material, False)
+        B.bm_fix_normals(ob)
 
 
 def grip_mat(length, rmax, rbody=17.2):
@@ -844,6 +1288,11 @@ def indicator(name, base, s, face, variant):
     pod with a clear lens over a row of amber LEDs. "arrow": a long clear arrowhead lens over a bulb."""
     rubber, plastic = B.mat("rubber"), B.mat("plastic")
     ax = (0, s, 0)
+    if variant == "trad":      # traditional: a chrome stalk, an amber lens in a chrome shell (beenster, cafe round 2)
+        lathe(name + "_stalk", base, ax, [(0, 0), (0, 9), (4, 9), (6, 6), (34, 6), (34, 0)], B.mat("chrome"), 20)
+        lathe(name + "_pod", base, ax, [(30, 0), (31, 9), (36, 16), (46, 19.5), (76, 19.5), (86, 16), (91, 9), (92, 0)], B.mat("chrome"), 32, sharp=False, ell=(0.8, 1.0))
+        lathe(name + "_lens", (base[0] + face * 7, base[1], base[2]), ax, [(33, 0), (34, 8), (38, 14.5), (47, 17.6), (75, 17.6), (84, 14.5), (88, 8), (89, 0)], glow("amberlens", (1.0, 0.36, 0.02), 0.6), 32, sharp=False, ell=(0.74, 1.0))
+        return
     lathe(name + "_stalk", base, ax, [(0, 0), (0, 11.5), (3, 11.5), (4, 8.6), (7, 8.6), (8, 10.6), (11, 10.6), (12, 8.2), (15, 8.2), (16, 10), (19, 10), (21, 7.4), (38, 6.2), (38, 0)], rubber, 24)
     amber = glow("amberled", (1.0, 0.42, 0.02), 1.2)
     if variant == "arrow":
@@ -905,9 +1354,32 @@ def indicators(model, c):
                 continue
         indicator(f"ind_f{s}", (hb[0] + 60, s * 92, hb[1] + 40), s, 1, variant)
     tl = next((shp for shp in model["body"].get("tail", []) if shp.get("cls") == "redlens"), None)
+    if not tl and c.get("tail_lamp"):
+        tl = {"pts": [list(c["tail_lamp"][:2])]}
     if tl:
         tx = sum(q[0] for q in tl["pts"]) / len(tl["pts"])
         tz = min(q[1] for q in tl["pts"]) - 25
+        if c.get("tail_lamp"):
+            # joined to the tail light's housing (beenster, sport round 2): a slim pod each side, grown out of
+            # the housing through the flank of the tail, amber LED lens facing back
+            xf, zc, W = c["tail_lamp"]
+            amber = glow("amberled", (1.0, 0.42, 0.02), 1.2)
+            for s in (-1, 1):
+                base = (xf + 13, s * (W - 14), zc)
+                lathe(f"ind_r{s}_pod", base, (0, s, 0), [(0, 0), (0, 13), (16, 13), (24, 10), (32, 8.6), (74, 8.2), (84, 6.4), (89, 3), (90, 0)], B.mat("chrome" if c.get("tail_lamp_chrome") else "plastic"), 28, sharp=False, ell=(0.8, 1.0))
+                lathe(f"ind_r{s}_lens", (base[0] - 3.6, base[1], base[2]), (0, s, 0), [(31, 0), (31, 6.8), (73, 6.6), (82, 5.0), (86, 2.4), (87, 0)], amber, 28, sharp=False, ell=(0.72, 1.0))
+            return
+        arm = next((h for h in model["body"].get("plate_hanger", []) if h.get("cls") == "plastic" and "pts" in h), None)
+        if arm and model.get("fit", {}).get("plate_hanger", True) and model["family"].lower() == "sport":
+            # on the plate hanger's arm, a stalk each side, as on the reference rear views
+            import shapes
+            ax = min(q[0] for q in arm["pts"]) + 0.42 * (max(q[0] for q in arm["pts"]) - min(q[0] for q in arm["pts"]))
+            tb = shapes.top_bottom(shapes.dense(arm["pts"], True, arm.get("t", 0)), ax)
+            if tb:
+                for s in (-1, 1):
+                    lathe(f"ind_r{s}_boss", (ax, s * 20, (tb[0] + tb[1]) / 2), (0, s, 0), [(0, 0), (0, 14), (6, 14), (9, 11), (9, 0)], B.mat("plastic"), 20)
+                    indicator(f"ind_r{s}", (ax, s * 27, (tb[0] + tb[1]) / 2), s, -1, variant)
+                return
         for s in (-1, 1):
             indicator(f"ind_r{s}", (tx + 30, s * 58, tz), s, -1, variant)
 
@@ -1019,6 +1491,10 @@ def controls(model, c):
     rubber = surf("griprubber", (0.018, 0.018, 0.02), 0.0, 0.72, bump=(0.35, 0.5), wear=0.1)
     plastic, steel, dark = B.mat("plastic"), B.mat("steel"), B.mat("alu_dark")
     satin = surf("leverblack", (0.035, 0.035, 0.04), 0.85, 0.36)
+    opt = model.get("detail", {})
+    if opt.get("levers") == "steel":      # polished steel levers (beenster, cafe round 2)
+        satin = surf("leversteel", (0.62, 0.63, 0.65), 1.0, 0.24, wear=0.1)
+    barend = opt.get("mirrors") == "barend"
     for s in (-1, 1):
         g0, g1 = (grip[0], s * 258, grip[1]), (grip[0] - 6, s * 384, grip[1] - 4)
         L_ = math.sqrt(sum((g1[i] - g0[i]) ** 2 for i in range(3)))
@@ -1113,10 +1589,19 @@ def controls(model, c):
             B.cone(f"mirrorboss{s}", root, (root[0], root[1] + s * 12, root[2] + 3), 12, 9, plastic, 16)
             strap(f"mstalk{s}", [(root[0], root[1] + s * 8, root[2] + 2), (root[0] - 8, root[1] + s * 48, root[2] + 22), (mc[0] + 16, mc[1] - s * 52, mc[2] - 12), (mc[0] + 14, mc[1] - s * 8, mc[2] - 4)],
                   [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], plastic)
+        elif barend:
+            # bar-end mirrors (beenster, cafe round 2): a clamp on the end of the bar, a short stem standing up
+            # and out from it, and a round head
+            e_ = tuple(g0[i] + d[i] * (L_ + 24) for i in range(3))
+            mc = (e_[0] - 6, e_[1] + s * 26, e_[2] + 104)
+            lathe(f"mirrorboss{s}", e_, d, [(0, 0), (0, 15), (3, 17.5), (15, 17.5), (18, 15), (18, 0)], B.mat("alu_dark"), 28)
+            B.smooth_tube(f"mstalk{s}", [(e_[0], e_[1] + s * 9, e_[2] + 12), (e_[0] - 1, e_[1] + s * 12, e_[2] + 40), (mc[0] + 16, mc[1] - s * 4, mc[2] - 50), (mc[0] + 16, mc[1], mc[2] - 8)], 5.6, B.mat("alu_dark"))
         else:
             B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
             B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
         outline = chaikin([(s * -86, -10), (s * -64, 30), (s * 10, 44), (s * 76, 32), (s * 86, -4), (s * 58, -36), (s * -52, -40)], 3)
+        if barend:
+            outline = [(s * 54 * math.cos(2 * math.pi * k_ / 40), 54 * math.sin(2 * math.pi * k_ / 40)) for k_ in range(40)]
         if s == -1:
             outline = outline[::-1]
         mo = (mc[0], mc[2])
@@ -1154,6 +1639,8 @@ def mudguard_fixings(model, c):
     paint = guard.data.materials[0]
     arc = next(v["arc"] for v in model["body"]["front_guard"] if "arc" in v)
     r_edge = arc["r1"] + 4 - 17
+    if model["family"].lower() in ("sport", "cafe"):
+        r_edge = model["wheels"]["front"]["tyre_r"] + 11 - 28      # the shell sits tight on the tyre (build3d.guard_blade, tight)
     fw = (-nb[0], -nb[1])
     FY, n = 105.0, 21
     # along the leg: (t from the axle, reach forward of the leg's middle, half width across)
@@ -1406,7 +1893,17 @@ def exhaust_ports(model, c, heads):
         # lambda sensor boss a little way down the pipe
         k_ = min(len(hp["pts"]) - 2, 3)
         q0, q1 = tuple(hp["pts"][k_][:2]), tuple(hp["pts"][k_ + 1][:2])
-    # the clamp where the headers enter the silencer
+    silencers(model, c)
+
+
+def silencers(model, c):
+    """The silencers' own detail: inlet clamp and cone, the outlet, rivet bands."""
+    if c.get("_silencers_done"):
+        return
+    c["_silencers_done"] = True
+    ex = model["exhaust"]
+    both, left, under = (ex.get("side") == k_ for k_ in ("both", "left", "under"))
+    steel = B.mat("steel")
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
             if B.is_belly(ex, i):
@@ -1416,18 +1913,44 @@ def exhaust_ports(model, c, heads):
             L_ = math.sqrt(sum((b3[k] - a3[k]) ** 2 for k in range(3)))
             d3 = tuple((b3[k] - a3[k]) / L_ for k in range(3))
             rc = can["w"] / 2 * 0.86
+            if can.get("mega"):
+                # a megaphone (beenster, cafe round 2): one long brushed cone opening to a wide mouth, a short
+                # black reverse cone on the end, open and dark inside
+                r0, r1 = max(rc * 0.56, ex["headers"][0].get("w", 44) / 2 * 0.8 + 1.2), can["mega"] / 2      # the inlet sleeves over the header
+                drop(f"can{i}{sg}", f"canband{i}{sg}", f"canend{i}{sg}", f"canbore{i}{sg}")
+                soot = surf("pipeblack", (0.0015, 0.0015, 0.0015), 0.0, 1.0, wear=0.0)
+                soot.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0
+                lathe(f"can{i}{sg}", a3, d3, [(-30, r0), (L_ * 0.1, r0 + 1.5), (L_ * 0.8, r1), (L_ * 0.86, r1)], B.mat("exhaust"), 48, sharp=False, caps=False)
+                lathe(f"canclamp{i}{sg}", a3, d3, [(-24, r0), (-24, r0 + 3.5), (-8, r0 + 3.5), (-8, r0), (-24, r0)], steel, 28, caps=False)
+                lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.855, r1 + 1.2), (L_ * 0.875, r1 + 1.2), (L_, r1 * 0.8), (L_ + 1.5, r1 * 0.8 - 2), (L_ - 1, r1 * 0.8 - 4.5)], B.mat("exhaust_black"), 48, caps=False)
+                lathe(f"canbore{i}{sg}", a3, d3, [(L_ - 0.5, r1 * 0.8 - 4.5), (L_ * 0.82, r1 - 3), (L_ * 0.45, r1 * 0.55), (L_ * 0.45, 0)], soot, 48, caps=False)
+                lathe(f"canstrap{i}{sg}", a3, d3, [(L_ * 0.6, r0 + (r1 - r0) * 0.71 + 0.5), (L_ * 0.6, r0 + (r1 - r0) * 0.71 + 3), (L_ * 0.6 + 14, r0 + (r1 - r0) * 0.735 + 3), (L_ * 0.6 + 14, r0 + (r1 - r0) * 0.735 + 0.5), (L_ * 0.6, r0 + (r1 - r0) * 0.71 + 0.5)], steel, 36, caps=False)
+                continue
             lathe(f"canclamp{i}{sg}", a3, d3, [(L_ * 0.02, rc * 0.62), (L_ * 0.02, rc * 0.62 + 3), (L_ * 0.02 + 14, rc * 0.62 + 3), (L_ * 0.02 + 14, rc * 0.62)], steel, 28)
             lathe(f"cancone{i}{sg}", a3, d3, [(L_ * 0.03, rc * 0.6), (L_ * 0.14, rc)], B.mat("exhaust"), 36)
             # the outlet (beenster, round 4): a dished end cap with an open tail pipe standing out of it,
             # dark with soot inside, so the gases have a way out
             drop(f"canend{i}{sg}", f"canbore{i}{sg}")
-            if not can.get("nip"):
+            if B.is_belly(ex, 0):
+                # a stubby sport outlet: a rolled steel lip round one big open bore, dark with soot inside
+                soot = surf("pipeblack", (0.0015, 0.0015, 0.0015), 0.0, 1.0, wear=0.0)
+                soot.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0      # soot has no sheen, even edge-on
+                bright = surf("outletlip", (0.82, 0.82, 0.84), 0.85, 0.42, wear=0.1)
+                drop(f"can{i}{sg}", f"canbaffle{i}{sg}", f"cancore{i}{sg}")
+                lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.12, rc), (L_ * 0.92, rc)], B.mat("exhaust"), 40, caps=False)
+                # hollow (beenster, sport round 2): a thin rolled lip round ONE wide open bore that runs most
+                # of the way up the can, black with soot, with the perforated core far down inside it
+                rb = rc * 0.8
+                lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 1.5), (L_ - 4, rc + 1.5), (L_ + 1, rc - 1.5), (L_ + 1, rb + 2), (L_ - 3, rb)], bright, 40, caps=False)
+                lathe(f"canbore{i}{sg}", a3, d3, [(L_ - 2.5, rb), (L_ * 0.3, rb), (L_ * 0.3, rb * 0.55), (L_ * 0.3, 0)], soot, 40, caps=False)
+                lathe(f"cancore{i}{sg}", a3, d3, [(L_ * 0.3, rb * 0.55), (L_ * 0.62, rb * 0.55), (L_ * 0.62, rb * 0.47), (L_ * 0.3, rb * 0.47)], B.mat("exhaust_black"), 28, caps=False)
+            elif not can.get("nip"):
                 black = B.mat("exhaust_black")
                 lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, rc + 2), (L_ - 12, rc * 1.0), (L_ - 3, rc * 0.93), (L_, rc * 0.84), (L_ - 1.5, rc * 0.76), (L_ - 12, rc * 0.68), (L_ - 14, rc * 0.5)], black, 40, caps=False)
                 lathe(f"canpipe{i}{sg}", a3, d3, [(L_ - 20, rc * 0.52), (L_ + 9, rc * 0.52), (L_ + 11, rc * 0.5), (L_ + 11, rc * 0.455), (L_ + 9, rc * 0.44), (L_ - 20, rc * 0.44)], steel, 36, caps=False)
                 lathe(f"canbore{i}{sg}", a3, d3, [(L_ + 8, rc * 0.438), (L_ - 34, rc * 0.438), (L_ - 34, 0)], surf("soot", (0.006, 0.006, 0.006), 0.0, 0.95, wear=0.0), 36, caps=False)
             for a_ in (0.3, 0.86):       # rivet bands
-                lathe(f"canrivetband{i}{sg}{a_}", a3, d3, [(L_ * a_, rc + 0.4), (L_ * a_, rc + 2.2), (L_ * a_ + 12, rc + 2.2), (L_ * a_ + 12, rc + 0.4)], steel, 36)
+                lathe(f"canrivetband{i}{sg}{a_}", a3, d3, [(L_ * a_, rc + 0.4), (L_ * a_, rc + 2.2), (L_ * a_ + 12, rc + 2.2), (L_ * a_ + 12, rc + 0.4), (L_ * a_, rc + 0.4)], steel, 36, caps=False)      # a ring, not a disc: a capped band plugged the outlet
 
 
 def radiator(model, c, heads, wp, wp_y):
@@ -1490,6 +2013,7 @@ def radiator(model, c, heads, wp, wp_y):
             B.smooth_tube(f"radbracket{sg}", [P(q0, sg * 70), P(((q0[0] + tgt[0]) / 2, (q0[1] + tgt[1]) / 2 + 8), sg * (half(tgt) + 70) / 2), P(tgt, sg * half(tgt))], 5, B.mat("alu_dark"))
     # hoses with clips: top from the left tank to the front head, bottom from the right tank to the pump
     hose = surf("coolhose", (0.02, 0.02, 0.022), 0.0, 0.55)
+    tidy = model.get("detail", {}).get("hoses") == "tidy"
     front = max(heads, key=lambda h: h[0][0]) if heads else None
     runs = []
     if front:
@@ -1497,10 +2021,13 @@ def radiator(model, c, heads, wp, wp_y):
         s0 = R(Lr - 26, -hw - 2)
         th = add(hc, uh, 10)
         B.cone("thermostat", P(th, rh + 2), P(th, rh + 22), 17, 15, B.mat("engine"), 20)
-        runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -26), W + 14), P(((s0[0] + th[0]) / 2 - 10, (s0[1] + th[1]) / 2 + 26), W - 16), P(add(th, (0.3, 0.95), 36), rh + 34), P(th, rh + 20)]))
+        if tidy:      # one clean bend from the tank's stub to the thermostat, no slack loop
+            runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -30), W + 12), P(((s0[0] - 30 + th[0]) / 2, (s0[1] + th[1]) / 2 + 8), (W + 12 + rh + 30) / 2), P(add(th, (0.3, 0.95), 30), rh + 30), P(th, rh + 20)]))
+        else:
+            runs.append(("radhose_t", [P(s0, W + 12), P(add(s0, n, -26), W + 14), P(((s0[0] + th[0]) / 2 - 10, (s0[1] + th[1]) / 2 + 26), W - 16), P(add(th, (0.3, 0.95), 36), rh + 34), P(th, rh + 20)]))
     s1 = R(22, -hw - 2)
     pq = add(wp, (0.5, 0.86), 60)
-    runs.append(("radhose_b", [P(s1, -(W + 12)), P(add(s1, n, -24), -(W + 14)), P((s1[0] - 30, s1[1] - 90), -(W + 10)), P((pq[0] + 70, pq[1] + 60), wp_y - 16), P(add(pq, (0.5, 0.86), 26), wp_y - 12), P(pq, wp_y - 12)]))
+    runs.append(("radhose_b", [P(s1, -(W + 12)), P(add(s1, n, -24), -(W + 14)), P((s1[0] - 44, s1[1] - 36) if tidy else (s1[0] - 30, s1[1] - 90), -(W + 10)), P((pq[0] + 70, pq[1] + 60), wp_y - 16), P(add(pq, (0.5, 0.86), 26), wp_y - 12), P(pq, wp_y - 12)]))
     for nm, pts in runs:
         B.smooth_tube(nm, pts, 11.5, hose)
         for e_ in (0, -1):
@@ -1895,7 +2422,8 @@ def hugger(model, c):
                     bpy.data.objects.remove(ob, do_unlink=True)
     R_ = model["wheels"]["rear"]["tyre_r"]
     plastic = surf("huggerplastic", (0.03, 0.03, 0.033), 0.0, 0.42, bump=(0.2, 0.5), wear=0.15)
-    B.arc_band("hugger", {"c": A, "r0": R_ + 30, "r1": R_ + 40, "a0": 20, "a1": 68}, 94, plastic)
+    g_ = 20 if model["family"].lower() in ("sport", "cafe") else 0      # sport: closer still to the tyre (beenster, sport round 2)
+    B.arc_band("hugger", {"c": A, "r0": R_ + 30 - g_, "r1": R_ + 40 - g_ * 1.7, "a0": 20, "a1": 68}, 94, plastic)
     top = [tuple(q[:2]) for q in sw["outline"]]
 
     def arm_top(x):
@@ -1909,7 +2437,7 @@ def hugger(model, c):
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
-            e = (A[0] + (R_ + 19) * math.cos(w), A[1] + (R_ + 19) * math.sin(w))
+            e = (A[0] + (R_ + 19 - g_ * 0.75) * math.cos(w), A[1] + (R_ + 19 - g_ * 0.75) * math.sin(w))
             fx = e[0] + (16 if k_ == 0 else 10)
             fz = arm_top(fx) - 2
             strap(f"huggerleg{s}{k_}", [(e[0], s * 84, e[1] + 4), (e[0] + 2, s * 100, e[1] - 6), ((e[0] + fx) / 2, s * 124, (e[1] + fz) / 2 + 12), (fx, s * 142, fz + 26), (fx, s * 146, fz + 5)],
@@ -1931,9 +2459,10 @@ def pillion_hangers(model, c, pegs):
     cast = surf("hangercast", (0.09, 0.09, 0.1), 0.9, 0.42, bump=(0.25, 0.6), wear=0.2)
     pg = pegs[1]
     for s in (-1, 1):
-        fw = nodes.get("F", (n3[0] + 200, n3[1] - 110))
+        span = model.get("detail", {}).get("pillion_span", 52)      # wider apart: the two legs and the rail make a triangle
+        fw = nodes.get("F", (n3[0] + 200, n3[1] - 110) if span == 52 else nodes.get("Q", (n3[0] + 200, n3[1] - 110)))
         Lf = math.hypot(fw[0] - n3[0], fw[1] - n3[1])
-        up2 = (n3[0] + (fw[0] - n3[0]) * 52 / Lf, n3[1] + (fw[1] - n3[1]) * 52 / Lf)      # second bolt along the lower rail
+        up2 = (n3[0] + (fw[0] - n3[0]) * span / Lf, n3[1] + (fw[1] - n3[1]) * span / Lf)      # second bolt along the lower rail
         for k_, q in enumerate((n3, up2)):
             yq = c.get("SUB_OUT", 132)
             strap(f"pillionhanger{s}{k_}", [(q[0], s * (yq + 13), q[1] - 4), (q[0] - 4, s * (yq + 22), q[1] - 30), ((q[0] + pg[0]) / 2, s * (yq + 150) / 2 + s * 6, (q[1] + pg[1]) / 2), (pg[0], s * 164, pg[1] + 4)],
@@ -2044,6 +2573,9 @@ SHOTS = {
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
+    "stubby": ((-150, -820, 420), (440, -150, 270), 70),
+    "chain": ((120, 950, 470), (140, 108, 330), 75),
+    "chain_front": ((900, 1000, 520), (500, 108, 400), 75),
     "nose": ((2500, -620, 1020), (1420, 0, 840), 60),
     "cockpit": ((250, -260, 1420), (1250, 0, 900), 40),
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),
@@ -2054,6 +2586,7 @@ SHOTS = {
     "seat": ((-250, -900, 1500), (420, 0, 880), 55),
     "rear": ((-700, -1150, 600), (60, -90, 330), 60),
     "rearq": ((-2500, -2700, 1500), (650, 0, 560), 70),
+    "rearq_front": ((3600, -2600, 1450), (700, 0, 520), 70),
     "rearq_low": ((-1500, -1900, 620), (480, -40, 520), 55),
     "service": ((1500, 1150, 1750), (830, 0, 770), 60, ("tank", "cap")),
     "indicator": ((1900, -900, 950), (1270, -180, 830), 110),
@@ -2061,6 +2594,13 @@ SHOTS = {
     "heel": ((640, -950, 620), (560, -150, 440), 85),
     "grip": ((700, -620, 1330), (1060, -300, 1050), 85),
     "outlet": ((-650, -420, 1150), (80, -40, 860), 80),
+    "tail": ((-1150, -520, 1180), (-60, 0, 900), 70),
+    "prow": ((2300, 520, 330), (1150, 0, 330), 60, ("front", "guard", "shroud", "fork", "caliper")),
+    "clocks": ((960, 0, 1250), (1225, 0, 1010), 80),
+    "glamp": ((-1150, -560, 930), (-250, 0, 640), 70),
+    "loop": ((-1000, -560, 1180), (-20, 0, 830), 70),
+    "cowlgap": ((1950, -950, 1020), (1240, -170, 800), 90),
+    "tankbase": ((500, -1500, 1050), (860, -100, 820), 80),
     "hugger": ((-250, 1050, 900), (260, 90, 500), 70),
     "weld": ((1250, -820, 1080), (930, -120, 740), 85),
     "weld2": ((420, -1000, 900), (640, -140, 700), 70),
@@ -2103,11 +2643,21 @@ def run(build3d, model, c):
     c["model_hip"] = model["geometry"].get("hip_x", 520)
     front_end(model, c)
     headlamp(model, c)
+    round_lamp(model, c)
+    clocks(model, c)
     controls(model, c)
     engine(model, c)
+    silencers(model, c)        # (engines not yet detailed return early, before their exhaust)
     seat(model, c)
     tank_cap(model, c)
     rear_end(model, c)
+    tail_lamp(model, c)
+    loop_lamp(model, c)
+    twin_shocks(model, c)
+    guard_lamp(model, c)
+    plate_mount(model, c)
+    bubble_screen(model, c)
+    chain(model, c)
     indicators(model, c)
     cables(model, c)
     mudguard_fixings(model, c)

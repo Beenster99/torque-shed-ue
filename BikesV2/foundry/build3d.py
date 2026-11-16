@@ -534,16 +534,22 @@ def loft(name, outline, spec, material, stations=96, ring=44, smooth_lines=True)
         tb = (zt, zb)
         zc, h = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2
         edge = min(1.0, min(u, 1 - u) / 0.1)      # round the two ends off as part of an ellipse
-        w *= 0.3 + 0.7 * math.sqrt(1.0 - (1.0 - edge) ** 2)
+        if not (spec.get("blunt_rear") and u < 0.5):      # blunt_rear: the rear end is cut off square, for a lamp let into it
+            w *= 0.3 + 0.7 * math.sqrt(1.0 - (1.0 - edge) ** 2)
         row = []
         for j in range(ring):
             th = 2 * math.pi * j / ring
             cs, sn = math.cos(th), math.sin(th)
-            e = 2.0 / spec["n"]
+            e = 2.0 / (spec["nb"] if sn < 0 and spec.get("nb") else spec["n"])      # nb: a boxier underside
             y = w * math.copysign(abs(cs) ** e, cs)
             z = zc + h * math.copysign(abs(sn) ** e, sn)
             if sn < 0:
                 y *= 1 - (1 - spec["bottom"]) * abs(sn)
+                if spec.get("base"):
+                    # the base flares out to a given half-width (a tank's skirt, sitting on the frame spars)
+                    tgt = spec["base"](x) * max(0.0, min(1.0, (u - 0.03) / 0.22)) * max(0.0, min(1.0, (1 - u) / 0.1)) ** 0.5
+                    if tgt > w:
+                        y *= 1 + (tgt / w - 1) * min(1.0, abs(sn) / 0.6) ** 1.5
             kc = spec.get("knee")
             if kc and 0.08 < sn < 0.72 and kc[0] < u < kc[1]:
                 # a knee recess let into the flank: two clean edges along the side of the tank
@@ -593,12 +599,14 @@ def arc_band(name, a, hw, material):
     return ob
 
 
-def guard_blade(name, a, blade, hw, material):
+def guard_blade(name, a, blade, hw, material, tight=False):
     """A sport front mudguard and its fork blades as ONE moulding (beenster, 14 Nov): the crowned shell
     over the tyre, with its two side edges drawn down into the blades that run to the axle. How far
     down the side goes at each point round the wheel is read off the drawn blade outline, then faired
     so the blade grows out of the guard in a curve."""
     lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 25 if DETAIL["on"] else 9, 80, 12
+    if tight and DETAIL["on"]:
+        hi = tight + 11      # the crown a few mm off the tread, the edges following the tyre's shoulder down (beenster, sport round 2)
     c = tuple(a["c"])
 
     def mould(u, f):
@@ -629,7 +637,7 @@ def guard_blade(name, a, blade, hw, material):
         k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, min(f, 1 - f) / tip)) ** 2))
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
         # Definition pass: the edges of the shell just end, following the tyre; they do not curl in to a lip
-        edge = hi - (5 + 12 * min(1.0, min(f, 1 - f) / 0.3)) if DETAIL["on"] else lo     # slim towards both tips
+        edge = hi - ((8 + 20 * min(1.0, min(f, 1 - f) / 0.3)) if tight else (5 + 12 * min(1.0, min(f, 1 - f) / 0.3))) if DETAIL["on"] else lo     # slim towards both tips
         if DETAIL["on"]:
             c70 = math.cos(math.radians(70))
             crown = [(edge + (hi - edge) * (math.cos(math.radians(u)) - c70) / (1 - c70), hw * k * math.sin(math.radians(u)) / math.sin(math.radians(70))) for u in (-70 + 140 * q / (n - 1) for q in range(n))]
@@ -900,7 +908,7 @@ def build(model):
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174
     for s in sides:
-        pillow(f"swingarm{s}", so, s * ARM_IN, s * ARM_OUT, swm, 14, 20)
+        pillow(f"swingarm{s}", so, s * ARM_IN, s * ARM_OUT, swm, *((4, 7) if sw.get("square") else (14, 20)))      # square: a box section with only its edges eased
     piv = tuple(sw["pivot"])
     tube("pivot", [(piv[0], -ARM_OUT, piv[1]), (piv[0], ARM_OUT, piv[1])], 14, mat("steel"))
     tube("axle_r", [(A[0], -ARM_OUT + 6 if len(sides) == 2 else -60, A[1]), (A[0], ARM_OUT + 6, A[1])], 14, mat("steel"))
@@ -996,6 +1004,14 @@ def build(model):
         spec = model.get("widths", {}).get(part, WIDTHS[part])
         if DETAIL["on"] and part == "tank" and model["family"].lower() in ("naked", "cafe", "classic", "sport"):
             spec = dict(spec, knee=(0.04, 0.6, 0.16))
+            if model["family"].lower() == "sport":
+                # the tank's base is flat and full width, so it sits down on the frame spars as it does in
+                # the drawing instead of curving up away from them (beenster, sport round 2)
+                spec = dict(spec, nb=7.0, bottom=0.96)
+                if fr.get("plates"):
+                    xh_ = max(q[0] for q in fr["plates"][0]["pts"])
+                    sm_ = lambda t: max(0.0, min(1.0, t)) ** 2 * (3 - 2 * max(0.0, min(1.0, t)))
+                    spec["base"] = lambda x: (78 + (wide / 2 + 12 - 78) * sm_((xh_ - x) / 300.0) - 8) / 0.88      # the skirt's corner lands in the spar's own thickness
         if DETAIL["on"] and part == "tail" and trellis and "tail" not in model.get("widths", {}):
             spec = dict(spec, w=[[0, 55], [0.4, 98], [1, 104]])      # the tail's front tucks in behind the side panels
         loft(part, outline, spec, (mat("seat", hex_rgb(col["seat"])) if col.get("seat") else mat("seat")) if part == "seat" else paint)
@@ -1003,13 +1019,14 @@ def build(model):
         if shp["cls"] == "redlens":
             prism(f"taillight{i}", [tuple(p[:2]) for p in shp["pts"]], -45, 45, mat("redlens"), 2)
     sport_bike = model["family"].lower() == "sport"
+    fair_wrap = {}
     for i, shp in enumerate(body.get("front_guard", []) + body.get("panels", [])):
         if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
             continue
         m_ = paint if shp["cls"] == "body" else mat("plastic")
         blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
         if "arc" in shp and blade_ and shp in body.get("front_guard", []):
-            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
+            guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_, tight=model["wheels"]["front"]["tyre_r"] if model["family"].lower() in ("sport", "cafe") else False)
         elif shp.get("shroud") and (sport_bike or DETAIL["on"]):
             pass                          # part of the one-piece mudguard above
         elif "arc" in shp:
@@ -1064,25 +1081,68 @@ def build(model):
                             fl = max(0.0, min(1.0, (x - 960) / 80.0)) * max(0.0, min(1.0, (1250 - x) / 90.0))
                             y += 22 * fl * max(0.0, min(1.0, (z - 745) / 55.0)) ** 2
                         d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
-                        return 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
+                        y = 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
+                        if DETAIL["on"] and z < 500:
+                            # the belly tapers in to a prow where the two sides meet behind the front tyre
+                            # (beenster, sport round 1): full width 280 mm back, drawn in to the middle at the front
+                            d2 = max(0.0, min(1.0, (lead_s(z) - x) / 280.0))
+                            low = max(0.0, min(1.0, (500 - z) / 90.0))
+                            y *= 1 - low * 0.66 * (1 - d2 * d2 * (3 - 2 * d2))
+                        return y
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
+                fair_wrap["f"] = wrap
                 for s in (-1, 1):
-                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16, holes=cuts)
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=(60 if DETAIL["on"] else 30) if sport else 16, holes=cuts)
+                if sport and DETAIL["on"]:
+                    # behind the nose flare the fairing's top edge turns in to meet the cowl: a shelf that closes
+                    # the slot you could see down between the two (beenster's yellow mark, sport round 2)
+                    for s in (-1, 1):
+                        vs, fs, xs_ = [], [], [1092 + 8 * n_ for n_ in range(27)]
+                        for x_ in xs_:
+                            zt_ = shapes.top_bottom(pp, x_)[0]
+                            e_ = min(1.0, (x_ - 1092) / 40.0)
+                            vs += [V(x_, s * (wrap(x_, zt_ - 3) - 1), zt_ - 3), V(x_, s * (wrap(x_, zt_ - 3) - 1 - e_ * (wrap(x_, zt_ - 3) - 139)), zt_ - 3 - 10 * e_)]
+                        for n_ in range(len(xs_) - 1):
+                            fs.append((2 * n_, 2 * n_ + 1, 2 * n_ + 3, 2 * n_ + 2))
+                        mesh_obj(f"fairingshelf{i}{s}", vs, fs, m_, True, 0, sharp=False)
                 # the two sides join behind the front tyre in a curve: a chin bridge, low in the middle and
                 # rising to each leading edge, set back in the middle to clear the tyre on full compression
                 zs_ = [z_lo + 6 + n_ * 4 for n_ in range(int((min(340, z_hi) - z_lo - 6) / 4))]
                 z_n = max(zs_, key=lead_s) if zs_ else None
                 if sport and z_n and z_lo < 260 and lead_s(z_n) > 1040:
                     zb, NT, NZ = max(z_lo + 10, z_n - 46), 16, 8
+                    edge_ = None
+                    if DETAIL["on"]:
+                        zb, NZ = z_lo + 3, 22
+                        # the real front edge of the built fairing side, read off its mesh, so the bridge meets it exactly
+                        fv = [(v.co.x / MM, abs(v.co.y) / MM, v.co.z / MM) for v in bpy.data.objects[f"fairing{i}1"].data.vertices if v.co.z / MM < 480]
+                        edge_ = []
+                        for n_ in range(int((470 - z_lo) / 4) + 1):
+                            band = [v for v in fv if abs(v[2] - (z_lo + 4 * n_)) <= 6]
+                            edge_.append(list(max(band)[:2]) if band else None)
+                        known = [e for e in edge_ if e]
+                        edge_ = [e or known[0] for e in edge_]
+                        for _ in range(10):
+                            edge_ = [edge_[0]] + [[0.25 * a_[k] + 0.5 * b_[k] + 0.25 * c_[k] for k in (0, 1)] for a_, b_, c_ in zip(edge_, edge_[1:], edge_[2:])] + [edge_[-1]]
                     vs, fs = [], []
                     for back in (0, 1):
                         for a_ in range(NT + 1):
                             t_ = -1 + 2 * a_ / NT
                             zt = z_n + 22 + 130 * t_ * t_
+                            if DETAIL["on"]:
+                                # the sides really join (beenster, sport round 2): one closed prow from the keel
+                                # up to the radiator's air opening, a little higher at each side than in the middle
+                                zt = min(z_hi - 10, 408 + 46 * t_ * t_)
                             for b_ in range(NZ + 1):
                                 z_ = zb + (zt - zb) * b_ / NZ
+                                if DETAIL["on"]:      # the bridge laps round the front edge of each fairing side, so the cut edges do not show as a slit
+                                    u_e = max(0.0, min(len(edge_) - 1.001, (z_ - z_lo) / 4.0))
+                                    xe_, yw_ = (edge_[int(u_e)][k] + (edge_[int(u_e) + 1][k] - edge_[int(u_e)][k]) * (u_e - int(u_e)) for k in (0, 1))
+                                    # a shallow dish, not a deep slot: set back by under half its own half-width
+                                    vs.append(V(xe_ + 2.0 - min(46.0, 0.4 * yw_) * (1 - t_ * t_) - 5 * back, t_ * (yw_ + 1.5 - 4 * back), z_))
+                                    continue
                                 vs.append(V(lead_s(z_) - 6 - 44 * (1 - t_ * t_) - 4 * back, t_ * (wrap(lead_s(z_) - 4, z_) - 2), z_))
                     n1 = (NT + 1) * (NZ + 1)
                     for a_ in range(NT):
@@ -1109,7 +1169,17 @@ def build(model):
                     # one surface with the nose: it leaves the snout and widens in a straight line in
                     # plan to the cutaway edge, a kite in front view with nothing standing above the nose
                     t_ = max(0.0, min(1.0, (1500 + g["wheelbase"] - 1440 - x) / 240.0))
-                    return 96 + (shapes.lerp_table(w_, z) - 96) * t_
+                    y = 96 + (shapes.lerp_table(w_, z) - 96) * t_
+                    if DETAIL["on"] and fair_wrap.get("f"):
+                        # the flare's bottom edge lies on the fairing side below it, so no gap opens between
+                        # the nose and the fairing (beenster's yellow mark, sport round 2)
+                        tb_ = shapes.top_bottom(pp, x)
+                        if tb_:
+                            k_ = max(0.0, min(1.0, 1 - (z - tb_[1]) / 75.0)) * max(0.0, min(1.0, (815 - tb_[1]) / 20.0))      # along the shared lower edge only
+                            y += (fair_wrap["f"](x, tb_[1] - 4) + 1.5 - y) * k_ * k_ * (3 - 2 * k_)
+                    return y
+                if DETAIL["on"] and fair_wrap.get("f"):
+                    pp = [(q[0], q[1] - 9 * max(0.0, min(1.0, (805 - q[1]) / 20.0))) + tuple(q[2:]) for q in pp]      # lapped over the fairing's top edge
                 for s in (-1, 1):
                     skin(f"ear{i}{s}", pp, earf, s, m_, stations=50, rows=18, thick=5.0)
             elif shp.get("cowl"):
@@ -1125,6 +1195,9 @@ def build(model):
                 cx_ = sum(q[0] for q in ring_) / len(ring_)
                 cz_ = sum(q[1] for q in ring_) / len(ring_)
                 secs = [(120, 1.0, 1.5, 0), (190, 0.92, 1.1, -8), (255, 0.8, 0.7, -20), (312, 0.62, 0.3, -32)]
+                if DETAIL["on"]:
+                    # the tip turns down into an end plate (beenster, sport round 1, from the reference front view)
+                    secs = [(120, 1.0, 1.4, 0), (190, 0.94, 1.0, -7), (255, 0.86, 0.62, -18), (288, 0.8, 0.45, -27), (302, 0.76, 0.38, -38), (309, 0.7, 0.32, -52), (311, 0.6, 0.26, -66)]
                 for s in (-1, 1):
                     vs, fs = [], []
                     for y_, kx, kz, dz in secs:

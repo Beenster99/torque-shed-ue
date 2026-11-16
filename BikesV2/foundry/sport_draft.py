@@ -59,6 +59,12 @@ def draft(name, spec):
     for n_ in ("S1", "S2", "S3", "S4"):
         if n_ in m["frame"]["nodes"]:
             m["frame"]["nodes"][n_] = k["frame"]["nodes"][n_]
+    # the signed-off sport tail (beenster, 15 Nov): cut square at the back for the brake light let into it
+    m["widths"] = dict(m.get("widths", {}))
+    m["widths"]["tail"] = dict(m["widths"].get("tail", k["widths"]["tail"]), blunt_rear=True)
+    if spec.get("wheel"):
+        for w_ in ("front", "rear"):
+            m["wheels"][w_]["style"] = spec["wheel"]
     for fn in spec.get("style", []):
         fn(m)
     path = os.path.join(ROOT, "data", "models", name + ".json")
@@ -123,6 +129,10 @@ def hartwell(m):
 def varga(m):
     """Varga: the least bodywork. A sharp wedge of a fairing that stops above the crankcases, a separate
     small belly pan under the engine, a faceted nose, and one big wedge cut out of the side."""
+    # the silencer runs lower and flatter so it passes under the pillion footrest (pegs never move; clipping check, 15 Nov)
+    ex = m["exhaust"]
+    ex["headers"][0]["pts"][-1] = [470, 535]
+    ex["cans"] = [dict(ex["cans"][0], a=[470, 535], b=[240, 575])]
     _shape(m,
            fairing=[[1528, 730, 1], [1440, 778], [1380, 790]] + TOP + [[1000, 798], [900, 742], [830, 650, 1], [800, 560], [720, 440, 1],
                     [860, 420], [1000, 360], [1112, 300, 1], [1126, 402], [1162, 482], [1222, 562], [1312, 628], [1420, 672, 1]],
@@ -132,11 +142,11 @@ def varga(m):
 
 
 DRAFTS = {
-    "corvano_sport": {"base": "corvano_naked", "title": "Corvano sport (working title S1)", "wheelbase": 1455,
+    "corvano_sport": {"wheel": "y5", "base": "corvano_naked", "title": "Corvano sport (working title S1)", "wheelbase": 1455,
                       "frame_label": "steel trellis, full fairing", "style": [corvano]},
-    "hartwell_sport": {"base": "hartwell_naked", "title": "Hartwell sport (working title S1)", "wheelbase": 1445,
+    "hartwell_sport": {"wheel": "turbine10", "base": "hartwell_naked", "title": "Hartwell sport (working title S1)", "wheelbase": 1445,
                        "frame_label": "steel tube frame, full fairing", "style": [hartwell]},
-    "varga_sport": {"base": "varga_naked", "title": "Varga sport (working title S1)", "wheelbase": 1430,
+    "varga_sport": {"wheel": "blade7", "base": "varga_naked", "title": "Varga sport (working title S1)", "wheelbase": 1430,
                     "frame_label": "bright steel trellis, full fairing", "style": [varga]},
 }
 

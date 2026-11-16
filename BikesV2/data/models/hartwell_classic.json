@@ -86,7 +86,7 @@
   ]
  ],
  "engine": {
-  "layout": "triple",
+  "layout": "parallel_twin",
   "crank": [
    810,
    390
