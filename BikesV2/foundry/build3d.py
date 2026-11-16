@@ -474,7 +474,19 @@ def wheel(tag, c, w, width, rim_col, discs):
                 verts.append(V(c[0] + 46 * math.cos(a_) - da * math.sin(a_), yy, c[1] + 46 * math.sin(a_) + da * math.cos(a_)))
                 verts.append(V(c[0] + (rr - 22) * math.cos(b_) - da * math.sin(b_), yy * 0.15, c[1] + (rr - 22) * math.sin(b_) + da * math.cos(b_)))
             faces.append((base, base + 1, base + 3, base + 2))
-        mesh_obj(tag + "_wires", verts, faces, mat("steel"), smooth=False)
+        if DETAIL["on"] and w.get("spoke_fat"):
+            # heavy-gauge round spokes (beenster, MX round 1): each one a real rod from the hub flange to a nipple at the rim
+            sr = float(w["spoke_fat"])
+            for k in range(36):
+                a_, b_ = math.radians(k * 10), math.radians(k * 10 + (28 if k % 2 else -28))
+                yy = (hw * 0.45) * (1 if (k // 2) % 2 else -1)
+                p0 = (c[0] + 46 * math.cos(a_), yy, c[1] + 46 * math.sin(a_))
+                p1 = (c[0] + (rr - 24) * math.cos(b_), yy * 0.15, c[1] + (rr - 24) * math.sin(b_))
+                tube(f"{tag}_wire{k}", [p0, p1], sr, mat("steel"), caps=False)
+                pn = tuple(p1[j] + (p0[j] - p1[j]) * 0.07 for j in range(3))
+                cone(f"{tag}_nipple{k}", p1, pn, sr * 2.1, sr * 1.7, mat("alu"), 6)
+        else:
+            mesh_obj(tag + "_wires", verts, faces, mat("steel"), smooth=False)
         n = 0
     elif w.get("straight"):
         sw_ = w.get("spoke_w", 4)
@@ -687,8 +699,8 @@ def build(model):
     head_t, head_b = add(add(F, uf, fk["length"] - 22), nb, fk["offset"]), add(add(F, uf, fk["lower_yoke"] + 18), nb, fk["offset"])
 
     # wheels
-    wheel("front", F, wh["front"], 120, rim_c, (-78, 78))
-    wheel("rear", A, wh["rear"], 180, rim_c, (-82,))
+    wheel("front", F, wh["front"], wh["front"].get("width", 120), rim_c, (-78, 78))
+    wheel("rear", A, wh["rear"], wh["rear"].get("width", 180), rim_c, (-82,))
 
     # fork legs, yokes, axle
     forkm = mat("gold") if col.get("fork", "").lower() == "#b8975a" else mat("alu_dark")
@@ -1145,6 +1157,9 @@ def build(model):
             pass                          # part of the one-piece mudguard above
         elif "arc" in shp:
             arc_band(f"guard{i}", shp["arc"], 72 if shp["arc"]["c"][0] > 100 else 100, m_)
+        elif shp in body.get("front_guard", []) and max(q[0] for q in shp["pts"]) - min(q[0] for q in shp["pts"]) > 300:
+            # a high motocross mudguard: ONE blade on the centre line under the bottom yoke (beenster, MX round 1)
+            pillow(f"guard{i}", shapes.dense(shp["pts"], True, shp.get("t", 1.0)), -84, 84, m_, 10, 60)
         else:
             pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
             low = max(p[1] for p in pp) < 400

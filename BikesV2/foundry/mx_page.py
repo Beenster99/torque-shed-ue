@@ -8,17 +8,17 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('varga_mx', 'Varga MX, first look', 'The motocross lead bike in full detail for the first time: a tall single-cylinder bike on knobbly tyres with a high front mudguard, flat seat and number boards. It has no mirrors or lamps, one front disc, a liquid-cooled barrel with no fins and the exhaust tucked high under the seat. Rendered straight from the model, nothing retouched.', [
-        ('shot_side', 'Whole bike, right side', 'Exhaust side. Pegs and seat height as positioned for the rider.'),
-        ('shot_front34', 'Whole bike, front quarter', 'White front number board, high mudguard, fork guards and the single front disc.'),
-        ('shot_rearq', 'Rear quarter, exhaust side', 'The silencer under the seat, the single shock and the aluminium swingarm.'),
-        ('shot_rearq_l', 'Rear quarter, chain side', 'Side number board, chain and rear sprocket.'),
-        ('shot_engine', 'Engine, right side', 'Plain liquid-cooled barrel, the header curling round the front and back over the engine.'),
-        ('shot_engine_l', 'Engine, left side', ''),
-        ('shot_cockpit', 'Cockpit', 'Bare bars, no clocks.'),
-        ('shot_wheel', 'Front wheel', 'Knobbly tyre from the game, wire spokes, one disc.'),
-        ('shot_rear', 'Rear wheel and brake', ''),
+    ('varga_mx', 'Varga MX, round 2', 'Your round 1 notes on the motocross lead bike: one front mudguard, narrower knobbly tyres front and rear, heavy round spokes, the tank raised and cut back clear of the forks, the seat moved back, and the water pump moved on to the engine so the radiator hose meets it. Radiator shrouds are new. Rendered straight from the model, nothing retouched.', [
+        ('shot_side', 'Whole bike, right side', 'Tank 36 mm higher, seat 40 mm further back. Pegs are unchanged.'),
+        ('shot_front34', 'Whole bike, front quarter', 'One mudguard blade on the centre line. Front tyre is now 84 mm wide (was 120).'),
+        ('shot_rearq', 'Rear quarter, exhaust side', 'Rear tyre is now 116 mm wide (was 180).'),
+        ('shot_rearq_l', 'Rear quarter, chain side', ''),
+        ('shot_wheel', 'Front wheel', 'Heavy round spokes, each with a nipple at the rim.'),
+        ('shot_hoses_r', 'Bottom hose and water pump', 'The pump now sits on the engine case beside the clutch cover, and the hose from the radiator runs to it.'),
+        ('shot_hoses', 'Top hose and radiator shroud', 'The top hose runs to the thermostat on the side of the head. The black panel is the radiator shroud.'),
+        ('shot_engine', 'Engine, right side', ''),
         ('shot_seat', 'Seat', ''),
+        ('shot_cockpit', 'Cockpit', ''),
     ]),
 ]
 body = '<main>\n<div class="k">Bike Models V2 · Definition pass · MX</div>'
@@ -29,7 +29,7 @@ for key, h1, lede, items in SETS:
         p = os.path.join(ROOT, 'out', 'renders', f'{key}_def_{tag}.png')
         if not os.path.exists(p):
             continue
-        shutil.copy(p, dst + f'{key}_r1_{tag}.png')
+        shutil.copy(p, dst + f'{key}_r2_{tag}.png')
         im = Image.open(p).convert('RGB')
         if im.width > 1400:
             im = im.resize((1400, int(im.height * 1400 / im.width)))

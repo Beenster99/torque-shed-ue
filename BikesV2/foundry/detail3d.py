@@ -2321,6 +2321,8 @@ def engine(model, c):
     set_mat("sprocketcover", B.mat("plastic"))
     # water pump low on the right of the case front, with its outlet stub
     wp = (crank[0] + 118, crank[1] - 78)
+    if eng.get("pump"):
+        wp = (crank[0] + eng["pump"][0], crank[1] + eng["pump"][1])      # the model places its own pump, on the case beside the clutch cover
     y0 = -(wide / 2 - 16)
     lathe("waterpump", P(wp, y0), (0, -1, 0), [(0, 40), (10, 40), (10, 36), (17, 36), (20, 33), (20, 15), (24, 13), (24, 0)], silver, 40)
     for k_ in range(5):
@@ -3179,6 +3181,8 @@ SHOTS = {
     "tankside": ((900, -1500, 1000), (900, 0, 880), 60),
     "pipes": ((1500, -1500, 520), (800, -150, 430), 50),
     "barsf": ((2100, -500, 1700), (1080, 0, 1140), 60),
+    "hoses": ((1500, 1000, 1050), (880, 80, 800), 75),
+    "hoses_r": ((1500, -1000, 700), (900, -140, 560), 75),
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
@@ -3435,3 +3439,14 @@ def run(build3d, model, c):
                 ob.data.materials[0] = B.mat("chrome")
     tank_decal(model, c)
     bar_slant(model, c)
+    for i, sh in enumerate(model["body"].get("shrouds", [])):
+        # radiator shrouds (motocross): a panel each side standing just proud of the tank's flank, over the radiator
+        pp = B.shapes.dense(sh["pts"], True, sh.get("t", 0.7))
+        cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+        for sg in (-1, 1):
+            hit = side_hit(("tank",), cx_, cz_, sg)
+            yh = abs(hit[1]) if hit else 170
+            mt = B.mat("paint", B.hex_rgb(model["colours"].get("accent", "#F4F4F2"))) if sh.get("cls") == "plate" else B.mat("plastic")
+            B.pillow(f"radshroud{i}{sg}", pp, sg * (yh - 14), sg * (yh + 16), mt, 6, 26, both=False)
+            for k, sl in enumerate(sh.get("slots", [])):
+                B.prism(f"radshroudslot{i}{sg}{k}", [tuple(q) for q in sl], min(sg * (yh + 14), sg * (yh + 17)), max(sg * (yh + 14), sg * (yh + 17)), B.mat("rubber"), 0.5)
