@@ -354,12 +354,26 @@ void FTorqueSettings::Apply(UWorld* World) const
 		G->SetFoliageQuality(Foliage < 0 ? Quality : Foliage);
 		G->SetPostProcessingQuality(PostProcess < 0 ? Quality : PostProcess);
 		G->SetShadingQuality(Shading < 0 ? Quality : Shading);
-		G->SetFullscreenMode(WindowMode == 0 ? EWindowMode::Fullscreen : WindowMode == 1 ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed);
+		const EWindowMode::Type Mode = WindowMode == 0 ? EWindowMode::Fullscreen : WindowMode == 1 ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed;
 		const FIntPoint Res = (Resolution.X > 0 && Resolution.Y > 0) ? Resolution : G->GetDesktopResolution();
+		// [perf, build 153] The window (and with it the swap chain, and frame generation's buffers) is
+		// only remade when its mode or size really changes: round 152 had 1.1-2.4 s hitches at
+		// "Swapchain Resized Fullscreen=1 -> 0" each time the settings were applied.
+		const bool bWindowChanges = G->GetFullscreenMode() != Mode || G->GetScreenResolution() != Res || G->IsVSyncEnabled() != bVSync;
+		G->SetFullscreenMode(Mode);
 		G->SetScreenResolution(Res);
 		G->SetFrameRateLimit((float)FrameCap);
 		G->SetVSyncEnabled(bVSync);
-		G->ApplySettings(false);
+		if (bWindowChanges)
+		{
+			G->ApplySettings(false);
+		}
+		else
+		{
+			G->ApplyNonResolutionSettings();
+			G->SaveSettings();
+		}
+		UE_LOG(LogTemp, Display, TEXT("Torque graphics: window %s"), bWindowChanges ? TEXT("changed (remade)") : TEXT("unchanged (kept)"));
 		// Every scalability setting put back as its group's level says (Unreal only sets the ones whose
 		// level changed), so the rows below start from the preset each time.
 		Scalability::SetQualityLevels(Scalability::GetQualityLevels(), true);
