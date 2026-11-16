@@ -156,6 +156,8 @@ private:
 	// Unreal's frame, colours as bytes): MakePart takes a mesh's from here instead of building it on the
 	// game thread. Null outside Place, and for squares made on the game thread.
 	TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* PreparedNow = nullptr;
+	// [perf, build 150] Whether the next part MakePart makes goes in the ray-tracing scene (it puts this back to true).
+	bool bNextInRayTracing = true;
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
 	// [perf, build 149] A piece of road made (on a worker, or here with bAtOnce) put in place: its part,
 	// tagged Road, and its tunnel lamps. Ready: its sections readied on the worker, or null.

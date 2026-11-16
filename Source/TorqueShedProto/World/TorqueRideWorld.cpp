@@ -23,6 +23,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/IConsoleManager.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/ScopeLock.h"
@@ -68,6 +69,14 @@ struct FTorqueRideJobs
 
 namespace TRWI
 {
+// [perf, build 150] What of the ride's world goes in the ray-tracing scene (Lumen's hardware ray
+// tracing): procedural meshes are gathered for it again every frame, so only what lights the view
+// near the rider. Squares' standing parts (walls, buildings) up to this level of the quadtree (0 the
+// nearest 256 m squares), water only on the nearest, roads only if torque.RideRoadsRayTraced.
+TAutoConsoleVariable<int32> CVarRayTraceLevel(TEXT("torque.RideRayTraceLevel"), 1,
+	TEXT("Ride UK: squares' walls and buildings are in the ray-tracing scene up to this quadtree level (0 nearest .. 3 all; -1 none). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarRoadsRayTraced(TEXT("torque.RideRoadsRayTraced"), 0,
+	TEXT("Ride UK: pieces of road in the ray-tracing scene (1) or not (0, build 150). For pieces made after the change."));
 constexpr int32 Levels = 4;
 constexpr double Finest = 256.0;         // metres across a square of level 0; each level's are 4 times the last's
 constexpr int32 CellsOf[Levels] = {64, 128, 64, 64};
@@ -771,9 +780,11 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 			Part->SetRelativeLocation(FVector(Mesh->OriginX * 100.0, Mesh->OriginZ * 100.0, 0.0));
 			Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
 			Part->SetCastShadow(bShadow && !LookMesh);
+			Part->bVisibleInRayTracing = bNextInRayTracing;
 			// (drawn by its look: the renderer never sees the procedural mesh)
 			if (LookMesh) Part->SetVisibility(false, false);
-			Part->RegisterComponent();
+			// ([perf, build 150] registered once its sections are all in, below: one render state and
+			// one physics state made, not one per section)
 		}
 		// (with a look, only what collides needs its triangles here)
 		if (LookMesh && !bCollide)
@@ -821,6 +832,8 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 		if (Each.Value) Part->SetMaterial(Section, Each.Value);
 		++Section;
 	}
+	bNextInRayTracing = true;
+	if (Part) Part->RegisterComponent();
 	if (Part && LookMesh)
 	{
 		UStaticMeshComponent* Drawn = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
@@ -904,6 +917,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		// (its water: seen, not cast as shadow, not ridden on)
 		if (Mesh.Water && Mesh.Water->Vertices() > 0)
 		{
+			bNextInRayTracing = Key.X == 0;
 			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
 		}
 	}
@@ -929,6 +943,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		Kinds.Emplace(Mesh.Extra->Signals.get(), SignalMaterial ? SignalMaterial.Get() : LampMaterial ? LampMaterial.Get() : NightMaterial.Get());
 		// [OSM stage 6A] road signs' faces and lettering, shining back the headlight after dark
 		Kinds.Emplace(Mesh.Extra->Signs.get(), SignMaterial ? SignMaterial.Get() : RoadMaterial.Get());
+		bNextInRayTracing = Key.X <= TRWI::CVarRayTraceLevel.GetValueOnGameThread();
 		UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0);
 		if (Stands) TileExtras.Add(Key, Stands);
 		// [stage 7] The street lamps' lights, on the nearest squares only: warm, unshadowed, on after dark.
@@ -984,6 +999,7 @@ void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Me
 	if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
 	if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
 	PreparedNow = Ready;
+	bNextInRayTracing = TRWI::CVarRoadsRayTraced.GetValueOnGameThread() != 0;
 	UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
 	PreparedNow = nullptr;
 	if (Part)
