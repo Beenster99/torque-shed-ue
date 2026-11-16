@@ -1622,6 +1622,10 @@ def build(model):
                 chopper_parts3d.fit_pegs(model, *bs["pegs"])
             if "covers" in bs:
                 chopper_parts3d.fit_covers(model, *bs["covers"])
+            if "lamps" in bs:
+                chopper_parts3d.fit_lamps(model, *bs["lamps"])
+            if "engine" in bs:
+                chopper_parts3d.fit_engine(model, *bs["engine"])
         lr = model.get("detail", {}).get("lock_relief")
         if lr:
             import lock_relief

@@ -228,6 +228,204 @@ def covers_sheet(samples=48):
     return sc.render.filepath
 
 
+LAMPS = {
+    "bullet": dict(label="Bullet", note="A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim."),
+    "finned": dict(label="Finned", note="A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut."),
+    "grille": dict(label="Grille", note="A plain polished bowl with a three-bar guard and a centre boss across the glass."),
+}
+
+
+def lamp_shell(name, front, r, depth, style="bullet", fin="chrome", ell=(1.0, 1.0), back=(-1, 0, 0)):
+    """The metal of a lamp: shell and rim round a glass of radius r whose face is at front (x, y, z), the shell
+    running back along `back` for about depth. The glass, reflector and bulb are the bike's own."""
+    mt, dark = metal(fin), D.surf("chop_blacked", (0.02, 0.02, 0.022), 1.0, 0.35, wear=0.0)
+    k = r / 50.0
+    made = []
+
+    def turn(tag, prof, material, segs=64, **kw):
+        D.lathe(f"{name}{tag}", front, back, prof, material, segs, ell=ell, **kw)
+        made.append(f"{name}{tag}")
+    # a rim every design shares: stepped, lapping the edge of the glass
+    turn("_rim", [(-3 * k, r - 1.5 * k), (-6 * k, r + 2 * k), (-6 * k, r + 8 * k), (-2 * k, r + 11 * k), (6 * k, r + 11 * k), (9 * k, r + 8.5 * k), (9 * k, r + 4 * k)], mt, 72, caps=False)
+    turn("_rimgroove", [(1 * k, r + 11.1 * k), (1 * k, r + 11.6 * k), (3 * k, r + 11.6 * k), (3 * k, r + 11.1 * k)], dark, 72, caps=False)
+    if style == "bullet":
+        L = depth * 1.35
+        prof = [(8 * k, r + 5 * k)]
+        for i in range(1, 15):
+            u = i / 14
+            prof.append((8 * k + (L - 8 * k) * u, (r + 5 * k) * (1 - u ** 2.2) ** 0.62 + 2.2 * k * u))
+        prof += [(L + 5 * k, 3.4 * k), (L + 9 * k, 4.6 * k), (L + 13 * k, 3.6 * k), (L + 22 * k, 0)]
+        turn("_shell", prof, mt, 72, sharp=False)
+        for i, u in enumerate((0.3, 0.38, 0.46)):
+            t = 8 * k + (L - 8 * k) * u
+            rr = (r + 5 * k) * (1 - u ** 2.2) ** 0.62 + 2.2 * k * u
+            turn(f"_line{i}", [(t, rr + 0.2), (t, rr + 1.4 * k), (t + 2.2 * k, rr + 1.3 * k), (t + 2.2 * k, rr + 0.1)], mt, 72, caps=False)
+    elif style == "finned":
+        L = depth * 0.95
+        prof, t = [(8 * k, r + 3 * k)], 12 * k
+        while t < L - 14 * k:
+            prof += [(t, r + 3 * k), (t + 0.6 * k, r + 10 * k), (t + 2.6 * k, r + 10 * k), (t + 3.2 * k, r + 3 * k)]
+            t += 7 * k
+        prof += [(L - 8 * k, r + 3 * k), (L, r - 4 * k), (L + 9 * k, r * 0.55), (L + 13 * k, r * 0.2), (L + 13 * k, 0)]
+        turn("_shell", prof, mt, 72)
+        turn("_nut", [(L + 13 * k, 0), (L + 13 * k, 7 * k), (L + 18 * k, 7 * k), (L + 19.5 * k, 5 * k), (L + 19.5 * k, 0)], mt, 6)
+        # the peak: a hooded visor over the top half of the glass
+        from mathutils import Vector
+        bx = Vector(back).normalized()
+        verts, faces, n_ = [], [], 24
+        for j, (out, rr) in enumerate(((-4 * k, r + 11.5 * k), (22 * k, r + 9 * k), (22 * k, r + 7 * k), (-4 * k, r + 9.5 * k))):
+            for i in range(n_ + 1):
+                w = math.radians(12 + 156 * i / n_)
+                reach = out * (math.sin(w) ** 0.6 if j in (1, 2) else 1.0) if j in (1, 2) else out
+                q = Vector(front) - bx * reach + Vector((0, rr * ell[0] * math.cos(w), rr * ell[1] * math.sin(w)))
+                verts.append(B.V(q.x, q.y, q.z))
+        m_ = n_ + 1
+        for j in range(4):
+            for i in range(n_):
+                j2 = (j + 1) % 4
+                faces.append((j * m_ + i, j * m_ + i + 1, j2 * m_ + i + 1, j2 * m_ + i))
+        B.mesh_obj(f"{name}_peak", verts, faces, mt, True, 0, False)
+        made.append(f"{name}_peak")
+    else:
+        L = depth
+        prof = [(8 * k, r + 6 * k)]
+        for i in range(1, 13):
+            u = i / 12
+            prof.append((8 * k + (L - 8 * k) * u, (r + 6 * k) * math.sqrt(max(0.0, 1 - u * u * 0.94))))
+        prof += [(L + 2 * k, 0)]
+        turn("_shell", prof, mt, 72, sharp=False)
+        from mathutils import Vector
+        bx = Vector(back).normalized()
+        for i, zf in enumerate((-0.5, 0.0, 0.5)):
+            half = math.sqrt(1 - zf * zf) * (r + 9 * k)
+            pts = []
+            for q in range(9):
+                u = -1 + q / 4
+                bow = (10 + 9 * (1 - u * u)) * k
+                v = Vector(front) - bx * bow + Vector((0, half * u * ell[0], zf * (r + 9 * k) * ell[1]))
+                pts.append((v.x / 1, v.y / 1, v.z / 1))
+            B.smooth_tube(f"{name}_bar{i}", pts, 2.6 * k + 0.4, mt)
+            made.append(f"{name}_bar{i}")
+        c0 = Vector(front) - bx * (19 * k)
+        D.lathe(f"{name}_boss", (c0.x, c0.y, c0.z), tuple(-bx), [(-3 * k, 0), (-3 * k, 9 * k), (0, 10 * k), (3 * k, 8 * k), (5 * k, 4 * k), (5.6 * k, 0)], mt, 40, sharp=False)
+        made.append(f"{name}_boss")
+    return made
+
+
+def fit_lamps(model, style, fin):
+    """Swap the metal of the headlamp and the mudguard tail lamp for the bespoke design. Glass, reflector and
+    bulb stay; each lamp keeps its size and place."""
+    from mathutils import Vector
+
+    def box(nm):
+        o = bpy.data.objects.get(nm)
+        if o is None:
+            return None
+        bb = [o.matrix_world @ Vector(q) for q in o.bound_box]
+        return [min(q[i] for q in bb) / B.MM for i in range(3)], [max(q[i] for q in bb) / B.MM for i in range(3)]
+    made = []
+    g, bw = box("lampglass0"), box("lampbowl00")
+    if g and bw:
+        (lo, hi), (blo, _) = g, bw
+        r = (hi[2] - lo[2]) / 2
+        front = (hi[0] - 6, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2)
+        for o in list(bpy.data.objects):
+            if o.name.startswith("lampbowl") or o.name == "lamprim0":
+                bpy.data.objects.remove(o, do_unlink=True)
+        made += lamp_shell("lampbespoke", front, r, front[0] - blo[0], style, fin)
+    g, bd = box("guardlamplens"), box("guardlampbody")
+    if g and bd:
+        (lo, hi), (_, bhi) = g, bd
+        ry, rz = (hi[1] - lo[1]) / 2, (hi[2] - lo[2]) / 2
+        front = (lo[0] + 5, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2)
+        D.drop("guardlampbody", "guardlamprim")
+        made += lamp_shell("guardlampbespoke", front, ry, (bhi[0] - front[0]) * 0.8, style, fin, ell=(1.0, rz / ry), back=(1, 0, 0))
+    return made
+
+
+def lamps_sheet(samples=48):
+    """Every lamp design (rows) in every metal (columns), with a glass and reflector in so it reads as a lamp."""
+    import build3d
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    build3d._mats.clear()
+    use(build3d)
+    for r_, st in enumerate(LAMPS):
+        for c_, fin in enumerate(METALS):
+            front = (-r_ * 0.3 / B.MM, (c_ - 1.5) * 0.21 / B.MM, 70.0)
+            back = (-1, 0, 0)
+            lamp_shell(f"l_{st}_{fin}", front, 50, 70, st, fin, back=back)
+            D.lathe(f"l_{st}_{fin}_glass", front, back, [(-4, 0), (-3, 30), (0, 49), (2, 49), (2, 0)], D.glass_mat(), 48, sharp=False)
+            D.lathe(f"l_{st}_{fin}_refl", front, back, [(2, 49), (12, 44), (26, 32), (38, 14), (40, 0)], D.surf("lampsilver", (0.9, 0.9, 0.92), 1.0, 0.06, wear=0.0), 48, sharp=False)
+    sc = _studio(1800, 1300, samples, (1.0, -0.95, 0.8), (-0.3, 0.0, 0.03), 60, 0.0)
+    os.makedirs(OUT, exist_ok=True)
+    sc.render.filepath = os.path.join(OUT, "lamps.png")
+    bpy.ops.render.render(write_still=True)
+    return sc.render.filepath
+
+
+ENGINES = {
+    "pots": dict(label="Twin pot", note="Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder."),
+    "finned": dict(label="Finned top", note="A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap."),
+}
+
+
+def fit_engine(model, style, fin):
+    """Dress the top of a V-twin: the plain rocker boxes give way to a bespoke top end. Works from the model's own
+    crank point and cylinder angles, so it follows any chopper's engine."""
+    eng = model.get("engine", {})
+    cyls = eng.get("cylinders", [])
+    if not cyls or "crank" not in eng:
+        return []
+    mt, dark = metal(fin), D.surf("chop_blacked", (0.02, 0.02, 0.022), 1.0, 0.35, wear=0.0)
+    made = []
+    for o in list(bpy.data.objects):
+        if o.name.startswith(("cover0", "cover1", "covergasket", "coverbolt")):
+            bpy.data.objects.remove(o, do_unlink=True)
+    for i, cy in enumerate(cyls):
+        a = math.radians(cy["angle"])
+        u = (math.cos(a), math.sin(a))
+        v = (u[1], -u[0])
+        top = cy["start"] + cy["length"] + cy["head"] - 8
+        bx, bz = eng["crank"][0] + u[0] * top, eng["crank"][1] + u[1] * top
+        ax = (u[0], 0, u[1])
+        hw = cy["bore_w"] / 2
+
+        def turn(tag, o, prof, material, segs=56, **kw):
+            D.lathe(f"cover{i}{tag}", o, ax, prof, material, segs, **kw)
+            made.append(f"cover{i}{tag}")
+        if style == "pots":
+            turn("_deck", (bx, 0, bz), [(0, 0), (0, hw - 8), (5, hw - 8), (8, hw - 12), (8, 0)], mt, 4, square=5.0)
+            for j, sg in enumerate((-1, 1)):
+                o = (bx + v[0] * sg * 36, 0, bz + v[1] * sg * 36)
+                turn(f"_pot{j}", o, [(8, 0), (8, 33), (11, 35), (15, 35), (18, 32), (40, 32), (50, 27), (56, 18), (59, 7), (59, 0)], mt, 56, sharp=False, ell=(1.0, 1.75))
+                turn(f"_band{j}", o, [(24, 32.2), (24, 33.6), (30, 33.6), (30, 32.2)], mt, 56, caps=False, ell=(1.0, 1.75))
+                turn(f"_nut{j}", o, [(59, 0), (59, 7.5), (64, 7.5), (67, 5.5), (69, 0)], mt, 6)
+            # pushrod tubes: two per cylinder up the right side, from the cam chest to the head, each with collars
+            for j, sg in enumerate((-1, 1)):
+                lo = (eng["crank"][0] + u[0] * (cy["start"] - 6) + v[0] * sg * 15, -(hw + 9), eng["crank"][1] + u[1] * (cy["start"] - 6) + v[1] * sg * 15)
+                hi = (eng["crank"][0] + u[0] * (top - 28) + v[0] * sg * 30, -(hw + 3), eng["crank"][1] + u[1] * (top - 28) + v[1] * sg * 30)
+                B.tube(f"pushrod{i}{j}", [lo, hi], 7.5, mt)
+                made.append(f"pushrod{i}{j}")
+                for kq, f in enumerate((0.04, 0.5, 0.96)):
+                    q = tuple(lo[n] + (hi[n] - lo[n]) * f for n in range(3))
+                    d = tuple(hi[n] - lo[n] for n in range(3))
+                    L = math.sqrt(sum(x * x for x in d))
+                    d = tuple(x / L for x in d)
+                    D.lathe(f"pushrod{i}{j}collar{kq}", q, d, [(-5, 7.5), (-5, 10.5), (-3, 11.5), (3, 11.5), (5, 10.5), (5, 7.5)], mt if kq != 1 else dark, 24, caps=False)
+                    made.append(f"pushrod{i}{j}collar{kq}")
+        else:
+            prof, t = [(0, 0), (0, hw - 6), (3, hw - 6)], 3.0
+            while t < 40:
+                prof += [(t, hw - 15), (t + 1.0, hw - 6), (t + 4.5, hw - 6), (t + 5.5, hw - 15)]
+                t += 8.5
+            prof += [(t, hw - 15), (t + 8, hw - 22), (t + 13, hw - 36), (t + 14, 0)]
+            turn("_finned", (bx, 0, bz), prof, mt, 64, square=4.5)
+            o = (bx, 0, bz)
+            turn("_breather", o, [(t + 13, 0), (t + 13, 17), (t + 17, 19), (t + 23, 19), (t + 26, 15), (t + 27, 0)], mt, 40)
+            turn("_breatherring", o, [(t + 19, 19.1), (t + 19, 19.8), (t + 21, 19.8), (t + 21, 19.1)], dark, 40, caps=False)
+    return made
+
+
 def _studio(w, h, samples, cam_loc, cam_tgt, lens, floor_z):
     from mathutils import Vector
     sc = bpy.context.scene
@@ -297,3 +495,5 @@ if __name__ == "__main__":
         print(pegs_sheet())
     elif what == "covers":
         print(covers_sheet())
+    elif what == "lamps":
+        print(lamps_sheet())
