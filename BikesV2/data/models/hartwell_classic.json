@@ -2,7 +2,7 @@
  "name": "Hartwell classic (working title K1)",
  "brand": "hartwell",
  "family": "Classic",
- "rev": "A",
+ "rev": "B",
  "engine_label": "air-cooled look parallel twin",
  "frame_label": "steel tube cradle frame",
  "colours": {
@@ -442,7 +442,8 @@
    95,
    398
   ],
-  "twin": true
+  "twin": true,
+  "real": true
  },
  "frame": {
   "nodes": {
@@ -2410,5 +2411,11 @@
     }
    }
   ]
+ },
+ "detail": {
+  "levers": "steel",
+  "clocks": "chrome",
+  "indicators": "trad",
+  "heel_plate": "swept"
  }
 }

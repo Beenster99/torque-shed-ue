@@ -798,8 +798,14 @@ def guard_lamp(model, c):
     lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
     lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
     lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
-    lathe("guardlamplens", (x1, 0, zc), ax, [(0, 0), (0, R - 2.6), (5, R - 3), (10, R - 7), (14, R - 16), (16, R - 28), (16.5, 0)], lensm, 48, sharp=False, ell=e)
-    lathe("guardlampbulb", (x1, 0, zc), ax, [(1, 0), (1, R * 0.36), (9, R * 0.3), (11, 0)], glow("tailred", (1.0, 0.03, 0.02), 2.6), 24, sharp=False, ell=e)
+    # a clear red lens, so what is inside shows (beenster, 16 Nov): a ringed chrome reflector and the bulb
+    lathe("guardlamplens", (x1, 0, zc), ax, [(0, R - 2.6), (5, R - 3), (10, R - 7), (14, R - 16), (16, R - 28), (16.5, 0)], glass_mat("redglass", (0.9, 0.02, 0.02)), 48, sharp=False, ell=e, caps=False)
+    ribs = [(-1, R - 3.2)]
+    for k in range(9):
+        r_ = (R - 4) * (1 - k / 9)
+        ribs += [(-3 - k * 1.3, r_), (-1.6 - k * 1.3, r_ - (R - 4) / 18)]
+    lathe("guardlampreflector", (x1, 0, zc), ax, ribs + [(-14.5, 0)], B.mat("chrome"), 48, ell=e)
+    lathe("guardlampbulb", (x1, 0, zc), ax, [(-10, 0), (-10, 6.5), (2, 6.5), (6, 4), (7, 0)], glow("tailred", (1.0, 0.03, 0.02), 2.6), 20)
     # the plate window: a clear strip let into the underside of the housing, lighting down on to the plate
     slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-20, -9), (20, -9), (20, 9), (-20, 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
     c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * 0.9 + 14)
@@ -1399,6 +1405,9 @@ def indicators(model, c):
             amber = glow("amberled", (1.0, 0.42, 0.02), 1.2)
             for s in (-1, 1):
                 base = (xf + 13, s * (W - 14), zc)
+                if c.get("tail_lamp_chrome") and variant == "trad":      # the classic's: amber glass in chrome shells
+                    indicator(f"ind_r{s}", (base[0], base[1] - s * 6, base[2]), s, -1, "trad")
+                    continue
                 lathe(f"ind_r{s}_pod", base, (0, s, 0), [(0, 0), (0, 13), (16, 13), (24, 10), (32, 8.6), (74, 8.2), (84, 6.4), (89, 3), (90, 0)], B.mat("chrome" if c.get("tail_lamp_chrome") else "plastic"), 28, sharp=False, ell=(0.8, 1.0))
                 lathe(f"ind_r{s}_lens", (base[0] - 3.6, base[1], base[2]), (0, s, 0), [(31, 0), (31, 6.8), (73, 6.6), (82, 5.0), (86, 2.4), (87, 0)], amber, 28, sharp=False, ell=(0.72, 1.0))
             return
