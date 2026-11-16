@@ -20,6 +20,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
@@ -92,6 +93,13 @@ TAutoConsoleVariable<int32> CVarFarTreeShadows(TEXT("torque.RideFarTreeShadows")
 	TEXT("Ride UK: the far ring's trees cast shadows (1, as until 151) or not (0). For squares made after the change."));
 TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting"), 0,
 	TEXT("Ride UK: the far ring's trees in the distance-field / Lumen lighting (1, as until 151) or not (0). For squares made after the change."));
+// [perf, build 153] Round 152: the near trees' scanned meshes were ~9 ms of GPU at Whaley Bridge (52 fps as
+// set, 104 with no near trees; the far ring, their shadows and sway cost almost nothing). Near trees now
+// draw as scans only within this many metres, in 128 m patches, and as the far models past it.
+TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
+	TEXT("Ride UK: near trees are drawn as scanned models within this many metres and as the far models past it (0: scans out to the whole near ring, as until 152). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 1,
+	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
 	TEXT("Ride UK: trees sway in the wind out to this many metres (80 until 151). For squares made after the change."));
 constexpr int32 Levels = 4;
@@ -1412,10 +1420,62 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 	if (ABStep >= TRProbe::ABCount) UE_LOG(LogTemp, Display, TEXT("Ride A/B: done"));
 }
 
+void ATorqueRideWorld::TickWarmUp()
+{
+	if (WarmUpFrames < 0) return;
+	UWorld* World = GetWorld();
+	const APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	if (!PC || !PC->PlayerCameraManager) return;
+	if (!WarmUp)
+	{
+		if (TRWI::CVarWarmUp.GetValueOnGameThread() == 0) { WarmUpFrames = -1; return; }
+		UMaterialInterface* const Each[] = {LandMaterial, RoadMaterial, StoneMaterial, MasonryMaterial, LampMaterial, RenderMaterial, WaterMaterial,
+			NightMaterial, SignalMaterial, SignMaterial, RoofMaterial, BrickMaterial};
+		WarmUp = NewObject<UProceduralMeshComponent>(this, NAME_None, RF_Transient);
+		WarmUp->SetupAttachment(RootComponent);
+		WarmUp->SetUsingAbsoluteLocation(true);
+		WarmUp->SetUsingAbsoluteRotation(true);
+		WarmUp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WarmUp->SetCastShadow(true);
+		WarmUp->bUseAsyncCooking = false;
+		// (a 2 mm triangle per material, side by side, in the ride's own vertex layout)
+		int32 Section = 0;
+		for (UMaterialInterface* M : Each)
+		{
+			if (!M) continue;
+			const double X = Section * 0.3;
+			TArray<FVector> Points = {FVector(0.0, X, 0.0), FVector(0.0, X + 0.2, 0.0), FVector(0.0, X, 0.2)};
+			TArray<int32> Tris = {0, 1, 2, 0, 2, 1};
+			TArray<FVector> Normals = {FVector(-1.0, 0.0, 0.0), FVector(-1.0, 0.0, 0.0), FVector(-1.0, 0.0, 0.0)};
+			TArray<FVector2D> Uvs = {FVector2D(0.0, 0.0), FVector2D(1.0, 0.0), FVector2D(0.0, 1.0)};
+			TArray<FLinearColor> Colours = {FLinearColor::White, FLinearColor::White, FLinearColor::White};
+			TArray<FProcMeshTangent> Tangents;
+			WarmUp->CreateMeshSection_LinearColor(Section, Points, Tris, Normals, Uvs, Colours, Tangents, false);
+			WarmUp->SetMaterial(Section, M);
+			++Section;
+		}
+		WarmUp->RegisterComponent();
+		AddInstanceComponent(WarmUp);
+		WarmUpFrames = 0;
+		UE_LOG(LogTemp, Display, TEXT("Ride warm-up: drawing %d ride materials once so their shaders are made now"), Section);
+	}
+	// 40 cm in front of the camera, for the first 90 frames (some passes come a frame or two late).
+	const FVector At = PC->PlayerCameraManager->GetCameraLocation() + PC->PlayerCameraManager->GetCameraRotation().Vector() * 40.0;
+	WarmUp->SetWorldLocationAndRotation(At, PC->PlayerCameraManager->GetCameraRotation());
+	if (++WarmUpFrames >= 90)
+	{
+		WarmUp->DestroyComponent();
+		WarmUp = nullptr;
+		WarmUpFrames = -1;
+		UE_LOG(LogTemp, Display, TEXT("Ride warm-up: done"));
+	}
+}
+
 void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
+	TickWarmUp();
 	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
 	TRProbe::WatchGc();
 	{
@@ -2222,6 +2282,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 	// applies to a whole component) a 32 m patch of the square.
 	TMap<FIntVector, TArray<FTransform>> Groups;
 	uint32 Counter = 0;
+	const float NearTreeM = TRWI::CVarNearTreeM.GetValueOnGameThread();
 	for (const TorqueWorld::RidePlant& P : Mesh.Plants)
 	{
 		++Counter;
@@ -2230,37 +2291,55 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		const TArray<int32>& Choice = bTree && P.Far ? KindFar[P.Kind] : KindNear[P.Kind];
 		if (Choice.Num() == 0) continue;
 		// (the grass's kinds have their models as variants in one species; the trees' as species of their own)
-		const int32 Si = Choice[FMath::Min(int32(P.Pick * Choice.Num()), Choice.Num() - 1)];
-		const FTorqueFoliageSpecies& S = Kit[Si];
 		const uint32 H = (uint32(FMath::FloorToInt(P.X * 37.0f)) * 73856093u) ^ (uint32(FMath::FloorToInt(P.Z * 37.0f)) * 19349663u) ^ (Counter * 83492791u);
 		const float Roll = float((H * 2654435761u) >> 8) / float(1 << 24);
-		if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) continue;   // (bigger scanned plants: fewer of them)
-		const int32 Vi = S.Variants.Num() > 1 ? FMath::Min(int32(float((H ^ 0x9e3779b9u) * 2246822519u >> 8) / float(1 << 24) * S.Variants.Num()), S.Variants.Num() - 1) : 0;
-		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
-		if (!Model) continue;
-		const FVector& Frame = bTree ? TreeFrame : GrassFrame;
-		double Size = double(P.Scale) * S.ScaleMultiplier;
-		if (bTree && P.Height > 0.0f)
+		// One plant's model, size and place, with the kit's species chosen from Among, grouped with Patch.
+		auto AddPlant = [&](const TArray<int32>& Among, int32 Patch)
 		{
-			// (as tall as the canopy map says, whatever the model's own height; a hedge's length keeps its Scale)
-			const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(Frame.Z));
-			Size = Own > 1.0 ? FMath::Clamp(double(P.Height) * 100.0 / Own, 0.4, 2.5) : 1.0;
-		}
-		FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + (S.bNativeMesh ? 0.0 : Frame.X)));
-		if (P.Nx != 0.0f || P.Nz != 0.0f)
+			const int32 Si = Among[FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1)];
+			const FTorqueFoliageSpecies& S = Kit[Si];
+			if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) return;   // (bigger scanned plants: fewer of them)
+			const int32 Vi = S.Variants.Num() > 1 ? FMath::Min(int32(float((H ^ 0x9e3779b9u) * 2246822519u >> 8) / float(1 << 24) * S.Variants.Num()), S.Variants.Num() - 1) : 0;
+			UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
+			if (!Model) return;
+			const FVector& Frame = bTree ? TreeFrame : GrassFrame;
+			double Size = double(P.Scale) * S.ScaleMultiplier;
+			if (bTree && P.Height > 0.0f)
+			{
+				// (as tall as the canopy map says, whatever the model's own height; a hedge's length keeps its Scale)
+				const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(Frame.Z));
+				Size = Own > 1.0 ? FMath::Clamp(double(P.Height) * 100.0 / Own, 0.4, 2.5) : 1.0;
+			}
+			FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + (S.bNativeMesh ? 0.0 : Frame.X)));
+			if (P.Nx != 0.0f || P.Nz != 0.0f)
+			{
+				// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up)
+				const FVector N(P.Nx, P.Nz, FMath::Sqrt(FMath::Max(0.0f, 1.0f - P.Nx * P.Nx - P.Nz * P.Nz)));
+				Rot = FQuat::FindBetweenNormals(FVector::UpVector, N.GetSafeNormal()) * Rot;
+			}
+			const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * Frame.Z, Size * Frame.Z * Frame.Y, Size * Frame.Z);
+			// ([perf, build 150] patches of torque.RidePlantPatch metres, 64 by default: 32 until 149, which
+			// made thousands of plant groups for the render thread to look at each frame)
+			int32 InPatch = Patch;
+			if (InPatch == -1 && !bTree && S.MinDrawDistance > 0.0f)
+			{
+				const float PatchM = FMath::Max(8.0f, TRWI::CVarPlantPatch.GetValueOnGameThread());
+				InPatch = FMath::Clamp(int32(P.X / PatchM), 0, 63) + 64 * FMath::Clamp(int32(P.Z / PatchM), 0, 63);
+			}
+			Groups.FindOrAdd(FIntVector(Si, Vi, InPatch)).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), Scale3));
+		};
+		// ([build 152] the far ring's trees in groups of their own, -2, so they can be lit more cheaply;
+		// [build 153] a near tree as a scan within torque.RideNearTreeM, in 128 m patches (-1000 - patch),
+		// and as the far model past it (-2000 - patch))
+		if (bTree && P.Far) { AddPlant(Choice, -2); continue; }
+		if (bTree && NearTreeM > 0.0f && KindFar[P.Kind].Num() > 0 && KindFar[P.Kind] != KindNear[P.Kind])
 		{
-			// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up)
-			const FVector N(P.Nx, P.Nz, FMath::Sqrt(FMath::Max(0.0f, 1.0f - P.Nx * P.Nx - P.Nz * P.Nz)));
-			Rot = FQuat::FindBetweenNormals(FVector::UpVector, N.GetSafeNormal()) * Rot;
+			const int32 TreePatch = FMath::Clamp(int32(P.X / 128.0f), 0, 7) + 8 * FMath::Clamp(int32(P.Z / 128.0f), 0, 7);
+			AddPlant(Choice, -1000 - TreePatch);
+			AddPlant(KindFar[P.Kind], -2000 - TreePatch);
+			continue;
 		}
-		const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * Frame.Z, Size * Frame.Z * Frame.Y, Size * Frame.Z);
-		// ([perf, build 150] patches of torque.RidePlantPatch metres, 64 by default: 32 until 149, which
-		// made thousands of plant groups for the render thread to look at each frame)
-		const bool bPatch = !bTree && S.MinDrawDistance > 0.0f;
-		const float PatchM = FMath::Max(8.0f, TRWI::CVarPlantPatch.GetValueOnGameThread());
-		// ([build 152] the far ring's trees in groups of their own, -2, so they can be lit more cheaply)
-		const int32 Patch = bPatch ? FMath::Clamp(int32(P.X / PatchM), 0, 63) + 64 * FMath::Clamp(int32(P.Z / PatchM), 0, 63) : (bTree && P.Far ? -2 : -1);
-		Groups.FindOrAdd(FIntVector(Si, Vi, Patch)).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), Scale3));
+		AddPlant(Choice, -1);
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
 	for (TPair<FIntVector, TArray<FTransform>>& Group : Groups)
@@ -2270,7 +2349,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
-		const bool bFarTree = bTree && Group.Key.Z == -2;
+		const bool bNearScan = bTree && Group.Key.Z <= -1000 && Group.Key.Z > -2000;   // ([build 153] scans, near the rider only)
+		const bool bFarCopy = bTree && Group.Key.Z <= -2000;   // ([build 153] a near tree as its far model, past the scans)
+		const bool bFarTree = bTree && (Group.Key.Z == -2 || bFarCopy);
 		const float PlantReach = PresetReach(bTree);
 		if (TRWI::Unseen(Key, PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
 		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
@@ -2309,6 +2390,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
 		Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
+		// ([build 153] the scans' patches and their far copies hand over at the same distance, as whole patches)
+		if (bNearScan) Ism->LDMaxDrawDistance = FMath::Min(Ism->LDMaxDrawDistance, NearTreeM * 100.0f);
+		if (bFarCopy) Ism->MinDrawDistance = NearTreeM * 100.0f;
 		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		Ism->RegisterComponent();

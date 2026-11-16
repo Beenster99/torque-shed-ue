@@ -317,4 +317,11 @@ private:
 	void TryGrow(const FVector2D& At);
 	void Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried);
 	bool bSaidReady = false;
+	// [perf, build 153] Shader warm-up: round 152's 650-750 ms hitches were PSO precache misses, the ride's
+	// own materials (M_RideSign, M_RideBrick, M_RideRoad...) on procedural meshes, whose draws Unreal can't
+	// precache. A speck per material is drawn just in front of the camera for the ride's first frames, so
+	// their shaders are made then, not the first time a sign or brick house comes into view.
+	void TickWarmUp();
+	UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> WarmUp;
+	int32 WarmUpFrames = 0;
 };
