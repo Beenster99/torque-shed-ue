@@ -792,10 +792,10 @@ def adventure_guards(model, c):
                 u_ = i_ / NY
                 y = 196 + 212 * u_
                 # deep enough to cover the lever and the fingers on it from the front (beenster, adventure round 2)
-                h = (50 + 30 * math.sin(math.pi * min(1.0, u_ * 1.15)) ** 0.7) * (1 - 0.5 * max(0.0, u_ - 0.86) / 0.14)
+                h = (42 + 16 * math.sin(math.pi * min(1.0, u_ * 1.15)) ** 0.7) * (1 - 0.5 * max(0.0, u_ - 0.86) / 0.14)
                 for j_ in range(NZ + 1):
                     v_ = 2 * j_ / NZ - 1
-                    x = gx + 108 - 0.0016 * (y - 300) ** 2 - 34 * v_ * v_ - (26 * (max(0.0, u_ - 0.8) / 0.2) ** 2)
+                    x = gx + 108 - 0.0016 * (y - 300) ** 2 - 30 * abs(v_) ** 3 - (26 * (max(0.0, u_ - 0.8) / 0.2) ** 2)
                     verts.append(B.V(x, s * y, gz - 14 + h * v_))
             for i_ in range(NY):
                 for j_ in range(NZ):
@@ -934,16 +934,52 @@ def adventure_body(model, c):
     for s in (-1, 1):
         B.skin(f"advblack{s}", K, fk, s, plastic, stations=90, rows=30, thick=5.0, holes=slots)
         B.skin(f"advgrey{s}", G, fg, s, grey, stations=90, rows=20, thick=5.0)
-        for n_, sl in enumerate(slots):      # a turned-in vane along the leading edge of each louvre
-            a_, b_ = sl[1], sl[2]
-            B.smooth_tube(f"advvane{s}{n_}", [(a_[0] + 3, s * (fk(a_[0], a_[1]) - 4), a_[1] + 4), ((a_[0] + b_[0]) / 2 + 3, s * (fk((a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2) - 5), (a_[1] + b_[1]) / 2), (b_[0] + 3, s * (fk(b_[0], b_[1]) - 4), b_[1] - 4)], 4.0, plastic)
+        for n_, sl in enumerate(slots):
+            # each louvre carries a blade hinged on its leading edge and standing out towards the back, so
+            # from the side you see the blade and not the radiator's pipe behind it (beenster, round 3)
+            out_ = adv.get("louvre", 0)
+            if out_:
+                (r0, f0, f1, r1) = sl
+                vs = [B.V(f0[0] + 4, s * (fk(f0[0], f0[1]) + 1), f0[1] - 5), B.V(f1[0] + 4, s * (fk(f1[0], f1[1]) + 1), f1[1] + 5),
+                      B.V(r1[0] - 5, s * (fk(r1[0], r1[1]) + out_), r1[1] + 5), B.V(r0[0] - 5, s * (fk(r0[0], r0[1]) + out_), r0[1] - 5)]
+                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], plastic, False)
+                md = ob.modifiers.new("t", "SOLIDIFY")
+                md.thickness, md.offset = 3.5 * B.MM, 0
     ia = adv.get("ind")
     if ia:
         c["adv_ind"] = {s: (ia[0], s * (fk(ia[0], ia[1]) - 6), ia[1]) for s in (-1, 1)}
     # the deflector wings: a dark blade each side of the screen, leaning out and raked back, that turns the
     # wind out round the hands
     wg = adv.get("wing")
-    if wg:
+    if wg and wg.get("auto"):
+        # grown out of the fairing (beenster, round 3): the plate's foot is the fairing's own shoulder line and
+        # it carries on up in the plane of the fairing's upper flank, flat and straight-edged, raked back
+        xs_n = [x for x, _ in adv["nose"]]
+
+        def sec_at(x, j):
+            k = max(0, min(len(xs_n) - 2, max(i for i in range(len(xs_n)) if xs_n[i] <= x)))
+            t = (x - xs_n[k]) / (xs_n[k + 1] - xs_n[k])
+            a_, b_ = adv["nose"][k][1][j], adv["nose"][k + 1][1][j]
+            return (a_[0] + (b_[0] - a_[0]) * t, a_[1] + (b_[1] - a_[1]) * t)
+        xa, xb = wg["auto"]
+        NU = 12
+        for s in (-1, 1):
+            verts, faces = [], []
+            for i in range(NU + 1):
+                u = i / NU
+                x = xa + (xb - xa) * u
+                sh, fl = sec_at(x, 2), sec_at(x, 3)
+                L_ = math.hypot(sh[0] - fl[0], sh[1] - fl[1]) or 1.0
+                dy, dz = (sh[0] - fl[0]) / L_ * 0.55, 1.0
+                H = wg.get("h", 80) * (1 - 0.72 * u ** 1.6) * min(1.0, 0.45 + u / 0.12 * 0.55)
+                verts += [B.V(x, s * (sh[0] - dy * 6), sh[1] - 6), B.V(x - 0.42 * H, s * (sh[0] + dy * H), sh[1] + dz * H)]
+            for i in range(NU):
+                faces.append((2 * i, 2 * i + 1, 2 * i + 3, 2 * i + 2))
+            ob = B.mesh_obj(f"advwing{s}", verts, faces, graphite, False)
+            B.bm_fix_normals(ob)
+            md = ob.modifiers.new("t", "SOLIDIFY")
+            md.thickness, md.offset = 4.5 * B.MM, 0
+    elif wg:
         NU, NV = 14, 14
         for s in (-1, 1):
             verts, faces = [], []
@@ -1021,6 +1057,11 @@ def adventure_body(model, c):
                 slab(f"advtailcell{iy}{iz}", org, n, u, [(cy_ - 4.2, cz_ - 5), (cy_ + 4.2, cz_ - 5), (cy_ + 4.2, cz_ + 5), (cy_ - 4.2, cz_ + 5)], 2.0, 5.5, B.mat("chrome"), 1.2)
                 slab(f"advtailled{iy}{iz}", org, n, u, [(cy_ + 2.4 * math.cos(w_ * math.pi / 4), cz_ + 2.4 * math.sin(w_ * math.pi / 4)) for w_ in range(8)], 5.4, 6.6, ledm, 0)
         c["adv_tail"] = (xf, zc, W)
+    lp = adv.get("loop")
+    if lp:
+        # the seat frame's two sides are joined in one hoop round the back (beenster, round 3)
+        side = [tuple(q) for q in lp]
+        B.smooth_tube("advframeloop", side + [(q[0], -q[1], q[2]) for q in side[-2::-1]], 11, c["framem"])
     # the rack: grab rails round the pillion seat that come back down to the seat frame under the saddle
     rk = adv.get("rack")
     if rk:
@@ -2006,7 +2047,7 @@ def controls(model, c):
                 B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
         outline = chaikin([(s * -86, -10), (s * -64, 30), (s * 10, 44), (s * 76, 32), (s * 86, -4), (s * 58, -36), (s * -52, -40)], 3)
         if opt.get("mirrors") == "adv":
-            outline = chaikin([(s * -86, -18), (s * -74, 30), (s * 8, 50), (s * 84, 35), (s * 92, -12), (s * 50, -44), (s * -52, -42)], 2)
+            outline = chaikin([(s * -86, -18), (s * -74, 30), (s * 8, 50), (s * 84, 35), (s * 92, -12), (s * 50, -44), (s * -52, -42)], 1)
         if barend:
             outline = [(s * 54 * math.cos(2 * math.pi * k_ / 40), 54 * math.sin(2 * math.pi * k_ / 40)) for k_ in range(40)]
         if s == -1:
@@ -2349,6 +2390,18 @@ def silencers(model, c):
                     q = tuple(a3[n_] + d3[n_] * (L_ - 14) + sd_[n_] * off for n_ in range(3))
                     lathe(f"canpipe{i}{sg}{k_}", q, d3, [(-4, ro), (12, ro), (14, ro - 1.2), (14, ro - 3), (-4, ro - 3.4)], steel, 32, caps=False)
                     lathe(f"canbore{i}{sg}{k_}", q, d3, [(13, ro - 3), (-60, ro - 3), (-60, 0)], soot, 28, caps=False)
+                if can.get("vertical"):
+                    # the end is cut vertical, not square to the body (beenster, round 3): everything near
+                    # the end slides along the silencer by its own height, so the top runs on further back
+                    up_ = -sd_ if sd_.z < 0 else sd_
+                    kk = -up_.x / ax_.x
+                    a_v = Vector(B.V(*a3))
+                    for o in [o for o in bpy.data.objects if o.name.startswith((f"can{i}{sg}", f"canend{i}{sg}", f"canpipe{i}{sg}", f"canbore{i}{sg}"))]:
+                        for v in o.data.vertices:
+                            r_ = (o.matrix_world @ v.co) - a_v
+                            t_, h_ = r_.dot(ax_) / B.MM, r_.dot(up_) / B.MM
+                            w_ = max(0.0, min(1.0, (t_ - L_ * 0.72) / (L_ * 0.16)))
+                            v.co = o.matrix_world.inverted() @ (o.matrix_world @ v.co + ax_ * (kk * h_ * w_ * w_ * (3 - 2 * w_) * B.MM))
                 # the hanger: a black strap round the body and a stay up towards the pillion footrest
                 lathe(f"canstrap{i}{sg}", a3, d3, [(L_ * 0.6, hz_ + 0.5), (L_ * 0.6, hz_ + 3.5), (L_ * 0.6 + 18, hz_ + 3.5), (L_ * 0.6 + 18, hz_ + 0.5), (L_ * 0.6, hz_ + 0.5)], black, 64, ell=el, caps=False, square=sq)
                 continue

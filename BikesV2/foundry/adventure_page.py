@@ -8,18 +8,15 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('corvano_adventure', 'Corvano adventure, round 2', 'Your 13 points on the adventure lead bike, redrawn from your four reference photos. The front is now taller and made of separate parts: a painted nose the tank runs into, a dark headlamp mask under its brow, a beak in a different colour, a grey side panel over a black panel with louvres, deflector wings and a tall screen. Rendered straight from the model, nothing retouched.', [
-        ('shot_side', 'Whole bike, right side', 'Taller front end, bigger tank reaching down over the frame, two-sided swing arm, slim squared silencer.'),
-        ('shot_front34', 'Whole bike, front quarter', 'Nose, mask, beak, grey and black side panels, wings and screen as separate parts.'),
-        ('shot_rearq', 'Rear quarter, exhaust side', 'The squared silencer with two outlets, tucked in over the swing arm to leave room for panniers. Grab rails come down to the seat frame under the saddle.'),
-        ('shot_rearq_front', 'Front quarter, closer', 'Louvres ahead of the radiator, twin pipes coming down the front of the engine.'),
-        ('shot_fpeg', 'Pipes and underpan', 'The two front pipes gather and run under the engine inside the bash plate, whose front lip now stands ahead of them.'),
-        ('shot_nose', 'Nose, lamps and beak', 'Twin lamps in the dark mask under the painted brow, the beak below in graphite.'),
-        ('shot_cockpit', 'Cockpit', 'Large TFT above the bars, hand guards deep enough to cover the levers.'),
-        ('shot_tail', 'Tail lamp and indicators', 'A clear red lens over LED cells, indicators with real lenses each side, rack rails joined to the frame.'),
-        ('shot_rearq_l', 'Rear quarter, left side', 'Chain side: the rear cylinder pipe drops down this side and tucks under to the collector.'),
-        ('shot_midr', 'Engine and exhaust, right side', 'Link pipe from the collector up into the silencer.'),
-        ('shot_rear', 'Rear wheel', 'Two-sided alloy swing arm, rear brake, silencer outlets.'),
+    ('corvano_adventure', 'Corvano adventure, round 3', 'Your 12 points from round 2 on the adventure lead bike. The fairing now carries on higher and the dark plates beside the screen grow out of its shoulder line; the beak is flat underneath; the seat is deeper with a clear step up to the pillion; the tail is level; the seat frame is joined in a hoop at the back. Rendered straight from the model, nothing retouched.', [
+        ('shot_side', 'Whole bike, right side', 'Level tail, lower grab rail, stepped seat, flat-bottomed beak, lower front mudguard, longer silencer with a vertical end.'),
+        ('shot_front34', 'Whole bike, front quarter', 'The fairing carried higher, the side plates beside the screen as part of it, slimmer hand deflectors.'),
+        ('shot_rearq', 'Rear quarter, exhaust side', 'Silencer end cut vertical, shorter number plate bracket, frame hoop round the back.'),
+        ('shot_rearq_front', 'Front quarter, closer', 'Louvre blades stand out from the black panel and cover the radiator pipe.'),
+        ('shot_nose', 'Nose, lamps and beak', 'The beak runs level underneath.'),
+        ('shot_seat', 'Seat', 'Deeper pads, a distinct second step for the pillion, the rail beside it.'),
+        ('shot_tail', 'Tail, lamp and frame hoop', 'The seat frame joined and looped at the back, lamp in the level tail end.'),
+        ('shot_cockpit', 'Cockpit', 'Large TFT, slimmer hand deflectors.'),
     ]),
 ]
 body = '<main>\n<div class="k">Bike Models V2 · Definition pass · Adventure</div>'
@@ -30,7 +27,7 @@ for key, h1, lede, items in SETS:
         p = os.path.join(ROOT, 'out', 'renders', f'{key}_def_{tag}.png')
         if not os.path.exists(p):
             continue
-        shutil.copy(p, dst + f'{key}_r2_{tag}.png')
+        shutil.copy(p, dst + f'{key}_r3_{tag}.png')
         im = Image.open(p).convert('RGB')
         if im.width > 1400:
             im = im.resize((1400, int(im.height * 1400 / im.width)))
