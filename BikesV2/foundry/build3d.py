@@ -441,6 +441,14 @@ def is_belly(ex, i):
     return i == 0 and len(cans) > 1 and not cans[0].get("nip") and cans[0]["a"][1] < 300 and cans[0]["w"] >= 130
 
 
+def arm_sides(model):
+    """Which sides the swingarm has a leg on (beenster, 16 Nov): two on every bike, but a chain-drive sport or naked
+    bike that was drawn with a one-legged arm keeps it, on the chain side, and carries its rear brake there too."""
+    sw = model["swingarm"]
+    one = model["family"].lower() in ("sport", "naked") and sw.get("cls") not in ("alu", "chromef") and not sw.get("shaft") and not sw.get("rigid")
+    return (1,) if one else (1, -1)
+
+
 def boxer_y(eng, y):
     """Across-the-bike position on a boxer's cylinder: the drawing's 110..372 scaled to the model's reach."""
     return 110 + (y - 110) * (eng["boxer"].get("reach", 298) - 110) / 262.0
@@ -1029,7 +1037,7 @@ def build(model):
     sw = model["swingarm"]
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
-    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
+    sides = arm_sides(model)
     # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174

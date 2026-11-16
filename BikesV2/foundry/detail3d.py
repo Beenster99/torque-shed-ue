@@ -10,6 +10,7 @@ import json
 import math
 import os
 import struct
+import sys
 
 import bpy
 from mathutils import Vector
@@ -904,8 +905,10 @@ def adventure_body(model, c):
     shell("advbeak", adv["beak"], graphite, 0, cap=(True, True))
     shell("advmask", adv["mask"], gloss, 0, cap=(True, True))
     # the lamps: a slanted eye each side of the mask, a bright running-light blade along its top, two projectors
+    import fairing_lamps3d
+    units = fairing_lamps3d.adventure(sys.modules[__name__], model, adv)      # a real lamp unit behind an opening in the mask (beenster, 16 Nov)
     trees = _trees(("advmask",))
-    for s in (-1, 1):
+    for s in (() if units else (-1, 1)):
         f = lambda pts: [(s * y, z) for y, z in pts]
         eye = [tuple(q) for q in adv["eye"]]
         ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
@@ -1097,6 +1100,11 @@ def nose_lamps(model, c):
     if not lens or not trees:
         return False
     dz = sum(q[1] for q in lens["pts"]) / len(lens["pts"]) - 790
+    if model.get("detail", {}).get("lamp_unit"):
+        # a real lamp unit behind an opening in the nose (beenster, 16 Nov), not patches on the paint
+        import sys
+        import fairing_lamps3d as lamps3d
+        return lamps3d.fit(sys.modules[__name__], model, c, dz)
     black = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
     smoke = surf("lampsmoke", (0.05, 0.055, 0.065), 1.0, 0.06, wear=0.0)
     ring = surf("bezel", (0.05, 0.05, 0.055), 0.85, 0.3)
@@ -2924,15 +2932,18 @@ def rear_end(model, c):
     rc = model.get("rear_caliper")
     d = wh.get("disc")
     steel, dark, rubber = B.mat("steel"), B.mat("alu_dark"), B.mat("rubber")
+    # one-legged arms (sport and naked, beenster Nov 16) carry the brake on the arm's own side, inboard of the chain
+    one_ = B.arm_sides(model) == (1,)
+    by_, bs_ = (62, 1) if one_ else (-82, -1)
     if d:
         drop("rear_disc", "rear_carrier")
-        disc("rear", A, d, -82, -1, "drilled_220_rear", 5, 0)
+        disc("rear", A, d, by_, bs_, "drilled_220_rear", 5, 0)
     if rc and d:
         drop("rearcaliper")
         cc = (sum(q[0] for q in rc["body"]) / len(rc["body"]), sum(q[1] for q in rc["body"]) / len(rc["body"]))
         L_ = math.hypot(cc[0] - A[0], cc[1] - A[1])
         cc = (A[0] + (cc[0] - A[0]) * (d - 14) / L_, A[1] + (cc[1] - A[1]) * (d - 14) / L_)
-        caliper("rearcaliper", A, cc, -82, -1, surf("caliper", (0.36, 0.36, 0.37), 0.9, 0.36), None, None, 0.6, False)
+        caliper("rearcaliper", A, cc, by_, bs_, surf("caliper", (0.36, 0.36, 0.37), 0.9, 0.36), None, None, 0.6, False)
     for wheel_, cen in (("front", c["F"]), ("rear", A)):
         w = model["wheels"][wheel_]
         set_mat(f"{wheel_}_tyre", tyre_mat(wheel_, cen, w))
@@ -3040,7 +3051,8 @@ def rear_end(model, c):
             drop("brakehose_r")
             bj = bpy.data.objects["rearcaliper_banjo"]
             bb = [bj.matrix_world @ Vector(q) for q in bj.bound_box]
-            b0 = (sum(q.x for q in bb) / 8 / B.MM, -98, sum(q.z for q in bb) / 8 / B.MM)
+            hs = 1 if B.arm_sides(model) == (1,) else -1
+            b0 = (sum(q.x for q in bb) / 8 / B.MM, hs * 98, sum(q.z for q in bb) / 8 / B.MM)
             ol = [tuple(q[:2]) for q in model["swingarm"]["outline"]]
 
             def atop(x):
@@ -3052,12 +3064,17 @@ def rear_end(model, c):
                 me = (mcyl[0] - 14, -150, mcyl[1] + 62)
             xs_ = [b0[0] + 46 + (sp[0] - 60 - b0[0] - 46) * q / 3 for q in range(4)]
             if model["swingarm"].get("rigid") or sp[0] - 60 < b0[0] + 80:
-                run = [(b0[0] + 40, -120, b0[2] + 10), ((b0[0] + me[0]) / 2, -150, (b0[2] + me[2]) / 2 + 10)]
+                run = [(b0[0] + 40, hs * 120, b0[2] + 10), ((b0[0] + me[0]) / 2, hs * 150, (b0[2] + me[2]) / 2 + 10)]
             else:
-                run = [(x, -150, atop(x) + 7) for x in xs_]
+                run = [(x, hs * 150, atop(x) + 7) for x in xs_]
                 for i_, x in enumerate(xs_[1:3]):
-                    B.cone(f"brakehoseclip{i_}", (x, -150, atop(x) - 2), (x, -150, atop(x) + 13), 8, 8, dark, 10)
-            pts_ = [b0, (b0[0] + 16, -104, b0[2] + 12)] + run
+                    B.cone(f"brakehoseclip{i_}", (x, hs * 150, atop(x) - 2), (x, hs * 150, atop(x) + 13), 8, 8, dark, 10)
+                if hs == 1:
+                    # the master stays on the right: the hose crosses over the arm just behind the pivot
+                    xc = xs_[-1] + 22
+                    run += [(xc, 110, atop(xs_[-1]) + 9), (xc + 4, 0, atop(xs_[-1]) + 10), (xc, -110, atop(xs_[-1]) + 9)]
+                    B.cone("brakehoseclip9", (xc + 4, -8, atop(xs_[-1]) - 2), (xc + 4, 8, atop(xs_[-1]) + 14), 8, 8, dark, 10)
+            pts_ = [b0, (b0[0] + 16, hs * 104, b0[2] + 12)] + run
             if noplate:
                 pts_ += [(me[0] - 40, me[1], me[2] + 30), (me[0] - 14, me[1], me[2] + 6), me]
             else:
@@ -3182,7 +3199,7 @@ def hugger(model, c):
             if min(x0, x1) <= x <= max(x0, x1) and x0 != x1:
                 zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
         return max(zs)
-    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
+    sides = B.arm_sides(model)
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
@@ -3334,6 +3351,7 @@ SHOTS = {
     "chain": ((120, 950, 470), (140, 108, 330), 75),
     "chain_front": ((900, 1000, 520), (500, 108, 400), 75),
     "nose": ((2500, -620, 1020), (1420, 0, 840), 60),
+    "lampunit": ((2180, -430, 905), (1500, -45, 800), 95), "advlamp": ((2150, -420, 1180), (1450, -20, 1050), 95),      # close on a faired bike's headlight units
     "cockpit": ((250, -260, 1420), (1250, 0, 900), 40),
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),
     "lamp": ((2350, -900, 1150), (1230, -40, 930), 70),
