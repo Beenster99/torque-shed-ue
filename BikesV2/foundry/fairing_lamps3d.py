@@ -127,7 +127,7 @@ def adventure(D, model, adv, prefixes=("advmask",)):
     ky_, kz_ = adv.get("unit_scale", (1.5, 1.55))
     bb = [o.matrix_world @ D.Vector(q) for o in bpy.data.objects if o.name.startswith(prefixes) for q in o.bound_box]
     ymax = max(q.y for q in bb) / D.B.MM - 14 if bb else 1e9
-    z0_, z1_ = (min(q.z for q in bb) / D.B.MM + 6, max(q.z for q in bb) / D.B.MM - 8) if bb else (-1e9, 1e9)
+    z0_, z1_ = (min(q.z for q in bb) / D.B.MM + 28, max(q.z for q in bb) / D.B.MM - 8) if bb else (-1e9, 1e9)
     ymin = -ymax if central else 7.0
 
     def grow(q, pad=0.0):
