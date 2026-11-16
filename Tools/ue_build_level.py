@@ -1219,6 +1219,71 @@ def rider_scan_master(maps):
     return m
 
 
+HELMET_PAINT_MASTERS = {"coat": "M_HelmetPaint_Coat", "plain": "M_HelmetPaint_Plain"}
+
+
+def helmet_paint_masters():
+    """[helmet plan, stage 1] The masters a player's helmet paint is made from at run time
+    (TorqueHelmetLook::ApplyPaint, Data/Rider/helmet_paint.json): "coat", clear coated, for the gloss,
+    metallic and pearl finishes, and "plain" (default lit) for matt. Parameters: Color, Roughness,
+    Metallic, Specular, Pearl (0..1, how far the colour turns to PearlTint at grazing angles),
+    PearlTint, Occlusion (unused on the Fab helmet: 0), and NormalMap (the helmet's own normal map,
+    copied from its material when it has one; flat by default)."""
+    flat = unreal.load_asset("/Engine/EngineMaterials/DefaultNormal")
+    for kind, name in HELMET_PAINT_MASTERS.items():
+        m = new_material(name, RIDER_MAT_DIR)
+        m.set_editor_property("used_with_skeletal_mesh", True)
+        if kind == "coat":
+            try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_CLEAR_COAT)
+
+        def scalar(pname, v, x, y):
+            e = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, x, y)
+            e.set_editor_property("parameter_name", pname)
+            e.set_editor_property("default_value", v)
+            return e
+
+        def vector(pname, rgb, x, y):
+            e = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, x, y)
+            e.set_editor_property("parameter_name", pname)
+            e.set_editor_property("default_value", unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
+            return e
+
+        col = vector("Color", (0.6, 0.6, 0.6), -900, 0)
+        tint = vector("PearlTint", (0.8, 0.8, 0.9), -900, 150)
+        fres = mel.create_material_expression(m, unreal.MaterialExpressionFresnel, -900, 300)
+        pearl = scalar("Pearl", 0.0, -900, 420)
+        amt = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -650, 340)
+        mel.connect_material_expressions(fres, "", amt, "A")
+        mel.connect_material_expressions(pearl, "", amt, "B")
+        mix = mel.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -450, 80)
+        mel.connect_material_expressions(col, "", mix, "A")
+        mel.connect_material_expressions(tint, "", mix, "B")
+        mel.connect_material_expressions(amt, "", mix, "Alpha")
+        vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -900, 560)
+        occ = scalar("Occlusion", 0.0, -900, 680)
+        ao = mel.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -650, 600)
+        mel.connect_material_expressions(const1(m, 1.0, -900, 800), "", ao, "A")
+        mel.connect_material_expressions(vc, "R", ao, "B")
+        mel.connect_material_expressions(occ, "", ao, "Alpha")
+        base = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -250, 100)
+        mel.connect_material_expressions(mix, "", base, "A")
+        mel.connect_material_expressions(ao, "", base, "B")
+        mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        mel.connect_material_property(ao, "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+        mel.connect_material_property(scalar("Roughness", 0.15, -450, 900), "", unreal.MaterialProperty.MP_ROUGHNESS)
+        mel.connect_material_property(scalar("Metallic", 0.0, -450, 1000), "", unreal.MaterialProperty.MP_METALLIC)
+        mel.connect_material_property(scalar("Specular", 0.5, -450, 1100), "", unreal.MaterialProperty.MP_SPECULAR)
+        nrm = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -450, 1250)
+        nrm.set_editor_property("parameter_name", "NormalMap")
+        if flat is not None:
+            nrm.set_editor_property("texture", flat)
+        nrm.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+        mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
+        mel.recompile_material(m)
+        unreal.EditorAssetLibrary.save_loaded_asset(m)
+        log("helmet paint master %s/%s (%s)" % (RIDER_MAT_DIR, name, kind))
+
+
 def rider_materials(finishes, tex=None, roles=None):
     """The kit: a master lit by the rider's baked occlusion (vertex colour), and a clear-coated one
     for the helmet's paint and visor. One instance per finish in rider.json."""
@@ -1372,6 +1437,10 @@ def import_rider(tex=None, roles=None):
         nanite_off(helmet)
         unreal.EditorAssetLibrary.save_loaded_asset(helmet)
     mats = rider_materials(info["finishes"], tex, roles)
+    try:
+        helmet_paint_masters()
+    except Exception as e:
+        unreal.log_warning("[Torque] helmet paint masters not made: %s" % e)
     log("rider: %s, helmet %s" % (body.get_path_name(), helmet.get_path_name() if helmet else "missing"))
     out = {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
     fab = fab_helmet(helmet) if helmet else None

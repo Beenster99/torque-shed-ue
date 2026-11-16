@@ -3588,6 +3588,23 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 	NetWalkerWas = Feet;
 }
 
+void ATorqueBikePawn::UpdateHelmetPaint()
+{
+	if (!RiderHelmet) return;
+	const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	const FTorqueProfile Look = (IsLocallyControlled() || !PS) ? FTorqueProfile::Mine() : FTorqueProfile::Unpack(PS->Profile);
+	// Only the helmet's bytes matter here (the face and height are the avatar's).
+	TArray<uint8> Packed = Look.Pack();
+	const int32 HelmetAt = 2 + FTorqueProfile::NumFace;
+	Packed.RemoveAt(0, FMath::Min(HelmetAt, Packed.Num()));
+	if (bHelmetPaintDone && Packed == HelmetPaintLook) return;
+	// Left as it came the first time: nothing to put back.
+	if (!bHelmetPaintDone && !Look.bHelmetPainted) { bHelmetPaintDone = true; HelmetPaintLook = Packed; return; }
+	bHelmetPaintDone = true;
+	HelmetPaintLook = Packed;
+	TorqueHelmetLook::ApplyPaint(RiderHelmet, Look, RiderRig.HelmetKitPaint.Get());
+}
+
 void ATorqueBikePawn::UpdateRiderAvatar()
 {
 	if (FTorqueAvatar::Count() == 0 || !RiderRig.IsValid() || !RiderRig.Last.bValid) return;
@@ -4092,6 +4109,7 @@ void ATorqueBikePawn::UpdateRider()
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		RiderFeetDown = FMath::Clamp(In.FeetDown, 0.0, 1.0);
+		UpdateHelmetPaint();
 		UpdateRiderAvatar();
 		return;
 	}

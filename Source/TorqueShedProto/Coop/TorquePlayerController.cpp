@@ -1445,6 +1445,45 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			Add(TEXT("Reset the face"), FString(), TEXT("Back to the MetaHuman's own face"), [this, &Me]() { Me.ResetFace(); ProfileChanged(); });
 			R.Last().bFace = true;
 		}
+		// [helmet plan, stage 1] Your helmet's paint: a named colour, or any colour from the three
+		// sliders, in one of four finishes. Everyone in co-op sees it on your helmet.
+		{
+			Heading(TEXT("HELMET"));
+			const int32 Swatch = Me.HelmetSwatch();
+			const FString PaintName = Swatch == -2 ? FString(TEXT("As it came")) : Swatch == -1 ? FString(TEXT("Your own colour"))
+				: FString(FTorqueProfile::HelmetSwatches[Swatch].Name);
+			// Steps through: as it came, then each named colour (from your own colour: the first or the last).
+			auto StepPaint = [this, &Me](int32 D) {
+				const int32 Now = Me.HelmetSwatch();
+				const int32 From = Now == -2 ? -1 : Now == -1 ? (D > 0 ? -1 : 0) : Now;
+				Me.SetHelmetSwatch(Wrap(From + 1 + D, (int32)FTorqueProfile::NumHelmetSwatch + 1) - 1);
+				ProfileChanged();
+			};
+			Add(TEXT("Helmet paint"), PaintName, TEXT("As the helmet came, or a colour of your own: everyone in co-op sees it"),
+				[StepPaint]() { StepPaint(1); }, StepPaint);
+			if (Me.bHelmetPainted)
+			{
+				Add(TEXT("Finish"), FTorqueProfile::HelmetFinishName(Me.HelmetFinish), TEXT("Gloss, matt, metallic flake, or pearl that shifts colour at the edges"),
+					[this, &Me]() { Me.HelmetFinish = Wrap(Me.HelmetFinish + 1, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); },
+					[this, &Me](int32 D) { Me.HelmetFinish = Wrap(Me.HelmetFinish + D, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); });
+				// A 0..1 slider, dragged or stepped with Left / Right.
+				auto PaintSlide = [this, &R](const FString& Label, float& V, const FString& Hint) {
+					float* Ptr = &V;
+					FRow Row;
+					Row.Label = Label;
+					Row.Value = FString::Printf(TEXT("%.0f%%"), V * 100.0f);
+					Row.Hint = Hint;
+					Row.Step = [this, Ptr](int32 Dir) { *Ptr = StepF(*Ptr, Dir, 0.02f, 0.0f, 1.0f); ProfileChanged(); };
+					Row.Frac = FMath::Clamp(V, 0.0f, 1.0f);
+					Row.SetFrac = [Ptr](float F) { *Ptr = FMath::Clamp(F, 0.0f, 1.0f); };
+					Row.Commit = [this]() { ProfileChanged(); };
+					R.Add(MoveTemp(Row));
+				};
+				PaintSlide(TEXT("Hue"), Me.HelmetHue, TEXT("Round the colour wheel: red, yellow, green, blue, purple and back to red"));
+				PaintSlide(TEXT("Richness"), Me.HelmetSat, TEXT("From grey to the full colour"));
+				PaintSlide(TEXT("Brightness"), Me.HelmetVal, TEXT("From near black to bright"));
+			}
+		}
 		break;
 	}
 	default: break;

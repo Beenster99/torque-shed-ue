@@ -15,6 +15,17 @@ class UPoseableMeshComponent;
 class UStaticMeshComponent;
 class UMeshComponent;
 class UMaterialInterface;
+struct FTorqueProfile;
+
+namespace TorqueHelmetLook
+{
+// [helmet plan, stage 1] A player's helmet paint (FTorqueProfile's colour and finish) on the helmet's
+// shell: the slots Data/Rider/helmet_paint.json picks (by number, or by words in the slot's or its
+// material's name) take a dynamic instance of M_HelmetPaint_Coat / _Plain, keeping the helmet's own
+// normal map; the visor, trim and lining keep their own. As it came: the shell's own material back
+// (or KitPaint, for a slot that came without a real one). Logs each slot it touches.
+void ApplyPaint(UMeshComponent* Helmet, const FTorqueProfile& Paint, UMaterialInterface* KitPaint);
+}
 
 struct FRiderPoseInput
 {
@@ -90,6 +101,7 @@ public:
 
 	UPoseableMeshComponent* Body = nullptr;
 	UMeshComponent* Helmet = nullptr;   // a static mesh, or a skeletal one (a MetaHuman wardrobe helmet) in its rest pose
+	TWeakObjectPtr<UMaterialInterface> HelmetKitPaint;   // the kit's helmet paint (for slots that came without a material)
 	// The helmet's place relative to the head joint (pawn local, unturned): for a MetaHuman's head.
 	FTransform HelmetOnHead() const { return Head != INDEX_NONE ? HelmetRest * FTransform(-Bones[Head].Rest) : HelmetRest; }
 	FVector HelmetCentreOnHead() const { return Head != INDEX_NONE ? HelmetCentreRest - Bones[Head].Rest : FVector::ZeroVector; }

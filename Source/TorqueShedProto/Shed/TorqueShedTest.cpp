@@ -1,6 +1,7 @@
 #include "Shed/TorqueShedTest.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
+#include "Shed/TorqueProfile.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBoothHooks.h"
@@ -717,7 +718,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
-		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop"))
+		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
+		Verb == TEXT("helmet"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -936,6 +938,19 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			}
 			bMoveStarted = false;
 			Said(Bike->TestMoveResult());
+			return true;
+		}
+		// [helmet plan] helmet:N[:F]: our helmet in named colour N (1..16, FTorqueProfile::HelmetSwatches;
+		// 0 as it came) and finish F (1 gloss, 2 matt, 3 metallic, 4 pearl), for the colour sheet. Only
+		// for this run: the profile on disk is left as it was.
+		if (Verb == TEXT("helmet"))
+		{
+			FTorqueProfile& Me = FTorqueProfile::Mine();
+			Me.SetHelmetSwatch(P.Num() > 1 ? FCString::Atoi(*P[1]) - 1 : -1);
+			if (P.Num() > 2) Me.HelmetFinish = FMath::Clamp(FCString::Atoi(*P[2]) - 1, 0, (int32)FTorqueProfile::NumHelmetFinish - 1);
+			const int32 Swatch = Me.HelmetSwatch();
+			Said(FString::Printf(TEXT("helmet %s, %s"), Swatch >= 0 ? FTorqueProfile::HelmetSwatches[Swatch].Name : TEXT("as it came"),
+				FTorqueProfile::HelmetFinishName(Me.HelmetFinish)));
 			return true;
 		}
 		if (Verb == TEXT("camera"))
