@@ -48,7 +48,7 @@ BARS = {
     "clipon_low": dict(label="Clip-ons, low", note="Under the top yoke and angled well down: racing crouch.", clip=dict(drop=42, angle=11, raise_=0), back=72, y=318, sweep=14, finish="satin_black"),
     "clipon_raised": dict(label="Clip-ons, raised", note="On a short post above the clamp, nearly flat: a road sports reach.", clip=dict(drop=30, angle=4, raise_=34), back=60, y=322, sweep=12, finish="anodised_gold"),
     "drag": dict(label="Drag bar", note="Almost straight, flat across: a low, stretched reach.", rise=24, back=40, y=330, sweep=4, up=0, kick=8, kb=4, finish="chrome"),
-    "touring": dict(label="Swept touring bar", note="Pulled well back to the rider: cruiser and tourer.", rise=22, back=178, y=318, sweep=22, up=4, kick=40, kb=40, finish="chrome"),
+    "touring": dict(label="Swept touring bar", note="Pulled well back to the rider: cruiser and tourer.", rise=22, back=178, y=318, sweep=20, up=4, kick=36, kb=22, finish="chrome"),
     "tracker": dict(label="Tracker bar", note="Wide with a mid rise and flat ends: flat-track style.", rise=72, back=74, y=348, sweep=10, up=3, kick=50, kb=12, finish="polished"),
     "ace": dict(label="Ace bar", note="Drops forward and down from the yoke: the classic cafe stance without clip-ons.", rise=-58, back=100, y=312, sweep=14, up=-5, kick=-30, kb=24, finish="chrome"),
 }
@@ -185,14 +185,15 @@ def clip_half(st, c, s):
     F, uf, fk = c["F"], c["uf"], c["fk"]
     cl = st["clip"]
     t_hi = fk["length"] - 34 - 3                 # just under the top yoke's underside
-    t_c = t_hi - cl["drop"] + 20
+    t_c = min(t_hi - cl["drop"] + 20, t_hi - 22)      # the clamp ring always stays under the top yoke
     ax = (F[0] + uf[0] * t_c, F[1] + uf[1] * t_c)
     centre = (ax[0], s * 105.0, ax[1])
     b, a = math.radians(st.get("sweep", 6)), math.radians(cl["angle"])
     d = vnorm((-math.tan(b), s * 1.0, -math.tan(a)))
-    root = (centre[0] - 40, s * 146.0, centre[2] + cl["raise_"])
+    ry = 172.0 if cl["raise_"] else 146.0      # a raised body climbs outboard of the top yoke's edge
+    root = (centre[0] - 40, s * ry, centre[2] + cl["raise_"])
     # the hand point: along the bar to y = st["y"]
-    k = (st["y"] - 146.0) / d[1] / s
+    k = (st["y"] - ry) / d[1] / s
     H = vadd(root, d, k)
     g0 = vadd(H, d, -HAND_IN)
     E = vadd(H, d, GRIP_L - HAND_IN)
@@ -259,8 +260,8 @@ def build_bar(name, st, C, fin, c=None, risers=None):
                 D.bolt(f"bclip_pinch{s}{dt}", vadd(vadd(p0, ax, dt), back, 37), back, 4.5, 4)
             # the body: from the ring out to the bar root, tapering, with the bar socket
             r0 = q["root"]
-            D.strap(f"bclip_body{s}", [vadd(q["centre"], (0, s * 30, 0)), vadd(q["centre"], (-12, s * 40, q["root"][2] - q["centre"][2])), vadd(r0, q["d"], -8)],
-                    [(26, 16), (22, 15), (17, 14)], m)
+            D.strap(f"bclip_body{s}", [vadd(q["centre"], (0, s * 30, -6)), vadd(q["centre"], (-18, s * 62, 0)), vadd(q["centre"], (-30, s * (r0[1] * s - 105 - 4), (r0[2] - q["centre"][2]) * 0.7)), vadd(r0, q["d"], -8)],
+                    [(26, 16), (22, 15), (19, 14), (17, 14)], m)
             # the bar: straight out of the socket and through the grip
             bar_pts = [vadd(r0, q["d"], -20)] + [vadd(r0, q["d"], (vlen(vsub(q["E"], r0)) + 2) * j / 10) for j in range(1, 11)]
             sweep(f"bclip_bar{s}", bar_pts, [BAR_R] * len(bar_pts), m, 28)
@@ -453,7 +454,7 @@ def build_grip(name, g0, d, style):
             t = 9 + (L_ - 19) * k_ / 30
             prof.append((t, 19.6 + 1.6 * math.sin(math.pi * min(1.0, k_ / 22.0))))
         prof += [(L_ - 8, 20.2), (L_ - 6, 21.2), (L_ - 1, 21.2), (L_, 20), (L_, 11)]
-        mat = pattern_mat("grip_touring", L_, 20.5, _dimples, (0.025, 0.025, 0.028), 0.78, ins_col=(0.16, 0.165, 0.17), bump=1.0)
+        mat = pattern_mat("grip_touring", L_, 20.5, _dimples, (0.025, 0.025, 0.028), 0.78, ins_col=(0.055, 0.057, 0.06), bump=1.0)
         return D.lathe(name, g0, d, prof, mat, 96, sharp=False, uv=True)
     if style == "leather":
         # a polished alloy ring each end, the leather wound between them
@@ -693,7 +694,7 @@ JOINTS = ("bar_lib | bclamp", "bar_lib | briser", "bar_lib | perch", "bar_lib | 
           "bclamp | riser", "briser | yoke", "bar_lib_pad | bar_lib", "bar_lib_brace | bar_lib", "bar_lib_bracecap | bar_lib",
           "bclampbolt | bclamp", "barend_lib | grip", "grip_lib | barend", "bar_lib | mirror", "bar_lib | brakeres", "bar_lib | master",
           "bclip_bar | master", "bar_lib | clutchadj", "bclip_bar | clutchadj", "bar_lib | lever", "bclip_bar | lever", "bclip_bar | grip",
-          "bclip_sbolt | bclip", "briser | stem", "bclip_ring | forktube", "bclip_pinch | forktube", "bclip_body | forktube")
+          "bclip_sbolt | bclip", "briser | stem", "bclip_ring | stanchion", "bclip_ring | forktube", "bclip_pinch | forktube", "bclip_body | forktube")
 
 
 def joint_ok(pair):
@@ -747,7 +748,7 @@ def built(model_name, bar, grip="knurl", end="weighted", fin=None):
     return build3d, m, cc, lines, made
 
 
-def check(fams=None):
+def check(fams=None, only=None):
     res = dict(hands=hands_table(), fit={})
     import build3d
     res["base"] = {}
@@ -764,6 +765,8 @@ def check(fams=None):
         res["base"][fam] = dict(model=mn, lock=lock_check(m, dict(F=F, uf=uf, nb=(-math.cos(rake), -math.sin(rake)), fk=m["fork"], top=top)))
         print(f"BASE {fam:10s} {res['base'][fam]}", flush=True)
         for bar in BARS:
+            if only and bar not in only:
+                continue
             fresh()
             b3, m, cc, lines, made = built(mn, bar)
             lk = lock_check(m, cc)
@@ -773,7 +776,7 @@ def check(fams=None):
             print(f"CHECK {bar:14s} {fam:10s} lock {lk} clips {bad}", flush=True)
     os.makedirs(OUT, exist_ok=True)
     path = os.path.join(OUT, "check.json")
-    old = json.load(open(path)) if (fams and os.path.exists(path)) else {}
+    old = json.load(open(path)) if ((fams or only) and os.path.exists(path)) else {}
     if old:
         for bar, v in res["fit"].items():
             old.setdefault("fit", {}).setdefault(bar, {}).update(v)
@@ -960,6 +963,6 @@ if __name__ == "__main__":
         print(fit_one(rest[0], rest[1], opt("--grip", "knurl"), opt("--end", "weighted"), opt("--finish"), smp))
     elif cmd == "check":
         fams = opt("--fam")
-        check(fams.split(",") if fams else None)
+        check(fams.split(",") if fams else None, rest or None)
     elif cmd == "hands":
         print(json.dumps(hands_table(), indent=1))

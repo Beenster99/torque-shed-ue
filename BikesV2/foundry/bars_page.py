@@ -42,6 +42,15 @@ def img(fn, w=1100):
     return "data:image/jpeg;base64," + base64.b64encode(b.getvalue()).decode()
 
 
+NICE = {"bclip_ring": "clip-on clamp ring", "bclip_body": "clip-on body", "spar": "frame spar", "tank": "tank", "advnose": "nose fairing",
+        "yoke_top": "top yoke", "stanchion": "fork tube"}
+
+
+def nice(n):
+    n = str(n).rstrip("0123456789-")
+    return NICE.get(n, n.replace("_", " "))
+
+
 def esc(s):
     return html.escape(str(s))
 
@@ -67,9 +76,9 @@ def verdict(bar, fam):
         ml, own = f["lock"]["max_lock"], base[fam]["lock"]["max_lock"]
         if ml is not None and own is not None and ml < min(26, own) - 2:
             lock_bad = True
-            lock_note = f"turns {ml:g}° before touching {esc(f['lock']['against'])} (own bars {own:g}°)"
+            lock_note = f"turns only {ml:g}° each way before coming within 15 mm of the {nice(f['lock']['against'])} (the bike's own bars: {own:g}°)"
     clips = f.get("clips") if f else None
-    clip_note = ", ".join(f"{k} {v:g} mm" for k, v in clips.items()) if clips else ""
+    clip_note = ", ".join(f"the {nice(k.split('|')[0].strip())} runs {v:.0f} mm into the {nice(k.split('|')[1].strip())}" for k, v in clips.items()) if clips else ""
     if d > 70:
         return "no", f"{d} mm", ""
     state = "ok" if d <= 40 else "moves"
@@ -127,7 +136,7 @@ for fam in FAMS:
     b = base.get(fam)
     if b and b.get("lock"):
         L = b["lock"]
-        own.append(f"<li>{esc(b['model'].replace('_', ' ').title())}: its own bars turn {L['max_lock']:g}° each way before coming within 15 mm of the {esc(str(L['against']).rstrip('0123456789-'))}.</li>")
+        own.append(f"<li>{esc(b['model'].replace('_', ' ').title())}: its own bars turn {L['max_lock']:g}° each way before coming within 15 mm of the {nice(L['against'])}.</li>")
 
 css = open(os.path.join(os.path.dirname(__file__), "bars_page.css")).read()
 page = f'''<title>Bars, Grips and Bar Ends</title>
