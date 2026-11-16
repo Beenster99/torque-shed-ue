@@ -214,6 +214,11 @@ stiles snap into the wall or fence they stand in, which is cut for them, and the
 `python Tools/make_ride_props.py` makes the plain ones (`Data/RideUK/Props/*.glb`) and
 `Tools/ue_build_rideuk.py` lists them, with any Fab models matching `Data/RideUK/prop_kit.json`'s
 words (preferred), in a kit actor tagged RideProps; a kind with none keeps its code-made shape.
+Street lamps and telegraph poles are models too (the lamps' glowing faces and lights stay the
+code's). The houses' windows, their surrounds and doors come from a facade kit
+(`python Tools/make_facade_kit.py`, `Data/RideUK/Facade/*.glb`, a model per size) placed as instances
+coloured per house by `M_RideFacade`, so a street of houses costs a handful of instanced models
+rather than tens of thousands of triangles; `-TorqueRideFacadeKit=0` draws them into the houses as before.
 Each road's speed limit (mapped, or the UK's rule by class where not), its name and whether it is
 gravel come from the map too (OSM stage 1, `World/WorldRideFacts`): the HUD shows the limit and the
 road's name, and the route planner the county and what is on the way.

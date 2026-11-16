@@ -89,6 +89,11 @@ struct RideProp
 	bool Mapped = true;
 	float X = 0.0f, Y = 0.0f, Z = 0.0f, Yaw = 0.0f, Scale = 1.0f;
 	uint32_t Id = 0;
+	// [fps plan step 2] A facade kit model's three colours (linear RGB: the joinery's paint, the trim, the
+	// third: a door's paint or a window's sill), for its material's per-instance data; Facade: has them,
+	// and is placed at its model's own size (Variant is the size, not a pick).
+	bool Facade = false;
+	float Tint[9] = {};
 };
 
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
@@ -652,7 +657,18 @@ public:
 	// (PropsTile) and FurnitureTile leaves its code-made shape out; one with none keeps that shape. The
 	// game says which it has (PropModelled) before any square is made.
 	enum EProp { PropPostBox, PropSeat, PropBusStop, PropMilestone, PropPhoneBox, PropPowerPole, PropFieldGate, PropStreetLamp, PropStile, PropKissingGate, PropLiftGate,
-		PropBollard, PropPicnicTable, PropInfoBoard, PropKinds };
+		PropBollard, PropPicnicTable, PropInfoBoard,
+		// [fps plan step 2] The houses' windows, their surrounds and doors (Tools/make_facade_kit.py, each kind's
+		// models by size: FacadeSize), placed by BuildingsTile in place of the boxes it drew, coloured per
+		// instance (RideProp::Tint: paint, trim, third)
+		PropWinSash6, PropWinSash2, PropWinCasement, PropWinCasementTop, PropWinMullion, PropWinMullionLeaded,
+		PropSurStone, PropSurBrick, PropSurPlain,
+		PropDoorPanel6, PropDoorVictorian, PropDoorLedged, PropDoorLedgedLight, PropDoorModern, PropDoorDouble, PropDoorHood,
+		PropKinds };
+	static constexpr int FirstFacade = PropWinSash6;
+	// [fps plan step 2] Whether the houses' windows and doors come as the facade kit's instances (the game
+	// sets it when every facade kind has its models and -TorqueRideFacadeKit=0 isn't given), else drawn.
+	bool FacadeKit = false;
 	static const char* PropName(int Kind);   // "post_box", "seat", ... (the kit file's and the models' names)
 	static int PropOf(int FurnishKind);      // the prop a kind of furniture is drawn as, -1 none (signs)
 	bool PropModelled[PropKinds] = {};

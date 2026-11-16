@@ -35,6 +35,17 @@ double GuessEaves(int Baked, bool Big, double HalfLong, double HalfShort, double
 	if (Roll < (InTown ? 0.06 : 0.14)) return 2.7 + 0.3 * Jig;             // a bungalow
 	return 5.6 + 0.4 * Jig;                                                // two storeys
 }
+// [fps plan step 2] The facade kit's sizes (Tools/make_facade_kit.py's tables, which these must match):
+// a window's model by its type (0 sash, 1 casement, 2 mullion) and opening (width, height), -1 none; a
+// door's by its width and height (wide: a pair of leaves).
+constexpr double WindowSizes[3][3][2] = {{{0.9, 1.45}, {0.72, 1.45}, {1.0, 2.0}}, {{0.85, 1.0}, {0.68, 1.0}, {1.0, 2.0}}, {{1.3, 0.9}, {1.04, 0.9}, {1.0, 2.0}}};
+constexpr double DoorSizes[2][2] = {{0.95, 2.05}, {0.9, 2.05}}, WideDoorSizes[2][2] = {{1.6, 2.05}, {1.6, 2.6}};
+int FacadeSize(const double (*Sizes)[2], int Count, double W, double H)
+{
+	for (int I = 0; I < Count; ++I)
+		if (std::fabs(Sizes[I][0] - W) < 0.03 && std::fabs(Sizes[I][1] - H) < 0.03) return I;
+	return -1;
+}
 } // namespace RideBuildingBits
 
 void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally) const
@@ -469,8 +480,57 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					Slab(U - W * 0.5 - RevW - 0.06, U + W * 0.5 + RevW + 0.06, Lo - 0.1, Lo, 0.0, RevD + 0.07, SillC);
 				}
 			};
+			// [fps plan step 2] One of the facade kit's models on this wall: its foot at U along and Lo up, on the
+			// wall's face, its front out of it, with its three colours (paint, trim, third).
+			const auto Kit = [&](int Model, int Variant, double U, double Lo, const Rgb& Ca, const Rgb& Cb, const Rgb& Cc)
+			{
+				const P3 Foot = Local(U, Sg * HalfShort, Lo), Ahead = Local(U, Sg * (HalfShort + 1.0), Lo);
+				RideProp Pr;
+				Pr.Kind = uint16_t(Model);
+				Pr.Variant = uint8_t(Variant);
+				Pr.Mapped = false;
+				Pr.Facade = true;
+				Pr.X = float(Foot.X - Out.OriginX);
+				Pr.Y = float(Foot.Y);
+				Pr.Z = float(Foot.Z - Out.OriginZ);
+				Pr.Yaw = float(std::atan2(Ahead.Z - Foot.Z, Ahead.X - Foot.X));
+				const Rgb* Three[3] = {&Ca, &Cb, &Cc};
+				for (int K = 0; K < 3; ++K)
+				{
+					Pr.Tint[K * 3] = Three[K]->R;
+					Pr.Tint[K * 3 + 1] = Three[K]->G;
+					Pr.Tint[K * 3 + 2] = Three[K]->B;
+				}
+				Out.Props.push_back(Pr);
+			};
+			const int SurroundKind = Surrounds ? PropSurStone : Brick ? PropSurBrick : PropSurPlain;
+			const Rgb SillColour = Surrounds || Rendered ? StoneTrim : Shade(StoneTrim, 0.85);
+			// (after dark a share of the windows lit, warm, a hair proud of the glass)
+			const auto Glow = [&](double U, double Lo, double W, double H, int Salt)
+			{
+				if (Chance(B.X + U * 3.1, B.Z + Lo * 7.0 + Sg * 13.0 + Salt, 61) >= 0.4) return;
+				const double Lit = Sg * (HalfShort + 0.06);
+				static const Rgb Warm = {0.42f, 0.26f, 0.11f};
+				Quad(Out.NightOf(), Local(U - W * 0.5 + 0.05, Lit, Lo + 0.05), Local(U + W * 0.5 - 0.05, Lit, Lo + 0.05), Local(U + W * 0.5 - 0.05, Lit, Lo + H - 0.05),
+					Local(U - W * 0.5 + 0.05, Lit, Lo + H - 0.05), Away, Warm, false, 0.0f);
+			};
 			const auto Window = [&](double U, double Lo, double W, double H, int Salt)
 			{
+				if (FacadeKit)
+				{
+					const int Type = Look.Window == LocalLook::Sash ? 0 : Look.Window == LocalLook::Casement ? 1 : 2;
+					const int Fit = RideBuildingBits::FacadeSize(RideBuildingBits::WindowSizes[Type], 3, W, H);
+					if (Fit >= 0)
+					{
+						const int Model = Type == 0 ? (Chance(StreetX + 3.0, StreetZ, 65) < 0.45 ? PropWinSash6 : PropWinSash2)
+							: Type == 1 ? (Chance(B.X + U, B.Z + Lo, 66) < 0.35 ? PropWinCasementTop : PropWinCasement)
+							: (Chance(B.X + U, B.Z + Lo, 64) < 0.5 ? PropWinMullionLeaded : PropWinMullion);
+						Kit(Model, Fit, U, Lo, Paint, Surrounds ? StoneTrim : Paint, Paint);
+						Kit(SurroundKind, Type * 3 + Fit, U, Lo, Paint, Reveal, SillColour);
+						Glow(U, Lo, W, H, Salt);
+						return;
+					}
+				}
 				Opening(U, Lo, W, H, true);
 				Flat(U - W * 0.5, U + W * 0.5, Lo, Lo + H, Glass, 0.0);
 				// (the frame: 6 cm of paint round the glass, just proud of it; flat faces, the reveal gives the depth)
@@ -530,14 +590,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					break;
 				}
 				}
-				// (after dark a share of them lit, warm, a hair proud of the glass)
-				if (Chance(B.X + U * 3.1, B.Z + Lo * 7.0 + Sg * 13.0 + Salt, 61) < 0.4)
-				{
-					const double Glow = Sg * (HalfShort + 0.06);
-					static const Rgb Warm = {0.42f, 0.26f, 0.11f};
-					Quad(Out.NightOf(), Local(U - W * 0.5 + 0.05, Glow, Lo + 0.05), Local(U + W * 0.5 - 0.05, Glow, Lo + 0.05), Local(U + W * 0.5 - 0.05, Glow, Lo + H - 0.05),
-						Local(U - W * 0.5 + 0.05, Glow, Lo + H - 0.05), Away, Warm, false, 0.0f);
-				}
+				Glow(U, Lo, W, H, Salt);
 			};
 			const auto Door = [&](double U, double W, double H, int Salt)
 			{
@@ -546,6 +599,19 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				// (a wide door, a shop's or a hall's, keeps the plain painted leaf: two of them)
 				const bool Wide = W > 1.3;
 				const int Style = Wide ? 0 : int(Chance(B.X + U * 1.7, B.Z + Salt, 67) * 4.0) & 3;   // 0 six-panel, 1 half-glazed Victorian, 2 ledged planks, 3 modern
+				if (FacadeKit)
+				{
+					const int Fit = Wide ? RideBuildingBits::FacadeSize(RideBuildingBits::WideDoorSizes, 2, W, H) : RideBuildingBits::FacadeSize(RideBuildingBits::DoorSizes, 2, W, H);
+					if (Fit >= 0)
+					{
+						const int Model = Wide ? PropDoorDouble : Style == 0 ? PropDoorPanel6 : Style == 1 ? PropDoorVictorian
+							: Style == 2 ? (Chance(B.X + U, B.Z + Salt, 68) < 0.4 ? PropDoorLedgedLight : PropDoorLedged) : PropDoorModern;
+						Kit(Model, Fit, U, 0.0, Paint, StoneTrim, Leaf);
+						Kit(SurroundKind, 9 + (Wide ? 2 : 0) + Fit, U, 0.15, Paint, Reveal, StoneTrim);
+						if (!Wide && Chance(B.X + U, B.Z, 70) < 0.35 && Eaves > H + 0.9) Kit(PropDoorHood, Fit, U, 0.0, Paint, Paint, Paint);
+						return;
+					}
+				}
 				const bool Fan = !Wide && Style != 2 && Style != 3 && H > 1.95;
 				const double Lh = Fan ? H - 0.4 : H;   // (the leaf, under its fanlight)
 				// (the step: a stone slab, 15 cm, out past the reveal)
