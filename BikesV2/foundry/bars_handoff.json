@@ -1,0 +1,183 @@
+{
+ "about": "Stage 1 common parts approved by beenster 16 Nov 14:56 ('keep, looks great'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry lives in foundry/bars3d.py: fit(build3d, model, c, bar, grip, end, finish). 'fits' = hands within 40 mm of the family's hand point; 'moves' = 40-70 mm (changes riding position).",
+ "bars": [
+  {
+   "key": "street",
+   "name": "Flat street bar",
+   "default_finish": "satin_black",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "moves": []
+  },
+  {
+   "key": "lowrise",
+   "name": "Low rise bar",
+   "default_finish": "satin_black",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "moves": []
+  },
+  {
+   "key": "highrise",
+   "name": "High rise bar",
+   "default_finish": "titanium",
+   "fits": [
+    "Naked",
+    "Adventure"
+   ],
+   "moves": [
+    "Classic",
+    "MX"
+   ]
+  },
+  {
+   "key": "mx",
+   "name": "Braced motocross bar",
+   "default_finish": "anodised_red",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "moves": []
+  },
+  {
+   "key": "clipon_low",
+   "name": "Clip-ons, low",
+   "default_finish": "satin_black",
+   "fits": [
+    "Cafe"
+   ],
+   "moves": [
+    "Sport"
+   ]
+  },
+  {
+   "key": "clipon_raised",
+   "name": "Clip-ons, raised",
+   "default_finish": "anodised_gold",
+   "fits": [
+    "Cafe"
+   ],
+   "moves": [
+    "Sport"
+   ]
+  },
+  {
+   "key": "drag",
+   "name": "Drag bar",
+   "default_finish": "chrome",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "moves": []
+  },
+  {
+   "key": "touring",
+   "name": "Swept touring bar",
+   "default_finish": "chrome",
+   "fits": [
+    "Cruiser"
+   ],
+   "moves": []
+  },
+  {
+   "key": "tracker",
+   "name": "Tracker bar",
+   "default_finish": "polished",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure"
+   ],
+   "moves": [
+    "MX"
+   ]
+  },
+  {
+   "key": "ace",
+   "name": "Ace bar",
+   "default_finish": "chrome",
+   "fits": [
+    "Sport"
+   ],
+   "moves": [
+    "Cafe"
+   ]
+  }
+ ],
+ "grips": [
+  {
+   "key": "knurl",
+   "name": "Diamond knurl"
+  },
+  {
+   "key": "ribbed",
+   "name": "Ribbed"
+  },
+  {
+   "key": "waffle",
+   "name": "Waffle"
+  },
+  {
+   "key": "barrel",
+   "name": "Barrel"
+  },
+  {
+   "key": "touring",
+   "name": "Soft touring"
+  },
+  {
+   "key": "leather",
+   "name": "Leather wrapped"
+  }
+ ],
+ "ends": [
+  {
+   "key": "cap",
+   "name": "Plain cap"
+  },
+  {
+   "key": "weighted",
+   "name": "Weighted"
+  },
+  {
+   "key": "tapered",
+   "name": "Tapered billet"
+  },
+  {
+   "key": "ringed",
+   "name": "Machined ring"
+  },
+  {
+   "key": "bullet",
+   "name": "Chrome bullet"
+  },
+  {
+   "key": "mirror",
+   "name": "Mirror end"
+  }
+ ],
+ "finishes": [
+  "satin_black",
+  "polished",
+  "chrome",
+  "brushed",
+  "titanium",
+  "anodised_gold",
+  "anodised_red",
+  "anodised_blue"
+ ]
+}
