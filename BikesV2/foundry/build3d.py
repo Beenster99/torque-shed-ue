@@ -438,6 +438,18 @@ def is_belly(ex, i):
     return i == 0 and len(cans) > 1 and not cans[0].get("nip") and cans[0]["a"][1] < 300 and cans[0]["w"] >= 130
 
 
+def boxer_y(eng, y):
+    """Across-the-bike position on a boxer's cylinder: the drawing's 110..372 scaled to the model's reach."""
+    return 110 + (y - 110) * (eng["boxer"].get("reach", 298) - 110) / 262.0
+
+
+def inline_ys(eng, wide):
+    """Where the cylinders of an in-line engine stand across the bike (mm from the centre line)."""
+    n = {"inline4": 4, "triple": 3}.get(eng["layout"], 0)
+    pitch = 2 * (wide / 2 - 44) / n if n else 0
+    return [(k - (n - 1) / 2) * pitch for k in range(n)]
+
+
 def can_y(ex, i, under):
     """Where a silencer sits across the bike at its two ends (mm from the centre line)."""
     if is_belly(ex, i):
@@ -924,6 +936,37 @@ def build(model):
                 yy.append(hp["ys"][k_] + (hp["ys"][k_ + 1] - hp["ys"][k_]) * t_k)
             for _ in range(4):
                 yy = [yy[0]] + [0.25 * yy[j - 1] + 0.5 * yy[j] + 0.25 * yy[j + 1] for j in range(1, len(yy) - 1)] + [yy[-1]]
+        if DETAIL["on"] and eng["layout"] == "boxer" and not hp.get("link") and not hp.get("ys"):
+            # a flat twin: each pipe starts under its own cylinder head. The left one swings in to the drawn line;
+            # the right one drops the same way, then crosses in front of the sump and joins the left one
+            port_y = boxer_y(eng, 284)
+            sm_ = lambda t: t * t * (3 - 2 * t)
+            j1 = max(3, int(0.3 * (len(pts) - 1)))
+            lefty = [port_y + (abs(yy[j]) - port_y) * sm_(min(1.0, j / j1)) for j in range(len(pts))]
+            rad = hp.get("w", 44) / 2 * 0.8
+            if i == 0:
+                smooth_tube(f"header{i}", [(p[0], sg * y, p[1]) for p, y in zip(pts, lefty)], rad, mat("exhaust"))
+            else:
+                j2 = min(range(len(pts)), key=lambda j: math.hypot(pts[j][0] - hp["pts"][2][0], pts[j][1] - hp["pts"][2][1]))
+                j3 = min(len(pts) - 1, j2 + max(2, int(0.1 * (len(pts) - 1))))
+                x2, z2 = pts[j2]
+                path = [(pts[j][0], -sg * lefty[j], pts[j][1]) for j in range(j2 + 1)]
+                ya, yb = -sg * lefty[j2], sg * lefty[j3]
+                path += [(x2 - 14, ya + (yb - ya) * 0.16, z2 - 10), (x2 - 18, ya + (yb - ya) * 0.5, z2 - 12), ((x2 - 18 + pts[j3][0]) / 2, ya + (yb - ya) * 0.86, (z2 - 12 + pts[j3][1]) / 2), (pts[j3][0], yb, pts[j3][1])]
+                smooth_tube(f"header{i}", path, rad, mat("exhaust"))
+                cone(f"headermerge{i}", (pts[j3][0], sg * lefty[j3], pts[j3][1]), (pts[min(len(pts) - 1, j3 + 1)][0], sg * lefty[min(len(pts) - 1, j3 + 1)], pts[min(len(pts) - 1, j3 + 1)][1]), rad * 1.25, rad, mat("exhaust"), 28)
+            continue
+        cyl_ys = inline_ys(model["engine"], wide) if DETAIL["on"] and i == 0 and not hp.get("link") else []
+        if cyl_ys:
+            # an in-line engine: one pipe from every cylinder across the front of the head, gathering into the
+            # drawn pipe a little under half way along it
+            j0 = max(3, int(0.42 * (len(pts) - 1)))
+            sm_ = lambda t: t * t * (3 - 2 * t)
+            for k, yk in enumerate(cyl_ys):
+                smooth_tube(f"header{i}_{k}", [(pts[j][0], yk + (yy[j] - yk) * sm_(j / j0), pts[j][1]) for j in range(j0 + 1)], hp.get("w", 44) / 2 * 0.8 * 0.6, mat("exhaust"))
+            cone(f"headermerge{i}", (pts[j0 - 1][0], yy[j0 - 1], pts[j0 - 1][1]), (pts[j0][0], yy[j0], pts[j0][1]), hp.get("w", 44) / 2 * 0.8 * 1.25, hp.get("w", 44) / 2 * 0.8, mat("exhaust"), 28)
+            smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts[j0:], yy[j0:])], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
+            continue
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     if ex.get("collector"):
         # where the pipes meet under the engine: a flat box across the bike
