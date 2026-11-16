@@ -442,6 +442,8 @@ def can_y(ex, i, under):
     """Where a silencer sits across the bike at its two ends (mm from the centre line)."""
     if is_belly(ex, i):
         return (0, 0)
+    if ex.get("can_y"):
+        return tuple(ex["can_y"])      # the model places its own silencer (a slim one tucked in over the swingarm)
     if is_belly(ex, 0):
         return (128, 172)       # a stubby outlet angled out from the box, ahead of the rear tyre
     return (58, 58) if under else (218, 228)
@@ -742,6 +744,13 @@ def build(model):
         sub = tb.get("cls") == "sub"
         for s in (-1, 1):
             p3 = [(p[0], s * (sub_half(p) if sub else half(p)), p[1]) for p in pts]
+            if sub and DETAIL["on"] and fr.get("sub_show"):
+                # the seat frame runs back in full view under the saddle, outside a slim tail (beenster,
+                # adventure round 2), closing in a little to its end
+                p3 = [(p[0], s * (half(p) if p[0] >= 500 else SUB_OUT - 28 * max(0.0, min(1.0, (430 - p[0]) / max(1.0, 430 - x_end)))), p[1]) for p in pts]
+                tube(f"frame{i}{s}", p3, tb["w"] / 2, framem)
+                frame_runs.append((f"frame{i}{s}", p3, tb["w"] / 2))
+                continue
             if sub and DETAIL["on"] and "sub_y" not in fr:
                 # the visible rails run back outside the panels and stop at the hanger node; from there the
                 # rails carry on hidden inside the tail, so no tube cuts through the bodywork (beenster, round 4)
@@ -756,7 +765,8 @@ def build(model):
             frame_runs.append((f"frame{i}{s}", p3, tb["w"] / 2))
         if sub:
             e_ = pts[-1]
-            tube(f"framecross{i}", [(e_[0], -sub_half(e_), e_[1]), (e_[0], sub_half(e_), e_[1])], tb["w"] / 2, framem)
+            ye_ = SUB_OUT - 28 * max(0.0, min(1.0, (430 - e_[0]) / max(1.0, 430 - x_end))) if DETAIL["on"] and fr.get("sub_show") else sub_half(e_)
+            tube(f"framecross{i}", [(e_[0], -ye_, e_[1]), (e_[0], ye_, e_[1])], tb["w"] / 2, framem)
     for i, pl in enumerate(fr.get("plates", [])):
         pp = shapes.dense(pl["pts"], True, pl.get("t", 0.6))
         xh = max(q[0] for q in pp)
@@ -883,7 +893,22 @@ def build(model):
                     return t * t * (3 - 2 * t)
                 yy = [sg * (60 + (side_y - 60) * ease(j)) for j in range(len(pts))]
             yy = [sg * (abs(y) + (out_y - side_y) * max(0.0, j / (len(pts) - 1) - 0.75) / 0.25) for j, y in enumerate(yy)]
+        if hp.get("ys"):
+            # the model gives the pipe's own line across the bike, point for point (pipes that gather at the
+            # front and run under the engine, a link pipe out to the silencer)
+            ctl, n_c, yy = hp["pts"], len(hp["pts"]), []
+            for p in pts:
+                k_ = min(range(n_c - 1), key=lambda k: abs(math.hypot(p[0] - ctl[k][0], p[1] - ctl[k][1]) + math.hypot(p[0] - ctl[k + 1][0], p[1] - ctl[k + 1][1]) - math.hypot(ctl[k + 1][0] - ctl[k][0], ctl[k + 1][1] - ctl[k][1])))
+                L_k = math.hypot(ctl[k_ + 1][0] - ctl[k_][0], ctl[k_ + 1][1] - ctl[k_][1]) or 1.0
+                t_k = max(0.0, min(1.0, math.hypot(p[0] - ctl[k_][0], p[1] - ctl[k_][1]) / L_k))
+                yy.append(hp["ys"][k_] + (hp["ys"][k_ + 1] - hp["ys"][k_]) * t_k)
+            for _ in range(4):
+                yy = [yy[0]] + [0.25 * yy[j - 1] + 0.5 * yy[j] + 0.25 * yy[j + 1] for j in range(1, len(yy) - 1)] + [yy[-1]]
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
+    if ex.get("collector"):
+        # where the pipes meet under the engine: a flat box across the bike
+        cb = ex["collector"]
+        pillow("collector", [(cb["x"][0], cb["z"][0]), (cb["x"][0], cb["z"][1]), (cb["x"][1], cb["z"][1]), (cb["x"][1], cb["z"][0])], -cb["y"], cb["y"], mat("exhaust"), 9, 14)
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
             y0c, y1c = can_y(ex, i, under)
@@ -1031,8 +1056,8 @@ def build(model):
     sport_bike = model["family"].lower() == "sport"
     fair_wrap = {}
     for i, shp in enumerate(body.get("front_guard", []) + body.get("panels", [])):
-        if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
-            continue
+        if shp.get("draw_only") or (shp.get("adv") and DETAIL["on"]):      # a detail of the drawing only, such as a vent printed on a fairing
+            continue                                                         # ("adv": built as shaped shells by the Definition pass)
         m_ = paint if shp["cls"] == "body" else mat("plastic")
         blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
         if "arc" in shp and blade_ and shp in body.get("front_guard", []):
