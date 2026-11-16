@@ -95,8 +95,10 @@ TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting
 	TEXT("Ride UK: the far ring's trees in the distance-field / Lumen lighting (1, as until 151) or not (0). For squares made after the change."));
 // [perf, build 153] Round 152: the near trees' scanned meshes were ~9 ms of GPU at Whaley Bridge (52 fps as
 // set, 104 with no near trees; the far ring, their shadows and sway cost almost nothing). Near trees now
-// draw as scans only within this many metres, in 128 m patches, and as the far models past it.
-TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
+// draw as scans only within this many metres, in 128 m patches, and as the far models past it. ([build 154]
+// 0 again by default: beenster found the far models past 200 m "ridiculous"; impostors baked from the
+// scans are the plan for that ring)
+TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 0.0f,
 	TEXT("Ride UK: near trees are drawn as scanned models within this many metres and as the far models past it (0: scans out to the whole near ring, as until 152). For squares made after the change."));
 // ([build 154] off: round 153's specks didn't stop the PSO misses; URidePart now asks for its PSOs instead)
 TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
