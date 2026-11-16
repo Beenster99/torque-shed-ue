@@ -122,8 +122,24 @@ def adventure(D, model, adv, prefixes=("advmask",)):
         pts = pts + [(-y, z) for y, z in pts]
         ey = 0.0
     hull = _hull(pts)
-    hull = [(ey + (y - ey) * 1.12, ez + (z - ez) * 1.12) for y, z in hull[::-1]]
-    proj = [(py, pz, 11.5, n_ == 0) for n_, (py, pz) in enumerate(adv.get("proj", []))]
+    # beenster, Nov 16: the adventure lamps should all be bigger. Grown about the eye's centre, as far as the mask allows
+    import bpy
+    ky_, kz_ = adv.get("unit_scale", (1.5, 1.55))
+    bb = [o.matrix_world @ D.Vector(q) for o in bpy.data.objects if o.name.startswith(prefixes) for q in o.bound_box]
+    ymax = max(q.y for q in bb) / D.B.MM - 14 if bb else 1e9
+    z0_, z1_ = (min(q.z for q in bb) / D.B.MM + 6, max(q.z for q in bb) / D.B.MM - 8) if bb else (-1e9, 1e9)
+    ymin = -ymax if central else 7.0
+
+    def grow(q, pad=0.0):
+        y, z = ey + (q[0] - ey) * ky_, ez + (q[1] - ez) * kz_
+        return (min(max(y, ymin + pad), ymax - pad), min(max(z, z0_ + pad), z1_ - pad))
+    hull = [grow(q) for q in hull[::-1]]
+    pr = 11.5 * min(ky_, kz_) * 0.9
+    proj = [grow((py, pz), pr + 9) + (pr, n_ == 0) for n_, (py, pz) in enumerate(adv.get("proj", []))]
+    line = [grow(q, 5) for q in line]
+    # the opening always takes in its own projectors
+    ring_ = [(py + (r + 9) * math.cos(a * math.pi / 6), pz + (r + 9) * math.sin(a * math.pi / 6)) for py, pz, r, _ in proj for a in range(12)]
+    hull = _hull(hull + ring_)[::-1]
     if central:
         proj = proj + [(-py, pz, r, h) for py, pz, r, h in proj if py > 1]
         line = line + [(-y, z) for y, z in line[::-1] if y > 1] if line else line
