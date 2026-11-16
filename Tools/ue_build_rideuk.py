@@ -102,6 +102,7 @@ def road_material_scanned(L, tex, roles):
     # Patches of a fresher, darker surface dressing and paler, older tarmac, tens of metres long.
     patch = g.mask_noise(0.0012, -2.0, 3.0)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.08), g.const(0.8), patch))
+    tar_scan = list(road)   # (the tarmac's own scan: the verge's inner end, build 149)
     # Which strips are tarmac: the vertex colour within a hair of the tarmac's own (0.022, 0.022, 0.025),
     # so nothing else drawn in this material (dark glass, black paint) takes the scan.
     vc = g.node(unreal.MaterialExpressionVertexColor)
@@ -113,6 +114,22 @@ def road_material_scanned(L, tex, roles):
     own = [g.op(unreal.MaterialExpressionMultiply, vc, L.noise(g.m, 0.05, 0.8, 1.2, -1200, g.y + 200)),
            g.const((0.0, 0.0, 1.0)), g.const(0.8)]
     g.y += 140
+    # Pavements and kerbs (build 148; beenster on 147 in Whaley Bridge: the pavements "too low definition",
+    # a soft blotchy colour). A pavement's vertex colour (0.12, 0.118, 0.11, World/WorldRide's Paving) takes
+    # the tarmac's scan paler and greyer, a footway's asphalt; a kerb's (0.16, 0.16, 0.15) the same scan
+    # paler again and almost grey, as worn concrete kerbs, so both are as sharp as the road.
+    def keyed(rgb):
+        dk = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, dk, "A")
+        g.link(g.const(rgb), dk, "B")
+        return g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSubtract, g.const(0.012), dk), const_b=166.0))
+    for key, bright, grey in (((0.12, 0.118, 0.11), 1.45, 0.6), ((0.16, 0.16, 0.15), 2.3, 0.85)):
+        dull = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(road[0], dull)
+        g.link(g.const(grey), dull, "Fraction")
+        paler = [g.op(unreal.MaterialExpressionMultiply, dull, g.const(bright)), road[1], road[2]]
+        own = g.mix(own, paler, keyed(key))
     # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
     # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
     # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near
@@ -142,11 +159,12 @@ def road_material_scanned(L, tex, roles):
         grav = g.layer(tex[gravel_key], roles[gravel_key]["tile_m"])
         # (the Megascans scan is paler than ambientCG's dark wet gravel, the fallback: each its own tint and middle)
         megascan = "ue" in roles[gravel_key]
-        tint, middle = ((1.05, 1.04, 1.0), 0.22) if megascan else ((1.5, 1.48, 1.4), 0.15)
-        # (the Dales' tracks are limestone chippings: the scan a little greyer, a little paler)
+        # (beenster, build 148: the grit "like sandstone poured on the road": grey chippings now, near the
+        # tarmac's own tone, the scan almost all its colour taken out and darkened towards the road)
+        tint, middle = ((0.78, 0.78, 0.79), 0.22) if megascan else ((1.1, 1.1, 1.12), 0.15)
         gdull = g.node(unreal.MaterialExpressionDesaturation, -600)
         g.link(grav[0], gdull)
-        g.link(g.const(0.35), gdull, "Fraction")
+        g.link(g.const(0.85), gdull, "Fraction")
         grav[0] = g.op(unreal.MaterialExpressionMultiply, gdull, g.const(tint))
         # Its stones' height from the scan's brightness (with its AO in it), and a slow wobble so the edge
         # isn't a line across the road.
@@ -169,6 +187,51 @@ def road_material_scanned(L, tex, roles):
         road = g.mix(own, road, tar)
         hard = tar
         near = tar
+    # The verge (build 147; beenster on 146: "remove these green road borders and blend the road into the
+    # side"): the shoulder's colour runs from (0.072, 0.078, 0.045) at its inner end to the verge's grass
+    # (0.10, 0.16, 0.03) out on the shoulder (World/WorldRide's VergeGrass). Along that line, the land's own
+    # grass scan, graded as M_RideLandScan grades it, breaks through in a ragged edge by a fine wobble; the
+    # outer shoulder is all grass, so it meets the land unseen. Build 149 (beenster on 148: "have the
+    # roadside butt up against the grass and have it merge over", no pale border): the inner end is the
+    # tarmac's own scan, not grit, and the band starts a little in on the tarmac, so the grass grows over
+    # the road's edge.
+    if "grass" in tex:
+        grit_c, lawn_c = (0.072, 0.078, 0.045), (0.10, 0.16, 0.03)
+        vspan = tuple(b - a for a, b in zip(grit_c, lawn_c))
+        vspan2 = sum(v * v for v in vspan)
+        vrel = g.op(unreal.MaterialExpressionSubtract, vc, g.const(grit_c))
+        vdot = g.node(unreal.MaterialExpressionDotProduct, -600)
+        g.link(vrel, vdot, "A")
+        g.link(g.const(vspan), vdot, "B")
+        valong = g.op(unreal.MaterialExpressionMultiply, vdot, const_b=1.0 / vspan2)
+        von = g.op(unreal.MaterialExpressionAdd, g.const(grit_c), g.op(unreal.MaterialExpressionMultiply, g.const(vspan), valong))
+        voff = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, voff, "A")
+        g.link(von, voff, "B")
+        vnear = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, g.const(0.014), voff), const_b=140.0))
+        vends = g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, valong, const_b=0.15), const_b=8.0)),
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), valong), const_b=8.0)))
+        vnear = g.op(unreal.MaterialExpressionMultiply, vnear, vends)
+        lawn = g.layer(tex["grass"], roles["grass"]["tile_m"])
+        lawn[0] = g.op(unreal.MaterialExpressionMultiply, lawn[0], const_b=0.75)
+        lgrey = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(lawn[0], lgrey)
+        g.link(g.const(1.0), lgrey, "Fraction")
+        lawn[0] = g.lerp(lgrey, lawn[0], g.const(1.6))
+        g.y += 140
+        # (the inner end: the tarmac's own scan, so the road runs on under the grass)
+        grit = tar_scan
+        wob = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.02, -0.5, 0.5, -1200, g.y + 200),
+                   g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.004, -0.5, 0.5, -1200, g.y + 400), const_b=1.5))
+        g.y += 140
+        # (grass from about a third of the way out, ragged by the wobble: at the tarmac's edge, give or take)
+        lawny = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.3), g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.35)),
+                     const_b=7.0))
+        verge = g.mix(grit, lawn, lawny)
+        road = g.mix(road, verge, vnear)
     # Wet: the tarmac dark and glossy (as Buttertubs' road), the gravel darker but still rough; dry keeps a
     # floor so there's no white sheen.
     wet = L.wetness(g)
@@ -228,6 +291,74 @@ def night_material(L):
     L.mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     L.mel.connect_material_property(g.const(0.25), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+def signal_material(L):
+    """Traffic lights' and Belisha beacons' lamps (OSM stage 5D: RideMesh::Signals). Their vertex colour is
+    the lamp's, UV0 u the second its light's 60 s cycle starts at, v which lamp (0 red, 1 amber, 2 green,
+    3 a beacon). From MPC_Weather's Signals (the server's clock, so every rider sees the same): red for
+    the first 55% (with amber over its last 5%: red and amber), green to 95%, then amber alone; a
+    beacon flashes, 0.6 s on and off. A lamp that's off is dark glass."""
+    g = L.Graph(L.new_material("M_RideSignal", MAT_DIR))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    def chan(src, c):
+        e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=False, a=False)
+        g.link(src, e)
+        return e
+    start, lamp = chan(uv, "R"), chan(uv, "G")
+    clock = L.weather_param(g, "Signals")
+    t = g.op(unreal.MaterialExpressionFrac, g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionAdd, clock, start), g.const(60.0)))
+    # (a sharp step: 0 before the edge, 1 after)
+    step = lambda x, edge: g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, x, g.const(edge)), g.const(1000.0)))
+    mul = lambda a, b: g.op(unreal.MaterialExpressionMultiply, a, b)
+    add = lambda a, b: g.op(unreal.MaterialExpressionAdd, a, b)
+    off = lambda a: g.op(unreal.MaterialExpressionOneMinus, a)
+    red = off(step(t, 0.55))
+    amber = add(mul(step(t, 0.5), off(step(t, 0.55))), step(t, 0.95))
+    green = mul(step(t, 0.55), off(step(t, 0.95)))
+    flash = off(step(g.op(unreal.MaterialExpressionFrac, mul(clock, g.const(0.8))), 0.5))
+    # (which lamp this is: 1 for the lamp code k, 0 for the others)
+    pick = lambda k: g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionOneMinus, mul(g.op(unreal.MaterialExpressionAbs, g.op(unreal.MaterialExpressionSubtract, lamp, g.const(float(k)))), g.const(2.0))))
+    on = add(add(mul(red, pick(0)), mul(amber, pick(1))), add(mul(green, pick(2)), mul(flash, pick(3))))
+    glow = mul(vc, add(g.const(0.02), mul(on, g.const(40.0))))
+    L.mel.connect_material_property(mul(vc, g.const(0.08)), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    L.mel.connect_material_property(g.const(0.15), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+def sign_material(L):
+    """Road signs' faces and lettering (OSM stage 6A: RideMesh::Signs), their vertex colour the paint's.
+    By day plain paint, a little glossy. After dark (MPC_Weather's Night) they shine back the headlight as
+    real signs' reflective sheeting does: lit only in the beam (the middle of the view, a little below the
+    horizon, as the cat's eyes are), brightest near, gone by about 250 m; never glowing by themselves."""
+    g = L.Graph(L.new_material("M_RideSign", MAT_DIR))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    night = L.weather_param(g, "Night")
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    near = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.2), g.op(unreal.MaterialExpressionDivide, depth, g.const(25000.0))))
+    near = g.op(unreal.MaterialExpressionMultiply, near, near)
+    beam = g.const(1.0)
+    try:
+        sp = g.node(unreal.MaterialExpressionScreenPosition)
+        c2 = lambda a, b: g.node(unreal.MaterialExpressionConstant2Vector, r=a, g=b)
+        off = g.op(unreal.MaterialExpressionSubtract, sp, c2(0.5, 0.55), a_out="ViewportUV")
+        off = g.op(unreal.MaterialExpressionMultiply, off, c2(1.2, 1.8))
+        dist = g.op(unreal.MaterialExpressionDotProduct, off, off)
+        beam = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.0), dist))
+    except Exception as e:
+        unreal.log_warning("[Torque] ride UK: signs' beam not made (%s); they fade by distance only" % e)
+    shine = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, night, near), g.op(unreal.MaterialExpressionMultiply, beam, g.const(6.0)))
+    glow = g.op(unreal.MaterialExpressionMultiply, vc, shine)
+    L.mel.connect_material_property(vc, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    L.mel.connect_material_property(g.const(0.45), "", unreal.MaterialProperty.MP_ROUGHNESS)
     L.mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     return g.m
@@ -381,6 +512,10 @@ def scanned_materials(L):
                            ("M_RideWater", lambda: water_material(L)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
                            ("M_RideNight", lambda: night_material(L)),
+                           # (OSM stage 5D: traffic lights and Belisha beacons, on the shared clock)
+                           ("M_RideSignal", lambda: signal_material(L)),
+                           # (OSM stage 6A: road signs' faces and lettering, shining back the headlight)
+                           ("M_RideSign", lambda: sign_material(L)),
                            # (OSM stage 3: roofs coursed by their roofing, and brick walls in bond)
                            ("M_RideRoof", lambda: roof_material(L)),
                            ("M_RideBrick", lambda: brick_material(L)),
@@ -489,6 +624,12 @@ def grass_materials(L, kit):
     log("grass materials: M_RideFoliage%s, %d scanned instances" % (", M_RideFoliageScan" if master else "", len(copied)))
 
 
+# (outside /Game/RideUK, which DefaultGame.ini always cooks: the copies cook only when the kit plants them,
+# so while scanned_trees.json is off they stay out of the package; round 144 cooked them, +452 MB)
+SCAN_DEST = "/Game/ScannedTrees"
+OLD_SCAN_DEST = "/Game/RideUK/ScannedTrees"
+
+
 def scanned_trees(L, kit):
     """Scanned trees (Data/RideUK/scanned_trees.json: Quixel Megaplants once imported on the PC) in
     the kit's "Trees" in place of Buttertubs' own models of the same kind, as species named
@@ -497,16 +638,16 @@ def scanned_trees(L, kit):
     if not os.path.exists(f) or "Trees" not in kit:
         return
     spec = json.load(open(f))
-    if not spec.get("enabled", True):
-        log("scanned trees: off (scanned_trees.json enabled=false); our own trees stay")
-        return
+    use = spec.get("enabled", True)
+    if not use:
+        log("scanned trees: off (scanned_trees.json enabled=false): our own trees stay; a trial of what would be used follows")
     norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
     skip = [norm(w) for w in spec.get("skip", [])]
     most = int(spec.get("most", 6))
     meshes, others = [], []
     for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
         pkg = str(a.package_name)
-        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/") or pkg.startswith(SCAN_DEST + "/"):
             continue
         cls = str(a.asset_class_path.asset_name)
         path = "%s.%s" % (pkg, a.asset_name)
@@ -538,6 +679,106 @@ def scanned_trees(L, kit):
                 return m.get_path_name()
         return None
 
+    def gs(*names):
+        """The first Geometry Script function found by name (its Python home moved between releases)."""
+        for home in ("GeometryScript_AssetUtils", "GeometryScript_SkeletalMeshFunctions", "GeometryScript_NewAssetUtils",
+                     "GeometryScript_CreateNewAssetFunctions", "GeometryScript_StaticMeshFunctions"):
+            c = getattr(unreal, home, None)
+            for n in names:
+                if c is not None and hasattr(c, n):
+                    return getattr(c, n)
+        return None
+
+    why = []
+    if unreal.EditorAssetLibrary.does_directory_exist(OLD_SCAN_DEST):
+        # (round 144's copies, moved out of the always-cooked folder rather than made again)
+        if unreal.EditorAssetLibrary.does_directory_exist(SCAN_DEST):
+            unreal.EditorAssetLibrary.delete_directory(OLD_SCAN_DEST)
+            log("scanned trees: %s deleted (%s already made)" % (OLD_SCAN_DEST, SCAN_DEST))
+        else:
+            ok = unreal.EditorAssetLibrary.rename_directory(OLD_SCAN_DEST, SCAN_DEST)
+            log("scanned trees: %s moved to %s%s" % (OLD_SCAN_DEST, SCAN_DEST, "" if ok else " (FAILED: delete it in the editor)"))
+
+    # (copies of parts a skip word now leaves out, made before it was added: round 144's pine needles)
+    for a in unreal.EditorAssetLibrary.list_assets(SCAN_DEST, recursive=True, include_folder=False) if unreal.EditorAssetLibrary.does_directory_exist(SCAN_DEST) else []:
+        n = norm(a.rsplit("/", 1)[-1])
+        if any(w in n for w in skip):
+            gone = unreal.EditorAssetLibrary.delete_asset(a.split(".")[0])
+            log("scanned trees: %s %s (a skip word)" % (a.split(".")[0], "deleted" if gone else "NOT deleted"))
+
+    def static_of_skeletal(path):
+        """A Megaplant's whole tree is a SkeletalMesh (its bones sway in the wind): a static copy of it,
+        made once with Geometry Script into SCAN_DEST (Nanite, no collision, the tree's own materials).
+        The path of the copy, or None (the reason in why)."""
+        name = "SM_" + path.rsplit(".", 1)[-1]
+        dest = "%s/%s" % (SCAN_DEST, name)
+        if unreal.EditorAssetLibrary.does_asset_exist(dest):
+            return "%s.%s" % (dest, name)
+        copy = gs("copy_mesh_from_skeletal_mesh")
+        make = gs("create_new_static_mesh_asset_from_mesh")
+        if copy is None or make is None:
+            why.append("no Geometry Script (enable the GeometryScripting plugin)")
+            return None
+        try:
+            skel = unreal.load_asset(path)
+            dm = unreal.DynamicMesh()
+            res = copy(skel, dm, unreal.GeometryScriptCopyMeshFromAssetOptions(), unreal.GeometryScriptMeshReadLOD())
+            dm = res[0] if isinstance(res, (tuple, list)) else dm
+            opts = unreal.GeometryScriptCreateNewStaticMeshAssetOptions()
+            for prop, val in (("enable_nanite", True), ("enable_collision", False), ("enable_recompute_normals", False),
+                              ("enable_recompute_tangents", False)):
+                try:
+                    opts.set_editor_property(prop, val)
+                except Exception:
+                    pass
+            res = make(dm, dest, opts)
+            sm = res[0] if isinstance(res, (tuple, list)) else res
+            if not isinstance(sm, unreal.StaticMesh):
+                why.append("%s: no mesh made" % name)
+                return None
+            # (the tree's own materials, slot for slot as its sections were copied)
+            mats = []
+            for m in skel.get_editor_property("materials"):
+                mats.append(unreal.StaticMaterial(material_interface=m.get_editor_property("material_interface"),
+                                                  material_slot_name=m.get_editor_property("material_slot_name")))
+            if mats:
+                sm.set_editor_property("static_materials", mats)
+            unreal.EditorAssetLibrary.save_asset(dest, only_if_is_dirty=False)
+            return sm.get_path_name()
+        except Exception as e:
+            why.append("%s: %s" % (name, e))
+            return None
+
+    def ready_materials(path):
+        """A static copy's materials made fit for the ride's instanced trees: a Megaplant's are made for
+        its skeletal mesh, and a material not flagged for instanced static meshes draws as the default
+        grey checker in a packaged game (the base material's usage flags)."""
+        try:
+            sm = unreal.load_asset(path.split(".")[0])
+            done = []
+            for m in sm.get_editor_property("static_materials"):
+                mi = m.get_editor_property("material_interface")
+                base = mi.get_base_material() if mi else None
+                if base is None or base.get_path_name() in done:
+                    continue
+                done.append(base.get_path_name())
+                changed = False
+                for flag in ("used_with_instanced_static_meshes", "used_with_nanite"):
+                    try:
+                        if not base.get_editor_property(flag):
+                            base.set_editor_property(flag, True)
+                            changed = True
+                    except Exception:
+                        pass
+                if changed:
+                    unreal.MaterialEditingLibrary.recompile_material(base)
+                    unreal.EditorAssetLibrary.save_loaded_asset(base)
+                    log("scanned trees: %s now flagged for instanced static meshes and Nanite" % base.get_path_name())
+            return True
+        except Exception as e:
+            why.append("%s materials: %s" % (path.rsplit(".", 1)[-1], e))
+            return None
+
     for kind, words in spec["kinds"].items():
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
@@ -546,6 +787,15 @@ def scanned_trees(L, kit):
         classes = sorted(set(c for _, c in theirs))
         log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
             ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
+        skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
+        if skels:
+            # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
+            made = [m for m in (static_of_skeletal(p) for p in skels) if m]
+            for m in made:
+                ready_materials(m)
+            log("scanned trees: %s: %d whole trees from its skeletal meshes (%s)%s" % (kind, len(made),
+                ", ".join(p.rsplit(".", 1)[-1] for p in skels), ("; " + "; ".join(why[-3:])) if not made and why else ""))
+            got = made or got
         if not got and theirs:
             # (no plain mesh: whatever the vegetation assets hold or make)
             made = sorted(set(m for m in (mesh_of(p) for p, _ in theirs[:24]) if m))[:most]
@@ -555,14 +805,79 @@ def scanned_trees(L, kit):
         if not got:
             continue
         found[kind] = got
-        # (ours of this kind go: the scanned ones take every tree of it, near and far)
-        rows[:] = [r for r in rows if not (r["name"].startswith("SM_Tree_%s_" % kind) or r["name"].startswith("SM_TreeFar_%s_" % kind))]
+        if not use:
+            continue
+        # (ours of this kind go near: the scanned ones take every near tree of it. Our far models stay
+        # for the trees past the finest squares: build 148 measured the scans at about 10 ms of GPU at
+        # Whaley Bridge, most of it from the far ring's thousands of full Nanite trees)
+        rows[:] = [r for r in rows if not r["name"].startswith("SM_Tree_%s_" % kind)]
         r = dict(template)
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
-    log("scanned trees: %s" % (", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
+    log("scanned trees%s: %s" % ("" if use else " (trial, not planted)", ", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
+
+
+HEDGE_DEST = "/Game/RideUK/Hedges"
+
+
+def hedge_kit(L, kit):
+    """[build 149] The hedges (beenster, build 148: "look like something from roblox"): Tools/make_hedges.py's
+    4.2 m lengths of hedge (Data/RideUK/Hedges/SM_Tree_hedge_<n>.glb) imported as Nanite foliage with
+    the trees' material, added to the kit's "Trees" as kind "hedge"; World/TorqueRideWorld lays them
+    end to end along the map's hedge lines on the finest squares (RidePlan::HedgePlants). A scanned
+    hedge from Fab (a static mesh whose path holds one of scanned_trees.json's "hedge_words") takes
+    their place, scaled to a 4.2 m length. Changes the kit in place."""
+    if "Trees" not in kit:
+        return
+    rows = kit["Trees"]["species"]
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Hedges")
+    norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
+    spec_f = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "scanned_trees.json")
+    words = [norm(w) for w in (json.load(open(spec_f)).get("hedge_words", []) if os.path.exists(spec_f) else []) if norm(w)]
+    skip = [norm(w) for w in ("lod", "billboard", "impostor", "leaf", "leaves", "atlas", "branch", "twig", "decal")]
+    theirs = []
+    if words:
+        for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
+            pkg = str(a.package_name)
+            if str(a.asset_class_path.asset_name) != "StaticMesh" or pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+                continue
+            n = norm(pkg)
+            if any(w in n for w in words) and not any(k in n for k in skip):
+                theirs.append("%s.%s" % (pkg, a.asset_name))
+    # (a template row: a hawthorn's, else any of ours, for the material and the trees' settings)
+    template = next((r for r in rows if r["name"].startswith("SM_Tree_hawthorn_")), None) or next((r for r in rows if r.get("material")), None)
+    if template is None:
+        log("hedges: no tree rows in the kit to copy; hedges stay as shapes")
+        return
+    if theirs:
+        theirs = sorted(theirs)[:4]
+        b = [unreal.load_asset(p).get_bounding_box() for p in theirs]
+        longest = sum(max(x.max.x - x.min.x, x.max.y - x.min.y) for x in b) / len(b)
+        r = dict(template)
+        r.update({"name": "SM_Tree_hedge_scan", "mesh": "", "material": "", "variants": theirs, "variant_materials": [],
+                  "native_mesh": True, "scale_multiplier": 420.0 / max(longest, 1.0), "cast_shadow": True,
+                  "cull_distance": 60000.0})
+        rows.append(r)
+        log("hedges: %d scanned hedge models from Fab (%s)" % (len(theirs), theirs[0].rsplit("/", 1)[-1]))
+        return
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        log("hedges: none (python Tools/make_hedges.py); hedges stay as shapes")
+        return
+    meshes = L.import_glbs(folder, HEDGE_DEST)
+    for name, mesh in sorted(meshes.items()):
+        L.foliage_nanite(mesh)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        r = dict(template)
+        r.update({"name": name, "mesh": mesh.get_path_name(), "variants": [], "variant_materials": [],
+                  "native_mesh": False, "scale_multiplier": 1.0, "cast_shadow": True, "cull_distance": 60000.0})
+        rows.append(r)
+    log("hedges: %d hedge models (%s)" % (len(meshes), ", ".join(sorted(meshes))))
 
 
 def place_kit(kit):
@@ -651,6 +966,41 @@ def animal_kit(L):
 
 
 PROP_DEST = "/Game/RideUK/Props"
+FACADE_DEST = "/Game/RideUK/Facade"
+
+
+def facade_material(L):
+    """M_RideFacade (fps plan step 2): the facade kit's colours. Each vertex's alpha says which colour it
+    takes (1 its own, as glass; 0.66 the paint, 0.33 the trim, 0 the third) and its RGB, at half, the
+    shade; the three colours come per instance (nine custom data floats, World/TorqueRideWorld PlaceProps),
+    so a street of houses is a handful of instanced models however its doors are painted."""
+    g = L.Graph(L.new_material("M_RideFacade"))
+    L.instanced_usage(g.m)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+
+    def custom(index):
+        cls = getattr(unreal, "MaterialExpressionPerInstanceCustomData3Vector", None)
+        if cls is not None:
+            return g.node(cls, data_index=index)
+        parts = [g.node(unreal.MaterialExpressionPerInstanceCustomData, data_index=index + k) for k in range(3)]
+        return g.op(unreal.MaterialExpressionAppendVector, g.op(unreal.MaterialExpressionAppendVector, parts[0], parts[1]), parts[2])
+
+    def above(edge):   # 1 where the alpha is over edge, else 0
+        return g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSubtract, vc, a_out="A", const_b=edge), const_b=100.0))
+
+    paint, trim, third = custom(0), custom(3), custom(6)
+    tint = g.lerp(third, trim, above(0.17))
+    tint = g.lerp(tint, paint, above(0.5))
+    shade = g.op(unreal.MaterialExpressionMultiply, vc, a_out="RGB", const_b=2.0)
+    own = above(0.83)
+    col = g.lerp(g.op(unreal.MaterialExpressionMultiply, tint, shade), vc, own, b_out="RGB")
+    rough = g.lerp(g.const(0.7), g.const(0.12), own)
+    L.mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
 
 
 def prop_kit(L):
@@ -684,6 +1034,19 @@ def prop_kit(L):
             except Exception:
                 pass
             unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    # [fps plan step 2] The houses' facade kit, made by Tools/make_facade_kit.py: windows, their surrounds
+    # and doors, a model per size, coloured per instance by M_RideFacade (always ours, never Fab's).
+    facade_folder = os.path.join(ride, "Facade")
+    facade = {}
+    if os.path.isdir(facade_folder) and any(f.endswith(".glb") for f in os.listdir(facade_folder)):
+        facade = L.import_glbs(facade_folder, FACADE_DEST)
+        sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        for mesh in facade.values():
+            try:
+                sme.remove_collisions(mesh)
+            except Exception:
+                pass
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # Others' (Fab), by the kit's words.
     meshes = []
     for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
@@ -703,6 +1066,7 @@ def prop_kit(L):
     try:
         L.new_material = lambda name, folder=None: original(name, MAT_DIR)
         paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+        facade_paint = facade_material(L) if facade else None
     finally:
         L.new_material = original
     frame = (0.0, 1.0, 1.0)
@@ -711,12 +1075,12 @@ def prop_kit(L):
         frame = L.find_frame(ours[first], os.path.join(folder, first + ".glb"))
     species = []
 
-    def add(name, mesh, native, row):
+    def add(name, mesh, native, row, material=None):
         e = unreal.TorqueFoliageSpecies()
         e.set_editor_property("name", name)
         e.set_editor_property("mesh", mesh)
         if not native:
-            e.set_editor_property("material", paint)
+            e.set_editor_property("material", material or paint)
         for k, v in (("cast_shadow", bool(row.get("shadow", False))), ("scale_multiplier", 1.0),
                      ("cull_distance", float(row.get("reach", 400)) * 100.0), ("native_mesh", native)):
             try:
@@ -725,8 +1089,14 @@ def prop_kit(L):
                 pass
         species.append(e)
 
+    size_of = lambda name: int(name.rsplit("_", 1)[1]) if name.rsplit("_", 1)[1].isdigit() else 0
     for kind, row in spec["kinds"].items():
-        if kind in found:
+        if float(row.get("height", 1.0)) <= 0.0:
+            # (the facade kit's: in order of size, the game's Variant)
+            for name, mesh in sorted(facade.items(), key=lambda kv: size_of(kv[0])):
+                if name.startswith("SM_Prop_%s_" % kind) and size_of(name) >= 0 and name[len("SM_Prop_%s_" % kind):].isdigit():
+                    add(name, mesh, False, row, facade_paint)
+        elif kind in found:
             for n, p in enumerate(found[kind]):
                 m = unreal.load_asset(p)
                 if m:
@@ -760,6 +1130,7 @@ def build():
     kit = read_kit(L)
     grass_materials(L, kit)
     scanned_trees(L, kit)
+    hedge_kit(L, kit)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)

@@ -51,6 +51,9 @@ struct State
 	double Wind850 = 9.0, Wind850From = 235.0;
 	double Wind700 = 14.0, Wind700From = 245.0;
 	double Wind300 = 28.0, Wind300From = 255.0;
+	// [skies stage 7] The air about 9 km up (300 hPa), for contrails: its relative humidity, % (below 0:
+	// not known), and its temperature, C.
+	double Rh300 = -1.0, T300 = -45.0;
 };
 
 enum EKind { Sunny = 0, Overcast = 1, Wet = 2 };
@@ -150,6 +153,12 @@ struct Grid
 	double StepM = 2500.0;
 	std::vector<State> Points;     // row by row from the north west: Points[Row * N + Col], Row 0 the north
 	std::vector<double> Elevation; // metres above sea level, each point's
+	// [skies stage 6] The forecast for the next few hours at each point, so between fetches the
+	// weather moves toward what is coming rather than standing still (and the next fetch, which
+	// finds it there, doesn't pop): Ahead[H] is the whole grid H+1 forecast hours on, AheadIn[H] how
+	// many seconds after the fetch that hour is. Empty: no forecast (an older answer, the backup feed).
+	std::vector<std::vector<State>> Ahead;
+	std::vector<double> AheadIn;
 	bool Valid() const { return N >= 2 && (int)Points.size() == N * N && (int)Elevation.size() == N * N; }
 	const State& Centre() const { return Points[(N / 2) * N + N / 2]; }
 };
@@ -168,6 +177,37 @@ bool ParseOpenMeteoGrid(const std::string& Body, double Lat, double Lon, int N, 
 // points (bilinear), carried along on the wind since (showers drift through, up to half the grid's
 // width), and the air colder by 0.65 C per 100 m above the ground the points stand on.
 State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSeconds);
+// [skies stage 6] How far toward the forecast a grid has gone DriftSeconds after it was fetched:
+// which pair of its times the moment falls between (Hour -1 is the fetch itself) and how far between
+// them, 0 .. 1. Past the last forecast hour it holds there.
+void AheadStep(const Grid& G, double DriftSeconds, int& Hour, double& T);
+// The forecast hour's grid, or the fetched one for Hour -1.
+const std::vector<State>& GridHour(const Grid& G, int Hour);
+// [skies stage 6] What is coming here, from the grid's centre's forecast, in words for the HUD and the
+// info panel: "rain in about 40 min", "drying up within the hour", "clearing later", "" for nothing
+// worth saying. SinceFetch: seconds since the grid was fetched.
+std::string ComingWords(const Grid& G, double SinceFetch);
+
+// [skies stage 6] Weather along a planned ride: points down the route asked for in one call, each
+// with the forecast for when the rider will be there (a steady pace from the start).
+struct RouteStop
+{
+	double Along = 0.0;     // metres from the start
+	double Lat = 0.0, Lon = 0.0;
+	double EtaS = 0.0;      // seconds after setting off
+	State S;                // the forecast for then (the hour nearest)
+	bool bKnown = false;
+};
+// Up to Count points spread evenly along Line (lat, lon pairs, in order) with how far along each is.
+std::vector<RouteStop> RouteStops(const std::vector<std::pair<double, double>>& Line, int Count, double RideSeconds);
+std::string OpenMeteoRouteUrl(const std::vector<RouteStop>& Stops, int Hours);
+// Fills each stop's S from the answer for a start at StartUnix (seconds since 1970).
+bool ParseRouteWeather(const std::string& Body, long long StartUnix, std::vector<RouteStop>& Stops, std::string* Error = nullptr, int* UtcOffset = nullptr);
+// The ride's weather in a line: "Dry all the way", "Rain from Shap onwards (65 km in, about 15:30)",
+// "Showers here and there", "Fog over the tops", with the wind when strong. Names: a place name per
+// stop ("" none); UtcOffset: the clock's, seconds ahead of UTC, for the time.
+std::string RouteWords(const std::vector<RouteStop>& Stops, const std::vector<std::string>& Names, long long StartUnix, int UtcOffset, bool bImperial);
+
 // Base with how the weather Here differs from Ref added on, W of it (0 none .. 1 all), kept in range:
 // the shared weather (fading as it always did) made local.
 State AddDifference(const State& Base, const State& Here, const State& Ref, double W);

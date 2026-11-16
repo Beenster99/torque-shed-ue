@@ -40,7 +40,10 @@ struct WorldIndex
 	// The hash (the first 12 digits of its text's SHA-1) of each cell's own files, and each 5 degree block's sketch.
 	std::unordered_map<std::string, std::string> Streams, Trees, Features, Profiles, Sketches;
 	// [OSM stage 4] Each cell's ground (water shapes, land use, parks, car parks, single trees) and paths.
-	std::unordered_map<std::string, std::string> Grounds, Paths;
+	std::unordered_map<std::string, std::string> Grounds, Paths, RoadX, Sights;
+	// [towns stage 3] Each cell's buildings (every one's outline and height): a zip of its own, a
+	// release asset, read a tile at a time (tools/building_bake.py in the Godot game's repository).
+	std::unordered_map<std::string, CellEntry> Buildings;
 	TorqueFit::Json Areas;   // named areas made of cells: {name: {title, frame, south, west, north, east}}
 
 	bool Parse(const std::string& Text);
@@ -56,7 +59,7 @@ public:
 	// GETs a URL, following redirects: the HTTP code (0 for no answer) and the body. Blocks.
 	using Fetcher = std::function<int(const std::string& Url, std::string& Body)>;
 	// A cell's own files beside the index.
-	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths };
+	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX, Sights };
 	enum class EState { Here, Baked, Sea, Unknown };
 
 	// Where fetched cells (and the index) are kept, and other folders cells are found in (the game's own).
@@ -94,6 +97,10 @@ public:
 	// is the one the index names, else fetched (and kept). False when the index has none for it, or
 	// it can't be had. Blocks while it fetches.
 	bool Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx, TorqueFit::Json& Out);
+	// [towns stage 3] A cell's buildings zip ("ROW_COL"), from the copy kept on disk if it is the one the
+	// index names, else fetched (and kept). False when the index has none for it, or it can't be had.
+	// Blocks while it fetches.
+	bool BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out);
 
 	// Notes cells used now (fetched, or stitched into a region): kept the longest, never pruned this run.
 	void Touch(const std::vector<CellId>& Cells);

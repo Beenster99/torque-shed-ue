@@ -211,7 +211,7 @@ void RidePlan::IndexSkyline()
 		W.Spread = Spread;
 		// (never lower than 5 m over a road: where it would be, it is left out)
 		NearOpts Opts;
-		const int Steps = std::max(2, int(Span / 4.0));
+		const int Steps = std::max(2, int(Span / 1.0));   // ([5E] every metre: a wire across a road on the slant crosses it in a few)
 		for (int K = 1; K < Steps; ++K)
 		{
 			const double T = double(K) / Steps;

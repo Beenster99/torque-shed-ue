@@ -82,6 +82,19 @@ public:
 	void KnowSea(CellId Cell, bool HasSea);
 	// 1 yes, 0 no, -1 not known yet (taken as yes).
 	int SeaIn(CellId Cell) const;
+	// [build 147] Where a cell's land is, from the OpenStreetMap coastline (the sketch's "land": Overture's
+	// land): all land, all sea, or rings of land (holes: sea inside them), points (lat, lon). Low ground is
+	// sea only outside the land, so a drained fen below the sea's level stays land (beenster, build 146:
+	// the Fens drawn as sea). Known, it rules over KnowSea. Tiles over it read before are read again.
+	struct CoastLand
+	{
+		enum EKind { AllLand, AllSea, Edged } Kind = AllLand;   // (Edged: land in Rings)
+		std::vector<std::vector<std::pair<double, double>>> Rings, Holes;
+	};
+	void KnowCoast(CellId Cell, std::shared_ptr<const CoastLand> Land);
+	bool CoastKnown(CellId Cell) const;
+	// The coast of a 5 degree block's cells has been read (or found missing): not read again.
+	bool CoastBlockRead(const std::string& Block);
 
 	// The tiles at a zoom within Reach metres of any of Points (frame x, z).
 	static std::vector<TileKey> KeysNear(const std::vector<P2>& Points, double Reach, int Zoom, const Frame& F);
@@ -108,6 +121,8 @@ private:
 	std::set<TileKey> Missing;
 	std::map<TileKey, bool> None;
 	std::map<CellId, bool> SeaCellsKnown;
+	std::map<CellId, std::shared_ptr<const CoastLand>> Coasts;
+	std::set<std::string> CoastBlocks;
 	long long Tick = 0;
 };
 } // namespace TorqueWorld

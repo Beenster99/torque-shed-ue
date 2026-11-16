@@ -327,33 +327,111 @@ std::vector<uint8_t> HeightStore::SeaMask(const HeightTile& T, const TileKey* Ke
 	return Out;
 }
 
-// Which pixels of a tile lie in a cell that may have sea: empty when they all may, a single 0 when
-// none may, else Size x Size of 0 or 1.
+// Which pixels of a tile may be sea: empty when they all may, a single 0 when none may, else Size x
+// Size of 0 or 1. A pixel in a cell whose coast is known may be sea only outside its land; in a cell
+// whose profile says it has no sea, never; elsewhere (not known) it may.
 std::vector<uint8_t> HeightStore::SeaAllowed(int Size, const TileKey& Key) const
 {
 	std::map<CellId, bool> Known;
+	std::map<CellId, std::shared_ptr<const CoastLand>> Coast;
 	{
 		std::lock_guard<std::mutex> G(Lock);
 		Known = SeaCellsKnown;
+		Coast = Coasts;
 	}
-	if (Known.empty()) return std::vector<uint8_t>();
-	auto May = [&Known](int R, int C) {
+	if (Known.empty() && Coast.empty()) return std::vector<uint8_t>();
+	// (0 never, 1 anywhere, 2 outside the land's rings)
+	auto May = [&Known, &Coast](int R, int C) -> int {
+		const auto Ct = Coast.find(CellId{R, C});
+		if (Ct != Coast.end()) return Ct->second->Kind == CoastLand::AllLand ? 0 : Ct->second->Kind == CoastLand::AllSea ? 1 : 2;
 		auto It = Known.find(CellId{R, C});
-		return It == Known.end() ? true : It->second;
+		return It == Known.end() ? 1 : (It->second ? 1 : 0);
 	};
 	const double Scale = double(1 << Key.Zoom);
 	std::vector<int> Rows(size_t(Size), 0), Cols(size_t(Size), 0);
-	for (int J = 0; J < Size; ++J) Rows[size_t(J)] = int(std::floor((LatOfRow(Key.Y + (J + 0.5) / Size, Key.Zoom) + 90.0) / CellDeg));
-	for (int I = 0; I < Size; ++I) Cols[size_t(I)] = int(std::floor(((Key.X + (I + 0.5) / Size) / Scale * 360.0) / CellDeg));
-	bool AnyYes = false, AnyNo = false;
-	for (int R = Rows[size_t(Size - 1)]; R <= Rows[0]; ++R)
-		for (int C = Cols[0]; C <= Cols[size_t(Size - 1)]; ++C) (May(R, C) ? AnyYes : AnyNo) = true;
-	if (!AnyNo) return std::vector<uint8_t>();
-	if (!AnyYes) return std::vector<uint8_t>(1, 0);
-	std::vector<uint8_t> Out(size_t(Size) * size_t(Size), 0);
+	std::vector<double> Lats(size_t(Size), 0.0), Lons(size_t(Size), 0.0);
 	for (int J = 0; J < Size; ++J)
-		for (int I = 0; I < Size; ++I) Out[size_t(J) * size_t(Size) + size_t(I)] = May(Rows[size_t(J)], Cols[size_t(I)]) ? 1 : 0;
+	{
+		Lats[size_t(J)] = LatOfRow(Key.Y + (J + 0.5) / Size, Key.Zoom);
+		Rows[size_t(J)] = int(std::floor((Lats[size_t(J)] + 90.0) / CellDeg));
+	}
+	for (int I = 0; I < Size; ++I)
+	{
+		Lons[size_t(I)] = (Key.X + (I + 0.5) / Size) / Scale * 360.0 - 180.0;
+		Cols[size_t(I)] = int(std::floor((Lons[size_t(I)] + 180.0) / CellDeg));
+	}
+	bool AnyYes = false, AnyNo = false, AnyRings = false;
+	for (int R = Rows[size_t(Size - 1)]; R <= Rows[0]; ++R)
+		for (int C = Cols[0]; C <= Cols[size_t(Size - 1)]; ++C)
+		{
+			const int M = May(R, C);
+			(M == 0 ? AnyNo : M == 1 ? AnyYes : AnyRings) = true;
+		}
+	if (!AnyNo && !AnyRings) return std::vector<uint8_t>();
+	if (!AnyYes && !AnyRings) return std::vector<uint8_t>(1, 0);
+	std::vector<uint8_t> Out(size_t(Size) * size_t(Size), 0);
+	std::vector<double> Cross;
+	for (int J = 0; J < Size; ++J)
+	{
+		// (a row's crossings of the cells' land edges, for the even-odd rule: land where odd to the west)
+		std::map<int, std::vector<double>> RowCross;
+		const double Lat = Lats[size_t(J)];
+		for (int I = 0; I < Size; ++I)
+		{
+			const size_t At = size_t(J) * size_t(Size) + size_t(I);
+			const int R = Rows[size_t(J)], C = Cols[size_t(I)];
+			const int M = May(R, C);
+			if (M != 2) { Out[At] = uint8_t(M); continue; }
+			auto Rc = RowCross.find(C);
+			if (Rc == RowCross.end())
+			{
+				Cross.clear();
+				const CoastLand& L = *Coast.find(CellId{R, C})->second;
+				for (const auto* Set : {&L.Rings, &L.Holes})
+					for (const auto& Ring : *Set)
+						for (size_t K = 0, N = Ring.size(); K < N; ++K)
+						{
+							const auto& A = Ring[K];
+							const auto& B = Ring[(K + 1) % N];
+							if ((A.first > Lat) != (B.first > Lat))
+								Cross.push_back(A.second + (Lat - A.first) / (B.first - A.first) * (B.second - A.second));
+						}
+				std::sort(Cross.begin(), Cross.end());
+				Rc = RowCross.emplace(C, Cross).first;
+			}
+			const std::vector<double>& Xs = Rc->second;
+			const size_t West = size_t(std::lower_bound(Xs.begin(), Xs.end(), Lons[size_t(I)]) - Xs.begin());
+			Out[At] = West % 2 == 1 ? 0 : 1;
+		}
+	}
 	return Out;
+}
+
+void HeightStore::KnowCoast(CellId Cell, std::shared_ptr<const CoastLand> Land)
+{
+	if (!Land) return;
+	std::lock_guard<std::mutex> G(Lock);
+	Coasts[Cell] = std::move(Land);
+	const double S = CellDeg;
+	for (auto M = Mem.begin(); M != Mem.end();)
+	{
+		const GeoBox B = TileBox(M->first);
+		if (B.North > Cell.Row * S - 90.0 && B.South < (Cell.Row + 1) * S - 90.0 && B.East > Cell.Col * S - 180.0 && B.West < (Cell.Col + 1) * S - 180.0)
+			M = Mem.erase(M);
+		else ++M;
+	}
+}
+
+bool HeightStore::CoastKnown(CellId Cell) const
+{
+	std::lock_guard<std::mutex> G(Lock);
+	return Coasts.count(Cell) > 0;
+}
+
+bool HeightStore::CoastBlockRead(const std::string& Block)
+{
+	std::lock_guard<std::mutex> G(Lock);
+	return !CoastBlocks.insert(Block).second;
 }
 
 int HeightStore::Fetch(const std::vector<TileKey>& Keys, const Fetcher& Get, int AtOnce, const std::function<void(int, int)>& Progress)
@@ -451,5 +529,7 @@ void HeightStore::Reset()
 	Missing.clear();
 	None.clear();
 	SeaCellsKnown.clear();
+	Coasts.clear();
+	CoastBlocks.clear();
 }
 } // namespace TorqueWorld

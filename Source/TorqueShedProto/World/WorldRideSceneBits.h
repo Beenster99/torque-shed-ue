@@ -113,13 +113,22 @@ inline void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const 
 	const bool Flat = std::fabs(Ny) > 0.7;
 	const double Hl = std::sqrt(Nx * Nx + Nz * Nz);
 	const double Tx = Hl > 1e-6 ? -Nz / Hl : 1.0, Tz = Hl > 1e-6 ? Nx / Hl : 0.0;   // (along a wall's face, level)
+	const auto UvOf = [&](const P3& Q, double& U, double& W)
+	{
+		const double Lx = Q.X - Out.OriginX, Lz = Q.Z - Out.OriginZ;
+		U = Flat ? Lx : Lx * Tx + Lz * Tz;
+		W = Flat ? Lz : -Q.Y;
+	};
+	double U0, W0;
+	UvOf(Q0, U0, W0);
+	const double ShiftU = UvShift(U0), ShiftW = UvShift(W0);
 	for (const P3* Q : {&Q0, &Q1, &Q2, &Q3})
 	{
 		Out.Pos.push_back(float(Q->X - Out.OriginX)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Q->Z - Out.OriginZ));
 		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
-		// (kept small: a float's metres of UV stay sharp near the square, not 100 km from the cell's corner)
-		const double Lx = Q->X - Out.OriginX, Lz = Q->Z - Out.OriginZ;
-		Out.Uv.push_back(float(Flat ? Lx : Lx * Tx + Lz * Tz)); Out.Uv.push_back(float(Flat ? Lz : -Q->Y));
+		double U, W;
+		UvOf(*Q, U, W);
+		Out.Uv.push_back(float(U - ShiftU)); Out.Uv.push_back(float(W - ShiftW));
 		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
 		if (Moss >= 0.0f) Out.Alpha.push_back(Moss);
 	}
@@ -145,12 +154,13 @@ inline void RoofQuad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, co
 	double Sx = Ny * Tz, Sy = Nz * Tx - Nx * Tz, Sz = -Ny * Tx;   // (N x T)
 	if (Sy < 0.0) { Sx = -Sx; Sy = -Sy; Sz = -Sz; }
 	const uint32_t V = uint32_t(Out.Vertices());
+	const double ShiftU = UvShift((Q0.X - Out.OriginX) * Tx + (Q0.Z - Out.OriginZ) * Tz), ShiftW = UvShift(-((Q0.X - Out.OriginX) * Sx + Q0.Y * Sy + (Q0.Z - Out.OriginZ) * Sz));
 	for (const P3* Q : {&Q0, &Q1, &Q2, &Q3})
 	{
 		const double Lx = Q->X - Out.OriginX, Lz = Q->Z - Out.OriginZ;
 		Out.Pos.push_back(float(Lx)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Lz));
 		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
-		Out.Uv.push_back(float(Lx * Tx + Lz * Tz)); Out.Uv.push_back(float(-(Lx * Sx + Q->Y * Sy + Lz * Sz)));
+		Out.Uv.push_back(float(Lx * Tx + Lz * Tz - ShiftU)); Out.Uv.push_back(float(-(Lx * Sx + Q->Y * Sy + Lz * Sz) - ShiftW));
 		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
 		Out.Alpha.push_back(Kind);
 	}

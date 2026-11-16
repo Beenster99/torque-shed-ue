@@ -1,0 +1,12 @@
+{
+ "about": "[helmet plan, stage 1] A player's helmet paint (Profile page > HELMET; FTorqueProfile's colour and finish), put on the Fab helmet's shell by TorqueHelmetLook::ApplyPaint (Source/TorqueShedProto/RiderRig.cpp) with Tools/ue_build_level.py's masters /Game/Rider/Materials/M_HelmetPaint_Coat (clear coat) and M_HelmetPaint_Plain. The shell is the slots in 'paint_slots' (numbers, once the PC's helmet export shows them), or else every slot whose slot or material name has a 'paint_words' word and no 'keep_words' word. Each slot it touches is logged ('Torque: helmet slot N (...) painted ...'). 'finishes' are in the Profile page's order: gloss, matt, metallic, pearl; 'pearl' is how far the colour turns to a lighter, hue-shifted tint at grazing angles.",
+ "paint_slots": [],
+ "paint_words": ["shell", "paint", "body", "helmet", "base"],
+ "keep_words": ["visor", "glass", "lens", "shield", "trim", "rubber", "lining", "liner", "interior", "inner", "foam", "strap", "buckle", "seal"],
+ "finishes": [
+  {"name": "Gloss", "master": "coat", "roughness": 0.1, "metallic": 0.0, "specular": 0.5, "pearl": 0.0},
+  {"name": "Matt", "master": "plain", "roughness": 0.7, "metallic": 0.0, "specular": 0.35, "pearl": 0.0},
+  {"name": "Metallic", "master": "coat", "roughness": 0.3, "metallic": 0.8, "specular": 0.5, "pearl": 0.0},
+  {"name": "Pearl", "master": "coat", "roughness": 0.15, "metallic": 0.15, "specular": 0.5, "pearl": 0.65}
+ ]
+}

@@ -29,7 +29,12 @@
 #include "World/WorldFiles.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Modules/ModuleManager.h"
+#include <set>
 #include "World/WorldRide.h"
+#include "World/WorldRideSigns.h"
 #include "World/TorqueRideWorld.h"
 
 #include <atomic>
@@ -38,6 +43,8 @@ struct FTorqueWorldShared
 {
 	TorqueWorld::CellStore Cells;
 	TorqueWorld::HeightStore Heights;
+	TorqueWorld::Route::MapRoads MapRoads;   // [build 147] the planner's road map's main roads
+	TorqueWorld::Route::MapImagery Imagery;  // [build 147] the planner's satellite pictures
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
 	std::atomic<bool> bOffline{false};   // [stage 8] Settings' offline: nothing is fetched
 };
@@ -56,6 +63,14 @@ struct FAnswer
 static std::string ToStd(const FString& Text)
 {
 	return std::string(TCHAR_TO_UTF8(*Text));
+}
+
+// [tests off Buttertubs] -TorqueWorldOffline: nothing fetched whatever Settings say, so a test ride
+// is ridden from what is kept on disk alone (and fails at once, saying what is missing, if it isn't).
+static bool ForcedOffline()
+{
+	static const bool bForced = FParse::Param(FCommandLine::Get(), TEXT("TorqueWorldOffline"));
+	return bForced;
 }
 
 // GETs a URL (redirects followed): the HTTP code, 0 for no answer, and the body. Blocks, so never
@@ -120,6 +135,27 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	const FString Root = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World")));
 	Shared->Cells.Dir = TWSI::ToStd(FPaths::Combine(Root, TEXT("cells")));
 	Shared->Heights.Disk = TWSI::ToStd(FPaths::Combine(Root, TEXT("heights")));
+	// [build 147] The planner's satellite pictures, kept beside the heights and decoded by the engine.
+	Shared->Imagery.Disk = TWSI::ToStd(FPaths::Combine(Root, TEXT("imagery")));
+	Shared->Imagery.Decode = [](const std::string& Bytes, int& OutW, int& OutH, std::vector<uint8_t>& Rgb)
+	{
+		IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+		const TSharedPtr<IImageWrapper> Jpeg = Wrappers.CreateImageWrapper(EImageFormat::JPEG);
+		if (!Jpeg.IsValid() || !Jpeg->SetCompressed(Bytes.data(), int64(Bytes.size()))) return false;
+		TArray64<uint8> Raw;
+		if (!Jpeg->GetRaw(ERGBFormat::RGBA, 8, Raw)) return false;
+		OutW = int(Jpeg->GetWidth());
+		OutH = int(Jpeg->GetHeight());
+		if (Raw.Num() != int64(OutW) * int64(OutH) * 4) return false;
+		Rgb.resize(size_t(OutW) * size_t(OutH) * 3);
+		for (int64 P = 0; P < int64(OutW) * int64(OutH); ++P)
+		{
+			Rgb[size_t(P) * 3] = Raw[P * 4];
+			Rgb[size_t(P) * 3 + 1] = Raw[P * 4 + 1];
+			Rgb[size_t(P) * 3 + 2] = Raw[P * 4 + 2];
+		}
+		return true;
+	};
 	// (a weak hold: a fetch asked for after the game has closed finds nothing to ask)
 	std::weak_ptr<FTorqueWorldShared> Weak = Shared;
 	Shared->Cells.Get = [Weak](const std::string& Url, std::string& Body)
@@ -128,7 +164,7 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		return Held && !Held->bOffline ? TWSI::BlockingGet(Held, Url, Body) : 0;
 	};
 	// [stage 8] Offline or not, before anything is asked for.
-	Shared->bOffline = FTorqueSettings::Get().bWorldOffline;
+	Shared->bOffline = FTorqueSettings::Get().bWorldOffline || TWSI::ForcedOffline();
 	Shared->Cells.Offline = Shared->bOffline;
 	// [towns stage 1] The famous towns' own looks, before any ride is planned.
 	{
@@ -136,6 +172,46 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
+		std::string GlyphText;
+		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));
+		const bool bGlyphs = TorqueWorld::Files::Read(GlyphsPath, GlyphText) && TorqueWorld::SetSignFont(GlyphText);
+		const std::shared_ptr<const TorqueWorld::SignFont> Font = TorqueWorld::SignFontNow();
+		UE_LOG(LogTemp, Display, TEXT("Torque world: sign letters: %d from Data/RideUK/sign_glyphs.json%s"), Font ? int32(Font->Glyphs.size()) : 0, bGlyphs ? TEXT("") : TEXT(" (none: signs fall back to text components)"));
+		// [OSM stage 6C] The places direction signs name (the Route planner's gazetteer, read again for the plan).
+		std::string SignPlaceText;
+		const std::string SignPlacesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/World/uk_places.tsv")));
+		const bool bSignPlaces = TorqueWorld::Files::Read(SignPlacesPath, SignPlaceText) && TorqueWorld::SetSignPlaces(SignPlaceText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: direction signs' places%s"), bSignPlaces ? TEXT(" read") : TEXT(": none (no direction signs)"));
+		// [places stage 5] The famous places' own notes (how many stones, a spire or not...).
+		std::string SiteText;
+		const std::string SitesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/landmarks_uk.json")));
+		const bool bSites = TorqueWorld::Files::Read(SitesPath, SiteText) && TorqueWorld::SetSiteTable(SiteText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: site notes: %d from Data/RideUK/landmarks_uk.json%s"), int32(TorqueWorld::SiteTable().size()), bSites ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [places stage 6] And the famous places' own models the notes name (Data/RideUK/Sites/<model>.glb).
+		std::vector<std::shared_ptr<const TorqueWorld::SiteModel>> Models;
+		size_t Triangles = 0;
+		for (const TorqueWorld::SiteNote& SiteRow : TorqueWorld::SiteTable())
+		{
+			if (SiteRow.Model.empty() || TorqueWorld::SiteModelOf(SiteRow.Model)) continue;
+			bool bHave = false;
+			for (const std::shared_ptr<const TorqueWorld::SiteModel>& Had : Models) bHave = bHave || Had->Id == SiteRow.Model;
+			if (bHave) continue;
+			std::string Bytes, Why;
+			const std::string ModelPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/Sites") / (FString(UTF8_TO_TCHAR(SiteRow.Model.c_str())) + TEXT(".glb"))));
+			std::shared_ptr<TorqueWorld::SiteModel> Model = std::make_shared<TorqueWorld::SiteModel>();
+			Model->Id = SiteRow.Model;
+			if (!TorqueWorld::Files::Read(ModelPath, Bytes) || !TorqueWorld::ReadSiteModel(Bytes, *Model, &Why))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque world: site model %s not read (%s): %s keeps its recipe"), UTF8_TO_TCHAR(SiteRow.Model.c_str()), Why.empty() ? TEXT("missing") : UTF8_TO_TCHAR(Why.c_str()), UTF8_TO_TCHAR(SiteRow.Name.c_str()));
+				continue;
+			}
+			Triangles += Model->Triangles();
+			Models.push_back(Model);
+		}
+		const int32 ModelsRead = int32(Models.size());
+		TorqueWorld::SetSiteModels(std::move(Models));
+		UE_LOG(LogTemp, Display, TEXT("Torque world: site models: %d from Data/RideUK/Sites (%d triangles)"), ModelsRead, int32(Triangles));
 	}
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);
@@ -243,7 +319,15 @@ bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
 	FString Title = TEXT("Hawes to Leyburn");
 	TArray<FString> Given;
 	Spec.ParseIntoArray(Given, TEXT(","), true);
-	if (Given.Num() == 4)
+	// [tests off Buttertubs] "buttertubs": Hawes to Thwaite over the real Buttertubs Pass (10.9 km,
+	// 364 m of climbing, 1 in 4 at its steepest), the smoke ride and the physics preset's climb.
+	if (Spec.TrimStartAndEnd().Equals(TEXT("buttertubs"), ESearchCase::IgnoreCase))
+	{
+		Ends[2] = 54.3792;
+		Ends[3] = -2.1652;
+		Title = TEXT("Hawes to Thwaite over the Buttertubs");
+	}
+	else if (Given.Num() == 4)
 	{
 		for (int32 I = 0; I < 4; ++I) Ends[I] = FCString::Atod(*Given[I].TrimStartAndEnd());
 		Title = TEXT("Ride UK");
@@ -311,6 +395,12 @@ void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> M
 	{
 		Note = FString(TEXT("Ride UK: ")) + (Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no ride was planned."));
 		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: FAIL: %s"), Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan"));
+		// [tests off Buttertubs] A smoke ride that can't be planned (offline, its cells not kept) ends now.
+		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueSmoke")))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Torque smoke: FAIL: the ride could not be planned (%s)"), Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan"));
+			FPlatformMisc::RequestExit(false, TEXT("TorqueSmokeNoRide"));
+		}
 		return;
 	}
 	if (!bRide)
@@ -324,6 +414,14 @@ void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> M
 		return;
 	}
 	TravelTo(Made);
+}
+
+bool UTorqueWorldSubsystem::RideAgain()
+{
+	// [tests off Buttertubs] (the physics preset rides out 14 times: the road planned once)
+	if (bPlanning || !Plan || !Plan->Ok) return false;
+	TorqueWorld::Files::Write(TWSI::ToStd(RideRouteFile()), Plan->RouteJson());
+	return TravelTo(Plan);
 }
 
 bool UTorqueWorldSubsystem::RidePreview()
@@ -424,13 +522,36 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		const auto Draw = [&Held, &View]()
 		{
 			std::vector<uint8_t> Px;
-			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px);
+			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery);
 			TArray<uint8> Out;
 			Out.Append(Px.data(), int32(Px.size()));
 			return Out;
 		};
+		// [build 147] The satellite layer: its pictures on disk at once, then again with those that weren't.
+		if (View.Layer == TorqueWorld::Route::Satellite)
+		{
+			const std::vector<TorqueWorld::TileKey> Pics = TorqueWorld::Route::MapImagery::Keys(View);
+			bool bHave = true;
+			for (const TorqueWorld::TileKey& K : Pics) bHave = bHave && Held->Imagery.OnDisk(K);
+			TArray<uint8> First = Draw();
+			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bHave]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bHave); });
+			if (bHave || Held->bStop) return;
+			Held->Imagery.Fetch(Pics, Held->Cells.Get, 6);
+			if (Held->bStop) return;
+			TArray<uint8> Second = Draw();
+			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
+			return;
+		}
 		// What is on disk at once, then again with the tiles that weren't.
 		const std::vector<TorqueWorld::TileKey> Keys = View.Tiles();
+		// [build 147] Where the coast is, so low land (the Fens) isn't drawn as sea.
+		{
+			std::set<TorqueWorld::CellId> Under;
+			for (const TorqueWorld::TileKey& K : Keys)
+				for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
+			TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24,
+				View.Layer == TorqueWorld::Route::RoadMap ? &Held->MapRoads : nullptr);
+		}
 		bool bAll = true;
 		for (const TorqueWorld::TileKey& K : Keys) bAll = bAll && Held->Heights.Has(K);
 		TArray<uint8> First = Draw();
@@ -499,8 +620,8 @@ void UTorqueWorldSubsystem::WorldSettingsChanged()
 	if (!Shared) return;
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	const bool bWasOffline = Shared->bOffline;
-	Shared->bOffline = Set.bWorldOffline;
-	Shared->Cells.Offline = Set.bWorldOffline;
+	Shared->bOffline = Set.bWorldOffline || TWSI::ForcedOffline();
+	Shared->Cells.Offline = Shared->bOffline;
 	// (the store's own count is read on workers as they fetch: an int, written here between rides)
 	const long long Limit = (long long)FMath::Clamp(Set.WorldCacheGb, 1, 200) * 1000000000LL;
 	Shared->Cells.Keep = TorqueWorld::Cache::CellsToKeep(Limit);

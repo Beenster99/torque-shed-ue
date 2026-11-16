@@ -373,7 +373,7 @@ public:
 
 	// --- The bays --------------------------------------------------------------------------
 	static constexpr int32 Bays = 4;
-	static constexpr int32 StartBikes = 2;   // a new shed: a project bike in each of the first two bays
+	static constexpr int32 StartBikes = 2;   // a test run's new shed (ShedTest): a project bike in each of the first two bays; a real new game starts empty
 	int32 NumBikes() const { return Bikes.Num(); }
 	bool Exists(int32 Bay) const { return Bikes.IsValidIndex(Bay) && Bikes[Bay].bExists; }
 	const FTorqueShedBike& Bike(int32 Bay) const;
@@ -781,6 +781,7 @@ private:
 	FString NewOrderedBike(int32 Peer, int32 Bay, const FString& Order);
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
+	int32 DropRetiredParts();   // [tft] the ECUs and the old sat nav units
 	int32 FreeBay() const;
 	// [co-op] A bay whose bike is parked away from it (wheeled out, in the wash bay) is free for a
 	// frame: that bike's record goes to an empty bay's place, standing where it is. Empty when it

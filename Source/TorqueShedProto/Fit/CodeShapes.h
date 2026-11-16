@@ -299,6 +299,93 @@ inline GMesh Sweep(const std::vector<V3>& Path, double R, int Sides = 12, bool C
 	return M;
 }
 
+// [TFT] A slab with rounded corners lying in X-Z (W across, H along Z), Thick through Y about its
+// middle, its front (+Y) edge bevelled by Bevel: a screen's housing, its glass.
+inline GMesh Slab(double W, double H, double Thick, double R, double Bevel = 0.0, int Corner = 6)
+{
+	GMesh M;
+	R = std::max(0.0005, std::min(R, std::min(W, H) * 0.5));
+	Bevel = std::max(0.0, std::min(Bevel, std::min(R * 0.9, Thick * 0.5)));
+	// The outline, a corner at a time (the plain one and the one inside the bevel), with its normals.
+	std::vector<V3> Edge, Inner, Nrm;
+	for (int C = 0; C < 4; ++C)
+	{
+		const double Cx = (C == 0 || C == 3 ? 1.0 : -1.0) * (W * 0.5 - R), Cz = (C < 2 ? 1.0 : -1.0) * (H * 0.5 - R);
+		for (int I = 0; I <= Corner; ++I)
+		{
+			const double A = (C + static_cast<double>(I) / Corner) * Tau * 0.25;
+			const V3 N(std::cos(A), 0.0, std::sin(A));
+			Edge.push_back(V3(Cx, 0.0, Cz) + N * R);
+			Inner.push_back(V3(Cx, 0.0, Cz) + N * (R - Bevel));
+			Nrm.push_back(N);
+		}
+	}
+	const unsigned Count = static_cast<unsigned>(Edge.size());
+	const double Y0 = -Thick * 0.5, Y1 = Thick * 0.5 - Bevel, Y2 = Thick * 0.5;
+	// The sides.
+	unsigned Base = static_cast<unsigned>(M.P.size());
+	for (unsigned I = 0; I < Count; ++I)
+	{
+		M.Add(Edge[I] + V3(0.0, Y0, 0.0), Nrm[I]);
+		M.Add(Edge[I] + V3(0.0, Y1, 0.0), Nrm[I]);
+	}
+	for (unsigned I = 0; I < Count; ++I)
+	{
+		const unsigned A = Base + I * 2, B = Base + ((I + 1) % Count) * 2;
+		M.Idx.insert(M.Idx.end(), {A, B, A + 1, A + 1, B, B + 1});
+	}
+	// The bevel.
+	if (Bevel > 0.0)
+	{
+		Base = static_cast<unsigned>(M.P.size());
+		for (unsigned I = 0; I < Count; ++I)
+		{
+			const V3 N = (Nrm[I] + V3(0.0, 1.0, 0.0)).Normalized();
+			M.Add(Edge[I] + V3(0.0, Y1, 0.0), N);
+			M.Add(Inner[I] + V3(0.0, Y2, 0.0), N);
+		}
+		for (unsigned I = 0; I < Count; ++I)
+		{
+			const unsigned A = Base + I * 2, B = Base + ((I + 1) % Count) * 2;
+			M.Idx.insert(M.Idx.end(), {A, B, A + 1, A + 1, B, B + 1});
+		}
+	}
+	// The front and the back.
+	for (int Side = 0; Side < 2; ++Side)
+	{
+		const V3 N(0.0, Side == 0 ? 1.0 : -1.0, 0.0);
+		const std::vector<V3>& Ring = Side == 0 ? Inner : Edge;
+		const double Y = Side == 0 ? Y2 : Y0;
+		const unsigned Mid = M.Add(V3(0.0, Y, 0.0), N, 0.5, 0.5);
+		for (unsigned I = 0; I < Count; ++I) M.Add(Ring[I] + V3(0.0, Y, 0.0), N, Ring[I].x / W + 0.5, Ring[I].z / H + 0.5);
+		for (unsigned I = 0; I < Count; ++I) M.Idx.insert(M.Idx.end(), {Mid, Mid + 1 + I, Mid + 1 + (I + 1) % Count});
+	}
+	return M;
+}
+
+// [TFT] A screen's lit face in X-Z looking along +Y: W across, H along Z (the picture's top at -Z),
+// or a disc W across. Its picture's corners are the face's (u across, v down).
+inline GMesh ScreenFace(double W, double H, bool Round, int Segments = 48)
+{
+	GMesh M;
+	const V3 N(0.0, 1.0, 0.0);
+	if (!Round)
+	{
+		for (double Z : {-1.0, 1.0})
+			for (double X : {-1.0, 1.0}) M.Add(V3(X * W * 0.5, 0.0, Z * H * 0.5), N, X * 0.5 + 0.5, Z * 0.5 + 0.5);
+		M.Quad(0, 1, 2, 3);
+		return M;
+	}
+	const unsigned Mid = M.Add(V3(), N, 0.5, 0.5);
+	for (int I = 0; I < Segments; ++I)
+	{
+		const double A = Tau * I / Segments;
+		M.Add(V3(std::cos(A) * W * 0.5, 0.0, std::sin(A) * W * 0.5), N, std::cos(A) * 0.5 + 0.5, std::sin(A) * 0.5 + 0.5);
+	}
+	for (unsigned I = 0; I < static_cast<unsigned>(Segments); ++I) M.Idx.insert(M.Idx.end(), {Mid, Mid + 1 + I, Mid + 1 + (I + 1) % Segments});
+	return M;
+}
+
 // Godot's names for siblings of the same name: the first as it is, then Name2, Name3...
 struct GodotNames
 {

@@ -392,6 +392,37 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (bFace) ByName.Add(TEXT("Face"), C);   // what the hair is attached to, whatever the part's name
 		Out.Add(C);
 	}
+	// Round 143: the Creator's only top (its default garment) comes with shorts, which drew over the
+	// Fab jeans (white shorts blotched with denim). With a bottom garment worn, the top's shorts,
+	// trouser or bottom sections are hidden: drawn with M_HairCards at no opacity (masked, so nothing
+	// shows). -TorqueKeepShorts keeps them.
+	{
+		bool bBottom = false;
+		for (const FPart& P : E.Parts) bBottom |= P.Mesh.Contains(TEXT("BottomGarment"));
+		UMaterialInterface* const Clear = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
+		if (bBottom && Clear && !FParse::Param(FCommandLine::Get(), TEXT("TorqueKeepShorts")))
+			for (const TWeakObjectPtr<USceneComponent>& W : Out)
+			{
+				USkinnedMeshComponent* Top = Cast<USkinnedMeshComponent>(W.Get());
+				if (!Top || !Top->GetSkinnedAsset() || !Top->GetSkinnedAsset()->GetName().Contains(TEXT("TopGarment"))) continue;
+				const TArray<FName> SlotNames = Top->GetMaterialSlotNames();
+				for (int32 Slot = 0; Slot < SlotNames.Num(); ++Slot)
+				{
+					const FString SlotName = SlotNames[Slot].ToString().ToLower();
+					UMaterialInterface* Was = Top->GetMaterial(Slot);
+					const FString WasName = Was ? Was->GetName().ToLower() : FString();
+					const bool bLegs = SlotName.Contains(TEXT("short")) || SlotName.Contains(TEXT("trouser")) || SlotName.Contains(TEXT("pant")) || SlotName.Contains(TEXT("bottom"))
+						|| WasName.Contains(TEXT("short")) || WasName.Contains(TEXT("trouser")) || WasName.Contains(TEXT("pant"));
+					if (!bLegs) continue;
+					UMaterialInstanceDynamic* Gone = UMaterialInstanceDynamic::Create(Clear, Top);
+					if (!Gone) continue;
+					Gone->SetVectorParameterValue(FName(TEXT("Mask")), FLinearColor(0.f, 0.f, 0.f, 0.f));
+					Top->SetMaterial(Slot, Gone);
+					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s slot %d (%s, %s) hidden under the bottom garment"), *E.Name,
+						*Top->GetSkinnedAsset()->GetName(), Slot, *SlotNames[Slot].ToString(), Was ? *Was->GetName() : TEXT("none"));
+				}
+			}
+	}
 	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
 	// bone's rest so it sits where it was made and turns with the head. Each groom with a cards mesh
 	// is drawn this way too, with the game's M_HairCards (round 129: grooms drew only far away,
@@ -617,7 +648,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UMeshComponent* MC = Cast<UMeshComponent>(C))
 		{
 			ApplyMaterials(MC, P.Materials);
-			static UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
+			UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
 			for (int32 Slot = 0; Slot < FMath::Max(MC->GetNumMaterials(), 1); ++Slot)
 			{
 				UMaterialInterface* M = MC->GetMaterial(Slot);
@@ -664,7 +695,7 @@ void FTorqueAvatar::SpawnLooseHair(AActor* Owner, USceneComponent* Parent, int32
 	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
 	if (!Owner || !Parent || List.Num() == 0 || !GroomClass) return;
 	const FEntry& E = List[((Index % List.Num()) + List.Num()) % List.Num()];
-	static UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
+	UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
 	for (const FPart& P : E.Parts)
 	{
 		if (P.Groom.IsEmpty()) continue;
@@ -1713,7 +1744,9 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				// the grip and a little below, about 9 cm out let go, 3 cm when pulled to the bar.
 				FVector Ahead = Fwd - BarAxis[S] * FVector::DotProduct(Fwd, BarAxis[S]);
 				Ahead = (Ahead.GetSafeNormal(UE_SMALL_NUMBER, Fwd) - Up * 0.35).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
-				const FVector LeverLine = Ahead * FMath::Lerp(9.0, 3.0, Pull);
+				FVector LeverLine = Ahead * FMath::Lerp(9.0, 3.0, Pull);
+				// (The bike's own lever where it's drawn, pulled as far as it is.)
+				if (!Tg.LeverLine[S].IsNearlyZero()) LeverLine = ToC(Tg.Grip[S] + Tg.LeverLine[S]) - ToC(Tg.Grip[S]);
 				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, HandOffS[S],
 					On * (1.0 - HandOffS[S]), LeverLine);   // the grip's radius plus half a finger
 			}
@@ -1771,6 +1804,14 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 						}
 						A = FMath::Lerp(AnkleOnPeg, A, Down);
 						FootQ = FQuat::Slerp(OnPeg, FQuat::Identity, Down);
+					}
+					// [rider pose] Down at a stop on tiptoe (a tall saddle): the toes pointed down so the ball
+					// of the foot meets the road under an ankle Toes cm up.
+					if (bBall[S] && Down > 0.0 && Tg.Toes[S] > 0.1)
+					{
+						const double ToeLen = FMath::Max((BallRest[S] - A0).Size(), 5.0);
+						const double ToePr = FMath::Asin(FMath::Clamp(Tg.Toes[S] / ToeLen, 0.0, 0.8)) * Down;
+						FootQ = FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(ToePr) - Up * FMath::Sin(ToePr)) * FootQ;
 					}
 					// The knee on the circle the thigh and shin allow, as near as it comes to a nearly
 					// level thigh (12 degrees down from the hip joint, as people sit a bike: beenster), as

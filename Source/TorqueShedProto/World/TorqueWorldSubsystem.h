@@ -64,14 +64,24 @@ public:
 
 	// The level a real-world ride is ridden in.
 	static const TCHAR* RideMap;
-	// Plans a ride and opens its level when it is ready. Spec: "hawes" (Hawes to Leyburn) or
-	// "latA,lonA,latB,lonB". False if one is being planned already.
+	// Plans a ride and opens its level when it is ready. Spec: "hawes" (Hawes to Leyburn), "buttertubs"
+	// (Hawes to Thwaite over the pass) or "latA,lonA,latB,lonB". False if one is being planned already.
 	bool StartRide(const FString& Spec);
 	bool IsPlanningRide() const { return bPlanning; }
+	// [tests off Buttertubs] The ride planned last ridden again, its level opened, without planning it
+	// again; false if there is none (or one is being planned).
+	bool RideAgain();
 	// What the planning is doing now, or why the last one failed ("" for nothing to say).
 	FString RideNote() const;
 	// The ride planned last (null before any): the game mode hands it to ATorqueRideWorld.
 	std::shared_ptr<TorqueWorld::RidePlan> Ride() const { return Plan; }
+	// [ride anywhere 3] The ride being ridden grew (RidePlan::Grow) as the rider neared the edge of what
+	// was read: the grown one in its place wherever the old one was held.
+	void RideGrew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown)
+	{
+		if (Plan == Old) Plan = Grown;
+		if (LegPlan == Old) LegPlan = Grown;
+	}
 	// Who made the world's data, a credit a line as its licence asks: the last ride's own (from its
 	// cells), or before any ride those of the UK's cells.
 	TArray<FString> Credits() const;

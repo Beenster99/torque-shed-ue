@@ -17,6 +17,8 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
+#include "TorqueTft.h"
+#include "RideModes.h"
 #include "World/TorqueWorldSubsystem.h"
 
 #include "BikeSim.h"
@@ -40,6 +42,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
+#include "Misc/App.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Engine/GameViewportClient.h"
@@ -156,6 +159,7 @@ ATorqueBikePawn::ATorqueBikePawn()
 	SetNetUpdateFrequency(60.f);
 	SetMinNetUpdateFrequency(30.f);
 	NetBike = CreateDefaultSubobject<UTorqueNetBikeComponent>(TEXT("NetBike"));
+	Tft = CreateDefaultSubobject<UTorqueTftComponent>(TEXT("Tft"));   // [tft]
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -740,17 +744,35 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 					const FBox Box = C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
 					GripBox[Box.GetCenter().Y < 0.0 ? 0 : 1] += Box;
 				}
+			// [rider pose] The drawn clutch and brake levers: the lever glb's own blade (tagged "Lever:0" /
+			// "Lever:1" as it's drawn), not the hose or banjo that share its glb, and each one's pin
+			// (beenster, build 146: the brake hose swung with the lever).
+			{
+				static const FName LeverTags[2] = {FName(TEXT("Lever:0")), FName(TEXT("Lever:1"))};
+				for (int32 S = 0; S < 2; ++S)
+				{
+					CatLever[S] = nullptr;
+					bCatLeverRest[S] = false;
+					CatLeverPin[S] = Frame.LeverPin[S];
+					CatLeverAxis[S] = Frame.LeverAxis[S];
+				}
+				for (UStaticMeshComponent* C : ModelParts)
+					for (int32 S = 0; S < 2; ++S)
+						if (C && C->GetStaticMesh() && Frame.bLever[S] && C->ComponentHasTag(LeverTags[S]) && !CatLever[S].IsValid()) CatLever[S] = C;
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider levers drawn: clutch %s (pin %s, up %s), brake %s (pin %s, up %s)"),
+					CatLever[0].IsValid() ? TEXT("yes") : TEXT("no"), *CatLeverPin[0].ToCompactString(), *CatLeverAxis[0].ToCompactString(),
+					CatLever[1].IsValid() ? TEXT("yes") : TEXT("no"), *CatLeverPin[1].ToCompactString(), *CatLeverAxis[1].ToCompactString());
+			}
 			// No drawn grips (a style whose bars don't take them): the layout's.
 			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
 			RiderGrip[0] = GripBox[0].IsValid ? GripBox[0].GetCenter() : FVector(RiderGrip[1].X, -RiderGrip[1].Y, RiderGrip[1].Z);
-			// The tank's back edge as drawn (the rider's crotch is kept behind it).
+			// The tank's back edge as drawn where the crotch meets it (the rider's crotch is kept behind
+			// it), moved as geometry mode moved the tank. Not the tank's whole box: an adventure tank's
+			// tail runs back under the seat, and that pushed the hips 20 cm back (beenster, build 147).
 			static const FName TankTag(TEXT("Slot:tank"));
-			FBox TankBox(ForceInit);
-			for (UStaticMeshComponent* C : ModelParts)
-				if (C && C->GetStaticMesh() && C->ComponentHasTag(TankTag))
-					TankBox += C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
-			RiderTankRearX = TankBox.IsValid ? TankBox.Min.X : 1.0e9;
-			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat %s, tank's back edge x %.1f"), *RiderSeat.ToCompactString(), TankBox.IsValid ? TankBox.Min.X : 0.0);
+			const bool bTankEdge = Frame.TankRearX < 1.0e8;
+			RiderTankRearX = bTankEdge ? MoveOf(TankTag).TransformPosition(FVector(Frame.TankRearX, 0.0, Frame.Seat.Z)).X : 1.0e9;
+			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat (%s) %s, tank's back edge x %.1f"), *Frame.Style, *RiderSeat.ToCompactString(), bTankEdge ? RiderTankRearX : 0.0);
 			bRiderLaidBack = Frame.bLaidBack;
 			bRiderOnLayout = true;
 			bRiderFitted = false;
@@ -806,6 +828,11 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	// [fluids] The petrol it rides out with is what's in its tank in the shed (filled at the pump).
 	if (B->FuelCapacityOf(Bay) > 0.0f) Dash.FuelLitres = FMath::Clamp((double)B->FuelOf(Bay), 0.0, Dash.FuelCapacity);
 	Dash.HookClocks(this, ModelParts, Gauges, ShapeCube);
+	// [tft] Its TFT screen and phone sat nav light up; the ride modes start from the bike as built.
+	ModeBase = Spec;
+	bModeBase = bOwnSpec;
+	bCruise = false;
+	if (Tft) Tft->Hook(ModelParts, Gauges, bOwnSpec ? Spec : BikeSpec());
 	// [lights] Its lamps: the headlight, fog lights, indicators and rear light on their lenses.
 	Lights.Setup(Parts);
 	Lights.Hook(this, ModelParts, true);
@@ -887,8 +914,8 @@ FString ATorqueBikePawn::TestRideLog() const
 				TestGripThrottleHold >= 0.0 ? TestGripThrottleHold : Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
 				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
 			// Stopped on a tall bike: leant onto the left foot, the right kept on its peg.
-			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, leg %.1f cm, left hip joint %s, ground at z %.1f"),
-				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], Rp.LegReach, *Rp.HipJointAt[0].ToCompactString(), -Sim->Build.RearRadius * 100.0);
+			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, on the toes %.1f / %.1f cm, leg %.1f cm, left hip joint %s, ground at z %.1f"),
+				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], RiderToes[0], RiderToes[1], Rp.LegReach, *Rp.HipJointAt[0].ToCompactString(), -Sim->Build.RearRadius * 100.0);
 		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
@@ -1194,11 +1221,27 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
 		(void)bMph;
+		// (robot:mph:N sets it for the rest of the run.)
+		if (TestRobotMph > 0.f) AutoMph = TestRobotMph;
 		const double Want = TestMove >= 0 ? TestMps : AutoMph / 2.23694;
 		const V3 P = Sim->Position;
 		int32 Ahead = Near;
 		double Acc = 0.0;
-		const double Look = 6.0 + 0.6 * FMath::Abs(Sim->Speed);
+		double Look = 6.0 + 0.6 * FMath::Abs(Sim->Speed);
+		// [build 149 smoke] In a tight bend (Buttertubs' hairpin on the way down to Thwaite, 12 m round at
+		// 1 in 7) a long look ahead cuts across the inside: no further than the bend's own radius or so.
+		{
+			double Tight = 0.0, Run = 0.0;
+			for (int32 K = Near + 1; K + 1 < Line.Num() && Run < 20.0; ++K)
+			{
+				const double Ax = Line[K].X - Line[K - 1].X, Az = Line[K].Z - Line[K - 1].Z, Bx = Line[K + 1].X - Line[K].X, Bz = Line[K + 1].Z - Line[K].Z;
+				const double La = FMath::Sqrt(Ax * Ax + Az * Az), Lb = FMath::Sqrt(Bx * Bx + Bz * Bz);
+				Run += La;
+				if (La < 0.5 || Lb < 0.5) continue;
+				Tight = FMath::Max(Tight, FMath::Acos(FMath::Clamp((Ax * Bx + Az * Bz) / (La * Lb), -1.0, 1.0)) / (0.5 * (La + Lb)));
+			}
+			if (Tight > 1e-3) Look = FMath::Clamp(0.9 / Tight, 4.0, Look);
+		}
 		while (Ahead + 1 < Line.Num() && Acc < Look)
 		{
 			Acc += FMath::Sqrt(FMath::Square(Line[Ahead + 1].X - Line[Ahead].X) + FMath::Square(Line[Ahead + 1].Z - Line[Ahead].Z));
@@ -1213,9 +1256,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		const double Curv = 2.0 * FMath::Sin(Err) / Dist;
 		const double LeanWant = FMath::Atan(Sim->Speed * Sim->Speed * Curv / 9.81);
 		Lean = FMath::Clamp(-LeanWant / 0.55, -1.0, 1.0);
-		double Sharp = 0.0;
+		// (the speed for the bends ahead: each bend's own speed at 0.5 rad of lean, plus what braking at
+		// 2.5 m/s/s, less the hill's pull on a descent, takes off between here and it: [build 149 smoke]
+		// the robot fell twice where it had only the sharpest bend's speed to aim at and braked late)
+		double Corner = 99.0;
 		Acc = 0.0;
-		for (int32 K = Near + 1; K + 1 < Line.Num() && Acc < 60.0; ++K)
+		for (int32 K = Near + 1; K + 1 < Line.Num() && Acc < 90.0; ++K)
 		{
 			const double Ax = Line[K].X - Line[K - 1].X, Az = Line[K].Z - Line[K - 1].Z;
 			const double Bx = Line[K + 1].X - Line[K].X, Bz = Line[K + 1].Z - Line[K].Z;
@@ -1223,23 +1269,34 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			Acc += La;
 			if (La < 0.5 || Lb < 0.5) continue;
 			const double Turn = FMath::Acos(FMath::Clamp((Ax * Bx + Az * Bz) / (La * Lb), -1.0, 1.0));
-			Sharp = FMath::Max(Sharp, Turn / (0.5 * (La + Lb)));
+			const double Bend = Turn / (0.5 * (La + Lb));
+			if (Bend < 1e-3) continue;
+			const double Fall = FMath::Clamp((Line[K - 1].Y - Line[K].Y) / La, 0.0, 0.25);   // (the descent, m per m: Line's Y is up)
+			// ([build 150 smoke] still off at 22 mph in two sharp junction bends, 12-17 m round, at 0.14 and
+			// 1.64 km: it arrived about 2 m/s over their speed, at the very edge of 0.5 rad. Now 0.42 rad,
+			// braking planned at 2 m/s/s, and the brake pulled harder for the same shortfall)
+			const double Brake = FMath::Max(0.8, 2.0 - 9.81 * Fall);
+			Corner = FMath::Min(Corner, FMath::Sqrt(9.81 * FMath::Tan(0.42) / Bend + 2.0 * Brake * FMath::Max(0.0, Acc - 3.0)));
 		}
-		const double Corner = Sharp > 1e-3 ? FMath::Sqrt(9.81 * FMath::Tan(0.5) / Sharp) : 99.0;
 		const double Gap = FMath::Min(Want, Corner) - Sim->Speed;
 		Throttle = FMath::Clamp(Gap * 0.4, 0.0, 1.0);
-		FrontBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.8);
-		RearBrake = FrontBrake * 0.5;
+		FrontBrake = FMath::Clamp(-Gap * 0.5, 0.0, 0.8) * FMath::Clamp(1.0 - FMath::Abs(Sim->LeanAngle) / 0.7, 0.4, 1.0);
+		RearBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.4);
 		// A real-world ride's road ends where its route does (Buttertubs' runs on past the finish): the
 		// robot slows for the end, as for a corner, and stops there.
 		if (!FPaths::IsRelative(RouteFile) && Line.Num() > 1)
 		{
 			const double Left = RouteLengthM * (1.0 - double(Near) / double(Line.Num() - 1)) - 15.0;
-			const double EndGap = (Left > 0.0 ? FMath::Sqrt(2.0 * 3.0 * Left) : 0.0) - Sim->Speed;
+			// ([build 150 smoke] falls at 10.74 and 10.85 km, in Thwaite's S-bends before the finish: slow for
+			// the end sooner, at 2 m/s/s, and brake less while leaned)
+			const double EndGap = (Left > 0.0 ? FMath::Sqrt(2.0 * 2.0 * Left) : 0.0) - Sim->Speed;
 			if (bFinished || Left <= 0.0)
 			{
+				// (no full front brake while leaned over: Thwaite's finish is in an S-bend, and the robot
+				// grabbed the brake mid-bend and came off at 10.86 km, build 149's smoke)
+				const double Upright = FMath::Clamp(1.0 - FMath::Abs(Sim->LeanAngle) / 0.4, 0.25, 1.0);
 				Throttle = 0.0;
-				FrontBrake = 0.8;
+				FrontBrake = 0.8 * Upright;
 				RearBrake = 0.4;
 				// (hub, build 141: the robot stopped 15 m short of the end, never "finished", and a hands-off
 				// Ride UK test sat there until its 50 minute limit. Stopped at the end: say so, and a hands-off
@@ -1251,6 +1308,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 					bFinished = true;
 					const double Minutes = GetWorld() ? GetWorld()->GetTimeSeconds() / 60.0 : 0.0;
 					UE_LOG(LogTemp, Display, TEXT("Torque ride UK: reached the end of the ride, %.1f km, %.1f min in"), RouteLengthM / 1000.0, Minutes);
+					SmokeReport(true);   // [tests off Buttertubs]
 					if (bNoInput && !FParse::Param(FCommandLine::Get(), TEXT("TorqueLejog")) && FCString::Strifind(FCommandLine::Get(), TEXT("TorqueLejog=")) == nullptr)
 					{
 						FPlatformMisc::RequestExit(false, TEXT("TorqueAutoRideEnd"));
@@ -1260,8 +1318,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			else if (EndGap < Gap)
 			{
 				Throttle = FMath::Clamp(EndGap * 0.4, 0.0, 1.0);
-				FrontBrake = FMath::Clamp(-EndGap * 0.25, 0.0, 0.8);
-				RearBrake = FrontBrake * 0.5;
+				FrontBrake = FMath::Clamp(-EndGap * 0.5, 0.0, 0.8) * FMath::Clamp(1.0 - FMath::Abs(Sim->LeanAngle) / 0.7, 0.4, 1.0);
+				RearBrake = FMath::Clamp(-EndGap * 0.25, 0.0, 0.4);
 			}
 		}
 		if (bTestStopping)
@@ -1543,10 +1601,43 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// The clutch, held (Left Alt, or LB on the pad; F is get off): the engine spins free of the box in any
 	// gear, so it revs in gear and drives again as it's let out. The key (I): the engine off, or the
 	// starter cranks it and it fires (not on an empty tank, or with the bike down).
-	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch || bPadLB;
+	// [tft] The screen's buttons: LB held with the D-pad on the pad (beenster), 1 2 3 4 on the keys.
+	// LB alone is still the clutch; once the D-pad's pressed with it, it lets the clutch go and only
+	// works the screen until it's released.
+	const bool bHasScreen = Tft && Tft->HasMap();
+	if (!bPadLB) bTftPadNav = false;
+	const bool bTftPad = bHasScreen && bPadLB && !bPadSetsCam;
+	if (bHasScreen)
+	{
+		static const uint32 PadSony[4] = {ESonyButton::DLeft, ESonyButton::DRight, ESonyButton::DUp, ESonyButton::DDown};
+		static const FKey PadKey[4] = {EKeys::Gamepad_DPad_Left, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Down};
+		static const ETorqueKey Keys[4] = {ETorqueKey::TftLeft, ETorqueKey::TftRight, ETorqueKey::TftUp, ETorqueKey::TftDown};
+		for (int32 I = 0; I < 4; ++I)
+		{
+			const bool bPad = bTftPad && (SonyHit(PadSony[I]) || Just(PadKey[I]));
+			if (bPad) bTftPadNav = true;
+			if (bPad || FTorqueKeys::Just(PC, Keys[I])) TftPress(I);
+		}
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftOverlay)) Tft->ToggleOverlay();
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftMap)) Tft->ToggleMapTile();
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftArrange)) Tft->ToggleArrange();
+		if (Tft->Arranging())
+		{
+			if (FTorqueKeys::Just(PC, ETorqueKey::CamCloser)) Tft->ArrangeSize(1);
+			if (FTorqueKeys::Just(PC, ETorqueKey::CamFarther)) Tft->ArrangeSize(-1);
+		}
+	}
+	// Cruise control (T; on the pad LB with a click of the left stick): let go by either brake or the clutch.
+	if (FTorqueKeys::Just(PC, ETorqueKey::Cruise) || (bPadLB && (SonyHit(ESonyButton::L3) || Just(EKeys::Gamepad_LeftThumbstick)))) ToggleCruise();
+	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch || (bPadLB && !bTftPadNav);
+	if (bCruise && (FrontBrake > 0.05 || RearBrake > 0.05 || Sim->ClutchIn || Sim->Gear <= 0 || Sim->IsCrashed || !Sim->EngineOn))
+	{
+		bCruise = false;
+		if (Tft) Tft->Notice(TEXT("Cruise off"));
+	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition)) PressIgnition();
 	// ABS: the D-pad's down or the B key. Off, the rear brake will lock the wheel.
-	const bool bPadDDown = !bPadSetsCam && (SonyHit(ESonyButton::DDown) || Just(EKeys::Gamepad_DPad_Down));
+	const bool bPadDDown = !bPadSetsCam && !bTftPad && (SonyHit(ESonyButton::DDown) || Just(EKeys::Gamepad_DPad_Down));
 	if (bPadDDown || FTorqueKeys::Just(PC, ETorqueKey::Abs))
 	{
 		// Only on a bike that has it (as Torque Shed: the ECU's aid); none, it stays off.
@@ -1640,7 +1731,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (Keep.bSaved) Keep.Save();
 	}
 	// The horn while J or L3 is held (Torque Shed's pad horn; the d-pad's left and right are the indicators).
-	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0;
+	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || (!bPadLB && (PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0));   // (LB + L3 is the cruise control)
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
@@ -1653,13 +1744,13 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// round dipped, main beam, fog lights (when fitted), off.
 	{
 		bool bOk = false;
-		if (!bPadSetsCam && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
+		if (!bPadSetsCam && !bTftPad && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.CycleBeam(bOk), bOk);   // L cycles: dipped, main, main + fog, off
 		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Hazards)) LightsNote(Lights.ToggleHazard(bOk), bOk);
-		const bool bPadLeft = SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left);
-		const bool bPadRight = SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right);
+		const bool bPadLeft = !bTftPad && (SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left));
+		const bool bPadRight = !bTftPad && (SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right));
 		const bool bPadOther = bPadLeft ? ((SonyDown & ESonyButton::DRight) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Right))
 			: bPadRight && ((SonyDown & ESonyButton::DLeft) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left));
 		if (bPadOther) LightsNote(Lights.ToggleHazard(bOk), bOk);
@@ -1681,7 +1772,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	{
 		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
 		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
-		if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
+		// (A preset sky held: the next one, for testing the skies.)
+		if (GS && HasAuthority() && FTorqueSettings::Get().WeatherMode == FTorqueSettings::WeatherPreset) GS->ChooseSkyPreset(FString(), 1);
+		else if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
 		else if (GS) HostOnlyNoteFor = 3.0;
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Perf))   // (L3 is the horn now)
@@ -1753,6 +1846,17 @@ bool ATorqueBikePawn::GetOff()
 	else if (TyreF.Contact) ParkGround = TyreF.ContactPos;
 	else if (UWorld* World = GetWorld())
 		if (GroundTrace(World, ToUE(Sim->Position + V3(0.0, 0.3, 0.0)), ToUE(Sim->Position - V3(0.0, 3.0, 0.0)), Params, Hit)) ParkGround = ToSim(Hit.ImpactPoint);
+	// [build 149] Pitched along the slope, as the tyres touch it: held level on a hill, the front tyre
+	// stood in the road going up and the back one in the air going down (beenster, Eccles Road, 148).
+	ParkPitch = 0.0;
+	if (TyreF.Contact && TyreR.Contact)
+	{
+		const V3 Along = TyreF.ContactPos - TyreR.ContactPos;
+		const double Flat = std::sqrt(Along.x * Along.x + Along.z * Along.z);
+		if (Flat > 0.3) ParkPitch = FMath::Clamp(std::atan2(Along.y, Flat), -0.45, 0.45);
+	}
+	else
+		PitchToGround();
 	ChooseStand();
 	// The rider steps off to the left (the side stand's side), facing the way the bike points.
 	const FVector Ahead = DirToUE(V3(Fwd.x, 0.0, Fwd.z)).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
@@ -1804,6 +1908,7 @@ void ATorqueBikePawn::TakeOver(const FVector& Feet, double Yaw, bool bRide)
 	if (bPushing) LetGoBike();
 	const V3 Fwd = Sim->Basis.Z * -1.0;
 	ParkHeading = std::atan2(-Fwd.x, -Fwd.z);
+	ParkPitch = FMath::Clamp(std::asin(FMath::Clamp(Fwd.y, -1.0, 1.0)), -0.45, 0.45);   // [build 149] as their bike stood
 	ChooseStand();
 	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
 	ParkGround = Sim->Position - Sim->Basis * V3(0.0, AxleUp + ParkLift, 0.0);
@@ -1902,12 +2007,36 @@ bool ATorqueBikePawn::GetOn()
 	return true;
 }
 
+void ATorqueBikePawn::PitchToGround()
+{
+	// The ground traced under each tyre (from just above it: from higher, a cutting's moor collision
+	// over the road is found first), the bike pitched from one to the other and stood between them.
+	ParkPitch = 0.0;
+	UWorld* World = GetWorld();
+	if (!World) return;
+	const double Half = 0.5 * std::fabs(Sim->Wheels[0].Centre.z - Sim->Wheels[1].Centre.z);
+	if (Half < 0.2) return;
+	const V3 Ahead(-std::sin(ParkHeading), 0.0, -std::cos(ParkHeading));   // (ParkHeading is atan2(-fwd.x, -fwd.z))
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueParkPitch), true, this);
+	V3 Under[2];
+	for (int32 E = 0; E < 2; ++E)
+	{
+		const V3 Tyre = ParkGround + Ahead * (E == 0 ? Half : -Half);
+		FHitResult Hit;
+		if (!GroundTrace(World, ToUE(Tyre + V3(0.0, 0.6, 0.0)), ToUE(Tyre - V3(0.0, 1.5, 0.0)), Params, Hit)) return;
+		Under[E] = ToSim(Hit.ImpactPoint);
+	}
+	ParkPitch = FMath::Clamp(std::atan2(Under[0].y - Under[1].y, 2.0 * Half), -0.45, 0.45);
+	ParkGround = (Under[0] + Under[1]) * 0.5;
+}
+
 void ATorqueBikePawn::HoldParked()
 {
 	// Stood on its stand: leaned over about the line its tyres touch the ground along (side stand),
 	// or lifted (centre stand). No riding physics; the engine ticks over (or winds down, off).
 	const M3 Heading = M3::AxisAngle(V3(0.0, 1.0, 0.0), ParkHeading);
-	Sim->Basis = Heading * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
+	// (pitched along the slope first, about its own side axis: + nose up)
+	Sim->Basis = Heading * M3::AxisAngle(V3(1.0, 0.0, 0.0), ParkPitch) * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
 	// The wheels are drawn where the suspension left them (Centre, body space, up by its compression),
 	// so the body stands that much lower to keep the tyres on the road, not a sag's height above it.
 	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
@@ -2135,6 +2264,7 @@ void ATorqueBikePawn::FollowPusher()
 	ParkGround = ToSim(At);
 	ParkHeading = std::atan2(-Ahead.X, -Ahead.Y);   // (sim: x east = UE X, z south = UE Y)
 	ParkLean = ParkLift = 0.0;
+	PitchToGround();   // [build 149] pushed up or down a hill, along it
 }
 
 double ATorqueBikePawn::TestSpeedMph() const { return FMath::Abs(Sim->Speed) * 2.23694; }
@@ -2251,8 +2381,9 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 {
 	bTestWantFlat = bFlat || Kind == 1;
 	bTestFlat = false;
-	TestMove = FMath::Clamp(Kind, 0, 4);
-	bTestWantFlat = bTestWantFlat || TestMove >= 2;
+	TestMove = FMath::Clamp(Kind, 0, 5);
+	bTestWantFlat = TestMove == 5 ? false : bTestWantFlat || TestMove >= 2;
+	TestSlowest = 1e9;
 	TestT30 = TestT60 = TestT100k = -1.0;
 	TestStill = 0.0;
 	bTestManualWas = bManual;
@@ -2309,6 +2440,62 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		const double Score = Stray + GradeWeight * Grade;
 		if (Score < BestScore) { BestScore = Score; Best = I; }
 	}
+	if (TestMove == 5)
+	{
+		// [tests off Buttertubs] The climb: the stretch of 300 m or more that gains the most height for
+		// its length, ridden from its foot (Line runs the way the ride goes, so only up it counts).
+		const double ClimbRun = 300.0;
+		double BestGrade = -1.0;
+		int32 Foot = -1, Top = -1;
+		for (int32 I = 0; I + 1 < Line.Num(); ++I)
+		{
+			double Run = 0.0;
+			int32 J = I;
+			while (J + 1 < Line.Num() && Run < ClimbRun)
+			{
+				Run += FVector2D(Line[J + 1].X - Line[J].X, Line[J + 1].Z - Line[J].Z).Size();
+				++J;
+			}
+			if (Run < ClimbRun) break;
+			const double Grade = (Line[J].Y - Line[I].Y) / Run;
+			if (Grade > BestGrade) { BestGrade = Grade; Foot = I; Top = J; }
+		}
+		if (Foot < 0)
+		{
+			TestMoveText = TEXT("CLIMB FAIL: no 300 m of road to climb on this ride");
+			UE_LOG(LogTemp, Log, TEXT("Torque: test climb: %s"), *TestMoveText);
+			TestMove = -1;
+			bTestAutoRide = bTestRobotWas;
+			Assist = TestAssistWas;
+			return;
+		}
+		// (its steepest 20 m, to say how steep it gets)
+		double Steepest = 0.0;
+		for (int32 I = Foot; I < Top; ++I)
+		{
+			double Run = 0.0;
+			int32 J = I;
+			while (J < Top && Run < 20.0)
+			{
+				Run += FVector2D(Line[J + 1].X - Line[J].X, Line[J + 1].Z - Line[J].Z).Size();
+				++J;
+			}
+			if (Run >= 20.0) Steepest = FMath::Max(Steepest, (Line[J].Y - Line[I].Y) / Run);
+		}
+		// (and on up while it still climbs, to the top of the hill or a kilometre more)
+		double Beyond = 0.0;
+		while (Top + 1 < Line.Num() && Beyond < 1000.0 && Line[Top + 1].Y >= Line[Top].Y - 0.5)
+		{
+			Beyond += FVector2D(Line[Top + 1].X - Line[Top].X, Line[Top + 1].Z - Line[Top].Z).Size();
+			++Top;
+		}
+		TestClimbEnd = Top;
+		TestClimbRise = Line[Top].Y - Line[Foot].Y;
+		TestClimbGrade = BestGrade;
+		TestClimbSteepest = Steepest;
+		Best = Foot;
+		BestScore = BestGrade;
+	}
 	if (!Sim->EngineOn) { Sim->StopEngine(); Sim->EngineOn = true; }   // (switched off on the key: the robot needs it)
 	Sim->Heat.WarmThrough();   // the road tests' bike is warmed through, as SimTest's
 	Sim->GhostLeft = 0.0;   // solid: the crash test hits things
@@ -2329,11 +2516,82 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	Sim->Gear = Gi;
 	Sim->Rpm = TestMps / Sim->Build.RearRadius * Sim->Build.OverallRatio(Gi) * 60.0 / (2.0 * PI);
 	UE_LOG(LogTemp, Log, TEXT("Torque: test %s starts at route point %d of %d (%.0f m of road, strays and grade score %.2f m), %.0f mph in gear %d%s"),
-		Kind == 0 ? TEXT("brakestop") : Kind == 1 ? TEXT("lean") : Kind == 2 ? TEXT("crash:wall") : TEXT("crash:bike"), Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
+		Kind == 0 ? TEXT("brakestop") : Kind == 1 ? TEXT("lean") : Kind == 2 ? TEXT("crash:wall") : Kind == 3 ? TEXT("crash:bike") : Kind == 4 ? TEXT("launch") : TEXT("climb"),
+		Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
+	if (TestMove == 5)
+	{
+		// (rolling up it from here: no settling on a straight first)
+		TestPhase = 1;
+		TestClock = TestDist = 0.0;
+		TestV0 = TestMps;
+		TestFromNear = Best;
+		TestY0 = Sim->Position.y;
+	}
 }
 
-// One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
-// sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
+void ATorqueBikePawn::SmokeWatch(float Dt)
+{
+	static const bool bSmoke = FParse::Param(FCommandLine::Get(), TEXT("TorqueSmoke"));
+	if (!bSmoke || bSmokeDone || Line.Num() < 2) return;
+	SmokeClock += Dt;
+	// (the falls: each time the rider comes off; the knocks: walls and bikes hit)
+	if (Sim->IsCrashed && !bSmokeDown)
+	{
+		++SmokeFalls;
+		// [build 149 smoke] What kind of fall: knocked off by something hit (a wall, a post, a bike: the
+		// road's or the scenery's fault, counted against the build) or the robot losing it on its own
+		// (too fast or too much lean for the bend: the robot's, reported but not a failure).
+		const bool bKnock = Sim->KnockedOff;
+		if (bKnock) ++SmokeKnockFalls;
+		const int32 At = FMath::Clamp(Near, 0, Line.Num() - 1);
+		double OffLine = 0.0;
+		if (Line.IsValidIndex(At)) OffLine = FMath::Sqrt(FMath::Square(Sim->Position.x - Line[At].X) + FMath::Square(Sim->Position.z - Line[At].Z));
+		const FString How = bKnock ? FString::Printf(TEXT("KNOCKED OFF hitting %s at %.1f m/s"), Sim->LastHitBike ? TEXT("a bike") : TEXT("something hard"), Sim->LastHitSpeed)
+			: FString(TEXT("the robot lost it (no knock)"));
+		UE_LOG(LogTemp, Warning, TEXT("Torque smoke: fell off at %.2f km of %.1f (%.0f s in): %s; %.1f mph, lean %.0f deg, %.1f m off the robot's line%s"),
+			RouteLengthM * double(Near) / double(Line.Num() - 1) / 1000.0, RouteLengthM / 1000.0, SmokeClock, *How,
+			FMath::Abs(Sim->Speed) * 2.23694, FMath::RadiansToDegrees(Sim->LeanAngle), OffLine, bFinished ? TEXT(", stopping at the end") : TEXT(""));
+	}
+	bSmokeDown = Sim->IsCrashed;
+	if (SmokeHitsWas < 0) SmokeHitsWas = Sim->HitCount;
+	SmokeHits += Sim->HitCount - SmokeHitsWas;
+	SmokeHitsWas = Sim->HitCount;
+	// (the frames, once the first squares are in: their real length)
+	if (SmokeClock > 20.0)
+	{
+		const double Real = FApp::GetDeltaTime();
+		++SmokeFrames;
+		SmokeFrameSum += Real;
+		SmokeWorst = FMath::Max(SmokeWorst, Real);
+		if (Real > 0.05) ++SmokeSlow;
+	}
+	static float Minutes = 25.f;
+	static const bool bMinutes = FParse::Value(FCommandLine::Get(), TEXT("TorqueSmokeMinutes="), Minutes);
+	(void)bMinutes;
+	if (SmokeClock > Minutes * 60.0)
+	{
+		SmokeReport(false);
+		FPlatformMisc::RequestExit(false, TEXT("TorqueSmokeTimeOut"));
+	}
+}
+
+void ATorqueBikePawn::SmokeReport(bool bReachedEnd)
+{
+	static const bool bSmoke = FParse::Param(FCommandLine::Get(), TEXT("TorqueSmoke"));
+	if (!bSmoke || bSmokeDone) return;
+	bSmokeDone = true;
+	const double Km = RouteLengthM * (bReachedEnd ? 1.0 : double(Near) / double(FMath::Max(Line.Num() - 1, 1))) / 1000.0;
+	const double Fps = SmokeFrames > 0 ? double(SmokeFrames) / FMath::Max(SmokeFrameSum, 0.001) : 0.0;
+	// [build 149 smoke] Only a fall from being knocked off fails it (something in the rider's way); the
+	// robot coming off on its own is the robot's handling, reported as such (each with its line above).
+	const bool bPass = bReachedEnd && SmokeKnockFalls == 0;
+	const FString Text = FString::Printf(TEXT("%s: %s %.1f km of %.1f in %.1f min (%.1f mph on average); %d fall(s) (%d knocked off, %d the robot's own), %d knock(s); %.1f fps on average, the worst frame %.0f ms, %d over 50 ms"),
+		bPass ? TEXT("PASS") : TEXT("FAIL"), bReachedEnd ? TEXT("rode the whole ride,") : TEXT("DID NOT REACH THE END,"), Km, RouteLengthM / 1000.0, SmokeClock / 60.0,
+		Km * 1000.0 / FMath::Max(SmokeClock, 1.0) * 2.23694, SmokeFalls, SmokeKnockFalls, SmokeFalls - SmokeKnockFalls, SmokeHits, Fps, SmokeWorst * 1000.0, SmokeSlow);
+	if (bPass) { UE_LOG(LogTemp, Display, TEXT("Torque smoke: %s"), *Text); }
+	else { UE_LOG(LogTemp, Error, TEXT("Torque smoke: %s"), *Text); }
+}
+
 void ATorqueBikePawn::HoldTestSpeed(double V)
 {
 	// Throttle by the gap (less of a base at a walking pace), and the back brake once it runs over: in
@@ -2345,9 +2603,11 @@ void ATorqueBikePawn::HoldTestSpeed(double V)
 	if (RearBrake > 0.0) Throttle = 0.0;
 }
 
+// One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
+// sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
 void ATorqueBikePawn::TestMoveStep()
 {
-	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TestMove == 3 ? TEXT("crash:bike") : TEXT("launch");
+	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TestMove == 3 ? TEXT("crash:bike") : TestMove == 4 ? TEXT("launch") : TEXT("climb");
 	const double Mph = TestMps * 2.23694;
 	auto Finish = [&](const FString& Text) {
 		TestMoveText = Text;
@@ -2374,7 +2634,28 @@ void ATorqueBikePawn::TestMoveStep()
 	const double V = Sim->Speed;
 	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
-		Finish(FString::Printf(TEXT("crashed (%s, %.1f s in, %.1f m)"), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		Finish(FString::Printf(TEXT("%scrashed (%s, %.1f s in, %.1f m)"), TestMove == 5 ? TEXT("CLIMB FAIL: ") : TEXT(""), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		return;
+	}
+	if (TestMove == 5)
+	{
+		// [tests off Buttertubs] The climb: the robot rides it (ReadInput: up to TestMps, slowing for
+		// the bends); this only watches, from the foot to the top.
+		TestDist += FMath::Abs(V) * SimDt;
+		if (TestClock > 1.0) TestSlowest = FMath::Min(TestSlowest, V);
+		const bool bStalled = !Sim->EngineOn && !Sim->IsStarting();
+		if (Near >= TestClimbEnd || bStalled || TestClock > 150.0)
+		{
+			const double Rose = Sim->Position.y - TestY0, Average = TestDist / FMath::Max(TestClock, 0.01);
+			const bool bTop = Near >= TestClimbEnd;
+			const double Slowest = TestSlowest > 1e8 ? V : TestSlowest;
+			const bool bPass = bTop && !bStalled && Slowest * 2.23694 >= 3.0 && Average * 2.23694 >= 12.0;
+			Finish(FString::Printf(TEXT("CLIMB %s: %s %.0f m up %.0f m of road (%.1f%% on average over its steepest 300 m, %.1f%% at its steepest 20 m) in %.1f s; ")
+				TEXT("%.1f mph on average, %.1f mph at the slowest, %.1f mph and gear %d at the end; engine %s, %.0f C"),
+				bPass ? TEXT("PASS") : TEXT("FAIL"), bTop ? TEXT("at the top,") : bStalled ? TEXT("STALLED,") : TEXT("NOT AT THE TOP after 150 s,"), Rose, TestDist,
+				100.0 * TestClimbGrade, 100.0 * TestClimbSteepest, TestClock, Average * 2.23694, Slowest * 2.23694, V * 2.23694, Sim->Gear,
+				bStalled ? TEXT("stalled") : TEXT("running"), Sim->Heat.Engine));
+		}
 		return;
 	}
 	if (TestPhase == 0)
@@ -2622,6 +2903,8 @@ void ATorqueBikePawn::StepSim()
 	}
 	if (TestMove >= 0) TestMoveStep();
 	Sim->Throttle = Throttle;
+	// [tft] Cruise control holds its speed; more throttle than it's giving overrides it.
+	if (bCruise) Sim->Throttle = FMath::Max(Throttle, TorqueSim::CruiseThrottle(Sim->Speed, CruiseMs, CruiseHeld, SimDt));
 	Sim->FrontBrake = FrontBrake;
 	Sim->RearBrake = RearBrake;
 	Sim->LeanInput = Lean;
@@ -2659,6 +2942,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	else
 	{
 		ReadInput(DeltaSeconds);
+		SmokeWatch(DeltaSeconds);   // [tests off Buttertubs]
 		// The telemetry overlay's strips: the last 12 seconds, ten samples a second.
 		if ((TelemetryClock += DeltaSeconds) >= 0.1)
 		{
@@ -2785,6 +3069,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		Dash.Step(*Sim, Throttle, Sim->EngineOn, DeltaSeconds);
 		TripSpeedKm += FMath::Abs(Sim->Speed) * DeltaSeconds / 1000.0;
 		TripLogTime += DeltaSeconds;
+		BrakeLogHeld[0] += FrontBrake > 0.02 ? DeltaSeconds : 0.0;
+		BrakeLogHeld[1] += RearBrake > 0.02 ? DeltaSeconds : 0.0;
 		if ((TripLogClock += DeltaSeconds) >= 10.0)
 		{
 			TripLogClock = 0.0;
@@ -2810,10 +3096,12 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	if (!bRemote)
 	{
 		ATorqueRideWorld::NavFor(GetActorLocation(), Dash, NavWas);   // [Ride UK] the sat nav
+		if (bOnFoot) ATorqueRideWorld::ViewSpotFor(FootPos, Dash);   // [places stage 7] walked in to a place's view spot
 		// (stopped at the pumps: the tank fills, a litre every second or so)
 		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 0.9 * DeltaSeconds);
 	}
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
+	StepTft(DeltaSeconds, bRemote);   // [tft]
 	StepLights(DeltaSeconds, bRemote);   // [lights]
 	if (!bRemote)
 	{
@@ -3300,6 +3588,23 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 	NetWalkerWas = Feet;
 }
 
+void ATorqueBikePawn::UpdateHelmetPaint()
+{
+	if (!RiderHelmet) return;
+	const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	const FTorqueProfile Look = (IsLocallyControlled() || !PS) ? FTorqueProfile::Mine() : FTorqueProfile::Unpack(PS->Profile);
+	// Only the helmet's bytes matter here (the face and height are the avatar's).
+	TArray<uint8> Packed = Look.Pack();
+	const int32 HelmetAt = 2 + FTorqueProfile::NumFace;
+	Packed.RemoveAt(0, FMath::Min(HelmetAt, Packed.Num()));
+	if (bHelmetPaintDone && Packed == HelmetPaintLook) return;
+	// Left as it came the first time: nothing to put back.
+	if (!bHelmetPaintDone && !Look.bHelmetPainted) { bHelmetPaintDone = true; HelmetPaintLook = Packed; return; }
+	bHelmetPaintDone = true;
+	HelmetPaintLook = Packed;
+	TorqueHelmetLook::ApplyPaint(RiderHelmet, Look, RiderRig.HelmetKitPaint.Get());
+}
+
 void ATorqueBikePawn::UpdateRiderAvatar()
 {
 	if (FTorqueAvatar::Count() == 0 || !RiderRig.IsValid() || !RiderRig.Last.bValid) return;
@@ -3352,7 +3657,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	// tank's knee pads, the balls of its feet on the pegs.
 	T.bOnLayout = bRiderOnLayout;
 	T.FeetDown = RiderFeetDown;
-	for (int32 S = 0; S < 2; ++S) T.KeepOnPeg[S] = RiderKeepOnPeg[S];
+	for (int32 S = 0; S < 2; ++S) { T.KeepOnPeg[S] = RiderKeepOnPeg[S]; T.Toes[S] = RiderToes[S]; }
 	T.bLaidBack = bRiderLaidBack;
 	if (bRiderOnLayout)
 	{
@@ -3376,6 +3681,14 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 		T.Ankle[S] = R.Ankle[S];
 		T.LeverFingers[S] = R.LeverFingers[S];
 		T.LeverPull[S] = R.LeverPull[S];
+		// [rider pose] The drawn lever's blade (its box's middle, as it's swung now), from the grip.
+		T.LeverLine[S] = FVector::ZeroVector;
+		UStaticMeshComponent* LeverC = CatLever[S].IsValid() ? CatLever[S].Get() : LeverParts[S];
+		if (LeverC && LeverC->GetStaticMesh())
+		{
+			const FTransform InPawn = LeverC->GetComponentTransform().GetRelativeTransform(GetActorTransform());
+			T.LeverLine[S] = LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(InPawn).GetCenter() - R.Grip[S];
+		}
 	}
 	RiderAvatar.PoseRiding(T);
 	// The helmet on its head, and the eyes (first person) in the helmet.
@@ -3637,29 +3950,40 @@ void ATorqueBikePawn::UpdateRider()
 			// z up from the ground sits (z - Ground) cos A + y sin A up, so the ankle's mark rises by that.)
 			const double Ground = -Sim->Build.RearRadius * 100.0;
 			const double AnkleUp = In.FootDownL.Z - Ground;
-			double LeanWant = 0.0;
-			if (In.FeetDown > 0.0 && RiderAvatar.IsValid() && RiderAvatar.RideReport.LegReach > 1.0 && !bThrown)
+			// [rider pose] Up on the toes first (the heel up to 7 cm off the road), then, if that's not
+			// enough, the bike leant over onto the left foot (Toes: how far each ankle rises for it).
+			constexpr double ToesMax = 7.0;
+			double LeanWant = 0.0, Toes[2] = {0.0, 0.0};
+			const double Reach = RiderAvatar.IsValid() ? RiderAvatar.RideReport.LegReach * 0.99 : 0.0;
+			// (How far an ankle's mark has to rise for the leg to reach it, the bike leant Deg; -1: too far.)
+			auto RiseFor = [&](const FVector& HipAt, const FVector& FootAt, double LeanAt) {
+				const double LeanR = FMath::DegreesToRadians(LeanAt);
+				const FVector Mark(FootAt.X, FootAt.Y, Ground + (AnkleUp - FootAt.Y * FMath::Sin(LeanR)) / FMath::Cos(LeanR));
+				for (double Up = 0.0; Up <= ToesMax; Up += 0.5)
+					if ((Mark + FVector(0.0, 0.0, Up) - HipAt).Size() <= Reach) return Up;
+				return -1.0;
+			};
+			if (In.FeetDown > 0.0 && Reach > 1.0 && !bThrown)
 			{
-				const FVector HipL = RiderAvatar.RideReport.HipJointAt[0];
-				const double Reach = RiderAvatar.RideReport.LegReach * 0.99;
+				const FVector HipL = RiderAvatar.RideReport.HipJointAt[0], HipR = RiderAvatar.RideReport.HipJointAt[1];
+				LeanWant = 20.0;
+				Toes[0] = ToesMax;
 				for (double Deg = 0.0; Deg <= 20.0; Deg += 0.25)
 				{
-					LeanWant = Deg;
-					const double Ar = FMath::DegreesToRadians(Deg);
-					const FVector Mark(In.FootDownL.X, In.FootDownL.Y, Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar));
-					if ((Mark - HipL).Size() <= Reach) break;
+					const double Rise = RiseFor(HipL, In.FootDownL, Deg);
+					if (Rise >= 0.0) { LeanWant = Deg; Toes[0] = Rise; break; }
 				}
+				// (Upright, the right foot down too, on its toes as far as it needs.)
+				if (LeanWant <= 0.0) Toes[1] = FMath::Max(RiseFor(HipR, In.FootDownR, 0.0), 0.0);
 			}
-			// (Within a few degrees of reaching, the rider stretches onto his toes and the bike stays upright:
-			// beenster, both feet down at a standstill, the bike vertical.)
-			if (LeanWant < 4.0) LeanWant = 0.0;
 			const double LeanTo = LeanWant * FMath::SmoothStep(0.0, 1.0, In.FeetDown);
 			StopLeanDeg = MoveToward(StopLeanDeg, LeanTo, 25.0 * (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0));
-			if (StopLeanDeg > 0.01)
 			{
 				const double Ar = FMath::DegreesToRadians(StopLeanDeg);
-				In.FootDownL.Z = Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar);
+				In.FootDownL.Z = Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar) + Toes[0];
+				In.FootDownR.Z += Toes[1];
 			}
+			for (int32 S = 0; S < 2; ++S) RiderToes[S] = Toes[S] * In.FeetDown;
 			In.KeepOnPeg[1] = FMath::Clamp(StopLeanDeg / 2.0, 0.0, 1.0);
 		}
 		else StopLeanDeg = 0.0;
@@ -3712,6 +4036,21 @@ void ATorqueBikePawn::UpdateRider()
 			// (The lever follows the clutch as it's let out: Sim->Clutch, how far it's in.)
 			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), FMath::Max(Lever, ClutchFingers));
 			In.LeverPull[0] = FMath::Max(FMath::Max3(PullShift, Held, Lever), FMath::Clamp(Sim->Clutch, 0.0, 1.0)) * FMath::Clamp(In.LeverFingers[0] * 2.0, 0.0, 1.0);
+			// [rider pose] For the tests: the clutch hand every 0.1 s for 3 s after pulling away from a stop.
+			const double LogDt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0;
+			if (FMath::Abs(Sim->Speed) < 0.2) PullAwayLogT = 0.0;
+			else if (PullAwayLogT >= 0.0)
+			{
+				PullAwayLogT += LogDt;
+				if (PullAwayLogT >= PullAwayLogNext)
+				{
+					UE_LOG(LogTemp, Log, TEXT("Torque: rider clutch: %.1f s after pulling away, %.1f km/h, gear %d, clutch in %.2f%s, fingers on %.2f, lever pulled %.2f"),
+						PullAwayLogT, Sim->Speed * 3.6, Sim->Gear, Sim->Clutch, Sim->ClutchIn ? TEXT(" (held)") : TEXT(""), In.LeverFingers[0], In.LeverPull[0]);
+					PullAwayLogNext = PullAwayLogT + 0.1;
+				}
+				if (PullAwayLogT > 3.0) PullAwayLogT = -1.0;
+			}
+			if (PullAwayLogT == 0.0) PullAwayLogNext = 0.0;
 		}
 		for (int32 S = 0; S < 2; ++S)
 			if (TestLeverHold[S] >= 0.0)
@@ -3724,6 +4063,34 @@ void ATorqueBikePawn::UpdateRider()
 			if (!LeverParts[S]) continue;
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
 			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]) * LeverFit[S]);
+		}
+		// [rider pose] A catalogue bike's levers swing back about their perches' pins toward the grips
+		// as they're pulled, 28 degrees at full pull (beenster: see them pulled). Only the blade: the
+		// hose and banjo stay on the master cylinder (beenster, build 146).
+		for (int32 S = 0; S < 2; ++S)
+		{
+			UStaticMeshComponent* LeverC = CatLever[S].Get();
+			if (!LeverC) continue;
+			if (!bCatLeverRest[S])
+			{
+				// The blade's vertices are drawn in the holder's space, so its rest transform (to the steer
+				// group it's on now) takes the pin there too. Which way round the pin takes the blade back
+				// toward the rider: the blade's middle turned each way about it.
+				CatLeverRest[S] = LeverC->GetRelativeTransform();
+				bCatLeverRest[S] = true;
+				const FVector PinAt = CatLeverRest[S].TransformPosition(CatLeverPin[S]);
+				const FVector PinUp = CatLeverRest[S].TransformVectorNoScale(CatLeverAxis[S]).GetSafeNormal();
+				CatLeverPin[S] = PinAt;
+				CatLeverAxis[S] = PinUp.IsNearlyZero() ? FVector::UpVector : PinUp;
+				const FVector Arm = LeverC->GetStaticMesh() ? LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(CatLeverRest[S]).GetCenter() - PinAt : FVector::ZeroVector;
+				const double Ra = FMath::DegreesToRadians(20.0);
+				CatLeverSign[S] = FQuat(CatLeverAxis[S], Ra).RotateVector(Arm).X <= FQuat(CatLeverAxis[S], -Ra).RotateVector(Arm).X ? 1.0 : -1.0;
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider lever %d: pin %s, up %s, blade %s from it, swings %s"), S, *PinAt.ToCompactString(),
+					*CatLeverAxis[S].ToCompactString(), *Arm.ToCompactString(), CatLeverSign[S] > 0.0 ? TEXT("+") : TEXT("-"));
+			}
+			const FQuat Swing(CatLeverAxis[S], FMath::DegreesToRadians(28.0 * FMath::Clamp(In.LeverPull[S], 0.0, 1.0)) * CatLeverSign[S]);
+			const FVector RestAt = CatLeverRest[S].GetLocation();
+			LeverC->SetRelativeLocationAndRotation(CatLeverPin[S] + Swing.RotateVector(RestAt - CatLeverPin[S]), Swing * CatLeverRest[S].GetRotation());
 		}
 		In.GripFit[0] = GripDelta[0] * GripFitMove[0];
 		In.GripFit[1] = GripDelta[1] * GripFitMove[1];
@@ -3742,6 +4109,7 @@ void ATorqueBikePawn::UpdateRider()
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		RiderFeetDown = FMath::Clamp(In.FeetDown, 0.0, 1.0);
+		UpdateHelmetPaint();
 		UpdateRiderAvatar();
 		return;
 	}
@@ -3900,6 +4268,157 @@ void ATorqueBikePawn::StepLights(float Dt, bool bRemote)
 	if (Heard != 0 && !bRemote)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this))
 			Sfx->PlayMadeOn(FTorqueLights::Click(Heard > 0), FTorqueLights::ClickRate, Root, FVector(60.0, 0.0, 100.0), -14.0f);
+}
+
+// --- [tft] The bike's screen ------------------------------------------------------------------
+
+void ATorqueBikePawn::ApplyRideMode()
+{
+	// Only a bike whose dash has ride modes: any other rides exactly as it was built.
+	if (!Tft || !Sim || !bModeBase || !Tft->GetMenu().HasModes()) return;
+	TorqueSim::ApplyMode(*Sim, ModeBase, Tft->GetMenu().Set());
+	// ABS as the mode has it (the B key still switches it).
+	bHasAbs[0] = ModeBase.AbsFront;
+	bHasAbs[1] = ModeBase.AbsRear;
+	bAbs = Sim->Build.AbsFront || Sim->Build.AbsRear;
+}
+
+void ATorqueBikePawn::TftPress(int32 Which)
+{
+	if (!Tft || !Sim) return;
+	if (Tft->Arranging())
+	{
+		static const int32 Dx[4] = {-1, 1, 0, 0}, Dy[4] = {0, 0, -1, 1};
+		Tft->ArrangeMove(Dx[Which & 3], Dy[Which & 3]);
+		return;
+	}
+	static const TorqueTft::Press Presses[4] = {TorqueTft::Press::Left, TorqueTft::Press::Right, TorqueTft::Press::Up, TorqueTft::Press::Down};
+	Tft->Press(Presses[Which & 3], Sim->Speed, Throttle);
+	if (Tft->TakeModeDirty()) ApplyRideMode();
+}
+
+void ATorqueBikePawn::ToggleCruise()
+{
+	if (!Tft || !Sim) return;
+	if (bCruise)
+	{
+		bCruise = false;
+		Tft->Notice(TEXT("Cruise off"));
+		return;
+	}
+	const bool bMetric = FTorqueSettings::Get().Units == 0;
+	if (!bModeBase || !ModeBase.Aids.Cruise) Tft->Notice(TEXT("No cruise control on this bike"));
+	else if (Sim->Speed < 11.0 || Sim->Gear <= 0) Tft->Notice(bMetric ? TEXT("Cruise needs 40 km/h in gear") : TEXT("Cruise needs 25 mph in gear"));
+	else
+	{
+		bCruise = true;
+		CruiseMs = Sim->Speed;
+		CruiseHeld = Throttle;
+		Tft->Notice(FString::Printf(TEXT("Cruise set %d %s"), FMath::RoundToInt(CruiseMs * (bMetric ? 3.6 : 2.23694)), bMetric ? TEXT("km/h") : TEXT("mph")));
+	}
+}
+
+void ATorqueBikePawn::StepTft(float Dt, bool bRemote)
+{
+	if (!Tft || !Sim || !Tft->HasMap()) return;
+	if (!bRemote && IsLocallyControlled()) Tft->Own();
+	if (Tft->TakeModeDirty() && !bRemote) ApplyRideMode();
+	const bool bMetric = FTorqueSettings::Get().Units == 0;
+	const double PerMs = bMetric ? 3.6 : 2.23694;
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	TorqueTft::State St;
+	St.Metric = bMetric;
+	St.Speed = FMath::Abs(Dash.Speed) * PerMs;
+	St.Rpm = Dash.Rpm;
+	St.Redline = Dash.Redline;
+	if (Dash.RevMax > 0.0 && Dash.RevStep > 0.0)
+	{
+		St.RevMax = Dash.RevMax;
+		St.RevStep = Dash.RevStep;
+	}
+	else FTorqueDash::RevScale(Dash.Redline, St.RevMax, St.RevStep);
+	FTorqueDash::SpeedScale(Dash.TopSpeedMs > 1.0 ? Dash.TopSpeedMs : 60.0, bMetric, St.SpeedMax, St.SpeedStep);
+	St.Gear = Dash.Gear;
+	St.EngineOn = Dash.bEngineOn && (bRemote ? Lights.bIgnition : Sim->EngineOn);
+	St.Fuel = Dash.FuelCapacity > 0.0 ? FMath::Clamp(Dash.FuelLitres / Dash.FuelCapacity, 0.0, 1.0) : 0.0;
+	St.RangeKm = Dash.RangeKm(Sim->Build);
+	St.TripKm = Dash.TripKm;
+	St.TotalKm = Dash.TripKm;
+	St.TopKmh = Dash.TopKmh;
+	St.KmPerLitre = Dash.TripEconomy();
+	{
+		const double Hour = GS && GS->GetHour() >= 0.0f ? GS->GetHour() : 13.0;
+		St.Hour = FMath::Clamp((int32)Hour, 0, 23);
+		St.Minute = FMath::Clamp((int32)((Hour - FMath::FloorToDouble(Hour)) * 60.0), 0, 59);
+	}
+	St.AirC = Sim->Heat.Air;
+	St.EngineC = Sim->Heat.Engine;
+	St.HasRevs = true;
+	St.HasShiftLight = true;
+	St.IndLeft = Lights.Indicating() && (Lights.bHazard || Lights.Side < 0);
+	St.IndRight = Lights.Indicating() && (Lights.bHazard || Lights.Side > 0);
+	St.HighBeam = Lights.MainOn();
+	St.Lights = Lights.HeadOn();
+	St.Fog = Lights.FogOn();
+	St.LowFuel = St.Fuel < 0.12;
+	St.Hot = Sim->Heat.Engine > 112.0;
+	St.AbsOff = (bHasAbs[0] || bHasAbs[1]) && !bAbs;
+	St.Blink = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	St.Cruise = bCruise;
+	St.CruiseSpeed = CruiseMs * PerMs;
+	for (int32 I = 0; I < 2; ++I)
+	{
+		// The tyre as it is now: its cold pressure (absolute) grown with its heat.
+		const double TyreNowC = Sim->Heat.TyreTemp(I);
+		const double Cold = (bModeBase ? ModeBase.TyreBar[I] + ModeBase.TyreOff[I] : St.TyreBar[I]) + 1.013;
+		St.TyreC[I] = TyreNowC;
+		St.TyreBar[I] = FMath::Max(Cold * (273.15 + TyreNowC) / 293.15 - 1.013, 0.0);
+	}
+	// The sat nav's words, as the HUD's box had them.
+	St.Nav = Dash.bNav;
+	St.NavOff = Dash.bNavOff;
+	St.NavTurn = Dash.NavTurn;
+	St.NavMetres = Dash.NavTo;
+	if (Dash.bNav)
+	{
+		St.NavDistance = TCHAR_TO_UTF8(*FTorqueDash::NavDistance(Dash.NavTo, bMetric));
+		St.NavOnto = TCHAR_TO_UTF8(*Dash.NavOnto);
+		St.NavLeft = TCHAR_TO_UTF8(*FTorqueDash::NavDistance(Dash.NavLeft, bMetric));
+		// When it'll get there, at the pace of open roads (or as it's going now, if faster).
+		const double Pace = FMath::Max(FMath::Abs(Dash.Speed), 16.0);
+		const double Arrive = (GS && GS->GetHour() >= 0.0f ? GS->GetHour() : 13.0) + Dash.NavLeft / Pace / 3600.0;
+		const int32 Mins = (int32)(FMath::Fmod(Arrive, 24.0) * 60.0);
+		St.NavEta = TCHAR_TO_UTF8(*FString::Printf(TEXT("%02d:%02d"), (Mins / 60) % 24, Mins % 60));
+	}
+	St.NavRoad = TCHAR_TO_UTF8(*Dash.NavRoad);
+	St.NavPlace = TCHAR_TO_UTF8(*Dash.NavPlace);
+	St.Limit = Dash.NavLimit;
+	St.LimitNational = Dash.bNavLimitNational;
+	St.LimitAssumed = Dash.bNavLimitAssumed;
+	Tft->Step(Dt, St, GetActorLocation(), GetActorForwardVector(), Sim->Speed, GS ? GS->GetDayLight() : 1.0f);
+}
+
+FString ATorqueBikePawn::TestTft(const FString& What)
+{
+	if (!Tft) return TEXT("tft: none");
+	const FString W = What.ToLower();
+	if (W == TEXT("left")) TftPress(0);
+	else if (W == TEXT("right")) TftPress(1);
+	else if (W == TEXT("up")) TftPress(2);
+	else if (W == TEXT("down")) TftPress(3);
+	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
+	else if (W == TEXT("map")) Tft->ToggleMapTile();
+	else if (W == TEXT("arrange")) Tft->ToggleArrange();
+	else if (W == TEXT("cruise")) ToggleCruise();
+	else if (W.StartsWith(TEXT("linked")))
+	{
+		// [test] tft:linked0 / linked1 / linked2: the linked brakes setting of the mode in use.
+		Tft->SetModeRow(TorqueSim::ModeRow::Linked, FCString::Atoi(*W.RightChop(6)));
+		if (Tft->TakeModeDirty()) ApplyRideMode();
+	}
+	return FString::Printf(TEXT("tft: %s, cruise %d (%.1f m/s), power mode %.2f, engine brake %.2f, abs %d%d, linked brakes %d (%s)"), *Tft->Describe(), bCruise ? 1 : 0, CruiseMs,
+		Sim ? Sim->Build.PowerMode : 0.0, Sim ? Sim->Build.EngineBrake : 0.0, Sim && Sim->Build.AbsFront ? 1 : 0, Sim && Sim->Build.AbsRear ? 1 : 0,
+		Sim ? Sim->Build.LinkedBrakes : 0, bModeBase && ModeBase.Aids.Modes ? TEXT("on the mode screen") : TEXT("no ride modes on this dash"));
 }
 
 FString ATorqueBikePawn::TestLights(const FString& What)
@@ -4318,6 +4837,7 @@ bool ATorqueBikePawn::AdjustChase(const APlayerController* PC, float Dt, double 
 	// (First person moves in centimetres, a tenth as fast; "further" there is back from the bars.)
 	const double MoveScale = bFirst ? 0.1 : 1.0;
 	double DistBy = KeyAxis(ETorqueKey::CamFarther, ETorqueKey::CamCloser, 30.0 * MoveScale, 300.0 * MoveScale);
+	if (Tft && Tft->Arranging()) DistBy = 0.0;   // [tft] arranging the HUD, those keys size it
 	double HeightBy = KeyAxis(ETorqueKey::CamHigher, ETorqueKey::CamLower, 15.0 * (bFirst ? 0.2 : 1.0), 120.0 * (bFirst ? 0.2 : 1.0));
 	double TiltBy = KeyAxis(ETorqueKey::CamTiltDown, ETorqueKey::CamTiltUp, 1.5, 15.0);
 	if (bPadHeld)
@@ -4471,6 +4991,12 @@ void ATorqueBikePawn::TripLog(const TCHAR* Why)
 	UE_LOG(LogTemp, Log, TEXT("Torque trip (%s): dash %.3f km, speed x time %.3f km, %s, %.1f s ridden, now %.1f km/h"),
 		Why, Dash.TripKm, TripSpeedKm, bYard ? TEXT("in the yard (no route)") : *FString::Printf(TEXT("Buttertubs route %.3f km of %.3f"), DoneM / 1000.0, RouteLengthM / 1000.0),
 		TripLogTime, FMath::Abs(Sim->Speed) * 3.6);
+	// The brakes over the same stretch: how long each lever was on, where it is now, and the discs' heat
+	// (build 146's front disc ran up to 625 °C on Ride UK's hills).
+	UE_LOG(LogTemp, Log, TEXT("Torque brakes: front on %.1f s, rear on %.1f s of the last %.0f s, levers now %.2f / %.2f, discs %.0f / %.0f C, pads %.0f / %.0f C, gear %d"),
+		BrakeLogHeld[0], BrakeLogHeld[1], TripLogClock > 0.0 ? TripLogClock : 10.0, FrontBrake, RearBrake, Sim->Heat.Discs[0], Sim->Heat.Discs[1],
+		Sim->Heat.Pads[0], Sim->Heat.Pads[1], Sim->Gear);
+	BrakeLogHeld[0] = BrakeLogHeld[1] = 0.0;
 }
 
 void ATorqueBikePawn::DrawHud()

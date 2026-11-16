@@ -29,13 +29,17 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "TorqueFoliage.h"
+#include "World/TorqueRidePart.h"
 
 #include <memory>
+#include <vector>
+#include <string>
 
 #include "TorqueRideWorld.generated.h"
 
 class UMaterialInterface;
 class UProceduralMeshComponent;
+struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
 namespace TorqueWorld
 {
@@ -53,6 +57,12 @@ struct FRideNavState
 	std::shared_ptr<const TorqueWorld::RideDetour> Detour;
 	double OffSince = -1.0, LastTry = -1e9, Heading = 0.0;
 	FVector2D Prev = FVector2D(1e12, 1e12);
+	// [waypoint] A place picked in the info panel to go by (ATorqueRideWorld::SetWaypoint): where (the
+	// ride's frame), what it's called, whether Detour is the way by it, and when the way was last sought.
+	bool bVia = false, bDetourVia = false;
+	double ViaX = 0.0, ViaZ = 0.0, ViaTry = -1e9;
+	std::string ViaName;
+	int32 ViaReached = 0;   // goes up each time one is reached
 };
 struct FTorqueRideJobs;
 struct FTorqueDash;
@@ -88,6 +98,21 @@ public:
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
+	// [places stage 7] On foot at (Unreal cm): at a place's view spot, the dash's stop line says so and the
+	// place goes on the visited list. Called after NavFor.
+	static void ViewSpotFor(const FVector& At, FTorqueDash& Dash);
+	// A place stop onto this profile's visited list: true when it's the first visit (and saved).
+	static bool VisitPlace(const TorqueWorld::RidePlan& InPlan, int32 Stop);
+	// [waypoint] The info panel's click (beenster, build 146: "the satnav should add it as a waypoint
+	// (and retain our final destination)"): the sat nav takes the rider by the place, by the map's
+	// roads, then back to the ride's road and on to the finish as before (RidePlan::DetourVia); the
+	// maps show the way and the waypoint. Reached within 150 m (or once past its junction), it's
+	// done. False with no ride. ClearWaypoint drops it (the ride's own way again).
+	static bool SetWaypoint(double Lat, double Lon, const FString& Name);
+	static void ClearWaypoint();
+	// Whether one is being gone to, and how many have been reached on this ride.
+	static bool HasWaypoint();
+	static int32 WaypointsReached();
 	// [ride anywhere] The world loaded round the ride and the way the sat nav is guiding the riders
 	// (World/WorldRoam.h), for the maps (the TFT's, the HUD's); null with no ride. Read on the game
 	// thread; each is a snapshot to keep, replaced (its Version up) when the area grows or the way
@@ -108,6 +133,9 @@ public:
 	// Where the diary keeps its rides and photos.
 	static FString DiaryFolder();
 
+	// [places] The ride's plan, read-only, for the info panel (null with no ride).
+	const TorqueWorld::RidePlan* GetPlan() const { return Plan.get(); }
+
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;
 	double Heard[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
@@ -126,7 +154,33 @@ private:
 	// One part of several meshes over the same origin, a section each in its own material (null meshes
 	// and empty ones are left out); null if all are empty.
 	UProceduralMeshComponent* MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow);
+	// [perf, build 149] The sections of the square being placed, readied on its worker (vertices in
+	// Unreal's frame, colours as bytes): MakePart takes a mesh's from here instead of building it on the
+	// game thread. Null outside Place, and for squares made on the game thread.
+	TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* PreparedNow = nullptr;
+	// [perf, build 150] Whether the next part MakePart makes goes in the ray-tracing scene (it puts this back to true).
+	bool bNextInRayTracing = true;
+	// [perf, build 150] Whether the next part MakePart makes may wait for RegisterWaiting (it puts this back).
+	bool bDeferNext = false;
+	TArray<TWeakObjectPtr<URidePart>> ToRegister;
+	void RegisterWaiting();
+	// [perf, build 150] Parts let go of, kept to be used again (torque.RidePool): LetGo instead of
+	// DestroyComponent for squares', water's and roads' parts.
+	UPROPERTY(Transient) TArray<TObjectPtr<URidePart>> Spare;
+	void LetGo(UProceduralMeshComponent* Part);
+	URidePart* TakeSpare();
+	UPROPERTY(Transient) TArray<TObjectPtr<UInstancedStaticMeshComponent>> SparePlants;   // (as Spare, for DropPlants)
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
+	// [perf, build 149] A piece of road made (on a worker, or here with bAtOnce) put in place: its part,
+	// tagged Road, and its tunnel lamps. Ready: its sections readied on the worker, or null.
+	void PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Mesh, TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* Ready, bool bAtOnce);
+	TSet<int64> RoadAsked;   // pieces of road being made on a worker
+	// [perf, build 151] UpdateRoad's list of roads to look at, where and from which plan it was found, and
+	// where in it the next look starts.
+	std::vector<int> RoadList;
+	FVector2D RoadListAt = FVector2D(1e12, 1e12);
+	const void* RoadListPlan = nullptr;
+	size_t RoadCursor = 0;
 	// The level's plant kit (see above): true if it has any grass or trees.
 	bool FindKit();
 	// A square's grass and trees as instanced meshes, and taking them away again.
@@ -140,6 +194,10 @@ private:
 	std::shared_ptr<const TorqueWorld::RoamArea> Roam;
 	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
 	FRideNavState NavState;
+	int32 LastNavExit = 0;      // [build 148] the roundabout exit the sat nav last said (for the log), 0 none
+	int32 LastPlaceStop = -1;   // [places stage 2] the place stop the rider was last at (for the log), -1 none
+	int32 LastViewSpot = -1;     // [places stage 7] the view spot the walker was last at, -1 none
+	bool bFirstVisitHere = false;   // [places stage 7] LastPlaceStop was new to this profile's visited list
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;
@@ -164,6 +222,10 @@ private:
 	// [stage 7] What lights up after dark (RideMesh::Night: lit windows, lamp heads, cat's eyes; M_RideNight),
 	// and the street lamps' real lights on the nearest squares, on only after dark.
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> NightMaterial;
+	// [OSM stage 5D] Traffic lights' and beacons' lamps (RideMesh::Signals; M_RideSignal, by MPC_Weather's Signals).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SignalMaterial;
+	// [OSM stage 6A] Road signs' faces and lettering (RideMesh::Signs; M_RideSign, its vertex colour the paint's).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SignMaterial;
 	TMap<FIntVector, TArray<TWeakObjectPtr<class UPointLightComponent>>> StreetLights;
 	void DropStreetLights(const FIntVector& Key);
 	bool bStreetLightsOn = false;
@@ -226,5 +288,33 @@ private:
 	TSet<FIntVector> Stale;
 	FVector2D GroundAt = FVector2D(1e12, 1e12);
 	bool bFetchingGround = false;
+	// [ride anywhere 3] The ride grown on a worker as the rider nears the edge of what was read
+	// (RidePlan::Grow); the cells found not baked yet, not asked again (Row * 100000 + Col).
+	bool bGrowing = false;
+	double SinceGrowLook = 0.0;
+	// [build 147] The game thread's costs, logged every 5 seconds (World/RideCosts.h).
+	int32 CostFrames = 0;
+	double CostSince = 0.0, CostWorstFrame = 0.0;
+	// [perf, build 150] What the whole frame costs, averaged over the 5 s (the engine's game, render and
+	// GPU times, summed each frame), and frames that took far too long (logged as "Ride hitch:", with
+	// any garbage collection in them).
+	double FrameGameMs = 0.0, FrameRenderMs = 0.0, FrameGpuMs = 0.0;
+	double LastTickWall = 0.0, LastTickOwnMs = 0.0;
+	// [perf, build 150] -TorqueRideAB=1: one run measures what each part of the picture costs. Step by
+	// step something is turned off (a console variable, or a kind of the ride's things hidden), the
+	// frame measured, and put back; each step logged as "Ride A/B:". See TickAB in the .cpp.
+	void TickAB(float DeltaSeconds);
+	void HideForAB(int32 What, bool bHide);
+	int32 ABStep = -1;
+	double ABSince = 0.0, ABGame = 0.0, ABRender = 0.0, ABGpu = 0.0, ABWall = 0.0;
+	int32 ABFrames = 0;
+	bool bABProfiled = false;
+	TArray<TPair<FString, FString>> ABWas;   // the step's console variables as they were
+	// [perf, build 150] The graphics preset's foliage level (sg.FoliageQuality, 0 low .. 4 cinematic) as a
+	// share of the grass's and the trees' reach: Epic and Cinematic 1, High 0.8, Medium 0.6, Low 0.45.
+	float PresetReach(bool bTree) const;
+	TSet<int64> GrowTried;
+	void TryGrow(const FVector2D& At);
+	void Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried);
 	bool bSaidReady = false;
 };

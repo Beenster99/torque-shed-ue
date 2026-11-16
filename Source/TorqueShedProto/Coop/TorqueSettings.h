@@ -20,6 +20,18 @@ struct FTorqueSettings
 	int32 FrameCap = 0;         // frames per second, 0 for no cap
 	bool bVSync = false;
 	bool bMotionBlur = true;
+	// [perf, build 150] The Performance preset (beenster, Nov 15: 100+ fps): High's groups, no Lumen (a sky
+	// light with distance-field shadows and AO, screen-space reflections), shorter grass. Quality is 2 with it.
+	bool bPerformance = false;
+	// [perf, build 150] NVIDIA's frame generation (DLSS 3 on RTX 40 cards: a made-up frame between each
+	// real pair) and Reflex (holds back the queue of frames, so the controls answer sooner). Only with
+	// NVIDIA's DLSS plugin in the build; both off without it.
+	bool bFrameGen = false;
+	bool bReflex = true;
+	static bool HasFrameGen();
+	static bool HasReflex();
+	// [perf, build 151] How many times Apply has run this session (the Ride view line says, so a run proves it).
+	static int32 Applied;
 	// Torque Shed's Graphics tab, the rest of it (graphics_tab.gd), as Unreal does each.
 	int32 Monitor = -1;         // the screen the game is on, -1 wherever it opens
 	float Brightness = 1.0f;    // 0.5 .. 1.5 (the display gamma, 2.2 at 1)
@@ -74,9 +86,12 @@ struct FTorqueSettings
 	float TimeOfDay = -1.0f;    // hours, -1 for the level's own light
 	bool bRealClock = false;    // the clock and sun follow the real time and date where you ride (weather plan stage 5)
 	// 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads, 4 live (the real
-	// weather where you ride; the default, as beenster chose: the host can switch it off any time).
+	// weather where you ride; the default, as beenster chose: the host can switch it off any time),
+	// 5 a preset sky held (WeatherPresetKey, one of Data/Sky/presets.json's; for testing the skies).
 	int32 WeatherMode = 4;
 	static constexpr int32 WeatherLive = 4;
+	static constexpr int32 WeatherPreset = 5;
+	FString WeatherPresetKey = TEXT("cumulus");
 	static const TArray<int32>& DayLengths();
 	FString SpeedText(double MetresPerSecond) const;   // "52 mph"
 	FString DistanceText(double Metres) const;         // "1.25 miles"

@@ -214,6 +214,11 @@ stiles snap into the wall or fence they stand in, which is cut for them, and the
 `python Tools/make_ride_props.py` makes the plain ones (`Data/RideUK/Props/*.glb`) and
 `Tools/ue_build_rideuk.py` lists them, with any Fab models matching `Data/RideUK/prop_kit.json`'s
 words (preferred), in a kit actor tagged RideProps; a kind with none keeps its code-made shape.
+Street lamps and telegraph poles are models too (the lamps' glowing faces and lights stay the
+code's). The houses' windows, their surrounds and doors come from a facade kit
+(`python Tools/make_facade_kit.py`, `Data/RideUK/Facade/*.glb`, a model per size) placed as instances
+coloured per house by `M_RideFacade`, so a street of houses costs a handful of instanced models
+rather than tens of thousands of triangles; `-TorqueRideFacadeKit=0` draws them into the houses as before.
 Each road's speed limit (mapped, or the UK's rule by class where not), its name and whether it is
 gravel come from the map too (OSM stage 1, `World/WorldRideFacts`): the HUD shows the limit and the
 road's name, and the route planner the county and what is on the way.
@@ -236,6 +241,15 @@ Still to come: scanned materials and the satellite's tint, the grass carpet, sca
 stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
 `Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
+
+The PC's test runs ride Ride UK rather than the Buttertubs level. The smoke ride is Hawes to Thwaite over
+the real Buttertubs Pass, ridden by the robot from what is kept on disk:
+`-TorqueRideUK=buttertubs -TorqueAutoRide -TorqueNoInput -TorqueSmoke -TorqueWorldOffline`, ending
+with one `Torque smoke: PASS` (or `FAIL`) line: whether it got there, the falls, the knocks, the time
+and the frame rate (`-TorqueSmokeMinutes=` gives up after that long, 25 by default). Run it once
+without `-TorqueWorldOffline` to keep its map on disk. The physics preset there is
+`-TorqueShedAction=physicsuk`: each style's launch, stop from 60 and full-lean bend on the level test
+pad, as before, then `climb` up the pass's steepest 300 m (`CLIMB PASS` or `CLIMB FAIL`).
 
 ### DLSS on the 4090
 

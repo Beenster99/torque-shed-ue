@@ -10,7 +10,8 @@ have their front to +x and their foot at y = 0, life size (the game scales each 
 keep a kind's 'height' in prop_kit.json what is made here), vertex-coloured (RGB the paint, A dirt).
 The things that stand in a wall or fence (gates, stiles, kissing gates) run along z, centred on the
 gap the plan leaves for them: 3.6 m for a field gate, 1.5 m for a kissing gate, 1.0 m for a stile.
-Street lamps are left to the code (their heads carry the lights).
+A street lamp's model is its column, arm and lantern; the code still draws its glowing face and its
+light (World/WorldRideScenery.cpp FurnitureTile), 1.1 m out along +x and 5.74 m up, so keep those there.
 
     python Tools/make_ride_props.py
 """
@@ -260,6 +261,39 @@ def phone_box(rng):
     return merged(ST.phone_box(rng))
 
 
+# --- [fps plan step 2] The lamps and poles, so each is an instance rather than code-made triangles ---------
+
+LAMP_GREY = (0.2, 0.21, 0.21)
+POLE_WOOD = (0.12, 0.085, 0.06)
+
+
+def street_lamp(rng):
+    """A street lamp as the code drew it: a tapered round column on a wider foot, an outreach arm swept
+    up to the lantern 1.1 m out over the road (+x), and the lantern's cowl (its glowing face is the
+    code's). 6.05 m to the top of the arm."""
+    M = ST.Mesh()
+    P, T = ST.tube([[0, 0, 0], [0, 6.0, 0]], [0.085, 0.05], 10); paint(M, P, T, P[:, [0, 1]], LAMP_GREY, 0.25)
+    P, T = ST.tube([[0, 0, 0], [0, 0.9, 0]], [0.13, 0.11], 10); paint(M, P, T, P[:, [0, 1]], tuple(np.array(LAMP_GREY) * 0.85), 0.35)
+    rod(M, (0, 5.75, 0), (0.35, 6.05, 0), 0.06, LAMP_GREY, 0.2, 8)
+    rod(M, (0.35, 6.05, 0), (0.9, 5.95, 0), 0.05, LAMP_GREY, 0.2, 8)
+    block(M, (1.1, 5.815, 0), (0.27, 0.065, 0.11), LAMP_GREY, 0.15)
+    block(M, (1.1, 5.92, 0), (0.2, 0.04, 0.08), tuple(np.array(LAMP_GREY) * 0.8), 0.15)
+    return M
+
+
+def power_pole(rng):
+    """A round timber telegraph pole, tapering, with its cross-arm along the wire (z), three insulators
+    and a cap: 9 m (the kit's height; a Fab pole takes its place where the PC has one)."""
+    M = ST.Mesh()
+    wood = toned(rng, POLE_WOOD, 0.12)
+    P, T = ST.tube([[0, 0, 0], [0, 8.95, 0]], [0.15, 0.11], 10); paint(M, P, T, P[:, [0, 1]], wood, 0.3)
+    block(M, (0, 8.375, 0), (0.025, 0.075, 0.8), wood, 0.2)
+    for z in (-0.65, 0.0, 0.65):
+        P, T = ST.tube([[0, 8.45, z], [0, 8.65, z]], [0.045, 0.03], 8); paint(M, P, T, P[:, [0, 1]], (0.55, 0.56, 0.55), 0.1)
+    P, T = ST.tube([[0, 8.95, 0], [0, 9.0, 0]], [0.12, 0.02], 10); paint(M, P, T, P[:, [0, 1]], tuple(np.array(wood) * 0.7), 0.3)
+    return M
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for f in os.listdir(OUT):
@@ -279,6 +313,8 @@ def main():
         "seat": [seat(R(990)), seat(R(991))],
         "post_box": [post_box(R(1000))],
         "phone_box": [phone_box(R(1010))],
+        "street_lamp": [street_lamp(R(1020))],
+        "power_pole": [power_pole(R(1030)), power_pole(R(1031))],
     }
     total = 0
     for kind, meshes in made.items():

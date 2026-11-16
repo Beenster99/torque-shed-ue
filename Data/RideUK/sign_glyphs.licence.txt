@@ -1,0 +1,10 @@
+Data/RideUK/sign_glyphs.json: the letters the game writes on road signs, cut into triangles by
+Tools/make_sign_glyphs.py from this font:
+
+  Noto Sans Bold
+  Copyright 2022 The Noto Project Authors (https://github.com/notofonts)
+  From https://fonts.google.com/noto/specimen/Noto+Sans (github.com/google/fonts, ofl/notosans)
+
+It is licensed under the SIL Open Font License, Version 1.1 (https://openfontlicense.org), which allows it to be
+used, changed and passed on, in games sold commercially too, so long as the font itself is not sold on its own.
+Outlines made from it stay under the same licence.

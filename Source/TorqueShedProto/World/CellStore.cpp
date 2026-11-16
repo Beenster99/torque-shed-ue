@@ -33,6 +33,8 @@ const char* FolderOf(CellStore::EKind Kind)
 	case CellStore::EKind::Profiles: return "profile";
 	case CellStore::EKind::Grounds: return "ground";
 	case CellStore::EKind::Paths: return "paths";
+	case CellStore::EKind::RoadX: return "roadx";
+	case CellStore::EKind::Sights: return "places";
 	default: return "sketch";
 	}
 }
@@ -71,6 +73,19 @@ bool WorldIndex::Parse(const std::string& Text)
 	Hashes(Root, "sketches", Sketches);
 	Hashes(Root, "grounds", Grounds);
 	Hashes(Root, "paths", Paths);
+	Hashes(Root, "roadx", RoadX);   // [OSM stage 5]
+	Hashes(Root, "places", Sights);   // [places stage 1]
+	if (const Json* B = Root.Get("buildings"))
+		if (B->IsObject())
+			for (const auto& Kv : B->O)
+			{
+				if (!Kv.second.IsObject()) continue;
+				CellEntry E;
+				E.Hash = Kv.second.Str("hash");
+				E.Url = Kv.second.Str("url");
+				E.Bytes = static_cast<long long>(Kv.second.Num("bytes"));
+				if (!E.Hash.empty() && !E.Url.empty()) Buildings[Kv.first] = E;
+			}
 	if (const Json* A = Root.Get("areas")) Areas = *A;
 	return true;
 }
@@ -224,7 +239,7 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 {
 	const std::unordered_map<std::string, std::string>& Map = Kind == EKind::Streams ? Idx.Streams
 		: Kind == EKind::Trees ? Idx.Trees : Kind == EKind::Features ? Idx.Features : Kind == EKind::Profiles ? Idx.Profiles
-		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Idx.Sketches;
+		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Kind == EKind::RoadX ? Idx.RoadX : Kind == EKind::Sights ? Idx.Sights : Idx.Sketches;
 	auto It = Map.find(Name);
 	if (It == Map.end() || It->second.empty()) return false;
 	const std::string Rel = std::string(FolderOf(Kind)) + "/" + (Kind == EKind::Sketches ? "b" : "c") + Name + ".json";
@@ -239,6 +254,27 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 		if (!Dir.empty()) Files::Write(Path, Text);
 	}
 	return Json::Parse(Text, Out);
+}
+
+bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out)
+{
+	const auto It = Idx.Buildings.find(Name);
+	if (It == Idx.Buildings.end()) return false;
+	const CellEntry& E = It->second;
+	const std::string Path = Dir.empty() ? std::string() : Files::Join(Files::Join(Dir, "bld"), "c" + Name + "-" + E.Hash + ".zip");
+	if (!Path.empty() && Files::Read(Path, Out) && Sha256Hex(Out).substr(0, E.Hash.size()) == E.Hash) return true;
+	if (Offline || !Get) return false;
+	Out.clear();
+	if (Get(E.Url, Out) != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
+	if (!Path.empty())
+	{
+		// (the cell's older zips go: only the one the index names is kept)
+		const std::string Folder = Files::Join(Dir, "bld");
+		for (const std::string& Old : Files::List(Folder, false))
+			if (Old.rfind("c" + Name + "-", 0) == 0) Files::Remove(Files::Join(Folder, Old));
+		Files::Write(Path, Out);
+	}
+	return true;
 }
 
 Json CellStore::Used() const

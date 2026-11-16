@@ -13,6 +13,7 @@
 #include "WorldRide.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
+#include "WorldRideSigns.h"
 #include "WorldRoadLine.h"
 #include "WorldRouteMap.h"
 #include "WorldRegion.h"
@@ -92,10 +93,123 @@ int main()
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
 	std::string TownText;
 	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
+	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
+	std::string GlyphText;
+	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
+	// [OSM stage 6C] (the places direction signs name)
+	std::string PlaceText;
+	const bool SignPlacesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "World/uk_places.tsv"), PlaceText) && SetSignPlaces(PlaceText);
+	(void)SignPlacesRead;
 	if (!Files::Read(Files::Join(Data, "godot_world.json"), Text) || !Json::Parse(Text, Ref))
 	{
 		std::printf("FAIL  no godot_world.json in %s\n", Data.c_str());
 		return 1;
+	}
+
+	// ------------------------------------------------------------------ [OSM stage 6A] the signs' lettering
+	{
+		// Every letter of three names set, none missing; each letter starts past the one before (a hair of
+		// overlap allowed, as the font's own spacing has); the triangles face the reader.
+		bool Ok = GlyphsRead && SignFontNow() != nullptr;
+		size_t Tris = 0;
+		for (const char* Name : {"Leyburn", "Llanfairpwllgwyngyll", "A684", "Ystradgynlais", "Ŵyddgrug", "Àird a’ Bhàigh"})
+		{
+			RideMesh M;
+			const float Ink[3] = {0.0f, 0.0f, 0.0f};
+			double Wide = 0.0;
+			const bool Set = SignText::Set(M, 10.0, 2.0, 5.0, 0.0, 1.0, 0.1, Name, Ink, -1) && SignText::Width(Name, 0.1, Wide);
+			Ok = Ok && Set && M.Idx.size() >= 3 && Wide > 0.0;
+			if (!Set) { std::printf("      not set: %s\n", Name); continue; }
+			// (each letter's span along the face: the font's glyphs in turn)
+			const std::shared_ptr<const SignFont> Font = SignFontNow();
+			double Pen = 0.0, LastEnd = -1e9;
+			for (const uint32_t C : SignText::CodePoints(Name))
+			{
+				if (C == 0x20u) { Pen += Font->Space; continue; }
+				const SignGlyph& G = Font->Glyphs.at(C);
+				double Lo = 1e9, Hi = -1e9;
+				for (size_t P = 0; P + 1 < G.Points.size(); P += 2) { Lo = std::fmin(Lo, Pen + G.Points[P]); Hi = std::fmax(Hi, Pen + G.Points[P]); }
+				if (Hi >= Lo && Lo < LastEnd - 0.06) { Ok = false; std::printf("      overlap in %s\n", Name); }
+				if (Hi >= Lo) LastEnd = Hi;
+				Pen += G.Width;
+			}
+			// (facing +z, the reader's side: every triangle's normal towards it)
+			for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
+			{
+				const float* A = &M.Pos[M.Idx[T] * 3];
+				const float* B = &M.Pos[M.Idx[T + 1] * 3];
+				const float* C = &M.Pos[M.Idx[T + 2] * 3];
+				const double Nz = double(B[0] - A[0]) * double(C[1] - A[1]) - double(B[1] - A[1]) * double(C[0] - A[0]);
+				if (Nz < -1e-12) { Ok = false; std::printf("      a triangle faces away in %s\n", Name); break; }
+			}
+			// (and it runs left to right as the reader sees it: facing +z the reader looks along -z, north, their right east, +x)
+			double MinX = 1e9, MaxX = -1e9;
+			for (size_t V = 0; V < M.Vertices(); ++V) { MinX = std::fmin(MinX, M.Pos[V * 3]); MaxX = std::fmax(MaxX, M.Pos[V * 3]); }
+			if (!(MinX >= 10.0 - 1e-4 && std::fabs((MaxX - MinX) - Wide) < Wide * 0.1 + 0.02)) { Ok = false; std::printf("      %s runs %.3f to %.3f, %.3f wide\n", Name, MinX, MaxX, Wide); }
+			Tris += M.Idx.size() / 3;
+		}
+		std::printf("      sign lettering: %zu letters in the alphabet, %zu triangles for six names\n", SignFontNow() ? SignFontNow()->Glyphs.size() : size_t(0), Tris);
+		Check(Ok, "sign lettering: Leyburn, Llanfairpwllgwyngyll, A684 and Welsh and Gaelic names set with every letter, none overlapping, facing the reader");
+	}
+	// [OSM stage 6A] The plates and symbols: every warning triangle drawn facing its reader (none of its
+	// triangles turned away), its back facing away, within the triangle's outline; a word plate as wide as
+	// its words and its border.
+	{
+		bool Ok = SignFontNow() != nullptr;
+		size_t Tris = 0;
+		for (int Sym = 0; Sym < SignPlate::SymKinds && Ok; ++Sym)
+		{
+			RideMesh Face, Back;
+			SignPlate::Frame F;
+			F.X = 10.0; F.Y = 2.0; F.Z = -5.0; F.Fx = 0.6; F.Fz = 0.8;
+			SignPlate::Warning(Face, Back, F, 0.9, Sym, Sym == SignPlate::SymSteepDown ? "17%" : "");
+			Ok = Ok && Face.Idx.size() >= 3 * 20 && !Back.Idx.empty();
+			const auto Facing = [](const RideMesh& M, size_t T)
+			{
+				const float* A = &M.Pos[M.Idx[T] * 3];
+				const float* B = &M.Pos[M.Idx[T + 1] * 3];
+				const float* C = &M.Pos[M.Idx[T + 2] * 3];
+				const double Ux = B[0] - A[0], Uy = B[1] - A[1], Uz = B[2] - A[2], Vx = C[0] - A[0], Vy = C[1] - A[1], Vz = C[2] - A[2];
+				return (Uy * Vz - Uz * Vy) * 0.6 + (Ux * Vy - Uy * Vx) * 0.8;   // (the normal's x times Face.x, z times Face.z)
+			};
+			for (size_t T = 0; T < Face.Idx.size(); T += 3)
+			{
+				const double Nf = Facing(Face, T);
+				const float* A = &Face.Pos[Face.Idx[T] * 3];
+				// (in the triangle's plane through its middle, within its outline: 0.9 m across, its middle the centroid)
+				const double Across = (A[0] - 10.0) * 0.8 - (A[2] + 5.0) * 0.6, Up = A[1] - 2.0;
+				Ok = Ok && Nf >= 0.0 && std::fabs(Across) <= 0.46 && Up >= -0.27 && Up <= 0.53;
+			}
+			for (size_t T = 0; T < Back.Idx.size(); T += 3) Ok = Ok && Facing(Back, T) <= 0.0;
+			Tris += Face.Idx.size() / 3;
+		}
+		RideMesh Plate, Back;
+		const float Paper[3] = {1.0f, 1.0f, 1.0f}, Ink[3] = {0.0f, 0.0f, 0.0f};
+		double W = 0.0, H = 0.0, Wide = 0.0;
+		Ok = Ok && SignPlate::WordPlate(Plate, Back, SignPlate::Frame(), 0.1, "Frenchgate", Paper, Ink, W, H) && SignText::Width("Frenchgate", 0.1, Wide) && W > Wide && H > 0.2;
+		// [OSM stage 6C] direction signs: a map-type sign, a mileage sign and a flag drawn facing the reader,
+		// sized as measured; miles as signs give them
+		{
+			RideMesh Dir, DirBack;
+			double Wm = 0.0, Hm = 0.0, Wd = 0.0, Hd = 0.0;
+			const bool Measured = SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), 0.15, SignPlate::SchemePrimary, "^Hawes;Leyburn|<Askrigg", Wm, Hm);
+			Ok = Ok && Measured && SignPlate::AdvanceBoard(&Dir, &DirBack, SignPlate::Frame(), 0.15, SignPlate::SchemePrimary, "^Hawes;Leyburn|<Askrigg", Wd, Hd) && Wd == Wm && Hd == Hm && Wm > Hm;
+			Ok = Ok && SignPlate::ConfirmBoard(&Dir, &DirBack, SignPlate::Frame(), 0.15, SignPlate::SchemeLocal, "Hawes\t12|Leyburn\t28", Wd, Hd);
+			Ok = Ok && SignPlate::FlagBoard(&Dir, &DirBack, SignPlate::Frame(), 0.12, SignPlate::SchemeLocal, "<Askrigg\t3", Wd, Hd);
+			Ok = Ok && !SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), 0.15, 0, "^Hawes", Wd, Hd);   // (no side: no sign)
+			SignPlate::Countdown(Dir, DirBack, SignPlate::Frame(), 3);   // ([6F] a motorway exit's 300 yard marker)
+			for (size_t T = 0; T < Dir.Idx.size(); T += 3)
+			{
+				const float* A = &Dir.Pos[Dir.Idx[T] * 3];
+				const float* B = &Dir.Pos[Dir.Idx[T + 1] * 3];
+				const float* C = &Dir.Pos[Dir.Idx[T + 2] * 3];
+				Ok = Ok && (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]) >= 0.0;   // (facing +z, the frame's own)
+			}
+			Ok = Ok && SignPlate::Miles(100.0).empty() && SignPlate::Miles(800.0) == "\xC2\xBD" && SignPlate::Miles(2400.0) == "1\xC2\xBD" && SignPlate::Miles(19312.0) == "12";
+			std::printf("      direction signs: a map-type sign %.2f by %.2f m at 150 mm capitals\n", Wm, Hm);
+		}
+		std::printf("      warning symbols: %d, %zu triangles; a street plate %.2f by %.2f m\n", int(SignPlate::SymKinds), Tris, W, H);
+		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name; direction signs and miles");
 	}
 
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
@@ -966,13 +1080,19 @@ int main()
 							double H = Plan->RoadHeight(F.At.X, F.At.Z);
 							if (!std::isnan(H)) ++OnRoad;
 						}
-						// (a square of ground with signs on it has their words)
+						// (a square of ground with signs on it has their words: [OSM stage 6A] lettered in its signs'
+						// layer, as many triangles as the name set alone has, and no text component for it)
 						for (const RidePlan::Furnish& F : Plan->Furniture)
 							if (F.Kind == RidePlan::NameSign)
 							{
-								RideMesh Stands;
+								RideMesh Stands, Alone;
 								Plan->SceneryTile(std::floor(F.At.X / 64.0) * 64.0, std::floor(F.At.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
-								for (const RideMesh::Label& L : Stands.Labels) Labels += L.Text == F.Text ? 1 : 0;
+								const float Ink[3] = {0.0f, 0.0f, 0.0f};
+								SignText::Set(Alone, 0.0, 0.0, 0.0, 1.0, 0.0, 0.1, F.Text, Ink);
+								bool Labelled = false;
+								for (const RideMesh::Label& L : Stands.Labels) Labelled = Labelled || L.Text == F.Text;
+								Labels = !Labelled && Stands.Signs && Alone.Idx.size() > 0 && Stands.Signs->Idx.size() >= Alone.Idx.size() ? 1 : 0;
+								std::printf("      the name sign '%s': %zu triangles of lettering, %zu in its square's signs\n", F.Text.c_str(), Alone.Idx.size() / 3, Stands.Signs ? Stands.Signs->Idx.size() / 3 : size_t(0));
 								break;
 							}
 						std::printf("      furniture: %d of %d road points built up; %d name signs, %d 30s, %d national limits, %d chevrons, %d lamps, %d cattle grids, %d poles, %d gates, %d post boxes; %d on a road\n",
@@ -982,6 +1102,36 @@ int main()
 						Check(Built > 0 && Plan->FurnitureCount(RidePlan::NameSign) >= 2 && Plan->FurnitureCount(RidePlan::Limit30) >= 2 && Plan->FurnitureCount(RidePlan::LimitNational) >= 2
 								&& Plan->FurnitureCount(RidePlan::StreetLamp) > 3 && Plan->FurnitureCount(RidePlan::PowerPole) > 10 && Plan->FurnitureCount(RidePlan::FieldGate) > 10 && OnRoad == 0 && Labels == 1,
 							"the road's furniture: villages named and signed 30 coming in and national limit going out, lamps through them, poles, gates in the walls, none of it on a road");
+						// [OSM stage 6B] The warnings: a triangle of a size Britain's signs come in, 0.5 m or more off the
+						// road, none within 10 m of another sign facing the same way, each drawn in its square's signs.
+						{
+							int Warns = 0, Hills = 0, Bad = 0, Crowded = 0, Drawn = 0;
+							std::vector<const RidePlan::Furnish*> Standing;
+							for (const RidePlan::Furnish& F : Plan->Furniture)
+							{
+								const bool Sign = F.Kind == RidePlan::NameSign || F.Kind == RidePlan::Limit30 || F.Kind == RidePlan::LimitNational || F.Kind == RidePlan::WarnSign;
+								if (!Sign) continue;
+								for (const RidePlan::Furnish* O : Standing)
+									if (O->At.DistanceTo(F.At) < 10.0 && O->Face.X * F.Face.X + O->Face.Z * F.Face.Z > 0.5 && (O->Kind == RidePlan::WarnSign || F.Kind == RidePlan::WarnSign)) ++Crowded;
+								Standing.push_back(&F);
+								if (F.Kind != RidePlan::WarnSign) continue;
+								++Warns;
+								Hills += F.Size == SignPlate::SymSteepDown || F.Size == SignPlate::SymSteepUp ? 1 : 0;
+								RidePlan::NearHit Hit;
+								const bool Near = Plan->NearestOf(F.At.X, F.At.Z, RidePlan::NearOpts(), Hit);
+								const bool SizeOk = F.Big == 0.6 || F.Big == 0.75 || F.Big == 0.9 || F.Big == 1.2;
+								if (!SizeOk || (Near && Hit.Dist < Hit.Half + 0.5 + F.Big * 0.5 - 0.05) || F.Size < 0.0 || F.Size >= SignPlate::SymKinds) ++Bad;
+								if (Drawn == 0)
+								{
+									RideMesh Stands;
+									Plan->SceneryTile(std::floor(F.At.X / 64.0) * 64.0, std::floor(F.At.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
+									Drawn = Stands.Signs && Stands.Signs->Idx.size() >= 3 * 40 ? 1 : -1;
+								}
+							}
+							std::printf("      warnings: %d (%d hills), %d street name plates; %d too near the road or of a wrong size, %d crowding another sign\n", Warns, Hills,
+								Plan->FurnitureCount(RidePlan::StreetPlate), Bad, Crowded);
+							Check(Warns > 0 && Bad == 0 && Crowded == 0 && Drawn == 1, "the warnings: Britain's sizes, back from the road, never crowding another sign, drawn in the signs' layer");
+						}
 						int Churches = 0, Pubs = 0;
 						for (unsigned char Role : Plan->BuildingRole) { Churches += Role == 1 ? 1 : 0; Pubs += Role == 2 ? 1 : 0; }
 						std::printf("      and %d phone boxes, %d pub signs (%d pubs), %d churches with towers, %d level crossing barriers\n", Plan->FurnitureCount(RidePlan::PhoneBox),
@@ -1184,7 +1334,18 @@ int main()
 							const P2 Middle = Plan->Rails[size_t(Pl.Line)].At[size_t((Pl.First + Pl.Last) / 2)];
 							RideMesh Stands;
 							Plan->SceneryTile(std::floor(Middle.X / 64.0) * 64.0, std::floor(Middle.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
-							for (const RideMesh::Label& L : Stands.Labels) Named += L.Text == Pl.Name ? 1 : 0;
+							bool Has = false;
+							for (const RideMesh::Label& L : Stands.Labels) Has = Has || L.Text == Pl.Name;
+							// ([OSM stage 6A] or its name lettered in triangles: as many cream points as the name set alone)
+							RideMesh Alone;
+							const float Cream[3] = {0.9f, 0.9f, 0.9f};
+							if (!Has && SignText::Set(Alone, 0.0, 0.0, 0.0, 1.0, 0.0, 0.2, Pl.Name, Cream))
+							{
+								size_t CreamPoints = 0;
+								for (size_t V = 0; V < Stands.Vertices(); ++V) CreamPoints += Stands.Col[V * 3] == 0.9f && Stands.Col[V * 3 + 1] == 0.9f && Stands.Col[V * 3 + 2] == 0.9f ? 1 : 0;
+								Has = CreamPoints >= Alone.Vertices();
+							}
+							Named += Has ? 1 : 0;
 						}
 						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%%, bed beside the line %d of %d, %d platforms (%d named boards)\n",
 							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);
@@ -1324,7 +1485,7 @@ int main()
 						float Highest = -1e9f, Lowest = 1e9f;
 						for (size_t V = 0; V < Deck.Vertices(); ++V) { Highest = std::fmax(Highest, Deck.Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Deck.Pos[V * 3 + 1]); }
 						std::printf("      %d bridges and %d tunnels on it; the first deck is %d knots\n", Plan->Bridges, Plan->Tunnels, First >= 0 ? Last - First + 1 : 0);
-						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() > Plain.Vertices() && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
+						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() >= 24 && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
 							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
 					// A tunnel (the fixture's ride has none, so 30 knots of it are called one): a tube with the
@@ -1352,7 +1513,8 @@ int main()
 						for (size_t V = 0; V < Bore.Vertices(); ++V)
 						{
 							const double X = Bore.OriginX + Bore.Pos[V * 3], Y = Bore.Pos[V * 3 + 1], Z = Bore.OriginZ + Bore.Pos[V * 3 + 2];
-							const bool Green = Bore.Col[V * 3 + 1] > Bore.Col[V * 3] * 1.15 && Bore.Col[V * 3 + 1] > Bore.Col[V * 3 + 2] * 1.5;
+							// (the hill's grass, not the verge's brighter grass on the shoulders: build 147)
+							const bool Green = Bore.Col[V * 3 + 1] > Bore.Col[V * 3] * 1.15 && Bore.Col[V * 3 + 1] > Bore.Col[V * 3 + 2] * 1.5 && Bore.Col[V * 3 + 1] < 0.13f;
 							if (Green) ++Grass;
 							else if (Bore.Col[V * 3] > 0.3f && Bore.Col[V * 3] < 0.4f) ++Wall;
 							const double D = std::hypot(X - Pm.At.X, Z - Pm.At.Z);
@@ -1363,7 +1525,7 @@ int main()
 						for (size_t T = 0; T + 2 < Bore.Idx.size(); T += 3)
 						{
 							const uint32_t Va = Bore.Idx[T], Vb = Bore.Idx[T + 1], Vc = Bore.Idx[T + 2];
-							if (!(Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3] * 1.15 && Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3 + 2] * 1.5)) continue;
+							if (!(Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3] * 1.15 && Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3 + 2] * 1.5 && Bore.Col[Va * 3 + 1] < 0.13f)) continue;
 							const float* A3 = &Bore.Pos[Va * 3], * B3 = &Bore.Pos[Vb * 3], * C3 = &Bore.Pos[Vc * 3];
 							++LidTris;
 							if (double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) > 0.0) ++LidUp;
@@ -1371,7 +1533,7 @@ int main()
 						const double Cut = Plan->Ground(Pm.At.X, Pm.At.Z), FarOff = Plan->Ground(Pm.At.X, Pm.At.Z, 64.0), Lie = Plan->Land->Height(Pm.At.X, Pm.At.Z);
 						std::printf("      a tunnel of 30 knots at %.2f km: its roof %.1f m over the road, the hill's lid %.1f m; %d more points than the open road\n",
 							Pm.Along / 1000.0, Roof, LidLow, int(Bore.Vertices()) - int(Open.Vertices()));
-						Check(T0 > 0 && Bore.Vertices() > Open.Vertices() + 29 * 4 * 20 && Bore.Vertices() % 4 == 0 && Near(Roof, Top, 0.01) && LidLow >= Top + 0.59 && Grass > 29 * 14 * 4 - 1 && Wall > 0 && LidTris == 29 * 14 * 2 && LidUp == LidTris
+						Check(T0 > 0 && Bore.Vertices() > 29 * 4 * 20 &&   /* (the open road's ragged country edges are finer than its pieces) */ Bore.Vertices() % 4 == 0 && Near(Roof, Top, 0.01) && LidLow >= Top + 0.59 && Grass > 29 * 14 * 4 - 1 && Wall > 0 && LidTris == 29 * 14 * 2 && LidUp == LidTris
 							&& Near(Cut, Pm.Height + RoadLine::CrossHeight(0.0, Pm.Half, Pm.Bank) - RidePlan::Sink, 1e-6) && FarOff == Lie,
 							"a tunnel is a tube with an arched roof, the hill laid back over it clear of the arch and a headwall at each mouth; the far-off land has no cutting there");
 						{
@@ -1772,6 +1934,117 @@ int main()
 		double Steepest = 0.0;
 		for (size_t I = 1; I < Graded.size(); ++I) Steepest = std::fmax(Steepest, std::fabs(Graded[I] - Graded[I - 1]) / RoadLine::Step);
 		Check(Steepest <= RoadLine::MaxGrade + 1e-9, "a step in the ground is graded to 15% at most");
+	}
+
+	// ------------------------------------------------------------------ [towns stage 3] outlines as boxes
+	{
+		// (a 10 x 6 m house turned 30 degrees; an L of 12 x 4 m and 4 x 8 m; a round tower of 64 sides)
+		const double Tw = 0.5235987755982988;
+		std::vector<P2> House;
+		for (const P2& C : {P2(-5, -3), P2(5, -3), P2(5, 3), P2(-5, 3)}) House.push_back(P2(100.0 + C.X * std::cos(Tw) - C.Z * std::sin(Tw), 50.0 + C.X * std::sin(Tw) + C.Z * std::cos(Tw)));
+		const std::vector<Building> One = RidePlan::PiecesOf(House, 7.5, 0);
+		bool HouseOk = One.size() == 1 && Near(One[0].X, 100.0, 1e-6) && Near(One[0].Z, 50.0, 1e-6) && Near(One[0].W, 10.0, 1e-6) && Near(One[0].D, 6.0, 1e-6) && One[0].Height == 7.5;
+		if (HouseOk)
+		{
+			// (its corners where the drawer puts them: x across along (cos, -sin) of its yaw, z deep along (sin, cos))
+			const double Cs = std::cos(One[0].Yaw), Sn = std::sin(One[0].Yaw);
+			for (const P2& C : House)
+			{
+				bool Hit = false;
+				for (int Sx : {-1, 1})
+					for (int Sz : {-1, 1})
+					{
+						const double Lx = Sx * One[0].W * 0.5, Lz = Sz * One[0].D * 0.5;
+						Hit = Hit || (Near(One[0].X + Lx * Cs + Lz * Sn, C.X, 1e-6) && Near(One[0].Z - Lx * Sn + Lz * Cs, C.Z, 1e-6));
+					}
+				HouseOk = HouseOk && Hit;
+			}
+		}
+		const std::vector<P2> El = {P2(0, 0), P2(12, 0), P2(12, 4), P2(4, 4), P2(4, 12), P2(0, 12)};
+		const std::vector<Building> Two = RidePlan::PiecesOf(El, 0.0, 0);
+		double ElArea = 0.0;
+		for (const Building& B : Two) ElArea += B.W * B.D;
+		std::vector<P2> Round;
+		for (int K = 0; K < 64; ++K) Round.push_back(P2(10.0 * std::cos(K * 6.283185307179586 / 64.0), 10.0 * std::sin(K * 6.283185307179586 / 64.0)));
+		const std::vector<Building> Few = RidePlan::PiecesOf(Round, 0.0, 6);
+		double RoundArea = 0.0;
+		for (const Building& B : Few) RoundArea += B.W * B.D;
+		std::printf("      outlines: a house as %zu box, an L as %zu (%.0f m2 of 80), a round tower as %zu (%.0f m2 of 314)\n", One.size(), Two.size(), ElArea, Few.size(), RoundArea);
+		Check(HouseOk && Two.size() == 2 && Near(ElArea, 80.0, 0.5) && !Few.empty() && Few.size() <= 8 && RoundArea > 250.0 && RoundArea < 380.0 && Few[0].More[0] == 6.0,
+			"[towns stage 3] an outline is cut into the boxes it is drawn with: a house one, an L two, a round tower a few of about its area");
+		Check(RidePlan::KindOfClass("church", 200.0) == 6 && RidePlan::KindOfClass("garage", 20.0) == 1 && RidePlan::KindOfClass("terrace", 300.0) == 0
+			&& RidePlan::KindOfClass("residential", 900.0) == 4 && RidePlan::KindOfClass("", 60.0) == 0 && RidePlan::KindOfClass("warehouse", 900.0) == 5,
+			"[towns stage 3] the map's class of a building is the baker's kind");
+	}
+
+	// ------------------------------------------------------------------ [places stage 6] the famous places' own models
+	{
+		// (a glb of one triangle facing up, as Tools/make_ride_sites.py writes them: its node a stone to drop)
+		std::string Bin;
+		const float Tri[9] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f};   // (CCW seen from above in glTF: x east, z south)
+		const float Up[9] = {0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+		const uint8_t Rgba[12] = {128, 0, 64, 255, 128, 0, 64, 255, 128, 0, 64, 255};
+		const uint16_t Ix[4] = {0, 1, 2, 0};
+		Bin.append(reinterpret_cast<const char*>(Tri), 36);
+		Bin.append(reinterpret_cast<const char*>(Up), 36);
+		Bin.append(reinterpret_cast<const char*>(Rgba), 12);
+		Bin.append(reinterpret_cast<const char*>(Ix), 8);
+		std::string Js = "{\"asset\":{\"version\":\"2.0\"},\"nodes\":[{\"mesh\":0,\"name\":\"stone_1#drop\"}],\"materials\":[{\"name\":\"stone\"}],"
+			"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"NORMAL\":1,\"COLOR_0\":2},\"indices\":3,\"material\":0}]}],"
+			"\"buffers\":[{\"byteLength\":92}],\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":36},"
+			"{\"buffer\":0,\"byteOffset\":72,\"byteLength\":12},{\"buffer\":0,\"byteOffset\":84,\"byteLength\":6}],"
+			"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},{\"bufferView\":1,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+			"{\"bufferView\":2,\"componentType\":5121,\"normalized\":true,\"count\":3,\"type\":\"VEC4\"},{\"bufferView\":3,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}]}";
+		while (Js.size() % 4) Js += ' ';
+		const auto Le = [](std::string& To, uint32_t V) { To.append(reinterpret_cast<const char*>(&V), 4); };
+		std::string Glb;
+		Le(Glb, 0x46546C67u); Le(Glb, 2u); Le(Glb, uint32_t(12 + 8 + Js.size() + 8 + Bin.size()));
+		Le(Glb, uint32_t(Js.size())); Le(Glb, 0x4E4F534Au); Glb += Js;
+		Le(Glb, uint32_t(Bin.size())); Le(Glb, 0x004E4942u); Glb += Bin;
+		SiteModel One;
+		std::string Fail;
+		const bool Read = ReadSiteModel(Glb, One, &Fail);
+		bool Wound = false, Masks = false;
+		RideMesh Put;
+		Put.OriginX = 100.0;
+		Put.OriginZ = 200.0;
+		if (Read && One.Parts.size() == 1)
+		{
+			const SiteModel::Part& P = One.Parts[0];
+			Masks = P.Layer == SiteModel::Stone && P.Drop && !P.Far && Near(P.Col[0], 128.0 / 255.0, 1e-5) && Near(P.Col[2], 64.0 / 255.0, 1e-5) && Near(P.Alpha[0], 1.0, 1e-6);
+			// (put a quarter turn round, at (110, 5, 220): its north point goes east)
+			PutSitePart(Put, P, 110.0, 5.0, 220.0, 1.5707963267948966);
+			// (wound as the ride's quads: (b - a) x (c - a) against the side seen)
+			const auto V = [&Put](uint32_t I, int K) { return double(Put.Pos[I * 3 + uint32_t(K)]); };
+			const uint32_t A = Put.Idx[0], B = Put.Idx[1], C = Put.Idx[2];
+			const double Ux = V(B, 0) - V(A, 0), Uz = V(B, 2) - V(A, 2), Wx = V(C, 0) - V(A, 0), Wz = V(C, 2) - V(A, 2);
+			const double Ny = Uz * Wx - Ux * Wz;
+			Wound = Ny < 0.0 && Near(V(2, 0), 11.0, 1e-4) && Near(V(2, 2), 20.0, 1e-4) && Near(V(2, 1), 5.0, 1e-4);
+		}
+		std::printf("      site model: read %s (%s), %zu part, wound %s\n", Read ? "yes" : "no", Fail.c_str(), One.Parts.size(), Wound ? "yes" : "no");
+		Check(Read && Masks && Wound && Put.Idx.size() == 3, "[places stage 6] a site model's glb is read with its parts' layers, masks and flags, turned and put in the ride's frame and winding");
+		// Every model a site note names reads, in budget, its size near the note's.
+		std::string Notes;
+		int Named = 0, Good = 0;
+		size_t All = 0;
+		if (Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/landmarks_uk.json"), Notes) && SetSiteTable(Notes))
+			for (const SiteNote& N : SiteTable())
+			{
+				if (N.Model.empty()) continue;
+				++Named;
+				std::string Bytes;
+				SiteModel M;
+				std::string Fault;
+				const bool Ok = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/Sites/" + N.Model + ".glb"), Bytes) && ReadSiteModel(Bytes, M, &Fault);
+				const bool Sized = Ok && (N.Tall <= 0.0 || N.Kind == "stone_circle" || std::fabs(M.Tall - N.Tall) <= 0.2 * N.Tall + 0.5);   // (a circle's note is its ring's height, not its tallest)
+				const bool Light = Ok && M.Triangles() <= 120000;
+				std::printf("      %-28s %s: %zu parts, %zu triangles, %.1f m tall (note %.1f), %.0f m across%s%s\n", N.Name.c_str(), N.Model.c_str(), M.Parts.size(), M.Triangles(), M.Tall, N.Tall,
+					2.0 * M.Reach, Ok ? "" : (" NOT READ: " + Fault).c_str(), Sized ? "" : " WRONG SIZE");
+				All += M.Triangles();
+				Good += Ok && Sized && Light ? 1 : 0;
+			}
+		std::printf("      site models: %d of %d good, %zu triangles in all\n", Good, Named, All);
+		Check(Named > 0 && Good == Named, "[places stage 6] every site model the notes name reads, near its noted height (a circle's: its tallest stone aside), under 120k triangles");
 	}
 
 	// ------------------------------------------------------------------ what is kept on disk (stage 8)

@@ -532,6 +532,194 @@
     "humidity": 99,
     "visibility": 300
    }
+  },
+  {
+   "name": "42_cumulus_under_cirrus",
+   "note": "cumulus with cirrus above, looking 30 deg up: the cirrus must sit BEHIND the cumulus",
+   "day": 172,
+   "sun": 40,
+   "look": "horizon",
+   "yaw": 200,
+   "weather": {
+    "preset": "sunny",
+    "cloud": 84,
+    "low": 45,
+    "mid": 0,
+    "high": 70,
+    "cape": 500,
+    "cloud_base": 1100,
+    "humidity": 70,
+    "code": 2
+   },
+   "pitch": 30
+  },
+  {
+   "name": "43_rainbow_showers",
+   "note": "stage 4: sun low behind, a shower ahead (rainbow); rain falling near",
+   "day": 172,
+   "sun": 20,
+   "evening": true,
+   "look": "away",
+   "weather": {
+    "cloud": 50,
+    "low": 45,
+    "mid": 5,
+    "high": 0,
+    "rain": 1.0,
+    "code": 80,
+    "cape": 700,
+    "cloud_base": 1000,
+    "humidity": 80,
+    "road_wet": 0.6
+   }
+  },
+  {
+   "name": "44_night_up",
+   "note": "stage 5: a clear November night, looking up: stars, Milky Way, the moon if up",
+   "day": 320,
+   "sun": -25,
+   "evening": true,
+   "look": "up",
+   "weather": {
+    "preset": "sunny",
+    "cloud": 0,
+    "low": 0,
+    "mid": 0,
+    "high": 0,
+    "visibility": 60000,
+    "humidity": 65
+   }
+  },
+  {
+   "name": "45_night_horizon",
+   "note": "stage 5: the same night along the horizon to the south: stars low, towns' glow",
+   "day": 320,
+   "sun": -25,
+   "evening": true,
+   "look": "horizon",
+   "yaw": 180,
+   "pitch": 15,
+   "weather": {
+    "preset": "sunny",
+    "cloud": 0,
+    "low": 0,
+    "mid": 0,
+    "high": 0,
+    "visibility": 60000,
+    "humidity": 65
+   }
+  },
+  {
+   "name": "46_night_clouds",
+   "note": "stage 5: broken cloud at night: cloud dark against the stars (or moonlit)",
+   "day": 320,
+   "sun": -25,
+   "evening": true,
+   "look": "horizon",
+   "yaw": 120,
+   "pitch": 25,
+   "weather": {
+    "cloud": 50,
+    "low": 45,
+    "mid": 10,
+    "high": 10,
+    "code": 2,
+    "cloud_base": 1100,
+    "humidity": 80
+   }
+  },
+  {
+   "name": "47_anvil",
+   "note": "stage 7: thunderclouds towering to 10 km with an anvil, seen from afar (flashes may show)",
+   "day": 172,
+   "sun": 30,
+   "look": "horizon",
+   "yaw": 90,
+   "pitch": 8,
+   "weather": {
+    "cloud": 60,
+    "low": 50,
+    "mid": 30,
+    "high": 30,
+    "rain": 6,
+    "code": 95,
+    "cape": 2000,
+    "cloud_base": 1000,
+    "humidity": 80,
+    "visibility": 20000
+   }
+  },
+  {
+   "name": "48_snow_curtains",
+   "note": "stage 7: snow showers: white curtains under them, flat bright light",
+   "day": 20,
+   "sun": 12,
+   "look": "horizon",
+   "yaw": 200,
+   "pitch": 4,
+   "weather": {
+    "cloud": 70,
+    "low": 60,
+    "mid": 20,
+    "high": 10,
+    "snow": 1,
+    "rain": 1,
+    "code": 85,
+    "cape": 300,
+    "cloud_base": 700,
+    "humidity": 88,
+    "visibility": 4000,
+    "air": 0,
+    "freezing": 200
+   }
+  },
+  {
+   "name": "49_sun_dogs",
+   "note": "stage 7: a veil of ice cloud and a low sun: sun dogs either side, the halo",
+   "day": 320,
+   "sun": 14,
+   "look": "sun",
+   "weather": {
+    "preset": "sunny",
+    "cloud": 60,
+    "low": 0,
+    "mid": 0,
+    "high": 75,
+    "humidity": 70
+   }
+  },
+  {
+   "name": "50_contrails",
+   "note": "stage 7: lingering contrails in cold damp air 9 km up",
+   "day": 172,
+   "sun": 40,
+   "look": "up",
+   "weather": {
+    "preset": "sunny",
+    "cloud": 15,
+    "low": 5,
+    "mid": 0,
+    "high": 15,
+    "rh300": 85,
+    "t300": -52
+   }
+  },
+  {
+   "name": "51_fogbow",
+   "note": "stage 7: thin fog, the sun low behind: a broad white fogbow",
+   "day": 300,
+   "sun": 8,
+   "look": "away",
+   "weather": {
+    "cloud": 100,
+    "low": 100,
+    "mid": 0,
+    "high": 0,
+    "code": 45,
+    "visibility": 300,
+    "humidity": 99,
+    "wind": 0.5
+   }
   }
  ]
 }

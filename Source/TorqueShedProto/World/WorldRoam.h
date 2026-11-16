@@ -42,8 +42,9 @@ struct RideGuide
 };
 
 // The area and guide of a ride as planned (Version 0 of each): the plan's own area, and its road.
-std::shared_ptr<const RoamArea> RoamOfPlan(const std::shared_ptr<const RidePlan>& Plan);
+std::shared_ptr<const RoamArea> RoamOfPlan(const std::shared_ptr<const RidePlan>& Plan, int Version = 0);
 std::shared_ptr<const RideGuide> GuideOfPlan(const RidePlan& Plan, int Version = 0);
 // The guide along a way back (RidePlan::DetourFrom): its line, then the ride's road on from where it rejoins.
+// [waypoint] A way by a waypoint (Back.ViaAlong >= 0) has the waypoint first among the pins to come.
 std::shared_ptr<const RideGuide> GuideOfDetour(const RidePlan& Plan, const RideDetour& Back, int Version);
 } // namespace TorqueWorld

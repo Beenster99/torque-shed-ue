@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <map>
 #include <set>
 
@@ -40,6 +41,93 @@ std::string CellsAreaId(const std::vector<CellId>& Cells)
 	std::string Out = "area:@";
 	for (size_t I = 0; I < Cells.size(); ++I) Out += (I > 0 ? "," : "") + Cells[I].Name();
 	return Out;
+}
+
+void CoastsOf(const Json& Sketch, HeightStore& Heights)
+{
+	// (each cell's "land": "all", "none", or {"rings": [...], "holes": [...]}, each ring [lat, lon, dlat,
+	// dlon, ...] in 1e-5 degrees, the first point whole and each after it a step: coast_bake.py)
+	const Json* Land = Sketch.Get("land");
+	if (Land == nullptr || !Land->IsObject()) return;
+	for (const auto& Kv : Land->O)
+	{
+		const size_t Cut = Kv.first.find('_');
+		if (Cut == std::string::npos) continue;
+		const CellId C{std::atoi(Kv.first.c_str()), std::atoi(Kv.first.c_str() + Cut + 1)};
+		auto L = std::make_shared<HeightStore::CoastLand>();
+		if (Kv.second.IsString()) L->Kind = Kv.second.S == "none" ? HeightStore::CoastLand::AllSea : HeightStore::CoastLand::AllLand;
+		else if (Kv.second.IsObject())
+		{
+			L->Kind = HeightStore::CoastLand::Edged;
+			for (const auto& Which : {std::make_pair("rings", &L->Rings), std::make_pair("holes", &L->Holes)})
+				if (const Json* Rs = Kv.second.Get(Which.first))
+					for (const Json& R : Rs->A)
+					{
+						std::vector<std::pair<double, double>> Ring;
+						long long Lat = 0, Lon = 0;
+						for (size_t K = 0; K + 1 < R.A.size(); K += 2)
+						{
+							Lat += static_cast<long long>(R.A[K].N);
+							Lon += static_cast<long long>(R.A[K + 1].N);
+							Ring.emplace_back(double(Lat) * 1e-5, double(Lon) * 1e-5);
+						}
+						if (Ring.size() >= 3) Which.second->push_back(std::move(Ring));
+					}
+		}
+		else continue;
+		Heights.KnowCoast(C, L);
+	}
+}
+
+void RoadsOf(const Json& Sketch, Route::MapRoads& Roads)
+{
+	// (each cell's "lines": [[class, [lat, lon, dlat, dlon, ...]], ...] in 1e-5 degrees: sketch_bake.py)
+	const Json* Cs = Sketch.Get("cells");
+	if (Cs == nullptr || !Cs->IsObject()) return;
+	std::vector<Route::MapRoads::Line> Got;
+	for (const auto& Kv : Cs->O)
+		for (const Json& Row : Kv.second.A)
+		{
+			if (Row.Size() < 2 || !Row.A[1].IsArray()) continue;
+			Route::MapRoads::Line L;
+			L.Class = std::clamp(int(Row.A[0].N), 0, 2);
+			long long Lat = 0, Lon = 0;
+			const std::vector<Json>& P = Row.A[1].A;
+			for (size_t K = 0; K + 1 < P.size(); K += 2)
+			{
+				Lat += static_cast<long long>(P[K].N);
+				Lon += static_cast<long long>(P[K + 1].N);
+				L.Pts.emplace_back(double(Lat) * 1e-5, double(Lon) * 1e-5);
+			}
+			if (L.Pts.size() < 2) continue;
+			L.South = L.North = L.Pts[0].first;
+			L.West = L.East = L.Pts[0].second;
+			for (const auto& Pt : L.Pts)
+			{
+				L.South = std::min(L.South, Pt.first); L.North = std::max(L.North, Pt.first);
+				L.West = std::min(L.West, Pt.second); L.East = std::max(L.East, Pt.second);
+			}
+			Got.push_back(std::move(L));
+		}
+	Roads.Add(std::move(Got));
+}
+
+void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, size_t MostBlocks, Route::MapRoads* Roads)
+{
+	const std::shared_ptr<const WorldIndex> Idx = Store.IndexNow();
+	if (!Idx) return;
+	std::set<std::string> Blocks;
+	for (const CellId& C : Cells) Blocks.insert(std::to_string(C.Row / 20) + "_" + std::to_string(C.Col / 20));
+	if (Blocks.size() > MostBlocks) return;
+	for (const std::string& Block : Blocks)
+	{
+		const bool WantCoast = !Heights.CoastBlockRead(Block), WantRoads = Roads != nullptr && Roads->Claim(Block);
+		if (!WantCoast && !WantRoads) continue;
+		Json Sk;
+		if (!Store.Kept(CellStore::EKind::Sketches, Block, *Idx, Sk)) continue;
+		if (WantCoast) CoastsOf(Sk, Heights);
+		if (WantRoads) RoadsOf(Sk, *Roads);
+	}
 }
 
 bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, LoadedArea& Out, std::string* Why)
@@ -89,6 +177,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		{
 			Json Sk;
 			if (!Store.Kept(CellStore::EKind::Sketches, Block, *Idx, Sk)) Sk = Json::MakeObject();
+			if (!Heights.CoastBlockRead(Block)) CoastsOf(Sk, Heights);
 			Sketches[Block] = std::move(Sk);
 		}
 		if (const Json* Sp = Sketches[Block].Get("spans"))
@@ -108,6 +197,10 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		// [OSM stage 4] Its ground (water shapes, land use, parks, car parks, single trees) and its paths.
 		if (Store.Kept(CellStore::EKind::Grounds, Name, *Idx, File)) Out.Roads.AddGround(File);
 		if (Store.Kept(CellStore::EKind::Paths, Name, *Idx, File)) Out.Roads.AddPaths(File);
+		// [OSM stage 5] The road itself: lanes, roundabouts, lights, crossings, humps, barriers (OpenStreetMap).
+		if (Store.Kept(CellStore::EKind::RoadX, Name, *Idx, File)) Out.Roads.AddRoadX(File);
+		// [places stage 1] The places worth riding to: what each is (OpenStreetMap, with its Wikidata id).
+		if (Store.Kept(CellStore::EKind::Sights, Name, *Idx, File)) Out.Roads.AddSights(File);
 		// Its place profile says whether it has sea: land below sea level in a cell with none (a polder) is land.
 		// [OSM stage 1] And where it is: the county and the country.
 		if (Store.Kept(CellStore::EKind::Profiles, Name, *Idx, File) && !File.Flag("guessed", true))
@@ -120,6 +213,8 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 			if (!Pl.Words.empty()) Out.Roads.CellPlaces.push_back(std::move(Pl));
 		}
 	}
+	Out.Roads.SnapRoadPoints();
+	if (!Out.Roads.Extras.empty() || !Out.Roads.RoadPoints.empty()) Out.Roads.Credits.push_back("Lanes, crossings and traffic lights: OpenStreetMap contributors (ODbL).");
 	std::sort(Hashes.begin(), Hashes.end());
 	std::string Joined;
 	for (size_t I = 0; I < Hashes.size(); ++I) Joined += (I > 0 ? "|" : "") + Hashes[I];
@@ -130,6 +225,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, const std::function<void(int, int)>& Progress)
 {
 	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	KnowCoasts(Store, Heights, Ride.CellsUnderRide());
 	for (const CellId& C : Ride.CellsUnderRide())
 	{
 		if (Heights.SeaIn(C) >= 0) continue;
@@ -152,6 +248,7 @@ int FetchKeys(CellStore& Store, HeightStore& Heights, const std::vector<TileKey>
 	}
 	if (Want.empty()) return 0;
 	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	KnowCoasts(Store, Heights, std::vector<CellId>(Under.begin(), Under.end()));
 	for (const CellId& C : Under)
 	{
 		if (Heights.SeaIn(C) >= 0) continue;

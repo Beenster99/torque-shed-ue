@@ -8,6 +8,9 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/Actor.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
+#include "Shed/TorqueProfile.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ReferenceSkeleton.h"
@@ -66,6 +69,123 @@ FQuat FRiderRig::ToComp(const FQuat& LocalDelta) const
 
 namespace TorqueHelmetLook
 {
+bool IsPlaceholder(const UMaterialInterface* M)
+{
+	const FString Path = M ? M->GetPathName() : FString();
+	return !M || Path.Contains(TEXT("WorldGridMaterial")) || Path.StartsWith(TEXT("/Engine/")) || Path.StartsWith(TEXT("/MetaHuman"));
+}
+
+// The material a helmet slot came with (before any paint or placeholder fix).
+UMaterialInterface* Original(const UMeshComponent* C, int32 Slot)
+{
+	if (const UStaticMeshComponent* S = Cast<UStaticMeshComponent>(C))
+		return S->GetStaticMesh() ? S->GetStaticMesh()->GetMaterial(Slot) : nullptr;
+	if (const USkeletalMeshComponent* K = Cast<USkeletalMeshComponent>(C))
+		if (const USkeletalMesh* Mesh = K->GetSkeletalMeshAsset())
+			return Mesh->GetMaterials().IsValidIndex(Slot) ? Mesh->GetMaterials()[Slot].MaterialInterface.Get() : nullptr;
+	return nullptr;
+}
+
+void ApplyPaint(UMeshComponent* C, const FTorqueProfile& Paint, UMaterialInterface* KitPaint)
+{
+	if (!C) return;
+	// Which slots are the shell, and each finish's look (Data/Rider/helmet_paint.json).
+	TArray<FString> PaintWords = {TEXT("shell"), TEXT("paint"), TEXT("body"), TEXT("helmet"), TEXT("base")};
+	TArray<FString> KeepWords = {TEXT("visor"), TEXT("glass"), TEXT("lens"), TEXT("shield"), TEXT("trim"), TEXT("rubber"),
+		TEXT("lining"), TEXT("liner"), TEXT("interior"), TEXT("inner"), TEXT("foam"), TEXT("strap"), TEXT("buckle"), TEXT("seal")};
+	TArray<int32> PaintSlots;
+	double Rough = 0.12, Metal = 0.0, Spec = 0.5, Pearl = 0.0;
+	FString Master = TEXT("coat");
+	FString Text;
+	TSharedPtr<FJsonObject> J;
+	if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Rider/helmet_paint.json")))
+		&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), J) && J.IsValid())
+	{
+		auto Words = [&J](const TCHAR* Field, TArray<FString>& Out) {
+			const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+			if (!J->TryGetArrayField(Field, A)) return;
+			Out.Reset();
+			for (const TSharedPtr<FJsonValue>& W : *A) Out.Add(W->AsString().ToLower());
+		};
+		Words(TEXT("paint_words"), PaintWords);
+		Words(TEXT("keep_words"), KeepWords);
+		const TArray<TSharedPtr<FJsonValue>>* Slots = nullptr;
+		if (J->TryGetArrayField(TEXT("paint_slots"), Slots))
+			for (const TSharedPtr<FJsonValue>& N : *Slots) PaintSlots.Add((int32)N->AsNumber());
+		const TArray<TSharedPtr<FJsonValue>>* Finishes = nullptr;
+		if (J->TryGetArrayField(TEXT("finishes"), Finishes) && Finishes->IsValidIndex(Paint.HelmetFinish))
+		{
+			const TSharedPtr<FJsonObject> F = (*Finishes)[Paint.HelmetFinish]->AsObject();
+			if (F.IsValid())
+			{
+				F->TryGetStringField(TEXT("master"), Master);
+				F->TryGetNumberField(TEXT("roughness"), Rough);
+				F->TryGetNumberField(TEXT("metallic"), Metal);
+				F->TryGetNumberField(TEXT("specular"), Spec);
+				F->TryGetNumberField(TEXT("pearl"), Pearl);
+			}
+		}
+	}
+	// (Loaded each time: a material kept in a static would dangle after a map change.)
+	UMaterialInterface* Base = Paint.bHelmetPainted ? LoadObject<UMaterialInterface>(nullptr, Master == TEXT("plain")
+		? TEXT("/Game/Rider/Materials/M_HelmetPaint_Plain.M_HelmetPaint_Plain") : TEXT("/Game/Rider/Materials/M_HelmetPaint_Coat.M_HelmetPaint_Coat")) : nullptr;
+	const TArray<FName> SlotNames = C->GetMaterialSlotNames();
+	int32 Painted = 0;
+	for (int32 I = 0; I < C->GetNumMaterials(); ++I)
+	{
+		UMaterialInterface* Own = Original(C, I);
+		const FString Words = ((SlotNames.IsValidIndex(I) ? SlotNames[I].ToString() : FString()) + TEXT(" ") + (Own ? Own->GetName() : FString())).ToLower();
+		const bool bShell = PaintSlots.Num() > 0 ? PaintSlots.Contains(I)
+			: PaintWords.ContainsByPredicate([&Words](const FString& W) { return Words.Contains(W); })
+				&& !KeepWords.ContainsByPredicate([&Words](const FString& W) { return Words.Contains(W); });
+		if (!bShell) continue;
+		if (!Paint.bHelmetPainted || !Base)
+		{
+			UMaterialInterface* Back = IsPlaceholder(Own) ? KitPaint : Own;
+			if (Back) C->SetMaterial(I, Back);
+			UE_LOG(LogTemp, Log, TEXT("Torque: helmet slot %d (%s): %s"), I, *Words,
+				Paint.bHelmetPainted ? TEXT("NO helmet paint master (run the level script); kept as it came") : TEXT("as it came"));
+			continue;
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, C);
+		if (!MID) continue;
+		MID->SetVectorParameterValue(TEXT("Color"), Paint.HelmetColour());
+		MID->SetVectorParameterValue(TEXT("PearlTint"), Paint.HelmetPearlTint());
+		MID->SetScalarParameterValue(TEXT("Roughness"), (float)Rough);
+		MID->SetScalarParameterValue(TEXT("Metallic"), (float)Metal);
+		MID->SetScalarParameterValue(TEXT("Specular"), (float)Spec);
+		MID->SetScalarParameterValue(TEXT("Pearl"), (float)Pearl);
+		MID->SetScalarParameterValue(TEXT("Occlusion"), 0.0f);
+		// The helmet's own normal map, so its moulded detail stays under the new paint.
+		FString NormalFrom;
+		if (Own && !IsPlaceholder(Own))
+		{
+			TArray<FMaterialParameterInfo> Infos;
+			TArray<FGuid> Ids;
+			Own->GetAllTextureParameterInfo(Infos, Ids);
+			for (const FMaterialParameterInfo& Info : Infos)
+			{
+				const FString PName = Info.Name.ToString().ToLower();
+				if (!PName.Contains(TEXT("normal")) && !PName.EndsWith(TEXT("_n"))) continue;
+				UTexture* Tex = nullptr;
+				if (Own->GetTextureParameterValue(FHashedMaterialParameterInfo(Info), Tex) && Tex)
+				{
+					MID->SetTextureParameterValue(TEXT("NormalMap"), Tex);
+					NormalFrom = Tex->GetName();
+					break;
+				}
+			}
+		}
+		C->SetMaterial(I, MID);
+		++Painted;
+		UE_LOG(LogTemp, Log, TEXT("Torque: helmet slot %d (%s) painted %s %s (rough %.2f, metal %.2f, pearl %.2f, normal map %s)"), I, *Words,
+			*Paint.HelmetColour().ToFColor(true).ToHex(), FTorqueProfile::HelmetFinishName(Paint.HelmetFinish), Rough, Metal, Pearl,
+			NormalFrom.IsEmpty() ? TEXT("none") : *NormalFrom);
+	}
+	if (Paint.bHelmetPainted && Painted == 0)
+		UE_LOG(LogTemp, Warning, TEXT("Torque: helmet paint: no slot is the shell (set paint_slots in Data/Rider/helmet_paint.json)"));
+}
+
 // A Fab helmet's slots that came without a real material (left on the importer's grid, an engine
 // default, or a MetaHuman plugin material, which is editor-only) take the kit's helmet paint.
 void PaintPlaceholders(UMeshComponent* C, const TMap<FString, UMaterialInterface*>& Mats)
@@ -75,7 +195,7 @@ void PaintPlaceholders(UMeshComponent* C, const TMap<FString, UMaterialInterface
 	{
 		UMaterialInterface* M = C->GetMaterial(I);
 		const FString Path = M ? M->GetPathName() : FString();
-		const bool bPlaceholder = !M || Path.Contains(TEXT("WorldGridMaterial")) || Path.StartsWith(TEXT("/Engine/")) || Path.StartsWith(TEXT("/MetaHuman"));
+		const bool bPlaceholder = IsPlaceholder(M);
 		if (bPlaceholder && Paint && *Paint) C->SetMaterial(I, *Paint);
 		UE_LOG(LogTemp, Log, TEXT("Torque: rider helmet slot %d: %s%s"), I, M ? *Path : TEXT("none"),
 			bPlaceholder ? (Paint && *Paint ? TEXT(" -> the kit's helmet paint") : TEXT(" (no kit paint to replace it)")) : TEXT(""));
@@ -242,6 +362,7 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 
 	UStaticMesh* HM = HelmetPath.IsEmpty() ? nullptr : LoadObject<UStaticMesh>(nullptr, *HelmetPath);
 	USkeletalMesh* HSkel = HM || HelmetPath.IsEmpty() ? nullptr : LoadObject<USkeletalMesh>(nullptr, *HelmetPath);
+	if (UMaterialInterface* const* Kit = Mats.Find(TEXT("helmet"))) HelmetKitPaint = *Kit;
 	if (HSkel)
 	{
 		// A MetaHuman wardrobe helmet (Fab .mhpkg) is a skeletal mesh: drawn in its rest pose, rigid.

@@ -7,10 +7,13 @@
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerController.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueProfile.h"
 #include "TorqueBikePawn.h"
 #include "Weather/WeatherModel.h"
+#include "World/TorqueRideWorld.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/WorldRide.h"
+#include "World/TorqueRideWorld.h"
 
 #include "Camera/PlayerCameraManager.h"
 #include "Dom/JsonObject.h"
@@ -269,6 +272,8 @@ struct FIconPen
 struct FWaypoint
 {
 	bool bOn = false;
+	bool bSatNav = false;      // the Ride UK sat nav is going by it (ATorqueRideWorld::SetWaypoint)
+	int32 NavReachedAt = 0;    // ATorqueRideWorld::WaypointsReached when it was set
 	double Lat = 0.0, Lon = 0.0;
 	FString Name;
 };
@@ -480,7 +485,7 @@ void FTorqueInfoPanel::Ask(double Lat, double Lon, double Now)
 			D.WikiLat = Lat;
 			D.WikiLon = Lon;
 			const FString Url = FString::Printf(TEXT("https://en.wikipedia.org/w/api.php?action=query&format=json&generator=geosearch")
-				TEXT("&ggscoord=%.5f%%7C%.5f&ggsradius=10000&ggslimit=8&prop=extracts%%7Ccoordinates&exintro=1&explaintext=1&exsentences=3&exlimit=8&colimit=8"),
+				TEXT("&ggscoord=%.5f%%7C%.5f&ggsradius=10000&ggslimit=8&prop=extracts%%7Ccoordinates%%7Cpageprops&ppprop=wikibase_item&exintro=1&explaintext=1&exsentences=3&exlimit=8&colimit=8"),
 				Lat, Lon);
 			const double AskLat = Lat, AskLon = Lon;
 			TorqueInfo::Get(Url, [Weak, AskLat, AskLon](bool bOk, const FString& Body)
@@ -508,6 +513,8 @@ void FTorqueInfoPanel::Ask(double Lat, double Lon, double Now)
 						FNear N;
 						Page->TryGetStringField(TEXT("title"), N.Title);
 						Page->TryGetStringField(TEXT("extract"), N.Text);
+						const TSharedPtr<FJsonObject>* Props = nullptr;
+						if (Page->TryGetObjectField(TEXT("pageprops"), Props)) (*Props)->TryGetStringField(TEXT("wikibase_item"), N.Qid);
 						N.Text.TrimStartAndEndInline();
 						const TArray<TSharedPtr<FJsonValue>>* Coords = nullptr;
 						N.Metres = 1.0e9;
@@ -565,10 +572,14 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	if (GWaypoint.bOn)
 	{
 		double Bearing = 0.0;
-		if (MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, Bearing) < 150.0)
+		// (on a Ride UK ride the sat nav says when it's reached: by the place, or past its junction)
+		const bool bNavDone = GWaypoint.bSatNav && ATorqueRideWorld::WaypointsReached() > GWaypoint.NavReachedAt;
+		if (bNavDone || MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, Bearing) < 150.0)
 		{
 			GWaypoint.bOn = false;
-			if (TPC) TPC->ShowNote(FString::Printf(TEXT("You've reached %s"), *GWaypoint.Name), 6.0);
+			if (GWaypoint.bSatNav) ATorqueRideWorld::ClearWaypoint();
+			if (TPC) TPC->ShowNote(GWaypoint.bSatNav ? FString::Printf(TEXT("You've reached %s: the sat nav takes you on to the finish"), *GWaypoint.Name)
+				: FString::Printf(TEXT("You've reached %s"), *GWaypoint.Name), 6.0);
 			UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s reached"), *GWaypoint.Name);
 		}
 		else
@@ -587,6 +598,31 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 
 	const double Now = FPlatformTime::Seconds();
 	if (!bTestRun || bAsked) Ask(Lat, Lon, Now);
+	// [places stage 1] What each suggested place is, from the ride's places (by its Wikidata id, else the
+	// nearest place within 250 m), and where it really is: the waypoint goes to the thing itself.
+	for (FNear& N : Data->Near)
+	{
+		if (!N.Kind.IsEmpty()) continue;
+		const ATorqueRideWorld* RW = nullptr;
+		for (TActorIterator<ATorqueRideWorld> It(World); It; ++It) { RW = *It; break; }
+		if (!RW || !RW->GetPlan()) break;
+		const TorqueWorld::Region& G = RW->GetPlan()->Area.Roads;
+		const TorqueWorld::P2 At = TorqueWorld::Frame(G.FrameLat, G.FrameLon).FromGeo(N.Lat, N.Lon);
+		bool bByQid = false;
+		const int Found = G.FindSight(TCHAR_TO_UTF8(*N.Qid), At.X, At.Z, 250.0, &bByQid);
+		if (Found < 0)
+		{
+			N.Kind = TEXT("unknown");
+			UE_LOG(LogTemp, Log, TEXT("Torque places: '%s' (%s) is unknown: no place of its Wikidata id, none within 250 m"), *N.Title, *N.Qid);
+			continue;
+		}
+		const TorqueWorld::Sight& Sg = G.Sights[size_t(Found)];
+		N.Kind = UTF8_TO_TCHAR(Sg.Kind.c_str());
+		N.Lat = Sg.Lat;
+		N.Lon = Sg.Lon;
+		UE_LOG(LogTemp, Log, TEXT("Torque places: '%s' is a %s ('%s', %s)"), *N.Title, *N.Kind, UTF8_TO_TCHAR(Sg.Name.c_str()),
+			bByQid ? *FString::Printf(TEXT("by Wikidata %s"), *N.Qid) : TEXT("the nearest, no Wikidata match"));
+	}
 	const FData& D = *Data;
 	const ATorqueGameState* GS = World->GetGameState<ATorqueGameState>();
 	const bool bImperial = Set.Units == 1;
@@ -622,7 +658,9 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 			GWaypoint.Lat = ToLat;
 			GWaypoint.Lon = ToLon;
 			GWaypoint.Name = Name;
+			GWaypoint.NavReachedAt = ATorqueRideWorld::WaypointsReached();
 			const FString Said = TPC ? TPC->AddWaypoint(ToLat, ToLon, Name, Lat, Lon, HereName) : FString::Printf(TEXT("%s is a waypoint"), *Name);
+			GWaypoint.bSatNav = ATorqueRideWorld::HasWaypoint();
 			if (TPC) TPC->ShowNote(Said, 7.0);
 		};
 	};
@@ -684,6 +722,8 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		if (W.Visibility < 5000.0)
 			Lines.Add(W.Visibility < 1000.0 ? FString::Printf(TEXT("Visibility %d m"), FMath::RoundToInt(W.Visibility / 10.0) * 10)
 				: FString::Printf(TEXT("Visibility %.1f km"), W.Visibility / 1000.0));
+		// [skies stage 6] What the forecast says is coming here.
+		if (const FString Coming = GS->ComingText(); !Coming.IsEmpty() && Src == ETorqueWeatherSource::Live) Lines.Add(TEXT("Coming: ") + Coming);
 		const FString Words = Capital(UTF8_TO_TCHAR(TorqueWeather::CodeWords(W.Code).c_str()));
 		const EIcon Icon = IconOf(W.Code, W.Cloud);
 		const float LineH = 17.0f * S;
@@ -803,7 +843,7 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 			if (!WayLine.IsEmpty())
 			{
 				LY += 19.0f * S;
-				const bool bOver = Clickable(TX - 4.0f * S, LY - 2.0f * S, CW + 8.0f * S, 19.0f * S, []() { GWaypoint.bOn = false; });
+				const bool bOver = Clickable(TX - 4.0f * S, LY - 2.0f * S, CW + 8.0f * S, 19.0f * S, []() { GWaypoint.bOn = false; if (GWaypoint.bSatNav) ATorqueRideWorld::ClearWaypoint(); });
 				TorqueUi::TextFit(Canvas, bOver ? FString(TEXT("Clear the waypoint")) : WayLine, TX, LY, 13.5f * S, CW, Accent, true);
 			}
 		}});
@@ -922,6 +962,34 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 					TorqueUi::Polygon(Canvas, Tri, Accent);
 				}
 				RY += RowH;
+			}
+		}});
+	}
+
+	// 7. [places stage 7] The places visited: yours (your profile's list) and each co-op rider's count and last.
+	{
+		TArray<FString> Lines;
+		const FTorqueProfile& Me = FTorqueProfile::Mine();
+		const FString MyLast = Me.LastVisitedName();
+		Lines.Add(Me.Visited.Num() == 0 ? FString(TEXT("You: none yet. Ride to a place's board or its view spot."))
+			: FString::Printf(TEXT("You: %d place%s, last %s"), Me.Visited.Num(), Me.Visited.Num() == 1 ? TEXT("") : TEXT("s"), *MyLast));
+		if (World->GetNetMode() != NM_Standalone)
+			for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+			{
+				const ATorquePlayerState* TPS = Cast<ATorquePlayerState>((*It)->GetPlayerState());
+				if (*It == Bike || !TPS || TPS->PlacesVisited <= 0) continue;
+				Lines.Add(FString::Printf(TEXT("%s: %d place%s, last %s"), *TPS->GetPlayerName(), TPS->PlacesVisited, TPS->PlacesVisited == 1 ? TEXT("") : TEXT("s"), *TPS->LastPlace));
+			}
+		if (Lines.Num() > 6) Lines.SetNum(6);
+		const float LineH = 17.0f * S;
+		Parts.Add({HeadH + Lines.Num() * LineH + 4.0f * S, 35, [=](float Y)
+		{
+			Heading(TEXT("PLACES VISITED"), FString(), Y);
+			float LY = Y + HeadH;
+			for (const FString& L : Lines)
+			{
+				TorqueUi::TextFit(Canvas, L, TX, LY, 13.5f * S, CW, Dim);
+				LY += LineH;
 			}
 		}});
 	}

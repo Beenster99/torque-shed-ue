@@ -4,6 +4,8 @@
 // for an area of cells. Blocks while it fetches: a worker's job.
 #pragma once
 
+#include "WorldRouteMap.h"
+
 #include "CellStore.h"
 #include "HeightTiles.h"
 #include "WorldRegion.h"
@@ -35,6 +37,10 @@ bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>
 int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, const std::function<void(int, int)>& Progress = nullptr);
 // [ride anywhere] The same for some tiles: those of Keys not on disk yet, with the sea of the cells under them.
 int FetchKeys(CellStore& Store, HeightStore& Heights, const std::vector<TileKey>& Keys);
+// [build 147] The coast (where the land is) of Cells' blocks, from their sketches, told to Heights so
+// low ground is sea only outside the land. Each block once; none when Cells span more than MostBlocks.
+// With Roads, their main roads too (the route planner's road map).
+void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, size_t MostBlocks = 64, Route::MapRoads* Roads = nullptr);
 // A road's points no further apart than Step metres (a ride's road, for Terrain::ForRoad), with how
 // far along the road each is.
 std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along = nullptr);

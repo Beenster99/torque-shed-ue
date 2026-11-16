@@ -1211,6 +1211,9 @@ def _hair_cards_material(atlas_path):
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     m.set_editor_property("two_sided", True)
     m.set_editor_property("opacity_mask_clip_value", 0.33)
+    # Also hides the default top's shorts under the Fab jeans (a skeletal mesh): without the usage flag a
+    # cooked game draws the engine's default material on it instead.
+    m.set_editor_property("used_with_skeletal_mesh", True)
     tex = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -800, 0)
     tex.set_editor_property("parameter_name", "Atlas")
     tex.set_editor_property("texture", atlas)
@@ -1609,10 +1612,48 @@ def _parts_of_blueprint(pkg, name, av):
         if not any(p.get("groom") for p in entry["parts"]):
             _hair_from_build(entry, av)
         _add_clothes(entry, av, skins)
+        _fill_cards(entry, av)
         log("avatar %s: body %s, parts %s" % (av, entry["body"], ", ".join(p["name"] for p in entry["parts"])))
         return entry
     finally:
         actors.destroy_actor(actor)
+
+
+def _fill_cards(entry, av):
+    """Every hair groom part gets what the game draws it with: its cards mesh, atlas, M_HairCards and
+    the avatar's hair colour (round 143: grooms read from the Blueprint came without them, so B to D
+    would have gone bald). From the groom's LOD table, else by name in the avatar's build folder."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    folder = ROOT + "/" + av
+    colour = next((a.get("hair_colour") for a in AVATARS if a["name"] == av), None) or [0.045, 0.028, 0.016]
+    for p in entry.get("parts", []):
+        g = p.get("groom", "")
+        if not g or p.get("cards_mesh") or "hair" not in (p.get("name", "") + g.rsplit("/", 1)[-1]).lower():
+            continue
+        if any(w in g.lower() for w in ("brow", "lash", "beard", "mustache", "fuzz")):
+            continue
+        ga = unreal.load_asset(g.split(".")[0])
+        lod = p.get("lod", -1)
+        cards, cards_mat, atlas = _cards_mesh(ga, lod) if ga is not None and lod is not None and lod >= 0 else ("", "", "")
+        if not cards or not atlas:
+            assets = list(reg.get_assets_by_path(folder, recursive=True))
+            def lod_of(n):
+                try:
+                    return int(n.rsplit("_LOD", 1)[1])
+                except Exception:
+                    return 99
+            cm = sorted((str(a.asset_name) for a in assets if _cls_name(a) == "StaticMesh" and str(a.asset_name).startswith("Hair_")
+                         and "CardsMesh_Group0_LOD" in str(a.asset_name)), key=lod_of)
+            paths = {str(a.asset_name): "%s.%s" % (a.package_name, a.asset_name) for a in assets}
+            tex = [paths[n] for n in paths if n.startswith("Hair_") and "CardsAtlas_Attribute" in n]
+            cards = cards or (paths[cm[0]] if cm else "")
+            atlas = atlas or (tex[0] if tex else "")
+        mat = _hair_cards_material(atlas) if cards and atlas else ""
+        p["cards_mesh"] = cards
+        p["cards_texture"] = atlas
+        p["cards_materials"] = [mat] if mat else ([cards_mat] if cards_mat else [])
+        p["hair_colour"] = colour
+        log("%s: hair %s drawn as cards: mesh %s, atlas %s, material %s" % (av, p.get("name"), cards or "NONE", atlas or "NONE", mat or cards_mat or "NONE"))
 
 
 # Stopgap (round 123): only Avatar_D's groom draws in game, whatever the others' LOD, material or

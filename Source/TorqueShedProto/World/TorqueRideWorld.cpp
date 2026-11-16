@@ -1,13 +1,17 @@
 #include "World/TorqueRideWorld.h"
+#include "World/RideCosts.h"
+#include "World/TorqueRidePart.h"
 #include "World/WorldRoam.h"
 #include <algorithm>
 #include "TorqueDash.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
+#include "Shed/TorqueProfile.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
@@ -19,6 +23,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/IConsoleManager.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/ScopeLock.h"
@@ -28,26 +33,67 @@
 #include "World/WorldFiles.h"
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
+#include "World/TorqueWorldSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "Scalability.h"
+#include "UObject/UObjectGlobals.h"
+#include "RenderCore.h"
+#include "RHI.h"
 
 #include <atomic>
 #include <cmath>
 
 // What the workers and the actor share: the squares made and waiting to be put in place.
+// [perf, build 149] A square's meshes as procedural mesh sections, readied on its worker (see PreparedNow).
+using FRidePrepared = TMap<const TorqueWorld::RideMesh*, FProcMeshSection>;
+
 struct FTorqueRideJobs
 {
 	FCriticalSection Lock;
 	TArray<TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>>> Made;
+	TMap<FIntVector, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>> Prepared;   // by square, beside Made
+	// [perf, build 149] Pieces of road made on workers (RidePlan::RoadPiece, then readied), by piece key.
+	// (with the plan it was made from: a piece from a plan since grown is dropped, its road may be redrawn)
+	TArray<TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>, std::shared_ptr<const TorqueWorld::RidePlan>>> RoadMade;
+	std::atomic<int32> RoadBusy{0};
 	std::atomic<int32> Busy{0};
 	std::atomic<bool> bStop{false};
 };
 
 namespace TRWI
 {
+// [perf, build 150] What of the ride's world goes in the ray-tracing scene (Lumen's hardware ray
+// tracing): procedural meshes are gathered for it again every frame, so only what lights the view
+// near the rider. Squares' standing parts (walls, buildings) up to this level of the quadtree (0 the
+// nearest 256 m squares), water only on the nearest, roads only if torque.RideRoadsRayTraced.
+TAutoConsoleVariable<int32> CVarRayTraceLevel(TEXT("torque.RideRayTraceLevel"), 1,
+	TEXT("Ride UK: squares' walls and buildings are in the ray-tracing scene up to this quadtree level (0 nearest .. 3 all; -1 none). For squares made after the change."));
+TAutoConsoleVariable<float> CVarPlantPatch(TEXT("torque.RidePlantPatch"), 64.0f,
+	TEXT("Ride UK: the patches (m) grass with a near limit is grouped in (32 until build 149; bigger = fewer groups). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarPool(TEXT("torque.RidePool"), 1,
+	TEXT("Ride UK: pieces of the world let go are kept to be used again (1, build 150) or destroyed (0)."));
+TAutoConsoleVariable<float> CVarRegisterMs(TEXT("torque.RideRegisterMs"), 2.0f,
+	TEXT("Ride UK: ms a frame for putting waiting walls, buildings and water in the scene (0: each at once, as until 149)."));
+TAutoConsoleVariable<float> CVarRoadLookMs(TEXT("torque.RideRoadLookMs"), 1.5f,
+	TEXT("Ride UK: ms each look over the roads near the rider may take (every 0.2 s), carrying on next time (0: all at once, as until 150)."));
+TAutoConsoleVariable<int32> CVarRoadsRayTraced(TEXT("torque.RideRoadsRayTraced"), 0,
+	TEXT("Ride UK: pieces of road in the ray-tracing scene (1) or not (0, build 150). For pieces made after the change."));
+// [perf, build 152] Trees were the whole gap at Whaley Bridge in round 151 (46 fps as set, 89 with no
+// trees; GPU 20.3 -> 10.1 ms). The far ring's trees (thousands) cast no shadows and stay out of the
+// distance-field lighting; near trees stop swaying past torque.RideTreeSwayM.
+TAutoConsoleVariable<int32> CVarFarTreeShadows(TEXT("torque.RideFarTreeShadows"), 0,
+	TEXT("Ride UK: the far ring's trees cast shadows (1, as until 151) or not (0). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting"), 0,
+	TEXT("Ride UK: the far ring's trees in the distance-field / Lumen lighting (1, as until 151) or not (0). For squares made after the change."));
+TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
+	TEXT("Ride UK: trees sway in the wind out to this many metres (80 until 151). For squares made after the change."));
 constexpr int32 Levels = 4;
 constexpr double Finest = 256.0;         // metres across a square of level 0; each level's are 4 times the last's
 constexpr int32 CellsOf[Levels] = {64, 128, 64, 64};
@@ -58,7 +104,8 @@ constexpr double Reach = 16000.0;
 constexpr int32 ShadowLevels = 2;        // the squares of these levels cast shadows (the far hills' are past the shadows' reach)
 constexpr int32 PiecePoints = 64;        // a piece of road: 256 m
 constexpr double RoadReach = 2500.0;
-constexpr int32 AtATime = 3;             // workers
+constexpr int32 AtATime = 6;             // workers (6 since build 149: the PC has 16 cores; was 3)
+constexpr int32 RoadsAtATime = 2;        // [perf, build 149] workers making pieces of road
 
 double SizeOf(int32 Level)
 {
@@ -74,6 +121,62 @@ double Away(const FVector2D& At, const FIntVector& Key)
 	const double X0 = Key.Y * S, Z0 = Key.Z * S;
 	const double Dx = FMath::Max3(X0 - At.X, 0.0, At.X - (X0 + S)), Dz = FMath::Max3(Z0 - At.Y, 0.0, At.Y - (Z0 + S));
 	return FMath::Sqrt(Dx * Dx + Dz * Dz);
+}
+
+// [perf, build 149] One mesh as MakePart's CreateMeshSection_LinearColor would make its section (the same
+// vertices, white where it has no colours, the colours' bytes unconverted, indices clamped to the
+// points), on a worker; meshes MakePart leaves out are left out here too.
+void Prepare(const TorqueWorld::RideMesh* M, FRidePrepared& Out)
+{
+	const int32 Count = M ? int32(M->Vertices()) : 0;
+	if (Count < 3 || M->Idx.size() < 3) return;
+	FProcMeshSection& Sec = Out.Add(M);
+	const bool bColoured = M->Col.size() == M->Pos.size();
+	const bool bAlpha = M->Alpha.size() == size_t(Count);
+	Sec.ProcVertexBuffer.SetNum(Count);
+	for (int32 I = 0; I < Count; ++I)
+	{
+		const size_t V = size_t(I) * 3;
+		FProcMeshVertex& Pt = Sec.ProcVertexBuffer[I];
+		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
+		Pt.Position = FVector(double(M->Pos[V]) * 100.0, double(M->Pos[V + 2]) * 100.0, double(M->Pos[V + 1]) * 100.0);
+		Pt.Normal = FVector(double(M->Nrm[V]), double(M->Nrm[V + 2]), double(M->Nrm[V + 1]));
+		Pt.UV0 = FVector2D(double(M->Uv[size_t(I) * 2]), double(M->Uv[size_t(I) * 2 + 1]));
+		Pt.Color = bColoured ? FLinearColor(M->Col[V], M->Col[V + 1], M->Col[V + 2], bAlpha ? M->Alpha[size_t(I)] : 1.0f).ToFColor(false) : FColor(255, 255, 255);
+		Pt.Tangent = FProcMeshTangent();
+		Sec.SectionLocalBox += Pt.Position;
+	}
+	const int32 Indices = int32(M->Idx.size() / 3) * 3;
+	Sec.ProcIndexBuffer.SetNumUninitialized(Indices);
+	for (int32 I = 0; I < Indices; ++I) Sec.ProcIndexBuffer[I] = FMath::Min(M->Idx[size_t(I)], uint32(Count - 1));
+	Sec.bSectionVisible = true;
+}
+
+void PrepareSquare(const TorqueWorld::RideMesh& Mesh, FRidePrepared& Out)
+{
+	Prepare(&Mesh, Out);
+	Prepare(Mesh.Water.get(), Out);
+	if (const TorqueWorld::RideMesh* E = Mesh.Extra.get())
+	{
+		Prepare(E, Out);
+		Prepare(E->Stone.get(), Out);
+		Prepare(E->Masonry.get(), Out);
+		Prepare(E->Render.get(), Out);
+		Prepare(E->Roofing.get(), Out);
+		Prepare(E->Brickwork.get(), Out);
+		Prepare(E->Night.get(), Out);
+		Prepare(E->Signals.get(), Out);
+		Prepare(E->Signs.get(), Out);
+	}
+}
+
+// [perf, build 149] Instances culled nearer than a square of its level can ever be (a square of level
+// 1 and up is split before the rider comes within SplitWithin of it): never drawn there, so never
+// made. Build 148 had 5,700-11,700 plant groups in the scene, most of them on squares past every
+// grass's cull distance.
+bool Unseen(const FIntVector& Key, float CullCm)
+{
+	return Key.X > 0 && double(CullCm) < SplitWithin[Key.X] * 100.0 * 0.97;
 }
 
 bool Overlap(const FIntVector& A, const FIntVector& B)
@@ -206,6 +309,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.bNav = Ride && Ride->Plan && Ride->Plan->Ok && !Ride->Plan->Turns.empty();
 	Dash.bAtFuel = false;
 	Dash.bNavRerouting = false;
+	Dash.bNavVia = false;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
 	const double X = At.X / 100.0, Z = At.Y / 100.0;
@@ -219,7 +323,69 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	const FVector2D Here(X, Z);
 	if (S.Prev.X < 1e11 && FVector2D::Distance(Here, S.Prev) > 2.0) S.Heading = FMath::Atan2(-(Here.X - S.Prev.X), -(Here.Y - S.Prev.Y));
 	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
-	if (!N.OffRoute)
+	// [waypoint] Going by a place picked in the info panel: its way, on or off the ride's road, until
+	// it's reached (then the way on is the way back to the ride's road, as after any detour).
+	bool bViaNav = false;
+	if (S.bVia)
+	{
+		RidePlan::RideNav Via;
+		bool bOnIt = false;
+		if (S.Detour && S.bDetourVia)
+		{
+			Via = Ride->Plan->NavDetour(*S.Detour, X, Z);
+			bOnIt = !Via.OffRoute;
+			const bool bThere = FVector2D::Distance(Here, FVector2D(S.ViaX, S.ViaZ)) < 150.0 ||
+				FVector2D::Distance(Here, FVector2D(S.Detour->Via.X, S.Detour->Via.Z)) < 40.0 || (bOnIt && Via.Along > S.Detour->ViaAlong + 10.0);
+			if (bThere)
+			{
+				S.bVia = S.bDetourVia = false;
+				++S.ViaReached;
+				UE_LOG(LogTemp, Log, TEXT("Torque sat nav: waypoint %s reached; on to the finish (%.2f km)"), *FString(UTF8_TO_TCHAR(S.ViaName.c_str())), Via.ToFinish / 1000.0);
+			}
+		}
+		if (S.bVia)
+		{
+			if (!bOnIt && Now - S.ViaTry > 4.0)
+			{
+				S.ViaTry = Now;
+				const std::shared_ptr<const TorqueWorld::RideDetour> Way = Ride->Plan->DetourVia(X, Z, S.Heading, Was, S.ViaX, S.ViaZ, S.ViaName);
+				if (Way)
+				{
+					S.Detour = Way;
+					S.bDetourVia = true;
+					Via = Ride->Plan->NavDetour(*Way, X, Z);
+					bOnIt = !Via.OffRoute;
+					Ride->Guide = TorqueWorld::GuideOfDetour(*Ride->Plan, *Way, Ride->Guide ? Ride->Guide->Version + 1 : 1);
+					OnRoamChanged.Broadcast();
+					UE_LOG(LogTemp, Log, TEXT("Torque sat nav: the way by %s: %.2f km, reached at %.2f km, %d turns, back on the ride's road at %.2f km"),
+						*FString(UTF8_TO_TCHAR(S.ViaName.c_str())), Way->Length / 1000.0, Way->ViaAlong / 1000.0, int32(Way->Turns.size()), Way->RejoinAlong / 1000.0);
+				}
+				else
+					UE_LOG(LogTemp, Log, TEXT("Torque sat nav: no way by %s yet (no road near it in the map loaded so far, or none there and back)"), *FString(UTF8_TO_TCHAR(S.ViaName.c_str())));
+			}
+			if (bOnIt)
+			{
+				bViaNav = true;
+				S.OffSince = -1.0;
+				N.OffRoute = false;
+				N.Turn = Via.Turn;
+				N.ToTurn = Via.ToTurn;
+				N.Onto = Via.Onto;
+				N.ToFinish = Via.ToFinish;
+				N.Road = Via.Road;
+				N.Limit = 0;
+				for (double& To : N.ToStop) To = -1.0;
+			}
+			else if (S.bDetourVia)
+			{
+				bViaNav = true;   // off the way by it: found again in a moment
+				N.OffRoute = true;
+				Dash.bNavRerouting = true;
+			}
+		}
+	}
+	if (bViaNav) {}
+	else if (!N.OffRoute)
 	{
 		S.OffSince = -1.0;
 		if (S.Detour) { S.Detour.reset(); Ride->Guide = TorqueWorld::GuideOfPlan(*Ride->Plan, Ride->Guide ? Ride->Guide->Version + 1 : 1); OnRoamChanged.Broadcast(); }
@@ -253,6 +419,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 			N.Turn = Back.Turn;
 			N.ToTurn = Back.ToTurn;
 			N.Onto = Back.Onto;
+			N.Exit = Back.Exit;
 			N.ToFinish = Back.ToFinish;
 			N.Road = Back.Road;
 			N.Limit = 0;
@@ -261,9 +428,17 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		else Dash.bNavRerouting = true;
 	}
 	Dash.bNavOff = N.OffRoute;
+	Dash.bNavVia = bViaNav && !N.OffRoute && N.Turn == RidePlan::Finish;
 	Dash.NavTurn = N.Turn;
 	Dash.NavTo = N.ToTurn;
 	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
+	Dash.NavExit = N.Exit;   // [OSM stage 5B]
+	// [build 148] (the hub's robot rides look for it in the log: the HUD's words, once a roundabout)
+	if (N.Exit > 0 && N.Exit != Ride->LastNavExit)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s%s%s in %.0f m"), *FTorqueDash::ExitWords(N.Exit), N.Onto.empty() ? TEXT("") : TEXT(", "), UTF8_TO_TCHAR(N.Onto.c_str()), N.ToTurn);
+	}
+	Ride->LastNavExit = N.Exit;
 	Dash.NavLeft = N.ToFinish;
 	Dash.bAtFuel = N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0;
 	// [OSM stage 1] The road's facts.
@@ -291,6 +466,55 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		const FString Called = UTF8_TO_TCHAR(N.StopCalled[K].c_str());
 		Dash.NavStop = FString::Printf(TEXT("%s %s%s%s"), UTF8_TO_TCHAR(RidePlan::StopName(K)), *FTorqueDash::NavDistance(To, bMetric), Called.IsEmpty() ? TEXT("") : TEXT(": "), *Called);
 	}
+	// [places stage 2] At a place's stop (its pull-off, car park, lay-by or board): the sat nav says so.
+	const int32 StopHere = Ride->Plan->PlaceStopAt(X, Z, 30.0);
+	if (StopHere >= 0)
+	{
+		const std::string Name = Ride->Plan->PlaceStopName(StopHere);
+		// [places stage 5] (and its site note's words for a famous one: "38 stones, about 5,000 years old")
+		const std::string Note = Ride->Plan->PlaceStopNote(StopHere);
+		if (!Name.empty()) Dash.NavStop = Note.empty() ? FString::Printf(TEXT("Arrived: %s"), UTF8_TO_TCHAR(Name.c_str())) : FString::Printf(TEXT("Arrived: %s. %s"), UTF8_TO_TCHAR(Name.c_str()), UTF8_TO_TCHAR(Note.c_str()));
+		if (Ride->LastPlaceStop != StopHere)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque places: arrived at '%s' (stop %d)%s%s"), UTF8_TO_TCHAR(Name.c_str()), StopHere, Note.empty() ? TEXT("") : TEXT(": "), UTF8_TO_TCHAR(Note.c_str()));
+			Ride->bFirstVisitHere = VisitPlace(*Ride->Plan, StopHere);
+		}
+		if (Ride->bFirstVisitHere && !Name.empty()) Dash.NavStop += TEXT(" First visit.");
+	}
+	Ride->LastPlaceStop = StopHere;
+}
+
+bool ATorqueRideWorld::VisitPlace(const TorqueWorld::RidePlan& InPlan, int32 Stop)
+{
+	// [places stage 7] Onto this profile's visited list (once), saved at once.
+	const FString Key = UTF8_TO_TCHAR(InPlan.PlaceStopKey(Stop).c_str());
+	const FString Name = UTF8_TO_TCHAR(InPlan.PlaceStopName(Stop).c_str());
+	if (Name.IsEmpty()) return false;
+	FTorqueProfile& Me = FTorqueProfile::Mine();
+	if (!Me.Visit(Key, Name)) return false;
+	Me.Save();
+	UE_LOG(LogTemp, Log, TEXT("Torque places: first visit to '%s' (%s); %d places visited"), *Name, *Key, Me.Visited.Num());
+	return true;
+}
+
+void ATorqueRideWorld::ViewSpotFor(const FVector& At, FTorqueDash& Dash)
+{
+	// [places stage 7] On foot at a place's view spot (the end of its path in): the line says what you're
+	// looking at, and you've visited it.
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return;
+	const int32 Spot = Ride->Plan->PlaceViewAt(At.X / 100.0, At.Y / 100.0, 8.0);
+	if (Spot >= 0)
+	{
+		const std::string Name = Ride->Plan->PlaceStopName(Spot);
+		if (!Name.empty()) Dash.NavStop = FString::Printf(TEXT("View of %s"), UTF8_TO_TCHAR(Name.c_str()));
+		if (Ride->LastViewSpot != Spot)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque places: at the view spot of '%s' (stop %d)"), UTF8_TO_TCHAR(Name.c_str()), Spot);
+			VisitPlace(*Ride->Plan, Spot);
+		}
+	}
+	Ride->LastViewSpot = Spot;
 }
 
 ATorqueRideWorld::FOnRoamChanged ATorqueRideWorld::OnRoamChanged;
@@ -306,6 +530,52 @@ std::shared_ptr<const TorqueWorld::RideGuide> ATorqueRideWorld::GuideNow()
 {
 	const ATorqueRideWorld* Ride = Current.Get();
 	return Ride ? Ride->Guide : nullptr;
+}
+
+bool ATorqueRideWorld::SetWaypoint(double Lat, double Lon, const FString& Name)
+{
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	const TorqueWorld::P2 At = Ride->Plan->Area.Roads.FrameOf().FromGeo(Lat, Lon);
+	FRideNavState& S = Ride->NavState;
+	S.bVia = true;
+	S.bDetourVia = false;   // (the next look finds the way by it, from wherever the rider is then)
+	S.ViaX = At.X;
+	S.ViaZ = At.Z;
+	S.ViaName = TCHAR_TO_UTF8(*Name.Left(40));
+	S.ViaTry = -1e9;
+	UE_LOG(LogTemp, Log, TEXT("Torque sat nav: waypoint %s at (%.0f, %.0f) in the ride's frame"), *Name, At.X, At.Z);
+	return true;
+}
+
+void ATorqueRideWorld::ClearWaypoint()
+{
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride) return;
+	FRideNavState& S = Ride->NavState;
+	if (!S.bVia) return;
+	S.bVia = false;
+	if (S.bDetourVia && Ride->Plan)
+	{
+		// (the ride's own way again, or the way back to it from off it, found as after any detour)
+		S.Detour.reset();
+		S.bDetourVia = false;
+		S.LastTry = -1e9;
+		Ride->Guide = TorqueWorld::GuideOfPlan(*Ride->Plan, Ride->Guide ? Ride->Guide->Version + 1 : 1);
+		OnRoamChanged.Broadcast();
+	}
+}
+
+bool ATorqueRideWorld::HasWaypoint()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride && Ride->NavState.bVia;
+}
+
+int32 ATorqueRideWorld::WaypointsReached()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride ? Ride->NavState.ViaReached : 0;
 }
 
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
@@ -339,6 +609,8 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
 	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
 	NightMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideNight.M_RideNight"));
+	SignalMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSignal.M_RideSignal"));
+	SignMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSign.M_RideSign"));
 	RoofMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRoof.M_RideRoof"));
 	BrickMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideBrick.M_RideBrick"));
 	if (!LandMaterial || !RoadMaterial)
@@ -361,9 +633,31 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+	{
+		// [fps plan step 2] The houses' windows and doors as the facade kit's instances when every kind of it
+		// has its models in M_RideFacade (Tools/ue_build_rideuk.py prop_kit), unless -TorqueRideFacadeKit=0
+		// (the hub's A/B: then drawn into the houses' own mesh, as 149).
+		bool bFacade = true;
+		for (int32 K = TorqueWorld::RidePlan::FirstFacade; K < TorqueWorld::RidePlan::PropKinds; ++K)
+		{
+			bFacade = bFacade && PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+			if (bFacade)
+				for (const int32 Mi : PropModels[K])
+				{
+					const UMaterialInterface* Mat = PropKit[Mi].Material.Get();
+					bFacade = bFacade && Mat && Mat->GetName().Contains(TEXT("RideFacade"));
+				}
+		}
+		int32 FacadeAsked = 1;
+		const bool bAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFacadeKit="), FacadeAsked);
+		Plan->FacadeKit = bFacade && FacadeAsked != 0;
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: facade kit %s"), Plan->FacadeKit ? TEXT("on (windows and doors instanced)")
+			: bAsked && FacadeAsked == 0 ? TEXT("off (-TorqueRideFacadeKit=0)") : TEXT("off (its models or M_RideFacade missing: Tools/ue_build_rideuk.py prop_kit)"));
+	}
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
 	Plan->RealTrees = bTreeModels;
+	Plan->RealHedges = bTreeModels && KindNear.IsValidIndex(TorqueWorld::RidePlan::HedgeKind) && KindNear[TorqueWorld::RidePlan::HedgeKind].Num() > 0;
 	float Density = 1.0f;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliage="), Density)) Plan->GrassDensity = FMath::Clamp(Density, 0.0f, 1.0f);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliageCull="), CullScale)) CullScale = FMath::Clamp(CullScale, 0.05f, 4.0f);
@@ -484,12 +778,61 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 		{
 			TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe> Mesh = MakeShared<TorqueWorld::RideMesh, ESPMode::ThreadSafe>();
 			if (!Share->bStop) Held->LandTile(Key.Y * Size, Key.Z * Size, Size, Cells, *Mesh);
+			TSharedPtr<FRidePrepared, ESPMode::ThreadSafe> Ready = MakeShared<FRidePrepared, ESPMode::ThreadSafe>();
+			if (!Share->bStop) TRWI::PrepareSquare(*Mesh, *Ready);
 			{
 				FScopeLock Hold(&Share->Lock);
 				Share->Made.Emplace(Key, Mesh);
+				Share->Prepared.Add(Key, Ready);
 			}
 			--Share->Busy;
 		});
+	}
+}
+
+void ATorqueRideWorld::LetGo(UProceduralMeshComponent* Part)
+{
+	if (!Part) return;
+	URidePart* R = Cast<URidePart>(Part);
+	if (!R || R->Look || TRWI::CVarPool.GetValueOnGameThread() == 0 || Spare.Num() >= 400 || R->IsBeingDestroyed())
+	{
+		Part->DestroyComponent();
+		return;
+	}
+	R->ClearAllMeshSections();
+	R->EmptyOverrideMaterials();
+	R->ComponentTags.Reset();
+	if (R->IsRegistered()) R->UnregisterComponent();
+	Spare.Add(R);
+}
+
+URidePart* ATorqueRideWorld::TakeSpare()
+{
+	while (Spare.Num() > 0)
+	{
+		URidePart* R = Spare.Pop(EAllowShrinking::No);
+		if (IsValid(R) && !R->IsBeingDestroyed())
+		{
+			R->SetVisibility(true, false);
+			return R;
+		}
+	}
+	return nullptr;
+}
+
+void ATorqueRideWorld::RegisterWaiting()
+{
+	const double Started = FPlatformTime::Seconds();
+	const double BudgetMs = TRWI::CVarRegisterMs.GetValueOnGameThread();
+	int32 Done = 0;
+	while (ToRegister.Num() > 0 && (Done == 0 || (FPlatformTime::Seconds() - Started) * 1000.0 < BudgetMs))
+	{
+		URidePart* R = ToRegister[0].Get();
+		ToRegister.RemoveAt(0, EAllowShrinking::No);
+		// (let go while it waited: in the spare pile, or gone)
+		if (!R || R->IsBeingDestroyed() || R->IsRegistered() || Spare.Contains(R)) continue;
+		R->RegisterComponent();
+		++Done;
 	}
 }
 
@@ -502,13 +845,52 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TorqueWorld::RideMesh
 
 UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow)
 {
-	UProceduralMeshComponent* Part = nullptr;
+	// [perf, build 148] Drawn as a static mesh built from the same triangles (World/TorqueRidePart.h):
+	// the procedural mesh then holds only what collides, hidden.
+	UStaticMesh* LookMesh = URidePart::StaticLooks() ? URidePart::BuildLook(this, Sections) : nullptr;
+	URidePart* Part = nullptr;
 	int32 Section = 0;
 	for (const TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>& Each : Sections)
 	{
 		const TorqueWorld::RideMesh* Mesh = Each.Key;
 		const int32 Count = Mesh ? int32(Mesh->Vertices()) : 0;
 		if (Count < 3 || Mesh->Idx.size() < 3) continue;
+		if (!Part)
+		{
+			// ([perf, build 150] one let go of earlier if there is one: fewer objects made and collected)
+			Part = TakeSpare();
+			if (!Part)
+			{
+				Part = NewObject<URidePart>(this);
+				Part->SetupAttachment(RootComponent);
+			}
+			Part->bUseAsyncCooking = !bAtOnce;
+			Part->SetMobility(EComponentMobility::Movable);
+			Part->SetRelativeLocation(FVector(Mesh->OriginX * 100.0, Mesh->OriginZ * 100.0, 0.0));
+			Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
+			Part->SetCastShadow(bShadow && !LookMesh);
+			Part->bVisibleInRayTracing = bNextInRayTracing;
+			// (drawn by its look: the renderer never sees the procedural mesh)
+			if (LookMesh) Part->SetVisibility(false, false);
+			// ([perf, build 150] registered once its sections are all in, below: one render state and
+			// one physics state made, not one per section)
+		}
+		// (with a look, only what collides needs its triangles here)
+		if (LookMesh && !bCollide)
+		{
+			++Section;
+			continue;
+		}
+		// [perf, build 149] Readied on the square's worker: only copied in here.
+		if (PreparedNow)
+			if (FProcMeshSection* Ready = PreparedNow->Find(Mesh))
+			{
+				Ready->bEnableCollision = bCollide;
+				Part->SetProcMeshSection(Section, *Ready);
+				if (Each.Value) Part->SetMaterial(Section, Each.Value);
+				++Section;
+				continue;
+			}
 		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
 		TArray<FVector> Points;
 		TArray<FVector> Normals;
@@ -533,22 +915,35 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 		// (the plan winds its triangles anticlockwise seen from above, which is Unreal's front face too:
 		// the two frames name the same points)
 		for (uint32 Index : Mesh->Idx) Triangles.Add(int32(Index));
-		if (!Part)
-		{
-			Part = NewObject<UProceduralMeshComponent>(this);
-			Part->bUseAsyncCooking = !bAtOnce;
-			Part->SetMobility(EComponentMobility::Movable);
-			Part->SetupAttachment(RootComponent);
-			Part->SetRelativeLocation(FVector(Mesh->OriginX * 100.0, Mesh->OriginZ * 100.0, 0.0));
-			Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
-			Part->SetCastShadow(bShadow);
-			Part->RegisterComponent();
-		}
 		// (the colours are kept as they are, linear: M_RideRoad reads the vertex colour as the road's own,
 		// M_RideStone and M_RideMasonry as their masks)
 		Part->CreateMeshSection_LinearColor(Section, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
 		if (Each.Value) Part->SetMaterial(Section, Each.Value);
 		++Section;
+	}
+	bNextInRayTracing = true;
+	// ([perf, build 150] a part that nothing collides with and nothing hangs on may wait its turn: Tick
+	// registers them within a few ms a frame, so a town's big squares don't all land in one frame)
+	const bool bDefer = bDeferNext && !bAtOnce && !bCollide && !LookMesh && TRWI::CVarRegisterMs.GetValueOnGameThread() > 0.0f;
+	bDeferNext = false;
+	if (Part)
+	{
+		if (bDefer) ToRegister.Add(Part);
+		else if (!Part->IsRegistered()) Part->RegisterComponent();
+	}
+	if (Part && LookMesh)
+	{
+		UStaticMeshComponent* Drawn = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
+		Drawn->SetMobility(EComponentMobility::Movable);
+		Drawn->SetupAttachment(Part);
+		Drawn->SetStaticMesh(LookMesh);
+		Drawn->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Drawn->SetCollisionProfileName(TEXT("NoCollision"));
+		Drawn->SetCanEverAffectNavigation(false);
+		Drawn->SetGenerateOverlapEvents(false);
+		Drawn->SetCastShadow(bShadow);
+		Drawn->RegisterComponent();
+		Part->Look = Drawn;
 	}
 	return Part;
 }
@@ -567,7 +962,7 @@ void ATorqueRideWorld::DropWater(const FIntVector& Key)
 {
 	if (TObjectPtr<UProceduralMeshComponent>* Wet = TileWater.Find(Key))
 	{
-		if (*Wet) (*Wet)->DestroyComponent();
+		LetGo(*Wet);
 		TileWater.Remove(Key);
 	}
 }
@@ -590,23 +985,44 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 {
 	if (TObjectPtr<UProceduralMeshComponent>* Old = Tiles.Find(Key))
 	{
-		if (*Old) (*Old)->DestroyComponent();
+		LetGo(*Old);
 	}
-	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
-	DropPlants(Key);
-	PlacePlants(Key, Mesh);
-	PlaceAnimals(Key, Mesh);
-	PlaceProps(Key, Mesh);   // [OSM stage 2]
-	DropWords(Key);
-	DropWater(Key);
-	// (its water: seen, not cast as shadow, not ridden on)
-	if (Mesh.Water && Mesh.Water->Vertices() > 0)
 	{
-		if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+		RideCosts::FScope Cost(RideCosts::Land);
+		Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
 	}
+	{
+		RideCosts::FScope Cost(RideCosts::Plants);
+		DropPlants(Key);
+		PlacePlants(Key, Mesh);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Animals);
+		PlaceAnimals(Key, Mesh);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Props);
+		PlaceProps(Key, Mesh);   // [OSM stage 2]
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Words);
+		DropWords(Key);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Water);
+		DropWater(Key);
+		// (its water: seen, not cast as shadow, not ridden on)
+		if (Mesh.Water && Mesh.Water->Vertices() > 0)
+		{
+			bNextInRayTracing = Key.X == 0;
+			bDeferNext = true;
+			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+		}
+	}
+	RideCosts::FScope BuildingsCost(RideCosts::Buildings);
 	if (TObjectPtr<UProceduralMeshComponent>* OldExtra = TileExtras.Find(Key))
 	{
-		if (*OldExtra) (*OldExtra)->DestroyComponent();
+		LetGo(*OldExtra);
 		TileExtras.Remove(Key);
 	}
 	DropStreetLights(Key);
@@ -621,11 +1037,18 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		Kinds.Emplace(Mesh.Extra->Roofing.get(), RoofMaterial.Get());
 		Kinds.Emplace(Mesh.Extra->Brickwork.get(), BrickMaterial.Get());
 		Kinds.Emplace(Mesh.Extra->Night.get(), NightMaterial.Get());
+		// [OSM stage 5D] traffic lights' and beacons' lamps, cycling by the shared clock
+		Kinds.Emplace(Mesh.Extra->Signals.get(), SignalMaterial ? SignalMaterial.Get() : LampMaterial ? LampMaterial.Get() : NightMaterial.Get());
+		// [OSM stage 6A] road signs' faces and lettering, shining back the headlight after dark
+		Kinds.Emplace(Mesh.Extra->Signs.get(), SignMaterial ? SignMaterial.Get() : RoadMaterial.Get());
+		bNextInRayTracing = Key.X <= TRWI::CVarRayTraceLevel.GetValueOnGameThread();
+		bDeferNext = !(Key.X == 0 && Mesh.Extra->Lights.size() >= 3);   // (street lamps hang on it: in at once)
 		UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0);
 		if (Stands) TileExtras.Add(Key, Stands);
 		// [stage 7] The street lamps' lights, on the nearest squares only: warm, unshadowed, on after dark.
 		if (Stands && Key.X == 0 && Mesh.Extra->Lights.size() >= 3)
 		{
+			RideCosts::FScope LightsCost(RideCosts::Lights);
 			TArray<TWeakObjectPtr<UPointLightComponent>>& Lamps = StreetLights.FindOrAdd(Key);
 			for (size_t L = 0; L + 2 < Mesh.Extra->Lights.size(); L += 3)
 			{
@@ -644,6 +1067,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 			}
 		}
 		// The words on its signs, as text standing just proud of each board.
+		RideCosts::FScope WordsCost(RideCosts::Words);
 		TArray<TWeakObjectPtr<UTextRenderComponent>>& Words = TileWords.FindOrAdd(Key);
 		for (const TorqueWorld::RideMesh::Label& L : Mesh.Extra->Labels)
 		{
@@ -666,6 +1090,40 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	}
 }
 
+void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Mesh, TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* Ready, bool bAtOnce)
+{
+	// (a tunnel's lamps as a second section: they glow, and a few real lights under them)
+	TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Sections;
+	Sections.Emplace(&Mesh, RoadMaterial.Get());
+	if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
+	if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
+	PreparedNow = Ready;
+	bNextInRayTracing = TRWI::CVarRoadsRayTraced.GetValueOnGameThread() != 0;
+	UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
+	PreparedNow = nullptr;
+	if (Part)
+	{
+		Part->ComponentTags.Add(TEXT("Road"));
+		TArray<TWeakObjectPtr<UPointLightComponent>> Lights;
+		for (size_t L = 0; L + 2 < Mesh.Lights.size(); L += 3)
+		{
+			UPointLightComponent* Lamp = NewObject<UPointLightComponent>(this);
+			Lamp->SetMobility(EComponentMobility::Movable);
+			Lamp->SetupAttachment(Part);
+			Lamp->SetRelativeLocation(FVector(double(Mesh.Lights[L]) * 100.0, double(Mesh.Lights[L + 2]) * 100.0, double(Mesh.Lights[L + 1]) * 100.0));
+			Lamp->SetIntensityUnits(ELightUnits::Lumens);
+			Lamp->SetIntensity(2500.0f);
+			Lamp->SetAttenuationRadius(1800.0f);
+			Lamp->SetLightColor(FLinearColor(1.0f, 0.86f, 0.66f));
+			Lamp->SetCastShadows(false);
+			Lamp->RegisterComponent();
+			Lights.Add(Lamp);
+		}
+		if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
+	}
+	RoadParts.Add(Key, Part);
+}
+
 void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 {
 	// Every road (the ride's own, then those that meet it) in pieces of PiecePoints points; a piece's
@@ -675,12 +1133,28 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 	TorqueWorld::Rect Around;
 	Around.X0 = At.X - TRWI::RoadReach - 600.0; Around.Z0 = At.Y - TRWI::RoadReach - 600.0;
 	Around.X1 = At.X + TRWI::RoadReach + 600.0; Around.Z1 = At.Y + TRWI::RoadReach + 600.0;
-	std::vector<int> Roads = Plan->RoadsNear(Around, false);
-	for (const auto& Have : RoadParts) Roads.push_back(int(Have.Key / 4096));
-	std::sort(Roads.begin(), Roads.end());
-	Roads.erase(std::unique(Roads.begin(), Roads.end()), Roads.end());
-	for (const int Which : Roads)
+	// [perf, build 151] The roads to look at, found again only when the rider has gone 150 m since (or the
+	// plan has grown), and looked at a few at a time within torque.RideRoadLookMs a call (round 150, York:
+	// this look over every road and piece near the rider was most of 8 ms a frame, worst 76 ms).
+	const bool bSlice = !bAtOnce && TRWI::CVarRoadLookMs.GetValueOnGameThread() > 0.0f;
+	if (!bSlice || RoadListPlan != Plan.get() || FVector2D::Distance(At, RoadListAt) > 150.0)
 	{
+		RoadList = Plan->RoadsNear(Around, false);
+		for (const auto& Have : RoadParts) RoadList.push_back(int(Have.Key / 4096));
+		std::sort(RoadList.begin(), RoadList.end());
+		RoadList.erase(std::unique(RoadList.begin(), RoadList.end()), RoadList.end());
+		RoadListPlan = Plan.get();
+		RoadListAt = At;
+		RoadCursor = 0;
+	}
+	const double LookStart = FPlatformTime::Seconds();
+	const double LookMs = TRWI::CVarRoadLookMs.GetValueOnGameThread();
+	const size_t RoadCount = RoadList.size();
+	for (size_t Looked = 0; Looked < RoadCount; ++Looked)
+	{
+		if (bSlice && Looked > 0 && (FPlatformTime::Seconds() - LookStart) * 1000.0 > LookMs) break;
+		if (RoadCursor >= RoadCount) RoadCursor = 0;
+		const int Which = RoadList[RoadCursor++];
 		const std::vector<TorqueWorld::RoadPoint>& Pts = Plan->RoadOf(Which);
 		const int32 Points = int32(Pts.size());
 		if (Points < 2) continue;
@@ -693,42 +1167,46 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const int64 Key = int64(Which) * 4096 + K;
 			const bool bHave = RoadParts.Contains(Key);
 			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
-			const bool bEndsLaid = (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
-			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid)
+			// ([perf, build 151] asked only of a piece that would be made now: BlockLaid takes the network's
+			// lay lock, which a worker laying a block can hold for a while; riding, the try-lock BlockLaidNow: a
+			// block being laid counts as not laid yet, and is asked again next look)
+			const bool bWanted = !bHave && HowFar < TRWI::RoadReach && (bAtOnce || (!RoadAsked.Contains(Key) && Jobs->RoadBusy.load() < TRWI::RoadsAtATime));
+			const bool bEndsLaid = bWanted && (First != 0 || (bAtOnce ? Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z) : Plan->BlockLaidNow(Pts.front().At.X, Pts.front().At.Z))) && (Last != Points - 1 || (bAtOnce ? Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z) : Plan->BlockLaidNow(Pts.back().At.X, Pts.back().At.Z)));
+			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && bAtOnce)
 			{
 				TorqueWorld::RideMesh Mesh;
 				Plan->RoadPiece(Which, First, Last, Mesh);
-				// (a tunnel's lamps as a second section: they glow, and a few real lights under them)
-				TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Sections;
-				Sections.Emplace(&Mesh, RoadMaterial.Get());
-				if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
-				if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
-				UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
-				if (Part)
+				PlaceRoadPiece(Key, Mesh, nullptr, true);
+			}
+			else if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && !RoadAsked.Contains(Key) && Jobs->RoadBusy.load() < TRWI::RoadsAtATime)
+			{
+				// [perf, build 149] Made on a worker (it was here, up to 125 ms a look in a town), put in
+				// place by Tick as it comes.
+				RoadAsked.Add(Key);
+				++Jobs->RoadBusy;
+				const std::shared_ptr<const TorqueWorld::RidePlan> Held = Plan;
+				const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
+				AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Key, Which, First, Last]()
 				{
-					Part->ComponentTags.Add(TEXT("Road"));
-					TArray<TWeakObjectPtr<UPointLightComponent>> Lights;
-					for (size_t L = 0; L + 2 < Mesh.Lights.size(); L += 3)
+					TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe> Made = MakeShared<TorqueWorld::RideMesh, ESPMode::ThreadSafe>();
+					TSharedPtr<FRidePrepared, ESPMode::ThreadSafe> Ready = MakeShared<FRidePrepared, ESPMode::ThreadSafe>();
+					if (!Share->bStop)
 					{
-						UPointLightComponent* Lamp = NewObject<UPointLightComponent>(this);
-						Lamp->SetMobility(EComponentMobility::Movable);
-						Lamp->SetupAttachment(Part);
-						Lamp->SetRelativeLocation(FVector(double(Mesh.Lights[L]) * 100.0, double(Mesh.Lights[L + 2]) * 100.0, double(Mesh.Lights[L + 1]) * 100.0));
-						Lamp->SetIntensityUnits(ELightUnits::Lumens);
-						Lamp->SetIntensity(2500.0f);
-						Lamp->SetAttenuationRadius(1800.0f);
-						Lamp->SetLightColor(FLinearColor(1.0f, 0.86f, 0.66f));
-						Lamp->SetCastShadows(false);
-						Lamp->RegisterComponent();
-						Lights.Add(Lamp);
+						Held->RoadPiece(Which, First, Last, *Made);
+						TRWI::Prepare(Made.Get(), *Ready);
+						TRWI::Prepare(Made->Glow.get(), *Ready);
+						TRWI::Prepare(Made->Night.get(), *Ready);
 					}
-					if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
-				}
-				RoadParts.Add(Key, Part);
+					{
+						FScopeLock Hold(&Share->Lock);
+						Share->RoadMade.Emplace(Key, Made, Ready, Held);
+					}
+					--Share->RoadBusy;
+				});
 			}
 			else if (bHave && HowFar > TRWI::RoadReach + 500.0)
 			{
-				if (UProceduralMeshComponent* Part = RoadParts[Key]) Part->DestroyComponent();
+				LetGo(RoadParts[Key]);
 				RoadParts.Remove(Key);
 				if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
 				{
@@ -740,23 +1218,392 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 	}
 }
 
+namespace TRProbe
+{
+// [perf, build 150] Garbage collection's time (game thread), summed until the ride's Tick takes it, so
+// a hitch says whether it was the collector.
+double GcStartedAt = 0.0, GcSumMs = 0.0;
+void WatchGc()
+{
+	static bool bWatching = false;
+	if (bWatching) return;
+	bWatching = true;
+	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddLambda([]() { GcStartedAt = FPlatformTime::Seconds(); });
+	FCoreUObjectDelegates::GetPostGarbageCollect().AddLambda([]()
+	{
+		if (GcStartedAt > 0.0) GcSumMs += (FPlatformTime::Seconds() - GcStartedAt) * 1000.0;
+		GcStartedAt = 0.0;
+	});
+}
+double TakeGcMs()
+{
+	const double Taken = GcSumMs;
+	GcSumMs = 0.0;
+	return Taken;
+}
+FString CVarText(const TCHAR* Name)
+{
+	const IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name);
+	return V ? V->GetString() : FString(TEXT("-"));
+}
+// The A/B run's steps: what each turns off (console variables, "name=value;..."), and which of the
+// ride's things it hides (1 trees, 2 grass and small plants, 4 ground, roads, walls and buildings; [build 152]
+// 8 the far ring's trees, 64 the near trees; 16 trees' shadows and 32 their swaying turned off instead).
+struct FABStep
+{
+	const TCHAR* Label;
+	const TCHAR* Vars;
+	int32 Hide;
+};
+const FABStep ABSteps[] = {
+	{TEXT("as set"), TEXT(""), 0},
+	{TEXT("drawn at half size (r.ScreenPercentage 50)"), TEXT("r.ScreenPercentage=50"), 0},
+	{TEXT("no trees"), TEXT(""), 1},
+	{TEXT("no far-ring trees (near ones kept)"), TEXT(""), 8},
+	{TEXT("no near trees (far ring kept)"), TEXT(""), 64},
+	{TEXT("trees cast no shadows"), TEXT(""), 16},
+	{TEXT("trees don't sway"), TEXT(""), 32},
+	{TEXT("no grass or small plants"), TEXT(""), 2},
+	{TEXT("no ground, roads, walls or buildings drawn"), TEXT(""), 4},
+	{TEXT("no virtual shadow maps"), TEXT("r.Shadow.Virtual.Enable=0"), 0},
+	{TEXT("no shadows"), TEXT("r.ShadowQuality=0"), 0},
+	{TEXT("no volumetric clouds"), TEXT("r.VolumetricCloud=0"), 0},
+	{TEXT("no volumetric fog"), TEXT("r.VolumetricFog=0"), 0},
+	{TEXT("no Lumen"), TEXT("r.DynamicGlobalIlluminationMethod=0;r.ReflectionMethod=2"), 0},
+	{TEXT("Lumen without hardware ray tracing"), TEXT("r.Lumen.HardwareRayTracing=0"), 0},
+	{TEXT("no Nanite"), TEXT("r.Nanite=0"), 0},
+	{TEXT("FXAA instead of TSR/TAA"), TEXT("r.AntiAliasingMethod=1"), 0},
+	{TEXT("as set again"), TEXT(""), 0},
+};
+constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
+// ([perf, build 151] 2 s to settle and 5 measured by default, -TorqueRideABSecs=<measured s>: round 150's
+// 90 s runs fitted only 4 of 14 steps at 3 + 10 s)
+double ABMeasureSecs()
+{
+	static const double Secs = []() { float Given = 5.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABSecs="), Given); return double(FMath::Clamp(Given, 2.0f, 30.0f)); }();
+	return Secs;
+}
+constexpr double ABSettle = 2.0;
+} // namespace TRProbe
+
+float ATorqueRideWorld::PresetReach(bool bTree) const
+{
+	// (so Medium really does less: until build 150 the ride's own plants took no notice of the preset,
+	// and beenster's Epic -> Medium changed nothing)
+	static const float GrassReach[5] = {0.45f, 0.6f, 0.8f, 1.0f, 1.0f};
+	static const float TreeReach[5] = {0.6f, 0.75f, 0.9f, 1.0f, 1.0f};
+	const int32 Level = FMath::Clamp(Scalability::GetQualityLevels().FoliageQuality, 0, 4);
+	return bTree ? TreeReach[Level] : GrassReach[Level];
+}
+
+void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
+{
+	if (What & (1 | 2 | 8 | 16 | 32 | 64))
+		for (const auto& Square : TilePlants)
+			for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Kind : Square.Value)
+				if (UInstancedStaticMeshComponent* C = Kind.Get())
+				{
+					const bool bIsTree = C->ComponentHasTag(TEXT("RideTree"));
+					const bool bIsFarTree = bIsTree && C->ComponentHasTag(TEXT("RideTreeFar"));
+					if ((bIsTree && (What & 1)) || (!bIsTree && (What & 2)) || (bIsFarTree && (What & 8)) || (bIsTree && !bIsFarTree && (What & 64)))
+						C->SetVisibility(!bHide);
+					if (bIsTree && (What & 16))
+					{
+						// (shadows off for the step; back on only for those that cast them before)
+						if (bHide)
+						{
+							if (C->CastShadow) { C->ComponentTags.AddUnique(TEXT("RideABShadow")); C->SetCastShadow(false); }
+						}
+						else if (C->ComponentTags.Remove(TEXT("RideABShadow")) > 0)
+						{
+							C->SetCastShadow(true);
+						}
+					}
+					if (bIsTree && (What & 32)) C->SetEvaluateWorldPositionOffset(!bHide);
+				}
+	if (What & 4)
+	{
+		auto Show = [bHide](UProceduralMeshComponent* P)
+		{
+			if (!P) return;
+			URidePart* R = Cast<URidePart>(P);
+			if (R && R->Look) R->Look->SetVisibility(!bHide);
+			else P->SetVisibility(!bHide);
+		};
+		for (const auto& Have : Tiles) Show(Have.Value);
+		for (const auto& Have : TileExtras) Show(Have.Value);
+		for (const auto& Have : TileWater) Show(Have.Value);
+		for (const auto& Have : RoadParts) Show(Have.Value);
+		for (UProceduralMeshComponent* Hero : HeroParts) Show(Hero);
+	}
+}
+
+void ATorqueRideWorld::TickAB(float DeltaSeconds)
+{
+	// -TorqueRideAB=1 (and -TorqueRideABAfter=<s>, 12 by default: the squares round the rider made
+	// first). Best parked or standing still, so each step sees the same view. Each step: 2 s to settle,
+	// 5 s measured (-TorqueRideABSecs=), about 130 s for all 18 (build 152). Its console variables are set as the console sets them, and put back after.
+	static const bool bAB = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideAB="), On) && On != 0; }();
+	static const double ABAfter = []() { float Secs = 12.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABAfter="), Secs); return double(FMath::Max(Secs, 0.0f)); }();
+	if (!bAB || ABStep >= TRProbe::ABCount) return;
+	ABSince += DeltaSeconds;
+	auto StartStep = [this](int32 Which)
+	{
+		ABStep = Which;
+		ABSince = 0.0;
+		ABGame = ABRender = ABGpu = ABWall = 0.0;
+		ABFrames = 0;
+		ABWas.Reset();
+		if (Which >= TRProbe::ABCount) return;
+		const TRProbe::FABStep& Doing = TRProbe::ABSteps[Which];
+		TArray<FString> Pairs;
+		FString(Doing.Vars).ParseIntoArray(Pairs, TEXT(";"));
+		for (const FString& Pair : Pairs)
+		{
+			FString Name, Value;
+			if (!Pair.Split(TEXT("="), &Name, &Value)) continue;
+			if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(*Name))
+			{
+				ABWas.Emplace(Name, V->GetString());
+				V->Set(*Value, ECVF_SetByConsole);
+			}
+		}
+		if (Doing.Hide) HideForAB(Doing.Hide, true);
+		UE_LOG(LogTemp, Display, TEXT("Ride A/B: step %d of %d, %s"), Which + 1, TRProbe::ABCount, Doing.Label);
+	};
+	if (ABStep < 0)
+	{
+		if (ABSince < ABAfter) return;
+		StartStep(0);
+		return;
+	}
+	if (ABSince < TRProbe::ABSettle) return;
+	ABGame += FPlatformTime::ToMilliseconds(GGameThreadTime);
+	ABRender += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+	ABGpu += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+	ABWall += double(DeltaSeconds);
+	++ABFrames;
+	// (one frame's GPU passes, with their sizes, logged by the engine: says whether the screen
+	// percentage and upscaler are really in use, and what the GPU's ms go on)
+	// ([build 152] in 151 it printed only its settings block, so also a CSV profile of the first step, with
+	// the GPU's passes in it: Saved/Profiling/CSV; and ProfileGPU again in the last step, long after loading)
+	if (ABStep == 0 && !bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
+	{
+		bABProfiled = true;
+		GEngine->Exec(GetWorld(), TEXT("r.GPUCsvStatsEnabled 1"));
+		GEngine->Exec(GetWorld(), TEXT("CsvProfile Start"));
+		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
+	}
+	if (ABStep == TRProbe::ABCount - 1 && bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
+	{
+		bABProfiled = false;
+		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
+	}
+	if (ABSince < TRProbe::ABSettle + TRProbe::ABMeasureSecs()) return;
+	const TRProbe::FABStep& Done = TRProbe::ABSteps[ABStep];
+	if (ABStep == 0 && GEngine) GEngine->Exec(GetWorld(), TEXT("CsvProfile Stop"));
+	const double Frames = double(FMath::Max(ABFrames, 1));
+	UE_LOG(LogTemp, Display, TEXT("Ride A/B: %-45s %5.1f fps; game %5.1f ms, render %5.1f ms, GPU %5.1f ms (%d frames)"),
+		Done.Label, ABWall > 0.0 ? ABFrames / ABWall : 0.0, ABGame / Frames, ABRender / Frames, ABGpu / Frames, ABFrames);
+	for (const TPair<FString, FString>& Was : ABWas)
+		if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(*Was.Key)) V->Set(*Was.Value, ECVF_SetByConsole);
+	if (Done.Hide) HideForAB(Done.Hide, false);
+	StartStep(ABStep + 1);
+	if (ABStep >= TRProbe::ABCount) UE_LOG(LogTemp, Display, TEXT("Ride A/B: done"));
+}
+
 void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
-	// What the workers have made goes in place, a few a frame.
-	for (int32 N = 0; N < 4; ++N)
+	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
+	TRProbe::WatchGc();
+	{
+		const double WallNow = FPlatformTime::Seconds();
+		FrameGameMs += FPlatformTime::ToMilliseconds(GGameThreadTime);
+		FrameRenderMs += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+		FrameGpuMs += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+		const double GapMs = LastTickWall > 0.0 ? (WallNow - LastTickWall) * 1000.0 : 0.0;
+		const double InGc = TRProbe::TakeGcMs();
+		// (Unreal caps a frame's DeltaSeconds at 0.4 s, which is why every town's worst frame read 400 ms:
+		// this is the real gap)
+		if (GapMs > 150.0)
+		{
+			// ([build 152] round 151's hitches were 660-813 ms with nothing of the ride's own in them: the
+			// frame's game, render thread and GPU times say which side stalled; a render thread or GPU stall
+			// with no GC is most likely a shader (PSO) being compiled the first time something is seen)
+			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d; that frame: game %.0f ms, render %.0f ms, GPU %.0f ms"),
+				GapMs, InGc, LastTickOwnMs, Asked.Num(), RoadAsked.Num(), FPlatformTime::ToMilliseconds(GGameThreadTime),
+				FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
+		}
+		LastTickWall = WallNow;
+	}
+	struct FOwnTime
+	{
+		double& Out;
+		double T0;
+		~FOwnTime() { Out = (FPlatformTime::Seconds() - T0) * 1000.0; }
+	} OwnTime{LastTickOwnMs, FPlatformTime::Seconds()};
+	TickAB(DeltaSeconds);
+	// [build 147] Where the game thread's time goes, every 5 seconds: each system's ms a frame (its
+	// worst single call), the squares placed, and the frame's own time (game thread and all).
+	{
+		++CostFrames;
+		CostSince += DeltaSeconds;
+		CostWorstFrame = FMath::Max(CostWorstFrame, double(DeltaSeconds) * 1000.0);
+		if (CostSince >= 5.0)
+		{
+			RideCosts::FSums& S = RideCosts::Sums();
+			int32 Waiting = 0;
+			{
+				FScopeLock Hold(&Jobs->Lock);
+				Waiting = Jobs->Made.Num();
+			}
+			FString Line;
+			double All = 0.0;
+			for (int32 W = 0; W < RideCosts::Count; ++W)
+			{
+				All += S.Ms[W];
+				if (S.Calls[W] > 0) Line += FString::Printf(TEXT(" %s %.2f (%d, worst %.1f);"), RideCosts::Name(W), S.Ms[W] / CostFrames, S.Calls[W], S.Worst[W]);
+			}
+			UE_LOG(LogTemp, Display, TEXT("Ride costs: %d frames, %.1f ms a frame (worst %.0f); ours %.2f ms a frame:%s squares waiting %d"),
+				CostFrames, CostSince * 1000.0 / CostFrames, CostWorstFrame, All / CostFrames, *Line, Waiting);
+			// [perf, build 148] Where the whole frame goes (the engine's own last-frame figures, as stat unit
+			// shows them), and how much of the ride is in the scene: what to cut when a town is slow.
+			{
+				int32 Looks = 0, Hidden = 0, Ism = 0, IsmShadow = 0, Words = 0, Lamps = 0, TreeGroups = 0;
+				int64 Instances = 0, TreeCount = 0;
+				auto CountPart = [&Looks, &Hidden](const UProceduralMeshComponent* P)
+				{
+					if (const URidePart* R = Cast<URidePart>(P))
+					{
+						if (R->Look) ++Looks;
+						if (!R->IsVisible()) ++Hidden;
+					}
+				};
+				for (const auto& Have : Tiles) CountPart(Have.Value);
+				for (const auto& Have : TileExtras) CountPart(Have.Value);
+				for (const auto& Have : TileWater) CountPart(Have.Value);
+				for (const auto& Have : RoadParts) CountPart(Have.Value);
+				for (const auto& Square : TilePlants)
+					for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Kind : Square.Value)
+						if (const UInstancedStaticMeshComponent* C = Kind.Get())
+						{
+							++Ism;
+							if (C->CastShadow) ++IsmShadow;
+							Instances += C->GetInstanceCount();
+							if (C->ComponentHasTag(TEXT("RideTree")))
+							{
+								++TreeGroups;
+								TreeCount += C->GetInstanceCount();
+							}
+						}
+				for (const auto& Square : TileWords) Words += Square.Value.Num();
+				for (const auto& Square : StreetLights) Lamps += Square.Value.Num();
+				for (const auto& Piece : RoadLights) Lamps += Piece.Value.Num();
+				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
+					FrameGameMs / CostFrames, FrameRenderMs / CostFrames, FrameGpuMs / CostFrames,
+					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
+			}
+			// [perf, build 150] How the picture is drawn, logged when it changes: the output size, the screen
+			// percentage and what really draws at it, the anti-aliasing / upscaler, and the expensive parts.
+			{
+				FIntPoint OutSize(0, 0);
+				if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport) OutSize = GEngine->GameViewport->Viewport->GetSizeXY();
+				const IConsoleVariable* PctVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
+				const float Pct = PctVar ? PctVar->GetFloat() : 100.0f;
+				const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+				const FTorqueSettings& Saved = FTorqueSettings::Get();
+				const FString SettingsSaid = FString::Printf(TEXT("settings applied %d times (saved: preset %d%s, upscaler %s, render %.1f%%, frame gen %d); now r.NGX.DLSS.Enable %s, r.Streamline.DLSSG.Enable %s, Reflex %s; "),
+					FTorqueSettings::Applied, Saved.Quality, Saved.bPerformance ? TEXT(" Performance") : TEXT(""), Saved.Upscaler == 1 ? TEXT("DLSS") : TEXT("TSR"),
+					FTorqueSettings::ScreenPercent(Saved.UpscaleMode), Saved.bFrameGen ? 1 : 0, *TRProbe::CVarText(TEXT("r.NGX.DLSS.Enable")),
+					*TRProbe::CVarText(TEXT("r.Streamline.DLSSG.Enable")), *TRProbe::CVarText(TEXT("t.Streamline.Reflex.Enable")));
+				const FString View = SettingsSaid + FString::Printf(TEXT("output %dx%d, r.ScreenPercentage %s (%dx%d if applied; mode %s, dynamic res %s), anti-aliasing %s (4 TSR, 2 TAA), DLSS %s; presets view %d shadows %d GI %d reflections %d foliage %d effects %d; Nanite %s, VSM %s, Lumen GI %s/reflections %s, HW RT %s, clouds %s (steps %s), fog %s, view distance %s"),
+					OutSize.X, OutSize.Y, *TRProbe::CVarText(TEXT("r.ScreenPercentage")), int32(OutSize.X * Pct / 100.0f), int32(OutSize.Y * Pct / 100.0f),
+					*TRProbe::CVarText(TEXT("r.ScreenPercentage.Mode")), *TRProbe::CVarText(TEXT("r.DynamicRes.OperationMode")), *TRProbe::CVarText(TEXT("r.AntiAliasingMethod")),
+					*TRProbe::CVarText(TEXT("r.NGX.DLSS.Enable")), Q.ViewDistanceQuality, Q.ShadowQuality, Q.GlobalIlluminationQuality, Q.ReflectionQuality, Q.FoliageQuality, Q.EffectsQuality,
+					*TRProbe::CVarText(TEXT("r.Nanite")), *TRProbe::CVarText(TEXT("r.Shadow.Virtual.Enable")), *TRProbe::CVarText(TEXT("r.DynamicGlobalIlluminationMethod")),
+					*TRProbe::CVarText(TEXT("r.ReflectionMethod")), *TRProbe::CVarText(TEXT("r.Lumen.HardwareRayTracing")), *TRProbe::CVarText(TEXT("r.VolumetricCloud")),
+					*TRProbe::CVarText(TEXT("r.VolumetricCloud.ViewRaySampleMaxCount")), *TRProbe::CVarText(TEXT("r.VolumetricFog")), *TRProbe::CVarText(TEXT("r.ViewDistanceScale")));
+				static FString LastView;
+				if (View != LastView)
+				{
+					LastView = View;
+					UE_LOG(LogTemp, Display, TEXT("Ride view: %s"), *View);
+				}
+			}
+			// [perf, build 150] Against the frame budget (the strategy doc, beenster Nov 15: never under
+			// 60 at Epic 4K): GPU 14, render thread 10, game thread 10, our own work 3 ms a frame and no
+			// single job of ours over 8. Each OVER is what to cut next.
+			{
+				const double AvgGame = FrameGameMs / CostFrames, AvgRender = FrameRenderMs / CostFrames, AvgGpu = FrameGpuMs / CostFrames;
+				double OursMs = 0.0, OursWorst = 0.0;
+				int32 WorstWhich = 0;
+				for (int32 W = 0; W < RideCosts::Count; ++W)
+				{
+					OursMs += S.Ms[W];
+					if (S.Worst[W] > OursWorst)
+					{
+						OursWorst = S.Worst[W];
+						WorstWhich = W;
+					}
+				}
+				OursMs /= CostFrames;
+				auto Mark = [](double Have, double Most) { return Have <= Most ? TEXT("ok") : TEXT("OVER"); };
+				UE_LOG(LogTemp, Display, TEXT("Ride budget: GPU %.1f/14 %s, render %.1f/10 %s, game %.1f/10 %s, ours %.2f/3 %s, our worst job %.0f/8 %s (%s), parts waiting %d, spare parts %d, spare plant groups %d"),
+					AvgGpu, Mark(AvgGpu, 14.0), AvgRender, Mark(AvgRender, 10.0), AvgGame, Mark(AvgGame, 10.0), OursMs, Mark(OursMs, 3.0),
+					OursWorst, Mark(OursWorst, 8.0), RideCosts::Name(WorstWhich), ToRegister.Num(), Spare.Num(), SparePlants.Num());
+			}
+			FrameGameMs = FrameRenderMs = FrameGpuMs = 0.0;
+			S = RideCosts::FSums();
+			CostFrames = 0;
+			CostSince = 0.0;
+			CostWorstFrame = 0.0;
+		}
+	}
+	// What the workers have made goes in place, a few a frame: [perf, build 148] up to 4, but no more
+	// once 3 ms have gone on it (each now builds its static meshes here too: a frame stays a frame).
+	const double PlaceStart = FPlatformTime::Seconds();
+	for (int32 N = 0; N < 4 && (N == 0 || (FPlatformTime::Seconds() - PlaceStart) * 1000.0 < 3.0); ++N)
 	{
 		TPair<FIntVector, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>> One;
+		TSharedPtr<FRidePrepared, ESPMode::ThreadSafe> Ready;
 		{
 			FScopeLock Hold(&Jobs->Lock);
 			if (Jobs->Made.Num() == 0) break;
 			One = Jobs->Made[0];
 			Jobs->Made.RemoveAt(0);
+			Jobs->Prepared.RemoveAndCopyValue(One.Key, Ready);
 		}
 		Asked.Remove(One.Key);
-		if (One.Value.IsValid()) Place(One.Key, *One.Value, false);
+		if (One.Value.IsValid())
+		{
+			PreparedNow = Ready.Get();
+			Place(One.Key, *One.Value, false);
+			PreparedNow = nullptr;
+		}
 	}
+	// [perf, build 149] The pieces of road the workers have made, likewise (two a frame, in the same 3 ms).
+	{
+		RideCosts::FScope Cost(RideCosts::Roads);
+		for (int32 N = 0; N < 2 && (N == 0 || (FPlatformTime::Seconds() - PlaceStart) * 1000.0 < 3.0); ++N)
+		{
+			TTuple<int64, TSharedPtr<TorqueWorld::RideMesh, ESPMode::ThreadSafe>, TSharedPtr<FRidePrepared, ESPMode::ThreadSafe>, std::shared_ptr<const TorqueWorld::RidePlan>> Piece;
+			{
+				FScopeLock Hold(&Jobs->Lock);
+				if (Jobs->RoadMade.Num() == 0) break;
+				Piece = Jobs->RoadMade[0];
+				Jobs->RoadMade.RemoveAt(0);
+			}
+			const int64 PieceKey = Piece.Get<0>();
+			RoadAsked.Remove(PieceKey);
+			// (made from a plan that has grown since: dropped, UpdateRoad asks again from the new one)
+			if (Piece.Get<3>() != Plan) continue;
+			if (!RoadParts.Contains(PieceKey) && Piece.Get<1>().IsValid())
+				PlaceRoadPiece(PieceKey, *Piece.Get<1>(), Piece.Get<2>().Get(), false);
+		}
+	}
+	RegisterWaiting();
 	TickBirds(DeltaSeconds);
 	// [stage 7] The street lamps come on as the light goes, and off in the morning.
 	if (const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
@@ -798,8 +1645,15 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	const FVector2D At = RiderAt();
 	if (BirdsLookedAt.X < 1e11 && FVector2D::Distance(At, BirdsLookedAt) > 0.5) BirdsGoing = (At - BirdsLookedAt).GetSafeNormal();
 	BirdsLookedAt = At;
-	Update(At, false);
-	UpdateRoad(At, false);
+	{
+		RideCosts::FScope Cost(RideCosts::Update);
+		Update(At, false);
+	}
+	{
+		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
+		RideCosts::FScope Cost(RideCosts::RoadLook);
+		UpdateRoad(At, false);
+	}
 	// [ride anywhere] The ground round the rider fetched as they roam, on a worker, every 800 m: the
 	// fine tiles near, the middle and skyline tiles out to their reach. The far squares made before
 	// new tiles came are made again (the near ones fetch their own before they are made).
@@ -824,6 +1678,16 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			});
 		});
 	}
+	// [ride anywhere 3] More of the world read as the rider nears the edge of what was.
+	SinceGrowLook += 0.2;
+	if (SinceGrowLook >= 2.0)
+	{
+		SinceGrowLook = 0.0;
+		TryGrow(At);
+		if (Plan)
+			for (const std::string& Note : Plan->TakeOutlineNotes())
+				UE_LOG(LogTemp, Log, TEXT("Towns: %s"), UTF8_TO_TCHAR(Note.c_str()));
+	}
 	// A square no longer wanted goes once every wanted square over the same ground is in place.
 	TArray<FIntVector> Going;
 	const TSet<FIntVector> WantSet(Want);
@@ -841,14 +1705,14 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	}
 	for (const FIntVector& Key : Going)
 	{
-		if (UProceduralMeshComponent* Part = Tiles[Key]) Part->DestroyComponent();
+		LetGo(Tiles[Key]);
 		Tiles.Remove(Key);
 		DropPlants(Key);
 		DropWords(Key);
 		DropWater(Key);
 		if (TObjectPtr<UProceduralMeshComponent>* Stands = TileExtras.Find(Key))
 		{
-			if (*Stands) (*Stands)->DestroyComponent();
+			LetGo(*Stands);
 			TileExtras.Remove(Key);
 		}
 		DropStreetLights(Key);
@@ -963,6 +1827,80 @@ void ATorqueRideWorld::SendBird(FRideBird& Bird, const FVector2D& At, uint32 Sal
 	Bird.Kind = Kind;
 }
 
+void ATorqueRideWorld::TryGrow(const FVector2D& At)
+{
+	if (bGrowing || !Plan || !Plan->Ok || Plan->CellsFrom == nullptr || Plan->HeightsFrom == nullptr || !Jobs) return;
+	// (a cell near the rider not read and not already found missing)
+	TArray<int64> Near;
+	for (const TorqueWorld::CellId& C : Plan->CellsToGrow(At.X, At.Y, TorqueWorld::RidePlan::GrowPad))
+	{
+		const int64 Key = int64(C.Row) * 100000 + C.Col;
+		if (!GrowTried.Contains(Key)) Near.Add(Key);
+	}
+	if (Near.Num() == 0) return;
+	// (and every other cell it would read, so a miss isn't asked again)
+	TArray<int64> Tried = Near;
+	for (const TorqueWorld::CellId& C : Plan->CellsToGrow(At.X, At.Y, TorqueWorld::RidePlan::RoamPad)) Tried.AddUnique(int64(C.Row) * 100000 + C.Col);
+	bGrowing = true;
+	const std::shared_ptr<TorqueWorld::RidePlan> Held = Plan;
+	const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
+	const TWeakObjectPtr<ATorqueRideWorld> Self(this);
+	UE_LOG(LogTemp, Log, TEXT("Ride anywhere: reading more of the world round (%.0f, %.0f), %d cells near not read"), At.X, At.Y, Near.Num());
+	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Self, At, Tried]()
+	{
+		std::string Why;
+		std::shared_ptr<TorqueWorld::RidePlan> Grown;
+		if (!Share->bStop) Grown = TorqueWorld::RidePlan::Grow(*Held->CellsFrom, *Held->HeightsFrom, *Held, At.X, At.Y, &Why);
+		if (!Grown) UE_LOG(LogTemp, Log, TEXT("Ride anywhere: not grown: %s"), UTF8_TO_TCHAR(Why.c_str()));
+		AsyncTask(ENamedThreads::GameThread, [Self, Held, Grown, Tried]()
+		{
+			if (ATorqueRideWorld* Ride = Self.Get()) Ride->Grew(Held, Grown, Tried);
+		});
+	});
+}
+
+void ATorqueRideWorld::Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried)
+{
+	RideCosts::FScope Cost(RideCosts::Grow);
+	bGrowing = false;
+	for (const int64 Key : Tried) GrowTried.Add(Key);
+	if (!Grown || Plan != Old) return;
+	// (cells read now are no longer misses)
+	for (const TorqueWorld::CellId& C : Grown->Area.Cells) GrowTried.Remove(int64(C.Row) * 100000 + C.Col);
+	Plan = Grown;
+	if (UGameInstance* GI = GetGameInstance())
+		if (UTorqueWorldSubsystem* Real = GI->GetSubsystem<UTorqueWorldSubsystem>()) Real->RideGrew(Old, Grown);
+	// The roads that met the old edge, drawn again with their new junctions.
+	TSet<int64> Again;
+	for (const int Which : Grown->RedrawRoads) Again.Add(int64(Which));
+	TArray<int64> Drop;
+	for (const auto& Have : RoadParts)
+		if (Again.Contains(Have.Key / 4096)) Drop.Add(Have.Key);
+	for (const int64 Key : Drop)
+	{
+		LetGo(RoadParts[Key]);
+		RoadParts.Remove(Key);
+		if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
+		{
+			for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
+			RoadLights.Remove(Key);
+		}
+	}
+	// The squares that reach within a kilometre of the old edge or past it, made again with what is there now.
+	for (const auto& Have : Tiles)
+	{
+		const double Size = TRWI::SizeOf(Have.Key.X);
+		const double X0 = Have.Key.Y * Size, Z0 = Have.Key.Z * Size;
+		if (!Grown->WasRead(X0 - 1000.0, Z0 - 1000.0, X0 + Size + 1000.0, Z0 + Size + 1000.0)) Stale.Add(Have.Key);
+	}
+	// The maps: the bigger area, and the way (unless the sat nav is taking the rider back to the road).
+	Roam = TorqueWorld::RoamOfPlan(Plan, Roam ? Roam->Version + 1 : 1);
+	if (!NavState.Detour) Guide = TorqueWorld::GuideOfPlan(*Plan, Guide ? Guide->Version + 1 : 1);
+	OnRoamChanged.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("Ride anywhere: the ride grew to %d cells, %d roads (%d drawn again)"), int32(Grown->Area.Cells.size()), int32(Grown->Area.Roads.Edges.size()),
+		int32(Grown->RedrawRoads.size()));
+}
+
 void ATorqueRideWorld::TickBirds(float DeltaSeconds)
 {
 	if (!Plan || BirdsLookedAt.X > 1e11) return;
@@ -1005,6 +1943,7 @@ void ATorqueRideWorld::PlaceAnimals(const FIntVector& Key, const TorqueWorld::Ri
 	for (TPair<int32, TArray<FTransform>>& Group : Groups)
 	{
 		const FTorqueFoliageSpecies& S = AnimalKit[Group.Key];
+		if (TRWI::Unseen(Key, FMath::Max(S.CullDistance, 20000.0f))) continue;
 		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
 		Ism->SetMobility(EComponentMobility::Movable);
 		Ism->SetupAttachment(RootComponent);
@@ -1060,6 +1999,14 @@ void ATorqueRideWorld::FindProps()
 				PropKit.Add(S);
 			}
 		}
+	// [fps plan step 2] (a facade kind's models in order of size, SM_Prop_<kind>_<size>: a prop's Variant is its size)
+	for (int32 K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K)
+		PropModels[K].Sort([this](const int32 A, const int32 B)
+		{
+			const FString Na = PropKit[A].Name.ToString(), Nb = PropKit[B].Name.ToString();
+			return FCString::Atoi(*Na.RightChop(Na.Find(TEXT("_"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) + 1))
+				< FCString::Atoi(*Nb.RightChop(Nb.Find(TEXT("_"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) + 1));
+		});
 	FString Have, Missing;
 	PropCredits.Reset();
 	for (int32 K = 0; K < RidePlan::PropKinds; ++K)
@@ -1084,29 +2031,35 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 {
 	using TorqueWorld::RidePlan;
 	if (Mesh.Props.empty() || PropKit.Num() == 0) return;
-	TMap<int32, TArray<FTransform>> Groups;   // by model
+	// (by model: the instances, and for the facade kit's their colours, nine floats each)
+	struct FPropGroup { TArray<FTransform> At; TArray<float> Tint; };
+	TMap<int32, FPropGroup> Groups;
 	for (const TorqueWorld::RideProp& P : Mesh.Props)
 	{
 		if (P.Kind >= RidePlan::PropKinds) continue;
 		const TArray<int32>& Choice = PropModels[P.Kind];
 		if (Choice.Num() == 0) continue;
-		const int32 Mi = Choice[int32(P.Variant) % Choice.Num()];
+		// (a facade model's Variant is its size: the nearest there is if the kit lacks it)
+		const int32 Mi = P.Facade ? Choice[FMath::Min(int32(P.Variant), Choice.Num() - 1)] : Choice[int32(P.Variant) % Choice.Num()];
 		const FTorqueFoliageSpecies& S = PropKit[Mi];
 		UStaticMesh* Model = S.Mesh.Get();
 		if (!Model) continue;
 		const FVector& Fix = PropFix[P.Kind];
-		// (as tall as the kind in life, whatever the model's own height)
+		// (as tall as the kind in life, whatever the model's own height; a kind of height 0, the facade kit, as modelled)
 		const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(PropFrame.Z));
-		const double Size = (Own > 1.0 ? Fix.X / Own : 1.0) * double(P.Scale) * S.ScaleMultiplier;
+		const double Size = (Own > 1.0 && Fix.X > 0.0 ? Fix.X / Own : 1.0) * double(P.Scale) * S.ScaleMultiplier;
 		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
 		const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
 		const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
-		Groups.FindOrAdd(Mi).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
+		FPropGroup& Group = Groups.FindOrAdd(Mi);
+		Group.At.Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
+		if (P.Facade) Group.Tint.Append(P.Tint, 9);
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
-	for (TPair<int32, TArray<FTransform>>& Group : Groups)
+	for (TPair<int32, FPropGroup>& Group : Groups)
 	{
 		const FTorqueFoliageSpecies& S = PropKit[Group.Key];
+		if (TRWI::Unseen(Key, FMath::Max(S.CullDistance, 5000.0f))) continue;
 		// As the animals: no collision, no navigation; shadows only from the taller kinds (the kit says).
 		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
 		Ism->SetMobility(EComponentMobility::Movable);
@@ -1124,12 +2077,20 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 		const float Cull = FMath::Max(S.CullDistance, 5000.0f);
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
+		// [fps plan step 2] (the facade kit's: paint, trim and third colours per instance, read by M_RideFacade)
+		const bool bTinted = Group.Value.Tint.Num() == Group.Value.At.Num() * 9;
+		if (bTinted) Ism->SetNumCustomDataFloats(9);
 		Ism->RegisterComponent();
-		Ism->AddInstances(Group.Value, false, false);
+		Ism->AddInstances(Group.Value.At, false, false);
+		if (bTinted)
+		{
+			for (int32 I = 0; I < Group.Value.At.Num(); ++I) Ism->SetCustomData(I, TArrayView<const float>(Group.Value.Tint.GetData() + I * 9, 9), false);
+			Ism->MarkRenderStateDirty();
+		}
 		AddInstanceComponent(Ism);
 		Parts.Add(Ism);
-		PlantsShown += Group.Value.Num();   // (let go with the plants, which count them off)
-		PropsShown += Group.Value.Num();
+		PlantsShown += Group.Value.At.Num();   // (let go with the plants, which count them off)
+		PropsShown += Group.Value.At.Num();
 	}
 }
 
@@ -1175,6 +2136,18 @@ bool ATorqueRideWorld::FindKit()
 				if (Name.StartsWith(TEXT("SM_TreeFar_") + Kind + TEXT("_"))) KindFar[K].Add(Kit.Num());
 			}
 			Kit.Add(S);
+		}
+		// [perf, build 149] A kind with near models (a scanned tree) but no far ones of its own is drawn far
+		// off by the far models of the kind that stands in for it, not by the scans: the far ring's
+		// trees are thousands, and full scanned trees there cost about 10 ms of GPU at Whaley Bridge
+		// (build 148). -TorqueRideFarScans=1 draws them as before.
+		static const bool bFarScans = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFarScans="), On) && On != 0; }();
+		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
+		{
+			const bool bScanned = KindNear[K].ContainsByPredicate([this](int32 Si) { return Kit[Si].Name.ToString().EndsWith(TEXT("_scan")); });
+			if (bFarScans && bScanned) KindFar[K] = KindNear[K];
+			const int32 Instead = TorqueWorld::RidePlan::PlantStandIn(K);
+			if (!bFarScans && KindFar[K].Num() == 0 && KindNear[K].Num() > 0 && Instead != K && KindFar[Instead].Num() > 0) KindFar[K] = KindFar[Instead];
 		}
 		// (a kind with near models but no far ones uses the near ones far off too, and the other way about;
 		// one with neither, the models of the kind that stands in for it: oak for ash and so on)
@@ -1226,7 +2199,17 @@ void ATorqueRideWorld::DropPlants(const FIntVector& Key)
 			if (UInstancedStaticMeshComponent* Ism = Part.Get())
 			{
 				PlantsShown -= Ism->GetInstanceCount();
-				Ism->DestroyComponent();
+				// ([perf, build 150] kept to be used again, as the parts are: torque.RidePool)
+				if (TRWI::CVarPool.GetValueOnGameThread() != 0 && SparePlants.Num() < 2000 && !Ism->IsBeingDestroyed())
+				{
+					Ism->ClearInstances();
+					Ism->ComponentTags.Reset();
+					Ism->EmptyOverrideMaterials();
+					if (Ism->IsRegistered()) Ism->UnregisterComponent();
+					SparePlants.Add(Ism);
+				}
+				else
+					Ism->DestroyComponent();
 			}
 		TilePlants.Remove(Key);
 	}
@@ -1257,9 +2240,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (!Model) continue;
 		const FVector& Frame = bTree ? TreeFrame : GrassFrame;
 		double Size = double(P.Scale) * S.ScaleMultiplier;
-		if (bTree)
+		if (bTree && P.Height > 0.0f)
 		{
-			// (as tall as the canopy map says, whatever the model's own height)
+			// (as tall as the canopy map says, whatever the model's own height; a hedge's length keeps its Scale)
 			const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(Frame.Z));
 			Size = Own > 1.0 ? FMath::Clamp(double(P.Height) * 100.0 / Own, 0.4, 2.5) : 1.0;
 		}
@@ -1271,8 +2254,12 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 			Rot = FQuat::FindBetweenNormals(FVector::UpVector, N.GetSafeNormal()) * Rot;
 		}
 		const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * Frame.Z, Size * Frame.Z * Frame.Y, Size * Frame.Z);
+		// ([perf, build 150] patches of torque.RidePlantPatch metres, 64 by default: 32 until 149, which
+		// made thousands of plant groups for the render thread to look at each frame)
 		const bool bPatch = !bTree && S.MinDrawDistance > 0.0f;
-		const int32 Patch = bPatch ? FMath::Clamp(int32(P.X / 32.0f), 0, 63) + 64 * FMath::Clamp(int32(P.Z / 32.0f), 0, 63) : -1;
+		const float PatchM = FMath::Max(8.0f, TRWI::CVarPlantPatch.GetValueOnGameThread());
+		// ([build 152] the far ring's trees in groups of their own, -2, so they can be lit more cheaply)
+		const int32 Patch = bPatch ? FMath::Clamp(int32(P.X / PatchM), 0, 63) + 64 * FMath::Clamp(int32(P.Z / PatchM), 0, 63) : (bTree && P.Far ? -2 : -1);
 		Groups.FindOrAdd(FIntVector(Si, Vi, Patch)).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), Scale3));
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
@@ -1283,11 +2270,25 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
+		const bool bFarTree = bTree && Group.Key.Z == -2;
+		const float PlantReach = PresetReach(bTree);
+		if (TRWI::Unseen(Key, PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
+		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
+		static const bool bNoTrees = []() { int32 On = 1; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideTrees="), On) && On == 0; }();
+		if (bTree && bNoTrees) continue;
 		// As ATorqueFoliage makes its parts (see TorqueFoliage.cpp): no collision, shadows only from the
 		// taller plants and cached while they sway, out of Lumen's and the ray tracer's scenes.
-		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
+		UInstancedStaticMeshComponent* Ism = nullptr;
+		while (!Ism && SparePlants.Num() > 0)
+		{
+			UInstancedStaticMeshComponent* Kept = SparePlants.Pop(EAllowShrinking::No);
+			if (IsValid(Kept) && !Kept->IsBeingDestroyed()) Ism = Kept;
+		}
+		const bool bReused = Ism != nullptr;
+		if (!Ism) Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
 		Ism->SetMobility(EComponentMobility::Movable);
-		Ism->SetupAttachment(RootComponent);
+		if (!bReused) Ism->SetupAttachment(RootComponent);
+		Ism->SetVisibility(true);
 		Ism->SetRelativeLocation(FVector(Mesh.OriginX * 100.0, Mesh.OriginZ * 100.0, 0.0));
 		Ism->SetStaticMesh(Model);
 		if (Mat) Ism->SetMaterial(0, Mat);
@@ -1295,21 +2296,24 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->SetCollisionProfileName(TEXT("NoCollision"));
 		Ism->SetCanEverAffectNavigation(false);
 		Ism->SetGenerateOverlapEvents(false);
-		Ism->SetCastShadow(S.bCastShadow);
+		Ism->SetCastShadow(S.bCastShadow && (!bFarTree || TRWI::CVarFarTreeShadows.GetValueOnGameThread() != 0));
 		Ism->bCastContactShadow = S.bCastShadow && !bTree;
 		Ism->ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Rigid;
 		Ism->bReceivesDecals = false;
-		Ism->bAffectDistanceFieldLighting = bTree;
-		Ism->bAffectDynamicIndirectLighting = bTree;
+		const bool bTreeLit = bTree && (!bFarTree || TRWI::CVarFarTreeLighting.GetValueOnGameThread() != 0);
+		Ism->bAffectDistanceFieldLighting = bTreeLit;
+		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
-		Ism->WorldPositionOffsetDisableDistance = bTree ? 8000 : 2500;
-		const float Cull = S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
+		Ism->WorldPositionOffsetDisableDistance = bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
 		Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
+		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
+		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
-		AddInstanceComponent(Ism);
+		if (!bReused) AddInstanceComponent(Ism);
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.Num();
 	}

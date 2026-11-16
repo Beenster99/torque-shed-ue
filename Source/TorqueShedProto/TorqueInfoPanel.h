@@ -40,7 +40,9 @@ public:
 	// What the internet said (shared with the requests in flight, which may outlive a frame).
 	struct FHour { FString Label; int32 Code = 0; float Temp = 0.0f; int32 RainPct = 0; bool bDay = true; };
 	struct FDay { FString Label; int32 Code = 0; float Max = 0.0f, Min = 0.0f; int32 RainPct = 0; };
-	struct FNear { FString Title, Text; double Metres = 0.0, Lat = 0.0, Lon = 0.0; };
+	// ([places stage 1] Qid its Wikidata id; Kind what the world's places say it is, once looked up: "" not
+	// yet, "unknown" none found)
+	struct FNear { FString Title, Text, Qid, Kind; double Metres = 0.0, Lat = 0.0, Lon = 0.0; };
 	struct FData
 	{
 		// OpenStreetMap: the road, the place, the county (or what stands for them abroad), the country.
