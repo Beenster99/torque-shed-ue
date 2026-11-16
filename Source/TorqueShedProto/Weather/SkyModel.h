@@ -153,7 +153,7 @@ struct Looks
 	// sparkled as the engine's samples hit or missed it).
 	double CloudVersion = 1.0;
 	double V2ShapeM = 8000.0, V2DetailM = 600.0, V2MidShapeM = 5000.0, V2MidDetailM = 400.0, V2BroadM = 40000.0, V2Patchy = 0.35;
-	double V2Erode = 0.5, V2ErodeRagged = 0.3, V2EdgeSharp = 3.0, V2Billow = 0.3, V2Extinction = 0.1;
+	double V2Erode = 0.5, V2ErodeRagged = 0.3, V2EdgeSharp = 3.0, V2Billow = 0.3, V2Extinction = 0.1, V2DeckThin = 0.5;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
 	// (so the sun is never dimmed twice).
 	double DeckFrom = 0.7, DeckTo = 0.95;

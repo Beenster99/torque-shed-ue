@@ -132,7 +132,8 @@ class Clouds:
                 bc = sat(remap(bc, mod * erode, 1.0, 0.0, 1.0))
             # (crisp edges: a cumulus is dense right to its skin, not a fog thinning over a kilometre)
             bc = sat(bc * L["v2_edge_sharp"])
-            best = np.maximum(best, np.where(inside, bc * P["density"], 0.0))
+            thin = 1.0 + (L.get("v2_deck_thin", 1.0) - 1.0) * P["shape"]
+            best = np.maximum(best, np.where(inside, bc * P["density"] * thin, 0.0))
         return best * self.ext
 
 

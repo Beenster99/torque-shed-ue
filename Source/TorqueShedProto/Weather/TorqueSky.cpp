@@ -468,6 +468,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("V2EdgeSharp"), (float)FMath::Max(Looks.V2EdgeSharp, 0.1));
 		SetMpc(SkyMpc, TEXT("V2Billow"), (float)Looks.V2Billow);
 		SetMpc(SkyMpc, TEXT("V2Extinction"), (float)Looks.V2Extinction);
+		SetMpc(SkyMpc, TEXT("V2DeckThin"), (float)Looks.V2DeckThin);
 		SetMpc(SkyMpc, TEXT("V2LowDensity"), (float)(S.Density));
 		SetMpc(SkyMpc, TEXT("V2MidDensity"), (float)Mi.Look.Density);
 		// How the cloud scatters the sun (build 147: grey, blotchy cumulus): its lobes and the light

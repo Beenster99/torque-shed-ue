@@ -312,7 +312,7 @@ SKY_PARAMS = (
     # density 1, and each layer's density.
     ("V2LowShapeM", 8000.0), ("V2LowDetailM", 600.0), ("V2MidShapeM", 5000.0), ("V2MidDetailM", 400.0),
     ("V2BroadM", 40000.0), ("V2Patchy", 0.35), ("V2Erode", 0.5), ("V2ErodeRagged", 0.3), ("V2EdgeSharp", 3.0),
-    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
+    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
 )
 
 
@@ -3476,7 +3476,8 @@ float best = 0.0;
             bc = saturate((bc - er) / max(1.0 - er, 0.001));
         }
         bc = saturate(bc * EdgeSharp);
-        best = max(best, bc * densities[ly]);
+        // (a deck is thinner stuff than a heaped cloud: lighter underneath, as real stratocumulus)
+        best = max(best, bc * densities[ly] * lerp(1.0, DeckThin, saturate(kinds[ly])));
     }
 }
 return best * Extinction;
@@ -3530,10 +3531,11 @@ def cloud_material_v2():
     floats = ("NormAlt", "Cover", "Shape", "LowBottom", "LowTop", "LowRagged", "LowDensity",
               "MidCover", "MidBottom", "MidTop", "MidShape", "MidRagged", "MidDens",
               "MapOn", "MapHereLow", "MapHereMid", "Anvil",
-              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction")
+              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin")
     # (MPC_Sky's names for the inputs that aren't the same)
     mpc_name = {"LowDensity": "V2LowDensity", "MidDens": "V2MidDensity", "Patchy": "V2Patchy", "Erode": "V2Erode",
-                "ErodeRagged": "V2ErodeRagged", "EdgeSharp": "V2EdgeSharp", "Billow": "V2Billow", "Extinction": "V2Extinction"}
+                "ErodeRagged": "V2ErodeRagged", "EdgeSharp": "V2EdgeSharp", "Billow": "V2Billow", "Extinction": "V2Extinction",
+                "DeckThin": "V2DeckThin"}
     names = ("LS", "LB", "LD", "MS", "MB", "MD", "BR") + floats + ("ShapeTex", "DetailTex", "MapUV", "WeatherMap")
     c = _custom(g, CLOUD_V2_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, names)
     alb = _custom(g, CLOUD_ALBEDO_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1,

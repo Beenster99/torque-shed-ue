@@ -73,6 +73,7 @@ const NamedNumber Numbers[] = {
 	{"v2_mid_shape_m", &Looks::V2MidShapeM}, {"v2_mid_detail_m", &Looks::V2MidDetailM}, {"v2_broad_m", &Looks::V2BroadM},
 	{"v2_patchy", &Looks::V2Patchy}, {"v2_erode", &Looks::V2Erode}, {"v2_erode_ragged", &Looks::V2ErodeRagged},
 	{"v2_edge_sharp", &Looks::V2EdgeSharp}, {"v2_billow", &Looks::V2Billow}, {"v2_extinction", &Looks::V2Extinction},
+	{"v2_deck_thin", &Looks::V2DeckThin},
 	{"humid_from", &Looks::HumidFrom}, {"humid_swell", &Looks::HumidSwell},
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},
