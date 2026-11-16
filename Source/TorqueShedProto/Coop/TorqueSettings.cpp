@@ -331,9 +331,16 @@ bool FTorqueSettings::HasDlss()
 void FTorqueSettings::Apply(UWorld* World) const
 {
 	++Applied;
+	// [perf, build 152] -TorqueFrameGen=0|1 overrides the saved row for test runs: round 151's "frame
+	// generation on" runs still applied the saved 0, so frame generation never really ran.
+	bool bUseFrameGen = bFrameGen;
+	{
+		int32 Given = -1;
+		if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFrameGen="), Given) && Given >= 0) bUseFrameGen = Given != 0;
+	}
 	UE_LOG(LogTemp, Display, TEXT("Torque graphics: applying preset %d%s, upscaler %s (DLSS in build %d), render %.1f%%, AA row %d, frame generation %d (in build %d), Reflex %d"),
 		Quality, bPerformance ? TEXT(" (Performance)") : TEXT(""), Upscaler == 1 ? TEXT("DLSS") : TEXT("TSR"), HasDlss() ? 1 : 0, ScreenPercent(UpscaleMode), AntiAliasing,
-		bFrameGen ? 1 : 0, HasFrameGen() ? 1 : 0, bReflex ? 1 : 0);
+		bUseFrameGen ? 1 : 0, HasFrameGen() ? 1 : 0, bReflex ? 1 : 0);
 	if (UGameUserSettings* G = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
 		MoveToMonitor(Monitor);
@@ -396,8 +403,8 @@ void FTorqueSettings::Apply(UWorld* World) const
 	}
 	// [perf, build 150] Frame generation and Reflex (NVIDIA's plugin: Streamline). Frame generation needs
 	// DLSS (or at least a temporal upscaler) under it and Reflex on.
-	if (HasFrameGen()) SetCVar(TEXT("r.Streamline.DLSSG.Enable"), bFrameGen ? 1 : 0, ECVF_SetByCode);
-	if (HasReflex()) SetCVar(TEXT("t.Streamline.Reflex.Enable"), (bReflex || bFrameGen) ? 1 : 0, ECVF_SetByCode);
+	if (HasFrameGen()) SetCVar(TEXT("r.Streamline.DLSSG.Enable"), bUseFrameGen ? 1 : 0, ECVF_SetByCode);
+	if (HasReflex()) SetCVar(TEXT("t.Streamline.Reflex.Enable"), (bReflex || bUseFrameGen) ? 1 : 0, ECVF_SetByCode);
 	// TSR (DLSS takes over from it when on, and needs a temporal one under it), TAA, FXAA or none.
 	static const int32 AaMethods[4] = {4, 2, 1, 0};
 	// (set as code sets it: the project's own r.AntiAliasingMethod, DefaultEngine.ini's renderer settings,

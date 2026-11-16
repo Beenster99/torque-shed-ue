@@ -85,6 +85,15 @@ TAutoConsoleVariable<float> CVarRoadLookMs(TEXT("torque.RideRoadLookMs"), 1.5f,
 	TEXT("Ride UK: ms each look over the roads near the rider may take (every 0.2 s), carrying on next time (0: all at once, as until 150)."));
 TAutoConsoleVariable<int32> CVarRoadsRayTraced(TEXT("torque.RideRoadsRayTraced"), 0,
 	TEXT("Ride UK: pieces of road in the ray-tracing scene (1) or not (0, build 150). For pieces made after the change."));
+// [perf, build 152] Trees were the whole gap at Whaley Bridge in round 151 (46 fps as set, 89 with no
+// trees; GPU 20.3 -> 10.1 ms). The far ring's trees (thousands) cast no shadows and stay out of the
+// distance-field lighting; near trees stop swaying past torque.RideTreeSwayM.
+TAutoConsoleVariable<int32> CVarFarTreeShadows(TEXT("torque.RideFarTreeShadows"), 0,
+	TEXT("Ride UK: the far ring's trees cast shadows (1, as until 151) or not (0). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting"), 0,
+	TEXT("Ride UK: the far ring's trees in the distance-field / Lumen lighting (1, as until 151) or not (0). For squares made after the change."));
+TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
+	TEXT("Ride UK: trees sway in the wind out to this many metres (80 until 151). For squares made after the change."));
 constexpr int32 Levels = 4;
 constexpr double Finest = 256.0;         // metres across a square of level 0; each level's are 4 times the last's
 constexpr int32 CellsOf[Levels] = {64, 128, 64, 64};
@@ -1238,7 +1247,8 @@ FString CVarText(const TCHAR* Name)
 	return V ? V->GetString() : FString(TEXT("-"));
 }
 // The A/B run's steps: what each turns off (console variables, "name=value;..."), and which of the
-// ride's things it hides (1 trees, 2 grass and small plants, 4 ground, roads, walls and buildings).
+// ride's things it hides (1 trees, 2 grass and small plants, 4 ground, roads, walls and buildings; [build 152]
+// 8 the far ring's trees, 64 the near trees; 16 trees' shadows and 32 their swaying turned off instead).
 struct FABStep
 {
 	const TCHAR* Label;
@@ -1249,6 +1259,10 @@ const FABStep ABSteps[] = {
 	{TEXT("as set"), TEXT(""), 0},
 	{TEXT("drawn at half size (r.ScreenPercentage 50)"), TEXT("r.ScreenPercentage=50"), 0},
 	{TEXT("no trees"), TEXT(""), 1},
+	{TEXT("no far-ring trees (near ones kept)"), TEXT(""), 8},
+	{TEXT("no near trees (far ring kept)"), TEXT(""), 64},
+	{TEXT("trees cast no shadows"), TEXT(""), 16},
+	{TEXT("trees don't sway"), TEXT(""), 32},
 	{TEXT("no grass or small plants"), TEXT(""), 2},
 	{TEXT("no ground, roads, walls or buildings drawn"), TEXT(""), 4},
 	{TEXT("no virtual shadow maps"), TEXT("r.Shadow.Virtual.Enable=0"), 0},
@@ -1284,13 +1298,28 @@ float ATorqueRideWorld::PresetReach(bool bTree) const
 
 void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
 {
-	if (What & 3)
+	if (What & (1 | 2 | 8 | 16 | 32 | 64))
 		for (const auto& Square : TilePlants)
 			for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Kind : Square.Value)
 				if (UInstancedStaticMeshComponent* C = Kind.Get())
 				{
 					const bool bIsTree = C->ComponentHasTag(TEXT("RideTree"));
-					if ((bIsTree && (What & 1)) || (!bIsTree && (What & 2))) C->SetVisibility(!bHide);
+					const bool bIsFarTree = bIsTree && C->ComponentHasTag(TEXT("RideTreeFar"));
+					if ((bIsTree && (What & 1)) || (!bIsTree && (What & 2)) || (bIsFarTree && (What & 8)) || (bIsTree && !bIsFarTree && (What & 64)))
+						C->SetVisibility(!bHide);
+					if (bIsTree && (What & 16))
+					{
+						// (shadows off for the step; back on only for those that cast them before)
+						if (bHide)
+						{
+							if (C->CastShadow) { C->ComponentTags.AddUnique(TEXT("RideABShadow")); C->SetCastShadow(false); }
+						}
+						else if (C->ComponentTags.Remove(TEXT("RideABShadow")) > 0)
+						{
+							C->SetCastShadow(true);
+						}
+					}
+					if (bIsTree && (What & 32)) C->SetEvaluateWorldPositionOffset(!bHide);
 				}
 	if (What & 4)
 	{
@@ -1313,7 +1342,7 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 {
 	// -TorqueRideAB=1 (and -TorqueRideABAfter=<s>, 12 by default: the squares round the rider made
 	// first). Best parked or standing still, so each step sees the same view. Each step: 2 s to settle,
-	// 5 s measured (-TorqueRideABSecs=), about 100 s for all 14. Its console variables are set as the console sets them, and put back after.
+	// 5 s measured (-TorqueRideABSecs=), about 130 s for all 18 (build 152). Its console variables are set as the console sets them, and put back after.
 	static const bool bAB = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideAB="), On) && On != 0; }();
 	static const double ABAfter = []() { float Secs = 12.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABAfter="), Secs); return double(FMath::Max(Secs, 0.0f)); }();
 	if (!bAB || ABStep >= TRProbe::ABCount) return;
@@ -1356,13 +1385,23 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 	++ABFrames;
 	// (one frame's GPU passes, with their sizes, logged by the engine: says whether the screen
 	// percentage and upscaler are really in use, and what the GPU's ms go on)
+	// ([build 152] in 151 it printed only its settings block, so also a CSV profile of the first step, with
+	// the GPU's passes in it: Saved/Profiling/CSV; and ProfileGPU again in the last step, long after loading)
 	if (ABStep == 0 && !bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
 	{
 		bABProfiled = true;
+		GEngine->Exec(GetWorld(), TEXT("r.GPUCsvStatsEnabled 1"));
+		GEngine->Exec(GetWorld(), TEXT("CsvProfile Start"));
+		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
+	}
+	if (ABStep == TRProbe::ABCount - 1 && bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
+	{
+		bABProfiled = false;
 		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
 	}
 	if (ABSince < TRProbe::ABSettle + TRProbe::ABMeasureSecs()) return;
 	const TRProbe::FABStep& Done = TRProbe::ABSteps[ABStep];
+	if (ABStep == 0 && GEngine) GEngine->Exec(GetWorld(), TEXT("CsvProfile Stop"));
 	const double Frames = double(FMath::Max(ABFrames, 1));
 	UE_LOG(LogTemp, Display, TEXT("Ride A/B: %-45s %5.1f fps; game %5.1f ms, render %5.1f ms, GPU %5.1f ms (%d frames)"),
 		Done.Label, ABWall > 0.0 ? ABFrames / ABWall : 0.0, ABGame / Frames, ABRender / Frames, ABGpu / Frames, ABFrames);
@@ -1390,8 +1429,12 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		// this is the real gap)
 		if (GapMs > 150.0)
 		{
-			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d"),
-				GapMs, InGc, LastTickOwnMs, Asked.Num(), RoadAsked.Num());
+			// ([build 152] round 151's hitches were 660-813 ms with nothing of the ride's own in them: the
+			// frame's game, render thread and GPU times say which side stalled; a render thread or GPU stall
+			// with no GC is most likely a shader (PSO) being compiled the first time something is seen)
+			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d; that frame: game %.0f ms, render %.0f ms, GPU %.0f ms"),
+				GapMs, InGc, LastTickOwnMs, Asked.Num(), RoadAsked.Num(), FPlatformTime::ToMilliseconds(GGameThreadTime),
+				FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
 		}
 		LastTickWall = WallNow;
 	}
@@ -2215,7 +2258,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// made thousands of plant groups for the render thread to look at each frame)
 		const bool bPatch = !bTree && S.MinDrawDistance > 0.0f;
 		const float PatchM = FMath::Max(8.0f, TRWI::CVarPlantPatch.GetValueOnGameThread());
-		const int32 Patch = bPatch ? FMath::Clamp(int32(P.X / PatchM), 0, 63) + 64 * FMath::Clamp(int32(P.Z / PatchM), 0, 63) : -1;
+		// ([build 152] the far ring's trees in groups of their own, -2, so they can be lit more cheaply)
+		const int32 Patch = bPatch ? FMath::Clamp(int32(P.X / PatchM), 0, 63) + 64 * FMath::Clamp(int32(P.Z / PatchM), 0, 63) : (bTree && P.Far ? -2 : -1);
 		Groups.FindOrAdd(FIntVector(Si, Vi, Patch)).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), Scale3));
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
@@ -2226,6 +2270,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
+		const bool bFarTree = bTree && Group.Key.Z == -2;
 		const float PlantReach = PresetReach(bTree);
 		if (TRWI::Unseen(Key, PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
 		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
@@ -2251,19 +2296,21 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->SetCollisionProfileName(TEXT("NoCollision"));
 		Ism->SetCanEverAffectNavigation(false);
 		Ism->SetGenerateOverlapEvents(false);
-		Ism->SetCastShadow(S.bCastShadow);
+		Ism->SetCastShadow(S.bCastShadow && (!bFarTree || TRWI::CVarFarTreeShadows.GetValueOnGameThread() != 0));
 		Ism->bCastContactShadow = S.bCastShadow && !bTree;
 		Ism->ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Rigid;
 		Ism->bReceivesDecals = false;
-		Ism->bAffectDistanceFieldLighting = bTree;
-		Ism->bAffectDynamicIndirectLighting = bTree;
+		const bool bTreeLit = bTree && (!bFarTree || TRWI::CVarFarTreeLighting.GetValueOnGameThread() != 0);
+		Ism->bAffectDistanceFieldLighting = bTreeLit;
+		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
-		Ism->WorldPositionOffsetDisableDistance = bTree ? 8000 : 2500;
+		Ism->WorldPositionOffsetDisableDistance = bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
 		Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
 		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
+		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
 		if (!bReused) AddInstanceComponent(Ism);
