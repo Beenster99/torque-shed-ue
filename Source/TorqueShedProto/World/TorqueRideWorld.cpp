@@ -1159,9 +1159,10 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const bool bHave = RoadParts.Contains(Key);
 			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
 			// ([perf, build 151] asked only of a piece that would be made now: BlockLaid takes the network's
-			// lay lock, which a worker laying a block can hold for a while)
+			// lay lock, which a worker laying a block can hold for a while; riding, the try-lock BlockLaidNow: a
+			// block being laid counts as not laid yet, and is asked again next look)
 			const bool bWanted = !bHave && HowFar < TRWI::RoadReach && (bAtOnce || (!RoadAsked.Contains(Key) && Jobs->RoadBusy.load() < TRWI::RoadsAtATime));
-			const bool bEndsLaid = bWanted && (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
+			const bool bEndsLaid = bWanted && (First != 0 || (bAtOnce ? Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z) : Plan->BlockLaidNow(Pts.front().At.X, Pts.front().At.Z))) && (Last != Points - 1 || (bAtOnce ? Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z) : Plan->BlockLaidNow(Pts.back().At.X, Pts.back().At.Z)));
 			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && bAtOnce)
 			{
 				TorqueWorld::RideMesh Mesh;
