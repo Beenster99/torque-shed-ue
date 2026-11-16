@@ -57,7 +57,7 @@ def finish(name):
 #   t      half thickness along the axle, as a share of the hub's (1) tapering to the rim's (about 0.5)
 # "curve" rounds the bar's corners; "inlay" lays a machined bright strip on both faces.
 STYLES = {
-    "sweep7": dict(label="Seven swept spokes", ref=1, n=7, finish="gloss_black", rim=1, hub="star", sizes=((17, 3.5), (17, 6.0)), bars=[
+    "sweep7": dict(label="Seven swept spokes", ref=1, flare=1.5, n=7, finish="gloss_black", rim=1, hub="star", sizes=((17, 3.5), (17, 6.0)), bars=[
         dict(curve=True, pts=[(0, -6, 17, 1.0), (0.3, 4, 13, 0.9), (0.65, 20, 9.5, 0.7), (1, 37, 8, 0.55)])]),
     "y5": dict(label="Five Y spokes", ref=2, n=5, finish="gunmetal", rim=2, hub="flange", sizes=((17, 3.5), (17, 5.5)), bars=[
         dict(pts=[(0, 0, 15, 1.0), (0.42, 0, 11, 0.85)]),
@@ -70,11 +70,11 @@ STYLES = {
     "ten": dict(label="Ten spokes in five pairs", ref=4, n=5, finish="matt_black", rim=2, hub="drum", sizes=((17, 3.5), (17, 5.5)), bars=[
         dict(pts=[(0, 9, 8, 1.0), (0.5, 12, 6.5, 0.75), (1, 15, 6, 0.5)]),
         dict(pts=[(0, -9, 8, 1.0), (0.5, -12, 6.5, 0.75), (1, -15, 6, 0.5)])]),
-    "turbine10": dict(label="Ten turbine blades", ref=5, n=10, finish="chrome", rim=0, hub="slim", sizes=((21, 2.5), (18, 5.5)), bars=[
+    "turbine10": dict(label="Ten turbine blades", ref=5, flare=1.7, n=10, finish="chrome", rim=0, hub="slim", sizes=((21, 2.5), (18, 5.5)), bars=[
         dict(curve=True, pts=[(0, -10, 12, 1.0), (0.25, 2, 13, 0.9), (0.6, 28, 9, 0.7), (0.85, 48, 6, 0.55), (1, 58, 5, 0.5)])]),
     "five_inlay": dict(label="Five straight spokes, bright inlay", ref=6, n=5, finish="gloss_black", rim=0, hub="slim", sizes=((21, 2.5), (18, 5.5)), bars=[
         dict(inlay=True, pts=[(0, 0, 13, 1.0), (0.5, 0, 19, 0.8), (1, 0, 26, 0.6)])]),
-    "sickle5": dict(label="Five sickle spokes", ref=7, n=5, finish="chrome", rim=0, hub="tall", sizes=((21, 2.5), (18, 5.5)), bars=[
+    "sickle5": dict(label="Five sickle spokes", ref=7, flare=1.2, n=5, finish="chrome", rim=0, hub="tall", sizes=((21, 2.5), (18, 5.5)), bars=[
         dict(curve=True, pts=[(0, -14, 20, 1.0), (0.3, 0, 24, 0.9), (0.6, 26, 17, 0.7), (0.85, 48, 10, 0.55), (1, 52, 9, 0.5)])]),
     "twin5": dict(label="Five fine twin spokes", ref=8, wk=1.0, n=5, finish="carbon", rim=1, hub="star", sizes=((17, 3.5), (17, 6.0)), bars=[
         dict(pts=[(0, 14, 5.5, 1.0), (1, 5, 4.5, 0.5)]),
@@ -95,7 +95,82 @@ STYLES = {
         dict(pts=[(0, 5, 8, 1.0), (0.5, 4, 6.5, 0.75), (1, 9, 6, 0.5)]),
         dict(pts=[(0, -5, 8, 1.0), (0.5, -4, 6.5, 0.75), (1, -9, 6, 0.5)]),
         dict(pts=[(0.48, 4, 5, 0.5), (0.48, -4, 5, 0.5)])]),
+    # wire-spoked wheels (beenster, 16 Nov: five more rims with spoke variations, mainly for MX and adventure bikes).
+    # "wire": n spokes laced "cross" times, "gauge" the spoke's radius in mm, a rim section, a hub, and what the
+    # hub, spokes and nipples are finished in. "over": the spokes run to the far edge of the rim (tubeless).
+    "wire_mx36": dict(label="Motocross: 36 spokes, flat anodised rim", ref=0, finish="anodised_gold", sizes=((21, 1.6), (19, 2.15)),
+                      wire=dict(n=36, cross=3, gauge=2.0, rim="flat", hub="spool", hub_finish="matt_black", spoke="steel", nipple="alu")),
+    "wire_enduro32": dict(label="Enduro: 32 heavy spokes, billet hub", ref=0, finish="matt_black", sizes=((21, 1.6), (18, 2.15)),
+                          wire=dict(n=32, cross=2, gauge=3.0, rim="lip", hub="billet", hub_finish="anodised_gold", spoke="black", nipple="anodised_gold")),
+    "wire_cross40": dict(label="Adventure: 40 spokes crossed to the rim edges, tubeless", ref=0, finish="gloss_black", sizes=((19, 3.0), (17, 4.5)),
+                         wire=dict(n=40, cross=3, gauge=2.3, rim="cross", hub="cone", hub_finish="gunmetal", spoke="steel", nipple="alu", over=True)),
+    "wire_spine32": dict(label="Adventure: centre-rib rim, 16 spoke pairs", ref=0, finish="gunmetal", sizes=((21, 2.15), (18, 4.0)),
+                         wire=dict(n=32, cross=1, gauge=2.6, rim="spine", hub="billet", hub_finish="gunmetal", spoke="black", nipple="alu")),
+    "wire_rally36": dict(label="Rally: 36 long tangent spokes, deep polished rim", ref=0, finish="chrome", sizes=((21, 2.15), (17, 4.25)),
+                         wire=dict(n=36, cross=4, gauge=2.2, rim="lip", hub="cone", hub_finish="chrome", spoke="steel", nipple="alu")),
 }
+
+# wire rims: the side you see, from the outer lip in to the middle, as (across from the rim's edge h or the well's
+# edge wd, radius below the bead seat R); and where the nipples seat (across, radius below R)
+WIRE_RIMS = {
+    "flat": (lambda h, wd: [(h + 9, 8), (h + 7, 1), (h + 3, -6), (h - 6, -9), (wd + 6, -12), (wd - 2, -22), (8, -25), (0, -25)], (6, -25)),
+    "lip": (lambda h, wd: [(h + 10, 9), (h + 9, 3), (h + 4, -3), (h - 2, -4), (h - 8, -8), (wd + 4, -16), (wd - 6, -28), (0, -31)], (5, -30)),
+    "cross": (lambda h, wd: [(h + 10, 8), (h + 11, -2), (h + 7, -13), (h - 5, -15), (h - 11, -10), (wd + 3, -14), (wd - 5, -24), (0, -25)], (None, -13)),
+    "spine": (lambda h, wd: [(h + 9, 8), (h + 6, 2), (h + 2, -5), (h - 20, -9), (wd + 3, -14), (wd - 5, -24), (10, -25), (7, -41), (0, -42)], (6, -34)),
+}
+
+
+def wire_wheel(tag, st, R, W, rear, paint):
+    """A wire-spoked wheel: its rim, a spool hub with two drilled flanges, and every spoke a rod from its hole in
+    the flange to a nipple seated in the rim."""
+    wr = st["wire"]
+    h = W / 2
+    wd = max(13.0, h * 0.42)
+    side_f, (ny, nr) = WIRE_RIMS[wr["rim"]]
+    tyre = [(-h - 8, R + 12), (-h - 5, R + 14.5), (-h - 1.5, R + 13.5), (-h, R + 9), (-h + 1, R + 2), (-h + 3.5, R), (-h + 17, R - 1),
+            (-h + 20, R + 1.2), (-h + 23, R - 1.5), (-wd - 2, R - 7), (-wd + 6, R - 19), (wd - 6, R - 19), (wd + 2, R - 7),
+            (h - 23, R - 1.5), (h - 20, R + 1.2), (h - 17, R - 1), (h - 3.5, R), (h - 1, R + 2), (h, R + 9), (h + 1.5, R + 13.5), (h + 5, R + 14.5), (h + 8, R + 12)]
+    side = [(y, R + r) for y, r in side_f(h, wd)]
+    D.lathe(f"{tag}_rim", (0, 0, 0), (0, 1, 0), tyre + side + [(-y, r) for y, r in side[::-1][1:]] + [tyre[0]], paint, 96, caps=False)
+    B.cone(f"{tag}_valve", (R - 26, 6, 0), (R - 46, 16, 0), 3.2, 2.8, B.mat("rubber"), 10)
+    hubm = finish(wr.get("hub_finish", st["finish"]))
+    steel = B.mat("steel")
+    hl = 62 if rear else 52
+    r_f, r_b, r_m = {"spool": (44, 30, 23), "billet": (54, 40, 34), "cone": (64, 36, 50)}[wr["hub"]]
+    if rear:
+        r_f, r_b, r_m = r_f * 1.18, r_b * 1.18, r_m * 1.18
+    yf = hl - 15
+    prof = [(-hl, 15), (-hl, r_b), (-yf - 7, r_b), (-yf - 4, r_f), (-yf + 4, r_f), (-yf + 8, r_m + (r_f - r_m) * 0.35), (-yf * 0.4, r_m), (yf * 0.4, r_m),
+            (yf - 8, r_m + (r_f - r_m) * 0.35), (yf - 4, r_f), (yf + 4, r_f), (yf + 7, r_b), (hl, r_b), (hl, 15)]
+    D.lathe(f"{tag}_hub", (0, 0, 0), (0, 1, 0), prof, hubm, 56)
+    D.lathe(f"{tag}_bearing", (0, 0, 0), (0, 1, 0), [(-hl - 2, 10), (-hl - 2, 17), (hl + 2, 17), (hl + 2, 10)], steel, 32)
+    D.lathe(f"{tag}_bore", (0, 0, 0), (0, 1, 0), [(-hl - 2.4, 0), (-hl - 2.4, 10.5), (hl + 2.4, 10.5), (hl + 2.4, 0)], D.surf("soot", (0.006, 0.006, 0.006), 0.0, 0.95, wear=0.0), 24)
+    if wr["hub"] == "billet":      # a machined band round the middle of the barrel
+        D.lathe(f"{tag}_hubband", (0, 0, 0), (0, 1, 0), [(-9, r_m - 1), (-9, r_m + 2.5), (9, r_m + 2.5), (9, r_m - 1)], D.surf("wheel_machined", (0.82, 0.83, 0.85), 1.0, 0.16, wear=0.05), 48)
+    n, g = wr["n"], wr["gauge"]
+    sm = D.surf("spoke_black", (0.02, 0.02, 0.022), 0.6, 0.35, wear=0.0) if wr.get("spoke") == "black" else steel
+    nm = finish(wr["nipple"]) if wr.get("nipple") in FINISH else B.mat("alu")
+    sdeg = 720.0 / n
+    for k in range(n):
+        s = 1 if k % 2 == 0 else -1
+        lead = (k // 2) % 2 == 0
+        phi = 360.0 * (k + 0.5) / n
+        ha = math.radians(phi + wr["cross"] * sdeg * (-1 if lead else 1))
+        ra = math.radians(phi)
+        p0 = ((r_f - 6) * math.cos(ha), s * (yf + (3.5 if lead else -3.5)), (r_f - 6) * math.sin(ha))
+        if wr.get("over"):
+            rn, yn = R + nr, -s * (h + 1)
+        else:
+            rn, yn = R + nr, s * ny
+        p1 = (rn * math.cos(ra), yn, rn * math.sin(ra))
+        L = math.dist(p0, p1)
+        u = tuple((p0[j] - p1[j]) / L for j in range(3))
+        pe = tuple(p1[j] - u[j] * 3 for j in range(3))      # the nipple's head beds a little way into the rim
+        B.tube(f"{tag}_wire{k}", [p0, p1], g, sm, caps=False)
+        B.cone(f"{tag}_nipple{k}", pe, tuple(p1[j] + u[j] * (9 + g * 3) for j in range(3)), g * 2.0, g * 1.6, nm, 6)
+        hd = tuple(p0[j] for j in range(3))
+        B.cone(f"{tag}_wirehead{k}", (hd[0], hd[1] - (2.5 if (s > 0) == lead else -2.5) - 1.5, hd[2]), (hd[0], hd[1] - (2.5 if (s > 0) == lead else -2.5) + 1.5, hd[2]), g * 1.8, g * 1.8, sm, 8)
+
 
 
 def rim_profile(R, W, ridges):
@@ -115,8 +190,9 @@ def rim_profile(R, W, ridges):
     return tyre + side + back + [tyre[0]]
 
 
-def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk=1.0, cap=None):
-    """One bar of a spoke pattern, at spoke k0 of n."""
+def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk=1.0, cap=None, flare=0.0):
+    """One bar of a spoke pattern, at spoke k0 of n. "flare" spreads the last fifth of the bar into a foot where it
+    joins the rim (beenster, 16 Nov: thin swept tips looked as if they only touched it)."""
     if curve:
         for _ in range(3):
             o = [pts[0]]
@@ -130,6 +206,9 @@ def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk
         m = 1 if curve else 10
         dense += [tuple(a[j] + (b[j] - a[j]) * q / m for j in range(4)) for q in range(m)]
     dense.append(pts[-1])
+    if flare and max(q[0] for q in dense) > 0.95:
+        fo = lambda f: max(0.0, (f - 0.76) / 0.24) ** 2
+        dense = [(f, ang, w * (1 + flare * fo(f)), t * (1 + 0.45 * min(flare, 1.0) * fo(f))) for f, ang, w, t in dense]
     base = 360.0 * k0 / n
     path = []
     for f, ang, w, t in dense:
@@ -171,6 +250,9 @@ def wheel(tag, style, dia, width, rear, finish_name=None):
     st = STYLES[style]
     R, W = dia * INCH / 2, width * INCH
     paint = finish(finish_name or st["finish"])
+    if st.get("wire"):
+        wire_wheel(tag, st, R, W, rear, paint)
+        return [o for o in bpy.data.objects if o not in before]
     bright = D.surf("wheel_machined", (0.82, 0.83, 0.85), 1.0, 0.16, wear=0.05)
     steel = B.mat("steel")
     D.lathe(f"{tag}_rim", (0, 0, 0), (0, 1, 0), rim_profile(R, W, st["rim"]), paint, 96, caps=False)
@@ -215,7 +297,7 @@ def wheel(tag, style, dia, width, rear, finish_name=None):
     wk = st.get("wk", 1.4) * (1.12 if rear else 1.0)
     for bi, b_ in enumerate(st["bars"]):
         for k in range(st["n"]):
-            bar(f"{tag}_spoke{bi}_{k}", list(b_["pts"]), st["n"], k, paint, r_h, r_r, th_h, b_.get("curve", False), wk=wk, cap=cap)
+            bar(f"{tag}_spoke{bi}_{k}", list(b_["pts"]), st["n"], k, paint, r_h, r_r, th_h, b_.get("curve", False), wk=wk, cap=cap, flare=st.get("flare", 0.45))
             if b_.get("inlay"):
                 for sy in (-1, 1):
                     pts = [(f, a, w * 0.62, t) for f, a, w, t in b_["pts"] if True]
@@ -228,7 +310,7 @@ def fit(b, tag, c, w, tyre_width):
     """Fit a library wheel to a bike: the style named in the model's wheel, at the bike's own rim size,
     centred on the axle c (x, z). The bike keeps its own tyre, discs and valve."""
     use(b)
-    objs = wheel(tag, w["style"], w["rim_r"] * 2 / INCH, tyre_width * 0.76 / INCH, tag == "rear", w.get("finish"))
+    objs = wheel(tag, w["style"], w["rim_r"] * 2 / INCH, tyre_width * (0.6 if STYLES[w["style"]].get("wire") else 0.76) / INCH, tag == "rear", w.get("finish"))
     keep = []
     for o in objs:
         if o.name.startswith(tag + "_valve"):

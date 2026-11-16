@@ -1029,7 +1029,7 @@ def build(model):
     sw = model["swingarm"]
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
-    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
+    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
     # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174

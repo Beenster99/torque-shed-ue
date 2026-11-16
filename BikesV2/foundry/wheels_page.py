@@ -16,7 +16,7 @@ for i, (key, label, ref, fin, fd, fw, rd, rw) in enumerate(rows):
     shutil.copy(p, dst + key + '.png')
     im = Image.open(p).convert('RGB')
     b = io.BytesIO(); im.save(b, 'JPEG', quality=84)
-    note = f'From your reference picture {ref}.' if int(ref) else 'An extra of my own.'
+    note = f'From your reference picture {ref}.' if int(ref) else ('Wire spoked, for the MX and adventure bikes.' if key.startswith('wire') else 'An extra of my own.')
     figs.append(f'<figure><img alt="{label}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{i + 1}. {label}</strong> Front {fd} x {float(fw):g} in, rear {rd} x {float(rw):g} in. Shown in {fin.replace("_", " ")}. {note}</figcaption></figure>')
 shutil.copy(os.path.join(ROOT, 'out', 'wheels', 'sheet.png'), dst + 'sheet.png')
 fitted = []
@@ -30,7 +30,7 @@ for fn, cap in (('corvano_naked_pool000150_def_q.png', 'Style 12, six split spok
 body = '''<main>
 <div class="k">Bike Models V2 · Wheels</div>
 <h1>Wheel styles, first selection</h1>
-<p class="lede">Twelve cast and forged styles, each built as a rear wheel (left) and a front wheel (right). Our own designs guided by your reference pictures; no maker's name or exact pattern is copied. Any style can be made in any size and any finish: gloss black, matt black, gunmetal, gold, anodised gold, bronze, chrome, carbon. Tell me which to keep, drop or change by number.</p>
+<p class="lede">Twelve cast and forged styles, then five wire-spoked rims for the MX and adventure bikes (13 to 17, added 16 Nov), each built as a rear wheel (left) and a front wheel (right). The swept, turbine and sickle spokes now spread into a foot where they join the rim. Our own designs guided by your reference pictures; no maker's name or exact pattern is copied. Any style can be made in any size and any finish: gloss black, matt black, gunmetal, gold, anodised gold, bronze, chrome, carbon. Tell me which to keep, drop or change by number.</p>
 <div class="grid">''' + '\n'.join(fitted + figs) + '</div>\n</main>'
 open(os.path.join(ROOT, 'out', 'wheel_styles.html'), 'w').write(head + body)
 print(len(rows), len(head + body))
