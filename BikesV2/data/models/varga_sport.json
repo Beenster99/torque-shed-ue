@@ -1785,5 +1785,8 @@
    "bottom": 0.8,
    "blunt_rear": true
   }
+ },
+ "detail": {
+  "nose_lamp": "stack"
  }
 }

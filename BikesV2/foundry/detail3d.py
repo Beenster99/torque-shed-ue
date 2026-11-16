@@ -1101,8 +1101,20 @@ def nose_lamps(model, c):
     smoke = surf("lampsmoke", (0.05, 0.055, 0.065), 1.0, 0.06, wear=0.0)
     ring = surf("bezel", (0.05, 0.05, 0.055), 0.85, 0.3)
     eye = [(26, 772), (60, 768), (104, 786), (124, 806), (112, 812), (70, 800), (30, 790)]
-    ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
     drl = [(34, 787), (70, 797), (108, 808), (110, 804.5), (72, 793), (36, 783.5)]
+    projs = ((56, 779), (86, 789))
+    # each brand's signature (beenster, 16 Nov): the lead's long slanted eye, or one of these
+    sig = {
+        # Italian: a rounded pod with two projectors under a bright eyebrow
+        "pod": ([(30, 772), (70, 768), (96, 776), (102, 794), (72, 802), (34, 796)], [(31, 799.5), (72, 805.5), (103, 797.5), (104, 801.5), (72, 809.5), (30, 803.5)], ((50, 784), (80, 785))),
+        # British: one long level blade each side with a fine running light under it
+        "blade": ([(24, 777), (118, 791), (122, 808), (26, 795)], [(30, 771.5), (112, 783.5), (113, 787), (30, 775)], ((48, 787.5), (92, 795.5))),
+        # Central European: a tall wedge close to the middle, lamps stacked, the running light up its outer edge
+        "stack": ([(22, 766), (52, 770), (68, 812), (50, 819), (24, 800)], [(60, 774), (65, 775), (80, 814), (74, 816)], ((39, 781), (46, 801))),
+    }.get(model.get("detail", {}).get("nose_lamp"))
+    if sig:
+        eye, drl, projs = sig
+    ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
     made = False
     for s in (-1, 1):
         # the brand's signature: long slanted eyes that sweep out and up along the nose's own lines
@@ -1113,7 +1125,7 @@ def nose_lamps(model, c):
         made = True
         skin_patch(f"noselens{s}", trees, f(eye, 0.94), smoke, 1.8)
         skin_patch(f"nosedrl{s}", trees, f(drl), glow("drl", (0.9, 0.95, 1.0), 4.0), 2.6)
-        for n_, (py, pz) in enumerate(((56, 779), (86, 789))):
+        for n_, (py, pz) in enumerate(projs):
             py, pz = g(py, pz)
             circ = lambda r: [(s * py + r * math.cos(2 * math.pi * k / 10), pz + dz + r * math.sin(2 * math.pi * k / 10)) for k in range(10)]
             skin_patch(f"noseeye{s}{n_}", trees, circ(10.5), ring, 2.6)
