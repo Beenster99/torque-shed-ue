@@ -29,6 +29,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "TorqueFoliage.h"
+#include "World/TorqueRidePart.h"
 
 #include <memory>
 #include <string>
@@ -158,6 +159,15 @@ private:
 	TMap<const TorqueWorld::RideMesh*, FProcMeshSection>* PreparedNow = nullptr;
 	// [perf, build 150] Whether the next part MakePart makes goes in the ray-tracing scene (it puts this back to true).
 	bool bNextInRayTracing = true;
+	// [perf, build 150] Whether the next part MakePart makes may wait for RegisterWaiting (it puts this back).
+	bool bDeferNext = false;
+	TArray<TWeakObjectPtr<URidePart>> ToRegister;
+	void RegisterWaiting();
+	// [perf, build 150] Parts let go of, kept to be used again (torque.RidePool): LetGo instead of
+	// DestroyComponent for squares', water's and roads' parts.
+	UPROPERTY(Transient) TArray<TObjectPtr<URidePart>> Spare;
+	void LetGo(UProceduralMeshComponent* Part);
+	URidePart* TakeSpare();
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
 	// [perf, build 149] A piece of road made (on a worker, or here with bAtOnce) put in place: its part,
 	// tagged Road, and its tunnel lamps. Ready: its sections readied on the worker, or null.
