@@ -1176,11 +1176,32 @@ def build(model):
                         pts_.append((q[0], sgn * q[1], q[2]))
                     smooth_tube(f"sissyscroll{k}{sgn}", pts_, 3.6, chrome_)
             straps = (sp_[-2][1] - 150, sp_[-2][1] - 20, zpad)
+        elif model.get("detail", {}).get("sissy") == "blade":
+            # an angular bar: square shoulders with a spike on each, and a cross brace above the pad
+            top_ = zt + 46
+            for sgn in (1, -1):
+                tube(f"sissybar{sgn}", [(q[0], sgn * q[1], q[2]) for q in sleft + [(xt - 5, yt, top_)]], sissy[0]["tube"] / 2, chrome_)
+                cone(f"sissyspike{sgn}a", (xt - 5, sgn * yt, top_ - 4), (xt - 5, sgn * yt, top_ + 8), 10, 10, chrome_, 6)
+                cone(f"sissyspike{sgn}b", (xt - 5, sgn * yt, top_ + 8), (xt - 7, sgn * yt, top_ + 70), 10, 0.6, chrome_, 6)
+            tube("sissytop", [(xt - 5, -yt, top_), (xt - 5, yt, top_)], sissy[0]["tube"] / 2, chrome_)
+            za_, zb_ = sp_[-2][1] + 30, top_ - 14
+            (xa_, ya_), (xb2_, yb2_) = f_(za_), f_(min(zb_, zt))
+            for sgn in (1, -1):
+                tube(f"sissybrace{sgn}", [(xa_, sgn * ya_, za_), (xb2_, -sgn * yb2_, zb_)], 4.5, chrome_)
+            cone("sissyboss", ((xa_ + xb2_) / 2 - 5, 0.0, (za_ + zb_) / 2), ((xa_ + xb2_) / 2 + 5, 0.0, (za_ + zb_) / 2), 16, 16, chrome_, 6)
+            straps = (sp_[-2][1] - 150, sp_[-2][1] - 20)
         else:
             stop_ = [(xt - 4, yt * 0.86, zt + 26), (xt - 6, yt * 0.5, zt + 44), (xt - 7, 0.0, zt + 50)]
             shalf = sleft + stop_
             smooth_tube("sissybar", shalf + [(q[0], -q[1], q[2]) for q in shalf[-2::-1]], sissy[0]["tube"] / 2, chrome_)
             straps = (sp_[-2][1] - 150, sp_[-2][1] - 20)
+            if model.get("detail", {}).get("sissy") == "ladder":
+                # a traditional ladder bar: evenly spaced rungs up to the bend, a ball at each end of the top rung
+                n_r = 4
+                straps += tuple(sp_[-2][1] + 34 + (zt - sp_[-2][1] - 44) * k / (n_r - 1) for k in range(n_r))
+                xx_, yy_ = f_(straps[-1])
+                for sgn in (1, -1):
+                    cone(f"sissyball{sgn}", (xx_, sgn * (yy_ + 4), straps[-1]), (xx_, sgn * (yy_ + 22), straps[-1]), 11, 11, chrome_, 16)
         for k, zz in enumerate(straps):
             # flat cross straps: the back rest bolts to the lower two
             xx, yy = f_(zz)

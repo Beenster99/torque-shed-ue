@@ -929,6 +929,21 @@
     ],
     "cls": "steelt",
     "front": true
+   },
+   {
+    "tube": 12,
+    "pts": [
+     [
+      -40,
+      700
+     ],
+     [
+      -72,
+      900
+     ]
+    ],
+    "cls": "steelt",
+    "front": true
    }
   ],
   "seat": [
@@ -1116,7 +1131,25 @@
     "cls": "chromef"
    }
   ],
-  "plate_hanger": []
+  "plate_hanger": [],
+  "decal": {
+   "angle": 34,
+   "panel": [
+    18,
+    18,
+    20
+   ],
+   "gold": [
+    240,
+    194,
+    74
+   ],
+   "cream": [
+    240,
+    194,
+    74
+   ]
+  }
  },
  "kit": {
   "base": {
@@ -3224,7 +3257,7 @@
   "grips": "plain",
   "cap": "chrome",
   "engine": "chrome",
-  "sissy": "ornate",
+  "sissy": "blade",
   "grip_slant": 18
  }
 }

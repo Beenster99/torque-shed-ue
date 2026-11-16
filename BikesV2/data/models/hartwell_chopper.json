@@ -1217,7 +1217,25 @@
     "cls": "chromef"
    }
   ],
-  "plate_hanger": []
+  "plate_hanger": [],
+  "decal": {
+   "angle": 28,
+   "panel": [
+    232,
+    221,
+    190
+   ],
+   "gold": [
+    200,
+    160,
+    70
+   ],
+   "cream": [
+    90,
+    20,
+    28
+   ]
+  }
  },
  "kit": {
   "base": {
@@ -3238,7 +3256,7 @@
   "grips": "plain",
   "cap": "chrome",
   "engine": "chrome",
-  "sissy": "ornate",
+  "sissy": "ladder",
   "grip_slant": 18
  }
 }
