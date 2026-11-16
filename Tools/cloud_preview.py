@@ -89,7 +89,10 @@ class Clouds:
         lo, mi = scene["low"], scene["mid"]
         # (as ATorqueSky sets MPC_Sky: each layer's shape size by its lumps, its detail size)
         self.scale = [L["v2_shape_m"] * (1.3 - 0.6 * lo["lumps"]), L["v2_mid_shape_m"] * (1.3 - 0.6 * mi["lumps"])]
-        self.dscale = [L["v2_detail_m"], L["v2_mid_detail_m"]]
+        # (V2DetailSize: a deep layer's detail grows by sqrt(depth / v2_detail_deep_m))
+        depth = max(scene["top"] - scene["base"], 0.0)
+        grow = lambda P: max(np.sqrt(max(depth * (P["top"] - P["bottom"]), 0.0) / L.get("v2_detail_deep_m", 3000.0)), 1.0)
+        self.dscale = [L["v2_detail_m"] * grow(lo), L["v2_mid_detail_m"] * grow(mi)]
         self.ext = L["v2_extinction"]
 
     def density(self, x, y, alt, shape_only=False):
@@ -122,7 +125,8 @@ class Clouds:
             base = base * (1.0 - L["v2_billow"]) + trilinear(self.shape[..., :1], w3)[..., 0] * L["v2_billow"]
             bc = sat(remap(base * profile, 1.0 - cvl, 1.0, 0.0, 1.0))
             # (a closed sky: cloud everywhere in the sheet, lumpy, no holes)
-            bc = np.maximum(bc, profile * (0.45 + 0.55 * base) * smooth(0.7, 0.95, cvl))
+            cf = L.get("v2_closed_from", 0.85)
+            bc = np.maximum(bc, profile * (0.45 + 0.55 * base) * smooth(cf, max(L.get("v2_closed_full", 0.92), cf + 0.01), cvl))
             if not shape_only:
                 ds = self.dscale[ly]
                 d = trilinear(self.detail, np.stack([x / ds, y / ds, alt / ds], -1))

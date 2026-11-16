@@ -458,9 +458,10 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
 		// The rebuilt clouds' figures (M_RideCloudV2; harmless to the old cloud, which doesn't read them).
 		SetMpc(SkyMpc, TEXT("V2LowShapeM"), (float)FMath::Max(Looks.V2ShapeM * (1.3 - 0.6 * FMath::Clamp(Lo.Look.Lumps, 0.0, 1.0)), 100.0));
-		SetMpc(SkyMpc, TEXT("V2LowDetailM"), (float)FMath::Max(Looks.V2DetailM, 10.0));
+		const double LayerDepth = FMath::Max(S.TopAsl - S.BaseAsl, 0.0);
+		SetMpc(SkyMpc, TEXT("V2LowDetailM"), (float)TorqueSky::V2DetailSize(Looks.V2DetailM, LayerDepth * FMath::Max(Lo.Top - Lo.Bottom, 0.0), Looks));
 		SetMpc(SkyMpc, TEXT("V2MidShapeM"), (float)FMath::Max(Looks.V2MidShapeM * (1.3 - 0.6 * FMath::Clamp(Mi.Look.Lumps, 0.0, 1.0)), 100.0));
-		SetMpc(SkyMpc, TEXT("V2MidDetailM"), (float)FMath::Max(Looks.V2MidDetailM, 10.0));
+		SetMpc(SkyMpc, TEXT("V2MidDetailM"), (float)TorqueSky::V2DetailSize(Looks.V2MidDetailM, LayerDepth * FMath::Max(Mi.Top - Mi.Bottom, 0.0), Looks));
 		SetMpc(SkyMpc, TEXT("V2BroadM"), (float)FMath::Max(Looks.V2BroadM, 1000.0));
 		SetMpc(SkyMpc, TEXT("V2Patchy"), (float)Looks.V2Patchy);
 		SetMpc(SkyMpc, TEXT("V2Erode"), (float)Looks.V2Erode);
@@ -469,6 +470,8 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("V2Billow"), (float)Looks.V2Billow);
 		SetMpc(SkyMpc, TEXT("V2Extinction"), (float)Looks.V2Extinction);
 		SetMpc(SkyMpc, TEXT("V2DeckThin"), (float)Looks.V2DeckThin);
+		SetMpc(SkyMpc, TEXT("V2ClosedFrom"), (float)Looks.V2ClosedFrom);
+		SetMpc(SkyMpc, TEXT("V2ClosedFull"), (float)Looks.V2ClosedFull);
 		SetMpc(SkyMpc, TEXT("V2LowDensity"), (float)(S.Density));
 		SetMpc(SkyMpc, TEXT("V2MidDensity"), (float)Mi.Look.Density);
 		// How the cloud scatters the sun (build 147: grey, blotchy cumulus): its lobes and the light
