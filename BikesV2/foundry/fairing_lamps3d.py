@@ -24,7 +24,7 @@ UNITS = {
     "vface": dict(ky=0.9, outline=[(12, 763), (46, 760), (112, 789), (152, 827), (133, 830), (70, 808), (16, 783)],
                   drl=[(20, 779), (70, 802), (132, 825)], proj=[(42, 772, 10.5, False), (80, 788, 13, True)], cells=[(112, 803, 4.5)], flute=5),
     # one big haloed projector in a deep fluted reflector, a short running-light bar along the bottom
-    "halo": dict(outline=[(26, 761), (98, 760), (142, 783), (148, 819), (98, 828), (34, 808)],
+    "halo": dict(ky=0.86, outline=[(26, 761), (98, 760), (142, 783), (148, 819), (98, 828), (34, 808)],
                  drl=[(36, 768), (96, 767)], proj=[(70, 793, 19, True)], cells=[(118, 792, 5.5), (128, 806, 5.5), (112, 812, 5.5)], flute=6),
     # a tall wedge close to the centre line, two projectors stacked, the running light up the outer edge
     "stack": dict(outline=[(14, 754), (56, 758), (78, 828), (54, 838), (18, 814)],
