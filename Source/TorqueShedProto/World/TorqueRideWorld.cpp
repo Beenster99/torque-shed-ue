@@ -622,6 +622,27 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+	{
+		// [fps plan step 2] The houses' windows and doors as the facade kit's instances when every kind of it
+		// has its models in M_RideFacade (Tools/ue_build_rideuk.py prop_kit), unless -TorqueRideFacadeKit=0
+		// (the hub's A/B: then drawn into the houses' own mesh, as 149).
+		bool bFacade = true;
+		for (int32 K = TorqueWorld::RidePlan::FirstFacade; K < TorqueWorld::RidePlan::PropKinds; ++K)
+		{
+			bFacade = bFacade && PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+			if (bFacade)
+				for (const int32 Mi : PropModels[K])
+				{
+					const UMaterialInterface* Mat = PropKit[Mi].Material.Get();
+					bFacade = bFacade && Mat && Mat->GetName().Contains(TEXT("RideFacade"));
+				}
+		}
+		int32 Asked = 1;
+		const bool bAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFacadeKit="), Asked);
+		Plan->FacadeKit = bFacade && Asked != 0;
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: facade kit %s"), Plan->FacadeKit ? TEXT("on (windows and doors instanced)")
+			: bAsked && Asked == 0 ? TEXT("off (-TorqueRideFacadeKit=0)") : TEXT("off (its models or M_RideFacade missing: Tools/ue_build_rideuk.py prop_kit)"));
+	}
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
 	Plan->RealTrees = bTreeModels;
@@ -1895,6 +1916,14 @@ void ATorqueRideWorld::FindProps()
 				PropKit.Add(S);
 			}
 		}
+	// [fps plan step 2] (a facade kind's models in order of size, SM_Prop_<kind>_<size>: a prop's Variant is its size)
+	for (int32 K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K)
+		PropModels[K].Sort([this](const int32 A, const int32 B)
+		{
+			const FString Na = PropKit[A].Name.ToString(), Nb = PropKit[B].Name.ToString();
+			return FCString::Atoi(*Na.RightChop(Na.Find(TEXT("_"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) + 1))
+				< FCString::Atoi(*Nb.RightChop(Nb.Find(TEXT("_"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) + 1));
+		});
 	FString Have, Missing;
 	PropCredits.Reset();
 	for (int32 K = 0; K < RidePlan::PropKinds; ++K)
@@ -1919,27 +1948,32 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 {
 	using TorqueWorld::RidePlan;
 	if (Mesh.Props.empty() || PropKit.Num() == 0) return;
-	TMap<int32, TArray<FTransform>> Groups;   // by model
+	// (by model: the instances, and for the facade kit's their colours, nine floats each)
+	struct FPropGroup { TArray<FTransform> At; TArray<float> Tint; };
+	TMap<int32, FPropGroup> Groups;
 	for (const TorqueWorld::RideProp& P : Mesh.Props)
 	{
 		if (P.Kind >= RidePlan::PropKinds) continue;
 		const TArray<int32>& Choice = PropModels[P.Kind];
 		if (Choice.Num() == 0) continue;
-		const int32 Mi = Choice[int32(P.Variant) % Choice.Num()];
+		// (a facade model's Variant is its size: the nearest there is if the kit lacks it)
+		const int32 Mi = P.Facade ? Choice[FMath::Min(int32(P.Variant), Choice.Num() - 1)] : Choice[int32(P.Variant) % Choice.Num()];
 		const FTorqueFoliageSpecies& S = PropKit[Mi];
 		UStaticMesh* Model = S.Mesh.Get();
 		if (!Model) continue;
 		const FVector& Fix = PropFix[P.Kind];
-		// (as tall as the kind in life, whatever the model's own height)
+		// (as tall as the kind in life, whatever the model's own height; a kind of height 0, the facade kit, as modelled)
 		const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(PropFrame.Z));
-		const double Size = (Own > 1.0 ? Fix.X / Own : 1.0) * double(P.Scale) * S.ScaleMultiplier;
+		const double Size = (Own > 1.0 && Fix.X > 0.0 ? Fix.X / Own : 1.0) * double(P.Scale) * S.ScaleMultiplier;
 		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
 		const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
 		const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
-		Groups.FindOrAdd(Mi).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
+		FPropGroup& Group = Groups.FindOrAdd(Mi);
+		Group.At.Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
+		if (P.Facade) Group.Tint.Append(P.Tint, 9);
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
-	for (TPair<int32, TArray<FTransform>>& Group : Groups)
+	for (TPair<int32, FPropGroup>& Group : Groups)
 	{
 		const FTorqueFoliageSpecies& S = PropKit[Group.Key];
 		if (TRWI::Unseen(Key, FMath::Max(S.CullDistance, 5000.0f))) continue;
@@ -1960,12 +1994,20 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 		const float Cull = FMath::Max(S.CullDistance, 5000.0f);
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
+		// [fps plan step 2] (the facade kit's: paint, trim and third colours per instance, read by M_RideFacade)
+		const bool bTinted = Group.Value.Tint.Num() == Group.Value.At.Num() * 9;
+		if (bTinted) Ism->SetNumCustomDataFloats(9);
 		Ism->RegisterComponent();
-		Ism->AddInstances(Group.Value, false, false);
+		Ism->AddInstances(Group.Value.At, false, false);
+		if (bTinted)
+		{
+			for (int32 I = 0; I < Group.Value.At.Num(); ++I) Ism->SetCustomData(I, TArrayView<const float>(Group.Value.Tint.GetData() + I * 9, 9), false);
+			Ism->MarkRenderStateDirty();
+		}
 		AddInstanceComponent(Ism);
 		Parts.Add(Ism);
-		PlantsShown += Group.Value.Num();   // (let go with the plants, which count them off)
-		PropsShown += Group.Value.Num();
+		PlantsShown += Group.Value.At.Num();   // (let go with the plants, which count them off)
+		PropsShown += Group.Value.At.Num();
 	}
 }
 

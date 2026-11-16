@@ -1835,16 +1835,22 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		{
 			// A tapered round column on a wider foot, an outreach arm swept up to the lantern, and the
 			// lantern's cowl over its glowing face.
-			Post(F.At.X, F.At.Z, Y - 0.3, Y + 6.0, 0.085, 0.05, Grey);
+			// ([fps plan step 2] with the kit's model, Tools/make_ride_props.py, placed by PropsTile, only the
+			// glowing face and the light: the model's lantern is 1.1 m out at the same height)
+			const bool Drawn = !Modelled(F.Kind);
+			if (Drawn) Post(F.At.X, F.At.Z, Y - 0.3, Y + 6.0, 0.085, 0.05, Grey);
 			if (!Fine) break;
-			Post(F.At.X, F.At.Z, Y - 0.1, Y + 0.9, 0.13, 0.11, Shade(Grey, 0.85));
 			const double Ax = F.At.X + Face.X * 1.1, Az = F.At.Z + Face.Z * 1.1;
-			const P3 Bend = At3(F.At.X + Face.X * 0.35, Y + 6.05, F.At.Z + Face.Z * 0.35);
-			Rod(At3(F.At.X, Y + 5.75, F.At.Z), Bend, 0.06, Grey);
-			Rod(Bend, At3(Ax - Face.X * 0.2, Y + 5.95, Az - Face.Z * 0.2), 0.05, Grey);
-			Box(Out, Ax, Az, Face, 0.27, 0.11, Y + 5.75, Y + 5.88, Grey);
-			Box(Out, Ax, Az, Face, 0.2, 0.08, Y + 5.88, Y + 5.96, Shade(Grey, 0.8));
-			Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
+			if (Drawn)
+			{
+				Post(F.At.X, F.At.Z, Y - 0.1, Y + 0.9, 0.13, 0.11, Shade(Grey, 0.85));
+				const P3 Bend = At3(F.At.X + Face.X * 0.35, Y + 6.05, F.At.Z + Face.Z * 0.35);
+				Rod(At3(F.At.X, Y + 5.75, F.At.Z), Bend, 0.06, Grey);
+				Rod(Bend, At3(Ax - Face.X * 0.2, Y + 5.95, Az - Face.Z * 0.2), 0.05, Grey);
+				Box(Out, Ax, Az, Face, 0.27, 0.11, Y + 5.75, Y + 5.88, Grey);
+				Box(Out, Ax, Az, Face, 0.2, 0.08, Y + 5.88, Y + 5.96, Shade(Grey, 0.8));
+				Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
+			}
 			// (its light: the lamp's face glowing after dark, and a real light under it near the rider)
 			static const Rgb LampLight = {1.0f, 0.88f, 0.66f};
 			{

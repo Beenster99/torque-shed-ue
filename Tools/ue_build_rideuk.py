@@ -966,6 +966,41 @@ def animal_kit(L):
 
 
 PROP_DEST = "/Game/RideUK/Props"
+FACADE_DEST = "/Game/RideUK/Facade"
+
+
+def facade_material(L):
+    """M_RideFacade (fps plan step 2): the facade kit's colours. Each vertex's alpha says which colour it
+    takes (1 its own, as glass; 0.66 the paint, 0.33 the trim, 0 the third) and its RGB, at half, the
+    shade; the three colours come per instance (nine custom data floats, World/TorqueRideWorld PlaceProps),
+    so a street of houses is a handful of instanced models however its doors are painted."""
+    g = L.Graph(L.new_material("M_RideFacade"))
+    L.instanced_usage(g.m)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+
+    def custom(index):
+        cls = getattr(unreal, "MaterialExpressionPerInstanceCustomData3Vector", None)
+        if cls is not None:
+            return g.node(cls, data_index=index)
+        parts = [g.node(unreal.MaterialExpressionPerInstanceCustomData, data_index=index + k) for k in range(3)]
+        return g.op(unreal.MaterialExpressionAppendVector, g.op(unreal.MaterialExpressionAppendVector, parts[0], parts[1]), parts[2])
+
+    def above(edge):   # 1 where the alpha is over edge, else 0
+        return g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSubtract, vc, a_out="A", const_b=edge), const_b=100.0))
+
+    paint, trim, third = custom(0), custom(3), custom(6)
+    tint = g.lerp(third, trim, above(0.17))
+    tint = g.lerp(tint, paint, above(0.5))
+    shade = g.op(unreal.MaterialExpressionMultiply, vc, a_out="RGB", const_b=2.0)
+    own = above(0.83)
+    col = g.lerp(g.op(unreal.MaterialExpressionMultiply, tint, shade), vc, own, b_out="RGB")
+    rough = g.lerp(g.const(0.7), g.const(0.12), own)
+    L.mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
 
 
 def prop_kit(L):
@@ -999,6 +1034,19 @@ def prop_kit(L):
             except Exception:
                 pass
             unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    # [fps plan step 2] The houses' facade kit, made by Tools/make_facade_kit.py: windows, their surrounds
+    # and doors, a model per size, coloured per instance by M_RideFacade (always ours, never Fab's).
+    facade_folder = os.path.join(ride, "Facade")
+    facade = {}
+    if os.path.isdir(facade_folder) and any(f.endswith(".glb") for f in os.listdir(facade_folder)):
+        facade = L.import_glbs(facade_folder, FACADE_DEST)
+        sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        for mesh in facade.values():
+            try:
+                sme.remove_collisions(mesh)
+            except Exception:
+                pass
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # Others' (Fab), by the kit's words.
     meshes = []
     for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
@@ -1018,6 +1066,7 @@ def prop_kit(L):
     try:
         L.new_material = lambda name, folder=None: original(name, MAT_DIR)
         paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+        facade_paint = facade_material(L) if facade else None
     finally:
         L.new_material = original
     frame = (0.0, 1.0, 1.0)
@@ -1026,12 +1075,12 @@ def prop_kit(L):
         frame = L.find_frame(ours[first], os.path.join(folder, first + ".glb"))
     species = []
 
-    def add(name, mesh, native, row):
+    def add(name, mesh, native, row, material=None):
         e = unreal.TorqueFoliageSpecies()
         e.set_editor_property("name", name)
         e.set_editor_property("mesh", mesh)
         if not native:
-            e.set_editor_property("material", paint)
+            e.set_editor_property("material", material or paint)
         for k, v in (("cast_shadow", bool(row.get("shadow", False))), ("scale_multiplier", 1.0),
                      ("cull_distance", float(row.get("reach", 400)) * 100.0), ("native_mesh", native)):
             try:
@@ -1040,8 +1089,14 @@ def prop_kit(L):
                 pass
         species.append(e)
 
+    size_of = lambda name: int(name.rsplit("_", 1)[1]) if name.rsplit("_", 1)[1].isdigit() else 0
     for kind, row in spec["kinds"].items():
-        if kind in found:
+        if float(row.get("height", 1.0)) <= 0.0:
+            # (the facade kit's: in order of size, the game's Variant)
+            for name, mesh in sorted(facade.items(), key=lambda kv: size_of(kv[0])):
+                if name.startswith("SM_Prop_%s_" % kind) and size_of(name) >= 0 and name[len("SM_Prop_%s_" % kind):].isdigit():
+                    add(name, mesh, False, row, facade_paint)
+        elif kind in found:
             for n, p in enumerate(found[kind]):
                 m = unreal.load_asset(p)
                 if m:

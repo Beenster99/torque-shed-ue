@@ -1774,6 +1774,14 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		}
 		AnimalsTile(X0, Z0, Size, Out.Animals);
 		PropsTile(X0, Z0, Size, Out.Props);   // [OSM stage 2]
+		// [fps plan step 2] (the houses' windows and doors, which the scenery placed as the facade kit's)
+		for (RideProp P : Stands->Props)
+		{
+			P.X += float(Stands->OriginX - Out.OriginX);
+			P.Z += float(Stands->OriginZ - Out.OriginZ);
+			Out.Props.push_back(P);
+		}
+		Stands->Props.clear();
 	}
 	else if (Scene)
 	{

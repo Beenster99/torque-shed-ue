@@ -287,6 +287,9 @@ int main(int Argc, char** Argv)
 	if (!R.Ok) return 1;
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
+	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
+	// the game places them when it has them all.
+	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr) Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	{
 		int Urban = 0, All = 0;
@@ -1292,6 +1295,89 @@ int main(int Argc, char** Argv)
 		if (!G.Buildings.empty()) { const Building& B = G.Buildings[0]; std::printf("  a building: %.0f %.0f, %.1f x %.1f, yaw %.2f, height %.1f, %d more\n", B.X, B.Z, B.W, B.D, B.Yaw, B.Height, int(B.More.size())); }
 	}
 	// [OSM stage 5E] WORLD_RIDE_SECTION=x,z: the ground across the road nearest there, against the land as it lies.
+	// [build 149 smoke] WORLD_RIDE_ALONG=from,to (km): the ride's road points between, with their height,
+	// grade, turn, tilt, width, bridges and the furniture near (the robot fell twice on the same spots).
+	if (const char* AlongEnv = std::getenv("WORLD_RIDE_ALONG"))
+	{
+		double FromKm = 0.0, ToKm = 0.0;
+		if (std::sscanf(AlongEnv, "%lf,%lf", &FromKm, &ToKm) == 2)
+		{
+			const std::vector<RoadPoint>& Rd = Plan->Road;
+			std::printf("ride length %.2f km\n", Rd.empty() ? 0.0 : Rd.back().Along / 1000.0);
+			for (size_t I = 1; I + 1 < Rd.size(); ++I)
+			{
+				if (Rd[I].Along < FromKm * 1000.0 || Rd[I].Along > ToKm * 1000.0) continue;
+				const double D = Rd[I + 1].Along - Rd[I - 1].Along;
+				const double Grade = (Rd[I + 1].Height - Rd[I - 1].Height) / std::fmax(D, 1e-6);
+				const P2 A = Rd[I].At - Rd[I - 1].At, B = Rd[I + 1].At - Rd[I].At;
+				const double Turn = std::atan2(A.X * B.Z - A.Z * B.X, A.X * B.X + A.Z * B.Z);
+				const double Hump = Rd[I].Height - 0.5 * (Rd[I - 1].Height + Rd[I + 1].Height);
+				const auto G = Plan->Area.Roads.FrameOf().ToGeo(Rd[I].At.X, Rd[I].At.Z);
+				std::printf("  %.3f km  h %.2f  grade %+.3f  crest %+.3f  turn %+.3f  bank %+.3f  half %.2f%s%s  (%.5f, %.5f)\n", Rd[I].Along / 1000.0, Rd[I].Height, Grade, Hump, Turn, Rd[I].Bank, Rd[I].Half,
+					Rd[I].Bridge ? " BRIDGE" : "", Rd[I].Tunnel ? " TUNNEL" : "", G.Lat, G.Lon);
+			}
+			for (const RidePlan::Furnish& F : Plan->Furniture)
+			{
+				RidePlan::NearHit H;
+				RidePlan::NearOpts O;
+				O.MainOnly = true;
+				if (!Plan->NearestOf(F.At.X, F.At.Z, O, H) || H.Along < FromKm * 1000.0 || H.Along > ToKm * 1000.0 || H.Dist > H.Half + 1.0) continue;
+				std::printf("  furniture kind %d at %.3f km, %.2f m off the middle (half %.2f)\n", F.Kind, H.Along / 1000.0, H.Dist, H.Half);
+			}
+		}
+	}
+	// [fps plan step 2] WORLD_RIDE_BUDGET=lat,lon: the triangles of the near square (256 m) there, by what
+	// makes them: the scenery as drawn and each of its layers, the buildings and the furniture alone, the
+	// roads' pieces through it and how much of them is paint.
+	if (const char* BudgetAt = std::getenv("WORLD_RIDE_BUDGET"))
+	{
+		double La = 0.0, Lo = 0.0;
+		if (std::sscanf(BudgetAt, "%lf,%lf", &La, &Lo) == 2)
+		{
+			const P2 C = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+			Rect Round;
+			Round.X0 = C.X - 600.0; Round.Z0 = C.Z - 600.0; Round.X1 = C.X + 600.0; Round.Z1 = C.Z + 600.0;
+			Plan->LayBlocks(Round);
+			const double Bx0 = std::floor(C.X / 256.0) * 256.0, Bz0 = std::floor(C.Z / 256.0) * 256.0;
+			const auto Tris = [](const RideMesh* M) { return M ? M->Idx.size() / 3 : size_t(0); };
+			RideMesh Scen;
+			Plan->SceneryTile(Bx0, Bz0, 256.0, 2.0, Scen);
+			const RideMesh* E = Scen.Extra.get();
+			size_t Sub = Tris(Scen.Signs.get()) + Tris(Scen.Night.get()) + Tris(Scen.Signals.get());
+			std::printf("budget square %.0f,%.0f: scenery %zu tris in its own layer; stone %zu, masonry %zu, render %zu, roofing %zu, brick %zu, signs+night+signals %zu; props %zu\n",
+				Bx0, Bz0, Tris(&Scen), Tris(E ? E->Stone.get() : nullptr), Tris(E ? E->Masonry.get() : nullptr), Tris(E ? E->Render.get() : nullptr), Tris(E ? E->Roofing.get() : nullptr),
+				Tris(E ? E->Brickwork.get() : nullptr), Sub, Scen.Props.size());
+			RideMesh BOut, BWash, BHouse, BRoof, BBrick;
+			for (RideMesh* M : {&BOut, &BWash, &BHouse, &BRoof, &BBrick}) { M->OriginX = Bx0; M->OriginZ = Bz0; }
+			Plan->BuildingsTile(Bx0, Bz0, 256.0, true, Plan->LookHere(Bx0 + 128.0, Bz0 + 128.0), BOut, BWash, BHouse, BRoof, BBrick);
+			size_t KitTris = 0;
+			for (const RideProp& P : BOut.Props) KitTris += P.Facade ? 1 : 0;
+			std::printf("  buildings alone: plain/trim %zu, render %zu, stone %zu, roofs %zu, brick %zu; %zu facade kit models\n", Tris(&BOut), Tris(&BWash), Tris(&BHouse), Tris(&BRoof), Tris(&BBrick), KitTris);
+			size_t RoadTris = 0, PaintTris = 0;
+			for (const int W : LaidRoads(*Plan))
+			{
+				const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+				for (int First = 0; First < int(Pts.size()) - 1; First += 64)
+				{
+					const int Last = std::min(First + 64, int(Pts.size()) - 1);
+					bool In = false;
+					for (int I = First; I <= Last && !In; ++I) In = Pts[size_t(I)].At.X >= Bx0 && Pts[size_t(I)].At.X < Bx0 + 256.0 && Pts[size_t(I)].At.Z >= Bz0 && Pts[size_t(I)].At.Z < Bz0 + 256.0;
+					if (!In) continue;
+					RideMesh Piece;
+					Plan->RoadPiece(W, First, Last, Piece);
+					RoadTris += Tris(&Piece);
+					for (size_t T = 0; T + 2 < Piece.Idx.size(); T += 3)
+					{
+						const uint32_t V = Piece.Idx[T];
+						const float Cr = Piece.Col[V * 3], Cg = Piece.Col[V * 3 + 1], Cb = Piece.Col[V * 3 + 2];
+						if (Cr > 0.3f && Cg > 0.2f && Cb < Cr * 0.7f) ++PaintTris;   // (yellow)
+						else if (Cr > 0.3f && Cg > 0.3f && Cb > 0.3f) ++PaintTris;   // (white)
+					}
+				}
+			}
+			std::printf("  roads' pieces through it: %zu tris, %zu of them paint\n", RoadTris, PaintTris);
+		}
+	}
 	if (const char* Sect = std::getenv("WORLD_RIDE_SECTION"))
 	{
 		double Sx = 0.0, Sz = 0.0;
@@ -1620,7 +1706,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text;
+		std::string Text, PropText;
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -1702,6 +1788,15 @@ int main(int Argc, char** Argv)
 				{
 					RideMesh Stands;
 					Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Stands);
+					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
+					for (const RideProp& P : Stands.Props)
+					{
+						if (!P.Facade) continue;
+						std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X, Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw));
+						PropText += Buf;
+						for (const float Tc : P.Tint) { std::snprintf(Buf, sizeof(Buf), " %.3f", double(Tc)); PropText += Buf; }
+						PropText += "\n";
+					}
 					const RideMesh* Extra = Stands.Extra.get();
 					for (const RideMesh* Mesh : std::initializer_list<const RideMesh*>{&Stands, Extra, Stands.Signals.get(), Extra ? Extra->Signals.get() : nullptr, Stands.Signs.get()})
 					{
@@ -1734,6 +1829,7 @@ int main(int Argc, char** Argv)
 				}
 		}
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
+		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
 	}
 	{
 		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and
