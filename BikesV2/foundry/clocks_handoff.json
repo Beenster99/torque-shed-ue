@@ -1,0 +1,63 @@
+{
+ "about": "Stage 4 common parts approved by beenster 16 Nov 22:12 ('C2 needs to be raised slightly so the rider can see it properly, other than that all good'; C2 now stands 30 mm above where it clears the top yoke). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/clocks3d.py: fit(build3d, model, c, key) after detail3d (and after lamps3d.fit if used); it removes the bike's own clock*/dash* parts and turns the housing to the rider's eyes. Housings only: screen faces come from the TFT screens thread.",
+ "housings": [
+  {
+   "key": "twin_round",
+   "name": "Twin round clocks",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "single_round",
+   "name": "Single round clock",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "round_screen",
+   "name": "Round screen",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Cruiser"
+   ]
+  },
+  {
+   "key": "wide_screen",
+   "name": "Wide screen",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "tall_screen",
+   "name": "Tall screen",
+   "fits": [
+    "Naked",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "bar_unit",
+   "name": "Small bar unit",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Chopper",
+    "MX"
+   ]
+  }
+ ]
+}

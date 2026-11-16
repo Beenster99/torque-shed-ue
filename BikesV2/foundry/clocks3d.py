@@ -33,7 +33,7 @@ HOUSINGS = {
     "twin_round": dict(label="Twin round clocks", fams=("Classic", "Cafe", "Cruiser", "Chopper"),
                        note="A speedometer and a rev counter in deep cups with chrome bezels, on one bridge plate, the warning lights in a slim pod between them."),
     "single_round": dict(label="Single round clock", fams=("Naked", "Classic", "Cafe", "Cruiser", "Chopper"),
-                         note="One large speedometer in a deep cup, four warning lights set into the lower dial."),
+                         note="One large speedometer in a deep cup, four warning lights set into the lower dial. It stands 30 mm higher than the bike's own clocks so the rider sees all of it over the bar.", raise_=30),
     "round_screen": dict(label="Round screen", fams=("Naked", "Classic", "Cafe", "Cruiser"),
                          note="A round screen in a satin black cup with a thin bright ring and a short visor over the top, for modern classics."),
     "wide_screen": dict(label="Wide screen", fams=("Naked", "Sport", "Adventure"),
@@ -296,6 +296,7 @@ def fit(b, model, c, key):
         D.drop(*OLD)
         # a deeper housing than the bike's own can reach the top yoke: raise it until it stands clear
         # (under a fairing, first try sliding it forward towards the screen, so it stays inside the nose)
+        base = HOUSINGS[key].get("raise_", 0)
         tries = sorted(((up, fw) for up in range(0, 64, 4) for fw in (range(0, 44, 4) if fam == "Sport" else (0,))), key=lambda q: q[0] + 0.5 * q[1])
         for lift, fwd in tries:
             mark = set(bpy.data.objects.keys())
@@ -306,6 +307,13 @@ def fit(b, model, c, key):
                 break
             for o in mine:
                 bpy.data.objects.remove(bpy.data.objects[o], do_unlink=True)
+        if base:
+            # then higher still, where a housing should read over the bar (beenster: C2 raised so the rider sees it)
+            for o in mine:
+                bpy.data.objects.remove(bpy.data.objects[o], do_unlink=True)
+            lift += base
+            f = frame_at((dc[0] + fwd, dc[1] + lift), c)
+            st = build_housing(key, f, M)
         rep["lift"], rep["forward"] = lift, fwd
         dc = (dc[0] + fwd, dc[1] + lift)
         for i, (t, y, v) in enumerate(st):
