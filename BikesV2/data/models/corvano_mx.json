@@ -28,7 +28,8 @@
    "tread": "knobbly",
    "width": 84,
    "spoke_fat": 3.2,
-   "single_disc": true
+   "single_disc": true,
+   "style": "wire_enduro32"
   },
   "rear": {
    "tyre_r": 340,
@@ -39,7 +40,8 @@
    "phase": 15,
    "tread": "knobbly",
    "width": 116,
-   "spoke_fat": 3.2
+   "spoke_fat": 3.2,
+   "style": "wire_enduro32"
   }
  },
  "fork": {
@@ -1131,14 +1133,14 @@
      140,
      930
     ],
-    "w": 66,
+    "w": 56,
     "front": true
    }
   ],
   "join": true,
   "can_y": [
-   146,
-   146
+   108,
+   110
   ]
  },
  "frame": {

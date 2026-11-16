@@ -12,6 +12,7 @@ import os
 import struct
 
 import bpy
+from mathutils import Vector
 
 B = None        # the build3d module, set by run()
 
@@ -932,7 +933,7 @@ def adventure_body(model, c):
 
     slots = [[tuple(q[:2]) for q in sl] for sl in adv.get("slots", [])]
     for s in (-1, 1):
-        B.skin(f"advblack{s}", K, fk, s, plastic, stations=90, rows=30, thick=5.0, holes=slots)
+        B.skin(f"advblack{s}", K, fk, s, paint if adv.get("black_paint") else plastic, stations=90, rows=30, thick=5.0, holes=slots)
         B.skin(f"advgrey{s}", G, fg, s, grey, stations=90, rows=20, thick=5.0)
         for n_, sl in enumerate(slots):
             # each louvre carries a blade hinged on its leading edge and standing out towards the back, so
@@ -1161,7 +1162,12 @@ def guard_lamp(model, c):
         drop(f"panel{pi + len(model['body'].get('front_guard', []))}")      # build3d numbers the panels after the front guard's shapes
     xs, zs = [q[0] for q in tl["pts"]], [q[1] for q in tl["pts"]]
     zc, x0, x1 = (max(zs) + min(zs)) / 2 + 4, max(xs) + 26, min(xs) - 4
-    L, R, e = x0 - x1, 36.0, (0.72, 1.0)
+    # each brand's own lamp (beenster, rollout round 2): the oval, a big round one, a small bullet, a slim wide
+    # strip, or a tall tombstone. (radius, (height, width) as shares of it, how far it stands out)
+    R, e, out_ = {"round": (33.0, (1.0, 1.0), 6), "bullet": (25.0, (1.0, 1.0), 34), "wide": (50.0, (0.46, 1.0), 0), "tall": (31.0, (1.3, 0.84), 8)}.get(
+        model.get("detail", {}).get("tail_lamp"), (36.0, (0.72, 1.0), 0))
+    x1 -= out_
+    L = x0 - x1
     drop("taillight", "guardlamp")
     ax = (-1.0, 0.0, 0.0)
     lathe("guardlampbody", (x0, 0, zc), ax, [(0, 0), (0, R * 0.42), (L * 0.3, R * 0.8), (L * 0.75, R), (L - 3, R), (L, R - 1.2), (L, 0)], B.mat("chrome"), 48, sharp=False, ell=e)
@@ -1178,8 +1184,8 @@ def guard_lamp(model, c):
     lathe("guardlampreflector", (x1, 0, zc), ax, ribs + [(-14.5, 0)], B.mat("chrome"), 48, ell=e)
     lathe("guardlampbulb", (x1, 0, zc), ax, [(-10, 0), (-10, 6.5), (2, 6.5), (6, 4), (7, 0)], glow("tailred", (1.0, 0.03, 0.02), 2.6), 20)
     # the plate window: a clear strip let into the underside of the housing, lighting down on to the plate
-    slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-20, -9), (20, -9), (20, 9), (-20, 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
-    c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * 0.9 + 14)
+    slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-min(20, R * e[1] * 0.6), -9), (min(20, R * e[1] * 0.6), -9), (min(20, R * e[1] * 0.6), 9), (-min(20, R * e[1] * 0.6), 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
+    c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * e[1] * 0.9 + 14)
     c["tail_lamp_chrome"] = True
 
 
@@ -2218,7 +2224,12 @@ def engine(model, c):
             yp, zt = s * by(284), max(zs_) - 6
             lathe(f"svc_spark_plug{s}_hex", (cx_, yp, zt), (0, 0, 1), [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
             B.cone(f"plugcap{s}", (cx_, yp, zt + 5), (cx_, yp, zt + 30), 11.5, 10, rubber, 16)
-            B.smooth_tube(f"pluglead{s}", [(cx_, yp, zt + 28), (cx_ - 6, yp - s * 16, zt + 44), (cx_ - 30, s * 150, zt + 40), (cx_ - 60, s * 92, zt + 52), (cx_ - 80, s * 60, zt + 80)], 3.4, rubber)
+            # the lead lies along the top of the barrel in a clip and turns in over the crankcase (beenster, rollout
+            # round 2: it swung through the air)
+            zb_ = cz_ + bc["r"] + 9
+            B.smooth_tube(f"pluglead{s}", [(cx_, yp, zt + 28), (cx_ - 2, yp - s * 14, zt + 36), (cx_ - 5, yp - s * 34, max(zb_, zt + 20)), (cx_ - 8, s * (abs(yp) + 104) / 2, zb_), (cx_ - 12, s * 118, zb_),
+                                           (cx_ - 34, s * 92, zb_ + 10), (cx_ - 62, s * 70, zb_ + 26), (cx_ - 80, s * 60, max(zt + 80, zb_ + 40))], 3.4, rubber)
+            B.cone(f"plugleadclip{s}", (cx_ - 8, s * (abs(yp) + 104) / 2, zb_ - 8), (cx_ - 8, s * (abs(yp) + 104) / 2, zb_ + 5), 7, 7, steel, 10)
             o_ = (min(xs_) + 14, yp, cz_ + 18)
             i3 = (-0.94, 0, 0.34)
             lathe(f"inletstub{s}", o_, i3, [(0, 27), (8, 27), (11, 24.5), (26, 24.5), (26, 20)], rubber, 28)
@@ -3005,10 +3016,41 @@ def rear_end(model, c):
             B.cone("rearmaster", (mx, -170, mz), (mx - 62, -166, mz + 16), 11, 11, dark, 20)
             B.cone("rearmasterboot", (mx + 16, -171, mz - 4), (mx, -170, mz), 6, 10, rubber, 16)
             B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, max(p[1] - 80, mz - 6)), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
-            B.cone("rearres", (mx - 50, -150, mz + 62), (mx - 50, -150, mz + 96), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
-            B.cone("rearrescap", (mx - 50, -150, mz + 96), (mx - 50, -150, mz + 103), 16.5, 16, B.mat("plastic"), 24)
-            B.smooth_tube("rearreshose", [(mx - 50, -150, mz + 62), (mx - 48, -156, mz + 40), (mx - 40, -165, mz + 22)], 3.5, rubber)
-            B.tube("rearresbracket", [(mx - 50, -134, mz + 78), (mx - 50, -100, mz + 78)], 4, dark)
+            # the reservoir stands on the master cylinder itself (beenster, rollout round 2: it floated on a stalk)
+            rx_, rz_ = mx - 34, mz + 9
+            B.cone("rearresneck", (rx_, -168, rz_), (rx_, -168, rz_ + 14), 8, 9, dark, 16)
+            B.cone("rearres", (rx_, -168, rz_ + 12), (rx_, -168, rz_ + 40), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
+            B.cone("rearrescap", (rx_, -168, rz_ + 40), (rx_, -168, rz_ + 47), 16.5, 16, B.mat("plastic"), 24)
+        # the rear brake hose (beenster, rollout round 2: it hung in the air): from the caliper's banjo it lies
+        # along the top of the right-hand swingarm leg in clips, then rises to the master cylinder
+        mo = bpy.data.objects.get("rearmaster")
+        if model.get("rear_caliper") and wh.get("disc") and mo is not None and bpy.data.objects.get("rearcaliper_banjo") is not None:
+            drop("brakehose_r")
+            bj = bpy.data.objects["rearcaliper_banjo"]
+            bb = [bj.matrix_world @ Vector(q) for q in bj.bound_box]
+            b0 = (sum(q.x for q in bb) / 8 / B.MM, -98, sum(q.z for q in bb) / 8 / B.MM)
+            ol = [tuple(q[:2]) for q in model["swingarm"]["outline"]]
+
+            def atop(x):
+                zs = [z0 + (z1 - z0) * (x - x0) / (x1 - x0) for (x0, z0), (x1, z1) in zip(ol, ol[1:] + ol[:1]) if min(x0, x1) <= x <= max(x0, x1) and x0 != x1]
+                return max(zs) if zs else sp[1]
+            if noplate:
+                me = (sp[0] + 96 - 62, -166, (sp[1] - 36 if model["swingarm"].get("rigid") else sp[1] - 166) + 16)
+            else:
+                me = (mcyl[0] - 14, -150, mcyl[1] + 62)
+            xs_ = [b0[0] + 46 + (sp[0] - 60 - b0[0] - 46) * q / 3 for q in range(4)]
+            if model["swingarm"].get("rigid") or sp[0] - 60 < b0[0] + 80:
+                run = [(b0[0] + 40, -120, b0[2] + 10), ((b0[0] + me[0]) / 2, -150, (b0[2] + me[2]) / 2 + 10)]
+            else:
+                run = [(x, -150, atop(x) + 7) for x in xs_]
+                for i_, x in enumerate(xs_[1:3]):
+                    B.cone(f"brakehoseclip{i_}", (x, -150, atop(x) - 2), (x, -150, atop(x) + 13), 8, 8, dark, 10)
+            pts_ = [b0, (b0[0] + 16, -104, b0[2] + 12)] + run
+            if noplate:
+                pts_ += [(me[0] - 40, me[1], me[2] + 30), (me[0] - 14, me[1], me[2] + 6), me]
+            else:
+                pts_ += [(me[0] - 30, -150, max(run[-1][2], me[2] - 60) + 20), (me[0] - 8, -150, me[2] + 26), me]
+            B.smooth_tube("brakehose_r", pts_, 4.2, surf("hose", (0.015, 0.015, 0.017), 0.0, 0.42))
         for s in (() if noplate else (-1, 1)):
             ya, yb = (181, 185) if s == 1 else (-185, -181)
             pl = B.prism(f"heelplate{s}", hp, ya, yb, brushed(), 0)
@@ -3128,7 +3170,7 @@ def hugger(model, c):
             if min(x0, x1) <= x <= max(x0, x1) and x0 != x1:
                 zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
         return max(zs)
-    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
+    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)

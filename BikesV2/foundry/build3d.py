@@ -1029,7 +1029,7 @@ def build(model):
     sw = model["swingarm"]
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
-    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
+    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
     # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174
@@ -1549,7 +1549,9 @@ def build(model):
             if clip:
                 # clip-ons: a clamp round each fork leg and a short bar straight out from it
                 tube(f"clamp{s}", [(rz[0] + 20, s * 96, rz[1] - 16), (rz[0] + 20, s * 96, rz[1] + 14)], 36, mat("alu_dark"))
-                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 8, s * 200, grip[1] + 2), (grip[0] - 4, s * 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+                # the last stretch runs dead straight along the grip's own centre line (the grip sat 11 degrees off the bar)
+                on_ = lambda y: (grip[0] - 6 * (y - 258) / 126, s * y, grip[1] - 4 * (y - 258) / 126)
+                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 9, s * 186, grip[1] + 2.5), on_(232), on_(258), on_(320), on_(384)], 11.5, mat("alu_dark"))
             else:
                 tube(f"riser{s}", [(top[0], s * 45, top[1]), (rz[0], s * 45, rz[1])], 15, mat("alu_dark"))
             tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
