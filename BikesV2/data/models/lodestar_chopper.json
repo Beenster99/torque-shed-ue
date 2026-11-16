@@ -2,7 +2,7 @@
  "name": "Lodestar chopper (working title H1)",
  "brand": "lodestar",
  "family": "Chopper",
- "rev": "C",
+ "rev": "D",
  "engine_label": "45 degree V-twin",
  "frame_label": "rigid steel frame, no rear suspension",
  "colours": {
@@ -259,7 +259,8 @@
     "cls": "chromef",
     "t": 0.8
    }
-  ]
+  ],
+  "plug": "side"
  },
  "exhaust": {
   "headers": [
@@ -270,20 +271,24 @@
       620
      ],
      [
-      1012,
-      540
+      1026,
+      560
      ],
      [
-      1006,
-      410
+      1034,
+      450
      ],
      [
-      970,
-      300
+      1010,
+      350
      ],
      [
-      890,
-      258
+      960,
+      280
+     ],
+     [
+      880,
+      254
      ],
      [
       600,
@@ -299,28 +304,50 @@
      ]
     ],
     "w": 46,
-    "front": true
+    "ys": [
+     -60,
+     -78,
+     -92,
+     -106,
+     -150,
+     -204,
+     -224,
+     -224,
+     -224
+    ]
    },
    {
     "pts": [
      [
-      620,
-      620
+      700,
+      640
      ],
      [
-      556,
-      580
+      770,
+      612
      ],
      [
-      504,
-      470
+      860,
+      562
      ],
      [
-      478,
-      380
+      932,
+      492
      ],
      [
-      440,
+      958,
+      420
+     ],
+     [
+      940,
+      368
+     ],
+     [
+      890,
+      346
+     ],
+     [
+      780,
       344
      ],
      [
@@ -333,7 +360,18 @@
      ]
     ],
     "w": 46,
-    "front": true
+    "ys": [
+     -80,
+     -112,
+     -124,
+     -128,
+     -136,
+     -174,
+     -208,
+     -224,
+     -224,
+     -224
+    ]
    }
   ],
   "cans": [
@@ -364,7 +402,12 @@
     "open": true
    }
   ],
-  "join": true
+  "join": true,
+  "chrome": true,
+  "can_y": [
+   224,
+   232
+  ]
  },
  "swingarm": {
   "pivot": [
@@ -469,7 +512,8 @@
    }
   ],
   "plates": [],
-  "sub_y": 96
+  "sub_y": 96,
+  "chrome": true
  },
  "front_end": [
   {
@@ -1213,7 +1257,10 @@
     "cls": "chromef"
    }
   ],
-  "plate_hanger": []
+  "plate_hanger": [],
+  "decal": {
+   "angle": 32
+  }
  },
  "kit": {
   "base": {
@@ -3332,6 +3379,9 @@
   "clocks": "chrome",
   "indicators": "trad",
   "grips": "plain",
-  "cap": "chrome"
+  "cap": "chrome",
+  "engine": "chrome",
+  "sissy": "ornate",
+  "grip_slant": 18
  }
 }

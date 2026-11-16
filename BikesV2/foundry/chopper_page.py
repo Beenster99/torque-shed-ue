@@ -8,16 +8,18 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('lodestar_chopper', 'Lodestar chopper, first look', 'The chopper lead bike in full detail for the first time: rigid frame, long raked fork, 45 degree V-twin. It carries over what you signed off on the cruiser (chrome controls and mirrors, fluted lamp, chrome clocks, the mudguard tail lamp, pipes that run straight into their silencers) and adds the tall sissy bar and back rest. Rendered straight from the model, nothing retouched.', [
-        ('shot_side_long', 'Whole bike, right side', 'Rigid frame with chrome axle plates, no rear suspension, pegs and seat height as positioned for the rider.'),
-        ('shot_front34_long', 'Whole bike, front quarter', 'Chrome front mudguard with the rounded nose, fluted lamp, pull-back bars.'),
-        ('shot_rearq', 'Rear quarter, exhaust side', 'Two slim upswept pipes with open ends, the sissy bar hoop and back rest.'),
-        ('shot_rearq_l', 'Rear quarter, chain side', 'Primary cover, chain run and the left axle plate.'),
-        ('shot_engine', 'Engine close-up', 'The V-twin, its pipes and the frame cradle.'),
-        ('shot_sissy', 'Sissy bar and back rest', 'One polished hoop up from the axle either side of the mudguard, two straps carrying the pad.'),
-        ('shot_glamp', 'Tail lamp', 'Chrome oval lamp on the mudguard end with the indicators growing from its sides.'),
-        ('shot_cockpit', 'Cockpit', 'Chrome clocks, bars, levers and filler cap.'),
-        ('shot_fpeg', 'Forward controls', 'Peg, pedal and the arm to the frame.'),
+    ('lodestar_chopper', 'Lodestar chopper, round 2', 'Your round 1 notes on the chopper lead bike: much more chrome (frame, engine covers, pipes), both pipes swept round the front of the engine and back along one side clear of the legs, grips slanted inwards, spark plugs moved out from under the tank, an elaborate sissy bar and a painted panel on the teardrop tank. Rendered straight from the model, nothing retouched.', [
+        ('shot_side_long', 'Whole bike, right side', 'Chrome frame, engine covers and pipes. Proportions, pegs and seat height are unchanged.'),
+        ('shot_pipes', 'Pipes', 'The rear pipe now leaves its head forwards, passes the front cylinder and drops beside the front pipe; the two run back together low on the right, tucked in under the line of the rider\'s legs.'),
+        ('shot_tankside', 'Tank panel', 'A pinstriped teardrop scallop with the Lodestar star, the same on both sides. It is a painted decal, so each brand and paint option can have its own.'),
+        ('shot_sissy', 'Sissy bar', 'A pointed arch with a spear finial, a collared centre bar and wrought scrolls above the back rest.'),
+        ('shot_barsf', 'Bars and grips', 'The grips, levers, switches and mirrors are slanted inwards by 18 degrees about the hand point, so the hands stay where the rider pose has them.'),
+        ('shot_engine', 'Engine, right side', 'Chrome rocker covers, clutch cover and air cleaner; polished outer cases; barrels and heads left cast.'),
+        ('shot_engine_l', 'Engine, left side', 'The spark plugs now come out of the left side of the heads, clear of the tank.'),
+        ('shot_front34_long', 'Whole bike, front quarter', ''),
+        ('shot_rearq', 'Rear quarter, exhaust side', ''),
+        ('shot_rearq_l', 'Rear quarter, chain side', ''),
+        ('shot_glamp', 'Tail lamp', 'Unchanged from round 1.'),
     ]),
 ]
 body = '<main>\n<div class="k">Bike Models V2 · Definition pass · Chopper</div>'
@@ -28,7 +30,7 @@ for key, h1, lede, items in SETS:
         p = os.path.join(ROOT, 'out', 'renders', f'{key}_def_{tag}.png')
         if not os.path.exists(p):
             continue
-        shutil.copy(p, dst + f'{key}_r1_{tag}.png')
+        shutil.copy(p, dst + f'{key}_r2_{tag}.png')
         im = Image.open(p).convert('RGB')
         if im.width > 1400:
             im = im.resize((1400, int(im.height * 1400 / im.width)))

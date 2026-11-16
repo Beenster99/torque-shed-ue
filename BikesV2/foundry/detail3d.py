@@ -2192,6 +2192,12 @@ def engine(model, c):
     mag = surf("magcover", (0.2, 0.165, 0.12), 0.9, 0.4, bump=(1.0, 0.1))
     blk = surf("crinkle", (0.022, 0.022, 0.024), 0.3, 0.62, bump=(0.4, 0.5))
     steel, rubber, alu = B.mat("steel"), B.mat("rubber"), B.mat("alu")
+    chromed = model.get("detail", {}).get("engine") == "chrome"
+    if chromed:
+        # a show engine (beenster, chopper round 1): rocker covers, cam caps, side covers and the air cleaner
+        # are plated, the outer cases polished; barrels and heads stay cast so the chrome has something to sit on
+        mag = B.mat("chrome")
+    plug_side = eng.get("plug") == "side"
     heads = []
     for i, cy in enumerate(eng["cylinders"]):
         drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
@@ -2231,7 +2237,7 @@ def engine(model, c):
                 q = add(add(headend, u, 27), n, sn * (cw - 22))
                 bolt(f"coverbolt{i}{sn}{sy}", (q[0], sy * (r - 28), q[1]), d3, 5, 4.5)
         hc = add(end, u, cy["head"] * 0.5)
-        for sy in (-1, 1):       # cam end caps
+        for sy in ((-1,) if plug_side else (-1, 1)):       # cam end caps
             B.cone(f"camcap{i}{sy}", P(hc, sy * (r + 2)), P(hc, sy * (r + 11)), 27, 24, mag, 28)
             for a_ in (30, 150, 270):
                 q = add(hc, unit(a_ + cy["angle"]), 19)
@@ -2239,11 +2245,21 @@ def engine(model, c):
         # plug cap and lead out of the valve cover
         pc = add(cov, u, -2)
         white = surf("ceramic", (0.85, 0.84, 0.8), 0.0, 0.25, wear=0.0)
-        lathe(f"svc_spark_plug{i}_hex", P(pc, 0), d3, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
-        lathe(f"svc_spark_plug{i}", P(pc, 0), d3, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
-        lathe(f"svc_spark_plug{i}_tip", P(pc, 0), d3, [(27, 2.6), (32, 2.6), (32, 0)], steel, 12)
-        B.cone(f"plugcap{i}", P(add(pc, u, 23), 0), P(add(pc, u, 56), 0), 10.5, 8.5, rubber, 16)
-        B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
+        po, pd = P(pc, 0), d3
+        if plug_side:
+            # the plug comes out of the left side of the head, tipped up, so it stays clear of a low tank
+            pd = (u[0] * 0.5, 0.866, u[1] * 0.5)
+            po = P(hc, r + 2)
+        pt_ = lambda d_, po=po, pd=pd: (po[0] + pd[0] * d_, po[1] + pd[1] * d_, po[2] + pd[2] * d_)
+        lathe(f"svc_spark_plug{i}_hex", po, pd, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+        lathe(f"svc_spark_plug{i}", po, pd, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
+        lathe(f"svc_spark_plug{i}_tip", po, pd, [(27, 2.6), (32, 2.6), (32, 0)], steel, 12)
+        B.cone(f"plugcap{i}", pt_(23), pt_(56), 10.5, 8.5, rubber, 16)
+        if plug_side:
+            q1, q2 = pt_(54), pt_(80)
+            B.smooth_tube(f"pluglead{i}", [q1, q2, (q2[0] + n[0] * 50, q2[1] - 30, q2[2] + n[1] * 50 - 30), P(add(add(hc, n, 120), u, -70), 40)], 3.6, rubber)
+        else:
+            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
         # inlet: rubber stub, clamp, throttle body, injector
         i3 = (n[0], 0, n[1])
         lathe(f"inletstub{i}", P(add(hc, n, hw - 4), 0), i3, [(0, 30), (8, 30), (12, 27), (30, 27), (30, 22)], rubber, 32)
@@ -2264,13 +2280,13 @@ def engine(model, c):
             p0 = P(cc_, sg * (wide / 2 - 28))
             if sg == -1:
                 lathe(f"clutchcover{i}", p0, (0, sg, 0), [(0, r_ + 3), (6, r_ + 3), (6, r_), (26, r_ - 2), (34, r_ - 9), (37, r_ - 20), (37, r_ * 0.66), (41, r_ * 0.66), (44, r_ * 0.6), (44, 0)], mag, 64)
-                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], blk, 48)
+                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], mag if chromed else blk, 48)
                 for k_ in range(6):
                     q = add(cc_, unit(60 * k_), r_ * 0.58)
                     bolt(f"clutchcapbolt{i}{k_}", P(q, p0[1] + sg * 44), (0, sg, 0), 4, 3.5)
                 nb_ = cv.get("bolts", 8)
             else:
-                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], blk, 64)
+                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], mag if chromed else blk, 64)
                 B.cone(f"altplug{i}", (p0[0], p0[1] + sg * 53, p0[2]), (p0[0], p0[1] + sg * 58, p0[2]), 15, 14, alu, 24)
                 B.cone(f"altplugslot{i}", (p0[0], p0[1] + sg * 57.4, p0[2]), (p0[0], p0[1] + sg * 58.3, p0[2]), 7, 7, rubber, 6)
                 nb_ = 6
@@ -2283,7 +2299,7 @@ def engine(model, c):
     inner = [(ccx + (q[0] - ccx) * 0.9, ccz + (q[1] - ccz) * 0.88) for q in case]
     for sg in (-1, 1):       # the outer case halves: their own castings, bolted to the centre cases
         ya, yb = sg * (wide / 2 - 34), sg * (wide / 2 - 14)
-        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
+        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("polishedcase", (0.82, 0.82, 0.84), 1.0, 0.16, wear=0.05) if chromed else surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
     set_mat("crankcase", surf("sandcast", (0.42, 0.42, 0.43), 0.9, 0.5, bump=(1.4, 0.25)))
     zb = min(q[1] for q in case)
     xb = [q[0] for q in case if q[1] < zb + 34]
@@ -2319,6 +2335,12 @@ def engine(model, c):
             B.cone(f"mountlug{nm}{sg}", P(pn, sg * (hw_ - 46)), P(pn, sg * (hw_ - 15)), 21, 18, silver, 24)
             bolt(f"mountbolt{nm}{sg}", P(pn, sg * (hw_ + 15)), (0, sg, 0), 9, 7, steel, False)
             B.cone(f"mountwasher{nm}{sg}", P(pn, sg * (hw_ + 15)), P(pn, sg * (hw_ + 17)), 13, 13, steel, 24)
+    if chromed:
+        set_mat("airbox", B.mat("chrome"))
+        set_mat("waterpump", B.mat("chrome"))
+        set_mat("sump", surf("polishedcase", (0.82, 0.82, 0.84), 1.0, 0.16, wear=0.05))
+        for nm in ("oilfilter", "svc_oil_filter", "sprocketcover", "starter"):
+            set_mat(nm, B.mat("chrome"))
     exhaust_ports(model, c, heads)
     radiator(model, c, heads, wp, y0)
     ab = bpy.data.objects.get("airbox0")
@@ -3149,7 +3171,10 @@ def welds(model, c):
 SHOTS = {
     "side_long": ((930, -5600, 800), (930, 0, 660), 56),      # long bikes (choppers)
     "front34_long": ((4300, -2500, 1400), (1000, 0, 680), 42),
-    "sissy": ((-1500, -900, 1350), (-60, 0, 880), 55),
+    "sissy": ((-1500, -850, 1500), (-100, 0, 1060), 42),
+    "tankside": ((900, -1500, 1000), (900, 0, 880), 60),
+    "pipes": ((1500, -1500, 520), (800, -150, 430), 50),
+    "barsf": ((2100, -500, 1700), (1080, 0, 1140), 60),
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
@@ -3220,6 +3245,145 @@ def shots(build3d, name, tags, samples=24):
     return out
 
 
+def bar_slant(model, c):
+    """Grips slanted inwards (beenster, chopper round 1): the bar ends, with their grips, levers, switches and
+    mirrors, swing back about the hand point, so the hand point itself stays exactly where the rider pose has
+    it. Everything on the bar outboard of the bend is turned together."""
+    deg = model.get("detail", {}).get("grip_slant")
+    gp = next((s_["at"] for s_ in model.get("front_end", []) if s_.get("circle") and s_.get("part") != "head"), None)
+    if not deg or not gp:
+        return
+    from mathutils import Vector
+    a_full, gy = math.radians(deg), 321.0
+    bpy.context.view_layer.update()
+
+    def move(w):
+        ay = abs(w.y) / B.MM
+        if ay < 150 or w.z / B.MM < gp[1] - 110 or abs(w.x / B.MM - gp[0]) > 260:
+            return None
+        t = min(1.0, (ay - 150) / 70.0)
+        a = a_full * t * t * (3 - 2 * t)
+        sg = 1.0 if w.y > 0 else -1.0
+        dx, l = w.x / B.MM - gp[0], ay - gy
+        return Vector(((gp[0] + dx * math.cos(a) - l * math.sin(a)) * B.MM, sg * (gy + dx * math.sin(a) + l * math.cos(a)) * B.MM, w.z))
+    for ob in bpy.data.objects:
+        M = ob.matrix_world.copy()
+        Mi = M.inverted()
+        if ob.type == "MESH":
+            for v in ob.data.vertices:
+                q = move(M @ v.co)
+                if q is not None:
+                    v.co = Mi @ q
+        elif ob.type == "CURVE":
+            for sp in ob.data.splines:
+                for pt in sp.bezier_points:
+                    for attr in ("co", "handle_left", "handle_right"):
+                        q = move(M @ getattr(pt, attr))
+                        if q is not None:
+                            setattr(pt, attr, Mi @ q)
+                for pt in sp.points:
+                    q = move(M @ pt.co.to_3d())
+                    if q is not None:
+                        pt.co = (*(Mi @ q), pt.co[3])
+
+
+def tank_decal(model, c):
+    """A painted tank panel (beenster, chopper round 1: "teardrop tanks with decals"): a pinstriped teardrop
+    scallop along each side of the tank with the brand's star in it. Drawn here as a picture and laid on the
+    tank's sides only; nothing of any real maker."""
+    spec = model["body"].get("decal")
+    tank = bpy.data.objects.get("tank")
+    if not spec or tank is None:
+        return
+    from PIL import Image, ImageDraw
+    pts = [tuple(q[:2]) for q in B.shapes.dense(model["body"]["tank"][0]["pts"], True, 1.0)]
+    ang = math.radians(spec.get("angle", 30))
+    ca, sa = math.cos(ang), math.sin(ang)
+    us, vs = [q[0] * ca + q[1] * sa for q in pts], [-q[0] * sa + q[1] * ca for q in pts]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    L, H = u1 - u0, v1 - v0
+    W_, H_ = 2048, max(256, int(2048 * H / L))
+    S = 2
+    im = Image.new("RGBA", (W_ * S, H_ * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    gold, cream = tuple(spec.get("gold", (214, 170, 78))) + (255,), tuple(spec.get("cream", (236, 226, 200))) + (255,)
+
+    def tear(inset, n=160):
+        """A teardrop: fat towards the front of the tank, drawn out to a point at the back."""
+        out = []
+        ua, ub, vc, hh = 0.2 + inset * 0.5, 0.86 - inset * 0.35, spec.get("v", 0.5), spec.get("h", 0.24) - inset
+        for sgn in (1, -1):
+            for j in range(n + 1):
+                t = j / n if sgn == 1 else 1 - j / n
+                hgt = hh * math.sin(math.pi * t ** 0.62) ** 0.85
+                out.append(((ua + (ub - ua) * t) * W_ * S, (1 - (vc + sgn * hgt + 0.05 * (t - 0.5))) * H_ * S))
+        return out
+    d.polygon(tear(0.0), fill=gold)
+    d.polygon(tear(0.012), fill=(0, 0, 0, 0))
+    d.polygon(tear(0.03), fill=cream)
+    d.polygon(tear(0.036), fill=(0, 0, 0, 0))
+    d.polygon(tear(0.05), fill=tuple(spec.get("panel", (16, 22, 48))) + (255,))
+    # the star: eight points, long ones up, down, fore and aft
+    cx, cy = (0.2 + 0.66 * 0.64) * W_ * S, (1 - spec.get("v", 0.5) - 0.007) * H_ * S
+    R = spec.get("star", 0.13) * H_ * S * 1.6
+    star = []
+    for k in range(16):
+        w = math.pi / 8 * k
+        rad = R * (0.2 if k % 2 else (1.0 if k % 4 == 0 else 0.5))
+        star.append((cx + rad * math.cos(w) * (1.5 if k % 8 == 0 else 1.0), cy - rad * math.sin(w)))
+    d.polygon(star, fill=gold)
+    for k, (dv, ln) in enumerate(((-0.05, 0.3), (0.0, 0.36), (0.05, 0.3))):       # three speed lines trailing back from the star
+        y_ = cy + dv * H_ * S
+        d.polygon([(cx - R * 1.9, y_ - 5 * S), (cx - R * 1.9, y_ + 5 * S), (cx - R * 1.9 - ln * W_ * S, y_)], fill=cream)
+    im = im.resize((W_, H_), Image.LANCZOS).transpose(Image.FLIP_TOP_BOTTOM)
+    img = bpy.data.images.new("tankdecal", W_, H_, alpha=True)
+    px = im.tobytes()
+    img.pixels.foreach_set([b / 255.0 for b in px])
+    img.pack()
+    m = tank.data.materials[0].copy()
+    m.name = "paint_tankdecal"
+    tank.data.materials[0] = m
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    uv = nt.nodes.new("ShaderNodeCombineXYZ")
+    for k, (vec, off) in enumerate((((ca / L, 0, sa / L), -u0 / L), ((-sa / H, 0, ca / H), -v0 / H))):
+        dot = nt.nodes.new("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        dot.inputs[1].default_value = tuple(x / B.MM for x in vec)
+        nt.links.new(geo.outputs["Position"], dot.inputs[0])
+        ad = nt.nodes.new("ShaderNodeMath")
+        ad.operation = "ADD"
+        ad.inputs[1].default_value = off
+        nt.links.new(dot.outputs["Value"], ad.inputs[0])
+        nt.links.new(ad.outputs[0], uv.inputs[k])
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image, tex.extension, tex.interpolation = img, "CLIP", "Cubic"
+    nt.links.new(uv.outputs[0], tex.inputs["Vector"])
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Normal"], sep.inputs[0])
+    ab = nt.nodes.new("ShaderNodeMath")
+    ab.operation = "ABSOLUTE"
+    nt.links.new(sep.outputs["Y"], ab.inputs[0])
+    rng = nt.nodes.new("ShaderNodeMapRange")
+    rng.inputs["From Min"].default_value, rng.inputs["From Max"].default_value = 0.2, 0.4
+    nt.links.new(ab.outputs[0], rng.inputs["Value"])
+    fac = nt.nodes.new("ShaderNodeMath")
+    fac.operation = "MULTIPLY"
+    nt.links.new(rng.outputs["Result"], fac.inputs[0])
+    nt.links.new(tex.outputs["Alpha"], fac.inputs[1])
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    bc = bsdf.inputs["Base Color"]
+    if bc.is_linked:
+        nt.links.new(bc.links[0].from_socket, mix.inputs["A"])
+    else:
+        mix.inputs["A"].default_value = bc.default_value
+    nt.links.new(tex.outputs["Color"], mix.inputs["B"])
+    nt.links.new(fac.outputs[0], mix.inputs["Factor"])
+    nt.links.new(mix.outputs["Result"], bc)
+
+
 def run(build3d, model, c):
     global B
     B = build3d
@@ -3249,3 +3413,9 @@ def run(build3d, model, c):
     cables(model, c)
     mudguard_fixings(model, c)
     welds(model, c)
+    if model["exhaust"].get("chrome"):
+        for ob in bpy.data.objects:
+            if ob.name.startswith(("header", "can")) and not ob.name.startswith(("canbore", "canend")) and getattr(ob.data, "materials", None) is not None and len(ob.data.materials):
+                ob.data.materials[0] = B.mat("chrome")
+    tank_decal(model, c)
+    bar_slant(model, c)

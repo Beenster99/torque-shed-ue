@@ -677,6 +677,8 @@ def build(model):
     g, wh, col = model["geometry"], model["wheels"], model["colours"]
     body_c, frame_c, rim_c = hex_rgb(col["body"]), hex_rgb(col["frame"]), hex_rgb(col.get("rim", "#2b2d31"))
     paint, framem = mat("paint", body_c), mat("frame", frame_c)
+    if model["frame"].get("chrome"):
+        framem = mat("chrome")       # a show chopper's frame is plated (beenster, chopper round 1)
     wb, rake = g["wheelbase"], math.radians(g["rake"])
     A, F = (0, wh["rear"]["tyre_r"]), (wb, wh["front"]["tyre_r"])
     uf, nb = (-math.sin(rake), math.cos(rake)), (-math.cos(rake), -math.sin(rake))
@@ -1078,17 +1080,56 @@ def build(model):
         if len(sp_) > 3 and sp_[-1][0] > sp_[-2][0]:
             sp_ = sp_[:-1]                # the drawn hook at the stop_ is the hoop's bend seen side on
         z0_, z1_ = sp_[0][1], sp_[-1][1]
-        ys_ = [128 - 40 * min(1.0, (q[1] - z0_) / max(1.0, 700 - z0_)) - 30 * max(0.0, (q[1] - 700) / max(1.0, z1_ - 700)) for q in sp_]
+        ornate = model.get("detail", {}).get("sissy") == "ornate"
+        ys_ = [128 - 40 * min(1.0, (q[1] - z0_) / max(1.0, 700 - z0_)) - (6 if ornate else 30) * max(0.0, (q[1] - 700) / max(1.0, z1_ - 700)) for q in sp_]
         sleft = [(q[0], y, q[1]) for q, y in zip(sp_, ys_)]
         xt, zt, yt = sp_[-1][0], sp_[-1][1], ys_[-1]
-        stop_ = [(xt - 4, yt * 0.86, zt + 26), (xt - 6, yt * 0.5, zt + 44), (xt - 7, 0.0, zt + 50)]
-        shalf = sleft + stop_
-        smooth_tube("sissybar", shalf + [(q[0], -q[1], q[2]) for q in shalf[-2::-1]], sissy[0]["tube"] / 2, mat("chrome"))
-        for k, zz in enumerate((sp_[-2][1] - 150, sp_[-2][1] - 20)):
-            # two flat cross straps the back rest bolts to
-            f_ = lambda z: next(((a[0] + (b[0] - a[0]) * (z - a[2]) / (b[2] - a[2]), a[1] + (b[1] - a[1]) * (z - a[2]) / (b[2] - a[2])) for a, b in zip(sleft, sleft[1:]) if a[2] <= z <= b[2]), (sleft[-1][0], sleft[-1][1]))
+        chrome_ = mat("chrome")
+        f_ = lambda z: next(((a[0] + (b[0] - a[0]) * (z - a[2]) / (b[2] - a[2]), a[1] + (b[1] - a[1]) * (z - a[2]) / (b[2] - a[2])) for a, b in zip(sleft, sleft[1:]) if a[2] <= z <= b[2]), (sleft[-1][0], sleft[-1][1]))
+        if ornate:
+            # a show sissy bar (beenster, chopper round 1: "elaborately designed"): the two uprights close in a pointed
+            # arch with a spear finial, a centre bar with collars, and wrought scrolls between the bars above the pad
+            ux_, uz_ = sp_[-1][0] - sp_[-2][0], sp_[-1][1] - sp_[-2][1]
+            ul_ = math.hypot(ux_, uz_)
+            ux_, uz_ = ux_ / ul_, uz_ / ul_
+            up_ = lambda q, d: (q[0] + ux_ * d, q[1], q[2] + uz_ * d)
+            apex = up_((xt, 0.0, zt), 112)
+            for sgn in (1, -1):
+                side_ = sleft + [up_((xt, yt * 0.97, zt), 30), up_((xt, yt * 0.72, zt), 66), up_((xt, yt * 0.3, zt), 96), apex]
+                smooth_tube(f"sissybar{sgn}", [(q[0], sgn * q[1], q[2]) for q in side_], sissy[0]["tube"] / 2, chrome_)
+            cone("sissyfinial0", up_(apex, -6), up_(apex, 4), 9, 9, chrome_, 20)
+            cone("sissyfinial1", up_(apex, 4), up_(apex, 30), 4, 15, chrome_, 4)
+            cone("sissyfinial2", up_(apex, 30), up_(apex, 92), 15, 0.6, chrome_, 4)
+            zpad = sp_[-2][1] + 26
+            xb_, yb_ = f_(zpad)
+            base = (xb_, 0.0, zpad)
+            tube("sissycentre", [base, up_(apex, -4)], 4.5, chrome_)
+            for k, d_ in enumerate((0.0, 62.0, 124.0)):
+                q = up_(base, d_)
+                cone(f"sissycollar{k}a", up_(q, -7), q, 4.5, 9, chrome_, 16)
+                cone(f"sissycollar{k}b", q, up_(q, 7), 9, 4.5, chrome_, 16)
+            for sgn in (1, -1):
+                for k, (d_, R_, turn) in enumerate(((36.0, 0.5, 1), (104.0, 0.42, -1))):
+                    xu, yu = f_(zpad + d_ * uz_)
+                    R_ = (yu - 10) * R_
+                    cen = up_((xb_, yu - 5 - R_, zpad), d_)
+                    pts_ = []
+                    for j in range(25):
+                        t_ = j / 24
+                        w_, rad = turn * t_ * 2 * math.pi * 1.35, R_ * (1 - 0.72 * t_)
+                        q = up_((cen[0], cen[1] + rad * math.cos(w_), cen[2]), rad * math.sin(w_))
+                        pts_.append((q[0], sgn * q[1], q[2]))
+                    smooth_tube(f"sissyscroll{k}{sgn}", pts_, 3.6, chrome_)
+            straps = (sp_[-2][1] - 150, sp_[-2][1] - 20, zpad)
+        else:
+            stop_ = [(xt - 4, yt * 0.86, zt + 26), (xt - 6, yt * 0.5, zt + 44), (xt - 7, 0.0, zt + 50)]
+            shalf = sleft + stop_
+            smooth_tube("sissybar", shalf + [(q[0], -q[1], q[2]) for q in shalf[-2::-1]], sissy[0]["tube"] / 2, chrome_)
+            straps = (sp_[-2][1] - 150, sp_[-2][1] - 20)
+        for k, zz in enumerate(straps):
+            # flat cross straps: the back rest bolts to the lower two
             xx, yy = f_(zz)
-            tube(f"sissystrap{k}", [(xx, -yy, zz), (xx, yy, zz)], 5, mat("chrome"))
+            tube(f"sissystrap{k}", [(xx, -yy, zz), (xx, yy, zz)], 5, chrome_)
     sport_bike = model["family"].lower() == "sport"
     fair_wrap = {}
     for i, shp in enumerate(body.get("front_guard", []) + body.get("panels", [])):
