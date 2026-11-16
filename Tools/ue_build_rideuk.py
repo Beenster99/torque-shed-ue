@@ -484,6 +484,12 @@ def brick_material(L):
     mortar = g.op(unreal.MaterialExpressionMultiply, vc, g.const((1.5, 1.6, 1.8)))
     mortar = g.op(unreal.MaterialExpressionMin, mortar, g.const((0.42, 0.4, 0.36)))
     col = g.lerp(mortar, col, brick)
+    nt = L.noise_texture()
+    if nt:
+        # [build 153] (beenster: "a repetitive tiling": a wall a shade lighter and darker over several metres)
+        mv = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / 23.0, v_tiling=1.0 / 23.0), "rough")
+        mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.3), const_b=0.85)
+        col = g.op(unreal.MaterialExpressionMultiply, col, mv)
     dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
     col = g.lerp(col, dirt, vc, alpha_out="A")
     col = L.far_dull(g, col)

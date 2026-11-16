@@ -2667,6 +2667,8 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     def uv(metres):
         return g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / metres, v_tiling=1.0 / metres)
 
+    nt0 = noise_texture() if tint_param else None
+
     def layer(role, fallback):
         if role in tex:
             m = tex[role]; u = uv(roles[role]["tile_m"])
@@ -2675,6 +2677,21 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
                 col = g.op(unreal.MaterialExpressionMultiply, col, g.sample(m["ao"], u, "ao"), b_out="R")
             nrm = g.sample(m["normal"], u, "normal") if "normal" in m else g.const((0.0, 0.0, 1.0))
             rough = g.sample(m["rough"], u, "rough") if "rough" in m else g.const(0.85)
+            if nt0 is not None and role != "moss":
+                # [build 153] Ride UK's walls (beenster: "a repetitive tiling"): the same scan again at another
+                # size and offset, the two blended in broad soft patches, so no repeat lines up.
+                t2 = 1.0 / (roles[role]["tile_m"] * 1.37)
+                u2 = g.op(unreal.MaterialExpressionAdd, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=t2, v_tiling=t2 * 0.91),
+                          g.node(unreal.MaterialExpressionConstant2Vector, r=0.31, g=0.57))
+                col2 = g.sample(m["color"], u2, "color")
+                nrm2 = g.sample(m["normal"], u2, "normal") if "normal" in m else g.const((0.0, 0.0, 1.0))
+                rough2 = g.sample(m["rough"], u2, "rough") if "rough" in m else g.const(0.85)
+                pn = g.sample(nt0, uv(9.0), "rough")
+                pm = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                          g.op(unreal.MaterialExpressionSubtract, pn, a_out="G", const_b=0.35), const_b=3.0))
+                col = g.lerp(col, col2, pm)
+                nrm = g.lerp(nrm, nrm2, pm)
+                rough = g.lerp(rough, rough2, pm, a_out="R" if "rough" in m else "", b_out="R" if "rough" in m else "")
             return [col, nrm, rough]
         return [g.op(unreal.MaterialExpressionMultiply, g.const(lin(fallback)), noise(g.m, 0.5, 0.7, 1.2, -1200, g.y)),
                 g.const((0.0, 0.0, 1.0)), g.const(0.88)]
@@ -2690,6 +2707,11 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     if tint_param:
         tp = g.node(unreal.MaterialExpressionVectorParameter, parameter_name="Tint", default_value=unreal.LinearColor(1, 1, 1, 1))
         st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], tp, b_out="")
+        if nt0 is not None:
+            # (and the wall a shade lighter and darker over several metres, as weather leaves it)
+            mv = g.sample(nt0, uv(23.0), "rough")
+            mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.3), const_b=0.85)
+            st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], mv)
     # Lichen: pale crusts in patches, on the stones the blue channel picks. The patches come from a
     # noise texture on each stone's own UVs (the Noise node costs too much on 10 km of wall).
     nt = noise_texture()
@@ -2757,6 +2779,11 @@ def render_material(tex, roles, name="M_LimeRender"):
         st = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, st, const_b=2.2))
         st = g.op(unreal.MaterialExpressionMultiply, st, const_b=0.22)
         col = g.lerp(col, g.op(unreal.MaterialExpressionMultiply, col, g.const((0.62, 0.6, 0.55))), st)
+        if name != "M_LimeRender":
+            # [build 153] (Ride UK's render: a shade lighter and darker over several metres, so no repeat shows)
+            mv = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / 23.0, v_tiling=1.0 / 23.0), "rough")
+            mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.24), const_b=0.88)
+            col = g.op(unreal.MaterialExpressionMultiply, col, mv)
     dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
     col = g.lerp(col, dirt, vc, alpha_out="A")
     rough = g.lerp(g.const(0.88), g.const(0.95), vc, alpha_out="A")

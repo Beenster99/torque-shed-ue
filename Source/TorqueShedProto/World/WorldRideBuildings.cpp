@@ -459,10 +459,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				Quad(Out, Local(U0, At, Lo), Local(U1, At, Lo), Local(U1, At, Hi), Local(U0, At, Hi), Away, C);
 			};
 			// (the house's joinery paint, mostly white, by street; its reveals the wall's own colour, darker in the return)
-			static const Rgb Joinery[5] = {{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.62f, 0.62f, 0.60f}, {0.02f, 0.025f, 0.02f}, {0.03f, 0.07f, 0.04f}};
-			const Rgb& Paint = Joinery[std::min(4, int((0.6 * Chance(StreetX, StreetZ, 63) + 0.4 * Chance(B.X, B.Z, 63)) * 5.0))];
+			// ([build 153] beenster: "too many black window frames... mostly white and some wood colours": white
+			// seven in ten, cream, two oaks, now and then a dark green or black)
+			static const Rgb Joinery[10] = {{0.62f, 0.62f, 0.60f}, {0.62f, 0.62f, 0.60f}, {0.64f, 0.64f, 0.62f}, {0.62f, 0.62f, 0.60f}, {0.60f, 0.60f, 0.58f},
+				{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.20f, 0.12f, 0.06f}, {0.11f, 0.065f, 0.035f}, {0.03f, 0.07f, 0.04f}};
+			const double JoinPick = 0.6 * Chance(StreetX, StreetZ, 63) + 0.4 * Chance(B.X, B.Z, 63);
+			const Rgb& Paint = JoinPick > 0.985 ? Joinery[9] : Joinery[std::min(8, int(JoinPick * 9.0))];
 			const Rgb Reveal = Surrounds ? StoneTrim : Shade(Wall, Rendered ? 0.8 : 0.72);
-			const double RevW = Surrounds ? 0.17 : 0.11, RevD = 0.15;   // (the reveal's face across, and how far it stands out of the glass)
+			const double RevW = Surrounds ? 0.17 : 0.11, RevD = 0.07;   // (the reveal's face across, and how far it stands out of the glass: [build 153] 0.15 stood too far off the brick)
 			const auto Opening = [&](double U, double Lo, double W, double H, bool Sill)
 			{
 				Slab(U - W * 0.5 - RevW, U - W * 0.5, Lo, Lo + H, 0.0, RevD, Reveal);   // (the jambs)
@@ -594,8 +598,13 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			};
 			const auto Door = [&](double U, double W, double H, int Salt)
 			{
-				const Tint& T = Look.Doors[int(Chance(B.X + U, B.Z + Salt, 62) * 4.0) & 3];
-				const Rgb Leaf = {T.R, T.G, T.B};
+				// ([build 153] beenster: "a distinct lack of colours in the doors": half the place's own colours,
+				// half the bright ones every British street has)
+				static const Rgb Bright[8] = {{0.36f, 0.03f, 0.025f}, {0.03f, 0.08f, 0.26f}, {0.05f, 0.17f, 0.07f}, {0.55f, 0.40f, 0.05f},
+					{0.62f, 0.62f, 0.60f}, {0.20f, 0.12f, 0.06f}, {0.12f, 0.13f, 0.14f}, {0.10f, 0.20f, 0.24f}};
+				const double DoorPick = Chance(B.X + U, B.Z + Salt, 62);
+				const Tint& T = Look.Doors[int(DoorPick * 8.0) & 3];
+				const Rgb Leaf = DoorPick < 0.5 ? Rgb{std::fmin(1.0f, T.R * 1.8f), std::fmin(1.0f, T.G * 1.8f), std::fmin(1.0f, T.B * 1.8f)} : Bright[int(Chance(B.Z + U, B.X + Salt, 72) * 8.0) & 7];
 				// (a wide door, a shop's or a hall's, keeps the plain painted leaf: two of them)
 				const bool Wide = W > 1.3;
 				const int Style = Wide ? 0 : int(Chance(B.X + U * 1.7, B.Z + Salt, 67) * 4.0) & 3;   // 0 six-panel, 1 half-glazed Victorian, 2 ledged planks, 3 modern

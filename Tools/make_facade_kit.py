@@ -43,6 +43,9 @@ SURROUND_SIZES = WINDOW_SIZES["sash"] + WINDOW_SIZES["casement"] + WINDOW_SIZES[
 DOOR_SIZES = [(0.95, 2.05), (0.9, 2.05)]
 WIDE_DOOR_SIZES = [(1.6, 2.05), (1.6, 2.6)]
 REV_D = 0.15
+# [build 153] beenster: "the frames stand out a little far from the brick faces": every model's depth out
+# of the wall (x) is drawn at this share of the figures above.
+DEPTH = 0.5
 
 
 def colour(slot, shade=1.0, own=None):
@@ -261,6 +264,8 @@ def main():
     for kind, meshes in made().items():
         for n, M in enumerate(meshes):
             name = "SM_Prop_%s_%d" % (kind, n)
+            for k in range(len(M.P)):
+                M.P[k] = M.P[k] * np.array([DEPTH, 1.0, 1.0])
             nv, nt = M.write(os.path.join(OUT, name + ".glb"), write_glb, name)
             total += nt
             count += 1
