@@ -115,7 +115,7 @@ def rim_profile(R, W, ridges):
     return tyre + side + back + [tyre[0]]
 
 
-def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk=1.0):
+def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk=1.0, cap=None):
     """One bar of a spoke pattern, at spoke k0 of n."""
     if curve:
         for _ in range(3):
@@ -147,7 +147,12 @@ def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk
             cq, sq = math.cos(wq), math.sin(wq)
             ex = math.copysign(abs(cq) ** 0.45, cq) * w
             ey = math.copysign(abs(sq) ** 0.45, sq) * (flat if flat else t)
-            verts.append(B.V(x + nx * ex, yo * (t if flat else 1) + ey, z + nz * ex))
+            vx, vy, vz = x + nx * ex, yo * (t if flat else 1) + ey, z + nz * ex
+            if cap:      # the spoke runs right into the rim: each point stops just inside the rim's own inner surface
+                rv, rc_ = math.hypot(vx, vz), cap(abs(vy))
+                if rv > rc_:
+                    vx, vz = vx * rc_ / rv, vz * rc_ / rv
+            verts.append(B.V(vx, vy, vz))
     for i in range(len(path) - 1):
         for q in range(m):
             q2 = (q + 1) % m
@@ -195,17 +200,27 @@ def wheel(tag, style, dia, width, rear, finish_name=None):
             y0, y1 = sorted((sy * (hl - 15), sy * (hl - 8)))
             B.prism(f"{tag}_star{sy}", D.chaikin(pts, 1), y0, y1, paint, 1.0)
     # spokes
-    r_h, r_r = r_body - 5, R - 24
+    # spoke ends meet the rim flush (beenster, 16 Nov): the spokes run on past the rim's inner surface and are
+    # trimmed to it, across the well and up the shoulders, so no gap shows from the side at any spoke angle
+    r_h, r_r = r_body - 5, R - 8
+    h_, wd_ = W / 2, max(13.0, W / 2 * 0.42)
+
+    def cap(y, R=R):
+        if y <= wd_ - 5:
+            return R - 27 + 3.5 + y / max(1.0, wd_ - 5)
+        if y <= wd_ + 3:
+            return R - 26 + 3.5 + (y - (wd_ - 5)) / 8.0 * 12
+        return R - 14 + 3.5 + min(1.0, (y - wd_ - 3) / max(1.0, h_ - 26 - wd_)) * 5
     th_h = (min(hl - 16, 24) if not rear else min(hl - 16, 30)) * (1.25 if hub == "tall" else 1.0)
     wk = st.get("wk", 1.4) * (1.12 if rear else 1.0)
     for bi, b_ in enumerate(st["bars"]):
         for k in range(st["n"]):
-            bar(f"{tag}_spoke{bi}_{k}", list(b_["pts"]), st["n"], k, paint, r_h, r_r, th_h, b_.get("curve", False), wk=wk)
+            bar(f"{tag}_spoke{bi}_{k}", list(b_["pts"]), st["n"], k, paint, r_h, r_r, th_h, b_.get("curve", False), wk=wk, cap=cap)
             if b_.get("inlay"):
                 for sy in (-1, 1):
                     pts = [(f, a, w * 0.62, t) for f, a, w, t in b_["pts"] if True]
                     pts = [(min(0.93, max(0.08, f)), a, w, t) for f, a, w, t in pts]
-                    bar(f"{tag}_inlay{bi}_{k}{sy}", pts, st["n"], k, bright, r_h, r_r, th_h, b_.get("curve", False), yo=sy * 1.0, flat=1.0, wk=wk)
+                    bar(f"{tag}_inlay{bi}_{k}{sy}", pts, st["n"], k, bright, r_h, r_r, th_h, b_.get("curve", False), yo=sy * 1.0, flat=1.0, wk=wk, cap=lambda y: cap(y) - 4)
     return [o for o in bpy.data.objects if o not in before]
 
 

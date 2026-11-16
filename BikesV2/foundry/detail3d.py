@@ -843,7 +843,17 @@ def loop_lamp(model, c):
     lensm = surf("taillens", (0.42, 0.006, 0.008), 0.0, 0.08, coat=1.0, wear=0.0)
     lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Color"].default_value = (1.0, 0.02, 0.02, 1)
     lensm.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.25
-    slab("looplamplens", org, n, u, sell(W, hh, 1.0, 3.2, 44), 1.0, 13, lensm, 5.0)
+    # a clear red lens over a chrome tray of LED cells (beenster, 16 Nov), so the lamp has depth
+    slab("looplamplens", org, n, u, sell(W, hh, 1.0, 3.2, 44), 1.0, 13, glass_mat("redglass", (0.9, 0.02, 0.02)), 5.0)
+    slab("looplamptray", org, n, u, sell(W - 3, hh - 3, 1.0, 3.2, 44), 0.5, 2.0, B.mat("chrome"), 0)
+    ledm = glow("tailred", (1.0, 0.03, 0.02), 2.6)
+    for iy in range(-4, 5):
+        for iz in (-1, 0, 1):
+            cy_, cz_ = iy * 9.6, iz * 11.5
+            if abs(cy_) > W - 12 and iz != 0:
+                continue
+            slab(f"looplampcell{iy}{iz}", org, n, u, [(cy_ - 4.2, cz_ - 5), (cy_ + 4.2, cz_ - 5), (cy_ + 4.2, cz_ + 5), (cy_ - 4.2, cz_ + 5)], 2.0, 5.5, B.mat("chrome"), 1.2)
+            slab(f"looplampled{iy}{iz}", org, n, u, [(cy_ + 2.4 * math.cos(w_ * math.pi / 4), cz_ + 2.4 * math.sin(w_ * math.pi / 4)) for w_ in range(8)], 5.4, 6.6, ledm, 0)
     slab("looplampplate", (xf + 12, zc - hh - 2.5), (0.0, -1.0), (1.0, 0.0), [(-22, -8), (22, -8), (22, 8), (-22, 8)], -1.0, 1.4, glow("bulb", (1.0, 0.97, 0.9), 1.0), 0)
     # traditional indicators: a chrome stalk out of the lamp's bracket each side, an amber lens in a chrome shell
     for s in (-1, 1):
@@ -1291,7 +1301,14 @@ def indicator(name, base, s, face, variant):
     if variant == "trad":      # traditional: a chrome stalk, an amber lens in a chrome shell (beenster, cafe round 2)
         lathe(name + "_stalk", base, ax, [(0, 0), (0, 9), (4, 9), (6, 6), (34, 6), (34, 0)], B.mat("chrome"), 20)
         lathe(name + "_pod", base, ax, [(30, 0), (31, 9), (36, 16), (46, 19.5), (76, 19.5), (86, 16), (91, 9), (92, 0)], B.mat("chrome"), 32, sharp=False, ell=(0.8, 1.0))
-        lathe(name + "_lens", (base[0] + face * 7, base[1], base[2]), ax, [(33, 0), (34, 8), (38, 14.5), (47, 17.6), (75, 17.6), (84, 14.5), (88, 8), (89, 0)], glow("amberlens", (1.0, 0.36, 0.02), 0.6), 32, sharp=False, ell=(0.74, 1.0))
+        # the lens is clear amber, so what is inside shows (beenster, 16 Nov): a ribbed chrome reflector and the bulb
+        lo = (base[0] + face * 7, base[1], base[2])
+        lathe(name + "_lens", lo, ax, [(33, 0), (34, 8), (38, 14.5), (47, 17.6), (75, 17.6), (84, 14.5), (88, 8), (89, 0)], glass_mat("amberglass", (1.0, 0.36, 0.03)), 32, sharp=False, ell=(0.74, 1.0))
+        ribs = [(36, 0), (36, 7)]
+        for k in range(12):
+            ribs += [(38 + k * 4, 13.6 if k % 2 else 11.2)]
+        lathe(name + "_reflector", (base[0] + face * 5, base[1], base[2]), ax, ribs + [(86, 7), (86, 0)], B.mat("chrome"), 32, ell=(0.7, 1.0))
+        B.cone(name + "_bulb", (base[0] + face * 13, base[1] + s * 50, base[2]), (base[0] + face * 13, base[1] + s * 72, base[2]), 5, 5, glow("amberbulb", (1.0, 0.4, 0.03), 2.2), 12)
         return
     lathe(name + "_stalk", base, ax, [(0, 0), (0, 11.5), (3, 11.5), (4, 8.6), (7, 8.6), (8, 10.6), (11, 10.6), (12, 8.2), (15, 8.2), (16, 10), (19, 10), (21, 7.4), (38, 6.2), (38, 0)], rubber, 24)
     amber = glow("amberled", (1.0, 0.42, 0.02), 1.2)
@@ -2315,6 +2332,11 @@ def rear_end(model, c):
                       (p[0] - 46, p[1] + 36), (p[0] - 78, p[1] + 50), (p[0] - 92, p[1] + 92), (p[0] - 76, p[1] + 138), (p[0] - 30, p[1] + 152), (p[0] + 18, p[1] + 148)], 2)
         hh = [(p[0] - 46, p[1] + 96), (p[0] - 22, p[1] + 88), (p[0] - 60, p[1] + 122), (p[0] - 34, p[1] + 116), (p[0] - 8, p[1] + 110),
               (p[0] - 42, p[1] + 140), (p[0] - 14, p[1] + 134)]
+        if model.get("detail", {}).get("heel_plate") == "swept":
+            # a plain variant (beenster, 16 Nov): no drilled holes, one long blade swept back from the peg
+            hp = chaikin([(p[0] + 50, p[1] + 130), (p[0] + 38, p[1] + 86), (p[0] + 12, p[1] + 70), (p[0] - 30, p[1] + 62), (p[0] - 84, p[1] + 68), (p[0] - 138, p[1] + 92),
+                          (p[0] - 156, p[1] + 114), (p[0] - 128, p[1] + 132), (p[0] - 64, p[1] + 146), (p[0], p[1] + 152), (p[0] + 30, p[1] + 149)], 3)
+            hh = []
         sp = tuple(model["swingarm"]["pivot"])
         for s in (-1, 1):
             ya, yb = (181, 185) if s == 1 else (-185, -181)
@@ -2414,6 +2436,8 @@ def hugger(model, c):
     if model["family"].lower() not in ("naked", "sport", "cafe"):
         return
     drop("hugger")
+    if not model.get("fit", {}).get("hugger", True):      # no hugger on this bike (beenster, cafe round 4)
+        return
     # the old guard under the tail goes: the hugger replaces it (beenster, 15 Nov)
     for i, shp in enumerate(model["body"].get("behind", [])):
         if "fender" in shp.get("cls", ""):
