@@ -677,6 +677,24 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const int Style = Wide ? 0 : Period && !Period->Doors.empty() ? Period->Doors[std::min(Period->Doors.size() - 1, size_t(StylePick * double(Period->Doors.size())))]
 					: int(StylePick * 4.0) & 3;   // 0 six-panel, 1 half-glazed Victorian, 2 ledged planks, 3 modern ([towns stage 4] as its period's)
 				const double HoodShare = Period ? Period->Hood : 0.35;
+				// ([build 153] beenster: "doors raised off the ground and no steps": on a slope the ground before a
+				// door can lie well below the house's floor, its middle's ground. The door drops to meet it, up to
+				// 0.9 m, and a flight of stone steps takes the rest down to the ground.)
+				const P3 Before = Local(U, Sg * (HalfShort + 0.8), 0.0);
+				const double GroundBefore = Ground(Before.X, Before.Z);
+				const double Below = std::isnan(GroundBefore) ? 0.0 : GroundBefore - Base;
+				const auto Steps = [&](double Foot)
+				{
+					const double Fall = Foot + 0.15 - Below;   // (the threshold's top above the ground)
+					if (Fall <= 0.3) return;
+					if (Tally) ++Tally->DoorSteps;
+					const int Treads = std::min(8, int(std::ceil(Fall / 0.2)));
+					const double Riser = Fall / Treads, Lip = FacadeKit ? 0.21 : 0.42;
+					const Rgb StepStone = Shade(StoneTrim, 0.9);
+					Slab(U - W * 0.5 - 0.18, U + W * 0.5 + 0.18, Below - 0.3, Foot + 0.15, 0.0, Lip, StepStone);   // (under the landing)
+					for (int K = 1; K < Treads; ++K)
+						Slab(U - W * 0.5 - 0.18, U + W * 0.5 + 0.18, Below - 0.3, Foot + 0.15 - K * Riser, Lip + (K - 1) * 0.28, Lip + K * 0.28, StepStone);
+				};
 				if (FacadeKit)
 				{
 					const int Fit = Wide ? RideBuildingBits::FacadeSize(RideBuildingBits::WideDoorSizes, 2, W, H) : RideBuildingBits::FacadeSize(RideBuildingBits::DoorSizes, 2, W, H);
@@ -684,9 +702,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					{
 						const int Model = Wide ? PropDoorDouble : Style == 0 ? PropDoorPanel6 : Style == 1 ? PropDoorVictorian
 							: Style == 2 ? (Chance(B.X + U, B.Z + Salt, 68) < 0.4 ? PropDoorLedgedLight : PropDoorLedged) : PropDoorModern;
-						Kit(Model, Fit, U, 0.0, Paint, StoneTrim, Leaf);
-						Kit(SurroundKind, 9 + (Wide ? 2 : 0) + Fit, U, 0.15, Paint, Reveal, StoneTrim);
-						if (!Wide && Chance(B.X + U, B.Z, 70) < HoodShare && Eaves > H + 0.9) Kit(PropDoorHood, Fit, U, 0.0, Paint, Paint, Paint);
+						const double Foot = std::clamp(Below, -0.9, 0.3);
+						if (Tally && Foot < -0.1) ++Tally->DoorsDropped;
+						Kit(Model, Fit, U, Foot, Paint, StoneTrim, Leaf);
+						Kit(SurroundKind, 9 + (Wide ? 2 : 0) + Fit, U, Foot + 0.15, Paint, Reveal, StoneTrim);
+						if (!Wide && Chance(B.X + U, B.Z, 70) < HoodShare && Eaves > H + Foot + 0.9) Kit(PropDoorHood, Fit, U, Foot, Paint, Paint, Paint);
+						Steps(Foot);
 						return;
 					}
 				}
@@ -694,6 +715,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const double Lh = Fan ? H - 0.4 : H;   // (the leaf, under its fanlight)
 				// (the step: a stone slab, 15 cm, out past the reveal)
 				Slab(U - W * 0.5 - 0.18, U + W * 0.5 + 0.18, std::fmax(Sunk, -1.2), 0.15, 0.0, 0.42, Shade(StoneTrim, 0.9));
+				Steps(0.0);
 				Opening(U, 0.15, W, H - 0.15, false);
 				// (the door frame, and the leaf set 5 cm back in it)
 				Slab(U - W * 0.5, U - W * 0.5 + 0.07, 0.15, H, 0.03, 0.08, Paint);
