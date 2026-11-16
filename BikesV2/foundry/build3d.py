@@ -417,10 +417,13 @@ def game_tyre(tag, c, w, hw):
     rt, rr = w["tyre_r"], w["rim_r"]
     bead, base, span, step = min(hw * 0.8 - 4, hw * 0.9), rr - 6, max(rt - rr, 20) + 6, 2 * math.pi / sections
     verts, faces = [], []
+    # a front tyre is fitted the other way round to a rear: its grooves run from the centre outwards and DOWN on
+    # the face you see from the front, where a rear's lead with the point of the V (beenster's reference, 16 Nov)
+    flip = tag == "front" and tread not in ("knobs", "blocks", "studs")
     for k in range(sections):
         o = len(verts)
         for x, y, z in pos:
-            a_ = (k + z) * step
+            a_ = (k - z if flip else k + z) * step
             r_ = base + y * span
             lat = x * hw
             if y < 0.434 and abs(x) >= 0.9:
@@ -441,6 +444,17 @@ def is_belly(ex, i):
 def boxer_y(eng, y):
     """Across-the-bike position on a boxer's cylinder: the drawing's 110..372 scaled to the model's reach."""
     return 110 + (y - 110) * (eng["boxer"].get("reach", 298) - 110) / 262.0
+
+
+def inline_cyls(model, i, wide):
+    """Which cylinders of an in-line engine feed header pipe i: all of them into one pipe, or with two drawn
+    pipes on a four the right-hand pair into the first and the left-hand pair into the second (4 into 2)."""
+    ys = inline_ys(model["engine"], wide)
+    hs = [h for h in model["exhaust"]["headers"] if not h.get("link")]
+    if len(hs) == 2 and len(ys) == 4:
+        ys = sorted(ys)
+        return ys[:2] if i == 0 else ys[2:]
+    return ys if i == 0 else []
 
 
 def inline_ys(eng, wide):
@@ -872,6 +886,11 @@ def build(model):
             hwa = max(44, min(112, min(half((x_, 0)) for x_ in (min(q[0] for q in shp["pts"]), max(q[0] for q in shp["pts"]))) + 14))
             hwa = min(hwa, half((max(q[0] for q in shp["pts"]) - 40, 0)) - 18) if hwa > 60 else hwa
         pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -hwa, hwa, mat("plastic"), min(26, hwa * 0.3), 45)
+        if shp.get("cover_y") and DETAIL["on"]:
+            # a side cover each side that stands outside the frame and hides it (beenster, rollout round 1)
+            for s in (-1, 1):
+                ya_, yb_ = sorted((s * shp["cover_y"][0], s * shp["cover_y"][1]))
+                pillow(f"framecover{i}{s}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), ya_, yb_, mat("plastic"), 6, 14, both=False)
     r = model.get("radiator")
     if r:
         u = unit(r["angle"])
@@ -954,9 +973,14 @@ def build(model):
                 ya, yb = -sg * lefty[j2], sg * lefty[j3]
                 path += [(x2 - 14, ya + (yb - ya) * 0.16, z2 - 10), (x2 - 18, ya + (yb - ya) * 0.5, z2 - 12), ((x2 - 18 + pts[j3][0]) / 2, ya + (yb - ya) * 0.86, (z2 - 12 + pts[j3][1]) / 2), (pts[j3][0], yb, pts[j3][1])]
                 smooth_tube(f"header{i}", path, rad, mat("exhaust"))
+                if len(ex.get("cans", [])) > 1:
+                    c1_ = ex["cans"][1]["a"]
+                    jb = max(j3 + 1, len(pts) - 1 - max(2, int(0.16 * (len(pts) - 1))))
+                    yc_ = sg * can_y(ex, 1, under)[0]
+                    smooth_tube("headerbranch", [(pts[jb][0], sg * lefty[jb], pts[jb][1]), (pts[jb + 1][0], sg * lefty[jb + 1], pts[jb + 1][1] + 6), ((pts[-1][0] + c1_[0]) / 2 + 6, yc_, (pts[jb + 1][1] + c1_[1]) / 2 + 10), (c1_[0], yc_, c1_[1])], rad, mat("exhaust"))
                 cone(f"headermerge{i}", (pts[j3][0], sg * lefty[j3], pts[j3][1]), (pts[min(len(pts) - 1, j3 + 1)][0], sg * lefty[min(len(pts) - 1, j3 + 1)], pts[min(len(pts) - 1, j3 + 1)][1]), rad * 1.25, rad, mat("exhaust"), 28)
             continue
-        cyl_ys = inline_ys(model["engine"], wide) if DETAIL["on"] and i == 0 and not hp.get("link") else []
+        cyl_ys = inline_cyls(model, i, wide) if DETAIL["on"] and not hp.get("link") else []
         if cyl_ys:
             # an in-line engine: one pipe from every cylinder across the front of the head, gathering into the
             # drawn pipe a little under half way along it
@@ -982,6 +1006,10 @@ def build(model):
                 (ax_, az_), (bx_, bz_), h_ = can["a"], can["b"], can["w"] / 2 * 0.8
                 pillow(f"can{i}{sg}", [(ax_ + 14, az_ - h_ * 0.8), (ax_ + 14, az_ + h_ * 0.8), (bx_, bz_ + h_), (bx_, bz_ - h_)], -112, 112, mat("exhaust"), 26, 60)
                 continue
+            if i == 1 and is_belly(ex, 0) and DETAIL["on"]:
+                # the outlet pipe from the collector box round to the stub silencer, so the two are one system
+                bx_ = ex["cans"][0]["b"]
+                smooth_tube(f"canlink{sg}", [(bx_[0] + 30, sg * 84, bx_[1]), (bx_[0] - 6, sg * 100, bx_[1] + 2), (a3[0] + (b3[0] - a3[0]) * 0.02, a3[1] + (b3[1] - a3[1]) * 0.02 - sg * 6, a3[2] + (b3[2] - a3[2]) * 0.02), tuple(a3[k] + (b3[k] - a3[k]) * 0.2 for k in range(3))], can["w"] / 2 * 0.5, mat("exhaust"))
 
             def at(t, a3=a3, b3=b3):
                 return tuple(a3[k] + (b3[k] - a3[k]) * t for k in range(3))
@@ -1001,7 +1029,7 @@ def build(model):
     sw = model["swingarm"]
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
-    sides = (1, -1) if sw.get("cls") == "alu" else (1,)
+    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
     # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174

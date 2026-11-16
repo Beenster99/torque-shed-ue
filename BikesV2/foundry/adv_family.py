@@ -20,20 +20,20 @@ def slots(x0, pitch, n, w=24, lean=38):
 
 # each brand's own face: beak (kx length, ky width, kz depth, lift, droop per mm), lamps, louvres, screen height, wings
 STYLE = {
-    # British, classic and sculpted: a stub of a beak, one big round lamp, a tall rounded screen
-    "hartwell": {"beak": (0.6, 1.0, 1.0, 0, 0.0), "eye": circle_half(43, 1045), "drl": circle_half(43, 1045, 8, 84) + circle_half(37, 1045, 8, 84)[::-1],
-                 "proj": [[19, 1045]], "slots": slots(1096, 62, 2, 28), "screen": 1.06, "wing": 58},
-    # Japanese, angular and layered: a long sharp beak that droops, a slit running light over a pair of projectors
-    "kazeda": {"beak": (1.18, 0.92, 0.9, 0, -0.11), "eye": [[14, 1060], [90, 1074], [97, 1088], [62, 1090], [14, 1074]],
-               "drl": [[14, 1074], [62, 1090], [97, 1088], [95, 1083], [62, 1084], [14, 1068]], "proj": [[38, 1030], [68, 1036]],
+    # British, classic and sculpted: a deep rounded stub of a beak, one big round lamp in a bright ring, a tall rounded screen
+    "hartwell": {"beak": (0.5, 1.05, 1.3, 0, 0.0), "eye": circle_half(47, 1046), "drl": circle_half(47, 1046, 4, 176) + circle_half(41, 1046, 4, 176)[::-1],
+                 "proj": [[19, 1046]], "slots": slots(1096, 62, 2, 28), "screen": 1.06, "wing": 58, "louvre_paint": True},
+    # Japanese, angular and layered: a long thin beak that droops to a point, a slit running light over a pair of projectors
+    "kazeda": {"beak": (1.32, 0.85, 0.7, 0, -0.12), "eye": [[12, 1058], [92, 1074], [99, 1090], [60, 1092], [12, 1074]],
+               "drl": [[12, 1074], [60, 1092], [99, 1090], [97, 1084], [60, 1085], [12, 1067]], "proj": [[38, 1028], [70, 1034]],
                "slots": slots(1072, 42, 4, 20), "screen": 0.88, "wing": 96},
-    # German, functional and blocky: a broad flat beak, square lamps under a light bar, the tallest screen
-    "rheinhart": {"beak": (0.92, 1.2, 0.72, 0, 0.0), "eye": [[12, 1028], [92, 1032], [92, 1070], [12, 1070]],
-                  "drl": [[12, 1074], [92, 1074], [92, 1082], [12, 1082]], "proj": [[33, 1049], [68, 1050]],
+    # German, functional and blocky: a broad flat duck bill, two big square lamps under a light bar, the tallest screen
+    "rheinhart": {"beak": (1.0, 1.35, 0.58, 0, 0.0), "eye": [[10, 1020], [96, 1024], [96, 1070], [10, 1070]],
+                  "drl": [[10, 1075], [96, 1075], [96, 1084], [10, 1084]], "proj": [[34, 1045], [72, 1046]],
                   "slots": slots(1090, 72, 2, 40), "screen": 1.13, "wing": 70},
-    # Central European, tall and flat sided: a short high rally beak, a vertical lamp stack, a low screen
-    "varga": {"beak": (0.8, 0.9, 0.9, 20, 0.0), "eye": [[0, 1032], [22, 1034], [26, 1086], [0, 1090]],
-              "drl": [[31, 1034], [38, 1036], [44, 1084], [35, 1086]], "proj": [[0, 1048], [0, 1074]],
+    # Central European, tall and flat sided: a short rally beak set high with its tip turned up, a vertical lamp stack, a low screen
+    "varga": {"beak": (0.7, 0.85, 1.0, 34, 0.14), "eye": [[0, 1042], [25, 1044], [29, 1090], [0, 1093]],
+              "drl": [[34, 1044], [41, 1046], [47, 1088], [38, 1090]], "proj": [[0, 1055], [0, 1079]],
               "slots": slots(1100, 50, 3, 22, 22), "screen": 0.74, "wing": 46},
 }
 
@@ -57,16 +57,13 @@ def run():
         ks = st["screen"]
         b0 = adv["screen"]["line"][0]
         adv["screen"]["line"] = [[round(b0[0] + (x - b0[0]) * ks, 1), round(b0[1] + (z - b0[1]) * ks, 1)] for x, z in adv["screen"]["line"]]
-        # the tail on these bikes kicks up at the back, so the rack stands higher over it
-        up = lambda x, z: round(z + 16 + 0.2 * max(0.0, 60 - x), 1)
-        rk = adv["rack"]
-        rk["rail"] = [[x, y, up(x, z) if x < 200 else z] for x, y, z in rk["rail"]]
-        rk["legs"] = [[[lg[0][0], lg[0][1], up(lg[0][0], lg[0][2])], [lg[1][0], lg[1][1], round(lg[1][2] + 0.5 * (up(lg[0][0], lg[0][2]) - lg[0][2]), 1)], lg[2]] for lg in rk["legs"]]
-        lens = [s for s in m["body"]["tail"] if s.get("cls") == "redlens"]
-        if lens:
-            xs, zs = [p[0] for p in lens[0]["pts"]], [p[1] for p in lens[0]["pts"]]
-            adv["tail_lamp"]["at"] = [round(sum(xs) / len(xs) - 2), round(sum(zs) / len(zs))]
-        adv.pop("loop", None)
+        # the lead's level tail, low rack and number plate arm (beenster, rollout round 1: the tail must not turn
+        # up, the grab rail sits low, the plate joins the tail properly)
+        up = lambda x, z: z
+        m["body"]["tail"] = copy.deepcopy(lead["body"]["tail"])
+        m["body"]["plate_hanger"] = copy.deepcopy(lead["body"]["plate_hanger"])
+        if st.get("louvre_paint"):
+            adv["louvre_paint"] = True
         m["adv"] = adv
         # the drawing: drop the old flat fairing, lamp and rack; carry the lead's shaped parts with this brand's beak and louvres
         keep = [s for s in m["body"]["panels"] if not s.get("adv") and ("pts" not in s or (bbox(s)[1] < 960 and not s.get("tube")))]

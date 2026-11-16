@@ -942,7 +942,7 @@ def adventure_body(model, c):
                 (r0, f0, f1, r1) = sl
                 vs = [B.V(f0[0] + 4, s * (fk(f0[0], f0[1]) + 1), f0[1] - 5), B.V(f1[0] + 4, s * (fk(f1[0], f1[1]) + 1), f1[1] + 5),
                       B.V(r1[0] - 5, s * (fk(r1[0], r1[1]) + out_), r1[1] + 5), B.V(r0[0] - 5, s * (fk(r0[0], r0[1]) + out_), r0[1] - 5)]
-                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], plastic, False)
+                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], paint if adv.get("louvre_paint") else plastic, False)      # colour-coded blades (beenster, BSX adventure)
                 md = ob.modifiers.new("t", "SOLIDIFY")
                 md.thickness, md.offset = 3.5 * B.MM, 0
     ia = adv.get("ind")
@@ -2337,7 +2337,8 @@ def engine(model, c):
             q1, q2 = pt_(54), pt_(80)
             B.smooth_tube(f"pluglead{i}", [q1, q2, (q2[0] + n[0] * 50, q2[1] - 30, q2[2] + n[1] * 50 - 30), P(add(add(hc, n, 120), u, -70), 40)], 3.6, rubber)
         else:
-            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
+            lo_ = 40 if eng.get("lead_low") else 0      # lead_low: the lead turns over sooner, under a low seat or tank
+            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84 - lo_ * 0.6), n, 20 + lo_ * 0.5), 14), P(add(add(pc, u, 92 - lo_ * 1.3), n, 80 + lo_ * 0.25), 30)], 3.6, rubber)
         # inlet: rubber stub, clamp, throttle body, injector
         i3 = (n[0], 0, n[1])
         lathe(f"inletstub{i}", P(add(hc, n, hw - 4), 0), i3, [(0, 30), (8, 30), (12, 27), (30, 27), (30, 22)], rubber, 32)
@@ -2449,7 +2450,7 @@ def exhaust_ports(model, c, heads):
         t = ((p1[0] - p0[0]) / L_, (p1[1] - p0[1]) / L_)
         d3 = (t[0], 0, t[1])
         rp = hp.get("w", 44) / 2 * 0.8
-        cyl_ys = B.inline_ys(model["engine"], 420) if i == 0 else []
+        cyl_ys = B.inline_cyls(model, i, 420)
         if cyl_ys:      # an in-line engine: a flange and two studs at every cylinder's port
             rp *= 0.6
             for k, yk in enumerate(cyl_ys):
@@ -3127,7 +3128,7 @@ def hugger(model, c):
             if min(x0, x1) <= x <= max(x0, x1) and x0 != x1:
                 zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
         return max(zs)
-    sides = (1, -1) if sw.get("cls") == "alu" else (1,)
+    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
@@ -3536,6 +3537,8 @@ def run(build3d, model, c):
             hit = side_hit(("tank",), cx_, cz_, sg)
             yh = abs(hit[1]) if hit else 170
             mt = B.mat("paint", B.hex_rgb(model["colours"].get("accent", "#F4F4F2"))) if sh.get("cls") == "plate" else B.mat("plastic")
+            if sh.get("colour"):      # colour coded (beenster, rollout round 1): "body", "accent", "frame" or a hex colour
+                mt = B.mat("paint", B.hex_rgb(model["colours"].get(sh["colour"], sh["colour"] if sh["colour"].startswith("#") else "#F4F4F2")))
             B.pillow(f"radshroud{i}{sg}", pp, sg * (yh - 14), sg * (yh + 16), mt, 6, 26, both=False)
             for k, sl in enumerate(sh.get("slots", [])):
                 B.prism(f"radshroudslot{i}{sg}{k}", [tuple(q) for q in sl], min(sg * (yh + 14), sg * (yh + 17)), max(sg * (yh + 14), sg * (yh + 17)), B.mat("rubber"), 0.5)
