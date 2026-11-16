@@ -49,8 +49,8 @@ MIRRORS = {
     "rect": dict(label="Rectangular stalk", kind="stalk", note="A squared head with rounded corners on a cast aero stem."),
     "teardrop": dict(label="Teardrop stalk", kind="stalk", note="A head that tapers to a point inboard, chrome back: classic and cruiser."),
     "barend_round": dict(label="Bar-end round", kind="barend", note="A round head on a short stem from a clamp on the bar end."),
-    "barend_blade": dict(label="Bar-end blade", kind="barend", note="A slim wide blade hung below the bar end: cafe and naked."),
-    "fairing_aero": dict(label="Fairing aero", kind="fairing", note="A wide head on an aero arm from the fairing shoulder, with an indicator strip."),
+    "barend_teardrop": dict(label="Bar-end teardrop", kind="barend", note="The teardrop head (M4) on a short chrome arm from the bar end: cafe, classic and naked."),
+    "fairing_aero": dict(label="Fairing aero", kind="fairing", note="A wide head on an aero arm from the fairing shoulder, plain back."),
     "fairing_wing": dict(label="Fairing wing", kind="fairing", note="A low flat head almost on the fairing, on a short wing-shaped boss."),
 }
 
@@ -236,8 +236,12 @@ def blade_sweep(name, fr, pts, secs, material, m=16):
 # height; the lever leaves it with a short knuckle, drops and turns in towards the grip, then runs straight
 # along the grip, a finger's gap in front of it and a little below its middle, and ends in a small kick.
 # Points are (a along the bar, f forward, u up) from the inner end of the grip.
-LEVER_PATH = [(-66, 46, -2), (-50, 50, -5), (-34, 48, -12), (-18, 42, -17), (0, 39, -18), (40, 38, -17), (80, 37, -16), (108, 36, -14), (120, 33, -10)]
-LEVER_SEC = [(5.5, 10.5), (5.0, 10.0), (4.6, 9.0), (4.2, 8.2), (4.0, 7.8), (3.8, 7.4), (3.6, 7.0), (3.5, 6.8), (3.4, 6.2)]
+# Seen from above (beenster's plan view, 16 Nov) the lever is not straight: from the pivot it runs out and
+# away from the grip, swings back in to a hump nearest the grip where the fingers pull, then eases away
+# again to a small ball at the tip.
+LEVER_PATH = [(-66, 46, -2), (-50, 54, -6), (-34, 60, -12), (-18, 63, -16), (0, 56, -18), (20, 43, -17), (36, 39, -17), (60, 43, -16),
+              (90, 52, -15), (116, 59, -12)]
+LEVER_SEC = [(5.5, 10.5), (5.0, 10.0), (4.8, 9.2), (4.5, 8.6), (4.2, 8.0), (4.0, 7.8), (3.8, 7.4), (3.6, 7.0), (3.5, 6.6), (3.4, 6.0)]
 
 
 def pivot_block(fr, tag, M, body, dial=None):
@@ -267,9 +271,20 @@ def profile_lever(fr, tag, M, body, cut=None, fold=None, scale=1.0, groove=True)
         D.bolt(f"cfoldpin{tag}", fr.P(fold + 1, path[k][1], path[k][2] + sec[k][1]), fr.dir(0, 0, 1), 3.0, 1.4, M["steel"], False)
     else:
         blade_sweep(f"clever{tag}", fr, path, sec, body)
+    if cut is None:
+        # the ball at the tip
+        a, f, u = path[-1]
+        B.sphere(f"clevertip_ball{tag}", fr.P(a + 3, f + (2 if not fold else 2 - (a - fold) * 0.08), u), sec[-1][1] * 1.05, body)
     if groove:
-        # a shallow groove along the front face of the finger section (a lighter machined line)
-        g = [(a, f + 3.9 * scale, u) for a, f, u in path if a >= 0]
+        # a shallow groove along the front face of the finger section (a lighter machined line), square to the blade
+        g = []
+        for i, (a, f, u) in enumerate(path):
+            if a < 0:
+                continue
+            pa, pb = path[max(0, i - 1)], path[min(len(path) - 1, i + 1)]
+            da, df = pb[0] - pa[0], pb[1] - pa[1]
+            L_ = math.hypot(da, df) or 1.0
+            g.append((a - df / L_ * sec[i][0] * 0.97, f + da / L_ * sec[i][0] * 0.97, u))
         if len(g) > 1:
             blade_sweep(f"clevergroove{tag}", fr, g, [(0.3, 1.6 * scale)] * len(g), M["polished"], 8)
 
@@ -386,12 +401,39 @@ def button(fr, name, outline, face, M, col, h=3.2, mark=None):
 
 
 def pod_shell(fr, tag, M, a0, a1, prof):
-    """The pod's housing: a side profile (f, u) carried along the bar, split in two halves round the bar."""
-    # keep the rider's face flat right down to the corners, so the bottom row of buttons sits on it
-    (f0, u0), (f4, u4) = prof[0], prof[-1]
-    prof = [(f0 + 3, u0)] + list(prof[1:-1]) + [(f4 + 3, u4), (f4, u4 - 3), (f0, u0 + 3)]
-    side_plate(f"cswitch{tag}", fr, D.chaikin(prof, 2), a0, a1, M["plastic"], 2.5)
-    side_plate(f"cswitchsplit{tag}", fr, [(min(f for f, u in prof) - 0.6, -0.6), (min(f for f, u in prof) + 0.4, -0.6), (min(f for f, u in prof) + 0.4, 0.6), (min(f for f, u in prof) - 0.6, 0.6)], a0 + 2, a1 - 2, M["rubber"], 0)
+    """The pod's housing (beenster, 16 Nov: less cube-like). prof gives its rear (rider's) face f, its
+    bottom and top and its front; the face stays flat for the buttons and everything else is rounded:
+    a full curve round the front and rounded ends along the bar."""
+    fr_, ub = prof[0]
+    ut = max(u for f, u in prof)
+    ff = max(f for f, u in prof)
+    um, fb = (ut + ub) / 2, fr_ + 9
+    pts = [(fr_, ub + 4), (fr_, ut - 4)]
+    for k in range(17):
+        t = math.pi / 2 - math.pi * k / 16
+        c_, s_ = math.cos(t), math.sin(t)
+        pts.append((fb + (ff - fb) * math.copysign(abs(c_) ** 0.75, c_), um + (ut - um) * math.copysign(abs(s_) ** 0.75, s_)))
+    prof = D.chaikin(pts, 2)
+    cf, cu = (fr_ + ff) / 2, um
+    # sections along the bar: full size in the middle, rounded in over the last 8 mm at each end
+    r = 8.0
+    secs = []
+    for k in range(7):
+        t = k / 6
+        secs.append((a0 + r * (1 - math.cos(t * math.pi / 2)), 0.78 + 0.22 * math.sin(t * math.pi / 2)))
+    secs = secs + [(a1 - (a - a0), k_) for a, k_ in reversed(secs)]
+    m = len(prof)
+    verts, faces = [], []
+    for a, k_ in secs:
+        verts += [B.V(*fr.P(a, cf + (f - cf) * k_, cu + (u - cu) * k_)) for f, u in prof]
+    for i in range(len(secs) - 1):
+        for j in range(m):
+            j2 = (j + 1) % m
+            faces.append((i * m + j, i * m + j2, (i + 1) * m + j2, (i + 1) * m + j))
+    faces += [tuple(range(m - 1, -1, -1)), tuple((len(secs) - 1) * m + j for j in range(m))]
+    ob = B.mesh_obj(f"cswitch{tag}", verts, faces, M["plastic"], True, 0, False)
+    B.bm_fix_normals(ob)
+    side_plate(f"cswitchsplit{tag}", fr, [(fr_ - 0.6, -0.6), (fr_ + 0.4, -0.6), (fr_ + 0.4, 0.6), (fr_ - 0.6, 0.6)], a0 + 8, a1 - 8, M["rubber"], 0)
 
 
 def right_pod(fr, tag, M, a0=-48, a1=-6):
@@ -446,7 +488,7 @@ def left_pod(fr, key, M):
     elif key == "compact":
         # a small pod for classics and minimal bikes: a four-way pad, horn and indicator buttons
         a0, a1, face = -50, -6, -26
-        pod_shell(fr, tag, M, a0, a1, [(-26, -24), (18, -24), (22, 14), (6, 24), (-26, 20)])
+        pod_shell(fr, tag, M, a0, a1, [(-26, -24), (18, -24), (22, 14), (6, 26), (-26, 24)])
         c, cu = -28.0, 6.0
         for nm, (da, du, ang) in (("up", (0, 9, 90)), ("dn", (0, -9, -90)), ("lt", (-9, 0, 180)), ("rt", (9, 0, 0))):
             button(fr, f"cswpad_{nm}", tri(c + da, cu + du, 4.6, ang), face, M, M["dark"], 3.0, tri(c + da, cu + du, 1.6, ang))
@@ -483,12 +525,12 @@ def head_outline(key, s):
         return D.chaikin([(-78, -34), (-80, 30), (80, 36), (82, -30)], 3)
     if key == "teardrop":
         return D.chaikin([(-92, 4), (-40, 34), (30, 44), (70, 26), (78, -10), (40, -38), (-30, -24)], 3)
-    if key == "barend_blade":
-        return D.chaikin([(-70, -14), (-74, 12), (60, 22), (84, 6), (80, -16)], 3)
+    if key == "barend_teardrop":
+        return [(x * 0.78, z * 0.78) for x, z in head_outline("teardrop", s)]
     if key == "fairing_aero":
         return D.chaikin([(-84, -16), (-70, 26), (20, 38), (88, 24), (92, -14), (40, -32), (-50, -30)], 2)
     if key == "fairing_wing":
-        return D.chaikin([(-80, -6), (-60, 20), (60, 24), (90, 4), (70, -18), (-50, -16)], 2)
+        return D.chaikin([(x * 1.2, z * 1.25) for x, z in [(-80, -6), (-60, 20), (60, 24), (90, 4), (70, -18), (-50, -16)]], 2)
     raise KeyError(key)
 
 
@@ -548,11 +590,11 @@ def mirror(fr, s, key, M, model, lines, hand):
             mc = root + Vector((-6, 26 * s, 86))
             B.smooth_tube(f"cmstalk{tag}", [tuple(root + Vector((0, 6 * s, 10))), tuple(root + Vector((0, 14 * s, 42))), tuple(mc + Vector((14, -6 * s, -36))), tuple(mc + Vector((14, 0, -4)))], 5.6, M["dark"])
         else:
-            # the blade hangs below the bar end on a short drop arm
+            # the teardrop head on a chrome arm that rises out and up from the bar end
             root = e_ + dv * 12
-            mc = root + Vector((-10, 64 * s, -34))
-            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 4 * s, -6))), tuple(root + Vector((-4, 26 * s, -22))), tuple(mc + Vector((12, -40 * s, 0)))], [(7, 5), (7, 4.5), (9, 5)], M["dark"])
-        info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["dark"], 18 if key == "barend_blade" else 22)
+            mc = root + Vector((-6, 44 * s, 80))
+            B.smooth_tube(f"cmstalk{tag}", [tuple(root + Vector((0, 6 * s, 10))), tuple(root + Vector((0, 18 * s, 40))), tuple(mc + Vector((14, -16 * s, -34))), tuple(mc + Vector((14, -6 * s, -4)))], 5.2, M["chrome"])
+        info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["chrome"] if key == "barend_teardrop" else M["dark"], 22)
     else:
         cowl = next((v for v in model["body"].get("panels", []) if v.get("cowl")), None)
         if not cowl:
@@ -573,10 +615,6 @@ def mirror(fr, s, key, M, model, lines, hand):
             D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 8 * s, 2))), tuple(root + Vector((-8, 48 * s, 22))), tuple(mc + Vector((16, -52 * s, -12))), tuple(mc + Vector((14, -8 * s, -4)))],
                     [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], M["plastic"])
             info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["plastic"])
-            # an indicator strip along the head's front lower edge
-            n = Vector(info["normal"])
-            side = Vector((0, 0, 1)).cross(n).normalized()
-            B.smooth_tube(f"cmirrorind{tag}", [tuple(mc - n * 22 + side * (-60) + Vector((0, 0, -22))), tuple(mc - n * 26 + Vector((0, 0, -26))), tuple(mc - n * 22 + side * 60 + Vector((0, 0, -20)))], 3.2, M["amber"])
         else:
             mc = root + Vector((-14, 96 * s, 22))
             D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 4 * s, 0))), tuple(root + Vector((-6, 40 * s, 10))), tuple(mc + Vector((10, -30 * s, -4)))], [(26, 6), (22, 5), (18, 5)], M["plastic"])
@@ -690,7 +728,7 @@ SHOTS = [
     ("mirror", "rect", "corvano_adventure", dict(levers="forged", switches="dpad")),
     ("mirror", "teardrop", "lodestar_cruiser", dict(levers="classic", switches="compact")),
     ("mirror", "barend_round", "hartwell_cafe", dict(levers="classic", switches="compact")),
-    ("mirror", "barend_blade", "kazeda_naked", dict(levers="short", switches="cruise")),
+    ("mirror", "barend_teardrop", "kazeda_naked", dict(levers="short", switches="cruise")),
     ("mirror", "fairing_aero", "kazeda_sport", dict(levers="folding", switches="dpad")),
     ("mirror", "fairing_wing", "varga_sport", dict(levers="folding", switches="cruise")),
 ]

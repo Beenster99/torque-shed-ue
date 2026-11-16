@@ -62,6 +62,9 @@ levers = []
 for n, (k, v) in enumerate(LEVERS.items()):
     mn, o = SHOTS[("lever", k)]
     levers.append(card(img(f"lever_{k}.png"), f"L{n + 1}. {v['label']}", f"{esc(v['note'])} Shown on the {esc(bike(mn))}, brake side."))
+plan = img("lever_plan.png")
+if plan:
+    levers.append(card(plan, "From above: the lever's curve", "L1 seen from above, mirror hidden. It runs out from the pivot away from the grip, swings back in where the fingers pull, then eases away to the ball at the tip, as in your plan view. L2, L3 and L5 follow the same curve."))
 switches = []
 for n, (k, v) in enumerate(SWITCHES.items()):
     mn, o = SHOTS[("switch", k)]
@@ -120,7 +123,7 @@ page = f'''<title>Levers, Switches and Mirrors</title>
 <h1>Levers, switches and mirrors</h1>
 <p class="lede">Five lever sets with their master cylinders, three left-hand switch pods and eight mirrors. They sit on any bar from stage 1 or on a bike's own bar, in the same places as on the signed-off naked: perch, pivot, switch pod and mirror boss. Our own designs, drawn from photographs of real parts with no maker's name or shape copied.</p>
 <p class="ask"><strong>What I need from you:</strong> keep, change or drop each part by its code (L1 to L5, S1 to S3, M1 to M8).</p>
-<p class="sub" style="margin:0">Changed after your notes: levers L1, L2, L3 and L5 now drop from the pivot and run along in front of the grip like your photo, L4 classic is as you kept it, and every switch pod is buttons only, with a d-pad style pad, and a red kill switch on the right on every set. The mirrors are unchanged.</p>
+<p class="sub" style="margin:0">Changed after your second notes: the levers L1, L2, L3 and L5 now curve like your plan view and end in a ball, the switch pods are rounded off, M6 is now the M4 teardrop head on the bar end, M7 has lost its orange strip and M8 has bigger glass. L4 classic is still as you kept it, and every set still has the red kill switch on the right.</p>
 </header>
 
 <section><h2>Lever sets</h2>
