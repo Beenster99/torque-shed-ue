@@ -394,7 +394,7 @@ def game_tyre(tag, c, w, hw):
     """The tyre built from the game's own tread section (Data/Parts/Redrawn/tyre/<tread>.glb, drawn from
     real tyres), bent round the hoop exactly as Fit/BikeParts.cpp does it. False if there is no section."""
     import struct
-    tread = w.get("tread")
+    tread = {"knobbly": "knobs"}.get(w.get("tread"), w.get("tread"))      # the game's name for the MX tread
     path = os.path.join(os.path.dirname(ROOT), "Data", "Parts", "Redrawn", "tyre", f"{tread}.glb")
     if not tread or not os.path.exists(path):
         return False
@@ -1136,6 +1136,8 @@ def build(model):
         if shp.get("draw_only") or (shp.get("adv") and DETAIL["on"]):      # a detail of the drawing only, such as a vent printed on a fairing
             continue                                                         # ("adv": built as shaped shells by the Definition pass)
         m_ = paint if shp["cls"] == "body" else mat("chrome") if shp["cls"] == "chromef" else mat("plastic")
+        if shp["cls"] == "plate":
+            m_ = mat("paint", hex_rgb(col.get("accent", "#F4F4F2")))      # a number board in the bike's accent colour
         blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
         if "arc" in shp and blade_ and shp in body.get("front_guard", []):
             guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_, tight=model["wheels"]["front"]["tyre_r"] if model["family"].lower() in ("sport", "cafe") else False)
@@ -1341,7 +1343,9 @@ def build(model):
                 for s in (-1, 1):
                     # inside a tube frame the panels sit within the tubes, so the frame never cuts through them
                     y_a, y_b = (86, 120) if trellis else (128, 166)
-                    pillow(f"panel{i}{s}", pp, s * y_a, s * y_b, m_, 18, 30, both=False)
+                    if shp["cls"] == "plate":
+                        y_a, y_b = y_b - 6, y_b + 5      # a number board stands proud of the panel it is on
+                    pillow(f"panel{i}{s}", pp, s * y_a, s * y_b, m_, 4 if shp["cls"] == "plate" else 18, 30, both=False)
     hanger = body.get("plate_hanger", []) if model.get("fit", {}).get("plate_hanger", True) else []
     for i, shp in enumerate(hanger):
         if shp["cls"] == "redlens":
@@ -1411,6 +1415,8 @@ def build(model):
                 pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
         elif shp["cls"] == "screen":
             pillow(f"screen{i}", pp, -105, 105, mat("screen"), 30, 70)
+        elif shp["cls"] == "plate":      # the front number board: a flat plate across the fork legs
+            pillow(f"numberboard{i}", pp, -112, 112, mat("paint", hex_rgb(col.get("accent", "#F4F4F2"))), 5, 34)
         elif shp.get("bar_end"):
             cx_, cz_ = sum(p[0] for p in pp) / len(pp), sum(p[1] for p in pp) / len(pp)
             for s in (-1, 1):
@@ -1864,6 +1870,15 @@ if __name__ == "__main__":
             detail3d.VARIANT["indicators"] = sys.argv[sys.argv.index("--indicators") + 1]
         name += "_def"
     build(model)
+    if os.environ.get("BIKE_DUMP"):      # a list of every built part with its surface and where it is, for checking
+        bpy.context.view_layer.update()
+        with open(os.environ["BIKE_DUMP"], "w") as f_:
+            for ob in sorted(bpy.data.objects, key=lambda o: o.name):
+                bb = [ob.matrix_world @ __import__("mathutils").Vector(q) for q in ob.bound_box]
+                mt = ob.data.materials[0].name if getattr(ob.data, "materials", None) and len(ob.data.materials) else "-"
+                f_.write(f"{ob.name}\t{mt}\t" + " ".join(f"{min(getattr(q, a) for q in bb) / MM:.0f}..{max(getattr(q, a) for q in bb) / MM:.0f}" for a in "xyz") + "\n")
+        if os.environ.get("BIKE_DUMP_ONLY"):
+            sys.exit(0)
     if "--glb" in sys.argv:
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)

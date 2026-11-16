@@ -2221,6 +2221,10 @@ def engine(model, c):
             k += 8.5
             j_ += 1
         prof += [(Lc + 2, r - 11)]
+        if not cy.get("fins", True):
+            # a liquid-cooled barrel: a plain casting with a water jacket, a few stiffening ribs and no fins
+            prof = [(-6, r - 12), (0, r - 12), (0, r + 3), (9, r + 3), (9, r - 6), (Lc * 0.3, r - 5), (Lc * 0.3, r - 2), (Lc * 0.3 + 4, r - 2), (Lc * 0.3 + 4, r - 5),
+                    (Lc * 0.62, r - 5), (Lc * 0.62, r - 2), (Lc * 0.62 + 4, r - 2), (Lc * 0.62 + 4, r - 5), (Lc - 8, r - 5), (Lc - 8, r + 1), (Lc + 2, r + 1), (Lc + 2, r - 11)]
         lathe(f"barrel{i}", P(base, 0), d3, prof, silver, 64, ell=(0.92, 1.0), square=4.6)
         for a_ in (45, 135, 225, 315):       # the four base nuts
             w = math.radians(a_)
@@ -3397,6 +3401,18 @@ def run(build3d, model, c):
     adventure_guards(model, c)
     clocks(model, c)
     controls(model, c)
+    if model.get("detail", {}).get("mirrors") == "none":
+        drop("mirror", "mstalk", "mstub")       # a motocross bike carries no mirrors
+    if model["wheels"]["front"].get("single_disc"):
+        # one front disc, on the left (motocross): the right-hand disc, its caliper and its brake line go
+        drop("caliper-1", "brakeline-1")
+        bpy.context.view_layer.update()
+        for ob in list(bpy.data.objects):
+            if ob.name.startswith("front_") and ob.type == "MESH" and ob.data.vertices:
+                q = ob.matrix_world @ ob.data.vertices[0].co
+                cen = sum(((ob.matrix_world @ v.co) for v in ob.data.vertices), q * 0) / len(ob.data.vertices)
+                if cen.y / B.MM < -50:
+                    bpy.data.objects.remove(ob, do_unlink=True)
     engine(model, c)
     silencers(model, c)        # (engines not yet detailed return early, before their exhaust)
     seat(model, c)
