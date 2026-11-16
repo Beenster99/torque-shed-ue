@@ -470,7 +470,8 @@
    60,
    370
   ],
-  "twin": true
+  "twin": true,
+  "real": true
  },
  "frame": {
   "nodes": {
@@ -2466,5 +2467,14 @@
     }
    }
   ]
+ },
+ "detail": {
+  "levers": "steel",
+  "clocks": "chrome_deep",
+  "indicators": "trad",
+  "heel_plate": "swept",
+  "lamp": "fluted",
+  "grips": "plain",
+  "cap": "chrome"
  }
 }

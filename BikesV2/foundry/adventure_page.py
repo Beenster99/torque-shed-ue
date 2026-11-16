@@ -8,14 +8,13 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('corvano_adventure', 'Corvano adventure, first look (second pass)', 'The adventure lead bike. The front is new for this family: a closed nose and beak across the bike with a headlamp let into each flank, and shaped tank shrouds behind it, in place of flat side panels. It already carries the lessons from the other bikes: real shock, bars straight through the grips, pipes run into the silencer, hollow outlet. Rendered straight from the model, nothing retouched. Second pass added: hand guards, an alloy bash plate, a moulded number plate arm and a sharper beak.', [
-        ('shot_rearq_front', 'Whole bike, front quarter', 'Nose, beak and screen, tank shrouds, trellis frame, long-travel fork.'),
-        ('shot_rearq_l', 'Rear quarter, exhaust side', 'The big high silencer is on the left on this bike. Luggage rack, long two-up seat.'),
-        ('shot_nose', 'Nose and headlamp', 'A headlamp each side of the beak, indicators on the fork brackets.'),
-        ('shot_midl', 'Engine and exhaust, left side', 'Both pipes into the one silencer, the bash plate under the engine.'),
-        ('shot_rearq', 'Rear quarter, right side', 'The open side of the rear wheel, shock and rear brake.'),
-        ('shot_cockpit', 'Cockpit', 'Wide bars with a hand guard round each lever, screen ahead.'),
-        ('shot_rear', 'Rear wheel and brake', 'Rear disc, caliper and the swing arm.'),
+    ('corvano_adventure', 'Corvano adventure, round 4', 'Your round 3 notes on the adventure lead bike: the two blue gaps filled, the pipe swept up into the silencer, the frame hoop behind the tail light, the screen wrapped round on top of the fairing, and a rounded nose on the front mudguard. Rendered straight from the model, nothing retouched.', [
+        ('shot_side', 'Whole bike, right side', 'The seat now runs up the back of the tank and sits down on the frame rail at the rear, so both blue gaps are closed.'),
+        ('shot_midr', 'Pipe into the silencer', 'The link pipe leaves the collector and sweeps up in line with the silencer, which tapers out from it.'),
+        ('shot_tail', 'Tail light and frame hoop', 'The hoop passes behind the light, which is now the rearmost part.'),
+        ('shot_front34', 'Whole bike, front quarter', 'The screen is round at the bottom and wraps back along the top of the fairing.'),
+        ('shot_nose', 'Front mudguard nose', 'The mudguard ends in a rounded nose. This is in the shared mudguard code, so every bike gets it.'),
+        ('shot_rearq', 'Rear quarter, exhaust side', 'Silencer, hoop and rack together.'),
     ]),
 ]
 body = '<main>\n<div class="k">Bike Models V2 · Definition pass · Adventure</div>'
@@ -26,7 +25,7 @@ for key, h1, lede, items in SETS:
         p = os.path.join(ROOT, 'out', 'renders', f'{key}_def_{tag}.png')
         if not os.path.exists(p):
             continue
-        shutil.copy(p, dst + f'{key}_r1_{tag}.png')
+        shutil.copy(p, dst + f'{key}_r4_{tag}.png')
         im = Image.open(p).convert('RGB')
         if im.width > 1400:
             im = im.resize((1400, int(im.height * 1400 / im.width)))

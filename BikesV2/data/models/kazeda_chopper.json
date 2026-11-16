@@ -332,7 +332,8 @@
      252
     ],
     "w": 58,
-    "front": true
+    "front": true,
+    "open": true
    },
    {
     "a": [
@@ -344,9 +345,12 @@
      322
     ],
     "w": 58,
-    "front": true
+    "front": true,
+    "open": true
    }
-  ]
+  ],
+  "join": true,
+  "chrome": true
  },
  "swingarm": {
   "pivot": [
@@ -458,7 +462,8 @@
    }
   ],
   "plates": [],
-  "sub_y": 96
+  "sub_y": 96,
+  "chrome": true
  },
  "front_end": [
   {
@@ -3207,5 +3212,19 @@
     }
    }
   ]
+ },
+ "detail": {
+  "heel_plate": "none",
+  "lamp": "fluted",
+  "levers": "steel",
+  "bars": "steel",
+  "mirrors": "steel",
+  "clocks": "chrome",
+  "indicators": "trad",
+  "grips": "plain",
+  "cap": "chrome",
+  "engine": "chrome",
+  "sissy": "ornate",
+  "grip_slant": 18
  }
 }

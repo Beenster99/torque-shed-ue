@@ -659,7 +659,7 @@ def clocks(model, c):
             lathe(f"clockglass{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(4.2, 0), (4.2, r_ * 1.02), (5.0, r_ * 1.02), (5.0, 0)], glass_mat(), 40)
 
 
-def display(model, c, head, house, dash=None):
+def display(model, c, head, house, dash=None, size=(78, 46)):
     """The display: a slim tablet on a bracket, its face square to the rider's eyes."""
     F, uf, nb, fk = c["F"], c["uf"], c["nb"], c["fk"]
     plastic = B.mat("plastic")
@@ -673,11 +673,12 @@ def display(model, c, head, house, dash=None):
     u = (n[1], -n[0]) if n[1] > 0 else (-n[1], n[0])
     if u[1] < 0:
         u = (-u[0], -u[1])
-    face = [(y, z) for y, z in sell(78, 46, 1.0, 5.0, 48)]
+    face = [(y, z) for y, z in sell(size[0], size[1], 1.0, 5.0, 48)]
+    ky, kz = size[0] / 78.0, size[1] / 46.0
     slab("dashbody", dc, n, u, face, -20, 0, plastic, 5.0)
     slab("dashglass", dc, n, u, [(y * 0.9, z * 0.86) for y, z in face], -1, 0.8, surf("screen", (0.004, 0.005, 0.008), 0.0, 0.04, coat=1.0, wear=0.0), 0)
-    slab("dashrev", dc, n, u, [(-56, 22), (30, 22), (30, 27), (-56, 27)], 0.6, 1.1, glow("rev", (0.2, 0.75, 1.0), 2.5), 0)
-    slab("dashrevred", dc, n, u, [(34, 22), (56, 22), (56, 27), (34, 27)], 0.6, 1.1, glow("revred", (1.0, 0.15, 0.05), 2.5), 0)
+    slab("dashrev", dc, n, u, [(-56 * ky, 22 * kz), (30 * ky, 22 * kz), (30 * ky, 27 * kz), (-56 * ky, 27 * kz)], 0.6, 1.1, glow("rev", (0.2, 0.75, 1.0), 2.5), 0)
+    slab("dashrevred", dc, n, u, [(34 * ky, 22 * kz), (56 * ky, 22 * kz), (56 * ky, 27 * kz), (34 * ky, 27 * kz)], 0.6, 1.1, glow("revred", (1.0, 0.15, 0.05), 2.5), 0)
     back = (dc[0] - n[0] * 20, dc[1] - n[1] * 20)
     yk = B.add(B.add(F, uf, fk["length"] - 12), nb, -34)
     for sg in (-1, 1):
@@ -790,11 +791,12 @@ def adventure_guards(model, c):
             for i_ in range(NY + 1):
                 u_ = i_ / NY
                 y = 196 + 212 * u_
-                h = (34 + 26 * math.sin(math.pi * min(1.0, u_ * 1.15)) ** 0.7) * (1 - 0.5 * max(0.0, u_ - 0.86) / 0.14)
+                # deep enough to cover the lever and the fingers on it from the front (beenster, adventure round 2)
+                h = (42 + 16 * math.sin(math.pi * min(1.0, u_ * 1.15)) ** 0.7) * (1 - 0.5 * max(0.0, u_ - 0.86) / 0.14)
                 for j_ in range(NZ + 1):
                     v_ = 2 * j_ / NZ - 1
-                    x = gx + 104 - 0.0016 * (y - 300) ** 2 - 20 * v_ * v_ - (26 * (max(0.0, u_ - 0.8) / 0.2) ** 2)
-                    verts.append(B.V(x, s * y, gz - 2 + h * v_ + 8))
+                    x = gx + 108 - 0.0016 * (y - 300) ** 2 - 30 * abs(v_) ** 3 - (26 * (max(0.0, u_ - 0.8) / 0.2) ** 2)
+                    verts.append(B.V(x, s * y, gz - 14 + h * v_))
             for i_ in range(NY):
                 for j_ in range(NZ):
                     a_ = i_ * (NZ + 1) + j_
@@ -807,14 +809,283 @@ def adventure_guards(model, c):
     xs = [q[0] for q in eng["case"]]
     x0, x1, zb = min(xs), max(xs), min(q[1] for q in eng["case"])
     hd = [q for h_ in model["exhaust"]["headers"] for q in h_["pts"]]
-    zb = min([zb] + [q[1] - 24 for q in hd if x0 < q[0] < x1]) - 6      # under the pipes too, where they pass beneath the engine
-    plate = chaikin([(x1 + 70, zb + 150), (x1 + 44, zb + 70), (x1 - 10, zb + 18), (x1 - 90, zb), (x0 + 120, zb - 4), (x0 + 50, zb + 14), (x0 + 30, zb + 44),
-                     (x0 + 44, zb + 48), (x0 + 62, zb + 24), (x0 + 124, zb + 8), (x1 - 92, zb + 12), (x1 - 20, zb + 28), (x1 + 30, zb + 76), (x1 + 56, zb + 152)], 2)
+    zb = min([zb] + [q[1] - 30 for q in hd if x0 < q[0] < x1]) - 6      # under the pipes too, where they pass beneath the engine
+    xc = x0 + 56
+    if model["exhaust"].get("collector"):
+        # clear of the pipes (beenster, adventure round 2): below the collector box, and the side cheeks only
+        # start ahead of where the rear pipe tucks in under the engine
+        zb = min(zb, model["exhaust"]["collector"]["z"][0] - 12)
+        xc = max(xc, model["exhaust"]["collector"]["x"][1] - 30)
+    lip = [(x1 + 70, zb + 150), (x1 + 44, zb + 70)], [(x1 + 30, zb + 76), (x1 + 56, zb + 152)]
+    if model["exhaust"].get("collector"):
+        # a shorter front lip that stops below where the pipes come down, standing ahead of them
+        lip = [(x1 + 72, zb + 92), (x1 + 56, zb + 58)], [(x1 + 42, zb + 62), (x1 + 58, zb + 94)]
+    plate = chaikin(lip[0] + [(x1 - 10, zb + 18), (x1 - 90, zb), (x0 + 120, zb - 4), (x0 + 50, zb + 14), (x0 + 30, zb + 44),
+                     (x0 + 44, zb + 48), (x0 + 62, zb + 24), (x0 + 124, zb + 8), (x1 - 92, zb + 12), (x1 - 20, zb + 28)] + lip[1], 2)
     B.prism("bashplate", plate, -128, 128, brushed(), 3.0)
     for s in (-1, 1):      # its side cheeks, turned up to guard the cases, and the bolts that hold it
-        B.prism(f"bashplatecheek{s}", chaikin([(x1 - 10, zb + 20), (x1 - 90, zb + 2), (x0 + 120, zb - 2), (x0 + 56, zb + 16), (x0 + 90, zb + 62), (x1 - 60, zb + 74), (x1 + 20, zb + 70)], 2), min(s * 124, s * 128), max(s * 124, s * 128), brushed(), 1.0)
-        for bx in (x0 + 140, x1 - 80):
+        B.prism(f"bashplatecheek{s}", chaikin([(x1 - 10, zb + 20), (x1 - 90, zb + 2), (max(x0 + 120, xc + 40), zb - 2), (xc, zb + 16), (xc + 34, zb + 62), (x1 - 60, zb + 74), (x1 + 20, zb + 70)], 2), min(s * 124, s * 128), max(s * 124, s * 128), brushed(), 1.0)
+        for bx in (max(x0 + 140, xc + 50), x1 - 80):
             bolt(f"bashplatebolt{s}{bx}", (bx, s * 128, zb + 34), (0, s, 0), 6, 3, B.mat("steel"))
+
+
+def shell(name, secs, material, thick=4.0, sub=6, cap=(False, False), sharp=True):
+    """A moulded shell through half sections [(x, [(y, z) or (x, y, z), ...])], mirrored about the centre line:
+    points stay as corners within a section (the panel's creases), the sections flow into one another along
+    the bike. A section point on the centre line joins the two halves; cap closes an end."""
+    import bmesh
+    rows = [[(q[0], q[1], q[2]) if len(q) == 3 else (x, q[0], q[1]) for q in pts] for x, pts in secs]
+    n, dense = len(rows), []
+    for i in range(n - 1):
+        p0, p1, p2, p3 = rows[max(0, i - 1)], rows[i], rows[i + 1], rows[min(n - 1, i + 2)]
+        for k in range(sub):
+            t = k / sub
+            row = []
+            for a_, b_, c_, d_ in zip(p0, p1, p2, p3):
+                q = [0.5 * (2 * b_[m] + (c_[m] - a_[m]) * t + (2 * a_[m] - 5 * b_[m] + 4 * c_[m] - d_[m]) * t * t + (3 * b_[m] - a_[m] - 3 * c_[m] + d_[m]) * t ** 3) for m in range(3)]
+                q[1] = 0.0 if b_[1] == 0 and c_[1] == 0 else max(0.0, q[1])
+                row.append(tuple(q))
+            dense.append(row)
+    dense.append(rows[-1])
+    m = len(dense[0])
+    verts, faces = [], []
+    for s in (1, -1):
+        base = len(verts)
+        for row in dense:
+            verts += [B.V(q[0], s * q[1], q[2]) for q in row]
+        for i in range(len(dense) - 1):
+            for j in range(m - 1):
+                a = base + i * m + j
+                faces.append((a, a + 1, a + m + 1, a + m) if s > 0 else (a, a + m, a + m + 1, a + 1))
+        for e, on in ((0, cap[0]), (len(dense) - 1, cap[1])):
+            if on:
+                row = dense[e]
+                cx = (sum(q[0] for q in row) / m, 0.0, sum(q[2] for q in row) / m)
+                ci = len(verts)
+                verts.append(B.V(*cx))
+                for j in range(m - 1):
+                    faces.append((ci, base + e * m + j, base + e * m + j + 1))
+    ob = B.mesh_obj(name, verts, faces, material, True, 0, sharp)
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00005)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
+    if sharp:
+        ob.data.set_sharp_from_angle(angle=math.radians(34))
+    if thick:
+        md = ob.modifiers.new("t", "SOLIDIFY")
+        md.thickness, md.offset = thick * B.MM, 0
+    return ob
+
+
+def adventure_body(model, c):
+    """An adventure bike's bodywork as its own shaped parts (beenster, adventure round 2, from the reference
+    photos): a tall painted nose that the tank runs into, a dark lamp mask under its brow, a beak in another
+    colour, a grey side panel over a black intake panel with louvres, deflector wings and a tall screen that
+    carry the wind round the hands, a big display, the tail lamp, and a luggage rack whose rails come back
+    down to the seat frame."""
+    adv = model.get("adv")
+    if not adv or model["family"].lower() != "adventure":
+        return
+    import shapes
+    drop("adv", "screen", "taillight")
+    lerp = shapes.lerp_table
+    cl = lambda v: max(0.0, min(1.0, v))
+    paint = bpy.data.objects["tank"].data.materials[0]
+    plastic, dark = B.mat("plastic"), B.mat("alu_dark")
+    grey = surf("advgrey", (0.27, 0.28, 0.3), 0.6, 0.36, coat=0.3, wear=0.05)
+    graphite = surf("advgraphite", (0.05, 0.052, 0.058), 0.0, 0.42, wear=0.1)
+    gloss = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
+    shell("advnose", adv["nose"], paint, 4.0, cap=(False, bool(adv.get("nose_cap"))))
+    shell("advbeak", adv["beak"], graphite, 0, cap=(True, True))
+    shell("advmask", adv["mask"], gloss, 0, cap=(True, True))
+    # the lamps: a slanted eye each side of the mask, a bright running-light blade along its top, two projectors
+    trees = _trees(("advmask",))
+    for s in (-1, 1):
+        f = lambda pts: [(s * y, z) for y, z in pts]
+        eye = [tuple(q) for q in adv["eye"]]
+        ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
+        if not skin_patch(f"advlamp{s}", trees, f(eye), surf("lampsilver2", (0.75, 0.76, 0.78), 1.0, 0.12, wear=0.0), 1.2):
+            continue
+        skin_patch(f"advdrl{s}", trees, f([tuple(q) for q in adv["drl"]]), glow("drl", (0.9, 0.95, 1.0), 4.0), 2.2)
+        for n_, (py, pz) in enumerate(adv["proj"]):
+            circ = lambda r: [(s * py + r * math.cos(2 * math.pi * k / 12), pz + r * math.sin(2 * math.pi * k / 12)) for k in range(12)]
+            skin_patch(f"adveye{s}{n_}", trees, circ(11), surf("bezel", (0.05, 0.05, 0.055), 0.85, 0.3), 2.0)
+            skin_patch(f"adveyeled{s}{n_}", trees, circ(6), glow("lampdip", (1.0, 0.97, 0.9), 1.2), 2.6)
+        skin_patch(f"advlampglass{s}", trees, f([(ey + (y - ey) * 1.06, ez + (z - ez) * 1.08) for y, z in eye]), glass_mat(), 4.0)
+    # the side panels: grey over black, the black one cut through with louvres ahead of the radiator
+    G = [tuple(q[:2]) for q in shapes.dense(adv["grey"], True, 0.6)]
+    K = [tuple(q[:2]) for q in shapes.dense(adv["black"], True, 0.6)]
+    ytab = adv["ytab"]
+    kz = max(q[1] for q in K)
+
+    def fg(x, z):
+        tb = shapes.top_bottom(G, x)
+        u = cl((tb[0] - z) / max(1.0, tb[0] - tb[1])) if tb else 0.0
+        return lerp(ytab, x) + 2.5 + 11 * min(u / 0.3, (1 - u) / 0.7)      # a ridge a third of the way down: the panel's character line
+
+    def fk(x, z):
+        return lerp(ytab, x) - 7 - 21 * cl((kz - z) / 290.0) ** 1.3
+
+    slots = [[tuple(q[:2]) for q in sl] for sl in adv.get("slots", [])]
+    for s in (-1, 1):
+        B.skin(f"advblack{s}", K, fk, s, plastic, stations=90, rows=30, thick=5.0, holes=slots)
+        B.skin(f"advgrey{s}", G, fg, s, grey, stations=90, rows=20, thick=5.0)
+        for n_, sl in enumerate(slots):
+            # each louvre carries a blade hinged on its leading edge and standing out towards the back, so
+            # from the side you see the blade and not the radiator's pipe behind it (beenster, round 3)
+            out_ = adv.get("louvre", 0)
+            if out_:
+                (r0, f0, f1, r1) = sl
+                vs = [B.V(f0[0] + 4, s * (fk(f0[0], f0[1]) + 1), f0[1] - 5), B.V(f1[0] + 4, s * (fk(f1[0], f1[1]) + 1), f1[1] + 5),
+                      B.V(r1[0] - 5, s * (fk(r1[0], r1[1]) + out_), r1[1] + 5), B.V(r0[0] - 5, s * (fk(r0[0], r0[1]) + out_), r0[1] - 5)]
+                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], plastic, False)
+                md = ob.modifiers.new("t", "SOLIDIFY")
+                md.thickness, md.offset = 3.5 * B.MM, 0
+    ia = adv.get("ind")
+    if ia:
+        c["adv_ind"] = {s: (ia[0], s * (fk(ia[0], ia[1]) - 6), ia[1]) for s in (-1, 1)}
+    # the deflector wings: a dark blade each side of the screen, leaning out and raked back, that turns the
+    # wind out round the hands
+    wg = adv.get("wing")
+    if wg and wg.get("auto"):
+        # grown out of the fairing (beenster, round 3): the plate's foot is the fairing's own shoulder line and
+        # it carries on up in the plane of the fairing's upper flank, flat and straight-edged, raked back
+        xs_n = [x for x, _ in adv["nose"]]
+
+        def sec_at(x, j):
+            k = max(0, min(len(xs_n) - 2, max(i for i in range(len(xs_n)) if xs_n[i] <= x)))
+            t = (x - xs_n[k]) / (xs_n[k + 1] - xs_n[k])
+            a_, b_ = adv["nose"][k][1][j], adv["nose"][k + 1][1][j]
+            return (a_[0] + (b_[0] - a_[0]) * t, a_[1] + (b_[1] - a_[1]) * t)
+        xa, xb = wg["auto"]
+        NU = 12
+        for s in (-1, 1):
+            verts, faces = [], []
+            for i in range(NU + 1):
+                u = i / NU
+                x = xa + (xb - xa) * u
+                sh, fl = sec_at(x, 2), sec_at(x, 3)
+                L_ = math.hypot(sh[0] - fl[0], sh[1] - fl[1]) or 1.0
+                dy, dz = (sh[0] - fl[0]) / L_ * 0.55, 1.0
+                H = wg.get("h", 80) * (1 - 0.72 * u ** 1.6) * min(1.0, 0.45 + u / 0.12 * 0.55)
+                verts += [B.V(x, s * (sh[0] - dy * 6), sh[1] - 6), B.V(x - 0.42 * H, s * (sh[0] + dy * H), sh[1] + dz * H)]
+            for i in range(NU):
+                faces.append((2 * i, 2 * i + 1, 2 * i + 3, 2 * i + 2))
+            ob = B.mesh_obj(f"advwing{s}", verts, faces, graphite, False)
+            B.bm_fix_normals(ob)
+            md = ob.modifiers.new("t", "SOLIDIFY")
+            md.thickness, md.offset = 4.5 * B.MM, 0
+    elif wg:
+        NU, NV = 14, 14
+        for s in (-1, 1):
+            verts, faces = [], []
+            for j in range(NV + 1):
+                v = j / NV
+                for i in range(NU + 1):
+                    u = i / NU
+                    u2 = 0.5 + (u - 0.5) * (1 - 0.55 * max(0.0, v - 0.72) / 0.28)      # the top corners rounded off
+                    q = [(wg["a0"][m] * (1 - u2) + wg["a1"][m] * u2) * (1 - v) + (wg["b0"][m] * (1 - u2) + wg["b1"][m] * u2) * v for m in range(3)]
+                    q[1] += 14 * math.sin(math.pi * v * 0.9) * (1 - u2) ** 1.5 + 10 * v * v      # curled out along its trailing edge
+                    verts.append(B.V(q[0], s * q[1], q[2]))
+            for j in range(NV):
+                for i in range(NU):
+                    a = j * (NU + 1) + i
+                    faces.append((a, a + 1, a + NU + 2, a + NU + 1))
+            ob = B.mesh_obj(f"advwing{s}", verts, faces, graphite, True, 0, False)
+            B.bm_fix_normals(ob)
+            md = ob.modifiers.new("t", "SOLIDIFY")
+            md.thickness, md.offset = 4.5 * B.MM, 0
+    # the screen: tall clear Perspex between the wings, wrapped back at its edges
+    sc = adv.get("screen")
+    if sc:
+        ln, wt = sc["line"], sc["w"]
+        NT, NY = 30, 22
+        verts, faces = [], []
+        for i in range(NT + 1):
+            t = i / NT * (len(ln) - 1)
+            k = min(len(ln) - 2, int(t))
+            f_ = t - k
+            p0, p1, p2, p3 = ln[max(0, k - 1)], ln[k], ln[k + 1], ln[min(len(ln) - 1, k + 2)]
+            cx_, cz_ = (0.5 * (2 * p1[m] + (p2[m] - p0[m]) * f_ + (2 * p0[m] - 5 * p1[m] + 4 * p2[m] - p3[m]) * f_ * f_ + (3 * p1[m] - p0[m] - 3 * p2[m] + p3[m]) * f_ ** 3) for m in (0, 1))
+            w = wt[k] + (wt[k + 1] - wt[k]) * f_
+            tt = i / NT
+            w *= math.sqrt(max(0.02, 1 - (max(0.0, tt - 0.86) / 0.14) ** 2 * 0.8))
+            if sc.get("round"):      # round at the bottom, where it wraps round on top of the fairing (as the sport screens do)
+                w *= max(0.003, 1 - (1 - min(1.0, tt / 0.2)) ** 3.0) ** (1 / 3.0)
+            else:
+                w *= 0.55 + 0.45 * min(1.0, tt / 0.1) ** 0.5
+            wr = sc.get("wrap", 0.0026)
+            wr = wr[0] + (wr[1] - wr[0]) * min(1.0, tt / 0.45) if isinstance(wr, list) else wr
+            rise = sc.get("rise", -0.3)
+            rise = rise + (-0.3 - rise) * min(1.0, tt / 0.45) if "rise" in sc else -0.3
+            for j in range(NY + 1):
+                g_ = -1 + 2 * j / NY
+                y = g_ * w
+                back = wr * y * y
+                verts.append(B.V(cx_ - back, y, cz_ + rise * back))
+        for i in range(NT):
+            for j in range(NY):
+                a = i * (NY + 1) + j
+                faces.append((a, a + 1, a + NY + 2, a + NY + 1))
+        ob = B.mesh_obj("advscreen", verts, faces, glass_mat("perspex", (0.82, 0.86, 0.9)), True, 0, False)
+        B.bm_fix_normals(ob)
+        md = ob.modifiers.new("t", "SOLIDIFY")
+        md.thickness = 3.0 * B.MM
+        for sg in (-1, 1):
+            for tq in (0.1, 0.24):
+                i = int(tq * NT)
+                v_ = ob.data.vertices[i * (NY + 1) + (NY // 2 + sg * int(NY * 0.36))].co
+                q = (v_.x / B.MM, v_.y / B.MM, v_.z / B.MM)
+                B.cone(f"advscreenscrew{sg}{tq}", (q[0] - 2, q[1], q[2] - 1), (q[0] + 4, q[1], q[2] + 2), 5, 4.2, plastic, 12)
+    # the display: a large tablet above the bars
+    head = [(i, s_) for i, s_ in enumerate(model.get("front_end", [])) if s_.get("part") == "head"]
+    dash = next((s_ for i, s_ in head if s_.get("cls") == "plastic" and "pts" in s_), None)
+    if dash:
+        for i, s_ in head:
+            drop(f"front{i}", f"screen{i}")
+        drop("dash")
+        display(model, c, head, None, dash, (112, 66) if model.get("detail", {}).get("tft") == "large" else (78, 46))
+    # the tail lamp: let into the square-cut end of the tail, a clear red lens over a chrome tray of LED cells
+    tl = adv.get("tail_lamp")
+    if tl:
+        (xf, zc), W, hh = tl["at"], tl["w"], tl["h"]
+        org, n, u = (xf, zc), (-1.0, 0.0), (0.0, 1.0)
+        slab("advtailhouse", org, n, u, sell(W + 3, hh + 3, 1.0, 3.6, 44), -34, 1.5, plastic, 3.0)
+        slab("advtaillens", org, n, u, sell(W, hh, 1.0, 3.6, 44), 1.0, 12, glass_mat("redglass", (0.9, 0.02, 0.02)), 5.0)
+        slab("advtailtray", org, n, u, sell(W - 3, hh - 3, 1.0, 3.6, 44), 0.5, 2.0, B.mat("chrome"), 0)
+        ledm = glow("tailred", (1.0, 0.03, 0.02), 2.6)
+        ny_ = int((W - 8) // 9.6)
+        for iy in range(-ny_, ny_ + 1):
+            for iz in ((-1, 0, 1) if hh >= 20 else (-0.5, 0.5)):
+                cy_, cz_ = iy * 9.6, iz * 11.5
+                slab(f"advtailcell{iy}{iz}", org, n, u, [(cy_ - 4.2, cz_ - 5), (cy_ + 4.2, cz_ - 5), (cy_ + 4.2, cz_ + 5), (cy_ - 4.2, cz_ + 5)], 2.0, 5.5, B.mat("chrome"), 1.2)
+                slab(f"advtailled{iy}{iz}", org, n, u, [(cy_ + 2.4 * math.cos(w_ * math.pi / 4), cz_ + 2.4 * math.sin(w_ * math.pi / 4)) for w_ in range(8)], 5.4, 6.6, ledm, 0)
+        c["adv_tail"] = (xf, zc, W)
+    lp = adv.get("loop")
+    if lp:
+        # the seat frame's two sides are joined in one hoop round the back (beenster, round 3)
+        side = [tuple(q) for q in lp]
+        B.smooth_tube("advframeloop", side + [(q[0], -q[1], q[2]) for q in side[-2::-1]], 11, c["framem"])
+    # the rack: grab rails round the pillion seat that come back down to the seat frame under the saddle
+    rk = adv.get("rack")
+    if rk:
+        side = [tuple(q) for q in rk["rail"]]
+        B.smooth_tube("advrack", side + [(q[0], -q[1], q[2]) for q in side[-2::-1]], rk.get("r", 9), dark)
+        for s in (-1, 1):
+            for n_, leg in enumerate(rk.get("legs", [])):
+                B.smooth_tube(f"advrackleg{s}{n_}", [(q[0], s * q[1], q[2]) for q in leg], rk.get("r", 9) - 1, dark)
+            for n_, q in enumerate([side[0]] + [leg[-1] for leg in rk.get("legs", [])]):
+                # each foot is a boss clamped round the frame rail, with its bolt
+                lathe(f"advrackfoot{s}{n_}", (q[0], s * (q[1] - 9), q[2]), (0, s, 0), [(0, 0), (0, 15), (20, 15), (22, 12), (22, 0)], dark, 20)
+                bolt(f"advrackbolt{s}{n_}", (q[0], s * (q[1] + 13), q[2]), (0, s, 0), 5, 4, B.mat("steel"))
+        for n_, (xa, xb) in enumerate(rk.get("plate", [])):
+            # the luggage plate between the rails
+            a_, b_ = min(side, key=lambda q: abs(q[0] - xa)), min(side, key=lambda q: abs(q[0] - xb))
+            B.prism(f"advrackplate{n_}", [(xa, a_[2] - 4), (xa, a_[2] + 3), (xb, b_[2] + 3), (xb, b_[2] - 4)], -min(a_[1], b_[1]) + 6, min(a_[1], b_[1]) - 6, plastic, 2.0)
 
 
 def nose_lamps(model, c):
@@ -879,7 +1150,7 @@ def guard_lamp(model, c):
     """The classic and cruiser brake light: a polished oval housing standing on the rear mudguard, its red
     lens domed and facing straight back, a small clear window underneath to light the plate. The indicators
     grow out of the housing's sides (the same rule as the sport and cafe tails)."""
-    if model["family"].lower() not in ("classic", "cruiser"):
+    if model["family"].lower() not in ("classic", "cruiser", "chopper"):
         return
     tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
     if not tl:       # a bobbed guard drawn with the panels carries its lamp there
@@ -1501,7 +1772,16 @@ def indicators(model, c):
                 grow = lambda k: [(bx + (x - bx) * k, bz + (z - bz) * k * 1.5) for x, z in blade_]
                 skin_patch(f"ind_f{s}_pod", trees, grow(1.2), B.mat("plastic"), 0.8, "y", s)
                 continue
+        if c.get("adv_ind"):      # an adventure bike's stand on the flank of its side panel
+            indicator(f"ind_f{s}", c["adv_ind"][s], s, 1, variant)
+            continue
         indicator(f"ind_f{s}", (hb[0] + 60, s * 92, hb[1] + 40), s, 1, variant)
+    if c.get("adv_tail"):
+        # each side of the tail lamp's housing, a real lens over its bulb (beenster, adventure round 2)
+        xf, zc, W = c["adv_tail"]
+        for s in (-1, 1):
+            indicator(f"ind_r{s}", (xf + 16, s * (W - 4), zc), s, -1, variant)
+        return
     tl = next((shp for shp in model["body"].get("tail", []) if shp.get("cls") == "redlens"), None)
     if not tl and c.get("tail_lamp"):
         tl = {"pts": [list(c["tail_lamp"][:2])]}
@@ -1763,15 +2043,27 @@ def controls(model, c):
             lathe(f"mirrorboss{s}", e_, d, [(0, 0), (0, 15), (3, 17.5), (15, 17.5), (18, 15), (18, 0)], B.mat("alu_dark"), 28)
             B.smooth_tube(f"mstalk{s}", [(e_[0], e_[1] + s * 9, e_[2] + 12), (e_[0] - 1, e_[1] + s * 12, e_[2] + 40), (mc[0] + 16, mc[1] - s * 4, mc[2] - 50), (mc[0] + 16, mc[1], mc[2] - 8)], 5.6, B.mat("alu_dark"))
         else:
-            B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
-            B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
+            if opt.get("mirrors") == "adv":
+                # substantial but stylish (beenster, adventure round 2): a cast aero stem, wide where it leaves
+                # the perch and at the head, and a bigger five-sided head
+                mc = (bx - 6, s * 336, bz + 158)
+                B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 14), 12, 9.5, satin, 16)
+                strap(f"mstalk{s}", [(root[0], root[1], root[2] + 10), (root[0] + 12, yc + s * 10, root[2] + 70), (mc[0] + 30, s * 262, mc[2] - 44), (mc[0] + 24, s * 300, mc[2] - 12), (mc[0] + 16, s * 318, mc[2] - 2)],
+                      [(9, 9), (9, 7), (10, 6.5), (13, 7), (20, 8)], plastic)
+            else:
+                B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
+                B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
         outline = chaikin([(s * -86, -10), (s * -64, 30), (s * 10, 44), (s * 76, 32), (s * 86, -4), (s * 58, -36), (s * -52, -40)], 3)
+        if opt.get("mirrors") == "adv":
+            outline = chaikin([(s * -86, -18), (s * -74, 30), (s * 8, 50), (s * 84, 35), (s * 92, -12), (s * 50, -44), (s * -52, -42)], 1)
         if barend:
             outline = [(s * 54 * math.cos(2 * math.pi * k_ / 40), 54 * math.sin(2 * math.pi * k_ / 40)) for k_ in range(40)]
         if s == -1:
             outline = outline[::-1]
         mo = (mc[0], mc[2])
         back = [(1.0, 0), (1.0, 8), (0.9, 18), (0.66, 26), (0.3, 30)]
+        if opt.get("mirrors") == "adv":
+            back = [(1.0, 0), (1.0, 5), (0.94, 11), (0.78, 16), (0.5, 19)]      # a slim shell, not a dome
         verts, faces, m = [], [], len(outline)
         for k_, dx in back:
             verts += [B.V(mo[0] + dx, mc[1] + y * k_, mo[1] + z * k_) for y, z in outline]
@@ -1900,6 +2192,12 @@ def engine(model, c):
     mag = surf("magcover", (0.2, 0.165, 0.12), 0.9, 0.4, bump=(1.0, 0.1))
     blk = surf("crinkle", (0.022, 0.022, 0.024), 0.3, 0.62, bump=(0.4, 0.5))
     steel, rubber, alu = B.mat("steel"), B.mat("rubber"), B.mat("alu")
+    chromed = model.get("detail", {}).get("engine") == "chrome"
+    if chromed:
+        # a show engine (beenster, chopper round 1): rocker covers, cam caps, side covers and the air cleaner
+        # are plated, the outer cases polished; barrels and heads stay cast so the chrome has something to sit on
+        mag = B.mat("chrome")
+    plug_side = eng.get("plug") == "side"
     heads = []
     for i, cy in enumerate(eng["cylinders"]):
         drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
@@ -1923,6 +2221,10 @@ def engine(model, c):
             k += 8.5
             j_ += 1
         prof += [(Lc + 2, r - 11)]
+        if not cy.get("fins", True):
+            # a liquid-cooled barrel: a plain casting with a water jacket, a few stiffening ribs and no fins
+            prof = [(-6, r - 12), (0, r - 12), (0, r + 3), (9, r + 3), (9, r - 6), (Lc * 0.3, r - 5), (Lc * 0.3, r - 2), (Lc * 0.3 + 4, r - 2), (Lc * 0.3 + 4, r - 5),
+                    (Lc * 0.62, r - 5), (Lc * 0.62, r - 2), (Lc * 0.62 + 4, r - 2), (Lc * 0.62 + 4, r - 5), (Lc - 8, r - 5), (Lc - 8, r + 1), (Lc + 2, r + 1), (Lc + 2, r - 11)]
         lathe(f"barrel{i}", P(base, 0), d3, prof, silver, 64, ell=(0.92, 1.0), square=4.6)
         for a_ in (45, 135, 225, 315):       # the four base nuts
             w = math.radians(a_)
@@ -1939,7 +2241,7 @@ def engine(model, c):
                 q = add(add(headend, u, 27), n, sn * (cw - 22))
                 bolt(f"coverbolt{i}{sn}{sy}", (q[0], sy * (r - 28), q[1]), d3, 5, 4.5)
         hc = add(end, u, cy["head"] * 0.5)
-        for sy in (-1, 1):       # cam end caps
+        for sy in ((-1,) if plug_side else (-1, 1)):       # cam end caps
             B.cone(f"camcap{i}{sy}", P(hc, sy * (r + 2)), P(hc, sy * (r + 11)), 27, 24, mag, 28)
             for a_ in (30, 150, 270):
                 q = add(hc, unit(a_ + cy["angle"]), 19)
@@ -1947,11 +2249,21 @@ def engine(model, c):
         # plug cap and lead out of the valve cover
         pc = add(cov, u, -2)
         white = surf("ceramic", (0.85, 0.84, 0.8), 0.0, 0.25, wear=0.0)
-        lathe(f"svc_spark_plug{i}_hex", P(pc, 0), d3, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
-        lathe(f"svc_spark_plug{i}", P(pc, 0), d3, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
-        lathe(f"svc_spark_plug{i}_tip", P(pc, 0), d3, [(27, 2.6), (32, 2.6), (32, 0)], steel, 12)
-        B.cone(f"plugcap{i}", P(add(pc, u, 23), 0), P(add(pc, u, 56), 0), 10.5, 8.5, rubber, 16)
-        B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
+        po, pd = P(pc, 0), d3
+        if plug_side:
+            # the plug comes out of the left side of the head, tipped up, so it stays clear of a low tank
+            pd = (u[0] * 0.5, 0.866, u[1] * 0.5)
+            po = P(hc, r + 2)
+        pt_ = lambda d_, po=po, pd=pd: (po[0] + pd[0] * d_, po[1] + pd[1] * d_, po[2] + pd[2] * d_)
+        lathe(f"svc_spark_plug{i}_hex", po, pd, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+        lathe(f"svc_spark_plug{i}", po, pd, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
+        lathe(f"svc_spark_plug{i}_tip", po, pd, [(27, 2.6), (32, 2.6), (32, 0)], steel, 12)
+        B.cone(f"plugcap{i}", pt_(23), pt_(56), 10.5, 8.5, rubber, 16)
+        if plug_side:
+            q1, q2 = pt_(54), pt_(80)
+            B.smooth_tube(f"pluglead{i}", [q1, q2, (q2[0] + n[0] * 50, q2[1] - 30, q2[2] + n[1] * 50 - 30), P(add(add(hc, n, 120), u, -70), 40)], 3.6, rubber)
+        else:
+            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
         # inlet: rubber stub, clamp, throttle body, injector
         i3 = (n[0], 0, n[1])
         lathe(f"inletstub{i}", P(add(hc, n, hw - 4), 0), i3, [(0, 30), (8, 30), (12, 27), (30, 27), (30, 22)], rubber, 32)
@@ -1972,13 +2284,13 @@ def engine(model, c):
             p0 = P(cc_, sg * (wide / 2 - 28))
             if sg == -1:
                 lathe(f"clutchcover{i}", p0, (0, sg, 0), [(0, r_ + 3), (6, r_ + 3), (6, r_), (26, r_ - 2), (34, r_ - 9), (37, r_ - 20), (37, r_ * 0.66), (41, r_ * 0.66), (44, r_ * 0.6), (44, 0)], mag, 64)
-                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], blk, 48)
+                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], mag if chromed else blk, 48)
                 for k_ in range(6):
                     q = add(cc_, unit(60 * k_), r_ * 0.58)
                     bolt(f"clutchcapbolt{i}{k_}", P(q, p0[1] + sg * 44), (0, sg, 0), 4, 3.5)
                 nb_ = cv.get("bolts", 8)
             else:
-                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], blk, 64)
+                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], mag if chromed else blk, 64)
                 B.cone(f"altplug{i}", (p0[0], p0[1] + sg * 53, p0[2]), (p0[0], p0[1] + sg * 58, p0[2]), 15, 14, alu, 24)
                 B.cone(f"altplugslot{i}", (p0[0], p0[1] + sg * 57.4, p0[2]), (p0[0], p0[1] + sg * 58.3, p0[2]), 7, 7, rubber, 6)
                 nb_ = 6
@@ -1991,7 +2303,7 @@ def engine(model, c):
     inner = [(ccx + (q[0] - ccx) * 0.9, ccz + (q[1] - ccz) * 0.88) for q in case]
     for sg in (-1, 1):       # the outer case halves: their own castings, bolted to the centre cases
         ya, yb = sg * (wide / 2 - 34), sg * (wide / 2 - 14)
-        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
+        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("polishedcase", (0.82, 0.82, 0.84), 1.0, 0.16, wear=0.05) if chromed else surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
     set_mat("crankcase", surf("sandcast", (0.42, 0.42, 0.43), 0.9, 0.5, bump=(1.4, 0.25)))
     zb = min(q[1] for q in case)
     xb = [q[0] for q in case if q[1] < zb + 34]
@@ -2009,6 +2321,8 @@ def engine(model, c):
     set_mat("sprocketcover", B.mat("plastic"))
     # water pump low on the right of the case front, with its outlet stub
     wp = (crank[0] + 118, crank[1] - 78)
+    if eng.get("pump"):
+        wp = (crank[0] + eng["pump"][0], crank[1] + eng["pump"][1])      # the model places its own pump, on the case beside the clutch cover
     y0 = -(wide / 2 - 16)
     lathe("waterpump", P(wp, y0), (0, -1, 0), [(0, 40), (10, 40), (10, 36), (17, 36), (20, 33), (20, 15), (24, 13), (24, 0)], silver, 40)
     for k_ in range(5):
@@ -2027,6 +2341,12 @@ def engine(model, c):
             B.cone(f"mountlug{nm}{sg}", P(pn, sg * (hw_ - 46)), P(pn, sg * (hw_ - 15)), 21, 18, silver, 24)
             bolt(f"mountbolt{nm}{sg}", P(pn, sg * (hw_ + 15)), (0, sg, 0), 9, 7, steel, False)
             B.cone(f"mountwasher{nm}{sg}", P(pn, sg * (hw_ + 15)), P(pn, sg * (hw_ + 17)), 13, 13, steel, 24)
+    if chromed:
+        set_mat("airbox", B.mat("chrome"))
+        set_mat("waterpump", B.mat("chrome"))
+        set_mat("sump", surf("polishedcase", (0.82, 0.82, 0.84), 1.0, 0.16, wear=0.05))
+        for nm in ("oilfilter", "svc_oil_filter", "sprocketcover", "starter"):
+            set_mat(nm, B.mat("chrome"))
     exhaust_ports(model, c, heads)
     radiator(model, c, heads, wp, y0)
     ab = bpy.data.objects.get("airbox0")
@@ -2042,6 +2362,10 @@ def exhaust_ports(model, c, heads):
     for i, hp in enumerate(ex["headers"]):
         sg = 1 if left or ((both or under) and i == 0) else -1
         y0 = sg * (60 if hp.get("front") else 40)
+        if hp.get("link"):
+            continue                      # a link pipe from the collector to the silencer leaves no cylinder head
+        if hp.get("ys"):
+            y0 = hp["ys"][0]
         p0, p1 = tuple(hp["pts"][0][:2]), tuple(hp["pts"][1][:2])
         L_ = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
         t = ((p1[0] - p0[0]) / L_, (p1[1] - p0[1]) / L_)
@@ -2079,6 +2403,44 @@ def silencers(model, c):
             L_ = math.sqrt(sum((b3[k] - a3[k]) ** 2 for k in range(3)))
             d3 = tuple((b3[k] - a3[k]) / L_ for k in range(3))
             rc = can["w"] / 2 * 0.86
+            if can.get("box"):
+                # a slim squared-off silencer (beenster, adventure round 2): tall and thin so panniers clear it,
+                # a brushed body with a black heat shield and end cap, two open outlets one above the other
+                from mathutils import Vector
+                ax_ = Vector(d3)
+                sd_ = ax_.cross(Vector((0, 1, 0))).normalized()
+                drop(f"can{i}{sg}", f"canband{i}{sg}", f"canend{i}{sg}", f"canbore{i}{sg}")
+                hz_, hy_ = can["w"] / 2, can["box"] / 2
+                el, sq = (1.0, hy_ / hz_), 5.0
+                rh = next((h_ for h_ in ex["headers"] if h_.get("link")), ex["headers"][0]).get("w", 44) / 2 * 0.8
+                soot = surf("pipeblack", (0.0015, 0.0015, 0.0015), 0.0, 1.0, wear=0.0)
+                soot.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0
+                black = B.mat("exhaust_black")
+                lathe(f"caninlet{i}{sg}", a3, d3, [(-34, rh + 0.4), (-34, rh + 2.8), (L_ * 0.02, rh + 2.8), (L_ * 0.06, rh + 8), (L_ * 0.06, rh)], B.mat("exhaust"), 32, sharp=False, caps=False)
+                lathe(f"canclamp{i}{sg}", a3, d3, [(-22, rh + 2.8), (-22, rh + 6), (-8, rh + 6), (-8, rh + 2.8), (-22, rh + 2.8)], steel, 28, caps=False)
+                lathe(f"can{i}{sg}", a3, d3, [(L_ * 0.03, hz_ * 0.3), (L_ * 0.12, hz_ * 0.56), (L_ * 0.24, hz_ * 0.9), (L_ * 0.32, hz_), (L_ * 0.93, hz_)], brushed(), 64, sharp=False, ell=el, caps=False, square=sq)
+                lathe(f"canshield{i}{sg}", a3, d3, [(L_ * 0.31, hz_ + 1), (L_ * 0.32, hz_ + 4), (L_ * 0.54, hz_ + 4), (L_ * 0.56, hz_ + 1)], black, 64, sharp=True, ell=el, caps=False, square=sq)
+                lathe(f"canend{i}{sg}", a3, d3, [(L_ * 0.9, hz_ + 1), (L_ * 0.91, hz_ + 3.5), (L_ - 6, hz_ + 3.5), (L_, hz_ - 3), (L_ - 3, hz_ - 9), (L_ - 12, hz_ - 10), (L_ - 12, 0)], black, 64, sharp=True, ell=el, caps=False, square=sq)
+                ro = min(hy_ * 0.74, hz_ * 0.4)
+                for k_, off in enumerate((-hz_ * 0.44, hz_ * 0.44)):
+                    q = tuple(a3[n_] + d3[n_] * (L_ - 14) + sd_[n_] * off for n_ in range(3))
+                    lathe(f"canpipe{i}{sg}{k_}", q, d3, [(-4, ro), (12, ro), (14, ro - 1.2), (14, ro - 3), (-4, ro - 3.4)], steel, 32, caps=False)
+                    lathe(f"canbore{i}{sg}{k_}", q, d3, [(13, ro - 3), (-60, ro - 3), (-60, 0)], soot, 28, caps=False)
+                if can.get("vertical"):
+                    # the end is cut vertical, not square to the body (beenster, round 3): everything near
+                    # the end slides along the silencer by its own height, so the top runs on further back
+                    up_ = -sd_ if sd_.z < 0 else sd_
+                    kk = -up_.x / ax_.x
+                    a_v = Vector(B.V(*a3))
+                    for o in [o for o in bpy.data.objects if o.name.startswith((f"can{i}{sg}", f"canend{i}{sg}", f"canpipe{i}{sg}", f"canbore{i}{sg}"))]:
+                        for v in o.data.vertices:
+                            r_ = (o.matrix_world @ v.co) - a_v
+                            t_, h_ = r_.dot(ax_) / B.MM, r_.dot(up_) / B.MM
+                            w_ = max(0.0, min(1.0, (t_ - L_ * 0.72) / (L_ * 0.16)))
+                            v.co = o.matrix_world.inverted() @ (o.matrix_world @ v.co + ax_ * (kk * h_ * w_ * w_ * (3 - 2 * w_) * B.MM))
+                # the hanger: a black strap round the body and a stay up towards the pillion footrest
+                lathe(f"canstrap{i}{sg}", a3, d3, [(L_ * 0.6, hz_ + 0.5), (L_ * 0.6, hz_ + 3.5), (L_ * 0.6 + 18, hz_ + 3.5), (L_ * 0.6 + 18, hz_ + 0.5), (L_ * 0.6, hz_ + 0.5)], black, 64, ell=el, caps=False, square=sq)
+                continue
             if can.get("mega"):
                 # a megaphone (beenster, cafe round 2): one long brushed cone opening to a wide mouth, a short
                 # black reverse cone on the end, open and dark inside
@@ -2385,7 +2747,7 @@ def seat(model, c):
     and across the pad where the rider's part ends."""
     body = model["body"]
     drop("seam")
-    quilt = model["family"].lower() in ("classic", "cruiser")
+    quilt = model["family"].lower() in ("classic", "cruiser", "chopper")
     lm = leather(quilt)
     set_mat("seat", lm)
     st = next((s_ for s_ in body.get("seat", []) if s_.get("cls") == "seat"), None)
@@ -2548,9 +2910,11 @@ def rear_end(model, c):
                 if ob is not None:
                     bpy.data.objects.remove(ob, do_unlink=True)
             mx, mz = sp[0] + 96, sp[1] - 166
+            if model["swingarm"].get("rigid"):
+                mz = sp[1] - 36       # a rigid frame's "pivot" is its bottom rail: the cylinder sits just above the rail, not under it
             B.cone("rearmaster", (mx, -170, mz), (mx - 62, -166, mz + 16), 11, 11, dark, 20)
             B.cone("rearmasterboot", (mx + 16, -171, mz - 4), (mx, -170, mz), 6, 10, rubber, 16)
-            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, p[1] - 80), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
+            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, max(p[1] - 80, mz - 6)), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
             B.cone("rearres", (mx - 50, -150, mz + 62), (mx - 50, -150, mz + 96), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
             B.cone("rearrescap", (mx - 50, -150, mz + 96), (mx - 50, -150, mz + 103), 16.5, 16, B.mat("plastic"), 24)
             B.smooth_tube("rearreshose", [(mx - 50, -150, mz + 62), (mx - 48, -156, mz + 40), (mx - 40, -165, mz + 22)], 3.5, rubber)
@@ -2811,6 +3175,14 @@ def welds(model, c):
 
 
 SHOTS = {
+    "side_long": ((930, -5600, 800), (930, 0, 660), 56),      # long bikes (choppers)
+    "front34_long": ((4300, -2500, 1400), (1000, 0, 680), 42),
+    "sissy": ((-1500, -850, 1500), (-100, 0, 1060), 42),
+    "tankside": ((900, -1500, 1000), (900, 0, 880), 60),
+    "pipes": ((1500, -1500, 520), (800, -150, 430), 50),
+    "barsf": ((2100, -500, 1700), (1080, 0, 1140), 60),
+    "hoses": ((1500, 1000, 1050), (880, 80, 800), 75),
+    "hoses_r": ((1500, -1000, 700), (900, -140, 560), 75),
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
@@ -2850,6 +3222,8 @@ SHOTS = {
     "guard": ((2350, -1150, 760), (1430, -60, 480), 62),
     "guard_front": ((2500, -420, 900), (1440, 0, 500), 70),
     "disc": ((1700, -1900, 380), (1470, -80, 300), 120),
+    "side": ((650, -4300, 760), (650, 0, 640), 56),            # the whole bike square-on from the right
+    "front34": ((3300, -2000, 1250), (760, 0, 660), 42),       # the whole bike from the front quarter
 }
 
 
@@ -2879,6 +3253,145 @@ def shots(build3d, name, tags, samples=24):
     return out
 
 
+def bar_slant(model, c):
+    """Grips slanted inwards (beenster, chopper round 1): the bar ends, with their grips, levers, switches and
+    mirrors, swing back about the hand point, so the hand point itself stays exactly where the rider pose has
+    it. Everything on the bar outboard of the bend is turned together."""
+    deg = model.get("detail", {}).get("grip_slant")
+    gp = next((s_["at"] for s_ in model.get("front_end", []) if s_.get("circle") and s_.get("part") != "head"), None)
+    if not deg or not gp:
+        return
+    from mathutils import Vector
+    a_full, gy = math.radians(deg), 321.0
+    bpy.context.view_layer.update()
+
+    def move(w):
+        ay = abs(w.y) / B.MM
+        if ay < 150 or w.z / B.MM < gp[1] - 110 or abs(w.x / B.MM - gp[0]) > 260:
+            return None
+        t = min(1.0, (ay - 150) / 70.0)
+        a = a_full * t * t * (3 - 2 * t)
+        sg = 1.0 if w.y > 0 else -1.0
+        dx, l = w.x / B.MM - gp[0], ay - gy
+        return Vector(((gp[0] + dx * math.cos(a) - l * math.sin(a)) * B.MM, sg * (gy + dx * math.sin(a) + l * math.cos(a)) * B.MM, w.z))
+    for ob in bpy.data.objects:
+        M = ob.matrix_world.copy()
+        Mi = M.inverted()
+        if ob.type == "MESH":
+            for v in ob.data.vertices:
+                q = move(M @ v.co)
+                if q is not None:
+                    v.co = Mi @ q
+        elif ob.type == "CURVE":
+            for sp in ob.data.splines:
+                for pt in sp.bezier_points:
+                    for attr in ("co", "handle_left", "handle_right"):
+                        q = move(M @ getattr(pt, attr))
+                        if q is not None:
+                            setattr(pt, attr, Mi @ q)
+                for pt in sp.points:
+                    q = move(M @ pt.co.to_3d())
+                    if q is not None:
+                        pt.co = (*(Mi @ q), pt.co[3])
+
+
+def tank_decal(model, c):
+    """A painted tank panel (beenster, chopper round 1: "teardrop tanks with decals"): a pinstriped teardrop
+    scallop along each side of the tank with the brand's star in it. Drawn here as a picture and laid on the
+    tank's sides only; nothing of any real maker."""
+    spec = model["body"].get("decal")
+    tank = bpy.data.objects.get("tank")
+    if not spec or tank is None:
+        return
+    from PIL import Image, ImageDraw
+    pts = [tuple(q[:2]) for q in B.shapes.dense(model["body"]["tank"][0]["pts"], True, 1.0)]
+    ang = math.radians(spec.get("angle", 30))
+    ca, sa = math.cos(ang), math.sin(ang)
+    us, vs = [q[0] * ca + q[1] * sa for q in pts], [-q[0] * sa + q[1] * ca for q in pts]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    L, H = u1 - u0, v1 - v0
+    W_, H_ = 2048, max(256, int(2048 * H / L))
+    S = 2
+    im = Image.new("RGBA", (W_ * S, H_ * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    gold, cream = tuple(spec.get("gold", (214, 170, 78))) + (255,), tuple(spec.get("cream", (236, 226, 200))) + (255,)
+
+    def tear(inset, n=160):
+        """A teardrop: fat towards the front of the tank, drawn out to a point at the back."""
+        out = []
+        ua, ub, vc, hh = 0.2 + inset * 0.5, 0.86 - inset * 0.35, spec.get("v", 0.5), spec.get("h", 0.24) - inset
+        for sgn in (1, -1):
+            for j in range(n + 1):
+                t = j / n if sgn == 1 else 1 - j / n
+                hgt = hh * math.sin(math.pi * t ** 0.62) ** 0.85
+                out.append(((ua + (ub - ua) * t) * W_ * S, (1 - (vc + sgn * hgt + 0.05 * (t - 0.5))) * H_ * S))
+        return out
+    d.polygon(tear(0.0), fill=gold)
+    d.polygon(tear(0.012), fill=(0, 0, 0, 0))
+    d.polygon(tear(0.03), fill=cream)
+    d.polygon(tear(0.036), fill=(0, 0, 0, 0))
+    d.polygon(tear(0.05), fill=tuple(spec.get("panel", (16, 22, 48))) + (255,))
+    # the star: eight points, long ones up, down, fore and aft
+    cx, cy = (0.2 + 0.66 * 0.64) * W_ * S, (1 - spec.get("v", 0.5) - 0.007) * H_ * S
+    R = spec.get("star", 0.13) * H_ * S * 1.6
+    star = []
+    for k in range(16):
+        w = math.pi / 8 * k
+        rad = R * (0.2 if k % 2 else (1.0 if k % 4 == 0 else 0.5))
+        star.append((cx + rad * math.cos(w) * (1.5 if k % 8 == 0 else 1.0), cy - rad * math.sin(w)))
+    d.polygon(star, fill=gold)
+    for k, (dv, ln) in enumerate(((-0.05, 0.3), (0.0, 0.36), (0.05, 0.3))):       # three speed lines trailing back from the star
+        y_ = cy + dv * H_ * S
+        d.polygon([(cx - R * 1.9, y_ - 5 * S), (cx - R * 1.9, y_ + 5 * S), (cx - R * 1.9 - ln * W_ * S, y_)], fill=cream)
+    im = im.resize((W_, H_), Image.LANCZOS).transpose(Image.FLIP_TOP_BOTTOM)
+    img = bpy.data.images.new("tankdecal", W_, H_, alpha=True)
+    px = im.tobytes()
+    img.pixels.foreach_set([b / 255.0 for b in px])
+    img.pack()
+    m = tank.data.materials[0].copy()
+    m.name = "paint_tankdecal"
+    tank.data.materials[0] = m
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    uv = nt.nodes.new("ShaderNodeCombineXYZ")
+    for k, (vec, off) in enumerate((((ca / L, 0, sa / L), -u0 / L), ((-sa / H, 0, ca / H), -v0 / H))):
+        dot = nt.nodes.new("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        dot.inputs[1].default_value = tuple(x / B.MM for x in vec)
+        nt.links.new(geo.outputs["Position"], dot.inputs[0])
+        ad = nt.nodes.new("ShaderNodeMath")
+        ad.operation = "ADD"
+        ad.inputs[1].default_value = off
+        nt.links.new(dot.outputs["Value"], ad.inputs[0])
+        nt.links.new(ad.outputs[0], uv.inputs[k])
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image, tex.extension, tex.interpolation = img, "CLIP", "Cubic"
+    nt.links.new(uv.outputs[0], tex.inputs["Vector"])
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Normal"], sep.inputs[0])
+    ab = nt.nodes.new("ShaderNodeMath")
+    ab.operation = "ABSOLUTE"
+    nt.links.new(sep.outputs["Y"], ab.inputs[0])
+    rng = nt.nodes.new("ShaderNodeMapRange")
+    rng.inputs["From Min"].default_value, rng.inputs["From Max"].default_value = 0.2, 0.4
+    nt.links.new(ab.outputs[0], rng.inputs["Value"])
+    fac = nt.nodes.new("ShaderNodeMath")
+    fac.operation = "MULTIPLY"
+    nt.links.new(rng.outputs["Result"], fac.inputs[0])
+    nt.links.new(tex.outputs["Alpha"], fac.inputs[1])
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    bc = bsdf.inputs["Base Color"]
+    if bc.is_linked:
+        nt.links.new(bc.links[0].from_socket, mix.inputs["A"])
+    else:
+        mix.inputs["A"].default_value = bc.default_value
+    nt.links.new(tex.outputs["Color"], mix.inputs["B"])
+    nt.links.new(fac.outputs[0], mix.inputs["Factor"])
+    nt.links.new(mix.outputs["Result"], bc)
+
+
 def run(build3d, model, c):
     global B
     B = build3d
@@ -2888,9 +3401,22 @@ def run(build3d, model, c):
     headlamp(model, c)
     round_lamp(model, c)
     beak_lamps(model, c)
+    adventure_body(model, c)
     adventure_guards(model, c)
     clocks(model, c)
     controls(model, c)
+    if model.get("detail", {}).get("mirrors") == "none":
+        drop("mirror", "mstalk", "mstub")       # a motocross bike carries no mirrors
+    if model["wheels"]["front"].get("single_disc"):
+        # one front disc, on the left (motocross): the right-hand disc, its caliper and its brake line go
+        drop("caliper-1", "brakeline-1")
+        bpy.context.view_layer.update()
+        for ob in list(bpy.data.objects):
+            if ob.name.startswith("front_") and ob.type == "MESH" and ob.data.vertices:
+                q = ob.matrix_world @ ob.data.vertices[0].co
+                cen = sum(((ob.matrix_world @ v.co) for v in ob.data.vertices), q * 0) / len(ob.data.vertices)
+                if cen.y / B.MM < -50:
+                    bpy.data.objects.remove(ob, do_unlink=True)
     engine(model, c)
     silencers(model, c)        # (engines not yet detailed return early, before their exhaust)
     seat(model, c)
@@ -2907,3 +3433,20 @@ def run(build3d, model, c):
     cables(model, c)
     mudguard_fixings(model, c)
     welds(model, c)
+    if model["exhaust"].get("chrome"):
+        for ob in bpy.data.objects:
+            if ob.name.startswith(("header", "can")) and not ob.name.startswith(("canbore", "canend")) and getattr(ob.data, "materials", None) is not None and len(ob.data.materials):
+                ob.data.materials[0] = B.mat("chrome")
+    tank_decal(model, c)
+    bar_slant(model, c)
+    for i, sh in enumerate(model["body"].get("shrouds", [])):
+        # radiator shrouds (motocross): a panel each side standing just proud of the tank's flank, over the radiator
+        pp = B.shapes.dense(sh["pts"], True, sh.get("t", 0.7))
+        cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+        for sg in (-1, 1):
+            hit = side_hit(("tank",), cx_, cz_, sg)
+            yh = abs(hit[1]) if hit else 170
+            mt = B.mat("paint", B.hex_rgb(model["colours"].get("accent", "#F4F4F2"))) if sh.get("cls") == "plate" else B.mat("plastic")
+            B.pillow(f"radshroud{i}{sg}", pp, sg * (yh - 14), sg * (yh + 16), mt, 6, 26, both=False)
+            for k, sl in enumerate(sh.get("slots", [])):
+                B.prism(f"radshroudslot{i}{sg}{k}", [tuple(q) for q in sl], min(sg * (yh + 14), sg * (yh + 17)), max(sg * (yh + 14), sg * (yh + 17)), B.mat("rubber"), 0.5)
