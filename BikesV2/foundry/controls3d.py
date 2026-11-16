@@ -21,7 +21,7 @@ import os
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bars3d as BR  # noqa: E402
@@ -612,13 +612,16 @@ def mirror(fr, s, key, M, model, lines, hand):
         if key == "fairing_aero":
             mc = root + Vector((-34, 150 * s, 58))
             B.cone(f"cmirrorboss{tag}", tuple(root), tuple(root + Vector((0, 12 * s, 3))), 12, 9, M["plastic"], 16)
-            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 8 * s, 2))), tuple(root + Vector((-8, 48 * s, 22))), tuple(mc + Vector((16, -52 * s, -12))), tuple(mc + Vector((14, -8 * s, -4)))],
-                    [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], M["plastic"])
             info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["plastic"])
+            # the arm meets the BACK of the head (beenster, 16 Nov: it ran across the glass)
+            bk = Vector(info["back"])
+            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 8 * s, 2))), tuple(root + Vector((-6, 46 * s, 18))), tuple(mc + bk * 34 + Vector((0, -46 * s, -10))), tuple(mc + bk * 18 + Vector((0, -10 * s, -4)))],
+                    [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], M["plastic"])
         else:
             mc = root + Vector((-14, 96 * s, 22))
-            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 4 * s, 0))), tuple(root + Vector((-6, 40 * s, 10))), tuple(mc + Vector((10, -30 * s, -4)))], [(26, 6), (22, 5), (18, 5)], M["plastic"])
             info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["plastic"], 22)
+            bk = Vector(info["back"])
+            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 4 * s, 0))), tuple(root + Vector((-6, 40 * s, 10))), tuple(mc + bk * 16 + Vector((0, -30 * s, -4)))], [(26, 6), (22, 5), (18, 5)], M["plastic"])
     info["eye"] = eye
     return info
 
@@ -638,6 +641,54 @@ def grip_lines(model, c, lines=None):
         g0 = (g[0], s * 258.0, g[1])
         d = BR.vnorm((-6, s * 126.0, -4))
         out[s] = (g0, d, BR.vadd(g0, d, BR.GRIP_L), BR.vadd(g0, d, BR.HAND_IN))
+    return out
+
+
+def own_bar_lines(model, c):
+    """The grip line each side read off the bike's OWN bar where the grip sits, not a guessed direction.
+    Some bikes' own grips do not follow their bar (kazeda_sport: the bar sweeps back 6 degrees more than
+    the grip, so its end shows through the grip; beenster, 16 Nov). Where they differ, the bike's grip and
+    bar end are turned onto the bar, and the controls follow the same line."""
+    import numpy as np
+    guess = grip_lines(model, c)
+    dg = bpy.context.evaluated_depsgraph_get()
+    out, turned = {}, {}
+    for s in (-1, 1):
+        pts = []
+        for nm in (f"bar{s}", "bar"):
+            ob = bpy.data.objects.get(nm)
+            if not ob:
+                continue
+            me = ob.evaluated_get(dg).to_mesh()
+            pts += [tuple(ob.matrix_world @ v.co) for v in me.vertices]
+            ob.evaluated_get(dg).to_mesh_clear()
+        v = np.array(pts) / B.MM if pts else np.zeros((0, 3))
+        cen = []
+        for yy in range(262, 382, 8):
+            sel = v[np.abs(v[:, 1] * s - yy) < 4] if len(v) else []
+            if len(sel) > 6:
+                cen.append(sel.mean(0))
+        if len(cen) < 6:
+            out[s] = guess[s]
+            continue
+        cen = np.array(cen)
+        mid = cen.mean(0)
+        d = np.linalg.svd(cen - mid)[2][0]
+        d = d if d[1] * s > 0 else -d
+        g0 = mid + d * ((s * 258.0 - mid[1]) / d[1])
+        g0, d = tuple(float(x) for x in g0), tuple(float(x) for x in d)
+        out[s] = (g0, d, BR.vadd(g0, d, BR.GRIP_L), BR.vadd(g0, d, BR.HAND_IN))
+        # turn the bike's own grip and bar end onto that line
+        od = Vector(guess[s][1])
+        ang = math.degrees(od.angle(Vector(d)))
+        turned[s] = round(ang, 1)
+        if ang > 1.0:
+            q = od.rotation_difference(Vector(d))
+            m = (Matrix.Translation(Vector(g0) * B.MM) @ q.to_matrix().to_4x4() @ Matrix.Translation(-Vector(guess[s][0]) * B.MM))
+            for ob in bpy.data.objects:
+                if ob.name in (f"grip{s}", f"barend{s}") or ob.name.startswith(f"barendbolt{s}"):
+                    ob.matrix_world = m @ ob.matrix_world
+    print("OWN BAR", model.get("name", ""), turned, flush=True)
     return out
 
 
@@ -701,8 +752,11 @@ def built(mn, levers, switches, mirrors, bar=None, grip="knurl", end="weighted")
     lines = None
     if bar:
         lines, _ = BR.fit(build3d, m, cc, bar, grip, end)
+    else:
+        use(build3d)
+        lines = own_bar_lines(m, cc)
     info, made = fit(build3d, m, cc, levers, switches, mirrors, lines)
-    return build3d, m, cc, grip_lines(m, cc, lines), info, made
+    return build3d, m, cc, lines, info, made
 
 
 def render_at(b3, path, loc, tgt, lens, res=(1300, 900), samples=40):
