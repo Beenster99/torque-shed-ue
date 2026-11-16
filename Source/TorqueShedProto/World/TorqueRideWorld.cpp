@@ -637,11 +637,11 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 					bFacade = bFacade && Mat && Mat->GetName().Contains(TEXT("RideFacade"));
 				}
 		}
-		int32 Asked = 1;
-		const bool bAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFacadeKit="), Asked);
-		Plan->FacadeKit = bFacade && Asked != 0;
+		int32 FacadeAsked = 1;
+		const bool bAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFacadeKit="), FacadeAsked);
+		Plan->FacadeKit = bFacade && FacadeAsked != 0;
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: facade kit %s"), Plan->FacadeKit ? TEXT("on (windows and doors instanced)")
-			: bAsked && Asked == 0 ? TEXT("off (-TorqueRideFacadeKit=0)") : TEXT("off (its models or M_RideFacade missing: Tools/ue_build_rideuk.py prop_kit)"));
+			: bAsked && FacadeAsked == 0 ? TEXT("off (-TorqueRideFacadeKit=0)") : TEXT("off (its models or M_RideFacade missing: Tools/ue_build_rideuk.py prop_kit)"));
 	}
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
