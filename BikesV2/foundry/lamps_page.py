@@ -109,11 +109,11 @@ page = f'''<title>Lamps and Indicators</title>
 </header>
 
 <section><h2>Headlamps</h2>
-<p class="sub">For naked, classic, cafe, cruiser and chopper bikes. Sport and adventure bikes keep the lamps built into their fairings, and MX bikes keep their number board. Where the lower yoke sits close behind the lamp, the bowl is made shallower or the lamp stands a little further forward, and the ears clamp below the yoke. The chips show the families each one was fitted to and checked on: <span class="chip ok">fits</span> means nothing touches.</p>
+<p class="sub">For naked, classic, cafe, cruiser and chopper bikes. Sport and adventure bikes get their own separate lamp units that show through openings in the fairing. The Bikes V2 thread is building those after your notes tonight, so they are not on this page. MX bikes keep their number board. Where the lower yoke sits close behind the lamp, the bowl is made shallower or the lamp stands a little further forward, and the ears clamp below the yoke. The chips show the families each one was fitted to and checked on: <span class="chip ok">fits</span> means nothing touches.</p>
 <div class="grid">{heads}</div></section>
 
 <section><h2>Tail lights</h2>
-<p class="sub">On the tail end of a naked, the frame loop's bracket on a cafe, and the rear mudguard on classics, cruisers and choppers. The sport bike's lamp is part of its tail and stays. The hanger lamp hangs from a tail, so it is not offered on mudguard bikes.</p>
+<p class="sub">On the tail end of a naked, the frame loop's bracket on a cafe, and the rear mudguard on classics, cruisers and choppers. The sport bike's tail lamp is being redone as a separate unit along with its headlamps, in the Bikes V2 thread. The hanger lamp hangs from a tail, so it is not offered on mudguard bikes.</p>
 <div class="grid">{tails}</div></section>
 
 <section><h2>Indicators</h2>
