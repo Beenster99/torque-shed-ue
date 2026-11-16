@@ -1158,7 +1158,10 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const int64 Key = int64(Which) * 4096 + K;
 			const bool bHave = RoadParts.Contains(Key);
 			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
-			const bool bEndsLaid = (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
+			// ([perf, build 151] asked only of a piece that would be made now: BlockLaid takes the network's
+			// lay lock, which a worker laying a block can hold for a while)
+			const bool bWanted = !bHave && HowFar < TRWI::RoadReach && (bAtOnce || (!RoadAsked.Contains(Key) && Jobs->RoadBusy.load() < TRWI::RoadsAtATime));
+			const bool bEndsLaid = bWanted && (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
 			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid && bAtOnce)
 			{
 				TorqueWorld::RideMesh Mesh;
