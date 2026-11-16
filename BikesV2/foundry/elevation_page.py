@@ -92,8 +92,8 @@ def pool_section(names):
         for a_ in ((2, 1, 1, 3, 0), (3, 2, 2, 2, 2), (1, 2, 3, 1, 3)):
             v = mix.apply_pool(base, *a_)
             v["dimensions"] = False
-            v["name"] = base["brand"].title() + " with pool parts"
-            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{base["brand"].title()}: {", ".join(v["pool_fitted"].values())}.</figcaption></figure>')
+            v["name"] = base["brand"].title().replace("Hartwell", "BSX") + " with pool parts"
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{base["brand"].title().replace("Hartwell", "BSX")}: {", ".join(v["pool_fitted"].values())}.</figcaption></figure>')
     shots = []
     for q in sorted(glob.glob(os.path.join(ROOT, "out", "renders", "*_pool*_q.png"))):
         tag = os.path.basename(q)[:-6]
@@ -103,7 +103,7 @@ def pool_section(names):
         v = mix.apply_pool(elevation.load(n), *[int(d) for d in digits])
         buf = io.BytesIO()
         Image.open(q).convert("RGB").resize((1000, 625)).save(buf, "JPEG", quality=82)
-        cap = f"{v['brand'].title()}: {', '.join(v['pool_fitted'].values())}"
+        cap = f"{v['brand'].title().replace("Hartwell", "BSX")}: {', '.join(v['pool_fitted'].values())}"
         shots.append(f'<figure><img src="data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}" alt="{cap}, 3D model"><figcaption>{cap}.</figcaption></figure>')
     return f"""<section><h2>The shared pool: parts any brand can use</h2><p class="lede">Bars, mirrors, lamps, wheels and silencers that belong to no brand and fit every naked. They hang off fixed points (the top of the fork, the grip, the exhaust joint), so one drawing fits every frame.</p><ul>{menu}</ul><p>On top of a model's own kit, the pool multiplies the choice by {count}. Every pool part passes the clearance checks on both bikes.</p><div class="shots">{"".join(shots)}</div><div class="shots">{"".join(figs)}</div></section>"""
 
@@ -124,9 +124,9 @@ def kit_renders(names):
         if k and k.group(1) in names:
             v = mix.apply_kit(elevation.load(k.group(1)), *[int(k.group(i)) for i in range(2, 6)], [int(x) for x in k.group(6).split("x") if x])
             f = v["kit_fitted"]
-            cap = f"{v['brand'].title()}: {f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + "".join(", " + x for x in f["extras"])
+            cap = f"{v['brand'].title().replace("Hartwell", "BSX")}: {f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + "".join(", " + x for x in f["extras"])
         elif "+" in tag and all(t in names for t in tag.split("+")):
-            a, b = [elevation.load(t)["brand"].title() for t in tag.split("+")]
+            a, b = [elevation.load(t)["brand"].title().replace("Hartwell", "BSX") for t in tag.split("+")]
             cap = f"{a} frame and engine with the {b} tank and seat"
         else:
             continue
@@ -191,7 +191,7 @@ def kit_section(names):
             v = mix.apply_kit(base, *args, **{p: (k * (2 if p == "paint" else 1) + 1) % len(nm[p]) for p in more})
             v["dimensions"] = False
             f = v["kit_fitted"]
-            v["name"] = base["brand"].title() + " kit build"
+            v["name"] = base["brand"].title().replace("Hartwell", "BSX") + " kit build"
             cap = f"{f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + ("".join(", " + x for x in f["extras"]) if f["extras"] else "")
             cap += "".join(f", {f[p]} {p}" for p in more)
             figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{cap}.</figcaption></figure>')
@@ -228,7 +228,7 @@ def build(family, names):
         if m2["body"].get("plate_hanger"):
             m2["fit"] = {"plate_hanger": False}
             m2["dimensions"] = False
-            m2["name"] = m2["brand"].title() + " without the plate hanger"
+            m2["name"] = m2["brand"].title().replace("Hartwell", "BSX") + " without the plate hanger"
             bare.append(f'<div class="sheet">{elevation.draw(m2)}</div>')
     if bare:
         h.append('<section><h2>Plate hanger: its own part, optional</h2><p class="lede">The long hanger with the number plate and its lamp is drawn in on every bike above, as most countries require it, but it is a separate bolt-on part. A build can leave it off, as here.</p><div class="shots">' + "".join(bare) + "</div></section>")
@@ -253,8 +253,8 @@ def build(family, names):
 <li>The automatic checks under each drawing run on every change. Three came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, the middle of the bike may not be more than 12% empty space, and a naked tank must be flat underneath.</li>
 <li>Changed from your in-game markup of build 144 (14 Nov): the rear shock is held by a bridge on the swingarm and a cross tube on the frame; exhausts on a single-sided swingarm sit under the seat or on the swingarm side so the open side of the wheel stays on show, and pass outside the arm; the tube frame sits outside the side panels and its seat rails close in and join inside the tail; the Kazeda's spars pass outside the cylinder head; front mudguards are thin with a clean edge at both ends and a shorter nose; clocks and screens sit higher. Only the Corvano and Kazeda pictures are re-rendered; the other 3D pictures are older.</li>
 <li>Changed from your third 14 Nov markup: every naked's seat and tail now reach back to finish above the rear hub, a little differently per brand (the Kazeda runs just past the axle, the Corvano stops just short of it), and the plate bracket is shortened to match.</li>
-<li>Changed from your second 14 Nov markup: pipes that go under the engine first sweep forward in a curve, clear of the front of the engine, then tuck tight under it; the boxer's cylinders stand out 20% less; tank tops are smoothed further and the top view is lit evenly, because the studio lamps were painting bright patches on the paint that read as bands; the Hartwell has a shorter mudguard nose, a longer tail and one pair of clocks.</li>
-<li>Changed from your 14 Nov markup: the Corvano and Hartwell pipes run under the engine but tucked tight against the cases with no gap (Trident style, not the low wide arc of the first draft), front calipers bolt to the fork leg and both bikes have a rear caliper, the tyres are built from the game's own tread sections, the tanks are smooth from above, and mudguards end in a curve.</li>
+<li>Changed from your second 14 Nov markup: pipes that go under the engine first sweep forward in a curve, clear of the front of the engine, then tuck tight under it; the boxer's cylinders stand out 20% less; tank tops are smoothed further and the top view is lit evenly, because the studio lamps were painting bright patches on the paint that read as bands; the BSX has a shorter mudguard nose, a longer tail and one pair of clocks.</li>
+<li>Changed from your 14 Nov markup: the Corvano and BSX pipes run under the engine but tucked tight against the cases with no gap (Trident style, not the low wide arc of the first draft), front calipers bolt to the fork leg and both bikes have a rear caliper, the tyres are built from the game's own tread sections, the tanks are smooth from above, and mudguards end in a curve.</li>
 <li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
 <li>The mixed builds are the first proof of the mounting standard.</li>

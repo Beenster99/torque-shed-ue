@@ -20,7 +20,7 @@ THUMBS = {
                     tail=[(470, 860), (385, 890), (225, 935), (140, 930), (155, 895), (300, 815), (450, 775)], tail_end=(165, 950),
                     bars=[(1120, 1040), (1075, 1075), (1050, 1085)],
                     exhaust=dict(pipe=[(980, 470), (1000, 330), (820, 250), (560, 265)], can=[(560, 275), (330, 330)], can_w=110)),
-    "hartwell": dict(NAKED, title="Hartwell naked", layout="parallel_twin", frame="cradle", lamp="round", curve=0.9, wire=True,
+    "hartwell": dict(NAKED, title="BSX naked", layout="parallel_twin", frame="cradle", lamp="round", curve=0.9, wire=True,
                      body="#1F4D3A", frame_col="#22262A", rake=25.5, rf=310, rr=320, engine_at=(810, 425),
                      tank=[(1075, 905), (1068, 968), (1000, 1014), (880, 1022), (745, 988), (650, 905), (650, 866), (800, 856), (1000, 866)],
                      seat=seat([(650, 905), (600, 885), (300, 885), (130, 892)], 75),

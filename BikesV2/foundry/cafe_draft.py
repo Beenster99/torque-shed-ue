@@ -1,9 +1,9 @@
 """First-draft cafe racers: a brand's naked frame, engine and tank line under the cafe family's shape.
 
-The approved Hartwell cafe (beenster, 14 Nov: "cafe bike looks great") sets the family's shape: low
+The approved BSX cafe (beenster, 14 Nov: "cafe bike looks great") sets the family's shape: low
 clip-ons, a round lamp, a long flat tank line, a short single seat and a humped tail. A brand's first
 cafe draft keeps its own frame, engine, exhaust, colours and its own tank outline (stretched to the
-cafe's longer tank section), and takes the seat, hump tail, front end and stance from the Hartwell.
+cafe's longer tank section), and takes the seat, hump tail, front end and stance from the BSX.
 The result is a model file like any other and is then restyled by hand.
 
     python3 foundry/cafe_draft.py            # (re)write the cafe racers listed in DRAFTS
@@ -50,7 +50,7 @@ def draft(name, spec):
         s = copy.deepcopy(s)
         s["pts"] = [[round(min(ct) + (p[0] - min(bt)) * kx, 1), round(p[1] + dz, 1)] + p[2:] for p in s["pts"]]
         b["tank"].append(s)
-    # no separate arc over the rear tyre: these brands' silencers sit where the Hartwell's guard is
+    # no separate arc over the rear tyre: these brands' silencers sit where the BSX's guard is
     b["panels"] = [s for s in b["panels"] if "arc" not in s]
     b["caps"] = [dict(s, at=[round(min(ct) + (s["at"][0] - min(bt)) * kx, 1), s["at"][1] + dz]) for s in base["body"].get("caps", [])]
     m["body"] = b
