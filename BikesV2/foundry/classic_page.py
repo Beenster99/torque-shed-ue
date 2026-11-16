@@ -8,25 +8,25 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('hartwell_classic', 'Hartwell classic, round 2', 'Your eight points from 16 Nov, all in: fluted headlight glass, deeper clocks, plainer grips, chrome petrol cap, the exhaust leaving the engine in one clean sweep, a hollow silencer with no cuff, a squared-off swing arm, and the shocks bolted into a forked bracket on the arm. Pegs untouched. Rendered straight from the model, nothing retouched.', [
-        ('shot_rearq_front', 'Whole bike, front quarter', 'The header now comes forward out of the head and sweeps down in one curve.'),
+    ('hartwell_classic', 'Hartwell classic, round 3', 'Round 3 (16 Nov): the headlamp moved forward and up, clear of the headstock and lower yoke; the exhaust now leaves the front of a slightly narrower engine angled down, sweeps down in one wide curve and turns into its horizontal run in another; the bars run dead straight under the grips. Round 2 points all kept. Pegs untouched.', [
+        ('shot_rearq_front', 'Whole bike, front quarter', 'Headlamp forward of the fork, the header sweeping down from the head.'),
+        ('shot_midr', 'Engine, right side', 'Out of the front of the engine, a wide sweep down, a wide turn into the horizontal.'),
+        ('shot_nose', 'Headlamp', 'Clear of the headstock and the lower yoke, on its fork brackets.'),
+        ('shot_cockpit', 'Cockpit', 'Grips in line with the bars.'),
         ('shot_rearq', 'Rear quarter, exhaust side', 'Squared swing arm, hollow silencer, twin shocks.'),
-        ('shot_rear', 'Shock bracket and silencer end', 'Each shock eye sits in a forked bracket welded to the top of the arm, with the bolt through. The silencer draws in to a thin lip round an open bore.'),
-        ('shot_midr', 'Engine, right side', 'The pipe leaves the port in line with it, no kink, then runs back flat along the cases.'),
-        ('shot_nose', 'Headlamp', 'Moulded glass with upright flutes and a cross-cut block, over a bright silvered bowl.'),
-        ('shot_cockpit', 'Cockpit', 'Plain grips, steel levers, chrome petrol cap.'),
-        ('shot_clocks', 'Clocks', 'Deeper chrome cans.'),
-        ('shot_glamp', 'Brake light and indicators', 'Unchanged from round 1.'),
+        ('shot_rear', 'Shock bracket and silencer end', 'From round 2, unchanged.'),
+        ('shot_clocks', 'Clocks', 'From round 2, unchanged.'),
+        ('shot_glamp', 'Brake light and indicators', 'From round 1, unchanged.'),
     ]),
-    ('lodestar_cruiser', 'Lodestar cruiser, round 1', 'Your nine points from 16 Nov: heel plates gone, the forward pegs on cast arms out of the frame (peg positions unchanged, so the rider sits exactly as before), the brake light moved up on to the mudguard with traditional indicators, a bigger fluted headlamp, all-chrome real shocks, pipes lined up with open hollow silencers, bright bars, levers and mirrors, larger chrome clocks.', [
-        ('shot_rearq_front', 'Whole bike, front quarter', 'Bigger headlamp, bright bars and mirrors, the peg arms out of the down tubes.'),
-        ('shot_rearq', 'Rear quarter, exhaust side', 'Open silencers with no black caps, chrome shocks.'),
-        ('shot_fpeg', 'Forward pegs', 'No heel plates. Each peg and pedal stands on a cast arm that grows out of the frame down tube. The pegs themselves have not moved.'),
-        ('shot_glamp', 'Brake light and indicators', 'The lamp now stands on the mudguard instead of past its end.'),
-        ('shot_rear', 'Shocks and silencer ends', 'Chrome shocks in their brackets on the arm, hollow outlets.'),
-        ('shot_midr', 'Engine and pipes, right side', 'Each pipe arrives in line with its silencer.'),
-        ('shot_nose', 'Headlamp', 'The same fluted glass as the classic, in a bigger shell.'),
-        ('shot_cockpit', 'Cockpit', 'Larger chrome clocks, steel levers.'),
+    ('lodestar_cruiser', 'Lodestar cruiser, round 2', 'Round 2 (16 Nov): the headlamp moved forward and up, clear of the headstock; the rear brake cylinder and its reservoir moved back to sit low behind the engine by the swingarm pivot, worked from the pedal by a rod along the frame rail; the bars run dead straight under the grips. Round 1 points all kept. Pegs untouched.', [
+        ('shot_rearq_front', 'Whole bike, front quarter', 'Headlamp forward, bright bars and mirrors.'),
+        ('shot_rearq', 'Rear quarter, exhaust side', 'Open silencers, chrome shocks.'),
+        ('shot_midr', 'Engine and pipes, right side', 'The brake reservoir now sits behind the engine, between the pipes and the cases.'),
+        ('shot_nose', 'Headlamp', 'Clear of the headstock, same fluted glass as the classic.'),
+        ('shot_cockpit', 'Cockpit', 'Grips in line with the pulled-back bars, larger chrome clocks.'),
+        ('shot_fpeg', 'Forward pegs', 'Each peg on its cast arm from the down tube, with the reservoir gone from the front.'),
+        ('shot_glamp', 'Brake light and indicators', 'From round 1, unchanged.'),
+        ('shot_rear', 'Shocks and silencer ends', 'From round 1, unchanged.'),
     ]),
 ]
 body = '<main>\n<div class="k">Bike Models V2 · Definition pass · Classic and cruiser</div>'
@@ -37,7 +37,7 @@ for key, h1, lede, items in SETS:
         p = os.path.join(ROOT, 'out', 'renders', f'{key}_def_{tag}.png')
         if not os.path.exists(p):
             continue
-        shutil.copy(p, dst + f'{key}_r2_{tag}.png')
+        shutil.copy(p, dst + f'{key}_r3_{tag}.png')
         im = Image.open(p).convert('RGB')
         if im.width > 1400:
             im = im.resize((1400, int(im.height * 1400 / im.width)))

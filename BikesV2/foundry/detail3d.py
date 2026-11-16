@@ -1578,6 +1578,15 @@ def controls(model, c):
     if opt.get("levers") == "steel":      # polished steel levers (beenster, cafe round 2)
         satin = surf("leversteel", (0.62, 0.63, 0.65), 1.0, 0.24, wear=0.1)
     barend = opt.get("mirrors") == "barend"
+    old, rz = bpy.data.objects.get("bar"), c.get("rz")
+    if old is not None and rz:
+        # the grips line up with the bars (beenster, 16 Nov): the one-piece bar is redrawn so that its last stretch
+        # each side runs dead straight along the grip's own centre line, and only bends inboard of the switchgear
+        bm_ = old.data.materials[0] if len(old.data.materials) else B.mat("alu_dark")
+        bpy.data.objects.remove(old, do_unlink=True)
+        on = lambda y: (grip[0] - 6 * (abs(y) - 258) / 126, y, grip[1] - 4 * (abs(y) - 258) / 126)
+        half = lambda sg: [(rz[0], sg * 70, rz[1]), (rz[0] + (grip[0] - rz[0]) * 0.42, sg * 122, rz[1] + (grip[1] - rz[1]) * 0.5), on(sg * 168), on(sg * 200), on(sg * 250), on(sg * 320), on(sg * 384)]
+        B.smooth_tube("bar", half(-1)[::-1] + half(1), 11.5, bm_)
     if opt.get("bars") == "steel":      # bright bars, risers and clamps (beenster, cruiser round 1)
         for ob in bpy.data.objects:
             if ob.name == "bar" or ob.name.startswith(("riser", "barclamp-", "barclamp1")) and "bolt" not in ob.name:
@@ -2463,6 +2472,20 @@ def rear_end(model, c):
                 lathe(f"pegarmfoot{s}", (rx, s * (yr - 6), root[1]), (0, s, 0), [(0, 0), (0, 21), (10, 21), (15, 14), (15, 0)], cast, 24)
                 lathe(f"pegarmboss{s}", (p[0], s * 164, p[1]), (0, s, 0), [(0, 0), (0, 17), (4, 19), (14, 19), (17, 16), (17, 0)], cast, 28)
                 B.tube(f"pegarmlink{s}", [(p[0], s * 172, p[1]), (piv[0], s * 178, piv[1])], 8, cast)
+            # the rear brake's master cylinder and its reservoir move back (beenster, cruiser round 2): they sit low on
+            # the right behind the engine, by the swingarm pivot, worked from the pedal by a long rod along the frame rail
+            for nm in ("rearmaster", "rearmasterrod", "rearres", "rearrescap", "rearreshose"):
+                ob = bpy.data.objects.get(nm)
+                if ob is not None:
+                    bpy.data.objects.remove(ob, do_unlink=True)
+            mx, mz = sp[0] + 96, sp[1] - 166
+            B.cone("rearmaster", (mx, -170, mz), (mx - 62, -166, mz + 16), 11, 11, dark, 20)
+            B.cone("rearmasterboot", (mx + 16, -171, mz - 4), (mx, -170, mz), 6, 10, rubber, 16)
+            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, p[1] - 80), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
+            B.cone("rearres", (mx - 50, -150, mz + 62), (mx - 50, -150, mz + 96), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
+            B.cone("rearrescap", (mx - 50, -150, mz + 96), (mx - 50, -150, mz + 103), 16.5, 16, B.mat("plastic"), 24)
+            B.smooth_tube("rearreshose", [(mx - 50, -150, mz + 62), (mx - 48, -156, mz + 40), (mx - 40, -165, mz + 22)], 3.5, rubber)
+            B.tube("rearresbracket", [(mx - 50, -134, mz + 78), (mx - 50, -100, mz + 78)], 4, dark)
         for s in (() if noplate else (-1, 1)):
             ya, yb = (181, 185) if s == 1 else (-185, -181)
             pl = B.prism(f"heelplate{s}", hp, ya, yb, brushed(), 0)
