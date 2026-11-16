@@ -25,7 +25,10 @@
    "wire": true,
    "disc": 130,
    "phase": 0,
-   "tread": "knobbly"
+   "tread": "knobbly",
+   "width": 84,
+   "spoke_fat": 3.2,
+   "single_disc": true
   },
   "rear": {
    "tyre_r": 340,
@@ -34,7 +37,9 @@
    "wire": true,
    "disc": 120,
    "phase": 15,
-   "tread": "knobbly"
+   "tread": "knobbly",
+   "width": 116,
+   "spoke_fat": 3.2
   }
  },
  "fork": {
@@ -2014,5 +2019,9 @@
     }
    }
   ]
+ },
+ "detail": {
+  "mirrors": "none",
+  "indicators": "led"
  }
 }

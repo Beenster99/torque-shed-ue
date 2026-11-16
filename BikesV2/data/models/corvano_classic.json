@@ -2560,5 +2560,14 @@
     }
    }
   ]
+ },
+ "detail": {
+  "levers": "steel",
+  "clocks": "chrome_deep",
+  "indicators": "trad",
+  "heel_plate": "swept",
+  "lamp": "fluted",
+  "grips": "plain",
+  "cap": "chrome"
  }
 }

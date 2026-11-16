@@ -2593,5 +2593,10 @@
     }
    }
   ]
+ },
+ "detail": {
+  "mirrors": "adv",
+  "tft": "large",
+  "indicators": "arrow"
  }
 }
