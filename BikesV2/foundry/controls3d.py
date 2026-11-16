@@ -531,7 +531,7 @@ SHOTS = [
     ("lever", "short", "kazeda_naked", dict(switches="minimal", mirrors="rect")),
     ("lever", "folding", "kazeda_sport", dict(switches="modern", mirrors="fairing_aero")),
     ("lever", "classic", "hartwell_classic", dict(switches="classic", mirrors="teardrop")),
-    ("lever", "forged", "corvano_adventure", dict(switches="modern", mirrors="rect")),
+    ("lever", "forged", "rheinhart_naked", dict(switches="modern", mirrors="rect")),
     ("switch", "modern", "corvano_naked", dict(levers="standard", mirrors="oval")),
     ("switch", "classic", "hartwell_classic", dict(levers="classic", mirrors="teardrop")),
     ("switch", "minimal", "rheinhart_naked", dict(levers="short", mirrors="barend_blade")),
