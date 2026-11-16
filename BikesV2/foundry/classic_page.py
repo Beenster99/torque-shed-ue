@@ -8,19 +8,25 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('hartwell_classic', 'Hartwell classic, first look', 'The classic lead bike. New for this family: an air-cooled look finned twin, and a polished brake light standing on the rear mudguard with the indicators growing out of its housing. Rendered straight from the model, nothing retouched.', [
-        ('shot_rearq_front', 'Whole bike, front quarter', 'Round headlamp and clocks carried over from the cafe, deep mudguards, wire wheels.'),
-        ('shot_rearq', 'Rear quarter, exhaust side', 'Long flat seat, twin shocks and the long silencer.'),
-        ('shot_glamp', 'Brake light and indicators', 'Polished oval housing on the mudguard, red lens facing straight back, an indicator out of each side so nothing depends on the plate.'),
-        ('shot_midr', 'Engine, right side', 'Two finned barrels, the header down the front and back along the cases.'),
-        ('shot_nose', 'Headlamp', 'The same round lamp and fork brackets as the cafe.'),
-        ('shot_cockpit', 'Cockpit', 'Wide bars, twin clocks with faces, filler cap.'),
+    ('hartwell_classic', 'Hartwell classic, round 3', 'Round 3 (16 Nov): the headlamp moved forward and up, clear of the headstock and lower yoke; the exhaust now leaves the front of a slightly narrower engine angled down, sweeps down in one wide curve and turns into its horizontal run in another; the bars run dead straight under the grips. Round 2 points all kept. Pegs untouched.', [
+        ('shot_rearq_front', 'Whole bike, front quarter', 'Headlamp forward of the fork, the header sweeping down from the head.'),
+        ('shot_midr', 'Engine, right side', 'Out of the front of the engine, a wide sweep down, a wide turn into the horizontal.'),
+        ('shot_nose', 'Headlamp', 'Clear of the headstock and the lower yoke, on its fork brackets.'),
+        ('shot_cockpit', 'Cockpit', 'Grips in line with the bars.'),
+        ('shot_rearq', 'Rear quarter, exhaust side', 'Squared swing arm, hollow silencer, twin shocks.'),
+        ('shot_rear', 'Shock bracket and silencer end', 'From round 2, unchanged.'),
+        ('shot_clocks', 'Clocks', 'From round 2, unchanged.'),
+        ('shot_glamp', 'Brake light and indicators', 'From round 1, unchanged.'),
     ]),
-    ('lodestar_cruiser', 'Lodestar cruiser, first look', 'The cruiser lead bike in its bobbed trim. Known gap: this trim has no number plate drawn yet.', [
-        ('shot_rearq_front', 'Whole bike, front quarter', 'V-twin in a double cradle, fat front tyre, pulled-back bars.'),
-        ('shot_rearq', 'Rear quarter, exhaust side', 'Staggered pipes, solo seat and the bobbed rear mudguard.'),
-        ('shot_glamp', 'Brake light and indicators', 'The same lamp as the classic, on the end of the bobbed guard.'),
-        ('shot_midr', 'Engine, right side', 'The V-twin with its fins, covers and pipes.'),
+    ('lodestar_cruiser', 'Lodestar cruiser, round 2', 'Round 2 (16 Nov): the headlamp moved forward and up, clear of the headstock; the rear brake cylinder and its reservoir moved back to sit low behind the engine by the swingarm pivot, worked from the pedal by a rod along the frame rail; the bars run dead straight under the grips. Round 1 points all kept. Pegs untouched.', [
+        ('shot_rearq_front', 'Whole bike, front quarter', 'Headlamp forward, bright bars and mirrors.'),
+        ('shot_rearq', 'Rear quarter, exhaust side', 'Open silencers, chrome shocks.'),
+        ('shot_midr', 'Engine and pipes, right side', 'The brake reservoir now sits behind the engine, between the pipes and the cases.'),
+        ('shot_nose', 'Headlamp', 'Clear of the headstock, same fluted glass as the classic.'),
+        ('shot_cockpit', 'Cockpit', 'Grips in line with the pulled-back bars, larger chrome clocks.'),
+        ('shot_fpeg', 'Forward pegs', 'Each peg on its cast arm from the down tube, with the reservoir gone from the front.'),
+        ('shot_glamp', 'Brake light and indicators', 'From round 1, unchanged.'),
+        ('shot_rear', 'Shocks and silencer ends', 'From round 1, unchanged.'),
     ]),
 ]
 body = '<main>\n<div class="k">Bike Models V2 · Definition pass · Classic and cruiser</div>'
@@ -31,7 +37,7 @@ for key, h1, lede, items in SETS:
         p = os.path.join(ROOT, 'out', 'renders', f'{key}_def_{tag}.png')
         if not os.path.exists(p):
             continue
-        shutil.copy(p, dst + f'{key}_r1_{tag}.png')
+        shutil.copy(p, dst + f'{key}_r3_{tag}.png')
         im = Image.open(p).convert('RGB')
         if im.width > 1400:
             im = im.resize((1400, int(im.height * 1400 / im.width)))

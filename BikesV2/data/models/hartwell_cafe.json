@@ -2,7 +2,7 @@
  "name": "Hartwell cafe (working title C1)",
  "brand": "hartwell",
  "family": "Cafe",
- "rev": "G",
+ "rev": "H",
  "engine_label": "parallel twin",
  "frame_label": "steel tube frame, engine as part of the frame",
  "colours": {
@@ -1193,19 +1193,6 @@
     ],
     "cls": "plastic",
     "t": 0.7
-   },
-   {
-    "arc": {
-     "c": [
-      0,
-      320
-     ],
-     "r0": 332,
-     "r1": 350,
-     "a0": 30,
-     "a1": 64
-    },
-    "cls": "plastic"
    }
   ],
   "caps": [
@@ -1300,7 +1287,8 @@
   ]
  },
  "fit": {
-  "plate_hanger": true
+  "plate_hanger": true,
+  "hugger": false
  },
  "rear_caliper": {
   "body": [
@@ -1403,6 +1391,7 @@
   "clocks": "deep",
   "indicators": "trad",
   "hoses": "tidy",
-  "lamp": "led"
+  "lamp": "led",
+  "heel_plate": "swept"
  }
 }

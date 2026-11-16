@@ -860,7 +860,12 @@ def build(model):
         out_y = 58 if under else 214      # side silencers sit outside the swingarm
         if is_belly(ex, 0):
             out_y = 0                     # the pipes gather into a box under the engine, on the centre line
+        if ex.get("join") and ex.get("cans") and not is_belly(ex, 0):
+            # the pipe arrives dead in line with its silencer's mouth (beenster, cruiser round 1)
+            out_y = can_y(ex, min(i, len(ex["cans"]) - 1), under)[0]
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
+        if ex.get("join"):
+            yy = [sg * (40 + (out_y - 40) * (lambda t: t * t * (3 - 2 * t))(min(1.0, j / (0.8 * (len(pts) - 1))))) for j in range(len(pts))]
         if left:
             # stay tucked under the engine, then move out behind the sump and ahead of the swingarm,
             # so the pipe passes outside the arm and never through it
@@ -872,6 +877,11 @@ def build(model):
             # down the side of the engine: out past the cases straight away, then back to the silencer
             side_y = wide / 2 + 34
             yy = [sg * (60 + (side_y - 60) * min(1.0, j / (0.18 * (len(pts) - 1))) ** 0.7) for j in range(len(pts))]
+            if hp.get("ease"):      # leaves the port dead in line with it, then swings out (beenster, classic round 2: no kink at the start)
+                def ease(j):
+                    t = min(1.0, j / (0.34 * (len(pts) - 1)))
+                    return t * t * (3 - 2 * t)
+                yy = [sg * (60 + (side_y - 60) * ease(j)) for j in range(len(pts))]
             yy = [sg * (abs(y) + (out_y - side_y) * max(0.0, j / (len(pts) - 1) - 0.75) / 0.25) for j, y in enumerate(yy)]
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
@@ -1089,6 +1099,14 @@ def build(model):
                             low = max(0.0, min(1.0, (500 - z) / 90.0))
                             y *= 1 - low * 0.66 * (1 - d2 * d2 * (3 - 2 * d2))
                         return y
+                    if DETAIL["on"] and model["family"].lower() == "adventure" and any(v.get("cowl") and v.get("w") for v in body.get("panels", [])):
+                        # an adventure tank shroud: flush with the nose's flank where the two meet, swelling out
+                        # over the radiator, leaning back in to the rider's knee, its lower spear and its top
+                        # edge both tucked in, so it reads as a shaped shell and not a flat board
+                        y = 153 + 44 * math.sin(math.pi * max(0.0, min(1.0, (1191 - x) / 340.0)))
+                        lo_ = max(0.0, min(1.0, (z - 340) / 330.0))
+                        y = 122 + (y - 122) * math.sqrt(1 - (1 - lo_) ** 2)
+                        return y - 16 * max(0.0, min(1.0, (z - 925) / 90.0)) ** 2
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
@@ -1183,7 +1201,10 @@ def build(model):
                 for s in (-1, 1):
                     skin(f"ear{i}{s}", pp, earf, s, m_, stations=50, rows=18, thick=5.0)
             elif shp.get("cowl"):
-                if model["family"].lower() == "sport":
+                if shp.get("w"):
+                    # a nose with its own plan shape (adventure): full width round the fork tops, drawn in to the beak
+                    loft(f"cowl{i}", pp, {"w": shp["w"], "n": shp.get("n", 3.4), "bottom": shp.get("bottom", 1.0), "blunt_rear": True}, m_)
+                elif model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel
                     loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 146], [1, 104]], "n": 4.6, "bottom": 1.0}, m_)
                 else:
