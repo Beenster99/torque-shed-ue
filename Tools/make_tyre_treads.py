@@ -36,7 +36,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "Data", "Parts", "Redrawn", "tyre")
 
-TREADS = ["rib", "touring", "sport", "cruiser", "trail", "sipes", "knobs", "blocks", "studs"]
+TREADS = ["rib", "touring", "sport", "cruiser", "trail", "sipes", "knobs", "blocks", "studs", "slick"]
 OFFROAD = ["knobs", "blocks", "studs"]
 CENTRE_GROOVE = ["rib", "cruiser"]
 CENTRE_EDGE = 0.09
@@ -51,6 +51,91 @@ RUBBER = {"name": "rubber", "doubleSided": True,
           "pbrMetallicRoughness": {"baseColorFactor": [0.02, 0.02, 0.02, 1.0], "metallicFactor": 0.0, "roughnessFactor": 0.85}}
 STEEL = {"name": "raw_steel", "doubleSided": True,
          "pbrMetallicRoughness": {"baseColorFactor": [0.45, 0.45, 0.46, 1.0], "metallicFactor": 1.0, "roughnessFactor": 0.4}}
+
+
+# The carcass's shape across (beenster, 16 Nov, from a real adventure bike's tyres: "the tyre wall is
+# shaped outwards and then the tyre contact surface starts, there's like an edge ... ALL tyres except
+# maybe classics"). A real tyre's sidewall bulges out to its widest about a third of the way up, comes
+# back in a little, and then the tread band starts at a crisp shoulder edge, with a small ledge where
+# the tread rubber ends; the tread itself is one even arc over the crown, meeting the wall at an angle
+# (so the edge catches the light as a line round the tyre). Per tread: where the shoulder edge is (x
+# across in half widths, y up in tyre heights). A road tyre's tread runs a long way down (a sport tyre
+# is used to 55 degrees of lean); a cruiser's and an adventure tyre's are flatter on top. The classic
+# ribbed tyre ("rib") keeps Torque Shed's round profile, as beenster allowed for classics.
+SHAPED = {"sport": (0.91, 0.50), "touring": (0.91, 0.52), "sipes": (0.91, 0.52), "slick": (0.91, 0.49),
+          "cruiser": (0.92, 0.58), "trail": (0.92, 0.56), "knobs": (0.95, 0.50), "studs": (0.95, 0.50),
+          "blocks": (0.95, 0.52)}
+ASPECT = 0.85              # a half width to a tyre height on the reference tyre (85 mm / 100 mm), so the arc is round on the bike
+
+
+def shaped(tread):
+    return tread in SHAPED
+
+
+def edge_of(tread):
+    """How far across the tread band runs (the shoulder edge), in half widths."""
+    return SHAPED[tread][0] if shaped(tread) else XB
+
+
+def tread_arc(tread, x):
+    """A shaped tyre's tread band: one circular arc (on the bike) from the crown to the shoulder edge."""
+    ex, ey = SHAPED[tread]
+    top = top_of(tread)
+    a, b = ex * ASPECT, top - ey
+    r = (a * a + b * b) / (2.0 * b)
+    xa = np.minimum(np.abs(np.asarray(x, float)), ex) * ASPECT
+    return top - (r - np.sqrt(r * r - xa * xa))
+
+
+def wall_runs(tread, lod):
+    """A shaped tyre's sidewall on the right, from the bead up to the shoulder edge, as runs of points
+    (x across, y up), each lit smooth along itself and creased where two runs meet: the wall (bulging
+    out to its widest at 1.0, a third of the way up, then in again), and the short ledge from the top
+    of the wall in to the tread's edge. (Below Torque Shed's BULGE, Fit/BikeParts.cpp reads x 0.9..1.0
+    as the bead out to the full width, so the wall keeps to that there; above it x is plain.)"""
+    ex, ey = SHAPED[tread]
+    lip = (ex + 0.03, ey - 0.012)
+    key = [(0.9, 0.0), (0.955, 0.08), (0.99, 0.18), (1.0, 0.30), (0.993, 0.40), (ex + 0.05, ey - 0.05), lip]
+    if lod >= 2:
+        return [[(0.9, 0.0), (1.0, 0.30), lip], [lip, (ex, ey)]]
+    per = 2 if lod == 0 else 1
+    pts = []
+    P = [np.array(k, float) for k in key]
+    for i in range(len(P) - 1):
+        p0, p1, p2, p3 = P[max(i - 1, 0)], P[i], P[i + 1], P[min(i + 2, len(P) - 1)]
+        for j in range(per):
+            t = j / per
+            pts.append(tuple(0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t ** 3)))
+    pts.append(lip)
+    return [pts, [lip, (ex, ey)]]
+
+
+def walls(tread, lod, zs, mesh):
+    """Both sidewalls of a shaped tyre, in rows at zs along the section (the crown's own rows at its
+    edge, so the two meet without cracks)."""
+    for sd in (1.0, -1.0):
+        for run in wall_runs(tread, lod):
+            prof = np.array([(sd * x, y) for x, y in run])
+            nrm2 = []
+            for i in range(len(prof)):
+                tg = prof[min(i + 1, len(prof) - 1)] - prof[max(i - 1, 0)]
+                n = np.array([tg[1], -tg[0], 0.0])
+                if n[0] * prof[i][0] + n[1] * (prof[i][1] - 0.3) < 0.0:
+                    n = -n
+                nrm2.append(n / np.linalg.norm(n))
+            base = len(mesh.pos)
+            for z in zs:
+                for (x, y), n in zip(prof, nrm2):
+                    mesh.add((float(x), float(y), float(z)), tuple(float(v) for v in n), (float(x) * 0.05, float(z) * 0.07))
+            cols = len(prof)
+            for i in range(len(zs) - 1):
+                for j in range(cols - 1):
+                    a, b, c, e = base + i * cols + j, base + (i + 1) * cols + j, base + (i + 1) * cols + j + 1, base + i * cols + j + 1
+                    P = [np.array(mesh.pos[k]) for k in (a, b, c)]
+                    if outward(P):
+                        mesh.tri(a, b, c); mesh.tri(a, c, e)
+                    else:
+                        mesh.tri(a, c, b); mesh.tri(a, e, c)
 
 
 def top_of(tread):
@@ -287,6 +372,8 @@ def groove_strokes(tread):
 
 
 def crown_height(tread, x):
+    if shaped(tread):
+        return tread_arc(tread, x)
     top = top_of(tread)
     return BULGE + (top - BULGE) * np.sqrt(np.maximum(0.0, 1.0 - np.abs(x) ** 2.0))
 
@@ -305,6 +392,7 @@ def cut_tread(tread, mesh):
     from shapely.geometry import LineString, MultiLineString, box
     from shapely.ops import unary_union
     along = along_of(tread)
+    XB = edge_of(tread)
     strokes = groove_strokes(tread)
     G_ext = unary_union([g for g, _ in strokes])
     F_ext = G_ext.buffer(-DRAFT, quad_segs=6)
@@ -423,6 +511,9 @@ def cut_tread(tread, mesh):
             mesh.add(tuple(float(v) for v in p), tuple(float(v) for v in n), (float(p[0]) * 0.05, float(p[2]) * 0.07))
         for tri in tl:
             mesh.tri(*(base + int(k) for k in tri))
+    if shaped(tread):
+        walls(tread, 0, ss / along, mesh)
+        return
     # The sidewalls: Torque Shed's walls from the bead up to the cut crown's edge, in rows.
     pts, _ = road_profile(tread, 0)
     for sd in (1.0, -1.0):
@@ -458,8 +549,10 @@ def cut_tread(tread, mesh):
 
 def carcass(tread, lod, mesh):
     road = tread not in OFFROAD
-    if road and lod == 0:
+    if road and lod == 0 and tread != "slick":
         return cut_tread(tread, mesh)
+    if shaped(tread):
+        return shaped_carcass(tread, lod, mesh)
     d = (ROAD_DETAIL if road else OFF_DETAIL)[lod]
     if road:
         pts, on_crown = road_profile(tread, lod)
@@ -517,8 +610,67 @@ def carcass(tread, lod, mesh):
                 mesh.tri(a, c, b); mesh.tri(a, e, c)
 
 
+def shaped_carcass(tread, lod, mesh):
+    """A shaped tyre at a lower detail (and a slick or a knobbly's carcass at every detail): the tread
+    band as a grid across the crown to the shoulder edges, its grooves pressed in at lod1, then the
+    walls on (creased at the edge)."""
+    road = tread not in OFFROAD
+    d = (ROAD_DETAIL if road else OFF_DETAIL)[lod]
+    ex = edge_of(tread)
+    xs = np.linspace(-ex, ex, d["crown"] + 1)
+    if road:
+        cell = 0.08 if tread == "slick" and lod == 0 else d["cell"]      # (a slick has no grooves to follow)
+        rows = max(1, int(round(along_of(tread) / cell)))
+    else:
+        rows = d["along"]
+    cols = len(xs)
+    X = np.repeat(xs[None, :], rows + 1, 0)
+    U = np.repeat((np.arange(rows + 1) / rows)[:, None], cols, 1)
+    Y = crown_height(tread, X)
+    if road and lod < 2 and tread != "slick":
+        Xn, Un, D = snap_to_edges(tread, X, U, d["cell"])
+        on = np.abs(X) < ex - 1e-6
+        ends = np.zeros_like(on); ends[0, :] = True; ends[-1, :] = True
+        Xn = np.where(on, np.clip(Xn, -ex + 0.01, ex - 0.01), X)
+        Un = np.where(on & ~ends, np.clip(Un, 0.0, 1.0), U)
+        Y = np.where(on, crown_height(tread, Xn) - D, Y)
+        X, U = Xn, Un
+    grid = np.stack([X, Y, U], -1)
+    nrm = np.zeros_like(grid)
+    for i in range(rows + 1):
+        for j in range(cols):
+            ta = grid[min(i + 1, rows), j] - grid[max(i - 1, 0), j]
+            tb = grid[i, min(j + 1, cols - 1)] - grid[i, max(j - 1, 0)]
+            n = np.cross(tb, ta)
+            p = grid[i, j]
+            if np.dot(n, [p[0], p[1] - 0.3, 0.0]) < 0.0:
+                n = -n
+            if i == 0 or i == rows:
+                n[2] = 0.0
+            ln = np.linalg.norm(n)
+            nrm[i, j] = n / ln if ln > 1e-9 else (0.0, 1.0, 0.0)
+    base = len(mesh.pos)
+    for i in range(rows + 1):
+        for j in range(cols):
+            p = grid[i, j]
+            mesh.add(tuple(float(v) for v in p), tuple(float(v) for v in nrm[i, j]), (float(p[0]) * 0.05, float(p[2]) * 0.07))
+    for i in range(rows):
+        for j in range(cols - 1):
+            a, b, c, e = base + i * cols + j, base + (i + 1) * cols + j, base + (i + 1) * cols + j + 1, base + i * cols + j + 1
+            P = [np.array(mesh.pos[k]) for k in (a, b, c)]
+            if outward(P):
+                mesh.tri(a, b, c); mesh.tri(a, c, e)
+            else:
+                mesh.tri(a, c, b); mesh.tri(a, e, c)
+    walls(tread, lod, np.arange(rows + 1) / rows, mesh)
+
+
 def crown_point(tread, x):
     """Where the carcass is at x across, and its outward normal there (in the x-y plane)."""
+    if shaped(tread):
+        y = float(crown_height(tread, x))
+        n = crown_normal(tread, np.array(float(np.clip(x, -edge_of(tread) + 0.005, edge_of(tread) - 0.005))))
+        return np.array([x, y]), np.array([float(n[0]), float(n[1])])
     pts, _ = profile(tread, OFF_DETAIL[0])
     pts = sorted([p for p in pts if p[1] > 0.3], key=lambda p: p[0])
     xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts])
