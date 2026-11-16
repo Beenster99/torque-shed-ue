@@ -151,6 +151,37 @@ void ATorqueSky::Find()
 	// (the guard has already looked at the cloud before the first frame; this is in case it didn't run)
 	TorqueCloudGuard::Check(W);
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
+	// The rebuilt clouds (M_RideCloudV2, Nov 16) in place of M_RideCloud, when asked (sky_looks.json
+	// cloud_version 2, or -TorqueCloud=2), before the weather map's instance is made from the cloud's material.
+	{
+		int32 Version = FMath::RoundToInt(Looks.CloudVersion);
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueCloud="), Version);
+		UVolumetricCloudComponent* Cloud = CloudPtr.Get();
+		FObjectPropertyBase* Prop = Cloud ? CastField<FObjectPropertyBase>(Cloud->GetClass()->FindPropertyByName(FName(TEXT("Material")))) : nullptr;
+		UMaterialInterface* Now = Prop ? Cast<UMaterialInterface>(Prop->GetObjectPropertyValue_InContainer(Cloud)) : nullptr;
+		const bool bRideNow = Now && Now->GetMaterial() && Now->GetMaterial()->GetName() == TEXT("M_RideCloud");
+		bCloudV2 = false;
+		if (Version == 2 && bRideNow)
+		{
+			UMaterialInterface* V2 = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Sky/M_RideCloudV2.M_RideCloudV2"));
+			const FString Why = TorqueCloudGuard::WhyNot(V2, W);
+			if (Why.IsEmpty())
+			{
+				Prop->SetObjectPropertyValue_InContainer(Cloud, V2);
+				Cloud->MarkRenderStateDirty();
+				bCloudV2 = true;
+				UE_LOG(LogTemp, Display, TEXT("Torque sky: the rebuilt clouds (M_RideCloudV2)"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque sky: M_RideCloudV2 won't do (%s): the old clouds stay"), *Why);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds version %d (%s)"), Version, *GetNameSafe(Now));
+		}
+	}
 	for (TActorIterator<AActor> It(W); It && !HighSheetPtr.IsValid(); ++It)
 		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
 	// Stage 4: the rain shafts and the rainbow (Tools/ue_build_level.py places them, hidden).
@@ -425,6 +456,20 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);
 		SetMpc(SkyMpc, TEXT("MidAlbedo"), (float)Mi.Albedo);
 		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
+		// The rebuilt clouds' figures (M_RideCloudV2; harmless to the old cloud, which doesn't read them).
+		SetMpc(SkyMpc, TEXT("V2LowShapeM"), (float)FMath::Max(Looks.V2ShapeM * (1.3 - 0.6 * FMath::Clamp(Lo.Look.Lumps, 0.0, 1.0)), 100.0));
+		SetMpc(SkyMpc, TEXT("V2LowDetailM"), (float)FMath::Max(Looks.V2DetailM, 10.0));
+		SetMpc(SkyMpc, TEXT("V2MidShapeM"), (float)FMath::Max(Looks.V2MidShapeM * (1.3 - 0.6 * FMath::Clamp(Mi.Look.Lumps, 0.0, 1.0)), 100.0));
+		SetMpc(SkyMpc, TEXT("V2MidDetailM"), (float)FMath::Max(Looks.V2MidDetailM, 10.0));
+		SetMpc(SkyMpc, TEXT("V2BroadM"), (float)FMath::Max(Looks.V2BroadM, 1000.0));
+		SetMpc(SkyMpc, TEXT("V2Patchy"), (float)Looks.V2Patchy);
+		SetMpc(SkyMpc, TEXT("V2Erode"), (float)Looks.V2Erode);
+		SetMpc(SkyMpc, TEXT("V2ErodeRagged"), (float)Looks.V2ErodeRagged);
+		SetMpc(SkyMpc, TEXT("V2EdgeSharp"), (float)FMath::Max(Looks.V2EdgeSharp, 0.1));
+		SetMpc(SkyMpc, TEXT("V2Billow"), (float)Looks.V2Billow);
+		SetMpc(SkyMpc, TEXT("V2Extinction"), (float)Looks.V2Extinction);
+		SetMpc(SkyMpc, TEXT("V2LowDensity"), (float)(S.Density));
+		SetMpc(SkyMpc, TEXT("V2MidDensity"), (float)Mi.Look.Density);
 		// How the cloud scatters the sun (build 147: grey, blotchy cumulus): its lobes and the light
 		// bounced about inside it.
 		SetMpc(SkyMpc, TEXT("CloudPhaseG"), (float)Looks.CloudPhaseG);

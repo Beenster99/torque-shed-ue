@@ -98,6 +98,11 @@ bool TorqueCloudGuard::Check(UWorld* World)
 	return bOurs;
 }
 
+FString TorqueCloudGuard::WhyNot(UMaterialInterface* Mat, UWorld* World)
+{
+	return ::WhyNot(Mat, World);
+}
+
 void UTorqueCloudGuard::OnWorldComponentsUpdated(UWorld& World)
 {
 	Super::OnWorldComponentsUpdated(World);

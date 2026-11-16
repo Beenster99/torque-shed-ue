@@ -144,6 +144,16 @@ struct Looks
 	// be (times 0.1 per metre; the rain deck asked for 12.8). CloudGroundLight (0 or 1, built into the
 	// material) lights the cloud's base from the ground.
 	double CloudViewSamples = 2.0, CloudShadowSamples = 2.0, DensityMost = 8.0, CloudGroundLight = 0.0;
+	// The rebuilt clouds (option A, beenster Nov 16: M_RideCloudV2, Tools/cloud_preview.py shows them).
+	// CloudVersion 2 wears them (1 the old cloud; -TorqueCloud=1/2 overrides). The low layer's form size
+	// (metres, times 1.3 .. 0.7 by its lumps) and edge-detail size, the middle layer's, the size of the
+	// weather's own patches and how patchy; how much the detail eats the edges (and more by raggedness),
+	// how crisp the skins, how much of the billows (the forms a third the size), and the extinction per
+	// metre at a kind's density 1 (a real cumulus is about 0.05 .. 0.1; the old cloud reached 1.28 and
+	// sparkled as the engine's samples hit or missed it).
+	double CloudVersion = 1.0;
+	double V2ShapeM = 8000.0, V2DetailM = 600.0, V2MidShapeM = 5000.0, V2MidDetailM = 400.0, V2BroadM = 40000.0, V2Patchy = 0.35;
+	double V2Erode = 0.5, V2ErodeRagged = 0.3, V2EdgeSharp = 3.0, V2Billow = 0.3, V2Extinction = 0.1;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
 	// (so the sun is never dimmed twice).
 	double DeckFrom = 0.7, DeckTo = 0.95;
