@@ -868,7 +868,19 @@ public:
 		Building B;
 		BuildingLook Look;
 		double Floors = 0.0;   // the map's floors (0: it doesn't say)
+		// [towns stage 4] Its place in a row (MarkRows, once per tile read): which outline it came from and
+		// whether it is that outline's main box; the sides of the main box another house's main box shares
+		// (bit 1 its +x side, 2 its -x, 4 its +z, 8 its -z, x across W, z deep D), and on which of those it
+		// draws the shared chimney stack; the row's size (1 alone, 2 a pair of semis, 3 or more a
+		// terrace), its place along it, and one spot for the whole row (so the row is built alike).
+		int Outline = -1;
+		bool Main = false;
+		unsigned char Party = 0, Stacks = 0;
+		int RowSize = 1, RowPos = 0;
+		P2 RowSeed;
 	};
+	// [towns stage 4] Finds the rows in a tile's pieces (see OutlinePiece).
+	static void MarkRows(std::vector<OutlinePiece>& Pieces);
 	// Those whose middles lie in (X0, Z0)-(+Size) into Out (kept alive by Hold); the cells under the
 	// square that have outlines into Covered (their own boxes aren't drawn there).
 	void OutlinesIn(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<OutlinePiece>>>& Hold,

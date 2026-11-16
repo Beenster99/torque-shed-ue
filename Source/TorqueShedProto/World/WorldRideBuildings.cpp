@@ -97,13 +97,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const BuildingLook* Look = nullptr;
 		int Index = -1;
 		double Floors = 0.0;
+		const OutlinePiece* Piece = nullptr;   // [towns stage 4] (its row, where it came from an outline)
 	};
 	std::vector<Candidate> Here;
 	std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> Held;
 	std::vector<const OutlinePiece*> Pieces;
 	std::vector<CellId> Covered;
 	OutlinesIn(X0, Z0, Size, Held, Pieces, Covered);
-	for (const OutlinePiece* P : Pieces) Here.push_back({&P->B, &P->Look, -1, P->Floors});
+	for (const OutlinePiece* P : Pieces) Here.push_back({&P->B, &P->Look, -1, P->Floors, P});
 	const Frame Fr = G.FrameOf();
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
@@ -118,7 +119,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					const Geo At = Fr.ToGeo(Bi.X, Bi.Z);
 					if (std::find(Covered.begin(), Covered.end(), CellOf(At.Lat, At.Lon)) != Covered.end()) continue;
 				}
-				Here.push_back({&Bi, nullptr, I, 0.0});
+				Here.push_back({&Bi, nullptr, I, 0.0, nullptr});
 			}
 		}
 	if (Tally) Tally->Outlined += int(Pieces.size());
@@ -161,6 +162,20 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				if (Tl > 0.1) LongX = std::fabs(Tx * Cs - Tz * Sn) / Tl < 0.707;   // (x along the road unless the road lies off an x end)
 			}
 		}
+		// [towns stage 4] A house in a row (MarkRows: semis, a terrace) runs along the row, its ridge through
+		// its party walls, and is built as the rest of its row is (a few done up their own way).
+		const OutlinePiece* InRow = Each.Piece != nullptr && Each.Piece->RowSize >= 2 && Each.Piece->Party != 0 ? Each.Piece : nullptr;
+		if (InRow)
+		{
+			const bool PartyX = (InRow->Party & 3) != 0, PartyZ = (InRow->Party & 12) != 0;
+			if (PartyX != PartyZ) LongX = PartyX;
+			if (Chance(B.X, B.Z, 15) >= 0.1) { StreetX = InRow->RowSeed.X * 0.37 + 0.5; StreetZ = InRow->RowSeed.Z * 0.41 + 0.5; }
+		}
+		// (which of its ends, along, are party walls: none over-sail a neighbour, and the stacks stand on them)
+		const bool PartyPlus = InRow && (LongX ? (InRow->Party & 1) != 0 : (InRow->Party & 4) != 0);
+		const bool PartyMinus = InRow && (LongX ? (InRow->Party & 2) != 0 : (InRow->Party & 8) != 0);
+		const bool StackPlus = PartyPlus && (LongX ? (InRow->Stacks & 1) != 0 : (InRow->Stacks & 4) != 0);
+		const bool StackMinus = PartyMinus && (LongX ? (InRow->Stacks & 2) != 0 : (InRow->Stacks & 8) != 0);
 		const double HalfLong = (LongX ? B.W : B.D) * 0.5, HalfShort = (LongX ? B.D : B.W) * 0.5;
 		const auto Local = [&](double Along, double Across, double Y)
 		{
@@ -234,6 +249,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				&& Chance(StreetX, StreetZ, 14) < (InTown ? 0.12 + 0.45 * double(Look.BrickShare) : 0.06 + 0.2 * double(Look.BrickShare)))
 				Shape = ERoof::Hipped;
 		}
+		// [towns stage 4] (a terrace's roofs run on from house to house: gabled through every party wall;
+		// a pair of semis may be hipped, but only at their outer ends)
+		if (InRow && InRow->RowSize >= 3 && Shape == ERoof::Hipped) Shape = ERoof::Gabled;
 		const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
 			: Big ? HalfShort * 0.35 : IsWorship ? std::fmin(HalfShort * 1.15, 6.5) : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
 		// (the map's floors where it has them; its height, except a house's under 7 m: Overture's British
@@ -320,6 +338,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			}
 		Sunk = std::fmax(Sunk, -8.0);
 		const double Over = Shape == ERoof::Flat ? 0.0 : Thatch ? 0.55 : double(Look.Overhang), Drop = Rise > 0.0 ? Over * Rise / HalfShort : 0.0;
+		const double OverPlus = PartyPlus ? 0.0 : Over, OverMinus = PartyMinus ? 0.0 : Over;   // [towns stage 4] (none over a neighbour)
 		// (a hipped roof's ridge: shorter than the walls by the roof's depth each end, a point if it is square)
 		const double Ridge = std::fmax(0.0, HalfLong - HalfShort);
 		// [OSM stage 3] Its door on the long side nearer a road (the + side if neither is near).
@@ -362,6 +381,16 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			}
 		}
 		const double BayW = HalfLong * 2.0 / Bays;
+		// [towns stage 4] A row house's door: in a terrace the doors in pairs by the party walls (the first
+		// house's by its neighbour, the next's by it, and on); a semi's at its outer end.
+		bool DoorPlus = false;
+		if (InRow)
+		{
+			const P3 Ahead = Local(1.0, 0.0, 0.0);
+			const double ToSeed = (InRow->RowSeed.X - B.X) * (Ahead.X - B.X) + (InRow->RowSeed.Z - B.Z) * (Ahead.Z - B.Z);
+			const bool HigherAtPlus = InRow->RowPos == 0 ? PartyPlus : ToSeed < 0.0;
+			DoorPlus = InRow->RowSize == 2 ? (InRow->RowPos == 0) != HigherAtPlus : (InRow->RowPos % 2 == 0) == HigherAtPlus;
+		}
 		const Rgb StoneTrim = Shade(Stone, 1.15);
 		const bool Surrounds = (Look.StoneSurrounds || (!Rendered && !Brick)) && !Plain;
 		for (double Sg : {1.0, -1.0})
@@ -381,16 +410,23 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			{
 				const P3 Peak = Local(Sg * HalfLong, 0.0, Top);
 				WallQuad(E3, E2, Peak, E3, Outside(E0, E2), 0.93);
-				RoofFace(Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, 0.0, Top),
-					Local(-HalfLong - Over, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
+				RoofFace(Local(-HalfLong - OverMinus, Sg * (HalfShort + Over), Low), Local(HalfLong + OverPlus, Sg * (HalfShort + Over), Low), Local(HalfLong + OverPlus, 0.0, Top),
+					Local(-HalfLong - OverMinus, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
 				break;
 			}
 			case ERoof::Hipped:
 			{
-				// (a slope down each long side, and a hip down each end to the ridge's end)
-				RoofFace(Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(Ridge, 0.0, Top),
-					Local(-Ridge, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
-				const P3 H0 = Local(Sg * (HalfLong + Over), -(HalfShort + Over), Low), H1 = Local(Sg * (HalfLong + Over), HalfShort + Over, Low), Tip = Local(Sg * Ridge, 0.0, Top);
+				// (a slope down each long side, and a hip down each end to the ridge's end; [towns stage 4] a
+				// semi's party wall end gabled, its ridge running to the wall)
+				const double RidgePlus = PartyPlus ? HalfLong : Ridge, RidgeMinus = PartyMinus ? HalfLong : Ridge;
+				RoofFace(Local(-HalfLong - OverMinus, Sg * (HalfShort + Over), Low), Local(HalfLong + OverPlus, Sg * (HalfShort + Over), Low), Local(RidgePlus, 0.0, Top),
+					Local(-RidgeMinus, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
+				if (Sg > 0.0 ? PartyPlus : PartyMinus)
+				{
+					WallQuad(E3, E2, Local(Sg * HalfLong, 0.0, Top), E3, Outside(E0, E2), 0.93);
+					break;
+				}
+				const P3 H0 = Local(Sg * (HalfLong + Over), -(HalfShort + Over), Low), H1 = Local(Sg * (HalfLong + Over), HalfShort + Over, Low), Tip = Local(Sg * (Sg > 0.0 ? RidgePlus : RidgeMinus), 0.0, Top);
 				RoofFace(H0, H1, Tip, H0, Sky, Shade(Roof, 0.94));
 				break;
 			}
@@ -778,21 +814,27 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 				if (Front) Door(-HalfLong + 1.8, 1.1, 2.4, 9);
 			}
-			else if (Bays > 1)
+			else if (Bays > 1 || (InRow && IsHouse))
 			{
 				// A terrace: each bay a door and a window beside it, and a window above each on every floor.
+				// ([towns stage 4] a house of a mapped row is one such bay, its door where its row puts it; a
+				// wide one, a semi's, a second window beside the first)
 				for (int Bay = 0; Bay < Bays; ++Bay)
 				{
 					const double U0 = -HalfLong + Bay * BayW;
-					const bool Mirror = Bay % 2 == 1;   // (the doors in pairs by the party walls, as rows are built)
-					const double Du = U0 + (Mirror ? BayW - 0.9 : 0.9), Wu = U0 + (Mirror ? BayW * 0.35 : BayW * 0.65);
+					const bool Mirror = InRow && Bays == 1 ? DoorPlus : Bay % 2 == 1;   // (the doors in pairs by the party walls, as rows are built)
+					const bool Wide = BayW > 6.2;
+					const double Du = U0 + (Mirror ? BayW - 0.9 : 0.9), Wu = U0 + (Mirror ? BayW * (Wide ? 0.55 : 0.35) : BayW * (Wide ? 0.45 : 0.65));
+					const double Wu2 = U0 + (Mirror ? BayW * 0.2 : BayW * 0.8);
 					if (Front) Door(Du, 0.9, 2.05, Bay);
 					else Window(Du, 1.0, WinW * 0.8, WinH, Bay + 40);
 					Window(Wu, 1.0, WinW, WinH, Bay);
+					if (Wide) Window(Wu2, 1.0, WinW, WinH, Bay + 20);
 					for (int Fl = 1; Fl < Floors; ++Fl)
 					{
 						Window(Wu, 1.0 + Fl * 2.7, WinW, WinH, Bay + Fl * 100);
 						Window(Du, 1.0 + Fl * 2.7, WinW * 0.8, WinH, Bay + Fl * 100 + 50);
+						if (Wide) Window(Wu2, 1.0 + Fl * 2.7, WinW, WinH, Bay + Fl * 100 + 20);
 					}
 				}
 			}
@@ -829,15 +871,27 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const P3 Ma = Local(U, 0.0, 0.0), Mb = Local(U + 1.0, 0.0, 0.0);
 				const P2 Dir(Mb.X - Ma.X, Mb.Z - Ma.Z);
 				if (Tally) ++Tally->Chimneys;
-				Box(Out, Ma.X, Ma.Z, Dir, 0.3, Bays > 1 ? 0.45 : 0.35, Base + From, Base + Top + 0.8, Stack);
-				Box(Out, Ma.X, Ma.Z, Dir, 0.34, Bays > 1 ? 0.5 : 0.4, Base + Top + 0.8, Base + Top + 0.9, Shade(Stack, 1.1));   // (its cap)
+				Box(Out, Ma.X, Ma.Z, Dir, 0.3, (Bays > 1 || InRow) ? 0.45 : 0.35, Base + From, Base + Top + 0.8, Stack);
+				Box(Out, Ma.X, Ma.Z, Dir, 0.34, (Bays > 1 || InRow) ? 0.5 : 0.4, Base + Top + 0.8, Base + Top + 0.9, Shade(Stack, 1.1));   // (its cap)
 				for (double Sv : {-0.15, 0.15})
 				{
-					const P3 Pp = Local(U, Sv * (Bays > 1 ? 1.6 : 1.0), 0.0);
+					const P3 Pp = Local(U, Sv * ((Bays > 1 || InRow) ? 1.6 : 1.0), 0.0);
 					Box(Out, Pp.X, Pp.Z, Dir, 0.08, 0.08, Base + Top + 0.9, Base + Top + 1.25, Pot);
 				}
 			};
-			if (Bays > 1)
+			if (InRow && Bays == 1)
+			{
+				// ([towns stage 4] a row's stacks on its party walls, each drawn once, by one of the two houses;
+				// an end house's outer gable its own stack where the place builds them so)
+				if (StackPlus) Chimney(HalfLong, Top - 1.0);
+				if (StackMinus) Chimney(-HalfLong, Top - 1.0);
+				if (Shape == ERoof::Gabled && Look.Chimney == LocalLook::GableEnds)
+				{
+					if (!PartyPlus) Chimney(HalfLong - 0.34, Eaves);
+					if (!PartyMinus) Chimney(-HalfLong + 0.34, Eaves);
+				}
+			}
+			else if (Bays > 1)
 				for (int Bay = 1; Bay < Bays; Bay += 2) Chimney(-HalfLong + Bay * BayW, Top - 1.0);
 			else if (Look.Chimney == LocalLook::GableEnds && Shape == ERoof::Gabled)
 			{
