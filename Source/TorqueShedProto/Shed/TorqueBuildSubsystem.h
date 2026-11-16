@@ -373,7 +373,7 @@ public:
 
 	// --- The bays --------------------------------------------------------------------------
 	static constexpr int32 Bays = 4;
-	static constexpr int32 StartBikes = 2;   // a new shed: a project bike in each of the first two bays
+	static constexpr int32 StartBikes = 2;   // a test run's new shed (ShedTest): a project bike in each of the first two bays; a real new game starts empty
 	int32 NumBikes() const { return Bikes.Num(); }
 	bool Exists(int32 Bay) const { return Bikes.IsValidIndex(Bay) && Bikes[Bay].bExists; }
 	const FTorqueShedBike& Bike(int32 Bay) const;

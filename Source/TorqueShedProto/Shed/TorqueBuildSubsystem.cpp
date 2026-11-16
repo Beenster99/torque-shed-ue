@@ -365,11 +365,17 @@ void UTorqueBuildSubsystem::StartFresh()
 	NextId = 1;
 	Mine = 0;
 	bHostCopy = false;
-	// The project bikes the shed starts with (shed_state's demo bikes: a couple to get stuck into).
-	for (int32 I = 0; I < StartBikes && I < Bays; ++I) NewProjectBike(I, Rng.FRandRange(0.35f, 0.6f));
+	// A new game's bays start empty (beenster, Nov 16): project bikes are ordered from the parts
+	// computer. Only a test run (slot ShedTest) still gets shed_state's demo bikes, which the
+	// hands-off tests work on.
+	const int32 Starting = SaveSlot == TEXT("ShedTest") ? FMath::Min(StartBikes, Bays) : 0;
+	for (int32 I = 0; I < Starting; ++I)
+	{
+		NewProjectBike(I, Rng.FRandRange(0.35f, 0.6f));
+	}
 	Builds.SetNum(Bays);
 	for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
-	UE_LOG(LogTemp, Log, TEXT("Torque: a new shed: %d project bikes, %d parts"), StartBikes, Items.Num());
+	UE_LOG(LogTemp, Log, TEXT("Torque: a new shed: %d project bikes, %d parts"), Starting, Items.Num());
 }
 
 void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
