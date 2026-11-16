@@ -748,6 +748,30 @@ def skin_patch(name, trees, outline, material, lift=1.5, axis="x", s=1):
     return ob
 
 
+def beak_lamps(model, c):
+    """An adventure nose's lamps: the lens drawn on the flank of the beak becomes an eye each side, let flush
+    into the nose: a gloss black surround, a clear lens, a bright running-light edge and a projector."""
+    if model["family"].lower() != "adventure":
+        return
+    panels = model["body"].get("panels", [])
+    pi = next((i for i, v in enumerate(panels) if v.get("cls") == "lens" and "pts" in v), None)
+    trees = _trees(("cowl",))
+    if pi is None or not trees or not any(v.get("cowl") and v.get("w") for v in panels):
+        return
+    drop(f"panel{pi + len(model['body'].get('front_guard', []))}", f"lens{pi}", "eye", "reflector")
+    pts = [tuple(q[:2]) for q in panels[pi]["pts"]]
+    cx, cz = sum(q[0] for q in pts) / len(pts), sum(q[1] for q in pts) / len(pts)
+    grow = lambda k, dx=0.0, dz=0.0: [(cx + (x - cx) * k + dx, cz + (z - cz) * k + dz) for x, z in pts]
+    black = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
+    for s in (-1, 1):
+        if not skin_patch(f"beaklamp{s}", trees, grow(1.3), black, 0.8, "y", s):
+            continue
+        skin_patch(f"beaklens{s}", trees, grow(1.0), surf("lampsilver2", (0.75, 0.76, 0.78), 1.0, 0.12, wear=0.0), 1.4, "y", s)
+        skin_patch(f"beakdrl{s}", trees, [(cx + (x - cx) * 1.12, cz + (z - cz) * 1.12 + 3) for x, z in pts[:2]] + [(cx + (x - cx) * 0.98, cz + (z - cz) * 0.98 + 3) for x, z in pts[1::-1]], glow("drl", (0.9, 0.95, 1.0), 4.0), 2.2, "y", s)
+        skin_patch(f"beakproj{s}", trees, [(cx + 15 * math.cos(w_ * math.pi / 8), cz + 15 * math.sin(w_ * math.pi / 8)) for w_ in range(16)], glow("lampdip", (1.0, 0.97, 0.9), 0.9), 2.0, "y", s)
+        skin_patch(f"beakglass{s}", trees, grow(1.04), glass_mat(), 3.2, "y", s)
+
+
 def nose_lamps(model, c):
     """Sport lamps: a slim slanted eye each side let flush into the nose (reference: modern sport fairings).
     A gloss black surround, a smoked lens, a bright running-light blade along the top and two projector eyes."""
@@ -2759,6 +2783,7 @@ SHOTS = {
     "rear": ((-700, -1150, 600), (60, -90, 330), 60),
     "rearq": ((-2500, -2700, 1500), (650, 0, 560), 70),
     "rearq_front": ((3600, -2600, 1450), (700, 0, 520), 70),
+    "rearq_l": ((-2500, 2700, 1500), (650, 0, 560), 70),      # the same from the left, for bikes with the exhaust on that side
     "rearq_low": ((-1500, -1900, 620), (480, -40, 520), 55),
     "service": ((1500, 1150, 1750), (830, 0, 770), 60, ("tank", "cap")),
     "indicator": ((1900, -900, 950), (1270, -180, 830), 110),
@@ -2817,6 +2842,7 @@ def run(build3d, model, c):
     front_end(model, c)
     headlamp(model, c)
     round_lamp(model, c)
+    beak_lamps(model, c)
     clocks(model, c)
     controls(model, c)
     engine(model, c)

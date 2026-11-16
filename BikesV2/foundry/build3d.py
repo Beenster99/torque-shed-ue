@@ -1099,6 +1099,14 @@ def build(model):
                             low = max(0.0, min(1.0, (500 - z) / 90.0))
                             y *= 1 - low * 0.66 * (1 - d2 * d2 * (3 - 2 * d2))
                         return y
+                    if DETAIL["on"] and model["family"].lower() == "adventure" and any(v.get("cowl") and v.get("w") for v in body.get("panels", [])):
+                        # an adventure tank shroud: flush with the nose's flank where the two meet, swelling out
+                        # over the radiator, leaning back in to the rider's knee, its lower spear and its top
+                        # edge both tucked in, so it reads as a shaped shell and not a flat board
+                        y = 153 + 44 * math.sin(math.pi * max(0.0, min(1.0, (1191 - x) / 340.0)))
+                        lo_ = max(0.0, min(1.0, (z - 340) / 330.0))
+                        y = 122 + (y - 122) * math.sqrt(1 - (1 - lo_) ** 2)
+                        return y - 16 * max(0.0, min(1.0, (z - 925) / 90.0)) ** 2
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
@@ -1193,7 +1201,10 @@ def build(model):
                 for s in (-1, 1):
                     skin(f"ear{i}{s}", pp, earf, s, m_, stations=50, rows=18, thick=5.0)
             elif shp.get("cowl"):
-                if model["family"].lower() == "sport":
+                if shp.get("w"):
+                    # a nose with its own plan shape (adventure): full width round the fork tops, drawn in to the beak
+                    loft(f"cowl{i}", pp, {"w": shp["w"], "n": shp.get("n", 3.4), "bottom": shp.get("bottom", 1.0), "blunt_rear": True}, m_)
+                elif model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel
                     loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 146], [1, 104]], "n": 4.6, "bottom": 1.0}, m_)
                 else:
