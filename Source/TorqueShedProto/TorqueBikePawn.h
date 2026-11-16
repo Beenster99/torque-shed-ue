@@ -324,6 +324,11 @@ private:
 	bool bNetWalkerShown = false, bNetWalkerTried = false;
 	void ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt);
 	void UpdateRiderAvatar();
+	// [helmet plan] The rider's helmet paint (this machine's profile, or the co-op rider's), put on
+	// again whenever it changes.
+	void UpdateHelmetPaint();
+	TArray<uint8> HelmetPaintLook;
+	bool bHelmetPaintDone = false;
 	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
 	bool bTrigSeen[4] = {false, false, false, false}, bTrigLive[4] = {false, false, false, false};
