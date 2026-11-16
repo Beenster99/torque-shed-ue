@@ -17,6 +17,9 @@
 		{ "Name": "OnlineSubsystemNull", "Enabled": true },
 		{ "Name": "OnlineSubsystemUtils", "Enabled": true },
 		{ "Name": "DLSS", "Enabled": true, "Optional": true },
+		{ "Name": "StreamlineCore", "Enabled": true, "Optional": true },
+		{ "Name": "StreamlineDLSSG", "Enabled": true, "Optional": true },
+		{ "Name": "StreamlineReflex", "Enabled": true, "Optional": true },
 		{ "Name": "MetaHumanCharacter", "Enabled": true, "TargetAllowList": [ "Editor" ] },
 		{ "Name": "LiveLink", "Enabled": true },
 		{ "Name": "WebBrowserWidget", "Enabled": true },
@@ -25,6 +28,7 @@
 		{ "Name": "ChaosOutfitAsset", "Enabled": true, "Optional": true },
 		{ "Name": "ProceduralMeshComponent", "Enabled": true },
 		{ "Name": "ProceduralVegetationEditor", "Enabled": true },
+		{ "Name": "GeometryScripting", "Enabled": true, "TargetAllowList": [ "Editor" ] },
 		{ "Name": "AndroidFileServer", "Enabled": false }
 	]
 }

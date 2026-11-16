@@ -74,7 +74,24 @@
   "exposure_dull_stops": 1.6,
   "exposure_wet_stops": 1.9,
   "direct_trust": 0.5,
-  "direct_trust_from_deg": 8.0
+  "direct_trust_from_deg": 8.0,
+  "_shade": "The light in a hill's shadow by day: sky_fill is the sky light times the level's by the sun's height (degrees), less as the sky dulls; under a bright sky only, the camera may open exposure_shade_open stops below the level's lowest, and more as the sun is lower than exposure_built_deg (times exposure_follow_sun, at most exposure_follow_most); local_* are the engine's local exposure. ALL OFF (147's light) since build 148 looked washed out with them (1.9x sky light, up to 4 stops more exposure, local shadows 0.6): beenster's dark shade in 147 was at Medium quality, where Lumen is off. Raise gently only if a shade at Epic is still too dark.",
+  "sky_fill": [
+   [
+    -6,
+    1.0
+   ],
+   [
+    90,
+    1.0
+   ]
+  ],
+  "exposure_shade_open": 0.0,
+  "exposure_built_deg": 32.0,
+  "exposure_follow_sun": 0.0,
+  "exposure_follow_most": 1.5,
+  "local_shadow_contrast": 0.7,
+  "local_highlight_contrast": 0.75
  },
  "air": {
   "haze_by_km": [
@@ -103,8 +120,8 @@
   "humid_swell": 1.5,
   "dull_mie": 12.0,
   "dull_rayleigh": 0.08,
-  "dull_mie_clouds": 4.0,
-  "dull_rayleigh_clouds": 0.35,
+  "dull_mie_clouds": 6.0,
+  "dull_rayleigh_clouds": 0.06,
   "fog_dull": 2.0,
   "fog_wet": 3.0,
   "fog_night_glow": 0.006
@@ -136,7 +153,7 @@
     1
    ]
   ],
-  "low_heap_m": 1000.0,
+  "low_heap_m": 600.0,
   "cape_depth_per_100": 250.0,
   "cape_most_m": 4500.0,
   "mid_base_m": 3200.0,
@@ -171,9 +188,9 @@
    "_": "Each kind's look: shape 0 heaped .. 1 flat; lumps 0 big .. 1 small; ragged edges; density; base_dark; depth_m (+ cape_depth x the CAPE heap); sheet (high cloud: 0 wisps .. 1 veil).",
    "cumulus": {
     "shape": 0.0,
-    "lumps": 0.6,
-    "ragged": 0.55,
-    "density": 0.7,
+    "lumps": 0.45,
+    "ragged": 0.3,
+    "density": 0.8,
     "base_dark": 0.15,
     "depth_m": 0.0,
     "cape_depth": 1.0,
@@ -259,7 +276,23 @@
     "cape_depth": 0.0,
     "sheet": 1.0
    }
-  }
+  },
+  "extinction_scale": 8.0,
+  "deck_dims_sun": 0.0,
+  "_scatter": "How the cloud scatters the sun (build 147: grey, blotchy cumulus). cloud_phase_g the forward lobe (silver linings towards the sun), cloud_phase_g2 the back lobe, cloud_phase_blend between them; cloud_ms_* the light bounced about inside the cloud: its share, how much the cloud shades it, how forward it goes. cloud_ms_octaves (0..2) is built into the material: change it and rebuild the level. cloud_ms_dull: the share of the bounced light left under a dull sky (a deck's base stays grey).",
+  "cloud_phase_g": 0.6,
+  "cloud_phase_g2": -0.3,
+  "cloud_phase_blend": 0.3,
+  "cloud_ms_contribution": 0.6,
+  "cloud_ms_occlusion": 0.35,
+  "cloud_ms_eccentricity": 0.6,
+  "cloud_ms_octaves": 2,
+  "cloud_ms_dull": 0.2,
+  "_marching": "The cloud's ray marching (build 148: the grey drizzle sky sparkled and flickered): cloud_view_samples and cloud_shadow_samples are times the engine's samples (more is smoother, costs GPU; restart only); density_most caps the material's density (x 0.1 per metre); cloud_ground_light 0/1 lights the base from the ground (built into the material: rebuild the level).",
+  "cloud_view_samples": 2.0,
+  "cloud_shadow_samples": 2.0,
+  "density_most": 8.0,
+  "cloud_ground_light": 0
  },
  "kinds_rules": {
   "_": "Stage 3: which kind of cloud each layer shows. Every rule is a band blended across, never a switch.",
@@ -284,11 +317,10 @@
   "veil_to": 0.85,
   "veil_widen_deg": 1.0,
   "glass_widen_deg": 6.0,
-  "glass_shadows": 0.25,
   "halo_most": 0.6
  },
  "seen_coming": {
-  "_": "Stage 4: fog with a top, valley mist (Local Fog Volumes in the hollows), rainbow rule.",
+  "_": "Stage 4: fog with a top, valley mist (Local Fog Volumes in the hollows), rainbow rule; the air thickening under a low base; the weather map drawn into the clouds; rain shafts under far showers; the rainbow drawn.",
   "fog_shallow_m": 40.0,
   "fog_thick_m": 120.0,
   "fog_top_fade_m": 40.0,
@@ -301,6 +333,93 @@
   "mist_depth_m": 25.0,
   "mist_extinction": 0.6,
   "rainbow_sun_most_deg": 42.0,
-  "rainbow_rain_mm": 0.2
+  "rainbow_rain_mm": 0.2,
+  "base_fog_band_m": 300.0,
+  "base_fog_boost": 3.0,
+  "map_px": 64,
+  "map_size_m": 90000.0,
+  "map_repaint_s": 20.0,
+  "map_move_m": 4000.0,
+  "map_gain": 1.0,
+  "map_rain_mm": 10.0,
+  "shaft_rain_mm": 0.8,
+  "shaft_full_mm": 4.0,
+  "shaft_spacing_m": 6000.0,
+  "shaft_nearest_m": 2500.0,
+  "shaft_farthest_m": 40000.0,
+  "shaft_most": 8,
+  "shaft_radius_m": 1500.0,
+  "shaft_opacity": 0.4,
+  "shaft_light": 0.012,
+  "rainbow_opacity": 0.55
+ },
+ "night": {
+  "_": "Stage 5: the moon's light once the sun's is gone (boosted: the real 0.25 lux would be black), the moon's disc, the stars (Data/Sky/stars.png, the Yale Bright Star Catalogue), the Milky Way, the towns' glow.",
+  "moon_takes_over_deg": -12.0,
+  "moon_light_of_sun": 0.001,
+  "moon_sky_scale": 0.15,
+  "moon_disc_of_sun": 0.03,
+  "earth_shine": 0.004,
+  "stars_from_deg": -6.0,
+  "stars_full_deg": -15.0,
+  "star_gain": 60.0,
+  "milky_way_gain": 0.6,
+  "moon_washes": 0.6,
+  "sky_glow": 0.08
+ },
+ "storms": {
+  "_": "Stage 7: thunderstorms (towering to thunder_top_m with an anvil), lightning (each storm cell of a lattice storm_spacing_m apart flashes flashes_per_min a minute at full strength; ground_share fork to the ground), the flash's glow in the cloud and its light on the land, thunder at sound_mps (made in code, no recordings), hail and snow curtains, and the flat bright light under snow cloud.",
+  "thunder_cape_from": 500.0,
+  "thunder_cape_full": 1500.0,
+  "thunder_rain_mm": 2.0,
+  "thunder_top_m": 10500.0,
+  "anvil_from": 0.35,
+  "anvil_full": 0.8,
+  "flashes_per_min": 1.5,
+  "ground_share": 0.3,
+  "storm_spacing_m": 6000.0,
+  "storm_farthest_m": 40000.0,
+  "flash_cloud_glow": 30.0,
+  "flash_radius_m": 5000.0,
+  "flash_light_cd": 200000000.0,
+  "bolt_farthest_m": 25000.0,
+  "bolt_width_m": 600.0,
+  "bolt_nits": 4000.0,
+  "sound_mps": 343.0,
+  "thunder_farthest_m": 22000.0,
+  "thunder_near_m": 1500.0,
+  "thunder_volume": 1.0,
+  "hail_cape": 1500.0,
+  "hail_freeze_m": 3500.0,
+  "snow_sky_light": 1.5,
+  "snow_sun_share": 0.7
+ },
+ "rare": {
+  "_": "Stage 7: rare skies. Sun dogs in thin ice cloud by a low sun; contrails that linger in cold damp air 9 km up; a fogbow in thin fog and a glory seen from above it; the aurora from NOAA's Kp index (the oval's edge at aurora_oval_deg - aurora_kp_step x Kp geomagnetic latitude, seen aurora_seen_beyond degrees further south); noctilucent cloud on summer nights; meteors (the sporadic ones and the year's showers); Saharan dust from Open-Meteo's air quality feed.",
+  "sun_dog_most": 0.8,
+  "contrail_cold_c": -40.0,
+  "contrail_rh_from": 55.0,
+  "contrail_rh_full": 85.0,
+  "contrail_most": 0.7,
+  "fogbow_most": 0.5,
+  "glory_most": 0.6,
+  "aurora_pole_lat": 80.7,
+  "aurora_pole_lon": -72.7,
+  "aurora_oval_deg": 67.5,
+  "aurora_kp_step": 1.8,
+  "aurora_seen_beyond": 4.0,
+  "aurora_gain": 0.4,
+  "nlc_from_day": 145.0,
+  "nlc_to_day": 220.0,
+  "nlc_lat_from": 50.0,
+  "nlc_lat_to": 65.0,
+  "nlc_gain": 0.25,
+  "meteor_sporadic": 6.0,
+  "meteor_seen_share": 0.5,
+  "meteor_gain": 30.0,
+  "dust_from": 20.0,
+  "dust_full": 150.0,
+  "dust_mie": 3.0,
+  "dust_sun_warm": 0.6
  }
 }

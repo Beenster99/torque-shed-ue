@@ -40,6 +40,34 @@ struct FTorqueProfile
 	static constexpr float FirstTiltMin = -15.0f, FirstTiltMax = 15.0f;
 	void ResetFirst() { FirstForward = 0.0f; FirstHeight = 0.0f; FirstTilt = 0.0f; }
 
+	// [places stage 7] The places you've ridden or walked to in Ride UK (kept on this machine, not packed
+	// for the others: co-op riders see how many and the last, ATorquePlayerState::PlacesVisited), each
+	// "key|name|date" (RidePlan::PlaceStopKey; the day first visited, yyyy-mm-dd), oldest first.
+	TArray<FString> Visited;
+	bool HasVisited(const FString& Key) const;
+	// Adds a place not already on the list (true), or leaves the list as it is (false).
+	bool Visit(const FString& Key, const FString& Name);
+	FString LastVisitedName() const;
+
+	// [helmet plan, stage 1] Your helmet's paint, as everyone in co-op sees it (packed for the others):
+	// as it came (the Fab helmet's own paint), or a colour (hue, richness and brightness, each 0..1)
+	// in a finish (0 gloss, 1 matt, 2 metallic, 3 pearl; their looks in Data/Rider/helmet_paint.json).
+	// TorqueHelmetLook::ApplyPaint puts it on the helmet.
+	bool bHelmetPainted = false;
+	float HelmetHue = 0.0f, HelmetSat = 0.85f, HelmetVal = 0.75f;
+	int32 HelmetFinish = 0;
+	enum { NumHelmetFinish = 4 };
+	static const TCHAR* HelmetFinishName(int32 Finish);
+	// The paint colour (linear), and the lighter, hue-turned tint a pearl finish shows at grazing angles.
+	FLinearColor HelmetColour() const;
+	FLinearColor HelmetPearlTint() const;
+	// The named colours the Profile page steps through (the sliders then make any colour).
+	struct FHelmetSwatch { const TCHAR* Name; float Hue, Sat, Val; };
+	enum { NumHelmetSwatch = 16 };
+	static const FHelmetSwatch HelmetSwatches[NumHelmetSwatch];
+	int32 HelmetSwatch() const;   // the swatch the colour is, or -1 (as it came: -2)
+	void SetHelmetSwatch(int32 I);   // -1: as it came
+
 	// A face slider: its name on the Profile page and the line under it.
 	struct FSlider { const TCHAR* Name; const TCHAR* Hint; };
 	static const FSlider Sliders[NumFace];
@@ -50,7 +78,9 @@ struct FTorqueProfile
 	void ResetFace();
 	bool operator==(const FTorqueProfile& O) const;
 
-	// About 13 bytes: the avatar, then the height and each slider in steps of 1/127.
+	// About 17 bytes: the avatar, then the height and each slider in steps of 1/127, then the helmet
+	// (painted and finish in one byte, then hue, richness and brightness in 1/255ths). Older packs
+	// without the helmet's bytes unpack as the helmet as it came.
 	TArray<uint8> Pack() const;
 	static FTorqueProfile Unpack(const TArray<uint8>& Bytes);
 

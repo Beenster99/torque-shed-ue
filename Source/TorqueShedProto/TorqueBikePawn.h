@@ -28,6 +28,7 @@ class UMaterialInstanceDynamic;
 class USoundWaveProcedural;
 class UAudioComponent;
 class UTorqueNetBikeComponent;
+class UTorqueTftComponent;
 
 // A part of the Speed Twin model moved by its slot's offset from geometry mode (the bay's saved fit).
 // On a part that turns with a group (the bars with the steering), the offset is in that group's frame,
@@ -173,6 +174,8 @@ public:
 	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
 	FString TestRideLog() const;
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+	// [test] robot:mph:N: the speed the robot holds (default 36 mph, or -TorqueAutoMph=).
+	static inline float TestRobotMph = 0.f;
 	// The test's stop: brakes on while the robot steers (bOn), then the robot off, the brakes left on.
 	void TestStop(bool bOn)
 	{
@@ -195,6 +198,10 @@ public:
 	// "cancel" (indicators off), "brake" / "nobrake" (the stop lamp held on), "night" / "day" (the clock
 	// at 23:00, or the level's own light: the host's), then the lamps shown at once and described.
 	FString TestLights(const FString& What);
+	// [tft] tft[:state|left|right|up|down|overlay|map|arrange|cruise]: works the bike's screen as its
+	// buttons do, then what it is and shows in one line.
+	FString TestTft(const FString& What);
+	UTorqueTftComponent* GetTft() const { return Tft; }
 	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
 	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
 	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at
@@ -208,6 +215,11 @@ public:
 	// Kind 4 is a launch on the test pad, as SimTest/realism_test's: rolling at Mph (10) it stops, stands
 	// a second, then full throttle with the weight forward on the automatic box for 10 s; the log has
 	// 0-60 mph (and 0-30, 0-100 km/h) and the quarter of the way's speed.
+	// [tests off Buttertubs] Kind 5 is a climb on the real road: the steepest 300 m or more of the ride
+	// (the Buttertubs' 1 in 4 on Hawes to Thwaite), started at its foot rolling at Mph (30), the robot
+	// riding it at up to Mph and slowing for its bends; the log has the height, grade, time, the slowest
+	// and the average speed, and CLIMB PASS (at the top, no fall, never under 3 mph, 12 mph or more on
+	// average) or CLIMB FAIL.
 	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
 	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
@@ -312,6 +324,11 @@ private:
 	bool bNetWalkerShown = false, bNetWalkerTried = false;
 	void ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt);
 	void UpdateRiderAvatar();
+	// [helmet plan] The rider's helmet paint (this machine's profile, or the co-op rider's), put on
+	// again whenever it changes.
+	void UpdateHelmetPaint();
+	TArray<uint8> HelmetPaintLook;
+	bool bHelmetPaintDone = false;
 	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
 	bool bTrigSeen[4] = {false, false, false, false}, bTrigLive[4] = {false, false, false, false};
@@ -354,10 +371,23 @@ private:
 	FTorqueDash Dash;   // [dash]
 	FTorqueLights Lights;   // [lights]
 	void StepLights(float Dt, bool bRemote);
+	// [tft] The bike's TFT screen and phone sat nav (TorqueTft.h): its ride modes go on the sim from
+	// the bike as built (ModeBase); cruise control holds CruiseMs.
+	UPROPERTY(Transient) UTorqueTftComponent* Tft = nullptr;
+	TorqueSim::BikeSpec ModeBase;
+	bool bModeBase = false;
+	bool bTftPadNav = false;      // LB is working the screen (not the clutch) until it's let go
+	bool bCruise = false;
+	double CruiseMs = 0.0, CruiseHeld = 0.0;
+	void StepTft(float Dt, bool bRemote);
+	void ApplyRideMode();
+	void TftPress(int32 Which);   // 0 left, 1 right, 2 up, 3 down
+	void ToggleCruise();
 	void LightsNote(const FString& Text, bool bOk);
 	// [dash] The trip check: every 10 s of riding, a log line with the dash's trip next to speed x
 	// time, the route's progress and how far the clock says (TripLog).
 	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;
+	double BrakeLogHeld[2] = {0.0, 0.0};   // seconds each brake was on since the last trip line
 	void TripLog(const TCHAR* Why);
 	bool bShowHelp = true;
 	bool bPointing = false;   // [info] the pointer out to pick a place in the info panel (M)
@@ -470,6 +500,10 @@ private:
 	FString FootNote;
 	TorqueSim::V3 ParkGround;
 	double ParkHeading = 0.0, ParkLean = 0.0, ParkLift = 0.0;
+	// [build 149] Nose up (+) or down along the slope it's parked on (radians), so both tyres sit on
+	// the road on a hill; and finding it from the ground traced under each tyre.
+	double ParkPitch = 0.0;
+	void PitchToGround();
 	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
 	FString SideStandPart, CentreStandPart;
 	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
@@ -525,6 +559,18 @@ private:
 	FString TestMoveText;
 	void TestMoveStep();
 	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps
+	// [tests off Buttertubs] The climb (Kind 5): where it ends on Line, the height to gain, its grade and
+	// its steepest 20 m, and the slowest it went.
+	int32 TestClimbEnd = 0;
+	double TestClimbRise = 0.0, TestClimbGrade = 0.0, TestClimbSteepest = 0.0, TestSlowest = 0.0;
+	// [tests off Buttertubs] -TorqueSmoke: a hands-off ride's verdict (Hawes to Thwaite on Ride UK): the
+	// falls, the knocks, the frames (after the first 20 s) and the time, as one "Torque smoke:" line at
+	// the end of the ride, or FAIL when it hasn't got there in -TorqueSmokeMinutes= (25).
+	void SmokeWatch(float Dt);
+	void SmokeReport(bool bReachedEnd);
+	int32 SmokeFalls = 0, SmokeKnockFalls = 0, SmokeHits = 0, SmokeHitsWas = -1, SmokeFrames = 0, SmokeSlow = 0;
+	double SmokeClock = 0.0, SmokeFrameSum = 0.0, SmokeWorst = 0.0;
+	bool bSmokeDown = false, bSmokeDone = false;
 	double TestFirstHit = 0.0, TestPreHit = 0.0;   // the first knock's speed into it, and the speed the step before
 	bool TestFirstBike = false;
 	// Kind 2 and 3's wall or stopped bike (only these, on the pad), the hits before it, and where it is.
@@ -550,6 +596,7 @@ private:
 	// onto the left foot about its tyres' contact line, deg (left side down), the right foot on its peg.
 	double StopLeanDeg = 0.0;
 	double RiderKeepOnPeg[2] = {0.0, 0.0};
+	double RiderToes[2] = {0.0, 0.0};   // [rider pose] how far each heel is up off the road at a stop (on the toes), cm
 	double RiderStyleBackDeg = -100.0;   // [rider pose] the style's back lean (FBikeFrame::BackDeg)
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's
@@ -578,6 +625,15 @@ private:
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever
+	// [rider pose] A catalogue bike's drawn clutch and brake levers (they swing to the bar as pulled), as
+	// first seen on their groups.
+	TWeakObjectPtr<UStaticMeshComponent> CatLever[2];
+	FTransform CatLeverRest[2];
+	bool bCatLeverRest[2] = {false, false};
+	double CatLeverSign[2] = {1.0, 1.0};   // which way about the upright pin takes the blade back
+	FVector CatLeverPin[2] = {FVector::ZeroVector, FVector::ZeroVector};   // each lever's pin as drawn (the holder's space, cm)
+	FVector CatLeverAxis[2] = {FVector::UpVector, FVector::UpVector};      // and up it
+	double PullAwayLogT = -1.0, PullAwayLogNext = 0.0;   // [rider pose] the clutch hand logged for 3 s after pulling away from a stop
 	double ClutchFingers = 0.0;        // [rider pose] two fingers over the clutch lever (it's in, being let out, a shift, stopped)
 	// What the rider's body follows, smoothed: the bike's lean (degrees, + right) and its speeding up
 	// (m/s/s, - braking).

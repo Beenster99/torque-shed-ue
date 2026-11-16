@@ -1,962 +1,1482 @@
 {
- "about": "This repo's changes to the Godot parts catalogue; see Tools/parts_overlay.py.",
- "add": {
-  "tank": {
-   "bobber_1": {
-    "name": "Bobber tank 1, 14 L",
-    "description": "Long low teardrop with a raised top spine and a deep knee sweep.",
-    "mass": 3.9,
-    "capacity": 14,
-    "style": "peanut",
-    "color": [
-     0.42,
-     0.05,
-     0.05
-    ],
-    "price": 180,
-    "look": {
-     "shape": "bobber_1",
-     "badge": "none",
-     "pads": false
-    },
-    "styles": [
-     "bobber"
-    ],
-    "pack": "bobber"
-   },
-   "bobber_2": {
-    "name": "Bobber tank 2, 14 L",
-    "description": "Teardrop with a recessed side panel and a crisp top spine.",
-    "mass": 3.9,
-    "capacity": 14,
-    "style": "peanut",
-    "color": [
-     0.42,
-     0.05,
-     0.05
-    ],
-    "price": 180,
-    "look": {
-     "shape": "bobber_2",
-     "badge": "none",
-     "pads": false
-    },
-    "styles": [
-     "bobber"
-    ],
-    "pack": "bobber"
-   },
-   "bobber_3": {
-    "name": "Bobber tank 3, 10 L",
-    "description": "Slim tank with a creased shoulder and a cut-in knee line.",
-    "mass": 2.8,
-    "capacity": 10,
-    "style": "peanut",
-    "color": [
-     0.42,
-     0.05,
-     0.05
-    ],
-    "price": 180,
-    "look": {
-     "shape": "bobber_3",
-     "badge": "none",
-     "pads": false
-    },
-    "styles": [
-     "bobber"
-    ],
-    "pack": "bobber"
-   },
-   "bobber_4": {
-    "name": "Bobber tank 4, 11 L",
-    "description": "Slim tank with a stepped shoulder and a scalloped side crease.",
-    "mass": 3.1,
-    "capacity": 11,
-    "style": "peanut",
-    "color": [
-     0.42,
-     0.05,
-     0.05
-    ],
-    "price": 180,
-    "look": {
-     "shape": "bobber_4",
-     "badge": "none",
-     "pads": false
-    },
-    "styles": [
-     "bobber"
-    ],
-    "pack": "bobber"
-   },
-   "bobber_5": {
-    "name": "Bobber tank 5, 10 L",
-    "description": "Short, slim tank with a single shoulder crease.",
-    "mass": 2.8,
-    "capacity": 10,
-    "style": "peanut",
-    "color": [
-     0.42,
-     0.05,
-     0.05
-    ],
-    "price": 180,
-    "look": {
-     "shape": "bobber_5",
-     "badge": "none",
-     "pads": false
-    },
-    "styles": [
-     "bobber"
-    ],
-    "pack": "bobber"
-   },
-   "adventure_1": {
-    "name": "Adventure tank 1, 39 L",
-    "description": "Tall rally tank with sharp creased shoulders and side vents, running back in a low tail under the seat.",
-    "mass": 7.8,
-    "capacity": 39,
-    "style": "touring",
-    "color": [
-     0.85,
-     0.85,
-     0.83
-    ],
-    "price": 360,
-    "look": {
-     "shape": "adventure_1",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.947,
-      0.73,
-      0.73
-     ]
-    },
-    "styles": [
-     "adventure"
-    ],
-    "pack": "adventure"
-   },
-   "adventure_2": {
-    "name": "Adventure tank 2, 34 L",
-    "description": "Rally tank with deep vented flanks and a raised centre panel, running back in a low tail under the seat.",
-    "mass": 6.8,
-    "capacity": 34,
-    "style": "touring",
-    "color": [
-     0.85,
-     0.85,
-     0.83
-    ],
-    "price": 360,
-    "look": {
-     "shape": "adventure_2",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.956,
-      0.763,
-      0.763
-     ]
-    },
-    "styles": [
-     "adventure"
-    ],
-    "pack": "adventure"
-   },
-   "adventure_3": {
-    "name": "Adventure tank 3, 37 L",
-    "description": "Rally tank with big rounded shoulders and knee pockets, running back in a low tail under the seat.",
-    "mass": 7.4,
-    "capacity": 37,
-    "style": "touring",
-    "color": [
-     0.85,
-     0.85,
-     0.83
-    ],
-    "price": 360,
-    "look": {
-     "shape": "adventure_3",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.951,
-      0.742,
-      0.742
-     ]
-    },
-    "styles": [
-     "adventure"
-    ],
-    "pack": "adventure"
-   },
-   "adventure_4": {
-    "name": "Adventure tank 4, 33 L",
-    "description": "Long rally tank with layered creased flanks, running back in a low tail under the seat.",
-    "mass": 6.6,
-    "capacity": 33,
-    "style": "touring",
-    "color": [
-     0.85,
-     0.85,
-     0.83
-    ],
-    "price": 360,
-    "look": {
-     "shape": "adventure_4",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.957,
-      0.771,
-      0.771
-     ]
-    },
-    "styles": [
-     "adventure"
-    ],
-    "pack": "adventure"
-   },
-   "adventure_5": {
-    "name": "Adventure tank 5, 21 L",
-    "description": "Slim, sharply faceted rally tank with an open front, running back in a low tail under the seat.",
-    "mass": 4.2,
-    "capacity": 21,
-    "style": "touring",
-    "color": [
-     0.85,
-     0.85,
-     0.83
-    ],
-    "price": 360,
-    "look": {
-     "shape": "adventure_5",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.983,
-      0.895,
-      0.895
-     ]
-    },
-    "styles": [
-     "adventure"
-    ],
-    "pack": "adventure"
-   },
-   "sports_tourer_1": {
-    "name": "Sports tourer tank 1, 32 L",
-    "description": "Broad sports tourer tank with a stepped beak, a raised centre panel and crisp chamfered creases.",
-    "mass": 7.7,
-    "capacity": 32,
-    "style": "angular",
-    "color": [
-     0.55,
-     0.56,
-     0.58
-    ],
-    "price": 340,
-    "look": {
-     "shape": "sports_tourer_1",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.959,
-      0.779,
-      0.779
-     ]
-    },
-    "styles": [
-     "tourer"
-    ],
-    "pack": "tourer"
-   },
-   "sports_tourer_2": {
-    "name": "Sports tourer tank 2, 30 L",
-    "description": "Sports tourer tank with long chamfer bands down its flanks and a flush centre panel.",
-    "mass": 7.3,
-    "capacity": 30,
-    "style": "angular",
-    "color": [
-     0.55,
-     0.56,
-     0.58
-    ],
-    "price": 340,
-    "look": {
-     "shape": "sports_tourer_2",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.963,
-      0.796,
-      0.796
-     ]
-    },
-    "styles": [
-     "tourer"
-    ],
-    "pack": "tourer"
-   },
-   "sports_tourer_3": {
-    "name": "Sports tourer tank 3, 28 L",
-    "description": "Rounded sports tourer tank with soft shoulders, a flush centre panel and a stepped beak.",
-    "mass": 6.8,
-    "capacity": 28,
-    "style": "angular",
-    "color": [
-     0.55,
-     0.56,
-     0.58
-    ],
-    "price": 340,
-    "look": {
-     "shape": "sports_tourer_3",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.967,
-      0.814,
-      0.814
-     ]
-    },
-    "styles": [
-     "tourer"
-    ],
-    "pack": "tourer"
-   },
-   "sports_tourer_4": {
-    "name": "Sports tourer tank 4, 30 L",
-    "description": "Sharply faceted sports tourer tank with a wavy crease along its flank.",
-    "mass": 7.3,
-    "capacity": 30,
-    "style": "angular",
-    "color": [
-     0.55,
-     0.56,
-     0.58
-    ],
-    "price": 340,
-    "look": {
-     "shape": "sports_tourer_4",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.963,
-      0.796,
-      0.796
-     ]
-    },
-    "styles": [
-     "tourer"
-    ],
-    "pack": "tourer"
-   },
-   "sports_tourer_5": {
-    "name": "Sports tourer tank 5, 28 L",
-    "description": "Sports tourer tank with a recessed panel low on each flank and creased shoulders.",
-    "mass": 6.8,
-    "capacity": 28,
-    "style": "angular",
-    "color": [
-     0.55,
-     0.56,
-     0.58
-    ],
-    "price": 340,
-    "look": {
-     "shape": "sports_tourer_5",
-     "cap": "flush",
-     "badge": "none",
-     "scale": [
-      0.967,
-      0.814,
-      0.814
-     ]
-    },
-    "styles": [
-     "tourer"
-    ],
-    "pack": "tourer"
-   },
-   "chopper_1": {
-    "name": "Chopper tank 1, 7 L",
-    "description": "Teardrop chopper tank with a crisp crease sweeping from the nose to its tail.",
-    "mass": 2.1,
-    "capacity": 7,
-    "style": "peanut",
-    "color": [
-     0.08,
-     0.08,
-     0.085
-    ],
-    "price": 220,
-    "look": {
-     "shape": "chopper_1",
-     "cap": "flush",
-     "badge": "none",
-     "pads": false,
-     "scale": [
-      1.035,
-      1.286,
-      1.286
-     ]
-    },
-    "styles": [
-     "chopper"
-    ],
-    "pack": "chopper"
-   },
-   "chopper_2": {
-    "name": "Chopper tank 2, 9 L",
-    "description": "Round-nosed chopper tank with a rounded edge band all round.",
-    "mass": 2.7,
-    "capacity": 9,
-    "style": "peanut",
-    "color": [
-     0.08,
-     0.08,
-     0.085
-    ],
-    "price": 220,
-    "look": {
-     "shape": "chopper_2",
-     "cap": "flush",
-     "badge": "none",
-     "pads": false,
-     "scale": [
-      1.024,
-      1.184,
-      1.184
-     ]
-    },
-    "styles": [
-     "chopper"
-    ],
-    "pack": "chopper"
-   },
-   "chopper_3": {
-    "name": "Chopper tank 3, 4 L",
-    "description": "Low, slim chopper tank with a spine ridge and a low filler plinth.",
-    "mass": 1.2,
-    "capacity": 4,
-    "style": "peanut",
-    "color": [
-     0.08,
-     0.08,
-     0.085
-    ],
-    "price": 220,
-    "look": {
-     "shape": "chopper_3",
-     "cap": "flush",
-     "badge": "none",
-     "pads": false,
-     "scale": [
-      1.056,
-      1.547,
-      1.547
-     ]
-    },
-    "styles": [
-     "chopper"
-    ],
-    "pack": "chopper"
-   },
-   "chopper_4": {
-    "name": "Chopper tank 4, 7 L",
-    "description": "Chopper tank with an upswept tail and a flush panel on top.",
-    "mass": 2.1,
-    "capacity": 7,
-    "style": "peanut",
-    "color": [
-     0.08,
-     0.08,
-     0.085
-    ],
-    "price": 220,
-    "look": {
-     "shape": "chopper_4",
-     "cap": "flush",
-     "badge": "none",
-     "pads": false,
-     "scale": [
-      1.035,
-      1.286,
-      1.286
-     ]
-    },
-    "styles": [
-     "chopper"
-    ],
-    "pack": "chopper"
-   },
-   "chopper_5": {
-    "name": "Chopper tank 5, 5 L",
-    "description": "Plain teardrop chopper tank.",
-    "mass": 1.5,
-    "capacity": 5,
-    "style": "peanut",
-    "color": [
-     0.08,
-     0.08,
-     0.085
-    ],
-    "price": 220,
-    "look": {
-     "shape": "chopper_5",
-     "cap": "flush",
-     "badge": "none",
-     "pads": false,
-     "scale": [
-      1.048,
-      1.437,
-      1.437
-     ]
-    },
-    "styles": [
-     "chopper"
-    ],
-    "pack": "chopper"
-   },
-   "cruiser_1": {
-    "name": "Cruiser tank 1, 30 L",
-    "description": "Tall cruiser tank with a recessed panel in each flank and a crisp lower edge.",
-    "mass": 7.2,
-    "capacity": 30,
-    "style": "touring",
-    "color": [
-     0.04,
-     0.04,
-     0.045
-    ],
-    "price": 340,
-    "look": {
-     "shape": "cruiser_1",
-     "badge": "none",
-     "scale": [
-      0.963,
-      0.796,
-      0.796
-     ]
-    },
-    "styles": [
-     "cruiser"
-    ],
-    "pack": "cruiser"
-   },
-   "cruiser_2": {
-    "name": "Cruiser tank 2, 23 L",
-    "description": "Long, low teardrop cruiser tank with soft flush creases.",
-    "mass": 5.5,
-    "capacity": 23,
-    "style": "touring",
-    "color": [
-     0.04,
-     0.04,
-     0.045
-    ],
-    "price": 340,
-    "look": {
-     "shape": "cruiser_2",
-     "badge": "none",
-     "scale": [
-      0.978,
-      0.868,
-      0.868
-     ]
-    },
-    "styles": [
-     "cruiser"
-    ],
-    "pack": "cruiser"
-   },
-   "cruiser_3": {
-    "name": "Cruiser tank 3, 32 L",
-    "description": "Bulbous cruiser tank with a stepped tail and a sweeping crease on each flank.",
-    "mass": 7.7,
-    "capacity": 32,
-    "style": "touring",
-    "color": [
-     0.04,
-     0.04,
-     0.045
-    ],
-    "price": 340,
-    "look": {
-     "shape": "cruiser_3",
-     "badge": "none",
-     "scale": [
-      0.959,
-      0.779,
-      0.779
-     ]
-    },
-    "styles": [
-     "cruiser"
-    ],
-    "pack": "cruiser"
-   },
-   "cruiser_4": {
-    "name": "Cruiser tank 4, 29 L",
-    "description": "Broad, squared-off cruiser tank with flush creases along its shoulders.",
-    "mass": 6.9,
-    "capacity": 29,
-    "style": "touring",
-    "color": [
-     0.04,
-     0.04,
-     0.045
-    ],
-    "price": 340,
-    "look": {
-     "shape": "cruiser_4",
-     "badge": "none",
-     "scale": [
-      0.965,
-      0.804,
-      0.804
-     ]
-    },
-    "styles": [
-     "cruiser"
-    ],
-    "pack": "cruiser"
-   },
-   "cruiser_5": {
-    "name": "Cruiser tank 5, 21 L",
-    "description": "Cruiser tank with a slim waist, a sweeping flank crease and a crisp lower edge.",
-    "mass": 5.0,
-    "capacity": 21,
-    "style": "touring",
-    "color": [
-     0.04,
-     0.04,
-     0.045
-    ],
-    "price": 340,
-    "look": {
-     "shape": "cruiser_5",
-     "badge": "none",
-     "scale": [
-      0.983,
-      0.895,
-      0.895
-     ]
-    },
-    "styles": [
-     "cruiser"
-    ],
-    "pack": "cruiser"
-   }
-  },
-  "fairing": {
-   "naked_fairing_1": {
-    "name": "Naked fairing 1",
-    "description": "Tall screen over a creased cowl with twin angular lamps and slatted vents under them, and wing fins at the bottom.",
-    "mass": 3.2,
-    "type": "Frame-mounted, naked",
-    "style": "naked",
-    "cda": -0.04,
-    "screen": 0.2,
-    "frame_mount": true,
-    "color": [
-     0.08,
-     0.08,
-     0.09
-    ],
-    "styles": [
-     "naked"
-    ],
-    "price": 260,
-    "look": {
-     "shape": "naked_1"
-    },
-    "pack": "naked"
-   },
-   "naked_fairing_2": {
-    "name": "Naked fairing 2",
-    "description": "Short wide screen over a broad cowl with framed twin lamps and open triangular ducts below.",
-    "mass": 3.2,
-    "type": "Frame-mounted, naked",
-    "style": "naked",
-    "cda": -0.04,
-    "screen": 0.2,
-    "frame_mount": true,
-    "color": [
-     0.08,
-     0.08,
-     0.09
-    ],
-    "styles": [
-     "naked"
-    ],
-    "price": 260,
-    "look": {
-     "shape": "naked_2"
-    },
-    "pack": "naked"
-   },
-   "naked_fairing_3": {
-    "name": "Naked fairing 3",
-    "description": "Rounded screen over a squared cowl, with twin slim lamps and a hexagonal centre lamp.",
-    "mass": 3.2,
-    "type": "Frame-mounted, naked",
-    "style": "naked",
-    "cda": -0.04,
-    "screen": 0.2,
-    "frame_mount": true,
-    "color": [
-     0.08,
-     0.08,
-     0.09
-    ],
-    "styles": [
-     "naked"
-    ],
-    "price": 260,
-    "look": {
-     "shape": "naked_3"
-    },
-    "pack": "naked"
-   },
-   "naked_fairing_4": {
-    "name": "Naked fairing 4",
-    "description": "Tall squared screen over a blunt cowl with twin LED-pod lamps and a deep lower bracket.",
-    "mass": 3.2,
-    "type": "Frame-mounted, naked",
-    "style": "naked",
-    "cda": -0.04,
-    "screen": 0.2,
-    "frame_mount": true,
-    "color": [
-     0.08,
-     0.08,
-     0.09
-    ],
-    "styles": [
-     "naked"
-    ],
-    "price": 260,
-    "look": {
-     "shape": "naked_4"
-    },
-    "pack": "naked"
-   },
-   "naked_fairing_5": {
-    "name": "Naked fairing 5",
-    "description": "Short curved screen over a sharp-edged cowl with twin lamps, a mesh centre grille and open ducts.",
-    "mass": 3.2,
-    "type": "Frame-mounted, naked",
-    "style": "naked",
-    "cda": -0.04,
-    "screen": 0.2,
-    "frame_mount": true,
-    "color": [
-     0.08,
-     0.08,
-     0.09
-    ],
-    "styles": [
-     "naked"
-    ],
-    "price": 260,
-    "look": {
-     "shape": "naked_5"
-    },
-    "pack": "naked"
-   }
-  },
-  "disc": {
-   "drilled_260": {
-    "name": "260 mm drilled disc",
-    "description": "One-piece rotor, cross-drilled all round. A classic upgrade.",
-    "mass": 1.0,
-    "type": "Drilled",
-    "diameter": 260,
-    "style": "drilled",
-    "color": [
-     0.7,
-     0.71,
-     0.73
-    ]
-   },
-   "drilled_floating_300": {
-    "name": "300 mm drilled floating disc",
-    "description": "Drilled steel rotor floating on a black carrier. What most road bikes wear now.",
-    "mass": 1.2,
-    "type": "Floating, drilled",
-    "diameter": 300,
-    "style": "floating",
-    "color": [
-     0.7,
-     0.71,
-     0.73
-    ]
-   },
-   "drilled_floating_320": {
-    "name": "320 mm drilled floating disc",
-    "description": "Big drilled rotor on an anodised carrier, for sport and race bikes.",
-    "mass": 1.35,
-    "type": "Floating, drilled",
-    "diameter": 320,
-    "style": "floating",
-    "color": [
-     0.7,
-     0.71,
-     0.73
-    ]
-   },
-   "drilled_wave_270": {
-    "name": "270 mm drilled wave disc",
-    "description": "Petal edge and drilled face: sheds mud and water, runs cool.",
-    "mass": 0.9,
-    "type": "Wave, drilled",
-    "diameter": 270,
-    "style": "wave",
-    "color": [
-     0.7,
-     0.71,
-     0.73
-    ]
-   },
-   "drilled_220_rear": {
-    "name": "220 mm drilled rear disc",
-    "description": "Light drilled rear rotor.",
-    "mass": 0.7,
-    "type": "Drilled",
-    "diameter": 220,
-    "style": "drilled",
-    "color": [
-     0.7,
-     0.71,
-     0.73
-    ]
-   },
-   "drilled_245_rear": {
-    "name": "245 mm drilled rear disc",
-    "description": "Drilled rear rotor on a black carrier.",
-    "mass": 0.85,
-    "type": "Drilled",
-    "diameter": 245,
-    "style": "drilled",
-    "color": [
-     0.7,
-     0.71,
-     0.73
-    ]
-   }
-  }
- },
- "remove": {
-  "tank": [
-   "adv_25",
-   "fatbob_23"
-  ]
- },
- "drop_styles": {
-  "tank": {
-   "enduro_12": [
-    "adventure"
-   ],
-   "angular_gt_19": [
-    "tourer"
-   ],
-   "touring_23": [
-    "tourer"
-   ],
-   "peanut_9": [
-    "chopper",
-    "cruiser"
-   ],
-   "coffin_10": [
-    "chopper"
-   ]
-  },
-  "fairing": {
-   "flyscreen": [
-    "naked"
-   ],
-   "headlight_cowl": [
-    "naked"
-   ],
-   "bikini_fairing": [
-    "naked"
-   ],
-   "half_fairing": [
-    "naked"
-   ]
-  }
- },
- "retired": {
-  "adv_25": "adventure_1",
-  "fatbob_23": "cruiser_1"
- },
- "reference": {
-  "adventure": {
-   "tank": "adventure_1",
-   "rear_disc": "drilled_245_rear",
-   "engine": "vtwin_900",
-   "panniers": "none"
-  },
-  "tourer": {
-   "tank": "sports_tourer_1",
-   "rear_disc": "drilled_245_rear",
-   "engine": "parallel_1200",
-   "head": "big_valve_ported",
-   "final_drive": "top_speed_16_40",
-   "fog_lights": "none",
-   "guards": "none"
-  },
-  "chopper": {
-   "tank": "chopper_1",
-   "front_caliper": "single_piston",
-   "front_pads": "organic"
-  },
-  "cruiser": {
-   "tank": "cruiser_1",
-   "front_caliper": "twin_piston",
-   "front_pads": "organic",
-   "engine": "vtwin60_1200",
-   "front_disc": "wave_270"
-  },
-  "roader": {
-   "rear_disc": "drilled_245_rear"
-  },
-  "sport": {
-   "rear_disc": "drilled_220_rear",
-   "engine": "triple_660",
-   "head": "four_valve",
-   "final_drive": "tall_15_42"
-  },
-  "race": {
-   "rear_disc": "drilled_220_rear"
-  },
-  "naked": {
-   "rear_disc": "drilled_220_rear"
-  },
-  "supermoto": {
-   "rear_disc": "drilled_220_rear"
-  },
-  "scrambler": {
-   "rear_disc": "drilled_220_rear"
-  },
-  "mx": {
-   "rear_disc": "drilled_220_rear",
-   "swingarm": "braced_mx_alloy",
-   "chain": "light_428",
-   "front_disc": "light_wave_260",
-   "front_caliper": "twin_piston",
-   "horn": "none",
-   "indicators": "none",
-   "dashboard": "twin_clocks"
-  },
-  "bobber": {
-   "front_caliper": "twin_piston",
-   "front_pads": "organic"
-  }
- }
+	"about": "This repo's changes to the Godot parts catalogue; see Tools/parts_overlay.py.",
+	"add": {
+		"tank": {
+			"bobber_1": {
+				"name": "Bobber tank 1, 14 L",
+				"description": "Long low teardrop with a raised top spine and a deep knee sweep.",
+				"mass": 3.9,
+				"capacity": 14,
+				"style": "peanut",
+				"color": [
+					0.42,
+					0.05,
+					0.05
+				],
+				"price": 180,
+				"look": {
+					"shape": "bobber_1",
+					"badge": "none",
+					"pads": false
+				},
+				"styles": [
+					"bobber"
+				],
+				"pack": "bobber"
+			},
+			"bobber_2": {
+				"name": "Bobber tank 2, 14 L",
+				"description": "Teardrop with a recessed side panel and a crisp top spine.",
+				"mass": 3.9,
+				"capacity": 14,
+				"style": "peanut",
+				"color": [
+					0.42,
+					0.05,
+					0.05
+				],
+				"price": 180,
+				"look": {
+					"shape": "bobber_2",
+					"badge": "none",
+					"pads": false
+				},
+				"styles": [
+					"bobber"
+				],
+				"pack": "bobber"
+			},
+			"bobber_3": {
+				"name": "Bobber tank 3, 10 L",
+				"description": "Slim tank with a creased shoulder and a cut-in knee line.",
+				"mass": 2.8,
+				"capacity": 10,
+				"style": "peanut",
+				"color": [
+					0.42,
+					0.05,
+					0.05
+				],
+				"price": 180,
+				"look": {
+					"shape": "bobber_3",
+					"badge": "none",
+					"pads": false
+				},
+				"styles": [
+					"bobber"
+				],
+				"pack": "bobber"
+			},
+			"bobber_4": {
+				"name": "Bobber tank 4, 11 L",
+				"description": "Slim tank with a stepped shoulder and a scalloped side crease.",
+				"mass": 3.1,
+				"capacity": 11,
+				"style": "peanut",
+				"color": [
+					0.42,
+					0.05,
+					0.05
+				],
+				"price": 180,
+				"look": {
+					"shape": "bobber_4",
+					"badge": "none",
+					"pads": false
+				},
+				"styles": [
+					"bobber"
+				],
+				"pack": "bobber"
+			},
+			"bobber_5": {
+				"name": "Bobber tank 5, 10 L",
+				"description": "Short, slim tank with a single shoulder crease.",
+				"mass": 2.8,
+				"capacity": 10,
+				"style": "peanut",
+				"color": [
+					0.42,
+					0.05,
+					0.05
+				],
+				"price": 180,
+				"look": {
+					"shape": "bobber_5",
+					"badge": "none",
+					"pads": false
+				},
+				"styles": [
+					"bobber"
+				],
+				"pack": "bobber"
+			},
+			"adventure_1": {
+				"name": "Adventure tank 1, 39 L",
+				"description": "Tall rally tank with sharp creased shoulders and side vents, running back in a low tail under the seat.",
+				"mass": 7.8,
+				"capacity": 39,
+				"style": "touring",
+				"color": [
+					0.85,
+					0.85,
+					0.83
+				],
+				"price": 360,
+				"look": {
+					"shape": "adventure_1",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.947,
+						0.73,
+						0.73
+					]
+				},
+				"styles": [
+					"adventure"
+				],
+				"pack": "adventure"
+			},
+			"adventure_2": {
+				"name": "Adventure tank 2, 34 L",
+				"description": "Rally tank with deep vented flanks and a raised centre panel, running back in a low tail under the seat.",
+				"mass": 6.8,
+				"capacity": 34,
+				"style": "touring",
+				"color": [
+					0.85,
+					0.85,
+					0.83
+				],
+				"price": 360,
+				"look": {
+					"shape": "adventure_2",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.956,
+						0.763,
+						0.763
+					]
+				},
+				"styles": [
+					"adventure"
+				],
+				"pack": "adventure"
+			},
+			"adventure_3": {
+				"name": "Adventure tank 3, 37 L",
+				"description": "Rally tank with big rounded shoulders and knee pockets, running back in a low tail under the seat.",
+				"mass": 7.4,
+				"capacity": 37,
+				"style": "touring",
+				"color": [
+					0.85,
+					0.85,
+					0.83
+				],
+				"price": 360,
+				"look": {
+					"shape": "adventure_3",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.951,
+						0.742,
+						0.742
+					]
+				},
+				"styles": [
+					"adventure"
+				],
+				"pack": "adventure"
+			},
+			"adventure_4": {
+				"name": "Adventure tank 4, 33 L",
+				"description": "Long rally tank with layered creased flanks, running back in a low tail under the seat.",
+				"mass": 6.6,
+				"capacity": 33,
+				"style": "touring",
+				"color": [
+					0.85,
+					0.85,
+					0.83
+				],
+				"price": 360,
+				"look": {
+					"shape": "adventure_4",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.957,
+						0.771,
+						0.771
+					]
+				},
+				"styles": [
+					"adventure"
+				],
+				"pack": "adventure"
+			},
+			"adventure_5": {
+				"name": "Adventure tank 5, 21 L",
+				"description": "Slim, sharply faceted rally tank with an open front, running back in a low tail under the seat.",
+				"mass": 4.2,
+				"capacity": 21,
+				"style": "touring",
+				"color": [
+					0.85,
+					0.85,
+					0.83
+				],
+				"price": 360,
+				"look": {
+					"shape": "adventure_5",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.983,
+						0.895,
+						0.895
+					]
+				},
+				"styles": [
+					"adventure"
+				],
+				"pack": "adventure"
+			},
+			"sports_tourer_1": {
+				"name": "Sports tourer tank 1, 32 L",
+				"description": "Broad sports tourer tank with a stepped beak, a raised centre panel and crisp chamfered creases.",
+				"mass": 7.7,
+				"capacity": 32,
+				"style": "angular",
+				"color": [
+					0.55,
+					0.56,
+					0.58
+				],
+				"price": 340,
+				"look": {
+					"shape": "sports_tourer_1",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.959,
+						0.779,
+						0.779
+					]
+				},
+				"styles": [
+					"tourer"
+				],
+				"pack": "tourer"
+			},
+			"sports_tourer_2": {
+				"name": "Sports tourer tank 2, 30 L",
+				"description": "Sports tourer tank with long chamfer bands down its flanks and a flush centre panel.",
+				"mass": 7.3,
+				"capacity": 30,
+				"style": "angular",
+				"color": [
+					0.55,
+					0.56,
+					0.58
+				],
+				"price": 340,
+				"look": {
+					"shape": "sports_tourer_2",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.963,
+						0.796,
+						0.796
+					]
+				},
+				"styles": [
+					"tourer"
+				],
+				"pack": "tourer"
+			},
+			"sports_tourer_3": {
+				"name": "Sports tourer tank 3, 28 L",
+				"description": "Rounded sports tourer tank with soft shoulders, a flush centre panel and a stepped beak.",
+				"mass": 6.8,
+				"capacity": 28,
+				"style": "angular",
+				"color": [
+					0.55,
+					0.56,
+					0.58
+				],
+				"price": 340,
+				"look": {
+					"shape": "sports_tourer_3",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.967,
+						0.814,
+						0.814
+					]
+				},
+				"styles": [
+					"tourer"
+				],
+				"pack": "tourer"
+			},
+			"sports_tourer_4": {
+				"name": "Sports tourer tank 4, 30 L",
+				"description": "Sharply faceted sports tourer tank with a wavy crease along its flank.",
+				"mass": 7.3,
+				"capacity": 30,
+				"style": "angular",
+				"color": [
+					0.55,
+					0.56,
+					0.58
+				],
+				"price": 340,
+				"look": {
+					"shape": "sports_tourer_4",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.963,
+						0.796,
+						0.796
+					]
+				},
+				"styles": [
+					"tourer"
+				],
+				"pack": "tourer"
+			},
+			"sports_tourer_5": {
+				"name": "Sports tourer tank 5, 28 L",
+				"description": "Sports tourer tank with a recessed panel low on each flank and creased shoulders.",
+				"mass": 6.8,
+				"capacity": 28,
+				"style": "angular",
+				"color": [
+					0.55,
+					0.56,
+					0.58
+				],
+				"price": 340,
+				"look": {
+					"shape": "sports_tourer_5",
+					"cap": "flush",
+					"badge": "none",
+					"scale": [
+						0.967,
+						0.814,
+						0.814
+					]
+				},
+				"styles": [
+					"tourer"
+				],
+				"pack": "tourer"
+			},
+			"chopper_1": {
+				"name": "Chopper tank 1, 7 L",
+				"description": "Teardrop chopper tank with a crisp crease sweeping from the nose to its tail.",
+				"mass": 2.1,
+				"capacity": 7,
+				"style": "peanut",
+				"color": [
+					0.08,
+					0.08,
+					0.085
+				],
+				"price": 220,
+				"look": {
+					"shape": "chopper_1",
+					"cap": "flush",
+					"badge": "none",
+					"pads": false,
+					"scale": [
+						1.035,
+						1.286,
+						1.286
+					]
+				},
+				"styles": [
+					"chopper"
+				],
+				"pack": "chopper"
+			},
+			"chopper_2": {
+				"name": "Chopper tank 2, 9 L",
+				"description": "Round-nosed chopper tank with a rounded edge band all round.",
+				"mass": 2.7,
+				"capacity": 9,
+				"style": "peanut",
+				"color": [
+					0.08,
+					0.08,
+					0.085
+				],
+				"price": 220,
+				"look": {
+					"shape": "chopper_2",
+					"cap": "flush",
+					"badge": "none",
+					"pads": false,
+					"scale": [
+						1.024,
+						1.184,
+						1.184
+					]
+				},
+				"styles": [
+					"chopper"
+				],
+				"pack": "chopper"
+			},
+			"chopper_3": {
+				"name": "Chopper tank 3, 4 L",
+				"description": "Low, slim chopper tank with a spine ridge and a low filler plinth.",
+				"mass": 1.2,
+				"capacity": 4,
+				"style": "peanut",
+				"color": [
+					0.08,
+					0.08,
+					0.085
+				],
+				"price": 220,
+				"look": {
+					"shape": "chopper_3",
+					"cap": "flush",
+					"badge": "none",
+					"pads": false,
+					"scale": [
+						1.056,
+						1.547,
+						1.547
+					]
+				},
+				"styles": [
+					"chopper"
+				],
+				"pack": "chopper"
+			},
+			"chopper_4": {
+				"name": "Chopper tank 4, 7 L",
+				"description": "Chopper tank with an upswept tail and a flush panel on top.",
+				"mass": 2.1,
+				"capacity": 7,
+				"style": "peanut",
+				"color": [
+					0.08,
+					0.08,
+					0.085
+				],
+				"price": 220,
+				"look": {
+					"shape": "chopper_4",
+					"cap": "flush",
+					"badge": "none",
+					"pads": false,
+					"scale": [
+						1.035,
+						1.286,
+						1.286
+					]
+				},
+				"styles": [
+					"chopper"
+				],
+				"pack": "chopper"
+			},
+			"chopper_5": {
+				"name": "Chopper tank 5, 5 L",
+				"description": "Plain teardrop chopper tank.",
+				"mass": 1.5,
+				"capacity": 5,
+				"style": "peanut",
+				"color": [
+					0.08,
+					0.08,
+					0.085
+				],
+				"price": 220,
+				"look": {
+					"shape": "chopper_5",
+					"cap": "flush",
+					"badge": "none",
+					"pads": false,
+					"scale": [
+						1.048,
+						1.437,
+						1.437
+					]
+				},
+				"styles": [
+					"chopper"
+				],
+				"pack": "chopper"
+			},
+			"cruiser_1": {
+				"name": "Cruiser tank 1, 30 L",
+				"description": "Tall cruiser tank with a recessed panel in each flank and a crisp lower edge.",
+				"mass": 7.2,
+				"capacity": 30,
+				"style": "touring",
+				"color": [
+					0.04,
+					0.04,
+					0.045
+				],
+				"price": 340,
+				"look": {
+					"shape": "cruiser_1",
+					"badge": "none",
+					"scale": [
+						0.963,
+						0.796,
+						0.796
+					]
+				},
+				"styles": [
+					"cruiser"
+				],
+				"pack": "cruiser"
+			},
+			"cruiser_2": {
+				"name": "Cruiser tank 2, 23 L",
+				"description": "Long, low teardrop cruiser tank with soft flush creases.",
+				"mass": 5.5,
+				"capacity": 23,
+				"style": "touring",
+				"color": [
+					0.04,
+					0.04,
+					0.045
+				],
+				"price": 340,
+				"look": {
+					"shape": "cruiser_2",
+					"badge": "none",
+					"scale": [
+						0.978,
+						0.868,
+						0.868
+					]
+				},
+				"styles": [
+					"cruiser"
+				],
+				"pack": "cruiser"
+			},
+			"cruiser_3": {
+				"name": "Cruiser tank 3, 32 L",
+				"description": "Bulbous cruiser tank with a stepped tail and a sweeping crease on each flank.",
+				"mass": 7.7,
+				"capacity": 32,
+				"style": "touring",
+				"color": [
+					0.04,
+					0.04,
+					0.045
+				],
+				"price": 340,
+				"look": {
+					"shape": "cruiser_3",
+					"badge": "none",
+					"scale": [
+						0.959,
+						0.779,
+						0.779
+					]
+				},
+				"styles": [
+					"cruiser"
+				],
+				"pack": "cruiser"
+			},
+			"cruiser_4": {
+				"name": "Cruiser tank 4, 29 L",
+				"description": "Broad, squared-off cruiser tank with flush creases along its shoulders.",
+				"mass": 6.9,
+				"capacity": 29,
+				"style": "touring",
+				"color": [
+					0.04,
+					0.04,
+					0.045
+				],
+				"price": 340,
+				"look": {
+					"shape": "cruiser_4",
+					"badge": "none",
+					"scale": [
+						0.965,
+						0.804,
+						0.804
+					]
+				},
+				"styles": [
+					"cruiser"
+				],
+				"pack": "cruiser"
+			},
+			"cruiser_5": {
+				"name": "Cruiser tank 5, 21 L",
+				"description": "Cruiser tank with a slim waist, a sweeping flank crease and a crisp lower edge.",
+				"mass": 5.0,
+				"capacity": 21,
+				"style": "touring",
+				"color": [
+					0.04,
+					0.04,
+					0.045
+				],
+				"price": 340,
+				"look": {
+					"shape": "cruiser_5",
+					"badge": "none",
+					"scale": [
+						0.983,
+						0.895,
+						0.895
+					]
+				},
+				"styles": [
+					"cruiser"
+				],
+				"pack": "cruiser"
+			}
+		},
+		"fairing": {
+			"naked_fairing_1": {
+				"name": "Naked fairing 1",
+				"description": "Tall screen over a creased cowl with twin angular lamps and slatted vents under them, and wing fins at the bottom.",
+				"mass": 3.2,
+				"type": "Frame-mounted, naked",
+				"style": "naked",
+				"cda": -0.04,
+				"screen": 0.2,
+				"frame_mount": true,
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"naked"
+				],
+				"price": 260,
+				"look": {
+					"shape": "naked_1"
+				},
+				"pack": "naked"
+			},
+			"naked_fairing_2": {
+				"name": "Naked fairing 2",
+				"description": "Short wide screen over a broad cowl with framed twin lamps and open triangular ducts below.",
+				"mass": 3.2,
+				"type": "Frame-mounted, naked",
+				"style": "naked",
+				"cda": -0.04,
+				"screen": 0.2,
+				"frame_mount": true,
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"naked"
+				],
+				"price": 260,
+				"look": {
+					"shape": "naked_2"
+				},
+				"pack": "naked"
+			},
+			"naked_fairing_3": {
+				"name": "Naked fairing 3",
+				"description": "Rounded screen over a squared cowl, with twin slim lamps and a hexagonal centre lamp.",
+				"mass": 3.2,
+				"type": "Frame-mounted, naked",
+				"style": "naked",
+				"cda": -0.04,
+				"screen": 0.2,
+				"frame_mount": true,
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"naked"
+				],
+				"price": 260,
+				"look": {
+					"shape": "naked_3"
+				},
+				"pack": "naked"
+			},
+			"naked_fairing_4": {
+				"name": "Naked fairing 4",
+				"description": "Tall squared screen over a blunt cowl with twin LED-pod lamps and a deep lower bracket.",
+				"mass": 3.2,
+				"type": "Frame-mounted, naked",
+				"style": "naked",
+				"cda": -0.04,
+				"screen": 0.2,
+				"frame_mount": true,
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"naked"
+				],
+				"price": 260,
+				"look": {
+					"shape": "naked_4"
+				},
+				"pack": "naked"
+			},
+			"naked_fairing_5": {
+				"name": "Naked fairing 5",
+				"description": "Short curved screen over a sharp-edged cowl with twin lamps, a mesh centre grille and open ducts.",
+				"mass": 3.2,
+				"type": "Frame-mounted, naked",
+				"style": "naked",
+				"cda": -0.04,
+				"screen": 0.2,
+				"frame_mount": true,
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"naked"
+				],
+				"price": 260,
+				"look": {
+					"shape": "naked_5"
+				},
+				"pack": "naked"
+			}
+		},
+		"disc": {
+			"drilled_260": {
+				"name": "260 mm drilled disc",
+				"description": "One-piece rotor, cross-drilled all round. A classic upgrade.",
+				"mass": 1.0,
+				"type": "Drilled",
+				"diameter": 260,
+				"style": "drilled",
+				"color": [
+					0.7,
+					0.71,
+					0.73
+				]
+			},
+			"drilled_floating_300": {
+				"name": "300 mm drilled floating disc",
+				"description": "Drilled steel rotor floating on a black carrier. What most road bikes wear now.",
+				"mass": 1.2,
+				"type": "Floating, drilled",
+				"diameter": 300,
+				"style": "floating",
+				"color": [
+					0.7,
+					0.71,
+					0.73
+				]
+			},
+			"drilled_floating_320": {
+				"name": "320 mm drilled floating disc",
+				"description": "Big drilled rotor on an anodised carrier, for sport and race bikes.",
+				"mass": 1.35,
+				"type": "Floating, drilled",
+				"diameter": 320,
+				"style": "floating",
+				"color": [
+					0.7,
+					0.71,
+					0.73
+				]
+			},
+			"drilled_wave_270": {
+				"name": "270 mm drilled wave disc",
+				"description": "Petal edge and drilled face: sheds mud and water, runs cool.",
+				"mass": 0.9,
+				"type": "Wave, drilled",
+				"diameter": 270,
+				"style": "wave",
+				"color": [
+					0.7,
+					0.71,
+					0.73
+				]
+			},
+			"drilled_220_rear": {
+				"name": "220 mm drilled rear disc",
+				"description": "Light drilled rear rotor.",
+				"mass": 0.7,
+				"type": "Drilled",
+				"diameter": 220,
+				"style": "drilled",
+				"color": [
+					0.7,
+					0.71,
+					0.73
+				]
+			},
+			"drilled_245_rear": {
+				"name": "245 mm drilled rear disc",
+				"description": "Drilled rear rotor on a black carrier.",
+				"mass": 0.85,
+				"type": "Drilled",
+				"diameter": 245,
+				"style": "drilled",
+				"color": [
+					0.7,
+					0.71,
+					0.73
+				]
+			}
+		},
+		"dashboard": {
+			"analog_speedo": {
+				"name": "Analogue speedo",
+				"description": "Single round speedo, with a little LCD window in its face for the gear, trip, mpg and range. Plain ABS, no other rider aids.",
+				"mass": 0.5,
+				"style": "analog",
+				"features": [
+					"speed",
+					"gear",
+					"trip",
+					"economy",
+					"range"
+				],
+				"color": [
+					0.85,
+					0.86,
+					0.88
+				],
+				"styles": [
+					"classic",
+					"cafe",
+					"bobber",
+					"chopper",
+					"scrambler"
+				],
+				"aids": [
+					"abs"
+				],
+				"aid_level": 0.75,
+				"tune_range": 0.25,
+				"limiter_add": 0
+			},
+			"twin_clocks": {
+				"name": "Twin clocks",
+				"description": "Speedo and rev counter side by side, with LCD windows for the gear, trip, mpg and range. Plain ABS, no other rider aids.",
+				"mass": 0.8,
+				"style": "twin",
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"trip",
+					"economy",
+					"range"
+				],
+				"color": [
+					0.85,
+					0.86,
+					0.88
+				],
+				"styles": [
+					"classic",
+					"cafe",
+					"roader",
+					"tourer",
+					"naked"
+				],
+				"aids": [
+					"abs"
+				],
+				"aid_level": 0.75,
+				"tune_range": 0.25,
+				"limiter_add": 0
+			},
+			"lcd_basic": {
+				"name": "LCD dash",
+				"description": "Speed, revs and a gear readout, with trip, mpg and range. Plain ABS, no other rider aids.",
+				"mass": 0.4,
+				"style": "lcd",
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"trip",
+					"economy",
+					"range"
+				],
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"mx",
+					"supermoto",
+					"naked"
+				],
+				"aids": [
+					"abs"
+				],
+				"aid_level": 0.75,
+				"tune_range": 0.25,
+				"limiter_add": 0
+			},
+			"tft_colour": {
+				"name": "Colour TFT dash, 6.5 inch",
+				"description": "The all-rounder: a bright colour screen with four designs, a built-in sat nav map, shift light, cruise control, ride modes, traction control, wheelie control and ABS, all set from the bars.",
+				"mass": 0.6,
+				"style": "tft",
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"shift_light",
+					"trip",
+					"economy",
+					"range",
+					"cruise",
+					"modes",
+					"map"
+				],
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"adventure",
+					"tourer",
+					"roader",
+					"sport",
+					"naked",
+					"cruiser"
+				],
+				"unit": "colour",
+				"screen": "wide",
+				"glass": [
+					0.142,
+					0.085
+				],
+				"price": 480,
+				"aids": [
+					"abs",
+					"traction",
+					"anti_wheelie",
+					"lean_traction",
+					"stability"
+				],
+				"aid_level": 0.8,
+				"tune_range": 1.0,
+				"limiter_add": 600,
+				"type": "6.5 inch"
+			},
+			"race_logger": {
+				"name": "Race data logger",
+				"description": "Shift light, gear, revs, a top-speed log and the trip computer, with race electronics: ride modes, traction control, wheelie control, stability control and ABS.",
+				"mass": 0.5,
+				"style": "race",
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"shift_light",
+					"top_speed",
+					"trip",
+					"economy",
+					"range",
+					"modes"
+				],
+				"color": [
+					0.15,
+					0.15,
+					0.16
+				],
+				"styles": [
+					"race"
+				],
+				"aids": [
+					"abs",
+					"traction",
+					"anti_wheelie",
+					"lean_traction",
+					"stability"
+				],
+				"aid_level": 0.9,
+				"tune_range": 1.0,
+				"limiter_add": 1000
+			},
+			"tft_naked": {
+				"name": "Streetfighter TFT dash, 5 inch",
+				"description": "A slim colour screen for a modern naked. Four screen designs, a built-in sat nav map, shift light, cruise control, ride modes, traction control, wheelie control and ABS, all set from the bars.",
+				"mass": 0.5,
+				"style": "tft",
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"shift_light",
+					"trip",
+					"economy",
+					"range",
+					"cruise",
+					"modes",
+					"map"
+				],
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"naked",
+					"sport",
+					"roader",
+					"supermoto",
+					"scrambler"
+				],
+				"price": 420,
+				"unit": "street",
+				"screen": "wide",
+				"glass": [
+					0.11,
+					0.066
+				],
+				"aids": [
+					"abs",
+					"traction",
+					"anti_wheelie",
+					"lean_traction",
+					"stability"
+				],
+				"aid_level": 0.8,
+				"tune_range": 1.0,
+				"limiter_add": 600,
+				"type": "5 inch"
+			},
+			"tft_touring": {
+				"name": "Touring TFT dash, 10 inch widescreen",
+				"description": "A wide screen that shows the clocks and the sat nav map side by side. Four designs, cruise control, ride modes, traction control, wheelie control and ABS, all set from the bars. Easy to read on a long day.",
+				"mass": 0.9,
+				"style": "tft",
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"shift_light",
+					"trip",
+					"economy",
+					"range",
+					"cruise",
+					"modes",
+					"map"
+				],
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"tourer",
+					"adventure",
+					"roader",
+					"cruiser"
+				],
+				"price": 620,
+				"unit": "touring",
+				"screen": "ultra",
+				"glass": [
+					0.232,
+					0.087
+				],
+				"aids": [
+					"abs",
+					"traction",
+					"anti_wheelie",
+					"lean_traction",
+					"stability"
+				],
+				"aid_level": 0.8,
+				"tune_range": 1.0,
+				"limiter_add": 600,
+				"type": "10 inch widescreen"
+			},
+			"tft_compact": {
+				"name": "Compact TFT dash, 4 inch round",
+				"description": "A round colour screen the size of a classic clock, for bikes that want to stay looking simple. Four screen designs, a built-in sat nav map, ride modes, traction control, wheelie control and ABS, all set from the bars.",
+				"mass": 0.4,
+				"style": "tft",
+				"unit": "compact",
+				"screen": "round",
+				"glass": [
+					0.092,
+					0.092
+				],
+				"features": [
+					"speed",
+					"rpm",
+					"gear",
+					"shift_light",
+					"trip",
+					"economy",
+					"range",
+					"cruise",
+					"modes",
+					"map"
+				],
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"styles": [
+					"classic",
+					"cafe",
+					"bobber",
+					"chopper",
+					"scrambler",
+					"supermoto",
+					"cruiser"
+				],
+				"price": 360,
+				"aids": [
+					"abs",
+					"traction",
+					"anti_wheelie",
+					"lean_traction",
+					"stability"
+				],
+				"aid_level": 0.8,
+				"tune_range": 1.0,
+				"limiter_add": 600,
+				"type": "4 inch round"
+			}
+		},
+		"fork": {
+			"semi_active_sport": {
+				"name": "Semi-active sport fork",
+				"description": "120 mm upside-down fork with electronic damping. With a semi-active shock and a TFT dash, the ride mode sets it: soft for comfort, firm for sport.",
+				"mass": 8.9,
+				"type": "Upside-down",
+				"travel": 0.12,
+				"spring": 34000.0,
+				"bump": 2700.0,
+				"rebound": 3800.0,
+				"adjust": 4,
+				"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+				"length": 0.72,
+				"offset": 0.028,
+				"color": [
+					0.1,
+					0.1,
+					0.11
+				],
+				"style": "usd",
+				"styles": [
+					"sport",
+					"race",
+					"naked",
+					"roader",
+					"tourer"
+				],
+				"electronic": true,
+				"price": 1150
+			},
+			"semi_active_adventure": {
+				"name": "Semi-active adventure fork",
+				"description": "230 mm upside-down fork with electronic damping. With a semi-active shock and a TFT dash, the ride mode sets it, with an off-road setting for loose ground.",
+				"mass": 10.4,
+				"type": "Upside-down",
+				"travel": 0.23,
+				"spring": 16500.0,
+				"bump": 1600.0,
+				"rebound": 2500.0,
+				"adjust": 4,
+				"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+				"length": 0.92,
+				"offset": 0.05,
+				"color": [
+					0.08,
+					0.08,
+					0.09
+				],
+				"style": "usd",
+				"styles": [
+					"adventure",
+					"scrambler",
+					"supermoto",
+					"tourer"
+				],
+				"electronic": true,
+				"price": 1250
+			}
+		},
+		"shock": {
+			"semi_active_mono": {
+				"name": "Semi-active mono-shock",
+				"description": "130 mm shock with electronic damping. With a semi-active fork and a TFT dash, the ride mode sets it.",
+				"mass": 4.6,
+				"type": "Mono-shock",
+				"travel": 0.13,
+				"spring": 38000.0,
+				"bump": 2900.0,
+				"rebound": 4100.0,
+				"adjust": 4,
+				"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+				"layout": "mono",
+				"color": [
+					0.1,
+					0.1,
+					0.11
+				],
+				"styles": [
+					"sport",
+					"race",
+					"naked",
+					"roader",
+					"tourer"
+				],
+				"electronic": true,
+				"price": 780
+			},
+			"semi_active_adventure_mono": {
+				"name": "Semi-active adventure shock",
+				"description": "240 mm shock with electronic damping. With a semi-active fork and a TFT dash, the ride mode sets it, with an off-road setting.",
+				"mass": 5.2,
+				"type": "Mono-shock",
+				"travel": 0.24,
+				"spring": 17500.0,
+				"bump": 1700.0,
+				"rebound": 2500.0,
+				"adjust": 4,
+				"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+				"layout": "mono",
+				"color": [
+					0.1,
+					0.1,
+					0.11
+				],
+				"styles": [
+					"adventure",
+					"scrambler",
+					"supermoto",
+					"tourer"
+				],
+				"electronic": true,
+				"price": 840
+			}
+		},
+		"satnav": {
+			"phone_nav_mount": {
+				"name": "Phone sat nav, handlebar clip",
+				"description": "Your phone in a sprung cradle on a clamp round the bar, running a nav app: a live map, the way and the next turn, on any bike. The only way to have a sat nav map on a bike without a TFT dash.",
+				"mass": 0.3,
+				"type": "Phone in a bar clip, 6\"",
+				"style": "phone",
+				"screen": [
+					0.12,
+					0.075
+				],
+				"features": [
+					"map",
+					"route",
+					"fuel"
+				],
+				"color": [
+					0.06,
+					0.06,
+					0.065
+				],
+				"styles": [
+					"classic",
+					"cafe",
+					"bobber",
+					"chopper",
+					"cruiser",
+					"scrambler",
+					"adventure",
+					"roader",
+					"tourer",
+					"sport",
+					"race",
+					"naked",
+					"supermoto",
+					"mx"
+				],
+				"price": 30
+			}
+		}
+	},
+	"remove": {
+		"tank": [
+			"adv_25",
+			"fatbob_23"
+		],
+		"ecu": [
+			"remap_ecu",
+			"remap2_ecu",
+			"ecu_safety",
+			"sport_ecu",
+			"race_ecu"
+		],
+		"satnav": [
+			"compact_gps",
+			"road_gps",
+			"adventure_gps",
+			"rally_tablet"
+		]
+	},
+	"drop_styles": {
+		"tank": {
+			"enduro_12": [
+				"adventure"
+			],
+			"angular_gt_19": [
+				"tourer"
+			],
+			"touring_23": [
+				"tourer"
+			],
+			"peanut_9": [
+				"chopper",
+				"cruiser"
+			],
+			"coffin_10": [
+				"chopper"
+			]
+		},
+		"fairing": {
+			"flyscreen": [
+				"naked"
+			],
+			"headlight_cowl": [
+				"naked"
+			],
+			"bikini_fairing": [
+				"naked"
+			],
+			"half_fairing": [
+				"naked"
+			]
+		}
+	},
+	"retired": {
+		"adv_25": "adventure_1",
+		"fatbob_23": "cruiser_1",
+		"compact_gps": "phone_nav_mount",
+		"road_gps": "phone_nav_mount",
+		"adventure_gps": "phone_nav_mount",
+		"rally_tablet": "phone_nav_mount"
+	},
+	"reference": {
+		"adventure": {
+			"tank": "adventure_1",
+			"rear_disc": "drilled_245_rear",
+			"engine": "vtwin_900",
+			"panniers": "none",
+			"ecu": "none",
+			"dashboard": "tft_touring"
+		},
+		"tourer": {
+			"tank": "sports_tourer_1",
+			"rear_disc": "drilled_245_rear",
+			"engine": "parallel_1200",
+			"head": "big_valve_ported",
+			"final_drive": "top_speed_16_40",
+			"fog_lights": "none",
+			"guards": "none",
+			"ecu": "none",
+			"dashboard": "tft_touring"
+		},
+		"chopper": {
+			"tank": "chopper_1",
+			"front_caliper": "single_piston",
+			"front_pads": "organic",
+			"ecu": "none"
+		},
+		"cruiser": {
+			"tank": "cruiser_1",
+			"front_caliper": "twin_piston",
+			"front_pads": "organic",
+			"engine": "vtwin60_1200",
+			"front_disc": "wave_270",
+			"ecu": "none"
+		},
+		"roader": {
+			"rear_disc": "drilled_245_rear",
+			"ecu": "none",
+			"dashboard": "tft_colour"
+		},
+		"sport": {
+			"rear_disc": "drilled_220_rear",
+			"engine": "triple_660",
+			"head": "four_valve",
+			"final_drive": "tall_15_42",
+			"ecu": "none",
+			"dashboard": "tft_colour"
+		},
+		"race": {
+			"rear_disc": "drilled_220_rear",
+			"ecu": "none",
+			"dashboard": "race_logger"
+		},
+		"naked": {
+			"rear_disc": "drilled_220_rear",
+			"ecu": "none",
+			"dashboard": "tft_naked"
+		},
+		"supermoto": {
+			"rear_disc": "drilled_220_rear",
+			"ecu": "none"
+		},
+		"scrambler": {
+			"rear_disc": "drilled_220_rear",
+			"ecu": "none"
+		},
+		"mx": {
+			"rear_disc": "drilled_220_rear",
+			"swingarm": "braced_mx_alloy",
+			"chain": "light_428",
+			"front_disc": "light_wave_260",
+			"front_caliper": "twin_piston",
+			"horn": "none",
+			"indicators": "none",
+			"dashboard": "twin_clocks",
+			"ecu": "none"
+		},
+		"bobber": {
+			"front_caliper": "twin_piston",
+			"front_pads": "organic",
+			"ecu": "none"
+		},
+		"classic": {
+			"ecu": "none"
+		},
+		"cafe": {
+			"ecu": "none"
+		}
+	},
+	"about_tft": "[TFT screens, Nov 2026] The ECU parts and every sat nav but the phone are out of the game (beenster): rider aids and the engine's tuning range come with the dash ('aids', 'aid_level', 'tune_range', 'limiter_add'), TFT dashes have a 'unit' (compact, street, colour, touring) with a 'screen' shape and 'glass' size, and modern reference bikes carry a TFT."
 }

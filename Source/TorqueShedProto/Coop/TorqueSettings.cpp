@@ -71,10 +71,21 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("FrameCap"), FrameCap, Ini);
 	GConfig->GetBool(Section, TEXT("VSync"), bVSync, Ini);
 	GConfig->GetBool(Section, TEXT("MotionBlur"), bMotionBlur, Ini);
+	GConfig->GetBool(Section, TEXT("Performance"), bPerformance, Ini);
+	GConfig->GetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
+	GConfig->GetBool(Section, TEXT("Reflex"), bReflex, Ini);
 	GConfig->GetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
 	GConfig->GetInt(Section, TEXT("AntiAliasing"), AntiAliasing, Ini);
+	// [build 149] Until 148 the row was ignored and TSR always ran, whatever it said; 148 obeyed it and
+	// a saved TAA (picked when it did nothing) went soft at 4K upscaled. So it starts again at TSR,
+	// what everyone had been seeing, once; from then on it's the row's.
+	{
+		int32 AaRowWorks = 0;
+		GConfig->GetInt(Section, TEXT("AaRowWorks"), AaRowWorks, Ini);
+		if (AaRowWorks < 1) AntiAliasing = 0;
+	}
 	GConfig->GetInt(Section, TEXT("Shadows"), Shadows, Ini);
 	GConfig->GetInt(Section, TEXT("Textures"), Textures, Ini);
 	GConfig->GetInt(Section, TEXT("GlobalIllumination"), GlobalIllumination, Ini);
@@ -119,6 +130,7 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->GetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
+	GConfig->GetString(Section, TEXT("WeatherPreset"), WeatherPresetKey, Ini);
 	// Live weather became the default after these settings were saved: always sunny, the old default,
 	// moves to Live once (any other choice stays as it was).
 	bool bLiveOffered = false;
@@ -185,7 +197,7 @@ void FTorqueSettings::Load()
 	ScreenBright = FMath::Clamp(ScreenBright, 0, 3);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
 	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
-	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherLive);
+	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherPreset);
 	FSonyPad::SetCentre(PadCentre);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
 	UpscaleMode = FMath::Clamp(UpscaleMode, 0, 4);
@@ -209,10 +221,14 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("FrameCap"), FrameCap, Ini);
 	GConfig->SetBool(Section, TEXT("VSync"), bVSync, Ini);
 	GConfig->SetBool(Section, TEXT("MotionBlur"), bMotionBlur, Ini);
+	GConfig->SetBool(Section, TEXT("Performance"), bPerformance, Ini);
+	GConfig->SetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
+	GConfig->SetBool(Section, TEXT("Reflex"), bReflex, Ini);
 	GConfig->SetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->SetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->SetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
 	GConfig->SetInt(Section, TEXT("AntiAliasing"), AntiAliasing, Ini);
+	GConfig->SetInt(Section, TEXT("AaRowWorks"), 1, Ini);
 	GConfig->SetInt(Section, TEXT("Shadows"), Shadows, Ini);
 	GConfig->SetInt(Section, TEXT("Textures"), Textures, Ini);
 	GConfig->SetInt(Section, TEXT("GlobalIllumination"), GlobalIllumination, Ini);
@@ -256,6 +272,7 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->SetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
+	GConfig->SetString(Section, TEXT("WeatherPreset"), *WeatherPresetKey, Ini);
 	GConfig->SetBool(Section, TEXT("WeatherLiveOffered"), true, Ini);
 	for (int32 I = 0; I < 4; ++I) GConfig->SetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
@@ -284,6 +301,18 @@ bool FTorqueSettings::HdrAvailable()
 	return G && G->SupportsHDRDisplayOutput();
 }
 
+int32 FTorqueSettings::Applied = 0;
+
+bool FTorqueSettings::HasFrameGen()
+{
+	return IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streamline.DLSSG.Enable")) != nullptr;
+}
+
+bool FTorqueSettings::HasReflex()
+{
+	return IConsoleManager::Get().FindConsoleVariable(TEXT("t.Streamline.Reflex.Enable")) != nullptr;
+}
+
 bool FTorqueSettings::HasDlss()
 {
 	// NVIDIA's DLSS plugin (free, from Fab) registers these when it's in the build and the GPU can.
@@ -301,6 +330,17 @@ bool FTorqueSettings::HasDlss()
 
 void FTorqueSettings::Apply(UWorld* World) const
 {
+	++Applied;
+	// [perf, build 152] -TorqueFrameGen=0|1 overrides the saved row for test runs: round 151's "frame
+	// generation on" runs still applied the saved 0, so frame generation never really ran.
+	bool bUseFrameGen = bFrameGen;
+	{
+		int32 Given = -1;
+		if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFrameGen="), Given) && Given >= 0) bUseFrameGen = Given != 0;
+	}
+	UE_LOG(LogTemp, Display, TEXT("Torque graphics: applying preset %d%s, upscaler %s (DLSS in build %d), render %.1f%%, AA row %d, frame generation %d (in build %d), Reflex %d"),
+		Quality, bPerformance ? TEXT(" (Performance)") : TEXT(""), Upscaler == 1 ? TEXT("DLSS") : TEXT("TSR"), HasDlss() ? 1 : 0, ScreenPercent(UpscaleMode), AntiAliasing,
+		bUseFrameGen ? 1 : 0, HasFrameGen() ? 1 : 0, bReflex ? 1 : 0);
 	if (UGameUserSettings* G = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
 		MoveToMonitor(Monitor);
@@ -323,13 +363,53 @@ void FTorqueSettings::Apply(UWorld* World) const
 		// Every scalability setting put back as its group's level says (Unreal only sets the ones whose
 		// level changed), so the rows below start from the preset each time.
 		Scalability::SetQualityLevels(Scalability::GetQualityLevels(), true);
+		// [perf, build 150] The Performance preset: below High where it costs most (GI and reflections at
+		// Medium turn Lumen off; foliage at Medium) unless a row says otherwise.
+		if (bPerformance)
+		{
+			Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+			if (GlobalIllumination < 0) Q.GlobalIlluminationQuality = 1;
+			if (Reflections < 0) Q.ReflectionQuality = 1;
+			if (Foliage < 0) Q.FoliageQuality = 1;
+			Scalability::SetQualityLevels(Q, true);
+		}
+		// Whether Lumen really is on (beenster, build 148: "is this actually Lumen?"): Unreal turns Lumen's
+		// light and reflections off below High global illumination / reflection quality.
+		{
+			auto CVarInt = [](const TCHAR* Name) {
+				const IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name);
+				return V ? V->GetInt() : -1;
+			};
+			const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+			UE_LOG(LogTemp, Display, TEXT("Torque graphics: preset %d, GI quality %d, reflections %d; GI method %d (1 Lumen), Lumen diffuse allowed %d, reflection method %d (1 Lumen), hardware ray tracing %d; brightness %.2f"),
+				Quality, Q.GlobalIlluminationQuality, Q.ReflectionQuality, CVarInt(TEXT("r.DynamicGlobalIlluminationMethod")),
+				CVarInt(TEXT("r.Lumen.DiffuseIndirect.Allow")), CVarInt(TEXT("r.ReflectionMethod")), CVarInt(TEXT("r.Lumen.HardwareRayTracing")), Brightness);
+		}
 		// HDR output, only where the screen has it (and back off when the setting is off).
 		if (G->SupportsHDRDisplayOutput() && G->IsHDREnabled() != bHdr) G->EnableHDRDisplayOutput(bHdr);
 	}
 	const bool bDlss = Upscaler == 1 && HasDlss();
+	// [perf, build 150] Lighting. Until 150 the project fixed Lumen's hardware ray tracing at hit lighting
+	// (the dearest kind) for every preset. Now: hit lighting only at Cinematic reflections, Lumen's surface
+	// cache below that; and with the Performance preset no Lumen at all: the sky light's distance-field
+	// shadows and AO, and screen-space reflections. (Set as code sets them: the project's renderer
+	// settings outrank a game setting.)
+	{
+		const Scalability::FQualityLevels Q = Scalability::GetQualityLevels();
+		SetCVar(TEXT("r.Lumen.HardwareRayTracing.LightingMode"), Q.ReflectionQuality >= 4 ? 2 : 0, ECVF_SetByCode);
+		SetCVar(TEXT("r.DynamicGlobalIlluminationMethod"), bPerformance && GlobalIllumination < 0 ? 0 : 1, ECVF_SetByCode);
+		SetCVar(TEXT("r.ReflectionMethod"), bPerformance && Reflections < 0 ? 2 : 1, ECVF_SetByCode);
+		SetCVar(TEXT("r.DistanceFieldAO"), 1, ECVF_SetByCode);
+	}
+	// [perf, build 150] Frame generation and Reflex (NVIDIA's plugin: Streamline). Frame generation needs
+	// DLSS (or at least a temporal upscaler) under it and Reflex on.
+	if (HasFrameGen()) SetCVar(TEXT("r.Streamline.DLSSG.Enable"), bUseFrameGen ? 1 : 0, ECVF_SetByCode);
+	if (HasReflex()) SetCVar(TEXT("t.Streamline.Reflex.Enable"), (bReflex || bUseFrameGen) ? 1 : 0, ECVF_SetByCode);
 	// TSR (DLSS takes over from it when on, and needs a temporal one under it), TAA, FXAA or none.
 	static const int32 AaMethods[4] = {4, 2, 1, 0};
-	SetCVar(TEXT("r.AntiAliasingMethod"), bDlss ? 4 : AaMethods[FMath::Clamp(AntiAliasing, 0, 3)]);
+	// (set as code sets it: the project's own r.AntiAliasingMethod, DefaultEngine.ini's renderer settings,
+	// outranks a game setting, so until build 148 this row was ignored and TSR always ran)
+	SetCVar(TEXT("r.AntiAliasingMethod"), bDlss ? 4 : AaMethods[FMath::Clamp(AntiAliasing, 0, 3)], ECVF_SetByCode);
 	SetCVar(TEXT("r.ScreenPercentage"), ScreenPercent(UpscaleMode));
 	// NVIDIA's DLSS 4.5 plugin (UE 5.8, v8.9): on or off; its quality is the screen percentage set
 	// above (Quality 66.7, Balanced 58, Performance 50, Ultra performance 33, and 100 is DLAA).

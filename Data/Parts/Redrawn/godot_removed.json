@@ -259,5 +259,223 @@
 			"price": 300,
 			"pack": "sport"
 		}
+	},
+	"ecu": {
+		"remap_ecu": {
+			"name": "Performance remap ECU",
+			"description": "Hotter maps and a higher rev limit. More power, still no aids.",
+			"mass": 0.4,
+			"type": "Remapped",
+			"features": [
+				"remap"
+			],
+			"power": 1.06,
+			"rev_add": 400,
+			"aid_level": 0.0,
+			"color": [
+				0.75,
+				0.1,
+				0.08
+			],
+			"tune_range": 1.0,
+			"limiter_add": 800
+		},
+		"remap2_ecu": {
+			"name": "Performance 2 remap ECU",
+			"description": "The stage-two map: hotter still, with more room at the top. Ten per cent more power, no aids.",
+			"mass": 0.4,
+			"type": "Remapped, stage two",
+			"features": [
+				"remap"
+			],
+			"power": 1.1,
+			"rev_add": 600,
+			"aid_level": 0.0,
+			"color": [
+				0.55,
+				0.05,
+				0.05
+			],
+			"tune_range": 1.0,
+			"limiter_add": 1000
+		},
+		"ecu_safety": {
+			"name": "ECU Safety",
+			"description": "ABS, traction control, anti-wheelie and lean-angle traction control in one box. Every aid can be switched and set from the bike's dash as well as on the dyno desk.",
+			"mass": 0.9,
+			"type": "ABS, traction, anti-wheelie, lean-angle traction",
+			"features": [
+				"abs",
+				"traction",
+				"anti_wheelie",
+				"lean_traction"
+			],
+			"power": 1.0,
+			"rev_add": 0,
+			"aid_level": 0.75,
+			"color": [
+				0.15,
+				0.15,
+				0.17
+			],
+			"tune_range": 0.35,
+			"limiter_add": 0
+		},
+		"sport_ecu": {
+			"name": "Sport ride-by-wire ECU",
+			"description": "Traction control, ABS and anti-wheelie in one box. Set up for fast road riding.",
+			"mass": 0.8,
+			"type": "Traction, ABS, anti-wheelie",
+			"features": [
+				"traction",
+				"abs",
+				"anti_wheelie"
+			],
+			"power": 1.03,
+			"rev_add": 200,
+			"aid_level": 0.7,
+			"color": [
+				0.1,
+				0.25,
+				0.6
+			],
+			"tune_range": 0.6,
+			"limiter_add": 400
+		},
+		"race_ecu": {
+			"name": "Race ECU with IMU",
+			"description": "Lean-sensitive traction control, cornering ABS, wheelie and stability control. Lets the rider push but catches the big mistakes.",
+			"mass": 0.6,
+			"type": "Full IMU suite",
+			"features": [
+				"traction",
+				"abs",
+				"anti_wheelie",
+				"stability"
+			],
+			"power": 1.05,
+			"rev_add": 500,
+			"aid_level": 0.9,
+			"color": [
+				0.9,
+				0.75,
+				0.1
+			],
+			"lightweight": true,
+			"tune_range": 1.0,
+			"limiter_add": 1000
+		}
+	},
+	"satnav": {
+		"compact_gps": {
+			"name": "Compact moto sat nav, 3.5\"",
+			"description": "A small rugged sat nav on a ball mount. Shows the road ahead and how far to go.",
+			"mass": 0.25,
+			"type": "Sat nav, 3.5\"",
+			"style": "compact",
+			"screen": [
+				0.08,
+				0.06
+			],
+			"features": [
+				"map",
+				"route"
+			],
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked",
+				"roader",
+				"adventure",
+				"tourer"
+			],
+			"price": 180
+		},
+		"road_gps": {
+			"name": "Road sat nav, 4.3\"",
+			"description": "A motorcycle sat nav on a RAM arm: glove-friendly buttons, the road ahead and the next fuel.",
+			"mass": 0.3,
+			"type": "Sat nav, 4.3\"",
+			"style": "road",
+			"screen": [
+				0.1,
+				0.065
+			],
+			"features": [
+				"map",
+				"route",
+				"fuel"
+			],
+			"color": [
+				0.06,
+				0.06,
+				0.065
+			],
+			"styles": [
+				"roader",
+				"adventure",
+				"tourer"
+			],
+			"price": 240
+		},
+		"adventure_gps": {
+			"name": "Adventure sat nav, 5\"",
+			"description": "A big rugged unit in an armoured cradle on a crossbar above the clocks: map, fuel stops and where you're headed.",
+			"mass": 0.45,
+			"type": "Sat nav, 5\"",
+			"style": "adventure",
+			"screen": [
+				0.115,
+				0.07
+			],
+			"features": [
+				"map",
+				"route",
+				"fuel"
+			],
+			"color": [
+				0.1,
+				0.1,
+				0.11
+			],
+			"accent": [
+				0.92,
+				0.42,
+				0.06
+			],
+			"styles": [
+				"adventure",
+				"tourer"
+			],
+			"price": 320
+		},
+		"rally_tablet": {
+			"name": "Rally tablet, 8\"",
+			"description": "A rally tower's big tablet on a navigation bar: the whole route in front of you, with fuel and stops.",
+			"mass": 0.7,
+			"type": "Tablet, 8\"",
+			"style": "tablet",
+			"screen": [
+				0.18,
+				0.11
+			],
+			"features": [
+				"map",
+				"route",
+				"fuel"
+			],
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"styles": [
+				"adventure"
+			],
+			"price": 450
+		}
 	}
 }

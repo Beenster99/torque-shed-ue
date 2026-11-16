@@ -15,12 +15,12 @@ namespace
 const char* const KindNames[RidePlan::PlantKinds] = {
 	"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "tuft_a", "tuft_b", "tussock_a", "tussock_b", "matgrass", "far_a", "far_b",
 	"rush_a", "rush_b", "heather_twig_a", "heather_twig_b", "heather_a", "heather_b", "bracken",
-	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel"};
+	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel", "hedge"};
 
 enum Kind : uint16_t
 {
 	CarpetGreen, CarpetMoor, CarpetFarGreen, CarpetFarMoor, TuftA, TuftB, TussockA, TussockB, MatGrass, FarA, FarB, RushA, RushB,
-	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel
+	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel, Hedge
 };
 
 // The cover ids the baker writes (Terrain::Cover).
@@ -301,7 +301,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 	std::vector<int> FieldsHere;
 	FieldsIn(X0, Z0, Size, FieldsHere);
 	bool Quarried = false;
-	for (int Fi : FieldsHere) Quarried = Quarried || FieldAreas[size_t(Fi)].Kind == FieldQuarry;
+	for (int Fi : FieldsHere) Quarried = Quarried || FieldAreas[size_t(Fi)].Kind == FieldQuarry || FieldAreas[size_t(Fi)].Kind == FieldPullOff;   // [places stage 2] (nor on a pull-off)
 	const auto Look = [&](double X, double Z)
 	{
 		const int I = std::min(F - 1, std::max(0, int(std::lround((X - X0) / Fg)))), J = std::min(F - 1, std::max(0, int(std::lround((Z - Z0) / Fg))));
@@ -321,7 +321,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		if (Quarried && H.Ok)
 		{
 			const int Fa = FieldAt(X, Z);
-			H.Ok = Fa < 0 || FieldAreas[size_t(Fa)].Kind != FieldQuarry;
+			H.Ok = Fa < 0 || (FieldAreas[size_t(Fa)].Kind != FieldQuarry && FieldAreas[size_t(Fa)].Kind != FieldPullOff);
 		}
 		return H;
 	};

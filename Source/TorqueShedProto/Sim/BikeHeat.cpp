@@ -11,7 +11,14 @@ constexpr double KELVIN = 273.15;
 constexpr double OVERHEAT_SPAN = 45.0;   // °C past the window over which an overcooked tyre goes greasy
 constexpr double OVERHEAT_LOSS = 0.25;   // ... losing this much grip
 constexpr double OFF_ROAD_SHARE = 0.4;   // on dirt and grass the compound's temperature matters this much
-constexpr double DISC_AIRFLOW = 10.0;    // W/m²K per (m/s)^0.8: the air riding past cools a disc
+// A disc sheds its heat to the air: DISC_STILL W/m²K standing, and DISC_AIRFLOW more per (m/s)^0.8
+// ridden. A spinning disc pumps air over itself and loses heat through its carrier into the wheel too,
+// so a motorcycle disc cools about twice as fast as the bare plate in the air would: from a hard stop
+// it is back near its working heat within half a minute of riding. (Build 146 had 10 and 10, and front
+// brake only riding on Ride UK's hills took the disc to 500-625 °C, track day heat; beenster: "discs
+// seem very hot". Now steady road riding settles near 150 °C and hard riding near 400.)
+constexpr double DISC_STILL = 15.0;
+constexpr double DISC_AIRFLOW = 25.0;
 constexpr double SOFTEN = 0.75;          // how much of the effects Riding realism 1 takes away
 // The engine: liquid-cooled by coolant temperature, air-cooled by head temperature, °C.
 struct EngineTemps { double Warm, Hot, LossFrom, LossSpan, Running; };
@@ -119,7 +126,7 @@ void BikeHeat::BrakeStep(int I, double Dt, double V, double P)
 	const BikeHeatParts::BrakePart& B = Parts.Brake[I];
 	const double Td = Discs[I], Tp = Pads[I];
 	const double Tk = Td + KELVIN, Ta = Air + KELVIN;
-	const double Cool = (10.0 + DISC_AIRFLOW * std::pow(V, 0.8)) * B.DiscArea * B.DiscCool * (Td - Air)
+	const double Cool = (DISC_STILL + DISC_AIRFLOW * std::pow(V, 0.8)) * B.DiscArea * B.DiscCool * (Td - Air)
 		+ 0.5 * SIGMA * B.DiscArea * (Tk * Tk * Tk * Tk - Ta * Ta * Ta * Ta);
 	const double Link = 8.0 * (Td - Tp);
 	Discs[I] = Td + (0.92 * P - Cool - Link) * Dt / B.DiscC;

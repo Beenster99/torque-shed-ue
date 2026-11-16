@@ -142,7 +142,7 @@ endif()
 
 # The sky (skies plan): the light table, the sun through cloud, the air, the cloud layers, and the
 # recorded days (Data/Sky/days) read as the live feed's answers.
-add_executable(sky_test sky_test.cpp ${WEATHER}/SkyModel.cpp ${WEATHER}/WeatherModel.cpp ${FIT}/FitJson.cpp)
+add_executable(sky_test sky_test.cpp ${WEATHER}/SkyModel.cpp ${WEATHER}/StormSky.cpp ${WEATHER}/NightSky.cpp ${WEATHER}/WeatherModel.cpp ${FIT}/FitJson.cpp)
 target_include_directories(sky_test PRIVATE ${WEATHER} ${FIT})
 target_compile_definitions(sky_test PRIVATE TORQUE_SKY_DATA="${CMAKE_CURRENT_SOURCE_DIR}/../Data/Sky")
 if(MSVC)
@@ -165,7 +165,7 @@ endif()
 
 add_executable(world_test world_test.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
   ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-  ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
+  ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
 target_include_directories(world_test PRIVATE ${WORLD} ${FIT})
 target_compile_definitions(world_test PRIVATE TORQUE_WORLD_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/world" TORQUE_WORLD_TMP="${CMAKE_CURRENT_BINARY_DIR}" TORQUE_REPO_DATA="${CMAKE_CURRENT_SOURCE_DIR}/../Data")
 find_package(Threads REQUIRED)
@@ -179,7 +179,7 @@ endif()
 if(NOT WIN32)
   add_executable(world_ride world_ride.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
     ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
+    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
   target_include_directories(world_ride PRIVATE ${WORLD} ${FIT})
   target_compile_definitions(world_ride PRIVATE TORQUE_SIMTEST="${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(world_ride PRIVATE Threads::Threads)
@@ -195,6 +195,30 @@ if(MSVC)
 else()
   target_compile_options(radio_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# The TFT screens and the sat nav's map (plain C++ draw lists): every shape, view and design drawn and checked.
+# tft_test <dir> also writes each one as an SVG; Tools/tft_sheets.js makes picture sheets of them.
+set(DASH ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Dash)
+add_executable(tft_test tft_test.cpp ${DASH}/TftScreen.cpp ${DASH}/TftMap.cpp)
+target_include_directories(tft_test PRIVATE ${DASH})
+if(MSVC)
+  target_compile_options(tft_test PRIVATE /W4)
+else()
+  target_compile_options(tft_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# Ride modes, the TFT's menu and the rider aids coming with the dash (no ECU parts).
+add_executable(modes_test modes_test.cpp ${SIM}/RideModes.cpp ${DASH}/TftMenu.cpp ${DASH}/TftScreen.cpp ${DASH}/TftMap.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp
+  ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(modes_test PRIVATE ${SIM} ${FIT} ${DASH})
+if(MSVC)
+  target_compile_options(modes_test PRIVATE /W4)
+else()
+  target_compile_options(modes_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
+endif()
+# Writes a dash unit's shapes for Tools/dash_pictures.py (a picture of the unit without the engine).
+add_executable(dash_dump dash_dump.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp)
+target_include_directories(dash_dump PRIVATE ${FIT} ${SIM})
 
 # [bikes v2] The Bike Models V2 bikes on show (Data/BikesV2): each loads with the game's glb reader.
 add_executable(bikesv2_test bikesv2_test.cpp ${FIT}/FitJson.cpp ${FIT}/PartMesh.cpp)

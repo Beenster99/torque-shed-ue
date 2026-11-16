@@ -12,6 +12,7 @@ import os
 import struct
 
 import bpy
+from mathutils import Vector
 
 B = None        # the build3d module, set by run()
 
@@ -932,7 +933,7 @@ def adventure_body(model, c):
 
     slots = [[tuple(q[:2]) for q in sl] for sl in adv.get("slots", [])]
     for s in (-1, 1):
-        B.skin(f"advblack{s}", K, fk, s, plastic, stations=90, rows=30, thick=5.0, holes=slots)
+        B.skin(f"advblack{s}", K, fk, s, paint if adv.get("black_paint") else plastic, stations=90, rows=30, thick=5.0, holes=slots)
         B.skin(f"advgrey{s}", G, fg, s, grey, stations=90, rows=20, thick=5.0)
         for n_, sl in enumerate(slots):
             # each louvre carries a blade hinged on its leading edge and standing out towards the back, so
@@ -942,7 +943,7 @@ def adventure_body(model, c):
                 (r0, f0, f1, r1) = sl
                 vs = [B.V(f0[0] + 4, s * (fk(f0[0], f0[1]) + 1), f0[1] - 5), B.V(f1[0] + 4, s * (fk(f1[0], f1[1]) + 1), f1[1] + 5),
                       B.V(r1[0] - 5, s * (fk(r1[0], r1[1]) + out_), r1[1] + 5), B.V(r0[0] - 5, s * (fk(r0[0], r0[1]) + out_), r0[1] - 5)]
-                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], plastic, False)
+                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], paint if adv.get("louvre_paint") else plastic, False)      # colour-coded blades (beenster, BSX adventure)
                 md = ob.modifiers.new("t", "SOLIDIFY")
                 md.thickness, md.offset = 3.5 * B.MM, 0
     ia = adv.get("ind")
@@ -1150,7 +1151,7 @@ def guard_lamp(model, c):
     """The classic and cruiser brake light: a polished oval housing standing on the rear mudguard, its red
     lens domed and facing straight back, a small clear window underneath to light the plate. The indicators
     grow out of the housing's sides (the same rule as the sport and cafe tails)."""
-    if model["family"].lower() not in ("classic", "cruiser"):
+    if model["family"].lower() not in ("classic", "cruiser", "chopper"):
         return
     tl = next((v for v in model["body"].get("tail", []) if v.get("cls") == "redlens"), None)
     if not tl:       # a bobbed guard drawn with the panels carries its lamp there
@@ -1161,7 +1162,12 @@ def guard_lamp(model, c):
         drop(f"panel{pi + len(model['body'].get('front_guard', []))}")      # build3d numbers the panels after the front guard's shapes
     xs, zs = [q[0] for q in tl["pts"]], [q[1] for q in tl["pts"]]
     zc, x0, x1 = (max(zs) + min(zs)) / 2 + 4, max(xs) + 26, min(xs) - 4
-    L, R, e = x0 - x1, 36.0, (0.72, 1.0)
+    # each brand's own lamp (beenster, rollout round 2): the oval, a big round one, a small bullet, a slim wide
+    # strip, or a tall tombstone. (radius, (height, width) as shares of it, how far it stands out)
+    R, e, out_ = {"round": (33.0, (1.0, 1.0), 6), "bullet": (25.0, (1.0, 1.0), 34), "wide": (50.0, (0.46, 1.0), 0), "tall": (31.0, (1.3, 0.84), 8)}.get(
+        model.get("detail", {}).get("tail_lamp"), (36.0, (0.72, 1.0), 0))
+    x1 -= out_
+    L = x0 - x1
     drop("taillight", "guardlamp")
     ax = (-1.0, 0.0, 0.0)
     lathe("guardlampbody", (x0, 0, zc), ax, [(0, 0), (0, R * 0.42), (L * 0.3, R * 0.8), (L * 0.75, R), (L - 3, R), (L, R - 1.2), (L, 0)], B.mat("chrome"), 48, sharp=False, ell=e)
@@ -1178,8 +1184,8 @@ def guard_lamp(model, c):
     lathe("guardlampreflector", (x1, 0, zc), ax, ribs + [(-14.5, 0)], B.mat("chrome"), 48, ell=e)
     lathe("guardlampbulb", (x1, 0, zc), ax, [(-10, 0), (-10, 6.5), (2, 6.5), (6, 4), (7, 0)], glow("tailred", (1.0, 0.03, 0.02), 2.6), 20)
     # the plate window: a clear strip let into the underside of the housing, lighting down on to the plate
-    slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-20, -9), (20, -9), (20, 9), (-20, 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
-    c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * 0.9 + 14)
+    slab("guardlampwindow", (x1 + L * 0.2, zc - R * e[0] + 1.2), (0.0, -1.0), (1.0, 0.0), [(-min(20, R * e[1] * 0.6), -9), (min(20, R * e[1] * 0.6), -9), (min(20, R * e[1] * 0.6), 9), (-min(20, R * e[1] * 0.6), 9)], -1.5, 1.6, glow("bulb", (1.0, 0.97, 0.9), 1.2), 0)
+    c["tail_lamp"] = (x1 + L * 0.38 - 13, zc, R * e[1] * 0.9 + 14)
     c["tail_lamp_chrome"] = True
 
 
@@ -2186,15 +2192,56 @@ def engine(model, c):
     exhaust ports with a two-stud flange and collar where each header pipe starts."""
     add, unit = B.add, B.unit
     eng, crank, wide = c["eng"], c["crank"], c["wide"]
-    if eng["layout"] in ("inline4", "triple", "boxer"):
-        return
+    boxer = eng["layout"] == "boxer"
+    inline = eng["layout"] in ("inline4", "triple")
     silver = B.mat("engine")
     mag = surf("magcover", (0.2, 0.165, 0.12), 0.9, 0.4, bump=(1.0, 0.1))
     blk = surf("crinkle", (0.022, 0.022, 0.024), 0.3, 0.62, bump=(0.4, 0.5))
     steel, rubber, alu = B.mat("steel"), B.mat("rubber"), B.mat("alu")
+    chromed = model.get("detail", {}).get("engine") == "chrome"
+    if chromed:
+        # a show engine (beenster, chopper round 1): rocker covers, cam caps, side covers and the air cleaner
+        # are plated, the outer cases polished; barrels and heads stay cast so the chrome has something to sit on
+        mag = B.mat("chrome")
+    plug_side = eng.get("plug") == "side"
     heads = []
+    if boxer:
+        # a flat twin: the barrels, heads and valve covers build3d made stay as the castings. On them go the
+        # cover's two bolts and gasket, a plug on top of each head with its lead, pushrod tubes under the
+        # barrel, and an inlet stub and throttle body behind each head with a hose in to the air box
+        bc = eng["boxer"]
+        cx_, cz_ = bc["at"]
+        by = lambda y: B.boxer_y(eng, y)
+        xs_, zs_ = [q[0] for q in bc["cover"]], [q[1] for q in bc["cover"]]
+        set_mat("boxercover", mag)
+        for s in (-1, 1):
+            for dx in (-0.2, 0.2):
+                bolt(f"boxercoverbolt{s}{dx}", (cx_ + (max(xs_) - min(xs_)) * dx, s * (by(372) - 3), cz_), (0, s, 0), 6, 5)
+            B.pillow(f"boxergasket{s}", [((q[0] - cx_) * 0.94 + cx_, (q[1] - cz_) * 0.92 + cz_) for q in B.shapes.dense(bc["cover"], True, 0.6)], min(s * by(314), s * by(319)), max(s * by(314), s * by(319)), rubber, 1, 2, both=False)
+            for dx in (-34, 34):
+                B.cone(f"pushrodtube{s}{dx}", (cx_ + dx, s * 104, cz_ - bc["r"] - 22), (cx_ + dx, s * by(254), cz_ - bc["r"] - 22), 9, 9, B.mat("chrome"), 16)
+                B.cone(f"pushrodseal{s}{dx}", (cx_ + dx, s * (by(254) - 10), cz_ - bc["r"] - 22), (cx_ + dx, s * by(254), cz_ - bc["r"] - 22), 12, 12, rubber, 16)
+            yp, zt = s * by(284), max(zs_) - 6
+            lathe(f"svc_spark_plug{s}_hex", (cx_, yp, zt), (0, 0, 1), [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+            B.cone(f"plugcap{s}", (cx_, yp, zt + 5), (cx_, yp, zt + 30), 11.5, 10, rubber, 16)
+            # the lead lies along the top of the barrel in a clip and turns in over the crankcase (beenster, rollout
+            # round 2: it swung through the air)
+            zb_ = cz_ + bc["r"] + 9
+            B.smooth_tube(f"pluglead{s}", [(cx_, yp, zt + 28), (cx_ - 2, yp - s * 14, zt + 36), (cx_ - 5, yp - s * 34, max(zb_, zt + 20)), (cx_ - 8, s * (abs(yp) + 104) / 2, zb_), (cx_ - 12, s * 118, zb_),
+                                           (cx_ - 34, s * 92, zb_ + 10), (cx_ - 62, s * 70, zb_ + 26), (cx_ - 80, s * 60, max(zt + 80, zb_ + 40))], 3.4, rubber)
+            B.cone(f"plugleadclip{s}", (cx_ - 8, s * (abs(yp) + 104) / 2, zb_ - 8), (cx_ - 8, s * (abs(yp) + 104) / 2, zb_ + 5), 7, 7, steel, 10)
+            o_ = (min(xs_) + 14, yp, cz_ + 18)
+            i3 = (-0.94, 0, 0.34)
+            lathe(f"inletstub{s}", o_, i3, [(0, 27), (8, 27), (11, 24.5), (26, 24.5), (26, 20)], rubber, 28)
+            lathe(f"inletclamp{s}", o_, i3, [(17, 24.9), (17, 26), (24, 26), (24, 24.9)], steel, 28)
+            lathe(f"throttle{s}", o_, i3, [(24, 22.5), (34, 22.5), (37, 25), (58, 25), (61, 22.5), (80, 22.5), (80, 0)], alu, 28)
+            e_ = tuple(o_[k] + i3[k] * 78 for k in range(3))
+            B.smooth_tube(f"inlethose{s}", [e_, (e_[0] - 30, e_[1] - s * 6, e_[2] + 12), (e_[0] - 66, s * 150, e_[2] + 44), (e_[0] - 84, s * 96, e_[2] + 82), (e_[0] - 90, s * 60, e_[2] + 110)], 21, rubber)
+            inj = tuple(o_[k] + i3[k] * 46 for k in range(3))
+            B.cone(f"injector{s}", (inj[0], inj[1], inj[2] + 22), (inj[0] - 8, inj[1], inj[2] + 50), 7, 6, surf("injgreen", (0.1, 0.25, 0.12), 0, 0.5), 14)
     for i, cy in enumerate(eng["cylinders"]):
-        drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
+        if not inline:
+            drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
         u = unit(cy["angle"])
         n = (-u[1], u[0])
         if n[1] < 0:
@@ -2203,6 +2250,50 @@ def engine(model, c):
         base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
         headend = add(end, u, cy["head"])
         d3 = (u[0], 0, u[1])
+        if inline:
+            # an in-line bank (three or four): the block, head and cam cover build3d made stay as the castings; on
+            # them go a base flange, stiffening bands, gaskets, the cam cover's bolts, a plug in a well for every
+            # cylinder with its lead, and a row of inlet stubs and throttle bodies on one shaft behind the head
+            W = wide / 2 - 30
+            ys_ = B.inline_ys(eng, wide)
+            set_mat(f"cover{i}", mag)
+            B.prism(f"blockbase{i}", [add(base, n, r + 7), add(add(base, u, 9), n, r + 7), add(add(base, u, 9), n, -r - 7), add(base, n, -r - 7)], -W - 5, W + 5, silver, 1.5)
+            for kk in (0.34, 0.66):
+                q = add(base, u, cy["length"] * kk)
+                B.prism(f"blockrib{i}{kk}", [add(q, n, r + 3.5), add(add(q, u, 6), n, r + 3.5), add(add(q, u, 6), n, -r - 3.5), add(q, n, -r - 3.5)], -W + 9, W - 9, silver, 1)
+            B.prism(f"headgasket{i}", [add(end, n, r + 14.5), add(add(end, u, 2.5), n, r + 14.5), add(add(end, u, 2.5), n, -r - 14.5), add(end, n, -r - 14.5)], -W - 6.5, W + 6.5, steel, 0.4)
+            B.prism(f"covergasket{i}", [add(headend, n, r + 7), add(add(headend, u, 3), n, r + 7), add(add(headend, u, 3), n, -r - 7), add(headend, n, -r - 7)], -W + 3, W - 3, rubber, 0.5)
+            cov = add(headend, u, 30)
+            pitch = ys_[1] - ys_[0]
+            for kb, yb in enumerate([ys_[0] - pitch / 2 + 8] + [(a_ + b_) / 2 for a_, b_ in zip(ys_, ys_[1:])] + [ys_[-1] + pitch / 2 - 8]):
+                for sn in (-1, 1):
+                    q = add(add(headend, u, 28.5), n, sn * (r - 24))
+                    bolt(f"coverbolt{i}{kb}{sn}", (q[0], yb, q[1]), d3, 5, 4.5)
+            white = surf("ceramic", (0.85, 0.84, 0.8), 0.0, 0.25, wear=0.0)
+            hc = add(end, u, cy["head"] * 0.5)
+            hw = r + 13
+            i3 = (n[0], 0, n[1])
+            tq = add(hc, n, hw + 44)
+            for k, yk in enumerate(ys_):
+                pc = add(cov, u, -6)
+                lathe(f"plugwell{k}", P(pc, yk), d3, [(4, 17), (7.5, 17), (7.5, 13), (4, 13)], steel, 24, caps=False)
+                lathe(f"svc_spark_plug{k}_hex", P(pc, yk), d3, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+                lathe(f"svc_spark_plug{k}", P(pc, yk), d3, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
+                B.cone(f"plugcap{k}", P(add(pc, u, 5), yk), P(add(pc, u, 26), yk), 11.5, 10, rubber, 16)
+                B.smooth_tube(f"pluglead{k}", [P(add(pc, u, 24), yk), P(add(add(pc, u, 34), n, 14), yk + 4), P(add(add(pc, u, 24), n, r - 18), yk * 0.8 + 8), P(add(add(pc, u, 2), n, r + 6), yk * 0.5 + 14)], 3.4, rubber)
+                o_ = P(add(hc, n, hw - 4), yk)
+                lathe(f"inletstub{k}", o_, i3, [(0, 26), (8, 26), (11, 23.5), (26, 23.5), (26, 19)], rubber, 28)
+                lathe(f"inletclamp{k}", o_, i3, [(17, 23.9), (17, 25), (24, 25), (24, 23.9)], steel, 28)
+                lathe(f"throttle{k}", o_, i3, [(24, 21.5), (34, 21.5), (37, 24), (54, 24), (57, 21.5), (84, 21.5), (84, 0)], alu, 28)
+                inj = add(add(hc, n, hw + 22), u, 23)
+                B.cone(f"injector{k}", P(inj, yk), P(add(add(inj, u, 26), n, 12), yk), 7, 6, surf("injgreen", (0.1, 0.25, 0.12), 0, 0.5), 14)
+            B.tube(f"throttleshaft{i}", [P(tq, ys_[0] - 34), P(tq, ys_[-1] + 34)], 3.6, steel)
+            B.cone(f"throttlepulley{i}", P(tq, ys_[0] - 40), P(tq, ys_[0] - 32), 16, 16, B.mat("alu_dark"), 20)
+            B.tube(f"fuelrail{i}", [P(add(add(inj, u, 30), n, 14), ys_[0] - 10), P(add(add(inj, u, 30), n, 14), ys_[-1] + 10)], 6, alu)
+            # the cam chain tunnel: a raised cover on the right-hand end of the head
+            B.pillow(f"camchain{i}", [add(add(end, u, 8), n, r * 0.5), add(add(headend, u, -6), n, r * 0.5), add(add(headend, u, -6), n, -r * 0.5), add(add(end, u, 8), n, -r * 0.5)], -(W + 14), -(W + 3), mag, 4, 8)
+            heads.append((hc, u, W + 5, i))
+            continue
         # (beenster, 15 Nov) cooling fins are not rings round a pipe: the barrel is a squared casting and the
         # fins follow it, growing wider towards the head, with the top two stepped back in under the head
         prof = [(-6, r - 12), (0, r - 12), (0, r + 3), (9, r + 3), (9, r - 11)]
@@ -2215,6 +2306,10 @@ def engine(model, c):
             k += 8.5
             j_ += 1
         prof += [(Lc + 2, r - 11)]
+        if not cy.get("fins", True):
+            # a liquid-cooled barrel: a plain casting with a water jacket, a few stiffening ribs and no fins
+            prof = [(-6, r - 12), (0, r - 12), (0, r + 3), (9, r + 3), (9, r - 6), (Lc * 0.3, r - 5), (Lc * 0.3, r - 2), (Lc * 0.3 + 4, r - 2), (Lc * 0.3 + 4, r - 5),
+                    (Lc * 0.62, r - 5), (Lc * 0.62, r - 2), (Lc * 0.62 + 4, r - 2), (Lc * 0.62 + 4, r - 5), (Lc - 8, r - 5), (Lc - 8, r + 1), (Lc + 2, r + 1), (Lc + 2, r - 11)]
         lathe(f"barrel{i}", P(base, 0), d3, prof, silver, 64, ell=(0.92, 1.0), square=4.6)
         for a_ in (45, 135, 225, 315):       # the four base nuts
             w = math.radians(a_)
@@ -2231,7 +2326,7 @@ def engine(model, c):
                 q = add(add(headend, u, 27), n, sn * (cw - 22))
                 bolt(f"coverbolt{i}{sn}{sy}", (q[0], sy * (r - 28), q[1]), d3, 5, 4.5)
         hc = add(end, u, cy["head"] * 0.5)
-        for sy in (-1, 1):       # cam end caps
+        for sy in ((-1,) if plug_side else (-1, 1)):       # cam end caps
             B.cone(f"camcap{i}{sy}", P(hc, sy * (r + 2)), P(hc, sy * (r + 11)), 27, 24, mag, 28)
             for a_ in (30, 150, 270):
                 q = add(hc, unit(a_ + cy["angle"]), 19)
@@ -2239,11 +2334,22 @@ def engine(model, c):
         # plug cap and lead out of the valve cover
         pc = add(cov, u, -2)
         white = surf("ceramic", (0.85, 0.84, 0.8), 0.0, 0.25, wear=0.0)
-        lathe(f"svc_spark_plug{i}_hex", P(pc, 0), d3, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
-        lathe(f"svc_spark_plug{i}", P(pc, 0), d3, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
-        lathe(f"svc_spark_plug{i}_tip", P(pc, 0), d3, [(27, 2.6), (32, 2.6), (32, 0)], steel, 12)
-        B.cone(f"plugcap{i}", P(add(pc, u, 23), 0), P(add(pc, u, 56), 0), 10.5, 8.5, rubber, 16)
-        B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
+        po, pd = P(pc, 0), d3
+        if plug_side:
+            # the plug comes out of the left side of the head, tipped up, so it stays clear of a low tank
+            pd = (u[0] * 0.5, 0.866, u[1] * 0.5)
+            po = P(hc, r + 2)
+        pt_ = lambda d_, po=po, pd=pd: (po[0] + pd[0] * d_, po[1] + pd[1] * d_, po[2] + pd[2] * d_)
+        lathe(f"svc_spark_plug{i}_hex", po, pd, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+        lathe(f"svc_spark_plug{i}", po, pd, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
+        lathe(f"svc_spark_plug{i}_tip", po, pd, [(27, 2.6), (32, 2.6), (32, 0)], steel, 12)
+        B.cone(f"plugcap{i}", pt_(23), pt_(56), 10.5, 8.5, rubber, 16)
+        if plug_side:
+            q1, q2 = pt_(54), pt_(80)
+            B.smooth_tube(f"pluglead{i}", [q1, q2, (q2[0] + n[0] * 50, q2[1] - 30, q2[2] + n[1] * 50 - 30), P(add(add(hc, n, 120), u, -70), 40)], 3.6, rubber)
+        else:
+            lo_ = 40 if eng.get("lead_low") else 0      # lead_low: the lead turns over sooner, under a low seat or tank
+            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84 - lo_ * 0.6), n, 20 + lo_ * 0.5), 14), P(add(add(pc, u, 92 - lo_ * 1.3), n, 80 + lo_ * 0.25), 30)], 3.6, rubber)
         # inlet: rubber stub, clamp, throttle body, injector
         i3 = (n[0], 0, n[1])
         lathe(f"inletstub{i}", P(add(hc, n, hw - 4), 0), i3, [(0, 30), (8, 30), (12, 27), (30, 27), (30, 22)], rubber, 32)
@@ -2260,17 +2366,19 @@ def engine(model, c):
     for i, cv in enumerate(eng.get("covers", [])):
         drop(f"bolt{i}")
         cc_, r_ = tuple(cv["c"]), cv["r"]
+        if r_ < 20:
+            continue                      # a placeholder (flat twins have no round side covers)
         for sg in (-1, 1):
             p0 = P(cc_, sg * (wide / 2 - 28))
             if sg == -1:
                 lathe(f"clutchcover{i}", p0, (0, sg, 0), [(0, r_ + 3), (6, r_ + 3), (6, r_), (26, r_ - 2), (34, r_ - 9), (37, r_ - 20), (37, r_ * 0.66), (41, r_ * 0.66), (44, r_ * 0.6), (44, 0)], mag, 64)
-                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], blk, 48)
+                lathe(f"clutchcap{i}", p0, (0, sg, 0), [(44, r_ * 0.52), (50, r_ * 0.5), (53, r_ * 0.4), (53, 0)], mag if chromed else blk, 48)
                 for k_ in range(6):
                     q = add(cc_, unit(60 * k_), r_ * 0.58)
                     bolt(f"clutchcapbolt{i}{k_}", P(q, p0[1] + sg * 44), (0, sg, 0), 4, 3.5)
                 nb_ = cv.get("bolts", 8)
             else:
-                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], blk, 64)
+                lathe(f"altcover{i}", p0, (0, sg, 0), [(0, r_ * 0.96), (5, r_ * 0.96), (5, r_ * 0.92), (24, r_ * 0.9), (40, r_ * 0.74), (50, r_ * 0.5), (53, r_ * 0.3), (53, 0)], mag if chromed else blk, 64)
                 B.cone(f"altplug{i}", (p0[0], p0[1] + sg * 53, p0[2]), (p0[0], p0[1] + sg * 58, p0[2]), 15, 14, alu, 24)
                 B.cone(f"altplugslot{i}", (p0[0], p0[1] + sg * 57.4, p0[2]), (p0[0], p0[1] + sg * 58.3, p0[2]), 7, 7, rubber, 6)
                 nb_ = 6
@@ -2283,7 +2391,7 @@ def engine(model, c):
     inner = [(ccx + (q[0] - ccx) * 0.9, ccz + (q[1] - ccz) * 0.88) for q in case]
     for sg in (-1, 1):       # the outer case halves: their own castings, bolted to the centre cases
         ya, yb = sg * (wide / 2 - 34), sg * (wide / 2 - 14)
-        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
+        B.pillow(f"sidecase{sg}", inner, min(ya, yb), max(ya, yb), surf("polishedcase", (0.82, 0.82, 0.84), 1.0, 0.16, wear=0.05) if chromed else surf("sidecase", (0.15, 0.15, 0.16), 0.9, 0.45, bump=(1.2, 0.15)), 8, 12, both=False)
     set_mat("crankcase", surf("sandcast", (0.42, 0.42, 0.43), 0.9, 0.5, bump=(1.4, 0.25)))
     zb = min(q[1] for q in case)
     xb = [q[0] for q in case if q[1] < zb + 34]
@@ -2301,6 +2409,8 @@ def engine(model, c):
     set_mat("sprocketcover", B.mat("plastic"))
     # water pump low on the right of the case front, with its outlet stub
     wp = (crank[0] + 118, crank[1] - 78)
+    if eng.get("pump"):
+        wp = (crank[0] + eng["pump"][0], crank[1] + eng["pump"][1])      # the model places its own pump, on the case beside the clutch cover
     y0 = -(wide / 2 - 16)
     lathe("waterpump", P(wp, y0), (0, -1, 0), [(0, 40), (10, 40), (10, 36), (17, 36), (20, 33), (20, 15), (24, 13), (24, 0)], silver, 40)
     for k_ in range(5):
@@ -2319,6 +2429,12 @@ def engine(model, c):
             B.cone(f"mountlug{nm}{sg}", P(pn, sg * (hw_ - 46)), P(pn, sg * (hw_ - 15)), 21, 18, silver, 24)
             bolt(f"mountbolt{nm}{sg}", P(pn, sg * (hw_ + 15)), (0, sg, 0), 9, 7, steel, False)
             B.cone(f"mountwasher{nm}{sg}", P(pn, sg * (hw_ + 15)), P(pn, sg * (hw_ + 17)), 13, 13, steel, 24)
+    if chromed:
+        set_mat("airbox", B.mat("chrome"))
+        set_mat("waterpump", B.mat("chrome"))
+        set_mat("sump", surf("polishedcase", (0.82, 0.82, 0.84), 1.0, 0.16, wear=0.05))
+        for nm in ("oilfilter", "svc_oil_filter", "sprocketcover", "starter"):
+            set_mat(nm, B.mat("chrome"))
     exhaust_ports(model, c, heads)
     radiator(model, c, heads, wp, y0)
     ab = bpy.data.objects.get("airbox0")
@@ -2338,11 +2454,24 @@ def exhaust_ports(model, c, heads):
             continue                      # a link pipe from the collector to the silencer leaves no cylinder head
         if hp.get("ys"):
             y0 = hp["ys"][0]
+        elif model["engine"]["layout"] == "boxer":
+            y0 = (1 if i == 0 else -1) * sg * B.boxer_y(model["engine"], 284)
         p0, p1 = tuple(hp["pts"][0][:2]), tuple(hp["pts"][1][:2])
         L_ = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
         t = ((p1[0] - p0[0]) / L_, (p1[1] - p0[1]) / L_)
         d3 = (t[0], 0, t[1])
         rp = hp.get("w", 44) / 2 * 0.8
+        cyl_ys = B.inline_cyls(model, i, 420)
+        if cyl_ys:      # an in-line engine: a flange and two studs at every cylinder's port
+            rp *= 0.6
+            for k, yk in enumerate(cyl_ys):
+                o = P(p0, yk)
+                lathe(f"portflange{i}_{k}", o, d3, [(-4, rp + 2), (-4, rp + 11), (2, rp + 11), (2, rp + 2)], steel, 28)
+                lathe(f"portcollar{i}_{k}", o, d3, [(2, rp + 0.5), (2, rp + 4), (12, rp + 4), (14, rp + 2), (14, rp + 0.5)], steel, 28)
+                for sy in (-1, 1):
+                    q = (o[0], o[1] + sy * (rp + 12), o[2])
+                    bolt(f"portnut{i}_{k}{sy}", (q[0] + t[0] * 2, q[1], q[2] + t[1] * 2), d3, 5.5, 6, B.mat("gold"), False)
+            continue
         o = P(p0, y0)
         lathe(f"port{i}", o, d3, [(-30, rp + 9), (-8, rp + 9), (-4, rp + 13), (-4, 0)], silver, 32)
         lathe(f"portflange{i}", o, d3, [(-4, rp + 2), (-4, rp + 12), (2, rp + 12), (2, rp + 2)], steel, 32)
@@ -2719,7 +2848,7 @@ def seat(model, c):
     and across the pad where the rider's part ends."""
     body = model["body"]
     drop("seam")
-    quilt = model["family"].lower() in ("classic", "cruiser")
+    quilt = model["family"].lower() in ("classic", "cruiser", "chopper")
     lm = leather(quilt)
     set_mat("seat", lm)
     st = next((s_ for s_ in body.get("seat", []) if s_.get("cls") == "seat"), None)
@@ -2882,13 +3011,46 @@ def rear_end(model, c):
                 if ob is not None:
                     bpy.data.objects.remove(ob, do_unlink=True)
             mx, mz = sp[0] + 96, sp[1] - 166
+            if model["swingarm"].get("rigid"):
+                mz = sp[1] - 36       # a rigid frame's "pivot" is its bottom rail: the cylinder sits just above the rail, not under it
             B.cone("rearmaster", (mx, -170, mz), (mx - 62, -166, mz + 16), 11, 11, dark, 20)
             B.cone("rearmasterboot", (mx + 16, -171, mz - 4), (mx, -170, mz), 6, 10, rubber, 16)
-            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, p[1] - 80), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
-            B.cone("rearres", (mx - 50, -150, mz + 62), (mx - 50, -150, mz + 96), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
-            B.cone("rearrescap", (mx - 50, -150, mz + 96), (mx - 50, -150, mz + 103), 16.5, 16, B.mat("plastic"), 24)
-            B.smooth_tube("rearreshose", [(mx - 50, -150, mz + 62), (mx - 48, -156, mz + 40), (mx - 40, -165, mz + 22)], 3.5, rubber)
-            B.tube("rearresbracket", [(mx - 50, -134, mz + 78), (mx - 50, -100, mz + 78)], 4, dark)
+            B.smooth_tube("rearmasterrod", [(piv[0] - 8, -180, piv[1] - 14), (p[0] - 50, -150, max(p[1] - 80, mz - 6)), (p[0] - 92, -122, mz - 6), ((p[0] + mx) / 2, -146, mz - 6), (mx + 14, -171, mz - 4)], 3.2, steel)
+            # the reservoir stands on the master cylinder itself (beenster, rollout round 2: it floated on a stalk)
+            rx_, rz_ = mx - 34, mz + 9
+            B.cone("rearresneck", (rx_, -168, rz_), (rx_, -168, rz_ + 14), 8, 9, dark, 16)
+            B.cone("rearres", (rx_, -168, rz_ + 12), (rx_, -168, rz_ + 40), 14, 15, surf("rescup", (0.55, 0.5, 0.36), 0, 0.25, wear=0.0), 24)
+            B.cone("rearrescap", (rx_, -168, rz_ + 40), (rx_, -168, rz_ + 47), 16.5, 16, B.mat("plastic"), 24)
+        # the rear brake hose (beenster, rollout round 2: it hung in the air): from the caliper's banjo it lies
+        # along the top of the right-hand swingarm leg in clips, then rises to the master cylinder
+        mo = bpy.data.objects.get("rearmaster")
+        if model.get("rear_caliper") and wh.get("disc") and mo is not None and bpy.data.objects.get("rearcaliper_banjo") is not None:
+            drop("brakehose_r")
+            bj = bpy.data.objects["rearcaliper_banjo"]
+            bb = [bj.matrix_world @ Vector(q) for q in bj.bound_box]
+            b0 = (sum(q.x for q in bb) / 8 / B.MM, -98, sum(q.z for q in bb) / 8 / B.MM)
+            ol = [tuple(q[:2]) for q in model["swingarm"]["outline"]]
+
+            def atop(x):
+                zs = [z0 + (z1 - z0) * (x - x0) / (x1 - x0) for (x0, z0), (x1, z1) in zip(ol, ol[1:] + ol[:1]) if min(x0, x1) <= x <= max(x0, x1) and x0 != x1]
+                return max(zs) if zs else sp[1]
+            if noplate:
+                me = (sp[0] + 96 - 62, -166, (sp[1] - 36 if model["swingarm"].get("rigid") else sp[1] - 166) + 16)
+            else:
+                me = (mcyl[0] - 14, -150, mcyl[1] + 62)
+            xs_ = [b0[0] + 46 + (sp[0] - 60 - b0[0] - 46) * q / 3 for q in range(4)]
+            if model["swingarm"].get("rigid") or sp[0] - 60 < b0[0] + 80:
+                run = [(b0[0] + 40, -120, b0[2] + 10), ((b0[0] + me[0]) / 2, -150, (b0[2] + me[2]) / 2 + 10)]
+            else:
+                run = [(x, -150, atop(x) + 7) for x in xs_]
+                for i_, x in enumerate(xs_[1:3]):
+                    B.cone(f"brakehoseclip{i_}", (x, -150, atop(x) - 2), (x, -150, atop(x) + 13), 8, 8, dark, 10)
+            pts_ = [b0, (b0[0] + 16, -104, b0[2] + 12)] + run
+            if noplate:
+                pts_ += [(me[0] - 40, me[1], me[2] + 30), (me[0] - 14, me[1], me[2] + 6), me]
+            else:
+                pts_ += [(me[0] - 30, -150, max(run[-1][2], me[2] - 60) + 20), (me[0] - 8, -150, me[2] + 26), me]
+            B.smooth_tube("brakehose_r", pts_, 4.2, surf("hose", (0.015, 0.015, 0.017), 0.0, 0.42))
         for s in (() if noplate else (-1, 1)):
             ya, yb = (181, 185) if s == 1 else (-185, -181)
             pl = B.prism(f"heelplate{s}", hp, ya, yb, brushed(), 0)
@@ -3008,7 +3170,7 @@ def hugger(model, c):
             if min(x0, x1) <= x <= max(x0, x1) and x0 != x1:
                 zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
         return max(zs)
-    sides = (1, -1) if sw.get("cls") == "alu" else (1,)
+    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
@@ -3145,6 +3307,14 @@ def welds(model, c):
 
 
 SHOTS = {
+    "side_long": ((930, -5600, 800), (930, 0, 660), 56),      # long bikes (choppers)
+    "front34_long": ((4300, -2500, 1400), (1000, 0, 680), 42),
+    "sissy": ((-1500, -850, 1500), (-100, 0, 1060), 42),
+    "tankside": ((900, -1500, 1000), (900, 0, 880), 60),
+    "pipes": ((1500, -1500, 520), (800, -150, 430), 50),
+    "barsf": ((2100, -500, 1700), (1080, 0, 1140), 60),
+    "hoses": ((1500, 1000, 1050), (880, 80, 800), 75),
+    "hoses_r": ((1500, -1000, 700), (900, -140, 560), 75),
     "fork": ((2300, -1250, 900), (1330, -60, 640), 60),      # close-up cameras: where from, looking at, lens (mm of bike space)
     "midl": ((560, 1700, 620), (560, 0, 470), 50),
     "midr": ((560, -1700, 620), (560, 0, 470), 50),
@@ -3215,6 +3385,145 @@ def shots(build3d, name, tags, samples=24):
     return out
 
 
+def bar_slant(model, c):
+    """Grips slanted inwards (beenster, chopper round 1): the bar ends, with their grips, levers, switches and
+    mirrors, swing back about the hand point, so the hand point itself stays exactly where the rider pose has
+    it. Everything on the bar outboard of the bend is turned together."""
+    deg = model.get("detail", {}).get("grip_slant")
+    gp = next((s_["at"] for s_ in model.get("front_end", []) if s_.get("circle") and s_.get("part") != "head"), None)
+    if not deg or not gp:
+        return
+    from mathutils import Vector
+    a_full, gy = math.radians(deg), 321.0
+    bpy.context.view_layer.update()
+
+    def move(w):
+        ay = abs(w.y) / B.MM
+        if ay < 150 or w.z / B.MM < gp[1] - 110 or abs(w.x / B.MM - gp[0]) > 260:
+            return None
+        t = min(1.0, (ay - 150) / 70.0)
+        a = a_full * t * t * (3 - 2 * t)
+        sg = 1.0 if w.y > 0 else -1.0
+        dx, l = w.x / B.MM - gp[0], ay - gy
+        return Vector(((gp[0] + dx * math.cos(a) - l * math.sin(a)) * B.MM, sg * (gy + dx * math.sin(a) + l * math.cos(a)) * B.MM, w.z))
+    for ob in bpy.data.objects:
+        M = ob.matrix_world.copy()
+        Mi = M.inverted()
+        if ob.type == "MESH":
+            for v in ob.data.vertices:
+                q = move(M @ v.co)
+                if q is not None:
+                    v.co = Mi @ q
+        elif ob.type == "CURVE":
+            for sp in ob.data.splines:
+                for pt in sp.bezier_points:
+                    for attr in ("co", "handle_left", "handle_right"):
+                        q = move(M @ getattr(pt, attr))
+                        if q is not None:
+                            setattr(pt, attr, Mi @ q)
+                for pt in sp.points:
+                    q = move(M @ pt.co.to_3d())
+                    if q is not None:
+                        pt.co = (*(Mi @ q), pt.co[3])
+
+
+def tank_decal(model, c):
+    """A painted tank panel (beenster, chopper round 1: "teardrop tanks with decals"): a pinstriped teardrop
+    scallop along each side of the tank with the brand's star in it. Drawn here as a picture and laid on the
+    tank's sides only; nothing of any real maker."""
+    spec = model["body"].get("decal")
+    tank = bpy.data.objects.get("tank")
+    if not spec or tank is None:
+        return
+    from PIL import Image, ImageDraw
+    pts = [tuple(q[:2]) for q in B.shapes.dense(model["body"]["tank"][0]["pts"], True, 1.0)]
+    ang = math.radians(spec.get("angle", 30))
+    ca, sa = math.cos(ang), math.sin(ang)
+    us, vs = [q[0] * ca + q[1] * sa for q in pts], [-q[0] * sa + q[1] * ca for q in pts]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    L, H = u1 - u0, v1 - v0
+    W_, H_ = 2048, max(256, int(2048 * H / L))
+    S = 2
+    im = Image.new("RGBA", (W_ * S, H_ * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    gold, cream = tuple(spec.get("gold", (214, 170, 78))) + (255,), tuple(spec.get("cream", (236, 226, 200))) + (255,)
+
+    def tear(inset, n=160):
+        """A teardrop: fat towards the front of the tank, drawn out to a point at the back."""
+        out = []
+        ua, ub, vc, hh = 0.2 + inset * 0.5, 0.86 - inset * 0.35, spec.get("v", 0.5), spec.get("h", 0.24) - inset
+        for sgn in (1, -1):
+            for j in range(n + 1):
+                t = j / n if sgn == 1 else 1 - j / n
+                hgt = hh * math.sin(math.pi * t ** 0.62) ** 0.85
+                out.append(((ua + (ub - ua) * t) * W_ * S, (1 - (vc + sgn * hgt + 0.05 * (t - 0.5))) * H_ * S))
+        return out
+    d.polygon(tear(0.0), fill=gold)
+    d.polygon(tear(0.012), fill=(0, 0, 0, 0))
+    d.polygon(tear(0.03), fill=cream)
+    d.polygon(tear(0.036), fill=(0, 0, 0, 0))
+    d.polygon(tear(0.05), fill=tuple(spec.get("panel", (16, 22, 48))) + (255,))
+    # the star: eight points, long ones up, down, fore and aft
+    cx, cy = (0.2 + 0.66 * 0.64) * W_ * S, (1 - spec.get("v", 0.5) - 0.007) * H_ * S
+    R = spec.get("star", 0.13) * H_ * S * 1.6
+    star = []
+    for k in range(16):
+        w = math.pi / 8 * k
+        rad = R * (0.2 if k % 2 else (1.0 if k % 4 == 0 else 0.5))
+        star.append((cx + rad * math.cos(w) * (1.5 if k % 8 == 0 else 1.0), cy - rad * math.sin(w)))
+    d.polygon(star, fill=gold)
+    for k, (dv, ln) in enumerate(((-0.05, 0.3), (0.0, 0.36), (0.05, 0.3))):       # three speed lines trailing back from the star
+        y_ = cy + dv * H_ * S
+        d.polygon([(cx - R * 1.9, y_ - 5 * S), (cx - R * 1.9, y_ + 5 * S), (cx - R * 1.9 - ln * W_ * S, y_)], fill=cream)
+    im = im.resize((W_, H_), Image.LANCZOS).transpose(Image.FLIP_TOP_BOTTOM)
+    img = bpy.data.images.new("tankdecal", W_, H_, alpha=True)
+    px = im.tobytes()
+    img.pixels.foreach_set([b / 255.0 for b in px])
+    img.pack()
+    m = tank.data.materials[0].copy()
+    m.name = "paint_tankdecal"
+    tank.data.materials[0] = m
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    uv = nt.nodes.new("ShaderNodeCombineXYZ")
+    for k, (vec, off) in enumerate((((ca / L, 0, sa / L), -u0 / L), ((-sa / H, 0, ca / H), -v0 / H))):
+        dot = nt.nodes.new("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        dot.inputs[1].default_value = tuple(x / B.MM for x in vec)
+        nt.links.new(geo.outputs["Position"], dot.inputs[0])
+        ad = nt.nodes.new("ShaderNodeMath")
+        ad.operation = "ADD"
+        ad.inputs[1].default_value = off
+        nt.links.new(dot.outputs["Value"], ad.inputs[0])
+        nt.links.new(ad.outputs[0], uv.inputs[k])
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image, tex.extension, tex.interpolation = img, "CLIP", "Cubic"
+    nt.links.new(uv.outputs[0], tex.inputs["Vector"])
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Normal"], sep.inputs[0])
+    ab = nt.nodes.new("ShaderNodeMath")
+    ab.operation = "ABSOLUTE"
+    nt.links.new(sep.outputs["Y"], ab.inputs[0])
+    rng = nt.nodes.new("ShaderNodeMapRange")
+    rng.inputs["From Min"].default_value, rng.inputs["From Max"].default_value = 0.2, 0.4
+    nt.links.new(ab.outputs[0], rng.inputs["Value"])
+    fac = nt.nodes.new("ShaderNodeMath")
+    fac.operation = "MULTIPLY"
+    nt.links.new(rng.outputs["Result"], fac.inputs[0])
+    nt.links.new(tex.outputs["Alpha"], fac.inputs[1])
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    bc = bsdf.inputs["Base Color"]
+    if bc.is_linked:
+        nt.links.new(bc.links[0].from_socket, mix.inputs["A"])
+    else:
+        mix.inputs["A"].default_value = bc.default_value
+    nt.links.new(tex.outputs["Color"], mix.inputs["B"])
+    nt.links.new(fac.outputs[0], mix.inputs["Factor"])
+    nt.links.new(mix.outputs["Result"], bc)
+
+
 def run(build3d, model, c):
     global B
     B = build3d
@@ -3228,6 +3537,18 @@ def run(build3d, model, c):
     adventure_guards(model, c)
     clocks(model, c)
     controls(model, c)
+    if model.get("detail", {}).get("mirrors") == "none":
+        drop("mirror", "mstalk", "mstub")       # a motocross bike carries no mirrors
+    if model["wheels"]["front"].get("single_disc"):
+        # one front disc, on the left (motocross): the right-hand disc, its caliper and its brake line go
+        drop("caliper-1", "brakeline-1")
+        bpy.context.view_layer.update()
+        for ob in list(bpy.data.objects):
+            if ob.name.startswith("front_") and ob.type == "MESH" and ob.data.vertices:
+                q = ob.matrix_world @ ob.data.vertices[0].co
+                cen = sum(((ob.matrix_world @ v.co) for v in ob.data.vertices), q * 0) / len(ob.data.vertices)
+                if cen.y / B.MM < -50:
+                    bpy.data.objects.remove(ob, do_unlink=True)
     engine(model, c)
     silencers(model, c)        # (engines not yet detailed return early, before their exhaust)
     seat(model, c)
@@ -3244,3 +3565,22 @@ def run(build3d, model, c):
     cables(model, c)
     mudguard_fixings(model, c)
     welds(model, c)
+    if model["exhaust"].get("chrome"):
+        for ob in bpy.data.objects:
+            if ob.name.startswith(("header", "can")) and not ob.name.startswith(("canbore", "canend")) and getattr(ob.data, "materials", None) is not None and len(ob.data.materials):
+                ob.data.materials[0] = B.mat("chrome")
+    tank_decal(model, c)
+    bar_slant(model, c)
+    for i, sh in enumerate(model["body"].get("shrouds", [])):
+        # radiator shrouds (motocross): a panel each side standing just proud of the tank's flank, over the radiator
+        pp = B.shapes.dense(sh["pts"], True, sh.get("t", 0.7))
+        cx_, cz_ = sum(q[0] for q in pp) / len(pp), sum(q[1] for q in pp) / len(pp)
+        for sg in (-1, 1):
+            hit = side_hit(("tank",), cx_, cz_, sg)
+            yh = abs(hit[1]) if hit else 170
+            mt = B.mat("paint", B.hex_rgb(model["colours"].get("accent", "#F4F4F2"))) if sh.get("cls") == "plate" else B.mat("plastic")
+            if sh.get("colour"):      # colour coded (beenster, rollout round 1): "body", "accent", "frame" or a hex colour
+                mt = B.mat("paint", B.hex_rgb(model["colours"].get(sh["colour"], sh["colour"] if sh["colour"].startswith("#") else "#F4F4F2")))
+            B.pillow(f"radshroud{i}{sg}", pp, sg * (yh - 14), sg * (yh + 16), mt, 6, 26, both=False)
+            for k, sl in enumerate(sh.get("slots", [])):
+                B.prism(f"radshroudslot{i}{sg}{k}", [tuple(q) for q in sl], min(sg * (yh + 14), sg * (yh + 17)), max(sg * (yh + 14), sg * (yh + 17)), B.mat("rubber"), 0.5)

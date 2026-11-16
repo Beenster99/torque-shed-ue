@@ -12,6 +12,8 @@ public class TorqueShedProto : ModuleRules
 			// Co-op (Coop/): sessions through the online subsystem (Null now, EOS later), this PC's address,
 			// pasting an address into the menu, and asking the router to open the port (UPnP over HTTP).
 			"OnlineSubsystem", "OnlineSubsystemUtils", "Sockets", "Networking", "ApplicationCore", "HTTP",
+			// The route planner's satellite layer decodes its JPEG pictures (World/TorqueWorldSubsystem).
+			"ImageWrapper",
 			// The shed draws catalogue bikes as static meshes built at run time (Shed/TorqueShedCatalogue).
 			"MeshDescription", "StaticMeshDescription",
 			// AudioMixer: USynthComponent (TorqueAudio). The shed radio decodes its stream itself

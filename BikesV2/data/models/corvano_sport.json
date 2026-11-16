@@ -369,7 +369,8 @@
     "w": 72,
     "front": true
    }
-  ]
+  ],
+  "join": true
  },
  "swingarm": {
   "pivot": [

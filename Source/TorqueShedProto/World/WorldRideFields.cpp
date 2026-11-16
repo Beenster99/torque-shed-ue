@@ -66,6 +66,7 @@ void RidePlan::IndexFields()
 		int Kind;
 		const std::vector<P2>* Ring;
 		std::string Id;
+		bool Flowing = false;
 	};
 	std::vector<Shape> Shapes;
 	for (const FeatureArea& A : Area.Roads.Scenery.Areas)
@@ -77,7 +78,7 @@ void RidePlan::IndexFields()
 		else if (A.Kind == "orchard") Kind = FieldOrchard;
 		else if (A.Kind == "scree" || A.Kind == "shingle") Kind = FieldScree;   // [OSM stage 2 batch D]
 		else if (A.Kind == "reservoir") Kind = FieldReservoir;
-		if (Kind >= 0) Shapes.push_back({Kind, &A.Ring, A.Id});
+		if (Kind >= 0) Shapes.push_back({Kind, &A.Ring, A.Id, false});
 	}
 	// [OSM stage 4] The ground file's.
 	for (const GroundShape& A : Area.Roads.Ground.Areas)
@@ -101,14 +102,18 @@ void RidePlan::IndexFields()
 		else if (K == "heath") Kind = FieldHeath;
 		else if (K == "wetland") Kind = FieldWetland;
 		if (Kind < 0 || A.Pts.size() < 3) continue;
-		Shapes.push_back({Kind, &A.Pts, K + std::to_string(std::lround(A.Pts[0].X * 10.0)) + "_" + std::to_string(std::lround(A.Pts[0].Z * 10.0))});
+		Shapes.push_back({Kind, &A.Pts, K + std::to_string(std::lround(A.Pts[0].X * 10.0)) + "_" + std::to_string(std::lround(A.Pts[0].Z * 10.0)), K == "river" || K == "canal"});
 	}
+	// [places stage 2] The pull-offs made for places (IndexPlaces).
+	for (size_t I = 0; I < PlaceStops.size(); ++I)
+		if (PlaceStops[I].How == PlaceMade && PlaceStops[I].Ring.size() >= 3) Shapes.push_back({FieldPullOff, &PlaceStops[I].Ring, "pulloff" + std::to_string(I), false});
 	for (const Shape& Sh : Shapes)
 	{
 		const std::vector<P2>& Ring = *Sh.Ring;
 		if (Ring.size() < 3) continue;
 		FieldArea F;
 		F.Kind = Sh.Kind;
+		F.Flowing = Sh.Flowing;
 		F.Ring = Ring;
 		F.MinX = F.MaxX = Ring[0].X;
 		F.MinZ = F.MaxZ = Ring[0].Z;
@@ -296,6 +301,10 @@ bool RidePlan::FieldTint(double X, double Z, float* Rgb) const
 	case FieldWetland:
 		To[0] = 0.06f; To[1] = 0.075f; To[2] = 0.04f;
 		By = 0.6;
+		break;
+	case FieldPullOff:
+		To[0] = 0.13f; To[1] = 0.12f; To[2] = 0.10f;   // [places stage 2] (grey-brown gravel, as the Dales' lay-bys)
+		By = 0.95;
 		break;
 	default: return false;
 	}

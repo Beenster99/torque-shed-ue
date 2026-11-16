@@ -441,6 +441,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		const FVector Knee(TSCI::ToUe(L.KneeR));
 		OutFrame->Knee = FVector(Knee.X, FMath::Abs(Knee.Y), Knee.Z);
 		OutFrame->BackDeg = Lay->LineNumber(L.Style, "5_rider", "back_deg", -100.0);
+		OutFrame->Style = TSCI::Ue(L.Style);
 		OutFrame->TankHalfW.Reset();
 		const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
 		for (const TorqueFit::LoftSection& Sec : Work.TankSecs)
@@ -468,6 +469,24 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		TorqueFit::PartMesh Glb;
 		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
 		const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
+		// [rider pose] The clutch or brake lever's own blade (not the hose or banjo made in code under
+		// the same glb): its pin, at the blade's near end (lever.glb's own coordinates, as the warp
+		// takes them: about 0.040, -0.010, -0.002), upright in the glb, placed as the blade is.
+		int32 LeverSide = INDEX_NONE;
+		if (P.Glb == "controls/lever.glb" && !P.Code && !P.Made && P.Warp && P.Copies.empty())
+		{
+			const TorqueSim::V3 PinG(0.040, -0.010, -0.002);
+			const TorqueSim::V3 UpG(0.040, 0.000, -0.002);
+			const FVector Pin(TSCI::ToUe(P.Warp(PinG)));
+			const FVector PinAxis = (FVector(TSCI::ToUe(P.Warp(UpG))) - Pin).GetSafeNormal();
+			LeverSide = Pin.Y < 0.0 ? 0 : 1;
+			if (OutFrame)
+			{
+				OutFrame->bLever[LeverSide] = true;
+				OutFrame->LeverPin[LeverSide] = Pin;
+				OutFrame->LeverAxis[LeverSide] = PinAxis.IsNearlyZero() ? FVector::UpVector : PinAxis;
+			}
+		}
 		for (const TorqueFit::PartSurface& S : Drawn.Surfaces)
 		{
 			// Surfaces behind a full fairing's side panels, as Godot hides them (_hide_covered).
@@ -488,16 +507,22 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			TArray<FVector> Pos;
 			TArray<int32> Tris;
 			bool bFlipped = false;
-			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal"));
+			// (A TFT's or phone's screen face keeps its own UVs too: the game's page is laid out on them. Box-mapped
+			// in metres it showed only the page's black corner: build 144's dark screens.)
+			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal")) && P.Gauge.rfind("screen_", 0) != 0;
 			const bool bWheel = P.Node == "front_wheel" || P.Node == "rear_wheel";
 			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
+			if (OutFrame && P.Slot == "tank")
+				for (const FVector& V : Pos)
+					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
 			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
+			if (LeverSide != INDEX_NONE) C->ComponentTags.Add(LeverSide == 0 ? FName(TEXT("Lever:0")) : FName(TEXT("Lever:1")));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
 			if (OutGauges && !P.Gauge.empty())
@@ -577,7 +602,9 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 				TArray<FVector> Pos;
 				TArray<int32> Tris;
 				bool bFlipped = false;
-				const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal"));
+				// (A TFT's or phone's screen face keeps its own UVs too: the game's page is laid out on them. Box-mapped
+			// in metres it showed only the page's black corner: build 144's dark screens.)
+			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal")) && P.Gauge.rfind("screen_", 0) != 0;
 				M.Mesh = TSCI::BuildMesh(nullptr, S, M.Mat, Pos, Tris, bFlipped, bBoxUv, P.Node == "front_wheel" || P.Node == "rear_wheel");
 				if (!M.Mesh) continue;
 				M.Mesh->AddToRoot();   // kept in the cache across map travel

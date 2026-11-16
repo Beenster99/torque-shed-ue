@@ -13,6 +13,7 @@
 
 #include <array>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,7 @@ struct RoadEdge
 	int Limit = 0;           // posted limit, km/h; 0 for none
 	int Name = 0;            // into Region::Names
 	int Oneway = 0;          // 0 both ways, 1 only from A to B, -1 only from B to A
+	std::string Gid;         // its Overture segment's short id ("g"), where the cell gave one: the key of its RoadExtra
 	double Length = 0.0;     // metres along Line
 	std::vector<P2> Line;    // from node A to node B, both ends included
 };
@@ -93,6 +95,50 @@ struct GroundShape
 	std::vector<P2> Pts;
 	double Width = 0.0;   // (m: a line's, where the map gives it; 0 none)
 };
+// [OSM stage 5] What OpenStreetMap says about a road edge close up (a cell's roadx file, by its "g"). 0 is
+// "not mapped" throughout: the road builder's rules carry on there. Mapped first, rule second, never both.
+struct RoadExtra
+{
+	enum EFlag
+	{
+		Roundabout = 1, Lit = 2, Unlit = 4, PaveLeft = 8, PaveRight = 16, PaveNone = 32, Embankment = 64, Cutting = 128,
+		Private = 256, BusLane = 512, CycleLane = 1024, TurnLanes = 2048, Building = 4096, Oneway = 8192
+	};
+	enum EParking { ParkUnknown = 0, ParkNone, ParkBays, NoParking, NoStopping };
+	int Lanes = 0, Forward = 0, Backward = 0;   // lane counts, as the segment runs
+	double Width = 0.0;                          // recorded width (m)
+	int Flags = 0;
+	int ParkLeft = 0, ParkRight = 0;             // EParking, as the segment runs
+	double MaxHeight = 0.0, MaxWidth = 0.0, MaxWeight = 0.0;   // (m, m, t: shown on the planner, never enforced)
+	std::string Half;                            // the other half of a dual carriageway's g, or ""
+	bool Has(EFlag F) const { return (Flags & F) != 0; }
+};
+// A thing on the road at a point: a light, a crossing, a hump. Edge and Along are where it snaps to the
+// region's roads (SnapRoadPoints: the nearest edge within RoadPointSnap m; -1 none).
+struct MappedPoint
+{
+	std::string Kind;          // roadx_bake.KINDS: traffic_signals, crossing_zebra, mini_roundabout, hump, ...
+	P2 At;
+	double Heading = -1.0;     // degrees from north, clockwise, of the traffic it governs; -1 unknown
+	int Flags = 0;             // 1 an island, 2 both ways
+	int Edge = -1;
+	double Along = 0.0;        // metres along the edge from its node A
+};
+
+// [places stage 1] A place worth riding to (a cell's places file: tools/places_bake.py): what it is
+// (Kind, places_bake.KINDS: stone_circle, church, castle_ruin, dam, ...), its name, its Wikidata id,
+// its middle, its outline (a ring, or a line for a dam's crest; empty for a point), its height and
+// material where mapped (0, ""), and what the map says more of its kind (Sub: a tower's type, a
+// church's denomination, "ruins").
+struct Sight
+{
+	std::string Kind, Name, Qid, Material, Sub;
+	P2 At;
+	double Lat = 0.0, Lon = 0.0;
+	double Height = 0.0;
+	std::vector<P2> Outline;
+};
+
 struct GroundData
 {
 	std::vector<GroundShape> Areas, Lines, Points, Paths;
@@ -137,6 +183,19 @@ public:
 	Features Scenery;
 	// [OSM stage 4] Its ground and paths, where the store has them (AddGround, AddPaths).
 	GroundData Ground;
+	// [OSM stage 5] The road itself, where the store has it (AddRoadX): extras by edge id, points, barriers.
+	std::unordered_map<std::string, RoadExtra> Extras;
+	std::vector<MappedPoint> RoadPoints;
+	std::vector<GroundShape> Barriers;   // (Kind guard_rail or concrete_barrier)
+	// [places stage 1] The places worth riding to (AddSights), and finding one: by its Wikidata id first,
+	// else the nearest within Within m of (X, Z) that is not a settlement; -1 none. ByQid says which.
+	std::vector<Sight> Sights;
+	int FindSight(const std::string& Qid, double X, double Z, double Within = 250.0, bool* ByQid = nullptr) const;
+	// The extras of an edge, or null where the map says nothing more.
+	const RoadExtra* ExtraOf(int Edge) const;
+	// Snaps the road points to their nearest edges (after the cells are stitched and the roadx files read).
+	void SnapRoadPoints();
+	static constexpr double RoadPointSnap = 3.0;
 	// [OSM stage 1] Each cell's place, from its place profile: its middle and "North Yorkshire, England".
 	struct CellPlace
 	{
@@ -198,6 +257,12 @@ public:
 	void AddGround(const TorqueFit::Json& File);
 	void AddPaths(const TorqueFit::Json& File);
 	static constexpr int GroundFormat = 1, PathsFormat = 1;
+	// [OSM stage 5] A roadx file (a cell's) into the region; another format is left out.
+	void AddRoadX(const TorqueFit::Json& File);
+	static constexpr int RoadXFormat = 1;
+	// [places stage 1] A places file (a cell's) into the region; another format is left out.
+	void AddSights(const TorqueFit::Json& File);
+	static constexpr int SightsFormat = 1;
 	// A tower this tall (m) is a skyscraper, seen from miles off.
 	static constexpr double Skyscraper = 100.0;
 

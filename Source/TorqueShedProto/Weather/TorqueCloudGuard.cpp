@@ -63,7 +63,9 @@ bool TorqueCloudGuard::Check(UWorld* World)
 		if (!Cloud) continue;
 		FObjectPropertyBase* Prop = MaterialProp(Cloud);
 		UMaterialInterface* Mat = Prop ? Cast<UMaterialInterface>(Prop->GetObjectPropertyValue_InContainer(Cloud)) : nullptr;
-		const bool bRide = Mat && Mat->GetName().Contains(TEXT("M_RideCloud"));
+		// (by the base material: ATorqueSky later wears an instance of it, for the weather map)
+		const UMaterial* BaseMat = Mat ? Mat->GetMaterial() : nullptr;
+		const bool bRide = BaseMat && BaseMat->GetName().Contains(TEXT("M_RideCloud"));
 		if (Checked.Contains(Cloud))
 		{
 			bOurs |= bRide && Cloud->IsVisible();

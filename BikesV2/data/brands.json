@@ -4,7 +4,7 @@
   "brands": {
     "corvano": {"name": "Corvano", "spirit": "Italian in spirit: lean, sharp, minimal", "frame": "trellis", "engines": ["vtwin90", "single"], "signature": ["single-sided swingarm", "slim waist", "short stubby tail", "low horizontal lamp"], "surface": "sharp", "colours": ["#B3122A", "#E9E6DF", "#16171A", "#B08D57"],
       "families": ["naked", "sport", "cafe", "classic", "adventure", "mx", "cruiser"]},
-    "hartwell": {"name": "Hartwell", "spirit": "British in spirit: classic and sculpted", "frame": "cradle", "engines": ["parallel_twin", "triple"], "signature": ["round lamp", "knee-cut tank", "ribbed bench seat", "twin upswept silencers"], "surface": "round", "colours": ["#1F4D3A", "#F1EBDD", "#14181B", "#C9CED3"],
+    "hartwell": {"name": "BSX", "spirit": "British in spirit: classic and sculpted", "frame": "cradle", "engines": ["parallel_twin", "triple"], "signature": ["round lamp", "knee-cut tank", "ribbed bench seat", "twin upswept silencers"], "surface": "round", "colours": ["#1F4D3A", "#F1EBDD", "#14181B", "#C9CED3"],
       "families": ["naked", "sport", "cafe", "classic", "adventure", "chopper"]},
     "kazeda": {"name": "Kazeda", "spirit": "Japanese in spirit: precise, layered, angular", "frame": "spar", "engines": ["inline4", "parallel_twin", "single"], "signature": ["low crouched nose", "layered panels", "split lamps", "raised sharp tail"], "surface": "sharp", "colours": ["#1C4FBF", "#0F1114", "#C8CDD2", "#D7E23A"],
       "families": ["naked", "sport", "cafe", "classic", "adventure", "mx", "chopper", "cruiser"]},

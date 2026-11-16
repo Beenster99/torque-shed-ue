@@ -1,4 +1,4 @@
-"""Hartwell cafe rev H: beenster's round 4 markup (16 Nov 07:16) applied to the model file. Run once on rev G."""
+"""BSX cafe rev H: beenster's round 4 markup (16 Nov 07:16) applied to the model file. Run once on rev G."""
 import json, os
 P = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "models", "hartwell_cafe.json")
 m = json.load(open(P))

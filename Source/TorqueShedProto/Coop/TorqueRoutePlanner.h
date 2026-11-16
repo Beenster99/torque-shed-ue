@@ -30,6 +30,7 @@ class UTorqueWorldSubsystem;
 namespace TorqueWorld
 {
 struct WorldIndex;
+struct RideSummary;
 }
 
 class FTorqueRoutePlanner
@@ -137,6 +138,18 @@ private:
 	void ShowPhoto(int32 Index);
 	void DrawDiaryMap(UCanvas* Canvas, bool bPhoto);
 	float DrawDiaryPanel(UCanvas* Canvas, float X0, float Y, float PW, float BottomY);
+
+	// [skies stage 6] The weather along the planned journey ("Rain from near Shap onwards"): asked of
+	// Open-Meteo in one call for points down the road, each for when the rider will be there if they
+	// set off now. Shared with the request in flight, which may outlive the planner.
+	struct FRouteSky
+	{
+		FString Line;
+		bool bBusy = false;
+		int32 For = -1;   // the preview count it was asked for
+	};
+	TSharedRef<FRouteSky> RouteSky = MakeShared<FRouteSky>();
+	void AskRouteSky(const TorqueWorld::RideSummary& Sum, int32 Count);
 
 	void AddPin(double Lat, double Lon, const FString& Name);
 	void RemovePin(int32 Index);

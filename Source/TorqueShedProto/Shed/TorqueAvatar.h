@@ -64,6 +64,7 @@ struct FTorqueRideTargets
 	double TankRearX = 1.0e9;
 	FVector Wrist[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector WristUnrolled[2] = {FVector::ZeroVector, FVector::ZeroVector};   // [rider pose] the rider rig's wrist without the throttle's roll
+	FVector LeverLine[2] = {FVector::ZeroVector, FVector::ZeroVector};       // [rider pose] the drawn lever blade's middle, from Grip (zero: none drawn)
 	FVector Grip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector Ankle[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FQuat Look = FQuat::Identity;            // the head's turn, in the parent's space
@@ -79,6 +80,7 @@ struct FTorqueRideTargets
 	FVector Peg[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	TArray<FVector2D> TankHalfW;
 	double FeetDown = 0.0;
+	double Toes[2] = {0.0, 0.0};               // [rider pose] down at a stop on tiptoe: how far the ankle's up for it, cm
 	double KeepOnPeg[2] = {0.0, 0.0};          // [rider pose] that foot stays on its peg while the other is down
 	bool bLaidBack = false;                  // feet forward (a cruiser's or chopper's): arms may reach further
 	double BackDeg = -100.0;                 // the style's back lean (FBikeFrame::BackDeg; < -90: none)

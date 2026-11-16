@@ -8,7 +8,7 @@ head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<titl
 dst = '/mnt/project-files/bike_models_v2/renders/definition/'
 os.makedirs(dst, exist_ok=True)
 SETS = [
-    ('hartwell_classic', 'Hartwell classic, round 3', 'Round 3 (16 Nov): the headlamp moved forward and up, clear of the headstock and lower yoke; the exhaust now leaves the front of a slightly narrower engine angled down, sweeps down in one wide curve and turns into its horizontal run in another; the bars run dead straight under the grips. Round 2 points all kept. Pegs untouched.', [
+    ('hartwell_classic', 'BSX classic, round 3', 'Round 3 (16 Nov): the headlamp moved forward and up, clear of the headstock and lower yoke; the exhaust now leaves the front of a slightly narrower engine angled down, sweeps down in one wide curve and turns into its horizontal run in another; the bars run dead straight under the grips. Round 2 points all kept. Pegs untouched.', [
         ('shot_rearq_front', 'Whole bike, front quarter', 'Headlamp forward of the fork, the header sweeping down from the head.'),
         ('shot_midr', 'Engine, right side', 'Out of the front of the engine, a wide sweep down, a wide turn into the horizontal.'),
         ('shot_nose', 'Headlamp', 'Clear of the headstock and the lower yoke, on its fork brackets.'),

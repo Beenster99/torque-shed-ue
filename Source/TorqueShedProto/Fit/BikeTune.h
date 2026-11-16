@@ -80,6 +80,11 @@ public:
 	int AidLevel(const std::string& Aid) const;
 	double AidStrength(const std::string& Aid) const;
 	double EcuAid() const { return EcuAidLevel; }
+	// [TFT] The aids come with the dash (no ECU parts in the catalogue); the dash has ride modes; a
+	// feature of the dash ("cruise", "modes", "shift_light").
+	bool DashAids() const { return bDashAids; }
+	bool HasModes() const;
+	bool DashHas(const std::string& Feature) const;
 
 	// How far a tyre is off its best pressure, as a fraction (-0.2: 20% soft).
 	double PressureOffset(bool bFront) const;
@@ -120,6 +125,7 @@ private:
 	PartsMap Parts;
 	TuneMap Tune;
 	double EcuAidLevel = 0.0;
+	bool bDashAids = false;
 	std::vector<std::string> EcuFeatures;
 };
 } // namespace TorqueFit

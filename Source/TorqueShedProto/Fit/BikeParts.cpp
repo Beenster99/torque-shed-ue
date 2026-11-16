@@ -1980,6 +1980,36 @@ V3 BikeParts::EyeAt(const Layout& L) const
 	return V3(0.0, L.Stats.SeatHeight - L.Stats.RearRadius + 0.88, ToGodot(L.Hip).z - 0.02);
 }
 
+// [TFT] A TFT dash part's unit: its picture's size (the part's "glass", metres), its shape ("screen":
+// wide 5:3, ultra 8:3, round), the case's borders round the picture, a hood, shift lights over it.
+namespace
+{
+struct TftUnit
+{
+	bool Round = false, Ultra = false, Hood = false, Leds = false;
+	double Gw = 0.142, Gh = 0.085;
+	double Side = 0.009, Top = 0.009, Bottom = 0.012;
+};
+TftUnit TftUnitOf(const Json* P)
+{
+	TftUnit U;
+	const std::string Unit = PartStr(P, "unit", "colour"), Shape = PartStr(P, "screen", "wide");
+	U.Round = Shape == "round";
+	U.Ultra = Shape == "ultra";
+	if (const Json* G = P ? P->Get("glass") : nullptr)
+		if (G->A.size() == 2)
+		{
+			U.Gw = G->A[0].N;
+			U.Gh = G->A[1].N;
+		}
+	if (U.Round) U.Gh = U.Gw;
+	if (Unit == "street") { U.Side = 0.007; U.Top = 0.007; U.Bottom = 0.01; }
+	else if (Unit == "touring") { U.Side = 0.011; U.Top = 0.015; U.Bottom = 0.013; U.Hood = true; U.Leds = true; }
+	else if (Unit != "compact") { U.Top = 0.015; U.Hood = true; U.Leds = true; }
+	return U;
+}
+} // namespace
+
 double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out, std::vector<V3>* FaceOut) const
 {
 	// (BikeModel._draw_dashboard, in the steering's space: the clocks lean back 0.9 rad to the rider.)
@@ -2017,11 +2047,16 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 			AddFace(C + Tilt.Y * 0.028, 0.04, 0.04, true);
 		}
 	}
-	else if (Style == "lcd" || Style == "tft")
+	else if (Style == "tft")
 	{
-		const bool Tft = Style == "tft";
-		const V3 Size = Tft ? V3(0.2, 0.03, 0.12) : V3(0.16, 0.03, 0.09);
-		Housings.push_back({Tft ? "dashboard/tft.glb" : "dashboard/lcd.glb", At});
+		// [TFT] Its own unit, made here to its size (TftUnitOf): no housing model to place.
+		const TftUnit U = TftUnitOf(P);
+		AddFace(At + Tilt.Y * 0.014, U.Gw * 0.5, U.Gh * 0.5, U.Round);
+	}
+	else if (Style == "lcd")
+	{
+		const V3 Size(0.16, 0.03, 0.09);
+		Housings.push_back({"dashboard/lcd.glb", At});
 		AddFace(At + Tilt.Y * 0.018, Size.x * 0.5 - 0.01, Size.z * 0.5 - 0.01, false);
 	}
 	else
@@ -2066,12 +2101,12 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 		F.GaugeAxis = FromGodot(Axis);
 		F.GaugeUp = FromGodot(Upward);
 	};
-	auto Leds = [&](const V3& C, double Width) {
+	auto Leds = [&](const V3& C, double Width, double Tall = 0.01) {
 		static const char* Tags[6] = {"lens_white", "lens_white", "lens_amber", "lens_amber", "lens_red", "lens_red"};
 		for (int I = 0; I < 6; ++I)
 		{
 			const V3 Led = C + Tilt.X * (-Width * 0.5 + Width * (I + 0.5) / 6.0);
-			Code(CodeShapes::Box(V3(0.016, 0.004, 0.01)), Tilt, Led, Tags[I]);
+			Code(CodeShapes::Box(V3(std::min(0.016, Width / 6.0 - 0.003), 0.004, Tall)), Tilt, Led, Tags[I]);
 			Works("led" + std::to_string(I), Led, Tilt.Y, Tilt.Z * -1.0);
 		}
 	};
@@ -2100,13 +2135,55 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 			Works(Twin && K == 1 ? "rpm" : "speed", C + Tilt.Y * 0.031, Tilt.Y, Tilt.Z * -1.0);
 		}
 	}
-	else if (Style == "lcd" || Style == "tft")
+	else if (Style == "tft")
 	{
-		const bool Tft = Style == "tft";
-		const V3 Size = Tft ? V3(0.2, 0.03, 0.12) : V3(0.16, 0.03, 0.09);
+		// [TFT] The unit: a slim case with a pod behind it for the electronics and the mount, a glass
+		// front with a dark border round the picture, and the picture itself (the game lights it:
+		// "screen_<shape>_<mm across>x<mm tall>"). In the clocks' space: x across, y out of the face
+		// at the rider, z down the face.
+		const TftUnit U = TftUnitOf(P);
+		auto Down = [&](double Out2, double Z) { return At + Tilt.Y * Out2 + Tilt.Apply(V3(0.0, 0.0, Z)); };
+		const std::string Size = std::to_string(int(std::lround(U.Gw * 1000.0))) + "x" + std::to_string(int(std::lround(U.Gh * 1000.0)));
+		if (U.Round)
+		{
+			const double R = U.Gw * 0.5;
+			Code(CodeShapes::Cylinder(R + 0.009, 0.026, R + 0.011), Tilt, At, "plastic");                       // the case, wider at the front
+			Code(CodeShapes::Cylinder(R * 0.62, 0.018), Tilt, At + Tilt.Y * -0.02, "black_metal");                // the pod behind
+			Code(CodeShapes::Torus(R + 0.0085, 0.0022, 40, 8), Tilt, At + Tilt.Y * 0.0135, "polished_alloy");     // the bezel's ring
+			Code(CodeShapes::Cylinder(R + 0.0055, 0.002), Tilt, At + Tilt.Y * 0.0138, "glass");
+			Code(CodeShapes::ScreenFace(U.Gw, U.Gh, true), Tilt, At + Tilt.Y * 0.0160, "glass");
+			Works("screen_round_" + Size, At + Tilt.Y * 0.0160, Tilt.Y, Tilt.Z * -1.0);
+			// Two buttons under the glass.
+			for (double X : {-0.012, 0.012})
+				Code(CodeShapes::Cylinder(0.004, 0.004), Tilt, Down(0.0135, R + 0.0045) + Tilt.X * X, "rubber");
+		}
+		else
+		{
+			const double W = U.Gw + 2.0 * U.Side, Hh = U.Gh + U.Top + U.Bottom;
+			const double Mid = (U.Bottom - U.Top) * 0.5;   // the case's middle, down from the picture's
+			Code(CodeShapes::Slab(W, Hh, 0.022, 0.011, 0.0035), Tilt, Down(0.0, Mid), "plastic");
+			Code(CodeShapes::Slab(W * 0.62, Hh * 0.66, 0.02, 0.012, 0.004), Tilt * GAffine::Rotation(GodotRight, TorqueSim::Pi), Down(-0.019, Mid), "plastic");
+			Code(CodeShapes::Slab(U.Gw + 0.012, U.Gh + 0.012, 0.0022, 0.006, 0.0006), Tilt, At + Tilt.Y * 0.0118, "glass");
+			Code(CodeShapes::ScreenFace(U.Gw, U.Gh, false), Tilt, At + Tilt.Y * 0.0140, "glass");
+			Works("screen_" + std::string(U.Ultra ? "ultra_" : "wide_") + Size, At + Tilt.Y * 0.0140, Tilt.Y, Tilt.Z * -1.0);
+			if (U.Hood)
+			{
+				// A hood over the top edge, to keep the sun off the glass.
+				Code(CodeShapes::Slab(W * 0.94, 0.02, 0.004, 0.003, 0.0), Tilt * GAffine::Rotation(GodotRight, -TorqueSim::Pi * 0.5 + 0.2),
+					Down(0.019, -U.Gh * 0.5 - U.Top + 0.003), "plastic");
+			}
+			// The mount's bracket behind, and a rubber button at each lower corner.
+			Code(CodeShapes::Box(V3(0.036, 0.016, 0.03)), Tilt, Down(-0.034, Mid + 0.004), "black_metal");
+			for (double X : {-1.0, 1.0})
+				Code(CodeShapes::Box(V3(0.012, 0.003, 0.005)), Tilt, Down(0.0115, U.Gh * 0.5 + U.Bottom * 0.55) + Tilt.X * (X * (W * 0.5 - 0.016)), "rubber");
+			if (U.Leds) Leds(Down(0.0115, -U.Gh * 0.5 - U.Top * 0.5), std::min(0.14, U.Gw * 0.7), 0.005);
+		}
+	}
+	else if (Style == "lcd")
+	{
+		const V3 Size(0.16, 0.03, 0.09);
 		Code(CodeShapes::Box(V3(Size.x - 0.02, 0.004, Size.z - 0.02)), Tilt, At + Tilt.Y * 0.016, "glass");
 		Readout(At + Tilt.Y * 0.019);
-		if (Tft) Leds(At + Tilt.Y * 0.017 + Tilt.Apply(V3(0.0, 0.0, -Size.z * 0.5 - 0.008)), 0.14);
 	}
 	else
 	{
@@ -2118,7 +2195,7 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 	if (Lift > 0.02)
 	{
 		const V3 A(0.0, 0.0, At.z), B = At + V3(0.0, Lift - 0.012, 0.0);
-		CodeShapes::Emit(Out, "dashboard", Housings[0].first, "steer", "", CodeShapes::Tube(A, B, 0.009), GAffine::At(H) * CodeShapes::TubeAt(A, B), "black_metal");
+		CodeShapes::Emit(Out, "dashboard", Housings.empty() ? "dashboard/dial.glb" : Housings[0].first, "steer", "", CodeShapes::Tube(A, B, 0.009), GAffine::At(H) * CodeShapes::TubeAt(A, B), "black_metal");
 	}
 	if (FaceOut)
 		for (const V3& Q : Face) FaceOut->push_back(Q + V3(0.0, Lift, 0.0));
@@ -4191,6 +4268,14 @@ void BikeParts::Phone(const Json& P, const Layout& L, const Bars& Bar, const std
 		for (double X : {-1.0, 1.0}) Quad.Add(V3(X * Sw * 0.5, Y * Sh * 0.5, 0.0), V3(0.0, 0.0, 1.0), X * 0.5 + 0.5, 0.5 - Y * 0.5);
 	Quad.Quad(0, 1, 2, 3);
 	Code("SatnavScreen", Quad, Cradle * GAffine::At(V3(0.0, 0.0, Half.z + 0.0005)), "glass");
+	// [TFT] The game lights it with the nav app's map ("screen_phone_<mm across>x<mm tall>").
+	{
+		FittedPart& F = Out.back();
+		F.Gauge = "screen_phone_" + std::to_string(int(std::lround(Sw * 1000.0))) + "x" + std::to_string(int(std::lround(Sh * 1000.0)));
+		F.GaugeAt = FromGodot(Cradle.Apply(V3(0.0, 0.0, Half.z + 0.0005)));
+		F.GaugeAxis = FromGodot(Bs.Z);
+		F.GaugeUp = FromGodot(Bs.Y);
+	}
 }
 
 bool BikeParts::DrawnBox(const std::vector<FittedPart>& Out, const std::vector<std::string>& Slots, V3& Lo, V3& Hi) const

@@ -176,6 +176,10 @@ private:
 	int32 TestBay = 0;
 	int32 Tries = 0;
 	int32 StopTries = 0;   // a stop step's seconds waited
+	// [tests off Buttertubs] 'rideuk': asked for, how long it has waited (s), and the spec last ridden.
+	bool bRideUkAsked = false;
+	int32 RideUkWaited = 0;
+	FString RideUkSpec;
 	bool bMoveStarted = false;   // a brakestop or lean step has started its manoeuvre and is waiting for it
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	// [outline test] 'outlinecheck': the screen read with the look outline on, then off.

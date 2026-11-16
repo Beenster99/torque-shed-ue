@@ -225,6 +225,7 @@ bool RidePlan::UnderTower(double X, double Z) const
 {
 	using namespace RideTowerBits;
 	if (!Scene) return false;
+	if (UnderPlace(X, Z)) return true;   // [places stage 3] (a building a place's recipe stands in for)
 	const auto It = Scene->Towers.find(TowerKey(int(std::floor(X / TowerCell)), int(std::floor(Z / TowerCell))));
 	if (It == Scene->Towers.end()) return false;
 	for (int I : It->second)
@@ -252,6 +253,7 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 			{
 				const TowerShape& T = TowerShapes[size_t(I)];
 				if (T.Outline || !Inside(T.Mid) || T.Top < Tallest || !Done.insert(I).second) continue;
+				if (size_t(I) < TowerTaken.size() && TowerTaken[size_t(I)]) continue;   // [places stage 3]
 				const double Foot = T.Ground + T.Base - (T.Base < 0.5 ? 1.0 : 0.0), Top = T.Ground + T.Top;
 				if (Top - Foot < 1.5) continue;
 				const std::string& C = T.Class;

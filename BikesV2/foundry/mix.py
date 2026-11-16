@@ -53,7 +53,7 @@ def mix(host, donor, parts=("tank", "seat"), colour=True):
         took.append(part)
     if colour and "tank" in parts:
         m["colours"]["body"] = donor["colours"]["body"]
-    m["name"] = f"{host['brand'].title()} frame and engine, {donor['brand'].title()} {' and '.join(took)}"
+    m["name"] = f"{host['brand'].title().replace("Hartwell", "BSX")} frame and engine, {donor['brand'].title().replace("Hartwell", "BSX")} {' and '.join(took)}"
     m["mix"] = {"host": host["brand"], "donor": donor["brand"], "parts": took}
     return m
 

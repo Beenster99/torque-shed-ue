@@ -1,0 +1,33 @@
+{
+ "_about": "Tools/make_hedges.py: Ride UK's hedge lengths (4.2 m, x along, planted every 3.9 m).",
+ "models": {
+  "SM_Tree_hedge_0": {
+   "height": 1.82,
+   "width": 1.39,
+   "stems": 11,
+   "nodes": 4839,
+   "triangles": 93826
+  },
+  "SM_Tree_hedge_1": {
+   "height": 1.66,
+   "width": 1.26,
+   "stems": 9,
+   "nodes": 4551,
+   "triangles": 87252
+  },
+  "SM_Tree_hedge_2": {
+   "height": 1.58,
+   "width": 1.41,
+   "stems": 9,
+   "nodes": 4531,
+   "triangles": 84544
+  },
+  "SM_Tree_hedge_3": {
+   "height": 1.78,
+   "width": 1.16,
+   "stems": 10,
+   "nodes": 4615,
+   "triangles": 89166
+  }
+ }
+}
