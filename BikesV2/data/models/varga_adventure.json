@@ -2746,7 +2746,15 @@
  "detail": {
   "mirrors": "adv",
   "tft": "large",
-  "indicators": "arrow"
+  "indicators": "arrow",
+  "lock_relief": {
+   "deg": 26,
+   "parts": [
+    "advnose",
+    "advwing",
+    "advscreen"
+   ]
+  }
  },
  "adv": {
   "nose": [

@@ -1610,6 +1610,10 @@ def build(model):
         definition(model, locals())
         import detail3d
         detail3d.run(sys.modules[__name__], model, locals())
+        lr = model.get("detail", {}).get("lock_relief")
+        if lr:
+            import lock_relief
+            lock_relief.relieve(sys.modules[__name__], model, lr["deg"] if isinstance(lr, dict) else lr, tuple(lr.get("parts", ("tank",))) if isinstance(lr, dict) else ("tank",))
     return dict(A=A, F=F, wb=wb)
 
 

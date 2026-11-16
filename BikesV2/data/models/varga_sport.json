@@ -1787,6 +1787,7 @@
   }
  },
  "detail": {
-  "lamp_unit": "stack"
+  "lamp_unit": "stack",
+  "lock_relief": 24
  }
 }

@@ -1832,6 +1832,7 @@
   }
  },
  "detail": {
-  "lamp_unit": "vface"
+  "lamp_unit": "vface",
+  "lock_relief": 24
  }
 }

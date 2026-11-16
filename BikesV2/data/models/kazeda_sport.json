@@ -1763,6 +1763,7 @@
   }
  },
  "detail": {
-  "lamp_unit": "slant"
+  "lamp_unit": "slant",
+  "lock_relief": 24
  }
 }

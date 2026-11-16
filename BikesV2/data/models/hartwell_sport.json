@@ -1816,6 +1816,7 @@
   }
  },
  "detail": {
-  "lamp_unit": "halo"
+  "lamp_unit": "halo",
+  "lock_relief": 24
  }
 }
