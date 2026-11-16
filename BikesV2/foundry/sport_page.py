@@ -38,7 +38,7 @@ figs = [f for f in (fig(R + tag + '.png', title, cap, 'kazeda_sport_r2_' + slug 
 # the rest of the family, built automatically from the signed-off lead bike
 OTHERS = [
     ('corvano_sport', 'Corvano sport', 'V-twin in a trellis, the short deep fairing, silencer under the tail, five Y-spoke wheels.'),
-    ('hartwell_sport', 'Hartwell sport', 'Triple in a tube frame, the straight-edged fairing with gill slats, turbine wheels.'),
+    ('hartwell_sport', 'BSX sport', 'Triple in a tube frame, the straight-edged fairing with gill slats, turbine wheels.'),
     ('varga_sport', 'Varga sport', 'Parallel twin in a bright trellis, the wedge fairing with a separate belly pan, seven-blade wheels.'),
 ]
 others = []

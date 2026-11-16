@@ -112,7 +112,7 @@ def corvano(m):
 
 
 def hartwell(m):
-    """Hartwell: straight lines. The nose's underside runs straight back to the shoulder, the front edge
+    """BSX: straight lines. The nose's underside runs straight back to the shoulder, the front edge
     drops upright behind the wheel, and the keel is one flat line to a sharp tip; three gill slats."""
     fr = m["frame"]
     fr["nodes"].update(S0=[575, 800], S1=[415, 815], S2=[150, 880], S3=[235, 848])   # the rail dips under the low seat
@@ -144,7 +144,7 @@ def varga(m):
 DRAFTS = {
     "corvano_sport": {"wheel": "y5", "base": "corvano_naked", "title": "Corvano sport (working title S1)", "wheelbase": 1455,
                       "frame_label": "steel trellis, full fairing", "style": [corvano]},
-    "hartwell_sport": {"wheel": "turbine10", "base": "hartwell_naked", "title": "Hartwell sport (working title S1)", "wheelbase": 1445,
+    "hartwell_sport": {"wheel": "turbine10", "base": "hartwell_naked", "title": "BSX sport (working title S1)", "wheelbase": 1445,
                        "frame_label": "steel tube frame, full fairing", "style": [hartwell]},
     "varga_sport": {"wheel": "blade7", "base": "varga_naked", "title": "Varga sport (working title S1)", "wheelbase": 1430,
                     "frame_label": "bright steel trellis, full fairing", "style": [varga]},

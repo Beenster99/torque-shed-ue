@@ -2,9 +2,9 @@
 
 The classic family: a round lamp, a flat ribbed bench seat, twin shocks, wire wheels with a bigger
 front wheel, a deep mudguard over each wheel, upright bars and a rounded tank with knee cuts. The
-Hartwell classic is the lead model and is drawn here by hand on the Hartwell naked's frame and
+BSX classic is the lead model and is drawn here by hand on the BSX naked's frame and
 engine; the other brands' first drafts keep their own frame, engine, exhaust, colours and tank
-outline and take the seat, mudguards, stance and front end from the Hartwell.
+outline and take the seat, mudguards, stance and front end from the BSX.
 
     python3 foundry/classic_draft.py            # (re)write the classics
 """
@@ -46,7 +46,7 @@ def stance(m, base, front_r=FRONT_R, wb_add=0):
     m["fork"] = dict(base["fork"], usd=False)
     a, b = fork_top(g0, r0, base["fork"]["length"]), fork_top(m["geometry"], FRONT_R, m["fork"]["length"])
     dx, dz = b[0] - a[0], b[1] - a[1]
-    # every classic carries the round lamp and twin clocks (the Hartwell's), set on its own fork
+    # every classic carries the round lamp and twin clocks (the BSX's), set on its own fork
     h = load("hartwell_naked")
     ht = fork_top(h["geometry"], h["wheels"]["front"]["tyre_r"], h["fork"]["length"])
     fe = [move(s, b[0] - ht[0] - 6, b[1] - ht[1] + 22) for s in h["front_end"] if s.get("part") == "head"]
@@ -221,7 +221,7 @@ def draft(name, spec):
 
 
 DRAFTS = {
-    "hartwell_classic": {"base": "hartwell_naked", "title": "Hartwell classic (working title K1)", "style": [hartwell]},
+    "hartwell_classic": {"base": "hartwell_naked", "title": "BSX classic (working title K1)", "style": [hartwell]},
     "corvano_classic": {"base": "corvano_naked", "title": "Corvano classic (working title K1)", "style": [own_tank], "front_r": 314, "wb_add": 30},
     "kazeda_classic": {"base": "kazeda_naked", "title": "Kazeda classic (working title K1)", "style": [own_tank], "front_r": 314, "wb_add": 30, "deck": {"nose": [672, 850], "tank_pitch": 2}},
     "rheinhart_classic": {"base": "rheinhart_naked", "title": "Rheinhart classic (working title K1)", "style": [own_tank], "front_r": 314, "wb_add": 20},

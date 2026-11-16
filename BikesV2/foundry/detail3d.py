@@ -942,7 +942,7 @@ def adventure_body(model, c):
                 (r0, f0, f1, r1) = sl
                 vs = [B.V(f0[0] + 4, s * (fk(f0[0], f0[1]) + 1), f0[1] - 5), B.V(f1[0] + 4, s * (fk(f1[0], f1[1]) + 1), f1[1] + 5),
                       B.V(r1[0] - 5, s * (fk(r1[0], r1[1]) + out_), r1[1] + 5), B.V(r0[0] - 5, s * (fk(r0[0], r0[1]) + out_), r0[1] - 5)]
-                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], plastic, False)
+                ob = B.mesh_obj(f"advvane{s}{n_}", vs, [(0, 1, 2, 3)], paint if adv.get("louvre_paint") else plastic, False)      # colour-coded blades (beenster, BSX adventure)
                 md = ob.modifiers.new("t", "SOLIDIFY")
                 md.thickness, md.offset = 3.5 * B.MM, 0
     ia = adv.get("ind")
@@ -2186,8 +2186,8 @@ def engine(model, c):
     exhaust ports with a two-stud flange and collar where each header pipe starts."""
     add, unit = B.add, B.unit
     eng, crank, wide = c["eng"], c["crank"], c["wide"]
-    if eng["layout"] in ("inline4", "triple", "boxer"):
-        return
+    boxer = eng["layout"] == "boxer"
+    inline = eng["layout"] in ("inline4", "triple")
     silver = B.mat("engine")
     mag = surf("magcover", (0.2, 0.165, 0.12), 0.9, 0.4, bump=(1.0, 0.1))
     blk = surf("crinkle", (0.022, 0.022, 0.024), 0.3, 0.62, bump=(0.4, 0.5))
@@ -2199,8 +2199,38 @@ def engine(model, c):
         mag = B.mat("chrome")
     plug_side = eng.get("plug") == "side"
     heads = []
+    if boxer:
+        # a flat twin: the barrels, heads and valve covers build3d made stay as the castings. On them go the
+        # cover's two bolts and gasket, a plug on top of each head with its lead, pushrod tubes under the
+        # barrel, and an inlet stub and throttle body behind each head with a hose in to the air box
+        bc = eng["boxer"]
+        cx_, cz_ = bc["at"]
+        by = lambda y: B.boxer_y(eng, y)
+        xs_, zs_ = [q[0] for q in bc["cover"]], [q[1] for q in bc["cover"]]
+        set_mat("boxercover", mag)
+        for s in (-1, 1):
+            for dx in (-0.2, 0.2):
+                bolt(f"boxercoverbolt{s}{dx}", (cx_ + (max(xs_) - min(xs_)) * dx, s * (by(372) - 3), cz_), (0, s, 0), 6, 5)
+            B.pillow(f"boxergasket{s}", [((q[0] - cx_) * 0.94 + cx_, (q[1] - cz_) * 0.92 + cz_) for q in B.shapes.dense(bc["cover"], True, 0.6)], min(s * by(314), s * by(319)), max(s * by(314), s * by(319)), rubber, 1, 2, both=False)
+            for dx in (-34, 34):
+                B.cone(f"pushrodtube{s}{dx}", (cx_ + dx, s * 104, cz_ - bc["r"] - 22), (cx_ + dx, s * by(254), cz_ - bc["r"] - 22), 9, 9, B.mat("chrome"), 16)
+                B.cone(f"pushrodseal{s}{dx}", (cx_ + dx, s * (by(254) - 10), cz_ - bc["r"] - 22), (cx_ + dx, s * by(254), cz_ - bc["r"] - 22), 12, 12, rubber, 16)
+            yp, zt = s * by(284), max(zs_) - 6
+            lathe(f"svc_spark_plug{s}_hex", (cx_, yp, zt), (0, 0, 1), [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+            B.cone(f"plugcap{s}", (cx_, yp, zt + 5), (cx_, yp, zt + 30), 11.5, 10, rubber, 16)
+            B.smooth_tube(f"pluglead{s}", [(cx_, yp, zt + 28), (cx_ - 6, yp - s * 16, zt + 44), (cx_ - 30, s * 150, zt + 40), (cx_ - 60, s * 92, zt + 52), (cx_ - 80, s * 60, zt + 80)], 3.4, rubber)
+            o_ = (min(xs_) + 14, yp, cz_ + 18)
+            i3 = (-0.94, 0, 0.34)
+            lathe(f"inletstub{s}", o_, i3, [(0, 27), (8, 27), (11, 24.5), (26, 24.5), (26, 20)], rubber, 28)
+            lathe(f"inletclamp{s}", o_, i3, [(17, 24.9), (17, 26), (24, 26), (24, 24.9)], steel, 28)
+            lathe(f"throttle{s}", o_, i3, [(24, 22.5), (34, 22.5), (37, 25), (58, 25), (61, 22.5), (80, 22.5), (80, 0)], alu, 28)
+            e_ = tuple(o_[k] + i3[k] * 78 for k in range(3))
+            B.smooth_tube(f"inlethose{s}", [e_, (e_[0] - 30, e_[1] - s * 6, e_[2] + 12), (e_[0] - 66, s * 150, e_[2] + 44), (e_[0] - 84, s * 96, e_[2] + 82), (e_[0] - 90, s * 60, e_[2] + 110)], 21, rubber)
+            inj = tuple(o_[k] + i3[k] * 46 for k in range(3))
+            B.cone(f"injector{s}", (inj[0], inj[1], inj[2] + 22), (inj[0] - 8, inj[1], inj[2] + 50), 7, 6, surf("injgreen", (0.1, 0.25, 0.12), 0, 0.5), 14)
     for i, cy in enumerate(eng["cylinders"]):
-        drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
+        if not inline:
+            drop(f"cylhead{i}", f"cover{i}", f"fin{i}_", f"barrel{i}", f"plugcap{i}", f"pluglead{i}")
         u = unit(cy["angle"])
         n = (-u[1], u[0])
         if n[1] < 0:
@@ -2209,6 +2239,50 @@ def engine(model, c):
         base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
         headend = add(end, u, cy["head"])
         d3 = (u[0], 0, u[1])
+        if inline:
+            # an in-line bank (three or four): the block, head and cam cover build3d made stay as the castings; on
+            # them go a base flange, stiffening bands, gaskets, the cam cover's bolts, a plug in a well for every
+            # cylinder with its lead, and a row of inlet stubs and throttle bodies on one shaft behind the head
+            W = wide / 2 - 30
+            ys_ = B.inline_ys(eng, wide)
+            set_mat(f"cover{i}", mag)
+            B.prism(f"blockbase{i}", [add(base, n, r + 7), add(add(base, u, 9), n, r + 7), add(add(base, u, 9), n, -r - 7), add(base, n, -r - 7)], -W - 5, W + 5, silver, 1.5)
+            for kk in (0.34, 0.66):
+                q = add(base, u, cy["length"] * kk)
+                B.prism(f"blockrib{i}{kk}", [add(q, n, r + 3.5), add(add(q, u, 6), n, r + 3.5), add(add(q, u, 6), n, -r - 3.5), add(q, n, -r - 3.5)], -W + 9, W - 9, silver, 1)
+            B.prism(f"headgasket{i}", [add(end, n, r + 14.5), add(add(end, u, 2.5), n, r + 14.5), add(add(end, u, 2.5), n, -r - 14.5), add(end, n, -r - 14.5)], -W - 6.5, W + 6.5, steel, 0.4)
+            B.prism(f"covergasket{i}", [add(headend, n, r + 7), add(add(headend, u, 3), n, r + 7), add(add(headend, u, 3), n, -r - 7), add(headend, n, -r - 7)], -W + 3, W - 3, rubber, 0.5)
+            cov = add(headend, u, 30)
+            pitch = ys_[1] - ys_[0]
+            for kb, yb in enumerate([ys_[0] - pitch / 2 + 8] + [(a_ + b_) / 2 for a_, b_ in zip(ys_, ys_[1:])] + [ys_[-1] + pitch / 2 - 8]):
+                for sn in (-1, 1):
+                    q = add(add(headend, u, 28.5), n, sn * (r - 24))
+                    bolt(f"coverbolt{i}{kb}{sn}", (q[0], yb, q[1]), d3, 5, 4.5)
+            white = surf("ceramic", (0.85, 0.84, 0.8), 0.0, 0.25, wear=0.0)
+            hc = add(end, u, cy["head"] * 0.5)
+            hw = r + 13
+            i3 = (n[0], 0, n[1])
+            tq = add(hc, n, hw + 44)
+            for k, yk in enumerate(ys_):
+                pc = add(cov, u, -6)
+                lathe(f"plugwell{k}", P(pc, yk), d3, [(4, 17), (7.5, 17), (7.5, 13), (4, 13)], steel, 24, caps=False)
+                lathe(f"svc_spark_plug{k}_hex", P(pc, yk), d3, [(0, 0), (0, 10.4), (9, 10.4), (9, 0)], steel, 6)
+                lathe(f"svc_spark_plug{k}", P(pc, yk), d3, [(9, 0), (9, 6.6), (12, 6.6), (13, 5.8), (15, 6.4), (17, 5.8), (19, 6.4), (21, 5.8), (27, 5.2), (27, 0)], white, 20)
+                B.cone(f"plugcap{k}", P(add(pc, u, 5), yk), P(add(pc, u, 26), yk), 11.5, 10, rubber, 16)
+                B.smooth_tube(f"pluglead{k}", [P(add(pc, u, 24), yk), P(add(add(pc, u, 34), n, 14), yk + 4), P(add(add(pc, u, 24), n, r - 18), yk * 0.8 + 8), P(add(add(pc, u, 2), n, r + 6), yk * 0.5 + 14)], 3.4, rubber)
+                o_ = P(add(hc, n, hw - 4), yk)
+                lathe(f"inletstub{k}", o_, i3, [(0, 26), (8, 26), (11, 23.5), (26, 23.5), (26, 19)], rubber, 28)
+                lathe(f"inletclamp{k}", o_, i3, [(17, 23.9), (17, 25), (24, 25), (24, 23.9)], steel, 28)
+                lathe(f"throttle{k}", o_, i3, [(24, 21.5), (34, 21.5), (37, 24), (54, 24), (57, 21.5), (84, 21.5), (84, 0)], alu, 28)
+                inj = add(add(hc, n, hw + 22), u, 23)
+                B.cone(f"injector{k}", P(inj, yk), P(add(add(inj, u, 26), n, 12), yk), 7, 6, surf("injgreen", (0.1, 0.25, 0.12), 0, 0.5), 14)
+            B.tube(f"throttleshaft{i}", [P(tq, ys_[0] - 34), P(tq, ys_[-1] + 34)], 3.6, steel)
+            B.cone(f"throttlepulley{i}", P(tq, ys_[0] - 40), P(tq, ys_[0] - 32), 16, 16, B.mat("alu_dark"), 20)
+            B.tube(f"fuelrail{i}", [P(add(add(inj, u, 30), n, 14), ys_[0] - 10), P(add(add(inj, u, 30), n, 14), ys_[-1] + 10)], 6, alu)
+            # the cam chain tunnel: a raised cover on the right-hand end of the head
+            B.pillow(f"camchain{i}", [add(add(end, u, 8), n, r * 0.5), add(add(headend, u, -6), n, r * 0.5), add(add(headend, u, -6), n, -r * 0.5), add(add(end, u, 8), n, -r * 0.5)], -(W + 14), -(W + 3), mag, 4, 8)
+            heads.append((hc, u, W + 5, i))
+            continue
         # (beenster, 15 Nov) cooling fins are not rings round a pipe: the barrel is a squared casting and the
         # fins follow it, growing wider towards the head, with the top two stepped back in under the head
         prof = [(-6, r - 12), (0, r - 12), (0, r + 3), (9, r + 3), (9, r - 11)]
@@ -2263,7 +2337,8 @@ def engine(model, c):
             q1, q2 = pt_(54), pt_(80)
             B.smooth_tube(f"pluglead{i}", [q1, q2, (q2[0] + n[0] * 50, q2[1] - 30, q2[2] + n[1] * 50 - 30), P(add(add(hc, n, 120), u, -70), 40)], 3.6, rubber)
         else:
-            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84), n, 20), 14), P(add(add(pc, u, 92), n, 80), 30)], 3.6, rubber)
+            lo_ = 40 if eng.get("lead_low") else 0      # lead_low: the lead turns over sooner, under a low seat or tank
+            B.smooth_tube(f"pluglead{i}", [P(add(pc, u, 54), 0), P(add(add(pc, u, 84 - lo_ * 0.6), n, 20 + lo_ * 0.5), 14), P(add(add(pc, u, 92 - lo_ * 1.3), n, 80 + lo_ * 0.25), 30)], 3.6, rubber)
         # inlet: rubber stub, clamp, throttle body, injector
         i3 = (n[0], 0, n[1])
         lathe(f"inletstub{i}", P(add(hc, n, hw - 4), 0), i3, [(0, 30), (8, 30), (12, 27), (30, 27), (30, 22)], rubber, 32)
@@ -2280,6 +2355,8 @@ def engine(model, c):
     for i, cv in enumerate(eng.get("covers", [])):
         drop(f"bolt{i}")
         cc_, r_ = tuple(cv["c"]), cv["r"]
+        if r_ < 20:
+            continue                      # a placeholder (flat twins have no round side covers)
         for sg in (-1, 1):
             p0 = P(cc_, sg * (wide / 2 - 28))
             if sg == -1:
@@ -2366,11 +2443,24 @@ def exhaust_ports(model, c, heads):
             continue                      # a link pipe from the collector to the silencer leaves no cylinder head
         if hp.get("ys"):
             y0 = hp["ys"][0]
+        elif model["engine"]["layout"] == "boxer":
+            y0 = (1 if i == 0 else -1) * sg * B.boxer_y(model["engine"], 284)
         p0, p1 = tuple(hp["pts"][0][:2]), tuple(hp["pts"][1][:2])
         L_ = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
         t = ((p1[0] - p0[0]) / L_, (p1[1] - p0[1]) / L_)
         d3 = (t[0], 0, t[1])
         rp = hp.get("w", 44) / 2 * 0.8
+        cyl_ys = B.inline_cyls(model, i, 420)
+        if cyl_ys:      # an in-line engine: a flange and two studs at every cylinder's port
+            rp *= 0.6
+            for k, yk in enumerate(cyl_ys):
+                o = P(p0, yk)
+                lathe(f"portflange{i}_{k}", o, d3, [(-4, rp + 2), (-4, rp + 11), (2, rp + 11), (2, rp + 2)], steel, 28)
+                lathe(f"portcollar{i}_{k}", o, d3, [(2, rp + 0.5), (2, rp + 4), (12, rp + 4), (14, rp + 2), (14, rp + 0.5)], steel, 28)
+                for sy in (-1, 1):
+                    q = (o[0], o[1] + sy * (rp + 12), o[2])
+                    bolt(f"portnut{i}_{k}{sy}", (q[0] + t[0] * 2, q[1], q[2] + t[1] * 2), d3, 5.5, 6, B.mat("gold"), False)
+            continue
         o = P(p0, y0)
         lathe(f"port{i}", o, d3, [(-30, rp + 9), (-8, rp + 9), (-4, rp + 13), (-4, 0)], silver, 32)
         lathe(f"portflange{i}", o, d3, [(-4, rp + 2), (-4, rp + 12), (2, rp + 12), (2, rp + 2)], steel, 32)
@@ -3038,7 +3128,7 @@ def hugger(model, c):
             if min(x0, x1) <= x <= max(x0, x1) and x0 != x1:
                 zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
         return max(zs)
-    sides = (1, -1) if sw.get("cls") == "alu" else (1,)
+    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
@@ -3447,6 +3537,8 @@ def run(build3d, model, c):
             hit = side_hit(("tank",), cx_, cz_, sg)
             yh = abs(hit[1]) if hit else 170
             mt = B.mat("paint", B.hex_rgb(model["colours"].get("accent", "#F4F4F2"))) if sh.get("cls") == "plate" else B.mat("plastic")
+            if sh.get("colour"):      # colour coded (beenster, rollout round 1): "body", "accent", "frame" or a hex colour
+                mt = B.mat("paint", B.hex_rgb(model["colours"].get(sh["colour"], sh["colour"] if sh["colour"].startswith("#") else "#F4F4F2")))
             B.pillow(f"radshroud{i}{sg}", pp, sg * (yh - 14), sg * (yh + 16), mt, 6, 26, both=False)
             for k, sl in enumerate(sh.get("slots", [])):
                 B.prism(f"radshroudslot{i}{sg}{k}", [tuple(q) for q in sl], min(sg * (yh + 14), sg * (yh + 17)), max(sg * (yh + 14), sg * (yh + 17)), B.mat("rubber"), 0.5)

@@ -1,5 +1,5 @@
 {
- "name": "Hartwell naked (working title N1)",
+ "name": "BSX naked (working title N1)",
  "brand": "hartwell",
  "family": "Naked",
  "rev": "F",
@@ -291,10 +291,10 @@
  },
  "radiator": {
   "at": [
-   1016,
-   480
+   1012,
+   482
   ],
-  "angle": 98,
+  "angle": 83,
   "len": 215,
   "w": 38
  },
@@ -331,12 +331,12 @@
       233
      ],
      [
-      585,
-      275
+      604,
+      310
      ],
      [
-      512,
-      345
+      530,
+      322
      ]
     ],
     "w": 44
@@ -356,7 +356,8 @@
     "front": true,
     "dark": true
    }
-  ]
+  ],
+  "join": true
  },
  "swingarm": {
   "pivot": [

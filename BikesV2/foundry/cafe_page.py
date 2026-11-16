@@ -53,11 +53,11 @@ for key, title, cap in OTHERS:
         others.append(f'<figure><img alt="{title}, {view}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{title}, {view}</strong> {cap if tag == "rearq_front" else ""}</figcaption></figure>')
 body = '''<main>
 <div class="k">Bike Models V2 · Definition pass · Cafe</div>
-<h1>Hartwell cafe, signed off</h1>
+<h1>BSX cafe, signed off</h1>
 <p class="lede">Signed off on 16 November after four rounds of markup. Rendered straight from the model, nothing retouched.</p>
 <div class="grid">''' + '\n'.join(figs) + '</div>' + ('''
 <h1 style="margin-top:48px">The other cafes</h1>
-<p class="lede">Built automatically from the Hartwell: the same seat hump with its light and indicators, round headlamp, clocks, mudguards and chain, on each brand's own frame, engine, exhaust, tank line and wheels. Now with the real shocks. They still carry the first-look tail and lights; the Hartwell's signed-off parts become options for them with the common parts.</p>
+<p class="lede">Built automatically from the BSX: the same seat hump with its light and indicators, round headlamp, clocks, mudguards and chain, on each brand's own frame, engine, exhaust, tank line and wheels. Now with the real shocks. They still carry the first-look tail and lights; the BSX's signed-off parts become options for them with the common parts.</p>
 <div class="grid">''' + '\n'.join(others) + '</div>' if others else '') + '\n</main>'
 open(os.path.join(ROOT, 'out', 'cafe_definition.html'), 'w').write(head + body)
 print(len(figs), len(head + body))
