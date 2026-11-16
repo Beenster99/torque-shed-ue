@@ -1378,6 +1378,44 @@ int main(int Argc, char** Argv)
 			std::printf("  roads' pieces through it: %zu tris, %zu of them paint\n", RoadTris, PaintTris);
 		}
 	}
+	// [build 150] WORLD_RIDE_PIECETIME=1: how long each road piece (64 knots) takes to make, the slowest listed.
+	if (std::getenv("WORLD_RIDE_PIECETIME") != nullptr)
+	{
+		std::vector<std::pair<double, std::string>> Times;
+		double Sum = 0.0, Check = 0.0;
+		for (const int W : LaidRoads(*Plan))
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+			for (int First = 0; First < int(Pts.size()) - 1; First += 64)
+			{
+				const int Last = std::min(First + 64, int(Pts.size()) - 1);
+				RideMesh Piece;
+				const auto PieceT0 = std::chrono::steady_clock::now();
+				Plan->RoadPiece(W, First, Last, Piece);
+				const double PieceMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - PieceT0).count();
+				Sum += PieceMs;
+				for (size_t V = 0; V < Piece.Pos.size(); ++V) Check += double(Piece.Pos[V]) * double((V % 7) + 1);
+				char Line[200];
+				std::snprintf(Line, sizeof(Line), "road %d knots %d-%d at %.0f,%.0f: %zu tris", W, First, Last, Pts[size_t(First)].At.X, Pts[size_t(First)].At.Z, Piece.Idx.size() / 3);
+				Times.emplace_back(PieceMs, Line);
+			}
+		}
+		std::sort(Times.begin(), Times.end(), [](const std::pair<double, std::string>& A, const std::pair<double, std::string>& B) { return A.first > B.first; });
+		std::printf("road pieces: %zu, %.0f ms in all (check %.3f)\n", Times.size(), Sum, Check);
+		for (size_t I = 0; I < Times.size() && I < 12; ++I) std::printf("  %.1f ms  %s\n", Times[I].first, Times[I].second.c_str());
+		// (=2: then all of them again and again, for a profiler to sample)
+		if (std::atoi(std::getenv("WORLD_RIDE_PIECETIME")) == 2)
+			for (int Again = 0; Again < 1000; ++Again)
+				for (const int W : LaidRoads(*Plan))
+				{
+					const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+					for (int First = 0; First < int(Pts.size()) - 1; First += 64)
+					{
+						RideMesh Piece;
+						Plan->RoadPiece(W, First, std::min(First + 64, int(Pts.size()) - 1), Piece);
+					}
+				}
+	}
 	if (const char* Sect = std::getenv("WORLD_RIDE_SECTION"))
 	{
 		double Sx = 0.0, Sz = 0.0;
