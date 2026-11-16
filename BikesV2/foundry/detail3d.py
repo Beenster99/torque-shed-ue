@@ -863,45 +863,61 @@ def loop_lamp(model, c):
 
 
 def twin_shocks(model, c):
-    """Real twin shocks (beenster, cafe round 2; reference: the side view of a modern classic): an alloy top
-    eye on a stud from the frame, a black damper body, a chrome rod with its bump stop, a black progressive
-    spring between a top seat and a stepped preload collar, and a bottom eye bolted to a lug on the
-    swingarm close to the rear hub."""
-    sk = model["shock"]
-    if not (sk.get("twin") and sk.get("real")):
+    """Real shocks (beenster, cafe round 2; reference: the side view of a modern classic): an alloy top
+    eye, a black damper body, a chrome rod with its bump stop, a black progressive spring between a top
+    seat and a stepped preload collar, and a bottom eye. The plain shock with a spring its whole length is
+    retired on every bike (beenster, 16 Nov): twin shocks and single shocks both get this one."""
+    sk = model.get("shock")
+    if not sk:
         return
     from mathutils import Vector
-    drop("shock", "spring")
     st, sb = sk["top"], sk["bottom"]
-    rail, y_t, y_b = model["frame"].get("sub_y", 84), 150, 143
     alu, steel, chrome = B.mat("alu"), B.mat("steel"), B.mat("chrome")
     black = surf("shockblack", (0.018, 0.018, 0.02), 0.5, 0.32, wear=0.1)
-    for s in (-1, 1):
-        a, b = Vector((st[0], s * y_t, st[1])), Vector((sb[0], s * y_b, sb[1]))
+
+    def body(tag, a, b, k):
         L = (b - a).length
         d = (b - a) / L
         n1 = d.cross(Vector((0, 1, 0))).normalized()
         n2 = d.cross(n1)
         at, dt = tuple(a), tuple(d)
+        P_ = lambda prof: [(q[0], q[1] * k) for q in prof]
+        lathe(f"shocktop{tag}", at, dt, P_([(13, 0), (13, 13), (30, 13), (34, 26), (38, 32.5), (45, 32.5), (47, 30), (47, 0)]), alu, 36)
+        lathe(f"shockbody{tag}", at, dt, P_([(47, 0), (47, 20), (L * 0.56, 20), (L * 0.56 + 3, 17), (L * 0.56 + 3, 0)]), black, 32)
+        lathe(f"shockrod{tag}", at, dt, P_([(L * 0.56, 0), (L * 0.56, 7), (L - 40, 7), (L - 40, 0)]), chrome, 20)
+        lathe(f"shockbump{tag}", at, dt, P_([(L * 0.57 + 3, 7), (L * 0.57 + 3, 13), (L * 0.57 + 9, 15), (L * 0.57 + 20, 14), (L * 0.57 + 25, 10), (L * 0.57 + 25, 7)]), B.mat("rubber"), 20, sharp=False)
+        # the preload collar: stepped, so its notches read, under the bottom spring seat
+        lathe(f"shockcollar{tag}", at, dt, P_([(L - 70, 0), (L - 70, 32.5), (L - 62, 32.5), (L - 62, 27), (L - 56, 27), (L - 56, 23), (L - 50, 23), (L - 46, 15), (L - 30, 14), (L - 30, 0)]), alu, 36)
+        coil, t0, t1, N = [], 47.0, L - 70.0, 10.5 if L > 300 else 8.5
+        for j in range(241):
+            v = j / 240
+            w = 2 * math.pi * N * (v + 0.45 * v * v) / 1.45      # progressive: the coils close up towards the top
+            q = a + d * (t1 + (t0 - t1) * v) + n1 * (26 * k * math.cos(w)) + n2 * (26 * k * math.sin(w))
+            coil.append(tuple(q))
+        B.tube(f"spring{tag}", coil, 4.6 * k, black)
+
+    if not sk.get("twin"):
+        # a single shock keeps its own mounts (the bridge on the swingarm, the cross tube in the frame)
+        for nm in ("shock", "spring"):
+            ob = bpy.data.objects.get(nm)
+            if ob is not None:
+                bpy.data.objects.remove(ob, do_unlink=True)
+        body("", Vector((st[0], 0, st[1])), Vector((sb[0], 0, sb[1])), 1.22)
+        return
+    drop("shock", "spring")
+    lug = sk.get("real")        # bottom eye on a lug on top of the arm by the hub; otherwise on a stud from the arm's side
+    rail, y_t, y_b = model["frame"].get("sub_y", 84), 150, 143 if lug else 194
+    for s in (-1, 1):
         B.tube(f"shockstud_t{s}", [(st[0], s * (rail - 12), st[1]), (st[0], s * (y_t + 17), st[1])], 7, steel)
         B.cone(f"shockeye_t{s}", (st[0], s * (y_t - 13), st[1]), (st[0], s * (y_t + 13), st[1]), 18, 18, alu, 28)
         bolt(f"shocknut_t{s}", (st[0], s * (y_t + 14), st[1]), (0, s, 0), 9, 7, steel)
-        lathe(f"shocktop{s}", at, dt, [(13, 0), (13, 13), (30, 13), (34, 26), (38, 32.5), (45, 32.5), (47, 30), (47, 0)], alu, 36)
-        lathe(f"shockbody{s}", at, dt, [(47, 0), (47, 20), (L * 0.56, 20), (L * 0.56 + 3, 17), (L * 0.56 + 3, 0)], black, 32)
-        lathe(f"shockrod{s}", at, dt, [(L * 0.56, 0), (L * 0.56, 7), (L - 40, 7), (L - 40, 0)], chrome, 20)
-        lathe(f"shockbump{s}", at, dt, [(L * 0.57 + 3, 7), (L * 0.57 + 3, 13), (L * 0.57 + 9, 15), (L * 0.57 + 20, 14), (L * 0.57 + 25, 10), (L * 0.57 + 25, 7)], B.mat("rubber"), 20, sharp=False)
-        # the preload collar: stepped, so its notches read, under the bottom spring seat
-        lathe(f"shockcollar{s}", at, dt, [(L - 70, 0), (L - 70, 32.5), (L - 62, 32.5), (L - 62, 27), (L - 56, 27), (L - 56, 23), (L - 50, 23), (L - 46, 15), (L - 30, 14), (L - 30, 0)], alu, 36)
+        body(str(s), Vector((st[0], s * y_t, st[1])), Vector((sb[0], s * y_b, sb[1])), 1.0)
         B.cone(f"shockeye_b{s}", (sb[0], s * (y_b - 12), sb[1]), (sb[0], s * (y_b + 12), sb[1]), 18, 18, alu, 28)
-        B.prism(f"shocklug{s}", [(sb[0] - 24, sb[1] - 36), (sb[0] + 24, sb[1] - 30), (sb[0] + 15, sb[1] + 10), (sb[0] - 15, sb[1] + 10)], min(s * (y_b - 20), s * (y_b - 13)), max(s * (y_b - 20), s * (y_b - 13)), alu, 2.5)
+        if lug:
+            B.prism(f"shocklug{s}", [(sb[0] - 24, sb[1] - 36), (sb[0] + 24, sb[1] - 30), (sb[0] + 15, sb[1] + 10), (sb[0] - 15, sb[1] + 10)], min(s * (y_b - 20), s * (y_b - 13)), max(s * (y_b - 20), s * (y_b - 13)), alu, 2.5)
+        else:
+            B.tube(f"shockstud_b{s}", [(sb[0], s * 160, sb[1]), (sb[0], s * (y_b + 16), sb[1])], 8, steel)
         bolt(f"shocknut_b{s}", (sb[0], s * (y_b + 13), sb[1]), (0, s, 0), 9, 6, steel)
-        coil, t0, t1, N = [], 47.0, L - 70.0, 10.5
-        for k in range(241):
-            v = k / 240
-            w = 2 * math.pi * N * (v + 0.45 * v * v) / 1.45      # progressive: the coils close up towards the top
-            q = a + d * (t1 + (t0 - t1) * v) + n1 * (26 * math.cos(w)) + n2 * (26 * math.sin(w))
-            coil.append(tuple(q))
-        B.tube(f"spring{s}", coil, 4.6, black)
 
 
 def plate_mount(model, c):
