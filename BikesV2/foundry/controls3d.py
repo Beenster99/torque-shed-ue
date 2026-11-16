@@ -32,16 +32,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "out", "controls")
 
 LEVERS = {
-    "standard": dict(label="Billet plate set", note="The signed-off naked set: plate-cut S-curve lever, drilled root, ring end, round fluid cup on a neck."),
-    "short": dict(label="Short lever set", note="Stubby two-finger levers ending inboard of the grip end, block reservoir cast into the perch."),
+    "standard": dict(label="Billet adjustable set", note="Levers that drop from the pivot and run straight along the grip, red span dials, round fluid cup on a neck."),
+    "short": dict(label="Short lever set", note="Two-finger levers that stop halfway along the grip, block reservoir with a sight glass cast into the perch."),
     "folding": dict(label="Folding radial set", note="Adjustable levers whose tips fold back in a spill, radial master cylinders with remote fluid pots on both sides."),
     "classic": dict(label="Classic polished set", note="Round-section polished levers with ball ends, a chrome round pot on the brake perch and a cable clutch."),
-    "forged": dict(label="Forged dog-leg set", note="Wide flat forged levers, an angled integral reservoir with a sight glass: modern naked and adventure."),
+    "forged": dict(label="Forged set", note="Deeper forged levers in the same line, no dial, an angled reservoir with a sight glass: naked and adventure."),
 }
-SWITCHES = {
-    "modern": dict(label="Modern pod", note="The signed-off chunky two-part housing: lights rocker, indicator slider, horn; red kill rocker and starter."),
-    "classic": dict(label="Classic pod", note="A smaller rounded housing with chrome toggle switches and a push button."),
-    "minimal": dict(label="Minimal billet pod", note="A slim machined ring round the bar with two small buttons each side."),
+SWITCHES = {   # buttons only (beenster, 16 Nov), with a red kill switch on the right on every set
+    "dpad": dict(label="D-pad pod", note="A four-way pad with a centre key and four keys round it, horn and hazard buttons below, indicator under the thumb."),
+    "cruise": dict(label="Cruise pod", note="An angled pod with a column of mode keys, set up and down keys, reset, horn, indicator and hazard."),
+    "compact": dict(label="Compact pod", note="A small pod with a four-way pad, horn and indicator buttons: classics and minimal bikes."),
 }
 MIRRORS = {
     "round": dict(label="Round stalk", kind="stalk", note="A round head on a slim stalk from the perch."),
@@ -139,6 +139,7 @@ def mats():
         grey=D.surf("swgrey", (0.12, 0.12, 0.13), 0, 0.5),
         killred=D.surf("killred", (0.5, 0.02, 0.02), 0, 0.45),
         glass=D.surf("mirrorglass", (0.9, 0.92, 0.95), 1.0, 0.01, wear=0.0),
+        mark=D.surf("ctl_mark", (0.85, 0.86, 0.88), 0.0, 0.5, wear=0.0),
         amber=B.mat("amberlens"),
     )
 
@@ -205,50 +206,110 @@ STD_CL = [(0, 0, 11.5), (24, 7, 10.5), (50, 14, 9.5), (68, 16.5, 6.6), (92, 14.5
 STD_HOLES = [(22, 6.6, 4.4), (37, 10.6, 3.7), (50.5, 13.8, 3.0)]
 
 
+def blade_sweep(name, fr, pts, secs, material, m=16):
+    """A lever blade along points (a, f, u) of the grip frame: secs gives (half thickness fore and aft,
+    half height) at each point. The section stands upright, so from in front the blade shows its face."""
+    pts, secs = smooth(pts, 2), smooth(secs, 2)
+    verts, faces = [], []
+    for i, ((a, f, u), (ht, hh)) in enumerate(zip(pts, secs)):
+        pa, pb = pts[max(0, i - 1)], pts[min(len(pts) - 1, i + 1)]
+        da, df = pb[0] - pa[0], pb[1] - pa[1]
+        L_ = math.hypot(da, df) or 1.0
+        na, nf = -df / L_, da / L_            # square to the blade in the bar's plane
+        for k in range(m):
+            w = 2 * math.pi * k / m
+            cw, sw = math.cos(w), math.sin(w)
+            ex = math.copysign(abs(cw) ** 0.55, cw) * ht
+            ez = math.copysign(abs(sw) ** 0.55, sw) * hh
+            verts.append(B.V(*fr.P(a + na * ex, f + nf * ex, u + ez)))
+    for i in range(len(pts) - 1):
+        for k in range(m):
+            k2 = (k + 1) % m
+            faces.append((i * m + k, i * m + k2, (i + 1) * m + k2, (i + 1) * m + k))
+    faces += [tuple(range(m - 1, -1, -1)), tuple((len(pts) - 1) * m + k for k in range(m))]
+    ob = B.mesh_obj(name, verts, faces, material, True, 0, False)
+    B.bm_fix_normals(ob)
+    return ob
+
+
+# A lever as it really sits (beenster's photo, 16 Nov): the pivot block stands ahead of the perch at bar
+# height; the lever leaves it with a short knuckle, drops and turns in towards the grip, then runs straight
+# along the grip, a finger's gap in front of it and a little below its middle, and ends in a small kick.
+# Points are (a along the bar, f forward, u up) from the inner end of the grip.
+LEVER_PATH = [(-66, 46, -2), (-50, 50, -5), (-34, 48, -12), (-18, 42, -17), (0, 39, -18), (40, 38, -17), (80, 37, -16), (108, 36, -14), (120, 33, -10)]
+LEVER_SEC = [(5.5, 10.5), (5.0, 10.0), (4.6, 9.0), (4.2, 8.2), (4.0, 7.8), (3.8, 7.4), (3.6, 7.0), (3.5, 6.8), (3.4, 6.2)]
+
+
+def pivot_block(fr, tag, M, body, dial=None):
+    """The lever's root round the pivot bolt, and its span dial on top."""
+    D.lathe(f"cleverroot{tag}", fr.P(-70, 48, -13), fr.dir(0, 0, 1), [(0, 0), (0, 11), (1, 12.5), (21, 12.5), (22, 11), (22, 0)], body, 28)
+    D.bolt(f"cpivot{tag}", fr.P(-70, 48, 9), fr.dir(0, 0, 1), 5.5, 3, M["steel"], False)
+    D.bolt(f"cpivotnut{tag}", fr.P(-70, 48, -13), fr.dir(0, 0, -1), 6, 3.5, M["steel"], False)
+    if dial:
+        # the span adjuster: a knurled wheel with numbered flats, between the root and the blade
+        D.lathe(f"cleveradj{tag}", fr.P(-58, 52, -10), fr.dir(1, 0.25, 0), [(0, 0), (0, 9.5), (8, 9.5), (8, 0)], dial, 6)
+
+
+def profile_lever(fr, tag, M, body, cut=None, fold=None, scale=1.0, groove=True):
+    path = [p for p in LEVER_PATH if cut is None or p[0] <= cut]
+    sec = [(a * scale, b * scale) for a, b in LEVER_SEC[:len(path)]]
+    if cut is not None and path[-1][0] < cut:
+        last = path[-1]
+        path.append((cut, last[1] - 1, last[2] + 4))
+        sec.append((sec[-1][0], sec[-1][1] * 0.9))
+    if fold:
+        k = next(i for i, p in enumerate(path) if p[0] >= fold)
+        p0 = path[:k] + [(fold, path[k][1], path[k][2])]
+        blade_sweep(f"clever{tag}", fr, p0, sec[:k] + [sec[k]], body)
+        # the tip on its own pin, folded back a few degrees, with a gap at the joint
+        p1 = [(fold + 3, path[k][1] - 0.5, path[k][2])] + [(a, f - (a - fold) * 0.08, u) for a, f, u in path[k:]]
+        blade_sweep(f"clevertip{tag}", fr, p1, [sec[k]] + sec[k:], body)
+        D.bolt(f"cfoldpin{tag}", fr.P(fold + 1, path[k][1], path[k][2] + sec[k][1]), fr.dir(0, 0, 1), 3.0, 1.4, M["steel"], False)
+    else:
+        blade_sweep(f"clever{tag}", fr, path, sec, body)
+    if groove:
+        # a shallow groove along the front face of the finger section (a lighter machined line)
+        g = [(a, f + 3.9 * scale, u) for a, f, u in path if a >= 0]
+        if len(g) > 1:
+            blade_sweep(f"clevergroove{tag}", fr, g, [(0.3, 1.6 * scale)] * len(g), M["polished"], 8)
+
+
+def master(fr, kind, M, body):
+    """The brake master cylinder on the right perch."""
+    if kind == "cup":
+        B.cone("cmastercyl", fr.P(-70, 20, -4), fr.P(-70, 70, -10), 11.5, 10.5, body, 24)
+        B.cone("cmasterneck", fr.P(-54, 34, 2), fr.P(-54, 34, 20), 5, 5, M["rubber"], 12)
+        B.cone("cmasterres", fr.P(-54, 34, 18), fr.P(-54, 34, 46), 17.5, 18.5, M["cup"], 28)
+        B.cone("cmasterrescap", fr.P(-54, 34, 46), fr.P(-54, 34, 54), 20, 19.5, M["plastic"], 28)
+    elif kind == "block":
+        B.cone("cmastercyl", fr.P(-70, 20, -4), fr.P(-70, 66, -10), 12.5, 11.5, body, 24)
+        box = D.chaikin([(-10, 6), (30, 4), (34, 30), (-6, 34)], 2)
+        side_plate("cmasterres", fr, box, -92, -48, body, 2.5)
+        side_plate("cmasterglass", fr, [(f_ * 0.5 - 12, u * 0.45 + 9) for f_, u in box], -86, -54, M["smoke"], 0)
+        for da in (-84, -56):
+            D.bolt(f"cmasterlid{da}", fr.P(da, 12, 32), fr.dir(0, 0, 1), 3.2, 1.6)
+    elif kind == "angled":
+        B.cone("cmastercyl", fr.P(-70, 20, -4), fr.P(-70, 70, -10), 12, 11, body, 24)
+        trap = D.chaikin([(-6, 8), (36, 8), (30, 34), (0, 38)], 2)
+        side_plate("cmasterres", fr, trap, -90, -50, body, 2.5)
+        side_plate("cmasterglass", fr, [(-6.6, 14), (-6.6, 30), (-6.4, 30), (-6.4, 14)], -84, -56, M["smoke"], 0)
+        side_plate("cmasterlid", fr, [(-4, 38), (31, 34), (31, 36.5), (-4, 40.5)], -90, -50, M["dark"], 0.6)
+
+
+def radial(fr, tag, M, body):
+    """A radial master cylinder pointing forward, with a remote fluid pot on a short hose."""
+    B.cone(f"cmastercyl{tag}", fr.P(-70, 16, -6), fr.P(-70, 92, -12), 12, 11, body, 24)
+    B.cone(f"cmasterend{tag}", fr.P(-70, 92, -12), fr.P(-70, 98, -12), 9, 7, body, 24)
+    B.smooth_tube(f"cmasterhose{tag}", [fr.P(-62, 40, 8), fr.P(-56, 46, 30), fr.P(-50, 36, 46)], 4.0, M["rubber"])
+    B.cone(f"cmasterres{tag}", fr.P(-50, 36, 44), fr.P(-50, 36, 78), 15, 15, M["smoke"], 28)
+    B.cone(f"cmasterrescap{tag}", fr.P(-50, 36, 78), fr.P(-50, 36, 86), 17, 16.5, M["gold"], 28)
+    side_plate(f"cmasterbrkt{tag}", fr, [(26, 30), (44, 30), (44, 52), (26, 52)], -58, -55, body, 0.8)
+
+
 def lever_set(fr, s, key, M):
     tag = s
     brake = s == -1
-    if key == "standard":
-        perch(fr, tag, M, M["satin"])
-        piv = plate_lever(fr, tag, M, STD_CL, STD_HOLES + [(192, 2.0, 3.8)], M["satin"])
-        B.cone(f"cleveradj{tag}", fr.P(piv[0] + 7 * 1, piv[1] + 1.5, piv[2] + 5.5), fr.P(piv[0] + 7, piv[1] + 1.5, piv[2] + 11), 8.2, 8.2, M["red"], 14)
-        if brake:
-            B.cone("cmastercyl", fr.P(-70, 20, -4), fr.P(-70, 70, -10), 11.5, 10.5, M["satin"], 24)
-            B.cone("cmasterneck", fr.P(-54, 34, 2), fr.P(-54, 34, 20), 5, 5, M["rubber"], 12)
-            B.cone("cmasterres", fr.P(-54, 34, 18), fr.P(-54, 34, 46), 17.5, 18.5, M["cup"], 28)
-            B.cone("cmasterrescap", fr.P(-54, 34, 46), fr.P(-54, 34, 54), 20, 19.5, M["plastic"], 28)
-        else:
-            B.cone("cclutchadj", fr.P(-84, 40, -6), fr.P(-90, 66, -10), 6.5, 6.5, M["steel"], 12)
-    elif key == "short":
-        perch(fr, tag, M, M["satin"])
-        cl = [(0, 0, 11.5), (22, 7, 10.5), (44, 13, 9.5), (62, 15, 7.6), (90, 12, 7.0), (118, 7, 6.6)]
-        piv = plate_lever(fr, tag, M, cl, [], M["satin"], ring=False)
-        # two long slots on the finger section, cut from the top
-        lv = bpy.data.objects[f"clever{tag}"]
-        D.drill(lv, [(fr.P(piv[0] + t, piv[1] + f, piv[2] - 9), fr.P(piv[0] + t, piv[1] + f, piv[2] + 9), 2.6) for t, f in ((80, 13.5), (86, 13), (92, 12.6), (98, 11.5))], 0)
-        if brake:
-            # a squared reservoir cast into the top of the master cylinder, with a smoked sight glass facing back
-            B.cone("cmastercyl", fr.P(-70, 20, -4), fr.P(-70, 66, -10), 12.5, 11.5, M["satin"], 24)
-            box = D.chaikin([(-10, 6), (30, 4), (34, 30), (-6, 34)], 2)
-            side_plate("cmasterres", fr, box, -92, -48, M["satin"], 2.5)
-            side_plate("cmasterglass", fr, [(f_ * 0.5 - 12, u * 0.45 + 9) for f_, u in box], -86, -54, M["smoke"], 0)
-            for da in (-84, -56):
-                D.bolt(f"cmasterlid{da}", fr.P(da, 12, 32), fr.dir(0, 0, 1), 3.2, 1.6)
-        else:
-            B.cone("cclutchadj", fr.P(-84, 40, -6), fr.P(-90, 62, -10), 6.5, 6.5, M["steel"], 12)
-    elif key == "folding":
-        perch(fr, tag, M, M["satin"])
-        piv = plate_lever(fr, tag, M, STD_CL[:-1] + [(176, 2, 4.8)], [], M["satin"], ring=False, fold=118)
-        # the span dial: a gold wheel with six numbered flats
-        D.lathe(f"cspan{tag}", fr.P(piv[0], piv[1] + 2, piv[2] + 5.5), fr.dir(0, 0, 1), [(0, 0), (0, 9.5), (6, 9.5), (6, 0)], M["gold"], 6)
-        # radial master cylinder pointing forward, with a remote fluid pot on a short hose, on both sides
-        B.cone(f"cmastercyl{tag}", fr.P(-70, 16, -6), fr.P(-70, 92, -12), 12, 11, M["satin"], 24)
-        B.cone(f"cmasterend{tag}", fr.P(-70, 92, -12), fr.P(-70, 98, -12), 9, 7, M["satin"], 24)
-        B.smooth_tube(f"cmasterhose{tag}", [fr.P(-62, 40, 8), fr.P(-56, 46, 30), fr.P(-50, 36, 46)], 4.0, M["rubber"])
-        B.cone(f"cmasterres{tag}", fr.P(-50, 36, 44), fr.P(-50, 36, 78), 15, 15, M["smoke"], 28)
-        B.cone(f"cmasterrescap{tag}", fr.P(-50, 36, 78), fr.P(-50, 36, 86), 17, 16.5, M["gold"], 28)
-        side_plate(f"cmasterbrkt{tag}", fr, [(26, 30), (44, 30), (44, 52), (26, 52)], -58, -55, M["satin"], 0.8)
-    elif key == "classic":
+    if key == "classic":
         perch(fr, tag, M, M["polished"], wide=22)
         round_lever(fr, tag, M, M["polished"])
         if brake:
@@ -262,56 +323,145 @@ def lever_set(fr, s, key, M):
         else:
             B.cone("cclutchadj", fr.P(-84, 38, -6), fr.P(-88, 64, -10), 6.0, 6.0, M["chrome"], 12)
             B.cone("cclutchadjlock", fr.P(-85, 44, -7), fr.P(-86, 50, -8), 8.5, 8.5, M["chrome"], 6)
+        return
+    body = M["forged"] if key == "forged" else M["satin"]
+    perch(fr, tag, M, body)
+    if key == "standard":
+        pivot_block(fr, tag, M, body, M["red"])
+        profile_lever(fr, tag, M, body)
+    elif key == "short":
+        pivot_block(fr, tag, M, body, M["red"])
+        profile_lever(fr, tag, M, body, cut=62)
+    elif key == "folding":
+        pivot_block(fr, tag, M, body, M["gold"])
+        profile_lever(fr, tag, M, body, fold=56)
     elif key == "forged":
-        perch(fr, tag, M, M["forged"])
-        cl = [(0, 0, 12.5), (22, 9, 11.5), (46, 18, 10.5), (64, 20, 9.4), (100, 16, 9.0), (140, 9, 8.6), (172, 5, 8.2)]
-        plate_lever(fr, tag, M, cl, [], M["forged"], ring=False, flat=4.5)
-        if brake:
-            B.cone("cmastercyl", fr.P(-70, 20, -4), fr.P(-70, 70, -10), 12, 11, M["forged"], 24)
-            # an angled reservoir cast on the perch, leaning back towards the rider, with a sight glass
-            trap = D.chaikin([(-6, 8), (36, 8), (30, 34), (0, 38)], 2)
-            side_plate("cmasterres", fr, trap, -90, -50, M["forged"], 2.5)
-            side_plate("cmasterglass", fr, [(-6.6, 14), (-6.6, 30), (-6.4, 30), (-6.4, 14)], -84, -56, M["smoke"], 0)
-            side_plate("cmasterlid", fr, [(-4, 38), (31, 34), (31, 36.5), (-4, 40.5)], -90, -50, M["dark"], 0.6)
-        else:
-            B.cone("cclutchadj", fr.P(-84, 40, -6), fr.P(-90, 66, -10), 6.5, 6.5, M["steel"], 12)
+        pivot_block(fr, tag, M, body)
+        profile_lever(fr, tag, M, body, scale=1.25, groove=False)
     else:
         raise KeyError(key)
+    if key == "folding":
+        radial(fr, tag, M, body)
+    elif brake:
+        master(fr, {"standard": "cup", "short": "block", "forged": "angled"}[key], M, body)
+    else:
+        B.cone("cclutchadj", fr.P(-84, 40, -6), fr.P(-90, 66, -10), 6.5, 6.5, M["steel"], 12)
 
 
 # ---------------------------------------------------------------- switch pods
-def switch_pod(fr, s, key, M):
-    tag = s
-    if key == "modern":
-        box = D.chaikin([(-26, -21), (22, -23), (25, 18), (-9, 25), (-27, 14)], 2)
-        side_plate(f"cswitch{tag}", fr, box, -52, -4, M["plastic"], 3.5)
-        side_plate(f"cswitchsplit{tag}", fr, [(-27.6, 0), (-26.6, 0), (-26.6, 2), (-27.6, 2)], -52, -4, M["rubber"], 0)
-        if s == 1:
-            side_plate("cswlights", fr, [(-31, 6), (-26, 6), (-26, 16), (-32, 15)], -37, -19, M["plastic"], 1)
-            side_plate("cswind", fr, [(-32, -6), (-26, -6), (-26, 2), (-32, 2)], -34, -22, M["grey"], 1)
-            B.cone("cswhorn", fr.P(-28, -25, -14), fr.P(-28, -31, -15), 5.5, 5, M["plastic"], 16)
-        else:
-            side_plate("cswkill", fr, [(-32, 5), (-26, 5), (-26, 16), (-33, 14)], -36, -20, M["killred"], 1)
-            B.cone("cswstart", fr.P(-28, -25, -10), fr.P(-28, -31, -11), 6, 5.5, M["grey"], 16)
-    elif key == "classic":
-        # a rounded shell, smaller, with chrome toggles standing out of its back face
-        D.lathe(f"cswitch{tag}", fr.P(-46, 0, 0), fr.dir(1, 0, 0), [(0, 11), (0, 19), (3, 22), (33, 22), (36, 19), (36, 11)], M["plastic"], 40, ell=(1.18, 1.0))
-        B.cone(f"cswitchscrew{tag}", fr.P(-28, 0, -23), fr.P(-28, 0, -26), 3, 3, M["chrome"], 12)
-        for k, (da, du) in enumerate(((-38, 8), (-24, 8), (-31, -8))):
-            if k < 2:
-                B.cone(f"cswtoggle{tag}{k}", fr.P(da, -24, du), fr.P(da, -38, du + 4), 2.2, 1.6, M["chrome"], 10)
-                B.cone(f"cswtogglebase{tag}{k}", fr.P(da, -21, du), fr.P(da, -25, du), 5, 4.5, M["chrome"], 16)
-            else:
-                B.cone(f"cswbutton{tag}", fr.P(da, -21, du), fr.P(da, -28, du), 6, 5.6, M["killred"] if s == -1 else M["grey"], 16)
-    elif key == "minimal":
-        # a billet ring with two buttons facing the thumb
-        D.lathe(f"cswitch{tag}", fr.P(-34, 0, 0), fr.dir(1, 0, 0), [(0, 11), (0, 16.5), (1.5, 18), (20.5, 18), (22, 16.5), (22, 11)], M["satin"], 40)
-        for k, du in enumerate((6, -6)):
-            col = (M["killred"] if s == -1 else M["amber"]) if k == 0 else M["grey"]
-            B.cone(f"cswbutton{tag}{k}", fr.P(-23, -15, du), fr.P(-23, -21, du * 1.15), 4.4, 4.2, col, 16)
-            B.cone(f"cswbuttonring{tag}{k}", fr.P(-23, -14.5, du), fr.P(-23, -17.5, du * 1.05), 5.6, 5.6, M["polished"], 16)
+def face_plate(name, fr, outline, f0, f1, material, bevel=0.0):
+    """A button or block cut to an outline (a, u) on the rider's face of a pod, between f0 and f1."""
+    n = len(outline)
+    verts = [B.V(*fr.P(a, f0, u)) for a, u in outline] + [B.V(*fr.P(a, f1, u)) for a, u in outline]
+    faces = [tuple(range(n - 1, -1, -1)), tuple(range(n, 2 * n))] + [(i, (i + 1) % n, n + (i + 1) % n, n + i) for i in range(n)]
+    ob = B.mesh_obj(name, verts, faces, material, True, bevel)
+    B.bm_fix_normals(ob)
+    return ob
+
+
+def rr(a, u, w, h, r=1.6, n=4):
+    """A rounded rectangle centred at (a, u)."""
+    pts = []
+    for cx, cu, a0 in ((w / 2 - r, h / 2 - r, 0), (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180), (w / 2 - r, -h / 2 + r, 270)):
+        for k in range(n + 1):
+            t = math.radians(a0 + 90 * k / n)
+            pts.append((a + cx + r * math.cos(t), u + cu + r * math.sin(t)))
+    return pts
+
+
+def tri(a, u, size, ang):
+    """A rounded triangle button pointing at ang degrees in the (a, u) plane."""
+    pts = []
+    for k in range(3):
+        t = math.radians(ang + 120 * k)
+        pts.append((a + size * math.cos(t), u + size * math.sin(t)))
+    return D.chaikin(pts, 2)
+
+
+def button(fr, name, outline, face, M, col, h=3.2, mark=None):
+    """A button standing proud of the pod face (face = the pod's f there), with an optional light mark on it."""
+    face_plate(name, fr, outline, face - h, face + 0.5, col, 0.6)
+    if mark:
+        face_plate(name + "mk", fr, mark, face - h - 0.25, face - h + 0.1, M["mark"], 0)
+
+
+def pod_shell(fr, tag, M, a0, a1, prof):
+    """The pod's housing: a side profile (f, u) carried along the bar, split in two halves round the bar."""
+    # keep the rider's face flat right down to the corners, so the bottom row of buttons sits on it
+    (f0, u0), (f4, u4) = prof[0], prof[-1]
+    prof = [(f0 + 3, u0)] + list(prof[1:-1]) + [(f4 + 3, u4), (f4, u4 - 3), (f0, u0 + 3)]
+    side_plate(f"cswitch{tag}", fr, D.chaikin(prof, 2), a0, a1, M["plastic"], 2.5)
+    side_plate(f"cswitchsplit{tag}", fr, [(min(f for f, u in prof) - 0.6, -0.6), (min(f for f, u in prof) + 0.4, -0.6), (min(f for f, u in prof) + 0.4, 0.6), (min(f for f, u in prof) - 0.6, 0.6)], a0 + 2, a1 - 2, M["rubber"], 0)
+
+
+def right_pod(fr, tag, M, a0=-48, a1=-6):
+    """The right-hand pod on every set: a red kill switch on top, the starter button under it, and a mode
+    button (beenster, 16 Nov: always a red kill switch on the right)."""
+    face = -28
+    pod_shell(fr, tag, M, a0, a1, [(-28, -24), (20, -24), (24, 16), (6, 26), (-28, 20)])
+    mid = (a0 + a1) / 2
+    # the kill switch: a red rocker across the top rear edge, with a white stripe
+    side_plate("cswkill", fr, [(-30, 8), (-20, 8), (-17, 24), (-27, 26)], mid - 10, mid + 10, M["killred"], 1)
+    face_plate("cswkillmk", fr, [(mid - 7, 20), (mid + 7, 20), (mid + 7, 21.5), (mid - 7, 21.5)], -27.3, -27.0, M["mark"], 0)
+    # the starter: a big grey button with a ring
+    button(fr, "cswstart", rr(mid, -6, 20, 16, 4), face, M, M["grey"], 3.6, rr(mid, -6, 8, 2.2, 0.8, 2))
+    button(fr, "cswmode", rr(mid, -18, 14, 6, 2), face, M, M["dark"], 2.4)
+
+
+def left_pod(fr, key, M):
+    tag = 1
+    if key == "dpad":
+        # (photo 2) a tall pod with a four-way pad and a centre key in a 3 x 3 grid, horn and hazard below
+        a0, a1, face = -60, -4, -32
+        pod_shell(fr, tag, M, a0, a1, [(-32, -34), (22, -30), (26, 18), (8, 32), (-32, 30)])
+        c, cu = -32.0, 4.0
+        button(fr, "cswpad_up", tri(c, cu + 12, 6.5, 90), face, M, M["dark"], 3.4, tri(c, cu + 12, 2.2, 90))
+        button(fr, "cswpad_dn", tri(c, cu - 12, 6.5, -90), face, M, M["dark"], 3.4, tri(c, cu - 12, 2.2, -90))
+        button(fr, "cswpad_lt", tri(c - 13, cu, 6.0, 180), face, M, M["dark"], 3.4, tri(c - 13, cu, 2.0, 180))
+        button(fr, "cswpad_rt", tri(c + 13, cu, 6.0, 0), face, M, M["dark"], 3.4, tri(c + 13, cu, 2.0, 0))
+        button(fr, "cswpad_ok", rr(c, cu, 6, 8, 1.4), face, M, M["dark"], 2.6, rr(c, cu, 1.2, 4.5, 0.4, 1))
+        for k, (da, du) in enumerate(((-15, 18), (15, 18), (-15, -10), (15, -10))):
+            button(fr, f"cswkey{k}", rr(c + da, cu + du, 10, 8, 2), face, M, M["dark"], 2.8, rr(c + da, cu + du, 4, 1.4, 0.4, 1))
+        button(fr, "cswhorn", rr(c - 13, -22, 14, 9, 2.5), face, M, M["grey"], 3.0)
+        button(fr, "cswhazard", [(c + 13 + 6 * math.cos(2 * math.pi * k / 20), -22 + 6 * math.sin(2 * math.pi * k / 20)) for k in range(20)], face, M, M["killred"], 2.6, tri(c + 13, -22, 3, 90))
+        # the indicator switch: a grey thumb button under the pod, pushed left or right
+        side_plate("cswind", fr, [(-34, -34), (-22, -34), (-24, -40), (-34, -40)], c - 9, c + 9, M["grey"], 1)
+    elif key == "cruise":
+        # (photo 3) an angled pod with a column of mode keys, a small up/down rocker pair, horn and indicator
+        # buttons along the bottom and a hazard button
+        a0, a1, face = -62, -4, -30
+        pod_shell(fr, tag, M, a0, a1, [(-30, -32), (22, -30), (26, 16), (10, 30), (-30, 26)])
+        c = -33.0
+        button(fr, "cswkey0", D.chaikin([(c - 20, 12), (c - 6, 18), (c - 6, 8), (c - 20, 4)], 1), face, M, M["grey"], 3.0, tri(c - 16, 11, 1.6, 90))
+        button(fr, "cswkey1", D.chaikin([(c - 4, 18), (c + 8, 14), (c + 8, 6), (c - 4, 8)], 1), face, M, M["grey"], 3.0, tri(c + 4, 12, 1.6, 0))
+        button(fr, "cswkey2", D.chaikin([(c - 20, 2), (c - 6, 6), (c - 6, -6), (c - 18, -8)], 1), face, M, M["grey"], 3.0, tri(c - 12, -1, 1.6, -90))
+        button(fr, "cswset_up", rr(c + 18, 18, 12, 9, 2), face, M, M["grey"], 3.0, tri(c + 18, 18, 2, 90))
+        button(fr, "cswset_mid", rr(c + 18, 7, 10, 8, 2), face, M, M["grey"], 2.6, rr(c + 18, 7, 3.5, 3.5, 1.5, 2))
+        button(fr, "cswset_dn", rr(c + 18, -4, 12, 9, 2), face, M, M["grey"], 3.0, tri(c + 18, -4, 2, -90))
+        button(fr, "cswreset", rr(c + 2, -12, 14, 7, 2.5), face, M, M["grey"], 2.6)
+        button(fr, "cswind", rr(c - 6, -21, 12, 6, 2), face, M, M["grey"], 3.6)
+        button(fr, "cswhorn", rr(c - 6, -28, 14, 5, 2), face, M, M["grey"], 3.0)
+        button(fr, "cswhazard", rr(c + 16, -22, 10, 10, 2.5), face, M, M["dark"], 3.0, tri(c + 16, -22, 3, 90))
+        face_plate("cswhazardmk", fr, tri(c + 16, -22, 2.4, 90), face - 3.4, face - 3.1, M["killred"], 0)
+    elif key == "compact":
+        # a small pod for classics and minimal bikes: a four-way pad, horn and indicator buttons
+        a0, a1, face = -50, -6, -26
+        pod_shell(fr, tag, M, a0, a1, [(-26, -24), (18, -24), (22, 14), (6, 24), (-26, 20)])
+        c, cu = -28.0, 6.0
+        for nm, (da, du, ang) in (("up", (0, 9, 90)), ("dn", (0, -9, -90)), ("lt", (-9, 0, 180)), ("rt", (9, 0, 0))):
+            button(fr, f"cswpad_{nm}", tri(c + da, cu + du, 4.6, ang), face, M, M["dark"], 3.0, tri(c + da, cu + du, 1.6, ang))
+        button(fr, "cswpad_ok", [(c + 3.4 * math.cos(2 * math.pi * k / 16), cu + 3.4 * math.sin(2 * math.pi * k / 16)) for k in range(16)], face, M, M["dark"], 2.4)
+        button(fr, "cswhorn", rr(c - 9, -14, 12, 7, 2), face, M, M["grey"], 3.0)
+        button(fr, "cswind", rr(c + 9, -14, 12, 7, 2), face, M, M["grey"], 3.4, [(c + 5, -14), (c + 7, -15.5), (c + 7, -12.5)])
     else:
         raise KeyError(key)
+
+
+def switch_pod(fr, s, key, M):
+    if s == -1:
+        right_pod(fr, -1, M)
+    else:
+        left_pod(fr, key, M)
 
 
 # ---------------------------------------------------------------- mirrors
@@ -453,7 +603,7 @@ def grip_lines(model, c, lines=None):
     return out
 
 
-def fit(b, model, c, levers="standard", switches="modern", mirrors="oval", lines=None):
+def fit(b, model, c, levers="standard", switches="dpad", mirrors="oval", lines=None):
     use(b)
     lines = grip_lines(model, c, lines)
     for ob in list(bpy.data.objects):
@@ -527,22 +677,22 @@ def render_at(b3, path, loc, tgt, lens, res=(1300, 900), samples=40):
 
 # what each picture shows: (kind, key, bike, other parts) -> one close-up
 SHOTS = [
-    ("lever", "standard", "corvano_naked", dict(switches="modern", mirrors="oval")),
-    ("lever", "short", "kazeda_naked", dict(switches="minimal", mirrors="rect")),
-    ("lever", "folding", "kazeda_sport", dict(switches="modern", mirrors="fairing_aero")),
-    ("lever", "classic", "hartwell_classic", dict(switches="classic", mirrors="teardrop")),
-    ("lever", "forged", "rheinhart_naked", dict(switches="modern", mirrors="rect")),
-    ("switch", "modern", "corvano_naked", dict(levers="standard", mirrors="oval")),
-    ("switch", "classic", "hartwell_classic", dict(levers="classic", mirrors="teardrop")),
-    ("switch", "minimal", "rheinhart_naked", dict(levers="short", mirrors="barend_blade")),
-    ("mirror", "round", "corvano_naked", dict(levers="standard", switches="modern")),
-    ("mirror", "oval", "rheinhart_naked", dict(levers="forged", switches="modern")),
-    ("mirror", "rect", "corvano_adventure", dict(levers="forged", switches="modern")),
-    ("mirror", "teardrop", "lodestar_cruiser", dict(levers="classic", switches="classic")),
-    ("mirror", "barend_round", "hartwell_cafe", dict(levers="classic", switches="classic")),
-    ("mirror", "barend_blade", "kazeda_naked", dict(levers="short", switches="minimal")),
-    ("mirror", "fairing_aero", "kazeda_sport", dict(levers="folding", switches="modern")),
-    ("mirror", "fairing_wing", "varga_sport", dict(levers="folding", switches="minimal")),
+    ("lever", "standard", "corvano_naked", dict(switches="dpad", mirrors="oval")),
+    ("lever", "short", "kazeda_naked", dict(switches="cruise", mirrors="rect")),
+    ("lever", "folding", "kazeda_sport", dict(switches="dpad", mirrors="fairing_aero")),
+    ("lever", "classic", "hartwell_classic", dict(switches="compact", mirrors="teardrop")),
+    ("lever", "forged", "rheinhart_naked", dict(switches="dpad", mirrors="rect")),
+    ("switch", "dpad", "corvano_adventure", dict(levers="forged", mirrors="rect")),
+    ("switch", "compact", "hartwell_classic", dict(levers="classic", mirrors="teardrop")),
+    ("switch", "cruise", "lodestar_cruiser", dict(levers="standard", mirrors="teardrop")),
+    ("mirror", "round", "corvano_naked", dict(levers="standard", switches="dpad")),
+    ("mirror", "oval", "rheinhart_naked", dict(levers="forged", switches="dpad")),
+    ("mirror", "rect", "corvano_adventure", dict(levers="forged", switches="dpad")),
+    ("mirror", "teardrop", "lodestar_cruiser", dict(levers="classic", switches="compact")),
+    ("mirror", "barend_round", "hartwell_cafe", dict(levers="classic", switches="compact")),
+    ("mirror", "barend_blade", "kazeda_naked", dict(levers="short", switches="cruise")),
+    ("mirror", "fairing_aero", "kazeda_sport", dict(levers="folding", switches="dpad")),
+    ("mirror", "fairing_wing", "varga_sport", dict(levers="folding", switches="cruise")),
 ]
 
 
@@ -553,7 +703,7 @@ def shots(which=None, samples=40):
         if which and key not in which:
             continue
         lv = key if kind == "lever" else other.get("levers", "standard")
-        sw = key if kind == "switch" else other.get("switches", "modern")
+        sw = key if kind == "switch" else other.get("switches", "dpad")
         mi = key if kind == "mirror" else other.get("mirrors", "oval")
         b3, m, cc, lines, info, made = built(mn, lv, sw, mi)
         rep[f"{kind}_{key}"] = dict(model=mn, mirror=mirror_report(info))
@@ -588,7 +738,7 @@ def check():
         for key, st in MIRRORS.items():
             if st["kind"] == "fairing" and fam != "Sport":
                 continue
-            b3, m, cc, lines, info, made = built(mn, "standard", "modern", key)
+            b3, m, cc, lines, info, made = built(mn, "standard", "dpad", key)
             cl = BR.clip_check(made)
             bad = {k: v for k, v in cl.items() if not ok_pair(k)}
             res.setdefault(key, {})[fam] = dict(model=mn, mirror=mirror_report(info), clips=bad, fitted=bool(info.get(1)))

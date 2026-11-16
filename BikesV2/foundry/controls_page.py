@@ -51,7 +51,8 @@ def card(src_, title, body, chips=""):
 
 
 def bike(mn):
-    return mn.replace("_", " ").title()
+    # shown brand names (beenster, 16 Nov: Hartwell is now BSX; the id stays "hartwell")
+    return mn.replace("_", " ").title().replace("Hartwell", "BSX")
 
 
 chk = json.load(open(os.path.join(OUT, "check.json"))) if os.path.exists(os.path.join(OUT, "check.json")) else {}
@@ -117,8 +118,9 @@ page = f'''<title>Levers, Switches and Mirrors</title>
 <header>
 <div class="eyebrow">Common bike parts · Stage 2 of 9</div>
 <h1>Levers, switches and mirrors</h1>
-<p class="lede">Five lever sets with their master cylinders, three switch pods and eight mirrors. They sit on any bar from stage 1 or on a bike's own bar, in the same places as on the signed-off naked: perch, pivot, switch pod and mirror boss. Our own designs, drawn from photographs of real parts with no maker's name or shape copied.</p>
+<p class="lede">Five lever sets with their master cylinders, three left-hand switch pods and eight mirrors. They sit on any bar from stage 1 or on a bike's own bar, in the same places as on the signed-off naked: perch, pivot, switch pod and mirror boss. Our own designs, drawn from photographs of real parts with no maker's name or shape copied.</p>
 <p class="ask"><strong>What I need from you:</strong> keep, change or drop each part by its code (L1 to L5, S1 to S3, M1 to M8).</p>
+<p class="sub" style="margin:0">Changed after your notes: levers L1, L2, L3 and L5 now drop from the pivot and run along in front of the grip like your photo, L4 classic is as you kept it, and every switch pod is buttons only, with a d-pad style pad, and a red kill switch on the right on every set. The mirrors are unchanged.</p>
 </header>
 
 <section><h2>Lever sets</h2>
@@ -126,7 +128,7 @@ page = f'''<title>Levers, Switches and Mirrors</title>
 <div class="grid">{"".join(levers)}</div></section>
 
 <section><h2>Switch pods</h2>
-<p class="sub">The pods sit between the lever perch and the grip, on both sides.</p>
+<p class="sub">The pods sit between the lever perch and the grip. These are the left-hand pods, all buttons. Every set has the same right-hand pod: a red kill switch on top, a grey starter button and a mode button (you can see it in the lever pictures).</p>
 <div class="grid three">{"".join(switches)}</div></section>
 
 <section><h2>Mirrors</h2>
