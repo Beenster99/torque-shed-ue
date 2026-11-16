@@ -2,7 +2,7 @@
  "name": "Hartwell classic (working title K1)",
  "brand": "hartwell",
  "family": "Classic",
- "rev": "B",
+ "rev": "C",
  "engine_label": "air-cooled look parallel twin",
  "frame_label": "steel tube cradle frame",
  "colours": {
@@ -296,19 +296,27 @@
    {
     "pts": [
      [
-      985,
-      600
+      974,
+      673
      ],
      [
-      992,
-      510
+      996,
+      664
      ],
      [
-      1004,
-      440
+      1009,
+      640
      ],
      [
-      1004,
+      1012,
+      575
+     ],
+     [
+      1010,
+      470
+     ],
+     [
+      1002,
       385
      ],
      [
@@ -329,7 +337,8 @@
      ]
     ],
     "w": 44,
-    "front": true
+    "front": true,
+    "ease": true
    }
   ],
   "cans": [
@@ -363,39 +372,33 @@
    ],
    [
     440,
-    482
-   ],
-   [
-    300,
-    470
+    478,
+    1
    ],
    [
     120,
-    400
+    404,
+    1
    ],
    [
-    40,
-    372
+    -38,
+    350,
+    1
    ],
    [
-    -40,
-    345
-   ],
-   [
-    -48,
-    290
+    -50,
+    290,
+    1
    ],
    [
     30,
-    262
-   ],
-   [
-    260,
-    300
+    262,
+    1
    ],
    [
     430,
-    345
+    342,
+    1
    ],
    [
     575,
@@ -431,7 +434,8 @@
      1
     ]
    ]
-  ]
+  ],
+  "square": true
  },
  "shock": {
   "top": [
@@ -440,7 +444,7 @@
   ],
   "bottom": [
    95,
-   398
+   418
   ],
   "twin": true,
   "real": true
@@ -2414,8 +2418,11 @@
  },
  "detail": {
   "levers": "steel",
-  "clocks": "chrome",
+  "clocks": "chrome_deep",
   "indicators": "trad",
-  "heel_plate": "swept"
+  "heel_plate": "swept",
+  "lamp": "fluted",
+  "grips": "plain",
+  "cap": "chrome"
  }
 }

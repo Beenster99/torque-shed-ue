@@ -860,7 +860,12 @@ def build(model):
         out_y = 58 if under else 214      # side silencers sit outside the swingarm
         if is_belly(ex, 0):
             out_y = 0                     # the pipes gather into a box under the engine, on the centre line
+        if ex.get("join") and ex.get("cans") and not is_belly(ex, 0):
+            # the pipe arrives dead in line with its silencer's mouth (beenster, cruiser round 1)
+            out_y = can_y(ex, min(i, len(ex["cans"]) - 1), under)[0]
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
+        if ex.get("join"):
+            yy = [sg * (40 + (out_y - 40) * (lambda t: t * t * (3 - 2 * t))(min(1.0, j / (0.8 * (len(pts) - 1))))) for j in range(len(pts))]
         if left:
             # stay tucked under the engine, then move out behind the sump and ahead of the swingarm,
             # so the pipe passes outside the arm and never through it
@@ -872,6 +877,11 @@ def build(model):
             # down the side of the engine: out past the cases straight away, then back to the silencer
             side_y = wide / 2 + 34
             yy = [sg * (60 + (side_y - 60) * min(1.0, j / (0.18 * (len(pts) - 1))) ** 0.7) for j in range(len(pts))]
+            if hp.get("ease"):      # leaves the port dead in line with it, then swings out (beenster, classic round 2: no kink at the start)
+                def ease(j):
+                    t = min(1.0, j / (0.34 * (len(pts) - 1)))
+                    return t * t * (3 - 2 * t)
+                yy = [sg * (60 + (side_y - 60) * ease(j)) for j in range(len(pts))]
             yy = [sg * (abs(y) + (out_y - side_y) * max(0.0, j / (len(pts) - 1) - 0.75) / 0.25) for j, y in enumerate(yy)]
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
