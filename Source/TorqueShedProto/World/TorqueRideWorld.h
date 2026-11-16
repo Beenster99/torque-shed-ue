@@ -168,6 +168,7 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<URidePart>> Spare;
 	void LetGo(UProceduralMeshComponent* Part);
 	URidePart* TakeSpare();
+	UPROPERTY(Transient) TArray<TObjectPtr<UInstancedStaticMeshComponent>> SparePlants;   // (as Spare, for DropPlants)
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
 	// [perf, build 149] A piece of road made (on a worker, or here with bAtOnce) put in place: its part,
 	// tagged Road, and its tunnel lamps. Ready: its sections readied on the worker, or null.

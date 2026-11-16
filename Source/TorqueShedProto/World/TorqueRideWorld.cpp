@@ -1434,6 +1434,23 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 					UE_LOG(LogTemp, Display, TEXT("Ride view: %s"), *View);
 				}
 			}
+			// [perf, build 150] Against the frame budget (the strategy doc, beenster Nov 15: never under
+			// 60 at Epic 4K): GPU 14, render thread 10, game thread 10, our own work 3 ms a frame and no
+			// single job of ours over 8. Each OVER is what to cut next.
+			{
+				const double AvgGame = FrameGameMs / CostFrames, AvgRender = FrameRenderMs / CostFrames, AvgGpu = FrameGpuMs / CostFrames;
+				double OursMs = 0.0, OursWorst = 0.0;
+				for (int32 W = 0; W < RideCosts::Count; ++W)
+				{
+					OursMs += S.Ms[W];
+					OursWorst = FMath::Max(OursWorst, S.Worst[W]);
+				}
+				OursMs /= CostFrames;
+				auto Mark = [](double Have, double Most) { return Have <= Most ? TEXT("ok") : TEXT("OVER"); };
+				UE_LOG(LogTemp, Display, TEXT("Ride budget: GPU %.1f/14 %s, render %.1f/10 %s, game %.1f/10 %s, ours %.2f/3 %s, our worst job %.0f/8 %s, parts waiting %d, spare parts %d, spare plant groups %d"),
+					AvgGpu, Mark(AvgGpu, 14.0), AvgRender, Mark(AvgRender, 10.0), AvgGame, Mark(AvgGame, 10.0), OursMs, Mark(OursMs, 3.0),
+					OursWorst, Mark(OursWorst, 8.0), ToRegister.Num(), Spare.Num(), SparePlants.Num());
+			}
 			FrameGameMs = FrameRenderMs = FrameGpuMs = 0.0;
 			S = RideCosts::FSums();
 			CostFrames = 0;
@@ -2057,7 +2074,17 @@ void ATorqueRideWorld::DropPlants(const FIntVector& Key)
 			if (UInstancedStaticMeshComponent* Ism = Part.Get())
 			{
 				PlantsShown -= Ism->GetInstanceCount();
-				Ism->DestroyComponent();
+				// ([perf, build 150] kept to be used again, as the parts are: torque.RidePool)
+				if (TRWI::CVarPool.GetValueOnGameThread() != 0 && SparePlants.Num() < 2000 && !Ism->IsBeingDestroyed())
+				{
+					Ism->ClearInstances();
+					Ism->ComponentTags.Reset();
+					Ism->EmptyOverrideMaterials();
+					if (Ism->IsRegistered()) Ism->UnregisterComponent();
+					SparePlants.Add(Ism);
+				}
+				else
+					Ism->DestroyComponent();
 			}
 		TilePlants.Remove(Key);
 	}
@@ -2124,9 +2151,17 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bTree && bNoTrees) continue;
 		// As ATorqueFoliage makes its parts (see TorqueFoliage.cpp): no collision, shadows only from the
 		// taller plants and cached while they sway, out of Lumen's and the ray tracer's scenes.
-		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
+		UInstancedStaticMeshComponent* Ism = nullptr;
+		while (!Ism && SparePlants.Num() > 0)
+		{
+			UInstancedStaticMeshComponent* Kept = SparePlants.Pop(EAllowShrinking::No);
+			if (IsValid(Kept) && !Kept->IsBeingDestroyed()) Ism = Kept;
+		}
+		const bool bReused = Ism != nullptr;
+		if (!Ism) Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
 		Ism->SetMobility(EComponentMobility::Movable);
-		Ism->SetupAttachment(RootComponent);
+		if (!bReused) Ism->SetupAttachment(RootComponent);
+		Ism->SetVisibility(true);
 		Ism->SetRelativeLocation(FVector(Mesh.OriginX * 100.0, Mesh.OriginZ * 100.0, 0.0));
 		Ism->SetStaticMesh(Model);
 		if (Mat) Ism->SetMaterial(0, Mat);
@@ -2149,7 +2184,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
-		AddInstanceComponent(Ism);
+		if (!bReused) AddInstanceComponent(Ism);
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.Num();
 	}
