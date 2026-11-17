@@ -2916,6 +2916,23 @@ void RidePlan::IndexRails()
 		const P2 Off = P.At - Run.At[size_t(BestAt)];
 		Made.Side = Dir.Z * Off.X - Dir.X * Off.Z >= 0.0 ? 1.0 : -1.0;   // (left of the way along: (Dir.Z, -Dir.X))
 		Made.Name = P.Name;
+		Made.Halt = Halt;
+		// [roads stage 8] (a building of the map's within 12 m of where the station's would stand: its own)
+		{
+			const double Dl = std::fmax(1e-6, Dir.Length());
+			const P2 Behind = Run.At[size_t(BestAt)] + P2(Dir.Z / Dl, -Dir.X / Dl) * (Made.Side * 10.0);
+			for (int Dz = -1; Dz <= 1 && !Made.Built; ++Dz)
+				for (int Dx = -1; Dx <= 1 && !Made.Built; ++Dx)
+				{
+					const auto Bt = Scene->Buildings.find(SceneKey(Behind.X + Dx * SceneCell, Behind.Z + Dz * SceneCell));
+					if (Bt == Scene->Buildings.end()) continue;
+					for (int Bi : Bt->second)
+					{
+						const Building& H = G.Buildings[size_t(Bi)];
+						if (std::hypot(H.X - Behind.X, H.Z - Behind.Z) - 0.5 * std::fmax(H.W, H.D) < 12.0) { Made.Built = true; break; }
+					}
+				}
+		}
 		Platforms.push_back(Made);
 	}
 }
@@ -3187,6 +3204,64 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 			const size_t Other = End == Plat.First ? I + 1 : I - 1;
 			const P3 Out3 = At3(Run.At[I].X * 2.0 - Run.At[Other].X, Run.Top[I] + Lift, Run.At[I].Z * 2.0 - Run.At[Other].Z);
 			Quad(Out, Q0, Q1, Q2, Q3, Out3, Shade(Coping, 0.65));
+		}
+		// [roads stage 8] A station's canopy over the middle of its platform: a slate roof on cast columns,
+		// its valance along the edge in the line's old colours (by hash); and where the map has no building
+		// for it, the station building behind, in stone with a slate roof, its windows and door to the platform.
+		if (!Plat.Halt)
+		{
+			const uint32_t Hash = static_cast<uint32_t>(std::lround(Run.At[size_t(Middle)].X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Run.At[size_t(Middle)].Z * 3.0)) * 19349663u;
+			static const Rgb Valances[] = {{0.03f, 0.10f, 0.05f}, {0.16f, 0.03f, 0.035f}, {0.50f, 0.46f, 0.36f}, {0.03f, 0.05f, 0.14f}};
+			const Rgb Valance = Valances[(Hash >> 7) % 4u], Cast = (Hash >> 11) % 2u == 0u ? Rgb{0.50f, 0.46f, 0.36f} : Valance, Slate = {0.075f, 0.08f, 0.09f};
+			const int Span = std::min(6, (Plat.Last - Plat.First) / 3);
+			const double Eave = Lift + 3.4, Near = Edge + 0.5, Far = Back - 0.2;
+			for (int K = std::max(Plat.First, Middle - Span); K < std::min(Plat.Last, Middle + Span); ++K)
+			{
+				const size_t I = size_t(K);
+				Strip(Out, Run, I, S * Near, Eave + 0.35, S * Far, Eave + 0.6, Sky, Slate, -1.0f);
+				Strip(Out, Run, I, S * Near, Eave, S * Far, Eave, Beside(Run, I, S * Edge, -50.0), Shade(Cast, 0.8), -1.0f);
+				Strip(Out, Run, I, S * Near, Eave - 0.45, S * Near, Eave + 0.35, Beside(Run, I, -S * 50.0, Eave), Valance, -1.0f);
+				Strip(Out, Run, I, S * Far, Eave, S * Far, Eave + 0.6, Beside(Run, I, S * 50.0, Eave), Shade(Valance, 0.8), -1.0f);
+				if ((K - Middle) % 2 == 0)
+				{
+					const P2 L = LeftAt(Run, I);
+					const P2 C = Run.At[I] + L * (S * (Back - 1.6));
+					Box(Out, C.X, C.Z, P2(L.Z, -L.X), 0.1, 0.1, Run.Top[I] + Lift - 0.05, Run.Top[I] + Eave, Cast);
+				}
+			}
+			if (!Plat.Built)
+			{
+				const size_t I = size_t(Middle);
+				const P2 L = LeftAt(Run, I);
+				const P2 Along(L.Z, -L.X);
+				const P2 C = Run.At[I] + L * (S * (Back + 4.0));
+				const double Gy = Ground(C.X, C.Z);
+				const double Floor = std::isnan(Gy) ? Run.Top[I] + Lift : std::fmin(Gy, Run.Top[I] + Lift);
+				const double Long = 8.0, Wide = 3.4, Top = Run.Top[I] + Lift + 4.2;
+				Box(Stone, C.X, C.Z, Along, Long, Wide, Floor - 0.5, Top, Mask);
+				// (its roof: two slopes up to the ridge along its length, the gables under them in stone)
+				const P2 Ac(Along.X * Long, Along.Z * Long), Wc(L.X * (Wide + 0.4), L.Z * (Wide + 0.4));
+				const P3 E0 = At3(C.X - Ac.X - Wc.X, Top, C.Z - Ac.Z - Wc.Z), E1 = At3(C.X + Ac.X - Wc.X, Top, C.Z + Ac.Z - Wc.Z);
+				const P3 E2 = At3(C.X + Ac.X + Wc.X, Top, C.Z + Ac.Z + Wc.Z), E3 = At3(C.X - Ac.X + Wc.X, Top, C.Z - Ac.Z + Wc.Z);
+				const P3 R0 = At3(C.X - Ac.X, Top + 2.2, C.Z - Ac.Z), R1 = At3(C.X + Ac.X, Top + 2.2, C.Z + Ac.Z);
+				Quad(Out, E0, E1, R1, R0, At3(C.X - Wc.X * 30.0, Top + 30.0, C.Z - Wc.Z * 30.0), Slate);
+				Quad(Out, E2, E3, R0, R1, At3(C.X + Wc.X * 30.0, Top + 30.0, C.Z + Wc.Z * 30.0), Slate);
+				const P2 Wg(L.X * Wide, L.Z * Wide);
+				Quad(Stone, At3(C.X - Ac.X - Wg.X, Top, C.Z - Ac.Z - Wg.Z), At3(C.X - Ac.X + Wg.X, Top, C.Z - Ac.Z + Wg.Z), R0, R0, At3(C.X - Ac.X * 3.0, Top + 1.0, C.Z - Ac.Z * 3.0), Mask);
+				Quad(Stone, At3(C.X + Ac.X + Wg.X, Top, C.Z + Ac.Z + Wg.Z), At3(C.X + Ac.X - Wg.X, Top, C.Z + Ac.Z - Wg.Z), R1, R1, At3(C.X + Ac.X * 3.0, Top + 1.0, C.Z + Ac.Z * 3.0), Mask);
+				// (tall windows and the door on the platform side)
+				static const Rgb Pane = {0.02f, 0.025f, 0.03f};
+				const P2 Front = L * (-S);
+				const double Base = Run.Top[I] + Lift;
+				for (int Wn = -3; Wn <= 3; ++Wn)
+				{
+					const double U = Wn * 2.1, Wd = Wn == 0 ? 0.6 : 0.45;
+					const P2 Q = C + Front * (Wide + 0.03) + Along * U;
+					const double Lo = Wn == 0 ? Base : Base + 0.9, Hi = Base + 2.6;
+					Quad(Out, At3(Q.X - Along.X * Wd, Lo, Q.Z - Along.Z * Wd), At3(Q.X + Along.X * Wd, Lo, Q.Z + Along.Z * Wd), At3(Q.X + Along.X * Wd, Hi, Q.Z + Along.Z * Wd),
+						At3(Q.X - Along.X * Wd, Hi, Q.Z - Along.Z * Wd), At3(Q.X + Front.X * 50.0, (Lo + Hi) * 0.5, Q.Z + Front.Z * 50.0), Pane);
+				}
+			}
 		}
 		if (Plat.Name.empty()) continue;
 		// The name board: white words on blue, on two posts at the back of the platform, facing the line.

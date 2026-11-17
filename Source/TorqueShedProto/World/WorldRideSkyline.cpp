@@ -140,6 +140,7 @@ constexpr double PoleJoin = 90.0;   // a pole on no mapped line joins its neighb
 constexpr double PylonWire = 500.0;
 constexpr double WireClear = 5.0;   // the least a wire may hang over a road
 
+const Paint Gasframe = {0.20f, 0.24f, 0.22f}, Bell = {0.27f, 0.30f, 0.28f}, CoolingGrey = {0.46f, 0.45f, 0.42f};   // [roads stage 8]
 const Paint Galv = {0.26f, 0.27f, 0.27f}, WireGrey = {0.03f, 0.03f, 0.032f}, Turbine = {0.6f, 0.61f, 0.6f}, Concrete = {0.3f, 0.29f, 0.27f},
 	SiloGreen = {0.07f, 0.12f, 0.08f}, KioskGreen = {0.05f, 0.09f, 0.06f}, Panel = {0.012f, 0.018f, 0.04f}, Fence = {0.06f, 0.07f, 0.065f};
 
@@ -446,6 +447,9 @@ void RidePlan::IndexSkyline()
 		else if (P.Kind == "silo") Put(TallSilo, P.At, H > 4.0 ? H : 14.0, 3.0, P.Id);
 		else if (P.Kind == "storage_tank") Put(TallTank, P.At, H > 2.0 ? H : 8.0, 6.0, P.Id);
 		else if (P.Kind == "substation") Put(TallKiosk, P.At, 1.7, 0.0, P.Id);
+		else if (P.Kind == "gasometer") Put(TallGasholder, P.At, H > 8.0 ? H : 30.0, 22.0, P.Id);   // [roads stage 8]
+		else if (P.Kind == "cooling_tower") Put(TallCooling, P.At, H > 30.0 ? H : 110.0, 42.0, P.Id);
+		else if (P.Kind == "lighting_tower") Put(TallFlood, P.At, H > 8.0 ? std::fmin(H, 50.0) : 20.0, 0.0, P.Id);
 		else if (P.Kind == "power_tower" && !PylonNear(P.At)) Put(TallPylon, P.At, H > 10.0 ? H : 26.0, 0.0, P.Id);
 	}
 	for (const FeatureArea& A : G.Scenery.Areas)
@@ -457,6 +461,10 @@ void RidePlan::IndexSkyline()
 		if (A.Kind == "silo") Put(TallSilo, Mid, A.Height > 4.0 ? A.Height : std::fmin(25.0, std::fmax(8.0, R * 3.2)), std::fmin(8.0, std::fmax(1.5, R)), A.Id);
 		else if (A.Kind == "storage_tank") Put(TallTank, Mid, A.Height > 2.0 ? A.Height : std::fmin(15.0, std::fmax(4.0, R * 0.6)), std::fmin(25.0, std::fmax(2.0, R)), A.Id);
 		else if (A.Kind == "water_tower") Put(TallWaterTower, Mid, A.Height > 6.0 ? A.Height : 18.0, std::fmin(8.0, std::fmax(3.0, R)), A.Id);
+		// [roads stage 8] (a gasholder: its frame round the outline; a cooling tower: its base the outline)
+		else if (A.Kind == "gasometer" && R > 6.0 && R < 60.0) Put(TallGasholder, Mid, A.Height > 8.0 ? A.Height : std::clamp(R * 1.3, 15.0, 50.0), R, A.Id);
+		else if (A.Kind == "cooling_tower" && R > 8.0 && R < 70.0) Put(TallCooling, Mid, A.Height > 30.0 ? A.Height : std::clamp(R * 2.4, 40.0, 120.0), R, A.Id);
+		else if (A.Kind == "lighting_tower" && R < 6.0) Put(TallFlood, Mid, A.Height > 8.0 ? std::fmin(A.Height, 50.0) : 20.0, 0.0, A.Id);
 		else if ((A.Kind == "substation" && Size > 40.0) || (A.Kind == "solar" && Size > 500.0))
 		{
 			// (a solar "area" smaller than that is panels on a roof, drawn with the building)
@@ -617,6 +625,69 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 				Silo ? T.Radius * 0.45 : T.Radius * 0.05);
 			break;
 		}
+		case TallGasholder:
+		{
+			// [roads stage 8] A gasholder's frame: columns round it, tied by rings at each tier and lattice
+			// between; the bell (the holder itself) inside, low or high or gone, by hash.
+			const int Cols = Whole ? std::clamp(int(T.Radius * 0.6), 12, 24) : 10;
+			const int Tiers = H > 30.0 ? 3 : 2;
+			for (int K = 0; K < Cols; ++K)
+			{
+				const double A = 6.2831853 * K / Cols;
+				const V3 Foot = Pt(T.At.X + std::cos(A) * T.Radius, Y - 0.3, T.At.Z + std::sin(A) * T.Radius);
+				const V3 Top = Pt(Foot.X, Y + H, Foot.Z);
+				Strut(Out, Foot, Top, Whole ? 0.7 : 1.4, Gasframe);
+				if (!Whole) continue;
+				const double B = 6.2831853 * (K + 1) / Cols;
+				for (int Tr = 1; Tr <= Tiers; ++Tr)
+				{
+					const double Ty = Y + H * Tr / Tiers;
+					Strut(Out, Pt(Foot.X, Ty, Foot.Z), Pt(T.At.X + std::cos(B) * T.Radius, Ty, T.At.Z + std::sin(B) * T.Radius), 0.45, Gasframe);
+					// (the lattice: a diagonal each bay)
+					const double Lo = Y + H * (Tr - 1) / Tiers;
+					Strut(Out, Pt(Foot.X, Lo, Foot.Z), Pt(T.At.X + std::cos(B) * T.Radius, Ty, T.At.Z + std::sin(B) * T.Radius), 0.18, Gasframe);
+				}
+			}
+			const double Fill = Unit(T.Id, 8);
+			if (Fill > 0.35)
+				Column(Out, Pt(T.At.X, Y - 0.3, T.At.Z), T.Radius * 0.93, T.Radius * 0.93, H * (Fill > 0.8 ? 0.85 : 0.3) + 0.3, Whole ? 28 : 10, Bell, T.Radius * 0.08);
+			break;
+		}
+		case TallCooling:
+		{
+			// [roads stage 8] A cooling tower: the curved concrete shell, narrowest three quarters up,
+			// on the legs at its foot (dark between), open at the top.
+			const double Rb = T.Radius;
+			const int Sides = Whole ? 32 : 12;
+			const double Waist = 0.62, WaistAt = 0.75, TopR = 0.68;
+			const auto RadiusAt = [&](double U) { return U < WaistAt ? Rb * (1.0 - (1.0 - Waist) * std::sin(U / WaistAt * 1.5708)) : Rb * (Waist + (TopR - Waist) * (U - WaistAt) / (1.0 - WaistAt)); };
+			const int Rings = Whole ? 10 : 4;
+			Column(Out, Pt(T.At.X, Y - 0.3, T.At.Z), Rb * 1.01, Rb, 6.3, Sides, Paint{0.06f, 0.06f, 0.06f});
+			for (int K = 0; K < Rings; ++K)
+			{
+				const double U0 = double(K) / Rings, U1 = double(K + 1) / Rings;
+				const double Ya = Y + 6.0 + (H - 6.0) * U0;
+				Column(Out, Pt(T.At.X, Ya, T.At.Z), RadiusAt(U0), RadiusAt(U1), (H - 6.0) * (U1 - U0), Sides, CoolingGrey);
+			}
+			break;
+		}
+		case TallFlood:
+		{
+			// [roads stage 8] A floodlight mast: a tapering pole and its head of lamps, lit after dark.
+			if (!Whole) break;
+			Column(Out, Pt(T.At.X, Y - 0.3, T.At.Z), 0.35, 0.18, H + 0.3, 8, Galv);
+			const V3 C0 = Pt(T.At.X - S.X * 1.6, Y + H, T.At.Z - S.Z * 1.6), C1 = Pt(T.At.X + S.X * 1.6, Y + H, T.At.Z + S.Z * 1.6);
+			const V3 C2 = Pt(C1.X, Y + H + 1.4, C1.Z), C3 = Pt(C0.X, Y + H + 1.4, C0.Z);
+			SkyQuad(Out, C0, C1, C2, C3, Galv, true);
+			RideMesh& Night = Out.NightOf();
+			const size_t From = Night.Vertices();
+			const V3 L0 = Pt(C0.X + F.X * 0.08, C0.Y + 0.15, C0.Z + F.Z * 0.08), L1 = Pt(C1.X + F.X * 0.08, C1.Y + 0.15, C1.Z + F.Z * 0.08);
+			SkyQuad(Night, L0, L1, Pt(L1.X, L1.Y + 1.1, L1.Z), Pt(L0.X, L0.Y + 1.1, L0.Z), Paint{2.6f, 2.6f, 2.5f}, true);
+			if (Night.Alpha.empty()) Night.Alpha.assign(From, 1.0f);
+			Night.Alpha.resize(From);
+			Night.Alpha.resize(Night.Vertices(), 0.0f);
+			break;
+		}
 		case TallWaterTower:
 		{
 			const double Legs = H * 0.65;
@@ -700,8 +771,8 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 		for (const TallThing& T : Talls)
 		{
 			if (!Inside(T.At)) continue;
-			// (beyond 10 km only the turbines; nearer, everything taller than a tree)
-			if (Detail < 0 ? T.Kind != TallTurbine : (T.Kind == TallKiosk || T.Height < 12.0)) continue;
+			// (beyond 10 km only the turbines and cooling towers; nearer, everything taller than a tree)
+			if (Detail < 0 ? (T.Kind != TallTurbine && T.Kind != TallCooling) : (T.Kind == TallKiosk || T.Kind == TallFlood || T.Height < 12.0)) continue;
 			Draw(T);
 		}
 	if (Detail < 1) return;
