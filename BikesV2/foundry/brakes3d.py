@@ -176,7 +176,7 @@ def drilled(c, rin, d, rows, n, hr, twist=0.0):
     out = []
     for k in range(n):
         for j in range(rows):
-            r = rin + w * (0.28 + 0.46 * j / max(1, rows - 1)) if rows > 1 else rin + w * 0.5
+            r = rin + w * (0.17 + 0.66 * j / max(1, rows - 1)) if rows > 1 else rin + w * 0.5
             t = 2 * math.pi * k / n + twist * j
             out.append(circle((c[0] + r * math.cos(t), c[1] + r * math.sin(t)), hr, 12))
     return out
@@ -233,6 +233,11 @@ def build_disc(key, tag, c, d, rin, y, M):
             side1 = [(c[0] + r * math.cos(t) - wsl * math.sin(t + 0.6), c[1] + r * math.sin(t) + wsl * math.cos(t + 0.6)) for r, t in pts]
             side2 = [(c[0] + r * math.cos(t) + wsl * math.sin(t + 0.6), c[1] + r * math.sin(t) - wsl * math.cos(t + 0.6)) for r, t in pts]
             holes.append(D.chaikin(side1 + side2[::-1], 1))
+        for j in range(ns):
+            for f in (0.3, 0.5, 0.7):
+                r = rin + (d - rin) * (0.22 + 0.58 * f)
+                t = 2 * math.pi * (j + 0.5) / ns + 0.32 * f
+                holes.append(circle((c[0] + r * math.cos(t), c[1] + r * math.sin(t)), hr * 0.9, 12))
         nt = 6 if d > 130 else 5
         r_big, r_tip = rh + (rin - rh) * 0.62, rh + 6
         for j in range(nt):
@@ -256,13 +261,13 @@ def build_disc(key, tag, c, d, rin, y, M):
     if key == "wave":
         nw = max(14, round(2 * math.pi * d / 36))
         outer = polar(c, lambda t: d - 2.6 * (1 - math.cos(nw * t)), nw * 12)
-        holes = [circle(c, rin, 128)] + drilled(c, rin, d, 2, nw, hr, 2 * math.pi / nw / 2)
+        holes = [circle(c, rin, 128)] + drilled(c, rin, d, max(3, int((d - rin) / 13)), nw, hr, 2 * math.pi / nw / 2)
     elif key == "lattice":
         outer = circle(c, d, 160)
-        holes = [circle(c, rin, 128)] + drilled(c, rin, d, 3, 16 if d > 130 else 12, hr * 0.9, 0.09)
+        holes = [circle(c, rin, 128)] + drilled(c, rin, d, max(3, int((d - rin) / 13)), round(2 * math.pi * d / 26), hr * 0.9, 0.07)
     else:   # star: notches in the ring's inner edge take the arm tips
         na = 5
-        hw = rin * 0.19
+        hw = rin * 0.11
 
         def ring_hole(x, z):
             r = math.hypot(x, z)
@@ -276,7 +281,7 @@ def build_disc(key, tag, c, d, rin, y, M):
                     return True
             return False
         outer = circle(c, d, 160)
-        holes = [march(c, ring_hole, rin + 6, 360)] + drilled(c, rin + 3, d, 2, 15 if d > 130 else 10, hr, 0.1)
+        holes = [march(c, ring_hole, rin + 6, 360)] + drilled(c, rin + 3, d, max(3, int((d - rin) / 13)), round(2 * math.pi * d / 28), hr, 0.07)
     shape(f"bk{tag}_rotor{y}", [outer] + holes, y - 2.5, y + 2.5, M["rotor"], 0.4)
     hub = circle(c, rh * 0.55, 48)
     if key == "wave":
@@ -291,11 +296,11 @@ def build_disc(key, tag, c, d, rin, y, M):
     elif key == "lattice":
         nb = 12 if d > 130 else 10
         nh = nb // 2
-        r_o, r_i = rin - 8, rh + 5
+        r_o, r_i = rin - 4.5, rh + 3
         O = [B.add(c, B.unit(360.0 / nb * j), r_o) for j in range(nb)]
         I_ = [B.add(c, B.unit(360.0 / nb * (2 * h + 1)), r_i) for h in range(nh)]
         car = [circle(c, rin - 0.6, 128), hub]
-        ws = max(4.0, rin * 0.05)
+        ws = max(2.4, rin * 0.028)
         for h in range(nh):
             for tri in ((I_[h], O[(2 * h) % nb], O[(2 * h + 1) % nb]), (I_[h], O[(2 * h + 1) % nb], O[(2 * h + 2) % nb]),
                         (I_[h], O[(2 * h + 2) % nb], I_[(h + 1) % nh])):
@@ -306,22 +311,22 @@ def build_disc(key, tag, c, d, rin, y, M):
 
         def star(x, z):
             r = math.hypot(x, z)
-            if r < rh + 16:
+            if r < rh + 8:
                 return True
             t = math.atan2(z, x)
             for j in range(5):
                 da = t - 2 * math.pi * j / 5
                 lat, lon = r * math.sin(da), r * math.cos(da)
-                wid = hw + (rin - lon) * 0.35 if lon < rin else hw
+                wid = hw + (rin - lon) * 0.12 if lon < rin else hw
                 if abs(lat) < wid and lon < rin + 4 and lon > 0:
                     return True
             return False
         car = [march(c, star, rin + 6, 360), hub]
         for j in range(5):
             t = 2 * math.pi * j / 5
-            r0, r1 = rh + 14, rin - 14
+            r0, r1 = rh + 10, rin - 8
             u, v = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
-            wsl = hw * 0.32
+            wsl = hw * 0.42
             pts = [(c[0] + u[0] * r + v[0] * sg * wsl * (0.7 + 0.3 * (r - r0) / (r1 - r0)), c[1] + u[1] * r + v[1] * sg * wsl * (0.7 + 0.3 * (r - r0) / (r1 - r0)))
                    for sg, rs in ((1, (r0, r1)), (-1, (r1, r0))) for r in rs]
             car.append(D.chaikin(pts, 3))
