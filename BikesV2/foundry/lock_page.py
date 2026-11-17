@@ -5,14 +5,18 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 s = open(os.path.join(ROOT, 'out', 'definition_proof.html')).read()
 head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<title>Steering Lock</title>')
-ROWS = [('Sport', 'Kazeda, Corvano, BSX, Varga', '4', '24', 'Scallops in the front corners of the tank'),
-        ('Cruiser', 'Lodestar, Corvano, Kazeda, Rheinhart', '10', '28', 'A shallow dish each side of the tank front'),
-        ('Adventure', 'Corvano, BSX, Kazeda, Rheinhart, Varga', '0', '26', 'Nose sides and the plates beside the screen eased back')]
-PICS = [('kazeda_sport', 'cockpit', 'Kazeda sport', 'The tank front now tucks in each side so the clip-ons, levers and switches swing past it.'),
-        ('lodestar_cruiser', 'cockpit', 'Lodestar cruiser', 'A dish each side of the tank front lets the levers and switch pods pass.'),
-        ('corvano_adventure', 'cockpit', 'Corvano adventure', 'The nose sides beside the bars are eased so the hand guards clear at rest and through the turn.'),
-        ('corvano_adventure', 'front34', 'Corvano adventure', 'From the front the face is unchanged.')]
-body = '<main>\n<div class="k">Bike Models V2 · Steering lock</div>\n<h1>Bars that can turn</h1>\n<p class="lede">On three families the bars touched the tank or fairing almost as soon as they turned. The bodywork is now relieved exactly where the bars, levers, switches and guards sweep, with 15 mm to spare. Nothing on the bars moved: pegs, hand points and controls are where you signed them off.</p>\n'
+ROWS = [('Sport', 'Kazeda, Corvano, BSX, Varga', '4', '24', 'Scallops in the front corners of the tank (unchanged from the last round)'),
+        ('Cruiser', 'Lodestar, Corvano, Kazeda, Rheinhart', '10', '28 to 30', 'Tanks back to their signed-off shape. Bars raised on taller risers: Lodestar 50 mm, Corvano 10 mm, Kazeda 80 mm, Rheinhart 85 mm'),
+        ('Adventure', 'Corvano, BSX, Kazeda, Rheinhart, Varga', '0', '26 to 30', 'Fairing back to its smooth shape. The flare now sits further forward, with a waist where the bars and hand guards swing')]
+PICS = [('lodestar_cruiser', 'cockpit', 'Lodestar cruiser', 'The tank is its smooth signed-off shape again. The bars sit 50 mm higher on longer risers, which is just enough for the levers and switch pods to pass over the tank.'),
+        ('lodestar_cruiser', 'side', 'Lodestar cruiser', 'From the side: the taller risers. Pegs and seat have not moved.'),
+        ('kazeda_cruiser', 'side', 'Kazeda cruiser', 'The biggest rise of the four cruisers, 80 mm.'),
+        ('corvano_adventure', 'cockpit', 'Corvano adventure', 'The fairing is smooth again. It narrows beside the bars and flares out ahead of them, so the hand guards swing in the waist.'),
+        ('corvano_adventure', 'front34', 'Corvano adventure', 'The flare is now forward, around the headlight and screen.'),
+        ('corvano_adventure', 'side', 'Corvano adventure', 'Side view of the reshaped nose.'),
+        ('kazeda_adventure', 'front34', 'Kazeda adventure', 'The same reshaped nose on a brand variant, here with the new carbon weave beak.'),
+        ('kazeda_sport', 'cockpit', 'Kazeda sport', 'Sport bikes keep the tank scallops from the last round.')]
+body = '<main>\n<div class="k">Bike Models V2 · Steering lock · Round 2</div>\n<h1>Bars that can turn</h1>\n<p class="lede">Second go, after your notes. The cruiser tanks are back to normal and the bars are raised just enough to clear them. The adventure fairings are back to normal too, with the flared shape moved towards the front so the bars turn in a narrower waist. Pegs and seats are where you signed them off. On the cruisers the hands rise with the bars.</p>\n'
 body += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><tr>' + ''.join(f'<th style="text-align:left;padding:6px 10px">{h}</th>' for h in ('Family', 'Bikes', 'Turned before', 'Turns now', 'What changed')) + '</tr>'
 for r in ROWS:
     body += '<tr>' + ''.join(f'<td style="padding:6px 10px;border-top:1px solid rgba(128,128,128,.35)">{c}{" degrees" if i in (2, 3) else ""}</td>' for i, c in enumerate(r)) + '</tr>'

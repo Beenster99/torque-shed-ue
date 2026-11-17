@@ -29,6 +29,11 @@ def carbon_weave():
     """Carbon fibre you can read as carbon (beenster, 17 Nov: "one or two beaks on adventure bikes could be carbon"):
     the library's own "carbon" surface (cat_carbon in the game) with a 2 x 2 twill of 3 mm tows laid over it under
     the clear coat. The game uses its own carbon material; this is for the pictures."""
+    try:
+        import carbon                      # the common parts thread's woven twill tiles (foundry/textures/carbon_twill_*)
+        return carbon.material()
+    except Exception as e:
+        print("carbon tiles not used:", e)
     key = "carbon__weave"
     if key in bpy.data.materials:
         return bpy.data.materials[key]

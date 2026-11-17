@@ -489,6 +489,10 @@ def wheel(tag, c, w, width, rim_col, discs):
             (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
     if not game_tyre(tag, c, w, hw):
         revolve(tag + "_tyre", prof, c, mat("rubber"))
+    for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+        if kv.split("=")[0] == "wheels":          # a trial fit: BIKE_BESPOKE="wheels=billet_reaper5:chrome"
+            st_ = kv.split("=")[1].split(":")
+            w = dict(w, style=st_[0], **({"finish": st_[1]} if len(st_) > 1 else {}))
     if DETAIL["on"] and w.get("style"):
         # a wheel from the library (wheels3d.py) at this bike's rim size; the bike keeps its tyre and discs
         import wheels3d
@@ -1171,13 +1175,25 @@ def build(model):
         if len(sp_) > 3 and sp_[-1][0] > sp_[-2][0]:
             sp_ = sp_[:-1]                # the drawn hook at the stop_ is the hoop's bend seen side on
         z0_, z1_ = sp_[0][1], sp_[-1][1]
-        ornate = model.get("detail", {}).get("sissy") == "ornate"
+        show_ = model.get("detail", {}).get("sissy")
+        show_ = [show_, model.get("detail", {}).get("sissy_metal", "chrome")] if show_ in ("chain", "scroll", "filigree") else None
+        for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+            if kv.split("=")[0] == "sissy":
+                show_ = (kv.split("=")[1].split(":") + ["chrome"])[:2]
+        ornate = model.get("detail", {}).get("sissy") == "ornate" or bool(show_)
         ys_ = [128 - 40 * min(1.0, (q[1] - z0_) / max(1.0, 700 - z0_)) - (6 if ornate else 30) * max(0.0, (q[1] - 700) / max(1.0, z1_ - 700)) for q in sp_]
         sleft = [(q[0], y, q[1]) for q, y in zip(sp_, ys_)]
         xt, zt, yt = sp_[-1][0], sp_[-1][1], ys_[-1]
         chrome_ = mat("chrome")
         f_ = lambda z: next(((a[0] + (b[0] - a[0]) * (z - a[2]) / (b[2] - a[2]), a[1] + (b[1] - a[1]) * (z - a[2]) / (b[2] - a[2])) for a, b in zip(sleft, sleft[1:]) if a[2] <= z <= b[2]), (sleft[-1][0], sleft[-1][1]))
-        if ornate:
+        if show_:
+            # the show bars to order (beenster, Nov 17): chain, scrollwork, filigree, in any of the four metals
+            import chopper_parts3d
+            chopper_parts3d.use(sys.modules[__name__])
+            chopper_parts3d.sissy_bar(show_[0], show_[1], sleft, sissy[0]["tube"] / 2)
+            chrome_ = chopper_parts3d.metal(show_[1])
+            straps = (sp_[-2][1] - 150, sp_[-2][1] - 20)
+        elif ornate:
             # a show sissy bar (beenster, chopper round 1: "elaborately designed"): the two uprights close in a pointed
             # arch with a spear finial, a centre bar with collars, and wrought scrolls between the bars above the pad
             ux_, uz_ = sp_[-1][0] - sp_[-2][0], sp_[-1][1] - sp_[-2][1]

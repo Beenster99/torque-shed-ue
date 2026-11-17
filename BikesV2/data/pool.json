@@ -874,7 +874,7 @@
   ]
  },
  "chopper_bespoke": {
-  "about": "Bespoke machined chopper parts, approved by beenster 17 Nov ('fantastic, perfect'). Built by foundry/chopper_parts3d.py; a model asks with detail.bespoke {\"pegs\": [design, metal], \"covers\": [...], \"lamps\": [...], \"engine\": [...]}. Every design comes in every metal.",
+  "about": "Bespoke machined chopper parts, approved by beenster 17 Nov ('fantastic, perfect'). Built by foundry/chopper_parts3d.py; a model asks with detail.bespoke {\"pegs\": [design, metal], \"covers\": [...], \"lamps\": [...], \"engine\": [...]}. Every design comes in every metal. Added 17 Nov: show sissy bars (detail.sissy chain/scroll/filigree with detail.sissy_metal) and billet wheels (a model wheel's style and finish; finishes chrome, steel_brushed, gold_bright, brass). Every wheel style passes the spoke-to-rim check (python3 foundry/wheels3d.py --check).",
   "families": [
    "Chopper"
   ],
@@ -957,6 +957,45 @@
     "key": "finned",
     "name": "Finned top",
     "note": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap."
+   }
+  ],
+  "sissy": [
+   {
+    "key": "chain",
+    "name": "Chain",
+    "note": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars."
+   },
+   {
+    "key": "scroll",
+    "name": "Scrollwork",
+    "note": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial."
+   },
+   {
+    "key": "filigree",
+    "name": "Filigree",
+    "note": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial."
+   }
+  ],
+  "wheels": [
+   {
+    "key": "billet_reaper5",
+    "name": "Five hooked blades"
+   },
+   {
+    "key": "billet_cyclone9",
+    "name": "Nine split blades"
+   },
+   {
+    "key": "billet_bloom8",
+    "name": "Crossed petals"
+   },
+   {
+    "key": "billet_fang6",
+    "name": "Six leaf blades with a rib"
+   },
+   {
+    "key": "billet_twist7",
+    "name": "Seven s blades"
    }
   ]
  }

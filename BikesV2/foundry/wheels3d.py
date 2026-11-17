@@ -108,13 +108,13 @@ STYLES = {
         dict(curve=True, pts=[(0, -8, 10, 0.9), (0.3, 6, 10, 0.75), (0.62, 30, 8, 0.6), (0.8, 45, 7, 0.5)]),
         dict(curve=True, pts=[(0.74, 40, 5.5, 0.5), (0.88, 49, 5, 0.47), (1, 53, 5, 0.45)]),
         dict(curve=True, pts=[(0.74, 40, 5.5, 0.5), (0.88, 58, 5, 0.47), (1, 69, 5, 0.45)])]),
-    "billet_bloom8": dict(label="Billet: crossed petals", ref=0, flare=0.7, wk=1.0, n=8, finish="chrome", rim=0, hub="flange", sizes=((21, 2.15), (18, 5.5)), bars=[
+    "billet_bloom8": dict(label="Billet: crossed petals", ref=0, flare=0.7, wk=1.0, n=8, finish="gold_bright", rim=0, hub="flange", sizes=((21, 2.15), (18, 5.5)), bars=[
         dict(curve=True, pts=[(0, 0, 8, 0.9), (0.35, 14, 7.5, 0.72), (0.7, 38, 7, 0.55), (1, 52, 7, 0.45)]),
         dict(curve=True, pts=[(0, 0, 8, 0.9), (0.35, -14, 7.5, 0.72), (0.7, -38, 7, 0.55), (1, -52, 7, 0.45)])]),
-    "billet_fang6": dict(label="Billet: six leaf blades with a rib", ref=0, flare=0.6, wk=1.0, n=6, finish="chrome", rim=0, hub="slim", sizes=((21, 2.15), (18, 5.5)), bars=[
+    "billet_fang6": dict(label="Billet: six leaf blades with a rib", ref=0, flare=0.6, wk=1.0, n=6, finish="brass", rim=0, hub="slim", sizes=((21, 2.15), (18, 5.5)), bars=[
         dict(curve=True, pts=[(0, -4, 11, 0.9), (0.3, 4, 23, 0.72), (0.55, 16, 25, 0.6), (0.8, 30, 13, 0.5), (1, 36, 9, 0.45)]),
         dict(curve=True, pts=[(0, -24, 6, 0.9), (0.5, -8, 5, 0.6), (1, 8, 5, 0.45)])]),
-    "billet_twist7": dict(label="Billet: seven S blades", ref=0, flare=0.9, wk=1.0, n=7, finish="chrome", rim=0, hub="tall", sizes=((21, 2.15), (18, 5.5)), bars=[
+    "billet_twist7": dict(label="Billet: seven S blades", ref=0, flare=0.9, wk=1.0, n=7, finish="steel_brushed", rim=0, hub="tall", sizes=((21, 2.15), (18, 5.5)), bars=[
         dict(curve=True, pts=[(0, 10, 13, 0.9), (0.3, -12, 12, 0.75), (0.6, 4, 10, 0.6), (0.85, 30, 8, 0.5), (1, 42, 8, 0.45)])]),
     # wire-spoked wheels (beenster, 16 Nov: five more rims with spoke variations, mainly for MX and adventure bikes).
     # "wire": n spokes laced "cross" times, "gauge" the spoke's radius in mm, a rim section, a hub, and what the
@@ -432,6 +432,9 @@ def fit(b, tag, c, w, tyre_width):
     centred on the axle c (x, z). The bike keeps its own tyre, discs and valve."""
     use(b)
     objs = wheel(tag, w["style"], w["rim_r"] * 2 / INCH, tyre_width * (0.6 if STYLES[w["style"]].get("wire") else 0.76) / INCH, tag == "rear", w.get("finish"))
+    if os.environ.get("BIKE_RIMCHECK"):
+        f_ = rim_check(tag, w["style"])           # the spokes must meet the rim at this bike's own rim size too
+        print(f"RIMCHECK fit {w['style']} {tag} {'ok' if not f_ else 'FAULTS ' + str(len(f_))}", f_[:4], flush=True)
     keep = []
     for o in objs:
         if o.name.startswith(tag + "_valve"):

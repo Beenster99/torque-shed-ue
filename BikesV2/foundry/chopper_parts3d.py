@@ -426,6 +426,167 @@ def fit_engine(model, style, fin):
     return made
 
 
+SISSY = {
+    "chain": dict(label="Chain", note="Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars."),
+    "scroll": dict(label="Scrollwork", note="A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial."),
+    "filigree": dict(label="Filigree", note="A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial."),
+}
+
+
+def sissy_bar(style, fin, sleft, r_tube=6.0, tag="sissy"):
+    """A show sissy bar from the left upright's points (x, y, z), axle plate first: same feet, same lean, the
+    back rest straps stay where they were. Everything above the last point is the design. Returns the names made."""
+    m = metal(fin)
+    made = []
+    (x1, y1, z1), (xt, yt, zt) = sleft[-2], sleft[-1]
+    ul = math.hypot(xt - x1, zt - z1)
+    ux, uz = (xt - x1) / ul, (zt - z1) / ul
+    nx, nz = uz, -ux                                      # the bar's face, pointing forwards and up
+    P = lambda d, y, o=0.0: (xt + ux * d + nx * o, y, zt + uz * d + nz * o)
+    wid = lambda d: y1 + (yt - y1) * (d + ul) / ul          # the upright's own half width at d
+    add = lambda o: (made.append(o.name), o)[1]
+    low = -ul + 30                                        # just above the back rest pad
+
+    def spiral(name, cd, cy, R, turn, a0, n_turn=1.35, r=3.4, sgn=1):
+        pts = []
+        for j in range(29):
+            t = j / 28
+            w, rad = a0 + turn * t * 2 * math.pi * n_turn, R * (1 - 0.74 * t)
+            pts.append(P(cd + rad * math.sin(w), sgn * (cy + rad * math.cos(w))))
+        add(B.smooth_tube(name, pts, r, m))
+
+    if style == "chain":
+        # the path: up the left side, over a flat-shouldered top, down the right
+        half = list(sleft) + [P(50, yt), P(92, yt * 0.9), P(118, yt * 0.55), P(128, 0.0)]
+        path = half + [(q[0], -q[1], q[2]) for q in half[-2::-1]]
+        add(B.tube(f"{tag}foot1", [sleft[0], tuple(a + (b - a) * 0.12 for a, b in zip(sleft[0], sleft[1]))], r_tube + 1.5, m))
+        add(B.tube(f"{tag}foot-1", [(q[0], -q[1], q[2]) for q in (sleft[0], tuple(a + (b - a) * 0.12 for a, b in zip(sleft[0], sleft[1])))], r_tube + 1.5, m))
+
+        def chain(name, pts, r=5.0, hl=16.0, re=11.0, first=0):
+            from mathutils import Vector
+            pv = [Vector(q) for q in pts]
+            seg = [(b - a).length for a, b in zip(pv, pv[1:])]
+            tot, pitch = sum(seg), 2 * (hl + re) - 2 * r
+            n = max(1, round(tot / pitch))
+            nrm = Vector((nx, 0.0, nz))
+            for k in range(n):
+                d = tot * (k + 0.5) / n
+                i = 0
+                while i < len(seg) - 1 and d > seg[i]:
+                    d -= seg[i]
+                    i += 1
+                t = (pv[i + 1] - pv[i]).normalized()
+                c = pv[i] + t * d
+                side = t.cross(nrm).normalized()
+                w = side if (k + first) % 2 == 0 else t.cross(side).normalized()
+                loop = []
+                for j in range(32):
+                    a = 2 * math.pi * j / 32
+                    ca, sa = math.cos(a), math.sin(a)
+                    q = c + t * (re * ca + (hl if ca > 0 else -hl)) + w * (re * sa)
+                    loop.append(tuple(q))
+                add(B.tube(f"{name}{k}", loop, r, m, cyclic=True))
+        chain(f"{tag}link", path[1:] if False else [tuple(a + (b - a) * 0.1 for a, b in zip(path[0], path[1]))] + path[1:-1] + [tuple(a + (b - a) * 0.1 for a, b in zip(path[-1], path[-2]))])
+        for k, d in enumerate((low + 14, -18.0)):
+            w_ = wid(d)
+            chain(f"{tag}cross{k}_", [P(d, -w_ + 4), P(d, w_ - 4)], first=1)
+    elif style == "scroll":
+        half = list(sleft) + [P(60, yt), P(118, yt * 0.94), P(166, yt * 0.62), P(188, 0.0)]
+        add(B.smooth_tube(f"{tag}bar", half + [(q[0], -q[1], q[2]) for q in half[-2::-1]], r_tube, m))
+        for sgn in (1, -1):
+            for k, (cd, turn, a0) in enumerate(((low + 42, 1, 0.0), (low + 118, -1, 0.0))):
+                w_ = wid(cd) - r_tube - 3.0
+                R = (w_ - 3.4) / 2
+                spiral(f"{tag}scroll{k}{sgn}", cd, w_ - R, R, turn, 0.0, sgn=sgn)
+            spiral(f"{tag}leaf{sgn}", 20.0, yt * 0.5, yt * 0.5 - r_tube - 3.4, 1, 0.0, 1.1, 3.0, sgn)
+        for k, d in enumerate((low + 42, low + 118)):
+            add(B.cone(f"{tag}knot{k}", P(d - 9, 0.0), P(d + 9, 0.0), 6.5, 6.5, m, 16))
+        dm = low + 80
+        add(B.cone(f"{tag}lozengea", P(dm - 20, 0.0), P(dm, 0.0), 0.6, 9, m, 4))
+        add(B.cone(f"{tag}lozengeb", P(dm, 0.0), P(dm + 20, 0.0), 9, 0.6, m, 4))
+        # the medallion: a ring in the round of the hoop with an eight point star and a stone
+        cm, rm = 112.0, 40.0
+        add(B.tube(f"{tag}ring", [P(cm + rm * math.sin(2 * math.pi * j / 40), rm * math.cos(2 * math.pi * j / 40)) for j in range(40)], 4.2, m, cyclic=True))
+        for j in range(8):
+            a = 2 * math.pi * j / 8
+            tip = rm - 4.0 if j % 2 == 0 else rm * 0.62
+            add(B.cone(f"{tag}ray{j}", P(cm, 0.0), P(cm + tip * math.sin(a), tip * math.cos(a)), 7.5, 0.8, m, 4))
+        for o in (1, -1):
+            add(B.cone(f"{tag}boss{o}", P(cm, 0.0), P(cm, 0.0, o * 9), 13, 7, m, 8))
+        add(B.sphere(f"{tag}stone", P(cm, 0.0, 9), 6.5, D.surf("chop_stone", (0.5, 0.02, 0.03), 0.0, 0.08)))
+        for j, tip in enumerate(((cm + rm, 0.0), (cm - rm, 0.0), (cm, rm), (cm, -rm))):
+            pass
+        top = 188.0
+        add(B.cone(f"{tag}finial0", P(top - 4, 0.0), P(top + 10, 0.0), 8, 5, m, 20))
+        add(B.sphere(f"{tag}finial1", P(top + 22, 0.0), 13, m))
+        add(B.cone(f"{tag}finial2", P(top + 32, 0.0), P(top + 60, 0.0), 5, 0.6, m, 16))
+    else:
+        apex = 190.0
+        wtop = lambda d: yt if d <= 40 else yt * max(0.0, 1 - ((d - 40) / (apex - 40)) ** 1.6)
+        w_at = lambda d: wid(d) if d <= 0 else wtop(d)
+        half = list(sleft) + [P(d, wtop(d)) for d in (20, 40, 70, 100, 130, 155, 175, apex)]
+        for sgn in (1, -1):
+            add(B.smooth_tube(f"{tag}bar{sgn}", [(q[0], sgn * q[1], q[2]) for q in half], r_tube, m))
+        add(B.tube(f"{tag}sill", [P(low, -wid(low)), P(low, wid(low))], 4.5, m))
+        # the lattice: thin rods on the diagonal, cut round the oval boss, a rosette on every crossing
+        ce, ea, eb, sp = low + 105, 50.0, 34.0, 30.0
+        inside = lambda d, y: low + 2 <= d and abs(y) <= w_at(d) - r_tube + 2 and ((d - ce) / ea) ** 2 + (y / eb) ** 2 >= 1.0
+        k = 0
+        for fam in (1, -1):
+            for c in range(-12, 16):
+                run = []
+                for i in range(0, 421):
+                    d = low + i
+                    y = fam * (d - (low + c * sp))
+                    if inside(d, y):
+                        run.append(P(d, y))
+                    if run and (not inside(d, y) or i == 420):
+                        if len(run) > 6:
+                            add(B.tube(f"{tag}rod{k}", [run[0], run[-1]], 2.2, m))
+                            k += 1
+                        run = []
+        k = 0
+        for c1 in range(-12, 16):
+            for c2 in range(-12, 16):
+                d, y = low + (c1 + c2) * sp / 2, (c2 - c1) * sp / 2
+                if inside(d, y) and abs(y) <= w_at(d) - r_tube - 5 and ((d - ce) / (ea + 6)) ** 2 + (y / (eb + 6)) ** 2 >= 1.0:
+                    add(B.cone(f"{tag}rose{k}", P(d, y, -3.4), P(d, y, 3.4), 5.2, 5.2, m, 6))
+                    k += 1
+        add(B.tube(f"{tag}oval", [P(ce + ea * math.sin(2 * math.pi * j / 48), eb * math.cos(2 * math.pi * j / 48)) for j in range(48)], 4.0, m, cyclic=True))
+        for o in (1, -1):
+            add(B.cone(f"{tag}boss{o}", P(ce, 0.0), P(ce, 0.0, o * 10), 20, 9, m, 6))
+        for j in range(4):
+            a = math.pi / 2 * j
+            add(B.cone(f"{tag}stay{j}", P(ce + 18 * math.sin(a), 18 * math.cos(a)), P(ce + (ea if j % 2 else eb) * math.sin(a), (ea if j % 2 else eb) * math.cos(a)), 3.2, 2.2, m, 12))
+        add(B.cone(f"{tag}finial0", P(apex - 8, 0.0), P(apex + 6, 0.0), 9, 9, m, 20))
+        add(B.cone(f"{tag}finial1", P(apex + 6, 0.0), P(apex + 12, 0.0), 6, 6, m, 20))
+        add(B.cone(f"{tag}finial2", P(apex + 12, 0.0), P(apex + 36, 0.0), 6, 17, m, 24))
+        add(B.cone(f"{tag}finial3", P(apex + 36, 0.0), P(apex + 104, 0.0), 17, 0.6, m, 24))
+    return made
+
+
+def sissy_sheet(samples=48):
+    """The three show bars, each in two metals, standing upright from the back rest up."""
+    import build3d
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    build3d._mats.clear()
+    use(build3d)
+    for c_, (st, fin) in enumerate((("chain", "chrome"), ("scroll", "chrome"), ("filigree", "chrome"), ("chain", "steel"), ("scroll", "brass"), ("filigree", "gold"))):
+        made = sissy_bar(st, fin, [(0.0, 92.0, -520.0), (0.0, 88.0, -190.0), (0.0, 84.0, 0.0)], tag=f"s{c_}")
+        e = bpy.data.objects.new("bay", None)
+        bpy.context.collection.objects.link(e)
+        for n in made:
+            o = bpy.data.objects.get(n)
+            if o is not None:
+                o.parent = e
+        e.location = (0, (2.5 - c_) * 0.25, 0)
+    sc = _studio(2200, 1000, samples, (-2.75, 0.0, 0.2), (0.0, 0.0, 0.055), 60, -0.5)
+    os.makedirs(OUT, exist_ok=True)
+    sc.render.filepath = os.path.join(OUT, "sissy.png")
+    bpy.ops.render.render(write_still=True)
+    return sc.render.filepath
+
+
 def _studio(w, h, samples, cam_loc, cam_tgt, lens, floor_z):
     from mathutils import Vector
     sc = bpy.context.scene
@@ -497,3 +658,5 @@ if __name__ == "__main__":
         print(covers_sheet())
     elif what == "lamps":
         print(lamps_sheet())
+    elif what == "sissy":
+        print(sissy_sheet(int(sys.argv[2]) if len(sys.argv) > 2 else 48))
