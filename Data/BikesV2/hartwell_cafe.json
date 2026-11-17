@@ -1015,7 +1015,7 @@
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_drl",
-   "tag": "lens_white",
+   "tag": "lens_drl",
    "ue": "lens_clear",
    "sub": "headlamp"
   },

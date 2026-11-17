@@ -5049,7 +5049,7 @@ int BikeParts::V2Lamps(const PartsMap& Parts, std::vector<FittedPart>& Out) cons
 		if (!P.Made || P.Slot == "dashboard" || P.Slot == "fog_lights" || !P.Gauge.empty()) continue;   // (a fog lamp is no headlamp)
 		for (const PartSurface& S : P.Made->Surfaces)
 		{
-			bWhite = bWhite || Tagged(S, "lens_white");
+			bWhite = bWhite || Tagged(S, "lens_white") || Tagged(S, "lens_drl");   // (a lamp that is only a DRL ring is still a headlamp)
 			bRed = bRed || Tagged(S, "lens_red");
 		}
 	}
