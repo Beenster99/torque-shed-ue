@@ -1449,6 +1449,305 @@
    "colours": 2,
    "file": "art/crown.png",
    "thumb": "thumbs/crown.png"
+  },
+  {
+   "id": "lightning_skull",
+   "shelf": "art",
+   "name": "Skull and lightning",
+   "tags": [
+    "skull",
+    "lightning",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/lightning_skull.png",
+   "thumb": "thumbs/lightning_skull.png"
+  },
+  {
+   "id": "skeleton_key",
+   "shelf": "art",
+   "name": "Skeleton key",
+   "tags": [
+    "key",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skeleton_key.png",
+   "thumb": "thumbs/skeleton_key.png"
+  },
+  {
+   "id": "padlock_heart",
+   "shelf": "art",
+   "name": "Padlocked heart",
+   "tags": [
+    "heart",
+    "lock",
+    "love"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/padlock_heart.png",
+   "thumb": "thumbs/padlock_heart.png"
+  },
+  {
+   "id": "scythe",
+   "shelf": "art",
+   "name": "Scythe",
+   "tags": [
+    "scythe",
+    "death",
+    "reaper"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/scythe.png",
+   "thumb": "thumbs/scythe.png"
+  },
+  {
+   "id": "candle",
+   "shelf": "art",
+   "name": "Candle",
+   "tags": [
+    "candle",
+    "gothic",
+    "light"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/candle.png",
+   "thumb": "thumbs/candle.png"
+  },
+  {
+   "id": "death_moth",
+   "shelf": "art",
+   "name": "Death's-head moth",
+   "tags": [
+    "moth",
+    "death",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/death_moth.png",
+   "thumb": "thumbs/death_moth.png"
+  },
+  {
+   "id": "cog_skull",
+   "shelf": "art",
+   "name": "Skull in a cog",
+   "tags": [
+    "skull",
+    "cog",
+    "garage",
+    "engine"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/cog_skull.png",
+   "thumb": "thumbs/cog_skull.png"
+  },
+  {
+   "id": "piston_wings",
+   "shelf": "art",
+   "name": "Winged piston",
+   "tags": [
+    "piston",
+    "engine",
+    "wings",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/piston_wings.png",
+   "thumb": "thumbs/piston_wings.png"
+  },
+  {
+   "id": "chain_ring",
+   "shelf": "art",
+   "name": "Chain ring",
+   "tags": [
+    "chain",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chain_ring.png",
+   "thumb": "thumbs/chain_ring.png"
+  },
+  {
+   "id": "shield_swords",
+   "shelf": "art",
+   "name": "Shield and swords",
+   "tags": [
+    "shield",
+    "sword",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/shield_swords.png",
+   "thumb": "thumbs/shield_swords.png"
+  },
+  {
+   "id": "heart_banner",
+   "shelf": "art",
+   "name": "Heart and banner",
+   "tags": [
+    "heart",
+    "banner",
+    "lettering"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/heart_banner.png",
+   "thumb": "thumbs/heart_banner.png"
+  },
+  {
+   "id": "rose_banner",
+   "shelf": "art",
+   "name": "Rose and banner",
+   "tags": [
+    "rose",
+    "banner",
+    "lettering"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rose_banner.png",
+   "thumb": "thumbs/rose_banner.png"
+  },
+  {
+   "id": "skull_crown",
+   "shelf": "art",
+   "name": "Crowned skull",
+   "tags": [
+    "skull",
+    "crown",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_crown.png",
+   "thumb": "thumbs/skull_crown.png"
+  },
+  {
+   "id": "wave",
+   "shelf": "art",
+   "name": "Great wave",
+   "tags": [
+    "wave",
+    "sea",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/wave.png",
+   "thumb": "thumbs/wave.png"
+  },
+  {
+   "id": "rosary",
+   "shelf": "art",
+   "name": "Rosary",
+   "tags": [
+    "rosary",
+    "cross",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rosary.png",
+   "thumb": "thumbs/rosary.png"
+  },
+  {
+   "id": "scorpion",
+   "shelf": "art",
+   "name": "Scorpion",
+   "tags": [
+    "scorpion",
+    "tattoo",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/scorpion.png",
+   "thumb": "thumbs/scorpion.png"
+  },
+  {
+   "id": "spider",
+   "shelf": "art",
+   "name": "Spider",
+   "tags": [
+    "spider",
+    "gothic",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/spider.png",
+   "thumb": "thumbs/spider.png"
+  },
+  {
+   "id": "cobra",
+   "shelf": "art",
+   "name": "Cobra",
+   "tags": [
+    "snake",
+    "cobra",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/cobra.png",
+   "thumb": "thumbs/cobra.png"
+  },
+  {
+   "id": "wrench_screwdriver",
+   "shelf": "art",
+   "name": "Spanner and screwdriver",
+   "tags": [
+    "tools",
+    "garage",
+    "spanner"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/wrench_screwdriver.png",
+   "thumb": "thumbs/wrench_screwdriver.png"
+  },
+  {
+   "id": "fuel_can",
+   "shelf": "art",
+   "name": "Fuel can",
+   "tags": [
+    "fuel",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/fuel_can.png",
+   "thumb": "thumbs/fuel_can.png"
   }
  ]
 }

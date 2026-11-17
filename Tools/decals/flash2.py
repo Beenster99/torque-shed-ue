@@ -381,3 +381,324 @@ def crown():
     for x in (150, 256, 362):
         k.black(ellipse(x, 390, 20, 14))
     return k.decal("crown", "Crown", ["crown", "king"])
+
+
+# =============================================================================== third sheet
+
+
+def winged(cx, cy, root_dx, span, wd, n=5):
+    from dk import feather, painter
+    pieces = []
+    for i in range(n):
+        s = i / (n - 1)
+        pieces.append(feather((cx + root_dx + 12 * s, cy - 20 * s), -6 - 30 * s, span * (1 - 0.4 * s), wd, curve=-0.06))
+    fill, line = painter(pieces, INK)
+    w = Parts()
+    w.fill, w.line = sym_x(fill, cx), sym_x(line, cx)
+    return w
+
+
+@art
+def lightning_skull():
+    k = Parts()
+    bolt = poly([(380, 10), (130, 280), (250, 280), (110, 502), (410, 220), (300, 220), (470, 10)])
+    k.lay(bolt)
+    k.tone(inter(bolt, rect(270, 0, 512, 512)))
+    k.merge(skull(270, 260, 115))
+    return k.decal("lightning_skull", "Skull and lightning", ["skull", "lightning", "death"])
+
+
+@art
+def skeleton_key():
+    k = Parts()
+    bow = union(circle(130, 256, 80))
+    k.lay(bow)
+    k.black(circle(130, 256, 44))
+    k.black(union(*(circle(130 + 62 * math.cos(math.radians(a)), 256 + 62 * math.sin(math.radians(a)), 9) for a in range(0, 360, 45))))
+    shaft = rect(200, 238, 450, 274, 8)
+    k.lay(shaft)
+    k.lay(rect(200, 226, 222, 286, 4))
+    bit = poly([(400, 274), (450, 274), (450, 360), (430, 360), (430, 330), (412, 330), (412, 360), (400, 360)])
+    k.lay(bit)
+    k.tone(inter(union(shaft, bit), rect(0, 256, 512, 512)))
+    return k.decal("skeleton_key", "Skeleton key", ["key", "gothic"])
+
+
+@art
+def padlock_heart():
+    k = Parts()
+    k.lay(diff(ellipse(256, 150, 90, 100), ellipse(256, 150, 58, 70), rect(150, 170, 362, 300)))
+    h = heart(256, 300, 170)
+    k.lay(h)
+    k.tone(inter(h, rect(256, 0, 512, 512)))
+    k.black(union(circle(256, 300, 22), poly([(246, 300), (266, 300), (274, 370), (238, 370)])))
+    return k.decal("padlock_heart", "Padlocked heart", ["heart", "lock", "love"])
+
+
+@art
+def scythe():
+    k = Parts()
+    k.lay(taper(spline([(330, 490), (300, 300), (280, 120), (290, 40)], 12), 22, 22, 22, ends="round"))
+    blade = smooth([(285, 70), (180, 40), (70, 80), (30, 160), (110, 110), (200, 100), (282, 118)], 10)
+    k.lay(blade)
+    k.tone(inter(blade, rect(0, 0, 512, 92)))
+    k.lay(rect(268, 330, 312, 346, 6))
+    return k.decal("scythe", "Scythe", ["scythe", "death", "reaper"])
+
+
+@art
+def candle():
+    k = Parts()
+    body = smooth([(196, 200), (316, 200), (318, 460), (194, 460)], 6)
+    k.lay(rect(196, 190, 316, 460, 6))
+    for x, L in ((214, 60), (262, 110), (300, 40)):
+        drip = union(rect(x - 12, 190, x + 12, 190 + L, 12), circle(x, 190 + L, 13))
+        k.tone(drip)
+    k.lay(rect(150, 455, 362, 485, 10))
+    k.ink(stroke(line_path([(256, 190), (256, 160)]), FINE * 1.3))
+    flame = smooth([(256, 60), (286, 130), (276, 162), (256, 170), (236, 162), (226, 130)], 10)
+    k.lay(flame)
+    k.black(ellipse(256, 145, 9, 18))
+    return k.decal("candle", "Candle", ["candle", "gothic", "light"])
+
+
+@art
+def death_moth():
+    k = Parts()
+    for sg in (1, -1):
+        upper = smooth([(256, 230), (256 + sg * 60, 150), (256 + sg * 200, 110), (256 + sg * 230, 170), (256 + sg * 150, 260)], 10)
+        lower = smooth([(256, 260), (256 + sg * 140, 270), (256 + sg * 180, 340), (256 + sg * 110, 380), (256 + sg * 40, 320)], 10)
+        k.lay(lower)
+        k.tone(inter(lower, grow(lower, -18)))
+        k.lay(upper)
+        k.tone(inter(upper, ellipse(256 + sg * 190, 150, 40, 30)))
+        k.black(circle(256 + sg * 150, 180, 14))
+    body = ellipse(256, 270, 34, 110)
+    k.lay(body)
+    k.lay(circle(256, 160, 30))
+    # the skull mark on its back
+    k.black(union(circle(244, 240, 8), circle(268, 240, 8), rect(246, 262, 266, 268, 2)))
+    for sg in (1, -1):
+        k.ink(taper(spline([(256 + sg * 10, 135), (256 + sg * 40, 80), (256 + sg * 80, 70)], 10), FINE, 1, FINE, ends="tip"))
+    return k.decal("death_moth", "Death's-head moth", ["moth", "death", "gothic"], w=512, h=512)
+
+
+@art
+def cog_skull():
+    k = Parts()
+    teeth = []
+    for i in range(12):
+        a = i * 30
+        teeth.append(xform(rect(-22, -230, 22, -180, 4), rot=a, tx=256, ty=256, cx=0, cy=0))
+    cog = diff(union(circle(256, 256, 200), *teeth), circle(256, 256, 160))
+    k.lay(cog)
+    k.tone(inter(cog, rect(256, 0, 512, 512)))
+    k.merge(skull(256, 262, 115))
+    return k.decal("cog_skull", "Skull in a cog", ["skull", "cog", "garage", "engine"])
+
+
+@art
+def piston_wings():
+    k = Parts()
+    k.merge(winged(256, 240, 60, 210, 46))
+    p = Parts()
+    crown = rect(196, 120, 316, 250, 12)
+    p.lay(crown)
+    for y in (140, 160, 180):
+        p.ink(stroke(line_path([(196, y), (316, y)]), FINE))
+    p.black(circle(256, 215, 14))
+    p.lay(rect(240, 250, 272, 400, 6))
+    p.lay(circle(256, 410, 36))
+    p.black(circle(256, 410, 16))
+    p.tone(inter(union(crown, rect(240, 250, 272, 400)), rect(256, 0, 512, 512)))
+    k.merge(p)
+    return k.decal("piston_wings", "Winged piston", ["piston", "engine", "wings", "garage"])
+
+
+@art
+def chain_ring():
+    k = Parts()
+    n = 14
+    for i in range(n):
+        a = i * 360 / n
+        cx = 256 + 180 * math.cos(math.radians(a))
+        cy = 256 + 180 * math.sin(math.radians(a))
+        link = diff(ellipse(0, 0, 46, 24), ellipse(0, 0, 30, 10))
+        if i % 2:
+            link = diff(ellipse(0, 0, 46, 20), ellipse(0, 0, 32, 8))
+        k.lay(xform(link, rot=a + 90, tx=cx, ty=cy, cx=0, cy=0))
+    return k.decal("chain_ring", "Chain ring", ["chain", "garage"])
+
+
+@art
+def shield_swords():
+    k = Parts()
+    for sg in (1, -1):
+        k.merge(dagger(256 - sg * 200, 60, 256 + sg * 180, 470, 26))
+    sh = smooth([(150, 110), (256, 90), (362, 110), (362, 260), (320, 360), (256, 420), (192, 360), (150, 260)], 10)
+    k.lay(sh)
+    k.tone(inter(sh, rect(256, 0, 512, 512)))
+    k.lay(grow(sh, -26), FINE, fill=True)
+    k.black(union(rect(244, 140, 268, 370, 4), rect(180, 210, 332, 234, 4)))
+    return k.decal("shield_swords", "Shield and swords", ["shield", "sword", "gothic"])
+
+
+@art
+def heart_banner():
+    k = Parts()
+    h = heart(256, 250, 200)
+    k.lay(h)
+    k.tone(inter(h, rect(256, 0, 512, 512)))
+    k.merge(banner(256, 280, 480, 80))
+    return k.decal("heart_banner", "Heart and banner", ["heart", "banner", "lettering"])
+
+
+@art
+def rose_banner():
+    k = Parts()
+    k.merge(rose(256, 200, 140))
+    k.merge(banner(256, 380, 480, 80))
+    return k.decal("rose_banner", "Rose and banner", ["rose", "banner", "lettering"])
+
+
+@art
+def skull_crown():
+    k = Parts()
+    k.merge(skull(256, 310, 140))
+    c = Parts()
+    pts = [(140, 200), (140, 70), (198, 140), (256, 40), (314, 140), (372, 70), (372, 200)]
+    cr = poly(pts)
+    c.lay(cr)
+    c.tone(inter(cr, rect(256, 0, 512, 512)))
+    for x, y in ((140, 62), (256, 32), (372, 62)):
+        c.lay(circle(x, y, 16))
+    c.black(union(*(ellipse(x, 176, 14, 10) for x in (180, 256, 332))))
+    k.merge(c)
+    return k.decal("skull_crown", "Crowned skull", ["skull", "crown", "death"])
+
+
+@art
+def wave():
+    k = Parts()
+    body = smooth([(30, 450), (60, 300), (160, 160), (300, 100), (420, 130), (470, 210), (420, 260), (360, 220), (330, 260), (360, 330),
+                   (440, 380), (480, 450)], 10)
+    k.lay(body)
+    k.tone(inter(body, rect(0, 330, 512, 512)))
+    k.ink(taper(curl(400, 200, 50, turns=1.1, sign=-1, start=0.3), INK, 1, ends="tip"))
+    for i in range(4):
+        k.ink(taper(spline([(80 + 40 * i, 440), (120 + 40 * i, 330), (200 + 40 * i, 230)], 10), FINE, 1, FINE, ends="tip"))
+    for x, y, r in ((470, 150, 14), (490, 190, 9), (440, 110, 11)):
+        k.lay(circle(x, y, r))
+    return k.decal("wave", "Great wave", ["wave", "sea", "tattoo"])
+
+
+@art
+def rosary():
+    k = Parts()
+    for i in range(22):
+        a = math.radians(-60 + i * 300 / 21)
+        k.lay(circle(256 + 150 * math.cos(a) * 0.9, 190 + 150 * math.sin(a), 13))
+    k.lay(rect(244, 330, 268, 480, 4))
+    k.lay(rect(196, 370, 316, 394, 4))
+    k.lay(circle(256, 330, 18))
+    return k.decal("rosary", "Rosary", ["rosary", "cross", "gothic"])
+
+
+@art
+def scorpion():
+    k = Parts()
+    for sg in (1, -1):
+        for dy in (230, 265, 300, 335):
+            leg = [(256 + sg * 40, dy), (256 + sg * 100, dy - 14), (256 + sg * 130, dy + 34)]
+            k.lay(taper(leg, 14, 7, 12, ends="round"))
+        arm = [(256 + sg * 30, 180), (256 + sg * 90, 150), (256 + sg * 110, 90)]
+        k.lay(taper(spline(arm, 10), 22, 18, 22, ends="round"))
+        claw = diff(ellipse(256 + sg * 115, 60, 34, 46), poly([(256 + sg * 115, 60), (256 + sg * 100, 10), (256 + sg * 130, 10)]))
+        k.lay(claw)
+    tail = [(256, 360), (262, 440), (330, 480), (410, 440), (430, 350), (390, 270)]
+    t = taper(spline(tail, 14), 44, 22, 36, ends="round")
+    k.lay(t)
+    sp = spline(tail, 14)
+    for i in range(6, len(sp) - 2, 8):
+        x, y = sp[i]
+        k.ink(circle(x, y, 4))
+    k.lay(poly([(398, 284), (340, 250), (380, 236)]))
+    segs = [(256, 330, 50, 36), (256, 270, 54, 40), (256, 210, 48, 34)]
+    for x, y, rx, ry in segs:
+        k.lay(ellipse(x, y, rx, ry))
+    k.black(union(circle(244, 186, 6), circle(268, 186, 6)))
+    k.tone(inter(union(*(ellipse(x, y, rx, ry) for x, y, rx, ry in segs)), rect(256, 0, 512, 512)))
+    return k.decal("scorpion", "Scorpion", ["scorpion", "tattoo", "death"])
+
+
+@art
+def spider():
+    k = Parts()
+    for sg in (1, -1):
+        for i, (ax, ay, bx, by) in enumerate(((60, -40, 140, -120), (70, -10, 170, -40), (70, 20, 170, 80), (60, 50, 130, 160))):
+            leg = [(256 + sg * 20, 250 + ay * 0.3), (256 + sg * ax, 250 + ay), (256 + sg * bx, 250 + by)]
+            k.lay(taper(leg, 16, 6, 14, ends="round"))
+    k.lay(ellipse(256, 320, 70, 90))
+    k.lay(ellipse(256, 210, 44, 40))
+    k.black(poly([(256, 270), (280, 310), (256, 330), (232, 310)]))
+    k.black(poly([(256, 340), (276, 370), (236, 370)]))
+    k.tone(inter(ellipse(256, 320, 70, 90), rect(256, 0, 512, 512)))
+    k.ink(stroke(line_path([(256, 30), (256, 170)]), FINE * 0.8))
+    return k.decal("spider", "Spider", ["spider", "gothic", "tattoo"])
+
+
+@art
+def cobra():
+    k = Parts()
+    hood = smooth([(256, 60), (330, 110), (360, 220), (310, 330), (256, 360), (202, 330), (152, 220), (182, 110)], 10)
+    body = taper(spline([(256, 340), (300, 420), (200, 470), (120, 440)], 14), 80, 20, 70, ends="round")
+    k.lay(body)
+    k.lay(hood)
+    k.tone(inter(hood, grow(hood, -30)))
+    k.ink(outline(smooth([(256, 150), (290, 190), (256, 230), (222, 190)], 8), FINE))
+    head = smooth([(256, 70), (290, 90), (296, 130), (256, 150), (216, 130), (222, 90)], 8)
+    k.lay(head)
+    k.black(union(ellipse(236, 106, 7, 10), ellipse(276, 106, 7, 10)))
+    for i in range(5):
+        y = 240 + i * 22
+        k.ink(stroke(line_path([(232 + i * 2, y), (280 - i * 2, y)]), FINE * 0.8))
+    return k.decal("cobra", "Cobra", ["snake", "cobra", "tattoo"])
+
+
+@art
+def wrench_screwdriver():
+    k = Parts()
+    w = Parts()
+    L = 400
+    handle = rect(-L / 2 + 40, -20, L / 2 - 40, 20, 16)
+    head = diff(circle(L / 2 - 20, 0, 58), poly([(L / 2 - 20, -22), (L / 2 + 60, -34), (L / 2 + 60, 34), (L / 2 - 20, 22)]))
+    ring = diff(circle(-L / 2 + 20, 0, 54), circle(-L / 2 + 20, 0, 26))
+    body = union(handle, head, ring)
+    w.lay(body)
+    w.tone(inter(body, rect(-L, 0, L, 80)))
+    k.merge(w.moved(rot=45, tx=256, ty=256, cx=0, cy=0))
+    s = Parts()
+    grip = rect(-200, -30, -40, 30, 20)
+    s.lay(grip)
+    for x in (-170, -130, -90):
+        s.ink(stroke(line_path([(x, -30), (x, 30)]), FINE))
+    s.lay(rect(-40, -10, 170, 10, 4))
+    s.lay(poly([(170, -10), (200, -4), (200, 4), (170, 10)]))
+    s.tone(inter(grip, rect(-200, 0, 0, 30)))
+    k.merge(s.moved(rot=-45, tx=256, ty=256, cx=0, cy=0))
+    return k.decal("wrench_screwdriver", "Spanner and screwdriver", ["tools", "garage", "spanner"])
+
+
+@art
+def fuel_can():
+    k = Parts()
+    can = rect(130, 120, 382, 470, 18)
+    k.lay(can)
+    k.tone(inter(can, rect(300, 0, 512, 512)))
+    k.lay(rect(150, 80, 260, 130, 8))
+    k.black(rect(176, 96, 234, 116, 4))
+    k.lay(rect(290, 70, 340, 130, 6))
+    k.ink(outline(poly([(170, 180), (342, 180), (342, 430), (170, 430)]), FINE * 1.4))
+    k.ink(stroke(line_path([(170, 180), (342, 430)]), FINE * 1.4))
+    k.ink(stroke(line_path([(342, 180), (170, 430)]), FINE * 1.4))
+    return k.decal("fuel_can", "Fuel can", ["fuel", "garage"])
