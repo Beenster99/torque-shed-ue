@@ -365,6 +365,9 @@ bool BikeLayout::Load(const std::string& Text, const PartsDb& InDb, std::string&
 	for (const std::string& K : InDb.Kinds())
 		for (const std::string& Id : InDb.Ids(K)) PartKind[Id] = K;
 	Db = &InDb;
+	ShopStyleList.clear();
+	for (const std::string& Each : StyleList)
+		if (!V2Frames(Each).empty()) ShopStyleList.push_back(Each);
 	return true;
 }
 
@@ -409,6 +412,30 @@ PartsMap BikeLayout::ReferenceBuild(const std::string& Style) const
 	if (!B) B = Sub(Data.Get("reference_builds"), "classic");
 	if (B)
 		for (const auto& KV : B->O) Out[KV.first] = KV.second.S;
+	return Out;
+}
+
+// [bikes v2]
+std::vector<std::string> BikeLayout::V2Frames(const std::string& Style) const
+{
+	std::vector<std::string> Out;
+	if (!Db) return Out;
+	for (const std::string& Id : Db->Ids("frame"))
+	{
+		const Json* Frame = Db->Find("frame", Id);
+		const Json* V2 = Sub(Frame, "v2");
+		if (!V2 || !V2->IsObject() || !Db->HasStyle("frame", Id, Style)) continue;
+		if (V2->Flag("lead")) Out.insert(Out.begin(), Id);
+		else Out.push_back(Id);
+	}
+	return Out;
+}
+
+PartsMap BikeLayout::ShopBuild(const std::string& Style) const
+{
+	PartsMap Out = ReferenceBuild(Style);
+	const std::vector<std::string> Frames = V2Frames(Style);
+	if (!Frames.empty()) Out["frame"] = Frames.front();
 	return Out;
 }
 

@@ -41,6 +41,7 @@
     "model": "corvano_adventure",
     "family": "adventure",
     "brand": "Corvano",
+    "lead": true,
     "body": [
      0.4508,
      0.006,
@@ -161,6 +162,7 @@
     "model": "corvano_cafe",
     "family": "cafe",
     "brand": "Corvano",
+    "lead": false,
     "body": [
      0.4508,
      0.006,
@@ -286,6 +288,7 @@
     "model": "corvano_classic",
     "family": "classic",
     "brand": "Corvano",
+    "lead": false,
     "body": [
      0.4508,
      0.006,
@@ -417,6 +420,7 @@
     "model": "corvano_cruiser",
     "family": "cruiser",
     "brand": "Corvano",
+    "lead": false,
     "body": [
      0.4508,
      0.006,
@@ -548,6 +552,7 @@
     "model": "corvano_mx",
     "family": "mx",
     "brand": "Corvano",
+    "lead": false,
     "body": [
      0.8148,
      0.7913,
@@ -671,6 +676,7 @@
     "model": "corvano_naked",
     "family": "naked",
     "brand": "Corvano",
+    "lead": true,
     "body": [
      0.4508,
      0.006,
@@ -803,6 +809,7 @@
     "model": "corvano_sport",
     "family": "sport",
     "brand": "Corvano",
+    "lead": false,
     "body": [
      0.4508,
      0.006,
@@ -931,6 +938,7 @@
     "model": "hartwell_adventure",
     "family": "adventure",
     "brand": "BSX",
+    "lead": false,
     "body": [
      0.0137,
      0.0742,
@@ -1051,6 +1059,7 @@
     "model": "hartwell_cafe",
     "family": "cafe",
     "brand": "BSX",
+    "lead": true,
     "body": [
      0.5841,
      0.6172,
@@ -1180,6 +1189,7 @@
     "model": "hartwell_chopper",
     "family": "chopper",
     "brand": "BSX",
+    "lead": false,
     "body": [
      0.147,
      0.0103,
@@ -1295,6 +1305,7 @@
     "model": "hartwell_classic",
     "family": "classic",
     "brand": "BSX",
+    "lead": true,
     "body": [
      0.0137,
      0.0742,
@@ -1418,6 +1429,7 @@
     "model": "hartwell_naked",
     "family": "naked",
     "brand": "BSX",
+    "lead": false,
     "body": [
      0.0137,
      0.0742,
@@ -1550,6 +1562,7 @@
     "model": "hartwell_sport",
     "family": "sport",
     "brand": "BSX",
+    "lead": false,
     "body": [
      0.0137,
      0.0742,
@@ -1678,6 +1691,7 @@
     "model": "kazeda_adventure",
     "family": "adventure",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.0116,
      0.0782,
@@ -1798,6 +1812,7 @@
     "model": "kazeda_cafe",
     "family": "cafe",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.0116,
      0.0782,
@@ -1927,6 +1942,7 @@
     "model": "kazeda_chopper",
     "family": "chopper",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.5776,
      0.0953,
@@ -2042,6 +2058,7 @@
     "model": "kazeda_classic",
     "family": "classic",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.0116,
      0.0782,
@@ -2173,6 +2190,7 @@
     "model": "kazeda_cruiser",
     "family": "cruiser",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.008,
      0.0296,
@@ -2304,6 +2322,7 @@
     "model": "kazeda_mx",
     "family": "mx",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.0116,
      0.0782,
@@ -2427,6 +2446,7 @@
     "model": "kazeda_naked",
     "family": "naked",
     "brand": "Kazeda",
+    "lead": false,
     "body": [
      0.0116,
      0.0782,
@@ -2559,6 +2579,7 @@
     "model": "kazeda_sport",
     "family": "sport",
     "brand": "Kazeda",
+    "lead": true,
     "body": [
      0.0116,
      0.0782,
@@ -2679,6 +2700,7 @@
     "model": "lodestar_cafe",
     "family": "cafe",
     "brand": "Lodestar",
+    "lead": false,
     "body": [
      0.1946,
      0.0137,
@@ -2808,6 +2830,7 @@
     "model": "lodestar_chopper",
     "family": "chopper",
     "brand": "Lodestar",
+    "lead": true,
     "body": [
      0.0168,
      0.0513,
@@ -2923,6 +2946,7 @@
     "model": "lodestar_classic",
     "family": "classic",
     "brand": "Lodestar",
+    "lead": false,
     "body": [
      0.1946,
      0.0137,
@@ -3054,6 +3078,7 @@
     "model": "lodestar_cruiser",
     "family": "cruiser",
     "brand": "Lodestar",
+    "lead": true,
     "body": [
      0.1946,
      0.0137,
@@ -3182,6 +3207,7 @@
     "model": "rheinhart_adventure",
     "family": "adventure",
     "brand": "Rheinhart",
+    "lead": false,
     "body": [
      0.807,
      0.8148,
@@ -3302,6 +3328,7 @@
     "model": "rheinhart_cafe",
     "family": "cafe",
     "brand": "Rheinhart",
+    "lead": false,
     "body": [
      0.807,
      0.8148,
@@ -3427,6 +3454,7 @@
     "model": "rheinhart_classic",
     "family": "classic",
     "brand": "Rheinhart",
+    "lead": false,
     "body": [
      0.807,
      0.8148,
@@ -3558,6 +3586,7 @@
     "model": "rheinhart_cruiser",
     "family": "cruiser",
     "brand": "Rheinhart",
+    "lead": false,
     "body": [
      0.0052,
      0.0056,
@@ -3681,6 +3710,7 @@
     "model": "rheinhart_naked",
     "family": "naked",
     "brand": "Rheinhart",
+    "lead": false,
     "body": [
      0.807,
      0.8148,
@@ -3809,6 +3839,7 @@
     "model": "varga_adventure",
     "family": "adventure",
     "brand": "Varga",
+    "lead": false,
     "body": [
      0.8879,
      0.1441,
@@ -3940,6 +3971,7 @@
     "model": "varga_mx",
     "family": "mx",
     "brand": "Varga",
+    "lead": true,
     "body": [
      0.8879,
      0.1441,
@@ -4063,6 +4095,7 @@
     "model": "varga_naked",
     "family": "naked",
     "brand": "Varga",
+    "lead": false,
     "body": [
      0.8879,
      0.1441,
@@ -4195,6 +4228,7 @@
     "model": "varga_sport",
     "family": "sport",
     "brand": "Varga",
+    "lead": false,
     "body": [
      0.8879,
      0.1441,

@@ -154,6 +154,14 @@ public:
 	const Json* Part(const std::string& Id) const;
 	// [bikes v2] The frame's "v2" if the bike of Parts is a Bike Models V2 one, else nullptr.
 	const Json* V2Of(const PartsMap& Parts) const;
+	// [bikes v2] The old bikes are retired (beenster, 17 Nov): wherever the game hands out a bike it is a
+	// V2 one. The V2 frames made for a style (the family's lead first), the styles that have any
+	// (every style when the catalogue has no V2 bikes at all, as in the tests against the Godot game),
+	// and a style's bike to start from: its reference bike on its lead V2 frame.
+	std::vector<std::string> V2Frames(const std::string& Style) const;
+	const std::vector<std::string>& ShopStyles() const { return ShopStyleList.empty() ? StyleList : ShopStyleList; }
+	bool HasV2() const { return !ShopStyleList.empty(); }
+	PartsMap ShopBuild(const std::string& Style) const;
 	// The parts catalogue it was loaded on (its kinds and ids in parts.json's order).
 	const PartsDb* Catalogue() const { return Db; }
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).
@@ -187,7 +195,7 @@ private:
 	const PartsDb* Db = nullptr;
 	Json Data;
 	std::map<std::string, std::string> PartKind, SlotKind;
-	std::vector<std::string> StyleList, SlotList;
+	std::vector<std::string> StyleList, SlotList, ShopStyleList;
 
 	const Json* Lines(const std::string& Style) const;
 	std::string Brief(const PartsMap& Parts, Json& LinesOut) const;

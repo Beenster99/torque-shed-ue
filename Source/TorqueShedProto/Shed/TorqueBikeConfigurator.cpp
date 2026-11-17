@@ -205,8 +205,8 @@ void FTorqueBikeConfigurator::NewStyle(const std::string& NewStyleId)
 	if (!Lay) return;
 	B().Style = NewStyleId;
 	bool bKnown = false;
-	for (const std::string& S : Lay->Styles()) bKnown = bKnown || S == B().Style;
-	if (!bKnown && !Lay->Styles().empty()) B().Style = Lay->Styles().front();
+	for (const std::string& S : Lay->ShopStyles()) bKnown = bKnown || S == B().Style;
+	if (!bKnown && !Lay->ShopStyles().empty()) B().Style = Lay->ShopStyles().front();
 	B().Parts = TorqueFit::Shop::StockBuild(*Lay, B().Style);
 	Paint = StylePaint(B().Style);
 	Colours.Reset();
@@ -578,7 +578,7 @@ int32 FTorqueBikeConfigurator::PopupCount() const
 	if (Popup == EPopup::Style)
 	{
 		const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-		return Lay ? (int32)Lay->Styles().size() : 0;
+		return Lay ? (int32)Lay->ShopStyles().size() : 0;
 	}
 	if (Popup == EPopup::Finish) return UTorqueBuildSubsystem::Finishes().Num() + 1;
 	if (Popup == EPopup::Logo) return (int32)TorqueFit::Shop::Logos().size() + 1;
@@ -1040,12 +1040,12 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 	TArray<bool> OffRows;
 	int32 On = INDEX_NONE;
 	if (Popup == EPopup::Style)
-		for (int32 I = 0; I < (int32)Lay->Styles().size(); ++I)
+		for (int32 I = 0; I < (int32)Lay->ShopStyles().size(); ++I)
 		{
-			Labels.Add(TBCI::CfgUe(Lay->StyleName(Lay->Styles()[(size_t)I])));
+			Labels.Add(TBCI::CfgUe(Lay->StyleName(Lay->ShopStyles()[(size_t)I])));
 			Tips.Add(FString());
 			OffRows.Add(false);
-			if (Lay->Styles()[(size_t)I] == B().Style) On = I;
+			if (Lay->ShopStyles()[(size_t)I] == B().Style) On = I;
 		}
 	else if (Popup == EPopup::Logo)
 	{
@@ -1152,9 +1152,9 @@ bool FTorqueBikeConfigurator::ClickPopup(const FVector2D& Mouse)
 		if (Popup == EPopup::Style)
 		{
 			const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-			if (Lay && Arg >= 0 && Arg < (int32)Lay->Styles().size() && Lay->Styles()[(size_t)Arg] != B().Style)
+			if (Lay && Arg >= 0 && Arg < (int32)Lay->ShopStyles().size() && Lay->ShopStyles()[(size_t)Arg] != B().Style)
 			{
-				NewStyle(Lay->Styles()[(size_t)Arg]);   // (the preview keeps its view: a bike for a bike)
+				NewStyle(Lay->ShopStyles()[(size_t)Arg]);   // (the preview keeps its view: a bike for a bike)
 			}
 			ClosePopup();
 		}
@@ -1335,8 +1335,8 @@ bool FTorqueBikeConfigurator::Pad(int32 RowStep, bool bChoose, FString& OutOrder
 	{
 		// The next style.
 		const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-		if (!Lay || Lay->Styles().empty()) return false;
-		const std::vector<std::string>& Ids = Lay->Styles();
+		if (!Lay || Lay->ShopStyles().empty()) return false;
+		const std::vector<std::string>& Ids = Lay->ShopStyles();
 		size_t At = 0;
 		for (size_t I = 0; I < Ids.size(); ++I)
 			if (Ids[I] == B().Style) At = I;

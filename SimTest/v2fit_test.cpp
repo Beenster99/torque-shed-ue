@@ -79,6 +79,21 @@ int main()
 	});
 	Json Index = Json::MakeObject();
 	int Bikes = 0;
+	// The old bikes are retired: the shop sells the eight styles that have V2 bikes, each starting as
+	// its lead V2 bike, and only V2 frames are offered.
+	Expect(Lay.HasV2() && Lay.ShopStyles().size() == 8, "the shop sells eight bike types, got " + std::to_string(Lay.ShopStyles().size()));
+	for (const std::string& Style : Lay.ShopStyles())
+	{
+		const PartsMap Stock = Shop::StockBuild(Lay, Style);
+		const PartsMap::const_iterator Fr = Stock.find("frame");
+		const Json* Frame = Fr != Stock.end() ? Db.Find("frame", Fr->second) : nullptr;
+		const Json* V2 = Frame ? Frame->Get("v2") : nullptr;
+		Expect(V2 && V2->Flag("lead"), "a new " + Style + " starts as its lead V2 bike, got " + (Fr != Stock.end() ? Fr->second : std::string("none")));
+		for (const std::string& Id : Shop::Options(Lay, "frame", Style, Stock))
+			Expect(Id.rfind("v2_", 0) == 0, "only V2 frames are offered on a new " + Style + ", got " + Id);
+	}
+	for (const char* Old : {"scrambler", "roader", "tourer", "bobber", "race", "supermoto"})
+		Expect(std::find(Lay.ShopStyles().begin(), Lay.ShopStyles().end(), Old) == Lay.ShopStyles().end(), std::string(Old) + " is no longer sold");
 	for (const std::string& Id : Db.Ids("frame"))
 	{
 		const Json* Frame = Db.Find("frame", Id);

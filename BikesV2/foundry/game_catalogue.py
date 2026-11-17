@@ -16,6 +16,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.dirname(ROOT)
 STYLE = {"cafe": "cafe", "classic": "classic", "sport": "sport", "adventure": "adventure", "mx": "mx", "naked": "naked",
          "chopper": "chopper", "cruiser": "cruiser"}
+# the family leads: the bike a style starts as in the shop and in the robot tests
+LEADS = {"corvano_naked", "kazeda_sport", "hartwell_cafe", "hartwell_classic", "lodestar_cruiser", "corvano_adventure",
+         "lodestar_chopper", "varga_mx"}
 SHOWN = {"hartwell": "BSX"}      # the brand's shown name (beenster, 16 Nov); the id stays hartwell
 
 
@@ -55,7 +58,7 @@ def main():
         stock.update(name=f"{brand} {m['family']}", description=f"The {brand} {m['family'].lower()}: {m.get('engine_label', '')}, {m.get('frame_label', '')}.".replace(": , ", ": "),
                      wheelbase=round(ln / 1000.0, 4), rake_deg=round(g["rake"] - math.degrees(math.atan2(dz, dx)), 3), seat_height=g["seat_height"] / 1000.0,
                      color=lin(m["colours"]["frame"]), styles=[style], type=f"{brand} {m['family']}",
-                     v2={"model": name, "family": m["family"].lower(), "brand": brand, "body": lin(m["colours"]["body"]),
+                     v2={"model": name, "family": m["family"].lower(), "brand": brand, "lead": name in LEADS, "body": lin(m["colours"]["body"]),
                          "points_mm": info["points_mm"]})
         out["v2_" + name] = stock
     dst = os.path.join(GAME, "Data", "BikesV2", "parts_v2.json")

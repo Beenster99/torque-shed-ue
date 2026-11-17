@@ -1313,10 +1313,13 @@ bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& 
 		UE_LOG(LogTemp, Warning, TEXT("Torque: no fitting layout (Data/Fitment/layout.json): no project bike for bay %d"), Bay + 1);
 		return false;
 	}
-	const std::vector<std::string>& StyleIds = Lay->Styles();
+	// [bikes v2] A V2 bike (the old types are retired): any of the style's makes, its stock parts under it.
+	const std::vector<std::string>& StyleIds = Lay->ShopStyles();
 	const std::string Want = Style.IsEmpty() ? StyleIds[Rng.RandRange(0, (int32)StyleIds.size() - 1)] : TBI::Std(Style.ToLower());
-	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(Want);
+	TorqueFit::PartsMap Ref = Lay->ShopBuild(Want);
 	if (Ref.empty()) return false;
+	const std::vector<std::string> Makes = Lay->V2Frames(Want);
+	if (!Makes.empty()) Ref["frame"] = Makes[(size_t)Rng.RandRange(0, (int32)Makes.size() - 1)];
 	TMap<FName, FName> Parts;
 	for (const auto& KV : Ref) Parts.Add(FName(*TBI::Ue(KV.first)), FName(*TBI::Ue(KV.second)));
 	FillBike(Bay, Parts, Age);
@@ -1898,7 +1901,7 @@ FString UTorqueBuildSubsystem::TestRestyle(int32 Bay, const FString& Style)
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	TMap<FString, FString> Parts;
 	if (!Lay || !LayoutParts(Bay, Parts)) return TEXT("it isn't a catalogue bike");
-	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(TBI::Std(Style.ToLower()));
+	const TorqueFit::PartsMap Ref = Lay->ShopBuild(TBI::Std(Style.ToLower()));
 	if (Ref.empty()) return TEXT("no such style: ") + Style;
 	// The engine's own parts first, then the bike's, the engine block last (it takes what's left on it).
 	TArray<FName> Order;
@@ -1935,7 +1938,7 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay, const FString& Style, const
 	TorqueFit::PartsMap Map;
 	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	const std::string RefStyle = Style.IsEmpty() ? Lay->StyleFor(Map) : TBI::Std(Style.ToLower());
-	TorqueFit::PartsMap Ref = Lay->ReferenceBuild(RefStyle);
+	TorqueFit::PartsMap Ref = Lay->ShopBuild(RefStyle);
 	for (const TPair<FString, FString>& KV : Set) Ref[TBI::Std(KV.Key.ToLower())] = TBI::Std(KV.Value.ToLower());
 	// The engine first, so the parts that go on it have a block to go on.
 	TArray<FName> Order;
