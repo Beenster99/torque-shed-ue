@@ -245,6 +245,13 @@ void FTorqueBikeConfigurator::Relist()
 			FChoice C;
 			C.Id = TBCI::CfgUe(Id);
 			C.Label = Id == "none" ? FString(TEXT("None")) : TorqueShedParts::PartName(FName(*TBCI::CfgUe(Id)));
+			// [bikes v2] A V2 bike's frame is the bike: listed by its maker ("Corvano", "BSX").
+			if (Slot == "frame")
+			{
+				const TorqueFit::Json* FramePart = Lay->Part(Id);
+				const TorqueFit::Json* V2 = FramePart ? FramePart->Get("v2") : nullptr;
+				if (V2 && !V2->Str("brand").empty()) C.Label = TBCI::CfgUe(V2->Str("brand"));
+			}
 			if (Tier.Tier == "fabricate") C.Label += TEXT("  (needs fabrication)");
 			else if (Tier.Tier == "won't fit") C.Label += TEXT("  (won't fit)");
 			C.bOff = Tier.Tier == "won't fit" && Id != On;
@@ -745,27 +752,42 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		if (Focus != Index) return;
 		Box(X0 + 2.0f * S, RY, 3.0f * S, RH - 4.0f * S, FLinearColor(TBCI::Accent));
 	};
-	if (Visible(Y, HeadH)) Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("STYLE"), 12.0f * S, TBCI::Accent);
+	// [bikes v2] The bike first: a dropdown for its type and, under it, one for its manufacturer (beenster,
+	// Nov 17). The manufacturer's is the frame's row (a V2 bike is its frame), so it comes before the heading.
+	const bool bMakeRow = Lay->HasV2() && SlotRows.Num() > 0 && SlotRows[0].Slot == TEXT("frame");
+	if (Visible(Y, HeadH)) Pen.Draw(X0 + Inset, Y + 6.0f * S, bMakeRow ? TEXT("BIKE") : TEXT("STYLE"), 12.0f * S, TBCI::Accent);
 	Y += HeadH;
 	if (Visible(Y, RowH))
 	{
 		Focused(0, Y, RowH);
-		Btn(X0 + Inset, Y, LW - 2.0f * Inset, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
+		if (bMakeRow)
+		{
+			Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, TEXT("Bike type"), 13.0f * S, TBCI::Dim);
+			Btn(PartX, Y, PartW, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
+		}
+		else
+			Btn(X0 + Inset, Y, LW - 2.0f * Inset, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
 	}
 	Y += RowH;
-	if (Visible(Y, HeadH))
+	auto PartsHeading = [&]()
 	{
-		Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("PARTS AND COLOURS"), 12.0f * S, TBCI::Accent);
-		Pen.Draw(CellX, Y + 6.0f * S, TEXT("COLOUR, FINISH"), 12.0f * S, TBCI::Dim);
-	}
-	Y += HeadH;
+		if (Visible(Y, HeadH))
+		{
+			Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("PARTS AND COLOURS"), 12.0f * S, TBCI::Accent);
+			Pen.Draw(CellX, Y + 6.0f * S, TEXT("COLOUR, FINISH"), 12.0f * S, TBCI::Dim);
+		}
+		Y += HeadH;
+	};
+	if (!bMakeRow) PartsHeading();
 	const TArray<FName>& FinishIds = UTorqueBuildSubsystem::Finishes();
 	for (int32 I = 0; I < SlotRows.Num(); ++I, Y += RowH)
 	{
+		if (bMakeRow && I == 1) PartsHeading();
 		if (!Visible(Y, RowH)) continue;
 		const FSlotRow& R = SlotRows[I];
 		Focused(I + 1, Y, RowH);
-		Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(TBCI::CfgSlotLabel(R.Slot), 13.0f * S, LabelW - 8.0f * S), 13.0f * S, TBCI::Dim);
+		const FString RowLabel = bMakeRow && I == 0 ? FString(TEXT("Manufacturer")) : TBCI::CfgSlotLabel(R.Slot);
+		Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(RowLabel, 13.0f * S, LabelW - 8.0f * S), 13.0f * S, TBCI::Dim);
 		const FString Label = R.Choices.IsValidIndex(R.Picked) ? R.Choices[R.Picked].Label : FString(TEXT("?"));
 		Btn(PartX, Y, PartW, RowH - 4.0f * S, Label, 13.0f * S, Popup == EPopup::Part && PopupKey == R.Slot, EHit::Part, I, true);
 		if (!TakesColour(R.Slot)) continue;

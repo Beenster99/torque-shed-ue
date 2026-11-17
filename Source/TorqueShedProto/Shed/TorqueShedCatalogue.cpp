@@ -391,6 +391,16 @@ UMaterialInterface* V2Material(const FV2Look& Look, bool& bPaint, bool& bOutFall
 	if (UMaterialInterface** Found = Loaded.Find(Look.Finish)) return *Found;
 	UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), *Look.Finish, *Look.Finish));
 	bOutFallback = M == nullptr;
+	// The see-through finishes (Tools/ue_build_level.py bike_materials: MI_v2glass, MI_v2screen). Until the
+	// level script has made them: a lamp's or clock's glass isn't drawn at all (what's behind it shows; drawn
+	// solid it hid the lamp: build 154), a windscreen is the catalogue's solid clear screen.
+	if (!M && Look.Finish == TEXT("v2glass"))
+	{
+		Loaded.Add(Look.Finish, nullptr);
+		return nullptr;
+	}
+	if (!M && Look.Finish == TEXT("v2screen"))
+		M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_screen_clear.MI_screen_clear"));
 	if (!M) M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
 	if (M) M->AddToRoot();   // cached across map travel, as MaterialFor's
 	Loaded.Add(Look.Finish, M);
@@ -419,6 +429,28 @@ const TCHAR* const SpinsTag = TEXT("Spins");
 const TCHAR* const V2PaintTag = TEXT("V2Paint");
 const TCHAR* const V2BodyTag = TEXT("V2Body");
 
+// [bikes v2] A V2 bike's side stand as it was fitted (v2.points_mm.stand): its pivot and the leg's
+// direction folded and down, in the drawn bike's frame (cm).
+bool V2Stand(const TMap<FString, FString>& Parts, FVector& OutPivot, FVector& OutFolded, FVector& OutDown)
+{
+	const TorqueFit::BikeLayout* Lay = Layout();
+	const FString* FrameId = Parts.Find(TEXT("frame"));
+	const TorqueFit::Json* Frame = Lay && FrameId ? Lay->Part(TSCI::Std(*FrameId)) : nullptr;
+	const TorqueFit::Json* V2 = Frame ? Frame->Get("v2") : nullptr;
+	const TorqueFit::Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const TorqueFit::Json* Stand = Points ? Points->Get("stand") : nullptr;
+	const TorqueFit::V2Frame F = TorqueFit::V2Frame::Of(Frame);
+	if (!Stand || !F.Valid) return false;
+	const TorqueFit::Json* Pivot = Stand->Get("pivot");
+	const TorqueFit::Json* Folded = Stand->Get("folded_dir");
+	const TorqueFit::Json* Down = Stand->Get("down_dir");
+	if (!Pivot || !Folded || !Down || Pivot->A.size() < 3 || Folded->A.size() < 3 || Down->A.size() < 3) return false;
+	OutPivot = FVector(TSCI::ToUe(F.Point(Pivot->A[0].N, Pivot->A[1].N, Pivot->A[2].N)));
+	OutFolded = FVector(TSCI::ToUe(F.Dir(Folded->A[0].N, Folded->A[1].N, Folded->A[2].N))).GetSafeNormal();
+	OutDown = FVector(TSCI::ToUe(F.Dir(Down->A[0].N, Down->A[1].N, Down->A[2].N))).GetSafeNormal();
+	return !OutFolded.IsNearlyZero() && !OutDown.IsNearlyZero();
+}
+
 const TorqueFit::BikeLayout* Layout()
 {
 	static TorqueFit::PartsDb Db;
@@ -437,6 +469,12 @@ const TorqueFit::BikeLayout* Layout()
 			if (TSCI::ReadBytes(TEXT("Data/BikesV2/parts_v2.json"), V2Text) && !Db.AddFromText(V2Text, V2Error))
 			{
 				UE_LOG(LogTemp, Warning, TEXT("Torque: Data/BikesV2/parts_v2.json didn't load (%s): no Bike Models V2 bikes"), *TSCI::Ue(V2Error));
+			}
+			// [common parts] The common bolt-on parts for the V2 bikes (their files are under Data/BikesV2/common).
+			std::string CommonText, CommonError;
+			if (TSCI::ReadBytes(TEXT("Data/BikesV2/common_parts.json"), CommonText) && !Db.AddFromText(CommonText, CommonError))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque: Data/BikesV2/common_parts.json didn't load (%s): no common parts"), *TSCI::Ue(CommonError));
 			}
 			TorqueFit::BikeParts::SetV2Source([](const std::string& Model, TorqueFit::PartMesh& Mesh, std::string& Info)
 			{
@@ -591,6 +629,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 				Finish = V2Look.Finish;
 			}
 			UMaterialInterface* Mat = bV2 ? TSCI::V2Material(V2Look, bPaint, bFallback) : TSCI::SurfaceMaterial(Tag, bPaint, Finish, bFallback);
+			if (bV2 && !Mat) continue;   // (glass with no see-through finish yet: left out)
 			FString Line = Tag + TEXT(" -> ") + (Mat ? Mat->GetName() : FString(TEXT("no material"))) + (bFallback ? TEXT(" (fallback for ") + Finish + TEXT(")") : FString());
 			if (S.Nrm.size() < S.Pos.size()) Line += TEXT(", no normals");
 			if (bPaint)
@@ -632,6 +671,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 				G.At = FVector(TSCI::ToUe(P.GaugeAt));
 				G.Axis = FVector(P.GaugeAxis.x, P.GaugeAxis.z, P.GaugeAxis.y).GetSafeNormal();
 				G.Up = FVector(P.GaugeUp.x, P.GaugeUp.z, P.GaugeUp.y).GetSafeNormal();
+				G.Size = (float)P.GaugeSize;
 				OutGauges->Add(G);
 			}
 			++Made;
@@ -707,6 +747,7 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 					if (!Parts.Contains(Slot)) continue;
 				}
 				M.Mat = M.bV2 ? TSCI::V2Material(M.V2Look, M.bPaint, bFallback) : TSCI::SurfaceMaterial(Tag, M.bPaint, Finish, bFallback);
+				if (M.bV2 && !M.Mat) continue;   // (glass with no see-through finish yet: left out)
 				TArray<FVector> Pos;
 				TArray<int32> Tris;
 				bool bFlipped = false;

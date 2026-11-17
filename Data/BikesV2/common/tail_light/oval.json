@@ -1,0 +1,58 @@
+{
+ "group": "tail_light",
+ "key": "oval",
+ "name": "Oval",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  47.7,
+  0.0,
+  936.8
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  44.0,
+  108.2,
+  62.4
+ ],
+ "triangles": 1774,
+ "surfaces": {
+  "d3_lp_gloss": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0
+  },
+  "d3_redglass": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0
+  },
+  "chrome": {
+   "ue": "chrome"
+  },
+  "d3_tailred": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.03,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 2.6
+  }
+ }
+}

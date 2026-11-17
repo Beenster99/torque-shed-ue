@@ -1,0 +1,55 @@
+{
+ "group": "caliper_front",
+ "key": "lobed",
+ "name": "Lobed radial",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "front_axle",
+ "mount_mm": [
+  1465,
+  0.0,
+  300
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  110.8,
+  236.0,
+  135.4
+ ],
+ "triangles": 21920,
+ "surfaces": {
+  "d3_bk_gold": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28
+  },
+  "d3_bk_pad": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.06,
+    0.055,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.8
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

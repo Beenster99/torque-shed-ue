@@ -1,0 +1,42 @@
+{
+ "group": "high_bar",
+ "key": "ape_tall",
+ "name": "Tall ape",
+ "fitted_on": "lodestar_chopper",
+ "family": "Chopper",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1170.0,
+  0.0,
+  1128.4
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  198.9,
+  767.0,
+  497.7
+ ],
+ "triangles": 158588,
+ "surfaces": {
+  "d3_bars_chrome": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.88,
+    0.88,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.05
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}

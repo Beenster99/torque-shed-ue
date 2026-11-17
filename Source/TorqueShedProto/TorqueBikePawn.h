@@ -507,6 +507,9 @@ private:
 	double ParkPitch = 0.0;
 	void PitchToGround();
 	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
+	// [bikes v2] The side stand as fitted to a V2 bike (TorqueShedCatalogue::V2Stand), in place of the catalogue's.
+	bool bV2Stand = false;
+	FVector V2StandPivot = FVector::ZeroVector, V2StandFolded = FVector::ZeroVector, V2StandDown = FVector::ZeroVector;
 	FString SideStandPart, CentreStandPart;
 	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
 	void ChooseStand();

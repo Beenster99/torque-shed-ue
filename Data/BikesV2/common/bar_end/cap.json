@@ -1,0 +1,25 @@
+{
+ "group": "bar_end",
+ "key": "cap",
+ "name": "Plain cap",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  34.9,
+  781.0,
+  35.1
+ ],
+ "triangles": 1272,
+ "surfaces": {
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

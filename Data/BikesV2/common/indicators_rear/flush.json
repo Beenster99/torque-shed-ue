@@ -1,0 +1,43 @@
+{
+ "group": "indicators_rear",
+ "key": "flush",
+ "name": "Flush blade",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  84.0,
+  0.0,
+  891.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  20.0,
+  241.0,
+  20.0
+ ],
+ "triangles": 616,
+ "surfaces": {
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "d3_amberled": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.42,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.2
+  }
+ }
+}

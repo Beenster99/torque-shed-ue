@@ -1,0 +1,28 @@
+{
+ "group": "pegs",
+ "key": "board",
+ "name": "Floorboard",
+ "fitted_on": "lodestar_cruiser",
+ "family": "Cruiser",
+ "mount": "rider_peg",
+ "mount_mm": [
+  1102,
+  0.0,
+  340
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  249.0,
+  580.0,
+  28.0
+ ],
+ "triangles": 4840,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome"
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

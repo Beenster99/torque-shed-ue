@@ -1,0 +1,45 @@
+{
+ "group": "bar",
+ "key": "clipon_raised",
+ "name": "Clip-ons, raised",
+ "fitted_on": "hartwell_cafe",
+ "family": "Cafe",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1126.1,
+  0.0,
+  1005.4
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  138.3,
+  775.7,
+  84.6
+ ],
+ "triangles": 4464,
+ "surfaces": {
+  "d3_bars_anodised_gold": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.72,
+    0.46,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.24
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

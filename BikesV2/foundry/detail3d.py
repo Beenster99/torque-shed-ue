@@ -671,6 +671,12 @@ def round_lamp(model, c):
             bolt(f"lampearbolt{s}", (xb, s * (eb + 1), zc), (0, s, 0), 6.5, 4, chrome)
 
 
+# The working clocks, for the game (build3d.export_game): {object name: {what, at, axis, up, r | w, h}} in mm, the
+# model's frame. "speed" and "rpm" are dials (the game puts its own face, numbered scale and needle on them),
+# "screen" a display's picture (the game lights it with its TFT page).
+GAUGES = {}
+
+
 def clocks(model, c):
     """Round clocks (cafe, classic): a black face with white minute marks and bolder numerals' marks round a
     270 degree sweep, an orange needle on a chrome hub, behind flat glass in the chrome rim. Left is the
@@ -723,6 +729,8 @@ def clocks(model, c):
             a = math.radians(-135 + 270 * (0.0 if s > 0 else 0.08))
             slab(f"clockneedle{i}{s}", org, d_, nb, rot(0, a, 1.1, -r_ * 0.18, r_ * 0.84), 1.6, 2.2, glow("needle", (1.0, 0.32, 0.02), 1.2), 0)
             lathe(f"clockhub{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(0.4, 0), (0.4, r_ * 0.16), (3.0, r_ * 0.14), (3.4, 0)], B.mat("chrome"), 24)
+            GAUGES[f"clockface{i}{s}"] = {"what": "speed" if s > 0 else "rpm", "at": [round(org[0], 1), yc, round(org[1], 1)],
+                                          "axis": [round(d_[0], 5), 0.0, round(d_[1], 5)], "up": [round(nb[0], 5), 0.0, round(nb[1], 5)], "r": round(r_, 1)}
             lathe(f"clockglass{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(4.2, 0), (4.2, r_ * 1.02), (5.0, r_ * 1.02), (5.0, 0)], glass_mat(), 40)
 
 
@@ -744,6 +752,9 @@ def display(model, c, head, house, dash=None, size=(78, 46)):
     ky, kz = size[0] / 78.0, size[1] / 46.0
     slab("dashbody", dc, n, u, face, -20, 0, plastic, 5.0)
     slab("dashglass", dc, n, u, [(y * 0.9, z * 0.86) for y, z in face], -1, 0.8, surf("screen", (0.004, 0.005, 0.008), 0.0, 0.04, coat=1.0, wear=0.0), 0)
+    gw = min(size[0] * 0.9, size[1] * 0.86 / 0.6)
+    GAUGES["dashglass"] = {"what": "screen", "at": [round(dc[0], 1), 0.0, round(dc[1], 1)], "axis": [round(n[0], 5), 0.0, round(n[1], 5)],
+                           "up": [round(u[0], 5), 0.0, round(u[1], 5)], "w": round(gw, 1), "h": round(gw * 0.6, 1)}
     slab("dashrev", dc, n, u, [(-56 * ky, 22 * kz), (30 * ky, 22 * kz), (30 * ky, 27 * kz), (-56 * ky, 27 * kz)], 0.6, 1.1, glow("rev", (0.2, 0.75, 1.0), 2.5), 0)
     slab("dashrevred", dc, n, u, [(34 * ky, 22 * kz), (56 * ky, 22 * kz), (56 * ky, 27 * kz), (34 * ky, 27 * kz)], 0.6, 1.1, glow("revred", (1.0, 0.15, 0.05), 2.5), 0)
     back = (dc[0] - n[0] * 20, dc[1] - n[1] * 20)

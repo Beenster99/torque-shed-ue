@@ -70,7 +70,11 @@ struct FDashGauge
 	FName What;                   // speed, rpm, led0 .. led5, readout
 	int32 Mesh = INDEX_NONE;      // which of Out
 	FVector At = FVector::ZeroVector, Axis = FVector::UpVector, Up = FVector::ForwardVector;
+	float Size = 1.0f;            // [bikes v2] a dial's radius over the catalogue dial's (the scale is drawn to it)
 };
+// [bikes v2] A V2 bike's side stand as fitted: its pivot (cm) and the leg's direction folded and down, in
+// the drawn bike's frame. False for a catalogue bike (or a V2 bike with no stand fitted).
+bool V2Stand(const TMap<FString, FString>& Parts, FVector& OutPivot, FVector& OutFolded, FVector& OutDown);
 // bOnlyFitted: leave out what the layout puts on for a slot that's empty ("none"), so a bare frame
 // in the shed is only the frame (no bars, tyres, sprockets...) until those are fitted.
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,

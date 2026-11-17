@@ -1,0 +1,32 @@
+{
+ "group": "grip",
+ "key": "barrel",
+ "name": "Barrel",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  56.7,
+  772.5,
+  50.5
+ ],
+ "triangles": 21880,
+ "surfaces": {
+  "grip_barrel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "metallic": 0.0,
+   "roughness": 0.55
+  }
+ }
+}

@@ -97,12 +97,21 @@ def mat(name, col=None, finish=None):
 GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "2.0,0.3,0.6,0.5").split(",")]
 
 
+GAME_STAND = {}      # the fitted side stand's pivot and swing, for the game (points_mm "stand")
+
+
 def export_game(name, model, model_file=None):
     """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
     surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
     game slot, one moving group and one finish (game_parts.classify), named s000.. in the glb; the json
     gives each its slot, group ("node"), look and paint slot, and the bike's key points."""
+    import re
+    import detail3d
     import game_parts
+    try:
+        import game_common
+    except ImportError:
+        game_common = None
     dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
     os.makedirs(dst, exist_ok=True)
     obs = [o for o in bpy.context.scene.objects if o.type in ("MESH", "CURVE")]
@@ -113,6 +122,18 @@ def export_game(name, model, model_file=None):
     bpy.ops.object.convert(target="MESH")
     bpy.ops.object.make_single_user(object=True, obdata=True, material=False)
     obs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+    # What the game makes itself is left out: the tyres (its own tread sections bent round the drawn wheels, as
+    # sharp as the catalogue's: Fit/BikeParts V2Tyres) and the clocks' working pieces (its numbered scale, needle
+    # and lit screen: V2Gauges).
+    gauges = []
+    for nm, gz in sorted(detail3d.GAUGES.items()):
+        if bpy.data.objects.get(nm):
+            cl = game_parts.classify(nm, model)
+            gauges.append(dict(gz, node=cl[1] if cl else ""))
+    own = re.compile(r"^(front_tyre|rear_tyre|clocktick|clockneedle|dashrev)")
+    for o in [o for o in obs if own.match(o.name)]:
+        obs.remove(o)
+        bpy.data.objects.remove(o, do_unlink=True)
     tagged, looks, unknown = {}, {}, set()
     # the Definition build is drawn for close-up pictures (543,000 triangles on the naked lead); the game
     # gets every piece thinned to what reads at riding and shed distance
@@ -143,15 +164,21 @@ def export_game(name, model, model_file=None):
             md = o.modifiers.new("thin", "DECIMATE")
             md.ratio = ratio
             bpy.ops.object.modifier_apply(modifier=md.name)
+    bpy.context.view_layer.update()
     for o in obs:
         r = game_parts.classify(o.name, model)
         if not r:
             unknown.add(game_parts.stem(o.name))
             r = ("frame", "")
+        xs = [(o.matrix_world @ __import__("mathutils").Vector(q)).x / MM for q in o.bound_box]
+        r = game_parts.placed(o.name, r[0], r[1], min(xs), max(xs), model)
+        # the piece of its slot a common part can take the place of ("grip", "silencer", ...: common parts'
+        # foundry/game_common.py sub_of; "" for the rest of the slot)
+        part_sub = (game_common.sub_of(game_parts.stem(o.name), o) or "") if game_common else ""
         for i, m in enumerate(o.data.materials):
             if m is None:
                 continue
-            key = (r[0], r[1], m.name)
+            key = (r[0], r[1], part_sub, m.name)
             if key not in tagged:
                 c = m.copy()
                 c.name = f"s{len(tagged):03d}"
@@ -159,16 +186,24 @@ def export_game(name, model, model_file=None):
                 tag = m.name.split(".")[0]
                 spec = LIB["surfaces"].get(tag.split("__")[0], {})
                 b = m.node_tree.nodes["Principled BSDF"]
-                ue = spec.get("ue", "cat_brushed_steel")
+                ue = spec.get("ue")
+                colour = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
+                metal, rough = round(b.inputs["Metallic"].default_value, 3), round(b.inputs["Roughness"].default_value, 3)
                 # the game's lights find their lenses by these names (TorqueLights: Surf:lens_white / amber / red)
                 lens = "lens_white" if ue == "lens_clear" and r[0] in ("headlight", "fog_lights") else ue if ue in ("lens_red", "lens_amber") else ""
+                tint = spec.get("ue_tint", True)
+                if ue is None or tag.split("__")[0] == "screen":
+                    # the pipeline's own material: the game finish that suits it (build 154: glass came out as
+                    # solid steel, grips white, dials and hoses brushed metal)
+                    ue, lens, colour = game_parts.look(tag.split("__")[0], r[0], colour, metal, rough)
+                    tint = colour is not None
                 look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
+                if part_sub:
+                    look["sub"] = part_sub
                 if spec.get("slot"):
                     look["paint"] = spec["slot"]
-                if spec.get("ue_tint", True):
-                    look["color"] = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
-                    look["metallic"] = round(b.inputs["Metallic"].default_value, 3)
-                    look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
+                if tint:
+                    look["color"], look["metallic"], look["roughness"] = colour, metal, rough
                 looks[c.name] = look
             o.data.materials[i] = tagged[key]
     pts = game_parts.points(model)
@@ -178,12 +213,31 @@ def export_game(name, model, model_file=None):
         if o:
             bb = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
             pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
+    # the filler cap's middle (the common parts' caps go on here)
+    capq = [o.matrix_world @ __import__("mathutils").Vector(q) for o in obs if re.match(r"cap(bolt|lid|neck|ring|hinge)", o.name) for q in o.bound_box]
+    if capq:
+        pts["tank_cap"] = [round((min(getattr(q, a) for q in capq) + max(getattr(q, a) for q in capq)) / 2 / MM, 1) for a in "xyz"]
+    if not gauges:
+        # a bike drawn with no clocks (the MX bikes): the game gets a small cased display above the top yoke
+        ft = pts["fork_top"]
+        gauges = [{"what": "screen", "at": [round(ft[0] + 58, 1), 0.0, round(ft[2] + 31, 1)], "axis": [-0.75054, 0.0, 0.66083],
+                   "up": [0.66083, 0.0, 0.75054], "w": 62.0, "h": 38.0, "node": "steer", "case": True}]
+    pts["gauges"] = gauges
+    if GAME_STAND:
+        pts["stand"] = dict(GAME_STAND)
     name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
     ob.name = ob.data.name = name
+    # the joined bike must sit at the world origin with nothing above it: a parent left on the first object
+    # (a wheel hung on its axle) put a 1.4 m shift in the file that the game does not read
+    mw = ob.matrix_world.copy()
+    ob.parent = None
+    ob.matrix_world = mw
+    bpy.context.view_layer.update()
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    assert ob.matrix_world.translation.length < 1e-6, "game export: the bike is not at the origin"
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     bpy.ops.export_scene.gltf(filepath=os.path.join(dst, name + ".glb"), use_selection=True, export_apply=True, export_yup=True,
                               export_texcoords=False, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
@@ -2120,6 +2174,14 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
     if "--game" in sys.argv:
+        # the side stand (common parts' sidestand3d: drawn folded, the game swings it down on its pivot)
+        import sidestand3d
+        rep_, _made = sidestand3d.fit(sys.modules[__name__], model)
+        if rep_.get("fitted"):
+            GAME_STAND.update({k: [round(float(q), 4) for q in rep_["stand"][k]] for k in ("pivot", "axis", "folded_dir", "down_dir")})
+            GAME_STAND["angle_down_deg"] = round(float(rep_["stand"]["angle_down_deg"]), 2)
+        else:
+            print("NO SIDE STAND FITTED on", name)
         print("game files in", export_game(name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures

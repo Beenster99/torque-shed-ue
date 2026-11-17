@@ -1,0 +1,55 @@
+{
+ "group": "plate_hanger",
+ "key": "side",
+ "name": "Side mount",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  -75.0,
+  215.0,
+  394.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  182.0,
+  156.0,
+  188.0
+ ],
+ "triangles": 1068,
+ "surfaces": {
+  "d3_sk_black": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.28
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "plate": {
+   "ue": "cat_plastic",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "redlens": {
+   "ue": "lens_red"
+  }
+ }
+}

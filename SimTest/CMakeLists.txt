@@ -246,3 +246,12 @@ if(MSVC)
 else()
   target_compile_options(v2fit_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# [common parts] every common part on every V2 bike it suits
+add_executable(commonparts_test commonparts_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(commonparts_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(commonparts_test PRIVATE /W4)
+else()
+  target_compile_options(commonparts_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

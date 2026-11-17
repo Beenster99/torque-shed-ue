@@ -1,0 +1,48 @@
+{
+ "group": "shock",
+ "key": "air",
+ "name": "Air ride",
+ "fitted_on": "hartwell_classic",
+ "family": "Classic",
+ "mount": "shock_top",
+ "mount_mm": [
+  285,
+  0.0,
+  744
+ ],
+ "moves_with": "shock",
+ "size_mm": [
+  205.0,
+  397.9,
+  332.5
+ ],
+ "triangles": 7440,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome"
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "d3_hose": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.015,
+    0.015,
+    0.017
+   ],
+   "metallic": 0.0,
+   "roughness": 0.42
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  }
+ }
+}

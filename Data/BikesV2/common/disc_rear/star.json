@@ -1,0 +1,55 @@
+{
+ "group": "disc_rear",
+ "key": "star",
+ "name": "Star drive",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  316.0
+ ],
+ "moves_with": "rear_wheel",
+ "size_mm": [
+  236.8,
+  11.3,
+  236.8
+ ],
+ "triangles": 25880,
+ "surfaces": {
+  "d3_bk_rotor": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.5,
+    0.51
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "d3_brushed": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "metallic": 1.0,
+   "roughness": 0.5
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

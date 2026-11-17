@@ -4444,7 +4444,8 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 		const Json* Look = Looks->Get(S.Material);
 		const std::string Slot = Look ? Look->Str("slot", "frame") : std::string("frame");
 		const std::string Node = Look ? Look->Str("node") : std::string();
-		const std::string Key = Slot + "|" + Node;
+		const std::string Sub = Look ? Look->Str("sub") : std::string();
+		const std::string Key = Slot + "|" + Node + "|" + Sub;
 		if (!Meshes.count(Key))
 		{
 			Order.push_back(Key);
@@ -4452,6 +4453,7 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 			FittedPart P;
 			P.Slot = Slot;
 			P.Node = Node;
+			P.Sub = Sub;
 			P.Glb = "v2/" + Model + "/" + Slot;
 			P.Name = Slot;
 			Pieces[Key] = P;
@@ -4474,6 +4476,40 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 		Out.U = std::move(S.U);
 		Out.V = std::move(S.V);
 		Out.Idx = std::move(S.Idx);
+		// [lights] The indicators are drawn left and right in one surface, and the lights tell a lamp's side by
+		// where its piece sits: an amber lens goes in as two, one a side (beenster after 154: "can we get
+		// indicators to work again?").
+		if (Look && Look->Str("tag") == "lens_amber")
+		{
+			PartSurface Side[2];
+			std::vector<int> Map[2];
+			for (int K = 0; K < 2; ++K)
+			{
+				Side[K].Material = Out.Material;
+				Map[K].assign(Out.Pos.size(), -1);
+			}
+			for (size_t I = 0; I + 2 < Out.Idx.size(); I += 3)
+			{
+				const double Z = Out.Pos[Out.Idx[I]].z + Out.Pos[Out.Idx[I + 1]].z + Out.Pos[Out.Idx[I + 2]].z;
+				const int K = Z < 0.0 ? 0 : 1;
+				for (size_t J = 0; J < 3; ++J)
+				{
+					const size_t V = Out.Idx[I + J];
+					if (Map[K][V] < 0)
+					{
+						Map[K][V] = int(Side[K].Pos.size());
+						Side[K].Pos.push_back(Out.Pos[V]);
+						if (V < Out.Nrm.size()) Side[K].Nrm.push_back(Out.Nrm[V]);
+						if (V < Out.U.size()) Side[K].U.push_back(Out.U[V]);
+						if (V < Out.V.size()) Side[K].V.push_back(Out.V[V]);
+					}
+					Side[K].Idx.push_back(static_cast<decltype(Out.Idx)::value_type>(Map[K][V]));
+				}
+			}
+			for (int K = 0; K < 2; ++K)
+				if (!Side[K].Idx.empty()) Meshes[Key]->Surfaces.push_back(std::move(Side[K]));
+			continue;
+		}
 		Meshes[Key]->Surfaces.push_back(std::move(Out));
 	}
 	auto Made = std::make_shared<std::vector<FittedPart>>();
@@ -4487,10 +4523,28 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 }
 } // namespace
 
+namespace
+{
+struct CommonFile;
+std::map<std::string, std::shared_ptr<const CommonFile>>& CommonFiles();
+} // namespace
+
+// Whether the model was drawn with a display (v2.points_mm.gauges has a "screen"), not dials.
+static bool V2DrawsScreen(const Json* V2)
+{
+	const Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const Json* Gauges = Points ? Points->Get("gauges") : nullptr;
+	if (!Gauges || !Gauges->IsArray()) return false;
+	for (const Json& G : Gauges->A)
+		if (G.Str("what") == "screen") return true;
+	return false;
+}
+
 void BikeParts::SetV2Source(V2Source In)
 {
 	V2Files() = std::move(In);
 	V2Made().clear();
+	CommonFiles().clear();
 }
 
 bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
@@ -4510,7 +4564,8 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	// Any other dash: the clocks as the model draws them.
 	{
 		const Json* Dash = Lay.Part(PartIn(Parts, "dashboard"));
-		if (PartStr(Dash, "style", "analog") == "tft")
+		// [bikes v2] (A model drawn with a display of its own keeps it: V2Gauges lights its picture.)
+		if (PartStr(Dash, "style", "analog") == "tft" && !V2DrawsScreen(V2))
 		{
 			V3 Lo(1.0e9, 1.0e9, 1.0e9), Hi(-1.0e9, -1.0e9, -1.0e9);
 			for (FittedPart& P : Out)
@@ -4538,6 +4593,7 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 			if (Placed) TftUnitInto(Out, Dash, GAffine::Rotation(GodotRight, 0.9), V3(0.0, 0.0, 0.0), V3(0.0, Mid.y, Mid.z));
 		}
 	}
+	V2Common(Parts, F, Out);
 	for (FittedPart& P : Out)
 	{
 		const auto In = Parts.find(P.Slot);
@@ -4546,11 +4602,381 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	return true;
 }
 
+// [common parts]
+namespace
+{
+// A point in ours (m) back to the V2 model's mm (x forward from the rear axle, y to the left, z up): V2Frame::Point undone.
+V3 V2ToMm(const V2Frame& F, const V3& O)
+{
+	const double X = F.Cos * O.x - F.Sin * O.y, Z = F.Sin * O.x + F.Cos * O.y;
+	return V3(X * 1000.0 + F.MidX, -O.z * 1000.0, Z * 1000.0 + F.MidZ);
+}
+
+struct MmBox
+{
+	V3 Lo = V3(1.0e9, 1.0e9, 1.0e9), Hi = V3(-1.0e9, -1.0e9, -1.0e9);
+	bool Any() const { return Lo.x <= Hi.x; }
+	void Add(const V3& P)
+	{
+		Lo = V3(std::min(Lo.x, P.x), std::min(Lo.y, P.y), std::min(Lo.z, P.z));
+		Hi = V3(std::max(Hi.x, P.x), std::max(Hi.y, P.y), std::max(Hi.z, P.z));
+	}
+	V3 Mid() const { return (Lo + Hi) * 0.5; }
+	// Pieces either side of the bike (a pair of grips, mirrors, pegs): it reaches well out on both sides.
+	bool Pair() const { return Lo.y < -40.0 && Hi.y > 40.0; }
+};
+
+// A common piece's file, as loaded (its glb in the glb's space, metres; its looks): made once.
+struct CommonFile
+{
+	PartMesh Mesh;
+	Json Info;
+};
+
+std::map<std::string, std::shared_ptr<const CommonFile>>& CommonFiles()
+{
+	static std::map<std::string, std::shared_ptr<const CommonFile>> Files;
+	return Files;
+}
+
+std::shared_ptr<const CommonFile> LoadCommon(const std::string& File)
+{
+	auto Found = CommonFiles().find(File);
+	if (Found != CommonFiles().end()) return Found->second;
+	auto Made = std::make_shared<CommonFile>();
+	std::string InfoText, Error;
+	// (The V2 source reads Data/BikesV2/<name>.glb and .json: the piece's file under common/, its ".glb" off.)
+	const std::string Name = "common/" + (File.size() > 4 && File.compare(File.size() - 4, 4, ".glb") == 0 ? File.substr(0, File.size() - 4) : File);
+	std::shared_ptr<const CommonFile> Out;
+	if (V2Files() && V2Files()(Name, Made->Mesh, InfoText) && Json::Parse(InfoText, Made->Info, &Error) && !Made->Mesh.Surfaces.empty()) Out = Made;
+	CommonFiles()[File] = Out;
+	return Out;
+}
+
+V3 MmOf(const Json* A, double Default = 0.0)
+{
+	return A && A->A.size() >= 3 ? V3(A->A[0].N, A->A[1].N, A->A[2].N) : V3(Default, Default, Default);
+}
+} // namespace
+
+int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<FittedPart>& Out) const
+{
+	if (!F.Valid || !F.Points) return 0;
+	auto Point = [&](const std::string& Key, V3& Mm) {
+		const Json* P = F.Points->Get(Key);
+		if (!P || P->A.size() < 3) return false;
+		Mm = MmOf(P);
+		return true;
+	};
+	// A bike piece's mesh, copied so it can be moved (the made pieces are shared between bikes of the model).
+	auto Moved = [&](FittedPart& P, const std::function<V3(const V3&)>& MoveMm) {
+		auto Copy = std::make_shared<PartMesh>(*P.Made);
+		for (PartSurface& S : Copy->Surfaces)
+			for (V3& Q : S.Pos)
+			{
+				const V3 M = MoveMm(V2ToMm(F, Q));
+				Q = F.Point(M.x, M.y, M.z);
+			}
+		P.Made = Copy;
+	};
+	// The bike's own pieces of a sub, and where they are (mm).
+	auto OwnBox = [&](const std::string& Sub, std::string* Node) {
+		MmBox Box;
+		for (const FittedPart& P : Out)
+		{
+			if (P.Sub != Sub || !P.Made || P.Code) continue;
+			if (Node && !Box.Any()) *Node = P.Node;
+			for (const PartSurface& S : P.Made->Surfaces)
+				for (const V3& Q : S.Pos) Box.Add(V2ToMm(F, Q));
+		}
+		return Box;
+	};
+
+	// The common parts on the bike, the bar first (it moves what's on it before the rest line up on that).
+	std::vector<std::pair<std::string, const Json*>> Fitted;
+	for (const auto& KV : Parts)
+	{
+		const Json* Part = Lay.Part(KV.second);
+		const Json* Common = Part ? Part->Get("common") : nullptr;
+		if (!Common || !Common->IsObject()) continue;
+		if (KV.first == "handlebars") Fitted.insert(Fitted.begin(), {KV.first, Common});
+		else Fitted.push_back({KV.first, Common});
+	}
+	// A screen dash is the TFT unit FitV2 put in the clocks' place (it lights and works); not its glb.
+	const bool bTftDash = PartStr(Lay.Part(PartIn(Parts, "dashboard")), "style", "analog") == "tft";
+
+	V3 Grip;
+	const bool bGrip = Point("grip", Grip);
+	int Added = 0;
+	for (const auto& [Slot, Common] : Fitted)
+	{
+		if (Slot == "dashboard" && bTftDash) continue;
+		const Json* Pieces = Common->Get("pieces");
+		if (!Pieces || !Pieces->IsArray()) continue;
+		// A common bar: its grips are where the bike's were moved to, and the pieces on the bar go with them.
+		V3 Steer;
+		const Json* GripOff = Common->Get("grip_offset_mm");
+		if (Slot == "handlebars" && GripOff && bGrip && Point("steer_top", Steer))
+		{
+			const V3 Off = MmOf(GripOff);
+			const double OldY = std::fabs(Grip.y) > 50.0 ? std::fabs(Grip.y) : Common->Num("grip_y_mm", 320.0);
+			const V3 To(Steer.x + Off.x, Common->Num("grip_y_mm", OldY), Steer.z + Off.z);
+			const V3 By(To.x - Grip.x, To.y - OldY, To.z - Grip.z);
+			std::set<std::string> Moves;
+			if (const Json* M = Common->Get("moves"))
+				for (const Json& Each : M->A) Moves.insert(Each.S);
+			for (FittedPart& P : Out)
+				if (P.Made && !P.Code && Moves.count(P.Sub))
+					Moved(P, [By](const V3& M) { return V3(M.x + By.x, M.y + (M.y >= 0.0 ? By.y : -By.y), M.z + By.z); });
+			Grip = V3(To.x, Grip.y >= 0.0 ? To.y : -To.y, To.z);
+		}
+		for (const Json& Piece : Pieces->A)
+		{
+			const std::string Sub = Piece.Str("sub", Common->Str("sub"));
+			// (A pair's front and rear pieces go with the slot they're in: a disc in front_disc is the front one.)
+			const bool bFrontSlot = Slot.rfind("front_", 0) == 0, bRearSlot = Slot.rfind("rear_", 0) == 0;
+			const bool bFrontSub = Sub.size() > 6 && Sub.compare(Sub.size() - 6, 6, "_front") == 0;
+			const bool bRearSub = Sub.size() > 5 && Sub.compare(Sub.size() - 5, 5, "_rear") == 0;
+			if ((bFrontSlot && bRearSub) || (bRearSlot && bFrontSub)) continue;
+			const std::shared_ptr<const CommonFile> File = LoadCommon(Piece.Str("file"));
+			if (!File) continue;
+			// Where it goes by its anchor (the bike's own point, on the bike's middle: every piece carries its
+			// sides in its own file), else its fallback's.
+			V3 At;
+			bool bAt = false;
+			const std::string Anchor = Piece.Str("anchor");
+			if (Anchor == "grip" && bGrip) { At = Grip; bAt = true; }
+			else bAt = Point(Anchor, At);
+			V3 Off = MmOf(Piece.Get("offset_mm"));
+			if (!bAt)
+				if (const Json* Fb = Piece.Get("fallback"))
+				{
+					bAt = Point(Fb->Str("anchor"), At);
+					Off = MmOf(Fb->Get("offset_mm"));
+				}
+			if (!bAt) continue;
+			const V3 Base(At.x + Off.x, Off.y, At.z + Off.z);
+			std::string Node = Piece.Str("node");
+			if (Sub == "caliper_front") Node = "front_hub";
+			const MmBox Own = OwnBox(Sub, &Node);
+			for (FittedPart& P : Out)
+				if (P.Sub == Sub && P.Made && !P.Code) P.Hidden = true;
+			// The piece in mm where its anchor puts it.
+			std::vector<std::vector<V3>> Pos, Nrm;
+			MmBox New;
+			for (const PartSurface& S : File->Mesh.Surfaces)
+			{
+				Pos.emplace_back();
+				Nrm.emplace_back();
+				for (const V3& G : S.Pos)
+				{
+					Pos.back().push_back(Base + V3(G.x * 1000.0, -G.z * 1000.0, G.y * 1000.0));
+					New.Add(Pos.back().back());
+				}
+				for (const V3& N : S.Nrm) Nrm.back().push_back(V3(N.x, -N.z, N.y));
+			}
+			if (!New.Any()) continue;
+			// Lined up on the bike's own piece it replaces, where there was one (not the bar: its clamp is its place):
+			// its middle on that one's (a silencer by its front, where the pipe meets it), a pair's sides out to that
+			// one's sides, a piece on one side mirrored to the side the bike's was on.
+			bool bMirror = false;
+			V3 By(0.0, 0.0, 0.0);
+			double Spread = 0.0;
+			if (Own.Any() && Sub != "bar")
+			{
+				By.x = Sub == "silencer" ? Own.Hi.x - New.Hi.x : Own.Mid().x - New.Mid().x;
+				By.z = Own.Mid().z - New.Mid().z;
+				if (New.Pair() && Own.Pair()) Spread = ((Own.Hi.y - New.Hi.y) + (New.Lo.y - Own.Lo.y)) * 0.5;
+				else if (!New.Pair())
+				{
+					bMirror = (New.Mid().y > 0.0) != (Own.Mid().y > 0.0) && std::fabs(Own.Mid().y) > 20.0 && std::fabs(New.Mid().y) > 20.0;
+					By.y = Own.Mid().y - (bMirror ? -New.Mid().y : New.Mid().y);
+				}
+			}
+			auto Made = std::make_shared<PartMesh>();
+			const Json* Looks = File->Info.Get("surfaces");
+			for (size_t I = 0; I < File->Mesh.Surfaces.size(); ++I)
+			{
+				const PartSurface& S = File->Mesh.Surfaces[I];
+				const Json* Look = Looks ? Looks->Get(S.Material) : nullptr;
+				std::string Name = "v2/" + (Look ? Look->Str("ue", "cat_brushed_steel") : std::string("cat_brushed_steel")) + "/" +
+					(Look ? Look->Str("paint") : std::string()) + "/" + (Look ? Look->Str("tag", S.Material) : S.Material);
+				const Json* Colour = Look ? Look->Get("color") : nullptr;
+				if (Colour && Colour->A.size() >= 3)
+				{
+					for (size_t C = 0; C < 3; ++C) Name += "/" + V2Number(Colour->A[C].N);
+					Name += "/" + V2Number(Look->Num("metallic", 0.0)) + "/" + V2Number(Look->Num("roughness", 0.5));
+				}
+				PartSurface Drawn;
+				Drawn.Material = Name;
+				for (V3 M : Pos[I])
+				{
+					if (bMirror) M.y = -M.y;
+					M = M + By;
+					if (Spread != 0.0) M.y += M.y >= 0.0 ? Spread : -Spread;
+					Drawn.Pos.push_back(F.Point(M.x, M.y, M.z));
+				}
+				for (V3 N : Nrm[I])
+				{
+					if (bMirror) N.y = -N.y;
+					Drawn.Nrm.push_back(F.Dir(N.x, N.y, N.z));
+				}
+				Drawn.U = S.U;
+				Drawn.V = S.V;
+				Drawn.Idx = S.Idx;
+				// (Mirrored, its triangles turn the other way round to face out still.)
+				if (bMirror)
+					for (size_t T = 0; T + 2 < Drawn.Idx.size(); T += 3) std::swap(Drawn.Idx[T + 1], Drawn.Idx[T + 2]);
+				Made->Surfaces.push_back(std::move(Drawn));
+			}
+			FittedPart P;
+			P.Slot = Slot;
+			P.Node = Node;
+			P.Sub = Sub;
+			P.Glb = "v2c/" + Piece.Str("file");
+			P.Name = Sub;
+			P.Made = Made;
+			Out.push_back(std::move(P));
+			++Added;
+		}
+	}
+	return Added;
+}
+
+bool BikeParts::V2Tyres(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* V2 = Lay.V2Of(Parts);
+	const Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const Json* St = Points ? Points->Get("stats") : nullptr;
+	if (!St) return false;
+	std::vector<FittedPart> Tyres;
+	for (const bool Front : {true, false})
+	{
+		const std::string Side = Front ? "front" : "rear";
+		const std::string Tread = St->Str(Front ? "tread_front" : "tread_rear");
+		const std::string TyrePath = "tyre/" + Tread + ".glb";
+		if (Tread.empty() || !HasGlb(TyrePath)) return false;
+		// (As Wheels() bends it, on the drawn wheel's sizes; BikesV2/foundry/build3d.py game_tyre is the same.)
+		const V3 Axle = ToGodot(Front ? L.FrontAxle : L.RearAxle);
+		const double Radius = Front ? L.Stats.FrontRadius : L.Stats.RearRadius;
+		const double RimR = Front ? L.Stats.FrontRimRadius : L.Stats.RearRimRadius;
+		const double Half = (Front ? L.Stats.FrontTyreWidth : L.Stats.RearTyreWidth) * 0.5;
+		const double Bead = std::min(Half * 0.8 - 0.004, Half * 0.9);
+		const double Base = RimR - 0.006;
+		const double Span = std::max(Radius - RimR, 0.02) + 0.006;
+		const int Sections = TyreSectionsFor(Tread);
+		const double Step = 2.0 * TorqueSim::Pi / Sections;
+		// A front road tyre goes on the other way round to a rear: its grooves run from the centre out and
+		// down on the face seen from the front (beenster's reference, Nov 16).
+		const bool bTurned = Front && Tread != "knobs" && Tread != "blocks" && Tread != "studs";
+		FittedPart P;
+		P.Slot = Parts.count(Side + "_tyre") ? Side + "_tyre" : std::string("frame");
+		P.Glb = TyrePath;
+		P.Node = Side + "_wheel";
+		for (int K = 0; K < Sections; ++K)
+			P.Copies.push_back(GodotWarpToOurs([=](const V3& V) {
+				const double A = (bTurned ? K - V.z : K + V.z) * Step;
+				const double R = Base + V.y * Span;
+				double X = V.x * Half;
+				if (V.y < TyreBulge && std::fabs(V.x) >= 0.9)
+					X = (V.x < 0.0 ? -1.0 : 1.0) * TorqueSim::Lerp(Bead, Half, TorqueSim::Clamp((std::fabs(V.x) - 0.9) / 0.1, 0.0, 1.0));
+				return Axle + V3(X, std::cos(A) * R, std::sin(A) * R);
+			}));
+		Tyres.push_back(P);
+	}
+	// (An older export drew its own, thinner tyres: those go.)
+	Out.erase(std::remove_if(Out.begin(), Out.end(), [](const FittedPart& P) { return P.Made && (P.Name == "front_tyre" || P.Name == "rear_tyre"); }), Out.end());
+	Out.insert(Out.end(), Tyres.begin(), Tyres.end());
+	return true;
+}
+
+int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) const
+{
+	const Json* V2 = Lay.V2Of(Parts);
+	const auto FrameIt = Parts.find("frame");
+	const V2Frame F = V2Frame::Of(FrameIt != Parts.end() ? Lay.Part(FrameIt->second) : nullptr);
+	const Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const Json* Gauges = Points ? Points->Get("gauges") : nullptr;
+	if (!F.Valid || !Gauges || !Gauges->IsArray()) return 0;
+	const std::string Slot = Parts.count("dashboard") ? "dashboard" : "frame";
+	// (A TFT fitted to a bike drawn with dials: the TFT's unit stands in their place, FitV2.)
+	const bool bTftOverDials = PartStr(Lay.Part(PartIn(Parts, "dashboard")), "style", "analog") == "tft" && !V2DrawsScreen(V2);
+	// [common parts] Common clocks fitted: the model's dials (and any display of its own) are gone with its clocks.
+	{
+		const Json* Dash = Lay.Part(PartIn(Parts, "dashboard"));
+		if (Dash && Dash->Get("common") && !bTftOverDials && PartStr(Dash, "style", "analog") != "tft") return 0;
+	}
+	int Made = 0;
+	bool bReadout = false;
+	for (const Json& G : Gauges->A)
+	{
+		const Json* At = G.Get("at");
+		const Json* Axis = G.Get("axis");
+		const Json* Up = G.Get("up");
+		if (!At || !Axis || !Up || At->A.size() < 3 || Axis->A.size() < 3 || Up->A.size() < 3) continue;
+		const std::string What = G.Str("what");
+		const std::string Node = G.Str("node");
+		// The face's own space, as the catalogue clocks': x across, y out of the face at the rider, z down it (Godot frame).
+		GAffine Tilt;
+		Tilt.Y = ToGodot(F.Dir(Axis->A[0].N, Axis->A[1].N, Axis->A[2].N)).Normalized();
+		Tilt.Z = ToGodot(F.Dir(Up->A[0].N, Up->A[1].N, Up->A[2].N)).Normalized() * -1.0;
+		Tilt.X = Tilt.Y.Cross(Tilt.Z).Normalized();
+		const V3 C = ToGodot(F.Point(At->A[0].N, At->A[1].N, At->A[2].N));
+		auto Code = [&](const CodeShapes::GMesh& M, const V3& Where, const std::string& Tag) {
+			CodeShapes::Emit(Out, Slot, "dashboard/dial.glb", Node, "", M, AtWith(Tilt, Where), Tag);
+		};
+		auto Works = [&](const std::string& Gauge, const V3& Where, double Size) {
+			FittedPart& Fp = Out.back();
+			Fp.Gauge = Gauge;
+			Fp.GaugeAt = FromGodot(Where);
+			Fp.GaugeAxis = FromGodot(Tilt.Y);
+			Fp.GaugeUp = FromGodot(Tilt.Z * -1.0);
+			Fp.GaugeSize = Size;
+		};
+		if ((What == "speed" || What == "rpm") && bTftOverDials) continue;
+		if (What == "speed" || What == "rpm")
+		{
+			// A cream face over the drawn one (the scale's ink is black), the needle at rest straight up it,
+			// under the drawn hub and glass (the hub 0.4 to 3.4 mm off the face, the glass from 4.2).
+			const double R = std::max(G.Num("r", 43.0), 15.0) / 1000.0;
+			const double K = R / 0.043;
+			Code(CodeShapes::Cylinder(R * 0.97, 0.0004), C + Tilt.Y * 0.0006, "dial");
+			if (!bReadout)
+			{
+				// (the little window for the gear and fuel, under the first dial's pivot)
+				Code(CodeShapes::Box(V3(R * 0.5, 0.0003, R * 0.2)), C + Tilt.Y * 0.0009 + Tilt.Z * (R * 0.5), "dial");
+				Works("readout", C + Tilt.Y * 0.0012 + Tilt.Z * (R * 0.5), K);
+				bReadout = true;
+			}
+			Code(CodeShapes::Box(V3(0.0022, 0.0012, R * 0.8)), C + Tilt.Y * 0.0024 + Tilt.Z * (-R * 0.38), "lens_red");
+			Works(What, C + Tilt.Y * 0.0024, K);
+			++Made;
+		}
+		else if (What == "screen")
+		{
+			const double W = std::max(G.Num("w", 66.0), 20.0) / 1000.0, H = std::max(G.Num("h", 40.0), 12.0) / 1000.0;
+			const std::string Size = std::to_string(int(std::lround(W * 1000.0))) + "x" + std::to_string(int(std::lround(H * 1000.0)));
+			// (A bike drawn with no clocks at all, the MX bikes: the display comes with a small black case.)
+			if (G.Flag("case", false))
+				Code(CodeShapes::Box(V3(W + 0.012, 0.014, H + 0.012)), C - Tilt.Y * 0.0072, "black_metal");
+			Code(CodeShapes::ScreenFace(W, H, false), C + Tilt.Y * 0.0013, "glass");
+			Works("screen_wide_" + Size, C + Tilt.Y * 0.0013, 1.0);
+			++Made;
+		}
+	}
+	return Made;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
 	{
 		std::vector<FittedPart> V2;
-		if (FitV2(Parts, V2)) return V2;
+		if (FitV2(Parts, V2))
+		{
+			V2Tyres(Parts, L, V2);
+			V2Gauges(Parts, V2);
+			return V2;
+		}
 	}
 	const Bodywork Body = BikeBody(Lay).Fit(Parts, L);
 	std::vector<FittedPart> Out = Body.Parts;

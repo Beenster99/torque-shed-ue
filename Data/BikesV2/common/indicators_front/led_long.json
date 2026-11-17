@@ -1,0 +1,57 @@
+{
+ "group": "indicators_front",
+ "key": "led_long",
+ "name": "LED, long stalk",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  23.0,
+  450.0,
+  23.0
+ ],
+ "triangles": 6600,
+ "surfaces": {
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "d3_clearglass": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0
+  },
+  "d3_amberled": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.42,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.2
+  }
+ }
+}

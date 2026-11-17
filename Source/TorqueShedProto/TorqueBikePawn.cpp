@@ -841,6 +841,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	Lights.Setup(Parts);
 	Lights.Hook(this, ModelParts, true);
 	SideStandPart = Parts.FindRef(TEXT("side_stand"));
+	bV2Stand = TorqueShedCatalogue::V2Stand(Parts, V2StandPivot, V2StandFolded, V2StandDown);
 	CentreStandPart = Parts.FindRef(TEXT("centre_stand"));
 	StandRest.Reset();
 	{
@@ -2136,6 +2137,12 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 		// Where BikeParts::Stands puts it: 12 cm left, 4 cm under the origin, 16 cm ahead of the
 		// swingarm pivot. (Its surfaces' own places are no help: their shapes are drawn in place.)
 		Pivot = FVector(SwingPivot.X + 16.0, -12.0, -4.0);
+		if (bV2Stand)
+		{
+			Pivot = V2StandPivot;
+			Folded = V2StandFolded;
+			Down = V2StandDown;
+		}
 	}
 	else
 	{

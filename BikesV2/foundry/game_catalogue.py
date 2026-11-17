@@ -61,8 +61,24 @@ def main():
                      v2={"model": name, "family": m["family"].lower(), "brand": brand, "lead": name in LEADS, "body": lin(m["colours"]["body"]),
                          "points_mm": info["points_mm"]})
         out["v2_" + name] = stock
+    # The bike types with no V2 bikes are out of the game, and every part made only for them (beenster, 17 Nov):
+    # a part whose pack is one of them, or that suits none of the types kept. A part one of the kept types'
+    # stock bikes is built with stays whatever its label.
+    kept = set(STYLE.values())
+    stock_parts = {pid for st in kept for pid in layout["reference_builds"][st].values()}
+    retired = {}
+    for kind, entries in parts.items():
+        if not isinstance(entries, dict):
+            continue
+        for pid, v in entries.items():
+            if not isinstance(v, dict) or pid in stock_parts:
+                continue
+            suits = set(v.get("styles") or [])
+            if (v.get("pack") and v["pack"] not in kept) or (suits and not suits & kept):
+                retired.setdefault(kind, []).append(pid)
     dst = os.path.join(GAME, "Data", "BikesV2", "parts_v2.json")
-    json.dump({"frame": out}, open(dst, "w"), indent=1)
+    json.dump({"_retired": retired, "frame": out}, open(dst, "w"), indent=1)
+    print(sum(len(v) for v in retired.values()), "parts retired with the bike types that have no V2 bikes:", {k: len(v) for k, v in retired.items()})
     print(f"{len(out)} V2 bikes in {dst}; not exported yet: {missing or 'none'}")
 
 

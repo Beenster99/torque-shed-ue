@@ -1,0 +1,42 @@
+{
+ "group": "mirrors",
+ "key": "fairing_wing",
+ "name": "Fairing wing",
+ "fitted_on": "kazeda_sport",
+ "family": "Sport",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1127.0,
+  0.0,
+  998.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  53.2,
+  666.2,
+  55.3
+ ],
+ "triangles": 1180,
+ "surfaces": {
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "d3_mirrorglass": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.01
+  }
+ }
+}

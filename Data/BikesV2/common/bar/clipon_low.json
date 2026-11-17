@@ -1,0 +1,45 @@
+{
+ "group": "bar",
+ "key": "clipon_low",
+ "name": "Clip-ons, low",
+ "fitted_on": "hartwell_cafe",
+ "family": "Cafe",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1126.1,
+  0.0,
+  1005.4
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  151.2,
+  766.6,
+  89.7
+ ],
+ "triangles": 4464,
+ "surfaces": {
+  "d3_bars_satin_black": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.03,
+    0.03,
+    0.034
+   ],
+   "metallic": 0.85,
+   "roughness": 0.38
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

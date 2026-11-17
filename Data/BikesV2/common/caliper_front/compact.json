@@ -1,0 +1,55 @@
+{
+ "group": "caliper_front",
+ "key": "compact",
+ "name": "Compact twin-pot",
+ "fitted_on": "hartwell_classic",
+ "family": "Classic",
+ "mount": "front_axle",
+ "mount_mm": [
+  1445,
+  0.0,
+  328
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  112.8,
+  239.6,
+  134.0
+ ],
+ "triangles": 8224,
+ "surfaces": {
+  "d3_bk_silver": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.62,
+    0.64
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "d3_bk_pad": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.06,
+    0.055,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.8
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

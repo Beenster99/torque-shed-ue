@@ -609,6 +609,16 @@ void ATorqueShedBike::ApplyPose(int32 Pose)
 		Folded = Godot(-0.03, -0.04, Len * 0.95);
 		Down = Godot(-Len * FMath::Sin(Best), -Len * FMath::Cos(Best), -0.06);
 		Pivot = FVector(SwingPivotCm.X + 16.0, -12.0, -4.0);
+		// [bikes v2] A V2 bike's stand swings on its own pivot, as it was fitted.
+		FVector V2Pivot, V2Folded, V2Down;
+		TMap<FString, FString> StandParts;
+		const UTorqueBuildSubsystem* StandShed = UTorqueBuildSubsystem::Of(GetWorld());
+		if (StandShed && StandShed->LayoutParts(Bay, StandParts) && TorqueShedCatalogue::V2Stand(StandParts, V2Pivot, V2Folded, V2Down))
+		{
+			Pivot = V2Pivot;
+			Folded = V2Folded;
+			Down = V2Down;
+		}
 		Tag = FName(TEXT("Slot:side_stand"));
 	}
 	else
