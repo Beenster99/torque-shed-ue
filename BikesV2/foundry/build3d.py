@@ -94,9 +94,15 @@ def mat(name, col=None, finish=None):
     return m
 
 
-def export_game(name, model):
+GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "2.0,0.3,0.6,0.5").split(",")]
+
+
+def export_game(name, model, model_file=None):
     """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
-    surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json (each surface's look)."""
+    surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
+    game slot, one moving group and one finish (game_parts.classify), named s000.. in the glb; the json
+    gives each its slot, group ("node"), look and paint slot, and the bike's key points."""
+    import game_parts
     dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
     os.makedirs(dst, exist_ok=True)
     obs = [o for o in bpy.context.scene.objects if o.type in ("MESH", "CURVE")]
@@ -105,29 +111,90 @@ def export_game(name, model):
         o.select_set(True)
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.convert(target="MESH")
+    bpy.ops.object.make_single_user(object=True, obdata=True, material=False)
     obs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+    tagged, looks, unknown = {}, {}, set()
+    # the Definition build is drawn for close-up pictures (543,000 triangles on the naked lead); the game
+    # gets every piece thinned to what reads at riding and shed distance
+    hist = [0] * 5
+    for o in obs:
+        n = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        hist[min(4, 0 if n < 100 else 1 if n < 240 else 2 if n < 800 else 3 if n < 2500 else 4)] += n
+        if n < 100 or "tyre" in o.name or "rotor" in o.name:      # (a drilled disc is a flat face full of holes: left exactly as drawn)
+            continue
+        bpy.context.view_layer.objects.active = o
+        if any(m and m.name.startswith(("paint", "accent")) for m in o.data.materials):
+            # paintwork shows every dent in its reflections: only halved, never flattened
+            if n > 2500:
+                md = o.modifiers.new("thin", "DECIMATE")
+                md.ratio = GAME_THIN[3]
+                bpy.ops.object.modifier_apply(modifier=md.name)
+            continue
+        # first what costs nothing to look at: faces that lie in one plane or along a straight run become one
+        # (a drilled disc, a plate, a straight tube keep their exact shape)
+        md = o.modifiers.new("flat", "DECIMATE")
+        md.decimate_type = "DISSOLVE"
+        md.angle_limit = math.radians(GAME_THIN[0])
+        md.delimit = {"MATERIAL", "SHARP"}
+        bpy.ops.object.modifier_apply(modifier=md.name)
+        n2 = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        ratio = GAME_THIN[1] if n2 > 2500 else GAME_THIN[2] if n2 > 800 else 1.0
+        if ratio < 1.0:
+            md = o.modifiers.new("thin", "DECIMATE")
+            md.ratio = ratio
+            bpy.ops.object.modifier_apply(modifier=md.name)
+    for o in obs:
+        r = game_parts.classify(o.name, model)
+        if not r:
+            unknown.add(game_parts.stem(o.name))
+            r = ("frame", "")
+        for i, m in enumerate(o.data.materials):
+            if m is None:
+                continue
+            key = (r[0], r[1], m.name)
+            if key not in tagged:
+                c = m.copy()
+                c.name = f"s{len(tagged):03d}"
+                tagged[key] = c
+                tag = m.name.split(".")[0]
+                spec = LIB["surfaces"].get(tag.split("__")[0], {})
+                b = m.node_tree.nodes["Principled BSDF"]
+                ue = spec.get("ue", "cat_brushed_steel")
+                # the game's lights find their lenses by these names (TorqueLights: Surf:lens_white / amber / red)
+                lens = "lens_white" if ue == "lens_clear" and r[0] in ("headlight", "fog_lights") else ue if ue in ("lens_red", "lens_amber") else ""
+                look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
+                if spec.get("slot"):
+                    look["paint"] = spec["slot"]
+                if spec.get("ue_tint", True):
+                    look["color"] = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
+                    look["metallic"] = round(b.inputs["Metallic"].default_value, 3)
+                    look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
+                looks[c.name] = look
+            o.data.materials[i] = tagged[key]
+    pts = game_parts.points(model)
+    bpy.context.view_layer.update()
+    for key, obname in (("peg", "peg01"), ("grip", "grip1")):      # the rider's left peg and grip as built
+        o = bpy.data.objects.get(obname)
+        if o:
+            bb = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
+            pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
+    name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
     ob.name = ob.data.name = name
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     bpy.ops.export_scene.gltf(filepath=os.path.join(dst, name + ".glb"), use_selection=True, export_apply=True, export_yup=True,
-                              export_texcoords=True, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
-    looks = {}
-    for m in ob.data.materials:
-        tag = m.name.split(".")[0]
-        spec = LIB["surfaces"].get(tag.split("__")[0], {})
-        b = m.node_tree.nodes["Principled BSDF"]
-        look = {"ue": spec.get("ue", "cat_brushed_steel")}
-        if spec.get("ue_tint", True):
-            look["color"] = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
-            look["metallic"] = round(b.inputs["Metallic"].default_value, 3)
-            look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
-        looks[m.name] = look
+                              export_texcoords=False, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
     g = model["geometry"]
     info = {"name": model["name"], "brand": model["brand"], "family": model["family"], "rev": model.get("rev"),
-            "wheelbase_mm": g["wheelbase"], "seat_height_mm": g["seat_height"], "surfaces": looks}
+            "wheelbase_mm": g["wheelbase"], "seat_height_mm": g["seat_height"], "format": 2, "triangles": tris,
+            "points_mm": pts, "pieces": sorted({f"{v['slot']}|{v['node']}" for v in looks.values()}),
+            "surfaces": looks}
     json.dump(info, open(os.path.join(dst, name + ".json"), "w"), indent=1)
+    print("triangles before thinning, by piece size (<100, <240, <800, <2500, more):", hist)
+    print(f"game export {name}: {len(looks)} surfaces, {len(info['pieces'])} pieces, {tris} triangles, no rule for: {sorted(unknown) or 'none'}")
     return dst
 
 
@@ -2053,7 +2120,7 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
     if "--game" in sys.argv:
-        print("game files in", export_game(name, model))
+        print("game files in", export_game(name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
         import clip3d

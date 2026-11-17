@@ -515,6 +515,8 @@ public:
 	float DirtOf(int32 Bay, FName Slot) const;
 	float RustOf(int32 Bay, FName Slot) const;
 	bool PaintOf(int32 Bay, FName Slot, FLinearColor& Out) const;
+	// [bikes v2] Whether the part in the slot has been painted or primed by someone (Repainted).
+	bool RepaintedOn(int32 Bay, FName Slot) const;
 	// The badge on bay Bay's tank (Fit/BikeShop's badge text), "" for none.
 	FString BadgeOf(int32 Bay) const;
 	// The decals on the part in bay Bay's Slot (Fit/BikeDecal text, "" for none).

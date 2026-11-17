@@ -101,6 +101,12 @@ int32 MakeV2Display(AActor* Owner, USceneComponent* Parent, const FString& Model
 // Tagged on a surface that isn't paint (chrome, rubber...): ApplyLooks leaves its colour alone.
 extern const TCHAR* const NoPaintTag;
 
+// [bikes v2] Tagged on a V2 bike's bodywork and rim paint: it's drawn in the model's own colour, which
+// stays until the part is repainted (ApplyLooks; the shop's preview and a loose part leave it alone).
+extern const TCHAR* const V2PaintTag;
+// ...and on the bodywork's of those (not the rims'): it follows the tank's paint when the tank's been painted.
+extern const TCHAR* const V2BodyTag;
+
 // Tagged on a surface that turns with a wheel (the tyre, the rim, a disc): its road dirt lies evenly
 // round the wheel (ApplyLooks), not caked on whichever side was at the bottom when it was drawn.
 extern const TCHAR* const SpinsTag;

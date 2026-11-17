@@ -2312,6 +2312,12 @@ bool UTorqueBuildSubsystem::PaintOf(int32 Bay, FName Slot, FLinearColor& Out) co
 	return false;
 }
 
+bool UTorqueBuildSubsystem::RepaintedOn(int32 Bay, FName Slot) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
+	return It && Repainted(*It);
+}
+
 bool UTorqueBuildSubsystem::FinishLook(const FTorqueItem& It, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness)
 {
 	if (!Repainted(It)) return false;

@@ -506,6 +506,7 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 			Shown.Add(C);
 			TSPI::Clean(C);
 			if (C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag))) continue;
+			if (C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag))) continue;   // [bikes v2] its model's own colour
 			const FName Slot = TorqueShedModel::SlotTag(C);
 			if (const FTorqueShopFinish* F = Finishes.Find(Slot))
 				TSPI::Paint(C, F->Colour, F->Metallic, F->Roughness);

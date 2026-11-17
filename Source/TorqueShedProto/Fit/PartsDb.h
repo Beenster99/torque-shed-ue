@@ -15,6 +15,9 @@ class PartsDb
 public:
 	bool LoadFromText(const std::string& Text, std::string& Error);
 	bool Loaded() const { return Root.IsObject(); }
+	// [bikes v2] More parts laid over the catalogue (Data/BikesV2/parts_v2.json: each V2 bike's frame),
+	// the same shape as parts.json; a part of the same kind and id is replaced. Before BikeLayout::Load.
+	bool AddFromText(const std::string& Text, std::string& Error);
 
 	std::vector<std::string> Kinds() const;
 	std::vector<std::string> Ids(const std::string& Kind) const;

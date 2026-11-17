@@ -55,6 +55,25 @@ struct AdjustRange
 	double Min = 0.0, Max = 0.0, Step = 1.0;
 };
 
+// [bikes v2] A Bike Models V2 bike is a frame part with "v2" (Data/BikesV2/parts_v2.json): its model's
+// name and its key points as BikesV2 draws them (mm: x forward from the rear axle, y to the rider's
+// left, z up from the ground). This takes those, and the model's glb (metres: x forward, y up, z to
+// the right, the same origin), into ours: the origin midway between the axles, both axles at y = 0
+// (a V2 bike's wheels differ in size, so the drawing is tipped by that much, as the sim stands it).
+struct V2Frame
+{
+	bool Valid = false;
+	double MidX = 0.0, MidZ = 0.0, Cos = 1.0, Sin = 0.0;   // mm, and the tip
+	const Json* Points = nullptr;                         // "points_mm"
+	static V2Frame Of(const Json* FramePart);
+	V3 Point(double X, double YLeft, double ZUp) const;
+	V3 Dir(double X, double YLeft, double ZUp) const;
+	// A named point of points_mm ("front_axle"); False if it has none.
+	bool Named(const std::string& Key, V3& Out) const;
+	V3 FromGlb(const V3& G) const { return Point(G.x * 1000.0, -G.z * 1000.0, G.y * 1000.0); }
+	V3 DirFromGlb(const V3& G) const { return Dir(G.x, -G.z, G.y); }
+};
+
 // How the engine and frame go together (BikeRig._fit).
 struct FitReport
 {
@@ -133,6 +152,8 @@ public:
 	// The styles a part belongs to (PartsDB.styles_of).
 	std::vector<std::string> StylesOf(const std::string& Id) const;
 	const Json* Part(const std::string& Id) const;
+	// [bikes v2] The frame's "v2" if the bike of Parts is a Bike Models V2 one, else nullptr.
+	const Json* V2Of(const PartsMap& Parts) const;
 	// The parts catalogue it was loaded on (its kinds and ids in parts.json's order).
 	const PartsDb* Catalogue() const { return Db; }
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).

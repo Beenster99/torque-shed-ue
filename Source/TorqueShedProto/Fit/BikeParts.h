@@ -61,6 +61,17 @@ public:
 	using MeshSource = std::function<bool(const std::string& Glb, PartMesh& Out)>;
 	void SetMeshSource(MeshSource In) { Meshes = std::move(In); }
 
+	// [bikes v2] Where a Bike Models V2 bike's files come from (Data/BikesV2/<model>.glb and .json as
+	// BikesV2/foundry/build3d.py --game writes them). Set once, for every placer. A bike whose frame
+	// is a V2 one (BikeLayout::V2Of) is then fitted from them: one part for each slot and moving
+	// group, its mesh made here in ours (Made), each surface named "v2/<finish>/<paint>/<tag>/r/g/b/
+	// metallic/roughness" (the game's catalogue reads the look from it). A piece of a slot the bike
+	// has no part in comes with the frame. Without a source, or if the files don't load, the bike is
+	// drawn from its catalogue parts as before.
+	using V2Source = std::function<bool(const std::string& Model, PartMesh& Mesh, std::string& InfoJson)>;
+	static void SetV2Source(V2Source In);
+	bool FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const;
+
 	// The mesh a fitted part draws: its glb's (with its shape keys) deformed by its warp, or by
 	// each of its copies' warps one after the other.
 	static PartMesh Draw(const PartMesh& Glb, const FittedPart& P);

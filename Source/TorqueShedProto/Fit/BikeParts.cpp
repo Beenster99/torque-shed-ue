@@ -4380,8 +4380,120 @@ std::map<std::string, V3> BikeParts::Fairing(const PartsMap& Parts, const Layout
 	return Mounts;
 }
 
+// [bikes v2]
+namespace
+{
+BikeParts::V2Source& V2Files()
+{
+	static BikeParts::V2Source Source;
+	return Source;
+}
+
+// A model's pieces, made once (nullptr: its files didn't load).
+std::map<std::string, std::shared_ptr<const std::vector<FittedPart>>>& V2Made()
+{
+	static std::map<std::string, std::shared_ptr<const std::vector<FittedPart>>> Made;
+	return Made;
+}
+
+std::string V2Number(double V)
+{
+	char Buf[32];
+	std::snprintf(Buf, sizeof(Buf), "%.4g", V);
+	return Buf;
+}
+
+std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model, const V2Frame& F)
+{
+	PartMesh Mesh;
+	std::string InfoText, Error;
+	Json Info;
+	if (!V2Files() || !V2Files()(Model, Mesh, InfoText) || !Json::Parse(InfoText, Info, &Error)) return nullptr;
+	const Json* Looks = Info.Get("surfaces");
+	if (!Looks || Mesh.Surfaces.empty()) return nullptr;
+	std::vector<std::string> Order;
+	std::map<std::string, std::shared_ptr<PartMesh>> Meshes;
+	std::map<std::string, FittedPart> Pieces;
+	for (PartSurface& S : Mesh.Surfaces)
+	{
+		const Json* Look = Looks->Get(S.Material);
+		const std::string Slot = Look ? Look->Str("slot", "frame") : std::string("frame");
+		const std::string Node = Look ? Look->Str("node") : std::string();
+		const std::string Key = Slot + "|" + Node;
+		if (!Meshes.count(Key))
+		{
+			Order.push_back(Key);
+			Meshes[Key] = std::make_shared<PartMesh>();
+			FittedPart P;
+			P.Slot = Slot;
+			P.Node = Node;
+			P.Glb = "v2/" + Model + "/" + Slot;
+			P.Name = Slot;
+			Pieces[Key] = P;
+		}
+		// The look, in the surface's name.
+		std::string Name = "v2/" + (Look ? Look->Str("ue", "cat_brushed_steel") : std::string("cat_brushed_steel")) + "/" +
+			(Look ? Look->Str("paint") : std::string()) + "/" + (Look ? Look->Str("tag") : std::string());
+		const Json* Colour = Look ? Look->Get("color") : nullptr;
+		if (Colour && Colour->A.size() >= 3)
+		{
+			for (size_t I = 0; I < 3; ++I) Name += "/" + V2Number(Colour->A[I].N);
+			Name += "/" + V2Number(Look->Num("metallic", 0.0)) + "/" + V2Number(Look->Num("roughness", 0.5));
+		}
+		PartSurface Out;
+		Out.Material = Name;
+		Out.Pos.reserve(S.Pos.size());
+		Out.Nrm.reserve(S.Nrm.size());
+		for (const V3& P : S.Pos) Out.Pos.push_back(F.FromGlb(P));
+		for (const V3& N : S.Nrm) Out.Nrm.push_back(F.DirFromGlb(N));
+		Out.U = std::move(S.U);
+		Out.V = std::move(S.V);
+		Out.Idx = std::move(S.Idx);
+		Meshes[Key]->Surfaces.push_back(std::move(Out));
+	}
+	auto Made = std::make_shared<std::vector<FittedPart>>();
+	for (const std::string& Key : Order)
+	{
+		FittedPart P = Pieces[Key];
+		P.Made = Meshes[Key];
+		Made->push_back(std::move(P));
+	}
+	return Made;
+}
+} // namespace
+
+void BikeParts::SetV2Source(V2Source In)
+{
+	V2Files() = std::move(In);
+	V2Made().clear();
+}
+
+bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
+{
+	const Json* V2 = Lay.V2Of(Parts);
+	if (!V2) return false;
+	const std::string Model = V2->Str("model");
+	const auto FrameIt = Parts.find("frame");
+	const V2Frame F = V2Frame::Of(FrameIt != Parts.end() ? Lay.Part(FrameIt->second) : nullptr);
+	if (!F.Valid) return false;
+	auto Found = V2Made().find(Model);
+	if (Found == V2Made().end()) Found = V2Made().emplace(Model, V2Pieces(Model, F)).first;
+	if (!Found->second) return false;
+	Out = *Found->second;
+	for (FittedPart& P : Out)
+	{
+		const auto In = Parts.find(P.Slot);
+		if (In == Parts.end() || In->second.empty() || In->second == "none") P.Slot = "frame";
+	}
+	return true;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
+	{
+		std::vector<FittedPart> V2;
+		if (FitV2(Parts, V2)) return V2;
+	}
 	const Bodywork Body = BikeBody(Lay).Fit(Parts, L);
 	std::vector<FittedPart> Out = Body.Parts;
 	double CodeHalfW = 0.0;
