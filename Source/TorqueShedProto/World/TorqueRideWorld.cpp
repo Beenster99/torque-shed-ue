@@ -459,7 +459,8 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	}
 	Ride->LastNavExit = N.Exit;
 	Dash.NavLeft = N.ToFinish;
-	Dash.bAtFuel = N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0;
+	// ([roads stage 7] or by a pump on any forecourt, on the ride's road or off it)
+	Dash.bAtFuel = (N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0) || Ride->Plan->ForecourtAt(X, Z, 4.0) >= 0;
 	// [OSM stage 1] The road's facts.
 	Dash.NavLimit = N.Limit;
 	Dash.bNavLimitMph = N.LimitMph;
