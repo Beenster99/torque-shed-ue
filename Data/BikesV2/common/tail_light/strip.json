@@ -1,0 +1,59 @@
+{
+ "group": "tail_light",
+ "key": "strip",
+ "name": "LED strip",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  45.7,
+  0.0,
+  936.8
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  40.0,
+  129.0,
+  22.9
+ ],
+ "triangles": 1290,
+ "surfaces": {
+  "d3_lp_gloss": {
+   "ue": "cat_plastic",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
+  },
+  "d3_redglass": {
+   "ue": "lens_red",
+   "clear": 1.0,
+   "tag": "lens_red"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_tailred": {
+   "ue": "lens_red",
+   "glow": 2.6,
+   "tag": "lens_red"
+  },
+  "d3_lp_satin": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
+  }
+ }
+}

@@ -99,8 +99,19 @@ TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting
 // draw as scans only within this many metres, in 128 m patches, and as the far models past it.
 TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
 	TEXT("Ride UK: near trees are drawn as scanned models within this many metres and as the far models past it (0: scans out to the whole near ring, as until 152). For squares made after the change."));
-TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 1,
-	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0)."));
+// ([build 154] off: round 153's specks didn't stop the PSO misses; URidePart now asks for its PSOs instead)
+// ([build 155] the near trees' patches are components the render thread walks each frame, for every
+// view and shadow view: bigger patches, fewer of them; round 154's render thread was 13.6 ms at Whaley
+// and 18.9 at Loch Brecbowie)
+TAutoConsoleVariable<float> CVarTreePatch(TEXT("torque.RideTreePatch"), 128.0f,
+	TEXT("Ride UK: the patches (m) near trees are grouped in for the scans/far-model handover (128, build 153; 256 = one per square). For squares made after the change."));
+// ([build 155] Round 154, Loch Brecbowie birch wood: the near scans cost ~10 ms GPU and ~21 ms of render
+// thread, from their draw count (1905 tree groups), not shadows, sway or pixels. Fewer models of each
+// kind make fewer groups; the far cards follow the same choice, so a tree keeps its look at the handover.)
+TAutoConsoleVariable<int32> CVarTreeVariants(TEXT("torque.RideTreeVariants"), 3,
+	TEXT("Ride UK: at most this many models of each tree kind (6 until 154). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
+	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
 	TEXT("Ride UK: trees sway in the wind out to this many metres (80 until 151). For squares made after the change."));
 constexpr int32 Levels = 4;
@@ -1296,6 +1307,12 @@ double ABMeasureSecs()
 constexpr double ABSettle = 2.0;
 } // namespace TRProbe
 
+int32 ATorqueRideWorld::SceneSquares = 0;
+int32 ATorqueRideWorld::ScenePlantGroups = 0;
+int32 ATorqueRideWorld::SceneTreeGroups = 0;
+int64 ATorqueRideWorld::SceneTrees = 0;
+int64 ATorqueRideWorld::ScenePlants = 0;
+
 float ATorqueRideWorld::PresetReach(bool bTree) const
 {
 	// (so Medium really does less: until build 150 the ride's own plants took no notice of the preset,
@@ -1329,7 +1346,7 @@ void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
 							C->SetCastShadow(true);
 						}
 					}
-					if (bIsTree && (What & 32)) C->SetEvaluateWorldPositionOffset(!bHide);
+					if (bIsTree && (What & 32) && !C->ComponentHasTag(TEXT("RideImpostor"))) C->SetEvaluateWorldPositionOffset(!bHide);
 				}
 	if (What & 4)
 	{
@@ -1494,9 +1511,11 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			// ([build 152] round 151's hitches were 660-813 ms with nothing of the ride's own in them: the
 			// frame's game, render thread and GPU times say which side stalled; a render thread or GPU stall
 			// with no GC is most likely a shader (PSO) being compiled the first time something is seen)
-			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d; that frame: game %.0f ms, render %.0f ms, GPU %.0f ms"),
+			// ([build 155] round 154's hitches had game, render and GPU all short: the RHI thread (PSO
+			// creation for compute shaders, present) is the one left to name)
+			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d; that frame: game %.0f ms, render %.0f ms, RHI %.0f ms, GPU %.0f ms"),
 				GapMs, InGc, LastTickOwnMs, Asked.Num(), RoadAsked.Num(), FPlatformTime::ToMilliseconds(GGameThreadTime),
-				FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
+				FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(GRHIThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
 		}
 		LastTickWall = WallNow;
 	}
@@ -1566,6 +1585,11 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
 					FrameGameMs / CostFrames, FrameRenderMs / CostFrames, FrameGpuMs / CostFrames,
 					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
+				SceneSquares = Tiles.Num();
+				ScenePlantGroups = Ism;
+				SceneTreeGroups = TreeGroups;
+				SceneTrees = TreeCount;
+				ScenePlants = Instances;
 			}
 			// [perf, build 150] How the picture is drawn, logged when it changes: the output size, the screen
 			// percentage and what really draws at it, the anti-aliasing / upscaler, and the expensive parts.
@@ -2321,7 +2345,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 			const int32 Si = Among[FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1)];
 			const FTorqueFoliageSpecies& S = Kit[Si];
 			if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) return;   // (bigger scanned plants: fewer of them)
-			const int32 Vi = S.Variants.Num() > 1 ? FMath::Min(int32(float((H ^ 0x9e3779b9u) * 2246822519u >> 8) / float(1 << 24) * S.Variants.Num()), S.Variants.Num() - 1) : 0;
+			const int32 Models = bTree ? FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, FMath::Max(S.Variants.Num(), 1)) : S.Variants.Num();
+			const int32 Vi = Models > 1 ? FMath::Min(int32(float((H ^ 0x9e3779b9u) * 2246822519u >> 8) / float(1 << 24) * Models), Models - 1) : 0;
 			UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 			if (!Model) return;
 			const FVector& Frame = bTree ? TreeFrame : GrassFrame;
@@ -2356,7 +2381,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bTree && P.Far) { AddPlant(Choice, -2); continue; }
 		if (bTree && NearTreeM > 0.0f && KindFar[P.Kind].Num() > 0 && KindFar[P.Kind] != KindNear[P.Kind])
 		{
-			const int32 TreePatch = FMath::Clamp(int32(P.X / 128.0f), 0, 7) + 8 * FMath::Clamp(int32(P.Z / 128.0f), 0, 7);
+			const float TreePatchM = FMath::Clamp(TRWI::CVarTreePatch.GetValueOnGameThread(), 32.0f, 256.0f);
+			const int32 TreePatch = FMath::Clamp(int32(P.X / TreePatchM), 0, 7) + 8 * FMath::Clamp(int32(P.Z / TreePatchM), 0, 7);
 			AddPlant(Choice, -1000 - TreePatch);
 			AddPlant(KindFar[P.Kind], -2000 - TreePatch);
 			continue;
@@ -2407,7 +2433,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bAffectDistanceFieldLighting = bTreeLit;
 		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
-		Ism->WorldPositionOffsetDisableDistance = bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
+		const bool bImpostor = bTree && S.Name.ToString().EndsWith(TEXT("_imp"));
+		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2417,6 +2445,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bFarCopy) Ism->MinDrawDistance = NearTreeM * 100.0f;
 		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
+		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
 		if (!bReused) AddInstanceComponent(Ism);

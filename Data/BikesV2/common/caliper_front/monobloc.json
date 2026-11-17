@@ -1,0 +1,59 @@
+{
+ "group": "caliper_front",
+ "key": "monobloc",
+ "name": "Flat monobloc",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "front_axle",
+ "mount_mm": [
+  1465,
+  0.0,
+  300
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  110.8,
+  244.0,
+  135.9
+ ],
+ "triangles": 7592,
+ "surfaces": {
+  "d3_bk_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.32,
+   "tag": "d3_bk_black"
+  },
+  "d3_bk_pad": {
+   "ue": "cat_plastic",
+   "color": [
+    0.06,
+    0.055,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.8,
+   "tag": "d3_bk_pad"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

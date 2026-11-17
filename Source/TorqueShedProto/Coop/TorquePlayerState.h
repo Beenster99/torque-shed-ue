@@ -41,6 +41,9 @@ public:
 	// [profile] Their character from the Profile page (Shed/TorqueProfile.h, FTorqueProfile::Pack):
 	// which MetaHuman, height and face. About 13 bytes, sent when it changes.
 	UPROPERTY(Replicated) TArray<uint8> Profile;
+	// [decals stage 4] The decals on their helmet (TorqueDecals::MyHelmet: Fit/BikeDecal text), kept out
+	// of Profile so it stays small.
+	UPROPERTY(Replicated) FString HelmetDecals;
 	// The shed bay this player last worked on or claimed (-1 none): which bike they ride out on.
 	UPROPERTY(Replicated) int32 Bay = -1;
 	// [Ride UK] The journey code (the host's, ATorqueGameState::RideJourney) whose road this player's
@@ -64,6 +67,7 @@ public:
 	UFUNCTION(Server, Reliable) void ServerSetBay(int32 NewBay);
 	UFUNCTION(Server, Reliable) void ServerSetRiderStyle(uint8 NewStyle);
 	UFUNCTION(Server, Reliable) void ServerSetProfile(const TArray<uint8>& NewProfile);   // [profile]
+	UFUNCTION(Server, Reliable) void ServerSetHelmetDecals(const FString& Text);   // [decals stage 4]
 	UFUNCTION(Server, Reliable) void ServerSetHands(const FTorqueHandsNet& NewHands);
 
 	// The owner's walker, every frame: sent on to the host when it's worth it (HandsState.h).

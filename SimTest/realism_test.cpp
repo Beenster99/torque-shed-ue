@@ -6,13 +6,15 @@
 //   - flat out from a standstill, weight over the tank: 0-60 mph (s), within 10% of the real figure;
 //   - both brakes hard from just over 60 mph, no weight forward: metres from 60 mph to a stop, in the
 //     real range (a metre either side), the back wheel kept near the road;
-//   - at 20 m/s with the steer input held full: the lean it settles at and the sideways g.
+//   - at 20 m/s with the steer input held full: the lean it settles at and the sideways g;
+//   - flat out on the level for 3 minutes: the top speed, on the game's own engine curve (16 Nov 2026).
 // Each bike is BikeRideSpec's from this game's reference parts (Data/Fitment/layout.json, with the
 // overlay's changes), with Godot's curve for the same engine (SimTest/data/godot_spec.json).
 //
 //     build/simtest/realism_test [--table] [--swap style:slot=part,...]
 // --table prints the markdown table for the docs; --swap tries other parts on the reference bikes;
-// --trace STYLE prints that style's launch.
+// --trace STYLE prints that style's launch; --top prints each bike's times to 60/100/120/140/160 mph,
+// its top speed and what holds it there; --game rides the game's engine curve instead of Godot's.
 #include "BikeRideSpec.h"
 #include "BikeSim.h"
 #include "PartsDb.h"
@@ -70,6 +72,15 @@ const Real Reals[] = {
 	{"supermoto", 3.5, {35, 38}, {48, 54}, {1.03, 1.15}, 3.7, 34.4, 47, 0.98},
 	{"mx", -1.0, {36, 48}, {30, 42}, {0.60, 0.90}, 5.5, 42.6, 35, 0.72},
 };
+// Top speed flat out on the level in still air, rider sat on (mph): the real bikes each style stands for
+// (road tests and makers' figures; beenster, 16 Nov 2026: "I could only make 110 mph on the sports bike").
+// Ridden on the game's own engine curve (TorqueShedPower, as the shop sells it), not Godot's.
+struct RealTop { const char* Name; double Lo, Hi; };
+const RealTop RealTops[] = {
+	{"classic", 95, 112}, {"cafe", 120, 140}, {"scrambler", 105, 120}, {"tourer", 130, 145}, {"roader", 132, 150},
+	{"naked", 132, 155}, {"sport", 148, 165}, {"race", 180, 200}, {"bobber", 110, 125}, {"chopper", 105, 125},
+	{"cruiser", 110, 125}, {"adventure", 120, 135}, {"supermoto", 100, 115}, {"mx", 78, 92},
+};
 constexpr double T60_SHARE = 0.10;   // 0-60 within this share of the real figure
 constexpr double STOP_SLACK = 1.0;   // m either side of the real range
 
@@ -107,6 +118,47 @@ TorqueSim::RayHit FlatGround(const V3& From, const V3& To)
 // Swaps for trying a change before it goes in the data: --swap cruiser:front_caliper=twin_piston,...
 std::map<std::string, std::map<std::string, std::string>> Swaps;
 const Json* Sweep = nullptr;   // Godot's swept builds (an engine's curve on another bike)
+
+// The engine as the game itself works it out for a bike fresh from the shop (TorqueShedPower::Numbers and
+// EngineTorque, every part new, the dyno desk untouched): --game rides that curve instead of Godot's.
+bool UseGameCurve = false;
+void GameCurve(const BikeLayout& Lay, const std::string& Style, BikeSpec& S)
+{
+	PartsMap Parts = Lay.ReferenceBuild(Style);
+	for (const auto& [Slot, Id] : Swaps[Style]) Parts[Slot] = Id;
+	auto F = [&](const char* Slot, const char* Key, double Def) {
+		auto It = Parts.find(Slot);
+		if (It == Parts.end() || It->second == "none") return Def;
+		const Json* P = Lay.Part(It->second);
+		return P ? P->Num(Key, Def) : Def;
+	};
+	auto There = [&](const char* Slot) { auto It = Parts.find(Slot); return It != Parts.end() && It->second != "none" && Lay.Part(It->second); };
+	const double Disp = F("engine", "displacement", 1200.0);
+	double Peak = Disp * F("engine", "torque_per_cc", 112.0 / 1200.0);
+	const double PeakRpm = F("engine", "peak_torque_rpm", 6000.0) * F("head", "peak_shift", 1.0) * F("fuel", "peak_shift", 1.0);
+	const double Redline = F("engine", "redline", 8500.0) + F("head", "redline_add", 0.0);
+	const double Idle = F("engine", "idle_rpm", 950.0);
+	double Mult = F("head", "torque_mult", 1.0) * F("fuel", "torque_mult", 1.0);
+	const double Demand = Disp * F("head", "peak_shift", 1.0) * F("engine", "breathing", 1.0), Flow = F("fuel", "flow", 1300.0);
+	if (Flow < Demand) Mult *= std::max(0.7, 1.0 + (Flow / Demand - 1.0) * 0.6);
+	Mult *= F("air_filter", "flow", 1.0) * F("spark_plugs", "torque_mult", 1.0);
+	Mult *= There("exhaust") ? F("exhaust", "torque_mult", 1.0) : 0.9;
+	Peak *= Mult;
+	S.IdleRpm = Idle;
+	S.Redline = Redline;
+	S.PeakTorque = Peak;
+	S.PeakTorqueRpm = PeakRpm;
+	S.TorqueRpm.clear();
+	S.TorqueNm.clear();
+	for (int I = 0; I < 25; ++I)
+	{
+		const double Rpm = Idle + (Redline - Idle) * I / 24.0;
+		const double X = (Rpm - PeakRpm) / std::max(1.0, PeakRpm);
+		const double Shape = 1.0 - (X < 0.0 ? 0.7 : 1.5) * X * X;
+		S.TorqueRpm.push_back(Rpm);
+		S.TorqueNm.push_back(Rpm > Redline * 1.02 ? 0.0 : Peak * std::clamp(Shape, 0.3, 1.0));
+	}
+}
 
 bool SpecFor(const BikeLayout& Lay, const std::string& Style, const Json& G, BikeSpec& S)
 {
@@ -157,6 +209,7 @@ bool SpecFor(const BikeLayout& Lay, const std::string& Style, const Json& G, Bik
 		S.PeakTorqueRpm *= Shift;
 		S.Redline = NewTop;
 	}
+	if (UseGameCurve) GameCurve(Lay, Style, S);
 	return true;
 }
 
@@ -263,6 +316,22 @@ Result Ride(const BikeSpec& S)
 	return R;
 }
 
+// The most a bike makes flat out on the level from a standstill in 3 minutes (mph), the auto box shifting.
+double TopMph(const BikeSpec& S)
+{
+	BikeSim Sim;
+	Start(Sim, S);
+	double Top = 0.0;
+	for (int I = 0; I < 180 * 120 && !Sim.IsCrashed; ++I)
+	{
+		Sim.Throttle = 1.0;
+		Sim.BodyShift = 0.6;
+		Sim.Step(Dt);
+		Top = std::max(Top, Sim.Speed * 2.23694);
+	}
+	return Top;
+}
+
 void Expect(bool Ok, const char* Fmt, ...) __attribute__((format(printf, 2, 3)));
 void Expect(bool Ok, const char* Fmt, ...)
 {
@@ -282,6 +351,7 @@ int main(int Argc, char** Argv)
 	for (int A = 1; A < Argc; ++A)
 	{
 		if (std::strcmp(Argv[A], "--table") == 0) Table = true;
+		else if (std::strcmp(Argv[A], "--game") == 0) UseGameCurve = true;
 		else if (std::strcmp(Argv[A], "--trace") == 0 && A + 1 < Argc) TraceStyle = Argv[++A];
 		else if (std::strcmp(Argv[A], "--swap") == 0 && A + 1 < Argc)
 		{
@@ -308,6 +378,56 @@ int main(int Argc, char** Argv)
 	}
 	const Json* Styles = Ref.Get("styles");
 	Sweep = Ref.Get("sweep");
+	bool TopRun = false;
+	for (int A = 1; A < Argc; ++A) TopRun |= std::strcmp(Argv[A], "--top") == 0;
+	if (TopRun)
+	{
+		// --top: each reference bike flat out on the level from a standstill, tucked in after 60 mph: the
+		// times to 60/100/120/140/160 mph, the speed after 30 s and 60 s, the most in 3 minutes, and what
+		// holds it there (the gear and revs, the engine's heat).
+		std::printf("style,hp,kg_with_rider,cda,t60,t100,t120,t140,t160,mph30s,mph60s,top_mph,gear,rpm,redline,heat_power,engine_c,geared_mph,power_mph,peakkw_rpm,primary,final,top_ratio\n");
+		for (const Real& Rl : Reals)
+		{
+			const Json* G = Styles ? Styles->Get(Rl.Name) : nullptr;
+			BikeSpec S;
+			if (!G || !SpecFor(Lay, Rl.Name, *G, S)) continue;
+			double PeakKw = 0.0;
+			for (double Rpm = S.IdleRpm; Rpm <= S.Redline; Rpm += 50.0) PeakKw = std::max(PeakKw, S.EngineTorque(Rpm) * Rpm * 6.2832 / 60.0 / 1000.0);
+			BikeSim Sim;
+			Start(Sim, S);
+			double T[5] = {-1, -1, -1, -1, -1}, Mph[2] = {0, 0}, Top = 0.0;
+			const double At[5] = {60, 100, 120, 140, 160};
+			for (int I = 0; I < 180 * 120 && !Sim.IsCrashed; ++I)
+			{
+				Sim.Throttle = 1.0;
+				Sim.BodyShift = 0.6;
+				Sim.Step(Dt);
+				const double M = Sim.Speed * 2.23694;
+				for (int K = 0; K < 5; ++K) if (T[K] < 0 && M >= At[K]) T[K] = I * Dt;
+				if (I == 30 * 120) Mph[0] = M;
+				if (I == 60 * 120) Mph[1] = M;
+				Top = std::max(Top, M);
+				if (TraceStyle == Rl.Name && I % 240 == 0)
+					std::printf("    t %3.0f  %5.1f mph  gear %d  %5.0f rpm  thr %.2f  tc %.2f  heat %.2f\n", I * Dt, M, Sim.Gear, Sim.Rpm, Sim.ThrottleNow(), Sim.TractionNow(), Sim.Heat.Power);
+			}
+			// Top gear at the limiter, and the speed the power alone holds against the air and the tyres.
+			const double Geared = S.Redline * 6.283185 / 60.0 / S.OverallRatio(S.GearCount()) * S.RearRadius;
+			double PeakRpm = S.IdleRpm, PeakW = 0.0;
+			for (double Rpm = S.IdleRpm; Rpm <= S.Redline; Rpm += 50.0)
+				if (S.EngineTorque(Rpm) * Rpm * 6.283185 / 60.0 > PeakW) { PeakW = S.EngineTorque(Rpm) * Rpm * 6.283185 / 60.0; PeakRpm = Rpm; }
+			PeakW *= S.DrivetrainEfficiency;
+			double Lo = 1.0, Hi = 150.0;
+			for (int K = 0; K < 50; ++K)
+			{
+				const double V = 0.5 * (Lo + Hi);
+				(0.5 * 1.2 * S.CdA * V * V * V + S.Rolling * S.TotalMass * 9.81 * V > PeakW ? Hi : Lo) = V;
+			}
+			std::printf("%s,%.0f,%.0f,%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.0f,%d,%.0f,%.0f,%.2f,%.0f,%.0f,%.0f,%.0f,%.2f,%.2f,%.2f\n", Rl.Name, PeakKw * 1.341, S.TotalMass, S.CdA,
+				T[0], T[1], T[2], T[3], T[4], Mph[0], Mph[1], Top, Sim.Gear, Sim.Rpm, S.Redline, Sim.Heat.Power, Sim.Heat.Engine, Geared * 2.23694, Lo * 2.23694,
+				PeakRpm, S.Primary, S.FinalDrive, S.OverallRatio(S.GearCount()));
+		}
+		return 0;
+	}
 	bool Calib = false;
 	for (int A = 1; A < Argc; ++A) Calib |= std::strcmp(Argv[A], "--calib") == 0;
 	if (Calib)
@@ -398,6 +518,17 @@ int main(int Argc, char** Argv)
 		Expect(Res.Lean >= Rl.Lean[0] && Res.Lean <= Rl.Lean[1] && Res.MaxLean < Rl.Lean[1] + 4.0, "leans %.1f deg (most %.1f; real %.0f-%.0f, Godot %.0f)", Res.Lean,
 			Res.MaxLean, Rl.Lean[0], Rl.Lean[1], Rl.GodotLean);
 		Expect(Res.G >= Rl.G[0] && Res.G <= Rl.G[1], "pulls %.2f g (real %.2f-%.2f, Godot %.2f)", Res.G, Rl.G[0], Rl.G[1], Rl.GodotG);
+		for (const RealTop& Rt : RealTops)
+		{
+			if (std::strcmp(Rt.Name, Rl.Name) != 0) continue;
+			const bool Was = UseGameCurve;
+			UseGameCurve = true;
+			BikeSpec Gs;
+			const bool Ok = SpecFor(Lay, Rl.Name, *G, Gs);
+			UseGameCurve = Was;
+			const double Top = Ok ? TopMph(Gs) : 0.0;
+			Expect(Ok && Top >= Rt.Lo && Top <= Rt.Hi, "tops out at %.0f mph on the game's engine (real %.0f-%.0f)", Top, Rt.Lo, Rt.Hi);
+		}
 	}
 	if (!Table) std::printf("\n%s: %d failed\n", Failures ? "FAIL" : "ok", Failures);
 	return Failures ? 1 : 0;

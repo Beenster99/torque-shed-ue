@@ -1,0 +1,44 @@
+{
+ "group": "high_bar",
+ "key": "zbar",
+ "name": "Z-bar",
+ "fitted_on": "lodestar_cruiser",
+ "family": "Cruiser",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1236.6,
+  0.0,
+  1041.4
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  136.2,
+  807.9,
+  330.6
+ ],
+ "triangles": 27836,
+ "surfaces": {
+  "d3_bars_satin_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.034
+   ],
+   "metallic": 0.85,
+   "roughness": 0.38,
+   "tag": "d3_bars_satin_black"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

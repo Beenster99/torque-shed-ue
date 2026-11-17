@@ -1,0 +1,33 @@
+{
+ "group": "grip",
+ "key": "ribbed",
+ "name": "Ribbed",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  61.2,
+  771.8,
+  55.1
+ ],
+ "triangles": 31384,
+ "surfaces": {
+  "d3_gripribbed": {
+   "ue": "grip",
+   "color": [
+    0.016,
+    0.016,
+    0.018
+   ],
+   "metallic": 0.0,
+   "roughness": 0.62,
+   "tag": "d3_gripribbed"
+  }
+ }
+}

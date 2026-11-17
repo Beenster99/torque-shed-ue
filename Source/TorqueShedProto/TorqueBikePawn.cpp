@@ -6,6 +6,7 @@
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerState.h"
 #include "Shed/TorqueProfile.h"
+#include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
@@ -838,11 +839,15 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	ModeBase = Spec;
 	bModeBase = bOwnSpec;
 	bCruise = false;
-	if (Tft) Tft->Hook(ModelParts, Gauges, bOwnSpec ? Spec : BikeSpec());
+	{
+		const FString NavPart = Parts.FindRef(TEXT("satnav"));
+		if (Tft) Tft->Hook(ModelParts, Gauges, bOwnSpec ? Spec : BikeSpec(), !NavPart.IsEmpty() && NavPart != TEXT("none"));
+	}
 	// [lights] Its lamps: the headlight, fog lights, indicators and rear light on their lenses.
 	Lights.Setup(Parts);
 	Lights.Hook(this, ModelParts, true);
 	SideStandPart = Parts.FindRef(TEXT("side_stand"));
+	bV2Stand = TorqueShedCatalogue::V2Stand(Parts, V2StandPivot, V2StandFolded, V2StandDown);
 	CentreStandPart = Parts.FindRef(TEXT("centre_stand"));
 	StandRest.Reset();
 	{
@@ -1642,6 +1647,15 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftOverlay)) Tft->ToggleOverlay();
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftMap)) Tft->ToggleMapTile();
+		// The map's zoom: 5 and 6 (or the number pad's + and -); on the pad LB held and the right
+		// stick pushed up (in) or down (out), a step each push.
+		const double ZoomStick = bTftPad ? Either(Axis(EKeys::Gamepad_RightY), (double)Sony.RY) : 0.0;
+		const int32 StickNow = ZoomStick > 0.6 ? 1 : ZoomStick < -0.6 ? -1 : FMath::Abs(ZoomStick) < 0.3 ? 0 : TftStickWas;
+		const bool bStickPush = StickNow != 0 && StickNow != TftStickWas;
+		TftStickWas = StickNow;
+		if (bStickPush) bTftPadNav = true;
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftZoomIn) || (bStickPush && StickNow > 0)) Tft->ZoomBy(-1);
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftZoomOut) || (bStickPush && StickNow < 0)) Tft->ZoomBy(1);
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftArrange)) Tft->ToggleArrange();
 		if (Tft->Arranging())
 		{
@@ -1678,8 +1692,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
 	if (FTorqueKeys::Just(PC, ETorqueKey::Restart)) RestartRide();
-	// The pad's starter (beenster): LB and RB held together for a moment start the engine (LB is the
-	// clutch and RB looks behind, so with the engine off that's a start, not a look back).
+	// The pad's starter (beenster): LB and RB held together for a moment start the engine, or switch it off
+	// (LB is the clutch and RB looks behind, so with the engine off that's a start, not a look back).
 	bool bCameraTap = false;
 	{
 		const int32 PadTilt = bPadSetsCam ? ((SonyDown & ESonyButton::DDown) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Down) ? 1 : 0) -
@@ -1693,13 +1707,17 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (bPadViewWas && !bPadViewUsed) bCameraTap = true;   // View / Create let go, nothing set: the camera
 		bPadViewWas = bPadViewUsed = false;
 	}
+	// [feedback 154] beenster: LB + RB also switch the engine off. Stopped or crawling, the same 0.3 s hold;
+	// on the move it takes a full second, so clutch in while glancing behind doesn't kill it.
 	if (bPadRB && bPadLB)
 	{
 		PadStartHeld += Dt;
-		if (PadStartHeld >= 0.3 && !bPadStartDone)
+		const bool bRunningNow = Sim->EngineOn || Sim->IsStarting();
+		const double HoldFor = (bRunningNow && FMath::Abs(Sim->Speed) > 2.0) ? 1.0 : 0.3;
+		if (PadStartHeld >= HoldFor && !bPadStartDone)
 		{
 			bPadStartDone = true;
-			if (!Sim->EngineOn && !Sim->IsStarting()) PressIgnition();
+			PressIgnition();   // the key's toggle: starts it when off, switches it off when running
 		}
 	}
 	else
@@ -2141,6 +2159,12 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 		// Where BikeParts::Stands puts it: 12 cm left, 4 cm under the origin, 16 cm ahead of the
 		// swingarm pivot. (Its surfaces' own places are no help: their shapes are drawn in place.)
 		Pivot = FVector(SwingPivot.X + 16.0, -12.0, -4.0);
+		if (bV2Stand)
+		{
+			Pivot = V2StandPivot;
+			Folded = V2StandFolded;
+			Down = V2StandDown;
+		}
 	}
 	else
 	{
@@ -3536,7 +3560,7 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	if (RiderRig.IsValid())
 	{
 		bHeadShown = bShow;
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown, true);   // (its decal skins with it)
 		ShowRiderAvatar();
 		return;
 	}
@@ -3609,6 +3633,7 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 	In.Velocity = Dt > 1.0e-4f ? (Feet - NetWalkerWas) / Dt : FVector::ZeroVector;
 	In.Velocity.Z = 0.0;
 	In.Facing = FRotator(0.0, Yaw, 0.0);
+	In.LookPitch = LookPitch;   // [build 155] their walking view's up and down (TorqueNetBike sets it)
 	NetWalker->Pose(In, Dt);
 	NetWalkerWas = Feet;
 }
@@ -3696,6 +3721,8 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	}
 	T.Neck = R.Neck;
 	T.Look = R.Look;
+	T.Wave = RiderWave;
+	T.WaveTime = RiderWaveTime;
 	T.Limp = R.Limp;
 	for (int32 S = 0; S < 2; ++S)
 	{
@@ -3733,7 +3760,7 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 	{
 		bRiderShown = bShow;
 		if (RiderBody) RiderBody->SetVisibility(bShow);
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown, true);   // (its decal skins with it: build 154's helmet left floating)
 		ShowRiderAvatar();
 		return;
 	}
@@ -4047,6 +4074,8 @@ void ATorqueBikePawn::UpdateRider()
 			In.Wave = bWaving ? WaveT : 1.0 - WaveT;
 			In.WaveTime = Now - WaveAt;
 		}
+		RiderWave = bThrown ? 0.0 : In.Wave;
+		RiderWaveTime = In.WaveTime;
 		In.LeverFingers[1] = BrakeFingers;
 		In.LeverPull[1] = FMath::Clamp(FrontBrake, 0.0, 1.0) * BrakeFingers;
 		// Left hand: the clutch, pulled for each gear change (fingers over, pull, let out), and held
@@ -4135,6 +4164,16 @@ void ATorqueBikePawn::UpdateRider()
 		HeadLocal = RiderRig.HelmetCentre;
 		RiderFeetDown = FMath::Clamp(In.FeetDown, 0.0, 1.0);
 		UpdateHelmetPaint();
+		// [decals stage 4] The helmet's decals, over its paint: this machine's own, or the rider's in co-op.
+		if (RiderHelmet)
+		{
+			const ATorquePlayerState* HelmetPS = GetPlayerState<ATorquePlayerState>();
+			TorqueDecals::ApplyHelmet(RiderHelmet, (IsLocallyControlled() || !HelmetPS) ? TorqueDecals::MyHelmet() : HelmetPS->HelmetDecals);
+			// (Skins made while the helmet's hidden start shown: kept as the helmet is.)
+			const bool bHelmetSeen = RiderHelmet->IsVisible();
+			for (USceneComponent* Skin : RiderHelmet->GetAttachChildren())
+				if (Skin && Skin->IsVisible() != bHelmetSeen) Skin->SetVisibility(bHelmetSeen);
+		}
 		UpdateRiderAvatar();
 		return;
 	}
@@ -4258,7 +4297,7 @@ void ATorqueBikePawn::StartSound()
 		SoundAudio->Play();
 		Sim->StopEngine();
 		bEngineWas = false;
-		EngineNote = TEXT("Engine off: hold LB + RB (or press I) to start it");
+		EngineNote = TEXT("Engine off: hold LB + RB (or press I) to start it; the same switches it off");
 		EngineNoteFor = 5.0;
 	}
 	else if (Sfx && Engine && Engine->Spec.Kick)
@@ -4433,6 +4472,8 @@ FString ATorqueBikePawn::TestTft(const FString& What)
 	else if (W == TEXT("down")) TftPress(3);
 	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
 	else if (W == TEXT("map")) Tft->ToggleMapTile();
+	else if (W == TEXT("zoomin")) Tft->ZoomBy(-1);
+	else if (W == TEXT("zoomout")) Tft->ZoomBy(1);
 	else if (W == TEXT("arrange")) Tft->ToggleArrange();
 	else if (W == TEXT("cruise")) ToggleCruise();
 	else if (W.StartsWith(TEXT("linked")))
@@ -4641,12 +4682,17 @@ void ATorqueBikePawn::UpdatePerf(float Dt)
 		{
 			PerfFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Profiling"),
 				FString::Printf(TEXT("torque_perf_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"))));
-			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera\n"), *PerfFile);
+			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera,x_m,y_m,squares,plant_groups,plants,tree_groups,trees\n"), *PerfFile);
 			UE_LOG(LogTemp, Log, TEXT("Torque: logging performance to %s"), *PerfFile);
 		}
 		const double Km = Line.Num() > 1 ? RouteLengthM / 1000.0 * Near / (Line.Num() - 1) : 0.0;
-		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d\n"),
-			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode),
+		// ([perf, build 155] where, and the ride's scene counts: beenster's build 154 recordings showed
+		// GPU 20-50 ms stretches with nothing to say what was in view)
+		const FVector PerfAt = GetActorLocation() / 100.0;
+		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d,%.0f,%.0f,%d,%d,%lld,%d,%lld\n"),
+			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode,
+			PerfAt.X, PerfAt.Y, ATorqueRideWorld::SceneSquares, ATorqueRideWorld::ScenePlantGroups, ATorqueRideWorld::ScenePlants,
+			ATorqueRideWorld::SceneTreeGroups, ATorqueRideWorld::SceneTrees),
 			*PerfFile, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 	}
 	PerfClock = 0.0;
@@ -5107,7 +5153,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   Circle / B rear brake   left stick lean (push up/down: weight)   right stick look"), Help, 0.62f);
 		Add(TEXT("      Cross / A gear up   Square / X gear down   hold L1 / LB clutch (rev it in gear)   hold R1 / RB look behind   L3 horn"), Help, 0.62f);
 		Add(TEXT("      Triangle / Y get off (stopped; held while moving: back on road)   D-pad left / right indicators, up lights, down ABS"), Help, 0.62f);
-		Add(TEXT("      R3 nod, hold R3 wave   L1 + R1 held: start   Create / View camera (held + right stick / D-pad: set the third-person camera)   Options menu"), Help, 0.62f);
+		Add(TEXT("      R3 nod, hold R3 wave   L1 + R1 held: engine on / off   Create / View camera (held + right stick / D-pad: set the third-person camera)   Options menu"), Help, 0.62f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),

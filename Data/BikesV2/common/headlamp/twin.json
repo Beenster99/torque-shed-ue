@@ -1,0 +1,92 @@
+{
+ "group": "headlamp",
+ "key": "twin",
+ "name": "Twin round",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  114.6,
+  283.2,
+  213.2
+ ],
+ "triangles": 6240,
+ "surfaces": {
+  "d3_lp_gloss": {
+   "ue": "cat_plastic",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_lp_silver": {
+   "ue": "chrome",
+   "color": [
+    0.9,
+    0.9,
+    0.88
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12,
+   "tag": "d3_lp_silver"
+  },
+  "d3_clearglass": {
+   "ue": "v2glass",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0,
+   "tag": "d3_clearglass"
+  },
+  "d3_lp_satin": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
+  },
+  "d3_lampdip": {
+   "ue": "lens_clear",
+   "glow": 0.9,
+   "tag": "lens_white"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

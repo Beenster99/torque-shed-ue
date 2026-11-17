@@ -1,0 +1,123 @@
+{
+ "about": "Stage 6 common parts approved by beenster 17 Nov 07:43 ('Foot pegs and controls look amazing, approved'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/pegs3d.py: fit(build3d, model, c, peg, heel, pedal) after detail3d; pegs stand on the bike's own peg points (never moved) from the same inner face, heel plates take the bike's own outline and bolts, foot controls keep the bike's pivot and toe points and its gear linkage. MX pegs stand at (600, 404) until the MX models get a peg pivot. Carbon heel plate uses foundry/carbon.py (woven twill, textures in foundry/textures).",
+ "pegs": [
+  {
+   "key": "knurled",
+   "name": "Knurled billet",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "rubber",
+   "name": "Rubber topped",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "cleat",
+   "name": "Wide cleat",
+   "fits": [
+    "Adventure",
+    "MX"
+   ]
+  },
+  {
+   "key": "race",
+   "name": "Race peg",
+   "fits": [
+    "Sport",
+    "Naked",
+    "Cafe"
+   ]
+  },
+  {
+   "key": "board",
+   "name": "Floorboard",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "bullet",
+   "name": "Chrome bullet",
+   "fits": [
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  }
+ ],
+ "heel_plates": [
+  {
+   "key": "lightened",
+   "name": "Lightened",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "guard",
+   "name": "Black guard",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "carbon",
+   "name": "Carbon",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ]
+  }
+ ],
+ "foot_controls": [
+  {
+   "key": "billet",
+   "name": "Billet folding tip",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "heeltoe",
+   "name": "Heel and toe",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "forged",
+   "name": "Forged steel",
+   "fits": [
+    "MX",
+    "Adventure"
+   ]
+  }
+ ]
+}

@@ -7,6 +7,7 @@
 #include "Shed/TorqueShedCatalogue.h"
 
 #include "Shed/TorqueBikeBadge.h"
+#include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
@@ -222,14 +223,23 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		Dirt(C, Which, Grime);
 		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
-		if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))
+		// [bikes v2] A V2 bike's bodywork keeps its model's colour until it's repainted; its bodywork
+		// (the tail, the mudguard, the panels) follows the tank's paint when only the tank has been
+		// painted, as a bike ordered in a colour is that colour all over.
+		static const FName TankSlot(TEXT("tank"));
+		const bool bV2Paint = C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag));
+		FName PaintSlot = Which;
+		if (bV2Paint && B && !B->RepaintedOn(Bike, Which) && C->ComponentHasTag(FName(TorqueShedCatalogue::V2BodyTag)) && B->RepaintedOn(Bike, TankSlot))
+			PaintSlot = TankSlot;
+		const bool bV2Own = bV2Paint && !(B && B->RepaintedOn(Bike, PaintSlot));
+		if (!bV2Own && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, PaintSlot, Paint))
 		{
 			M->SetVectorParameterValue(TEXT("Color"), Paint);
 			M->SetVectorParameterValue(TEXT("Color2"), Paint);
 			// Repainted: its finish too (gloss, matte, metallic, chrome, patina, primer, a satin clear).
 			FLinearColor Shown;
 			float Metallic = 0.0f, Roughness = 0.5f;
-			if (B->FinishOf(Bike, Which, Shown, Metallic, Roughness))
+			if (B->FinishOf(Bike, PaintSlot, Shown, Metallic, Roughness))
 			{
 				for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, Metallic);
 				for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, Roughness);
@@ -238,6 +248,8 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 	}
 	// The tank's badge, if it has one (stamped again only when it's changed).
 	TorqueBikeBadge::Stamp(TorqueBikeBadge::TankOf(Parts), B ? B->BadgeOf(Bike) : FString());
+	// The decals placed on its parts (decal mode, F3), each drawn again only when it's changed.
+	TorqueDecals::ApplyBike(Parts, [B, Bike](FName Slot) { return B ? B->DecalsOf(Bike, Slot) : FString(); });
 }
 
 int32 MakeSpare(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build, FName Slot, FName Part,
@@ -597,6 +609,16 @@ void ATorqueShedBike::ApplyPose(int32 Pose)
 		Folded = Godot(-0.03, -0.04, Len * 0.95);
 		Down = Godot(-Len * FMath::Sin(Best), -Len * FMath::Cos(Best), -0.06);
 		Pivot = FVector(SwingPivotCm.X + 16.0, -12.0, -4.0);
+		// [bikes v2] A V2 bike's stand swings on its own pivot, as it was fitted.
+		FVector V2Pivot, V2Folded, V2Down;
+		TMap<FString, FString> StandParts;
+		const UTorqueBuildSubsystem* StandShed = UTorqueBuildSubsystem::Of(GetWorld());
+		if (StandShed && StandShed->LayoutParts(Bay, StandParts) && TorqueShedCatalogue::V2Stand(StandParts, V2Pivot, V2Folded, V2Down))
+		{
+			Pivot = V2Pivot;
+			Folded = V2Folded;
+			Down = V2Down;
+		}
 		Tag = FName(TEXT("Slot:side_stand"));
 	}
 	else

@@ -845,6 +845,8 @@ int main()
 		Check(Grey.CloudMs < 0.5 && Nov.CloudMs > 0.95, "a dull deck keeps a grey base (less bounced light), fair cumulus keeps it all");
 		Check(Lk.DensityMost >= 1.0 && Lk.CloudViewSamples >= 1.0, "the cloud's density capped and its samples raised (148's flickering white dots)");
 		Check(Lk.CloudMsOctaves == 2.0 && Lk.CloudPhaseG > 0.3 && Lk.CloudMsContribution > 0.3, "the cloud scatters the sun many times, forward (white cumulus, silver linings)");
+		Check(V2DetailSize(600.0, 1200.0, Lk) == 600.0 && V2DetailSize(600.0, 9600.0, Lk) > 1000.0,
+			"a 9 km shower cloud gets coarser edge detail than fair cumulus (no shimmer)");
 	}
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;

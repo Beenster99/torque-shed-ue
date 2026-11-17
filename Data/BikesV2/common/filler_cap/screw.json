@@ -1,0 +1,30 @@
+{
+ "group": "filler_cap",
+ "key": "screw",
+ "name": "Knurled screw",
+ "fitted_on": "hartwell_cafe",
+ "family": "Cafe",
+ "mount": "cap_base",
+ "mount_mm": [
+  909.8,
+  0.0,
+  1024.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  80.0,
+  80.0,
+  48.0
+ ],
+ "triangles": 3296,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

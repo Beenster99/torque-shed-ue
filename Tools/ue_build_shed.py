@@ -377,14 +377,119 @@ def badge_material():
     return finish(m)
 
 
+DECAL_HLSL = """
+float3 c = pow(saturate(T.rgb), 1.0 / 2.2);
+float inside = (UV.x >= 0.0 && UV.x <= 1.0 && UV.y >= 0.0 && UV.y <= 1.0) ? 1.0 : 0.0;
+// Worn (stage 7): chipped away in specks and more at its edges, as an old sticker goes.
+float edge = saturate(min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y)) * 9.0);
+float N1 = 0.0, N2 = 0.0;
+if (Wear > 0.5)
+{
+    // value noise at two sizes (no texture needed)
+    float2 p = UV * 14.0;
+    float2 i0 = floor(p);
+    float2 f = frac(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float h00 = frac(sin(dot(i0, float2(127.1, 311.7))) * 43758.5453);
+    float h10 = frac(sin(dot(i0 + float2(1, 0), float2(127.1, 311.7))) * 43758.5453);
+    float h01 = frac(sin(dot(i0 + float2(0, 1), float2(127.1, 311.7))) * 43758.5453);
+    float h11 = frac(sin(dot(i0 + float2(1, 1), float2(127.1, 311.7))) * 43758.5453);
+    N1 = lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
+    p = UV * 47.0;
+    i0 = floor(p);
+    f = frac(p);
+    f = f * f * (3.0 - 2.0 * f);
+    h00 = frac(sin(dot(i0, float2(269.5, 183.3))) * 24634.6345);
+    h10 = frac(sin(dot(i0 + float2(1, 0), float2(269.5, 183.3))) * 24634.6345);
+    h01 = frac(sin(dot(i0 + float2(0, 1), float2(269.5, 183.3))) * 24634.6345);
+    h11 = frac(sin(dot(i0 + float2(1, 1), float2(269.5, 183.3))) * 24634.6345);
+    N2 = lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
+}
+float chips = 0.6 * N1 + 0.4 * N2 + 0.3 * (1.0 - edge);
+inside *= (Wear > 0.5 && chips > 0.78) ? 0.0 : 1.0;
+if (Full > 0.5) return float4(T.rgb, T.a * inside);
+float fill = c.r * Filled * inside;
+float ink = c.g * inside;
+float a = max(fill, ink);
+float3 body = Color1.rgb * (1.0 - 0.45 * c.b);
+float3 col = lerp(body, Color2.rgb, saturate(ink / max(a, 0.0001)));
+return float4(col, a);
+"""
+
+
+def decal_material():
+    """M_ShedDecal: a decal the player placed (Shed/TorqueDecals.cpp, the decals plan), a thin skin over
+    a part's paint wearing a library picture, typed lettering or the player's own picture. The
+    picture's red is the fill (or, with Full, an own picture in its own colours) (Color1, Filled 0 leaves it out: line only), its green the ink (Color2,
+    over the fill), its blue a little shading of the fill; outside the picture's square (UV outside
+    0 .. 1, where the skin runs past it) nothing. Lit as a satin sticker or, under the lacquer, with
+    the part's own Roughness and Metallic."""
+    m = new_material("M_ShedDecal")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_MASKED)
+    try_set(m, "opacity_mask_clip_value", 0.35)
+    tex = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -1000, 0, parameter_name="Decal")
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    if white:
+        try_set(tex, "texture", white)
+    uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1200, 200)
+    mel.connect_material_expressions(uv, "", tex, "UVs")
+    node = expr(m, unreal.MaterialExpressionCustom, -600, 0)
+    try_set(node, "code", DECAL_HLSL)
+    try_set(node, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT4)
+    ins = []
+    for n in ("T", "UV", "Color1", "Color2", "Filled", "Full", "Wear"):
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(node, "inputs", ins)
+    mel.connect_material_expressions(tex, "RGBA", node, "T")
+    mel.connect_material_expressions(uv, "", node, "UV")
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionVectorParameter, -1000, 300, parameter_name="Color1",
+                                          default_value=unreal.LinearColor(0.8, 0.1, 0.07, 1.0)), "", node, "Color1")
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionVectorParameter, -1000, 450, parameter_name="Color2",
+                                          default_value=unreal.LinearColor(0.02, 0.02, 0.02, 1.0)), "", node, "Color2")
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionScalarParameter, -1000, 600, parameter_name="Filled",
+                                          default_value=1.0), "", node, "Filled")
+    # The player's own picture (Saved/Decals): its own colours and its own see-through.
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionScalarParameter, -1000, 700, parameter_name="Full",
+                                          default_value=0.0), "", node, "Full")
+    # Worn (stage 7): chipped away in specks and at its edges (noise made in the code).
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionScalarParameter, -1000, 800, parameter_name="Wear",
+                                          default_value=0.0), "", node, "Wear")
+    rgb = expr(m, unreal.MaterialExpressionComponentMask, -300, 0, r=True, g=True, b=True, a=False)
+    mel.connect_material_expressions(node, "", rgb, "")
+    alpha = expr(m, unreal.MaterialExpressionComponentMask, -300, 150, r=False, g=False, b=False, a=True)
+    mel.connect_material_expressions(node, "", alpha, "")
+    mel.connect_material_property(rgb, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(alpha, "", unreal.MaterialProperty.MP_OPACITY_MASK)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionScalarParameter, -300, 300, parameter_name="Roughness", default_value=0.35),
+                                  "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionScalarParameter, -300, 400, parameter_name="Metallic", default_value=0.0),
+                                  "", unreal.MaterialProperty.MP_METALLIC)
+    return finish(m)
+
+
 # The masked pattern, in the part's frame in cm (paint_mix.gd masked(), its metres x 100): 1 a centre
-# stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone).
+# stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone);
+# 5 .. 10 the fades (TorquePaintMix::FadeKeep): front to back (5 .. 7) or top to bottom (8 .. 10),
+# over 8, 20 or 40 cm. While the fade's paper mask is still on (Tape) it shows as a sheet over the
+# kept half, with a plain edge.
 MASK_HLSL = """
 float3 q = float3(dot(R0, P), dot(R1, P), dot(R2, P)) + Offset;
 float aa = 0.15;
 float x = abs(q.y);
 float y = q.z;
 if (Pattern < 0.5) return 0.0;
+if (Pattern > 4.5)
+{
+    float f = Pattern - 5.0;
+    float along = f < 2.5 ? 1.0 : 0.0;
+    float soft = fmod(f, 3.0);
+    float len = soft < 0.5 ? 8.0 : (soft < 1.5 ? 20.0 : 40.0);
+    float c = along > 0.5 ? q.x : q.z;
+    if (Tape > 0.5) return smoothstep(-aa, aa, c);
+    return smoothstep(-len * 0.5, len * 0.5, c);
+}
 if (Pattern < 1.5) return 1.0 - smoothstep(3.0 - aa, 3.0 + aa, x);
 if (Pattern < 2.5) return (1.0 - smoothstep(4.5 - aa, 4.5 + aa, x)) * smoothstep(2.2 - aa, 2.2 + aa, x);
 if (Pattern < 3.5) return 1.0 - smoothstep(0.4 - aa * 0.5, 0.4 + aa * 0.5, abs(y));
@@ -463,7 +568,7 @@ def effect_paint_material():
     try_set(mask, "code", MASK_HLSL)
     try_set(mask, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     ins = []
-    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern"):
+    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern", "Tape"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
@@ -474,7 +579,9 @@ def effect_paint_material():
     mel.connect_material_expressions(vec("PartRow2", -1200, 2050, (0.0, 0.0, 1.0)), "", mask, "R2")
     mel.connect_material_expressions(vec("PartOffset", -1200, 2150, (0.0, 0.0, 0.0)), "", mask, "Offset")
     mel.connect_material_expressions(num("Pattern", -1200, 2250, 0.0), "", mask, "Pattern")
-    tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, num("Tape", -900, 2000, 0.0))
+    tape_on = num("Tape", -900, 2000, 0.0)
+    mel.connect_material_expressions(tape_on, "", mask, "Tape")
+    tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, tape_on)
     masked = lerp(-500, 0, c5, vec("MaskColor", -700, 1700, (1.0, 1.0, 1.0)), mask)
     taped = lerp(-450, 0, masked, vec("TapeColor", -700, 2100, (0.18, 0.42, 0.85)), tape)
     metal = lerp(-300, 300, num("Metallic", -600, 300, 0.0), expr(m, unreal.MaterialExpressionConstant, -600, 380, r=1.0), speck)
@@ -494,8 +601,12 @@ def effect_paint_material():
     mel.connect_material_property(emis, "", M.MP_EMISSIVE_COLOR)
     # Clear coat and its roughness: UE 5.8's Python MaterialProperty has no MP_CUSTOM_DATA0/1, so set them
     # only where the enum has them (unconnected, the clear-coat model defaults to a full coat).
+    # The coat follows the finish under it, so a matt half of a fade (or a matt lacquer) isn't glossed
+    # over: full on gloss (roughness 0.1), none on matt (0.6 and up).
     if hasattr(M, "MP_CUSTOM_DATA0"):
-        mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 800, r=1.0), "", M.MP_CUSTOM_DATA0)   # clear coat
+        coat = sat(-300, 800, op(unreal.MaterialExpressionSubtract, -400, 800, expr(m, unreal.MaterialExpressionConstant, -500, 800, r=1.2),
+                                 op(unreal.MaterialExpressionMultiply, -500, 850, rough, const_b=2.0)))
+        mel.connect_material_property(coat, "", M.MP_CUSTOM_DATA0)   # clear coat
         mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 900, r=0.04), "", M.MP_CUSTOM_DATA1)   # its roughness
     return finish(m)
 
@@ -751,6 +862,7 @@ def materials():
         "outline": outline_material(),         # for the game: the soft line round what's looked at
         "screen_page": screen_page_material(),   # for the game: the screens' pages
         "badge": badge_material(),               # for the game: a tank's badge
+        "decal": decal_material(),               # for the game: decals the player places (the decals plan)
         "effect_paint": effect_paint_material(),   # for the game: parts sprayed with pearl, candy, flake, chameleon
         "led": flat("M_ShedLed", (0.9, 0.92, 0.95), 0.5, emissive=LED_GLOW),
         # The paint shop (workshop.gd _build_booth_room, equipment_view.gd _build_booth): white walls,

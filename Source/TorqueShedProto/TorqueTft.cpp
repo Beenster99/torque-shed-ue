@@ -159,7 +159,7 @@ void FTorqueTftPrefs::Save() const
 
 // --- The bike's screens ------------------------------------------------------------------------
 
-void UTorqueTftComponent::Hook(const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges, const TorqueSim::BikeSpec& Spec)
+void UTorqueTftComponent::Hook(const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges, const TorqueSim::BikeSpec& Spec, bool bPhoneFitted)
 {
 	bTft = bPhone = false;
 	ScreenFace.Reset();
@@ -202,6 +202,7 @@ void UTorqueTftComponent::Hook(const TArray<UStaticMeshComponent*>& Meshes, cons
 			ScreenMat = Light(Meshes[G.Mesh], RT);
 		}
 	}
+	if (bPhoneFitted) bPhone = true;
 	Menu = TorqueTft::Menu();
 	Caps = Spec.Aids;
 	Menu.Setup(Caps, ScreenShape == TorqueTft::Shape::Ultra, std::string());
@@ -652,6 +653,19 @@ void UTorqueTftComponent::ToggleMapTile()
 	Notice(P.bMapTile ? TEXT("HUD map on") : TEXT("HUD map off"));
 }
 
+// beenster (Nov 16): zoom in and out on the sat nav, whatever view the screen is on.
+bool UTorqueTftComponent::ZoomBy(int32 Step)
+{
+	if (!HasMap()) return false;
+	const int32 To = FMath::Clamp(Menu.Zoom + Step, -2, 2);
+	const bool bMoved = To != Menu.Zoom;
+	Menu.Zoom = To;
+	if (bMoved) KeepPrefs();
+	WorldIn = ScreenIn = PhoneIn = TileIn = 0.0;   // shown at once
+	Notice(!bMoved ? FString(Step < 0 ? TEXT("Map: closest") : TEXT("Map: furthest")) : FString::Printf(TEXT("Map zoom %d of 5"), 3 - To));
+	return bMoved;
+}
+
 void UTorqueTftComponent::ToggleArrange()
 {
 	if (!bOwnBike || !HasMap()) return;
@@ -699,9 +713,9 @@ FString UTorqueTftComponent::Describe() const
 	static const TCHAR* Views[5] = {TEXT("ride"), TEXT("map"), TEXT("split"), TEXT("modes"), TEXT("settings")};
 	const FString Look = UTF8_TO_TCHAR(TorqueTft::DesignName(Menu.Look));
 	const FString ModeWord = Menu.HasModes() ? FString(UTF8_TO_TCHAR(TorqueSim::ModeKey(Menu.Mode()))) : FString(TEXT("none"));
-	return FString::Printf(TEXT("screen %s, phone %s, own %d, view %s, design %s, mode %s, map %s (%d roads, route %d pts), overlay %d, tile %d"),
+	return FString::Printf(TEXT("screen %s, phone %s, own %d, view %s, design %s, mode %s, map %s (%d roads, route %d pts), zoom %d, overlay %d, tile %d"),
 		bTft ? Shapes[FMath::Clamp((int32)ScreenShape, 0, 3)] : TEXT("none"), bPhone ? TEXT("yes") : TEXT("no"), bOwnBike ? 1 : 0,
 		Views[FMath::Clamp((int32)Menu.Now, 0, 4)], *Look, *ModeWord,
-		Scene.Data ? TEXT("yes") : TEXT("no"), Scene.Data ? (int32)Scene.Data->Lines.size() : 0, (int32)Scene.Route.size(),
+		Scene.Data ? TEXT("yes") : TEXT("no"), Scene.Data ? (int32)Scene.Data->Lines.size() : 0, (int32)Scene.Route.size(), 3 - Menu.Zoom,
 		OverlayOn() ? 1 : 0, MapTileOn() ? 1 : 0);
 }

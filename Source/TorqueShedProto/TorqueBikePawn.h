@@ -213,7 +213,7 @@ public:
 	// "cancel" (indicators off), "brake" / "nobrake" (the stop lamp held on), "night" / "day" (the clock
 	// at 23:00, or the level's own light: the host's), then the lamps shown at once and described.
 	FString TestLights(const FString& What);
-	// [tft] tft[:state|left|right|up|down|overlay|map|arrange|cruise]: works the bike's screen as its
+	// [tft] tft[:state|left|right|up|down|overlay|map|zoomin|zoomout|arrange|cruise]: works the bike's screen as its
 	// buttons do, then what it is and shows in one line.
 	FString TestTft(const FString& What);
 	UTorqueTftComponent* GetTft() const { return Tft; }
@@ -344,6 +344,7 @@ private:
 	// again whenever it changes.
 	void UpdateHelmetPaint();
 	TArray<uint8> HelmetPaintLook;
+	double RiderWave = 0.0, RiderWaveTime = 0.0;   // [build 155] the wave as last posed (for the MetaHuman)
 	bool bHelmetPaintDone = false;
 	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
@@ -392,6 +393,7 @@ private:
 	UPROPERTY(Transient) UTorqueTftComponent* Tft = nullptr;
 	TorqueSim::BikeSpec ModeBase;
 	bool bModeBase = false;
+	int32 TftStickWas = 0;        // the right stick's last push with LB held (the map's zoom: one step a push)
 	bool bTftPadNav = false;      // LB is working the screen (not the clutch) until it's let go
 	bool bCruise = false;
 	double CruiseMs = 0.0, CruiseHeld = 0.0;
@@ -521,6 +523,9 @@ private:
 	double ParkPitch = 0.0;
 	void PitchToGround();
 	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
+	// [bikes v2] The side stand as fitted to a V2 bike (TorqueShedCatalogue::V2Stand), in place of the catalogue's.
+	bool bV2Stand = false;
+	FVector V2StandPivot = FVector::ZeroVector, V2StandFolded = FVector::ZeroVector, V2StandDown = FVector::ZeroVector;
 	FString SideStandPart, CentreStandPart;
 	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
 	void ChooseStand();

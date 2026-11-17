@@ -905,7 +905,13 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 
 	// The poseable copy: in the Blueprint body's own space (hidden, the parts follow it), or shown
 	// on its own, turned to face Parent's +x.
-	Driver = NewObject<UPoseableMeshComponent>(Owner, *FString::Printf(TEXT("Avatar_%s"), *Name.Replace(TEXT(" "), TEXT("_"))));
+	// (A name of its own: a bike pawn holds two of the same avatar, its rider and their body walking
+	// beside it off the bike. With one name, NewObject made the second over the first, so the two shared
+	// one body: hiding the rider hid the walker's body (build 154: a headless, armless rider off the bike,
+	// build 141: riding).)
+	const FName DriverName = MakeUniqueObjectName(Owner, UPoseableMeshComponent::StaticClass(),
+		FName(*FString::Printf(TEXT("Avatar_%s"), *Name.Replace(TEXT(" "), TEXT("_")))));
+	Driver = NewObject<UPoseableMeshComponent>(Owner, DriverName);
 	Driver->SetupAttachment(BodyComp ? (USceneComponent*)BodyComp : Parent);
 	Driver->SetSkinnedAssetAndUpdate(Mesh);
 	Driver->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -1724,20 +1730,40 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				// The arm reaches the wrist the hand needs on the bar (as far as it can); the elbows
 				// bend down and out.
 				const FVector S0 = Bones[I].Rest, E0 = Bones[LowerArm[S]].Rest, W0 = Bones[HandBone[S]].Rest;
-				const FVector W = WristAt[S];
+				FVector W = WristAt[S];
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
-				const FVector Pole = bFit ? (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal()
+				FVector Pole = bFit ? (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal()
 					: (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
+				// [build 155] The wave (left hand, R3 held): the hand raised beside the head, the forearm
+				// near upright with the elbow down and out, the open palm to the front, swung side to side
+				// from the elbow about one and a half times a second.
+				const double WaveK = S == 0 ? FMath::SmoothStep(0.0, 1.0, FMath::Clamp(Tg.Wave, 0.0, 1.0)) * (1.0 - Off) : 0.0;
+				const double Sway = FMath::Sin(Tg.WaveTime * 2.0 * UE_DOUBLE_PI * 1.5);
+				if (WaveK > 0.0)
+				{
+					const FVector Up2 = (Up + Fwd * 0.15).GetSafeNormal();
+					const FVector WaveWrist = P[I] + Up2 * (Lu * 0.55 + Lf * 0.55) + Right * (Side * (Lu * 0.45 + 9.0 * Sway)) + Fwd * 8.0;
+					W = FMath::Lerp(W, WaveWrist, WaveK);
+					Pole = FMath::Lerp(Pole, (-Up * 0.6 + Right * (Side * 0.75) - Fwd * 0.1).GetSafeNormal(), WaveK).GetSafeNormal();
+				}
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
 				const FVector Hinge0 = FVector::CrossProduct(W0 - S0, -Fwd);
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
 				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], HandOffS[S]); Set[HandBone[S]] = true;
+				if (WaveK > 0.0)
+				{
+					// The hand: fingers up (leaning a little with the swing), palm to the front.
+					FVector WaveAim0, WaveAcross0, WavePalm0;
+					HandRest(S, WaveAim0, WaveAcross0, WavePalm0);
+					const FVector AimUp = (Up + Right * (Side * 0.25 * Sway)).GetSafeNormal();
+					D[HandBone[S]] = FQuat::Slerp(D[HandBone[S]], Align(WaveAim0, WavePalm0, AimUp, Fwd), WaveK);
+				}
 				// The fingers wrapped round the bar (WrapFingers). The index and middle lift onto a
-				// lever when they're on it.
+				// lever when they're on it. (Waving: open, straight.)
 				const FVector WAct = E + D[LowerArm[S]].RotateVector(W0 - E0);   // where the wrist got to
-				const double Loose = 1.0 - HandOffS[S] * 0.7;
+				const double Loose = (1.0 - HandOffS[S] * 0.7) * (1.0 - WaveK);
 				double K[5] = {0.0, Loose, Loose, Loose, Loose};
 				const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
 				// [rider pose] The lever (beenster: two fingers reach out and pull it): its blade in front of

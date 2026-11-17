@@ -71,6 +71,9 @@ struct FTorqueRideTargets
 	double LeverFingers[2] = {0.0, 0.0}, LeverPull[2] = {0.0, 0.0};
 	double Limp = 0.0;                       // off the bike: hands loose
 	double HandOff[2] = {0.0, 0.0};          // [gestures] one hand off its grip (the wave): to Wrist, 0..1
+	// [build 155] The wave (beenster: "a proper wave of the left hand"): 0..1 how far the left hand's up,
+	// and the time since it started (s), which swings it to and fro.
+	double Wave = 0.0, WaveTime = 0.0;
 	// [rider pose] On a catalogue bike: its knees (BikeRig's, where the tank's knee pads are), pegs and
 	// tank's half-width along x ((x, half-width), parent's space), and how far the feet are down off
 	// the pegs (0 on them, 1 on the road, as the rider rig's ankles). Without them (bOnLayout false)

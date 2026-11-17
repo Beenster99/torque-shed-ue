@@ -1,6 +1,9 @@
 #include "TorquePlayerController.h"
 #include "TorqueNetBike.h"
 
+#include "Shed/TorqueDecalMode.h"
+#include "Shed/TorqueDecals.h"
+#include "Fit/BikeDecal.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
@@ -111,6 +114,89 @@ void ATorquePlayerController::TellPeer(int32 Peer, const FString& Text, bool bOk
 	if (!IsLocalController() && PlayerState && PlayerState->GetPlayerId() == Peer && !Text.IsEmpty()) ClientNote(Text);
 }
 
+// --- [decals stage 5] Own pictures, shared -------------------------------------------------------------
+
+namespace
+{
+// Each piece of a picture, to one machine.
+template <typename FSend>
+void SendPieces(const TArray<uint8>& Png, int32 Piece, FSend&& Send)
+{
+	for (int32 At = 0; At < Png.Num(); At += Piece)
+	{
+		TArray<uint8> Part;
+		Part.Append(Png.GetData() + At, FMath::Min(Piece, Png.Num() - At));
+		Send(Png.Num(), At, Part);
+	}
+}
+}
+
+void ATorquePlayerController::SendDecalPicture(const FString& Id)
+{
+	static TSet<FString> Sent;
+	if (HasAuthority() || !IsLocalController() || Sent.Contains(Id)) return;
+	TArray<uint8> Png;
+	if (!TorqueDecals::SharedBytes(Id, Png)) return;
+	Sent.Add(Id);
+	SendPieces(Png, DecalPiece, [this, &Id](int32 Total, int32 At, const TArray<uint8>& Part) { ServerDecalPicture(Id, Total, At, Part); });
+}
+
+void ATorquePlayerController::WantDecalPicture(const FString& Id)
+{
+	static TSet<FString> Asked;
+	if (HasAuthority() || !IsLocalController() || !TorqueDecals::IsSharedId(Id) || Asked.Contains(Id)) return;
+	Asked.Add(Id);
+	ServerWantDecalPicture(Id);
+}
+
+bool ATorquePlayerController::TakeDecalPiece(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes)
+{
+	if (!TorqueDecals::IsSharedId(Id) || Total <= 0 || Total > TorqueDecals::MaxSharedBytes || Offset < 0 || Bytes.Num() == 0 ||
+		Offset + Bytes.Num() > Total)
+	{
+		DecalPieces.Remove(Id);
+		return false;
+	}
+	if (DecalPieces.Num() > 8 && !DecalPieces.Contains(Id)) return false;   // (a few at once)
+	TArray<uint8>& Buf = DecalPieces.FindOrAdd(Id);
+	if (Offset != Buf.Num())   // pieces come in order (reliable): anything else starts it again
+	{
+		Buf.Reset();
+		if (Offset != 0) return false;
+	}
+	Buf.Append(Bytes);
+	if (Buf.Num() < Total) return false;
+	const TArray<uint8> Png = MoveTemp(Buf);
+	DecalPieces.Remove(Id);
+	return TorqueDecals::TakeShared(Id, Png);
+}
+
+void ATorquePlayerController::ServerDecalPicture_Implementation(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes)
+{
+	if (!TakeDecalPiece(Id, Total, Offset, Bytes)) return;
+	// The host has it: on to everyone else playing.
+	TArray<uint8> Png;
+	if (!TorqueDecals::SharedBytes(Id, Png)) return;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ATorquePlayerController* Other = Cast<ATorquePlayerController>(It->Get());
+		if (!Other || Other == this || Other->IsLocalController()) continue;
+		SendPieces(Png, DecalPiece, [Other, &Id](int32 T, int32 At, const TArray<uint8>& Part) { Other->ClientDecalPicture(Id, T, At, Part); });
+	}
+}
+
+void ATorquePlayerController::ServerWantDecalPicture_Implementation(const FString& Id)
+{
+	TArray<uint8> Png;
+	if (!TorqueDecals::SharedBytes(Id, Png)) return;   // (the host hasn't got it either: it comes when its owner saves)
+	SendPieces(Png, DecalPiece, [this, &Id](int32 T, int32 At, const TArray<uint8>& Part) { ClientDecalPicture(Id, T, At, Part); });
+}
+
+void ATorquePlayerController::ClientDecalPicture_Implementation(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes)
+{
+	TakeDecalPiece(Id, Total, Offset, Bytes);
+}
+
 void ATorquePlayerController::ClientNote_Implementation(const FString& Text)
 {
 	Note = Text.Left(200);
@@ -190,6 +276,15 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 	{
 		bProfileSent = true;
 		PS->ServerSetProfile(FTorqueProfile::Mine().Pack());
+	}
+	if (!bHelmetDecalsSent || TorqueDecals::MyHelmet() != SentHelmetDecals)   // [decals stage 4]
+	{
+		bHelmetDecalsSent = true;
+		SentHelmetDecals = TorqueDecals::MyHelmet();
+		PS->ServerSetHelmetDecals(SentHelmetDecals);
+		// (its own pictures go to the host first, which passes them on)
+		for (const TorqueFit::Decals::Decal& D : TorqueFit::Decals::Parse(TorqueDecals::ToStd(SentHelmetDecals)))
+			if (D.K == TorqueFit::Decals::Kind::Image) SendDecalPicture(TorqueDecals::ToUe(D.Id));
 	}
 	if (FTorqueProfile::Mine().Visited.Num() != SentPlaces)   // [places stage 7]
 	{
@@ -509,6 +604,12 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 		ATorqueGameState::TestClockSet();
 		if (GS) GS->SetHour(S.TimeOfDay);
 	}
+	else if (F == TEXT("ridedate") || F == TEXT("date"))
+	{
+		// (a day of the year, 1 .. 365, or 0 for today)
+		S.RideDate = FMath::Clamp(N, 0, 365);
+		if (GS) GS->SetRideDay(S.RideDate);
+	}
 	else if (F == TEXT("daynight")) S.bDayNight = bOn;
 	else if (F == TEXT("realclock"))
 	{
@@ -601,7 +702,7 @@ FString ATorquePlayerController::TestFace(const FString& Slider, float Value)
 bool ATorquePlayerController::WantsPause()
 {
 	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
-	if (ATorqueGeometryMode::For(this)) return false;
+	if (ATorqueGeometryMode::For(this) || ATorqueDecalMode::For(this)) return false;
 	const APawn* P = GetPawn();
 	if (const ATorqueWalker* W = Cast<ATorqueWalker>(P); W && W->ComputerUpOrJustClosed()) return false;   // [shed] Esc closes the parts computer
 	if (const ATorqueBikePawn* BP = Cast<ATorqueBikePawn>(P); BP && BP->GarageComputerUpOrJustClosed()) return false;   // [garage] and the garage's
@@ -1122,6 +1223,30 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 						S.TimeOfDay = -1.0f;
 						S.bDayNight = false;
 						if (GS) GS->SetHour(-1.0f);
+						Changed();
+					});
+			}
+			{
+				// The ride's date (beenster Nov 17): the sun's path, sunrise and sunset, the night sky, the season
+				// on the land (from the next ride) and the HUD's date. Left / Right a day; dragged, any day.
+				const int32 Today = FDateTime::UtcNow().GetDayOfYear();
+				const int32 DayNow = S.RideDate > 0 ? S.RideDate : Today;
+				const FString DateText = S.RideDate > 0 ? ATorqueGameState::DateOfDay(S.RideDate).ToString(TEXT("%d %B"))
+					: FString::Printf(TEXT("Today (%s)"), *ATorqueGameState::DateOfDay(Today).ToString(TEXT("%d %B")));
+				Slide(TEXT("Ride date"), DateText, TEXT("The day the sun, the night sky and the season are for; Left / Right a day"), float(DayNow - 1) / 364.0f,
+					[GS, &S, DayNow](int32 D) {
+						S.RideDate = (DayNow - 1 + D + 365) % 365 + 1;
+						if (GS) GS->SetRideDay(S.RideDate);
+					},
+					[GS, &S](float F) {
+						S.RideDate = FMath::Clamp(FMath::RoundToInt(F * 364.0f) + 1, 1, 365);
+						if (GS) GS->SetRideDay(S.RideDate);
+					});
+				HostOnly();
+				if (S.RideDate > 0 && !bClient)
+					Add(TEXT("Back to today's date"), FString(), TEXT("The sun and the season as they are today"), [this, GS, &S]() {
+						S.RideDate = 0;
+						if (GS) GS->SetRideDay(0);
 						Changed();
 					});
 			}

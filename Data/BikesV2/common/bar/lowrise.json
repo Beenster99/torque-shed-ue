@@ -1,0 +1,44 @@
+{
+ "group": "bar",
+ "key": "lowrise",
+ "name": "Low rise bar",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  120.8,
+  763.9,
+  144.0
+ ],
+ "triangles": 7964,
+ "surfaces": {
+  "d3_bars_satin_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.034
+   ],
+   "metallic": 0.85,
+   "roughness": 0.38,
+   "tag": "d3_bars_satin_black"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

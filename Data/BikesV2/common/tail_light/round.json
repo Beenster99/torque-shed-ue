@@ -1,0 +1,36 @@
+{
+ "group": "tail_light",
+ "key": "round",
+ "name": "Round",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  52.7,
+  0.0,
+  936.8
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  66.0,
+  72.4,
+  72.4
+ ],
+ "triangles": 2780,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_redglass": {
+   "ue": "lens_red",
+   "clear": 1.0,
+   "tag": "lens_red"
+  },
+  "d3_tailred": {
+   "ue": "lens_red",
+   "glow": 2.6,
+   "tag": "lens_red"
+  }
+ }
+}

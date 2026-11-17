@@ -86,6 +86,9 @@ struct FTorqueItem
 	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
 	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
 	FString Badge;
+	// Decals the player placed on it in decal mode (F3; the decals plan): Fit/BikeDecal text ("" for
+	// none). They go wherever the part goes, and stay put when it's repainted.
+	FString Decals;
 	// The dyno desk's settings kept on the part they adjust (shed_state TUNE_HOME: a fork's or
 	// shock's preload / bump / rebound, a tyre's pressure, the sprockets' front / rear teeth, a
 	// cassette gearbox's spread, a steering damper's clicks, the chain's slack), so they go with it
@@ -262,6 +265,8 @@ enum class ETorqueShedAct : uint8
 	// [label] Shelving unit Item's label plate written as Text (an empty Text wipes it): label_dialog.gd
 	// and shed_state.gd "label".
 	LabelFurniture,
+	// Decal mode (F3, ATorqueDecalMode): part Item's decals set to Text (Fit/BikeDecal text, "" for none).
+	DecalSave,
 	// [garage] At a Ride UK forecourt's garage (World/TorqueForecourtGarage.h, Shed/TorqueGarageActs.cpp):
 	// part Part bought at the garage's wall computer, unboxed into your hands; the part in your hands
 	// fitted to bay Bay's bike and bolted up in one go with the spanner (its slot: the one looked at,
@@ -521,8 +526,12 @@ public:
 	float DirtOf(int32 Bay, FName Slot) const;
 	float RustOf(int32 Bay, FName Slot) const;
 	bool PaintOf(int32 Bay, FName Slot, FLinearColor& Out) const;
+	// [bikes v2] Whether the part in the slot has been painted or primed by someone (Repainted).
+	bool RepaintedOn(int32 Bay, FName Slot) const;
 	// The badge on bay Bay's tank (Fit/BikeShop's badge text), "" for none.
 	FString BadgeOf(int32 Bay) const;
+	// The decals on the part in bay Bay's Slot (Fit/BikeDecal text, "" for none).
+	FString DecalsOf(int32 Bay, FName Slot) const;
 	// How a repainted part's finish looks (bike_model.gd _apply_finish): gloss is wet-look, matte
 	// soaks up the light, metallic has flake under the lacquer, chrome is a tinted mirror, patina is
 	// faded old paint; primer is flat grey, and a lacquer's flattener takes the shine off. The colour

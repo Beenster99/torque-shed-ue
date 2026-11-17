@@ -1,0 +1,60 @@
+{
+ "group": "silencer",
+ "key": "round_ti",
+ "name": "Round titanium",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "can_inlet",
+ "mount_mm": [
+  356.6,
+  0.0,
+  722.1
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  320.8,
+  166.1,
+  187.3
+ ],
+ "triangles": 17552,
+ "surfaces": {
+  "d3_sl_ti": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.56,
+    0.57,
+    0.62
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "d3_sl_ti"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "d3_cf_twill": {
+   "ue": "cat_carbon",
+   "coat": 1.0,
+   "tag": "d3_cf_twill"
+  },
+  "d3_pipeblack": {
+   "ue": "cat_plastic",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0,
+   "tag": "d3_pipeblack"
+  }
+ }
+}

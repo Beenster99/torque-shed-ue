@@ -1,0 +1,59 @@
+{
+ "group": "silencer",
+ "key": "peashooter",
+ "name": "Peashooter",
+ "fitted_on": "hartwell_cafe",
+ "family": "Cafe",
+ "mount": "can_inlet",
+ "mount_mm": [
+  512.7,
+  -217.7,
+  319.7
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  649.0,
+  62.2,
+  178.3
+ ],
+ "triangles": 1064,
+ "surfaces": {
+  "exhaust": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "exhaust"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_pipeblack": {
+   "ue": "cat_plastic",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0,
+   "tag": "d3_pipeblack"
+  }
+ }
+}

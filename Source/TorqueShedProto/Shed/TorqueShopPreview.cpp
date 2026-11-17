@@ -506,6 +506,7 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 			Shown.Add(C);
 			TSPI::Clean(C);
 			if (C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag))) continue;
+			if (C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag))) continue;   // [bikes v2] its model's own colour
 			const FName Slot = TorqueShedModel::SlotTag(C);
 			if (const FTorqueShopFinish* F = Finishes.Find(Slot))
 				TSPI::Paint(C, F->Colour, F->Metallic, F->Roughness);
@@ -521,7 +522,7 @@ TArray<FString> ATorqueShopPreview::BikeStyles()
 {
 	TArray<FString> Out;
 	if (const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout())
-		for (const std::string& S : Lay->Styles()) Out.Add(FString(UTF8_TO_TCHAR(S.c_str())));
+		for (const std::string& S : Lay->ShopStyles()) Out.Add(FString(UTF8_TO_TCHAR(S.c_str())));
 	return Out;
 }
 
@@ -531,7 +532,7 @@ TMap<FString, FString> ATorqueShopPreview::StyleBike(const FString& Style)
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	if (!Lay) return Out;
 	const std::string Want(TCHAR_TO_UTF8(*Style.ToLower()));
-	for (const auto& KV : Lay->ReferenceBuild(Want))
+	for (const auto& KV : Lay->ShopBuild(Want))
 		if (!KV.second.empty() && KV.second != "none") Out.Add(FString(UTF8_TO_TCHAR(KV.first.c_str())), FString(UTF8_TO_TCHAR(KV.second.c_str())));
 	return Out;
 }

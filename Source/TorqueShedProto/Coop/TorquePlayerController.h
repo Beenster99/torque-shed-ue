@@ -52,6 +52,14 @@ public:
 	// The shed in co-op: a joined player's actions, for the host to apply.
 	UFUNCTION(Server, Reliable) void ServerShed(const FTorqueShedRequestNet& Request);
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
+	// [decals stage 5] Own pictures on decals (TorqueDecals::ShareOwn, "p" + 8 hex): a joined player's
+	// go to the host as they're saved, and the host passes them on to everyone; a machine drawing one
+	// it hasn't got asks the host once. Sent in pieces of DecalPiece bytes.
+	void SendDecalPicture(const FString& Id);
+	void WantDecalPicture(const FString& Id);
+	UFUNCTION(Server, Reliable) void ServerDecalPicture(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
+	UFUNCTION(Server, Reliable) void ServerWantDecalPicture(const FString& Id);
+	UFUNCTION(Client, Reliable) void ClientDecalPicture(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
 	// A note under the middle of the screen from this machine (a ping's "nothing there").
 	void ShowNote(const FString& Text, double Seconds);
 	// [info] A place picked in the riding info panel (beenster, Nov 13: "makes us want to ride off and
@@ -93,6 +101,9 @@ public:
 	FString TestSet(const FString& Field, const FString& Value);
 
 private:
+	static constexpr int32 DecalPiece = 16 * 1024;
+	TMap<FString, TArray<uint8>> DecalPieces;   // pictures part way here
+	bool TakeDecalPiece(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
 	// [co-op] The bike picker for Buttertubs: a bay's name ("Bay 3: Simon's cruiser"), the other
 	// rider who has picked it (empty: free), and the next free bike from From in direction Dir.
 	FString RideBikeName(int32 Bay) const;
@@ -200,6 +211,8 @@ private:
 	int32 DragRow = -1;         // the slider being dragged, and its track's ends on screen
 	double DragX0 = 0.0, DragX1 = 1.0;
 	bool bProfileSent = false;
+	FString SentHelmetDecals;   // [decals stage 4]
+	bool bHelmetDecalsSent = false;
 	void ProfileChanged();
 	void UpdateProfilePreview();
 	void DrawProfile(AHUD* Hud, UCanvas* Canvas);

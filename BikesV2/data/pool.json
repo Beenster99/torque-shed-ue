@@ -1,59 +1,2029 @@
 {
  "about": "The shared pool: parts no brand owns, that fit every bike in the families listed. Bars, lamps and mirrors are drawn relative to an anchor (the top of the fork for bars and lamps, the grip for mirrors), so they land in the right place on any frame. Coordinates in mm, x forward, z up.",
- "families": ["Naked"],
+ "families": [
+  "Naked"
+ ],
  "bars": [
-  {"name": "Street bar", "note": "flat, mid-rise",
-   "shapes": [{"tube": 30, "pts": [[0, 0], [-29, 64]], "cls": "cast"}, {"tube": 24, "pts": [[-29, 64], [-67, 106]], "cls": "steelt"},
-              {"tube": 9, "pts": [[-61, 98], [1, 76]], "cls": "dark"}, {"circle": 20, "at": [-77, 114], "cls": "cast"}]},
-  {"name": "Tall bar", "note": "high and wide, upright riding position",
-   "shapes": [{"tube": 30, "pts": [[0, 0], [-34, 95]], "cls": "cast"}, {"tube": 24, "pts": [[-34, 95], [-92, 150]], "cls": "steelt"},
-              {"tube": 9, "pts": [[-86, 142], [-22, 120]], "cls": "dark"}, {"circle": 20, "at": [-102, 158], "cls": "cast"}]},
-  {"name": "Clip-ons", "note": "low bars clamped to the fork legs", "clipon": true,
-   "shapes": [{"tube": 34, "pts": [[10, -44], [-8, -36]], "cls": "cast"}, {"tube": 24, "pts": [[-8, -36], [-68, -56]], "cls": "steelt"},
-              {"tube": 9, "pts": [[-62, -66], [0, -78]], "cls": "dark"}, {"circle": 20, "at": [-80, -60], "cls": "cast"}]}
+  {
+   "name": "Street bar",
+   "note": "flat, mid-rise",
+   "shapes": [
+    {
+     "tube": 30,
+     "pts": [
+      [
+       0,
+       0
+      ],
+      [
+       -29,
+       64
+      ]
+     ],
+     "cls": "cast"
+    },
+    {
+     "tube": 24,
+     "pts": [
+      [
+       -29,
+       64
+      ],
+      [
+       -67,
+       106
+      ]
+     ],
+     "cls": "steelt"
+    },
+    {
+     "tube": 9,
+     "pts": [
+      [
+       -61,
+       98
+      ],
+      [
+       1,
+       76
+      ]
+     ],
+     "cls": "dark"
+    },
+    {
+     "circle": 20,
+     "at": [
+      -77,
+      114
+     ],
+     "cls": "cast"
+    }
+   ]
+  },
+  {
+   "name": "Tall bar",
+   "note": "high and wide, upright riding position",
+   "shapes": [
+    {
+     "tube": 30,
+     "pts": [
+      [
+       0,
+       0
+      ],
+      [
+       -34,
+       95
+      ]
+     ],
+     "cls": "cast"
+    },
+    {
+     "tube": 24,
+     "pts": [
+      [
+       -34,
+       95
+      ],
+      [
+       -92,
+       150
+      ]
+     ],
+     "cls": "steelt"
+    },
+    {
+     "tube": 9,
+     "pts": [
+      [
+       -86,
+       142
+      ],
+      [
+       -22,
+       120
+      ]
+     ],
+     "cls": "dark"
+    },
+    {
+     "circle": 20,
+     "at": [
+      -102,
+      158
+     ],
+     "cls": "cast"
+    }
+   ]
+  },
+  {
+   "name": "Clip-ons",
+   "note": "low bars clamped to the fork legs",
+   "clipon": true,
+   "shapes": [
+    {
+     "tube": 34,
+     "pts": [
+      [
+       10,
+       -44
+      ],
+      [
+       -8,
+       -36
+      ]
+     ],
+     "cls": "cast"
+    },
+    {
+     "tube": 24,
+     "pts": [
+      [
+       -8,
+       -36
+      ],
+      [
+       -68,
+       -56
+      ]
+     ],
+     "cls": "steelt"
+    },
+    {
+     "tube": 9,
+     "pts": [
+      [
+       -62,
+       -66
+      ],
+      [
+       0,
+       -78
+      ]
+     ],
+     "cls": "dark"
+    },
+    {
+     "circle": 20,
+     "at": [
+      -80,
+      -60
+     ],
+     "cls": "cast"
+    }
+   ]
+  }
  ],
  "mirrors": [
-  {"name": "Stalk mirrors", "note": "on stalks above the bar",
-   "shapes": [{"tube": 8, "pts": [[13, 0], [3, 85]], "cls": "dark"}, {"pts": [[-22, 90], [3, 115], [33, 100], [13, 75]], "cls": "plastic", "mirror": true}]},
-  {"name": "Bar-end mirrors", "note": "small round mirrors on the ends of the bar",
-   "shapes": [{"pts": [[-30, -8], [-12, 24], [20, 20], [24, -14], [-4, -28]], "cls": "plastic", "mirror": true, "bar_end": true}]}
+  {
+   "name": "Stalk mirrors",
+   "note": "on stalks above the bar",
+   "shapes": [
+    {
+     "tube": 8,
+     "pts": [
+      [
+       13,
+       0
+      ],
+      [
+       3,
+       85
+      ]
+     ],
+     "cls": "dark"
+    },
+    {
+     "pts": [
+      [
+       -22,
+       90
+      ],
+      [
+       3,
+       115
+      ],
+      [
+       33,
+       100
+      ],
+      [
+       13,
+       75
+      ]
+     ],
+     "cls": "plastic",
+     "mirror": true
+    }
+   ]
+  },
+  {
+   "name": "Bar-end mirrors",
+   "note": "small round mirrors on the ends of the bar",
+   "shapes": [
+    {
+     "pts": [
+      [
+       -30,
+       -8
+      ],
+      [
+       -12,
+       24
+      ],
+      [
+       20,
+       20
+      ],
+      [
+       24,
+       -14
+      ],
+      [
+       -4,
+       -28
+      ]
+     ],
+     "cls": "plastic",
+     "mirror": true,
+     "bar_end": true
+    }
+   ]
+  }
  ],
  "lamps": [
-  {"name": "Round lamp", "note": "classic big round lamp with twin clocks",
-   "head": [{"pts": [[132, -54, 1], [86, -58], [49, -92], [46, -136], [74, -180], [126, -190, 1]], "cls": "plastic", "round": true},
-            {"pts": [[132, -54, 1], [150, -92], [152, -150], [126, -190, 1]], "cls": "lens"},
-            {"pts": [[125, -46, 1], [136, -52, 1], [132, -196, 1], [120, -198, 1]], "cls": "chromef", "t": 0.3},
-            {"circle": 31, "at": [62, -4], "cls": "chromef"}, {"circle": 25, "at": [62, -4], "cls": "plastic"},
-            {"circle": 27, "at": [16, 36], "cls": "chromef"}, {"circle": 21, "at": [16, 36], "cls": "plastic"}]},
-  {"name": "Twin lamps", "note": "two small round lamps side by side", "twin": true,
-   "head": [{"pts": [[122, -64, 1], [90, -66], [62, -90], [60, -130], [84, -154], [120, -158, 1]], "cls": "plastic", "round": true},
-            {"pts": [[122, -64, 1], [136, -90], [136, -134], [120, -158, 1]], "cls": "lens"},
-            {"pts": [[40, 24, 1], [86, 9], [101, -31, 1], [46, -36, 1]], "cls": "plastic"}]},
-  {"name": "Slim lamp", "note": "thin modern strip lamp in a small wedge",
-   "head": [{"pts": [[60, -60, 1], [118, -70, 1], [150, -110, 1], [112, -150, 1], [58, -130, 1]], "cls": "plastic", "t": 0},
-            {"pts": [[122, -82, 1], [146, -108, 1], [138, -116, 1], [116, -92, 1]], "cls": "lens", "t": 0},
-            {"pts": [[40, 24, 1], [86, 9], [101, -31, 1], [46, -36, 1]], "cls": "plastic"}]}
+  {
+   "name": "Round lamp",
+   "note": "classic big round lamp with twin clocks",
+   "head": [
+    {
+     "pts": [
+      [
+       132,
+       -54,
+       1
+      ],
+      [
+       86,
+       -58
+      ],
+      [
+       49,
+       -92
+      ],
+      [
+       46,
+       -136
+      ],
+      [
+       74,
+       -180
+      ],
+      [
+       126,
+       -190,
+       1
+      ]
+     ],
+     "cls": "plastic",
+     "round": true
+    },
+    {
+     "pts": [
+      [
+       132,
+       -54,
+       1
+      ],
+      [
+       150,
+       -92
+      ],
+      [
+       152,
+       -150
+      ],
+      [
+       126,
+       -190,
+       1
+      ]
+     ],
+     "cls": "lens"
+    },
+    {
+     "pts": [
+      [
+       125,
+       -46,
+       1
+      ],
+      [
+       136,
+       -52,
+       1
+      ],
+      [
+       132,
+       -196,
+       1
+      ],
+      [
+       120,
+       -198,
+       1
+      ]
+     ],
+     "cls": "chromef",
+     "t": 0.3
+    },
+    {
+     "circle": 31,
+     "at": [
+      62,
+      -4
+     ],
+     "cls": "chromef"
+    },
+    {
+     "circle": 25,
+     "at": [
+      62,
+      -4
+     ],
+     "cls": "plastic"
+    },
+    {
+     "circle": 27,
+     "at": [
+      16,
+      36
+     ],
+     "cls": "chromef"
+    },
+    {
+     "circle": 21,
+     "at": [
+      16,
+      36
+     ],
+     "cls": "plastic"
+    }
+   ]
+  },
+  {
+   "name": "Twin lamps",
+   "note": "two small round lamps side by side",
+   "twin": true,
+   "head": [
+    {
+     "pts": [
+      [
+       122,
+       -64,
+       1
+      ],
+      [
+       90,
+       -66
+      ],
+      [
+       62,
+       -90
+      ],
+      [
+       60,
+       -130
+      ],
+      [
+       84,
+       -154
+      ],
+      [
+       120,
+       -158,
+       1
+      ]
+     ],
+     "cls": "plastic",
+     "round": true
+    },
+    {
+     "pts": [
+      [
+       122,
+       -64,
+       1
+      ],
+      [
+       136,
+       -90
+      ],
+      [
+       136,
+       -134
+      ],
+      [
+       120,
+       -158,
+       1
+      ]
+     ],
+     "cls": "lens"
+    },
+    {
+     "pts": [
+      [
+       40,
+       24,
+       1
+      ],
+      [
+       86,
+       9
+      ],
+      [
+       101,
+       -31,
+       1
+      ],
+      [
+       46,
+       -36,
+       1
+      ]
+     ],
+     "cls": "plastic"
+    }
+   ]
+  },
+  {
+   "name": "Slim lamp",
+   "note": "thin modern strip lamp in a small wedge",
+   "head": [
+    {
+     "pts": [
+      [
+       60,
+       -60,
+       1
+      ],
+      [
+       118,
+       -70,
+       1
+      ],
+      [
+       150,
+       -110,
+       1
+      ],
+      [
+       112,
+       -150,
+       1
+      ],
+      [
+       58,
+       -130,
+       1
+      ]
+     ],
+     "cls": "plastic",
+     "t": 0
+    },
+    {
+     "pts": [
+      [
+       122,
+       -82,
+       1
+      ],
+      [
+       146,
+       -108,
+       1
+      ],
+      [
+       138,
+       -116,
+       1
+      ],
+      [
+       116,
+       -92,
+       1
+      ]
+     ],
+     "cls": "lens",
+     "t": 0
+    },
+    {
+     "pts": [
+      [
+       40,
+       24,
+       1
+      ],
+      [
+       86,
+       9
+      ],
+      [
+       101,
+       -31,
+       1
+      ],
+      [
+       46,
+       -36,
+       1
+      ]
+     ],
+     "cls": "plastic"
+    }
+   ]
+  }
  ],
  "wheels": [
-  {"name": "Ten spoke", "note": "ten thin straight spokes", "set": {"spokes": 10, "straight": true, "spoke_w": 3.2, "wire": false}},
-  {"name": "Three spoke", "note": "three broad spokes", "set": {"spokes": 3, "straight": true, "spoke_w": 10, "wire": false}},
-  {"name": "Wire", "note": "laced wire wheels", "set": {"wire": true}},
-  {"name": "Seven swept spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "sweep7", "wire": false}},
-  {"name": "Five Y spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "y5", "wire": false}},
-  {"name": "Six hex web, machined face", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "hex6", "wire": false}},
-  {"name": "Ten spokes in five pairs", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "ten", "wire": false}},
-  {"name": "Ten turbine blades", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "turbine10", "wire": false}},
-  {"name": "Five straight spokes, bright inlay", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "five_inlay", "wire": false}},
-  {"name": "Five sickle spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "sickle5", "wire": false}},
-  {"name": "Five fine twin spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "twin5", "wire": false}},
-  {"name": "Petal web", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "web10", "wire": false}},
-  {"name": "Seven straight blades", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "blade7", "wire": false}},
-  {"name": "Five offset twin spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "offset5", "wire": false}},
-  {"name": "Six split spokes", "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size", "set": {"style": "split6", "wire": false}}
+  {
+   "name": "Ten spoke",
+   "note": "ten thin straight spokes",
+   "set": {
+    "spokes": 10,
+    "straight": true,
+    "spoke_w": 3.2,
+    "wire": false
+   }
+  },
+  {
+   "name": "Three spoke",
+   "note": "three broad spokes",
+   "set": {
+    "spokes": 3,
+    "straight": true,
+    "spoke_w": 10,
+    "wire": false
+   }
+  },
+  {
+   "name": "Wire",
+   "note": "laced wire wheels",
+   "set": {
+    "wire": true
+   }
+  },
+  {
+   "name": "Seven swept spokes",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "sweep7",
+    "wire": false
+   }
+  },
+  {
+   "name": "Five Y spokes",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "y5",
+    "wire": false
+   }
+  },
+  {
+   "name": "Six hex web, machined face",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "hex6",
+    "wire": false
+   }
+  },
+  {
+   "name": "Ten spokes in five pairs",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "ten",
+    "wire": false
+   }
+  },
+  {
+   "name": "Ten turbine blades",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "turbine10",
+    "wire": false
+   }
+  },
+  {
+   "name": "Five straight spokes, bright inlay",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "five_inlay",
+    "wire": false
+   }
+  },
+  {
+   "name": "Five sickle spokes",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "sickle5",
+    "wire": false
+   }
+  },
+  {
+   "name": "Five fine twin spokes",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "twin5",
+    "wire": false
+   }
+  },
+  {
+   "name": "Petal web",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "web10",
+    "wire": false
+   }
+  },
+  {
+   "name": "Seven straight blades",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "blade7",
+    "wire": false
+   }
+  },
+  {
+   "name": "Five offset twin spokes",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "offset5",
+    "wire": false
+   }
+  },
+  {
+   "name": "Six split spokes",
+   "note": "cast wheel from the wheel library (foundry/wheels3d.py), built at the bike's own rim size",
+   "set": {
+    "style": "split6",
+    "wire": false
+   }
+  }
  ],
  "silencers": [
-  {"name": "Stubby", "note": "short fat can", "len": 215, "w": 104},
-  {"name": "Long round", "note": "long slim round can", "len": 400, "w": 82},
-  {"name": "Mid can", "note": "mid length", "len": 300, "w": 94}
- ]
+  {
+   "name": "Stubby",
+   "note": "short fat can",
+   "len": 215,
+   "w": 104
+  },
+  {
+   "name": "Long round",
+   "note": "long slim round can",
+   "len": 400,
+   "w": 82
+  },
+  {
+   "name": "Mid can",
+   "note": "mid length",
+   "len": 300,
+   "w": 94
+  }
+ ],
+ "bars3d": {
+  "about": "Common parts stage 1 (approved by beenster 16 Nov). Built by foundry/bars3d.py fit(build3d, model, c, bar, grip, end, finish). fits = hands stay at the family hand point; moves = changes the riding position.",
+  "bars": [
+   {
+    "key": "street",
+    "name": "Flat street bar",
+    "default_finish": "satin_black",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "MX"
+    ],
+    "moves": []
+   },
+   {
+    "key": "lowrise",
+    "name": "Low rise bar",
+    "default_finish": "satin_black",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "MX"
+    ],
+    "moves": []
+   },
+   {
+    "key": "highrise",
+    "name": "High rise bar",
+    "default_finish": "titanium",
+    "fits": [
+     "Naked",
+     "Adventure"
+    ],
+    "moves": [
+     "Classic",
+     "MX"
+    ]
+   },
+   {
+    "key": "mx",
+    "name": "Braced motocross bar",
+    "default_finish": "anodised_red",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "MX"
+    ],
+    "moves": []
+   },
+   {
+    "key": "clipon_low",
+    "name": "Clip-ons, low",
+    "default_finish": "satin_black",
+    "fits": [
+     "Cafe"
+    ],
+    "moves": [
+     "Sport"
+    ]
+   },
+   {
+    "key": "clipon_raised",
+    "name": "Clip-ons, raised",
+    "default_finish": "anodised_gold",
+    "fits": [
+     "Cafe"
+    ],
+    "moves": [
+     "Sport"
+    ]
+   },
+   {
+    "key": "drag",
+    "name": "Drag bar",
+    "default_finish": "chrome",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "MX"
+    ],
+    "moves": []
+   },
+   {
+    "key": "touring",
+    "name": "Swept touring bar",
+    "default_finish": "chrome",
+    "fits": [
+     "Cruiser"
+    ],
+    "moves": []
+   },
+   {
+    "key": "tracker",
+    "name": "Tracker bar",
+    "default_finish": "polished",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure"
+    ],
+    "moves": [
+     "MX"
+    ]
+   },
+   {
+    "key": "ace",
+    "name": "Ace bar",
+    "default_finish": "chrome",
+    "fits": [
+     "Sport"
+    ],
+    "moves": [
+     "Cafe"
+    ]
+   }
+  ],
+  "grips": [
+   {
+    "key": "knurl",
+    "name": "Diamond knurl"
+   },
+   {
+    "key": "ribbed",
+    "name": "Ribbed"
+   },
+   {
+    "key": "waffle",
+    "name": "Waffle"
+   },
+   {
+    "key": "barrel",
+    "name": "Barrel"
+   },
+   {
+    "key": "touring",
+    "name": "Soft touring"
+   },
+   {
+    "key": "leather",
+    "name": "Leather wrapped"
+   }
+  ],
+  "ends": [
+   {
+    "key": "cap",
+    "name": "Plain cap"
+   },
+   {
+    "key": "weighted",
+    "name": "Weighted"
+   },
+   {
+    "key": "tapered",
+    "name": "Tapered billet"
+   },
+   {
+    "key": "ringed",
+    "name": "Machined ring"
+   },
+   {
+    "key": "bullet",
+    "name": "Chrome bullet"
+   },
+   {
+    "key": "mirror",
+    "name": "Mirror end"
+   }
+  ],
+  "finishes": [
+   "satin_black",
+   "polished",
+   "chrome",
+   "brushed",
+   "titanium",
+   "anodised_gold",
+   "anodised_red",
+   "anodised_blue"
+  ]
+ },
+ "chopper_bespoke": {
+  "about": "Bespoke machined chopper parts, approved by beenster 17 Nov ('fantastic, perfect'). Built by foundry/chopper_parts3d.py; a model asks with detail.bespoke {\"pegs\": [design, metal], \"covers\": [...], \"lamps\": [...], \"engine\": [...]}. Every design comes in every metal. Added 17 Nov: show sissy bars (detail.sissy chain/scroll/filigree with detail.sissy_metal) and billet wheels (a model wheel's style and finish; finishes chrome, steel_brushed, gold_bright, brass). Every wheel style passes the spoke-to-rim check (python3 foundry/wheels3d.py --check).",
+  "families": [
+   "Chopper"
+  ],
+  "metals": [
+   {
+    "key": "chrome",
+    "name": "Chrome"
+   },
+   {
+    "key": "steel",
+    "name": "Brushed steel"
+   },
+   {
+    "key": "gold",
+    "name": "Gold"
+   },
+   {
+    "key": "brass",
+    "name": "Brass"
+   }
+  ],
+  "pegs": [
+   {
+    "key": "ringed",
+    "name": "Ringed",
+    "note": "Turned from the bar: deep grip rings, a knurled band and a domed end cap."
+   },
+   {
+    "key": "torpedo",
+    "name": "Torpedo",
+    "note": "A long bullet with cooling fins round the root and a pointed spinner tip."
+   },
+   {
+    "key": "faceted",
+    "name": "Faceted",
+    "note": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt."
+   }
+  ],
+  "covers": [
+   {
+    "key": "finned",
+    "name": "Finned",
+    "note": "Straight cooling fins milled across the face, the tops polished, a plain rim."
+   },
+   {
+    "key": "spoked",
+    "name": "Starburst",
+    "note": "Tapered ribs fanning out from a domed centre boss to a stepped rim."
+   },
+   {
+    "key": "target",
+    "name": "Target",
+    "note": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge."
+   }
+  ],
+  "lamps": [
+   {
+    "key": "bullet",
+    "name": "Bullet",
+    "note": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim."
+   },
+   {
+    "key": "finned",
+    "name": "Finned",
+    "note": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut."
+   },
+   {
+    "key": "grille",
+    "name": "Grille",
+    "note": "A plain polished bowl with a three-bar guard and a centre boss across the glass."
+   }
+  ],
+  "engines": [
+   {
+    "key": "pots",
+    "name": "Twin pot",
+    "note": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder."
+   },
+   {
+    "key": "finned",
+    "name": "Finned top",
+    "note": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap."
+   }
+  ],
+  "sissy": [
+   {
+    "key": "chain",
+    "name": "Chain",
+    "note": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars."
+   },
+   {
+    "key": "scroll",
+    "name": "Scrollwork",
+    "note": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial."
+   },
+   {
+    "key": "filigree",
+    "name": "Filigree",
+    "note": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial."
+   }
+  ],
+  "wheels": [
+   {
+    "key": "billet_reaper5",
+    "name": "Five hooked blades"
+   },
+   {
+    "key": "billet_cyclone9",
+    "name": "Nine split blades"
+   },
+   {
+    "key": "billet_bloom8",
+    "name": "Crossed petals"
+   },
+   {
+    "key": "billet_fang6",
+    "name": "Six leaf blades with a rib"
+   },
+   {
+    "key": "billet_twist7",
+    "name": "Seven s blades"
+   }
+  ]
+ },
+ "controls3d": {
+  "about": "Stage 2 common parts approved by beenster 16 Nov 20:28 ('All good, next'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry lives in foundry/controls3d.py: fit(build3d, model, c, levers, switches, mirrors, lines) after detail3d (and after bars3d.fit when a library bar is on; lines from it). Every set has the same right-hand pod with the red kill switch (beenster rule). Mirrors are aimed by script from the rider's eye.",
+  "levers": [
+   {
+    "key": "standard",
+    "name": "Billet adjustable set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "short",
+    "name": "Short lever set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "folding",
+    "name": "Folding radial set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "classic",
+    "name": "Classic polished set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "forged",
+    "name": "Forged set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   }
+  ],
+  "switches": [
+   {
+    "key": "dpad",
+    "name": "D-pad pod",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "cruise",
+    "name": "Cruise pod",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "compact",
+    "name": "Compact pod",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   }
+  ],
+  "mirrors": [
+   {
+    "key": "round",
+    "name": "Round stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "oval",
+    "name": "Oval stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "rect",
+    "name": "Rectangular stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "teardrop",
+    "name": "Teardrop stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "barend_round",
+    "name": "Bar-end round",
+    "kind": "barend",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": [
+     "Adventure: clashes with hand guards (cmirrorboss | handguardend); not offered on bikes with hand guards"
+    ]
+   },
+   {
+    "key": "barend_teardrop",
+    "name": "Bar-end teardrop",
+    "kind": "barend",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": [
+     "Adventure: clashes with hand guards (cmirrorboss | handguardend); not offered on bikes with hand guards"
+    ]
+   },
+   {
+    "key": "fairing_aero",
+    "name": "Fairing aero",
+    "kind": "fairing",
+    "fits": [
+     "Sport"
+    ],
+    "notes": []
+   },
+   {
+    "key": "fairing_wing",
+    "name": "Fairing wing",
+    "kind": "fairing",
+    "fits": [
+     "Sport"
+    ],
+    "notes": []
+   }
+  ],
+  "rules": [
+   "Levers curve in plan: out from the pivot, in to a hump nearest the grip, out to a ball tip (beenster plan view 16 Nov); L4 classic is the round-section exception",
+   "Switch pods are buttons only, d-pad style; always a red kill switch on the right",
+   "Fairing mirrors only on bikes with a cowl (Sport)"
+  ]
+ },
+ "lamps3d": {
+  "about": "Stage 3 common parts approved by beenster 16 Nov 21:42 ('These look great, let's move on'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/lamps3d.py: fit(build3d, model, c, head, tail, ind) after detail3d (removes the bike's own lamp, tail light and indicators it replaces). Sport and adventure fairing lamps are built by Bikes V2 as separate units; MX keeps its number board.",
+  "headlamps": [
+   {
+    "key": "round_big",
+    "name": "Large round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "round_small",
+    "name": "Small round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "halo",
+    "name": "Round halo",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "twin",
+    "name": "Twin round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "stacked",
+    "name": "Stacked twin",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "rect",
+    "name": "Flat rectangle",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "hex",
+    "name": "Angular",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "oval",
+    "name": "Tall oval",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ],
+  "tail_lights": [
+   {
+    "key": "round",
+    "name": "Round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "oval",
+    "name": "Oval",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "strip",
+    "name": "LED strip",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "twin_dot",
+    "name": "Twin dot",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "classic",
+    "name": "Classic unit",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "hanger",
+    "name": "Hanger lamp",
+    "fits": [
+     "Naked",
+     "Cafe"
+    ]
+   }
+  ],
+  "indicators": [
+   {
+    "key": "led_short",
+    "name": "LED, short stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "led_long",
+    "name": "LED, long stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "chrome_short",
+    "name": "Chrome, short stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "chrome_long",
+    "name": "Chrome, long stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "bullet",
+    "name": "Bullet",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "flush",
+    "name": "Flush blade",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   }
+  ],
+  "rules": [
+   "Every lens clear so reflector and bulb/LEDs show (beenster 16 Nov)",
+   "Lights are intricate separate parts (beenster 16 Nov 21:19)",
+   "Front indicators on the headlamp ears, rear on the sides of the tail light",
+   "Hanger tail lamp not on mudguard bikes"
+  ]
+ },
+ "clocks3d": {
+  "about": "Stage 4 common parts approved by beenster 16 Nov 22:12 ('C2 needs to be raised slightly so the rider can see it properly, other than that all good'; C2 now stands 30 mm above where it clears the top yoke). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/clocks3d.py: fit(build3d, model, c, key) after detail3d (and after lamps3d.fit if used); it removes the bike's own clock*/dash* parts and turns the housing to the rider's eyes. Housings only: screen faces come from the TFT screens thread.",
+  "housings": [
+   {
+    "key": "twin_round",
+    "name": "Twin round clocks",
+    "fits": [
+     "Classic",
+     "Cafe",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "single_round",
+    "name": "Single round clock",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "round_screen",
+    "name": "Round screen",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Cruiser"
+    ]
+   },
+   {
+    "key": "wide_screen",
+    "name": "Wide screen",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "tall_screen",
+    "name": "Tall screen",
+    "fits": [
+     "Naked",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "bar_unit",
+    "name": "Small bar unit",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Chopper",
+     "MX"
+    ]
+   }
+  ]
+ },
+ "silencers3d": {
+  "about": "Stage 5 common parts approved by beenster 17 Nov 07:04 ('They all look really good'; the short cone now turns outboard so its outlet points to the side, and is not offered on MX). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/silencers3d.py: fit(build3d, model, c, key) after detail3d; it removes the bike's own can parts (can*{i}{side}), slips over the end of the bike's own pipe along the own can's axis, shortens then slims the can until it touches nothing, and hangs it from a subframe or peg hanger within 260 mm. Pipes stay with the bikes.",
+  "silencers": [
+   {
+    "key": "reverse_cone",
+    "name": "Reverse cone",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "peashooter",
+    "name": "Peashooter",
+    "fits": [
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "shaker",
+    "name": "Cocktail shaker",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic"
+    ]
+   },
+   {
+    "key": "round_ti",
+    "name": "Round titanium",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "oval_carbon",
+    "name": "Oval carbon",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "hex",
+    "name": "Hexagon",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "short_cone",
+    "name": "Short cone",
+    "fits": [
+     "Naked",
+     "Sport"
+    ]
+   },
+   {
+    "key": "slash_cut",
+    "name": "Slash cut",
+    "fits": [
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ]
+ },
+ "pegs3d": {
+  "about": "Stage 6 common parts approved by beenster 17 Nov 07:43 ('Foot pegs and controls look amazing, approved'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/pegs3d.py: fit(build3d, model, c, peg, heel, pedal) after detail3d; pegs stand on the bike's own peg points (never moved) from the same inner face, heel plates take the bike's own outline and bolts, foot controls keep the bike's pivot and toe points and its gear linkage. MX pegs stand at (600, 404) until the MX models get a peg pivot. Carbon heel plate uses foundry/carbon.py (woven twill, textures in foundry/textures).",
+  "pegs": [
+   {
+    "key": "knurled",
+    "name": "Knurled billet",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "rubber",
+    "name": "Rubber topped",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "cleat",
+    "name": "Wide cleat",
+    "fits": [
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "race",
+    "name": "Race peg",
+    "fits": [
+     "Sport",
+     "Naked",
+     "Cafe"
+    ]
+   },
+   {
+    "key": "board",
+    "name": "Floorboard",
+    "fits": [
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "bullet",
+    "name": "Chrome bullet",
+    "fits": [
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ],
+  "heel_plates": [
+   {
+    "key": "lightened",
+    "name": "Lightened",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "guard",
+    "name": "Black guard",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "carbon",
+    "name": "Carbon",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   }
+  ],
+  "foot_controls": [
+   {
+    "key": "billet",
+    "name": "Billet folding tip",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "heeltoe",
+    "name": "Heel and toe",
+    "fits": [
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "forged",
+    "name": "Forged steel",
+    "fits": [
+     "MX",
+     "Adventure"
+    ]
+   }
+  ]
+ },
+ "brakes3d": {
+  "about": "Stage 7 common parts approved by beenster 17 Nov 08:51 ('These are all good, approved'; calipers approved 08:37). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/brakes3d.py: fit(build3d, model, c, disc, cal, finish, chain, sprocket, spr_finish) after detail3d. Discs keep the bike's rotor outer radius and braking-ring inner edge (read from front_rotor{y}/rear_rotor{y}), on the bike's own hub flange; the rear disc takes the same style. Front calipers sit at the bike's caliper place on the same radial ears, keeping the fork lug and the hose banjo; the rear caliper is always 'compact' in the front caliper's finish. Chains are the bike's own chain with plate materials swapped. Sprockets keep the bike's tooth count, centre and offset. Parts are found by name, so single-sided arms work.",
+  "discs": [
+   {
+    "key": "wave",
+    "name": "Wave rotor, black spokes",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "lattice",
+    "name": "Gold lattice floater",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "onepiece",
+    "name": "One-piece teardrop",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Adventure",
+     "MX",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "star",
+    "name": "Star drive",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   }
+  ],
+  "calipers": [
+   {
+    "key": "lobed",
+    "name": "Lobed radial",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ],
+    "default_finish": "gold"
+   },
+   {
+    "key": "monobloc",
+    "name": "Flat monobloc",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX"
+    ],
+    "default_finish": "black"
+   },
+   {
+    "key": "twopiece",
+    "name": "Gold two-piece",
+    "fits": [
+     "Classic",
+     "Cafe",
+     "Cruiser",
+     "Chopper"
+    ],
+    "default_finish": "gold"
+   },
+   {
+    "key": "compact",
+    "name": "Compact twin-pot",
+    "fits": [
+     "MX",
+     "Classic",
+     "Adventure",
+     "Cruiser",
+     "Chopper"
+    ],
+    "default_finish": "silver"
+   }
+  ],
+  "caliper_finishes": [
+   "gold",
+   "red",
+   "black",
+   "silver",
+   "blue"
+  ],
+  "chains": [
+   {
+    "key": "steel",
+    "name": "Plain steel"
+   },
+   {
+    "key": "gold",
+    "name": "Gold"
+   },
+   {
+    "key": "black_gold",
+    "name": "Black and gold"
+   },
+   {
+    "key": "blue",
+    "name": "Blue"
+   }
+  ],
+  "sprockets": [
+   {
+    "key": "steel",
+    "name": "Steel",
+    "finishes": []
+   },
+   {
+    "key": "alu",
+    "name": "Alloy spoke",
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   },
+   {
+    "key": "twotone",
+    "name": "Two-tone",
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  ],
+  "check": "python3 foundry/brakes3d.py check: 65 fits on every family's lead bike, nothing touching."
+ },
+ "shocks3d": {
+  "about": "Stage 8 common parts approved by beenster 17 Nov 10:39 ('perfect - approved'; H2 side mount 'Love H2!'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/shocks3d.py: fit(build3d, model, c, shock, spring, body, cap, cap_finish, hanger, hanger_finish) after detail3d. Shocks keep model shock top/bottom eyes (eye-to-eye length) and the bike's eyes, studs, forked brackets and bolts; they remove only shocktop/shockbody/shockrod/shockbump/shockcollar/spring. Springs cover the lower three quarters, close-wound at the top (beenster's photo, refs/shock_ref_twin.png). Piggyback canister: short and fat behind twin shocks; on single shocks it takes the clearest of behind/left/right and three heights. Caps sit on the tank's six-bolt ring (39.5 mm); on Classic/Cafe/Cruiser/Chopper/Naked a cap point on a slope moves to the tank crown (crown()). Plate hangers: tidy drops the narrow plastic plate arm, platemount and platearm behind the axle; side adds a left-axle arm plate (also gives cruisers/choppers a plate).",
+  "shocks": [
+   {
+    "key": "piggyback",
+    "name": "Piggyback",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX",
+     "Classic"
+    ],
+    "default_spring": "red"
+   },
+   {
+    "key": "coilover",
+    "name": "Polished coil-over",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure",
+     "Cruiser"
+    ],
+    "default_spring": "yellow"
+   },
+   {
+    "key": "shroud",
+    "name": "Chrome shroud",
+    "fits": [
+     "Classic",
+     "Cafe",
+     "Cruiser"
+    ],
+    "default_spring": "chrome"
+   },
+   {
+    "key": "air",
+    "name": "Air ride",
+    "fits": [
+     "Cruiser",
+     "Classic"
+    ],
+    "default_spring": "black"
+   }
+  ],
+  "spring_finishes": [
+   "red",
+   "yellow",
+   "black",
+   "chrome",
+   "blue",
+   "gold"
+  ],
+  "caps": [
+   {
+    "key": "aero",
+    "name": "Aero flush",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "monza",
+    "name": "Flip-up",
+    "fits": [
+     "Cafe",
+     "Classic",
+     "Naked",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "screw",
+    "name": "Knurled screw",
+    "fits": [
+     "Classic",
+     "Cruiser",
+     "Chopper",
+     "Cafe"
+    ]
+   },
+   {
+    "key": "billet",
+    "name": "Billet",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "Chopper"
+    ]
+   }
+  ],
+  "cap_finishes": [
+   "silver",
+   "black",
+   "gold",
+   "red",
+   "blue"
+  ],
+  "hangers": [
+   {
+    "key": "tidy",
+    "name": "Tail tidy",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "side",
+    "name": "Side mount",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ],
+  "check": "python3 foundry/shocks3d.py check: clean on every family's lead bike (shocks judged against the bike's own shock's existing contacts)."
+ }
 }

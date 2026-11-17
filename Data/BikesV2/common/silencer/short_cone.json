@@ -1,0 +1,77 @@
+{
+ "group": "silencer",
+ "key": "short_cone",
+ "name": "Short cone",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "can_inlet",
+ "mount_mm": [
+  356.6,
+  0.0,
+  722.1
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  308.5,
+  379.8,
+  187.9
+ ],
+ "triangles": 5064,
+ "surfaces": {
+  "exhaust": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "exhaust"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "exhaust_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.4,
+   "roughness": 0.6,
+   "tag": "exhaust_black"
+  },
+  "d3_pipeblack": {
+   "ue": "cat_plastic",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0,
+   "tag": "d3_pipeblack"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

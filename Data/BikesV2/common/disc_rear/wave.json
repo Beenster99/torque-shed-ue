@@ -1,0 +1,70 @@
+{
+ "group": "disc_rear",
+ "key": "wave",
+ "name": "Wave rotor, black spokes",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  316.0
+ ],
+ "moves_with": "rear_wheel",
+ "size_mm": [
+  235.5,
+  12.6,
+  236.1
+ ],
+ "triangles": 27060,
+ "surfaces": {
+  "d3_bk_rotor": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.5,
+    0.51
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "d3_bk_rotor"
+  },
+  "d3_bk_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.32,
+   "tag": "d3_bk_black"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "d3_bk_gold": {
+   "ue": "cat_anodised",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28,
+   "tag": "d3_bk_gold"
+  }
+ }
+}

@@ -1,0 +1,70 @@
+{
+ "group": "filler_cap",
+ "key": "aero",
+ "name": "Aero flush",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "cap_base",
+ "mount_mm": [
+  935.0,
+  0.0,
+  1060.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  96.0,
+  96.0,
+  25.7
+ ],
+ "triangles": 3180,
+ "surfaces": {
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  },
+  "d3_sk_silver": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.62,
+    0.64
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28,
+   "tag": "d3_sk_silver"
+  },
+  "d3_sk_polish": {
+   "ue": "chrome",
+   "color": [
+    0.8,
+    0.8,
+    0.82
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12,
+   "tag": "d3_sk_polish"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  }
+ }
+}

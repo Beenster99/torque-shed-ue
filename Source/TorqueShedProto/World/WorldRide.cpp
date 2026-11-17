@@ -135,6 +135,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		const long long Doy = Doe - (365 * Yoe + Yoe / 4 - Yoe / 100);
 		const long long Mp = (5 * Doy + 2) / 153;
 		R->Month = int(Mp < 10 ? Mp + 3 : Mp - 9);
+		if (SeasonMonth >= 1 && SeasonMonth <= 12) R->Month = SeasonMonth;
 	}
 	if (!Route::IsStyle(R->Request.Mode)) R->Request.Mode = "main";
 	if (Want.Pins.size() >= 2)
@@ -283,7 +284,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			// ([OSM stage 5] as wide as the map records, or its lanes make it; else as its class)
 			const int OwnerEdge = Owner[std::min(J + 1, Raw.size() - 1)];
 			const RoadX::Across Ax = RoadX::Of(G, OwnerEdge, RoadLine::WidthOf(G.ClassOf(OwnerEdge)));
-			Halves[I] = Ax.Half;
+			Halves[I] = R->RingHalfOf(OwnerEdge, Ax.Half);   // [roundabouts] (round a ring, the ring's one width)
 			KnotLanes[I] = Ax.Lanes;
 			// ([5E] 4 embankment, 8 cutting; [5D] the map's parking as the ride runs, left 16-32, right 64-128)
 			const bool Back = OwnerBack[std::min(J + 1, Raw.size() - 1)] != 0;
@@ -864,7 +865,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	Side.Setts = SettsSurface(G.SurfaceOf(int(E)));
 	const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 	const RoadX::Across Ax = RoadX::Of(G, int(E), RoadLine::WidthOf(Class));   // [OSM stage 5]
-	const double Half = Ax.Half;
+	const double Half = RingHalfOf(int(E), Ax.Half);   // [roundabouts] (round a ring, the ring's one width)
 	// (each end eased to the ground's height at its junction over 30 m, or over half the road where it is
 	// shorter than 60 m: beenster, build 148, Brierley Green. A 10 m link between two junctions had its
 	// first end pulled three quarters of the way to the far end's height, a metre and more off the
@@ -985,8 +986,11 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			// the ring's own edges never do)
 			{
 				const RoadExtra* X = G.ExtraOf(E);
+				const int RingHere = RingAt(End == 0 ? Edge.A : Edge.B);
 				if (X != nullptr && X->Has(RoadExtra::Roundabout)) M.GiveWay = false;
-				else if (RingAt(End == 0 ? Edge.A : Edge.B) >= 0 && Half >= 1.6) { M.GiveWay = true; M.Ring = true; }
+				else if (RingHere >= 0 && Half >= 1.6) { M.GiveWay = true; M.Ring = true; }
+				// [roundabouts] (a ring drawn as a circle paints its own give-ways, RingPaint; its corners flared)
+				if (RingHere >= 0 && RoadRings[size_t(RingHere)].Circle) { M.GiveWay = false; M.Flare = true; }
 			}
 			const double AlongAt = Q.Along + (P.Along - Q.Along) * (In / (In + Outside));
 			M.From = End == 0 ? AlongAt : Side.Length - AlongAt;
@@ -1020,6 +1024,15 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	// [OSM stage 5] Its mapped lights, crossings and humps; a mapped give-way or stop line at a mouth
 	// stands in for the rule's (mapped first, rule second, never both).
 	MapPoints(Side.Pts, Net->OnRide, Side.Mapped, E);
+	// [roundabouts] (a ring drawn as a circle paints its own give-ways where its roads come onto it: the
+	// map's give-way and stop points by it go, often mapped well back up the road)
+	Side.Mapped.erase(std::remove_if(Side.Mapped.begin(), Side.Mapped.end(), [this, &Side](const MappedMark& Mk)
+	{
+		if (Mk.Kind != "give_way" && Mk.Kind != "stop") return false;
+		for (size_t I = 1; I < Side.Pts.size(); ++I)
+			if (Side.Pts[I].Along >= Mk.Along) return PaintedRingNear(Side.Pts[I].At, 30.0) >= 0;
+		return false;
+	}), Side.Mapped.end());
 	for (int End = 0; End < 2; ++End)
 	{
 		Mouth& M = Side.Mouths[End];
@@ -1369,6 +1382,13 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		if (Up > 0.0) Out.Idx.insert(Out.Idx.end(), {A, B, C});
 		else Out.Idx.insert(Out.Idx.end(), {A, C, B});
 	};
+	// [roundabouts] At a ring drawn as a circle: the corners onto it flared (RingFlare), as an entry's and exit's.
+	bool Flared = false;
+	for (const KnotArm& A : K.Arms)
+	{
+		const SideRoad* Sd = A.Which > 0 ? SideOf(A.Which) : nullptr;
+		Flared = Flared || (Sd != nullptr && OnRoundRing(Sd->Edge));
+	}
 	// Round the junction: between each road and the next anticlockwise, a rounded corner where the gap
 	// between them is less than a half turn, or a round outside (about the junction) where it is more.
 	std::vector<P2> Rim, Outward;
@@ -1434,10 +1454,10 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 				const P2 D = EdgeB - EdgeA;
 				const double T = (D.X * (-B.Away.Z) - D.Z * (-B.Away.X)) / Det;
 				const double S = (A.Away.X * D.Z - A.Away.Z * D.X) / Det;
-				if (T > -1.0 && S > -1.0 && T < 25.0 && S < 25.0)
+				if (T > -1.0 && S > -1.0 && T < (Flared ? 40.0 : 25.0) && S < (Flared ? 40.0 : 25.0))
 				{
 					const P2 X = EdgeA + A.Away * T;
-					const double Reach = std::fmin(9.0, std::fmax(2.0, 6.0 / std::fmax(0.05, std::tan(Gap * 0.5))));
+					const double Reach = std::fmin(Flared ? RingFlare * 1.3 : 9.0, std::fmax(2.0, (Flared ? RingFlare : 6.0) / std::fmax(0.05, std::tan(Gap * 0.5))));
 					// (each end of the curve on its road's edge as the road really runs: it may bend away)
 					const auto ToEdge = [this](const KnotArm& Of, const P2& At)
 					{
@@ -1493,7 +1513,28 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		RimH[I] = Top(Rim[I]);
 		RimV[I] = Vertex(Rim[I], RimH[I], Tarmac);
 	}
-	for (size_t I = 0; I < N; ++I) Tri(Hub, RimV[I], RimV[(I + 1) % N]);
+	// [roundabouts] (in rings between the hub and the rim, each point on the roads' surface there: one fan
+	// from the middle out to a rim 20 m off rode up to 0.25 m over the roads between, a hump in the
+	// junction, and over a roundabout's give-way lines)
+	{
+		static constexpr int Rounds = 3;
+		std::vector<std::vector<uint32_t>> Rings(Rounds);
+		for (int Rd = 1; Rd < Rounds; ++Rd)
+			for (size_t I = 0; I < N; ++I)
+			{
+				const P2 At = K.At + (Rim[I] - K.At) * (double(Rd) / Rounds);
+				Rings[size_t(Rd)].push_back(Vertex(At, Top(At), Tarmac));
+			}
+		Rings[0].assign(N, Hub);
+		Rings.push_back(RimV);
+		for (int Rd = 0; Rd < Rounds; ++Rd)
+			for (size_t I = 0; I < N; ++I)
+			{
+				const size_t J = (I + 1) % N;
+				if (Rd == 0) Tri(Hub, Rings[1][I], Rings[1][J]);
+				else { Tri(Rings[size_t(Rd)][I], Rings[size_t(Rd) + 1][I], Rings[size_t(Rd) + 1][J]); Tri(Rings[size_t(Rd)][I], Rings[size_t(Rd) + 1][J], Rings[size_t(Rd)][J]); }
+			}
+	}
 	// [OSM stage 5D] In a town (two of its roads or more town streets where they meet it), the kerb and
 	// pavement round each corner as the streets' own, not the verge's shoulder (beenster Nov 14).
 	int StreetArms = 0;
@@ -1552,9 +1593,12 @@ void RidePlan::MouthCorner(const Mouth& M, const P2& MainAt, double Half, double
 	Corner = Edge + M.Away * ((M.MainHalf - Dot(Edge - MainAt, M.Across)) / Square);
 	// Along the ride's road's edge, off from the mouth on this side.
 	AlongMain = Dot(M.Along, Left) * Sigma >= 0.0 ? M.Along : M.Along * -1.0;
-	// A 6 m radius: the rounding starts further back the sharper the corner (2 to 9 m).
+	// A 6 m radius: the rounding starts further back the sharper the corner (2 to 9 m). [roundabouts] Onto
+	// a ring drawn as a circle, flared: a 10 m radius (to 12 m back; the ring curves away from the straight
+	// the corner is drawn along, so no further).
 	const double Angle = std::acos(std::fmin(1.0, std::fmax(-1.0, Dot(AlongMain, M.Away))));
-	Reach = std::fmin(9.0, std::fmax(2.0, 6.0 / std::fmax(0.05, std::tan(Angle * 0.5))));
+	const double Radius = M.Flare ? 10.0 : 6.0, Most = M.Flare ? 12.0 : 9.0;
+	Reach = std::fmin(Most, std::fmax(2.0, Radius / std::fmax(0.05, std::tan(Angle * 0.5))));
 }
 
 double RidePlan::Ground(double X, double Z, double Coarse) const
@@ -1620,7 +1664,11 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 		if (!std::isnan(Median)) return std::isnan(Clear) ? Median : std::fmin(Median, Clear);
 	}
 	// (the bench lies under the road's surface as it is tilted, and level with its edge beyond)
-	const double Height = Hit.Height + Hit.Cross - Hit.Fall * std::fmin(FallOn, std::fmax(0.0, Hit.Dist - Hit.Half));
+	double Height = Hit.Height + Hit.Cross - Hit.Fall * std::fmin(FallOn, std::fmax(0.0, Hit.Dist - Hit.Half));
+	// [roundabouts] (on and by a ring drawn as a circle, under the roads as drawn, each settled onto the
+	// one it joins: the ground came up through the ring's tarmac where an edge was eased onto its neighbour)
+	if (Hit.Which > 0 && !Hit.Deck && Hit.Dist <= Hit.Half + 2.0 && PaintedRingNear(P2(X, Z), 3.0) >= 0)
+		Height = std::fmin(Height, JoinedHeight(Hit.Which, P2(X, Z), Hit.Height + Hit.Cross));
 	const double Wider = std::fmax(0.0, Coarse - 4.0);
 	const double Flat = Hit.Half + Bench + Wider;
 	// ([build 154] beenster: "the grass needs to meet the road on the same plane... Buttertubs is how I want
@@ -2301,6 +2349,24 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	std::vector<P3> RingA, RingB, LidA, LidB;
 	const double PaintLift = 0.015;
 	std::vector<RoadMark> MarksHere;
+	// [roundabouts] The rings drawn as circles this piece comes onto: their own markings are RingPaint's,
+	// so none of the road's own lines (cut short and stepped where its edges met) on their tarmac.
+	std::vector<const RoadRing*> RingsHere;
+	{
+		double Bx0 = 1e18, Bz0 = 1e18, Bx1 = -1e18, Bz1 = -1e18;
+		for (const Row& Rw : Rows) { Bx0 = std::fmin(Bx0, Rw.At.X); Bx1 = std::fmax(Bx1, Rw.At.X); Bz0 = std::fmin(Bz0, Rw.At.Z); Bz1 = std::fmax(Bz1, Rw.At.Z); }
+		for (const RoadRing& Rg : RoadRings)
+		{
+			const double Pad = Rg.Radius + Rg.Half + 2.0;
+			if (Rg.Circle && Rg.Mid.X > Bx0 - Pad && Rg.Mid.X < Bx1 + Pad && Rg.Mid.Z > Bz0 - Pad && Rg.Mid.Z < Bz1 + Pad) RingsHere.push_back(&Rg);
+		}
+	}
+	const auto OnRingTarmac = [&RingsHere](const P2& At)
+	{
+		for (const RoadRing* Rg : RingsHere)
+			if (std::fabs(At.DistanceTo(Rg->Mid) - Rg->Radius) <= Rg->Half + 0.3) return true;
+		return false;
+	};
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
 	{
 		Row RowA = Rows[K], RowB = Rows[K + 1];
@@ -2771,6 +2837,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// 3 m dashes with 6 m gaps.
 		const double Half = std::fmin(A.Half, B.Half);
 		if (A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel || Setts) continue;
+		if (!RingsHere.empty() && (OnRingTarmac(A.At) || OnRingTarmac(B.At))) continue;   // [roundabouts]
 		// ([OSM stage 5D] none along a town street's kerbs)
 		if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0))
 		{

@@ -1,0 +1,55 @@
+{
+ "group": "pegs",
+ "key": "race",
+ "name": "Race peg",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rider_peg",
+ "mount_mm": [
+  590,
+  0.0,
+  355
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  216.0,
+  489.0,
+  269.0
+ ],
+ "triangles": 11520,
+ "surfaces": {
+  "d3_pg_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.32,
+   "tag": "d3_pg_black"
+  },
+  "alu": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38,
+   "tag": "alu"
+  },
+  "d3_pg_gold": {
+   "ue": "cat_anodised",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "d3_pg_gold"
+  }
+ }
+}

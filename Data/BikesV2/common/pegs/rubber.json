@@ -1,0 +1,37 @@
+{
+ "group": "pegs",
+ "key": "rubber",
+ "name": "Rubber topped",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rider_peg",
+ "mount_mm": [
+  590,
+  0.0,
+  355
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  221.0,
+  524.0,
+  274.0
+ ],
+ "triangles": 11216,
+ "surfaces": {
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

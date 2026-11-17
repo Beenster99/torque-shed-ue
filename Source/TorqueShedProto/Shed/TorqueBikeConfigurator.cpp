@@ -205,8 +205,8 @@ void FTorqueBikeConfigurator::NewStyle(const std::string& NewStyleId)
 	if (!Lay) return;
 	B().Style = NewStyleId;
 	bool bKnown = false;
-	for (const std::string& S : Lay->Styles()) bKnown = bKnown || S == B().Style;
-	if (!bKnown && !Lay->Styles().empty()) B().Style = Lay->Styles().front();
+	for (const std::string& S : Lay->ShopStyles()) bKnown = bKnown || S == B().Style;
+	if (!bKnown && !Lay->ShopStyles().empty()) B().Style = Lay->ShopStyles().front();
 	B().Parts = TorqueFit::Shop::StockBuild(*Lay, B().Style);
 	Paint = StylePaint(B().Style);
 	Colours.Reset();
@@ -245,6 +245,13 @@ void FTorqueBikeConfigurator::Relist()
 			FChoice C;
 			C.Id = TBCI::CfgUe(Id);
 			C.Label = Id == "none" ? FString(TEXT("None")) : TorqueShedParts::PartName(FName(*TBCI::CfgUe(Id)));
+			// [bikes v2] A V2 bike's frame is the bike: listed by its maker ("Corvano", "BSX").
+			if (Slot == "frame")
+			{
+				const TorqueFit::Json* FramePart = Lay->Part(Id);
+				const TorqueFit::Json* V2 = FramePart ? FramePart->Get("v2") : nullptr;
+				if (V2 && !V2->Str("brand").empty()) C.Label = TBCI::CfgUe(V2->Str("brand"));
+			}
 			if (Tier.Tier == "fabricate") C.Label += TEXT("  (needs fabrication)");
 			else if (Tier.Tier == "won't fit") C.Label += TEXT("  (won't fit)");
 			C.bOff = Tier.Tier == "won't fit" && Id != On;
@@ -578,7 +585,7 @@ int32 FTorqueBikeConfigurator::PopupCount() const
 	if (Popup == EPopup::Style)
 	{
 		const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-		return Lay ? (int32)Lay->Styles().size() : 0;
+		return Lay ? (int32)Lay->ShopStyles().size() : 0;
 	}
 	if (Popup == EPopup::Finish) return UTorqueBuildSubsystem::Finishes().Num() + 1;
 	if (Popup == EPopup::Logo) return (int32)TorqueFit::Shop::Logos().size() + 1;
@@ -745,29 +752,44 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		if (Focus != Index) return;
 		Box(X0 + 2.0f * S, RY, 3.0f * S, RH - 4.0f * S, FLinearColor(TBCI::Accent));
 	};
-	if (Visible(Y, HeadH)) Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("STYLE"), 12.0f * S, TBCI::Accent);
+	// [bikes v2] The bike first: a dropdown for its type and, under it, one for its manufacturer (beenster,
+	// Nov 17). The manufacturer's is the frame's row (a V2 bike is its frame), so it comes before the heading.
+	const bool bMakeRow = Lay->HasV2() && SlotRows.Num() > 0 && SlotRows[0].Slot == TEXT("frame");
+	if (Visible(Y, HeadH)) Pen.Draw(X0 + Inset, Y + 6.0f * S, bMakeRow ? TEXT("BIKE") : TEXT("STYLE"), 12.0f * S, TBCI::Accent);
 	Y += HeadH;
 	if (Visible(Y, RowH))
 	{
 		Focused(0, Y, RowH);
-		Btn(X0 + Inset, Y, LW - 2.0f * Inset, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)) + TEXT("   v"), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
+		if (bMakeRow)
+		{
+			Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, TEXT("Bike type"), 13.0f * S, TBCI::Dim);
+			Btn(PartX, Y, PartW, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
+		}
+		else
+			Btn(X0 + Inset, Y, LW - 2.0f * Inset, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
 	}
 	Y += RowH;
-	if (Visible(Y, HeadH))
+	auto PartsHeading = [&]()
 	{
-		Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("PARTS AND COLOURS"), 12.0f * S, TBCI::Accent);
-		Pen.Draw(CellX, Y + 6.0f * S, TEXT("COLOUR, FINISH"), 12.0f * S, TBCI::Dim);
-	}
-	Y += HeadH;
+		if (Visible(Y, HeadH))
+		{
+			Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("PARTS AND COLOURS"), 12.0f * S, TBCI::Accent);
+			Pen.Draw(CellX, Y + 6.0f * S, TEXT("COLOUR, FINISH"), 12.0f * S, TBCI::Dim);
+		}
+		Y += HeadH;
+	};
+	if (!bMakeRow) PartsHeading();
 	const TArray<FName>& FinishIds = UTorqueBuildSubsystem::Finishes();
 	for (int32 I = 0; I < SlotRows.Num(); ++I, Y += RowH)
 	{
+		if (bMakeRow && I == 1) PartsHeading();
 		if (!Visible(Y, RowH)) continue;
 		const FSlotRow& R = SlotRows[I];
 		Focused(I + 1, Y, RowH);
-		Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(TBCI::CfgSlotLabel(R.Slot), 13.0f * S, LabelW - 8.0f * S), 13.0f * S, TBCI::Dim);
+		const FString RowLabel = bMakeRow && I == 0 ? FString(TEXT("Manufacturer")) : TBCI::CfgSlotLabel(R.Slot);
+		Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(RowLabel, 13.0f * S, LabelW - 8.0f * S), 13.0f * S, TBCI::Dim);
 		const FString Label = R.Choices.IsValidIndex(R.Picked) ? R.Choices[R.Picked].Label : FString(TEXT("?"));
-		Btn(PartX, Y, PartW, RowH - 4.0f * S, Label + TEXT("   v"), 13.0f * S, Popup == EPopup::Part && PopupKey == R.Slot, EHit::Part, I, true);
+		Btn(PartX, Y, PartW, RowH - 4.0f * S, Label, 13.0f * S, Popup == EPopup::Part && PopupKey == R.Slot, EHit::Part, I, true);
 		if (!TakesColour(R.Slot)) continue;
 		// Its colour (a swatch with a thin edge, so black shows), its finish, and Reset once changed.
 		const float SwW = 36.0f * S, SwH = RowH - 8.0f * S, FinW = 128.0f * S;
@@ -830,7 +852,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		FString LogoName = TEXT("None");
 		for (const auto& Lg : TorqueFit::Shop::Logos())
 			if (Lg.first == Bdg.Logo) LogoName = TBCI::CfgUe(Lg.second);
-		Btn(PartX, Y, PartW, BtnH, (Bdg.Logo.empty() ? FString() : FString(TEXT("        "))) + LogoName + TEXT("   v"), 13.0f * S, Popup == EPopup::Logo, EHit::Logo, 0, true);
+		Btn(PartX, Y, PartW, BtnH, (Bdg.Logo.empty() ? FString() : FString(TEXT("        "))) + LogoName, 13.0f * S, Popup == EPopup::Logo, EHit::Logo, 0, true);
 		UTexture* Icon = Bdg.Logo.empty() ? nullptr : TorqueBikeBadge::Logo(TBCI::CfgUe(Bdg.Logo));
 		if (Icon && Icon->GetResource())
 		{
@@ -1040,12 +1062,12 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 	TArray<bool> OffRows;
 	int32 On = INDEX_NONE;
 	if (Popup == EPopup::Style)
-		for (int32 I = 0; I < (int32)Lay->Styles().size(); ++I)
+		for (int32 I = 0; I < (int32)Lay->ShopStyles().size(); ++I)
 		{
-			Labels.Add(TBCI::CfgUe(Lay->StyleName(Lay->Styles()[(size_t)I])));
+			Labels.Add(TBCI::CfgUe(Lay->StyleName(Lay->ShopStyles()[(size_t)I])));
 			Tips.Add(FString());
 			OffRows.Add(false);
-			if (Lay->Styles()[(size_t)I] == B().Style) On = I;
+			if (Lay->ShopStyles()[(size_t)I] == B().Style) On = I;
 		}
 	else if (Popup == EPopup::Logo)
 	{
@@ -1152,9 +1174,9 @@ bool FTorqueBikeConfigurator::ClickPopup(const FVector2D& Mouse)
 		if (Popup == EPopup::Style)
 		{
 			const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-			if (Lay && Arg >= 0 && Arg < (int32)Lay->Styles().size() && Lay->Styles()[(size_t)Arg] != B().Style)
+			if (Lay && Arg >= 0 && Arg < (int32)Lay->ShopStyles().size() && Lay->ShopStyles()[(size_t)Arg] != B().Style)
 			{
-				NewStyle(Lay->Styles()[(size_t)Arg]);   // (the preview keeps its view: a bike for a bike)
+				NewStyle(Lay->ShopStyles()[(size_t)Arg]);   // (the preview keeps its view: a bike for a bike)
 			}
 			ClosePopup();
 		}
@@ -1335,8 +1357,8 @@ bool FTorqueBikeConfigurator::Pad(int32 RowStep, bool bChoose, FString& OutOrder
 	{
 		// The next style.
 		const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-		if (!Lay || Lay->Styles().empty()) return false;
-		const std::vector<std::string>& Ids = Lay->Styles();
+		if (!Lay || Lay->ShopStyles().empty()) return false;
+		const std::vector<std::string>& Ids = Lay->ShopStyles();
 		size_t At = 0;
 		for (size_t I = 0; I < Ids.size(); ++I)
 			if (Ids[I] == B().Style) At = I;

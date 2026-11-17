@@ -1,6 +1,8 @@
 #include "TorquePlayerState.h"
 
 #include "HandsState.h"
+#include "Shed/TorqueDecals.h"
+#include "Fit/BikeDecal.h"
 #include "TorqueSettings.h"
 #include "TorqueGameMode.h"
 #include "TorqueGameState.h"
@@ -19,6 +21,7 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, Colour);
 	DOREPLIFETIME(ATorquePlayerState, RiderStyle);
 	DOREPLIFETIME(ATorquePlayerState, Profile);   // [profile]
+	DOREPLIFETIME(ATorquePlayerState, HelmetDecals);   // [decals stage 4]
 	DOREPLIFETIME(ATorquePlayerState, Bay);
 	DOREPLIFETIME(ATorquePlayerState, RideReadyFor);
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
@@ -87,6 +90,12 @@ void ATorquePlayerState::ServerSetProfile_Implementation(const TArray<uint8>& Ne
 {
 	Profile = NewProfile;
 	Profile.SetNum(FMath::Min(Profile.Num(), 32));
+}
+
+void ATorquePlayerState::ServerSetHelmetDecals_Implementation(const FString& Text)
+{
+	if (Text.Len() > 8192) return;
+	HelmetDecals = TorqueDecals::ToUe(TorqueFit::Decals::Sanitize(TorqueDecals::ToStd(Text)));
 }
 
 void ATorquePlayerState::ServerSetBay_Implementation(int32 NewBay)

@@ -1,0 +1,36 @@
+{
+ "group": "indicators_rear",
+ "key": "chrome_short",
+ "name": "Chrome, short stalk",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  81.8,
+  0.0,
+  891.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  35.6,
+  260.0,
+  39.0
+ ],
+ "triangles": 4632,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_amberglass": {
+   "ue": "lens_amber",
+   "clear": 1.0,
+   "tag": "lens_amber"
+  },
+  "d3_amberled": {
+   "ue": "lens_amber",
+   "glow": 1.2,
+   "tag": "lens_amber"
+  }
+ }
+}

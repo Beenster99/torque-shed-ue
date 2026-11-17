@@ -10,6 +10,7 @@ import json
 import math
 import os
 import struct
+import sys
 
 import bpy
 from mathutils import Vector
@@ -22,6 +23,58 @@ def drop(*prefixes):
     for ob in list(bpy.data.objects):
         if ob.name.startswith(prefixes):
             bpy.data.objects.remove(ob, do_unlink=True)
+
+
+def carbon_weave():
+    """Carbon fibre you can read as carbon (beenster, 17 Nov: "one or two beaks on adventure bikes could be carbon"):
+    the library's own "carbon" surface (cat_carbon in the game) with a 2 x 2 twill of 3 mm tows laid over it under
+    the clear coat. The game uses its own carbon material; this is for the pictures."""
+    try:
+        import carbon                      # the common parts thread's woven twill tiles (foundry/textures/carbon_twill_*)
+        return carbon.material()
+    except Exception as e:
+        print("carbon tiles not used:", e)
+    key = "carbon__weave"
+    if key in bpy.data.materials:
+        return bpy.data.materials[key]
+    m = B.mat("carbon").copy()
+    m.name = key
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    for l in list(b.inputs["Normal"].links):
+        nt.links.remove(l)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.inputs["Rotation"].default_value = (0.6, 0.3, 0.785)
+    wv = nt.nodes.new("ShaderNodeTexWave")
+    wv.wave_type, wv.bands_direction = "BANDS", "DIAGONAL"
+    wv.inputs["Scale"].default_value = 1.0 / (6.0 * B.MM) / 6.283
+    wv.inputs["Distortion"].default_value = 0.0
+    ck = nt.nodes.new("ShaderNodeTexChecker")
+    ck.inputs["Scale"].default_value = 1.0 / (3.0 * B.MM)
+    ck.inputs["Color1"].default_value = (0.0, 0.0, 0.0, 1)
+    ck.inputs["Color2"].default_value = (1.0, 1.0, 1.0, 1)
+    mx = nt.nodes.new("ShaderNodeMixRGB")
+    mx.blend_type = "DIFFERENCE"
+    mx.inputs["Fac"].default_value = 1.0
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.006, 0.006, 0.007, 1)
+    ramp.color_ramp.elements[1].color = (0.075, 0.078, 0.085, 1)
+    rr = nt.nodes.new("ShaderNodeMapRange")
+    rr.inputs["To Min"].default_value, rr.inputs["To Max"].default_value = 0.22, 0.42
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], wv.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], ck.inputs["Vector"])
+    nt.links.new(wv.outputs["Color"], mx.inputs["Color1"])
+    nt.links.new(ck.outputs["Color"], mx.inputs["Color2"])
+    nt.links.new(mx.outputs["Color"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    nt.links.new(mx.outputs["Color"], rr.inputs["Value"])
+    nt.links.new(rr.outputs["Result"], b.inputs["Roughness"])
+    b.inputs["Metallic"].default_value = 0.35
+    b.inputs["Coat Weight"].default_value = 1.0
+    b.inputs["Coat Roughness"].default_value = 0.03
+    return m
 
 
 def surf(name, col, metallic=0.0, rough=0.5, coat=0.0, bump=None, wear=0.2):
@@ -618,6 +671,12 @@ def round_lamp(model, c):
             bolt(f"lampearbolt{s}", (xb, s * (eb + 1), zc), (0, s, 0), 6.5, 4, chrome)
 
 
+# The working clocks, for the game (build3d.export_game): {object name: {what, at, axis, up, r | w, h}} in mm, the
+# model's frame. "speed" and "rpm" are dials (the game puts its own face, numbered scale and needle on them),
+# "screen" a display's picture (the game lights it with its TFT page).
+GAUGES = {}
+
+
 def clocks(model, c):
     """Round clocks (cafe, classic): a black face with white minute marks and bolder numerals' marks round a
     270 degree sweep, an orange needle on a chrome hub, behind flat glass in the chrome rim. Left is the
@@ -635,6 +694,13 @@ def clocks(model, c):
             continue
         drop(f"clockface{i}", f"clocktick{i}", f"clockneedle{i}", f"clockhub{i}", f"clockglass{i}", f"clockcan{i}", f"clockbezel{i}", f"clockfoot{i}")
         r_, c_ = s_["circle"] * (1.45 if can else 1.2) * model.get("detail", {}).get("clock_scale", 1.0), s_["at"]
+        if model.get("detail", {}).get("clock_at"):
+            # raised bars hide clocks that sit ahead of the risers, so they come inboard to the rider's side of
+            # the risers, just under the bar (beenster, 17 Nov)
+            c_ = model["detail"]["clock_at"]
+            for j, q in enumerate(model.get("front_end", [])):
+                if q.get("circle") and q.get("part") == "head":
+                    drop(f"clock{j}-1", f"clock{j}1", f"clockrim{j}")
         for s in (-1, 1):
             yc = s * max(46, r_ + 8)
             if can:
@@ -644,6 +710,12 @@ def clocks(model, c):
                 lathe(f"clockcan{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp, 0), (-dp, rc_ - 4), (-dp + 3, rc_), (25, rc_), (25, 0)], shell, 48)
                 lathe(f"clockbezel{i}{s}", (c_[0], yc, c_[1]), d3, [(22, rc_), (24, rc_ + 1.8), (28, rc_ + 1.8), (29.6, rc_), (29.6, rc_ - 3), (25, rc_ - 3), (25, rc_)], B.mat("chrome"), 48, sharp=False, caps=False)
                 lathe(f"clockfoot{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp - 20, 0), (-dp - 20, 8), (-dp, 10), (-dp, 0)], B.mat("alu_dark"), 20)
+                if model.get("detail", {}).get("clock_at"):
+                    rs_ = next((q["pts"] for q in model["front_end"] if q.get("tube") == 30), None)
+                    if rs_:          # a short stay from each clock's foot to its riser
+                        fz = c_[1] + d_[1] * (-dp - 12)
+                        t_ = max(0.0, min(1.0, (fz - rs_[0][1]) / (rs_[1][1] - rs_[0][1])))
+                        B.tube(f"clockfoot{i}{s}stay", [(c_[0] + d_[0] * (-dp - 12), yc, fz), (rs_[0][0] + (rs_[1][0] - rs_[0][0]) * t_, s * 45, fz + 4)], 5, B.mat("alu_dark"))
             org = (c_[0] + d_[0] * 24.4, c_[1] + d_[1] * 24.4)
             # +y is the rider's left, so the sweep runs clockwise as the rider reads it
             rot = lambda rad, a, w, r0, r1: [(yc - r0 * math.sin(a) + w * math.cos(a), r0 * math.cos(a) + w * math.sin(a)), (yc - r1 * math.sin(a) + w * math.cos(a), r1 * math.cos(a) + w * math.sin(a)),
@@ -657,6 +729,8 @@ def clocks(model, c):
             a = math.radians(-135 + 270 * (0.0 if s > 0 else 0.08))
             slab(f"clockneedle{i}{s}", org, d_, nb, rot(0, a, 1.1, -r_ * 0.18, r_ * 0.84), 1.6, 2.2, glow("needle", (1.0, 0.32, 0.02), 1.2), 0)
             lathe(f"clockhub{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(0.4, 0), (0.4, r_ * 0.16), (3.0, r_ * 0.14), (3.4, 0)], B.mat("chrome"), 24)
+            GAUGES[f"clockface{i}{s}"] = {"what": "speed" if s > 0 else "rpm", "at": [round(org[0], 1), yc, round(org[1], 1)],
+                                          "axis": [round(d_[0], 5), 0.0, round(d_[1], 5)], "up": [round(nb[0], 5), 0.0, round(nb[1], 5)], "r": round(r_, 1)}
             lathe(f"clockglass{i}{s}", (org[0], yc, org[1]), (d_[0], 0, d_[1]), [(4.2, 0), (4.2, r_ * 1.02), (5.0, r_ * 1.02), (5.0, 0)], glass_mat(), 40)
 
 
@@ -678,6 +752,9 @@ def display(model, c, head, house, dash=None, size=(78, 46)):
     ky, kz = size[0] / 78.0, size[1] / 46.0
     slab("dashbody", dc, n, u, face, -20, 0, plastic, 5.0)
     slab("dashglass", dc, n, u, [(y * 0.9, z * 0.86) for y, z in face], -1, 0.8, surf("screen", (0.004, 0.005, 0.008), 0.0, 0.04, coat=1.0, wear=0.0), 0)
+    gw = min(size[0] * 0.9, size[1] * 0.86 / 0.6)
+    GAUGES["dashglass"] = {"what": "screen", "at": [round(dc[0], 1), 0.0, round(dc[1], 1)], "axis": [round(n[0], 5), 0.0, round(n[1], 5)],
+                           "up": [round(u[0], 5), 0.0, round(u[1], 5)], "w": round(gw, 1), "h": round(gw * 0.6, 1)}
     slab("dashrev", dc, n, u, [(-56 * ky, 22 * kz), (30 * ky, 22 * kz), (30 * ky, 27 * kz), (-56 * ky, 27 * kz)], 0.6, 1.1, glow("rev", (0.2, 0.75, 1.0), 2.5), 0)
     slab("dashrevred", dc, n, u, [(34 * ky, 22 * kz), (56 * ky, 22 * kz), (56 * ky, 27 * kz), (34 * ky, 27 * kz)], 0.6, 1.1, glow("revred", (1.0, 0.15, 0.05), 2.5), 0)
     back = (dc[0] - n[0] * 20, dc[1] - n[1] * 20)
@@ -901,11 +978,13 @@ def adventure_body(model, c):
     graphite = surf("advgraphite", (0.05, 0.052, 0.058), 0.0, 0.42, wear=0.1)
     gloss = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
     shell("advnose", adv["nose"], paint, 4.0, cap=(False, bool(adv.get("nose_cap"))))
-    shell("advbeak", adv["beak"], graphite, 0, cap=(True, True))
+    shell("advbeak", adv["beak"], carbon_weave() if adv.get("beak_carbon") else graphite, 0, cap=(True, True))
     shell("advmask", adv["mask"], gloss, 0, cap=(True, True))
     # the lamps: a slanted eye each side of the mask, a bright running-light blade along its top, two projectors
+    import fairing_lamps3d
+    units = fairing_lamps3d.adventure(sys.modules[__name__], model, adv)      # a real lamp unit behind an opening in the mask (beenster, 16 Nov)
     trees = _trees(("advmask",))
-    for s in (-1, 1):
+    for s in (() if units else (-1, 1)):
         f = lambda pts: [(s * y, z) for y, z in pts]
         eye = [tuple(q) for q in adv["eye"]]
         ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
@@ -1097,12 +1176,29 @@ def nose_lamps(model, c):
     if not lens or not trees:
         return False
     dz = sum(q[1] for q in lens["pts"]) / len(lens["pts"]) - 790
+    if model.get("detail", {}).get("lamp_unit"):
+        # a real lamp unit behind an opening in the nose (beenster, 16 Nov), not patches on the paint
+        import sys
+        import fairing_lamps3d as lamps3d
+        return lamps3d.fit(sys.modules[__name__], model, c, dz)
     black = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
     smoke = surf("lampsmoke", (0.05, 0.055, 0.065), 1.0, 0.06, wear=0.0)
     ring = surf("bezel", (0.05, 0.05, 0.055), 0.85, 0.3)
     eye = [(26, 772), (60, 768), (104, 786), (124, 806), (112, 812), (70, 800), (30, 790)]
-    ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
     drl = [(34, 787), (70, 797), (108, 808), (110, 804.5), (72, 793), (36, 783.5)]
+    projs = ((56, 779), (86, 789))
+    # each brand's signature (beenster, 16 Nov): the lead's long slanted eye, or one of these
+    sig = {
+        # Italian: a rounded pod with two projectors under a bright eyebrow
+        "pod": ([(30, 772), (70, 768), (96, 776), (102, 794), (72, 802), (34, 796)], [(31, 799.5), (72, 805.5), (103, 797.5), (104, 801.5), (72, 809.5), (30, 803.5)], ((50, 784), (80, 785))),
+        # British: one long level blade each side with a fine running light under it
+        "blade": ([(24, 777), (118, 791), (122, 808), (26, 795)], [(30, 771.5), (112, 783.5), (113, 787), (30, 775)], ((48, 787.5), (92, 795.5))),
+        # Central European: a tall wedge close to the middle, lamps stacked, the running light up its outer edge
+        "stack": ([(22, 766), (52, 770), (68, 812), (50, 819), (24, 800)], [(60, 774), (65, 775), (80, 814), (74, 816)], ((39, 781), (46, 801))),
+    }.get(model.get("detail", {}).get("nose_lamp"))
+    if sig:
+        eye, drl, projs = sig
+    ey, ez = sum(q[0] for q in eye) / len(eye), sum(q[1] for q in eye) / len(eye)
     made = False
     for s in (-1, 1):
         # the brand's signature: long slanted eyes that sweep out and up along the nose's own lines
@@ -1113,7 +1209,7 @@ def nose_lamps(model, c):
         made = True
         skin_patch(f"noselens{s}", trees, f(eye, 0.94), smoke, 1.8)
         skin_patch(f"nosedrl{s}", trees, f(drl), glow("drl", (0.9, 0.95, 1.0), 4.0), 2.6)
-        for n_, (py, pz) in enumerate(((56, 779), (86, 789))):
+        for n_, (py, pz) in enumerate(projs):
             py, pz = g(py, pz)
             circ = lambda r: [(s * py + r * math.cos(2 * math.pi * k / 10), pz + dz + r * math.sin(2 * math.pi * k / 10)) for k in range(10)]
             skin_patch(f"noseeye{s}{n_}", trees, circ(10.5), ring, 2.6)
@@ -2912,15 +3008,18 @@ def rear_end(model, c):
     rc = model.get("rear_caliper")
     d = wh.get("disc")
     steel, dark, rubber = B.mat("steel"), B.mat("alu_dark"), B.mat("rubber")
+    # one-legged arms (sport and naked, beenster Nov 16) carry the brake on the arm's own side, inboard of the chain
+    one_ = B.arm_sides(model) == (1,)
+    by_, bs_ = (62, 1) if one_ else (-82, -1)
     if d:
         drop("rear_disc", "rear_carrier")
-        disc("rear", A, d, -82, -1, "drilled_220_rear", 5, 0)
+        disc("rear", A, d, by_, bs_, "drilled_220_rear", 5, 0)
     if rc and d:
         drop("rearcaliper")
         cc = (sum(q[0] for q in rc["body"]) / len(rc["body"]), sum(q[1] for q in rc["body"]) / len(rc["body"]))
         L_ = math.hypot(cc[0] - A[0], cc[1] - A[1])
         cc = (A[0] + (cc[0] - A[0]) * (d - 14) / L_, A[1] + (cc[1] - A[1]) * (d - 14) / L_)
-        caliper("rearcaliper", A, cc, -82, -1, surf("caliper", (0.36, 0.36, 0.37), 0.9, 0.36), None, None, 0.6, False)
+        caliper("rearcaliper", A, cc, by_, bs_, surf("caliper", (0.36, 0.36, 0.37), 0.9, 0.36), None, None, 0.6, False)
     for wheel_, cen in (("front", c["F"]), ("rear", A)):
         w = model["wheels"][wheel_]
         set_mat(f"{wheel_}_tyre", tyre_mat(wheel_, cen, w))
@@ -3028,7 +3127,8 @@ def rear_end(model, c):
             drop("brakehose_r")
             bj = bpy.data.objects["rearcaliper_banjo"]
             bb = [bj.matrix_world @ Vector(q) for q in bj.bound_box]
-            b0 = (sum(q.x for q in bb) / 8 / B.MM, -98, sum(q.z for q in bb) / 8 / B.MM)
+            hs = 1 if B.arm_sides(model) == (1,) else -1
+            b0 = (sum(q.x for q in bb) / 8 / B.MM, hs * 98, sum(q.z for q in bb) / 8 / B.MM)
             ol = [tuple(q[:2]) for q in model["swingarm"]["outline"]]
 
             def atop(x):
@@ -3040,12 +3140,17 @@ def rear_end(model, c):
                 me = (mcyl[0] - 14, -150, mcyl[1] + 62)
             xs_ = [b0[0] + 46 + (sp[0] - 60 - b0[0] - 46) * q / 3 for q in range(4)]
             if model["swingarm"].get("rigid") or sp[0] - 60 < b0[0] + 80:
-                run = [(b0[0] + 40, -120, b0[2] + 10), ((b0[0] + me[0]) / 2, -150, (b0[2] + me[2]) / 2 + 10)]
+                run = [(b0[0] + 40, hs * 120, b0[2] + 10), ((b0[0] + me[0]) / 2, hs * 150, (b0[2] + me[2]) / 2 + 10)]
             else:
-                run = [(x, -150, atop(x) + 7) for x in xs_]
+                run = [(x, hs * 150, atop(x) + 7) for x in xs_]
                 for i_, x in enumerate(xs_[1:3]):
-                    B.cone(f"brakehoseclip{i_}", (x, -150, atop(x) - 2), (x, -150, atop(x) + 13), 8, 8, dark, 10)
-            pts_ = [b0, (b0[0] + 16, -104, b0[2] + 12)] + run
+                    B.cone(f"brakehoseclip{i_}", (x, hs * 150, atop(x) - 2), (x, hs * 150, atop(x) + 13), 8, 8, dark, 10)
+                if hs == 1:
+                    # the master stays on the right: the hose crosses over the arm just behind the pivot
+                    xc = xs_[-1] + 22
+                    run += [(xc, 110, atop(xs_[-1]) + 9), (xc + 4, 0, atop(xs_[-1]) + 10), (xc, -110, atop(xs_[-1]) + 9)]
+                    B.cone("brakehoseclip9", (xc + 4, -8, atop(xs_[-1]) - 2), (xc + 4, 8, atop(xs_[-1]) + 14), 8, 8, dark, 10)
+            pts_ = [b0, (b0[0] + 16, hs * 104, b0[2] + 12)] + run
             if noplate:
                 pts_ += [(me[0] - 40, me[1], me[2] + 30), (me[0] - 14, me[1], me[2] + 6), me]
             else:
@@ -3170,7 +3275,7 @@ def hugger(model, c):
             if min(x0, x1) <= x <= max(x0, x1) and x0 != x1:
                 zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
         return max(zs)
-    sides = (1, -1)      # every arm has two legs (beenster, 16 Nov): a one-legged arm left the rear brake and its hose with nothing to hold them
+    sides = B.arm_sides(model)
     for s in sides:
         for k_, ang in enumerate((27, 50)):
             w = math.radians(ang)
@@ -3322,6 +3427,7 @@ SHOTS = {
     "chain": ((120, 950, 470), (140, 108, 330), 75),
     "chain_front": ((900, 1000, 520), (500, 108, 400), 75),
     "nose": ((2500, -620, 1020), (1420, 0, 840), 60),
+    "lampunit": ((2180, -430, 905), (1500, -45, 800), 95), "advlamp": ((2150, -420, 1180), (1450, -20, 1050), 95),      # close on a faired bike's headlight units
     "cockpit": ((250, -260, 1420), (1250, 0, 900), 40),
     "wheel": ((2250, -1050, 520), (1400, -100, 330), 62),
     "lamp": ((2350, -900, 1150), (1230, -40, 930), 70),
@@ -3356,6 +3462,19 @@ SHOTS = {
     "disc": ((1700, -1900, 380), (1470, -80, 300), 120),
     "side": ((650, -4300, 760), (650, 0, 640), 56),            # the whole bike square-on from the right
     "front34": ((3300, -2000, 1250), (760, 0, 660), 42),       # the whole bike from the front quarter
+    # the portfolio set (beenster, 17 Nov: quarters and profiles plus less usual angles, on a blank ground)
+    "side_l": ((650, 4300, 760), (650, 0, 640), 56),
+    "front34_l": ((3300, 2000, 1250), (760, 0, 660), 42),
+    "rear34": ((-2300, -2500, 1350), (650, 0, 580), 68),
+    "rear34_l": ((-2300, 2500, 1350), (650, 0, 580), 68),
+    "head_on": ((5200, 0, 900), (700, 0, 640), 105),
+    "tail_on": ((-4200, 0, 950), (700, 0, 640), 95),
+    "plan": ((720, -40, 5200), (720, 0, 500), 84),               # straight down
+    "low_front": ((2850, -1050, 170), (820, 0, 640), 35),        # from the tarmac, front wheel looming
+    "low_rear": ((-1550, -1250, 210), (640, 0, 600), 42),        # from the tarmac behind the rear tyre
+    "high_front": ((2900, 1500, 2500), (700, 0, 480), 60),       # looking down over the bars from ahead
+    "high_rear": ((-1900, 1700, 2400), (700, 0, 480), 58),       # looking down the bike from behind
+    "saddle": ((330, 0, 1560), (1300, 0, 780), 30),              # the rider's own view
 }
 
 
@@ -3364,9 +3483,22 @@ def shots(build3d, name, tags, samples=24):
     build3d.studio(sc)
     sc.cycles.samples = samples
     out = os.path.join(build3d.ROOT, "out", "renders")
+    sketch = bool(os.environ.get("BIKE_SKETCH"))        # a cut-out of the bike alone, for foundry/sketch.py
+    if sketch:
+        out = os.path.join(build3d.ROOT, "out", "sketch_src")
+        sc.render.film_transparent = True
+        sc.render.image_settings.color_mode = "RGBA"
+        for o in sc.objects:
+            if o.type == "MESH" and o.data.materials and o.data.materials[0] and o.data.materials[0].name.startswith(("floor", "tarmac")):
+                o.hide_render = True
     os.makedirs(out, exist_ok=True)
     for tag in tags:
         loc, tgt, lens = SHOTS[tag][:3]
+        if sketch and os.path.exists(os.path.join(out, f"{name}_shot_{tag}.png")):
+            continue
+        far = float(os.environ.get("BIKE_SKETCH_FAR", "1"))            # long bikes: the same views from further off
+        if far != 1:
+            loc = tuple(t + (l - t) * far for l, t in zip(loc, tgt))
         hide = [o for o in bpy.data.objects if len(SHOTS[tag]) > 3 and o.name.startswith(SHOTS[tag][3])]
         for o in hide:
             o.hide_render = True
@@ -3378,6 +3510,8 @@ def shots(build3d, name, tags, samples=24):
         ob.rotation_euler = build3d._look(ob.location, build3d.V(*tgt))
         sc.camera = ob
         sc.render.resolution_x, sc.render.resolution_y = (1600, 1000) if tag.startswith("rearq") else (1400, 1000)
+        if sketch:
+            sc.render.resolution_x, sc.render.resolution_y = (2800, 2000) if tag in ("side", "front34", "side_long") else (2100, 1500)
         sc.render.filepath = os.path.join(out, f"{name}_shot_{tag}.png")
         bpy.ops.render.render(write_still=True)
         for o in hide:

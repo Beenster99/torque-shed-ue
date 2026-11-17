@@ -1,0 +1,33 @@
+{
+ "group": "grip",
+ "key": "knurl",
+ "name": "Diamond knurl",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  65.2,
+  771.7,
+  61.8
+ ],
+ "triangles": 17272,
+ "surfaces": {
+  "d3_grip": {
+   "ue": "grip",
+   "color": [
+    0.016,
+    0.016,
+    0.018
+   ],
+   "metallic": 0.0,
+   "roughness": 0.74,
+   "tag": "d3_grip"
+  }
+ }
+}

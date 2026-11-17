@@ -4,6 +4,7 @@
 #include "Fit/BikeShop.h"
 #include "Fit/BikeRideSpec.h"
 #include "Fit/BikeTune.h"
+#include "Shed/TorqueDecals.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
@@ -478,6 +479,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MaskMetal = It.MaskMetal;
 		To.MaskRough = It.MaskRough;
 		To.Badge = It.Badge;
+		To.Decals = It.Decals;
 		To.Tune = It.Tune;
 		To.bLightened = It.bLightened;
 		To.FluidType = It.FluidType;   // [fluids]
@@ -608,6 +610,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MaskMetal = From.MaskMetal;
 		It.MaskRough = From.MaskRough;
 		It.Badge = From.Badge;
+		It.Decals = TorqueDecals::ToUe(TorqueFit::Decals::Sanitize(TorqueDecals::ToStd(From.Decals)));
 		It.Tune = From.Tune;
 		It.bLightened = From.bLightened;
 		It.FluidType = From.FluidType;   // [fluids]
@@ -850,13 +853,18 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		FColor MaskColour = It.MaskColour.QuantizeRound();
 		Ar << Tape << Mask;
 		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough;
-		// A tank's badge.
-		uint8 bBadge = It.Badge.IsEmpty() ? 0 : 1;
+		// A tank's badge (bit 1), and decals placed on it (bit 2).
+		uint8 bBadge = uint8((It.Badge.IsEmpty() ? 0 : 1) | (It.Decals.IsEmpty() ? 0 : 2));
 		Ar << bBadge;
-		if (bBadge)
+		if (bBadge & 1)
 		{
 			FString Badge = It.Badge;
 			Ar << Badge;
+		}
+		if (bBadge & 2)
+		{
+			FString DecalText = It.Decals;
+			Ar << DecalText;
 		}
 		// The dyno desk's settings kept on it, and whether it's been lightened.
 		TBI::WriteTune(Ar, Table, It.Tune);
@@ -1069,10 +1077,15 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			}
 			uint8 bBadge = 0;
 			Ar << bBadge;
-			if (bBadge)
+			if (bBadge & 1)
 			{
 				Ar << It.Badge;
 				if (It.Badge.Len() > 2000) It.Badge.Reset();   // (not a badge)
+			}
+			if (bBadge & 2)
+			{
+				Ar << It.Decals;
+				if (It.Decals.Len() > 8192) It.Decals.Reset();   // (not decals)
 			}
 			if (!TBI::ReadTune(Ar, Names, It.Tune)) return false;
 			uint8 bLightenedB = 0;
@@ -1197,6 +1210,7 @@ FString UTorqueBuildSubsystem::BaySignature(int32 Bay, bool bLooks) const
 			Sig += FString::Printf(TEXT(":%d:%d:%s:%s:%d:%d"), TBI::Quant(It->Dirt), TBI::Quant(It->Rust), *It->Colour.QuantizeRound().ToHex(),
 				*It->Finish.ToString(), IsBolted(Bay, S) ? 1 : 0, It->bPrimerTop ? 1 : 0);
 		if (bLooks && It->Flat > 0.0f) Sig += FString::Printf(TEXT(":flat%d"), TBI::Quant(It->Flat));
+		if (bLooks && !It->Decals.IsEmpty()) Sig += FString::Printf(TEXT(":dc%08x"), GetTypeHash(It->Decals));
 	}
 	return Sig;
 }
@@ -1313,10 +1327,13 @@ bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& 
 		UE_LOG(LogTemp, Warning, TEXT("Torque: no fitting layout (Data/Fitment/layout.json): no project bike for bay %d"), Bay + 1);
 		return false;
 	}
-	const std::vector<std::string>& StyleIds = Lay->Styles();
+	// [bikes v2] A V2 bike (the old types are retired): any of the style's makes, its stock parts under it.
+	const std::vector<std::string>& StyleIds = Lay->ShopStyles();
 	const std::string Want = Style.IsEmpty() ? StyleIds[Rng.RandRange(0, (int32)StyleIds.size() - 1)] : TBI::Std(Style.ToLower());
-	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(Want);
+	TorqueFit::PartsMap Ref = Lay->ShopBuild(Want);
 	if (Ref.empty()) return false;
+	const std::vector<std::string> Makes = Lay->V2Frames(Want);
+	if (!Makes.empty()) Ref["frame"] = Makes[(size_t)Rng.RandRange(0, (int32)Makes.size() - 1)];
 	TMap<FName, FName> Parts;
 	for (const auto& KV : Ref) Parts.Add(FName(*TBI::Ue(KV.first)), FName(*TBI::Ue(KV.second)));
 	FillBike(Bay, Parts, Age);
@@ -1898,7 +1915,7 @@ FString UTorqueBuildSubsystem::TestRestyle(int32 Bay, const FString& Style)
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	TMap<FString, FString> Parts;
 	if (!Lay || !LayoutParts(Bay, Parts)) return TEXT("it isn't a catalogue bike");
-	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(TBI::Std(Style.ToLower()));
+	const TorqueFit::PartsMap Ref = Lay->ShopBuild(TBI::Std(Style.ToLower()));
 	if (Ref.empty()) return TEXT("no such style: ") + Style;
 	// The engine's own parts first, then the bike's, the engine block last (it takes what's left on it).
 	TArray<FName> Order;
@@ -1935,7 +1952,7 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay, const FString& Style, const
 	TorqueFit::PartsMap Map;
 	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	const std::string RefStyle = Style.IsEmpty() ? Lay->StyleFor(Map) : TBI::Std(Style.ToLower());
-	TorqueFit::PartsMap Ref = Lay->ReferenceBuild(RefStyle);
+	TorqueFit::PartsMap Ref = Lay->ShopBuild(RefStyle);
 	for (const TPair<FString, FString>& KV : Set) Ref[TBI::Std(KV.Key.ToLower())] = TBI::Std(KV.Value.ToLower());
 	// The engine first, so the parts that go on it have a block to go on.
 	TArray<FName> Order;
@@ -2265,6 +2282,12 @@ float UTorqueBuildSubsystem::RustOf(int32 Bay, FName Slot) const
 	return It ? It->Rust : 0.0f;
 }
 
+FString UTorqueBuildSubsystem::DecalsOf(int32 Bay, FName Slot) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
+	return It ? It->Decals : FString();
+}
+
 FString UTorqueBuildSubsystem::BadgeOf(int32 Bay) const
 {
 	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(FName(TEXT("tank")))));
@@ -2290,6 +2313,12 @@ bool UTorqueBuildSubsystem::PaintOf(int32 Bay, FName Slot, FLinearColor& Out) co
 		return true;
 	}
 	return false;
+}
+
+bool UTorqueBuildSubsystem::RepaintedOn(int32 Bay, FName Slot) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
+	return It && Repainted(*It);
 }
 
 bool UTorqueBuildSubsystem::FinishLook(const FTorqueItem& It, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness)
@@ -2923,6 +2952,15 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	}
 	case ETorqueShedAct::GeoSave:
 		return TorqueGeometryMode::CheckSave(*this, R);
+	case ETorqueShedAct::DecalSave:
+	{
+		const FTorqueItem* It = Items.Find(R.Item);
+		if (!It) return TEXT("That part has gone.");
+		if (It->bBoxed) return TEXT("Unpack it first.");
+		if (R.Text.Len() > 8192) return TEXT("Too many decals to save.");
+		if (!R.Text.IsEmpty() && TorqueFit::Decals::Parse(TorqueDecals::ToStd(R.Text)).empty()) return TEXT("Those decals didn't read.");
+		return FString();
+	}
 	case ETorqueShedAct::Tune:
 	{
 		// shed_state check "tune": the bike, the setting, the part that keeps it, what its parts allow.
@@ -3524,8 +3562,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		FTorqueItem& It = Items[R.Item];
 		It.Tape = Paint.TapePattern;
-		Text = FString::Printf(TEXT("Taped a %s on the %s. Now spray the second colour over it."),
-			*FString(TorquePaintMix::PatternName(It.Tape)).ToLower(), *ItemTitle(R.Item));
+		if (TorquePaintMix::IsFade(It.Tape))
+			Text = FString::Printf(TEXT("Held a paper mask over the %s for a %s. Now spray the second colour: it blends into this one, finish and all."),
+				*ItemTitle(R.Item), *FString(TorquePaintMix::PatternName(It.Tape)).ToLower());
+		else
+			Text = FString::Printf(TEXT("Taped a %s on the %s. Now spray the second colour over it."),
+				*FString(TorquePaintMix::PatternName(It.Tape)).ToLower(), *ItemTitle(R.Item));
 		Touch(R.Item);
 		break;
 	}
@@ -3533,7 +3575,8 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		FTorqueItem& It = Items[R.Item];
 		It.Tape = 0;
-		Text = It.Mask != 0 ? FString(TEXT("Peeled the tape off: a crisp line.")) : FString(TEXT("Peeled the tape off: nothing sprayed over it."));
+		Text = It.Mask != 0 ? (TorquePaintMix::IsFade(It.Mask) ? FString(TEXT("Took the mask off: a soft fade.")) : FString(TEXT("Peeled the tape off: a crisp line.")))
+			: FString(TEXT("Peeled the tape off: nothing sprayed over it."));
 		Touch(R.Item);
 		break;
 	}
@@ -3585,6 +3628,16 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = TorqueGeometryMode::ApplySave(Bikes[R.Bay], R.Text);
 		PartsOf.Add(R.Bay);
 		break;
+	case ETorqueShedAct::DecalSave:
+	{
+		FTorqueItem& It = Items[R.Item];
+		It.Decals = TorqueDecals::ToUe(TorqueFit::Decals::Sanitize(TorqueDecals::ToStd(R.Text)));
+		const int32 N = (int32)TorqueFit::Decals::Parse(TorqueDecals::ToStd(It.Decals)).size();
+		Text = N == 0 ? FString::Printf(TEXT("Took the decals off the %s"), *ItemTitle(R.Item))
+			: FString::Printf(TEXT("Saved %d decal%s on the %s"), N, N == 1 ? TEXT("") : TEXT("s"), *ItemTitle(R.Item));
+		Touch(R.Item);
+		break;
+	}
 	case ETorqueShedAct::Tune:
 	{
 		// shed_state _apply "tune": kept where TUNE_HOME says, within what the parts allow; the

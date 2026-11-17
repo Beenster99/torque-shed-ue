@@ -25,7 +25,8 @@ enum ENetVal
 {
 	NV_Steer, NV_Speed, NV_Lean, NV_Pitch, NV_Rpm, NV_Throttle, NV_FrontBrake, NV_RearBrake, NV_LeanIn, NV_ShiftIn,
 	NV_FrontOmega, NV_RearOmega, NV_FrontX, NV_FrontY, NV_FrontZ, NV_RearX, NV_RearY, NV_RearZ,
-	NV_FrontKappa, NV_RearKappa, NV_FrontSlip, NV_RearSlip, NV_FootX, NV_FootY, NV_FootZ, NV_FootYawSin, NV_FootYawCos, NV_Count
+	NV_FrontKappa, NV_RearKappa, NV_FrontSlip, NV_RearSlip, NV_FootX, NV_FootY, NV_FootZ, NV_FootYawSin, NV_FootYawCos,
+	NV_LookYaw, NV_LookPitch, NV_Count
 };
 static_assert(NV_Count <= TorqueNet::MaxVals, "more values than a snapshot holds");
 enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Sounds, NI_Count };
@@ -174,6 +175,9 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	// [foot] Off the bike: where they walk (else the bike's place, so the walk starts beside it).
 	S.FootPos = B->IsOnFoot() ? B->FootPos : B->GetActorLocation();
 	S.FootYaw = B->IsOnFoot() ? (float)B->FootYaw : (float)B->GetActorRotation().Yaw;
+	// [build 155] Where they look, so their head turns on everyone's copy.
+	S.LookYaw = B->IsOnFoot() ? 0.f : (float)FMath::Clamp(B->LookYaw, -180.0, 180.0);
+	S.LookPitch = (float)FMath::Clamp(B->IsOnFoot() ? B->FootPitch : B->LookPitch, -80.0, 80.0);
 }
 
 void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
@@ -220,6 +224,8 @@ void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 	N.Val[NV_FootX] = S.FootPos.X; N.Val[NV_FootY] = S.FootPos.Y; N.Val[NV_FootZ] = S.FootPos.Z;
 	N.Val[NV_FootYawSin] = FMath::Sin(FMath::DegreesToRadians((double)S.FootYaw));
 	N.Val[NV_FootYawCos] = FMath::Cos(FMath::DegreesToRadians((double)S.FootYaw));
+	N.Val[NV_LookYaw] = S.LookYaw;
+	N.Val[NV_LookPitch] = S.LookPitch;
 	Smooth.Push(N, FPlatformTime::Seconds());
 }
 
@@ -280,6 +286,8 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	B->SetParkedLook((Out.Ints[NI_Flags] & FlagParked) != 0);   // its rider's off it, the stand down
 	B->SetNetGestures((Out.Ints[NI_Flags] & FlagNod) != 0, (Out.Ints[NI_Flags] & FlagWave) != 0);   // [gestures] a nod or a wave to us
 	B->Throttle = Out.Val[NV_Throttle];
+	B->LookYaw = Out.Val[NV_LookYaw];   // [build 155] their head turns as they look about
+	B->LookPitch = Out.Val[NV_LookPitch];
 	B->FrontBrake = Out.Val[NV_FrontBrake];
 	B->RearBrake = Out.Val[NV_RearBrake];
 	B->Lean = Out.Val[NV_LeanIn];

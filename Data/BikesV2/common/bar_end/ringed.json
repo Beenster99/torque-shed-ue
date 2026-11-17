@@ -1,0 +1,55 @@
+{
+ "group": "bar_end",
+ "key": "ringed",
+ "name": "Machined ring",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  38.6,
+  816.5,
+  38.0
+ ],
+ "triangles": 4072,
+ "surfaces": {
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  },
+  "d3_knurlring": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.75,
+    0.75,
+    0.77
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "d3_knurlring"
+  },
+  "d3_bars_polished": {
+   "ue": "chrome",
+   "color": [
+    0.8,
+    0.8,
+    0.82
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12,
+   "tag": "d3_bars_polished"
+  }
+ }
+}

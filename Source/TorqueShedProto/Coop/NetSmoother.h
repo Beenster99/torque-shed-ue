@@ -21,7 +21,7 @@
 
 namespace TorqueNet
 {
-constexpr int MaxVals = 28;
+constexpr int MaxVals = 32;
 constexpr int MaxInts = 6;
 
 struct Snap

@@ -1,0 +1,155 @@
+{
+ "about": "Stage 7 common parts approved by beenster 17 Nov 08:51 ('These are all good, approved'; calipers approved 08:37). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/brakes3d.py: fit(build3d, model, c, disc, cal, finish, chain, sprocket, spr_finish) after detail3d. Discs keep the bike's rotor outer radius and braking-ring inner edge (read from front_rotor{y}/rear_rotor{y}), on the bike's own hub flange; the rear disc takes the same style. Front calipers sit at the bike's caliper place on the same radial ears, keeping the fork lug and the hose banjo; the rear caliper is always 'compact' in the front caliper's finish. Chains are the bike's own chain with plate materials swapped. Sprockets keep the bike's tooth count, centre and offset. Parts are found by name, so single-sided arms work.",
+ "discs": [
+  {
+   "key": "wave",
+   "name": "Wave rotor, black spokes",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ]
+  },
+  {
+   "key": "lattice",
+   "name": "Gold lattice floater",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "onepiece",
+   "name": "One-piece teardrop",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "star",
+   "name": "Star drive",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ]
+  }
+ ],
+ "calipers": [
+  {
+   "key": "lobed",
+   "name": "Lobed radial",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "default_finish": "gold"
+  },
+  {
+   "key": "monobloc",
+   "name": "Flat monobloc",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ],
+   "default_finish": "black"
+  },
+  {
+   "key": "twopiece",
+   "name": "Gold two-piece",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "default_finish": "gold"
+  },
+  {
+   "key": "compact",
+   "name": "Compact twin-pot",
+   "fits": [
+    "MX",
+    "Classic",
+    "Adventure",
+    "Cruiser",
+    "Chopper"
+   ],
+   "default_finish": "silver"
+  }
+ ],
+ "caliper_finishes": [
+  "gold",
+  "red",
+  "black",
+  "silver",
+  "blue"
+ ],
+ "chains": [
+  {
+   "key": "steel",
+   "name": "Plain steel"
+  },
+  {
+   "key": "gold",
+   "name": "Gold"
+  },
+  {
+   "key": "black_gold",
+   "name": "Black and gold"
+  },
+  {
+   "key": "blue",
+   "name": "Blue"
+  }
+ ],
+ "sprockets": [
+  {
+   "key": "steel",
+   "name": "Steel",
+   "finishes": []
+  },
+  {
+   "key": "alu",
+   "name": "Alloy spoke",
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ]
+  },
+  {
+   "key": "twotone",
+   "name": "Two-tone",
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ]
+  }
+ ],
+ "check": "python3 foundry/brakes3d.py check: 65 fits on every family's lead bike, nothing touching."
+}

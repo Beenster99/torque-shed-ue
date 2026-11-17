@@ -151,6 +151,9 @@ void ATorqueSky::Find()
 	// (the guard has already looked at the cloud before the first frame; this is in case it didn't run)
 	TorqueCloudGuard::Check(W);
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
+	// (the level's cloud wears M_RideCloudV2 itself, made by the level scripts: the old M_RideCloud and the
+	// switch between the two were removed, beenster Nov 17)
+	UE_LOG(LogTemp, Display, TEXT("Torque sky: the cloud wears %s"), *GetNameSafe(CloudPtr.IsValid() ? ReadObjectProperty(CloudPtr.Get(), TEXT("Material")) : nullptr));
 	for (TActorIterator<AActor> It(W); It && !HighSheetPtr.IsValid(); ++It)
 		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
 	// Stage 4: the rain shafts and the rainbow (Tools/ue_build_level.py places them, hidden).
@@ -188,14 +191,21 @@ void ATorqueSky::Find()
 
 bool ATorqueSky::CloudsDrawn() const
 {
+	return CloudsWhyNot().IsEmpty();
+}
+
+FString ATorqueSky::CloudsWhyNot() const
+{
 	const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-	if (!Cloud || !SkyMpc || !Cloud->IsVisible()) return false;
+	if (!Cloud) return TEXT("no cloud in the level");
+	if (!SkyMpc) return TEXT("no MPC_Sky");
+	if (!Cloud->IsVisible()) return TEXT("the cloud is hidden (the cloud guard?)");
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud"));
-	if (CVar && CVar->GetInt() == 0) return false;
-	// (by the base material: the cloud wears an instance of it once the weather map is on)
+	if (CVar && CVar->GetInt() == 0) return TEXT("r.VolumetricCloud 0 (Settings: Clouds off?)");
 	const UMaterialInterface* Mat = Cast<const UMaterialInterface>(ReadObjectProperty(Cloud, TEXT("Material")));
 	const UMaterial* Base = Mat ? Mat->GetMaterial() : nullptr;
-	return Base && Base->GetName().Contains(TEXT("M_RideCloud"));
+	if (!(Base && Base->GetName().Contains(TEXT("M_RideCloud")))) return FString::Printf(TEXT("the cloud wears %s"), *GetNameSafe(Mat));
+	return FString();
 }
 
 double ATorqueSky::PlanetAsl() const
@@ -284,7 +294,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	// Stage 7: the place and the day (the aurora, noctilucent cloud, meteors), the space weather and dust.
 	In.Lat = SkyLat;
 	In.Lon = SkyLon;
-	In.DayOfYear = bSkyClock ? FDateTime::FromUnixTimestamp((int64)SkyUnix).GetDayOfYear() : FDateTime::UtcNow().GetDayOfYear();
+	In.DayOfYear = bSkyClock ? FDateTime::FromUnixTimestamp((int64)SkyUnix).GetDayOfYear() : Game.IsValid() ? Game->DayOfYearNow() : FDateTime::UtcNow().GetDayOfYear();
 	if (Game.IsValid())
 	{
 		In.Kp = Game->GetSkyKp();
@@ -425,6 +435,24 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);
 		SetMpc(SkyMpc, TEXT("MidAlbedo"), (float)Mi.Albedo);
 		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
+		// The rebuilt clouds' figures (M_RideCloudV2; harmless to the old cloud, which doesn't read them).
+		SetMpc(SkyMpc, TEXT("V2LowShapeM"), (float)FMath::Max(Looks.V2ShapeM * (1.3 - 0.6 * FMath::Clamp(Lo.Look.Lumps, 0.0, 1.0)), 100.0));
+		const double LayerDepth = FMath::Max(S.TopAsl - S.BaseAsl, 0.0);
+		SetMpc(SkyMpc, TEXT("V2LowDetailM"), (float)TorqueSky::V2DetailSize(Looks.V2DetailM, LayerDepth * FMath::Max(Lo.Top - Lo.Bottom, 0.0), Looks));
+		SetMpc(SkyMpc, TEXT("V2MidShapeM"), (float)FMath::Max(Looks.V2MidShapeM * (1.3 - 0.6 * FMath::Clamp(Mi.Look.Lumps, 0.0, 1.0)), 100.0));
+		SetMpc(SkyMpc, TEXT("V2MidDetailM"), (float)TorqueSky::V2DetailSize(Looks.V2MidDetailM, LayerDepth * FMath::Max(Mi.Top - Mi.Bottom, 0.0), Looks));
+		SetMpc(SkyMpc, TEXT("V2BroadM"), (float)FMath::Max(Looks.V2BroadM, 1000.0));
+		SetMpc(SkyMpc, TEXT("V2Patchy"), (float)Looks.V2Patchy);
+		SetMpc(SkyMpc, TEXT("V2Erode"), (float)Looks.V2Erode);
+		SetMpc(SkyMpc, TEXT("V2ErodeRagged"), (float)Looks.V2ErodeRagged);
+		SetMpc(SkyMpc, TEXT("V2EdgeSharp"), (float)FMath::Max(Looks.V2EdgeSharp, 0.1));
+		SetMpc(SkyMpc, TEXT("V2Billow"), (float)Looks.V2Billow);
+		SetMpc(SkyMpc, TEXT("V2Extinction"), (float)Looks.V2Extinction);
+		SetMpc(SkyMpc, TEXT("V2DeckThin"), (float)Looks.V2DeckThin);
+		SetMpc(SkyMpc, TEXT("V2ClosedFrom"), (float)Looks.V2ClosedFrom);
+		SetMpc(SkyMpc, TEXT("V2ClosedFull"), (float)Looks.V2ClosedFull);
+		SetMpc(SkyMpc, TEXT("V2LowDensity"), (float)(S.Density));
+		SetMpc(SkyMpc, TEXT("V2MidDensity"), (float)Mi.Look.Density);
 		// How the cloud scatters the sun (build 147: grey, blotchy cumulus): its lobes and the light
 		// bounced about inside it.
 		SetMpc(SkyMpc, TEXT("CloudPhaseG"), (float)Looks.CloudPhaseG);
@@ -463,6 +491,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 void ATorqueSky::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TickCloudsCheck();
 	TickDrift(DeltaSeconds);
 	TickHighSheet();
 	TickMist();
@@ -473,6 +502,37 @@ void ATorqueSky::Tick(float DeltaSeconds)
 	TickLightning(DeltaSeconds);
 	TickMeteors();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
+}
+
+void ATorqueSky::TickCloudsCheck()
+{
+	// Once a second: whether our clouds are still drawn, and why not, logged when that changes. A cloud
+	// lost (its actor remade) or the sky collection gone is found again, and the rebuilt clouds worn again.
+	UWorld* W = GetWorld();
+	if (!W || !bFound) return;
+	const double NowSec = W->GetTimeSeconds();
+	if (NowSec - CloudsCheckedAt < 1.0) return;
+	CloudsCheckedAt = NowSec;
+	FString Why = CloudsWhyNot();
+	if (!Why.IsEmpty() && (!CloudPtr.IsValid() || !SkyMpc))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque sky: clouds not drawn (%s): looking for them again"), *Why);
+		CloudPtr.Reset();
+		CloudMid = nullptr;
+		bMapTried = false;
+		Find();
+		Why = CloudsWhyNot();
+	}
+	if (Why != CloudsWhyLogged)
+	{
+		const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
+		const AActor* Owner = Cloud ? Cloud->GetOwner() : nullptr;
+		const FString State = Why.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + Why;
+		UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds %s (cloud %s, visible %d, actor hidden %d, wears %s)"),
+			*State, *GetNameSafe(Owner), Cloud && Cloud->IsVisible() ? 1 : 0, Owner && Owner->IsHidden() ? 1 : 0,
+			*GetNameSafe(Cloud ? ReadObjectProperty(Cloud, TEXT("Material")) : nullptr));
+		CloudsWhyLogged = Why;
+	}
 }
 
 void ATorqueSky::TickDrift(float DeltaSeconds)
@@ -1090,10 +1150,12 @@ void ATorqueSky::TickMist()
 FString ATorqueSky::Describe() const
 {
 	const TorqueSky::Sky& S = Last;
+	const FString CloudsWhy = CloudsWhyNot();
+	const FString DrawnText = CloudsWhy.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + CloudsWhy;
 	return FString::Printf(TEXT("sun %.1f deg (light at %.1f), block %.2f, dull %.2f, %.0f lux (EV100 %.1f; clear sky %.0f), day light %.2f, sun x%.2f, sky light x%.2f (shade x%.2f), exposure %+.2f (may open %.1f), mie x%.2f, rayleigh x%.2f, fog x%.2f; cloud %.0f%% (drawn %.2f, shape %.2f, density %.2f) %.0f-%.0f m, drifting %.1f m/s E %.1f m/s N, its shadows %.2f; clouds %s"),
 		S.SunElevation, S.LightElevation, S.Block, S.Dull, S.GroundLux, TorqueSky::Ev100(S.GroundLux), S.ClearLux, S.DayLight, S.SunScale, S.SkyLightScale, S.SkyFill,
 		S.ExposureStops, S.ExposureOpenStops, S.MieScale, S.RayleighScale, S.FogScale, S.Cover * 100.0, S.CoverShown, S.Shape, S.Density, S.BaseAsl, S.TopAsl, S.DriftE, S.DriftN,
-		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"))
+		S.CloudShadows, *DrawnText)
 		+ FString::Printf(TEXT("; kinds: low %s, middle %s, high %s (veil %.2f, halo %.2f); bands low %.2f-%.2f middle %.2f-%.2f"),
 			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),
 			S.HighSheet, S.Halo, S.LowDrawn.Bottom, S.LowDrawn.Top, S.MidDrawn.Bottom, S.MidDrawn.Top)

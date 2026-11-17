@@ -345,6 +345,79 @@ void SplitTag(const std::string& Material, const std::string& PartSlot, FString&
 		Slot = M.Mid(At + 2);
 	}
 }
+// [bikes v2] A V2 piece's surface carries its look in its name (Fit/BikeParts FitV2):
+// "v2/<finish>/<paint>/<tag>[/r/g/b/metallic/roughness]". Paint: "body", "frame" or "rim" for a
+// surface the shed can repaint (it starts in the model's colour), "accent" or none for one it can't.
+struct FV2Look
+{
+	FString Finish, Paint, Tag;
+	bool bTint = false;
+	FLinearColor Colour = FLinearColor::White;
+	float Metallic = 0.0f, Roughness = 0.5f;
+};
+
+bool ParseV2Look(const std::string& Material, FV2Look& Out)
+{
+	if (Material.rfind("v2/", 0) != 0) return false;
+	TArray<FString> Bits;
+	Ue(Material).ParseIntoArray(Bits, TEXT("/"), false);
+	if (Bits.Num() < 4) return false;
+	Out.Finish = Bits[1];
+	Out.Paint = Bits[2];
+	Out.Tag = Bits[3].IsEmpty() ? Bits[1] : Bits[3];
+	if (Bits.Num() >= 9)
+	{
+		Out.bTint = true;
+		Out.Colour = FLinearColor(FCString::Atof(*Bits[4]), FCString::Atof(*Bits[5]), FCString::Atof(*Bits[6]));
+		Out.Metallic = FCString::Atof(*Bits[7]);
+		Out.Roughness = FCString::Atof(*Bits[8]);
+	}
+	return true;
+}
+
+// Its material: /Game/Bike/Materials/MI_<finish>, the brushed steel if there's none.
+UMaterialInterface* V2Material(const FV2Look& Look, bool& bPaint, bool& bOutFallback)
+{
+	static TMap<FString, UMaterialInterface*> Loaded;
+	bPaint = Look.Paint == TEXT("body") || Look.Paint == TEXT("frame") || Look.Paint == TEXT("rim");
+	bOutFallback = false;
+	const FString& Debug = DebugMode();
+	if (Debug == TEXT("unlit") || Debug == TEXT("default"))
+	{
+		bool bDebugPaint = false;
+		FString DebugFinish;
+		return SurfaceMaterial(TEXT("chrome"), bDebugPaint, DebugFinish, bOutFallback);
+	}
+	if (UMaterialInterface** Found = Loaded.Find(Look.Finish)) return *Found;
+	UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), *Look.Finish, *Look.Finish));
+	bOutFallback = M == nullptr;
+	// The see-through finishes (Tools/ue_build_level.py bike_materials: MI_v2glass, MI_v2screen). Until the
+	// level script has made them: a lamp's or clock's glass isn't drawn at all (what's behind it shows; drawn
+	// solid it hid the lamp: build 154), a windscreen is the catalogue's solid clear screen.
+	if (!M && Look.Finish == TEXT("v2glass"))
+	{
+		Loaded.Add(Look.Finish, nullptr);
+		return nullptr;
+	}
+	if (!M && Look.Finish == TEXT("v2screen"))
+		M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_screen_clear.MI_screen_clear"));
+	if (!M) M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
+	if (M) M->AddToRoot();   // cached across map travel, as MaterialFor's
+	Loaded.Add(Look.Finish, M);
+	return M;
+}
+
+// The look on its drawn surface: the model's own colour, metal and gloss.
+void ApplyV2Look(UStaticMeshComponent* C, const FV2Look& Look)
+{
+	if (!C || !Look.bTint) return;
+	UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
+	if (!M) return;
+	M->SetVectorParameterValue(TEXT("Color"), Look.Colour);
+	M->SetVectorParameterValue(TEXT("Color2"), Look.Colour);
+	for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, Look.Metallic);
+	for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, Look.Roughness);
+}
 } // namespace TorqueShedCatalogueImpl
 
 namespace TSCI = TorqueShedCatalogueImpl;
@@ -353,6 +426,30 @@ namespace TorqueShedCatalogue
 {
 const TCHAR* const NoPaintTag = TEXT("NoPaint");
 const TCHAR* const SpinsTag = TEXT("Spins");
+const TCHAR* const V2PaintTag = TEXT("V2Paint");
+const TCHAR* const V2BodyTag = TEXT("V2Body");
+
+// [bikes v2] A V2 bike's side stand as it was fitted (v2.points_mm.stand): its pivot and the leg's
+// direction folded and down, in the drawn bike's frame (cm).
+bool V2Stand(const TMap<FString, FString>& Parts, FVector& OutPivot, FVector& OutFolded, FVector& OutDown)
+{
+	const TorqueFit::BikeLayout* Lay = Layout();
+	const FString* FrameId = Parts.Find(TEXT("frame"));
+	const TorqueFit::Json* Frame = Lay && FrameId ? Lay->Part(TSCI::Std(*FrameId)) : nullptr;
+	const TorqueFit::Json* V2 = Frame ? Frame->Get("v2") : nullptr;
+	const TorqueFit::Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const TorqueFit::Json* Stand = Points ? Points->Get("stand") : nullptr;
+	const TorqueFit::V2Frame F = TorqueFit::V2Frame::Of(Frame);
+	if (!Stand || !F.Valid) return false;
+	const TorqueFit::Json* Pivot = Stand->Get("pivot");
+	const TorqueFit::Json* Folded = Stand->Get("folded_dir");
+	const TorqueFit::Json* Down = Stand->Get("down_dir");
+	if (!Pivot || !Folded || !Down || Pivot->A.size() < 3 || Folded->A.size() < 3 || Down->A.size() < 3) return false;
+	OutPivot = FVector(TSCI::ToUe(F.Point(Pivot->A[0].N, Pivot->A[1].N, Pivot->A[2].N)));
+	OutFolded = FVector(TSCI::ToUe(F.Dir(Folded->A[0].N, Folded->A[1].N, Folded->A[2].N))).GetSafeNormal();
+	OutDown = FVector(TSCI::ToUe(F.Dir(Down->A[0].N, Down->A[1].N, Down->A[2].N))).GetSafeNormal();
+	return !OutFolded.IsNearlyZero() && !OutDown.IsNearlyZero();
+}
 
 const TorqueFit::BikeLayout* Layout()
 {
@@ -364,7 +461,34 @@ const TorqueFit::BikeLayout* Layout()
 		bTried = true;
 		std::string PartsText, LayoutText, Error;
 		bOk = TSCI::ReadBytes(TEXT("Data/Parts/parts.json"), PartsText) && TSCI::ReadBytes(TEXT("Data/Fitment/layout.json"), LayoutText) &&
-			Db.LoadFromText(PartsText, Error) && Lay.Load(LayoutText, Db, Error);
+			Db.LoadFromText(PartsText, Error);
+		if (bOk)
+		{
+			// [bikes v2] The V2 bikes' frames laid over the catalogue, and where their files are.
+			std::string V2Text, V2Error;
+			if (TSCI::ReadBytes(TEXT("Data/BikesV2/parts_v2.json"), V2Text) && !Db.AddFromText(V2Text, V2Error))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque: Data/BikesV2/parts_v2.json didn't load (%s): no Bike Models V2 bikes"), *TSCI::Ue(V2Error));
+			}
+			// [common parts] The common bolt-on parts for the V2 bikes (their files are under Data/BikesV2/common).
+			std::string CommonText, CommonError;
+			if (TSCI::ReadBytes(TEXT("Data/BikesV2/common_parts.json"), CommonText) && !Db.AddFromText(CommonText, CommonError))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque: Data/BikesV2/common_parts.json didn't load (%s): no common parts"), *TSCI::Ue(CommonError));
+			}
+			TorqueFit::BikeParts::SetV2Source([](const std::string& Model, TorqueFit::PartMesh& Mesh, std::string& Info)
+			{
+				const FString Base = TEXT("Data/BikesV2/") + TSCI::Ue(Model);
+				std::string Bytes, GlbError;
+				const bool bRead = TSCI::ReadBytes(Base + TEXT(".glb"), Bytes) && Mesh.LoadGlb(Bytes, GlbError) && TSCI::ReadBytes(Base + TEXT(".json"), Info);
+				if (!bRead)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Torque: Bike Models V2 bike %s didn't load (%s): drawn from its catalogue parts"), *TSCI::Ue(Model), *TSCI::Ue(GlbError));
+				}
+				return bRead;
+			});
+			bOk = Lay.Load(LayoutText, Db, Error);
+		}
 		if (!bOk)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Torque: the bike layout didn't load (%s): every part bolts on, catalogue bikes aren't drawn"), *TSCI::Ue(Error));
@@ -392,7 +516,7 @@ bool DrawnParts(const TMap<FString, FString>& Parts, const FString& Geo, std::ve
 	{
 		if (P.Hidden) continue;
 		TorqueFit::PartMesh Glb;
-		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
+		if (!P.Made && !TSCI::LoadPart(P.Glb, Glb)) continue;   // (a V2 piece's mesh is made already)
 		TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
 		Drawn.Surfaces.erase(std::remove_if(Drawn.Surfaces.begin(), Drawn.Surfaces.end(), [&P](const TorqueFit::PartSurface& S)
 			{ return std::find(P.HiddenTags.begin(), P.HiddenTags.end(), S.Material) != P.HiddenTags.end(); }), Drawn.Surfaces.end());
@@ -467,7 +591,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (InSlot != Map.end() && (InSlot->second.empty() || InSlot->second == "none")) continue;
 		}
 		TorqueFit::PartMesh Glb;
-		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
+		if (!P.Made && !TSCI::LoadPart(P.Glb, Glb)) continue;   // (a V2 piece's mesh is made already)
 		const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
 		// [rider pose] The clutch or brake lever's own blade (not the hose or banjo made in code under
 		// the same glb): its pin, at the blade's near end (lever.glb's own coordinates, as the warp
@@ -495,7 +619,17 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			TSCI::SplitTag(S.Material, P.Slot, Tag, Slot);
 			bool bPaint = false, bFallback = false;
 			FString Finish;
-			UMaterialInterface* Mat = TSCI::SurfaceMaterial(Tag, bPaint, Finish, bFallback);
+			// [bikes v2] A V2 piece's surface: its look is in its name.
+			TSCI::FV2Look V2Look;
+			const bool bV2 = TSCI::ParseV2Look(S.Material, V2Look);
+			if (bV2)
+			{
+				Tag = V2Look.Tag;
+				Slot = TSCI::Ue(P.Slot);
+				Finish = V2Look.Finish;
+			}
+			UMaterialInterface* Mat = bV2 ? TSCI::V2Material(V2Look, bPaint, bFallback) : TSCI::SurfaceMaterial(Tag, bPaint, Finish, bFallback);
+			if (bV2 && !Mat) continue;   // (glass with no see-through finish yet: left out)
 			FString Line = Tag + TEXT(" -> ") + (Mat ? Mat->GetName() : FString(TEXT("no material"))) + (bFallback ? TEXT(" (fallback for ") + Finish + TEXT(")") : FString());
 			if (S.Nrm.size() < S.Pos.size()) Line += TEXT(", no normals");
 			if (bPaint)
@@ -519,6 +653,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
+			if (bV2) TSCI::ApplyV2Look(C, V2Look);
+			if (bV2 && (V2Look.Paint == TEXT("body") || V2Look.Paint == TEXT("rim"))) C->ComponentTags.Add(FName(V2PaintTag));
+			if (bV2 && V2Look.Paint == TEXT("body")) C->ComponentTags.Add(FName(V2BodyTag));
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
 			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
@@ -534,6 +671,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 				G.At = FVector(TSCI::ToUe(P.GaugeAt));
 				G.Axis = FVector(P.GaugeAxis.x, P.GaugeAxis.z, P.GaugeAxis.y).GetSafeNormal();
 				G.Up = FVector(P.GaugeUp.x, P.GaugeUp.z, P.GaugeUp.y).GetSafeNormal();
+				G.Size = (float)P.GaugeSize;
 				OutGauges->Add(G);
 			}
 			++Made;
@@ -565,6 +703,8 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 		FString Slot, Glb;
 		bool bPaint = false;
 		bool bSpins = false;   // on a wheel (SpinsTag)
+		bool bV2 = false;      // [bikes v2] a V2 piece's surface, and its look
+		TSCI::FV2Look V2Look;
 	};
 	static TMap<FString, TArray<FSurfaceMade>> Cache;
 	TArray<FString> Keys;
@@ -588,7 +728,7 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 		{
 			if (P.Hidden) continue;
 			TorqueFit::PartMesh Glb;
-			if (!TSCI::LoadPart(P.Glb, Glb)) continue;
+			if (!P.Made && !TSCI::LoadPart(P.Glb, Glb)) continue;   // (a V2 piece's mesh is made already)
 			const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
 			for (const TorqueFit::PartSurface& S : Drawn.Surfaces)
 			{
@@ -598,7 +738,16 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 				FSurfaceMade M;
 				FString Finish;
 				bool bFallback = false;
-				M.Mat = TSCI::SurfaceMaterial(Tag, M.bPaint, Finish, bFallback);
+				M.bV2 = TSCI::ParseV2Look(S.Material, M.V2Look);
+				if (M.bV2)
+				{
+					Tag = M.V2Look.Tag;
+					Slot = TSCI::Ue(P.Slot);
+					Finish = M.V2Look.Finish;
+					if (!Parts.Contains(Slot)) continue;
+				}
+				M.Mat = M.bV2 ? TSCI::V2Material(M.V2Look, M.bPaint, bFallback) : TSCI::SurfaceMaterial(Tag, M.bPaint, Finish, bFallback);
+				if (M.bV2 && !M.Mat) continue;   // (glass with no see-through finish yet: left out)
 				TArray<FVector> Pos;
 				TArray<int32> Tris;
 				bool bFlipped = false;
@@ -623,6 +772,8 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 	{
 		UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, M.Mesh, M.Mat, M.Slot, M.Glb, M.bPaint, Parts.FindRef(M.Slot));
 		if (C && M.bSpins) C->ComponentTags.Add(FName(SpinsTag));
+		if (C && M.bV2) TSCI::ApplyV2Look(C, M.V2Look);
+		if (C && M.bV2 && (M.V2Look.Paint == TEXT("body") || M.V2Look.Paint == TEXT("rim"))) C->ComponentTags.Add(FName(V2PaintTag));
 		Out.Add(C);
 	}
 	return Made->Num();

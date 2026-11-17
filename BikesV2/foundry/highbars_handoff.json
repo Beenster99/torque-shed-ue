@@ -1,0 +1,41 @@
+{
+ "about": "Stage 8b high bars approved by beenster 17 Nov 10:48 ('these look great - LETS GO!'). Proposed pool entries (bars) for the Bikes V2 thread. Geometry: import foundry/highbars3d.py (it registers these keys into bars3d.BARS and swaps in its bar_half), then bars3d.fit(build3d, model, c, bar, grip, end, fin) as for any stage 1 bar. Same clamp at the bike's riser point and the same straight 22.2 mm grip section, so stage 2 controls ride on them. The rider's hands move 166-386 mm: the pose must read the hand point from the bar (bars3d.hand_point after importing highbars3d).",
+ "bars": [
+  {
+   "key": "ape",
+   "name": "Ape hanger",
+   "fits": [
+    "Chopper",
+    "Cruiser"
+   ],
+   "finish": "chrome"
+  },
+  {
+   "key": "ape_tall",
+   "name": "Tall ape",
+   "fits": [
+    "Chopper"
+   ],
+   "finish": "chrome"
+  },
+  {
+   "key": "zbar",
+   "name": "Z-bar",
+   "fits": [
+    "Chopper",
+    "Cruiser"
+   ],
+   "finish": "satin_black"
+  },
+  {
+   "key": "beach",
+   "name": "Beach bar",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ],
+   "finish": "chrome"
+  }
+ ],
+ "check": "python3 foundry/highbars3d.py check: full 30 degree lock clear of the tank on lodestar_chopper and lodestar_cruiser; no clashes."
+}

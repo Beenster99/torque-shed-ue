@@ -678,7 +678,7 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	{
 		const float Hour = GS ? (GS->GetHour() >= 0.0f ? GS->GetHour() : GS->BuiltHour()) : -1.0f;
 		const FString Clock = Hour >= 0.0f ? ATorqueGameState::ClockText(Hour) : FDateTime::Now().ToString(TEXT("%H:%M"));
-		const FDateTime Today = FDateTime::Now();
+		const FDateTime Today = GS ? GS->RideDate() : FDateTime::Now();   // (the ride's date, Settings > Gameplay)
 		const FString Date = FString::Printf(TEXT("%s %d %s %d"), DayName(Today.GetDayOfWeek()), Today.GetDay(), MonthName(Today.GetMonth()), Today.GetYear());
 		Parts.Add({52.0f * S, 100, [=](float Y)
 		{
@@ -748,7 +748,11 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	// 3. The forecast for the real place (Open-Meteo).
 	{
 		const bool bLiveGame = GS && (GS->GetWeatherSource() == ETorqueWeatherSource::Live || GS->GetWeatherSource() == ETorqueWeatherSource::LiveLastKnown);
-		const FString Sun = D.Sunrise.IsEmpty() ? FString() : FString::Printf(TEXT("sunrise %s  ·  sunset %s"), *D.Sunrise, *D.Sunset);
+		FString Sun = D.Sunrise.IsEmpty() ? FString() : FString::Printf(TEXT("sunrise %s  ·  sunset %s"), *D.Sunrise, *D.Sunset);
+		// (a ride date set in Settings: that day's sunrise and sunset here, by the game's own sun)
+		if (GS && GS->GetRideDay() > 0)
+			Sun = FString::Printf(TEXT("sunrise %s  ·  sunset %s on %s"), *ATorqueGameState::ClockText(GS->SunEventHour(false)),
+				*ATorqueGameState::ClockText(GS->SunEventHour(true)), *GS->RideDate().ToString(TEXT("%d %b")));
 		const TArray<FHour> Hours = D.Hours;
 		const TArray<FDay> Days = D.Days;
 		const bool bAsking = Set.bPlaceLookup || Set.WeatherMode == FTorqueSettings::WeatherLive;

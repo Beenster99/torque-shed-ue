@@ -1,0 +1,60 @@
+{
+ "group": "shock",
+ "key": "coilover",
+ "name": "Polished coil-over",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "shock_top",
+ "mount_mm": [
+  610,
+  0.0,
+  700
+ ],
+ "moves_with": "shock",
+ "size_mm": [
+  213.2,
+  84.3,
+  289.9
+ ],
+ "triangles": 11588,
+ "surfaces": {
+  "d3_sk_polish": {
+   "ue": "chrome",
+   "color": [
+    0.8,
+    0.8,
+    0.82
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12,
+   "tag": "d3_sk_polish"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_sk_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
+  },
+  "d3_sk_spring_yellow": {
+   "ue": "cat_plastic",
+   "color": [
+    0.75,
+    0.52,
+    0.02
+   ],
+   "metallic": 0.35,
+   "roughness": 0.3,
+   "coat": 0.6,
+   "tag": "d3_sk_spring_yellow"
+  }
+ }
+}

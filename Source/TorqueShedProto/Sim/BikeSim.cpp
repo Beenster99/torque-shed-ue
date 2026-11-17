@@ -920,9 +920,12 @@ void BikeSim::UpdateEngine(double Delta)
 	else if (AutoShift && !Shifting && SinceShift > 0.6)
 	{
 		const double RoadRpm = std::fabs(Speed) / Build.RearRadius * Ratio * 60.0 / TAU;
+		// Flat out near the top speed the back tyre creeps a little (the drive needs it), so the revs sit
+		// a shade over the road's: the box goes by the engine's revs then (not while it's spinning up).
+		const double UpRpm = SpinRatio < 0.05 ? std::max(RoadRpm, Rpm) : RoadRpm;
 		const double UpAt = AutoUpRpm(ShiftLoad);
 		const double FloorRpm = AutoFloorRpm(ShiftLoad);
-		if (Gear < Build.GearCount() && RoadRpm > UpAt && RoadRpm * Build.OverallRatio(Gear + 1) / Ratio > FloorRpm * 1.1)
+		if (Gear < Build.GearCount() && UpRpm > UpAt && RoadRpm * Build.OverallRatio(Gear + 1) / Ratio > FloorRpm * 1.1)
 			Select(Gear + 1);
 		else if (Gear > 1)
 		{

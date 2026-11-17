@@ -1,0 +1,6162 @@
+{
+ "about": "Common bike parts for the V2 bikes (foundry/common_catalogue.py). Each part rides as its stock part of the same category; 'common' says which pieces of the bike it replaces (sub) and where its files go (anchor in the bike's points_mm + offset_mm, moving node).",
+ "new_slots": [
+  "grips",
+  "bar_ends",
+  "levers",
+  "switchgear",
+  "tail_light",
+  "plate_hanger",
+  "silencers",
+  "heel_plates",
+  "foot_controls",
+  "sprocket",
+  "filler_cap"
+ ],
+ "handlebars": {
+  "v2c_bar_street": {
+   "name": "Flat street bar",
+   "description": "Flat street bar. A common part, fitted to suit naked, classic, adventure, mx bikes.",
+   "mass": 1.4,
+   "style": "Flat",
+   "width": 720,
+   "rise": 0.08,
+   "cda": 0.0,
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "mx"
+   ],
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "street",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/street.glb",
+      "looks": "bar/street.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -8.7,
+       0.0,
+       97.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -58.7,
+     0.0,
+     143.1
+    ],
+    "grip_y_mm": 321,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_lowrise": {
+   "mass": 1.4,
+   "style": "Flat",
+   "width": 740,
+   "rise": 0.01,
+   "cda": 0.0,
+   "name": "Low rise bar",
+   "description": "Low rise bar. A common part, fitted to suit naked, classic, adventure, mx bikes.",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "look": {
+    "bend": "drag",
+    "risers": 0.05,
+    "pull": 0.03
+   },
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "mx"
+   ],
+   "pack": "naked",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "lowrise",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/lowrise.glb",
+      "looks": "bar/lowrise.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -8.7,
+       0.0,
+       97.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -66.7,
+     0.0,
+     153.1
+    ],
+    "grip_y_mm": 318,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_highrise": {
+   "mass": 1.4,
+   "style": "Flat",
+   "width": 780,
+   "rise": 0.06,
+   "cda": 0.0,
+   "name": "High rise bar",
+   "description": "High rise bar. A common part, fitted to suit naked, adventure bikes.",
+   "color": [
+    0.74,
+    0.75,
+    0.77
+   ],
+   "look": {
+    "bend": "tracker",
+    "risers": 0.06,
+    "pull": 0.09
+   },
+   "styles": [
+    "naked",
+    "adventure"
+   ],
+   "pack": "roader",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "highrise",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/highrise.glb",
+      "looks": "bar/highrise.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -8.7,
+       0.0,
+       97.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -72.7,
+     0.0,
+     189.1
+    ],
+    "grip_y_mm": 330,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_mx": {
+   "name": "Braced motocross bar",
+   "description": "Braced motocross bar. A common part, fitted to suit naked, classic, adventure, mx bikes.",
+   "mass": 1.5,
+   "style": "MX braced",
+   "width": 800,
+   "rise": 0.14,
+   "cda": 0.02,
+   "color": [
+    0.8,
+    0.62,
+    0.18
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "mx"
+   ],
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "mx",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/mx.glb",
+      "looks": "bar/mx.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -8.7,
+       0.0,
+       97.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -64.7,
+     0.0,
+     161.1
+    ],
+    "grip_y_mm": 336,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_clipon_low": {
+   "mass": 0.6,
+   "style": "Clip-ons",
+   "width": 600,
+   "rise": -0.13,
+   "cda": -0.045,
+   "lightweight": true,
+   "name": "Clip-ons, low",
+   "description": "Clip-ons, low. A common part, fitted to suit cafe bikes.",
+   "color": [
+    0.72,
+    0.07,
+    0.05
+   ],
+   "styles": [
+    "cafe"
+   ],
+   "pack": "sport",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "clipon_low",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/clipon_low.glb",
+      "looks": "bar/clipon_low.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       8.0,
+       0.0,
+       55.3
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1126.1,
+       0.0,
+       1005.4
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -38.4,
+     0.0,
+     -53.8
+    ],
+    "grip_y_mm": 318.0,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_clipon_raised": {
+   "mass": 1.2,
+   "style": "Clip-ons",
+   "width": 640,
+   "rise": -0.05,
+   "cda": -0.04,
+   "name": "Clip-ons, raised",
+   "description": "Clip-ons, raised. A common part, fitted to suit cafe bikes.",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "styles": [
+    "cafe"
+   ],
+   "pack": "sport",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "clipon_raised",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/clipon_raised.glb",
+      "looks": "bar/clipon_raised.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       8.0,
+       0.0,
+       55.3
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1126.1,
+       0.0,
+       1005.4
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -27.4,
+     0.0,
+     3.1
+    ],
+    "grip_y_mm": 322.0,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_drag": {
+   "name": "Drag bar",
+   "description": "Drag bar. A common part, fitted to suit naked, classic, adventure, mx bikes.",
+   "mass": 1.3,
+   "style": "Drag",
+   "width": 680,
+   "rise": 0.02,
+   "cda": -0.01,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "mx"
+   ],
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "drag",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/drag.glb",
+      "looks": "bar/drag.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -8.7,
+       0.0,
+       97.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -48.7,
+     0.0,
+     121.1
+    ],
+    "grip_y_mm": 330,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_touring": {
+   "mass": 1.4,
+   "style": "Flat",
+   "width": 740,
+   "rise": 0.1,
+   "cda": 0.0,
+   "name": "Swept touring bar",
+   "description": "Swept touring bar. A common part, fitted to suit cruiser bikes.",
+   "color": [
+    0.86,
+    0.87,
+    0.89
+   ],
+   "look": {
+    "bend": "tracker",
+    "pull": 0.14,
+    "drop": 0.01
+   },
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "classic",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "touring",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/touring.glb",
+      "looks": "bar/touring.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       11.0,
+       0.0,
+       99.4
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1236.6,
+       0.0,
+       1041.4
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -167.0,
+     0.0,
+     171.4
+    ],
+    "grip_y_mm": 318,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_tracker": {
+   "mass": 1.5,
+   "style": "MX braced",
+   "width": 800,
+   "rise": 0.1,
+   "cda": 0.02,
+   "name": "Tracker bar",
+   "description": "Tracker bar. A common part, fitted to suit naked, classic, adventure bikes.",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "look": {
+    "bend": "tracker",
+    "brace": true,
+    "pad": true,
+    "accent": [
+     0.72,
+     0.07,
+     0.05
+    ],
+    "pull": 0.07
+   },
+   "styles": [
+    "naked",
+    "classic",
+    "adventure"
+   ],
+   "pack": "scrambler",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "tracker",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/tracker.glb",
+      "looks": "bar/tracker.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -8.7,
+       0.0,
+       97.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -82.7,
+     0.0,
+     169.1
+    ],
+    "grip_y_mm": 348,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_bar_ace": {
+   "mass": 1.4,
+   "style": "Flat",
+   "width": 640,
+   "rise": -0.03,
+   "cda": -0.025,
+   "name": "Ace bar",
+   "description": "Ace bar. A common part, fitted to suit sport bikes.",
+   "color": [
+    0.86,
+    0.87,
+    0.89
+   ],
+   "look": {
+    "bend": "clubman",
+    "drop": 0.1,
+    "pull": 0.1
+   },
+   "styles": [
+    "sport"
+   ],
+   "pack": "cafe",
+   "price": 85,
+   "common": {
+    "group": "bar",
+    "key": "ace",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "bar/ace.glb",
+      "looks": "bar/ace.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       8.3,
+       0.0,
+       55.1
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1127.0,
+       0.0,
+       998.0
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black",
+     "polished",
+     "chrome",
+     "brushed",
+     "titanium",
+     "anodised_gold",
+     "anodised_red",
+     "anodised_blue"
+    ],
+    "grip_offset_mm": [
+     -91.7,
+     0.0,
+     -2.9
+    ],
+    "grip_y_mm": 312,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_high_bar_ape": {
+   "name": "Ape hanger",
+   "description": "Ape hanger. A common part, fitted to suit chopper, cruiser bikes.",
+   "mass": 1.8,
+   "style": "Ape hanger",
+   "width": 760,
+   "rise": 0.36,
+   "cda": 0.06,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "chopper",
+    "cruiser"
+   ],
+   "price": 160,
+   "common": {
+    "group": "high_bar",
+    "key": "ape",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "high_bar/ape.glb",
+      "looks": "high_bar/ape.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       11.0,
+       0.0,
+       99.4
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1236.6,
+       0.0,
+       1041.4
+      ]
+     }
+    ],
+    "finishes": [
+     "chrome"
+    ],
+    "grip_offset_mm": [
+     -109.0,
+     0.0,
+     449.4
+    ],
+    "grip_y_mm": 330,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_high_bar_ape_tall": {
+   "mass": 1.8,
+   "style": "Ape hanger",
+   "width": 760,
+   "rise": 0.42,
+   "cda": 0.06,
+   "name": "Tall ape",
+   "description": "Tall ape. A common part, fitted to suit chopper bikes.",
+   "color": [
+    0.86,
+    0.87,
+    0.89
+   ],
+   "look": {
+    "bend": "ape",
+    "pull": 0.14,
+    "risers": 0.04
+   },
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 160,
+   "common": {
+    "group": "high_bar",
+    "key": "ape_tall",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "high_bar/ape_tall.glb",
+      "looks": "high_bar/ape_tall.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       -13.8,
+       0.0,
+       105.4
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1170.0,
+       0.0,
+       1128.4
+      ]
+     }
+    ],
+    "finishes": [
+     "chrome"
+    ],
+    "grip_offset_mm": [
+     -143.7,
+     0.0,
+     505.4
+    ],
+    "grip_y_mm": 320,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_high_bar_zbar": {
+   "mass": 1.3,
+   "style": "Drag",
+   "width": 700,
+   "rise": 0.14,
+   "cda": -0.01,
+   "name": "Z-bar",
+   "description": "Z-bar. A common part, fitted to suit chopper, cruiser bikes.",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "look": {
+    "bend": "z",
+    "pull": 0.05
+   },
+   "styles": [
+    "chopper",
+    "cruiser"
+   ],
+   "pack": "bobber",
+   "price": 160,
+   "common": {
+    "group": "high_bar",
+    "key": "zbar",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "high_bar/zbar.glb",
+      "looks": "high_bar/zbar.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       11.0,
+       0.0,
+       99.4
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1236.6,
+       0.0,
+       1041.4
+      ]
+     }
+    ],
+    "finishes": [
+     "satin_black"
+    ],
+    "grip_offset_mm": [
+     -79.0,
+     0.0,
+     399.4
+    ],
+    "grip_y_mm": 340,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  },
+  "v2c_high_bar_beach": {
+   "mass": 1.3,
+   "style": "Drag",
+   "width": 860,
+   "rise": 0.06,
+   "cda": -0.01,
+   "name": "Beach bar",
+   "description": "Beach bar. A common part, fitted to suit cruiser, chopper bikes.",
+   "color": [
+    0.86,
+    0.87,
+    0.89
+   ],
+   "look": {
+    "bend": "tracker",
+    "pull": 0.2,
+    "risers": 0.05,
+    "chrome_risers": true
+   },
+   "styles": [
+    "cruiser",
+    "chopper"
+   ],
+   "pack": "cruiser",
+   "price": 160,
+   "common": {
+    "group": "high_bar",
+    "key": "beach",
+    "sub": "bar",
+    "pieces": [
+     {
+      "file": "high_bar/beach.glb",
+      "looks": "high_bar/beach.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       11.0,
+       0.0,
+       99.4
+      ],
+      "node": "steer",
+      "sub": "bar",
+      "mount_mm": [
+       1236.6,
+       0.0,
+       1041.4
+      ]
+     }
+    ],
+    "finishes": [
+     "chrome"
+    ],
+    "grip_offset_mm": [
+     -219.0,
+     0.0,
+     299.4
+    ],
+    "grip_y_mm": 350,
+    "moves": [
+     "grip",
+     "bar_end",
+     "levers",
+     "switches",
+     "mirrors"
+    ]
+   }
+  }
+ },
+ "grips": {
+  "v2c_grip_knurl": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Diamond knurl",
+   "description": "Diamond knurl. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 25,
+   "common": {
+    "group": "grip",
+    "key": "knurl",
+    "sub": "grip",
+    "pieces": [
+     {
+      "file": "grip/knurl.glb",
+      "looks": "grip/knurl.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "grip",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "rubber"
+  },
+  "v2c_grip_ribbed": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Ribbed",
+   "description": "Ribbed. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 25,
+   "common": {
+    "group": "grip",
+    "key": "ribbed",
+    "sub": "grip",
+    "pieces": [
+     {
+      "file": "grip/ribbed.glb",
+      "looks": "grip/ribbed.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "grip",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "rubber"
+  },
+  "v2c_grip_waffle": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Waffle",
+   "description": "Waffle. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 25,
+   "common": {
+    "group": "grip",
+    "key": "waffle",
+    "sub": "grip",
+    "pieces": [
+     {
+      "file": "grip/waffle.glb",
+      "looks": "grip/waffle.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "grip",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "rubber"
+  },
+  "v2c_grip_barrel": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Barrel",
+   "description": "Barrel. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 25,
+   "common": {
+    "group": "grip",
+    "key": "barrel",
+    "sub": "grip",
+    "pieces": [
+     {
+      "file": "grip/barrel.glb",
+      "looks": "grip/barrel.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "grip",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "rubber"
+  },
+  "v2c_grip_touring": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Soft touring",
+   "description": "Soft touring. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 25,
+   "common": {
+    "group": "grip",
+    "key": "touring",
+    "sub": "grip",
+    "pieces": [
+     {
+      "file": "grip/touring.glb",
+      "looks": "grip/touring.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "grip",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "rubber"
+  },
+  "v2c_grip_leather": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Leather wrapped",
+   "description": "Leather wrapped. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 25,
+   "common": {
+    "group": "grip",
+    "key": "leather",
+    "sub": "grip",
+    "pieces": [
+     {
+      "file": "grip/leather.glb",
+      "looks": "grip/leather.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "grip",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "rubber"
+  }
+ },
+ "bar_ends": {
+  "v2c_bar_end_cap": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Plain cap",
+   "description": "Plain cap. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 30,
+   "common": {
+    "group": "bar_end",
+    "key": "cap",
+    "sub": "bar_end",
+    "pieces": [
+     {
+      "file": "bar_end/cap.glb",
+      "looks": "bar_end/cap.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "bar_end",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_bar_end_weighted": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Weighted",
+   "description": "Weighted. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 30,
+   "common": {
+    "group": "bar_end",
+    "key": "weighted",
+    "sub": "bar_end",
+    "pieces": [
+     {
+      "file": "bar_end/weighted.glb",
+      "looks": "bar_end/weighted.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "bar_end",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_bar_end_tapered": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Tapered billet",
+   "description": "Tapered billet. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 30,
+   "common": {
+    "group": "bar_end",
+    "key": "tapered",
+    "sub": "bar_end",
+    "pieces": [
+     {
+      "file": "bar_end/tapered.glb",
+      "looks": "bar_end/tapered.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "bar_end",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_bar_end_ringed": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Machined ring",
+   "description": "Machined ring. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 30,
+   "common": {
+    "group": "bar_end",
+    "key": "ringed",
+    "sub": "bar_end",
+    "pieces": [
+     {
+      "file": "bar_end/ringed.glb",
+      "looks": "bar_end/ringed.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "bar_end",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_bar_end_bullet": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Chrome bullet",
+   "description": "Chrome bullet. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 30,
+   "common": {
+    "group": "bar_end",
+    "key": "bullet",
+    "sub": "bar_end",
+    "pieces": [
+     {
+      "file": "bar_end/bullet.glb",
+      "looks": "bar_end/bullet.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "bar_end",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_bar_end_mirror": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Mirror end",
+   "description": "Mirror end. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 30,
+   "common": {
+    "group": "bar_end",
+    "key": "mirror",
+    "sub": "bar_end",
+    "pieces": [
+     {
+      "file": "bar_end/mirror.glb",
+      "looks": "bar_end/mirror.json",
+      "anchor": "grip",
+      "offset_mm": [
+       50,
+       0.0,
+       -46
+      ],
+      "node": "steer",
+      "sub": "bar_end",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "levers": {
+  "v2c_levers_standard": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Billet adjustable set",
+   "description": "Billet adjustable set. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 120,
+   "common": {
+    "group": "levers",
+    "key": "standard",
+    "sub": "levers",
+    "pieces": [
+     {
+      "file": "levers/standard.glb",
+      "looks": "levers/standard.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "levers",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_levers_short": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Short lever set",
+   "description": "Short lever set. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 120,
+   "common": {
+    "group": "levers",
+    "key": "short",
+    "sub": "levers",
+    "pieces": [
+     {
+      "file": "levers/short.glb",
+      "looks": "levers/short.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "levers",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_levers_folding": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Folding radial set",
+   "description": "Folding radial set. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 120,
+   "common": {
+    "group": "levers",
+    "key": "folding",
+    "sub": "levers",
+    "pieces": [
+     {
+      "file": "levers/folding.glb",
+      "looks": "levers/folding.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "levers",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_levers_classic": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Classic polished set",
+   "description": "Classic polished set. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 120,
+   "common": {
+    "group": "levers",
+    "key": "classic",
+    "sub": "levers",
+    "pieces": [
+     {
+      "file": "levers/classic.glb",
+      "looks": "levers/classic.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "levers",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_levers_forged": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Forged set",
+   "description": "Forged set. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 120,
+   "common": {
+    "group": "levers",
+    "key": "forged",
+    "sub": "levers",
+    "pieces": [
+     {
+      "file": "levers/forged.glb",
+      "looks": "levers/forged.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "levers",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "switchgear": {
+  "v2c_switches_dpad": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "D-pad pod",
+   "description": "D-pad pod. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 90,
+   "common": {
+    "group": "switches",
+    "key": "dpad",
+    "sub": "switches",
+    "pieces": [
+     {
+      "file": "switches/dpad.glb",
+      "looks": "switches/dpad.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "switches",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_switches_cruise": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Cruise pod",
+   "description": "Cruise pod. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 90,
+   "common": {
+    "group": "switches",
+    "key": "cruise",
+    "sub": "switches",
+    "pieces": [
+     {
+      "file": "switches/cruise.glb",
+      "looks": "switches/cruise.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "switches",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_switches_compact": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Compact pod",
+   "description": "Compact pod. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 90,
+   "common": {
+    "group": "switches",
+    "key": "compact",
+    "sub": "switches",
+    "pieces": [
+     {
+      "file": "switches/compact.glb",
+      "looks": "switches/compact.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "switches",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  }
+ },
+ "mirrors": {
+  "v2c_mirrors_round": {
+   "name": "Round stalk",
+   "description": "Round stalk. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "mass": 0.6,
+   "type": "Round, on stalks",
+   "style": "round",
+   "cda": 0.004,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "round",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/round.glb",
+      "looks": "mirrors/round.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_oval": {
+   "name": "Oval stalk",
+   "description": "Oval stalk. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "mass": 0.6,
+   "type": "Round, on stalks",
+   "style": "round",
+   "cda": 0.004,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "oval",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/oval.glb",
+      "looks": "mirrors/oval.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_rect": {
+   "name": "Rectangular stalk",
+   "description": "Rectangular stalk. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "mass": 0.6,
+   "type": "Round, on stalks",
+   "style": "round",
+   "cda": 0.004,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "rect",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/rect.glb",
+      "looks": "mirrors/rect.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_teardrop": {
+   "name": "Teardrop stalk",
+   "description": "Teardrop stalk. A common part, fitted to suit naked, classic, adventure, cafe, sport, cruiser, mx bikes.",
+   "mass": 0.6,
+   "type": "Round, on stalks",
+   "style": "round",
+   "cda": 0.004,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "adventure",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "teardrop",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/teardrop.glb",
+      "looks": "mirrors/teardrop.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_barend_round": {
+   "name": "Bar-end round",
+   "description": "Bar-end round. A common part, fitted to suit naked, classic, cafe, sport, cruiser, mx bikes.",
+   "mass": 0.5,
+   "type": "Round, bar-end",
+   "style": "bar_end",
+   "cda": 0.003,
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "barend_round",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/barend_round.glb",
+      "looks": "mirrors/barend_round.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_barend_teardrop": {
+   "name": "Bar-end teardrop",
+   "description": "Bar-end teardrop. A common part, fitted to suit naked, classic, cafe, sport, cruiser, mx bikes.",
+   "mass": 0.5,
+   "type": "Round, bar-end",
+   "style": "bar_end",
+   "cda": 0.003,
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "cafe",
+    "sport",
+    "cruiser",
+    "mx"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "barend_teardrop",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/barend_teardrop.glb",
+      "looks": "mirrors/barend_teardrop.json",
+      "anchor": "grip",
+      "offset_mm": [
+       51,
+       0.0,
+       -48
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1135,
+       0.0,
+       1040
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_fairing_aero": {
+   "name": "Fairing aero",
+   "description": "Fairing aero. A common part, fitted to suit sport bikes.",
+   "mass": 0.5,
+   "type": "Fairing-mounted pods",
+   "style": "fairing",
+   "mounts_on": [
+    "fairing"
+   ],
+   "cda": 0.002,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "sport"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "fairing_aero",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/fairing_aero.glb",
+      "looks": "mirrors/fairing_aero.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       8.3,
+       0.0,
+       55.1
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1127.0,
+       0.0,
+       998.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_mirrors_fairing_wing": {
+   "name": "Fairing wing",
+   "description": "Fairing wing. A common part, fitted to suit sport bikes.",
+   "mass": 0.5,
+   "type": "Fairing-mounted pods",
+   "style": "fairing",
+   "mounts_on": [
+    "fairing"
+   ],
+   "cda": 0.002,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "sport"
+   ],
+   "price": 60,
+   "common": {
+    "group": "mirrors",
+    "key": "fairing_wing",
+    "sub": "mirrors",
+    "pieces": [
+     {
+      "file": "mirrors/fairing_wing.glb",
+      "looks": "mirrors/fairing_wing.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       8.3,
+       0.0,
+       55.1
+      ],
+      "node": "steer",
+      "sub": "mirrors",
+      "mount_mm": [
+       1127.0,
+       0.0,
+       998.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "headlight": {
+  "v2c_headlamp_round_big": {
+   "name": "Large round",
+   "description": "Large round. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 1000,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "round_big",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/round_big.glb",
+      "looks": "headlamp/round_big.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_round_small": {
+   "name": "Small round",
+   "description": "Small round. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 1000,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "round_small",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/round_small.glb",
+      "looks": "headlamp/round_small.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_halo": {
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 2600,
+   "name": "Round halo",
+   "description": "Round halo. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "look": {
+    "ring": true
+   },
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "pack": "naked",
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "halo",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/halo.glb",
+      "looks": "headlamp/halo.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_twin": {
+   "name": "Twin round",
+   "description": "Twin round. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "mass": 1.8,
+   "type": "Halogen, twin",
+   "style": "twin",
+   "size": 0.06,
+   "lumens": 1600,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "twin",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/twin.glb",
+      "looks": "headlamp/twin.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_stacked": {
+   "mass": 1.8,
+   "type": "Halogen, twin",
+   "style": "twin",
+   "size": 0.06,
+   "lumens": 1600,
+   "name": "Stacked twin",
+   "description": "Stacked twin. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "color": [
+    0.86,
+    0.87,
+    0.89
+   ],
+   "look": {
+    "lamp": "stacked",
+    "shell": "chrome"
+   },
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "stacked",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/stacked.glb",
+      "looks": "headlamp/stacked.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_rect": {
+   "name": "Flat rectangle",
+   "description": "Flat rectangle. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "mass": 1.7,
+   "type": "Halogen",
+   "style": "square",
+   "size": 0.08,
+   "lumens": 1100,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "look": {
+    "bezel": "chrome",
+    "brackets": true
+   },
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "rect",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/rect.glb",
+      "looks": "headlamp/rect.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_hex": {
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 2600,
+   "name": "Angular",
+   "description": "Angular. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "look": {
+    "ring": true
+   },
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "pack": "naked",
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "hex",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/hex.glb",
+      "looks": "headlamp/hex.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_headlamp_oval": {
+   "name": "Tall oval",
+   "description": "Tall oval. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 1000,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 140,
+   "common": {
+    "group": "headlamp",
+    "key": "oval",
+    "sub": "headlamp",
+    "pieces": [
+     {
+      "file": "headlamp/oval.glb",
+      "looks": "headlamp/oval.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "headlamp",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "tail_light": {
+  "v2c_tail_light_round": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Round",
+   "description": "Round. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 60,
+   "common": {
+    "group": "tail_light",
+    "key": "round",
+    "sub": "tail_light",
+    "pieces": [
+     {
+      "file": "tail_light/round.glb",
+      "looks": "tail_light/round.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -462.3,
+       0.0,
+       116.8
+      ],
+      "node": "",
+      "sub": "tail_light",
+      "mount_mm": [
+       52.7,
+       0.0,
+       936.8
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_tail_light_oval": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Oval",
+   "description": "Oval. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 60,
+   "common": {
+    "group": "tail_light",
+    "key": "oval",
+    "sub": "tail_light",
+    "pieces": [
+     {
+      "file": "tail_light/oval.glb",
+      "looks": "tail_light/oval.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -467.3,
+       0.0,
+       116.8
+      ],
+      "node": "",
+      "sub": "tail_light",
+      "mount_mm": [
+       47.7,
+       0.0,
+       936.8
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_tail_light_strip": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "LED strip",
+   "description": "LED strip. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 60,
+   "common": {
+    "group": "tail_light",
+    "key": "strip",
+    "sub": "tail_light",
+    "pieces": [
+     {
+      "file": "tail_light/strip.glb",
+      "looks": "tail_light/strip.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -469.3,
+       0.0,
+       116.8
+      ],
+      "node": "",
+      "sub": "tail_light",
+      "mount_mm": [
+       45.7,
+       0.0,
+       936.8
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_tail_light_twin_dot": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Twin dot",
+   "description": "Twin dot. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 60,
+   "common": {
+    "group": "tail_light",
+    "key": "twin_dot",
+    "sub": "tail_light",
+    "pieces": [
+     {
+      "file": "tail_light/twin_dot.glb",
+      "looks": "tail_light/twin_dot.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -476.3,
+       0.0,
+       116.8
+      ],
+      "node": "",
+      "sub": "tail_light",
+      "mount_mm": [
+       38.7,
+       0.0,
+       936.8
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_tail_light_classic": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Classic unit",
+   "description": "Classic unit. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 60,
+   "common": {
+    "group": "tail_light",
+    "key": "classic",
+    "sub": "tail_light",
+    "pieces": [
+     {
+      "file": "tail_light/classic.glb",
+      "looks": "tail_light/classic.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -467.3,
+       0.0,
+       113.5
+      ],
+      "node": "",
+      "sub": "tail_light",
+      "mount_mm": [
+       47.7,
+       0.0,
+       933.5
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  },
+  "v2c_tail_light_hanger": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Hanger lamp",
+   "description": "Hanger lamp. A common part, fitted to suit naked, cafe bikes.",
+   "styles": [
+    "naked",
+    "cafe"
+   ],
+   "price": 60,
+   "common": {
+    "group": "tail_light",
+    "key": "hanger",
+    "sub": "tail_light",
+    "pieces": [
+     {
+      "file": "tail_light/hanger.glb",
+      "looks": "tail_light/hanger.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -467.3,
+       0.0,
+       92.5
+      ],
+      "node": "",
+      "sub": "tail_light",
+      "mount_mm": [
+       47.7,
+       0.0,
+       912.5
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "plastic"
+  }
+ },
+ "indicators": {
+  "v2c_indicators_led_short": {
+   "name": "LED, short stalk",
+   "description": "LED, short stalk. A common part, fitted to suit naked, cafe, classic, cruiser, adventure, mx, chopper bikes.",
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "adventure",
+    "mx",
+    "chopper"
+   ],
+   "price": 55,
+   "common": {
+    "group": "indicators",
+    "key": "led_short",
+    "sub": "ind_front",
+    "pieces": [
+     {
+      "file": "indicators_front/led_short.glb",
+      "looks": "indicators_front/led_short.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "ind_front",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     },
+     {
+      "file": "indicators_rear/led_short.glb",
+      "looks": "indicators_rear/led_short.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -431.0,
+       0.0,
+       71.0
+      ],
+      "node": "",
+      "sub": "ind_rear",
+      "mount_mm": [
+       84.0,
+       0.0,
+       891.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_indicators_led_long": {
+   "name": "LED, long stalk",
+   "description": "LED, long stalk. A common part, fitted to suit naked, cafe, classic, cruiser, adventure, mx, chopper bikes.",
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "adventure",
+    "mx",
+    "chopper"
+   ],
+   "price": 55,
+   "common": {
+    "group": "indicators",
+    "key": "led_long",
+    "sub": "ind_front",
+    "pieces": [
+     {
+      "file": "indicators_front/led_long.glb",
+      "looks": "indicators_front/led_long.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "ind_front",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     },
+     {
+      "file": "indicators_rear/led_long.glb",
+      "looks": "indicators_rear/led_long.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -431.0,
+       0.0,
+       71.0
+      ],
+      "node": "",
+      "sub": "ind_rear",
+      "mount_mm": [
+       84.0,
+       0.0,
+       891.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_indicators_chrome_short": {
+   "name": "Chrome, short stalk",
+   "description": "Chrome, short stalk. A common part, fitted to suit naked, cafe, classic, cruiser, adventure, mx, chopper bikes.",
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "adventure",
+    "mx",
+    "chopper"
+   ],
+   "price": 55,
+   "common": {
+    "group": "indicators",
+    "key": "chrome_short",
+    "sub": "ind_front",
+    "pieces": [
+     {
+      "file": "indicators_front/chrome_short.glb",
+      "looks": "indicators_front/chrome_short.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "ind_front",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     },
+     {
+      "file": "indicators_rear/chrome_short.glb",
+      "looks": "indicators_rear/chrome_short.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -433.2,
+       0.0,
+       71.0
+      ],
+      "node": "",
+      "sub": "ind_rear",
+      "mount_mm": [
+       81.8,
+       0.0,
+       891.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_indicators_chrome_long": {
+   "name": "Chrome, long stalk",
+   "description": "Chrome, long stalk. A common part, fitted to suit naked, cafe, classic, cruiser, adventure, mx, chopper bikes.",
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "adventure",
+    "mx",
+    "chopper"
+   ],
+   "price": 55,
+   "common": {
+    "group": "indicators",
+    "key": "chrome_long",
+    "sub": "ind_front",
+    "pieces": [
+     {
+      "file": "indicators_front/chrome_long.glb",
+      "looks": "indicators_front/chrome_long.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "ind_front",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     },
+     {
+      "file": "indicators_rear/chrome_long.glb",
+      "looks": "indicators_rear/chrome_long.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -433.2,
+       0.0,
+       71.0
+      ],
+      "node": "",
+      "sub": "ind_rear",
+      "mount_mm": [
+       81.8,
+       0.0,
+       891.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_indicators_bullet": {
+   "name": "Bullet",
+   "description": "Bullet. A common part, fitted to suit naked, cafe, classic, cruiser, adventure, mx, chopper bikes.",
+   "mass": 0.5,
+   "type": "Chrome bullets",
+   "style": "bullet",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "adventure",
+    "mx",
+    "chopper"
+   ],
+   "material": "metal",
+   "price": 55,
+   "common": {
+    "group": "indicators",
+    "key": "bullet",
+    "sub": "ind_front",
+    "pieces": [
+     {
+      "file": "indicators_front/bullet.glb",
+      "looks": "indicators_front/bullet.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "ind_front",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     },
+     {
+      "file": "indicators_rear/bullet.glb",
+      "looks": "indicators_rear/bullet.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -423.5,
+       0.0,
+       71.0
+      ],
+      "node": "",
+      "sub": "ind_rear",
+      "mount_mm": [
+       91.5,
+       0.0,
+       891.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_indicators_flush": {
+   "name": "Flush blade",
+   "description": "Flush blade. A common part, fitted to suit naked, cafe, classic, cruiser, adventure, mx, chopper bikes.",
+   "mass": 0.15,
+   "type": "LED, flush mount",
+   "style": "flush",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "adventure",
+    "mx",
+    "chopper"
+   ],
+   "price": 55,
+   "common": {
+    "group": "indicators",
+    "key": "flush",
+    "sub": "ind_front",
+    "pieces": [
+     {
+      "file": "indicators_front/flush.glb",
+      "looks": "indicators_front/flush.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "ind_front",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     },
+     {
+      "file": "indicators_rear/flush.glb",
+      "looks": "indicators_rear/flush.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -431.0,
+       0.0,
+       71.0
+      ],
+      "node": "",
+      "sub": "ind_rear",
+      "mount_mm": [
+       84.0,
+       0.0,
+       891.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "dashboard": {
+  "v2c_clocks_twin_round": {
+   "name": "Twin round clocks",
+   "description": "Twin round clocks. A common part, fitted to suit classic, cafe, cruiser, chopper bikes.",
+   "mass": 0.8,
+   "style": "twin",
+   "features": [
+    "speed",
+    "rpm",
+    "gear",
+    "trip",
+    "economy",
+    "range"
+   ],
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "aids": [
+    "abs"
+   ],
+   "aid_level": 0.75,
+   "tune_range": 0.25,
+   "limiter_add": 0,
+   "price": 160,
+   "common": {
+    "group": "clocks",
+    "key": "twin_round",
+    "sub": "clocks",
+    "pieces": [
+     {
+      "file": "clocks/twin_round.glb",
+      "looks": "clocks/twin_round.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.0,
+       0.0,
+       33.3
+      ],
+      "node": "steer",
+      "sub": "clocks",
+      "mount_mm": [
+       1138.1,
+       0.0,
+       983.4
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_clocks_single_round": {
+   "name": "Single round clock",
+   "description": "Single round clock. A common part, fitted to suit naked, classic, cafe, cruiser, chopper bikes.",
+   "mass": 0.5,
+   "style": "analog",
+   "features": [
+    "speed",
+    "gear",
+    "trip",
+    "economy",
+    "range"
+   ],
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "aids": [
+    "abs"
+   ],
+   "aid_level": 0.75,
+   "tune_range": 0.25,
+   "limiter_add": 0,
+   "price": 160,
+   "common": {
+    "group": "clocks",
+    "key": "single_round",
+    "sub": "clocks",
+    "pieces": [
+     {
+      "file": "clocks/single_round.glb",
+      "looks": "clocks/single_round.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "clocks",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_clocks_round_screen": {
+   "name": "Round screen",
+   "description": "Round screen. A common part, fitted to suit naked, classic, cafe, cruiser bikes.",
+   "mass": 0.4,
+   "style": "tft",
+   "unit": "compact",
+   "screen": "round",
+   "glass": [
+    0.092,
+    0.092
+   ],
+   "features": [
+    "speed",
+    "rpm",
+    "gear",
+    "shift_light",
+    "trip",
+    "economy",
+    "range",
+    "cruise",
+    "modes",
+    "map"
+   ],
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "classic",
+    "cafe",
+    "cruiser"
+   ],
+   "price": 160,
+   "aids": [
+    "abs",
+    "traction",
+    "anti_wheelie",
+    "lean_traction",
+    "stability"
+   ],
+   "aid_level": 0.8,
+   "tune_range": 1.0,
+   "limiter_add": 600,
+   "type": "4 inch round",
+   "common": {
+    "group": "clocks",
+    "key": "round_screen",
+    "sub": "clocks",
+    "pieces": [
+     {
+      "file": "clocks/round_screen.glb",
+      "looks": "clocks/round_screen.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "clocks",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_clocks_wide_screen": {
+   "name": "Wide screen",
+   "description": "Wide screen. A common part, fitted to suit naked, sport, adventure bikes.",
+   "mass": 0.5,
+   "style": "tft",
+   "features": [
+    "speed",
+    "rpm",
+    "gear",
+    "shift_light",
+    "trip",
+    "economy",
+    "range",
+    "cruise",
+    "modes",
+    "map"
+   ],
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "adventure"
+   ],
+   "price": 160,
+   "unit": "street",
+   "screen": "wide",
+   "glass": [
+    0.11,
+    0.066
+   ],
+   "aids": [
+    "abs",
+    "traction",
+    "anti_wheelie",
+    "lean_traction",
+    "stability"
+   ],
+   "aid_level": 0.8,
+   "tune_range": 1.0,
+   "limiter_add": 600,
+   "type": "5 inch",
+   "common": {
+    "group": "clocks",
+    "key": "wide_screen",
+    "sub": "clocks",
+    "pieces": [
+     {
+      "file": "clocks/wide_screen.glb",
+      "looks": "clocks/wide_screen.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "clocks",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_clocks_tall_screen": {
+   "name": "Tall screen",
+   "description": "Tall screen. A common part, fitted to suit naked, adventure bikes.",
+   "mass": 0.9,
+   "style": "tft",
+   "features": [
+    "speed",
+    "rpm",
+    "gear",
+    "shift_light",
+    "trip",
+    "economy",
+    "range",
+    "cruise",
+    "modes",
+    "map"
+   ],
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "adventure"
+   ],
+   "price": 160,
+   "unit": "touring",
+   "screen": "ultra",
+   "glass": [
+    0.232,
+    0.087
+   ],
+   "aids": [
+    "abs",
+    "traction",
+    "anti_wheelie",
+    "lean_traction",
+    "stability"
+   ],
+   "aid_level": 0.8,
+   "tune_range": 1.0,
+   "limiter_add": 600,
+   "type": "10 inch widescreen",
+   "common": {
+    "group": "clocks",
+    "key": "tall_screen",
+    "sub": "clocks",
+    "pieces": [
+     {
+      "file": "clocks/tall_screen.glb",
+      "looks": "clocks/tall_screen.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "clocks",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_clocks_bar_unit": {
+   "name": "Small bar unit",
+   "description": "Small bar unit. A common part, fitted to suit naked, cafe, chopper, mx bikes.",
+   "mass": 0.4,
+   "style": "lcd",
+   "features": [
+    "speed",
+    "rpm",
+    "gear",
+    "trip",
+    "economy",
+    "range"
+   ],
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "chopper",
+    "mx"
+   ],
+   "aids": [
+    "abs"
+   ],
+   "aid_level": 0.75,
+   "tune_range": 0.25,
+   "limiter_add": 0,
+   "price": 160,
+   "common": {
+    "group": "clocks",
+    "key": "bar_unit",
+    "sub": "clocks",
+    "pieces": [
+     {
+      "file": "clocks/bar_unit.glb",
+      "looks": "clocks/bar_unit.json",
+      "anchor": "steer_top",
+      "offset_mm": [
+       20.3,
+       0.0,
+       33.1
+      ],
+      "node": "steer",
+      "sub": "clocks",
+      "mount_mm": [
+       1164.0,
+       0.0,
+       976.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "silencers": {
+  "v2c_silencer_reverse_cone": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Reverse cone",
+   "description": "Reverse cone. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "reverse_cone",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/reverse_cone.glb",
+      "looks": "silencer/reverse_cone.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -163.4,
+       0.0,
+       302.1
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       356.6,
+       0.0,
+       722.1
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_peashooter": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Peashooter",
+   "description": "Peashooter. A common part, fitted to suit cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "peashooter",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/peashooter.glb",
+      "looks": "silencer/peashooter.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -27.3,
+       -217.7,
+       -100.3
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       512.7,
+       -217.7,
+       319.7
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_shaker": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Cocktail shaker",
+   "description": "Cocktail shaker. A common part, fitted to suit naked, cafe, classic bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "shaker",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/shaker.glb",
+      "looks": "silencer/shaker.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -163.4,
+       0.0,
+       302.1
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       356.6,
+       0.0,
+       722.1
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_round_ti": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Round titanium",
+   "description": "Round titanium. A common part, fitted to suit naked, sport, adventure, mx bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "adventure",
+    "mx"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "round_ti",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/round_ti.glb",
+      "looks": "silencer/round_ti.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -163.4,
+       0.0,
+       302.1
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       356.6,
+       0.0,
+       722.1
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_oval_carbon": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Oval carbon",
+   "description": "Oval carbon. A common part, fitted to suit naked, sport, adventure, mx bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "adventure",
+    "mx"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "oval_carbon",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/oval_carbon.glb",
+      "looks": "silencer/oval_carbon.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -163.4,
+       0.0,
+       302.1
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       356.6,
+       0.0,
+       722.1
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_hex": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Hexagon",
+   "description": "Hexagon. A common part, fitted to suit naked, sport, adventure bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "adventure"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "hex",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/hex.glb",
+      "looks": "silencer/hex.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -163.4,
+       0.0,
+       302.1
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       356.6,
+       0.0,
+       722.1
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_short_cone": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Short cone",
+   "description": "Short cone. A common part, fitted to suit naked, sport bikes.",
+   "styles": [
+    "naked",
+    "sport"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "short_cone",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/short_cone.glb",
+      "looks": "silencer/short_cone.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -163.4,
+       0.0,
+       302.1
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       356.6,
+       0.0,
+       722.1
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  },
+  "v2c_silencer_slash_cut": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Slash cut",
+   "description": "Slash cut. A common part, fitted to suit cruiser, chopper bikes.",
+   "styles": [
+    "cruiser",
+    "chopper"
+   ],
+   "price": 320,
+   "common": {
+    "group": "silencer",
+    "key": "slash_cut",
+    "sub": "silencer",
+    "pieces": [
+     {
+      "file": "silencer/slash_cut.glb",
+      "looks": "silencer/slash_cut.json",
+      "anchor": "swing_pivot",
+      "offset_mm": [
+       -17.1,
+       -217.8,
+       -97.2
+      ],
+      "node": "",
+      "sub": "silencer",
+      "mount_mm": [
+       482.9,
+       -217.8,
+       302.8
+      ]
+     }
+    ],
+    "finishes": []
+   },
+   "material": "metal"
+  }
+ },
+ "rearsets": {
+  "v2c_pegs_knurled": {
+   "name": "Knurled billet",
+   "description": "Knurled billet. A common part, fitted to suit naked, sport, cafe, adventure bikes.",
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure"
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "price": 110,
+   "common": {
+    "group": "pegs",
+    "key": "knurled",
+    "sub": "pegs",
+    "pieces": [
+     {
+      "file": "pegs/knurled.glb",
+      "looks": "pegs/knurled.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "pegs",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_pegs_rubber": {
+   "name": "Rubber topped",
+   "description": "Rubber topped. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "material": "metal",
+   "price": 110,
+   "common": {
+    "group": "pegs",
+    "key": "rubber",
+    "sub": "pegs",
+    "pieces": [
+     {
+      "file": "pegs/rubber.glb",
+      "looks": "pegs/rubber.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "pegs",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_pegs_cleat": {
+   "name": "Wide cleat",
+   "description": "Wide cleat. A common part, fitted to suit adventure, mx bikes.",
+   "mass": 1.8,
+   "type": "Wide cleated steel",
+   "style": "cleat",
+   "color": [
+    0.55,
+    0.56,
+    0.58
+   ],
+   "styles": [
+    "adventure",
+    "mx"
+   ],
+   "material": "metal",
+   "price": 110,
+   "common": {
+    "group": "pegs",
+    "key": "cleat",
+    "sub": "pegs",
+    "pieces": [
+     {
+      "file": "pegs/cleat.glb",
+      "looks": "pegs/cleat.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "pegs",
+      "mount_mm": [
+       590,
+       0.0,
+       405
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_pegs_race": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Race peg",
+   "description": "Race peg. A common part, fitted to suit sport, naked, cafe bikes.",
+   "crouched": true,
+   "color": [
+    0.74,
+    0.75,
+    0.77
+   ],
+   "styles": [
+    "sport",
+    "naked",
+    "cafe"
+   ],
+   "pack": "race",
+   "price": 110,
+   "common": {
+    "group": "pegs",
+    "key": "race",
+    "sub": "pegs",
+    "pieces": [
+     {
+      "file": "pegs/race.glb",
+      "looks": "pegs/race.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "pegs",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_pegs_board": {
+   "name": "Floorboard",
+   "description": "Floorboard. A common part, fitted to suit cruiser, chopper bikes.",
+   "mass": 3.2,
+   "type": "Footboards",
+   "style": "boards",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "cruiser",
+    "chopper"
+   ],
+   "peg": [
+    0.04,
+    -0.3
+   ],
+   "material": "metal",
+   "price": 110,
+   "common": {
+    "group": "pegs",
+    "key": "board",
+    "sub": "pegs",
+    "pieces": [
+     {
+      "file": "pegs/board.glb",
+      "looks": "pegs/board.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "pegs",
+      "mount_mm": [
+       1102,
+       0.0,
+       340
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_pegs_bullet": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "peg": [
+    0.1,
+    -0.56
+   ],
+   "material": "metal",
+   "name": "Chrome bullet",
+   "description": "Chrome bullet. A common part, fitted to suit classic, cruiser, chopper bikes.",
+   "color": [
+    0.86,
+    0.87,
+    0.89
+   ],
+   "styles": [
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 110,
+   "common": {
+    "group": "pegs",
+    "key": "bullet",
+    "sub": "pegs",
+    "pieces": [
+     {
+      "file": "pegs/bullet.glb",
+      "looks": "pegs/bullet.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "pegs",
+      "mount_mm": [
+       600,
+       0.0,
+       360
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "heel_plates": {
+  "v2c_heel_plates_lightened": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Lightened",
+   "description": "Lightened. A common part, fitted to suit naked, sport, cafe, classic, adventure bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure"
+   ],
+   "price": 80,
+   "common": {
+    "group": "heel_plates",
+    "key": "lightened",
+    "sub": "heel_plates",
+    "pieces": [
+     {
+      "file": "heel_plates/lightened.glb",
+      "looks": "heel_plates/lightened.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "heel_plates",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_heel_plates_guard": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Black guard",
+   "description": "Black guard. A common part, fitted to suit naked, sport, cafe, classic, adventure bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure"
+   ],
+   "price": 80,
+   "common": {
+    "group": "heel_plates",
+    "key": "guard",
+    "sub": "heel_plates",
+    "pieces": [
+     {
+      "file": "heel_plates/guard.glb",
+      "looks": "heel_plates/guard.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "heel_plates",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_heel_plates_carbon": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Carbon",
+   "description": "Carbon. A common part, fitted to suit naked, sport, cafe, adventure bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure"
+   ],
+   "price": 80,
+   "common": {
+    "group": "heel_plates",
+    "key": "carbon",
+    "sub": "heel_plates",
+    "pieces": [
+     {
+      "file": "heel_plates/carbon.glb",
+      "looks": "heel_plates/carbon.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "heel_plates",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "foot_controls": {
+  "v2c_foot_controls_billet": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Billet folding tip",
+   "description": "Billet folding tip. A common part, fitted to suit naked, sport, cafe, classic, adventure bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure"
+   ],
+   "price": 120,
+   "common": {
+    "group": "foot_controls",
+    "key": "billet",
+    "sub": "foot_controls",
+    "pieces": [
+     {
+      "file": "foot_controls/billet.glb",
+      "looks": "foot_controls/billet.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "foot_controls",
+      "mount_mm": [
+       590,
+       0.0,
+       355
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_foot_controls_heeltoe": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Heel and toe",
+   "description": "Heel and toe. A common part, fitted to suit cruiser, chopper bikes.",
+   "styles": [
+    "cruiser",
+    "chopper"
+   ],
+   "price": 120,
+   "common": {
+    "group": "foot_controls",
+    "key": "heeltoe",
+    "sub": "foot_controls",
+    "pieces": [
+     {
+      "file": "foot_controls/heeltoe.glb",
+      "looks": "foot_controls/heeltoe.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "foot_controls",
+      "mount_mm": [
+       1102,
+       0.0,
+       340
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_foot_controls_forged": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Forged steel",
+   "description": "Forged steel. A common part, fitted to suit mx, adventure bikes.",
+   "styles": [
+    "mx",
+    "adventure"
+   ],
+   "price": 120,
+   "common": {
+    "group": "foot_controls",
+    "key": "forged",
+    "sub": "foot_controls",
+    "pieces": [
+     {
+      "file": "foot_controls/forged.glb",
+      "looks": "foot_controls/forged.json",
+      "anchor": "peg",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "foot_controls",
+      "mount_mm": [
+       590,
+       0.0,
+       405
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "disc": {
+  "v2c_disc_wave": {
+   "name": "Wave rotor, black spokes",
+   "description": "Wave rotor, black spokes. A common part, fitted to suit naked, sport, cafe, adventure, mx bikes.",
+   "mass": 0.9,
+   "type": "Wave, drilled",
+   "diameter": 270,
+   "style": "wave",
+   "color": [
+    0.7,
+    0.71,
+    0.73
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure",
+    "mx"
+   ],
+   "price": 210,
+   "common": {
+    "group": "disc",
+    "key": "wave",
+    "sub": "disc_front",
+    "pieces": [
+     {
+      "file": "disc_front/wave.glb",
+      "looks": "disc_front/wave.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "front_wheel",
+      "sub": "disc_front",
+      "mount_mm": [
+       1465,
+       0.0,
+       300
+      ]
+     },
+     {
+      "file": "disc_rear/wave.glb",
+      "looks": "disc_rear/wave.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "disc_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_disc_lattice": {
+   "name": "Gold lattice floater",
+   "description": "Gold lattice floater. A common part, fitted to suit naked, sport, cafe, classic, adventure, cruiser, chopper bikes.",
+   "mass": 1.2,
+   "type": "Floating, drilled",
+   "diameter": 300,
+   "style": "floating",
+   "color": [
+    0.7,
+    0.71,
+    0.73
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 210,
+   "common": {
+    "group": "disc",
+    "key": "lattice",
+    "sub": "disc_front",
+    "pieces": [
+     {
+      "file": "disc_front/lattice.glb",
+      "looks": "disc_front/lattice.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "front_wheel",
+      "sub": "disc_front",
+      "mount_mm": [
+       1465,
+       0.0,
+       300
+      ]
+     },
+     {
+      "file": "disc_rear/lattice.glb",
+      "looks": "disc_rear/lattice.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "disc_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_disc_onepiece": {
+   "name": "One-piece teardrop",
+   "description": "One-piece teardrop. A common part, fitted to suit naked, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "mass": 1.2,
+   "type": "Floating, drilled",
+   "diameter": 300,
+   "style": "floating",
+   "color": [
+    0.7,
+    0.71,
+    0.73
+   ],
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 210,
+   "common": {
+    "group": "disc",
+    "key": "onepiece",
+    "sub": "disc_front",
+    "pieces": [
+     {
+      "file": "disc_front/onepiece.glb",
+      "looks": "disc_front/onepiece.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "front_wheel",
+      "sub": "disc_front",
+      "mount_mm": [
+       1465,
+       0.0,
+       300
+      ]
+     },
+     {
+      "file": "disc_rear/onepiece.glb",
+      "looks": "disc_rear/onepiece.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "disc_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_disc_star": {
+   "name": "Star drive",
+   "description": "Star drive. A common part, fitted to suit naked, sport, cafe, adventure bikes.",
+   "mass": 1.2,
+   "type": "Floating, drilled",
+   "diameter": 300,
+   "style": "floating",
+   "color": [
+    0.7,
+    0.71,
+    0.73
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure"
+   ],
+   "price": 210,
+   "common": {
+    "group": "disc",
+    "key": "star",
+    "sub": "disc_front",
+    "pieces": [
+     {
+      "file": "disc_front/star.glb",
+      "looks": "disc_front/star.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "front_wheel",
+      "sub": "disc_front",
+      "mount_mm": [
+       1465,
+       0.0,
+       300
+      ]
+     },
+     {
+      "file": "disc_rear/star.glb",
+      "looks": "disc_rear/star.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "disc_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "caliper": {
+  "v2c_caliper_lobed": {
+   "name": "Lobed radial",
+   "description": "Lobed radial. A common part, fitted to suit naked, sport, cafe, adventure bikes.",
+   "mass": 0.95,
+   "pistons": 4,
+   "force": 1.02,
+   "type": "Radial",
+   "color": [
+    0.8,
+    0.62,
+    0.18
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure"
+   ],
+   "price": 260,
+   "common": {
+    "group": "caliper",
+    "key": "lobed",
+    "sub": "caliper_front",
+    "pieces": [
+     {
+      "file": "caliper_front/lobed.glb",
+      "looks": "caliper_front/lobed.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "steer",
+      "sub": "caliper_front",
+      "mount_mm": [
+       1465,
+       0.0,
+       300
+      ]
+     },
+     {
+      "file": "caliper_rear/lobed.glb",
+      "looks": "caliper_rear/lobed.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "swingarm",
+      "sub": "caliper_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  },
+  "v2c_caliper_monobloc": {
+   "name": "Flat monobloc",
+   "description": "Flat monobloc. A common part, fitted to suit naked, sport, cafe, adventure, mx bikes.",
+   "mass": 0.95,
+   "pistons": 4,
+   "force": 1.02,
+   "type": "Radial",
+   "color": [
+    0.8,
+    0.62,
+    0.18
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure",
+    "mx"
+   ],
+   "price": 260,
+   "common": {
+    "group": "caliper",
+    "key": "monobloc",
+    "sub": "caliper_front",
+    "pieces": [
+     {
+      "file": "caliper_front/monobloc.glb",
+      "looks": "caliper_front/monobloc.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "steer",
+      "sub": "caliper_front",
+      "mount_mm": [
+       1465,
+       0.0,
+       300
+      ]
+     },
+     {
+      "file": "caliper_rear/monobloc.glb",
+      "looks": "caliper_rear/monobloc.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "swingarm",
+      "sub": "caliper_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  },
+  "v2c_caliper_twopiece": {
+   "name": "Gold two-piece",
+   "description": "Gold two-piece. A common part, fitted to suit classic, cafe, cruiser, chopper bikes.",
+   "mass": 1.0,
+   "pistons": 4,
+   "force": 0.92,
+   "type": "Axial",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 260,
+   "common": {
+    "group": "caliper",
+    "key": "twopiece",
+    "sub": "caliper_front",
+    "pieces": [
+     {
+      "file": "caliper_front/twopiece.glb",
+      "looks": "caliper_front/twopiece.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "steer",
+      "sub": "caliper_front",
+      "mount_mm": [
+       1445,
+       0.0,
+       310
+      ]
+     },
+     {
+      "file": "caliper_rear/twopiece.glb",
+      "looks": "caliper_rear/twopiece.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "swingarm",
+      "sub": "caliper_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  },
+  "v2c_caliper_compact": {
+   "name": "Compact twin-pot",
+   "description": "Compact twin-pot. A common part, fitted to suit mx, classic, adventure, cruiser, chopper bikes.",
+   "mass": 0.9,
+   "pistons": 2,
+   "force": 0.78,
+   "type": "Sliding",
+   "color": [
+    0.6,
+    0.61,
+    0.63
+   ],
+   "styles": [
+    "mx",
+    "classic",
+    "adventure",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 260,
+   "common": {
+    "group": "caliper",
+    "key": "compact",
+    "sub": "caliper_front",
+    "pieces": [
+     {
+      "file": "caliper_front/compact.glb",
+      "looks": "caliper_front/compact.json",
+      "anchor": "front_axle",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "steer",
+      "sub": "caliper_front",
+      "mount_mm": [
+       1445,
+       0.0,
+       328
+      ]
+     },
+     {
+      "file": "caliper_rear/compact.glb",
+      "looks": "caliper_rear/compact.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "swingarm",
+      "sub": "caliper_rear",
+      "mount_mm": [
+       0.0,
+       0.0,
+       322.0
+      ]
+     }
+    ],
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  }
+ },
+ "sprocket": {
+  "v2c_sprocket_steel": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Steel",
+   "description": "Steel. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 70,
+   "common": {
+    "group": "sprocket",
+    "key": "steel",
+    "sub": "sprocket",
+    "pieces": [
+     {
+      "file": "sprocket/steel.glb",
+      "looks": "sprocket/steel.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "sprocket",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_sprocket_alu": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Alloy spoke",
+   "description": "Alloy spoke. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 70,
+   "common": {
+    "group": "sprocket",
+    "key": "alu",
+    "sub": "sprocket",
+    "pieces": [
+     {
+      "file": "sprocket/alu.glb",
+      "looks": "sprocket/alu.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "sprocket",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  },
+  "v2c_sprocket_twotone": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Two-tone",
+   "description": "Two-tone. A common part, fitted to suit naked, sport, cafe, classic, adventure, mx, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 70,
+   "common": {
+    "group": "sprocket",
+    "key": "twotone",
+    "sub": "sprocket",
+    "pieces": [
+     {
+      "file": "sprocket/twotone.glb",
+      "looks": "sprocket/twotone.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "rear_wheel",
+      "sub": "sprocket",
+      "mount_mm": [
+       0.0,
+       0.0,
+       316.0
+      ]
+     }
+    ],
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  }
+ },
+ "shock": {
+  "v2c_shock_piggyback": {
+   "name": "Piggyback",
+   "description": "Piggyback. A common part, fitted to suit naked, sport, cafe, adventure, mx, classic bikes.",
+   "mass": 4.2,
+   "type": "Mono-shock",
+   "travel": 0.13,
+   "spring": 38000.0,
+   "bump": 2900.0,
+   "rebound": 4100.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "layout": "mono",
+   "color": [
+    0.85,
+    0.12,
+    0.1
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure",
+    "mx",
+    "classic"
+   ],
+   "price": 420,
+   "common": {
+    "group": "shock",
+    "key": "piggyback",
+    "sub": "shock",
+    "pieces": [
+     {
+      "file": "shock/piggyback.glb",
+      "looks": "shock/piggyback.json",
+      "anchor": "shock_top",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "shock",
+      "mount_mm": [
+       610,
+       0.0,
+       700
+      ]
+     }
+    ],
+    "finishes": [
+     "red",
+     "yellow",
+     "black",
+     "chrome",
+     "blue",
+     "gold"
+    ]
+   }
+  },
+  "v2c_shock_coilover": {
+   "name": "Polished coil-over",
+   "description": "Polished coil-over. A common part, fitted to suit naked, sport, cafe, classic, adventure, cruiser bikes.",
+   "mass": 4.5,
+   "type": "Twin shock, gas",
+   "travel": 0.12,
+   "spring": 34000.0,
+   "bump": 2700.0,
+   "rebound": 3900.0,
+   "adjust": 3,
+   "adjust_name": "2-way (preload, rebound)",
+   "layout": "twin",
+   "color": [
+    0.85,
+    0.15,
+    0.1
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "cruiser"
+   ],
+   "price": 420,
+   "common": {
+    "group": "shock",
+    "key": "coilover",
+    "sub": "shock",
+    "pieces": [
+     {
+      "file": "shock/coilover.glb",
+      "looks": "shock/coilover.json",
+      "anchor": "shock_top",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "shock",
+      "mount_mm": [
+       610,
+       0.0,
+       700
+      ]
+     }
+    ],
+    "finishes": [
+     "red",
+     "yellow",
+     "black",
+     "chrome",
+     "blue",
+     "gold"
+    ]
+   }
+  },
+  "v2c_shock_shroud": {
+   "name": "Chrome shroud",
+   "description": "Chrome shroud. A common part, fitted to suit classic, cafe, cruiser bikes.",
+   "mass": 4.0,
+   "type": "Twin shock",
+   "travel": 0.11,
+   "spring": 36000.0,
+   "bump": 2300.0,
+   "rebound": 3500.0,
+   "adjust": 1,
+   "adjust_name": "Preload",
+   "layout": "twin",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser"
+   ],
+   "price": 420,
+   "common": {
+    "group": "shock",
+    "key": "shroud",
+    "sub": "shock",
+    "pieces": [
+     {
+      "file": "shock/shroud.glb",
+      "looks": "shock/shroud.json",
+      "anchor": "shock_top",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "shock",
+      "mount_mm": [
+       300,
+       0.0,
+       762
+      ]
+     }
+    ],
+    "finishes": [
+     "red",
+     "yellow",
+     "black",
+     "chrome",
+     "blue",
+     "gold"
+    ]
+   }
+  },
+  "v2c_shock_air": {
+   "name": "Air ride",
+   "description": "Air ride. A common part, fitted to suit cruiser, classic bikes.",
+   "mass": 4.8,
+   "type": "Mono-shock",
+   "travel": 0.28,
+   "spring": 17500.0,
+   "bump": 1700.0,
+   "rebound": 2500.0,
+   "adjust": 2,
+   "adjust_name": "Preload and rebound",
+   "layout": "mono",
+   "color": [
+    0.15,
+    0.35,
+    0.8
+   ],
+   "styles": [
+    "cruiser",
+    "classic"
+   ],
+   "price": 420,
+   "common": {
+    "group": "shock",
+    "key": "air",
+    "sub": "shock",
+    "pieces": [
+     {
+      "file": "shock/air.glb",
+      "looks": "shock/air.json",
+      "anchor": "shock_top",
+      "offset_mm": [
+       0,
+       0.0,
+       0
+      ],
+      "node": "",
+      "sub": "shock",
+      "mount_mm": [
+       285,
+       0.0,
+       744
+      ]
+     }
+    ],
+    "finishes": [
+     "red",
+     "yellow",
+     "black",
+     "chrome",
+     "blue",
+     "gold"
+    ]
+   }
+  }
+ },
+ "filler_cap": {
+  "v2c_filler_cap_aero": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Aero flush",
+   "description": "Aero flush. A common part, fitted to suit naked, sport, cafe, adventure, mx bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure",
+    "mx"
+   ],
+   "price": 75,
+   "common": {
+    "group": "filler_cap",
+    "key": "aero",
+    "sub": "filler_cap",
+    "pieces": [
+     {
+      "file": "filler_cap/aero.glb",
+      "looks": "filler_cap/aero.json",
+      "anchor": "tank_cap",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "filler_cap",
+      "mount_mm": [
+       935.0,
+       0.0,
+       1060.0
+      ],
+      "fallback": {
+       "anchor": "hip",
+       "offset_mm": [
+        420.0,
+        0.0,
+        240.0
+       ]
+      }
+     }
+    ],
+    "finishes": [
+     "silver",
+     "black",
+     "gold",
+     "red",
+     "blue"
+    ]
+   }
+  },
+  "v2c_filler_cap_monza": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Flip-up",
+   "description": "Flip-up. A common part, fitted to suit cafe, classic, naked, cruiser, chopper bikes.",
+   "styles": [
+    "cafe",
+    "classic",
+    "naked",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 75,
+   "common": {
+    "group": "filler_cap",
+    "key": "monza",
+    "sub": "filler_cap",
+    "pieces": [
+     {
+      "file": "filler_cap/monza.glb",
+      "looks": "filler_cap/monza.json",
+      "anchor": "tank_cap",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "filler_cap",
+      "mount_mm": [
+       935.0,
+       0.0,
+       1060.0
+      ],
+      "fallback": {
+       "anchor": "hip",
+       "offset_mm": [
+        420.0,
+        0.0,
+        240.0
+       ]
+      }
+     }
+    ],
+    "finishes": [
+     "silver",
+     "black",
+     "gold",
+     "red",
+     "blue"
+    ]
+   }
+  },
+  "v2c_filler_cap_screw": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Knurled screw",
+   "description": "Knurled screw. A common part, fitted to suit classic, cruiser, chopper, cafe bikes.",
+   "styles": [
+    "classic",
+    "cruiser",
+    "chopper",
+    "cafe"
+   ],
+   "price": 75,
+   "common": {
+    "group": "filler_cap",
+    "key": "screw",
+    "sub": "filler_cap",
+    "pieces": [
+     {
+      "file": "filler_cap/screw.glb",
+      "looks": "filler_cap/screw.json",
+      "anchor": "tank_cap",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "filler_cap",
+      "mount_mm": [
+       909.8,
+       0.0,
+       1024.0
+      ],
+      "fallback": {
+       "anchor": "hip",
+       "offset_mm": [
+        429.8,
+        0.0,
+        212.0
+       ]
+      }
+     }
+    ],
+    "finishes": [
+     "silver",
+     "black",
+     "gold",
+     "red",
+     "blue"
+    ]
+   }
+  },
+  "v2c_filler_cap_billet": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Billet",
+   "description": "Billet. A common part, fitted to suit naked, sport, cafe, adventure, chopper bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure",
+    "chopper"
+   ],
+   "price": 75,
+   "common": {
+    "group": "filler_cap",
+    "key": "billet",
+    "sub": "filler_cap",
+    "pieces": [
+     {
+      "file": "filler_cap/billet.glb",
+      "looks": "filler_cap/billet.json",
+      "anchor": "tank_cap",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "filler_cap",
+      "mount_mm": [
+       935.0,
+       0.0,
+       1060.0
+      ],
+      "fallback": {
+       "anchor": "hip",
+       "offset_mm": [
+        420.0,
+        0.0,
+        240.0
+       ]
+      }
+     }
+    ],
+    "finishes": [
+     "silver",
+     "black",
+     "gold",
+     "red",
+     "blue"
+    ]
+   }
+  }
+ },
+ "plate_hanger": {
+  "v2c_plate_hanger_tidy": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Tail tidy",
+   "description": "Tail tidy. A common part, fitted to suit naked, sport, cafe, adventure bikes.",
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "adventure"
+   ],
+   "price": 95,
+   "common": {
+    "group": "plate_hanger",
+    "key": "tidy",
+    "sub": "plate_hanger",
+    "pieces": [
+     {
+      "file": "plate_hanger/tidy.glb",
+      "looks": "plate_hanger/tidy.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -450.0,
+       0.0,
+       -32.3
+      ],
+      "node": "",
+      "sub": "plate_hanger",
+      "mount_mm": [
+       65.0,
+       0.0,
+       787.7
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_plate_hanger_side": {
+   "mass": 0.3,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Side mount",
+   "description": "Side mount. A common part, fitted to suit naked, cafe, classic, cruiser, chopper bikes.",
+   "styles": [
+    "naked",
+    "cafe",
+    "classic",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 95,
+   "common": {
+    "group": "plate_hanger",
+    "key": "side",
+    "sub": "plate_hanger",
+    "pieces": [
+     {
+      "file": "plate_hanger/side.glb",
+      "looks": "plate_hanger/side.json",
+      "anchor": "hip",
+      "offset_mm": [
+       -590.0,
+       215.0,
+       -426.0
+      ],
+      "node": "",
+      "sub": "plate_hanger",
+      "mount_mm": [
+       -75.0,
+       215.0,
+       394.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "fog_lights": {
+  "v2c_fog_lights_chrome_spot": {
+   "name": "Chrome spot lamps",
+   "description": "Chrome spot lamps. A common part, fitted to suit classic, cafe, cruiser, chopper bikes.",
+   "mass": 1.1,
+   "type": "Halogen, pair",
+   "style": "round",
+   "lumens": 900,
+   "beam": [
+    1.0,
+    0.92,
+    0.78
+   ],
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "chrome_spot",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/chrome_spot.glb",
+      "looks": "fog_lights/chrome_spot.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       -0.0,
+       0.0,
+       0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1188.6,
+       0.0,
+       795.4
+      ],
+      "fork_dir": [
+       -0.41469,
+       0.0,
+       0.90996
+      ],
+      "clamp_mm": [
+       65.6,
+       105.0,
+       -66.8
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_amber_round": {
+   "name": "Amber fog lamps",
+   "description": "Amber fog lamps. A common part, fitted to suit classic, cafe, cruiser, chopper bikes.",
+   "mass": 1.0,
+   "type": "Halogen, amber",
+   "style": "round",
+   "lumens": 700,
+   "beam": [
+    1.0,
+    0.75,
+    0.3
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "amber_round",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/amber_round.glb",
+      "looks": "fog_lights/amber_round.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       -0.0,
+       0.0,
+       0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1188.6,
+       0.0,
+       795.4
+      ],
+      "fork_dir": [
+       -0.41469,
+       0.0,
+       0.90996
+      ],
+      "clamp_mm": [
+       65.6,
+       105.0,
+       -66.8
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_rally": {
+   "name": "Rally lamps",
+   "description": "Rally lamps. A common part, fitted to suit naked, adventure, classic bikes.",
+   "mass": 1.8,
+   "type": "Halogen, rally",
+   "style": "rally",
+   "lumens": 2000,
+   "beam": [
+    1.0,
+    0.9,
+    0.75
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "adventure",
+    "classic"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "rally",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/rally.glb",
+      "looks": "fog_lights/rally.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       0.0,
+       0.0,
+       -0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1212.9,
+       0.0,
+       787.6
+      ],
+      "fork_dir": [
+       -0.40674,
+       0.0,
+       0.91355
+      ],
+      "clamp_mm": [
+       65.0,
+       105.0,
+       -67.4
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_led_cube": {
+   "name": "LED cube pods",
+   "description": "LED cube pods. A common part, fitted to suit naked, adventure, mx bikes.",
+   "mass": 0.6,
+   "type": "LED, pair",
+   "style": "cube",
+   "lumens": 2400,
+   "beam": [
+    0.93,
+    0.97,
+    1.0
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "lightweight": true,
+   "styles": [
+    "naked",
+    "adventure",
+    "mx"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "led_cube",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/led_cube.glb",
+      "looks": "fog_lights/led_cube.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       0.0,
+       0.0,
+       -0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1212.9,
+       0.0,
+       787.6
+      ],
+      "fork_dir": [
+       -0.40674,
+       0.0,
+       0.91355
+      ],
+      "clamp_mm": [
+       65.0,
+       105.0,
+       -67.4
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_slim_bar": {
+   "name": "Slim LED bars",
+   "description": "Slim LED bars. A common part, fitted to suit naked, adventure, mx bikes.",
+   "mass": 1.3,
+   "type": "LED bar",
+   "style": "bar",
+   "lumens": 3500,
+   "beam": [
+    0.93,
+    0.97,
+    1.0
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "adventure",
+    "mx"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "slim_bar",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/slim_bar.glb",
+      "looks": "fog_lights/slim_bar.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       0.0,
+       0.0,
+       -0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1212.9,
+       0.0,
+       787.6
+      ],
+      "fork_dir": [
+       -0.40674,
+       0.0,
+       0.91355
+      ],
+      "clamp_mm": [
+       65.0,
+       105.0,
+       -67.4
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "side_stand": {
+  "v2c_side_stand_v2": {
+   "name": "Side stand",
+   "description": "The bike's own side stand: pressed or forged steel, sized so it holds the bike at its lean.",
+   "mass": 1.2,
+   "type": "Stamped steel",
+   "length": 0.3,
+   "lean": 12.0,
+   "auto_retract": false,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "styles": [
+    "naked",
+    "sport",
+    "cafe",
+    "classic",
+    "adventure",
+    "mx",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 60,
+   "common": {
+    "group": "side_stand",
+    "key": "v2",
+    "sub": "side_stand",
+    "pieces": []
+   }
+  }
+ }
+}

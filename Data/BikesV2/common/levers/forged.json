@@ -1,0 +1,71 @@
+{
+ "group": "levers",
+ "key": "forged",
+ "name": "Forged set",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  93.7,
+  774.4,
+  71.0
+ ],
+ "triangles": 6452,
+ "surfaces": {
+  "d3_ctl_forged": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.6,
+   "roughness": 0.55,
+   "tag": "d3_ctl_forged"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "d3_ctl_smoke": {
+   "ue": "cat_plastic",
+   "color": [
+    0.35,
+    0.3,
+    0.25
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0,
+   "tag": "d3_ctl_smoke"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

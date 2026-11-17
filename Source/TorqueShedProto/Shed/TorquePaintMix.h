@@ -145,8 +145,25 @@ FName FinishOf(const FPaintSpec& S);
 // Masking tape (paint_mix.gd PATTERNS, TAPE_PATTERNS): what a strip of tape on a painted part
 // keeps of the colour under it when the next colour's sprayed over. 1 a centre stripe (6 cm), 2
 // twin stripes, 3 a pinstripe round it, 4 two-tone (the top half). 0: none.
-constexpr int32 TapePatterns = 4;
+// 5 .. 10 a FADE (beenster, 17 Nov 2026): a loose paper mask held off the part, so the colour under it
+// blends into the one sprayed over, its finish too (matt black to gloss gold): 5 .. 7 front to back
+// (the colour under kept at the front), 8 .. 10 top to bottom (kept on top), each short, medium or
+// long (FadeCm). R on the tape steps through all ten, so the player picks direction and softness.
+constexpr int32 TapePatterns = 10;
+constexpr int32 FirstFade = 5;
 const TCHAR* PatternName(int32 Pattern);
+inline bool IsFade(int32 Pattern) { return Pattern >= FirstFade && Pattern <= TapePatterns; }
+// The fade's direction (true: front to back; false: top to bottom) and how long the blend is (cm).
+inline bool FadeAlong(int32 Pattern) { return Pattern < FirstFade + 3; }
+inline float FadeCm(int32 Pattern)
+{
+	if (!IsFade(Pattern)) return 0.0f;
+	const int32 Soft = (Pattern - FirstFade) % 3;
+	return Soft == 0 ? 8.0f : (Soft == 1 ? 20.0f : 40.0f);
+}
+// How much of the colour under the mask is kept at a point (cm, in the part's frame from its middle:
+// x forward, z up), 0 .. 1, for the fades (the material's MASK_HLSL does the same).
+float FadeKeep(int32 Pattern, float X, float Z);
 // The tape that shows on paint Under: blue, or cream on a part too near the blue for that to show.
 FLinearColor TapeColourOn(const FLinearColor& Under);
 

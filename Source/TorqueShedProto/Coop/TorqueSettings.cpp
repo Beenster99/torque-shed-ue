@@ -74,6 +74,22 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("Performance"), bPerformance, Ini);
 	GConfig->GetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
 	GConfig->GetBool(Section, TEXT("Reflex"), bReflex, Ini);
+	// [build 155] Once, for settings saved before it: frame generation and VSync off (beenster, Nov 17:
+	// "the game might work better without frame gen"; VSync off for their 120 Hz screen). Both stay in
+	// Settings > Graphics, and what is chosen after this is kept.
+	{
+		int32 Seen = 0;
+		GConfig->GetInt(Section, TEXT("DefaultsSeen"), Seen, Ini);
+		if (Seen < 155)
+		{
+			bFrameGen = false;
+			bVSync = false;
+			GConfig->SetInt(Section, TEXT("DefaultsSeen"), 155, Ini);
+			GConfig->SetBool(Section, TEXT("FrameGen"), false, Ini);
+			GConfig->SetBool(Section, TEXT("VSync"), false, Ini);
+			GConfig->Flush(false, Ini);
+		}
+	}
 	GConfig->GetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
@@ -128,6 +144,7 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("DayNight"), bDayNight, Ini);
 	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
+	GConfig->GetInt(Section, TEXT("RideDate"), RideDate, Ini);
 	GConfig->GetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->GetString(Section, TEXT("WeatherPreset"), WeatherPresetKey, Ini);
@@ -197,6 +214,7 @@ void FTorqueSettings::Load()
 	ScreenBright = FMath::Clamp(ScreenBright, 0, 3);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
 	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
+	RideDate = FMath::Clamp(RideDate, 0, 365);
 	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherPreset);
 	FSonyPad::SetCentre(PadCentre);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
@@ -270,6 +288,7 @@ void FTorqueSettings::Save()
 	GConfig->SetBool(Section, TEXT("DayNight"), bDayNight, Ini);
 	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
+	GConfig->SetInt(Section, TEXT("RideDate"), RideDate, Ini);
 	GConfig->SetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->SetString(Section, TEXT("WeatherPreset"), *WeatherPresetKey, Ini);
@@ -449,6 +468,8 @@ void FTorqueSettings::Apply(UWorld* World) const
 		static const TCHAR* Steps[5] = {TEXT("128"), TEXT("256"), TEXT("512"), TEXT("768"), TEXT("1024")};
 		SetCVarDefault(TEXT("r.VolumetricCloud.ViewRaySampleMaxCount"), Clouds > 0, Steps[FMath::Clamp(Clouds, 0, 4)]);
 	}
+	if (const IConsoleVariable* CloudVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud")))
+		UE_LOG(LogTemp, Display, TEXT("Torque graphics: clouds row %d (-1 preset, 0 off), r.VolumetricCloud %d"), Clouds, CloudVar->GetInt());
 	// Texture filtering: the preset's, or 1x (bilinear) to 16x anisotropic.
 	if (Anisotropy >= 0) SetCVar(TEXT("r.MaxAnisotropy"), 1 << FMath::Clamp(Anisotropy, 0, 4), ECVF_SetByScalability);
 	// The camera effects, each on as the level has it or off.
