@@ -109,7 +109,7 @@ def coil(name, a, d, n1, n2, t0, t1, R, wire, turns, mat, prog=0.45):
     B.tube(name, pts, wire, mat)
 
 
-def build_shock(key, tag, a, b, k, s, M, spring="red", body_f="gold"):
+def build_shock(key, tag, a, b, k, s, M, spring="red", body_f="gold", res=("rear", 26)):
     from mathutils import Vector
     L_ = (b - a).length
     d = (b - a) / L_
@@ -131,18 +131,21 @@ def build_shock(key, tag, a, b, k, s, M, spring="red", body_f="gold"):
         D.lathe(nm + "rod", at, dt, P_([(L_ * 0.55, 0), (L_ * 0.55, 7.5), (L_ - 34, 7.5), (L_ - 34, 0)]), M["chrome"], 20)
         D.lathe(nm + "seat", at, dt, P_([(L_ - 62, 0), (L_ - 62, 31), (L_ - 56, 31), (L_ - 52, 16), (L_ - 34, 14), (L_ - 14, 12.5), (L_ - 14, 0)]), body, 36)
         coil(nm + "spring", a, d, n1, n2, 71.0, L_ - 62.0, 27 * k, 4.8 * k, 9.5 if L_ > 300 else 7.5, sm)
-        # the reservoir: a canister beside the body on a short bridge from the head, outboard on twin shocks
-        # outboard on twin shocks; on a single shock, to the right of the body (the engine is in front of it)
-        side = Vector((0, s if s else -1, 0))
-        off = side * (40 * k)
-        c0 = a + d * 30 + off
-        rl = L_ * (0.38 if s else 0.26)
-        D.lathe(nm + "res", tuple(c0), dt, P_([(0, 0), (0, 15), (2, 17), (rl, 17), (rl + 2, 15), (rl + 2, 0)]), M["black"], 28)
+        # the reservoir: a short fat canister on a bridge from the head, behind the body (beenster, 17 Nov:
+        # half the length, a little fatter, towards the rear, not outwards)
+        # on a single shock the engine's rear cylinder sits just behind it, so there the canister goes to the right
+        rear = n1 if n1.x < 0 else -n1
+        side = rear if (s or res[0] == "rear") else Vector((0, res[0], 0))
+        along = 26 if s else res[1]
+        off = side * (48 * k)
+        c0 = a + d * along + off
+        rl = L_ * 0.19
+        D.lathe(nm + "res", tuple(c0), dt, P_([(0, 0), (0, 19), (2, 21), (rl, 21), (rl + 2, 19), (rl + 2, 0)]), M["black"], 32)
         for j, t in enumerate((0, rl - 8)):
-            D.lathe(nm + f"rescap{j}", tuple(c0), dt, P_([(t - 1, 0), (t - 1, 17.8), (t + 10, 17.8), (t + 10, 0)]), body, 28)
+            D.lathe(nm + f"rescap{j}", tuple(c0), dt, P_([(t - 1, 0), (t - 1, 21.8), (t + 10, 21.8), (t + 10, 0)]), body, 32)
         D.lathe(nm + "dial0", tuple(c0 + d * (rl + 2)), dt, [(0, 0), (0, 9), (6, 9), (6, 0)], M["gold"] if body_f != "gold" else M["black"], 16)
-        B.cone(nm + "bridge", tuple(a + d * 26), tuple(c0 + d * 26), 11 * k, 11 * k, body, 20)
-        B.cone(nm + "dial1", tuple(a + d * 38 + side * 33 * k), tuple(a + d * 38 + side * 41 * k), 7.5, 7.5, M["gold"] if body_f != "gold" else M["black"], 16)
+        B.cone(nm + "bridge", tuple(a + d * (along - 4)), tuple(c0 + d * 22 - side * 10), 11 * k, 11 * k, body if along < 40 else M["black"], 20)
+        B.cone(nm + "dial1", tuple(a + d * 38 - side * 33 * k), tuple(a + d * 38 - side * 41 * k), 7.5, 7.5, M["gold"] if body_f != "gold" else M["black"], 16)
         return
     if key == "coilover":
         D.lathe(nm + "head", at, dt, P_([(13, 0), (13, 14), (26, 14), (30, 25), (40, 25), (41, 29), (48, 29), (49, 25), (49, 0)]), M["polish"], 36)
@@ -153,11 +156,13 @@ def build_shock(key, tag, a, b, k, s, M, spring="red", body_f="gold"):
             t += 18
         prof += [(L_ * 0.48, 20), (L_ * 0.48 + 3, 16.5), (L_ * 0.48 + 3, 0)]
         D.lathe(nm + "body", at, dt, P_(prof), M["polish"], 36)
-        D.lathe(nm + "preload", at, dt, P_([(52, 0), (52, 30), (60, 30), (60, 0)]), M["polish"], 36)
+        # the spring covers only the lower part (beenster, 17 Nov): its top seat sits on the body below halfway
+        ts = L_ * (0.42 if s else 0.55)
+        D.lathe(nm + "preload", at, dt, P_([(ts - 8, 0), (ts - 8, 23), (ts - 6, 27), (ts, 27), (ts, 0)]), M["polish"], 36)
         D.lathe(nm + "rod", at, dt, P_([(L_ * 0.48, 0), (L_ * 0.48, 7.5), (L_ - 34, 7.5), (L_ - 34, 0)]), M["chrome"], 20)
         D.lathe(nm + "seat", at, dt, P_([(L_ - 60, 0), (L_ - 60, 32), (L_ - 54, 32), (L_ - 50, 16), (L_ - 30, 15), (L_ - 14, 13), (L_ - 14, 0)]), M["polish"], 36)
         D.lathe(nm + "knob", tuple(b - d * 24 + n1 * 14 * k), tuple(n1), [(0, 0), (0, 8), (7, 8.5), (8, 0)], M["black"], 18)
-        coil(nm + "spring", a, d, n1, n2, 60.0, L_ - 60.0, 29 * k, 5.6 * k, 7.5 if L_ > 300 else 6.0, sm, 0.15)
+        coil(nm + "spring", a, d, n1, n2, ts + 2, L_ - 60.0, 29 * k, 5.6 * k, 4.5 if L_ > 300 else 3.5, sm, 0.1)
         return
     if key == "shroud":
         D.lathe(nm + "head", at, dt, P_([(13, 0), (13, 14), (24, 14), (26, 20), (34, 20), (34, 0)]), M["chrome"], 36)
@@ -370,6 +375,28 @@ def build_hanger(key, model, M, plate_mat, finish="black"):
     return True
 
 
+def crown(x0, z0, reach=140.0):
+    """Where a cap should stand: if the tank's cap point is on a slope (beenster, 17 Nov: not down the slope,
+    near the top), the highest point of the tank's centre line within reach of it; otherwise the point itself."""
+    tank = next((o for o in bpy.data.objects if o.name.startswith("tank") and o.type == "MESH" and not o.name.startswith("tankbadge")), None)
+    if tank is None:
+        return x0, z0
+    v = _verts(tank)
+    v = v[(abs(v[:, 1]) < 12) & (abs(v[:, 0] - x0) < reach)]
+    if not len(v):
+        return x0, z0
+    top = v[v[:, 2].argmax()]
+    near = v[abs(v[:, 0] - x0) < 12]
+    here = near[:, 2].max() if len(near) else z0
+    if top[2] - here < 12:
+        return x0, z0
+    # stand just behind the very top, where the crown is flat enough
+    flat = v[v[:, 2] > top[2] - 4]
+    x = float(flat[:, 0].mean())
+    near = v[abs(v[:, 0] - x) < 12]
+    return x, float(near[:, 2].max()) if len(near) else float(top[2])
+
+
 # ---------------------------------------------------------------- fitting
 def fit(b, model, c, shock=None, spring=None, body=None, cap=None, cap_finish=None, hanger=None, hanger_finish=None):
     use(b)
@@ -383,13 +410,33 @@ def fit(b, model, c, shock=None, spring=None, body=None, cap=None, cap_finish=No
             L._remove((nm,))
         sp = spring or SHOCKS[shock]["spring"]
         for tag, a, b_, k, s in ends:
+            if shock == "piggyback" and not s:
+                # a single shock sits between the engine and the subframe: the canister goes to the side with room
+                best = None
+                for ry in [(sd, al) for al in (26, L_ * 0.3, L_ * 0.45) for sd in ("rear", -1, 1)
+                           for L_ in [(b_ - a).length]]:
+                    pre = set(bpy.data.objects.keys())
+                    build_shock(shock, tag, a, b_, k, s, M, sp, body or "gold", ry)
+                    new = [o for o in bpy.data.objects.keys() if o not in pre]
+                    hit = sum(v for kk, v in BR.clip_check([n for n in new if n.startswith(("sk_res", "sk_bridge", "sk_dial"))]).items()
+                              if not ok_pair(kk))
+                    for n in new:
+                        bpy.data.objects.remove(bpy.data.objects[n], do_unlink=True)
+                    if best is None or hit < best[0]:
+                        best = (hit, ry)
+                build_shock(shock, tag, a, b_, k, s, M, sp, body or "gold", best[1])
+                continue
             build_shock(shock, tag, a, b_, k, s, M, sp, body or "gold")
         rep["shock"], rep["spring"] = shock, sp
     caps = model["body"].get("caps", [])
     if cap and caps and fam in CAPS[cap]["fams"]:
         L._remove(CAP_PARTS)
         for i, cp in enumerate(caps):
-            build_cap(cap, i, (cp["at"][0], 0, cp["at"][1] - 4), M, cap_finish or "silver")
+            # teardrop tanks only: sport, adventure and MX tanks keep the cap where the tank puts it
+            x, z = crown(cp["at"][0], cp["at"][1]) if fam in ("Classic", "Cafe", "Cruiser", "Chopper", "Naked") else (cp["at"][0], cp["at"][1])
+            build_cap(cap, i, (x, 0, z - 4), M, cap_finish or "silver")
+            if abs(x - cp["at"][0]) > 1:
+                rep["cap_moved"] = round(x - cp["at"][0])
         rep["cap"] = cap
     if hanger and fam in HANGERS[hanger]["fams"]:
         old = plate_parts()
@@ -463,7 +510,7 @@ def shots(which=None, samples=40):
                 continue
             ctr, lo, hi = c_
             tgt = ctr
-            loc = BR.vadd(tgt, (230, 260, 300))
+            loc = BR.vadd(tgt, (-240, 270, 300))
             lens = 70
         L.render_at(b3, os.path.join(OUT, f"{kind}_{key}.png"), loc, tgt, lens, res=(1100, 800), samples=samples)
     path = os.path.join(OUT, "shots.json")
