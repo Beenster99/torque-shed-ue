@@ -99,6 +99,11 @@ TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting
 TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
 	TEXT("Ride UK: near trees are drawn as scanned models within this many metres and as the far models past it (0: scans out to the whole near ring, as until 152). For squares made after the change."));
 // ([build 154] off: round 153's specks didn't stop the PSO misses; URidePart now asks for its PSOs instead)
+// ([build 155] the near trees' patches are components the render thread walks each frame, for every
+// view and shadow view: bigger patches, fewer of them; round 154's render thread was 13.6 ms at Whaley
+// and 18.9 at Loch Brecbowie)
+TAutoConsoleVariable<float> CVarTreePatch(TEXT("torque.RideTreePatch"), 128.0f,
+	TEXT("Ride UK: the patches (m) near trees are grouped in for the scans/far-model handover (128, build 153; 256 = one per square). For squares made after the change."));
 TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
 	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
@@ -2337,7 +2342,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bTree && P.Far) { AddPlant(Choice, -2); continue; }
 		if (bTree && NearTreeM > 0.0f && KindFar[P.Kind].Num() > 0 && KindFar[P.Kind] != KindNear[P.Kind])
 		{
-			const int32 TreePatch = FMath::Clamp(int32(P.X / 128.0f), 0, 7) + 8 * FMath::Clamp(int32(P.Z / 128.0f), 0, 7);
+			const float TreePatchM = FMath::Clamp(TRWI::CVarTreePatch.GetValueOnGameThread(), 32.0f, 256.0f);
+			const int32 TreePatch = FMath::Clamp(int32(P.X / TreePatchM), 0, 7) + 8 * FMath::Clamp(int32(P.Z / TreePatchM), 0, 7);
 			AddPlant(Choice, -1000 - TreePatch);
 			AddPlant(KindFar[P.Kind], -2000 - TreePatch);
 			continue;
