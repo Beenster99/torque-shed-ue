@@ -69,6 +69,12 @@ const NamedNumber Numbers[] = {
 	{"cloud_ms_eccentricity", &Looks::CloudMsEccentricity}, {"cloud_ms_octaves", &Looks::CloudMsOctaves}, {"cloud_ms_dull", &Looks::CloudMsDull},
 	{"cloud_view_samples", &Looks::CloudViewSamples}, {"cloud_shadow_samples", &Looks::CloudShadowSamples},
 	{"density_most", &Looks::DensityMost}, {"cloud_ground_light", &Looks::CloudGroundLight},
+	{"cloud_version", &Looks::CloudVersion}, {"v2_shape_m", &Looks::V2ShapeM}, {"v2_detail_m", &Looks::V2DetailM},
+	{"v2_mid_shape_m", &Looks::V2MidShapeM}, {"v2_mid_detail_m", &Looks::V2MidDetailM}, {"v2_broad_m", &Looks::V2BroadM},
+	{"v2_patchy", &Looks::V2Patchy}, {"v2_erode", &Looks::V2Erode}, {"v2_erode_ragged", &Looks::V2ErodeRagged},
+	{"v2_edge_sharp", &Looks::V2EdgeSharp}, {"v2_billow", &Looks::V2Billow}, {"v2_extinction", &Looks::V2Extinction},
+	{"v2_deck_thin", &Looks::V2DeckThin}, {"v2_detail_deep_m", &Looks::V2DetailDeepM},
+	{"v2_closed_from", &Looks::V2ClosedFrom}, {"v2_closed_full", &Looks::V2ClosedFull},
 	{"humid_from", &Looks::HumidFrom}, {"humid_swell", &Looks::HumidSwell},
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},
@@ -744,4 +750,10 @@ std::vector<RainShaft> FindRainShafts(const MapGrids& G, double Lat, double Lon,
 	if (Out.size() > static_cast<size_t>(L.ShaftMost)) Out.resize(static_cast<size_t>(L.ShaftMost));
 	return Out;
 }
+double V2DetailSize(double DetailM, double DepthM, const Looks& L)
+{
+	const double Grow = L.V2DetailDeepM > 1.0 ? std::sqrt(std::max(DepthM, 0.0) / L.V2DetailDeepM) : 1.0;
+	return std::max(DetailM, 10.0) * std::max(Grow, 1.0);
+}
+
 } // namespace TorqueSky
