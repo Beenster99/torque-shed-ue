@@ -25,4 +25,12 @@ for nm, title, kits, shot in BIKES:
         im.save(b, 'JPEG', quality=82)
         note = NOTES.get(f'{nm}_{k}', '')
         body += f'<figure><img alt="{title} kit {k}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>{title}, choice {k[0]}</strong> Tank and seat: {names[0]}. Tail: {names[1]}. Front: {names[2]}. Exhaust: {names[3]}. {note}</figcaption></figure>\n'
+for k, t in (('1111', 'Basso exhaust: a short silencer low behind the engine.'), ('2222', 'Alto exhaust: one silencer swept up high.'), ('0003', 'Doppio exhaust: two short stacked silencers.')):
+    p = os.path.join(ROOT, 'out', 'renders', f'corvano_naked_kit{k}_def_shot_rearq_l.png')
+    if os.path.exists(p):
+        im = Image.open(p).convert('RGB')
+        im = im.resize((1100, int(im.height * 1100 / im.width)))
+        b = io.BytesIO()
+        im.save(b, 'JPEG', quality=82)
+        body += f'<figure><img alt="Corvano naked from the left, kit {k}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>Corvano naked from the left</strong> {t} The Corvano exhausts sit on the swingarm side.</figcaption></figure>\n'
 open(os.path.join(ROOT, 'out', 'kit_variants.html'), 'w').write(head + body + '</div>\n</main>')
