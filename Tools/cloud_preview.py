@@ -8,8 +8,7 @@ cloud_detail.png, from Tools/make_cloud_volumes.py), with the sky's own figures 
 three octaves of bounced light, a sky ambient, a plain sky behind): it shows the clouds' forms and
 how they sit in the sky, not the game's exact colours.
 
-    python Tools/cloud_preview.py <scene.json> <out.png> [--width 960] [--steps 96] [--old]
-(--old draws the cloud as it was before the rebuild, M_RideCloud, under the same light)
+    python Tools/cloud_preview.py <scene.json> <out.png> [--width 960] [--steps 96]
 scene.json: {"sun": deg, "sun_bearing": deg, "look_bearing": deg, "pitch": deg, "fov": deg,
              "base": m, "top": m, "low": {...}, "mid": {...}, "dull": 0..1, "looks": {v2 figures}}
 """
@@ -141,59 +140,13 @@ class Clouds:
         return best * self.ext
 
 
-class OldClouds:
-    """The cloud before the rebuild (M_RideCloud's CLOUD_HLSL), for side-by-side pictures."""
-
-    def __init__(self, scene):
-        self.s = scene
-        self.noise = load_volume("cloud_noise.png", 64, 8, 8, 3)
-        d = json.load(open(os.path.join(SKY, "sky_looks.json")))
-        self.ext_scale = min(d["cloud"].get("extinction_scale", 8.0), 1e9)
-        self.most = d["cloud"].get("density_most", 8.0)
-
-    def density(self, x, y, alt, shape_only=False):
-        s = self.s
-        norm = (alt - s["base"]) / max(s["top"] - s["base"], 1.0)
-        best = np.zeros_like(x)
-        scales = {"low": (7000.0, 1800.0, 600.0, 25000.0), "mid": (3500.0, 900.0, 300.0, 15000.0)}
-        for key in ("low", "mid"):
-            P = s[key]
-            cv = P["cover"]
-            if cv <= 0.001:
-                continue
-            h = (norm - P["bottom"]) / max(P["top"] - P["bottom"], 1e-3)
-            inside = (h >= 0) & (h <= 1)
-            if not inside.any():
-                continue
-            sh = P["shape"]
-            heaped = sat(h / 0.07) * sat((1 - h) / 0.65)
-            deckp = sat(h / 0.04) * sat((1 - h) / 0.2)
-            profile = heaped + (deckp - heaped) * sh
-            nv = []
-            for i, sc in enumerate(scales[key][:3]):
-                w = np.stack([x / sc + 0.13 * i, y / sc + 0.37 * i, alt / sc], -1)
-                nv.append(trilinear(self.noise, w)[..., i])
-            broad = trilinear(self.noise[..., :1], np.stack([x / scales[key][3], y / scales[key][3], np.zeros_like(x)], -1))[..., 0]
-            lp = P["lumps"]
-            shp = sat((nv[0] + (nv[1] - nv[0]) * lp) * 0.65 + broad * 0.35)
-            dn = sat((shp * profile - (1 - cv)) / 0.18)
-            dn = np.maximum(dn, sat(profile * 1.5) * (0.35 + 0.65 * shp) * smooth(0.85, 1.0, cv))
-            erode = (nv[1] * 0.7 + nv[2] * 0.3) + (nv[2] - (nv[1] * 0.7 + nv[2] * 0.3)) * lp
-            dn = sat(dn - (1 - erode) * 0.8 * sat(P["ragged"]) * (1 - dn * 0.5))
-            dens = min(P["density"] * self.ext_scale, self.most)
-            best = np.maximum(best, np.where(inside, dn * dens, 0.0))
-        return best * 0.1
-
-
 def hg(cos, g):
     return (1 - g * g) / (4 * math.pi * np.power(np.maximum(1 + g * g - 2 * g * cos, 1e-4), 1.5))
 
 
-def render(scene, width=960, steps=96, old=False):
+def render(scene, width=960, steps=96):
     height = width * 9 // 16
     C = Clouds(scene)
-    if old:
-        C = OldClouds(scene)
     L = scene["looks"]
     sun_e, sun_b = math.radians(scene["sun"]), math.radians(scene.get("sun_bearing", 180.0))
     sun = np.array([math.cos(sun_e) * math.sin(sun_b), math.cos(sun_e) * math.cos(sun_b), math.sin(sun_e)])
@@ -285,7 +238,7 @@ def main():
     width = int(args[args.index("--width") + 1]) if "--width" in args else 960
     steps = int(args[args.index("--steps") + 1]) if "--steps" in args else 96
     scene = json.load(open(args[0]))
-    Image.fromarray(render(scene, width, steps, old="--old" in args)).save(args[1])
+    Image.fromarray(render(scene, width, steps)).save(args[1])
     print("wrote", args[1])
 
 

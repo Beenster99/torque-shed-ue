@@ -3,7 +3,7 @@
 // The game state keeps the weather and the clock; this actor turns them into the sky: it works out one
 // sky state (Weather/SkyModel.h) and sets the level's sun, sky light, atmosphere, height fog, clouds and
 // camera from it. Every tuning figure is in Data/Sky/sky_looks.json, read at start (no recompile to
-// retune). The clouds (M_RideCloud on the level's Volumetric Cloud, made by Tools/ue_build_level.py)
+// retune). The clouds (M_RideCloudV2 on the level's Volumetric Cloud, made by Tools/ue_build_level.py)
 // read MPC_Sky: the real cover, how dense, how flat, and how far the wind has carried them, which the
 // host shares so everyone in co-op sees the same cloud in the same place.
 //
@@ -80,7 +80,6 @@ private:
 	float ExposureBias = 0.f, ExposureMin = 0.f, ExposureMax = 0.f;
 	float AppliedShadowStrength = -1.0f, AppliedBottomKm = -1.0f, AppliedHeightKm = -1.0f;
 	float AppliedViewSamples = -1.0f, AppliedShadowSamples = -1.0f;   // (the cloud's ray marching, from sky_looks.json)
-	bool bCloudV2 = false;   // wearing the rebuilt clouds (M_RideCloudV2)
 	// (build 154: the clouds stopped being drawn after the first weather change, with nothing logged)
 	FString CloudsWhyLogged;
 	double CloudsCheckedAt = -100.0;
