@@ -85,6 +85,7 @@ public:
 	// face and needle ("speed" / "rpm", the numbered scale is the ridden bike's), each display the lit
 	// picture ("screen_wide_<mm>x<mm>"). How many it made.
 	int V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) const;
+	int V2Lamps(const PartsMap& Parts, std::vector<FittedPart>& Out) const;
 
 	// The mesh a fitted part draws: its glb's (with its shape keys) deformed by its warp, or by
 	// each of its copies' warps one after the other.

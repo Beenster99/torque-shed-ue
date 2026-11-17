@@ -135,6 +135,7 @@ int main()
 		const std::vector<FittedPart> Fitted = Placer.Fit(Parts, L);
 		size_t Tris = 0, Surfaces = 0;
 		int AmberLeft = 0, AmberRight = 0, AmberBoth = 0;
+		int HeadLens = 0, RearLens = 0;
 		std::set<std::string> Nodes, Slots;
 		double Low = 1e9, FrontLow = 1e9, RearLow = 1e9;
 		V3 FrontMin(1e9, 1e9, 1e9), FrontMax(-1e9, -1e9, -1e9);
@@ -171,6 +172,13 @@ int main()
 					for (const V3& V : S.Pos) { LoZ = std::min(LoZ, V.z); HiZ = std::max(HiZ, V.z); }
 					if (HiZ < 0.0) ++AmberLeft; else if (LoZ > 0.0) ++AmberRight; else ++AmberBoth;
 				}
+				{
+					// [lights] A headlamp lens where the lights look for one, and a red rear lens.
+					auto Has = [&S](const char* T) { const std::string K = std::string("/") + T; return S.Material == T || S.Material.find(K + "/") != std::string::npos ||
+						(S.Material.size() > K.size() && S.Material.compare(S.Material.size() - K.size(), K.size(), K) == 0); };
+					if (Has("lens_white") && (P.Slot == "headlight" || P.Slot == "fairing" || P.Slot == "number_boards")) ++HeadLens;
+					if (Has("lens_red") && P.Gauge.empty() && P.Slot != "dashboard") ++RearLens;
+				}
 				if (S.Material.rfind("v2/", 0) != 0 && !P.Code) Named = false;   // (a TFT dash's unit is made in code)
 				for (const V3& V : S.Pos)
 				{
@@ -187,6 +195,8 @@ int main()
 		}
 		Expect(AllMade, Id + " every fitted piece is a V2 one");
 		Expect(TyresMade == 2, Id + " both tyres are the game's own tread sections");
+		Expect(HeadLens >= 1, Id + " has a headlamp lens the game can light");
+		Expect(RearLens >= 1, Id + " has a rear lamp lens the game can light");
 		Expect(AmberLeft >= 1 && AmberRight == AmberLeft && AmberBoth == 0, Id + " has indicator lenses the game can flash a side at a time");
 		Expect(Named, Id + " every surface carries its look");
 		{
