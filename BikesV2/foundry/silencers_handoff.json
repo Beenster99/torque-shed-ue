@@ -1,0 +1,80 @@
+{
+ "about": "Stage 5 common parts approved by beenster 17 Nov 07:04 ('They all look really good'; the short cone now turns outboard so its outlet points to the side, and is not offered on MX). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/silencers3d.py: fit(build3d, model, c, key) after detail3d; it removes the bike's own can parts (can*{i}{side}), slips over the end of the bike's own pipe along the own can's axis, shortens then slims the can until it touches nothing, and hangs it from a subframe or peg hanger within 260 mm. Pipes stay with the bikes.",
+ "silencers": [
+  {
+   "key": "reverse_cone",
+   "name": "Reverse cone",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "peashooter",
+   "name": "Peashooter",
+   "fits": [
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "shaker",
+   "name": "Cocktail shaker",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic"
+   ]
+  },
+  {
+   "key": "round_ti",
+   "name": "Round titanium",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure",
+    "MX"
+   ]
+  },
+  {
+   "key": "oval_carbon",
+   "name": "Oval carbon",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure",
+    "MX"
+   ]
+  },
+  {
+   "key": "hex",
+   "name": "Hexagon",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "short_cone",
+   "name": "Short cone",
+   "fits": [
+    "Naked",
+    "Sport"
+   ]
+  },
+  {
+   "key": "slash_cut",
+   "name": "Slash cut",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ]
+  }
+ ]
+}

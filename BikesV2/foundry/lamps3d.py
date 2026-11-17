@@ -415,14 +415,14 @@ def fit(b, model, c, head=None, tail=None, ind=None):
         bb = _bbox(OLD_HEAD)
         if bb is not None:
             lo, hi = bb
-            _remove(OLD_HEAD, keep=("lampunit",))     # fairing lamp units (Bikes V2) stay
+            _remove(OLD_HEAD, keep=("lampunit", "lampbespoke"))     # fairing lamp units and chopper bespoke shells (Bikes V2) stay
             front_bases, at = build_headlamp(head, (hi[0] - 18, (lo[2] + hi[2]) / 2), c, M)
             rep["head"] = dict(key=head, face_x=round(at[0]), z=round(at[1]), own_face_x=round(hi[0]))
     if tail and fam in TAIL_FAMS and not (tail == "hanger" and fam in ("Classic", "Cruiser", "Chopper")):
         bb = _bbox(OLD_TAIL)
         if bb is not None:
             lo, hi = bb
-            _remove(OLD_TAIL)
+            _remove(OLD_TAIL, keep=("guardlampbespoke",))
             zc = (lo[2] + hi[2]) / 2
             # the mount: a guard lamp's body stands on the guard, its front end is the mount; others mount at the back face
             guard = fam in ("Classic", "Cruiser", "Chopper")
