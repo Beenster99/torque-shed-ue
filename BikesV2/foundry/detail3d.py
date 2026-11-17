@@ -3451,6 +3451,19 @@ SHOTS = {
     "disc": ((1700, -1900, 380), (1470, -80, 300), 120),
     "side": ((650, -4300, 760), (650, 0, 640), 56),            # the whole bike square-on from the right
     "front34": ((3300, -2000, 1250), (760, 0, 660), 42),       # the whole bike from the front quarter
+    # the portfolio set (beenster, 17 Nov: quarters and profiles plus less usual angles, on a blank ground)
+    "side_l": ((650, 4300, 760), (650, 0, 640), 56),
+    "front34_l": ((3300, 2000, 1250), (760, 0, 660), 42),
+    "rear34": ((-2300, -2500, 1350), (650, 0, 580), 68),
+    "rear34_l": ((-2300, 2500, 1350), (650, 0, 580), 68),
+    "head_on": ((5200, 0, 900), (700, 0, 640), 105),
+    "tail_on": ((-4200, 0, 950), (700, 0, 640), 95),
+    "plan": ((720, -40, 5200), (720, 0, 500), 84),               # straight down
+    "low_front": ((2850, -1050, 170), (820, 0, 640), 42),        # from the tarmac, front wheel looming
+    "low_rear": ((-1550, -1250, 210), (640, 0, 600), 42),        # from the tarmac behind the rear tyre
+    "high_front": ((2900, 1500, 2500), (700, 0, 480), 60),       # looking down over the bars from ahead
+    "high_rear": ((-1900, 1700, 2400), (700, 0, 480), 58),       # looking down the bike from behind
+    "saddle": ((330, 0, 1560), (1300, 0, 780), 30),              # the rider's own view
 }
 
 
@@ -3470,6 +3483,11 @@ def shots(build3d, name, tags, samples=24):
     os.makedirs(out, exist_ok=True)
     for tag in tags:
         loc, tgt, lens = SHOTS[tag][:3]
+        if sketch and os.path.exists(os.path.join(out, f"{name}_shot_{tag}.png")):
+            continue
+        far = float(os.environ.get("BIKE_SKETCH_FAR", "1"))            # long bikes: the same views from further off
+        if far != 1:
+            loc = tuple(t + (l - t) * far for l, t in zip(loc, tgt))
         hide = [o for o in bpy.data.objects if len(SHOTS[tag]) > 3 and o.name.startswith(SHOTS[tag][3])]
         for o in hide:
             o.hide_render = True
@@ -3482,7 +3500,7 @@ def shots(build3d, name, tags, samples=24):
         sc.camera = ob
         sc.render.resolution_x, sc.render.resolution_y = (1600, 1000) if tag.startswith("rearq") else (1400, 1000)
         if sketch:
-            sc.render.resolution_x, sc.render.resolution_y = sc.render.resolution_x * 2, sc.render.resolution_y * 2
+            sc.render.resolution_x, sc.render.resolution_y = (2800, 2000) if tag in ("side", "front34", "side_long") else (2100, 1500)
         sc.render.filepath = os.path.join(out, f"{name}_shot_{tag}.png")
         bpy.ops.render.render(write_still=True)
         for o in hide:
