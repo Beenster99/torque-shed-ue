@@ -7,11 +7,11 @@ s = open(os.path.join(ROOT, 'out', 'definition_proof.html')).read()
 head = s[:s.index('<main>')].replace('<title>Definition Proof 3</title>', '<title>Steering Lock</title>')
 ROWS = [('Sport', 'Kazeda, Corvano, BSX, Varga', '4', '24', 'Scallops in the front corners of the tank (unchanged)'),
         ('Cruiser', 'Lodestar, Corvano, Kazeda, Rheinhart', '10', '28 to 30', 'Tanks untouched. Bars raised on taller risers (Lodestar 50 mm, Corvano 10, Kazeda 80, Rheinhart 85). New this round: the clocks come inboard to the rider\'s side of the risers, just under the bar'),
-        ('Adventure', 'Corvano, BSX, Kazeda, Rheinhart, Varga', '0', '28 to 30', 'New this round: the fairing is its original shape again, moved 110 mm forward with the screen and lights, and ends in a sharp snout just short of the beak')]
-PICS = [('corvano_adventure', 'side', 'Corvano adventure', 'The original fairing, moved 110 mm forward. Its nose now runs out to a sharp snout over the lamps, stopping just short of the beak tip.'),
-        ('corvano_adventure', 'front34', 'Corvano adventure', 'The snout from the front, with the lights moved forward under it.'),
+        ('Adventure', 'Corvano, BSX, Kazeda, Rheinhart, Varga', '0', '28 to 30', 'Fairing moved 110 mm forward with the screen and lights. New in round 4: the nose is a sharp wedge that runs straight down from the screen foot to a low point between the lamps, just short of the beak, and the flanks and tank flare out below the hand guards')]
+PICS = [('corvano_adventure', 'side', 'Corvano adventure', 'Round 4, from your blue lines: the brow runs straight down from the screen foot to a sharp low point in front of the lamps, just short of the beak tip. The screen is raked back to follow the same line.'),
+        ('corvano_adventure', 'front34', 'Corvano adventure', 'From the front the snout comes to a point between the lamps.'),
         ('corvano_adventure', 'advlamp', 'Corvano adventure', 'Close on the snout and the lamps.'),
-        ('corvano_adventure', 'cockpit', 'Corvano adventure', 'From the saddle: the bars and hand guards now have room to turn behind the fairing.'),
+        ('corvano_adventure', 'cockpit', 'Corvano adventure', 'From the saddle: the tank front and the fairing flanks now flare out below the bars, as on the bike in your riding picture, and the bars still turn.'),
         ('kazeda_adventure', 'front34', 'Kazeda adventure', 'The same change on a brand variant, with the woven carbon beak.'),
         ('kazeda_adventure', 'side', 'Kazeda adventure', 'Side view.'),
         ('varga_adventure', 'front34', 'Varga adventure', 'And on the Varga.'),
@@ -19,7 +19,7 @@ PICS = [('corvano_adventure', 'side', 'Corvano adventure', 'The original fairing
         ('lodestar_cruiser', 'side', 'Lodestar cruiser', 'From the side: clocks behind the risers on short stays.'),
         ('kazeda_cruiser', 'cockpit', 'Kazeda cruiser', 'The tallest risers of the four, with the clocks brought inboard the same way.'),
         ('kazeda_cruiser', 'side', 'Kazeda cruiser', 'Side view.')]
-body = '<main>\n<div class="k">Bike Models V2 · Steering lock · Round 3</div>\n<h1>Bars that can turn</h1>\n<p class="lede">Third go, after your notes. Adventure bikes: the whole fairing is back to its original shape and moved forward far enough for the bars to turn, lights and screen with it, and it now has a sharp snout that mimics the beak and stops just short of it. Cruisers: the clocks have come inboard so the rider can see them past the raised bars. Pegs and seats are where you signed them off.</p>\n'
+body = '<main>\n<div class="k">Bike Models V2 · Steering lock · Round 4</div>\n<h1>Bars that can turn</h1>\n<p class="lede">Fourth go, after your blue lines. Adventure bikes: the fairing sits forward far enough for the bars to turn, lights and screen with it. Its nose is now a sharp wedge down to a low point just short of the beak, and the fairing flanks and tank front flare out below the hand guards. Cruisers: the clocks have come inboard so the rider can see them past the raised bars. Pegs and seats are where you signed them off.</p>\n'
 body += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><tr>' + ''.join(f'<th style="text-align:left;padding:6px 10px">{h}</th>' for h in ('Family', 'Bikes', 'Turned before', 'Turns now', 'What changed')) + '</tr>'
 for r in ROWS:
     body += '<tr>' + ''.join(f'<td style="padding:6px 10px;border-top:1px solid rgba(128,128,128,.35)">{c}{" degrees" if i in (2, 3) else ""}</td>' for i, c in enumerate(r)) + '</tr>'
