@@ -2019,7 +2019,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (What == TEXT("check"))
 		{
 			const FName Slot(P.Num() > 2 ? *P[2] : TEXT("tank"));
-			const FString Now = B->DecalsOf(TestBay, Slot);
+			const FString Now = Slot == FName(TEXT("helmet")) ? TorqueDecals::MyHelmet() : B->DecalsOf(TestBay, Slot);
 			const std::vector<TorqueFit::Decals::Decal> L = TorqueFit::Decals::Parse(TorqueDecals::ToStd(Now));
 			if (!L.empty()) Said(FString::Printf(TEXT("Decals survived: yes, %d on the %s"), (int32)L.size(), *Slot.ToString()));
 			else Warn(FString::Printf(TEXT("Decals survived: NO, the %s has %s"), *Slot.ToString(), Now.IsEmpty() ? TEXT("none") : *Now));

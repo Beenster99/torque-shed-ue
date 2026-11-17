@@ -1,5 +1,6 @@
 #include "Shed/TorqueDecals.h"
 
+#include "Coop/TorquePlayerController.h"
 #include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedPick.h"
@@ -28,6 +29,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "StaticMeshAttributes.h"
+#include "StaticMeshResources.h"
 #include "TextureResource.h"
 #include "UObject/Package.h"
 
@@ -114,17 +116,17 @@ UMaterialInterface* DecalMaterial()
 }
 
 // A PNG file as a texture (sRGB, as M_ShedDecal samples it), at most MaxPx across (shrunk by halves).
-UTexture2D* PngTexture(const FString& Path, int32 MaxPx)
+// A PNG's pixels (BGRA), shrunk by halves till neither side is over MaxPx.
+bool DecodePng(const TArray<uint8>& Bytes, int32 MaxPx, TArray64<uint8>& Raw, int32& W, int32& H)
 {
-	TArray<uint8> Bytes;
-	if (!FFileHelper::LoadFileToArray(Bytes, *Path) || Bytes.Num() == 0 || Bytes.Num() > 16 * 1024 * 1024) return nullptr;
+	if (Bytes.Num() == 0 || Bytes.Num() > 16 * 1024 * 1024) return false;
 	IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
 	const TSharedPtr<IImageWrapper> Png = Wrappers.CreateImageWrapper(EImageFormat::PNG);
-	if (!Png.IsValid() || !Png->SetCompressed(Bytes.GetData(), Bytes.Num())) return nullptr;
-	TArray64<uint8> Raw;
-	if (!Png->GetRaw(ERGBFormat::BGRA, 8, Raw)) return nullptr;
-	int32 W = (int32)Png->GetWidth(), H = (int32)Png->GetHeight();
-	if (W <= 0 || H <= 0 || Raw.Num() != (int64)W * (int64)H * 4) return nullptr;
+	if (!Png.IsValid() || !Png->SetCompressed(Bytes.GetData(), Bytes.Num())) return false;
+	if (!Png->GetRaw(ERGBFormat::BGRA, 8, Raw)) return false;
+	W = (int32)Png->GetWidth();
+	H = (int32)Png->GetHeight();
+	if (W <= 0 || H <= 0 || W > 16384 || H > 16384 || Raw.Num() != (int64)W * (int64)H * 4) return false;
 	// Shrunk by halves (each pixel the mean of four) till it's small enough.
 	while ((W > MaxPx || H > MaxPx) && W >= 2 && H >= 2)
 	{
@@ -143,6 +145,11 @@ UTexture2D* PngTexture(const FString& Path, int32 MaxPx)
 		W = NW;
 		H = NH;
 	}
+	return true;
+}
+
+UTexture2D* RawTexture(const TArray64<uint8>& Raw, int32 W, int32 H)
+{
 	UTexture2D* T = UTexture2D::CreateTransient(W, H, PF_B8G8R8A8);
 	if (!T || !T->GetPlatformData() || T->GetPlatformData()->Mips.Num() == 0) return nullptr;
 	T->SRGB = true;
@@ -156,6 +163,15 @@ UTexture2D* PngTexture(const FString& Path, int32 MaxPx)
 	T->UpdateResource();
 	T->AddToRoot();   // kept for the game's life (the library is small; own pictures a handful)
 	return T;
+}
+
+UTexture2D* PngTexture(const FString& Path, int32 MaxPx)
+{
+	TArray<uint8> Bytes;
+	TArray64<uint8> Raw;
+	int32 W = 0, H = 0;
+	if (!FFileHelper::LoadFileToArray(Bytes, *Path) || !DecodePng(Bytes, MaxPx, Raw, W, H)) return nullptr;
+	return RawTexture(Raw, W, H);
 }
 
 FSlateFontInfo LetteringFont(const FString& Path, float Size)
@@ -325,6 +341,9 @@ struct FDrawn
 {
 	TWeakObjectPtr<UStaticMeshComponent> Holder;
 	FString Key;
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> Meshes;   // the slot's (to draw it again when a picture comes)
+	FString Text;
+	bool bOwnFrame = false;
 	TArray<TWeakObjectPtr<UStaticMeshComponent>> Skins;
 };
 
@@ -450,14 +469,107 @@ UTexture* Picture(UObject* WorldContext, const TorqueFit::Decals::Decal& D, floa
 	}
 	if (D.K == BD::Kind::Text)
 		return TDI::LetteringTexture(WorldContext, Shown(ToUe(D.Text), Id), Id, D.Has(BD::Outline), D.Has(BD::Shadow), OutAspect);
-	// An own picture (Saved/Decals), shrunk to 512 across; a friend's not here yet draws nothing.
+	// An own picture, shrunk to 512 across: a shared one (Saved/Decals/Shared), asked for from the
+	// host if it's a friend's not here yet (drawn when it comes); or by its name in Saved/Decals.
 	bFull = true;
-	UTexture2D* T = Cast<UTexture2D>(OwnPicture(Id));
+	UTexture2D* T = nullptr;
+	if (IsSharedId(Id))
+	{
+		static TMap<FString, UTexture2D*> Shared;
+		if (UTexture2D** Had = Shared.Find(Id)) T = *Had;
+		else if ((T = TDI::PngTexture(SharedFolder() / (Id + TEXT(".png")), 512)) != nullptr) Shared.Add(Id, T);
+		else if (ATorquePlayerController* PC = WorldContext && WorldContext->GetWorld() ? Cast<ATorquePlayerController>(WorldContext->GetWorld()->GetFirstPlayerController()) : nullptr)
+			PC->WantDecalPicture(Id);
+	}
+	else
+		T = Cast<UTexture2D>(OwnPicture(Id));
 	if (T && T->GetSizeY() > 0) OutAspect = (float)T->GetSizeX() / (float)T->GetSizeY();
 	return T;
 }
 
-FTransform PartFrame(const TArray<UStaticMeshComponent*>& SlotMeshes)
+FString SharedFolder() { return OwnFolder() / TEXT("Shared"); }
+
+bool IsSharedId(const FString& Id)
+{
+	if (Id.Len() != 9 || Id[0] != TEXT('p')) return false;
+	for (int32 I = 1; I < 9; ++I)
+		if (!FChar::IsHexDigit(Id[I])) return false;
+	return true;
+}
+
+namespace
+{
+FString SharedIdOf(const TArray<uint8>& Png) { return FString::Printf(TEXT("p%08x"), FCrc::MemCrc32(Png.GetData(), Png.Num())); }
+}
+
+FString ShareOwn(const FString& Name)
+{
+	TArray<uint8> Bytes;
+	TArray64<uint8> Raw;
+	int32 W = 0, H = 0;
+	if (!FFileHelper::LoadFileToArray(Bytes, *(OwnFolder() / (Name + TEXT(".png")))) || !TDI::DecodePng(Bytes, 512, Raw, W, H)) return FString();
+	// Written again at 512 (the same picture always makes the same bytes, so the same id).
+	IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+	const TSharedPtr<IImageWrapper> Png = Wrappers.CreateImageWrapper(EImageFormat::PNG);
+	if (!Png.IsValid() || !Png->SetRaw(Raw.GetData(), Raw.Num(), W, H, ERGBFormat::BGRA, 8)) return FString();
+	const TArray64<uint8> Packed = Png->GetCompressed();
+	if (Packed.Num() == 0 || Packed.Num() > MaxSharedBytes) return FString();
+	TArray<uint8> Small;
+	Small.Append(Packed.GetData(), (int32)Packed.Num());
+	const FString Id = SharedIdOf(Small);
+	const FString Path = SharedFolder() / (Id + TEXT(".png"));
+	if (!IFileManager::Get().FileExists(*Path))
+	{
+		IFileManager::Get().MakeDirectory(*SharedFolder(), true);
+		if (!FFileHelper::SaveArrayToFile(Small, *Path)) return FString();
+	}
+	return Id;
+}
+
+bool SharedBytes(const FString& Id, TArray<uint8>& Out)
+{
+	Out.Reset();
+	return IsSharedId(Id) && FFileHelper::LoadFileToArray(Out, *(SharedFolder() / (Id + TEXT(".png")))) && Out.Num() > 0 && Out.Num() <= MaxSharedBytes;
+}
+
+bool TakeShared(const FString& Id, const TArray<uint8>& Bytes)
+{
+	if (!IsSharedId(Id) || Bytes.Num() == 0 || Bytes.Num() > MaxSharedBytes || SharedIdOf(Bytes) != Id) return false;
+	TArray64<uint8> Raw;
+	int32 W = 0, H = 0;
+	if (!TDI::DecodePng(Bytes, 4096, Raw, W, H) || W > 512 || H > 512) return false;
+	const FString Path = SharedFolder() / (Id + TEXT(".png"));
+	if (!IFileManager::Get().FileExists(*Path))
+	{
+		IFileManager::Get().MakeDirectory(*SharedFolder(), true);
+		if (!FFileHelper::SaveArrayToFile(Bytes, *Path)) return false;
+	}
+	// What's drawn wearing it, drawn again.
+	TArray<TDI::FDrawn>& L = TDI::Drawn();
+	struct FAgain
+	{
+		TArray<UStaticMeshComponent*> Meshes;
+		FString Text;
+		bool bOwn = false;
+	};
+	TArray<FAgain> Again;
+	for (int32 I = L.Num() - 1; I >= 0; --I)
+	{
+		if (!L[I].Text.Contains(Id)) continue;
+		FAgain A;
+		for (const TWeakObjectPtr<UStaticMeshComponent>& M : L[I].Meshes)
+			if (M.IsValid()) A.Meshes.Add(M.Get());
+		A.Text = L[I].Text;
+		A.bOwn = L[I].bOwnFrame;
+		if (A.Meshes.Num() > 0) Again.Add(MoveTemp(A));
+		TDI::DropDrawn(L[I]);
+		L.RemoveAt(I);
+	}
+	for (const FAgain& A : Again) Apply(A.Meshes, A.Text, A.bOwn);
+	return true;
+}
+
+FTransform PartFrame(const TArray<UStaticMeshComponent*>& SlotMeshes, bool bOwnFrame)
 {
 	const UStaticMeshComponent* First = nullptr;
 	for (const UStaticMeshComponent* C : SlotMeshes)
@@ -467,7 +579,7 @@ FTransform PartFrame(const TArray<UStaticMeshComponent*>& SlotMeshes)
 			break;
 		}
 	if (!First) return FTransform::Identity;
-	FTransform Frame = First->GetOwner()->GetActorTransform();
+	FTransform Frame = bOwnFrame ? First->GetComponentTransform() : First->GetOwner()->GetActorTransform();
 	Frame.SetScale3D(FVector::OneVector);
 	FBox Box(ForceInit);
 	for (const UStaticMeshComponent* C : SlotMeshes)
@@ -495,7 +607,7 @@ std::vector<TorqueSim::V3> PartTriangles(const TArray<UStaticMeshComponent*>& Sl
 	return Out;
 }
 
-void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text)
+void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text, bool bOwnFrame)
 {
 	namespace BD = TorqueFit::Decals;
 	TArray<TDI::FDrawn>& L = TDI::Drawn();
@@ -514,12 +626,15 @@ void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text)
 	if (!Mat) return;
 	const std::vector<BD::Decal> Decals = BD::Parse(ToStd(Text));
 	if (Decals.empty()) return;
-	const FTransform Frame = PartFrame(SlotMeshes);
+	const FTransform Frame = PartFrame(SlotMeshes, bOwnFrame);
 	const std::vector<TorqueSim::V3> Tris = PartTriangles(SlotMeshes, Frame);
 	if (Tris.size() < 3) return;
 	TDI::FDrawn& Rec = L.AddDefaulted_GetRef();
 	Rec.Holder = Holder;
 	Rec.Key = Key;
+	Rec.Text = Text;
+	Rec.bOwnFrame = bOwnFrame;
+	for (UStaticMeshComponent* M : SlotMeshes) Rec.Meshes.Add(M);
 	int32 Made = 0;
 	for (const BD::Decal& D0 : Decals)
 	{
@@ -543,6 +658,8 @@ void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text)
 			C->LightingChannels = Holder->LightingChannels;
 			C->bVisibleInSceneCaptureOnly = Holder->bVisibleInSceneCaptureOnly;
 			C->bHiddenInSceneCapture = Holder->bHiddenInSceneCapture;
+			C->SetOwnerNoSee(Holder->bOwnerNoSee);   // (a helmet hidden from its own rider's first-person view)
+			C->SetOnlyOwnerSee(Holder->bOnlyOwnerSee);
 			C->ComponentTags.Add(FName(TDI::DecalTag));
 			C->SetupAttachment(Holder);
 			C->RegisterComponent();
@@ -562,6 +679,111 @@ void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text)
 		}
 	}
 	UE_LOG(LogTemp, Verbose, TEXT("Torque: %d decal skins drawn"), Made);
+}
+
+// --- The helmet ---------------------------------------------------------------------------------------
+
+namespace
+{
+FString HelmetFile() { return OwnFolder() / TEXT("helmet.txt"); }
+}
+
+const FString& MyHelmet()
+{
+	static FString Mine;
+	static bool bRead = false;
+	if (!bRead)
+	{
+		bRead = true;
+		FString Text;
+		if (FFileHelper::LoadFileToString(Text, *HelmetFile()) && Text.Len() <= 8192) Mine = ToUe(TorqueFit::Decals::Sanitize(ToStd(Text.TrimStartAndEnd())));
+	}
+	return Mine;
+}
+
+void SetMyHelmet(const FString& Text)
+{
+	const FString Clean = ToUe(TorqueFit::Decals::Sanitize(ToStd(Text.Left(8192))));
+	const_cast<FString&>(MyHelmet()) = Clean;
+	IFileManager::Get().MakeDirectory(*OwnFolder(), true);
+	FFileHelper::SaveStringToFile(Clean, *HelmetFile());
+}
+
+bool ReadyHelmet(UStaticMeshComponent* Helmet)
+{
+	UStaticMesh* Mesh = Helmet ? Helmet->GetStaticMesh() : nullptr;
+	if (!Mesh) return false;
+	const TArray<FVector>* Pos = nullptr;
+	const TArray<int32>* Tris = nullptr;
+	if (TorqueShedPick::Triangles(Helmet, Pos, Tris)) return true;
+	static TSet<FString> Tried;   // (a mesh without a CPU copy is tried once)
+	const FString Key = Mesh->GetPathName();
+	if (Tried.Contains(Key)) return false;
+	Tried.Add(Key);
+	const FStaticMeshRenderData* RD = Mesh->GetRenderData();
+	if (!Mesh->bAllowCPUAccess || !RD || RD->LODResources.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: helmet %s keeps no CPU copy: no decals on it (ue_build_level.py helmet_cpu_access)"), *Key);
+		return false;
+	}
+	const FStaticMeshLODResources& LOD = RD->LODResources[0];
+	const FPositionVertexBuffer& PB = LOD.VertexBuffers.PositionVertexBuffer;
+	const int32 NV = (int32)PB.GetNumVertices();
+	if (NV <= 0 || !PB.GetVertexData()) return false;
+	TArray<FVector> P;
+	P.Reserve(NV);
+	for (int32 I = 0; I < NV; ++I) P.Add(FVector(PB.VertexPosition((uint32)I)));
+	TArray<uint32> Idx;
+	LOD.IndexBuffer.GetCopy(Idx);
+	TArray<int32> T;
+	T.Reserve(Idx.Num());
+	for (const uint32 I : Idx) T.Add((int32)I);
+	if (T.Num() < 3) return false;
+	TorqueShedPick::AddShape(Mesh, P, T);
+	return TorqueShedPick::Triangles(Helmet, Pos, Tris);
+}
+
+void ApplyHelmet(UMeshComponent* Helmet, const FString& Text)
+{
+	UStaticMeshComponent* C = Cast<UStaticMeshComponent>(Helmet);
+	if (!C || (!Text.IsEmpty() && !ReadyHelmet(C))) return;
+	Apply({C}, Text, true);
+}
+
+UStaticMesh* HelmetMesh(FTransform& OutFit)
+{
+	OutFit = FTransform::Identity;
+	FString Raw;
+	TSharedPtr<FJsonObject> J;
+	if (!FFileHelper::LoadFileToString(Raw, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Bike/SpeedTwin/ue_assets.json"))) ||
+		!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Raw), J) || !J.IsValid())
+		return nullptr;
+	const TSharedPtr<FJsonObject>* Rig = nullptr;
+	if (!J->TryGetObjectField(TEXT("rider_rig"), Rig)) return nullptr;
+	// As ATorqueBikePawn::BuildRiderRig fits it: the import frame, then the Fab helmet's fit.
+	double Yaw = 0.0, Mirror = 1.0, Scale = 1.0;
+	const TSharedPtr<FJsonObject>* Frame = nullptr;
+	if (J->TryGetObjectField(TEXT("frame"), Frame))
+	{
+		(*Frame)->TryGetNumberField(TEXT("yaw"), Yaw);
+		(*Frame)->TryGetNumberField(TEXT("mirror"), Mirror);
+		(*Frame)->TryGetNumberField(TEXT("scale"), Scale);
+	}
+	FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+	const TSharedPtr<FJsonObject>* Fit = nullptr;
+	if ((*Rig)->TryGetObjectField(TEXT("helmet_fit"), Fit))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		FVector Turn = FVector::ZeroVector;
+		if ((*Fit)->TryGetArrayField(TEXT("rotate"), A) && A->Num() >= 3) Turn = FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber());
+		double FitScale = 1.0;
+		(*Fit)->TryGetNumberField(TEXT("scale"), FitScale);
+		Fix = FTransform(FRotator(Turn.X, Turn.Y, Turn.Z), FVector::ZeroVector, FVector(FitScale)) * Fix;
+	}
+	OutFit = Fix;
+	FString Path;
+	if (!(*Rig)->TryGetStringField(TEXT("helmet"), Path) || Path.IsEmpty()) return nullptr;
+	return LoadObject<UStaticMesh>(nullptr, *Path);
 }
 
 void ApplyBike(const TArray<UStaticMeshComponent*>& Parts, TFunctionRef<FString(FName Slot)> DecalsOf)

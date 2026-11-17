@@ -1447,7 +1447,23 @@ def import_rider(tex=None, roles=None):
     if fab:
         out["helmet"], out["helmet_fit"] = fab
         FAB_HELMET_USED[:] = [fab[0]]
+    helmet_cpu_access(out["helmet"])
     return out
+
+
+def helmet_cpu_access(path):
+    """[decals stage 4] Decals on the helmet are cut from its triangles at run time, so the worn
+    helmet keeps a copy of its mesh on the CPU in the cooked game (a static mesh; a skeletal one gets none)."""
+    if not path:
+        return
+    try:
+        m = unreal.load_asset(path)
+        if isinstance(m, unreal.StaticMesh) and not m.get_editor_property("allow_cpu_access"):
+            m.set_editor_property("allow_cpu_access", True)
+            unreal.EditorAssetLibrary.save_loaded_asset(m)
+            log("helmet %s: CPU access on (for decals)" % path)
+    except Exception as e:
+        unreal.log_warning("[Torque] helmet CPU access not set: %s" % e)
 
 
 def place_fab_helmet_anchor():

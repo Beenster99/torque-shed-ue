@@ -10,7 +10,9 @@
 #include "CoreMinimal.h"
 #include "Fit/BikeDecal.h"
 
+class UMeshComponent;
 class UObject;
+class UStaticMesh;
 class UStaticMeshComponent;
 class UTexture;
 
@@ -55,18 +57,47 @@ UTexture* LibraryPicture(const FString& Id);
 UTexture* Thumb(const FString& Id);
 UTexture* OwnPicture(const FString& Name);
 
+// Own pictures in co-op (stage 5): placing one keeps a copy, shrunk to 512 across, in Saved/Decals/
+// Shared named by what's in it ("p" and 8 hex digits); that id goes in the decal, so a friend's machine
+// asks the host for it once (ATorquePlayerController's decal picture calls) and keeps it. "" if the
+// picture won't load.
+FString ShareOwn(const FString& Name);
+bool IsSharedId(const FString& Id);
+FString SharedFolder();
+// A shared picture's PNG bytes (false if this machine hasn't got it).
+bool SharedBytes(const FString& Id, TArray<uint8>& Out);
+// One come over the network: kept if it's a PNG no bigger than 512 and what its id says it is; then
+// what's drawn wearing it is drawn again. False (and nothing kept) otherwise.
+bool TakeShared(const FString& Id, const TArray<uint8>& Bytes);
+constexpr int32 MaxSharedBytes = 1024 * 1024;
+
 // The frame decals on a slot are kept in (Fit/BikeDecal.h): the bike's (its actor's, unscaled) moved
-// to the middle of the box round the slot's meshes. Invalid (identity) with no meshes.
-FTransform PartFrame(const TArray<UStaticMeshComponent*>& SlotMeshes);
+// to the middle of the box round the slot's meshes. Invalid (identity) with no meshes. bOwnFrame: the
+// first mesh's own (unscaled) instead of its actor's: the helmet's, which moves with the head.
+FTransform PartFrame(const TArray<UStaticMeshComponent*>& SlotMeshes, bool bOwnFrame = false);
 // The slot's triangles in that frame, three points each.
 std::vector<TorqueSim::V3> PartTriangles(const TArray<UStaticMeshComponent*>& SlotMeshes, const FTransform& Frame);
 
 // Draws Text's decals (Fit/BikeDecal text, "" for none) on the slot whose meshes are SlotMeshes, in
 // place of what was drawn there; nothing is redone when it's the same as before. Also clears away
 // decals of meshes that have gone (a bike drawn again).
-void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text);
+void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text, bool bOwnFrame = false);
 // Every decal-taking slot of a drawn bike (its meshes tagged Slot:...), each with its item's decals.
 void ApplyBike(const TArray<UStaticMeshComponent*>& Parts, TFunctionRef<FString(FName Slot)> DecalsOf);
+
+// --- The helmet (stage 4) ---------------------------------------------------------------------------
+// This machine's helmet decals (Saved/Decals/helmet.txt; Fit/BikeDecal text in the helmet's own frame),
+// sent to friends with the player (ATorquePlayerState::HelmetDecals).
+const FString& MyHelmet();
+void SetMyHelmet(const FString& Text);
+// Gets a helmet mesh's triangles ready to cut decals from (the cooked mesh keeps a CPU copy: see
+// Tools/ue_build_level.py helmet_cpu_access). False for a skeletal helmet or one without.
+bool ReadyHelmet(UStaticMeshComponent* Helmet);
+// Draws Text's decals on a worn helmet (after its paint; nothing redone when it's the same).
+void ApplyHelmet(UMeshComponent* Helmet, const FString& Text);
+// The helmet the riders wear (ue_assets.json rider_rig.helmet) and its fit (turned and scaled as on
+// the head), for the decal mode's stand; null if it's not a static mesh.
+UStaticMesh* HelmetMesh(FTransform& OutFit);
 
 FString ToUe(const std::string& S);
 std::string ToStd(const FString& S);

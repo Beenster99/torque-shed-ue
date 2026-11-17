@@ -10,6 +10,9 @@
 // other side), and for lettering an outline, a drop shadow and an arch. Up to eight on a part.
 // Right-drag orbits, the wheel zooms. "Save to this bike" sends them to the host (DecalSave, one
 // part each), so friends see them; Esc leaves (asking first if they're not saved).
+//
+// "Helmet" at the top puts the player's own helmet on a stand beside the bike to put decals on it too
+// (stage 4: kept on this machine, TorqueDecals::MyHelmet, and sent to friends with the player).
 #pragma once
 
 #include "CoreMinimal.h"
@@ -75,6 +78,9 @@ private:
 	void PickLibrary(const FString& Id);
 	void PickText();
 	void PickOwn(const FString& Name);
+	// The camera on the bike, or on the player's helmet on a stand beside it (made the first time).
+	void ShowHelmet(bool bHelmet);
+	void AddHelmetShape();
 	void Say(const FString& Text);
 	FDelegateHandle TellHandle;
 };
