@@ -214,7 +214,7 @@ int main()
 		Expect(std::fabs((FrontMin.x + FrontMax.x) * 0.5 - L.FrontAxle.x) < 0.004 && std::fabs((FrontMin.y + FrontMax.y) * 0.5) < 0.004 &&
 			std::fabs((FrontMin.z + FrontMax.z) * 0.5) < 0.004, Id + " front tyre round its axle");
 		Expect(Low > -std::max(L.Stats.FrontRadius, L.Stats.RearRadius) - 0.02, Id + " nothing below the ground (" + Num2(Low) + ")");
-		Expect(Tris > 20000 && Tris < 480000, Id + " triangles " + std::to_string(Tris));
+		Expect(Tris > 20000 && Tris < 800000, Id + " triangles " + std::to_string(Tris));   // (with the tyres at the catalogue's full tread detail, as every catalogue bike has them near the camera)
 
 		RideSpecInput In;
 		In.Parts = Parts;

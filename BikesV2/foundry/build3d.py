@@ -174,7 +174,7 @@ def export_game(name, model, model_file=None):
         r = game_parts.placed(o.name, r[0], r[1], min(xs), max(xs), model)
         # the piece of its slot a common part can take the place of ("grip", "silencer", ...: common parts'
         # foundry/game_common.py sub_of; "" for the rest of the slot)
-        part_sub = (game_common.sub_of(game_parts.stem(o.name)) or "") if game_common else ""
+        part_sub = (game_common.sub_of(game_parts.stem(o.name), o) or "") if game_common else ""
         for i, m in enumerate(o.data.materials):
             if m is None:
                 continue
@@ -213,6 +213,10 @@ def export_game(name, model, model_file=None):
         if o:
             bb = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
             pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
+    # the filler cap's middle (the common parts' caps go on here)
+    capq = [o.matrix_world @ __import__("mathutils").Vector(q) for o in obs if re.match(r"cap(bolt|lid|neck|ring|hinge)", o.name) for q in o.bound_box]
+    if capq:
+        pts["tank_cap"] = [round((min(getattr(q, a) for q in capq) + max(getattr(q, a) for q in capq)) / 2 / MM, 1) for a in "xyz"]
     if gauges:
         pts["gauges"] = gauges
     if GAME_STAND:
