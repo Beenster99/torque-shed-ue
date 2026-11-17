@@ -60,7 +60,7 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
 	TEXT("tool:hands,item:exhaust,act,place:bench_0,act,")   // onto the workbench
 	TEXT("look:computer,f,computer:exhaust:slip_on,shot:ui,computer:paint:tints,shot:ui,computer:close,")   // the computer's page
-	TEXT("order:slip_on,order:steel_backbone,look:deliveries,shot,item:slip_on,f,item:slip_on,act,")   // order a slip-on (and a frame: a crate), the boxes, unpack it, pick it up
+	TEXT("order:slip_on,order:v2_hartwell_cafe,look:deliveries,shot,item:slip_on,f,item:slip_on,act,")   // order a slip-on (and a frame: a crate), the boxes, unpack it, pick it up
 	TEXT("floor:300:700,act,item:slip_on,act,")               // put it down in the yard and pick it up again
 	TEXT("part:tank,act,")                                   // fit it to the bike
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
@@ -189,11 +189,11 @@ const TCHAR* const WashGameSteps =
 const TCHAR* const ScrapSteps =
 	TEXT("bay:2,tool:hands,log,look:screen,shot,part:frame,act:alt,log,wait:2,look:screen,shot,look:bike,shot");
 
-// Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
+// Geometry mode on a catalogue bike: a V2 cafe frame set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
 // the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
 const TCHAR* const GeoSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,")
 	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
 	TEXT("geo:open,wait:3,geo:rig:tank_up:12,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
@@ -206,12 +206,12 @@ const TCHAR* const GeoTwinSteps =
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,geo:exit,look:bike,shot,geo:check,")
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,geo:check");
 
-// A scratch-built bike ridden: a steel backbone set up in the empty bay 3 and finished as a cafe
+// A scratch-built bike ridden: a V2 cafe frame set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), ridden out on its own physics; its spec logged at the start, then the
 // robot rider (-TorqueAutoRide's) takes it 10 s down the road, logged again (speed, gear, the
 // wheels' spin, the bars' turn, the suspension), and back to the shed.
 const TCHAR* const RideSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,")
 	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
 	TEXT("tool:hands,rideout,wait:6,ridelog,robot:on,wait:10,ridelog,shot,robot:off,back,wait:6,log");
 
@@ -222,7 +222,7 @@ const TCHAR* const RideSteps =
 #define TORQUE_RIDE_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",log,look:bike,shot,tool:hands,rideout,wait:6,ridelog,shot,robot:on,wait:10,ridelog,shot,") \
 	TEXT("camera:3:90:450:60,wait:1,shot,camera:0,robot:off,back,wait:6,")
 const TCHAR* const RidesSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
 	TORQUE_RIDE_STYLE("cafe") TORQUE_RIDE_STYLE("chopper") TORQUE_RIDE_STYLE("sport") TORQUE_RIDE_STYLE("mx")
 	TEXT("log");
 #undef TORQUE_RIDE_STYLE
@@ -232,11 +232,10 @@ const TCHAR* const RidesSteps =
 // and a full-lean bend at 45, each logged; then back.
 #define TORQUE_PHYSICS_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,ridelog,launch,brakestop:60:flat,lean:max,back,wait:6,")
 const TCHAR* const PhysicsSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
-	TORQUE_PHYSICS_STYLE("classic") TORQUE_PHYSICS_STYLE("cafe") TORQUE_PHYSICS_STYLE("scrambler") TORQUE_PHYSICS_STYLE("tourer")
-	TORQUE_PHYSICS_STYLE("roader") TORQUE_PHYSICS_STYLE("naked") TORQUE_PHYSICS_STYLE("sport") TORQUE_PHYSICS_STYLE("race")
-	TORQUE_PHYSICS_STYLE("bobber") TORQUE_PHYSICS_STYLE("chopper") TORQUE_PHYSICS_STYLE("cruiser") TORQUE_PHYSICS_STYLE("adventure")
-	TORQUE_PHYSICS_STYLE("supermoto") TORQUE_PHYSICS_STYLE("mx")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
+	// [bikes v2] the eight families that have V2 bikes (the old bike types are retired): each style's lead V2 bike
+	TORQUE_PHYSICS_STYLE("classic") TORQUE_PHYSICS_STYLE("cafe") TORQUE_PHYSICS_STYLE("naked") TORQUE_PHYSICS_STYLE("sport")
+	TORQUE_PHYSICS_STYLE("chopper") TORQUE_PHYSICS_STYLE("cruiser") TORQUE_PHYSICS_STYLE("adventure") TORQUE_PHYSICS_STYLE("mx")
 	TEXT("log");
 #undef TORQUE_PHYSICS_STYLE
 
@@ -247,11 +246,10 @@ const TCHAR* const PhysicsSteps =
 // the old test area's were), then the climb up the pass's steepest 300 m on the real road; then back.
 #define TORQUE_PHYSICS_UK_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideuk:buttertubs,wait:6,ridelog,launch,brakestop:60:flat,lean:max,climb,back,wait:6,")
 const TCHAR* const PhysicsUkSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
-	TORQUE_PHYSICS_UK_STYLE("classic") TORQUE_PHYSICS_UK_STYLE("cafe") TORQUE_PHYSICS_UK_STYLE("scrambler") TORQUE_PHYSICS_UK_STYLE("tourer")
-	TORQUE_PHYSICS_UK_STYLE("roader") TORQUE_PHYSICS_UK_STYLE("naked") TORQUE_PHYSICS_UK_STYLE("sport") TORQUE_PHYSICS_UK_STYLE("race")
-	TORQUE_PHYSICS_UK_STYLE("bobber") TORQUE_PHYSICS_UK_STYLE("chopper") TORQUE_PHYSICS_UK_STYLE("cruiser") TORQUE_PHYSICS_UK_STYLE("adventure")
-	TORQUE_PHYSICS_UK_STYLE("supermoto") TORQUE_PHYSICS_UK_STYLE("mx")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
+	// [bikes v2] the eight families that have V2 bikes (the old bike types are retired): each style's lead V2 bike
+	TORQUE_PHYSICS_UK_STYLE("classic") TORQUE_PHYSICS_UK_STYLE("cafe") TORQUE_PHYSICS_UK_STYLE("naked") TORQUE_PHYSICS_UK_STYLE("sport")
+	TORQUE_PHYSICS_UK_STYLE("chopper") TORQUE_PHYSICS_UK_STYLE("cruiser") TORQUE_PHYSICS_UK_STYLE("adventure") TORQUE_PHYSICS_UK_STYLE("mx")
 	TEXT("log");
 #undef TORQUE_PHYSICS_UK_STYLE
 
@@ -267,11 +265,10 @@ const TCHAR* const PhysicsUkSteps =
 #define TORQUE_RIDER_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,robot:on,wait:8,") \
 	TORQUE_RIDER_VIEWS(S, "old") TORQUE_RIDER_VIEWS(S, "new") TEXT("camera:0,robot:off,back,wait:6,")
 const TCHAR* const RiderPoseSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
-	TORQUE_RIDER_STYLE("classic") TORQUE_RIDER_STYLE("cafe") TORQUE_RIDER_STYLE("scrambler") TORQUE_RIDER_STYLE("tourer")
-	TORQUE_RIDER_STYLE("roader") TORQUE_RIDER_STYLE("naked") TORQUE_RIDER_STYLE("sport") TORQUE_RIDER_STYLE("race")
-	TORQUE_RIDER_STYLE("bobber") TORQUE_RIDER_STYLE("chopper") TORQUE_RIDER_STYLE("cruiser") TORQUE_RIDER_STYLE("adventure")
-	TORQUE_RIDER_STYLE("supermoto") TORQUE_RIDER_STYLE("mx")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
+	// [bikes v2] the eight families that have V2 bikes (the old bike types are retired): each style's lead V2 bike
+	TORQUE_RIDER_STYLE("classic") TORQUE_RIDER_STYLE("cafe") TORQUE_RIDER_STYLE("naked") TORQUE_RIDER_STYLE("sport")
+	TORQUE_RIDER_STYLE("chopper") TORQUE_RIDER_STYLE("cruiser") TORQUE_RIDER_STYLE("adventure") TORQUE_RIDER_STYLE("mx")
 	TEXT("riderpose:new,log");
 #undef TORQUE_RIDER_STYLE
 #undef TORQUE_RIDER_VIEWS
@@ -1372,6 +1369,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("yard")) Said(W->TestInteract());
 		if (Verb == TEXT("rideout"))
 		{
+			// [bikes v2] The bike of the bay being worked on ("bay:N"), as rideuk does; without this a bike
+			// ordered whole into a bay (newbike) was never ridden: the ride took the player's last bike.
+			if (UTorqueBuildSubsystem* OutB = UTorqueBuildSubsystem::Of(World))
+			{
+				if (OutB->Exists(TestBay)) OutB->SetMyBike(TestBay);
+			}
 			W->StartAdventure();
 			Said(W->IsRidingOut() ? TEXT("setting off on Buttertubs") : TEXT("not setting off (see the walker's note)"));
 		}

@@ -216,6 +216,7 @@ struct FPartInfo
 	FName Grade;
 	bool bEmpty = false;
 	FLinearColor Liquid = FLinearColor(0.6f, 0.45f, 0.15f);
+	bool bV2 = false;   // [bikes v2] a V2 bike's frame
 };
 
 struct FCatalogue
@@ -291,6 +292,7 @@ FCatalogue& Catalogue()
 			FString Grade;
 			if ((*P)->TryGetStringField(TEXT("grade"), Grade) && !Grade.IsEmpty()) Info.Grade = FName(*Grade);
 			(*P)->TryGetBoolField(TEXT("empty"), Info.bEmpty);
+			Info.bV2 = (*P)->HasField(TEXT("v2"));
 			const TArray<TSharedPtr<FJsonValue>>* Liq = nullptr;
 			if ((*P)->TryGetArrayField(TEXT("liquid"), Liq) && Liq->Num() >= 3)
 				Info.Liquid = FLinearColor((float)(*Liq)[0]->AsNumber(), (float)(*Liq)[1]->AsNumber(), (float)(*Liq)[2]->AsNumber());
@@ -514,7 +516,20 @@ FLinearColor DefaultColour(FName Part)
 TArray<FName> PartsOfKind(FName Kind)
 {
 	const TArray<FName>* L = Catalogue().ByKind.Find(Kind);
-	return L ? *L : TArray<FName>();
+	if (!L) return TArray<FName>();
+	// [bikes v2] The old bikes are retired (beenster, Nov 17): once there are V2 frames, they are the only frames sold.
+	// An old frame already in a save still works; it just cannot be ordered any more.
+	if (Kind == FName(TEXT("frame")))
+	{
+		TArray<FName> New;
+		for (const FName& Id : *L)
+		{
+			const FPartInfo* Info = Catalogue().Parts.Find(Id);
+			if (Info && Info->bV2) New.Add(Id);
+		}
+		if (New.Num() > 0) return New;
+	}
+	return *L;
 }
 
 TArray<FName> PartMounts(FName Slot, FName Part)

@@ -120,7 +120,7 @@ TArray<FName> BikeTypes()
 {
 	TArray<FName> Out;
 	if (const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout())
-		for (const std::string& St : Lay->Styles()) Out.Add(FName(UTF8_TO_TCHAR(St.c_str())));
+		for (const std::string& St : Lay->ShopStyles()) Out.Add(FName(UTF8_TO_TCHAR(St.c_str())));
 	return Out;
 }
 

@@ -198,6 +198,12 @@ std::vector<std::string> Options(const BikeLayout& Lay, const std::string& Slot,
 	for (const std::string& Id : All)
 		if (BSI::ShopHas(Lay.StylesOf(Id), Style)) Suits.push_back(Id);
 	Out = Suits.size() >= 2 ? Suits : All;
+	// [bikes v2] The old frames are retired: a style with V2 bikes offers only those as its frame.
+	if (Slot == "frame")
+	{
+		const std::vector<std::string> V2 = Lay.V2Frames(Style);
+		if (!V2.empty()) Out = V2;
+	}
 	if (Lay.MayBeEmpty(Slot) && !BSI::ShopHas(Out, "none")) Out.push_back("none");
 	const std::string Now = BSI::ShopGet(Parts, Slot);
 	if (!Now.empty() && !BSI::ShopHas(Out, Now)) Out.insert(Out.begin(), Now);
@@ -239,7 +245,7 @@ PartsMap FitTyres(const BikeLayout& Lay, const PartsMap& Parts, const std::strin
 
 PartsMap StockBuild(const BikeLayout& Lay, const std::string& Style)
 {
-	return FitTyres(Lay, RideParts(Lay, Lay.ReferenceBuild(Style)), Style);
+	return FitTyres(Lay, RideParts(Lay, Lay.ShopBuild(Style)), Style);   // [bikes v2] on its lead V2 frame, if the style has one
 }
 
 PartsMap SetPart(const BikeLayout& Lay, const PartsMap& Parts, const std::string& Style, const std::string& Slot, const std::string& Id)
@@ -488,7 +494,7 @@ bool ParseOrder(const BikeLayout& Lay, const std::string& Text, Order& Out)
 	if (!Json::Parse(Text, J) || !J.IsObject()) return false;
 	Out = Order();
 	Out.Style = J.Str("style");
-	if (!BSI::ShopHas(Lay.Styles(), Out.Style)) return false;
+	if (!BSI::ShopHas(Lay.ShopStyles(), Out.Style)) return false;   // [bikes v2] only the styles still sold
 	BSI::ShopRgb(J.Get("paint"), Out.Paint);
 	// The style's stock bike with the configurator's slots over it, made whole: a part that isn't
 	// the slot's kind is dropped for the stock one (sanitize_build), and the tyres put right.
