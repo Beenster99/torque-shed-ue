@@ -167,14 +167,15 @@ int main()
 					if (!New.Any()) continue;
 					++Fits[Sub];
 					// On the bike: inside the bike as drawn (with room), above the ground.
-					const double Room = 0.25;
+					const double Room = Sub == "silencer" ? 0.5 : 0.25;   // (a long can for a short one: drag pipes on a chopper)
 					Expect(New.Lo.x > Whole.Lo.x - Room && New.Hi.x < Whole.Hi.x + Room && New.Hi.y < Whole.Hi.y + Room && New.Lo.y > Whole.Lo.y - 0.01 &&
 						std::fabs(New.Mid().z) < 0.5, Frame + ": " + E.Id + " " + Sub + " on the bike");
 					if (Old.Any())
 					{
 						++Lined[Sub];
-						const double Off = Dist(Old.Mid(), New.Mid());
-						Expect(Off < (Sub == "silencer" ? 0.25 : Sub == "bar" ? 0.2 : 0.06), Frame + ": " + E.Id + " " + Sub + " where the bike's was (" + std::to_string(Off) + " m off)");
+						// (A silencer goes by its front end, where the pipe meets it; a plate hanger can be a side one for a tidy.)
+						const double Off = Sub == "silencer" ? Dist(V3(Old.Hi.x, Old.Mid().y, Old.Mid().z), V3(New.Hi.x, New.Mid().y, New.Mid().z)) : Dist(Old.Mid(), New.Mid());
+						Expect(Off < (Sub == "bar" ? 0.2 : Sub == "plate_hanger" ? 0.1 : 0.06), Frame + ": " + E.Id + " " + Sub + " where the bike's was (" + std::to_string(Off) + " m off)");
 					}
 					else ++ByAnchor[Sub];
 				}
