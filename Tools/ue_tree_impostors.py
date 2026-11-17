@@ -344,6 +344,13 @@ def bake(mesh_path):
     try:
         cprobe = unreal.RenderingLibrary.read_render_target_raw_pixel(world, shots["C"][1], CAPTURE_PX // 2, CAPTURE_PX // 2)
         log("%s: last colour view's middle pixel %.2f %.2f %.2f (all 0: nothing was captured)" % (base, cprobe.r, cprobe.g, cprobe.b))
+        if cprobe.r + cprobe.g + cprobe.b <= 0.0:
+            # (never plant black cards: under UnrealEditor-Cmd the captures render nothing; bake in
+            # the full editor with Tools/ue_bake_impostors.py)
+            log("%s: NOT baked: the captures are black (run Tools/ue_bake_impostors.py in the full editor)" % base)
+            tree.destroy_actor()
+            cap_actor.destroy_actor()
+            return None
     except Exception:
         pass
     if probe is not None:
