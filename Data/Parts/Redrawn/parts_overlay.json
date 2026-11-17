@@ -1408,7 +1408,8 @@
 			"fog_lights": "none",
 			"guards": "none",
 			"ecu": "none",
-			"dashboard": "tft_touring"
+			"dashboard": "tft_touring",
+			"gearbox": "six_cruiser_od"
 		},
 		"chopper": {
 			"tank": "chopper_1",
@@ -1427,25 +1428,28 @@
 		"roader": {
 			"rear_disc": "drilled_245_rear",
 			"ecu": "none",
-			"dashboard": "tft_colour"
+			"dashboard": "tft_colour",
+			"final_drive": "top_speed_16_40"
 		},
 		"sport": {
 			"rear_disc": "drilled_220_rear",
-			"engine": "triple_660",
-			"head": "four_valve",
-			"final_drive": "tall_15_42",
+			"engine": "inline_600",
+			"head": "big_valve_ported",
+			"final_drive": "stock_15_45",
 			"ecu": "none",
 			"dashboard": "tft_colour"
 		},
 		"race": {
 			"rear_disc": "drilled_220_rear",
 			"ecu": "none",
-			"dashboard": "race_logger"
+			"dashboard": "race_logger",
+			"final_drive": "top_speed_16_40"
 		},
 		"naked": {
 			"rear_disc": "drilled_220_rear",
 			"ecu": "none",
-			"dashboard": "tft_naked"
+			"dashboard": "tft_naked",
+			"final_drive": "top_speed_16_40"
 		},
 		"supermoto": {
 			"rear_disc": "drilled_220_rear",
@@ -1469,13 +1473,15 @@
 		"bobber": {
 			"front_caliper": "twin_piston",
 			"front_pads": "organic",
-			"ecu": "none"
+			"ecu": "none",
+			"final_drive": "tall_15_42"
 		},
 		"classic": {
 			"ecu": "none"
 		},
 		"cafe": {
-			"ecu": "none"
+			"ecu": "none",
+			"final_drive": "top_speed_16_40"
 		}
 	},
 	"about_tft": "[TFT screens, Nov 2026] The ECU parts and every sat nav but the phone are out of the game (beenster): rider aids and the engine's tuning range come with the dash ('aids', 'aid_level', 'tune_range', 'limiter_add'), TFT dashes have a 'unit' (compact, street, colour, touring) with a 'screen' shape and 'glass' size, and modern reference bikes carry a TFT."
