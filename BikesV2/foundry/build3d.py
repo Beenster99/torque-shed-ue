@@ -1856,8 +1856,21 @@ def definition(model, c):
         xf = max(q[0] for q in case if q[1] < zb + 90)
         cone("oilfilter", (xf - 34, -40, zb + 52), (xf + 34, -40, zb + 44), 33, 33, dark, 24)
         cone("oilfilterend", (xf + 34, -40, zb + 44), (xf + 41, -40, zb + 43), 33, 22, dark, 24)
-    cone("starter", (cs_[0] - 40, -wide / 2 + 40, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), 30, 30, dark, 24)
-    cone("starterend", (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 84, cs_[1] + 96), 30, 20, steel, 24)
+    # the starter motor: on a single-shock bike whose shock passes it on the centre line, a short motor
+    # on the left of the shock (a full-width one would run straight through the spring)
+    st_y0, sh_ = -wide / 2 + 40, model.get("shock", {})
+    if "top" in sh_ and not sh_.get("twin"):
+        a_, b_, p_ = sh_["top"], sh_["bottom"], (cs_[0] - 40, cs_[1] + 96)
+        t_ = max(0.0, min(1.0, ((p_[0] - b_[0]) * (a_[0] - b_[0]) + (p_[1] - b_[1]) * (a_[1] - b_[1])) / ((a_[0] - b_[0]) ** 2 + (a_[1] - b_[1]) ** 2)))
+        if math.hypot(p_[0] - b_[0] - t_ * (a_[0] - b_[0]), p_[1] - b_[1] - t_ * (a_[1] - b_[1])) < 82:
+            st_y0 = 56 if wide / 2 - 96 - 56 >= 50 else None
+    sx_, sz_ = cs_[0] - 40, cs_[1] + 96
+    if st_y0 is None:       # a narrow engine has no room on the left: the motor goes to the right of the shock
+        cone("starter", (sx_, -wide / 2 + 40, sz_), (sx_, -46, sz_), 30, 30, dark, 24)
+        cone("starterend", (sx_, -wide / 2 + 40, sz_), (sx_, -wide / 2 + 28, sz_), 30, 20, steel, 24)
+    else:
+        cone("starter", (sx_, st_y0, sz_), (sx_, wide / 2 - 96, sz_), 30, 30, dark, 24)
+        cone("starterend", (sx_, wide / 2 - 96, sz_), (sx_, wide / 2 - 84, sz_), 30, 20, steel, 24)
     # seat base: a moulded pan under the foam, so the seat reads as a pad on a base and not one soft lump
     if st:
         outline = shapes.dense(st["pts"], True, st.get("t", 1.0))

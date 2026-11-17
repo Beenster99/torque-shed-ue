@@ -998,5 +998,1032 @@
     "name": "Seven s blades"
    }
   ]
+ },
+ "controls3d": {
+  "about": "Stage 2 common parts approved by beenster 16 Nov 20:28 ('All good, next'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry lives in foundry/controls3d.py: fit(build3d, model, c, levers, switches, mirrors, lines) after detail3d (and after bars3d.fit when a library bar is on; lines from it). Every set has the same right-hand pod with the red kill switch (beenster rule). Mirrors are aimed by script from the rider's eye.",
+  "levers": [
+   {
+    "key": "standard",
+    "name": "Billet adjustable set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "short",
+    "name": "Short lever set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "folding",
+    "name": "Folding radial set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "classic",
+    "name": "Classic polished set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "forged",
+    "name": "Forged set",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   }
+  ],
+  "switches": [
+   {
+    "key": "dpad",
+    "name": "D-pad pod",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "cruise",
+    "name": "Cruise pod",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   },
+   {
+    "key": "compact",
+    "name": "Compact pod",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ]
+   }
+  ],
+  "mirrors": [
+   {
+    "key": "round",
+    "name": "Round stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "oval",
+    "name": "Oval stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "rect",
+    "name": "Rectangular stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "teardrop",
+    "name": "Teardrop stalk",
+    "kind": "stalk",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Adventure",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": []
+   },
+   {
+    "key": "barend_round",
+    "name": "Bar-end round",
+    "kind": "barend",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": [
+     "Adventure: clashes with hand guards (cmirrorboss | handguardend); not offered on bikes with hand guards"
+    ]
+   },
+   {
+    "key": "barend_teardrop",
+    "name": "Bar-end teardrop",
+    "kind": "barend",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Sport",
+     "Cruiser",
+     "MX"
+    ],
+    "notes": [
+     "Adventure: clashes with hand guards (cmirrorboss | handguardend); not offered on bikes with hand guards"
+    ]
+   },
+   {
+    "key": "fairing_aero",
+    "name": "Fairing aero",
+    "kind": "fairing",
+    "fits": [
+     "Sport"
+    ],
+    "notes": []
+   },
+   {
+    "key": "fairing_wing",
+    "name": "Fairing wing",
+    "kind": "fairing",
+    "fits": [
+     "Sport"
+    ],
+    "notes": []
+   }
+  ],
+  "rules": [
+   "Levers curve in plan: out from the pivot, in to a hump nearest the grip, out to a ball tip (beenster plan view 16 Nov); L4 classic is the round-section exception",
+   "Switch pods are buttons only, d-pad style; always a red kill switch on the right",
+   "Fairing mirrors only on bikes with a cowl (Sport)"
+  ]
+ },
+ "lamps3d": {
+  "about": "Stage 3 common parts approved by beenster 16 Nov 21:42 ('These look great, let's move on'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/lamps3d.py: fit(build3d, model, c, head, tail, ind) after detail3d (removes the bike's own lamp, tail light and indicators it replaces). Sport and adventure fairing lamps are built by Bikes V2 as separate units; MX keeps its number board.",
+  "headlamps": [
+   {
+    "key": "round_big",
+    "name": "Large round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "round_small",
+    "name": "Small round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "halo",
+    "name": "Round halo",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "twin",
+    "name": "Twin round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "stacked",
+    "name": "Stacked twin",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "rect",
+    "name": "Flat rectangle",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "hex",
+    "name": "Angular",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "oval",
+    "name": "Tall oval",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ],
+  "tail_lights": [
+   {
+    "key": "round",
+    "name": "Round",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "oval",
+    "name": "Oval",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "strip",
+    "name": "LED strip",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "twin_dot",
+    "name": "Twin dot",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "classic",
+    "name": "Classic unit",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "hanger",
+    "name": "Hanger lamp",
+    "fits": [
+     "Naked",
+     "Cafe"
+    ]
+   }
+  ],
+  "indicators": [
+   {
+    "key": "led_short",
+    "name": "LED, short stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "led_long",
+    "name": "LED, long stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "chrome_short",
+    "name": "Chrome, short stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "chrome_long",
+    "name": "Chrome, long stalk",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "bullet",
+    "name": "Bullet",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "flush",
+    "name": "Flush blade",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Adventure",
+     "MX",
+     "Chopper"
+    ]
+   }
+  ],
+  "rules": [
+   "Every lens clear so reflector and bulb/LEDs show (beenster 16 Nov)",
+   "Lights are intricate separate parts (beenster 16 Nov 21:19)",
+   "Front indicators on the headlamp ears, rear on the sides of the tail light",
+   "Hanger tail lamp not on mudguard bikes"
+  ]
+ },
+ "clocks3d": {
+  "about": "Stage 4 common parts approved by beenster 16 Nov 22:12 ('C2 needs to be raised slightly so the rider can see it properly, other than that all good'; C2 now stands 30 mm above where it clears the top yoke). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/clocks3d.py: fit(build3d, model, c, key) after detail3d (and after lamps3d.fit if used); it removes the bike's own clock*/dash* parts and turns the housing to the rider's eyes. Housings only: screen faces come from the TFT screens thread.",
+  "housings": [
+   {
+    "key": "twin_round",
+    "name": "Twin round clocks",
+    "fits": [
+     "Classic",
+     "Cafe",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "single_round",
+    "name": "Single round clock",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "round_screen",
+    "name": "Round screen",
+    "fits": [
+     "Naked",
+     "Classic",
+     "Cafe",
+     "Cruiser"
+    ]
+   },
+   {
+    "key": "wide_screen",
+    "name": "Wide screen",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "tall_screen",
+    "name": "Tall screen",
+    "fits": [
+     "Naked",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "bar_unit",
+    "name": "Small bar unit",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Chopper",
+     "MX"
+    ]
+   }
+  ]
+ },
+ "silencers3d": {
+  "about": "Stage 5 common parts approved by beenster 17 Nov 07:04 ('They all look really good'; the short cone now turns outboard so its outlet points to the side, and is not offered on MX). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/silencers3d.py: fit(build3d, model, c, key) after detail3d; it removes the bike's own can parts (can*{i}{side}), slips over the end of the bike's own pipe along the own can's axis, shortens then slims the can until it touches nothing, and hangs it from a subframe or peg hanger within 260 mm. Pipes stay with the bikes.",
+  "silencers": [
+   {
+    "key": "reverse_cone",
+    "name": "Reverse cone",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "peashooter",
+    "name": "Peashooter",
+    "fits": [
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "shaker",
+    "name": "Cocktail shaker",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic"
+    ]
+   },
+   {
+    "key": "round_ti",
+    "name": "Round titanium",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "oval_carbon",
+    "name": "Oval carbon",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "hex",
+    "name": "Hexagon",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "short_cone",
+    "name": "Short cone",
+    "fits": [
+     "Naked",
+     "Sport"
+    ]
+   },
+   {
+    "key": "slash_cut",
+    "name": "Slash cut",
+    "fits": [
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ]
+ },
+ "pegs3d": {
+  "about": "Stage 6 common parts approved by beenster 17 Nov 07:43 ('Foot pegs and controls look amazing, approved'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/pegs3d.py: fit(build3d, model, c, peg, heel, pedal) after detail3d; pegs stand on the bike's own peg points (never moved) from the same inner face, heel plates take the bike's own outline and bolts, foot controls keep the bike's pivot and toe points and its gear linkage. MX pegs stand at (600, 404) until the MX models get a peg pivot. Carbon heel plate uses foundry/carbon.py (woven twill, textures in foundry/textures).",
+  "pegs": [
+   {
+    "key": "knurled",
+    "name": "Knurled billet",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "rubber",
+    "name": "Rubber topped",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "cleat",
+    "name": "Wide cleat",
+    "fits": [
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "race",
+    "name": "Race peg",
+    "fits": [
+     "Sport",
+     "Naked",
+     "Cafe"
+    ]
+   },
+   {
+    "key": "board",
+    "name": "Floorboard",
+    "fits": [
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "bullet",
+    "name": "Chrome bullet",
+    "fits": [
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ],
+  "heel_plates": [
+   {
+    "key": "lightened",
+    "name": "Lightened",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "guard",
+    "name": "Black guard",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "carbon",
+    "name": "Carbon",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   }
+  ],
+  "foot_controls": [
+   {
+    "key": "billet",
+    "name": "Billet folding tip",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "heeltoe",
+    "name": "Heel and toe",
+    "fits": [
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "forged",
+    "name": "Forged steel",
+    "fits": [
+     "MX",
+     "Adventure"
+    ]
+   }
+  ]
+ },
+ "brakes3d": {
+  "about": "Stage 7 common parts approved by beenster 17 Nov 08:51 ('These are all good, approved'; calipers approved 08:37). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/brakes3d.py: fit(build3d, model, c, disc, cal, finish, chain, sprocket, spr_finish) after detail3d. Discs keep the bike's rotor outer radius and braking-ring inner edge (read from front_rotor{y}/rear_rotor{y}), on the bike's own hub flange; the rear disc takes the same style. Front calipers sit at the bike's caliper place on the same radial ears, keeping the fork lug and the hose banjo; the rear caliper is always 'compact' in the front caliper's finish. Chains are the bike's own chain with plate materials swapped. Sprockets keep the bike's tooth count, centre and offset. Parts are found by name, so single-sided arms work.",
+  "discs": [
+   {
+    "key": "wave",
+    "name": "Wave rotor, black spokes",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "lattice",
+    "name": "Gold lattice floater",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "onepiece",
+    "name": "One-piece teardrop",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Adventure",
+     "MX",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "star",
+    "name": "Star drive",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   }
+  ],
+  "calipers": [
+   {
+    "key": "lobed",
+    "name": "Lobed radial",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ],
+    "default_finish": "gold"
+   },
+   {
+    "key": "monobloc",
+    "name": "Flat monobloc",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX"
+    ],
+    "default_finish": "black"
+   },
+   {
+    "key": "twopiece",
+    "name": "Gold two-piece",
+    "fits": [
+     "Classic",
+     "Cafe",
+     "Cruiser",
+     "Chopper"
+    ],
+    "default_finish": "gold"
+   },
+   {
+    "key": "compact",
+    "name": "Compact twin-pot",
+    "fits": [
+     "MX",
+     "Classic",
+     "Adventure",
+     "Cruiser",
+     "Chopper"
+    ],
+    "default_finish": "silver"
+   }
+  ],
+  "caliper_finishes": [
+   "gold",
+   "red",
+   "black",
+   "silver",
+   "blue"
+  ],
+  "chains": [
+   {
+    "key": "steel",
+    "name": "Plain steel"
+   },
+   {
+    "key": "gold",
+    "name": "Gold"
+   },
+   {
+    "key": "black_gold",
+    "name": "Black and gold"
+   },
+   {
+    "key": "blue",
+    "name": "Blue"
+   }
+  ],
+  "sprockets": [
+   {
+    "key": "steel",
+    "name": "Steel",
+    "finishes": []
+   },
+   {
+    "key": "alu",
+    "name": "Alloy spoke",
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   },
+   {
+    "key": "twotone",
+    "name": "Two-tone",
+    "finishes": [
+     "gold",
+     "red",
+     "black",
+     "silver",
+     "blue"
+    ]
+   }
+  ],
+  "check": "python3 foundry/brakes3d.py check: 65 fits on every family's lead bike, nothing touching."
+ },
+ "shocks3d": {
+  "about": "Stage 8 common parts approved by beenster 17 Nov 10:39 ('perfect - approved'; H2 side mount 'Love H2!'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/shocks3d.py: fit(build3d, model, c, shock, spring, body, cap, cap_finish, hanger, hanger_finish) after detail3d. Shocks keep model shock top/bottom eyes (eye-to-eye length) and the bike's eyes, studs, forked brackets and bolts; they remove only shocktop/shockbody/shockrod/shockbump/shockcollar/spring. Springs cover the lower three quarters, close-wound at the top (beenster's photo, refs/shock_ref_twin.png). Piggyback canister: short and fat behind twin shocks; on single shocks it takes the clearest of behind/left/right and three heights. Caps sit on the tank's six-bolt ring (39.5 mm); on Classic/Cafe/Cruiser/Chopper/Naked a cap point on a slope moves to the tank crown (crown()). Plate hangers: tidy drops the narrow plastic plate arm, platemount and platearm behind the axle; side adds a left-axle arm plate (also gives cruisers/choppers a plate).",
+  "shocks": [
+   {
+    "key": "piggyback",
+    "name": "Piggyback",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX",
+     "Classic"
+    ],
+    "default_spring": "red"
+   },
+   {
+    "key": "coilover",
+    "name": "Polished coil-over",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Classic",
+     "Adventure",
+     "Cruiser"
+    ],
+    "default_spring": "yellow"
+   },
+   {
+    "key": "shroud",
+    "name": "Chrome shroud",
+    "fits": [
+     "Classic",
+     "Cafe",
+     "Cruiser"
+    ],
+    "default_spring": "chrome"
+   },
+   {
+    "key": "air",
+    "name": "Air ride",
+    "fits": [
+     "Cruiser",
+     "Classic"
+    ],
+    "default_spring": "black"
+   }
+  ],
+  "spring_finishes": [
+   "red",
+   "yellow",
+   "black",
+   "chrome",
+   "blue",
+   "gold"
+  ],
+  "caps": [
+   {
+    "key": "aero",
+    "name": "Aero flush",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "MX"
+    ]
+   },
+   {
+    "key": "monza",
+    "name": "Flip-up",
+    "fits": [
+     "Cafe",
+     "Classic",
+     "Naked",
+     "Cruiser",
+     "Chopper"
+    ]
+   },
+   {
+    "key": "screw",
+    "name": "Knurled screw",
+    "fits": [
+     "Classic",
+     "Cruiser",
+     "Chopper",
+     "Cafe"
+    ]
+   },
+   {
+    "key": "billet",
+    "name": "Billet",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure",
+     "Chopper"
+    ]
+   }
+  ],
+  "cap_finishes": [
+   "silver",
+   "black",
+   "gold",
+   "red",
+   "blue"
+  ],
+  "hangers": [
+   {
+    "key": "tidy",
+    "name": "Tail tidy",
+    "fits": [
+     "Naked",
+     "Sport",
+     "Cafe",
+     "Adventure"
+    ]
+   },
+   {
+    "key": "side",
+    "name": "Side mount",
+    "fits": [
+     "Naked",
+     "Cafe",
+     "Classic",
+     "Cruiser",
+     "Chopper"
+    ]
+   }
+  ],
+  "check": "python3 foundry/shocks3d.py check: clean on every family's lead bike (shocks judged against the bike's own shock's existing contacts)."
  }
 }
