@@ -7,6 +7,7 @@
 #include "Engine/Font.h"
 #include "TorqueBikePawn.h"
 #include "TorqueTft.h"
+#include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
@@ -41,6 +42,11 @@ void ATorqueHUD::DrawHUD()
 	if (ATorqueGeometryMode* Geo = ATorqueGeometryMode::For(GetOwningPlayerController()))
 	{
 		Geo->DrawPanel(this, Canvas);   // geometry mode's panel, parts list and gizmo
+		return;
+	}
+	if (ATorqueDecalMode* Dec = ATorqueDecalMode::For(GetOwningPlayerController()))
+	{
+		Dec->DrawPanel(this, Canvas);   // decal mode's library, colours and switches
 		return;
 	}
 	if (TPC) TPC->DrawPings(Canvas);   // [ping] under everything else on the HUD, over the world

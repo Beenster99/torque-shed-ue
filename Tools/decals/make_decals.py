@@ -45,12 +45,19 @@ def write_library(only=None):
         os.makedirs(d, exist_ok=True)
         for dc in decals:
             listing.append({"id": dc.id, "shelf": dc.shelf, "name": dc.name, "tags": dc.tags, "w": dc.w, "h": dc.h,
-                            "colours": dc.colours, "file": f"{shelf}/{dc.id}.png"})
+                            "colours": dc.colours, "file": f"{shelf}/{dc.id}.png", "thumb": f"thumbs/{dc.id}.png"})
             if only and shelf != only:
                 continue
             # The game's picture: at most 512 across its longer side... long stripes keep 1024.
             img = dc.rgba(1.0)
             Image.fromarray(img, "RGBA").save(os.path.join(d, dc.id + ".png"), optimize=True)
+            # The decal mode's shelf picture: as it looks in red and black, 128 across at most.
+            th = os.path.join(OUT, "thumbs")
+            os.makedirs(th, exist_ok=True)
+            rgba = dk.compose(dc.masks(1.0), (0.80, 0.10, 0.07), (0.03, 0.03, 0.03))
+            t = Image.fromarray((np.clip(rgba, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA")
+            t.thumbnail((128, 128), Image.LANCZOS)
+            t.save(os.path.join(th, dc.id + ".png"), optimize=True)
     data = {"version": 1, "fonts": fonts.FONTS, "decals": listing}
     with open(os.path.join(OUT, "decals.json"), "w") as f:
         json.dump(data, f, indent=1)

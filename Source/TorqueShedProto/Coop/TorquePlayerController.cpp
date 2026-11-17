@@ -1,6 +1,7 @@
 #include "TorquePlayerController.h"
 #include "TorqueNetBike.h"
 
+#include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
@@ -601,7 +602,7 @@ FString ATorquePlayerController::TestFace(const FString& Slider, float Value)
 bool ATorquePlayerController::WantsPause()
 {
 	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
-	if (ATorqueGeometryMode::For(this)) return false;
+	if (ATorqueGeometryMode::For(this) || ATorqueDecalMode::For(this)) return false;
 	const APawn* P = GetPawn();
 	if (const ATorqueWalker* W = Cast<ATorqueWalker>(P); W && W->ComputerUpOrJustClosed()) return false;   // [shed] Esc closes the parts computer
 	return P && (P->IsA<ATorqueBikePawn>() || P->IsA<ATorqueWalker>());

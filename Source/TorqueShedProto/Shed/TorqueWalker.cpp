@@ -23,6 +23,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
+#include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -579,7 +580,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		return;
 	}
 	// Geometry mode is open (F2, ATorqueGeometryMode): it has the keys, the pad and the screen.
-	if (ATorqueGeometryMode::For(GetController()))
+	if (ATorqueGeometryMode::For(GetController()) || ATorqueDecalMode::For(GetController()))   // (and decal mode, F3)
 	{
 		bWorkHeld = bAltHeld = bWorkPressed = bAltPressed = false;
 		const FSonyPadState Now = PadState();   // (what's held as it closes isn't pressed again here)
@@ -674,6 +675,14 @@ void ATorqueWalker::ReadInput(float Dt)
 		FString Why;
 		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
 			Say(Why.IsEmpty() ? FString(TEXT("Geometry mode couldn't open here.")) : Why, false);
+		return;
+	}
+	// F3: decal mode on the bike looked at, or the nearest (the decals plan).
+	if (KeyJust(ETorqueKey::DecalMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	{
+		FString Why;
+		if (!ATorqueDecalMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
+			Say(Why.IsEmpty() ? FString(TEXT("Decal mode couldn't open here.")) : Why, false);
 		return;
 	}
 	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
@@ -3116,6 +3125,8 @@ void ATorqueWalker::UpdateHud()
 		}
 		if (B->Exists(TargetBay))
 			HudLines.Add({FString::Printf(TEXT("%s: geometry mode (fit this bike's parts)"), *FTorqueKeys::Text(ETorqueKey::GeometryMode)), Prompt, 0.55f});
+		if (B->Exists(TargetBay))
+			HudLines.Add({FString::Printf(TEXT("%s: decal mode (put decals on this bike)"), *FTorqueKeys::Text(ETorqueKey::DecalMode)), Prompt, 0.55f});
 		const FString Fab = B->FabOwedText(TargetBay);
 		if (!Fab.IsEmpty()) HudLines.Add({TEXT("Needs fabrication: ") + Fab + TEXT(" (grinder and welder)"), Info, 0.55f});
 		break;

@@ -154,7 +154,8 @@
    "w": 1024,
    "h": 192,
    "colours": 1,
-   "file": "shapes/pin_single.png"
+   "file": "shapes/pin_single.png",
+   "thumb": "thumbs/pin_single.png"
   },
   {
    "id": "pin_double",
@@ -168,7 +169,8 @@
    "w": 1024,
    "h": 192,
    "colours": 2,
-   "file": "shapes/pin_double.png"
+   "file": "shapes/pin_double.png",
+   "thumb": "thumbs/pin_double.png"
   },
   {
    "id": "pin_spear",
@@ -182,7 +184,8 @@
    "w": 1024,
    "h": 160,
    "colours": 2,
-   "file": "shapes/pin_spear.png"
+   "file": "shapes/pin_spear.png",
+   "thumb": "thumbs/pin_spear.png"
   },
   {
    "id": "pin_flourish",
@@ -196,7 +199,8 @@
    "w": 1024,
    "h": 512,
    "colours": 1,
-   "file": "shapes/pin_flourish.png"
+   "file": "shapes/pin_flourish.png",
+   "thumb": "thumbs/pin_flourish.png"
   },
   {
    "id": "pin_eye",
@@ -210,7 +214,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/pin_eye.png"
+   "file": "shapes/pin_eye.png",
+   "thumb": "thumbs/pin_eye.png"
   },
   {
    "id": "stripes_twin",
@@ -224,7 +229,8 @@
    "w": 1024,
    "h": 256,
    "colours": 2,
-   "file": "shapes/stripes_twin.png"
+   "file": "shapes/stripes_twin.png",
+   "thumb": "thumbs/stripes_twin.png"
   },
   {
    "id": "stripes_triple",
@@ -237,7 +243,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/stripes_triple.png"
+   "file": "shapes/stripes_triple.png",
+   "thumb": "thumbs/stripes_triple.png"
   },
   {
    "id": "stripe_centre",
@@ -251,7 +258,8 @@
    "w": 1024,
    "h": 256,
    "colours": 2,
-   "file": "shapes/stripe_centre.png"
+   "file": "shapes/stripe_centre.png",
+   "thumb": "thumbs/stripe_centre.png"
   },
   {
    "id": "stripe_speed",
@@ -264,7 +272,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/stripe_speed.png"
+   "file": "shapes/stripe_speed.png",
+   "thumb": "thumbs/stripe_speed.png"
   },
   {
    "id": "stripe_hockey",
@@ -277,7 +286,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/stripe_hockey.png"
+   "file": "shapes/stripe_hockey.png",
+   "thumb": "thumbs/stripe_hockey.png"
   },
   {
    "id": "stripe_zigzag",
@@ -290,7 +300,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/stripe_zigzag.png"
+   "file": "shapes/stripe_zigzag.png",
+   "thumb": "thumbs/stripe_zigzag.png"
   },
   {
    "id": "stripe_hazard",
@@ -303,7 +314,8 @@
    "w": 1024,
    "h": 192,
    "colours": 2,
-   "file": "shapes/stripe_hazard.png"
+   "file": "shapes/stripe_hazard.png",
+   "thumb": "thumbs/stripe_hazard.png"
   },
   {
    "id": "stripe_chevrons",
@@ -316,7 +328,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/stripe_chevrons.png"
+   "file": "shapes/stripe_chevrons.png",
+   "thumb": "thumbs/stripe_chevrons.png"
   },
   {
    "id": "stripe_dots",
@@ -329,7 +342,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/stripe_dots.png"
+   "file": "shapes/stripe_dots.png",
+   "thumb": "thumbs/stripe_dots.png"
   },
   {
    "id": "chequers_strip",
@@ -342,7 +356,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/chequers_strip.png"
+   "file": "shapes/chequers_strip.png",
+   "thumb": "thumbs/chequers_strip.png"
   },
   {
    "id": "chequered_flag",
@@ -357,7 +372,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/chequered_flag.png"
+   "file": "shapes/chequered_flag.png",
+   "thumb": "thumbs/chequered_flag.png"
   },
   {
    "id": "scallops_3",
@@ -370,7 +386,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/scallops_3.png"
+   "file": "shapes/scallops_3.png",
+   "thumb": "thumbs/scallops_3.png"
   },
   {
    "id": "scallops_5",
@@ -383,7 +400,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/scallops_5.png"
+   "file": "shapes/scallops_5.png",
+   "thumb": "thumbs/scallops_5.png"
   },
   {
    "id": "flames_classic",
@@ -397,7 +415,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/flames_classic.png"
+   "file": "shapes/flames_classic.png",
+   "thumb": "thumbs/flames_classic.png"
   },
   {
    "id": "flames_tribal",
@@ -410,7 +429,8 @@
    "w": 1024,
    "h": 384,
    "colours": 1,
-   "file": "shapes/flames_tribal.png"
+   "file": "shapes/flames_tribal.png",
+   "thumb": "thumbs/flames_tribal.png"
   },
   {
    "id": "flames_ghost",
@@ -423,7 +443,8 @@
    "w": 1024,
    "h": 384,
    "colours": 1,
-   "file": "shapes/flames_ghost.png"
+   "file": "shapes/flames_ghost.png",
+   "thumb": "thumbs/flames_ghost.png"
   },
   {
    "id": "bolt_single",
@@ -436,7 +457,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/bolt_single.png"
+   "file": "shapes/bolt_single.png",
+   "thumb": "thumbs/bolt_single.png"
   },
   {
    "id": "bolt_long",
@@ -450,7 +472,8 @@
    "w": 1024,
    "h": 256,
    "colours": 2,
-   "file": "shapes/bolt_long.png"
+   "file": "shapes/bolt_long.png",
+   "thumb": "thumbs/bolt_long.png"
   },
   {
    "id": "tribal_blade",
@@ -462,7 +485,8 @@
    "w": 1024,
    "h": 384,
    "colours": 1,
-   "file": "shapes/tribal_blade.png"
+   "file": "shapes/tribal_blade.png",
+   "thumb": "thumbs/tribal_blade.png"
   },
   {
    "id": "tribal_swirl",
@@ -475,7 +499,8 @@
    "w": 512,
    "h": 512,
    "colours": 1,
-   "file": "shapes/tribal_swirl.png"
+   "file": "shapes/tribal_swirl.png",
+   "thumb": "thumbs/tribal_swirl.png"
   },
   {
    "id": "tribal_spike",
@@ -488,7 +513,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/tribal_spike.png"
+   "file": "shapes/tribal_spike.png",
+   "thumb": "thumbs/tribal_spike.png"
   },
   {
    "id": "panel_rounded",
@@ -501,7 +527,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/panel_rounded.png"
+   "file": "shapes/panel_rounded.png",
+   "thumb": "thumbs/panel_rounded.png"
   },
   {
    "id": "panel_teardrop",
@@ -514,7 +541,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/panel_teardrop.png"
+   "file": "shapes/panel_teardrop.png",
+   "thumb": "thumbs/panel_teardrop.png"
   },
   {
    "id": "panel_coffin",
@@ -527,7 +555,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/panel_coffin.png"
+   "file": "shapes/panel_coffin.png",
+   "thumb": "thumbs/panel_coffin.png"
   },
   {
    "id": "roundel",
@@ -541,7 +570,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/roundel.png"
+   "file": "shapes/roundel.png",
+   "thumb": "thumbs/roundel.png"
   },
   {
    "id": "race_oval",
@@ -555,7 +585,8 @@
    "w": 512,
    "h": 384,
    "colours": 2,
-   "file": "shapes/race_oval.png"
+   "file": "shapes/race_oval.png",
+   "thumb": "thumbs/race_oval.png"
   },
   {
    "id": "race_plate",
@@ -569,7 +600,8 @@
    "w": 512,
    "h": 384,
    "colours": 2,
-   "file": "shapes/race_plate.png"
+   "file": "shapes/race_plate.png",
+   "thumb": "thumbs/race_plate.png"
   },
   {
    "id": "shield",
@@ -583,7 +615,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/shield.png"
+   "file": "shapes/shield.png",
+   "thumb": "thumbs/shield.png"
   },
   {
    "id": "wings_spread",
@@ -597,7 +630,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/wings_spread.png"
+   "file": "shapes/wings_spread.png",
+   "thumb": "thumbs/wings_spread.png"
   },
   {
    "id": "wings_badge",
@@ -612,7 +646,8 @@
    "w": 1024,
    "h": 256,
    "colours": 2,
-   "file": "shapes/wings_badge.png"
+   "file": "shapes/wings_badge.png",
+   "thumb": "thumbs/wings_badge.png"
   },
   {
    "id": "banner_straight",
@@ -626,7 +661,8 @@
    "w": 1024,
    "h": 256,
    "colours": 2,
-   "file": "shapes/banner_straight.png"
+   "file": "shapes/banner_straight.png",
+   "thumb": "thumbs/banner_straight.png"
   },
   {
    "id": "banner_curved",
@@ -640,7 +676,8 @@
    "w": 1024,
    "h": 384,
    "colours": 2,
-   "file": "shapes/banner_curved.png"
+   "file": "shapes/banner_curved.png",
+   "thumb": "thumbs/banner_curved.png"
   },
   {
    "id": "star_five",
@@ -653,7 +690,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/star_five.png"
+   "file": "shapes/star_five.png",
+   "thumb": "thumbs/star_five.png"
   },
   {
    "id": "star_nautical",
@@ -667,7 +705,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/star_nautical.png"
+   "file": "shapes/star_nautical.png",
+   "thumb": "thumbs/star_nautical.png"
   },
   {
    "id": "sunburst",
@@ -679,7 +718,8 @@
    "w": 512,
    "h": 512,
    "colours": 1,
-   "file": "shapes/sunburst.png"
+   "file": "shapes/sunburst.png",
+   "thumb": "thumbs/sunburst.png"
   },
   {
    "id": "target",
@@ -693,7 +733,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "shapes/target.png"
+   "file": "shapes/target.png",
+   "thumb": "thumbs/target.png"
   },
   {
    "id": "diamonds_strip",
@@ -706,7 +747,8 @@
    "w": 1024,
    "h": 192,
    "colours": 2,
-   "file": "shapes/diamonds_strip.png"
+   "file": "shapes/diamonds_strip.png",
+   "thumb": "thumbs/diamonds_strip.png"
   },
   {
    "id": "hex_strip",
@@ -719,7 +761,8 @@
    "w": 1024,
    "h": 256,
    "colours": 1,
-   "file": "shapes/hex_strip.png"
+   "file": "shapes/hex_strip.png",
+   "thumb": "thumbs/hex_strip.png"
   },
   {
    "id": "skull_front",
@@ -732,7 +775,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/skull_front.png"
+   "file": "art/skull_front.png",
+   "thumb": "thumbs/skull_front.png"
   },
   {
    "id": "skull_roses",
@@ -746,7 +790,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/skull_roses.png"
+   "file": "art/skull_roses.png",
+   "thumb": "thumbs/skull_roses.png"
   },
   {
    "id": "skull_wings",
@@ -760,7 +805,8 @@
    "w": 1024,
    "h": 512,
    "colours": 2,
-   "file": "art/skull_wings.png"
+   "file": "art/skull_wings.png",
+   "thumb": "thumbs/skull_wings.png"
   },
   {
    "id": "skull_pistons",
@@ -775,7 +821,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/skull_pistons.png"
+   "file": "art/skull_pistons.png",
+   "thumb": "thumbs/skull_pistons.png"
   },
   {
    "id": "skull_flaming",
@@ -789,7 +836,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/skull_flaming.png"
+   "file": "art/skull_flaming.png",
+   "thumb": "thumbs/skull_flaming.png"
   },
   {
    "id": "skull_sugar",
@@ -802,7 +850,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/skull_sugar.png"
+   "file": "art/skull_sugar.png",
+   "thumb": "thumbs/skull_sugar.png"
   },
   {
    "id": "rose",
@@ -815,7 +864,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/rose.png"
+   "file": "art/rose.png",
+   "thumb": "thumbs/rose.png"
   },
   {
    "id": "rose_dagger",
@@ -828,7 +878,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/rose_dagger.png"
+   "file": "art/rose_dagger.png",
+   "thumb": "thumbs/rose_dagger.png"
   },
   {
    "id": "dagger_heart",
@@ -841,7 +892,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/dagger_heart.png"
+   "file": "art/dagger_heart.png",
+   "thumb": "thumbs/dagger_heart.png"
   },
   {
    "id": "sacred_heart",
@@ -854,7 +906,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/sacred_heart.png"
+   "file": "art/sacred_heart.png",
+   "thumb": "thumbs/sacred_heart.png"
   },
   {
    "id": "swallow",
@@ -868,7 +921,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/swallow.png"
+   "file": "art/swallow.png",
+   "thumb": "thumbs/swallow.png"
   },
   {
    "id": "reaper",
@@ -882,7 +936,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/reaper.png"
+   "file": "art/reaper.png",
+   "thumb": "thumbs/reaper.png"
   },
   {
    "id": "spider_web",
@@ -895,7 +950,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/spider_web.png"
+   "file": "art/spider_web.png",
+   "thumb": "thumbs/spider_web.png"
   },
   {
    "id": "bat",
@@ -908,7 +964,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/bat.png"
+   "file": "art/bat.png",
+   "thumb": "thumbs/bat.png"
   },
   {
    "id": "dice",
@@ -921,7 +978,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/dice.png"
+   "file": "art/dice.png",
+   "thumb": "thumbs/dice.png"
   },
   {
    "id": "ace_spades",
@@ -935,7 +993,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/ace_spades.png"
+   "file": "art/ace_spades.png",
+   "thumb": "thumbs/ace_spades.png"
   },
   {
    "id": "eight_ball",
@@ -948,7 +1007,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/eight_ball.png"
+   "file": "art/eight_ball.png",
+   "thumb": "thumbs/eight_ball.png"
   },
   {
    "id": "horseshoe",
@@ -961,7 +1021,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/horseshoe.png"
+   "file": "art/horseshoe.png",
+   "thumb": "thumbs/horseshoe.png"
   },
   {
    "id": "anchor",
@@ -974,7 +1035,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/anchor.png"
+   "file": "art/anchor.png",
+   "thumb": "thumbs/anchor.png"
   },
   {
    "id": "spanners",
@@ -988,7 +1050,8 @@
    "w": 512,
    "h": 512,
    "colours": 2,
-   "file": "art/spanners.png"
+   "file": "art/spanners.png",
+   "thumb": "thumbs/spanners.png"
   }
  ]
 }

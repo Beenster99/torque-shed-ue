@@ -14,6 +14,9 @@
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
+#include "Shed/TorqueDecalMode.h"
+#include "Shed/TorqueDecals.h"
+#include "Fit/BikeDecal.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -1998,6 +2001,55 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("opening the shed again") : TEXT("couldn't open the shed again (no shed map, or a client)"));
 		return true;
+	}
+	// decal:open | decal:place:<slot>:<what>:<side +1/-1> | decal:save | decal:exit | decal:check:<slot>
+	// (what: a library id, or text=<face>=<words>, as ':' splits the verb)
+	if (Verb == TEXT("decal") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		ATorqueDecalMode* Dm = ATorqueDecalMode::For(W->GetController());
+		if (What == TEXT("open"))
+		{
+			FString Why;
+			if (Dm) Said(TEXT("already open"));
+			else if (ATorqueDecalMode::Open(W, TestBay, Why)) Said(FString::Printf(TEXT("decal mode open on bay %d"), TestBay + 1));
+			else Warn(TEXT("refused: ") + Why);
+			return true;
+		}
+		if (What == TEXT("check"))
+		{
+			const FName Slot(P.Num() > 2 ? *P[2] : TEXT("tank"));
+			const FString Now = B->DecalsOf(TestBay, Slot);
+			const std::vector<TorqueFit::Decals::Decal> L = TorqueFit::Decals::Parse(TorqueDecals::ToStd(Now));
+			if (!L.empty()) Said(FString::Printf(TEXT("Decals survived: yes, %d on the %s"), (int32)L.size(), *Slot.ToString()));
+			else Warn(FString::Printf(TEXT("Decals survived: NO, the %s has %s"), *Slot.ToString(), Now.IsEmpty() ? TEXT("none") : *Now));
+			return true;
+		}
+		if (!Dm)
+		{
+			Warn(TEXT("decal mode isn't open (decal:open first)"));
+			return true;
+		}
+		if (What == TEXT("place") && P.Num() >= 4)
+		{
+			const FString Pick = P[3].Replace(TEXT("="), TEXT(":"));
+			const int32 Side = P.Num() > 4 && P[4].StartsWith(TEXT("-")) ? -1 : 1;
+			const FString R = Dm->TestPlace(FName(*P[2]), Pick, Side);
+			if (R.Contains(TEXT(" on the "))) Said(R);
+			else Warn(R);
+			return true;
+		}
+		if (What == TEXT("save"))
+		{
+			Said(Dm->TestSave());
+			return true;
+		}
+		if (What == TEXT("exit"))
+		{
+			Dm->TestExit();
+			Said(TEXT("decal mode closed"));
+			return true;
+		}
 	}
 	if (Verb == TEXT("geo") && P.Num() >= 2)
 	{
