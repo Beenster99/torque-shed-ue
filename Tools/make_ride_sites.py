@@ -948,9 +948,328 @@ def bolton():
     return S
 
 
+# --- [towns stage 7] The cities' landmarks: the first of the towns plan's level C ------------------------
+
+def rod_between(M, a, b, r, rgb, sides=6):
+    """A round rod from a to b (x, y, z), r thick, coloured rgb (the paint layer)."""
+    P, T = ST.tube([list(a), list(b)], r, sides)
+    U = np.stack([P[:, 0] + P[:, 2], P[:, 1]], 1)
+    M.add(P, T, colour(len(P), rgb, 1.0), U)
+
+
+CORTEN = (0.16, 0.06, 0.025)
+
+
+def angel():
+    """The Angel of the North, Gateshead (Antony Gormley, 1998): a figure of weathering steel 20 m tall on a
+    concrete foot sunk 20 m into the hill, its wings 54 m across held straight out and tilted 3.5 degrees
+    forward, each a hollow shell braced by ribs that show as horizontal fins down its length. It stands on
+    a grassy mound by the A1 and faces south south west, over the road (+z here, turned by the note)."""
+    S = Site("angel")
+    M = S.mesh("figure#far", "paint")
+    c = CORTEN
+    # (the plinth: a low concrete drum in the mound)
+    prism(M, ngon(16, 3.2), -3.0, 0.6, (0.32, 0.31, 0.29))
+    # (the body: legs together, a long tapering form ribbed every 0.5 m, front to back thinner)
+    levels = [(0.6, 1.0, 0.9), (4.0, 1.25, 1.0), (8.0, 1.55, 1.15), (11.0, 1.75, 1.2), (13.5, 2.1, 1.35),
+              (15.5, 2.05, 1.3), (17.2, 1.4, 1.0), (17.8, 0.55, 0.6)]
+    for (y0, w0, d0), (y1, w1, d1) in zip(levels, levels[1:]):
+        hexa(M, [(-w0 / 2, y0, -d0 / 2), (w0 / 2, y0, -d0 / 2), (w0 / 2, y0, d0 / 2), (-w0 / 2, y0, d0 / 2)],
+             [(-w1 / 2, y1, -d1 / 2), (w1 / 2, y1, -d1 / 2), (w1 / 2, y1, d1 / 2), (-w1 / 2, y1, d1 / 2)], c)
+    for y in np.arange(1.0, 17.0, 0.5):
+        w = np.interp(y, [l[0] for l in levels], [l[1] for l in levels]) + 0.12
+        d = np.interp(y, [l[0] for l in levels], [l[2] for l in levels]) + 0.12
+        prism(M, [(-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2)], y, y + 0.06, tuple(np.array(c) * 0.8))
+    # (the head: a smooth rounded block, no face)
+    hexa(M, [(-0.45, 17.8, -0.4), (0.45, 17.8, -0.4), (0.45, 17.8, 0.45), (-0.45, 17.8, 0.45)],
+         [(-0.4, 20.0, -0.35), (0.4, 20.0, -0.35), (0.4, 20.0, 0.4), (-0.4, 20.0, 0.4)], c)
+    # (the wings: from the shoulders out 26 m each way, 4 m deep at the body narrowing to 2.2 m, 0.5 m
+    # thick, the whole tilted forward (towards +z) 3.5 degrees, ribs across at 0.6 m)
+    tilt = math.tan(math.radians(3.5))
+    for sx in (-1, 1):
+        x0, x1 = sx * 0.9, sx * 27.0
+        def at(x, y, z):
+            return (x, y, z + (y - 13.0) * tilt)
+        top0, bot0, top1, bot1 = 16.0, 12.0, 15.3, 13.1
+        hexa(M, [at(x0, bot0, -0.3), at(x1, bot1, -0.25), at(x1, bot1, 0.25), at(x0, bot0, 0.3)],
+             [at(x0, top0, -0.3), at(x1, top1, -0.25), at(x1, top1, 0.25), at(x0, top0, 0.3)], c)
+        for x in np.arange(1.5, 26.6, 0.6):
+            xx = sx * x
+            f = (x - 0.9) / 26.1
+            yb, yt = bot0 + (bot1 - bot0) * f, top0 + (top1 - top0) * f
+            hexa(M, [at(xx - 0.04, yb - 0.05, -0.36), at(xx + 0.04, yb - 0.05, -0.36), at(xx + 0.04, yb - 0.05, 0.36), at(xx - 0.04, yb - 0.05, 0.36)],
+                 [at(xx - 0.04, yt + 0.05, -0.36), at(xx + 0.04, yt + 0.05, -0.36), at(xx + 0.04, yt + 0.05, 0.36), at(xx - 0.04, yt + 0.05, 0.36)],
+                 tuple(np.array(c) * 0.85))
+    return S
+
+
+TOWER_RED = (0.11, 0.02, 0.012)
+TERRACOTTA = (0.30, 0.10, 0.05)
+
+
+def blackpool():
+    """Blackpool Tower (1894): an open lattice of steel painted red, 158 m to its flagpole, rising from the
+    roof of the Tower Buildings (red brick and terracotta, about 37 m high round the tower's four legs), its
+    legs 31 m apart where they leave the roof, curving in to a 9 m square under the observation decks at
+    about 117 m, a glazed deck, a further taper to the crow's nest and the flagpole. Built along x, the
+    promenade front to +z."""
+    S = Site("blackpool")
+    B = S.mesh("buildings#far", "brick")
+    W = S.mesh("windows", "paint")
+    L = S.mesh("lattice#far", "paint")
+    G = S.mesh("lights", "glow")
+    # (the Tower Buildings: a block 64 by 54 m, 25 m to its cornice, the tower's base rising to 37 m)
+    brick = (0.24, 0.07, 0.045)
+    prism(B, [(-32, -27), (32, -27), (32, 27), (-32, 27)], -4.0, 25.0, brick)
+    prism(B, [(-33, -28), (33, -28), (33, 28), (-33, 28)], 25.0, 26.2, TERRACOTTA)
+    prism(B, [(-18, -18), (18, -18), (18, 18), (-18, 18)], 26.2, 37.0, brick)
+    prism(B, [(-19, -19), (19, -19), (19, 19), (-19, 19)], 37.0, 38.0, TERRACOTTA)
+    for sx in (-1, 1):
+        for sz in (-1, 1):   # (corner turrets of the base)
+            prism(B, ngon(8, 2.2), 26.2, 41.0, brick, shift=(0, 0))
+            B.P[-1][:, 0] += sx * 17.0; B.P[-1][:, 2] += sz * 17.0
+    for face, (n, r) in {"s": ((0, 0, 1), (1, 0, 0)), "n": ((0, 0, -1), (-1, 0, 0))}.items():
+        z = 27.0 if face == "s" else -27.0
+        for x in np.arange(-29.0, 29.5, 3.6):
+            for y in (2.5, 8.0, 13.5, 19.0):
+                panel(W, [x, y, z], n, r, 1.5, 3.2 if y > 2.5 else 4.0, DARK, arch=y > 15)
+    for x0, n, r in ((32.0, (1, 0, 0), (0, 0, -1)), (-32.0, (-1, 0, 0), (0, 0, 1))):
+        for zz in np.arange(-24.0, 24.5, 3.6):
+            for y in (8.0, 13.5, 19.0):
+                panel(W, [x0, y, zz], n, r, 1.5, 3.2, DARK)
+    # (the lattice: four legs curving in, braced with Xs on every face, horizontal girders between)
+    def half(y):
+        if y <= 117.0:
+            t = (y - 37.0) / 80.0
+            return 15.5 - 11.0 * (1 - (1 - t) ** 1.6)
+        return 4.5 - 2.5 * (y - 117.0) / 23.0
+    ys = list(np.arange(37.0, 117.1, 6.0)) + [117.0, 123.0, 129.0, 135.0, 140.0]
+    ys = sorted(set(round(y, 2) for y in ys))
+    corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    for k in range(len(ys) - 1):
+        ya, yb = ys[k], ys[k + 1]
+        ha, hb = half(ya), half(yb)
+        r = 0.55 if ya < 80 else 0.35
+        for sx, sz in corners:
+            rod_between(L, (sx * ha, ya, sz * ha), (sx * hb, yb, sz * hb), r, TOWER_RED, 6)
+        for i in range(4):
+            (ax, az_), (bx, bz) = corners[i], corners[(i + 1) % 4]
+            rod_between(L, (ax * ha, ya, az_ * ha), (bx * hb, yb, bz * hb), 0.14, TOWER_RED, 4)
+            rod_between(L, (bx * ha, ya, bz * ha), (ax * hb, yb, az_ * hb), 0.14, TOWER_RED, 4)
+            rod_between(L, (ax * hb, yb, az_ * hb), (bx * hb, yb, bz * hb), 0.22, TOWER_RED, 4)
+    # (the decks: a glazed box at 117 to 123 m, a balcony round it, the cupola and the crow's nest, the pole)
+    prism(L, [(-5.2, -5.2), (5.2, -5.2), (5.2, 5.2), (-5.2, 5.2)], 116.4, 117.0, (0.6, 0.58, 0.52))
+    prism(L, [(-4.5, -4.5), (4.5, -4.5), (4.5, 4.5), (-4.5, 4.5)], 117.0, 123.0, (0.05, 0.06, 0.07))
+    prism(L, [(-4.7, -4.7), (4.7, -4.7), (4.7, 4.7), (-4.7, 4.7)], 123.0, 124.0, TOWER_RED)
+    prism(L, ngon(8, 2.3), 140.0, 143.0, TOWER_RED)
+    prism(L, ngon(8, 2.6), 143.0, 144.0, (0.6, 0.58, 0.52))
+    prism(L, ngon(8, 2.0), 144.0, 147.0, TOWER_RED, top_scale=0.4)
+    rod_between(L, (0, 147.0, 0), (0, 158.0, 0), 0.12, (0.6, 0.6, 0.58), 6)
+    # (after dark: the decks lit, and lights up the legs, as the tower is famous for)
+    for zz, n in ((4.55, 1), (-4.55, -1)):
+        prism(G, [(-4.3, zz - 0.02 * n), (4.3, zz - 0.02 * n), (4.3, zz), (-4.3, zz)], 117.4, 122.6, (0.55, 0.42, 0.25))
+    for k in range(len(ys) - 1):
+        for sx, sz in corners:
+            h = half(ys[k])
+            block(G, (sx * h, ys[k] + 0.6, sz * h), (0.35, 0.35, 0.35), (0.6, 0.35, 0.2))
+    return S
+
+
+PORTLAND_PALE = dict(bright=0.62, bare=0.2, lichen=0.15, moss=0.04)
+
+
+def liver():
+    """The Royal Liver Building, Liverpool (1911): one of the first great reinforced concrete buildings,
+    faced in grey granite; ten storeys, about 90 m along the river front by 50 m deep, 50 m to its main
+    cornice, with a clock tower rising from each end of the river front to the Liver Birds, 98 m up. Each
+    tower steps in over two stages with columns, carries four clock faces 7.6 m across (the largest in
+    Britain) and a domed, ribbed cupola with the bird on top. Built along x, the river front to +z
+    (turned by the note)."""
+    rng = np.random.default_rng(31)
+    S = Site("liver")
+    M = S.mesh("block#far", "masonry")
+    W = S.mesh("windows", "paint")
+    G = S.mesh("lights", "glow")
+    R = S.mesh("domes", "roof")
+    c = mas(rng, **PORTLAND_PALE)
+    dark = mas(rng, bright=0.42, bare=0.2, lichen=0.1, moss=0.03)
+    X, Z = 45.0, 25.0
+    prism(M, [(-X, -Z), (X, -Z), (X, Z), (-X, Z)], -4.0, 50.0, c)
+    prism(M, [(-X - 0.8, -Z - 0.8), (X + 0.8, -Z - 0.8), (X + 0.8, Z + 0.8), (-X - 0.8, Z + 0.8)], 50.0, 51.5, dark)
+    prism(M, [(-X, -Z), (X, -Z), (X, Z), (-X, Z)], 51.5, 54.0, c)
+    prism(M, [(-X - 0.5, -Z - 0.5), (X + 0.5, -Z - 0.5), (X + 0.5, Z + 0.5), (-X - 0.5, Z + 0.5)], 6.0, 7.0, dark)
+    # (the windows: ten storeys of them on every face, a giant order of arched ones at the foot)
+    for z, n, r in ((Z, (0, 0, 1), (1, 0, 0)), (-Z, (0, 0, -1), (-1, 0, 0))):
+        for x in np.arange(-X + 2.5, X - 1.0, 3.2):
+            panel(W, [x, 1.0, z], n, r, 1.8, 4.5, DARK, arch=True)
+            for y in np.arange(8.5, 48.0, 4.2):
+                panel(W, [x, y, z], n, r, 1.5, 2.4, DARK)
+    for x0, n, r in ((X, (1, 0, 0), (0, 0, -1)), (-X, (-1, 0, 0), (0, 0, 1))):
+        for zz in np.arange(-Z + 2.5, Z - 1.0, 3.2):
+            for y in np.arange(8.5, 48.0, 4.2):
+                panel(W, [x0, y, zz], n, r, 1.5, 2.4, DARK)
+    # (the two clock towers on the river front's ends: x = +/-30 by the front, z near +Z)
+    for tx in (-30.0, 30.0):
+        tz = Z - 9.0
+        def sq(h):
+            return [(tx - h, tz - h), (tx + h, tz - h), (tx + h, tz + h), (tx - h, tz + h)]
+        prism(M, sq(9.0), 54.0, 63.0, c)
+        prism(M, sq(9.4), 63.0, 64.0, dark)
+        # (the clock stage, its four faces)
+        prism(M, sq(7.5), 64.0, 74.0, c)
+        for (nx, nz) in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            cx, cz = tx + nx * 7.55, tz + nz * 7.55
+            ring = [(cx + (math.cos(a) * 3.8 if nz else 0.0), 69.0 + math.sin(a) * 3.8, cz + (math.cos(a) * 3.8 if nx else 0.0)) for a in np.linspace(0, 2 * math.pi, 25)[:-1]]
+            P = np.array([[cx, 69.0, cz]] + [list(q) for q in ring])
+            T = np.array([[0, 1 + k, 1 + (k + 1) % 24] for k in range(24)])
+            T = _outward(P, T, np.array([tx, 69.0, tz]))
+            W.add(P, T, colour(len(P), (0.55, 0.55, 0.52)), P[:, [0, 1]])
+            G.add(P + np.array([nx, 0, nz]) * 0.03, T, colour(len(P), (0.55, 0.5, 0.35)), P[:, [0, 1]])
+        prism(M, sq(7.9), 74.0, 75.0, dark)
+        # (the colonnaded stage and the cupola)
+        prism(M, ngon(8, 5.4, math.pi / 8), 75.0, 82.0, c)
+        M.P[-1][:, 0] += tx; M.P[-1][:, 2] += tz
+        for k in range(8):
+            a = math.pi / 8 + k * math.pi / 4
+            prism(M, ngon(6, 0.5), 75.0, 82.0, dark)
+            M.P[-1][:, 0] += tx + math.cos(a) * 6.6; M.P[-1][:, 2] += tz + math.sin(a) * 6.6
+        prism(M, ngon(8, 6.9, math.pi / 8), 82.0, 83.0, dark)
+        M.P[-1][:, 0] += tx; M.P[-1][:, 2] += tz
+        for k in range(8):   # (the dome in rings, ribbed slate-green)
+            y0, y1 = 83.0 + k * 1.2, 83.0 + (k + 1) * 1.2
+            r0, r1 = 6.0 * math.cos(math.radians(k * 11)), 6.0 * math.cos(math.radians((k + 1) * 11))
+            prism(R, ngon(16, r0), y0, y1, (0.06, 0.13, 0.11, 1.0), top_scale=r1 / r0)
+            R.P[-1][:, 0] += tx; R.P[-1][:, 2] += tz
+        # (the bird: a cormorant-like form in green copper, its wings half raised)
+        bird = (0.09, 0.2, 0.16)
+        Bd = S.mesh("birds#far", "paint")
+        hexa(Bd, [(tx - 0.5, 92.6, tz - 1.2), (tx + 0.5, 92.6, tz - 1.2), (tx + 0.5, 92.6, tz + 1.2), (tx - 0.5, 92.6, tz + 1.2)],
+             [(tx - 0.4, 96.0, tz - 0.6), (tx + 0.4, 96.0, tz - 0.6), (tx + 0.4, 96.0, tz + 0.6), (tx - 0.4, 96.0, tz + 0.6)], bird)
+        block(Bd, (tx, 96.7, tz - 0.9), (0.25, 0.45, 0.35), bird)
+        for sx in (-1, 1):
+            hexa(Bd, [(tx + sx * 0.4, 94.5, tz - 0.4), (tx + sx * 2.6, 96.5, tz - 0.6), (tx + sx * 2.6, 96.5, tz + 0.2), (tx + sx * 0.4, 94.5, tz + 0.6)],
+                 [(tx + sx * 0.4, 95.0, tz - 0.4), (tx + sx * 2.6, 97.8, tz - 0.6), (tx + sx * 2.6, 97.8, tz + 0.2), (tx + sx * 0.4, 95.0, tz + 0.6)], bird)
+        prism(M, ngon(8, 1.3), 91.8, 92.6, dark)
+        M.P[-1][:, 0] += tx; M.P[-1][:, 2] += tz
+    return S
+
+
+MAGNESIAN = dict(bright=0.66, bare=0.35, lichen=0.2, moss=0.05)
+LEAD = (0.11, 0.12, 0.13, 1.0)
+
+
+def minster():
+    """York Minster (1220 to 1472): the largest Gothic cathedral north of the Alps, in cream Magnesian
+    limestone. 158 m long west to east; the nave and choir 30 m high to their vaults, under lead roofs to
+    about 39 m, with aisles either side (32 m across in all); the transepts 76 m north to south; the
+    central tower 20 m square and 71 m high; the two west towers 60 m with their pinnacles. Buttresses
+    and pinnacles down every side, the great windows: the Great East Window (23.7 by 9.5 m), the west
+    window, the Five Sisters in the north transept and the Rose Window in the south. Built along x, east to
+    +x; the map's axis runs about 16 degrees north of east (turned by the note)."""
+    rng = np.random.default_rng(47)
+    S = Site("minster")
+    c = mas(rng, **MAGNESIAN)
+    lite = mas(rng, bright=0.74, bare=0.35, lichen=0.15, moss=0.03)
+
+    def section(name, x0, x1, z0, z1, aisle, wall_h, ridge, ax="x"):
+        """A main vessel from x0..x1 (or z), its aisles 'aisle' wide each side, clerestory to wall_h, its
+        lead roof to ridge; buttresses and pinnacles along the aisles, windows in the bays."""
+        M = S.mesh(name + "#far", "masonry")
+        R = S.mesh(name + "_roof#far", "roof")
+        W = S.mesh(name + "_windows", "paint")
+        if ax == "x":
+            prism(M, [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], -3.0, wall_h, c)
+            prism(M, [(x0, z0 - aisle), (x1, z0 - aisle), (x1, z0), (x0, z0)], -3.0, wall_h * 0.5, c)
+            prism(M, [(x0, z1), (x1, z1), (x1, z1 + aisle), (x0, z1 + aisle)], -3.0, wall_h * 0.5, c)
+            mid = 0.5 * (z0 + z1)
+            hexa(R, [(x0, wall_h, z0 - 0.3), (x1, wall_h, z0 - 0.3), (x1, wall_h, z1 + 0.3), (x0, wall_h, z1 + 0.3)],
+                 [(x0, ridge, mid - 0.05), (x1, ridge, mid - 0.05), (x1, ridge, mid + 0.05), (x0, ridge, mid + 0.05)], LEAD)
+            for za, zb in ((z0 - aisle, z0), (z1, z1 + aisle)):
+                hexa(R, [(x0, wall_h * 0.5, za), (x1, wall_h * 0.5, za), (x1, wall_h * 0.5, zb), (x0, wall_h * 0.5, zb)],
+                     [(x0, wall_h * 0.5 + (0.0 if za < z0 else 3.0), za), (x1, wall_h * 0.5 + (0.0 if za < z0 else 3.0), za),
+                      (x1, wall_h * 0.5 + (3.0 if za < z0 else 0.0), zb), (x0, wall_h * 0.5 + (3.0 if za < z0 else 0.0), zb)], LEAD)
+            for x in np.arange(x0 + 3.0, x1 - 1.0, 7.2):
+                for zf, n in ((z0 - aisle, -1), (z1 + aisle, 1)):
+                    block(M, (x, wall_h * 0.25, zf + n * 0.7), (0.7, wall_h * 0.27, 0.7), c)
+                    prism(M, ngon(4, 0.6), wall_h * 0.52, wall_h * 0.52 + 3.5, lite, top_scale=0.1)
+                    M.P[-1][:, 0] += x; M.P[-1][:, 2] += zf + n * 0.7
+                    prism(M, ngon(4, 0.55), wall_h + 0.5, wall_h + 4.0, lite, top_scale=0.1)
+                    M.P[-1][:, 0] += x; M.P[-1][:, 2] += (z0 if n < 0 else z1) + n * 0.4
+                    panel(W, [x + 3.6, 2.5, zf], (0, 0, n), (n, 0, 0), 3.2, wall_h * 0.5 - 5.0, DARK, arch=True)
+                    panel(W, [x + 3.6, wall_h * 0.58, z0 if n < 0 else z1], (0, 0, n), (n, 0, 0), 4.0, wall_h * 0.36, DARK, arch=True)
+        else:
+            prism(M, [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], -3.0, wall_h, c)
+            prism(M, [(x0 - aisle, z0), (x0, z0), (x0, z1), (x0 - aisle, z1)], -3.0, wall_h * 0.5, c)
+            prism(M, [(x1, z0), (x1 + aisle, z0), (x1 + aisle, z1), (x1, z1)], -3.0, wall_h * 0.5, c)
+            mid = 0.5 * (x0 + x1)
+            hexa(R, [(x0 - 0.3, wall_h, z0), (x0 - 0.3, wall_h, z1), (x1 + 0.3, wall_h, z1), (x1 + 0.3, wall_h, z0)],
+                 [(mid - 0.05, ridge, z0), (mid - 0.05, ridge, z1), (mid + 0.05, ridge, z1), (mid + 0.05, ridge, z0)], LEAD)
+            for zz in np.arange(z0 + 3.0, z1 - 1.0, 7.2):
+                for xf, n in ((x0 - aisle, -1), (x1 + aisle, 1)):
+                    block(M, (xf + n * 0.7, wall_h * 0.25, zz), (0.7, wall_h * 0.27, 0.7), c)
+                    panel(W, [xf, 2.5, zz + 3.6], (n, 0, 0), (0, 0, -n), 3.2, wall_h * 0.5 - 5.0, DARK, arch=True)
+                    panel(W, [x0 if n < 0 else x1, wall_h * 0.58, zz + 3.6], (n, 0, 0), (0, 0, -n), 4.0, wall_h * 0.36, DARK, arch=True)
+        return M, W
+
+    # (x: west front at -79, east end at +79; the crossing at x = -5 to 15 (20 m square), z -10..10)
+    Mn, Wn = section("nave", -73.0, -5.0, -8.0, 8.0, 8.0, 30.0, 39.0)
+    Mc, Wc = section("choir", 15.0, 79.0, -8.0, 8.0, 8.0, 30.0, 39.0)
+    Mt, Wt = section("north_transept", -5.0, 15.0, -38.0, -18.0, 6.0, 28.0, 36.0, ax="z")
+    Ms, Ws = section("south_transept", -5.0, 15.0, 18.0, 38.0, 6.0, 28.0, 36.0, ax="z")
+    # (the transepts' inner parts to the crossing)
+    prism(Mt, [(-5.0, -18.0), (15.0, -18.0), (15.0, -8.0), (-5.0, -8.0)], -3.0, 28.0, c)
+    prism(Ms, [(-5.0, 8.0), (15.0, 8.0), (15.0, 18.0), (-5.0, 18.0)], -3.0, 28.0, c)
+    # (the central tower: 20 m square, to 71 m, two tiers of tall paired lights, a pierced parapet)
+    T = S.mesh("tower#far", "masonry")
+    TW = S.mesh("tower_windows", "paint")
+    prism(T, [(-5.0, -10.0), (15.0, -10.0), (15.0, 10.0), (-5.0, 10.0)], -3.0, 68.0, c)
+    prism(T, [(-5.5, -10.5), (15.5, -10.5), (15.5, 10.5), (-5.5, 10.5)], 68.0, 71.0, lite)
+    for (px, pz) in ((-5.0, -10.0), (15.0, -10.0), (15.0, 10.0), (-5.0, 10.0)):
+        prism(T, ngon(4, 1.2), 40.0, 73.5, lite, top_scale=0.6)
+        T.P[-1][:, 0] += px; T.P[-1][:, 2] += pz
+    for off in (-4.5, 4.5):
+        for (nx, nz, ax_) in ((0, 1, "x"), (0, -1, "x"), (1, 0, "z"), (-1, 0, "z")):
+            if ax_ == "x":
+                at = [5.0 + off, 46.0, 10.0 * nz]; r = (nz, 0, 0)
+            else:
+                at = [5.0 + 10.0 * nx, 46.0, off * nx]; r = (0, 0, -nx)
+            panel(TW, at, (nx, 0, nz), r, 2.6, 18.0, DARK, arch=True)
+    # (the west front: two towers 60 m, the great west window between, three doors)
+    for tz in (-12.0, 12.0):
+        sq = [(-79.0, tz - 6.0), (-67.0, tz - 6.0), (-67.0, tz + 6.0), (-79.0, tz + 6.0)]
+        prism(T, sq, -3.0, 56.0, c)
+        prism(T, [(-79.4, tz - 6.4), (-66.6, tz - 6.4), (-66.6, tz + 6.4), (-79.4, tz + 6.4)], 56.0, 58.0, lite)
+        for (px, pz) in ((-79.0, tz - 6.0), (-67.0, tz - 6.0), (-67.0, tz + 6.0), (-79.0, tz + 6.0)):
+            prism(T, ngon(4, 1.0), 50.0, 64.0, lite, top_scale=0.15)
+            T.P[-1][:, 0] += px; T.P[-1][:, 2] += pz
+        panel(TW, [-79.0, 34.0, tz], (-1, 0, 0), (0, 0, 1), 3.4, 14.0, DARK, arch=True)
+        panel(TW, [-79.0, 0.0, tz], (-1, 0, 0), (0, 0, 1), 3.0, 7.0, DARK, arch=True)
+    prism(T, [(-79.0, -6.0), (-73.0, -6.0), (-73.0, 6.0), (-79.0, 6.0)], -3.0, 36.0, c)
+    hexa(T, [(-79.0, 36.0, -6.0), (-73.0, 36.0, -6.0), (-73.0, 36.0, 6.0), (-79.0, 36.0, 6.0)],
+         [(-79.0, 44.0, -0.3), (-73.0, 44.0, -0.3), (-73.0, 44.0, 0.3), (-79.0, 44.0, 0.3)], lite)
+    panel(TW, [-79.0, 13.0, 0.0], (-1, 0, 0), (0, 0, 1), 9.0, 18.0, DARK, arch=True)
+    panel(TW, [-79.0, 0.0, 0.0], (-1, 0, 0), (0, 0, 1), 4.0, 8.0, DARK, arch=True)
+    # (the Great East Window, the Five Sisters (north), the Rose Window (south))
+    panel(Wc, [79.0, 8.0, 0.0], (1, 0, 0), (0, 0, -1), 9.5, 23.7, DARK, arch=True)
+    for k in range(5):
+        panel(Wt, [-2.0 + k * 3.5, 4.0, -38.0], (0, 0, -1), (-1, 0, 0), 1.6, 16.0, DARK, arch=True)
+    ring = [(5.0 + 4.0 * math.cos(a), 26.0 + 4.0 * math.sin(a), 38.05) for a in np.linspace(0, 2 * math.pi, 25)[:-1]]
+    P = np.array([[5.0, 26.0, 38.05]] + [list(q) for q in ring])
+    Tt = np.array([[0, 1 + k, 1 + (k + 1) % 24] for k in range(24)])
+    Ws.add(P, _outward(P, Tt, np.array([5.0, 26.0, 0.0])), colour(len(P), DARK), P[:, [0, 1]])
+    for k in range(4):
+        panel(Ws, [-1.5 + k * 4.3, 4.0, 38.0], (0, 0, 1), (1, 0, 0), 2.2, 12.0, DARK, arch=True)
+    # (the east end's corner turrets)
+    for pz in (-16.0, 16.0):
+        prism(Mc, ngon(8, 1.6), -3.0, 44.0, lite, top_scale=0.7)
+        Mc.P[-1][:, 0] += 79.0; Mc.P[-1][:, 2] += pz
+    return S
+
+
 SITES = {
     "stonehenge": stonehenge, "castlerigg": castlerigg, "rudston": rudston, "devils_arrows": devils_arrows,
     "wainhouse": wainhouse, "hardy": hardy, "stoodley": stoodley, "cook": cook, "souter": souter, "bolton": bolton,
+    "angel": angel, "blackpool": blackpool, "liver": liver, "minster": minster,
 }
 
 

@@ -1138,6 +1138,8 @@ public:
 		double Turn = 0.0;
 	};
 	// [OSM stage 5B] The roundabouts: the map's roundabout edges joined into closed rings (IndexRings).
+	// [towns stage 7] Whether a model's own parts (not its windows or lights) stand over (X, Z), Spare m round.
+	static bool ModelCovers(const PlaceRecipe& R, double X, double Z, double Spare);
 	struct RoadRing
 	{
 		std::vector<int> Edges, Nodes;   // round it, each edge from the node before it
