@@ -2105,6 +2105,10 @@
   "indicators": "trad",
   "grips": "plain",
   "cap": "chrome",
-  "bar_rise": 50
+  "bar_rise": 50,
+  "clock_at": [
+   1174.6,
+   1061.4
+  ]
  }
 }

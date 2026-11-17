@@ -1960,7 +1960,11 @@
   "indicators": "trad",
   "grips": "plain",
   "cap": "chrome",
-  "bar_rise": 80
+  "bar_rise": 80,
+  "clock_at": [
+   1174.6,
+   1091.4
+  ]
  },
  "widths": {
   "tank": {
