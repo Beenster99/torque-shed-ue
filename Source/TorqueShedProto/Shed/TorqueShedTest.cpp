@@ -1366,6 +1366,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("yard")) Said(W->TestInteract());
 		if (Verb == TEXT("rideout"))
 		{
+			// [bikes v2] The bike of the bay being worked on ("bay:N"), as rideuk does; without this a bike
+			// ordered whole into a bay (newbike) was never ridden: the ride took the player's last bike.
+			if (UTorqueBuildSubsystem* OutB = UTorqueBuildSubsystem::Of(World))
+			{
+				if (OutB->Exists(TestBay)) OutB->SetMyBike(TestBay);
+			}
 			W->StartAdventure();
 			Said(W->IsRidingOut() ? TEXT("setting off on Buttertubs") : TEXT("not setting off (see the walker's note)"));
 		}
