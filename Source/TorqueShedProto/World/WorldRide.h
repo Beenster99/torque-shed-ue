@@ -397,6 +397,7 @@ public:
 		double MainHalf = 0.0;
 		bool GiveWay = false;  // the side road is the lesser: give-way lines across it
 		bool Ring = false;     // [OSM stage 5B] it is a roundabout's entry: one broken line, not two
+		bool Flare = false;    // [roundabouts] at a roundabout drawn as a circle: its corners flared wide
 		double From = 0.0;     // how far along the side road from its end At is: nearer the end it lies on the ride's road
 		double Clear[2] = {0.0, 0.0};   // and how far along its left (as Away heads) and right edges are clear of the rounded corners
 	};
@@ -1116,10 +1117,22 @@ public:
 		bool Circle = false;             // near enough a circle to be drawn as one
 		bool Mini = false;               // small enough to be a mini-roundabout
 		bool Clockwise = false;          // its edges run clockwise seen from above
+		double Half = 0.0;               // [roundabouts] the ring's half width, the same all round (drawn as a circle)
 	};
 	std::vector<RoadRing> RoadRings;
 	std::unordered_map<int, int> RingOfNode;   // a node on a ring: which
-	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12, RingRoundLeast = 12.0;
+	// ([roundabouts] RingRoundLeast was 12 m: the compact rings under it were left as the map drew them, a
+	// knot of tarmac with no island; beenster on 154: "a lot of poor implementations of roundabouts")
+	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12, RingRoundLeast = 8.0;
+	// [roundabouts] The ring's markings and island: corners onto it rounded to RingFlare m (6 m elsewhere),
+	// the island's kerb (RingKerb high, its face a 45 degree slope as the town kerbs), an overrun apron of
+	// setts RingApron wide round an island under RingApronUnder across, the arms' painted splitters.
+	static constexpr double RingFlare = 15.0, RingKerb = 0.125, RingApron = 1.6, RingApronUnder = 9.0;
+	std::unordered_map<int, int> RingOfEdge;   // [roundabouts] an edge on a ring drawn as a circle: which
+	std::unordered_map<long long, std::vector<int>> RingCells;   // [roundabouts] the circle rings by 64 m square they reach
+	double RingHalfOf(int Edge, double Half) const;   // [roundabouts] its half width: the ring's, if on one drawn as a circle
+	int PaintedRingNear(const P2& At, double Pad) const;   // [roundabouts] the circle ring whose tarmac (and Pad) is at a point, -1 none
+	void RingPaint(const RoadRing& R, RideMesh& Out) const;   // [roundabouts] its lines, give-ways and splitters
 	void IndexRings();
 	int RoundRings();   // the rings near a circle made true arcs (before any road is laid): how many
 	static constexpr double RingStep = 2.0;

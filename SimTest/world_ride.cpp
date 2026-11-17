@@ -1215,9 +1215,13 @@ int main(int Argc, char** Argv)
 		}
 		for (const RidePlan::RideTurn& T : Plan->Turns)
 			if (T.Exit > 0) std::printf("  sat nav: at %.0f m, roundabout, exit %d (turn %d) onto '%s'\n", T.Along, T.Exit, T.Turn, T.Onto.c_str());
-		for (size_t I = 0; I < Plan->RoadRings.size() && I < 20; ++I)
+		const bool AllRings = std::getenv("WORLD_RIDE_RINGS_ALL") != nullptr;
+		for (size_t I = 0; I < Plan->RoadRings.size() && (I < 20 || AllRings); ++I)
 		{
 			const RidePlan::RoadRing& Rg = Plan->RoadRings[I];
+			double Near = 1e18;
+			for (const RoadPoint& P : Plan->Road) Near = std::fmin(Near, P.At.DistanceTo(Rg.Mid));
+			if (AllRings) std::printf("  ring %zu is %.0f m from the ride's road\n", I, Near);
 			std::printf("  ring %zu at %.0f, %.0f: radius %.1f m, strays %.1f m, %zu edges, %zu points%s%s\n", I, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Stray, Rg.Edges.size(), Rg.Line.size(),
 				Rg.Circle ? ", a circle" : "", Rg.Clockwise ? ", clockwise" : ", anticlockwise");
 		}
@@ -1711,6 +1715,21 @@ int main(int Argc, char** Argv)
 				Centre = Rg.Mid;
 				std::printf("ring at %.0f, %.0f, radius %.1f\n", Rg.Mid.X, Rg.Mid.Z, Rg.Radius);
 				break;
+			}
+		}
+		else if (std::getenv("WORLD_RIDE_RINGAT") != nullptr)
+		{
+			// [roundabouts] (or the nth roundabout the map has, ridden or not)
+			const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_RINGAT")));
+			if (Plan->RoadRings.empty()) Plan->IndexRings();
+			if (Nth < Plan->RoadRings.size())
+			{
+				const RidePlan::RoadRing& Rg = Plan->RoadRings[Nth];
+				Rect Round;
+				Round.X0 = Rg.Mid.X - 300.0; Round.Z0 = Rg.Mid.Z - 300.0; Round.X1 = Rg.Mid.X + 300.0; Round.Z1 = Rg.Mid.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = Rg.Mid;
+				std::printf("ring %zu at %.0f, %.0f, radius %.1f%s%s\n", Nth, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Circle ? ", a circle" : "", Rg.Mini ? ", mini" : "");
 			}
 		}
 		else if (std::getenv("WORLD_RIDE_PLACEPATH") != nullptr)
