@@ -53,7 +53,7 @@ IN_Y = 322.0               # the panniers' inner faces (the widest silencer reac
 P_X, P_Z = (-235.0, 305.0), (470.0, 860.0)   # pannier length and height (side view, mm from the rear axle)
 P_W = 185.0                # pannier width
 RAIL_Y = IN_Y - 10.0       # the side frame loop, just inside the box
-TOP_X, TOP_Y, TOP_Z = (-255.0, 115.0), 188.0, (1004.0, 1295.0)
+TOP_X, TOP_Y, TOP_Z = (-315.0, 55.0), 188.0, (1004.0, 1295.0)
 
 
 def use(b):
@@ -80,10 +80,10 @@ def box(name, x0, x1, y0, y1, z0, z1, mt, bevel=6.0):
     return B.prism(name, [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], min(y0, y1), max(y0, y1), mt, bevel)
 
 
-def side_frame(s, M):
+def side_frame(s, M, px=P_X, pz=P_Z):
     """The pannier frame on side s: a loop on the box's inner face, struts to the rack and the pillion hanger."""
     y = s * RAIL_Y
-    (x0, x1), (z0, z1) = P_X, P_Z
+    (x0, x1), (z0, z1) = px, pz
     loop = [(x0 + 25, y, z0 + 30), (x1 - 25, y, z0 + 30), (x1 - 25, y, z1 - 40), (x0 + 25, y, z1 - 40)]
     B.tube(f"lugrail{s}", loop, 10.0, M["rack"], cyclic=True)
     # up to the rack's side rail, rear and middle
@@ -117,10 +117,13 @@ def build_pannier(key, s, M):
     y_in = s * IN_Y
     nm = f"lugp{s}"
     if key in ("alu_silver", "alu_black"):
+        # (15% smaller than the other cases all round, about their middle: beenster 19:24)
+        k, cx, cz = 0.85, (x0 + x1) / 2, (z0 + z1) / 2
+        x0, x1, z0, z1 = cx - (cx - x0) * k, cx + (x1 - cx) * k, cz - (cz - z0) * k, cz + (z1 - cz) * k
         body, trim = (M["alu"], M["black"]) if key == "alu_silver" else (M["alublack"], M["silver"])
-        alu_case(nm, s, x0, x1, z0, z1, P_W, body, trim, M, y_in)
+        alu_case(nm, s, x0, x1, z0, z1, P_W * k, body, trim, M, y_in)
         # the carry handle on the lid
-        hy = y_in + s * P_W * 0.5
+        hy = y_in + s * P_W * k * 0.5
         B.smooth_tube(f"{nm}handle", [(x0 + 150, hy, z1), (x0 + 175, hy, z1 + 28), (x1 - 175, hy, z1 + 28), (x1 - 150, hy, z1)], 6.0, M["black"])
     elif key == "hard_shell":
         # wider at the top (a trapezoid side view), rounded all round
@@ -143,7 +146,7 @@ def build_pannier(key, s, M):
         for i, sx in enumerate((x0 + 120, x1 - 120)):
             box(f"{nm}strap{i}", sx - 16, sx + 16, yo - s * 1, yo + s * 4, z0 + 70, z1 - 40, M["strap"], 1.0)
             box(f"{nm}buckle{i}", sx - 20, sx + 20, yo + s * 2, yo + s * 10, z0 + 200, z0 + 236, M["black"], 2.0)
-    side_frame(s, M)
+    side_frame(s, M, (x0, x1), (z0, z1))
 
 
 def build_topbox(key, M):
@@ -152,8 +155,9 @@ def build_topbox(key, M):
         # (the moulded case's rounded belly sits on a thicker base, clear of the taller pillion seats)
         z0, z1 = z0 + 26, z1 + 26
     # the base plate on the rack
-    box("lugtopbase", x0 + 60, x1 - 10, -150, 150, 988, z0, M["black"], 3.0)
-    for i, (bx, by) in enumerate([(-120, -110), (-120, 110), (60, -110), (60, 110)]):
+    # (the box 60 mm further back than first drawn, beenster 19:24; its base stays on the rack)
+    box("lugtopbase", -195, x1 - 10, -150, 150, 988, z0, M["black"], 3.0)
+    for i, (bx, by) in enumerate([(-120, -110), (-120, 110), (20, -110), (20, 110)]):
         D.bolt(f"lugtopbolt{i}", (bx, by, 990), (0, 0, 1), 6.0, 4.0, M["steel"])
     if key in ("alu_top", "alu_top_black"):
         body, trim = (M["alu"], M["black"]) if key == "alu_top" else (M["alublack"], M["silver"])
