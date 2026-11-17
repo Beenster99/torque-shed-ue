@@ -151,7 +151,7 @@ struct Looks
 	// how crisp the skins, how much of the billows (the forms a third the size), and the extinction per
 	// metre at a kind's density 1 (a real cumulus is about 0.05 .. 0.1; the old cloud reached 1.28 and
 	// sparkled as the engine's samples hit or missed it).
-	double CloudVersion = 1.0;
+	double CloudVersion = 2.0;   // (2 by default since build 155: an older sky_looks.json without it still gets them)
 	double V2ShapeM = 8000.0, V2DetailM = 600.0, V2MidShapeM = 5000.0, V2MidDetailM = 400.0, V2BroadM = 40000.0, V2Patchy = 0.35;
 	double V2Erode = 0.5, V2ErodeRagged = 0.3, V2EdgeSharp = 3.0, V2Billow = 0.3, V2Extinction = 0.1, V2DeckThin = 0.5;
 	// A deep layer (a shower cloud 9 km tall) is marched in long steps, so its edge detail grows by
