@@ -1300,6 +1300,12 @@ double ABMeasureSecs()
 constexpr double ABSettle = 2.0;
 } // namespace TRProbe
 
+int32 ATorqueRideWorld::SceneSquares = 0;
+int32 ATorqueRideWorld::ScenePlantGroups = 0;
+int32 ATorqueRideWorld::SceneTreeGroups = 0;
+int64 ATorqueRideWorld::SceneTrees = 0;
+int64 ATorqueRideWorld::ScenePlants = 0;
+
 float ATorqueRideWorld::PresetReach(bool bTree) const
 {
 	// (so Medium really does less: until build 150 the ride's own plants took no notice of the preset,
@@ -1572,6 +1578,11 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
 					FrameGameMs / CostFrames, FrameRenderMs / CostFrames, FrameGpuMs / CostFrames,
 					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
+				SceneSquares = Tiles.Num();
+				ScenePlantGroups = Ism;
+				SceneTreeGroups = TreeGroups;
+				SceneTrees = TreeCount;
+				ScenePlants = Instances;
 			}
 			// [perf, build 150] How the picture is drawn, logged when it changes: the output size, the screen
 			// percentage and what really draws at it, the anti-aliasing / upscaler, and the expensive parts.
