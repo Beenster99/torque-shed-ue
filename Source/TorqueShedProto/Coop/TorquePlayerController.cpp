@@ -604,6 +604,12 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 		ATorqueGameState::TestClockSet();
 		if (GS) GS->SetHour(S.TimeOfDay);
 	}
+	else if (F == TEXT("ridedate") || F == TEXT("date"))
+	{
+		// (a day of the year, 1 .. 365, or 0 for today)
+		S.RideDate = FMath::Clamp(N, 0, 365);
+		if (GS) GS->SetRideDay(S.RideDate);
+	}
 	else if (F == TEXT("daynight")) S.bDayNight = bOn;
 	else if (F == TEXT("realclock"))
 	{
@@ -1216,6 +1222,30 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 						S.TimeOfDay = -1.0f;
 						S.bDayNight = false;
 						if (GS) GS->SetHour(-1.0f);
+						Changed();
+					});
+			}
+			{
+				// The ride's date (beenster Nov 17): the sun's path, sunrise and sunset, the night sky, the season
+				// on the land (from the next ride) and the HUD's date. Left / Right a day; dragged, any day.
+				const int32 Today = FDateTime::UtcNow().GetDayOfYear();
+				const int32 DayNow = S.RideDate > 0 ? S.RideDate : Today;
+				const FString DateText = S.RideDate > 0 ? ATorqueGameState::DateOfDay(S.RideDate).ToString(TEXT("%d %B"))
+					: FString::Printf(TEXT("Today (%s)"), *ATorqueGameState::DateOfDay(Today).ToString(TEXT("%d %B")));
+				Slide(TEXT("Ride date"), DateText, TEXT("The day the sun, the night sky and the season are for; Left / Right a day"), float(DayNow - 1) / 364.0f,
+					[GS, &S, DayNow](int32 D) {
+						S.RideDate = (DayNow - 1 + D + 365) % 365 + 1;
+						if (GS) GS->SetRideDay(S.RideDate);
+					},
+					[GS, &S](float F) {
+						S.RideDate = FMath::Clamp(FMath::RoundToInt(F * 364.0f) + 1, 1, 365);
+						if (GS) GS->SetRideDay(S.RideDate);
+					});
+				HostOnly();
+				if (S.RideDate > 0 && !bClient)
+					Add(TEXT("Back to today's date"), FString(), TEXT("The sun and the season as they are today"), [this, GS, &S]() {
+						S.RideDate = 0;
+						if (GS) GS->SetRideDay(0);
 						Changed();
 					});
 			}
