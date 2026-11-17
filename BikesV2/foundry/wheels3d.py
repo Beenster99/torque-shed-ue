@@ -39,6 +39,9 @@ FINISH = {
     "gold": dict(col=(0.62, 0.42, 0.13), metallic=1.0, rough=0.3, coat=0.5),
     "anodised_gold": dict(col=(0.75, 0.46, 0.05), metallic=1.0, rough=0.18, coat=0.2),
     "chrome": dict(col=(0.86, 0.86, 0.88), metallic=1.0, rough=0.07, coat=0.0),
+    "steel_brushed": dict(col=(0.56, 0.57, 0.59), metallic=1.0, rough=0.3, coat=0.0),
+    "gold_bright": dict(col=(0.95, 0.66, 0.2), metallic=1.0, rough=0.09, coat=0.0),
+    "brass": dict(col=(0.78, 0.6, 0.27), metallic=1.0, rough=0.2, coat=0.0),
     "gunmetal": dict(col=(0.12, 0.125, 0.13), metallic=0.9, rough=0.36, coat=0.3),
     "carbon": dict(col=(0.02, 0.02, 0.023), metallic=0.0, rough=0.3, coat=1.0),
     "bronze": dict(col=(0.3, 0.19, 0.09), metallic=1.0, rough=0.34, coat=0.3),
@@ -95,6 +98,24 @@ STYLES = {
         dict(pts=[(0, 5, 8, 1.0), (0.5, 4, 6.5, 0.75), (1, 9, 6, 0.5)]),
         dict(pts=[(0, -5, 8, 1.0), (0.5, -4, 6.5, 0.75), (1, -9, 6, 0.5)]),
         dict(pts=[(0.48, 4, 5, 0.5), (0.48, -4, 5, 0.5)])]),
+    # billet chopper wheels (beenster, 17 Nov, with reference pictures of cut chrome wheels): broad blades cut from
+    # plate, swept, hooked, split and crossed. Our own patterns. A bar marked free=True ends in a point in mid-air on
+    # purpose (a hook or barb); every other bar end must be buried in the hub, the rim or another bar: rim_check().
+    "billet_reaper5": dict(label="Billet: five hooked blades", ref=0, flare=0.9, wk=1.0, n=5, finish="chrome", rim=0, hub="tall", sizes=((21, 2.15), (18, 5.5)), bars=[
+        dict(curve=True, pts=[(0, -20, 22, 0.9), (0.25, -6, 27, 0.75), (0.55, 22, 21, 0.6), (0.8, 46, 14, 0.5), (1, 60, 11, 0.45)]),
+        dict(curve=True, free=True, pts=[(0.42, 6, 12, 0.6), (0.56, -4, 9, 0.5), (0.7, -8, 5, 0.42), (0.82, -4, 1.5, 0.36)])]),
+    "billet_cyclone9": dict(label="Billet: nine split blades", ref=0, flare=0.8, wk=1.0, n=9, finish="chrome", rim=0, hub="slim", sizes=((21, 2.15), (18, 5.5)), bars=[
+        dict(curve=True, pts=[(0, -8, 10, 0.9), (0.3, 6, 10, 0.75), (0.62, 30, 8, 0.6), (0.8, 45, 7, 0.5)]),
+        dict(curve=True, pts=[(0.74, 40, 5.5, 0.5), (0.88, 49, 5, 0.47), (1, 53, 5, 0.45)]),
+        dict(curve=True, pts=[(0.74, 40, 5.5, 0.5), (0.88, 58, 5, 0.47), (1, 69, 5, 0.45)])]),
+    "billet_bloom8": dict(label="Billet: crossed petals", ref=0, flare=0.7, wk=1.0, n=8, finish="gold_bright", rim=0, hub="flange", sizes=((21, 2.15), (18, 5.5)), bars=[
+        dict(curve=True, pts=[(0, 0, 8, 0.9), (0.35, 14, 7.5, 0.72), (0.7, 38, 7, 0.55), (1, 52, 7, 0.45)]),
+        dict(curve=True, pts=[(0, 0, 8, 0.9), (0.35, -14, 7.5, 0.72), (0.7, -38, 7, 0.55), (1, -52, 7, 0.45)])]),
+    "billet_fang6": dict(label="Billet: six leaf blades with a rib", ref=0, flare=0.6, wk=1.0, n=6, finish="brass", rim=0, hub="slim", sizes=((21, 2.15), (18, 5.5)), bars=[
+        dict(curve=True, pts=[(0, -4, 11, 0.9), (0.3, 4, 23, 0.72), (0.55, 16, 25, 0.6), (0.8, 30, 13, 0.5), (1, 36, 9, 0.45)]),
+        dict(curve=True, pts=[(0, -24, 6, 0.9), (0.5, -8, 5, 0.6), (1, 8, 5, 0.45)])]),
+    "billet_twist7": dict(label="Billet: seven S blades", ref=0, flare=0.9, wk=1.0, n=7, finish="steel_brushed", rim=0, hub="tall", sizes=((21, 2.15), (18, 5.5)), bars=[
+        dict(curve=True, pts=[(0, 10, 13, 0.9), (0.3, -12, 12, 0.75), (0.6, 4, 10, 0.6), (0.85, 30, 8, 0.5), (1, 42, 8, 0.45)])]),
     # wire-spoked wheels (beenster, 16 Nov: five more rims with spoke variations, mainly for MX and adventure bikes).
     # "wire": n spokes laced "cross" times, "gauge" the spoke's radius in mm, a rim section, a hub, and what the
     # hub, spokes and nipples are finished in. "over": the spokes run to the far edge of the rim (tubeless).
@@ -173,21 +194,48 @@ def wire_wheel(tag, st, R, W, rear, paint):
 
 
 
-def rim_profile(R, W, ridges):
-    """The rim section as a closed loop [(across, radius)]: tyre side first, then back along the side you see."""
+def rim_profile(R, W, ridges, parts=False):
+    """The rim section as a closed loop [(across, radius)]: tyre side first, then back along the side you see.
+    Narrow rims (a 2.15 in chopper front) scale the bead seats and the well down so the section never folds over
+    itself (17 Nov: the fold left spoke ends short of the rim on narrow fronts). parts=True returns the half of
+    the hub-facing surface from the lip to the centre line, for trimming spokes to it."""
     h = W / 2
-    wd = max(13.0, h * 0.42)
-    tyre = [(-h - 8, R + 12), (-h - 5, R + 14.5), (-h - 1.5, R + 13.5), (-h, R + 9), (-h + 1, R + 2), (-h + 3.5, R), (-h + 17, R - 1),
-            (-h + 20, R + 1.2), (-h + 23, R - 1.5), (-wd - 2, R - 7), (-wd + 6, R - 19), (wd - 6, R - 19), (wd + 2, R - 7),
-            (h - 23, R - 1.5), (h - 20, R + 1.2), (h - 17, R - 1), (h - 3.5, R), (h - 1, R + 2), (h, R + 9), (h + 1.5, R + 13.5), (h + 5, R + 14.5), (h + 8, R + 12)]
+    k = min(1.0, h / 45.0)
+    wd = min(max(13.0, h * 0.42), h - 23 * k - 6)
+    a23, a20, a17, a35 = 23 * k, 20 * k, 17 * k, 3.5 * k
+    tyre = [(-h - 8, R + 12), (-h - 5, R + 14.5), (-h - 1.5, R + 13.5), (-h, R + 9), (-h + 1, R + 2), (-h + a35, R), (-h + a17, R - 1),
+            (-h + a20, R + 1.2), (-h + a23, R - 1.5), (-wd - 2, R - 7), (-wd + 6 * k, R - 19), (wd - 6 * k, R - 19), (wd + 2, R - 7),
+            (h - a23, R - 1.5), (h - a20, R + 1.2), (h - a17, R - 1), (h - a35, R), (h - 1, R + 2), (h, R + 9), (h + 1.5, R + 13.5), (h + 5, R + 14.5), (h + 8, R + 12)]
     side = [(h + 9, R + 8), (h + 6, R + 2), (h + 2, R - 5)]
     if ridges == 1:      # one raised rib on the shoulder
-        side += [(h - 8, R - 7.5), (h - 9.5, R - 10.5), (h - 13, R - 10.5), (h - 14.5, R - 8)]
+        side += [(h - 8 * k, R - 7.5), (h - 9.5 * k, R - 10.5), (h - 13 * k, R - 10.5), (h - 14.5 * k, R - 8)]
     elif ridges == 2:    # a stepped shoulder with two fine ribs
-        side += [(h - 4, R - 6.5), (h - 5, R - 9.5), (h - 8, R - 9.5), (h - 9, R - 7.5), (h - 14, R - 8), (h - 15, R - 11), (h - 18, R - 11), (h - 19, R - 8.5)]
-    side += [(h - 23, R - 9), (wd + 3, R - 14), (wd - 5, R - 26), (0, R - 27)]
+        side += [(h - 4 * k, R - 6.5), (h - 5 * k, R - 9.5), (h - 8 * k, R - 9.5), (h - 9 * k, R - 7.5), (h - 14 * k, R - 8), (h - 15 * k, R - 11), (h - 18 * k, R - 11), (h - 19 * k, R - 8.5)]
+    side += [(h - a23, R - 9), (wd + 3, R - 14), (wd - 5 * k, R - 26), (0, R - 27)]
+    if parts:
+        return side
     back = [(-y, r) for y, r in side[::-1][1:]]
     return tyre + side + back + [tyre[0]]
+
+
+def rim_inner(R, W, ridges):
+    """cap(y): how far out a spoke may reach at a distance y off the wheel's centre line: the rim's own hub-facing
+    surface there, plus 3 mm so the spoke's end is buried in the rim's metal (8 mm thick) and never short of it."""
+    side = rim_profile(R, W, ridges, parts=True)
+
+    def cap(y):
+        y = abs(y)
+        rs = []
+        for (y0, r0), (y1, r1) in zip(side, side[1:]):
+            lo, hi = min(y0, y1), max(y0, y1)
+            if lo <= y <= hi:
+                rs.append(r0 if hi - lo < 1e-6 else r0 + (r1 - r0) * (y - y0) / (y1 - y0))
+        return (min(rs) if rs else side[0][1]) + 3.0
+    cap.ymax = W / 2 - 1.0      # and no spoke is thicker than the rim is wide
+    return cap
+
+
+ENDS = {}
 
 
 def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk=1.0, cap=None, flare=0.0):
@@ -209,6 +257,12 @@ def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk
     if flare and max(q[0] for q in dense) > 0.95:
         fo = lambda f: max(0.0, (f - 0.76) / 0.24) ** 2
         dense = [(f, ang, w * (1 + flare * fo(f)), t * (1 + 0.45 * min(flare, 1.0) * fo(f))) for f, ang, w, t in dense]
+    if cap and dense[-1][0] >= 0.95 and len(dense) > 1:
+        # carry the bar on past the rim along its own sweep, so even the trailing corner of a steeply swept blade
+        # passes the rim's surface before it is trimmed (17 Nov: beenster, "check the spokes actually meet the rim")
+        (f0, a0, _, _), (f1, a1, w1, t1) = dense[-2], dense[-1]
+        slope = (a1 - a0) / max(1e-6, f1 - f0)
+        dense += [(f1 + e, a1 + slope * e, w1, t1) for e in (0.05, 0.1, 0.15)]
     base = 360.0 * k0 / n
     path = []
     for f, ang, w, t in dense:
@@ -228,6 +282,9 @@ def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk
             ey = math.copysign(abs(sq) ** 0.45, sq) * (flat if flat else t)
             vx, vy, vz = x + nx * ex, yo * (t if flat else 1) + ey, z + nz * ex
             if cap:      # the spoke runs right into the rim: each point stops just inside the rim's own inner surface
+                ym = getattr(cap, "ymax", None)
+                if ym and abs(vy) > ym and math.hypot(vx, vz) > cap(0) - 40:
+                    vy = math.copysign(ym, vy)
                 rv, rc_ = math.hypot(vx, vz), cap(abs(vy))
                 if rv > rc_:
                     vx, vz = vx * rc_ / rv, vz * rc_ / rv
@@ -237,6 +294,7 @@ def bar(name, pts, n, k0, material, r_h, r_r, th_h, curve, yo=0.0, flat=None, wk
             q2 = (q + 1) % m
             faces.append((i * m + q, i * m + q2, (i + 1) * m + q2, (i + 1) * m + q))
     faces += [tuple(range(m - 1, -1, -1)), tuple((len(path) - 1) * m + q for q in range(m))]
+    ENDS[name] = ([tuple(v) for v in verts[:m]], [tuple(v) for v in verts[-m:]])      # for rim_check
     ob = B.mesh_obj(name, verts, faces, material, True, 0, True)
     B.bm_fix_normals(ob)
     md = ob.modifiers.new("bevel", "BEVEL")
@@ -284,15 +342,8 @@ def wheel(tag, style, dia, width, rear, finish_name=None):
     # spokes
     # spoke ends meet the rim flush (beenster, 16 Nov): the spokes run on past the rim's inner surface and are
     # trimmed to it, across the well and up the shoulders, so no gap shows from the side at any spoke angle
-    r_h, r_r = r_body - 5, R - 8
-    h_, wd_ = W / 2, max(13.0, W / 2 * 0.42)
-
-    def cap(y, R=R):
-        if y <= wd_ - 5:
-            return R - 27 + 3.5 + y / max(1.0, wd_ - 5)
-        if y <= wd_ + 3:
-            return R - 26 + 3.5 + (y - (wd_ - 5)) / 8.0 * 12
-        return R - 14 + 3.5 + min(1.0, (y - wd_ - 3) / max(1.0, h_ - 26 - wd_)) * 5
+    r_h, r_r = r_body - 5, R + 3      # past the rim's surface everywhere; each point is then trimmed back to it
+    cap = rim_inner(R, W, st["rim"])
     th_h = (min(hl - 16, 24) if not rear else min(hl - 16, 30)) * (1.25 if hub == "tall" else 1.0)
     wk = st.get("wk", 1.4) * (1.12 if rear else 1.0)
     for bi, b_ in enumerate(st["bars"]):
@@ -306,11 +357,84 @@ def wheel(tag, style, dia, width, rear, finish_name=None):
     return [o for o in bpy.data.objects if o not in before]
 
 
+def rim_check(tag, style):
+    """Do the spokes actually meet the rim (beenster, 17 Nov)? For every bar of a built wheel: the outer end must
+    be buried in the rim (or, for a branch, in another bar) and the inner end in the hub or another bar. A bar marked
+    free may end in the air at its outer end. Returns a list of faults; empty means every spoke is joined."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    st = STYLES[style]
+    if st.get("wire"):
+        return []
+    dg = bpy.context.evaluated_depsgraph_get()
+
+    def tree_of(o):
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        vs = [ev.matrix_world @ v.co for v in me.vertices]
+        ps = [tuple(p.vertices) for p in me.polygons]
+        ev.to_mesh_clear()
+        return vs, BVHTree.FromPolygons(vs, ps, epsilon=0.0)
+    objs = {o.name: tree_of(o) for o in bpy.data.objects if o.type == "MESH" and o.name.startswith(tag + "_") and o.name.split("_")[1][:5] in ("rim", "hub", "spoke")}
+    cen = Vector(bpy.data.objects[tag + "_rim"].matrix_world.translation)
+
+    def inside(pt, name):
+        """is the point inside the solid of that part? counts crossings of a ray along the axle... the rim is a
+        closed ring section and the bars closed tubes, so parity works"""
+        tr = objs[name][1]
+        d = Vector((pt.x - cen.x, 0.0, pt.z - cen.z))
+        if d.length < 1e-6:
+            d = Vector((1, 0, 0))
+        d = (d.normalized() + Vector((0.0013, 0.0021, 0.0007))).normalized()      # outwards from the axle, a hair off true
+        n_, o_ = 0, pt.copy()
+        for _ in range(64):
+            hit = tr.ray_cast(o_, d)
+            if hit[0] is None:
+                break
+            n_ += 1
+            o_ = hit[0] + d * 2e-6
+        return n_ % 2 == 1
+    faults = []
+    m = 12
+    for name, (vs, _) in objs.items():
+        if "_spoke" not in name:
+            continue
+        bi = int(name.split("_spoke")[1].split("_")[0])
+        free = st["bars"][bi].get("free", False)
+        o = bpy.data.objects[name]
+        ends = (("inner", [Vector(q) for q in ENDS[name][0]]), ("outer", [Vector(q) for q in ENDS[name][1]]))
+        for which, ring in ends:
+            if which == "outer" and free:
+                continue
+            c_ = sum(ring, Vector()) / m
+            others = [n for n in objs if n != name]
+            f_end = st["bars"][bi]["pts"][0 if which == "inner" else -1][0]
+            rr = math.hypot(c_.x - cen.x, c_.z - cen.z) / B.MM
+            if which == "outer" and f_end >= 0.95:
+                # at the rim: every point of the bar's end section must be in the rim's metal or on its surface
+                gaps = []
+                for v in ring:
+                    near = objs[tag + "_rim"][1].find_nearest(v)[3] or 1e9
+                    if near > 0.0012 and not inside(v, tag + "_rim"):
+                        gaps.append(near)
+                if gaps:
+                    faults.append(f"{name} at the rim: {len(gaps)} of {m} points float, up to {max(gaps) / B.MM:.1f} mm clear (radius {rr:.0f} mm)")
+            else:
+                # at the hub or where bars branch: the heart of the bar's end must be inside another part
+                near = min(objs[n][1].find_nearest(c_)[3] or 1e9 for n in others)
+                if near > 0.0012 and not any(inside(c_, n) for n in others):
+                    faults.append(f"{name} {which} end is not joined: {near / B.MM:.1f} mm from the nearest part (radius {rr:.0f} mm)")
+    return faults
+
+
 def fit(b, tag, c, w, tyre_width):
     """Fit a library wheel to a bike: the style named in the model's wheel, at the bike's own rim size,
     centred on the axle c (x, z). The bike keeps its own tyre, discs and valve."""
     use(b)
     objs = wheel(tag, w["style"], w["rim_r"] * 2 / INCH, tyre_width * (0.6 if STYLES[w["style"]].get("wire") else 0.76) / INCH, tag == "rear", w.get("finish"))
+    if os.environ.get("BIKE_RIMCHECK"):
+        f_ = rim_check(tag, w["style"])           # the spokes must meet the rim at this bike's own rim size too
+        print(f"RIMCHECK fit {w['style']} {tag} {'ok' if not f_ else 'FAULTS ' + str(len(f_))}", f_[:4], flush=True)
     keep = []
     for o in objs:
         if o.name.startswith(tag + "_valve"):
@@ -407,6 +531,22 @@ if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     names = args or list(STYLES)
     if "--sheet-only" not in sys.argv:
+        if "--check" in sys.argv:
+            # build every style front and rear and test that each spoke is joined at both ends
+            bad = 0
+            for s in names:
+                for rear in (False, True):
+                    bpy.ops.wm.read_factory_settings(use_empty=True)
+                    B._mats.clear()
+                    (fd, fw), (rd, rw) = STYLES[s]["sizes"]
+                    wheel("w", s, rd if rear else fd, rw if rear else fw, rear)
+                    f = rim_check("w", s)
+                    bad += len(f)
+                    print(f"RIMCHECK {s:16s} {'rear ' if rear else 'front'} {'ok' if not f else 'FAULTS ' + str(len(f))}", flush=True)
+                    for q in f[:4]:
+                        print("   ", q, flush=True)
+            print("rim check faults:", bad)
+            sys.exit(0)
         for s in names:
             render(s, 16 if "--draft" in sys.argv else 40)
     sheet(list(STYLES) if not args else names)

@@ -1785,5 +1785,9 @@
    "bottom": 0.8,
    "blunt_rear": true
   }
+ },
+ "detail": {
+  "lamp_unit": "stack",
+  "lock_relief": 24
  }
 }
