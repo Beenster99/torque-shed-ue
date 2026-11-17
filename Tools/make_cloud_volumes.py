@@ -14,7 +14,7 @@ Hillaire ("Physically based sky, atmosphere and cloud rendering in Frostbite", 2
 Each is cut into slices laid out in a sheet (shape 16 x 8 slices, detail 8 x 4), every slice with a
 one-texel border copied from its opposite edge so sampling between texels never bleeds into the next
 slice. The cloud material reads them as pseudo-volumes (two slices sampled and blended), as the
-current cloud already does with Data/Sky/cloud_noise.png.
+old cloud did with Data/Sky/cloud_noise.png (removed Nov 17).
 
 Run: python Tools/make_cloud_volumes.py  (numpy and Pillow; about a minute)
 """

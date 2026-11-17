@@ -151,37 +151,9 @@ void ATorqueSky::Find()
 	// (the guard has already looked at the cloud before the first frame; this is in case it didn't run)
 	TorqueCloudGuard::Check(W);
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
-	// The rebuilt clouds (M_RideCloudV2, Nov 16) in place of M_RideCloud, when asked (sky_looks.json
-	// cloud_version 2, or -TorqueCloud=2), before the weather map's instance is made from the cloud's material.
-	{
-		int32 Version = FMath::RoundToInt(Looks.CloudVersion);
-		FParse::Value(FCommandLine::Get(), TEXT("TorqueCloud="), Version);
-		UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-		FObjectPropertyBase* Prop = Cloud ? CastField<FObjectPropertyBase>(Cloud->GetClass()->FindPropertyByName(FName(TEXT("Material")))) : nullptr;
-		UMaterialInterface* Now = Prop ? Cast<UMaterialInterface>(Prop->GetObjectPropertyValue_InContainer(Cloud)) : nullptr;
-		const bool bRideNow = Now && Now->GetMaterial() && Now->GetMaterial()->GetName() == TEXT("M_RideCloud");
-		bCloudV2 = false;
-		if (Version == 2 && bRideNow)
-		{
-			UMaterialInterface* V2 = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Sky/M_RideCloudV2.M_RideCloudV2"));
-			const FString Why = TorqueCloudGuard::WhyNot(V2, W);
-			if (Why.IsEmpty())
-			{
-				Prop->SetObjectPropertyValue_InContainer(Cloud, V2);
-				Cloud->MarkRenderStateDirty();
-				bCloudV2 = true;
-				UE_LOG(LogTemp, Display, TEXT("Torque sky: the rebuilt clouds (M_RideCloudV2)"));
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Torque sky: M_RideCloudV2 won't do (%s): the old clouds stay"), *Why);
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds version %d (%s)"), Version, *GetNameSafe(Now));
-		}
-	}
+	// (the level's cloud wears M_RideCloudV2 itself, made by the level scripts: the old M_RideCloud and the
+	// switch between the two were removed, beenster Nov 17)
+	UE_LOG(LogTemp, Display, TEXT("Torque sky: the cloud wears %s"), *GetNameSafe(CloudPtr.IsValid() ? ReadObjectProperty(CloudPtr.Get(), TEXT("Material")) : nullptr));
 	for (TActorIterator<AActor> It(W); It && !HighSheetPtr.IsValid(); ++It)
 		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
 	// Stage 4: the rain shafts and the rainbow (Tools/ue_build_level.py places them, hidden).
