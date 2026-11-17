@@ -484,7 +484,7 @@ def night(sc):
             continue
         nm = ob.data.materials[0].name
         if nm in ("d3_lp_white", "d3_drl", "d3_lampdip", "d3_tailred", "d3_amberled", "d3_bulb"):
-            ob.data.materials[0].node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 14.0
+            ob.data.materials[0].node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = ob.get("_glow", 14.0)
 
 
 def lamp_light(at, aim, col, energy, size=60):

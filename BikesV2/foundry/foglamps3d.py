@@ -213,6 +213,52 @@ SHOTS = [("chrome_spot", "hartwell_classic"), ("amber_round", "lodestar_cruiser"
          ("led_cube", "corvano_naked"), ("slim_bar", "varga_mx")]
 
 
+HEAD_LAMP = ("lampbulb", "lampdrl", "mainled", "projbulb", "lampglass", "lampcover", "lph")
+LIT_GLASS = ("lampglass", "lampcover", "projlens", "lphglass", "lphlens")
+
+
+def _glow_mat(name, col, strength):
+    mt = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    mt.use_nodes = True
+    bs = mt.node_tree.nodes["Principled BSDF"]
+    bs.inputs["Base Color"].default_value = (*col, 1.0)
+    bs.inputs["Emission Color"].default_value = (*col, 1.0)
+    bs.inputs["Emission Strength"].default_value = strength
+    return mt
+
+
+def night_beams():
+    """The night picture shows the fogs as they are in the game: on only with the main beam, so the headlamp is on
+    high beam (its glass lit bright, its beam near level and far) with the fogs (wide and low). A DRL ring is lit
+    as it always is with the engine on."""
+    bright = {"d3_lampdip": 60.0, "d3_bulb": 60.0, "d3_ledchip": 60.0, "d3_drl": 25.0, "d3_lp_white": 40.0}
+    for ob in bpy.data.objects:
+        if ob.type == "MESH" and ob.data.materials and ob.data.materials[0].name in bright:
+            ob["_glow"] = bright[ob.data.materials[0].name]
+    # the headlamp's and fog lamps' glass glows: lit from behind, as a lamp on main beam looks
+    head = _glow_mat("night_headglass", (1.0, 0.97, 0.92), 35.0)
+    fog = _glow_mat("night_fogglass", (1.0, 0.93, 0.8), 18.0)
+    for ob in bpy.data.objects:
+        if ob.type != "MESH" or not ob.data.materials:
+            continue
+        nm = ob.name.split(".")[0]
+        if nm.startswith(LIT_GLASS):
+            ob.data.materials[0] = head
+        elif nm.startswith(("fog1", "fog-1")) and ob.data.materials[0].name in ("d3_clearglass",):
+            ob.data.materials[0] = fog
+    beams = []
+    h = LM._centre(HEAD_LAMP)
+    if h:
+        at = (h[2][0] + 25, 0, h[0][2])
+        beams.append((at, (at[0] + 8000, 0, at[2] - 250), (1.0, 0.96, 0.9), 120000, 45))
+    for side in (-1, 1):
+        f = LM._centre(("fog1" if side > 0 else "fog-1",))
+        if f:
+            at = (f[2][0] + 25, f[0][1], f[0][2])
+            beams.append((at, (at[0] + 5000, at[1] + side * 900, at[2] - 400), (1.0, 0.92, 0.75), 30000, 55))
+    return beams
+
+
 def shots(which=None, samples=40):
     os.makedirs(OUT, exist_ok=True)
     for key, mn in SHOTS:
@@ -222,7 +268,8 @@ def shots(which=None, samples=40):
         fx, fz = r["fog"]["clamp"]
         tgt = (fx + 40, 0, fz + 40)
         LM.render_at(b3, os.path.join(OUT, f"{key}_{mn}.png"), (fx + 1500, -1100, fz + 450), tgt, 40, samples=samples)
-        LM.render_at(b3, os.path.join(OUT, f"{key}_{mn}_night.png"), (fx + 2600, -1400, fz + 500), (fx, 0, fz), 40, samples=samples, dark=True)
+        LM.render_at(b3, os.path.join(OUT, f"{key}_{mn}_night.png"), (fx + 2600, -1400, fz + 500), (fx, 0, fz), 40, samples=samples, dark=True,
+                     beams=night_beams())
 
 
 if __name__ == "__main__":

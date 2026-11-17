@@ -277,6 +277,12 @@ def main(data):
         shutil.copy(os.path.join(SRC, g, k + ".glb"), os.path.join(dst, g, k + ".glb"))
         info = json.load(open(os.path.join(SRC, g, k + ".json")))
         info["surfaces"] = {n: game_look(n, lk, g) for n, lk in info["surfaces"].items()}
+        # a headlamp's DRL ring (d3_drl) lit whenever the engine runs (beenster Nov 17), when the lamp has another white
+        # lens for dipped and main beam (as build3d's export does for the bikes' own lamps)
+        drl = [n for n in info["surfaces"] if n.split(".")[0].split("__")[0] == "d3_drl" and info["surfaces"][n].get("tag") == "lens_white"]
+        if drl and any(lk.get("tag") == "lens_white" for n, lk in info["surfaces"].items() if n not in drl):
+            for n in drl:
+                info["surfaces"][n]["tag"] = "lens_drl"
         json.dump(info, open(os.path.join(dst, g, k + ".json"), "w"), indent=1)
     out = dict(about="Common bike parts for the V2 bikes (foundry/common_catalogue.py). Each part rides as its stock "
                      "part of the same category; 'common' says which pieces of the bike it replaces (sub) and where "
