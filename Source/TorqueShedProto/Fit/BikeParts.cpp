@@ -4488,11 +4488,62 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	return true;
 }
 
+bool BikeParts::V2Tyres(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* V2 = Lay.V2Of(Parts);
+	const Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const Json* St = Points ? Points->Get("stats") : nullptr;
+	if (!St) return false;
+	std::vector<FittedPart> Tyres;
+	for (const bool Front : {true, false})
+	{
+		const std::string Side = Front ? "front" : "rear";
+		const std::string Tread = St->Str(Front ? "tread_front" : "tread_rear");
+		const std::string TyrePath = "tyre/" + Tread + ".glb";
+		if (Tread.empty() || !HasGlb(TyrePath)) return false;
+		// (As Wheels() bends it, on the drawn wheel's sizes; BikesV2/foundry/build3d.py game_tyre is the same.)
+		const V3 Axle = ToGodot(Front ? L.FrontAxle : L.RearAxle);
+		const double Radius = Front ? L.Stats.FrontRadius : L.Stats.RearRadius;
+		const double RimR = Front ? L.Stats.FrontRimRadius : L.Stats.RearRimRadius;
+		const double Half = (Front ? L.Stats.FrontTyreWidth : L.Stats.RearTyreWidth) * 0.5;
+		const double Bead = std::min(Half * 0.8 - 0.004, Half * 0.9);
+		const double Base = RimR - 0.006;
+		const double Span = std::max(Radius - RimR, 0.02) + 0.006;
+		const int Sections = TyreSectionsFor(Tread);
+		const double Step = 2.0 * TorqueSim::Pi / Sections;
+		// A front road tyre goes on the other way round to a rear: its grooves run from the centre out and
+		// down on the face seen from the front (beenster's reference, Nov 16).
+		const bool bTurned = Front && Tread != "knobs" && Tread != "blocks" && Tread != "studs";
+		FittedPart P;
+		P.Slot = Parts.count(Side + "_tyre") ? Side + "_tyre" : std::string("frame");
+		P.Glb = TyrePath;
+		P.Node = Side + "_wheel";
+		for (int K = 0; K < Sections; ++K)
+			P.Copies.push_back(GodotWarpToOurs([=](const V3& V) {
+				const double A = (bTurned ? K - V.z : K + V.z) * Step;
+				const double R = Base + V.y * Span;
+				double X = V.x * Half;
+				if (V.y < TyreBulge && std::fabs(V.x) >= 0.9)
+					X = (V.x < 0.0 ? -1.0 : 1.0) * TorqueSim::Lerp(Bead, Half, TorqueSim::Clamp((std::fabs(V.x) - 0.9) / 0.1, 0.0, 1.0));
+				return Axle + V3(X, std::cos(A) * R, std::sin(A) * R);
+			}));
+		Tyres.push_back(P);
+	}
+	// (An older export drew its own, thinner tyres: those go.)
+	Out.erase(std::remove_if(Out.begin(), Out.end(), [](const FittedPart& P) { return P.Made && (P.Name == "front_tyre" || P.Name == "rear_tyre"); }), Out.end());
+	Out.insert(Out.end(), Tyres.begin(), Tyres.end());
+	return true;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
 	{
 		std::vector<FittedPart> V2;
-		if (FitV2(Parts, V2)) return V2;
+		if (FitV2(Parts, V2))
+		{
+			V2Tyres(Parts, L, V2);
+			return V2;
+		}
 	}
 	const Bodywork Body = BikeBody(Lay).Fit(Parts, L);
 	std::vector<FittedPart> Out = Body.Parts;

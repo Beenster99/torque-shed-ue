@@ -102,6 +102,8 @@ def export_game(name, model, model_file=None):
     surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
     game slot, one moving group and one finish (game_parts.classify), named s000.. in the glb; the json
     gives each its slot, group ("node"), look and paint slot, and the bike's key points."""
+    import re
+    import detail3d
     import game_parts
     dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
     os.makedirs(dst, exist_ok=True)
@@ -113,6 +115,18 @@ def export_game(name, model, model_file=None):
     bpy.ops.object.convert(target="MESH")
     bpy.ops.object.make_single_user(object=True, obdata=True, material=False)
     obs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+    # What the game makes itself is left out: the tyres (its own tread sections bent round the drawn wheels, as
+    # sharp as the catalogue's: Fit/BikeParts V2Tyres) and the clocks' working pieces (its numbered scale, needle
+    # and lit screen: V2Gauges).
+    gauges = []
+    for nm, gz in sorted(detail3d.GAUGES.items()):
+        if bpy.data.objects.get(nm):
+            cl = game_parts.classify(nm, model)
+            gauges.append(dict(gz, node=cl[1] if cl else ""))
+    own = re.compile(r"^(front_tyre|rear_tyre|clocktick|clockneedle|dashrev)")
+    for o in [o for o in obs if own.match(o.name)]:
+        obs.remove(o)
+        bpy.data.objects.remove(o, do_unlink=True)
     tagged, looks, unknown = {}, {}, set()
     # the Definition build is drawn for close-up pictures (543,000 triangles on the naked lead); the game
     # gets every piece thinned to what reads at riding and shed distance
@@ -143,11 +157,14 @@ def export_game(name, model, model_file=None):
             md = o.modifiers.new("thin", "DECIMATE")
             md.ratio = ratio
             bpy.ops.object.modifier_apply(modifier=md.name)
+    bpy.context.view_layer.update()
     for o in obs:
         r = game_parts.classify(o.name, model)
         if not r:
             unknown.add(game_parts.stem(o.name))
             r = ("frame", "")
+        xs = [(o.matrix_world @ __import__("mathutils").Vector(q)).x / MM for q in o.bound_box]
+        r = game_parts.placed(o.name, r[0], r[1], min(xs), max(xs), model)
         for i, m in enumerate(o.data.materials):
             if m is None:
                 continue
@@ -159,16 +176,22 @@ def export_game(name, model, model_file=None):
                 tag = m.name.split(".")[0]
                 spec = LIB["surfaces"].get(tag.split("__")[0], {})
                 b = m.node_tree.nodes["Principled BSDF"]
-                ue = spec.get("ue", "cat_brushed_steel")
+                ue = spec.get("ue")
+                colour = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
+                metal, rough = round(b.inputs["Metallic"].default_value, 3), round(b.inputs["Roughness"].default_value, 3)
                 # the game's lights find their lenses by these names (TorqueLights: Surf:lens_white / amber / red)
                 lens = "lens_white" if ue == "lens_clear" and r[0] in ("headlight", "fog_lights") else ue if ue in ("lens_red", "lens_amber") else ""
+                tint = spec.get("ue_tint", True)
+                if ue is None or tag.split("__")[0] == "screen":
+                    # the pipeline's own material: the game finish that suits it (build 154: glass came out as
+                    # solid steel, grips white, dials and hoses brushed metal)
+                    ue, lens, colour = game_parts.look(tag.split("__")[0], r[0], colour, metal, rough)
+                    tint = colour is not None
                 look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
                 if spec.get("slot"):
                     look["paint"] = spec["slot"]
-                if spec.get("ue_tint", True):
-                    look["color"] = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
-                    look["metallic"] = round(b.inputs["Metallic"].default_value, 3)
-                    look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
+                if tint:
+                    look["color"], look["metallic"], look["roughness"] = colour, metal, rough
                 looks[c.name] = look
             o.data.materials[i] = tagged[key]
     pts = game_parts.points(model)
@@ -178,6 +201,8 @@ def export_game(name, model, model_file=None):
         if o:
             bb = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
             pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
+    if gauges:
+        pts["gauges"] = gauges
     name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()

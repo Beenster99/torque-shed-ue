@@ -59,7 +59,9 @@ RULES = [
     (r"(airbox|svc_air_filter|inletclamp|inletstub)", "air_filter", ""),
     (r"svc_oil_filter", "oil_filter", ""), (r"(svc_spark_plug|plugcap|pluglead|plugleadclip|plugwell)", "spark_plugs", ""),
     (r"(svc_fuel|injector|fuelrail|throttlepulley|throttleshaft)", "fuel", ""),
-    (r"(stand|sidestand|centrestand)", "side_stand", ""),
+    (r"ssmount", "frame", ""),                           # the side stand's lug on the frame (sidestand3d)
+    (r"sidestand", "side_stand", "side_stand"),          # swings on its pivot (points "stand")
+    (r"(stand|centrestand)", "side_stand", ""),
     # frame
     (r"(frame|framecross|frameloop|weld|head$|pivot|pivotcap|pivotnut|spar|sparbolt|sparweld|mount|lug|cabletie|clutchcable|bolt$)", "frame", ""),
     # everything else that was matched nowhere above is the engine (cases, covers, barrels, heads, their bolts)
@@ -88,6 +90,67 @@ def classify(name, model):
     return None
 
 
+FRONT_GROUPS = ("steer", "front_hub", "front_wheel")
+
+
+def placed(name, slot, grp, x0, x1, model):
+    """(slot, group) put right by where the piece really is (mm along the bike from the rear axle): a name
+    the front end's rules caught that sits wholly behind the middle of the bike is no part of the front end
+    (build 154: rear mudguards and throttle bodies swung round with the bars)."""
+    if grp in FRONT_GROUPS and x1 < model["geometry"]["wheelbase"] * 0.5:
+        st = stem(name)
+        if st.startswith("guard"):
+            return "tail", ""
+        if st.startswith("throttle"):
+            return "fuel", ""
+        return slot, ""
+    return slot, grp
+
+
+# What the game draws each of the pipeline's own materials with (the game's finishes: Data/Parts/Blender/index.json
+# and the Speed Twin's; "v2glass" and "v2screen" are see-through, Tools/ue_build_level.py bike_materials).
+# (pattern on the material's name, finish, light tag or "", keep the model's colour)
+LOOKS = [
+    (r"d3_(clearglass|lampglassblue|ribbedglass)$", "v2glass", "", True),
+    (r"(d3_perspex|screen)$", "v2screen", "", True),
+    (r"d3_(redglass|taillens|tailred)$", "lens_red", "lens_red", False),
+    (r"d3_(amberglass|amberbulb|amberled)$", "lens_amber", "lens_amber", False),
+    (r"d3_(lampdip|drl|ledchip|bulb)$", "lens_clear", "LAMP", False),
+    (r"d3_mirrorglass$", "mirror_glass", "", False),
+    (r"d3_grip", "grip", "", "GRIP"),
+    (r"d3_(cf_twill|wheel_carbon)$", "cat_carbon", "", False),
+    (r"d3_headertint$", "cat_titanium", "", False),
+    (r"d3_leather", "leather", "", True),
+    (r"d3_.*hose$", "cat_rubber", "", True),
+]
+LOOKS = [(re.compile("^" + p), f, t, c) for p, f, t, c in LOOKS]
+
+
+def look(tag, slot, colour, metallic, roughness):
+    """(finish, light tag, colour or None) for a material the materials library gives no game finish."""
+    for rx, finish, light, keep in LOOKS:
+        if rx.match(tag):
+            if light == "LAMP":
+                light = "lens_white" if slot in ("headlight", "fog_lights") else ""
+                if not light:
+                    return "cat_plastic", "", colour
+            if keep == "GRIP":
+                return finish, "", [0.016, 0.016, 0.018]      # (its colour is a texture in the pictures: white as a number)
+            return finish, light, colour if keep else None
+    dark = max(colour) < 0.1
+    if metallic < 0.5:
+        return "cat_plastic", "", colour
+    if roughness <= 0.12:
+        return "chrome", "", colour
+    if dark:
+        return "cat_black_metal", "", colour
+    if max(colour) - min(colour) > 0.15:
+        return "cat_anodised", "", colour
+    if roughness >= 0.4:
+        return "cat_cast_alloy", "", colour
+    return ("cat_polished_alloy" if roughness < 0.2 else "cat_brushed_steel"), "", colour
+
+
 def points(model):
     """The points the game's layout needs, in the model's own frame (mm; x forward from the rear axle,
     y to the rider's left, z up from the ground)."""
@@ -110,7 +173,10 @@ def points(model):
                   "front_radius": wh["front"]["tyre_r"], "rear_radius": wh["rear"]["tyre_r"],
                   "front_rim": wh["front"]["rim_r"], "rear_rim": wh["rear"]["rim_r"],
                   "front_width": wh["front"].get("width", 120), "rear_width": wh["rear"].get("width", 180),
-                  "shaft": bool(sw.get("shaft")), "twin_shock": bool(sh.get("twin"))},
+                  "shaft": bool(sw.get("shaft")), "twin_shock": bool(sh.get("twin")),
+                  # the game bends its own tread sections round the drawn wheels (Fit/BikeParts V2Tyres)
+                  "tread_front": {"knobbly": "knobs"}.get(wh["front"].get("tread"), wh["front"].get("tread") or "touring"),
+                  "tread_rear": {"knobbly": "knobs"}.get(wh["rear"].get("tread"), wh["rear"].get("tread") or "touring")},
     }
     if peg:
         out["peg"] = [peg[0], 0.0, peg[1]]

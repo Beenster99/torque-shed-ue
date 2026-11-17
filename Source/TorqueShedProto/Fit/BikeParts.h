@@ -71,6 +71,10 @@ public:
 	using V2Source = std::function<bool(const std::string& Model, PartMesh& Mesh, std::string& InfoJson)>;
 	static void SetV2Source(V2Source In);
 	bool FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const;
+	// A V2 bike's tyres: the game's own tread sections (tyre/<tread>.glb) bent round the drawn wheel, in
+	// place of any tyre in the bike's glb, so the tread is as sharp as the catalogue's. False if the
+	// bike names no tread (v2.points_mm.stats.tread_front / tread_rear).
+	bool V2Tyres(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 
 	// The mesh a fitted part draws: its glb's (with its shape keys) deformed by its warp, or by
 	// each of its copies' warps one after the other.
