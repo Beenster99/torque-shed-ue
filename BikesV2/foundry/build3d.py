@@ -1787,6 +1787,7 @@ def definition(model, c):
             return (x0 + (x1 - x0) * u, w, (tb[0] + tb[1]) / 2 + dz) if tb else None
         for sg in (-1, 1):
             if part == "tail":
+                continue      # beenster, 17 Nov: "weird piping along the side of the tail, please remove"
                 pts = [side(k / 100) for k in range(14, 90, 6)]
                 pts = [(q[0], sg * (q[1] - 0.5), q[2]) for q in pts if q]
                 if len(pts) > 3:

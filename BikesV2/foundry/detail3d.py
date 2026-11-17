@@ -25,6 +25,53 @@ def drop(*prefixes):
             bpy.data.objects.remove(ob, do_unlink=True)
 
 
+def carbon_weave():
+    """Carbon fibre you can read as carbon (beenster, 17 Nov: "one or two beaks on adventure bikes could be carbon"):
+    the library's own "carbon" surface (cat_carbon in the game) with a 2 x 2 twill of 3 mm tows laid over it under
+    the clear coat. The game uses its own carbon material; this is for the pictures."""
+    key = "carbon__weave"
+    if key in bpy.data.materials:
+        return bpy.data.materials[key]
+    m = B.mat("carbon").copy()
+    m.name = key
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    for l in list(b.inputs["Normal"].links):
+        nt.links.remove(l)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.inputs["Rotation"].default_value = (0.6, 0.3, 0.785)
+    wv = nt.nodes.new("ShaderNodeTexWave")
+    wv.wave_type, wv.bands_direction = "BANDS", "DIAGONAL"
+    wv.inputs["Scale"].default_value = 1.0 / (6.0 * B.MM) / 6.283
+    wv.inputs["Distortion"].default_value = 0.0
+    ck = nt.nodes.new("ShaderNodeTexChecker")
+    ck.inputs["Scale"].default_value = 1.0 / (3.0 * B.MM)
+    ck.inputs["Color1"].default_value = (0.0, 0.0, 0.0, 1)
+    ck.inputs["Color2"].default_value = (1.0, 1.0, 1.0, 1)
+    mx = nt.nodes.new("ShaderNodeMixRGB")
+    mx.blend_type = "DIFFERENCE"
+    mx.inputs["Fac"].default_value = 1.0
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.006, 0.006, 0.007, 1)
+    ramp.color_ramp.elements[1].color = (0.075, 0.078, 0.085, 1)
+    rr = nt.nodes.new("ShaderNodeMapRange")
+    rr.inputs["To Min"].default_value, rr.inputs["To Max"].default_value = 0.22, 0.42
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], wv.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], ck.inputs["Vector"])
+    nt.links.new(wv.outputs["Color"], mx.inputs["Color1"])
+    nt.links.new(ck.outputs["Color"], mx.inputs["Color2"])
+    nt.links.new(mx.outputs["Color"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    nt.links.new(mx.outputs["Color"], rr.inputs["Value"])
+    nt.links.new(rr.outputs["Result"], b.inputs["Roughness"])
+    b.inputs["Metallic"].default_value = 0.35
+    b.inputs["Coat Weight"].default_value = 1.0
+    b.inputs["Coat Roughness"].default_value = 0.03
+    return m
+
+
 def surf(name, col, metallic=0.0, rough=0.5, coat=0.0, bump=None, wear=0.2):
     """A surface of our own, with the same slight wear as build3d.mat gives the library ones."""
     key = "d3_" + name
@@ -902,7 +949,7 @@ def adventure_body(model, c):
     graphite = surf("advgraphite", (0.05, 0.052, 0.058), 0.0, 0.42, wear=0.1)
     gloss = surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
     shell("advnose", adv["nose"], paint, 4.0, cap=(False, bool(adv.get("nose_cap"))))
-    shell("advbeak", adv["beak"], graphite, 0, cap=(True, True))
+    shell("advbeak", adv["beak"], carbon_weave() if adv.get("beak_carbon") else graphite, 0, cap=(True, True))
     shell("advmask", adv["mask"], gloss, 0, cap=(True, True))
     # the lamps: a slanted eye each side of the mask, a bright running-light blade along its top, two projectors
     import fairing_lamps3d

@@ -2090,8 +2090,7 @@
   "clock_scale": 1.25,
   "indicators": "trad",
   "grips": "plain",
-  "cap": "chrome",
-  "lock_relief": 28
+  "cap": "chrome"
  },
  "widths": {
   "tank": {

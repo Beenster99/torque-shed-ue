@@ -872,5 +872,92 @@
    "anodised_red",
    "anodised_blue"
   ]
+ },
+ "chopper_bespoke": {
+  "about": "Bespoke machined chopper parts, approved by beenster 17 Nov ('fantastic, perfect'). Built by foundry/chopper_parts3d.py; a model asks with detail.bespoke {\"pegs\": [design, metal], \"covers\": [...], \"lamps\": [...], \"engine\": [...]}. Every design comes in every metal.",
+  "families": [
+   "Chopper"
+  ],
+  "metals": [
+   {
+    "key": "chrome",
+    "name": "Chrome"
+   },
+   {
+    "key": "steel",
+    "name": "Brushed steel"
+   },
+   {
+    "key": "gold",
+    "name": "Gold"
+   },
+   {
+    "key": "brass",
+    "name": "Brass"
+   }
+  ],
+  "pegs": [
+   {
+    "key": "ringed",
+    "name": "Ringed",
+    "note": "Turned from the bar: deep grip rings, a knurled band and a domed end cap."
+   },
+   {
+    "key": "torpedo",
+    "name": "Torpedo",
+    "note": "A long bullet with cooling fins round the root and a pointed spinner tip."
+   },
+   {
+    "key": "faceted",
+    "name": "Faceted",
+    "note": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt."
+   }
+  ],
+  "covers": [
+   {
+    "key": "finned",
+    "name": "Finned",
+    "note": "Straight cooling fins milled across the face, the tops polished, a plain rim."
+   },
+   {
+    "key": "spoked",
+    "name": "Starburst",
+    "note": "Tapered ribs fanning out from a domed centre boss to a stepped rim."
+   },
+   {
+    "key": "target",
+    "name": "Target",
+    "note": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge."
+   }
+  ],
+  "lamps": [
+   {
+    "key": "bullet",
+    "name": "Bullet",
+    "note": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim."
+   },
+   {
+    "key": "finned",
+    "name": "Finned",
+    "note": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut."
+   },
+   {
+    "key": "grille",
+    "name": "Grille",
+    "note": "A plain polished bowl with a three-bar guard and a centre boss across the glass."
+   }
+  ],
+  "engines": [
+   {
+    "key": "pots",
+    "name": "Twin pot",
+    "note": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder."
+   },
+   {
+    "key": "finned",
+    "name": "Finned top",
+    "note": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap."
+   }
+  ]
  }
 }
