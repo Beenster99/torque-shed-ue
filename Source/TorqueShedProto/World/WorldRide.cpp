@@ -2053,7 +2053,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	};
 	// (the mesh Put and Strip write to: the road's own, or its night glow for the cat's eyes)
 	RideMesh* Into = &Out;
-	const auto Put = [&Into, &Settle](const Row& R, double Off, double Lift, const float* Colour)
+	// ([build 154] UV0 is metres across and along over 4, the along counted from a whole 36 m behind this bit
+	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
+	// slabs, 0.9 m long, line up across bits of road)
+	double AlongBase = 0.0;
+	const auto Put = [&Into, &Settle, &AlongBase](const Row& R, double Off, double Lift, const float* Colour)
 	{
 		// (Off is to the left of the middle)
 		RideMesh& M = *Into;
@@ -2061,7 +2065,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
 		M.Pos.push_back(float(At.X - M.OriginX)); M.Pos.push_back(float(Y + Lift)); M.Pos.push_back(float(At.Z - M.OriginZ));
 		M.Nrm.push_back(float(R.Nx)); M.Nrm.push_back(float(R.Ny)); M.Nrm.push_back(float(R.Nz));
-		M.Uv.push_back(float(Off / 4.0)); M.Uv.push_back(float(R.Along / 4.0));
+		M.Uv.push_back(float(Off / 4.0)); M.Uv.push_back(float((R.Along - AlongBase) / 4.0));
 		M.Col.push_back(Colour[0]); M.Col.push_back(Colour[1]); M.Col.push_back(Colour[2]);
 	};
 	// A strip between two rows from OffA to OffB (left to right: OffA the greater), up-facing.
@@ -2376,6 +2380,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		const Row& A = RowA;
 		const Row& B = RowB;
+		AlongBase = std::floor(A.Along / 36.0) * 36.0;
 		if (!(A.Bore && B.Bore)) { RingA.clear(); LidA.clear(); }
 		// [OSM stage 1] What this bit of road is: a farm track has no paint; a gravel one is drawn in
 		// the verge's grit, not tarmac (and the tyres feel it: SurfaceAt).
@@ -2682,7 +2687,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					// (beenster, build 148: still too stark, "like sandstone poured on the road": the core now only
 					// 55% of the way from tarmac to grit, so the material shows mostly tarmac with grey chippings
 					// through it, and M_RideRoad's gravel is greyed to the road's own tone)
-					static constexpr float LaneGrit[3] = {0.022f + 0.55f * 0.073f, 0.022f + 0.55f * 0.066f, 0.025f + 0.55f * 0.045f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
+					// ([build 154] beenster, shown the gravel fade preview: "use this when there is gravel on the road":
+					// the core now three quarters of the way, M_RideRoad's gravel the preview's own scan and grade)
+					static constexpr float LaneGrit[3] = {0.022f + 0.75f * 0.073f, 0.022f + 0.75f * 0.066f, 0.025f + 0.75f * 0.045f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
 					const auto Wob = [Which](double S, int Salt)
 					{
 						const double F = std::floor(S * 0.7), T = S * 0.7 - F, E = T * T * (3.0 - 2.0 * T);

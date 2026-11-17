@@ -1,0 +1,4073 @@
+{
+ "about": "Common bike parts approved by beenster (stages 1-8b), one GLB per part: one mesh, one primitive per surface, +Y up, metres, origin at the mount point; looks JSON as build3d.export_game. Each file is the part as fitted on its lead bike (fitted_on); the script refits it to any bike. Not in Data/ until the switch-over is agreed.",
+ "axes": "Blender +x forward, +y rider's left, +z up, written with export_yup like the bikes; mount_mm is the mount point on the lead bike in the bike's own mm (x from the rear axle line, z from the ground)",
+ "mounts": {
+  "bar_clamp": "the bar clamp centre on the top yoke risers (on the steering axis plane, y 0)",
+  "top_yoke": "the top yoke centre where the fork tubes end (y 0)",
+  "front_axle": "the front wheel axle centre (y 0)",
+  "rear_axle": "the rear wheel axle centre (y 0)",
+  "rider_peg": "the rider's footpeg point on the centre line (y 0); the pair stands either side",
+  "shock_top": "the shock's top eye (y 0 for a twin pair)",
+  "can_inlet": "the middle of the silencer inlet(s) where the pipe slips in (y 0 for a pair)",
+  "cap_base": "the middle of the cap's foot on the tank",
+  "part_centre": "the middle of the part (y 0 when it is a left and right pair)"
+ },
+ "moves_with": {
+  "steering": "turns with the bars and fork",
+  "front_wheel": "spins with the front wheel",
+  "rear_wheel": "spins with the rear wheel",
+  "swingarm": "rides on the swingarm",
+  "shock": "spans frame to swingarm: stretches with the suspension",
+  "frame": "fixed to the frame"
+ },
+ "chains": {
+  "note": "Chains are finishes of the bike's own chain (a material swap), so they have no file.",
+  "finishes": [
+   {
+    "key": "steel",
+    "name": "Plain steel"
+   },
+   {
+    "key": "gold",
+    "name": "Gold"
+   },
+   {
+    "key": "black_gold",
+    "name": "Black and gold"
+   },
+   {
+    "key": "blue",
+    "name": "Blue"
+   }
+  ]
+ },
+ "parts": [
+  {
+   "id": "bar/street",
+   "group": "bar",
+   "key": "street",
+   "name": "Flat street bar",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar/street.glb",
+   "looks": "bar/street.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    110.4,
+    769.9,
+    133.3
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "bar/lowrise",
+   "group": "bar",
+   "key": "lowrise",
+   "name": "Low rise bar",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar/lowrise.glb",
+   "looks": "bar/lowrise.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    120.8,
+    763.9,
+    144.0
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "bar/highrise",
+   "group": "bar",
+   "key": "highrise",
+   "name": "High rise bar",
+   "fits": [
+    "Naked",
+    "Adventure"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar/highrise.glb",
+   "looks": "bar/highrise.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    125.5,
+    787.9,
+    181.5
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "bar/mx",
+   "group": "bar",
+   "key": "mx",
+   "name": "Braced motocross bar",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar/mx.glb",
+   "looks": "bar/mx.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    117.7,
+    799.9,
+    154.1
+   ],
+   "triangles": 9332
+  },
+  {
+   "id": "bar/clipon_low",
+   "group": "bar",
+   "key": "clipon_low",
+   "name": "Clip-ons, low",
+   "fits": [
+    "Cafe"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "bar/clipon_low.glb",
+   "looks": "bar/clipon_low.json",
+   "mount_mm": [
+    1126.1,
+    0.0,
+    1005.4
+   ],
+   "size_mm": [
+    151.2,
+    766.6,
+    89.7
+   ],
+   "triangles": 4464
+  },
+  {
+   "id": "bar/clipon_raised",
+   "group": "bar",
+   "key": "clipon_raised",
+   "name": "Clip-ons, raised",
+   "fits": [
+    "Cafe"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "bar/clipon_raised.glb",
+   "looks": "bar/clipon_raised.json",
+   "mount_mm": [
+    1126.1,
+    0.0,
+    1005.4
+   ],
+   "size_mm": [
+    138.3,
+    775.7,
+    84.6
+   ],
+   "triangles": 4464
+  },
+  {
+   "id": "bar/drag",
+   "group": "bar",
+   "key": "drag",
+   "name": "Drag bar",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar/drag.glb",
+   "looks": "bar/drag.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    97.4,
+    787.2,
+    106.6
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "bar/touring",
+   "group": "bar",
+   "key": "touring",
+   "name": "Swept touring bar",
+   "fits": [
+    "Cruiser"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "bar/touring.glb",
+   "looks": "bar/touring.json",
+   "mount_mm": [
+    1236.6,
+    0.0,
+    1041.4
+   ],
+   "size_mm": [
+    236.4,
+    761.9,
+    100.9
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "bar/tracker",
+   "group": "bar",
+   "key": "tracker",
+   "name": "Tracker bar",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar/tracker.glb",
+   "looks": "bar/tracker.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    137.8,
+    823.9,
+    157.9
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "bar/ace",
+   "group": "bar",
+   "key": "ace",
+   "name": "Ace bar",
+   "fits": [
+    "Sport"
+   ],
+   "finishes": [
+    "satin_black",
+    "polished",
+    "chrome",
+    "brushed",
+    "titanium",
+    "anodised_gold",
+    "anodised_red",
+    "anodised_blue"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "kazeda_sport",
+   "file": "bar/ace.glb",
+   "looks": "bar/ace.json",
+   "mount_mm": [
+    1127.0,
+    0.0,
+    998.0
+   ],
+   "size_mm": [
+    146.2,
+    751.5,
+    85.5
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "high_bar/ape",
+   "group": "high_bar",
+   "key": "ape",
+   "name": "Ape hanger",
+   "fits": [
+    "Chopper",
+    "Cruiser"
+   ],
+   "finishes": [
+    "chrome"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/highbars3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "high_bar/ape.glb",
+   "looks": "high_bar/ape.json",
+   "mount_mm": [
+    1236.6,
+    0.0,
+    1041.4
+   ],
+   "size_mm": [
+    172.5,
+    787.5,
+    386.9
+   ],
+   "triangles": 135548
+  },
+  {
+   "id": "high_bar/ape_tall",
+   "group": "high_bar",
+   "key": "ape_tall",
+   "name": "Tall ape",
+   "fits": [
+    "Chopper"
+   ],
+   "finishes": [
+    "chrome"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/highbars3d.py",
+   "fitted_on": "lodestar_chopper",
+   "file": "high_bar/ape_tall.glb",
+   "looks": "high_bar/ape_tall.json",
+   "mount_mm": [
+    1170.0,
+    0.0,
+    1128.4
+   ],
+   "size_mm": [
+    198.9,
+    767.0,
+    497.7
+   ],
+   "triangles": 158588
+  },
+  {
+   "id": "high_bar/zbar",
+   "group": "high_bar",
+   "key": "zbar",
+   "name": "Z-bar",
+   "fits": [
+    "Chopper",
+    "Cruiser"
+   ],
+   "finishes": [
+    "satin_black"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/highbars3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "high_bar/zbar.glb",
+   "looks": "high_bar/zbar.json",
+   "mount_mm": [
+    1236.6,
+    0.0,
+    1041.4
+   ],
+   "size_mm": [
+    136.2,
+    807.9,
+    330.6
+   ],
+   "triangles": 27836
+  },
+  {
+   "id": "high_bar/beach",
+   "group": "high_bar",
+   "key": "beach",
+   "name": "Beach bar",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "chrome"
+   ],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/highbars3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "high_bar/beach.glb",
+   "looks": "high_bar/beach.json",
+   "mount_mm": [
+    1236.6,
+    0.0,
+    1041.4
+   ],
+   "size_mm": [
+    292.2,
+    824.1,
+    229.8
+   ],
+   "triangles": 7964
+  },
+  {
+   "id": "grip/knurl",
+   "group": "grip",
+   "key": "knurl",
+   "name": "Diamond knurl",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "grip/knurl.glb",
+   "looks": "grip/knurl.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    65.2,
+    771.7,
+    61.8
+   ],
+   "triangles": 17272
+  },
+  {
+   "id": "grip/ribbed",
+   "group": "grip",
+   "key": "ribbed",
+   "name": "Ribbed",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "grip/ribbed.glb",
+   "looks": "grip/ribbed.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    61.2,
+    771.8,
+    55.1
+   ],
+   "triangles": 31384
+  },
+  {
+   "id": "grip/waffle",
+   "group": "grip",
+   "key": "waffle",
+   "name": "Waffle",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "grip/waffle.glb",
+   "looks": "grip/waffle.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    56.6,
+    771.7,
+    50.4
+   ],
+   "triangles": 14968
+  },
+  {
+   "id": "grip/barrel",
+   "group": "grip",
+   "key": "barrel",
+   "name": "Barrel",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "grip/barrel.glb",
+   "looks": "grip/barrel.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    56.7,
+    772.5,
+    50.5
+   ],
+   "triangles": 21880
+  },
+  {
+   "id": "grip/touring",
+   "group": "grip",
+   "key": "touring",
+   "name": "Soft touring",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "grip/touring.glb",
+   "looks": "grip/touring.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    64.3,
+    772.4,
+    58.1
+   ],
+   "triangles": 15352
+  },
+  {
+   "id": "grip/leather",
+   "group": "grip",
+   "key": "leather",
+   "name": "Leather wrapped",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "grip/leather.glb",
+   "looks": "grip/leather.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    57.8,
+    772.5,
+    51.5
+   ],
+   "triangles": 14952
+  },
+  {
+   "id": "bar_end/cap",
+   "group": "bar_end",
+   "key": "cap",
+   "name": "Plain cap",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar_end/cap.glb",
+   "looks": "bar_end/cap.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    34.9,
+    781.0,
+    35.1
+   ],
+   "triangles": 1272
+  },
+  {
+   "id": "bar_end/weighted",
+   "group": "bar_end",
+   "key": "weighted",
+   "name": "Weighted",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar_end/weighted.glb",
+   "looks": "bar_end/weighted.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    35.5,
+    818.6,
+    34.9
+   ],
+   "triangles": 1464
+  },
+  {
+   "id": "bar_end/tapered",
+   "group": "bar_end",
+   "key": "tapered",
+   "name": "Tapered billet",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar_end/tapered.glb",
+   "looks": "bar_end/tapered.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    37.1,
+    837.6,
+    37.1
+   ],
+   "triangles": 4024
+  },
+  {
+   "id": "bar_end/ringed",
+   "group": "bar_end",
+   "key": "ringed",
+   "name": "Machined ring",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar_end/ringed.glb",
+   "looks": "bar_end/ringed.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    38.6,
+    816.5,
+    38.0
+   ],
+   "triangles": 4072
+  },
+  {
+   "id": "bar_end/bullet",
+   "group": "bar_end",
+   "key": "bullet",
+   "name": "Chrome bullet",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar_end/bullet.glb",
+   "looks": "bar_end/bullet.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    34.8,
+    812.6,
+    34.8
+   ],
+   "triangles": 3256
+  },
+  {
+   "id": "bar_end/mirror",
+   "group": "bar_end",
+   "key": "mirror",
+   "name": "Mirror end",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/bars3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "bar_end/mirror.glb",
+   "looks": "bar_end/mirror.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    36.3,
+    924.5,
+    139.1
+   ],
+   "triangles": 5088
+  },
+  {
+   "id": "levers/standard",
+   "group": "levers",
+   "key": "standard",
+   "name": "Billet adjustable set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "levers/standard.glb",
+   "looks": "levers/standard.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    93.7,
+    771.3,
+    82.1
+   ],
+   "triangles": 7012
+  },
+  {
+   "id": "levers/short",
+   "group": "levers",
+   "key": "short",
+   "name": "Short lever set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "levers/short.glb",
+   "looks": "levers/short.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    90.8,
+    646.7,
+    62.4
+   ],
+   "triangles": 6056
+  },
+  {
+   "id": "levers/folding",
+   "group": "levers",
+   "key": "folding",
+   "name": "Folding radial set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "levers/folding.glb",
+   "looks": "levers/folding.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    120.6,
+    770.8,
+    113.8
+   ],
+   "triangles": 9568
+  },
+  {
+   "id": "levers/classic",
+   "group": "levers",
+   "key": "classic",
+   "name": "Classic polished set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "levers/classic.glb",
+   "looks": "levers/classic.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    88.2,
+    760.6,
+    68.7
+   ],
+   "triangles": 8316
+  },
+  {
+   "id": "levers/forged",
+   "group": "levers",
+   "key": "forged",
+   "name": "Forged set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "levers/forged.glb",
+   "looks": "levers/forged.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    93.7,
+    774.4,
+    71.0
+   ],
+   "triangles": 6452
+  },
+  {
+   "id": "switches/dpad",
+   "group": "switches",
+   "key": "dpad",
+   "name": "D-pad pod",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "switches/dpad.glb",
+   "looks": "switches/dpad.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    63.0,
+    508.3,
+    72.7
+   ],
+   "triangles": 9428
+  },
+  {
+   "id": "switches/cruise",
+   "group": "switches",
+   "key": "cruise",
+   "name": "Cruise pod",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "switches/cruise.glb",
+   "looks": "switches/cruise.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    61.0,
+    508.3,
+    63.0
+   ],
+   "triangles": 8756
+  },
+  {
+   "id": "switches/compact",
+   "group": "switches",
+   "key": "compact",
+   "name": "Compact pod",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "switches/compact.glb",
+   "looks": "switches/compact.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    56.4,
+    506.2,
+    50.6
+   ],
+   "triangles": 7736
+  },
+  {
+   "id": "mirrors/round",
+   "group": "mirrors",
+   "key": "round",
+   "name": "Round stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "mirrors/round.glb",
+   "looks": "mirrors/round.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    50.8,
+    742.0,
+    174.5
+   ],
+   "triangles": 2996
+  },
+  {
+   "id": "mirrors/oval",
+   "group": "mirrors",
+   "key": "oval",
+   "name": "Oval stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "mirrors/oval.glb",
+   "looks": "mirrors/oval.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    61.8,
+    806.1,
+    167.5
+   ],
+   "triangles": 3172
+  },
+  {
+   "id": "mirrors/rect",
+   "group": "mirrors",
+   "key": "rect",
+   "name": "Rectangular stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "mirrors/rect.glb",
+   "looks": "mirrors/rect.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    62.6,
+    804.8,
+    160.5
+   ],
+   "triangles": 1700
+  },
+  {
+   "id": "mirrors/teardrop",
+   "group": "mirrors",
+   "key": "teardrop",
+   "name": "Teardrop stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "mirrors/teardrop.glb",
+   "looks": "mirrors/teardrop.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    57.9,
+    797.7,
+    167.5
+   ],
+   "triangles": 3172
+  },
+  {
+   "id": "mirrors/barend_round",
+   "group": "mirrors",
+   "key": "barend_round",
+   "name": "Bar-end round",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "mirrors/barend_round.glb",
+   "looks": "mirrors/barend_round.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    46.2,
+    932.0,
+    142.0
+   ],
+   "triangles": 4228
+  },
+  {
+   "id": "mirrors/barend_teardrop",
+   "group": "mirrors",
+   "key": "barend_teardrop",
+   "name": "Bar-end teardrop",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "mirrors/barend_teardrop.glb",
+   "looks": "mirrors/barend_teardrop.json",
+   "mount_mm": [
+    1135,
+    0.0,
+    1040
+   ],
+   "size_mm": [
+    52.8,
+    1005.6,
+    128.1
+   ],
+   "triangles": 4404
+  },
+  {
+   "id": "mirrors/fairing_aero",
+   "group": "mirrors",
+   "key": "fairing_aero",
+   "name": "Fairing aero",
+   "fits": [
+    "Sport"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "kazeda_sport",
+   "file": "mirrors/fairing_aero.glb",
+   "looks": "mirrors/fairing_aero.json",
+   "mount_mm": [
+    1127.0,
+    0.0,
+    998.0
+   ],
+   "size_mm": [
+    64.0,
+    753.4,
+    104.0
+   ],
+   "triangles": 1612
+  },
+  {
+   "id": "mirrors/fairing_wing",
+   "group": "mirrors",
+   "key": "fairing_wing",
+   "name": "Fairing wing",
+   "fits": [
+    "Sport"
+   ],
+   "finishes": [],
+   "mount": "bar_clamp",
+   "moves_with": "steering",
+   "script": "foundry/controls3d.py",
+   "fitted_on": "kazeda_sport",
+   "file": "mirrors/fairing_wing.glb",
+   "looks": "mirrors/fairing_wing.json",
+   "mount_mm": [
+    1127.0,
+    0.0,
+    998.0
+   ],
+   "size_mm": [
+    53.2,
+    666.2,
+    55.3
+   ],
+   "triangles": 1180
+  },
+  {
+   "id": "headlamp/round_big",
+   "group": "headlamp",
+   "key": "round_big",
+   "name": "Large round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/round_big.glb",
+   "looks": "headlamp/round_big.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    114.6,
+    283.2,
+    248.6
+   ],
+   "triangles": 3966
+  },
+  {
+   "id": "headlamp/round_small",
+   "group": "headlamp",
+   "key": "round_small",
+   "name": "Small round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/round_small.glb",
+   "looks": "headlamp/round_small.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    114.6,
+    283.2,
+    223.6
+   ],
+   "triangles": 4638
+  },
+  {
+   "id": "headlamp/halo",
+   "group": "headlamp",
+   "key": "halo",
+   "name": "Round halo",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/halo.glb",
+   "looks": "headlamp/halo.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    114.6,
+    283.2,
+    242.3
+   ],
+   "triangles": 5850
+  },
+  {
+   "id": "headlamp/twin",
+   "group": "headlamp",
+   "key": "twin",
+   "name": "Twin round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/twin.glb",
+   "looks": "headlamp/twin.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    114.6,
+    283.2,
+    213.2
+   ],
+   "triangles": 6240
+  },
+  {
+   "id": "headlamp/stacked",
+   "group": "headlamp",
+   "key": "stacked",
+   "name": "Stacked twin",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/stacked.glb",
+   "looks": "headlamp/stacked.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    112.6,
+    283.2,
+    261.1
+   ],
+   "triangles": 8002
+  },
+  {
+   "id": "headlamp/rect",
+   "group": "headlamp",
+   "key": "rect",
+   "name": "Flat rectangle",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/rect.glb",
+   "looks": "headlamp/rect.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    110.6,
+    283.2,
+    217.4
+   ],
+   "triangles": 5622
+  },
+  {
+   "id": "headlamp/hex",
+   "group": "headlamp",
+   "key": "hex",
+   "name": "Angular",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/hex.glb",
+   "looks": "headlamp/hex.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    112.6,
+    283.2,
+    221.5
+   ],
+   "triangles": 4234
+  },
+  {
+   "id": "headlamp/oval",
+   "group": "headlamp",
+   "key": "oval",
+   "name": "Tall oval",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "headlamp/oval.glb",
+   "looks": "headlamp/oval.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    114.6,
+    283.2,
+    252.7
+   ],
+   "triangles": 4822
+  },
+  {
+   "id": "tail_light/round",
+   "group": "tail_light",
+   "key": "round",
+   "name": "Round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "tail_light/round.glb",
+   "looks": "tail_light/round.json",
+   "mount_mm": [
+    52.7,
+    0.0,
+    936.8
+   ],
+   "size_mm": [
+    66.0,
+    72.4,
+    72.4
+   ],
+   "triangles": 2780
+  },
+  {
+   "id": "tail_light/oval",
+   "group": "tail_light",
+   "key": "oval",
+   "name": "Oval",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "tail_light/oval.glb",
+   "looks": "tail_light/oval.json",
+   "mount_mm": [
+    47.7,
+    0.0,
+    936.8
+   ],
+   "size_mm": [
+    44.0,
+    108.2,
+    62.4
+   ],
+   "triangles": 1774
+  },
+  {
+   "id": "tail_light/strip",
+   "group": "tail_light",
+   "key": "strip",
+   "name": "LED strip",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "tail_light/strip.glb",
+   "looks": "tail_light/strip.json",
+   "mount_mm": [
+    45.7,
+    0.0,
+    936.8
+   ],
+   "size_mm": [
+    40.0,
+    129.0,
+    22.9
+   ],
+   "triangles": 1290
+  },
+  {
+   "id": "tail_light/twin_dot",
+   "group": "tail_light",
+   "key": "twin_dot",
+   "name": "Twin dot",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "tail_light/twin_dot.glb",
+   "looks": "tail_light/twin_dot.json",
+   "mount_mm": [
+    38.7,
+    0.0,
+    936.8
+   ],
+   "size_mm": [
+    54.0,
+    104.0,
+    36.0
+   ],
+   "triangles": 1736
+  },
+  {
+   "id": "tail_light/classic",
+   "group": "tail_light",
+   "key": "classic",
+   "name": "Classic unit",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "tail_light/classic.glb",
+   "looks": "tail_light/classic.json",
+   "mount_mm": [
+    47.7,
+    0.0,
+    933.5
+   ],
+   "size_mm": [
+    56.0,
+    92.0,
+    53.3
+   ],
+   "triangles": 964
+  },
+  {
+   "id": "tail_light/hanger",
+   "group": "tail_light",
+   "key": "hanger",
+   "name": "Hanger lamp",
+   "fits": [
+    "Naked",
+    "Cafe"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "tail_light/hanger.glb",
+   "looks": "tail_light/hanger.json",
+   "mount_mm": [
+    47.7,
+    0.0,
+    912.5
+   ],
+   "size_mm": [
+    36.0,
+    84.0,
+    53.3
+   ],
+   "triangles": 754
+  },
+  {
+   "id": "indicators_front/led_short",
+   "group": "indicators_front",
+   "key": "led_short",
+   "name": "LED, short stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_front/led_short.glb",
+   "looks": "indicators_front/led_short.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    23.0,
+    354.0,
+    23.0
+   ],
+   "triangles": 3528
+  },
+  {
+   "id": "indicators_front/led_long",
+   "group": "indicators_front",
+   "key": "led_long",
+   "name": "LED, long stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_front/led_long.glb",
+   "looks": "indicators_front/led_long.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    23.0,
+    450.0,
+    23.0
+   ],
+   "triangles": 6600
+  },
+  {
+   "id": "indicators_front/chrome_short",
+   "group": "indicators_front",
+   "key": "chrome_short",
+   "name": "Chrome, short stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_front/chrome_short.glb",
+   "looks": "indicators_front/chrome_short.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    35.6,
+    328.0,
+    39.0
+   ],
+   "triangles": 4632
+  },
+  {
+   "id": "indicators_front/chrome_long",
+   "group": "indicators_front",
+   "key": "chrome_long",
+   "name": "Chrome, long stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_front/chrome_long.glb",
+   "looks": "indicators_front/chrome_long.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    35.6,
+    420.0,
+    39.0
+   ],
+   "triangles": 4632
+  },
+  {
+   "id": "indicators_front/bullet",
+   "group": "indicators_front",
+   "key": "bullet",
+   "name": "Bullet",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_front/bullet.glb",
+   "looks": "indicators_front/bullet.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    53.0,
+    274.0,
+    26.0
+   ],
+   "triangles": 1832
+  },
+  {
+   "id": "indicators_front/flush",
+   "group": "indicators_front",
+   "key": "flush",
+   "name": "Flush blade",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_front/flush.glb",
+   "looks": "indicators_front/flush.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    20.0,
+    309.0,
+    20.0
+   ],
+   "triangles": 616
+  },
+  {
+   "id": "indicators_rear/led_short",
+   "group": "indicators_rear",
+   "key": "led_short",
+   "name": "LED, short stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_rear/led_short.glb",
+   "looks": "indicators_rear/led_short.json",
+   "mount_mm": [
+    84.0,
+    0.0,
+    891.0
+   ],
+   "size_mm": [
+    23.0,
+    286.0,
+    23.0
+   ],
+   "triangles": 3528
+  },
+  {
+   "id": "indicators_rear/led_long",
+   "group": "indicators_rear",
+   "key": "led_long",
+   "name": "LED, long stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_rear/led_long.glb",
+   "looks": "indicators_rear/led_long.json",
+   "mount_mm": [
+    84.0,
+    0.0,
+    891.0
+   ],
+   "size_mm": [
+    23.0,
+    382.0,
+    23.0
+   ],
+   "triangles": 6600
+  },
+  {
+   "id": "indicators_rear/chrome_short",
+   "group": "indicators_rear",
+   "key": "chrome_short",
+   "name": "Chrome, short stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_rear/chrome_short.glb",
+   "looks": "indicators_rear/chrome_short.json",
+   "mount_mm": [
+    81.8,
+    0.0,
+    891.0
+   ],
+   "size_mm": [
+    35.6,
+    260.0,
+    39.0
+   ],
+   "triangles": 4632
+  },
+  {
+   "id": "indicators_rear/chrome_long",
+   "group": "indicators_rear",
+   "key": "chrome_long",
+   "name": "Chrome, long stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_rear/chrome_long.glb",
+   "looks": "indicators_rear/chrome_long.json",
+   "mount_mm": [
+    81.8,
+    0.0,
+    891.0
+   ],
+   "size_mm": [
+    35.6,
+    352.0,
+    39.0
+   ],
+   "triangles": 4632
+  },
+  {
+   "id": "indicators_rear/bullet",
+   "group": "indicators_rear",
+   "key": "bullet",
+   "name": "Bullet",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_rear/bullet.glb",
+   "looks": "indicators_rear/bullet.json",
+   "mount_mm": [
+    91.5,
+    0.0,
+    891.0
+   ],
+   "size_mm": [
+    53.0,
+    206.0,
+    26.0
+   ],
+   "triangles": 1832
+  },
+  {
+   "id": "indicators_rear/flush",
+   "group": "indicators_rear",
+   "key": "flush",
+   "name": "Flush blade",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/lamps3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "indicators_rear/flush.glb",
+   "looks": "indicators_rear/flush.json",
+   "mount_mm": [
+    84.0,
+    0.0,
+    891.0
+   ],
+   "size_mm": [
+    20.0,
+    241.0,
+    20.0
+   ],
+   "triangles": 616
+  },
+  {
+   "id": "clocks/twin_round",
+   "group": "clocks",
+   "key": "twin_round",
+   "name": "Twin round clocks",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/clocks3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "clocks/twin_round.glb",
+   "looks": "clocks/twin_round.json",
+   "mount_mm": [
+    1138.1,
+    0.0,
+    983.4
+   ],
+   "size_mm": [
+    78.5,
+    173.6,
+    77.9
+   ],
+   "triangles": 7900
+  },
+  {
+   "id": "clocks/single_round",
+   "group": "clocks",
+   "key": "single_round",
+   "name": "Single round clock",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/clocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "clocks/single_round.glb",
+   "looks": "clocks/single_round.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    90.5,
+    107.6,
+    134.0
+   ],
+   "triangles": 4340
+  },
+  {
+   "id": "clocks/round_screen",
+   "group": "clocks",
+   "key": "round_screen",
+   "name": "Round screen",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Cruiser"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/clocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "clocks/round_screen.glb",
+   "looks": "clocks/round_screen.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    80.1,
+    102.0,
+    109.9
+   ],
+   "triangles": 4560
+  },
+  {
+   "id": "clocks/wide_screen",
+   "group": "clocks",
+   "key": "wide_screen",
+   "name": "Wide screen",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/clocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "clocks/wide_screen.glb",
+   "looks": "clocks/wide_screen.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    70.2,
+    144.0,
+    93.3
+   ],
+   "triangles": 4640
+  },
+  {
+   "id": "clocks/tall_screen",
+   "group": "clocks",
+   "key": "tall_screen",
+   "name": "Tall screen",
+   "fits": [
+    "Naked",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/clocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "clocks/tall_screen.glb",
+   "looks": "clocks/tall_screen.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    90.3,
+    92.0,
+    126.9
+   ],
+   "triangles": 4576
+  },
+  {
+   "id": "clocks/bar_unit",
+   "group": "clocks",
+   "key": "bar_unit",
+   "name": "Small bar unit",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Chopper",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "top_yoke",
+   "moves_with": "steering",
+   "script": "foundry/clocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "clocks/bar_unit.glb",
+   "looks": "clocks/bar_unit.json",
+   "mount_mm": [
+    1164.0,
+    0.0,
+    976.0
+   ],
+   "size_mm": [
+    59.8,
+    76.0,
+    153.7
+   ],
+   "triangles": 3580
+  },
+  {
+   "id": "silencer/reverse_cone",
+   "group": "silencer",
+   "key": "reverse_cone",
+   "name": "Reverse cone",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "silencer/reverse_cone.glb",
+   "looks": "silencer/reverse_cone.json",
+   "mount_mm": [
+    356.6,
+    0.0,
+    722.1
+   ],
+   "size_mm": [
+    311.2,
+    173.9,
+    182.9
+   ],
+   "triangles": 2992
+  },
+  {
+   "id": "silencer/peashooter",
+   "group": "silencer",
+   "key": "peashooter",
+   "name": "Peashooter",
+   "fits": [
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "silencer/peashooter.glb",
+   "looks": "silencer/peashooter.json",
+   "mount_mm": [
+    512.7,
+    -217.7,
+    319.7
+   ],
+   "size_mm": [
+    649.0,
+    62.2,
+    178.3
+   ],
+   "triangles": 1064
+  },
+  {
+   "id": "silencer/shaker",
+   "group": "silencer",
+   "key": "shaker",
+   "name": "Cocktail shaker",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "silencer/shaker.glb",
+   "looks": "silencer/shaker.json",
+   "mount_mm": [
+    356.6,
+    0.0,
+    722.1
+   ],
+   "size_mm": [
+    339.8,
+    166.3,
+    192.1
+   ],
+   "triangles": 3856
+  },
+  {
+   "id": "silencer/round_ti",
+   "group": "silencer",
+   "key": "round_ti",
+   "name": "Round titanium",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "silencer/round_ti.glb",
+   "looks": "silencer/round_ti.json",
+   "mount_mm": [
+    356.6,
+    0.0,
+    722.1
+   ],
+   "size_mm": [
+    320.8,
+    166.1,
+    187.3
+   ],
+   "triangles": 17552
+  },
+  {
+   "id": "silencer/oval_carbon",
+   "group": "silencer",
+   "key": "oval_carbon",
+   "name": "Oval carbon",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "silencer/oval_carbon.glb",
+   "looks": "silencer/oval_carbon.json",
+   "mount_mm": [
+    356.6,
+    0.0,
+    722.1
+   ],
+   "size_mm": [
+    310.6,
+    164.0,
+    183.7
+   ],
+   "triangles": 17552
+  },
+  {
+   "id": "silencer/hex",
+   "group": "silencer",
+   "key": "hex",
+   "name": "Hexagon",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "silencer/hex.glb",
+   "looks": "silencer/hex.json",
+   "mount_mm": [
+    356.6,
+    0.0,
+    722.1
+   ],
+   "size_mm": [
+    320.8,
+    164.5,
+    187.3
+   ],
+   "triangles": 13832
+  },
+  {
+   "id": "silencer/short_cone",
+   "group": "silencer",
+   "key": "short_cone",
+   "name": "Short cone",
+   "fits": [
+    "Naked",
+    "Sport"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "silencer/short_cone.glb",
+   "looks": "silencer/short_cone.json",
+   "mount_mm": [
+    356.6,
+    0.0,
+    722.1
+   ],
+   "size_mm": [
+    308.5,
+    379.8,
+    187.9
+   ],
+   "triangles": 5064
+  },
+  {
+   "id": "silencer/slash_cut",
+   "group": "silencer",
+   "key": "slash_cut",
+   "name": "Slash cut",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "can_inlet",
+   "moves_with": "frame",
+   "script": "foundry/silencers3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "silencer/slash_cut.glb",
+   "looks": "silencer/slash_cut.json",
+   "mount_mm": [
+    482.9,
+    -217.8,
+    302.8
+   ],
+   "size_mm": [
+    835.9,
+    77.3,
+    173.3
+   ],
+   "triangles": 2096
+  },
+  {
+   "id": "pegs/knurled",
+   "group": "pegs",
+   "key": "knurled",
+   "name": "Knurled billet",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "pegs/knurled.glb",
+   "looks": "pegs/knurled.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    220.0,
+    520.0,
+    273.0
+   ],
+   "triangles": 20816
+  },
+  {
+   "id": "pegs/rubber",
+   "group": "pegs",
+   "key": "rubber",
+   "name": "Rubber topped",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "pegs/rubber.glb",
+   "looks": "pegs/rubber.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    221.0,
+    524.0,
+    274.0
+   ],
+   "triangles": 11216
+  },
+  {
+   "id": "pegs/cleat",
+   "group": "pegs",
+   "key": "cleat",
+   "name": "Wide cleat",
+   "fits": [
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_adventure",
+   "file": "pegs/cleat.glb",
+   "looks": "pegs/cleat.json",
+   "mount_mm": [
+    590,
+    0.0,
+    405
+   ],
+   "size_mm": [
+    249.0,
+    508.0,
+    273.0
+   ],
+   "triangles": 2048
+  },
+  {
+   "id": "pegs/race",
+   "group": "pegs",
+   "key": "race",
+   "name": "Race peg",
+   "fits": [
+    "Sport",
+    "Naked",
+    "Cafe"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "pegs/race.glb",
+   "looks": "pegs/race.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    216.0,
+    489.0,
+    269.0
+   ],
+   "triangles": 11520
+  },
+  {
+   "id": "pegs/board",
+   "group": "pegs",
+   "key": "board",
+   "name": "Floorboard",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "pegs/board.glb",
+   "looks": "pegs/board.json",
+   "mount_mm": [
+    1102,
+    0.0,
+    340
+   ],
+   "size_mm": [
+    249.0,
+    580.0,
+    28.0
+   ],
+   "triangles": 4840
+  },
+  {
+   "id": "pegs/bullet",
+   "group": "pegs",
+   "key": "bullet",
+   "name": "Chrome bullet",
+   "fits": [
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "hartwell_classic",
+   "file": "pegs/bullet.glb",
+   "looks": "pegs/bullet.json",
+   "mount_mm": [
+    600,
+    0.0,
+    360
+   ],
+   "size_mm": [
+    29.2,
+    521.2,
+    29.2
+   ],
+   "triangles": 2680
+  },
+  {
+   "id": "heel_plates/lightened",
+   "group": "heel_plates",
+   "key": "lightened",
+   "name": "Lightened",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "heel_plates/lightened.glb",
+   "looks": "heel_plates/lightened.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    134.5,
+    375.8,
+    111.9
+   ],
+   "triangles": 1448
+  },
+  {
+   "id": "heel_plates/guard",
+   "group": "heel_plates",
+   "key": "guard",
+   "name": "Black guard",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "heel_plates/guard.glb",
+   "looks": "heel_plates/guard.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    134.5,
+    376.0,
+    111.9
+   ],
+   "triangles": 2208
+  },
+  {
+   "id": "heel_plates/carbon",
+   "group": "heel_plates",
+   "key": "carbon",
+   "name": "Carbon",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "heel_plates/carbon.glb",
+   "looks": "heel_plates/carbon.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    134.5,
+    375.8,
+    111.9
+   ],
+   "triangles": 1448
+  },
+  {
+   "id": "foot_controls/billet",
+   "group": "foot_controls",
+   "key": "billet",
+   "name": "Billet folding tip",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "foot_controls/billet.glb",
+   "looks": "foot_controls/billet.json",
+   "mount_mm": [
+    590,
+    0.0,
+    355
+   ],
+   "size_mm": [
+    160.1,
+    456.0,
+    38.8
+   ],
+   "triangles": 4048
+  },
+  {
+   "id": "foot_controls/heeltoe",
+   "group": "foot_controls",
+   "key": "heeltoe",
+   "name": "Heel and toe",
+   "fits": [
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "lodestar_cruiser",
+   "file": "foot_controls/heeltoe.glb",
+   "looks": "foot_controls/heeltoe.json",
+   "mount_mm": [
+    1102,
+    0.0,
+    340
+   ],
+   "size_mm": [
+    270.0,
+    474.0,
+    83.0
+   ],
+   "triangles": 4132
+  },
+  {
+   "id": "foot_controls/forged",
+   "group": "foot_controls",
+   "key": "forged",
+   "name": "Forged steel",
+   "fits": [
+    "MX",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rider_peg",
+   "moves_with": "frame",
+   "script": "foundry/pegs3d.py",
+   "fitted_on": "corvano_adventure",
+   "file": "foot_controls/forged.glb",
+   "looks": "foot_controls/forged.json",
+   "mount_mm": [
+    590,
+    0.0,
+    405
+   ],
+   "size_mm": [
+    159.6,
+    448.0,
+    37.0
+   ],
+   "triangles": 2228
+  },
+  {
+   "id": "disc_front/wave",
+   "group": "disc_front",
+   "key": "wave",
+   "name": "Wave rotor, black spokes",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "front_axle",
+   "moves_with": "front_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_front/wave.glb",
+   "looks": "disc_front/wave.json",
+   "mount_mm": [
+    1465,
+    0.0,
+    300
+   ],
+   "size_mm": [
+    320.8,
+    171.4,
+    320.8
+   ],
+   "triangles": 70640
+  },
+  {
+   "id": "disc_front/lattice",
+   "group": "disc_front",
+   "key": "lattice",
+   "name": "Gold lattice floater",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "front_axle",
+   "moves_with": "front_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_front/lattice.glb",
+   "looks": "disc_front/lattice.json",
+   "mount_mm": [
+    1465,
+    0.0,
+    300
+   ],
+   "size_mm": [
+    320.8,
+    171.4,
+    320.8
+   ],
+   "triangles": 67440
+  },
+  {
+   "id": "disc_front/onepiece",
+   "group": "disc_front",
+   "key": "onepiece",
+   "name": "One-piece teardrop",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "front_axle",
+   "moves_with": "front_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_front/onepiece.glb",
+   "looks": "disc_front/onepiece.json",
+   "mount_mm": [
+    1465,
+    0.0,
+    300
+   ],
+   "size_mm": [
+    320.8,
+    171.2,
+    320.8
+   ],
+   "triangles": 37488
+  },
+  {
+   "id": "disc_front/star",
+   "group": "disc_front",
+   "key": "star",
+   "name": "Star drive",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "front_axle",
+   "moves_with": "front_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_front/star.glb",
+   "looks": "disc_front/star.json",
+   "mount_mm": [
+    1465,
+    0.0,
+    300
+   ],
+   "size_mm": [
+    320.8,
+    171.4,
+    320.8
+   ],
+   "triangles": 71296
+  },
+  {
+   "id": "disc_rear/wave",
+   "group": "disc_rear",
+   "key": "wave",
+   "name": "Wave rotor, black spokes",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_rear/wave.glb",
+   "looks": "disc_rear/wave.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    235.5,
+    12.6,
+    236.1
+   ],
+   "triangles": 27060
+  },
+  {
+   "id": "disc_rear/lattice",
+   "group": "disc_rear",
+   "key": "lattice",
+   "name": "Gold lattice floater",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_rear/lattice.glb",
+   "looks": "disc_rear/lattice.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    236.8,
+    12.6,
+    236.8
+   ],
+   "triangles": 22824
+  },
+  {
+   "id": "disc_rear/onepiece",
+   "group": "disc_rear",
+   "key": "onepiece",
+   "name": "One-piece teardrop",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_rear/onepiece.glb",
+   "looks": "disc_rear/onepiece.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    236.8,
+    10.1,
+    236.8
+   ],
+   "triangles": 15476
+  },
+  {
+   "id": "disc_rear/star",
+   "group": "disc_rear",
+   "key": "star",
+   "name": "Star drive",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "disc_rear/star.glb",
+   "looks": "disc_rear/star.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    236.8,
+    11.3,
+    236.8
+   ],
+   "triangles": 25880
+  },
+  {
+   "id": "caliper_front/lobed",
+   "group": "caliper_front",
+   "key": "lobed",
+   "name": "Lobed radial",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "front_axle",
+   "moves_with": "steering",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "caliper_front/lobed.glb",
+   "looks": "caliper_front/lobed.json",
+   "mount_mm": [
+    1465,
+    0.0,
+    300
+   ],
+   "size_mm": [
+    110.8,
+    236.0,
+    135.4
+   ],
+   "triangles": 21920
+  },
+  {
+   "id": "caliper_front/monobloc",
+   "group": "caliper_front",
+   "key": "monobloc",
+   "name": "Flat monobloc",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "front_axle",
+   "moves_with": "steering",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "caliper_front/monobloc.glb",
+   "looks": "caliper_front/monobloc.json",
+   "mount_mm": [
+    1465,
+    0.0,
+    300
+   ],
+   "size_mm": [
+    110.8,
+    244.0,
+    135.9
+   ],
+   "triangles": 7592
+  },
+  {
+   "id": "caliper_front/twopiece",
+   "group": "caliper_front",
+   "key": "twopiece",
+   "name": "Gold two-piece",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "front_axle",
+   "moves_with": "steering",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "caliper_front/twopiece.glb",
+   "looks": "caliper_front/twopiece.json",
+   "mount_mm": [
+    1445,
+    0.0,
+    310
+   ],
+   "size_mm": [
+    110.8,
+    239.6,
+    134.8
+   ],
+   "triangles": 10048
+  },
+  {
+   "id": "caliper_front/compact",
+   "group": "caliper_front",
+   "key": "compact",
+   "name": "Compact twin-pot",
+   "fits": [
+    "MX",
+    "Classic",
+    "Adventure",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "front_axle",
+   "moves_with": "steering",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "hartwell_classic",
+   "file": "caliper_front/compact.glb",
+   "looks": "caliper_front/compact.json",
+   "mount_mm": [
+    1445,
+    0.0,
+    328
+   ],
+   "size_mm": [
+    112.8,
+    239.6,
+    134.0
+   ],
+   "triangles": 8224
+  },
+  {
+   "id": "caliper_rear/lobed",
+   "group": "caliper_rear",
+   "key": "lobed",
+   "name": "Lobed radial",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "rear_axle",
+   "moves_with": "swingarm",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "caliper_rear/lobed.glb",
+   "looks": "caliper_rear/lobed.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    57.5,
+    51.6,
+    70.1
+   ],
+   "triangles": 3584
+  },
+  {
+   "id": "caliper_rear/monobloc",
+   "group": "caliper_rear",
+   "key": "monobloc",
+   "name": "Flat monobloc",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "rear_axle",
+   "moves_with": "swingarm",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "caliper_rear/monobloc.glb",
+   "looks": "caliper_rear/monobloc.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    57.5,
+    51.6,
+    70.1
+   ],
+   "triangles": 3584
+  },
+  {
+   "id": "caliper_rear/twopiece",
+   "group": "caliper_rear",
+   "key": "twopiece",
+   "name": "Gold two-piece",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "rear_axle",
+   "moves_with": "swingarm",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "caliper_rear/twopiece.glb",
+   "looks": "caliper_rear/twopiece.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    320.0
+   ],
+   "size_mm": [
+    57.2,
+    51.6,
+    69.5
+   ],
+   "triangles": 3584
+  },
+  {
+   "id": "caliper_rear/compact",
+   "group": "caliper_rear",
+   "key": "compact",
+   "name": "Compact twin-pot",
+   "fits": [
+    "MX",
+    "Classic",
+    "Adventure",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "rear_axle",
+   "moves_with": "swingarm",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "hartwell_classic",
+   "file": "caliper_rear/compact.glb",
+   "looks": "caliper_rear/compact.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    322.0
+   ],
+   "size_mm": [
+    57.0,
+    51.6,
+    69.1
+   ],
+   "triangles": 3584
+  },
+  {
+   "id": "sprocket/steel",
+   "group": "sprocket",
+   "key": "steel",
+   "name": "Steel",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "sprocket/steel.glb",
+   "looks": "sprocket/steel.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    189.5,
+    6.4,
+    189.5
+   ],
+   "triangles": 6092
+  },
+  {
+   "id": "sprocket/alu",
+   "group": "sprocket",
+   "key": "alu",
+   "name": "Alloy spoke",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "sprocket/alu.glb",
+   "looks": "sprocket/alu.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    189.5,
+    6.4,
+    189.5
+   ],
+   "triangles": 8848
+  },
+  {
+   "id": "sprocket/twotone",
+   "group": "sprocket",
+   "key": "twotone",
+   "name": "Two-tone",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "MX",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "gold",
+    "red",
+    "black",
+    "silver",
+    "blue"
+   ],
+   "mount": "rear_axle",
+   "moves_with": "rear_wheel",
+   "script": "foundry/brakes3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "sprocket/twotone.glb",
+   "looks": "sprocket/twotone.json",
+   "mount_mm": [
+    0.0,
+    0.0,
+    316.0
+   ],
+   "size_mm": [
+    189.5,
+    9.6,
+    189.5
+   ],
+   "triangles": 8324
+  },
+  {
+   "id": "shock/piggyback",
+   "group": "shock",
+   "key": "piggyback",
+   "name": "Piggyback",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX",
+    "Classic"
+   ],
+   "finishes": [
+    "red",
+    "yellow",
+    "black",
+    "chrome",
+    "blue",
+    "gold"
+   ],
+   "mount": "shock_top",
+   "moves_with": "shock",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "shock/piggyback.glb",
+   "looks": "shock/piggyback.json",
+   "mount_mm": [
+    610,
+    0.0,
+    700
+   ],
+   "size_mm": [
+    228.5,
+    80.5,
+    286.1
+   ],
+   "triangles": 11252
+  },
+  {
+   "id": "shock/coilover",
+   "group": "shock",
+   "key": "coilover",
+   "name": "Polished coil-over",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "Cruiser"
+   ],
+   "finishes": [
+    "red",
+    "yellow",
+    "black",
+    "chrome",
+    "blue",
+    "gold"
+   ],
+   "mount": "shock_top",
+   "moves_with": "shock",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "shock/coilover.glb",
+   "looks": "shock/coilover.json",
+   "mount_mm": [
+    610,
+    0.0,
+    700
+   ],
+   "size_mm": [
+    213.2,
+    84.3,
+    289.9
+   ],
+   "triangles": 11588
+  },
+  {
+   "id": "shock/shroud",
+   "group": "shock",
+   "key": "shroud",
+   "name": "Chrome shroud",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser"
+   ],
+   "finishes": [
+    "red",
+    "yellow",
+    "black",
+    "chrome",
+    "blue",
+    "gold"
+   ],
+   "mount": "shock_top",
+   "moves_with": "shock",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "shock/shroud.glb",
+   "looks": "shock/shroud.json",
+   "mount_mm": [
+    300,
+    0.0,
+    762
+   ],
+   "size_mm": [
+    264.8,
+    369.0,
+    337.7
+   ],
+   "triangles": 20704
+  },
+  {
+   "id": "shock/air",
+   "group": "shock",
+   "key": "air",
+   "name": "Air ride",
+   "fits": [
+    "Cruiser",
+    "Classic"
+   ],
+   "finishes": [
+    "red",
+    "yellow",
+    "black",
+    "chrome",
+    "blue",
+    "gold"
+   ],
+   "mount": "shock_top",
+   "moves_with": "shock",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "hartwell_classic",
+   "file": "shock/air.glb",
+   "looks": "shock/air.json",
+   "mount_mm": [
+    285,
+    0.0,
+    744
+   ],
+   "size_mm": [
+    205.0,
+    397.9,
+    332.5
+   ],
+   "triangles": 7440
+  },
+  {
+   "id": "filler_cap/aero",
+   "group": "filler_cap",
+   "key": "aero",
+   "name": "Aero flush",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ],
+   "finishes": [
+    "silver",
+    "black",
+    "gold",
+    "red",
+    "blue"
+   ],
+   "mount": "cap_base",
+   "moves_with": "frame",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "filler_cap/aero.glb",
+   "looks": "filler_cap/aero.json",
+   "mount_mm": [
+    935.0,
+    0.0,
+    1060.0
+   ],
+   "size_mm": [
+    96.0,
+    96.0,
+    25.7
+   ],
+   "triangles": 3180
+  },
+  {
+   "id": "filler_cap/monza",
+   "group": "filler_cap",
+   "key": "monza",
+   "name": "Flip-up",
+   "fits": [
+    "Cafe",
+    "Classic",
+    "Naked",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [
+    "silver",
+    "black",
+    "gold",
+    "red",
+    "blue"
+   ],
+   "mount": "cap_base",
+   "moves_with": "frame",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "filler_cap/monza.glb",
+   "looks": "filler_cap/monza.json",
+   "mount_mm": [
+    935.0,
+    0.0,
+    1060.0
+   ],
+   "size_mm": [
+    96.0,
+    96.0,
+    38.0
+   ],
+   "triangles": 2784
+  },
+  {
+   "id": "filler_cap/screw",
+   "group": "filler_cap",
+   "key": "screw",
+   "name": "Knurled screw",
+   "fits": [
+    "Classic",
+    "Cruiser",
+    "Chopper",
+    "Cafe"
+   ],
+   "finishes": [
+    "silver",
+    "black",
+    "gold",
+    "red",
+    "blue"
+   ],
+   "mount": "cap_base",
+   "moves_with": "frame",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "hartwell_cafe",
+   "file": "filler_cap/screw.glb",
+   "looks": "filler_cap/screw.json",
+   "mount_mm": [
+    909.8,
+    0.0,
+    1024.0
+   ],
+   "size_mm": [
+    80.0,
+    80.0,
+    48.0
+   ],
+   "triangles": 3296
+  },
+  {
+   "id": "filler_cap/billet",
+   "group": "filler_cap",
+   "key": "billet",
+   "name": "Billet",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "Chopper"
+   ],
+   "finishes": [
+    "silver",
+    "black",
+    "gold",
+    "red",
+    "blue"
+   ],
+   "mount": "cap_base",
+   "moves_with": "frame",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "filler_cap/billet.glb",
+   "looks": "filler_cap/billet.json",
+   "mount_mm": [
+    935.0,
+    0.0,
+    1060.0
+   ],
+   "size_mm": [
+    96.0,
+    96.0,
+    31.6
+   ],
+   "triangles": 5840
+  },
+  {
+   "id": "plate_hanger/tidy",
+   "group": "plate_hanger",
+   "key": "tidy",
+   "name": "Tail tidy",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "plate_hanger/tidy.glb",
+   "looks": "plate_hanger/tidy.json",
+   "mount_mm": [
+    65.0,
+    0.0,
+    787.7
+   ],
+   "size_mm": [
+    85.7,
+    174.0,
+    163.1
+   ],
+   "triangles": 1320
+  },
+  {
+   "id": "plate_hanger/side",
+   "group": "plate_hanger",
+   "key": "side",
+   "name": "Side mount",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ],
+   "finishes": [],
+   "mount": "part_centre",
+   "moves_with": "frame",
+   "script": "foundry/shocks3d.py",
+   "fitted_on": "corvano_naked",
+   "file": "plate_hanger/side.glb",
+   "looks": "plate_hanger/side.json",
+   "mount_mm": [
+    -75.0,
+    215.0,
+    394.0
+   ],
+   "size_mm": [
+    182.0,
+    156.0,
+    188.0
+   ],
+   "triangles": 1068
+  }
+ ]
+}

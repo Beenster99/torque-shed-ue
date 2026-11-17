@@ -6,6 +6,7 @@
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerState.h"
 #include "Shed/TorqueProfile.h"
+#include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
@@ -1620,6 +1621,15 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftOverlay)) Tft->ToggleOverlay();
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftMap)) Tft->ToggleMapTile();
+		// The map's zoom: 5 and 6 (or the number pad's + and -); on the pad LB held and the right
+		// stick pushed up (in) or down (out), a step each push.
+		const double ZoomStick = bTftPad ? Either(Axis(EKeys::Gamepad_RightY), (double)Sony.RY) : 0.0;
+		const int32 StickNow = ZoomStick > 0.6 ? 1 : ZoomStick < -0.6 ? -1 : FMath::Abs(ZoomStick) < 0.3 ? 0 : TftStickWas;
+		const bool bStickPush = StickNow != 0 && StickNow != TftStickWas;
+		TftStickWas = StickNow;
+		if (bStickPush) bTftPadNav = true;
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftZoomIn) || (bStickPush && StickNow > 0)) Tft->ZoomBy(-1);
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftZoomOut) || (bStickPush && StickNow < 0)) Tft->ZoomBy(1);
 		if (FTorqueKeys::Just(PC, ETorqueKey::TftArrange)) Tft->ToggleArrange();
 		if (Tft->Arranging())
 		{
@@ -1656,8 +1666,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
 	if (FTorqueKeys::Just(PC, ETorqueKey::Restart)) RestartRide();
-	// The pad's starter (beenster): LB and RB held together for a moment start the engine (LB is the
-	// clutch and RB looks behind, so with the engine off that's a start, not a look back).
+	// The pad's starter (beenster): LB and RB held together for a moment start the engine, or switch it off
+	// (LB is the clutch and RB looks behind, so with the engine off that's a start, not a look back).
 	bool bCameraTap = false;
 	{
 		const int32 PadTilt = bPadSetsCam ? ((SonyDown & ESonyButton::DDown) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Down) ? 1 : 0) -
@@ -1671,13 +1681,17 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (bPadViewWas && !bPadViewUsed) bCameraTap = true;   // View / Create let go, nothing set: the camera
 		bPadViewWas = bPadViewUsed = false;
 	}
+	// [feedback 154] beenster: LB + RB also switch the engine off. Stopped or crawling, the same 0.3 s hold;
+	// on the move it takes a full second, so clutch in while glancing behind doesn't kill it.
 	if (bPadRB && bPadLB)
 	{
 		PadStartHeld += Dt;
-		if (PadStartHeld >= 0.3 && !bPadStartDone)
+		const bool bRunningNow = Sim->EngineOn || Sim->IsStarting();
+		const double HoldFor = (bRunningNow && FMath::Abs(Sim->Speed) > 2.0) ? 1.0 : 0.3;
+		if (PadStartHeld >= HoldFor && !bPadStartDone)
 		{
 			bPadStartDone = true;
-			if (!Sim->EngineOn && !Sim->IsStarting()) PressIgnition();
+			PressIgnition();   // the key's toggle: starts it when off, switches it off when running
 		}
 	}
 	else
@@ -4110,6 +4124,12 @@ void ATorqueBikePawn::UpdateRider()
 		HeadLocal = RiderRig.HelmetCentre;
 		RiderFeetDown = FMath::Clamp(In.FeetDown, 0.0, 1.0);
 		UpdateHelmetPaint();
+		// [decals stage 4] The helmet's decals, over its paint: this machine's own, or the rider's in co-op.
+		if (RiderHelmet)
+		{
+			const ATorquePlayerState* HelmetPS = GetPlayerState<ATorquePlayerState>();
+			TorqueDecals::ApplyHelmet(RiderHelmet, (IsLocallyControlled() || !HelmetPS) ? TorqueDecals::MyHelmet() : HelmetPS->HelmetDecals);
+		}
 		UpdateRiderAvatar();
 		return;
 	}
@@ -4233,7 +4253,7 @@ void ATorqueBikePawn::StartSound()
 		SoundAudio->Play();
 		Sim->StopEngine();
 		bEngineWas = false;
-		EngineNote = TEXT("Engine off: hold LB + RB (or press I) to start it");
+		EngineNote = TEXT("Engine off: hold LB + RB (or press I) to start it; the same switches it off");
 		EngineNoteFor = 5.0;
 	}
 	else if (Sfx && Engine && Engine->Spec.Kick)
@@ -4408,6 +4428,8 @@ FString ATorqueBikePawn::TestTft(const FString& What)
 	else if (W == TEXT("down")) TftPress(3);
 	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
 	else if (W == TEXT("map")) Tft->ToggleMapTile();
+	else if (W == TEXT("zoomin")) Tft->ZoomBy(-1);
+	else if (W == TEXT("zoomout")) Tft->ZoomBy(1);
 	else if (W == TEXT("arrange")) Tft->ToggleArrange();
 	else if (W == TEXT("cruise")) ToggleCruise();
 	else if (W.StartsWith(TEXT("linked")))
@@ -5081,7 +5103,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   Circle / B rear brake   left stick lean (push up/down: weight)   right stick look"), Help, 0.62f);
 		Add(TEXT("      Cross / A gear up   Square / X gear down   hold L1 / LB clutch (rev it in gear)   hold R1 / RB look behind   L3 horn"), Help, 0.62f);
 		Add(TEXT("      Triangle / Y get off (stopped; held while moving: back on road)   D-pad left / right indicators, up lights, down ABS"), Help, 0.62f);
-		Add(TEXT("      R3 nod, hold R3 wave   L1 + R1 held: start   Create / View camera (held + right stick / D-pad: set the third-person camera)   Options menu"), Help, 0.62f);
+		Add(TEXT("      R3 nod, hold R3 wave   L1 + R1 held: engine on / off   Create / View camera (held + right stick / D-pad: set the third-person camera)   Options menu"), Help, 0.62f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),

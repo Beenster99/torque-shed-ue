@@ -7,6 +7,7 @@
 #include "Shed/TorqueShedCatalogue.h"
 
 #include "Shed/TorqueBikeBadge.h"
+#include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
@@ -247,6 +248,8 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 	}
 	// The tank's badge, if it has one (stamped again only when it's changed).
 	TorqueBikeBadge::Stamp(TorqueBikeBadge::TankOf(Parts), B ? B->BadgeOf(Bike) : FString());
+	// The decals placed on its parts (decal mode, F3), each drawn again only when it's changed.
+	TorqueDecals::ApplyBike(Parts, [B, Bike](FName Slot) { return B ? B->DecalsOf(Bike, Slot) : FString(); });
 }
 
 int32 MakeSpare(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build, FName Slot, FName Part,

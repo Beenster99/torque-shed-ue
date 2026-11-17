@@ -98,8 +98,9 @@ TAutoConsoleVariable<int32> CVarFarTreeLighting(TEXT("torque.RideFarTreeLighting
 // draw as scans only within this many metres, in 128 m patches, and as the far models past it.
 TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
 	TEXT("Ride UK: near trees are drawn as scanned models within this many metres and as the far models past it (0: scans out to the whole near ring, as until 152). For squares made after the change."));
-TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 1,
-	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0)."));
+// ([build 154] off: round 153's specks didn't stop the PSO misses; URidePart now asks for its PSOs instead)
+TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
+	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
 	TEXT("Ride UK: trees sway in the wind out to this many metres (80 until 151). For squares made after the change."));
 constexpr int32 Levels = 4;
@@ -646,7 +647,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		// has its models in M_RideFacade (Tools/ue_build_rideuk.py prop_kit), unless -TorqueRideFacadeKit=0
 		// (the hub's A/B: then drawn into the houses' own mesh, as 149).
 		bool bFacade = true;
-		for (int32 K = TorqueWorld::RidePlan::FirstFacade; K < TorqueWorld::RidePlan::PropKinds; ++K)
+		for (int32 K = TorqueWorld::RidePlan::FirstFacade; K < TorqueWorld::RidePlan::FacadeCoreEnd; ++K)
 		{
 			bFacade = bFacade && PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
 			if (bFacade)
@@ -1327,7 +1328,7 @@ void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
 							C->SetCastShadow(true);
 						}
 					}
-					if (bIsTree && (What & 32)) C->SetEvaluateWorldPositionOffset(!bHide);
+					if (bIsTree && (What & 32) && !C->ComponentHasTag(TEXT("RideImpostor"))) C->SetEvaluateWorldPositionOffset(!bHide);
 				}
 	if (What & 4)
 	{
@@ -2055,7 +2056,15 @@ void ATorqueRideWorld::FindProps()
 				if (!S.Mesh) continue;
 				const FString Name = S.Name.ToString();
 				for (int32 K = 0; K < RidePlan::PropKinds; ++K)
-					if (Name.StartsWith(FString(TEXT("SM_Prop_")) + UTF8_TO_TCHAR(RidePlan::PropName(K)) + TEXT("_"))) PropModels[K].Add(PropKit.Num());
+				{
+					// (SM_Prop_<kind>_<n> or _fab<n> only: "door_ledged_" also starts "door_ledged_light_0", which
+					// gave a plain ledged door, a casement or a mullion its sister kind's models, of other sizes)
+					const FString Prefix = FString(TEXT("SM_Prop_")) + UTF8_TO_TCHAR(RidePlan::PropName(K)) + TEXT("_");
+					if (!Name.StartsWith(Prefix)) continue;
+					FString Rest = Name.RightChop(Prefix.Len());
+					Rest.RemoveFromStart(TEXT("fab"));
+					if (Rest.IsNumeric()) PropModels[K].Add(PropKit.Num());
+				}
 				PropKit.Add(S);
 			}
 		}
@@ -2385,7 +2394,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bAffectDistanceFieldLighting = bTreeLit;
 		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
-		Ism->WorldPositionOffsetDisableDistance = bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
+		const bool bImpostor = bTree && S.Name.ToString().EndsWith(TEXT("_imp"));
+		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2395,6 +2406,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (bFarCopy) Ism->MinDrawDistance = NearTreeM * 100.0f;
 		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
+		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);
 		if (!bReused) AddInstanceComponent(Ism);

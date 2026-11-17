@@ -1,6 +1,9 @@
 #include "TorquePlayerController.h"
 #include "TorqueNetBike.h"
 
+#include "Shed/TorqueDecalMode.h"
+#include "Shed/TorqueDecals.h"
+#include "Fit/BikeDecal.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
@@ -111,6 +114,89 @@ void ATorquePlayerController::TellPeer(int32 Peer, const FString& Text, bool bOk
 	if (!IsLocalController() && PlayerState && PlayerState->GetPlayerId() == Peer && !Text.IsEmpty()) ClientNote(Text);
 }
 
+// --- [decals stage 5] Own pictures, shared -------------------------------------------------------------
+
+namespace
+{
+// Each piece of a picture, to one machine.
+template <typename FSend>
+void SendPieces(const TArray<uint8>& Png, int32 Piece, FSend&& Send)
+{
+	for (int32 At = 0; At < Png.Num(); At += Piece)
+	{
+		TArray<uint8> Part;
+		Part.Append(Png.GetData() + At, FMath::Min(Piece, Png.Num() - At));
+		Send(Png.Num(), At, Part);
+	}
+}
+}
+
+void ATorquePlayerController::SendDecalPicture(const FString& Id)
+{
+	static TSet<FString> Sent;
+	if (HasAuthority() || !IsLocalController() || Sent.Contains(Id)) return;
+	TArray<uint8> Png;
+	if (!TorqueDecals::SharedBytes(Id, Png)) return;
+	Sent.Add(Id);
+	SendPieces(Png, DecalPiece, [this, &Id](int32 Total, int32 At, const TArray<uint8>& Part) { ServerDecalPicture(Id, Total, At, Part); });
+}
+
+void ATorquePlayerController::WantDecalPicture(const FString& Id)
+{
+	static TSet<FString> Asked;
+	if (HasAuthority() || !IsLocalController() || !TorqueDecals::IsSharedId(Id) || Asked.Contains(Id)) return;
+	Asked.Add(Id);
+	ServerWantDecalPicture(Id);
+}
+
+bool ATorquePlayerController::TakeDecalPiece(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes)
+{
+	if (!TorqueDecals::IsSharedId(Id) || Total <= 0 || Total > TorqueDecals::MaxSharedBytes || Offset < 0 || Bytes.Num() == 0 ||
+		Offset + Bytes.Num() > Total)
+	{
+		DecalPieces.Remove(Id);
+		return false;
+	}
+	if (DecalPieces.Num() > 8 && !DecalPieces.Contains(Id)) return false;   // (a few at once)
+	TArray<uint8>& Buf = DecalPieces.FindOrAdd(Id);
+	if (Offset != Buf.Num())   // pieces come in order (reliable): anything else starts it again
+	{
+		Buf.Reset();
+		if (Offset != 0) return false;
+	}
+	Buf.Append(Bytes);
+	if (Buf.Num() < Total) return false;
+	const TArray<uint8> Png = MoveTemp(Buf);
+	DecalPieces.Remove(Id);
+	return TorqueDecals::TakeShared(Id, Png);
+}
+
+void ATorquePlayerController::ServerDecalPicture_Implementation(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes)
+{
+	if (!TakeDecalPiece(Id, Total, Offset, Bytes)) return;
+	// The host has it: on to everyone else playing.
+	TArray<uint8> Png;
+	if (!TorqueDecals::SharedBytes(Id, Png)) return;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ATorquePlayerController* Other = Cast<ATorquePlayerController>(It->Get());
+		if (!Other || Other == this || Other->IsLocalController()) continue;
+		SendPieces(Png, DecalPiece, [Other, &Id](int32 T, int32 At, const TArray<uint8>& Part) { Other->ClientDecalPicture(Id, T, At, Part); });
+	}
+}
+
+void ATorquePlayerController::ServerWantDecalPicture_Implementation(const FString& Id)
+{
+	TArray<uint8> Png;
+	if (!TorqueDecals::SharedBytes(Id, Png)) return;   // (the host hasn't got it either: it comes when its owner saves)
+	SendPieces(Png, DecalPiece, [this, &Id](int32 T, int32 At, const TArray<uint8>& Part) { ClientDecalPicture(Id, T, At, Part); });
+}
+
+void ATorquePlayerController::ClientDecalPicture_Implementation(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes)
+{
+	TakeDecalPiece(Id, Total, Offset, Bytes);
+}
+
 void ATorquePlayerController::ClientNote_Implementation(const FString& Text)
 {
 	Note = Text.Left(200);
@@ -190,6 +276,15 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 	{
 		bProfileSent = true;
 		PS->ServerSetProfile(FTorqueProfile::Mine().Pack());
+	}
+	if (!bHelmetDecalsSent || TorqueDecals::MyHelmet() != SentHelmetDecals)   // [decals stage 4]
+	{
+		bHelmetDecalsSent = true;
+		SentHelmetDecals = TorqueDecals::MyHelmet();
+		PS->ServerSetHelmetDecals(SentHelmetDecals);
+		// (its own pictures go to the host first, which passes them on)
+		for (const TorqueFit::Decals::Decal& D : TorqueFit::Decals::Parse(TorqueDecals::ToStd(SentHelmetDecals)))
+			if (D.K == TorqueFit::Decals::Kind::Image) SendDecalPicture(TorqueDecals::ToUe(D.Id));
 	}
 	if (FTorqueProfile::Mine().Visited.Num() != SentPlaces)   // [places stage 7]
 	{
@@ -601,7 +696,7 @@ FString ATorquePlayerController::TestFace(const FString& Slider, float Value)
 bool ATorquePlayerController::WantsPause()
 {
 	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
-	if (ATorqueGeometryMode::For(this)) return false;
+	if (ATorqueGeometryMode::For(this) || ATorqueDecalMode::For(this)) return false;
 	const APawn* P = GetPawn();
 	if (const ATorqueWalker* W = Cast<ATorqueWalker>(P); W && W->ComputerUpOrJustClosed()) return false;   // [shed] Esc closes the parts computer
 	return P && (P->IsA<ATorqueBikePawn>() || P->IsA<ATorqueWalker>());
@@ -820,13 +915,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			}
 			if (Real && !bClient && !bHost)
 			{
-				const FString RealNote = Real->RideNote();
-				Add(TEXT("Ride UK: Hawes to Leyburn"), FString(),
-					RealNote.IsEmpty() ? FString(TEXT("A first look at the real world: 26 km of bare road and hills down Wensleydale")) : RealNote, [this, Real]() {
-						CloseMenu();
-						Real->StartRide(TEXT("hawes"));
-					});
-				if (Real->IsPlanningRide()) R.Last().bDisabled = true;
+				// (the fixed Hawes ride left the menu, beenster Nov 16; the tests still start it by name)
 				Add(TEXT("Plan a ride (Ride UK)"), FString(),
 					TEXT("The Route planner: pins on a map of the UK, famous roads, round trips, and journey codes to share"), [this]() { OpenPlanner(); });
 			}

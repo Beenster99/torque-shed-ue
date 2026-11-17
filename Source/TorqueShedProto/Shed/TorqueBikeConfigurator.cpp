@@ -750,7 +750,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 	if (Visible(Y, RowH))
 	{
 		Focused(0, Y, RowH);
-		Btn(X0 + Inset, Y, LW - 2.0f * Inset, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)) + TEXT("   v"), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
+		Btn(X0 + Inset, Y, LW - 2.0f * Inset, RowH - 4.0f * S, TBCI::CfgUe(Lay->StyleName(B().Style)), StylePx, Popup == EPopup::Style, EHit::Style, 0, true);
 	}
 	Y += RowH;
 	if (Visible(Y, HeadH))
@@ -767,7 +767,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		Focused(I + 1, Y, RowH);
 		Pen.Draw(X0 + Inset + 4.0f * S, Y + (RowH - 4.0f * S - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(TBCI::CfgSlotLabel(R.Slot), 13.0f * S, LabelW - 8.0f * S), 13.0f * S, TBCI::Dim);
 		const FString Label = R.Choices.IsValidIndex(R.Picked) ? R.Choices[R.Picked].Label : FString(TEXT("?"));
-		Btn(PartX, Y, PartW, RowH - 4.0f * S, Label + TEXT("   v"), 13.0f * S, Popup == EPopup::Part && PopupKey == R.Slot, EHit::Part, I, true);
+		Btn(PartX, Y, PartW, RowH - 4.0f * S, Label, 13.0f * S, Popup == EPopup::Part && PopupKey == R.Slot, EHit::Part, I, true);
 		if (!TakesColour(R.Slot)) continue;
 		// Its colour (a swatch with a thin edge, so black shows), its finish, and Reset once changed.
 		const float SwW = 36.0f * S, SwH = RowH - 8.0f * S, FinW = 128.0f * S;
@@ -830,7 +830,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		FString LogoName = TEXT("None");
 		for (const auto& Lg : TorqueFit::Shop::Logos())
 			if (Lg.first == Bdg.Logo) LogoName = TBCI::CfgUe(Lg.second);
-		Btn(PartX, Y, PartW, BtnH, (Bdg.Logo.empty() ? FString() : FString(TEXT("        "))) + LogoName + TEXT("   v"), 13.0f * S, Popup == EPopup::Logo, EHit::Logo, 0, true);
+		Btn(PartX, Y, PartW, BtnH, (Bdg.Logo.empty() ? FString() : FString(TEXT("        "))) + LogoName, 13.0f * S, Popup == EPopup::Logo, EHit::Logo, 0, true);
 		UTexture* Icon = Bdg.Logo.empty() ? nullptr : TorqueBikeBadge::Logo(TBCI::CfgUe(Bdg.Logo));
 		if (Icon && Icon->GetResource())
 		{

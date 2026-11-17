@@ -129,13 +129,40 @@ def road_material_scanned(L, tex, roles):
         g.link(road[0], dull)
         g.link(g.const(grey), dull, "Fraction")
         paler = [g.op(unreal.MaterialExpressionMultiply, dull, g.const(bright)), road[1], road[2]]
+        if key == (0.12, 0.118, 0.11):
+            # [build 154] Paving slabs (beenster: "I haven't yet seen anything that looks like paving slabs"):
+            # most streets' pavements (by broad patches, a street or two each) laid in pale concrete slabs,
+            # 600 mm across by 900 mm along, every other row half a slab on, each slab its own shade, dark
+            # 8 mm joints; the rest stay asphalt footways. UV0 is the road's metres across and along over 4
+            # (World/WorldRide's RoadPiece Put, kept small for UE's half-precision UVs).
+            fu, fv, var = _coursed(g, L, 0.6 / 4.0, 0.9 / 4.0)
+            sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+            one_minus = lambda e: g.op(unreal.MaterialExpressionOneMinus, e)
+            jw_u, jw_v = 0.008 / 0.6, 0.008 / 0.9
+            slab = g.op(unreal.MaterialExpressionMultiply,
+                        g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, fu, const_b=jw_u)), sat(g.op(unreal.MaterialExpressionDivide, one_minus(fu), const_b=jw_u))),
+                        g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, fv, const_b=jw_v)), sat(g.op(unreal.MaterialExpressionDivide, one_minus(fv), const_b=jw_v))))
+            concrete = g.node(unreal.MaterialExpressionDesaturation, -600)
+            g.link(road[0], concrete)
+            g.link(g.const(0.92), concrete, "Fraction")
+            face = g.op(unreal.MaterialExpressionMultiply, concrete, g.const((1.6, 1.58, 1.53)))
+            if var is not None:
+                face = g.op(unreal.MaterialExpressionMultiply, face,
+                            g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.26, a_out="R"), const_b=0.86))
+            slabs = [g.lerp(g.op(unreal.MaterialExpressionMultiply, face, const_b=0.4), face, slab), road[1],
+                     g.lerp(g.const(0.95), g.const(0.75), slab)]
+            slabbed = g.mask_noise(0.00011, -1.0, 3.0)
+            paler = g.mix(paler, slabs, slabbed)
         own = g.mix(own, paler, keyed(key))
     # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
     # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
     # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near
     # the line it is (Near) pick the surface; where the two meet the gravel scan's own bright stones break
     # through the tarmac first, by their height, so the edge is as fine as the scans.
-    gravel_key = "track_gravel" if "track_gravel" in tex else ("gravel" if "gravel" in tex else None)
+    # [build 154] beenster, shown the cloud preview of Nov 13 (rideuk/stage4_previews/gravel_fade_preview.png):
+    # "use this when there is gravel on the road". That preview is the ambientCG scan (the "gravel" role,
+    # always imported) graded as below, so the road uses exactly it, not the Megascans one.
+    gravel_key = "gravel" if "gravel" in tex else ("track_gravel" if "track_gravel" in tex else None)
     if gravel_key:
         tar_c, grit_c = (0.022, 0.022, 0.025), (0.095, 0.088, 0.07)
         span = tuple(b - a for a, b in zip(tar_c, grit_c))
@@ -156,15 +183,14 @@ def road_material_scanned(L, tex, roles):
                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, along, const_b=0.15), const_b=8.0)),
                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), along), const_b=8.0)))
         near = g.op(unreal.MaterialExpressionMultiply, near, ends)
-        grav = g.layer(tex[gravel_key], roles[gravel_key]["tile_m"])
-        # (the Megascans scan is paler than ambientCG's dark wet gravel, the fallback: each its own tint and middle)
+        grav = g.layer(tex[gravel_key], 1.6)
+        # (the preview's grade: two thirds of the scan's colour kept, lifted 1.5 times, a touch warm; its
+        # middle brightness 0.15, measured on the scan so graded. The Megascans fallback keeps build 148's.)
         megascan = "ue" in roles[gravel_key]
-        # (beenster, build 148: the grit "like sandstone poured on the road": grey chippings now, near the
-        # tarmac's own tone, the scan almost all its colour taken out and darkened towards the road)
-        tint, middle = ((0.78, 0.78, 0.79), 0.22) if megascan else ((1.1, 1.1, 1.12), 0.15)
+        tint, middle, keep = ((0.78, 0.78, 0.79), 0.22, 0.15) if megascan else ((1.5, 1.48, 1.4), 0.15, 0.65)
         gdull = g.node(unreal.MaterialExpressionDesaturation, -600)
         g.link(grav[0], gdull)
-        g.link(g.const(0.85), gdull, "Fraction")
+        g.link(g.const(1.0 - keep), gdull, "Fraction")
         grav[0] = g.op(unreal.MaterialExpressionMultiply, gdull, g.const(tint))
         # Its stones' height from the scan's brightness (with its AO in it), and a slow wobble so the edge
         # isn't a line across the road.
@@ -177,7 +203,7 @@ def road_material_scanned(L, tex, roles):
         wobble = g.op(unreal.MaterialExpressionSubtract, L.noise(g.m, 0.01, 0.0, 1.0, -1200, g.y + 200), const_b=0.5)
         g.y += 140
         edge = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, along, const_b=0.5),
-                    g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, height, const_b=0.54),
+                    g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, height, const_b=0.54 if megascan else 0.9 * 0.6),
                          g.op(unreal.MaterialExpressionMultiply, wobble, const_b=0.25)))
         stones = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, edge, const_b=25.0))
         surface = g.mix(road, grav, stones)
@@ -214,22 +240,42 @@ def road_material_scanned(L, tex, roles):
                      g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, valong, const_b=0.15), const_b=8.0)),
                      g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), valong), const_b=8.0)))
         vnear = g.op(unreal.MaterialExpressionMultiply, vnear, vends)
+        # ([build 154] beenster: "remove the edge we currently have": the verge's grass is now graded exactly
+        # as M_RideLandScan grades the ground beside it, its moor-grass patches, livelier greens and slow
+        # brightness by the same world-position noises, so where the road's mesh ends and the land's begins
+        # nothing shows; its odd peat hollow left out, to keep the road's pixels cheap)
         lawn = g.layer(tex["grass"], roles["grass"]["tile_m"])
+        depth0 = g.node(unreal.MaterialExpressionPixelDepth)
+        calm = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth0, const_b=8000.0), const_b=30000.0))
+        if "moor" in tex:
+            lawn = g.mix(lawn, g.layer(tex["moor"], roles["moor"]["tile_m"]), g.lerp(g.mask_noise(0.00028, -0.6, 1.6), g.const(0.35), calm))
         lawn[0] = g.op(unreal.MaterialExpressionMultiply, lawn[0], const_b=0.75)
         lgrey = g.node(unreal.MaterialExpressionDesaturation, -600)
         g.link(lawn[0], lgrey)
         g.link(g.const(1.0), lgrey, "Fraction")
         lawn[0] = g.lerp(lgrey, lawn[0], g.const(1.6))
+        lawn[0] = g.op(unreal.MaterialExpressionMultiply, lawn[0], L.noise(g.m, 0.0003, 0.9, 1.07, -1200, g.y + 200))
         g.y += 140
         # (the inner end: the tarmac's own scan, so the road runs on under the grass)
         grit = tar_scan
         wob = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.02, -0.5, 0.5, -1200, g.y + 200),
                    g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.004, -0.5, 0.5, -1200, g.y + 400), const_b=1.5))
         g.y += 140
-        # (grass from about a third of the way out, ragged by the wobble: at the tarmac's edge, give or take)
+        # (grass from about a third of the way out, at the tarmac's edge: [build 154] beenster wants it to blend
+        # as the gravel does: as the gravel's stones break through the tarmac, the grass comes over it in tufts,
+        # ragged at three sizes (half a metre, ten centimetres, a few centimetres: its tufts and blades), a
+        # sharp line at each, never a straight one; tufts reach a hand's breadth or two onto the road)
+        fine = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.09, -0.5, 0.5, -1200, g.y + 200),
+                    g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.3, -0.5, 0.5, -1200, g.y + 400), const_b=0.6))
+        g.y += 140
+        reach = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.45),
+                     g.op(unreal.MaterialExpressionMultiply, fine, const_b=0.55))
         lawny = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
-                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.3), g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.35)),
-                     const_b=7.0))
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.32), reach),
+                     const_b=5.0))
+        # (where the grass thins out over the tarmac, a little earth in it: the tarmac browned by the half-way)
+        thin = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, lawny, g.op(unreal.MaterialExpressionOneMinus, lawny)), const_b=4.0)
+        grit = [g.lerp(grit[0], g.op(unreal.MaterialExpressionMultiply, grit[0], g.const((0.95, 0.9, 0.75))), thin), grit[1], grit[2]]
         verge = g.mix(grit, lawn, lawny)
         road = g.mix(road, verge, vnear)
     # Wet: the tarmac dark and glossy (as Buttertubs' road), the gravel darker but still rough; dry keeps a
@@ -484,6 +530,12 @@ def brick_material(L):
     mortar = g.op(unreal.MaterialExpressionMultiply, vc, g.const((1.5, 1.6, 1.8)))
     mortar = g.op(unreal.MaterialExpressionMin, mortar, g.const((0.42, 0.4, 0.36)))
     col = g.lerp(mortar, col, brick)
+    nt = L.noise_texture()
+    if nt:
+        # [build 153] (beenster: "a repetitive tiling": a wall a shade lighter and darker over several metres)
+        mv = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / 23.0, v_tiling=1.0 / 23.0), "rough")
+        mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.3), const_b=0.85)
+        col = g.op(unreal.MaterialExpressionMultiply, col, mv)
     dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
     col = g.lerp(col, dirt, vc, alpha_out="A")
     col = L.far_dull(g, col)
@@ -815,6 +867,27 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
+        # [perf, build 155] Far off, the scans as impostors baked from them (Tools/ue_tree_impostors.py)
+        # in place of Buttertubs' low-poly far models (beenster, build 153: "the new trees are BAD").
+        if spec.get("impostors", True):
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import ue_tree_impostors as IMP
+                cards = IMP.bake_all(got, rebake=bool(spec.get("rebake_impostors", False)))
+            except Exception as e:
+                log("scanned trees: %s: impostors failed: %s" % (kind, e))
+                cards = []
+            # (the same order as the scans, so a tree's near scan and far card are the same variant;
+            # if any one failed, the kind keeps its old far models rather than mismatching)
+            if cards and all(cards):
+                rows[:] = [x for x in rows if not x["name"].startswith("SM_TreeFar_%s_" % kind)]
+                f = dict(template)
+                f.update({"name": "SM_TreeFar_%s_imp" % kind, "mesh": "", "material": "", "variants": cards, "variant_materials": [],
+                          "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": False})
+                rows.append(f)
+                log("scanned trees: %s: %d impostors for the far trees" % (kind, len(cards)))
+            else:
+                log("scanned trees: %s: impostors NOT used (%d of %d baked); old far models kept" % (kind, len([c for c in cards if c]), len(got)))
     log("scanned trees%s: %s" % ("" if use else " (trial, not planted)", ", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
 

@@ -80,6 +80,7 @@ private:
 	float ExposureBias = 0.f, ExposureMin = 0.f, ExposureMax = 0.f;
 	float AppliedShadowStrength = -1.0f, AppliedBottomKm = -1.0f, AppliedHeightKm = -1.0f;
 	float AppliedViewSamples = -1.0f, AppliedShadowSamples = -1.0f;   // (the cloud's ray marching, from sky_looks.json)
+	bool bCloudV2 = false;   // wearing the rebuilt clouds (M_RideCloudV2)
 	// The clouds are drawn: the volumetric clouds are on (Medium graphics and up) and the level's cloud
 	// wears our own material (an older level keeps the engine's, which follows nothing).
 	bool CloudsDrawn() const;

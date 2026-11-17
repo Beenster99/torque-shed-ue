@@ -4,6 +4,7 @@
 // is (a coarse map of the country's building traditions), the same on every rider's machine.
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -71,6 +72,35 @@ bool NamedStone(const std::string& Name, Tint& Out);
 bool NamedTile(const std::string& Name, Tint& Out);
 // The region's look made a town's: these shares and colours over it.
 LocalLook TownLook(const LocalLook& Region, const TownEntry& Town);
+// [towns stage 4] House types: what a house is (a cottage or a village row out of town; in a town a
+// detached house, a semi, a terrace or a tenement) and when it was built, from Data/RideUK/
+// house_types.json. Each kind lists its periods with how common each is and how that period built:
+// its windows ("place" the place's own, else sash, casement, mullion or modern), how many have bay
+// windows (and of those how many run up two storeys, how many are square, not canted), how many
+// of its squarish houses are hipped (-1 leave it to the place), its door styles and hoods. A whole row
+// or street takes one period, so a terrace matches and only its doors' colours vary.
+struct HousePeriod
+{
+	std::string Name;
+	double Weight = 1.0;
+	int Window = -1;                 // -1 the place's, else LocalLook::EWindow, or 3 modern (casements, no bars)
+	double Bay = 0.0, BayTwo = 0.0, BaySquare = 0.0;
+	double Hipped = -1.0;
+	double Hood = 0.35;
+	std::vector<int> Doors;          // door styles (0 six-panel, 1 half-glazed Victorian, 2 ledged, 3 modern); empty any
+};
+struct HouseTypes
+{
+	enum EKind { Cottage, VillageRow, Detached, Semi, Terrace, Tenement, Kinds };
+	std::vector<HousePeriod> Periods[Kinds];
+	// The period for a pick in [0, 1), by weight; null if the kind has none.
+	const HousePeriod* Pick(int Kind, double Chance) const;
+};
+// Reads the table (JSON text); false if it isn't one. Kept for every ride after (thread safe); until
+// then, and for a kind it leaves out, the built-in table (the file's own figures).
+bool SetHouseTypes(const std::string& Text);
+std::shared_ptr<const HouseTypes> HouseTypesNow();
+
 // [stage 8] The world's default look, away from Britain: rendered walls, tiled roofs, grey stone.
 const LocalLook& WorldLook();
 } // namespace TorqueWorld

@@ -3,6 +3,7 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "LocalVertexFactory.h"
 #include "HAL/IConsoleManager.h"
 #include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
@@ -15,6 +16,8 @@ namespace TRPart
 {
 // (off since build 149: build 148 measured no render gain at Whaley Bridge, render 4.9 ms against 4.6
 // without, while building the meshes cost the game thread in towns)
+TAutoConsoleVariable<int32> CVarPrecache(TEXT("torque.RidePartPrecache"), 1,
+	TEXT("Ride UK: the world's pieces ask for their shaders (PSOs) when they are put in the scene (1, build 154) or not (0, as until 153)."));
 TAutoConsoleVariable<int32> CVarStaticParts(TEXT("torque.RideStaticParts"), 0,
 	TEXT("Ride UK: draw the world's pieces as static meshes built at run time (1, cached draws) or as procedural meshes (0, the old way). Pieces made after the change follow it."));
 } // namespace TRPart
@@ -25,6 +28,28 @@ void URidePart::OnComponentDestroyed(bool bDestroyingHierarchy)
 	if (!bDestroyingHierarchy && IsValid(Look) && !Look->IsBeingDestroyed()) Look->DestroyComponent();
 	Look = nullptr;
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
+}
+
+void URidePart::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams)
+{
+	Super::CollectPSOPrecacheData(BasePrecachePSOParams, OutParams);
+	if (TRPart::CVarPrecache.GetValueOnGameThread() == 0) return;
+	// (the procedural mesh draws its sections with the local vertex factory, one material each)
+	const FPSOPrecacheVertexFactoryData LocalVF(&FLocalVertexFactory::StaticType);
+	TSet<UMaterialInterface*> SeenMats;
+	for (const FMaterialInterfacePSOPrecacheParams& Have : OutParams) SeenMats.Add(Have.MaterialInterface);
+	const int32 Sections = GetNumSections();
+	for (int32 Section = 0; Section < Sections; ++Section)
+	{
+		UMaterialInterface* Mat = GetMaterial(Section);
+		if (!Mat || SeenMats.Contains(Mat)) continue;
+		SeenMats.Add(Mat);
+		FMaterialInterfacePSOPrecacheParams& Params = OutParams.AddDefaulted_GetRef();
+		Params.Priority = EPSOPrecachePriority::High;
+		Params.MaterialInterface = Mat;
+		Params.VertexFactoryDataList.Add(LocalVF);
+		Params.PSOPrecacheParams = BasePrecachePSOParams;
+	}
 }
 
 bool URidePart::StaticLooks()

@@ -14,6 +14,8 @@ namespace TorqueCloudGuard
 // Check the world's clouds (again: it does nothing once a cloud has been looked at). True when the cloud
 // left showing wears our own material.
 bool Check(UWorld* World);
+// Why a cloud material won't do (empty when it will): Volume domain, used with Volumetric Cloud, compiled.
+FString WhyNot(class UMaterialInterface* Mat, UWorld* World);
 }
 
 UCLASS()

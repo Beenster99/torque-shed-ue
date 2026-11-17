@@ -693,8 +693,11 @@ public:
 		PropWinSash6, PropWinSash2, PropWinCasement, PropWinCasementTop, PropWinMullion, PropWinMullionLeaded,
 		PropSurStone, PropSurBrick, PropSurPlain,
 		PropDoorPanel6, PropDoorVictorian, PropDoorLedged, PropDoorLedgedLight, PropDoorModern, PropDoorDouble, PropDoorHood,
+		// [towns stage 4] Bay windows (Variant: storeys less one), placed only where the game has their models
+		PropBayCanted, PropBaySquare,
 		PropKinds };
 	static constexpr int FirstFacade = PropWinSash6;
+	static constexpr int FacadeCoreEnd = PropBayCanted;   // (the kinds the kit can't go without: it is off unless all have models)
 	// [fps plan step 2] Whether the houses' windows and doors come as the facade kit's instances (the game
 	// sets it when every facade kind has its models and -TorqueRideFacadeKit=0 isn't given), else drawn.
 	bool FacadeKit = false;
@@ -868,7 +871,19 @@ public:
 		Building B;
 		BuildingLook Look;
 		double Floors = 0.0;   // the map's floors (0: it doesn't say)
+		// [towns stage 4] Its place in a row (MarkRows, once per tile read): which outline it came from and
+		// whether it is that outline's main box; the sides of the main box another house's main box shares
+		// (bit 1 its +x side, 2 its -x, 4 its +z, 8 its -z, x across W, z deep D), and on which of those it
+		// draws the shared chimney stack; the row's size (1 alone, 2 a pair of semis, 3 or more a
+		// terrace), its place along it, and one spot for the whole row (so the row is built alike).
+		int Outline = -1;
+		bool Main = false;
+		unsigned char Party = 0, Stacks = 0;
+		int RowSize = 1, RowPos = 0;
+		P2 RowSeed;
 	};
+	// [towns stage 4] Finds the rows in a tile's pieces (see OutlinePiece).
+	static void MarkRows(std::vector<OutlinePiece>& Pieces);
 	// Those whose middles lie in (X0, Z0)-(+Size) into Out (kept alive by Hold); the cells under the
 	// square that have outlines into Covered (their own boxes aren't drawn there).
 	void OutlinesIn(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<OutlinePiece>>>& Hold,
@@ -890,6 +905,9 @@ public:
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
+		int HouseKinds[6] = {};   // [towns stage 4] houses by HouseTypes::EKind (cottage, village row, detached, semi, terrace, tenement)
+		int BayWindows = 0;       // and the bay windows on them
+		int DoorsDropped = 0, DoorSteps = 0;   // doors set lower than the floor to meet the ground before them; doors with steps down to it
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or
@@ -1112,7 +1130,7 @@ public:
 	// [OSM stage 5D] Town streets: a kerb KerbHigh high (its face a 45 degree slope) and a pavement out to
 	// PaveWide from the road's edge, each side, in place of the verge (beenster Nov 14: one continuous kerb
 	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
-	static constexpr double KerbHigh = 0.125, PaveWide = 1.8;
+	static constexpr double KerbHigh = 0.125, PaveWide = 1.4;   // ([build 154] beenster: pavements "too wide": 1.8 m was)
 	// [OSM stage 5D] Traffic lights: a fixed cycle of SignalCycle seconds from the shared clock (the master
 	// plan's open question: until it is answered, nothing happens to a rider who goes through on red).
 	// The lamps' codes in RideMesh::Signals' UV0 y.

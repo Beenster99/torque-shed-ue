@@ -6,10 +6,12 @@
 #include "WorldZip.h"
 
 #include <algorithm>
+#include <functional>
 #include <cmath>
 #include <map>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 
 namespace TorqueWorld
 {
@@ -179,6 +181,105 @@ std::vector<Building> RidePlan::PiecesOf(const std::vector<P2>& Ring, double Hei
 	return Out;
 }
 
+void RidePlan::MarkRows(std::vector<OutlinePiece>& Pieces)
+{
+	// Two houses' main boxes share a wall where they lie square to each other (within 6 degrees), a side
+	// of each on the same line (within 0.7 m) and overlapping along it by 3 m or half the shorter side.
+	// Rows are the houses joined so; a pair are semis, three or more a terrace.
+	const size_t N = Pieces.size();
+	std::unordered_map<long long, std::vector<int>> Grid;
+	constexpr double Cell = 24.0;
+	const auto Key = [](long long Gx, long long Gz) { return Gx * 4000037LL + Gz; };
+	for (size_t I = 0; I < N; ++I)
+	{
+		const OutlinePiece& P = Pieces[I];
+		if (!P.Main || P.B.More.empty() || int(P.B.More[0]) != 0) continue;   // (houses' main boxes)
+		Grid[Key(static_cast<long long>(std::floor(P.B.X / Cell)), static_cast<long long>(std::floor(P.B.Z / Cell)))].push_back(int(I));
+	}
+	std::vector<int> Root(N);
+	for (size_t I = 0; I < N; ++I) Root[I] = int(I);
+	const std::function<int(int)> Find = [&](int A) { while (Root[size_t(A)] != A) { Root[size_t(A)] = Root[size_t(Root[size_t(A)])]; A = Root[size_t(A)]; } return A; };
+	for (const auto& Bucket : Grid)
+		for (const int I : Bucket.second)
+		{
+			OutlinePiece& A = Pieces[size_t(I)];
+			const double Cs = std::cos(A.B.Yaw), Sn = std::sin(A.B.Yaw);
+			const long long Gx = static_cast<long long>(std::floor(A.B.X / Cell)), Gz = static_cast<long long>(std::floor(A.B.Z / Cell));
+			for (long long Dx = -1; Dx <= 1; ++Dx)
+				for (long long Dz = -1; Dz <= 1; ++Dz)
+				{
+					const auto It = Grid.find(Key(Gx + Dx, Gz + Dz));
+					if (It == Grid.end()) continue;
+					for (const int J : It->second)
+					{
+						if (J <= I) continue;
+						OutlinePiece& Bo = Pieces[size_t(J)];
+						if (Bo.Outline == A.Outline) continue;
+						double Turn = std::fmod(std::fabs(A.B.Yaw - Bo.B.Yaw), 3.14159265358979 * 0.5);
+						Turn = std::fmin(Turn, 3.14159265358979 * 0.5 - Turn);
+						if (Turn > 0.105) continue;
+						// (Bo's corners in A's frame: x along (cos, -sin), z along (sin, cos), as the drawer has it)
+						double Bx0 = 1e18, Bx1 = -1e18, Bz0 = 1e18, Bz1 = -1e18;
+						const double Cb = std::cos(Bo.B.Yaw), Sb = std::sin(Bo.B.Yaw);
+						for (double Su : {-0.5, 0.5})
+							for (double Sv : {-0.5, 0.5})
+							{
+								const double Wx = Bo.B.X + Su * Bo.B.W * Cb + Sv * Bo.B.D * Sb, Wz = Bo.B.Z - Su * Bo.B.W * Sb + Sv * Bo.B.D * Cb;
+								const double Dxw = Wx - A.B.X, Dzw = Wz - A.B.Z;
+								const double Lx = Dxw * Cs - Dzw * Sn, Lz = Dxw * Sn + Dzw * Cs;
+								Bx0 = std::fmin(Bx0, Lx); Bx1 = std::fmax(Bx1, Lx); Bz0 = std::fmin(Bz0, Lz); Bz1 = std::fmax(Bz1, Lz);
+							}
+						const double Hw = A.B.W * 0.5, Hd = A.B.D * 0.5;
+						const auto Overlap = [](double A0, double A1, double C0, double C1) { return std::fmin(A1, C1) - std::fmax(A0, C0); };
+						unsigned char Side = 0;
+						const double Oz = Overlap(-Hd, Hd, Bz0, Bz1), Ox = Overlap(-Hw, Hw, Bx0, Bx1);
+						const double NeedZ = std::fmin(3.0, 0.5 * std::fmin(A.B.D, Bz1 - Bz0)), NeedX = std::fmin(3.0, 0.5 * std::fmin(A.B.W, Bx1 - Bx0));
+						if (std::fabs(Bx0 - Hw) < 0.7 && Oz >= NeedZ) Side = 1;
+						else if (std::fabs(Bx1 + Hw) < 0.7 && Oz >= NeedZ) Side = 2;
+						else if (std::fabs(Bz0 - Hd) < 0.7 && Ox >= NeedX) Side = 4;
+						else if (std::fabs(Bz1 + Hd) < 0.7 && Ox >= NeedX) Side = 8;
+						if (Side == 0) continue;
+						A.Party |= Side;
+						A.Stacks |= Side;   // (the first of a pair draws the stack on their wall)
+						// (and the side of Bo that faces A)
+						const double Dxw = A.B.X - Bo.B.X, Dzw = A.B.Z - Bo.B.Z;
+						const double Lx = Dxw * Cb - Dzw * Sb, Lz = Dxw * Sb + Dzw * Cb;
+						Bo.Party |= std::fabs(Lx) / std::fmax(Bo.B.W, 0.1) > std::fabs(Lz) / std::fmax(Bo.B.D, 0.1) ? (Lx > 0.0 ? 1 : 2) : (Lz > 0.0 ? 4 : 8);
+						Root[size_t(Find(J))] = Find(I);
+					}
+				}
+		}
+	// The rows: their size, each house's place along it, and the row's spot.
+	std::unordered_map<int, std::vector<int>> Rows;
+	for (size_t I = 0; I < N; ++I)
+		if (Pieces[I].Main && Pieces[I].Party != 0) Rows[Find(int(I))].push_back(int(I));
+	for (auto& Row : Rows)
+	{
+		std::vector<int>& M = Row.second;
+		const OutlinePiece& First = Pieces[size_t(M.front())];
+		// (along the row: across its party walls)
+		const bool AlongX = (First.Party & 3) != 0;
+		const double Cs = std::cos(First.B.Yaw), Sn = std::sin(First.B.Yaw);
+		const double Ax = AlongX ? Cs : Sn, Az = AlongX ? -Sn : Cs;
+		std::sort(M.begin(), M.end(), [&](int A, int C) { return Pieces[size_t(A)].B.X * Ax + Pieces[size_t(A)].B.Z * Az < Pieces[size_t(C)].B.X * Ax + Pieces[size_t(C)].B.Z * Az; });
+		const P2 Seed(Pieces[size_t(M.front())].B.X, Pieces[size_t(M.front())].B.Z);
+		for (size_t K = 0; K < M.size(); ++K)
+		{
+			OutlinePiece& P = Pieces[size_t(M[K])];
+			P.RowSize = int(M.size());
+			P.RowPos = int(K);
+			P.RowSeed = Seed;
+		}
+	}
+	// (the pieces that aren't main boxes take their outline's row)
+	for (OutlinePiece& P : Pieces)
+		if (!P.Main && P.Outline >= 0 && size_t(P.Outline) < N)
+			for (size_t K = size_t(P.Outline); K < N && Pieces[K].Outline == P.Outline; ++K)
+				if (Pieces[K].Main) { P.RowSize = Pieces[K].RowSize; P.RowPos = Pieces[K].RowPos; P.RowSeed = Pieces[K].RowSeed; break; }
+	for (OutlinePiece& P : Pieces)
+		if (P.RowSize <= 1) P.RowSeed = P2(P.B.X, P.B.Z);
+}
+
 void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<OutlinePiece>>>& Hold,
 	std::vector<const OutlinePiece*>& Out, std::vector<CellId>& Covered) const
 {
@@ -265,6 +366,7 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 							BuildingLook Look;
 							// (the drawer's words: class, roof shape, roof colour, roof material, wall material, wall colour)
 							Look.Words[0] = Word(3); Look.Words[1] = Word(4); Look.Words[2] = Word(6); Look.Words[3] = Word(5); Look.Words[4] = Word(7); Look.Words[5] = Word(8);
+							const size_t FirstPiece = Made->size();
 							for (Building& Bp : PiecesOf(Ring, Height, KindOfClass(Look.Words[0], std::fabs(Sum) * 0.5)))
 							{
 								OutlinePiece P;
@@ -274,7 +376,16 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 								P.Floors = Floors > 0.0 ? Floors : 0.0;
 								Made->push_back(std::move(P));
 							}
+							// (the outline's number, and its biggest box its main one)
+							size_t Biggest = FirstPiece;
+							for (size_t K = FirstPiece; K < Made->size(); ++K)
+							{
+								(*Made)[K].Outline = int(FirstPiece);
+								if ((*Made)[K].B.W * (*Made)[K].B.D > (*Made)[Biggest].B.W * (*Made)[Biggest].B.D) Biggest = K;
+							}
+							if (Biggest < Made->size()) (*Made)[Biggest].Main = true;
 						}
+				MarkRows(*Made);
 				std::lock_guard<std::mutex> Lock(St.Lock);
 				Hold.push_back(St.TilesRead.emplace(Name + "/" + Key, Made).first->second);
 			}
