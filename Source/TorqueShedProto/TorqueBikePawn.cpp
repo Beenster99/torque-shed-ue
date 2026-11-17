@@ -3521,7 +3521,7 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	if (RiderRig.IsValid())
 	{
 		bHeadShown = bShow;
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown, true);   // (its decal skins with it)
 		ShowRiderAvatar();
 		return;
 	}
@@ -3594,6 +3594,7 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 	In.Velocity = Dt > 1.0e-4f ? (Feet - NetWalkerWas) / Dt : FVector::ZeroVector;
 	In.Velocity.Z = 0.0;
 	In.Facing = FRotator(0.0, Yaw, 0.0);
+	In.LookPitch = LookPitch;   // [build 155] their walking view's up and down (TorqueNetBike sets it)
 	NetWalker->Pose(In, Dt);
 	NetWalkerWas = Feet;
 }
@@ -3681,6 +3682,8 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	}
 	T.Neck = R.Neck;
 	T.Look = R.Look;
+	T.Wave = RiderWave;
+	T.WaveTime = RiderWaveTime;
 	T.Limp = R.Limp;
 	for (int32 S = 0; S < 2; ++S)
 	{
@@ -3718,7 +3721,7 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 	{
 		bRiderShown = bShow;
 		if (RiderBody) RiderBody->SetVisibility(bShow);
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown, true);   // (its decal skins with it: build 154's helmet left floating)
 		ShowRiderAvatar();
 		return;
 	}
@@ -4032,6 +4035,8 @@ void ATorqueBikePawn::UpdateRider()
 			In.Wave = bWaving ? WaveT : 1.0 - WaveT;
 			In.WaveTime = Now - WaveAt;
 		}
+		RiderWave = bThrown ? 0.0 : In.Wave;
+		RiderWaveTime = In.WaveTime;
 		In.LeverFingers[1] = BrakeFingers;
 		In.LeverPull[1] = FMath::Clamp(FrontBrake, 0.0, 1.0) * BrakeFingers;
 		// Left hand: the clutch, pulled for each gear change (fingers over, pull, let out), and held
@@ -4125,6 +4130,10 @@ void ATorqueBikePawn::UpdateRider()
 		{
 			const ATorquePlayerState* HelmetPS = GetPlayerState<ATorquePlayerState>();
 			TorqueDecals::ApplyHelmet(RiderHelmet, (IsLocallyControlled() || !HelmetPS) ? TorqueDecals::MyHelmet() : HelmetPS->HelmetDecals);
+			// (Skins made while the helmet's hidden start shown: kept as the helmet is.)
+			const bool bHelmetSeen = RiderHelmet->IsVisible();
+			for (USceneComponent* Skin : RiderHelmet->GetAttachChildren())
+				if (Skin && Skin->IsVisible() != bHelmetSeen) Skin->SetVisibility(bHelmetSeen);
 		}
 		UpdateRiderAvatar();
 		return;
