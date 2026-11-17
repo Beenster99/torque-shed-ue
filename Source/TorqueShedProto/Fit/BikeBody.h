@@ -49,6 +49,9 @@ struct FittedPart
 	// out of the face towards the rider and GaugeUp the way its text reads up. Ours frame, bike space.
 	std::string Gauge;
 	V3 GaugeAt, GaugeAxis, GaugeUp;
+	// [bikes v2] Which piece of its slot a V2 bike's piece is ("grip", "silencer", ...; "" the rest of the slot):
+	// what a fitted common part takes the place of (the bike json's surfaces' "sub").
+	std::string Sub;
 	double GaugeSize = 1.0;   // [bikes v2] a dial's radius over the catalogue dial's 4.3 cm: the game's scale is drawn to it
 };
 

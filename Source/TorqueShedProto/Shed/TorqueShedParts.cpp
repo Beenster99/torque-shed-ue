@@ -246,9 +246,21 @@ FCatalogue& Catalogue()
 		if (FFileHelper::LoadFileToString(V2Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/BikesV2/parts_v2.json"))) &&
 			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V2Text), V2Root) && V2Root.IsValid())
 		{
+			// "_retired" {kind: [ids]}: parts taken out of the game (the six bike types with no V2 bikes and
+			// the parts made only for them: beenster, Nov 17), as Fit/PartsDb AddFromText drops them.
+			const TSharedPtr<FJsonObject>* Retired = nullptr;
+			if (V2Root->TryGetObjectField(TEXT("_retired"), Retired))
+				for (const auto& GoneKind : (*Retired)->Values)
+				{
+					const TSharedPtr<FJsonObject>* From = nullptr;
+					const TArray<TSharedPtr<FJsonValue>>* Ids = nullptr;
+					if (!Root->TryGetObjectField(FString(GoneKind.Key), From) || !GoneKind.Value.IsValid() || !GoneKind.Value->TryGetArray(Ids)) continue;
+					for (const TSharedPtr<FJsonValue>& GoneId : *Ids) (*From)->RemoveField(GoneId->AsString());
+				}
 			for (const auto& V2Kind : V2Root->Values)
 			{
 				const TSharedPtr<FJsonObject>* Extra = nullptr;
+				if (FString(V2Kind.Key) == TEXT("_retired")) continue;
 				if (!V2Kind.Value.IsValid() || !V2Kind.Value->TryGetObject(Extra)) continue;
 				const TSharedPtr<FJsonObject>* Into = nullptr;
 				if (!Root->TryGetObjectField(FString(V2Kind.Key), Into))

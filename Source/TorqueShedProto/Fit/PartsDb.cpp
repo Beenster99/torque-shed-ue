@@ -1,5 +1,7 @@
 #include "PartsDb.h"
 
+#include <algorithm>
+
 namespace TorqueFit
 {
 bool PartsDb::LoadFromText(const std::string& InText, std::string& Error)
@@ -32,9 +34,19 @@ bool PartsDb::AddFromText(const std::string& InText, std::string& Error)
 		Error = "extra parts: not an object of kinds, or no catalogue to add them to";
 		return false;
 	}
+	// "_retired" {kind: [ids]}: parts taken out of the game (the six bike types with no V2 bikes and the
+	// parts made only for them: beenster, Nov 17; listed by BikesV2/foundry/game_catalogue.py).
+	if (const Json* Retired = Extra.Get("_retired"); Retired && Retired->IsObject())
+		for (const auto& KV : Retired->O)
+		{
+			Json* Kind = Root.GetMutable(KV.first);
+			if (!Kind || !KV.second.IsArray()) continue;
+			for (const Json& Gone : KV.second.A)
+				Kind->O.erase(std::remove_if(Kind->O.begin(), Kind->O.end(), [&Gone](const std::pair<std::string, Json>& Entry) { return Entry.first == Gone.S; }), Kind->O.end());
+		}
 	for (const auto& KV : Extra.O)
 	{
-		if (!KV.second.IsObject()) continue;
+		if (!KV.second.IsObject() || KV.first == "_retired") continue;
 		Json* Kind = Root.GetMutable(KV.first);
 		if (!Kind)
 		{

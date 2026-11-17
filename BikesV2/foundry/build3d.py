@@ -108,6 +108,10 @@ def export_game(name, model, model_file=None):
     import re
     import detail3d
     import game_parts
+    try:
+        import game_common
+    except ImportError:
+        game_common = None
     dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
     os.makedirs(dst, exist_ok=True)
     obs = [o for o in bpy.context.scene.objects if o.type in ("MESH", "CURVE")]
@@ -168,10 +172,13 @@ def export_game(name, model, model_file=None):
             r = ("frame", "")
         xs = [(o.matrix_world @ __import__("mathutils").Vector(q)).x / MM for q in o.bound_box]
         r = game_parts.placed(o.name, r[0], r[1], min(xs), max(xs), model)
+        # the piece of its slot a common part can take the place of ("grip", "silencer", ...: common parts'
+        # foundry/game_common.py sub_of; "" for the rest of the slot)
+        part_sub = (game_common.sub_of(game_parts.stem(o.name)) or "") if game_common else ""
         for i, m in enumerate(o.data.materials):
             if m is None:
                 continue
-            key = (r[0], r[1], m.name)
+            key = (r[0], r[1], part_sub, m.name)
             if key not in tagged:
                 c = m.copy()
                 c.name = f"s{len(tagged):03d}"
@@ -191,6 +198,8 @@ def export_game(name, model, model_file=None):
                     ue, lens, colour = game_parts.look(tag.split("__")[0], r[0], colour, metal, rough)
                     tint = colour is not None
                 look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
+                if part_sub:
+                    look["sub"] = part_sub
                 if spec.get("slot"):
                     look["paint"] = spec["slot"]
                 if tint:

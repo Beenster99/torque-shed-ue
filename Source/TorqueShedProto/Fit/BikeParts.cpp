@@ -4444,7 +4444,8 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 		const Json* Look = Looks->Get(S.Material);
 		const std::string Slot = Look ? Look->Str("slot", "frame") : std::string("frame");
 		const std::string Node = Look ? Look->Str("node") : std::string();
-		const std::string Key = Slot + "|" + Node;
+		const std::string Sub = Look ? Look->Str("sub") : std::string();
+		const std::string Key = Slot + "|" + Node + "|" + Sub;
 		if (!Meshes.count(Key))
 		{
 			Order.push_back(Key);
@@ -4452,6 +4453,7 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 			FittedPart P;
 			P.Slot = Slot;
 			P.Node = Node;
+			P.Sub = Sub;
 			P.Glb = "v2/" + Model + "/" + Slot;
 			P.Name = Slot;
 			Pieces[Key] = P;
@@ -4487,6 +4489,17 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 }
 } // namespace
 
+// Whether the model was drawn with a display (v2.points_mm.gauges has a "screen"), not dials.
+static bool V2DrawsScreen(const Json* V2)
+{
+	const Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const Json* Gauges = Points ? Points->Get("gauges") : nullptr;
+	if (!Gauges || !Gauges->IsArray()) return false;
+	for (const Json& G : Gauges->A)
+		if (G.Str("what") == "screen") return true;
+	return false;
+}
+
 void BikeParts::SetV2Source(V2Source In)
 {
 	V2Files() = std::move(In);
@@ -4510,7 +4523,8 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	// Any other dash: the clocks as the model draws them.
 	{
 		const Json* Dash = Lay.Part(PartIn(Parts, "dashboard"));
-		if (PartStr(Dash, "style", "analog") == "tft")
+		// [bikes v2] (A model drawn with a display of its own keeps it: V2Gauges lights its picture.)
+		if (PartStr(Dash, "style", "analog") == "tft" && !V2DrawsScreen(V2))
 		{
 			V3 Lo(1.0e9, 1.0e9, 1.0e9), Hi(-1.0e9, -1.0e9, -1.0e9);
 			for (FittedPart& P : Out)
@@ -4602,6 +4616,8 @@ int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) con
 	const Json* Gauges = Points ? Points->Get("gauges") : nullptr;
 	if (!F.Valid || !Gauges || !Gauges->IsArray()) return 0;
 	const std::string Slot = Parts.count("dashboard") ? "dashboard" : "frame";
+	// (A TFT fitted to a bike drawn with dials: the TFT's unit stands in their place, FitV2.)
+	const bool bTftOverDials = PartStr(Lay.Part(PartIn(Parts, "dashboard")), "style", "analog") == "tft" && !V2DrawsScreen(V2);
 	int Made = 0;
 	bool bReadout = false;
 	for (const Json& G : Gauges->A)
@@ -4629,6 +4645,7 @@ int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) con
 			Fp.GaugeUp = FromGodot(Tilt.Z * -1.0);
 			Fp.GaugeSize = Size;
 		};
+		if ((What == "speed" || What == "rpm") && bTftOverDials) continue;
 		if (What == "speed" || What == "rpm")
 		{
 			// A cream face over the drawn one (the scale's ink is black), the needle at rest straight up it,

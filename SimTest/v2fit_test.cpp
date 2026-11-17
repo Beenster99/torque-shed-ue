@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
@@ -77,7 +78,17 @@ int main()
 		std::string Bytes, Err;
 		return ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
 	});
+	// The game's own part glbs (the tyres' tread sections, which a V2 bike's tyres are bent from).
 	Json Index = Json::MakeObject();
+	{
+		std::string IndexText, IndexError;
+		Json Whole;
+		if (ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) && Json::Parse(IndexText, Whole, &IndexError) && Whole.Get("parts")) Index = *Whole.Get("parts");
+		else std::printf("FAIL the parts index didn't load (%s)\n", IndexError.c_str());
+	}
+	// The six bike types with no V2 bikes and the parts made only for them are out of the game.
+	Expect(!Db.Find("frame", "tourer_heavy_spar") && !Db.Find("frame", "race_carbon_white"), "the retired types' frames are gone");
+	Expect(Db.Find("frame", "steel_backbone") && Db.Find("saddle", "roader_sport_seat"), "parts the kept types use stay");
 	int Bikes = 0;
 	// The old bikes are retired: the shop sells the eight styles that have V2 bikes, each starting as
 	// its lead V2 bike, and only V2 frames are offered.
@@ -127,8 +138,22 @@ int main()
 		double Low = 1e9, FrontLow = 1e9, RearLow = 1e9;
 		V3 FrontMin(1e9, 1e9, 1e9), FrontMax(-1e9, -1e9, -1e9);
 		bool AllMade = !Fitted.empty(), Named = true;
-		for (const FittedPart& P : Fitted)
+		int TyresMade = 0;
+		for (const FittedPart& Each : Fitted)
 		{
+			FittedPart P = Each;
+			if (!P.Made && (P.Slot == "front_tyre" || P.Slot == "rear_tyre") && P.Glb.rfind("tyre/", 0) == 0)
+			{
+				// The game's tread section bent round the drawn wheel (BikeParts::V2Tyres), drawn as the game draws it.
+				std::string Bytes, GlbError;
+				PartMesh Section;
+				if (ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) && Section.LoadGlb(Bytes, GlbError))
+				{
+					P.Made = std::make_shared<PartMesh>(BikeParts::Draw(Section, P));
+					P.Code = true;
+					++TyresMade;
+				}
+			}
 			if (!P.Made) { AllMade = false; continue; }
 			Nodes.insert(P.Node);
 			Slots.insert(P.Slot);
@@ -153,20 +178,34 @@ int main()
 			}
 		}
 		Expect(AllMade, Id + " every fitted piece is a V2 one");
+		Expect(TyresMade == 2, Id + " both tyres are the game's own tread sections");
 		Expect(Named, Id + " every surface carries its look");
 		{
 			// [TFT] A TFT dash shows as itself with a screen for the game to light, in place of the
 			// model's drawn clocks; any other dash leaves the model's clocks.
 			const Json* Dash = Db.Find("dashboard", Parts["dashboard"]);
 			const bool Tft = Dash && Dash->Str("style") == "tft";
-			int Screens = 0, DrawnShown = 0;
+			// [bikes v2] A model drawn with a display keeps it, lit; one drawn with dials gets a working needle
+			// on each (and a TFT fitted to it stands in the dials' place).
+			bool DrawsScreen = false, DrawsDials = false;
+			if (const Json* Pm = V2->Get("points_mm"))
+				if (const Json* Gs = Pm->Get("gauges"))
+					for (const Json& G : Gs->A)
+					{
+						DrawsScreen = DrawsScreen || G.Str("what") == "screen";
+						DrawsDials = DrawsDials || G.Str("what") == "speed";
+					}
+			Expect(DrawsScreen || DrawsDials, Id + " has clocks the game can work");
+			int Screens = 0, DrawnShown = 0, Needles = 0;
 			for (const FittedPart& P : Fitted)
 			{
 				if (P.Gauge.rfind("screen_", 0) == 0) ++Screens;
+				if (P.Gauge == "speed" || P.Gauge == "rpm") ++Needles;
 				if (P.Slot == "dashboard" && !P.Code && !P.Hidden) ++DrawnShown;
 			}
-			Expect(Screens == (Tft ? 1 : 0), Id + " a screen face only for a TFT dash (" + Parts["dashboard"] + ")");
-			Expect(!Tft || DrawnShown == 0, Id + " a TFT dash hides the model's drawn clocks");
+			Expect(Screens == (Tft || DrawsScreen ? 1 : 0), Id + " one screen face for a TFT dash or a drawn display (" + Parts["dashboard"] + ")");
+			Expect(!(Tft && !DrawsScreen) || DrawnShown == 0, Id + " a TFT dash fitted to a bike drawn with dials hides them");
+			Expect(Needles == (DrawsDials && !Tft ? 2 : 0), Id + " a needle on each drawn dial (" + std::to_string(Needles) + ")");
 		}
 		Expect(Nodes.count("steer") && Nodes.count("front_wheel") && Nodes.count("rear_wheel") && Nodes.count("front_hub") && Nodes.count(""), Id + " pieces on the steering, the wheels and the bike");
 		Expect(Slots.count("tank") && Slots.count("engine") && Slots.count("frame") && Slots.count("saddle") && Slots.count("exhaust"), Id + " tank, engine, frame, saddle and exhaust pieces");

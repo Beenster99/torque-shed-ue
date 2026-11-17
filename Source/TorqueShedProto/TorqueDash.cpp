@@ -64,7 +64,8 @@ void FTorqueDash::Setup(const TMap<FString, FString>& Parts)
 				bScreen = bScreen || G.Str("what") == "screen";
 				bRevs = bRevs || G.Str("what") == "rpm";
 			}
-			Style = bScreen ? TEXT("tft") : bRevs ? TEXT("twin") : TEXT("analog");
+			// (A TFT fitted to a bike drawn with dials stays a TFT: its unit stands in the dials' place.)
+			if (bScreen || Style != TEXT("tft")) Style = bScreen ? TEXT("tft") : bRevs ? TEXT("twin") : TEXT("analog");
 			Features.AddUnique(TEXT("speed"));
 			if (bScreen || bRevs) Features.AddUnique(TEXT("rpm"));
 			Features.AddUnique(TEXT("gear"));
