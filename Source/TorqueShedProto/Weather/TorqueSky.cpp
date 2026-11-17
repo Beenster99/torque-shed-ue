@@ -519,6 +519,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 void ATorqueSky::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TickCloudsCheck();
 	TickDrift(DeltaSeconds);
 	TickHighSheet();
 	TickMist();
@@ -529,6 +530,37 @@ void ATorqueSky::Tick(float DeltaSeconds)
 	TickLightning(DeltaSeconds);
 	TickMeteors();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
+}
+
+void ATorqueSky::TickCloudsCheck()
+{
+	// Once a second: whether our clouds are still drawn, and why not, logged when that changes. A cloud
+	// lost (its actor remade) or the sky collection gone is found again, and the rebuilt clouds worn again.
+	UWorld* W = GetWorld();
+	if (!W || !bFound) return;
+	const double Now = W->GetTimeSeconds();
+	if (Now - CloudsCheckedAt < 1.0) return;
+	CloudsCheckedAt = Now;
+	FString Why = CloudsWhyNot();
+	if (!Why.IsEmpty() && (!CloudPtr.IsValid() || !SkyMpc))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque sky: clouds not drawn (%s): looking for them again"), *Why);
+		CloudPtr.Reset();
+		CloudMid = nullptr;
+		bMapTried = false;
+		Find();
+		Why = CloudsWhyNot();
+	}
+	if (Why != CloudsWhyLogged)
+	{
+		const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
+		const AActor* Owner = Cloud ? Cloud->GetOwner() : nullptr;
+		const FString State = Why.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + Why;
+		UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds %s (cloud %s, visible %d, actor hidden %d, wears %s)"),
+			*State, *GetNameSafe(Owner), Cloud && Cloud->IsVisible() ? 1 : 0, Owner && Owner->IsHidden() ? 1 : 0,
+			*GetNameSafe(Cloud ? ReadObjectProperty(Cloud, TEXT("Material")) : nullptr));
+		CloudsWhyLogged = Why;
+	}
 }
 
 void ATorqueSky::TickDrift(float DeltaSeconds)
