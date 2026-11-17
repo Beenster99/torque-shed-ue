@@ -22,6 +22,7 @@ captured; 2.2 if it comes out pale), Brightness, NormalEncoded01 (1 if the norma
 the bake log says), MaskDepth (the depth that counts as tree, in the tree's radii).
 """
 import math
+import traceback
 
 import unreal
 
@@ -292,8 +293,17 @@ def bake(mesh_path):
     cap_actor = acts.spawn_actor_from_class(unreal.SceneCapture2D, at)
     cap = cap_actor.capture_component2d
     _set(cap, capture_every_frame=False, capture_on_movement=False, projection_type=unreal.CameraProjectionMode.ORTHOGRAPHIC,
-         ortho_width=radius * 2.0, primitive_render_mode=unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST,
-         show_only_actors=[tree])
+         ortho_width=radius * 2.0, primitive_render_mode=unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST)
+    # ([round 154] the ShowOnlyActors property can't be set from Python on UE 5.8 ("cannot be edited on
+    # templates"), which left the list empty and every capture black: the component's own function)
+    try:
+        cap.show_only_actor_components(tree, False)
+    except TypeError:
+        cap.show_only_actor_components(tree)
+    try:
+        cap.show_only_component(tree.static_mesh_component)
+    except Exception:
+        pass
     F = unreal.TextureRenderTargetFormat
     shots = {"C": (unreal.SceneCaptureSource.SCS_BASE_COLOR, _rt(F.RTF_RGBA8, CAPTURE_PX), _rt_asset("RT_Imp_C", F.RTF_RGBA8, ATLAS_PX)),
              "N": (unreal.SceneCaptureSource.SCS_NORMAL, _rt(F.RTF_RGBA16F, CAPTURE_PX), _rt_asset("RT_Imp_N", F.RTF_RGBA16F, ATLAS_PX)),
@@ -318,6 +328,11 @@ def bake(mesh_path):
                         probe = unreal.RenderingLibrary.read_render_target_raw_pixel(world, shot, CAPTURE_PX // 2, CAPTURE_PX // 2)
                     except Exception:
                         probe = None
+    try:
+        cprobe = unreal.RenderingLibrary.read_render_target_raw_pixel(world, shots["C"][1], CAPTURE_PX // 2, CAPTURE_PX // 2)
+        log("%s: last colour view's middle pixel %.2f %.2f %.2f (all 0: nothing was captured)" % (base, cprobe.r, cprobe.g, cprobe.b))
+    except Exception:
+        pass
     if probe is not None:
         log("%s: normal capture at the middle of a side view reads %.2f %.2f %.2f (negatives: -1..1, set NormalEncoded01 0; all 0..1: maybe 1)"
             % (base, probe.r, probe.g, probe.b))
@@ -331,7 +346,7 @@ def bake(mesh_path):
             eal.delete_asset(dest)
         comp = T.TC_DEFAULT if key == "C" else T.TC_HDR
         mips = unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP if key != "D" else unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
-        tex = unreal.RenderingLibrary.render_target_create_static_texture2d_editor(atlas, comp, mips)
+        tex = _texture_of(atlas, comp, mips)
         if tex is None:
             log("%s: no texture from the %s atlas" % (base, key))
             break
@@ -368,6 +383,28 @@ def bake(mesh_path):
         return None
     log("%s: baked (radius %.0f cm, height %.0f cm)" % (base, radius, ext.z * 2.0))
     return card.get_path_name()
+
+
+def _texture_of(rt, comp, mips):
+    """A texture asset made from a render target asset (the function's name moved between releases:
+    UE 5.8 has no RenderTargetCreateStaticTexture2DEditor)."""
+    R = unreal.RenderingLibrary
+    for name in ("render_target_create_static_texture_editor", "render_target_create_static_texture2d_editor"):
+        f = getattr(R, name, None)
+        if f is None:
+            continue
+        for args in ((rt, rt.get_name() + "_Tex", comp, mips), (rt, comp, mips), (rt,)):
+            try:
+                tex = f(*args)
+                if tex is not None:
+                    return tex
+            except TypeError:
+                continue
+            except Exception as e:
+                log("%s: %s" % (name, e))
+                break
+    log("no render-target-to-texture function worked; RenderingLibrary has: %s" % ", ".join(n for n in dir(R) if "texture" in n.lower()))
+    return None
 
 
 def _card(path, radius, min_z, max_z, mi):
@@ -425,6 +462,6 @@ def bake_all(mesh_paths, rebake=False):
         try:
             out.append(bake(p))
         except Exception as e:
-            log("%s: bake failed: %s" % (p, e))
+            log("%s: bake failed: %s\n%s" % (p, e, traceback.format_exc()))
             out.append(None)
     return out
