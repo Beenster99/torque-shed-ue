@@ -1147,6 +1147,18 @@ public:
 	std::unordered_map<long long, std::vector<int>> ThingGrid;   // by the 64 m square each is in
 	int ThingCount[ThingKinds] = {};
 	int CampsSeen = 0, CampsMade = 0;
+	// [roads stage 8] The airfields' runways and taxiways (tarmac with their paint, or a mown strip for a
+	// short one no wider than a farm strip) and the piers (a deck on piles at its higher end's height, rails
+	// either side), from the map's lines; aprons are tarmac fields (FieldForecourt's).
+	struct AirLine
+	{
+		int Line = -1;          // into Area.Roads.Scenery.Lines
+		int Kind = 0;           // 0 a hard runway, 1 a grass one, 2 a taxiway, 3 a pier
+		double Width = 0.0, Deck = 0.0, Length = 0.0;   // a pier's deck height
+	};
+	std::vector<AirLine> AirLines;
+	std::unordered_map<long long, std::vector<int>> AirGrid;   // by every 64 m square a bit of each passes
+	std::vector<std::vector<P2>> Aprons;   // the airfields' aprons' outlines (fields)
 	void IndexTownLife();   // the forecourts and the things
 	// The forecourt with a pump within Within m of (X, Z), -1 none (the tank fills there).
 	int ForecourtAt(double X, double Z, double Within = 4.0) const;

@@ -502,6 +502,57 @@ void RidePlan::IndexTownLife()
 		T.Seed = static_cast<uint32_t>(std::lround(Mid.X * 7.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Mid.Z * 7.0)) * 19349663u;
 		AddThing(T);
 	}
+
+	// [roads stage 8] The runways, taxiways and piers, and the aprons.
+	AirLines.clear();
+	AirGrid.clear();
+	Aprons.clear();
+	for (size_t L = 0; L < G.Scenery.Lines.size(); ++L)
+	{
+		const FeatureLine& Fl = G.Scenery.Lines[L];
+		const bool Runway = Fl.Kind == "runway", Taxi = Fl.Kind == "taxiway", Pier = Fl.Kind == "pier";
+		if ((!Runway && !Taxi && !Pier) || Fl.Line.size() < 2) continue;
+		AirLine A;
+		A.Line = int(L);
+		for (size_t K = 1; K < Fl.Line.size(); ++K) A.Length += Fl.Line[K].DistanceTo(Fl.Line[K - 1]);
+		if (A.Length < (Pier ? 15.0 : 100.0) || A.Length > 5000.0) continue;
+		const double W = std::isnan(Fl.Width) ? 0.0 : Fl.Width;
+		if (Runway)
+		{
+			// (a long or wide one is a hard runway; a short narrow one a farm or club's grass strip)
+			A.Kind = A.Length >= 1000.0 || W >= 30.0 ? 0 : 1;
+			A.Width = W > 8.0 ? std::fmin(W, 60.0) : A.Kind == 0 ? 45.0 : 25.0;
+		}
+		else if (Taxi)
+		{
+			A.Kind = 2;
+			A.Width = W > 5.0 ? std::fmin(W, 30.0) : 15.0;
+		}
+		else
+		{
+			A.Kind = 3;
+			A.Width = W > 1.0 ? std::fmin(W, 20.0) : 3.0;
+			const double Ya = Ground(Fl.Line.front().X, Fl.Line.front().Z), Yb = Ground(Fl.Line.back().X, Fl.Line.back().Z);
+			if (std::isnan(Ya) && std::isnan(Yb)) continue;
+			A.Deck = std::fmax(std::isnan(Ya) ? -1e9 : Ya, std::isnan(Yb) ? -1e9 : Yb) + 0.8;
+		}
+		const int Index = int(AirLines.size());
+		for (size_t K = 0; K + 1 < Fl.Line.size(); ++K)
+		{
+			const P2& Pa = Fl.Line[K];
+			const P2& Pb = Fl.Line[K + 1];
+			const int Steps = std::max(1, int(Pa.DistanceTo(Pb) / 32.0));
+			for (int St = 0; St <= Steps; ++St)
+			{
+				const P2 Q = Pa + (Pb - Pa) * (double(St) / Steps);
+				std::vector<int>& Row = AirGrid[CourtKey(Q.X, Q.Z)];
+				if (Row.empty() || Row.back() != Index) Row.push_back(Index);
+			}
+		}
+		AirLines.push_back(A);
+	}
+	for (const FeatureArea& Fa : G.Scenery.Areas)
+		if (Fa.Kind == "apron" && Fa.Ring.size() >= 3) Aprons.push_back(Fa.Ring);
 }
 
 int RidePlan::ForecourtAt(double X, double Z, double Within) const
@@ -544,7 +595,7 @@ bool RidePlan::OnForecourt(double X, double Z) const
 
 void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
 {
-	if (Detail < 0 || (Forecourts.empty() && TownThings.empty())) return;
+	if (Detail < 0 || (Forecourts.empty() && TownThings.empty() && AirLines.empty())) return;
 	// (the canopies' bands: plain colours, none a maker's pair)
 	static const Paint Bands[] = {{0.62f, 0.62f, 0.60f}, {0.05f, 0.16f, 0.09f}, {0.04f, 0.07f, 0.20f}, {0.30f, 0.04f, 0.05f}, {0.16f, 0.17f, 0.18f}, {0.70f, 0.70f, 0.68f}};
 	const Paint White = {0.72f, 0.72f, 0.70f}, Post = {0.55f, 0.56f, 0.56f}, Concrete = {0.34f, 0.33f, 0.31f};
@@ -681,6 +732,117 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 				}
 			}
 		}
+	// [roads stage 8] The runways, taxiways and piers: each a run of pieces down its line, a piece drawn by
+	// the square its middle is in.
+	if (!AirLines.empty())
+	{
+		std::vector<int> Here;
+		for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
+			for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
+			{
+				const auto It = AirGrid.find(Cx * 4000037LL + Cz);
+				if (It != AirGrid.end()) Here.insert(Here.end(), It->second.begin(), It->second.end());
+			}
+		std::sort(Here.begin(), Here.end());
+		Here.erase(std::unique(Here.begin(), Here.end()), Here.end());
+		const Paint Tarmac = {0.06f, 0.06f, 0.065f}, Taxi = {0.075f, 0.075f, 0.08f}, Mown = {0.13f, 0.20f, 0.06f}, Paint0 = {0.7f, 0.7f, 0.66f}, TaxiLine = {0.6f, 0.45f, 0.03f};
+		const Paint Deck = {0.21f, 0.16f, 0.11f}, Iron = {0.10f, 0.11f, 0.11f}, Rail = {0.55f, 0.55f, 0.52f};
+		const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
+		for (int Ai : Here)
+		{
+			const AirLine& A = AirLines[size_t(Ai)];
+			const std::vector<P2>& Line = Area.Roads.Scenery.Lines[size_t(A.Line)].Line;
+			if (A.Kind == 3 && Detail < 1) continue;
+			// (points down it every Step m, each with its way along)
+			const double Step = A.Kind == 3 ? 3.0 : 5.0;
+			std::vector<P2> At, Way;
+			std::vector<double> Run;
+			{
+				double Done = 0.0;
+				for (size_t K = 0; K + 1 < Line.size(); ++K)
+				{
+					const P2 D = Line[K + 1] - Line[K];
+					const double L = D.Length();
+					if (L < 1e-6) continue;
+					const P2 U = D * (1.0 / L);
+					for (double T = At.empty() ? 0.0 : std::fmod(Step - std::fmod(Done, Step), Step); T < L; T += Step)
+					{
+						At.push_back(Line[K] + U * T);
+						Way.push_back(U);
+						Run.push_back(Done + T);
+					}
+					Done += L;
+				}
+				At.push_back(Line.back());
+				Way.push_back(Way.empty() ? P2(1.0, 0.0) : Way.back());
+				Run.push_back(A.Length);
+			}
+			const double Half = A.Width * 0.5;
+			const double Lift = A.Kind == 1 ? 0.06 : 0.1;
+			// (a band of the piece from point I to I + 1: Off0 to Off1 across (+ left), Up over the ground or the deck)
+			// (in columns no more than 3 m across, each corner on the ground, so the ground's own folds never show through)
+			const auto Band = [&](RideMesh& Into, size_t I, double Off0, double Off1, double Up, const Paint& C)
+			{
+				const P2 La(-Way[I].Z, Way[I].X), Lb(-Way[I + 1].Z, Way[I + 1].X);
+				const int Cols = std::max(1, int(std::ceil(std::fabs(Off1 - Off0) / 3.0)));
+				const auto Y = [&](const P2& Q)
+				{
+					if (A.Kind == 3) return A.Deck + Up;
+					const double Gy = Ground(Q.X, Q.Z);
+					return (std::isnan(Gy) ? 0.0 : Gy) + Up;
+				};
+				for (int Cn = 0; Cn < Cols; ++Cn)
+				{
+					const double O0 = Off0 + (Off1 - Off0) * Cn / Cols, O1 = Off0 + (Off1 - Off0) * (Cn + 1) / Cols;
+					const P2 Q[4] = {At[I] + La * O0, At[I + 1] + Lb * O0, At[I + 1] + Lb * O1, At[I] + La * O1};
+					V3 V[4];
+					for (int K = 0; K < 4; ++K) V[K] = Pt(Q[K].X, Y(Q[K]), Q[K].Z);
+					Face(Into, V[0], V[1], V[2], V[3], Pt((V[0].X + V[2].X) * 0.5, (V[0].Y + V[2].Y) * 0.5 - 10.0, (V[0].Z + V[2].Z) * 0.5), C);
+				}
+			};
+			for (size_t I = 0; I + 1 < At.size(); ++I)
+			{
+				if (!Inside((At[I] + At[I + 1]) * 0.5)) continue;
+				if (A.Kind == 3)
+				{
+					// A pier: its deck, its rails either side, iron piles every other piece where the ground is below.
+					Band(Out, I, -Half, Half, 0.0, Deck);
+					Band(Out, I, -Half, Half, -0.25, Iron);
+					for (double Sd : {-1.0, 1.0})
+					{
+						const P2 L(-Way[I].Z * Sd, Way[I].X * Sd);
+						const P2 Pa = At[I] + L * (Half - 0.05), Pb = At[I + 1] + L * (Half - 0.05);
+						RideShapes::Strut(Out, Pt(Pa.X, A.Deck + 1.0, Pa.Z), Pt(Pb.X, A.Deck + 1.0, Pb.Z), 0.06, Rail);
+						RideShapes::Strut(Out, Pt(Pa.X, A.Deck, Pa.Z), Pt(Pa.X, A.Deck + 1.0, Pa.Z), 0.05, Rail);
+						if (I % 2 == 0)
+						{
+							const double Gy = Ground(Pa.X, Pa.Z);
+							if (!std::isnan(Gy) && Gy < A.Deck - 0.6) RideShapes::Column(Out, Pt(Pa.X, Gy - 0.5, Pa.Z), 0.18, 0.18, A.Deck - Gy + 0.25, 6, Iron);
+						}
+					}
+					continue;
+				}
+				Band(Out, I, -Half, Half, Lift, A.Kind == 0 ? Tarmac : A.Kind == 1 ? Mown : Taxi);
+				if (A.Kind == 1 || Detail < 1) continue;
+				// Its paint: a hard runway's edge lines, dashed centre line and threshold bars at its ends; a
+				// taxiway's yellow centre line.
+				const double Up = Lift + 0.015;
+				if (A.Kind == 2) { Band(Out, I, -0.15, 0.15, Up, TaxiLine); continue; }
+				Band(Out, I, -Half + 0.6, -Half + 1.5, Up, Paint0);
+				Band(Out, I, Half - 1.5, Half - 0.6, Up, Paint0);
+				const double Mid = Run[I] + Step * 0.5;
+				if (std::fmod(Mid, 50.0) < 30.0 && Mid > 60.0 && Mid < A.Length - 60.0) Band(Out, I, -0.45, 0.45, Up, Paint0);
+				if (Mid < 40.0 || Mid > A.Length - 40.0)
+					for (int Bar = 0; Bar < 8; ++Bar)
+					{
+						const double C = (Bar - 3.5) * (Half - 3.0) / 4.0;
+						if (std::fabs(C) < 2.5) continue;
+						Band(Out, I, C - 0.9, C + 0.9, Up, Paint0);
+					}
+			}
+		}
+	}
+
 	// The things.
 	if (Detail < 1 || TownThings.empty()) return;
 	static const Paint TentCloth[] = {{0.10f, 0.20f, 0.08f}, {0.45f, 0.18f, 0.04f}, {0.06f, 0.12f, 0.30f}, {0.30f, 0.30f, 0.28f}, {0.40f, 0.08f, 0.06f}, {0.32f, 0.26f, 0.10f}};
