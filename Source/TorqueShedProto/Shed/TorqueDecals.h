@@ -10,6 +10,7 @@
 #include "CoreMinimal.h"
 #include "Fit/BikeDecal.h"
 
+class UMaterialInterface;
 class UMeshComponent;
 class UObject;
 class UStaticMesh;
@@ -97,7 +98,8 @@ bool ReadyHelmet(UStaticMeshComponent* Helmet);
 void ApplyHelmet(UMeshComponent* Helmet, const FString& Text);
 // The helmet the riders wear (ue_assets.json rider_rig.helmet) and its fit (turned and scaled as on
 // the head), for the decal mode's stand; null if it's not a static mesh.
-UStaticMesh* HelmetMesh(FTransform& OutFit);
+// OutKitPaint: the kit's helmet paint (ue_assets.json rider.helmet) for TorqueHelmetLook::ApplyPaint.
+UStaticMesh* HelmetMesh(FTransform& OutFit, UMaterialInterface*& OutKitPaint);
 
 FString ToUe(const std::string& S);
 std::string ToStd(const FString& S);

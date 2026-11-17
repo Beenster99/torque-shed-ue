@@ -750,14 +750,19 @@ void ApplyHelmet(UMeshComponent* Helmet, const FString& Text)
 	Apply({C}, Text, true);
 }
 
-UStaticMesh* HelmetMesh(FTransform& OutFit)
+UStaticMesh* HelmetMesh(FTransform& OutFit, UMaterialInterface*& OutKitPaint)
 {
 	OutFit = FTransform::Identity;
+	OutKitPaint = nullptr;
 	FString Raw;
 	TSharedPtr<FJsonObject> J;
 	if (!FFileHelper::LoadFileToString(Raw, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Bike/SpeedTwin/ue_assets.json"))) ||
 		!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Raw), J) || !J.IsValid())
 		return nullptr;
+	const TSharedPtr<FJsonObject>* Kit = nullptr;
+	FString KitPath;
+	if (J->TryGetObjectField(TEXT("rider"), Kit) && (*Kit)->TryGetStringField(TEXT("helmet"), KitPath) && !KitPath.IsEmpty())
+		OutKitPaint = LoadObject<UMaterialInterface>(nullptr, *KitPath);
 	const TSharedPtr<FJsonObject>* Rig = nullptr;
 	if (!J->TryGetObjectField(TEXT("rider_rig"), Rig)) return nullptr;
 	// As ATorqueBikePawn::BuildRiderRig fits it: the import frame, then the Fab helmet's fit.

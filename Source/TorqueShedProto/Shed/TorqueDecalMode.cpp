@@ -11,6 +11,7 @@
 #include "Shed/TorqueProfile.h"
 #include "RiderRig.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "SonyPad.h"
 #include "CanvasItem.h"
 #include "Camera/CameraComponent.h"
@@ -599,7 +600,8 @@ void ATorqueDecalMode::ShowHelmet(bool bHelmet)
 	if (bHelmet && !S.Stand && Bike)
 	{
 		FTransform Fit;
-		UStaticMesh* Mesh = TorqueDecals::HelmetMesh(Fit);
+		UMaterialInterface* KitPaint = nullptr;
+		UStaticMesh* Mesh = TorqueDecals::HelmetMesh(Fit, KitPaint);
 		if (!Mesh)
 		{
 			Say(TEXT("There's no helmet to put decals on in this build."));
@@ -616,7 +618,7 @@ void ATorqueDecalMode::ShowHelmet(bool bHelmet)
 		S.Stand->SetupAttachment(RootComponent);
 		S.Stand->RegisterComponent();
 		S.Stand->SetWorldTransform(Fit * FTransform(Bike->GetActorRotation(), At));
-		TorqueHelmetLook::ApplyPaint(S.Stand, FTorqueProfile::Mine(), nullptr);   // (the player's own paint)
+		TorqueHelmetLook::ApplyPaint(S.Stand, FTorqueProfile::Mine(), KitPaint);   // (the player's own paint, as worn)
 		// Its middle at At, on a pole down to the floor.
 		S.Stand->UpdateBounds();
 		const FBox Box = S.Stand->Bounds.GetBox();
