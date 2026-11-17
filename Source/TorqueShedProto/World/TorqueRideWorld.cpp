@@ -104,6 +104,11 @@ TAutoConsoleVariable<float> CVarNearTreeM(TEXT("torque.RideNearTreeM"), 200.0f,
 // and 18.9 at Loch Brecbowie)
 TAutoConsoleVariable<float> CVarTreePatch(TEXT("torque.RideTreePatch"), 128.0f,
 	TEXT("Ride UK: the patches (m) near trees are grouped in for the scans/far-model handover (128, build 153; 256 = one per square). For squares made after the change."));
+// ([build 155] Round 154, Loch Brecbowie birch wood: the near scans cost ~10 ms GPU and ~21 ms of render
+// thread, from their draw count (1905 tree groups), not shadows, sway or pixels. Fewer models of each
+// kind make fewer groups; the far cards follow the same choice, so a tree keeps its look at the handover.)
+TAutoConsoleVariable<int32> CVarTreeVariants(TEXT("torque.RideTreeVariants"), 3,
+	TEXT("Ride UK: at most this many models of each tree kind (6 until 154). For squares made after the change."));
 TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
 	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
@@ -2318,7 +2323,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 			const int32 Si = Among[FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1)];
 			const FTorqueFoliageSpecies& S = Kit[Si];
 			if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) return;   // (bigger scanned plants: fewer of them)
-			const int32 Vi = S.Variants.Num() > 1 ? FMath::Min(int32(float((H ^ 0x9e3779b9u) * 2246822519u >> 8) / float(1 << 24) * S.Variants.Num()), S.Variants.Num() - 1) : 0;
+			const int32 Models = bTree ? FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, FMath::Max(S.Variants.Num(), 1)) : S.Variants.Num();
+			const int32 Vi = Models > 1 ? FMath::Min(int32(float((H ^ 0x9e3779b9u) * 2246822519u >> 8) / float(1 << 24) * Models), Models - 1) : 0;
 			UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
 			if (!Model) return;
 			const FVector& Frame = bTree ? TreeFrame : GrassFrame;
