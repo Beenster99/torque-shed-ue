@@ -157,6 +157,8 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string TypesText;   // [towns stage 4]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string PlaceText;   // [OSM stage 6C]
@@ -289,7 +291,11 @@ int main(int Argc, char** Argv)
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
 	// the game places them when it has them all.
-	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr) Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
+	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr)
+	{
+		Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
+		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
+	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	{
 		int Urban = 0, All = 0;
@@ -418,6 +424,8 @@ int main(int Argc, char** Argv)
 				Tally.HouseFloors[0], Tally.HouseMapped[0], Tally.HouseFloors[1], Tally.HouseMapped[1], Tally.HouseFloors[2], Tally.HouseMapped[2],
 				Tally.HousesByRoad, Tally.LongSideToRoad);
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
+			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
+				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.
@@ -1376,6 +1384,44 @@ int main(int Argc, char** Argv)
 				}
 			}
 			std::printf("  roads' pieces through it: %zu tris, %zu of them paint\n", RoadTris, PaintTris);
+		}
+	}
+	// [towns stage 4] WORLD_RIDE_ROWS=lat,lon: the houses in the 512 m round there by the rows MarkRows finds
+	// (alone, semis, terraces by length).
+	if (const char* RowsAt = std::getenv("WORLD_RIDE_ROWS"))
+	{
+		double La = 0.0, Lo = 0.0;
+		if (std::sscanf(RowsAt, "%lf,%lf", &La, &Lo) == 2)
+		{
+			const P2 C = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+			std::vector<std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> Hold;
+			std::vector<const RidePlan::OutlinePiece*> Got;
+			std::vector<CellId> Covered;
+			Plan->OutlinesIn(C.X - 256.0, C.Z - 256.0, 512.0, Hold, Got, Covered);
+			int Houses = 0, Alone = 0, Semis = 0, Terraced = 0, Longest = 0, LongAlone = 0, GapHist[4] = {};
+			std::map<int, int> BySize;
+			for (const RidePlan::OutlinePiece* P : Got)
+			{
+				if (!P->Main || P->B.More.empty() || int(P->B.More[0]) != 0) continue;
+				++Houses;
+				(P->RowSize <= 1 ? Alone : P->RowSize == 2 ? Semis : Terraced) += 1;
+				Longest = std::max(Longest, P->RowSize);
+				if (P->RowPos == 0) ++BySize[std::min(P->RowSize, 12)];
+				if (P->RowSize <= 1 && std::fmax(P->B.W, P->B.D) >= 12.0 && std::fmax(P->B.W, P->B.D) > 2.5 * std::fmin(P->B.W, P->B.D)) ++LongAlone;
+				if (P->RowSize <= 1)
+				{
+					// (how near its nearest other house's middle is, against their sizes)
+					double Gap = 1e9;
+					for (const RidePlan::OutlinePiece* Q : Got)
+						if (Q != P && Q->Main && !Q->B.More.empty() && int(Q->B.More[0]) == 0)
+							Gap = std::fmin(Gap, std::hypot(Q->B.X - P->B.X, Q->B.Z - P->B.Z) - 0.5 * (std::sqrt(P->B.W * P->B.D) + std::sqrt(Q->B.W * Q->B.D)));
+					++GapHist[Gap < 0.0 ? 0 : Gap < 1.0 ? 1 : Gap < 3.0 ? 2 : 3];
+				}
+			}
+			std::printf("  alone: %d long single outlines (drawn as terraces by length); centre gaps <0 %d, <1 m %d, <3 m %d, more %d\n", LongAlone, GapHist[0], GapHist[1], GapHist[2], GapHist[3]);
+			std::printf("rows round %.5f,%.5f: %d houses: %d alone, %d semis, %d in terraces (longest %d); rows by size:", La, Lo, Houses, Alone, Semis, Terraced, Longest);
+			for (const auto& Kv : BySize) std::printf(" %d:%d", Kv.first, Kv.second);
+			std::printf("\n");
 		}
 	}
 	// [build 150] WORLD_RIDE_PIECETIME=1: how long each road piece (64 knots) takes to make, the slowest listed.

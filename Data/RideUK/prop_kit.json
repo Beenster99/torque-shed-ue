@@ -35,6 +35,8 @@
   "door_ledged_light": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "door_modern": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "door_double": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
-  "door_hood": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""}
+  "door_hood": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
+  "bay_canted": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
+  "bay_square": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""}
  }
 }

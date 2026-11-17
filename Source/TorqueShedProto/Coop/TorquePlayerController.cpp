@@ -820,13 +820,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			}
 			if (Real && !bClient && !bHost)
 			{
-				const FString RealNote = Real->RideNote();
-				Add(TEXT("Ride UK: Hawes to Leyburn"), FString(),
-					RealNote.IsEmpty() ? FString(TEXT("A first look at the real world: 26 km of bare road and hills down Wensleydale")) : RealNote, [this, Real]() {
-						CloseMenu();
-						Real->StartRide(TEXT("hawes"));
-					});
-				if (Real->IsPlanningRide()) R.Last().bDisabled = true;
+				// (the fixed Hawes ride left the menu, beenster Nov 16; the tests still start it by name)
 				Add(TEXT("Plan a ride (Ride UK)"), FString(),
 					TEXT("The Route planner: pins on a map of the UK, famous roads, round trips, and journey codes to share"), [this]() { OpenPlanner(); });
 			}
