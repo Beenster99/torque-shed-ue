@@ -52,8 +52,9 @@ class UTorqueTftComponent : public UActorComponent
 	GENERATED_BODY()
 public:
 	// The bike's screens, from the fitting's tags: lights each one's face. Spec: the bike's riding
-	// spec (what its dash can set).
-	void Hook(const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges, const TorqueSim::BikeSpec& Spec);
+	// spec (what its dash can set). bPhoneFitted: a phone sat nav is on the bike (a bike that draws
+	// none, a V2 one, still gets the HUD's map from it).
+	void Hook(const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges, const TorqueSim::BikeSpec& Spec, bool bPhoneFitted = false);
 	// The bike this machine rides: it takes the rider's own settings and shows on the HUD. (Called
 	// whenever the pawn knows; only the first does anything.)
 	void Own();

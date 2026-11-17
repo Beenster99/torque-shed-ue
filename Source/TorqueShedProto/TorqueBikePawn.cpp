@@ -833,7 +833,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	ModeBase = Spec;
 	bModeBase = bOwnSpec;
 	bCruise = false;
-	if (Tft) Tft->Hook(ModelParts, Gauges, bOwnSpec ? Spec : BikeSpec());
+	{
+		const FString NavPart = Parts.FindRef(TEXT("satnav"));
+		if (Tft) Tft->Hook(ModelParts, Gauges, bOwnSpec ? Spec : BikeSpec(), !NavPart.IsEmpty() && NavPart != TEXT("none"));
+	}
 	// [lights] Its lamps: the headlight, fog lights, indicators and rear light on their lenses.
 	Lights.Setup(Parts);
 	Lights.Hook(this, ModelParts, true);
