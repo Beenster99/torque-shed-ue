@@ -63,7 +63,7 @@ def mats():
     soot = D.surf("pipeblack", (0.0015, 0.0015, 0.0015), 0.0, 1.0, wear=0.0)
     soot.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0
     return dict(chrome=B.mat("chrome"), steel=B.mat("steel"), pipe=B.mat("exhaust"), black=B.mat("exhaust_black"), brushed=D.brushed(),
-                carbon=D.surf("sl_carbon", (0.018, 0.018, 0.02), 0.25, 0.22, coat=1.0, wear=0.0),
+                carbon=__import__("carbon").material(),
                 ti=D.surf("sl_ti", (0.56, 0.57, 0.62), 1.0, 0.3, wear=0.05), soot=soot, dark=B.mat("alu_dark"))
 
 
