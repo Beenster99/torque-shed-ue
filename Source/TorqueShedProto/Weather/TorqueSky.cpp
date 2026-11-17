@@ -538,9 +538,9 @@ void ATorqueSky::TickCloudsCheck()
 	// lost (its actor remade) or the sky collection gone is found again, and the rebuilt clouds worn again.
 	UWorld* W = GetWorld();
 	if (!W || !bFound) return;
-	const double Now = W->GetTimeSeconds();
-	if (Now - CloudsCheckedAt < 1.0) return;
-	CloudsCheckedAt = Now;
+	const double NowSec = W->GetTimeSeconds();
+	if (NowSec - CloudsCheckedAt < 1.0) return;
+	CloudsCheckedAt = NowSec;
 	FString Why = CloudsWhyNot();
 	if (!Why.IsEmpty() && (!CloudPtr.IsValid() || !SkyMpc))
 	{
