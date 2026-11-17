@@ -416,6 +416,7 @@ public:
 		double Length = 0.0;
 		Mouth Mouths[2];       // at its first point's end and its last's
 		bool Track = false, Gravel = false;   // [OSM stage 1] a farm track (no paint); gravel, not tarmac
+		bool Setts = false;    // [towns stage 6] laid in setts or cobbles (the map's surface): no paint
 		int Edge = -1;         // [ride anywhere] its edge in the area's roads
 		std::vector<MappedMark> Mapped;   // [OSM stage 5] its lights, crossings, humps (MapPoints)
 	};
@@ -703,6 +704,9 @@ public:
 		// finished at the model's +x; Variant is the region's walling (WallStyle) times WallVariants plus a pick.
 		// Placed on the finest squares where both are modelled.
 		PropWallStone, PropWallEnd,
+		// [towns stage 6] A town centre's heritage street lamp (cast iron, swan neck, lantern), in place of the
+		// plain one where the street is a shopping street (ShopStreetNear) and it has its model.
+		PropLampHeritage,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -856,6 +860,22 @@ public:
 	// by the kilometre square: AtlasLookAt; null where no area holds it); the squares it covers.
 	std::unordered_map<long long, int> AtlasGrid;
 	int AtlasSquares = 0;
+	// [towns stage 6] The shopping streets (IndexTowns): the map's retail areas (a town centre's
+	// shops, as the map draws them) and its pedestrian streets, each with its box; ShopStreetNear whether a
+	// place is within Reach of either (a building there with its front to a street has a shop front; a
+	// street lamp there is a heritage one).
+	struct ShopPlace
+	{
+		double X0 = 0.0, Z0 = 0.0, X1 = 0.0, Z1 = 0.0;
+		const std::vector<P2>* Ring = nullptr;   // (an area's; null for a street)
+		P2 A, B;                                 // (a street's piece)
+	};
+	std::vector<ShopPlace> ShopPlaces;
+	std::unordered_map<long long, std::vector<int>> ShopGrid;   // by 128 m square, each place whose box (and 60 m) covers it
+	bool ShopStreetNear(double X, double Z, double Reach) const;
+	bool HeritageLampAt(double X, double Z) const;
+	// [towns stage 6] Whether the map's surface for a road is setts or cobbles (drawn in M_RideRoad's setts).
+	static bool SettsSurface(const std::string& Surface);   // (a street lamp here is the heritage kind)
 	void IndexTowns();
 	const LocalLook* TownLookAt(double X, double Z) const;
 	const LocalLook* AtlasLookAt(double X, double Z) const;
@@ -931,6 +951,8 @@ public:
 		// region's (and for roofs, the house's period); the stone ones sooted; the painted ones by the sea.
 		int WallFrom[7] = {}, RoofFrom[7] = {};
 		int Sooted = 0, Painted = 0;
+		int ShopFronts = 0;   // [towns stage 6] shop units fronted
+		int FrontWalls = 0;   // [towns stage 6] houses with a front garden wall
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or
@@ -1233,6 +1255,7 @@ public:
 		int MappedKmh = 0;
 		std::string Name, Class;
 		bool Gravel = false;
+		bool Setts = false;   // [towns stage 6]
 	};
 	std::vector<RoadFact> Facts;
 	struct LimitStretch

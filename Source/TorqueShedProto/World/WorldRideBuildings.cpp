@@ -492,13 +492,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// (a hipped roof's ridge: shorter than the walls by the roof's depth each end, a point if it is square)
 		const double Ridge = std::fmax(0.0, HalfLong - HalfShort);
 		// [OSM stage 3] Its door on the long side nearer a road (the + side if neither is near).
-		double DoorSide = 1.0;
+		double DoorSide = 1.0, FrontGap = 1e9;
 		{
 			NearOpts Opts;
 			NearHit Ha, Hb;
 			const P3 Pa = Local(0.0, HalfShort + 1.0, 0.0), Pb = Local(0.0, -HalfShort - 1.0, 0.0);
 			const double Da = NearestOf(Pa.X, Pa.Z, Opts, Ha) ? Ha.Dist - Ha.Half : 1e9, Db = NearestOf(Pb.X, Pb.Z, Opts, Hb) ? Hb.Dist - Hb.Half : 1e9;
 			if (Db < Da) DoorSide = -1.0;
+			FrontGap = std::fmin(Da, Db);
 			if (Tally && std::fmin(Da, Db) < 20.0) ++Tally->NearRoad;
 		}
 		// [OSM stage 3] A terrace: a house 12 m long or more and over two and a half times as long as
@@ -551,6 +552,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const bool HigherAtPlus = InRow->RowPos == 0 ? PartyPlus : ToSeed < 0.0;
 			DoorPlus = InRow->RowSize == 2 ? (InRow->RowPos == 0) != HigherAtPlus : (InRow->RowPos % 2 == 0) == HigherAtPlus;
 		}
+		// [towns stage 6] A shop: one the map calls a shop, or in a town's shopping street (the map's retail
+		// area or a pedestrian street) a house or a block of two storeys or more with its front to the street:
+		// a shop front on its ground floor, its own windows above.
+		const bool ShopHere = !Plain && !Big && !Ruin && HalfLong * 2.0 >= 3.5 && Eaves >= 3.2
+			&& (IsShop || ((IsHouse || IsBlock) && InTown && Eaves >= 5.0 && FrontGap < 12.0 && ShopStreetNear(B.X, B.Z, 6.0 + HalfShort)));
 		const Rgb StoneTrim = Shade(Stone, Sooted ? 0.55 : 1.15);
 		const bool Surrounds = (Look.StoneSurrounds || (!Rendered && !Brick)) && !Plain;
 		for (double Sg : {1.0, -1.0})
@@ -1006,7 +1012,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 				if (Front) Door(-HalfLong + 1.8, 1.1, 2.4, 9);
 			}
-			else if (Bays > 1 || (InRow && IsHouse))
+			else if ((Bays > 1 || (InRow && IsHouse)) && !ShopHere)
 			{
 				// A terrace: each bay a door and a window beside it, and a window above each on every floor.
 				// ([towns stage 4] a house of a mapped row is one such bay, its door where its row puts it; a
@@ -1038,16 +1044,84 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			else
 			{
 				// A house, a shop, a block, a civic building: windows a row a floor; one door on its front,
-				// in the middle (a shop's ground floor left plain for its front, to come).
+				// in the middle ([towns stage 6] a shop's ground floor its shop front, the rest as before).
+				const bool Shopfront = Front && ShopHere;
+				if (Shopfront)
+				{
+					// [towns stage 6] Shop fronts, as a high street's were built and are kept: a unit every 4.5
+					// to 7 m along the front, each between panelled pilasters under a fascia board and a moulded
+					// cornice the width of the unit; a stall riser under a tall display window, its transom
+					// lights over a bar, two mullions; the door at one side, glazed, set back in its own frame.
+					// The fascia is painted (one colour a unit, a deep heritage colour or a cream) and carries
+					// no name: beenster's rule, only pubs have signs. After dark most windows are lit.
+					static const Rgb ShopPaints[8] = {{0.012f, 0.04f, 0.022f}, {0.01f, 0.018f, 0.05f}, {0.07f, 0.012f, 0.014f}, {0.012f, 0.012f, 0.012f},
+						{0.5f, 0.47f, 0.38f}, {0.05f, 0.06f, 0.065f}, {0.025f, 0.06f, 0.07f}, {0.4f, 0.41f, 0.4f}};
+					const int Units = std::max(1, int(std::lround(HalfLong * 2.0 / 5.6)));
+					const double Uw = HalfLong * 2.0 / Units;
+					const double Cornice = std::fmin(3.45, Eaves - 0.25);              // (the cornice's top)
+					const double FasciaHi = Cornice - 0.1, FasciaLo = FasciaHi - std::fmin(0.55, Cornice * 0.16);
+					const double Riser = 0.55, Transom = FasciaLo - 0.45;
+					for (int Un = 0; Un < Units; ++Un)
+					{
+						const double U0 = -HalfLong + Un * Uw, U1 = U0 + Uw;
+						const double Pick0 = Chance(B.X + Un * 5.3, B.Z - Un * 2.9, 141);
+						const Rgb& Sp = ShopPaints[std::min(7, int(Pick0 * 8.0))];
+						const Rgb SpDark = Shade(Sp, 0.8), SpLight = Shade(Sp, 1.25);
+						const double Pw = 0.22;                                     // (a pilaster's width)
+						Bar(U0 + 0.02, U0 + 0.02 + Pw, 0.0, FasciaLo, 0.16, Sp);
+						Bar(U1 - 0.02 - Pw, U1 - 0.02, 0.0, FasciaLo, 0.16, Sp);
+						Bar(U0 + 0.02, U0 + 0.02 + Pw, FasciaLo - 0.22, FasciaLo, 0.2, SpLight);   // (their capitals)
+						Bar(U1 - 0.02 - Pw, U1 - 0.02, FasciaLo - 0.22, FasciaLo, 0.2, SpLight);
+						Bar(U0, U1, FasciaLo, FasciaHi, 0.2, Sp);                    // (the fascia)
+						Bar(U0 + 0.05, U1 - 0.05, FasciaLo + 0.06, FasciaHi - 0.06, 0.215, SpDark);   // (its sunk panel)
+						Bar(U0 - 0.03, U1 + 0.03, FasciaHi, Cornice, 0.3, SpLight);       // (the cornice, and its lead flashing)
+						Bar(U0 - 0.03, U1 + 0.03, Cornice - 0.015, Cornice + 0.01, 0.32, Shade(Slate, 0.9));
+						const double In0 = U0 + 0.02 + Pw, In1 = U1 - 0.02 - Pw;
+						if (In1 - In0 < 1.2) continue;
+						// (the door: at the unit's end nearer the building's middle, 1 m wide, set back 30 cm in its frame)
+						const bool DoorLeft = (U0 + U1) * 0.5 > 0.0;
+						const double D0 = DoorLeft ? In0 : In1 - 1.0, D1 = D0 + 1.0;
+						const double W0 = DoorLeft ? D1 + 0.1 : In0, W1 = DoorLeft ? In1 : D0 - 0.1;
+						Bar(DoorLeft ? D1 : D0 - 0.1, DoorLeft ? D1 + 0.1 : D0, 0.0, FasciaLo, 0.12, Sp);   // (the door frame's post)
+						Face(D0, D1, 0.0, 0.03, 0.01, Shade(StoneTrim, 0.9));        // (the step)
+						Face(D0 + 0.06, D1 - 0.06, 0.03, Transom - 0.05, -0.02, Sp);  // (the door: glass in a painted frame)
+						Face(D0 + 0.16, D1 - 0.16, 0.9, Transom - 0.2, -0.015, Glass);
+						Face(D0, D1, Transom, FasciaLo, 0.02, Glass);                // (its fanlight)
+						// (the display window)
+						if (W1 - W0 > 0.6)
+						{
+							Bar(W0, W1, 0.0, Riser, 0.12, SpDark);                      // (the stall riser)
+							Bar(W0, W1, Riser, Riser + 0.06, 0.16, SpLight);            // (its sill)
+							Face(W0, W1, Riser + 0.06, FasciaLo, 0.04, Glass);
+							Bar(W0, W1, Transom - 0.04, Transom + 0.04, 0.09, Sp);      // (the transom bar)
+							const int Lights = std::max(2, int((W1 - W0) / 1.4));
+							for (int M = 1; M < Lights; ++M)
+							{
+								const double Mu = W0 + (W1 - W0) * M / Lights;
+								Bar(Mu - 0.035, Mu + 0.035, Riser + 0.06, FasciaLo, 0.08, Sp);
+							}
+							// (most shops lit after dark, a cool white)
+							if (Chance(B.X + Un * 1.7, B.Z + Un * 3.1, 142) < 0.75)
+							{
+								static const Rgb ShopLight = {0.48f, 0.44f, 0.36f};
+								const double Lit = Sg * (HalfShort + 0.045);
+								Quad(Out.NightOf(), Local(W0 + 0.05, Lit, Riser + 0.1), Local(W1 - 0.05, Lit, Riser + 0.1), Local(W1 - 0.05, Lit, Transom - 0.05),
+									Local(W0 + 0.05, Lit, Transom - 0.05), Away, ShopLight, false, 0.0f);
+							}
+						}
+					}
+					if (Tally) Tally->ShopFronts += Units;
+				}
 				const double Space = IsCivic ? 3.0 : 3.5;
 				const int Along = std::max(1, int(HalfLong * 2.0 / Space));
 				// ([towns stage 4] a house's bays on its front either side of its door, where they fit)
-				const bool Bays0 = Front && IsHouse && BayModel >= 0 && Along >= 2 && HalfLong * 2.0 / Along >= 3.4 && Eaves > 3.7;
+				const bool Bays0 = Front && IsHouse && !ShopHere && BayModel >= 0 && Along >= 2 && HalfLong * 2.0 / Along >= 3.4 && Eaves > 3.7;
 				const bool BaysUp = Bays0 && BayTwo && Floors >= 2 && Eaves > 5.0;
 				for (int Fl = 0; Fl < Floors; ++Fl)
 					for (int Wn = 0; Wn < Along; ++Wn)
 					{
 						const double U = -HalfLong + (Wn + 0.5) * (HalfLong * 2.0 / Along), Y = 1.0 + Fl * 2.7;
+						if (Shopfront && Fl == 0) continue;
 						if (Front && Fl == 0 && Wn == Along / 2)
 						{
 							Door(U, IsCivic || IsBlock ? 1.6 : 0.95, IsCivic ? 2.6 : 2.05, 3);
@@ -1061,6 +1135,66 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						}
 						Window(U, Y, IsCivic ? 1.0 : WinW, IsCivic ? std::fmin(2.0, 2.4) : WinH, Wn * 31 + Fl);
 					}
+			}
+		}
+		// [towns stage 6] Between the house and the street: a terrace's or a semi's front garden behind a low
+		// wall of the house's own brick or stone, coped, with a gap for the path to its door (a gate's width);
+		// a semi or a detached house a drive's width more at its far end from the door. Only where the garden
+		// is deep enough to read (1.2 m to 7 m from the front wall to the pavement's back), in a town, and not
+		// for a shop or a house the street's own pavement runs up to; half the post-war ones are open lawns.
+		if (Fine && InTown && IsHouse && !ShopHere && !Plain && !Ruin && Bays == 1 && HouseKind >= HouseTypes::Detached && HouseKind <= HouseTypes::Terrace)
+		{
+			const double Garden = FrontGap + 1.0 - 1.6;   // (FrontGap from 1 m out to the road's edge; the pavement 1.6 m)
+			const bool Open = Modern && Chance(RowX, RowZ, 151) < 0.5;
+			if (Garden >= 1.2 && Garden <= 7.0 && !Open)
+			{
+				const double Line = DoorSide * (HalfShort + Garden - 0.15);
+				const bool Detached = HouseKind == HouseTypes::Detached;
+				const double Ends = Detached ? 1.0 : 0.0;   // (a detached house's wall a metre past each side)
+				double DoorU = 0.0;
+				if (InRow) DoorU = DoorPlus ? HalfLong - 0.9 : -HalfLong + 0.9;
+				else
+				{
+					const int Along0 = std::max(1, int(HalfLong * 2.0 / 3.5));
+					DoorU = -HalfLong + (Along0 / 2 + 0.5) * (HalfLong * 2.0 / Along0);
+				}
+				// (the drive: at the end away from the door, a semi's at its outer end)
+				const bool Drive = HouseKind != HouseTypes::Terrace && HalfLong * 2.0 >= 5.0;
+				const bool DriveAtPlus = DoorU < 0.0;
+				double Runs[3][2];
+				int NRuns = 0;
+				const double From = -HalfLong - Ends, To = HalfLong + Ends;
+				const double G0 = DoorU - 0.55, G1 = DoorU + 0.55;
+				double Lo0 = From, Hi0 = To;
+				if (Drive) { if (DriveAtPlus) Hi0 = std::fmin(To, HalfLong - 2.9 + Ends); else Lo0 = std::fmax(From, -HalfLong + 2.9 - Ends); }
+				if (G0 - Lo0 > 0.3) { Runs[NRuns][0] = Lo0; Runs[NRuns][1] = std::fmin(G0, Hi0); ++NRuns; }
+				if (Hi0 - G1 > 0.3) { Runs[NRuns][0] = std::fmax(G1, Lo0); Runs[NRuns][1] = Hi0; ++NRuns; }
+				const double WallH = Modern ? 0.5 : 0.7 + 0.2 * Chance(RowX, RowZ, 152);
+				const Rgb Coping = Brick ? Shade(Wall, 0.8) : StoneTrim;
+				for (int Rn = 0; Rn < NRuns; ++Rn)
+				{
+					const double U0 = Runs[Rn][0], U1 = Runs[Rn][1];
+					if (U1 - U0 < 0.3) continue;
+					const P3 Ma = Local((U0 + U1) * 0.5, Line, 0.0), Mb = Local((U0 + U1) * 0.5 + 1.0, Line, 0.0);
+					const P3 Ea = Local(U0, Line, 0.0), Eb = Local(U1, Line, 0.0);
+					if (!OffRoad(Ea.X, Ea.Z, 0.4) || !OffRoad(Eb.X, Eb.Z, 0.4)) continue;
+					const double Ga = Ground(Ea.X, Ea.Z), Gb = Ground(Eb.X, Eb.Z);
+					if (std::isnan(Ga) || std::isnan(Gb)) continue;
+					const double Foot = std::fmin(Ga, Gb) - 0.3, Head = std::fmax(Ga, Gb) + WallH;
+					const P2 Dir(Mb.X - Ma.X, Mb.Z - Ma.Z);
+					RideMesh& Into = Rendered ? Washed : Brick ? BrickOut : Houses;
+					Box(Into, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5, 0.11, Foot, Head, Rendered || Brick ? Wall : Mask);
+					Box(Out, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5 + 0.02, 0.15, Head, Head + 0.09, Coping);
+					// (a gate pier each side of the path)
+					for (double Pu : {U0, U1})
+					{
+						if (std::fabs(Pu - G0) > 0.05 && std::fabs(Pu - G1) > 0.05) continue;
+						const P3 Pp = Local(Pu, Line, 0.0);
+						Box(Into, Pp.X, Pp.Z, Dir, 0.17, 0.17, Foot, Head + 0.25, Rendered || Brick ? Wall : Mask);
+						Box(Out, Pp.X, Pp.Z, Dir, 0.2, 0.2, Head + 0.25, Head + 0.35, Coping);
+					}
+				}
+				if (Tally && NRuns > 0) ++Tally->FrontWalls;
 			}
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
