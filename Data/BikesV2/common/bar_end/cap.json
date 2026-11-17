@@ -19,7 +19,8 @@
  "triangles": 1272,
  "surfaces": {
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

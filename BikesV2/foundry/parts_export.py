@@ -59,6 +59,7 @@ GROUPS = [
     ("shock", "shocks", "shocks", "shocks3d.py", "shock_top", "shock", None),
     ("filler_cap", "shocks", "caps", "shocks3d.py", "cap_base", "frame", None),
     ("plate_hanger", "shocks", "hangers", "shocks3d.py", "part_centre", "frame", None),
+    ("fog_lights", "foglamps", "fogs", "foglamps3d.py", "lower_yoke", "steering", None),
 ]
 
 MOUNTS = {
@@ -71,13 +72,14 @@ MOUNTS = {
     "can_inlet": "the middle of the silencer inlet(s) where the pipe slips in (y 0 for a pair)",
     "cap_base": "the middle of the cap's foot on the tank",
     "part_centre": "the middle of the part (y 0 when it is a left and right pair)",
+    "lower_yoke": "the steering axis at the lower yoke (game points_mm steer_bottom, y 0)",
 }
 
 
 def items():
     """Every approved part as (group, key, name, fits, finishes, script, mount, moves, select, extra)."""
     out = []
-    hos = {k: ho(k) for k in ("bars", "highbars", "controls", "lamps", "clocks", "silencers", "pegs", "brakes", "shocks")}
+    hos = {k: ho(k) for k in ("bars", "highbars", "controls", "lamps", "clocks", "silencers", "pegs", "brakes", "shocks", "foglamps")}
     for g, f, lst, script, mount, moves, sel in GROUPS:
         d = hos[f]
         for it in d[lst]:
@@ -144,6 +146,9 @@ def build_one(it):
         import shocks3d as SH
         kw = {"shock": dict(shock=key), "filler_cap": dict(cap=key), "plate_hanger": dict(hanger=key)}[g]
         b3, m, cc, rep, made = SH.built(mn, **kw)
+    elif g == "fog_lights":
+        import foglamps3d as FG
+        b3, m, cc, rep, made = FG.built(mn, key)
     else:
         raise ValueError(g)
     return b3, m, cc, made
@@ -185,6 +190,10 @@ def mount_point(it, m, cc, names):
     if kind == "bar_clamp":
         rz, has = BR.clamp_point(m, cc)
         return (rz[0], 0.0, rz[1])
+    if kind == "lower_yoke":
+        import game_parts as GP
+        sb = GP.points(m)["steer_bottom"]
+        return (sb[0], 0.0, sb[2])
     if kind == "top_yoke":
         return (cc["top"][0], 0.0, cc["top"][1])
     if kind == "front_axle":

@@ -19,30 +19,33 @@
  "triangles": 11252,
  "surfaces": {
   "d3_sk_gold": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_anodised",
    "color": [
     0.42,
     0.27,
     0.08
    ],
    "metallic": 1.0,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_sk_gold"
   },
   "d3_sk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
   },
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "d3_sk_spring_red": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.5,
     0.02,
@@ -50,7 +53,8 @@
    ],
    "metallic": 0.35,
    "roughness": 0.3,
-   "coat": 0.6
+   "coat": 0.6,
+   "tag": "d3_sk_spring_red"
   }
  }
 }

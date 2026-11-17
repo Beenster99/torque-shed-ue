@@ -556,7 +556,7 @@
     "grip_offset_mm": [
      -167.0,
      0.0,
-     121.4
+     171.4
     ],
     "grip_y_mm": 318,
     "moves": [
@@ -765,7 +765,7 @@
     "grip_offset_mm": [
      -109.0,
      0.0,
-     399.4
+     449.4
     ],
     "grip_y_mm": 330,
     "moves": [
@@ -893,7 +893,7 @@
     "grip_offset_mm": [
      -79.0,
      0.0,
-     349.4
+     399.4
     ],
     "grip_y_mm": 340,
     "moves": [
@@ -959,7 +959,7 @@
     "grip_offset_mm": [
      -219.0,
      0.0,
-     249.4
+     299.4
     ],
     "grip_y_mm": 350,
     "moves": [
@@ -5819,6 +5819,306 @@
        -75.0,
        215.0,
        394.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "fog_lights": {
+  "v2c_fog_lights_chrome_spot": {
+   "name": "Chrome spot lamps",
+   "description": "Chrome spot lamps. A common part, fitted to suit classic, cafe, cruiser, chopper bikes.",
+   "mass": 1.1,
+   "type": "Halogen, pair",
+   "style": "round",
+   "lumens": 900,
+   "beam": [
+    1.0,
+    0.92,
+    0.78
+   ],
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "chrome_spot",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/chrome_spot.glb",
+      "looks": "fog_lights/chrome_spot.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       -0.0,
+       0.0,
+       0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1188.6,
+       0.0,
+       795.4
+      ],
+      "fork_dir": [
+       -0.41469,
+       0.0,
+       0.90996
+      ],
+      "clamp_mm": [
+       65.6,
+       105.0,
+       -66.8
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_amber_round": {
+   "name": "Amber fog lamps",
+   "description": "Amber fog lamps. A common part, fitted to suit classic, cafe, cruiser, chopper bikes.",
+   "mass": 1.0,
+   "type": "Halogen, amber",
+   "style": "round",
+   "lumens": 700,
+   "beam": [
+    1.0,
+    0.75,
+    0.3
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "classic",
+    "cafe",
+    "cruiser",
+    "chopper"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "amber_round",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/amber_round.glb",
+      "looks": "fog_lights/amber_round.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       -0.0,
+       0.0,
+       0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1188.6,
+       0.0,
+       795.4
+      ],
+      "fork_dir": [
+       -0.41469,
+       0.0,
+       0.90996
+      ],
+      "clamp_mm": [
+       65.6,
+       105.0,
+       -66.8
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_rally": {
+   "name": "Rally lamps",
+   "description": "Rally lamps. A common part, fitted to suit naked, adventure, classic bikes.",
+   "mass": 1.8,
+   "type": "Halogen, rally",
+   "style": "rally",
+   "lumens": 2000,
+   "beam": [
+    1.0,
+    0.9,
+    0.75
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "adventure",
+    "classic"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "rally",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/rally.glb",
+      "looks": "fog_lights/rally.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       0.0,
+       0.0,
+       -0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1212.9,
+       0.0,
+       787.6
+      ],
+      "fork_dir": [
+       -0.40674,
+       0.0,
+       0.91355
+      ],
+      "clamp_mm": [
+       65.0,
+       105.0,
+       -67.4
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_led_cube": {
+   "name": "LED cube pods",
+   "description": "LED cube pods. A common part, fitted to suit naked, adventure, mx bikes.",
+   "mass": 0.6,
+   "type": "LED, pair",
+   "style": "cube",
+   "lumens": 2400,
+   "beam": [
+    0.93,
+    0.97,
+    1.0
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "lightweight": true,
+   "styles": [
+    "naked",
+    "adventure",
+    "mx"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "led_cube",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/led_cube.glb",
+      "looks": "fog_lights/led_cube.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       0.0,
+       0.0,
+       -0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1212.9,
+       0.0,
+       787.6
+      ],
+      "fork_dir": [
+       -0.40674,
+       0.0,
+       0.91355
+      ],
+      "clamp_mm": [
+       65.0,
+       105.0,
+       -67.4
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_fog_lights_slim_bar": {
+   "name": "Slim LED bars",
+   "description": "Slim LED bars. A common part, fitted to suit naked, adventure, mx bikes.",
+   "mass": 1.3,
+   "type": "LED bar",
+   "style": "bar",
+   "lumens": 3500,
+   "beam": [
+    0.93,
+    0.97,
+    1.0
+   ],
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "styles": [
+    "naked",
+    "adventure",
+    "mx"
+   ],
+   "price": 150,
+   "common": {
+    "group": "fog_lights",
+    "key": "slim_bar",
+    "sub": "fog_lights",
+    "pieces": [
+     {
+      "file": "fog_lights/slim_bar.glb",
+      "looks": "fog_lights/slim_bar.json",
+      "anchor": "steer_bottom",
+      "offset_mm": [
+       0.0,
+       0.0,
+       -0.0
+      ],
+      "node": "steer",
+      "sub": "fog_lights",
+      "mount_mm": [
+       1212.9,
+       0.0,
+       787.6
+      ],
+      "fork_dir": [
+       -0.40674,
+       0.0,
+       0.91355
+      ],
+      "clamp_mm": [
+       65.0,
+       105.0,
+       -67.4
       ]
      }
     ],

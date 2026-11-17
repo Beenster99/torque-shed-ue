@@ -19,24 +19,26 @@
  "triangles": 14952,
  "surfaces": {
   "d3_gripring": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.8,
-    0.8,
-    0.82
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 1.0,
-   "roughness": 0.14
+   "roughness": 0.14,
+   "tag": "d3_gripring"
   },
   "grip_leather": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.8,
-    0.8,
-    0.8
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.5
+   "roughness": 0.5,
+   "tag": "grip_leather"
   }
  }
 }

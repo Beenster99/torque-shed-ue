@@ -26,7 +26,8 @@
     0.62
    ],
    "metallic": 1.0,
-   "roughness": 0.3
+   "roughness": 0.3,
+   "tag": "d3_sl_ti"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -36,28 +37,24 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "d3_cf_twill": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    0.8,
-    0.8,
-    0.8
-   ],
-   "metallic": 0.0,
-   "roughness": 0.5,
-   "coat": 1.0
+   "ue": "cat_carbon",
+   "coat": 1.0,
+   "tag": "d3_cf_twill"
   },
   "d3_pipeblack": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.0015,
     0.0015,
     0.0015
    ],
    "metallic": 0.0,
-   "roughness": 1.0
+   "roughness": 1.0,
+   "tag": "d3_pipeblack"
   }
  }
 }

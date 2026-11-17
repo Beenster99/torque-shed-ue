@@ -19,20 +19,22 @@
  "triangles": 3966,
  "surfaces": {
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "d3_lp_silver": {
-   "ue": "cat_brushed_steel",
+   "ue": "chrome",
    "color": [
     0.9,
     0.9,
     0.88
    ],
    "metallic": 1.0,
-   "roughness": 0.12
+   "roughness": 0.12,
+   "tag": "d3_lp_silver"
   },
   "d3_clearglass": {
-   "ue": "cat_brushed_steel",
+   "ue": "v2glass",
    "color": [
     1.0,
     1.0,
@@ -40,28 +42,24 @@
    ],
    "metallic": 0.0,
    "roughness": 0.02,
-   "clear": 1.0
+   "clear": 1.0,
+   "tag": "d3_clearglass"
   },
   "d3_lampdip": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    1.0,
-    0.97,
-    0.9
-   ],
-   "metallic": 0.0,
-   "roughness": 0.5,
-   "glow": 0.9
+   "ue": "lens_clear",
+   "glow": 0.9,
+   "tag": "lens_white"
   },
   "d3_lp_satin": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.05,
     0.05,
     0.055
    ],
    "metallic": 0.85,
-   "roughness": 0.3
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -71,10 +69,12 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

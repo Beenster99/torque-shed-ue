@@ -26,17 +26,19 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45
+   "roughness": 0.45,
+   "tag": "alu_dark"
   },
   "d3_sk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
   },
   "d3_sk_silver": {
    "ue": "cat_brushed_steel",
@@ -46,20 +48,23 @@
     0.64
    ],
    "metallic": 1.0,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_sk_silver"
   },
   "d3_sk_polish": {
-   "ue": "cat_brushed_steel",
+   "ue": "chrome",
    "color": [
     0.8,
     0.8,
     0.82
    ],
    "metallic": 1.0,
-   "roughness": 0.12
+   "roughness": 0.12,
+   "tag": "d3_sk_polish"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

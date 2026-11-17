@@ -19,14 +19,15 @@
  "triangles": 8316,
  "surfaces": {
   "d3_ctl_polished": {
-   "ue": "cat_brushed_steel",
+   "ue": "chrome",
    "color": [
     0.82,
     0.82,
     0.84
    ],
    "metallic": 1.0,
-   "roughness": 0.1
+   "roughness": 0.1,
+   "tag": "d3_ctl_polished"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -36,13 +37,16 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   },
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   }
  }
 }

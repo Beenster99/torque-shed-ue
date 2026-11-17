@@ -40,6 +40,7 @@ CATEGORY = {
     "indicators": "indicators", "tail_light": "tail_light", "plate_hanger": "plate_hanger", "silencer": "silencers",
     "pegs": "rearsets", "heel_plates": "heel_plates", "foot_controls": "foot_controls", "disc": "disc", "caliper": "caliper",
     "sprocket": "sprocket", "shock": "shock", "filler_cap": "filler_cap", "side_stand": "side_stand",
+    "fog_lights": "fog_lights",
 }
 NEW_SLOTS = ("grips", "bar_ends", "levers", "switchgear", "tail_light", "plate_hanger", "silencers", "heel_plates",
              "foot_controls", "sprocket", "filler_cap")
@@ -65,16 +66,20 @@ BASE = {
     "shock": "sport_mono", ("shock", "piggyback"): "sport_mono", ("shock", "coilover"): "twin_shock_gas",
     ("shock", "shroud"): "twin_shock", ("shock", "air"): "enduro_mono",
     "side_stand": "stamped_side",
+    # fog lights ride as the stock lamps they look like (their lumens and beam colour light the road)
+    "fog_lights": "halogen_spots", ("fog_lights", "amber_round"): "amber_fogs", ("fog_lights", "rally"): "rally_lamps",
+    ("fog_lights", "led_cube"): "led_pods", ("fog_lights", "slim_bar"): "light_bar",
 }
 # a light stock-like entry for the new cosmetic slots
 NEW_BASE = dict(mass=0.3, color=[0.08, 0.08, 0.09])
 PRICE = {"bar": 85, "high_bar": 160, "grip": 25, "bar_end": 30, "levers": 120, "switches": 90, "mirrors": 60, "headlamp": 140,
          "clocks": 160, "indicators": 55, "tail_light": 60, "plate_hanger": 95, "silencer": 320, "pegs": 110, "heel_plates": 80,
-         "foot_controls": 120, "disc": 210, "caliper": 260, "sprocket": 70, "shock": 420, "filler_cap": 75, "side_stand": 60}
+         "foot_controls": 120, "disc": 210, "caliper": 260, "sprocket": 70, "shock": 420, "filler_cap": 75, "side_stand": 60,
+         "fog_lights": 150}
 MATERIAL = {"grips": "rubber", "silencers": "metal", "tail_light": "plastic", "switchgear": "plastic"}
 ANCHOR = {"bar_clamp": "steer_top", "top_yoke": "steer_top", "front_axle": "front_axle", "rear_axle": "rear_axle",
           "rider_peg": "peg", "shock_top": "shock_top", "can_inlet": "swing_pivot", "cap_base": "tank_cap",
-          "part_centre": "hip"}
+          "part_centre": "hip", "lower_yoke": "steer_bottom"}
 NODE = {"steering": "steer", "front_wheel": "front_wheel", "rear_wheel": "rear_wheel", "swingarm": "swingarm", "shock": "",
         "frame": ""}
 GROUP_SUB = {"bar": "bar", "high_bar": "bar", "grip": "grip", "bar_end": "bar_end", "levers": "levers", "switches": "switches",
@@ -82,7 +87,7 @@ GROUP_SUB = {"bar": "bar", "high_bar": "bar", "grip": "grip", "bar_end": "bar_en
              "indicators_rear": "ind_rear", "tail_light": "tail_light", "plate_hanger": "plate_hanger", "silencer": "silencer",
              "pegs": "pegs", "heel_plates": "heel_plates", "foot_controls": "foot_controls", "disc_front": "disc_front",
              "disc_rear": "disc_rear", "caliper_front": "caliper_front", "caliper_rear": "caliper_rear", "sprocket": "sprocket",
-             "shock": "shock", "filler_cap": "filler_cap"}
+             "shock": "shock", "filler_cap": "filler_cap", "fog_lights": "fog_lights"}
 # groups exported in two halves that make one shop part
 PAIRS = {"indicators": ("indicators_front", "indicators_rear"), "disc": ("disc_front", "disc_rear"),
          "caliper": ("caliper_front", "caliper_rear")}
@@ -96,6 +101,7 @@ def points(model):
     uf, nb = (-math.sin(rake), math.cos(rake)), (-math.cos(rake), -math.sin(rake))
     at = lambda d, o=0.0: [F[0] + uf[0] * d + nb[0] * o, 0.0, F[1] + uf[1] * d + nb[1] * o]
     out = {"front_axle": [F[0], 0.0, F[1]], "rear_axle": [0.0, 0.0, A[1]], "steer_top": at(fk["length"] - 22, fk["offset"]),
+           "steer_bottom": at(fk["lower_yoke"] + 18, fk["offset"]),
            "swing_pivot": [sw["pivot"][0], 0.0, sw["pivot"][1]], "hip": [g["hip_x"], 0.0, g["seat_height"]]}
     peg = next((h["at"] for h in model.get("hangers", []) if h.get("circle")), None) or (600, 404)
     out["peg"] = [peg[0], 0.0, peg[1]]
@@ -149,8 +155,66 @@ def piece(p, lead):
     off = [round(p["mount_mm"][i] - base[i], 1) for i in range(3)]
     out = dict(file=f"{p['group']}/{p['key']}.glb", looks=f"{p['group']}/{p['key']}.json", anchor=anchor, offset_mm=off,
                node=NODE[p["moves_with"]], sub=GROUP_SUB[p["group"]], mount_mm=p["mount_mm"])
+    if anchor == "steer_bottom":
+        # (on the fork: the game turns the piece about its anchor by the change in rake, so its clamps stay on the legs)
+        rake = math.radians(lead["geometry"]["rake"])
+        out["fork_dir"] = [round(-math.sin(rake), 5), 0.0, round(math.cos(rake), 5)]
+        if p["group"] == "fog_lights":
+            # where the clamps hold the fork tubes on the lead (foglamps3d: tube centres y +-105, at clamp_t up the fork),
+            # from the anchor: the game moves each side's lamp out to the bike's own tube
+            import foglamps3d as FG
+            g, wh = lead["geometry"], lead["wheels"]
+            F = (g["wheelbase"], wh["front"]["tyre_r"])
+            t = FG.clamp_t(lead)
+            cx, cz = F[0] - math.sin(rake) * t, F[1] + math.cos(rake) * t
+            sb = pts["steer_bottom"]
+            out["clamp_mm"] = [round(cx - sb[0], 1), FG.TUBE_Y, round(cz - sb[2], 1)]
     if fallback:
         out["fallback"] = dict(anchor=fallback, offset_mm=[round(p["mount_mm"][i] - pts[fallback][i], 1) for i in range(3)])
+    return out
+
+
+# the game slot each group's lamps light as (TorqueLights finds lens_white on the headlight and fog_lights slots)
+LOOK_SLOT = {"headlamp": "headlight", "fog_lights": "fog_lights", "tail_light": "tail", "indicators_front": "indicators",
+             "indicators_rear": "indicators", "clocks": "dashboard"}
+LIB = None
+
+
+def game_look(name, look, group):
+    """A part's surface as the game should draw it: the pipeline's own materials (d3_*, no game finish in the
+    materials library) get the finish and light tag build3d's game export gives the bikes (game_parts.look), so
+    glass is see-through, lamps glow and are found by the game's lights, grips are rubber. Others keep their
+    library finish; a library lens gets its light tag."""
+    global LIB
+    import game_parts as GP
+    if LIB is None:
+        LIB = json.load(open(os.path.join(ROOT, "data", "materials.json")))
+    tag = name.split(".")[0]
+    spec = LIB["surfaces"].get(tag.split("__")[0], {})
+    slot = LOOK_SLOT.get(group, "")
+    out = dict(look)
+    if tag == "d3_fogamberglass":
+        # (the amber fog lamp's glass: see-through, its colour kept)
+        out.update(ue="v2glass", tag=tag)
+        return out
+    if tag.startswith("grip_") and spec.get("ue") is None:
+        # (the library grips' rubber: their colour is a texture in the pictures, white as a number)
+        out.update(ue="grip", tag=tag, color=[0.016, 0.016, 0.018])
+        return out
+    if spec.get("ue") is None or tag.split("__")[0] == "screen":
+        colour = look.get("color", [0.5, 0.5, 0.5])
+        ue, lens, col = GP.look(tag.split("__")[0], slot, colour, look.get("metallic", 0.0), look.get("roughness", 0.5))
+        out["ue"] = ue
+        if col is None:
+            for k in ("color", "metallic", "roughness"):
+                out.pop(k, None)
+        else:
+            out["color"] = col
+        out["tag"] = lens or tag.split("__")[0]
+    else:
+        ue = spec["ue"]
+        out["tag"] = ("lens_white" if ue == "lens_clear" and slot in ("headlight", "fog_lights") else
+                      ue if ue in ("lens_red", "lens_amber") else tag.split("__")[0])
     return out
 
 
@@ -210,8 +274,10 @@ def main(data):
         shutil.rmtree(dst)
     for (g, k), p in by.items():
         os.makedirs(os.path.join(dst, g), exist_ok=True)
-        for ext in (".glb", ".json"):
-            shutil.copy(os.path.join(SRC, g, k + ext), os.path.join(dst, g, k + ext))
+        shutil.copy(os.path.join(SRC, g, k + ".glb"), os.path.join(dst, g, k + ".glb"))
+        info = json.load(open(os.path.join(SRC, g, k + ".json")))
+        info["surfaces"] = {n: game_look(n, lk, g) for n, lk in info["surfaces"].items()}
+        json.dump(info, open(os.path.join(dst, g, k + ".json"), "w"), indent=1)
     out = dict(about="Common bike parts for the V2 bikes (foundry/common_catalogue.py). Each part rides as its stock "
                      "part of the same category; 'common' says which pieces of the bike it replaces (sub) and where "
                      "its files go (anchor in the bike's points_mm + offset_mm, moving node).",

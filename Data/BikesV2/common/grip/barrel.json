@@ -19,14 +19,15 @@
  "triangles": 21880,
  "surfaces": {
   "grip_barrel": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.8,
-    0.8,
-    0.8
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.55
+   "roughness": 0.55,
+   "tag": "grip_barrel"
   }
  }
 }

@@ -19,14 +19,15 @@
  "triangles": 14968,
  "surfaces": {
   "grip_waffle": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.8,
-    0.8,
-    0.8
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.82
+   "roughness": 0.82,
+   "tag": "grip_waffle"
   }
  }
 }

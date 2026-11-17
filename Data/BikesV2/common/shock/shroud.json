@@ -19,17 +19,19 @@
  "triangles": 20704,
  "surfaces": {
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "d3_sk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
   }
  }
 }

@@ -26,17 +26,19 @@
     0.37
    ],
    "metallic": 1.0,
-   "roughness": 0.36
+   "roughness": 0.36,
+   "tag": "d3_bk_sprsteel"
   },
   "d3_bk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.32
+   "roughness": 0.32,
+   "tag": "d3_bk_black"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -46,7 +48,8 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   }
  }
 }

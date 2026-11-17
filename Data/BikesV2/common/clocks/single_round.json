@@ -19,20 +19,22 @@
  "triangles": 4340,
  "surfaces": {
   "d3_lp_satin": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.05,
     0.05,
     0.055
    ],
    "metallic": 0.85,
-   "roughness": 0.3
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
   },
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "d3_clearglass": {
-   "ue": "cat_brushed_steel",
+   "ue": "v2glass",
    "color": [
     1.0,
     1.0,
@@ -40,20 +42,22 @@
    ],
    "metallic": 0.0,
    "roughness": 0.02,
-   "clear": 1.0
+   "clear": 1.0,
+   "tag": "d3_clearglass"
   },
   "d3_dialblack": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.012,
     0.012,
     0.013
    ],
    "metallic": 0.0,
-   "roughness": 0.6
+   "roughness": 0.6,
+   "tag": "d3_dialblack"
   },
   "d3_dialwhite": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.9,
     0.9,
@@ -61,10 +65,11 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 0.5
+   "glow": 0.5,
+   "tag": "d3_dialwhite"
   },
   "d3_needle": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     1.0,
     0.32,
@@ -72,10 +77,11 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 1.2
+   "glow": 1.2,
+   "tag": "d3_needle"
   },
   "d3_ck_green": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.1,
     1.0,
@@ -83,10 +89,11 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 1.5
+   "glow": 1.5,
+   "tag": "d3_ck_green"
   },
   "d3_ck_blue": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.15,
     0.35,
@@ -94,10 +101,11 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 1.5
+   "glow": 1.5,
+   "tag": "d3_ck_blue"
   },
   "d3_ck_amber": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     1.0,
     0.45,
@@ -105,10 +113,11 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 1.5
+   "glow": 1.5,
+   "tag": "d3_ck_amber"
   },
   "d3_ck_red": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     1.0,
     0.05,
@@ -116,7 +125,8 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 1.5
+   "glow": 1.5,
+   "tag": "d3_ck_red"
   },
   "alu_dark": {
    "ue": "cat_anodised",
@@ -126,7 +136,8 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45
+   "roughness": 0.45,
+   "tag": "alu_dark"
   }
  }
 }

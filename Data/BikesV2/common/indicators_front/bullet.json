@@ -19,29 +19,18 @@
  "triangles": 1832,
  "surfaces": {
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "d3_amberglass": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    1.0,
-    0.36,
-    0.03
-   ],
-   "metallic": 0.0,
-   "roughness": 0.02,
-   "clear": 1.0
+   "ue": "lens_amber",
+   "clear": 1.0,
+   "tag": "lens_amber"
   },
   "d3_amberled": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    1.0,
-    0.42,
-    0.02
-   ],
-   "metallic": 0.0,
-   "roughness": 0.5,
-   "glow": 1.2
+   "ue": "lens_amber",
+   "glow": 1.2,
+   "tag": "lens_amber"
   }
  }
 }
