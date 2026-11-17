@@ -159,7 +159,7 @@ void FTorqueTftPrefs::Save() const
 
 // --- The bike's screens ------------------------------------------------------------------------
 
-void UTorqueTftComponent::Hook(const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges, const TorqueSim::BikeSpec& Spec)
+void UTorqueTftComponent::Hook(const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges, const TorqueSim::BikeSpec& Spec, bool bPhoneFitted)
 {
 	bTft = bPhone = false;
 	ScreenFace.Reset();
@@ -202,6 +202,7 @@ void UTorqueTftComponent::Hook(const TArray<UStaticMeshComponent*>& Meshes, cons
 			ScreenMat = Light(Meshes[G.Mesh], RT);
 		}
 	}
+	if (bPhoneFitted) bPhone = true;
 	Menu = TorqueTft::Menu();
 	Caps = Spec.Aids;
 	Menu.Setup(Caps, ScreenShape == TorqueTft::Shape::Ultra, std::string());
