@@ -228,3 +228,12 @@ if(MSVC)
 else()
   target_compile_options(bikesv2_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# Decals (the decals plan): a part's decals as text, the skin under each, mirror twins, arches.
+add_executable(decal_test decal_test.cpp ${FIT}/BikeDecal.cpp)
+target_include_directories(decal_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(decal_test PRIVATE /W4)
+else()
+  target_compile_options(decal_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

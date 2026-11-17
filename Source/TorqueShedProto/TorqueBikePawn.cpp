@@ -6,6 +6,7 @@
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerState.h"
 #include "Shed/TorqueProfile.h"
+#include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
@@ -4119,6 +4120,12 @@ void ATorqueBikePawn::UpdateRider()
 		HeadLocal = RiderRig.HelmetCentre;
 		RiderFeetDown = FMath::Clamp(In.FeetDown, 0.0, 1.0);
 		UpdateHelmetPaint();
+		// [decals stage 4] The helmet's decals, over its paint: this machine's own, or the rider's in co-op.
+		if (RiderHelmet)
+		{
+			const ATorquePlayerState* HelmetPS = GetPlayerState<ATorquePlayerState>();
+			TorqueDecals::ApplyHelmet(RiderHelmet, (IsLocallyControlled() || !HelmetPS) ? TorqueDecals::MyHelmet() : HelmetPS->HelmetDecals);
+		}
 		UpdateRiderAvatar();
 		return;
 	}

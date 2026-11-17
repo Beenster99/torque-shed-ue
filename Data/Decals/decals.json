@@ -1,0 +1,1753 @@
+{
+ "version": 1,
+ "fonts": [
+  {
+   "id": "fraktur",
+   "file": "Decal/UnifrakturMaguntia-Book.ttf",
+   "name": "Fraktur",
+   "caps": false,
+   "style": "blackletter"
+  },
+  {
+   "id": "fraktur_bold",
+   "file": "Decal/UnifrakturCook-Bold.ttf",
+   "name": "Fraktur Bold",
+   "caps": false,
+   "style": "blackletter"
+  },
+  {
+   "id": "rocker",
+   "file": "Decal/NewRocker-Regular.ttf",
+   "name": "Rocker",
+   "caps": false,
+   "style": "tattoo"
+  },
+  {
+   "id": "pirate",
+   "file": "Decal/PirataOne-Regular.ttf",
+   "name": "Pirate",
+   "caps": false,
+   "style": "blackletter"
+  },
+  {
+   "id": "western",
+   "file": "Decal/Rye-Regular.ttf",
+   "name": "Western",
+   "caps": true,
+   "style": "western"
+  },
+  {
+   "id": "saloon",
+   "file": "Decal/Sancreek-Regular.ttf",
+   "name": "Saloon",
+   "caps": false,
+   "style": "western"
+  },
+  {
+   "id": "signwriter",
+   "file": "Decal/MrDafoe-Regular.ttf",
+   "name": "Signwriter",
+   "caps": false,
+   "style": "script"
+  },
+  {
+   "id": "plate",
+   "file": "Decal/Bungee-Regular.ttf",
+   "name": "Race plate",
+   "caps": true,
+   "style": "numbers"
+  },
+  {
+   "id": "plain",
+   "file": "Badge/OpenSans-SemiBold.ttf",
+   "name": "Plain",
+   "caps": true,
+   "style": "block"
+  },
+  {
+   "id": "bebas",
+   "file": "Badge/BebasNeue-Regular.ttf",
+   "name": "Tall",
+   "caps": true,
+   "style": "block"
+  },
+  {
+   "id": "racing",
+   "file": "Badge/RacingSansOne-Regular.ttf",
+   "name": "Racing",
+   "caps": true,
+   "style": "racing"
+  },
+  {
+   "id": "russo",
+   "file": "Badge/RussoOne-Regular.ttf",
+   "name": "Heavy",
+   "caps": true,
+   "style": "block"
+  },
+  {
+   "id": "audiowide",
+   "file": "Badge/Audiowide-Regular.ttf",
+   "name": "Wide",
+   "caps": true,
+   "style": "racing"
+  },
+  {
+   "id": "blackops",
+   "file": "Badge/BlackOpsOne-Regular.ttf",
+   "name": "Stencil",
+   "caps": true,
+   "style": "stencil"
+  },
+  {
+   "id": "graduate",
+   "file": "Badge/Graduate-Regular.ttf",
+   "name": "College",
+   "caps": true,
+   "style": "slab"
+  },
+  {
+   "id": "righteous",
+   "file": "Badge/Righteous-Regular.ttf",
+   "name": "Retro",
+   "caps": false,
+   "style": "retro"
+  },
+  {
+   "id": "playfair",
+   "file": "Badge/PlayfairDisplay.ttf",
+   "name": "Classic",
+   "caps": false,
+   "style": "serif"
+  },
+  {
+   "id": "lobster",
+   "file": "Badge/Lobster-Regular.ttf",
+   "name": "Lobster",
+   "caps": false,
+   "style": "script"
+  },
+  {
+   "id": "pacifico",
+   "file": "Badge/Pacifico-Regular.ttf",
+   "name": "Surf",
+   "caps": false,
+   "style": "script"
+  },
+  {
+   "id": "kaushan",
+   "file": "Badge/KaushanScript-Regular.ttf",
+   "name": "Brush",
+   "caps": false,
+   "style": "script"
+  }
+ ],
+ "decals": [
+  {
+   "id": "pin_single",
+   "shelf": "shapes",
+   "name": "Pinstripe, curled ends",
+   "tags": [
+    "pinstripe",
+    "line"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 1,
+   "file": "shapes/pin_single.png",
+   "thumb": "thumbs/pin_single.png"
+  },
+  {
+   "id": "pin_double",
+   "shelf": "shapes",
+   "name": "Double pinstripe",
+   "tags": [
+    "pinstripe",
+    "line",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 2,
+   "file": "shapes/pin_double.png",
+   "thumb": "thumbs/pin_double.png"
+  },
+  {
+   "id": "pin_spear",
+   "shelf": "shapes",
+   "name": "Spear stripe",
+   "tags": [
+    "pinstripe",
+    "spear",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 160,
+   "colours": 2,
+   "file": "shapes/pin_spear.png",
+   "thumb": "thumbs/pin_spear.png"
+  },
+  {
+   "id": "pin_flourish",
+   "shelf": "shapes",
+   "name": "Pinstripe flourish",
+   "tags": [
+    "pinstripe",
+    "flourish",
+    "line"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 1,
+   "file": "shapes/pin_flourish.png",
+   "thumb": "thumbs/pin_flourish.png"
+  },
+  {
+   "id": "pin_eye",
+   "shelf": "shapes",
+   "name": "Pinstripe eye",
+   "tags": [
+    "pinstripe",
+    "flourish",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/pin_eye.png",
+   "thumb": "thumbs/pin_eye.png"
+  },
+  {
+   "id": "stripes_twin",
+   "shelf": "shapes",
+   "name": "Twin racing stripes",
+   "tags": [
+    "stripe",
+    "racing",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/stripes_twin.png",
+   "thumb": "thumbs/stripes_twin.png"
+  },
+  {
+   "id": "stripes_triple",
+   "shelf": "shapes",
+   "name": "Three stripes",
+   "tags": [
+    "stripe",
+    "racing"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripes_triple.png",
+   "thumb": "thumbs/stripes_triple.png"
+  },
+  {
+   "id": "stripe_centre",
+   "shelf": "shapes",
+   "name": "Centre stripe with pin lines",
+   "tags": [
+    "stripe",
+    "racing",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/stripe_centre.png",
+   "thumb": "thumbs/stripe_centre.png"
+  },
+  {
+   "id": "stripe_speed",
+   "shelf": "shapes",
+   "name": "Speed lines",
+   "tags": [
+    "stripe",
+    "speed"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_speed.png",
+   "thumb": "thumbs/stripe_speed.png"
+  },
+  {
+   "id": "stripe_hockey",
+   "shelf": "shapes",
+   "name": "Hockey stick stripe",
+   "tags": [
+    "stripe",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/stripe_hockey.png",
+   "thumb": "thumbs/stripe_hockey.png"
+  },
+  {
+   "id": "stripe_zigzag",
+   "shelf": "shapes",
+   "name": "Zigzag stripe",
+   "tags": [
+    "stripe",
+    "zigzag"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_zigzag.png",
+   "thumb": "thumbs/stripe_zigzag.png"
+  },
+  {
+   "id": "stripe_hazard",
+   "shelf": "shapes",
+   "name": "Hazard stripes",
+   "tags": [
+    "stripe",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 2,
+   "file": "shapes/stripe_hazard.png",
+   "thumb": "thumbs/stripe_hazard.png"
+  },
+  {
+   "id": "stripe_chevrons",
+   "shelf": "shapes",
+   "name": "Chevrons",
+   "tags": [
+    "stripe",
+    "arrow"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_chevrons.png",
+   "thumb": "thumbs/stripe_chevrons.png"
+  },
+  {
+   "id": "stripe_dots",
+   "shelf": "shapes",
+   "name": "Dot fade",
+   "tags": [
+    "stripe",
+    "halftone"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_dots.png",
+   "thumb": "thumbs/stripe_dots.png"
+  },
+  {
+   "id": "chequers_strip",
+   "shelf": "shapes",
+   "name": "Chequered strip",
+   "tags": [
+    "chequers",
+    "racing"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/chequers_strip.png",
+   "thumb": "thumbs/chequers_strip.png"
+  },
+  {
+   "id": "chequered_flag",
+   "shelf": "shapes",
+   "name": "Chequered flag",
+   "tags": [
+    "chequers",
+    "racing",
+    "flag",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/chequered_flag.png",
+   "thumb": "thumbs/chequered_flag.png"
+  },
+  {
+   "id": "scallops_3",
+   "shelf": "shapes",
+   "name": "Scallops, three",
+   "tags": [
+    "scallops",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/scallops_3.png",
+   "thumb": "thumbs/scallops_3.png"
+  },
+  {
+   "id": "scallops_5",
+   "shelf": "shapes",
+   "name": "Scallops, five",
+   "tags": [
+    "scallops",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/scallops_5.png",
+   "thumb": "thumbs/scallops_5.png"
+  },
+  {
+   "id": "flames_classic",
+   "shelf": "shapes",
+   "name": "Hot rod flames",
+   "tags": [
+    "flames",
+    "hot rod",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/flames_classic.png",
+   "thumb": "thumbs/flames_classic.png"
+  },
+  {
+   "id": "flames_tribal",
+   "shelf": "shapes",
+   "name": "Tribal flames",
+   "tags": [
+    "flames",
+    "tribal"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 1,
+   "file": "shapes/flames_tribal.png",
+   "thumb": "thumbs/flames_tribal.png"
+  },
+  {
+   "id": "flames_ghost",
+   "shelf": "shapes",
+   "name": "Ghost flames (outline only)",
+   "tags": [
+    "flames",
+    "outline"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 1,
+   "file": "shapes/flames_ghost.png",
+   "thumb": "thumbs/flames_ghost.png"
+  },
+  {
+   "id": "bolt_single",
+   "shelf": "shapes",
+   "name": "Lightning bolt",
+   "tags": [
+    "lightning",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/bolt_single.png",
+   "thumb": "thumbs/bolt_single.png"
+  },
+  {
+   "id": "bolt_long",
+   "shelf": "shapes",
+   "name": "Long lightning",
+   "tags": [
+    "lightning",
+    "stripe",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/bolt_long.png",
+   "thumb": "thumbs/bolt_long.png"
+  },
+  {
+   "id": "tribal_blade",
+   "shelf": "shapes",
+   "name": "Tribal blades",
+   "tags": [
+    "tribal"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 1,
+   "file": "shapes/tribal_blade.png",
+   "thumb": "thumbs/tribal_blade.png"
+  },
+  {
+   "id": "tribal_swirl",
+   "shelf": "shapes",
+   "name": "Tribal swirl",
+   "tags": [
+    "tribal",
+    "swirl"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 1,
+   "file": "shapes/tribal_swirl.png",
+   "thumb": "thumbs/tribal_swirl.png"
+  },
+  {
+   "id": "tribal_spike",
+   "shelf": "shapes",
+   "name": "Spiked stripe",
+   "tags": [
+    "tribal",
+    "stripe"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/tribal_spike.png",
+   "thumb": "thumbs/tribal_spike.png"
+  },
+  {
+   "id": "panel_rounded",
+   "shelf": "shapes",
+   "name": "Tank panel with pinstripe",
+   "tags": [
+    "panel",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/panel_rounded.png",
+   "thumb": "thumbs/panel_rounded.png"
+  },
+  {
+   "id": "panel_teardrop",
+   "shelf": "shapes",
+   "name": "Teardrop panel",
+   "tags": [
+    "panel",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/panel_teardrop.png",
+   "thumb": "thumbs/panel_teardrop.png"
+  },
+  {
+   "id": "panel_coffin",
+   "shelf": "shapes",
+   "name": "Coffin panel",
+   "tags": [
+    "panel",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/panel_coffin.png",
+   "thumb": "thumbs/panel_coffin.png"
+  },
+  {
+   "id": "roundel",
+   "shelf": "shapes",
+   "name": "Number roundel",
+   "tags": [
+    "number",
+    "racing",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/roundel.png",
+   "thumb": "thumbs/roundel.png"
+  },
+  {
+   "id": "race_oval",
+   "shelf": "shapes",
+   "name": "Number oval",
+   "tags": [
+    "number",
+    "racing",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/race_oval.png",
+   "thumb": "thumbs/race_oval.png"
+  },
+  {
+   "id": "race_plate",
+   "shelf": "shapes",
+   "name": "Number plate",
+   "tags": [
+    "number",
+    "racing",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/race_plate.png",
+   "thumb": "thumbs/race_plate.png"
+  },
+  {
+   "id": "shield",
+   "shelf": "shapes",
+   "name": "Shield",
+   "tags": [
+    "shield",
+    "badge",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/shield.png",
+   "thumb": "thumbs/shield.png"
+  },
+  {
+   "id": "wings_spread",
+   "shelf": "shapes",
+   "name": "Spread wings (plain)",
+   "tags": [
+    "wings",
+    "badge",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/wings_spread.png",
+   "thumb": "thumbs/wings_spread.png"
+  },
+  {
+   "id": "wings_badge",
+   "shelf": "shapes",
+   "name": "Winged roundel",
+   "tags": [
+    "wings",
+    "badge",
+    "number",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/wings_badge.png",
+   "thumb": "thumbs/wings_badge.png"
+  },
+  {
+   "id": "banner_straight",
+   "shelf": "shapes",
+   "name": "Banner for lettering",
+   "tags": [
+    "banner",
+    "lettering",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/banner_straight.png",
+   "thumb": "thumbs/banner_straight.png"
+  },
+  {
+   "id": "banner_curved",
+   "shelf": "shapes",
+   "name": "Curved banner",
+   "tags": [
+    "banner",
+    "lettering",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/banner_curved.png",
+   "thumb": "thumbs/banner_curved.png"
+  },
+  {
+   "id": "star_five",
+   "shelf": "shapes",
+   "name": "Star",
+   "tags": [
+    "star",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/star_five.png",
+   "thumb": "thumbs/star_five.png"
+  },
+  {
+   "id": "star_nautical",
+   "shelf": "shapes",
+   "name": "Nautical star",
+   "tags": [
+    "star",
+    "tattoo",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/star_nautical.png",
+   "thumb": "thumbs/star_nautical.png"
+  },
+  {
+   "id": "sunburst",
+   "shelf": "shapes",
+   "name": "Sunburst",
+   "tags": [
+    "rays"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 1,
+   "file": "shapes/sunburst.png",
+   "thumb": "thumbs/sunburst.png"
+  },
+  {
+   "id": "target",
+   "shelf": "shapes",
+   "name": "Target roundel",
+   "tags": [
+    "roundel",
+    "mod",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/target.png",
+   "thumb": "thumbs/target.png"
+  },
+  {
+   "id": "diamonds_strip",
+   "shelf": "shapes",
+   "name": "Diamond chain",
+   "tags": [
+    "stripe",
+    "diamond"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 2,
+   "file": "shapes/diamonds_strip.png",
+   "thumb": "thumbs/diamonds_strip.png"
+  },
+  {
+   "id": "hex_strip",
+   "shelf": "shapes",
+   "name": "Honeycomb strip",
+   "tags": [
+    "stripe",
+    "hex"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/hex_strip.png",
+   "thumb": "thumbs/hex_strip.png"
+  },
+  {
+   "id": "skull_front",
+   "shelf": "art",
+   "name": "Skull",
+   "tags": [
+    "skull",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_front.png",
+   "thumb": "thumbs/skull_front.png"
+  },
+  {
+   "id": "skull_roses",
+   "shelf": "art",
+   "name": "Skull with roses",
+   "tags": [
+    "skull",
+    "rose",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_roses.png",
+   "thumb": "thumbs/skull_roses.png"
+  },
+  {
+   "id": "skull_wings",
+   "shelf": "art",
+   "name": "Winged skull",
+   "tags": [
+    "skull",
+    "wings",
+    "death"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_wings.png",
+   "thumb": "thumbs/skull_wings.png"
+  },
+  {
+   "id": "skull_pistons",
+   "shelf": "art",
+   "name": "Skull and crossed pistons",
+   "tags": [
+    "skull",
+    "piston",
+    "engine",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_pistons.png",
+   "thumb": "thumbs/skull_pistons.png"
+  },
+  {
+   "id": "skull_flaming",
+   "shelf": "art",
+   "name": "Flaming skull",
+   "tags": [
+    "skull",
+    "flames",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_flaming.png",
+   "thumb": "thumbs/skull_flaming.png"
+  },
+  {
+   "id": "skull_sugar",
+   "shelf": "art",
+   "name": "Sugar skull",
+   "tags": [
+    "skull",
+    "flowers"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_sugar.png",
+   "thumb": "thumbs/skull_sugar.png"
+  },
+  {
+   "id": "rose",
+   "shelf": "art",
+   "name": "Rose",
+   "tags": [
+    "rose",
+    "flower"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rose.png",
+   "thumb": "thumbs/rose.png"
+  },
+  {
+   "id": "rose_dagger",
+   "shelf": "art",
+   "name": "Rose and dagger",
+   "tags": [
+    "rose",
+    "dagger"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rose_dagger.png",
+   "thumb": "thumbs/rose_dagger.png"
+  },
+  {
+   "id": "dagger_heart",
+   "shelf": "art",
+   "name": "Dagger through a heart",
+   "tags": [
+    "heart",
+    "dagger"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/dagger_heart.png",
+   "thumb": "thumbs/dagger_heart.png"
+  },
+  {
+   "id": "sacred_heart",
+   "shelf": "art",
+   "name": "Sacred heart",
+   "tags": [
+    "heart",
+    "flames"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/sacred_heart.png",
+   "thumb": "thumbs/sacred_heart.png"
+  },
+  {
+   "id": "swallow",
+   "shelf": "art",
+   "name": "Swallow",
+   "tags": [
+    "bird",
+    "swallow",
+    "sailor"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/swallow.png",
+   "thumb": "thumbs/swallow.png"
+  },
+  {
+   "id": "reaper",
+   "shelf": "art",
+   "name": "Grim reaper with scythe",
+   "tags": [
+    "reaper",
+    "death",
+    "scythe"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/reaper.png",
+   "thumb": "thumbs/reaper.png"
+  },
+  {
+   "id": "spider_web",
+   "shelf": "art",
+   "name": "Spider and web",
+   "tags": [
+    "spider",
+    "web"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/spider_web.png",
+   "thumb": "thumbs/spider_web.png"
+  },
+  {
+   "id": "bat",
+   "shelf": "art",
+   "name": "Bat",
+   "tags": [
+    "bat",
+    "night"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/bat.png",
+   "thumb": "thumbs/bat.png"
+  },
+  {
+   "id": "dice",
+   "shelf": "art",
+   "name": "Dice",
+   "tags": [
+    "dice",
+    "luck"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/dice.png",
+   "thumb": "thumbs/dice.png"
+  },
+  {
+   "id": "ace_spades",
+   "shelf": "art",
+   "name": "Ace of spades",
+   "tags": [
+    "cards",
+    "luck",
+    "spades"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/ace_spades.png",
+   "thumb": "thumbs/ace_spades.png"
+  },
+  {
+   "id": "eight_ball",
+   "shelf": "art",
+   "name": "Eight ball",
+   "tags": [
+    "luck",
+    "ball"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/eight_ball.png",
+   "thumb": "thumbs/eight_ball.png"
+  },
+  {
+   "id": "horseshoe",
+   "shelf": "art",
+   "name": "Lucky horseshoe",
+   "tags": [
+    "luck",
+    "horseshoe"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/horseshoe.png",
+   "thumb": "thumbs/horseshoe.png"
+  },
+  {
+   "id": "anchor",
+   "shelf": "art",
+   "name": "Anchor and rope",
+   "tags": [
+    "anchor",
+    "sailor"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/anchor.png",
+   "thumb": "thumbs/anchor.png"
+  },
+  {
+   "id": "spanners",
+   "shelf": "art",
+   "name": "Crossed spanners",
+   "tags": [
+    "tools",
+    "spanner",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/spanners.png",
+   "thumb": "thumbs/spanners.png"
+  },
+  {
+   "id": "chopper_lace",
+   "shelf": "art",
+   "name": "Pinstripe lace",
+   "tags": [
+    "chopper",
+    "pinstripe",
+    "lace",
+    "tank"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_lace.png",
+   "thumb": "thumbs/chopper_lace.png"
+  },
+  {
+   "id": "chopper_teardrop_flames",
+   "shelf": "art",
+   "name": "Teardrop panel with flames",
+   "tags": [
+    "chopper",
+    "flames",
+    "panel",
+    "tank"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_teardrop_flames.png",
+   "thumb": "thumbs/chopper_teardrop_flames.png"
+  },
+  {
+   "id": "chopper_spade_wings",
+   "shelf": "art",
+   "name": "Winged spade",
+   "tags": [
+    "chopper",
+    "spades",
+    "wings",
+    "luck"
+   ],
+   "w": 768,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_spade_wings.png",
+   "thumb": "thumbs/chopper_spade_wings.png"
+  },
+  {
+   "id": "chopper_pistons",
+   "shelf": "art",
+   "name": "Crossed pistons",
+   "tags": [
+    "chopper",
+    "piston",
+    "engine"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_pistons.png",
+   "thumb": "thumbs/chopper_pistons.png"
+  },
+  {
+   "id": "chopper_scroll",
+   "shelf": "art",
+   "name": "Scroll banner",
+   "tags": [
+    "chopper",
+    "banner",
+    "scroll",
+    "lettering"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_scroll.png",
+   "thumb": "thumbs/chopper_scroll.png"
+  },
+  {
+   "id": "chopper_winged_wheel",
+   "shelf": "art",
+   "name": "Winged wheel",
+   "tags": [
+    "chopper",
+    "wheel",
+    "wings",
+    "club"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_winged_wheel.png",
+   "thumb": "thumbs/chopper_winged_wheel.png"
+  },
+  {
+   "id": "gothic_cross",
+   "shelf": "art",
+   "name": "Gothic cross",
+   "tags": [
+    "gothic",
+    "cross"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/gothic_cross.png",
+   "thumb": "thumbs/gothic_cross.png"
+  },
+  {
+   "id": "coffin",
+   "shelf": "art",
+   "name": "Coffin",
+   "tags": [
+    "death",
+    "coffin",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/coffin.png",
+   "thumb": "thumbs/coffin.png"
+  },
+  {
+   "id": "tombstone",
+   "shelf": "art",
+   "name": "Tombstone",
+   "tags": [
+    "death",
+    "grave",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/tombstone.png",
+   "thumb": "thumbs/tombstone.png"
+  },
+  {
+   "id": "raven",
+   "shelf": "art",
+   "name": "Raven",
+   "tags": [
+    "bird",
+    "raven",
+    "gothic",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/raven.png",
+   "thumb": "thumbs/raven.png"
+  },
+  {
+   "id": "snake_coil",
+   "shelf": "art",
+   "name": "Coiled snake",
+   "tags": [
+    "snake",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/snake_coil.png",
+   "thumb": "thumbs/snake_coil.png"
+  },
+  {
+   "id": "snake_dagger",
+   "shelf": "art",
+   "name": "Snake and dagger",
+   "tags": [
+    "snake",
+    "dagger",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/snake_dagger.png",
+   "thumb": "thumbs/snake_dagger.png"
+  },
+  {
+   "id": "skull_tophat",
+   "shelf": "art",
+   "name": "Skull in a top hat",
+   "tags": [
+    "skull",
+    "hat",
+    "death",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_tophat.png",
+   "thumb": "thumbs/skull_tophat.png"
+  },
+  {
+   "id": "skull_helmet",
+   "shelf": "art",
+   "name": "Skull in helmet and goggles",
+   "tags": [
+    "skull",
+    "helmet",
+    "rider",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_helmet.png",
+   "thumb": "thumbs/skull_helmet.png"
+  },
+  {
+   "id": "crossbones",
+   "shelf": "art",
+   "name": "Crossbones",
+   "tags": [
+    "bones",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/crossbones.png",
+   "thumb": "thumbs/crossbones.png"
+  },
+  {
+   "id": "sparkplug_wings",
+   "shelf": "art",
+   "name": "Winged spark plug",
+   "tags": [
+    "garage",
+    "engine",
+    "wings",
+    "spark plug"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/sparkplug_wings.png",
+   "thumb": "thumbs/sparkplug_wings.png"
+  },
+  {
+   "id": "flaming_wheel",
+   "shelf": "art",
+   "name": "Flaming wheel",
+   "tags": [
+    "wheel",
+    "flames",
+    "speed"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/flaming_wheel.png",
+   "thumb": "thumbs/flaming_wheel.png"
+  },
+  {
+   "id": "nautical_star",
+   "shelf": "art",
+   "name": "Nautical star",
+   "tags": [
+    "star",
+    "tattoo",
+    "luck"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/nautical_star.png",
+   "thumb": "thumbs/nautical_star.png"
+  },
+  {
+   "id": "gem",
+   "shelf": "art",
+   "name": "Diamond",
+   "tags": [
+    "gem",
+    "diamond",
+    "luck"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/gem.png",
+   "thumb": "thumbs/gem.png"
+  },
+  {
+   "id": "sword_skull",
+   "shelf": "art",
+   "name": "Sword through a skull",
+   "tags": [
+    "skull",
+    "sword",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/sword_skull.png",
+   "thumb": "thumbs/sword_skull.png"
+  },
+  {
+   "id": "thorn_heart",
+   "shelf": "art",
+   "name": "Heart in thorns",
+   "tags": [
+    "heart",
+    "thorns",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/thorn_heart.png",
+   "thumb": "thumbs/thorn_heart.png"
+  },
+  {
+   "id": "ouroboros",
+   "shelf": "art",
+   "name": "Snake ring",
+   "tags": [
+    "snake",
+    "gothic",
+    "circle"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/ouroboros.png",
+   "thumb": "thumbs/ouroboros.png"
+  },
+  {
+   "id": "hourglass_wings",
+   "shelf": "art",
+   "name": "Winged hourglass",
+   "tags": [
+    "time",
+    "wings",
+    "death",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/hourglass_wings.png",
+   "thumb": "thumbs/hourglass_wings.png"
+  },
+  {
+   "id": "moon_stars",
+   "shelf": "art",
+   "name": "Moon and stars",
+   "tags": [
+    "moon",
+    "stars",
+    "night",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/moon_stars.png",
+   "thumb": "thumbs/moon_stars.png"
+  },
+  {
+   "id": "lantern",
+   "shelf": "art",
+   "name": "Lantern",
+   "tags": [
+    "lantern",
+    "light",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/lantern.png",
+   "thumb": "thumbs/lantern.png"
+  },
+  {
+   "id": "crown",
+   "shelf": "art",
+   "name": "Crown",
+   "tags": [
+    "crown",
+    "king"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/crown.png",
+   "thumb": "thumbs/crown.png"
+  },
+  {
+   "id": "lightning_skull",
+   "shelf": "art",
+   "name": "Skull and lightning",
+   "tags": [
+    "skull",
+    "lightning",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/lightning_skull.png",
+   "thumb": "thumbs/lightning_skull.png"
+  },
+  {
+   "id": "skeleton_key",
+   "shelf": "art",
+   "name": "Skeleton key",
+   "tags": [
+    "key",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skeleton_key.png",
+   "thumb": "thumbs/skeleton_key.png"
+  },
+  {
+   "id": "padlock_heart",
+   "shelf": "art",
+   "name": "Padlocked heart",
+   "tags": [
+    "heart",
+    "lock",
+    "love"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/padlock_heart.png",
+   "thumb": "thumbs/padlock_heart.png"
+  },
+  {
+   "id": "scythe",
+   "shelf": "art",
+   "name": "Scythe",
+   "tags": [
+    "scythe",
+    "death",
+    "reaper"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/scythe.png",
+   "thumb": "thumbs/scythe.png"
+  },
+  {
+   "id": "candle",
+   "shelf": "art",
+   "name": "Candle",
+   "tags": [
+    "candle",
+    "gothic",
+    "light"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/candle.png",
+   "thumb": "thumbs/candle.png"
+  },
+  {
+   "id": "death_moth",
+   "shelf": "art",
+   "name": "Death's-head moth",
+   "tags": [
+    "moth",
+    "death",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/death_moth.png",
+   "thumb": "thumbs/death_moth.png"
+  },
+  {
+   "id": "cog_skull",
+   "shelf": "art",
+   "name": "Skull in a cog",
+   "tags": [
+    "skull",
+    "cog",
+    "garage",
+    "engine"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/cog_skull.png",
+   "thumb": "thumbs/cog_skull.png"
+  },
+  {
+   "id": "piston_wings",
+   "shelf": "art",
+   "name": "Winged piston",
+   "tags": [
+    "piston",
+    "engine",
+    "wings",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/piston_wings.png",
+   "thumb": "thumbs/piston_wings.png"
+  },
+  {
+   "id": "chain_ring",
+   "shelf": "art",
+   "name": "Chain ring",
+   "tags": [
+    "chain",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chain_ring.png",
+   "thumb": "thumbs/chain_ring.png"
+  },
+  {
+   "id": "shield_swords",
+   "shelf": "art",
+   "name": "Shield and swords",
+   "tags": [
+    "shield",
+    "sword",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/shield_swords.png",
+   "thumb": "thumbs/shield_swords.png"
+  },
+  {
+   "id": "heart_banner",
+   "shelf": "art",
+   "name": "Heart and banner",
+   "tags": [
+    "heart",
+    "banner",
+    "lettering"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/heart_banner.png",
+   "thumb": "thumbs/heart_banner.png"
+  },
+  {
+   "id": "rose_banner",
+   "shelf": "art",
+   "name": "Rose and banner",
+   "tags": [
+    "rose",
+    "banner",
+    "lettering"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rose_banner.png",
+   "thumb": "thumbs/rose_banner.png"
+  },
+  {
+   "id": "skull_crown",
+   "shelf": "art",
+   "name": "Crowned skull",
+   "tags": [
+    "skull",
+    "crown",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_crown.png",
+   "thumb": "thumbs/skull_crown.png"
+  },
+  {
+   "id": "wave",
+   "shelf": "art",
+   "name": "Great wave",
+   "tags": [
+    "wave",
+    "sea",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/wave.png",
+   "thumb": "thumbs/wave.png"
+  },
+  {
+   "id": "rosary",
+   "shelf": "art",
+   "name": "Rosary",
+   "tags": [
+    "rosary",
+    "cross",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rosary.png",
+   "thumb": "thumbs/rosary.png"
+  },
+  {
+   "id": "scorpion",
+   "shelf": "art",
+   "name": "Scorpion",
+   "tags": [
+    "scorpion",
+    "tattoo",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/scorpion.png",
+   "thumb": "thumbs/scorpion.png"
+  },
+  {
+   "id": "spider",
+   "shelf": "art",
+   "name": "Spider",
+   "tags": [
+    "spider",
+    "gothic",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/spider.png",
+   "thumb": "thumbs/spider.png"
+  },
+  {
+   "id": "cobra",
+   "shelf": "art",
+   "name": "Cobra",
+   "tags": [
+    "snake",
+    "cobra",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/cobra.png",
+   "thumb": "thumbs/cobra.png"
+  },
+  {
+   "id": "wrench_screwdriver",
+   "shelf": "art",
+   "name": "Spanner and screwdriver",
+   "tags": [
+    "tools",
+    "garage",
+    "spanner"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/wrench_screwdriver.png",
+   "thumb": "thumbs/wrench_screwdriver.png"
+  },
+  {
+   "id": "fuel_can",
+   "shelf": "art",
+   "name": "Fuel can",
+   "tags": [
+    "fuel",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/fuel_can.png",
+   "thumb": "thumbs/fuel_can.png"
+  }
+ ]
+}
