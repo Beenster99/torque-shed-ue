@@ -14,6 +14,7 @@
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueSettings.h"
+#include "HAL/IConsoleManager.h"
 #include "Coop/TorqueKeys.h"
 #include "HAL/PlatformTime.h"
 #include "EngineUtils.h"
@@ -411,7 +412,12 @@ void ATorqueHUD::DrawFrameRate()
 		FpsFrames = 0;
 	}
 	const float Sc = TorqueUi::Scale(Canvas), Px = 17.0f * Sc;
-	const FString Fps = FString::Printf(TEXT("%.0f FPS"), FpsShown);
+	// ([build 155] with DLSS frame generation on, the game draws these and the card adds one between
+	// each pair: beenster read "60" on a 120 Hz screen and thought it was capped)
+	static IConsoleVariable* const FrameGenVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streamline.DLSSG.Enable"));
+	const bool bFrameGenOn = FrameGenVar && FrameGenVar->GetInt() != 0;
+	const FString Fps = bFrameGenOn ? FString::Printf(TEXT("%.0f FPS  (%.0f on screen with frame generation)"), FpsShown, FpsShown * 2.0f)
+		: FString::Printf(TEXT("%.0f FPS"), FpsShown);
 	const float W = (float)TorqueUi::Measure(Fps, Px, true).X;
 	const float FX = 0.5f * (Canvas->ClipX - W), FY = 8.0f * Sc;
 	TorqueUi::Rect(Canvas, FX - 10.0f * Sc, FY - 3.0f * Sc, W + 20.0f * Sc, Px * 1.2f + 6.0f * Sc, TorqueUi::Panel);
