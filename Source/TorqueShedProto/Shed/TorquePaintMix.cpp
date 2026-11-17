@@ -439,8 +439,19 @@ float CoatsFactor(const FPaintSpec& S, int32 Coats)
 
 const TCHAR* PatternName(int32 Pattern)
 {
-	static const TCHAR* const Names[] = {TEXT("None"), TEXT("Centre stripe"), TEXT("Twin stripes"), TEXT("Pinstripe"), TEXT("Two-tone (top)")};
+	static const TCHAR* const Names[] = {TEXT("None"), TEXT("Centre stripe"), TEXT("Twin stripes"), TEXT("Pinstripe"), TEXT("Two-tone (top)"),
+		TEXT("Fade front to back, short"), TEXT("Fade front to back, medium"), TEXT("Fade front to back, long"),
+		TEXT("Fade top to bottom, short"), TEXT("Fade top to bottom, medium"), TEXT("Fade top to bottom, long")};
+	static_assert(UE_ARRAY_COUNT(Names) == TapePatterns + 1, "a name for every pattern");
 	return Pattern >= 0 && Pattern <= TapePatterns ? Names[Pattern] : Names[0];
+}
+
+float FadeKeep(int32 Pattern, float X, float Z)
+{
+	if (!IsFade(Pattern)) return 0.0f;
+	const float Half = FadeCm(Pattern) * 0.5f;
+	const float T = FMath::Clamp(((FadeAlong(Pattern) ? X : Z) + Half) / (2.0f * Half), 0.0f, 1.0f);
+	return T * T * (3.0f - 2.0f * T);
 }
 
 FLinearColor TapeColourOn(const FLinearColor& Under)

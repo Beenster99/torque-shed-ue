@@ -3517,8 +3517,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		FTorqueItem& It = Items[R.Item];
 		It.Tape = Paint.TapePattern;
-		Text = FString::Printf(TEXT("Taped a %s on the %s. Now spray the second colour over it."),
-			*FString(TorquePaintMix::PatternName(It.Tape)).ToLower(), *ItemTitle(R.Item));
+		if (TorquePaintMix::IsFade(It.Tape))
+			Text = FString::Printf(TEXT("Held a paper mask over the %s for a %s. Now spray the second colour: it blends into this one, finish and all."),
+				*ItemTitle(R.Item), *FString(TorquePaintMix::PatternName(It.Tape)).ToLower());
+		else
+			Text = FString::Printf(TEXT("Taped a %s on the %s. Now spray the second colour over it."),
+				*FString(TorquePaintMix::PatternName(It.Tape)).ToLower(), *ItemTitle(R.Item));
 		Touch(R.Item);
 		break;
 	}
@@ -3526,7 +3530,8 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		FTorqueItem& It = Items[R.Item];
 		It.Tape = 0;
-		Text = It.Mask != 0 ? FString(TEXT("Peeled the tape off: a crisp line.")) : FString(TEXT("Peeled the tape off: nothing sprayed over it."));
+		Text = It.Mask != 0 ? (TorquePaintMix::IsFade(It.Mask) ? FString(TEXT("Took the mask off: a soft fade.")) : FString(TEXT("Peeled the tape off: a crisp line.")))
+			: FString(TEXT("Peeled the tape off: nothing sprayed over it."));
 		Touch(R.Item);
 		break;
 	}

@@ -378,13 +378,26 @@ def badge_material():
 
 
 # The masked pattern, in the part's frame in cm (paint_mix.gd masked(), its metres x 100): 1 a centre
-# stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone).
+# stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone);
+# 5 .. 10 the fades (TorquePaintMix::FadeKeep): front to back (5 .. 7) or top to bottom (8 .. 10),
+# over 8, 20 or 40 cm. While the fade's paper mask is still on (Tape) it shows as a sheet over the
+# kept half, with a plain edge.
 MASK_HLSL = """
 float3 q = float3(dot(R0, P), dot(R1, P), dot(R2, P)) + Offset;
 float aa = 0.15;
 float x = abs(q.y);
 float y = q.z;
 if (Pattern < 0.5) return 0.0;
+if (Pattern > 4.5)
+{
+    float f = Pattern - 5.0;
+    float along = f < 2.5 ? 1.0 : 0.0;
+    float soft = fmod(f, 3.0);
+    float len = soft < 0.5 ? 8.0 : (soft < 1.5 ? 20.0 : 40.0);
+    float c = along > 0.5 ? q.x : q.z;
+    if (Tape > 0.5) return smoothstep(-aa, aa, c);
+    return smoothstep(-len * 0.5, len * 0.5, c);
+}
 if (Pattern < 1.5) return 1.0 - smoothstep(3.0 - aa, 3.0 + aa, x);
 if (Pattern < 2.5) return (1.0 - smoothstep(4.5 - aa, 4.5 + aa, x)) * smoothstep(2.2 - aa, 2.2 + aa, x);
 if (Pattern < 3.5) return 1.0 - smoothstep(0.4 - aa * 0.5, 0.4 + aa * 0.5, abs(y));
@@ -463,7 +476,7 @@ def effect_paint_material():
     try_set(mask, "code", MASK_HLSL)
     try_set(mask, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     ins = []
-    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern"):
+    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern", "Tape"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
@@ -474,7 +487,9 @@ def effect_paint_material():
     mel.connect_material_expressions(vec("PartRow2", -1200, 2050, (0.0, 0.0, 1.0)), "", mask, "R2")
     mel.connect_material_expressions(vec("PartOffset", -1200, 2150, (0.0, 0.0, 0.0)), "", mask, "Offset")
     mel.connect_material_expressions(num("Pattern", -1200, 2250, 0.0), "", mask, "Pattern")
-    tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, num("Tape", -900, 2000, 0.0))
+    tape_on = num("Tape", -900, 2000, 0.0)
+    mel.connect_material_expressions(tape_on, "", mask, "Tape")
+    tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, tape_on)
     masked = lerp(-500, 0, c5, vec("MaskColor", -700, 1700, (1.0, 1.0, 1.0)), mask)
     taped = lerp(-450, 0, masked, vec("TapeColor", -700, 2100, (0.18, 0.42, 0.85)), tape)
     metal = lerp(-300, 300, num("Metallic", -600, 300, 0.0), expr(m, unreal.MaterialExpressionConstant, -600, 380, r=1.0), speck)
@@ -494,8 +509,12 @@ def effect_paint_material():
     mel.connect_material_property(emis, "", M.MP_EMISSIVE_COLOR)
     # Clear coat and its roughness: UE 5.8's Python MaterialProperty has no MP_CUSTOM_DATA0/1, so set them
     # only where the enum has them (unconnected, the clear-coat model defaults to a full coat).
+    # The coat follows the finish under it, so a matt half of a fade (or a matt lacquer) isn't glossed
+    # over: full on gloss (roughness 0.1), none on matt (0.6 and up).
     if hasattr(M, "MP_CUSTOM_DATA0"):
-        mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 800, r=1.0), "", M.MP_CUSTOM_DATA0)   # clear coat
+        coat = sat(-300, 800, op(unreal.MaterialExpressionSubtract, -400, 800, expr(m, unreal.MaterialExpressionConstant, -500, 800, r=1.2),
+                                 op(unreal.MaterialExpressionMultiply, -500, 850, rough, const_b=2.0)))
+        mel.connect_material_property(coat, "", M.MP_CUSTOM_DATA0)   # clear coat
         mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 900, r=0.04), "", M.MP_CUSTOM_DATA1)   # its roughness
     return finish(m)
 
