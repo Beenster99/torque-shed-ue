@@ -328,6 +328,7 @@ private:
 	// again whenever it changes.
 	void UpdateHelmetPaint();
 	TArray<uint8> HelmetPaintLook;
+	double RiderWave = 0.0, RiderWaveTime = 0.0;   // [build 155] the wave as last posed (for the MetaHuman)
 	bool bHelmetPaintDone = false;
 	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
