@@ -13,6 +13,7 @@
 //
 // "Helmet" at the top puts the player's own helmet on a stand beside the bike to put decals on it too
 // (stage 4: kept on this machine, TorqueDecals::MyHelmet, and sent to friends with the player).
+// "Sets" keeps a part's decals by name to put on another bike's (stage 7); "Worn" chips a decal.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -81,6 +82,10 @@ private:
 	// The camera on the bike, or on the player's helmet on a stand beside it (made the first time).
 	void ShowHelmet(bool bHelmet);
 	void AddHelmetShape();
+	// Reusable sets (stage 7): the part whose decals "Keep" keeps, keeping them, and putting one on.
+	FName KeepFrom() const;
+	void KeepSet();
+	void UseSet(const FString& Name);
 	void Say(const FString& Text);
 	FDelegateHandle TellHandle;
 };

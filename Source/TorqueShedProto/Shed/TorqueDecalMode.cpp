@@ -46,8 +46,9 @@ FLinearColor Swatch(uint32 V)
 	return FLinearColor::FromSRGBColor(FColor((uint8)((V >> 16) & 0xFFu), (uint8)((V >> 8) & 0xFFu), (uint8)(V & 0xFFu), 255));
 }
 
-const TCHAR* const TabNames[] = {TEXT("Lettering"), TEXT("Stripes"), TEXT("Artwork"), TEXT("Yours")};
-const TCHAR* const TabShelf[] = {TEXT(""), TEXT("shapes"), TEXT("art"), TEXT("")};
+const TCHAR* const TabNames[] = {TEXT("Lettering"), TEXT("Stripes"), TEXT("Artwork"), TEXT("Yours"), TEXT("Sets")};
+const TCHAR* const TabShelf[] = {TEXT(""), TEXT("shapes"), TEXT("art"), TEXT(""), TEXT("")};
+constexpr int32 TabCount = UE_ARRAY_COUNT(TabNames);
 
 FString SlotName(FName Slot)
 {
@@ -581,6 +582,58 @@ void ATorqueDecalMode::PickOwn(const FString& Name)
 	Say(FString::Printf(TEXT("%s in hand: click the bike to stick it on."), *Name));
 }
 
+// --- Reusable sets (stage 7) -------------------------------------------------------------------------
+
+FName ATorqueDecalMode::KeepFrom() const
+{
+	const FState& S = *St;
+	auto Has = [&S](FName Slot) { const std::vector<TorqueFit::Decals::Decal>* L = S.Draft.Find(Slot); return L && !L->empty(); };
+	if (!S.SelSlot.IsNone() && Has(S.SelSlot)) return S.SelSlot;
+	if (S.bAtHelmet && Has(TDMI::HelmetSlot)) return TDMI::HelmetSlot;
+	if (Has(FName(TEXT("tank")))) return FName(TEXT("tank"));
+	for (const FName& Slot : S.Slots)
+		if (Has(Slot)) return Slot;
+	return NAME_None;
+}
+
+void ATorqueDecalMode::KeepSet()
+{
+	const FName Slot = KeepFrom();
+	const std::vector<TorqueFit::Decals::Decal>* L = St->Draft.Find(Slot);
+	if (Slot.IsNone() || !L) return;
+	const FString Name = TorqueDecals::KeepSet(Slot, TorqueDecals::ToUe(TorqueFit::Decals::ToText(*L)));
+	Say(Name.IsEmpty() ? FString(TEXT("Couldn't keep that set.")) : FString::Printf(TEXT("Kept as \"%s\"."), *Name));
+}
+
+void ATorqueDecalMode::UseSet(const FString& Name)
+{
+	namespace BD = TorqueFit::Decals;
+	FState& S = *St;
+	FName Was;
+	FString Text;
+	if (!TorqueDecals::LoadSet(Name, Was, Text)) return;
+	// Onto the same part on this bike (the helmet's onto the helmet), else the part picked.
+	FName To = S.Shapes.Contains(Was) ? Was : S.SelSlot;
+	if (Was == TDMI::HelmetSlot && !S.Stand)
+	{
+		ShowHelmet(true);
+		To = S.Shapes.Contains(Was) ? Was : NAME_None;
+	}
+	const FState::FSlotShape* Shape = S.Shapes.Find(To);
+	if (!Shape || Shape->Tris.empty())
+	{
+		Say(FString::Printf(TEXT("This bike has no %s for that set: pick a decal on the part to put it on first."), *TDMI::SlotName(Was).ToLower()));
+		return;
+	}
+	std::vector<BD::Decal> L = BD::Snapped(Shape->Tris, BD::Parse(TorqueDecals::ToStd(Text)));
+	if (L.size() > (size_t)BD::MaxPerPart) L.resize((size_t)BD::MaxPerPart);
+	S.Draft.Add(To, L);
+	S.SelSlot = To;
+	S.Sel = INDEX_NONE;
+	S.bConfirm = false;
+	Say(FString::Printf(TEXT("\"%s\" put on the %s (%d decals): save to keep it."), *Name, *TDMI::SlotName(To).ToLower(), (int32)L.size()));
+}
+
 // --- The helmet on its stand ---------------------------------------------------------------------------
 
 void ATorqueDecalMode::AddHelmetShape()
@@ -988,8 +1041,8 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 	}
 	// The shelves.
 	{
-		const float TW = (IW - 3.0f * 6.0f * Sc) / 4.0f, TH = 34.0f * Sc;
-		for (int32 T = 0; T < 4; ++T)
+		const float TW = (IW - (float)(TDMI::TabCount - 1) * 6.0f * Sc) / (float)TDMI::TabCount, TH = 34.0f * Sc;
+		for (int32 T = 0; T < TDMI::TabCount; ++T)
 			Button(TDMI::TabNames[T], IX + T * (TW + 6.0f * Sc), Y, TW, TH, S.Tab == T, [this, T]() {
 				St->Tab = T;
 				St->Scroll = 0;
@@ -1067,6 +1120,30 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 				UI::TextFit(Canvas, Shelf[I]->Name, IX, ShelfY + ShelfH - 18.0f * Sc, 16.0f * Sc, IW, UI::Ink);
 		}
 	}
+	else if (S.Tab == 4)
+	{
+		// Reusable sets (stage 7): a part's decals kept, to put on another bike's.
+		const FName From = KeepFrom();
+		if (!From.IsNone())
+		{
+			Button(FString::Printf(TEXT("Keep the %s's decals as a set"), *TDMI::SlotName(From).ToLower()), IX, Y, IW, 32.0f * Sc, false, [this]() { KeepSet(); });
+			Y += 40.0f * Sc;
+		}
+		else
+		{
+			Y += UI::TextWrap(Canvas, TEXT("Put some decals on a part, then keep them here as a set to use on your other bikes."), IX, Y, 16.0f * Sc, IW, UI::Dim) + 8.0f * Sc;
+		}
+		const TArray<FString> Sets = TorqueDecals::SetNames();
+		const float RH = 30.0f * Sc;
+		const int32 Rows = FMath::Max(1, (int32)((ShelfY + ShelfH - Y) / RH));
+		S.Scroll = FMath::Clamp(S.Scroll, 0, FMath::Max(0, Sets.Num() - Rows));
+		for (int32 I = S.Scroll; I < Sets.Num() && I < S.Scroll + Rows; ++I)
+		{
+			const FString Name = Sets[I];
+			Button(Name, IX, Y, IW, RH - 4.0f * Sc, false, [this, Name]() { UseSet(Name); });
+			Y += RH;
+		}
+	}
 	else
 	{
 		// Your own pictures (Saved/Decals).
@@ -1120,17 +1197,17 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 			uint32 Flag;
 		};
 		const FSw Sws[] = {{TEXT("Filled"), BD::Filled}, {TEXT("Under lacquer"), BD::UnderLacquer}, {TEXT("Pair (both sides)"), BD::Pair},
-			{TEXT("Outline"), BD::Outline}, {TEXT("Shadow"), BD::Shadow}};
+			{TEXT("Outline"), BD::Outline}, {TEXT("Shadow"), BD::Shadow}, {TEXT("Worn"), BD::Worn}};
 		const float BW = (IW - 2.0f * 6.0f * Sc) / 3.0f, BH = 30.0f * Sc;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Sws); ++I)
 		{
 			const uint32 Flag = Sws[I].Flag;
 			Button(Sws[I].Label, IX + (I % 3) * (BW + 6.0f * Sc), Y + (I / 3) * (BH + 6.0f * Sc), BW, BH, Cur.Has(Flag), [this, Flag]() { Toggle(Flag); });
 		}
-		Button(FString::Printf(TEXT("Arch %d%%"), FMath::RoundToInt(Cur.Arch * 100.0)), IX + 2.0f * (BW + 6.0f * Sc), Y + BH + 6.0f * Sc, BW * 0.5f - 3.0f * Sc, BH, false,
-			[this]() { Arch(0.1f); });
-		Button(TEXT("Flat"), IX + 2.0f * (BW + 6.0f * Sc) + BW * 0.5f + 3.0f * Sc, Y + BH + 6.0f * Sc, BW * 0.5f - 3.0f * Sc, BH, false, [this]() { Arch(-1.0f); });
-		Y += 2.0f * (BH + 6.0f * Sc) + 6.0f * Sc;
+		const float AY = Y + 2.0f * (BH + 6.0f * Sc);
+		Button(FString::Printf(TEXT("Arch %d%%"), FMath::RoundToInt(Cur.Arch * 100.0)), IX, AY, BW, BH, false, [this]() { Arch(0.1f); });
+		Button(TEXT("Flat"), IX + (BW + 6.0f * Sc), AY, BW, BH, false, [this]() { Arch(-1.0f); });
+		Y += 3.0f * (BH + 6.0f * Sc) + 6.0f * Sc;
 	}
 	// --- What's picked.
 	if (Picked)

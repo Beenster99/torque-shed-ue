@@ -380,6 +380,33 @@ def badge_material():
 DECAL_HLSL = """
 float3 c = pow(saturate(T.rgb), 1.0 / 2.2);
 float inside = (UV.x >= 0.0 && UV.x <= 1.0 && UV.y >= 0.0 && UV.y <= 1.0) ? 1.0 : 0.0;
+// Worn (stage 7): chipped away in specks and more at its edges, as an old sticker goes.
+float edge = saturate(min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y)) * 9.0);
+float N1 = 0.0, N2 = 0.0;
+if (Wear > 0.5)
+{
+    // value noise at two sizes (no texture needed)
+    float2 p = UV * 14.0;
+    float2 i0 = floor(p);
+    float2 f = frac(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float h00 = frac(sin(dot(i0, float2(127.1, 311.7))) * 43758.5453);
+    float h10 = frac(sin(dot(i0 + float2(1, 0), float2(127.1, 311.7))) * 43758.5453);
+    float h01 = frac(sin(dot(i0 + float2(0, 1), float2(127.1, 311.7))) * 43758.5453);
+    float h11 = frac(sin(dot(i0 + float2(1, 1), float2(127.1, 311.7))) * 43758.5453);
+    N1 = lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
+    p = UV * 47.0;
+    i0 = floor(p);
+    f = frac(p);
+    f = f * f * (3.0 - 2.0 * f);
+    h00 = frac(sin(dot(i0, float2(269.5, 183.3))) * 24634.6345);
+    h10 = frac(sin(dot(i0 + float2(1, 0), float2(269.5, 183.3))) * 24634.6345);
+    h01 = frac(sin(dot(i0 + float2(0, 1), float2(269.5, 183.3))) * 24634.6345);
+    h11 = frac(sin(dot(i0 + float2(1, 1), float2(269.5, 183.3))) * 24634.6345);
+    N2 = lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
+}
+float chips = 0.6 * N1 + 0.4 * N2 + 0.3 * (1.0 - edge);
+inside *= (Wear > 0.5 && chips > 0.78) ? 0.0 : 1.0;
 if (Full > 0.5) return float4(T.rgb, T.a * inside);
 float fill = c.r * Filled * inside;
 float ink = c.g * inside;
@@ -410,7 +437,7 @@ def decal_material():
     try_set(node, "code", DECAL_HLSL)
     try_set(node, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT4)
     ins = []
-    for n in ("T", "UV", "Color1", "Color2", "Filled", "Full"):
+    for n in ("T", "UV", "Color1", "Color2", "Filled", "Full", "Wear"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
@@ -426,6 +453,9 @@ def decal_material():
     # The player's own picture (Saved/Decals): its own colours and its own see-through.
     mel.connect_material_expressions(expr(m, unreal.MaterialExpressionScalarParameter, -1000, 700, parameter_name="Full",
                                           default_value=0.0), "", node, "Full")
+    # Worn (stage 7): chipped away in specks and at its edges (noise made in the code).
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionScalarParameter, -1000, 800, parameter_name="Wear",
+                                          default_value=0.0), "", node, "Wear")
     rgb = expr(m, unreal.MaterialExpressionComponentMask, -300, 0, r=True, g=True, b=True, a=False)
     mel.connect_material_expressions(node, "", rgb, "")
     alpha = expr(m, unreal.MaterialExpressionComponentMask, -300, 150, r=False, g=False, b=False, a=True)

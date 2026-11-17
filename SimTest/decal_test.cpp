@@ -151,6 +151,19 @@ int main()
 		Check(RayHit(T, V3(0.0, 100.0, 0.0), V3(0.0, -1.0, 0.0), Hit, N) && std::fabs(Hit.y - 17.0) < 0.3 && N.y > 0.9, "the mouse finds the near surface");
 		Check(!RayHit(T, V3(0.0, 100.0, 50.0), V3(0.0, -1.0, 0.0), Hit, N), "and nothing over the top");
 	}
+	// A set moved onto a bigger part: onto its surface, along its own normal.
+	{
+		Decal Far = Side;
+		Far.At = V3(0.0, 17.0, 0.0);
+		std::vector<V3> Big;
+		for (const V3& P : T) Big.push_back(V3(P.x * 1.2, P.y * 1.2, P.z * 1.2));
+		const std::vector<Decal> Moved = Snapped(Big, {Far});
+		Check(Moved.size() == 1 && std::fabs(Moved[0].At.y - 17.0 * 1.2) < 0.4, "a set snaps onto another part");
+		Decal Lost = Side;
+		Lost.At = V3(0.0, 0.0, 500.0);
+		Lost.Normal = V3(1.0, 0.0, 0.0);
+		Check(Snapped(Big, {Lost}).size() == 1, "found again from the part's middle");
+	}
 	std::printf("%s (%d failed)\n", Fails == 0 ? "ALL PASS" : "SOME FAILED", Fails);
 	return Fails == 0 ? 0 : 1;
 }

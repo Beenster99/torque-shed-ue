@@ -143,7 +143,7 @@ std::string ToText(const std::vector<Decal>& L)
 		Out += "|" + BDI::Num(D.At.x, 2) + "|" + BDI::Num(D.At.y, 2) + "|" + BDI::Num(D.At.z, 2);
 		Out += "|" + BDI::Num(D.Normal.x, 4) + "|" + BDI::Num(D.Normal.y, 4) + "|" + BDI::Num(D.Normal.z, 4);
 		Out += "|" + BDI::Num(D.Turn, 1) + "|" + BDI::Num(D.W, 2) + "|" + BDI::Num(D.H, 2);
-		Out += "|" + BDI::Hex(D.Rgb1) + "|" + BDI::Hex(D.Rgb2) + "|" + std::to_string(D.Flag & 63u) + "|" + BDI::Num(D.Arch, 2);
+		Out += "|" + BDI::Hex(D.Rgb1) + "|" + BDI::Hex(D.Rgb2) + "|" + std::to_string(D.Flag & 127u) + "|" + BDI::Num(D.Arch, 2);
 	}
 	return N == 0 ? std::string() : Out;
 }
@@ -185,7 +185,7 @@ std::vector<Decal> Parse(const std::string& Text)
 		D.H = BDI::ClampD(V[8], MinCm, MaxCm);
 		D.Rgb1 = C1;
 		D.Rgb2 = C2;
-		D.Flag = (uint32_t)BDI::ClampD(Fl, 0.0, 63.0);
+		D.Flag = (uint32_t)BDI::ClampD(Fl, 0.0, 127.0);
 		D.Arch = BDI::ClampD(V[9], 0.0, 1.0);
 		Out.push_back(D);
 	}
@@ -385,5 +385,24 @@ bool RayHit(const std::vector<V3>& Tris, const V3& From, const V3& Dir, V3& Hit,
 	}
 	return std::isfinite(Best);
 }
+std::vector<Decal> Snapped(const std::vector<V3>& Tris, const std::vector<Decal>& L, double Reach)
+{
+	std::vector<Decal> Out;
+	for (const Decal& D : L)
+	{
+		const V3 N = D.Normal.Normalized();
+		if (N.Length() < 0.5) continue;
+		V3 Hit, Nrm;
+		bool bHit = RayHit(Tris, D.At + N * Reach, -N, Hit, Nrm);
+		if (!bHit) bHit = RayHit(Tris, N * 400.0, -N, Hit, Nrm);
+		if (!bHit) continue;
+		Decal M = D;
+		M.At = Hit;
+		M.Normal = Nrm.Normalized();
+		Out.push_back(M);
+	}
+	return Out;
+}
+
 } // namespace Decals
 } // namespace TorqueFit

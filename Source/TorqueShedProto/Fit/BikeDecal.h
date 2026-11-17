@@ -45,6 +45,7 @@ enum Flags : uint32_t
 	Outline = 8,       // lettering: an outline in colour 2
 	Shadow = 16,       // lettering: a drop shadow in colour 2
 	Pair = 32,         // drawn on the other side too, mirrored across the bike's middle
+	Worn = 64,         // an old sticker: chipped in specks and at its edges (stage 7)
 };
 
 struct Decal
@@ -104,5 +105,10 @@ void ArchPoint(double U, double V, double W, double H, double Arch, double& X, d
 // The surface point and normal under a ray (part frame): the nearest triangle it crosses, its
 // normal turned to face the ray. False if none.
 bool RayHit(const std::vector<V3>& Tris, const V3& From, const V3& Dir, V3& Hit, V3& Normal);
+
+// A saved set put on another part (stage 7, reusable sets): each decal moved onto this part's
+// surface, looked for along its own normal from Reach cm outside its old place, then from the part's
+// middle out its way; ones that find no surface are left out.
+std::vector<Decal> Snapped(const std::vector<V3>& Tris, const std::vector<Decal>& L, double Reach = 40.0);
 } // namespace Decals
 } // namespace TorqueFit

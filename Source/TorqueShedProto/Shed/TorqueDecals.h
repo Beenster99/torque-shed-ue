@@ -101,6 +101,12 @@ void ApplyHelmet(UMeshComponent* Helmet, const FString& Text);
 // OutKitPaint: the kit's helmet paint (ue_assets.json rider.helmet) for TorqueHelmetLook::ApplyPaint.
 UStaticMesh* HelmetMesh(FTransform& OutFit, UMaterialInterface*& OutKitPaint);
 
+// --- Reusable sets (stage 7) --------------------------------------------------------------------------
+// A part's decals kept by name (Saved/Decals/Sets/<name>.txt: its slot, then its text), newest first.
+TArray<FString> SetNames();
+FString KeepSet(FName Slot, const FString& Text);   // its name ("" if it couldn't be kept)
+bool LoadSet(const FString& Name, FName& OutSlot, FString& OutText);
+
 FString ToUe(const std::string& S);
 std::string ToStd(const FString& S);
 }

@@ -671,6 +671,7 @@ void Apply(const TArray<UStaticMeshComponent*>& SlotMeshes, const FString& Text,
 				M->SetVectorParameterValue(TEXT("Color2"), TDI::Rgb(D.Rgb2));
 				M->SetScalarParameterValue(TEXT("Filled"), D.Has(BD::Filled) ? 1.0f : 0.0f);
 				M->SetScalarParameterValue(TEXT("Full"), bFull ? 1.0f : 0.0f);
+				M->SetScalarParameterValue(TEXT("Wear"), D.Has(BD::Worn) ? 1.0f : 0.0f);
 				// Under the lacquer: the paint's gloss; a sticker: a satin vinyl.
 				M->SetScalarParameterValue(TEXT("Roughness"), D.Has(BD::UnderLacquer) ? 0.12f : 0.42f);
 			}
@@ -789,6 +790,55 @@ UStaticMesh* HelmetMesh(FTransform& OutFit, UMaterialInterface*& OutKitPaint)
 	FString Path;
 	if (!(*Rig)->TryGetStringField(TEXT("helmet"), Path) || Path.IsEmpty()) return nullptr;
 	return LoadObject<UStaticMesh>(nullptr, *Path);
+}
+
+// --- Reusable sets -------------------------------------------------------------------------------------
+
+namespace
+{
+FString SetFolder() { return OwnFolder() / TEXT("Sets"); }
+}
+
+TArray<FString> SetNames()
+{
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *(SetFolder() / TEXT("*.txt")), true, false);
+	TArray<TPair<FDateTime, FString>> ByTime;
+	for (const FString& F : Files) ByTime.Add(TPair<FDateTime, FString>(IFileManager::Get().GetTimeStamp(*(SetFolder() / F)), FPaths::GetBaseFilename(F)));
+	ByTime.Sort([](const TPair<FDateTime, FString>& A, const TPair<FDateTime, FString>& B) { return A.Key > B.Key; });
+	TArray<FString> Out;
+	for (const TPair<FDateTime, FString>& P : ByTime) Out.Add(P.Value);
+	return Out;
+}
+
+FString KeepSet(FName Slot, const FString& Text)
+{
+	const FString Clean = ToUe(TorqueFit::Decals::Sanitize(ToStd(Text.Left(8192))));
+	if (Clean.IsEmpty() || Slot.IsNone()) return FString();
+	FString Nice = Slot.ToString().Replace(TEXT("_"), TEXT(" "));
+	Nice = Nice.Left(1).ToUpper() + Nice.Mid(1);
+	IFileManager::Get().MakeDirectory(*SetFolder(), true);
+	for (int32 N = 1; N < 1000; ++N)
+	{
+		const FString Name = FString::Printf(TEXT("%s set %d"), *Nice, N);
+		const FString Path = SetFolder() / (Name + TEXT(".txt"));
+		if (IFileManager::Get().FileExists(*Path)) continue;
+		return FFileHelper::SaveStringToFile(Slot.ToString() + TEXT("\n") + Clean, *Path) ? Name : FString();
+	}
+	return FString();
+}
+
+bool LoadSet(const FString& Name, FName& OutSlot, FString& OutText)
+{
+	FString Raw;
+	if (Name.Contains(TEXT("/")) || Name.Contains(TEXT("\\")) || Name.Contains(TEXT("..")) ||
+		!FFileHelper::LoadFileToString(Raw, *(SetFolder() / (Name + TEXT(".txt")))) || Raw.Len() > 9000)
+		return false;
+	FString SlotText, Rest;
+	if (!Raw.Split(TEXT("\n"), &SlotText, &Rest)) return false;
+	OutSlot = FName(*SlotText.TrimStartAndEnd());
+	OutText = ToUe(TorqueFit::Decals::Sanitize(ToStd(Rest.TrimStartAndEnd())));
+	return !OutText.IsEmpty();
 }
 
 void ApplyBike(const TArray<UStaticMeshComponent*>& Parts, TFunctionRef<FString(FName Slot)> DecalsOf)
