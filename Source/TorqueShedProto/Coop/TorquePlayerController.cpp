@@ -871,25 +871,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		}
 		if ((Bike && Bike->InYard()) || Walker)
 		{
-			// [yard] The adventure: the host's to choose, and everyone goes (riders in the yard and
-			// those still in the shed, each on the bike they last took out or worked on).
-			// [co-op] Which bike you take: the host picks theirs on the way out (RideBike), a joined
-			// rider here, before the host sets off. Everyone goes on the bike shown.
-			if (UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this))
-				if (bClient)
-				{
-					Add(TEXT("Your bike for Buttertubs"), RideBikeName(Shed->MyBike()), TEXT("Left / Right picks which of the shed's bikes you ride when the host sets off"),
-						[this, Shed]() { Shed->SetMyBike(NextRideBike(Shed->MyBike(), 1)); },
-						[this, Shed](int32 Dir) { Shed->SetMyBike(NextRideBike(Shed->MyBike(), Dir)); });
-				}
-			if (!bClient)
-				Add(bHost ? TEXT("Set off on Buttertubs (everyone)") : TEXT("Set off on Buttertubs"), FString(),
-					TEXT("The adventure: over the pass, from the top down to Keld. Pick your bike next"), [this]() { Open(EPage::RideBike); });
-			else
-			{
-				Add(TEXT("Set off on Buttertubs"), FString(), TEXT("The host chooses when everyone sets off"), nullptr);
-				R.Last().bDisabled = true;
-			}
+			// [build 155] beenster: the hand-built Buttertubs level is no longer offered ("remove that menu
+			// entry"): its edge is flat ground, and Ride UK rides the real pass. Every ride is Ride UK's.
 			// The real world's roads (Ride UK), alone for now: bare ground and road, planned and fetched
 			// when chosen, which takes a few seconds the first time.
 			UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;

@@ -3208,8 +3208,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("Roller door"), FColor::White, 0.8f});
 		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out from the door"), B->MyBike() + 1), Prompt, 0.65f});
 		// [yard] The adventure is the host's to start, from the pause menu.
-		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on Buttertubs (their menu)"))
-			: FString(TEXT("Esc / Options: Set off on Buttertubs")), Info, 0.55f});
+		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on the ride (their menu)"))
+			: FString(TEXT("Esc / Options: Plan a ride (Ride UK)")), Info, 0.55f});
 		break;
 	default:
 		break;
