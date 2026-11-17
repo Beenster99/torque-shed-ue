@@ -113,7 +113,7 @@ def leg_length(P, d):
     return -P.dot(n) / d.dot(n)
 
 
-def plan(model, dx=120.0, dz=95.0, rise=6.0, fwd=0.30, out=0.34):
+def plan(model, dx=120.0, dz=95.0, rise=6.0, fwd=0.30, out=0.34, ypad=22.0):
     """The stand's pivot, swing axis and its folded and down directions for a bike."""
     sp = model["swingarm"]["pivot"]
     pegs = [tuple(s_["at"]) for s_ in model.get("hangers", []) if s_.get("circle")] or [MX_PEG]
@@ -121,7 +121,7 @@ def plan(model, dx=120.0, dz=95.0, rise=6.0, fwd=0.30, out=0.34):
     z = min(sp[1], min(p[1] for p in pegs)) - dz
     z = max(z, model["geometry"].get("ground_clearance", 150) + 25)
     yc = case_y(x, z)
-    y = (yc if yc is not None else 120.0) + 22.0
+    y = (yc if yc is not None else 120.0) + ypad
     P = Vector((x, y, z))
     down = Vector((fwd, out, -1.0)).normalized()
     r = math.radians(rise)
@@ -251,8 +251,13 @@ def fit(b, model, c=None, style=None):
     st = STYLES[style or FAMILY_STYLE.get(fam, "street")]
     rep = dict(model=model.get("name", ""), family=fam, style=style or FAMILY_STYLE.get(fam, "street"))
     best = None
-    for dx, dz, rise in ((120, 95, 6), (150, 95, 6), (90, 95, 8), (120, 75, 4), (150, 115, 8), (180, 95, 6), (60, 95, 10)):
-        pl = plan(model, dx, dz, rise)
+    tries = sorted(((dx, dz, rise, yp, ot) for dx in (120, 150, 90, 180, 60, 210, 30, 0) for dz in (95, 75, 115, 135, 55)
+                    for rise in (6, 2, 10) for yp in (22, 34, 46) for ot in (0.34, 0.5)),
+                   key=lambda t: abs(t[0] - 120) / 30 + abs(t[1] - 95) / 20 + abs(t[2] - 6) / 4 + (t[3] - 22) / 12 + (t[4] - 0.34) * 8)
+    for n_, (dx, dz, rise, yp, ot) in enumerate(tries):
+        if n_ >= 120 or (n_ >= 80 and best is not None and best[0] < 12):
+            break
+        pl = plan(model, dx, dz, rise, out=ot, ypad=yp)
         if not 150 < pl["L"] < 420:
             continue
         made, sw, down, folded = _one(model, st, M, fam, pl)
