@@ -1052,6 +1052,101 @@
    "colours": 2,
    "file": "art/spanners.png",
    "thumb": "thumbs/spanners.png"
+  },
+  {
+   "id": "chopper_lace",
+   "shelf": "art",
+   "name": "Pinstripe lace",
+   "tags": [
+    "chopper",
+    "pinstripe",
+    "lace",
+    "tank"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_lace.png",
+   "thumb": "thumbs/chopper_lace.png"
+  },
+  {
+   "id": "chopper_teardrop_flames",
+   "shelf": "art",
+   "name": "Teardrop panel with flames",
+   "tags": [
+    "chopper",
+    "flames",
+    "panel",
+    "tank"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_teardrop_flames.png",
+   "thumb": "thumbs/chopper_teardrop_flames.png"
+  },
+  {
+   "id": "chopper_spade_wings",
+   "shelf": "art",
+   "name": "Winged spade",
+   "tags": [
+    "chopper",
+    "spades",
+    "wings",
+    "luck"
+   ],
+   "w": 768,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_spade_wings.png",
+   "thumb": "thumbs/chopper_spade_wings.png"
+  },
+  {
+   "id": "chopper_pistons",
+   "shelf": "art",
+   "name": "Crossed pistons",
+   "tags": [
+    "chopper",
+    "piston",
+    "engine"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_pistons.png",
+   "thumb": "thumbs/chopper_pistons.png"
+  },
+  {
+   "id": "chopper_scroll",
+   "shelf": "art",
+   "name": "Scroll banner",
+   "tags": [
+    "chopper",
+    "banner",
+    "scroll",
+    "lettering"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_scroll.png",
+   "thumb": "thumbs/chopper_scroll.png"
+  },
+  {
+   "id": "chopper_winged_wheel",
+   "shelf": "art",
+   "name": "Winged wheel",
+   "tags": [
+    "chopper",
+    "wheel",
+    "wings",
+    "club"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/chopper_winged_wheel.png",
+   "thumb": "thumbs/chopper_winged_wheel.png"
   }
  ]
 }

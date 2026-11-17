@@ -671,4 +671,129 @@ def spanners():
     return k.decal("spanners", "Crossed spanners", ["tools", "spanner", "garage"])
 
 
+# ============================================================== chopper tank designs (stage 2b)
+# Folded in from "Build common bike parts" stage 8b: designs for a chopper's tank sides.
+
+
+@art
+def chopper_lace():
+    """Pinstripe lace: a centre diamond and curling lines out each way, ink only."""
+    k = Parts()
+    w = 7.0
+    half = []
+    half.append(taper(spline([(512, 256), (600, 200), (700, 180), (790, 215)], 14), w, w * 0.4, w * 1.1, ends="tip"))
+    half.append(taper(curl(800, 235, 34, turns=1.1, sign=1, start=-math.pi / 2), w * 0.9, 2, ends="tip"))
+    half.append(taper(spline([(512, 256), (600, 312), (700, 332), (790, 297)], 14), w, w * 0.4, w * 1.1, ends="tip"))
+    half.append(taper(curl(800, 277, 34, turns=1.1, sign=-1, start=math.pi / 2), w * 0.9, 2, ends="tip"))
+    half.append(taper(spline([(560, 256), (660, 252), (760, 256), (900, 256), (980, 250)], 14), w * 0.9, 1, w, ends="tip"))
+    half.append(taper(spline([(640, 196), (660, 150), (705, 132), (735, 150)], 12), w * 0.8, 1, ends="tip"))
+    half.append(taper(spline([(640, 316), (660, 362), (705, 380), (735, 362)], 12), w * 0.8, 1, ends="tip"))
+    lace = union(*half)
+    k.ink(sym_x(lace, 512))
+    k.ink(outline(poly([(512, 206), (556, 256), (512, 306), (468, 256)]), w))
+    k.black(circle(512, 256, 9))
+    return k.decal("chopper_lace", "Pinstripe lace", ["chopper", "pinstripe", "lace", "tank"], w=1024, h=512)
+
+
+@art
+def chopper_teardrop_flames():
+    """A teardrop panel along the tank (round at the front, a point at the back), flames licking
+    back inside it in the ink colour."""
+    k = Parts()
+    top = [(80, 256), (110, 175), (230, 135), (520, 150), (800, 205), (975, 256)]
+    edge = spline(top, 14) + [(x, 512 - y) for x, y in reversed(spline(top, 14))][1:-1]
+    drop = poly(edge)
+    k.lay(drop)
+    licks = []
+    for i, (y, L, bend) in enumerate(((205, 470, -1), (232, 640, 1), (256, 760, -1), (280, 620, 1), (307, 450, -1))):
+        c = [(150, 256 + (y - 256) * 0.6), (150 + L * 0.3, y + bend * 16), (150 + L * 0.65, y - bend * 14), (150 + L, y + bend * 6)]
+        licks.append(taper(spline(c, 16), 38, 1, 34, ends="tip"))
+    root = ellipse(175, 256, 70, 62)
+    flames = inter(union(root, *licks), grow(drop, -18))
+    k.black(flames)
+    return k.decal("chopper_teardrop_flames", "Teardrop panel with flames", ["chopper", "flames", "panel", "tank"], w=1024, h=512)
+
+
+def swept_wing(root_x, root_y, n=6, span=300, wd=56, cx=512):
+    """Wings swept out and up from both sides of a middle piece (feathers back to front)."""
+    pieces = []
+    for i in range(n):
+        s = i / (n - 1)
+        pieces.append(feather((root_x + 18 * s, root_y - 22 * s), -4 - 34 * s, span * (1.0 - 0.42 * s), wd, curve=-0.06))
+    fill, line = painter(pieces, INK)
+    wing = Parts()
+    wing.fill, wing.line = sym_x(fill, cx), sym_x(line, cx)
+    return wing
+
+
+@art
+def chopper_spade_wings():
+    """A spade with swept wings."""
+    k = Parts()
+    k.merge(swept_wing(440, 250, n=5, span=250, wd=50, cx=384))
+    sp = union(xform(heart(0, 0, 105), sy=-1, cx=0, cy=0), poly([(-12, 60), (12, 60), (42, 130), (-42, 130)]))
+    sp = xform(sp, tx=384, ty=230, cx=0, cy=0)
+    k.lay(sp)
+    k.tone(inter(sp, rect(384, 0, 768, 512)))
+    return k.decal("chopper_spade_wings", "Winged spade", ["chopper", "spades", "wings", "luck"], w=768, h=512)
+
+
+@art
+def chopper_pistons():
+    """Two pistons crossed, on their own."""
+    k = Parts()
+    for sg in (1, -1):
+        p = Parts()
+        L = 440
+        rod = rect(-L / 2, -18, L / 2 - 80, 18, 8)
+        crown = rect(L / 2 - 116, -62, L / 2, 62, 10)
+        eye = circle(-L / 2, 0, 42)
+        p.lay(rod)
+        p.lay(eye)
+        p.black(circle(-L / 2, 0, 19))
+        p.lay(crown)
+        for x in (L / 2 - 96, L / 2 - 78, L / 2 - 60):
+            p.ink(stroke(line_path([(x, -62), (x, 62)]), FINE))
+        p.black(circle(L / 2 - 30, 0, 13))
+        p.tone(rect(L / 2 - 116, 0, L / 2, 62))
+        p.tone(rect(-L / 2 + 40, 0, L / 2 - 116, 18))
+        k.merge(p.moved(rot=sg * 42, tx=256, ty=256, cx=0, cy=0))
+    return k.decal("chopper_pistons", "Crossed pistons", ["chopper", "piston", "engine"])
+
+
+@art
+def chopper_scroll():
+    """A blank scroll banner with rolled tails, for your own lettering on top."""
+    k = Parts()
+    for sg in (1, -1):
+        tail = poly([(512 + sg * 330, 250), (512 + sg * 470, 250), (512 + sg * 430, 300), (512 + sg * 470, 350), (512 + sg * 330, 350)])
+        k.lay(tail)
+        k.tone(tail)
+        fold = poly([(512 + sg * 330, 300), (512 + sg * 380, 350), (512 + sg * 330, 350)])
+        k.lay(fold)
+        k.black(fold)
+    band = smooth([(162, 205), (512, 180), (862, 205), (862, 305), (512, 280), (162, 305)], 10)
+    k.lay(band)
+    return k.decal("chopper_scroll", "Scroll banner", ["chopper", "banner", "scroll", "lettering"], w=1024, h=512)
+
+
+@art
+def chopper_winged_wheel():
+    """A spoked wheel with wings: the old motorcycle club emblem, plain."""
+    k = Parts()
+    k.merge(swept_wing(600, 250, n=6, span=330, wd=58, cx=512))
+    w = Parts()
+    w.lay(circle(512, 256, 128))
+    w.black(diff(circle(512, 256, 128), circle(512, 256, 102)))
+    w.ink(diff(circle(512, 256, 102), circle(512, 256, 92)))
+    for i in range(12):
+        a = math.radians(i * 30)
+        w.ink(stroke(line_path([(512 + 24 * math.cos(a), 256 + 24 * math.sin(a)), (512 + 94 * math.cos(a), 256 + 94 * math.sin(a))]), FINE))
+    w.lay(circle(512, 256, 28))
+    w.black(circle(512, 256, 10))
+    w.tone(inter(diff(circle(512, 256, 92), circle(512, 256, 28)), rect(512, 0, 1024, 512)))
+    k.merge(w)
+    return k.decal("chopper_winged_wheel", "Winged wheel", ["chopper", "wheel", "wings", "club"], w=1024, h=512)
+
+
 ALL_NAMES = [f.__name__ for f in ALL]
