@@ -456,6 +456,9 @@ PartsMap BikeLayout::ShopBuild(const std::string& Style) const
 	PartsMap Out = ReferenceBuild(Style);
 	const std::vector<std::string> Frames = V2Frames(Style);
 	if (!Frames.empty()) Out["frame"] = Frames.front();
+	// (A stock bike built with a part since retired, the cruiser's saddlebags: it comes without.)
+	for (auto& KV : Out)
+		if (!KV.second.empty() && KV.second != "none" && !Part(KV.second)) KV.second = "none";
 	return Out;
 }
 

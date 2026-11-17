@@ -131,11 +131,27 @@
    "tourer_stack"
   ],
   "panniers": [
-   "plastic_cases"
+   "plastic_cases",
+   "canvas_throwover",
+   "leather_saddlebags",
+   "adventure_soft",
+   "aluminium_boxes",
+   "cruiser_leather_saddlebags",
+   "cruiser_hard_bags",
+   "adv_alloy_trunks_silver",
+   "adv_hard_side_cases",
+   "adv_slim_soft_cases"
   ],
   "top_box": [
    "top_box_30",
-   "top_box_45"
+   "top_box_45",
+   "alloy_top_box",
+   "wooden_crate",
+   "leather_trunk",
+   "roll_bag",
+   "adv_alloy_top_55",
+   "adv_black_top_42",
+   "adv_plastic_top_50"
   ],
   "tail": [
    "scrambler_loop",
@@ -179,6 +195,13 @@
   ],
   "number_boards": [
    "flat_track_boards"
+  ],
+  "fog_lights": [
+   "halogen_spots",
+   "led_pods",
+   "rally_lamps",
+   "amber_fogs",
+   "light_bar"
   ]
  },
  "frame": {
