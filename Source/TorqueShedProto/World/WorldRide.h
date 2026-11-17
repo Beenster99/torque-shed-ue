@@ -94,6 +94,9 @@ struct RideProp
 	// and is placed at its model's own size (Variant is the size, not a pick).
 	bool Facade = false;
 	float Tint[9] = {};
+	// [build 154] A model laid along a line (Buttertubs' wall lengths): tipped up its slope by Pitch (radians,
+	// its far end up) and drawn Stretch times its own length along it.
+	float Pitch = 0.0f, Stretch = 1.0f;
 };
 
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
@@ -486,6 +489,7 @@ public:
 	static constexpr double BankWiden = 0.9, BankMost = 30.0, BatterRun = 2.0, BatterLeast = 4.0;
 	static constexpr double NearestReach = 40.0;   // NearestOf finds roads within this of a point (m)
 	static constexpr double Sink = 0.1;         // how far under the road's surface the ground under it lies
+	static constexpr double FlushSink = 0.045;  // [build 154] and beside it, past the edge: just under the shoulder's flat
 	// The road's shoulder: nearly level out to ShoulderFlat (ShoulderDip down, still clear of the
 	// ground), then steeply down into the ground by Shoulder. The grass meets it on the steep part, so
 	// the line between them stays put though the land's mesh is only a point every 4 m.
@@ -695,7 +699,16 @@ public:
 		PropDoorPanel6, PropDoorVictorian, PropDoorLedged, PropDoorLedgedLight, PropDoorModern, PropDoorDouble, PropDoorHood,
 		// [towns stage 4] Bay windows (Variant: storeys less one), placed only where the game has their models
 		PropBayCanted, PropBaySquare,
+		// [build 154] Dry stone walls laid stone by stone (Tools/make_wall_kit.py): 2 m lengths and 1 m wall heads,
+		// finished at the model's +x; Variant is the region's walling (WallStyle) times WallVariants plus a pick.
+		// Placed on the finest squares where both are modelled.
+		PropWallStone, PropWallEnd,
 		PropKinds };
+	static constexpr int WallStyles = 6, WallVariants = 4;
+	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
+	// limestone (Buttertubs' own), 1 Cotswold, 2 slate (the Lakes, Wales), 3 gritstone (the Peak, southern
+	// Scotland), 4 granite (the Highlands, Ulster), 5 sandstone (the Moors, the North East, the rest).
+	static int WallStyle(const LocalLook& Look);
 	static constexpr int FirstFacade = PropWinSash6;
 	static constexpr int FacadeCoreEnd = PropBayCanted;   // (the kinds the kit can't go without: it is off unless all have models)
 	// [fps plan step 2] Whether the houses' windows and doors come as the facade kit's instances (the game

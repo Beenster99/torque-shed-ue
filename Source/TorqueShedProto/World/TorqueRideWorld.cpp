@@ -2141,8 +2141,19 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 		const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(PropFrame.Z));
 		const double Size = (Own > 1.0 && Fix.X > 0.0 ? Fix.X / Own : 1.0) * double(P.Scale) * S.ScaleMultiplier;
 		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
-		const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
-		const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
+		FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
+		FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
+		if (P.Pitch != 0.0f || P.Stretch != 1.0f)
+		{
+			// [build 154] (a wall length laid along its line: drawn Stretch times its own length, along the model's
+			// own axis that the importer's turn makes its front, then tipped about the level line across it so its
+			// far end climbs the slope)
+			const bool bAcross = !S.bNativeMesh && FMath::Abs(FMath::Fmod(FMath::Abs(PropFrame.X), 180.0) - 90.0) < 1.0;
+			(bAcross ? Scale3.Y : Scale3.X) *= double(P.Stretch);
+			const double Facing = double(P.Yaw) + FMath::DegreesToRadians(Fix.Y);
+			const FVector Front(FMath::Cos(Facing), FMath::Sin(Facing), 0.0);
+			Rot = FQuat(FVector::CrossProduct(Front, FVector::UpVector).GetSafeNormal(), double(P.Pitch)) * Rot;
+		}
 		FPropGroup& Group = Groups.FindOrAdd(Mi);
 		Group.At.Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
 		if (P.Facade) Group.Tint.Append(P.Tint, 9);

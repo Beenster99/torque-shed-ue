@@ -403,6 +403,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 	Out.StoneTint = Look.WallStone;
 	Out.MasonryTint = Look.HouseStone;
 	const bool Banks = Look.Boundary == LocalLook::HedgeBank;
+	const int WallKind = WallStyle(Look);
 	std::shared_ptr<RideMesh> Washed = std::make_shared<RideMesh>();
 	Washed->OriginX = X0;
 	Washed->OriginZ = Z0;
@@ -619,7 +620,11 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							Leafy(-0.3, High + 0.3, Foot);
 							continue;
 						}
-						Stretch(Foot, Top, -0.4, High, Colour, IsWall);
+						// [build 154] (beenster: "the walls remain too low def; I remember how detailed they were in
+						// Buttertubs", and "don't just use Buttertubs walls, they're for Yorkshire": on the finest squares
+						// a dry stone wall is laid stone by stone, in its region's walling, Tools/make_wall_kit.py)
+						const bool Kitted = IsWall && Fine && PropModelled[PropWallStone] && PropModelled[PropWallEnd];
+						if (!Kitted) Stretch(Foot, Top, -0.4, High, Colour, IsWall);
 						if (IsWall && Fine)
 						{
 							const P2 BitA = A + (B - A) * (double(K) / Bits), BitB = A + (B - A) * (double(K + 1) / Bits);
@@ -635,6 +640,41 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								if (K + 1 < Bits) OnAfter = CarriesOn(Pb, I, K + 1, true);
 								else if (I + 2 < LineN) OnAfter = CarriesOn(Pb, I + 1, 0, true);
 								else if (Closed) OnAfter = CarriesOn(Pb, 0, 0, true);
+							}
+							if (Kitted)
+							{
+								// (its whole 2 m lengths, stretched to fit the piece, each pitched up the slope between its
+								// ends; where it stops, a wall head, finished outward, over its last metre)
+								const auto Lay = [&](int Model, int Variant, const P2& Q0, const P2& Q1)
+								{
+									const double Y0 = Ground(Q0.X, Q0.Z), Y1 = Ground(Q1.X, Q1.Z), Run = Q0.DistanceTo(Q1);
+									if (std::isnan(Y0) || std::isnan(Y1) || Run < 0.05) return;
+									const P2 Qm = (Q0 + Q1) * 0.5;
+									RideProp Pr;
+									Pr.Kind = uint16_t(Model);
+									Pr.Variant = uint8_t(Variant);
+									Pr.Mapped = false;
+									Pr.X = float(Qm.X - Out.OriginX);
+									Pr.Y = float((Y0 + Y1) * 0.5 - 0.02);
+									Pr.Z = float(Qm.Z - Out.OriginZ);
+									Pr.Yaw = float(std::atan2(Q1.Z - Q0.Z, Q1.X - Q0.X));
+									Pr.Pitch = float(std::atan2(Y1 - Y0, Run));
+									Pr.Stretch = float(Run / (Model == PropWallEnd ? 1.0 : 2.0));
+									Out.Props.push_back(Pr);
+								};
+								const double Run = Pa.DistanceTo(Pb);
+								const bool HeadA = !OnBefore && Run >= 1.6, HeadB = !OnAfter && Run >= (HeadA ? 2.6 : 1.6);
+								const P2 La = HeadA ? Pa + Dir * 1.0 : Pa, Lb = HeadB ? Pb - Dir * 1.0 : Pb;
+								const double Lr = La.DistanceTo(Lb);
+								const int Lengths = Lr > 0.4 ? std::max(1, int(std::ceil(Lr / 2.0 - 0.2))) : 0;   // (each 0.7 to 1.25 of its own length)
+								for (int Ln = 0; Ln < Lengths; ++Ln)
+								{
+									const P2 Q0 = La + (Lb - La) * (double(Ln) / Lengths), Q1 = La + (Lb - La) * (double(Ln + 1) / Lengths);
+									Lay(PropWallStone, WallKind * WallVariants + (int(Chance(Q0.X, Q0.Z, 51) * WallVariants) % WallVariants), Q0, Q1);
+								}
+								if (HeadA) Lay(PropWallEnd, WallKind * WallVariants + (int(Chance(Pa.X, Pa.Z, 52) * WallVariants) % WallVariants), La, Pa);
+								if (HeadB) Lay(PropWallEnd, WallKind * WallVariants + (int(Chance(Pb.X, Pb.Z, 52) * WallVariants) % WallVariants), Lb, Pb);
+								continue;
 							}
 							// (an end face: across the wall, its foot to its top, and the top stones' end above it)
 							for (int End = 0; End < 2; ++End)
@@ -1879,9 +1919,18 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 					const double H = RoadHeight(Q.X, Q.Z);
 					return std::isnan(H) ? Y : H;
 				};
-				const double Ya = Top(-1.0) + 0.012, Yb = Top(1.0) + 0.012;
-				const P2 A = C + Across * (-Half), B = C + Across * Half, T = Face * 0.025;
-				Quad(Out, At3(A.X - T.X, Ya, A.Z - T.Z), At3(B.X - T.X, Yb, B.Z - T.Z), At3(B.X + T.X, Yb, B.Z + T.Z), At3(A.X + T.X, Ya, A.Z + T.Z), At3(C.X, Y + 100.0, C.Z), Steel);
+				// ([build 154] beenster: "cattle grids need to be on the surface of the road, not sunken": a bar
+				// was straight from edge to edge, so the road's crown rose over it in the middle. Now it follows
+				// the surface, in pieces of half a metre or so, a hair proud of it all the way.)
+				const int Pieces = std::max(2, int(std::ceil(F.Size / 0.5)));
+				const P2 T = Face * 0.025;
+				for (int Pc = 0; Pc < Pieces; ++Pc)
+				{
+					const double Sa = -1.0 + 2.0 * Pc / Pieces, Sb = -1.0 + 2.0 * (Pc + 1) / Pieces;
+					const double Ya = Top(std::clamp(Sa, -0.95, 0.95)) + 0.015, Yb = Top(std::clamp(Sb, -0.95, 0.95)) + 0.015;   // (just in from the edge, where the road is found)
+					const P2 A = C + Across * (Sa * Half), B = C + Across * (Sb * Half);
+					Quad(Out, At3(A.X - T.X, Ya, A.Z - T.Z), At3(B.X - T.X, Yb, B.Z - T.Z), At3(B.X + T.X, Yb, B.Z + T.Z), At3(A.X + T.X, Ya, A.Z + T.Z), At3(C.X, Y + 100.0, C.Z), Steel);
+				}
 			}
 			for (double Su : {-1.0, 1.0})
 			{

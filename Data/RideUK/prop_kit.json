@@ -37,6 +37,8 @@
   "door_double": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "door_hood": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "bay_canted": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
-  "bay_square": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""}
+  "bay_square": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
+  "wall_stone": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"},
+  "wall_end": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"}
  }
 }

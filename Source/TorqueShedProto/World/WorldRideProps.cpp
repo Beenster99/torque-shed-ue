@@ -19,13 +19,24 @@ namespace RidePropBits
 constexpr double PropCell = 256.0;   // as the scenery's squares (SceneCell)
 } // namespace RidePropBits
 
+int RidePlan::WallStyle(const LocalLook& Look)
+{
+	const std::string N = Look.Name;
+	if (N == "dales") return 0;
+	if (N == "cotswolds") return 1;
+	if (N == "lakes" || N == "wales") return 2;
+	if (N == "peak" || N == "lowlands") return 3;
+	if (N == "highlands" || N == "ulster" || N == "cornwall") return 4;
+	return 5;
+}
+
 const char* RidePlan::PropName(int Kind)
 {
 	static const char* Names[PropKinds] = {"post_box", "seat", "bus_stop", "milestone", "phone_box", "power_pole", "field_gate", "street_lamp", "stile", "kissing_gate",
 		"lift_gate", "bollard", "picnic_table", "info_board",
 		"win_sash6", "win_sash2", "win_casement", "win_casement_top", "win_mullion", "win_mullion_leaded", "sur_stone", "sur_brick", "sur_plain",
 		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood",
-		"bay_canted", "bay_square"};
+		"bay_canted", "bay_square", "wall_stone", "wall_end"};
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
