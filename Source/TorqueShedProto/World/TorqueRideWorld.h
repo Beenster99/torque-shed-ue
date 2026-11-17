@@ -74,6 +74,10 @@ class ATorqueRideWorld : public AActor
 
 public:
 	ATorqueRideWorld();
+	// [perf, build 155] The scene's counts from the last 5 s line, for the bike's perf CSV (O in game):
+	// so a slow stretch in a player's own recording says what was in view.
+	static int32 SceneSquares, ScenePlantGroups, SceneTreeGroups;
+	static int64 SceneTrees, ScenePlants;
 	// The ride to lay out. The ground and road round its start are made before this returns (with
 	// their collision), so a bike put down there has something to stand on.
 	void Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan);

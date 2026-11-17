@@ -4634,12 +4634,17 @@ void ATorqueBikePawn::UpdatePerf(float Dt)
 		{
 			PerfFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Profiling"),
 				FString::Printf(TEXT("torque_perf_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"))));
-			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera\n"), *PerfFile);
+			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera,x_m,y_m,squares,plant_groups,plants,tree_groups,trees\n"), *PerfFile);
 			UE_LOG(LogTemp, Log, TEXT("Torque: logging performance to %s"), *PerfFile);
 		}
 		const double Km = Line.Num() > 1 ? RouteLengthM / 1000.0 * Near / (Line.Num() - 1) : 0.0;
-		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d\n"),
-			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode),
+		// ([perf, build 155] where, and the ride's scene counts: beenster's build 154 recordings showed
+		// GPU 20-50 ms stretches with nothing to say what was in view)
+		const FVector PerfAt = GetActorLocation() / 100.0;
+		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d,%.0f,%.0f,%d,%d,%lld,%d,%lld\n"),
+			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode,
+			PerfAt.X, PerfAt.Y, ATorqueRideWorld::SceneSquares, ATorqueRideWorld::ScenePlantGroups, ATorqueRideWorld::ScenePlants,
+			ATorqueRideWorld::SceneTreeGroups, ATorqueRideWorld::SceneTrees),
 			*PerfFile, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 	}
 	PerfClock = 0.0;

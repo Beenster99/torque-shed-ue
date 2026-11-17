@@ -74,6 +74,22 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("Performance"), bPerformance, Ini);
 	GConfig->GetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
 	GConfig->GetBool(Section, TEXT("Reflex"), bReflex, Ini);
+	// [build 155] Once, for settings saved before it: frame generation and VSync off (beenster, Nov 17:
+	// "the game might work better without frame gen"; VSync off for their 120 Hz screen). Both stay in
+	// Settings > Graphics, and what is chosen after this is kept.
+	{
+		int32 Seen = 0;
+		GConfig->GetInt(Section, TEXT("DefaultsSeen"), Seen, Ini);
+		if (Seen < 155)
+		{
+			bFrameGen = false;
+			bVSync = false;
+			GConfig->SetInt(Section, TEXT("DefaultsSeen"), 155, Ini);
+			GConfig->SetBool(Section, TEXT("FrameGen"), false, Ini);
+			GConfig->SetBool(Section, TEXT("VSync"), false, Ini);
+			GConfig->Flush(false, Ini);
+		}
+	}
 	GConfig->GetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
