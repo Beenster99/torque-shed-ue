@@ -1147,6 +1147,308 @@
    "colours": 2,
    "file": "art/chopper_winged_wheel.png",
    "thumb": "thumbs/chopper_winged_wheel.png"
+  },
+  {
+   "id": "gothic_cross",
+   "shelf": "art",
+   "name": "Gothic cross",
+   "tags": [
+    "gothic",
+    "cross"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/gothic_cross.png",
+   "thumb": "thumbs/gothic_cross.png"
+  },
+  {
+   "id": "coffin",
+   "shelf": "art",
+   "name": "Coffin",
+   "tags": [
+    "death",
+    "coffin",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/coffin.png",
+   "thumb": "thumbs/coffin.png"
+  },
+  {
+   "id": "tombstone",
+   "shelf": "art",
+   "name": "Tombstone",
+   "tags": [
+    "death",
+    "grave",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/tombstone.png",
+   "thumb": "thumbs/tombstone.png"
+  },
+  {
+   "id": "raven",
+   "shelf": "art",
+   "name": "Raven",
+   "tags": [
+    "bird",
+    "raven",
+    "gothic",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/raven.png",
+   "thumb": "thumbs/raven.png"
+  },
+  {
+   "id": "snake_coil",
+   "shelf": "art",
+   "name": "Coiled snake",
+   "tags": [
+    "snake",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/snake_coil.png",
+   "thumb": "thumbs/snake_coil.png"
+  },
+  {
+   "id": "snake_dagger",
+   "shelf": "art",
+   "name": "Snake and dagger",
+   "tags": [
+    "snake",
+    "dagger",
+    "tattoo"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/snake_dagger.png",
+   "thumb": "thumbs/snake_dagger.png"
+  },
+  {
+   "id": "skull_tophat",
+   "shelf": "art",
+   "name": "Skull in a top hat",
+   "tags": [
+    "skull",
+    "hat",
+    "death",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_tophat.png",
+   "thumb": "thumbs/skull_tophat.png"
+  },
+  {
+   "id": "skull_helmet",
+   "shelf": "art",
+   "name": "Skull in helmet and goggles",
+   "tags": [
+    "skull",
+    "helmet",
+    "rider",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_helmet.png",
+   "thumb": "thumbs/skull_helmet.png"
+  },
+  {
+   "id": "crossbones",
+   "shelf": "art",
+   "name": "Crossbones",
+   "tags": [
+    "bones",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/crossbones.png",
+   "thumb": "thumbs/crossbones.png"
+  },
+  {
+   "id": "sparkplug_wings",
+   "shelf": "art",
+   "name": "Winged spark plug",
+   "tags": [
+    "garage",
+    "engine",
+    "wings",
+    "spark plug"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/sparkplug_wings.png",
+   "thumb": "thumbs/sparkplug_wings.png"
+  },
+  {
+   "id": "flaming_wheel",
+   "shelf": "art",
+   "name": "Flaming wheel",
+   "tags": [
+    "wheel",
+    "flames",
+    "speed"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/flaming_wheel.png",
+   "thumb": "thumbs/flaming_wheel.png"
+  },
+  {
+   "id": "nautical_star",
+   "shelf": "art",
+   "name": "Nautical star",
+   "tags": [
+    "star",
+    "tattoo",
+    "luck"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/nautical_star.png",
+   "thumb": "thumbs/nautical_star.png"
+  },
+  {
+   "id": "gem",
+   "shelf": "art",
+   "name": "Diamond",
+   "tags": [
+    "gem",
+    "diamond",
+    "luck"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/gem.png",
+   "thumb": "thumbs/gem.png"
+  },
+  {
+   "id": "sword_skull",
+   "shelf": "art",
+   "name": "Sword through a skull",
+   "tags": [
+    "skull",
+    "sword",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/sword_skull.png",
+   "thumb": "thumbs/sword_skull.png"
+  },
+  {
+   "id": "thorn_heart",
+   "shelf": "art",
+   "name": "Heart in thorns",
+   "tags": [
+    "heart",
+    "thorns",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/thorn_heart.png",
+   "thumb": "thumbs/thorn_heart.png"
+  },
+  {
+   "id": "ouroboros",
+   "shelf": "art",
+   "name": "Snake ring",
+   "tags": [
+    "snake",
+    "gothic",
+    "circle"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/ouroboros.png",
+   "thumb": "thumbs/ouroboros.png"
+  },
+  {
+   "id": "hourglass_wings",
+   "shelf": "art",
+   "name": "Winged hourglass",
+   "tags": [
+    "time",
+    "wings",
+    "death",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/hourglass_wings.png",
+   "thumb": "thumbs/hourglass_wings.png"
+  },
+  {
+   "id": "moon_stars",
+   "shelf": "art",
+   "name": "Moon and stars",
+   "tags": [
+    "moon",
+    "stars",
+    "night",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/moon_stars.png",
+   "thumb": "thumbs/moon_stars.png"
+  },
+  {
+   "id": "lantern",
+   "shelf": "art",
+   "name": "Lantern",
+   "tags": [
+    "lantern",
+    "light",
+    "gothic"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/lantern.png",
+   "thumb": "thumbs/lantern.png"
+  },
+  {
+   "id": "crown",
+   "shelf": "art",
+   "name": "Crown",
+   "tags": [
+    "crown",
+    "king"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/crown.png",
+   "thumb": "thumbs/crown.png"
   }
  ]
 }

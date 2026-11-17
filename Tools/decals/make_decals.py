@@ -33,6 +33,7 @@ def load_shelves():
     SHELVES["shapes"] = [f() for f in shapes.ALL]
     try:
         import flash
+        import flash2  # noqa: F401  (its pieces join flash.ALL)
         SHELVES["art"] = [f() for f in flash.ALL]
     except ImportError:
         pass
