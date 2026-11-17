@@ -226,6 +226,7 @@ bool RidePlan::UnderTower(double X, double Z) const
 	using namespace RideTowerBits;
 	if (!Scene) return false;
 	if (UnderPlace(X, Z)) return true;   // [places stage 3] (a building a place's recipe stands in for)
+	if (OnForecourt(X, Z)) return true;   // [roads stage 7] (a petrol station's canopy or kiosk the map has: the forecourt's own stand in)
 	const auto It = Scene->Towers.find(TowerKey(int(std::floor(X / TowerCell)), int(std::floor(Z / TowerCell))));
 	if (It == Scene->Towers.end()) return false;
 	for (int I : It->second)

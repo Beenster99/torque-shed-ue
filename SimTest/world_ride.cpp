@@ -782,6 +782,19 @@ int main(int Argc, char** Argv)
 			int(Plan->Area.Roads.Sights.size()), Plan->PlacesFar, Plan->PlaceStopCount[RidePlan::PlaceMade], Plan->PlaceStopCount[RidePlan::PlaceCarPark],
 			Plan->PlaceStopCount[RidePlan::PlaceLayby], Plan->PlaceStopCount[RidePlan::PlaceStreet]);
 		std::printf("Places stage 7: %d paths in to the places, %d kissing gates on them\n", Plan->PlacePaths, Plan->PlaceGates);
+		// [roads stage 7] The petrol stations.
+		{
+			const Frame Fc(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
+			int Kiosks = 0, Three = 0;
+			for (const RidePlan::Forecourt& F : Plan->Forecourts) { Kiosks += F.Kiosk ? 1 : 0; Three += F.Islands == 3 ? 1 : 0; }
+			std::printf("Forecourts: %d made of %d fuel stops (%d with a kiosk, %d with three islands)\n", int(Plan->Forecourts.size()), Plan->FuelSeen, Kiosks, Three);
+			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
+			{
+				const RidePlan::Forecourt& F = Plan->Forecourts[I];
+				const Geo Gp = Fc.ToGeo(F.Canopy.X, F.Canopy.Z);
+				std::printf("  forecourt %s at %.5f,%.5f: %.0f m deep, %d islands%s\n", F.Name.c_str(), Gp.Lat, Gp.Lon, F.Depth, F.Islands, F.Kiosk ? ", kiosk" : "");
+			}
+		}
 		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
 		int Shown = 0;
 		for (size_t I = 0; I < Plan->PlaceStops.size() && Shown < 12; ++I)
@@ -1024,6 +1037,7 @@ int main(int Argc, char** Argv)
 					Time("wild", [&](RideMesh& M) { Plan->WildTile(Kx, Kz, Sz, Detail, M); });
 					Time("towers", [&](RideMesh& M) { Plan->TowersTile(Kx, Kz, Sz, Detail, M); });
 					Time("places", [&](RideMesh& M) { Plan->PlacesTile(Kx, Kz, Sz, Detail, M); });
+					Time("forecourts", [&](RideMesh& M) { Plan->ForecourtsTile(Kx, Kz, Sz, Detail, M); });
 					Time("rings", [&](RideMesh& M) { Plan->RingsTile(Kx, Kz, Sz, Detail, M); });
 				}
 				for (const auto& [Name, A] : Parts) std::printf("Draw parts level %d: %-14s %9.0f triangles, %.2f s\n", Lv, Name.c_str(), A[0], A[1]);

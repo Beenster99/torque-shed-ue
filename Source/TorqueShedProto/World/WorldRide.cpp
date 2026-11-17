@@ -346,6 +346,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->FindPathNodes(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());   // [OSM stage 6C] (the direction signs' junctions)
 	R->IndexFurniture();
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
+	R->IndexForecourts();   // [roads stage 7] (before the fields too: forecourts are field areas)
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
@@ -1772,6 +1773,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		WildTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);      // [OSM stage 2 batch D]
 		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
+		ForecourtsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
 		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
@@ -1808,6 +1810,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		WildTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [OSM stage 2 batch D] (the cliffs and dams)
 		TowersTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands); // [towns stage 2] (the tall buildings)
 		PlacesTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands); // [places stage 3] (the tall places)
+		ForecourtsTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [roads stage 7] (the canopies from further off)
 		if (Step <= 70.0) FarBuildingsTile(X0, Z0, Size, Step, Step <= 20.0 ? 60.0 : 200.0, *Stands);   // [build 141] (the villages and towns far off)
 		if (Stands->Any()) Out.Extra = Stands;
 	}
@@ -2036,8 +2039,15 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	const auto Settle = [this, Which, &Joins](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeightFrom(Joins, Which, At, Y); };
 	// [places stage 2] The pull-offs made for places near this bit of road (drawn at its end; no grass
 	// shoulder where one runs along it).
-	std::vector<int> PullNear;
-	if (!PlaceStops.empty() && Rows.size() >= 2)
+	// ([roads stage 7] and the petrol stations' forecourts the same way, in tarmac)
+	struct Apron
+	{
+		P2 RoadMid, RoadDir, Out;
+		double Depth = 0.0, Reach = 0.0;   // out from the road's edge; along it either way from RoadMid
+		bool Tarmac = false;
+	};
+	std::vector<Apron> PullNear;
+	if ((!PlaceStops.empty() || !Forecourts.empty()) && Rows.size() >= 2)
 	{
 		double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
 		for (const Row& R : Rows) { X0 = std::fmin(X0, R.At.X); X1 = std::fmax(X1, R.At.X); Z0 = std::fmin(Z0, R.At.Z); Z1 = std::fmax(Z1, R.At.Z); }
@@ -2049,9 +2059,24 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				if (It != PlaceGrid.end()) Near.insert(Near.end(), It->second.begin(), It->second.end());
 			}
 		for (int I : Near)
-			if (PlaceStops[size_t(I)].How == PlaceMade && PlaceStops[size_t(I)].Depth > 0.0) PullNear.push_back(I);
+		{
+			const PlaceStop& S = PlaceStops[size_t(I)];
+			if (S.How == PlaceMade && S.Depth > 0.0) PullNear.push_back({S.RoadMid, S.RoadDir, S.Out, S.Depth, PullOffLength * 0.5, false});
+		}
+		std::vector<int> Courts;
+		for (int Cz = int(std::floor((Z0 - 40.0) / 64.0)); Cz <= int(std::floor((Z1 + 40.0) / 64.0)); ++Cz)
+			for (int Cx = int(std::floor((X0 - 40.0) / 64.0)); Cx <= int(std::floor((X1 + 40.0) / 64.0)); ++Cx)
+			{
+				const auto It = ForecourtGrid.find(static_cast<long long>(Cx) * 4000037LL + Cz);
+				if (It != ForecourtGrid.end()) Courts.insert(Courts.end(), It->second.begin(), It->second.end());
+			}
+		for (int I : Courts)
+		{
+			const Forecourt& F = Forecourts[size_t(I)];
+			PullNear.push_back({F.RoadMid, F.RoadDir, F.Out, F.Depth, F.Length * 0.5, true});
+		}
 	}
-	const auto PullSpot = [](const PlaceStop& S, const P2& At, double& U, double& Off)
+	const auto PullSpot = [](const Apron& S, const P2& At, double& U, double& Off)
 	{
 		const P2 D = At - S.RoadMid;
 		U = D.X * S.RoadDir.X + D.Z * S.RoadDir.Z;
@@ -2373,14 +2398,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					NoShoulder[Sd] = true;
 			}
 		}
-		for (int Index : PullNear)
+		for (const Apron& S : PullNear)
 		{
-			// [places stage 2] (a pull-off's gravel runs on from the road's edge: no grass shoulder under it)
-			const PlaceStop& S = PlaceStops[size_t(Index)];
+			// [places stage 2] (a pull-off's gravel runs on from the road's edge: no grass shoulder under it;
+			// [roads stage 7] nor kerb and pavement across a forecourt's mouth)
 			double Ua = 0.0, Ub = 0.0, Oa = 0.0, Ob = 0.0;
 			PullSpot(S, RowA.At, Ua, Oa);
 			PullSpot(S, RowB.At, Ub, Ob);
-			const double Reach = PullOffLength * 0.5 - 2.0;
+			const double Reach = S.Reach - 2.0;
 			if (std::fabs(Oa) > 2.0 || std::fabs(Ob) > 2.0 || std::fmax(Ua, Ub) < -Reach || std::fmin(Ua, Ub) > Reach) continue;
 			NoShoulder[(RowA.Left.X * S.Out.X + RowA.Left.Z * S.Out.Z) >= 0.0 ? 0 : 1] = true;
 		}
@@ -3184,18 +3209,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	if (!PullNear.empty() && Rows.size() >= 2)
 	{
 		static constexpr float PullGrit[3] = {0.095f, 0.088f, 0.07f};
-		const auto Vert = [&Out](const P2& At, double Y)
+		static constexpr float CourtTar[3] = {0.022f, 0.022f, 0.025f};   // [roads stage 7] (a forecourt: the road's tarmac)
+		const float* Colour = PullGrit;
+		// ([roads stage 7] UVs from the square's own corner, so they stay small as M_RideRoad needs: KEY GOTCHA 147)
+		const auto Vert = [&Out, &Colour](const P2& At, double Y)
 		{
 			Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
 			Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
-			Out.Uv.push_back(float(At.X / 4.0)); Out.Uv.push_back(float(At.Z / 4.0));
-			Out.Col.push_back(PullGrit[0]); Out.Col.push_back(PullGrit[1]); Out.Col.push_back(PullGrit[2]);
+			Out.Uv.push_back(float((At.X - Out.OriginX) / 4.0)); Out.Uv.push_back(float((At.Z - Out.OriginZ) / 4.0));
+			Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
 		};
-		for (int Index : PullNear)
+		for (const Apron& S : PullNear)
 		{
-			const PlaceStop& S = PlaceStops[size_t(Index)];
 			// (each row of this road where it runs along the pull-off's own stretch, within 2 m of it)
 			const auto Spot = [&S, &PullSpot](const P2& At, double& U, double& Off) { PullSpot(S, At, U, Off); };
+			Colour = S.Tarmac ? CourtTar : PullGrit;
 			for (size_t K = 0; K + 1 < Rows.size(); ++K)
 			{
 				const Row& A = Rows[K];
@@ -3204,7 +3232,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				double Ua = 0.0, Ub = 0.0, Ca = 0.0, Cb = 0.0;
 				Spot(A.At, Ua, Ca);
 				Spot(B.At, Ub, Cb);
-				const double Half = PullOffLength * 0.5;
+				const double Half = S.Reach;
 				if (std::fabs(Ca) > 2.0 || std::fabs(Cb) > 2.0 || std::fmax(Ua, Ub) < -Half || std::fmin(Ua, Ub) > Half) continue;
 				const double SideA = (A.Left.X * S.Out.X + A.Left.Z * S.Out.Z) >= 0.0 ? 1.0 : -1.0;
 				const int Steps = std::max(1, int(std::ceil(A.At.DistanceTo(B.At))));
@@ -3231,7 +3259,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					Edge(T0, U0, I0, Iy0, F0, Fy0);
 					Edge(T1, U1, I1, Iy1, F1, Fy1);
 					// (three strips across, the middle ones eased between the road's edge and the ground)
-					constexpr int Bands = 3;
+					const int Bands = std::max(3, int(std::ceil(S.Depth / 3.0)));
 					const uint32_t V = uint32_t(Out.Vertices());
 					// (never under the ground: a band's point the ground stands above is lifted onto it)
 					const auto OnTop = [this](const P2& At, double Y) { const double Gy = Ground(At.X, At.Z); return std::isnan(Gy) ? Y : std::fmax(Y, Gy + 0.05); };
