@@ -126,11 +126,14 @@ def build_shock(key, tag, a, b, k, s, M, spring="red", body_f="gold", res=("rear
         D.lathe(nm + "head", at, dt, P_([(13, 0), (13, 14), (28, 14), (32, 27), (36, 33), (46, 33), (48, 30), (48, 0)]), body, 36)
         D.lathe(nm + "body", at, dt, P_([(48, 0), (48, 21), (L_ * 0.55, 21), (L_ * 0.55 + 3, 17.5), (L_ * 0.55 + 3, 0)]), M["black"], 32)
         # threaded preload collar and lock ring high on the body
-        for j, t in enumerate((56, 64)):
+        # the spring only on the lower part (beenster, 17 Nov photo): its seat and lock ring sit on the body
+        # below halfway, the coils close-wound at the top and opening out towards the bottom
+        ts = L_ * (0.42 if s else 0.55)
+        for j, t in enumerate((ts - 15, ts - 7)):
             D.lathe(nm + f"preload{j}", at, dt, P_([(t, 0), (t, 27), (t + 1, 28.5), (t + 6, 28.5), (t + 7, 27), (t + 7, 0)]), body, 36)
         D.lathe(nm + "rod", at, dt, P_([(L_ * 0.55, 0), (L_ * 0.55, 7.5), (L_ - 34, 7.5), (L_ - 34, 0)]), M["chrome"], 20)
         D.lathe(nm + "seat", at, dt, P_([(L_ - 62, 0), (L_ - 62, 31), (L_ - 56, 31), (L_ - 52, 16), (L_ - 34, 14), (L_ - 14, 12.5), (L_ - 14, 0)]), body, 36)
-        coil(nm + "spring", a, d, n1, n2, 71.0, L_ - 62.0, 27 * k, 4.8 * k, 9.5 if L_ > 300 else 7.5, sm)
+        coil(nm + "spring", a, d, n1, n2, ts + 1, L_ - 62.0, 27 * k, 4.8 * k, 5.5 if L_ > 300 else 4.5, sm, 1.6)
         # the reservoir: a short fat canister on a bridge from the head, behind the body (beenster, 17 Nov:
         # half the length, a little fatter, towards the rear, not outwards)
         # on a single shock the engine's rear cylinder sits just behind it, so there the canister goes to the right
@@ -162,7 +165,7 @@ def build_shock(key, tag, a, b, k, s, M, spring="red", body_f="gold", res=("rear
         D.lathe(nm + "rod", at, dt, P_([(L_ * 0.48, 0), (L_ * 0.48, 7.5), (L_ - 34, 7.5), (L_ - 34, 0)]), M["chrome"], 20)
         D.lathe(nm + "seat", at, dt, P_([(L_ - 60, 0), (L_ - 60, 32), (L_ - 54, 32), (L_ - 50, 16), (L_ - 30, 15), (L_ - 14, 13), (L_ - 14, 0)]), M["polish"], 36)
         D.lathe(nm + "knob", tuple(b - d * 24 + n1 * 14 * k), tuple(n1), [(0, 0), (0, 8), (7, 8.5), (8, 0)], M["black"], 18)
-        coil(nm + "spring", a, d, n1, n2, ts + 2, L_ - 60.0, 29 * k, 5.6 * k, 4.5 if L_ > 300 else 3.5, sm, 0.1)
+        coil(nm + "spring", a, d, n1, n2, ts + 2, L_ - 60.0, 29 * k, 5.6 * k, 5.0 if L_ > 300 else 4.0, sm, 1.2)
         return
     if key == "shroud":
         D.lathe(nm + "head", at, dt, P_([(13, 0), (13, 14), (24, 14), (26, 20), (34, 20), (34, 0)]), M["chrome"], 36)
