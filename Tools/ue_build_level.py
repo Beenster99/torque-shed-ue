@@ -1334,6 +1334,53 @@ def helmet_paint_masters():
         log("helmet paint master %s/%s (%s)" % (RIDER_MAT_DIR, name, kind))
 
 
+
+def garment_push_master():
+    """[build 155] M_GarmentPush: an avatar's T-shirt drawn a few mm out along its normals (World
+    Position Offset), so its hem sits just outside the jeans' waistband instead of fighting it
+    (beenster: "make the t shirt of our rider not clip with their jeans"). TorqueAvatar.cpp copies the
+    shirt's own colour, colour map and normal map onto it. Parameters: Color, BaseColorMap,
+    NormalMap, Roughness, Specular, Push (cm)."""
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    flat = unreal.load_asset("/Engine/EngineMaterials/DefaultNormal")
+    m = new_material("M_GarmentPush", RIDER_MAT_DIR)
+    m.set_editor_property("used_with_skeletal_mesh", True)
+    try_set(m, "two_sided", True)
+
+    def scalar(pname, v, x, y):
+        e = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, x, y)
+        e.set_editor_property("parameter_name", pname)
+        e.set_editor_property("default_value", v)
+        return e
+
+    col = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -700, 0)
+    col.set_editor_property("parameter_name", "Color")
+    col.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
+    tex = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -700, 200)
+    tex.set_editor_property("parameter_name", "BaseColorMap")
+    if white is not None:
+        tex.set_editor_property("texture", white)
+    base = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -350, 100)
+    mel.connect_material_expressions(col, "", base, "A")
+    mel.connect_material_expressions(tex, "RGB", base, "B")
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    nrm = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -700, 450)
+    nrm.set_editor_property("parameter_name", "NormalMap")
+    if flat is not None:
+        nrm.set_editor_property("texture", flat)
+    nrm.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    mel.connect_material_property(scalar("Roughness", 0.8, -350, 650), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(scalar("Specular", 0.35, -350, 750), "", unreal.MaterialProperty.MP_SPECULAR)
+    vn = mel.create_material_expression(m, unreal.MaterialExpressionVertexNormalWS, -700, 900)
+    push = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -350, 900)
+    mel.connect_material_expressions(vn, "", push, "A")
+    mel.connect_material_expressions(scalar("Push", 0.5, -700, 1000), "", push, "B")
+    mel.connect_material_property(push, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    log("garment push master %s/M_GarmentPush" % RIDER_MAT_DIR)
+
 def rider_materials(finishes, tex=None, roles=None):
     """The kit: a master lit by the rider's baked occlusion (vertex colour), and a clear-coated one
     for the helmet's paint and visor. One instance per finish in rider.json."""
@@ -1491,6 +1538,10 @@ def import_rider(tex=None, roles=None):
         helmet_paint_masters()
     except Exception as e:
         unreal.log_warning("[Torque] helmet paint masters not made: %s" % e)
+    try:
+        garment_push_master()
+    except Exception as e:
+        unreal.log_warning("[Torque] garment push master not made: %s" % e)
     log("rider: %s, helmet %s" % (body.get_path_name(), helmet.get_path_name() if helmet else "missing"))
     out = {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
     fab = fab_helmet(helmet) if helmet else None

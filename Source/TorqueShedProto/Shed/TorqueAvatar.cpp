@@ -346,6 +346,67 @@ void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garme
 	}
 }
 
+// [build 155] beenster: "make the t shirt of our rider not clip with their jeans". The top's own
+// sections over a bottom garment are drawn with M_GarmentPush, a few mm out along their normals, so
+// the hem sits just outside the jeans' waistband instead of fighting it; its colour, colour map and
+// normal map are copied from the material it had (the shirt's own, or the kit's that SolidClothes
+// gave it). -TorqueShirtPush=cm sets how far (0: as it was).
+void PushOut(UMeshComponent* Top, int32 Slot, const FString& Avatar)
+{
+	float PushCm = 0.5f;
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueShirtPush="), PushCm);
+	UMaterialInterface* Was = Top->GetMaterial(Slot);
+	if (PushCm <= 0.0f || !Was) return;
+	UMaterialInterface* Push = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Rider/Materials/M_GarmentPush.M_GarmentPush"));
+	if (!Push)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no M_GarmentPush (run the level script); the top's slot %d left as it is"), *Avatar, Slot);
+		return;
+	}
+	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Push, Top);
+	if (!MID) return;
+	FString Took;
+	TArray<FMaterialParameterInfo> Infos;
+	TArray<FGuid> Ids;
+	Was->GetAllTextureParameterInfo(Infos, Ids);
+	bool bColourMap = false, bNormalMap = false;
+	for (const FMaterialParameterInfo& Info : Infos)
+	{
+		const FString PName = Info.Name.ToString().ToLower();
+		UTexture* Tex = nullptr;
+		if (!Was->GetTextureParameterValue(FHashedMaterialParameterInfo(Info), Tex) || !Tex) continue;
+		if (!bNormalMap && (PName.Contains(TEXT("normal")) || PName.EndsWith(TEXT("_n"))))
+		{
+			MID->SetTextureParameterValue(TEXT("NormalMap"), Tex);
+			bNormalMap = true;
+			Took += FString::Printf(TEXT(" normal %s=%s"), *Info.Name.ToString(), *Tex->GetName());
+		}
+		else if (!bColourMap && (PName.Contains(TEXT("albedo")) || PName.Contains(TEXT("basecolor")) || PName.Contains(TEXT("base color"))
+			|| PName.Contains(TEXT("diffuse")) || PName == TEXT("color") || PName.Contains(TEXT("colormap")) || PName.Contains(TEXT("colourmap"))))
+		{
+			MID->SetTextureParameterValue(TEXT("BaseColorMap"), Tex);
+			bColourMap = true;
+			Took += FString::Printf(TEXT(" colour %s=%s"), *Info.Name.ToString(), *Tex->GetName());
+		}
+	}
+	for (const TCHAR* Name : {TEXT("Color"), TEXT("Colour"), TEXT("Tint"), TEXT("BaseColor"), TEXT("Base Color")})
+	{
+		FLinearColor Col;
+		if (Was->GetVectorParameterValue(FHashedMaterialParameterInfo(FName(Name)), Col))
+		{
+			MID->SetVectorParameterValue(TEXT("Color"), Col);
+			Took += FString::Printf(TEXT(" colour %s=%s"), Name, *Col.ToString());
+			break;
+		}
+	}
+	float Rough = 0.0f;
+	if (Was->GetScalarParameterValue(FHashedMaterialParameterInfo(FName(TEXT("Roughness"))), Rough)) MID->SetScalarParameterValue(TEXT("Roughness"), Rough);
+	MID->SetScalarParameterValue(TEXT("Push"), PushCm);
+	Top->SetMaterial(Slot, MID);
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: top slot %d pushed out %.1f cm over the jeans (was %s;%s)"), *Avatar, Slot, PushCm,
+		*Was->GetName(), Took.IsEmpty() ? TEXT(" nothing copied") : *Took);
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -413,7 +474,11 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 					const FString WasName = Was ? Was->GetName().ToLower() : FString();
 					const bool bLegs = SlotName.Contains(TEXT("short")) || SlotName.Contains(TEXT("trouser")) || SlotName.Contains(TEXT("pant")) || SlotName.Contains(TEXT("bottom"))
 						|| WasName.Contains(TEXT("short")) || WasName.Contains(TEXT("trouser")) || WasName.Contains(TEXT("pant"));
-					if (!bLegs) continue;
+					if (!bLegs)
+					{
+						PushOut(Top, Slot, E.Name);
+						continue;
+					}
 					UMaterialInstanceDynamic* Gone = UMaterialInstanceDynamic::Create(Clear, Top);
 					if (!Gone) continue;
 					Gone->SetVectorParameterValue(FName(TEXT("Mask")), FLinearColor(0.f, 0.f, 0.f, 0.f));
