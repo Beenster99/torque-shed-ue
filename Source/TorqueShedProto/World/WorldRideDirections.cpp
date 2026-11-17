@@ -466,7 +466,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		}
 	}
 	// [roundabouts round 2] (beenster: "Please make sure that bigger roundabouts get signage") Before each
-	// roundabout the ride's road goes round, RingSignLeast m or more round, each way: a map-type advance
+	// roundabout the ride's road goes round, any size (beenster: "All roundabouts need signs"), each way: a map-type advance
 	// sign, the ring on its stem and an arm for each road off it (left, ahead, right as they leave it) with
 	// the places each leads to first, as far before it as any junction's, on the traffic's side.
 	for (size_t P0 = 1; P0 + 1 < PathNodes.size(); ++P0)
@@ -477,7 +477,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		size_t P1 = P0;
 		while (P1 + 1 < PathNodes.size() && RingOfNode.count(PathNodes[P1 + 1].Node) != 0 && RingOfNode.at(PathNodes[P1 + 1].Node) == Rit->second) ++P1;
 		const RoadRing& Rg = RoadRings[size_t(Rit->second)];
-		if (Rg.Mini || Rg.Reach < RingSignLeast || P1 + 1 >= PathNodes.size()) continue;
+		if (P1 + 1 >= PathNodes.size()) continue;   // ([roundabouts round 3] every ring, the minis too: beenster, "All roundabouts need signs")
 		// The shortest way from the ring to every junction within 60 km, and which road off the ring it leaves by.
 		for (int N : Touched) { Dist[size_t(N)] = 1e18; Branch[size_t(N)] = -1; }
 		Touched.clear();

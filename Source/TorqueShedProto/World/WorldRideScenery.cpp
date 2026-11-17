@@ -1393,7 +1393,8 @@ void RidePlan::IndexFurniture()
 					H.Way = Way;
 					H.Along = Way > 0 ? Road[I].Along : Road[J].Along;
 					H.Symbol = SignPlate::SymRoundabout;
-					if (MphAt(H.Along - Way * 60.0) >= 40 && (Way > 0 ? I > 0 : J + 1 < Road.size())) Ahead.push_back(H);
+					// ([roundabouts round 3] beenster: "All roundabouts need signs": at any speed, not 40 mph or more only)
+					if (MphAt(H.Along - Way * 60.0) > 0 && (Way > 0 ? I > 0 : J + 1 < Road.size())) Ahead.push_back(H);
 				}
 				I = J;
 			}

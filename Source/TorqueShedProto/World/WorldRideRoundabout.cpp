@@ -717,7 +717,7 @@ std::vector<RidePlan::RingArm> RidePlan::RingArms(const RoadRing& R) const
 		if (size_t(Nd) >= G.Adjacent.size()) continue;
 		for (int Ae : G.Adjacent[size_t(Nd)])
 		{
-			if (RingOfEdge.count(Ae) != 0) continue;
+			if (RingOfEdge.count(Ae) != 0 || std::find(R.Edges.begin(), R.Edges.end(), Ae) != R.Edges.end()) continue;
 			const RoadEdge& E = G.Edges[size_t(Ae)];
 			if (E.Line.size() < 2) continue;
 			const std::string& Class = G.ClassOf(Ae);
@@ -733,6 +733,8 @@ std::vector<RidePlan::RingArm> RidePlan::RingArms(const RoadRing& R) const
 					From.push_back(Line[I - 1] + (Line[I] - Line[I - 1]) * ((R.Half - D0) / std::fmax(1e-6, D1 - D0)));
 				if (!From.empty()) From.push_back(Line[I]);
 			}
+			// ([roundabouts round 3] a ring left as mapped has no true edge to cross: from its node)
+			if (From.size() < 2 && !R.Circle) From = Line;
 			if (From.size() < 2) continue;
 			RingArm A;
 			A.Edge = Ae;
@@ -761,16 +763,14 @@ std::vector<RidePlan::RingArm> RidePlan::RingArms(const RoadRing& R) const
 // [roundabouts round 2] A ring's own furniture (beenster: "Some roundabouts have chevron tiling and
 // boards"; "make sure that bigger roundabouts get signage"). On an island 4 m or more in from its kerb,
 // a chevron board facing each way on, 1.6 m in from the kerb: black, white chevrons pointing the way the
-// traffic goes round (left in Britain), wider on a wider road. And on a ring RingSignLeast m or more
-// round, a roundabout warning triangle on each way on but the ride's own road (its own warnings are
+// traffic goes round (left in Britain), wider on a wider road. And on every ring (beenster: "All roundabouts
+// need signs"), a roundabout warning triangle on each way on but the ride's own road (its own warnings are
 // IndexFurniture's), on the traffic's side 45 to 70 m out, where it stands clear of every road.
 std::vector<RidePlan::Furnish> RidePlan::RingFurniture(int Index) const
 {
 	std::vector<Furnish> Out;
 	if (Index < 0 || size_t(Index) >= RoadRings.size()) return Out;
 	const RoadRing& R = RoadRings[size_t(Index)];
-	if (!R.Circle) return Out;
-	const Region& G = Area.Roads;
 	const double Island = R.Least() - R.Half;
 	const double KeepSide = KeepLeft() ? 1.0 : -1.0;
 	NearOpts Opts;
@@ -783,7 +783,7 @@ std::vector<RidePlan::Furnish> RidePlan::RingFurniture(int Index) const
 	for (const RingArm& A : RingArms(R))
 	{
 		if (A.Way > 0) continue;   // (a way off only)
-		if (Island >= 4.0)
+		if (R.Circle && Island >= 4.0)
 		{
 			Furnish F;
 			F.Kind = Chevron;
@@ -810,9 +810,7 @@ std::vector<RidePlan::Furnish> RidePlan::RingFurniture(int Index) const
 			F.Height = std::isnan(Y) ? Gy : std::isnan(Gy) ? Y : std::fmax(Y, Gy);
 			if (!std::isnan(F.Height)) Out.push_back(F);
 		}
-		if (R.Reach < RingSignLeast || A.Line.size() < 2) continue;
-		const std::string& Class = G.ClassOf(A.Edge);
-		if (Class == "service" || Class == "living_street") continue;
+		if (A.Line.size() < 2) continue;
 		// (along the arm out from the ring's edge)
 		double Run = 0.0;
 		for (size_t I = 1; I < A.Line.size(); ++I)

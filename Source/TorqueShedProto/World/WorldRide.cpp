@@ -1143,7 +1143,7 @@ void RidePlan::NetworkFurniture(double X0, double Z0, double Size, std::vector<s
 	{
 		const RoadRing& Ring = RoadRings[Rg];
 		const double Pad = Ring.Reach + Ring.Half + 75.0;
-		if (!Ring.Circle || Ring.Mid.X < Box.X0 - Pad || Ring.Mid.X > Box.X1 + Pad || Ring.Mid.Z < Box.Z0 - Pad || Ring.Mid.Z > Box.Z1 + Pad) continue;
+		if (Ring.Mid.X < Box.X0 - Pad || Ring.Mid.X > Box.X1 + Pad || Ring.Mid.Z < Box.Z0 - Pad || Ring.Mid.Z > Box.Z1 + Pad) continue;
 		const int Index = int(Rg);
 		Once(2, Index, [this, Index]() { return RingFurniture(Index); });
 	}
@@ -1732,6 +1732,23 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 			const double Low = Drawn - Sink;
 			if (Low < Out && Out - Low < OverlapStep) Out = Low;
 		}
+	}
+	// [roundabouts round 3] (beenster: "still a little too much grass mess") By a ring the roads crowd in
+	// (flared mouths, splitter carriageways, the ring itself, each at its own height): under every road
+	// whose tarmac or edge is here, the lowest, by any step, so the land comes up through none of them.
+	if (Hit.Dist <= Flat + 1.0 && !Hit.Deck && !Hit.Bore && PaintedRingNear(P2(X, Z), 25.0) >= 0)
+	{
+		NearOpts Other = Opts;
+		Other.NotRoad = Hit.Which;
+		Other.NoDecks = true;
+		NearHit Also;
+		if (NearestOf(X, Z, Other, Also) && Also.Dist <= Also.Half + 1.5)
+		{
+			const double Drawn = Also.Which == 0 ? Also.Height + Also.Cross : JoinedHeight(Also.Which, P2(X, Z), Also.Height + Also.Cross);
+			Out = std::fmin(Out, Drawn - Sink - (Also.Dist > Also.Half ? 0.05 : 0.0));
+		}
+		const double Own = Hit.Which == 0 ? Hit.Height + Hit.Cross : JoinedHeight(Hit.Which, P2(X, Z), Hit.Height + Hit.Cross);
+		if (Hit.Dist <= Hit.Half + 1.0) Out = std::fmin(Out, Own - Sink);
 	}
 	// (beenster, build 147, Whaley Bridge: a road's bank cut away the bank a railway beside it stands on,
 	// leaving the line in the air. Off the road's bench the railway's own bank and cutting win.)
@@ -2419,6 +2436,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			return R;
 		};
 		bool NoShoulder[2] = {false, false};   // left, right
+		double Fill[2][2] = {{0.0, 0.0}, {0.0, 0.0}};   // [roundabouts round 3] (tarmac out over a narrow gap to the next road: left, right; at A, at B)
 		double ShoulderFrom[2] = {0.0, 0.0}, ShoulderTo[2] = {1.0, 1.0};   // (the part of this bit with a shoulder, 0 at A to 1 at B)
 		bool UnderMain = false;
 		for (int End = 0; End < 2 && Which > 0; ++End)
@@ -2522,6 +2540,41 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					NearHit Hit;
 					return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half + 0.2 && std::fabs(Hit.Height - OwnHeight) < 1.5;
 				};
+				// [roundabouts round 3] (beenster: "still a little too much grass mess") A gap of under 3 m to
+				// the next road's tarmac all along the bit (a sliver of field between a mouth's carriageways, a
+				// slip road and the ring): tarmac across it, not a strip of grass and ground.
+				const auto OnRoad = [&](const P2& P, double OwnHeight)
+				{
+					for (const RoadRing* Rg : RingsAbout)
+					{
+						const double O = Rg->OffOf(P);
+						if (O < -Rg->Half - 0.1) return -1;   // (the island: never)
+						if (O < Rg->Half) return 1;
+					}
+					NearHit Hit;
+					return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half && std::fabs(Hit.Height - OwnHeight) < 0.6 ? 1 : 0;
+				};
+				for (int Sd = 0; Sd < 2; ++Sd)
+				{
+					const double Sign = Sd == 0 ? 1.0 : -1.0;
+					double Gap[3] = {-1.0, -1.0, -1.0};
+					for (int Step = 0; Step < 3; ++Step)
+					{
+						const Row Rw = Between(RowA, RowB, Step * 0.5);
+						for (double Off = 0.3; Off <= 3.0 + 1e-9; Off += 0.3)
+						{
+							const int On = OnRoad(Rw.At + Rw.Left * (Sign * (Rw.Half + Off)), Rw.Height);
+							if (On < 0) break;
+							if (On > 0) { Gap[Step] = Off; break; }
+						}
+					}
+					if (Gap[0] > 0.0 && Gap[1] > 0.0 && Gap[2] > 0.0 && Gap[0] > 0.31 && Gap[2] > 0.31)
+					{
+						Fill[Sd][0] = std::fmax(Gap[0], Gap[1]) + 0.3;
+						Fill[Sd][1] = std::fmax(Gap[2], Gap[1]) + 0.3;
+						NoShoulder[Sd] = true;
+					}
+				}
 				for (int Sd = 0; Sd < 2; ++Sd)
 				{
 					if (NoShoulder[Sd]) continue;
@@ -2771,6 +2824,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const bool TownEdge = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
 			const float* Edge = TownEdge ? Verge : VergeGrass;
 			const bool Street = StreetRow[K] != 0 && StreetRow[K + 1] != 0 && !A.Deck && !B.Deck;
+			// [roundabouts round 3] (the narrow gaps by a ring filled with tarmac, a hair under both roads)
+			if (Fill[0][0] > 0.0) Strip(A, B, A.Half + Fill[0][0], A.Half - 0.05, B.Half + Fill[0][1], B.Half - 0.05, -0.004, -0.004, Tarmac);
+			if (Fill[1][0] > 0.0) Strip(A, B, -A.Half + 0.05, -A.Half - Fill[1][0], -B.Half + 0.05, -B.Half - Fill[1][1], -0.004, -0.004, Tarmac);
 			for (int Sd = 0; Sd < 2; ++Sd)
 			{
 				if (NoShoulder[Sd] || ShoulderTo[Sd] <= ShoulderFrom[Sd]) continue;
