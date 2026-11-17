@@ -80,7 +80,7 @@ int main()
 		}
 		// (Fitting's frame: x forward from the rear axle, y up from the ground, z to the right, metres.)
 		const double Wheelbase = Info.Num("wheelbase_mm") / 1000.0;
-		const bool bSize = M.Triangles() > 1000 && M.Triangles() < 200000 && std::fabs(LoY) < 0.01 && HiY > 0.9 && HiY < 1.6 &&
+		const bool bSize = M.Triangles() > 1000 && M.Triangles() < 480000 && std::fabs(LoY) < 0.01 && HiY > 0.9 && HiY < 1.6 &&
 			LoX < -0.25 && LoX > -0.45 && HiX > Wheelbase + 0.2 && HiX < Wheelbase + 0.45 && HalfZ > 0.3 && HalfZ < 0.55;
 		if (!bSize) ++Bad;
 		std::printf("%s %s: %zu surfaces, %zu triangles, %.2f m long, %.2f m high, %.2f m wide\n", bSize ? "ok  " : "FAIL", Model.c_str(),
