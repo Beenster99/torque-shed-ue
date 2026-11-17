@@ -3459,6 +3459,14 @@ def shots(build3d, name, tags, samples=24):
     build3d.studio(sc)
     sc.cycles.samples = samples
     out = os.path.join(build3d.ROOT, "out", "renders")
+    sketch = bool(os.environ.get("BIKE_SKETCH"))        # a cut-out of the bike alone, for foundry/sketch.py
+    if sketch:
+        out = os.path.join(build3d.ROOT, "out", "sketch_src")
+        sc.render.film_transparent = True
+        sc.render.image_settings.color_mode = "RGBA"
+        for o in sc.objects:
+            if o.type == "MESH" and o.data.materials and o.data.materials[0] and o.data.materials[0].name.startswith(("floor", "tarmac")):
+                o.hide_render = True
     os.makedirs(out, exist_ok=True)
     for tag in tags:
         loc, tgt, lens = SHOTS[tag][:3]
@@ -3473,6 +3481,8 @@ def shots(build3d, name, tags, samples=24):
         ob.rotation_euler = build3d._look(ob.location, build3d.V(*tgt))
         sc.camera = ob
         sc.render.resolution_x, sc.render.resolution_y = (1600, 1000) if tag.startswith("rearq") else (1400, 1000)
+        if sketch:
+            sc.render.resolution_x, sc.render.resolution_y = sc.render.resolution_x * 2, sc.render.resolution_y * 2
         sc.render.filepath = os.path.join(out, f"{name}_shot_{tag}.png")
         bpy.ops.render.render(write_still=True)
         for o in hide:
