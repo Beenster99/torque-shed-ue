@@ -5046,7 +5046,7 @@ int BikeParts::V2Lamps(const PartsMap& Parts, std::vector<FittedPart>& Out) cons
 	bool bWhite = false, bRed = false;
 	for (const FittedPart& P : Out)
 	{
-		if (!P.Made || P.Slot == "dashboard" || !P.Gauge.empty()) continue;
+		if (!P.Made || P.Slot == "dashboard" || P.Slot == "fog_lights" || !P.Gauge.empty()) continue;   // (a fog lamp is no headlamp)
 		for (const PartSurface& S : P.Made->Surfaces)
 		{
 			bWhite = bWhite || Tagged(S, "lens_white");
