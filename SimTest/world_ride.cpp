@@ -428,6 +428,19 @@ int main(int Argc, char** Argv)
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
+			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]
+			{
+				// [towns stage 6] (the heritage lamps among the street lamps there, with WORLD_RIDE_FACADE)
+				int Heritage = 0;
+				std::vector<RideProp> Stood;
+				for (int Dz = -2; Dz <= 2; ++Dz)
+					for (int Dx = -2; Dx <= 2; ++Dx)
+					{
+						Plan->PropsTile(Cx + Dx * 256.0, Cz + Dz * 256.0, 256.0, Stood);
+						for (const RideProp& Pr : Stood) Heritage += Pr.Kind == RidePlan::PropLampHeritage ? 1 : 0;
+					}
+				std::printf("Heritage street lamps: %d (shopping streets: %zu pieces)\n", Heritage, Plan->ShopPlaces.size());
+			}
 			// [towns stage 5] (the coverage: where the walls and roofs came from)
 			const auto Share = [](const int* From, int K)
 			{
@@ -1311,6 +1324,12 @@ int main(int Argc, char** Argv)
 		for (const FeatureLine& F : G.Scenery.Lines) ++Kinds["line " + F.Kind];
 		for (const FeatureArea& F : G.Scenery.Areas) ++Kinds["area " + F.Kind];
 		std::printf("Buildings %d (looks %d), streams %d, pois %d, landmarks %d, places %d\n", int(G.Buildings.size()), int(G.Scenery.Buildings.size()), int(G.Streams.size()), int(G.Pois.size()), int(G.Landmarks.size()), int(G.Places.size()));
+		if (std::getenv("WORLD_RIDE_POI_KINDS") != nullptr)
+		{
+			std::map<std::string, int> PoiKinds;
+			for (const TorqueFit::Json& Poi : G.Pois) ++PoiKinds[Poi.Str("kind")];
+			for (const auto& Pk : PoiKinds) std::printf("  poi %s: %d\n", Pk.first.c_str(), Pk.second);
+		}
 		for (const auto& K : Kinds) std::printf("  %s: %d\n", K.first.c_str(), K.second);
 		int CoverN[11] = {0}, Treed = 0, Pts = 0;
 		for (size_t I = 0; I < Plan->Road.size(); I += 5)

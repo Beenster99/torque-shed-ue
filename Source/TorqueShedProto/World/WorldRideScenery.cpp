@@ -1899,6 +1899,17 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				const double Ly = Y + 5.735;
 				const auto Pt = [&](double Su, double Sv) { return At3(Ax + Face.X * Su * 0.18 + Crosswise.X * Sv * 0.07, Ly, Az + Face.Z * Su * 0.18 + Crosswise.Z * Sv * 0.07); };
 				Quad(Out.NightOf(), Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(Ax, Ly - 100.0, Az), LampLight, false, 0.0f);
+				// ([towns stage 6] a heritage lamp's lantern glows on its four glazed sides, its glass a 0.3 m box
+				// from 5.8 m up: Tools/make_ride_props.py lamp_heritage)
+				if (!Drawn && HeritageLampAt(F.At.X, F.At.Z))
+					for (int Sd = 0; Sd < 4; ++Sd)
+					{
+						const P2 Nrm = Sd == 0 ? Face : Sd == 1 ? Face * -1.0 : Sd == 2 ? Crosswise : Crosswise * -1.0;
+						const P2 Lat(Nrm.Z, -Nrm.X);
+						const P2 Mid(Ax + Nrm.X * 0.155, Az + Nrm.Z * 0.155);
+						const auto Gp = [&](double Su, double H) { return At3(Mid.X + Lat.X * Su * 0.15, Y + H, Mid.Z + Lat.Z * Su * 0.15); };
+						Quad(Out.NightOf(), Gp(-1, 5.81), Gp(1, 5.81), Gp(1, 6.17), Gp(-1, 6.17), At3(Mid.X + Nrm.X * 10.0, Y + 6.0, Mid.Z + Nrm.Z * 10.0), LampLight, false, 0.0f);
+					}
 			}
 			Out.Lights.push_back(float(Ax - Out.OriginX));
 			Out.Lights.push_back(float(Y + 5.4));

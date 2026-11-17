@@ -159,6 +159,34 @@ def road_material_scanned(L, tex, roles):
             slabbed = g.mask_noise(0.00011, -0.5, 3.5)   # (about three streets in four)
             paler = g.mix(paler, slabs, slabbed)
         own = g.mix(own, paler, keyed(key))
+    # [towns stage 6] Setts and cobbles (World/WorldRide: a road the map says is "sett" or "cobblestone", its
+    # vertex colour the key (0.09, 0.095, 0.11)): grey granite setts 220 mm across the road by 120 mm along it,
+    # laid in courses, every other course half a sett on; each sett its own shade, its top domed (a normal
+    # tilted towards its edges) and worn smooth, dark gritty joints 15 mm wide between.
+    fu, fv, var = _coursed(g, L, 0.22 / 4.0, 0.12 / 4.0)
+    sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+    one_minus = lambda e: g.op(unreal.MaterialExpressionOneMinus, e)
+    def sedge(f, w):
+        return g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, f, const_b=w)),
+                    sat(g.op(unreal.MaterialExpressionDivide, one_minus(f), const_b=w)))
+    sett = g.op(unreal.MaterialExpressionMultiply, sedge(fu, 0.015 / 0.22), sedge(fv, 0.015 / 0.12))
+    dome = g.op(unreal.MaterialExpressionMultiply, sedge(fu, 0.3), sedge(fv, 0.3))
+    granite = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(road[0], granite)
+    g.link(g.const(0.85), granite, "Fraction")
+    sface = g.op(unreal.MaterialExpressionMultiply, granite, g.const((1.25, 1.27, 1.33)))
+    if var is not None:
+        sface = g.op(unreal.MaterialExpressionMultiply, sface,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.6, a_out="R"), const_b=0.7))
+    sface = g.op(unreal.MaterialExpressionMultiply, sface, g.lerp(g.const(0.75), g.const(1.05), dome))
+    tilt_u = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, fu, const_b=0.5), const_b=0.9)
+    tilt_v = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, fv, const_b=0.5), const_b=0.9)
+    snrm = g.node(unreal.MaterialExpressionNormalize, -600)   # (its input the unnamed pin)
+    g.link(g.op(unreal.MaterialExpressionAppendVector, g.op(unreal.MaterialExpressionAppendVector, tilt_u, tilt_v), g.const(1.0)), snrm, "")
+    setts = [g.lerp(g.op(unreal.MaterialExpressionMultiply, sface, const_b=0.2), sface, sett),
+             g.lerp(g.const((0.0, 0.0, 1.0)), snrm, sett),
+             g.lerp(g.const(0.95), g.const(0.55), sett)]
+    own = g.mix(own, setts, keyed((0.09, 0.095, 0.11)))
     # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
     # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
     # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near

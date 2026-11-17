@@ -860,6 +860,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	Side.Length = Along.back();
 	Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
 	Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
+	Side.Setts = SettsSurface(G.SurfaceOf(int(E)));
 	const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 	const RoadX::Across Ax = RoadX::Of(G, int(E), RoadLine::WidthOf(Class));   // [OSM stage 5]
 	const double Half = RingHalfOf(int(E), Ax.Half);   // [roundabouts] (round a ring, the ring's one width)
@@ -2454,21 +2455,25 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (!(A.Bore && B.Bore)) { RingA.clear(); LidA.clear(); }
 		// [OSM stage 1] What this bit of road is: a farm track has no paint; a gravel one is drawn in
 		// the verge's grit, not tarmac (and the tyres feel it: SurfaceAt).
-		bool Track = false, Gravel = false;
+		bool Track = false, Gravel = false, Setts = false;
 		if (Which == 0)
 		{
 			if (const RoadFact* F = FactAt((A.Along + B.Along) * 0.5))
 			{
 				Track = F->Class == "track" || F->Class == "service";
 				Gravel = F->Gravel;
+				Setts = F->Setts;
 			}
 		}
 		else
 		{
 			Track = Mine->Track;
 			Gravel = Mine->Gravel;
+			Setts = Mine->Setts;
 		}
 		static constexpr float Grit[3] = {0.095f, 0.088f, 0.07f};
+		// ([towns stage 6] setts and cobbles: M_RideRoad's key for its setts, a grey-blue no other strip uses)
+		static constexpr float SettsKey[3] = {0.09f, 0.095f, 0.11f};
 		// The tarmac, in two halves either side of the crown.
 		// (beenster, build 141: a gravel road off tarmac fades into its gravel over its first metres. The
 		// tarmac reaches out a ragged tongue, each lane of it worn back its own way, and loose stones
@@ -2540,8 +2545,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		else
 		{
-			Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Gravel ? Grit : Tarmac);
-			Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Gravel ? Grit : Tarmac);
+			Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Gravel ? Grit : Setts ? SettsKey : Tarmac);
+			Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Gravel ? Grit : Setts ? SettsKey : Tarmac);
 		}
 		if (A.Deck && B.Deck)
 		{
@@ -2745,6 +2750,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			{
 				const double Ta = std::clamp((Mk.From - A.Along) / (B.Along - A.Along), 0.0, 1.0), Tb = std::clamp((Mk.To - A.Along) / (B.Along - A.Along), 0.0, 1.0);
 				if (Tb - Ta < 1e-4) continue;
+				if (Setts && (Mk.Kind == MarkPatch || Mk.Kind == MarkTar || Mk.Kind == MarkGrit)) continue;   // ([towns stage 6] no tarmac patches on setts)
 				const Row Ma = Between(A, B, Ta), Mb = Between(A, B, Tb);
 				const double Up = MarkUp(Mk.Kind);
 				if (Mk.Kind == MarkGrit)
@@ -2804,7 +2810,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
 		// 3 m dashes with 6 m gaps.
 		const double Half = std::fmin(A.Half, B.Half);
-		if (A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel) continue;
+		if (A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel || Setts) continue;
 		if (!RingsHere.empty() && (OnRingTarmac(A.At) || OnRingTarmac(B.At))) continue;   // [roundabouts]
 		// ([OSM stage 5D] none along a town street's kerbs)
 		if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0))
