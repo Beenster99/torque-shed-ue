@@ -705,6 +705,7 @@ bool ATorquePlayerController::WantsPause()
 	if (ATorqueGeometryMode::For(this) || ATorqueDecalMode::For(this)) return false;
 	const APawn* P = GetPawn();
 	if (const ATorqueWalker* W = Cast<ATorqueWalker>(P); W && W->ComputerUpOrJustClosed()) return false;   // [shed] Esc closes the parts computer
+	if (const ATorqueBikePawn* BP = Cast<ATorqueBikePawn>(P); BP && BP->GarageComputerUpOrJustClosed()) return false;   // [garage] and the garage's
 	return P && (P->IsA<ATorqueBikePawn>() || P->IsA<ATorqueWalker>());
 }
 

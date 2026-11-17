@@ -785,9 +785,29 @@ int main(int Argc, char** Argv)
 		// [roads stage 7] The petrol stations.
 		{
 			const Frame Fc(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
-			int Kiosks = 0, Three = 0;
-			for (const RidePlan::Forecourt& F : Plan->Forecourts) { Kiosks += F.Kiosk ? 1 : 0; Three += F.Islands == 3 ? 1 : 0; }
-			std::printf("Forecourts: %d made of %d fuel stops (%d with a kiosk, %d with three islands)\n", int(Plan->Forecourts.size()), Plan->FuelSeen, Kiosks, Three);
+			int Kiosks = 0, Three = 0, Garages = 0;
+			for (const RidePlan::Forecourt& F : Plan->Forecourts) { Kiosks += F.Kiosk ? 1 : 0; Three += F.Islands == 3 ? 1 : 0; Garages += F.Garage ? 1 : 0; }
+			std::printf("Forecourts: %d made of %d fuel stops (%d with a kiosk, %d with three islands, %d with a garage)\n", int(Plan->Forecourts.size()), Plan->FuelSeen, Kiosks, Three, Garages);
+			// [garage] each garage clear of the canopy, the kiosk and the forecourt's edge
+			for (size_t I = 0; I < Plan->Forecourts.size(); ++I)
+			{
+				RidePlan::GarageSpot G;
+				if (!Plan->GarageOf(int(I), G)) continue;
+				const RidePlan::Forecourt& F = Plan->Forecourts[I];
+				const double Gu = F.GarageU, Gv0 = F.GarageV, Gv1 = F.GarageV + RidePlan::GarageDeep;
+				const bool UnderCanopy = Gv0 < 5.0 + 9.0 && std::fabs(Gu) < F.CanopyLong * 0.5 + RidePlan::GarageWide * 0.5;
+				const bool PastDepth = Gv1 > F.Depth - 0.5;
+				const bool PastEnd = std::fabs(Gu) + RidePlan::GarageWide * 0.5 > F.Length * 0.5 - 5.0;
+				bool OffRing = false;
+				for (double U : {-0.5, 0.5})
+					for (double V : {0.0, 1.0})
+					{
+						const P2 Q = F.RoadMid + F.Out * (F.Half + Gv0 + V * RidePlan::GarageDeep) + F.RoadDir * (Gu + U * RidePlan::GarageWide);
+						OffRing = OffRing || !Plan->OnForecourt(Q.X, Q.Z);
+					}
+				if (UnderCanopy || PastDepth || PastEnd || OffRing)
+					std::printf("  GARAGE FAIL %s: under canopy %d, past depth %d, past end %d, off the forecourt %d\n", F.Name.c_str(), UnderCanopy, PastDepth, PastEnd, OffRing);
+			}
 			std::printf("Town life: %d of %d campsites with pitches (%d tents, %d caravans, %d statics), %d fountains, %d chargers\n", Plan->CampsMade, Plan->CampsSeen,
 				Plan->ThingCount[RidePlan::ThingTent], Plan->ThingCount[RidePlan::ThingCaravan], Plan->ThingCount[RidePlan::ThingStatic], Plan->ThingCount[RidePlan::ThingFountain],
 				Plan->ThingCount[RidePlan::ThingCharger]);

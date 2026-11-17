@@ -18,6 +18,8 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
+#include "World/TorqueForecourtGarage.h"
+#include "Shed/TorquePartsComputer.h"
 #include "TorqueTft.h"
 #include "RideModes.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -222,7 +224,11 @@ ATorqueBikePawn::ATorqueBikePawn()
 	Sim = MakeUnique<BikeSim>();
 }
 
-ATorqueBikePawn::~ATorqueBikePawn() = default;
+ATorqueBikePawn::~ATorqueBikePawn()
+{
+	delete GarageComputer;   // [garage]
+	GarageComputer = nullptr;
+}
 
 void ATorqueBikePawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -1000,6 +1006,20 @@ void ATorqueBikePawn::LoadContacts()
 
 void ATorqueBikePawn::GatherOtherBikes()
 {
+	// [garage] On a real-world ride: the walls of the forecourt garages standing near the rider (the
+	// ride has no boxes of its own, so the contacts are made the first time one stands).
+	if (!bYard && !FPaths::IsRelative(RouteFile) && GarageSeen != ATorqueForecourtGarage::ContactVersion())
+	{
+		GarageSeen = ATorqueForecourtGarage::ContactVersion();
+		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
+		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
+		if (!Contacts)
+		{
+			Contacts = MakeUnique<ContactWorld>();
+			Sim->Contacts = Contacts.Get();
+		}
+		Contacts->SetBoxes(Boxes);
+	}
 	if (!Contacts) return;
 	// [furniture] In the shed's yard, the solid yard kit (walls, fences, the old car and buses) too.
 	if (bYard && FurnitureSeen != TorqueFurniture::ContactVersion())
@@ -1414,7 +1434,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		UE_LOG(LogTemp, Log, TEXT("Torque info: pointer %s"), bPointing ? TEXT("out") : TEXT("away"));
 	}
-	if (bPointing)
+	if (bPointing || bGarageComputer)   // [garage] (the wall computer's page has the pointer too)
 	{
 		if (!PC->bShowMouseCursor)
 		{
@@ -1436,6 +1456,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (bOnFoot)
 	{
 		Throttle = FrontBrake = RearBrake = Shift = Lean = 0.0;
+		// [garage] In a forecourt garage: the spanner on the bike, the wall computer (its page takes the controls).
+		if (TickGarage(PC, Dt, SonyDown, SonyPressed)) return;
 		const double KeyX = (FTorqueKeys::Down(PC, ETorqueKey::WalkRight) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkLeft) ? 1.0 : 0.0);
 		const double KeyY = (FTorqueKeys::Down(PC, ETorqueKey::WalkForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ? 1.0 : 0.0);
 		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
@@ -2957,6 +2979,9 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	}
 	if (!bRemote && !bTestFlat) WeatherHeat(false);
 	HostOnlyNoteFor = FMath::Max(HostOnlyNoteFor - DeltaSeconds, 0.0);
+	// [garage] Its parts changed in a garage: drawn again once it's standing parked.
+	BindGarage();
+	if (bModelStale && ((bOnFoot && !bPushing) || bParkedLook)) RebuildBikeModel();
 
 	if (bRemote)
 	{
@@ -5090,6 +5115,7 @@ void ATorqueBikePawn::DrawHud()
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
 		}
+		GarageHudLines();   // [garage]
 	}
 	else if (bHudLines && !Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
 		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);

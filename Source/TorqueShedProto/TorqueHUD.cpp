@@ -106,6 +106,12 @@ void ATorqueHUD::DrawHUD()
 		Walker->DrawLabelBox(Canvas);
 		return;
 	}
+	// [garage] At a forecourt garage's wall computer: its page, as the shed's.
+	if (Bike && Bike->GarageComputerUp())
+	{
+		Bike->DrawGarageComputer(this, Canvas);
+		return;
+	}
 	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
 	if (Bike) DrawSpeedo(Bike);
 	// Big speed and gear, then smaller lines under them.
@@ -113,6 +119,9 @@ void ATorqueHUD::DrawHUD()
 	{
 		DrawWalkerCues(Walker, S);
 	}
+	// [garage] On foot in a garage: a dot in the middle, for what the spanner's on.
+	if (Bike && Bike->InGarage())
+		TorqueUi::Rect(Canvas, Canvas->ClipX * 0.5f - 3.0f * S, Canvas->ClipY * 0.5f - 3.0f * S, 6.0f * S, 6.0f * S, TorqueUi::Ink);
 	// The spray mini game's readout (spray_hud.gd): its card stands in for the side panel.
 	const bool bSprayCard = Walker && Walker->SprayHudUp();
 	if (bSprayCard) Walker->DrawSpray(this, Canvas);
