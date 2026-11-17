@@ -118,7 +118,7 @@ void Unlit(RideMesh& M, size_t From)
 }
 } // namespace
 
-void RidePlan::IndexForecourts()
+void RidePlan::IndexTownLife()
 {
 	Forecourts.clear();
 	ForecourtGrid.clear();
@@ -398,6 +398,110 @@ void RidePlan::IndexForecourts()
 		ForecourtGrid[CourtKey(F.Canopy.X, F.Canopy.Z)].push_back(int(Forecourts.size()));
 		Forecourts.push_back(std::move(F));
 	}
+
+	// The things. (a thing's square, and how it is filed)
+	TownThings.clear();
+	ThingGrid.clear();
+	for (int& C : ThingCount) C = 0;
+	CampsSeen = CampsMade = 0;
+	const auto AddThing = [this](TownThing T)
+	{
+		ThingGrid[CourtKey(T.At.X, T.At.Z)].push_back(int(TownThings.size()));
+		++ThingCount[T.Kind];
+		TownThings.push_back(T);
+	};
+	// (open ground for a pitch: no building, road, forecourt, wall or water within reach, level enough)
+	const auto Open = [&](const P2& Q, double Reach)
+	{
+		if (InBuilding(Q, Reach) || Wet(Q) || OnForecourt(Q.X, Q.Z)) return false;
+		const Foot R0 = NearestRoad(Q, 30.0, false);
+		if (R0.Edge >= 0 && R0.Dist < Halves[size_t(R0.Edge)] + Reach + 2.0) return false;
+		if (Walled(Q + P2(-Reach, 0.0), Q + P2(Reach, 0.0)) || Walled(Q + P2(0.0, -Reach), Q + P2(0.0, Reach))) return false;
+		const double Ya = Ground(Q.X - Reach, Q.Z), Yb = Ground(Q.X + Reach, Q.Z), Yc = Ground(Q.X, Q.Z - Reach), Yd = Ground(Q.X, Q.Z + Reach);
+		if (std::isnan(Ya) || std::isnan(Yb) || std::isnan(Yc) || std::isnan(Yd)) return false;
+		return std::fmax(std::fabs(Yb - Ya), std::fabs(Yd - Yc)) / (2.0 * Reach) < 0.12;
+	};
+	// The campsites: their pitches round the map's point, within 45 m, at least 9 m apart; touring caravans
+	// and tents (a site's mix by hash), lined up roughly the one way, as a field of pitches is.
+	std::vector<P2> Camps;
+	for (const TorqueFit::Json& Poi : G.Pois)
+	{
+		if (Poi.Str("kind") != "campsite") continue;
+		++CampsSeen;
+		const P2 P(Poi.Num("x"), Poi.Num("z"));
+		bool Twice = false;
+		for (const P2& C : Camps) Twice = Twice || C.DistanceTo(P) < 120.0;
+		if (Twice) continue;
+		Camps.push_back(P);
+		uint32_t Seed = 2166136261u ^ static_cast<uint32_t>(std::lround(P.X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(P.Z * 3.0)) * 19349663u;
+		if (Seed == 0) Seed = 1;
+		const double Caravans = Dice(Seed, 1);   // (the share of caravans to tents)
+		const double SiteYaw = Dice(Seed, 2) * 3.14159265;
+		const int Want = 6 + int(Dice(Seed, 3) * 10.0);
+		const int Statics = Dice(Seed, 4) < 0.3 ? 1 + int(Dice(Seed, 5) * 3.0) : 0;
+		std::vector<P2> Taken;
+		int Made = 0;
+		for (int Try = 0; Try < Want * 6 && Made < Want + Statics; ++Try)
+		{
+			const double A = Dice(Seed, 100u + uint32_t(Try)) * 6.2831853, Rr = 45.0 * std::sqrt(Dice(Seed, 300u + uint32_t(Try)));
+			const P2 Q = P + P2(std::cos(A) * Rr, std::sin(A) * Rr);
+			bool Close = false;
+			for (const P2& T : Taken) Close = Close || T.DistanceTo(Q) < 9.0;
+			const bool Static = Made < Statics;
+			if (Close || !Open(Q, Static ? 6.0 : 4.0)) continue;
+			TownThing T;
+			T.Kind = Static ? ThingStatic : Dice(Seed, 500u + uint32_t(Try)) < Caravans ? ThingCaravan : ThingTent;
+			T.At = Q;
+			T.Yaw = SiteYaw + (Dice(Seed, 700u + uint32_t(Try)) - 0.5) * 0.5;
+			T.Base = Ground(Q.X, Q.Z);
+			T.Seed = Seed * 31u + uint32_t(Try);
+			AddThing(T);
+			Taken.push_back(Q);
+			++Made;
+		}
+		if (Made > 0) ++CampsMade;
+	}
+	// The fountains (a point, or an outline: its middle and size) and the chargers, where the map has them.
+	for (const FeaturePoint& Fp : G.Scenery.Points)
+	{
+		if (Fp.Kind != "fountain" && Fp.Kind != "charging_station") continue;
+		if (InBuilding(Fp.At, -0.5)) continue;
+		bool Outlined = false;   // (a fountain the map also has the outline of: drawn from that)
+		for (const FeatureArea& Fa : G.Scenery.Areas)
+			Outlined = Outlined || (Fp.Kind == "fountain" && Fa.Kind == "fountain" && Fa.Ring.size() >= 3 && Fa.Ring[0].DistanceTo(Fp.At) < 60.0 && RideShapes::InRing(Fa.Ring, Fp.At.X, Fp.At.Z));
+		if (Outlined) continue;
+		const double Gy = Ground(Fp.At.X, Fp.At.Z);
+		if (std::isnan(Gy)) continue;
+		TownThing T;
+		T.Kind = Fp.Kind == "fountain" ? ThingFountain : ThingCharger;
+		T.At = Fp.At;
+		T.Base = Gy;
+		T.Size = 1.6;
+		T.Seed = static_cast<uint32_t>(std::lround(Fp.At.X * 7.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Fp.At.Z * 7.0)) * 19349663u;
+		// (a charger faces the nearest road)
+		const Foot R0 = NearestRoad(Fp.At, 40.0, false);
+		if (R0.Edge >= 0)
+		{
+			const P2 To = R0.At - Fp.At;
+			T.Yaw = std::atan2(To.Z, To.X);
+		}
+		AddThing(T);
+	}
+	for (const FeatureArea& Fa : G.Scenery.Areas)
+	{
+		if (Fa.Kind != "fountain" || Fa.Ring.size() < 3) continue;
+		P2 Mid;
+		const double Area2 = std::fabs(RideShapes::RingArea(Fa.Ring, Mid));
+		const double Gy = Ground(Mid.X, Mid.Z);
+		if (std::isnan(Gy) || Area2 > 2500.0) continue;
+		TownThing T;
+		T.Kind = ThingFountain;
+		T.At = Mid;
+		T.Base = Gy;
+		T.Size = std::clamp(std::sqrt(Area2 / 3.14159265), 1.2, 14.0);
+		T.Seed = static_cast<uint32_t>(std::lround(Mid.X * 7.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Mid.Z * 7.0)) * 19349663u;
+		AddThing(T);
+	}
 }
 
 int RidePlan::ForecourtAt(double X, double Z, double Within) const
@@ -438,9 +542,9 @@ bool RidePlan::OnForecourt(double X, double Z) const
 	return false;
 }
 
-void RidePlan::ForecourtsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
+void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
 {
-	if (Detail < 0 || Forecourts.empty()) return;
+	if (Detail < 0 || (Forecourts.empty() && TownThings.empty())) return;
 	// (the canopies' bands: plain colours, none a maker's pair)
 	static const Paint Bands[] = {{0.62f, 0.62f, 0.60f}, {0.05f, 0.16f, 0.09f}, {0.04f, 0.07f, 0.20f}, {0.30f, 0.04f, 0.05f}, {0.16f, 0.17f, 0.18f}, {0.70f, 0.70f, 0.68f}};
 	const Paint White = {0.72f, 0.72f, 0.70f}, Post = {0.55f, 0.56f, 0.56f}, Concrete = {0.34f, 0.33f, 0.31f};
@@ -574,6 +678,96 @@ void RidePlan::ForecourtsTile(double X0, double Z0, double Size, int Detail, Rid
 								C.At(U, Vl, Roof + 1.0), Light);
 					}
 					Unlit(Night, From);
+				}
+			}
+		}
+	// The things.
+	if (Detail < 1 || TownThings.empty()) return;
+	static const Paint TentCloth[] = {{0.10f, 0.20f, 0.08f}, {0.45f, 0.18f, 0.04f}, {0.06f, 0.12f, 0.30f}, {0.30f, 0.30f, 0.28f}, {0.40f, 0.08f, 0.06f}, {0.32f, 0.26f, 0.10f}};
+	const Paint Van = {0.74f, 0.74f, 0.71f}, VanTrim = {0.40f, 0.40f, 0.40f}, Pane = {0.03f, 0.035f, 0.04f}, Tyre = {0.03f, 0.03f, 0.03f};
+	const Paint Stone = {0.42f, 0.40f, 0.36f}, Pool = {0.04f, 0.07f, 0.09f}, PostGreen = {0.40f, 0.44f, 0.42f}, Face0 = {0.02f, 0.025f, 0.03f};
+	static const Paint Statics[] = {{0.70f, 0.69f, 0.62f}, {0.62f, 0.66f, 0.60f}, {0.70f, 0.70f, 0.69f}};
+	for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
+		for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
+		{
+			const auto It = ThingGrid.find(Cx * 4000037LL + Cz);
+			if (It == ThingGrid.end()) continue;
+			for (int I : It->second)
+			{
+				const TownThing& T = TownThings[size_t(I)];
+				if (T.At.X < X0 || T.At.X >= X0 + Size || T.At.Z < Z0 || T.At.Z >= Z0 + Size) continue;
+				CourtFrame C;
+				C.Edge = T.At;
+				C.U = P2(std::cos(T.Yaw), std::sin(T.Yaw));
+				C.V = P2(-C.U.Z, C.U.X);
+				const double Y = T.Base;
+				switch (T.Kind)
+				{
+				case ThingTent:
+				{
+					// (a dome tent: a low six-sided tent, its door flap darker)
+					const Paint Cloth = TentCloth[size_t(Dice(T.Seed, 1) * 5.999)];
+					const double R = 1.1 + 0.6 * Dice(T.Seed, 2);
+					RideShapes::Column(Out, Pt(T.At.X, Y - 0.05, T.At.Z), R, R * 0.35, R * 0.9, Detail >= 2 ? 8 : 6, Cloth, R * 0.25);
+					break;
+				}
+				case ThingCaravan:
+				{
+					// (a touring caravan on its wheels: a white box, a dark window band, the A-frame forward)
+					const double L = 5.2 + 1.2 * Dice(T.Seed, 1), W = 1.15, Lo = Y + 0.35, Hi = Lo + 2.05;
+					Box(Out, C, -L * 0.5, L * 0.5, -W, W, Lo, Hi, Van, false, true);
+					Box(Out, C, -L * 0.5 + 0.1, L * 0.5 - 0.1, -W + 0.1, W - 0.1, Hi, Hi + 0.08, VanTrim);
+					Box(Out, C, -L * 0.5 - 0.01, L * 0.5 + 0.01, -W - 0.01, W + 0.01, Lo + 1.15, Lo + 1.6, Pane, false, false);
+					Box(Out, C, -L * 0.5 - 0.01, L * 0.5 + 0.01, -W - 0.01, W + 0.01, Lo, Lo + 0.25, VanTrim, false, false);
+					Box(Out, C, -0.35, 0.35, -W - 0.05, -W + 0.15, Y - 0.05, Lo + 0.25, Tyre);
+					Box(Out, C, -0.35, 0.35, W - 0.15, W + 0.05, Y - 0.05, Lo + 0.25, Tyre);
+					RideShapes::Strut(Out, C.At(L * 0.5, -0.6, Lo + 0.1), C.At(L * 0.5 + 1.1, 0.0, Y + 0.45), 0.08, VanTrim);
+					RideShapes::Strut(Out, C.At(L * 0.5, 0.6, Lo + 0.1), C.At(L * 0.5 + 1.1, 0.0, Y + 0.45), 0.08, VanTrim);
+					break;
+				}
+				case ThingStatic:
+				{
+					// (a static caravan: long and boxy, on blocks, windows round it, a low-pitched roof)
+					const Paint Body = Statics[size_t(Dice(T.Seed, 1) * 2.999)];
+					const double L = 10.0, W = 1.85, Lo = Y + 0.5, Hi = Lo + 2.4;
+					Box(Out, C, -L * 0.5, L * 0.5, -W, W, Y - 0.2, Lo, VanTrim, false, false);
+					Box(Out, C, -L * 0.5, L * 0.5, -W, W, Lo, Hi, Body);
+					Face(Out, C.At(-L * 0.5, -W, Hi), C.At(L * 0.5, -W, Hi), C.At(L * 0.5, 0.0, Hi + 0.35), C.At(-L * 0.5, 0.0, Hi + 0.35), C.At(0.0, 0.0, Lo), VanTrim);
+					Face(Out, C.At(-L * 0.5, W, Hi), C.At(L * 0.5, W, Hi), C.At(L * 0.5, 0.0, Hi + 0.35), C.At(-L * 0.5, 0.0, Hi + 0.35), C.At(0.0, 0.0, Lo), VanTrim);
+					for (double Wu : {-3.2, -0.6, 2.6})
+						Box(Out, C, Wu - 0.7, Wu + 0.7, -W - 0.01, W + 0.01, Lo + 0.9, Lo + 1.9, Pane, false, false);
+					break;
+				}
+				case ThingFountain:
+				{
+					// (a stone basin, its water a little under the rim; on the bigger ones a pillar and a bowl)
+					const double R = T.Size;
+					const int Sides = R > 4.0 ? 24 : 14;
+					RideShapes::Column(Out, Pt(T.At.X, Y - 0.2, T.At.Z), R, R, 0.75, Sides, Stone);
+					RideShapes::Column(Out, Pt(T.At.X, Y + 0.5, T.At.Z), R - 0.3, R - 0.3, 0.02, Sides, Pool);
+					const double Pillar = std::fmin(2.4, 0.9 + R * 0.3);
+					RideShapes::Column(Out, Pt(T.At.X, Y + 0.5, T.At.Z), std::fmin(0.35, R * 0.2), std::fmin(0.25, R * 0.15), Pillar, 10, Stone);
+					if (R >= 1.8)
+					{
+						const double Bowl = std::fmin(R * 0.45, 2.2);
+						RideShapes::Column(Out, Pt(T.At.X, Y + 0.5 + Pillar, T.At.Z), Bowl * 0.4, Bowl, 0.35, Sides, Stone);
+						RideShapes::Column(Out, Pt(T.At.X, Y + 0.5 + Pillar + 0.36, T.At.Z), Bowl - 0.12, Bowl - 0.12, 0.01, Sides, Pool);
+						RideShapes::Column(Out, Pt(T.At.X, Y + 0.85 + Pillar, T.At.Z), 0.12, 0.05, 0.6, 8, Stone);
+					}
+					break;
+				}
+				case ThingCharger:
+				{
+					// (an electric car charger: a slim grey post, its screen facing the road, a light on it at night)
+					Box(Out, C, -0.18, 0.18, -0.3, 0.3, Y - 0.2, Y + 1.65, PostGreen);
+					Face(Out, C.At(0.19, -0.2, Y + 1.05), C.At(0.19, 0.2, Y + 1.05), C.At(0.19, 0.2, Y + 1.45), C.At(0.19, -0.2, Y + 1.45), C.At(0.0, 0.0, Y + 1.2), Face0);
+					RideMesh& Night = Out.NightOf();
+					const size_t From = Night.Vertices();
+					Face(Night, C.At(0.2, -0.17, Y + 1.5), C.At(0.2, 0.17, Y + 1.5), C.At(0.2, 0.17, Y + 1.58), C.At(0.2, -0.17, Y + 1.58), C.At(0.0, 0.0, Y + 1.5), Paint{0.3f, 1.6f, 0.6f});
+					Unlit(Night, From);
+					break;
+				}
+				default: break;
 				}
 			}
 		}

@@ -1127,11 +1127,27 @@ public:
 	std::unordered_map<long long, std::vector<int>> ForecourtGrid;   // by the 64 m square each's canopy is in
 	int FuelSeen = 0;                       // fuel stops looked at (Forecourts.size() of them made)
 	static constexpr double ForecourtDepth = 24.0, ForecourtLeast = 13.0;
-	void IndexForecourts();
+	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
+	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its
+	// point on open level ground, fountains (a stone basin and its water, a pillar and bowl in the middle,
+	// as big as the map's outline when it has one) and electric car chargers (a post each).
+	enum EThing { ThingTent, ThingCaravan, ThingStatic, ThingFountain, ThingCharger, ThingKinds };
+	struct TownThing
+	{
+		int Kind = ThingTent;
+		P2 At;
+		double Yaw = 0.0, Base = 0.0, Size = 0.0;   // which way it faces; the ground's height; a fountain's radius
+		uint32_t Seed = 1;
+	};
+	std::vector<TownThing> TownThings;
+	std::unordered_map<long long, std::vector<int>> ThingGrid;   // by the 64 m square each is in
+	int ThingCount[ThingKinds] = {};
+	int CampsSeen = 0, CampsMade = 0;
+	void IndexTownLife();   // the forecourts and the things
 	// The forecourt with a pump within Within m of (X, Z), -1 none (the tank fills there).
 	int ForecourtAt(double X, double Z, double Within = 4.0) const;
 	bool OnForecourt(double X, double Z) const;
-	void ForecourtsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	void TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// [places stage 3] The places drawn by their kind's recipe (World/WorldRidePlaces.cpp: PlacesTile):
 	// stone circles and standing stones in the local stone, crosses and memorials on their steps,
 	// obelisks, small churches where the map has no building for one (its tower at the west end),

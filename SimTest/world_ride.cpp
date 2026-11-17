@@ -788,6 +788,9 @@ int main(int Argc, char** Argv)
 			int Kiosks = 0, Three = 0;
 			for (const RidePlan::Forecourt& F : Plan->Forecourts) { Kiosks += F.Kiosk ? 1 : 0; Three += F.Islands == 3 ? 1 : 0; }
 			std::printf("Forecourts: %d made of %d fuel stops (%d with a kiosk, %d with three islands)\n", int(Plan->Forecourts.size()), Plan->FuelSeen, Kiosks, Three);
+			std::printf("Town life: %d of %d campsites with pitches (%d tents, %d caravans, %d statics), %d fountains, %d chargers\n", Plan->CampsMade, Plan->CampsSeen,
+				Plan->ThingCount[RidePlan::ThingTent], Plan->ThingCount[RidePlan::ThingCaravan], Plan->ThingCount[RidePlan::ThingStatic], Plan->ThingCount[RidePlan::ThingFountain],
+				Plan->ThingCount[RidePlan::ThingCharger]);
 			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
 			{
 				const RidePlan::Forecourt& F = Plan->Forecourts[I];
@@ -1037,7 +1040,7 @@ int main(int Argc, char** Argv)
 					Time("wild", [&](RideMesh& M) { Plan->WildTile(Kx, Kz, Sz, Detail, M); });
 					Time("towers", [&](RideMesh& M) { Plan->TowersTile(Kx, Kz, Sz, Detail, M); });
 					Time("places", [&](RideMesh& M) { Plan->PlacesTile(Kx, Kz, Sz, Detail, M); });
-					Time("forecourts", [&](RideMesh& M) { Plan->ForecourtsTile(Kx, Kz, Sz, Detail, M); });
+					Time("town life", [&](RideMesh& M) { Plan->TownLifeTile(Kx, Kz, Sz, Detail, M); });
 					Time("rings", [&](RideMesh& M) { Plan->RingsTile(Kx, Kz, Sz, Detail, M); });
 				}
 				for (const auto& [Name, A] : Parts) std::printf("Draw parts level %d: %-14s %9.0f triangles, %.2f s\n", Lv, Name.c_str(), A[0], A[1]);

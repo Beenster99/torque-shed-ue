@@ -346,7 +346,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->FindPathNodes(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());   // [OSM stage 6C] (the direction signs' junctions)
 	R->IndexFurniture();
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
-	R->IndexForecourts();   // [roads stage 7] (before the fields too: forecourts are field areas)
+	R->IndexTownLife();   // [roads stage 7] (before the fields too: forecourts are field areas)
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
@@ -1773,7 +1773,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		WildTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);      // [OSM stage 2 batch D]
 		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
-		ForecourtsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
+		TownLifeTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
 		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
@@ -1810,7 +1810,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		WildTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [OSM stage 2 batch D] (the cliffs and dams)
 		TowersTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands); // [towns stage 2] (the tall buildings)
 		PlacesTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands); // [places stage 3] (the tall places)
-		ForecourtsTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [roads stage 7] (the canopies from further off)
+		TownLifeTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [roads stage 7] (the canopies from further off)
 		if (Step <= 70.0) FarBuildingsTile(X0, Z0, Size, Step, Step <= 20.0 ? 60.0 : 200.0, *Stands);   // [build 141] (the villages and towns far off)
 		if (Stands->Any()) Out.Extra = Stands;
 	}

@@ -107,7 +107,7 @@ void RidePlan::IndexFields()
 	// [places stage 2] The pull-offs made for places (IndexPlaces).
 	for (size_t I = 0; I < PlaceStops.size(); ++I)
 		if (PlaceStops[I].How == PlaceMade && PlaceStops[I].Ring.size() >= 3) Shapes.push_back({FieldPullOff, &PlaceStops[I].Ring, "pulloff" + std::to_string(I), false});
-	// [roads stage 7] The petrol stations' forecourts (IndexForecourts).
+	// [roads stage 7] The petrol stations' forecourts (IndexTownLife).
 	for (size_t I = 0; I < Forecourts.size(); ++I)
 		if (Forecourts[I].Ring.size() >= 3) Shapes.push_back({FieldForecourt, &Forecourts[I].Ring, "forecourt" + std::to_string(I), false});
 	for (const Shape& Sh : Shapes)
