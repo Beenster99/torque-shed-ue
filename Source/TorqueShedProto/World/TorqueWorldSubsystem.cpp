@@ -163,6 +163,8 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::shared_ptr<FTorqueWorldShared> Held = Weak.lock();
 		return Held && !Held->bOffline ? TWSI::BlockingGet(Held, Url, Body) : 0;
 	};
+	// [build 155] (never fetched on the game thread: asked there, a cell's buildings wait for a worker)
+	Shared->Cells.MayFetch = []() { return !IsInGameThread(); };
 	// [stage 8] Offline or not, before anything is asked for.
 	Shared->bOffline = FTorqueSettings::Get().bWorldOffline || TWSI::ForcedOffline();
 	Shared->Cells.Offline = Shared->bOffline;
