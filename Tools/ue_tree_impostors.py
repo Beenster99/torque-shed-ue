@@ -144,10 +144,17 @@ def _scalar(m, name, value, x, y):
     return e
 
 
+def _custom_input(name):
+    # ([round 154] UE 5.8's CustomInput takes no constructor arguments)
+    ci = unreal.CustomInput()
+    ci.set_editor_property("input_name", name)
+    return ci
+
+
 def _custom(m, code, out_type, inputs, x, y, label):
     e = _expr(m, unreal.MaterialExpressionCustom, x, y)
     _set(e, code=code, output_type=out_type, description=label,
-         inputs=[unreal.CustomInput(input_name=name) for name, _ in inputs])
+         inputs=[_custom_input(name) for name, _ in inputs])
     for name, src in inputs:
         mel.connect_material_expressions(src, "", e, name)
     return e
@@ -286,7 +293,7 @@ def bake(mesh_path):
     centre, ext, radius = _bounds(sm)
     world = _world()
     acts = _actors()
-    at = unreal.Vector(0, 0, 2000000.0)   # (well away from anything in the editor's level)
+    at = unreal.Vector(0, 0, 100000.0)   # (1 km up, away from anything in the editor's level)
     tree = acts.spawn_actor_from_class(unreal.StaticMeshActor, at)
     tree.static_mesh_component.set_static_mesh(sm)
     tree.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
@@ -318,6 +325,12 @@ def bake(mesh_path):
                 d = frame_dir(i, j)
                 cap_actor.set_actor_location_and_rotation(centre_ws + d * dist, unreal.MathLibrary.make_rot_from_x(d * -1.0), False, False)
                 cap.capture_scene()
+                if i == 0 and j == 0:
+                    # ([round 154] the first views came out black: give the tree's Nanite data and
+                    # textures a few captures to stream in before the one that counts)
+                    for _ in range(6):
+                        cap.capture_scene()
+                        unreal.RenderingLibrary.read_render_target_raw_pixel(world, shot, 0, 0)
                 # (a canvas draws its batch when it ends, so one per frame: the shot is the next view's by then)
                 canvas, size, ctx = unreal.RenderingLibrary.begin_draw_canvas_to_render_target(world, atlas)
                 canvas.draw_texture(shot, unreal.Vector2D(i * CELL_PX, j * CELL_PX), unreal.Vector2D(CELL_PX, CELL_PX),
@@ -387,8 +400,23 @@ def bake(mesh_path):
 
 def _texture_of(rt, comp, mips):
     """A texture asset made from a render target asset (the function's name moved between releases:
-    UE 5.8 has no RenderTargetCreateStaticTexture2DEditor)."""
+    UE 5.8 has no RenderTargetCreateStaticTexture2DEditor; it has ConvertRenderTargetToTexture2DEditorOnly,
+    which fills a texture that already exists)."""
     R = unreal.RenderingLibrary
+    conv = getattr(R, "convert_render_target_to_texture2d_editor_only", None)
+    if conv is not None:
+        name = rt.get_name().replace("RT_", "T_Tmp_")
+        folder = IMP_DIR + "/Work"
+        path = "%s/%s" % (folder, name)
+        if eal.does_asset_exist(path):
+            eal.delete_asset(path)
+        try:
+            tex = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, unreal.Texture2D, unreal.Texture2DFactoryNew())
+            conv(_world(), rt, tex)
+            _set(tex, compression_settings=comp, mip_gen_settings=mips)
+            return tex
+        except Exception as e:
+            log("convert_render_target_to_texture2d_editor_only: %s" % e)
     for name in ("render_target_create_static_texture_editor", "render_target_create_static_texture2d_editor"):
         f = getattr(R, name, None)
         if f is None:
