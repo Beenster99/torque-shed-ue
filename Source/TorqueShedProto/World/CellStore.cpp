@@ -256,14 +256,20 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 	return Json::Parse(Text, Out);
 }
 
-bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out)
+bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out, bool* Deferred)
 {
+	if (Deferred) *Deferred = false;
 	const auto It = Idx.Buildings.find(Name);
 	if (It == Idx.Buildings.end()) return false;
 	const CellEntry& E = It->second;
 	const std::string Path = Dir.empty() ? std::string() : Files::Join(Files::Join(Dir, "bld"), "c" + Name + "-" + E.Hash + ".zip");
 	if (!Path.empty() && Files::Read(Path, Out) && Sha256Hex(Out).substr(0, E.Hash.size()) == E.Hash) return true;
 	if (Offline || !Get) return false;
+	if (MayFetch && !MayFetch())
+	{
+		if (Deferred) *Deferred = true;
+		return false;
+	}
 	Out.clear();
 	if (Get(E.Url, Out) != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
 	if (!Path.empty())
