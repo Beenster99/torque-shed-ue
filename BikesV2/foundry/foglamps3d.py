@@ -213,8 +213,8 @@ SHOTS = [("chrome_spot", "hartwell_classic"), ("amber_round", "lodestar_cruiser"
          ("led_cube", "corvano_naked"), ("slim_bar", "varga_mx")]
 
 
-HEAD_LAMP = ("lampbulb", "lampdrl", "mainled", "projbulb", "lampglass", "lampcover", "lph")
-LIT_GLASS = ("lampglass", "lampcover", "projlens", "lphglass", "lphlens")
+HEAD_LAMP = ("lampbulb", "lampdrl", "mainled", "projbulb", "lampglass", "lampcover", "lph", "advlamp", "adveyeled", "advdrl")
+LIT_GLASS = ("lampglass", "lampcover", "projlens", "lphglass", "lphlens", "advlampglass", "adveyeled")
 
 
 def _glow_mat(name, col, strength):
