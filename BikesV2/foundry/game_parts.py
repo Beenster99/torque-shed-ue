@@ -60,7 +60,7 @@ RULES = [
     (r"svc_oil_filter", "oil_filter", ""), (r"(svc_spark_plug|plugcap|pluglead|plugleadclip|plugwell)", "spark_plugs", ""),
     (r"(svc_fuel|injector|fuelrail|throttlepulley|throttleshaft)", "fuel", ""),
     (r"ssmount", "frame", ""),                           # the side stand's lug on the frame (sidestand3d)
-    (r"sidestand", "side_stand", "side_stand"),          # swings on its pivot (points "stand")
+    (r"sidestand", "side_stand", ""),                    # the game swings the slot's pieces on the pivot (points "stand")
     (r"(stand|centrestand)", "side_stand", ""),
     # frame
     (r"(frame|framecross|frameloop|weld|head$|pivot|pivotcap|pivotnut|spar|sparbolt|sparweld|mount|lug|cabletie|clutchcable|bolt$)", "frame", ""),

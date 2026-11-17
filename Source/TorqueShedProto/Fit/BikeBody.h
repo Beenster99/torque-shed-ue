@@ -49,6 +49,7 @@ struct FittedPart
 	// out of the face towards the rider and GaugeUp the way its text reads up. Ours frame, bike space.
 	std::string Gauge;
 	V3 GaugeAt, GaugeAxis, GaugeUp;
+	double GaugeSize = 1.0;   // [bikes v2] a dial's radius over the catalogue dial's 4.3 cm: the game's scale is drawn to it
 };
 
 // A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.

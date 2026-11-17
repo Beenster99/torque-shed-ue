@@ -118,6 +118,7 @@ private:
 		FVector At, Rest, Side;   // the pivot, and the needle at rest (mid-scale) and a quarter turn clockwise, mesh space
 		FVector Axis;             // out of the dial's face, towards the rider
 		FTransform Base;          // its relative transform at rest
+		float Size = 1.0f;        // the dial's radius over the catalogue dial's 4.3 cm
 	};
 	struct FLed
 	{

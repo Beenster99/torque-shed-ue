@@ -4535,6 +4535,72 @@ bool BikeParts::V2Tyres(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 	return true;
 }
 
+int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) const
+{
+	const Json* V2 = Lay.V2Of(Parts);
+	const auto FrameIt = Parts.find("frame");
+	const V2Frame F = V2Frame::Of(FrameIt != Parts.end() ? Lay.Part(FrameIt->second) : nullptr);
+	const Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+	const Json* Gauges = Points ? Points->Get("gauges") : nullptr;
+	if (!F.Valid || !Gauges || !Gauges->IsArray()) return 0;
+	const std::string Slot = Parts.count("dashboard") ? "dashboard" : "frame";
+	int Made = 0;
+	bool bReadout = false;
+	for (const Json& G : Gauges->A)
+	{
+		const Json* At = G.Get("at");
+		const Json* Axis = G.Get("axis");
+		const Json* Up = G.Get("up");
+		if (!At || !Axis || !Up || At->A.size() < 3 || Axis->A.size() < 3 || Up->A.size() < 3) continue;
+		const std::string What = G.Str("what");
+		const std::string Node = G.Str("node");
+		// The face's own space, as the catalogue clocks': x across, y out of the face at the rider, z down it (Godot frame).
+		GAffine Tilt;
+		Tilt.Y = ToGodot(F.Dir(Axis->A[0].N, Axis->A[1].N, Axis->A[2].N)).Normalized();
+		Tilt.Z = ToGodot(F.Dir(Up->A[0].N, Up->A[1].N, Up->A[2].N)).Normalized() * -1.0;
+		Tilt.X = Tilt.Y.Cross(Tilt.Z).Normalized();
+		const V3 C = ToGodot(F.Point(At->A[0].N, At->A[1].N, At->A[2].N));
+		auto Code = [&](const CodeShapes::GMesh& M, const V3& Where, const std::string& Tag) {
+			CodeShapes::Emit(Out, Slot, "dashboard/dial.glb", Node, "", M, AtWith(Tilt, Where), Tag);
+		};
+		auto Works = [&](const std::string& Gauge, const V3& Where, double Size) {
+			FittedPart& Fp = Out.back();
+			Fp.Gauge = Gauge;
+			Fp.GaugeAt = FromGodot(Where);
+			Fp.GaugeAxis = FromGodot(Tilt.Y);
+			Fp.GaugeUp = FromGodot(Tilt.Z * -1.0);
+			Fp.GaugeSize = Size;
+		};
+		if (What == "speed" || What == "rpm")
+		{
+			// A cream face over the drawn one (the scale's ink is black), the needle at rest straight up it,
+			// under the drawn hub and glass (the hub 0.4 to 3.4 mm off the face, the glass from 4.2).
+			const double R = std::max(G.Num("r", 43.0), 15.0) / 1000.0;
+			const double K = R / 0.043;
+			Code(CodeShapes::Cylinder(R * 0.97, 0.0004), C + Tilt.Y * 0.0006, "dial");
+			if (!bReadout)
+			{
+				// (the little window for the gear and fuel, under the first dial's pivot)
+				Code(CodeShapes::Box(V3(R * 0.5, 0.0003, R * 0.2)), C + Tilt.Y * 0.0009 + Tilt.Z * (R * 0.5), "dial");
+				Works("readout", C + Tilt.Y * 0.0012 + Tilt.Z * (R * 0.5), K);
+				bReadout = true;
+			}
+			Code(CodeShapes::Box(V3(0.0022, 0.0012, R * 0.8)), C + Tilt.Y * 0.0024 + Tilt.Z * (-R * 0.38), "lens_red");
+			Works(What, C + Tilt.Y * 0.0024, K);
+			++Made;
+		}
+		else if (What == "screen")
+		{
+			const double W = std::max(G.Num("w", 66.0), 20.0) / 1000.0, H = std::max(G.Num("h", 40.0), 12.0) / 1000.0;
+			const std::string Size = std::to_string(int(std::lround(W * 1000.0))) + "x" + std::to_string(int(std::lround(H * 1000.0)));
+			Code(CodeShapes::ScreenFace(W, H, false), C + Tilt.Y * 0.0013, "glass");
+			Works("screen_wide_" + Size, C + Tilt.Y * 0.0013, 1.0);
+			++Made;
+		}
+	}
+	return Made;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
 	{
@@ -4542,6 +4608,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 		if (FitV2(Parts, V2))
 		{
 			V2Tyres(Parts, L, V2);
+			V2Gauges(Parts, V2);
 			return V2;
 		}
 	}

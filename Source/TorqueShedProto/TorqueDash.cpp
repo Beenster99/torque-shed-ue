@@ -49,6 +49,27 @@ void FTorqueDash::Setup(const TMap<FString, FString>& Parts)
 				if (J.IsString()) Features.Add(UTF8_TO_TCHAR(J.S.c_str()));
 		}
 	}
+	// [bikes v2] A V2 bike's clocks are the ones drawn on it, whatever dashboard part the build names:
+	// dials, or a display (v2.points_mm.gauges; Fit/BikeParts V2Gauges makes their working pieces).
+	if (const TorqueFit::Json* FramePart = PartOf(TEXT("frame")))
+	{
+		const TorqueFit::Json* V2 = FramePart->Get("v2");
+		const TorqueFit::Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+		const TorqueFit::Json* Drawn = Points ? Points->Get("gauges") : nullptr;
+		if (Drawn && Drawn->IsArray() && !Drawn->A.empty())
+		{
+			bool bScreen = false, bRevs = false;
+			for (const TorqueFit::Json& G : Drawn->A)
+			{
+				bScreen = bScreen || G.Str("what") == "screen";
+				bRevs = bRevs || G.Str("what") == "rpm";
+			}
+			Style = bScreen ? TEXT("tft") : bRevs ? TEXT("twin") : TEXT("analog");
+			Features.AddUnique(TEXT("speed"));
+			if (bScreen || bRevs) Features.AddUnique(TEXT("rpm"));
+			Features.AddUnique(TEXT("gear"));
+		}
+	}
 	// The tank and any auxiliary tank (BikeBuild: fuel_capacity = main_capacity + aux_capacity).
 	FuelCapacity = 0.0;
 	if (const TorqueFit::Json* Tank = PartOf(TEXT("tank"))) FuelCapacity += Tank->Num("capacity", 15.0);
@@ -174,6 +195,7 @@ void FTorqueDash::HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>&
 			N.Side = FVector::CrossProduct(G.Axis, G.Up).GetSafeNormal();
 			if (N.Side.Y > 0.0) N.Side = -N.Side;
 			N.Base = M->GetRelativeTransform();
+			N.Size = FMath::Clamp(G.Size, 0.3f, 2.0f);
 			// bike_model.gd: the needle glows red with the ignition on.
 			if (UMaterialInstanceDynamic* Glow = TorqueToolModels::Finish(Owner, FLinearColor(1.0f, 0.25f, 0.1f), 0.0f, 0.4f, 2.5f))
 				M->SetMaterial(0, Glow);
@@ -426,6 +448,7 @@ void FTorqueDash::BuildScale(int32 Units)
 		const double Full = N.bRpm ? RevMax : SpeedMax;
 		const double Every = N.bRpm ? RevStep : SpeedStep;
 		if (Full <= 0.0 || Every <= 0.0) continue;
+		const double K = N.Size;   // [bikes v2] the dial's size over the catalogue dial's
 		auto DirAt = [&N](double Frac) {
 			const double A = FMath::Lerp(2.35, -2.35, FMath::Clamp(Frac, 0.0, 1.0));
 			return (N.Rest * FMath::Cos(A) + N.Side * FMath::Sin(A)).GetSafeNormal();
@@ -439,7 +462,7 @@ void FTorqueDash::BuildScale(int32 Units)
 			const bool bRedZone = N.bRpm && Value >= Redline - 1.0;
 			const FVector Out = DirAt(Frac);
 			// A tick: a thin block along the radius, its outer end at 4 cm.
-			const double Len = bMajor ? 0.7 : 0.4, Wide = bMajor ? 0.22 : 0.14;
+			const double Len = (bMajor ? 0.7 : 0.4) * K, Wide = (bMajor ? 0.22 : 0.14) * K;
 			UStaticMeshComponent* T = NewObject<UStaticMeshComponent>(Owner);
 			T->SetStaticMesh(Cube);
 			T->SetMobility(EComponentMobility::Movable);
@@ -448,7 +471,7 @@ void FTorqueDash::BuildScale(int32 Units)
 			T->SetupAttachment(Parent);
 			T->RegisterComponent();
 			if (UMaterialInstanceDynamic* Mat = bRedZone ? RedMat : InkMat) T->SetMaterial(0, Mat);
-			const FVector TickAt = N.At + Out * (4.0 - Len * 0.5) - N.Axis * 0.15;
+			const FVector TickAt = N.At + Out * (4.0 * K - Len * 0.5) - N.Axis * 0.15;
 			const FTransform TickLocal(FRotationMatrix::MakeFromXZ(N.Axis, Out).ToQuat(), TickAt, FVector(0.1, Wide, Len) / 100.0);
 			T->SetRelativeTransform(TickLocal * N.Base);
 			ScaleParts.Add(T);
@@ -462,11 +485,11 @@ void FTorqueDash::BuildScale(int32 Units)
 			L->RegisterComponent();
 			L->SetHorizontalAlignment(EHTA_Center);
 			L->SetVerticalAlignment(EVRTA_TextCenter);
-			L->SetWorldSize(Label.Len() >= 3 ? 0.5f : 0.62f);
+			L->SetWorldSize((Label.Len() >= 3 ? 0.5f : 0.62f) * (float)K);
 			L->SetCastShadow(false);
 			L->SetTextRenderColor(bRedZone ? Red : Ink);
 			L->SetText(FText::FromString(Label));
-			const FTransform LabelLocal(FRotationMatrix::MakeFromXZ(N.Axis, N.Rest).ToQuat(), N.At + Out * (Label.Len() >= 3 ? 2.45 : 2.6) - N.Axis * 0.1);
+			const FTransform LabelLocal(FRotationMatrix::MakeFromXZ(N.Axis, N.Rest).ToQuat(), N.At + Out * (Label.Len() >= 3 ? 2.45 : 2.6) * K - N.Axis * 0.1);
 			L->SetRelativeTransform(LabelLocal * N.Base);
 			ScaleParts.Add(L);
 			++Numbers;
@@ -478,11 +501,11 @@ void FTorqueDash::BuildScale(int32 Units)
 		Unit->RegisterComponent();
 		Unit->SetHorizontalAlignment(EHTA_Center);
 		Unit->SetVerticalAlignment(EVRTA_TextCenter);
-		Unit->SetWorldSize(0.36f);
+		Unit->SetWorldSize(0.36f * (float)K);
 		Unit->SetCastShadow(false);
 		Unit->SetTextRenderColor(Ink);
 		Unit->SetText(FText::FromString(N.bRpm ? FString(TEXT("x1000 r/min")) : FString(bMetric ? TEXT("km/h") : TEXT("mph"))));
-		const FTransform UnitLocal(FRotationMatrix::MakeFromXZ(N.Axis, N.Rest).ToQuat(), N.At + N.Rest * 1.25 - N.Axis * 0.1);
+		const FTransform UnitLocal(FRotationMatrix::MakeFromXZ(N.Axis, N.Rest).ToQuat(), N.At + N.Rest * 1.25 * K - N.Axis * 0.1);
 		Unit->SetRelativeTransform(UnitLocal * N.Base);
 		ScaleParts.Add(Unit);
 	}

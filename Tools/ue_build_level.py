@@ -1063,6 +1063,48 @@ def bike_decal_master(tex, name="M_BikeDecal", wrap=False):
     return m
 
 
+def bike_glass_materials():
+    """[bikes v2] The see-through finishes of the V2 bikes: M_BikeGlass (lit, translucent: a colour, a roughness
+    and an opacity, a little more solid at a glancing angle) with MI_v2glass (lamp and clock glass, nearly clear)
+    and MI_v2screen (a windscreen, lightly smoked). The game tints them with each surface's own colour (the
+    Color parameter); without them it leaves lamp glass out and draws screens solid. Never fails the build."""
+    try:
+        m = new_material("M_BikeGlass", BIKE_MAT_DIR)
+        m.set_editor_property("two_sided", True)
+        m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+        try_set(m, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE)
+        try_set(m, "screen_space_reflections", True)
+        g = Graph(m)
+        col = g.node(unreal.MaterialExpressionVectorParameter, -900, parameter_name="Color",
+                     default_value=unreal.LinearColor(0.9, 0.93, 0.95, 1.0))
+        rough = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Roughness", default_value=0.03)
+        opac = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Opacity", default_value=0.12)
+        edge = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="EdgeOpacity", default_value=0.45)
+        fres = g.node(unreal.MaterialExpressionFresnel, -900)
+        mix = g.node(unreal.MaterialExpressionLinearInterpolate, -600)
+        mel.connect_material_expressions(opac, "", mix, "A")
+        mel.connect_material_expressions(edge, "", mix, "B")
+        mel.connect_material_expressions(fres, "", mix, "Alpha")
+        mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+        mel.connect_material_property(mix, "", unreal.MaterialProperty.MP_OPACITY)
+        mel.recompile_material(m)
+        unreal.EditorAssetLibrary.save_loaded_asset(m)
+        for name, opacity, edge_opacity in (("v2glass", 0.1, 0.4), ("v2screen", 0.3, 0.6)):
+            path = BIKE_MAT_DIR + "/MI_" + name
+            if unreal.EditorAssetLibrary.does_asset_exist(path):
+                unreal.EditorAssetLibrary.delete_asset(path)
+            mi = asset_tools.create_asset("MI_" + name, BIKE_MAT_DIR, unreal.MaterialInstanceConstant,
+                                          unreal.MaterialInstanceConstantFactoryNew())
+            mel.set_material_instance_parent(mi, m)
+            mel.set_material_instance_scalar_parameter_value(mi, "Opacity", opacity)
+            mel.set_material_instance_scalar_parameter_value(mi, "EdgeOpacity", edge_opacity)
+            unreal.EditorAssetLibrary.save_loaded_asset(mi)
+        unreal.log("[Torque] V2 bike glass: M_BikeGlass, MI_v2glass, MI_v2screen")
+    except Exception as e:
+        unreal.log_warning("[Torque] V2 bike glass materials not made: %s" % e)
+
+
 def bike_materials(finishes):
     """A master for plain finishes and a clear coat one for paint, and an instance per finish (see
     Tools/make_speedtwin.py for what a finish holds; the rider's kit gives just colour and the two
@@ -1114,6 +1156,7 @@ def bike_materials(finishes):
             unreal.log_warning("[Torque] detail set %s for %s not found" % (f.get("detail"), name))
         unreal.EditorAssetLibrary.save_loaded_asset(mi)
         paths[name] = mi.get_path_name()
+    bike_glass_materials()
     return paths
 
 

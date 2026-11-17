@@ -97,6 +97,9 @@ def mat(name, col=None, finish=None):
 GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "2.0,0.3,0.6,0.5").split(",")]
 
 
+GAME_STAND = {}      # the fitted side stand's pivot and swing, for the game (points_mm "stand")
+
+
 def export_game(name, model, model_file=None):
     """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
     surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
@@ -203,6 +206,8 @@ def export_game(name, model, model_file=None):
             pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
     if gauges:
         pts["gauges"] = gauges
+    if GAME_STAND:
+        pts["stand"] = dict(GAME_STAND)
     name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()
@@ -2145,6 +2150,14 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
     if "--game" in sys.argv:
+        # the side stand (common parts' sidestand3d: drawn folded, the game swings it down on its pivot)
+        import sidestand3d
+        rep_, _made = sidestand3d.fit(sys.modules[__name__], model)
+        if rep_.get("fitted"):
+            GAME_STAND.update({k: [round(float(q), 4) for q in rep_["stand"][k]] for k in ("pivot", "axis", "folded_dir", "down_dir")})
+            GAME_STAND["angle_down_deg"] = round(float(rep_["stand"]["angle_down_deg"]), 2)
+        else:
+            print("NO SIDE STAND FITTED on", name)
         print("game files in", export_game(name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
