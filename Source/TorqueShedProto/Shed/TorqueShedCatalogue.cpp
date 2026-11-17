@@ -401,6 +401,9 @@ UMaterialInterface* V2Material(const FV2Look& Look, bool& bPaint, bool& bOutFall
 	}
 	if (!M && Look.Finish == TEXT("v2screen"))
 		M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_screen_clear.MI_screen_clear"));
+	// (A mirror's glass is never brushed steel, build 154: without its own finish it is chrome.)
+	if (!M && Look.Finish == TEXT("mirror_glass"))
+		M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_chrome.MI_chrome"));
 	if (!M) M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
 	if (M) M->AddToRoot();   // cached across map travel, as MaterialFor's
 	Loaded.Add(Look.Finish, M);
