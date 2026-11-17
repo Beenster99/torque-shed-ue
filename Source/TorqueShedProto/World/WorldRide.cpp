@@ -1621,7 +1621,12 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 	const double Height = Hit.Height + Hit.Cross - Hit.Fall * std::fmin(FallOn, std::fmax(0.0, Hit.Dist - Hit.Half));
 	const double Wider = std::fmax(0.0, Coarse - 4.0);
 	const double Flat = Hit.Half + Bench + Wider;
-	const double Under = Height - Sink - std::fmin(0.45, Wider * 0.06);
+	// ([build 154] beenster: "the grass needs to meet the road on the same plane... Buttertubs is how I want
+	// it": the ground 10 cm under the road all across its bench left the road's grassed shoulder standing
+	// proud of the field as a strip. Now the ground rises from under the tarmac to just under the shoulder's
+	// level, FlushSink, within 0.6 m of the edge, so the field and the road's own grass lie as one surface.)
+	const double ToFlush = std::clamp((Hit.Dist - Hit.Half) / 0.6, 0.0, 1.0);
+	const double Under = Height - (Sink + (FlushSink - Sink) * ToFlush) - std::fmin(0.45, Wider * 0.06);
 	double Out = Lie;
 	// [OSM stage 5E] The bank from there back to the land: wider the more height it makes up (as the
 	// Godot game's road_net.gd has it), so a deep cutting or a high embankment is a slope, not a wall;

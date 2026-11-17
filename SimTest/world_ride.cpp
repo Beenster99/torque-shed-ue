@@ -1790,7 +1790,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText;
+		std::string Text, PropText, WallText;
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -1875,6 +1875,14 @@ int main(int Argc, char** Argv)
 					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
 					for (const RideProp& P : Stands.Props)
 					{
+						// ([build 154] and the dry stone walls' lengths and heads, to WORLD_RIDE_MESH.walls: name variant x z y yaw pitch stretch)
+						if (P.Kind == RidePlan::PropWallStone || P.Kind == RidePlan::PropWallEnd)
+						{
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
+								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+							WallText += Buf;
+							continue;
+						}
 						if (!P.Facade) continue;
 						std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X, Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw));
 						PropText += Buf;
@@ -1914,6 +1922,7 @@ int main(int Argc, char** Argv)
 		}
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
+		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);
 	}
 	{
 		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and
