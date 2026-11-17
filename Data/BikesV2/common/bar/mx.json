@@ -19,24 +19,26 @@
  "triangles": 9332,
  "surfaces": {
   "d3_bars_anodised_red": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_anodised",
    "color": [
     0.52,
     0.03,
     0.03
    ],
    "metallic": 1.0,
-   "roughness": 0.26
+   "roughness": 0.26,
+   "tag": "d3_bars_anodised_red"
   },
   "d3_barpad": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.0,
-   "roughness": 0.85
+   "roughness": 0.85,
+   "tag": "d3_barpad"
   },
   "alu_dark": {
    "ue": "cat_anodised",
@@ -46,7 +48,8 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45
+   "roughness": 0.45,
+   "tag": "alu_dark"
   }
  }
 }

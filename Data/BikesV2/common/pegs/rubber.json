@@ -26,10 +26,12 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

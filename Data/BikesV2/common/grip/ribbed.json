@@ -19,14 +19,15 @@
  "triangles": 31384,
  "surfaces": {
   "d3_gripribbed": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.018,
-    0.018,
-    0.02
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.62
+   "roughness": 0.62,
+   "tag": "d3_gripribbed"
   }
  }
 }

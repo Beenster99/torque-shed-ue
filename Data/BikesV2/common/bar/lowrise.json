@@ -19,14 +19,15 @@
  "triangles": 7964,
  "surfaces": {
   "d3_bars_satin_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.03,
     0.03,
     0.034
    ],
    "metallic": 0.85,
-   "roughness": 0.38
+   "roughness": 0.38,
+   "tag": "d3_bars_satin_black"
   },
   "alu_dark": {
    "ue": "cat_anodised",
@@ -36,7 +37,8 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45
+   "roughness": 0.45,
+   "tag": "alu_dark"
   }
  }
 }

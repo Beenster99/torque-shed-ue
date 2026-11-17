@@ -19,10 +19,12 @@
  "triangles": 3296,
  "surfaces": {
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

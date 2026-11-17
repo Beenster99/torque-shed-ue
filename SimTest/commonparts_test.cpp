@@ -166,6 +166,15 @@ int main()
 					Expect(Shown == 1, Frame + ": " + E.Id + " one " + Sub + " piece (" + std::to_string(Shown) + ")");
 					if (!New.Any()) continue;
 					++Fits[Sub];
+					// The lamps light: a headlamp's or fog lamp's lit face is a white lens the game's lights find (TorqueLights).
+					if (Sub == "headlamp" || Sub == "fog_lights")
+					{
+						bool Lens = false;
+						for (const FittedPart& P : After)
+							if (P.Sub == Sub && P.Made && P.Glb.rfind("v2c/", 0) == 0)
+								for (const PartSurface& S : P.Made->Surfaces) Lens = Lens || S.Material.find("/lens_white/") != std::string::npos || (S.Material.size() > 11 && S.Material.compare(S.Material.size() - 11, 11, "/lens_white") == 0);
+						Expect(Lens, Frame + ": " + E.Id + " has a lit white lens");
+					}
 					// On the bike: inside the bike as drawn (with room), above the ground.
 					const double Room = Sub == "silencer" ? 0.5 : 0.25;   // (a long can for a short one: drag pipes on a chopper)
 					Expect(New.Lo.x > Whole.Lo.x - Room && New.Hi.x < Whole.Hi.x + Room && New.Hi.y < Whole.Hi.y + Room && New.Lo.y > Whole.Lo.y - 0.01 &&

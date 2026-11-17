@@ -19,14 +19,15 @@
  "triangles": 15352,
  "surfaces": {
   "grip_touring": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.8,
-    0.8,
-    0.8
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.78
+   "roughness": 0.78,
+   "tag": "grip_touring"
   }
  }
 }

@@ -26,7 +26,8 @@
     0.45
    ],
    "metallic": 1.0,
-   "roughness": 0.3
+   "roughness": 0.3,
+   "tag": "exhaust"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -36,7 +37,8 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "exhaust_black": {
    "ue": "cat_black_metal",
@@ -46,17 +48,19 @@
     0.032
    ],
    "metallic": 0.4,
-   "roughness": 0.6
+   "roughness": 0.6,
+   "tag": "exhaust_black"
   },
   "d3_pipeblack": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.0015,
     0.0015,
     0.0015
    ],
    "metallic": 0.0,
-   "roughness": 1.0
+   "roughness": 1.0,
+   "tag": "d3_pipeblack"
   }
  }
 }

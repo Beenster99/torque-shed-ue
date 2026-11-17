@@ -19,14 +19,15 @@
  "triangles": 7964,
  "surfaces": {
   "d3_bars_polished": {
-   "ue": "cat_brushed_steel",
+   "ue": "chrome",
    "color": [
     0.8,
     0.8,
     0.82
    ],
    "metallic": 1.0,
-   "roughness": 0.12
+   "roughness": 0.12,
+   "tag": "d3_bars_polished"
   },
   "alu_dark": {
    "ue": "cat_anodised",
@@ -36,7 +37,8 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45
+   "roughness": 0.45,
+   "tag": "alu_dark"
   }
  }
 }

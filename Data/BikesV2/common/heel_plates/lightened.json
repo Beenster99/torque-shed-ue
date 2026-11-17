@@ -19,14 +19,15 @@
  "triangles": 1448,
  "surfaces": {
   "d3_brushed": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_cast_alloy",
    "color": [
     0.72,
     0.73,
     0.75
    ],
    "metallic": 1.0,
-   "roughness": 0.5
+   "roughness": 0.5,
+   "tag": "d3_brushed"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -36,10 +37,12 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

@@ -19,7 +19,8 @@
  "triangles": 3256,
  "surfaces": {
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   }
  }
 }

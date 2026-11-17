@@ -19,14 +19,15 @@
  "triangles": 4024,
  "surfaces": {
   "d3_bars_anodised_gold": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_anodised",
    "color": [
     0.72,
     0.46,
     0.08
    ],
    "metallic": 1.0,
-   "roughness": 0.24
+   "roughness": 0.24,
+   "tag": "d3_bars_anodised_gold"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -36,10 +37,12 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

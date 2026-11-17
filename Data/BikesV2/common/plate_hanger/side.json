@@ -19,14 +19,15 @@
  "triangles": 1068,
  "surfaces": {
   "d3_sk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -36,7 +37,8 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "plate": {
    "ue": "cat_plastic",
@@ -46,10 +48,12 @@
     0.05
    ],
    "metallic": 0.0,
-   "roughness": 0.5
+   "roughness": 0.5,
+   "tag": "plate"
   },
   "redlens": {
-   "ue": "lens_red"
+   "ue": "lens_red",
+   "tag": "lens_red"
   }
  }
 }

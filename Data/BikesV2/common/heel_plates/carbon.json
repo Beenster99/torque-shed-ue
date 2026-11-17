@@ -19,15 +19,9 @@
  "triangles": 1448,
  "surfaces": {
   "d3_cf_twill": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    0.8,
-    0.8,
-    0.8
-   ],
-   "metallic": 0.0,
-   "roughness": 0.5,
-   "coat": 1.0
+   "ue": "cat_carbon",
+   "coat": 1.0,
+   "tag": "d3_cf_twill"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -37,13 +31,16 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }

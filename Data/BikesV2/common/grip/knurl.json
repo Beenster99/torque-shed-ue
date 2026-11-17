@@ -19,14 +19,15 @@
  "triangles": 17272,
  "surfaces": {
   "d3_grip": {
-   "ue": "cat_brushed_steel",
+   "ue": "grip",
    "color": [
-    0.8,
-    0.8,
-    0.8
+    0.016,
+    0.016,
+    0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.74
+   "roughness": 0.74,
+   "tag": "d3_grip"
   }
  }
 }

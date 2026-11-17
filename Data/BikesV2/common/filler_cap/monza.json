@@ -19,7 +19,8 @@
  "triangles": 2784,
  "surfaces": {
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -29,7 +30,8 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   }
  }
 }

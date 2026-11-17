@@ -19,7 +19,7 @@
  "triangles": 754,
  "surfaces": {
   "d3_lp_gloss": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     0.01,
     0.01,
@@ -27,32 +27,21 @@
    ],
    "metallic": 0.3,
    "roughness": 0.12,
-   "coat": 1.0
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
   },
   "d3_redglass": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    0.9,
-    0.02,
-    0.02
-   ],
-   "metallic": 0.0,
-   "roughness": 0.02,
-   "clear": 1.0
+   "ue": "lens_red",
+   "clear": 1.0,
+   "tag": "lens_red"
   },
   "d3_tailred": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    1.0,
-    0.03,
-    0.02
-   ],
-   "metallic": 0.0,
-   "roughness": 0.5,
-   "glow": 2.6
+   "ue": "lens_red",
+   "glow": 2.6,
+   "tag": "lens_red"
   },
   "d3_bulb": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_plastic",
    "color": [
     1.0,
     0.97,
@@ -60,7 +49,8 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5,
-   "glow": 2.0
+   "glow": 2.0,
+   "tag": "d3_bulb"
   }
  }
 }

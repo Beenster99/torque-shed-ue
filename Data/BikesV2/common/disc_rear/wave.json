@@ -26,17 +26,19 @@
     0.51
    ],
    "metallic": 1.0,
-   "roughness": 0.3
+   "roughness": 0.3,
+   "tag": "d3_bk_rotor"
   },
   "d3_bk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.32
+   "roughness": 0.32,
+   "tag": "d3_bk_black"
   },
   "steel": {
    "ue": "cat_brushed_steel",
@@ -46,20 +48,23 @@
     0.57
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.22,
+   "tag": "steel"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   },
   "d3_bk_gold": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_anodised",
    "color": [
     0.42,
     0.27,
     0.08
    ],
    "metallic": 1.0,
-   "roughness": 0.28
+   "roughness": 0.28,
+   "tag": "d3_bk_gold"
   }
  }
 }

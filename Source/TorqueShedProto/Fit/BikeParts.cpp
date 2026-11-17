@@ -4783,6 +4783,66 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				}
 				for (const V3& N : S.Nrm) Nrm.back().push_back(V3(N.x, -N.z, N.y));
 			}
+			// A piece on the fork (fog lamps): turned about its anchor from the lead bike's rake to this bike's, so its
+			// clamps sit on the legs.
+			if (const Json* LeadFork = Piece.Get("fork_dir"))
+				if (const Json* Fork = F.Points->Get("fork_dir"))
+					if (LeadFork->A.size() >= 3 && Fork->A.size() >= 3)
+					{
+						const double Turn = std::atan2(Fork->A[0].N, Fork->A[2].N) - std::atan2(LeadFork->A[0].N, LeadFork->A[2].N);
+						const double C = std::cos(Turn), Sn = std::sin(Turn);
+						New = MmBox();
+						for (size_t I = 0; I < Pos.size(); ++I)
+						{
+							for (V3& M : Pos[I])
+							{
+								const double Dx = M.x - Base.x, Dz = M.z - Base.z;
+								M = V3(Base.x + Dz * Sn + Dx * C, M.y, Base.z + Dz * C - Dx * Sn);
+								New.Add(M);
+							}
+							for (V3& N : Nrm[I]) N = V3(N.z * Sn + N.x * C, N.y, N.z * C - N.x * Sn);
+						}
+					}
+			// A piece clamped to the fork tubes (fog lamps): each side out or in to where this bike's tube is at the clamp,
+			// found from the fork's own surfaces round that height.
+			if (const Json* Clamp = Piece.Get("clamp_mm"))
+				if (Clamp->A.size() >= 3)
+				{
+					V3 ClampAt = Base + MmOf(Clamp);
+					if (const Json* LeadFork = Piece.Get("fork_dir"))
+						if (const Json* Fork = F.Points->Get("fork_dir"))
+							if (LeadFork->A.size() >= 3 && Fork->A.size() >= 3)
+							{
+								const double Turn = std::atan2(Fork->A[0].N, Fork->A[2].N) - std::atan2(LeadFork->A[0].N, LeadFork->A[2].N);
+								const double Dx = ClampAt.x - Base.x, Dz = ClampAt.z - Base.z;
+								ClampAt = V3(Base.x + Dz * std::sin(Turn) + Dx * std::cos(Turn), ClampAt.y, Base.z + Dz * std::cos(Turn) - Dx * std::sin(Turn));
+							}
+					double Lo = 1.0e9, Hi = -1.0e9;
+					for (const FittedPart& P : Out)
+					{
+						if (P.Slot != "fork" || !P.Made || P.Code) continue;
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if (M.y <= 20.0 || std::fabs(M.z - ClampAt.z) > 12.0 || std::fabs(M.x - ClampAt.x) > 90.0) continue;
+								Lo = std::min(Lo, M.y);
+								Hi = std::max(Hi, M.y);
+							}
+					}
+					const double Mid = (Lo + Hi) * 0.5;
+					if (Lo < Hi && Mid > 50.0 && Mid < 200.0 && std::fabs(Mid - Clamp->A[1].N) > 1.0)
+					{
+						const double Out_ = Mid - Clamp->A[1].N;
+						New = MmBox();
+						for (std::vector<V3>& Ps : Pos)
+							for (V3& M : Ps)
+							{
+								M.y += M.y >= 0.0 ? Out_ : -Out_;
+								New.Add(M);
+							}
+					}
+				}
 			if (!New.Any()) continue;
 			// Lined up on the bike's own piece it replaces, where there was one (not the bar: its clamp is its place):
 			// its middle on that one's (a silencer by its front, where the pipe meets it), a pair's sides out to that

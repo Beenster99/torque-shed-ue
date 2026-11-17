@@ -19,14 +19,15 @@
  "triangles": 8848,
  "surfaces": {
   "d3_bk_black": {
-   "ue": "cat_brushed_steel",
+   "ue": "cat_black_metal",
    "color": [
     0.02,
     0.02,
     0.022
    ],
    "metallic": 0.85,
-   "roughness": 0.32
+   "roughness": 0.32,
+   "tag": "d3_bk_black"
   }
  }
 }

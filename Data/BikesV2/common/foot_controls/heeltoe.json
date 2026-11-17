@@ -26,13 +26,16 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45
+   "roughness": 0.45,
+   "tag": "alu_dark"
   },
   "chrome": {
-   "ue": "chrome"
+   "ue": "chrome",
+   "tag": "chrome"
   },
   "rubber": {
-   "ue": "cat_rubber"
+   "ue": "cat_rubber",
+   "tag": "rubber"
   }
  }
 }
