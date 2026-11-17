@@ -750,7 +750,9 @@ public:
 		int Strands = 2;
 		bool High = false;   // a power line's (pylons'), or a telegraph pole's
 	};
-	enum ETall { TallMast, TallMonopole, TallTurbine, TallSilo, TallWaterTower, TallTank, TallPylon, TallKiosk, TallKinds };
+	// ([roads stage 8] the skyline's big shapes too: gasholders' frames, power stations' cooling towers, and
+	// the floodlights' masts round sports grounds)
+	enum ETall { TallMast, TallMonopole, TallTurbine, TallSilo, TallWaterTower, TallTank, TallPylon, TallKiosk, TallGasholder, TallCooling, TallFlood, TallKinds };
 	struct TallThing
 	{
 		int Kind = 0;
@@ -991,6 +993,8 @@ public:
 		int Line = 0, First = 0, Last = 0;
 		double Side = 1.0;
 		std::string Name;
+		bool Halt = false;    // [roads stage 8] a halt: the platform and its board, no more
+		bool Built = false;   // [roads stage 8] the map has a building behind it (the station's own): none drawn
 	};
 	std::vector<Platform> Platforms;
 	// The nearest railway to (X, Z) within 40 m: how far, its ballast's top there, what it is on there
