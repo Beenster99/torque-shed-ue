@@ -217,8 +217,12 @@ def export_game(name, model, model_file=None):
     capq = [o.matrix_world @ __import__("mathutils").Vector(q) for o in obs if re.match(r"cap(bolt|lid|neck|ring|hinge)", o.name) for q in o.bound_box]
     if capq:
         pts["tank_cap"] = [round((min(getattr(q, a) for q in capq) + max(getattr(q, a) for q in capq)) / 2 / MM, 1) for a in "xyz"]
-    if gauges:
-        pts["gauges"] = gauges
+    if not gauges:
+        # a bike drawn with no clocks (the MX bikes): the game gets a small cased display above the top yoke
+        ft = pts["fork_top"]
+        gauges = [{"what": "screen", "at": [round(ft[0] + 58, 1), 0.0, round(ft[2] + 31, 1)], "axis": [-0.75054, 0.0, 0.66083],
+                   "up": [0.66083, 0.0, 0.75054], "w": 62.0, "h": 38.0, "node": "steer", "case": True}]
+    pts["gauges"] = gauges
     if GAME_STAND:
         pts["stand"] = dict(GAME_STAND)
     name = model_file or name
@@ -226,7 +230,14 @@ def export_game(name, model, model_file=None):
     bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
     ob.name = ob.data.name = name
+    # the joined bike must sit at the world origin with nothing above it: a parent left on the first object
+    # (a wheel hung on its axle) put a 1.4 m shift in the file that the game does not read
+    mw = ob.matrix_world.copy()
+    ob.parent = None
+    ob.matrix_world = mw
+    bpy.context.view_layer.update()
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    assert ob.matrix_world.translation.length < 1e-6, "game export: the bike is not at the origin"
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     bpy.ops.export_scene.gltf(filepath=os.path.join(dst, name + ".glb"), use_selection=True, export_apply=True, export_yup=True,
                               export_texcoords=False, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)

@@ -1,4 +1,186 @@
 {
+ "_retired": {
+  "frame": [
+   "bobber_rigid",
+   "bobber_springer_frame",
+   "scrambler_desert_cradle",
+   "scrambler_tracker_backbone",
+   "sm_white_loop",
+   "race_carbon_white",
+   "race_alu_perimeter",
+   "roader_trellis_grey",
+   "roader_spar_red",
+   "tourer_heavy_spar",
+   "tourer_cradle"
+  ],
+  "fork": [
+   "bobber_springer_short",
+   "bobber_wide_shroud",
+   "scrambler_gaiter_long",
+   "scrambler_gold_usd",
+   "scrambler_classic_brace",
+   "sm_gold_usd",
+   "sm_black_usd",
+   "race_works_usd",
+   "race_black_usd",
+   "roader_usd_gold",
+   "roader_usd_black",
+   "tourer_fork_chrome",
+   "tourer_fork_black"
+  ],
+  "wheel": [
+   "supermoto_17",
+   "supermoto_16_5",
+   "bobber_wire_16_black",
+   "bobber_moon_16",
+   "bobber_drum_16",
+   "scrambler_19_black",
+   "scrambler_18_alloy",
+   "scrambler_21_gold",
+   "sm_17_black_gold",
+   "sm_17_red",
+   "sm_17_cast",
+   "race_mag_gold",
+   "race_mag_white",
+   "race_carbon_split",
+   "roader_split_17",
+   "roader_17_front",
+   "roader_17_stripe",
+   "tourer_split",
+   "tourer_front",
+   "tourer_wire"
+  ],
+  "tyre": [
+   "race_slick",
+   "race_slick_120",
+   "race_slick_160",
+   "race_slick_180",
+   "race_slick_200",
+   "bobber_whitewall_150"
+  ],
+  "tank": [
+   "peanut_9",
+   "coffin_10",
+   "carbon_sport_16",
+   "touring_23",
+   "angular_gt_19",
+   "bobber_1",
+   "bobber_2",
+   "bobber_3",
+   "bobber_4",
+   "bobber_5",
+   "sports_tourer_1",
+   "sports_tourer_2",
+   "sports_tourer_3",
+   "sports_tourer_4",
+   "sports_tourer_5"
+  ],
+  "saddle": [
+   "bobber_solo_sprung",
+   "bobber_gunfighter",
+   "bobber_pad_seat",
+   "scrambler_tracker_seat",
+   "scrambler_two_tone_bench",
+   "race_foam_seat",
+   "race_red_seat",
+   "race_hump_seat",
+   "tourer_backrest",
+   "tourer_stepped"
+  ],
+  "handlebars": [
+   "bobber_z_bar",
+   "bobber_t_bar",
+   "bobber_drag_risers",
+   "scrambler_tracker_bar",
+   "scrambler_moto_chrome",
+   "scrambler_fat_bar",
+   "sm_fat_black",
+   "sm_street_bar",
+   "race_black_clips",
+   "roader_wide",
+   "roader_risers",
+   "tourer_pullback",
+   "tourer_wide",
+   "tourer_silver_bar"
+  ],
+  "dashboard": [
+   "race_logger"
+  ],
+  "exhaust": [
+   "scrambler_high",
+   "bobber_fishtail_shotguns",
+   "bobber_wrapped_drag",
+   "bobber_turnouts",
+   "scrambler_high_twin",
+   "scrambler_high_black_wrap",
+   "scrambler_upswept_twin",
+   "sm_underseat",
+   "race_hex_carbon",
+   "race_megaphone",
+   "roader_tri",
+   "tourer_twin",
+   "tourer_fishtail",
+   "tourer_black"
+  ],
+  "headlight": [
+   "bobber_bullet_lamp",
+   "bobber_black_bucket",
+   "scrambler_grille_7",
+   "scrambler_bucket_ears",
+   "tourer_quad",
+   "tourer_stack"
+  ],
+  "panniers": [
+   "plastic_cases"
+  ],
+  "top_box": [
+   "top_box_30",
+   "top_box_45"
+  ],
+  "tail": [
+   "scrambler_loop",
+   "bobber_cateye_fender",
+   "bobber_tombstone_fender",
+   "scrambler_tracker_tail",
+   "scrambler_short_loop",
+   "sm_sport_tail",
+   "race_hump",
+   "roader_sport",
+   "tourer_rack_tail"
+  ],
+  "fairing": [
+   "touring_fairing",
+   "carbon_race_fairing"
+  ],
+  "mirrors": [
+   "bobber_mini_bar_end",
+   "sm_folding",
+   "roader_long"
+  ],
+  "front_mudguard": [
+   "bobber_stub_guard",
+   "bobber_ribbed_bobbed",
+   "scrambler_high_steel",
+   "scrambler_alloy_low"
+  ],
+  "indicators": [
+   "bobber_mini_bullets",
+   "race_flush",
+   "tourer_big"
+  ],
+  "rearsets": [
+   "sm_pegs",
+   "race_ti_rearsets"
+  ],
+  "guards": [
+   "scrambler_sump_plate",
+   "sm_bash",
+   "roader_bars"
+  ],
+  "number_boards": [
+   "flat_track_boards"
+  ]
+ },
  "frame": {
   "v2_corvano_adventure": {
    "name": "Corvano Adventure",
@@ -104,7 +286,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       590.0,
@@ -125,7 +309,58 @@
       410,
       0.0,
       450.2692307692308
-     ]
+     ],
+     "tank_cap": [
+      1000.0,
+      0.0,
+      1125.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1250.0,
+        0.0,
+        1262.0
+       ],
+       "axis": [
+        -0.90902,
+        0.0,
+        0.41675
+       ],
+       "up": [
+        0.41675,
+        0.0,
+        0.90902
+       ],
+       "w": 94.6,
+       "h": 56.8,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       670.0,
+       162.0,
+       310.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -225,7 +460,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       590.0,
@@ -246,7 +483,77 @@
       410,
       0.0,
       410
-     ]
+     ],
+     "tank_cap": [
+      903.2,
+      0.0,
+      1071.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1227.1,
+        -46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1227.1,
+        46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       640.0,
+       162.0,
+       260.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -351,7 +658,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       590.0,
@@ -372,7 +681,77 @@
       95,
       0.0,
       398
-     ]
+     ],
+     "tank_cap": [
+      908.7,
+      0.0,
+      1005.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1233.6,
+        -46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1233.6,
+        46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       640.0,
+       162.0,
+       260.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -483,7 +862,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1084.0,
@@ -504,7 +885,77 @@
       48,
       0.0,
       352
-     ]
+     ],
+     "tank_cap": [
+      1070.0,
+      0.0,
+      993.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1163.6,
+        -53.3125,
+        1043.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1163.6,
+        53.3125,
+        1043.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       620.0,
+       151.5,
+       233.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -615,7 +1066,9 @@
       "front_width": 84,
       "rear_width": 116,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "knobs",
+      "tread_rear": "knobs"
      },
      "peg": [
       600.0,
@@ -636,6 +1089,58 @@
       470,
       0.0,
       452
+     ],
+     "tank_cap": [
+      966.0,
+      0.0,
+      1037.0
+     ],
+     "stand": {
+      "pivot": [
+       650.0,
+       174.0,
+       360.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     },
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1129.4,
+        0.0,
+        1185.9
+       ],
+       "axis": [
+        -0.75054,
+        0.0,
+        0.66083
+       ],
+       "up": [
+        0.66083,
+        0.0,
+        0.75054
+       ],
+       "w": 62.0,
+       "h": 38.0,
+       "node": "steer",
+       "case": true
+      }
      ]
     }
    }
@@ -739,7 +1244,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       590.0,
@@ -760,7 +1267,58 @@
       410,
       0.0,
       410
-     ]
+     ],
+     "tank_cap": [
+      935.0,
+      0.0,
+      1075.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1222.5,
+        0.0,
+        1007.5
+       ],
+       "axis": [
+        -0.75054,
+        0.0,
+        0.66083
+       ],
+       "up": [
+        0.66083,
+        0.0,
+        0.75054
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       640.0,
+       162.0,
+       260.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -872,7 +1430,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       590.0,
@@ -893,7 +1453,58 @@
       410,
       0.0,
       410
-     ]
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1017.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1209.5,
+        0.0,
+        988.0
+       ],
+       "axis": [
+        -0.73742,
+        0.0,
+        0.67543
+       ],
+       "up": [
+        0.67543,
+        0.0,
+        0.73742
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       640.0,
+       162.0,
+       260.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1001,7 +1612,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -1022,7 +1635,58 @@
       440,
       0.0,
       464.6296296296296
-     ]
+     ],
+     "tank_cap": [
+      1000.0,
+      0.0,
+      1101.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1250.0,
+        0.0,
+        1262.0
+       ],
+       "axis": [
+        -0.90902,
+        0.0,
+        0.41675
+       ],
+       "up": [
+        0.41675,
+        0.0,
+        0.90902
+       ],
+       "w": 94.6,
+       "h": 56.8,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       630.0,
+       219.3,
+       325.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1122,7 +1786,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       600.0,
@@ -1143,7 +1809,77 @@
       46,
       0.0,
       418
-     ]
+     ],
+     "tank_cap": [
+      909.8,
+      0.0,
+      1039.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1207.1,
+        -46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1207.1,
+        46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1252,7 +1988,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1126.0,
@@ -1263,7 +2001,77 @@
       1039.3,
       318.2,
       1182.2
-     ]
+     ],
+     "tank_cap": [
+      932.0,
+      0.0,
+      968.5
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1244.1,
+        -51.5,
+        1038.1
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 43.5,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1244.1,
+        51.5,
+        1038.1
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 43.5,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       600.0,
+       199.3,
+       205.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1368,7 +2176,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -1389,7 +2199,77 @@
       95,
       0.0,
       418
-     ]
+     ],
+     "tank_cap": [
+      908.0,
+      0.0,
+      1009.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1183.6,
+        -46,
+        1057.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1183.6,
+        46,
+        1057.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1492,7 +2372,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       600.0,
@@ -1513,7 +2395,77 @@
       440,
       0.0,
       415
-     ]
+     ],
+     "tank_cap": [
+      930.0,
+      0.0,
+      1077.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1207.1,
+        -46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1207.1,
+        46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       219.3,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1625,7 +2577,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       600.0,
@@ -1646,7 +2600,58 @@
       440,
       0.0,
       415
-     ]
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1017.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1199.5,
+        0.0,
+        988.0
+       ],
+       "axis": [
+        -0.73197,
+        0.0,
+        0.68134
+       ],
+       "up": [
+        0.68134,
+        0.0,
+        0.73197
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       690.0,
+       219.3,
+       305.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1754,7 +2759,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -1775,7 +2782,58 @@
       440,
       0.0,
       468.7037037037037
-     ]
+     ],
+     "tank_cap": [
+      1000.0,
+      0.0,
+      1101.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1250.0,
+        0.0,
+        1262.0
+       ],
+       "axis": [
+        -0.90902,
+        0.0,
+        0.41675
+       ],
+       "up": [
+        0.41675,
+        0.0,
+        0.90902
+       ],
+       "w": 94.6,
+       "h": 56.8,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       243.3,
+       330.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -1875,7 +2933,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "sipes",
+      "tread_rear": "sipes"
      },
      "peg": [
       600.0,
@@ -1896,7 +2956,77 @@
       95,
       0.0,
       398
-     ]
+     ],
+     "tank_cap": [
+      896.7,
+      0.0,
+      1083.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1202.1,
+        -46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1202.1,
+        46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       219.3,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2005,7 +3135,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1178.0,
@@ -2016,7 +3148,77 @@
       1169.7,
       318.2,
       1063.3
-     ]
+     ],
+     "tank_cap": [
+      954.7,
+      0.0,
+      928.2
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1286.6,
+        -51.5,
+        1019.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 43.5,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1286.6,
+        51.5,
+        1019.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 43.5,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       600.0,
+       186.0,
+       205.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2121,7 +3323,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -2142,7 +3346,77 @@
       95,
       0.0,
       398
-     ]
+     ],
+     "tank_cap": [
+      902.5,
+      0.0,
+      1065.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1208.6,
+        -46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1208.6,
+        46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       219.3,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2253,7 +3527,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1102.0,
@@ -2274,7 +3550,77 @@
       48,
       0.0,
       352
-     ]
+     ],
+     "tank_cap": [
+      980.0,
+      0.0,
+      1051.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1163.6,
+        -53.3125,
+        1113.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1163.6,
+        53.3125,
+        1113.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       620.0,
+       162.0,
+       245.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2385,7 +3731,9 @@
       "front_width": 84,
       "rear_width": 116,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "knobs",
+      "tread_rear": "knobs"
      },
      "peg": [
       600.0,
@@ -2406,6 +3754,58 @@
       470,
       0.0,
       452
+     ],
+     "tank_cap": [
+      966.0,
+      0.0,
+      1037.0
+     ],
+     "stand": {
+      "pivot": [
+       590.0,
+       168.4,
+       360.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     },
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1129.4,
+        0.0,
+        1185.9
+       ],
+       "axis": [
+        -0.75054,
+        0.0,
+        0.66083
+       ],
+       "up": [
+        0.66083,
+        0.0,
+        0.75054
+       ],
+       "w": 62.0,
+       "h": 38.0,
+       "node": "steer",
+       "case": true
+      }
      ]
     }
    }
@@ -2509,7 +3909,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sipes",
+      "tread_rear": "sipes"
      },
      "peg": [
       600.0,
@@ -2530,7 +3932,58 @@
       440,
       0.0,
       415
-     ]
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1081.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1206.2,
+        0.0,
+        998.8
+       ],
+       "axis": [
+        -0.73382,
+        0.0,
+        0.67935
+       ],
+       "up": [
+        0.67935,
+        0.0,
+        0.73382
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       219.3,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2642,7 +4095,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sipes",
+      "tread_rear": "sipes"
      },
      "peg": [
       600.0,
@@ -2663,7 +4118,58 @@
       440,
       0.0,
       415
-     ]
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1017.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1194.5,
+        0.0,
+        988.0
+       ],
+       "axis": [
+        -0.72918,
+        0.0,
+        0.68432
+       ],
+       "up": [
+        0.68432,
+        0.0,
+        0.72918
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       630.0,
+       219.3,
+       285.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2763,7 +4269,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       600.0,
@@ -2784,7 +4292,77 @@
       60,
       0.0,
       370
-     ]
+     ],
+     "tank_cap": [
+      899.1,
+      0.0,
+      1075.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1242.1,
+        -46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1242.1,
+        46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       620.0,
+       184.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -2893,7 +4471,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1082.0,
@@ -2904,7 +4484,77 @@
       1036.2,
       318.2,
       1144.3
-     ]
+     ],
+     "tank_cap": [
+      984.2,
+      0.0,
+      1052.7
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1221.0,
+        -51.5,
+        1114.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 43.5,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1221.0,
+        51.5,
+        1114.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 43.5,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       600.0,
+       159.3,
+       205.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -3009,7 +4659,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -3030,7 +4682,77 @@
       60,
       0.0,
       370
-     ]
+     ],
+     "tank_cap": [
+      950.0,
+      0.0,
+      1019.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1233.6,
+        -46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1233.6,
+        46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       620.0,
+       184.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -3141,7 +4863,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1102.0,
@@ -3162,7 +4886,77 @@
       48,
       0.0,
       392
-     ]
+     ],
+     "tank_cap": [
+      930.0,
+      0.0,
+      1017.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1163.6,
+        -53.3125,
+        1083.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1163.6,
+        53.3125,
+        1083.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       620.0,
+       162.0,
+       245.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -3270,7 +5064,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": true,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -3291,7 +5087,58 @@
       420,
       0.0,
       434.44954128440367
-     ]
+     ],
+     "tank_cap": [
+      1000.0,
+      0.0,
+      1101.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1250.0,
+        0.0,
+        1262.0
+       ],
+       "axis": [
+        -0.90902,
+        0.0,
+        0.41675
+       ],
+       "up": [
+        0.41675,
+        0.0,
+        0.90902
+       ],
+       "w": 94.6,
+       "h": 56.8,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       665.0,
+       186.0,
+       315.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -3391,7 +5238,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": true,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sipes",
+      "tread_rear": "sipes"
      },
      "peg": [
       600.0,
@@ -3412,7 +5261,77 @@
       420,
       0.0,
       395
-     ]
+     ],
+     "tank_cap": [
+      895.0,
+      0.0,
+      1077.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1242.1,
+        -46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1242.1,
+        46,
+        1016.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 30.0,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       665.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -3517,7 +5436,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": true,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -3538,7 +5459,77 @@
       95,
       0.0,
       410
-     ]
+     ],
+     "tank_cap": [
+      900.8,
+      0.0,
+      1011.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1238.6,
+        -46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1238.6,
+        46,
+        1043.9
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 36.2,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       665.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -3649,7 +5640,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": true,
-      "twin_shock": true
+      "twin_shock": true,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
      },
      "peg": [
       1102.0,
@@ -3670,7 +5663,77 @@
       48,
       0.0,
       352
-     ]
+     ],
+     "tank_cap": [
+      1000.0,
+      0.0,
+      1055.0
+     ],
+     "gauges": [
+      {
+       "what": "rpm",
+       "at": [
+        1163.6,
+        -53.3125,
+        1118.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      },
+      {
+       "what": "speed",
+       "at": [
+        1163.6,
+        53.3125,
+        1118.2
+       ],
+       "axis": [
+        -0.45122,
+        0.0,
+        0.89241
+       ],
+       "up": [
+        0.89241,
+        0.0,
+        0.45122
+       ],
+       "r": 45.3,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       620.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.1185,
+       0.9287,
+       0.3513
+      ],
+      "folded_dir": [
+       -0.983,
+       0.0599,
+       0.1733
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -114.07
+     }
     }
    }
   },
@@ -3773,7 +5836,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": true,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sipes",
+      "tread_rear": "sipes"
      },
      "peg": [
       600.0,
@@ -3794,6 +5859,58 @@
       420,
       0.0,
       395
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1081.0
+     ],
+     "stand": {
+      "pivot": [
+       665.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     },
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1225.3,
+        0.0,
+        1001.7
+       ],
+       "axis": [
+        -0.75054,
+        0.0,
+        0.66083
+       ],
+       "up": [
+        0.66083,
+        0.0,
+        0.75054
+       ],
+       "w": 62.0,
+       "h": 38.0,
+       "node": "steer",
+       "case": true
+      }
      ]
     }
    }
@@ -3902,7 +6019,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "touring",
+      "tread_rear": "touring"
      },
      "peg": [
       600.0,
@@ -3923,7 +6042,58 @@
       440,
       0.0,
       456.48148148148147
-     ]
+     ],
+     "tank_cap": [
+      1000.0,
+      0.0,
+      1101.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1250.0,
+        0.0,
+        1262.0
+       ],
+       "axis": [
+        -0.90902,
+        0.0,
+        0.41675
+       ],
+       "up": [
+        0.41675,
+        0.0,
+        0.90902
+       ],
+       "w": 94.6,
+       "h": 56.8,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       690.0,
+       162.0,
+       315.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -4034,7 +6204,9 @@
       "front_width": 84,
       "rear_width": 116,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "knobs",
+      "tread_rear": "knobs"
      },
      "peg": [
       600.0,
@@ -4055,6 +6227,58 @@
       470,
       0.0,
       452
+     ],
+     "tank_cap": [
+      966.0,
+      0.0,
+      1073.0
+     ],
+     "stand": {
+      "pivot": [
+       650.0,
+       174.0,
+       360.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     },
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1129.4,
+        0.0,
+        1185.9
+       ],
+       "axis": [
+        -0.75054,
+        0.0,
+        0.66083
+       ],
+       "up": [
+        0.66083,
+        0.0,
+        0.75054
+       ],
+       "w": 62.0,
+       "h": 38.0,
+       "node": "steer",
+       "case": true
+      }
      ]
     }
    }
@@ -4158,7 +6382,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       600.0,
@@ -4179,7 +6405,58 @@
       440,
       0.0,
       415
-     ]
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1078.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1187.9,
+        0.0,
+        1011.6
+       ],
+       "axis": [
+        -0.73125,
+        0.0,
+        0.68211
+       ],
+       "up": [
+        0.68211,
+        0.0,
+        0.73125
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   },
@@ -4291,7 +6568,9 @@
       "front_width": 120,
       "rear_width": 180,
       "shaft": false,
-      "twin_shock": false
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
      },
      "peg": [
       600.0,
@@ -4312,7 +6591,58 @@
       440,
       0.0,
       415
-     ]
+     ],
+     "tank_cap": [
+      925.0,
+      0.0,
+      1017.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1184.5,
+        0.0,
+        988.0
+       ],
+       "axis": [
+        -0.72351,
+        0.0,
+        0.69032
+       ],
+       "up": [
+        0.69032,
+        0.0,
+        0.72351
+       ],
+       "w": 65.9,
+       "h": 39.6,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       660.0,
+       162.0,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     }
    }
   }

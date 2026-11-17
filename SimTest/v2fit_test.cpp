@@ -134,6 +134,7 @@ int main()
 		BikeParts Placer(Lay, Index);
 		const std::vector<FittedPart> Fitted = Placer.Fit(Parts, L);
 		size_t Tris = 0, Surfaces = 0;
+		int AmberLeft = 0, AmberRight = 0, AmberBoth = 0;
 		std::set<std::string> Nodes, Slots;
 		double Low = 1e9, FrontLow = 1e9, RearLow = 1e9;
 		V3 FrontMin(1e9, 1e9, 1e9), FrontMax(-1e9, -1e9, -1e9);
@@ -163,6 +164,13 @@ int main()
 			for (const PartSurface& S : P.Made->Surfaces)
 			{
 				++Surfaces;
+				// [lights] Each amber lens is all on one side of the bike, so the game can tell left from right.
+				if (S.Material.size() > 10 && S.Material.rfind("/lens_amber") == S.Material.size() - 11 && !S.Pos.empty())
+				{
+					double LoZ = 1e9, HiZ = -1e9;
+					for (const V3& V : S.Pos) { LoZ = std::min(LoZ, V.z); HiZ = std::max(HiZ, V.z); }
+					if (HiZ < 0.0) ++AmberLeft; else if (LoZ > 0.0) ++AmberRight; else ++AmberBoth;
+				}
 				if (S.Material.rfind("v2/", 0) != 0 && !P.Code) Named = false;   // (a TFT dash's unit is made in code)
 				for (const V3& V : S.Pos)
 				{
@@ -179,6 +187,7 @@ int main()
 		}
 		Expect(AllMade, Id + " every fitted piece is a V2 one");
 		Expect(TyresMade == 2, Id + " both tyres are the game's own tread sections");
+		Expect(AmberLeft >= 1 && AmberRight == AmberLeft && AmberBoth == 0, Id + " has indicator lenses the game can flash a side at a time");
 		Expect(Named, Id + " every surface carries its look");
 		{
 			// [TFT] A TFT dash shows as itself with a screen for the game to light, in place of the

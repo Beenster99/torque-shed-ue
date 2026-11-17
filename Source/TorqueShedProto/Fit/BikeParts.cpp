@@ -4476,6 +4476,40 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 		Out.U = std::move(S.U);
 		Out.V = std::move(S.V);
 		Out.Idx = std::move(S.Idx);
+		// [lights] The indicators are drawn left and right in one surface, and the lights tell a lamp's side by
+		// where its piece sits: an amber lens goes in as two, one a side (beenster after 154: "can we get
+		// indicators to work again?").
+		if (Look && Look->Str("tag") == "lens_amber")
+		{
+			PartSurface Side[2];
+			std::vector<int> Map[2];
+			for (int K = 0; K < 2; ++K)
+			{
+				Side[K].Material = Out.Material;
+				Map[K].assign(Out.Pos.size(), -1);
+			}
+			for (size_t I = 0; I + 2 < Out.Idx.size(); I += 3)
+			{
+				const double Z = Out.Pos[Out.Idx[I]].z + Out.Pos[Out.Idx[I + 1]].z + Out.Pos[Out.Idx[I + 2]].z;
+				const int K = Z < 0.0 ? 0 : 1;
+				for (size_t J = 0; J < 3; ++J)
+				{
+					const size_t V = Out.Idx[I + J];
+					if (Map[K][V] < 0)
+					{
+						Map[K][V] = int(Side[K].Pos.size());
+						Side[K].Pos.push_back(Out.Pos[V]);
+						if (V < Out.Nrm.size()) Side[K].Nrm.push_back(Out.Nrm[V]);
+						if (V < Out.U.size()) Side[K].U.push_back(Out.U[V]);
+						if (V < Out.V.size()) Side[K].V.push_back(Out.V[V]);
+					}
+					Side[K].Idx.push_back(static_cast<decltype(Out.Idx)::value_type>(Map[K][V]));
+				}
+			}
+			for (int K = 0; K < 2; ++K)
+				if (!Side[K].Idx.empty()) Meshes[Key]->Surfaces.push_back(std::move(Side[K]));
+			continue;
+		}
 		Meshes[Key]->Surfaces.push_back(std::move(Out));
 	}
 	auto Made = std::make_shared<std::vector<FittedPart>>();
@@ -4922,6 +4956,9 @@ int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) con
 		{
 			const double W = std::max(G.Num("w", 66.0), 20.0) / 1000.0, H = std::max(G.Num("h", 40.0), 12.0) / 1000.0;
 			const std::string Size = std::to_string(int(std::lround(W * 1000.0))) + "x" + std::to_string(int(std::lround(H * 1000.0)));
+			// (A bike drawn with no clocks at all, the MX bikes: the display comes with a small black case.)
+			if (G.Flag("case", false))
+				Code(CodeShapes::Box(V3(W + 0.012, 0.014, H + 0.012)), C - Tilt.Y * 0.0072, "black_metal");
 			Code(CodeShapes::ScreenFace(W, H, false), C + Tilt.Y * 0.0013, "glass");
 			Works("screen_wide_" + Size, C + Tilt.Y * 0.0013, 1.0);
 			++Made;
