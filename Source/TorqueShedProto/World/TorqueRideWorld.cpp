@@ -1493,9 +1493,11 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			// ([build 152] round 151's hitches were 660-813 ms with nothing of the ride's own in them: the
 			// frame's game, render thread and GPU times say which side stalled; a render thread or GPU stall
 			// with no GC is most likely a shader (PSO) being compiled the first time something is seen)
-			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d; that frame: game %.0f ms, render %.0f ms, GPU %.0f ms"),
+			// ([build 155] round 154's hitches had game, render and GPU all short: the RHI thread (PSO
+			// creation for compute shaders, present) is the one left to name)
+			UE_LOG(LogTemp, Display, TEXT("Ride hitch: %.0f ms between frames; garbage collection in it %.0f ms; the ride's own last frame %.1f ms; squares being made %d, road pieces %d; that frame: game %.0f ms, render %.0f ms, RHI %.0f ms, GPU %.0f ms"),
 				GapMs, InGc, LastTickOwnMs, Asked.Num(), RoadAsked.Num(), FPlatformTime::ToMilliseconds(GGameThreadTime),
-				FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
+				FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(GRHIThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
 		}
 		LastTickWall = WallNow;
 	}
