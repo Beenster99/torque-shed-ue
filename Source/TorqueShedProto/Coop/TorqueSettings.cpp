@@ -465,6 +465,8 @@ void FTorqueSettings::Apply(UWorld* World) const
 		static const TCHAR* Steps[5] = {TEXT("128"), TEXT("256"), TEXT("512"), TEXT("768"), TEXT("1024")};
 		SetCVarDefault(TEXT("r.VolumetricCloud.ViewRaySampleMaxCount"), Clouds > 0, Steps[FMath::Clamp(Clouds, 0, 4)]);
 	}
+	if (const IConsoleVariable* CloudVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud")))
+		UE_LOG(LogTemp, Display, TEXT("Torque graphics: clouds row %d (-1 preset, 0 off), r.VolumetricCloud %d"), Clouds, CloudVar->GetInt());
 	// Texture filtering: the preset's, or 1x (bilinear) to 16x anisotropic.
 	if (Anisotropy >= 0) SetCVar(TEXT("r.MaxAnisotropy"), 1 << FMath::Clamp(Anisotropy, 0, 4), ECVF_SetByScalability);
 	// The camera effects, each on as the level has it or off.

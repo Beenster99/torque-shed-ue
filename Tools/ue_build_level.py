@@ -4404,7 +4404,9 @@ def sky_and_camera(reuse_cloud_shadow=False):
         # script, as the cloud shadows are (making it afresh would delete what this level points at).
         rc = unreal.load_asset(MAT_DIR + "/M_RideCloud") if reuse_cloud_shadow else cloud_material()
         # The rebuilt clouds beside it (ATorqueSky wears them when sky_looks.json's cloud_version is 2).
-        if not reuse_cloud_shadow:
+        # Made by Ride UK's script too (154 showed the old clouds: only this level's script made them, and
+        # the round reran Ride UK's alone). Nothing in a level points at M_RideCloudV2, so remaking is safe.
+        if True:
             try:
                 v2 = cloud_material_v2()
                 log("clouds: M_RideCloudV2 %s" % ("made" if v2 else "NOT made (the game keeps M_RideCloud)"))

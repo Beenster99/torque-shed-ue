@@ -81,9 +81,15 @@ private:
 	float AppliedShadowStrength = -1.0f, AppliedBottomKm = -1.0f, AppliedHeightKm = -1.0f;
 	float AppliedViewSamples = -1.0f, AppliedShadowSamples = -1.0f;   // (the cloud's ray marching, from sky_looks.json)
 	bool bCloudV2 = false;   // wearing the rebuilt clouds (M_RideCloudV2)
+	// (build 154: the clouds stopped being drawn after the first weather change, with nothing logged)
+	FString CloudsWhyLogged;
+	double CloudsCheckedAt = -100.0;
+	void TickCloudsCheck();
 	// The clouds are drawn: the volumetric clouds are on (Medium graphics and up) and the level's cloud
 	// wears our own material (an older level keeps the engine's, which follows nothing).
 	bool CloudsDrawn() const;
+	// Why not (empty when drawn), for the log: build 154 said only "not drawn".
+	FString CloudsWhyNot() const;
 	// The level's planet surface, metres above sea level (the cloud layer's heights are above it).
 	double PlanetAsl() const;
 	// Valley mist and fog with a top (stage 4): a pool of the engine's Local Fog Volumes (made here, by

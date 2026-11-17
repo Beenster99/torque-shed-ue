@@ -219,14 +219,21 @@ void ATorqueSky::Find()
 
 bool ATorqueSky::CloudsDrawn() const
 {
+	return CloudsWhyNot().IsEmpty();
+}
+
+FString ATorqueSky::CloudsWhyNot() const
+{
 	const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-	if (!Cloud || !SkyMpc || !Cloud->IsVisible()) return false;
+	if (!Cloud) return TEXT("no cloud in the level");
+	if (!SkyMpc) return TEXT("no MPC_Sky");
+	if (!Cloud->IsVisible()) return TEXT("the cloud is hidden (the cloud guard?)");
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud"));
-	if (CVar && CVar->GetInt() == 0) return false;
-	// (by the base material: the cloud wears an instance of it once the weather map is on)
+	if (CVar && CVar->GetInt() == 0) return TEXT("r.VolumetricCloud 0 (Settings: Clouds off?)");
 	const UMaterialInterface* Mat = Cast<const UMaterialInterface>(ReadObjectProperty(Cloud, TEXT("Material")));
 	const UMaterial* Base = Mat ? Mat->GetMaterial() : nullptr;
-	return Base && Base->GetName().Contains(TEXT("M_RideCloud"));
+	if (!(Base && Base->GetName().Contains(TEXT("M_RideCloud")))) return FString::Printf(TEXT("the cloud wears %s"), *GetNameSafe(Mat));
+	return FString();
 }
 
 double ATorqueSky::PlanetAsl() const
@@ -512,6 +519,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 void ATorqueSky::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TickCloudsCheck();
 	TickDrift(DeltaSeconds);
 	TickHighSheet();
 	TickMist();
@@ -522,6 +530,37 @@ void ATorqueSky::Tick(float DeltaSeconds)
 	TickLightning(DeltaSeconds);
 	TickMeteors();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
+}
+
+void ATorqueSky::TickCloudsCheck()
+{
+	// Once a second: whether our clouds are still drawn, and why not, logged when that changes. A cloud
+	// lost (its actor remade) or the sky collection gone is found again, and the rebuilt clouds worn again.
+	UWorld* W = GetWorld();
+	if (!W || !bFound) return;
+	const double Now = W->GetTimeSeconds();
+	if (Now - CloudsCheckedAt < 1.0) return;
+	CloudsCheckedAt = Now;
+	FString Why = CloudsWhyNot();
+	if (!Why.IsEmpty() && (!CloudPtr.IsValid() || !SkyMpc))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque sky: clouds not drawn (%s): looking for them again"), *Why);
+		CloudPtr.Reset();
+		CloudMid = nullptr;
+		bMapTried = false;
+		Find();
+		Why = CloudsWhyNot();
+	}
+	if (Why != CloudsWhyLogged)
+	{
+		const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
+		const AActor* Owner = Cloud ? Cloud->GetOwner() : nullptr;
+		const FString State = Why.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + Why;
+		UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds %s (cloud %s, visible %d, actor hidden %d, wears %s)"),
+			*State, *GetNameSafe(Owner), Cloud && Cloud->IsVisible() ? 1 : 0, Owner && Owner->IsHidden() ? 1 : 0,
+			*GetNameSafe(Cloud ? ReadObjectProperty(Cloud, TEXT("Material")) : nullptr));
+		CloudsWhyLogged = Why;
+	}
 }
 
 void ATorqueSky::TickDrift(float DeltaSeconds)
@@ -1139,10 +1178,12 @@ void ATorqueSky::TickMist()
 FString ATorqueSky::Describe() const
 {
 	const TorqueSky::Sky& S = Last;
+	const FString CloudsWhy = CloudsWhyNot();
+	const FString DrawnText = CloudsWhy.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + CloudsWhy;
 	return FString::Printf(TEXT("sun %.1f deg (light at %.1f), block %.2f, dull %.2f, %.0f lux (EV100 %.1f; clear sky %.0f), day light %.2f, sun x%.2f, sky light x%.2f (shade x%.2f), exposure %+.2f (may open %.1f), mie x%.2f, rayleigh x%.2f, fog x%.2f; cloud %.0f%% (drawn %.2f, shape %.2f, density %.2f) %.0f-%.0f m, drifting %.1f m/s E %.1f m/s N, its shadows %.2f; clouds %s"),
 		S.SunElevation, S.LightElevation, S.Block, S.Dull, S.GroundLux, TorqueSky::Ev100(S.GroundLux), S.ClearLux, S.DayLight, S.SunScale, S.SkyLightScale, S.SkyFill,
 		S.ExposureStops, S.ExposureOpenStops, S.MieScale, S.RayleighScale, S.FogScale, S.Cover * 100.0, S.CoverShown, S.Shape, S.Density, S.BaseAsl, S.TopAsl, S.DriftE, S.DriftN,
-		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"))
+		S.CloudShadows, *DrawnText)
 		+ FString::Printf(TEXT("; kinds: low %s, middle %s, high %s (veil %.2f, halo %.2f); bands low %.2f-%.2f middle %.2f-%.2f"),
 			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),
 			S.HighSheet, S.Halo, S.LowDrawn.Bottom, S.LowDrawn.Top, S.MidDrawn.Bottom, S.MidDrawn.Top)
