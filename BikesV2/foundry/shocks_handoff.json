@@ -1,0 +1,134 @@
+{
+ "about": "Stage 8 common parts approved by beenster 17 Nov 10:39 ('perfect - approved'; H2 side mount 'Love H2!'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/shocks3d.py: fit(build3d, model, c, shock, spring, body, cap, cap_finish, hanger, hanger_finish) after detail3d. Shocks keep model shock top/bottom eyes (eye-to-eye length) and the bike's eyes, studs, forked brackets and bolts; they remove only shocktop/shockbody/shockrod/shockbump/shockcollar/spring. Springs cover the lower three quarters, close-wound at the top (beenster's photo, refs/shock_ref_twin.png). Piggyback canister: short and fat behind twin shocks; on single shocks it takes the clearest of behind/left/right and three heights. Caps sit on the tank's six-bolt ring (39.5 mm); on Classic/Cafe/Cruiser/Chopper/Naked a cap point on a slope moves to the tank crown (crown()). Plate hangers: tidy drops the narrow plastic plate arm, platemount and platearm behind the axle; side adds a left-axle arm plate (also gives cruisers/choppers a plate).",
+ "shocks": [
+  {
+   "key": "piggyback",
+   "name": "Piggyback",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX",
+    "Classic"
+   ],
+   "default_spring": "red"
+  },
+  {
+   "key": "coilover",
+   "name": "Polished coil-over",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Classic",
+    "Adventure",
+    "Cruiser"
+   ],
+   "default_spring": "yellow"
+  },
+  {
+   "key": "shroud",
+   "name": "Chrome shroud",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser"
+   ],
+   "default_spring": "chrome"
+  },
+  {
+   "key": "air",
+   "name": "Air ride",
+   "fits": [
+    "Cruiser",
+    "Classic"
+   ],
+   "default_spring": "black"
+  }
+ ],
+ "spring_finishes": [
+  "red",
+  "yellow",
+  "black",
+  "chrome",
+  "blue",
+  "gold"
+ ],
+ "caps": [
+  {
+   "key": "aero",
+   "name": "Aero flush",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "MX"
+   ]
+  },
+  {
+   "key": "monza",
+   "name": "Flip-up",
+   "fits": [
+    "Cafe",
+    "Classic",
+    "Naked",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "screw",
+   "name": "Knurled screw",
+   "fits": [
+    "Classic",
+    "Cruiser",
+    "Chopper",
+    "Cafe"
+   ]
+  },
+  {
+   "key": "billet",
+   "name": "Billet",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure",
+    "Chopper"
+   ]
+  }
+ ],
+ "cap_finishes": [
+  "silver",
+  "black",
+  "gold",
+  "red",
+  "blue"
+ ],
+ "hangers": [
+  {
+   "key": "tidy",
+   "name": "Tail tidy",
+   "fits": [
+    "Naked",
+    "Sport",
+    "Cafe",
+    "Adventure"
+   ]
+  },
+  {
+   "key": "side",
+   "name": "Side mount",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  }
+ ],
+ "check": "python3 foundry/shocks3d.py check: clean on every family's lead bike (shocks judged against the bike's own shock's existing contacts)."
+}
