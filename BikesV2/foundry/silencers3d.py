@@ -45,8 +45,8 @@ SILENCERS = {
                         note="A tall, slim oval carbon sleeve with titanium end caps, slim enough to tuck in by the tyre."),
     "hex": dict(label="Hexagon", fams=("Naked", "Sport", "Adventure"), length=340, k=1.0,
                 note="A six-sided black stainless body with a bright cone at each end."),
-    "short_cone": dict(label="Short cone", fams=("Naked", "Sport", "MX"), length=250, k=1.05,
-                       note="A stubby black cone opening to one wide bore with a bright rolled lip."),
+    "short_cone": dict(label="Short cone", fams=("Naked", "Sport"), length=250, k=1.05,
+                       note="A stubby black cone that turns outboard from its sleeve, so the wide bore with its bright rolled lip points out to the side."),
     "slash_cut": dict(label="Slash cut", fams=("Cruiser", "Chopper"), length=700, k=0.9,
                       note="A straight chrome drag pipe silencer, its end cut at a slant."),
 }
@@ -116,6 +116,23 @@ def build_can(key, nm, a3, d3, Ln, R, rh, M):
                 B.sphere(f"{nm}rivet{j}{k}", tuple(p + n_ * 0.2), 2.0, M["steel"])
         return Ln * 0.5, R
     if key == "short_cone":
+        # the body turns outboard from the sleeve, so the outlet points out to the side (beenster, stage 5)
+        sgn = 1 if a3[1] >= 0 else -1
+        w = math.radians(28)
+        d_ = Vector(d3)
+        dn = d_
+        dh = Vector((d_.x, d_.y, 0.0))
+        hl = dh.length
+        if hl > 1e-6:
+            dh /= hl
+            outv = Vector((0.0, float(sgn), 0.0))
+            dh = (dh * math.cos(w) + outv * math.sin(w)).normalized() * hl
+            dn = Vector((dh.x, dh.y, d_.z)).normalized()
+        p8 = tuple(a3[k] + d3[k] * 6 for k in range(3))
+        d3 = tuple(dn)
+        a3 = tuple(p8[k] - d3[k] * 6 for k in range(3))
+        lt = lambda name, prof, mat, segs=48, **kw: D.lathe(nm + name, a3, d3, prof, mat, segs, **kw)
+        lt("elbow", [(2, s_in), (12, s_in)], M["pipe"], 36, sharp=False, caps=False)
         lt("body", [(6, s_in), (30, R * 0.72), (Ln - 12, R * 1.0), (Ln - 3, R * 1.02)], M["black"], 48, **sharp)
         lt("lip", [(Ln - 6, R * 1.02), (Ln - 3, R * 1.05), (Ln + 1, R * 1.0), (Ln + 1, R * 0.88), (Ln - 3, R * 0.85)], M["steel"], 48, **sharp)
         lt("bore", [(Ln - 2, R * 0.86), (Ln * 0.35, R * 0.86), (Ln * 0.35, 0)], M["soot"], 40, caps=False)
