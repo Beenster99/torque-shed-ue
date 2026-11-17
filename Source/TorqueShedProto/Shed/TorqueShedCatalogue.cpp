@@ -417,6 +417,7 @@ namespace TorqueShedCatalogue
 const TCHAR* const NoPaintTag = TEXT("NoPaint");
 const TCHAR* const SpinsTag = TEXT("Spins");
 const TCHAR* const V2PaintTag = TEXT("V2Paint");
+const TCHAR* const V2BodyTag = TEXT("V2Body");
 
 const TorqueFit::BikeLayout* Layout()
 {
@@ -615,6 +616,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			if (bV2) TSCI::ApplyV2Look(C, V2Look);
 			if (bV2 && (V2Look.Paint == TEXT("body") || V2Look.Paint == TEXT("rim"))) C->ComponentTags.Add(FName(V2PaintTag));
+			if (bV2 && V2Look.Paint == TEXT("body")) C->ComponentTags.Add(FName(V2BodyTag));
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
 			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
