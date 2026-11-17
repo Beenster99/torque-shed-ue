@@ -2532,6 +2532,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	const FTorqueItem* HeldIt = Items.Find(Held);
 	const ETorqueShedAct A = R.Kind;
 	if (IsPaintBayAct(A)) return CheckPaintBay(Peer, R);
+	if (IsGarageAct(A)) return CheckGarage(Peer, R);   // [garage]
 	// A tin of paint in your hands is a full pair of hands.
 	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike) && Paint.Held.Contains(Peer))
 		return TEXT("Put the tin of paint down first.");
@@ -3021,6 +3022,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		if (On == INDEX_NONE) bItems = true;
 		else LooksOf.Add(On);
 	};
+	if (IsGarageAct(R.Kind))
+	{
+		// [garage] At a forecourt's garage on the ride (TorqueGarageActs.cpp): its own sub-steps say
+		// what changed, save and tell the net layer.
+		return ApplyGarage(Peer, R);
+	}
 	if (IsKitAct(R.Kind))
 	{
 		// [kit] The shed's lights, roller door, engine stand and extinguisher (TorqueShedKit.cpp).

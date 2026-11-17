@@ -1135,11 +1135,12 @@ public:
 		double GarageU = 0.0, GarageV = 0.0;
 	};
 	// [garage] A forecourt's garage unit in the world: the middle of its floor, the way its door faces
-	// (out of it, level, unit), the floor's height (the ground's lowest under it), its forecourt.
+	// (out of it, level, unit), the floor's height (just over the ground's highest under it), the
+	// ground's 1.5 m out of its door (a ramp joins them), its forecourt.
 	struct GarageSpot
 	{
 		P2 Middle, Door;
-		double Base = 0.0;
+		double Base = 0.0, DoorGround = 0.0;
 		int Court = -1;
 	};
 	static constexpr double GarageWide = 7.5, GarageDeep = 6.5;   // outside, along its front and front to back (m)

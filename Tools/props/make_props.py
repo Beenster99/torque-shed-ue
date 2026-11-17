@@ -1482,13 +1482,13 @@ def forecourt_garage():
     painted floor marked out in three bays, white-painted block walls, LED battens, a bench with a tool
     board on the back wall, and the parts computer in a steel cabinet on the right-hand wall with its
     keyboard shelf. +z is the door side; the origin on the floor under the middle. The floor stands on a
-    plinth 0.5 m deep so a sloping forecourt doesn't show under it. The game's actor (World/
+    plinth 0.8 m deep so a sloping forecourt doesn't show under it. The game's actor (World/
     TorqueForecourtGarage) gives it its collision: the walls, and the floor as road."""
     import bpy
     W, D, H, T = 7.5, 6.5, 3.6, 0.25
     x0, x1, z0, z1 = -W / 2, W / 2, -D / 2, D / 2
     PL, DW, DH = 1.0, 2.5, 3.0   # the plinth's height outside, the door's half width and height
-    DOWN = -0.5
+    DOWN = -0.8
     # Side and back walls: brick plinth, cladding over it.
     for nm, lo, hi in (("L", (x0, DOWN, z0), (x0 + T, PL, z1)), ("R", (x1 - T, DOWN, z0), (x1, PL, z1)),
                        ("B", (x0, DOWN, z0), (x1, PL, z0 + T))):

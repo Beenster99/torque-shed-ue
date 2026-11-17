@@ -35,6 +35,7 @@
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
+#include "World/TorqueForecourtGarage.h"
 #include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
 #include "Misc/DateTime.h"
@@ -1710,6 +1711,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		RideCosts::FScope Cost(RideCosts::Update);
 		Update(At, false);
 	}
+	ATorqueForecourtGarage::Keep(this, *Plan, At);   // [garage] the forecourts' garage units near the rider
 	{
 		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
 		RideCosts::FScope Cost(RideCosts::RoadLook);

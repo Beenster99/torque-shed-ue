@@ -29,6 +29,11 @@ class USoundWaveProcedural;
 class UAudioComponent;
 class UTorqueNetBikeComponent;
 class UTorqueTftComponent;
+class UCanvas;
+class AHUD;
+class FTorquePartsComputer;
+class ATorqueForecourtGarage;
+struct FTorqueComputerAction;
 
 // A part of the Speed Twin model moved by its slot's offset from geometry mode (the bay's saved fit).
 // On a part that turns with a group (the bars with the steering), the offset is in that group's frame,
@@ -114,6 +119,16 @@ public:
 	// [info] The pointer is out (M) to click a place in the info panel: the mouse moves it, not the view.
 	bool IsPointing() const { return bPointing; }
 	void SetPointing(bool bOn) { bPointing = bOn; }
+	// [garage] On foot in a forecourt garage (World/TorqueForecourtGarage.h) with the bike parked in it:
+	// the spanner works on the bike there (hold Work: take off the part looked at, or fit the part in
+	// your hands), and the wall computer sells parts straight into your hands. Its page is up (the HUD
+	// draws it and the mouse works it), or was closed this moment (Esc shuts it, not into the pause menu).
+	bool InGarage() const;
+	bool GarageComputerUp() const { return bGarageComputer; }
+	bool GarageComputerUpOrJustClosed() const;
+	void DrawGarageComputer(AHUD* Hud, UCanvas* Canvas) const;
+	// For TorqueShedTest: "where", "buy:<part>", "fit[:<slot>]", "off:<slot>", "stow", "computer".
+	FString TestGarage(const FString& What);
 
 	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
 	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand
@@ -307,6 +322,7 @@ private:
 	// rebuilt whenever the kit's moved (its ContactVersion changes).
 	TArray<TorqueSim::ContactBox> BaseBoxes;
 	int32 FurnitureSeen = 0;
+	int32 GarageSeen = 0;   // [garage] ATorqueForecourtGarage::ContactVersion as last taken in
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it
@@ -664,6 +680,37 @@ private:
 	void LoadRoute();
 	void BuildModel();
 	bool BuildCatalogueModel();   // true if the bike is all catalogue parts and was drawn so
+	// [garage] The model taken down and drawn again from the shed's bay (a part fitted or taken off in a
+	// garage), the bike where it stands; only while it's parked. Stale: the shed's parts for RideBay changed.
+	void RebuildBikeModel();
+	bool bModelStale = false;
+	FString BuiltParts;   // the bay's parts as last drawn (LayoutParts, as one line)
+	FString PartsKey() const;
+	void BindGarage();
+	void OnShedChanged(int32 Bay);
+	void OnShedTell(int32 Peer, const FString& Text, bool bOk);
+	bool bGarageBound = false;
+	// [garage] On foot in a garage: what's looked at (a slot of our bike, the computer), the spanner's
+	// hold, the computer's page, and what the shed last said back.
+	bool TickGarage(APlayerController* PC, float Dt, uint32 SonyDown, uint32 SonyPressed);
+	void GarageAim();
+	bool GarageRequest(uint8 Kind, FName Slot, FName Part, const FString& Doing);
+	void GarageComputerDo(const FTorqueComputerAction& A);
+	void OpenGarageComputer(APlayerController* PC);
+	void CloseGarageComputer(APlayerController* PC);
+	void GarageHudLines();
+	TWeakObjectPtr<ATorqueForecourtGarage> GarageHere;
+	FName GarageSlot;            // the slot of our bike looked at (none: not looking at it)
+	bool bGarageLookComputer = false;
+	bool bGarageComputer = false;
+	double GarageComputerShut = -100.0;   // world seconds it was last closed
+	FTorquePartsComputer* GarageComputer = nullptr;   // (made the first time; deleted with the pawn)
+	double GarageHeld = 0.0;     // Work held on the bike (s)
+	bool bGarageWorkArmed = false;
+	FString GarageSaid;          // the shed's answer to our last garage job
+	bool bGarageSaidOk = true;
+	double GarageSaidFor = 0.0, GarageAskedAt = -100.0;
+	int32 GarageTells = 0;       // the shed's answers heard (one came back at once: the host)
 	// SideM: metres to the right of the line (co-op start slots).
 	void Respawn(int32 LineIndex, double SideM = 0.0);
 	void PlaceOnGround(TorqueSim::V3 Pos, double Heading);   // Respawn's second half: upright there, on the ground

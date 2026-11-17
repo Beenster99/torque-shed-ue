@@ -803,6 +803,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			else Said(FString::Printf(TEXT("stopped (%.1f mph), the robot's off"), Mph));
 			return true;
 		}
+		// [garage] garage:goto|state|computer|buy:<part>|fit[:<slot>]|off:<slot>|stow: our bike put in the
+		// nearest forecourt garage and off it, or a garage job as the spanner and the wall computer do it.
+		if (Verb == TEXT("garage"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("state"));
+			Said(Bike->TestGarage(What));
+			return true;
+		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
 		if (Verb == TEXT("foot"))
 		{

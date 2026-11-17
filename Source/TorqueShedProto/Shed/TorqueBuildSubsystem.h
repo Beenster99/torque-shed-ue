@@ -262,6 +262,17 @@ enum class ETorqueShedAct : uint8
 	// [label] Shelving unit Item's label plate written as Text (an empty Text wipes it): label_dialog.gd
 	// and shed_state.gd "label".
 	LabelFurniture,
+	// [garage] At a Ride UK forecourt's garage (World/TorqueForecourtGarage.h, Shed/TorqueGarageActs.cpp):
+	// part Part bought at the garage's wall computer, unboxed into your hands; the part in your hands
+	// fitted to bay Bay's bike and bolted up in one go with the spanner (its slot: the one looked at,
+	// Slot, if it takes it), whatever was in that slot sent back to the shed; slot Slot's part unbolted
+	// and taken off with the spanner and sent back to the shed; the part in your hands sent back to the
+	// shed. What's sent back waits unboxed in the shed's delivery area. No roadside spannering (beenster,
+	// Nov 17): the ride only sends these from inside a garage.
+	GarageBuy,
+	GarageFit,
+	GarageOff,
+	GarageStow,
 	Count
 };
 
@@ -565,6 +576,8 @@ public:
 	static bool IsPaintBayAct(ETorqueShedAct A);
 	// [kit] The shed's lights, roller door, engine stand and extinguisher (TorqueShedKit.cpp).
 	static bool IsKitAct(ETorqueShedAct A);
+	// [garage] The forecourt garage's (TorqueGarageActs.cpp).
+	static bool IsGarageAct(ETorqueShedAct A);
 
 	// --- [fluids] Fluids, the drain pan and the petrol pump (TorqueShedFluids.cpp) -------------
 	static bool IsFluidAct(ETorqueShedAct A);
@@ -797,6 +810,15 @@ private:
 	FString DoApply(int32 Peer, const FTorqueShedRequest& R);
 	// The mixing bay's requests and the gun's cup (TorquePaintBay.cpp).
 	FString CheckKit(int32 Peer, const FTorqueShedRequest& R) const;   // [kit] TorqueShedKit.cpp
+	// [garage] The forecourt garage's requests (TorqueGarageActs.cpp): GarageSlot is the slot a part in
+	// your hands goes in (the one looked at if it takes it, else a free one, else the first), NAME_None
+	// with Why; GarageOffWhy why a fitted part can't come off at a garage ("" if it can); SendHome puts
+	// a part in the shed's delivery area, unboxed.
+	FString CheckGarage(int32 Peer, const FTorqueShedRequest& R) const;
+	FString ApplyGarage(int32 Peer, const FTorqueShedRequest& R);
+	FName GarageSlot(int32 Bay, FName Looked, const FTorqueItem& It, FString& Why) const;
+	FString GarageOffWhy(int32 Bay, FName Slot) const;
+	void SendHome(int32 Id);
 	FString ApplyKit(int32 Peer, const FTorqueShedRequest& R);
 	void DropKitOf(int32 Peer);   // someone's left: the stand let go, the extinguisher back in its place
 	FString CheckPaintBay(int32 Peer, const FTorqueShedRequest& R) const;

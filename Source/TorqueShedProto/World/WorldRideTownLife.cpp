@@ -639,16 +639,20 @@ bool RidePlan::GarageOf(int Court, GarageSpot& Out) const
 	Out.Court = Court;
 	Out.Middle = C.Flat(F.GarageU, F.GarageV + GarageDeep * 0.5);
 	Out.Door = F.Out * -1.0;
-	// (its floor level with the ground's lowest under it, the plinth going down to the rest)
-	double Low = 1e18;
+	// (its floor just over the ground's highest under it, the plinth going down to the rest; and the
+	// ground just out of its door, for the ramp up to the floor)
+	double High = -1e18;
 	for (double U : {-0.5, 0.0, 0.5})
 		for (double V : {0.0, 0.5, 1.0})
 		{
 			const P2 Q = C.Flat(F.GarageU + U * GarageWide, F.GarageV + V * GarageDeep);
 			const double Gy = Ground(Q.X, Q.Z);
-			if (!std::isnan(Gy)) Low = std::fmin(Low, Gy);
+			if (!std::isnan(Gy)) High = std::fmax(High, Gy);
 		}
-	Out.Base = Low < 1e17 ? Low : F.Base;
+	Out.Base = (High > -1e17 ? High : F.Base) + 0.03;
+	const P2 Q = C.Flat(F.GarageU, F.GarageV - 1.5);
+	const double Gd = Ground(Q.X, Q.Z);
+	Out.DoorGround = std::isnan(Gd) ? Out.Base : Gd;
 	return true;
 }
 
