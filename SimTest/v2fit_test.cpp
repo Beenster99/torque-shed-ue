@@ -138,7 +138,7 @@ int main()
 			for (const PartSurface& S : P.Made->Surfaces)
 			{
 				++Surfaces;
-				if (S.Material.rfind("v2/", 0) != 0) Named = false;
+				if (S.Material.rfind("v2/", 0) != 0 && !P.Code) Named = false;   // (a TFT dash's unit is made in code)
 				for (const V3& V : S.Pos)
 				{
 					Low = std::min(Low, V.y);
@@ -154,6 +154,20 @@ int main()
 		}
 		Expect(AllMade, Id + " every fitted piece is a V2 one");
 		Expect(Named, Id + " every surface carries its look");
+		{
+			// [TFT] A TFT dash shows as itself with a screen for the game to light, in place of the
+			// model's drawn clocks; any other dash leaves the model's clocks.
+			const Json* Dash = Db.Find("dashboard", Parts["dashboard"]);
+			const bool Tft = Dash && Dash->Str("style") == "tft";
+			int Screens = 0, DrawnShown = 0;
+			for (const FittedPart& P : Fitted)
+			{
+				if (P.Gauge.rfind("screen_", 0) == 0) ++Screens;
+				if (P.Slot == "dashboard" && !P.Code && !P.Hidden) ++DrawnShown;
+			}
+			Expect(Screens == (Tft ? 1 : 0), Id + " a screen face only for a TFT dash (" + Parts["dashboard"] + ")");
+			Expect(!Tft || DrawnShown == 0, Id + " a TFT dash hides the model's drawn clocks");
+		}
 		Expect(Nodes.count("steer") && Nodes.count("front_wheel") && Nodes.count("rear_wheel") && Nodes.count("front_hub") && Nodes.count(""), Id + " pieces on the steering, the wheels and the bike");
 		Expect(Slots.count("tank") && Slots.count("engine") && Slots.count("frame") && Slots.count("saddle") && Slots.count("exhaust"), Id + " tank, engine, frame, saddle and exhaust pieces");
 		Expect(std::fabs(FrontLow + L.Stats.FrontRadius) < 0.006, Id + " front tyre reaches the ground (" + Num2(FrontLow) + " for radius " + Num2(L.Stats.FrontRadius) + ")");
