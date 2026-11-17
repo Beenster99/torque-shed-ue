@@ -270,6 +270,116 @@ for _b in ("corvano", "hartwell", "kazeda", "varga", "rheinhart"):
     KITS[_b + "_adventure"] = adventure_kit(_b)
 
 
+def sport_screen(dx, dz, mid=(0, 0)):
+    """The same Perspex screen with its top edge moved: taller for a tucked-in rider, or cut low."""
+    def f(m):
+        sc = copy.deepcopy(next(v for v in m["body"]["panels"] if v.get("cls") == "screen"))
+        hi = max(sc["pts"], key=lambda q: q[1])
+        lo = max(sc["pts"], key=lambda q: q[0])
+        md = max((q for q in sc["pts"] if q is not hi and q is not lo), key=lambda q: q[0] + q[1])
+        for q in sc["pts"]:
+            if q is hi or (abs(q[0] - hi[0]) < 40 and abs(q[1] - hi[1]) < 20):
+                q[0], q[1] = q[0] + dx, q[1] + dz
+        md[0], md[1] = md[0] + mid[0], md[1] + mid[1]
+        return {"screen": sc}
+    return f
+
+
+def _can(a, b, k=1.0, **kw):
+    return dict({"a": a, "b": [round(a[0] + (b[0] - a[0]) * k, 1), round(a[1] + (b[1] - a[1]) * k, 1)], "front": True}, **kw)
+
+
+SPORT_EXHAUSTS = {
+    "kazeda": [("Slip-on", "long round silencer swept up beside the wheel",
+                lambda h: {"headers": [dict(h[0], pts=h[0]["pts"] + [[530, 252], [450, 294]])], "cans": [_can([450, 294], [185, 438], w=92)], "join": True}),
+               ("Shorty", "short dark stub of a silencer",
+                lambda h: {"headers": [dict(h[0], pts=h[0]["pts"] + [[530, 252], [450, 294]])], "cans": [_can([450, 294], [185, 438], 0.52, w=104, dark=True)], "join": True})],
+    "hartwell": [("Long can", "long slim silencer, low",
+                  lambda h: {"headers": h, "cans": [_can([530, 322], [190, 398], w=86)], "join": True}),
+                 ("High can", "silencer kicked up towards the tail",
+                  lambda h: {"headers": [dict(h[0], pts=h[0]["pts"] + [[472, 346]])], "cans": [_can([472, 346], [236, 474], w=90)], "join": True})],
+    "varga": [("Stubby", "short dark silencer",
+               lambda h: {"headers": h, "cans": [_can([470, 535], [240, 575], 0.62, w=96, dark=True)], "join": True}),
+              ("High", "slimmer silencer kicked up under the tail",
+               lambda h: {"headers": h, "cans": [_can([470, 535], [212, 640], w=76)], "join": True})],
+    "corvano": [("Short", "short fat silencer tucked under the seat",
+                 lambda h: {"side": "under", "headers": h, "cans": [_can([345, 712], [50, 806], 0.66, w=82)], "join": True}),
+                ("Long", "long slim silencer out to the tail tip",
+                 lambda h: {"side": "under", "headers": h, "cans": [_can([345, 712], [50, 806], 1.2, w=64)], "join": True})],
+}
+
+
+def sport_kit(brand):
+    return {
+        "base": {"tank_seat": "Road", "tail": "Standard", "front": "Road screen", "exhaust": "Standard"},
+        "tank_seat": [("Track", "lower tank to tuck in behind, with a flatter seat", dict(low=0.93, fit=True), dict(flatten=0.5, top_only=True)),
+                      ("Endurance", "fuller tank with a raised pillion pad", dict(front=1.04, rear=0.97, fit=True), dict(step=10, top_only=True))],
+        "tail": [("Short tail", "tail tip cut shorter", dict(end_dx=48, x0=95)), ("Kicked tail", "longer tip, kicked up", dict(end_dx=-30, tip_dz=20, x0=95))],
+        "front": [("Race bubble", "taller double-bubble screen", sport_screen(-22, 46, (-4, 14))),
+                  ("Low screen", "screen cut low", sport_screen(24, -34, (2, -6)))],
+        "exhaust": SPORT_EXHAUSTS[brand],
+        "extras": [{"name": "Seat cowl", "note": "painted cowl over the pillion seat", "auto": "seat_cowl"},
+                   {"name": "Tail tidy", "note": "number plate arm taken off", "fit": {"plate_hanger": False}}],
+    }
+
+
+def cafe_hump(k, dx=0):
+    """The cafe tail's hump made taller or flatter; its underside on the frame loop stays."""
+    def f(m):
+        t = copy.deepcopy(m["body"]["tail"])
+        outline = shapes.dense(t[0]["pts"], True, t[0].get("t", 1.0))
+        x_end = min(p[0] for p in outline)
+        for p in t[0]["pts"]:
+            tb = shapes.top_bottom(outline, min(max(p[0], x_end + 2), 290))
+            if p[0] < 300 and tb and p[1] > (tb[0] + tb[1]) / 2:
+                p[1] = round(tb[1] + (p[1] - tb[1]) * k, 1)
+                p[0] = round(p[0] + dx * (300 - p[0]) / (300 - x_end), 1)
+        return t, None
+    return f
+
+
+def cafe_exhaust(short):
+    def f(h, base=None):
+        cans = []
+        for c in base["cans"]:
+            c = copy.deepcopy(c)
+            if short:
+                c = dict(_can(c["a"], c["b"], 0.58, w=min(c["w"] + 12, 100), dark=True))
+            elif c.get("mega"):
+                c.pop("mega")
+                c = dict(c, b=_can(c["a"], c["b"], 0.8)["b"], w=c["w"] + 10, nip=True)
+            else:
+                c.pop("nip", None)
+                c["mega"] = round(c["w"] * 1.55)
+            cans.append(c)
+        return {"headers": h, "cans": cans, "join": True}
+    return f
+
+
+BOARD = [{"pts": [[452, 742, 1], [470, 776], [520, 786], [566, 770], [580, 728, 1], [562, 690], [512, 680], [466, 700]], "cls": "plate", "t": 0.9, "front": True}]
+
+
+def cafe_kit(brand, mega):
+    return {
+        "base": {"tank_seat": "Clubman", "tail": "Hump", "front": "Round lamp", "exhaust": "Megaphone" if mega else "Standard"},
+        "tank_seat": [("Sprint", "lower, leaner tank with a flatter seat", dict(low=0.92, fit=True), dict(flatten=0.5, top_only=True)),
+                      ("Endurance", "fuller tank with a deeper seat", dict(front=1.05, rear=0.97, fit=True), dict(step=8, top_only=True))],
+        "tail": [("Flat hump", "seat hump cut low", cafe_hump(0.6)), ("Bullet hump", "taller, longer racing hump", cafe_hump(1.22, -24))],
+        "front": [("Flyscreen", "round lamp with a small tinted screen", flyscreen), ("Square lamp", "squared LED lamp in a black housing", nacelle) if brand == "hartwell" else ("Nacelle", "lamp set in a painted shell", nacelle)],
+        "exhaust": [("Shorty", "short dark silencer", cafe_exhaust(True)),
+                    ("Reverse cone", "plain silencer with a nipped end", cafe_exhaust(False)) if mega else ("Megaphone", "flared open megaphone", cafe_exhaust(False))],
+        "extras": [{"name": "Number board", "note": "oval race number board on the side", "add": {"panels": BOARD}},
+                   {"name": "Sump plate", "note": "painted plate under the engine", "add": {"panels": [PAN]}}],
+    }
+
+
+for _b in ("kazeda", "corvano", "hartwell", "varga"):
+    KITS[_b + "_sport"] = sport_kit(_b)
+for _b in ("hartwell", "corvano", "kazeda", "rheinhart", "lodestar"):
+    _m = json.load(open(os.path.join(ROOT, "data", "models", _b + "_cafe.json")))
+    KITS[_b + "_cafe"] = cafe_kit(_b, any(c.get("mega") for c in _m["exhaust"]["cans"]))
+
+
 def draft(name):
     path = os.path.join(ROOT, "data", "models", name + ".json")
     m = json.load(open(path))
@@ -291,9 +401,11 @@ def draft(name):
             v["tray"] = [[round(q, 1) for q in f(p[0], p[1])] + p[2:] for p in tray["pts"]]
         kit["tail"].append(v)
     for nm, note, fn in spec["front"]:
-        kit["front"].append({"name": nm, "note": note, "head": fn(m)})
+        r = fn(m)
+        kit["front"].append(dict({"name": nm, "note": note}, **(r if isinstance(r, dict) else {"head": r})))
     for nm, note, fn in spec["exhaust"]:
-        ex = fn(copy.deepcopy(m["exhaust"]["headers"]))
+        hd = copy.deepcopy(m["exhaust"]["headers"])
+        ex = fn(hd, base=m["exhaust"]) if fn.__code__.co_argcount > 1 else fn(hd)
         if "side" in m["exhaust"]:
             ex.setdefault("side", m["exhaust"]["side"])
         kit["exhaust"].append({"name": nm, "note": note, "exhaust": ex})

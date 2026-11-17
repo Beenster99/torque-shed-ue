@@ -130,8 +130,12 @@ def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=(), bars=0,
                 shp["pts"] = copy.deepcopy(v["tray"])
     if front:
         # the head unit (lamp, its housing, the clocks) swaps as one; bars, levers and mirrors stay
-        head = [dict(shp, part="head") for shp in copy.deepcopy(kit["front"][front - 1]["head"])]
-        m["front_end"] = head + [shp for shp in m["front_end"] if shp.get("part") != "head"]
+        v = kit["front"][front - 1]
+        if v.get("head"):
+            head = [dict(shp, part="head") for shp in copy.deepcopy(v["head"])]
+            m["front_end"] = head + [shp for shp in m["front_end"] if shp.get("part") != "head"]
+        if v.get("screen"):         # a faired bike changes its screen and keeps the lamps in the nose
+            b["panels"] = [copy.deepcopy(v["screen"]) if shp.get("cls") == "screen" else shp for shp in b.get("panels", [])]
     if exhaust:
         m["exhaust"] = copy.deepcopy(kit["exhaust"][exhaust - 1]["exhaust"])
     if bars:        # bars, risers, levers and mirrors swap as one; the head unit stays
@@ -143,6 +147,8 @@ def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=(), bars=0,
         v = kit["extras"][e - 1]
         for part, shapes_ in v.get("add", {}).items():
             b.setdefault(part, []).extend(copy.deepcopy(shapes_))
+        if v.get("fit"):             # an extra that takes something off (a tail tidy drops the plate arm)
+            m["fit"] = dict(m.get("fit", {}), **v["fit"])
         if v.get("auto") == "seat_cowl":
             b.setdefault("panels", []).append(seat_cowl(b))
         fitted.append(v["name"])
