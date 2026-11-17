@@ -34,7 +34,8 @@ for k, t in (('1111', 'Basso exhaust: a short silencer low behind the engine.'),
         b = io.BytesIO()
         im.save(b, 'JPEG', quality=82)
         body += f'<figure><img alt="Corvano naked from the left, kit {k}" src="data:image/jpeg;base64,{base64.b64encode(b.getvalue()).decode()}"><figcaption><strong>Corvano naked from the left</strong> {t} The Corvano exhausts sit on the swingarm side.</figcaption></figure>\n'
-for fn, cap in (('varga_mx_kit0001_def_shot_rearq.png', '<strong>Varga MX, kit exhaust from behind</strong> The kit silencers now run inside the side plate like the standard pipe, so nothing pokes through the plate.'),
+for fn, cap in (('varga_mx_def_shot_rearq.png', '<strong>Varga MX, standard exhaust from behind</strong> Rerouted 17 Nov: the silencer is slimmer and sits further in, and the side plate stands 16 mm further out, so there is 15 mm of air between them.'),
+                ('varga_mx_kit2222_def_shot_rearq.png', '<strong>Varga MX, Long quiet can from behind</strong> Both kit silencers now follow the standard pipe line behind the side plate and come out under the mudguard.'),
                 ('hartwell_cafe_kit0020_def_shot_front34.png', '<strong>BSX cafe, second front choice</strong> The squared LED lamp in its black housing.')):
     p = os.path.join(ROOT, 'out', 'renders', fn)
     if os.path.exists(p):

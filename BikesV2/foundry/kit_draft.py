@@ -290,10 +290,12 @@ def _can(a, b, k=1.0, **kw):
 
 
 SPORT_EXHAUSTS = {
-    "kazeda": [("Slip-on", "long round silencer swept up beside the wheel",
-                lambda h: {"headers": [dict(h[0], pts=h[0]["pts"] + [[530, 252], [450, 294]])], "cans": [_can([450, 294], [185, 438], w=92)], "join": True}),
+    # the Kazeda keeps its pipes and collector box inside the belly of the fairing (beenster, 17 Nov);
+    # only the silencer that pokes out behind the fairing changes
+    "kazeda": [("Slip-on", "longer round silencer poking out behind the fairing",
+                lambda h, base=None: dict(copy.deepcopy(base), cans=[base["cans"][0], _can([520, 250], [395, 288], 2.2, w=90)])),
                ("Shorty", "short dark stub of a silencer",
-                lambda h: {"headers": [dict(h[0], pts=h[0]["pts"] + [[530, 252], [450, 294]])], "cans": [_can([450, 294], [185, 438], 0.52, w=104, dark=True)], "join": True})],
+                lambda h, base=None: dict(copy.deepcopy(base), cans=[base["cans"][0], _can([520, 250], [395, 288], 0.8, w=112, dark=True)]))],
     "hartwell": [("Long can", "long slim silencer, low",
                   lambda h: {"headers": h, "cans": [_can([530, 322], [190, 398], w=86)], "join": True}),
                  ("High can", "silencer kicked up towards the tail",
