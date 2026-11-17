@@ -1672,6 +1672,28 @@ double RidePlan::RoadHeight(double X, double Z) const
 	return Nearest(X, Z, Dist, Height, nullptr, &Half, nullptr, false, nullptr, &Cross) && Dist <= Half ? Height + Cross : std::nan("");
 }
 
+double RidePlan::LandDrawnAt(double X, double Z, std::unordered_map<long long, double>* Cache) const
+{
+	const double Fi = std::floor(X / LandGrid), Fj = std::floor(Z / LandGrid);
+	const long long I = static_cast<long long>(Fi), J = static_cast<long long>(Fj);
+	const auto At = [this, Cache](long long Gi, long long Gj)
+	{
+		const long long Key = Gi * 4000037LL + Gj;
+		if (Cache != nullptr)
+		{
+			const auto It = Cache->find(Key);
+			if (It != Cache->end()) return It->second;
+		}
+		const double Y = Ground(double(Gi) * LandGrid, double(Gj) * LandGrid, LandGrid);
+		if (Cache != nullptr) (*Cache)[Key] = Y;
+		return Y;
+	};
+	const double Fx = X / LandGrid - Fi, Fz = Z / LandGrid - Fj;
+	// (as LandTile lays a cell: A B across the top, C D below, triangles A C B and B C D)
+	const double Ha = At(I, J), Hb = At(I + 1, J), Hc = At(I, J + 1), Hd = At(I + 1, J + 1);
+	return Fx + Fz <= 1.0 ? Ha + Fx * (Hb - Ha) + Fz * (Hc - Ha) : Hd + (1.0 - Fx) * (Hc - Hd) + (1.0 - Fz) * (Hb - Hd);
+}
+
 void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const
 {
 	Out = RideMesh();
@@ -2121,6 +2143,40 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		Put(R1, B1, LiftB, Colour);
 		M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
 		if (BothSides) M.Idx.insert(M.Idx.end(), {V, V + 2, V + 1, V + 1, V + 2, V + 3});
+	};
+	// [road edges, Nov 17] The shoulder's outer band, From to To out from the edge on side S (1 left, -1
+	// right): its inner edge ShoulderDip under the road's edge, its outer just under the ground as drawn
+	// (LandDrawnAt), never higher than its inner edge nor lower than ShoulderDrop.
+	std::unordered_map<long long, double> LandCache;
+	const auto Meet = [this, &Into, &Put, &Settle, &LandCache](const Row& R0, const Row& R1, double S, double From, double To)
+	{
+		static constexpr float MeetGrass[3] = {0.10f, 0.16f, 0.03f};
+		RideMesh& M = *Into;
+		const uint32_t V = uint32_t(M.Vertices());
+		const auto Outer = [&](const Row& R)
+		{
+			const double Off = S * (R.Half + To);
+			const P2 At = R.At + R.Left * Off;
+			const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
+			const double Drawn = LandDrawnAt(At.X, At.Z, &LandCache);
+			const double Lift = std::isnan(Drawn) ? -ShoulderDrop : std::clamp(Drawn - MeetUnder - Y, -ShoulderDrop, -ShoulderDip);
+			Put(R, Off, Lift, MeetGrass);
+		};
+		if (S > 0.0)
+		{
+			Outer(R0);
+			Put(R0, R0.Half + From, -ShoulderDip, MeetGrass);
+			Outer(R1);
+			Put(R1, R1.Half + From, -ShoulderDip, MeetGrass);
+		}
+		else
+		{
+			Put(R0, -R0.Half - From, -ShoulderDip, MeetGrass);
+			Outer(R0);
+			Put(R1, -R1.Half - From, -ShoulderDip, MeetGrass);
+			Outer(R1);
+		}
+		M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
 	};
 	// A tunnel's parts: any four points in the ride's frame, as a quad that faces Toward.
 	struct P3
@@ -2685,7 +2741,13 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						// material's ragged grass line falls about a third of the way across, at the edge)
 						Band(-C0, L0, -C1, L1, 0.004, -ShoulderDip * 0.5, Verge, VergeGrass);
 						Band(L0, ShoulderFlat, L1, ShoulderFlat, -ShoulderDip * 0.5, -ShoulderDip, VergeGrass, VergeGrass);
-						Band(ShoulderFlat, Shoulder, ShoulderFlat, Shoulder, -ShoulderDip, -ShoulderDrop, VergeGrass, VergeGrass);
+						// ([road edges, Nov 17] beenster: the road must blend with the grass beside it. The
+						// shoulder's last half metre went down 0.4 m whatever the ground did, so where the field
+						// lay a few centimetres under the shoulder's grass its edge stood up as a little dark bank
+						// all along the road. Now the shoulder's outer edge goes to just under the ground as the
+						// squares draw it, so it slips under the field at a slant and no face shows; only where
+						// the ground falls away more than ShoulderDrop does it still stop there)
+						Meet(R0, R1, S, ShoulderFlat, Shoulder);
 					}
 					continue;
 				}
