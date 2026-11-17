@@ -1,0 +1,228 @@
+{
+ "about": "Stage 2 common parts approved by beenster 16 Nov 20:28 ('All good, next'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry lives in foundry/controls3d.py: fit(build3d, model, c, levers, switches, mirrors, lines) after detail3d (and after bars3d.fit when a library bar is on; lines from it). Every set has the same right-hand pod with the red kill switch (beenster rule). Mirrors are aimed by script from the rider's eye.",
+ "levers": [
+  {
+   "key": "standard",
+   "name": "Billet adjustable set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  },
+  {
+   "key": "short",
+   "name": "Short lever set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  },
+  {
+   "key": "folding",
+   "name": "Folding radial set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  },
+  {
+   "key": "classic",
+   "name": "Classic polished set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  },
+  {
+   "key": "forged",
+   "name": "Forged set",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  }
+ ],
+ "switches": [
+  {
+   "key": "dpad",
+   "name": "D-pad pod",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  },
+  {
+   "key": "cruise",
+   "name": "Cruise pod",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  },
+  {
+   "key": "compact",
+   "name": "Compact pod",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ]
+  }
+ ],
+ "mirrors": [
+  {
+   "key": "round",
+   "name": "Round stalk",
+   "kind": "stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "notes": []
+  },
+  {
+   "key": "oval",
+   "name": "Oval stalk",
+   "kind": "stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "notes": []
+  },
+  {
+   "key": "rect",
+   "name": "Rectangular stalk",
+   "kind": "stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "notes": []
+  },
+  {
+   "key": "teardrop",
+   "name": "Teardrop stalk",
+   "kind": "stalk",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Adventure",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "notes": []
+  },
+  {
+   "key": "barend_round",
+   "name": "Bar-end round",
+   "kind": "barend",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "notes": [
+    "Adventure: clashes with hand guards (cmirrorboss | handguardend); not offered on bikes with hand guards"
+   ]
+  },
+  {
+   "key": "barend_teardrop",
+   "name": "Bar-end teardrop",
+   "kind": "barend",
+   "fits": [
+    "Naked",
+    "Classic",
+    "Cafe",
+    "Sport",
+    "Cruiser",
+    "MX"
+   ],
+   "notes": [
+    "Adventure: clashes with hand guards (cmirrorboss | handguardend); not offered on bikes with hand guards"
+   ]
+  },
+  {
+   "key": "fairing_aero",
+   "name": "Fairing aero",
+   "kind": "fairing",
+   "fits": [
+    "Sport"
+   ],
+   "notes": []
+  },
+  {
+   "key": "fairing_wing",
+   "name": "Fairing wing",
+   "kind": "fairing",
+   "fits": [
+    "Sport"
+   ],
+   "notes": []
+  }
+ ],
+ "rules": [
+  "Levers curve in plan: out from the pivot, in to a hump nearest the grip, out to a ball tip (beenster plan view 16 Nov); L4 classic is the round-section exception",
+  "Switch pods are buttons only, d-pad style; always a red kill switch on the right",
+  "Fairing mirrors only on bikes with a cowl (Sport)"
+ ]
+}
