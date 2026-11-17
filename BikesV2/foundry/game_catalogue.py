@@ -76,6 +76,14 @@ def main():
             suits = set(v.get("styles") or [])
             if (v.get("pack") and v["pack"] not in kept) or (suits and not suits & kept):
                 retired.setdefault(kind, []).append(pid)
+    # Stock luggage and fog lamps never draw on a V2 bike (and the fogs never light): the common panniers, top
+    # boxes and fog lamps take their place in the shop (beenster, 17 Nov; the common parts thread).
+    for kind in ("panniers", "top_box", "fog_lights"):
+        for pid, v in (parts.get(kind) or {}).items():
+            if isinstance(v, dict) and pid != "none" and not pid.startswith("v2c_") and pid not in retired.get(kind, []):
+                retired.setdefault(kind, []).append(pid)
+                if pid in stock_parts:
+                    print("NOTE retired though a kept stock bike is built with it:", kind, pid)
     dst = os.path.join(GAME, "Data", "BikesV2", "parts_v2.json")
     json.dump({"_retired": retired, "frame": out}, open(dst, "w"), indent=1)
     print(sum(len(v) for v in retired.values()), "parts retired with the bike types that have no V2 bikes:", {k: len(v) for k, v in retired.items()})
