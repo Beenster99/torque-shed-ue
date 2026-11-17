@@ -526,10 +526,10 @@ void ATorqueSky::TickCloudsCheck()
 	if (Why != CloudsWhyLogged)
 	{
 		const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-		const AActor* Owner = Cloud ? Cloud->GetOwner() : nullptr;
+		const AActor* CloudOwner = Cloud ? Cloud->GetOwner() : nullptr;
 		const FString State = Why.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + Why;
 		UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds %s (cloud %s, visible %d, actor hidden %d, wears %s)"),
-			*State, *GetNameSafe(Owner), Cloud && Cloud->IsVisible() ? 1 : 0, Owner && Owner->IsHidden() ? 1 : 0,
+			*State, *GetNameSafe(CloudOwner), Cloud && Cloud->IsVisible() ? 1 : 0, CloudOwner && CloudOwner->IsHidden() ? 1 : 0,
 			*GetNameSafe(Cloud ? ReadObjectProperty(Cloud, TEXT("Material")) : nullptr));
 		CloudsWhyLogged = Why;
 	}
