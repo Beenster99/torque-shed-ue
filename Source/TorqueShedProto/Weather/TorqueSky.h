@@ -84,6 +84,8 @@ private:
 	// The clouds are drawn: the volumetric clouds are on (Medium graphics and up) and the level's cloud
 	// wears our own material (an older level keeps the engine's, which follows nothing).
 	bool CloudsDrawn() const;
+	// Why not (empty when drawn), for the log: build 154 said only "not drawn".
+	FString CloudsWhyNot() const;
 	// The level's planet surface, metres above sea level (the cloud layer's heights are above it).
 	double PlanetAsl() const;
 	// Valley mist and fog with a top (stage 4): a pool of the engine's Local Fog Volumes (made here, by
