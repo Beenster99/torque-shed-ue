@@ -94,7 +94,7 @@ def mat(name, col=None, finish=None):
     return m
 
 
-GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "0.15,0.25,0.4,0.6").split(",")]
+GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "2.0,0.3,0.6,0.5").split(",")]
 
 
 def export_game(name, model, model_file=None):
@@ -120,12 +120,29 @@ def export_game(name, model, model_file=None):
     for o in obs:
         n = sum(len(p.vertices) - 2 for p in o.data.polygons)
         hist[min(4, 0 if n < 100 else 1 if n < 240 else 2 if n < 800 else 3 if n < 2500 else 4)] += n
-        if n < 100 or "tyre" in o.name:
+        if n < 100 or "tyre" in o.name or "rotor" in o.name:      # (a drilled disc is a flat face full of holes: left exactly as drawn)
             continue
-        md = o.modifiers.new("thin", "DECIMATE")
-        md.ratio = GAME_THIN[0] if n > 2500 else GAME_THIN[1] if n > 800 else GAME_THIN[2] if n > 240 else GAME_THIN[3]
         bpy.context.view_layer.objects.active = o
+        if any(m and m.name.startswith(("paint", "accent")) for m in o.data.materials):
+            # paintwork shows every dent in its reflections: only halved, never flattened
+            if n > 2500:
+                md = o.modifiers.new("thin", "DECIMATE")
+                md.ratio = GAME_THIN[3]
+                bpy.ops.object.modifier_apply(modifier=md.name)
+            continue
+        # first what costs nothing to look at: faces that lie in one plane or along a straight run become one
+        # (a drilled disc, a plate, a straight tube keep their exact shape)
+        md = o.modifiers.new("flat", "DECIMATE")
+        md.decimate_type = "DISSOLVE"
+        md.angle_limit = math.radians(GAME_THIN[0])
+        md.delimit = {"MATERIAL", "SHARP"}
         bpy.ops.object.modifier_apply(modifier=md.name)
+        n2 = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        ratio = GAME_THIN[1] if n2 > 2500 else GAME_THIN[2] if n2 > 800 else 1.0
+        if ratio < 1.0:
+            md = o.modifiers.new("thin", "DECIMATE")
+            md.ratio = ratio
+            bpy.ops.object.modifier_apply(modifier=md.name)
     for o in obs:
         r = game_parts.classify(o.name, model)
         if not r:
