@@ -225,6 +225,13 @@ def export_game(name, model, model_file=None):
     pts["gauges"] = gauges
     if GAME_STAND:
         pts["stand"] = dict(GAME_STAND)
+    # [lights] A DRL ring is its own lamp (on with the ignition; beenster Nov 17) when the headlamp also has a
+    # dipped lens; a lamp that is only a ring stays the headlamp, or dipped beam would have nothing to light.
+    heads = [v for v in looks.values() if v["slot"] == "headlight" and v["tag"] == "lens_white"]
+    if any(v["surface"] != "d3_drl" for v in heads):
+        for v in heads:
+            if v["surface"] == "d3_drl":
+                v["tag"] = "lens_drl"
     name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()

@@ -176,7 +176,7 @@ int main()
 					// [lights] A headlamp lens where the lights look for one, and a red rear lens.
 					auto Has = [&S](const char* T) { const std::string K = std::string("/") + T; return S.Material == T || S.Material.find(K + "/") != std::string::npos ||
 						(S.Material.size() > K.size() && S.Material.compare(S.Material.size() - K.size(), K.size(), K) == 0); };
-					if (Has("lens_white") && (P.Slot == "headlight" || P.Slot == "fairing" || P.Slot == "number_boards")) ++HeadLens;
+					if ((Has("lens_white") || Has("lens_drl")) && (P.Slot == "headlight" || P.Slot == "fairing" || P.Slot == "number_boards")) ++HeadLens;
 					if (Has("lens_red") && P.Gauge.empty() && P.Slot != "dashboard") ++RearLens;
 				}
 				if (S.Material.rfind("v2/", 0) != 0 && !P.Code) Named = false;   // (a TFT dash's unit is made in code)

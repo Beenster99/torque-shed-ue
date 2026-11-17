@@ -80,7 +80,8 @@ struct FTorqueLights
 	bool Indicating() const { return bIgnition && (bHazard || Side != 0); }
 	bool HeadOn() const { return bIgnition && bHeadlight && HasHeadlight(); }
 	bool MainOn() const { return HeadOn() && bMainBeam; }
-	bool FogOn() const { return HeadOn() && bFog && HasFog(); }
+	// (beenster Nov 17: fog lamps only ever with the main beam.)
+	bool FogOn() const { return MainOn() && bFog && HasFog(); }
 
 	// For TorqueShedTest's lights verb: the lamps shown now (not waiting for the next frame), and one
 	// line on everything: the switches, what's lit, each lens's glow, the lights and their strength,
@@ -109,7 +110,8 @@ private:
 		TWeakObjectPtr<UStaticMeshComponent> Mesh;
 		float Lit = -1.0f;    // the Emissive last set
 	};
-	TArray<FLens> HeadLenses, FogLenses, TailLenses, Indicators;
+	// DrlLenses: a headlamp's daytime running ring, lit whenever the engine runs (beenster Nov 17).
+	TArray<FLens> HeadLenses, FogLenses, TailLenses, Indicators, DrlLenses;
 	TArray<int8> IndicatorSide;   // -1 left, 1 right, per Indicators
 	TWeakObjectPtr<USpotLightComponent> Beam, Flood, StopGlow;
 	TArray<TWeakObjectPtr<USpotLightComponent>> FogBeams;

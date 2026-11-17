@@ -56,7 +56,7 @@
   "d3_drl": {
    "ue": "lens_clear",
    "glow": 4.0,
-   "tag": "lens_white"
+   "tag": "lens_drl"
   },
   "d3_lampdip": {
    "ue": "lens_clear",

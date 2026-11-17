@@ -45,7 +45,7 @@ constexpr double DefaultLumens = 1000.0;
 
 // The lenses' glow (the lens finish's Emissive, which is its colour times this), by day; at night a
 // fifth of it, so a lit lens reads as a lamp, not a white blot.
-constexpr float HeadGlow = 300.0f, MainGlow = 600.0f, FogGlow = 300.0f;
+constexpr float HeadGlow = 300.0f, MainGlow = 600.0f, FogGlow = 300.0f, DrlGlow = 200.0f;
 constexpr float TailGlow = 40.0f, StopGlowLens = 400.0f, IndicatorGlowLens = 500.0f;
 constexpr float NightGlow = 0.2f;
 // The indicators and the rear light are small lamps seen up close: at night (the eye opened right up)
@@ -62,6 +62,7 @@ constexpr float StopNightGlow = 0.2f, IndicatorNightGlow = 0.09f, TailNightGlow 
 constexpr float IndicatorCd = 2.0f, IndicatorRange = 70.0f;
 constexpr float StopCd = 12.0f, StopRange = 200.0f;
 
+const FName LensDrl(TEXT("Surf:lens_drl"));
 const FName LensWhite(TEXT("Surf:lens_white")), LensAmber(TEXT("Surf:lens_amber")), LensRed(TEXT("Surf:lens_red"));
 const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights")), BoardSlot(TEXT("Slot:number_boards"));
 
@@ -133,6 +134,7 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	FogBeams.Reset();
 	IndicatorGlow.Reset();
 	HeadLenses.Reset();
+	DrlLenses.Reset();
 	FogLenses.Reset();
 	TailLenses.Reset();
 	Indicators.Reset();
@@ -145,7 +147,8 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	for (UStaticMeshComponent* C : Meshes)
 	{
 		if (!C || !C->GetStaticMesh() || C->ComponentHasTag(TLI::DashSlot)) continue;
-		if (C->ComponentHasTag(TLI::LensWhite))
+		if (C->ComponentHasTag(TLI::LensDrl)) DrlLenses.Add({C});
+		else if (C->ComponentHasTag(TLI::LensWhite))
 		{
 			if (C->ComponentHasTag(TLI::FogSlot)) FogLenses.Add({C});
 			// ([bikes v2] an MX bike's lamp is let into its front number board)
@@ -234,9 +237,9 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 		S->SetIntensity(TLI::StopCd);
 		StopGlow = S;
 	}
-	UE_LOG(LogTemp, Log, TEXT("Torque: the bike's lamps: headlight %s (%.0f lm, %d lens surfaces), fog lights %s (%.0f lm, %d), %d indicators (%d left), %d rear light surfaces"),
+	UE_LOG(LogTemp, Log, TEXT("Torque: the bike's lamps: headlight %s (%.0f lm, %d lens surfaces), fog lights %s (%.0f lm, %d), %d indicators (%d left), %d rear light surfaces, %d DRL surfaces"),
 		Beam.IsValid() ? TEXT("lit") : TEXT("none"), HeadLumens, HeadLenses.Num(), FogBeams.Num() > 0 ? TEXT("lit") : TEXT("none"), FogLumens, FogLenses.Num(),
-		Indicators.Num(), IndicatorSide.FilterByPredicate([](int8 S) { return S < 0; }).Num(), TailLenses.Num());
+		Indicators.Num(), IndicatorSide.FilterByPredicate([](int8 S) { return S < 0; }).Num(), TailLenses.Num(), DrlLenses.Num());
 }
 
 FString FTorqueLights::ToggleHeadlight(bool& bOk)
@@ -258,6 +261,7 @@ FString FTorqueLights::ToggleMainBeam(bool& bOk)
 		bMainBeam = true;
 	}
 	else bMainBeam = !bMainBeam;
+	if (!bMainBeam) bFog = false;   // (fog lamps only with the main beam)
 	return bMainBeam ? TEXT("Main beam") : TEXT("Dipped beam");
 }
 
@@ -266,10 +270,10 @@ FString FTorqueLights::ToggleFog(bool& bOk)
 	bOk = HasFog();
 	if (!bOk) return TEXT("No fog lights on this bike (fit some in the shed)");
 	bFog = !bFog;
-	if (bFog && !bHeadlight)
+	if (bFog && !(bHeadlight && bMainBeam))
 	{
-		bHeadlight = true;   // fog lamps only with the headlight on, as on the road
-		return TEXT("Fog lights on (and the headlight)");
+		bHeadlight = bMainBeam = true;   // fog lamps only with the main beam (beenster Nov 17)
+		return TEXT("Fog lights on (and the main beam)");
 	}
 	return bFog ? TEXT("Fog lights on") : TEXT("Fog lights off");
 }
@@ -390,7 +394,7 @@ void FTorqueLights::Show(float DayLight)
 {
 	const bool bHead = HeadOn(), bMain = MainOn(), bFogOn = FogOn(), bLeft = LeftLit(), bRight = RightLit();
 	const bool bTail = bIgnition && (bHead || bBraking);
-	const int32 State = (bHead ? 1 : 0) | (bMain ? 2 : 0) | (bFogOn ? 4 : 0) | (bLeft ? 8 : 0) | (bRight ? 16 : 0) | (bBraking ? 32 : 0) | (bTail ? 64 : 0);
+	const int32 State = (bHead ? 1 : 0) | (bMain ? 2 : 0) | (bFogOn ? 4 : 0) | (bLeft ? 8 : 0) | (bRight ? 16 : 0) | (bBraking ? 32 : 0) | (bTail ? 64 : 0) | (bIgnition ? 128 : 0);
 	const float Day = FMath::Clamp(DayLight, 0.0f, 1.0f);
 	if (State == Shown && FMath::Abs(Day - ShownDay) < 0.02f) return;
 	Shown = State;
@@ -402,6 +406,7 @@ void FTorqueLights::Show(float DayLight)
 	const float IndicatorLensK = FMath::Lerp(TLI::IndicatorNightGlow, 1.0f, Day * Day);
 	for (FLens& L : HeadLenses) SetLens(L, bHead ? (bMain ? TLI::MainGlow : TLI::HeadGlow) * Glow : 0.0f);
 	for (FLens& L : FogLenses) SetLens(L, bFogOn ? TLI::FogGlow * Glow : 0.0f);
+	for (FLens& L : DrlLenses) SetLens(L, bIgnition ? TLI::DrlGlow * Glow : 0.0f);
 	for (FLens& L : TailLenses) SetLens(L, bBraking ? TLI::StopGlowLens * StopLensK : bTail ? TLI::TailGlow * TailLensK : 0.0f);
 	for (int32 I = 0; I < Indicators.Num(); ++I)
 	{
