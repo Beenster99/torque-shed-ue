@@ -1,0 +1,86 @@
+{
+ "group": "panniers",
+ "key": "alu_silver",
+ "name": "Aluminium side boxes, silver",
+ "fitted_on": "corvano_adventure",
+ "family": "Adventure",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  320.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  640.4,
+  1040.6,
+  477.9
+ ],
+ "triangles": 10328,
+ "surfaces": {
+  "d3_lugalu": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.8,
+    0.8,
+    0.79
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "d3_lugalu"
+  },
+  "d3_lugpad": {
+   "ue": "cat_plastic",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.0,
+   "roughness": 0.7,
+   "tag": "d3_lugpad"
+  },
+  "d3_lp_gloss": {
+   "ue": "cat_plastic",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "d3_lp_satin": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  }
+ }
+}

@@ -74,7 +74,7 @@ def build_lamp(key, s, at, M):
     """One lamp facing forward, its face's centre at (x, y, z). Returns the point its arm meets at the back."""
     x, y, z = at
     if key in ("chrome_spot", "amber_round", "rally"):
-        R, depth = {"chrome_spot": (42.0, 52), "amber_round": (44.0, 48), "rally": (56.0, 58)}[key]
+        R, depth = {"chrome_spot": (42.0, 52), "amber_round": (44.0, 48), "rally": (48.0, 52)}[key]   # (rally 56 -> 48: beenster 18:29, a little smaller)
         house = M["chrome"] if key == "chrome_spot" else M["black"]
         rim = M["chrome"] if key != "rally" else M["satin"]
         glass = M["fogglass"] if key == "amber_round" else M["glass"]
@@ -84,7 +84,7 @@ def build_lamp(key, s, at, M):
         LM.loft(f"fog{s}bowl", at, 1, ol, [(0.5, 0.9), (-depth * 0.25, 0.72), (-depth * 0.45, 0.42), (-depth * 0.5, 0.15)], M["silver"], (False, True))
         LM.loft(f"fog{s}glass", at, 1, ol, [(3, 0.91), (5, 0.84), (7.5, 0.6), (8.5, 0.3), (9, 0.06)], glass, (False, True))
         if key == "rally":
-            LM.projector(f"fog{s}proj", (x - 4, y, z), 1, 24.0, M)
+            LM.projector(f"fog{s}proj", (x - 4, y, z), 1, 21.0, M)
         else:
             LM.bulb(f"fog{s}bulb", (x - depth * 0.42, y, z), 1, M, 8)
         if key == "amber_round":
@@ -108,7 +108,7 @@ def build_lamp(key, s, at, M):
                     y - h * 0.8, y + h * 0.8, M["black"], 0.4)
         return (x - 60, y, z), M["black"]
     if key == "slim_bar":
-        hy, hz = 62.0, 17.0
+        hy, hz = 52.0, 15.0     # (beenster 18:29: a little smaller)
         ol = D.sell(hy, hz, 1.0, 6.0, 56)
         LM.loft(f"fog{s}house", at, 1, ol, [(-34, 0.86), (-30, 1.0), (-2, 1.0), (0, 1.0)], M["black"], (True, False))
         LM.loft(f"fog{s}bezel", at, 1, ol, [(-1, 1.03), (2, 1.03), (2, 0.92), (0, 0.9)], M["satin"], (False, False))
@@ -121,7 +121,7 @@ def build_lamp(key, s, at, M):
 
 def lamp_size(key):
     """(half width across, how far it stands out in front of its arm)."""
-    return {"chrome_spot": (42, 52), "amber_round": (44, 48), "rally": (56, 58), "led_cube": (30, 60), "slim_bar": (62, 40)}[key]
+    return {"chrome_spot": (42, 52), "amber_round": (44, 48), "rally": (48, 52), "led_cube": (30, 60), "slim_bar": (52, 40)}[key]
 
 
 def fit(b, model, c, fog=None):
@@ -213,8 +213,8 @@ SHOTS = [("chrome_spot", "hartwell_classic"), ("amber_round", "lodestar_cruiser"
          ("led_cube", "corvano_naked"), ("slim_bar", "varga_mx")]
 
 
-HEAD_LAMP = ("lampbulb", "lampdrl", "mainled", "projbulb", "lampglass", "lampcover", "lph")
-LIT_GLASS = ("lampglass", "lampcover", "projlens", "lphglass", "lphlens")
+HEAD_LAMP = ("lampbulb", "lampdrl", "mainled", "projbulb", "lampglass", "lampcover", "lph", "advlamp", "adveyeled", "advdrl")
+LIT_GLASS = ("lampglass", "lampcover", "projlens", "lphglass", "lphlens", "advlampglass", "adveyeled")
 
 
 def _glow_mat(name, col, strength):

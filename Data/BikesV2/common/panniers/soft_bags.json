@@ -1,0 +1,82 @@
+{
+ "group": "panniers",
+ "key": "soft_bags",
+ "name": "Soft adventure bags",
+ "fitted_on": "corvano_adventure",
+ "family": "Adventure",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  320.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  625.4,
+  990.0,
+  450.0
+ ],
+ "triangles": 6776,
+ "surfaces": {
+  "d3_lugcanvas": {
+   "ue": "cat_plastic",
+   "color": [
+    0.2,
+    0.22,
+    0.13
+   ],
+   "metallic": 0.0,
+   "roughness": 0.92,
+   "tag": "d3_lugcanvas"
+  },
+  "d3_lugstrap": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.0,
+   "roughness": 0.8,
+   "tag": "d3_lugstrap"
+  },
+  "d3_lp_gloss": {
+   "ue": "cat_plastic",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
+  },
+  "d3_lp_satin": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

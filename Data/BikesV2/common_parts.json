@@ -6126,6 +6126,332 @@
    }
   }
  },
+ "panniers": {
+  "v2c_panniers_alu_silver": {
+   "mass": 9.5,
+   "type": "Hard, aluminium",
+   "style": "alloy",
+   "litres": 90,
+   "cda": 0.055,
+   "material": "metal",
+   "name": "Aluminium side boxes, silver",
+   "description": "Aluminium side boxes, silver. A common part, fitted to suit adventure bikes.",
+   "color": [
+    0.74,
+    0.75,
+    0.77
+   ],
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 380,
+   "common": {
+    "group": "panniers",
+    "key": "alu_silver",
+    "sub": "panniers",
+    "pieces": [
+     {
+      "file": "panniers/alu_silver.glb",
+      "looks": "panniers/alu_silver.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "panniers",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_panniers_alu_black": {
+   "mass": 9.5,
+   "type": "Hard, aluminium",
+   "style": "alloy",
+   "litres": 90,
+   "cda": 0.055,
+   "material": "metal",
+   "name": "Aluminium side boxes, black",
+   "description": "Aluminium side boxes, black. A common part, fitted to suit adventure bikes.",
+   "color": [
+    0.74,
+    0.75,
+    0.77
+   ],
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 380,
+   "common": {
+    "group": "panniers",
+    "key": "alu_black",
+    "sub": "panniers",
+    "pieces": [
+     {
+      "file": "panniers/alu_black.glb",
+      "looks": "panniers/alu_black.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "panniers",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_panniers_hard_shell": {
+   "mass": 7.0,
+   "type": "Hard, plastic",
+   "style": "hard",
+   "litres": 72,
+   "cda": 0.045,
+   "material": "plastic",
+   "name": "Hard shell side cases",
+   "description": "Hard shell side cases. A common part, fitted to suit adventure bikes.",
+   "color": [
+    0.3,
+    0.31,
+    0.32
+   ],
+   "look": {
+    "shape": "hard",
+    "accent": [
+     0.74,
+     0.75,
+     0.77
+    ]
+   },
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 380,
+   "common": {
+    "group": "panniers",
+    "key": "hard_shell",
+    "sub": "panniers",
+    "pieces": [
+     {
+      "file": "panniers/hard_shell.glb",
+      "looks": "panniers/hard_shell.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "panniers",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_panniers_soft_bags": {
+   "mass": 2.8,
+   "type": "Soft, roll-top",
+   "style": "roll",
+   "litres": 40,
+   "cda": 0.025,
+   "material": "fabric",
+   "name": "Soft adventure bags",
+   "description": "Soft adventure bags. A common part, fitted to suit adventure bikes.",
+   "color": [
+    0.3,
+    0.33,
+    0.2
+   ],
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 380,
+   "common": {
+    "group": "panniers",
+    "key": "soft_bags",
+    "sub": "panniers",
+    "pieces": [
+     {
+      "file": "panniers/soft_bags.glb",
+      "looks": "panniers/soft_bags.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "panniers",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
+ "top_box": {
+  "v2c_top_box_alu_top": {
+   "name": "Aluminium top box, silver",
+   "description": "Aluminium top box, silver. A common part, fitted to suit adventure bikes.",
+   "mass": 6.0,
+   "type": "Hard, aluminium",
+   "style": "alloy",
+   "litres": 55,
+   "cda": 0.03,
+   "color": [
+    0.74,
+    0.75,
+    0.77
+   ],
+   "material": "metal",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 220,
+   "common": {
+    "group": "top_box",
+    "key": "alu_top",
+    "sub": "top_box",
+    "pieces": [
+     {
+      "file": "top_box/alu_top.glb",
+      "looks": "top_box/alu_top.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "top_box",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_top_box_alu_top_black": {
+   "name": "Aluminium top box, black",
+   "description": "Aluminium top box, black. A common part, fitted to suit adventure bikes.",
+   "mass": 5.2,
+   "type": "Hard, aluminium",
+   "style": "alloy",
+   "litres": 42,
+   "cda": 0.026,
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "material": "metal",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 220,
+   "common": {
+    "group": "top_box",
+    "key": "alu_top_black",
+    "sub": "top_box",
+    "pieces": [
+     {
+      "file": "top_box/alu_top_black.glb",
+      "looks": "top_box/alu_top_black.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "top_box",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  },
+  "v2c_top_box_shell_top": {
+   "name": "Moulded top case",
+   "description": "Moulded top case. A common part, fitted to suit adventure bikes.",
+   "mass": 4.8,
+   "type": "Hard, plastic",
+   "style": "large",
+   "litres": 50,
+   "cda": 0.028,
+   "color": [
+    0.3,
+    0.31,
+    0.32
+   ],
+   "material": "plastic",
+   "styles": [
+    "adventure"
+   ],
+   "price": 220,
+   "common": {
+    "group": "top_box",
+    "key": "shell_top",
+    "sub": "top_box",
+    "pieces": [
+     {
+      "file": "top_box/shell_top.glb",
+      "looks": "top_box/shell_top.json",
+      "anchor": "rear_axle",
+      "offset_mm": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "node": "",
+      "sub": "top_box",
+      "mount_mm": [
+       0.0,
+       0.0,
+       320.0
+      ]
+     }
+    ],
+    "finishes": []
+   }
+  }
+ },
  "side_stand": {
   "v2c_side_stand_v2": {
    "name": "Side stand",
