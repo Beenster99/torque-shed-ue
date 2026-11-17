@@ -1,0 +1,32 @@
+{
+ "group": "grip",
+ "key": "touring",
+ "name": "Soft touring",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  64.3,
+  772.4,
+  58.1
+ ],
+ "triangles": 15352,
+ "surfaces": {
+  "grip_touring": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "metallic": 0.0,
+   "roughness": 0.78
+  }
+ }
+}

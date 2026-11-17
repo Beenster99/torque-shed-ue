@@ -1,0 +1,42 @@
+{
+ "group": "grip",
+ "key": "leather",
+ "name": "Leather wrapped",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  57.8,
+  772.5,
+  51.5
+ ],
+ "triangles": 14952,
+ "surfaces": {
+  "d3_gripring": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.8,
+    0.8,
+    0.82
+   ],
+   "metallic": 1.0,
+   "roughness": 0.14
+  },
+  "grip_leather": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ }
+}

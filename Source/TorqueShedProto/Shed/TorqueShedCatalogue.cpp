@@ -470,6 +470,12 @@ const TorqueFit::BikeLayout* Layout()
 			{
 				UE_LOG(LogTemp, Warning, TEXT("Torque: Data/BikesV2/parts_v2.json didn't load (%s): no Bike Models V2 bikes"), *TSCI::Ue(V2Error));
 			}
+			// [common parts] The common bolt-on parts for the V2 bikes (their files are under Data/BikesV2/common).
+			std::string CommonText, CommonError;
+			if (TSCI::ReadBytes(TEXT("Data/BikesV2/common_parts.json"), CommonText) && !Db.AddFromText(CommonText, CommonError))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque: Data/BikesV2/common_parts.json didn't load (%s): no common parts"), *TSCI::Ue(CommonError));
+			}
 			TorqueFit::BikeParts::SetV2Source([](const std::string& Model, TorqueFit::PartMesh& Mesh, std::string& Info)
 			{
 				const FString Base = TEXT("Data/BikesV2/") + TSCI::Ue(Model);

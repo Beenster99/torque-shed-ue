@@ -1,0 +1,52 @@
+{
+ "group": "bar",
+ "key": "mx",
+ "name": "Braced motocross bar",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  117.7,
+  799.9,
+  154.1
+ ],
+ "triangles": 9332,
+ "surfaces": {
+  "d3_bars_anodised_red": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.52,
+    0.03,
+    0.03
+   ],
+   "metallic": 1.0,
+   "roughness": 0.26
+  },
+  "d3_barpad": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.0,
+   "roughness": 0.85
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}

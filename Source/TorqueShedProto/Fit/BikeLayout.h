@@ -74,6 +74,15 @@ struct V2Frame
 	V3 DirFromGlb(const V3& G) const { return Dir(G.x, -G.z, G.y); }
 };
 
+// [common parts] A slot for the common bolt-on parts that the Godot game never had (Data/BikesV2/common_parts.json
+// "new_slots"): BikeLayout::Load adds each, optional, its kind its own name, mounted on On.
+struct CommonSlot
+{
+	const char* Slot;
+	const char* On;
+};
+const std::vector<CommonSlot>& CommonSlots();
+
 // How the engine and frame go together (BikeRig._fit).
 struct FitReport
 {

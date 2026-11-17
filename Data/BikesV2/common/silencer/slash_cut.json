@@ -1,0 +1,55 @@
+{
+ "group": "silencer",
+ "key": "slash_cut",
+ "name": "Slash cut",
+ "fitted_on": "lodestar_cruiser",
+ "family": "Cruiser",
+ "mount": "can_inlet",
+ "mount_mm": [
+  482.9,
+  -217.8,
+  302.8
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  835.9,
+  77.3,
+  173.3
+ ],
+ "triangles": 2096,
+ "surfaces": {
+  "exhaust": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "chrome": {
+   "ue": "chrome"
+  },
+  "d3_pipeblack": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0
+  }
+ }
+}

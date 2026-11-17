@@ -1,0 +1,47 @@
+{
+ "group": "indicators_front",
+ "key": "chrome_long",
+ "name": "Chrome, long stalk",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  35.6,
+  420.0,
+  39.0
+ ],
+ "triangles": 4632,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome"
+  },
+  "d3_amberglass": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.36,
+    0.03
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0
+  },
+  "d3_amberled": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.42,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.2
+  }
+ }
+}

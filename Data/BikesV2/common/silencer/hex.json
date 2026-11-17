@@ -1,0 +1,62 @@
+{
+ "group": "silencer",
+ "key": "hex",
+ "name": "Hexagon",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "can_inlet",
+ "mount_mm": [
+  356.6,
+  0.0,
+  722.1
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  320.8,
+  164.5,
+  187.3
+ ],
+ "triangles": 13832,
+ "surfaces": {
+  "exhaust": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "exhaust_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.4,
+   "roughness": 0.6
+  },
+  "d3_pipeblack": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0
+  }
+ }
+}

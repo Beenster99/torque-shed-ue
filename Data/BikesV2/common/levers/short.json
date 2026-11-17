@@ -1,0 +1,76 @@
+{
+ "group": "levers",
+ "key": "short",
+ "name": "Short lever set",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  90.8,
+  646.7,
+  62.4
+ ],
+ "triangles": 6056,
+ "surfaces": {
+  "d3_leverblack": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.035,
+    0.035,
+    0.04
+   ],
+   "metallic": 0.85,
+   "roughness": 0.36
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "d3_anored": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.025,
+    0.03
+   ],
+   "metallic": 1.0,
+   "roughness": 0.32
+  },
+  "d3_ctl_polished": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.1
+  },
+  "d3_ctl_smoke": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.35,
+    0.3,
+    0.25
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0
+  }
+ }
+}

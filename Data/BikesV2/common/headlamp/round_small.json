@@ -1,0 +1,91 @@
+{
+ "group": "headlamp",
+ "key": "round_small",
+ "name": "Small round",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  114.6,
+  283.2,
+  223.6
+ ],
+ "triangles": 4638,
+ "surfaces": {
+  "d3_lp_gloss": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0
+  },
+  "chrome": {
+   "ue": "chrome"
+  },
+  "d3_lp_silver": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.9,
+    0.88
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12
+  },
+  "d3_clearglass": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0
+  },
+  "d3_lp_satin": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3
+  },
+  "d3_lampdip": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 0.9
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  }
+ }
+}

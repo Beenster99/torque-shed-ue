@@ -76,6 +76,10 @@ const RsSpot RsSpots[] = {
 	{"guards", 0.38, 0.4}, {"number_boards", 0.75, 0.75}, {"swingarm", 0.82, 0.35}, {"steering_damper", 0.16, 0.92},
 	{"tank_bag", 0.3, 1.0}, {"satnav", 0.12, 1.12}, {"aux_tank", 0.9, 0.65}, {"toolbox", 0.9, 0.5},
 	{"lever_guards", 0.14, 1.0},
+	// [common parts]
+	{"grips", 0.14, 1.0}, {"bar_ends", 0.14, 1.0}, {"levers", 0.14, 1.0}, {"switchgear", 0.14, 1.0}, {"tail_light", 0.95, 0.8},
+	{"plate_hanger", 0.98, 0.7}, {"silencers", 0.85, 0.5}, {"heel_plates", 0.68, 0.38}, {"foot_controls", 0.66, 0.36},
+	{"sprocket", 1.0, 0.31}, {"filler_cap", 0.3, 0.92},
 };
 // STYLE_SPOT: the auxiliary tank and the toolbox by their style.
 struct RsStyleSpot { const char* Slot; const char* Style; double Along, Up; };

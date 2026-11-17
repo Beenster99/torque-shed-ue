@@ -342,6 +342,14 @@ std::vector<AdjustRange> BikeLayout::AdjustRanges()
 		{"hoop_deg", "Seat hoop angle", "deg", -6.0, 8.0, 0.5}};
 }
 
+const std::vector<CommonSlot>& CommonSlots()
+{
+	static const std::vector<CommonSlot> List = {{"grips", "handlebars"}, {"bar_ends", "handlebars"}, {"levers", "handlebars"},
+		{"switchgear", "handlebars"}, {"tail_light", "frame"}, {"plate_hanger", "frame"}, {"silencers", "exhaust"},
+		{"heel_plates", "frame"}, {"foot_controls", "frame"}, {"sprocket", "rear_wheel"}, {"filler_cap", "tank"}};
+	return List;
+}
+
 bool BikeLayout::Load(const std::string& Text, const PartsDb& InDb, std::string& Error)
 {
 	Json Parsed;
@@ -353,6 +361,18 @@ bool BikeLayout::Load(const std::string& Text, const PartsDb& InDb, std::string&
 	{
 		Error = "layout.json: missing styles, slots, slot_kind, lines or tank_shapes";
 		return false;
+	}
+	// [common parts] The slots for the common bolt-on parts (Data/BikesV2/common_parts.json "new_slots"),
+	// which the Godot game never had: each optional, its kind its own name, on the part it bolts to.
+	for (const CommonSlot& C : CommonSlots())
+	{
+		bool Have = false;
+		for (const Json& S : Sl->A) Have = Have || S.S == C.Slot;
+		if (Have) continue;
+		Parsed.GetMutable("slots")->Push(Json::MakeString(C.Slot));
+		Parsed.GetMutable("slot_kind")->Set(C.Slot, Json::MakeString(C.Slot));
+		if (Json* M = Parsed.GetMutable("mounts")) M->Set(C.Slot, Json::MakeArray().Push(Json::MakeString(C.On)));
+		if (Json* O = Parsed.GetMutable("optional_slots")) O->Push(Json::MakeString(C.Slot));
 	}
 	Data = std::move(Parsed);
 	StyleList.clear();

@@ -1,0 +1,45 @@
+{
+ "group": "heel_plates",
+ "key": "guard",
+ "name": "Black guard",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rider_peg",
+ "mount_mm": [
+  590,
+  0.0,
+  355
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  134.5,
+  376.0,
+  111.9
+ ],
+ "triangles": 2208,
+ "surfaces": {
+  "d3_pg_black": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.32
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  }
+ }
+}

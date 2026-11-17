@@ -1,0 +1,57 @@
+{
+ "group": "indicators_rear",
+ "key": "led_short",
+ "name": "LED, short stalk",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  84.0,
+  0.0,
+  891.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  23.0,
+  286.0,
+  23.0
+ ],
+ "triangles": 3528,
+ "surfaces": {
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "d3_clearglass": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0
+  },
+  "d3_amberled": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    1.0,
+    0.42,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.2
+  }
+ }
+}

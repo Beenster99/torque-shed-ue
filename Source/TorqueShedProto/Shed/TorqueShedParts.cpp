@@ -28,7 +28,10 @@ const TCHAR* const SlotNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TE
 	TEXT("fog_lights"), TEXT("tail"), TEXT("fairing"), TEXT("mirrors"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"),
 	TEXT("oil_filter"), TEXT("spark_plugs"), TEXT("cooling"), TEXT("gearbox"), TEXT("front_mudguard"), TEXT("indicators"),
 	TEXT("side_panels"), TEXT("rearsets"), TEXT("guards"), TEXT("number_boards"), TEXT("swingarm"), TEXT("steering_damper"),
-	TEXT("tank_bag"), TEXT("aux_tank"), TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards")};
+	TEXT("tank_bag"), TEXT("aux_tank"), TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards"),
+	// [common parts] the common bolt-on parts' own slots (Fit/BikeLayout CommonSlots)
+	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
+	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
 const TCHAR* const EngineSlotNames[] = {TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"),
 	TEXT("spark_plugs"), TEXT("cooling"), TEXT("gearbox")};
 const TCHAR* const ServiceSlotNames[] = {TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs")};
@@ -37,7 +40,9 @@ const TCHAR* const LowSlotNames[] = {TEXT("side_stand"), TEXT("centre_stand"), T
 const TCHAR* const OptionalSlotNames[] = {TEXT("headlight"), TEXT("indicators"), TEXT("front_mudguard"),
 	TEXT("steering_damper"), TEXT("mirrors"), TEXT("lever_guards"), TEXT("fairing"), TEXT("satnav"), TEXT("tail"),
 	TEXT("guards"), TEXT("panniers"), TEXT("top_box"), TEXT("tank_bag"), TEXT("number_boards"), TEXT("aux_tank"),
-	TEXT("toolbox"), TEXT("fog_lights"), TEXT("horn"), TEXT("side_panels"), TEXT("centre_stand")};
+	TEXT("toolbox"), TEXT("fog_lights"), TEXT("horn"), TEXT("side_panels"), TEXT("centre_stand"),
+	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
+	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
 const TCHAR* const FrameOwnSlotNames[] = {TEXT("rearsets"), TEXT("swingarm")};
 const TCHAR* const KindNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TEXT("wheel"), TEXT("tyre"), TEXT("disc"),
 	TEXT("caliper"), TEXT("pads"), TEXT("master"), TEXT("tank"), TEXT("saddle"), TEXT("handlebars"), TEXT("dashboard"),
@@ -46,7 +51,9 @@ const TCHAR* const KindNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TE
 	TEXT("headlight"), TEXT("horn"), TEXT("panniers"), TEXT("top_box"), TEXT("fog_lights"), TEXT("tail"),
 	TEXT("fairing"), TEXT("mirrors"), TEXT("front_mudguard"), TEXT("indicators"), TEXT("side_panels"), TEXT("rearsets"),
 	TEXT("guards"), TEXT("number_boards"), TEXT("swingarm"), TEXT("steering_damper"), TEXT("tank_bag"), TEXT("aux_tank"),
-	TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards")};
+	TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards"),
+	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
+	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
 
 // PartsDB.KIND_NAMES
 struct FPair { const TCHAR* Key; const TCHAR* Value; };
@@ -68,6 +75,10 @@ const FPair KindTitles[] = {
 	{TEXT("tank_bag"), TEXT("Tank bag")}, {TEXT("aux_tank"), TEXT("Auxiliary fuel tank")}, {TEXT("toolbox"), TEXT("Toolbox")},
 	{TEXT("satnav"), TEXT("Sat nav")}, {TEXT("lever_guards"), TEXT("Lever guards")}, {TEXT("petrol"), TEXT("Petrol")},
 	{TEXT("oil"), TEXT("Engine oil")}, {TEXT("brake_fluid"), TEXT("Brake fluid")}, {TEXT("chain_lube"), TEXT("Chain lube")},
+	{TEXT("grips"), TEXT("Grips")}, {TEXT("bar_ends"), TEXT("Bar ends")}, {TEXT("levers"), TEXT("Levers")},
+	{TEXT("switchgear"), TEXT("Switchgear")}, {TEXT("tail_light"), TEXT("Tail light")}, {TEXT("plate_hanger"), TEXT("Plate hanger")},
+	{TEXT("silencers"), TEXT("Silencer")}, {TEXT("heel_plates"), TEXT("Heel plates")}, {TEXT("foot_controls"), TEXT("Foot controls")},
+	{TEXT("sprocket"), TEXT("Rear sprocket")}, {TEXT("filler_cap"), TEXT("Filler cap")},
 };
 
 // PartsDB.KIND_MATERIAL
@@ -90,6 +101,9 @@ const FPair KindMaterials[] = {
 	// [fluids] Torque Shed's cans were steel; ours are the plastic ones you can see the level through
 	// (oil and brake fluid bottles were plastic there too), and the chain lube's an aerosol.
 	{TEXT("petrol"), TEXT("plastic")}, {TEXT("oil"), TEXT("plastic")}, {TEXT("brake_fluid"), TEXT("plastic")}, {TEXT("chain_lube"), TEXT("metal")},
+	{TEXT("grips"), TEXT("rubber")}, {TEXT("bar_ends"), TEXT("metal")}, {TEXT("levers"), TEXT("metal")}, {TEXT("switchgear"), TEXT("plastic")},
+	{TEXT("tail_light"), TEXT("electronics")}, {TEXT("plate_hanger"), TEXT("metal")}, {TEXT("silencers"), TEXT("metal")},
+	{TEXT("heel_plates"), TEXT("metal")}, {TEXT("foot_controls"), TEXT("metal")}, {TEXT("sprocket"), TEXT("metal")}, {TEXT("filler_cap"), TEXT("metal")},
 };
 const FPair MaterialTitles[] = {{TEXT("metal"), TEXT("Metal")}, {TEXT("plastic"), TEXT("Plastic")}, {TEXT("rubber"), TEXT("Rubber")},
 	{TEXT("carbon"), TEXT("Carbon fibre")}, {TEXT("mixed"), TEXT("Mixed materials")}, {TEXT("electronics"), TEXT("Electronics")},
@@ -129,6 +143,10 @@ const FMount Mounts[] = {
 	{TEXT("steering_damper"), {TEXT("fork"), nullptr}},
 	{TEXT("tank_bag"), {TEXT("tank"), nullptr}}, {TEXT("satnav"), {TEXT("handlebars"), nullptr}}, {TEXT("aux_tank"), {TEXT("frame"), nullptr}},
 	{TEXT("toolbox"), {TEXT("frame"), nullptr}}, {TEXT("lever_guards"), {TEXT("handlebars"), nullptr}},
+	{TEXT("grips"), {TEXT("handlebars"), nullptr}}, {TEXT("bar_ends"), {TEXT("handlebars"), nullptr}}, {TEXT("levers"), {TEXT("handlebars"), nullptr}},
+	{TEXT("switchgear"), {TEXT("handlebars"), nullptr}}, {TEXT("tail_light"), {TEXT("frame"), nullptr}}, {TEXT("plate_hanger"), {TEXT("frame"), nullptr}},
+	{TEXT("silencers"), {TEXT("exhaust"), nullptr}}, {TEXT("heel_plates"), {TEXT("frame"), nullptr}}, {TEXT("foot_controls"), {TEXT("frame"), nullptr}},
+	{TEXT("sprocket"), {TEXT("rear_wheel"), nullptr}}, {TEXT("filler_cap"), {TEXT("tank"), nullptr}},
 };
 
 const TMap<FName, TArray<FName>>& MountTable()
@@ -271,6 +289,26 @@ FCatalogue& Catalogue()
 				for (const auto& V2Part : (*Extra)->Values) (*Into)->SetField(FString(V2Part.Key), V2Part.Value);
 			}
 		}
+	}
+	// [common parts] The common bolt-on parts for the V2 bikes (Data/BikesV2/common_parts.json, the same shape;
+	// its "about" and "new_slots" aren't kinds and are passed over below).
+	{
+		FString CommonText;
+		TSharedPtr<FJsonObject> CommonRoot;
+		if (FFileHelper::LoadFileToString(CommonText, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/BikesV2/common_parts.json"))) &&
+			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(CommonText), CommonRoot) && CommonRoot.IsValid())
+			for (const auto& CommonKind : CommonRoot->Values)
+			{
+				const TSharedPtr<FJsonObject>* Extra = nullptr;
+				if (!CommonKind.Value.IsValid() || !CommonKind.Value->TryGetObject(Extra)) continue;
+				const TSharedPtr<FJsonObject>* Into = nullptr;
+				if (!Root->TryGetObjectField(FString(CommonKind.Key), Into))
+				{
+					Root->SetObjectField(FString(CommonKind.Key), *Extra);
+					continue;
+				}
+				for (const auto& CommonPart : (*Extra)->Values) (*Into)->SetField(FString(CommonPart.Key), CommonPart.Value);
+			}
 	}
 	for (const auto& KindKV : Root->Values)
 	{

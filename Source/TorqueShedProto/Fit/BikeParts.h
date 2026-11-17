@@ -71,6 +71,12 @@ public:
 	using V2Source = std::function<bool(const std::string& Model, PartMesh& Mesh, std::string& InfoJson)>;
 	static void SetV2Source(V2Source In);
 	bool FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const;
+	// [common parts] The common bolt-on parts fitted to a V2 bike (a part with a "common" block, Data/BikesV2/
+	// common_parts.json): each of its pieces (Data/BikesV2/common/<group>/<key>.glb, through the V2 source)
+	// takes the place of the bike's own piece of the same sub, hidden, lined up on where that piece was
+	// (else at the bike's points_mm anchor plus the piece's offset); a common bar moves the pieces on it
+	// (grips, bar ends, levers, switches, mirrors) to its own grips. How many pieces it added.
+	int V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<FittedPart>& Out) const;
 	// A V2 bike's tyres: the game's own tread sections (tyre/<tread>.glb) bent round the drawn wheel, in
 	// place of any tyre in the bike's glb, so the tread is as sharp as the catalogue's. False if the
 	// bike names no tread (v2.points_mm.stats.tread_front / tread_rear).

@@ -28,12 +28,14 @@ const TArray<FGroup>& Groups()
 {
 	static const TArray<FGroup> G = {
 		{TEXT("Engine and drivetrain"), {TEXT("engine"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs"),
-			TEXT("cooling"), TEXT("gearbox"), TEXT("exhaust"), TEXT("final_drive"), TEXT("chain")}},
+			TEXT("cooling"), TEXT("gearbox"), TEXT("exhaust"), TEXT("silencers"), TEXT("final_drive"), TEXT("sprocket"), TEXT("chain")}},
 		{TEXT("Chassis"), {TEXT("frame"), TEXT("fork"), TEXT("shock"), TEXT("swingarm"), TEXT("steering_damper"), TEXT("handlebars"),
-			TEXT("lever_guards"), TEXT("rearsets"), TEXT("guards"), TEXT("side_stand"), TEXT("centre_stand")}},
+			TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("lever_guards"), TEXT("rearsets"), TEXT("heel_plates"),
+			TEXT("foot_controls"), TEXT("guards"), TEXT("side_stand"), TEXT("centre_stand")}},
 		{TEXT("Wheels and brakes"), {TEXT("wheel"), TEXT("tyre"), TEXT("disc"), TEXT("caliper"), TEXT("pads"), TEXT("master")}},
 		{TEXT("Body and lights"), {TEXT("tank"), TEXT("saddle"), TEXT("front_mudguard"), TEXT("tail"), TEXT("fairing"), TEXT("mirrors"),
-			TEXT("dashboard"), TEXT("headlight"), TEXT("fog_lights"), TEXT("horn"), TEXT("indicators"), TEXT("side_panels"), TEXT("number_boards")}},
+			TEXT("dashboard"), TEXT("headlight"), TEXT("fog_lights"), TEXT("horn"), TEXT("indicators"), TEXT("tail_light"), TEXT("plate_hanger"),
+			TEXT("filler_cap"), TEXT("side_panels"), TEXT("number_boards")}},
 		{TEXT("Luggage and adventure kit"), {TEXT("panniers"), TEXT("top_box"), TEXT("tank_bag"), TEXT("aux_tank"), TEXT("toolbox"), TEXT("satnav")}},
 	};
 	return G;

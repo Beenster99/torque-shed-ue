@@ -1,0 +1,42 @@
+{
+ "group": "bar",
+ "key": "touring",
+ "name": "Swept touring bar",
+ "fitted_on": "lodestar_cruiser",
+ "family": "Cruiser",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1236.6,
+  0.0,
+  1041.4
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  236.4,
+  761.9,
+  100.9
+ ],
+ "triangles": 7964,
+ "surfaces": {
+  "d3_bars_chrome": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.88,
+    0.88,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.05
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}

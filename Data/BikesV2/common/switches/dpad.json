@@ -1,0 +1,75 @@
+{
+ "group": "switches",
+ "key": "dpad",
+ "name": "D-pad pod",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  63.0,
+  508.3,
+  72.7
+ ],
+ "triangles": 9428,
+ "surfaces": {
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "d3_killred": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.45
+  },
+  "d3_ctl_mark": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "d3_swgrey": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}
