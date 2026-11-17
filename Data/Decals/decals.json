@@ -1,0 +1,994 @@
+{
+ "version": 1,
+ "fonts": [
+  {
+   "id": "fraktur",
+   "file": "Decal/UnifrakturMaguntia-Book.ttf",
+   "name": "Fraktur",
+   "caps": false,
+   "style": "blackletter"
+  },
+  {
+   "id": "fraktur_bold",
+   "file": "Decal/UnifrakturCook-Bold.ttf",
+   "name": "Fraktur Bold",
+   "caps": false,
+   "style": "blackletter"
+  },
+  {
+   "id": "rocker",
+   "file": "Decal/NewRocker-Regular.ttf",
+   "name": "Rocker",
+   "caps": false,
+   "style": "tattoo"
+  },
+  {
+   "id": "pirate",
+   "file": "Decal/PirataOne-Regular.ttf",
+   "name": "Pirate",
+   "caps": false,
+   "style": "blackletter"
+  },
+  {
+   "id": "western",
+   "file": "Decal/Rye-Regular.ttf",
+   "name": "Western",
+   "caps": true,
+   "style": "western"
+  },
+  {
+   "id": "saloon",
+   "file": "Decal/Sancreek-Regular.ttf",
+   "name": "Saloon",
+   "caps": false,
+   "style": "western"
+  },
+  {
+   "id": "signwriter",
+   "file": "Decal/MrDafoe-Regular.ttf",
+   "name": "Signwriter",
+   "caps": false,
+   "style": "script"
+  },
+  {
+   "id": "plate",
+   "file": "Decal/Bungee-Regular.ttf",
+   "name": "Race plate",
+   "caps": true,
+   "style": "numbers"
+  },
+  {
+   "id": "plain",
+   "file": "Badge/OpenSans-SemiBold.ttf",
+   "name": "Plain",
+   "caps": true,
+   "style": "block"
+  },
+  {
+   "id": "bebas",
+   "file": "Badge/BebasNeue-Regular.ttf",
+   "name": "Tall",
+   "caps": true,
+   "style": "block"
+  },
+  {
+   "id": "racing",
+   "file": "Badge/RacingSansOne-Regular.ttf",
+   "name": "Racing",
+   "caps": true,
+   "style": "racing"
+  },
+  {
+   "id": "russo",
+   "file": "Badge/RussoOne-Regular.ttf",
+   "name": "Heavy",
+   "caps": true,
+   "style": "block"
+  },
+  {
+   "id": "audiowide",
+   "file": "Badge/Audiowide-Regular.ttf",
+   "name": "Wide",
+   "caps": true,
+   "style": "racing"
+  },
+  {
+   "id": "blackops",
+   "file": "Badge/BlackOpsOne-Regular.ttf",
+   "name": "Stencil",
+   "caps": true,
+   "style": "stencil"
+  },
+  {
+   "id": "graduate",
+   "file": "Badge/Graduate-Regular.ttf",
+   "name": "College",
+   "caps": true,
+   "style": "slab"
+  },
+  {
+   "id": "righteous",
+   "file": "Badge/Righteous-Regular.ttf",
+   "name": "Retro",
+   "caps": false,
+   "style": "retro"
+  },
+  {
+   "id": "playfair",
+   "file": "Badge/PlayfairDisplay.ttf",
+   "name": "Classic",
+   "caps": false,
+   "style": "serif"
+  },
+  {
+   "id": "lobster",
+   "file": "Badge/Lobster-Regular.ttf",
+   "name": "Lobster",
+   "caps": false,
+   "style": "script"
+  },
+  {
+   "id": "pacifico",
+   "file": "Badge/Pacifico-Regular.ttf",
+   "name": "Surf",
+   "caps": false,
+   "style": "script"
+  },
+  {
+   "id": "kaushan",
+   "file": "Badge/KaushanScript-Regular.ttf",
+   "name": "Brush",
+   "caps": false,
+   "style": "script"
+  }
+ ],
+ "decals": [
+  {
+   "id": "pin_single",
+   "shelf": "shapes",
+   "name": "Pinstripe, curled ends",
+   "tags": [
+    "pinstripe",
+    "line"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 1,
+   "file": "shapes/pin_single.png"
+  },
+  {
+   "id": "pin_double",
+   "shelf": "shapes",
+   "name": "Double pinstripe",
+   "tags": [
+    "pinstripe",
+    "line",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 2,
+   "file": "shapes/pin_double.png"
+  },
+  {
+   "id": "pin_spear",
+   "shelf": "shapes",
+   "name": "Spear stripe",
+   "tags": [
+    "pinstripe",
+    "spear",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 160,
+   "colours": 2,
+   "file": "shapes/pin_spear.png"
+  },
+  {
+   "id": "pin_flourish",
+   "shelf": "shapes",
+   "name": "Pinstripe flourish",
+   "tags": [
+    "pinstripe",
+    "flourish",
+    "line"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 1,
+   "file": "shapes/pin_flourish.png"
+  },
+  {
+   "id": "pin_eye",
+   "shelf": "shapes",
+   "name": "Pinstripe eye",
+   "tags": [
+    "pinstripe",
+    "flourish",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/pin_eye.png"
+  },
+  {
+   "id": "stripes_twin",
+   "shelf": "shapes",
+   "name": "Twin racing stripes",
+   "tags": [
+    "stripe",
+    "racing",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/stripes_twin.png"
+  },
+  {
+   "id": "stripes_triple",
+   "shelf": "shapes",
+   "name": "Three stripes",
+   "tags": [
+    "stripe",
+    "racing"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripes_triple.png"
+  },
+  {
+   "id": "stripe_centre",
+   "shelf": "shapes",
+   "name": "Centre stripe with pin lines",
+   "tags": [
+    "stripe",
+    "racing",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/stripe_centre.png"
+  },
+  {
+   "id": "stripe_speed",
+   "shelf": "shapes",
+   "name": "Speed lines",
+   "tags": [
+    "stripe",
+    "speed"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_speed.png"
+  },
+  {
+   "id": "stripe_hockey",
+   "shelf": "shapes",
+   "name": "Hockey stick stripe",
+   "tags": [
+    "stripe",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/stripe_hockey.png"
+  },
+  {
+   "id": "stripe_zigzag",
+   "shelf": "shapes",
+   "name": "Zigzag stripe",
+   "tags": [
+    "stripe",
+    "zigzag"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_zigzag.png"
+  },
+  {
+   "id": "stripe_hazard",
+   "shelf": "shapes",
+   "name": "Hazard stripes",
+   "tags": [
+    "stripe",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 2,
+   "file": "shapes/stripe_hazard.png"
+  },
+  {
+   "id": "stripe_chevrons",
+   "shelf": "shapes",
+   "name": "Chevrons",
+   "tags": [
+    "stripe",
+    "arrow"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_chevrons.png"
+  },
+  {
+   "id": "stripe_dots",
+   "shelf": "shapes",
+   "name": "Dot fade",
+   "tags": [
+    "stripe",
+    "halftone"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/stripe_dots.png"
+  },
+  {
+   "id": "chequers_strip",
+   "shelf": "shapes",
+   "name": "Chequered strip",
+   "tags": [
+    "chequers",
+    "racing"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/chequers_strip.png"
+  },
+  {
+   "id": "chequered_flag",
+   "shelf": "shapes",
+   "name": "Chequered flag",
+   "tags": [
+    "chequers",
+    "racing",
+    "flag",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/chequered_flag.png"
+  },
+  {
+   "id": "scallops_3",
+   "shelf": "shapes",
+   "name": "Scallops, three",
+   "tags": [
+    "scallops",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/scallops_3.png"
+  },
+  {
+   "id": "scallops_5",
+   "shelf": "shapes",
+   "name": "Scallops, five",
+   "tags": [
+    "scallops",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/scallops_5.png"
+  },
+  {
+   "id": "flames_classic",
+   "shelf": "shapes",
+   "name": "Hot rod flames",
+   "tags": [
+    "flames",
+    "hot rod",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/flames_classic.png"
+  },
+  {
+   "id": "flames_tribal",
+   "shelf": "shapes",
+   "name": "Tribal flames",
+   "tags": [
+    "flames",
+    "tribal"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 1,
+   "file": "shapes/flames_tribal.png"
+  },
+  {
+   "id": "flames_ghost",
+   "shelf": "shapes",
+   "name": "Ghost flames (outline only)",
+   "tags": [
+    "flames",
+    "outline"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 1,
+   "file": "shapes/flames_ghost.png"
+  },
+  {
+   "id": "bolt_single",
+   "shelf": "shapes",
+   "name": "Lightning bolt",
+   "tags": [
+    "lightning",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/bolt_single.png"
+  },
+  {
+   "id": "bolt_long",
+   "shelf": "shapes",
+   "name": "Long lightning",
+   "tags": [
+    "lightning",
+    "stripe",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/bolt_long.png"
+  },
+  {
+   "id": "tribal_blade",
+   "shelf": "shapes",
+   "name": "Tribal blades",
+   "tags": [
+    "tribal"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 1,
+   "file": "shapes/tribal_blade.png"
+  },
+  {
+   "id": "tribal_swirl",
+   "shelf": "shapes",
+   "name": "Tribal swirl",
+   "tags": [
+    "tribal",
+    "swirl"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 1,
+   "file": "shapes/tribal_swirl.png"
+  },
+  {
+   "id": "tribal_spike",
+   "shelf": "shapes",
+   "name": "Spiked stripe",
+   "tags": [
+    "tribal",
+    "stripe"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/tribal_spike.png"
+  },
+  {
+   "id": "panel_rounded",
+   "shelf": "shapes",
+   "name": "Tank panel with pinstripe",
+   "tags": [
+    "panel",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/panel_rounded.png"
+  },
+  {
+   "id": "panel_teardrop",
+   "shelf": "shapes",
+   "name": "Teardrop panel",
+   "tags": [
+    "panel",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/panel_teardrop.png"
+  },
+  {
+   "id": "panel_coffin",
+   "shelf": "shapes",
+   "name": "Coffin panel",
+   "tags": [
+    "panel",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/panel_coffin.png"
+  },
+  {
+   "id": "roundel",
+   "shelf": "shapes",
+   "name": "Number roundel",
+   "tags": [
+    "number",
+    "racing",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/roundel.png"
+  },
+  {
+   "id": "race_oval",
+   "shelf": "shapes",
+   "name": "Number oval",
+   "tags": [
+    "number",
+    "racing",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/race_oval.png"
+  },
+  {
+   "id": "race_plate",
+   "shelf": "shapes",
+   "name": "Number plate",
+   "tags": [
+    "number",
+    "racing",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/race_plate.png"
+  },
+  {
+   "id": "shield",
+   "shelf": "shapes",
+   "name": "Shield",
+   "tags": [
+    "shield",
+    "badge",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/shield.png"
+  },
+  {
+   "id": "wings_spread",
+   "shelf": "shapes",
+   "name": "Spread wings (plain)",
+   "tags": [
+    "wings",
+    "badge",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/wings_spread.png"
+  },
+  {
+   "id": "wings_badge",
+   "shelf": "shapes",
+   "name": "Winged roundel",
+   "tags": [
+    "wings",
+    "badge",
+    "number",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/wings_badge.png"
+  },
+  {
+   "id": "banner_straight",
+   "shelf": "shapes",
+   "name": "Banner for lettering",
+   "tags": [
+    "banner",
+    "lettering",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 2,
+   "file": "shapes/banner_straight.png"
+  },
+  {
+   "id": "banner_curved",
+   "shelf": "shapes",
+   "name": "Curved banner",
+   "tags": [
+    "banner",
+    "lettering",
+    "two colour"
+   ],
+   "w": 1024,
+   "h": 384,
+   "colours": 2,
+   "file": "shapes/banner_curved.png"
+  },
+  {
+   "id": "star_five",
+   "shelf": "shapes",
+   "name": "Star",
+   "tags": [
+    "star",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/star_five.png"
+  },
+  {
+   "id": "star_nautical",
+   "shelf": "shapes",
+   "name": "Nautical star",
+   "tags": [
+    "star",
+    "tattoo",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/star_nautical.png"
+  },
+  {
+   "id": "sunburst",
+   "shelf": "shapes",
+   "name": "Sunburst",
+   "tags": [
+    "rays"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 1,
+   "file": "shapes/sunburst.png"
+  },
+  {
+   "id": "target",
+   "shelf": "shapes",
+   "name": "Target roundel",
+   "tags": [
+    "roundel",
+    "mod",
+    "two colour"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "shapes/target.png"
+  },
+  {
+   "id": "diamonds_strip",
+   "shelf": "shapes",
+   "name": "Diamond chain",
+   "tags": [
+    "stripe",
+    "diamond"
+   ],
+   "w": 1024,
+   "h": 192,
+   "colours": 2,
+   "file": "shapes/diamonds_strip.png"
+  },
+  {
+   "id": "hex_strip",
+   "shelf": "shapes",
+   "name": "Honeycomb strip",
+   "tags": [
+    "stripe",
+    "hex"
+   ],
+   "w": 1024,
+   "h": 256,
+   "colours": 1,
+   "file": "shapes/hex_strip.png"
+  },
+  {
+   "id": "skull_front",
+   "shelf": "art",
+   "name": "Skull",
+   "tags": [
+    "skull",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_front.png"
+  },
+  {
+   "id": "skull_roses",
+   "shelf": "art",
+   "name": "Skull with roses",
+   "tags": [
+    "skull",
+    "rose",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_roses.png"
+  },
+  {
+   "id": "skull_wings",
+   "shelf": "art",
+   "name": "Winged skull",
+   "tags": [
+    "skull",
+    "wings",
+    "death"
+   ],
+   "w": 1024,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_wings.png"
+  },
+  {
+   "id": "skull_pistons",
+   "shelf": "art",
+   "name": "Skull and crossed pistons",
+   "tags": [
+    "skull",
+    "piston",
+    "engine",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_pistons.png"
+  },
+  {
+   "id": "skull_flaming",
+   "shelf": "art",
+   "name": "Flaming skull",
+   "tags": [
+    "skull",
+    "flames",
+    "death"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_flaming.png"
+  },
+  {
+   "id": "skull_sugar",
+   "shelf": "art",
+   "name": "Sugar skull",
+   "tags": [
+    "skull",
+    "flowers"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/skull_sugar.png"
+  },
+  {
+   "id": "rose",
+   "shelf": "art",
+   "name": "Rose",
+   "tags": [
+    "rose",
+    "flower"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rose.png"
+  },
+  {
+   "id": "rose_dagger",
+   "shelf": "art",
+   "name": "Rose and dagger",
+   "tags": [
+    "rose",
+    "dagger"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/rose_dagger.png"
+  },
+  {
+   "id": "dagger_heart",
+   "shelf": "art",
+   "name": "Dagger through a heart",
+   "tags": [
+    "heart",
+    "dagger"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/dagger_heart.png"
+  },
+  {
+   "id": "sacred_heart",
+   "shelf": "art",
+   "name": "Sacred heart",
+   "tags": [
+    "heart",
+    "flames"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/sacred_heart.png"
+  },
+  {
+   "id": "swallow",
+   "shelf": "art",
+   "name": "Swallow",
+   "tags": [
+    "bird",
+    "swallow",
+    "sailor"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/swallow.png"
+  },
+  {
+   "id": "reaper",
+   "shelf": "art",
+   "name": "Grim reaper with scythe",
+   "tags": [
+    "reaper",
+    "death",
+    "scythe"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/reaper.png"
+  },
+  {
+   "id": "spider_web",
+   "shelf": "art",
+   "name": "Spider and web",
+   "tags": [
+    "spider",
+    "web"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/spider_web.png"
+  },
+  {
+   "id": "bat",
+   "shelf": "art",
+   "name": "Bat",
+   "tags": [
+    "bat",
+    "night"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/bat.png"
+  },
+  {
+   "id": "dice",
+   "shelf": "art",
+   "name": "Dice",
+   "tags": [
+    "dice",
+    "luck"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/dice.png"
+  },
+  {
+   "id": "ace_spades",
+   "shelf": "art",
+   "name": "Ace of spades",
+   "tags": [
+    "cards",
+    "luck",
+    "spades"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/ace_spades.png"
+  },
+  {
+   "id": "eight_ball",
+   "shelf": "art",
+   "name": "Eight ball",
+   "tags": [
+    "luck",
+    "ball"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/eight_ball.png"
+  },
+  {
+   "id": "horseshoe",
+   "shelf": "art",
+   "name": "Lucky horseshoe",
+   "tags": [
+    "luck",
+    "horseshoe"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/horseshoe.png"
+  },
+  {
+   "id": "anchor",
+   "shelf": "art",
+   "name": "Anchor and rope",
+   "tags": [
+    "anchor",
+    "sailor"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/anchor.png"
+  },
+  {
+   "id": "spanners",
+   "shelf": "art",
+   "name": "Crossed spanners",
+   "tags": [
+    "tools",
+    "spanner",
+    "garage"
+   ],
+   "w": 512,
+   "h": 512,
+   "colours": 2,
+   "file": "art/spanners.png"
+  }
+ ]
+}
