@@ -1,0 +1,70 @@
+{
+ "about": "Panniers and top boxes for the adventure bikes (beenster 17 Nov: only as options for adventure bikes). luggage3d.py builds them on the lead adventure bike; every adventure bike shares the same rear rack, so they fit all five.",
+ "panniers": [
+  {
+   "key": "alu_silver",
+   "name": "Aluminium side boxes, silver",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_alloy_trunks_silver",
+   "note": "Square brushed aluminium boxes with black corner caps, a lid seam, two latches and a carry handle."
+  },
+  {
+   "key": "alu_black",
+   "name": "Aluminium side boxes, black",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_alloy_trunks_silver",
+   "note": "The same boxes in black anodised aluminium with silver corner caps."
+  },
+  {
+   "key": "hard_shell",
+   "name": "Hard shell side cases",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_hard_side_cases",
+   "note": "Rounded dark grey moulded cases, wider at the top, with a brushed panel on the outside."
+  },
+  {
+   "key": "soft_bags",
+   "name": "Soft adventure bags",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_slim_soft_cases",
+   "note": "Olive canvas bags with a roll top and black straps and buckles, on the same side frames."
+  }
+ ],
+ "topboxes": [
+  {
+   "key": "alu_top",
+   "name": "Aluminium top box, silver",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_alloy_top_55",
+   "note": "A square brushed aluminium box with black corners, a backrest pad and a red reflector."
+  },
+  {
+   "key": "alu_top_black",
+   "name": "Aluminium top box, black",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_black_top_42",
+   "note": "The same box in black anodised aluminium."
+  },
+  {
+   "key": "shell_top",
+   "name": "Moulded top case",
+   "fits": [
+    "Adventure"
+   ],
+   "stock": "adv_plastic_top_50",
+   "note": "A rounded dark grey case with a red reflector strip across the back."
+  }
+ ]
+}

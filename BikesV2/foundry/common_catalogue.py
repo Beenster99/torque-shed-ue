@@ -40,7 +40,7 @@ CATEGORY = {
     "indicators": "indicators", "tail_light": "tail_light", "plate_hanger": "plate_hanger", "silencer": "silencers",
     "pegs": "rearsets", "heel_plates": "heel_plates", "foot_controls": "foot_controls", "disc": "disc", "caliper": "caliper",
     "sprocket": "sprocket", "shock": "shock", "filler_cap": "filler_cap", "side_stand": "side_stand",
-    "fog_lights": "fog_lights",
+    "fog_lights": "fog_lights", "panniers": "panniers", "top_box": "top_box",
 }
 NEW_SLOTS = ("grips", "bar_ends", "levers", "switchgear", "tail_light", "plate_hanger", "silencers", "heel_plates",
              "foot_controls", "sprocket", "filler_cap")
@@ -69,13 +69,17 @@ BASE = {
     # fog lights ride as the stock lamps they look like (their lumens and beam colour light the road)
     "fog_lights": "halogen_spots", ("fog_lights", "amber_round"): "amber_fogs", ("fog_lights", "rally"): "rally_lamps",
     ("fog_lights", "led_cube"): "led_pods", ("fog_lights", "slim_bar"): "light_bar",
+    # luggage rides as the stock adventure luggage it looks like (its drag and mass)
+    "panniers": "adv_alloy_trunks_silver", ("panniers", "hard_shell"): "adv_hard_side_cases",
+    ("panniers", "soft_bags"): "adv_slim_soft_cases", "top_box": "adv_alloy_top_55",
+    ("top_box", "alu_top_black"): "adv_black_top_42", ("top_box", "shell_top"): "adv_plastic_top_50",
 }
 # a light stock-like entry for the new cosmetic slots
 NEW_BASE = dict(mass=0.3, color=[0.08, 0.08, 0.09])
 PRICE = {"bar": 85, "high_bar": 160, "grip": 25, "bar_end": 30, "levers": 120, "switches": 90, "mirrors": 60, "headlamp": 140,
          "clocks": 160, "indicators": 55, "tail_light": 60, "plate_hanger": 95, "silencer": 320, "pegs": 110, "heel_plates": 80,
          "foot_controls": 120, "disc": 210, "caliper": 260, "sprocket": 70, "shock": 420, "filler_cap": 75, "side_stand": 60,
-         "fog_lights": 150}
+         "fog_lights": 150, "panniers": 380, "top_box": 220}
 MATERIAL = {"grips": "rubber", "silencers": "metal", "tail_light": "plastic", "switchgear": "plastic"}
 ANCHOR = {"bar_clamp": "steer_top", "top_yoke": "steer_top", "front_axle": "front_axle", "rear_axle": "rear_axle",
           "rider_peg": "peg", "shock_top": "shock_top", "can_inlet": "swing_pivot", "cap_base": "tank_cap",
@@ -87,7 +91,8 @@ GROUP_SUB = {"bar": "bar", "high_bar": "bar", "grip": "grip", "bar_end": "bar_en
              "indicators_rear": "ind_rear", "tail_light": "tail_light", "plate_hanger": "plate_hanger", "silencer": "silencer",
              "pegs": "pegs", "heel_plates": "heel_plates", "foot_controls": "foot_controls", "disc_front": "disc_front",
              "disc_rear": "disc_rear", "caliper_front": "caliper_front", "caliper_rear": "caliper_rear", "sprocket": "sprocket",
-             "shock": "shock", "filler_cap": "filler_cap", "fog_lights": "fog_lights"}
+             "shock": "shock", "filler_cap": "filler_cap", "fog_lights": "fog_lights",
+             "panniers": "panniers", "top_box": "top_box"}
 # groups exported in two halves that make one shop part
 PAIRS = {"indicators": ("indicators_front", "indicators_rear"), "disc": ("disc_front", "disc_rear"),
          "caliper": ("caliper_front", "caliper_rear")}

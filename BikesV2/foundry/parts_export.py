@@ -60,6 +60,8 @@ GROUPS = [
     ("filler_cap", "shocks", "caps", "shocks3d.py", "cap_base", "frame", None),
     ("plate_hanger", "shocks", "hangers", "shocks3d.py", "part_centre", "frame", None),
     ("fog_lights", "foglamps", "fogs", "foglamps3d.py", "lower_yoke", "steering", None),
+    ("panniers", "luggage", "panniers", "luggage3d.py", "rear_axle", "frame", None),
+    ("top_box", "luggage", "topboxes", "luggage3d.py", "rear_axle", "frame", None),
 ]
 
 MOUNTS = {
@@ -79,7 +81,7 @@ MOUNTS = {
 def items():
     """Every approved part as (group, key, name, fits, finishes, script, mount, moves, select, extra)."""
     out = []
-    hos = {k: ho(k) for k in ("bars", "highbars", "controls", "lamps", "clocks", "silencers", "pegs", "brakes", "shocks", "foglamps")}
+    hos = {k: ho(k) for k in ("bars", "highbars", "controls", "lamps", "clocks", "silencers", "pegs", "brakes", "shocks", "foglamps", "luggage")}
     for g, f, lst, script, mount, moves, sel in GROUPS:
         d = hos[f]
         for it in d[lst]:
@@ -149,6 +151,9 @@ def build_one(it):
     elif g == "fog_lights":
         import foglamps3d as FG
         b3, m, cc, rep, made = FG.built(mn, key)
+    elif g in ("panniers", "top_box"):
+        import luggage3d as LG
+        b3, m, cc, rep, made = LG.built(mn, key if g == "panniers" else None, key if g == "top_box" else None)
     else:
         raise ValueError(g)
     return b3, m, cc, made
