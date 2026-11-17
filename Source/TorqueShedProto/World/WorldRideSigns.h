@@ -114,7 +114,8 @@ enum EScheme { SchemeLocal = 0, SchemePrimary = 1, SchemeMotorway = 2, SchemeBro
 // A map-type advance direction sign: the road ahead as a stem with an arrow at its top and each side
 // road an arm off it with its arrow, the places each way at its end. Arms: "^Hawes;Leyburn|<Askrigg|>Reeth"
 // ('^' ahead, '<' left, '>' right; places by ';'). Its size into W, H; drawn only when Into is given
-// (false, nothing drawn, if a letter is missing or there are no places).
+// (false, nothing drawn, if a letter is missing or there are no places). [roundabouts round 2] An arm "o"
+// first: the junction is a roundabout, a ring on the stem with the arms out of it.
 bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHigh, int Scheme, const std::string& Arms, double& W, double& H);
 // A route confirmation sign after a junction: the places ahead with their miles, a column each.
 // Lines: "Hawes\t12|Leyburn\t28".

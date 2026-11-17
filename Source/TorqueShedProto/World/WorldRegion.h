@@ -221,6 +221,11 @@ public:
 	int OtherEnd(int Edge, int Node) const { return Edges[size_t(Edge)].A == Node ? Edges[size_t(Edge)].B : Edges[size_t(Edge)].A; }
 	// Whether an edge may be driven starting from a node (a one-way road only from its open end).
 	bool Passable(int Edge, int Node) const;
+	// [roundabouts] Every closed ring of roundabout edges made one-way the way traffic goes round it:
+	// clockwise seen from above where traffic keeps left (Britain), anticlockwise elsewhere (beenster,
+	// Nov 17: "in the UK we ALWAYS ride clockwise"). An edge the map left two-way was routed against
+	// the flow. Returns how many edges it set.
+	int RingsOneWay();
 	bool TurnBanned(int Came, int Node, int Onto) const;
 	// The line of an edge as it runs from one of its ends.
 	std::vector<P2> LineFrom(int Edge, int Node) const;

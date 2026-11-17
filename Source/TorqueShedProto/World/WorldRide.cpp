@@ -36,7 +36,7 @@ struct RidePlan::Network
 	std::atomic<int> Blocks{0}, Bridges{0}, Tunnels{0};
 	std::mutex Fetching;                                          // one fetch of ground at a time
 	std::mutex Furnishing;                                        // Furnished
-	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;   // [ride anywhere 4] by (0 road | 1 block, its key)
+	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;   // [ride anywhere 4] by (0 road | 1 block | 2 ring, its key)
 };
 
 namespace
@@ -1139,6 +1139,15 @@ void RidePlan::NetworkFurniture(double X0, double Z0, double Size, std::vector<s
 	};
 	for (const int Which : RoadsNear(Box, false))
 		if (Which > 0) Once(0, Which, [this, Which]() { return RoadFurniture(Which); });
+	// [roundabouts round 2] (each ring's chevron boards and warnings, once a ring)
+	for (size_t Rg = 0; Rg < RoadRings.size(); ++Rg)
+	{
+		const RoadRing& Ring = RoadRings[Rg];
+		const double Pad = Ring.Reach + Ring.Half + 75.0;
+		if (!Ring.Circle || Ring.Mid.X < Box.X0 - Pad || Ring.Mid.X > Box.X1 + Pad || Ring.Mid.Z < Box.Z0 - Pad || Ring.Mid.Z > Box.Z1 + Pad) continue;
+		const int Index = int(Rg);
+		Once(2, Index, [this, Index]() { return RingFurniture(Index); });
+	}
 	for (long long Bx = BlockOf(Box.X0); Bx <= BlockOf(Box.X1 - 0.001); ++Bx)
 		for (long long Bz = BlockOf(Box.Z0); Bz <= BlockOf(Box.Z1 - 0.001); ++Bz)
 		{
@@ -1551,6 +1560,17 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		const std::vector<char> Along = StreetsAlong(A.Which);
 		StreetArms += !Along.empty() && (A.End == 0 ? Along.front() : Along.back()) != 0 ? 1 : 0;
 	}
+	// [roundabouts round 2] No kerb, pavement or shoulder at a corner where it would lie on a road's
+	// tarmac: at a roundabout the corners between arms often run over a splitter carriageway or the
+	// next arm (beenster: "green lumps").
+	NearOpts AnyRoad;
+	AnyRoad.NoDecks = true;
+	AnyRoad.NoBores = true;
+	const auto OnTarmac = [&](const P2& P, double Y)
+	{
+		NearHit Hit;
+		return NearestOf(P.X, P.Z, AnyRoad, Hit) && Hit.Dist < Hit.Half - 0.05 && std::fabs(Hit.Height - Y) < 1.5;
+	};
 	if (StreetArms >= 2)
 	{
 		static constexpr float KerbGrey[3] = {0.16f, 0.16f, 0.15f}, Paved[3] = {0.12f, 0.118f, 0.11f};
@@ -1562,6 +1582,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		{
 			if (Edged[I] == 0) continue;
 			const size_t J = I + 1;
+			if (OnTarmac(Rim[I] + Outward[I] * PaveWide, RimH[I]) || OnTarmac(Rim[J] + Outward[J] * PaveWide, RimH[J])) continue;
 			for (int Ln = 0; Ln + 1 < Lines; ++Ln)
 			{
 				if (Looks[Ln] == nullptr) continue;
@@ -1577,6 +1598,11 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	{
 		if (Edged[I] == 0) continue;
 		const size_t J = I + 1;
+		{
+			const P2 MidA = Rim[I] + Outward[I] * ShoulderFlat, MidB = Rim[J] + Outward[J] * ShoulderFlat;
+			const P2 OutA = Rim[I] + Outward[I] * Shoulder, OutB = Rim[J] + Outward[J] * Shoulder;
+			if (OnTarmac(MidA, RimH[I]) || OnTarmac(MidB, RimH[J]) || OnTarmac((OutA + OutB) * 0.5, (RimH[I] + RimH[J]) * 0.5)) continue;
+		}
 		const uint32_t In0 = Vertex(Rim[I], RimH[I] - 0.012, VergeGrass), In1 = Vertex(Rim[J], RimH[J] - 0.012, VergeGrass);
 		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - 0.012 - ShoulderDip, VergeGrass), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - 0.012 - ShoulderDip, VergeGrass);
 		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - 0.012 - ShoulderDrop, VergeGrass), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - 0.012 - ShoulderDrop, VergeGrass);
@@ -2357,14 +2383,25 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		for (const Row& Rw : Rows) { Bx0 = std::fmin(Bx0, Rw.At.X); Bx1 = std::fmax(Bx1, Rw.At.X); Bz0 = std::fmin(Bz0, Rw.At.Z); Bz1 = std::fmax(Bz1, Rw.At.Z); }
 		for (const RoadRing& Rg : RoadRings)
 		{
-			const double Pad = Rg.Radius + Rg.Half + 2.0;
+			const double Pad = Rg.Reach + Rg.Half + 2.0;
 			if (Rg.Circle && Rg.Mid.X > Bx0 - Pad && Rg.Mid.X < Bx1 + Pad && Rg.Mid.Z > Bz0 - Pad && Rg.Mid.Z < Bz1 + Pad) RingsHere.push_back(&Rg);
+		}
+	}
+	// ([roundabouts round 2] and those near enough that a road's grass shoulder may land on their tarmac)
+	std::vector<const RoadRing*> RingsAbout;
+	{
+		double Bx0 = 1e18, Bz0 = 1e18, Bx1 = -1e18, Bz1 = -1e18;
+		for (const Row& Rw : Rows) { Bx0 = std::fmin(Bx0, Rw.At.X); Bx1 = std::fmax(Bx1, Rw.At.X); Bz0 = std::fmin(Bz0, Rw.At.Z); Bz1 = std::fmax(Bz1, Rw.At.Z); }
+		for (const RoadRing& Rg : RoadRings)
+		{
+			const double Pad = Rg.Reach + Rg.Half + RingClearReach;
+			if (Rg.Circle && Rg.Mid.X > Bx0 - Pad && Rg.Mid.X < Bx1 + Pad && Rg.Mid.Z > Bz0 - Pad && Rg.Mid.Z < Bz1 + Pad) RingsAbout.push_back(&Rg);
 		}
 	}
 	const auto OnRingTarmac = [&RingsHere](const P2& At)
 	{
 		for (const RoadRing* Rg : RingsHere)
-			if (std::fabs(At.DistanceTo(Rg->Mid) - Rg->Radius) <= Rg->Half + 0.3) return true;
+			if (std::fabs(Rg->OffOf(At)) <= Rg->Half + 0.3) return true;
 		return false;
 	};
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
@@ -2462,6 +2499,42 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const P2 Ia = RowA.At + RowA.Left * (Sign * (RowA.Half + ShoulderFlat * 0.5)), Ib = RowB.At + RowB.Left * (Sign * (RowB.Half + ShoulderFlat * 0.5));
 				if (OnOther(Pa, RowA.Height) || OnOther(Pb, RowB.Height) || OnOther(Ia, RowA.Height) || OnOther(Ib, RowB.Height))
 					NoShoulder[Sd] = true;
+			}
+		}
+		// [roundabouts round 2] Near a roundabout (beenster: "green lumps round the edges"): the
+		// roads there cross and overlap (flared mouths, splitter carriageways, the ring itself), so a
+		// grass shoulder that lands anywhere on tarmac, the ring's or any other road's, is left out,
+		// tested all along the bit and not only at its ends.
+		if (!RingsAbout.empty() && !(RowA.Deck || RowB.Deck) && !(RowA.Bore || RowB.Bore))
+		{
+			bool Close = false;
+			for (const RoadRing* Rg : RingsAbout)
+				Close = Close || std::fmin(Rg->OffOf(RowA.At), Rg->OffOf(RowB.At)) < Rg->Half + RingClearReach;
+			if (Close)
+			{
+				NearOpts Others;
+				Others.NotRoad = Which;
+				Others.NoDecks = true;
+				Others.NoBores = true;
+				const auto OnTar = [&](const P2& P, double OwnHeight)
+				{
+					for (const RoadRing* Rg : RingsAbout)
+						if (Rg->OffOf(P) < Rg->Half + 0.3) return true;
+					NearHit Hit;
+					return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half + 0.2 && std::fabs(Hit.Height - OwnHeight) < 1.5;
+				};
+				for (int Sd = 0; Sd < 2; ++Sd)
+				{
+					if (NoShoulder[Sd]) continue;
+					const double Sign = Sd == 0 ? 1.0 : -1.0;
+					for (int Step = 0; Step <= 4 && !NoShoulder[Sd]; ++Step)
+					{
+						const double T = Step / 4.0;
+						const Row Rw = Between(RowA, RowB, T);
+						for (const double Off : {0.3, ShoulderFlat * 0.5, Shoulder})
+							if (OnTar(Rw.At + Rw.Left * (Sign * (Rw.Half + Off)), Rw.Height)) { NoShoulder[Sd] = true; break; }
+					}
+				}
 			}
 		}
 		for (const Apron& S : PullNear)
