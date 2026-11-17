@@ -101,7 +101,7 @@ std::vector<uint32_t> CodePoints(const std::string& Utf8)
 
 namespace
 {
-// (the advance of each letter in em, the space's for a space; false if one is missing)
+// (the advance of each letter in em, the space's for a space or a letter the alphabet lacks)
 bool Advances(const SignFont& Font, const std::vector<uint32_t>& Codes, std::vector<const SignGlyph*>& Glyphs, double& Em)
 {
 	Em = 0.0;
@@ -114,8 +114,26 @@ bool Advances(const SignFont& Font, const std::vector<uint32_t>& Codes, std::vec
 			Em += Font.Space;
 			continue;
 		}
-		const auto It = Font.Glyphs.find(C);
-		if (It == Font.Glyphs.end()) return false;
+		auto It = Font.Glyphs.find(C);
+		if (It == Font.Glyphs.end())
+		{
+			// ([roundabouts] beenster, Nov 17: "check that we no longer use 3D letters for signs". A letter
+			// the baked alphabet lacks no longer sends the whole sign to a text component, the floating 3D
+			// letters: Welsh's w and y with a grave, acute or diaeresis are set as the plain letter, any other
+			// as the nearest the alphabet has, a dash for a dash, else left as a space.)
+			uint32_t Plain = 0;
+			if (C >= 0x1E80u && C <= 0x1E85u) Plain = (C % 2u == 0u) ? uint32_t('W') : uint32_t('w');
+			else if (C >= 0x1EF2u && C <= 0x1EF9u) Plain = (C % 2u == 0u) ? uint32_t('Y') : uint32_t('y');
+			else if (C == 0x2010u || C == 0x2011u || C == 0x2012u || C == 0x2212u) Plain = uint32_t('-');
+			else if (C == 0x2018u || C == 0x2019u || C == 0x02BCu) Plain = uint32_t('\'');
+			It = Plain != 0 ? Font.Glyphs.find(Plain) : Font.Glyphs.end();
+			if (It == Font.Glyphs.end())
+			{
+				Glyphs.push_back(nullptr);
+				Em += Font.Space;
+				continue;
+			}
+		}
 		Glyphs.push_back(&It->second);
 		Em += It->second.Width;
 	}

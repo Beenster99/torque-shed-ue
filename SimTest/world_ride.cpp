@@ -1210,6 +1210,15 @@ int main(int Argc, char** Argv)
 				const double Cross = std::fabs((B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X));
 				if (Cross > 1e-9) Tightest = std::fmin(Tightest, Ab * Bc * Ac / (2.0 * Cross));
 			}
+			// [roundabouts] (which way round the ride goes: clockwise seen from above is Britain's way)
+			double Turn = 0.0;
+			for (size_t K = 1; K < Plan->Road.size(); ++K)
+			{
+				const P2 A = Plan->Road[K - 1].At - Rg.Mid, B = Plan->Road[K].At - Rg.Mid;
+				if (A.Length() > Rg.Radius + 8.0 || B.Length() > Rg.Radius + 8.0) continue;
+				Turn += A.X * B.Z - A.Z * B.X;
+			}
+			std::printf("  ridden ring %zu goes round %s\n", I, Turn > 0.0 ? "clockwise" : "ANTICLOCKWISE");
 			std::printf("  ridden ring %zu (radius %.1f%s): %d road knots within 12 m, %.1f to %.1f m from its middle, tightest bend %.1f m\n", I, Rg.Radius,
 				Rg.Circle ? ", a circle" : "", On, Least, Most, Tightest);
 		}
