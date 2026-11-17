@@ -251,13 +251,13 @@ def fit(b, model, c=None, style=None):
     st = STYLES[style or FAMILY_STYLE.get(fam, "street")]
     rep = dict(model=model.get("name", ""), family=fam, style=style or FAMILY_STYLE.get(fam, "street"))
     best = None
-    tries = sorted(((dx, dz, rise, yp) for dx in (120, 150, 90, 180, 60, 210) for dz in (95, 75, 115, 135)
-                    for rise in (6, 2, 10) for yp in (22, 34)),
-                   key=lambda t: abs(t[0] - 120) / 30 + abs(t[1] - 95) / 20 + abs(t[2] - 6) / 4 + (t[3] - 22) / 12)
-    for n_, (dx, dz, rise, yp) in enumerate(tries):
-        if n_ >= 40:
+    tries = sorted(((dx, dz, rise, yp, ot) for dx in (120, 150, 90, 180, 60, 210, 30, 0) for dz in (95, 75, 115, 135, 55)
+                    for rise in (6, 2, 10) for yp in (22, 34, 46) for ot in (0.34, 0.5)),
+                   key=lambda t: abs(t[0] - 120) / 30 + abs(t[1] - 95) / 20 + abs(t[2] - 6) / 4 + (t[3] - 22) / 12 + (t[4] - 0.34) * 8)
+    for n_, (dx, dz, rise, yp, ot) in enumerate(tries):
+        if n_ >= 120 or (n_ >= 80 and best is not None and best[0] < 12):
             break
-        pl = plan(model, dx, dz, rise, ypad=yp)
+        pl = plan(model, dx, dz, rise, out=ot, ypad=yp)
         if not 150 < pl["L"] < 420:
             continue
         made, sw, down, folded = _one(model, st, M, fam, pl)
