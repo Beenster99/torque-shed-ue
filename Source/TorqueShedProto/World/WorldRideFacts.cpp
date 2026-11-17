@@ -64,8 +64,9 @@ void RidePlan::FindFacts(int From, const std::vector<int>& Path, double RawLengt
 		F.Name = G.NameOf(E);
 		F.Class = G.ClassOf(E);
 		F.Gravel = G.SurfaceOf(E) == "gravel";
+		F.Setts = SettsSurface(G.SurfaceOf(E));
 		// (one fact for a run of edges that say the same)
-		if (!Facts.empty() && Facts.back().MappedKmh == F.MappedKmh && Facts.back().Name == F.Name && Facts.back().Class == F.Class && Facts.back().Gravel == F.Gravel)
+		if (!Facts.empty() && Facts.back().MappedKmh == F.MappedKmh && Facts.back().Name == F.Name && Facts.back().Class == F.Class && Facts.back().Gravel == F.Gravel && Facts.back().Setts == F.Setts)
 			Facts.back().To = F.To;
 		else
 			Facts.push_back(std::move(F));

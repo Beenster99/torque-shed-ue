@@ -163,6 +163,8 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::shared_ptr<FTorqueWorldShared> Held = Weak.lock();
 		return Held && !Held->bOffline ? TWSI::BlockingGet(Held, Url, Body) : 0;
 	};
+	// [build 155] (never fetched on the game thread: asked there, a cell's buildings wait for a worker)
+	Shared->Cells.MayFetch = []() { return !IsInGameThread(); };
 	// [stage 8] Offline or not, before anything is asked for.
 	Shared->bOffline = FTorqueSettings::Get().bWorldOffline || TWSI::ForcedOffline();
 	Shared->Cells.Offline = Shared->bOffline;
@@ -172,6 +174,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [towns stage 5] The materials atlas: the local building stones and bricks by area.
+		std::string AtlasText;
+		const std::string AtlasPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/materials_atlas.json")));
+		const bool bAtlas = TorqueWorld::Files::Read(AtlasPath, AtlasText) && TorqueWorld::SetMaterialsAtlas(AtlasText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: materials atlas: %d areas%s"), int32(TorqueWorld::MaterialsAtlas().size()), bAtlas ? TEXT("") : TEXT(" (none: Data/RideUK/materials_atlas.json unreadable)"));
 		// [towns stage 4] The house types and their periods (the built-in figures without the file).
 		std::string TypesText;
 		const std::string TypesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_types.json")));

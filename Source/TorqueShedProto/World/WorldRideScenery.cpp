@@ -286,6 +286,7 @@ const LocalLook& RidePlan::LookHere(double X, double Z) const
 {
 	if (!Britain()) return WorldLook();   // [stage 8]
 	if (const LocalLook* Town = TownLookAt(X, Z)) return *Town;   // [towns stage 1]
+	if (const LocalLook* Held = AtlasLookAt(X, Z)) return *Held;  // [towns stage 5]
 	const Geo Here = Frame(Area.Roads.FrameLat, Area.Roads.FrameLon).ToGeo(X, Z);
 	return LookAt(Here.Lat, Here.Lon);
 }
@@ -1925,6 +1926,17 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				const double Ly = Y + 5.735;
 				const auto Pt = [&](double Su, double Sv) { return At3(Ax + Face.X * Su * 0.18 + Crosswise.X * Sv * 0.07, Ly, Az + Face.Z * Su * 0.18 + Crosswise.Z * Sv * 0.07); };
 				Quad(Out.NightOf(), Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(Ax, Ly - 100.0, Az), LampLight, false, 0.0f);
+				// ([towns stage 6] a heritage lamp's lantern glows on its four glazed sides, its glass a 0.3 m box
+				// from 5.8 m up: Tools/make_ride_props.py lamp_heritage)
+				if (!Drawn && HeritageLampAt(F.At.X, F.At.Z))
+					for (int Sd = 0; Sd < 4; ++Sd)
+					{
+						const P2 Nrm = Sd == 0 ? Face : Sd == 1 ? Face * -1.0 : Sd == 2 ? Crosswise : Crosswise * -1.0;
+						const P2 Lat(Nrm.Z, -Nrm.X);
+						const P2 Mid(Ax + Nrm.X * 0.155, Az + Nrm.Z * 0.155);
+						const auto Gp = [&](double Su, double H) { return At3(Mid.X + Lat.X * Su * 0.15, Y + H, Mid.Z + Lat.Z * Su * 0.15); };
+						Quad(Out.NightOf(), Gp(-1, 5.81), Gp(1, 5.81), Gp(1, 6.17), Gp(-1, 6.17), At3(Mid.X + Nrm.X * 10.0, Y + 6.0, Mid.Z + Nrm.Z * 10.0), LampLight, false, 0.0f);
+					}
 			}
 			Out.Lights.push_back(float(Ax - Out.OriginX));
 			Out.Lights.push_back(float(Y + 5.4));
@@ -2931,6 +2943,23 @@ void RidePlan::IndexRails()
 		const P2 Off = P.At - Run.At[size_t(BestAt)];
 		Made.Side = Dir.Z * Off.X - Dir.X * Off.Z >= 0.0 ? 1.0 : -1.0;   // (left of the way along: (Dir.Z, -Dir.X))
 		Made.Name = P.Name;
+		Made.Halt = Halt;
+		// [roads stage 8] (a building of the map's within 12 m of where the station's would stand: its own)
+		{
+			const double Dl = std::fmax(1e-6, Dir.Length());
+			const P2 Behind = Run.At[size_t(BestAt)] + P2(Dir.Z / Dl, -Dir.X / Dl) * (Made.Side * 10.0);
+			for (int Dz = -1; Dz <= 1 && !Made.Built; ++Dz)
+				for (int Dx = -1; Dx <= 1 && !Made.Built; ++Dx)
+				{
+					const auto Bt = Scene->Buildings.find(SceneKey(Behind.X + Dx * SceneCell, Behind.Z + Dz * SceneCell));
+					if (Bt == Scene->Buildings.end()) continue;
+					for (int Bi : Bt->second)
+					{
+						const Building& H = G.Buildings[size_t(Bi)];
+						if (std::hypot(H.X - Behind.X, H.Z - Behind.Z) - 0.5 * std::fmax(H.W, H.D) < 12.0) { Made.Built = true; break; }
+					}
+				}
+		}
 		Platforms.push_back(Made);
 	}
 }
@@ -3202,6 +3231,64 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 			const size_t Other = End == Plat.First ? I + 1 : I - 1;
 			const P3 Out3 = At3(Run.At[I].X * 2.0 - Run.At[Other].X, Run.Top[I] + Lift, Run.At[I].Z * 2.0 - Run.At[Other].Z);
 			Quad(Out, Q0, Q1, Q2, Q3, Out3, Shade(Coping, 0.65));
+		}
+		// [roads stage 8] A station's canopy over the middle of its platform: a slate roof on cast columns,
+		// its valance along the edge in the line's old colours (by hash); and where the map has no building
+		// for it, the station building behind, in stone with a slate roof, its windows and door to the platform.
+		if (!Plat.Halt)
+		{
+			const uint32_t Hash = static_cast<uint32_t>(std::lround(Run.At[size_t(Middle)].X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Run.At[size_t(Middle)].Z * 3.0)) * 19349663u;
+			static const Rgb Valances[] = {{0.03f, 0.10f, 0.05f}, {0.16f, 0.03f, 0.035f}, {0.50f, 0.46f, 0.36f}, {0.03f, 0.05f, 0.14f}};
+			const Rgb Valance = Valances[(Hash >> 7) % 4u], Cast = (Hash >> 11) % 2u == 0u ? Rgb{0.50f, 0.46f, 0.36f} : Valance, Slate = {0.075f, 0.08f, 0.09f};
+			const int Span = std::min(6, (Plat.Last - Plat.First) / 3);
+			const double Eave = Lift + 3.4, Near = Edge + 0.5, Far = Back - 0.2;
+			for (int K = std::max(Plat.First, Middle - Span); K < std::min(Plat.Last, Middle + Span); ++K)
+			{
+				const size_t I = size_t(K);
+				Strip(Out, Run, I, S * Near, Eave + 0.35, S * Far, Eave + 0.6, Sky, Slate, -1.0f);
+				Strip(Out, Run, I, S * Near, Eave, S * Far, Eave, Beside(Run, I, S * Edge, -50.0), Shade(Cast, 0.8), -1.0f);
+				Strip(Out, Run, I, S * Near, Eave - 0.45, S * Near, Eave + 0.35, Beside(Run, I, -S * 50.0, Eave), Valance, -1.0f);
+				Strip(Out, Run, I, S * Far, Eave, S * Far, Eave + 0.6, Beside(Run, I, S * 50.0, Eave), Shade(Valance, 0.8), -1.0f);
+				if ((K - Middle) % 2 == 0)
+				{
+					const P2 L = LeftAt(Run, I);
+					const P2 C = Run.At[I] + L * (S * (Back - 1.6));
+					Box(Out, C.X, C.Z, P2(L.Z, -L.X), 0.1, 0.1, Run.Top[I] + Lift - 0.05, Run.Top[I] + Eave, Cast);
+				}
+			}
+			if (!Plat.Built)
+			{
+				const size_t I = size_t(Middle);
+				const P2 L = LeftAt(Run, I);
+				const P2 Along(L.Z, -L.X);
+				const P2 C = Run.At[I] + L * (S * (Back + 4.0));
+				const double Gy = Ground(C.X, C.Z);
+				const double Floor = std::isnan(Gy) ? Run.Top[I] + Lift : std::fmin(Gy, Run.Top[I] + Lift);
+				const double Long = 8.0, Wide = 3.4, Top = Run.Top[I] + Lift + 4.2;
+				Box(Stone, C.X, C.Z, Along, Long, Wide, Floor - 0.5, Top, Mask);
+				// (its roof: two slopes up to the ridge along its length, the gables under them in stone)
+				const P2 Ac(Along.X * Long, Along.Z * Long), Wc(L.X * (Wide + 0.4), L.Z * (Wide + 0.4));
+				const P3 E0 = At3(C.X - Ac.X - Wc.X, Top, C.Z - Ac.Z - Wc.Z), E1 = At3(C.X + Ac.X - Wc.X, Top, C.Z + Ac.Z - Wc.Z);
+				const P3 E2 = At3(C.X + Ac.X + Wc.X, Top, C.Z + Ac.Z + Wc.Z), E3 = At3(C.X - Ac.X + Wc.X, Top, C.Z - Ac.Z + Wc.Z);
+				const P3 R0 = At3(C.X - Ac.X, Top + 2.2, C.Z - Ac.Z), R1 = At3(C.X + Ac.X, Top + 2.2, C.Z + Ac.Z);
+				Quad(Out, E0, E1, R1, R0, At3(C.X - Wc.X * 30.0, Top + 30.0, C.Z - Wc.Z * 30.0), Slate);
+				Quad(Out, E2, E3, R0, R1, At3(C.X + Wc.X * 30.0, Top + 30.0, C.Z + Wc.Z * 30.0), Slate);
+				const P2 Wg(L.X * Wide, L.Z * Wide);
+				Quad(Stone, At3(C.X - Ac.X - Wg.X, Top, C.Z - Ac.Z - Wg.Z), At3(C.X - Ac.X + Wg.X, Top, C.Z - Ac.Z + Wg.Z), R0, R0, At3(C.X - Ac.X * 3.0, Top + 1.0, C.Z - Ac.Z * 3.0), Mask);
+				Quad(Stone, At3(C.X + Ac.X + Wg.X, Top, C.Z + Ac.Z + Wg.Z), At3(C.X + Ac.X - Wg.X, Top, C.Z + Ac.Z - Wg.Z), R1, R1, At3(C.X + Ac.X * 3.0, Top + 1.0, C.Z + Ac.Z * 3.0), Mask);
+				// (tall windows and the door on the platform side)
+				static const Rgb Pane = {0.02f, 0.025f, 0.03f};
+				const P2 Front = L * (-S);
+				const double Base = Run.Top[I] + Lift;
+				for (int Wn = -3; Wn <= 3; ++Wn)
+				{
+					const double U = Wn * 2.1, Wd = Wn == 0 ? 0.6 : 0.45;
+					const P2 Q = C + Front * (Wide + 0.03) + Along * U;
+					const double Lo = Wn == 0 ? Base : Base + 0.9, Hi = Base + 2.6;
+					Quad(Out, At3(Q.X - Along.X * Wd, Lo, Q.Z - Along.Z * Wd), At3(Q.X + Along.X * Wd, Lo, Q.Z + Along.Z * Wd), At3(Q.X + Along.X * Wd, Hi, Q.Z + Along.Z * Wd),
+						At3(Q.X - Along.X * Wd, Hi, Q.Z - Along.Z * Wd), At3(Q.X + Front.X * 50.0, (Lo + Hi) * 0.5, Q.Z + Front.Z * 50.0), Pane);
+				}
+			}
 		}
 		if (Plat.Name.empty()) continue;
 		// The name board: white words on blue, on two posts at the back of the platform, facing the line.
@@ -3508,32 +3595,108 @@ std::vector<RidePlan::Furnish> RidePlan::BlockFurniture(const Rect& In) const
 			}
 			continue;
 		}
-		// (the ways its traffic runs: the map's heading, degrees clockwise from north, x east and z south)
-		std::vector<P2> Ways;
-		if (Mp.Heading >= 0.0)
+		// [build 155] beenster: "traffic lights seem to be everywhere and anywhere at major junctions". The
+		// map tags a junction's lights on many of its nodes (the middle, each stop line, each carriageway),
+		// and each node had a pole both ways. Now the signal nodes within JunctionReach of each other are one
+		// junction, laid once (by its first node), and it has one pole per way in: on each road that meets
+		// it, each way traffic comes towards it (one-way roads only their own way), at the nearside of its
+		// stop line, clear of the roads across, facing the traffic.
+		static constexpr double JunctionReach = 45.0;
+		std::vector<P2> Nodes;
+		bool First = true;
+		double Heading = Mp.Heading;
+		for (size_t Oi = 0; Oi < G.RoadPoints.size() && First; ++Oi)
 		{
-			const double H = Mp.Heading * 3.14159265358979 / 180.0;
-			const P2 Goes(std::sin(H), -std::cos(H));
-			Ways.push_back(Goes.X * Along.X + Goes.Z * Along.Z >= 0.0 ? Along : Along * -1.0);
+			const MappedPoint& O = G.RoadPoints[Oi];
+			if (O.Kind != "traffic_signals" && O.Kind != "crossing_signals") continue;
+			if (O.At.DistanceTo(Mp.At) > JunctionReach) continue;
+			if (&O < &Mp) First = false;   // (an earlier node of the same junction lays it)
+			Nodes.push_back(O.At);
+			if (&O != &Mp) Heading = -1.0;
 		}
-		else
+		if (!First) continue;
+		P2 Centre(0.0, 0.0);
+		for (const P2& Q : Nodes) Centre = Centre + Q;
+		Centre = Centre * (1.0 / double(Nodes.size()));
+		// (the roads that meet there: each one's point nearest the junction's middle)
+		struct Meet { int Which; size_t K; };
+		std::vector<Meet> Meets;
+		double Across = 0.0;
 		{
-			Ways.push_back(Along);
-			Ways.push_back(Along * -1.0);
+			Rect Round;
+			Round.X0 = Centre.X - 60.0; Round.Z0 = Centre.Z - 60.0; Round.X1 = Centre.X + 60.0; Round.Z1 = Centre.Z + 60.0;
+			for (const int Wr : RoadsNear(Round, false))
+			{
+				const std::vector<RoadPoint>& Pts = RoadOf(Wr);
+				if (Pts.size() < 2) continue;
+				size_t Best = 0;
+				double BestD = 1e18;
+				for (size_t Pk = 0; Pk < Pts.size(); ++Pk)
+				{
+					const double Dk = Pts[Pk].At.DistanceTo(Centre);
+					if (Dk < BestD) { BestD = Dk; Best = Pk; }
+				}
+				if (BestD > Pts[Best].Half + 8.0 || Pts[Best].Bridge || Pts[Best].Tunnel) continue;
+				Meets.push_back({Wr, Best});
+				Across = std::fmax(Across, Pts[Best].Half);
+			}
 		}
-		// (one cycle per junction, keyed to its 40 m square; roads running nearer east-west half a cycle on)
-		const double Start = std::fmod(Chance(std::floor(Mp.At.X / 40.0), std::floor(Mp.At.Z / 40.0), 61) * SignalCycle, SignalCycle);
-		for (const P2& Goes : Ways)
+		if (Meets.empty()) continue;
+		// (the stop line: back from the middle past the widest road across, and past the map's own stop-line
+		// node on that way in where it has one)
+		const double Stop = std::clamp(Across + 2.5, 5.0, 25.0);
+		const double Start = std::fmod(Chance(std::floor(Centre.X / 40.0), std::floor(Centre.Z / 40.0), 61) * SignalCycle, SignalCycle);
+		std::vector<std::pair<P2, P2>> Placed;   // (pole, the way its traffic goes)
+		for (const Meet& Mt : Meets)
 		{
-			const P2 Near = KeepLeft() ? P2(Goes.Z, -Goes.X) : P2(-Goes.Z, Goes.X);
-			Furnish F;
-			F.Kind = TrafficSignal;
-			F.At = Hit.Foot + Near * (Hit.Half + 0.55) - Goes * 1.0;
-			F.Face = Goes * -1.0;
-			F.Size = std::fmod(Start + (std::fabs(Goes.X) > std::fabs(Goes.Z) ? SignalCycle * 0.5 : 0.0), SignalCycle);
-			F.Id = Id + (Goes.X + Goes.Z >= 0.0 ? 3u : 4u);
-			F.Height = Ground(F.At.X, F.At.Z);
-			if (!std::isnan(F.Height)) Out.push_back(F);
+			const std::vector<RoadPoint>& Pts = RoadOf(Mt.Which);
+			for (const int Sd : {1, -1})
+			{
+				// (one-way: its points run the way its traffic goes, so only the way in from before the junction)
+				if (Pts[Mt.K].OneWay && Sd > 0) continue;
+				size_t Pk = Mt.K;
+				bool Reached = false;
+				while (true)
+				{
+					if (Sd > 0 ? Pk + 1 >= Pts.size() : Pk == 0) break;
+					Pk = Sd > 0 ? Pk + 1 : Pk - 1;
+					if (Pts[Pk].At.DistanceTo(Centre) >= Stop) { Reached = true; break; }
+				}
+				if (!Reached) continue;
+				// (the way the traffic goes here: towards the junction, back along Sd)
+				const size_t Pn = Sd > 0 ? Pk - 1 : Pk + 1;
+				P2 Goes = Pts[Pn].At - Pts[Pk].At;
+				const double Gl = Goes.Length();
+				if (Gl < 1e-6) continue;
+				Goes = Goes * (1.0 / Gl);
+				if (Heading >= 0.0)
+				{
+					const double H = Heading * 3.14159265358979 / 180.0;
+					if (std::sin(H) * Goes.X - std::cos(H) * Goes.Z < 0.0) continue;   // (the map's one way only)
+				}
+				const P2 Near = Pts[Pk].OneWay && Pts[Pk].Near != 0
+					? (Pts[Pk].Near > 0 ? P2(Goes.Z, -Goes.X) : P2(-Goes.Z, Goes.X))
+					: (KeepLeft() ? P2(Goes.Z, -Goes.X) : P2(-Goes.Z, Goes.X));
+				Furnish F;
+				F.Kind = TrafficSignal;
+				F.At = Pts[Pk].At + Near * (Pts[Pk].Half + 0.55);
+				bool Twin = false;
+				for (const std::pair<P2, P2>& Pl : Placed) Twin = Twin || (Pl.first.DistanceTo(F.At) < 6.0 && Pl.second.X * Goes.X + Pl.second.Z * Goes.Z > 0.8);
+				if (Twin) continue;
+				{
+					// (not standing in another road's carriageway)
+					NearOpts Clear;
+					NearHit Over;
+					if (NearestOf(F.At.X, F.At.Z, Clear, Over) && Over.Dist < Over.Half + 0.3 && Over.Which != Mt.Which) continue;
+				}
+				F.Face = Goes * -1.0;
+				F.Size = std::fmod(Start + (std::fabs(Goes.X) > std::fabs(Goes.Z) ? SignalCycle * 0.5 : 0.0), SignalCycle);
+				F.Id = Id + 3u + uint32_t(Placed.size());
+				F.Height = Ground(F.At.X, F.At.Z);
+				if (std::isnan(F.Height)) continue;
+				Placed.push_back({F.At, Goes});
+				Out.push_back(F);
+			}
 		}
 	}
 	return Out;

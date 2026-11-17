@@ -182,6 +182,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 	std::vector<double> Dist(G.Nodes.size(), 1e18);
 	std::vector<int> Branch(G.Nodes.size(), -1);
 	std::vector<int> Touched;
+	double LastFinger = -1e9;
 	for (size_t Pn = 1; Pn + 1 < PathNodes.size(); ++Pn)
 	{
 		const PathNode& J = PathNodes[Pn];
@@ -199,7 +200,9 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			const int R = ClassRank(G.ClassOf(E));
 			if (R < 0) continue;
 			Sides.push_back(E);
-			Worth = Worth || R <= 4;
+			// ([build 155] beenster: "reduce the volumes of signs only to major road junctions": a map-type
+			// sign only where a B road or greater meets the ride's road, no longer at every tertiary lane)
+			Worth = Worth || R <= 3;
 			Lesser = Lesser && R >= RideRank;
 		}
 		bool Slips = Link(Before) || Link(After);
@@ -213,7 +216,12 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		// (what this junction gets: map-type signs; [6D] a fingerpost where only lanes meet the ride's road out
 		// of town; a brown sign where a place worth seeing is off one of its side roads)
 		const bool Signed = !Sides.empty() && Worth && Lesser && !Slips && !(Town && !Major);
-		const bool Fingers = !Sides.empty() && !Worth && !Slips && !Town && RideRank >= 3;
+		// ([build 155] and a fingerpost only where an unclassified road (not a farm lane) leaves the ride's
+		// road, a mile and more after the last one)
+		bool Unclassified = false;
+		for (int E : Sides) Unclassified = Unclassified || ClassRank(G.ClassOf(E)) == 5 || ClassRank(G.ClassOf(E)) == 4;
+		const bool Fingers = !Sides.empty() && !Worth && Unclassified && !Slips && !Town && RideRank >= 3 && J.Along - LastFinger >= 1600.0;
+		if (Fingers) LastFinger = J.Along;
 		const bool Browns = !Sides.empty() && !Slips && !Sights.empty();
 		if (!Signed && !Fingers && !Browns) continue;
 		const double Reach = Signed ? 60000.0 : 25000.0;

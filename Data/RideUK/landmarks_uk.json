@@ -25,6 +25,10 @@
 		{"name": "Hardy Monument", "match": "hardy", "kind": "tower", "at": [50.68673, -2.54921], "tall": 22, "add": true, "model": "hardy", "turn": 0, "note": "For Nelson's flag captain at Trafalgar, 1844"},
 		{"name": "Bolton Castle", "match": "bolton castle", "kind": "castle", "at": [54.32211, -1.94965], "tall": 27, "add": true, "model": "bolton", "turn": -15.7, "note": "Built 1399, Mary Queen of Scots was held here in 1568"},
 		{"name": "Maiden Castle", "match": "maiden castle", "kind": "hillfort", "at": [50.6950, -2.4686], "radius": 260, "banks": 3, "add": true, "note": "One of the largest Iron Age hillforts in Europe"},
-		{"name": "British Camp", "match": "british camp", "kind": "hillfort", "at": [52.0583, -2.3460], "radius": 150, "banks": 2, "add": true, "note": "On the Herefordshire Beacon, Iron Age ramparts"}
+		{"name": "British Camp", "match": "british camp", "kind": "hillfort", "at": [52.0583, -2.3460], "radius": 150, "banks": 2, "add": true, "note": "On the Herefordshire Beacon, Iron Age ramparts"},
+		{"name": "Angel of the North", "match": "angel of the north", "kind": "monument", "at": [54.91410, -1.58945], "tall": 20, "add": true, "model": "angel", "turn": 15, "note": "Antony Gormley's steel angel, 20 m tall with wings 54 m across"},
+		{"name": "Blackpool Tower", "match": "blackpool tower", "kind": "tower", "at": [53.81594, -3.05527], "tall": 158, "add": true, "model": "blackpool", "turn": 90, "note": "158 m of steel lattice, opened in 1894"},
+		{"name": "Royal Liver Building", "match": "liver building", "kind": "tower", "at": [53.40581, -2.99584], "tall": 98, "add": true, "model": "liver", "turn": 90, "note": "Opened in 1911, its clocks the largest in Britain, a Liver Bird on each tower"},
+		{"name": "York Minster", "match": "york minster", "kind": "cathedral", "at": [53.96220, -1.08200], "tall": 71, "add": true, "model": "minster", "turn": -16, "note": "The largest Gothic cathedral in northern Europe, built 1220 to 1472"}
 	]
 }

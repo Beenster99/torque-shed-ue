@@ -36,7 +36,7 @@ const char* RidePlan::PropName(int Kind)
 		"lift_gate", "bollard", "picnic_table", "info_board",
 		"win_sash6", "win_sash2", "win_casement", "win_casement_top", "win_mullion", "win_mullion_leaded", "sur_stone", "sur_brick", "sur_plain",
 		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood",
-		"bay_canted", "bay_square", "wall_stone", "wall_end"};
+		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage"};
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -87,7 +87,8 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 	{
 		const Furnish& F = *Each;
 		if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
-		const int Kind = PropOf(F.Kind);
+		int Kind = PropOf(F.Kind);
+		if (Kind == PropStreetLamp && HeritageLampAt(F.At.X, F.At.Z)) Kind = PropLampHeritage;   // [towns stage 6]
 		if (Kind < 0 || !PropModelled[Kind] || std::isnan(F.Height)) continue;
 		RideProp P;
 		P.Kind = uint16_t(Kind);

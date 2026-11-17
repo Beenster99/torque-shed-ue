@@ -126,6 +126,79 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			}
 		}
 	if (Tally) Tally->Outlined += int(Pieces.size());
+	// [towns stage 5] What the street says, where a building's own tags don't: the walls and roofs the
+	// map's mappers tagged round the square (within 100 m of it), in 32 m buckets. Each: its walling
+	// (0 brick, 1 stone, 2 render; -1 not said) and its roof (0 slate, 1 clay tiles, 2 stone slates,
+	// 3 thatch; -1).
+	struct TagNear
+	{
+		float X = 0.0f, Z = 0.0f;
+		signed char Wall = -1, Roof = -1;
+	};
+	constexpr double TagBucket = 32.0;
+	std::unordered_map<long long, std::vector<TagNear>> TagBuckets;
+	{
+		const double Margin = 100.0;
+		const int Lx0 = int(std::floor((X0 - Margin) / SceneCell)), Lx1 = int(std::floor((X0 + Size + Margin) / SceneCell));
+		const int Lz0 = int(std::floor((Z0 - Margin) / SceneCell)), Lz1 = int(std::floor((Z0 + Size + Margin) / SceneCell));
+		for (int Cz = Lz0; Cz <= Lz1; ++Cz)
+			for (int Cx = Lx0; Cx <= Lx1; ++Cx)
+			{
+				const auto Lk = Scene->Looks.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
+				if (Lk == Scene->Looks.end()) continue;
+				for (int Li : Lk->second)
+				{
+					const BuildingLook& Lo = G.Scenery.Buildings[size_t(Li)];
+					if (Lo.At.X < X0 - Margin || Lo.At.X > X0 + Size + Margin || Lo.At.Z < Z0 - Margin || Lo.At.Z > Z0 + Size + Margin) continue;
+					const std::string& Wm = Lo.Words[4];
+					const std::string& Rm = Lo.Words[3];
+					TagNear T;
+					T.X = float(Lo.At.X);
+					T.Z = float(Lo.At.Z);
+					T.Wall = Wm == "brick" ? 0 : (Wm == "stone" || Wm == "sandstone" || Wm == "limestone" || Wm == "granite") ? 1
+						: (Wm == "plaster" || Wm == "render" || Wm == "rendered" || Wm == "stucco" || Wm == "pebbledash") ? 2 : -1;
+					T.Roof = Rm == "slate" ? 0 : (Rm == "roof_tiles" || Rm == "tiles" || Rm == "clay") ? 1 : Rm == "stone" ? 2 : Rm == "thatch" ? 3 : -1;
+					if (T.Wall < 0 && T.Roof < 0) continue;
+					TagBuckets[static_cast<long long>(std::floor(Lo.At.X / TagBucket)) * 4000037LL + static_cast<long long>(std::floor(Lo.At.Z / TagBucket))].push_back(T);
+				}
+			}
+	}
+	// (the walling and the roof most of the tagged buildings within Reach of a place agree on: three or
+	// more saying, three in five of them the same; -1 where they don't)
+	const auto StreetSays = [&TagBuckets, TagBucket](double X, double Z, double Reach, int& Wall, int& Roof)
+	{
+		int Walls[3] = {0, 0, 0}, Roofs[4] = {0, 0, 0, 0}, WallAll = 0, RoofAll = 0;
+		const int Bx0 = int(std::floor((X - Reach) / TagBucket)), Bx1 = int(std::floor((X + Reach) / TagBucket));
+		const int Bz0 = int(std::floor((Z - Reach) / TagBucket)), Bz1 = int(std::floor((Z + Reach) / TagBucket));
+		for (int Bz = Bz0; Bz <= Bz1; ++Bz)
+			for (int Bx = Bx0; Bx <= Bx1; ++Bx)
+			{
+				const auto It = TagBuckets.find(static_cast<long long>(Bx) * 4000037LL + static_cast<long long>(Bz));
+				if (It == TagBuckets.end()) continue;
+				for (const TagNear& T : It->second)
+				{
+					if ((T.X - X) * (T.X - X) + (T.Z - Z) * (T.Z - Z) > Reach * Reach) continue;
+					if (T.Wall >= 0) { ++Walls[T.Wall]; ++WallAll; }
+					if (T.Roof >= 0) { ++Roofs[T.Roof]; ++RoofAll; }
+				}
+			}
+		Wall = Roof = -1;
+		for (int K = 0; K < 3; ++K)
+			if (WallAll >= 3 && Walls[K] * 5 >= WallAll * 3) Wall = K;
+		for (int K = 0; K < 4; ++K)
+			if (RoofAll >= 3 && Roofs[K] * 5 >= RoofAll * 3) Roof = K;
+	};
+	// [towns stage 5] Where the sea is near the square (within about 600 m of its middle): the harbour
+	// and seaside towns' painted houses (the look's Paint share of them).
+	bool Seaside = false;
+	if (Look.Paint > 0.0f && Land)
+	{
+		const double Mx = X0 + Size * 0.5, Mz = Z0 + Size * 0.5;
+		Seaside = Land->SeaAt(Mx, Mz);
+		for (double R : {200.0, 400.0, 600.0})
+			for (int K = 0; K < 8 && !Seaside; ++K)
+				Seaside = Land->SeaAt(Mx + std::cos(K * 0.7853981633974483) * R, Mz + std::sin(K * 0.7853981633974483) * R);
+	}
 	for (const Candidate& Each : Here)
 	{
 		const Building& B = *Each.B;
@@ -281,16 +354,39 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const double Eaves = MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
 			: TrustHeight ? std::fmax(2.3, B.Height - Rise)
 			: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
-		const double Pick = IsHouse ? Chance(StreetX, StreetZ, 2) : Chance(B.X, B.Z, 2);
-		// (the walling: the map's material, else the local share of render, brick, else stone; a barn stays stone, or brick where brick is the rule)
-		const bool TaggedRender = WallMaterial == "plaster" || WallMaterial == "render" || WallMaterial == "stucco";
-		const bool TaggedBrick = WallMaterial == "brick", TaggedStone = WallMaterial == "stone" || WallMaterial == "sandstone" || WallMaterial == "limestone";
+		// ([towns stage 5] a row's walling chosen once for the whole row; a detached house or a cottage its own)
+		const double Pick = InRow ? Chance(RowX, RowZ, 2) : OwnWay ? Chance(B.X, B.Z, 2) : IsHouse ? Chance(StreetX, StreetZ, 2) : Chance(B.X, B.Z, 2);
+		// (the walling: the map's material, else the street's (what most of the tagged buildings round it,
+		// or round its row, are), else the local share of render, brick, else stone; a barn stays stone, or
+		// brick where brick is the rule)
+		const bool OwnRender = WallMaterial == "plaster" || WallMaterial == "render" || WallMaterial == "stucco" || WallMaterial == "rendered" || WallMaterial == "pebbledash";
+		const bool OwnBrick = WallMaterial == "brick", OwnStone = WallMaterial == "stone" || WallMaterial == "sandstone" || WallMaterial == "limestone" || WallMaterial == "granite";
 		const bool Plain = GlassHouse || Timber || Works;   // (drawn in the map's or the material's own colour, no scan)
+		const bool OwnWall = OwnRender || OwnBrick || OwnStone;
+		int StreetWall = -1, StreetRoof = -1;
+		if (!Plain && !IsBarn && !IsWorship && !IsCivic && (!OwnWall || Tags == nullptr || Tags->Words[3].empty()))
+		{
+			const double Sx = InRow ? InRow->RowSeed.X : B.X, Sz = InRow ? InRow->RowSeed.Z : B.Z;
+			StreetSays(Sx, Sz, 60.0, StreetWall, StreetRoof);
+		}
+		const bool FromStreet = !OwnWall && !Plain && StreetWall >= 0;
+		const bool TaggedRender = OwnRender || (FromStreet && StreetWall == 2);
+		const bool TaggedBrick = OwnBrick || (FromStreet && StreetWall == 0), TaggedStone = OwnStone || (FromStreet && StreetWall == 1);
 		const bool Chosen = Plain || TaggedRender || TaggedBrick || TaggedStone;
 		// ([OSM stage 3] a barn, a church or a chapel never rendered; a block of flats rendered or brick)
-		const bool Rendered = !Plain && !IsBarn && !IsWorship && (TaggedRender || (!Chosen && ((!Big && Pick < Look.RenderShare) || (IsBlock && Pick < 0.45))));
+		const bool PaintPick = Seaside && (IsHouse || IsShop) && !Big && Chance(B.X, B.Z, 92) < Look.Paint;
+		const bool Rendered = !Plain && !IsBarn && !IsWorship && (TaggedRender || (!Chosen && ((!Big && Pick < Look.RenderShare) || (IsBlock && Pick < 0.45) || PaintPick)));
 		const bool Brick = !Plain && !Rendered && (TaggedBrick || (!Chosen && (IsBlock || (Big ? Pick < Look.BrickShare * 0.8 : Pick < Look.RenderShare + Look.BrickShare))));
-		const Rgb Washes = HasWallColour ? TaggedWall : Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B};
+		// ([towns stage 5] by the sea, the place's share of houses painted, each its own colour, a row's too)
+		static const Rgb Paints[7] = {{0.62f, 0.55f, 0.38f}, {0.36f, 0.48f, 0.57f}, {0.60f, 0.40f, 0.38f}, {0.64f, 0.56f, 0.27f},
+			{0.40f, 0.55f, 0.45f}, {0.70f, 0.69f, 0.66f}, {0.48f, 0.44f, 0.56f}};
+		const bool Painted = Rendered && !HasWallColour && PaintPick;
+		// (white and cream the most, then the colours)
+		const double PaintBy = Chance(B.X, B.Z, 93);
+		static const int Colours[5] = {1, 2, 3, 4, 6};
+		const int PaintIndex = PaintBy < 0.3 ? 5 : PaintBy < 0.5 ? 0 : Colours[std::min(4, int((PaintBy - 0.5) * 10.0))];
+		const Rgb Washes = HasWallColour ? TaggedWall : Painted ? Paints[PaintIndex]
+			: Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B};
 		const Rgb Bricks = HasWallColour ? TaggedWall : Rgb{Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
 		static const Rgb GlassWall = {0.10f, 0.12f, 0.12f}, Planks = {0.16f, 0.11f, 0.07f}, Sheeting = {0.30f, 0.31f, 0.30f};
 		const Rgb PlainWall = HasWallColour && !GlassHouse ? TaggedWall : GlassHouse ? GlassWall : Timber ? Planks : Sheeting;
@@ -301,6 +397,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		Mask.R = float(0.48 + 0.14 * Chance(B.X, B.Z, 4));
 		Mask.G = 0.8f;
 		Mask.B = 0.3f;
+		// ([towns stage 5] the old stone of the northern mill towns: the place's share of it blackened by a
+		// century of coal smoke, some buildings more than others, the cleaned ones bright; none built since the war)
+		const bool Modern = Period && (Period->Name == "postwar" || Period->Name == "modern");
+		const bool Sooted = !Rendered && !Brick && !Plain && !Modern && !Ruin && Chance(InRow ? RowX : B.X, InRow ? RowZ : B.Z, 94) < Look.Soot;
+		if (Sooted) Mask.R = float(0.17 + 0.16 * Chance(B.X, B.Z, 95));
 		const auto WallQuad = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, double By)
 		{
 			if (Rendered) Quad(Washed, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.08f);
@@ -310,22 +411,51 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		};
 		// (the roof: the map's material, else the local share of thatch, clay tiles or pantiles, stone slates, else slate)
 		const double RoofPick = IsHouse ? Chance(StreetX, StreetZ, 6) : Chance(B.X, B.Z, 6);
-		const bool AnyRoofTag = !RoofMaterial.empty();
+		// ([towns stage 5] the street's roof where the map gives this one none: a house's or a shop's)
+		static const std::string StreetRoofs[4] = {"slate", "roof_tiles", "stone", "thatch"};
+		const bool RoofFromStreet = RoofMaterial.empty() && StreetRoof >= 0 && (IsHouse || IsShop) && !Big;
+		const std::string& RoofWord = RoofFromStreet ? StreetRoofs[StreetRoof] : RoofMaterial;
+		const bool AnyRoofTag = !RoofWord.empty();
+		// ([towns stage 5] else by when a house was built, where the place's mix is the region's guess and
+		// not counted from the map: a Victorian or Georgian house mostly in Welsh slate (the railways took it
+		// everywhere), an inter-war one in plain clay tiles south of the border, a post-war one mostly in
+		// concrete tiles; an older cottage as the place builds)
+		int PeriodRoof = -1;   // (0 slate, 1 clay tiles, 2 concrete tiles)
+		if (!AnyRoofTag && Period && !Big && (Look.From == LocalLook::FromRegion || Look.From == LocalLook::FromAtlas))
+		{
+			const double By = Chance(RowX, RowZ, 96);
+			if (Period->Name == "victorian" || Period->Name == "georgian") PeriodRoof = By < 0.8 ? 0 : -1;
+			else if (Period->Name == "interwar") PeriodRoof = By < 0.7 ? (Scots ? 0 : 1) : -1;
+			else if (Period->Name == "postwar" || Period->Name == "modern") PeriodRoof = By < 0.65 ? 2 : By < 0.85 ? (Scots ? 0 : 1) : -1;
+		}
+		const bool ByLook = !AnyRoofTag && PeriodRoof < 0;
 		// ([OSM stage 3] a church, a chapel or a civic building in slate; a barn in stone slate or sheet; a timber shed in felt)
 		const bool Formal = !AnyRoofTag && (IsWorship || IsCivic);
-		const bool Thatch = RoofMaterial == "thatch" || (!AnyRoofTag && !Big && !Plain && !Formal && RoofPick < Look.ThatchShare);
-		const bool Tiled = !Thatch && (RoofMaterial == "roof_tiles" || RoofMaterial == "tiles" || (!AnyRoofTag && !Formal && RoofPick < Look.ThatchShare + Look.TileShare));
-		const bool Flags = !Thatch && !Tiled && (RoofMaterial == "stone" || (!AnyRoofTag && !Plain && !Formal && RoofPick < Look.ThatchShare + Look.TileShare + Look.StoneSlateShare));
-		const bool Sheet = RoofMaterial == "metal" || RoofMaterial == "eternit" || RoofMaterial == "copper" || (!AnyRoofTag && (Works || (IsBarn && Chance(B.X, B.Z, 9) < 0.3)));
+		const bool Thatch = RoofWord == "thatch" || (ByLook && !Big && !Plain && !Formal && RoofPick < Look.ThatchShare);
+		const bool Tiled = !Thatch && (RoofWord == "roof_tiles" || RoofWord == "tiles" || PeriodRoof == 1 || PeriodRoof == 2 || (ByLook && !Formal && RoofPick < Look.ThatchShare + Look.TileShare));
+		const bool Flags = !Thatch && !Tiled && (RoofWord == "stone" || (ByLook && !Plain && !Formal && RoofPick < Look.ThatchShare + Look.TileShare + Look.StoneSlateShare));
+		const bool Sheet = RoofMaterial == "metal" || RoofMaterial == "eternit" || RoofMaterial == "copper" || (!AnyRoofTag && PeriodRoof < 0 && (Works || (IsBarn && Chance(B.X, B.Z, 9) < 0.3)));
 		const bool Felt = RoofMaterial == "tar_paper" || RoofMaterial == "concrete" || (!AnyRoofTag && (Shape == ERoof::Flat || (Timber && IsShed)));
 		const bool GlassRoof = RoofMaterial == "glass" || (!AnyRoofTag && GlassHouse);
 		static const Rgb Straw = {0.27f, 0.21f, 0.11f}, RoofSheet = {0.20f, 0.21f, 0.21f}, RoofFelt = {0.06f, 0.06f, 0.065f}, Verdigris = {0.18f, 0.32f, 0.27f};
-		const Rgb Tiles = {Look.TileColour.R, Look.TileColour.G, Look.TileColour.B};
+		// ([towns stage 5] concrete tiles brown or grey; plain clay tiles red-brown where the place's own are pantiles)
+		static const Rgb ConcreteTiles[2] = {{0.10f, 0.075f, 0.06f}, {0.075f, 0.072f, 0.07f}};
+		const Rgb Tiles = PeriodRoof == 2 ? ConcreteTiles[Chance(RowX, RowZ, 97) < 0.6 ? 0 : 1] : PeriodRoof == 1 ? Rgb{0.24f, 0.09f, 0.055f}
+			: Rgb{Look.TileColour.R, Look.TileColour.G, Look.TileColour.B};
 		const Rgb RoofBase = HasRoofColour ? TaggedRoof : GlassRoof ? Glass : RoofMaterial == "copper" ? Verdigris : Sheet ? RoofSheet : Felt ? RoofFelt
 			: Thatch ? Straw : Tiled ? Tiles : Flags ? StoneSlate : Slate;
 		const Rgb Roof = Shade(RoofBase, 0.9 + 0.2 * (0.7 * Chance(StreetX, StreetZ, 5) + 0.3 * Chance(B.X, B.Z, 5)));
 		// ([OSM stage 3] its roofing for M_RideRoof's courses: glass stays plain)
 		const float Roofing = HasRoofColour && !Tiled && !Thatch && !Flags && !Sheet && !Felt ? 0.0f : Sheet || Felt ? 1.0f : Thatch ? 0.75f : Tiled ? 0.5f : Flags ? 0.25f : 0.0f;
+		// ([towns stage 5] the coverage: where each house's walling and roof came from)
+		if (Tally && !Plain && (IsHouse || IsShop || IsBlock))
+		{
+			const int LookFrom = Look.From == LocalLook::FromTags ? 2 : Look.From == LocalLook::FromTable ? 3 : Look.From == LocalLook::FromAtlas ? 4 : 5;
+			++Tally->WallFrom[OwnWall ? 0 : FromStreet ? 1 : LookFrom];
+			++Tally->RoofFrom[!RoofMaterial.empty() ? 0 : RoofFromStreet ? 1 : PeriodRoof >= 0 ? 6 : LookFrom];
+			Tally->Sooted += Sooted ? 1 : 0;
+			Tally->Painted += Painted ? 1 : 0;
+		}
 		const auto RoofFace = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& C)
 		{
 			if (GlassRoof) Quad(Out, Q0, Q1, Q2, Q3, Toward, C);
@@ -362,13 +492,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// (a hipped roof's ridge: shorter than the walls by the roof's depth each end, a point if it is square)
 		const double Ridge = std::fmax(0.0, HalfLong - HalfShort);
 		// [OSM stage 3] Its door on the long side nearer a road (the + side if neither is near).
-		double DoorSide = 1.0;
+		double DoorSide = 1.0, FrontGap = 1e9;
 		{
 			NearOpts Opts;
 			NearHit Ha, Hb;
 			const P3 Pa = Local(0.0, HalfShort + 1.0, 0.0), Pb = Local(0.0, -HalfShort - 1.0, 0.0);
 			const double Da = NearestOf(Pa.X, Pa.Z, Opts, Ha) ? Ha.Dist - Ha.Half : 1e9, Db = NearestOf(Pb.X, Pb.Z, Opts, Hb) ? Hb.Dist - Hb.Half : 1e9;
 			if (Db < Da) DoorSide = -1.0;
+			FrontGap = std::fmin(Da, Db);
 			if (Tally && std::fmin(Da, Db) < 20.0) ++Tally->NearRoad;
 		}
 		// [OSM stage 3] A terrace: a house 12 m long or more and over two and a half times as long as
@@ -421,7 +552,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const bool HigherAtPlus = InRow->RowPos == 0 ? PartyPlus : ToSeed < 0.0;
 			DoorPlus = InRow->RowSize == 2 ? (InRow->RowPos == 0) != HigherAtPlus : (InRow->RowPos % 2 == 0) == HigherAtPlus;
 		}
-		const Rgb StoneTrim = Shade(Stone, 1.15);
+		// [towns stage 6] A shop: one the map calls a shop, or in a town's shopping street (the map's retail
+		// area or a pedestrian street) a house or a block of two storeys or more with its front to the street:
+		// a shop front on its ground floor, its own windows above.
+		const bool ShopHere = !Plain && !Big && !Ruin && HalfLong * 2.0 >= 3.5 && Eaves >= 3.2
+			&& (IsShop || ((IsHouse || IsBlock) && InTown && Eaves >= 5.0 && FrontGap < 12.0 && ShopStreetNear(B.X, B.Z, 6.0 + HalfShort)));
+		const Rgb StoneTrim = Shade(Stone, Sooted ? 0.55 : 1.15);
 		const bool Surrounds = (Look.StoneSurrounds || (!Rendered && !Brick)) && !Plain;
 		for (double Sg : {1.0, -1.0})
 		{
@@ -876,7 +1012,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 				if (Front) Door(-HalfLong + 1.8, 1.1, 2.4, 9);
 			}
-			else if (Bays > 1 || (InRow && IsHouse))
+			else if ((Bays > 1 || (InRow && IsHouse)) && !ShopHere)
 			{
 				// A terrace: each bay a door and a window beside it, and a window above each on every floor.
 				// ([towns stage 4] a house of a mapped row is one such bay, its door where its row puts it; a
@@ -908,16 +1044,84 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			else
 			{
 				// A house, a shop, a block, a civic building: windows a row a floor; one door on its front,
-				// in the middle (a shop's ground floor left plain for its front, to come).
+				// in the middle ([towns stage 6] a shop's ground floor its shop front, the rest as before).
+				const bool Shopfront = Front && ShopHere;
+				if (Shopfront)
+				{
+					// [towns stage 6] Shop fronts, as a high street's were built and are kept: a unit every 4.5
+					// to 7 m along the front, each between panelled pilasters under a fascia board and a moulded
+					// cornice the width of the unit; a stall riser under a tall display window, its transom
+					// lights over a bar, two mullions; the door at one side, glazed, set back in its own frame.
+					// The fascia is painted (one colour a unit, a deep heritage colour or a cream) and carries
+					// no name: beenster's rule, only pubs have signs. After dark most windows are lit.
+					static const Rgb ShopPaints[8] = {{0.012f, 0.04f, 0.022f}, {0.01f, 0.018f, 0.05f}, {0.07f, 0.012f, 0.014f}, {0.012f, 0.012f, 0.012f},
+						{0.5f, 0.47f, 0.38f}, {0.05f, 0.06f, 0.065f}, {0.025f, 0.06f, 0.07f}, {0.4f, 0.41f, 0.4f}};
+					const int Units = std::max(1, int(std::lround(HalfLong * 2.0 / 5.6)));
+					const double Uw = HalfLong * 2.0 / Units;
+					const double Cornice = std::fmin(3.45, Eaves - 0.25);              // (the cornice's top)
+					const double FasciaHi = Cornice - 0.1, FasciaLo = FasciaHi - std::fmin(0.55, Cornice * 0.16);
+					const double Riser = 0.55, Transom = FasciaLo - 0.45;
+					for (int Un = 0; Un < Units; ++Un)
+					{
+						const double U0 = -HalfLong + Un * Uw, U1 = U0 + Uw;
+						const double Pick0 = Chance(B.X + Un * 5.3, B.Z - Un * 2.9, 141);
+						const Rgb& Sp = ShopPaints[std::min(7, int(Pick0 * 8.0))];
+						const Rgb SpDark = Shade(Sp, 0.8), SpLight = Shade(Sp, 1.25);
+						const double Pw = 0.22;                                     // (a pilaster's width)
+						Bar(U0 + 0.02, U0 + 0.02 + Pw, 0.0, FasciaLo, 0.16, Sp);
+						Bar(U1 - 0.02 - Pw, U1 - 0.02, 0.0, FasciaLo, 0.16, Sp);
+						Bar(U0 + 0.02, U0 + 0.02 + Pw, FasciaLo - 0.22, FasciaLo, 0.2, SpLight);   // (their capitals)
+						Bar(U1 - 0.02 - Pw, U1 - 0.02, FasciaLo - 0.22, FasciaLo, 0.2, SpLight);
+						Bar(U0, U1, FasciaLo, FasciaHi, 0.2, Sp);                    // (the fascia)
+						Bar(U0 + 0.05, U1 - 0.05, FasciaLo + 0.06, FasciaHi - 0.06, 0.215, SpDark);   // (its sunk panel)
+						Bar(U0 - 0.03, U1 + 0.03, FasciaHi, Cornice, 0.3, SpLight);       // (the cornice, and its lead flashing)
+						Bar(U0 - 0.03, U1 + 0.03, Cornice - 0.015, Cornice + 0.01, 0.32, Shade(Slate, 0.9));
+						const double In0 = U0 + 0.02 + Pw, In1 = U1 - 0.02 - Pw;
+						if (In1 - In0 < 1.2) continue;
+						// (the door: at the unit's end nearer the building's middle, 1 m wide, set back 30 cm in its frame)
+						const bool DoorLeft = (U0 + U1) * 0.5 > 0.0;
+						const double D0 = DoorLeft ? In0 : In1 - 1.0, D1 = D0 + 1.0;
+						const double W0 = DoorLeft ? D1 + 0.1 : In0, W1 = DoorLeft ? In1 : D0 - 0.1;
+						Bar(DoorLeft ? D1 : D0 - 0.1, DoorLeft ? D1 + 0.1 : D0, 0.0, FasciaLo, 0.12, Sp);   // (the door frame's post)
+						Face(D0, D1, 0.0, 0.03, 0.01, Shade(StoneTrim, 0.9));        // (the step)
+						Face(D0 + 0.06, D1 - 0.06, 0.03, Transom - 0.05, -0.02, Sp);  // (the door: glass in a painted frame)
+						Face(D0 + 0.16, D1 - 0.16, 0.9, Transom - 0.2, -0.015, Glass);
+						Face(D0, D1, Transom, FasciaLo, 0.02, Glass);                // (its fanlight)
+						// (the display window)
+						if (W1 - W0 > 0.6)
+						{
+							Bar(W0, W1, 0.0, Riser, 0.12, SpDark);                      // (the stall riser)
+							Bar(W0, W1, Riser, Riser + 0.06, 0.16, SpLight);            // (its sill)
+							Face(W0, W1, Riser + 0.06, FasciaLo, 0.04, Glass);
+							Bar(W0, W1, Transom - 0.04, Transom + 0.04, 0.09, Sp);      // (the transom bar)
+							const int Lights = std::max(2, int((W1 - W0) / 1.4));
+							for (int M = 1; M < Lights; ++M)
+							{
+								const double Mu = W0 + (W1 - W0) * M / Lights;
+								Bar(Mu - 0.035, Mu + 0.035, Riser + 0.06, FasciaLo, 0.08, Sp);
+							}
+							// (most shops lit after dark, a cool white)
+							if (Chance(B.X + Un * 1.7, B.Z + Un * 3.1, 142) < 0.75)
+							{
+								static const Rgb ShopLight = {0.48f, 0.44f, 0.36f};
+								const double Lit = Sg * (HalfShort + 0.045);
+								Quad(Out.NightOf(), Local(W0 + 0.05, Lit, Riser + 0.1), Local(W1 - 0.05, Lit, Riser + 0.1), Local(W1 - 0.05, Lit, Transom - 0.05),
+									Local(W0 + 0.05, Lit, Transom - 0.05), Away, ShopLight, false, 0.0f);
+							}
+						}
+					}
+					if (Tally) Tally->ShopFronts += Units;
+				}
 				const double Space = IsCivic ? 3.0 : 3.5;
 				const int Along = std::max(1, int(HalfLong * 2.0 / Space));
 				// ([towns stage 4] a house's bays on its front either side of its door, where they fit)
-				const bool Bays0 = Front && IsHouse && BayModel >= 0 && Along >= 2 && HalfLong * 2.0 / Along >= 3.4 && Eaves > 3.7;
+				const bool Bays0 = Front && IsHouse && !ShopHere && BayModel >= 0 && Along >= 2 && HalfLong * 2.0 / Along >= 3.4 && Eaves > 3.7;
 				const bool BaysUp = Bays0 && BayTwo && Floors >= 2 && Eaves > 5.0;
 				for (int Fl = 0; Fl < Floors; ++Fl)
 					for (int Wn = 0; Wn < Along; ++Wn)
 					{
 						const double U = -HalfLong + (Wn + 0.5) * (HalfLong * 2.0 / Along), Y = 1.0 + Fl * 2.7;
+						if (Shopfront && Fl == 0) continue;
 						if (Front && Fl == 0 && Wn == Along / 2)
 						{
 							Door(U, IsCivic || IsBlock ? 1.6 : 0.95, IsCivic ? 2.6 : 2.05, 3);
@@ -931,6 +1135,66 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						}
 						Window(U, Y, IsCivic ? 1.0 : WinW, IsCivic ? std::fmin(2.0, 2.4) : WinH, Wn * 31 + Fl);
 					}
+			}
+		}
+		// [towns stage 6] Between the house and the street: a terrace's or a semi's front garden behind a low
+		// wall of the house's own brick or stone, coped, with a gap for the path to its door (a gate's width);
+		// a semi or a detached house a drive's width more at its far end from the door. Only where the garden
+		// is deep enough to read (1.2 m to 7 m from the front wall to the pavement's back), in a town, and not
+		// for a shop or a house the street's own pavement runs up to; half the post-war ones are open lawns.
+		if (Fine && InTown && IsHouse && !ShopHere && !Plain && !Ruin && Bays == 1 && HouseKind >= HouseTypes::Detached && HouseKind <= HouseTypes::Terrace)
+		{
+			const double Garden = FrontGap + 1.0 - 1.6;   // (FrontGap from 1 m out to the road's edge; the pavement 1.6 m)
+			const bool Open = Modern && Chance(RowX, RowZ, 151) < 0.5;
+			if (Garden >= 1.2 && Garden <= 7.0 && !Open)
+			{
+				const double Line = DoorSide * (HalfShort + Garden - 0.15);
+				const bool Detached = HouseKind == HouseTypes::Detached;
+				const double Ends = Detached ? 1.0 : 0.0;   // (a detached house's wall a metre past each side)
+				double DoorU = 0.0;
+				if (InRow) DoorU = DoorPlus ? HalfLong - 0.9 : -HalfLong + 0.9;
+				else
+				{
+					const int Along0 = std::max(1, int(HalfLong * 2.0 / 3.5));
+					DoorU = -HalfLong + (Along0 / 2 + 0.5) * (HalfLong * 2.0 / Along0);
+				}
+				// (the drive: at the end away from the door, a semi's at its outer end)
+				const bool Drive = HouseKind != HouseTypes::Terrace && HalfLong * 2.0 >= 5.0;
+				const bool DriveAtPlus = DoorU < 0.0;
+				double Runs[3][2];
+				int NRuns = 0;
+				const double From = -HalfLong - Ends, To = HalfLong + Ends;
+				const double G0 = DoorU - 0.55, G1 = DoorU + 0.55;
+				double Lo0 = From, Hi0 = To;
+				if (Drive) { if (DriveAtPlus) Hi0 = std::fmin(To, HalfLong - 2.9 + Ends); else Lo0 = std::fmax(From, -HalfLong + 2.9 - Ends); }
+				if (G0 - Lo0 > 0.3) { Runs[NRuns][0] = Lo0; Runs[NRuns][1] = std::fmin(G0, Hi0); ++NRuns; }
+				if (Hi0 - G1 > 0.3) { Runs[NRuns][0] = std::fmax(G1, Lo0); Runs[NRuns][1] = Hi0; ++NRuns; }
+				const double WallH = Modern ? 0.5 : 0.7 + 0.2 * Chance(RowX, RowZ, 152);
+				const Rgb Coping = Brick ? Shade(Wall, 0.8) : StoneTrim;
+				for (int Rn = 0; Rn < NRuns; ++Rn)
+				{
+					const double U0 = Runs[Rn][0], U1 = Runs[Rn][1];
+					if (U1 - U0 < 0.3) continue;
+					const P3 Ma = Local((U0 + U1) * 0.5, Line, 0.0), Mb = Local((U0 + U1) * 0.5 + 1.0, Line, 0.0);
+					const P3 Ea = Local(U0, Line, 0.0), Eb = Local(U1, Line, 0.0);
+					if (!OffRoad(Ea.X, Ea.Z, 0.4) || !OffRoad(Eb.X, Eb.Z, 0.4)) continue;
+					const double Ga = Ground(Ea.X, Ea.Z), Gb = Ground(Eb.X, Eb.Z);
+					if (std::isnan(Ga) || std::isnan(Gb)) continue;
+					const double Foot = std::fmin(Ga, Gb) - 0.3, Head = std::fmax(Ga, Gb) + WallH;
+					const P2 Dir(Mb.X - Ma.X, Mb.Z - Ma.Z);
+					RideMesh& Into = Rendered ? Washed : Brick ? BrickOut : Houses;
+					Box(Into, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5, 0.11, Foot, Head, Rendered || Brick ? Wall : Mask);
+					Box(Out, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5 + 0.02, 0.15, Head, Head + 0.09, Coping);
+					// (a gate pier each side of the path)
+					for (double Pu : {U0, U1})
+					{
+						if (std::fabs(Pu - G0) > 0.05 && std::fabs(Pu - G1) > 0.05) continue;
+						const P3 Pp = Local(Pu, Line, 0.0);
+						Box(Into, Pp.X, Pp.Z, Dir, 0.17, 0.17, Foot, Head + 0.25, Rendered || Brick ? Wall : Mask);
+						Box(Out, Pp.X, Pp.Z, Dir, 0.2, 0.2, Head + 0.25, Head + 0.35, Coping);
+					}
+				}
+				if (Tally && NRuns > 0) ++Tally->FrontWalls;
 			}
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
