@@ -633,8 +633,10 @@ bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHig
 {
 	W = H = 0.0;
 	std::vector<std::string> Ahead, Left, Right;
+	bool Ring = false;   // [roundabouts round 2] ("o" first: the junction a roundabout, drawn as a ring on the stem)
 	for (const std::string& Arm : Split(Arms, '|'))
 	{
+		if (Arm == "o") { Ring = true; continue; }
 		if (Arm.size() < 2) continue;
 		std::vector<std::string>& To = Arm[0] == '^' ? Ahead : Arm[0] == '<' ? Left : Right;
 		for (const std::string& P : Split(Arm.substr(1), ';'))
@@ -674,9 +676,29 @@ bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHig
 	const double Mu = (U0 + U1) * 0.5, Mv = (V0 + V1) * 0.5;
 	Plate(*Into, *Back, At, Rect(W, H, C * 0.6), Ground, C * 0.22, Ink, Grey);
 	const auto Line = [&](std::initializer_list<double> Uv) { std::vector<double> Out; bool X = true; for (double D : Uv) { Out.push_back(D - (X ? Mu : Mv)); X = !X; } return Out; };
-	Arrow(*Into, At, Line({0.0, StemFoot, 0.0, StemTop}), Stem, C * 1.1, 0.003, Ink);
-	if (!Left.empty()) Arrow(*Into, At, Line({0.0, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
-	if (!Right.empty()) Arrow(*Into, At, Line({0.0, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	if (Ring)
+	{
+		// (the stem up to a ring, the arms and the way ahead out of it)
+		const double Rr = C * 0.95;
+		Stroke(*Into, At, Line({0.0, StemFoot, 0.0, -Rr}), Stem, 0.003, Ink);
+		std::vector<double> Round;
+		for (int K = 0; K <= 28; ++K)
+		{
+			const double A = 6.283185307 * K / 28.0;
+			Round.push_back(Rr * std::cos(A) - Mu);
+			Round.push_back(Rr * std::sin(A) - Mv);
+		}
+		Stroke(*Into, At, Round, Side, 0.003, Ink);
+		if (!Ahead.empty()) Arrow(*Into, At, Line({0.0, Rr, 0.0, StemTop}), Side, C * 0.9, 0.003, Ink);
+		if (!Left.empty()) Arrow(*Into, At, Line({-Rr, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+		if (!Right.empty()) Arrow(*Into, At, Line({Rr, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	}
+	else
+	{
+		Arrow(*Into, At, Line({0.0, StemFoot, 0.0, StemTop}), Stem, C * 1.1, 0.003, Ink);
+		if (!Left.empty()) Arrow(*Into, At, Line({0.0, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+		if (!Right.empty()) Arrow(*Into, At, Line({0.0, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	}
 	bool Ok = true;
 	for (size_t K = 0; K < Left.size(); ++K) Ok = SetOn(*Into, At, -Reach - Gap - Mu, (double(Left.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch - Mv, C, Left[K], Ink, 1) && Ok;
 	for (size_t K = 0; K < Right.size(); ++K) Ok = SetOn(*Into, At, Reach + Gap - Mu, (double(Right.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch - Mv, C, Right[K], Ink, -1) && Ok;

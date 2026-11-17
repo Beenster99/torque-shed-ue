@@ -1118,7 +1118,27 @@ public:
 		bool Mini = false;               // small enough to be a mini-roundabout
 		bool Clockwise = false;          // its edges run clockwise seen from above
 		double Half = 0.0;               // [roundabouts] the ring's half width, the same all round (drawn as a circle)
+		// [roundabouts round 2] (beenster: "roundabouts aren't always round, large ones can be elongated
+		// circles and other shapes") A ring that isn't near a circle but goes once round its middle without
+		// doubling back (an oval, a rounded triangle or square) is drawn smoothed to its own shape: its
+		// middle line's distance from Mid by bearing (Prof, RingProfBins bins round from east, empty for
+		// a circle), Reach the farthest it gets. Circle is then set too: drawn as a smooth ring.
+		std::vector<double> Prof;
+		double Reach = 0.0;
+		bool Shaped = false;
+		// Its middle line's distance from Mid at a bearing (radians, atan2(z, x)), and how fast that changes.
+		double RAt(double Angle) const;
+		double RSlope(double Angle) const;
+		// A point Off metres out (- in) from its middle line, square to it, at a bearing.
+		P2 At(double Angle, double Off) const;
+		// How far a point is out from its middle line (- in towards the island), square to it.
+		double OffOf(const P2& P) const;
+		// The least distance of its middle line from Mid.
+		double Least() const;
 	};
+	static constexpr int RingProfBins = 180;
+	static constexpr double RingIslandLeast = 6.0;   // [roundabouts round 2] a shaped ring's island at its narrowest (m)
+	static constexpr double RingSignLeast = 12.0;    // [roundabouts round 2] a ring this far round or more is signed before it (m)
 	std::vector<RoadRing> RoadRings;
 	std::unordered_map<int, int> RingOfNode;   // a node on a ring: which
 	// ([roundabouts] RingRoundLeast was 12 m: the compact rings under it were left as the map drew them, a
@@ -1127,7 +1147,23 @@ public:
 	// [roundabouts] The ring's markings and island: corners onto it rounded to RingFlare m (6 m elsewhere),
 	// the island's kerb (RingKerb high, its face a 45 degree slope as the town kerbs), an overrun apron of
 	// setts RingApron wide round an island under RingApronUnder across, the arms' painted splitters.
-	static constexpr double RingFlare = 15.0, RingKerb = 0.125, RingApron = 1.6, RingApronUnder = 9.0;
+	static constexpr double RingFlare = 15.0, RingKerb = 0.125, RingApron = 1.6, RingApronUnder = 14.0;   // ([roundabouts round 2] under 9 m: none ever had one)
+	// [roundabouts round 2] How far out from a ring's outer edge roads are checked for grass shoulders on tarmac (m).
+	static constexpr double RingClearReach = 30.0;
+	bool ShapeRing(RoadRing& R) const;
+	// [roundabouts round 2] The roads onto a ring drawn as one: where each meets its outer edge, which way it
+	// heads out, how wide, and which way its traffic may go (+1 out only, -1 in only, 0 both).
+	struct RingArm
+	{
+		P2 At, Out;
+		double Angle = 0.0, Half = 0.0;
+		int Way = 0, Edge = -1, Node = -1;
+		std::vector<P2> Line;   // (its middle out from the ring's edge)
+	};
+	std::vector<RingArm> RingArms(const RoadRing& R) const;
+	// [roundabouts round 2] A ring's own furniture: a chevron board on its island facing each way on, and
+	// on a bigger ring's ways on a roundabout warning triangle before it (NetworkFurniture's, once a ring).
+	std::vector<Furnish> RingFurniture(int Ring) const;   // [roundabouts round 2] give a ring that isn't round its own smooth shape, if it has one
 	std::unordered_map<int, int> RingOfEdge;   // [roundabouts] an edge on a ring drawn as a circle: which
 	std::unordered_map<long long, std::vector<int>> RingCells;   // [roundabouts] the circle rings by 64 m square they reach
 	double RingHalfOf(int Edge, double Half) const;   // [roundabouts] its half width: the ring's, if on one drawn as a circle

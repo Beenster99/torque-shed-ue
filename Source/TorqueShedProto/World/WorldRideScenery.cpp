@@ -1380,7 +1380,7 @@ void RidePlan::IndexFurniture()
 		// Roundabouts on a road of 40 mph or more: where the ride's road comes onto a ring, each way.
 		for (const RoadRing& Ring : RoadRings)
 		{
-			const double Reach = Ring.Radius + 2.0;
+			const double Reach = Ring.Reach + 2.0;
 			for (size_t I = 0; I < Road.size(); ++I)
 			{
 				if (Road[I].At.DistanceTo(Ring.Mid) >= Reach) continue;
@@ -1729,6 +1729,31 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		}
 		case Chevron:
 		{
+			if (F.Big > 0.0)
+			{
+				// [roundabouts round 2] A roundabout's chevron board (diagram 515.1A): on its island facing the
+				// way on, low, Big wide and 0.6 m high, black with a white chevron every 0.4 m or so pointing the
+				// way round; its back grey, on two posts.
+				const double Wd = F.Big, Ht = 0.6;
+				for (double Su : {-Wd * 0.5 + 0.15, Wd * 0.5 - 0.15}) Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y - 0.3, Y + 1.25, 0.04, 0.035, Grey);
+				const P3 Mid = At3(F.At.X, Y + 0.95, F.At.Z);
+				SignBoard(Mid, Face, Wd, Ht, Black, 0.03);
+				Board(Mid, Face * -1.0, Wd, Ht, Grey, 0.02);
+				const P2 U(Face.Z, -Face.X);   // (the reader's right, as they face it: the way SignText sets words)
+				const double Px = Mid.X + Face.X * 0.04, Pz = Mid.Z + Face.Z * 0.04;
+				const P3 Toward = At3(Px + Face.X * 50.0, Mid.Y, Pz + Face.Z * 50.0);
+				const int Count = std::max(2, int(std::floor((Wd - 0.1) / 0.42)));
+				const double Pitch = (Wd - 0.1) / Count;
+				for (int K = 0; K < Count; ++K)
+				{
+					// (each chevron's tip to the reader's left for F.Size +1)
+					const double C0 = -(Wd - 0.1) * 0.5 + Pitch * (K + 0.5);
+					const auto Pt = [&](double Su, double Sv) { const double Uu = (C0 + Su) * F.Size; return At3(Px + U.X * Uu, Mid.Y + Sv, Pz + U.Z * Uu); };
+					for (double Sv : {1.0, -1.0})
+						Quad(Out.SignsOf(), Pt(-0.13, 0.0), Pt(-0.02, 0.0), Pt(0.13, 0.22 * Sv), Pt(0.02, 0.22 * Sv), Toward, White, true);
+				}
+				break;
+			}
 			for (double Su : {-0.3, 0.3}) Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y - 0.3, Y + 1.7, 0.04, 0.035, Grey);
 			const P3 Mid = At3(F.At.X, Y + 1.3, F.At.Z);
 			// (each face its arrows the way its own reader's bend turns: forwards F.Size, back the other)
@@ -1737,9 +1762,11 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				const P2 N = Back ? Face * -1.0 : Face;
 				const double Point = Back ? -F.Size : F.Size;   // +1: the tip to the reader's left
 				SignBoard(Mid, N, 0.9, 0.7, Black, 0.03);
-				const P2 U(N.Z, -N.X);   // (the reader's left, as they face it)
+				// ([roundabouts round 2] (N.Z, -N.X) is the reader's right, as SignText sets words along it: the
+				// tips were to the right where they should have pointed left, and the other way)
+				const P2 U(N.Z, -N.X);
 				const double Px = Mid.X + N.X * 0.04, Pz = Mid.Z + N.Z * 0.04;
-				const auto Pt = [&](double Su, double Sv) { return At3(Px - U.X * Su * Point, Mid.Y + Sv, Pz - U.Z * Su * Point); };
+				const auto Pt = [&](double Su, double Sv) { return At3(Px + U.X * Su * Point, Mid.Y + Sv, Pz + U.Z * Su * Point); };
 				const P3 Toward = At3(Px + N.X * 50.0, Mid.Y, Pz + N.Z * 50.0);
 				for (double Sv : {1.0, -1.0})
 					Quad(Out.SignsOf(), Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
