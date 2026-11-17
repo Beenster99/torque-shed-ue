@@ -43,7 +43,8 @@ void RidePlan::IndexTowns()
 	TownGrid.clear();
 	TownLooks.clear();
 	TownSources.clear();
-	TownsCounted = TownsTabled = 0;
+	AtlasGrid.clear();
+	TownsCounted = TownsTabled = AtlasSquares = 0;
 	if (!Britain()) return;
 	const Region& G = Area.Roads;
 	const Frame F(G.FrameLat, G.FrameLon);
@@ -122,7 +123,8 @@ void RidePlan::IndexTowns()
 			Counted.StoneSlate = float(Sum.Flags);
 			Counted.Thatch = float(Sum.Thatch);
 		}
-		LocalLook L = TownLook(LookAt(Here.Lat, Here.Lon), Counted);
+		LocalLook L = TownLook(AreaLook(Here.Lat, Here.Lon), Counted);
+		L.From = LocalLook::FromTags;
 		if (Sum.Coloured >= 10)
 		{
 			// (the brick colour the mappers saw, already linear and toned to brick; kept within a real
@@ -151,7 +153,7 @@ void RidePlan::IndexTowns()
 			{
 				const Geo Here = F.ToGeo(At.X, At.Z);
 				Index = int(TownLooks.size());
-				TownLooks.push_back(TownLook(LookAt(Here.Lat, Here.Lon), T));
+				TownLooks.push_back(TownLook(AreaLook(Here.Lat, Here.Lon), T));
 				TownSources.push_back(T.Name);
 			}
 			auto Old = TownGrid.find(Sq.first);
@@ -161,6 +163,25 @@ void RidePlan::IndexTowns()
 		}
 		if (Hit > 0) ++TownsTabled;
 	}
+	// [towns stage 5] The atlas's areas on the squares no town holds: one look per area met.
+	std::unordered_map<std::string, int> AreaIndex;
+	for (const auto& Sq : Built)
+	{
+		if (TownGrid.count(Sq.first) != 0) continue;
+		const Geo Here = F.ToGeo((Sq.second.first + 0.5) * TownCell, (Sq.second.second + 0.5) * TownCell);
+		std::string Name;
+		const LocalLook L = AreaLook(Here.Lat, Here.Lon, &Name);
+		if (Name.empty()) continue;
+		auto Known = AreaIndex.find(Name);
+		if (Known == AreaIndex.end())
+		{
+			Known = AreaIndex.emplace(Name, int(TownLooks.size())).first;
+			TownLooks.push_back(L);
+			TownSources.push_back("atlas " + Name);
+		}
+		AtlasGrid[Sq.first] = Known->second;
+		++AtlasSquares;
+	}
 }
 
 const LocalLook* RidePlan::TownLookAt(double X, double Z) const
@@ -168,5 +189,12 @@ const LocalLook* RidePlan::TownLookAt(double X, double Z) const
 	if (TownGrid.empty()) return nullptr;
 	const auto It = TownGrid.find(RideTownBits::TownKey(int(std::floor(X / TownCell)), int(std::floor(Z / TownCell))));
 	return It == TownGrid.end() ? nullptr : &TownLooks[size_t(It->second)];
+}
+
+const LocalLook* RidePlan::AtlasLookAt(double X, double Z) const
+{
+	if (AtlasGrid.empty()) return nullptr;
+	const auto It = AtlasGrid.find(RideTownBits::TownKey(int(std::floor(X / TownCell)), int(std::floor(Z / TownCell))));
+	return It == AtlasGrid.end() ? nullptr : &TownLooks[size_t(It->second)];
 }
 } // namespace TorqueWorld

@@ -3,6 +3,7 @@
 #include "FitJson.h"
 
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 #include <string>
 
@@ -46,6 +47,9 @@ LocalLook Make(const char* Name, LocalLook::EBoundary Boundary, Tint Wall, Tint 
 	else if (N == "wales" || N == "highlands" || N == "ulster" || N == "lowlands") Set(42.0f, 0.2f, B::Sash, false, B::GableEnds);
 	else if (N == "fens" || N == "lowland") Set(45.0f, 0.3f, B::Sash, false, B::OnRidge);
 	else Set(30.0f, 0.5f, B::Casement, false, B::OnRidge);                                     // (the world's: low tiled roofs, wide eaves)
+	// [towns stage 5] The share of houses painted in colours by the sea (St Ives, Tenby, Tobermory, Portrush).
+	L.Paint = N == "wales" ? 0.4f : N == "cornwall" || N == "highlands" ? 0.35f : N == "devon" || N == "ulster" ? 0.3f : N == "lowlands" ? 0.25f
+		: N == "lowland" || N == "fens" ? 0.2f : N == "moors" || N == "northumberland" || N == "lakes" ? 0.1f : 0.0f;
 	if (N == "cotswolds") { L.Doors[0] = {0.12f, 0.14f, 0.09f}; L.Doors[1] = {0.5f, 0.47f, 0.38f}; L.Doors[2] = {0.09f, 0.05f, 0.025f}; L.Doors[3] = {0.05f, 0.08f, 0.12f}; }
 	else if (N == "cornwall" || N == "devon") { L.Doors[0] = {0.02f, 0.06f, 0.15f}; L.Doors[1] = {0.6f, 0.6f, 0.58f}; L.Doors[3] = {0.03f, 0.12f, 0.1f}; }
 	return L;
@@ -132,6 +136,14 @@ bool NamedBrick(const std::string& Name, Tint& Out)
 	else if (Name == "yellow") Out = {0.40f, 0.31f, 0.18f};
 	else if (Name == "cream") Out = {0.50f, 0.44f, 0.32f};
 	else if (Name == "blue") Out = {0.065f, 0.06f, 0.07f};
+	// [towns stage 5] (the atlas's: a Peterborough Fletton, pink-buff; a Suffolk white; a hard
+	// Accrington red; a plum-purple London stock; a soft Georgian rubbed red)
+	else if (Name == "fletton") Out = {0.30f, 0.15f, 0.095f};
+	else if (Name == "white") Out = {0.52f, 0.47f, 0.38f};
+	else if (Name == "accrington") Out = {0.22f, 0.06f, 0.04f};
+	else if (Name == "plum") Out = {0.15f, 0.07f, 0.06f};
+	else if (Name == "gault") Out = {0.50f, 0.44f, 0.32f};
+	else if (Name == "stock") Out = {0.40f, 0.31f, 0.18f};
 	else return false;
 	return true;
 }
@@ -149,6 +161,19 @@ bool NamedStone(const std::string& Name, Tint& Out)
 	else if (Name == "limestone") Out = {1.0f, 1.0f, 1.0f};
 	else if (Name == "flint") Out = {0.78f, 0.78f, 0.80f};
 	else if (Name == "slate") Out = {0.66f, 0.70f, 0.70f};
+	// [towns stage 5] (the atlas's: Northamptonshire and Oxfordshire ironstone, rust-brown; Portland's
+	// white; the Magnesian limestone's cream; Kentish ragstone, grey-green; Norfolk carstone, gingerbread;
+	// chalk clunch; Purbeck's grey; Ham stone, golden-orange; whinstone, dark; a buff sandstone)
+	else if (Name == "ironstone") Out = {1.22f, 0.80f, 0.46f};
+	else if (Name == "portland") Out = {1.40f, 1.36f, 1.24f};
+	else if (Name == "magnesian") Out = {1.30f, 1.20f, 0.98f};
+	else if (Name == "ragstone") Out = {0.98f, 0.96f, 0.84f};
+	else if (Name == "carstone") Out = {0.86f, 0.52f, 0.30f};
+	else if (Name == "clunch") Out = {1.45f, 1.42f, 1.32f};
+	else if (Name == "purbeck") Out = {1.05f, 1.03f, 0.94f};
+	else if (Name == "ham") Out = {1.32f, 0.96f, 0.56f};
+	else if (Name == "whinstone") Out = {0.60f, 0.60f, 0.60f};
+	else if (Name == "buff") Out = {1.22f, 1.10f, 0.90f};
 	else return false;
 	return true;
 }
@@ -267,13 +292,15 @@ std::shared_ptr<const HouseTypes> HouseTypesNow()
 	return HouseTypeTable();
 }
 
-bool SetTownTable(const std::string& Text)
+namespace
+{
+// A table of town entries (a town's look, or a materials atlas area) under the key List.
+bool ReadEntries(const std::string& Text, const char* List, std::vector<TownEntry>& Out)
 {
 	TorqueFit::Json Root;
 	if (!TorqueFit::Json::Parse(Text, Root) || !Root.IsObject()) return false;
-	const TorqueFit::Json* Rows = Root.Get("towns");
+	const TorqueFit::Json* Rows = Root.Get(List);
 	if (Rows == nullptr || !Rows->IsArray()) return false;
-	std::vector<TownEntry> List;
 	for (const TorqueFit::Json& J : Rows->A)
 	{
 		TownEntry T;
@@ -301,11 +328,64 @@ bool SetTownTable(const std::string& Text)
 		T.BrickName = J.Str("brick");
 		T.StoneName = J.Str("stone");
 		T.TileName = J.Str("tile");
-		List.push_back(std::move(T));
+		T.Soot = float(std::clamp(J.Num("soot", -1.0), -1.0, 1.0));
+		T.Paint = float(std::clamp(J.Num("paint", -1.0), -1.0, 1.0));
+		Out.push_back(std::move(T));
 	}
+	return true;
+}
+
+std::mutex AtlasLock;
+std::vector<TownEntry>& Atlas()
+{
+	static std::vector<TownEntry> List;
+	return List;
+}
+} // namespace
+
+bool SetTownTable(const std::string& Text)
+{
+	std::vector<TownEntry> List;
+	if (!ReadEntries(Text, "towns", List)) return false;
 	std::lock_guard<std::mutex> Hold(TownLock);
 	Towns() = std::move(List);
 	return true;
+}
+
+bool SetMaterialsAtlas(const std::string& Text)
+{
+	std::vector<TownEntry> List;
+	if (!ReadEntries(Text, "areas", List)) return false;
+	std::lock_guard<std::mutex> Hold(AtlasLock);
+	Atlas() = std::move(List);
+	return true;
+}
+
+std::vector<TownEntry> MaterialsAtlas()
+{
+	std::lock_guard<std::mutex> Hold(AtlasLock);
+	return Atlas();
+}
+
+LocalLook AreaLook(double Lat, double Lon, std::string* Area)
+{
+	const LocalLook& Region = LookAt(Lat, Lon);
+	// (the smallest area that holds the place: a town's own stone inside a county's)
+	const TownEntry* Best = nullptr;
+	double BestKm = 1e9;
+	std::lock_guard<std::mutex> Hold(AtlasLock);
+	for (const TownEntry& T : Atlas())
+	{
+		const double Dn = (Lat - T.Lat) * 111.2, De = (Lon - T.Lon) * 111.2 * std::cos(Lat * 0.0174533);
+		if (Dn * Dn + De * De > T.Km * T.Km || T.Km >= BestKm) continue;
+		Best = &T;
+		BestKm = T.Km;
+	}
+	if (Best == nullptr) return Region;
+	if (Area) *Area = Best->Name;
+	LocalLook L = TownLook(Region, *Best);
+	L.From = LocalLook::FromAtlas;
+	return L;
 }
 
 std::vector<TownEntry> TownTable()
@@ -333,6 +413,9 @@ LocalLook TownLook(const LocalLook& Region, const TownEntry& Town)
 	NamedBrick(Town.BrickName, L.BrickColour);
 	if (NamedStone(Town.StoneName, L.HouseStone)) L.WallStone = L.HouseStone;
 	NamedTile(Town.TileName, L.TileColour);
+	if (Town.Soot >= 0.0f) L.Soot = Town.Soot;
+	if (Town.Paint >= 0.0f) L.Paint = Town.Paint;
+	L.From = LocalLook::FromTable;
 	return L;
 }
 

@@ -157,6 +157,8 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string AtlasText;   // [towns stage 5]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
 		std::string TypesText;   // [towns stage 4]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
 		std::string GlyphText;   // [OSM stage 6A]
@@ -426,6 +428,25 @@ int main(int Argc, char** Argv)
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
+			// [towns stage 5] (the coverage: where the walls and roofs came from)
+			const auto Share = [](const int* From, int K)
+			{
+				int All = 0;
+				for (int I = 0; I < 7; ++I) All += From[I];
+				return All > 0 ? 100.0 * From[K] / All : 0.0;
+			};
+			std::printf("Walling of houses, shops and flats: own tags %.0f%%, the street's %.0f%%, the town counted from tags %.0f%%, the town table %.0f%%, the atlas %.0f%%, the region %.0f%% (data: %.0f%%); %d sooted, %d painted by the sea\n",
+				Share(Tally.WallFrom, 0), Share(Tally.WallFrom, 1), Share(Tally.WallFrom, 2), Share(Tally.WallFrom, 3), Share(Tally.WallFrom, 4), Share(Tally.WallFrom, 5),
+				Share(Tally.WallFrom, 0) + Share(Tally.WallFrom, 1) + Share(Tally.WallFrom, 2), Tally.Sooted, Tally.Painted);
+			std::printf("Their roofs: own tags %.0f%%, the street's %.0f%%, the town counted %.0f%%, the town table %.0f%%, the atlas %.0f%%, the region %.0f%%, by period %.0f%%\n",
+				Share(Tally.RoofFrom, 0), Share(Tally.RoofFrom, 1), Share(Tally.RoofFrom, 2), Share(Tally.RoofFrom, 3), Share(Tally.RoofFrom, 4), Share(Tally.RoofFrom, 5), Share(Tally.RoofFrom, 6));
+			{
+				const LocalLook& L = Plan->LookHere(Cx + 128.0, Cz + 128.0);
+				std::printf("The look at the start: %s, from %s; stone tint %.2f %.2f %.2f, brick %.3f %.3f %.3f, render %.0f%% brick %.0f%%, soot %.2f, paint %.2f\n", L.Name,
+					L.From == LocalLook::FromTags ? "the map's tags" : L.From == LocalLook::FromTable ? "the town table" : L.From == LocalLook::FromAtlas ? "the atlas" : "the region",
+					L.HouseStone.R, L.HouseStone.G, L.HouseStone.B, L.BrickColour.R, L.BrickColour.G, L.BrickColour.B, 100.0 * L.RenderShare, 100.0 * L.BrickShare, L.Soot, L.Paint);
+				for (const auto& Src : Plan->TownSources) if (Src.rfind("atlas", 0) == 0) std::printf("  area: %s\n", Src.c_str());
+			}
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.
@@ -1853,6 +1874,9 @@ int main(int Argc, char** Argv)
 								{
 									const double Lit = Cr * 2.0 * (1.0 + 0.25 * Cb);
 									Cr = 0.235 * Lit; Cg = 0.225 * Lit; Cb = 0.205 * Lit;
+									// ([towns stage 5] the houses' stone in the square's own tint)
+									if (Mesh == Houses && Extra) { Cr *= Extra->MasonryTint.R; Cg *= Extra->MasonryTint.G; Cb *= Extra->MasonryTint.B; }
+									else if (Mesh == Walls && Extra) { Cr *= Extra->StoneTint.R; Cg *= Extra->StoneTint.G; Cb *= Extra->StoneTint.B; }
 								}
 								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
 									Cr, Cg, Cb);

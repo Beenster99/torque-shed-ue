@@ -1,0 +1,1061 @@
+{
+ "about": "Towns stage 5: the materials atlas. The country's local building stones and bricks by area, each a circle (at = [lat, lon], km its reach); a place inside several takes the smallest. Over the region's look and under a town's in town_looks.json (which builds on it). walls and roofs are shares (any scale); stone = a NamedStone tint (bath, honey, sandstone, red_sandstone, gritstone, sooty, granite, limestone, flint, slate, ironstone, portland, magnesian, ragstone, carstone, clunch, purbeck, ham, whinstone, buff); brick = a NamedBrick colour (red, orange, brown, yellow, cream, blue, fletton, white, accrington, plum, gault, stock); tile = red, orange (pantiles), brown, blue. soot = the share of old stone buildings blackened by coal smoke; paint = the share of houses painted in colours where the sea is near. Read by World/WorldRideStyle (SetMaterialsAtlas).",
+ "areas": [
+  {
+   "name": "Bath stone (Box and Combe Down oolite)",
+   "at": [
+    51.4,
+    -2.3
+   ],
+   "km": 16,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.8,
+    "render": 0.1
+   },
+   "stone": "bath",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.3,
+    "stone": 0.1,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Cotswold oolite",
+   "at": [
+    51.85,
+    -1.85
+   ],
+   "km": 38,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.82,
+    "render": 0.08
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.15,
+    "stone": 0.5,
+    "thatch": 0.05
+   }
+  },
+  {
+   "name": "Ham Hill stone (south Somerset)",
+   "at": [
+    50.95,
+    -2.73
+   ],
+   "km": 14,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.8,
+    "render": 0.1
+   },
+   "stone": "ham",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.35,
+    "stone": 0.05,
+    "thatch": 0.2
+   }
+  },
+  {
+   "name": "Portland stone",
+   "at": [
+    50.55,
+    -2.44
+   ],
+   "km": 7,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.8,
+    "render": 0.15
+   },
+   "stone": "portland",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.8,
+    "tile": 0.2,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Purbeck stone",
+   "at": [
+    50.62,
+    -2.05
+   ],
+   "km": 10,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.75,
+    "render": 0.15
+   },
+   "stone": "purbeck",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.2,
+    "stone": 0.5,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Blue Lias (Somerset levels and Mendip)",
+   "at": [
+    51.12,
+    -2.75
+   ],
+   "km": 22,
+   "walls": {
+    "brick": 0.2,
+    "stone": 0.65,
+    "render": 0.15
+   },
+   "stone": "purbeck",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.5,
+    "stone": 0,
+    "thatch": 0.1
+   }
+  },
+  {
+   "name": "Northamptonshire and Banbury ironstone",
+   "at": [
+    52.2,
+    -1.15
+   ],
+   "km": 32,
+   "walls": {
+    "brick": 0.35,
+    "stone": 0.55,
+    "render": 0.1
+   },
+   "stone": "ironstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.5,
+    "tile": 0.3,
+    "stone": 0.1,
+    "thatch": 0.1
+   }
+  },
+  {
+   "name": "Lincolnshire limestone (Stamford, Rutland, Collyweston roofs)",
+   "at": [
+    52.65,
+    -0.55
+   ],
+   "km": 20,
+   "walls": {
+    "brick": 0.15,
+    "stone": 0.8,
+    "render": 0.05
+   },
+   "stone": "bath",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.25,
+    "stone": 0.4,
+    "thatch": 0.05
+   }
+  },
+  {
+   "name": "Lincoln limestone",
+   "at": [
+    53.23,
+    -0.54
+   ],
+   "km": 9,
+   "walls": {
+    "brick": 0.5,
+    "stone": 0.45,
+    "render": 0.05
+   },
+   "stone": "magnesian",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Magnesian limestone (Tadcaster, Wetherby)",
+   "at": [
+    53.88,
+    -1.28
+   ],
+   "km": 14,
+   "walls": {
+    "brick": 0.3,
+    "stone": 0.65,
+    "render": 0.05
+   },
+   "stone": "magnesian",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.35,
+    "tile": 0.6,
+    "stone": 0.05,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "South Pennine gritstone (Calderdale, Kirklees)",
+   "at": [
+    53.72,
+    -1.95
+   ],
+   "km": 22,
+   "walls": {
+    "brick": 0.25,
+    "stone": 0.72,
+    "render": 0.03
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.65,
+    "tile": 0.05,
+    "stone": 0.3,
+    "thatch": 0
+   },
+   "soot": 0.45
+  },
+  {
+   "name": "Lancashire mill towns (Accrington brick and gritstone)",
+   "at": [
+    53.72,
+    -2.35
+   ],
+   "km": 20,
+   "walls": {
+    "brick": 0.65,
+    "stone": 0.32,
+    "render": 0.03
+   },
+   "stone": "gritstone",
+   "brick": "accrington",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.4
+  },
+  {
+   "name": "Greater Manchester red brick",
+   "at": [
+    53.5,
+    -2.24
+   ],
+   "km": 16,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.1,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "accrington",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.35
+  },
+  {
+   "name": "Merseyside brick and red sandstone",
+   "at": [
+    53.42,
+    -2.95
+   ],
+   "km": 16,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.08,
+    "render": 0.07
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.3
+  },
+  {
+   "name": "Cheshire and Wirral red sandstone",
+   "at": [
+    53.17,
+    -2.8
+   ],
+   "km": 26,
+   "walls": {
+    "brick": 0.65,
+    "stone": 0.25,
+    "render": 0.1
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.3,
+    "stone": 0,
+    "thatch": 0.1
+   }
+  },
+  {
+   "name": "Eden valley and St Bees red sandstone",
+   "at": [
+    54.66,
+    -2.8
+   ],
+   "km": 26,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.8,
+    "render": 0.1
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "White Peak limestone",
+   "at": [
+    53.2,
+    -1.8
+   ],
+   "km": 14,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.9,
+    "render": 0.05
+   },
+   "stone": "limestone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.0,
+    "stone": 0.6,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Sheffield and Barnsley coal measures sandstone",
+   "at": [
+    53.45,
+    -1.45
+   ],
+   "km": 16,
+   "walls": {
+    "brick": 0.65,
+    "stone": 0.32,
+    "render": 0.03
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.85,
+    "tile": 0.15,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.4
+  },
+  {
+   "name": "Durham coalfield (brick and sandstone)",
+   "at": [
+    54.8,
+    -1.6
+   ],
+   "km": 20,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.35,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.25
+  },
+  {
+   "name": "Tyneside sandstone",
+   "at": [
+    54.97,
+    -1.62
+   ],
+   "km": 14,
+   "walls": {
+    "brick": 0.55,
+    "stone": 0.4,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.35
+  },
+  {
+   "name": "Dartmoor granite",
+   "at": [
+    50.58,
+    -3.92
+   ],
+   "km": 18,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.6,
+    "render": 0.35
+   },
+   "stone": "granite",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.8,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0.2
+   }
+  },
+  {
+   "name": "Devon red sandstone and cob (Exe valley, Torbay)",
+   "at": [
+    50.68,
+    -3.48
+   ],
+   "km": 20,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.3,
+    "render": 0.6
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.2,
+    "stone": 0,
+    "thatch": 0.4
+   },
+   "paint": 0.35
+  },
+  {
+   "name": "Old Red Sandstone (Herefordshire, Forest of Dean)",
+   "at": [
+    51.95,
+    -2.65
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.35,
+    "stone": 0.55,
+    "render": 0.1
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.5,
+    "stone": 0.05,
+    "thatch": 0.05
+   }
+  },
+  {
+   "name": "Kentish ragstone",
+   "at": [
+    51.25,
+    0.45
+   ],
+   "km": 18,
+   "walls": {
+    "brick": 0.55,
+    "stone": 0.35,
+    "render": 0.1
+   },
+   "stone": "ragstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Chiltern flint and brick",
+   "at": [
+    51.7,
+    -0.75
+   ],
+   "km": 25,
+   "walls": {
+    "brick": 0.65,
+    "stone": 0.2,
+    "render": 0.15
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "South Downs flint (Sussex and Hampshire)",
+   "at": [
+    50.9,
+    -0.9
+   ],
+   "km": 36,
+   "walls": {
+    "brick": 0.55,
+    "stone": 0.3,
+    "render": 0.15
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.25,
+    "tile": 0.75,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Norfolk flint and pantiles",
+   "at": [
+    52.72,
+    1.15
+   ],
+   "km": 40,
+   "walls": {
+    "brick": 0.5,
+    "stone": 0.4,
+    "render": 0.1
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.75,
+    "stone": 0,
+    "thatch": 0.15
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Norfolk carstone (Hunstanton, Snettisham)",
+   "at": [
+    52.88,
+    0.52
+   ],
+   "km": 12,
+   "walls": {
+    "brick": 0.35,
+    "stone": 0.6,
+    "render": 0.05
+   },
+   "stone": "carstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Cambridgeshire clunch",
+   "at": [
+    52.17,
+    0.2
+   ],
+   "km": 10,
+   "walls": {
+    "brick": 0.65,
+    "stone": 0.2,
+    "render": 0.15
+   },
+   "stone": "clunch",
+   "brick": "gault",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.5,
+    "stone": 0,
+    "thatch": 0.1
+   }
+  },
+  {
+   "name": "Ely and the Isle (gault brick)",
+   "at": [
+    52.4,
+    0.26
+   ],
+   "km": 14,
+   "walls": {
+    "brick": 0.82,
+    "stone": 0.08,
+    "render": 0.1
+   },
+   "stone": "clunch",
+   "brick": "gault",
+   "roofs": {
+    "slate": 0.45,
+    "tile": 0.5,
+    "stone": 0,
+    "thatch": 0.05
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Suffolk white and red brick",
+   "at": [
+    52.2,
+    1.05
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.1,
+    "render": 0.3
+   },
+   "stone": "flint",
+   "brick": "white",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.65,
+    "stone": 0,
+    "thatch": 0.15
+   },
+   "tile": "orange",
+   "paint": 0.3
+  },
+  {
+   "name": "Peterborough Flettons",
+   "at": [
+    52.57,
+    -0.24
+   ],
+   "km": 14,
+   "walls": {
+    "brick": 0.9,
+    "stone": 0.07,
+    "render": 0.03
+   },
+   "stone": "bath",
+   "brick": "fletton",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Hull and the East Riding (brick and pantiles)",
+   "at": [
+    53.85,
+    -0.4
+   ],
+   "km": 26,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.05,
+    "render": 0.1
+   },
+   "stone": "magnesian",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.35,
+    "tile": 0.65,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Lincolnshire Wolds and marsh (brick and pantiles)",
+   "at": [
+    53.3,
+    0.0
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.05,
+    "render": 0.1
+   },
+   "stone": "magnesian",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.25,
+    "tile": 0.75,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Black Country and Birmingham red brick",
+   "at": [
+    52.5,
+    -1.98
+   ],
+   "km": 18,
+   "walls": {
+    "brick": 0.9,
+    "stone": 0.05,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.5,
+    "tile": 0.5,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.25
+  },
+  {
+   "name": "London stock brick",
+   "at": [
+    51.51,
+    -0.12
+   ],
+   "km": 16,
+   "walls": {
+    "brick": 0.75,
+    "stone": 0.05,
+    "render": 0.2
+   },
+   "stone": "portland",
+   "brick": "stock",
+   "roofs": {
+    "slate": 0.85,
+    "tile": 0.15,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Outer London (red and plum brick, pebbledash)",
+   "at": [
+    51.5,
+    -0.12
+   ],
+   "km": 28,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.02,
+    "render": 0.38
+   },
+   "stone": "portland",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "South Wales valleys Pennant sandstone",
+   "at": [
+    51.67,
+    -3.4
+   ],
+   "km": 24,
+   "walls": {
+    "brick": 0.2,
+    "stone": 0.55,
+    "render": 0.25
+   },
+   "stone": "ragstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.3
+  },
+  {
+   "name": "Pembrokeshire limestone and colour wash",
+   "at": [
+    51.75,
+    -4.95
+   ],
+   "km": 26,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.45,
+    "render": 0.5
+   },
+   "stone": "limestone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   },
+   "paint": 0.55
+  },
+  {
+   "name": "Anglesey and Snowdonia slate and granite",
+   "at": [
+    53.1,
+    -4.1
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.55,
+    "render": 0.4
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   },
+   "paint": 0.45
+  },
+  {
+   "name": "Aberdeenshire granite",
+   "at": [
+    57.2,
+    -2.4
+   ],
+   "km": 45,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.88,
+    "render": 0.1
+   },
+   "stone": "granite",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Lothian buff sandstone (Craigleith)",
+   "at": [
+    55.93,
+    -3.25
+   ],
+   "km": 20,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.8,
+    "render": 0.15
+   },
+   "stone": "buff",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.2
+  },
+  {
+   "name": "Clyde and Ayrshire red sandstone",
+   "at": [
+    55.75,
+    -4.35
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.75,
+    "render": 0.15
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.25
+  },
+  {
+   "name": "Dumfries red sandstone",
+   "at": [
+    55.07,
+    -3.6
+   ],
+   "km": 25,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.6,
+    "render": 0.35
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Fife (sandstone, harl and pantiles)",
+   "at": [
+    56.25,
+    -2.95
+   ],
+   "km": 28,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.55,
+    "render": 0.4
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.55,
+    "tile": 0.45,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange",
+   "paint": 0.45
+  },
+  {
+   "name": "Caithness flagstone",
+   "at": [
+    58.5,
+    -3.3
+   ],
+   "km": 40,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.7,
+    "render": 0.28
+   },
+   "stone": "whinstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.85,
+    "tile": 0,
+    "stone": 0.15,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Borders whinstone",
+   "at": [
+    55.55,
+    -2.8
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.7,
+    "render": 0.28
+   },
+   "stone": "whinstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Antrim basalt",
+   "at": [
+    54.95,
+    -6.3
+   ],
+   "km": 30,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.35,
+    "render": 0.6
+   },
+   "stone": "whinstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   },
+   "paint": 0.4
+  },
+  {
+   "name": "Belfast red brick",
+   "at": [
+    54.6,
+    -5.93
+   ],
+   "km": 10,
+   "walls": {
+    "brick": 0.75,
+    "stone": 0.1,
+    "render": 0.15
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   },
+   "soot": 0.2
+  }
+ ]
+}

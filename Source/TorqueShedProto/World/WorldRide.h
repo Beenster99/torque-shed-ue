@@ -852,8 +852,13 @@ public:
 	std::vector<LocalLook> TownLooks;
 	std::vector<std::string> TownSources;   // each look's: "tags N" (counted from N) or the table's town
 	int TownsCounted = 0, TownsTabled = 0;  // squares counted; the table's towns met
+	// [towns stage 5] Out of town, the materials atlas's area's look over the region's (in TownLooks,
+	// by the kilometre square: AtlasLookAt; null where no area holds it); the squares it covers.
+	std::unordered_map<long long, int> AtlasGrid;
+	int AtlasSquares = 0;
 	void IndexTowns();
 	const LocalLook* TownLookAt(double X, double Z) const;
+	const LocalLook* AtlasLookAt(double X, double Z) const;
 	// [towns stage 2] The large and tall buildings at their true outlines and heights (World/
 	// WorldRideTowers.cpp): the baker's "towers" (and a tall building's parts), simplified to 16
 	// corners or fewer, each on its building's lowest ground.
@@ -921,6 +926,11 @@ public:
 		int HouseKinds[6] = {};   // [towns stage 4] houses by HouseTypes::EKind (cottage, village row, detached, semi, terrace, tenement)
 		int BayWindows = 0;       // and the bay windows on them
 		int DoorsDropped = 0, DoorSteps = 0;   // doors set lower than the floor to meet the ground before them; doors with steps down to it
+		// [towns stage 5] Houses', shops' and flats' walling and roofs by where they came from: their own tags,
+		// the street's, the town's look counted from tags, the town table's, the materials atlas's area, the
+		// region's (and for roofs, the house's period); the stone ones sooted; the painted ones by the sea.
+		int WallFrom[7] = {}, RoofFrom[7] = {};
+		int Sooted = 0, Painted = 0;
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or
