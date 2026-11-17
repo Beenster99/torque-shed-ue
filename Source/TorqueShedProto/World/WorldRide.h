@@ -1255,7 +1255,6 @@ public:
 	};
 	static constexpr int RingProfBins = 180;
 	static constexpr double RingIslandLeast = 6.0;   // [roundabouts round 2] a shaped ring's island at its narrowest (m)
-	static constexpr double RingSignLeast = 12.0;    // [roundabouts round 2] a ring this far round or more is signed before it (m)
 	std::vector<RoadRing> RoadRings;
 	std::unordered_map<int, int> RingOfNode;   // a node on a ring: which
 	// ([roundabouts] RingRoundLeast was 12 m: the compact rings under it were left as the map drew them, a
