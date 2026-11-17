@@ -188,6 +188,7 @@
    "coat": 1.0,
    "bump": [2.0, 0.15],
    "ue": "cat_carbon",
+   "tex": {"tile_mm": 24, "weave": "2x2 twill, 3 mm tows", "col": "foundry/textures/carbon_twill_col.png", "rough": "foundry/textures/carbon_twill_rough.png", "height": "foundry/textures/carbon_twill_height.png", "normal": "foundry/textures/carbon_twill_normal.png"},
    "ue_tint": false
   },
   "screen": {

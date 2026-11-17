@@ -28,7 +28,8 @@
    "tread": "knobbly",
    "width": 84,
    "spoke_fat": 3.2,
-   "single_disc": true
+   "single_disc": true,
+   "style": "wire_mx36"
   },
   "rear": {
    "tyre_r": 340,
@@ -39,7 +40,8 @@
    "phase": 15,
    "tread": "knobbly",
    "width": 116,
-   "spoke_fat": 3.2
+   "spoke_fat": 3.2,
+   "style": "wire_mx36"
   }
  },
  "fork": {
@@ -392,6 +394,14 @@
    ],
    "cls": "dark",
    "t": 0.3
+  },
+  {
+   "circle": 9,
+   "at": [
+    600,
+    404
+   ],
+   "cls": "bolt"
   }
  ],
  "fit": {

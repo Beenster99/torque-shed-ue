@@ -441,6 +441,14 @@ def is_belly(ex, i):
     return i == 0 and len(cans) > 1 and not cans[0].get("nip") and cans[0]["a"][1] < 300 and cans[0]["w"] >= 130
 
 
+def arm_sides(model):
+    """Which sides the swingarm has a leg on (beenster, 16 Nov): two on every bike, but a chain-drive sport or naked
+    bike that was drawn with a one-legged arm keeps it, on the chain side, and carries its rear brake there too."""
+    sw = model["swingarm"]
+    one = model["family"].lower() in ("sport", "naked") and sw.get("cls") not in ("alu", "chromef") and not sw.get("shaft") and not sw.get("rigid")
+    return (1,) if one else (1, -1)
+
+
 def boxer_y(eng, y):
     """Across-the-bike position on a boxer's cylinder: the drawing's 110..372 scaled to the model's reach."""
     return 110 + (y - 110) * (eng["boxer"].get("reach", 298) - 110) / 262.0
@@ -481,6 +489,10 @@ def wheel(tag, c, w, width, rim_col, discs):
             (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
     if not game_tyre(tag, c, w, hw):
         revolve(tag + "_tyre", prof, c, mat("rubber"))
+    for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+        if kv.split("=")[0] == "wheels":          # a trial fit: BIKE_BESPOKE="wheels=billet_reaper5:chrome"
+            st_ = kv.split("=")[1].split(":")
+            w = dict(w, style=st_[0], **({"finish": st_[1]} if len(st_) > 1 else {}))
     if DETAIL["on"] and w.get("style"):
         # a wheel from the library (wheels3d.py) at this bike's rim size; the bike keeps its tyre and discs
         import wheels3d
@@ -1029,7 +1041,7 @@ def build(model):
     sw = model["swingarm"]
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
-    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
+    sides = arm_sides(model)
     # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174
@@ -1163,13 +1175,25 @@ def build(model):
         if len(sp_) > 3 and sp_[-1][0] > sp_[-2][0]:
             sp_ = sp_[:-1]                # the drawn hook at the stop_ is the hoop's bend seen side on
         z0_, z1_ = sp_[0][1], sp_[-1][1]
-        ornate = model.get("detail", {}).get("sissy") == "ornate"
+        show_ = model.get("detail", {}).get("sissy")
+        show_ = [show_, model.get("detail", {}).get("sissy_metal", "chrome")] if show_ in ("chain", "scroll", "filigree") else None
+        for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+            if kv.split("=")[0] == "sissy":
+                show_ = (kv.split("=")[1].split(":") + ["chrome"])[:2]
+        ornate = model.get("detail", {}).get("sissy") == "ornate" or bool(show_)
         ys_ = [128 - 40 * min(1.0, (q[1] - z0_) / max(1.0, 700 - z0_)) - (6 if ornate else 30) * max(0.0, (q[1] - 700) / max(1.0, z1_ - 700)) for q in sp_]
         sleft = [(q[0], y, q[1]) for q, y in zip(sp_, ys_)]
         xt, zt, yt = sp_[-1][0], sp_[-1][1], ys_[-1]
         chrome_ = mat("chrome")
         f_ = lambda z: next(((a[0] + (b[0] - a[0]) * (z - a[2]) / (b[2] - a[2]), a[1] + (b[1] - a[1]) * (z - a[2]) / (b[2] - a[2])) for a, b in zip(sleft, sleft[1:]) if a[2] <= z <= b[2]), (sleft[-1][0], sleft[-1][1]))
-        if ornate:
+        if show_:
+            # the show bars to order (beenster, Nov 17): chain, scrollwork, filigree, in any of the four metals
+            import chopper_parts3d
+            chopper_parts3d.use(sys.modules[__name__])
+            chopper_parts3d.sissy_bar(show_[0], show_[1], sleft, sissy[0]["tube"] / 2)
+            chrome_ = chopper_parts3d.metal(show_[1])
+            straps = (sp_[-2][1] - 150, sp_[-2][1] - 20)
+        elif ornate:
             # a show sissy bar (beenster, chopper round 1: "elaborately designed"): the two uprights close in a pointed
             # arch with a spear finial, a centre bar with collars, and wrought scrolls between the bars above the pad
             ux_, uz_ = sp_[-1][0] - sp_[-2][0], sp_[-1][1] - sp_[-2][1]
@@ -1549,7 +1573,9 @@ def build(model):
             if clip:
                 # clip-ons: a clamp round each fork leg and a short bar straight out from it
                 tube(f"clamp{s}", [(rz[0] + 20, s * 96, rz[1] - 16), (rz[0] + 20, s * 96, rz[1] + 14)], 36, mat("alu_dark"))
-                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 8, s * 200, grip[1] + 2), (grip[0] - 4, s * 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+                # the last stretch runs dead straight along the grip's own centre line (the grip sat 11 degrees off the bar)
+                on_ = lambda y: (grip[0] - 6 * (y - 258) / 126, s * y, grip[1] - 4 * (y - 258) / 126)
+                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 9, s * 186, grip[1] + 2.5), on_(232), on_(258), on_(320), on_(384)], 11.5, mat("alu_dark"))
             else:
                 tube(f"riser{s}", [(top[0], s * 45, top[1]), (rz[0], s * 45, rz[1])], 15, mat("alu_dark"))
             tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
@@ -1600,6 +1626,26 @@ def build(model):
         definition(model, locals())
         import detail3d
         detail3d.run(sys.modules[__name__], model, locals())
+        # bespoke chopper parts to order: model detail.bespoke {"pegs": [design, metal], "covers": [design, metal]},
+        # or for a trial fit BIKE_BESPOKE="pegs=torpedo:gold,covers=spoked:gold"
+        bs = dict(model.get("detail", {}).get("bespoke", {}))
+        for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+            bs[kv.split("=")[0]] = kv.split("=")[1].split(":")
+        if bs:
+            import chopper_parts3d
+            chopper_parts3d.use(sys.modules[__name__])
+            if "pegs" in bs:
+                chopper_parts3d.fit_pegs(model, *bs["pegs"])
+            if "covers" in bs:
+                chopper_parts3d.fit_covers(model, *bs["covers"])
+            if "lamps" in bs:
+                chopper_parts3d.fit_lamps(model, *bs["lamps"])
+            if "engine" in bs:
+                chopper_parts3d.fit_engine(model, *bs["engine"])
+        lr = model.get("detail", {}).get("lock_relief")
+        if lr:
+            import lock_relief
+            lock_relief.relieve(sys.modules[__name__], model, lr["deg"] if isinstance(lr, dict) else lr, tuple(lr.get("parts", ("tank",))) if isinstance(lr, dict) else ("tank",))
     return dict(A=A, F=F, wb=wb)
 
 
@@ -1757,6 +1803,7 @@ def definition(model, c):
             return (x0 + (x1 - x0) * u, w, (tb[0] + tb[1]) / 2 + dz) if tb else None
         for sg in (-1, 1):
             if part == "tail":
+                continue      # beenster, 17 Nov: "weird piping along the side of the tail, please remove"
                 pts = [side(k / 100) for k in range(14, 90, 6)]
                 pts = [(q[0], sg * (q[1] - 0.5), q[2]) for q in pts if q]
                 if len(pts) > 3:
