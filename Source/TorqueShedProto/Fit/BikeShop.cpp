@@ -113,8 +113,7 @@ namespace BSI = BikeShopImpl;
 const std::vector<std::string>& ConfigSlots()
 {
 	static const std::vector<std::string> S = {"frame", "engine", "tank", "fairing", "saddle", "exhaust", "front_wheel", "front_tyre",
-		"rear_wheel", "rear_tyre", "fork", "headlight", "handlebars", "dashboard", "front_mudguard", "tail", "panniers", "top_box", "satnav",
-		"toolbox"};
+		"rear_wheel", "rear_tyre", "fork", "headlight", "handlebars", "dashboard", "front_mudguard", "tail", "panniers", "top_box", "satnav"};   // (beenster Nov 17: no toolbox)
 	return S;
 }
 

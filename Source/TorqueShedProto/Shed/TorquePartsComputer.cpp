@@ -36,7 +36,7 @@ const TArray<FGroup>& Groups()
 		{TEXT("Body and lights"), {TEXT("tank"), TEXT("saddle"), TEXT("front_mudguard"), TEXT("tail"), TEXT("fairing"), TEXT("mirrors"),
 			TEXT("dashboard"), TEXT("headlight"), TEXT("fog_lights"), TEXT("horn"), TEXT("indicators"), TEXT("tail_light"), TEXT("plate_hanger"),
 			TEXT("filler_cap"), TEXT("side_panels"), TEXT("number_boards")}},
-		{TEXT("Luggage and adventure kit"), {TEXT("panniers"), TEXT("top_box"), TEXT("tank_bag"), TEXT("aux_tank"), TEXT("toolbox"), TEXT("satnav")}},
+		{TEXT("Luggage and adventure kit"), {TEXT("panniers"), TEXT("top_box"), TEXT("tank_bag"), TEXT("aux_tank"), TEXT("satnav")}},
 	};
 	return G;
 }
@@ -172,8 +172,9 @@ void FTorquePartsComputer::Relist()
 	{
 		// What the shop sells for a bike: kinds with parts that go on a bike, under parts_computer.gd's headings.
 		TArray<FName> Sold;
+		// beenster (Nov 17): toolboxes are gone from the game, so the shop doesn't sell them.
 		for (const FName& K : TorqueShedParts::Kinds())
-			if (TorqueShedParts::PartsOfKind(K).Num() > 0 && TorqueShedParts::SlotsForKind(K).Num() > 0) Sold.Add(K);
+			if (K != FName(TEXT("toolbox")) && TorqueShedParts::PartsOfKind(K).Num() > 0 && TorqueShedParts::SlotsForKind(K).Num() > 0) Sold.Add(K);
 		KindRows.Add({NAME_None, TEXT("Bikes")});
 		KindRows.Add({TPCI::Bikes, FString()});
 		TSet<FName> Shown;

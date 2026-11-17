@@ -3648,34 +3648,7 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, const Bodywork& 
 			}
 		}
 	}
-	if (const Json* P = Lay.Part(PartIn(Parts, "toolbox")))
-	{
-		const std::string Style = P->Str("style", "box");
-		if (Style == "roll") Put(Out, "toolbox", "kit/tool_roll.glb", GAffine::At(V3(0.0, -0.22, -0.1) + H), "steer");
-		else if (Style == "tube")
-		{
-			const V3 A(-(W + 0.03), -0.03, Zr - 0.42), B(-(W + 0.03), -0.03, Zr - 0.08);
-			Put(Out, "toolbox", "kit/tool_tube.glb", GAffine::At(A), "");
-			for (double U : {0.25, 0.75})
-			{
-				const V3 At = A + (B - A) * U, To(-W + 0.02, At.y + 0.08, At.z);
-				CodeShapes::Emit(Out, "toolbox", "kit/tool_tube.glb", "", "", CodeShapes::Tube(At + V3(0.04, 0.0, 0.0), To, 0.006), CodeShapes::TubeAt(At + V3(0.04, 0.0, 0.0), To), "brushed_steel");
-			}
-		}
-		else if (Style == "bash") Put(Out, "toolbox", "kit/bash_box.glb", GAffine::At(V3(0.0, E.y - 0.22 * L.Hard.Scale - 0.04, E.z + 0.02)), "");
-		else
-		{
-			const bool Big = Style == "case";
-			const V3 Size = Big ? V3(0.1, 0.15, 0.26) : V3(0.08, 0.12, 0.22);
-			const V3 C(-(W + Size.x * 0.5 + 0.01), -0.06, Zr - 0.36);
-			if (Put(Out, "toolbox", "kit/toolbox.glb", AtWith(GAffine::Scale(V3(Size.x / 0.08, Size.y / 0.12, Size.z / 0.22)), C), ""))
-			{
-				// Its bracket up to the rail.
-				const V3 A = C + V3(Size.x * 0.5, Size.y * 0.4, 0.0), B(-W + 0.02, SeatY - 0.1, C.z + 0.05);
-				CodeShapes::Emit(Out, "toolbox", "kit/toolbox.glb", "", "", CodeShapes::Tube(A, B, 0.007), CodeShapes::TubeAt(A, B), "brushed_steel");
-			}
-		}
-	}
+	// (beenster Nov 17: toolboxes are gone from the game; one an old save still lists isn't drawn.)
 }
 
 namespace

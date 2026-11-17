@@ -2,7 +2,7 @@
 // bike_shop_tab.gd), as the parts computer's third aisle, "New bike". Pick a style, then its parts
 // slot by slot from the ones that suit it (or anything that fits: the ones that won't go on greyed
 // out with why, the ones that need fabrication marked), its extras (a front mudguard, panniers, a
-// top box, a sat nav, a toolbox), each part's colour and paint finish, and a badge for the tank
+// top box, a sat nav), each part's colour and paint finish, and a badge for the tank
 // (BikeBadge: a logo and a brand name in a lettering, each in its own colour, sized and moved on
 // the tank with sliders). The bike turns in the
 // shop's 3D studio beside the list (ATorqueShopPreview: drag it, zoom, stop it turning), with what
