@@ -834,11 +834,18 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 	{
 		const std::vector<TorqueWorld::Route::FamousRoad>& Roads = W->FamousRoads();
 		const float RowH = 50.0f * S;
-		const int32 Fits = FMath::Max(1, int32((BottomY - Y) / RowH));
+		// ([towns stage 8] the famous streets under the roads, with a heading over the first of them)
+		const float HeadH = 28.0f * S;
+		const int32 Fits = FMath::Max(1, int32((BottomY - Y - HeadH) / RowH));
 		FamousFirst = FMath::Clamp(FamousFirst, 0, FMath::Max(0, int32(Roads.size()) - Fits));
 		for (int32 I = FamousFirst; I < int32(Roads.size()) && I < FamousFirst + Fits; ++I)
 		{
 			const TorqueWorld::Route::FamousRoad& F = Roads[size_t(I)];
+			if (F.Street && (I == 0 || !Roads[size_t(I - 1)].Street))
+			{
+				Ui::Text(Canvas, TEXT("FAMOUS STREETS"), X0, Y + 6.0f * S, 14.0f * S, Ui::Accent, true);
+				Y += HeadH;
+			}
 			const bool bOver = Mouse.X >= X0 && Mouse.X < X0 + PW && Mouse.Y >= Y && Mouse.Y < Y + RowH - 4.0f * S;
 			Ui::Rect(Canvas, X0, Y, PW, RowH - 4.0f * S, bOver ? FLinearColor(1, 1, 1, 0.10f) : Ui::PanelLight);
 			Ui::TextFit(Canvas, TRPI::ToF(F.Name), X0 + 12.0f * S, Y + 5.0f * S, 17.0f * S, PW - 24.0f * S, Ui::Ink, true);
