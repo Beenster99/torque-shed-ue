@@ -4,7 +4,9 @@ Scene captures render nothing under UnrealEditor-Cmd -unattended (round 154: eve
 this runs in the FULL editor, once, before Tools/ue_build_rideuk.py (which then finds the cards made
 and plants them as SM_TreeFar_<kind>_imp):
 
-    UnrealEditor.exe TorqueShedProto.uproject -ExecutePythonScript=Tools/ue_bake_impostors.py
+    UnrealEditor.exe TorqueShedProto.uproject -ExecCmds="py G:/Dev/torque-shed-ue/Tools/ue_bake_impostors.py"
+
+(not -ExecutePythonScript: the editor quits as soon as that script returns, before any tick; round 154)
 
 It bakes every scanned tree in /Game/ScannedTrees (rebake: -TorqueRebakeImpostors on the command
 line), logs "tree impostors:" lines, and closes the editor when done.
@@ -52,26 +54,18 @@ class Baker:
         if self.at < 0:
             if self.ticks < self.WAIT_TICKS or (self.compiling() and self.ticks < self.WAIT_TICKS * 20):
                 return
-            world = IMP._world()
-            # (full mips at once, so the captures aren't of half-streamed trees)
-            for cmd in ("r.TextureStreaming 0", "r.Streaming.FullyLoadUsedTextures 1"):
-                unreal.SystemLibrary.execute_console_command(world, cmd)
-            if not unreal.EditorAssetLibrary.does_directory_exist(IMP.IMP_DIR):
-                unreal.EditorAssetLibrary.make_directory(IMP.IMP_DIR)
-            IMP.master_material()
-            if self.rebake:
-                for a in unreal.EditorAssetLibrary.list_assets(IMP.IMP_DIR, recursive=False, include_folder=False):
-                    n = a.rsplit("/", 1)[-1]
-                    if n.startswith("SM_Imp_") or n.startswith("MI_Imp_"):
-                        unreal.EditorAssetLibrary.delete_asset(a.split(".")[0])
-            self.at = 0
-            IMP.log("editor up after %d ticks: baking" % self.ticks)
+            try:
+                self.setup()
+            except Exception as e:
+                import traceback
+                IMP.log("setup failed, stopping: %s\n%s" % (e, traceback.format_exc()))
+                self.stop()
             return
         if self.ticks % 10:
             return   # (a few frames between trees)
         if self.at < len(self.trees):
             try:
-                if IMP.bake(self.trees[self.at]):
+                if IMP.bake(self.trees[self.at], self.rebake):
                     self.done += 1
             except Exception as e:
                 import traceback
@@ -79,8 +73,26 @@ class Baker:
             self.at += 1
             return
         IMP.log("done: %d of %d baked" % (self.done, len(self.trees)))
-        unreal.unregister_slate_post_tick_callback(self.handle)
-        unreal.SystemLibrary.quit_editor()
+        self.stop()
+
+    def stop(self):
+        self.at = len(self.trees) + 1
+        try:
+            unreal.unregister_slate_post_tick_callback(self.handle)
+        finally:
+            unreal.SystemLibrary.quit_editor()
+
+    def setup(self):
+        if True:
+            world = IMP._world()
+            # (full mips at once, so the captures aren't of half-streamed trees)
+            for cmd in ("r.TextureStreaming 0", "r.Streaming.FullyLoadUsedTextures 1"):
+                unreal.SystemLibrary.execute_console_command(world, cmd)
+            if not unreal.EditorAssetLibrary.does_directory_exist(IMP.IMP_DIR):
+                unreal.EditorAssetLibrary.make_directory(IMP.IMP_DIR)
+            IMP.master_material()
+            self.at = 0
+            IMP.log("editor up after %d ticks: baking" % self.ticks)
 
 
 _baker = Baker()

@@ -189,11 +189,25 @@ def _sub(m, a, b, x, y):
     return e
 
 
+def _asset(name, folder, cls, factory):
+    """The asset, loaded if it is there and made if not. ([round 154] deleting and making again fails
+    when the editor still holds it ("in use"), and making over it asks a question nobody can answer
+    in an unattended run.)"""
+    path = "%s/%s" % (folder, name)
+    if eal.does_asset_exist(path):
+        got = unreal.load_asset(path)
+        if got is not None:
+            return got
+    made = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, cls, factory)
+    if made is None:
+        raise RuntimeError("could not make or load %s" % path)
+    return made
+
+
 def master_material():
     path = "%s/%s" % (IMP_DIR, MASTER)
-    if eal.does_asset_exist(path):
-        eal.delete_asset(path)
-    m = unreal.AssetToolsHelpers.get_asset_tools().create_asset(MASTER, IMP_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    m = _asset(MASTER, IMP_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    mel.delete_all_material_expressions(m)   # (made again in place)
     _set(m, blend_mode=unreal.BlendMode.BLEND_MASKED, two_sided=True, tangent_space_normal=False,
          opacity_mask_clip_value=0.5, used_with_instanced_static_meshes=True)
     tex = {}
@@ -278,7 +292,7 @@ def _bounds(sm):
     return centre, ext, radius
 
 
-def bake(mesh_path):
+def bake(mesh_path, rebake=False):
     """Bakes one scanned tree; the path of its card mesh, or None."""
     sm = unreal.load_asset(mesh_path.split(".")[0])
     if not isinstance(sm, unreal.StaticMesh):
@@ -288,7 +302,7 @@ def bake(mesh_path):
     if base.startswith("SM_"):
         base = base[3:]
     card_path = "%s/SM_Imp_%s" % (IMP_DIR, base)
-    if eal.does_asset_exist(card_path) and eal.does_asset_exist("%s/MI_Imp_%s" % (IMP_DIR, base)):
+    if not rebake and eal.does_asset_exist(card_path) and eal.does_asset_exist("%s/MI_Imp_%s" % (IMP_DIR, base)):
         return "%s.SM_Imp_%s" % (card_path, base)
     centre, ext, radius = _bounds(sm)
     world = _world()
@@ -362,11 +376,9 @@ def bake(mesh_path):
     for key, (source, shot, atlas) in shots.items():
         name = "T_Imp_%s_%s" % (base, key)
         dest = "%s/%s" % (IMP_DIR, name)
-        if eal.does_asset_exist(dest):
-            eal.delete_asset(dest)
         comp = T.TC_DEFAULT if key == "C" else T.TC_HDR
         mips = unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP if key != "D" else unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
-        tex = _texture_of(atlas, comp, mips)
+        tex = _texture_of(atlas, comp, mips, name)
         if tex is None:
             log("%s: no texture from the %s atlas" % (base, key))
             break
@@ -385,9 +397,7 @@ def bake(mesh_path):
     # (the tree's own material instance)
     mi_name = "MI_Imp_%s" % base
     mi_path = "%s/%s" % (IMP_DIR, mi_name)
-    if eal.does_asset_exist(mi_path):
-        eal.delete_asset(mi_path)
-    mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset(mi_name, IMP_DIR, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    mi = _asset(mi_name, IMP_DIR, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     mel.set_material_instance_parent(mi, unreal.load_asset("%s/%s" % (IMP_DIR, MASTER)))
     for key in ("C", "N", "D"):
         mel.set_material_instance_texture_parameter_value(mi, "Tex" + key, made[key])
@@ -405,20 +415,16 @@ def bake(mesh_path):
     return card.get_path_name()
 
 
-def _texture_of(rt, comp, mips):
+def _texture_of(rt, comp, mips, dest_name):
     """A texture asset made from a render target asset (the function's name moved between releases:
     UE 5.8 has no RenderTargetCreateStaticTexture2DEditor; it has ConvertRenderTargetToTexture2DEditorOnly,
     which fills a texture that already exists)."""
     R = unreal.RenderingLibrary
     conv = getattr(R, "convert_render_target_to_texture2d_editor_only", None)
     if conv is not None:
-        name = rt.get_name().replace("RT_", "T_Tmp_")
-        folder = IMP_DIR + "/Work"
-        path = "%s/%s" % (folder, name)
-        if eal.does_asset_exist(path):
-            eal.delete_asset(path)
         try:
-            tex = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, unreal.Texture2D, unreal.Texture2DFactoryNew())
+            # (straight into the texture it ends up as, made once and filled again on a rebake)
+            tex = _asset(dest_name, IMP_DIR, unreal.Texture2D, unreal.Texture2DFactoryNew())
             conv(_world(), rt, tex)
             _set(tex, compression_settings=comp, mip_gen_settings=mips)
             return tex
@@ -454,7 +460,12 @@ def _card(path, radius, min_z, max_z, mi):
         log("no Geometry Script (enable the GeometryScripting plugin): no card made")
         return None
     if eal.does_asset_exist(path):
-        eal.delete_asset(path)
+        # (a card depends only on the tree's size: kept, with the tree's material instance put on again)
+        sm = unreal.load_asset(path)
+        if isinstance(sm, unreal.StaticMesh):
+            sm.set_editor_property("static_materials", [unreal.StaticMaterial(material_interface=mi, material_slot_name="Impostor")])
+            eal.save_asset(path, only_if_is_dirty=False)
+            return sm
     dm = unreal.DynamicMesh()
     height = max(max_z - min_z, 1.0)
     # (a rectangle in x-y, turned up into x-z, its bottom at min_z)
@@ -487,15 +498,10 @@ def bake_all(mesh_paths, rebake=False):
         eal.make_directory(IMP_DIR)
     if rebake or not eal.does_asset_exist("%s/%s" % (IMP_DIR, MASTER)):
         master_material()
-    if rebake:
-        for a in eal.list_assets(IMP_DIR, recursive=False, include_folder=False):
-            n = a.rsplit("/", 1)[-1]
-            if n.startswith("SM_Imp_") or n.startswith("MI_Imp_"):
-                eal.delete_asset(a.split(".")[0])
     out = []
     for p in mesh_paths:
         try:
-            out.append(bake(p))
+            out.append(bake(p, rebake))
         except Exception as e:
             log("%s: bake failed: %s\n%s" % (p, e, traceback.format_exc()))
             out.append(None)
