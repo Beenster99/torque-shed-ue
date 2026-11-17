@@ -5092,6 +5092,93 @@ int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) con
 	return Made;
 }
 
+// [bikes v2][lights] A bike drawn with no lamps (the MX bikes): a small LED headlamp let into the front number
+// board and a red LED strip under the tail's end, so dipped and main beam and the brake light work on every
+// bike (beenster after 154: "make sure that dipped and high beam work again too").
+int BikeParts::V2Lamps(const PartsMap& Parts, std::vector<FittedPart>& Out) const
+{
+	(void)Parts;
+	auto Tagged = [](const PartSurface& S, const char* Tag) {
+		const std::string T = std::string("/") + Tag;
+		return S.Material == Tag || (S.Material.size() > T.size() && S.Material.compare(S.Material.size() - T.size(), T.size(), T) == 0) ||
+			S.Material.find(T + "/") != std::string::npos;
+	};
+	bool bWhite = false, bRed = false;
+	for (const FittedPart& P : Out)
+	{
+		if (!P.Made || P.Slot == "dashboard" || P.Slot == "fog_lights" || !P.Gauge.empty()) continue;   // (a fog lamp is no headlamp)
+		for (const PartSurface& S : P.Made->Surfaces)
+		{
+			bWhite = bWhite || Tagged(S, "lens_white");
+			bRed = bRed || Tagged(S, "lens_red");
+		}
+	}
+	int Made = 0;
+	GAffine Face;   // x across, y out of the lamp's face, z down it (Godot frame)
+	if (!bWhite)
+	{
+		// The board on the steering: its middle, and how far forward it reaches there.
+		V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+		const FittedPart* Board = nullptr;
+		for (const FittedPart& P : Out)
+			if (P.Made && P.Slot == "number_boards" && P.Node == "steer" && !P.Code)
+			{
+				Board = &P;
+				for (const PartSurface& S : P.Made->Surfaces)
+					for (const V3& V : S.Pos)
+					{
+						Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z));
+						Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z));
+					}
+			}
+		if (Board && Hi.y - Lo.y > 0.08)
+		{
+			const double MidY = Lo.y + (Hi.y - Lo.y) * 0.38;   // (below the number)
+			double Front = -1e9;
+			for (const PartSurface& S : Board->Made->Surfaces)
+				for (const V3& V : S.Pos)
+					if (std::fabs(V.y - MidY) < 0.03 && std::fabs(V.z) < 0.05) Front = std::max(Front, V.x);
+			if (Front < -1e8) Front = Hi.x;
+			Face.Y = ToGodot(V3(1.0, 0.0, 0.0)).Normalized();
+			Face.Z = ToGodot(V3(0.0, -1.0, 0.0)).Normalized();
+			Face.X = Face.Y.Cross(Face.Z).Normalized();
+			const V3 C = ToGodot(V3(Front, MidY, 0.0));
+			CodeShapes::Emit(Out, "number_boards", "v2/lamp", "steer", "", CodeShapes::Box(V3(0.104, 0.016, 0.052)), AtWith(Face, C + Face.Y * 0.002), "black_metal");
+			CodeShapes::Emit(Out, "number_boards", "v2/lamp", "steer", "", CodeShapes::Box(V3(0.092, 0.004, 0.040)), AtWith(Face, C + Face.Y * 0.011), "lens_white");
+			++Made;
+		}
+	}
+	if (!bRed)
+	{
+		// Under the very end of the tail.
+		double Back = 1e9;
+		for (const FittedPart& P : Out)
+			if (P.Made && P.Slot == "tail" && P.Node.empty() && !P.Code)
+				for (const PartSurface& S : P.Made->Surfaces)
+					for (const V3& V : S.Pos) Back = std::min(Back, V.x);
+		if (Back < 1e8)
+		{
+			double LowY = 1e9, HighY = -1e9;
+			for (const FittedPart& P : Out)
+				if (P.Made && P.Slot == "tail" && P.Node.empty() && !P.Code)
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& V : S.Pos)
+							if (V.x < Back + 0.02 && std::fabs(V.z) < 0.06) { LowY = std::min(LowY, V.y); HighY = std::max(HighY, V.y); }
+			if (LowY < 1e8)
+			{
+				Face.Y = ToGodot(V3(-1.0, 0.0, 0.0)).Normalized();
+				Face.Z = ToGodot(V3(0.0, -1.0, 0.0)).Normalized();
+				Face.X = Face.Y.Cross(Face.Z).Normalized();
+				const V3 C = ToGodot(V3(Back, (LowY + HighY) * 0.5, 0.0));
+				CodeShapes::Emit(Out, "tail", "v2/lamp", "", "", CodeShapes::Box(V3(0.074, 0.010, 0.022)), AtWith(Face, C + Face.Y * 0.001), "black_metal");
+				CodeShapes::Emit(Out, "tail", "v2/lamp", "", "", CodeShapes::Box(V3(0.066, 0.004, 0.014)), AtWith(Face, C + Face.Y * 0.007), "lens_red");
+				++Made;
+			}
+		}
+	}
+	return Made;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
 	{
@@ -5100,6 +5187,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 		{
 			V2Tyres(Parts, L, V2);
 			V2Gauges(Parts, V2);
+			V2Lamps(Parts, V2);
 			return V2;
 		}
 	}

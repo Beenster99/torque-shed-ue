@@ -63,7 +63,7 @@ constexpr float IndicatorCd = 2.0f, IndicatorRange = 70.0f;
 constexpr float StopCd = 12.0f, StopRange = 200.0f;
 
 const FName LensWhite(TEXT("Surf:lens_white")), LensAmber(TEXT("Surf:lens_amber")), LensRed(TEXT("Surf:lens_red"));
-const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights"));
+const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights")), BoardSlot(TEXT("Slot:number_boards"));
 
 std::string Std(const FString& S) { return std::string(TCHAR_TO_UTF8(*S)); }
 
@@ -148,7 +148,8 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 		if (C->ComponentHasTag(TLI::LensWhite))
 		{
 			if (C->ComponentHasTag(TLI::FogSlot)) FogLenses.Add({C});
-			else if (C->ComponentHasTag(TLI::HeadSlot) || C->ComponentHasTag(TLI::FairingSlot)) HeadLenses.Add({C});
+			// ([bikes v2] an MX bike's lamp is let into its front number board)
+			else if (C->ComponentHasTag(TLI::HeadSlot) || C->ComponentHasTag(TLI::FairingSlot) || C->ComponentHasTag(TLI::BoardSlot)) HeadLenses.Add({C});
 		}
 		else if (C->ComponentHasTag(TLI::LensAmber))
 		{
