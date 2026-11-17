@@ -1470,6 +1470,104 @@ def sticky_note():
 
 # --- Running it --------------------------------------------------------------------------------------
 
+# --- The forecourt garage (beenster, Nov 17 2026) ---------------------------------------------------------
+
+@model("forecourt_garage", (7.5, 3.75, 6.5))
+def forecourt_garage():
+    """The workshop unit on a Ride UK forecourt that you ride into to work on your bike (beenster, Nov 17
+    2026: "a garage unit that you can ride your bike into, make room for 3 bikes, then when in this room
+    you can use your spanner and a shop computer mounted on a wall"). A single-storey unit: a red brick
+    plinth, dark profiled steel cladding over it, a flat roof behind its fascia (a plain WORKSHOP in white
+    letters, no maker's name), a 5 m roller shutter rolled up into its box over the door. Inside: a
+    painted floor marked out in three bays, white-painted block walls, LED battens, a bench with a tool
+    board on the back wall, and the parts computer in a steel cabinet on the right-hand wall with its
+    keyboard shelf. +z is the door side; the origin on the floor under the middle. The floor stands on a
+    plinth 0.5 m deep so a sloping forecourt doesn't show under it. The game's actor (World/
+    TorqueForecourtGarage) gives it its collision: the walls, and the floor as road."""
+    import bpy
+    W, D, H, T = 7.5, 6.5, 3.6, 0.25
+    x0, x1, z0, z1 = -W / 2, W / 2, -D / 2, D / 2
+    PL, DW, DH = 1.0, 2.5, 3.0   # the plinth's height outside, the door's half width and height
+    DOWN = -0.5
+    # Side and back walls: brick plinth, cladding over it.
+    for nm, lo, hi in (("L", (x0, DOWN, z0), (x0 + T, PL, z1)), ("R", (x1 - T, DOWN, z0), (x1, PL, z1)),
+                       ("B", (x0, DOWN, z0), (x1, PL, z0 + T))):
+        span("Plinth" + nm, lo, hi, "garage_brick", bevel=0.01)
+        span("Clad" + nm, (lo[0], PL, lo[2]), (hi[0], H, hi[2]), "garage_clad", bevel=0.01)
+    # The front: piers each side of the door, cladding over the door.
+    for nm, a, b in (("L", x0, -DW), ("R", DW, x1)):
+        span("FrontPlinth" + nm, (a, DOWN, z1 - T), (b, PL, z1), "garage_brick", bevel=0.01)
+        span("FrontClad" + nm, (a, PL, z1 - T), (b, H, z1), "garage_clad", bevel=0.01)
+    span("Lintel", (-DW, DH, z1 - T), (DW, H, z1), "garage_clad", bevel=0.01)
+    # Corner trims and the cladding's foot flashing.
+    for x in (x0, x1):
+        for z in (z0, z1):
+            box("Corner%.1f%.1f" % (x, z), (x, (PL + H) / 2, z), (0.06, H - PL, 0.06), "steel_dark", bevel=0.005)
+    for nm, lo, hi in (("L", (x0 - 0.02, PL - 0.03, z0), (x0 + 0.01, PL + 0.03, z1)), ("R", (x1 - 0.01, PL - 0.03, z0), (x1 + 0.02, PL + 0.03, z1)),
+                       ("B", (x0, PL - 0.03, z0 - 0.02), (x1, PL + 0.03, z0 + 0.01))):
+        span("Flash" + nm, lo, hi, "steel_dark", bevel=0.003)
+    for nm, a, b in (("FL", x0, -DW), ("FR", DW, x1)):
+        span("Flash" + nm, (a, PL - 0.03, z1 - 0.01), (b, PL + 0.03, z1 + 0.02), "steel_dark", bevel=0.003)
+    # The inside skins: painted blockwork.
+    span("InL", (x0 + T, 0.0, z0 + T), (x0 + T + 0.02, H - 0.1, z1 - T), "garage_wall", bevel=0.0)
+    span("InR", (x1 - T - 0.02, 0.0, z0 + T), (x1 - T, H - 0.1, z1 - T), "garage_wall", bevel=0.0)
+    span("InB", (x0 + T, 0.0, z0 + T), (x1 - T, H - 0.1, z0 + T + 0.02), "garage_wall", bevel=0.0)
+    span("InFL", (x0 + T, 0.0, z1 - T - 0.02), (-DW, H - 0.1, z1 - T), "garage_wall", bevel=0.0)
+    span("InFR", (DW, 0.0, z1 - T - 0.02), (x1 - T, H - 0.1, z1 - T), "garage_wall", bevel=0.0)
+    span("Ceiling", (x0 + T, H - 0.12, z0 + T), (x1 - T, H - 0.1, z1 - T), "paint_white", bevel=0.0)
+    # The door: steel guides, the shutter rolled up in its box, its bottom rail just showing.
+    for x in (-DW, DW - 0.08):
+        span("Guide%.1f" % x, (x, 0.0, z1 - T - 0.12), (x + 0.08, DH, z1 - T), "galvanised", bevel=0.004)
+    span("ShutterBox", (-DW - 0.05, DH, z1 - T - 0.5), (DW + 0.05, DH + 0.45, z1 - T), "galvanised", bevel=0.01)
+    span("Slats", (-DW + 0.02, DH - 0.18, z1 - T - 0.09), (DW - 0.02, DH, z1 - T - 0.03), "garage_shutter", bevel=0.003)
+    span("Rail", (-DW + 0.02, DH - 0.24, z1 - T - 0.1), (DW - 0.02, DH - 0.18, z1 - T - 0.02), "steel_dark", bevel=0.003)
+    # Roof and fascia, the sign's letters on it.
+    span("Roof", (x0 - 0.12, H, z0 - 0.12), (x1 + 0.12, H + 0.12, z1 + 0.12), "steel_dark", bevel=0.01)
+    span("Fascia", (x0 - 0.14, H - 0.25, z1 + 0.1), (x1 + 0.14, H + 0.14, z1 + 0.16), "steel_dark", bevel=0.005)
+    for nm, x in (("FasciaL", x0 - 0.14), ("FasciaR", x1 + 0.1)):
+        span(nm, (x, H - 0.25, z0 - 0.14), (x + 0.04, H + 0.14, z1 + 0.16), "steel_dark", bevel=0.005)
+    bpy.ops.object.text_add(location=kit.B((0.0, H - 0.06, z1 + 0.163)), rotation=(math.radians(90), 0, 0))
+    txt = bpy.context.object
+    txt.data.body = "WORKSHOP"
+    txt.data.align_x = "CENTER"
+    txt.data.align_y = "CENTER"
+    txt.data.size = 0.22
+    txt.data.extrude = 0.004
+    bpy.ops.object.convert(target="MESH")
+    kit._finish(bpy.context.object, "label_white", 0.0)
+    # The floor: a slab on its plinth, a steel threshold, the bays' yellow lines and stop bars.
+    span("Slab", (x0 + T, DOWN, z0 + T), (x1 - T, 0.02, z1), "garage_floor", bevel=0.0)
+    span("Threshold", (-DW, 0.0, z1 - T), (DW, 0.025, z1 + 0.05), "galvanised", bevel=0.004)
+    bay = (W - 2 * T) / 3.0
+    for k in (1, 2):
+        x = x0 + T + bay * k
+        span("BayLine%d" % k, (x - 0.04, 0.02, z0 + 1.1), (x + 0.04, 0.023, z1 - 0.7), "paint_yellow", bevel=0.0)
+    for k in range(3):
+        cx = x0 + T + bay * (k + 0.5)
+        span("BayStop%d" % k, (cx - 0.5, 0.02, z0 + 1.0), (cx + 0.5, 0.023, z0 + 1.08), "paint_yellow", bevel=0.0)
+    # The back wall: a bench, its tool board, a few tools hung on it.
+    span("BenchTop", (-2.4, 0.86, z0 + T + 0.02), (1.0, 0.9, z0 + T + 0.67), "steel", bevel=0.004)
+    span("BenchBody", (-2.4, 0.1, z0 + T + 0.04), (1.0, 0.86, z0 + T + 0.62), "paint_red", bevel=0.006)
+    drawer_bank("BenchDrawers", -2.3, -0.9, 0.18, 0.8, z0 + T + 0.62, 4, "paint_red", handle="chrome")
+    span("ToolBoard", (-2.2, 1.2, z0 + T + 0.02), (0.8, 2.2, z0 + T + 0.04), "pegboard", bevel=0.003)
+    for i in range(9):
+        x = -2.0 + i * 0.32
+        span("Tool%d" % i, (x, 1.45 + (i % 3) * 0.15, z0 + T + 0.04), (x + 0.04, 1.85 + (i % 2) * 0.15, z0 + T + 0.07), "chrome", bevel=0.004)
+    # The parts computer on the right-hand wall: a steel cabinet, its screen, a keyboard shelf on a bracket.
+    wx = x1 - T - 0.02
+    cz = z0 + 1.25
+    span("PcCabinet", (wx - 0.14, 1.05, cz - 0.5), (wx, 2.0, cz + 0.5), "galvanised", bevel=0.01)
+    span("PcBezel", (wx - 0.15, 1.2, cz - 0.44), (wx - 0.14, 1.86, cz + 0.44), "plastic_black", bevel=0.003)
+    span("PcScreen", (wx - 0.152, 1.28, cz - 0.4), (wx - 0.15, 1.78, cz + 0.4), "screen", bevel=0.0)
+    span("PcShelf", (wx - 0.42, 1.0, cz - 0.36), (wx - 0.14, 1.04, cz + 0.36), "galvanised", bevel=0.004)
+    span("PcKeys", (wx - 0.36, 1.04, cz - 0.24), (wx - 0.2, 1.06, cz + 0.24), "plastic_black", bevel=0.003)
+    span("PcBracket", (wx - 0.4, 0.8, cz - 0.02), (wx - 0.14, 1.0, cz + 0.02), "galvanised", bevel=0.003)
+    # LED battens over each bay.
+    for k in range(3):
+        cx = x0 + T + bay * (k + 0.5)
+        span("Led%d" % k, (cx - 0.06, H - 0.14, z0 + 1.2), (cx + 0.06, H - 0.12, z1 - 0.9), "led_white", bevel=0.0)
+
+
 def main():
     import bpy
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []

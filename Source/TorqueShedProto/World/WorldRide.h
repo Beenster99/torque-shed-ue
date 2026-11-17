@@ -1126,7 +1126,26 @@ public:
 		double Base = 0.0;          // the ground's height under the canopy
 		uint32_t Seed = 1;
 		std::string Name;
+		// [garage] The workshop unit you ride into to work on your bike (beenster, Nov 17: room for three
+		// bikes, the spanner and a wall-mounted parts computer). Its door faces the road (-Out); GarageU is
+		// its middle along the road from the road's edge's frame (as the canopy's), GarageV its front's
+		// distance out from the road's edge. Beside the kiosk in the row behind the canopy where there's
+		// one (the kiosk shortened to share it), else beyond the canopy's end, set back from the lane.
+		bool Garage = false;
+		double GarageU = 0.0, GarageV = 0.0;
 	};
+	// [garage] A forecourt's garage unit in the world: the middle of its floor, the way its door faces
+	// (out of it, level, unit), the floor's height (the ground's lowest under it), its forecourt.
+	struct GarageSpot
+	{
+		P2 Middle, Door;
+		double Base = 0.0;
+		int Court = -1;
+	};
+	static constexpr double GarageWide = 7.5, GarageDeep = 6.5;   // outside, along its front and front to back (m)
+	bool GarageOf(int Court, GarageSpot& Out) const;
+	// The garages with their middles within Reach m of (X, Z).
+	void GaragesNear(double X, double Z, double Reach, std::vector<GarageSpot>& Out) const;
 	std::vector<Forecourt> Forecourts;
 	std::unordered_map<long long, std::vector<int>> ForecourtGrid;   // by the 64 m square each's canopy is in
 	int FuelSeen = 0;                       // fuel stops looked at (Forecourts.size() of them made)

@@ -33,6 +33,13 @@ constexpr double CanopyDeep = 9.0;     // the canopy, out from the road
 constexpr double IslandGap = 6.5;      // between pump islands' middles, along the road
 constexpr double IslandLong = 4.4;
 constexpr double KioskDeep = 6.5;
+constexpr double KioskNeed = EntryLane + CanopyDeep + KioskDeep + 1.0;   // the forecourt's depth for a kiosk behind the canopy
+// [garage] The kiosk's row behind the canopy, the garage at one end of it (KioskRow long at the most);
+// or, too shallow for that row, the garage beyond the canopy's end: GarageEnd more forecourt at each end
+// (the forecourt stays laid either side of its middle), and GarageEndNeed deep for it.
+constexpr double KioskRow = 15.5;
+constexpr double GarageEnd = 9.5;
+constexpr double GarageEndNeed = EntryLane + 0.5 + 6.5 + 1.0;
 
 long long CourtKey(double X, double Z)
 {
@@ -285,55 +292,71 @@ void RidePlan::IndexTownLife()
 		if (Seed == 0) Seed = 1;
 		const int Islands = Dice(Seed, 1) < 0.35 ? 3 : 2;
 		const double CanopyLong = Islands * IslandGap + 1.5;
-		const double Long = CanopyLong + 12.0;   // (6 m either end: the way in and the way out)
 
 		// Along the road from the foot, either way up to 25 m, as deep as it will go (ForecourtDepth down to
 		// ForecourtLeast): clear of buildings, walls, water and other roads, off bridges, level enough.
+		// ([garage] Long: the forecourt's length tried, the longer one for a garage beyond the canopy's end)
 		double BestScore = 1e18, BestAlong = 0.0, BestDepth = 0.0;
-		for (double Shift = 0.0; Shift <= 25.0; Shift += 5.0)
-			for (double Way : {1.0, -1.0})
-			{
-				if (Shift == 0.0 && Way < 0.0) continue;
-				const double A = Along0 + Way * Shift;
-				if (A < 0.0 || A > Alongs.back()) continue;
-				P2 Mid, D;
-				PointAt(A, Mid, D);
-				if (OnSpan(Mid)) continue;
-				const P2 Out = P2(D.Z, -D.X) * SideSign;
-				double Depth = ForecourtDepth;
-				bool Bad = false;
-				for (double U = -Long * 0.5 + 1.0; U <= Long * 0.5 - 1.0 && !Bad; U += 3.0)
+		const auto Search = [&](double Long)
+		{
+			BestScore = 1e18;
+			for (double Shift = 0.0; Shift <= 25.0; Shift += 5.0)
+				for (double Way : {1.0, -1.0})
 				{
-					// (laid straight along the road's way at its middle: the road must run straight with it,
-					// on to the next bit of road where this one ends)
-					const P2 Q = Mid + D * U;
-					const P2& Oq = Out;
-					const Foot Along1 = NearestRoad(Q, 3.0, false);
-					if (Along1.Edge < 0 || Along1.Dist > 1.2) { Bad = true; break; }
-					// (how far out before a building or a wall; another road's tarmac anywhere in it is no good)
-					for (double V = 1.0; V <= Depth + 0.01; V += 2.0)
+					if (Shift == 0.0 && Way < 0.0) continue;
+					const double A = Along0 + Way * Shift;
+					if (A < 0.0 || A > Alongs.back()) continue;
+					P2 Mid, D;
+					PointAt(A, Mid, D);
+					if (OnSpan(Mid)) continue;
+					const P2 Out = P2(D.Z, -D.X) * SideSign;
+					double Depth = ForecourtDepth;
+					bool Bad = false;
+					for (double U = -Long * 0.5 + 1.0; U <= Long * 0.5 - 1.0 && !Bad; U += 3.0)
 					{
-						const P2 S = Q + Oq * (Half + V);
-						if (InBuilding(S, 0.8) || Walled(Q + Oq * (Half + 0.3), S)) { Depth = std::fmin(Depth, V - 1.5); break; }
-						if (Wet(S)) { Depth = std::fmin(Depth, V - 1.5); break; }
-						const Foot Other = NearestRoad(S, 20.0, false, Foot0.Edge);
-						if (Other.Edge >= 0 && Other.Dist < Halves[size_t(Other.Edge)] + 1.0) { Depth = std::fmin(Depth, V - 1.5); break; }
+						// (laid straight along the road's way at its middle: the road must run straight with it,
+						// on to the next bit of road where this one ends)
+						const P2 Q = Mid + D * U;
+						const P2& Oq = Out;
+						const Foot Along1 = NearestRoad(Q, 3.0, false);
+						if (Along1.Edge < 0 || Along1.Dist > 1.2) { Bad = true; break; }
+						// (how far out before a building or a wall; another road's tarmac anywhere in it is no good)
+						for (double V = 1.0; V <= Depth + 0.01; V += 2.0)
+						{
+							const P2 S = Q + Oq * (Half + V);
+							if (InBuilding(S, 0.8) || Walled(Q + Oq * (Half + 0.3), S)) { Depth = std::fmin(Depth, V - 1.5); break; }
+							if (Wet(S)) { Depth = std::fmin(Depth, V - 1.5); break; }
+							const Foot Other = NearestRoad(S, 20.0, false, Foot0.Edge);
+							if (Other.Edge >= 0 && Other.Dist < Halves[size_t(Other.Edge)] + 1.0) { Depth = std::fmin(Depth, V - 1.5); break; }
+						}
+						if (Depth < ForecourtLeast) Bad = true;
 					}
-					if (Depth < ForecourtLeast) Bad = true;
+					if (Bad) continue;
+					// (the ground's fall across it and along it: 1 in 10 the most)
+					const double Y0 = Ground(Mid.X + Out.X * (Half + 1.0), Mid.Z + Out.Z * (Half + 1.0));
+					const double Y1 = Ground(Mid.X + Out.X * (Half + Depth), Mid.Z + Out.Z * (Half + Depth));
+					const P2 Ea = Mid + D * (-Long * 0.5 + 2.0), Eb = Mid + D * (Long * 0.5 - 2.0);
+					const double Ya = Ground(Ea.X + Out.X * (Half + Depth * 0.5), Ea.Z + Out.Z * (Half + Depth * 0.5));
+					const double Yb = Ground(Eb.X + Out.X * (Half + Depth * 0.5), Eb.Z + Out.Z * (Half + Depth * 0.5));
+					if (std::isnan(Y0) || std::isnan(Y1) || std::isnan(Ya) || std::isnan(Yb)) continue;
+					const double Fall = std::fmax(std::fabs(Y1 - Y0) / Depth, std::fabs(Yb - Ya) / (Long - 4.0));
+					if (Fall > 0.1) continue;
+					const double Score = Fall * 60.0 + Shift * 0.1 + (ForecourtDepth - Depth) * 0.5;
+					if (Score < BestScore) { BestScore = Score; BestAlong = A; BestDepth = Depth; }
 				}
-				if (Bad) continue;
-				// (the ground's fall across it and along it: 1 in 10 the most)
-				const double Y0 = Ground(Mid.X + Out.X * (Half + 1.0), Mid.Z + Out.Z * (Half + 1.0));
-				const double Y1 = Ground(Mid.X + Out.X * (Half + Depth), Mid.Z + Out.Z * (Half + Depth));
-				const P2 Ea = Mid + D * (-Long * 0.5 + 2.0), Eb = Mid + D * (Long * 0.5 - 2.0);
-				const double Ya = Ground(Ea.X + Out.X * (Half + Depth * 0.5), Ea.Z + Out.Z * (Half + Depth * 0.5));
-				const double Yb = Ground(Eb.X + Out.X * (Half + Depth * 0.5), Eb.Z + Out.Z * (Half + Depth * 0.5));
-				if (std::isnan(Y0) || std::isnan(Y1) || std::isnan(Ya) || std::isnan(Yb)) continue;
-				const double Fall = std::fmax(std::fabs(Y1 - Y0) / Depth, std::fabs(Yb - Ya) / (Long - 4.0));
-				if (Fall > 0.1) continue;
-				const double Score = Fall * 60.0 + Shift * 0.1 + (ForecourtDepth - Depth) * 0.5;
-				if (Score < BestScore) { BestScore = Score; BestAlong = A; BestDepth = Depth; }
-			}
+		};
+		double Long = CanopyLong + 12.0;   // (6 m either end: the way in and the way out)
+		Search(Long);
+		// [garage] Too shallow for the kiosk row (where the garage goes beside the kiosk): tried again
+		// longer, the garage beyond the canopy's end; failing that, as it was, with no garage.
+		bool EndGarage = false;
+		if (BestScore < 1e17 && BestDepth < KioskNeed)
+		{
+			const double Was = BestScore, WasAlong = BestAlong, WasDepth = BestDepth;
+			Search(Long + 2.0 * GarageEnd);
+			if (BestScore < 1e17 && BestDepth >= GarageEndNeed) { EndGarage = true; Long += 2.0 * GarageEnd; }
+			else { BestScore = Was; BestAlong = WasAlong; BestDepth = WasDepth; }
+		}
 		if (BestScore >= 1e17) continue;
 		Forecourt F;
 		F.Half = Half;
@@ -349,7 +372,22 @@ void RidePlan::IndexTownLife()
 		F.RoadDir = D;
 		F.Out = P2(D.Z, -D.X) * SideSign;
 		// (the kiosk where there's room behind the canopy: the map's own, if it has one there, is hidden under the forecourt)
-		F.Kiosk = BestDepth >= EntryLane + CanopyDeep + KioskDeep + 1.0;
+		F.Kiosk = BestDepth >= KioskNeed;
+		// [garage] In the kiosk's row (the kiosk shortened to share it), at the end away from the price
+		// board; else beyond the canopy's end there, its front back from the lane.
+		if (F.Kiosk)
+		{
+			const double Row = std::fmin(CanopyLong, KioskRow);
+			F.Garage = true;
+			F.GarageU = -Row * 0.5 + RidePlan::GarageWide * 0.5;
+			F.GarageV = EntryLane + CanopyDeep + 1.5;
+		}
+		else if (EndGarage)
+		{
+			F.Garage = true;
+			F.GarageU = -CanopyLong * 0.5 - 1.5 - RidePlan::GarageWide * 0.5;
+			F.GarageV = EntryLane + 0.5;
+		}
 		// (its outline, along the road's edge, the ends tapering in as a lay-by's: the field it makes)
 		const double Taper = 5.0;
 		std::vector<P2> Inner, Outer;
@@ -593,6 +631,45 @@ bool RidePlan::OnForecourt(double X, double Z) const
 	return false;
 }
 
+bool RidePlan::GarageOf(int Court, GarageSpot& Out) const
+{
+	if (Court < 0 || size_t(Court) >= Forecourts.size() || !Forecourts[size_t(Court)].Garage) return false;
+	const Forecourt& F = Forecourts[size_t(Court)];
+	const CourtFrame C = FrameOf(F);
+	Out.Court = Court;
+	Out.Middle = C.Flat(F.GarageU, F.GarageV + GarageDeep * 0.5);
+	Out.Door = F.Out * -1.0;
+	// (its floor level with the ground's lowest under it, the plinth going down to the rest)
+	double Low = 1e18;
+	for (double U : {-0.5, 0.0, 0.5})
+		for (double V : {0.0, 0.5, 1.0})
+		{
+			const P2 Q = C.Flat(F.GarageU + U * GarageWide, F.GarageV + V * GarageDeep);
+			const double Gy = Ground(Q.X, Q.Z);
+			if (!std::isnan(Gy)) Low = std::fmin(Low, Gy);
+		}
+	Out.Base = Low < 1e17 ? Low : F.Base;
+	return true;
+}
+
+void RidePlan::GaragesNear(double X, double Z, double Reach, std::vector<GarageSpot>& Out) const
+{
+	Out.clear();
+	const auto Cx0 = static_cast<long long>(std::floor((X - Reach - 40.0) / CourtCell)), Cx1 = static_cast<long long>(std::floor((X + Reach + 40.0) / CourtCell));
+	const auto Cz0 = static_cast<long long>(std::floor((Z - Reach - 40.0) / CourtCell)), Cz1 = static_cast<long long>(std::floor((Z + Reach + 40.0) / CourtCell));
+	for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
+		for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
+		{
+			const auto It = ForecourtGrid.find(Cx * 4000037LL + Cz);
+			if (It == ForecourtGrid.end()) continue;
+			for (int I : It->second)
+			{
+				GarageSpot G;
+				if (GarageOf(I, G) && std::hypot(G.Middle.X - X, G.Middle.Z - Z) <= Reach) Out.push_back(G);
+			}
+		}
+}
+
 void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
 {
 	if (Detail < 0 || (Forecourts.empty() && TownThings.empty() && AirLines.empty())) return;
@@ -678,20 +755,25 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 					// The kiosk behind: rendered walls, glazed across the front, a flat roof with the band.
 					if (F.Kiosk)
 					{
-						const double KV0 = V1 + 1.5, KV1 = KV0 + KioskDeep, KL = std::fmin(F.CanopyLong, 12.0);
-						const double Kf = std::fmin(Floor(-KL * 0.5, KV0), Floor(KL * 0.5, KV0)) - 0.05;
-						Box(Out, C, -KL * 0.5, KL * 0.5, KV0, KV1, Kf - 0.4, Kf + 3.4, Wall);
-						Box(Out, C, -KL * 0.5 - 0.1, KL * 0.5 + 0.1, KV0 - 0.1, KV1 + 0.1, Kf + 3.4, Kf + 4.0, Band);
+						const double KV0 = V1 + 1.5, KV1 = KV0 + KioskDeep;
+						// ([garage] sharing the row with the garage: from beside it to the row's end)
+						const double Row = std::fmin(F.CanopyLong, KioskRow);
+						const double KU0 = F.Garage ? F.GarageU + RidePlan::GarageWide * 0.5 + 0.2 : -std::fmin(F.CanopyLong, 12.0) * 0.5;
+						const double KU1 = F.Garage ? Row * 0.5 : std::fmin(F.CanopyLong, 12.0) * 0.5;
+						const double KL = KU1 - KU0, KM = (KU0 + KU1) * 0.5;   // (its length and middle)
+						const double Kf = std::fmin(Floor(KU0, KV0), Floor(KU1, KV0)) - 0.05;
+						Box(Out, C, KU0, KU1, KV0, KV1, Kf - 0.4, Kf + 3.4, Wall);
+						Box(Out, C, KU0 - 0.1, KU1 + 0.1, KV0 - 0.1, KV1 + 0.1, Kf + 3.4, Kf + 4.0, Band);
 						// (its glass front, facing the road, the door in the middle)
 						const double Gv = KV0 - 0.02;
-						Face(Out, C.At(-KL * 0.5 + 0.6, Gv, Kf + 0.4), C.At(KL * 0.5 - 0.6, Gv, Kf + 0.4), C.At(KL * 0.5 - 0.6, Gv, Kf + 2.9), C.At(-KL * 0.5 + 0.6, Gv, Kf + 2.9),
-							C.At(0.0, KV0 + 1.0, Kf + 1.5), Glass);
-						for (double Mu = -KL * 0.5 + 0.6; Mu <= KL * 0.5 - 0.5; Mu += (KL - 1.2) / 5.0)
+						Face(Out, C.At(KU0 + 0.6, Gv, Kf + 0.4), C.At(KU1 - 0.6, Gv, Kf + 0.4), C.At(KU1 - 0.6, Gv, Kf + 2.9), C.At(KU0 + 0.6, Gv, Kf + 2.9),
+							C.At(KM, KV0 + 1.0, Kf + 1.5), Glass);
+						for (double Mu = KU0 + 0.6; Mu <= KU1 - 0.5; Mu += (KL - 1.2) / 5.0)
 							Box(Out, C, Mu - 0.05, Mu + 0.05, Gv - 0.05, Gv, Kf + 0.4, Kf + 2.9, Frame, false, false);
 						RideMesh& Night = Out.NightOf();
 						const size_t From = Night.Vertices();
-						Face(Night, C.At(-KL * 0.5 + 0.7, Gv - 0.03, Kf + 0.5), C.At(KL * 0.5 - 0.7, Gv - 0.03, Kf + 0.5), C.At(KL * 0.5 - 0.7, Gv - 0.03, Kf + 2.8),
-							C.At(-KL * 0.5 + 0.7, Gv - 0.03, Kf + 2.8), C.At(0.0, KV0 + 1.0, Kf + 1.5), Shop);
+						Face(Night, C.At(KU0 + 0.7, Gv - 0.03, Kf + 0.5), C.At(KU1 - 0.7, Gv - 0.03, Kf + 0.5), C.At(KU1 - 0.7, Gv - 0.03, Kf + 2.8),
+							C.At(KU0 + 0.7, Gv - 0.03, Kf + 2.8), C.At(KM, KV0 + 1.0, Kf + 1.5), Shop);
 						Unlit(Night, From);
 					}
 					// The price board by the road at the way in: a tall slab in the band's colour, three

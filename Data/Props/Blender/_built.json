@@ -723,5 +723,37 @@
    "vice_steel_dark",
    "steel"
   ]
+ },
+ "forecourt_garage": {
+  "bounds_min": [
+   -3.89,
+   -0.5,
+   -3.39
+  ],
+  "bounds_max": [
+   3.89,
+   3.74,
+   3.417
+  ],
+  "tris": 10132,
+  "materials": [
+   "garage_brick",
+   "garage_clad",
+   "steel_dark",
+   "garage_wall",
+   "paint_white",
+   "galvanised",
+   "garage_shutter",
+   "label_white",
+   "garage_floor",
+   "paint_yellow",
+   "steel",
+   "paint_red",
+   "chrome",
+   "pegboard",
+   "plastic_black",
+   "screen",
+   "led_white"
+  ]
  }
 }
