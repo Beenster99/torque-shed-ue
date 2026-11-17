@@ -1570,6 +1570,9 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		NearHit Hit;
 		return NearestOf(P.X, P.Z, AnyRoad, Hit) && Hit.Dist < Hit.Half - 0.05 && std::fabs(Hit.Height - Y) < 1.5;
 	};
+	// [roundabouts round 4] Nor in a roundabout's mouth: within RingMouthClear of a ring's tarmac the
+	// corners between arms and splitters left grass ticks and paving slabs on the road (beenster's circles).
+	const auto InRingMouth = [&](size_t I) { return PaintedRingNear(Rim[I], RingMouthClear) >= 0; };
 	if (StreetArms >= 2)
 	{
 		static constexpr float KerbGrey[3] = {0.16f, 0.16f, 0.15f}, Paved[3] = {0.12f, 0.118f, 0.11f};
@@ -1581,6 +1584,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		{
 			if (Edged[I] == 0) continue;
 			const size_t J = I + 1;
+			if (InRingMouth(I) || InRingMouth(J)) continue;
 			if (OnTarmac(Rim[I] + Outward[I] * PaveWide, RimH[I]) || OnTarmac(Rim[J] + Outward[J] * PaveWide, RimH[J])) continue;
 			for (int Ln = 0; Ln + 1 < Lines; ++Ln)
 			{
@@ -1597,6 +1601,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	{
 		if (Edged[I] == 0) continue;
 		const size_t J = I + 1;
+		if (InRingMouth(I) || InRingMouth(J)) continue;
 		{
 			const P2 MidA = Rim[I] + Outward[I] * ShoulderFlat, MidB = Rim[J] + Outward[J] * ShoulderFlat;
 			const P2 OutA = Rim[I] + Outward[I] * Shoulder, OutB = Rim[J] + Outward[J] * Shoulder;
@@ -2527,6 +2532,16 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			bool Close = false;
 			for (const RoadRing* Rg : RingsAbout)
 				Close = Close || std::fmin(Rg->OffOf(RowA.At), Rg->OffOf(RowB.At)) < Rg->Half + RingClearReach;
+			// [roundabouts round 4] (beenster's circled bits: short ends of grass and pavement left on the
+			// junction's tarmac) In the mouths, RingMouthClear m out from the ring's edge, a road onto it has
+			// no shoulder or pavement of its own: the flared corners' kerbs and grass meet the ring there. (The
+			// ring's own outer shoulder stays.)
+			for (const RoadRing* Rg : RingsAbout)
+			{
+				const double Oa = Rg->OffOf(RowA.At), Ob = Rg->OffOf(RowB.At);
+				const bool OnRing = std::fabs(Oa) < Rg->Half + 0.5 && std::fabs(Ob) < Rg->Half + 0.5;
+				if (!OnRing && std::fmin(Oa, Ob) < Rg->Half + RingMouthClear) { NoShoulder[0] = NoShoulder[1] = true; }
+			}
 			if (Close)
 			{
 				NearOpts Others;
@@ -2549,10 +2564,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					{
 						const double O = Rg->OffOf(P);
 						if (O < -Rg->Half - 0.1) return -1;   // (the island: never)
-						if (O < Rg->Half) return 1;
+						if (O < Rg->Half) return 2;
 					}
 					NearHit Hit;
-					return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half && std::fabs(Hit.Height - OwnHeight) < 0.6 ? 1 : 0;
+					return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half && std::fabs(Hit.Height - OwnHeight) < 1.0 ? 1 : 0;
 				};
 				for (int Sd = 0; Sd < 2; ++Sd)
 				{
@@ -2561,17 +2576,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					for (int Step = 0; Step < 3; ++Step)
 					{
 						const Row Rw = Between(RowA, RowB, Step * 0.5);
-						for (double Off = 0.3; Off <= 3.0 + 1e-9; Off += 0.3)
+						// ([round 4] beenster's circled slivers and wedges: up to RingGapFill to another road, 3 m
+						// to the ring's own edge, so the grass corners between its arms stay)
+						for (double Off = 0.3; Off <= RingGapFill + 1e-9; Off += 0.3)
 						{
 							const int On = OnRoad(Rw.At + Rw.Left * (Sign * (Rw.Half + Off)), Rw.Height);
-							if (On < 0) break;
+							if (On < 0 || (On == 2 && Off > 3.0)) break;
 							if (On > 0) { Gap[Step] = Off; break; }
 						}
 					}
-					if (Gap[0] > 0.0 && Gap[1] > 0.0 && Gap[2] > 0.0 && Gap[0] > 0.31 && Gap[2] > 0.31)
+					// (a wedge too: the gap closing to nothing at one end, as between a mouth's carriageways)
+					const int Hits = (Gap[0] > 0.0 ? 1 : 0) + (Gap[1] > 0.0 ? 1 : 0) + (Gap[2] > 0.0 ? 1 : 0);
+					if (Hits >= 2 && Gap[1] > 0.0)
 					{
-						Fill[Sd][0] = std::fmax(Gap[0], Gap[1]) + 0.3;
-						Fill[Sd][1] = std::fmax(Gap[2], Gap[1]) + 0.3;
+						Fill[Sd][0] = (Gap[0] > 0.0 ? std::fmax(Gap[0], 0.5 * Gap[1]) : 0.5 * Gap[1]) + 0.3;
+						Fill[Sd][1] = (Gap[2] > 0.0 ? std::fmax(Gap[2], 0.5 * Gap[1]) : 0.5 * Gap[1]) + 0.3;
 						NoShoulder[Sd] = true;
 					}
 				}
@@ -2583,7 +2602,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					{
 						const double T = Step / 4.0;
 						const Row Rw = Between(RowA, RowB, T);
-						for (const double Off : {0.3, ShoulderFlat * 0.5, Shoulder})
+						for (const double Off : {0.3, ShoulderFlat * 0.5, Shoulder, PaveWide + 0.35})
 							if (OnTar(Rw.At + Rw.Left * (Sign * (Rw.Half + Off)), Rw.Height)) { NoShoulder[Sd] = true; break; }
 					}
 				}
@@ -3312,7 +3331,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Rim[At4] = CurveAt[S];
 				RimH[At4] = CurveH[S];
 			}
-			if (StreetCorner)
+			// [roundabouts round 4] (no kerb, pavement or grass round a corner in a roundabout's mouth)
+			const bool InRingMouth = PaintedRingNear(Corner, RingMouthClear) >= 0 || PaintedRingNear(OnMain, RingMouthClear) >= 0 || PaintedRingNear(OnSide, RingMouthClear) >= 0;
+			if (StreetCorner && !InRingMouth)
 			{
 				// (the kerb's face, its top, the pavement and its back, as the street's own (RoadPiece's Band),
 				// each line out from the curve gathering to a point on a tight one rather than cross itself)
@@ -3362,7 +3383,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					}
 				}
 			}
-			for (int S = 0; S < Segs && !StreetCorner; ++S)
+			for (int S = 0; S < Segs && !StreetCorner && !InRingMouth; ++S)
 			{
 				// (as two triangles, each made to face up: on a tight curve the four points may not lie in order)
 				const P3 In0 = At3(CurveAt[S], CurveH[S]), In1 = At3(CurveAt[S + 1], CurveH[S + 1]), Mid0 = At3(CurveMid[S], CurveH[S] - ShoulderDip), Mid1 = At3(CurveMid[S + 1], CurveH[S + 1] - ShoulderDip),

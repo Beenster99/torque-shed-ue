@@ -1244,6 +1244,8 @@ public:
 	static constexpr double RingFlare = 15.0, RingKerb = 0.125, RingApron = 1.6, RingApronUnder = 14.0;   // ([roundabouts round 2] under 9 m: none ever had one)
 	// [roundabouts round 2] How far out from a ring's outer edge roads are checked for grass shoulders on tarmac (m).
 	static constexpr double RingClearReach = 30.0;
+	static constexpr double RingMouthClear = 10.0;   // [roundabouts round 4] no road shoulder or pavement this near a ring's edge but the ring's own (m)
+	static constexpr double RingGapFill = 8.0;   // [roundabouts round 4] near a ring, a gap to another road this narrow or less is tarmac (m)
 	bool ShapeRing(RoadRing& R) const;
 	// [roundabouts round 2] The roads onto a ring drawn as one: where each meets its outer edge, which way it
 	// heads out, how wide, and which way its traffic may go (+1 out only, -1 in only, 0 both).
