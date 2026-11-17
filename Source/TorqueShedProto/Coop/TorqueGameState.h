@@ -145,6 +145,17 @@ public:
 	float BuiltHour() const { return BuiltAt; }
 	// The host only: set the clock (-1: the level's own light).
 	void SetHour(float NewHour);
+	// The ride's date (Settings > Gameplay, beenster Nov 17): the host sets the day of the year (1 .. 365,
+	// 0 today); everyone's sun, night sky, season and HUD date follow it.
+	void SetRideDay(int32 Day);
+	int32 GetRideDay() const { return RideDay; }
+	// The day of the year the sun stands for: the ride's date, or today's.
+	int32 DayOfYearNow() const;
+	// That day as a date (this year), for the HUD and the menu.
+	FDateTime RideDate() const;
+	static FDateTime DateOfDay(int32 DayOfYear);
+	// Sunrise or sunset on the clock, by the game's own sun (its day, place and clock shift).
+	float SunEventHour(bool bEvening) const { return HourForSun(-0.833, bEvening); }
 	// "15:30".
 	static FString ClockText(float Hours);
 	// [test] a test run's step turned Real time of day on or off (test runs otherwise keep the made clock).
@@ -205,6 +216,7 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunShift = 0.0f;
 	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunDec = 15.0f;
 	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunLat = 54.35f;
+	UPROPERTY(ReplicatedUsing = OnRep_Hour) int32 RideDay = 0;   // (SetRideDay)
 	void TickRealClock();
 	static bool bRealClockTest, bTestClockSet;
 	int32 UtcOffset = 0;      // the weather's place's clock, seconds ahead of UTC (from Open-Meteo)

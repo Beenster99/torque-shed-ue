@@ -3,6 +3,7 @@
 #include "TorquePlayerState.h"
 #include "Engine/GameInstance.h"
 #include "World/TorqueRideWorld.h"
+#include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -64,6 +65,7 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SunShift);
 	DOREPLIFETIME(ATorqueGameState, SunDec);
 	DOREPLIFETIME(ATorqueGameState, SunLat);
+	DOREPLIFETIME(ATorqueGameState, RideDay);
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, WideNet);
 	DOREPLIFETIME(ATorqueGameState, SkyKp);
@@ -159,6 +161,8 @@ void ATorqueGameState::BeginPlay()
 	// The clock where it was left (the level's own light until the player sets one).
 	// (A test run keeps the level's light unless one of its steps set the clock.)
 	if (HasAuthority() && (!bTest || bTestClockSet)) Hour = Set.TimeOfDay;
+	if (HasAuthority() && !bTest) RideDay = FMath::Clamp(Set.RideDate, 0, 365);
+	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
 	// (-TorqueHour=<0..24> sets it for a test: a night shot of Ride UK's lamps and windows)
 	if (float ForcedHour = -1.0f; HasAuthority() && FParse::Value(FCommandLine::Get(), TEXT("TorqueHour="), ForcedHour) && ForcedHour >= 0.0f)
 		Hour = FMath::Fmod(ForcedHour, 24.0f);
@@ -346,7 +350,7 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 		if (!bTestRun)
 		{
 			const FDateTime Utc = FDateTime::UtcNow();
-			const int32 Day = Utc.GetDayOfYear();
+			const int32 Day = DayOfYearNow();
 			const int32 Off = bUtcKnown ? UtcOffset : FMath::RoundToInt((FDateTime::Now() - Utc).GetTotalSeconds() / 900.0) * 900;
 			Dec = (float)TorqueWeather::SunDeclination(Day);
 			SLat = (float)LatitudeAt;
@@ -385,7 +389,35 @@ void ATorqueGameState::SetHour(float NewHour)
 
 void ATorqueGameState::OnRep_Hour()
 {
+	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
 	ApplySun();
+}
+
+void ATorqueGameState::SetRideDay(int32 Day)
+{
+	if (!HasAuthority()) return;
+	RideDay = FMath::Clamp(Day, 0, 365);
+	// (the land's season is set when a ride's ground is planned: the next ride takes it)
+	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
+	UE_LOG(LogTemp, Display, TEXT("Torque clock: ride date %s (day %d)"), RideDay > 0 ? *DateOfDay(RideDay).ToString(TEXT("%d %b")) : TEXT("today"), RideDay);
+	ApplySun();   // (the sun's day itself follows in the next tick's sun, by DayOfYearNow)
+	ForceNetUpdate();
+}
+
+int32 ATorqueGameState::DayOfYearNow() const
+{
+	return RideDay > 0 ? RideDay : FDateTime::UtcNow().GetDayOfYear();
+}
+
+FDateTime ATorqueGameState::DateOfDay(int32 DayOfYear)
+{
+	const int32 Year = FDateTime::UtcNow().GetYear();
+	return FDateTime(Year, 1, 1) + FTimespan::FromDays(FMath::Clamp(DayOfYear, 1, FDateTime::DaysInYear(Year)) - 1);
+}
+
+FDateTime ATorqueGameState::RideDate() const
+{
+	return RideDay > 0 ? DateOfDay(RideDay) : FDateTime::Now();
 }
 
 FString ATorqueGameState::ClockText(float Hours)
@@ -1180,7 +1212,7 @@ void ATorqueGameState::TickRealClock()
 	const FDateTime Utc = FDateTime::UtcNow();
 	const int32 Off = bUtcKnown ? UtcOffset : FMath::RoundToInt((FDateTime::Now() - Utc).GetTotalSeconds() / 900.0) * 900;
 	const double UtcHours = Utc.GetHour() + Utc.GetMinute() / 60.0 + Utc.GetSecond() / 3600.0;
-	const int32 Day = Utc.GetDayOfYear();
+	const int32 Day = DayOfYearNow();
 	const float Clock = (float)FMath::Fmod(UtcHours + Off / 3600.0 + 48.0, 24.0);
 	SunDec = (float)TorqueWeather::SunDeclination(Day);
 	SunLat = (float)LatitudeAt;
@@ -1356,7 +1388,7 @@ void ATorqueGameState::HoldPreset(float FadeSeconds)
 	if (PresetDay > 0)
 	{
 		// (a day of the year: the night sky's clock moved to it, this year)
-		SkyShiftDays = (double)(PresetDay - FDateTime::UtcNow().GetDayOfYear());
+		SkyShiftDays = (double)(PresetDay - DayOfYearNow());
 		ApplySun();
 	}
 	if (Pick && !Pick->Moon.empty())
@@ -1473,7 +1505,7 @@ double ATorqueGameState::SkyUnixAt(float ClockHour) const
 	// The clock's hour as a moment (UTC): the sun's shift turns the clock into solar time, the longitude
 	// and the equation of time turn that into Greenwich's (so a made clock and the real one agree).
 	const FDateTime Utc = FDateTime::UtcNow();
-	const int32 Day = SkyDay > 0 ? SkyDay : Utc.GetDayOfYear();
+	const int32 Day = SkyDay > 0 ? SkyDay : DayOfYearNow();
 	const double UtHours = ClockHour + SunShift - LongitudeAt / 15.0 - TorqueWeather::EquationOfTime(Day) / 60.0;
 	return (double)FDateTime(Utc.GetYear(), 1, 1).ToUnixTimestamp() + (Day - 1 + SkyShiftDays) * 86400.0 + UtHours * 3600.0;
 }

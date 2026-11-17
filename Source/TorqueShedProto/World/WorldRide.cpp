@@ -135,6 +135,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		const long long Doy = Doe - (365 * Yoe + Yoe / 4 - Yoe / 100);
 		const long long Mp = (5 * Doy + 2) / 153;
 		R->Month = int(Mp < 10 ? Mp + 3 : Mp - 9);
+		if (SeasonMonth >= 1 && SeasonMonth <= 12) R->Month = SeasonMonth;
 	}
 	if (!Route::IsStyle(R->Request.Mode)) R->Request.Mode = "main";
 	if (Want.Pins.size() >= 2)

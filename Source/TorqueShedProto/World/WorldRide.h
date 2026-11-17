@@ -615,6 +615,8 @@ public:
 	RidePlace SoundsAt(double X, double Z) const;
 	// The month the ride is in (1..12; its seasons: the lambs, the cattle out, the heather in flower).
 	int Month = 6;
+	// The ride's date set in Settings (its month, 1..12), or 0 for the month now: the next plan made takes it.
+	static inline int SeasonMonth = 0;
 	// Set before the ground is made: trees come as plants (PlantsTile) and not as stand-in shapes
 	// (SceneryTile); how many of the grass's plants are kept (0..1).
 	bool RealTrees = false;

@@ -294,7 +294,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	// Stage 7: the place and the day (the aurora, noctilucent cloud, meteors), the space weather and dust.
 	In.Lat = SkyLat;
 	In.Lon = SkyLon;
-	In.DayOfYear = bSkyClock ? FDateTime::FromUnixTimestamp((int64)SkyUnix).GetDayOfYear() : FDateTime::UtcNow().GetDayOfYear();
+	In.DayOfYear = bSkyClock ? FDateTime::FromUnixTimestamp((int64)SkyUnix).GetDayOfYear() : Game.IsValid() ? Game->DayOfYearNow() : FDateTime::UtcNow().GetDayOfYear();
 	if (Game.IsValid())
 	{
 		In.Kp = Game->GetSkyKp();
