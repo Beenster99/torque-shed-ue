@@ -1,5 +1,5 @@
 {
- "about": "Towns stage 1: the famous places' own looks, over their region's and over what the map's tags say. at = [lat, lon] of the centre, km = how far it reaches. walls and roofs are shares (any scale). stone = bath, honey, sandstone, red_sandstone, gritstone, sooty, granite, limestone, flint, slate; brick = red, orange, brown, yellow, cream, blue; tile = red, orange, brown, blue. Read by World/WorldRideStyle (SetTownTable).",
+ "about": "Towns stage 1: the famous places' own looks, over their region's and over what the map's tags say. at = [lat, lon] of the centre, km = how far it reaches. walls and roofs are shares (any scale). stone = bath, honey, sandstone, red_sandstone, gritstone, sooty, granite, limestone, flint, slate; brick = red, orange, brown, yellow, cream, blue; tile = red, orange, brown, blue.  [towns stage 5] soot = the share of old stone buildings blackened by coal smoke; paint = the share of houses painted in colours where the sea is near; a town builds on the materials atlas's area. Read by World/WorldRideStyle (SetTownTable).",
  "towns": [
   {
    "name": "Bath",
@@ -42,7 +42,8 @@
     "tile": 0.05,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.25
   },
   {
    "name": "Glasgow",
@@ -63,7 +64,8 @@
     "tile": 0.05,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.3
   },
   {
    "name": "Aberdeen",
@@ -105,7 +107,8 @@
     "tile": 0.05,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.2
   },
   {
    "name": "Inverness",
@@ -190,7 +193,8 @@
     "stone": 0,
     "thatch": 0
    },
-   "tile": "orange"
+   "tile": "orange",
+   "paint": 0.2
   },
   {
    "name": "Oxford",
@@ -418,14 +422,15 @@
     "stone": 0.17,
     "render": 0.03
    },
-   "stone": "sooty",
+   "stone": "gritstone",
    "brick": "red",
    "roofs": {
     "slate": 0.85,
     "tile": 0.15,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.4
   },
   {
    "name": "Bradford",
@@ -439,14 +444,15 @@
     "stone": 0.78,
     "render": 0.02
    },
-   "stone": "sooty",
+   "stone": "gritstone",
    "brick": "red",
    "roofs": {
     "slate": 0.6,
     "tile": 0.0,
     "stone": 0.4,
     "thatch": 0
-   }
+   },
+   "soot": 0.5
   },
   {
    "name": "Halifax",
@@ -460,14 +466,15 @@
     "stone": 0.88,
     "render": 0.02
    },
-   "stone": "sooty",
+   "stone": "gritstone",
    "brick": "red",
    "roofs": {
     "slate": 0.4,
     "tile": 0.0,
     "stone": 0.6,
     "thatch": 0
-   }
+   },
+   "soot": 0.5
   },
   {
    "name": "Huddersfield",
@@ -481,14 +488,15 @@
     "stone": 0.83,
     "render": 0.02
    },
-   "stone": "sooty",
+   "stone": "gritstone",
    "brick": "red",
    "roofs": {
     "slate": 0.5,
     "tile": 0.0,
     "stone": 0.5,
     "thatch": 0
-   }
+   },
+   "soot": 0.5
   },
   {
    "name": "Hebden Bridge",
@@ -509,7 +517,8 @@
     "tile": 0.0,
     "stone": 0.9,
     "thatch": 0
-   }
+   },
+   "soot": 0.45
   },
   {
    "name": "Haworth",
@@ -530,7 +539,8 @@
     "tile": 0.0,
     "stone": 0.9,
     "thatch": 0
-   }
+   },
+   "soot": 0.5
   },
   {
    "name": "Skipton",
@@ -615,7 +625,8 @@
     "stone": 0,
     "thatch": 0
    },
-   "tile": "orange"
+   "tile": "orange",
+   "paint": 0.15
   },
   {
    "name": "Scarborough",
@@ -659,7 +670,8 @@
     "stone": 0,
     "thatch": 0
    },
-   "tile": "orange"
+   "tile": "orange",
+   "paint": 0.15
   },
   {
    "name": "Durham",
@@ -695,14 +707,15 @@
     "stone": 0.5,
     "render": 0.05
    },
-   "stone": "sooty",
+   "stone": "sandstone",
    "brick": "red",
    "roofs": {
     "slate": 0.95,
     "tile": 0.05,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.4
   },
   {
    "name": "Manchester",
@@ -716,14 +729,15 @@
     "stone": 0.1,
     "render": 0.02
    },
-   "stone": "sooty",
+   "stone": "sandstone",
    "brick": "red",
    "roofs": {
     "slate": 0.9,
     "tile": 0.1,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.4
   },
   {
    "name": "Liverpool",
@@ -737,14 +751,15 @@
     "stone": 0.15,
     "render": 0.03
    },
-   "stone": "sooty",
+   "stone": "sandstone",
    "brick": "red",
    "roofs": {
     "slate": 0.9,
     "tile": 0.1,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.35
   },
   {
    "name": "Sheffield",
@@ -758,14 +773,15 @@
     "stone": 0.22,
     "render": 0.03
    },
-   "stone": "sooty",
+   "stone": "gritstone",
    "brick": "red",
    "roofs": {
     "slate": 0.85,
     "tile": 0.15,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "soot": 0.45
   },
   {
    "name": "Nottingham",
@@ -1117,7 +1133,8 @@
     "stone": 0,
     "thatch": 0
    },
-   "tile": "red"
+   "tile": "red",
+   "paint": 0.45
   },
   {
    "name": "Canterbury",
@@ -1292,7 +1309,8 @@
     "tile": 0.1,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "paint": 0.3
   },
   {
    "name": "Dartmouth",
@@ -1313,7 +1331,8 @@
     "tile": 0.05,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "paint": 0.5
   },
   {
    "name": "Plymouth",
@@ -1355,7 +1374,8 @@
     "tile": 0,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "paint": 0.6
   },
   {
    "name": "Padstow",
@@ -1376,7 +1396,8 @@
     "tile": 0,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "paint": 0.4
   },
   {
    "name": "Kendal",
@@ -1586,7 +1607,8 @@
     "tile": 0,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "paint": 0.7
   },
   {
    "name": "Conwy",
@@ -1607,7 +1629,8 @@
     "tile": 0,
     "stone": 0,
     "thatch": 0
-   }
+   },
+   "paint": 0.3
   },
   {
    "name": "Caernarfon",

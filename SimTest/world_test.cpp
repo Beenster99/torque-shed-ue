@@ -93,6 +93,9 @@ int main()
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
 	std::string TownText;
 	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
+	// [towns stage 5] (the materials atlas)
+	std::string AtlasText;
+	const bool AtlasRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/materials_atlas.json"), AtlasText) && SetMaterialsAtlas(AtlasText);
 	// [towns stage 4] (the house types)
 	std::string TypesText;
 	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
@@ -1019,12 +1022,41 @@ int main()
 						if (Right)
 						{
 							const LocalLook Y = TownLook(LookAt(York->Lat, York->Lon), *York), Ld = TownLook(LookAt(Leeds->Lat, Leeds->Lon), *Leeds);
-							Right = Y.BrickShare > 0.7f && Y.TileShare > 0.6f && Ld.BrickShare > 0.7f && Ld.TileShare < 0.3f && Ld.HouseStone.R < 0.6f;
+							Right = Y.BrickShare > 0.7f && Y.TileShare > 0.6f && Ld.BrickShare > 0.7f && Ld.TileShare < 0.3f && Ld.Soot >= 0.3f;
 						}
 						const int Squares = int(Plan->TownGrid.size());
 						std::printf("      towns: %zu in the table (%d with a colour it doesn't know); %d km squares here with a town look (%d counted from tags, %d of the table's towns)\n",
 							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
 						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
+					}
+					// [towns stage 5] The materials atlas: read, every colour known; Bath in Bath stone, Aberdeen grey
+					// granite, Haworth gritstone (and sooted), Ely cream gault brick, the Lancashire mill towns red
+					// Accrington brick; a place no area holds keeps its region's look.
+					{
+						const std::vector<TownEntry> Areas = MaterialsAtlas();
+						int Unknown = 0;
+						for (const TownEntry& T : Areas)
+						{
+							Tint Probe;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+						}
+						const auto TownAt = [](const char* Name, double Lat, double Lon)
+						{
+							for (const TownEntry& T : TownTable())
+								if (T.Name == Name) return TownLook(AreaLook(T.Lat, T.Lon), T);
+							return AreaLook(Lat, Lon);
+						};
+						Tint BathStone, Granite, Grit, Gault, Accrington;
+						NamedStone("bath", BathStone); NamedStone("granite", Granite); NamedStone("gritstone", Grit); NamedBrick("gault", Gault); NamedBrick("accrington", Accrington);
+						const LocalLook Bath = TownAt("Bath", 51.3811, -2.359), Aberdeen = TownAt("Aberdeen", 57.1497, -2.0943), Haworth = TownAt("Haworth", 53.8303, -1.9573);
+						const LocalLook Ely = AreaLook(52.3986, 0.2627), Burnley = AreaLook(53.7893, -2.2405), NoArea = AreaLook(52.0, -4.4);
+						const auto Alike = [](const Tint& P, const Tint& Q) { return std::fabs(P.R - Q.R) < 0.01f && std::fabs(P.G - Q.G) < 0.01f && std::fabs(P.B - Q.B) < 0.01f; };
+						const bool Right = Alike(Bath.HouseStone, BathStone) && Bath.BrickShare < 0.2f && Alike(Aberdeen.HouseStone, Granite) && Alike(Haworth.HouseStone, Grit) && Haworth.Soot > 0.3f
+							&& Alike(Ely.BrickColour, Gault) && Ely.BrickShare > 0.6f && Ely.From == LocalLook::FromAtlas && Alike(Burnley.BrickColour, Accrington) && Burnley.Soot > 0.3f
+							&& NoArea.From == LocalLook::FromRegion;
+						std::printf("      materials atlas: %zu areas (%d with a colour it doesn't know); %d km squares here from an area; Ely brick %.2f %.2f %.2f, Haworth soot %.2f\n",
+							Areas.size(), Unknown, Plan->AtlasSquares, Ely.BrickColour.R, Ely.BrickColour.G, Ely.BrickColour.B, Haworth.Soot);
+						Check(AtlasRead && Areas.size() >= 40 && Unknown == 0 && Right, "materials atlas: read, every colour known; Bath stone, Aberdeen granite, Haworth gritstone sooted, Ely gault brick, Lancashire Accrington brick");
 					}
 					// [towns stage 4] The house types: every kind has its periods; a terrace mostly Victorian sashes
 					// with bays, an inter-war semi mostly hipped with bays; a pick always lands on a period.

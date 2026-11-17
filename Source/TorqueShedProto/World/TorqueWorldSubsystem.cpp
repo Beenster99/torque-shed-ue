@@ -174,6 +174,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [towns stage 5] The materials atlas: the local building stones and bricks by area.
+		std::string AtlasText;
+		const std::string AtlasPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/materials_atlas.json")));
+		const bool bAtlas = TorqueWorld::Files::Read(AtlasPath, AtlasText) && TorqueWorld::SetMaterialsAtlas(AtlasText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: materials atlas: %d areas%s"), int32(TorqueWorld::MaterialsAtlas().size()), bAtlas ? TEXT("") : TEXT(" (none: Data/RideUK/materials_atlas.json unreadable)"));
 		// [towns stage 4] The house types and their periods (the built-in figures without the file).
 		std::string TypesText;
 		const std::string TypesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_types.json")));
