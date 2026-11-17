@@ -238,6 +238,27 @@ FCatalogue& Catalogue()
 		UE_LOG(LogTemp, Warning, TEXT("Torque shed: no parts catalogue (Data/Parts/parts.json)"));
 		return C;
 	}
+	// [bikes v2] The V2 bikes' frames laid over the catalogue (Data/BikesV2/parts_v2.json, the same shape).
+	{
+		FString V2Text;
+		TSharedPtr<FJsonObject> V2Root;
+		if (FFileHelper::LoadFileToString(V2Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/BikesV2/parts_v2.json"))) &&
+			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V2Text), V2Root) && V2Root.IsValid())
+		{
+			for (const auto& V2Kind : V2Root->Values)
+			{
+				const TSharedPtr<FJsonObject>* Extra = nullptr;
+				if (!V2Kind.Value.IsValid() || !V2Kind.Value->TryGetObject(Extra)) continue;
+				const TSharedPtr<FJsonObject>* Into = nullptr;
+				if (!Root->TryGetObjectField(FString(V2Kind.Key), Into))
+				{
+					Root->SetObjectField(FString(V2Kind.Key), *Extra);
+					continue;
+				}
+				for (const auto& V2Part : (*Extra)->Values) (*Into)->SetField(FString(V2Part.Key), V2Part.Value);
+			}
+		}
+	}
 	for (const auto& KindKV : Root->Values)
 	{
 		const TSharedPtr<FJsonObject>* Of = nullptr;

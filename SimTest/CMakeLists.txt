@@ -228,3 +228,12 @@ if(MSVC)
 else()
   target_compile_options(bikesv2_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# [bikes v2] Every V2 bike in the catalogue laid out, fitted from its own files and given its riding spec.
+add_executable(v2fit_test v2fit_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(v2fit_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(v2fit_test PRIVATE /W4)
+else()
+  target_compile_options(v2fit_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

@@ -489,6 +489,126 @@ std::string BikeLayout::Brief(const PartsMap& Parts, Json& LinesOut) const
 	return std::string();
 }
 
+// [bikes v2]
+V2Frame V2Frame::Of(const Json* FramePart)
+{
+	V2Frame F;
+	const Json* V2 = Sub(FramePart, "v2");
+	const Json* P = Sub(V2, "points_mm");
+	const Json* Fa = Sub(P, "front_axle");
+	const Json* Ra = Sub(P, "rear_axle");
+	if (!Fa || !Ra || Fa->A.size() < 3 || Ra->A.size() < 3) return F;
+	const double Dx = Fa->A[0].N - Ra->A[0].N, Dz = Fa->A[2].N - Ra->A[2].N;
+	const double Len = std::sqrt(Dx * Dx + Dz * Dz);
+	if (Len < 100.0) return F;
+	F.Valid = true;
+	F.Points = P;
+	F.MidX = (Fa->A[0].N + Ra->A[0].N) * 0.5;
+	F.MidZ = (Fa->A[2].N + Ra->A[2].N) * 0.5;
+	F.Cos = Dx / Len;
+	F.Sin = Dz / Len;
+	return F;
+}
+
+V3 V2Frame::Dir(double X, double YLeft, double ZUp) const
+{
+	return V3(Cos * X + Sin * ZUp, -Sin * X + Cos * ZUp, -YLeft);
+}
+
+V3 V2Frame::Point(double X, double YLeft, double ZUp) const
+{
+	return Dir(X - MidX, YLeft, ZUp - MidZ) * 0.001;
+}
+
+bool V2Frame::Named(const std::string& Key, V3& Out) const
+{
+	const Json* P = Sub(Points, Key);
+	if (!P || P->A.size() < 3) return false;
+	Out = Point(P->A[0].N, P->A[1].N, P->A[2].N);
+	return true;
+}
+
+const Json* BikeLayout::V2Of(const PartsMap& Parts) const
+{
+	const Json* V2 = Sub(Part(Get(Parts, "frame")), "v2");
+	return V2 && V2->IsObject() && !V2->Str("model").empty() ? V2 : nullptr;
+}
+
+namespace
+{
+// The sizes a V2 bike is drawn to, over what its catalogue parts add up to.
+void V2Stats(const Json* FramePart, BuildStats& S)
+{
+	const V2Frame F = V2Frame::Of(FramePart);
+	if (!F.Valid) return;
+	const Json* St = Sub(F.Points, "stats");
+	V3 Fa, Ra;
+	F.Named("front_axle", Fa);
+	F.Named("rear_axle", Ra);
+	S.Wheelbase = Fa.x - Ra.x;
+	const Json* Fd = Sub(F.Points, "fork_dir");
+	if (Fd && Fd->A.size() >= 3)
+	{
+		const V3 Up = F.Dir(Fd->A[0].N, Fd->A[1].N, Fd->A[2].N);
+		S.RakeDeg = std::atan2(-Up.x, Up.y) * 180.0 / TorqueSim::Pi;
+	}
+	S.SeatHeight = Num(St, "seat_height", S.SeatHeight * 1000.0) / 1000.0;
+	S.ForkLength = Num(St, "fork_length", S.ForkLength * 1000.0) / 1000.0;
+	S.FrontRadius = Num(St, "front_radius", S.FrontRadius * 1000.0) / 1000.0;
+	S.RearRadius = Num(St, "rear_radius", S.RearRadius * 1000.0) / 1000.0;
+	S.FrontRimRadius = Num(St, "front_rim", S.FrontRimRadius * 1000.0) / 1000.0;
+	S.RearRimRadius = Num(St, "rear_rim", S.RearRimRadius * 1000.0) / 1000.0;
+	S.FrontTyreWidth = Num(St, "front_width", S.FrontTyreWidth * 1000.0) / 1000.0;
+	S.RearTyreWidth = Num(St, "rear_width", S.RearTyreWidth * 1000.0) / 1000.0;
+	V3 Pivot;
+	if (F.Named("swing_pivot", Pivot))
+	{
+		S.PivotY = Pivot.y;
+		S.Arm = Pivot.x - Ra.x;
+	}
+	// A rigid chopper's rear wheel is bolted to its frame.
+	const Json* Rigid = Sub(F.Points, "rigid");
+	if (Rigid && Rigid->B) S.RearTravel = 0.0;
+}
+
+// The V2 bike's own points over the solved ones (the rest of the layout, the engine's hard points
+// and the tank's lines, stays the catalogue's: only the bodywork the game no longer draws used them).
+void V2Layout(const Json* FramePart, Layout& R)
+{
+	const V2Frame F = V2Frame::Of(FramePart);
+	if (!F.Valid) return;
+	F.Named("front_axle", R.FrontAxle);
+	F.Named("rear_axle", R.RearAxle);
+	V3 Top = R.Head, Bottom = R.HeadBottom;
+	if (F.Named("steer_top", Top) && F.Named("steer_bottom", Bottom))
+	{
+		R.Head = Top;
+		R.HeadBottom = Bottom;
+		const V3 Along = Top - Bottom;
+		const double Len = std::sqrt(Along.x * Along.x + Along.y * Along.y + Along.z * Along.z);
+		if (Len > 1.0e-6) R.SteerAxis = Along * (1.0 / Len);
+	}
+	F.Named("swing_pivot", R.Pivot);
+	const V3 OldHip = R.Hip;
+	if (F.Named("hip", R.Hip))
+	{
+		const V3 Move = R.Hip - OldHip;
+		R.KneeL = R.KneeL + Move;
+		R.KneeR = R.KneeR + Move;
+		R.SeatFront = R.SeatFront + Move;
+	}
+	// (The right-hand peg and grip, as the solver gives them: the drawing's are the left ones.)
+	if (F.Named("peg", R.Peg)) R.Peg.z = std::fabs(R.Peg.z);
+	if (F.Named("grip", R.GripR)) R.GripR.z = std::fabs(R.GripR.z);
+	R.BarBackM = 0.0;
+	R.BarUpM = 0.0;
+	// Built as one bike: nothing to fabricate between its frame and whatever engine is in it.
+	R.Fit.Tier = TierBolts;
+	R.Fit.Work.clear();
+	R.Fit.Reason.clear();
+}
+} // namespace
+
 BuildStats BikeLayout::Stats(const PartsMap& Parts) const
 {
 	BuildStats S;
@@ -514,6 +634,7 @@ BuildStats BikeLayout::Stats(const PartsMap& Parts) const
 	};
 	Wheel("front_wheel", "front_tyre", S.FrontRimRadius, S.FrontTyreWidth, S.FrontRadius);
 	Wheel("rear_wheel", "rear_tyre", S.RearRimRadius, S.RearTyreWidth, S.RearRadius);
+	if (Sub(Frame, "v2")) V2Stats(Frame, S);   // [bikes v2]
 	return S;
 }
 
@@ -827,6 +948,7 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	R.EngineMax = V3(std::max(Bm.x, Bx.x), std::max(Bm.y, Bx.y), std::max(Bm.z, Bx.z));
 	R.FrontClear = Nearest;
 	R.Fit = FitOf(R, Engine, FrontClearWant, Notes);
+	if (Sub(Frame, "v2")) V2Layout(Frame, R);   // [bikes v2]
 	return R;
 }
 

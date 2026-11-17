@@ -23,6 +23,29 @@ bool PartsDb::LoadFromText(const std::string& InText, std::string& Error)
 	return true;
 }
 
+bool PartsDb::AddFromText(const std::string& InText, std::string& Error)
+{
+	Json Extra;
+	if (!Json::Parse(InText, Extra, &Error)) return false;
+	if (!Extra.IsObject() || !Root.IsObject())
+	{
+		Error = "extra parts: not an object of kinds, or no catalogue to add them to";
+		return false;
+	}
+	for (const auto& KV : Extra.O)
+	{
+		if (!KV.second.IsObject()) continue;
+		Json* Kind = Root.GetMutable(KV.first);
+		if (!Kind)
+		{
+			Root.Set(KV.first, KV.second);
+			continue;
+		}
+		for (const auto& PartKV : KV.second.O) Kind->Set(PartKV.first, PartKV.second);
+	}
+	return true;
+}
+
 std::vector<std::string> PartsDb::Kinds() const
 {
 	std::vector<std::string> Out;

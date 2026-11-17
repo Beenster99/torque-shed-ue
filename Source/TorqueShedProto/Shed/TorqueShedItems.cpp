@@ -356,7 +356,8 @@ int32 ATorqueShedItems::MakeNewPart(AActor* Outer, USceneComponent* Holder, FNam
 	for (int32 I = Before; I < Made.Num(); ++I)
 	{
 		UStaticMeshComponent* C = Made[I];
-		const bool bPaint = bTint && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+		const bool bPaint = bTint && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) &&
+			!C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag));   // [bikes v2] its model's own colour
 		TSI::SetLooks(C, 0.0f, 0.0f, bPaint ? &Colour : nullptr);
 	}
 	return Made.Num() - Before;
@@ -509,7 +510,9 @@ void ATorqueShedItems::Draw(int32 Id)
 				const FTorqueItem* Own = OwnOf(C);
 				const bool bBare = C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
 				const bool bOverBare = bBare && !HasPaint.Contains(Own) && UTorqueBuildSubsystem::Repainted(*Own);
-				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && (!bBare || bOverBare);
+				// [bikes v2] (A V2 bike's bodywork keeps its model's colour until it's repainted.)
+				const bool bV2Own = C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag)) && !UTorqueBuildSubsystem::Repainted(*Own);
+				const bool bOwnTint = !bV2Own && (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && (!bBare || bOverBare);
 				const FLinearColor OwnShown = UTorqueBuildSubsystem::ShownColour(*Own);   // grey while it's in primer
 				const FBox Box = Boxes.FindRef(Own);
 				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr, UTorqueBuildSubsystem::Repainted(*Own) ? Own : nullptr,

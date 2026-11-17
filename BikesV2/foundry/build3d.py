@@ -97,7 +97,7 @@ def mat(name, col=None, finish=None):
 GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "0.15,0.25,0.4,0.6").split(",")]
 
 
-def export_game(name, model):
+def export_game(name, model, model_file=None):
     """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
     surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
     game slot, one moving group and one finish (game_parts.classify), named s000.. in the glb; the json
@@ -142,7 +142,10 @@ def export_game(name, model):
                 tag = m.name.split(".")[0]
                 spec = LIB["surfaces"].get(tag.split("__")[0], {})
                 b = m.node_tree.nodes["Principled BSDF"]
-                look = {"slot": r[0], "node": r[1], "surface": tag, "ue": spec.get("ue", "cat_brushed_steel")}
+                ue = spec.get("ue", "cat_brushed_steel")
+                # the game's lights find their lenses by these names (TorqueLights: Surf:lens_white / amber / red)
+                lens = "lens_white" if ue == "lens_clear" and r[0] in ("headlight", "fog_lights") else ue if ue in ("lens_red", "lens_amber") else ""
+                look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
                 if spec.get("slot"):
                     look["paint"] = spec["slot"]
                 if spec.get("ue_tint", True):
@@ -151,6 +154,14 @@ def export_game(name, model):
                     look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
                 looks[c.name] = look
             o.data.materials[i] = tagged[key]
+    pts = game_parts.points(model)
+    bpy.context.view_layer.update()
+    for key, obname in (("peg", "peg01"), ("grip", "grip1")):      # the rider's left peg and grip as built
+        o = bpy.data.objects.get(obname)
+        if o:
+            bb = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
+            pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
+    name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
@@ -158,11 +169,11 @@ def export_game(name, model):
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     bpy.ops.export_scene.gltf(filepath=os.path.join(dst, name + ".glb"), use_selection=True, export_apply=True, export_yup=True,
-                              export_texcoords=True, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
+                              export_texcoords=False, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
     g = model["geometry"]
     info = {"name": model["name"], "brand": model["brand"], "family": model["family"], "rev": model.get("rev"),
             "wheelbase_mm": g["wheelbase"], "seat_height_mm": g["seat_height"], "format": 2, "triangles": tris,
-            "points_mm": game_parts.points(model), "pieces": sorted({f"{v['slot']}|{v['node']}" for v in looks.values()}),
+            "points_mm": pts, "pieces": sorted({f"{v['slot']}|{v['node']}" for v in looks.values()}),
             "surfaces": looks}
     json.dump(info, open(os.path.join(dst, name + ".json"), "w"), indent=1)
     print("triangles before thinning, by piece size (<100, <240, <800, <2500, more):", hist)
@@ -2092,7 +2103,7 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
     if "--game" in sys.argv:
-        print("game files in", export_game(name, model))
+        print("game files in", export_game(name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
         import clip3d

@@ -299,6 +299,15 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 	S.ComHeight = Frame.Num("com_height", 0.62);
 	S.RakeDeg = Frame.Num("rake_deg", 25.0);
 	S.SeatHeight = Frame.Num("seat_height", 0.85) + Saddle.Num("height", 0.0);
+	// [bikes v2] A V2 bike rides at the sizes it's drawn to (its frame's "v2"), not its stock parts'.
+	const bool bV2 = Lay.V2Of(In.Parts) != nullptr;
+	const BuildStats V2Sizes = bV2 ? Lay.Stats(In.Parts) : BuildStats();
+	if (bV2)
+	{
+		S.Wheelbase = V2Sizes.Wheelbase;
+		S.RakeDeg = V2Sizes.RakeDeg;
+		S.SeatHeight = V2Sizes.SeatHeight;
+	}
 	double CdA = Frame.Num("cda", 0.55) + Bars.Num("cda", 0.0) + B.Part("panniers").Num("cda", 0.0) + B.Part("top_box").Num("cda", 0.0) +
 		B.Part("tank_bag").Num("cda", 0.0);
 	CdA += B.Part("fairing").Num("cda", 0.0) * RsLerp(0.7, 1.0, B.Health("fairing"));
@@ -355,6 +364,11 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 	const double FrontWidth = Tf.Num("width", 120.0) / 1000.0, RearWidth = Tr.Num("width", 160.0) / 1000.0;
 	S.FrontRadius = Wf.Num("diameter", 17.0) * 0.0127 + FrontWidth * Tf.Num("aspect", 0.7);
 	S.RearRadius = Wr.Num("diameter", 17.0) * 0.0127 + RearWidth * Tr.Num("aspect", 0.6);
+	if (bV2)
+	{
+		S.FrontRadius = V2Sizes.FrontRadius;
+		S.RearRadius = V2Sizes.RearRadius;
+	}
 	{
 		const double ScaleF = RsLerp(0.7, 1.0, B.Health("front_tyre")) * RsLerp(0.92, 1.0, B.Health("front_wheel"));
 		const double ScaleR = RsLerp(0.7, 1.0, B.Health("rear_tyre")) * RsLerp(0.92, 1.0, B.Health("rear_wheel"));

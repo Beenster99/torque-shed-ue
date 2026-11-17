@@ -222,7 +222,9 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		Dirt(C, Which, Grime);
 		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
-		if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))
+		// [bikes v2] (A V2 bike's bodywork keeps its model's colour until it's repainted.)
+		const bool bV2Own = C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag)) && !(B && B->RepaintedOn(Bike, Which));
+		if (!bV2Own && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))
 		{
 			M->SetVectorParameterValue(TEXT("Color"), Paint);
 			M->SetVectorParameterValue(TEXT("Color2"), Paint);
