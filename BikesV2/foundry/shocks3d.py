@@ -416,8 +416,8 @@ def fit(b, model, c, shock=None, spring=None, body=None, cap=None, cap_finish=No
             if shock == "piggyback" and not s:
                 # a single shock sits between the engine and the subframe: the canister goes to the side with room
                 best = None
-                for ry in [(sd, al) for al in (26, L_ * 0.3, L_ * 0.45) for sd in ("rear", -1, 1)
-                           for L_ in [(b_ - a).length]]:
+                L_ = (b_ - a).length
+                for ry in [(sd, al) for al in (26, L_ * 0.3, L_ * 0.45) for sd in ("rear", -1, 1)]:
                     pre = set(bpy.data.objects.keys())
                     build_shock(shock, tag, a, b_, k, s, M, sp, body or "gold", ry)
                     new = [o for o in bpy.data.objects.keys() if o not in pre]
