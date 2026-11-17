@@ -3459,7 +3459,7 @@ SHOTS = {
     "head_on": ((5200, 0, 900), (700, 0, 640), 105),
     "tail_on": ((-4200, 0, 950), (700, 0, 640), 95),
     "plan": ((720, -40, 5200), (720, 0, 500), 84),               # straight down
-    "low_front": ((2850, -1050, 170), (820, 0, 640), 42),        # from the tarmac, front wheel looming
+    "low_front": ((2850, -1050, 170), (820, 0, 640), 35),        # from the tarmac, front wheel looming
     "low_rear": ((-1550, -1250, 210), (640, 0, 600), 42),        # from the tarmac behind the rear tyre
     "high_front": ((2900, 1500, 2500), (700, 0, 480), 60),       # looking down over the bars from ahead
     "high_rear": ((-1900, 1700, 2400), (700, 0, 480), 58),       # looking down the bike from behind

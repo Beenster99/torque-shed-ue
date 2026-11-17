@@ -7,6 +7,7 @@ build3d and detail3d name every object they make, so the name's stem decides bot
 
     python3 foundry/game_parts.py <dump.tsv> <family>     # counts per slot and group, and any stem with no rule
 """
+import math
 import re
 import sys
 
@@ -28,14 +29,16 @@ RULES = [
     (r"(forkbottom|axle_f|axlenut_f|axleboss|axlehead|axlehex|brakeline)$", "fork", "front_hub"),
     (r"(forkouter|stanchion)$", "fork", "FORK"),          # the sliding half follows the hub; decided by fork.usd
     (r"(forkcap|forkadj|forkadjslot|forkwiper|yoke_|yokepinch_|yokeslot_|stemcap|stemnut|brakeline_up|brakesplit|gaiter)", "fork", "steer"),
-    (r"(bar|barend|barendbolt|grip|clamp|barclamp|barclampbolt|riser|briser|bar_lib|bclip|bclamp|grip_lib|barend_lib|switch|switchsplit|sw(horn|ind|kill|lights|start)|perch|perchbolt|lever|leveradj|leveradjdot|levpivot|cut_lever|throttle|clutchadj|clutchadjlock|handguard)$", "handlebars", "steer"),
+    (r"(bar|barend|barendbolt|grip|clamp|barclamp|barclampbolt|riser|briser|bar_lib|bclip|bclamp|grip_lib|barend_lib|switch|switchsplit|sw(horn|ind|kill|lights|start)|perch|perchbolt|lever|leveradj|leveradjdot|levpivot|cut_lever|throttle|clutchadj|clutchadjlock|handguard|handguardbar|handguardend)$", "handlebars", "steer"),
     (r"(mastercyl|masterneck|brakeres|brakerescap)$", "front_master", "steer"),
     (r"(mirror|mirrorboss|mirrorglass|mstalk|mstub)", "mirrors", "S?"),
     (r"(clock|dash)", "dashboard", "S?"),
-    (r"(lamp|lampunit|lens|lensrim|nacelle)", "headlight", "S?"),
+    (r"(lamp|lampunit|lens|lensrim|nacelle|maincup|mainled|proj(bulb|lens|ring))", "headlight", "S?"),
     (r"ind_f", "indicators", "S?"), (r"ind_r", "indicators", ""),
     (r"numberboard", "number_boards", "steer"),
     (r"(screen|screenscrew|bubble)", "fairing", "S?"),
+    (r"guardlamp", "tail", ""),                            # the lamp on a classic's rear mudguard
+    (r"bashplate", "guards", ""), (r"collector", "exhaust", ""), (r"axleplate", "frame", ""),
     # rear end
     (r"(swingarm|axle_r|axlenut_r|hugger|huggerbolt|huggerboss|huggerleg|shockbridge)$", "swingarm", "swingarm"),
     (r"(rearcaliper_|rearcarrier|brakehose_r|brakehoseclip)", "rear_caliper", "swingarm"),
@@ -79,13 +82,48 @@ def classify(name, model):
             elif grp == "FORK":
                 usd = model["fork"].get("usd")
                 grp = "front_hub" if (st == "stanchion") == bool(usd) else "steer"
+            elif grp == "swingarm" and model.get("swingarm", {}).get("rigid"):
+                grp = ""                # a rigid chopper: the rear end is the frame
             return slot, grp
     return None
 
 
+def points(model):
+    """The points the game's layout needs, in the model's own frame (mm; x forward from the rear axle,
+    y to the rider's left, z up from the ground)."""
+    g, wh, fk, sw = model["geometry"], model["wheels"], model["fork"], model["swingarm"]
+    rake = math.radians(g["rake"])
+    F, A = (g["wheelbase"], wh["front"]["tyre_r"]), (0.0, wh["rear"]["tyre_r"])
+    uf, nb = (-math.sin(rake), math.cos(rake)), (-math.cos(rake), -math.sin(rake))
+    at = lambda d, o=0.0: [round(F[0] + uf[0] * d + nb[0] * o, 1), 0.0, round(F[1] + uf[1] * d + nb[1] * o, 1)]
+    peg = next((h["at"] for h in model.get("hangers", []) if h.get("circle")), None)
+    grip = next((s_["at"] for s_ in model.get("front_end", []) if s_.get("circle") and s_.get("part") != "head"), None)
+    sh = model.get("shock") or {}
+    out = {
+        "front_axle": [F[0], 0.0, F[1]], "rear_axle": [0.0, 0.0, A[1]],
+        "steer_top": at(fk["length"] - 22, fk["offset"]), "steer_bottom": at(fk["lower_yoke"] + 18, fk["offset"]),
+        "fork_top": at(fk["length"]), "fork_dir": [round(uf[0], 5), 0.0, round(uf[1], 5)],
+        "swing_pivot": [sw["pivot"][0], 0.0, sw["pivot"][1]], "rigid": bool(sw.get("rigid")),
+        "hip": [g["hip_x"], 0.0, g["seat_height"]],
+        "stats": {"wheelbase": g["wheelbase"], "rake_deg": g["rake"], "trail": g["trail"], "seat_height": g["seat_height"],
+                  "ground_clearance": g.get("ground_clearance"), "fork_length": fk["length"], "fork_usd": bool(fk.get("usd")),
+                  "front_radius": wh["front"]["tyre_r"], "rear_radius": wh["rear"]["tyre_r"],
+                  "front_rim": wh["front"]["rim_r"], "rear_rim": wh["rear"]["rim_r"],
+                  "front_width": wh["front"].get("width", 120), "rear_width": wh["rear"].get("width", 180),
+                  "shaft": bool(sw.get("shaft")), "twin_shock": bool(sh.get("twin"))},
+    }
+    if peg:
+        out["peg"] = [peg[0], 0.0, peg[1]]
+    if grip:
+        out["grip"] = [grip[0] - 3, 321.0, grip[1] - 2]          # bars3d.model_hand
+    if sh.get("top"):
+        out["shock_top"], out["shock_bottom"] = [sh["top"][0], 0.0, sh["top"][1]], [sh["bottom"][0], 0.0, sh["bottom"][1]]
+    return out
+
+
 if __name__ == "__main__":
     import collections
-    model = {"family": sys.argv[2], "fork": {"usd": True}}
+    model = {"family": sys.argv[2], "fork": {"usd": True}, "swingarm": {"rigid": sys.argv[2] == "chopper"}}
     count, unknown = collections.Counter(), collections.Counter()
     for line in open(sys.argv[1]):
         n = line.split("\t")[0]
