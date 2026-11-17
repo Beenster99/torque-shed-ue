@@ -688,6 +688,13 @@ def clocks(model, c):
             continue
         drop(f"clockface{i}", f"clocktick{i}", f"clockneedle{i}", f"clockhub{i}", f"clockglass{i}", f"clockcan{i}", f"clockbezel{i}", f"clockfoot{i}")
         r_, c_ = s_["circle"] * (1.45 if can else 1.2) * model.get("detail", {}).get("clock_scale", 1.0), s_["at"]
+        if model.get("detail", {}).get("clock_at"):
+            # raised bars hide clocks that sit ahead of the risers, so they come inboard to the rider's side of
+            # the risers, just under the bar (beenster, 17 Nov)
+            c_ = model["detail"]["clock_at"]
+            for j, q in enumerate(model.get("front_end", [])):
+                if q.get("circle") and q.get("part") == "head":
+                    drop(f"clock{j}-1", f"clock{j}1", f"clockrim{j}")
         for s in (-1, 1):
             yc = s * max(46, r_ + 8)
             if can:
@@ -697,6 +704,12 @@ def clocks(model, c):
                 lathe(f"clockcan{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp, 0), (-dp, rc_ - 4), (-dp + 3, rc_), (25, rc_), (25, 0)], shell, 48)
                 lathe(f"clockbezel{i}{s}", (c_[0], yc, c_[1]), d3, [(22, rc_), (24, rc_ + 1.8), (28, rc_ + 1.8), (29.6, rc_), (29.6, rc_ - 3), (25, rc_ - 3), (25, rc_)], B.mat("chrome"), 48, sharp=False, caps=False)
                 lathe(f"clockfoot{i}{s}", (c_[0], yc, c_[1]), d3, [(-dp - 20, 0), (-dp - 20, 8), (-dp, 10), (-dp, 0)], B.mat("alu_dark"), 20)
+                if model.get("detail", {}).get("clock_at"):
+                    rs_ = next((q["pts"] for q in model["front_end"] if q.get("tube") == 30), None)
+                    if rs_:          # a short stay from each clock's foot to its riser
+                        fz = c_[1] + d_[1] * (-dp - 12)
+                        t_ = max(0.0, min(1.0, (fz - rs_[0][1]) / (rs_[1][1] - rs_[0][1])))
+                        B.tube(f"clockfoot{i}{s}stay", [(c_[0] + d_[0] * (-dp - 12), yc, fz), (rs_[0][0] + (rs_[1][0] - rs_[0][0]) * t_, s * 45, fz + 4)], 5, B.mat("alu_dark"))
             org = (c_[0] + d_[0] * 24.4, c_[1] + d_[1] * 24.4)
             # +y is the rider's left, so the sweep runs clockwise as the rider reads it
             rot = lambda rad, a, w, r0, r1: [(yc - r0 * math.sin(a) + w * math.cos(a), r0 * math.cos(a) + w * math.sin(a)), (yc - r1 * math.sin(a) + w * math.cos(a), r1 * math.cos(a) + w * math.sin(a)),

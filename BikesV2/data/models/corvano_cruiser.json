@@ -2091,7 +2091,11 @@
   "indicators": "trad",
   "grips": "plain",
   "cap": "chrome",
-  "bar_rise": 10
+  "bar_rise": 10,
+  "clock_at": [
+   1174.6,
+   1021.4
+  ]
  },
  "widths": {
   "tank": {
