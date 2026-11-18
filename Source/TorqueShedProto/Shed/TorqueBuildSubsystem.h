@@ -627,7 +627,7 @@ public:
 	static FVector PumpHoseRoot();
 	static FVector PumpHolster();
 	static constexpr double PumpHose = 340.0;     // cm (ShedPump.HOSE)
-	static constexpr float PumpRate = 0.6f;      // litres a second (FuelStop.FILL_RATE)
+	static constexpr float PumpRate = 2.5f;      // litres a second (FuelStop.FILL_RATE was 0.6: beenster, build 156, "petrol pump should be faster to fill")
 	FVector FillerOf(int32 Bay) const;           // where a bay's bike's filler cap is (world cm)
 	bool PumpReaches(int32 Bay) const;
 	// The bike pawn: the petrol its own dash says is left (sent each quarter litre burnt, and as the
