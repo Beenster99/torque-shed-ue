@@ -20,7 +20,7 @@ bool IsEngineSlot(FName Slot);
 bool IsServiceSlot(FName Slot);        // engine parts you can change with the engine in the frame
 bool IsLowSlot(FName Slot);            // crouch to reach it while it's on the bike
 bool IsOptional(FName Slot);           // a bike is complete without it
-bool MayBeEmpty(FName Slot);           // optional, or the frame's own pegs or swingarm
+bool MayBeEmpty(FName Slot);           // optional (a V2 frame brings no swingarm or pegs of its own)
 FName KindOf(FName Slot);              // the kind of part the slot takes ("front_wheel" -> "wheel")
 const TArray<FName>& MountsOf(FName Slot);   // what it bolts onto
 // Slots that bolt onto this one (which come off first). Engine parts ride along with the block.

@@ -4703,9 +4703,9 @@ void BikeParts::SetV2Source(V2Source In)
 // [bare frame]
 namespace
 {
-// What stays on a V2 frame whatever is fitted: the frame itself, its swingarm and its footrest hangers
-// (layout.json frame_own_slots: drawn with the frame when the slot is empty, as Torque Shed's).
-bool V2FrameOwn(const std::string& Slot) { return Slot == "frame" || Slot == "swingarm" || Slot == "rearsets"; }
+// What stays on a V2 frame whatever is fitted: the frame itself only (beenster after 156: no swingarm or
+// heel plates come with it; they're the swingarm and rearsets parts).
+bool V2FrameOwn(const std::string& Slot) { return Slot == "frame"; }
 
 // A point of a V2 bike's points_mm (mm), or one inside an object of it ("engine" "countershaft").
 bool V2Mm(const Json* Points, const std::string& Key, V3& Out, const std::string& In = std::string())
