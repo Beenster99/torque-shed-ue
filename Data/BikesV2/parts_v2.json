@@ -401,7 +401,18 @@
   ],
   "rearsets": [
    "sm_pegs",
-   "race_ti_rearsets"
+   "race_ti_rearsets",
+   "road_pegs",
+   "alloy_rearsets",
+   "mx_cleats",
+   "forward_controls",
+   "floorboards",
+   "cafe_rearsets_polished",
+   "bobber_mid_pegs",
+   "chopper_highway_pegs",
+   "cruiser_chrome_boards",
+   "mx_ti_pegs",
+   "sport_gold_rearsets"
   ],
   "guards": [
    "scrambler_sump_plate",
@@ -511,6 +522,20 @@
    "spring_side",
    "alloy_race_side",
    "chrome_custom_side"
+  ],
+  "swingarm": [
+   "box_steel_black",
+   "box_alloy_polished",
+   "banana_steel",
+   "banana_alloy_gold",
+   "braced_mx_alloy",
+   "braced_mx_black",
+   "hardtail_chrome",
+   "hardtail_black",
+   "single_sided_alloy",
+   "single_sided_black",
+   "single_gull_alloy",
+   "single_gull_black"
   ]
  },
  "frame": {
@@ -747,6 +772,8 @@
      "front_wheel": "v2_corvano_adventure__front_wheel",
      "rear_wheel": "v2_corvano_adventure__rear_wheel",
      "shock": "v2_corvano_adventure__shock",
+     "swingarm": "v2_corvano_adventure__swingarm",
+     "rearsets": "v2_corvano_adventure__rearsets",
      "side_stand": "v2_corvano_adventure__side_stand",
      "front_caliper": "v2_corvano_adventure__front_caliper",
      "rear_caliper": "v2_corvano_adventure__rear_caliper",
@@ -1004,6 +1031,8 @@
      "front_wheel": "v2_corvano_cafe__front_wheel",
      "rear_wheel": "v2_corvano_cafe__rear_wheel",
      "shock": "v2_corvano_cafe__shock",
+     "swingarm": "v2_corvano_cafe__swingarm",
+     "rearsets": "v2_corvano_cafe__rearsets",
      "side_stand": "v2_corvano_cafe__side_stand",
      "front_caliper": "v2_corvano_cafe__front_caliper",
      "rear_caliper": "v2_corvano_cafe__rear_caliper",
@@ -1265,6 +1294,8 @@
      "front_wheel": "v2_corvano_classic__front_wheel",
      "rear_wheel": "v2_corvano_classic__rear_wheel",
      "shock": "v2_corvano_classic__shock",
+     "swingarm": "v2_corvano_classic__swingarm",
+     "rearsets": "v2_corvano_classic__rearsets",
      "side_stand": "v2_corvano_classic__side_stand",
      "front_caliper": "v2_corvano_classic__front_caliper",
      "rear_caliper": "v2_corvano_classic__rear_caliper",
@@ -1531,6 +1562,8 @@
      "front_wheel": "v2_corvano_cruiser__front_wheel",
      "rear_wheel": "v2_corvano_cruiser__rear_wheel",
      "shock": "v2_corvano_cruiser__shock",
+     "swingarm": "v2_corvano_cruiser__swingarm",
+     "rearsets": "v2_corvano_cruiser__rearsets",
      "side_stand": "v2_corvano_cruiser__side_stand",
      "front_caliper": "v2_corvano_cruiser__front_caliper",
      "rear_caliper": "v2_corvano_cruiser__rear_caliper",
@@ -1772,6 +1805,8 @@
      "front_wheel": "v2_corvano_mx__front_wheel",
      "rear_wheel": "v2_corvano_mx__rear_wheel",
      "shock": "v2_corvano_mx__shock",
+     "swingarm": "v2_corvano_mx__swingarm",
+     "rearsets": "v2_corvano_mx__rearsets",
      "side_stand": "v2_corvano_mx__side_stand",
      "front_caliper": "v2_corvano_mx__front_caliper",
      "rear_caliper": "v2_corvano_mx__rear_caliper",
@@ -2012,6 +2047,8 @@
      "front_wheel": "v2_corvano_naked__front_wheel",
      "rear_wheel": "v2_corvano_naked__rear_wheel",
      "shock": "v2_corvano_naked__shock",
+     "swingarm": "v2_corvano_naked__swingarm",
+     "rearsets": "v2_corvano_naked__rearsets",
      "side_stand": "v2_corvano_naked__side_stand",
      "front_caliper": "v2_corvano_naked__front_caliper",
      "rear_caliper": "v2_corvano_naked__rear_caliper",
@@ -2262,6 +2299,8 @@
      "front_wheel": "v2_corvano_sport__front_wheel",
      "rear_wheel": "v2_corvano_sport__rear_wheel",
      "shock": "v2_corvano_sport__shock",
+     "swingarm": "v2_corvano_sport__swingarm",
+     "rearsets": "v2_corvano_sport__rearsets",
      "side_stand": "v2_corvano_sport__side_stand",
      "front_caliper": "v2_corvano_sport__front_caliper",
      "rear_caliper": "v2_corvano_sport__rear_caliper",
@@ -2501,6 +2540,8 @@
      "front_wheel": "v2_hartwell_adventure__front_wheel",
      "rear_wheel": "v2_hartwell_adventure__rear_wheel",
      "shock": "v2_hartwell_adventure__shock",
+     "swingarm": "v2_hartwell_adventure__swingarm",
+     "rearsets": "v2_hartwell_adventure__rearsets",
      "side_stand": "v2_hartwell_adventure__side_stand",
      "front_caliper": "v2_hartwell_adventure__front_caliper",
      "rear_caliper": "v2_hartwell_adventure__rear_caliper",
@@ -2751,6 +2792,8 @@
      "front_wheel": "v2_hartwell_cafe__front_wheel",
      "rear_wheel": "v2_hartwell_cafe__rear_wheel",
      "shock": "v2_hartwell_cafe__shock",
+     "swingarm": "v2_hartwell_cafe__swingarm",
+     "rearsets": "v2_hartwell_cafe__rearsets",
      "side_stand": "v2_hartwell_cafe__side_stand",
      "front_caliper": "v2_hartwell_cafe__front_caliper",
      "rear_caliper": "v2_hartwell_cafe__rear_caliper",
@@ -2998,6 +3041,8 @@
      "front_wheel": "v2_hartwell_chopper__front_wheel",
      "rear_wheel": "v2_hartwell_chopper__rear_wheel",
      "shock": "v2_hartwell_chopper__shock",
+     "swingarm": "v2_hartwell_chopper__swingarm",
+     "rearsets": "v2_hartwell_chopper__rearsets",
      "side_stand": "v2_hartwell_chopper__side_stand",
      "front_caliper": "v2_hartwell_chopper__front_caliper",
      "rear_caliper": "v2_hartwell_chopper__rear_caliper",
@@ -3251,6 +3296,8 @@
      "front_wheel": "v2_hartwell_classic__front_wheel",
      "rear_wheel": "v2_hartwell_classic__rear_wheel",
      "shock": "v2_hartwell_classic__shock",
+     "swingarm": "v2_hartwell_classic__swingarm",
+     "rearsets": "v2_hartwell_classic__rearsets",
      "side_stand": "v2_hartwell_classic__side_stand",
      "front_caliper": "v2_hartwell_classic__front_caliper",
      "rear_caliper": "v2_hartwell_classic__rear_caliper",
@@ -3503,6 +3550,8 @@
      "front_wheel": "v2_hartwell_naked__front_wheel",
      "rear_wheel": "v2_hartwell_naked__rear_wheel",
      "shock": "v2_hartwell_naked__shock",
+     "swingarm": "v2_hartwell_naked__swingarm",
+     "rearsets": "v2_hartwell_naked__rearsets",
      "side_stand": "v2_hartwell_naked__side_stand",
      "front_caliper": "v2_hartwell_naked__front_caliper",
      "rear_caliper": "v2_hartwell_naked__rear_caliper",
@@ -3746,6 +3795,8 @@
      "front_wheel": "v2_hartwell_sport__front_wheel",
      "rear_wheel": "v2_hartwell_sport__rear_wheel",
      "shock": "v2_hartwell_sport__shock",
+     "swingarm": "v2_hartwell_sport__swingarm",
+     "rearsets": "v2_hartwell_sport__rearsets",
      "side_stand": "v2_hartwell_sport__side_stand",
      "front_caliper": "v2_hartwell_sport__front_caliper",
      "rear_caliper": "v2_hartwell_sport__rear_caliper",
@@ -3985,6 +4036,8 @@
      "front_wheel": "v2_kazeda_adventure__front_wheel",
      "rear_wheel": "v2_kazeda_adventure__rear_wheel",
      "shock": "v2_kazeda_adventure__shock",
+     "swingarm": "v2_kazeda_adventure__swingarm",
+     "rearsets": "v2_kazeda_adventure__rearsets",
      "side_stand": "v2_kazeda_adventure__side_stand",
      "front_caliper": "v2_kazeda_adventure__front_caliper",
      "rear_caliper": "v2_kazeda_adventure__rear_caliper",
@@ -4235,6 +4288,8 @@
      "front_wheel": "v2_kazeda_cafe__front_wheel",
      "rear_wheel": "v2_kazeda_cafe__rear_wheel",
      "shock": "v2_kazeda_cafe__shock",
+     "swingarm": "v2_kazeda_cafe__swingarm",
+     "rearsets": "v2_kazeda_cafe__rearsets",
      "side_stand": "v2_kazeda_cafe__side_stand",
      "front_caliper": "v2_kazeda_cafe__front_caliper",
      "rear_caliper": "v2_kazeda_cafe__rear_caliper",
@@ -4482,6 +4537,8 @@
      "front_wheel": "v2_kazeda_chopper__front_wheel",
      "rear_wheel": "v2_kazeda_chopper__rear_wheel",
      "shock": "v2_kazeda_chopper__shock",
+     "swingarm": "v2_kazeda_chopper__swingarm",
+     "rearsets": "v2_kazeda_chopper__rearsets",
      "side_stand": "v2_kazeda_chopper__side_stand",
      "front_caliper": "v2_kazeda_chopper__front_caliper",
      "rear_caliper": "v2_kazeda_chopper__rear_caliper",
@@ -4735,6 +4792,8 @@
      "front_wheel": "v2_kazeda_classic__front_wheel",
      "rear_wheel": "v2_kazeda_classic__rear_wheel",
      "shock": "v2_kazeda_classic__shock",
+     "swingarm": "v2_kazeda_classic__swingarm",
+     "rearsets": "v2_kazeda_classic__rearsets",
      "side_stand": "v2_kazeda_classic__side_stand",
      "front_caliper": "v2_kazeda_classic__front_caliper",
      "rear_caliper": "v2_kazeda_classic__rear_caliper",
@@ -4994,6 +5053,8 @@
      "front_wheel": "v2_kazeda_cruiser__front_wheel",
      "rear_wheel": "v2_kazeda_cruiser__rear_wheel",
      "shock": "v2_kazeda_cruiser__shock",
+     "swingarm": "v2_kazeda_cruiser__swingarm",
+     "rearsets": "v2_kazeda_cruiser__rearsets",
      "side_stand": "v2_kazeda_cruiser__side_stand",
      "front_caliper": "v2_kazeda_cruiser__front_caliper",
      "rear_caliper": "v2_kazeda_cruiser__rear_caliper",
@@ -5235,6 +5296,8 @@
      "front_wheel": "v2_kazeda_mx__front_wheel",
      "rear_wheel": "v2_kazeda_mx__rear_wheel",
      "shock": "v2_kazeda_mx__shock",
+     "swingarm": "v2_kazeda_mx__swingarm",
+     "rearsets": "v2_kazeda_mx__rearsets",
      "side_stand": "v2_kazeda_mx__side_stand",
      "front_caliper": "v2_kazeda_mx__front_caliper",
      "rear_caliper": "v2_kazeda_mx__rear_caliper",
@@ -5469,6 +5532,8 @@
      "front_wheel": "v2_kazeda_naked__front_wheel",
      "rear_wheel": "v2_kazeda_naked__rear_wheel",
      "shock": "v2_kazeda_naked__shock",
+     "swingarm": "v2_kazeda_naked__swingarm",
+     "rearsets": "v2_kazeda_naked__rearsets",
      "side_stand": "v2_kazeda_naked__side_stand",
      "front_caliper": "v2_kazeda_naked__front_caliper",
      "rear_caliper": "v2_kazeda_naked__rear_caliper",
@@ -5712,6 +5777,8 @@
      "front_wheel": "v2_kazeda_sport__front_wheel",
      "rear_wheel": "v2_kazeda_sport__rear_wheel",
      "shock": "v2_kazeda_sport__shock",
+     "swingarm": "v2_kazeda_sport__swingarm",
+     "rearsets": "v2_kazeda_sport__rearsets",
      "side_stand": "v2_kazeda_sport__side_stand",
      "front_caliper": "v2_kazeda_sport__front_caliper",
      "rear_caliper": "v2_kazeda_sport__rear_caliper",
@@ -5968,6 +6035,8 @@
      "front_wheel": "v2_lodestar_cafe__front_wheel",
      "rear_wheel": "v2_lodestar_cafe__rear_wheel",
      "shock": "v2_lodestar_cafe__shock",
+     "swingarm": "v2_lodestar_cafe__swingarm",
+     "rearsets": "v2_lodestar_cafe__rearsets",
      "side_stand": "v2_lodestar_cafe__side_stand",
      "front_caliper": "v2_lodestar_cafe__front_caliper",
      "rear_caliper": "v2_lodestar_cafe__rear_caliper",
@@ -6222,6 +6291,8 @@
      "front_wheel": "v2_lodestar_chopper__front_wheel",
      "rear_wheel": "v2_lodestar_chopper__rear_wheel",
      "shock": "v2_lodestar_chopper__shock",
+     "swingarm": "v2_lodestar_chopper__swingarm",
+     "rearsets": "v2_lodestar_chopper__rearsets",
      "side_stand": "v2_lodestar_chopper__side_stand",
      "front_caliper": "v2_lodestar_chopper__front_caliper",
      "rear_caliper": "v2_lodestar_chopper__rear_caliper",
@@ -6482,6 +6553,8 @@
      "front_wheel": "v2_lodestar_classic__front_wheel",
      "rear_wheel": "v2_lodestar_classic__rear_wheel",
      "shock": "v2_lodestar_classic__shock",
+     "swingarm": "v2_lodestar_classic__swingarm",
+     "rearsets": "v2_lodestar_classic__rearsets",
      "side_stand": "v2_lodestar_classic__side_stand",
      "front_caliper": "v2_lodestar_classic__front_caliper",
      "rear_caliper": "v2_lodestar_classic__rear_caliper",
@@ -6748,6 +6821,8 @@
      "front_wheel": "v2_lodestar_cruiser__front_wheel",
      "rear_wheel": "v2_lodestar_cruiser__rear_wheel",
      "shock": "v2_lodestar_cruiser__shock",
+     "swingarm": "v2_lodestar_cruiser__swingarm",
+     "rearsets": "v2_lodestar_cruiser__rearsets",
      "side_stand": "v2_lodestar_cruiser__side_stand",
      "front_caliper": "v2_lodestar_cruiser__front_caliper",
      "rear_caliper": "v2_lodestar_cruiser__rear_caliper",
@@ -6987,6 +7062,8 @@
      "front_wheel": "v2_rheinhart_adventure__front_wheel",
      "rear_wheel": "v2_rheinhart_adventure__rear_wheel",
      "shock": "v2_rheinhart_adventure__shock",
+     "swingarm": "v2_rheinhart_adventure__swingarm",
+     "rearsets": "v2_rheinhart_adventure__rearsets",
      "side_stand": "v2_rheinhart_adventure__side_stand",
      "front_caliper": "v2_rheinhart_adventure__front_caliper",
      "rear_caliper": "v2_rheinhart_adventure__rear_caliper",
@@ -7237,6 +7314,8 @@
      "front_wheel": "v2_rheinhart_cafe__front_wheel",
      "rear_wheel": "v2_rheinhart_cafe__rear_wheel",
      "shock": "v2_rheinhart_cafe__shock",
+     "swingarm": "v2_rheinhart_cafe__swingarm",
+     "rearsets": "v2_rheinhart_cafe__rearsets",
      "side_stand": "v2_rheinhart_cafe__side_stand",
      "front_caliper": "v2_rheinhart_cafe__front_caliper",
      "rear_caliper": "v2_rheinhart_cafe__rear_caliper",
@@ -7491,6 +7570,8 @@
      "front_wheel": "v2_rheinhart_classic__front_wheel",
      "rear_wheel": "v2_rheinhart_classic__rear_wheel",
      "shock": "v2_rheinhart_classic__shock",
+     "swingarm": "v2_rheinhart_classic__swingarm",
+     "rearsets": "v2_rheinhart_classic__rearsets",
      "side_stand": "v2_rheinhart_classic__side_stand",
      "front_caliper": "v2_rheinhart_classic__front_caliper",
      "rear_caliper": "v2_rheinhart_classic__rear_caliper",
@@ -7750,6 +7831,8 @@
      "front_wheel": "v2_rheinhart_cruiser__front_wheel",
      "rear_wheel": "v2_rheinhart_cruiser__rear_wheel",
      "shock": "v2_rheinhart_cruiser__shock",
+     "swingarm": "v2_rheinhart_cruiser__swingarm",
+     "rearsets": "v2_rheinhart_cruiser__rearsets",
      "side_stand": "v2_rheinhart_cruiser__side_stand",
      "front_caliper": "v2_rheinhart_cruiser__front_caliper",
      "rear_caliper": "v2_rheinhart_cruiser__rear_caliper",
@@ -7984,6 +8067,8 @@
      "front_wheel": "v2_rheinhart_naked__front_wheel",
      "rear_wheel": "v2_rheinhart_naked__rear_wheel",
      "shock": "v2_rheinhart_naked__shock",
+     "swingarm": "v2_rheinhart_naked__swingarm",
+     "rearsets": "v2_rheinhart_naked__rearsets",
      "side_stand": "v2_rheinhart_naked__side_stand",
      "front_caliper": "v2_rheinhart_naked__front_caliper",
      "rear_caliper": "v2_rheinhart_naked__rear_caliper",
@@ -8223,6 +8308,8 @@
      "front_wheel": "v2_varga_adventure__front_wheel",
      "rear_wheel": "v2_varga_adventure__rear_wheel",
      "shock": "v2_varga_adventure__shock",
+     "swingarm": "v2_varga_adventure__swingarm",
+     "rearsets": "v2_varga_adventure__rearsets",
      "side_stand": "v2_varga_adventure__side_stand",
      "front_caliper": "v2_varga_adventure__front_caliper",
      "rear_caliper": "v2_varga_adventure__rear_caliper",
@@ -8465,6 +8552,8 @@
      "front_wheel": "v2_varga_mx__front_wheel",
      "rear_wheel": "v2_varga_mx__rear_wheel",
      "shock": "v2_varga_mx__shock",
+     "swingarm": "v2_varga_mx__swingarm",
+     "rearsets": "v2_varga_mx__rearsets",
      "side_stand": "v2_varga_mx__side_stand",
      "front_caliper": "v2_varga_mx__front_caliper",
      "rear_caliper": "v2_varga_mx__rear_caliper",
@@ -8698,6 +8787,8 @@
      "front_wheel": "v2_varga_naked__front_wheel",
      "rear_wheel": "v2_varga_naked__rear_wheel",
      "shock": "v2_varga_naked__shock",
+     "swingarm": "v2_varga_naked__swingarm",
+     "rearsets": "v2_varga_naked__rearsets",
      "side_stand": "v2_varga_naked__side_stand",
      "front_caliper": "v2_varga_naked__front_caliper",
      "rear_caliper": "v2_varga_naked__rear_caliper",
@@ -8941,6 +9032,8 @@
      "front_wheel": "v2_varga_sport__front_wheel",
      "rear_wheel": "v2_varga_sport__rear_wheel",
      "shock": "v2_varga_sport__shock",
+     "swingarm": "v2_varga_sport__swingarm",
+     "rearsets": "v2_varga_sport__rearsets",
      "side_stand": "v2_varga_sport__side_stand",
      "front_caliper": "v2_varga_sport__front_caliper",
      "rear_caliper": "v2_varga_sport__rear_caliper",
@@ -22396,6 +22489,2055 @@
     "family": "sport",
     "brand": "Varga",
     "fits": "shock",
+    "layout": "parallel_twin",
+    "twin_shock": false
+   }
+  }
+ },
+ "swingarm": {
+  "v2_corvano_adventure__swingarm": {
+   "mass": 5.9,
+   "type": "Braced aluminium, black",
+   "arm": "braced_mx",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "metal": 0.5,
+   "rough": 0.5,
+   "material": "metal",
+   "name": "Corvano Adventure swingarm",
+   "description": "Off the Corvano adventure. Fits any adventure frame with a mono-shock.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 450,
+   "v2part": {
+    "model": "corvano_adventure",
+    "frame": "v2_corvano_adventure",
+    "slot": "swingarm",
+    "family": "adventure",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_cafe__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Corvano Cafe swingarm",
+   "description": "Off the Corvano cafe. Fits any cafe frame with a mono-shock.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 520,
+   "v2part": {
+    "model": "corvano_cafe",
+    "frame": "v2_corvano_cafe",
+    "slot": "swingarm",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_classic__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Corvano Classic swingarm",
+   "description": "Off the Corvano classic. Fits any classic frame with twin shocks.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 450,
+   "v2part": {
+    "model": "corvano_classic",
+    "frame": "v2_corvano_classic",
+    "slot": "swingarm",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "vtwin90",
+    "twin_shock": true
+   }
+  },
+  "v2_corvano_cruiser__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Corvano Cruiser swingarm",
+   "description": "Off the Corvano cruiser. Fits any cruiser frame with twin shocks.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 450,
+   "v2part": {
+    "model": "corvano_cruiser",
+    "frame": "v2_corvano_cruiser",
+    "slot": "swingarm",
+    "family": "cruiser",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "vtwin90",
+    "twin_shock": true
+   }
+  },
+  "v2_corvano_mx__swingarm": {
+   "mass": 5.2,
+   "type": "Braced aluminium",
+   "arm": "braced_mx",
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "metal": 0.9,
+   "rough": 0.35,
+   "material": "metal",
+   "name": "Corvano MX swingarm",
+   "description": "Off the Corvano mx. Fits any mx frame with a mono-shock.",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 450,
+   "v2part": {
+    "model": "corvano_mx",
+    "frame": "v2_corvano_mx",
+    "slot": "swingarm",
+    "family": "mx",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "single",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_naked__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Corvano Naked swingarm",
+   "description": "Off the Corvano naked. Fits any naked frame with a mono-shock.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 520,
+   "v2part": {
+    "model": "corvano_naked",
+    "frame": "v2_corvano_naked",
+    "slot": "swingarm",
+    "family": "naked",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_sport__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Corvano Sport swingarm",
+   "description": "Off the Corvano sport. Fits any sport frame with a mono-shock.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 450,
+   "v2part": {
+    "model": "corvano_sport",
+    "frame": "v2_corvano_sport",
+    "slot": "swingarm",
+    "family": "sport",
+    "brand": "Corvano",
+    "fits": "shock",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_adventure__swingarm": {
+   "mass": 5.9,
+   "type": "Braced aluminium, black",
+   "arm": "braced_mx",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "metal": 0.5,
+   "rough": 0.5,
+   "material": "metal",
+   "name": "BSX Adventure swingarm",
+   "description": "Off the BSX adventure. Fits any adventure frame with a mono-shock.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 450,
+   "v2part": {
+    "model": "hartwell_adventure",
+    "frame": "v2_hartwell_adventure",
+    "slot": "swingarm",
+    "family": "adventure",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_cafe__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "BSX Cafe swingarm",
+   "description": "Off the BSX cafe. Fits any cafe frame with twin shocks.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 520,
+   "v2part": {
+    "model": "hartwell_cafe",
+    "frame": "v2_hartwell_cafe",
+    "slot": "swingarm",
+    "family": "cafe",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "parallel_twin",
+    "twin_shock": true
+   }
+  },
+  "v2_hartwell_chopper__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "BSX Chopper swingarm",
+   "description": "Off the BSX chopper. Fits any chopper frame with a mono-shock.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 450,
+   "v2part": {
+    "model": "hartwell_chopper",
+    "frame": "v2_hartwell_chopper",
+    "slot": "swingarm",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_classic__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "BSX Classic swingarm",
+   "description": "Off the BSX classic. Fits any classic frame with twin shocks.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 450,
+   "v2part": {
+    "model": "hartwell_classic",
+    "frame": "v2_hartwell_classic",
+    "slot": "swingarm",
+    "family": "classic",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "parallel_twin",
+    "twin_shock": true
+   }
+  },
+  "v2_hartwell_naked__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "BSX Naked swingarm",
+   "description": "Off the BSX naked. Fits any naked frame with a mono-shock.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 520,
+   "v2part": {
+    "model": "hartwell_naked",
+    "frame": "v2_hartwell_naked",
+    "slot": "swingarm",
+    "family": "naked",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_sport__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "BSX Sport swingarm",
+   "description": "Off the BSX sport. Fits any sport frame with a mono-shock.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 450,
+   "v2part": {
+    "model": "hartwell_sport",
+    "frame": "v2_hartwell_sport",
+    "slot": "swingarm",
+    "family": "sport",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_adventure__swingarm": {
+   "mass": 5.9,
+   "type": "Braced aluminium, black",
+   "arm": "braced_mx",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "metal": 0.5,
+   "rough": 0.5,
+   "material": "metal",
+   "name": "Kazeda Adventure swingarm",
+   "description": "Off the Kazeda adventure. Fits any adventure frame with a mono-shock.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 450,
+   "v2part": {
+    "model": "kazeda_adventure",
+    "frame": "v2_kazeda_adventure",
+    "slot": "swingarm",
+    "family": "adventure",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_cafe__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Kazeda Cafe swingarm",
+   "description": "Off the Kazeda cafe. Fits any cafe frame with twin shocks.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 520,
+   "v2part": {
+    "model": "kazeda_cafe",
+    "frame": "v2_kazeda_cafe",
+    "slot": "swingarm",
+    "family": "cafe",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": true
+   }
+  },
+  "v2_kazeda_chopper__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Kazeda Chopper swingarm",
+   "description": "Off the Kazeda chopper. Fits any chopper frame with a mono-shock.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 450,
+   "v2part": {
+    "model": "kazeda_chopper",
+    "frame": "v2_kazeda_chopper",
+    "slot": "swingarm",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_classic__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Kazeda Classic swingarm",
+   "description": "Off the Kazeda classic. Fits any classic frame with twin shocks.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 450,
+   "v2part": {
+    "model": "kazeda_classic",
+    "frame": "v2_kazeda_classic",
+    "slot": "swingarm",
+    "family": "classic",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": true
+   }
+  },
+  "v2_kazeda_cruiser__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Kazeda Cruiser swingarm",
+   "description": "Off the Kazeda cruiser. Fits any cruiser frame with twin shocks.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 450,
+   "v2part": {
+    "model": "kazeda_cruiser",
+    "frame": "v2_kazeda_cruiser",
+    "slot": "swingarm",
+    "family": "cruiser",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "twin",
+    "twin_shock": true
+   }
+  },
+  "v2_kazeda_mx__swingarm": {
+   "mass": 5.2,
+   "type": "Braced aluminium",
+   "arm": "braced_mx",
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "metal": 0.9,
+   "rough": 0.35,
+   "material": "metal",
+   "name": "Kazeda MX swingarm",
+   "description": "Off the Kazeda mx. Fits any mx frame with a mono-shock.",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 450,
+   "v2part": {
+    "model": "kazeda_mx",
+    "frame": "v2_kazeda_mx",
+    "slot": "swingarm",
+    "family": "mx",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "single",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_naked__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Kazeda Naked swingarm",
+   "description": "Off the Kazeda naked. Fits any naked frame with a mono-shock.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 520,
+   "v2part": {
+    "model": "kazeda_naked",
+    "frame": "v2_kazeda_naked",
+    "slot": "swingarm",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_sport__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Kazeda Sport swingarm",
+   "description": "Off the Kazeda sport. Fits any sport frame with a mono-shock.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 450,
+   "v2part": {
+    "model": "kazeda_sport",
+    "frame": "v2_kazeda_sport",
+    "slot": "swingarm",
+    "family": "sport",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_lodestar_cafe__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Lodestar Cafe swingarm",
+   "description": "Off the Lodestar cafe. Fits any cafe frame with twin shocks.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 520,
+   "v2part": {
+    "model": "lodestar_cafe",
+    "frame": "v2_lodestar_cafe",
+    "slot": "swingarm",
+    "family": "cafe",
+    "brand": "Lodestar",
+    "fits": "shock",
+    "layout": "vtwin45",
+    "twin_shock": true
+   }
+  },
+  "v2_lodestar_chopper__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Lodestar Chopper swingarm",
+   "description": "Off the Lodestar chopper. Fits any chopper frame with a mono-shock.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 450,
+   "v2part": {
+    "model": "lodestar_chopper",
+    "frame": "v2_lodestar_chopper",
+    "slot": "swingarm",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "shock",
+    "layout": "vtwin45",
+    "twin_shock": false
+   }
+  },
+  "v2_lodestar_classic__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Lodestar Classic swingarm",
+   "description": "Off the Lodestar classic. Fits any classic frame with twin shocks.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 450,
+   "v2part": {
+    "model": "lodestar_classic",
+    "frame": "v2_lodestar_classic",
+    "slot": "swingarm",
+    "family": "classic",
+    "brand": "Lodestar",
+    "fits": "shock",
+    "layout": "vtwin45",
+    "twin_shock": true
+   }
+  },
+  "v2_lodestar_cruiser__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Lodestar Cruiser swingarm",
+   "description": "Off the Lodestar cruiser. Fits any cruiser frame with twin shocks.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 450,
+   "v2part": {
+    "model": "lodestar_cruiser",
+    "frame": "v2_lodestar_cruiser",
+    "slot": "swingarm",
+    "family": "cruiser",
+    "brand": "Lodestar",
+    "fits": "shock",
+    "layout": "vtwin45",
+    "twin_shock": true
+   }
+  },
+  "v2_rheinhart_adventure__swingarm": {
+   "mass": 5.9,
+   "type": "Braced aluminium, black",
+   "arm": "braced_mx",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "metal": 0.5,
+   "rough": 0.5,
+   "material": "metal",
+   "name": "Rheinhart Adventure swingarm",
+   "description": "Off the Rheinhart adventure. Fits any adventure frame with a mono-shock.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 450,
+   "v2part": {
+    "model": "rheinhart_adventure",
+    "frame": "v2_rheinhart_adventure",
+    "slot": "swingarm",
+    "family": "adventure",
+    "brand": "Rheinhart",
+    "fits": "shock",
+    "layout": "boxer",
+    "twin_shock": false
+   }
+  },
+  "v2_rheinhart_cafe__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Rheinhart Cafe swingarm",
+   "description": "Off the Rheinhart cafe. Fits any cafe frame with a mono-shock.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 520,
+   "v2part": {
+    "model": "rheinhart_cafe",
+    "frame": "v2_rheinhart_cafe",
+    "slot": "swingarm",
+    "family": "cafe",
+    "brand": "Rheinhart",
+    "fits": "shock",
+    "layout": "boxer",
+    "twin_shock": false
+   }
+  },
+  "v2_rheinhart_classic__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Rheinhart Classic swingarm",
+   "description": "Off the Rheinhart classic. Fits any classic frame with twin shocks.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 450,
+   "v2part": {
+    "model": "rheinhart_classic",
+    "frame": "v2_rheinhart_classic",
+    "slot": "swingarm",
+    "family": "classic",
+    "brand": "Rheinhart",
+    "fits": "shock",
+    "layout": "boxer",
+    "twin_shock": true
+   }
+  },
+  "v2_rheinhart_cruiser__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Rheinhart Cruiser swingarm",
+   "description": "Off the Rheinhart cruiser. Fits any cruiser frame with twin shocks.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 450,
+   "v2part": {
+    "model": "rheinhart_cruiser",
+    "frame": "v2_rheinhart_cruiser",
+    "slot": "swingarm",
+    "family": "cruiser",
+    "brand": "Rheinhart",
+    "fits": "shock",
+    "layout": "boxer",
+    "twin_shock": true
+   }
+  },
+  "v2_rheinhart_naked__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Rheinhart Naked swingarm",
+   "description": "Off the Rheinhart naked. Fits any naked frame with a mono-shock.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 520,
+   "v2part": {
+    "model": "rheinhart_naked",
+    "frame": "v2_rheinhart_naked",
+    "slot": "swingarm",
+    "family": "naked",
+    "brand": "Rheinhart",
+    "fits": "shock",
+    "layout": "boxer",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_adventure__swingarm": {
+   "mass": 5.9,
+   "type": "Braced aluminium, black",
+   "arm": "braced_mx",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "metal": 0.5,
+   "rough": 0.5,
+   "material": "metal",
+   "name": "Varga Adventure swingarm",
+   "description": "Off the Varga adventure. Fits any adventure frame with a mono-shock.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 450,
+   "v2part": {
+    "model": "varga_adventure",
+    "frame": "v2_varga_adventure",
+    "slot": "swingarm",
+    "family": "adventure",
+    "brand": "Varga",
+    "fits": "shock",
+    "layout": "parallel_twin",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_mx__swingarm": {
+   "mass": 5.2,
+   "type": "Braced aluminium",
+   "arm": "braced_mx",
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "metal": 0.9,
+   "rough": 0.35,
+   "material": "metal",
+   "name": "Varga MX swingarm",
+   "description": "Off the Varga mx. Fits any mx frame with a mono-shock.",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 450,
+   "v2part": {
+    "model": "varga_mx",
+    "frame": "v2_varga_mx",
+    "slot": "swingarm",
+    "family": "mx",
+    "brand": "Varga",
+    "fits": "shock",
+    "layout": "single",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_naked__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Varga Naked swingarm",
+   "description": "Off the Varga naked. Fits any naked frame with a mono-shock.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 520,
+   "v2part": {
+    "model": "varga_naked",
+    "frame": "v2_varga_naked",
+    "slot": "swingarm",
+    "family": "naked",
+    "brand": "Varga",
+    "fits": "shock",
+    "layout": "parallel_twin",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_sport__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Varga Sport swingarm",
+   "description": "Off the Varga sport. Fits any sport frame with a mono-shock.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 450,
+   "v2part": {
+    "model": "varga_sport",
+    "frame": "v2_varga_sport",
+    "slot": "swingarm",
+    "family": "sport",
+    "brand": "Varga",
+    "fits": "shock",
+    "layout": "parallel_twin",
+    "twin_shock": false
+   }
+  }
+ },
+ "rearsets": {
+  "v2_corvano_adventure__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Corvano Adventure footrests and controls",
+   "description": "Off the Corvano adventure. Bolts to any adventure frame on the hidden mounting standard.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 160,
+   "v2part": {
+    "model": "corvano_adventure",
+    "frame": "v2_corvano_adventure",
+    "slot": "rearsets",
+    "family": "adventure",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_cafe__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Corvano Cafe footrests and controls",
+   "description": "Off the Corvano cafe. Bolts to any cafe frame on the hidden mounting standard.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 160,
+   "v2part": {
+    "model": "corvano_cafe",
+    "frame": "v2_corvano_cafe",
+    "slot": "rearsets",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_classic__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Corvano Classic footrests and controls",
+   "description": "Off the Corvano classic. Bolts to any classic frame on the hidden mounting standard.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 160,
+   "v2part": {
+    "model": "corvano_classic",
+    "frame": "v2_corvano_classic",
+    "slot": "rearsets",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": true
+   }
+  },
+  "v2_corvano_cruiser__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "peg": [
+    0.08,
+    -0.32
+   ],
+   "material": "metal",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Corvano Cruiser footrests and controls",
+   "description": "Off the Corvano cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 190,
+   "v2part": {
+    "model": "corvano_cruiser",
+    "frame": "v2_corvano_cruiser",
+    "slot": "rearsets",
+    "family": "cruiser",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": true
+   }
+  },
+  "v2_corvano_mx__rearsets": {
+   "mass": 1.8,
+   "type": "Wide cleated steel",
+   "style": "cleat",
+   "color": [
+    0.55,
+    0.56,
+    0.58
+   ],
+   "material": "metal",
+   "name": "Corvano MX footrests and controls",
+   "description": "Off the Corvano mx. Bolts to any mx frame on the hidden mounting standard.",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 160,
+   "v2part": {
+    "model": "corvano_mx",
+    "frame": "v2_corvano_mx",
+    "slot": "rearsets",
+    "family": "mx",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_naked__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Corvano Naked footrests and controls",
+   "description": "Off the Corvano naked. Bolts to any naked frame on the hidden mounting standard.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 160,
+   "v2part": {
+    "model": "corvano_naked",
+    "frame": "v2_corvano_naked",
+    "slot": "rearsets",
+    "family": "naked",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_corvano_sport__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Corvano Sport footrests and controls",
+   "description": "Off the Corvano sport. Bolts to any sport frame on the hidden mounting standard.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 160,
+   "v2part": {
+    "model": "corvano_sport",
+    "frame": "v2_corvano_sport",
+    "slot": "rearsets",
+    "family": "sport",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_adventure__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "BSX Adventure footrests and controls",
+   "description": "Off the BSX adventure. Bolts to any adventure frame on the hidden mounting standard.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 160,
+   "v2part": {
+    "model": "hartwell_adventure",
+    "frame": "v2_hartwell_adventure",
+    "slot": "rearsets",
+    "family": "adventure",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_cafe__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "BSX Cafe footrests and controls",
+   "description": "Off the BSX cafe. Bolts to any cafe frame on the hidden mounting standard.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 160,
+   "v2part": {
+    "model": "hartwell_cafe",
+    "frame": "v2_hartwell_cafe",
+    "slot": "rearsets",
+    "family": "cafe",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Chopper footrests and controls",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 160,
+   "v2part": {
+    "model": "hartwell_chopper",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_classic__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "BSX Classic footrests and controls",
+   "description": "Off the BSX classic. Bolts to any classic frame on the hidden mounting standard.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 160,
+   "v2part": {
+    "model": "hartwell_classic",
+    "frame": "v2_hartwell_classic",
+    "slot": "rearsets",
+    "family": "classic",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": true
+   }
+  },
+  "v2_hartwell_naked__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "BSX Naked footrests and controls",
+   "description": "Off the BSX naked. Bolts to any naked frame on the hidden mounting standard.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 160,
+   "v2part": {
+    "model": "hartwell_naked",
+    "frame": "v2_hartwell_naked",
+    "slot": "rearsets",
+    "family": "naked",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_hartwell_sport__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "BSX Sport footrests and controls",
+   "description": "Off the BSX sport. Bolts to any sport frame on the hidden mounting standard.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 160,
+   "v2part": {
+    "model": "hartwell_sport",
+    "frame": "v2_hartwell_sport",
+    "slot": "rearsets",
+    "family": "sport",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_adventure__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Kazeda Adventure footrests and controls",
+   "description": "Off the Kazeda adventure. Bolts to any adventure frame on the hidden mounting standard.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_adventure",
+    "frame": "v2_kazeda_adventure",
+    "slot": "rearsets",
+    "family": "adventure",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_cafe__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Kazeda Cafe footrests and controls",
+   "description": "Off the Kazeda cafe. Bolts to any cafe frame on the hidden mounting standard.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_cafe",
+    "frame": "v2_kazeda_cafe",
+    "slot": "rearsets",
+    "family": "cafe",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Chopper footrests and controls",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_chopper",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_classic__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Kazeda Classic footrests and controls",
+   "description": "Off the Kazeda classic. Bolts to any classic frame on the hidden mounting standard.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_classic",
+    "frame": "v2_kazeda_classic",
+    "slot": "rearsets",
+    "family": "classic",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": true
+   }
+  },
+  "v2_kazeda_cruiser__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "peg": [
+    0.08,
+    -0.32
+   ],
+   "material": "metal",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Kazeda Cruiser footrests and controls",
+   "description": "Off the Kazeda cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 190,
+   "v2part": {
+    "model": "kazeda_cruiser",
+    "frame": "v2_kazeda_cruiser",
+    "slot": "rearsets",
+    "family": "cruiser",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "twin",
+    "twin_shock": true
+   }
+  },
+  "v2_kazeda_mx__rearsets": {
+   "mass": 1.8,
+   "type": "Wide cleated steel",
+   "style": "cleat",
+   "color": [
+    0.55,
+    0.56,
+    0.58
+   ],
+   "material": "metal",
+   "name": "Kazeda MX footrests and controls",
+   "description": "Off the Kazeda mx. Bolts to any mx frame on the hidden mounting standard.",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_mx",
+    "frame": "v2_kazeda_mx",
+    "slot": "rearsets",
+    "family": "mx",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_naked__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Kazeda Naked footrests and controls",
+   "description": "Off the Kazeda naked. Bolts to any naked frame on the hidden mounting standard.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_naked",
+    "frame": "v2_kazeda_naked",
+    "slot": "rearsets",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_kazeda_sport__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Kazeda Sport footrests and controls",
+   "description": "Off the Kazeda sport. Bolts to any sport frame on the hidden mounting standard.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 160,
+   "v2part": {
+    "model": "kazeda_sport",
+    "frame": "v2_kazeda_sport",
+    "slot": "rearsets",
+    "family": "sport",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false
+   }
+  },
+  "v2_lodestar_cafe__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Lodestar Cafe footrests and controls",
+   "description": "Off the Lodestar cafe. Bolts to any cafe frame on the hidden mounting standard.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 160,
+   "v2part": {
+    "model": "lodestar_cafe",
+    "frame": "v2_lodestar_cafe",
+    "slot": "rearsets",
+    "family": "cafe",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true
+   }
+  },
+  "v2_lodestar_chopper__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Lodestar Chopper footrests and controls",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 160,
+   "v2part": {
+    "model": "lodestar_chopper",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false
+   }
+  },
+  "v2_lodestar_classic__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Lodestar Classic footrests and controls",
+   "description": "Off the Lodestar classic. Bolts to any classic frame on the hidden mounting standard.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 160,
+   "v2part": {
+    "model": "lodestar_classic",
+    "frame": "v2_lodestar_classic",
+    "slot": "rearsets",
+    "family": "classic",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true
+   }
+  },
+  "v2_lodestar_cruiser__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "peg": [
+    0.08,
+    -0.32
+   ],
+   "material": "metal",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Lodestar Cruiser footrests and controls",
+   "description": "Off the Lodestar cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 190,
+   "v2part": {
+    "model": "lodestar_cruiser",
+    "frame": "v2_lodestar_cruiser",
+    "slot": "rearsets",
+    "family": "cruiser",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true
+   }
+  },
+  "v2_rheinhart_adventure__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Rheinhart Adventure footrests and controls",
+   "description": "Off the Rheinhart adventure. Bolts to any adventure frame on the hidden mounting standard.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 160,
+   "v2part": {
+    "model": "rheinhart_adventure",
+    "frame": "v2_rheinhart_adventure",
+    "slot": "rearsets",
+    "family": "adventure",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false
+   }
+  },
+  "v2_rheinhart_cafe__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Rheinhart Cafe footrests and controls",
+   "description": "Off the Rheinhart cafe. Bolts to any cafe frame on the hidden mounting standard.",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 160,
+   "v2part": {
+    "model": "rheinhart_cafe",
+    "frame": "v2_rheinhart_cafe",
+    "slot": "rearsets",
+    "family": "cafe",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false
+   }
+  },
+  "v2_rheinhart_classic__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Rheinhart Classic footrests and controls",
+   "description": "Off the Rheinhart classic. Bolts to any classic frame on the hidden mounting standard.",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 160,
+   "v2part": {
+    "model": "rheinhart_classic",
+    "frame": "v2_rheinhart_classic",
+    "slot": "rearsets",
+    "family": "classic",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": true
+   }
+  },
+  "v2_rheinhart_cruiser__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "peg": [
+    0.08,
+    -0.32
+   ],
+   "material": "metal",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Rheinhart Cruiser footrests and controls",
+   "description": "Off the Rheinhart cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 190,
+   "v2part": {
+    "model": "rheinhart_cruiser",
+    "frame": "v2_rheinhart_cruiser",
+    "slot": "rearsets",
+    "family": "cruiser",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": true
+   }
+  },
+  "v2_rheinhart_naked__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Rheinhart Naked footrests and controls",
+   "description": "Off the Rheinhart naked. Bolts to any naked frame on the hidden mounting standard.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 160,
+   "v2part": {
+    "model": "rheinhart_naked",
+    "frame": "v2_rheinhart_naked",
+    "slot": "rearsets",
+    "family": "naked",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_adventure__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Varga Adventure footrests and controls",
+   "description": "Off the Varga adventure. Bolts to any adventure frame on the hidden mounting standard.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 160,
+   "v2part": {
+    "model": "varga_adventure",
+    "frame": "v2_varga_adventure",
+    "slot": "rearsets",
+    "family": "adventure",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_mx__rearsets": {
+   "mass": 1.8,
+   "type": "Wide cleated steel",
+   "style": "cleat",
+   "color": [
+    0.55,
+    0.56,
+    0.58
+   ],
+   "material": "metal",
+   "name": "Varga MX footrests and controls",
+   "description": "Off the Varga mx. Bolts to any mx frame on the hidden mounting standard.",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 160,
+   "v2part": {
+    "model": "varga_mx",
+    "frame": "v2_varga_mx",
+    "slot": "rearsets",
+    "family": "mx",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_naked__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Varga Naked footrests and controls",
+   "description": "Off the Varga naked. Bolts to any naked frame on the hidden mounting standard.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 160,
+   "v2part": {
+    "model": "varga_naked",
+    "frame": "v2_varga_naked",
+    "slot": "rearsets",
+    "family": "naked",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false
+   }
+  },
+  "v2_varga_sport__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Varga Sport footrests and controls",
+   "description": "Off the Varga sport. Bolts to any sport frame on the hidden mounting standard.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 160,
+   "v2part": {
+    "model": "varga_sport",
+    "frame": "v2_varga_sport",
+    "slot": "rearsets",
+    "family": "sport",
+    "brand": "Varga",
+    "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
    }

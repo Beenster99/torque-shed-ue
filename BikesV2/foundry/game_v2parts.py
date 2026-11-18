@@ -44,6 +44,8 @@ SLOTS = {
     "front_wheel": ("wheel", "family", "front wheel"),
     "rear_wheel": ("wheel", "family", "rear wheel"),
     "shock": ("shock", "shock", "rear shock"),
+    "swingarm": ("swingarm", "shock", "swingarm"),
+    "rearsets": ("rearsets", "family", "footrests and controls"),
     "side_stand": ("side_stand", "family", "side stand"),
     "front_caliper": ("caliper", "family", "front caliper"),
     "rear_caliper": ("caliper", "family", "rear caliper"),
@@ -60,8 +62,9 @@ SLOTS = {
 HIDDEN_NEEDED = ("shock",)
 # The old Godot parts of these kinds are shapes the V2 bikes no longer draw: out of the shop (the common parts stay).
 RETIRE_KINDS = ("tank", "saddle", "tail", "side_panels", "front_mudguard", "fairing", "number_boards", "headlight",
-                "indicators", "mirrors", "handlebars", "guards", "wheel", "fork", "shock", "engine", "side_stand")
-PRICE = {"tank": 260, "saddle": 130, "tail": 110, "side_panels": 60, "front_mudguard": 70, "fairing": 380, "number_boards": 60,
+                "indicators", "mirrors", "handlebars", "guards", "wheel", "fork", "shock", "engine", "side_stand",
+                "swingarm", "rearsets")
+PRICE = {"swingarm": 450, "rearsets": 160, "tank": 260, "saddle": 130, "tail": 110, "side_panels": 60, "front_mudguard": 70, "fairing": 380, "number_boards": 60,
          "headlight": 95, "indicators": 40, "mirrors": 50, "handlebars": 85, "guards": 120, "wheel": 350, "fork": 540,
          "shock": 300, "engine": 2400, "head": 600, "gearbox": 500, "fuel": 300, "air_filter": 60, "cooling": 250,
          "exhaust": 420, "side_stand": 40, "caliper": 220}
