@@ -2,8 +2,22 @@
  "name": "Lodestar chopper (working title H1)",
  "format": 2,
  "kit": true,
- "triangles": 26748,
+ "triangles": 35430,
  "surfaces": {
+  "s012": {
+   "slot": "saddle",
+   "node": "",
+   "surface": "d3_leather_quilt",
+   "tag": "d3_leather_quilt",
+   "ue": "leather",
+   "color": [
+    0.014,
+    0.014,
+    0.016
+   ],
+   "metallic": 0.0,
+   "roughness": 0.46
+  },
   "s013": {
    "slot": "tail",
    "node": "",
@@ -25,6 +39,20 @@
    "surface": "chrome",
    "tag": "chrome",
    "ue": "chrome"
+  },
+  "s105": {
+   "slot": "saddle",
+   "node": "",
+   "surface": "d3_thread",
+   "tag": "d3_thread",
+   "ue": "cat_plastic",
+   "color": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic": 0.0,
+   "roughness": 0.75
   },
   "s133": {
    "slot": "tail",

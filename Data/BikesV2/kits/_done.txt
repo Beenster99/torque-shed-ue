@@ -262,3 +262,39 @@ varga_sport front 1
 varga_sport front 2
 varga_sport exhaust 1
 varga_sport exhaust 2
+hartwell_chopper tail 1
+corvano_cruiser tail 1
+corvano_cruiser tail 2
+hartwell_chopper tail 2
+hartwell_chopper tail 3
+hartwell_naked tail 1
+kazeda_chopper tail 1
+kazeda_chopper tail 2
+kazeda_cruiser tail 1
+kazeda_cruiser tail 2
+lodestar_chopper tail 1
+lodestar_chopper tail 2
+lodestar_chopper tail 3
+lodestar_cruiser tail 1
+lodestar_cruiser tail 2
+rheinhart_cruiser tail 1
+rheinhart_cruiser tail 2
+rheinhart_naked tail 1
+hartwell_chopper__b_pegs_ringed_chrome
+hartwell_chopper__b_pegs_ringed_steel
+hartwell_chopper__b_pegs_ringed_gold
+hartwell_chopper__b_pegs_torpedo_chrome
+hartwell_chopper__b_pegs_ringed_brass
+hartwell_chopper__b_pegs_torpedo_steel
+hartwell_chopper__b_pegs_torpedo_gold
+hartwell_chopper__b_pegs_torpedo_brass
+hartwell_chopper__b_pegs_faceted_chrome
+hartwell_chopper__b_pegs_faceted_steel
+hartwell_chopper__b_pegs_faceted_gold
+hartwell_chopper__b_pegs_faceted_brass
+hartwell_chopper__b_covers_finned_chrome
+hartwell_chopper__b_covers_finned_steel
+hartwell_chopper__b_covers_finned_gold
+hartwell_chopper__b_covers_finned_brass
+hartwell_chopper__b_covers_spoked_chrome
+hartwell_chopper__b_covers_spoked_steel
