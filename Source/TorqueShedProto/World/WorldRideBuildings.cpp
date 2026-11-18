@@ -1376,7 +1376,10 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			else Chimney((Chance(B.X, B.Z, 12) - 0.5) * HalfLong * 0.8, Top - 1.0);
 		}
 		// (the map's own churches too, where it tags the building one and it is a church's size)
-		if ((size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1) || ((Kind == "church" || (IsWorship && Kind != "chapel")) && B.W * B.D >= 120.0 && !Plain && !Ruin))
+		// ([churches stage 4] one tower to a church: on its outline's main piece only, not on every piece the
+		// map's outline was cut into, Wells St Cuthbert's had five)
+		const bool MainPiece = Each.Piece == nullptr || Each.Piece->Main;
+		if (MainPiece && ((size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1) || ((Kind == "church" || (IsWorship && Kind != "chapel")) && B.W * B.D >= 120.0 && !Plain && !Ruin)))
 		{
 			// A church: its tower at one end (the other if that one is over a road), square and a
 			// little narrower than the nave, its belfry's openings near the top, battlemented, or in
