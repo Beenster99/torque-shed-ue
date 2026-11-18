@@ -722,6 +722,64 @@ bool Region::Passable(int Edge, int Node) const
 	return E.Oneway == 0 || (E.Oneway == 1 && E.A == Node) || (E.Oneway == -1 && E.B == Node);
 }
 
+int Region::RingsOneWay()
+{
+	const bool Left = Country == "uk" || Country == "jp";
+	std::vector<unsigned char> On(Edges.size(), 0), Used(Edges.size(), 0);
+	for (size_t E = 0; E < Edges.size(); ++E)
+	{
+		const RoadExtra* X = ExtraOf(int(E));
+		On[E] = X != nullptr && X->Has(RoadExtra::Roundabout) && Edges[E].Line.size() >= 2 && Edges[E].A != Edges[E].B ? 1 : 0;
+	}
+	int Set = 0;
+	for (size_t First = 0; First < Edges.size(); ++First)
+	{
+		if (!On[First] || Used[First]) continue;
+		// (round the ring from edge to edge, as RidePlan::IndexRings walks it, noting which way each is walked)
+		std::vector<std::pair<int, bool>> Walk;
+		std::vector<P2> Line;
+		const int Start = Edges[First].A;
+		int Node = Start, Edge = int(First);
+		bool Closed = false;
+		for (int Guard = 0; Guard < 64; ++Guard)
+		{
+			const RoadEdge& Re = Edges[size_t(Edge)];
+			Used[size_t(Edge)] = 1;
+			const bool Forward = Re.A == Node;
+			Walk.push_back({Edge, Forward});
+			if (Forward) Line.insert(Line.end(), Re.Line.begin(), Re.Line.end() - 1);
+			else for (size_t I = Re.Line.size() - 1; I > 0; --I) Line.push_back(Re.Line[I]);
+			Node = Forward ? Re.B : Re.A;
+			if (Node == Start) { Closed = true; break; }
+			int Next = -1;
+			if (size_t(Node) < Adjacent.size())
+				for (int Ne : Adjacent[size_t(Node)])
+					if (Ne != Edge && On[size_t(Ne)] && !Used[size_t(Ne)]) { Next = Ne; break; }
+			if (Next < 0) break;
+			Edge = Next;
+		}
+		if (!Closed || Line.size() < 3) continue;
+		double A2 = 0.0;
+		for (size_t I = 0; I < Line.size(); ++I)
+		{
+			const P2& P = Line[I];
+			const P2& Q = Line[(I + 1) % Line.size()];
+			A2 += P.X * Q.Z - Q.X * P.Z;
+		}
+		// (x east, z south: a positive area runs clockwise seen from above)
+		const bool WalkedClockwise = A2 > 0.0;
+		for (const auto& W : Walk)
+		{
+			// (the way round the traffic goes: along the walk if the walk runs the right way round)
+			const bool Along = WalkedClockwise == Left;
+			const int Want = (W.second == Along) ? 1 : -1;
+			RoadEdge& Re = Edges[size_t(W.first)];
+			if (Re.Oneway != Want) { Re.Oneway = Want; ++Set; }
+		}
+	}
+	return Set;
+}
+
 bool Region::TurnBanned(int Came, int Node, int Onto) const
 {
 	return !Bans.empty() && std::binary_search(Bans.begin(), Bans.end(), std::array<int, 3>{Came, Node, Onto});

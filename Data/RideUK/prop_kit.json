@@ -14,6 +14,7 @@
   "power_pole": {"words": ["wood utility pole", "telegraph pole"], "reach": 1500, "height": 9.0, "shadow": true, "credit": "Wood Utility Poles by Eleanie (CC BY 4.0), Fab"},
   "field_gate": {"words": [], "reach": 400, "height": 1.35, "shadow": false, "credit": ""},
   "street_lamp": {"words": [], "reach": 1200, "height": 6.1, "shadow": true, "credit": ""},
+  "lamp_heritage": {"words": [], "reach": 1200, "height": 6.5, "shadow": true, "credit": ""},
   "stile": {"words": ["sty and telegraph pole stile"], "reach": 300, "height": 1.2, "shadow": false, "credit": "Sty and Telegraph Pole by Immersive-Games (CC BY 4.0), Fab"},
   "kissing_gate": {"words": [], "reach": 300, "height": 1.3, "shadow": false, "credit": ""},
   "lift_gate": {"words": [], "reach": 300, "height": 1.05, "shadow": false, "credit": ""},
@@ -37,6 +38,8 @@
   "door_double": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "door_hood": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "bay_canted": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
-  "bay_square": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""}
+  "bay_square": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
+  "wall_stone": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"},
+  "wall_end": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"}
  }
 }

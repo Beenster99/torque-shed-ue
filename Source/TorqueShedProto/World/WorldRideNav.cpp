@@ -137,6 +137,7 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	bool InRing = false;
 	P2 RingIn;
 	double RingAlong = 0.0;
+	int RingNodeIn = -1;   // [roundabouts] (the node the ride came onto the ring at)
 	int RingExits = 0;
 	int Node = From;
 	double Raw = 0.0;
@@ -160,6 +161,7 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 				const P2 Back0 = HeadingOut(G, Came, Node);
 				RingIn = P2(-Back0.X, -Back0.Z);
 				RingAlong = AlongOf(G.Nodes[size_t(Node)], Raw * Scale);
+				RingNodeIn = Node;
 				RingExits = 0;
 				InRing = true;
 				continue;
@@ -180,7 +182,10 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 				Turns.push_back(T);
 				// (and the ride's own give-way line where it comes onto the ring: back from the ring's
 				// middle line by half the ring's width)
-				RingGiveWays.push_back(RingAlong - 0.5 * RoadLine::WidthOf(G.ClassOf(Onto)) - 0.6);
+				// ([roundabouts] a ring drawn as a circle paints every entry's itself: RingPaint)
+				const int RingIn2 = RingAt(RingNodeIn);
+				if (RingIn2 < 0 || !RoadRings[size_t(RingIn2)].Circle)
+					RingGiveWays.push_back(RingAlong - 0.5 * RoadLine::WidthOf(G.ClassOf(Onto)) - 0.6);
 				Angles.push_back(0.0);
 				continue;
 			}

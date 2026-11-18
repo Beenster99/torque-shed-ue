@@ -67,6 +67,9 @@ public:
 	std::vector<std::string> MoreRoots;
 	std::string IndexUrl = DefaultIndexUrl;
 	Fetcher Get;
+	// [build 155] Whether this thread may fetch (the game sets it: never its game thread). A file that is
+	// not on disk, asked for where it may not be fetched, is "deferred": not had now, to be asked again.
+	std::function<bool()> MayFetch;
 	// No network: what isn't on disk stays missing.
 	bool Offline = false;
 	// At most this many fetched cells are kept on disk (each about 2.5 MB with its streams and trees):
@@ -100,7 +103,7 @@ public:
 	// [towns stage 3] A cell's buildings zip ("ROW_COL"), from the copy kept on disk if it is the one the
 	// index names, else fetched (and kept). False when the index has none for it, or it can't be had.
 	// Blocks while it fetches.
-	bool BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out);
+	bool BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out, bool* Deferred = nullptr);
 
 	// Notes cells used now (fetched, or stitched into a region): kept the longest, never pruned this run.
 	void Touch(const std::vector<CellId>& Cells);

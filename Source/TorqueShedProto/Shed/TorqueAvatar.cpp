@@ -346,6 +346,73 @@ void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garme
 	}
 }
 
+// [build 155] beenster: "make the t shirt of our rider not clip with their jeans". The top's own
+// sections over a bottom garment are drawn with M_GarmentPush, a few mm out along their normals, so
+// the hem sits just outside the jeans' waistband instead of fighting it; its colour, colour map and
+// normal map are copied from the material it had (the shirt's own, or the kit's that SolidClothes
+// gave it). -TorqueShirtPush=cm sets how far (0: as it was).
+void PushOut(UMeshComponent* Top, int32 Slot, const FString& Avatar, double HemTop)
+{
+	// (Round 155: 0.5 cm all over left black specks of jeans at the hem; the hem zone, below HemTop in
+	// the mesh's own space, goes a further HemCm out, fading in over 10 cm.)
+	float PushCm = 0.5f, HemCm = 1.2f;
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueShirtPush="), PushCm);
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueShirtHem="), HemCm);
+	UMaterialInterface* Was = Top->GetMaterial(Slot);
+	if (PushCm <= 0.0f || !Was) return;
+	UMaterialInterface* Push = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Rider/Materials/M_GarmentPush.M_GarmentPush"));
+	if (!Push)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no M_GarmentPush (run the level script); the top's slot %d left as it is"), *Avatar, Slot);
+		return;
+	}
+	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Push, Top);
+	if (!MID) return;
+	FString Took;
+	TArray<FMaterialParameterInfo> Infos;
+	TArray<FGuid> Ids;
+	Was->GetAllTextureParameterInfo(Infos, Ids);
+	bool bColourMap = false, bNormalMap = false;
+	for (const FMaterialParameterInfo& Info : Infos)
+	{
+		const FString PName = Info.Name.ToString().ToLower();
+		UTexture* Tex = nullptr;
+		if (!Was->GetTextureParameterValue(FHashedMaterialParameterInfo(Info), Tex) || !Tex) continue;
+		if (!bNormalMap && (PName.Contains(TEXT("normal")) || PName.EndsWith(TEXT("_n"))))
+		{
+			MID->SetTextureParameterValue(TEXT("NormalMap"), Tex);
+			bNormalMap = true;
+			Took += FString::Printf(TEXT(" normal %s=%s"), *Info.Name.ToString(), *Tex->GetName());
+		}
+		else if (!bColourMap && (PName.Contains(TEXT("albedo")) || PName.Contains(TEXT("basecolor")) || PName.Contains(TEXT("base color"))
+			|| PName.Contains(TEXT("diffuse")) || PName == TEXT("color") || PName.Contains(TEXT("colormap")) || PName.Contains(TEXT("colourmap"))))
+		{
+			MID->SetTextureParameterValue(TEXT("BaseColorMap"), Tex);
+			bColourMap = true;
+			Took += FString::Printf(TEXT(" colour %s=%s"), *Info.Name.ToString(), *Tex->GetName());
+		}
+	}
+	for (const TCHAR* Name : {TEXT("Color"), TEXT("Colour"), TEXT("Tint"), TEXT("BaseColor"), TEXT("Base Color")})
+	{
+		FLinearColor Col;
+		if (Was->GetVectorParameterValue(FHashedMaterialParameterInfo(FName(Name)), Col))
+		{
+			MID->SetVectorParameterValue(TEXT("Color"), Col);
+			Took += FString::Printf(TEXT(" colour %s=%s"), Name, *Col.ToString());
+			break;
+		}
+	}
+	float Rough = 0.0f;
+	if (Was->GetScalarParameterValue(FHashedMaterialParameterInfo(FName(TEXT("Roughness"))), Rough)) MID->SetScalarParameterValue(TEXT("Roughness"), Rough);
+	MID->SetScalarParameterValue(TEXT("Push"), PushCm);
+	MID->SetScalarParameterValue(TEXT("HemPush"), HemTop > 10.0 ? HemCm : 0.0f);
+	MID->SetScalarParameterValue(TEXT("HemTop"), (float)HemTop);
+	Top->SetMaterial(Slot, MID);
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: top slot %d pushed out %.1f cm over the jeans, %.1f cm more below %.0f cm (was %s;%s)"), *Avatar, Slot, PushCm,
+		HemTop > 10.0 ? HemCm : 0.0f, HemTop,
+		*Was->GetName(), Took.IsEmpty() ? TEXT(" nothing copied") : *Took);
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -400,6 +467,14 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		bool bBottom = false;
 		for (const FPart& P : E.Parts) bBottom |= P.Mesh.Contains(TEXT("BottomGarment"));
 		UMaterialInterface* const Clear = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
+		// (Where the shirt's hem zone starts, in the mesh's own space: below about the bottom rib, from the
+		// body's rest height; M_GarmentPush pushes more below it.)
+		double HemTop = 0.0;
+		if (Driver && Driver->GetSkinnedAsset())
+		{
+			const FBoxSphereBounds Rest = Driver->GetSkinnedAsset()->GetBounds();
+			HemTop = 0.62 * (Rest.Origin.Z + Rest.BoxExtent.Z);
+		}
 		if (bBottom && Clear && !FParse::Param(FCommandLine::Get(), TEXT("TorqueKeepShorts")))
 			for (const TWeakObjectPtr<USceneComponent>& W : Out)
 			{
@@ -413,7 +488,11 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 					const FString WasName = Was ? Was->GetName().ToLower() : FString();
 					const bool bLegs = SlotName.Contains(TEXT("short")) || SlotName.Contains(TEXT("trouser")) || SlotName.Contains(TEXT("pant")) || SlotName.Contains(TEXT("bottom"))
 						|| WasName.Contains(TEXT("short")) || WasName.Contains(TEXT("trouser")) || WasName.Contains(TEXT("pant"));
-					if (!bLegs) continue;
+					if (!bLegs)
+					{
+						PushOut(Top, Slot, E.Name, HemTop);
+						continue;
+					}
 					UMaterialInstanceDynamic* Gone = UMaterialInstanceDynamic::Create(Clear, Top);
 					if (!Gone) continue;
 					Gone->SetVectorParameterValue(FName(TEXT("Mask")), FLinearColor(0.f, 0.f, 0.f, 0.f));
@@ -905,7 +984,13 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 
 	// The poseable copy: in the Blueprint body's own space (hidden, the parts follow it), or shown
 	// on its own, turned to face Parent's +x.
-	Driver = NewObject<UPoseableMeshComponent>(Owner, *FString::Printf(TEXT("Avatar_%s"), *Name.Replace(TEXT(" "), TEXT("_"))));
+	// (A name of its own: a bike pawn holds two of the same avatar, its rider and their body walking
+	// beside it off the bike. With one name, NewObject made the second over the first, so the two shared
+	// one body: hiding the rider hid the walker's body (build 154: a headless, armless rider off the bike,
+	// build 141: riding).)
+	const FName DriverName = MakeUniqueObjectName(Owner, UPoseableMeshComponent::StaticClass(),
+		FName(*FString::Printf(TEXT("Avatar_%s"), *Name.Replace(TEXT(" "), TEXT("_")))));
+	Driver = NewObject<UPoseableMeshComponent>(Owner, DriverName);
 	Driver->SetupAttachment(BodyComp ? (USceneComponent*)BodyComp : Parent);
 	Driver->SetSkinnedAssetAndUpdate(Mesh);
 	Driver->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -1724,20 +1809,40 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				// The arm reaches the wrist the hand needs on the bar (as far as it can); the elbows
 				// bend down and out.
 				const FVector S0 = Bones[I].Rest, E0 = Bones[LowerArm[S]].Rest, W0 = Bones[HandBone[S]].Rest;
-				const FVector W = WristAt[S];
+				FVector W = WristAt[S];
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
-				const FVector Pole = bFit ? (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal()
+				FVector Pole = bFit ? (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal()
 					: (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
+				// [build 155] The wave (left hand, R3 held): the hand raised beside the head, the forearm
+				// near upright with the elbow down and out, the open palm to the front, swung side to side
+				// from the elbow about one and a half times a second.
+				const double WaveK = S == 0 ? FMath::SmoothStep(0.0, 1.0, FMath::Clamp(Tg.Wave, 0.0, 1.0)) * (1.0 - Off) : 0.0;
+				const double Sway = FMath::Sin(Tg.WaveTime * 2.0 * UE_DOUBLE_PI * 1.5);
+				if (WaveK > 0.0)
+				{
+					const FVector Up2 = (Up + Fwd * 0.15).GetSafeNormal();
+					const FVector WaveWrist = P[I] + Up2 * (Lu * 0.55 + Lf * 0.55) + Right * (Side * (Lu * 0.45 + 9.0 * Sway)) + Fwd * 8.0;
+					W = FMath::Lerp(W, WaveWrist, WaveK);
+					Pole = FMath::Lerp(Pole, (-Up * 0.6 + Right * (Side * 0.75) - Fwd * 0.1).GetSafeNormal(), WaveK).GetSafeNormal();
+				}
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
 				const FVector Hinge0 = FVector::CrossProduct(W0 - S0, -Fwd);
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
 				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], HandOffS[S]); Set[HandBone[S]] = true;
+				if (WaveK > 0.0)
+				{
+					// The hand: fingers up (leaning a little with the swing), palm to the front.
+					FVector WaveAim0, WaveAcross0, WavePalm0;
+					HandRest(S, WaveAim0, WaveAcross0, WavePalm0);
+					const FVector AimUp = (Up + Right * (Side * 0.25 * Sway)).GetSafeNormal();
+					D[HandBone[S]] = FQuat::Slerp(D[HandBone[S]], Align(WaveAim0, WavePalm0, AimUp, Fwd), WaveK);
+				}
 				// The fingers wrapped round the bar (WrapFingers). The index and middle lift onto a
-				// lever when they're on it.
+				// lever when they're on it. (Waving: open, straight.)
 				const FVector WAct = E + D[LowerArm[S]].RotateVector(W0 - E0);   // where the wrist got to
-				const double Loose = 1.0 - HandOffS[S] * 0.7;
+				const double Loose = (1.0 - HandOffS[S] * 0.7) * (1.0 - WaveK);
 				double K[5] = {0.0, Loose, Loose, Loose, Loose};
 				const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
 				// [rider pose] The lever (beenster: two fingers reach out and pull it): its blade in front of

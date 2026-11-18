@@ -1054,7 +1054,7 @@ void RidePlan::IndexPlaceRecipes()
 				}
 				R.Base = Low;
 				for (size_t T = 0; T < TowerShapes.size(); ++T)
-					if (TowerShapes[T].Mid.DistanceTo(R.At) < Model->Reach) TowerTaken[T] = 1;
+					if (TowerShapes[T].Mid.DistanceTo(R.At) < Model->Reach && ModelCovers(R, TowerShapes[T].Mid.X, TowerShapes[T].Mid.Z, 2.0)) TowerTaken[T] = 1;
 				++ModelCount;
 				RecipeGrid[SceneKey(R.At.X, R.At.Z)].push_back(int(PlaceRecipes.size()));
 				PlaceRecipes.push_back(R);
@@ -1149,6 +1149,21 @@ void RidePlan::IndexPlaceRecipes()
 	for (size_t I = 0; I < PlaceRecipes.size(); ++I) RecipeGrid[SceneKey(PlaceRecipes[I].At.X, PlaceRecipes[I].At.Z)].push_back(int(I));
 }
 
+bool RidePlan::ModelCovers(const PlaceRecipe& R, double X, double Z, double Spare)
+{
+	// ([towns stage 7] a long model, a cathedral, claims the buildings under its parts' own boxes, not a
+	// circle round it: the houses round a minster's close stand; its windows and lights claim nothing)
+	if (!R.Model) return false;
+	const double Tc = std::cos(R.Turn), Ts = std::sin(R.Turn), Dx = X - R.At.X, Dz = Z - R.At.Z;
+	const double Px = Dx * Tc + Dz * Ts, Pz = -Dx * Ts + Dz * Tc;
+	for (const SiteModel::Part& P : R.Model->Parts)
+	{
+		if (P.Drop || P.Layer == SiteModel::Painted || P.Layer == SiteModel::Glow) continue;
+		if (Px >= P.X0 - Spare && Px <= P.X1 + Spare && Pz >= P.Z0 - Spare && Pz <= P.Z1 + Spare) return true;
+	}
+	return false;
+}
+
 bool RidePlan::UnderPlace(double X, double Z) const
 {
 	for (int Dz = -1; Dz <= 1; ++Dz)
@@ -1159,7 +1174,8 @@ bool RidePlan::UnderPlace(double X, double Z) const
 			for (int I : It->second)
 			{
 				const PlaceRecipe& R = PlaceRecipes[size_t(I)];
-				if (R.Claim > 0.0 && std::hypot(R.At.X - X, R.At.Z - Z) < R.Claim) return true;
+				if (R.Claim <= 0.0 || std::hypot(R.At.X - X, R.At.Z - Z) >= R.Claim) continue;
+				if (!R.Model || ModelCovers(R, X, Z, 2.0)) return true;
 			}
 		}
 	return false;

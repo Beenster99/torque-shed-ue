@@ -18,6 +18,8 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
+#include "World/TorqueForecourtGarage.h"
+#include "Shed/TorquePartsComputer.h"
 #include "TorqueTft.h"
 #include "RideModes.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -222,7 +224,11 @@ ATorqueBikePawn::ATorqueBikePawn()
 	Sim = MakeUnique<BikeSim>();
 }
 
-ATorqueBikePawn::~ATorqueBikePawn() = default;
+ATorqueBikePawn::~ATorqueBikePawn()
+{
+	delete GarageComputer;   // [garage]
+	GarageComputer = nullptr;
+}
 
 void ATorqueBikePawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -1000,6 +1006,20 @@ void ATorqueBikePawn::LoadContacts()
 
 void ATorqueBikePawn::GatherOtherBikes()
 {
+	// [garage] On a real-world ride: the walls of the forecourt garages standing near the rider (the
+	// ride has no boxes of its own, so the contacts are made the first time one stands).
+	if (!bYard && !FPaths::IsRelative(RouteFile) && GarageSeen != ATorqueForecourtGarage::ContactVersion())
+	{
+		GarageSeen = ATorqueForecourtGarage::ContactVersion();
+		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
+		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
+		if (!Contacts)
+		{
+			Contacts = MakeUnique<ContactWorld>();
+			Sim->Contacts = Contacts.Get();
+		}
+		Contacts->SetBoxes(Boxes);
+	}
 	if (!Contacts) return;
 	// [furniture] In the shed's yard, the solid yard kit (walls, fences, the old car and buses) too.
 	if (bYard && FurnitureSeen != TorqueFurniture::ContactVersion())
@@ -1414,7 +1434,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		UE_LOG(LogTemp, Log, TEXT("Torque info: pointer %s"), bPointing ? TEXT("out") : TEXT("away"));
 	}
-	if (bPointing)
+	if (bPointing || bGarageComputer)   // [garage] (the wall computer's page has the pointer too)
 	{
 		if (!PC->bShowMouseCursor)
 		{
@@ -1436,6 +1456,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (bOnFoot)
 	{
 		Throttle = FrontBrake = RearBrake = Shift = Lean = 0.0;
+		// [garage] In a forecourt garage: the spanner on the bike, the wall computer (its page takes the controls).
+		if (TickGarage(PC, Dt, SonyDown, SonyPressed)) return;
 		const double KeyX = (FTorqueKeys::Down(PC, ETorqueKey::WalkRight) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkLeft) ? 1.0 : 0.0);
 		const double KeyY = (FTorqueKeys::Down(PC, ETorqueKey::WalkForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ? 1.0 : 0.0);
 		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
@@ -2957,6 +2979,9 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	}
 	if (!bRemote && !bTestFlat) WeatherHeat(false);
 	HostOnlyNoteFor = FMath::Max(HostOnlyNoteFor - DeltaSeconds, 0.0);
+	// [garage] Its parts changed in a garage: drawn again once it's standing parked.
+	BindGarage();
+	if (bModelStale && ((bOnFoot && !bPushing) || bParkedLook)) RebuildBikeModel();
 
 	if (bRemote)
 	{
@@ -3535,7 +3560,7 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	if (RiderRig.IsValid())
 	{
 		bHeadShown = bShow;
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown, true);   // (its decal skins with it)
 		ShowRiderAvatar();
 		return;
 	}
@@ -3608,6 +3633,7 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 	In.Velocity = Dt > 1.0e-4f ? (Feet - NetWalkerWas) / Dt : FVector::ZeroVector;
 	In.Velocity.Z = 0.0;
 	In.Facing = FRotator(0.0, Yaw, 0.0);
+	In.LookPitch = LookPitch;   // [build 155] their walking view's up and down (TorqueNetBike sets it)
 	NetWalker->Pose(In, Dt);
 	NetWalkerWas = Feet;
 }
@@ -3695,6 +3721,8 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	}
 	T.Neck = R.Neck;
 	T.Look = R.Look;
+	T.Wave = RiderWave;
+	T.WaveTime = RiderWaveTime;
 	T.Limp = R.Limp;
 	for (int32 S = 0; S < 2; ++S)
 	{
@@ -3732,7 +3760,7 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 	{
 		bRiderShown = bShow;
 		if (RiderBody) RiderBody->SetVisibility(bShow);
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown, true);   // (its decal skins with it: build 154's helmet left floating)
 		ShowRiderAvatar();
 		return;
 	}
@@ -4046,6 +4074,8 @@ void ATorqueBikePawn::UpdateRider()
 			In.Wave = bWaving ? WaveT : 1.0 - WaveT;
 			In.WaveTime = Now - WaveAt;
 		}
+		RiderWave = bThrown ? 0.0 : In.Wave;
+		RiderWaveTime = In.WaveTime;
 		In.LeverFingers[1] = BrakeFingers;
 		In.LeverPull[1] = FMath::Clamp(FrontBrake, 0.0, 1.0) * BrakeFingers;
 		// Left hand: the clutch, pulled for each gear change (fingers over, pull, let out), and held
@@ -4139,6 +4169,10 @@ void ATorqueBikePawn::UpdateRider()
 		{
 			const ATorquePlayerState* HelmetPS = GetPlayerState<ATorquePlayerState>();
 			TorqueDecals::ApplyHelmet(RiderHelmet, (IsLocallyControlled() || !HelmetPS) ? TorqueDecals::MyHelmet() : HelmetPS->HelmetDecals);
+			// (Skins made while the helmet's hidden start shown: kept as the helmet is.)
+			const bool bHelmetSeen = RiderHelmet->IsVisible();
+			for (USceneComponent* Skin : RiderHelmet->GetAttachChildren())
+				if (Skin && Skin->IsVisible() != bHelmetSeen) Skin->SetVisibility(bHelmetSeen);
 		}
 		UpdateRiderAvatar();
 		return;
@@ -4648,12 +4682,17 @@ void ATorqueBikePawn::UpdatePerf(float Dt)
 		{
 			PerfFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Profiling"),
 				FString::Printf(TEXT("torque_perf_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"))));
-			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera\n"), *PerfFile);
+			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera,x_m,y_m,squares,plant_groups,plants,tree_groups,trees\n"), *PerfFile);
 			UE_LOG(LogTemp, Log, TEXT("Torque: logging performance to %s"), *PerfFile);
 		}
 		const double Km = Line.Num() > 1 ? RouteLengthM / 1000.0 * Near / (Line.Num() - 1) : 0.0;
-		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d\n"),
-			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode),
+		// ([perf, build 155] where, and the ride's scene counts: beenster's build 154 recordings showed
+		// GPU 20-50 ms stretches with nothing to say what was in view)
+		const FVector PerfAt = GetActorLocation() / 100.0;
+		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d,%.0f,%.0f,%d,%d,%lld,%d,%lld\n"),
+			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode,
+			PerfAt.X, PerfAt.Y, ATorqueRideWorld::SceneSquares, ATorqueRideWorld::ScenePlantGroups, ATorqueRideWorld::ScenePlants,
+			ATorqueRideWorld::SceneTreeGroups, ATorqueRideWorld::SceneTrees),
 			*PerfFile, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 	}
 	PerfClock = 0.0;
@@ -5076,6 +5115,7 @@ void ATorqueBikePawn::DrawHud()
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
 		}
+		GarageHudLines();   // [garage]
 	}
 	else if (bHudLines && !Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
 		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);

@@ -182,6 +182,7 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 	std::vector<double> Dist(G.Nodes.size(), 1e18);
 	std::vector<int> Branch(G.Nodes.size(), -1);
 	std::vector<int> Touched;
+	double LastFinger = -1e9;
 	for (size_t Pn = 1; Pn + 1 < PathNodes.size(); ++Pn)
 	{
 		const PathNode& J = PathNodes[Pn];
@@ -199,7 +200,9 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 			const int R = ClassRank(G.ClassOf(E));
 			if (R < 0) continue;
 			Sides.push_back(E);
-			Worth = Worth || R <= 4;
+			// ([build 155] beenster: "reduce the volumes of signs only to major road junctions": a map-type
+			// sign only where a B road or greater meets the ride's road, no longer at every tertiary lane)
+			Worth = Worth || R <= 3;
 			Lesser = Lesser && R >= RideRank;
 		}
 		bool Slips = Link(Before) || Link(After);
@@ -213,7 +216,12 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 		// (what this junction gets: map-type signs; [6D] a fingerpost where only lanes meet the ride's road out
 		// of town; a brown sign where a place worth seeing is off one of its side roads)
 		const bool Signed = !Sides.empty() && Worth && Lesser && !Slips && !(Town && !Major);
-		const bool Fingers = !Sides.empty() && !Worth && !Slips && !Town && RideRank >= 3;
+		// ([build 155] and a fingerpost only where an unclassified road (not a farm lane) leaves the ride's
+		// road, a mile and more after the last one)
+		bool Unclassified = false;
+		for (int E : Sides) Unclassified = Unclassified || ClassRank(G.ClassOf(E)) == 5 || ClassRank(G.ClassOf(E)) == 4;
+		const bool Fingers = !Sides.empty() && !Worth && Unclassified && !Slips && !Town && RideRank >= 3 && J.Along - LastFinger >= 1600.0;
+		if (Fingers) LastFinger = J.Along;
 		const bool Browns = !Sides.empty() && !Slips && !Sights.empty();
 		if (!Signed && !Fingers && !Browns) continue;
 		const double Reach = Signed ? 60000.0 : 25000.0;
@@ -456,6 +464,149 @@ std::vector<RidePlan::Furnish> RidePlan::DirectionSigns() const
 				break;
 			}
 		}
+	}
+	// [roundabouts round 2] (beenster: "Please make sure that bigger roundabouts get signage") Before each
+	// roundabout the ride's road goes round, any size (beenster: "All roundabouts need signs"), each way: a map-type advance
+	// sign, the ring on its stem and an arm for each road off it (left, ahead, right as they leave it) with
+	// the places each leads to first, as far before it as any junction's, on the traffic's side.
+	for (size_t P0 = 1; P0 + 1 < PathNodes.size(); ++P0)
+	{
+		const auto Rit = RingOfNode.find(PathNodes[P0].Node);
+		if (Rit == RingOfNode.end()) continue;
+		if (P0 > 0 && RingOfNode.count(PathNodes[P0 - 1].Node) != 0 && RingOfNode.at(PathNodes[P0 - 1].Node) == Rit->second) continue;   // (not the first node on it)
+		size_t P1 = P0;
+		while (P1 + 1 < PathNodes.size() && RingOfNode.count(PathNodes[P1 + 1].Node) != 0 && RingOfNode.at(PathNodes[P1 + 1].Node) == Rit->second) ++P1;
+		const RoadRing& Rg = RoadRings[size_t(Rit->second)];
+		if (P1 + 1 >= PathNodes.size()) continue;   // ([roundabouts round 3] every ring, the minis too: beenster, "All roundabouts need signs")
+		// The shortest way from the ring to every junction within 60 km, and which road off the ring it leaves by.
+		for (int N : Touched) { Dist[size_t(N)] = 1e18; Branch[size_t(N)] = -1; }
+		Touched.clear();
+		using Item = std::pair<double, int>;
+		std::priority_queue<Item, std::vector<Item>, std::greater<Item>> Open;
+		std::vector<int> RingEdges(Rg.Edges.begin(), Rg.Edges.end());
+		const auto OnThis = [&RingEdges](int E) { return std::find(RingEdges.begin(), RingEdges.end(), E) != RingEdges.end(); };
+		for (int Nd : Rg.Nodes)
+			if (Nd >= 0 && size_t(Nd) < G.Nodes.size()) { Dist[size_t(Nd)] = 0.0; Touched.push_back(Nd); Open.push({0.0, Nd}); }
+		while (!Open.empty())
+		{
+			const Item Top = Open.top();
+			Open.pop();
+			const int N = Top.second;
+			if (Top.first > Dist[size_t(N)] || Top.first > 60000.0) continue;
+			for (int E : G.Adjacent[size_t(N)])
+			{
+				if (ClassRank(G.ClassOf(E)) < 0 || OnThis(E)) continue;
+				const RoadEdge& Ed = G.Edges[size_t(E)];
+				const int M = Ed.A == N ? Ed.B : Ed.A;
+				const double D = Top.first + std::fmax(1.0, Ed.Length);
+				if (D >= Dist[size_t(M)]) continue;
+				if (Dist[size_t(M)] >= 1e17) Touched.push_back(M);
+				Dist[size_t(M)] = D;
+				Branch[size_t(M)] = Branch[size_t(N)] >= 0 ? Branch[size_t(N)] : E;
+				Open.push({D, M});
+			}
+		}
+		const auto PlacesOff = [&](int E, std::vector<std::pair<std::string, double>>& List)
+		{
+			List.clear();
+			const Named* Near = nullptr;
+			const Named* Big = nullptr;
+			for (const Named& T : Towns)
+			{
+				if (Branch[size_t(T.Node)] != E) continue;
+				const double D = Dist[size_t(T.Node)];
+				if (D < 800.0 || D > 60000.0) continue;
+				if (Near == nullptr || D < Dist[size_t(Near->Node)]) Near = &T;
+			}
+			for (const Named& T : Towns)
+			{
+				if (Branch[size_t(T.Node)] != E || &T == Near) continue;
+				const double D = Dist[size_t(T.Node)];
+				if (D < 5000.0 || D > 60000.0 || T.Pop < 1000 || (Near != nullptr && (D < Dist[size_t(Near->Node)] * 1.5 || T.Pop < Near->Pop * 2))) continue;
+				if (Big == nullptr || T.Pop > Big->Pop) Big = &T;
+			}
+			if (Near != nullptr) List.emplace_back(Near->Name, Dist[size_t(Near->Node)]);
+			if (Big != nullptr && (Near == nullptr || Big->Name != Near->Name)) List.emplace_back(Big->Name, Dist[size_t(Big->Node)]);
+		};
+		for (int Way : {1, -1})
+		{
+			const size_t Entry = Way > 0 ? P0 : P1;
+			const int InBy = Way > 0 ? PathNodes[P0 - 1].Next : PathNodes[P1].Next;
+			const double JAlong = PathNodes[Entry].Along;
+			if (InBy < 0 || JAlong < 80.0 || JAlong > Length - 80.0) continue;
+			const int Rank = ClassRank(G.ClassOf(InBy));
+			if (Rank < 0) continue;
+			const size_t I = PointAt(JAlong - Way * 30.0);
+			const P2 Going = Dir(I) * double(Way);
+			const P2 LeftOf(Going.Z, -Going.X);
+			std::string Ahead, Left, Right;
+			for (int Nd : Rg.Nodes)
+			{
+				if (Nd < 0 || size_t(Nd) >= G.Adjacent.size()) continue;
+				for (int E : G.Adjacent[size_t(Nd)])
+				{
+					if (E == InBy || OnThis(E) || ClassRank(G.ClassOf(E)) < 0) continue;
+					const P2 H = HeadingOut(E, Nd);
+					const double Fw = H.X * Going.X + H.Z * Going.Z, Sd = H.X * LeftOf.X + H.Z * LeftOf.Z;
+					if (Fw < -0.8) continue;   // (back the way: no arm)
+					std::vector<std::pair<std::string, double>> List;
+					PlacesOff(E, List);
+					std::string& To = (std::fabs(Sd) < 0.5 && Fw > 0.0) ? Ahead : Sd > 0.0 ? Left : Right;
+					for (const auto& P : List)
+						if (To.find(P.first) == std::string::npos && Ahead.find(P.first) == std::string::npos && Left.find(P.first) == std::string::npos && Right.find(P.first) == std::string::npos)
+							To += (To.empty() ? "" : ";") + P.first;
+				}
+			}
+				if (Left.empty() && Right.empty()) continue;
+			// (two places an arm at most, the nearer roads' first, as a sign has room for)
+			for (std::string* L : {&Ahead, &Left, &Right})
+			{
+				const size_t First = L->find(';');
+				const size_t Second = First == std::string::npos ? std::string::npos : L->find(';', First + 1);
+				if (Second != std::string::npos) L->resize(Second);
+			}
+			std::string Arms = "o";
+			if (!Ahead.empty()) Arms += "|^" + Ahead;
+			if (!Left.empty()) Arms += "|<" + Left;
+			if (!Right.empty()) Arms += "|>" + Right;
+			const int Mph = MphAt(JAlong - Way * 60.0);
+			if (Mph <= 0) continue;
+			const int Scheme = Rank == 0 ? SignPlate::SchemeMotorway : Rank == 1 ? SignPlate::SchemePrimary : SignPlate::SchemeLocal;
+			const double Cap = Rank >= 3 ? std::fmin(0.15, CapFor(Mph)) : CapFor(Mph);
+			double W = 0.0, H = 0.0;
+			if (!SignPlate::AdvanceBoard(nullptr, nullptr, SignPlate::Frame(), Cap, Scheme, Arms, W, H)) continue;
+			// (no further back than 20 m short of the junction before it, but the ring's own mouth, its
+			// carriageways parting and meeting within 40 m of it, isn't one)
+			double Room = 1e9;
+			for (double M : Meets)
+				if ((JAlong - M) * Way > 40.0) Room = std::fmin(Room, std::fabs(JAlong - M) - 20.0);
+			// (a little past a lane's mouth if it must: 45 m at least, then nearer down to 30 m, and a step
+			// further from the road if a board's edge would be over another)
+			const double Before2 = std::fmin(Mph <= 30 ? 45.0 : Mph <= 40 ? 65.0 : Mph <= 50 ? 100.0 : Mph <= 60 ? 150.0 : 200.0, std::fmax(Room, 45.0));
+			bool Stood = false;
+			for (double Back = Before2; Back >= 30.0 && !Stood; Back -= 10.0)
+				for (const double Pad : {0.7, 2.0})
+				{
+					const double At = JAlong - Way * Back;
+					if (At < 20.0 || At > Length - 20.0) break;
+					const size_t K = PointAt(At);
+					Furnish F;
+					F.Kind = DirAdvance;
+					F.Mapped = false;
+					F.Size = Scheme;
+					F.Big = Cap;
+					F.Text = Arms;
+					F.At = Verge(K, Way * Keep, Pad + W * 0.5);
+					F.Face = Dir(K) * -double(Way);
+					F.Height = Ground(F.At.X, F.At.Z);
+					const P2 Across(F.Face.Z, -F.Face.X);
+					if (std::isnan(F.Height) || !OffAll(F.At, 0.6) || !OffAll(F.At + Across * (W * 0.5), 0.5) || !OffAll(F.At - Across * (W * 0.5), 0.5)) continue;
+					Out.push_back(F);
+					Stood = true;
+					break;
+				}
+		}
+		P0 = P1;
 	}
 	// [6F] Countdown markers before a motorway's exits: where a slip road leaves the ride's road on a
 	// motorway (bearing off ahead, on the nearside), three bars at 300 yards, two at 200, one at 100.

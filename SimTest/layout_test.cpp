@@ -873,6 +873,8 @@ int main(int argc, char** argv)
 		{
 			// (the TFT dashes are this game's own units now, not Godot's housing: checked further down)
 			if (Key.rfind("dashboard/tft_", 0) == 0) continue;
+			// (beenster Nov 17: toolboxes are gone from the game, so they aren't drawn)
+			if (Key.rfind("toolbox/", 0) == 0) continue;
 			PartsMap B = GLay.ReferenceBuild(Sw.Str("base"));
 			for (const auto& [Slot, Id] : Sw.Get("parts")->O) B[Slot] = Id.S;
 			const Layout L = GLay.Solve(B);

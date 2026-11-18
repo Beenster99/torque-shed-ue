@@ -42,6 +42,19 @@ struct LocalLook
 	enum EChimney { GableEnds, OnRidge };
 	EChimney Chimney = GableEnds;
 	Tint Doors[4] = {{0.02f, 0.06f, 0.03f}, {0.012f, 0.012f, 0.012f}, {0.12f, 0.015f, 0.015f}, {0.01f, 0.02f, 0.07f}};
+	// [towns stage 5] Where this look came from (the region's, the materials atlas's area, a town in
+	// the table, or one counted from the map's tags); the share of its old stone buildings darkened by
+	// a century of coal smoke (the northern mill towns); the share of its houses painted in colours
+	// where the sea is near (the harbour and seaside towns: the rest of the render stays the place's).
+	enum EFrom : unsigned char { FromRegion, FromAtlas, FromTable, FromTags };
+	EFrom From = FromRegion;
+	float Soot = 0.0f, Paint = 0.0f;
+	// [towns stage 8] A famous street's own look (StreetEntry): its houses painted (its Paint share) away
+	// from the sea too, in its own colours where it names them (Washes, the first WashCount); its shops
+	// fronted even in a village.
+	bool Street = false, PaintAnywhere = false, Shops = false;
+	int WashCount = 0;
+	Tint Washes[6];
 };
 
 // The look of the place at a latitude and longitude.
@@ -60,10 +73,41 @@ struct TownEntry
 	float Brick = 0.0f, Stone = 0.0f, Render = 0.0f;
 	float Slate = 0.0f, Tile = 0.0f, StoneSlate = 0.0f, Thatch = 0.0f;
 	std::string BrickName, StoneName, TileName;
+	float Soot = -1.0f, Paint = -1.0f;   // [towns stage 5] (-1: the region's)
 };
-// Reads the table (JSON text); false if it isn't one. Kept for every ride after (thread safe).
+// [towns stage 8] A famous street's own look (the "streets" of Data/RideUK/town_looks.json): its lines
+// (each of lat, lon points: the map's ways that make it), how far either side of it the look holds (m), its walls and roofs as a town's,
+// its render's colour and its painted houses' colours (linear), its doors', and whether it is laid
+// in setts, has shop fronts and heritage lamps.
+struct StreetEntry
+{
+	std::string Name;
+	std::vector<std::vector<std::pair<double, double>>> Lines;
+	double Reach = 30.0;
+	TownEntry Look;
+	bool HasRender = false;
+	Tint Render;
+	std::vector<Tint> Washes, Doors;
+	bool Setts = false, Shops = false, Lamps = false;
+};
+// Reads the table (JSON text: its towns and its streets); false if it isn't one. Kept for every ride
+// after (thread safe).
 bool SetTownTable(const std::string& Text);
 std::vector<TownEntry> TownTable();
+std::vector<StreetEntry> StreetTable();
+// [towns stage 8] A look made a street's: the street's shares and colours over it.
+LocalLook StreetLook(const LocalLook& Under, const StreetEntry& Street);
+// A colour "#rrggbb" (as a photo shows it) as a linear tint; false if it isn't one.
+bool HexTint(const std::string& Hex, Tint& Out);
+// [towns stage 5] The materials atlas (Data/RideUK/materials_atlas.json): the country's local building
+// stones and bricks by area, each as a town entry (a centre, a reach, its stone and brick, and where
+// it says, its walls' and roofs' shares). Between the region's look and a town's: a place inside an
+// area takes the smallest area's materials over its region's, and a town in the table builds on that.
+bool SetMaterialsAtlas(const std::string& Text);
+std::vector<TownEntry> MaterialsAtlas();
+// The look of a place with the atlas's area over its region's (the region's own where none holds it);
+// Area names the area, if any.
+LocalLook AreaLook(double Lat, double Lon, std::string* Area = nullptr);
 // A brick colour by name (red, orange, brown, yellow, cream, blue), a stone's tint (bath, honey,
 // sandstone, gritstone, sooty, granite, limestone, red_sandstone, flint, slate) or a roof tile's
 // (red, orange, brown, blue); false for a name it doesn't know.

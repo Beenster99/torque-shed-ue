@@ -214,6 +214,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		}
 	}
 	Out.Roads.SnapRoadPoints();
+	Out.Roads.RingsOneWay();   // [roundabouts] (round each ring only the way traffic goes)
 	if (!Out.Roads.Extras.empty() || !Out.Roads.RoadPoints.empty()) Out.Roads.Credits.push_back("Lanes, crossings and traffic lights: OpenStreetMap contributors (ODbL).");
 	std::sort(Hashes.begin(), Hashes.end());
 	std::string Joined;

@@ -22,6 +22,7 @@ captured; 2.2 if it comes out pale), Brightness, NormalEncoded01 (1 if the norma
 the bake log says), MaskDepth (the depth that counts as tree, in the tree's radii).
 """
 import math
+import traceback
 
 import unreal
 
@@ -143,10 +144,17 @@ def _scalar(m, name, value, x, y):
     return e
 
 
+def _custom_input(name):
+    # ([round 154] UE 5.8's CustomInput takes no constructor arguments)
+    ci = unreal.CustomInput()
+    ci.set_editor_property("input_name", name)
+    return ci
+
+
 def _custom(m, code, out_type, inputs, x, y, label):
     e = _expr(m, unreal.MaterialExpressionCustom, x, y)
     _set(e, code=code, output_type=out_type, description=label,
-         inputs=[unreal.CustomInput(input_name=name) for name, _ in inputs])
+         inputs=[_custom_input(name) for name, _ in inputs])
     for name, src in inputs:
         mel.connect_material_expressions(src, "", e, name)
     return e
@@ -181,11 +189,25 @@ def _sub(m, a, b, x, y):
     return e
 
 
+def _asset(name, folder, cls, factory):
+    """The asset, loaded if it is there and made if not. ([round 154] deleting and making again fails
+    when the editor still holds it ("in use"), and making over it asks a question nobody can answer
+    in an unattended run.)"""
+    path = "%s/%s" % (folder, name)
+    if eal.does_asset_exist(path):
+        got = unreal.load_asset(path)
+        if got is not None:
+            return got
+    made = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, cls, factory)
+    if made is None:
+        raise RuntimeError("could not make or load %s" % path)
+    return made
+
+
 def master_material():
     path = "%s/%s" % (IMP_DIR, MASTER)
-    if eal.does_asset_exist(path):
-        eal.delete_asset(path)
-    m = unreal.AssetToolsHelpers.get_asset_tools().create_asset(MASTER, IMP_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    m = _asset(MASTER, IMP_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    mel.delete_all_material_expressions(m)   # (made again in place)
     _set(m, blend_mode=unreal.BlendMode.BLEND_MASKED, two_sided=True, tangent_space_normal=False,
          opacity_mask_clip_value=0.5, used_with_instanced_static_meshes=True)
     tex = {}
@@ -270,7 +292,7 @@ def _bounds(sm):
     return centre, ext, radius
 
 
-def bake(mesh_path):
+def bake(mesh_path, rebake=False):
     """Bakes one scanned tree; the path of its card mesh, or None."""
     sm = unreal.load_asset(mesh_path.split(".")[0])
     if not isinstance(sm, unreal.StaticMesh):
@@ -280,20 +302,29 @@ def bake(mesh_path):
     if base.startswith("SM_"):
         base = base[3:]
     card_path = "%s/SM_Imp_%s" % (IMP_DIR, base)
-    if eal.does_asset_exist(card_path) and eal.does_asset_exist("%s/MI_Imp_%s" % (IMP_DIR, base)):
+    if not rebake and eal.does_asset_exist(card_path) and eal.does_asset_exist("%s/MI_Imp_%s" % (IMP_DIR, base)):
         return "%s.SM_Imp_%s" % (card_path, base)
     centre, ext, radius = _bounds(sm)
     world = _world()
     acts = _actors()
-    at = unreal.Vector(0, 0, 2000000.0)   # (well away from anything in the editor's level)
+    at = unreal.Vector(0, 0, 100000.0)   # (1 km up, away from anything in the editor's level)
     tree = acts.spawn_actor_from_class(unreal.StaticMeshActor, at)
     tree.static_mesh_component.set_static_mesh(sm)
     tree.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
     cap_actor = acts.spawn_actor_from_class(unreal.SceneCapture2D, at)
     cap = cap_actor.capture_component2d
     _set(cap, capture_every_frame=False, capture_on_movement=False, projection_type=unreal.CameraProjectionMode.ORTHOGRAPHIC,
-         ortho_width=radius * 2.0, primitive_render_mode=unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST,
-         show_only_actors=[tree])
+         ortho_width=radius * 2.0, primitive_render_mode=unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST)
+    # ([round 154] the ShowOnlyActors property can't be set from Python on UE 5.8 ("cannot be edited on
+    # templates"), which left the list empty and every capture black: the component's own function)
+    try:
+        cap.show_only_actor_components(tree, False)
+    except TypeError:
+        cap.show_only_actor_components(tree)
+    try:
+        cap.show_only_component(tree.static_mesh_component)
+    except Exception:
+        pass
     F = unreal.TextureRenderTargetFormat
     shots = {"C": (unreal.SceneCaptureSource.SCS_BASE_COLOR, _rt(F.RTF_RGBA8, CAPTURE_PX), _rt_asset("RT_Imp_C", F.RTF_RGBA8, ATLAS_PX)),
              "N": (unreal.SceneCaptureSource.SCS_NORMAL, _rt(F.RTF_RGBA16F, CAPTURE_PX), _rt_asset("RT_Imp_N", F.RTF_RGBA16F, ATLAS_PX)),
@@ -308,6 +339,12 @@ def bake(mesh_path):
                 d = frame_dir(i, j)
                 cap_actor.set_actor_location_and_rotation(centre_ws + d * dist, unreal.MathLibrary.make_rot_from_x(d * -1.0), False, False)
                 cap.capture_scene()
+                if i == 0 and j == 0:
+                    # ([round 154] the first views came out black: give the tree's Nanite data and
+                    # textures a few captures to stream in before the one that counts)
+                    for _ in range(6):
+                        cap.capture_scene()
+                        unreal.RenderingLibrary.read_render_target_raw_pixel(world, shot, 0, 0)
                 # (a canvas draws its batch when it ends, so one per frame: the shot is the next view's by then)
                 canvas, size, ctx = unreal.RenderingLibrary.begin_draw_canvas_to_render_target(world, atlas)
                 canvas.draw_texture(shot, unreal.Vector2D(i * CELL_PX, j * CELL_PX), unreal.Vector2D(CELL_PX, CELL_PX),
@@ -318,6 +355,18 @@ def bake(mesh_path):
                         probe = unreal.RenderingLibrary.read_render_target_raw_pixel(world, shot, CAPTURE_PX // 2, CAPTURE_PX // 2)
                     except Exception:
                         probe = None
+    try:
+        cprobe = unreal.RenderingLibrary.read_render_target_raw_pixel(world, shots["C"][1], CAPTURE_PX // 2, CAPTURE_PX // 2)
+        log("%s: last colour view's middle pixel %.2f %.2f %.2f (all 0: nothing was captured)" % (base, cprobe.r, cprobe.g, cprobe.b))
+        if cprobe.r + cprobe.g + cprobe.b <= 0.0:
+            # (never plant black cards: under UnrealEditor-Cmd the captures render nothing; bake in
+            # the full editor with Tools/ue_bake_impostors.py)
+            log("%s: NOT baked: the captures are black (run Tools/ue_bake_impostors.py in the full editor)" % base)
+            tree.destroy_actor()
+            cap_actor.destroy_actor()
+            return None
+    except Exception:
+        pass
     if probe is not None:
         log("%s: normal capture at the middle of a side view reads %.2f %.2f %.2f (negatives: -1..1, set NormalEncoded01 0; all 0..1: maybe 1)"
             % (base, probe.r, probe.g, probe.b))
@@ -327,11 +376,9 @@ def bake(mesh_path):
     for key, (source, shot, atlas) in shots.items():
         name = "T_Imp_%s_%s" % (base, key)
         dest = "%s/%s" % (IMP_DIR, name)
-        if eal.does_asset_exist(dest):
-            eal.delete_asset(dest)
         comp = T.TC_DEFAULT if key == "C" else T.TC_HDR
         mips = unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP if key != "D" else unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
-        tex = unreal.RenderingLibrary.render_target_create_static_texture2d_editor(atlas, comp, mips)
+        tex = _texture_of(atlas, comp, mips, name)
         if tex is None:
             log("%s: no texture from the %s atlas" % (base, key))
             break
@@ -350,9 +397,7 @@ def bake(mesh_path):
     # (the tree's own material instance)
     mi_name = "MI_Imp_%s" % base
     mi_path = "%s/%s" % (IMP_DIR, mi_name)
-    if eal.does_asset_exist(mi_path):
-        eal.delete_asset(mi_path)
-    mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset(mi_name, IMP_DIR, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    mi = _asset(mi_name, IMP_DIR, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     mel.set_material_instance_parent(mi, unreal.load_asset("%s/%s" % (IMP_DIR, MASTER)))
     for key in ("C", "N", "D"):
         mel.set_material_instance_texture_parameter_value(mi, "Tex" + key, made[key])
@@ -370,6 +415,39 @@ def bake(mesh_path):
     return card.get_path_name()
 
 
+def _texture_of(rt, comp, mips, dest_name):
+    """A texture asset made from a render target asset (the function's name moved between releases:
+    UE 5.8 has no RenderTargetCreateStaticTexture2DEditor; it has ConvertRenderTargetToTexture2DEditorOnly,
+    which fills a texture that already exists)."""
+    R = unreal.RenderingLibrary
+    conv = getattr(R, "convert_render_target_to_texture2d_editor_only", None)
+    if conv is not None:
+        try:
+            # (straight into the texture it ends up as, made once and filled again on a rebake)
+            tex = _asset(dest_name, IMP_DIR, unreal.Texture2D, unreal.Texture2DFactoryNew())
+            conv(_world(), rt, tex)
+            _set(tex, compression_settings=comp, mip_gen_settings=mips)
+            return tex
+        except Exception as e:
+            log("convert_render_target_to_texture2d_editor_only: %s" % e)
+    for name in ("render_target_create_static_texture_editor", "render_target_create_static_texture2d_editor"):
+        f = getattr(R, name, None)
+        if f is None:
+            continue
+        for args in ((rt, rt.get_name() + "_Tex", comp, mips), (rt, comp, mips), (rt,)):
+            try:
+                tex = f(*args)
+                if tex is not None:
+                    return tex
+            except TypeError:
+                continue
+            except Exception as e:
+                log("%s: %s" % (name, e))
+                break
+    log("no render-target-to-texture function worked; RenderingLibrary has: %s" % ", ".join(n for n in dir(R) if "texture" in n.lower()))
+    return None
+
+
 def _card(path, radius, min_z, max_z, mi):
     gs_prim = getattr(unreal, "GeometryScript_MeshPrimitiveFunctions", None)
     make = None
@@ -382,7 +460,12 @@ def _card(path, radius, min_z, max_z, mi):
         log("no Geometry Script (enable the GeometryScripting plugin): no card made")
         return None
     if eal.does_asset_exist(path):
-        eal.delete_asset(path)
+        # (a card depends only on the tree's size: kept, with the tree's material instance put on again)
+        sm = unreal.load_asset(path)
+        if isinstance(sm, unreal.StaticMesh):
+            sm.set_editor_property("static_materials", [unreal.StaticMaterial(material_interface=mi, material_slot_name="Impostor")])
+            eal.save_asset(path, only_if_is_dirty=False)
+            return sm
     dm = unreal.DynamicMesh()
     height = max(max_z - min_z, 1.0)
     # (a rectangle in x-y, turned up into x-z, its bottom at min_z)
@@ -415,16 +498,11 @@ def bake_all(mesh_paths, rebake=False):
         eal.make_directory(IMP_DIR)
     if rebake or not eal.does_asset_exist("%s/%s" % (IMP_DIR, MASTER)):
         master_material()
-    if rebake:
-        for a in eal.list_assets(IMP_DIR, recursive=False, include_folder=False):
-            n = a.rsplit("/", 1)[-1]
-            if n.startswith("SM_Imp_") or n.startswith("MI_Imp_"):
-                eal.delete_asset(a.split(".")[0])
     out = []
     for p in mesh_paths:
         try:
-            out.append(bake(p))
+            out.append(bake(p, rebake))
         except Exception as e:
-            log("%s: bake failed: %s" % (p, e))
+            log("%s: bake failed: %s\n%s" % (p, e, traceback.format_exc()))
             out.append(None)
     return out

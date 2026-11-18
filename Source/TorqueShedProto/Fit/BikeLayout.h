@@ -171,6 +171,16 @@ public:
 	const std::vector<std::string>& ShopStyles() const { return ShopStyleList.empty() ? StyleList : ShopStyleList; }
 	bool HasV2() const { return !ShopStyleList.empty(); }
 	PartsMap ShopBuild(const std::string& Style) const;
+	// [bare frame] Every V2 bike's own parts are shop parts ("v2part" in Data/BikesV2/parts_v2.json): a frame's
+	// own, slot -> id (its "v2" "build"), and Parts with a new frame's own in place of other V2 parts (and in the
+	// slots that were empty); what the player chose that isn't a V2 model's part (common, service parts) stays.
+	PartsMap V2Build(const std::string& FrameId) const;
+	PartsMap V2Dress(const PartsMap& Parts) const;
+	// Why a V2 model's part won't go in Slot on a bike of Parts (empty: it fits, or isn't a V2 model's part). The
+	// family's mounting standard (docs/mounting_standard.md): its family's frames; an engine and what bolts to it
+	// only a frame built round its layout; a shock only the same rear end; handlebars only their own model. On a
+	// loose engine (Parts has its engine and no frame) its parts go by the engine's layout.
+	std::string V2FitReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
 	// The parts catalogue it was loaded on (its kinds and ids in parts.json's order).
 	const PartsDb* Catalogue() const { return Db; }
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).

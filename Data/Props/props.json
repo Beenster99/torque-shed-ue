@@ -803,6 +803,11 @@
    "name": "Spray cans, another row of eight",
    "torque_shed": "dressing (beenster, Nov 10: more spray cans at the back of the workbench)",
    "source": "blender"
+  },
+  "forecourt_garage": {
+   "name": "Forecourt garage unit (Ride UK)",
+   "torque_shed": "none (UE only: beenster Nov 17 2026)",
+   "source": "blender"
   }
  }
 }

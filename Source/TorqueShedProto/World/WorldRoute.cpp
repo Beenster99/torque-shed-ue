@@ -662,6 +662,7 @@ bool ReadFamousRoads(const std::string& Text, std::vector<FamousRoad>& Out)
 		FamousRoad F;
 		F.Name = Row.Str("name");
 		F.About = Row.Str("about");
+		F.Street = Row.Flag("street");
 		const std::string Mode = Row.Str("mode", "curvy");
 		F.Journey.Mode = IsStyle(Mode) ? Mode : "curvy";
 		const TorqueFit::Json* Pins = Row.Get("pins");

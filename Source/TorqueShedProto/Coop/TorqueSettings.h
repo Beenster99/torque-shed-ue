@@ -84,6 +84,10 @@ struct FTorqueSettings
 	bool bDayNight = false;     // the clock runs
 	int32 DayLength = 120;      // real minutes for a whole day
 	float TimeOfDay = -1.0f;    // hours, -1 for the level's own light
+	// The ride's date (beenster Nov 17): the day of the year, 1 .. 365, or 0 for today. The sun's path,
+	// sunrise and sunset, the night sky, the season on the land and the HUD's date follow it.
+	int32 RideDate = 0;
+	int32 RideYear = 0;          // [ride date] the year picked with it (0: this year; build 155 feedback)
 	bool bRealClock = false;    // the clock and sun follow the real time and date where you ride (weather plan stage 5)
 	// 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads, 4 live (the real
 	// weather where you ride; the default, as beenster chose: the host can switch it off any time),

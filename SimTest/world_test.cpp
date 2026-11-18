@@ -93,6 +93,9 @@ int main()
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
 	std::string TownText;
 	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
+	// [towns stage 5] (the materials atlas)
+	std::string AtlasText;
+	const bool AtlasRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/materials_atlas.json"), AtlasText) && SetMaterialsAtlas(AtlasText);
 	// [towns stage 4] (the house types)
 	std::string TypesText;
 	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
@@ -1019,12 +1022,71 @@ int main()
 						if (Right)
 						{
 							const LocalLook Y = TownLook(LookAt(York->Lat, York->Lon), *York), Ld = TownLook(LookAt(Leeds->Lat, Leeds->Lon), *Leeds);
-							Right = Y.BrickShare > 0.7f && Y.TileShare > 0.6f && Ld.BrickShare > 0.7f && Ld.TileShare < 0.3f && Ld.HouseStone.R < 0.6f;
+							Right = Y.BrickShare > 0.7f && Y.TileShare > 0.6f && Ld.BrickShare > 0.7f && Ld.TileShare < 0.3f && Ld.Soot >= 0.3f;
 						}
 						const int Squares = int(Plan->TownGrid.size());
 						std::printf("      towns: %zu in the table (%d with a colour it doesn't know); %d km squares here with a town look (%d counted from tags, %d of the table's towns)\n",
 							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
 						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
+					}
+					// [towns stage 8] The famous streets' own looks: read, every colour known, each street's lines
+					// together (within 1.5 km of its first point), its painted ones with their own colours; the
+					// Shambles under clay tiles in setts, Tobermory painted away from the sea.
+					{
+						const std::vector<StreetEntry> Streets = StreetTable();
+						int Unknown = 0, Apart = 0, Unwashed = 0;
+						const StreetEntry* Shambles = nullptr;
+						const StreetEntry* Tobermory = nullptr;
+						for (const StreetEntry& S : Streets)
+						{
+							Tint Probe;
+							const TownEntry& T = S.Look;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+							for (const auto& Way : S.Lines)
+								for (const auto& Pt : Way)
+									Apart += std::hypot((Pt.first - S.Lines[0][0].first) * 111.2, (Pt.second - S.Lines[0][0].second) * 111.2 * std::cos(Pt.first * 0.0174533)) > 1.5 ? 1 : 0;
+							Unwashed += T.Paint > 0.5f && S.Washes.empty() ? 1 : 0;
+							if (S.Name == "The Shambles, York") Shambles = &S;
+							if (S.Name == "Main Street, Tobermory") Tobermory = &S;
+						}
+						bool Right = Shambles && Tobermory;
+						if (Right)
+						{
+							const LocalLook Sh = StreetLook(LookAt(53.96, -1.08), *Shambles), Tob = StreetLook(LookAt(56.62, -6.07), *Tobermory);
+							Right = Shambles->Setts && Sh.TileShare > 0.9f && Sh.Street && Tob.PaintAnywhere && Tob.WashCount >= 4 && Tob.RenderShare > 0.9f;
+						}
+						std::printf("      famous streets: %zu in the table (%d with a colour it doesn't know, %d points astray, %d painted without colours); %zu here\n",
+							Streets.size(), Unknown, Apart, Unwashed, Plan->StreetsHere.size());
+						Check(Streets.size() >= 25 && Unknown == 0 && Apart == 0 && Unwashed == 0 && Right, "famous streets: their looks read, every colour known, lines together, the Shambles tiled in setts, Tobermory painted");
+					}
+					// [towns stage 5] The materials atlas: read, every colour known; Bath in Bath stone, Aberdeen grey
+					// granite, Haworth gritstone (and sooted), Ely cream gault brick, the Lancashire mill towns red
+					// Accrington brick; a place no area holds keeps its region's look.
+					{
+						const std::vector<TownEntry> Areas = MaterialsAtlas();
+						int Unknown = 0;
+						for (const TownEntry& T : Areas)
+						{
+							Tint Probe;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+						}
+						const auto TownAt = [](const char* Name, double Lat, double Lon)
+						{
+							for (const TownEntry& T : TownTable())
+								if (T.Name == Name) return TownLook(AreaLook(T.Lat, T.Lon), T);
+							return AreaLook(Lat, Lon);
+						};
+						Tint BathStone, Granite, Grit, Gault, Accrington;
+						NamedStone("bath", BathStone); NamedStone("granite", Granite); NamedStone("gritstone", Grit); NamedBrick("gault", Gault); NamedBrick("accrington", Accrington);
+						const LocalLook Bath = TownAt("Bath", 51.3811, -2.359), Aberdeen = TownAt("Aberdeen", 57.1497, -2.0943), Haworth = TownAt("Haworth", 53.8303, -1.9573);
+						const LocalLook Ely = AreaLook(52.3986, 0.2627), Burnley = AreaLook(53.7893, -2.2405), NoArea = AreaLook(52.0, -4.4);
+						const auto Alike = [](const Tint& P, const Tint& Q) { return std::fabs(P.R - Q.R) < 0.01f && std::fabs(P.G - Q.G) < 0.01f && std::fabs(P.B - Q.B) < 0.01f; };
+						const bool Right = Alike(Bath.HouseStone, BathStone) && Bath.BrickShare < 0.2f && Alike(Aberdeen.HouseStone, Granite) && Alike(Haworth.HouseStone, Grit) && Haworth.Soot > 0.3f
+							&& Alike(Ely.BrickColour, Gault) && Ely.BrickShare > 0.6f && Ely.From == LocalLook::FromAtlas && Alike(Burnley.BrickColour, Accrington) && Burnley.Soot > 0.3f
+							&& NoArea.From == LocalLook::FromRegion;
+						std::printf("      materials atlas: %zu areas (%d with a colour it doesn't know); %d km squares here from an area; Ely brick %.2f %.2f %.2f, Haworth soot %.2f\n",
+							Areas.size(), Unknown, Plan->AtlasSquares, Ely.BrickColour.R, Ely.BrickColour.G, Ely.BrickColour.B, Haworth.Soot);
+						Check(AtlasRead && Areas.size() >= 40 && Unknown == 0 && Right, "materials atlas: read, every colour known; Bath stone, Aberdeen granite, Haworth gritstone sooted, Ely gault brick, Lancashire Accrington brick");
 					}
 					// [towns stage 4] The house types: every kind has its periods; a terrace mostly Victorian sashes
 					// with bays, an inter-war semi mostly hipped with bays; a pick always lands on a period.
@@ -1797,6 +1859,13 @@ int main()
 								float Lo = 1e9f, Hi = -1e9f;
 								for (int Dj = 0; Dj < 2; ++Dj)
 									for (int Di = 0; Di < 2; ++Di) { const float Hy = Sq.Pos[(size_t(Cj + Dj) * 65 + size_t(Ci + Di)) * 3 + 1]; Lo = std::fmin(Lo, Hy); Hi = std::fmax(Hi, Hy); }
+								// ([road edges, build 155] or, on a road's grass shoulder, on the shoulder)
+								{
+									RidePlan::NearOpts Opts;
+									RidePlan::NearHit Hit;
+									if (Plan->NearestOf(X, Z, Opts, Hit) && !Hit.Deck && !Hit.Bore && Hit.Dist >= Hit.Half && Hit.Dist - Hit.Half < RidePlan::ShoulderFlat)
+										Hi = std::fmax(Hi, float(Hit.Height + Hit.Cross - 0.012));
+								}
 								PlantWorst = std::fmax(PlantWorst, double(std::fmax(P.Y - Hi, Lo - P.Y)));
 								if (P.Y > Hi + 0.01f || P.Y < Lo - 1.0f) ++PlantAstray;
 							}

@@ -304,7 +304,18 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 				std::string Bytes;
 				std::vector<ZipEntry> List;
 				TorqueFit::Json Head;
-				if (CellsFrom->BuildingsZip(Name, *Idx, Bytes) && ZipList(Bytes, List))
+				// ([build 155] the hub, from beenster's 154 log: "a fetch was asked for on the game thread and
+				// refused (c580_701 .bld.zip)", then "cell 580_701: no outlines", and that town stayed boxes all
+				// ride, as Harehills did. Asked where it may not be fetched, a cell is left to be asked again from
+				// a worker, its boxes only for this square.)
+				bool Deferred = false;
+				const bool Got = CellsFrom->BuildingsZip(Name, *Idx, Bytes, &Deferred);
+				if (Deferred)
+				{
+					Z->State = 0;
+					continue;
+				}
+				if (Got && ZipList(Bytes, List))
 				{
 					std::string Text;
 					for (const ZipEntry& E : List)

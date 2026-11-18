@@ -157,6 +157,8 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string AtlasText;   // [towns stage 5]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
 		std::string TypesText;   // [towns stage 4]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
 		std::string GlyphText;   // [OSM stage 6A]
@@ -426,6 +428,38 @@ int main(int Argc, char** Argv)
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
+			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]
+			{
+				// [towns stage 6] (the heritage lamps among the street lamps there, with WORLD_RIDE_FACADE)
+				int Heritage = 0;
+				std::vector<RideProp> Stood;
+				for (int Dz = -2; Dz <= 2; ++Dz)
+					for (int Dx = -2; Dx <= 2; ++Dx)
+					{
+						Plan->PropsTile(Cx + Dx * 256.0, Cz + Dz * 256.0, 256.0, Stood);
+						for (const RideProp& Pr : Stood) Heritage += Pr.Kind == RidePlan::PropLampHeritage ? 1 : 0;
+					}
+				std::printf("Heritage street lamps: %d (shopping streets: %zu pieces)\n", Heritage, Plan->ShopPlaces.size());
+			}
+			// [towns stage 5] (the coverage: where the walls and roofs came from)
+			const auto Share = [](const int* From, int K)
+			{
+				int All = 0;
+				for (int I = 0; I < 7; ++I) All += From[I];
+				return All > 0 ? 100.0 * From[K] / All : 0.0;
+			};
+			std::printf("Walling of houses, shops and flats: own tags %.0f%%, the street's %.0f%%, the town counted from tags %.0f%%, the town table %.0f%%, the atlas %.0f%%, the region %.0f%% (data: %.0f%%); %d sooted, %d painted by the sea\n",
+				Share(Tally.WallFrom, 0), Share(Tally.WallFrom, 1), Share(Tally.WallFrom, 2), Share(Tally.WallFrom, 3), Share(Tally.WallFrom, 4), Share(Tally.WallFrom, 5),
+				Share(Tally.WallFrom, 0) + Share(Tally.WallFrom, 1) + Share(Tally.WallFrom, 2), Tally.Sooted, Tally.Painted);
+			std::printf("Their roofs: own tags %.0f%%, the street's %.0f%%, the town counted %.0f%%, the town table %.0f%%, the atlas %.0f%%, the region %.0f%%, by period %.0f%%\n",
+				Share(Tally.RoofFrom, 0), Share(Tally.RoofFrom, 1), Share(Tally.RoofFrom, 2), Share(Tally.RoofFrom, 3), Share(Tally.RoofFrom, 4), Share(Tally.RoofFrom, 5), Share(Tally.RoofFrom, 6));
+			{
+				const LocalLook& L = Plan->LookHere(Cx + 128.0, Cz + 128.0);
+				std::printf("The look at the start: %s, from %s; stone tint %.2f %.2f %.2f, brick %.3f %.3f %.3f, render %.0f%% brick %.0f%%, soot %.2f, paint %.2f\n", L.Name,
+					L.From == LocalLook::FromTags ? "the map's tags" : L.From == LocalLook::FromTable ? "the town table" : L.From == LocalLook::FromAtlas ? "the atlas" : "the region",
+					L.HouseStone.R, L.HouseStone.G, L.HouseStone.B, L.BrickColour.R, L.BrickColour.G, L.BrickColour.B, 100.0 * L.RenderShare, 100.0 * L.BrickShare, L.Soot, L.Paint);
+				for (const auto& Src : Plan->TownSources) if (Src.rfind("atlas", 0) == 0) std::printf("  area: %s\n", Src.c_str());
+			}
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.
@@ -748,6 +782,42 @@ int main(int Argc, char** Argv)
 			int(Plan->Area.Roads.Sights.size()), Plan->PlacesFar, Plan->PlaceStopCount[RidePlan::PlaceMade], Plan->PlaceStopCount[RidePlan::PlaceCarPark],
 			Plan->PlaceStopCount[RidePlan::PlaceLayby], Plan->PlaceStopCount[RidePlan::PlaceStreet]);
 		std::printf("Places stage 7: %d paths in to the places, %d kissing gates on them\n", Plan->PlacePaths, Plan->PlaceGates);
+		// [roads stage 7] The petrol stations.
+		{
+			const Frame Fc(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
+			int Kiosks = 0, Three = 0, Garages = 0;
+			for (const RidePlan::Forecourt& F : Plan->Forecourts) { Kiosks += F.Kiosk ? 1 : 0; Three += F.Islands == 3 ? 1 : 0; Garages += F.Garage ? 1 : 0; }
+			std::printf("Forecourts: %d made of %d fuel stops (%d with a kiosk, %d with three islands, %d with a garage)\n", int(Plan->Forecourts.size()), Plan->FuelSeen, Kiosks, Three, Garages);
+			// [garage] each garage clear of the canopy, the kiosk and the forecourt's edge
+			for (size_t I = 0; I < Plan->Forecourts.size(); ++I)
+			{
+				RidePlan::GarageSpot G;
+				if (!Plan->GarageOf(int(I), G)) continue;
+				const RidePlan::Forecourt& F = Plan->Forecourts[I];
+				const double Gu = F.GarageU, Gv0 = F.GarageV, Gv1 = F.GarageV + RidePlan::GarageDeep;
+				const bool UnderCanopy = Gv0 < 5.0 + 9.0 && std::fabs(Gu) < F.CanopyLong * 0.5 + RidePlan::GarageWide * 0.5;
+				const bool PastDepth = Gv1 > F.Depth - 0.5;
+				const bool PastEnd = std::fabs(Gu) + RidePlan::GarageWide * 0.5 > F.Length * 0.5 - 5.0;
+				bool OffRing = false;
+				for (double U : {-0.5, 0.5})
+					for (double V : {0.0, 1.0})
+					{
+						const P2 Q = F.RoadMid + F.Out * (F.Half + Gv0 + V * RidePlan::GarageDeep) + F.RoadDir * (Gu + U * RidePlan::GarageWide);
+						OffRing = OffRing || !Plan->OnForecourt(Q.X, Q.Z);
+					}
+				if (UnderCanopy || PastDepth || PastEnd || OffRing)
+					std::printf("  GARAGE FAIL %s: under canopy %d, past depth %d, past end %d, off the forecourt %d\n", F.Name.c_str(), UnderCanopy, PastDepth, PastEnd, OffRing);
+			}
+			std::printf("Town life: %d of %d campsites with pitches (%d tents, %d caravans, %d statics), %d fountains, %d chargers\n", Plan->CampsMade, Plan->CampsSeen,
+				Plan->ThingCount[RidePlan::ThingTent], Plan->ThingCount[RidePlan::ThingCaravan], Plan->ThingCount[RidePlan::ThingStatic], Plan->ThingCount[RidePlan::ThingFountain],
+				Plan->ThingCount[RidePlan::ThingCharger]);
+			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
+			{
+				const RidePlan::Forecourt& F = Plan->Forecourts[I];
+				const Geo Gp = Fc.ToGeo(F.Canopy.X, F.Canopy.Z);
+				std::printf("  forecourt %s at %.5f,%.5f: %.0f m deep, %d islands%s\n", F.Name.c_str(), Gp.Lat, Gp.Lon, F.Depth, F.Islands, F.Kiosk ? ", kiosk" : "");
+			}
+		}
 		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
 		int Shown = 0;
 		for (size_t I = 0; I < Plan->PlaceStops.size() && Shown < 12; ++I)
@@ -990,6 +1060,7 @@ int main(int Argc, char** Argv)
 					Time("wild", [&](RideMesh& M) { Plan->WildTile(Kx, Kz, Sz, Detail, M); });
 					Time("towers", [&](RideMesh& M) { Plan->TowersTile(Kx, Kz, Sz, Detail, M); });
 					Time("places", [&](RideMesh& M) { Plan->PlacesTile(Kx, Kz, Sz, Detail, M); });
+					Time("town life", [&](RideMesh& M) { Plan->TownLifeTile(Kx, Kz, Sz, Detail, M); });
 					Time("rings", [&](RideMesh& M) { Plan->RingsTile(Kx, Kz, Sz, Detail, M); });
 				}
 				for (const auto& [Name, A] : Parts) std::printf("Draw parts level %d: %-14s %9.0f triangles, %.2f s\n", Lv, Name.c_str(), A[0], A[1]);
@@ -1210,14 +1281,27 @@ int main(int Argc, char** Argv)
 				const double Cross = std::fabs((B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X));
 				if (Cross > 1e-9) Tightest = std::fmin(Tightest, Ab * Bc * Ac / (2.0 * Cross));
 			}
+			// [roundabouts] (which way round the ride goes: clockwise seen from above is Britain's way)
+			double Turn = 0.0;
+			for (size_t K = 1; K < Plan->Road.size(); ++K)
+			{
+				const P2 A = Plan->Road[K - 1].At - Rg.Mid, B = Plan->Road[K].At - Rg.Mid;
+				if (A.Length() > Rg.Radius + 8.0 || B.Length() > Rg.Radius + 8.0) continue;
+				Turn += A.X * B.Z - A.Z * B.X;
+			}
+			std::printf("  ridden ring %zu goes round %s\n", I, Turn > 0.0 ? "clockwise" : "ANTICLOCKWISE");
 			std::printf("  ridden ring %zu (radius %.1f%s): %d road knots within 12 m, %.1f to %.1f m from its middle, tightest bend %.1f m\n", I, Rg.Radius,
 				Rg.Circle ? ", a circle" : "", On, Least, Most, Tightest);
 		}
 		for (const RidePlan::RideTurn& T : Plan->Turns)
 			if (T.Exit > 0) std::printf("  sat nav: at %.0f m, roundabout, exit %d (turn %d) onto '%s'\n", T.Along, T.Exit, T.Turn, T.Onto.c_str());
-		for (size_t I = 0; I < Plan->RoadRings.size() && I < 20; ++I)
+		const bool AllRings = std::getenv("WORLD_RIDE_RINGS_ALL") != nullptr;
+		for (size_t I = 0; I < Plan->RoadRings.size() && (I < 20 || AllRings); ++I)
 		{
 			const RidePlan::RoadRing& Rg = Plan->RoadRings[I];
+			double Near = 1e18;
+			for (const RoadPoint& P : Plan->Road) Near = std::fmin(Near, P.At.DistanceTo(Rg.Mid));
+			if (AllRings) std::printf("  ring %zu is %.0f m from the ride's road\n", I, Near);
 			std::printf("  ring %zu at %.0f, %.0f: radius %.1f m, strays %.1f m, %zu edges, %zu points%s%s\n", I, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Stray, Rg.Edges.size(), Rg.Line.size(),
 				Rg.Circle ? ", a circle" : "", Rg.Clockwise ? ", clockwise" : ", anticlockwise");
 		}
@@ -1286,6 +1370,12 @@ int main(int Argc, char** Argv)
 		for (const FeatureLine& F : G.Scenery.Lines) ++Kinds["line " + F.Kind];
 		for (const FeatureArea& F : G.Scenery.Areas) ++Kinds["area " + F.Kind];
 		std::printf("Buildings %d (looks %d), streams %d, pois %d, landmarks %d, places %d\n", int(G.Buildings.size()), int(G.Scenery.Buildings.size()), int(G.Streams.size()), int(G.Pois.size()), int(G.Landmarks.size()), int(G.Places.size()));
+		if (std::getenv("WORLD_RIDE_POI_KINDS") != nullptr)
+		{
+			std::map<std::string, int> PoiKinds;
+			for (const TorqueFit::Json& Poi : G.Pois) ++PoiKinds[Poi.Str("kind")];
+			for (const auto& Pk : PoiKinds) std::printf("  poi %s: %d\n", Pk.first.c_str(), Pk.second);
+		}
 		for (const auto& K : Kinds) std::printf("  %s: %d\n", K.first.c_str(), K.second);
 		int CoverN[11] = {0}, Treed = 0, Pts = 0;
 		for (size_t I = 0; I < Plan->Road.size(); I += 5)
@@ -1713,6 +1803,21 @@ int main(int Argc, char** Argv)
 				break;
 			}
 		}
+		else if (std::getenv("WORLD_RIDE_RINGAT") != nullptr)
+		{
+			// [roundabouts] (or the nth roundabout the map has, ridden or not)
+			const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_RINGAT")));
+			if (Plan->RoadRings.empty()) Plan->IndexRings();
+			if (Nth < Plan->RoadRings.size())
+			{
+				const RidePlan::RoadRing& Rg = Plan->RoadRings[Nth];
+				Rect Round;
+				Round.X0 = Rg.Mid.X - 300.0; Round.Z0 = Rg.Mid.Z - 300.0; Round.X1 = Rg.Mid.X + 300.0; Round.Z1 = Rg.Mid.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = Rg.Mid;
+				std::printf("ring %zu at %.0f, %.0f, radius %.1f%s%s\n", Nth, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Circle ? ", a circle" : "", Rg.Mini ? ", mini" : "");
+			}
+		}
 		else if (std::getenv("WORLD_RIDE_PLACEPATH") != nullptr)
 		{
 			// [places stage 7] (or the nth stop with a path in to its place: centred halfway along it)
@@ -1790,7 +1895,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText;
+		std::string Text, PropText, WallText;
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -1853,6 +1958,9 @@ int main(int Argc, char** Argv)
 								{
 									const double Lit = Cr * 2.0 * (1.0 + 0.25 * Cb);
 									Cr = 0.235 * Lit; Cg = 0.225 * Lit; Cb = 0.205 * Lit;
+									// ([towns stage 5] the houses' stone in the square's own tint)
+									if (Mesh == Houses && Extra) { Cr *= Extra->MasonryTint.R; Cg *= Extra->MasonryTint.G; Cb *= Extra->MasonryTint.B; }
+									else if (Mesh == Walls && Extra) { Cr *= Extra->StoneTint.R; Cg *= Extra->StoneTint.G; Cb *= Extra->StoneTint.B; }
 								}
 								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
 									Cr, Cg, Cb);
@@ -1875,6 +1983,14 @@ int main(int Argc, char** Argv)
 					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
 					for (const RideProp& P : Stands.Props)
 					{
+						// ([build 154] and the dry stone walls' lengths and heads, to WORLD_RIDE_MESH.walls: name variant x z y yaw pitch stretch)
+						if (P.Kind == RidePlan::PropWallStone || P.Kind == RidePlan::PropWallEnd)
+						{
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
+								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+							WallText += Buf;
+							continue;
+						}
 						if (!P.Facade) continue;
 						std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X, Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw));
 						PropText += Buf;
@@ -1914,6 +2030,7 @@ int main(int Argc, char** Argv)
 		}
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
+		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);
 	}
 	{
 		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and
