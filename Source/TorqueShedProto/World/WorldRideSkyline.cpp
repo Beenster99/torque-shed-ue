@@ -38,11 +38,14 @@ void SkyQuad(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& 
 	V3 N = Pt(Ay * Bz - Az * By, Az * Bx - Ax * Bz, Ax * By - Ay * Bx);
 	const double Len = std::sqrt(N.X * N.X + N.Y * N.Y + N.Z * N.Z);
 	if (Len < 1e-9) return;
-	N = Pt(N.X / Len, N.Y / Len, N.Z / Len);
+	// ([Nov 18] beenster, build 156: gravestones, the war memorial and the petrol stations "always black". The
+	// side these indices show is the one (Q2 - Q0) x (Q3 - Q1) points away from, and the normal was that
+	// cross product: every one-sided face here was lit from behind. Its normal is now the side it shows.)
+	N = Pt(-N.X / Len, -N.Y / Len, -N.Z / Len);
 	const uint32_t V = uint32_t(Out.Vertices());
 	const V3* Q[4] = {&Q0, &Q1, &Q2, &Q3};
 	for (int K = 0; K < 4; ++K) Vert(Out, *Q[K], N, C, Q[K]->X - Out.OriginX + Q[K]->Z - Out.OriginZ, -Q[K]->Y);
-	// (wound as the scenery's quads are: (Q2 - Q0) x (Q3 - Q1) is the side seen)
+	// (the side seen is the one (Q2 - Q0) x (Q3 - Q1) points away from: Q0..Q3 run clockwise as seen)
 	Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
 	if (Both) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
 }
