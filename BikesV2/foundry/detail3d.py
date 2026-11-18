@@ -752,7 +752,9 @@ def display(model, c, head, house, dash=None, size=(78, 46)):
     ky, kz = size[0] / 78.0, size[1] / 46.0
     slab("dashbody", dc, n, u, face, -20, 0, plastic, 5.0)
     slab("dashglass", dc, n, u, [(y * 0.9, z * 0.86) for y, z in face], -1, 0.8, surf("screen", (0.004, 0.005, 0.008), 0.0, 0.04, coat=1.0, wear=0.0), 0)
-    gw = min(size[0] * 0.9, size[1] * 0.86 / 0.6)
+    # (size is the face's half extents: the lit page fills the glass, less its rounded corners. Build 155 had it
+    # at half size, a small page in the middle of a big dark tablet.)
+    gw = min(2 * size[0] * 0.9, 2 * size[1] * 0.86 / 0.6) * 0.94
     GAUGES["dashglass"] = {"what": "screen", "at": [round(dc[0], 1), 0.0, round(dc[1], 1)], "axis": [round(n[0], 5), 0.0, round(n[1], 5)],
                            "up": [round(u[0], 5), 0.0, round(u[1], 5)], "w": round(gw, 1), "h": round(gw * 0.6, 1)}
     slab("dashrev", dc, n, u, [(-56 * ky, 22 * kz), (30 * ky, 22 * kz), (30 * ky, 27 * kz), (-56 * ky, 27 * kz)], 0.6, 1.1, glow("rev", (0.2, 0.75, 1.0), 2.5), 0)
@@ -3519,6 +3521,44 @@ def shots(build3d, name, tags, samples=24):
     return out
 
 
+def aim_mirrors(model, c):
+    """Each mirror head turned on its ball joint so the rider sees the road behind in it (beenster, build 155:
+    the glass faced straight back, so from the saddle it showed the ground beside the bike). The glass's normal
+    halves the angle between the line from the eye and the view wanted: back, a little down and a little out."""
+    from mathutils import Vector
+    eye = Vector((c["model_hip"] + 80, 0, 1560)) * B.MM
+    done = []
+    for s in (-1, 1):
+        glass = bpy.data.objects.get(f"mirrorglass{s}")
+        head = bpy.data.objects.get(f"mirror{s}")
+        if not glass or not glass.data.polygons:
+            continue
+        mw = glass.matrix_world
+        pts = [mw @ v.co for v in glass.data.vertices]
+        mc = sum(pts, Vector()) / len(pts)
+        n0 = (mw.to_3x3() @ glass.data.polygons[0].normal).normalized()
+        if n0.x > 0:
+            # (the glass was wound facing forwards: seen from the saddle it was the back of the face)
+            glass.data.flip_normals()
+            n0 = -n0
+        v = (mc - eye).normalized()
+        side = 1 if mc.y > 0 else -1
+        want = Vector((-1.0, side * 0.14, -0.05)).normalized()
+        n1 = (want - v).normalized()
+        rot = n0.rotation_difference(n1).to_matrix()
+        for ob in (glass, head):
+            if not ob:
+                continue
+            inv = ob.matrix_world.inverted()
+            for vt in ob.data.vertices:
+                w = ob.matrix_world @ vt.co
+                vt.co = inv @ (mc + rot @ (w - mc))
+            ob.data.update()
+        done.append(round(math.degrees(n0.angle(n1))))
+    if done:
+        print(f"mirrors aimed at the road behind: turned {done} degrees")
+
+
 def bar_slant(model, c):
     """Grips slanted inwards (beenster, chopper round 1): the bar ends, with their grips, levers, switches and
     mirrors, swing back about the hand point, so the hand point itself stays exactly where the rider pose has
@@ -3705,6 +3745,7 @@ def run(build3d, model, c):
                 ob.data.materials[0] = B.mat("chrome")
     tank_decal(model, c)
     bar_slant(model, c)
+    aim_mirrors(model, c)
     for i, sh in enumerate(model["body"].get("shrouds", [])):
         # radiator shrouds (motocross): a panel each side standing just proud of the tank's flank, over the radiator
         pp = B.shapes.dense(sh["pts"], True, sh.get("t", 0.7))
