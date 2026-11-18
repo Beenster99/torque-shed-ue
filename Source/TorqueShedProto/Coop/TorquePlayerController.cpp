@@ -1158,8 +1158,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				// on the land (from the next ride) and the HUD's date. Left / Right a day; dragged, any day.
 				const int32 Today = FDateTime::UtcNow().GetDayOfYear();
 				const int32 DayNow = S.RideDate > 0 ? S.RideDate : Today;
-				const FString DateText = S.RideDate > 0 ? ATorqueGameState::DateOfDay(S.RideDate).ToString(TEXT("%d %B"))
-					: FString::Printf(TEXT("Today (%s)"), *ATorqueGameState::DateOfDay(Today).ToString(TEXT("%d %B")));
+				const FString DateText = S.RideDate > 0 ? ATorqueGameState::DayMonthText(ATorqueGameState::DateOfDay(S.RideDate))
+					: FString::Printf(TEXT("Today (%s)"), *ATorqueGameState::DayMonthText(ATorqueGameState::DateOfDay(Today)));
 				Slide(TEXT("Ride date"), DateText, TEXT("The day the sun, the night sky and the season are for; Left / Right a day"), float(DayNow - 1) / 364.0f,
 					[GS, &S, DayNow](int32 D) {
 						S.RideDate = (DayNow - 1 + D + 365) % 365 + 1;

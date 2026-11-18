@@ -159,6 +159,9 @@ struct Looks
 	// Cover from V2ClosedFrom to V2ClosedFull closes the sky into one lumpy sheet (below it, gaps: 7/8
 	// stratocumulus still shows its cells).
 	double V2ClosedFrom = 0.85, V2ClosedFull = 0.92;
+	// The edge detail (to half) and crisp skins fade out over this many km from the camera (far off they are finer
+	// than a pixel and only sparkle: build 155 "a constant shimmering").
+	double V2DetailFadeKm = 10.0;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
 	// (so the sun is never dimmed twice).
 	double DeckFrom = 0.7, DeckTo = 0.95;
