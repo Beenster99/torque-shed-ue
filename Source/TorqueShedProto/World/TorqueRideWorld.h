@@ -41,6 +41,7 @@ class UMaterialInterface;
 class UProceduralMeshComponent;
 struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
+class UTorqueImpostors;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -249,6 +250,10 @@ private:
 	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;
 	TArray<TArray<int32>> KindNear, KindFar;
+	// [perf, build 157] Far trees of a scanned kind as impostors the game photographs from the scan
+	// (World/TorqueImpostors.h); ImpostorFar: a scan's species -> its kind's far species (for reach).
+	UPROPERTY(Transient) TObjectPtr<UTorqueImpostors> Impostors;
+	TMap<int32, int32> ImpostorFar;
 	// [stage 6] A few birds overhead near the rider: buzzards circling, red kites where kites live,
 	// gulls by the sea. Each wheels round a point of its own until the rider is far past it, then
 	// another is found ahead.
