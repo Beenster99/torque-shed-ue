@@ -1203,6 +1203,96 @@ def facade_material(L):
     return g.m
 
 
+STREET_KIT_KINDS = ("street_lamp", "power_pole")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+
+
+def street_kit_texture(L, file_name, asset, compression, nearest=False):
+    """One of Data/Textures/StreetKit's textures (Tools/make_street_kit_textures.py) as
+    /Game/RideUK/Textures/<asset>, linear; None if it isn't there."""
+    f = os.path.join(os.path.dirname(L.data_dir()), "Textures", "StreetKit", file_name)
+    if not os.path.exists(f):
+        return None
+    dest = "/Game/RideUK/Textures"
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", dest), ("destination_name", asset),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+    tex = unreal.load_asset(dest + "/" + asset)
+    if tex:
+        tex.set_editor_property("srgb", False)
+        tex.set_editor_property("compression_settings", compression)
+        if nearest:
+            # (the table: one texel per surface, read exactly)
+            tex.set_editor_property("filter", unreal.TextureFilter.TF_NEAREST)
+            tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+def street_kit_material(L):
+    """[street kit] M_RideStreetKit: the one material of the lamp posts and telegraph poles that
+    Tools/blender_street_kit.py builds in Blender (Chat with Fable, approved by beenster Nov 18: "please
+    build them yourself in blender and use suitable materials to improve their look"). The vertex colour
+    is the colour; its alpha a byte, 32 * surface + 2 + 28 * dirt, the surface a column of T_StreetKitLut
+    (Tools/make_street_kit_textures.py SURFACES: timber, galvanised steel, concrete, porcelain, glass,
+    enamel, bare steel), which gives its roughness, metal, specular and how much of each detail it shows:
+    the timber's grain and checks, the zinc's spangle, the concrete's pits, and weathering, from
+    T_StreetKitDetail and T_StreetKitNormal over UV0 in metres. Four texture reads for every kind of
+    surface, so one material and draw for the whole kit. Falls back to M_RideProp's look (None) if the
+    textures aren't there."""
+    detail = street_kit_texture(L, "detail.png", "T_StreetKitDetail", unreal.TextureCompressionSettings.TC_DEFAULT)
+    nmap = street_kit_texture(L, "normal.png", "T_StreetKitNormal", unreal.TextureCompressionSettings.TC_DEFAULT)
+    lut = street_kit_texture(L, "lut.png", "T_StreetKitLut", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP, True)
+    if detail is None or nmap is None or lut is None:
+        return None
+    g = L.Graph(L.new_material("M_RideStreetKit"))
+    L.instanced_usage(g.m)
+    E = unreal
+    mul = lambda a, k, a_out="": g.op(E.MaterialExpressionMultiply, a, const_b=float(k), a_out=a_out)
+    add = lambda a, b: g.op(E.MaterialExpressionAdd, a, b)
+    addk = lambda a, k: g.op(E.MaterialExpressionAdd, a, const_b=float(k))
+    times = lambda a, b, a_out="", b_out="": g.op(E.MaterialExpressionMultiply, a, b, a_out=a_out, b_out=b_out)
+    pin = lambda node, p: mul(node, 1.0, p)
+    vc = g.node(E.MaterialExpressionVertexColor)
+    # (the surface and its dirt, from the alpha's byte)
+    band = mul(vc, 255.0 / 32.0, "A")
+    surface = g.op(E.MaterialExpressionFloor, band)
+    dirt = g.op(E.MaterialExpressionSaturate, mul(addk(mul(g.op(E.MaterialExpressionFrac, band), 32.0), -2.0), 1.0 / 28.0))
+    u = mul(addk(surface, 0.5), 1.0 / 8.0)
+    row0 = g.sample(lut, g.op(E.MaterialExpressionAppendVector, u, g.const(0.25)), "linear")
+    row1 = g.sample(lut, g.op(E.MaterialExpressionAppendVector, u, g.const(0.75)), "linear")
+    uv = g.node(E.MaterialExpressionTextureCoordinate)
+    d = g.sample(detail, uv, "linear")
+    centred = lambda p: addk(pin(d, p), -0.5)
+    f = times(mul(centred("R"), 0.7), row0, b_out="A")                       # grain
+    f = add(f, times(mul(centred("G"), 0.5), row1, b_out="R"))               # spangle
+    f = add(f, times(mul(centred("B"), 0.6), row1, b_out="G"))               # pits
+    f = add(f, times(mul(centred("A"), 0.5), row1, b_out="B"))               # weathering
+    f = add(f, addk(mul(dirt, -0.45), 1.0))
+    base = times(vc, f)
+    rough = add(pin(row0, "R"), add(mul(dirt, 0.25), times(mul(centred("G"), 0.25), row1, b_out="R")))
+    metal = times(pin(row0, "G"), addk(mul(dirt, -0.5), 1.0))
+    spec = pin(row0, "B")
+    n = g.sample(nmap, uv, "linear")
+    rg = g.node(E.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(n, rg)
+    ba = g.node(E.MaterialExpressionComponentMask, r=False, g=False, b=True, a=True); g.link(n, ba)
+    wood = times(addk(mul(rg, 2.0), -1.0), row0, b_out="A")
+    pits = times(addk(mul(ba, 2.0), -1.0), row1, b_out="G")
+    xy = times(add(wood, pits), row1, b_out="A")
+    normal = g.node(E.MaterialExpressionNormalize)
+    g.link(g.op(E.MaterialExpressionAppendVector, xy, g.const(1.0)), normal)
+    mel = L.mel
+    mel.connect_material_property(base, "", E.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(g.op(E.MaterialExpressionSaturate, rough), "", E.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(metal, "", E.MaterialProperty.MP_METALLIC)
+    mel.connect_material_property(spec, "", E.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(normal, "", E.MaterialProperty.MP_NORMAL)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
 def prop_kit(L):
     """The things by the road (OSM stage 2): Data/RideUK/Props/*.glb (Tools/make_ride_props.py)
     imported to /Game/RideUK/Props, no collision, and any static mesh under /Game whose path holds one
@@ -1266,6 +1356,7 @@ def prop_kit(L):
     try:
         L.new_material = lambda name, folder=None: original(name, MAT_DIR)
         paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+        kit_paint = street_kit_material(L) if any(n.startswith("SM_Prop_%s_" % k) for n in ours for k in STREET_KIT_KINDS) else None
         facade_paint = facade_material(L) if facade else None
     finally:
         L.new_material = original
@@ -1353,7 +1444,7 @@ def prop_kit(L):
         else:
             for name, mesh in sorted(ours.items()):
                 if name.startswith("SM_Prop_%s_" % kind):
-                    add(name, mesh, False, row)
+                    add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])
