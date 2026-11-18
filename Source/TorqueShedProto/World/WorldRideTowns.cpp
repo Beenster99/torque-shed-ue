@@ -348,13 +348,28 @@ bool RidePlan::SettsStreet(const std::vector<P2>& Line) const
 {
 	// (most of the road's points within its reach of a street in setts: a road along it, not one across it)
 	if (StreetPieces.empty() || Line.size() < 2) return false;
-	int In = 0;
-	for (const P2& P : Line)
+	// ([Nov 18] beenster, Haworth: "some are cobbles, some are not". A short bit of road at a junction off the
+	// street, or across it, had most of its few points within the street's reach and went to setts, so the
+	// road flicked between setts and tarmac. Now by length, and only where the road runs along the street, on it.)
+	double In = 0.0, All = 0.0;
+	for (size_t I = 1; I < Line.size(); ++I)
 	{
-		const StreetPiece* Pc = StreetAt(P.X, P.Z);
-		In += Pc && Pc->Setts ? 1 : 0;
+		const P2 D = Line[I] - Line[I - 1];
+		const double Len = D.Length();
+		if (Len < 1e-6) continue;
+		All += Len;
+		const P2 Mid = (Line[I] + Line[I - 1]) * 0.5;
+		const StreetPiece* Pc = StreetAt(Mid.X, Mid.Z);
+		if (!Pc || !Pc->Setts) continue;
+		const P2 S = Pc->B - Pc->A;
+		const double Sl = S.Length();
+		if (Sl < 1e-6 || std::fabs((D.X * S.X + D.Z * S.Z) / (Len * Sl)) < 0.8) continue;
+		// (and on it, not a street beside it within the look's reach)
+		const double T = std::clamp(((Mid.X - Pc->A.X) * S.X + (Mid.Z - Pc->A.Z) * S.Z) / (Sl * Sl), 0.0, 1.0);
+		if ((Pc->A + S * T).DistanceTo(Mid) > 6.0) continue;
+		In += Len;
 	}
-	return In * 5 >= int(Line.size()) * 3;
+	return All >= 15.0 && In >= All * 0.6;
 }
 
 bool RidePlan::SettsSurface(const std::string& Surface)
