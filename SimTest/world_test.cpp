@@ -1829,6 +1829,13 @@ int main()
 								float Lo = 1e9f, Hi = -1e9f;
 								for (int Dj = 0; Dj < 2; ++Dj)
 									for (int Di = 0; Di < 2; ++Di) { const float Hy = Sq.Pos[(size_t(Cj + Dj) * 65 + size_t(Ci + Di)) * 3 + 1]; Lo = std::fmin(Lo, Hy); Hi = std::fmax(Hi, Hy); }
+								// ([road edges, build 155] or, on a road's grass shoulder, on the shoulder)
+								{
+									RidePlan::NearOpts Opts;
+									RidePlan::NearHit Hit;
+									if (Plan->NearestOf(X, Z, Opts, Hit) && !Hit.Deck && !Hit.Bore && Hit.Dist >= Hit.Half && Hit.Dist - Hit.Half < RidePlan::ShoulderFlat)
+										Hi = std::fmax(Hi, float(Hit.Height + Hit.Cross - 0.012));
+								}
 								PlantWorst = std::fmax(PlantWorst, double(std::fmax(P.Y - Hi, Lo - P.Y)));
 								if (P.Y > Hi + 0.01f || P.Y < Lo - 1.0f) ++PlantAstray;
 							}
