@@ -138,11 +138,11 @@ const TCHAR* const TyreGameSteps =
 	TEXT("item:wire_19_chrome,act,place:changer,hold:7,tyrelog,look:changer,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
-// test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
+// test run): the pause menu, the Profile page (Settings > Profile) with the jaw and chin moved and the figure taller, its helmet view with the colour picker, then
 // the Settings. The face isn't saved, so your own comes back next time.
 const TCHAR* const MenuSteps =
 	TEXT("menu:pause,wait:1,shot:ui,menu:profile,wait:2,shot:ui,face:jaw:0.8,face:chin:-0.6,face:height:0.8,wait:2,shot:ui,")
-	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:settings,wait:1,shot:ui,menu:close");
+	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:profile:helmet,wait:2,shot:ui,menu:settings,wait:1,shot:ui,menu:close");
 
 // The paint mixing bay (paint_bay.gd): at the bench a litre of white with phthalo blue and lemon
 // yellow poured in (a green), stirred, a test card, saved as Mix 1 (its card on the swatch wall);

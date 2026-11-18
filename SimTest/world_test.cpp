@@ -1029,6 +1029,36 @@ int main()
 							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
 						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
 					}
+					// [towns stage 8] The famous streets' own looks: read, every colour known, each street's lines
+					// together (within 1.5 km of its first point), its painted ones with their own colours; the
+					// Shambles under clay tiles in setts, Tobermory painted away from the sea.
+					{
+						const std::vector<StreetEntry> Streets = StreetTable();
+						int Unknown = 0, Apart = 0, Unwashed = 0;
+						const StreetEntry* Shambles = nullptr;
+						const StreetEntry* Tobermory = nullptr;
+						for (const StreetEntry& S : Streets)
+						{
+							Tint Probe;
+							const TownEntry& T = S.Look;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+							for (const auto& Way : S.Lines)
+								for (const auto& Pt : Way)
+									Apart += std::hypot((Pt.first - S.Lines[0][0].first) * 111.2, (Pt.second - S.Lines[0][0].second) * 111.2 * std::cos(Pt.first * 0.0174533)) > 1.5 ? 1 : 0;
+							Unwashed += T.Paint > 0.5f && S.Washes.empty() ? 1 : 0;
+							if (S.Name == "The Shambles, York") Shambles = &S;
+							if (S.Name == "Main Street, Tobermory") Tobermory = &S;
+						}
+						bool Right = Shambles && Tobermory;
+						if (Right)
+						{
+							const LocalLook Sh = StreetLook(LookAt(53.96, -1.08), *Shambles), Tob = StreetLook(LookAt(56.62, -6.07), *Tobermory);
+							Right = Shambles->Setts && Sh.TileShare > 0.9f && Sh.Street && Tob.PaintAnywhere && Tob.WashCount >= 4 && Tob.RenderShare > 0.9f;
+						}
+						std::printf("      famous streets: %zu in the table (%d with a colour it doesn't know, %d points astray, %d painted without colours); %zu here\n",
+							Streets.size(), Unknown, Apart, Unwashed, Plan->StreetsHere.size());
+						Check(Streets.size() >= 25 && Unknown == 0 && Apart == 0 && Unwashed == 0 && Right, "famous streets: their looks read, every colour known, lines together, the Shambles tiled in setts, Tobermory painted");
+					}
 					// [towns stage 5] The materials atlas: read, every colour known; Bath in Bath stone, Aberdeen grey
 					// granite, Haworth gritstone (and sooted), Ely cream gault brick, the Lancashire mill towns red
 					// Accrington brick; a place no area holds keeps its region's look.

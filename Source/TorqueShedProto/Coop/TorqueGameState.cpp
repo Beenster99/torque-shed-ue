@@ -161,7 +161,7 @@ void ATorqueGameState::BeginPlay()
 	// The clock where it was left (the level's own light until the player sets one).
 	// (A test run keeps the level's light unless one of its steps set the clock.)
 	if (HasAuthority() && (!bTest || bTestClockSet)) Hour = Set.TimeOfDay;
-	if (HasAuthority() && !bTest) RideDay = FMath::Clamp(Set.RideDate, 0, 365);
+	if (HasAuthority() && !bTest) RideDay = FMath::Clamp(Set.RideDate, 0, 366);
 	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
 	// (-TorqueHour=<0..24> sets it for a test: a night shot of Ride UK's lamps and windows)
 	if (float ForcedHour = -1.0f; HasAuthority() && FParse::Value(FCommandLine::Get(), TEXT("TorqueHour="), ForcedHour) && ForcedHour >= 0.0f)
@@ -396,7 +396,7 @@ void ATorqueGameState::OnRep_Hour()
 void ATorqueGameState::SetRideDay(int32 Day)
 {
 	if (!HasAuthority()) return;
-	RideDay = FMath::Clamp(Day, 0, 365);
+	RideDay = FMath::Clamp(Day, 0, 366);
 	// (the land's season is set when a ride's ground is planned: the next ride takes it)
 	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
 	UE_LOG(LogTemp, Display, TEXT("Torque clock: ride date %s (day %d)"), RideDay > 0 ? *DateOfDay(RideDay).ToString(TEXT("%d %b")) : TEXT("today"), RideDay);
@@ -411,7 +411,9 @@ int32 ATorqueGameState::DayOfYearNow() const
 
 FDateTime ATorqueGameState::DateOfDay(int32 DayOfYear)
 {
-	const int32 Year = FDateTime::UtcNow().GetYear();
+	// (the year picked with the date in Settings > Gameplay, else this one)
+	const int32 Picked = FTorqueSettings::Get().RideYear;
+	const int32 Year = Picked > 0 ? Picked : FDateTime::UtcNow().GetYear();
 	return FDateTime(Year, 1, 1) + FTimespan::FromDays(FMath::Clamp(DayOfYear, 1, FDateTime::DaysInYear(Year)) - 1);
 }
 

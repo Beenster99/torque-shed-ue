@@ -351,10 +351,13 @@ void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garme
 // the hem sits just outside the jeans' waistband instead of fighting it; its colour, colour map and
 // normal map are copied from the material it had (the shirt's own, or the kit's that SolidClothes
 // gave it). -TorqueShirtPush=cm sets how far (0: as it was).
-void PushOut(UMeshComponent* Top, int32 Slot, const FString& Avatar)
+void PushOut(UMeshComponent* Top, int32 Slot, const FString& Avatar, double HemTop)
 {
-	float PushCm = 0.5f;
+	// (Round 155: 0.5 cm all over left black specks of jeans at the hem; the hem zone, below HemTop in
+	// the mesh's own space, goes a further HemCm out, fading in over 10 cm.)
+	float PushCm = 0.5f, HemCm = 1.2f;
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueShirtPush="), PushCm);
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueShirtHem="), HemCm);
 	UMaterialInterface* Was = Top->GetMaterial(Slot);
 	if (PushCm <= 0.0f || !Was) return;
 	UMaterialInterface* Push = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Rider/Materials/M_GarmentPush.M_GarmentPush"));
@@ -402,8 +405,11 @@ void PushOut(UMeshComponent* Top, int32 Slot, const FString& Avatar)
 	float Rough = 0.0f;
 	if (Was->GetScalarParameterValue(FHashedMaterialParameterInfo(FName(TEXT("Roughness"))), Rough)) MID->SetScalarParameterValue(TEXT("Roughness"), Rough);
 	MID->SetScalarParameterValue(TEXT("Push"), PushCm);
+	MID->SetScalarParameterValue(TEXT("HemPush"), HemTop > 10.0 ? HemCm : 0.0f);
+	MID->SetScalarParameterValue(TEXT("HemTop"), (float)HemTop);
 	Top->SetMaterial(Slot, MID);
-	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: top slot %d pushed out %.1f cm over the jeans (was %s;%s)"), *Avatar, Slot, PushCm,
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: top slot %d pushed out %.1f cm over the jeans, %.1f cm more below %.0f cm (was %s;%s)"), *Avatar, Slot, PushCm,
+		HemTop > 10.0 ? HemCm : 0.0f, HemTop,
 		*Was->GetName(), Took.IsEmpty() ? TEXT(" nothing copied") : *Took);
 }
 
@@ -461,6 +467,14 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		bool bBottom = false;
 		for (const FPart& P : E.Parts) bBottom |= P.Mesh.Contains(TEXT("BottomGarment"));
 		UMaterialInterface* const Clear = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
+		// (Where the shirt's hem zone starts, in the mesh's own space: below about the bottom rib, from the
+		// body's rest height; M_GarmentPush pushes more below it.)
+		double HemTop = 0.0;
+		if (Driver && Driver->GetSkinnedAsset())
+		{
+			const FBoxSphereBounds Rest = Driver->GetSkinnedAsset()->GetBounds();
+			HemTop = 0.62 * (Rest.Origin.Z + Rest.BoxExtent.Z);
+		}
 		if (bBottom && Clear && !FParse::Param(FCommandLine::Get(), TEXT("TorqueKeepShorts")))
 			for (const TWeakObjectPtr<USceneComponent>& W : Out)
 			{
@@ -476,7 +490,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 						|| WasName.Contains(TEXT("short")) || WasName.Contains(TEXT("trouser")) || WasName.Contains(TEXT("pant"));
 					if (!bLegs)
 					{
-						PushOut(Top, Slot, E.Name);
+						PushOut(Top, Slot, E.Name, HemTop);
 						continue;
 					}
 					UMaterialInstanceDynamic* Gone = UMaterialInstanceDynamic::Create(Clear, Top);

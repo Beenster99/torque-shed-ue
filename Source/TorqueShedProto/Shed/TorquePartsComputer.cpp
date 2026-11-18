@@ -134,6 +134,35 @@ FString TypeName(FName Type)
 	return StyleTitle(Type.ToString());
 }
 
+// The bike types a part suits that the game still has (beenster, build 155: "Some parts in the shop
+// still refer to bike types we have retired"): the one it's made for first. Empty: any bike.
+TArray<FName> KeptStyles(FName Part)
+{
+	const TArray<FName> Kept = BikeTypes();
+	TArray<FName> Out;
+	for (const FName& T : TorqueShedParts::PartStyles(Part))
+		if (Kept.Num() == 0 || Kept.Contains(T)) Out.AddUnique(T);
+	return Out;
+}
+
+// Whether a kind of part is needed for the bike to ride (beenster, build 155: "In the shop we should see a
+// marker to indicate whether this part is essential to ride or optional"): 1 essential, 0 optional, -1 not
+// a bike part (kit, paint, fluids). Essential: a slot the build screen counts as missing when it's empty.
+int32 Essential(FName Kind)
+{
+	const TArray<FName> Slots = TorqueShedParts::SlotsForKind(Kind);
+	if (Slots.Num() == 0) return -1;
+	for (const FName& Slot : Slots)
+		if (TorqueShedParts::IsEngineSlot(Slot) || !TorqueShedParts::MayBeEmpty(Slot)) return 1;
+	return 0;
+}
+
+FName KeptBest(FName Part)
+{
+	const TArray<FName> Types = KeptStyles(Part);
+	return Types.Num() > 0 ? Types[0] : NAME_None;
+}
+
 FString Join(const TArray<FString>& Parts)
 {
 	return FString::Join(Parts, TEXT(", "));
@@ -269,7 +298,7 @@ void FTorquePartsComputer::Relist()
 		for (const FName& P : TorqueShedParts::PartsOfKind(Kind))
 		{
 			if (!TorqueShedParts::SuitsStyle(P, TypeFilter)) continue;
-			if (TorqueShedParts::PreferredStyle(P) == TypeFilter) Rows.Add({P});
+			if (TPCI::KeptBest(P) == TypeFilter) Rows.Add({P});
 			else Also.Add(P);
 		}
 		for (const FName& P : Also) Rows.Add({P});
@@ -388,7 +417,7 @@ FString FTorquePartsComputer::Describe() const
 	{
 		Out += FString::Printf(TEXT(" (bike type: %s, %d listed)"), TypeFilter.IsNone() ? TEXT("all") : *TPCI::TypeName(TypeFilter), Rows.Num());
 		if (Rows.IsValidIndex(Row) && !Rows[Row].Part.IsNone())
-			Out += TEXT(" [suits: ") + TPCI::TypeName(TorqueShedParts::PreferredStyle(Rows[Row].Part)) + TEXT("]");
+			Out += TEXT(" [suits: ") + TPCI::TypeName(TPCI::KeptBest(Rows[Row].Part)) + TEXT("]");
 	}
 	return Out;
 }
@@ -713,13 +742,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		{
 			Name = TorqueShedParts::PartName(R.Part);
 			Sub = TorqueShedParts::PartDescription(R.Part);
-			// [bare frame] Whether a bike needs it to ride (beenster after 155).
-			{
-				const FName Home = TorqueShedParts::HomeSlot(R.Part);
-				if (!Home.IsNone() && Kind != FName(TEXT("frame")))
-					Sub = (TorqueShedParts::MayBeEmpty(Home) ? TEXT("Optional \u00B7 ") : TEXT("Needed to ride \u00B7 ")) + Sub;
-			}
-			const FName Best = TorqueShedParts::PreferredStyle(R.Part);
+			const FName Best = TPCI::KeptBest(R.Part);
 			if (Kind == FName(TEXT("engine")))
 			{
 				// Engines: their layout (beenster, Nov 12), not a bike type.
@@ -730,7 +753,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			{
 				// Frames: the bike types they're for (the one it's made for first).
 				TArray<FString> Names;
-				for (const FName& T : TorqueShedParts::PartStyles(R.Part))
+				for (const FName& T : TPCI::KeptStyles(R.Part))
 					if (Names.Num() < 3) Names.Add(TPCI::TypeName(T));
 				Tag = Names.Num() > 0 ? FString::Join(Names, TEXT(" \u00B7 ")) : TPCI::TypeName(Best);
 				bTagMatch = !TypeFilter.IsNone() && TorqueShedParts::SuitsStyle(R.Part, TypeFilter);
@@ -755,7 +778,21 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			NameW = TW - TagW - 8.0f * S;
 		}
 		Pen.Text(RX + 16.0f * S, RY + 5.0f * S, Pen.Fit(Name, 16.0f * S, NameW), 16.0f * S, bPicked ? TPCI::Ink : TPCI::Text);
-		Pen.Text(RX + 16.0f * S, RY + 26.0f * S, Pen.Fit(Sub, 12.0f * S, TW), 12.0f * S, bPicked ? TPCI::InkDim : TPCI::Dim);
+		// Needed to ride, or not: a small mark at the right of the second line.
+		const int32 Need = (R.Stock == INDEX_NONE && R.Part != FName(TEXT("bike")) && !TPCI::IsKit(Kind)) ? TPCI::Essential(Kind) : -1;
+		float SubW = TW;
+		if (Need >= 0)
+		{
+			const FString Mark = Need == 1 ? TEXT("Essential") : TEXT("Optional");
+			const float MPx = 11.0f * S, MH = 17.0f * S;
+			const float MW = Pen.Width(Mark, MPx) + 14.0f * S;
+			const float MX = RX + RowW - 16.0f * S - MW, MY = RY + 25.0f * S;
+			const FLinearColor Green(0.42f, 0.78f, 0.45f, 1.0f);
+			Box(MX, MY, MW, MH, Need == 1 ? FLinearColor(Green.R, Green.G, Green.B, bPicked ? 0.35f : 0.18f) : FLinearColor(1.0f, 1.0f, 1.0f, bPicked ? 0.16f : 0.06f));
+			Pen.Text(MX + 7.0f * S, MY + (MH - MPx * 1.2f) * 0.5f, Mark, MPx, Need == 1 ? (bPicked ? TPCI::Ink : Green) : (bPicked ? TPCI::InkDim : TPCI::Dim));
+			SubW = TW - MW - 8.0f * S;
+		}
+		Pen.Text(RX + 16.0f * S, RY + 26.0f * S, Pen.Fit(Sub, 12.0f * S, SubW), 12.0f * S, bPicked ? TPCI::InkDim : TPCI::Dim);
 		AddHit(RX + 6.0f * S, RY, RowW - 12.0f * S, RH - 4.0f * S, EHit::Row, I);
 	}
 	if (Rows.Num() > RowsShown)
@@ -807,15 +844,13 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			Spec = Fits.Num() > 0 ? TEXT("Fits: ") + TPCI::Join(Fits) : FString();
 			const FString BoltsTo = TorqueShedParts::V2Fits(R.Part);
 			if (!BoltsTo.IsEmpty()) Spec += TEXT("\nBolts to: ") + BoltsTo;
-			{
-				const FName Home = TorqueShedParts::HomeSlot(R.Part);
-				if (!Home.IsNone() && Kind != FName(TEXT("frame")))
-					Spec += TorqueShedParts::MayBeEmpty(Home) ? TEXT("\nOptional: a bike rides without it") : TEXT("\nNeeded to ride");
-			}
+			const int32 Need = TPCI::Essential(Kind);
+			if (Need == 1) Spec += TEXT("\nEssential: the bike won't ride without one");
+			else if (Need == 0) Spec += TEXT("\nOptional: the bike rides without it");
 			const double Mass = TorqueShedParts::PartNumber(R.Part, FName(TEXT("mass")), -1.0);
 			if (Mass > 0.0) Spec += FString::Printf(TEXT("\nWeight: %.1f kg"), Mass);
 			// The bike types it suits: the one it's made for, and the others it looks right on.
-			const TArray<FName> Types = TorqueShedParts::PartStyles(R.Part);
+			const TArray<FName> Types = TPCI::KeptStyles(R.Part);
 			if (Kind == FName(TEXT("engine"))) Spec += TEXT("\nLayout: ") + TorqueShedParts::EngineLayout(R.Part);
 			if (Types.Num() == 0) Spec += TEXT("\nPreferred bike type: any (it suits every bike)");
 			else

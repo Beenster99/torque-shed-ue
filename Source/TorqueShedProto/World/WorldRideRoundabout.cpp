@@ -704,6 +704,52 @@ void RidePlan::RingPaint(const RoadRing& R, RideMesh& Out) const
 			Quad(OnCircle(R.Half + 0.05, B0), OnCircle(R.Half + 0.05, B1), OnCircle(R.Half + 0.25, B1), OnCircle(R.Half + 0.25, B0));
 		}
 	}
+	// [roundabouts 156] (beenster, build 155 solo test: "On the exit of a roundabout there are no white lines -
+	// only give way lines on the entrance".) Each one-way road off the ring and on to it: a solid edge line
+	// down each side, 0.3 m in, from the ring's edge out RingArmLines m along its middle as the map draws it,
+	// so a way off reads as a lane, not a bare apron. (A two-way road has its splitter and its own lines.)
+	const auto OnOtherArm = [&Arms](const RingArm& Own, const P2& P)
+	{
+		for (const RingArm& O : Arms)
+		{
+			if (&O == &Own) continue;
+			for (size_t I = 1; I < O.Line.size(); ++I)
+			{
+				const P2 D = O.Line[I] - O.Line[I - 1];
+				const double L2 = D.X * D.X + D.Z * D.Z;
+				const double T = L2 > 1e-12 ? std::clamp(((P.X - O.Line[I - 1].X) * D.X + (P.Z - O.Line[I - 1].Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+				if (P.DistanceTo(O.Line[I - 1] + D * T) < O.Half + 0.2) return true;
+			}
+		}
+		return false;
+	};
+	for (const RingArm& A : Arms)
+	{
+		if (A.Way == 0 || A.Half < 1.6 || A.Half >= 2.95) continue;   // (a road 5.9 m wide or more has its own edge lines)
+		const double In = std::fmin(0.3, 0.15 * A.Half), Wd = 0.1;
+		double Run = 0.0;
+		for (size_t I = 1; I < A.Line.size() && Run < RingArmLines; ++I)
+		{
+			const double L = A.Line[I].DistanceTo(A.Line[I - 1]);
+			if (L < 1e-9) continue;
+			const P2 D = (A.Line[I] - A.Line[I - 1]) * (1.0 / L), Across(D.Z, -D.X);
+			for (double S = 0.0; S < L - 1e-6 && Run + S < RingArmLines; S += 1.0)
+			{
+				const double S1 = std::fmin(L, S + 1.0);
+				const P2 M0 = A.Line[I - 1] + D * S, M1 = A.Line[I - 1] + D * S1;
+				// (not on the ring's own tarmac, where its own markings are)
+				if (R.OffOf(M0) < R.Half + 0.3 || R.OffOf(M1) < R.Half + 0.3) continue;
+				for (double Sd : {1.0, -1.0})
+				{
+					const double O0 = Sd * (A.Half - In), O1 = Sd * (A.Half - In - Wd);
+					// (nor across another arm's tarmac, where a way off and a way on run together)
+					if (OnOtherArm(A, M0 + Across * O0) || OnOtherArm(A, M1 + Across * O0)) continue;
+					Quad(M0 + Across * O0, M1 + Across * O0, M1 + Across * O1, M0 + Across * O1);
+				}
+			}
+			Run += L;
+		}
+	}
 }
 
 std::vector<RidePlan::RingArm> RidePlan::RingArms(const RoadRing& R) const

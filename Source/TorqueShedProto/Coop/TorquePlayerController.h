@@ -120,6 +120,7 @@ private:
 		float Frac = -1.0f;
 		TFunction<void(float)> SetFrac;
 		bool bFace = false;                 // the Profile picture shows the face for this row
+		bool bHelmet = false;               // [profile] ... or your helmet on its own (and its colour picker)
 		bool bCentred = false;              // [profile] the slider fills out from its middle
 		TFunction<void()> Commit;           // a slider let go: saved and put on the game
 		bool bToggle = false, bOn = false;  // an on / off switch, and which
@@ -128,6 +129,18 @@ private:
 		TArray<FString> Caps;
 		int32 CapOn = -1;
 		FString Warning;
+		// [ride date] Boxes along the row (beenster, build 155: day, month and year pull-downs with a reset
+		// button on the same line): a pull-down has Options (Pick the one showing) and Set; a button Press.
+		struct FCell
+		{
+			FString Text;
+			TArray<FString> Options;
+			int32 Pick = -1;
+			TFunction<void(int32)> Set;
+			TFunction<void()> Press;
+			bool IsDrop() const { return Options.Num() > 0 && (bool)Set; }
+		};
+		TArray<FCell> Cells;
 		bool Works() const { return Choose || Step; }
 	};
 
@@ -169,7 +182,9 @@ private:
 	void Open(EPage P);
 	void Back();
 	FString Title() const;
-	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Character), -1 for none
+	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Profile), -1 for none
+	// [profile] Settings > Profile (EPage::Character; EPage::Profile opens it too): you, your avatar and helmet.
+	bool IsProfilePage() const { return Page == EPage::Character || Page == EPage::Profile; }
 	void SwitchTab(int32 Dir);
 	TArray<FRow> Rows();
 	void Changed();
@@ -208,9 +223,22 @@ private:
 	// [profile] Torque Shed's profile picture, top right of the Esc menu: it opens the Profile page
 	// (your MetaHuman, height and face; Shed/TorqueProfile.h), which shows you beside its sliders.
 	TWeakObjectPtr<ATorqueProfilePreview> Preview;
+	// [ride date] A row's pull-down open (its row and box), the option lit, and the first one shown.
+	int32 DropRow = -1, DropCell = -1, DropHot = 0, DropFirst = 0;
+	static constexpr int32 DropShown = 10;
+	void OpenDrop(const FRow& Row, int32 RowIndex, int32 Cell);
+	bool DropInput(TArray<FRow>& List, int32 MoveX, int32 MoveY, bool bChoose, bool bBack);
 	int32 DragRow = -1;         // the slider being dragged, and its track's ends on screen
 	double DragX0 = 0.0, DragX1 = 1.0;
 	bool bProfileSent = false;
+	// [profile] The helmet's colour picker under the picture (as the shop's): the square (richness
+	// across, brightness up), the hue strip and the named colours, where the last drawing put them,
+	// and which is being dragged (0 none, 1 the square, 2 the strip).
+	FBox2D PickSquare = FBox2D(ForceInit), PickHue = FBox2D(ForceInit);
+	TArray<FBox2D> PickSwatches;   // [0] as it came, then each named colour
+	int32 PickDrag = 0;
+	bool HelmetPickerMouse(const FVector2D& Mouse, bool bJustDown);   // true when the mouse was the picker's
+	void DrawHelmetPicker(UCanvas* Canvas, float X, float Y, float W, float H, float Px);
 	FString SentHelmetDecals;   // [decals stage 4]
 	bool bHelmetDecalsSent = false;
 	void ProfileChanged();
