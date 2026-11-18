@@ -323,6 +323,36 @@ def road_material_scanned(L, tex, roles):
     wet = L.wetness(g)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), hard), near), wet))
     road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), hard), wet))
+    # [weather, Nov 18] Standing water, as Buttertubs' M_Road (beenster on 156: "I am not seeing any puddles (we
+    # had them on buttertubs)"). The camber drains rain to the edges, most on a bend's inside; only after long
+    # rain does it reach across the middle; few puddles, now and then a bigger one. The road mesh's vertex
+    # alpha says where water stands (World/WorldRide's RoadPiece StandsAt): 0 the crown .. 0.9 the edge of a
+    # bend's inside half (0.72 a straight's, 0.45 an outside's); 1 is no data (other meshes in this material:
+    # no puddles). Only on the tarmac itself, never the paving, setts, gravel or verge.
+    va = g.node(unreal.MaterialExpressionVertexColor)
+    known = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                 g.op(unreal.MaterialExpressionSubtract, g.const(0.97), va, b_out="A"), const_b=40.0))     # 1 up to 0.945 .. 0 by 0.97
+    share = g.op(unreal.MaterialExpressionMultiply, va, const_b=1.0 / 0.9, a_out="A")                    # 0 crown .. 1 an inside edge
+    p_edge = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.5), const_b=2.6))
+    big = g.mask_noise(0.0009, -3.0, 1.4)
+    p_wide = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.25), const_b=1.6))
+    p_edge = g.lerp(p_edge, p_wide, big)
+    pud = L.weather_param(g, "Puddles")
+    fill = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, pud, const_b=2.5))
+    where = g.op(unreal.MaterialExpressionMultiply, p_edge, fill)
+    centre = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, pud, const_b=0.6), const_b=2.5))
+    where = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax, where, centre))
+    small = g.mask_noise(0.006, -7.0, 2.0)
+    large = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0022, -2.5, 2.2), big)
+    patches = g.op(unreal.MaterialExpressionMax, small, large)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, patches, where), wet)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, puddle, hard), known)
+    road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
+    road[2] = g.lerp(road[2], g.const(0.03), puddle)
+    road[1] = g.lerp(road[1], g.const((0.0, 0.0, 1.0)), puddle)   # still water is flat
     return g.finish(road, specular=0.4)
 
 
