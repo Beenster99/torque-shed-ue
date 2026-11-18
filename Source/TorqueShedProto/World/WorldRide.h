@@ -1318,7 +1318,9 @@ public:
 	// [OSM stage 5D] Town streets: a kerb KerbHigh high (its face a 45 degree slope) and a pavement out to
 	// PaveWide from the road's edge, each side, in place of the verge (beenster Nov 14: one continuous kerb
 	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
-	static constexpr double KerbHigh = 0.125, PaveWide = 1.4;   // ([build 154] beenster: pavements "too wide": 1.8 m was)
+	// ([build 154] beenster: pavements "too wide": 1.8 m was; [build 155] "lower and 10% narrower": 0.125 m and 1.4 m were)
+	static constexpr double KerbHigh = 0.09, PaveWide = 1.26;
+	static constexpr double PaveBack = 0.8;   // ([build 155] "make the ground meet the other side of the pavement": its back a grass slope down to the ground as drawn, this wide)
 	// [OSM stage 5D] Traffic lights: a fixed cycle of SignalCycle seconds from the shared clock (the master
 	// plan's open question: until it is answered, nothing happens to a rider who goes through on red).
 	// The lamps' codes in RideMesh::Signals' UV0 y.

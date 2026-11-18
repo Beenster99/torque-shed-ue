@@ -1602,9 +1602,10 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	{
 		static constexpr float KerbGrey[3] = {0.16f, 0.16f, 0.15f}, Paved[3] = {0.12f, 0.118f, 0.11f};
 		static constexpr int Lines = 6;
-		static constexpr double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + 0.35};
+		static constexpr double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + PaveBack};
 		static constexpr double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
-		const float* Looks[Lines - 1] = {KerbGrey, KerbGrey, Paved, nullptr, Paved};
+		static constexpr float BackGrass[3] = {0.10f, 0.16f, 0.03f};
+		const float* Looks[Lines - 1] = {KerbGrey, KerbGrey, Paved, nullptr, BackGrass};
 		for (size_t I = 0; I + 1 < N; ++I)
 		{
 			if (Edged[I] == 0) continue;
@@ -1615,7 +1616,16 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 			{
 				if (Looks[Ln] == nullptr) continue;
 				const uint32_t In0 = Vertex(Rim[I] + Outward[I] * Outs[Ln], RimH[I] - 0.012 + Lifts[Ln], Looks[Ln]), In1 = Vertex(Rim[J] + Outward[J] * Outs[Ln], RimH[J] - 0.012 + Lifts[Ln], Looks[Ln]);
-				const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Outs[Ln + 1], RimH[I] - 0.012 + Lifts[Ln + 1], Looks[Ln]), Out1 = Vertex(Rim[J] + Outward[J] * Outs[Ln + 1], RimH[J] - 0.012 + Lifts[Ln + 1], Looks[Ln]);
+				// ([build 155] the pavement's back down to just under the ground as drawn)
+				const auto OutY = [&](size_t V)
+				{
+					const double Y = RimH[V] - 0.012 + Lifts[Ln + 1];
+					if (Ln + 2 != Lines) return Y;
+					const P2 P = Rim[V] + Outward[V] * Outs[Ln + 1];
+					const double Drawn = LandDrawnAt(P.X, P.Z);
+					return std::isnan(Drawn) ? Y : std::clamp(Drawn - MeetUnder, Y, RimH[V] - 0.012 + KerbHigh + 0.02);
+				};
+				const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Outs[Ln + 1], OutY(I), Looks[Ln]), Out1 = Vertex(Rim[J] + Outward[J] * Outs[Ln + 1], OutY(J), Looks[Ln]);
 				Tri(In0, In1, Out1); Tri(In0, Out1, Out0);
 			}
 		}
@@ -2268,7 +2278,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	// right): its inner edge ShoulderDip under the road's edge, its outer just under the ground as drawn
 	// (LandDrawnAt), never higher than its inner edge nor lower than ShoulderDrop.
 	std::unordered_map<long long, double> LandCache;
-	const auto Meet = [this, &Into, &Put, &Settle, &LandCache](const Row& R0, const Row& R1, double S, double From, double To)
+	// ([build 155] and a pavement's back: Inner its inner edge's lift, Highest the most its outer edge may be)
+	const auto Meet = [this, &Into, &Put, &Settle, &LandCache](const Row& R0, const Row& R1, double S, double From, double To, double Inner, double Highest)
 	{
 		static constexpr float MeetGrass[3] = {0.10f, 0.16f, 0.03f};
 		RideMesh& M = *Into;
@@ -2279,21 +2290,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const P2 At = R.At + R.Left * Off;
 			const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
 			const double Drawn = LandDrawnAt(At.X, At.Z, &LandCache);
-			const double Lift = std::isnan(Drawn) ? -ShoulderDrop : std::clamp(Drawn - MeetUnder - Y, -ShoulderDrop, -ShoulderDip);
+			const double Lift = std::isnan(Drawn) ? -ShoulderDrop : std::clamp(Drawn - MeetUnder - Y, -ShoulderDrop, Highest);
 			Put(R, Off, Lift, MeetGrass);
 		};
 		if (S > 0.0)
 		{
 			Outer(R0);
-			Put(R0, R0.Half + From, -ShoulderDip, MeetGrass);
+			Put(R0, R0.Half + From, Inner, MeetGrass);
 			Outer(R1);
-			Put(R1, R1.Half + From, -ShoulderDip, MeetGrass);
+			Put(R1, R1.Half + From, Inner, MeetGrass);
 		}
 		else
 		{
-			Put(R0, -R0.Half - From, -ShoulderDip, MeetGrass);
+			Put(R0, -R0.Half - From, Inner, MeetGrass);
 			Outer(R0);
-			Put(R1, -R1.Half - From, -ShoulderDip, MeetGrass);
+			Put(R1, -R1.Half - From, Inner, MeetGrass);
 			Outer(R1);
 		}
 		M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
@@ -3177,7 +3188,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					Band(0.0, KerbHigh, 0.0, KerbHigh, KerbStone);
 					Band(KerbHigh, KerbHigh + 0.15, KerbHigh, KerbHigh, KerbStone);
 					Band(KerbHigh + 0.15, PaveWide, KerbHigh, KerbHigh + 0.02, Paving);
-					Band(PaveWide, PaveWide + 0.35, KerbHigh + 0.02, -ShoulderDrop, Paving);
+					// ([build 155] beenster: "make the ground meet the other side of the pavement": its back no longer
+					// drops 0.4 m into the ground but runs down as grass to just under the ground as drawn)
+					Meet(Sa, Sb, S, PaveWide, PaveWide + PaveBack, KerbHigh + 0.02, KerbHigh + 0.02);
 					continue;
 				}
 				if (!TownEdge && !A.Deck && !B.Deck)
@@ -3216,7 +3229,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						// all along the road. Now the shoulder's outer edge goes to just under the ground as the
 						// squares draw it, so it slips under the field at a slant and no face shows; only where
 						// the ground falls away more than ShoulderDrop does it still stop there)
-						Meet(R0, R1, S, ShoulderFlat, Shoulder);
+						Meet(R0, R1, S, ShoulderFlat, Shoulder, -ShoulderDip, -ShoulderDip);
 					}
 					continue;
 				}
@@ -3632,9 +3645,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				// (the kerb's face, its top, the pavement and its back, as the street's own (RoadPiece's Band),
 				// each line out from the curve gathering to a point on a tight one rather than cross itself)
 				static constexpr int Lines = 6;
-				const double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + 0.35};
+				const double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + PaveBack};
 				const double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
-				const float* Looks[Lines - 1] = {KerbStone, KerbStone, Paving, nullptr, Paving};
+				const float* Looks[Lines - 1] = {KerbStone, KerbStone, Paving, nullptr, VergeGrass};
 				P2 Kerbline[Lines][Segs + 1];
 				// (beenster, build 147, Whaley Bridge: "kerb lines don't match up". Each line round the corner is
 				// the same curve as the kerb's, drawn on its own corner: where the two roads' lines that far out
@@ -3669,7 +3682,16 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					for (int S = 0; S < Segs; ++S)
 					{
 						const P3 I0 = At3(Kerbline[Ln][S], CurveH[S] + Lifts[Ln]), I1 = At3(Kerbline[Ln][S + 1], CurveH[S + 1] + Lifts[Ln]);
-						const P3 O0 = At3(Kerbline[Ln + 1][S], CurveH[S] + Lifts[Ln + 1]), O1 = At3(Kerbline[Ln + 1][S + 1], CurveH[S + 1] + Lifts[Ln + 1]);
+						// ([build 155] the pavement's back down to just under the ground as drawn)
+						const auto BackY = [&](int Sg)
+						{
+							const double Y = CurveH[Sg] + Lifts[Ln + 1];
+							if (Ln + 2 != Lines) return Y;
+							const P2& P = Kerbline[Ln + 1][Sg];
+							const double Drawn = LandDrawnAt(P.X, P.Z, &LandCache);
+							return std::isnan(Drawn) ? Y : std::clamp(Drawn - MeetUnder, Y, CurveH[Sg] + KerbHigh + 0.02);
+						};
+						const P3 O0 = At3(Kerbline[Ln + 1][S], BackY(S)), O1 = At3(Kerbline[Ln + 1][S + 1], BackY(S + 1));
 						// (the kerb's face towards the road, the pavement's back slope away from it, the rest up)
 						const P3 Look = Ln == 0 ? At3(CurveAt[S] - CurveDir[S] * 50.0, CurveH[S] + 50.0) : Ln == 4 ? At3(CurveAt[S] + CurveDir[S] * 50.0, CurveH[S] + 50.0) : Sky;
 						Quad3(I0, I1, O1, I0, Look, Looks[Ln], false);
