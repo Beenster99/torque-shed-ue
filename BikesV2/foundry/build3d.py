@@ -2189,7 +2189,8 @@ if __name__ == "__main__":
             GAME_STAND["angle_down_deg"] = round(float(rep_["stand"]["angle_down_deg"]), 2)
         else:
             print("NO SIDE STAND FITTED on", name)
-        print("game files in", export_game(name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
+        # (BIKE_GAME_NAME: the files' name, for builds that run side by side on one model: game_kits.py bespoke)
+        print("game files in", export_game(os.environ.get("BIKE_GAME_NAME") or name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
         import clip3d

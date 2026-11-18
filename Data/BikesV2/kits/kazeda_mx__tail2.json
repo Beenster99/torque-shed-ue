@@ -1,0 +1,31 @@
+{
+ "name": "Kazeda MX (working title X2)",
+ "format": 2,
+ "kit": true,
+ "triangles": 16996,
+ "surfaces": {
+  "s024": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0078,
+    0.0759,
+    0.5295
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  },
+  "s025": {
+   "slot": "tail",
+   "node": "",
+   "surface": "redlens",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  }
+ }
+}

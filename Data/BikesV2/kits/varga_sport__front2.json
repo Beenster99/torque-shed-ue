@@ -1,0 +1,51 @@
+{
+ "name": "Varga sport (working title S1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 79749,
+ "surfaces": {
+  "s029": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.8913,
+    0.145,
+    0.0072
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s030": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s169": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "d3_perspex",
+   "tag": "d3_perspex",
+   "ue": "v2screen",
+   "color": [
+    0.82,
+    0.86,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  }
+ }
+}

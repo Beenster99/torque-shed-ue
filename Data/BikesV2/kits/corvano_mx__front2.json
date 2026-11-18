@@ -1,0 +1,99 @@
+{
+ "name": "Corvano MX (working title X3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 6270,
+ "surfaces": {
+  "s064": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "headlamp",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s065": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_bezel",
+   "tag": "d3_bezel",
+   "ue": "cat_black_metal",
+   "sub": "headlamp",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3
+  },
+  "s066": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_drl",
+   "tag": "lens_drl",
+   "ue": "lens_clear",
+   "sub": "headlamp"
+  },
+  "s067": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_smokechrome",
+   "tag": "d3_smokechrome",
+   "ue": "chrome",
+   "sub": "headlamp",
+   "color": [
+    0.2,
+    0.2,
+    0.22
+   ],
+   "metallic": 1.0,
+   "roughness": 0.1
+  },
+  "s068": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "headlamp",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s069": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_bulb",
+   "tag": "lens_white",
+   "ue": "lens_clear",
+   "sub": "headlamp"
+  },
+  "s070": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "headlamp",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}
