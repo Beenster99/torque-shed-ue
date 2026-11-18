@@ -51,6 +51,7 @@ private:
 		float Soft = 0.2f;     // 0 a crisp droplet .. 1 a soft puff of mist
 		bool bSpray = false;   // (the spray's whiter colour)
 		bool bStreak = false;  // drawn as a blur along its motion, as a camera sees a flying droplet
+		FVector Trail = FVector::ZeroVector;   // [spray] a mist puff: the way its bike was riding (thinned seen end-on)
 	};
 	TArray<FBit> Bits;
 	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> Puffs = nullptr;
