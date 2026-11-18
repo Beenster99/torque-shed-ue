@@ -271,7 +271,15 @@ bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std
 		return false;
 	}
 	Out.clear();
-	if (Get(E.Url, Out) != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
+	const int Code = Get(E.Url, Out);
+	if (Code == NotNow)
+	{
+		// [build 158] (the fetch couldn't be sent just now: asked again later, the boxes meanwhile)
+		Out.clear();
+		if (Deferred) *Deferred = true;
+		return false;
+	}
+	if (Code != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
 	if (!Path.empty())
 	{
 		// (the cell's older zips go: only the one the index names is kept)

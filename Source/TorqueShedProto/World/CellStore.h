@@ -58,6 +58,9 @@ public:
 	static constexpr const char* UserAgent = "TorqueShedUE (+https://github.com/Beenster99/torque-shed-ue)";
 	// GETs a URL, following redirects: the HTTP code (0 for no answer) and the body. Blocks.
 	using Fetcher = std::function<int(const std::string& Url, std::string& Body)>;
+	// [build 158] A Fetcher's answer for "couldn't be sent just now" (the game's: its game thread didn't
+	// take it up in time): not a failure, asked again later.
+	static constexpr int NotNow = -1;
 	// A cell's own files beside the index.
 	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX, Sights };
 	enum class EState { Here, Baked, Sea, Unknown };

@@ -6,6 +6,7 @@
 #include "WorldZip.h"
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <cmath>
 #include <condition_variable>
@@ -16,6 +17,11 @@
 
 namespace TorqueWorld
 {
+namespace
+{
+constexpr double WaitForCellSeconds = 20.0;   // [build 158] a worker's longest wait for a cell another is reading
+}
+
 struct RidePlan::OutlineStore
 {
 	struct CellZip
@@ -308,10 +314,13 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 		{
 			std::unique_lock<std::mutex> Lock(St.Lock);
 			Z = &St.Cells[Name];   // (std::map: the pointer stays good as other cells are added)
+			// ([build 158] and a worker waits at most WaitForCellSeconds: a slow download leaves this
+			// square its boxes rather than holding every worker up)
+			const auto WaitUntil = std::chrono::steady_clock::now() + std::chrono::duration<double>(WaitForCellSeconds);
 			while (Z->State == 3)
 			{
 				if (CellsFrom->MayFetch && !CellsFrom->MayFetch()) break;   // (the game thread: never waits)
-				St.Ready.wait(Lock);
+				if (St.Ready.wait_until(Lock, WaitUntil) == std::cv_status::timeout) break;
 			}
 			if (Z->State == 3) continue;
 			if (Z->State == 0)
