@@ -34,3 +34,4 @@ SimTest/sfx_test.wav
 # game_kits.py: whole-bike kit builds, cut down and removed
 Data/BikesV2/*_kit*_def.glb
 Data/BikesV2/*_kit*_def.json
+Data/BikesV2/_b_*

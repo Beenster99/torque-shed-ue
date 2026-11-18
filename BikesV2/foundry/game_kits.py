@@ -10,6 +10,7 @@ the bike's own frame as its frame, so the game draws it exactly as it draws anot
 FitV2's donors). Bars, extras and paint variants are not sold yet (bars move the rider's grips).
 
     python3 foundry/game_kits.py build [model ...]    # build and cut (3 at a time; about 2 minutes a build)
+    python3 foundry/game_kits.py bespoke [model ...]  # the chopper bespoke parts (pool.json), each design in each metal
     python3 foundry/game_kits.py catalogue             # the shop entries, into parts_v2.json (game_catalogue.py calls it)
 """
 import json
@@ -51,7 +52,7 @@ def slot_shapes(g, info):
     return {k: (v[0], v[1], tuple(round(q, 3) for q in v[2] + v[3])) for k, v in out.items()}
 
 
-def cut(g, blob, info, slots, dst):
+def cut(g, blob, info, slots, dst, meta=None):
     """Writes dst.glb / dst.json holding only the surfaces in these slots. Returns the triangles kept."""
     out = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"mesh": 0, "name": os.path.basename(dst)}],
            "meshes": [{"primitives": []}], "materials": [], "accessors": [], "bufferViews": [], "buffers": [{}]}
@@ -97,7 +98,7 @@ def cut(g, blob, info, slots, dst):
         f.write(struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(js) + 8 + len(data)))
         f.write(struct.pack("<I4s", len(js), b"JSON") + js)
         f.write(struct.pack("<I4s", len(data), b"BIN\0") + bytes(data))
-    json.dump({"name": info["name"], "format": 2, "kit": True, "triangles": tris, "surfaces": looks}, open(dst + ".json", "w"), indent=1)
+    json.dump(dict({"name": info["name"], "format": 2, "kit": True, "triangles": tris, "surfaces": looks}, **(meta or {})), open(dst + ".json", "w"), indent=1)
     return tris
 
 
@@ -155,6 +156,95 @@ def build(models):
     print("ALL", flush=True)
 
 
+BESPOKE = ("pegs", "covers", "lamps", "engine", "sissy", "wheels")
+BESPOKE_WORD = {"pegs": "footpegs", "covers": "engine covers", "lamps": "lamp shells", "engine": "engine dress kit", "sissy": "sissy bar", "wheels": "billet wheel"}
+# (never sold as a bespoke piece, whatever a build moves: the frame is the bike)
+NOT_SOLD = ("frame",)
+
+
+def bespoke_jobs(models):
+    pool = json.load(open(os.path.join(ROOT, "data", "pool.json")))["chopper_bespoke"]
+    jobs = []
+    for model in models:
+        if json.load(open(os.path.join(ROOT, "data", "models", model + ".json")))["family"] not in pool["families"]:
+            continue
+        for grp in BESPOKE:
+            for d in pool.get(grp) or []:
+                for m in pool["metals"]:
+                    jobs.append((model, grp, d, m))
+    return jobs
+
+
+def build_bespoke(model, grp, design, metal):
+    """One chopper bespoke item (pool.json chopper_bespoke) fitted alone to the bike as drawn, cut to the slots it
+    changes: kits/<model>__b_<group>_<design>_<metal>."""
+    metal_key = {"steel": "steel_brushed", "gold": "gold_bright"}.get(metal["key"], metal["key"]) if grp == "wheels" else metal["key"]
+    out = f"{model}__b_{grp}_{design['key']}_{metal['key']}"
+    name = f"{model}_kit0000_def"
+    work = os.path.join(DATA, "_b_" + out)
+    env = dict(os.environ, BIKE_BESPOKE=f"{grp}={design['key']}:{metal_key}", BIKE_GAME_NAME="_b_" + out)
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "foundry", "build3d.py"), model, "--kit", "0,0,0,0", "--definition", "--game"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=1500, env=env)
+    glb = work + ".glb"
+    if "game export" not in r.stdout or not os.path.exists(glb):
+        return [f"FAILED {out}: {(r.stdout + r.stderr)[-400:]}"]
+    g, blob = read_glb(glb)
+    info = json.load(open(work + ".json"))
+    base_g, _ = read_glb(os.path.join(DATA, model + ".glb"))
+    base = slot_shapes(base_g, json.load(open(os.path.join(DATA, model + ".json"))))
+    mine = slot_shapes(g, info)
+    slots = sorted(s for s in mine if mine[s] != base.get(s) and s not in NOT_SOLD)
+    lines = []
+    if slots:
+        meta = {"bespoke": {"group": grp, "design": design["key"], "metal": metal["key"], "name": f"{design['name']} {BESPOKE_WORD[grp]}, {metal['name'].lower()}",
+                            "note": design.get("note", "")}}
+        tris = cut(g, blob, info, slots, os.path.join(KITS, out), meta)
+        lines.append(f"bespoke {out}: {'+'.join(slots)}, {tris} triangles")
+    else:
+        lines.append(f"NOTE {out}: nothing differs from the bike as drawn")
+    os.remove(glb)
+    os.remove(work + ".json")
+    with open(os.path.join(KITS, "_done.txt"), "a") as f:
+        f.write(f"{out}\n")
+    return lines
+
+
+def build_all_bespoke(models):
+    os.makedirs(KITS, exist_ok=True)
+    done_path = os.path.join(KITS, "_done.txt")
+    done = set(open(done_path).read().split("\n")) if os.path.exists(done_path) else set()
+    jobs = [j for j in bespoke_jobs(models) if f"{j[0]}__b_{j[1]}_{j[2]['key']}_{j[3]['key']}" not in done]
+    print(len(jobs), "bespoke builds to do", flush=True)
+    with ThreadPoolExecutor(3) as ex:
+        for lines in ex.map(lambda j: build_bespoke(*j), jobs):
+            for line in lines:
+                print(line, flush=True)
+    print("ALL", flush=True)
+
+
+def bespoke_entries(parts, model, file, info):
+    """A bespoke item's shop parts: one for each slot it changes that the bike has a part of its own in."""
+    b, n = info["bespoke"], 0
+    slots = sorted({v["slot"] for v in info["surfaces"].values()})
+    for slot in slots:
+        own_id = f"v2_{model}__{slot}"
+        kind = next((k for k, es in parts.items() if isinstance(es, dict) and own_id in es), None)
+        if not kind:
+            print(f"NOTE no shop part {own_id}: bespoke {file} {slot} not sold")
+            continue
+        e = json.loads(json.dumps(parts[kind][own_id]))
+        vp = e["v2part"]
+        more = f" ({slot.replace('_', ' ')})" if len(slots) > 1 else ""
+        e["name"] = f"{vp.get('brand', '')} {b['name']}{more}".strip()
+        e["description"] = b.get("note") or e.get("description", "")
+        if isinstance(e.get("price"), (int, float)):
+            e["price"] = int(round(e["price"] * {"gold": 2.5, "brass": 1.8}.get(b["metal"], 1.6) / 5.0) * 5)
+        vp.update(model=f"kits/{file}", frame=f"v2_{model}", slot=slot, kit=f"b_{b['group']}_{b['design']}_{b['metal']}", of=model, bespoke=True)
+        parts[kind][f"{own_id}_b{b['group']}_{b['design']}_{b['metal']}"] = e
+        n += 1
+    return n
+
+
 def catalogue():
     """The kit pieces on disk as shop parts in parts_v2.json: each a copy of the bike's own part of that slot
     (its numbers, what it fits), drawn from the kit file, a little dearer."""
@@ -169,6 +259,9 @@ def catalogue():
         if not f.endswith(".json") or f.startswith("_"):
             continue
         model, rest = f[:-5].split("__")
+        if rest.startswith("b_"):
+            made += bespoke_entries(parts, model, f[:-5], json.load(open(os.path.join(KITS, f))))
+            continue
         grp = next(g for g in GROUPS if rest.startswith(g))
         n = int(rest[len(grp):])
         variant = json.load(open(os.path.join(ROOT, "data", "models", model + ".json")))["kit"][grp][n - 1]
@@ -206,6 +299,8 @@ def catalogue():
 if __name__ == "__main__":
     if sys.argv[1:2] == ["build"]:
         build(sys.argv[2:] or sorted(f[:-5] for f in os.listdir(os.path.join(ROOT, "data", "models")) if f.endswith(".json")))
+    elif sys.argv[1:2] == ["bespoke"]:
+        build_all_bespoke(sys.argv[2:] or sorted(f[:-5] for f in os.listdir(os.path.join(ROOT, "data", "models")) if f.endswith(".json")))
     elif sys.argv[1:2] == ["catalogue"]:
         catalogue()
     else:
