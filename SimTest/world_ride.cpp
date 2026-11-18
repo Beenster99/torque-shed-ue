@@ -1333,6 +1333,24 @@ int main(int Argc, char** Argv)
 		for (const RoadPoint& P : Plan->Road)
 			if (P.At.DistanceTo(C) < 80.0) std::printf("  ride road %.1f %.1f at %.0f h %.1f half %.1f%s%s\n", P.At.X - C.X, P.At.Z - C.Z, P.Along, P.Height, P.Half, P.Bridge ? " bridge" : "", P.Tunnel ? " tunnel" : "");
 	}
+	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
+	{
+		// (debug: the laid roads within R of a point X,Z off the ride's start, X,Z,R, with their setts flags)
+		double Qx = 0.0, Qz = 0.0, Qr = 40.0;
+		std::sscanf(RoadsAt, "%lf,%lf,%lf", &Qx, &Qz, &Qr);
+		const P2 Q = Plan->Road.empty() ? P2(Qx, Qz) : Plan->Road[0].At + P2(Qx, Qz);   // (from the ride's start)
+		for (const int W : LaidRoads(*Plan))
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+			bool NearQ = false;
+			for (const RoadPoint& P : Pts) NearQ = NearQ || P.At.DistanceTo(Q) < Qr;
+			if (!NearQ) continue;
+			const RidePlan::SideRoad* Sd = W > 0 ? Plan->SideOf(W) : nullptr;
+			std::printf("road %d%s setts %d:", W, W == 0 ? " (ride)" : "", Sd ? int(Sd->Setts) : -1);
+			for (const RoadPoint& P : Pts) if (P.At.DistanceTo(Q) < Qr) std::printf(" (%.1f %.1f h%.1f)", P.At.X - Q.X, P.At.Z - Q.Z, P.Half);
+			std::printf("\n");
+		}
+	}
 	if (std::getenv("WORLD_RIDE_STATS") != nullptr)
 	{
 		// How much stands on the squares along the ride: the finest (256 m) and the middle (1 km) ones.

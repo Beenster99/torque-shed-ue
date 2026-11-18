@@ -1129,6 +1129,7 @@ void RidePlan::IndexFurniture()
 			}
 		return Best;
 	};
+	std::vector<int> SignedHomes;
 	for (const TorqueFit::Json& Poi : G.Pois)
 	{
 		const std::string What = Poi.Str("kind");
@@ -1138,8 +1139,10 @@ void RidePlan::IndexFurniture()
 		const int Home = NearestBuilding(At.X, At.Z, 30.0);
 		if (Home >= 0) BuildingRole[size_t(Home)] = 2;
 		if (Called.empty() || Home < 0) continue;
-		// (a guest house, a B&B or a lodge the map calls an inn has no sign: only a pub's, beenster build 148)
-		if (What == "inn")
+		// ([Nov 18] beenster, Haworth Main Street: two names run together on one board. One sign to a building:
+		// the first pub the map gives it)
+		if (std::find(SignedHomes.begin(), SignedHomes.end(), Home) != SignedHomes.end()) continue;
+		// (a guest house, a B&B or a lodge the map calls an inn, or a pub, has no sign: only a pub's, beenster build 148)
 		{
 			bool Lodging = false;
 			for (const char* Word : {"Guest House", "Guesthouse", "B&B", "Bed and Breakfast", "Bed & Breakfast", "Lodge", "Cottage", "Farm", "Apartments"})
@@ -1170,7 +1173,11 @@ void RidePlan::IndexFurniture()
 		F.Text = Called;
 		F.Height = Ground(B.X, B.Z);   // (the building's own ground: its walls stand on it)
 		// (none where the map's wall stands on the road's own footprint: it would hang over the riders)
-		if (!std::isnan(F.Height) && std::isnan(RoadHeight(F.At.X, F.At.Z))) Put(F);
+		if (!std::isnan(F.Height) && std::isnan(RoadHeight(F.At.X, F.At.Z)))
+		{
+			Put(F);
+			SignedHomes.push_back(Home);
+		}
 	}
 	for (const TorqueFit::Json& Mark : G.Landmarks)
 	{
@@ -1629,6 +1636,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 	static const Rgb White = {0.75f, 0.75f, 0.74f}, Black = {0.012f, 0.012f, 0.012f}, Red = {0.45f, 0.012f, 0.01f}, Grey = {0.16f, 0.16f, 0.165f}, Steel = {0.24f, 0.25f, 0.26f},
 		Wood = {0.075f, 0.05f, 0.032f}, PoleWood = {0.05f, 0.04f, 0.03f}, Stone3 = {0.22f, 0.21f, 0.19f}, Lamp = {0.6f, 0.58f, 0.5f};
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	std::vector<const Building*> PubWalls;   // ([Nov 18] the outline boxes given a pub's sign in this square: one each)
 	const auto Label = [&Out](const P3& At, const P2& Face, double Tall, const std::string& Words, const Rgb& Colour)
 	{
 		// ([OSM stage 6A] set as triangles in the signs' layer, capitals as tall as a text component's
@@ -2079,7 +2087,8 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 						const double PubGap = std::hypot(Gx, Gz);
 						if (PubGap < BestGap) { BestGap = PubGap; Pub = &Pb; }
 					}
-					if (Pub == nullptr) break;
+					if (Pub == nullptr || std::find(PubWalls.begin(), PubWalls.end(), Pub) != PubWalls.end()) break;
+					PubWalls.push_back(Pub);
 					NearOpts Opts;
 					NearHit Hit;
 					if (!NearestOf(Pub->X, Pub->Z, Opts, Hit)) break;
