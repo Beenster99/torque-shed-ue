@@ -1398,6 +1398,15 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		const SideRoad* Sd = A.Which > 0 ? SideOf(A.Which) : nullptr;
 		Flared = Flared || (Sd != nullptr && OnRoundRing(Sd->Edge));
 	}
+	// [roundabouts 156] (the flare as the ring's size: a 15 m corner on every ring made the mouths of small
+	// ones very wide aprons of tarmac (PC check, build 155, York))
+	double Flare = RingFlare;
+	if (Flared)
+	{
+		const int Rg = PaintedRingNear(K.At, 4.0);
+		if (Rg >= 0) Flare = std::clamp(RoadRings[size_t(Rg)].Radius * 0.3, RingFlareLeast, RingFlare);
+		else Flare = RingFlareLeast;
+	}
 	// Round the junction: between each road and the next anticlockwise, a rounded corner where the gap
 	// between them is less than a half turn, or a round outside (about the junction) where it is more.
 	std::vector<P2> Rim, Outward;
@@ -1466,7 +1475,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 				if (T > -1.0 && S > -1.0 && T < (Flared ? 40.0 : 25.0) && S < (Flared ? 40.0 : 25.0))
 				{
 					const P2 X = EdgeA + A.Away * T;
-					const double Reach = std::fmin(Flared ? RingFlare * 1.3 : 9.0, std::fmax(2.0, (Flared ? RingFlare : 6.0) / std::fmax(0.05, std::tan(Gap * 0.5))));
+					const double Reach = std::fmin(Flared ? Flare * 1.3 : 9.0, std::fmax(2.0, (Flared ? Flare : 6.0) / std::fmax(0.05, std::tan(Gap * 0.5))));
 					// (each end of the curve on its road's edge as the road really runs: it may bend away)
 					const auto ToEdge = [this](const KnotArm& Of, const P2& At)
 					{
@@ -1520,7 +1529,10 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	for (size_t I = 0; I < N; ++I)
 	{
 		RimH[I] = Top(Rim[I]);
-		RimV[I] = Vertex(Rim[I], RimH[I], Tarmac);
+		// [roundabouts 156] (where the rim runs across a road, level with that road, not the hair over it:
+		// that 12 mm step's edge drew a thin dark seam across every mouth in the game (PC check, build 155))
+		const bool Across = Edged[I] == 0 || (I > 0 && Edged[I - 1] == 0);
+		RimV[I] = Vertex(Rim[I], Across ? RimH[I] - 0.012 : RimH[I], Tarmac);
 	}
 	// [roundabouts] (in rings between the hub and the rim, each point on the roads' surface there: one fan
 	// from the middle out to a rim 20 m off rode up to 0.25 m over the roads between, a hump in the
@@ -1573,7 +1585,19 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	};
 	// [roundabouts round 4] Nor in a roundabout's mouth: within RingMouthClear of a ring's tarmac the
 	// corners between arms and splitters left grass ticks and paving slabs on the road (beenster's circles).
-	const auto InRingMouth = [&](size_t I) { return PaintedRingNear(Rim[I], RingMouthClear) >= 0; };
+	// ([156] a whole corner or none: a corner cut part way left its kerb and pavement ending in a tilted
+	// slab by the small York ring's mouth (PC check, build 155))
+	std::vector<char> CornerInMouth(N, 0);
+	for (size_t I = 0; I + 1 < N;)
+	{
+		if (Edged[I] == 0) { ++I; continue; }
+		size_t J = I;
+		bool Near = false;
+		while (J + 1 < N && Edged[J] != 0) { Near = Near || PaintedRingNear(Rim[J], RingCornerClear) >= 0 || PaintedRingNear(Rim[J + 1], RingCornerClear) >= 0; ++J; }
+		for (size_t Q = I; Q < J; ++Q) CornerInMouth[Q] = Near ? 1 : 0;
+		I = J;
+	}
+	const auto InRingMouth = [&](size_t I) { return CornerInMouth[I] != 0; };
 	if (StreetArms >= 2)
 	{
 		static constexpr float KerbGrey[3] = {0.16f, 0.16f, 0.15f}, Paved[3] = {0.12f, 0.118f, 0.11f};
@@ -1585,7 +1609,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		{
 			if (Edged[I] == 0) continue;
 			const size_t J = I + 1;
-			if (InRingMouth(I) || InRingMouth(J)) continue;
+			if (InRingMouth(I)) continue;
 			if (OnTarmac(Rim[I] + Outward[I] * PaveWide, RimH[I]) || OnTarmac(Rim[J] + Outward[J] * PaveWide, RimH[J])) continue;
 			for (int Ln = 0; Ln + 1 < Lines; ++Ln)
 			{
@@ -1602,7 +1626,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	{
 		if (Edged[I] == 0) continue;
 		const size_t J = I + 1;
-		if (InRingMouth(I) || InRingMouth(J)) continue;
+		if (InRingMouth(I)) continue;
 		{
 			const P2 MidA = Rim[I] + Outward[I] * ShoulderFlat, MidB = Rim[J] + Outward[J] * ShoulderFlat;
 			const P2 OutA = Rim[I] + Outward[I] * Shoulder, OutB = Rim[J] + Outward[J] * Shoulder;
@@ -2452,6 +2476,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	const int LidArch = 4;   // (the lid's first point over the arch)
 	std::vector<P3> RingA, RingB, LidA, LidB;
 	const double PaintLift = 0.015;
+	const double PaintOverLift = 0.004;   // ([paint, Nov 18] lines on a gravel road's tarmac tongue, the only ones still laid over it)
 	std::vector<RoadMark> MarksHere;
 	// [roundabouts] The rings drawn as circles this piece comes onto: their own markings are RingPaint's,
 	// so none of the road's own lines (cut short and stepped where its edges met) on their tarmac.
@@ -2482,6 +2507,29 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			if (std::fabs(Rg->OffOf(At)) <= Rg->Half + 0.3) return true;
 		return false;
 	};
+	struct SplitBit
+	{
+		size_t K = 0;
+		int Sd = 0;
+		Row A, B;
+		double F0 = 0.0, F1 = 0.0;
+	};
+	std::vector<SplitBit> Splits;
+	// ([paint, Nov 18] a bit of road's lines, painted into its tarmac: each from T0 to T1 along the bit (0 its
+	// first row, 1 its last), its left and right offsets at T0 (L0, R0) and at T1 (L1, R1))
+	struct PaintCut
+	{
+		double T0 = 0.0, T1 = 1.0, L0 = 0.0, R0 = 0.0, L1 = 0.0, R1 = 0.0;
+		const float* Colour = nullptr;
+	};
+	std::vector<PaintCut> PaintCuts;
+	const auto Cut = [&PaintCuts](double T0, double T1, double L0, double R0, double L1, double R1, const float* Colour)
+	{
+		if (T1 - T0 < 1e-6 || Colour == nullptr) return;
+		PaintCut C;
+		C.T0 = T0; C.T1 = T1; C.L0 = L0; C.R0 = R0; C.L1 = L1; C.R1 = R1; C.Colour = Colour;
+		PaintCuts.push_back(C);
+	};
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
 	{
 		Row RowA = Rows[K], RowB = Rows[K + 1];
@@ -2499,6 +2547,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		};
 		bool NoShoulder[2] = {false, false};   // left, right
 		double Fill[2][2] = {{0.0, 0.0}, {0.0, 0.0}};   // [roundabouts round 3] (tarmac out over a narrow gap to the next road: left, right; at A, at B)
+		bool Splitter[2] = {false, false};   // [roundabouts 156] (that gap to another road, not the ring: a painted island)
 		double ShoulderFrom[2] = {0.0, 0.0}, ShoulderTo[2] = {1.0, 1.0};   // (the part of this bit with a shoulder, 0 at A to 1 at B)
 		bool UnderMain = false;
 		for (int End = 0; End < 2 && Which > 0; ++End)
@@ -2630,6 +2679,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				{
 					const double Sign = Sd == 0 ? 1.0 : -1.0;
 					double Gap[3] = {-1.0, -1.0, -1.0};
+					bool ToRing = false;
 					for (int Step = 0; Step < 3; ++Step)
 					{
 						const Row Rw = Between(RowA, RowB, Step * 0.5);
@@ -2639,7 +2689,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						{
 							const int On = OnRoad(Rw.At + Rw.Left * (Sign * (Rw.Half + Off)), Rw.Height);
 							if (On < 0 || (On == 2 && Off > 3.0)) break;
-							if (On > 0) { Gap[Step] = Off; break; }
+							if (On > 0) { Gap[Step] = Off; ToRing = ToRing || On == 2; break; }
 						}
 					}
 					// (a wedge too: the gap closing to nothing at one end, as between a mouth's carriageways)
@@ -2649,6 +2699,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						Fill[Sd][0] = (Gap[0] > 0.0 ? std::fmax(Gap[0], 0.5 * Gap[1]) : 0.5 * Gap[1]) + 0.3;
 						Fill[Sd][1] = (Gap[2] > 0.0 ? std::fmax(Gap[2], 0.5 * Gap[1]) : 0.5 * Gap[1]) + 0.3;
 						NoShoulder[Sd] = true;
+						Splitter[Sd] = !ToRing && std::fmax(Gap[0], std::fmax(Gap[1], Gap[2])) >= 1.2;
 					}
 				}
 				for (int Sd = 0; Sd < 2; ++Sd)
@@ -2697,6 +2748,179 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			Track = Mine->Track;
 			Gravel = Mine->Gravel;
 			Setts = Mine->Setts;
+		}
+		// ([paint, Nov 18] beenster: "paint the roads with lines": the lines are no longer strips laid 1.5 cm over
+		// the road but painted into its tarmac, the tarmac cut where each one runs and that piece drawn in
+		// the paint's colour, flush, so nothing stands proud (the bike rides over them flat) and nothing is
+		// drawn twice. Each line is gathered first, as a piece of this bit of road (from T0 to T1 along it,
+		// its left and right offsets at each end); Lay draws the tarmac round them.)
+		PaintCuts.clear();
+		// (the tarmac across from edge to edge, in Colour, with the lines cut into it: split along at each
+		// line's ends, then across at its edges and at the crown, each piece flush with the road)
+		const auto Lay = [&](const float* Colour)
+		{
+			std::vector<double> Ts = {0.0, 1.0};
+			for (const PaintCut& C : PaintCuts) { Ts.push_back(std::clamp(C.T0, 0.0, 1.0)); Ts.push_back(std::clamp(C.T1, 0.0, 1.0)); }
+			std::sort(Ts.begin(), Ts.end());
+			Ts.erase(std::unique(Ts.begin(), Ts.end(), [](double P, double Q) { return std::fabs(P - Q) < 1e-6; }), Ts.end());
+			struct LineAcross { double La, Ra, Lb, Rb; const float* C; };
+			std::vector<LineAcross> Lines;
+			for (size_t I = 0; I + 1 < Ts.size(); ++I)
+			{
+				const double Ta = Ts[I], Tb = Ts[I + 1];
+				const Row Ra = Ta <= 0.0 ? A : Between(A, B, Ta), Rb = Tb >= 1.0 ? B : Between(A, B, Tb);
+				Lines.clear();
+				for (const PaintCut& C : PaintCuts)
+				{
+					if (C.T0 > Ta + 1e-6 || C.T1 < Tb - 1e-6) continue;
+					const double Fa = (Ta - C.T0) / (C.T1 - C.T0), Fb = (Tb - C.T0) / (C.T1 - C.T0);
+					LineAcross L;
+					L.La = std::fmin(C.L0 + (C.L1 - C.L0) * Fa, Ra.Half); L.Ra = std::fmax(C.R0 + (C.R1 - C.R0) * Fa, -Ra.Half);
+					L.Lb = std::fmin(C.L0 + (C.L1 - C.L0) * Fb, Rb.Half); L.Rb = std::fmax(C.R0 + (C.R1 - C.R0) * Fb, -Rb.Half);
+					L.C = C.Colour;
+					if (L.La > L.Ra && L.Lb > L.Rb) Lines.push_back(L);
+				}
+				std::sort(Lines.begin(), Lines.end(), [](const LineAcross& P, const LineAcross& Q) { return P.La + P.Lb > Q.La + Q.Lb; });
+				// (a piece from left to right, split at the crown where it runs over it)
+				const auto Piece = [&](double La, double Rra, double Lb, double Rrb, const float* C)
+				{
+					if (La - Rra < 1e-4 && Lb - Rrb < 1e-4) return;
+					if (La > 1e-4 && Rra < -1e-4 && Lb > 1e-4 && Rrb < -1e-4)
+					{
+						Strip(Ra, Rb, La, 0.0, Lb, 0.0, 0.0, 0.0, C);
+						Strip(Ra, Rb, 0.0, Rra, 0.0, Rrb, 0.0, 0.0, C);
+					}
+					else Strip(Ra, Rb, La, Rra, Lb, Rrb, 0.0, 0.0, C);
+				};
+				double Ca = Ra.Half, Cb = Rb.Half;
+				for (const LineAcross& L : Lines)
+				{
+					const double La = std::fmin(L.La, Ca), Lb = std::fmin(L.Lb, Cb);
+					if (L.Ra >= Ca && L.Rb >= Cb) continue;   // (wholly under a line already painted)
+					Piece(Ca, La, Cb, Lb, Colour);
+					Piece(La, std::fmin(L.Ra, La), Lb, std::fmin(L.Rb, Lb), L.C);
+					Ca = std::fmin(L.Ra, La); Cb = std::fmin(L.Rb, Lb);
+				}
+				Piece(Ca, -Ra.Half, Cb, -Rb.Half, Colour);
+			}
+			PaintCuts.clear();
+		};
+		// [roundabouts] (none of the road's own lines on a ring's tarmac: its markings are RingPaint's)
+		const bool OnRingTar = !RingsHere.empty() && (OnRingTarmac(A.At) || OnRingTarmac(B.At));
+		// [roundabouts 156] (no yellow lines in a roundabout's mouth: the kerb there curves away round the
+		// flare, and the lines ran on straight across it (PC check, build 155, York compact ring))
+		bool YellowMouth = false;
+		for (const RoadRing* Rg : RingsAbout)
+		{
+			const double Oa = Rg->OffOf(A.At), Ob = Rg->OffOf(B.At);
+			const bool OnRing = std::fabs(Oa) < Rg->Half + 0.5 && std::fabs(Ob) < Rg->Half + 0.5;
+			YellowMouth = YellowMouth || (!OnRing && std::fmin(Oa, Ob) < Rg->Half + RingMouthClear + 3.0);
+		}
+		if (!(A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel || Setts || OnRingTar))
+		{
+			const double Half = std::fmin(A.Half, B.Half);
+			// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
+			// 3 m dashes with 6 m gaps.
+			// ([OSM stage 5D] none along a town street's kerbs)
+			if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0))
+			{
+				for (double Side : {1.0, -1.0})
+				{
+					// (none across a junction's mouth)
+					const size_t At0 = size_t(First) + K;
+					if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
+					// ([OSM stage 5C] on a motorway's nearside, between the lanes and the hard shoulder: 0.2 m wide)
+					const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
+					const double Ia = Hard ? A.Half - A.Shoulder : A.Half - 0.3, Ib = Hard ? B.Half - B.Shoulder : B.Half - 0.3, W = Hard ? 0.1 : 0.065;
+					Cut(0.0, 1.0, Side * Ia + W, Side * Ia - W, Side * Ib + W, Side * Ib - W, Paint);
+				}
+			}
+			// [OSM stage 5D] Double yellow lines along a town street's kerbs near a junction (no parking
+			// within 10 m of one, as the Highway Code has it): 75 mm lines 75 mm apart, 0.25 m off the kerb,
+			// for YellowReach m from a side road's ends and either side of a mouth onto the ride's road.
+			// ([OSM stage 5D] and wherever the map says: no parking, double yellow; no stopping, double red;
+			// marked bays, a line 2 m out from the kerb with a tick across every 6 m)
+			if (Half >= 2.4 && !A.Deck && !A.Bore && !YellowMouth)
+				for (double Side : {1.0, -1.0})
+				{
+					const int Code = (A.Park >> (Side > 0.0 ? 0 : 2)) & 3;
+					const size_t At0 = size_t(First) + K;
+					if (Code == 0 || (Code == 3 && Half < 2.9) || (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0)) continue;
+					if (Code == 3)
+					{
+						// (as deep as a car, less on a narrow street: a lane's width left between)
+						const double BayDeep = std::clamp(Half - 1.2, 1.6, BayDeepest);
+						Cut(0.0, 1.0, Side * (A.Half - BayDeep) + 0.05, Side * (A.Half - BayDeep) - 0.05, Side * (B.Half - BayDeep) + 0.05, Side * (B.Half - BayDeep) - 0.05, Paint);
+						for (double Tick = std::ceil(A.Along / BayLong) * BayLong; Tick < B.Along && B.Along > A.Along; Tick += BayLong)
+						{
+							const double T0 = (Tick - A.Along) / (B.Along - A.Along), T1 = std::fmin(1.0, (Tick + 0.1 - A.Along) / (B.Along - A.Along));
+							const Row Ta = Between(A, B, T0);
+							const double Lo = std::fmin(Side * (Ta.Half - 0.05), Side * (Ta.Half - BayDeep)), Hi = std::fmax(Side * (Ta.Half - 0.05), Side * (Ta.Half - BayDeep));
+							Cut(T0, T1, Hi, Lo, Hi, Lo, Paint);
+						}
+						continue;
+					}
+					// (no-parking's lines from the junction rule below are drawn there instead)
+					if (Code == 1 && StreetRow[K] != 0 && StreetRow[K + 1] != 0) continue;
+					for (const double In : {0.29, 0.44})
+						Cut(0.0, 1.0, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, Code == 2 ? RedLine : Yellow);
+				}
+			if (StreetRow[K] != 0 && StreetRow[K + 1] != 0 && Half >= 2.4 && !YellowMouth)
+			{
+				const size_t At0 = size_t(First) + K;
+				bool NearJunction = false;
+				if (Which == 0)
+				{
+					for (size_t P = At0; P < StreetMouthAt.size() && P < Pts.size() && Pts[P].Along - A.Along < YellowReach && !NearJunction; ++P) NearJunction = StreetMouthAt[P] != 0;
+					for (size_t P = At0 + 1; P-- > 0 && P < StreetMouthAt.size() && A.Along - Pts[P].Along < YellowReach && !NearJunction;) NearJunction = StreetMouthAt[P] != 0;
+				}
+				else
+					NearJunction = A.Along < YellowReach || Pts.back().Along - B.Along < YellowReach;
+				for (double Side : {1.0, -1.0})
+				{
+					if (!NearJunction && ((A.Park >> (Side > 0.0 ? 0 : 2)) & 3) != 1) continue;
+					if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
+					for (const double In : {0.29, 0.44})
+						Cut(0.0, 1.0, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, Yellow);
+				}
+			}
+			// [OSM stage 5B] Where the ride's road comes onto a roundabout: one broken line across its own lane
+			// (0.6 m marks, 0.3 m gaps, 0.2 m deep), giving way to the ring.
+			if (Which == 0)
+				for (const double Give : RingGiveWays)
+				{
+					if (Give < A.Along || Give >= B.Along || B.Along <= A.Along) continue;
+					const double T0 = (Give - A.Along) / (B.Along - A.Along), T1 = std::min((Give + 0.2 - A.Along) / (B.Along - A.Along), 1.0);
+					const Row Ga = Between(A, B, T0);
+					const double Keep = KeepLeft() ? 1.0 : -1.0;
+					for (double U = 0.15; U + 0.6 <= Ga.Half - 0.15 + 1e-9; U += 0.9)
+					{
+						const double U0 = Keep * U, U1 = Keep * (U + 0.6);
+						Cut(T0, T1, std::fmax(U0, U1), std::fmin(U0, U1), std::fmax(U0, U1), std::fmin(U0, U1), Paint);
+					}
+				}
+			// ([OSM stage 5] a centre line where the map's lanes say, else by the rule; lane lines between a
+			// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
+			if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength)
+			{
+				if (RoadX::CentreLine(A.Lanes, A.OneWay, Half)) Cut(0.0, 1.0, 0.06, -0.06, 0.06, -0.06, Paint);
+				// ([OSM stage 5C] a motorway's lanes between its offside edge and its hard shoulder)
+				const double Ca = -double(A.Near) * A.Shoulder * 0.5, Cb = -double(B.Near) * B.Shoulder * 0.5;
+				const double Ha = A.Half - A.Shoulder * 0.5, Hb = B.Half - B.Shoulder * 0.5;
+				for (const double Off : RoadX::LaneLines(A.Lanes, A.OneWay, 1.0))
+					Cut(0.0, 1.0, Ca + Off * Ha + 0.06, Ca + Off * Ha - 0.06, Cb + Off * Hb + 0.06, Cb + Off * Hb - 0.06, Paint);
+			}
+		}
+		// ([paint, Nov 18] the map's own lines and crossings (WorldRideRoadX's marks) painted the same way)
+		if (!A.Bore && B.Along > A.Along + 1e-6)
+		{
+			RoadMarks(Which, A.Along, B.Along, MarksHere);
+			for (const RoadMark& Mk : MarksHere)
+			{
+				if (Mk.Kind != MarkPaint) continue;
+				const double Ta = std::clamp((Mk.From - A.Along) / (B.Along - A.Along), 0.0, 1.0), Tb = std::clamp((Mk.To - A.Along) / (B.Along - A.Along), 0.0, 1.0);
+				if (Tb - Ta >= 1e-4) Cut(Ta, Tb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Mk.Colour);
+			}
 		}
 		static constexpr float Grit[3] = {0.095f, 0.088f, 0.07f};
 		// ([towns stage 6] setts and cobbles: M_RideRoad's key for its setts, a grey-blue no other strip uses)
@@ -2772,9 +2996,15 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		else
 		{
-			Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Gravel ? Grit : Setts ? SettsKey : Tarmac);
-			Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Gravel ? Grit : Setts ? SettsKey : Tarmac);
+			Lay(Gravel ? Grit : Setts ? SettsKey : Tarmac);
 		}
+		// (where the tarmac wasn't laid whole (a gravel road's tongue), its lines laid over it as before)
+		for (const PaintCut& C : PaintCuts)
+		{
+			const Row Ra = C.T0 <= 0.0 ? A : Between(A, B, C.T0), Rb = C.T1 >= 1.0 ? B : Between(A, B, C.T1);
+			Strip(Ra, Rb, C.L0, C.R0, C.L1, C.R1, PaintOverLift, PaintOverLift, C.Colour);
+		}
+		PaintCuts.clear();
 		if (A.Deck && B.Deck)
 		{
 			// A bridge: a stone parapet each side (its top, and its faces down past the deck to the
@@ -2903,6 +3133,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			// [roundabouts round 3] (the narrow gaps by a ring filled with tarmac, a hair under both roads)
 			if (Fill[0][0] > 0.0) Strip(A, B, A.Half + Fill[0][0], A.Half - 0.05, B.Half + Fill[0][1], B.Half - 0.05, -0.004, -0.004, Tarmac);
 			if (Fill[1][0] > 0.0) Strip(A, B, -A.Half + 0.05, -A.Half - Fill[1][0], -B.Half + 0.05, -B.Half - Fill[1][1], -0.004, -0.004, Tarmac);
+			// [roundabouts 156] (a painted splitter island over that gap: drawn below, once the whole road's are known)
+			for (int Sd = 0; Sd < 2; ++Sd)
+				if (Splitter[Sd] && Fill[Sd][0] > 0.0) Splits.push_back({K, Sd, A, B, Fill[Sd][0], Fill[Sd][1]});
 			for (int Sd = 0; Sd < 2; ++Sd)
 			{
 				if (NoShoulder[Sd] || ShoulderTo[Sd] <= ShoulderFrom[Sd]) continue;
@@ -2912,12 +3145,34 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					// [OSM stage 5D] The kerb: its face a 45 degree slope up KerbHigh (so a wheel rides up it,
 					// beenster Nov 14), its top; the pavement out to PaveWide; its back down into the ground.
 					const double S = Sd == 0 ? 1.0 : -1.0;
+					// [roundabouts 156] (where the pavement stops short of a roundabout's mouth, it comes down to the
+					// road over its last bit, as a dropped kerb, not ending in a raised slab (PC check, build 155))
+					const auto InMouth = [&](size_t At)
+					{
+						if (At >= Rows.size()) return false;
+						for (const RoadRing* Rg : RingsAbout)
+						{
+							const double O = Rg->OffOf(Rows[At].At);
+							if (std::fabs(O) >= Rg->Half + 0.5 && O < Rg->Half + RingMouthClear) return true;
+						}
+						return false;
+					};
+					const double Ka = K > 0 && InMouth(K - 1) ? 0.0 : 1.0, Kb = InMouth(K + 2) ? 0.0 : 1.0;
 					const auto Band = [&](double From, double To, double LiftFrom, double LiftTo, const float* Colour)
 					{
 						// (From and To out from the edge; the strip left to right)
 						const double Fa = S * (Sa.Half + From), Ta = S * (Sa.Half + To), Fb = S * (Sb.Half + From), Tb = S * (Sb.Half + To);
-						if (S > 0.0) Strip(Sa, Sb, Ta, Fa, Tb, Fb, LiftTo, LiftFrom, Colour);
-						else Strip(Sa, Sb, Fa, Ta, Fb, Tb, LiftFrom, LiftTo, Colour);
+						if (Ka == 1.0 && Kb == 1.0)
+						{
+							if (S > 0.0) Strip(Sa, Sb, Ta, Fa, Tb, Fb, LiftTo, LiftFrom, Colour);
+							else Strip(Sa, Sb, Fa, Ta, Fb, Tb, LiftFrom, LiftTo, Colour);
+							return;
+						}
+						RideMesh& M = *Into;
+						const uint32_t V = uint32_t(M.Vertices());
+						if (S > 0.0) { Put(Sa, Ta, LiftTo * Ka, Colour); Put(Sa, Fa, LiftFrom * Ka, Colour); Put(Sb, Tb, LiftTo * Kb, Colour); Put(Sb, Fb, LiftFrom * Kb, Colour); }
+						else { Put(Sa, Fa, LiftFrom * Ka, Colour); Put(Sa, Ta, LiftTo * Ka, Colour); Put(Sb, Fb, LiftFrom * Kb, Colour); Put(Sb, Tb, LiftTo * Kb, Colour); }
+						M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
 					};
 					Band(0.0, KerbHigh, 0.0, KerbHigh, KerbStone);
 					Band(KerbHigh, KerbHigh + 0.15, KerbHigh, KerbHigh, KerbStone);
@@ -2987,6 +3242,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const double Ta = std::clamp((Mk.From - A.Along) / (B.Along - A.Along), 0.0, 1.0), Tb = std::clamp((Mk.To - A.Along) / (B.Along - A.Along), 0.0, 1.0);
 				if (Tb - Ta < 1e-4) continue;
 				if (Setts && (Mk.Kind == MarkPatch || Mk.Kind == MarkTar || Mk.Kind == MarkGrit)) continue;   // ([towns stage 6] no tarmac patches on setts)
+				if (Mk.Kind == MarkPaint) continue;   // ([paint, Nov 18] painted into the tarmac, by Lay)
 				const Row Ma = Between(A, B, Ta), Mb = Between(A, B, Tb);
 				const double Up = MarkUp(Mk.Kind);
 				if (Mk.Kind == MarkGrit)
@@ -3043,103 +3299,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Strip(Ma, Mb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Up + Mk.RiseAt(Ma.Along), Up + Mk.RiseAt(Mb.Along), Mk.Colour);
 			}
 		}
-		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
-		// 3 m dashes with 6 m gaps.
 		const double Half = std::fmin(A.Half, B.Half);
 		if (A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel || Setts) continue;
-		if (!RingsHere.empty() && (OnRingTarmac(A.At) || OnRingTarmac(B.At))) continue;   // [roundabouts]
-		// ([OSM stage 5D] none along a town street's kerbs)
-		if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0))
-		{
-			for (double Side : {1.0, -1.0})
-			{
-				// (none across a junction's mouth)
-				const size_t At0 = size_t(First) + K;
-				if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
-				// ([OSM stage 5C] on a motorway's nearside, between the lanes and the hard shoulder: 0.2 m wide)
-				const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
-				const double Ia = Hard ? A.Half - A.Shoulder : A.Half - 0.3, Ib = Hard ? B.Half - B.Shoulder : B.Half - 0.3, W = Hard ? 0.1 : 0.065;
-				Strip(A, B, Side * Ia + W, Side * Ia - W, Side * Ib + W, Side * Ib - W, PaintLift, PaintLift, Paint);
-			}
-		}
-		// [OSM stage 5D] Double yellow lines along a town street's kerbs near a junction (no parking
-		// within 10 m of one, as the Highway Code has it): 75 mm lines 75 mm apart, 0.25 m off the kerb,
-		// for YellowReach m from a side road's ends and either side of a mouth onto the ride's road.
-		// ([OSM stage 5D] and wherever the map says: no parking, double yellow; no stopping, double red;
-		// marked bays, a line 2 m out from the kerb with a tick across every 6 m)
-		if (Half >= 2.4 && !A.Deck && !A.Bore)
-			for (double Side : {1.0, -1.0})
-			{
-				const int Code = (A.Park >> (Side > 0.0 ? 0 : 2)) & 3;
-				const size_t At0 = size_t(First) + K;
-				if (Code == 0 || (Code == 3 && Half < 2.9) || (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0)) continue;
-				if (Code == 3)
-				{
-					// (as deep as a car, less on a narrow street: a lane's width left between)
-					const double BayDeep = std::clamp(Half - 1.2, 1.6, BayDeepest);
-					Strip(A, B, Side * (A.Half - BayDeep) + 0.05, Side * (A.Half - BayDeep) - 0.05, Side * (B.Half - BayDeep) + 0.05, Side * (B.Half - BayDeep) - 0.05, PaintLift, PaintLift, Paint);
-					for (double Tick = std::ceil(A.Along / BayLong) * BayLong; Tick < B.Along && B.Along > A.Along; Tick += BayLong)
-					{
-						const double T0 = (Tick - A.Along) / (B.Along - A.Along), T1 = std::fmin(1.0, (Tick + 0.1 - A.Along) / (B.Along - A.Along));
-						const Row Ta = Between(A, B, T0), Tb = Between(A, B, T1);
-						const double Lo = std::fmin(Side * (Ta.Half - 0.05), Side * (Ta.Half - BayDeep)), Hi = std::fmax(Side * (Ta.Half - 0.05), Side * (Ta.Half - BayDeep));
-						Strip(Ta, Tb, Hi, Lo, Hi, Lo, PaintLift, PaintLift, Paint);
-					}
-					continue;
-				}
-				// (no-parking's lines from the junction rule below are drawn there instead)
-				if (Code == 1 && StreetRow[K] != 0 && StreetRow[K + 1] != 0) continue;
-				for (const double In : {0.29, 0.44})
-					Strip(A, B, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, PaintLift, PaintLift, Code == 2 ? RedLine : Yellow);
-			}
-		if (StreetRow[K] != 0 && StreetRow[K + 1] != 0 && Half >= 2.4)
-		{
-			const size_t At0 = size_t(First) + K;
-			bool NearJunction = false;
-			if (Which == 0)
-			{
-				for (size_t P = At0; P < StreetMouthAt.size() && P < Pts.size() && Pts[P].Along - A.Along < YellowReach && !NearJunction; ++P) NearJunction = StreetMouthAt[P] != 0;
-				for (size_t P = At0 + 1; P-- > 0 && P < StreetMouthAt.size() && A.Along - Pts[P].Along < YellowReach && !NearJunction;) NearJunction = StreetMouthAt[P] != 0;
-			}
-			else
-				NearJunction = A.Along < YellowReach || Pts.back().Along - B.Along < YellowReach;
-			for (double Side : {1.0, -1.0})
-			{
-				if (!NearJunction && ((A.Park >> (Side > 0.0 ? 0 : 2)) & 3) != 1) continue;
-				if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
-				for (const double In : {0.29, 0.44})
-					Strip(A, B, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, PaintLift, PaintLift, Yellow);
-			}
-		}
-		// [OSM stage 5B] Where the ride's road comes onto a roundabout: one broken line across its own lane
-		// (0.6 m marks, 0.3 m gaps, 0.2 m deep), giving way to the ring.
-		if (Which == 0)
-			for (const double Give : RingGiveWays)
-			{
-				if (Give < A.Along || Give >= B.Along || B.Along <= A.Along) continue;
-				const double T0 = (Give - A.Along) / (B.Along - A.Along), T1 = std::min((Give + 0.2 - A.Along) / (B.Along - A.Along), 1.0);
-				const Row Ga = Between(A, B, T0), Gb = Between(A, B, T1);
-				const double Keep = KeepLeft() ? 1.0 : -1.0;
-				for (double U = 0.15; U + 0.6 <= Ga.Half - 0.15 + 1e-9; U += 0.9)
-				{
-					const double U0 = Keep * U, U1 = Keep * (U + 0.6);
-					Strip(Ga, Gb, std::fmax(U0, U1), std::fmin(U0, U1), std::fmax(U0, U1), std::fmin(U0, U1), PaintLift, PaintLift, Paint);
-				}
-			}
-		// ([OSM stage 5] a centre line where the map's lanes say, else by the rule; lane lines between a
-		// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
-		if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength)
-		{
-			if (RoadX::CentreLine(A.Lanes, A.OneWay, Half)) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
-			// ([OSM stage 5C] a motorway's lanes between its offside edge and its hard shoulder)
-			const double Ca = -double(A.Near) * A.Shoulder * 0.5, Cb = -double(B.Near) * B.Shoulder * 0.5;
-			const double Ha = A.Half - A.Shoulder * 0.5, Hb = B.Half - B.Shoulder * 0.5;
-			for (const double Off : RoadX::LaneLines(A.Lanes, A.OneWay, 1.0))
-				Strip(A, B, Ca + Off * Ha + 0.06, Ca + Off * Ha - 0.06, Cb + Off * Hb + 0.06, Cb + Off * Hb - 0.06, PaintLift, PaintLift, Paint);
-		}
 		// Cat's eyes (stage 7): a stud every 18.3 m (60 ft) down the middle of a road with a centre line,
 		// red ones along its edges where it has edge lines, out of the towns (lit streets have none).
-		if (RoadX::CentreLine(A.Lanes, A.OneWay, Half) && !A.Bore && B.Along > A.Along && Britain())   // [stage 8] (Britain's)
+		if (RoadX::CentreLine(A.Lanes, A.OneWay, Half) && !A.Bore && !OnRingTar && B.Along > A.Along && Britain())   // [stage 8] (Britain's)
 		{
 			const bool Town = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
 			const double Stud = 18.288;
@@ -3186,6 +3350,68 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			}
 		}
 	}
+	// [roundabouts 156] (PC check, build 155: the mouths read as very wide aprons of tarmac.) Between an
+	// arm's way in and its way out, a painted splitter island as the UK marks it: a solid line along each
+	// road's edge and diagonal hatching out to the middle of the gap, so the two roads' halves meet as
+	// chevrons. Only along a run of 8 m or more of such gap, so no odd scraps of hatching.
+	std::stable_sort(Splits.begin(), Splits.end(), [](const SplitBit& P, const SplitBit& Q) { return P.Sd < Q.Sd; });
+	for (size_t I = 0; I < Splits.size();)
+	{
+		size_t J = I + 1;
+		while (J < Splits.size() && Splits[J].Sd == Splits[I].Sd && Splits[J].K == Splits[J - 1].K + 1) ++J;
+		double Widest = 0.0;
+		for (size_t Q = I; Q < J; ++Q) Widest = std::fmax(Widest, std::fmax(Splits[Q].F0, Splits[Q].F1));
+		// (and only a splitter: its nose at a ring's edge, not a gap between roads farther out)
+		bool AtRing = false;
+		for (const RoadRing* Rg : RingsAbout)
+			for (const SplitBit* Bt : {&Splits[I], &Splits[J - 1]})
+				AtRing = AtRing || Rg->OffOf(Bt->A.At) < Rg->Half + Bt->A.Half + 4.0 || Rg->OffOf(Bt->B.At) < Rg->Half + Bt->B.Half + 4.0;
+		if (!AtRing || Splits[J - 1].B.Along - Splits[I].A.Along < 8.0 || Widest < 2.0) { I = J; continue; }
+		for (size_t Q = I; Q < J; ++Q)
+		{
+			const SplitBit& Bt = Splits[Q];
+			const double Sign = Bt.Sd == 0 ? 1.0 : -1.0;
+			const auto Part = [&Bt](double T)
+			{
+				Row R = Bt.A;
+				R.At = Bt.A.At + (Bt.B.At - Bt.A.At) * T;
+				R.Height += (Bt.B.Height - Bt.A.Height) * T;
+				R.Along += (Bt.B.Along - Bt.A.Along) * T;
+				R.Half += (Bt.B.Half - Bt.A.Half) * T;
+				R.Bank += (Bt.B.Bank - Bt.A.Bank) * T;
+				return R;
+			};
+			// (offsets out from each row's edge; Strip wants them across the road, the greater first)
+			const auto Band = [&](const Row& Ra, const Row& Rb, double A0, double A1, double B0, double B1)
+			{
+				const double Pa0 = Sign * (Ra.Half + A0), Pa1 = Sign * (Ra.Half + A1), Pb0 = Sign * (Rb.Half + B0), Pb1 = Sign * (Rb.Half + B1);
+				Strip(Ra, Rb, std::fmax(Pa0, Pa1), std::fmin(Pa0, Pa1), std::fmax(Pb0, Pb1), std::fmin(Pb0, Pb1), PaintOverLift, PaintOverLift, Paint);
+			};
+			Band(Bt.A, Bt.B, -0.25, -0.1, -0.25, -0.1);
+			const double Run = Bt.B.Along - Bt.A.Along;
+			if (Run <= 1e-6) continue;
+			static constexpr double Pitch = 2.5, Wide = 0.3, Slice = 0.25;
+			for (double U = 0.0; U < Run - 1e-6; U += Slice)
+			{
+				const double U1 = std::fmin(Run, U + Slice);
+				const Row Ra = Part(U / Run), Rb = Part(U1 / Run);
+				// (out to the middle of the gap)
+				const double Ma = 0.5 * (Bt.F0 + (Bt.F1 - Bt.F0) * (U / Run)) - 0.15, Mb = 0.5 * (Bt.F0 + (Bt.F1 - Bt.F0) * (U1 / Run)) - 0.15;
+				if (Ma < 0.4 || Mb < 0.4) continue;
+				// (each stripe runs out at 45 degrees: out from the edge by (Along - Phase))
+				const double Sa = Ra.Along, Sb = Rb.Along;
+				for (double Phase = std::floor((Sa - Ma - 1.0) / Pitch) * Pitch; Phase <= Sb + 1.0; Phase += Pitch)
+				{
+					const double Ca = Sa - Phase, Cb = Sb - Phase;
+					const double LoA = std::clamp(Ca - Wide, 0.0, Ma), HiA = std::clamp(Ca + Wide, 0.0, Ma);
+					const double LoB = std::clamp(Cb - Wide, 0.0, Mb), HiB = std::clamp(Cb + Wide, 0.0, Mb);
+					if (HiA - LoA < 0.02 && HiB - LoB < 0.02) continue;
+					Band(Ra, Rb, LoA, HiA, LoB, HiB);
+				}
+			}
+		}
+		I = J;
+	}
 	// [OSM stage 5C] A dual carriageway's central reservation: a steel barrier down its middle (two beams
 	// on posts every 3.2 m), drawn by one of the two halves (the road with the greater number, or the
 	// ride's road where it comes back down the other half: its later part).
@@ -3206,6 +3432,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			DualHit D;
 			if (!Pts[size_t(I)].OneWay || Rows[K].Deck || Rows[K].Bore || !DualAcross(Which, I, 0, D)) continue;
 			if (D.Gap < MedianLeast || D.Gap > MedianMost || D.Which < Which || (D.Which == Which && D.FarAlong < Pts[size_t(I)].Along)) continue;
+			// [roundabouts 156] (none in a roundabout's approach: a ring's ways in and out are one-way pairs,
+			// and a barrier stood on the splitter island in the mouth (York, cloud check))
+			bool NearRing = false;
+			for (const RoadRing* Rg : RingsAbout) NearRing = NearRing || Rg->OffOf(Rows[K].At) < Rg->Half + RingBarrierClear;
+			if (NearRing) continue;
 			Mid& M = Mids[K];
 			M.Is = true;
 			M.Of = D.Which;
@@ -3378,7 +3609,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const double U = double(S) / Segs;
 				CurveAt[S] = OnMain * ((1.0 - U) * (1.0 - U)) + Corner * (2.0 * U * (1.0 - U)) + OnSide * (U * U);
 				// (the side road's surface as drawn, settled onto the ride's road near its edge, a hair over it)
-				CurveH[S] = Surface(Which, CurveAt[S], MainH + (SideH - MainH) * U) + 0.01 + JoinSink * (1.0 - U);
+				CurveH[S] = Surface(Which, CurveAt[S], MainH + (SideH - MainH) * U) + 0.01 * (1.0 - U) + JoinSink * (1.0 - U);
 				// (out from the corner, square to the curve)
 				const P2 Tangent = (Corner - OnMain) * (1.0 - U) + (OnSide - Corner) * U;
 				P2 Outward(Tangent.Z, -Tangent.X);
@@ -3395,7 +3626,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				RimH[At4] = CurveH[S];
 			}
 			// [roundabouts round 4] (no kerb, pavement or grass round a corner in a roundabout's mouth)
-			const bool InRingMouth = PaintedRingNear(Corner, RingMouthClear) >= 0 || PaintedRingNear(OnMain, RingMouthClear) >= 0 || PaintedRingNear(OnSide, RingMouthClear) >= 0;
+			const bool InRingMouth = PaintedRingNear(Corner, RingCornerClear) >= 0 || PaintedRingNear(OnMain, RingCornerClear) >= 0 || PaintedRingNear(OnSide, RingCornerClear) >= 0;
 			if (StreetCorner && !InRingMouth)
 			{
 				// (the kerb's face, its top, the pavement and its back, as the street's own (RoadPiece's Band),

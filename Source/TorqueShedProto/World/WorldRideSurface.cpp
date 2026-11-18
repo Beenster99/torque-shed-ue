@@ -186,7 +186,7 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 
 double RidePlan::MarkUp(int Kind)
 {
-	return Kind == MarkPaint ? 0.013 : Kind == MarkHump ? 0.004 : Kind == MarkBay ? 0.0 : Kind == MarkTar ? 0.009 : Kind == MarkJoint ? 0.012 : Kind == MarkCover ? 0.01
+	return Kind == MarkPaint ? 0.0 : Kind == MarkHump ? 0.004 : Kind == MarkBay ? 0.0 : Kind == MarkTar ? 0.009 : Kind == MarkJoint ? 0.012 : Kind == MarkCover ? 0.01
 		: Kind == MarkGrit ? 0.007 : 0.006;
 }
 
