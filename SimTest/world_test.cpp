@@ -2243,6 +2243,37 @@ int main()
 		std::printf("      outlines: game thread's longest wait %.3f s, %d fetch(es) sent by it, %d note(s), worker %s\n", Worst, Sent, Notes, WorkerDone ? "done" : "stuck");
 		Check(WorkerDone && Worst < 0.25 && Sent >= 1 && Notes >= 1,
 			"a cell's building outlines fetched by a worker never hold up the game thread (the 156 hard freeze)");
+		// [build 158] A fetch the game thread couldn't send in time (NotNow) leaves the cell to be asked
+		// again: boxes for that square, the outlines on a later one.
+		RidePlan Later;
+		Later.Area.Roads.FrameLat = Plan.Area.Roads.FrameLat;
+		Later.Area.Roads.FrameLon = Plan.Area.Roads.FrameLon;
+		Later.CellsFrom = &Cells;
+		int Asked = 0;
+		bool SayNotNow = true;
+		Cells.Get = [&](const std::string& Url, std::string& Body) -> int
+		{
+			if (Url == Cells.IndexUrl) { Body = Index; return 200; }
+			++Asked;
+			Body = "not the zip the index names";
+			return SayNotNow ? CellStore::NotNow : 200;
+		};
+		int FirstNotes = 0, SecondNotes = 0, AskedFirst = 0;
+		std::thread([&]()
+		{
+			std::vector<std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> Hold;
+			std::vector<const RidePlan::OutlinePiece*> Out;
+			std::vector<CellId> Covered;
+			Later.OutlinesIn(0.0, 0.0, 50.0, Hold, Out, Covered);
+			FirstNotes = int(Later.TakeOutlineNotes().size());
+			AskedFirst = Asked;
+			SayNotNow = false;
+			Later.OutlinesIn(0.0, 0.0, 50.0, Hold, Out, Covered);
+			SecondNotes = int(Later.TakeOutlineNotes().size());
+		}).join();
+		std::printf("      outlines: a fetch not sent in time: %d note(s), asked %d; asked again: %d note(s), asked %d\n", FirstNotes, AskedFirst, SecondNotes, Asked);
+		Check(FirstNotes == 0 && AskedFirst >= 1 && SecondNotes >= 1 && Asked > AskedFirst,
+			"a cell's buildings fetch the game couldn't send in time is asked again later, its boxes meanwhile");
 	}
 
 	std::printf("\n%s\n", Fails == 0 ? "world_test: all passed" : "world_test: FAILED");
