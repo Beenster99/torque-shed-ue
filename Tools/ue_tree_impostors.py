@@ -1,5 +1,11 @@
 """[perf, build 155] Impostors for Ride UK's far trees, baked from the scanned trees themselves.
 
+[build 157] ONLY master_material() is used now (by Tools/ue_build_rideuk.py). The game photographs the
+scans itself at ride start (Source/TorqueShedProto/World/TorqueImpostors.cpp, the same 8 x 8 views,
+camera directions and depth range as frame_dir and bake() below). The editor bake (bake, bake_all,
+Tools/ue_bake_impostors.py) crashed beenster's GPU in rounds 155 and 156: do not run it on the PC
+unless beenster asks.
+
 Round 153 drew trees past 200 m (and the whole far ring) with Buttertubs' low-poly far models, and
 beenster found them "ridiculous" (blobby green lumps on the hills). The full scans cost ~9 ms of GPU
 at Whaley Bridge. An impostor is the usual answer (Forza, Flight Simulator, Ride): each scanned tree
@@ -215,6 +221,10 @@ def master_material():
     for k, (name, y) in enumerate((("TexC", 0), ("TexN", 300), ("TexD", 600))):
         e = _expr(m, unreal.MaterialExpressionTextureObjectParameter, -1600, y)
         _set(e, parameter_name=name)
+        # ([build 157] a default so the material compiles; the game sets its own render targets)
+        default = unreal.load_asset("/Engine/EngineResources/DefaultTexture")
+        if default is not None:
+            _set(e, texture=default)
         tex[name] = e
     centre = _expr(m, unreal.MaterialExpressionVectorParameter, -2200, 900)
     _set(centre, parameter_name="Centre", default_value=unreal.LinearColor(0, 0, 500, 0))

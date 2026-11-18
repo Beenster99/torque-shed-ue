@@ -1,5 +1,8 @@
 """Bake the far trees' impostors from the scanned trees (Tools/ue_tree_impostors.py), on their own.
 
+RETIRED in build 157: the game photographs the scans itself (World/TorqueImpostors.cpp). This editor
+bake crashed beenster's GPU in rounds 155 and 156; do not run it on the PC unless beenster asks.
+
 Scene captures render nothing under UnrealEditor-Cmd -unattended (round 154: every view black), so
 this runs in the FULL editor, once, before Tools/ue_build_rideuk.py (which then finds the cards made
 and plants them as SM_TreeFar_<kind>_imp):
@@ -42,6 +45,7 @@ class Baker:
         m = re.search(r"torqueimpostorlimit=(\d+)", unreal.SystemLibrary.get_command_line().lower())
         if m:
             self.trees = self.trees[:int(m.group(1))]
+        self.busy = False
         self.ticks = 0
         self.at = -1
         self.done = 0
@@ -55,6 +59,17 @@ class Baker:
             return False
 
     def tick(self, dt):
+        # ([round 156] compiling the material inside setup() pumps editor ticks, which called tick() and
+        # setup() again, 157 times over, until the GPU driver failed: never re-enter)
+        if self.busy:
+            return
+        self.busy = True
+        try:
+            self._tick(dt)
+        finally:
+            self.busy = False
+
+    def _tick(self, dt):
         self.ticks += 1
         if self.at < 0:
             if self.ticks < self.WAIT_TICKS or (self.compiling() and self.ticks < self.WAIT_TICKS * 20):

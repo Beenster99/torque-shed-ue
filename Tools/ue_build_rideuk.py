@@ -630,6 +630,9 @@ SCAN_DEST = "/Game/ScannedTrees"
 OLD_SCAN_DEST = "/Game/RideUK/ScannedTrees"
 
 
+_IMPOSTOR_MATERIAL = []   # ([build 157] M_RideImpostor made once a run)
+
+
 def scanned_trees(L, kit):
     """Scanned trees (Data/RideUK/scanned_trees.json: Quixel Megaplants once imported on the PC) in
     the kit's "Trees" in place of Buttertubs' own models of the same kind, as species named
@@ -815,27 +818,18 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
-        # [perf, build 155] Far off, the scans as impostors baked from them (Tools/ue_tree_impostors.py)
-        # in place of Buttertubs' low-poly far models (beenster, build 153: "the new trees are BAD").
-        if spec.get("impostors", True):
+        # [perf, build 157] Far off, the scans as impostors: the GAME photographs each scan at ride start
+        # (World/TorqueImpostors.cpp) and draws its far trees with M_RideImpostor. Here only the material
+        # is made (once per run, below); no editor captures (rounds 155-156 crashed beenster's GPU), and
+        # the kit keeps the old far models for when impostors are off (torque.RideImpostors 0).
+        if spec.get("impostors", True) and not _IMPOSTOR_MATERIAL:
             try:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 import ue_tree_impostors as IMP
-                cards = IMP.bake_all(got, rebake=bool(spec.get("rebake_impostors", False)))
+                IMP.master_material()
+                _IMPOSTOR_MATERIAL.append(True)
             except Exception as e:
-                log("scanned trees: %s: impostors failed: %s" % (kind, e))
-                cards = []
-            # (the same order as the scans, so a tree's near scan and far card are the same variant;
-            # if any one failed, the kind keeps its old far models rather than mismatching)
-            if cards and all(cards):
-                rows[:] = [x for x in rows if not x["name"].startswith("SM_TreeFar_%s_" % kind)]
-                f = dict(template)
-                f.update({"name": "SM_TreeFar_%s_imp" % kind, "mesh": "", "material": "", "variants": cards, "variant_materials": [],
-                          "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": False})
-                rows.append(f)
-                log("scanned trees: %s: %d impostors for the far trees" % (kind, len(cards)))
-            else:
-                log("scanned trees: %s: impostors NOT used (%d of %d baked); old far models kept" % (kind, len([c for c in cards if c]), len(got)))
+                log("scanned trees: impostor material failed (the game uses the old far models): %s" % e)
     log("scanned trees%s: %s" % ("" if use else " (trial, not planted)", ", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
 

@@ -35,6 +35,7 @@
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
+#include "World/TorqueImpostors.h"
 #include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
 #include "Misc/DateTime.h"
@@ -714,6 +715,7 @@ void ATorqueRideWorld::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (Current.Get() == this) Current.Reset();
 	SaveDiary();   // [stage 7]
+	if (Impostors) Impostors->Stop();   // [build 157] (a closed ride is not a crashed bake)
 	if (Jobs)
 	{
 		// (a worker part way through a square reads the world's stores: let it finish before they can go)
@@ -1493,6 +1495,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
 	TickWarmUp();
+	if (Impostors) Impostors->Tick();   // [build 157] a few views of a far tree's impostor
 	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
 	TRProbe::WatchGc();
 	{
@@ -2246,6 +2249,17 @@ bool ATorqueRideWorld::FindKit()
 			if (KindNear[K].Num() == 0 && Instead != K) { KindNear[K] = KindNear[Instead]; KindFar[K] = KindFar[Instead]; }
 		}
 	}
+	// [perf, build 157] Which scans get impostors far off (when they're on): a kind whose near trees
+	// are a scan and whose far ones are other models.
+	if (!Impostors)
+	{
+		Impostors = NewObject<UTorqueImpostors>(this, NAME_None, RF_Transient);
+		Impostors->Start(this);
+	}
+	ImpostorFar.Reset();
+	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && KindNear.Num() == TorqueWorld::RidePlan::PlantKinds; ++K)
+		if (KindNear[K].Num() == 1 && Kit[KindNear[K][0]].Name.ToString().EndsWith(TEXT("_scan")) && KindFar[K].Num() > 0 && KindFar[K] != KindNear[K])
+			ImpostorFar.Add(KindNear[K][0], KindFar[K][0]);
 	// [stage 6] The livestock's models, by the kind their name says (SM_Animal_<kind>_<n>).
 	AnimalKit.Reset();
 	AnimalModels.Reset();
@@ -2307,6 +2321,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 	TMap<FIntVector, TArray<FTransform>> Groups;
 	uint32 Counter = 0;
 	const float NearTreeM = TRWI::CVarNearTreeM.GetValueOnGameThread();
+	const bool bImpostorsOn = Impostors && Impostors->IsOn() && ImpostorFar.Num() > 0;
 	for (const TorqueWorld::RidePlant& P : Mesh.Plants)
 	{
 		++Counter;
@@ -2356,13 +2371,17 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// ([build 152] the far ring's trees in groups of their own, -2, so they can be lit more cheaply;
 		// [build 153] a near tree as a scan within torque.RideNearTreeM, in 128 m patches (-1000 - patch),
 		// and as the far model past it (-2000 - patch))
-		if (bTree && P.Far) { AddPlant(Choice, -2); continue; }
+		// ([build 157] far off, a scanned kind's trees as impostors of the same scan and variant: groups -3
+		// (far ring) and -4000 - patch (past the scans))
+		const bool bImpostorKind = bTree && bImpostorsOn && KindNear[P.Kind].Num() == 1 && ImpostorFar.Contains(KindNear[P.Kind][0]);
+		if (bTree && P.Far) { if (bImpostorKind) AddPlant(KindNear[P.Kind], -3); else AddPlant(Choice, -2); continue; }
 		if (bTree && NearTreeM > 0.0f && KindFar[P.Kind].Num() > 0 && KindFar[P.Kind] != KindNear[P.Kind])
 		{
 			const float TreePatchM = FMath::Clamp(TRWI::CVarTreePatch.GetValueOnGameThread(), 32.0f, 256.0f);
 			const int32 TreePatch = FMath::Clamp(int32(P.X / TreePatchM), 0, 7) + 8 * FMath::Clamp(int32(P.Z / TreePatchM), 0, 7);
 			AddPlant(Choice, -1000 - TreePatch);
-			AddPlant(KindFar[P.Kind], -2000 - TreePatch);
+			if (bImpostorKind) AddPlant(KindNear[P.Kind], -4000 - TreePatch);
+			else AddPlant(KindFar[P.Kind], -2000 - TreePatch);
 			continue;
 		}
 		AddPlant(Choice, -1);
@@ -2370,14 +2389,27 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
 	for (TPair<FIntVector, TArray<FTransform>>& Group : Groups)
 	{
-		const FTorqueFoliageSpecies& S = Kit[Group.Key.X];
+		const FTorqueFoliageSpecies& S0 = Kit[Group.Key.X];
 		const int32 Vi = Group.Key.Y;
-		UStaticMesh* Model = S.Variants.Num() ? S.Variants[Vi].Get() : S.Mesh.Get();
-		UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Vi) ? S.VariantMaterials[Vi].Get() : nullptr) : S.Material.Get();
+		UStaticMesh* Model = S0.Variants.Num() ? S0.Variants[Vi].Get() : S0.Mesh.Get();
+		UMaterialInterface* Mat = S0.Variants.Num() ? (S0.VariantMaterials.IsValidIndex(Vi) ? S0.VariantMaterials[Vi].Get() : nullptr) : S0.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
 		const bool bNearScan = bTree && Group.Key.Z <= -1000 && Group.Key.Z > -2000;   // ([build 153] scans, near the rider only)
 		const bool bFarCopy = bTree && Group.Key.Z <= -2000;   // ([build 153] a near tree as its far model, past the scans)
-		const bool bFarTree = bTree && (Group.Key.Z == -2 || bFarCopy);
+		// ([build 157] a scan's far trees as its impostor: the card and material the game photographs it
+		// for, reaching as far as the kind's far models did)
+		const bool bImpostorGroup = bTree && (Group.Key.Z == -3 || Group.Key.Z <= -4000);
+		if (bImpostorGroup)
+		{
+			const int32* FarSi = ImpostorFar.Find(Group.Key.X);
+			UStaticMesh* Card = FarSi && Impostors ? Impostors->Card(Model) : nullptr;
+			UMaterialInterface* CardMat = Card ? Impostors->Material(Model) : nullptr;
+			if (!Card || !CardMat) continue;
+			Model = Card;
+			Mat = CardMat;
+		}
+		const FTorqueFoliageSpecies& S = bImpostorGroup ? Kit[ImpostorFar.FindChecked(Group.Key.X)] : S0;
+		const bool bFarTree = bTree && (Group.Key.Z == -2 || Group.Key.Z == -3 || bFarCopy);
 		const float PlantReach = PresetReach(bTree);
 		if (TRWI::Unseen(Key, PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
 		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
@@ -2403,16 +2435,16 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->SetCollisionProfileName(TEXT("NoCollision"));
 		Ism->SetCanEverAffectNavigation(false);
 		Ism->SetGenerateOverlapEvents(false);
-		Ism->SetCastShadow(S.bCastShadow && (!bFarTree || TRWI::CVarFarTreeShadows.GetValueOnGameThread() != 0));
+		Ism->SetCastShadow(S.bCastShadow && !bImpostorGroup && (!bFarTree || TRWI::CVarFarTreeShadows.GetValueOnGameThread() != 0));
 		Ism->bCastContactShadow = S.bCastShadow && !bTree;
 		Ism->ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Rigid;
 		Ism->bReceivesDecals = false;
-		const bool bTreeLit = bTree && (!bFarTree || TRWI::CVarFarTreeLighting.GetValueOnGameThread() != 0);
+		const bool bTreeLit = bTree && !bImpostorGroup && (!bFarTree || TRWI::CVarFarTreeLighting.GetValueOnGameThread() != 0);
 		Ism->bAffectDistanceFieldLighting = bTreeLit;
 		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
 		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
-		const bool bImpostor = bTree && S.Name.ToString().EndsWith(TEXT("_imp"));
+		const bool bImpostor = bImpostorGroup || (bTree && S.Name.ToString().EndsWith(TEXT("_imp")));
 		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
