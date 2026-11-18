@@ -713,6 +713,12 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		{
 			Name = TorqueShedParts::PartName(R.Part);
 			Sub = TorqueShedParts::PartDescription(R.Part);
+			// [bare frame] Whether a bike needs it to ride (beenster after 155).
+			{
+				const FName Home = TorqueShedParts::HomeSlot(R.Part);
+				if (!Home.IsNone() && Kind != FName(TEXT("frame")))
+					Sub = (TorqueShedParts::MayBeEmpty(Home) ? TEXT("Optional \u00B7 ") : TEXT("Needed to ride \u00B7 ")) + Sub;
+			}
 			const FName Best = TorqueShedParts::PreferredStyle(R.Part);
 			if (Kind == FName(TEXT("engine")))
 			{
@@ -793,8 +799,19 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		{
 			Title = TorqueShedParts::PartName(R.Part);
 			TArray<FString> Fits;
-			for (const FName& Slot : TorqueShedParts::SlotsForKind(Kind)) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
+			// [bare frame] A V2 bike's part: its own slot, and the frames (or engine) it bolts to.
+			const FName OwnSlot = TorqueShedParts::V2Slot(R.Part);
+			if (!OwnSlot.IsNone()) Fits.Add(TorqueShedParts::SlotName(OwnSlot).ToLower());
+			else
+				for (const FName& Slot : TorqueShedParts::SlotsForKind(Kind)) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
 			Spec = Fits.Num() > 0 ? TEXT("Fits: ") + TPCI::Join(Fits) : FString();
+			const FString BoltsTo = TorqueShedParts::V2Fits(R.Part);
+			if (!BoltsTo.IsEmpty()) Spec += TEXT("\nBolts to: ") + BoltsTo;
+			{
+				const FName Home = TorqueShedParts::HomeSlot(R.Part);
+				if (!Home.IsNone() && Kind != FName(TEXT("frame")))
+					Spec += TorqueShedParts::MayBeEmpty(Home) ? TEXT("\nOptional: a bike rides without it") : TEXT("\nNeeded to ride");
+			}
 			const double Mass = TorqueShedParts::PartNumber(R.Part, FName(TEXT("mass")), -1.0);
 			if (Mass > 0.0) Spec += FString::Printf(TEXT("\nWeight: %.1f kg"), Mass);
 			// The bike types it suits: the one it's made for, and the others it looks right on.

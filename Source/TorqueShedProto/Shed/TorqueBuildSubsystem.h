@@ -804,6 +804,8 @@ private:
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
 	int32 DropRetiredParts();   // [tft] the ECUs and the old sat nav units
+	// [bare frame] Why a V2 bike's part won't go in Slot on the bay's bike, or on the loose engine Engine (empty: it fits).
+	FString V2FitReason(int32 Bay, int32 Engine, FName Slot, FName Part) const;
 	int32 FreeBay() const;
 	// [co-op] A bay whose bike is parked away from it (wheeled out, in the wash bay) is free for a
 	// frame: that bike's record goes to an empty bay's place, standing where it is. Empty when it

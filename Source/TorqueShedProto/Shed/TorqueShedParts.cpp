@@ -235,6 +235,8 @@ struct FPartInfo
 	bool bEmpty = false;
 	FLinearColor Liquid = FLinearColor(0.6f, 0.45f, 0.15f);
 	bool bV2 = false;   // [bikes v2] a V2 bike's frame
+	FName V2Slot;       // [bare frame] a V2 bike's own part: its slot ("v2part"), and what it bolts to in words
+	FString V2Fits;
 };
 
 struct FCatalogue
@@ -343,6 +345,22 @@ FCatalogue& Catalogue()
 			if ((*P)->TryGetStringField(TEXT("grade"), Grade) && !Grade.IsEmpty()) Info.Grade = FName(*Grade);
 			(*P)->TryGetBoolField(TEXT("empty"), Info.bEmpty);
 			Info.bV2 = (*P)->HasField(TEXT("v2"));
+			const TSharedPtr<FJsonObject>* V2Part = nullptr;
+			if ((*P)->TryGetObjectField(TEXT("v2part"), V2Part))
+			{
+				FString Slot, Fits, Family, Brand;
+				(*V2Part)->TryGetStringField(TEXT("slot"), Slot);
+				(*V2Part)->TryGetStringField(TEXT("fits"), Fits);
+				(*V2Part)->TryGetStringField(TEXT("family"), Family);
+				(*V2Part)->TryGetStringField(TEXT("brand"), Brand);
+				Info.V2Slot = Slot.IsEmpty() ? NAME_None : FName(*Slot);
+				const FString Bike = Brand + TEXT(" ") + Family;
+				if (Fits == TEXT("model")) Info.V2Fits = FString::Printf(TEXT("The %s frame only"), *Bike);
+				else if (Fits == TEXT("engine")) Info.V2Fits = FString::Printf(TEXT("The %s engine block"), *Bike);
+				else if (Fits == TEXT("layout")) Info.V2Fits = FString::Printf(TEXT("%s frames built round the %s's engine layout"), *Family.Left(1).ToUpper().Append(Family.Mid(1)), *Bike);
+				else if (Fits == TEXT("shock")) Info.V2Fits = FString::Printf(TEXT("%s frames with the %s's rear suspension layout"), *Family.Left(1).ToUpper().Append(Family.Mid(1)), *Bike);
+				else Info.V2Fits = FString::Printf(TEXT("Any %s frame, any brand"), *Family);
+			}
 			const TArray<TSharedPtr<FJsonValue>>* Liq = nullptr;
 			if ((*P)->TryGetArrayField(TEXT("liquid"), Liq) && Liq->Num() >= 3)
 				Info.Liquid = FLinearColor((float)(*Liq)[0]->AsNumber(), (float)(*Liq)[1]->AsNumber(), (float)(*Liq)[2]->AsNumber());
@@ -359,6 +377,23 @@ FCatalogue& Catalogue()
 			C.Parts.Add(Id, Info);
 			List.Add(Id);
 		}
+	}
+	// [bare frame] The bike types still sold are those with V2 frames: a part's other types are left off it, so
+	// the shop never says a part suits a type that's gone (beenster after 155).
+	{
+		TSet<FName> Kept;
+		for (const TPair<FName, FPartInfo>& KV : C.Parts)
+			if (KV.Value.bV2)
+				for (const FName& S : KV.Value.Styles) Kept.Add(S);
+		if (Kept.Num() > 0)
+			for (TPair<FName, FPartInfo>& KV : C.Parts)
+			{
+				const bool bHadStyles = KV.Value.Styles.Num() > 0 || !KV.Value.Pack.IsNone();
+				KV.Value.Styles.RemoveAll([&Kept](const FName& S) { return !Kept.Contains(S); });
+				if (!KV.Value.Pack.IsNone() && !Kept.Contains(KV.Value.Pack)) KV.Value.Pack = NAME_None;
+				// (one made only for types that are gone: still sold, for any bike)
+				(void)bHadStyles;
+			}
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque shed: parts catalogue has %d parts"), C.Parts.Num());
 	return C;
@@ -555,6 +590,27 @@ bool SuitsStyle(FName Part, FName Style)
 	if (!P) return true;
 	if (P->Styles.Num() == 0 && P->Pack.IsNone()) return true;   // brakes, gearboxes, fluids...: any bike
 	return P->Pack == Style || P->Styles.Contains(Style);
+}
+
+FName V2Slot(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P ? P->V2Slot : NAME_None;
+}
+
+FString V2Fits(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P ? P->V2Fits : FString();
+}
+
+FName HomeSlot(FName Part)
+{
+	if (IsStock(Part)) return StockSlot(Part);
+	const FName Own = V2Slot(Part);
+	if (!Own.IsNone()) return Own;
+	const TArray<FName> KindSlots = SlotsForKind(PartKind(Part));
+	return KindSlots.Num() > 0 ? KindSlots[0] : NAME_None;
 }
 
 FLinearColor DefaultColour(FName Part)

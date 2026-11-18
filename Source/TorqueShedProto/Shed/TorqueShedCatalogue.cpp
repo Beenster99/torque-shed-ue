@@ -18,6 +18,7 @@
 #include "GameFramework/Actor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include <algorithm>
 #include "MeshDescription.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -721,8 +722,20 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 		Made = &Cache.Add(Key);
 		// As it sits on a bike of its own style (its style's reference bike with it, and what's on it, fitted).
 		const std::vector<std::string> Styles = Lay->StylesOf(TSCI::Std(MainId));
-		const std::string Style = !Styles.empty() ? Styles[0] : (!Lay->Styles().empty() ? Lay->Styles()[0] : std::string());
-		TorqueFit::PartsMap Map = Lay->ReferenceBuild(Style);
+		std::string Style = !Styles.empty() ? Styles[0] : (!Lay->Styles().empty() ? Lay->Styles()[0] : std::string());
+		// [bare frame] On a bike that's still sold (a V2 one: the old frames draw no common parts, and their stock
+		// parts are retired), and a V2 bike's own part on its own bike (beenster after 155: new parts had no preview
+		// in the shop or out of their box).
+		const std::vector<std::string>& Sold = Lay->ShopStyles();
+		if (!Sold.empty() && std::find(Sold.begin(), Sold.end(), Style) == Sold.end()) Style = Sold[0];
+		TorqueFit::PartsMap Map = Lay->ShopBuild(Style);
+		const TorqueFit::Json* MainPart = Lay->Part(TSCI::Std(MainId));
+		const TorqueFit::Json* Own = MainPart ? MainPart->Get("v2part") : nullptr;
+		if (Own && Lay->Part(Own->Str("frame")))
+		{
+			Map["frame"] = Own->Str("frame");
+			for (const auto& KV : Lay->V2Build(Own->Str("frame"))) Map[KV.first] = KV.second;
+		}
 		for (const TPair<FString, FString>& KV : Parts) Map[TSCI::Std(KV.Key)] = TSCI::Std(KV.Value);
 		const TorqueFit::Layout L = Lay->Solve(Map);
 		TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));

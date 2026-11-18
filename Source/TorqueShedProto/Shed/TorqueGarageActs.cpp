@@ -38,7 +38,10 @@ FString UTorqueBuildSubsystem::GarageOffWhy(int32 Bay, FName Slot) const
 
 FName UTorqueBuildSubsystem::GarageSlot(int32 Bay, FName Looked, const FTorqueItem& It, FString& Why) const
 {
-	const TArray<FName> Candidates = TorqueShedParts::SlotsForKind(It.Kind);
+	TArray<FName> Candidates = TorqueShedParts::SlotsForKind(It.Kind);
+	// [bare frame] A V2 bike's own part goes in its own slot (its front wheel isn't a rear one).
+	const FName OwnSlot = TorqueShedParts::V2Slot(It.Part);
+	if (!OwnSlot.IsNone()) Candidates = {OwnSlot};
 	if (Candidates.Num() == 0) { Why = TEXT("That doesn't bolt on anywhere."); return NAME_None; }
 	const FHost H = HostOf(Bay, Candidates[0], 0);
 	if (!H.Slots) { Why = TEXT("Fit an engine first."); return NAME_None; }
@@ -109,6 +112,11 @@ FString UTorqueBuildSubsystem::CheckGarage(int32 Peer, const FTorqueShedRequest&
 			const FTorqueItem* On = Items.Find(ItemOn(R.Bay, S));
 			FVector Spot;
 			if (On && !FreeDelivery(On->Part, Spot)) return TEXT("The shed's delivery area is full: bring some boxes in when you're back.");
+		}
+		{
+			// [bare frame] A V2 bike's part bolts to its family's frames.
+			const FString V2Why = V2FitReason(R.Bay, 0, S, HeldIt->Part);
+			if (!V2Why.IsEmpty()) return V2Why;
 		}
 		if (S == FName(TEXT("tank")) || S == FName(TEXT("fork")))
 		{

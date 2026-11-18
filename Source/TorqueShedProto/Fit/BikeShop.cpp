@@ -203,6 +203,9 @@ std::vector<std::string> Options(const BikeLayout& Lay, const std::string& Slot,
 		const std::vector<std::string> V2 = Lay.V2Frames(Style);
 		if (!V2.empty()) Out = V2;
 	}
+	// [bare frame] Only the V2 parts that bolt to this bike's frame (its family; the engine's layout...).
+	if (Slot != "frame")
+		Out.erase(std::remove_if(Out.begin(), Out.end(), [&](const std::string& Id) { return !Lay.V2FitReason(Parts, Slot, Id).empty(); }), Out.end());
 	if (Lay.MayBeEmpty(Slot) && !BSI::ShopHas(Out, "none")) Out.push_back("none");
 	const std::string Now = BSI::ShopGet(Parts, Slot);
 	if (!Now.empty() && !BSI::ShopHas(Out, Now)) Out.insert(Out.begin(), Now);
@@ -251,6 +254,8 @@ PartsMap SetPart(const BikeLayout& Lay, const PartsMap& Parts, const std::string
 {
 	PartsMap In = Parts;
 	In[Slot] = Id;
+	// [bare frame] Another frame comes with its own parts (the old frame's V2 parts don't fit it).
+	if (Slot == "frame") In = Lay.V2Dress(In);
 	return FitTyres(Lay, RideParts(Lay, In), Style);
 }
 

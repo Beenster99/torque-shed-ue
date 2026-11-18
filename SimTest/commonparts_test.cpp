@@ -201,9 +201,22 @@ int main()
 		const Json* Styles = FramePart ? FramePart->Get("styles") : nullptr;
 		const std::string Style = Styles && !Styles->A.empty() ? Styles->A[0].S : std::string("naked");
 		PartsMap Parts = Shop::SetPart(Lay, Shop::StockBuild(Lay, Style), Style, "frame", Frame);
+		// (also "BARE": every slot but the frame emptied; "-slot": that slot emptied; a V2 model's part goes in its own slot)
 		while (Words >> Id)
+		{
+			if (Id == "BARE")
+			{
+				for (auto& KV : Parts)
+					if (KV.first != "frame") KV.second = "none";
+				continue;
+			}
+			if (Id[0] == '-') { Parts[Id.substr(1)] = "none"; continue; }
+			const Json* Part = Lay.Part(Id);
+			const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+			if (Vp) { Parts[Vp->Str("slot")] = Id; continue; }
 			for (const std::string& Slot : Lay.Slots())
 				if (Lay.KindOfSlot(Slot) == Lay.KindOfPart(Id)) Parts[Slot] = Id;
+		}
 		const Layout L = Lay.Solve(Parts);
 		BikeParts Placer(Lay, Index);
 		std::ofstream Obj(Path);

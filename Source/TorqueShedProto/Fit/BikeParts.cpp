@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -4401,6 +4402,69 @@ std::string V2Number(double V)
 	return Buf;
 }
 
+// [bare frame] Cuts a V2 engine surface's cylinder-head triangles out of it into Head (the rest stay in S): those
+// beyond where a drawn cylinder's barrel ends, within its bore (a boxer's: out at the ends of its cylinders). The
+// glb's metres to the drawing's mm: x, -z, y. True if any were cut.
+bool V2CutHead(PartSurface& S, const Json& Split, PartSurface& Head)
+{
+	const Json* Crank = Split.Get("crank");
+	if (!Crank || Crank->A.size() < 3) return false;
+	const double Cx = Crank->A[0].N, Cz = Crank->A[2].N;
+	const Json* Cyls = Split.Get("cylinders");
+	const Json* Boxer = Split.Get("boxer");
+	auto IsHead = [&](const V3& M) {
+		if (Boxer)
+		{
+			const Json* At = Boxer->Get("at");
+			const double Ax = At && At->A.size() >= 3 ? At->A[0].N : Cx, Az = At && At->A.size() >= 3 ? At->A[2].N : Cz;
+			if (std::fabs(M.y) >= Boxer->Num("reach", 300.0) - 105.0 && std::hypot(M.x - Ax, M.z - Az) < 170.0) return true;
+		}
+		if (Cyls)
+			for (const Json& C : Cyls->A)
+			{
+				const double A = C.Num("angle", 90.0) * TorqueSim::Pi / 180.0;
+				const double Dx = std::cos(A), Dz = std::sin(A);
+				const double Rx = M.x - Cx, Rz = M.z - Cz;
+				const double T = Rx * Dx + Rz * Dz, Lat = std::fabs(Rx * Dz - Rz * Dx);
+				const double Top = C.Num("start") + C.Num("length");
+				if (T >= Top - 8.0 && T <= Top + C.Num("head") + 70.0 && Lat <= C.Num("bore_w", 130.0) * 0.75 + 25.0) return true;
+			}
+		return false;
+	};
+	std::vector<unsigned> Keep;
+	std::vector<int> Map(S.Pos.size(), -1);
+	for (size_t I = 0; I + 2 < S.Idx.size(); I += 3)
+	{
+		V3 Mid(0.0, 0.0, 0.0);
+		for (size_t J = 0; J < 3; ++J)
+		{
+			const V3& G = S.Pos[S.Idx[I + J]];
+			Mid = Mid + V3(G.x * 1000.0, -G.z * 1000.0, G.y * 1000.0) * (1.0 / 3.0);
+		}
+		if (!IsHead(Mid))
+		{
+			Keep.insert(Keep.end(), {S.Idx[I], S.Idx[I + 1], S.Idx[I + 2]});
+			continue;
+		}
+		for (size_t J = 0; J < 3; ++J)
+		{
+			const unsigned V = S.Idx[I + J];
+			if (Map[V] < 0)
+			{
+				Map[V] = int(Head.Pos.size());
+				Head.Pos.push_back(S.Pos[V]);
+				if (V < S.Nrm.size()) Head.Nrm.push_back(S.Nrm[V]);
+				if (V < S.U.size()) Head.U.push_back(S.U[V]);
+				if (V < S.V.size()) Head.V.push_back(S.V[V]);
+			}
+			Head.Idx.push_back(static_cast<unsigned>(Map[V]));
+		}
+	}
+	if (Head.Idx.empty()) return false;
+	S.Idx = std::move(Keep);
+	return true;
+}
+
 std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model, const V2Frame& F)
 {
 	PartMesh Mesh;
@@ -4412,10 +4476,126 @@ std::shared_ptr<const std::vector<FittedPart>> V2Pieces(const std::string& Model
 	std::vector<std::string> Order;
 	std::map<std::string, std::shared_ptr<PartMesh>> Meshes;
 	std::map<std::string, FittedPart> Pieces;
-	for (PartSurface& S : Mesh.Surfaces)
+	// [bare frame] The engine is built up from its parts (beenster, 18 Nov): its cylinder head(s) cut from the
+	// block where the drawing's cylinders end, and its side cases are the gearbox's (BikesV2/foundry/game_v2parts.py).
+	std::vector<std::string> SlotOf(Mesh.Surfaces.size());
 	{
+		const Json* Split = F.Points ? F.Points->Get("engine") : nullptr;
+		std::vector<PartSurface> Heads;
+		for (size_t I = 0; I < Mesh.Surfaces.size(); ++I)
+		{
+			const Json* Look = Looks->Get(Mesh.Surfaces[I].Material);
+			if (!Look || Look->Str("slot") != "engine" || !Look->Str("sub").empty()) continue;
+			if (Look->Str("tag") == "d3_sidecase")
+			{
+				SlotOf[I] = "gearbox";
+				continue;
+			}
+			if (!Split) continue;
+			PartSurface Head;
+			if (V2CutHead(Mesh.Surfaces[I], *Split, Head))
+			{
+				Head.Material = Mesh.Surfaces[I].Material;
+				Heads.push_back(std::move(Head));
+			}
+		}
+		for (PartSurface& H : Heads)
+		{
+			Mesh.Surfaces.push_back(std::move(H));
+			SlotOf.push_back("head");
+		}
+		// The bolts and mounting rubbers the engine hangs on are drawn with the frame: on a bare frame they hung in the
+		// air where the engine goes. Small loose bits of the frame inside the engine's box (not the swingarm's pivot)
+		// go with the engine.
+		V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+		for (size_t I = 0; I < SlotOf.size(); ++I)
+		{
+			const Json* Look = Looks->Get(Mesh.Surfaces[I].Material);
+			if (!Look || Look->Str("slot") != "engine") continue;
+			for (const V3& G : Mesh.Surfaces[I].Pos)
+			{
+				const V3 M(G.x * 1000.0, -G.z * 1000.0, G.y * 1000.0);
+				Lo = V3(std::min(Lo.x, M.x), std::min(Lo.y, M.y), std::min(Lo.z, M.z));
+				Hi = V3(std::max(Hi.x, M.x), std::max(Hi.y, M.y), std::max(Hi.z, M.z));
+			}
+		}
+		const Json* Pivot = F.Points ? F.Points->Get("swing_pivot") : nullptr;
+		const double Px = Pivot && Pivot->A.size() >= 3 ? Pivot->A[0].N : -1e9, Pz = Pivot && Pivot->A.size() >= 3 ? Pivot->A[2].N : -1e9;
+		std::vector<PartSurface> Bolts;
+		for (size_t I = 0; Lo.x <= Hi.x && I < SlotOf.size(); ++I)
+		{
+			const Json* Look = Looks->Get(Mesh.Surfaces[I].Material);
+			if (!SlotOf[I].empty() || !Look || Look->Str("slot", "frame") != "frame" || !Look->Str("sub").empty()) continue;
+			PartSurface& S = Mesh.Surfaces[I];
+			std::vector<unsigned> Root(S.Pos.size());
+			for (unsigned K = 0; K < Root.size(); ++K) Root[K] = K;
+			auto Find = [&Root](unsigned A) {
+				while (Root[A] != A) A = Root[A] = Root[Root[A]];
+				return A;
+			};
+			for (size_t T = 0; T + 2 < S.Idx.size(); T += 3)
+				for (size_t J = 0; J < 2; ++J)
+				{
+					const unsigned A = Find(S.Idx[T + J]), B = Find(S.Idx[T + J + 1]);
+					if (A != B) Root[A] = B;
+				}
+			std::map<unsigned, std::pair<V3, V3>> Box;
+			for (unsigned K = 0; K < Root.size(); ++K)
+			{
+				const V3 M(S.Pos[K].x * 1000.0, -S.Pos[K].z * 1000.0, S.Pos[K].y * 1000.0);
+				auto In = Box.emplace(Find(K), std::make_pair(M, M)).first;
+				In->second.first = V3(std::min(In->second.first.x, M.x), std::min(In->second.first.y, M.y), std::min(In->second.first.z, M.z));
+				In->second.second = V3(std::max(In->second.second.x, M.x), std::max(In->second.second.y, M.y), std::max(In->second.second.z, M.z));
+			}
+			std::set<unsigned> Loose;
+			for (const auto& [R, B] : Box)
+			{
+				const V3 Size = B.second - B.first, Mid = (B.first + B.second) * 0.5;
+				const bool bSmall = std::max(Size.x, std::max(Size.y, Size.z)) < 40.0;
+				const bool bIn = Mid.x > Lo.x - 10.0 && Mid.x < Hi.x + 10.0 && Mid.y > Lo.y - 10.0 && Mid.y < Hi.y + 10.0 && Mid.z > Lo.z - 10.0 && Mid.z < Hi.z + 10.0;
+				if (bSmall && bIn && std::hypot(Mid.x - Px, Mid.z - Pz) > 60.0) Loose.insert(R);
+			}
+			if (Loose.empty()) continue;
+			PartSurface Bolt;
+			Bolt.Material = S.Material;
+			std::vector<unsigned> Keep;
+			std::vector<int> Map(S.Pos.size(), -1);
+			for (size_t T = 0; T + 2 < S.Idx.size(); T += 3)
+			{
+				if (!Loose.count(Find(S.Idx[T])))
+				{
+					Keep.insert(Keep.end(), {S.Idx[T], S.Idx[T + 1], S.Idx[T + 2]});
+					continue;
+				}
+				for (size_t J = 0; J < 3; ++J)
+				{
+					const unsigned V = S.Idx[T + J];
+					if (Map[V] < 0)
+					{
+						Map[V] = int(Bolt.Pos.size());
+						Bolt.Pos.push_back(S.Pos[V]);
+						if (V < S.Nrm.size()) Bolt.Nrm.push_back(S.Nrm[V]);
+						if (V < S.U.size()) Bolt.U.push_back(S.U[V]);
+						if (V < S.V.size()) Bolt.V.push_back(S.V[V]);
+					}
+					Bolt.Idx.push_back(static_cast<unsigned>(Map[V]));
+				}
+			}
+			S.Idx = std::move(Keep);
+			Bolts.push_back(std::move(Bolt));
+		}
+		for (PartSurface& B : Bolts)
+		{
+			Mesh.Surfaces.push_back(std::move(B));
+			SlotOf.push_back("engine");
+		}
+	}
+	for (size_t SurfaceAt = 0; SurfaceAt < Mesh.Surfaces.size(); ++SurfaceAt)
+	{
+		PartSurface& S = Mesh.Surfaces[SurfaceAt];
+		if (S.Idx.empty()) continue;
 		const Json* Look = Looks->Get(S.Material);
-		const std::string Slot = Look ? Look->Str("slot", "frame") : std::string("frame");
+		const std::string Slot = !SlotOf[SurfaceAt].empty() ? SlotOf[SurfaceAt] : Look ? Look->Str("slot", "frame") : std::string("frame");
 		const std::string Node = Look ? Look->Str("node") : std::string();
 		const std::string Sub = Look ? Look->Str("sub") : std::string();
 		const std::string Key = Slot + "|" + Node + "|" + Sub;
@@ -4520,6 +4700,150 @@ void BikeParts::SetV2Source(V2Source In)
 	CommonFiles().clear();
 }
 
+// [bare frame]
+namespace
+{
+// What stays on a V2 frame whatever is fitted: the frame itself, its swingarm and its footrest hangers
+// (layout.json frame_own_slots: drawn with the frame when the slot is empty, as Torque Shed's).
+bool V2FrameOwn(const std::string& Slot) { return Slot == "frame" || Slot == "swingarm" || Slot == "rearsets"; }
+
+// A point of a V2 bike's points_mm (mm), or one inside an object of it ("engine" "countershaft").
+bool V2Mm(const Json* Points, const std::string& Key, V3& Out, const std::string& In = std::string())
+{
+	const Json* From = In.empty() ? Points : (Points ? Points->Get(In) : nullptr);
+	const Json* P = From ? From->Get(Key) : nullptr;
+	if (!P || P->A.size() < 3) return false;
+	Out = V3(P->A[0].N, P->A[1].N, P->A[2].N);
+	return true;
+}
+
+// The side-view slope of a direction (mm x, z), radians.
+double V2Slope(double X, double Z) { return std::atan2(Z, X); }
+
+// How a piece drawn on one V2 bike (the donor) goes on another of its family (the host), in the drawings' mm: turned
+// about a point of the donor's by Angle (side view) and that point put on the host's matching point. Which point is
+// the part's mount on the hidden mounting standard (docs/mounting_standard.md, foundry/mix.py): the deck's nose for a
+// tank (by the tank sections' pitch) or a seat and tail (the seat sections'), the steering head for what turns with
+// the bars, the front axle for what rides on the wheel, the shock's top mount, the gearbox's countershaft for the
+// engine and all that bolts to it, the side stand's pivot. The rear axle is every drawing's origin.
+struct V2Move
+{
+	V3 From, To;
+	double Angle = 0.0;
+	V3 Point(const V3& M) const
+	{
+		const double C = std::cos(Angle), S = std::sin(Angle), X = M.x - From.x, Z = M.z - From.z;
+		return V3(To.x + X * C - Z * S, M.y, To.z + X * S + Z * C);
+	}
+	V3 Dir(const V3& D) const
+	{
+		const double C = std::cos(Angle), S = std::sin(Angle);
+		return V3(D.x * C - D.z * S, D.y, D.x * S + D.z * C);
+	}
+};
+
+V2Move V2MoveFor(const std::string& Slot, const std::string& Node, const Json* D, const Json* H)
+{
+	V2Move M;
+	auto Pair = [&](const std::string& Key, const std::string& In = std::string()) {
+		V3 A, B;
+		if (!V2Mm(D, Key, A, In) || !V2Mm(H, Key, B, In)) return false;
+		M.From = A;
+		M.To = B;
+		return true;
+	};
+	auto Rake = [&]() {
+		V3 Fd, Fh;
+		if (V2Mm(D, "fork_dir", Fd) && V2Mm(H, "fork_dir", Fh)) M.Angle = V2Slope(Fh.x, Fh.z) - V2Slope(Fd.x, Fd.z);
+	};
+	const double Deg = TorqueSim::Pi / 180.0;
+	if (Node == "front_hub" || Node == "front_wheel")
+	{
+		if (Pair("front_axle")) Rake();
+		return M;
+	}
+	if (Node == "steer")
+	{
+		if (Pair("steer_top")) Rake();
+		return M;
+	}
+	if (Node == "rear_wheel" || Node == "swingarm") return M;
+	if (Slot == "tank" || Slot == "side_panels")
+	{
+		const Json* Dd = D ? D->Get("deck") : nullptr;
+		const Json* Hd = H ? H->Get("deck") : nullptr;
+		if (Pair("nose", "deck") && Dd && Hd) M.Angle = (Hd->Num("tank_pitch") - Dd->Num("tank_pitch")) * Deg;
+		return M;
+	}
+	if (Slot == "saddle" || Slot == "tail" || Slot == "indicators")
+	{
+		const Json* Dd = D ? D->Get("deck") : nullptr;
+		const Json* Hd = H ? H->Get("deck") : nullptr;
+		// (the seat section runs back from the nose: a steeper pitch turns it the other way, foundry/mix.py)
+		if (Pair("nose", "deck") && Dd && Hd) M.Angle = -(Hd->Num("seat_pitch") - Dd->Num("seat_pitch")) * Deg;
+		return M;
+	}
+	if (Slot == "fairing" || Slot == "headlight" || Slot == "number_boards" || Slot == "mirrors" || Slot == "handlebars" || Slot == "dashboard")
+	{
+		Pair("steer_top");
+		return M;
+	}
+	if (Slot == "front_mudguard" || Slot == "fork" || Slot == "front_wheel" || Slot == "front_caliper")
+	{
+		if (Pair("front_axle")) Rake();
+		return M;
+	}
+	if (Slot == "shock")
+	{
+		V3 Db, Hb;
+		if (Pair("shock_top") && V2Mm(D, "shock_bottom", Db) && V2Mm(H, "shock_bottom", Hb))
+			M.Angle = V2Slope(Hb.x - M.To.x, Hb.z - M.To.z) - V2Slope(Db.x - M.From.x, Db.z - M.From.z);
+		return M;
+	}
+	if (Slot == "side_stand")
+	{
+		Pair("pivot", "stand");
+		return M;
+	}
+	if (Slot == "engine" || Slot == "head" || Slot == "gearbox" || Slot == "fuel" || Slot == "air_filter" || Slot == "cooling" ||
+		Slot == "exhaust" || Slot == "guards" || Slot == "oil_filter" || Slot == "spark_plugs")
+	{
+		Pair("countershaft", "engine");
+		return M;
+	}
+	return M;
+}
+
+// A donor's piece moved onto the host (each made once for its donor, host and slot, and kept).
+std::shared_ptr<const PartMesh> V2MovedPiece(const FittedPart& P, const V2Frame& D, const V2Frame& H, const std::string& Slot)
+{
+	static std::map<std::string, std::shared_ptr<const PartMesh>> Made;
+	const std::string Key = P.Glb + "|" + P.Node + "|" + P.Sub + ">" + std::to_string(reinterpret_cast<std::uintptr_t>(H.Points)) + "|" + Slot;
+	auto Found = Made.find(Key);
+	if (Found != Made.end() && Found->second.get() != nullptr && Made.size() < 4096) return Found->second;
+	const V2Move M = V2MoveFor(Slot, P.Node, D.Points, H.Points);
+	auto Copy = std::make_shared<PartMesh>(*P.Made);
+	for (PartSurface& S : Copy->Surfaces)
+	{
+		for (V3& Q : S.Pos)
+		{
+			// ours -> the donor's mm (V2Frame::Point undone), moved, -> the host's ours
+			const double X = D.Cos * Q.x - D.Sin * Q.y, Z = D.Sin * Q.x + D.Cos * Q.y;
+			const V3 Mm = M.Point(V3(X * 1000.0 + D.MidX, -Q.z * 1000.0, Z * 1000.0 + D.MidZ));
+			Q = H.Point(Mm.x, Mm.y, Mm.z);
+		}
+		for (V3& N : S.Nrm)
+		{
+			const V3 Mm = M.Dir(V3(D.Cos * N.x - D.Sin * N.y, -N.z, D.Sin * N.x + D.Cos * N.y));
+			N = H.Dir(Mm.x, Mm.y, Mm.z);
+		}
+	}
+	if (Made.size() >= 4096) Made.clear();
+	Made[Key] = Copy;
+	return Copy;
+}
+} // namespace
+
 bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 {
 	const Json* V2 = Lay.V2Of(Parts);
@@ -4531,7 +4855,52 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	auto Found = V2Made().find(Model);
 	if (Found == V2Made().end()) Found = V2Made().emplace(Model, V2Pieces(Model, F)).first;
 	if (!Found->second) return false;
-	Out = *Found->second;
+	// [bare frame] Only what's fitted is drawn (beenster, 18 Nov: a new frame on the ramp built the whole bike).
+	// The frame and what's part of it (its swingarm, its footrest hangers) always; a slot's pieces as the model
+	// draws them when its part is the model's own, or any part that isn't another V2 model's (a common part, a
+	// service part); another V2 model's part from that model's own drawing, moved onto this frame.
+	Out.clear();
+	auto Fitted = [&Parts](const std::string& Slot) {
+		const std::string Id = PartIn(Parts, Slot);
+		return Id == "none" ? std::string() : Id;
+	};
+	std::map<std::string, const Json*> Donors;   // slot -> the other V2 model's part in it ("v2part")
+	for (const auto& KV : Parts)
+	{
+		const Json* Part = KV.second.empty() || KV.second == "none" ? nullptr : Lay.Part(KV.second);
+		const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+		if (Vp && Vp->IsObject() && Vp->Str("model") != Model) Donors[KV.first] = Vp;
+	}
+	for (const FittedPart& P : *Found->second)
+	{
+		if (V2FrameOwn(P.Slot))
+		{
+			FittedPart Own = P;
+			if (P.Slot != "frame" && Fitted(P.Slot).empty()) Own.Slot = "frame";
+			Out.push_back(std::move(Own));
+			continue;
+		}
+		if (Fitted(P.Slot).empty() || Donors.count(P.Slot)) continue;
+		Out.push_back(P);
+	}
+	for (const auto& [Slot, Vp] : Donors)
+	{
+		const std::string DonorModel = Vp->Str("model");
+		const V2Frame D = V2Frame::Of(Lay.Part(Vp->Str("frame", "v2_" + DonorModel)));
+		if (!D.Valid) continue;
+		auto Donor = V2Made().find(DonorModel);
+		if (Donor == V2Made().end()) Donor = V2Made().emplace(DonorModel, V2Pieces(DonorModel, D)).first;
+		if (!Donor->second) continue;
+		const std::string From = Vp->Str("slot", Slot);
+		for (const FittedPart& P : *Donor->second)
+		{
+			if (P.Slot != From || !P.Made) continue;
+			FittedPart Moved = P;
+			Moved.Slot = Slot;
+			Moved.Made = V2MovedPiece(P, D, F, From);
+			Out.push_back(std::move(Moved));
+		}
+	}
 	// [TFT] A TFT dash fitted: the model's own drawn clocks give way to the TFT's unit, where they
 	// stood, so the bike shows the part that's on it and its screen works (the game lights it).
 	// Any other dash: the clocks as the model draws them.
@@ -4568,11 +4937,6 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 		}
 	}
 	V2Common(Parts, F, Out);
-	for (FittedPart& P : Out)
-	{
-		const auto In = Parts.find(P.Slot);
-		if (In == Parts.end() || In->second.empty() || In->second == "none") P.Slot = "frame";
-	}
 	return true;
 }
 
@@ -5161,6 +5525,10 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 			V2Tyres(Parts, L, V2);
 			V2Gauges(Parts, V2);
 			V2Lamps(Parts, V2);
+			// [bare frame] Nothing in a slot that's empty (the tyres, the clocks' faces, a lamp put in code).
+			V2.erase(std::remove_if(V2.begin(), V2.end(), [&Parts](const FittedPart& P) {
+				return P.Slot != "frame" && PartIn(Parts, P.Slot) == "none";
+			}), V2.end());
 			return V2;
 		}
 	}

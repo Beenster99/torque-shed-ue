@@ -88,8 +88,10 @@ int main()
 	}
 	// The six bike types with no V2 bikes and the parts made only for them are out of the game.
 	Expect(!Db.Find("frame", "tourer_heavy_spar") && !Db.Find("frame", "race_carbon_white"), "the retired types' frames are gone");
-	Expect(Db.Find("frame", "steel_backbone") && Db.Find("saddle", "roader_sport_seat"), "parts the kept types use stay");
+	Expect(Db.Find("frame", "steel_backbone") && Db.Find("disc", "floating_310"), "parts the kept types use stay");
 	int Bikes = 0;
+	int MixChecks = 0;
+	double WorstMix = 0.0;
 	// The old bikes are retired: the shop sells the eight styles that have V2 bikes, each starting as
 	// its lead V2 bike, and only V2 frames are offered.
 	Expect(Lay.HasV2() && Lay.ShopStyles().size() == 8, "the shop sells eight bike types, got " + std::to_string(Lay.ShopStyles().size()));
@@ -233,7 +235,85 @@ int main()
 		Expect(std::fabs((FrontMin.x + FrontMax.x) * 0.5 - L.FrontAxle.x) < 0.004 && std::fabs((FrontMin.y + FrontMax.y) * 0.5) < 0.004 &&
 			std::fabs((FrontMin.z + FrontMax.z) * 0.5) < 0.004, Id + " front tyre round its axle");
 		Expect(Low > -std::max(L.Stats.FrontRadius, L.Stats.RearRadius) - 0.02, Id + " nothing below the ground (" + Num2(Low) + ")");
-		Expect(Tris > 20000 && Tris < 800000, Id + " triangles " + std::to_string(Tris));   // (with the tyres at the catalogue's full tread detail, as every catalogue bike has them near the camera)
+		Expect(Tris > 20000 && Tris < 800000, Id + " triangles " + std::to_string(Tris));
+
+		// [bare frame] A frame on its own is only the frame (and its swingarm and hangers): beenster after 155,
+		// "it built the bike (except for tyres)". The bike's own parts are shop parts, the engine built up from its
+		// block, head and gearbox.
+		{
+			PartsMap Bare;
+			for (const auto& KV : Parts) Bare[KV.first] = "none";
+			Bare["frame"] = Id;
+			int Pieces = 0;
+			for (const FittedPart& P : Placer.Fit(Bare, Lay.Solve(Bare)))
+			{
+				++Pieces;
+				Expect(P.Slot == "frame", Id + " bare frame draws nothing in " + P.Slot);
+			}
+			Expect(Pieces > 0, Id + " bare frame is drawn");
+			const PartsMap Own = Lay.V2Build(Id);
+			Expect(Own.size() >= 18, Id + " has its own shop parts (" + std::to_string(Own.size()) + ")");
+			for (const auto& KV : Own)
+			{
+				Expect(Parts[KV.first] == KV.second, Id + " comes with its own " + KV.first);
+				Expect(Lay.V2FitReason(Parts, KV.first, KV.second).empty(), Id + " its own " + KV.first + " fits it: " + Lay.V2FitReason(Parts, KV.first, KV.second));
+			}
+			Expect(Slots.count("head") == 1, Id + " cylinder head pieces cut from the engine");
+			Expect(!Own.count("gearbox") || Slots.count("gearbox") == 1, Id + " gearbox pieces");
+			// One at a time, each own part drawn on the bare frame is only that part.
+			for (const char* One : {"engine", "head", "tank", "front_wheel", "fork"})
+			{
+				if (!Own.count(One)) continue;
+				PartsMap Just = Bare;
+				Just[One] = Own.at(One);
+				int Got = 0;
+				for (const FittedPart& P : Placer.Fit(Just, Lay.Solve(Just)))
+					if (P.Slot != "frame") { ++Got; Expect(P.Slot == One, Id + " only " + std::string(One) + " drawn, not " + P.Slot); }
+				Expect(Got > 0, Id + " " + One + " on its own is drawn");
+			}
+		}
+		// [bare frame] Mixing brands in a family: every other model's parts that fit go on this frame where its own did.
+		{
+			auto Centre = [](const std::vector<FittedPart>& Ps, const std::string& Slot, V3& C) {
+				V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+				for (const FittedPart& P : Ps)
+					if (P.Slot == Slot && P.Made && !P.Hidden)
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& V : S.Pos) { Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); }
+				C = (Lo + Hi) * 0.5;
+				return Lo.x <= Hi.x;
+			};
+			const std::string Family = V2->Str("family");
+			for (const std::string& Other : Db.Ids("frame"))
+			{
+				const Json* OF = Db.Find("frame", Other);
+				const Json* OV = OF ? OF->Get("v2") : nullptr;
+				if (Other == Id || !OV || OV->Str("family") != Family) continue;
+				PartsMap Mixed = Parts;
+				std::vector<std::string> Took;
+				for (const auto& KV : Lay.V2Build(Other))
+					if (Lay.V2FitReason(Parts, KV.first, KV.second).empty() && Lay.V2Build(Id).count(KV.first))
+					{
+						Mixed[KV.first] = KV.second;
+						Took.push_back(KV.first);
+					}
+				const std::vector<FittedPart> Got = Placer.Fit(Mixed, Lay.Solve(Mixed));
+				for (const std::string& Slot : Took)
+				{
+					V3 Mine, Theirs;
+					const bool bMine = Centre(Fitted, Slot, Mine), bTheirs = Centre(Got, Slot, Theirs);
+					Expect(bTheirs || !bMine, Id + " takes " + Other + "'s " + Slot);
+					if (!bMine || !bTheirs) continue;
+					const double Off = std::hypot(Mine.x - Theirs.x, Mine.y - Theirs.y);
+					++MixChecks;
+					WorstMix = std::max(WorstMix, Off);
+					// (Another brand's part is its own shape: how far its middle is from this bike's own is only shown.
+					// It must be on the bike: over the ground, between the wheels' ends.)
+					Expect(Theirs.y > -L.Stats.RearRadius && Theirs.x > L.RearAxle.x - 0.6 && Theirs.x < L.FrontAxle.x + 0.6,
+						Id + " with " + Other + "'s " + Slot + " on the bike");
+				}
+			}
+		}   // (with the tyres at the catalogue's full tread detail, as every catalogue bike has them near the camera)
 
 		RideSpecInput In;
 		In.Parts = Parts;
@@ -249,6 +329,7 @@ int main()
 			L.Stats.RakeDeg, L.Stats.SeatHeight, Fitted.size(), Surfaces, Tris);
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
+	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
 	std::printf("%d V2 bikes, %d failures\n", Bikes, Failures);
 	return Failures ? 1 : 0;
 }
