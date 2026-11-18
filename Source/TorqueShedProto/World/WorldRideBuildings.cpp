@@ -5,6 +5,7 @@
 #include "WorldRideChurches.h"
 #include "WorldRideSceneBits.h"
 
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -228,19 +229,23 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const double Cs0 = std::cos(B.Yaw), Sn0 = std::sin(B.Yaw);
 			double U0 = -B.W * 0.5, U1 = B.W * 0.5, V0 = -B.D * 0.5, V1 = B.D * 0.5;
 			std::vector<const Building*> Mine{&B};
+			std::vector<std::array<double, 4>> PieceBox;   // (each other piece's u0, u1, v0, v1)
 			if (Each.Piece != nullptr)
 				for (const Candidate& O : Here)
 				{
 					if (O.Piece == nullptr || O.Piece == Each.Piece || O.Piece->Outline != Each.Piece->Outline || std::hypot(O.B->X - B.X, O.B->Z - B.Z) > 60.0) continue;
 					const Building& P = *O.B;
 					const double Pc = std::cos(P.Yaw), Ps = std::sin(P.Yaw);
+					std::array<double, 4> PBox{1e9, -1e9, 1e9, -1e9};
 					for (double Su : {-0.5, 0.5})
 						for (double Sv : {-0.5, 0.5})
 						{
 							const double Qx = P.X + Su * P.W * Pc + Sv * P.D * Ps - B.X, Qz = P.Z - Su * P.W * Ps + Sv * P.D * Pc - B.Z;
 							const double U = Qx * Cs0 - Qz * Sn0, V = Qx * Sn0 + Qz * Cs0;
 							U0 = std::fmin(U0, U); U1 = std::fmax(U1, U); V0 = std::fmin(V0, V); V1 = std::fmax(V1, V);
+							PBox = {std::fmin(PBox[0], U), std::fmax(PBox[1], U), std::fmin(PBox[2], V), std::fmax(PBox[3], V)};
 						}
+					PieceBox.push_back(PBox);
 					Mine.push_back(O.B);
 				}
 			const double Wo = U1 - U0, Do = V1 - V0, Um = (U0 + U1) * 0.5, Vm = (V0 + V1) * 0.5;
@@ -260,24 +265,52 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const bool LongX0 = Wo >= Do;
 			const double Long = std::fmax(Wo, Do), Short = std::fmin(Wo, Do);
 			const bool Chapel = Called == "chapel" || Says == 1 || (Name.empty() && !Role && Long < 1.45 * Short && Area0 < 260.0);
+			// [churches stage 4] (what the name says of its faith, a Catholic church or a Friends' meeting house; and
+			// a cross-shaped outline, its pieces standing out past the nave's sides both ways, short along it and
+			// away from its ends: transepts)
+			std::vector<std::string> Wants;
+			if (std::string Faith = ChurchSet->NameFaith(Name); !Faith.empty()) Wants.push_back(Faith);
+			{
+				// (an arm at least 4.5 m along and standing 3 m out, so that porches are not taken for arms; the
+				// two across from each other)
+				std::vector<std::pair<double, double>> Arms[2];
+				const double Side0 = LongX0 ? -B.D * 0.5 : -B.W * 0.5, Side1 = -Side0, End0 = LongX0 ? U0 : V0;
+				for (const std::array<double, 4>& Pb : PieceBox)
+				{
+					const double A0 = LongX0 ? Pb[0] : Pb[2], A1 = LongX0 ? Pb[1] : Pb[3], C0 = LongX0 ? Pb[2] : Pb[0], C1 = LongX0 ? Pb[3] : Pb[1];
+					const double Mid = ((A0 + A1) * 0.5 - End0) / Long;
+					if (A1 - A0 > 0.4 * Long || A1 - A0 < 4.5 || Mid < 0.2 || Mid > 0.9) continue;
+					if (C0 < Side0 - 3.0) Arms[0].push_back({A0, A1});
+					if (C1 > Side1 + 3.0) Arms[1].push_back({A0, A1});
+				}
+				bool Cross = false;
+				for (const auto& P0 : Arms[0])
+					for (const auto& P1 : Arms[1])
+						Cross = Cross || std::fmin(P0.second, P1.second) - std::fmax(P0.first, P1.first) > 0.5 * std::fmin(P0.second - P0.first, P1.second - P1.first);
+				if (Cross && !Chapel) Wants.push_back("cross");
+			}
 			const LocalLook* OnStreet0 = StreetLookAt(Mx, Mz);
 			const LocalLook& Look0 = OnStreet0 ? *OnStreet0 : TileLook;
 			KitChurch C;
 			C.B = &B;
 			C.X = Mx;
 			C.Z = Mz;
-			C.Model = ChurchSet->Pick(Look0.Name, TownLookAt(Mx, Mz) != nullptr, Chapel, Long, Short, Chance(B.X, B.Z, 121), Chance(B.X, B.Z, 122), C.Along, C.Across, C.Whole);
+			C.Model = ChurchSet->Pick(Look0.Name, TownLookAt(Mx, Mz) != nullptr, Chapel, Long, Short, Chance(B.X, B.Z, 121), Chance(B.X, B.Z, 122), C.Along, C.Across, C.Whole, Wants);
 			if (C.Model < 0) continue;
 			C.Up = std::clamp(std::sqrt(C.Along * C.Across), 0.85, 1.15);
 			// (along its length: a church's altar end east, a chapel's front, its -x end, to its road)
 			C.Dx = LongX0 ? Cs0 : Sn0;
 			C.Dz = LongX0 ? -Sn0 : Cs0;
 			double Flip = C.Dx >= 0.0 ? 1.0 : -1.0;
-			if (Chapel)
+			const bool Meeting = ChurchSet->Models[size_t(C.Model)].Kind == "meeting";
+			if (Chapel || Meeting)
 			{
 				NearOpts Opts;
 				NearHit H;
-				if (NearestOf(Mx, Mz, Opts, H) && H.Dist - H.Half < 60.0) Flip = (H.Foot.X - Mx) * C.Dx + (H.Foot.Z - Mz) * C.Dz > 0.0 ? -1.0 : 1.0;
+				// (a meeting house broadside to it: its door, on its +z side, towards the road)
+				if (NearestOf(Mx, Mz, Opts, H) && H.Dist - H.Half < 60.0)
+					Flip = Meeting ? ((H.Foot.X - Mx) * -C.Dz + (H.Foot.Z - Mz) * C.Dx > 0.0 ? 1.0 : -1.0)
+						: ((H.Foot.X - Mx) * C.Dx + (H.Foot.Z - Mz) * C.Dz > 0.0 ? -1.0 : 1.0);
 			}
 			C.Dx *= Flip;
 			C.Dz *= Flip;

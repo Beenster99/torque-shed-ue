@@ -277,6 +277,22 @@ def church(spec):
                 f = NORTH if s > 0 else SOUTH
                 opening(M, "cl%s%d" % (side, k), (x, s * W * 0.5, E - 1.25), f, 1.0 if win == "perp" else 0.5, 0.5, "pointed" if win != "round" else "round",
                         0.1, dr, mullions=1 if win == "perp" else 0)
+    # (transepts: a gabled range across the nave near its east end, its two arms' gables north and south,
+    # each with a big window; built along x and turned)
+    tr = spec.get("transepts")
+    if tr:
+        TX, TL, TW, TE = tr
+        T = Model(spec["name"] + "_t")
+        tr_r = range_block(T, "trans", -TL * 0.5, TL * 0.5, TW, TE, P, wall, roof, roof_thick=0.2, overhang=0.25, verge=0.0,
+                           wall_surface=ws, roof_surface=rs)
+        for s, f in ((1, EAST), (-1, WEST)):
+            coping(T, "tc%d" % s, s * TL * 0.5, TW, TE, tr_r, dr)
+            w = min(TW * 0.42, 2.6)
+            opening(T, "tw%d" % s, (s * TL * 0.5, 0.0, 1.6), f, w, max(1.2, TE - 2.2 - w * 0.866), "pointed" if win != "round" else "round",
+                    0.18, dr, mullions=1 if win in ("dec", "perp") else 0)
+            cross(T, "tx%d" % s, (s * TL * 0.5, 0.0, tr_r + 0.15), dr, 0.5)
+        T.transform(Matrix.Translation((TX, 0.0, 0.0)) @ Matrix.Rotation(math.pi * 0.5, 4, "Z"))
+        M.parts.extend(T.parts)
     # (the side windows, in the aisle walls where there are aisles, skipping the porch's bay)
     pside = spec.get("porch", "S")
     px = spec.get("porch_x", 3.0)
@@ -290,6 +306,8 @@ def church(spec):
             if pside == side and abs(x - px) < 2.0:
                 continue
             if tw and tw.get("at") == "SW" and side == "S" and x < tw["T"] + 0.5:
+                continue
+            if tr and abs(x - tr[0]) < tr[2] * 0.5 + 0.8:
                 continue
             window(M, "w%s%d" % (side, k), x, y, f, top, win, dr)
             if spec.get("buttresses") and side not in aisles and k < n - 1:
@@ -352,6 +370,36 @@ def tin_tabernacle(spec):
     return M
 
 
+def meeting_house(spec):
+    """A Friends' meeting house: long, low and plain, broadside to its road, under a hipped-looking low
+    gabled roof; tall plain sash windows along its front, a doorway with a hood, no bell and no cross."""
+    R = REGIONS[spec["region"]]
+    wall, ws = spec.get("wall", R["wall"])
+    dr = spec.get("dressed", R["dressed"])
+    roof, rs = spec.get("roof", R["roof"])
+    M = Model(spec["name"])
+    L, W, E = spec.get("L", 14.0), spec.get("W", 8.0), spec.get("E", 4.6)
+    nr = range_block(M, "body", 0.0, L, W, E, 32.0, wall, roof, overhang=0.3, verge=0.1, ridge_tiles=roof, wall_surface=ws,
+                     roof_surface=rs)
+    for s, f in ((-1, SOUTH), (1, NORTH)):
+        n = max(2, int(L / 3.2))
+        for k in range(n):
+            x = L * (k + 0.5) / n
+            if s < 0 and abs(x - L * 0.5) < 2.0:
+                continue
+            opening(M, "w%d%d" % (k, s), (x, s * W * 0.5, 0.9), f, 1.0, E - 1.6, "flat", 0.12, dr, mullions=1)
+    # (the front door, mid-front, under a little lean-to hood on brackets)
+    opening(M, "door", (L * 0.5, -W * 0.5, 0.0), SOUTH, 1.5, 2.3, "flat", 0.15, dr, door=K.DOOR_PAINT)
+    hood = box("hood", (0, 0, 0), (2.4, 1.0, 0.12))
+    hood.matrix_world = Matrix.Translation((L * 0.5, -W * 0.5 - 0.45, 2.7)) @ Matrix.Rotation(-0.25, 4, "X")
+    M.add(hood, "roof", roof, 0.3)
+    for s in (-1, 1):
+        window(M, "end%d" % s, L if s > 0 else 0.0, 0.0, EAST if s > 0 else WEST, E + (nr - E) * 0.5, "round", dr)
+    if R.get("quoins"):
+        quoins(M, "q", [(0.0, -W * 0.5, 1, 1), (0.0, W * 0.5, 1, -1), (L, -W * 0.5, -1, 1), (L, W * 0.5, -1, -1)], E, dr)
+    return M
+
+
 def chapel(spec):
     R = REGIONS[spec["region"]]
     wall, ws = spec.get("wall", R["wall"])
@@ -375,6 +423,9 @@ SPECS = [
     S("pennine_broach", "Mill town: broach spire, aisle, clerestory", "pennine", nave=(22, 8.0, 7.0, 50), chancel=(8, 6.5, 6.0),
       aisles="N", clerestory=True, tower=dict(kind="broach", T=5.5, TH=15.0, at="SW"), win="dec", roof=(K.SLATE, "roof"), buttresses=True),
     S("pennine_chapel", "Pennine Methodist chapel, two tiers", "pennine", kind="chapel", D=15, W=11, tiers=2),
+    S("pennine_cross", "Dales cruciform church: transepts, west tower", "pennine", nave=(18, 7.0, 4.6, 45), chancel=(7, 5.6, 4.2),
+      transepts=(14.0, 16.0, 6.0, 4.4), tower=dict(kind="plain", T=4.6, TH=12.0), win="perp", tags=["cross"]),
+    S("pennine_meeting", "Dales Friends' meeting house, stone", "pennine", kind="meeting", L=13.0, W=7.5, E=4.4, tags=["meeting"]),
     S("pennine_saddle", "Dales church: saddleback tower", "pennine", nave=(14, 6.8, 4.2, 40), tower=dict(kind="saddle", T=4.4, TH=10.5),
       win="lancet"),
     # (the Cotswolds)
@@ -436,6 +487,11 @@ SPECS = [
     S("town_catholic", "Catholic church: brick, big west window", "town", wall=YELLOW_BRICK, dressed=K.STUCCO, nave=(22, 10.0, 8.5, 50),
       chancel=(6, 8.0, 7.5), win="dec", bellcote=1, buttresses=True, porch=None),
     S("methodist_chapel", "Methodist chapel (stage 1)", "town", hero=K.methodist_chapel),
+    S("town_cruciform", "Victorian cruciform church: transepts, crossing spire", "town", wall=(K.ROCKFACE, "stone"), dressed=K.BATH,
+      nave=(24, 8.5, 7.0, 52), chancel=(8, 7.0, 6.0), transepts=(19.0, 20.0, 7.0, 6.2), tower=dict(kind="broach", T=5.0, TH=14.0, at="SW"),
+      win="dec", buttresses=True, tags=["cross", "catholic"]),
+    S("town_meeting", "Friends' meeting house, brick", "town", kind="meeting", wall=BRICK, dressed=K.STUCCO, roof=(TILE, "roof"),
+      L=15.0, W=8.5, E=4.8, tags=["meeting"]),
     # (Scotland)
     S("sco_kirk", "Scottish kirk: harled, birdcage bellcote", "scotland", nave=(15, 7.5, 4.6, 45), win="round", bellcote=1, porch=None),
     S("sco_tower", "Scottish parish kirk: tower and slate spire", "scotland", nave=(18, 9.0, 6.0, 45), tower=dict(kind="needle", T=4.8, TH=14.0,
@@ -449,7 +505,7 @@ def build_one(spec):
     if "hero" in spec:
         return spec["hero"]()
     kind = spec.get("kind", "church")
-    return {"church": church, "chapel": chapel, "tin": tin_tabernacle}[kind](spec)
+    return {"church": church, "chapel": chapel, "tin": tin_tabernacle, "meeting": meeting_house}[kind](spec)
 
 
 def main():
@@ -488,6 +544,9 @@ PLAIN, MASONRY, ROOFING, BRICKWORK, RENDER = 0, 1, 2, 3, 4
 ROOFINGS = [(K.SLATE, 0.0), (K.STONE_SLATE, 0.25), (COTS_SLATE, 0.25), (SHINGLE, 0.25), (TILE, 0.5), ((0.18, 0.06, 0.04), 0.5),
             (THATCH, 0.75), (K.LEAD, 1.0)]
 BRICKS = [K.BRICK, YELLOW_BRICK[0]]
+# (the churches a Catholic church leans to: Victorian Gothic, as most of Britain's Catholic churches are)
+CATHOLIC = {"SM_Church_victorian_spire", "SM_Church_town_needle", "SM_Church_town_catholic", "SM_Church_se_brick_broach",
+            "SM_Church_sco_free"}
 LOOKS = {   # (the kit's regions, by World/WorldRideStyle's looks)
     "pennine": ["dales", "peak", "moors", "northumberland", "lakes"],
     "cotswold": ["cotswolds"],
@@ -620,14 +679,16 @@ def export(models, specs, data_dir):
         kind = spec.get("kind", "church") if "hero" not in spec else ("chapel" if "methodist" in spec["name"] else "church")
         rows.append({"name": M.name, "label": spec["label"], "kind": kind, "region": spec["region"],
                      "nave": [round(nx1 - nx0, 2), round(ny1 - ny0, 2)], "size": [round(float(hi[0] - lo[0]), 2), round(float(hi[2] - lo[2]), 2),
-                     round(float(hi[1]), 2)], "triangles": int(len(inv) // 3), "weight": 1.0})
+                     round(float(hi[1]), 2)], "triangles": int(len(inv) // 3), "weight": 1.0,
+                     "tags": sorted(set(spec.get("tags", [])) | ({"catholic"} if M.name in CATHOLIC else set()))})
     with open(os.path.join(data_dir, "church_kit.bin"), "wb") as f:
         f.write(bytes(blob))
     about = ("Ride UK's churches (churches stage 3): the kit's forty churches (Tools/blender_church_assemble.py --export, "
              "which writes this file and church_kit.bin), and the rules World/WorldRideChurches.cpp chooses one by for a "
              "place of worship's building: from the churches of its region (looks: World/WorldRideStyle's looks) and, "
              "in a town, the town ones too; a chapel where the map says chapel (or Methodist, Baptist and the like), a "
-             "church otherwise; the one whose nave fits the building's box best, within 'pick' of the best by the "
+             "church otherwise (a Catholic church leaning to the Victorian ones, a Friends' meeting house a meeting "
+             "house, a cross-shaped outline a church with transepts: 'faith_names' and each church's 'tags'); the one whose nave fits the building's box best, within 'pick' of the best by the "
              "building's own seed; stretched to fit, each way within 'stretch'. Its east end east; a chapel's front "
              "to its road. 'skip_names': words in a name that mean it is no church (left as the map's building).")
     rules = {"_about": about, "looks": LOOKS, "town_share": 0.3, "stretch": [0.72, 1.35], "pick": 0.18, "area": [55.0, 1500.0],
@@ -636,6 +697,10 @@ def export(models, specs, data_dir):
                               "capel", "tabernacle", "mission", "elim", "brethren"],
              "skip_names": ["mosque", "masjid", "gurdwara", "temple", "mandir", "synagogue", "kingdom hall", "buddhist", "vihara",
                             "jamia", "islamic", "hindu", "sikh"],
+             # [churches stage 4] (what else a name says: a church of a faith leans to the churches tagged for it)
+             "faith_names": {"catholic": ["catholic", " r.c.", " rc ", "(rc)", "our lady", "sacred heart", "holy rosary", "precious blood",
+                                          "blessed sacrament", "english martyrs", "immaculate", "st joseph"],
+                             "meeting": ["friends meeting", "quaker", "meeting house"]},
              "churches": rows}
     with open(os.path.join(data_dir, "church_kit.json"), "w") as f:
         json.dump(rules, f, indent=1)
