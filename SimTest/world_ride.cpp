@@ -1895,7 +1895,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText, WallText;
+		std::string Text, PropText, WallText, TurfText;   // ([road edges, Nov 18] the turf with the land, after it)
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -1907,8 +1907,14 @@ int main(int Argc, char** Argv)
 				const double Reach2 = std::getenv("WORLD_RIDE_MESH_R") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_R")) : 45.0;
 				for (int I = First; I <= Last && !NearIt; ++I) NearIt = Pts[size_t(I)].At.DistanceTo(Centre) < Reach2 + 15.0;
 				if (!NearIt) continue;
-				RideMesh Mesh;
-				Plan->RoadPiece(W, First, Last, Mesh);
+				RideMesh Piece;
+				Plan->RoadPiece(W, First, Last, Piece);
+				// ([road edges, Nov 18] with its country shoulders' turf, drawn as the land)
+				for (const RideMesh* Sub : {&Piece, Piece.Turf.get()})
+				{
+				if (Sub == nullptr) continue;
+				const RideMesh& Mesh = *Sub;
+				std::string& Lines = Sub == &Piece ? Text : TurfText;
 				for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
 				{
 					bool In = false;
@@ -1919,8 +1925,9 @@ int main(int Argc, char** Argv)
 						const uint32_t V = Mesh.Idx[T + C];
 						std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh.OriginX + Mesh.Pos[V * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - Centre.Z, double(Mesh.Pos[V * 3 + 1]),
 							double(Mesh.Col[V * 3]), double(Mesh.Col[V * 3 + 1]), double(Mesh.Col[V * 3 + 2]));
-						Text += Buf;
+						Lines += Buf;
 					}
+				}
 				}
 			}
 		}
@@ -2028,6 +2035,7 @@ int main(int Argc, char** Argv)
 					}
 				}
 		}
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr) Text += TurfText;
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
 		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);

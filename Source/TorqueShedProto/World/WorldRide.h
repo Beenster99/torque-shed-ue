@@ -42,6 +42,7 @@
 #include "WorldRoute.h"
 
 #include <cstdint>
+#include <array>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -223,6 +224,11 @@ struct RideMesh
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
 	std::shared_ptr<RideMesh> Glow;
 	std::vector<float> Lights;
+	// [road edges, Nov 18] With a piece of road: the grass of its shoulders in the country, drawn as the land
+	// is (its material, the land's colours as the squares draw them, its UVs the world's metres over 8), so
+	// the field runs to the tarmac's worn edge with no strip of another grass between (beenster: "remove
+	// this edge and blend the topology of the countryside to the edge of the road"). Null for none.
+	std::shared_ptr<RideMesh> Turf;
 };
 
 // [OSM stage 2] Plain shapes for what stands by the road and on the skyline, made in code into a
@@ -526,6 +532,9 @@ public:
 	// heights, each cell's two triangles (Cache, if given, keeps the grid's heights met for the next call).
 	static constexpr double LandGrid = 4.0;   // (ATorqueRideWorld's finest squares: 256 m, 64 cells)
 	double LandDrawnAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
+	// [road edges, Nov 18] And its colour as they draw it: LandColour at the grid's points (as LandTile has
+	// them), across each cell's two triangles (Cache keeps the points' colours met).
+	void LandColourDrawnAt(double X, double Z, float* Out, std::unordered_map<long long, std::array<float, 3>>* Cache = nullptr) const;
 	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
 	// edge the point is): how far from its middle, its height, which point, its half width, which
 	// road. MainOnly looks at the ride's own road alone. Cross is how far the road's surface is above
@@ -1338,7 +1347,8 @@ public:
 	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
 	// ([build 154] beenster: pavements "too wide": 1.8 m was; [build 155] "lower and 10% narrower": 0.125 m and 1.4 m were)
 	static constexpr double KerbHigh = 0.09, PaveWide = 1.26;
-	static constexpr double PaveBack = 0.8;   // ([build 155] "make the ground meet the other side of the pavement": its back a grass slope down to the ground as drawn, this wide)
+	static constexpr double PaveBack = 1.2;   // ([build 155] "make the ground meet the other side of the pavement": its back a slope down to the ground as drawn, this wide; [156] drawn as the land, Turf)
+	static constexpr double CornerBack = 0.8;   // ([156] round a corner, as it was: wider, its back folds on a tight one)
 	// [OSM stage 5D] Traffic lights: a fixed cycle of SignalCycle seconds from the shared clock (the master
 	// plan's open question: until it is answered, nothing happens to a rider who goes through on red).
 	// The lamps' codes in RideMesh::Signals' UV0 y.

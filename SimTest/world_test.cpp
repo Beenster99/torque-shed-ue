@@ -1370,13 +1370,15 @@ int main()
 					// cuttings and banks in the land, stations with their platforms and names.
 					{
 						int Active = 0, Crossings = 0, Flush = 0, BedOk = 0, BedN = 0;
-						double Steepest = 0.0;
+						double Steepest = 0.0, SteepestOld = 0.0;
 						for (const RidePlan::RailLine& Run : Plan->Rails)
 						{
 							Active += Run.Disused ? 0 : 1;
 							for (size_t I = 0; I < Run.At.size(); ++I)
 							{
-								if (I > 0 && Run.On[I] == 0 && Run.On[I - 1] == 0 && std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep > Steepest)
+								// ([156] a disused line, an old incline among them, as steep as 1 in 8: counted on its own)
+								if (I > 0 && Run.Disused && Run.On[I] == 0 && Run.On[I - 1] == 0) SteepestOld = std::fmax(SteepestOld, std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep);
+								if (I > 0 && !Run.Disused && Run.On[I] == 0 && Run.On[I - 1] == 0 && std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep > Steepest)
 								{
 									Steepest = std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep;
 									if (std::getenv("RAIL_DEBUG")) std::printf("steep %.3f at %zu of %zu (%.0f, %.0f) disused %d\n", Steepest, I, Run.At.size(), Run.At[I].X, Run.At[I].Z, int(Run.Disused));
@@ -1429,9 +1431,9 @@ int main()
 							}
 							Named += Has ? 1 : 0;
 						}
-						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%%, bed beside the line %d of %d, %d platforms (%d named boards)\n",
-							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);
-						Check(Active > 0 && Flush == Crossings && Steepest < 0.032 && BedN > 3 && BedOk == BedN && !Plan->Platforms.empty() && Named == int(Plan->Platforms.size()),
+						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%% (disused %.1f%%), bed beside the line %d of %d, %d platforms (%d named boards)\n",
+							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, SteepestOld * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);
+						Check(Active > 0 && Flush == Crossings && Steepest < 0.032 && SteepestOld < 0.13 && BedN > 3 && BedOk == BedN && !Plan->Platforms.empty() && Named == int(Plan->Platforms.size()),
 							"the railways: eased to a railway's gradient, flush with the roads they cross, their beds cut and banked into the land, stations with platforms and named boards");
 					}
 				}
@@ -1662,7 +1664,11 @@ int main()
 								for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
 								{
 									const float* A3 = &Mesh.Pos[Mesh.Idx[T] * 3], * B3 = &Mesh.Pos[Mesh.Idx[T + 1] * 3], * C3 = &Mesh.Pos[Mesh.Idx[T + 2] * 3];
-									if (!(double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) >= -0.05)) AllUp = false;   // (but for a sliver where a road is cut off at the mouth)
+									if (!(double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) >= -0.1))
+									{
+										AllUp = false;   // (but for a sliver where a road is cut off at the mouth: [156] a little more with the wider streets)
+										if (std::getenv("UP_DEBUG")) std::printf("down tri at %.1f %.1f col %.3f %.3f %.3f area %.3f\n", Mesh.OriginX + A3[0] - M.At.X, Mesh.OriginZ + A3[2] - M.At.Z, Mesh.Col[Mesh.Idx[T] * 3], Mesh.Col[Mesh.Idx[T] * 3 + 1], Mesh.Col[Mesh.Idx[T] * 3 + 2], double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]));
+									}
 								}
 								++Tested;
 								if (Marks) ++Painted;

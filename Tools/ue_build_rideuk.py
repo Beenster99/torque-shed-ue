@@ -486,18 +486,44 @@ def water_material(L):
     wn = water_normal(L)
     nt = L.noise_texture()
     if wn is not None:
-        def ripple(tiling, sx, sy, strength):
+        # [build 155] beenster: "Major tiling on the sea (pic)". The three samples were all square to the
+        # world's axes and at tilings whose repeats all met every 80 m, and the long swell never faded,
+        # so from a headland the sea was a grid of wave stripes to the horizon. Now each sample is turned
+        # its own way (by 3-4-5, 5-12-13 and 20-21-29 triangles, so a square's 10 units still land on
+        # whole repeats and the squares meet), the swell's coordinates are pushed about by the slow noise
+        # so its rows wander, and every layer, the swell too, calms with distance, the far sea a little
+        # rougher instead, which is how open water reads from a cliff. Same three texture reads.
+        def turned(tiling, ca, sa):
             uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=tiling, v_tiling=tiling)
+            u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+            v = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(uv, v)
+            mul = lambda e, k: g.op(unreal.MaterialExpressionMultiply, e, const_b=float(k))
+            ru = g.op(unreal.MaterialExpressionSubtract, mul(u, ca), mul(v, sa))
+            rv = g.op(unreal.MaterialExpressionAdd, mul(u, sa), mul(v, ca))
+            return g.op(unreal.MaterialExpressionAppendVector, ru, rv)
+
+        def ripple(coord, sx, sy, strength):
             p = g.node(unreal.MaterialExpressionPanner, speed_x=sx, speed_y=sy)
-            g.link(uv, p, "Coordinate")
+            g.link(coord, p, "Coordinate")
             n = g.sample(wn, p, "normal")
             return g.op(unreal.MaterialExpressionMultiply, n, g.const((strength, strength, 0.0)))
-        big = ripple(0.3, 0.010, 0.006, 0.8)        # 27 m: the swell of the wind waves
-        mid = ripple(1.1, -0.021, 0.034, 0.7)       # 7 m
-        small = ripple(2.9, 0.055, -0.04, 0.55)     # 2.8 m: the cat's paws
+        swell_uv = turned(0.5, 0.8, 0.6)            # 16 m, turned 37 degrees
+        if nt is not None:
+            # (the swell's rows bent by the slow noise, 80 m across, by up to half a repeat)
+            wuv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.1, v_tiling=0.1)
+            warp = g.sample(nt, wuv, "linear")
+            wxy = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(warp, wxy)
+            swell_uv = g.op(unreal.MaterialExpressionAdd, swell_uv, g.op(unreal.MaterialExpressionMultiply, wxy, const_b=0.55))
+        big = ripple(swell_uv, 0.010, 0.006, 0.7)                     # the swell of the wind waves
+        mid = ripple(turned(1.3, 12.0 / 13.0, -5.0 / 13.0), -0.021, 0.034, 0.6)   # 6 m, turned -23 degrees
+        small = ripple(turned(2.9, 20.0 / 29.0, 21.0 / 29.0), 0.055, -0.04, 0.5)  # 2.8 m, turned 46 degrees
         depth = g.node(unreal.MaterialExpressionPixelDepth)
         near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
                     g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=3000.0), const_b=25000.0)))
+        # (the swell fades later and less: 60 m to 600 m, down to a third)
+        swell_near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
+                    g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=6000.0), const_b=54000.0)))
+        big = g.op(unreal.MaterialExpressionMultiply, big, g.lerp(g.const(0.33), g.const(1.0), swell_near))
         detail = g.op(unreal.MaterialExpressionAdd, mid, small)
         if nt is not None:
             # (gusts: the ripples stronger and calmer in broad slow patches)
@@ -506,10 +532,11 @@ def water_material(L):
             g.link(guv, gp, "Coordinate")
             gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, g.sample(nt, gp, "linear"), const_b=1.2, a_out="G"), const_b=0.4)
             detail = g.op(unreal.MaterialExpressionMultiply, detail, gust)
-        detail = g.op(unreal.MaterialExpressionMultiply, detail, g.lerp(g.const(0.25), g.const(1.0), near))
+        detail = g.op(unreal.MaterialExpressionMultiply, detail, g.lerp(g.const(0.15), g.const(1.0), near))
         n = g.op(unreal.MaterialExpressionAdd, big, detail)
         normal = g.node(unreal.MaterialExpressionNormalize)
         g.link(g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0))), normal)
+        rough = g.lerp(g.const(0.11), g.const(0.04), swell_near)
     elif nt is not None:
         uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.9, v_tiling=0.9)
         p1 = g.node(unreal.MaterialExpressionPanner, speed_x=0.012, speed_y=0.02); g.link(uv, p1, "Coordinate")
@@ -521,10 +548,12 @@ def water_material(L):
         normal = g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0)))
     else:
         normal = g.const((0.0, 0.0, 1.0))
+    if wn is None:
+        rough = g.const(0.04)
     base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
     mel = L.mel
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    mel.connect_material_property(g.const(0.04), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.recompile_material(g.m)
