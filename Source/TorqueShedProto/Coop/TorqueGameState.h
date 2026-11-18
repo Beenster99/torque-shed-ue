@@ -154,6 +154,8 @@ public:
 	// That day as a date (this year), for the HUD and the menu.
 	FDateTime RideDate() const;
 	static FDateTime DateOfDay(int32 DayOfYear);
+	// "9 September" (bShort: "9 Sep"); FDateTime::ToString has no month names (build 155 showed "09 b").
+	static FString DayMonthText(const FDateTime& Date, bool bShort = false);
 	// Sunrise or sunset on the clock, by the game's own sun (its day, place and clock shift).
 	float SunEventHour(bool bEvening) const { return HourForSun(-0.833, bEvening); }
 	// "15:30".

@@ -752,7 +752,7 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		// (a ride date set in Settings: that day's sunrise and sunset here, by the game's own sun)
 		if (GS && GS->GetRideDay() > 0)
 			Sun = FString::Printf(TEXT("sunrise %s  ·  sunset %s on %s"), *ATorqueGameState::ClockText(GS->SunEventHour(false)),
-				*ATorqueGameState::ClockText(GS->SunEventHour(true)), *GS->RideDate().ToString(TEXT("%d %b")));
+				*ATorqueGameState::ClockText(GS->SunEventHour(true)), *ATorqueGameState::DayMonthText(GS->RideDate(), true));
 		const TArray<FHour> Hours = D.Hours;
 		const TArray<FDay> Days = D.Days;
 		const bool bAsking = Set.bPlaceLookup || Set.WeatherMode == FTorqueSettings::WeatherLive;

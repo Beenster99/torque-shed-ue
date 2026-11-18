@@ -100,6 +100,7 @@ class Clouds:
         base_m, top_m = s["base"], s["top"]
         norm = (alt - base_m) / max(top_m - base_m, 1.0)
         best = np.zeros_like(x)
+        dist_km = np.sqrt(x * x + y * y + (alt - self.s.get("eye_asl", 252.0)) ** 2) / 1000.0
         broad = trilinear(self.shape[..., :1], np.stack([x / L["v2_broad_m"], y / L["v2_broad_m"], np.zeros_like(x)], -1))[..., 0]
         for ly, key in ((0, "low"), (1, "mid")):
             P = s[key]
@@ -131,10 +132,10 @@ class Clouds:
                 d = trilinear(self.detail, np.stack([x / ds, y / ds, alt / ds], -1))
                 df = d[..., 0] * 0.625 + d[..., 1] * 0.25 + d[..., 2] * 0.125
                 mod = df + ((1.0 - df) - df) * sat(h * 4.0)
-                erode = L["v2_erode"] + L["v2_erode_ragged"] * P["ragged"]
+                erode = (L["v2_erode"] + L["v2_erode_ragged"] * P["ragged"]) * (1.0 - 0.5 * sat(dist_km / max(L.get("v2_detail_fade_km", 10.0), 0.1)))
                 bc = sat(remap(bc, mod * erode, 1.0, 0.0, 1.0))
             # (crisp edges: a cumulus is dense right to its skin, not a fog thinning over a kilometre)
-            bc = sat(bc * L["v2_edge_sharp"])
+            bc = sat(bc * (L["v2_edge_sharp"] + (1.0 - L["v2_edge_sharp"]) * sat(dist_km / max(L.get("v2_detail_fade_km", 10.0), 0.1))))
             thin = 1.0 + (L.get("v2_deck_thin", 1.0) - 1.0) * P["shape"]
             best = np.maximum(best, np.where(inside, bc * P["density"] * thin, 0.0))
         return best * self.ext

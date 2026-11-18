@@ -399,7 +399,7 @@ void ATorqueGameState::SetRideDay(int32 Day)
 	RideDay = FMath::Clamp(Day, 0, 366);
 	// (the land's season is set when a ride's ground is planned: the next ride takes it)
 	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
-	UE_LOG(LogTemp, Display, TEXT("Torque clock: ride date %s (day %d)"), RideDay > 0 ? *DateOfDay(RideDay).ToString(TEXT("%d %b")) : TEXT("today"), RideDay);
+	UE_LOG(LogTemp, Display, TEXT("Torque clock: ride date %s (day %d)"), RideDay > 0 ? *DayMonthText(DateOfDay(RideDay), true) : TEXT("today"), RideDay);
 	ApplySun();   // (the sun's day itself follows in the next tick's sun, by DayOfYearNow)
 	ForceNetUpdate();
 }
@@ -415,6 +415,14 @@ FDateTime ATorqueGameState::DateOfDay(int32 DayOfYear)
 	const int32 Picked = FTorqueSettings::Get().RideYear;
 	const int32 Year = Picked > 0 ? Picked : FDateTime::UtcNow().GetYear();
 	return FDateTime(Year, 1, 1) + FTimespan::FromDays(FMath::Clamp(DayOfYear, 1, FDateTime::DaysInYear(Year)) - 1);
+}
+
+FString ATorqueGameState::DayMonthText(const FDateTime& Date, bool bShort)
+{
+	static const TCHAR* Months[12] = {TEXT("January"), TEXT("February"), TEXT("March"), TEXT("April"), TEXT("May"), TEXT("June"), TEXT("July"),
+		TEXT("August"), TEXT("September"), TEXT("October"), TEXT("November"), TEXT("December")};
+	const FString Month = Months[FMath::Clamp(Date.GetMonth(), 1, 12) - 1];
+	return FString::Printf(TEXT("%d %s"), Date.GetDay(), bShort ? *Month.Left(3) : *Month);
 }
 
 FDateTime ATorqueGameState::RideDate() const
