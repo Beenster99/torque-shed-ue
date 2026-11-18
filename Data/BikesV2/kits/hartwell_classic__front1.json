@@ -1,0 +1,83 @@
+{
+ "name": "BSX classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 5365,
+ "surfaces": {
+  "s020": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "headlamp",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s021": {
+   "slot": "fairing",
+   "node": "steer",
+   "surface": "screen",
+   "tag": "screen",
+   "ue": "v2screen",
+   "color": [
+    0.1,
+    0.12,
+    0.14
+   ],
+   "metallic": 0.0,
+   "roughness": 0.05
+  },
+  "s054": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "headlamp"
+  },
+  "s055": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_lampsilver",
+   "tag": "d3_lampsilver",
+   "ue": "cat_polished_alloy",
+   "sub": "headlamp",
+   "color": [
+    0.92,
+    0.92,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s056": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_lampdip",
+   "tag": "lens_white",
+   "ue": "lens_clear",
+   "sub": "headlamp"
+  },
+  "s057": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "headlamp",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  }
+ }
+}

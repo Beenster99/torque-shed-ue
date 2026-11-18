@@ -515,14 +515,16 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	const std::string Fits = Vp->Str("fits", "family");
 	// What bolts to an engine block goes on its own model's block (its ports and cases), on a bike or a stand.
 	const Json* Block = Slot == "engine" ? nullptr : Sub(Part(Get(Parts, "engine")), "v2part");
-	if (Fits == "engine" && Block && Block->Str("model") != Vp->Str("model"))
+	// ([kits] A kit piece is drawn from its own file ("model") but is its bike's part ("of").)
+	const std::string OfModel = Vp->Str("of", Vp->Str("model"));
+	if (Fits == "engine" && Block && Block->Str("of", Block->Str("model")) != OfModel)
 		return "That's off the " + Brand + " " + Family + " engine: it bolts to that engine block only.";
 	if (!V2 || !V2->IsObject()) return std::string();   // (a loose engine: only its block counts)
 	const std::string HostFamily = V2->Str("family");
 	if (HostFamily != Family)
 		return "That's a " + Family + " part: it bolts to " + Family + " frames only, and this is a " + HostFamily + ".";
 	const Json* Pts = Sub(V2, "points_mm");
-	if (Fits == "model" && V2->Str("model") != Vp->Str("model"))
+	if (Fits == "model" && V2->Str("model") != OfModel)
 		return "Those are made for the " + Brand + " " + Family + " frame only.";
 	if (Fits == "layout" || (Fits == "engine" && !Block))
 	{

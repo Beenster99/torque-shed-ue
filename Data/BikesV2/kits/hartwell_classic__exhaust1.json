@@ -1,0 +1,68 @@
+{
+ "name": "BSX classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 2466,
+ "surfaces": {
+  "s008": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "d3_headertint",
+   "tag": "d3_headertint",
+   "ue": "cat_titanium"
+  },
+  "s009": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "silencer"
+  },
+  "s101": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "silencer",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s102": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "exhaust",
+   "tag": "exhaust",
+   "ue": "cat_brushed_steel",
+   "sub": "silencer",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "s103": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "d3_pipeblack",
+   "tag": "d3_pipeblack",
+   "ue": "cat_plastic",
+   "sub": "silencer",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0
+  }
+ }
+}

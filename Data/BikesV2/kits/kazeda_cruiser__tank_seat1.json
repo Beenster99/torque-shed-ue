@@ -1,0 +1,97 @@
+{
+ "name": "Kazeda cruiser (working title R3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 27784,
+ "surfaces": {
+  "s011": {
+   "slot": "tank",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0046,
+    0.0254,
+    0.148
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  },
+  "s012": {
+   "slot": "saddle",
+   "node": "",
+   "surface": "d3_leather_quilt",
+   "tag": "d3_leather_quilt",
+   "ue": "leather",
+   "color": [
+    0.014,
+    0.014,
+    0.016
+   ],
+   "metallic": 0.0,
+   "roughness": 0.46
+  },
+  "s106": {
+   "slot": "saddle",
+   "node": "",
+   "surface": "d3_thread",
+   "tag": "d3_thread",
+   "ue": "cat_plastic",
+   "color": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic": 0.0,
+   "roughness": 0.75
+  },
+  "s107": {
+   "slot": "tank",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "filler_cap"
+  },
+  "s108": {
+   "slot": "tank",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "filler_cap",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s109": {
+   "slot": "tank",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "filler_cap"
+  },
+  "s110": {
+   "slot": "tank",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "filler_cap",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}

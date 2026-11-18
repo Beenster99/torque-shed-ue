@@ -379,7 +379,7 @@ int main()
 					const bool bGot = Box(Got, Slot, Lo, Hi);
 					Expect(bGot, Kid + " is drawn on " + Id);
 					if (!bGot) continue;
-					Expect(Lo.y > -0.02 && Lo.x > L.RearAxle.x - 0.75 && Hi.x < L.FrontAxle.x + 0.6 && Hi.y < 1.75 && std::fabs(Lo.z + Hi.z) < 0.5,
+					Expect(Lo.y > -L.Stats.RearRadius - 0.02 && Lo.x > L.RearAxle.x - 0.75 && Hi.x < L.FrontAxle.x + 0.6 && Hi.y < 1.75 && std::fabs(Lo.z + Hi.z) < 0.5,
 						Kid + " sits on the bike (x " + std::to_string(Lo.x) + " to " + std::to_string(Hi.x) + ", y " + std::to_string(Lo.y) + " to " + std::to_string(Hi.y) + ")");
 					if (Box(Fitted, Slot, OwnLo, OwnHi))
 					{
