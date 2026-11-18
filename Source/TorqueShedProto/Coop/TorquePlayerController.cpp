@@ -8,6 +8,7 @@
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
+#include "GameFramework/GameModeBase.h"
 #include "TorqueSettings.h"
 #include "TorqueKeys.h"
 #include "TorqueGameState.h"
@@ -877,6 +878,7 @@ FString ATorquePlayerController::Title() const
 {
 	if (Page == EPage::Pause) return TEXT("PAUSED");
 	if (Page == EPage::RideBike) return TEXT("WHICH BIKE?");
+	if (Page == EPage::JoinRide) return TEXT("JOIN THE RIDE");
 	if (Page == EPage::Profile) return TEXT("PROFILE");   // [profile]
 	if (Page == EPage::Keys) return TEXT("KEY BINDINGS");
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
@@ -959,6 +961,13 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	case EPage::Pause:
 	{
 		Add(TEXT("Continue"), FString(), FString(), [this]() { CloseMenu(); });
+		// [co-op] Waiting in our own shed after joining a friend out riding: back to their ride.
+		if (GetNetMode() == NM_Standalone && Session && Session->CanRejoin())
+			Add(Session->RejoinHost.IsEmpty() ? FString(TEXT("Rejoin the ride")) : FString::Printf(TEXT("Rejoin %s's ride"), *Session->RejoinHost), FString(),
+				TEXT("Back to the co-op ride you left: pick your bike and join them on the road"), [this, Session]() {
+					CloseMenu();
+					Session->Rejoin();
+				});
 		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Profile"), [this]() { Open(EPage::Graphics); });
 		// [profile] (also the picture top right): Settings > Profile
 		Add(TEXT("Profile"), FString(), TEXT("You: your name, colour, riding style, your MetaHuman and your helmet"), [this]() { Open(EPage::Character); });
@@ -1072,6 +1081,30 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			Back();
 			Selected = SkyListBackRow;
 			FirstRow = SkyListBackFirst;
+		});
+		break;
+	}
+	case EPage::JoinRide:
+	{
+		// [co-op] Joined while the host is out riding: pick a bike from the shed, then join them on
+		// it, or wait in your own shed and rejoin when you like.
+		UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		if (Shed && (!Shed->Exists(JoinBay) || !RideBikeTakenBy(JoinBay).IsEmpty())) JoinBay = NextRideBike(JoinBay < 0 ? -1 : JoinBay, 1);
+		const bool bHaveBike = Shed && Shed->Exists(JoinBay) && RideBikeTakenBy(JoinBay).IsEmpty();
+		Add(TEXT("Your bike"), bHaveBike ? RideBikeName(JoinBay) : FString(TEXT("none free in the shed")),
+			TEXT("Left / Right: which of the shed's bikes you ride (one nobody else is on)"),
+			[this]() { JoinBay = NextRideBike(JoinBay, 1); },
+			[this](int32 Dir) { JoinBay = NextRideBike(JoinBay, Dir); });
+		Add(TEXT("Join the ride"), FString(), TEXT("Out on the road with everyone, on the bike above"), [this, Shed, bHaveBike]() {
+			if (Shed && bHaveBike) Shed->SetMyBike(JoinBay);
+			bChoosingRide = false;
+			CloseMenu();
+			ServerJoinRide(bHaveBike ? JoinBay : INDEX_NONE);
+		});
+		Add(TEXT("Wait in my shed"), FString(), TEXT("Leave for now, to your own shed: its pause menu rejoins this ride"), [this]() {
+			bChoosingRide = false;
+			CloseMenu();
+			if (UTorqueSession* S = UTorqueSession::Get(this)) S->WaitInShed(this);
 		});
 		break;
 	}
@@ -1796,6 +1829,8 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 		const FTorqueSettings& Set = FTorqueSettings::Get();
 		if (!Set.bAvatarShadows) Set.ApplyAvatarShadows(GetWorld());
 	}
+	// [co-op] The join page stays up until a bike's picked (Esc doesn't leave a rider with nothing).
+	if (bChoosingRide && !IsMenuUp()) Open(EPage::JoinRide);
 	UpdateCursor();
 	SyncRideJourney();
 	ReadMenuInput(DeltaTime);
@@ -2752,6 +2787,33 @@ void ATorquePlayerController::ClientSwappedBike_Implementation(ATorqueBikePawn* 
 	NowMine->TakeOver(Feet, Yaw, bRide);
 	ShowNote(bRide ? FString::Printf(TEXT("Riding %s's bike"), *Whose)
 		: FString::Printf(TEXT("%s took your bike: theirs is yours, where they left it"), *Whose), 4.0);
+}
+
+void ATorquePlayerController::ClientChooseRideBike_Implementation(bool bChoose)
+{
+	bChoosingRide = bChoose;
+	if (bChoose)
+	{
+		const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		JoinBay = Shed ? Shed->MyBike() : INDEX_NONE;
+		Stack.Reset();
+		Open(EPage::JoinRide);
+	}
+	else if (Page == EPage::JoinRide)
+		CloseMenu();
+}
+
+void ATorquePlayerController::ServerJoinRide_Implementation(int32 Bay)
+{
+	if (!bJoinWaiting || GetPawn()) return;
+	bJoinWaiting = false;
+	// Their pick, if it's a bike in the shed nobody else rides; else the next free one (or the default).
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (Shed && (!Shed->Exists(Bay) || !RideBikeTakenBy(Bay).IsEmpty())) Bay = NextRideBike(Bay < 0 ? -1 : Bay, 1);
+	if (Shed && !Shed->Exists(Bay)) Bay = INDEX_NONE;
+	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->Bay = Bay;
+	UE_LOG(LogTemp, Log, TEXT("Torque net: %s joins the ride on bay %d's bike"), PlayerState ? *PlayerState->GetPlayerName() : TEXT("a rider"), Bay + 1);
+	if (AGameModeBase* Mode = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr) Mode->RestartPlayer(this);
 }
 
 void ATorquePlayerController::ServerWalkBackIn_Implementation()

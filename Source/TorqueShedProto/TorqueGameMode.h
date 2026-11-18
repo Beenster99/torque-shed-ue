@@ -26,6 +26,9 @@ public:
 	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
 		const FString& Options, const FString& Portal = TEXT("")) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	// [co-op] Someone joining while the host is out on the road picks their bike first (the join page,
+	// ATorquePlayerController::ClientChooseRideBike), so no bike is handed them as they arrive.
+	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 
 	// Launched with no "play" option on the map, alone, and with none of the -Torque test switches.

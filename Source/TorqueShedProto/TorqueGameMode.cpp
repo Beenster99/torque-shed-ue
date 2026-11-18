@@ -178,11 +178,41 @@ FString ATorqueGameMode::UniqueName(const AController* For, const FString& Want)
 
 void ATorqueGameMode::PostLogin(APlayerController* NewPlayer)
 {
+	// [co-op] A new arrival (not one travelling with the host) while out on the road: held at the
+	// join page until they've picked a bike (HandleStartingNewPlayer).
+	if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(NewPlayer))
+		TPC->bJoinWaiting = GetNetMode() == NM_ListenServer && !NewPlayer->IsLocalController() && !IsShed();
 	Super::PostLogin(NewPlayer);
 	if (GetNetMode() == NM_Standalone) return;
 	const APlayerState* PS = NewPlayer ? NewPlayer->PlayerState : nullptr;
 	UE_LOG(LogTemp, Log, TEXT("Torque net: %s joined (%d riding)"), PS ? *PS->GetPlayerName() : TEXT("someone"),
 		GameState ? GameState->PlayerArray.Num() : 0);
+}
+
+void ATorqueGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
+{
+	ATorquePlayerController* TPC = Cast<ATorquePlayerController>(NewPlayer);
+	if (TPC && TPC->bJoinWaiting)
+	{
+		if (!IsShed())
+		{
+			// Watching the ride from where it starts while they choose: someone's bike, if anyone's out.
+			for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
+				if (It->GetController() && It->GetController() != NewPlayer)
+				{
+					NewPlayer->SetViewTarget(*It);
+					break;
+				}
+			UE_LOG(LogTemp, Log, TEXT("Torque net: %s joined while the ride's on: choosing a bike"),
+				NewPlayer->PlayerState ? *NewPlayer->PlayerState->GetPlayerName() : TEXT("someone"));
+			TPC->ClientChooseRideBike(true);
+			return;
+		}
+		// (the host came back to the shed while they were choosing: in with everyone, as a walker)
+		TPC->bJoinWaiting = false;
+		TPC->ClientChooseRideBike(false);
+	}
+	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
 }
 
 void ATorqueGameMode::Logout(AController* Exiting)
