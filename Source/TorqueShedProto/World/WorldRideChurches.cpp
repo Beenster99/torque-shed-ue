@@ -10,6 +10,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <mutex>
 
 namespace TorqueWorld
@@ -75,9 +76,46 @@ int ChurchKit::NameKind(const std::string& Name) const
 	return 0;
 }
 
-int ChurchKit::Pick(const char* LookName, bool InTown, bool Chapel, double Long, double Short, double Seed, double Seed2, double& Along, double& Across, bool& Whole) const
+std::string ChurchKit::NameFaith(const std::string& Name) const
+{
+	if (Name.empty()) return std::string();
+	const std::string L = " " + Lower(Name) + " ";
+	for (const auto& F : FaithNames)
+		for (const std::string& W : F.second)
+			if (!W.empty() && L.find(W) != std::string::npos) return F.first;
+	return std::string();
+}
+
+int ChurchKit::Pick(const char* LookName, bool InTown, bool Chapel, double Long, double Short, double Seed, double Seed2, double& Along, double& Across, bool& Whole,
+	const std::vector<std::string>& Wants) const
 {
 	if (Models.empty() || Long <= 0.0 || Short <= 0.0) return -1;
+	const auto Tagged = [](const ChurchModel& M, const std::string& T) { return std::find(M.Tags.begin(), M.Tags.end(), T) != M.Tags.end(); };
+	const bool Meeting = !Wants.empty() && Wants[0] == "meeting";
+	const bool WantCross = std::find(Wants.begin(), Wants.end(), "cross") != Wants.end();
+	// (those with every tag wanted, then with the first: the region's or the town's (a meeting house from
+	// anywhere); else any as ever)
+	const auto With = [&](size_t Need)
+	{
+		return PickAmong(LookName, InTown, Chapel, Long, Short, Seed, Seed2, Along, Across, Whole, [&](const ChurchModel& M)
+		{
+			for (size_t K = 0; K < Need; ++K)
+				if (!Tagged(M, Wants[K])) return false;
+			if (!WantCross && Tagged(M, "cross")) return false;
+			return Meeting ? M.Kind == "meeting" : M.Kind != "meeting";
+		}, Meeting ? 4 : 3);
+	};
+	if (Wants.size() > 1)
+		if (const int Got = With(Wants.size()); Got >= 0) return Got;
+	if (!Wants.empty())
+		if (const int Got = With(1); Got >= 0) return Got;
+	// (never transepts where the outline has none, nor a meeting house unasked)
+	return PickAmong(LookName, InTown, Chapel, Long, Short, Seed, Seed2, Along, Across, Whole, [&](const ChurchModel& M) { return M.Kind != "meeting" && !Tagged(M, "cross"); });
+}
+
+int ChurchKit::PickAmong(const char* LookName, bool InTown, bool Chapel, double Long, double Short, double Seed, double Seed2, double& Along, double& Across, bool& Whole,
+	const std::function<bool(const ChurchModel&)>& Allowed, int Passes) const
+{
 	const std::string Look = LookName ? LookName : "";
 	const auto RegionHas = [this, &Look](const std::string& Region)
 	{
@@ -86,17 +124,17 @@ int ChurchKit::Pick(const char* LookName, bool InTown, bool Chapel, double Long,
 		return false;
 	};
 	const bool TownOnes = InTown && Seed2 < TownShare;
-	const auto KindFits = [Chapel](const ChurchModel& M) { return Chapel ? (M.Kind == "chapel" || M.Kind == "tin") : M.Kind == "church"; };
+	const auto KindFits = [Chapel](const ChurchModel& M) { return M.Kind == "meeting" || (Chapel ? (M.Kind == "chapel" || M.Kind == "tin") : M.Kind == "church"); };
 	// (the region's own, or in a town now and then the town ones; then the region's stretched further; then
 	// the region's and the town's; where none of those fits, any)
-	for (int Pass = 0; Pass < 4; ++Pass)
+	for (int Pass = 0; Pass < Passes; ++Pass)
 	{
 		const double Lo = Pass == 1 || Pass == 2 ? StretchLo * 0.85 : StretchLo, Hi = Pass == 1 || Pass == 2 ? StretchHi * 1.2 : StretchHi;
 		std::vector<std::pair<double, int>> Fits;   // (cost, model; a whole footprint's fit as the model's index + Models.size())
 		for (size_t I = 0; I < Models.size(); ++I)
 		{
 			const ChurchModel& M = Models[I];
-			if (!KindFits(M) || M.NaveL <= 0.0 || M.NaveW <= 0.0) continue;
+			if (!KindFits(M) || !Allowed(M) || M.NaveL <= 0.0 || M.NaveW <= 0.0) continue;
 			const bool Mine = Pass == 0 ? (TownOnes ? M.Region == "town" : RegionHas(M.Region)) : Pass == 1 ? RegionHas(M.Region) : Pass == 2 ? RegionHas(M.Region) || M.Region == "town" : true;
 			if (!Mine) continue;
 			for (int Way = 0; Way < 2; ++Way)
@@ -142,6 +180,8 @@ bool SetChurchKit(const std::string& JsonText, const std::string& Bin)
 	if (const TorqueFit::Json* S = Root.Get("area"); S && S->IsArray() && S->A.size() == 2) { Kit->AreaLo = S->A[0].N; Kit->AreaHi = S->A[1].N; }
 	Kit->ChapelNames = Words(Root.Get("chapel_names"));
 	Kit->SkipNames = Words(Root.Get("skip_names"));
+	if (const TorqueFit::Json* F = Root.Get("faith_names"))
+		for (const auto& KV : F->O) Kit->FaithNames.push_back({KV.first, Words(&KV.second)});
 	// (the triangles: "TSCK", version 1, then each model)
 	Bytes R{Bin};
 	if (Bin.size() < 12 || Bin.compare(0, 4, "TSCK") != 0) return false;
@@ -193,6 +233,7 @@ bool SetChurchKit(const std::string& JsonText, const std::string& Bin)
 					M.Kind = Row.Str("kind", "church");
 					M.Region = Row.Str("region");
 					M.Weight = std::max(0.0, Row.Num("weight", 1.0));
+					M.Tags = Words(Row.Get("tags"));
 				}
 	Kit->Models.erase(std::remove_if(Kit->Models.begin(), Kit->Models.end(), [](const ChurchModel& M) { return M.Kind.empty() || M.Weight <= 0.0; }), Kit->Models.end());
 	std::lock_guard<std::mutex> Hold(ChurchKitLock);

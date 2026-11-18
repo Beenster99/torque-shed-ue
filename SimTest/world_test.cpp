@@ -109,13 +109,21 @@ int main()
 		const bool KitRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.json"), KitText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.bin"), KitBin)
 			&& SetChurchKit(KitText, KitBin);
 		const std::shared_ptr<const ChurchKit> Kit = ChurchKitNow();
-		bool Ok = KitRead && Kit && Kit->Models.size() == 40;
+		bool Ok = KitRead && Kit && Kit->Models.size() == 44;
 		double Along = 0.0, Across = 0.0;
 		bool Whole = false;
 		const int Church = Ok ? Kit->Pick("dales", false, false, 26.0, 9.0, 0.3, 0.9, Along, Across, Whole) : -1;
 		const int Chapel = Ok ? Kit->Pick("wales", false, true, 15.0, 11.5, 0.6, 0.9, Along, Across, Whole) : -1;
 		Ok = Ok && Church >= 0 && Kit->Models[size_t(Church)].Kind == "church" && Chapel >= 0 && Kit->Models[size_t(Chapel)].Kind != "church";
 		Ok = Ok && Kit->NameKind("Hall Green Baptist Church") == 1 && Kit->NameKind("St Michael and All Angels Church") == 0 && Kit->NameKind("Central Mosque") == 2;
+		// [churches stage 4] (a Catholic church in the Dales from the Victorian ones; a Friends' meeting house; a cross-shaped outline's transepts)
+		const auto Has = [&](int M, const char* Tag) { return M >= 0 && std::find(Kit->Models[size_t(M)].Tags.begin(), Kit->Models[size_t(M)].Tags.end(), Tag) != Kit->Models[size_t(M)].Tags.end(); };
+		const int Catholic = Ok ? Kit->Pick("dales", false, false, 22.0, 9.0, 0.3, 0.9, Along, Across, Whole, {Kit->NameFaith("St Mary's Catholic Church")}) : -1;
+		const int Meeting = Ok ? Kit->Pick("dales", false, true, 14.0, 8.0, 0.3, 0.9, Along, Across, Whole, {Kit->NameFaith("Friends Meeting House")}) : -1;
+		const int Cross = Ok ? Kit->Pick("dales", false, false, 30.0, 16.0, 0.3, 0.9, Along, Across, Whole, {"cross"}) : -1;
+		const int Plain = Ok ? Kit->Pick("dales", false, true, 14.0, 8.0, 0.3, 0.9, Along, Across, Whole) : -1;
+		Ok = Ok && Has(Catholic, "catholic") && Meeting >= 0 && Kit->Models[size_t(Meeting)].Kind == "meeting" && Has(Cross, "cross") && Plain >= 0
+			&& Kit->Models[size_t(Plain)].Kind != "meeting" && Kit->NameFaith("St Michael and All Angels Church").empty();
 		// (twice into the same meshes, one already holding vertices without alpha: every mesh's alpha whole, every triangle in range)
 		RideMesh Out, Washed, Houses, Roofs, Bricks;
 		Houses.Pos = {0.0f, 0.0f, 0.0f};
@@ -135,7 +143,7 @@ int main()
 		Ok = Ok && Houses.Alpha[0] == 1.0f && Roofs.Vertices() > 0 && Houses.Vertices() > 1 && Tris > 2000;
 		std::printf("      church kit: %s, %zu churches; church %s, chapel %s; %zu triangles built\n", KitRead ? "read" : "unreadable", Kit ? Kit->Models.size() : size_t(0),
 			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
-		Check(Ok, "church kit: forty read; a Dales church and a Welsh chapel chosen; names say chapel or no church; built with whole alpha");
+		Check(Ok, "church kit: forty-four read; a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; built with whole alpha");
 	}
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;

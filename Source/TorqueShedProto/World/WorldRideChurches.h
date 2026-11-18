@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -18,7 +19,8 @@ struct RideMesh;
 
 struct ChurchModel
 {
-	std::string Name, Label, Kind, Region;   // Kind: "church", "chapel" or "tin" (a tin tabernacle, chapel-like)
+	std::string Name, Label, Kind, Region;   // Kind: "church", "chapel", "tin" (a tin tabernacle, chapel-like) or "meeting" (a Friends' meeting house)
+	std::vector<std::string> Tags;            // [churches stage 4] what it suits besides: "catholic", "meeting", "cross" (a cross-shaped outline)
 	double NaveL = 0.0, NaveW = 0.0;         // its nave's walls (m: along, across), the part fitted to the building
 	double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0, Top = 0.0;   // all of it about the nave's middle
 	double Weight = 1.0;
@@ -40,14 +42,23 @@ struct ChurchKit
 	std::vector<std::pair<std::string, std::vector<std::string>>> Looks;   // the kit's regions: the places' looks in each
 	double TownShare = 0.5, StretchLo = 0.72, StretchHi = 1.35, Spread = 0.18, AreaLo = 55.0, AreaHi = 1500.0;
 	std::vector<std::string> ChapelNames, SkipNames;
+	std::vector<std::pair<std::string, std::vector<std::string>>> FaithNames;   // [churches stage 4] a tag, and the words in a name that want it
 	// What a name says: 0 a church (or nothing), 1 a chapel, 2 no church (a mosque, a temple...: left as the map's building).
 	int NameKind(const std::string& Name) const;
+	// [churches stage 4] The tag a name wants (FaithNames: "catholic", "meeting"), or none.
+	std::string NameFaith(const std::string& Name) const;
 	// The model for a building Long by Short (m) where the look is LookName, in a town or not, a chapel or a
 	// church; Seed and Seed2 in [0, 1) the building's own. -1 if none fits within the stretch; else Along and
 	// Across, the stretch each way.
 	// Whole: fitted by its whole footprint (towers, aisles, porch and all), else by its nave's walls (a
 	// building the map cut into pieces, its nave the main one): whichever fits better.
-	int Pick(const char* LookName, bool InTown, bool Chapel, double Long, double Short, double Seed, double Seed2, double& Along, double& Across, bool& Whole) const;
+	// [churches stage 4] Wants: tags, the first the most wanted ("meeting", "catholic", "cross"): the churches
+	// with all of them first, then with the first, then any; a meeting house only where it is wanted.
+	int Pick(const char* LookName, bool InTown, bool Chapel, double Long, double Short, double Seed, double Seed2, double& Along, double& Across, bool& Whole,
+		const std::vector<std::string>& Wants = {}) const;
+	// (the same among the churches Allowed says, in Passes of the four: the region's, stretched, the town's, any)
+	int PickAmong(const char* LookName, bool InTown, bool Chapel, double Long, double Short, double Seed, double Seed2, double& Along, double& Across, bool& Whole,
+		const std::function<bool(const ChurchModel&)>& Allowed, int Passes = 4) const;
 };
 
 // Reads the rules (JSON) and the triangles (church_kit.bin); false if either isn't one. Kept for every ride
