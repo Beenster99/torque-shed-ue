@@ -27,7 +27,7 @@ KITS = os.path.join(DATA, "kits")
 
 GROUPS = ("tank_seat", "tail", "front", "exhaust")
 # what a group may change (a slot outside these that differs from the bike as drawn is reported, not sold)
-SLOTS = {"tank_seat": ("tank", "saddle"), "tail": ("tail",), "front": ("headlight", "fairing"), "exhaust": ("exhaust",)}
+SLOTS = {"tank_seat": ("tank", "saddle"), "tail": ("tail", "saddle"), "front": ("headlight", "fairing"), "exhaust": ("exhaust",)}
 LETTER = {"tank_seat": "t", "tail": "r", "front": "f", "exhaust": "x"}
 WORD = {"tank": "tank", "saddle": "seat", "tail": "tail", "headlight": "headlamp", "fairing": "fairing", "exhaust": "exhaust"}
 
