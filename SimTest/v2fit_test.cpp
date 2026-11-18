@@ -94,6 +94,8 @@ int main()
 	Expect(Db.Find("frame", "steel_backbone") && Db.Find("disc", "floating_310"), "parts the kept types use stay");
 	int Bikes = 0;
 	int MixChecks = 0;
+	int KitChecks = 0;
+	double WorstKit = 0.0;
 	double WorstMix = 0.0;
 	// The old bikes are retired: the shop sells the eight styles that have V2 bikes, each starting as
 	// its lead V2 bike, and only V2 frames are offered.
@@ -350,6 +352,44 @@ int main()
 			}
 		}   // (with the tyres at the catalogue's full tread detail, as every catalogue bike has them near the camera)
 
+		// [kits] Every kit piece sold for this bike goes on it, in its slot, where the bike's own was.
+		{
+			auto Box = [](const std::vector<FittedPart>& Ps, const std::string& Slot, V3& Lo, V3& Hi) {
+				Lo = V3(1e9, 1e9, 1e9);
+				Hi = V3(-1e9, -1e9, -1e9);
+				for (const FittedPart& P : Ps)
+					if (P.Slot == Slot && P.Made && !P.Hidden)
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& V : S.Pos) { Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); }
+				return Lo.x <= Hi.x;
+			};
+			for (const std::string& Kind : Db.Kinds())
+				for (const std::string& Kid : Db.Ids(Kind))
+				{
+					const Json* Part = Db.Find(Kind, Kid);
+					const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+					if (!Vp || Vp->Str("kit").empty() || Vp->Str("frame") != Id) continue;
+					const std::string Slot = Vp->Str("slot");
+					++KitChecks;
+					Expect(Lay.V2FitReason(Parts, Slot, Kid).empty(), Kid + " fits its own bike: " + Lay.V2FitReason(Parts, Slot, Kid));
+					PartsMap With = Parts;
+					With[Slot] = Kid;
+					const std::vector<FittedPart> Got = Placer.Fit(With, Lay.Solve(With));
+					V3 Lo, Hi, OwnLo, OwnHi;
+					const bool bGot = Box(Got, Slot, Lo, Hi);
+					Expect(bGot, Kid + " is drawn on " + Id);
+					if (!bGot) continue;
+					Expect(Lo.y > -0.02 && Lo.x > L.RearAxle.x - 0.75 && Hi.x < L.FrontAxle.x + 0.6 && Hi.y < 1.75 && std::fabs(Lo.z + Hi.z) < 0.5,
+						Kid + " sits on the bike (x " + std::to_string(Lo.x) + " to " + std::to_string(Hi.x) + ", y " + std::to_string(Lo.y) + " to " + std::to_string(Hi.y) + ")");
+					if (Box(Fitted, Slot, OwnLo, OwnHi))
+					{
+						const double Off = std::hypot((Lo.x + Hi.x - OwnLo.x - OwnHi.x) * 0.5, (Lo.y + Hi.y - OwnLo.y - OwnHi.y) * 0.5);
+						WorstKit = std::max(WorstKit, Off);
+						Expect(Off < 0.45, Kid + " is where the bike's own " + Slot + " was (" + std::to_string(Off) + " m off)");
+					}
+				}
+		}
+
 		RideSpecInput In;
 		In.Parts = Parts;
 		TorqueSim::BikeSpec Spec;
@@ -365,6 +405,7 @@ int main()
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
+	std::printf("%d kit pieces fitted, worst %.3f m from the bike's own\n", KitChecks, WorstKit);
 	std::printf("%d V2 bikes, %d failures\n", Bikes, Failures);
 	return Failures ? 1 : 0;
 }
