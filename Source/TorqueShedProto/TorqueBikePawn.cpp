@@ -3147,8 +3147,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	{
 		ATorqueRideWorld::NavFor(GetActorLocation(), Dash, NavWas);   // [Ride UK] the sat nav
 		if (bOnFoot) ATorqueRideWorld::ViewSpotFor(FootPos, Dash);   // [places stage 7] walked in to a place's view spot
-		// (stopped at the pumps: the tank fills, a litre every second or so)
-		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 0.9 * DeltaSeconds);
+		// (stopped at the pumps: the tank fills, the shed pump's 2.5 litres a second: beenster, build 156, faster)
+		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 2.5 * DeltaSeconds);
 	}
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	StepTft(DeltaSeconds, bRemote);   // [tft]
