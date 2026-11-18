@@ -3014,6 +3014,13 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 FString ATorqueWalker::TestComputerType(const FString& Type)
 {
 	if (!bComputer) OpenComputer();
+	// [engines] "layout=Inline four", "size=2", "maker=Kazeda", "sort=1": the engine list's filters.
+	FString FilterKey, FilterValue;
+	if (Type.Split(TEXT("="), &FilterKey, &FilterValue))
+	{
+		if (!Computer.SetEngineFilter(FilterKey.ToLower(), FilterValue)) return FString::Printf(TEXT("no engine filter %s on the computer"), *FilterKey);
+		return Computer.Describe();
+	}
 	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);
 	return Computer.Describe();
 }

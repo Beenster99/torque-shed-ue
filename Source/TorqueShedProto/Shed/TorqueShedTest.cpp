@@ -1620,7 +1620,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			W->TestCloseComputer();
 			return true;
 		}
-		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type.
+		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type; "computer:type:size=2" (layout=, maker=, sort=) the engine list's filters.
 		if (P.Num() >= 3 && P[1] == TEXT("type"))
 		{
 			Said(W->TestComputerType(P[2]));
