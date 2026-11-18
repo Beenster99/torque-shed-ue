@@ -210,6 +210,11 @@ private:
 	// [stage 5] A square's water (RideMesh::Water: the sea, lakes, rivers), in M_RideWater, never collided with.
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> TileWater;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterMaterial;
+	// [build 156] M_RideWaterReal (single layer water), drawn instead while Settings > Graphics > Realistic water is on; and
+	// the water the squares were last given, so a change of the setting is put on the water already laid.
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterMaterialReal;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterShown;
+	UMaterialInterface* WaterNow() const;
 	void DropWater(const FIntVector& Key);
 	// [stage 5] The words on a square's signs (RideMesh::Labels), let go with it.
 	TMap<FIntVector, TArray<TWeakObjectPtr<class UTextRenderComponent>>> TileWords;

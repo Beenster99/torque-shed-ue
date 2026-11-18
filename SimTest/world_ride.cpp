@@ -1103,6 +1103,7 @@ int main(int Argc, char** Argv)
 		// half width and the land's own height; each lake's level)
 		const double Reach = std::atof(WaterAt);
 		const P2 Start = Plan->Road[0].At;
+		std::printf("  water near the start, %.1f, %.1f in the frame\n", Start.X, Start.Z);
 		for (size_t Wr = 0; Wr < Plan->WaterRuns.size(); ++Wr)
 		{
 			const RidePlan::WaterRun& Run = Plan->WaterRuns[Wr];
@@ -1910,11 +1911,11 @@ int main(int Argc, char** Argv)
 				RideMesh Piece;
 				Plan->RoadPiece(W, First, Last, Piece);
 				// ([road edges, Nov 18] with its country shoulders' turf, drawn as the land)
-				for (const RideMesh* Sub : {&Piece, Piece.Turf.get()})
+				for (const RideMesh* Sub : {&Piece, Piece.Turf.get(), Piece.Stone.get()})   // ([Nov 18] and its bridge parapets, with the walls)
 				{
 				if (Sub == nullptr) continue;
 				const RideMesh& Mesh = *Sub;
-				std::string& Lines = Sub == &Piece ? Text : TurfText;
+				std::string& Lines = Sub == &Piece ? Text : Sub == Piece.Stone.get() ? WallText : TurfText;
 				for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
 				{
 					bool In = false;
