@@ -81,8 +81,11 @@ struct FTorquePaintBay
 	TorquePaintMix::FPaintSpec Test;
 	FString TestBy;
 	int32 TestN = 0;
-	// Each player's cup and the tin in their hands.
+	// Each player's two gun cups (beenster, 18 Nov 2026: a fade blends cup 1 into cup 2), keyed by
+	// CupKey, and the tin in their hands.
 	TMap<int32, FTorquePaintCup> Cups;
+	static int32 CupKey(int32 Peer, int32 Which) { return Which == 1 ? Peer + (1 << 24) : Peer; }
+	const FTorquePaintCup* CupOf(int32 Peer, int32 Which) const { return Cups.Find(CupKey(Peer, Which)); }
 	TMap<int32, int32> Held;
 	// The masking tape roll (paint_bay.gd held "tape"): who has it off its hook by the door (0: it's
 	// on the hook), and the pattern it's masking (TorquePaintMix::PatternName).

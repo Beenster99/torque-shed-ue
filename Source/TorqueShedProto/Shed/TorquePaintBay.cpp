@@ -3,6 +3,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Serialization/Archive.h"
+#include "HAL/PlatformTime.h"
 
 namespace TorquePaintBayImpl
 {
@@ -338,7 +339,7 @@ FString FTorquePaintBay::Summary() const
 	if (bTest) Out += FString::Printf(TEXT("; test card %s"), *Test.Code);
 	if (bTarget) Out += FString::Printf(TEXT("; matching %s"), *TargetName);
 	for (const TPair<int32, FTorquePaintCup>& KV : Cups)
-		Out += FString::Printf(TEXT("; player %d's cup %s %.2f l"), KV.Key, *KV.Value.Spec.Name, KV.Value.Litres);
+		Out += FString::Printf(TEXT("; player %d's cup %d %s %.2f l"), KV.Key & 0xFFFFFF, KV.Key >= (1 << 24) ? 2 : 1, *KV.Value.Spec.Name, KV.Value.Litres);
 	return Out;
 }
 
@@ -346,6 +347,9 @@ FString FTorquePaintBay::Summary() const
 
 float UTorqueBuildSubsystem::HookTipOf(int32 Hook) const
 {
+	// A guest winding it sees it go at once; the host's copy takes over a moment after they stop.
+	if (const TPair<float, double>* Wound = IsClient() ? HookWound.Find(Hook) : nullptr; Wound && FPlatformTime::Seconds() - Wound->Value < 1.0)
+		return Wound->Key;
 	return Paint.HookTips.IsValidIndex(Hook) ? Paint.HookTips[Hook] : (float)TorqueShedLayout::HookTip;
 }
 
@@ -470,9 +474,10 @@ FString UTorqueBuildSubsystem::CheckPaintBay(int32 Peer, const FTorqueShedReques
 		if (!T) return TEXT("Hold a tin of paint to fill the gun's cup.");
 		if (T->Litres <= 0.005f) return TEXT("The tin's empty.");
 		if (T->Name.IsEmpty()) return TEXT("Name the tin at the bench first.");
-		const FTorquePaintCup* C = P.Cups.Find(Peer);
+		if (R.Item < 0 || R.Item > 1) return TEXT("The spray gun has two cups.");
+		const FTorquePaintCup* C = P.CupOf(Peer, R.Item);
 		if (C && C->Spec.Code == T->Spec().Code && C->Spec.Name == T->Name && C->Litres >= TPM::CupLitres - 0.005f)
-			return TEXT("The cup's full of it already.");
+			return FString::Printf(TEXT("Cup %d's full of it already."), R.Item + 1);
 		return FString();
 	}
 	case ETorqueShedAct::PaintHook:
@@ -676,15 +681,19 @@ FString UTorqueBuildSubsystem::ApplyPaintBay(int32 Peer, const FTorqueShedReques
 	{
 		FTorqueTin& T = P.Tins[P.Held[Peer]];
 		const TPM::FPaintSpec S = T.Spec();
-		const FTorquePaintCup* Old = P.Cups.Find(Peer);
+		// Cup 1 (R) or cup 2 (T): two colours on the gun at once, for a fade.
+		const int32 Which = FMath::Clamp(R.Item, 0, 1);
+		const FTorquePaintCup* Old = P.CupOf(Peer, Which);
 		const float Have = Old && Old->Spec.Code == S.Code && Old->Spec.Name == T.Name ? Old->Litres : 0.0f;
 		const float Pour = FMath::Min(TPM::CupLitres - Have, T.Litres);
 		T.Litres = FMath::Max(0.0f, T.Litres - Pour);
 		FTorquePaintCup Cup;
 		Cup.Spec = S;
 		Cup.Litres = Have + Pour;
-		P.Cups.Add(Peer, Cup);
-		return FString::Printf(TEXT("Spray gun's cup filled with %s (%.2f l). Pick Cup on the spray gun (T)."), *T.Name, Cup.Litres);
+		P.Cups.Add(FTorquePaintBay::CupKey(Peer, Which), Cup);
+		const FTorquePaintCup* Other = P.CupOf(Peer, 1 - Which);
+		return FString::Printf(TEXT("Spray gun's cup %d filled with %s (%.2f l). Load Cup %d on the gun (T)%s."), Which + 1, *T.Name, Cup.Litres, Which + 1,
+			Other && Other->Litres > 0.0f && !Other->Spec.IsLacquer() && !S.IsLacquer() ? TEXT(", or Fade to blend cup 1 into cup 2") : TEXT(""));
 	}
 	case ETorqueShedAct::PaintHook:
 	{
@@ -699,36 +708,45 @@ FString UTorqueBuildSubsystem::ApplyPaintBay(int32 Peer, const FTorqueShedReques
 
 // --- Spraying from the cup (paint_bay.gd cup_use, spray_spec) ------------------------------------------
 
-FString UTorqueBuildSubsystem::CheckCup(int32 Peer, const FTorqueItem& It) const
+FString UTorqueBuildSubsystem::CheckCup(int32 Peer, const FTorqueItem& It, FName Finish) const
 {
-	const FTorquePaintCup* Cup = Paint.Cups.Find(Peer);
-	if (!Cup || Cup->Litres <= 0.0f) return TEXT("The gun's cup is empty. Fill it from a tin of mixed paint (hold the tin, R).");
-	if (Cup->Litres + 0.001f < TorquePaintMix::LitresFor(It.Kind) * 0.5f)
-		return FString::Printf(TEXT("Not enough %s left in the cup for that. Top it up from the tin."), *Cup->Spec.Name);
+	const float Need = TorquePaintMix::LitresFor(It.Kind) * 0.5f;
+	if (Finish == FadeFinish())
+	{
+		// A fade takes both cups, each a colour (not lacquer), about half the paint from each.
+		const FTorquePaintCup* One = Paint.CupOf(Peer, 0);
+		const FTorquePaintCup* Two = Paint.CupOf(Peer, 1);
+		if (!One || One->Litres <= 0.0f) return TEXT("A fade needs both cups: fill cup 1 from a tin (hold the tin, R).");
+		if (!Two || Two->Litres <= 0.0f) return TEXT("A fade needs both cups: fill cup 2 from a tin (hold the tin, T).");
+		if (One->Spec.IsLacquer() || Two->Spec.IsLacquer()) return TEXT("A fade blends two colours: lacquer goes on after, from one cup.");
+		if (One->Spec.Code == Two->Spec.Code && One->Spec.Name == Two->Spec.Name) return TEXT("Both cups have the same paint: fill one with another colour to fade.");
+		if (One->Litres + 0.001f < Need * 0.6f || Two->Litres + 0.001f < Need * 0.6f)
+			return TEXT("Not enough paint left in the cups for that. Top them up from the tins.");
+		return FString();
+	}
+	const int32 Which = CupWhich(Finish);
+	const FTorquePaintCup* Cup = Paint.CupOf(Peer, Which);
+	if (!Cup || Cup->Litres <= 0.0f)
+		return FString::Printf(TEXT("The gun's cup %d is empty. Fill it from a tin of mixed paint (hold the tin, %s)."), Which + 1, Which == 0 ? TEXT("R") : TEXT("T"));
+	if (Cup->Litres + 0.001f < Need)
+		return FString::Printf(TEXT("Not enough %s left in cup %d for that. Top it up from the tin."), *Cup->Spec.Name, Which + 1);
 	return FString();
 }
 
-void UTorqueBuildSubsystem::MaskUnderTape(FTorqueItem& It)
-{
-	// paint_bay.gd spray_spec: the mask keeps the pattern and the paint that was there, as it looked.
-	FLinearColor Shown = ShownColour(It);
-	float Metallic = 0.05f, Roughness = 0.15f;
-	FinishLook(It, Shown, Metallic, Roughness);
-	It.Mask = It.Tape;
-	It.MaskColour = Shown;
-	It.MaskMetal = Metallic;
-	It.MaskRough = Roughness;
-}
-
-float UTorqueBuildSubsystem::SprayFromCup(int32 Peer, FTorqueItem& It)
+float UTorqueBuildSubsystem::SprayFromCup(int32 Peer, FTorqueItem& It, int32 Which, float Share)
 {
 	namespace TPM = TorquePaintMix;
-	FTorquePaintCup& Cup = Paint.Cups.FindOrAdd(Peer);
-	const TPM::FPaintSpec S = Cup.Spec;
-	Cup.Litres = FMath::Max(0.0f, Cup.Litres - TPM::LitresFor(It.Kind));
+	FTorquePaintCup& Cup = Paint.Cups.FindOrAdd(FTorquePaintBay::CupKey(Peer, Which));
+	Cup.Litres = FMath::Max(0.0f, Cup.Litres - TPM::LitresFor(It.Kind) * Share);
+	return LaySpec(It, Cup.Spec);
+}
+
+float UTorqueBuildSubsystem::LaySpec(FTorqueItem& It, const TorquePaintMix::FPaintSpec& S)
+{
+	namespace TPM = TorquePaintMix;
 	if (S.IsLacquer())
 	{
-		// Lacquer from the cup is a clear top coat: the colour stays, the sheen changes.
+		// Lacquer from the cup is a clear top coat: the colour stays (a fade's too), the sheen changes.
 		It.Flat = S.Flat;
 		if (It.Finish.IsNone()) It.Finish = FName(TEXT("gloss"));
 		return 1.0f;
@@ -737,11 +755,9 @@ float UTorqueBuildSubsystem::SprayFromCup(int32 Peer, FTorqueItem& It)
 	const int32 Coats = bSame ? It.MixCoats + 1 : 1;
 	if (!bSame)
 	{
+		// A new colour covers any fade or stripe there was.
 		It.MixUnder = ShownColour(It);
-		// Sprayed over masking tape: the colour under it stays where the stripe goes. Otherwise a
-		// new colour covers any stripe there was.
-		if (It.Tape != 0) MaskUnderTape(It);
-		else if (!It.bPrimerTop) It.Mask = 0;
+		It.Mask = 0;
 	}
 	It.MixCode = S.Code;
 	It.MixName = S.Name;
@@ -751,4 +767,36 @@ float UTorqueBuildSubsystem::SprayFromCup(int32 Peer, FTorqueItem& It)
 	It.Finish = TPM::FinishOf(S);
 	It.Flat = 0.0f;
 	return TPM::CoatsFactor(S, Coats) * (0.7f + 0.3f * S.Stir);
+}
+
+float UTorqueBuildSubsystem::FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern)
+{
+	// The fade (beenster, 18 Nov 2026, in place of the masking tape): cup 2 goes over it all and cup 1
+	// is kept at the front (or the top), blending from one into the other, finish and all (matt
+	// black into gloss gold). Drawn as the mask (Mask: the pattern, MaskColour: cup 1 as it shows),
+	// the material's fade (ue_build_shed.py MASK_HLSL). Again with the same cups builds both up.
+	namespace TPM = TorquePaintMix;
+	FTorqueItem Front = It;   // cup 1's end, sprayed as many coats as the rest
+	const float Q2 = SprayFromCup(Peer, It, 1, 0.6f);
+	const int32 Coats = FMath::Max(1, It.MixCoats);
+	const FTorquePaintCup* One = Paint.CupOf(Peer, 0);
+	const TPM::FPaintSpec S1 = One ? One->Spec : TPM::FPaintSpec();
+	Front.Mask = 0;
+	float Q1 = 1.0f;
+	Front.MixCode.Reset();   // a fresh first coat over what was there, then built up to match
+	for (int32 C = 0; C < Coats; ++C)
+	{
+		Q1 = LaySpec(Front, S1);
+		Front.bPrimerTop = false;   // (over primer the first coat keys on, the rest build on it)
+	}
+	if (FTorquePaintCup* Cup1 = Paint.Cups.Find(FTorquePaintBay::CupKey(Peer, 0)))
+		Cup1->Litres = FMath::Max(0.0f, Cup1->Litres - TPM::LitresFor(It.Kind) * 0.6f);
+	FLinearColor Shown = ShownColour(Front);
+	float Metallic = 0.05f, Roughness = 0.15f;
+	FinishLook(Front, Shown, Metallic, Roughness);
+	It.Mask = Pattern;
+	It.MaskColour = Shown;
+	It.MaskMetal = Metallic;
+	It.MaskRough = Roughness;
+	return FMath::Min(Q1, Q2);
 }

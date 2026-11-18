@@ -234,20 +234,27 @@ bool ATorqueWalker::SprayWork(float Dt)
 	FVector Normal = bHit ? FVector(Hit.ImpactNormal) : -Dir;
 	const AActor* HitBy = bHit ? Hit.GetActor() : nullptr;
 	const bool bOwnBox = HitBy && (HitBy->IsA<ATorqueShedItems>() || HitBy->IsA<ATorqueShedBike>() || HitBy->IsA<ATorqueBoothHooks>());
+	// The part's own surface under the crosshair (as near as its points are apart), else, if the line
+	// only met the part's box or slipped past an edge, the nearest of it inside the fan: the spray
+	// lands on the part, never on the empty air of its box (beenster's 155 test: "the paint spray
+	// doesn't seem to land on the object I am spraying").
 	double Nearest = TNumericLimits<double>::Max();
-	for (const TSharedPtr<FTorqueSprayJob>& J : Jobs)
-	{
-		FVector SAt, SN;
-		double T = 0.0;
-		if (!J->SurfaceHit(Eye, Dir, 3.5, SAt, SN, T) || T >= Nearest) continue;
-		Nearest = T;
-		if (!bHit || bOwnBox || FVector::Dist(Eye, Hit.ImpactPoint) > T - 5.0)
+	bool bOnSurface = false;
+	for (int32 Pass = 0; Pass < 2 && !bOnSurface; ++Pass)
+		for (const TSharedPtr<FTorqueSprayJob>& J : Jobs)
 		{
+			FVector SAt, SN;
+			double T = 0.0;
+			const double Width = Pass == 0 ? J->HitWidth() : FMath::Max(J->HitWidth(), (bGun ? GunRadius : CanRadius) * 0.7);
+			if (!J->SurfaceHit(Eye, Dir, Width, SAt, SN, T) || T >= Nearest) continue;
+			if (bHit && !bOwnBox && FVector::Dist(Eye, Hit.ImpactPoint) <= T - 5.0) continue;   // something really in the way
+			Nearest = T;
 			At = SAt;
 			Normal = SN;
 			bHit = true;
+			bOnSurface = true;
 		}
-	}
+	if (!bOnSurface && bOwnBox) bHit = false;   // only the box round a part: nothing to land on
 	for (const TSharedPtr<FTorqueSprayJob>& J : Jobs) J->Step(Dt, Eye, Dir, bHit, At, Normal, bFiring);
 	if (!bFiring)
 	{
@@ -439,7 +446,10 @@ void ATorqueWalker::SetSprayScan(bool bOn)
 int32 ATorqueWalker::SprayHook() const
 {
 	const UTorqueBuildSubsystem* B = Shed();
-	const FTorqueItem* It = B && SprayItem != 0 ? B->Item(SprayItem) : nullptr;
+	// The gun or can in your hand (the spray controls down), aimed at a hook or the part on it: the
+	// same keys wind it, so you needn't put the gun down to set the height.
+	if (SprayItem == 0) return B && TWSI::Sprays(Tool) && B->HeldBy(B->Me()) == 0 ? HookOf() : INDEX_NONE;
+	const FTorqueItem* It = B ? B->Item(SprayItem) : nullptr;
 	if (!It || It->At != ETorqueAt::Spot) return INDEX_NONE;
 	const FTorquePlace* P = TorqueShedLayout::FindPlace(It->Spot);
 	return P && P->Kind == ETorquePlace::Hook ? P->Index : INDEX_NONE;
@@ -644,7 +654,8 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		const FString What = Job->Layer == ELayer::Primer ? TEXT("PRIMER") : (Job->Layer == ELayer::Clear ? TEXT("LACQUER") : TEXT("COLOUR"));
 		FString Title = FString::Printf(TEXT("SPRAYING %s"), *What);
 		if (Job->Request.Kind == ETorqueShedAct::Paint)
-			Title = Job->Request.Finish == UTorqueBuildSubsystem::CupFinish() ? FString(TEXT("SPRAYING  -  FROM THE CUP"))
+			Title = Job->Request.Finish == UTorqueBuildSubsystem::FadeFinish() ? FString(TEXT("SPRAYING  -  FADE, CUP 1 INTO CUP 2"))
+				: UTorqueBuildSubsystem::IsCupFinish(Job->Request.Finish) ? FString::Printf(TEXT("SPRAYING  -  FROM CUP %d"), UTorqueBuildSubsystem::CupWhich(Job->Request.Finish) + 1)
 				: FString::Printf(TEXT("SPRAYING  -  %s %s"), *Load, *UTorqueBuildSubsystem::PaintName(Job->Request.Colour).ToUpper());
 		const float In = 16.0f * S, Inner = W - 2.0f * In;
 		Text(Title, X0 + In, Y0 + 12.0f * S, Px(18.0f), TWSI::Accent);

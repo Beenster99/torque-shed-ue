@@ -29,6 +29,7 @@
 #include "Misc/Parse.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "HAL/PlatformTime.h"
 
 // (Named, not anonymous: in a unity build an anonymous namespace is shared with the other files.)
 namespace TorqueBuildImpl
@@ -604,7 +605,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.Flat = From.Flat;
 		It.OrderedBy = From.OrderedBy;
 		It.OrderedTint = From.OrderedTint;
-		It.Tape = FMath::Clamp(From.Tape, 0, TorquePaintMix::TapePatterns);
+		It.Tape = 0;   // (the masking tape's gone: any left on a part from before comes off)
 		It.Mask = FMath::Clamp(From.Mask, 0, TorquePaintMix::TapePatterns);
 		It.MaskColour = From.MaskColour;
 		It.MaskMetal = From.MaskMetal;
@@ -2308,7 +2309,6 @@ FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 		if (IsLacquer(It.Coat)) Text += TEXT(", lacquered");
 		if (It.Flat >= 0.08f) Text += TEXT(", ") + TorquePaintMix::SheenName(It.Flat) + TEXT(" lacquer");
 		if (It.Mask != 0) Text += TEXT(", masked ") + FString(TorquePaintMix::PatternName(It.Mask)).ToLower();
-		if (It.Tape != 0) Text += TEXT(", taped for a ") + FString(TorquePaintMix::PatternName(It.Tape)).ToLower() + TEXT(" (right mouse peels it)");
 	}
 	if (!It.Coat.IsNone())
 	{
@@ -2821,12 +2821,13 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 			return FString();
 		}
 		if (R.bGun && !bInBooth) return TEXT("The spray gun runs off the paint booth's air line. Hang the part in the booth.");
-		if (R.Kind == ETorqueShedAct::Paint && R.Finish == CupFinish())
+		if (R.Kind == ETorqueShedAct::Paint && IsCupFinish(R.Finish))
 		{
-			// Paint mixed in the mixing bay, from the gun's cup.
+			// Paint mixed in the mixing bay, from the gun's cups.
 			if (!R.bGun) return TEXT("Mixed paint goes on with the spray gun: fill its cup from the tin.");
 			if (It->Rust > MaxPaintRust) return TEXT("Too rusty to paint. Grind it back on the repair bench first.");
-			return CheckCup(Peer, *It);
+			if (R.Finish == FadeFinish() && !TorquePaintMix::IsFade(R.Colour)) return TEXT("That isn't a fade.");
+			return CheckCup(Peer, *It, R.Finish);
 		}
 		if (It->Rust > MaxPaintRust)
 			return R.Kind == ETorqueShedAct::Prime ? FString(TEXT("Too rusty to prime. Grind it back on the repair bench first."))
@@ -2960,32 +2961,12 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	case ETorqueShedAct::DynoLights:
 		return FString();
 	case ETorqueShedAct::PaintTapeTake:
-		if (Held != 0 || Paint.Held.Contains(Peer)) return TEXT("Your hands are full.");
-		if (Paint.TapeBy == Peer) return TEXT("You've got the masking tape.");
-		if (Paint.TapeBy != 0) return TEXT("Someone else has the masking tape.");
-		return FString();
 	case ETorqueShedAct::PaintTapePut:
-		return Paint.TapeBy == Peer ? FString() : FString(TEXT("You're not holding the tape."));
 	case ETorqueShedAct::PaintTapePattern:
-		if (Paint.TapeBy != Peer) return TEXT("You're not holding the tape.");
-		if (R.Colour < 1 || R.Colour > TorquePaintMix::TapePatterns) return TEXT("There's no pattern like that.");
-		return FString();
 	case ETorqueShedAct::PaintTape:
-	{
-		// paint_bay.gd paint_tape: on a painted part, put down (or on a bike), not taped already.
-		if (Paint.TapeBy != Peer) return TEXT("Take the masking tape off its hook by the mixing bay door.");
-		const FTorqueItem* It = Items.Find(R.Item);
-		if (!It) return TEXT("That part has gone.");
-		if (It->At == ETorqueAt::Held || It->bBoxed) return TEXT("Put it down (and unpack it) first.");
-		if (It->PaintQ < 0.0f || It->bPrimerTop || It->Finish.IsNone()) return TEXT("Paint it first: the tape keeps its colour where the stripe goes.");
-		if (It->Tape != 0) return TEXT("It's taped already. Spray it, or peel the tape off.");
-		return FString();
-	}
 	case ETorqueShedAct::PaintPeel:
-	{
-		const FTorqueItem* It = Items.Find(R.Item);
-		return It && It->Tape != 0 ? FString() : FString(TEXT("There's no tape on it."));
-	}
+		// The masking tape's gone (beenster, 18 Nov 2026): fades go on from the spray gun's two cups.
+		return TEXT("There's no masking tape any more: load Fade on the spray gun to blend cup 1 into cup 2.");
 	case ETorqueShedAct::TvVideo:   // [tv]
 		return R.Text.IsEmpty() || !TorqueShedTv::VideoId(R.Text).IsEmpty() ? FString() : FString(TEXT("That's not a YouTube link."));
 	case ETorqueShedAct::TvChannel:   // [tv]
@@ -3088,6 +3069,8 @@ bool UTorqueBuildSubsystem::Request(const FTorqueShedRequest& R, FString& WhyNot
 	const int32 HeldBefore = HeldBy(Me());   // [sound] for OnRequestDone
 	if (IsClient())
 	{
+		if (R.Kind == ETorqueShedAct::PaintHook)
+			HookWound.Add(R.Item, TPair<float, double>(FMath::Clamp(R.Amount, FTorquePaintBay::HookLow, FTorquePaintBay::HookHigh), FPlatformTime::Seconds()));
 		if (Forward.Execute(R)) { OnRequestDone.Broadcast(R, HeldBefore); return true; }
 		WhyNot = TEXT("The host didn't get that: try again.");
 		return false;
@@ -3314,11 +3297,21 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		const bool bPrimed = It.bPrimerTop;
 		float CoatsQ = 1.0f;
 		FString What;
-		if (R.Finish == CupFinish())
+		if (R.Finish == FadeFinish())
 		{
-			// Mixed paint from the gun's cup: its colour and effect, coats building up (TorquePaintBay.cpp).
-			CoatsQ = SprayFromCup(Peer, It);
-			const FTorquePaintCup* Cup = Paint.Cups.Find(Peer);
+			// A fade from the gun's two cups: cup 1 blending into cup 2 across it (TorquePaintBay.cpp).
+			CoatsQ = FadeFromCups(Peer, It, R.Colour);
+			const FTorquePaintCup* One = Paint.CupOf(Peer, 0);
+			const FTorquePaintCup* Two = Paint.CupOf(Peer, 1);
+			What = FString::Printf(TEXT("%s fading into %s (%s, coat %d)"), One ? *One->Spec.Name : TEXT("cup 1"), Two ? *Two->Spec.Name : TEXT("cup 2"),
+				*FString(TorquePaintMix::PatternName(R.Colour)).ToLower(), It.MixCoats);
+		}
+		else if (IsCupFinish(R.Finish))
+		{
+			// Mixed paint from one of the gun's cups: its colour and effect, coats building up (TorquePaintBay.cpp).
+			const int32 Which = CupWhich(R.Finish);
+			CoatsQ = SprayFromCup(Peer, It, Which);
+			const FTorquePaintCup* Cup = Paint.CupOf(Peer, Which);
 			const TorquePaintMix::FPaintSpec Mixed = Cup ? Cup->Spec : TorquePaintMix::FPaintSpec();
 			if (Mixed.IsLacquer()) What = FString::Printf(TEXT("with %s clear lacquer"), *TorquePaintMix::SheenName(Mixed.Flat));
 			else What = FString::Printf(TEXT("%s (%s, coat %d)"), *Mixed.Name, *TorquePaintMix::EffectName(Mixed.Effect).ToLower(), It.MixCoats);
@@ -3327,8 +3320,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		{
 			const int32 Idx = FMath::Clamp(R.Colour, 0, Paints().Num() - 1);
 			// Over masking tape the colour under it stays where the stripe goes (shed_state "paint").
-			if (It.Tape != 0 && !It.bPrimerTop) MaskUnderTape(It);
-			else It.Mask = 0;
+			It.Mask = 0;
 			It.Colour = Paints()[Idx];
 			It.Finish = Finishes().Contains(R.Finish) ? R.Finish : FName(TEXT("gloss"));
 			It.MixCode.Reset();
@@ -3609,42 +3601,6 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Dyno.bLights = !Dyno.bLights;
 		Text = Dyno.bLights ? TEXT("Dyno room lights on") : TEXT("Dyno room lights off");
 		break;
-	case ETorqueShedAct::PaintTapeTake:
-		Paint.TapeBy = Peer;
-		Text = FString::Printf(TEXT("Masking tape: %s. R picks the pattern; hold the work button on a painted part to tape it."),
-			*FString(TorquePaintMix::PatternName(Paint.TapePattern)).ToLower());
-		bItems = true;
-		break;
-	case ETorqueShedAct::PaintTapePut:
-		Paint.TapeBy = 0;
-		bItems = true;
-		break;
-	case ETorqueShedAct::PaintTapePattern:
-		Paint.TapePattern = R.Colour;
-		Text = FString::Printf(TEXT("Masking tape: %s"), *FString(TorquePaintMix::PatternName(R.Colour)).ToLower());
-		break;
-	case ETorqueShedAct::PaintTape:
-	{
-		FTorqueItem& It = Items[R.Item];
-		It.Tape = Paint.TapePattern;
-		if (TorquePaintMix::IsFade(It.Tape))
-			Text = FString::Printf(TEXT("Held a paper mask over the %s for a %s. Now spray the second colour: it blends into this one, finish and all."),
-				*ItemTitle(R.Item), *FString(TorquePaintMix::PatternName(It.Tape)).ToLower());
-		else
-			Text = FString::Printf(TEXT("Taped a %s on the %s. Now spray the second colour over it."),
-				*FString(TorquePaintMix::PatternName(It.Tape)).ToLower(), *ItemTitle(R.Item));
-		Touch(R.Item);
-		break;
-	}
-	case ETorqueShedAct::PaintPeel:
-	{
-		FTorqueItem& It = Items[R.Item];
-		It.Tape = 0;
-		Text = It.Mask != 0 ? (TorquePaintMix::IsFade(It.Mask) ? FString(TEXT("Took the mask off: a soft fade.")) : FString(TEXT("Peeled the tape off: a crisp line.")))
-			: FString(TEXT("Peeled the tape off: nothing sprayed over it."));
-		Touch(R.Item);
-		break;
-	}
 	case ETorqueShedAct::TvVideo:   // [tv]
 		TvVideoId = TorqueShedTv::VideoId(R.Text);
 		TvVideoAt = SharedNow();
@@ -3758,11 +3714,12 @@ void UTorqueBuildSubsystem::DropHeldBy(int32 Peer, const FVector& At)
 	DropKitOf(Peer);   // [kit]
 	DropFurnitureOf(Peer);   // [furniture]
 	DropFluidOf(Peer);   // [fluids]
-	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.Cups.Contains(Peer))
+	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.CupOf(Peer, 0) || Paint.CupOf(Peer, 1))
 	{
-		// The mixing bay: their tin back on the shelf, away from the bench, the cup put away.
+		// The mixing bay: their tin back on the shelf, away from the bench, the cups put away.
 		Paint.PutBack(Peer);
-		Paint.Cups.Remove(Peer);
+		Paint.Cups.Remove(FTorquePaintBay::CupKey(Peer, 0));
+		Paint.Cups.Remove(FTorquePaintBay::CupKey(Peer, 1));
 		OnItems.Broadcast();
 		MarkSave();
 		OnHostChange.Broadcast();
