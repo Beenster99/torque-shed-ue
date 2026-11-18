@@ -669,8 +669,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			// (the house's joinery paint, mostly white, by street; its reveals the wall's own colour, darker in the return)
 			// ([build 153] beenster: "too many black window frames... mostly white and some wood colours": white
 			// seven in ten, cream, two oaks, now and then a dark green or black)
+			// ([156] beenster, build 155: "Many window frames still black": the two oaks, 0.2 and 0.11, read as black
+			// a street away, and a street took one together, a whole terrace of them. Now one oak, a lighter one,
+			// one street in nine, the rest white and cream; the dark green as rare as before)
 			static const Rgb Joinery[10] = {{0.62f, 0.62f, 0.60f}, {0.62f, 0.62f, 0.60f}, {0.64f, 0.64f, 0.62f}, {0.62f, 0.62f, 0.60f}, {0.60f, 0.60f, 0.58f},
-				{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.20f, 0.12f, 0.06f}, {0.11f, 0.065f, 0.035f}, {0.03f, 0.07f, 0.04f}};
+				{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.58f, 0.55f, 0.45f}, {0.34f, 0.22f, 0.12f}, {0.05f, 0.12f, 0.07f}};
 			const double JoinPick = 0.6 * Chance(StreetX, StreetZ, 63) + 0.4 * Chance(B.X, B.Z, 63);
 			const Rgb& Paint = JoinPick > 0.985 ? Joinery[9] : Joinery[std::min(8, int(JoinPick * 9.0))];
 			const Rgb Reveal = Surrounds ? StoneTrim : Shade(Wall, Rendered ? 0.8 : 0.72);

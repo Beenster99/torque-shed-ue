@@ -331,6 +331,8 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->FinishM = !RawAlong.empty() && RawAlong.back() > 1.0 ? std::fmin(R->Length, R->RunOutFrom * R->Length / RawAlong.back()) : R->Length;
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
+	// ([156] the facts first too: a side road's mouth asks the class of the road it meets, FactAt)
+	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->LaySides(Path);
 	{
 		// [ride anywhere] The network round the start laid now, its ground fetched (not on the game thread
@@ -982,6 +984,10 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			M.MainHalf = Here.Half;
 			// (a lane meeting a lane has no markings; a lesser road meeting a greater gives way)
 			M.GiveWay = Half >= 1.6 && Half < Here.Half - 0.2;
+			// ([156] or a lesser class of road, though as wide: a residential street, 6 m now, onto a B road)
+			if (!M.GiveWay && Half >= 1.6)
+				if (const RoadFact* MainFact = FactAt(Here.Along))
+					M.GiveWay = RoadLine::MainCostOf(G.ClassOf(E)) > RoadLine::MainCostOf(MainFact->Class) + 0.05;
 			// [OSM stage 5B] (at a roundabout every road onto the ring gives way to it, with one broken line;
 			// the ring's own edges never do)
 			{
@@ -1602,7 +1608,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	{
 		static constexpr float KerbGrey[3] = {0.16f, 0.16f, 0.15f}, Paved[3] = {0.12f, 0.118f, 0.11f};
 		static constexpr int Lines = 6;
-		static constexpr double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + PaveBack};
+		static constexpr double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + CornerBack};
 		static constexpr double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
 		static constexpr float BackGrass[3] = {0.10f, 0.16f, 0.03f};
 		const float* Looks[Lines - 1] = {KerbGrey, KerbGrey, Paved, nullptr, BackGrass};
@@ -1822,6 +1828,34 @@ double RidePlan::LandDrawnAt(double X, double Z, std::unordered_map<long long, d
 	// (as LandTile lays a cell: A B across the top, C D below, triangles A C B and B C D)
 	const double Ha = At(I, J), Hb = At(I + 1, J), Hc = At(I, J + 1), Hd = At(I + 1, J + 1);
 	return Fx + Fz <= 1.0 ? Ha + Fx * (Hb - Ha) + Fz * (Hc - Ha) : Hd + (1.0 - Fx) * (Hc - Hd) + (1.0 - Fz) * (Hb - Hd);
+}
+
+void RidePlan::LandColourDrawnAt(double X, double Z, float* Out, std::unordered_map<long long, std::array<float, 3>>* Cache) const
+{
+	const double Fi = std::floor(X / LandGrid), Fj = std::floor(Z / LandGrid);
+	const long long I = static_cast<long long>(Fi), J = static_cast<long long>(Fj);
+	const auto At = [this, Cache](long long Gi, long long Gj)
+	{
+		const long long Key = Gi * 4000037LL + Gj;
+		if (Cache != nullptr)
+		{
+			const auto It = Cache->find(Key);
+			if (It != Cache->end()) return It->second;
+		}
+		// (as LandTile colours its points: over 12 m round, by the slope across its neighbours)
+		const double Gx = double(Gi) * LandGrid, Gz = double(Gj) * LandGrid;
+		const double E = Ground(Gx + LandGrid, Gz, LandGrid), W = Ground(Gx - LandGrid, Gz, LandGrid), Sn = Ground(Gx, Gz + LandGrid, LandGrid), Nn = Ground(Gx, Gz - LandGrid, LandGrid);
+		const double Sx = std::isnan(E) || std::isnan(W) ? 0.0 : (E - W) / (2.0 * LandGrid), Sz = std::isnan(Sn) || std::isnan(Nn) ? 0.0 : (Sn - Nn) / (2.0 * LandGrid);
+		std::array<float, 3> C{};
+		LandColour(Gx, Gz, 12.0, std::sqrt(Sx * Sx + Sz * Sz), C.data());
+		if (Cache != nullptr) (*Cache)[Key] = C;
+		return C;
+	};
+	const double Fx = X / LandGrid - Fi, Fz = Z / LandGrid - Fj;
+	const std::array<float, 3> Ca = At(I, J), Cb = At(I + 1, J), Cc = At(I, J + 1), Cd = At(I + 1, J + 1);
+	for (int K = 0; K < 3; ++K)
+		Out[K] = float(Fx + Fz <= 1.0 ? Ca[size_t(K)] + Fx * (Cb[size_t(K)] - Ca[size_t(K)]) + Fz * (Cc[size_t(K)] - Ca[size_t(K)])
+			: Cd[size_t(K)] + (1.0 - Fx) * (Cc[size_t(K)] - Cd[size_t(K)]) + (1.0 - Fz) * (Cb[size_t(K)] - Cd[size_t(K)]));
 }
 
 void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const
@@ -2234,8 +2268,12 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		U = D.X * S.RoadDir.X + D.Z * S.RoadDir.Z;
 		Off = D.X * S.Out.X + D.Z * S.Out.Z;
 	};
-	// (the mesh Put and Strip write to: the road's own, or its night glow for the cat's eyes)
+	// (the mesh Put and Strip write to: the road's own, or its night glow for the cat's eyes, or the turf of
+	// its country shoulders, drawn as the land: Out.Turf, finished at the end)
 	RideMesh* Into = &Out;
+	std::shared_ptr<RideMesh> TurfMesh = std::make_shared<RideMesh>();
+	TurfMesh->OriginX = Out.OriginX;
+	TurfMesh->OriginZ = Out.OriginZ;
 	// ([build 154] UV0 is metres across and along over 4, the along counted from a whole 36 m behind this bit
 	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
 	// slabs, 0.9 m long, line up across bits of road)
@@ -3190,7 +3228,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					Band(KerbHigh + 0.15, PaveWide, KerbHigh, KerbHigh + 0.02, Paving);
 					// ([build 155] beenster: "make the ground meet the other side of the pavement": its back no longer
 					// drops 0.4 m into the ground but runs down as grass to just under the ground as drawn)
+					// ([156] beenster: "make the land blend into it (not the colour but the heights)": the back drawn as
+					// the land is, the field's own ground rising to the pavement's edge)
+					Into = TurfMesh.get();
 					Meet(Sa, Sb, S, PaveWide, PaveWide + PaveBack, KerbHigh + 0.02, KerbHigh + 0.02);
+					Into = &Out;
 					continue;
 				}
 				if (!TownEdge && !A.Deck && !B.Deck)
@@ -3221,8 +3263,13 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						// comes over it: one band from C in on the tarmac to L out, its colour running from the
 						// verge's key, which M_RideRoad draws as the tarmac's own scan, to the grass; the
 						// material's ragged grass line falls about a third of the way across, at the edge)
-						Band(-C0, L0, -C1, L1, 0.004, -ShoulderDip * 0.5, Verge, VergeGrass);
-						Band(L0, ShoulderFlat, L1, ShoulderFlat, -ShoulderDip * 0.5, -ShoulderDip, VergeGrass, VergeGrass);
+						// ([road edges, Nov 18] beenster: "the strange 3D ribbon that runs along the road edge everywhere":
+						// the shoulder's grass was M_RideRoad's, its own scan and colour, a strip unlike the field
+						// beside it. Now only the worn edge itself, a ragged 10-30 cm, is the road's; from there the
+						// shoulder is drawn as the land is, Out.Turf, the field's own grass and colour to the edge)
+						Band(-C0, L0 * 0.45, -C1, L1 * 0.45, 0.004, -ShoulderDip * 0.25, Verge, VergeGrass);
+						Into = TurfMesh.get();
+						Band(L0 * 0.45, ShoulderFlat, L1 * 0.45, ShoulderFlat, -ShoulderDip * 0.25, -ShoulderDip, VergeGrass, VergeGrass);
 						// ([road edges, Nov 17] beenster: the road must blend with the grass beside it. The
 						// shoulder's last half metre went down 0.4 m whatever the ground did, so where the field
 						// lay a few centimetres under the shoulder's grass its edge stood up as a little dark bank
@@ -3230,6 +3277,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						// squares draw it, so it slips under the field at a slant and no face shows; only where
 						// the ground falls away more than ShoulderDrop does it still stop there)
 						Meet(R0, R1, S, ShoulderFlat, Shoulder, -ShoulderDip, -ShoulderDip);
+						Into = &Out;
 					}
 					continue;
 				}
@@ -3645,7 +3693,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				// (the kerb's face, its top, the pavement and its back, as the street's own (RoadPiece's Band),
 				// each line out from the curve gathering to a point on a tight one rather than cross itself)
 				static constexpr int Lines = 6;
-				const double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + PaveBack};
+				const double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + CornerBack};
 				const double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
 				const float* Looks[Lines - 1] = {KerbStone, KerbStone, Paving, nullptr, VergeGrass};
 				P2 Kerbline[Lines][Segs + 1];
@@ -3825,6 +3873,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				}
 			}
 		}
+	}
+	// [road edges, Nov 18] The country shoulders' turf, as the land draws its own ground: the land's colour
+	// there, its UVs the world's metres over 8.
+	if (TurfMesh->Vertices() > 0)
+	{
+		std::unordered_map<long long, std::array<float, 3>> Colours;
+		RideMesh& T = *TurfMesh;
+		for (size_t V = 0; V < T.Vertices(); ++V)
+		{
+			const double X = T.OriginX + double(T.Pos[V * 3]), Z = T.OriginZ + double(T.Pos[V * 3 + 2]);
+			T.Uv[V * 2] = float(X / 8.0);
+			T.Uv[V * 2 + 1] = float(Z / 8.0);
+			LandColourDrawnAt(X, Z, &T.Col[V * 3], &Colours);
+		}
+		Out.Turf = TurfMesh;
 	}
 }
 
