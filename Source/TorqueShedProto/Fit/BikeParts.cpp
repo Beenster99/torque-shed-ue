@@ -5036,6 +5036,45 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 		return Box;
 	};
 
+	// [common parts] The middle and half thickness of one end of a silencer (its front, Front true, or its rear)
+	// from its points in mm, on one side (Side +1 left, -1 right, 0 both): the slice within 25 mm of that end.
+	struct PipeEnd
+	{
+		V3 At;
+		double R = 0.0;
+		bool Ok = false;
+	};
+	auto EndOf = [](const std::vector<const std::vector<V3>*>& Runs, int Side, bool Front) {
+		PipeEnd E;
+		double Xe = Front ? -1.0e9 : 1.0e9;
+		for (const std::vector<V3>* Run : Runs)
+			for (const V3& M : *Run)
+				if (Side == 0 || M.y * Side > 0.0) Xe = Front ? std::max(Xe, M.x) : std::min(Xe, M.x);
+		MmBox Slice;
+		for (const std::vector<V3>* Run : Runs)
+			for (const V3& M : *Run)
+				if ((Side == 0 || M.y * Side > 0.0) && std::fabs(M.x - Xe) <= 25.0) Slice.Add(M);
+		if (!Slice.Any()) return E;
+		E.At = V3(Xe, Slice.Mid().y, Slice.Mid().z);
+		E.R = std::max(Slice.Hi.y - Slice.Lo.y, Slice.Hi.z - Slice.Lo.z) * 0.5;
+		E.Ok = true;
+		return E;
+	};
+	// The bike's own silencer's points in mm (hidden by now, still there to measure).
+	auto OwnRuns = [&](const std::string& Sub, std::vector<std::vector<V3>>& Store, std::string& Material) {
+		Store.clear();
+		for (const FittedPart& P : Out)
+		{
+			if (P.Sub != Sub || !P.Made || P.Code) continue;
+			for (const PartSurface& S : P.Made->Surfaces)
+			{
+				Store.emplace_back();
+				for (const V3& Q : S.Pos) Store.back().push_back(V2ToMm(F, Q));
+				if (Material.empty()) Material = S.Material;
+			}
+		}
+	};
+
 	// The common parts on the bike, the bar first (it moves what's on it before the rest line up on that).
 	std::vector<std::pair<std::string, const Json*>> Fitted;
 	for (const auto& KV : Parts)
@@ -5192,7 +5231,27 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				V3 By = V3(0.0, 0.0, 0.0);
 				double Spread = 0.0;
 				int Keep = 0;   // +1 only what's on the left, -1 the right
+				double Pitch = 0.0;   // turned in the side view about Pivot (after any mirror, before By)
+				V3 Pivot = V3(0.0, 0.0, 0.0);
+				V3 Turn(const V3& M) const
+				{
+					if (Pitch == 0.0) return M;
+					const double C = std::cos(Pitch), Sn = std::sin(Pitch), Dx = M.x - Pivot.x, Dz = M.z - Pivot.z;
+					return V3(Pivot.x + Dx * C - Dz * Sn, M.y, Pivot.z + Dx * Sn + Dz * C);
+				}
 			};
+			// A silencer much longer than the can that takes its place (a classic's one long megaphone from behind the
+			// header to past the axle): the can sits at the rear end of it, its outlet where the bike's was, and a plain
+			// link pipe of the bike's bore runs from where the bike's silencer began to the can's inlet.
+			struct Link
+			{
+				V3 A, B;
+				double R = 0.0;
+			};
+			std::vector<Link> Links;
+			std::vector<std::vector<V3>> OwnPts;
+			std::string OwnMaterial;
+			if (Sub == "silencer") OwnRuns(Sub, OwnPts, OwnMaterial);
 			auto OneSide = [&](const MmBox& Mine, const MmBox& Theirs, int Keep) {
 				Placing Pl;
 				Pl.Keep = Keep;
@@ -5200,11 +5259,44 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				Pl.By.z = Theirs.Mid().z - Mine.Mid().z;
 				Pl.bMirror = (Mine.Mid().y > 0.0) != (Theirs.Mid().y > 0.0) && std::fabs(Theirs.Mid().y) > 20.0 && std::fabs(Mine.Mid().y) > 20.0;
 				Pl.By.y = Theirs.Mid().y - (Pl.bMirror ? -Mine.Mid().y : Mine.Mid().y);
+				if (Sub == "silencer" && Theirs.Hi.x - Theirs.Lo.x > 1.6 * (Mine.Hi.x - Mine.Lo.x) && !OwnPts.empty())
+				{
+					const int TheirSide = std::fabs(Theirs.Mid().y) > 20.0 ? (Theirs.Mid().y > 0.0 ? 1 : -1) : 0;
+					const int MySide = Keep != 0 ? Keep : (std::fabs(Mine.Mid().y) > 20.0 ? (Mine.Mid().y > 0.0 ? 1 : -1) : 0);
+					std::vector<const std::vector<V3>*> Theirs_, Mine_;
+					for (const std::vector<V3>& R : OwnPts) Theirs_.push_back(&R);
+					for (const std::vector<V3>& R : Pos) Mine_.push_back(&R);
+					const PipeEnd TBack = EndOf(Theirs_, TheirSide, false), TFront = EndOf(Theirs_, TheirSide, true);
+					const PipeEnd MBack = EndOf(Mine_, MySide, false), MFront = EndOf(Mine_, MySide, true);
+					if (TBack.Ok && TFront.Ok && MBack.Ok && MFront.Ok)
+					{
+						const V3 MyBack = Pl.bMirror ? V3(MBack.At.x, -MBack.At.y, MBack.At.z) : MBack.At;
+						V3 MyFront = Pl.bMirror ? V3(MFront.At.x, -MFront.At.y, MFront.At.z) : MFront.At;
+						// (laid along the line of the bike's silencer, turned about its outlet)
+						Pl.Pivot = MyBack;
+						Pl.Pitch = std::atan2(TFront.At.z - TBack.At.z, TFront.At.x - TBack.At.x) - std::atan2(MyFront.z - MyBack.z, MyFront.x - MyBack.x);
+						MyFront = Pl.Turn(MyFront);
+						Pl.By = TBack.At - MyBack;
+						Link L;
+						L.A = TFront.At;
+						L.B = MyFront + Pl.By;
+						// (the bore where the bike's silencer began: no fatter than the can's inlet, nor thinner than a pipe)
+						L.R = std::clamp(std::min(TFront.R, MFront.R * 0.9), 16.0, 32.0);
+						if (L.A.x > L.B.x + 15.0) Links.push_back(L);
+					}
+				}
 				return Pl;
 			};
+			// (A pair has a gap down the middle: one fat can centred on the line, as the library's single cans are
+			// drawn, is one piece, not two halves.)
+			bool NewPair = New.Pair();
+			if (NewPair && Sub == "silencer")
+				for (const std::vector<V3>& Ps : Pos)
+					for (const V3& M : Ps)
+						if (std::fabs(M.y) < 25.0) NewPair = false;
 			std::vector<Placing> Places;
 			if (!Own.Any() || Sub == "bar") Places.push_back(Placing());
-			else if (New.Pair() && Own.Pair())
+			else if (NewPair && Own.Pair())
 			{
 				Placing Pl;
 				Pl.By.x = Own.Mid().x - New.Mid().x;
@@ -5212,7 +5304,7 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				Pl.Spread = ((Own.Hi.y - New.Hi.y) + (New.Lo.y - Own.Lo.y)) * 0.5;
 				Places.push_back(Pl);
 			}
-			else if (New.Pair() && std::fabs(Own.Mid().y) > 20.0)
+			else if (NewPair && std::fabs(Own.Mid().y) > 20.0)
 			{
 				const int Keep = Own.Mid().y >= 0.0 ? 1 : -1;
 				MmBox Half;
@@ -5248,13 +5340,15 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					for (V3 M : Pos[I])
 					{
 						if (Pl.bMirror) M.y = -M.y;
-						M = M + Pl.By;
+						M = Pl.Turn(M) + Pl.By;
 						if (Pl.Spread != 0.0) M.y += M.y >= 0.0 ? Pl.Spread : -Pl.Spread;
 						Drawn.Pos.push_back(F.Point(M.x, M.y, M.z));
 					}
 					for (V3 N : Nrm[I])
 					{
 						if (Pl.bMirror) N.y = -N.y;
+						if (Pl.Pitch != 0.0)
+							N = V3(N.x * std::cos(Pl.Pitch) - N.z * std::sin(Pl.Pitch), N.y, N.x * std::sin(Pl.Pitch) + N.z * std::cos(Pl.Pitch));
 						Drawn.Nrm.push_back(F.Dir(N.x, N.y, N.z));
 					}
 					Drawn.U = S.U;
@@ -5292,6 +5386,38 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					}
 					Made->Surfaces.push_back(std::move(Drawn));
 				}
+			}
+			for (const Link& L : Links)
+			{
+				// (a plain round pipe, 20 sides, from the bike's pipe end back into the can's inlet, 20 mm overlap each end)
+				const V3 Ax = (L.B - L.A).Normalized();
+				const V3 A = L.A + Ax * -20.0, Bp = L.B + Ax * 20.0;
+				V3 U = Ax.Cross(V3(0.0, 0.0, 1.0));
+				if (U.Length() < 1.0e-3) U = Ax.Cross(V3(0.0, 1.0, 0.0));
+				U = U.Normalized();
+				const V3 W = Ax.Cross(U).Normalized();
+				PartSurface Pipe;
+				Pipe.Material = OwnMaterial.empty() ? std::string("v2/chrome//chrome") : OwnMaterial;
+				constexpr int Sides = 20;
+				for (int K = 0; K <= Sides; ++K)
+				{
+					const double Ang = 2.0 * 3.14159265358979 * K / Sides;
+					const V3 N = U * std::cos(Ang) + W * std::sin(Ang);
+					for (int E = 0; E < 2; ++E)
+					{
+						const V3 M = (E == 0 ? A : Bp) + N * L.R;
+						Pipe.Pos.push_back(F.Point(M.x, M.y, M.z));
+						Pipe.Nrm.push_back(F.Dir(N.x, N.y, N.z));
+						Pipe.U.push_back(double(K) / Sides);
+						Pipe.V.push_back(double(E));
+					}
+				}
+				for (int K = 0; K < Sides; ++K)
+				{
+					const unsigned I0 = unsigned(K * 2), I1 = I0 + 1, I2 = I0 + 2, I3 = I0 + 3;
+					for (unsigned Ix : {I0, I2, I1, I1, I2, I3}) Pipe.Idx.push_back(Ix);
+				}
+				Made->Surfaces.push_back(std::move(Pipe));
 			}
 			FittedPart P;
 			P.Slot = Slot;

@@ -183,7 +183,9 @@ int main()
 					{
 						++Lined[Sub];
 						// (A silencer goes by its front end, where the pipe meets it; a plate hanger can be a side one for a tidy.)
-						const double Off = Sub == "silencer" ? Dist(V3(Old.Hi.x, Old.Mid().y, Old.Mid().z), V3(New.Hi.x, New.Mid().y, New.Mid().z)) : Dist(Old.Mid(), New.Mid());
+						// (A long one, a classic's megaphone: the can at its rear end and a link pipe from its front, so both ends match.)
+						const double Ends = std::max(std::fabs(Old.Hi.x - New.Hi.x), std::fabs(Old.Lo.x - New.Lo.x));
+						const double Off = Sub == "silencer" ? std::min(Ends, Dist(V3(Old.Hi.x, Old.Mid().y, Old.Mid().z), V3(New.Hi.x, New.Mid().y, New.Mid().z))) : Dist(Old.Mid(), New.Mid());
 						Expect(Off < (Sub == "bar" ? 0.2 : Sub == "plate_hanger" ? 0.1 : 0.06), Frame + ": " + E.Id + " " + Sub + " where the bike's was (" + std::to_string(Off) + " m off)");
 					}
 					else ++ByAnchor[Sub];
