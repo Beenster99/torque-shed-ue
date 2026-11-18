@@ -2247,6 +2247,7 @@ FTransform ATorqueWalker::CarryDrop() const
 		}
 	}
 	FVector At = Feet + Flat * Dist;
+	double KitTop = -1.0e9;   // [trolley] the top of the kit piece looked at, when it's that
 	// beenster (Nov 12): where the crosshair points. Looking down at the floor (or a low surface)
 	// within reach, it goes down there; looking ahead or up, the wheel's reach as before.
 	if (World)
@@ -2256,17 +2257,32 @@ FTransform ATorqueWalker::CarryDrop() const
 			const FVector Look = AimPC->PlayerCameraManager->GetCameraRotation().Vector();
 			FHitResult Aim;
 			const double AimRange = 55.0 + Half + TWI::CarryMax + 150.0;
-			if (Look.Z < -0.05 && World->LineTraceSingleByChannel(Aim, Eye, Eye + Look * AimRange, ECC_Visibility, Params) &&
-				Aim.ImpactNormal.Z > 0.7 && Aim.ImpactPoint.Z < Feet.Z + 60.0)
+			// [trolley] A trolley's deck (or a piece of kit's top) looked at: it goes on there, whatever its
+			// height (beenster, build 155: "Trolleys should allow for objects to be put on them").
+			const bool bAimHit = Look.Z < -0.05 && World->LineTraceSingleByChannel(Aim, Eye, Eye + Look * AimRange, ECC_Visibility, Params);
+			const bool bOnKit = bAimHit && Cast<ATorqueFurnishings>(Aim.GetActor()) != nullptr;
+			if (bAimHit && Aim.ImpactNormal.Z > 0.7 && (Aim.ImpactPoint.Z < Feet.Z + 60.0 || (bOnKit && Aim.ImpactPoint.Z < Feet.Z + 170.0)))
 			{
+				KitTop = bOnKit ? Aim.ImpactPoint.Z : KitTop;
 				const FVector2D Off(Aim.ImpactPoint.X - Feet.X, Aim.ImpactPoint.Y - Feet.Y);
-				const double Along = FMath::Clamp(Off.Size(), Base + TWI::CarryMin, Base + TWI::CarryMax);
+				// The wheel (Q / E, L1 / R1) still pushes it out or pulls it in from where you're looking
+				// (beenster, build 155: "I cant use mousewheel to move carried object away from me any more").
+				double Along = FMath::Clamp(Off.Size() + CarryReach, Base + TWI::CarryMin, Base + TWI::CarryMax);
 				const FVector2D Dir2 = Off.SizeSquared() > 1.0 ? Off.GetSafeNormal() : FVector2D(Flat.X, Flat.Y);
+				if (CarryReach > 0.0 && !bOnKit)
+					for (const double H : {30.0, 100.0})
+					{
+						// Pushed past where you look: still not through a wall.
+						FHitResult Wall;
+						const FVector From = Feet + FVector(0.0, 0.0, H);
+						if (World->LineTraceSingleByChannel(Wall, From, From + FVector(Dir2.X, Dir2.Y, 0.0) * (Along + Half + 10.0), ECC_Visibility, Params))
+							Along = FMath::Min(Along, FMath::Max(Base, Wall.Distance - Half - 2.0));
+					}
 				At = FVector(Feet.X + Dir2.X * Along, Feet.Y + Dir2.Y * Along, Feet.Z);
 			}
 		}
 	FHitResult Down;
-	const FVector Top(At.X, At.Y, Feet.Z + 120.0);
+	const FVector Top(At.X, At.Y, FMath::Max(Feet.Z + 120.0, KitTop + 40.0));
 	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
 	else At.Z = Feet.Z;
 	// A box or crate let go over another box on the floor goes on top of it (beenster, Nov 10: boxes

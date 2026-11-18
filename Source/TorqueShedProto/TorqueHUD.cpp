@@ -240,10 +240,13 @@ void ATorqueHUD::DrawRiderNames()
 		// Subtle (beenster, build 141: too big and bold): the name in plain text, not bold, with no box,
 		// a soft shadow to read over the world, a touch see-through, smaller the further off they are;
 		// the distance after it, dimmer still.
-		const float Px = Sc * (Metres < 30.0 ? 19.0f : Metres < 100.0 ? 17.0f : 15.0f);
-		const float Fade = Metres < 100.0 ? 0.9f : 0.75f;
+		// Riding (beenster, build 155: "we should only see the other player name and it should be subtle - no
+		// other information needed"): the name alone, small and half see-through; no distance, no activity.
+		const bool bRiding = Mine && Mine->IsA<ATorqueBikePawn>();
+		const float Px = bRiding ? Sc * (Metres < 60.0 ? 15.0f : 13.0f) : Sc * (Metres < 30.0 ? 19.0f : Metres < 100.0 ? 17.0f : 15.0f);
+		const float Fade = bRiding ? (Metres < 150.0 ? 0.6f : 0.45f) : (Metres < 100.0 ? 0.9f : 0.75f);
 		const FString Name = PS->GetPlayerName();
-		const FString Dist = Metres < 30.0 ? FString() : FString::Printf(TEXT("  %.0f m"), Metres);
+		const FString Dist = (bRiding || Metres < 30.0) ? FString() : FString::Printf(TEXT("  %.0f m"), Metres);
 		const float NameW = (float)TorqueUi::Measure(Name, Px).X;
 		const float DistW = Dist.IsEmpty() ? 0.0f : (float)TorqueUi::Measure(Dist, Px * 0.85f).X;
 		const float H = (float)TorqueUi::Measure(Name, Px).Y;
@@ -261,7 +264,7 @@ void ATorqueHUD::DrawRiderNames()
 		if (!Dist.IsEmpty())
 			TorqueUi::Text(Canvas, Dist, X + NameW, Y + (Px - Px * 0.85f) * 0.6f, Px * 0.85f, FLinearColor(0.85f, 0.85f, 0.85f, Fade * 0.8f));
 		// In the shed, what they're doing: "fitting clubman bars to bay 2".
-		if (TPS && !TPS->Activity.IsEmpty() && Metres < 40.0)
+		if (!bRiding && TPS && !TPS->Activity.IsEmpty() && Metres < 40.0)
 			TorqueUi::Text(Canvas, TPS->Activity, Screen.X, Y + H + 2.0f * Sc, Px * 0.8f, FLinearColor(0.78f, 0.9f, 0.78f, Fade * 0.85f),
 				false, TorqueUi::EAlign::Centre);
 	}

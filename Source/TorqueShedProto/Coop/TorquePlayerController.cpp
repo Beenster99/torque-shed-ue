@@ -331,6 +331,7 @@ bool ATorquePlayerController::IsMenuUp() const
 
 void ATorquePlayerController::Open(EPage P)
 {
+	DropRow = DropCell = -1;
 	if (Page != EPage::None) Stack.Add(Page);
 	Page = P;
 	Selected = 0;
@@ -350,8 +351,82 @@ void ATorquePlayerController::OpenSkyPresets()
 		if (List[I].Value == TEXT("held")) Selected = I;
 }
 
+// [ride date] A row's pull-down: opened on the option showing.
+void ATorquePlayerController::OpenDrop(const FRow& Row, int32 RowIndex, int32 Cell)
+{
+	if (!Row.Cells.IsValidIndex(Cell) || !Row.Cells[Cell].IsDrop() || Row.bDisabled) return;
+	DropRow = RowIndex;
+	DropCell = Cell;
+	Selected = RowIndex;
+	const FRow::FCell& C = Row.Cells[Cell];
+	DropHot = FMath::Clamp(C.Pick, 0, C.Options.Num() - 1);
+	DropFirst = FMath::Clamp(DropHot - DropShown / 2, 0, FMath::Max(C.Options.Num() - DropShown, 0));
+}
+
+// [ride date] The keys, pad and mouse while a pull-down is open: it has them to itself. Up / Down (the
+// wheel) through its options, Enter (a click) picks one, Left / Right the next box's pull-down, Esc (a
+// click outside it) closes it. False when none is open.
+bool ATorquePlayerController::DropInput(TArray<FRow>& List, int32 MoveX, int32 MoveY, bool bChoose, bool bBack)
+{
+	if (DropRow < 0) return false;
+	if (!List.IsValidIndex(DropRow) || !List[DropRow].Cells.IsValidIndex(DropCell) || !List[DropRow].Cells[DropCell].IsDrop())
+	{
+		DropRow = DropCell = -1;
+		return false;
+	}
+	FRow& Row = List[DropRow];
+	const FRow::FCell& C = Row.Cells[DropCell];
+	const int32 N = C.Options.Num();
+	auto Pick = [this, &Row](int32 Option) {
+		const int32 Cell = DropCell;
+		DropRow = DropCell = -1;
+		if (Row.Cells.IsValidIndex(Cell) && Row.Cells[Cell].Set) Row.Cells[Cell].Set(Option);
+	};
+	FVector2D Mouse;
+	const bool bMoved = MouseMoved(this, LastMouse, Mouse);
+	const FTorqueMenuHits::FHit* Over = Hits.At(Mouse);
+	if (bMoved && Over && Over->Kind == FTorqueMenuHits::DropItem && Over->Sub >= 0) DropHot = Over->Sub;
+	int32 Scroll = 0;
+	if (WasInputKeyJustPressed(EKeys::MouseScrollUp)) Scroll = -1;
+	if (WasInputKeyJustPressed(EKeys::MouseScrollDown)) Scroll = 1;
+	if (Scroll != 0) DropFirst = FMath::Clamp(DropFirst + Scroll * 2, 0, FMath::Max(N - DropShown, 0));
+	if (WasInputKeyJustPressed(EKeys::LeftMouseButton))
+	{
+		if (Over && Over->Kind == FTorqueMenuHits::DropItem)
+		{
+			if (Over->Sub >= 0) Pick(Over->Sub);
+		}
+		else if (Over && Over->Kind == FTorqueMenuHits::Cell && Over->Index == DropRow && Over->Sub != DropCell)
+			OpenDrop(Row, DropRow, Over->Sub);
+		else
+			DropRow = DropCell = -1;   // a click anywhere else closes it
+		return true;
+	}
+	if (WasInputKeyJustPressed(EKeys::RightMouseButton) || bBack)
+	{
+		DropRow = DropCell = -1;
+		return true;
+	}
+	if (MoveY != 0)
+	{
+		DropHot = FMath::Clamp(DropHot + MoveY, 0, N - 1);
+		if (DropHot < DropFirst) DropFirst = DropHot;
+		if (DropHot >= DropFirst + DropShown) DropFirst = DropHot - DropShown + 1;
+	}
+	if (MoveX != 0)
+		for (int32 Next = DropCell + MoveX; Row.Cells.IsValidIndex(Next); Next += MoveX)
+			if (Row.Cells[Next].IsDrop())
+			{
+				OpenDrop(Row, DropRow, Next);
+				break;
+			}
+	if (bChoose && DropHot >= 0 && DropHot < N) Pick(DropHot);
+	return true;
+}
+
 void ATorquePlayerController::Back()
 {
+	DropRow = DropCell = -1;
 	if (Stack.Num() > 0)
 	{
 		Page = Stack.Pop();
@@ -533,6 +608,7 @@ void ATorquePlayerController::OpenSettings()
 
 void ATorquePlayerController::CloseMenu()
 {
+	DropRow = DropCell = -1;
 	Page = EPage::None;
 	Stack.Reset();
 	ClosedFrame = GFrameCounter;
@@ -734,6 +810,7 @@ void ATorquePlayerController::SwitchTab(int32 Dir)
 	const int32 At = TabIndex();
 	if (At < 0) return;
 	if (Page == EPage::Character) Changed();   // leaving the name keeps it
+	DropRow = DropCell = -1;
 	Page = Tabs[Wrap(At + Dir, 5)];   // a tab, not a new page: Back still goes to where Settings was opened from
 	Selected = 0;
 	FirstRow = 0;
@@ -1228,27 +1305,90 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			}
 			{
 				// The ride's date (beenster Nov 17): the sun's path, sunrise and sunset, the night sky, the season
-				// on the land (from the next ride) and the HUD's date. Left / Right a day; dragged, any day.
-				const int32 Today = FDateTime::UtcNow().GetDayOfYear();
-				const int32 DayNow = S.RideDate > 0 ? S.RideDate : Today;
-				const FString DateText = S.RideDate > 0 ? ATorqueGameState::DateOfDay(S.RideDate).ToString(TEXT("%d %B"))
-					: FString::Printf(TEXT("Today (%s)"), *ATorqueGameState::DateOfDay(Today).ToString(TEXT("%d %B")));
-				Slide(TEXT("Ride date"), DateText, TEXT("The day the sun, the night sky and the season are for; Left / Right a day"), float(DayNow - 1) / 364.0f,
-					[GS, &S, DayNow](int32 D) {
-						S.RideDate = (DayNow - 1 + D + 365) % 365 + 1;
-						if (GS) GS->SetRideDay(S.RideDate);
-					},
-					[GS, &S](float F) {
-						S.RideDate = FMath::Clamp(FMath::RoundToInt(F * 364.0f) + 1, 1, 365);
-						if (GS) GS->SetRideDay(S.RideDate);
-					});
-				HostOnly();
-				if (S.RideDate > 0 && !bClient)
-					Add(TEXT("Back to today's date"), FString(), TEXT("The sun and the season as they are today"), [this, GS, &S]() {
+				// on the land (from the next ride) and the HUD's date. Build 155 feedback: a pull-down each for the
+				// day, the month and the year, and Reset on the same line (back to today's date and the time now).
+				// Left / Right still steps a day; Enter opens the day's pull-down.
+				const FDateTime Now = FDateTime::Now();
+				const int32 ThisYear = Now.GetYear();
+				const int32 Year = S.RideYear > 0 ? S.RideYear : ThisYear;
+				const FDateTime Shown = S.RideDate > 0 ? ATorqueGameState::DateOfDay(S.RideDate) : Now;
+				const int32 Day = Shown.GetDay(), Month = Shown.GetMonth();
+				// Day, month, year picked: the day of the year the game keeps (the day kept inside the month).
+				auto SetDate = [this, GS, &S](int32 NewYear, int32 NewMonth, int32 NewDay) {
+					NewDay = FMath::Clamp(NewDay, 1, FDateTime::DaysInMonth(NewYear, NewMonth));
+					S.RideYear = NewYear == FDateTime::Now().GetYear() ? 0 : NewYear;
+					S.RideDate = FDateTime(NewYear, NewMonth, NewDay).GetDayOfYear();
+					if (GS) GS->SetRideDay(S.RideDate);
+					Changed();
+				};
+				FRow Row;
+				Row.Label = TEXT("Ride date");
+				Row.Value = S.RideDate > 0 ? Shown.ToString(TEXT("%d %B %Y")) : FString::Printf(TEXT("Today (%s)"), *Now.ToString(TEXT("%d %B %Y")));
+				Row.Hint = TEXT("The day the sun, the night sky and the season are for: pick the day, month and year. Reset goes back to today's date and the time now. Left / Right steps a day");
+				{
+					FRow::FCell D;
+					for (int32 I = 1; I <= FDateTime::DaysInMonth(Year, Month); ++I) D.Options.Add(FString::FromInt(I));
+					D.Pick = Day - 1;
+					D.Text = D.Options[D.Pick];
+					D.Set = [SetDate, Year, Month](int32 I) { SetDate(Year, Month, I + 1); };
+					Row.Cells.Add(MoveTemp(D));
+				}
+				{
+					FRow::FCell M;
+					static const TCHAR* Months[] = {TEXT("January"), TEXT("February"), TEXT("March"), TEXT("April"), TEXT("May"), TEXT("June"),
+						TEXT("July"), TEXT("August"), TEXT("September"), TEXT("October"), TEXT("November"), TEXT("December")};
+					for (const TCHAR* One : Months) M.Options.Add(One);
+					M.Pick = Month - 1;
+					M.Text = M.Options[M.Pick];
+					M.Set = [SetDate, Year, Day](int32 I) { SetDate(Year, I + 1, Day); };
+					Row.Cells.Add(MoveTemp(M));
+				}
+				{
+					FRow::FCell Yr;
+					const int32 First = FMath::Min(ThisYear - 30, Year), Last = FMath::Max(ThisYear + 10, Year);
+					for (int32 I = First; I <= Last; ++I) Yr.Options.Add(FString::FromInt(I));
+					Yr.Pick = Year - First;
+					Yr.Text = Yr.Options[Yr.Pick];
+					Yr.Set = [SetDate, First, Month, Day](int32 I) { SetDate(First + I, Month, Day); };
+					Row.Cells.Add(MoveTemp(Yr));
+				}
+				{
+					FRow::FCell ResetBox;
+					ResetBox.Text = TEXT("Reset");
+					ResetBox.Press = [this, GS, &S]() {
 						S.RideDate = 0;
+						S.RideYear = 0;
 						if (GS) GS->SetRideDay(0);
+						// The time now too (the made clock's; the real clock already is).
+						if (!S.bRealClock)
+						{
+							const FDateTime WallNow = FDateTime::Now();
+							S.TimeOfDay = FMath::Clamp(WallNow.GetHour() + WallNow.GetMinute() / 60.0f, 0.0f, 23.99f);
+							if (GS) GS->SetHour(S.TimeOfDay);
+						}
 						Changed();
-					});
+					};
+					Row.Cells.Add(MoveTemp(ResetBox));
+				}
+				const int32 RowIndex = R.Num();
+				Row.Choose = [this, RowIndex]() {
+					const TArray<FRow> Again = Rows();
+					if (Again.IsValidIndex(RowIndex)) OpenDrop(Again[RowIndex], RowIndex, 0);
+				};
+				Row.Step = [SetDate, Shown](int32 Dir) {
+					const FDateTime To = Shown + FTimespan::FromDays(Dir);
+					SetDate(To.GetYear(), To.GetMonth(), To.GetDay());
+				};
+				R.Add(MoveTemp(Row));
+				if (bClient)
+				{
+					FRow& Last = R.Last();
+					Last.Choose = nullptr;
+					Last.Step = nullptr;
+					Last.bDisabled = true;
+					for (FRow::FCell& C : Last.Cells) { C.Set = nullptr; C.Press = nullptr; }
+					Last.Hint += TEXT(" (set by the host)");
+				}
 			}
 			{
 				// Live first (the default), then the choices the game always had, then a preset sky held.
@@ -1750,6 +1890,10 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	if (Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (Hit & ESonyButton::DDown)) MoveY = 1;
 	if (Just(EKeys::Left) || Just(EKeys::Gamepad_DPad_Left) || (Hit & ESonyButton::DLeft)) MoveX = -1;
 	if (Just(EKeys::Right) || Just(EKeys::Gamepad_DPad_Right) || (Hit & ESonyButton::DRight)) MoveX = 1;
+	// [ride date] A pull-down open: it has the keys and the mouse.
+	if (DropInput(List, MoveX, MoveY, Just(EKeys::Enter) || Just(EKeys::SpaceBar) || Just(EKeys::Gamepad_FaceButton_Bottom) || (Hit & ESonyButton::Cross),
+			Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (Hit & ESonyButton::Circle) || Just(EKeys::BackSpace)))
+		return;
 	// Settings' tabs: Q / E, the bumpers (L1 / R1, LB / RB), or Left / Right on a row that isn't a setting.
 	if (TabIndex() >= 0)
 	{
@@ -1828,6 +1972,12 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 				{
 					KeySlot = Over->Kind == FTorqueMenuHits::Less ? 0 : 1;   // a key binding's first or second key: listen for it
 					Row.Choose();
+				}
+				else if (Over->Kind == FTorqueMenuHits::Cell && Row.Cells.IsValidIndex(Over->Sub) && !Row.bDisabled)
+				{
+					// [ride date] A box along the row: its pull-down opens, or the button's pressed.
+					if (Row.Cells[Over->Sub].IsDrop()) OpenDrop(Row, Selected, Over->Sub);
+					else if (Row.Cells[Over->Sub].Press) Row.Cells[Over->Sub].Press();
 				}
 				else if (Row.Frac >= 0.0f) {}   // a slider: only its track (above) moves it
 				else if (Over->Kind == FTorqueMenuHits::Less && Row.Step) Row.Step(-1);
@@ -2004,6 +2154,8 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	}
 	float Y = Top;
 	int32 LastShown = List.Num() - 1;
+	bool bDropShown = false;   // [ride date] the open pull-down's box on screen: under it goes its list
+	float DropX0 = 0.0f, DropX1 = 0.0f, DropY1 = 0.0f;
 	for (int32 I = FirstRow; I < List.Num(); ++I)
 	{
 		const FRow& Row = List[I];
@@ -2049,7 +2201,57 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		const bool bWide = Row.Value.IsEmpty() && !Row.Step && Row.Caps.IsEmpty();   // a button: its words can run on
 		Ui::TextFit(Canvas, Row.Label, LX0 + L.W(24), LabelY, LabelPx, (bWide ? VX1 - L.W(40) : VX0 - L.W(16)) - (LX0 + L.W(24)), LabelColour);
 		const FLinearColor ValueColour = bSel ? Ui::Ink : Ui::Dim;
-		if (!Row.Caps.IsEmpty())
+		if (!Row.Cells.IsEmpty())
+		{
+			// [ride date] Boxes along the row: pull-downs (their value and a down arrow), a button last.
+			static const float Weights[] = {0.17f, 0.36f, 0.22f, 0.25f};
+			const float Gap = L.W(10), BH = L.W(36), BY = Mid - 0.5f * BH;
+			float Sum = 0.0f;
+			for (int32 C = 0; C < Row.Cells.Num(); ++C) Sum += Weights[FMath::Min(C, 3)];
+			const float Room = VX1 - VX0 - Gap * (Row.Cells.Num() - 1);
+			float CX = VX0;
+			for (int32 C = 0; C < Row.Cells.Num(); ++C)
+			{
+				const FRow::FCell& Cell = Row.Cells[C];
+				const float CW = Room * Weights[FMath::Min(C, 3)] / FMath::Max(Sum, 0.01f);
+				const bool bOpen = DropRow == I && DropCell == C;
+				const bool bHot = !Row.bDisabled && Over(CX, BY, CX + CW, BY + BH);
+				if (Cell.IsDrop() || Row.bDisabled)
+				{
+					Ui::Rect(Canvas, CX, BY, CW, BH, FLinearColor(0, 0, 0, bHot || bOpen ? 0.5f : 0.35f));
+					Ui::Frame(Canvas, CX, BY, CW, BH, bOpen ? Ui::Accent : FLinearColor(1, 1, 1, bHot ? 0.35f : 0.18f), bOpen ? L.W(2) : Hair);
+					Ui::TextFit(Canvas, Cell.Text, CX + L.W(10), ValueY, ValuePx, CW - L.W(40), Row.bDisabled ? Ui::Faint : Ui::Ink);
+					if (Cell.IsDrop())
+					{
+						// A small down-pointing triangle, drawn (no text caret: beenster, build 154).
+						const FLinearColor Tri = bSel || bHot || bOpen ? Ui::Accent : Ui::Faint;
+						const float TW = L.W(12), TX = CX + CW - L.W(14) - TW, TY = Mid - L.W(3);
+						for (int32 Line = 0; Line < 6; ++Line)
+						{
+							const float Inset = TW * Line / 12.0f;
+							Ui::Rect(Canvas, TX + Inset, TY + Line * L.W(1), TW - 2.0f * Inset, L.W(1), Tri);
+						}
+					}
+				}
+				else
+				{
+					// A button.
+					Ui::Rect(Canvas, CX, BY, CW, BH, FLinearColor(1, 1, 1, bHot ? 0.16f : 0.08f));
+					Ui::Frame(Canvas, CX, BY, CW, BH, bHot ? Ui::Accent : FLinearColor(1, 1, 1, 0.2f), Hair);
+					Ui::TextFit(Canvas, Cell.Text, CX + 0.5f * CW, ValueY, ValuePx, CW - L.W(16), Ui::Ink, true, Ui::EAlign::Centre);
+				}
+				if (bOpen)
+				{
+					bDropShown = true;
+					DropX0 = CX;
+					DropX1 = CX + CW;
+					DropY1 = BY + BH;
+				}
+				if (!Row.bDisabled) Hits.Add(CX, BY, CX + CW, BY + BH, I, FTorqueMenuHits::Cell, C);
+				CX += CW + Gap;
+			}
+		}
+		else if (!Row.Caps.IsEmpty())
 		{
 			// Key bindings: each slot a keycap, the slot that Enter changes outlined when the row's picked.
 			for (int32 Slot = 0; Slot < Row.Caps.Num(); ++Slot)
@@ -2194,6 +2396,40 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		Hits.Add(FX - L.W(6), FY - L.W(8), FX + BW + L.W(6), FY + L.W(34), 0, FTorqueMenuHits::BackKey);
 	}
 	Ui::Text(Canvas, TEXT("Pad:  Cross / A select    Circle / B back    L1 R1 / LB RB tabs"), L.X(DescX1), FY + L.W(4), L.W(16), Ui::Faint, false, Ui::EAlign::Right);
+	// [ride date] The open pull-down's list, over everything under its box (opening upwards when it
+	// wouldn't fit below), DropShown options at a time; the wheel scrolls it.
+	if (bDropShown && List.IsValidIndex(DropRow) && List[DropRow].Cells.IsValidIndex(DropCell))
+	{
+		const FRow::FCell& Cell = List[DropRow].Cells[DropCell];
+		const int32 N = Cell.Options.Num();
+		const int32 Shown = FMath::Min(N, (int32)DropShown);
+		DropFirst = FMath::Clamp(DropFirst, 0, FMath::Max(N - Shown, 0));
+		const float OH = L.W(34), Px = L.W(18), PadY = L.W(4);
+		const float PW = FMath::Max(DropX1 - DropX0, L.W(120)), PH = Shown * OH + 2.0f * PadY;
+		float PY = DropY1 + L.W(2);
+		if (PY + PH > L.Y(950)) PY = DropY1 - L.W(38) - PH - L.W(2);
+		Ui::Rect(Canvas, DropX0 + L.W(3), PY + L.W(4), PW, PH, FLinearColor(0, 0, 0, 0.45f));   // a shadow
+		Ui::Rect(Canvas, DropX0, PY, PW, PH, FLinearColor(0.075f, 0.08f, 0.085f, 0.98f));
+		Ui::Frame(Canvas, DropX0, PY, PW, PH, Ui::Accent, Hair);
+		Hits.Add(DropX0, PY, DropX0 + PW, PY + PH, DropRow, FTorqueMenuHits::DropItem, -1);
+		for (int32 K = 0; K < Shown; ++K)
+		{
+			const int32 Opt = DropFirst + K;
+			const float OY = PY + PadY + K * OH;
+			const bool bHot = Opt == DropHot, bPicked = Opt == Cell.Pick;
+			if (bHot) Ui::Rect(Canvas, DropX0 + Hair, OY, PW - 2.0f * Hair, OH, FLinearColor(1, 1, 1, 0.1f));
+			if (bPicked) Ui::Rect(Canvas, DropX0 + Hair, OY + L.W(6), L.W(3), OH - L.W(12), Ui::Accent);
+			Ui::TextFit(Canvas, Cell.Options[Opt], DropX0 + L.W(14), OY + 0.5f * (OH - Px * 1.2f), Px, PW - L.W(28), bPicked ? Ui::Accent : Ui::Ink, bPicked);
+			Hits.Add(DropX0, OY, DropX0 + PW, OY + OH, DropRow, FTorqueMenuHits::DropItem, Opt);
+		}
+		if (N > Shown)
+		{
+			// Where the list is, at its right edge.
+			const float BX = DropX0 + PW - L.W(6), BH2 = PH - 2.0f * PadY;
+			Ui::Rect(Canvas, BX, PY + PadY, L.W(3), BH2, FLinearColor(1, 1, 1, 0.08f));
+			Ui::Rect(Canvas, BX, PY + PadY + BH2 * DropFirst / N, L.W(3), FMath::Max(BH2 * Shown / N, L.W(16)), FLinearColor(1, 1, 1, 0.4f));
+		}
+	}
 	DrawProfile(Hud, Canvas);   // [profile] the badge
 }
 

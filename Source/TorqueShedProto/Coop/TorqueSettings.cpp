@@ -145,6 +145,7 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->GetInt(Section, TEXT("RideDate"), RideDate, Ini);
+	GConfig->GetInt(Section, TEXT("RideYear"), RideYear, Ini);
 	GConfig->GetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->GetString(Section, TEXT("WeatherPreset"), WeatherPresetKey, Ini);
@@ -214,7 +215,8 @@ void FTorqueSettings::Load()
 	ScreenBright = FMath::Clamp(ScreenBright, 0, 3);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
 	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
-	RideDate = FMath::Clamp(RideDate, 0, 365);
+	RideDate = FMath::Clamp(RideDate, 0, 366);
+	RideYear = RideYear < 1900 || RideYear > 2200 ? 0 : RideYear;
 	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherPreset);
 	FSonyPad::SetCentre(PadCentre);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
@@ -289,6 +291,7 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->SetInt(Section, TEXT("RideDate"), RideDate, Ini);
+	GConfig->SetInt(Section, TEXT("RideYear"), RideYear, Ini);
 	GConfig->SetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->SetString(Section, TEXT("WeatherPreset"), *WeatherPresetKey, Ini);
