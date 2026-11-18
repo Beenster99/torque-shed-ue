@@ -28,7 +28,7 @@ const TArray<FGroup>& Groups()
 {
 	static const TArray<FGroup> G = {
 		{TEXT("Engine and drivetrain"), {TEXT("engine"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs"),
-			TEXT("cooling"), TEXT("gearbox"), TEXT("exhaust"), TEXT("silencers"), TEXT("final_drive"), TEXT("sprocket"), TEXT("chain")}},
+			TEXT("cooling"), TEXT("gearbox"), TEXT("exhaust"), TEXT("silencers"), TEXT("final_drive"), TEXT("chain")}},
 		{TEXT("Chassis"), {TEXT("frame"), TEXT("fork"), TEXT("shock"), TEXT("swingarm"), TEXT("steering_damper"), TEXT("handlebars"),
 			TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("lever_guards"), TEXT("rearsets"), TEXT("heel_plates"),
 			TEXT("foot_controls"), TEXT("guards"), TEXT("side_stand"), TEXT("centre_stand")}},
@@ -155,6 +155,14 @@ int32 Essential(FName Kind)
 	for (const FName& Slot : Slots)
 		if (TorqueShedParts::IsEngineSlot(Slot) || !TorqueShedParts::MayBeEmpty(Slot)) return 1;
 	return 0;
+}
+
+// The kinds a shop list shows (beenster after 156: the new sprockets belong in the Sprockets list, not
+// a "Rear sprocket" one of their own): the gearing sprockets (final_drive) then the sprocket looks.
+TArray<FName> ListedKinds(FName Kind)
+{
+	if (Kind == FName(TEXT("final_drive"))) return {Kind, FName(TEXT("sprocket"))};
+	return {Kind};
 }
 
 // [engines] An engine's capacity band for the shop's size filter: 1 up to 499 cc, 2 500-899, 3 900-1199,
@@ -337,12 +345,14 @@ void FTorquePartsComputer::Relist()
 		for (const FName& P : Engines) Rows.Add({P});
 	}
 	else if (TypeFilter.IsNone() || !Filtered())
-		for (const FName& P : TorqueShedParts::PartsOfKind(Kind)) Rows.Add({P});
+		for (const FName& K : TPCI::ListedKinds(Kind))
+			for (const FName& P : TorqueShedParts::PartsOfKind(K)) Rows.Add({P});
 	else
 	{
 		// Cut to the bike type: the ones made for it first, then the ones that suit it too (and any bike's).
 		TArray<FName> Also;
-		for (const FName& P : TorqueShedParts::PartsOfKind(Kind))
+		for (const FName& K : TPCI::ListedKinds(Kind))
+		for (const FName& P : TorqueShedParts::PartsOfKind(K))
 		{
 			if (!TorqueShedParts::SuitsStyle(P, TypeFilter)) continue;
 			if (TPCI::KeptBest(P) == TypeFilter) Rows.Add({P});
@@ -371,7 +381,7 @@ bool FTorquePartsComputer::PickKind(FName K)
 	{
 		PickSection(S);
 		for (int32 I = 0; I < KindRows.Num(); ++I)
-			if (KindRows[I].Kind == K)
+			if (KindRows[I].Kind == K || (!KindRows[I].Kind.IsNone() && TPCI::ListedKinds(KindRows[I].Kind).Contains(K)))
 			{
 				PickKindAt(I);
 				return true;
@@ -908,7 +918,8 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		}
 		Pen.Text(RX + 16.0f * S, RY + 5.0f * S, Pen.Fit(Name, 16.0f * S, NameW), 16.0f * S, bPicked ? TPCI::Ink : TPCI::Text);
 		// Needed to ride, or not: a small mark at the right of the second line.
-		const int32 Need = (R.Stock == INDEX_NONE && R.Part != FName(TEXT("bike")) && !TPCI::IsKit(Kind)) ? TPCI::Essential(Kind) : -1;
+		const FName RowKind = R.Part.IsNone() || TPCI::IsKit(Kind) ? Kind : TorqueShedParts::PartKind(R.Part);   // (a list may hold two kinds)
+		const int32 Need = (R.Stock == INDEX_NONE && R.Part != FName(TEXT("bike")) && !TPCI::IsKit(Kind)) ? TPCI::Essential(RowKind.IsNone() ? Kind : RowKind) : -1;
 		float SubW = TW;
 		if (Need >= 0)
 		{
@@ -969,11 +980,11 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			const FName OwnSlot = TorqueShedParts::V2Slot(R.Part);
 			if (!OwnSlot.IsNone()) Fits.Add(TorqueShedParts::SlotName(OwnSlot).ToLower());
 			else
-				for (const FName& Slot : TorqueShedParts::SlotsForKind(Kind)) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
+				for (const FName& Slot : TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R.Part))) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
 			Spec = Fits.Num() > 0 ? TEXT("Fits: ") + TPCI::Join(Fits) : FString();
 			const FString BoltsTo = TorqueShedParts::V2Fits(R.Part);
 			if (!BoltsTo.IsEmpty()) Spec += TEXT("\nBolts to: ") + BoltsTo;
-			const int32 Need = TPCI::Essential(Kind);
+			const int32 Need = TPCI::Essential(TorqueShedParts::PartKind(R.Part));
 			if (Need == 1) Spec += TEXT("\nEssential: the bike won't ride without one");
 			else if (Need == 0) Spec += TEXT("\nOptional: the bike rides without it");
 			const double Mass = TorqueShedParts::PartNumber(R.Part, FName(TEXT("mass")), -1.0);
