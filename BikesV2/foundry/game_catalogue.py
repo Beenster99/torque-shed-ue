@@ -88,6 +88,9 @@ def main():
     json.dump({"_retired": retired, "frame": out}, open(dst, "w"), indent=1)
     print(sum(len(v) for v in retired.values()), "parts retired with the bike types that have no V2 bikes:", {k: len(v) for k, v in retired.items()})
     print(f"{len(out)} V2 bikes in {dst}; not exported yet: {missing or 'none'}")
+    # every V2 bike's own parts as shop parts, and the old shapes they replace retired (game_v2parts.py)
+    import game_v2parts
+    game_v2parts.main()
 
 
 if __name__ == "__main__":

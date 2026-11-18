@@ -1515,6 +1515,42 @@ int32 UTorqueBuildSubsystem::DropRetiredParts()
 		if (FTorqueItem* It = Items.Find(Id))
 			It->Place = FTransform(TorqueShedLayout::DropAt() + FVector(Rng.FRandRange(-60.0f, 60.0f), Rng.FRandRange(-40.0f, 40.0f), 0.0));
 	}
+	// [bare frame] The old Godot shapes the V2 bikes' own parts replace are out of the catalogue (beenster, 18 Nov). A
+	// saved V2 bike with one on keeps the look it had: its frame's own part takes the old part's place. One lying
+	// loose about the shed, which nothing can be built with any more, goes.
+	if (const TorqueFit::BikeLayout* Lay = TBI::FitLayout())
+	{
+		TSet<int32> InUse;
+		for (FTorqueShedBike& B : Bikes)
+		{
+			for (const TPair<FName, int32>& Sl : B.Slots) InUse.Add(Sl.Value);
+			const FTorqueItem* FrameIt = B.bExists ? Items.Find(B.Slots.FindRef(TBI::FrameSlot())) : nullptr;
+			if (!FrameIt) continue;
+			const TorqueFit::PartsMap Own = Lay->V2Build(TBI::Id(FrameIt->Part));
+			for (const TPair<FName, int32>& Sl : B.Slots)
+			{
+				FTorqueItem* It = Items.Find(Sl.Value);
+				if (!It || TorqueShedParts::IsStock(It->Part) || TorqueShedParts::IsPart(It->Part)) continue;
+				const auto Found = Own.find(TBI::Id(Sl.Key));
+				if (Found == Own.end()) continue;
+				It->Part = FName(*TBI::Ue(Found->second));
+				It->Kind = TorqueShedParts::PartKind(It->Part);
+				++Changed;
+			}
+		}
+		for (const TPair<int32, FTorqueItem>& KV : Items)
+		{
+			for (const TPair<FName, int32>& Sl : KV.Value.Slots) InUse.Add(Sl.Value);
+			InUse.Add(KV.Value.Tyre);
+		}
+		TArray<int32> Stale;
+		for (const TPair<int32, FTorqueItem>& KV : Items)
+			if (!InUse.Contains(KV.Key) && !KV.Value.Part.IsNone() && !TorqueShedParts::IsStock(KV.Value.Part) && !TorqueShedParts::IsPart(KV.Value.Part)
+				&& KV.Value.Slots.Num() == 0)
+				Stale.Add(KV.Key);
+		for (int32 Id : Stale) EraseItem(Id);
+		Changed += Stale.Num();
+	}
 	if (Changed + Gone.Num() > 0)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: the saved shed's ECUs and old sat navs are retired (%d ECUs gone, %d TFT dashes left in their place, %d other changes)"),
@@ -1886,6 +1922,27 @@ TArray<FString> UTorqueBuildSubsystem::FabOwed(int32 Bay) const
 float UTorqueBuildSubsystem::FabTime(const FString& What)
 {
 	return 4.0f + (float)TorqueFit::BikeLayout::FabJobFor(TBI::Std(What)).Hours;
+}
+
+FString UTorqueBuildSubsystem::V2FitReason(int32 Bay, int32 Engine, FName Slot, FName Part) const
+{
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay || TorqueShedParts::V2Slot(Part).IsNone()) return FString();
+	TorqueFit::PartsMap Map;
+	if (Engine != 0)
+	{
+		// A loose engine: its block and what's on it.
+		const FTorqueItem* E = Items.Find(Engine);
+		if (!E) return FString();
+		Map["engine"] = TBI::Std(E->Part.ToString().ToLower());
+	}
+	else
+	{
+		TMap<FString, FString> Parts;
+		if (!LayoutParts(Bay, Parts)) return FString();
+		for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	}
+	return TBI::Ue(Lay->V2FitReason(Map, TBI::Std(Slot.ToString()), TBI::Std(Part.ToString().ToLower())));
 }
 
 FString UTorqueBuildSubsystem::TestReload()
@@ -2518,6 +2575,9 @@ FString UTorqueBuildSubsystem::PartsOnIt(const FHost& Host, FName Slot) const
 FName UTorqueBuildSubsystem::InstallSlot(const FTorqueShedRequest& R, const FTorqueItem& It, FString& Error) const
 {
 	TArray<FName> Candidates = TorqueShedParts::SlotsForKind(It.Kind);
+	// [bare frame] A V2 bike's own part goes in its own slot (its front wheel isn't a rear one).
+	const FName OwnSlot = TorqueShedParts::V2Slot(It.Part);
+	if (!OwnSlot.IsNone()) Candidates = {OwnSlot};
 	if (Candidates.Num() == 0) { Error = TEXT("That doesn't bolt on anywhere."); return NAME_None; }
 	const bool bOnEngine = TorqueShedParts::IsEngineSlot(Candidates[0]);
 	if (R.Engine != 0 && !bOnEngine) { Error = TEXT("That doesn't go on an engine."); return NAME_None; }
@@ -2636,6 +2696,11 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		const FName Where = InstallSlot(R, *HeldIt, Error);
 		if (Where.IsNone()) return Error;
 		if (R.Engine == 0 && TorqueShedParts::IsLowSlot(Where) && !R.bCrouched) return TEXT("Crouch down to reach it (C).");
+		{
+			// [bare frame] A V2 bike's part bolts to its family's frames (its engine's parts to its engine block...).
+			const FString V2Why = V2FitReason(R.Bay, R.Engine, Where, HeldIt->Part);
+			if (!V2Why.IsEmpty()) return V2Why;
+		}
 		if (R.Engine == 0 && TBI::IsFitSlot(Where))
 		{
 			// The frame, engine, tank and fork: what fitting's layout makes of it (won't fit stops it).
