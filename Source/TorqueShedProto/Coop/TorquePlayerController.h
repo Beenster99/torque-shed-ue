@@ -92,6 +92,14 @@ public:
 	UFUNCTION(Server, Reliable) void ServerTakeBike(ATorqueBikePawn* Theirs);
 	UFUNCTION(Client, Reliable) void ClientSwappedBike(ATorqueBikePawn* NowMine, ATorqueBikePawn* Was, bool bRide, const FString& Whose);
 
+	// [co-op] Joining (or rejoining) while the host is out on the road (beenster, build 155): no bike
+	// handed out at once. The host holds the new rider back (bJoinWaiting, ATorqueGameMode) and their
+	// game shows the join page: which of the shed's bikes to ride (one nobody else is on), then join
+	// the ride on it, or wait in their own shed with the ride kept to rejoin (UTorqueSession::WaitInShed).
+	bool bJoinWaiting = false;   // (the host's copy)
+	UFUNCTION(Client, Reliable) void ClientChooseRideBike(bool bChoose);
+	UFUNCTION(Server, Reliable) void ServerJoinRide(int32 Bay);
+
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
 	// "pause", "profile", "settings", "credits" or "close" (the world isn't paused, so the test runs on), and a
 	// profile slider set by its name's first word ("jaw", "chin", ... or "height", "avatar").
@@ -109,7 +117,9 @@ private:
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide };
+	bool bChoosingRide = false;   // [co-op] the join page is this player's until they pick
+	int32 JoinBay = INDEX_NONE;
 	struct FRow
 	{
 		FString Label, Value, Hint;
