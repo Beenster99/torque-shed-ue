@@ -27,6 +27,7 @@
 #include "World/HeightTiles.h"
 #include "World/WorldCache.h"
 #include "World/WorldFiles.h"
+#include "World/WorldRideChurches.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
 #include "IImageWrapper.h"
@@ -206,6 +207,13 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TypesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_types.json")));
 		const bool bTypes = TorqueWorld::Files::Read(TypesPath, TypesText) && TorqueWorld::SetHouseTypes(TypesText);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: house types %s"), bTypes ? TEXT("from Data/RideUK/house_types.json") : TEXT("built in (Data/RideUK/house_types.json unreadable)"));
+		// [churches stage 3] The church kit: its forty churches and the rules that choose one for a place of worship.
+		std::string KitText, KitBin;
+		const std::string KitPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_kit.json")));
+		const std::string KitBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_kit.bin")));
+		const bool bKit = TorqueWorld::Files::Read(KitPath, KitText) && TorqueWorld::Files::Read(KitBinPath, KitBin) && TorqueWorld::SetChurchKit(KitText, KitBin);
+		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
+		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));

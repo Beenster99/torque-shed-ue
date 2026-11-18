@@ -1,0 +1,769 @@
+{
+ "_about": "Ride UK's churches (churches stage 3): the kit's forty churches (Tools/blender_church_assemble.py --export, which writes this file and church_kit.bin), and the rules World/WorldRideChurches.cpp chooses one by for a place of worship's building: from the churches of its region (looks: World/WorldRideStyle's looks) and, in a town, the town ones too; a chapel where the map says chapel (or Methodist, Baptist and the like), a church otherwise; the one whose nave fits the building's box best, within 'pick' of the best by the building's own seed; stretched to fit, each way within 'stretch'. Its east end east; a chapel's front to its road. 'skip_names': words in a name that mean it is no church (left as the map's building).",
+ "looks": {
+  "pennine": [
+   "dales",
+   "peak",
+   "moors",
+   "northumberland",
+   "lakes"
+  ],
+  "cotswold": [
+   "cotswolds"
+  ],
+  "east_anglia": [
+   "fens"
+  ],
+  "south_east": [
+   "lowland",
+   "world"
+  ],
+  "somerset": [
+   "lowland",
+   "devon"
+  ],
+  "cornwall": [
+   "cornwall",
+   "devon"
+  ],
+  "wales": [
+   "wales",
+   "ulster"
+  ],
+  "town": [],
+  "scotland": [
+   "highlands",
+   "lowlands",
+   "ulster"
+  ]
+ },
+ "town_share": 0.3,
+ "stretch": [
+  0.72,
+  1.35
+ ],
+ "pick": 0.18,
+ "area": [
+  55.0,
+  1500.0
+ ],
+ "chapel_names": [
+  "chapel",
+  "methodist",
+  "wesleyan",
+  "baptist",
+  "congregational",
+  "united reformed",
+  "evangelical",
+  "pentecostal",
+  "gospel",
+  "united reform",
+  "free church",
+  "salvation army",
+  "quaker",
+  "friends meeting",
+  "unitarian",
+  "capel",
+  "tabernacle",
+  "mission",
+  "elim",
+  "brethren"
+ ],
+ "skip_names": [
+  "mosque",
+  "masjid",
+  "gurdwara",
+  "temple",
+  "mandir",
+  "synagogue",
+  "kingdom hall",
+  "buddhist",
+  "vihara",
+  "jamia",
+  "islamic",
+  "hindu",
+  "sikh"
+ ],
+ "churches": [
+  {
+   "name": "SM_Church_dales_chapel",
+   "label": "Dales chapel of ease (stage 1)",
+   "kind": "church",
+   "region": "pennine",
+   "nave": [
+    14.0,
+    6.4
+   ],
+   "size": [
+    14.43,
+    9.5,
+    8.46
+   ],
+   "triangles": 3156,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_pennine_perp",
+   "label": "Pennine: Perpendicular tower, chancel",
+   "kind": "church",
+   "region": "pennine",
+   "nave": [
+    16.0,
+    7.5
+   ],
+   "size": [
+    28.12,
+    10.8,
+    17.4
+   ],
+   "triangles": 6314,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_pennine_broach",
+   "label": "Mill town: broach spire, aisle, clerestory",
+   "kind": "church",
+   "region": "pennine",
+   "nave": [
+    22.0,
+    8.0
+   ],
+   "size": [
+    30.62,
+    17.36,
+    34.95
+   ],
+   "triangles": 7872,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_pennine_chapel",
+   "label": "Pennine Methodist chapel, two tiers",
+   "kind": "chapel",
+   "region": "pennine",
+   "nave": [
+    15.0,
+    11.0
+   ],
+   "size": [
+    16.5,
+    11.91,
+    11.59
+   ],
+   "triangles": 3856,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_pennine_saddle",
+   "label": "Dales church: saddleback tower",
+   "kind": "church",
+   "region": "pennine",
+   "nave": [
+    14.0,
+    6.8
+   ],
+   "size": [
+    18.53,
+    10.1,
+    14.52
+   ],
+   "triangles": 5042,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_norman_tower",
+   "label": "Norman village church (stage 1)",
+   "kind": "church",
+   "region": "cotswold",
+   "nave": [
+    17.0,
+    7.5
+   ],
+   "size": [
+    30.77,
+    11.13,
+    18.15
+   ],
+   "triangles": 4052,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_cots_wool",
+   "label": "Cotswold wool church: tall tower, aisles, battlements",
+   "kind": "church",
+   "region": "cotswold",
+   "nave": [
+    24.0,
+    8.0
+   ],
+   "size": [
+    40.07,
+    19.33,
+    26.86
+   ],
+   "triangles": 11630,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_cots_needle",
+   "label": "Cotswold: tower and needle spire",
+   "kind": "church",
+   "region": "cotswold",
+   "nave": [
+    18.0,
+    7.5
+   ],
+   "size": [
+    30.57,
+    14.8,
+    28.5
+   ],
+   "triangles": 6736,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_cots_bellcote",
+   "label": "Cotswold hamlet church: bellcote",
+   "kind": "church",
+   "region": "cotswold",
+   "nave": [
+    12.0,
+    6.0
+   ],
+   "size": [
+    17.42,
+    9.3,
+    9.75
+   ],
+   "triangles": 2248,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_cots_baptist",
+   "label": "Cotswold Baptist chapel, one tier",
+   "kind": "chapel",
+   "region": "cotswold",
+   "nave": [
+    12.0,
+    9.0
+   ],
+   "size": [
+    13.5,
+    9.91,
+    8.93
+   ],
+   "triangles": 1900,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_ea_round_thatch",
+   "label": "Norfolk: round tower, thatched nave",
+   "kind": "church",
+   "region": "east_anglia",
+   "nave": [
+    15.0,
+    6.8
+   ],
+   "size": [
+    25.98,
+    10.25,
+    14.15
+   ],
+   "triangles": 4334,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_ea_round_tile",
+   "label": "Suffolk: round tower, tiled roof",
+   "kind": "church",
+   "region": "east_anglia",
+   "nave": [
+    16.0,
+    7.0
+   ],
+   "size": [
+    27.82,
+    10.3,
+    18.32
+   ],
+   "triangles": 4766,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_ea_wool",
+   "label": "East Anglian wool church: flint, clerestory, battlements",
+   "kind": "church",
+   "region": "east_anglia",
+   "nave": [
+    28.0,
+    8.5
+   ],
+   "size": [
+    45.57,
+    19.83,
+    30.86
+   ],
+   "triangles": 12302,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_ea_bellcote",
+   "label": "Fenland: flint, bellcote",
+   "kind": "church",
+   "region": "east_anglia",
+   "nave": [
+    13.0,
+    6.2
+   ],
+   "size": [
+    13.43,
+    9.5,
+    9.61
+   ],
+   "triangles": 2652,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_ea_methodist",
+   "label": "Norfolk Primitive Methodist chapel, brick",
+   "kind": "chapel",
+   "region": "east_anglia",
+   "nave": [
+    11.0,
+    8.5
+   ],
+   "size": [
+    12.5,
+    9.4,
+    8.81
+   ],
+   "triangles": 1900,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_se_belfry",
+   "label": "Weald: timber belfry, shingled spire",
+   "kind": "church",
+   "region": "south_east",
+   "nave": [
+    14.0,
+    6.5
+   ],
+   "size": [
+    20.35,
+    9.8,
+    18.27
+   ],
+   "triangles": 3920,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_se_cap",
+   "label": "Sussex: tower with a low pyramid cap",
+   "kind": "church",
+   "region": "south_east",
+   "nave": [
+    15.0,
+    7.0
+   ],
+   "size": [
+    27.35,
+    10.3,
+    16.04
+   ],
+   "triangles": 4988,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_se_perp",
+   "label": "Kent ragstone: battlemented tower, aisle",
+   "kind": "church",
+   "region": "south_east",
+   "nave": [
+    18.0,
+    7.5
+   ],
+   "size": [
+    30.62,
+    14.81,
+    19.4
+   ],
+   "triangles": 6002,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_se_tin",
+   "label": "Tin tabernacle",
+   "kind": "tin",
+   "region": "south_east",
+   "nave": [
+    13.0,
+    6.5
+   ],
+   "size": [
+    15.6,
+    7.2,
+    9.45
+   ],
+   "triangles": 2402,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_se_brick_broach",
+   "label": "Victorian brick: broach spire",
+   "kind": "church",
+   "region": "south_east",
+   "nave": [
+    20.0,
+    8.0
+   ],
+   "size": [
+    27.62,
+    13.35,
+    30.45
+   ],
+   "triangles": 6324,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_som_tower",
+   "label": "Somerset: tall pinnacled tower, aisles",
+   "kind": "church",
+   "region": "somerset",
+   "nave": [
+    22.0,
+    8.0
+   ],
+   "size": [
+    37.07,
+    19.33,
+    32.86
+   ],
+   "triangles": 10550,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_som_village",
+   "label": "Somerset village: Perpendicular tower",
+   "kind": "church",
+   "region": "somerset",
+   "nave": [
+    16.0,
+    7.0
+   ],
+   "size": [
+    28.77,
+    10.6,
+    20.86
+   ],
+   "triangles": 6926,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_som_small",
+   "label": "Somerset Levels: small church, bellcote",
+   "kind": "church",
+   "region": "somerset",
+   "nave": [
+    12.0,
+    6.0
+   ],
+   "size": [
+    17.42,
+    9.3,
+    9.17
+   ],
+   "triangles": 3680,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_som_chapel",
+   "label": "Somerset Wesleyan chapel, stone",
+   "kind": "chapel",
+   "region": "somerset",
+   "nave": [
+    15.0,
+    11.0
+   ],
+   "size": [
+    16.5,
+    11.91,
+    11.59
+   ],
+   "triangles": 3856,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_corn_granite",
+   "label": "Cornwall: granite tower, wide aisles",
+   "kind": "church",
+   "region": "cornwall",
+   "nave": [
+    20.0,
+    7.5
+   ],
+   "size": [
+    32.37,
+    21.81,
+    22.86
+   ],
+   "triangles": 7382,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_corn_small",
+   "label": "Cornish cove church: bellcote",
+   "kind": "church",
+   "region": "cornwall",
+   "nave": [
+    13.0,
+    6.0
+   ],
+   "size": [
+    13.43,
+    9.3,
+    8.67
+   ],
+   "triangles": 1608,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_corn_chapel",
+   "label": "Cornish Methodist chapel, granite",
+   "kind": "chapel",
+   "region": "cornwall",
+   "nave": [
+    13.0,
+    10.0
+   ],
+   "size": [
+    14.5,
+    10.91,
+    9.16
+   ],
+   "triangles": 2188,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_wal_bellcote",
+   "label": "Welsh hill church: double bellcote",
+   "kind": "church",
+   "region": "wales",
+   "nave": [
+    14.0,
+    6.0
+   ],
+   "size": [
+    19.42,
+    9.3,
+    9.3
+   ],
+   "triangles": 3848,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_wal_tower",
+   "label": "Pembrokeshire: tall slim battlemented tower",
+   "kind": "church",
+   "region": "wales",
+   "nave": [
+    15.0,
+    6.6
+   ],
+   "size": [
+    25.52,
+    9.9,
+    19.4
+   ],
+   "triangles": 5882,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_wal_capel",
+   "label": "Welsh capel, two tiers",
+   "kind": "chapel",
+   "region": "wales",
+   "nave": [
+    16.0,
+    13.0
+   ],
+   "size": [
+    17.5,
+    13.91,
+    12.06
+   ],
+   "triangles": 4432,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_wal_capel_render",
+   "label": "Welsh capel, rendered, one tier",
+   "kind": "chapel",
+   "region": "wales",
+   "nave": [
+    12.0,
+    9.5
+   ],
+   "size": [
+    13.5,
+    10.41,
+    9.04
+   ],
+   "triangles": 1900,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_wal_saddle",
+   "label": "Welsh valley: saddleback tower",
+   "kind": "church",
+   "region": "wales",
+   "nave": [
+    16.0,
+    7.0
+   ],
+   "size": [
+    26.92,
+    10.3,
+    16.77
+   ],
+   "triangles": 5598,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_victorian_spire",
+   "label": "Victorian Gothic town church (stage 1)",
+   "kind": "church",
+   "region": "town",
+   "nave": [
+    24.0,
+    8.5
+   ],
+   "size": [
+    34.8,
+    18.91,
+    41.0
+   ],
+   "triangles": 8760,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_town_brick_perp",
+   "label": "Town church in brick: pinnacled tower, aisles",
+   "kind": "church",
+   "region": "town",
+   "nave": [
+    24.0,
+    9.0
+   ],
+   "size": [
+    39.07,
+    20.3,
+    24.86
+   ],
+   "triangles": 10106,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_town_needle",
+   "label": "Victorian limestone: needle spire, aisles",
+   "kind": "church",
+   "region": "town",
+   "nave": [
+    24.0,
+    8.5
+   ],
+   "size": [
+    34.07,
+    19.8,
+    36.9
+   ],
+   "triangles": 10072,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_town_catholic",
+   "label": "Catholic church: brick, big west window",
+   "kind": "church",
+   "region": "town",
+   "nave": [
+    22.0,
+    10.0
+   ],
+   "size": [
+    28.42,
+    11.2,
+    16.63
+   ],
+   "triangles": 3980,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_methodist_chapel",
+   "label": "Methodist chapel (stage 1)",
+   "kind": "chapel",
+   "region": "town",
+   "nave": [
+    16.0,
+    12.0
+   ],
+   "size": [
+    17.5,
+    12.91,
+    12.23
+   ],
+   "triangles": 4456,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_sco_kirk",
+   "label": "Scottish kirk: harled, birdcage bellcote",
+   "kind": "church",
+   "region": "scotland",
+   "nave": [
+    15.0,
+    7.5
+   ],
+   "size": [
+    15.43,
+    8.1,
+    10.52
+   ],
+   "triangles": 1744,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_sco_tower",
+   "label": "Scottish parish kirk: tower and slate spire",
+   "kind": "church",
+   "region": "scotland",
+   "nave": [
+    18.0,
+    9.0
+   ],
+   "size": [
+    23.37,
+    12.3,
+    30.6
+   ],
+   "triangles": 4944,
+   "weight": 1.0
+  },
+  {
+   "name": "SM_Church_sco_free",
+   "label": "Scottish Free Church: sandstone, needle spire",
+   "kind": "church",
+   "region": "scotland",
+   "nave": [
+    20.0,
+    10.0
+   ],
+   "size": [
+    21.07,
+    15.6,
+    34.8
+   ],
+   "triangles": 6088,
+   "weight": 1.0
+  }
+ ]
+}
