@@ -2976,8 +2976,8 @@
      "stand": {
       "pivot": [
        600.0,
-       199.3,
-       205.0
+       159.3,
+       225.0
       ],
       "axis": [
        0.0926,
@@ -9316,7 +9316,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -10248,7 +10248,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -11257,7 +11257,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -13132,7 +13132,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -14409,7 +14409,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -15328,7 +15328,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -16238,7 +16238,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -17157,7 +17157,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "model",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -18208,7 +18208,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -19697,7 +19697,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -19731,7 +19731,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -21697,7 +21697,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "shock",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -22791,7 +22791,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "shock",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -23816,7 +23816,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -24830,7 +24830,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -26060,7 +26060,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -26088,7 +26088,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "family",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -27929,7 +27929,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "layout",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -29109,7 +29109,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "engine",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -31395,7 +31395,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "engine",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -32412,7 +32412,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "engine",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -33366,7 +33366,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "engine",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
@@ -34337,7 +34337,7 @@
     "family": "chopper",
     "brand": "BSX",
     "fits": "engine",
-    "layout": "triple",
+    "layout": "parallel_twin",
     "twin_shock": false
    }
   },
