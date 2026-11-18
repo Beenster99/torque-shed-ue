@@ -138,18 +138,19 @@ const TCHAR* const TyreGameSteps =
 	TEXT("item:wire_19_chrome,act,place:changer,hold:7,tyrelog,look:changer,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
-// test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
+// test run): the pause menu, the Profile page (Settings > Profile) with the jaw and chin moved and the figure taller, its helmet view with the colour picker, then
 // the Settings. The face isn't saved, so your own comes back next time.
 const TCHAR* const MenuSteps =
 	TEXT("menu:pause,wait:1,shot:ui,menu:profile,wait:2,shot:ui,face:jaw:0.8,face:chin:-0.6,face:height:0.8,wait:2,shot:ui,")
-	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:settings,wait:1,shot:ui,menu:close");
+	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:profile:helmet,wait:2,shot:ui,menu:settings,wait:1,shot:ui,menu:close");
 
 // The paint mixing bay (paint_bay.gd): at the bench a litre of white with phthalo blue and lemon
 // yellow poured in (a green), stirred, a test card, saved as Mix 1 (its card on the swatch wall);
 // that card on the bench and mixed again to it as Mix 2; a satin lacquer (10% flattener); a silver with ultramarine
 // in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
 // the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
-// Then twin stripes masked off with tape, Mix 3 (the silver) sprayed over, and the tape peeled.
+// Then a fade from the gun's two cups: Mix 1 in cup 1, Mix 3 (the silver) in cup 2, front to back,
+// medium (beenster, 18 Nov 2026: no masking tape). Then hook 1 wound up and down.
 const TCHAR* const MixSteps =
 	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,shot:ui,look:mixbench,shot,")
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
@@ -161,9 +162,9 @@ const TCHAR* const MixSteps =
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot,")
-	TEXT("tool:hands,paint:tapetake,paint:pattern:2,item:exhaust,act,log,look:hook_0,shot,paint:tapeput,")   // masking tape: twin stripes
-	TEXT("paint:take:3,paint:cup,paint:put:3,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
-	TEXT("tool:hands,item:exhaust,act:alt,log,look:hook_0,shot");
+	TEXT("tool:hands,paint:take:0,paint:cup,paint:put:0,paint:take:3,paint:cup:2,paint:put:3,paintlog,")   // the fade: two cups
+	TEXT("tool:gun,spray:6:fade,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
+	TEXT("tool:hands,paint:hook:1:200,look:hook:1,shot,paint:hook:1:90,look:hook:1,shot,paint:hook:1:138,log");
 
 // The bike lifts on bay 1's bike: its post, raised (the bike rides up), wheeling it off refused,
 // a part off it standing (no crouching), lowered, wheeled out, onto the wash bay's lift and up on
@@ -719,7 +720,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
-		Verb == TEXT("helmet"))
+		Verb == TEXT("helmet") || Verb == TEXT("garage"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -1755,10 +1756,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("put") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTinPut; R.Item = FCString::Atoi(*P[2]); }
 		else if (What == TEXT("tobench")) R.Kind = ETorqueShedAct::PaintTinBench;
 		else if (What == TEXT("bin")) R.Kind = ETorqueShedAct::PaintTinBin;
-		else if (What == TEXT("cup")) R.Kind = ETorqueShedAct::PaintCup;
-		else if (What == TEXT("tapetake")) R.Kind = ETorqueShedAct::PaintTapeTake;
-		else if (What == TEXT("tapeput")) R.Kind = ETorqueShedAct::PaintTapePut;
-		else if (What == TEXT("pattern") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTapePattern; R.Colour = FCString::Atoi(*P[2]); }
+		else if (What == TEXT("cup")) { R.Kind = ETorqueShedAct::PaintCup; R.Item = P.Num() >= 3 && P[2] == TEXT("2") ? 1 : 0; }   // paint:cup[:2]
 		else if (What == TEXT("hook") && P.Num() >= 4)
 		{
 			// paint:hook:N:CM: spray booth hook N (1 .. 10) wound to CM off the floor.
@@ -1766,7 +1764,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			R.Item = FCString::Atoi(*P[2]) - 1;
 			R.Amount = FCString::Atof(*P[3]);
 		}
-		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM, tapetake, pattern:N, tapeput")); return true; }
+		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup[:2], hook:N:CM")); return true; }
 		Said(W->TestPaint(R));
 		return true;
 	}

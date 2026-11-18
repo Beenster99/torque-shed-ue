@@ -316,8 +316,7 @@ int32 ATorqueShedItems::MakeNewPart(AActor* Outer, USceneComponent* Holder, FNam
 	const int32 Before = Made.Num();
 	if (!Outer || !Holder || !TorqueShedParts::IsPart(Part)) return 0;
 	const FName Kind = TorqueShedParts::PartKind(Part);
-	const TArray<FName> KindSlots = TorqueShedParts::SlotsForKind(Kind);
-	const FName Home = TorqueShedParts::IsStock(Part) ? TorqueShedParts::StockSlot(Part) : (KindSlots.Num() > 0 ? KindSlots[0] : NAME_None);
+	const FName Home = TorqueShedParts::HomeSlot(Part);   // [bare frame] (a V2 rear wheel is a rear wheel)
 	const bool bCatalogue = !TorqueShedParts::IsStock(Part);
 	if (bCatalogue && !Home.IsNone())
 	{
@@ -452,9 +451,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	{
 		// The model's own part, its fit option for a catalogue part, or the stock part of that kind
 		// tinted the catalogue's colour; an engine with what's on it, a wheel with its tyre.
-		const TArray<FName> KindSlots = TorqueShedParts::SlotsForKind(It->Kind);
-		const FName Home = TorqueShedParts::IsStock(It->Part) ? TorqueShedParts::StockSlot(It->Part)
-			: (KindSlots.Num() > 0 ? KindSlots[0] : NAME_None);
+		const FName Home = TorqueShedParts::HomeSlot(It->Part);   // [bare frame] (a V2 rear wheel is a rear wheel)
 		TSet<FName> Show;
 		Show.Add(Home);
 		for (const TPair<FName, int32>& KV : It->Slots)

@@ -42,6 +42,7 @@
 #include "WorldRoute.h"
 
 #include <cstdint>
+#include <array>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -223,6 +224,11 @@ struct RideMesh
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
 	std::shared_ptr<RideMesh> Glow;
 	std::vector<float> Lights;
+	// [road edges, Nov 18] With a piece of road: the grass of its shoulders in the country, drawn as the land
+	// is (its material, the land's colours as the squares draw them, its UVs the world's metres over 8), so
+	// the field runs to the tarmac's worn edge with no strip of another grass between (beenster: "remove
+	// this edge and blend the topology of the countryside to the edge of the road"). Null for none.
+	std::shared_ptr<RideMesh> Turf;
 };
 
 // [OSM stage 2] Plain shapes for what stands by the road and on the skyline, made in code into a
@@ -526,6 +532,9 @@ public:
 	// heights, each cell's two triangles (Cache, if given, keeps the grid's heights met for the next call).
 	static constexpr double LandGrid = 4.0;   // (ATorqueRideWorld's finest squares: 256 m, 64 cells)
 	double LandDrawnAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
+	// [road edges, Nov 18] And its colour as they draw it: LandColour at the grid's points (as LandTile has
+	// them), across each cell's two triangles (Cache keeps the points' colours met).
+	void LandColourDrawnAt(double X, double Z, float* Out, std::unordered_map<long long, std::array<float, 3>>* Cache = nullptr) const;
 	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
 	// edge the point is): how far from its middle, its height, which point, its half width, which
 	// road. MainOnly looks at the ride's own road alone. Cross is how far the road's surface is above
@@ -886,6 +895,23 @@ public:
 	bool HeritageLampAt(double X, double Z) const;
 	// [towns stage 6] Whether the map's surface for a road is setts or cobbles (drawn in M_RideRoad's setts).
 	static bool SettsSurface(const std::string& Surface);   // (a street lamp here is the heritage kind)
+	// [towns stage 8] The famous streets' own looks (StreetTable): each piece of a street's line with its
+	// look (in TownLooks: the street's over the town's), how far either side it holds, and whether the
+	// street is laid in setts and lit by heritage lamps; by 128 m square. StreetLookAt gives a place's
+	// street look (LookHere's first); SettsStreet whether a road's line runs along a street in setts.
+	struct StreetPiece
+	{
+		P2 A, B;
+		int Look = -1;
+		double Reach = 30.0;
+		bool Setts = false, Lamps = false;
+	};
+	std::vector<StreetPiece> StreetPieces;
+	std::unordered_map<long long, std::vector<int>> StreetGrid;
+	std::vector<std::string> StreetsHere;   // the table's streets in this ride's region
+	const StreetPiece* StreetAt(double X, double Z, double Extra = 0.0) const;
+	const LocalLook* StreetLookAt(double X, double Z) const;
+	bool SettsStreet(const std::vector<P2>& Line) const;
 	void IndexTowns();
 	const LocalLook* TownLookAt(double X, double Z) const;
 	const LocalLook* AtlasLookAt(double X, double Z) const;
@@ -1272,7 +1298,11 @@ public:
 	// [roundabouts round 2] How far out from a ring's outer edge roads are checked for grass shoulders on tarmac (m).
 	static constexpr double RingClearReach = 30.0;
 	static constexpr double RingMouthClear = 10.0;   // [roundabouts round 4] no road shoulder or pavement this near a ring's edge but the ring's own (m)
-	static constexpr double RingGapFill = 8.0;   // [roundabouts round 4] near a ring, a gap to another road this narrow or less is tarmac (m)
+	static constexpr double RingFlareLeast = 6.0;   // [roundabouts 156] the flare onto a small ring (m); RingFlare is a big one's
+	static constexpr double RingGapFill = 8.0;
+	static constexpr double RingArmLines = 25.0;   // [roundabouts 156] edge lines this far along each one-way road off and on to a ring (m)
+	static constexpr double RingCornerClear = 18.0;   // [roundabouts 156] no junction corner kerb or verge this near a ring's edge (m): its arms' pavements stop short of the mouth
+	static constexpr double RingBarrierClear = 40.0;   // [roundabouts 156] no central reservation barrier this near a ring's edge (m)   // [roundabouts round 4] near a ring, a gap to another road this narrow or less is tarmac (m)
 	bool ShapeRing(RoadRing& R) const;
 	// [roundabouts round 2] The roads onto a ring drawn as one: where each meets its outer edge, which way it
 	// heads out, how wide, and which way its traffic may go (+1 out only, -1 in only, 0 both).
@@ -1315,7 +1345,10 @@ public:
 	// [OSM stage 5D] Town streets: a kerb KerbHigh high (its face a 45 degree slope) and a pavement out to
 	// PaveWide from the road's edge, each side, in place of the verge (beenster Nov 14: one continuous kerb
 	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
-	static constexpr double KerbHigh = 0.125, PaveWide = 1.4;   // ([build 154] beenster: pavements "too wide": 1.8 m was)
+	// ([build 154] beenster: pavements "too wide": 1.8 m was; [build 155] "lower and 10% narrower": 0.125 m and 1.4 m were)
+	static constexpr double KerbHigh = 0.09, PaveWide = 1.26;
+	static constexpr double PaveBack = 1.2;   // ([build 155] "make the ground meet the other side of the pavement": its back a slope down to the ground as drawn, this wide; [156] drawn as the land, Turf)
+	static constexpr double CornerBack = 0.8;   // ([156] round a corner, as it was: wider, its back folds on a tight one)
 	// [OSM stage 5D] Traffic lights: a fixed cycle of SignalCycle seconds from the shared clock (the master
 	// plan's open question: until it is answered, nothing happens to a rider who goes through on red).
 	// The lamps' codes in RideMesh::Signals' UV0 y.

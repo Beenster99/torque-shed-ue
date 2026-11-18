@@ -388,6 +388,7 @@ private:
 	// of a wall), turned by HoldTurn (walker.gd _push_transform, for a part).
 	FTransform CarryDrop() const;
 	int32 SprayColour = 0;
+	int32 FadeStyle = 0;               // the gun's Fade load: which fade (R steps through them), TorquePaintMix::FirstFade + this
 	int32 SprayFinish = 0;
 	bool bCrouched = false;
 	void SetCrouched(bool bOn);

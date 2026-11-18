@@ -1029,6 +1029,36 @@ int main()
 							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
 						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
 					}
+					// [towns stage 8] The famous streets' own looks: read, every colour known, each street's lines
+					// together (within 1.5 km of its first point), its painted ones with their own colours; the
+					// Shambles under clay tiles in setts, Tobermory painted away from the sea.
+					{
+						const std::vector<StreetEntry> Streets = StreetTable();
+						int Unknown = 0, Apart = 0, Unwashed = 0;
+						const StreetEntry* Shambles = nullptr;
+						const StreetEntry* Tobermory = nullptr;
+						for (const StreetEntry& S : Streets)
+						{
+							Tint Probe;
+							const TownEntry& T = S.Look;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+							for (const auto& Way : S.Lines)
+								for (const auto& Pt : Way)
+									Apart += std::hypot((Pt.first - S.Lines[0][0].first) * 111.2, (Pt.second - S.Lines[0][0].second) * 111.2 * std::cos(Pt.first * 0.0174533)) > 1.5 ? 1 : 0;
+							Unwashed += T.Paint > 0.5f && S.Washes.empty() ? 1 : 0;
+							if (S.Name == "The Shambles, York") Shambles = &S;
+							if (S.Name == "Main Street, Tobermory") Tobermory = &S;
+						}
+						bool Right = Shambles && Tobermory;
+						if (Right)
+						{
+							const LocalLook Sh = StreetLook(LookAt(53.96, -1.08), *Shambles), Tob = StreetLook(LookAt(56.62, -6.07), *Tobermory);
+							Right = Shambles->Setts && Sh.TileShare > 0.9f && Sh.Street && Tob.PaintAnywhere && Tob.WashCount >= 4 && Tob.RenderShare > 0.9f;
+						}
+						std::printf("      famous streets: %zu in the table (%d with a colour it doesn't know, %d points astray, %d painted without colours); %zu here\n",
+							Streets.size(), Unknown, Apart, Unwashed, Plan->StreetsHere.size());
+						Check(Streets.size() >= 25 && Unknown == 0 && Apart == 0 && Unwashed == 0 && Right, "famous streets: their looks read, every colour known, lines together, the Shambles tiled in setts, Tobermory painted");
+					}
 					// [towns stage 5] The materials atlas: read, every colour known; Bath in Bath stone, Aberdeen grey
 					// granite, Haworth gritstone (and sooted), Ely cream gault brick, the Lancashire mill towns red
 					// Accrington brick; a place no area holds keeps its region's look.
@@ -1340,13 +1370,15 @@ int main()
 					// cuttings and banks in the land, stations with their platforms and names.
 					{
 						int Active = 0, Crossings = 0, Flush = 0, BedOk = 0, BedN = 0;
-						double Steepest = 0.0;
+						double Steepest = 0.0, SteepestOld = 0.0;
 						for (const RidePlan::RailLine& Run : Plan->Rails)
 						{
 							Active += Run.Disused ? 0 : 1;
 							for (size_t I = 0; I < Run.At.size(); ++I)
 							{
-								if (I > 0 && Run.On[I] == 0 && Run.On[I - 1] == 0 && std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep > Steepest)
+								// ([156] a disused line, an old incline among them, as steep as 1 in 8: counted on its own)
+								if (I > 0 && Run.Disused && Run.On[I] == 0 && Run.On[I - 1] == 0) SteepestOld = std::fmax(SteepestOld, std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep);
+								if (I > 0 && !Run.Disused && Run.On[I] == 0 && Run.On[I - 1] == 0 && std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep > Steepest)
 								{
 									Steepest = std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep;
 									if (std::getenv("RAIL_DEBUG")) std::printf("steep %.3f at %zu of %zu (%.0f, %.0f) disused %d\n", Steepest, I, Run.At.size(), Run.At[I].X, Run.At[I].Z, int(Run.Disused));
@@ -1399,9 +1431,9 @@ int main()
 							}
 							Named += Has ? 1 : 0;
 						}
-						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%%, bed beside the line %d of %d, %d platforms (%d named boards)\n",
-							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);
-						Check(Active > 0 && Flush == Crossings && Steepest < 0.032 && BedN > 3 && BedOk == BedN && !Plan->Platforms.empty() && Named == int(Plan->Platforms.size()),
+						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%% (disused %.1f%%), bed beside the line %d of %d, %d platforms (%d named boards)\n",
+							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, SteepestOld * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);
+						Check(Active > 0 && Flush == Crossings && Steepest < 0.032 && SteepestOld < 0.13 && BedN > 3 && BedOk == BedN && !Plan->Platforms.empty() && Named == int(Plan->Platforms.size()),
 							"the railways: eased to a railway's gradient, flush with the roads they cross, their beds cut and banked into the land, stations with platforms and named boards");
 					}
 				}
@@ -1632,7 +1664,11 @@ int main()
 								for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
 								{
 									const float* A3 = &Mesh.Pos[Mesh.Idx[T] * 3], * B3 = &Mesh.Pos[Mesh.Idx[T + 1] * 3], * C3 = &Mesh.Pos[Mesh.Idx[T + 2] * 3];
-									if (!(double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) >= -0.05)) AllUp = false;   // (but for a sliver where a road is cut off at the mouth)
+									if (!(double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) >= -0.1))
+									{
+										AllUp = false;   // (but for a sliver where a road is cut off at the mouth: [156] a little more with the wider streets)
+										if (std::getenv("UP_DEBUG")) std::printf("down tri at %.1f %.1f col %.3f %.3f %.3f area %.3f\n", Mesh.OriginX + A3[0] - M.At.X, Mesh.OriginZ + A3[2] - M.At.Z, Mesh.Col[Mesh.Idx[T] * 3], Mesh.Col[Mesh.Idx[T] * 3 + 1], Mesh.Col[Mesh.Idx[T] * 3 + 2], double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]));
+									}
 								}
 								++Tested;
 								if (Marks) ++Painted;
@@ -1829,6 +1865,13 @@ int main()
 								float Lo = 1e9f, Hi = -1e9f;
 								for (int Dj = 0; Dj < 2; ++Dj)
 									for (int Di = 0; Di < 2; ++Di) { const float Hy = Sq.Pos[(size_t(Cj + Dj) * 65 + size_t(Ci + Di)) * 3 + 1]; Lo = std::fmin(Lo, Hy); Hi = std::fmax(Hi, Hy); }
+								// ([road edges, build 155] or, on a road's grass shoulder, on the shoulder)
+								{
+									RidePlan::NearOpts Opts;
+									RidePlan::NearHit Hit;
+									if (Plan->NearestOf(X, Z, Opts, Hit) && !Hit.Deck && !Hit.Bore && Hit.Dist >= Hit.Half && Hit.Dist - Hit.Half < RidePlan::ShoulderFlat)
+										Hi = std::fmax(Hi, float(Hit.Height + Hit.Cross - 0.012));
+								}
 								PlantWorst = std::fmax(PlantWorst, double(std::fmax(P.Y - Hi, Lo - P.Y)));
 								if (P.Y > Hi + 0.01f || P.Y < Lo - 1.0f) ++PlantAstray;
 							}

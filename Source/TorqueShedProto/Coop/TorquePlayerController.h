@@ -92,6 +92,14 @@ public:
 	UFUNCTION(Server, Reliable) void ServerTakeBike(ATorqueBikePawn* Theirs);
 	UFUNCTION(Client, Reliable) void ClientSwappedBike(ATorqueBikePawn* NowMine, ATorqueBikePawn* Was, bool bRide, const FString& Whose);
 
+	// [co-op] Joining (or rejoining) while the host is out on the road (beenster, build 155): no bike
+	// handed out at once. The host holds the new rider back (bJoinWaiting, ATorqueGameMode) and their
+	// game shows the join page: which of the shed's bikes to ride (one nobody else is on), then join
+	// the ride on it, or wait in their own shed with the ride kept to rejoin (UTorqueSession::WaitInShed).
+	bool bJoinWaiting = false;   // (the host's copy)
+	UFUNCTION(Client, Reliable) void ClientChooseRideBike(bool bChoose);
+	UFUNCTION(Server, Reliable) void ServerJoinRide(int32 Bay);
+
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
 	// "pause", "profile", "settings", "credits" or "close" (the world isn't paused, so the test runs on), and a
 	// profile slider set by its name's first word ("jaw", "chin", ... or "height", "avatar").
@@ -109,7 +117,9 @@ private:
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide };
+	bool bChoosingRide = false;   // [co-op] the join page is this player's until they pick
+	int32 JoinBay = INDEX_NONE;
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -120,6 +130,7 @@ private:
 		float Frac = -1.0f;
 		TFunction<void(float)> SetFrac;
 		bool bFace = false;                 // the Profile picture shows the face for this row
+		bool bHelmet = false;               // [profile] ... or your helmet on its own (and its colour picker)
 		bool bCentred = false;              // [profile] the slider fills out from its middle
 		TFunction<void()> Commit;           // a slider let go: saved and put on the game
 		bool bToggle = false, bOn = false;  // an on / off switch, and which
@@ -181,7 +192,9 @@ private:
 	void Open(EPage P);
 	void Back();
 	FString Title() const;
-	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Character), -1 for none
+	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Profile), -1 for none
+	// [profile] Settings > Profile (EPage::Character; EPage::Profile opens it too): you, your avatar and helmet.
+	bool IsProfilePage() const { return Page == EPage::Character || Page == EPage::Profile; }
 	void SwitchTab(int32 Dir);
 	TArray<FRow> Rows();
 	void Changed();
@@ -228,6 +241,14 @@ private:
 	int32 DragRow = -1;         // the slider being dragged, and its track's ends on screen
 	double DragX0 = 0.0, DragX1 = 1.0;
 	bool bProfileSent = false;
+	// [profile] The helmet's colour picker under the picture (as the shop's): the square (richness
+	// across, brightness up), the hue strip and the named colours, where the last drawing put them,
+	// and which is being dragged (0 none, 1 the square, 2 the strip).
+	FBox2D PickSquare = FBox2D(ForceInit), PickHue = FBox2D(ForceInit);
+	TArray<FBox2D> PickSwatches;   // [0] as it came, then each named colour
+	int32 PickDrag = 0;
+	bool HelmetPickerMouse(const FVector2D& Mouse, bool bJustDown);   // true when the mouse was the picker's
+	void DrawHelmetPicker(UCanvas* Canvas, float X, float Y, float W, float H, float Px);
 	FString SentHelmetDecals;   // [decals stage 4]
 	bool bHelmetDecalsSent = false;
 	void ProfileChanged();

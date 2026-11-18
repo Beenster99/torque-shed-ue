@@ -66,6 +66,8 @@ const double CARELESS_SLIP = 0.9;
 const double CLUTCH_PULL = 0.08;
 const double CLUTCH_LET_OUT = 0.35;
 const double CLUTCH_BITE = 25.0;
+// The rider's pull on the bars with their weight right back, on the road (N m of pitch, front up).
+const double PITCH_HAUL = 150.0;
 const double NEUTRAL_FIND_SPEED = 2.0;
 // In neutral the engine spins only itself: it makes this share of its torque to do it (fuel, heat).
 const double FREE_REV_LOAD = 0.12;
@@ -1430,9 +1432,12 @@ void BikeSim::ApplyRiderBalance(double Delta)
 	}
 	if (!AnyContact) Tau *= 0.4;
 	ApplyTorque(FwdFlat * Tau);
-	// Pitch control by shifting body weight, mostly useful in the air.
+	// Pitch control by shifting body weight, mostly useful in the air. On the road, weight right back is the
+	// rider hauling on the bars as they open it up, enough to bring the front of a tall, long bike like the
+	// adventure up on a handful (beenster, build 155: "Turned all assist off on a 800cc bike and it couldn't
+	// wheelie"); weight forward is as it was.
 	const V3 Right = B.X;
-	double PitchTau = -BodyShift * (AnyContact ? 60.0 : 220.0);
+	double PitchTau = -BodyShift * (AnyContact ? (BodyShift < 0.0 ? PITCH_HAUL : 60.0) : 220.0);
 	const double PitchRate = AngularVelocity.Dot(Right);
 	if (!AnyContact)
 	{

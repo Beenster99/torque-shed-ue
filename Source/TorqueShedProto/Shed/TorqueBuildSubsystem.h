@@ -541,8 +541,6 @@ public:
 	// with a masked stripe or tape on it: how it's drawn (TorqueEffectPaint.h). False for anything
 	// else, which keeps the part's own material.
 	static bool EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintLook& Out);
-	// Sprayed over masking tape: the pattern of the paint under it kept as its mask (TorquePaintBay.cpp).
-	static void MaskUnderTape(FTorqueItem& It);
 	// Who player Peer is, for a delivery's sticky note: their name and player colour.
 	void OrdererOf(int32 Peer, FString& OutName, FLinearColor& OutTint) const;
 	bool EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintLook& Out) const;
@@ -575,8 +573,15 @@ public:
 	// How well a coat goes on when no score comes with it (a test's act: the spray game sends its
 	// own, TorqueSprayJob, as the request's Amount and its runs as Tilt); the booth makes it better.
 	static constexpr float HandCoat = 0.82f;
-	// Paint mixed in the mixing bay: Paint with this Finish and bGun sprays from the gun's cup.
+	// Paint mixed in the mixing bay: Paint with this Finish and bGun sprays from the gun's cup 1,
+	// Cup2Finish from cup 2, and FadeFinish blends cup 1 into cup 2 across the part (Colour: the
+	// fade's pattern, TorquePaintMix::FirstFade ..; beenster, 18 Nov 2026, in place of masking tape).
 	static FName CupFinish() { return FName(TEXT("cup")); }
+	static FName Cup2Finish() { return FName(TEXT("cup2")); }
+	static FName FadeFinish() { return FName(TEXT("fade")); }
+	static bool IsCupFinish(FName F) { return F == CupFinish() || F == Cup2Finish() || F == FadeFinish(); }
+	// The cup a cup finish sprays (a fade: cup 2, the colour that goes over).
+	static int32 CupWhich(FName F) { return F == CupFinish() ? 0 : 1; }
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }
@@ -746,6 +751,9 @@ private:
 	void DropFurnitureOf(int32 Peer);
 	static void SerializeFurniture(FArchive& Ar, bool bNet, TArray<FTorqueFurniture>& List, int32& NextIdIo);
 	FTorquePaintBay Paint;
+	// A co-op guest's own winding of a booth hook, shown at once while the host catches up (the
+	// hook's height, and when it was wound there).
+	TMap<int32, TPair<float, double>> HookWound;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;
 	TArray<FTorqueBuild> Builds;     // per bay, for drawing
@@ -804,6 +812,8 @@ private:
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
 	int32 DropRetiredParts();   // [tft] the ECUs and the old sat nav units
+	// [bare frame] Why a V2 bike's part won't go in Slot on the bay's bike, or on the loose engine Engine (empty: it fits).
+	FString V2FitReason(int32 Bay, int32 Engine, FName Slot, FName Part) const;
 	int32 FreeBay() const;
 	// [co-op] A bay whose bike is parked away from it (wheeled out, in the wash bay) is free for a
 	// frame: that bike's record goes to an empty bay's place, standing where it is. Empty when it
@@ -832,8 +842,10 @@ private:
 	void DropKitOf(int32 Peer);   // someone's left: the stand let go, the extinguisher back in its place
 	FString CheckPaintBay(int32 Peer, const FTorqueShedRequest& R) const;
 	FString ApplyPaintBay(int32 Peer, const FTorqueShedRequest& R);
-	FString CheckCup(int32 Peer, const FTorqueItem& It) const;
-	float SprayFromCup(int32 Peer, FTorqueItem& It);
+	FString CheckCup(int32 Peer, const FTorqueItem& It, FName Finish) const;
+	float SprayFromCup(int32 Peer, FTorqueItem& It, int32 Which, float Share = 1.0f);
+	float FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern);
+	static float LaySpec(FTorqueItem& It, const TorquePaintMix::FPaintSpec& S);
 	// After a change: redraw what changed, save, tell the net layer.
 	void RebuildBuild(int32 Bay);
 	// What's on a bay (and how it looks), and the loose parts, as text: the host's shed coming in

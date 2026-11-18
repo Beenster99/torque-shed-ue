@@ -285,6 +285,7 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 const LocalLook& RidePlan::LookHere(double X, double Z) const
 {
 	if (!Britain()) return WorldLook();   // [stage 8]
+	if (const LocalLook* Street = StreetLookAt(X, Z)) return *Street;   // [towns stage 8]
 	if (const LocalLook* Town = TownLookAt(X, Z)) return *Town;   // [towns stage 1]
 	if (const LocalLook* Held = AtlasLookAt(X, Z)) return *Held;  // [towns stage 5]
 	const Geo Here = Frame(Area.Roads.FrameLat, Area.Roads.FrameLon).ToGeo(X, Z);
@@ -354,7 +355,10 @@ void RidePlan::HedgePlants(const P2& A, const P2& B, double Ya, double Yb, doubl
 {
 	const double Len = A.DistanceTo(B);
 	if (Len < 0.4) return;
-	const int Count = std::max(1, int(std::lround(Len / 3.9)));
+	// ([156] spaced by their scale: a bank's smaller hedge was planted 3.9 m apart at 2.9 m long, in blocks
+	// with gaps between, beenster at Hayle)
+	const double Spacing = 3.9 * std::clamp(Size, 0.3, 1.0);
+	const int Count = std::max(1, int(std::lround(Len / Spacing)));
 	const double Yaw0 = std::atan2(B.Z - A.Z, B.X - A.X);
 	for (int K = 0; K < Count; ++K)
 	{
@@ -368,7 +372,7 @@ void RidePlan::HedgePlants(const P2& A, const P2& B, double Ya, double Yb, doubl
 		P.Y = float(Ya + (Yb - Ya) * T + Down);
 		P.Yaw = float(Yaw0 + (Roll < 0.5 ? 0.0 : 3.141592653589793));
 		// (as long as its share of the piece, a little over so the lengths meet; 0.55 at the least)
-		P.Scale = float(Size * std::clamp(Len / Count / 3.9, 0.55, 1.12) * (0.94 + 0.12 * RideSceneBits::Chance(At.X, At.Z, 72)));
+		P.Scale = float(Size * std::clamp(Len / Count / Spacing, 0.55, 1.12) * (0.94 + 0.12 * RideSceneBits::Chance(At.X, At.Z, 72)));
 		P.Height = 0.0f;   // (Scale, not a height: PlacePlants)
 		P.Pick = float(RideSceneBits::Chance(At.X, At.Z, 73));
 		Out.Plants.push_back(P);
@@ -590,9 +594,16 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						};
 						if (Bank)
 						{
-							// (a bank about 1.4 m, a metre wide at its top, and the hedge on it; near the road its
-							// faces are stone under moss and turf, as a Cornish hedge's are)
-							const double BankHigh = 1.3 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 21);
+							// (a bank about 1.1 m, a metre wide at its top, and the hedge on it; near the road its
+							// faces are stone, as a Cornish hedge's are. [156] beenster, build 155 at Hayle: "a sort of
+							// green wall": the faces were one flat slab 1.3-1.6 m high under heavy moss, the hedge on
+							// top too small to cover it and in blocks with gaps between. Now lower, its faces in two
+							// facets (a steep stone foot, a rounder shoulder) that rise and fall a little every bit
+							// (keyed to the spot, so the next bit meets this one), the stone showing through lighter
+							// moss, and the hedge on it full width over the top)
+							const double BankHigh = 0.95 + 0.2 * Chance(F.Line[0].X, F.Line[0].Z, 21);
+							const auto BankAt = [&](const P2& Q) { return BankHigh + 0.16 * (Chance(std::round(Q.X * 0.5), std::round(Q.Z * 0.5), 24) - 0.5); };
+							const double Ha = BankAt(Pa), Hb = BankAt(Pb);
 							if (Fine && Walls)
 							{
 								Rgb Faced = Mask;
@@ -600,15 +611,16 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								for (double Sg : {1.0, -1.0})
 								{
 									const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
-									Quad(*Walls, At3(Pa.X + Side.X * Sg * 1.15, Ga - 0.4, Pa.Z + Side.Z * Sg * 1.15), At3(Pb.X + Side.X * Sg * 1.15, Gb - 0.4, Pb.Z + Side.Z * Sg * 1.15),
-										At3(Pb.X + Side.X * Sg * 0.55, Gb + BankHigh, Pb.Z + Side.Z * Sg * 0.55), At3(Pa.X + Side.X * Sg * 0.55, Ga + BankHigh, Pa.Z + Side.Z * Sg * 0.55), Far, Faced, false, 0.8f);
+									const auto Edge = [&](const P2& Q, double Gq, double Out0, double Up) { return At3(Q.X + Side.X * Sg * Out0, Gq + Up, Q.Z + Side.Z * Sg * Out0); };
+									Quad(*Walls, Edge(Pa, Ga, 1.05, -0.4), Edge(Pb, Gb, 1.05, -0.4), Edge(Pb, Gb, 0.86, Hb * 0.55), Edge(Pa, Ga, 0.86, Ha * 0.55), Far, Faced, false, 0.3f);
+									Quad(*Walls, Edge(Pa, Ga, 0.86, Ha * 0.55), Edge(Pb, Gb, 0.86, Hb * 0.55), Edge(Pb, Gb, 0.55, Hb), Edge(Pa, Ga, 0.55, Ha), Far, Faced, false, 0.55f);
 								}
-								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + BankHigh, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + BankHigh, Pb.Z + Side.Z * 0.55),
-									At3(Pb.X - Side.X * 0.55, Gb + BankHigh, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + BankHigh, Pa.Z - Side.Z * 0.55), Sky, Turf);
-								if (RealHedges) HedgePlants(Pa, Pb, Ga + BankHigh, Gb + BankHigh, -0.25, 0.7, Out);
-								else Leafy(BankHigh - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
+								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + Ha, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + Hb, Pb.Z + Side.Z * 0.55),
+									At3(Pb.X - Side.X * 0.55, Gb + Hb, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + Ha, Pa.Z - Side.Z * 0.55), Sky, Turf);
+								if (RealHedges) HedgePlants(Pa, Pb, Ga + Ha, Gb + Hb, -0.2, 0.9, Out);
+								else Leafy(std::fmin(Ha, Hb) - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
 							}
-							else Stretch(1.15, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
+							else Stretch(1.05, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
 							continue;
 						}
 						if (Hedge && Fine && RealHedges)
@@ -2863,6 +2875,33 @@ void RidePlan::IndexRails()
 						if (Lifted[K] || (K > 0 && Lifted[K - 1]) || (K + 1 < Y.size() && Lifted[K + 1]))
 							if (Run.On[K] == 3 || Run.On[K] == 0) Run.On[K] = 1;
 				}
+				// ([156] beenster, build 155 at Portreath: "Bridge half finished". A disused mineral tramway's incline, far
+				// steeper than 1 in 40, was held to 1 in 40 all the same: a bank 20 m over the valley, then a
+				// viaduct 30 m up that stopped in mid-air where the map's line ends. Off a bridge or a tunnel a
+				// disused line now keeps within RailDeepest of the land, as steep as 1 in 8 (an incline, as such
+				// lines were), and where it ends without meeting another, it comes down to the ground over
+				// its last 40 m; a bridge that runs to its end stands on an abutment there, RailTile)
+				if (Gone)
+				{
+					constexpr double RailDeepest = 9.0, EndEase = 40.0;
+					for (size_t K = 0; K < Y.size(); ++K)
+					{
+						if (Run.On[K] == 1 || Run.On[K] == 2 || Run.On[K] == 3 || std::isnan(Lie[From + K])) continue;
+						const double Land0 = Lie[From + K];
+						const double FromEnd = double(std::min(K, Y.size() - 1 - K)) * RailStep;
+						const double Te = std::clamp(FromEnd / EndEase, 0.0, 1.0);
+						const double Most = RailDeepest * Te * Te * (3.0 - 2.0 * Te) + 0.3;
+						Y[K] = std::clamp(Y[K], Land0 - Most, Land0 + Most);
+					}
+					// (then no steeper than 1 in 8, as an incline's rope or a mineral line's locomotives managed)
+					const double Steep = RailStep / 8.0;
+					std::vector<double> Lo2 = Y, Hi2 = Y;
+					for (size_t K = 1; K < Y.size(); ++K) { Lo2[K] = std::fmin(Lo2[K], Lo2[K - 1] + Steep); Hi2[K] = std::fmax(Hi2[K], Hi2[K - 1] - Steep); }
+					for (size_t K = Y.size() - 1; K-- > 0;) { Lo2[K] = std::fmin(Lo2[K], Lo2[K + 1] + Steep); Hi2[K] = std::fmax(Hi2[K], Hi2[K + 1] - Steep); }
+					for (size_t K = 0; K < Y.size(); ++K) Y[K] = (Lo2[K] + Hi2[K]) * 0.5;
+					Spans();
+					for (size_t K = 0; K < Y.size(); ++K) Y[K] = std::fmax(std::fmin(Y[K], Ceiling[K]), Floor[K]);
+				}
 				Run.Top = Y;
 				// (the room for its bank each side: to the nearest house, less 1.5 m)
 				Run.Room.assign(Y.size(), 1e9f);
@@ -3074,7 +3113,9 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 						Strip(Out, Run, I, -2.8, -1.25, 2.8, -1.25, Beside(Run, I, 0.0, -100.0), Girder, -1.0f);
 					}
 					// A pier (every 16 m from the bridge's start, not on a road) or an abutment (where it meets the ground).
-					const bool Abutment = Oa != 1 || Ob != 1;
+					// ([156] and where the line ends on the bridge, an abutment there: beenster at Portreath, "Bridge half finished")
+					const bool EndA = I == 0 && Oa == 1, EndB = I + 2 == Run.At.size() && Ob == 1;
+					const bool Abutment = Oa != 1 || Ob != 1 || EndA || EndB;
 					const bool Pier = Oa == 1 && (I - First) % 4 == 0 && High > 2.5;
 					if (!Abutment && !Pier) return;
 					NearOpts Opts;
@@ -3083,7 +3124,7 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 					const P2 Along = (B - A) * (1.0 / A.DistanceTo(B));
 					const double Thick = Abutment ? 0.9 : 1.0, Wide = Abutment ? 3.6 : 2.6;
 					const double TopY = Abutment ? Ya - 0.3 : Viaduct ? Spring + 0.01 : Ya - 1.2;
-					const P2 C = Oa != 1 ? B : A;   // (an abutment where the deck meets the ground)
+					const P2 C = EndB ? B : EndA ? A : Oa != 1 ? B : A;   // (an abutment where the deck meets the ground)
 					const double Foot = Abutment ? Ground(C.X, C.Z) : Under;
 					if (std::isnan(Foot)) return;
 					const P3 Mid3 = At3(C.X, (Foot + TopY) * 0.5, C.Z);

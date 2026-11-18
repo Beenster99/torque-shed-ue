@@ -37,6 +37,11 @@ class Baker:
                 if path.rsplit("/", 1)[-1].startswith("SM_"):
                     self.trees.append("%s.%s" % (path, path.rsplit("/", 1)[-1]))
         self.trees.sort()
+        # ([round 155] -TorqueImpostorLimit=N: bake only the first N trees, to try one safely first)
+        import re
+        m = re.search(r"torqueimpostorlimit=(\d+)", unreal.SystemLibrary.get_command_line().lower())
+        if m:
+            self.trees = self.trees[:int(m.group(1))]
         self.ticks = 0
         self.at = -1
         self.done = 0
@@ -86,11 +91,14 @@ class Baker:
         if True:
             world = IMP._world()
             # (full mips at once, so the captures aren't of half-streamed trees)
-            for cmd in ("r.TextureStreaming 0", "r.Streaming.FullyLoadUsedTextures 1"):
+            # ([round 155] the GPU hang's last work was the skin cache: off while baking)
+            for cmd in ("r.SkinCache.Mode 0", "r.TextureStreaming 0", "r.Streaming.FullyLoadUsedTextures 1"):
                 unreal.SystemLibrary.execute_console_command(world, cmd)
             if not unreal.EditorAssetLibrary.does_directory_exist(IMP.IMP_DIR):
                 unreal.EditorAssetLibrary.make_directory(IMP.IMP_DIR)
+            IMP.log("setup: master material")
             IMP.master_material()
+            IMP.log("setup: master material done")
             self.at = 0
             IMP.log("editor up after %d ticks: baking" % self.ticks)
 

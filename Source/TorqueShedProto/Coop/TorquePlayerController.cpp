@@ -8,6 +8,7 @@
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
+#include "GameFramework/GameModeBase.h"
 #include "TorqueSettings.h"
 #include "TorqueKeys.h"
 #include "TorqueGameState.h"
@@ -31,6 +32,8 @@
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueProfile.h"
 #include "Shed/TorqueProfilePreview.h"
+#include "CanvasItem.h"
+#include "RenderUtils.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -332,6 +335,10 @@ bool ATorquePlayerController::IsMenuUp() const
 
 void ATorquePlayerController::Open(EPage P)
 {
+	// [profile] The Profile page is Settings > Profile now (build 155 feedback): the badge and the
+	// pause menu's Profile open that tab.
+	if (P == EPage::Profile) P = EPage::Character;
+	if (P == Page) return;
 	DropRow = DropCell = -1;
 	if (Page != EPage::None) Stack.Add(Page);
 	Page = P;
@@ -629,14 +636,30 @@ FString ATorquePlayerController::TestMenu(const FString& Which)
 	Open(EPage::Pause);
 	FString Tab;
 	const FString Base = Which.Split(TEXT(":"), nullptr, &Tab) ? Which.Left(Which.Find(TEXT(":"))) : Which;
-	if (Base == TEXT("profile")) Open(EPage::Profile);
+	if (Base == TEXT("profile"))
+	{
+		// "profile", or "profile:face" / "profile:helmet": the first row of that part picked (its view
+		// in the picture, and for the helmet the colour picker).
+		Open(EPage::Profile);
+		const TArray<FRow> List = Rows();
+		for (int32 I = 0; I < List.Num(); ++I)
+			if ((Tab == TEXT("helmet") && List[I].bHelmet) || (Tab == TEXT("face") && List[I].bFace))
+			{
+				Selected = I;
+				break;
+			}
+		UpdateProfilePreview();
+		const ATorqueProfilePreview* Pv = Preview.Get();
+		return FString::Printf(TEXT("menu: profile (Settings > Profile, %d rows, row %d '%s'); %s"), List.Num(), Selected,
+			List.IsValidIndex(Selected) ? *List[Selected].Label : TEXT(""), Pv ? *Pv->Describe() : TEXT("no profile preview"));
+	}
 	else if (Base == TEXT("settings"))
 	{
-		// "settings:<tab>": graphics, sound, gameplay, controller, character, or keys / padcheck.
-		static const TCHAR* Names[] = {TEXT("graphics"), TEXT("sound"), TEXT("gameplay"), TEXT("controller"), TEXT("character")};
-		static const EPage Pages[] = {EPage::Graphics, EPage::Sound, EPage::Gameplay, EPage::Controller, EPage::Character};
+		// "settings:<tab>": graphics, sound, gameplay, controller, profile (or character), or keys / padcheck.
+		static const TCHAR* Names[] = {TEXT("graphics"), TEXT("sound"), TEXT("gameplay"), TEXT("controller"), TEXT("character"), TEXT("profile")};
+		static const EPage Pages[] = {EPage::Graphics, EPage::Sound, EPage::Gameplay, EPage::Controller, EPage::Character, EPage::Character};
 		EPage Want = EPage::Graphics;
-		for (int32 I = 0; I < 5; ++I)
+		for (int32 I = 0; I < 6; ++I)
 			if (Tab == Names[I]) Want = Pages[I];
 		if (Tab == TEXT("keys") || Tab == TEXT("padcheck"))
 		{
@@ -661,7 +684,7 @@ FString ATorquePlayerController::TestMenu(const FString& Which)
 				}
 		return TEXT("menu: route planner");
 	}
-	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, settings[:graphics|sound|gameplay|controller|character|keys|padcheck], keys, credits, route[:<famous road>] or close (opened the pause menu)");
+	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, profile[:face|helmet], settings[:graphics|sound|gameplay|controller|profile|keys|padcheck], keys, credits, route[:<famous road>] or close (opened the pause menu)");
 	return FString::Printf(TEXT("menu: %s (page shows %d rows)"), *Which, Rows().Num());
 }
 
@@ -788,8 +811,8 @@ bool ATorquePlayerController::WantsPause()
 
 namespace
 {
-// Settings is Torque Shed's tabs: Graphics, Sound, Gameplay, Controller, Character.
-const TCHAR* TabNames[] = {TEXT("Graphics"), TEXT("Sound"), TEXT("Gameplay"), TEXT("Controller"), TEXT("Character")};
+// Settings is Torque Shed's tabs: Graphics, Sound, Gameplay, Controller, Profile (was Character).
+const TCHAR* TabNames[] = {TEXT("Graphics"), TEXT("Sound"), TEXT("Gameplay"), TEXT("Controller"), TEXT("Profile")};
 } // namespace
 
 int32 ATorquePlayerController::TabIndex() const
@@ -855,6 +878,7 @@ FString ATorquePlayerController::Title() const
 {
 	if (Page == EPage::Pause) return TEXT("PAUSED");
 	if (Page == EPage::RideBike) return TEXT("WHICH BIKE?");
+	if (Page == EPage::JoinRide) return TEXT("JOIN THE RIDE");
 	if (Page == EPage::Profile) return TEXT("PROFILE");   // [profile]
 	if (Page == EPage::Keys) return TEXT("KEY BINDINGS");
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
@@ -937,9 +961,16 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	case EPage::Pause:
 	{
 		Add(TEXT("Continue"), FString(), FString(), [this]() { CloseMenu(); });
-		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Character"), [this]() { Open(EPage::Graphics); });
-		// [profile] (also the picture top right)
-		Add(TEXT("Profile"), FString(), TEXT("Your character: which MetaHuman you are, your height and your face"), [this]() { Open(EPage::Profile); });
+		// [co-op] Waiting in our own shed after joining a friend out riding: back to their ride.
+		if (GetNetMode() == NM_Standalone && Session && Session->CanRejoin())
+			Add(Session->RejoinHost.IsEmpty() ? FString(TEXT("Rejoin the ride")) : FString::Printf(TEXT("Rejoin %s's ride"), *Session->RejoinHost), FString(),
+				TEXT("Back to the co-op ride you left: pick your bike and join them on the road"), [this, Session]() {
+					CloseMenu();
+					Session->Rejoin();
+				});
+		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Profile"), [this]() { Open(EPage::Graphics); });
+		// [profile] (also the picture top right): Settings > Profile
+		Add(TEXT("Profile"), FString(), TEXT("You: your name, colour, riding style, your MetaHuman and your helmet"), [this]() { Open(EPage::Character); });
 		ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn());
 		ATorqueWalker* Walker = Cast<ATorqueWalker>(GetPawn());
 		if (Bike && Bike->InYard())
@@ -1053,6 +1084,30 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		});
 		break;
 	}
+	case EPage::JoinRide:
+	{
+		// [co-op] Joined while the host is out riding: pick a bike from the shed, then join them on
+		// it, or wait in your own shed and rejoin when you like.
+		UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		if (Shed && (!Shed->Exists(JoinBay) || !RideBikeTakenBy(JoinBay).IsEmpty())) JoinBay = NextRideBike(JoinBay < 0 ? -1 : JoinBay, 1);
+		const bool bHaveBike = Shed && Shed->Exists(JoinBay) && RideBikeTakenBy(JoinBay).IsEmpty();
+		Add(TEXT("Your bike"), bHaveBike ? RideBikeName(JoinBay) : FString(TEXT("none free in the shed")),
+			TEXT("Left / Right: which of the shed's bikes you ride (one nobody else is on)"),
+			[this]() { JoinBay = NextRideBike(JoinBay, 1); },
+			[this](int32 Dir) { JoinBay = NextRideBike(JoinBay, Dir); });
+		Add(TEXT("Join the ride"), FString(), TEXT("Out on the road with everyone, on the bike above"), [this, Shed, bHaveBike]() {
+			if (Shed && bHaveBike) Shed->SetMyBike(JoinBay);
+			bChoosingRide = false;
+			CloseMenu();
+			ServerJoinRide(bHaveBike ? JoinBay : INDEX_NONE);
+		});
+		Add(TEXT("Wait in my shed"), FString(), TEXT("Leave for now, to your own shed: its pause menu rejoins this ride"), [this]() {
+			bChoosingRide = false;
+			CloseMenu();
+			if (UTorqueSession* S = UTorqueSession::Get(this)) S->WaitInShed(this);
+		});
+		break;
+	}
 	case EPage::RideBike:
 	{
 		// [co-op] Which bike to ride over Buttertubs: every bike in the shed (one another rider has
@@ -1084,7 +1139,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Sound"), FString(), TEXT("Everything, sound effects, engines, the world around and the radio"), [this]() { Open(EPage::Sound); });
 		Add(TEXT("Gameplay"), FString(), TEXT("Riding, field of view, camera, units, time and weather"), [this]() { Open(EPage::Gameplay); });
 		Add(TEXT("Controller"), FString(), TEXT("Look speeds, invert, the lean stick, key bindings and a controller check"), [this]() { Open(EPage::Controller); });
-		Add(TEXT("Character"), FString(), TEXT("Your name, colour and riding style, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
+		Add(TEXT("Profile"), FString(), TEXT("Your name, colour, riding style, MetaHuman and helmet, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Graphics:
@@ -1636,6 +1691,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	}
 	case EPage::Character:
 	{
+		Heading(TEXT("YOU"));
 		FRow Name;
 		Name.Label = TEXT("Name");
 		Name.Value = (S.Name.IsEmpty() ? FString() : S.Name) + (FMath::Fmod(Clock, 1.0) < 0.5 ? TEXT("_") : TEXT(" "));
@@ -1651,10 +1707,10 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			Setting(TEXT("Riding style"), St.Name, FString(St.Desc) + TEXT(" Only looks: the bike rides the same."),
 				[&S](int32 D) { S.RiderStyle = Wrap(S.RiderStyle + D, FTorqueSettings::RiderStyles().Num()); });
 		}
-		Add(TEXT("Profile"), FString(), TEXT("Your MetaHuman, height and face (also the picture top right of the Esc menu)"),
-			[this]() { Changed(); Open(EPage::Profile); });   // [profile]
-		break;
+		// [profile] (build 155 feedback) The Profile page is this tab: you above, then your avatar and
+		// your helmet, each shown big beside the rows (the shop's mouse controls work the picture).
 	}
+		[[fallthrough]];
 	case EPage::Profile:   // [profile] Torque Shed's profile panel, with the MetaHuman's face
 	{
 		FTorqueProfile& Me = FTorqueProfile::Mine();
@@ -1683,7 +1739,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		{
 			const ATorqueProfilePreview* Pv = Preview.Get();
 			const FString Own = FTorqueAvatar::NameOf(Me.AvatarFor(S.Colour));
-			Heading(TEXT("CHARACTER"));
+			Heading(TEXT("AVATAR"));
 			Add(TEXT("Who"), Me.Avatar < 0 ? FString::Printf(TEXT("%s (goes with my colour)"), *Own) : Own,
 				TEXT("Which MetaHuman you are, in the shed and on the bike: everyone in co-op sees you as them"),
 				[this, &Me, NumAv]() { Me.Avatar = Wrap(Me.Avatar + 2, NumAv + 1) - 1; ProfileChanged(); },
@@ -1696,10 +1752,14 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			Add(TEXT("Reset the face"), FString(), TEXT("Back to the MetaHuman's own face"), [this, &Me]() { Me.ResetFace(); ProfileChanged(); });
 			R.Last().bFace = true;
 		}
-		// [helmet plan, stage 1] Your helmet's paint: a named colour, or any colour from the three
-		// sliders, in one of four finishes. Everyone in co-op sees it on your helmet.
+		// [helmet plan, stage 1] Your helmet: which one (one so far; the list is ready for more), its
+		// paint (as it came, a named colour, or any colour from the picker beside the picture) and its
+		// finish. Everyone in co-op sees it on your helmet.
 		{
 			Heading(TEXT("HELMET"));
+			static const TCHAR* Helmets[] = {TEXT("Racing full-face")};   // more shells come with the helmet plan's stage 4
+			Add(TEXT("Helmet"), Helmets[0], TEXT("Which helmet you wear (more to come)"), nullptr, [](int32) {});
+			R.Last().bHelmet = true;
 			const int32 Swatch = Me.HelmetSwatch();
 			const FString PaintName = Swatch == -2 ? FString(TEXT("As it came")) : Swatch == -1 ? FString(TEXT("Your own colour"))
 				: FString(FTorqueProfile::HelmetSwatches[Swatch].Name);
@@ -1710,30 +1770,14 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				Me.SetHelmetSwatch(Wrap(From + 1 + D, (int32)FTorqueProfile::NumHelmetSwatch + 1) - 1);
 				ProfileChanged();
 			};
-			Add(TEXT("Helmet paint"), PaintName, TEXT("As the helmet came, or a colour of your own: everyone in co-op sees it"),
+			Add(TEXT("Helmet colour"), PaintName, TEXT("As the helmet came, a named colour, or any colour: pick it in the square and the strip beside the picture"),
 				[StepPaint]() { StepPaint(1); }, StepPaint);
-			if (Me.bHelmetPainted)
-			{
-				Add(TEXT("Finish"), FTorqueProfile::HelmetFinishName(Me.HelmetFinish), TEXT("Gloss, matt, metallic flake, or pearl that shifts colour at the edges"),
-					[this, &Me]() { Me.HelmetFinish = Wrap(Me.HelmetFinish + 1, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); },
-					[this, &Me](int32 D) { Me.HelmetFinish = Wrap(Me.HelmetFinish + D, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); });
-				// A 0..1 slider, dragged or stepped with Left / Right.
-				auto PaintSlide = [this, &R](const FString& Label, float& V, const FString& Hint) {
-					float* Ptr = &V;
-					FRow Row;
-					Row.Label = Label;
-					Row.Value = FString::Printf(TEXT("%.0f%%"), V * 100.0f);
-					Row.Hint = Hint;
-					Row.Step = [this, Ptr](int32 Dir) { *Ptr = StepF(*Ptr, Dir, 0.02f, 0.0f, 1.0f); ProfileChanged(); };
-					Row.Frac = FMath::Clamp(V, 0.0f, 1.0f);
-					Row.SetFrac = [Ptr](float F) { *Ptr = FMath::Clamp(F, 0.0f, 1.0f); };
-					Row.Commit = [this]() { ProfileChanged(); };
-					R.Add(MoveTemp(Row));
-				};
-				PaintSlide(TEXT("Hue"), Me.HelmetHue, TEXT("Round the colour wheel: red, yellow, green, blue, purple and back to red"));
-				PaintSlide(TEXT("Richness"), Me.HelmetSat, TEXT("From grey to the full colour"));
-				PaintSlide(TEXT("Brightness"), Me.HelmetVal, TEXT("From near black to bright"));
-			}
+			R.Last().bHelmet = true;
+			Add(TEXT("Finish"), Me.bHelmetPainted ? FString(FTorqueProfile::HelmetFinishName(Me.HelmetFinish)) : FString(TEXT("As it came")),
+				TEXT("Gloss, matt, metallic flake, or pearl that shifts colour at the edges (on a colour of your own)"),
+				[this, &Me]() { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + 1, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); },
+				[this, &Me](int32 D) { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + D, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); });
+			R.Last().bHelmet = true;
 		}
 		break;
 	}
@@ -1785,6 +1829,8 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 		const FTorqueSettings& Set = FTorqueSettings::Get();
 		if (!Set.bAvatarShadows) Set.ApplyAvatarShadows(GetWorld());
 	}
+	// [co-op] The join page stays up until a bike's picked (Esc doesn't leave a rider with nothing).
+	if (bChoosingRide && !IsMenuUp()) Open(EPage::JoinRide);
 	UpdateCursor();
 	SyncRideJourney();
 	ReadMenuInput(DeltaTime);
@@ -1931,6 +1977,20 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 		}
 		if (Just(EKeys::MouseScrollUp)) MoveY = -1;
 		if (Just(EKeys::MouseScrollDown)) MoveY = 1;
+		// [profile] The big picture on the Profile page works as the shop's preview: drag to turn it,
+		// the wheel zooms, right-click stops or starts the turning; and the helmet's colour picker.
+		if (IsProfilePage() && DragRow < 0 && Mouse.X >= 0.0)
+		{
+			if (HelmetPickerMouse(Mouse, Just(EKeys::LeftMouseButton))) return;
+			if (ATorqueProfilePreview* Pv = Preview.Get())
+			{
+				Pv->Hold(Mouse, IsInputKeyDown(EKeys::LeftMouseButton));
+				if (Pv->IsDragging()) return;
+				if (MoveY != 0 && Pv->Wheel(Mouse, MoveY)) MoveY = 0;
+				if (Just(EKeys::LeftMouseButton) && Pv->Press(Mouse)) return;
+				if (Just(EKeys::RightMouseButton) && Pv->RightPress(Mouse)) return;
+			}
+		}
 		// [profile] A slider dragged: the value follows the pointer along its track until let go.
 		if (DragRow >= 0)
 		{
@@ -1957,8 +2017,8 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 			if (Over->Kind == FTorqueMenuHits::Badge)   // [profile] the picture top right: your profile, or back from it
 			{
 				if (bTyping) Changed();
-				if (Page == EPage::Profile) Back();
-				else Open(EPage::Profile);
+				if (IsProfilePage()) Back();
+				else Open(EPage::Character);   // Settings > Profile
 				return;
 			}
 			if (Over->Kind == FTorqueMenuHits::BackKey)
@@ -2334,15 +2394,29 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	// The description: the row picked, what it does; the pause menu's session; the profile's picture.
 	const float DX0 = L.X(DescX0), DX1 = L.X(DescX1), DW = DX1 - DX0, In = L.W(28);
 	Ui::Rect(Canvas, DX0, Top, DW, Bottom - Top, FLinearColor(1, 1, 1, 0.03f));
-	if (Page == EPage::Profile)
+	if (IsProfilePage())
 	{
-		// [profile] You, big, beside the sliders.
-		const ATorqueProfilePreview* Pv = Preview.Get();
-		const float PH = Bottom - Top - L.W(32), PW = FMath::Min(DW - L.W(32), PH * 0.75f);
+		// [profile] You (or your helmet), big, beside the rows; on a helmet row the colour picker under it.
+		ATorqueProfilePreview* Pv = Preview.Get();
+		const bool bPicker = List.IsValidIndex(Selected) && List[Selected].bHelmet;
+		const float PickH = bPicker ? L.W(230) : 0.0f;
+		const float HintH = L.W(26);
+		const float PH = Bottom - Top - L.W(32) - PickH - HintH, PW = FMath::Min(DW - L.W(32), PH * 0.75f);
+		const float PX = 0.5f * (DX0 + DX1 - PW), PY = Top + L.W(16);
 		if (Pv && Pv->HasAvatar())
-			Pv->Draw(Canvas, 0.5f * (DX0 + DX1 - PW), Top + L.W(16), PW, PH, false);
+		{
+			Pv->DrawWorked(Canvas, PX, PY, PW, PH);
+			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
+				Ui::EAlign::Centre);
+		}
 		else
 			Ui::TextWrap(Canvas, TEXT("Your MetaHuman shows here once the avatars are in this build."), DX0 + In, Top + In, L.W(19), DW - 2.0f * In, Ui::Dim);
+		if (bPicker) DrawHelmetPicker(Canvas, DX0 + In, Bottom - PickH - L.W(8), DW - 2.0f * In, PickH, L.S);
+		else
+		{
+			PickSquare = PickHue = FBox2D(ForceInit);
+			PickSwatches.Reset();
+		}
 	}
 	else
 	{
@@ -2441,6 +2515,145 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	DrawProfile(Hud, Canvas);   // [profile] the badge
 }
 
+namespace TorqueProfilePick
+{
+// A W x H patch shaded smoothly by ColourAt(U, V) (U across, V down, 0..1), as the shop's colour
+// picker draws its square and strip: a fine mesh of triangles, each corner its own colour.
+template <typename FColourAt>
+void Gradient(UCanvas* Canvas, float X, float Y, float W, float H, int32 Nx, int32 Ny, FColourAt&& ColourAt)
+{
+	if (!Canvas || W <= 0.0f || H <= 0.0f) return;
+	TArray<FLinearColor> Corner;
+	Corner.SetNum((Nx + 1) * (Ny + 1));
+	for (int32 J = 0; J <= Ny; ++J)
+		for (int32 I = 0; I <= Nx; ++I) Corner[J * (Nx + 1) + I] = ColourAt((float)I / Nx, (float)J / Ny);
+	TArray<FCanvasUVTri> Tris;
+	Tris.Reserve(Nx * Ny * 2);
+	for (int32 J = 0; J < Ny; ++J)
+		for (int32 I = 0; I < Nx; ++I)
+		{
+			const FVector2D P00(X + W * I / Nx, Y + H * J / Ny), P10(X + W * (I + 1) / Nx, Y + H * J / Ny);
+			const FVector2D P01(X + W * I / Nx, Y + H * (J + 1) / Ny), P11(X + W * (I + 1) / Nx, Y + H * (J + 1) / Ny);
+			const FLinearColor& C00 = Corner[J * (Nx + 1) + I];
+			const FLinearColor& C10 = Corner[J * (Nx + 1) + I + 1];
+			const FLinearColor& C01 = Corner[(J + 1) * (Nx + 1) + I];
+			const FLinearColor& C11 = Corner[(J + 1) * (Nx + 1) + I + 1];
+			FCanvasUVTri A;
+			A.V0_Pos = P00; A.V0_Color = C00;
+			A.V1_Pos = P10; A.V1_Color = C10;
+			A.V2_Pos = P11; A.V2_Color = C11;
+			Tris.Add(A);
+			FCanvasUVTri B;
+			B.V0_Pos = P00; B.V0_Color = C00;
+			B.V1_Pos = P11; B.V1_Color = C11;
+			B.V2_Pos = P01; B.V2_Color = C01;
+			Tris.Add(B);
+		}
+	FCanvasTriangleItem Item(Tris, GWhiteTexture);
+	Item.BlendMode = SE_BLEND_Opaque;
+	Canvas->DrawItem(Item);
+}
+} // namespace TorqueProfilePick
+
+// [profile] The helmet's colour, as the shop's picker: the square (richness across, brightness up)
+// for the hue picked in the strip beside it, and the named colours (the first: as it came).
+void ATorquePlayerController::DrawHelmetPicker(UCanvas* Canvas, float X, float Y, float W, float H, float Px)
+{
+	namespace Ui = TorqueUi;
+	const FTorqueProfile& Me = FTorqueProfile::Mine();
+	const float Gap = 10.0f * Px, TitleH = 26.0f * Px;
+	Ui::Text(Canvas, Me.bHelmetPainted ? FString::Printf(TEXT("HELMET COLOUR  (%s)"), FTorqueProfile::HelmetFinishName(Me.HelmetFinish))
+		: FString(TEXT("HELMET COLOUR  (as it came)")), X, Y, 15.0f * Px, Ui::Accent, true);
+	const float CY = Y + TitleH, SqH = H - TitleH, SqW = FMath::Min(SqH * 1.35f, W * 0.52f), HueW = 22.0f * Px;
+	const float Hue = Me.HelmetHue;
+	const float Fade = Me.bHelmetPainted ? 1.0f : 0.45f;   // as it came: shown, but not the colour worn
+	TorqueProfilePick::Gradient(Canvas, X, CY, SqW, SqH, 24, 24,
+		[Hue, Fade](float U, float V) { return FTorqueProfile::HsvColour(Hue, U, (1.0f - V) * Fade); });
+	Ui::Frame(Canvas, X - 1.0f, CY - 1.0f, SqW + 2.0f, SqH + 2.0f, Ui::Line, 1.0f);
+	PickSquare = FBox2D(FVector2D(X, CY), FVector2D(X + SqW, CY + SqH));
+	if (Me.bHelmetPainted)
+	{
+		const float MX = X + Me.HelmetSat * SqW, MY = CY + (1.0f - Me.HelmetVal) * SqH, R = 6.0f * Px;
+		Ui::Frame(Canvas, MX - R - Px, MY - R - Px, 2.0f * R + 2.0f * Px, 2.0f * R + 2.0f * Px, FLinearColor(0, 0, 0, 0.7f), Px);
+		Ui::Frame(Canvas, MX - R, MY - R, 2.0f * R, 2.0f * R, FLinearColor::White, 2.0f * Px);
+	}
+	const float HueX = X + SqW + Gap;
+	TorqueProfilePick::Gradient(Canvas, HueX, CY, HueW, SqH, 1, 72, [](float, float V) { return FTorqueProfile::HsvColour(V, 1.0f, 1.0f); });
+	Ui::Frame(Canvas, HueX - 1.0f, CY - 1.0f, HueW + 2.0f, SqH + 2.0f, Ui::Line, 1.0f);
+	PickHue = FBox2D(FVector2D(HueX - 3.0f * Px, CY), FVector2D(HueX + HueW + 3.0f * Px, CY + SqH));
+	{
+		const float MY = CY + Me.HelmetHue * SqH;
+		Ui::Frame(Canvas, HueX - 4.0f * Px, MY - 4.0f * Px, HueW + 8.0f * Px, 8.0f * Px, FLinearColor(0, 0, 0, 0.7f), Px);
+		Ui::Frame(Canvas, HueX - 3.0f * Px, MY - 3.0f * Px, HueW + 6.0f * Px, 6.0f * Px, FLinearColor::White, 2.0f * Px);
+	}
+	// The named colours: as it came first (crossed), then the sixteen, four across.
+	PickSwatches.Reset();
+	const float SX = HueX + HueW + 2.0f * Gap, SW = X + W - SX;
+	const int32 Across = 4, Count = 1 + (int32)FTorqueProfile::NumHelmetSwatch, Down = (Count + Across - 1) / Across;
+	const float Cell = FMath::Min(SW / Across, SqH / Down), Sw = Cell - 6.0f * Px;
+	const int32 On = Me.HelmetSwatch();
+	for (int32 I = 0; I < Count; ++I)
+	{
+		const float BX = SX + (I % Across) * Cell, BY = CY + (I / Across) * Cell;
+		const bool bThis = I == 0 ? On == -2 : On == I - 1;
+		if (I == 0)
+		{
+			Ui::Rect(Canvas, BX, BY, Sw, Sw, FLinearColor(0.08f, 0.08f, 0.09f, 1.0f));
+			Ui::Text(Canvas, TEXT("Orig"), BX + 0.5f * Sw, BY + 0.5f * Sw - 7.0f * Px, 12.0f * Px, Ui::Dim, false, Ui::EAlign::Centre);
+		}
+		else
+		{
+			const FTorqueProfile::FHelmetSwatch& Sc = FTorqueProfile::HelmetSwatches[I - 1];
+			Ui::Rect(Canvas, BX, BY, Sw, Sw, FTorqueProfile::HsvColour(Sc.Hue, Sc.Sat, Sc.Val));
+		}
+		Ui::Frame(Canvas, BX - Px, BY - Px, Sw + 2.0f * Px, Sw + 2.0f * Px, bThis ? Ui::Accent : FLinearColor(1, 1, 1, 0.18f), bThis ? 2.0f * Px : Px);
+		PickSwatches.Add(FBox2D(FVector2D(BX, BY), FVector2D(BX + Sw, BY + Sw)));
+	}
+}
+
+bool ATorquePlayerController::HelmetPickerMouse(const FVector2D& Mouse, bool bJustDown)
+{
+	FTorqueProfile& Me = FTorqueProfile::Mine();
+	auto SetFromMouse = [this, &Me, &Mouse]() {
+		if (PickDrag == 1 && PickSquare.bIsValid)
+		{
+			const FVector2D Sz = PickSquare.GetSize();
+			Me.HelmetSat = FMath::Clamp((float)((Mouse.X - PickSquare.Min.X) / FMath::Max(Sz.X, 1.0)), 0.0f, 1.0f);
+			Me.HelmetVal = 1.0f - FMath::Clamp((float)((Mouse.Y - PickSquare.Min.Y) / FMath::Max(Sz.Y, 1.0)), 0.0f, 1.0f);
+		}
+		else if (PickDrag == 2 && PickHue.bIsValid)
+			Me.HelmetHue = FMath::Clamp((float)((Mouse.Y - PickHue.Min.Y) / FMath::Max(PickHue.GetSize().Y, 1.0)), 0.0f, 0.999f);
+		Me.bHelmetPainted = true;
+	};
+	if (PickDrag != 0)
+	{
+		if (IsInputKeyDown(EKeys::LeftMouseButton))
+		{
+			SetFromMouse();   // the picture follows as it moves; let go saves it and tells the others
+			return true;
+		}
+		PickDrag = 0;
+		ProfileChanged();
+		return true;
+	}
+	if (!bJustDown) return false;
+	if (PickSquare.bIsValid && PickSquare.IsInside(Mouse)) PickDrag = 1;
+	else if (PickHue.bIsValid && PickHue.IsInside(Mouse)) PickDrag = 2;
+	if (PickDrag != 0)
+	{
+		SetFromMouse();
+		return true;
+	}
+	for (int32 I = 0; I < PickSwatches.Num(); ++I)
+		if (PickSwatches[I].IsInside(Mouse))
+		{
+			Me.SetHelmetSwatch(I - 1);   // 0: as it came
+			ProfileChanged();
+			return true;
+		}
+	return false;
+}
+
 // [profile]
 void ATorquePlayerController::ProfileChanged()
 {
@@ -2452,27 +2665,29 @@ void ATorquePlayerController::ProfileChanged()
 void ATorquePlayerController::UpdateProfilePreview()
 {
 	// Filmed while the pause menu (its badge) or the Profile page is up.
-	if (Page != EPage::Pause && Page != EPage::Profile) return;
+	if (Page != EPage::Pause && !IsProfilePage()) return;
 	if (!Preview.IsValid()) Preview = ATorqueProfilePreview::For(this);
-	bool bFace = true;
-	if (Page == EPage::Profile)
+	ATorqueProfilePreview::EView Want = ATorqueProfilePreview::EView::Face;   // the badge: your face
+	if (IsProfilePage())
 	{
 		const TArray<FRow> List = Rows();
 		const int32 At = DragRow >= 0 ? DragRow : Selected;
-		bFace = List.IsValidIndex(At) && List[At].bFace;
+		const bool bHelmetRow = PickDrag != 0 || (List.IsValidIndex(At) && List[At].bHelmet);
+		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet
+			: List.IsValidIndex(At) && List[At].bFace ? ATorqueProfilePreview::EView::Face : ATorqueProfilePreview::EView::Body;
 	}
-	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(bFace, FTorqueSettings::Get().Colour);
+	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Want, FTorqueSettings::Get().Colour);
 }
 
 void ATorquePlayerController::DrawProfile(AHUD* Hud, UCanvas* Canvas)
 {
 	namespace Ui = TorqueUi;
-	if (Page != EPage::Pause && Page != EPage::Profile) return;
+	if (Page != EPage::Pause && !IsProfilePage()) return;
 	const FMenuLayout L = MenuLayout(Canvas);
 	const ATorqueProfilePreview* Pv = Preview.Get();
 	// The badge, top right of the panel: your picture, your name, and which MetaHuman you are.
 	const float BW = L.W(380), BH = L.W(76), BX = L.X(DescX1) - BW, BY = L.Y(84), Pic = BH - L.W(14);
-	const bool bOn = Page == EPage::Profile;
+	const bool bOn = IsProfilePage();
 	float MX = 0.f, MY = 0.f;
 	const bool bHot = GetMousePosition(MX, MY) && MX >= BX && MX < BX + BW && MY >= BY && MY < BY + BH;
 	Ui::Rect(Canvas, BX, BY, BW, BH, FLinearColor(1, 1, 1, bHot ? 0.09f : 0.05f));
@@ -2572,6 +2787,33 @@ void ATorquePlayerController::ClientSwappedBike_Implementation(ATorqueBikePawn* 
 	NowMine->TakeOver(Feet, Yaw, bRide);
 	ShowNote(bRide ? FString::Printf(TEXT("Riding %s's bike"), *Whose)
 		: FString::Printf(TEXT("%s took your bike: theirs is yours, where they left it"), *Whose), 4.0);
+}
+
+void ATorquePlayerController::ClientChooseRideBike_Implementation(bool bChoose)
+{
+	bChoosingRide = bChoose;
+	if (bChoose)
+	{
+		const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		JoinBay = Shed ? Shed->MyBike() : INDEX_NONE;
+		Stack.Reset();
+		Open(EPage::JoinRide);
+	}
+	else if (Page == EPage::JoinRide)
+		CloseMenu();
+}
+
+void ATorquePlayerController::ServerJoinRide_Implementation(int32 Bay)
+{
+	if (!bJoinWaiting || GetPawn()) return;
+	bJoinWaiting = false;
+	// Their pick, if it's a bike in the shed nobody else rides; else the next free one (or the default).
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (Shed && (!Shed->Exists(Bay) || !RideBikeTakenBy(Bay).IsEmpty())) Bay = NextRideBike(Bay < 0 ? -1 : Bay, 1);
+	if (Shed && !Shed->Exists(Bay)) Bay = INDEX_NONE;
+	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->Bay = Bay;
+	UE_LOG(LogTemp, Log, TEXT("Torque net: %s joins the ride on bay %d's bike"), PlayerState ? *PlayerState->GetPlayerName() : TEXT("a rider"), Bay + 1);
+	if (AGameModeBase* Mode = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr) Mode->RestartPlayer(this);
 }
 
 void ATorquePlayerController::ServerWalkBackIn_Implementation()

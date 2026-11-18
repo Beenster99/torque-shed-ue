@@ -145,10 +145,11 @@ FName FinishOf(const FPaintSpec& S);
 // Masking tape (paint_mix.gd PATTERNS, TAPE_PATTERNS): what a strip of tape on a painted part
 // keeps of the colour under it when the next colour's sprayed over. 1 a centre stripe (6 cm), 2
 // twin stripes, 3 a pinstripe round it, 4 two-tone (the top half). 0: none.
-// 5 .. 10 a FADE (beenster, 17 Nov 2026): a loose paper mask held off the part, so the colour under it
-// blends into the one sprayed over, its finish too (matt black to gloss gold): 5 .. 7 front to back
-// (the colour under kept at the front), 8 .. 10 top to bottom (kept on top), each short, medium or
-// long (FadeCm). R on the tape steps through all ten, so the player picks direction and softness.
+// (The tape itself is gone, beenster 18 Nov 2026: 1 .. 4 only stay on parts masked before.)
+// 5 .. 10 a FADE: sprayed from the gun's two cups (its Fade load), cup 1 kept at one end blending into
+// cup 2, its finish too (matt black to gloss gold): 5 .. 7 front to back (cup 1 at the front),
+// 8 .. 10 top to bottom (cup 1 on top), each short, medium or long (FadeCm). R on the gun with Fade
+// loaded steps through the six.
 constexpr int32 TapePatterns = 10;
 constexpr int32 FirstFade = 5;
 const TCHAR* PatternName(int32 Pattern);

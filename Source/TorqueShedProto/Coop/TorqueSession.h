@@ -57,6 +57,13 @@ public:
 	void LeaveSession();
 	// The pause menu's "Back to the start menu" / "Leave the ride" / "End the co-op ride".
 	void BackToTitle();
+	// [co-op] A friend joining while the host is out on the road (beenster, build 155): rather than ride
+	// now, leave and wait in their own shed, with the host's ride kept to go back to (the shed's pause
+	// menu: "Rejoin the ride", which lands on the join page again to pick a bike).
+	void WaitInShed(UObject* WorldContext);
+	FString RejoinAddress, RejoinHost;
+	bool CanRejoin() const { return !RejoinAddress.IsEmpty(); }
+	void Rejoin();
 
 	// From the shed's "ride out" (TorqueFlow::RideOut) and back: in co-op the host takes everyone
 	// (a seamless server travel); a joined rider waits for the host; alone, just go.

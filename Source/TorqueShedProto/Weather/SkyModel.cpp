@@ -75,6 +75,7 @@ const NamedNumber Numbers[] = {
 	{"v2_edge_sharp", &Looks::V2EdgeSharp}, {"v2_billow", &Looks::V2Billow}, {"v2_extinction", &Looks::V2Extinction},
 	{"v2_deck_thin", &Looks::V2DeckThin}, {"v2_detail_deep_m", &Looks::V2DetailDeepM},
 	{"v2_closed_from", &Looks::V2ClosedFrom}, {"v2_closed_full", &Looks::V2ClosedFull},
+	{"v2_detail_fade_km", &Looks::V2DetailFadeKm},
 	{"humid_from", &Looks::HumidFrom}, {"humid_swell", &Looks::HumidSwell},
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},

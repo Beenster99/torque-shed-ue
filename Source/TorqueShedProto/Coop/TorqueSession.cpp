@@ -8,6 +8,8 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Engine/NetConnection.h"
+#include "Engine/NetDriver.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -306,6 +308,43 @@ void UTorqueSession::BackToTitle()
 	// The host leaving ends the ride: the others are told the host has gone and go to their menus.
 	LeaveSession();
 	Travel(FirstMap());   // no "play": the start menu
+}
+
+void UTorqueSession::WaitInShed(UObject* WorldContext)
+{
+	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
+	if (!World || World->GetNetMode() != NM_Client) return;
+	// The host's address as we reached it (its port too, if not the usual), and whose ride it is.
+	RejoinAddress.Reset();
+	RejoinHost.Reset();
+	if (const UNetDriver* Driver = World->GetNetDriver())
+		if (Driver->ServerConnection)
+		{
+			const FURL& Url = Driver->ServerConnection->URL;
+			RejoinAddress = Url.Port > 0 && Url.Port != 7777 ? FString::Printf(TEXT("%s:%d"), *Url.Host, Url.Port) : Url.Host;
+		}
+	if (RejoinAddress.IsEmpty()) RejoinAddress = LastAddress;
+	if (const AGameStateBase* GS = World->GetGameState())
+		for (const APlayerState* PS : GS->PlayerArray)
+		{
+			const APlayerController* Me = World->GetFirstPlayerController();
+			if (PS && (!Me || PS != Me->PlayerState))
+			{
+				RejoinHost = PS->GetPlayerName();   // (the first in the list: the host)
+				break;
+			}
+		}
+	UE_LOG(LogTemp, Log, TEXT("Torque net: waiting in our own shed; %s's ride to rejoin at %s"), *RejoinHost, *RejoinAddress);
+	Status.Reset();
+	LeaveSession();
+	Travel(FirstMap() + TEXT("?play") + NameOption());
+}
+
+void UTorqueSession::Rejoin()
+{
+	const FString Addr = RejoinAddress;
+	RejoinAddress.Reset();
+	if (!Addr.IsEmpty()) JoinAddress(Addr);
 }
 
 bool UTorqueSession::IsTestRun()

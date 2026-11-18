@@ -175,6 +175,9 @@ public:
 	TorqueSpray::FFan FanAt(double Dist) const;
 	// Where the line from Eye along Dir first meets the part's own surface (its points): false if not.
 	bool SurfaceHit(const FVector& Eye, const FVector& Dir, double Width, FVector& OutAt, FVector& OutNormal, double& OutT) const;
+	// How near the line has to pass a point to count as on the surface: the points' own spacing
+	// (a big part's are sampled coarser), so the aim can't slip between them.
+	double HitWidth() const { return FMath::Max(3.5, PointSpacing * 0.8); }
 	// One frame of spraying from Eye along Dir, meeting a surface at At (bHit false: nothing). Not
 	// bFiring it only works out where the fan would land, how far off and how fast (aiming). Returns
 	// the cubes it coated.
@@ -204,6 +207,7 @@ private:
 	TArray<FVector> Points, Normals;
 	TArray<int32> Vox;
 	int32 Dropped = 0;
+	double PointSpacing = TorqueSpray::Cell;
 	// The mask (model cm).
 	double Vx = TorqueSpray::Voxel;
 	FVector Origin = FVector::ZeroVector;

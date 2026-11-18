@@ -486,18 +486,44 @@ def water_material(L):
     wn = water_normal(L)
     nt = L.noise_texture()
     if wn is not None:
-        def ripple(tiling, sx, sy, strength):
+        # [build 155] beenster: "Major tiling on the sea (pic)". The three samples were all square to the
+        # world's axes and at tilings whose repeats all met every 80 m, and the long swell never faded,
+        # so from a headland the sea was a grid of wave stripes to the horizon. Now each sample is turned
+        # its own way (by 3-4-5, 5-12-13 and 20-21-29 triangles, so a square's 10 units still land on
+        # whole repeats and the squares meet), the swell's coordinates are pushed about by the slow noise
+        # so its rows wander, and every layer, the swell too, calms with distance, the far sea a little
+        # rougher instead, which is how open water reads from a cliff. Same three texture reads.
+        def turned(tiling, ca, sa):
             uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=tiling, v_tiling=tiling)
+            u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+            v = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(uv, v)
+            mul = lambda e, k: g.op(unreal.MaterialExpressionMultiply, e, const_b=float(k))
+            ru = g.op(unreal.MaterialExpressionSubtract, mul(u, ca), mul(v, sa))
+            rv = g.op(unreal.MaterialExpressionAdd, mul(u, sa), mul(v, ca))
+            return g.op(unreal.MaterialExpressionAppendVector, ru, rv)
+
+        def ripple(coord, sx, sy, strength):
             p = g.node(unreal.MaterialExpressionPanner, speed_x=sx, speed_y=sy)
-            g.link(uv, p, "Coordinate")
+            g.link(coord, p, "Coordinate")
             n = g.sample(wn, p, "normal")
             return g.op(unreal.MaterialExpressionMultiply, n, g.const((strength, strength, 0.0)))
-        big = ripple(0.3, 0.010, 0.006, 0.8)        # 27 m: the swell of the wind waves
-        mid = ripple(1.1, -0.021, 0.034, 0.7)       # 7 m
-        small = ripple(2.9, 0.055, -0.04, 0.55)     # 2.8 m: the cat's paws
+        swell_uv = turned(0.5, 0.8, 0.6)            # 16 m, turned 37 degrees
+        if nt is not None:
+            # (the swell's rows bent by the slow noise, 80 m across, by up to half a repeat)
+            wuv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.1, v_tiling=0.1)
+            warp = g.sample(nt, wuv, "linear")
+            wxy = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(warp, wxy)
+            swell_uv = g.op(unreal.MaterialExpressionAdd, swell_uv, g.op(unreal.MaterialExpressionMultiply, wxy, const_b=0.55))
+        big = ripple(swell_uv, 0.010, 0.006, 0.7)                     # the swell of the wind waves
+        mid = ripple(turned(1.3, 12.0 / 13.0, -5.0 / 13.0), -0.021, 0.034, 0.6)   # 6 m, turned -23 degrees
+        small = ripple(turned(2.9, 20.0 / 29.0, 21.0 / 29.0), 0.055, -0.04, 0.5)  # 2.8 m, turned 46 degrees
         depth = g.node(unreal.MaterialExpressionPixelDepth)
         near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
                     g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=3000.0), const_b=25000.0)))
+        # (the swell fades later and less: 60 m to 600 m, down to a third)
+        swell_near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
+                    g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=6000.0), const_b=54000.0)))
+        big = g.op(unreal.MaterialExpressionMultiply, big, g.lerp(g.const(0.33), g.const(1.0), swell_near))
         detail = g.op(unreal.MaterialExpressionAdd, mid, small)
         if nt is not None:
             # (gusts: the ripples stronger and calmer in broad slow patches)
@@ -506,10 +532,11 @@ def water_material(L):
             g.link(guv, gp, "Coordinate")
             gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, g.sample(nt, gp, "linear"), const_b=1.2, a_out="G"), const_b=0.4)
             detail = g.op(unreal.MaterialExpressionMultiply, detail, gust)
-        detail = g.op(unreal.MaterialExpressionMultiply, detail, g.lerp(g.const(0.25), g.const(1.0), near))
+        detail = g.op(unreal.MaterialExpressionMultiply, detail, g.lerp(g.const(0.15), g.const(1.0), near))
         n = g.op(unreal.MaterialExpressionAdd, big, detail)
         normal = g.node(unreal.MaterialExpressionNormalize)
         g.link(g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0))), normal)
+        rough = g.lerp(g.const(0.11), g.const(0.04), swell_near)
     elif nt is not None:
         uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.9, v_tiling=0.9)
         p1 = g.node(unreal.MaterialExpressionPanner, speed_x=0.012, speed_y=0.02); g.link(uv, p1, "Coordinate")
@@ -521,10 +548,12 @@ def water_material(L):
         normal = g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0)))
     else:
         normal = g.const((0.0, 0.0, 1.0))
+    if wn is None:
+        rough = g.const(0.04)
     base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
     mel = L.mel
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    mel.connect_material_property(g.const(0.04), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.recompile_material(g.m)
@@ -1163,13 +1192,103 @@ def facade_material(L):
     paint, trim, third = custom(0), custom(3), custom(6)
     tint = g.lerp(third, trim, above(0.17))
     tint = g.lerp(tint, paint, above(0.5))
-    shade = g.op(unreal.MaterialExpressionMultiply, vc, a_out="RGB", const_b=2.0)
+    shade = g.op(unreal.MaterialExpressionMultiply, vc, const_b=2.0)   # (vertex colour's unnamed pin is its RGB)
     own = above(0.83)
-    col = g.lerp(g.op(unreal.MaterialExpressionMultiply, tint, shade), vc, own, b_out="RGB")
+    col = g.lerp(g.op(unreal.MaterialExpressionMultiply, tint, shade), vc, own)
     rough = g.lerp(g.const(0.7), g.const(0.12), own)
     L.mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
     L.mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+STREET_KIT_KINDS = ("street_lamp", "power_pole")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+
+
+def street_kit_texture(L, file_name, asset, compression, nearest=False):
+    """One of Data/Textures/StreetKit's textures (Tools/make_street_kit_textures.py) as
+    /Game/RideUK/Textures/<asset>, linear; None if it isn't there."""
+    f = os.path.join(os.path.dirname(L.data_dir()), "Textures", "StreetKit", file_name)
+    if not os.path.exists(f):
+        return None
+    dest = "/Game/RideUK/Textures"
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", dest), ("destination_name", asset),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+    tex = unreal.load_asset(dest + "/" + asset)
+    if tex:
+        tex.set_editor_property("srgb", False)
+        tex.set_editor_property("compression_settings", compression)
+        if nearest:
+            # (the table: one texel per surface, read exactly)
+            tex.set_editor_property("filter", unreal.TextureFilter.TF_NEAREST)
+            tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+def street_kit_material(L):
+    """[street kit] M_RideStreetKit: the one material of the lamp posts and telegraph poles that
+    Tools/blender_street_kit.py builds in Blender (Chat with Fable, approved by beenster Nov 18: "please
+    build them yourself in blender and use suitable materials to improve their look"). The vertex colour
+    is the colour; its alpha a byte, 32 * surface + 2 + 28 * dirt, the surface a column of T_StreetKitLut
+    (Tools/make_street_kit_textures.py SURFACES: timber, galvanised steel, concrete, porcelain, glass,
+    enamel, bare steel), which gives its roughness, metal, specular and how much of each detail it shows:
+    the timber's grain and checks, the zinc's spangle, the concrete's pits, and weathering, from
+    T_StreetKitDetail and T_StreetKitNormal over UV0 in metres. Four texture reads for every kind of
+    surface, so one material and draw for the whole kit. Falls back to M_RideProp's look (None) if the
+    textures aren't there."""
+    detail = street_kit_texture(L, "detail.png", "T_StreetKitDetail", unreal.TextureCompressionSettings.TC_DEFAULT)
+    nmap = street_kit_texture(L, "normal.png", "T_StreetKitNormal", unreal.TextureCompressionSettings.TC_DEFAULT)
+    lut = street_kit_texture(L, "lut.png", "T_StreetKitLut", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP, True)
+    if detail is None or nmap is None or lut is None:
+        return None
+    g = L.Graph(L.new_material("M_RideStreetKit"))
+    L.instanced_usage(g.m)
+    E = unreal
+    mul = lambda a, k, a_out="": g.op(E.MaterialExpressionMultiply, a, const_b=float(k), a_out=a_out)
+    add = lambda a, b: g.op(E.MaterialExpressionAdd, a, b)
+    addk = lambda a, k: g.op(E.MaterialExpressionAdd, a, const_b=float(k))
+    times = lambda a, b, a_out="", b_out="": g.op(E.MaterialExpressionMultiply, a, b, a_out=a_out, b_out=b_out)
+    pin = lambda node, p: mul(node, 1.0, p)
+    vc = g.node(E.MaterialExpressionVertexColor)
+    # (the surface and its dirt, from the alpha's byte)
+    band = mul(vc, 255.0 / 32.0, "A")
+    surface = g.op(E.MaterialExpressionFloor, band)
+    dirt = g.op(E.MaterialExpressionSaturate, mul(addk(mul(g.op(E.MaterialExpressionFrac, band), 32.0), -2.0), 1.0 / 28.0))
+    u = mul(addk(surface, 0.5), 1.0 / 8.0)
+    row0 = g.sample(lut, g.op(E.MaterialExpressionAppendVector, u, g.const(0.25)), "linear")
+    row1 = g.sample(lut, g.op(E.MaterialExpressionAppendVector, u, g.const(0.75)), "linear")
+    uv = g.node(E.MaterialExpressionTextureCoordinate)
+    d = g.sample(detail, uv, "linear")
+    centred = lambda p: addk(pin(d, p), -0.5)
+    f = times(mul(centred("R"), 0.7), row0, b_out="A")                       # grain
+    f = add(f, times(mul(centred("G"), 0.5), row1, b_out="R"))               # spangle
+    f = add(f, times(mul(centred("B"), 0.6), row1, b_out="G"))               # pits
+    f = add(f, times(mul(centred("A"), 0.5), row1, b_out="B"))               # weathering
+    f = add(f, addk(mul(dirt, -0.45), 1.0))
+    base = times(vc, f)
+    rough = add(pin(row0, "R"), add(mul(dirt, 0.25), times(mul(centred("G"), 0.25), row1, b_out="R")))
+    metal = times(pin(row0, "G"), addk(mul(dirt, -0.5), 1.0))
+    spec = pin(row0, "B")
+    n = g.sample(nmap, uv, "linear")
+    rg = g.node(E.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(n, rg, "", "RGBA")
+    ba = g.node(E.MaterialExpressionComponentMask, r=False, g=False, b=True, a=True); g.link(n, ba, "", "RGBA")   # (the sample's default pin is RGB: no alpha)
+    wood = times(addk(mul(rg, 2.0), -1.0), row0, b_out="A")
+    pits = times(addk(mul(ba, 2.0), -1.0), row1, b_out="G")
+    xy = times(add(wood, pits), row1, b_out="A")
+    normal = g.node(E.MaterialExpressionNormalize)
+    g.link(g.op(E.MaterialExpressionAppendVector, xy, g.const(1.0)), normal)
+    mel = L.mel
+    mel.connect_material_property(base, "", E.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(g.op(E.MaterialExpressionSaturate, rough), "", E.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(metal, "", E.MaterialProperty.MP_METALLIC)
+    mel.connect_material_property(spec, "", E.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(normal, "", E.MaterialProperty.MP_NORMAL)
+    mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     return g.m
 
@@ -1237,6 +1356,7 @@ def prop_kit(L):
     try:
         L.new_material = lambda name, folder=None: original(name, MAT_DIR)
         paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+        kit_paint = street_kit_material(L) if any(n.startswith("SM_Prop_%s_" % k) for n in ours for k in STREET_KIT_KINDS) else None
         facade_paint = facade_material(L) if facade else None
     finally:
         L.new_material = original
@@ -1324,7 +1444,7 @@ def prop_kit(L):
         else:
             for name, mesh in sorted(ours.items()):
                 if name.startswith("SM_Prop_%s_" % kind):
-                    add(name, mesh, False, row)
+                    add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])

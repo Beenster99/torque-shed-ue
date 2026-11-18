@@ -312,7 +312,7 @@ SKY_PARAMS = (
     # density 1, and each layer's density.
     ("V2LowShapeM", 8000.0), ("V2LowDetailM", 600.0), ("V2MidShapeM", 5000.0), ("V2MidDetailM", 400.0),
     ("V2BroadM", 40000.0), ("V2Patchy", 0.35), ("V2Erode", 0.5), ("V2ErodeRagged", 0.3), ("V2EdgeSharp", 3.0),
-    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2ClosedFrom", 0.85), ("V2ClosedFull", 0.92), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
+    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2ClosedFrom", 0.85), ("V2ClosedFull", 0.92), ("V2DetailFadeKm", 10.0), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
 )
 
 
@@ -1085,12 +1085,19 @@ def bike_glass_materials():
         mel.connect_material_expressions(opac, "", mix, "A")
         mel.connect_material_expressions(edge, "", mix, "B")
         mel.connect_material_expressions(fres, "", mix, "Alpha")
-        mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        # Clear glass and perspex scatter almost no light: lit at its full (near white) colour the windscreen came
+        # out frosted and milky (beenster, build 155: "the perspex screens lack transparency"). The colour is
+        # taken right down, so what shows is what is behind it and the reflections on it.
+        dim = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Dim", default_value=0.04)
+        dark = g.node(unreal.MaterialExpressionMultiply, -600)
+        mel.connect_material_expressions(col, "", dark, "A")
+        mel.connect_material_expressions(dim, "", dark, "B")
+        mel.connect_material_property(dark, "", unreal.MaterialProperty.MP_BASE_COLOR)
         mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
         mel.connect_material_property(mix, "", unreal.MaterialProperty.MP_OPACITY)
         mel.recompile_material(m)
         unreal.EditorAssetLibrary.save_loaded_asset(m)
-        for name, opacity, edge_opacity in (("v2glass", 0.1, 0.4), ("v2screen", 0.3, 0.6)):
+        for name, opacity, edge_opacity in (("v2glass", 0.05, 0.3), ("v2screen", 0.07, 0.35)):
             path = BIKE_MAT_DIR + "/MI_" + name
             if unreal.EditorAssetLibrary.does_asset_exist(path):
                 unreal.EditorAssetLibrary.delete_asset(path)
@@ -1100,7 +1107,7 @@ def bike_glass_materials():
             mel.set_material_instance_scalar_parameter_value(mi, "Opacity", opacity)
             mel.set_material_instance_scalar_parameter_value(mi, "EdgeOpacity", edge_opacity)
             unreal.EditorAssetLibrary.save_loaded_asset(mi)
-        unreal.log("[Torque] V2 bike glass: M_BikeGlass, MI_v2glass, MI_v2screen")
+        unreal.log("[Torque] V2 bike glass: M_BikeGlass (dimmed colour), MI_v2glass 0.05/0.3, MI_v2screen 0.07/0.35")
     except Exception as e:
         unreal.log_warning("[Torque] V2 bike glass materials not made: %s" % e)
 
@@ -1372,10 +1379,33 @@ def garment_push_master():
     mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(scalar("Roughness", 0.8, -350, 650), "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(scalar("Specular", 0.35, -350, 750), "", unreal.MaterialProperty.MP_SPECULAR)
-    vn = mel.create_material_expression(m, unreal.MaterialExpressionVertexNormalWS, -700, 900)
-    push = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -350, 900)
+    # How far out: Push everywhere, plus HemPush below HemTop (the mesh's own height, cm), fading in
+    # over 10 cm above it (round 155: specks of jeans at the hem with 0.5 cm all over).
+    vn = mel.create_material_expression(m, unreal.MaterialExpressionVertexNormalWS, -900, 900)
+    pre = mel.create_material_expression(m, unreal.MaterialExpressionPreSkinnedPosition, -1300, 1100)
+    mask = mel.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1100, 1100)
+    mask.set_editor_property("r", False)
+    mask.set_editor_property("g", False)
+    mask.set_editor_property("b", True)
+    mask.set_editor_property("a", False)
+    mel.connect_material_expressions(pre, "", mask, "")
+    below = mel.create_material_expression(m, unreal.MaterialExpressionSubtract, -900, 1100)
+    mel.connect_material_expressions(scalar("HemTop", 0.0, -1100, 1220), "", below, "A")
+    mel.connect_material_expressions(mask, "", below, "B")
+    fade = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -750, 1100)
+    mel.connect_material_expressions(below, "", fade, "A")
+    mel.connect_material_expressions(const1(m, 0.1, -900, 1220), "", fade, "B")
+    sat = mel.create_material_expression(m, unreal.MaterialExpressionSaturate, -600, 1100)
+    mel.connect_material_expressions(fade, "", sat, "")
+    hem = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -450, 1100)
+    mel.connect_material_expressions(sat, "", hem, "A")
+    mel.connect_material_expressions(scalar("HemPush", 0.0, -600, 1220), "", hem, "B")
+    amount = mel.create_material_expression(m, unreal.MaterialExpressionAdd, -300, 1000)
+    mel.connect_material_expressions(scalar("Push", 0.5, -450, 960), "", amount, "A")
+    mel.connect_material_expressions(hem, "", amount, "B")
+    push = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -150, 900)
     mel.connect_material_expressions(vn, "", push, "A")
-    mel.connect_material_expressions(scalar("Push", 0.5, -700, 1000), "", push, "B")
+    mel.connect_material_expressions(amount, "", push, "B")
     mel.connect_material_property(push, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -3385,10 +3415,12 @@ float best = 0.0;
             float3 d = V.S(DetailTex, DetailTexSampler, details3[ly], 32.0, 8.0, 4.0).rgb;
             float df = d.r * 0.625 + d.g * 0.25 + d.b * 0.125;
             float md = lerp(df, 1.0 - df, saturate(h * 4.0));
-            float er = md * (Erode + ErodeRagged * saturate(raggeds[ly]));
+            // (the fine detail fades out with distance: far off it is finer than a pixel and only
+            // sparkles from frame to frame, build 155 "a constant shimmering")
+            float er = md * (Erode + ErodeRagged * saturate(raggeds[ly])) * (1.0 - 0.5 * saturate(DistKm / max(DetailFadeKm, 0.1)));
             bc = saturate((bc - er) / max(1.0 - er, 0.001));
         }
-        bc = saturate(bc * EdgeSharp);
+        bc = saturate(bc * lerp(EdgeSharp, 1.0, saturate(DistKm / max(DetailFadeKm, 0.1))));
         // (a deck is thinner stuff than a heaped cloud: lighter underneath, as real stratocumulus)
         best = max(best, bc * densities[ly] * lerp(1.0, DeckThin, saturate(kinds[ly])));
     }
@@ -3444,12 +3476,13 @@ def cloud_material_v2():
     floats = ("NormAlt", "Cover", "Shape", "LowBottom", "LowTop", "LowRagged", "LowDensity",
               "MidCover", "MidBottom", "MidTop", "MidShape", "MidRagged", "MidDens",
               "MapOn", "MapHereLow", "MapHereMid", "Anvil",
-              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin", "ClosedFrom", "ClosedFull")
+              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin", "ClosedFrom", "ClosedFull", "DetailFadeKm")
     # (MPC_Sky's names for the inputs that aren't the same)
     mpc_name = {"LowDensity": "V2LowDensity", "MidDens": "V2MidDensity", "Patchy": "V2Patchy", "Erode": "V2Erode",
                 "ErodeRagged": "V2ErodeRagged", "EdgeSharp": "V2EdgeSharp", "Billow": "V2Billow", "Extinction": "V2Extinction",
-                "DeckThin": "V2DeckThin", "ClosedFrom": "V2ClosedFrom", "ClosedFull": "V2ClosedFull"}
-    names = ("LS", "LB", "LD", "MS", "MB", "MD", "BR") + floats + ("ShapeTex", "DetailTex", "MapUV", "WeatherMap")
+                "DeckThin": "V2DeckThin", "ClosedFrom": "V2ClosedFrom", "ClosedFull": "V2ClosedFull",
+                "DetailFadeKm": "V2DetailFadeKm"}
+    names = ("LS", "LB", "LD", "MS", "MB", "MD", "BR") + floats + ("DistKm", "ShapeTex", "DetailTex", "MapUV", "WeatherMap")
     c = _custom(g, CLOUD_V2_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, names)
     alb = _custom(g, CLOUD_ALBEDO_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1,
                   ("NormAlt", "Cover", "Albedo", "LowBottom", "LowTop", "LowBaseDark", "MidCover", "MidBottom", "MidTop",
@@ -3520,6 +3553,13 @@ def cloud_material_v2():
         link(mu, mf, "")
         mu = mf
     link(mu, c, "MapUV")
+    # (how far the point is from the camera, km: a small float, for the detail's fade)
+    dist = g.node(unreal.MaterialExpressionDistance, -800)
+    link(src, dist, "A")
+    link(g.const((0.0, 0.0, 0.0)), dist, "B")
+    dkm = g.node(unreal.MaterialExpressionDivide, -750, const_b=1000.0)
+    link(dist, dkm, "A")
+    link(dkm, c, "DistKm")
     flash = _custom(g, CLOUD_FLASH_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ("P", "FlashX", "FlashY", "FlashR", "Flash", "Ext"))
     link(mq, flash, "P")
     for n in ("FlashX", "FlashY", "FlashR", "Flash"):

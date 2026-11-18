@@ -836,8 +836,14 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		{
 			Title = TorqueShedParts::PartName(R.Part);
 			TArray<FString> Fits;
-			for (const FName& Slot : TorqueShedParts::SlotsForKind(Kind)) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
+			// [bare frame] A V2 bike's part: its own slot, and the frames (or engine) it bolts to.
+			const FName OwnSlot = TorqueShedParts::V2Slot(R.Part);
+			if (!OwnSlot.IsNone()) Fits.Add(TorqueShedParts::SlotName(OwnSlot).ToLower());
+			else
+				for (const FName& Slot : TorqueShedParts::SlotsForKind(Kind)) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
 			Spec = Fits.Num() > 0 ? TEXT("Fits: ") + TPCI::Join(Fits) : FString();
+			const FString BoltsTo = TorqueShedParts::V2Fits(R.Part);
+			if (!BoltsTo.IsEmpty()) Spec += TEXT("\nBolts to: ") + BoltsTo;
 			const int32 Need = TPCI::Essential(Kind);
 			if (Need == 1) Spec += TEXT("\nEssential: the bike won't ride without one");
 			else if (Need == 0) Spec += TEXT("\nOptional: the bike rides without it");

@@ -47,6 +47,9 @@ void RidePlan::IndexTowns()
 	TownsCounted = TownsTabled = AtlasSquares = 0;
 	ShopPlaces.clear();
 	ShopGrid.clear();
+	StreetPieces.clear();
+	StreetGrid.clear();
+	StreetsHere.clear();
 	if (!Britain()) return;
 	const Region& G = Area.Roads;
 	const Frame F(G.FrameLat, G.FrameLon);
@@ -201,6 +204,61 @@ void RidePlan::IndexTowns()
 			}
 		}
 	}
+	// [towns stage 8] The famous streets in the region (a built square under one of its points): each its
+	// own look over its town's (or its area's), its line in pieces by 128 m square, and where it has
+	// shops, its line a shopping street.
+	for (const StreetEntry& S : StreetTable())
+	{
+		std::vector<std::vector<P2>> Lines;
+		bool Here = false;
+		for (const auto& Ll : S.Lines)
+		{
+			Lines.emplace_back();
+			for (const auto& Pt : Ll)
+			{
+				Lines.back().push_back(F.FromGeo(Pt.first, Pt.second));
+				Here = Here || Built.count(TownKey(CellOf(Lines.back().back().X), CellOf(Lines.back().back().Z))) != 0;
+			}
+		}
+		if (!Here) continue;
+		const P2 First = Lines[0][0];
+		const LocalLook* Town = TownLookAt(First.X, First.Z);
+		const Geo FirstGeo = F.ToGeo(First.X, First.Z);
+		const int Look = int(TownLooks.size());
+		TownLooks.push_back(StreetLook(Town ? *Town : AreaLook(FirstGeo.Lat, FirstGeo.Lon), S));
+		TownSources.push_back("street " + S.Name);
+		StreetsHere.push_back(S.Name);
+		for (const std::vector<P2>& Line : Lines)
+			for (size_t I = 1; I < Line.size(); ++I)
+			{
+				StreetPiece Pc;
+				Pc.A = Line[I - 1];
+				Pc.B = Line[I];
+				Pc.Look = Look;
+				Pc.Reach = S.Reach;
+				Pc.Setts = S.Setts;
+				Pc.Lamps = S.Lamps;
+				const int Index = int(StreetPieces.size());
+				StreetPieces.push_back(Pc);
+				const double Pad = S.Reach + 40.0;
+				for (int Cz = int(std::floor((std::min(Pc.A.Z, Pc.B.Z) - Pad) / 128.0)); Cz <= int(std::floor((std::max(Pc.A.Z, Pc.B.Z) + Pad) / 128.0)); ++Cz)
+					for (int Cx = int(std::floor((std::min(Pc.A.X, Pc.B.X) - Pad) / 128.0)); Cx <= int(std::floor((std::max(Pc.A.X, Pc.B.X) + Pad) / 128.0)); ++Cx)
+						StreetGrid[TownKey(Cx, Cz)].push_back(Index);
+				if (S.Shops)
+				{
+					ShopPlace Pl;
+					Pl.A = Pc.A;
+					Pl.B = Pc.B;
+					Pl.X0 = std::min(Pl.A.X, Pl.B.X); Pl.X1 = std::max(Pl.A.X, Pl.B.X);
+					Pl.Z0 = std::min(Pl.A.Z, Pl.B.Z); Pl.Z1 = std::max(Pl.A.Z, Pl.B.Z);
+					const int Shop = int(ShopPlaces.size());
+					ShopPlaces.push_back(Pl);
+					for (int Cz = int(std::floor((Pl.Z0 - 60.0) / 128.0)); Cz <= int(std::floor((Pl.Z1 + 60.0) / 128.0)); ++Cz)
+						for (int Cx = int(std::floor((Pl.X0 - 60.0) / 128.0)); Cx <= int(std::floor((Pl.X1 + 60.0) / 128.0)); ++Cx)
+							ShopGrid[TownKey(Cx, Cz)].push_back(Shop);
+				}
+			}
+	}
 	// [towns stage 5] The atlas's areas on the squares no town holds: one look per area met.
 	std::unordered_map<std::string, int> AreaIndex;
 	for (const auto& Sq : Built)
@@ -258,6 +316,47 @@ bool RidePlan::ShopStreetNear(double X, double Z, double Reach) const
 	return false;
 }
 
+const RidePlan::StreetPiece* RidePlan::StreetAt(double X, double Z, double Extra) const
+{
+	if (StreetGrid.empty()) return nullptr;
+	const auto It = StreetGrid.find(RideTownBits::TownKey(int(std::floor(X / 128.0)), int(std::floor(Z / 128.0))));
+	if (It == StreetGrid.end()) return nullptr;
+	const StreetPiece* Best = nullptr;
+	double BestGap = 1e9;
+	for (int I : It->second)
+	{
+		const StreetPiece& Pc = StreetPieces[size_t(I)];
+		const double Dx = Pc.B.X - Pc.A.X, Dz = Pc.B.Z - Pc.A.Z, L2 = Dx * Dx + Dz * Dz;
+		const double T = L2 > 1e-9 ? std::clamp(((X - Pc.A.X) * Dx + (Z - Pc.A.Z) * Dz) / L2, 0.0, 1.0) : 0.0;
+		const double Gap = std::hypot(Pc.A.X + Dx * T - X, Pc.A.Z + Dz * T - Z) - Pc.Reach - Extra;
+		if (Gap <= 0.0 && Gap < BestGap)
+		{
+			Best = &Pc;
+			BestGap = Gap;
+		}
+	}
+	return Best;
+}
+
+const LocalLook* RidePlan::StreetLookAt(double X, double Z) const
+{
+	const StreetPiece* Pc = StreetAt(X, Z);
+	return Pc ? &TownLooks[size_t(Pc->Look)] : nullptr;
+}
+
+bool RidePlan::SettsStreet(const std::vector<P2>& Line) const
+{
+	// (most of the road's points within its reach of a street in setts: a road along it, not one across it)
+	if (StreetPieces.empty() || Line.size() < 2) return false;
+	int In = 0;
+	for (const P2& P : Line)
+	{
+		const StreetPiece* Pc = StreetAt(P.X, P.Z);
+		In += Pc && Pc->Setts ? 1 : 0;
+	}
+	return In * 5 >= int(Line.size()) * 3;
+}
+
 bool RidePlan::SettsSurface(const std::string& Surface)
 {
 	return Surface == "sett" || Surface == "cobblestone" || Surface == "unhewn_cobblestone" || Surface == "cobblestone:flattened";
@@ -265,7 +364,10 @@ bool RidePlan::SettsSurface(const std::string& Surface)
 
 bool RidePlan::HeritageLampAt(double X, double Z) const
 {
-	return PropModelled[PropLampHeritage] && TownLookAt(X, Z) != nullptr && ShopStreetNear(X, Z, 35.0);
+	if (!PropModelled[PropLampHeritage]) return false;
+	const StreetPiece* Pc = StreetAt(X, Z, 10.0);   // [towns stage 8]
+	if (Pc) return Pc->Lamps;
+	return TownLookAt(X, Z) != nullptr && ShopStreetNear(X, Z, 35.0);
 }
 
 const LocalLook* RidePlan::AtlasLookAt(double X, double Z) const

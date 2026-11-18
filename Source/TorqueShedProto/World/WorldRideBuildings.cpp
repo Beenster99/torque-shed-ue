@@ -49,13 +49,13 @@ int FacadeSize(const double (*Sizes)[2], int Count, double W, double H)
 }
 } // namespace RideBuildingBits
 
-void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally) const
+void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& TileLook, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally) const
 {
 	using namespace RideSceneBits;
 	if (!Scene || !Land) return;
 	const Region& G = Area.Roads;
 	const std::shared_ptr<const HouseTypes> Types = HouseTypesNow();   // [towns stage 4]
-	const bool Scots = std::strcmp(Look.Name, "lowlands") == 0 || std::strcmp(Look.Name, "highlands") == 0;
+	const bool Scots = std::strcmp(TileLook.Name, "lowlands") == 0 || std::strcmp(TileLook.Name, "highlands") == 0;
 	const auto Inside = [X0, Z0, Size](double X, double Z) { return X >= X0 && X < X0 + Size && Z >= Z0 && Z < Z0 + Size; };
 	const auto OffRoad = [this](double X, double Z, double Spare)
 	{
@@ -191,7 +191,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	// [towns stage 5] Where the sea is near the square (within about 600 m of its middle): the harbour
 	// and seaside towns' painted houses (the look's Paint share of them).
 	bool Seaside = false;
-	if (Look.Paint > 0.0f && Land)
+	if (TileLook.Paint > 0.0f && Land)
 	{
 		const double Mx = X0 + Size * 0.5, Mz = Z0 + Size * 0.5;
 		Seaside = Land->SeaAt(Mx, Mz);
@@ -203,6 +203,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	{
 		const Building& B = *Each.B;
 		const int Index = Each.Index;
+		// [towns stage 8] (a building on a famous street takes the street's own look over the square's)
+		const LocalLook* OnStreet = StreetLookAt(B.X, B.Z);
+		const LocalLook& Look = OnStreet ? *OnStreet : TileLook;
 		if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || !OffRoad(B.X, B.Z, std::fmin(B.W, B.D) * 0.5) || RailClear(B.X, B.Z) < std::fmin(B.W, B.D) * 0.5 + 2.0) continue;
 		// [towns stage 2] (a large or tall building is drawn at its true outline: WorldRideTowers.cpp)
 		if (UnderTower(B.X, B.Z))
@@ -374,7 +377,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const bool TaggedBrick = OwnBrick || (FromStreet && StreetWall == 0), TaggedStone = OwnStone || (FromStreet && StreetWall == 1);
 		const bool Chosen = Plain || TaggedRender || TaggedBrick || TaggedStone;
 		// ([OSM stage 3] a barn, a church or a chapel never rendered; a block of flats rendered or brick)
-		const bool PaintPick = Seaside && (IsHouse || IsShop) && !Big && Chance(B.X, B.Z, 92) < Look.Paint;
+		const bool PaintPick = (Seaside || Look.PaintAnywhere) && (IsHouse || IsShop) && !Big && Chance(B.X, B.Z, 92) < Look.Paint;
 		const bool Rendered = !Plain && !IsBarn && !IsWorship && (TaggedRender || (!Chosen && ((!Big && Pick < Look.RenderShare) || (IsBlock && Pick < 0.45) || PaintPick)));
 		const bool Brick = !Plain && !Rendered && (TaggedBrick || (!Chosen && (IsBlock || (Big ? Pick < Look.BrickShare * 0.8 : Pick < Look.RenderShare + Look.BrickShare))));
 		// ([towns stage 5] by the sea, the place's share of houses painted, each its own colour, a row's too)
@@ -385,7 +388,10 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const double PaintBy = Chance(B.X, B.Z, 93);
 		static const int Colours[5] = {1, 2, 3, 4, 6};
 		const int PaintIndex = PaintBy < 0.3 ? 5 : PaintBy < 0.5 ? 0 : Colours[std::min(4, int((PaintBy - 0.5) * 10.0))];
-		const Rgb Washes = HasWallColour ? TaggedWall : Painted ? Paints[PaintIndex]
+		// ([towns stage 8] a famous street's own colours, where it names them)
+		const Tint& OwnWash = Look.Washes[std::clamp(int(PaintBy * Look.WashCount), 0, std::max(0, Look.WashCount - 1))];
+		const Rgb Own = Look.WashCount > 0 ? Rgb{OwnWash.R, OwnWash.G, OwnWash.B} : Paints[PaintIndex];
+		const Rgb Washes = HasWallColour ? TaggedWall : Painted ? Own
 			: Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B};
 		const Rgb Bricks = HasWallColour ? TaggedWall : Rgb{Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
 		static const Rgb GlassWall = {0.10f, 0.12f, 0.12f}, Planks = {0.16f, 0.11f, 0.07f}, Sheeting = {0.30f, 0.31f, 0.30f};
@@ -556,7 +562,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// area or a pedestrian street) a house or a block of two storeys or more with its front to the street:
 		// a shop front on its ground floor, its own windows above.
 		const bool ShopHere = !Plain && !Big && !Ruin && HalfLong * 2.0 >= 3.5 && Eaves >= 3.2
-			&& (IsShop || ((IsHouse || IsBlock) && InTown && Eaves >= 5.0 && FrontGap < 12.0 && ShopStreetNear(B.X, B.Z, 6.0 + HalfShort)));
+			&& (IsShop || ((IsHouse || IsBlock) && (InTown || Look.Shops) && Eaves >= 5.0 && FrontGap < 12.0 && ShopStreetNear(B.X, B.Z, 6.0 + HalfShort)));
 		const Rgb StoneTrim = Shade(Stone, Sooted ? 0.55 : 1.15);
 		const bool Surrounds = (Look.StoneSurrounds || (!Rendered && !Brick)) && !Plain;
 		for (double Sg : {1.0, -1.0})
@@ -663,8 +669,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			// (the house's joinery paint, mostly white, by street; its reveals the wall's own colour, darker in the return)
 			// ([build 153] beenster: "too many black window frames... mostly white and some wood colours": white
 			// seven in ten, cream, two oaks, now and then a dark green or black)
+			// ([156] beenster, build 155: "Many window frames still black": the two oaks, 0.2 and 0.11, read as black
+			// a street away, and a street took one together, a whole terrace of them. Now one oak, a lighter one,
+			// one street in nine, the rest white and cream; the dark green as rare as before)
 			static const Rgb Joinery[10] = {{0.62f, 0.62f, 0.60f}, {0.62f, 0.62f, 0.60f}, {0.64f, 0.64f, 0.62f}, {0.62f, 0.62f, 0.60f}, {0.60f, 0.60f, 0.58f},
-				{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.20f, 0.12f, 0.06f}, {0.11f, 0.065f, 0.035f}, {0.03f, 0.07f, 0.04f}};
+				{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.58f, 0.55f, 0.45f}, {0.34f, 0.22f, 0.12f}, {0.05f, 0.12f, 0.07f}};
 			const double JoinPick = 0.6 * Chance(StreetX, StreetZ, 63) + 0.4 * Chance(B.X, B.Z, 63);
 			const Rgb& Paint = JoinPick > 0.985 ? Joinery[9] : Joinery[std::min(8, int(JoinPick * 9.0))];
 			const Rgb Reveal = Surrounds ? StoneTrim : Shade(Wall, Rendered ? 0.8 : 0.72);

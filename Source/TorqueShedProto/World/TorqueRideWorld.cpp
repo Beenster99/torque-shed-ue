@@ -1118,6 +1118,7 @@ void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Me
 	Sections.Emplace(&Mesh, RoadMaterial.Get());
 	if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
 	if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
+	if (Mesh.Turf) Sections.Emplace(Mesh.Turf.get(), LandMaterial.Get());       // [road edges, Nov 18] the shoulders' grass, as the land
 	PreparedNow = Ready;
 	bNextInRayTracing = TRWI::CVarRoadsRayTraced.GetValueOnGameThread() != 0;
 	UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
@@ -1217,6 +1218,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 						TRWI::Prepare(Made.Get(), *Ready);
 						TRWI::Prepare(Made->Glow.get(), *Ready);
 						TRWI::Prepare(Made->Night.get(), *Ready);
+						TRWI::Prepare(Made->Turf.get(), *Ready);
 					}
 					{
 						FScopeLock Hold(&Share->Lock);
