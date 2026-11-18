@@ -28,7 +28,7 @@ ELayer LayerOf(const FTorqueShedRequest& R)
 namespace
 {
 // The old paint, flatted back for the new coat to key to: dull and matte, so a missed bit shows
-// against the wet new coat. Masking tape on it stays in sight until it's sprayed over.
+// against the wet new coat.
 FLinearColor Flatted(const FTorqueItem& It)
 {
 	const FLinearColor Old = UTorqueBuildSubsystem::ShownColour(It);
@@ -36,8 +36,7 @@ FLinearColor Flatted(const FTorqueItem& It)
 	Hsv.G *= 0.8f;
 	Hsv.B = FMath::Clamp(Hsv.B * 0.8f, 0.0f, 1.0f);
 	FLinearColor C = Hsv.HSVToLinearRGB();
-	const bool bTaped = It.Tape != 0 && !It.bPrimerTop;
-	C.A = bTaped ? 0.0f : 0.85f;
+	C.A = 0.85f;
 	return C;
 }
 
@@ -51,7 +50,7 @@ FLook ClearLook(const FTorqueItem& It, float Rough)
 	L.Rough = Rough;
 	L.Metal = 0.0f;
 	L.bClear = true;
-	const bool bPlain = It.MixCode.IsEmpty() && It.Mask == 0 && It.Tape == 0;
+	const bool bPlain = It.MixCode.IsEmpty() && It.Mask == 0;
 	const FLinearColor C = Old * 0.88f;
 	L.Under = FLinearColor(C.R, C.G, C.B, bPlain ? 0.35f : 0.0f);
 	L.UnderRough = 0.9f;
@@ -82,10 +81,11 @@ FLook LookFor(const UTorqueBuildSubsystem& B, int32 Peer, const FTorqueShedReque
 	if (Layer == ELayer::Clear) return ClearLook(It, 0.04f);
 	// On primer, the primer is what shows through (the part's drawn in it already).
 	if (It.bPrimerTop) L.Under.A = 0.0f;
-	if (R.Kind == ETorqueShedAct::Paint && R.Finish == UTorqueBuildSubsystem::CupFinish())
+	if (R.Kind == ETorqueShedAct::Paint && UTorqueBuildSubsystem::IsCupFinish(R.Finish))
 	{
-		// Paint mixed in the mixing bay, from the gun's cup: what this coat leaves.
-		if (const FTorquePaintCup* Cup = B.PaintBay().Cups.Find(Peer))
+		// Paint mixed in the mixing bay, from the gun's cup: what this coat leaves (a fade: cup 2, the
+		// colour going over; cup 1's end shows as the coat's finished).
+		if (const FTorquePaintCup* Cup = B.PaintBay().CupOf(Peer, UTorqueBuildSubsystem::CupWhich(R.Finish)))
 		{
 			if (Cup->Spec.IsLacquer()) return ClearLook(It, FMath::Max(Cup->Spec.Rough, 0.04f));
 			L.Colour = Cup->Spec.Colour;
@@ -132,9 +132,9 @@ FLinearColor MistColour(const UTorqueBuildSubsystem& B, int32 Peer, const FTorqu
 		if (UTorqueBuildSubsystem::IsLacquer(R.Finish)) return FLinearColor(0.9f, 0.9f, 0.85f);
 		return UTorqueBuildSubsystem::Paints()[FMath::Clamp(R.Finish == FName(TEXT("enamel_silver")) ? 8 : 6, 0, UTorqueBuildSubsystem::Paints().Num() - 1)];
 	case ETorqueShedAct::Paint:
-		if (R.Finish == UTorqueBuildSubsystem::CupFinish())
+		if (UTorqueBuildSubsystem::IsCupFinish(R.Finish))
 		{
-			const FTorquePaintCup* Cup = B.PaintBay().Cups.Find(Peer);
+			const FTorquePaintCup* Cup = B.PaintBay().CupOf(Peer, UTorqueBuildSubsystem::CupWhich(R.Finish));
 			return Cup && !Cup->Spec.IsLacquer() ? Cup->Spec.Colour : FLinearColor(0.85f, 0.85f, 0.85f);
 		}
 		return UTorqueBuildSubsystem::Paints()[FMath::Clamp(R.Colour, 0, UTorqueBuildSubsystem::Paints().Num() - 1)];
@@ -384,6 +384,7 @@ bool FTorqueSprayJob::Setup(UWorld* World, int32 InItem, const FString& InKey, c
 		Spacing *= 1.5;
 	}
 	if (Points.Num() == 0) return false;
+	PointSpacing = Spacing;
 	// The mask round it: a big part (a whole frame) gets bigger cubes, so it still fits.
 	FBox Box(ForceInit);
 	for (const FVector& P : Points) Box += P;
