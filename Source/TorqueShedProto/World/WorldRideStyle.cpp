@@ -124,6 +124,11 @@ std::vector<TownEntry>& Towns()
 	static std::vector<TownEntry> List;
 	return List;
 }
+std::vector<StreetEntry>& Streets()
+{
+	static std::vector<StreetEntry> List;
+	return List;
+}
 } // namespace
 
 bool NamedBrick(const std::string& Name, Tint& Out)
@@ -294,6 +299,31 @@ std::shared_ptr<const HouseTypes> HouseTypesNow()
 
 namespace
 {
+// An entry's walls and roofs, their colours by name, its soot and its paint.
+void ReadLook(const TorqueFit::Json& J, TownEntry& T)
+{
+	if (const TorqueFit::Json* W = J.Get("walls"))
+	{
+		T.HasWalls = true;
+		T.Brick = float(W->Num("brick"));
+		T.Stone = float(W->Num("stone"));
+		T.Render = float(W->Num("render"));
+	}
+	if (const TorqueFit::Json* R = J.Get("roofs"))
+	{
+		T.HasRoofs = true;
+		T.Slate = float(R->Num("slate"));
+		T.Tile = float(R->Num("tile"));
+		T.StoneSlate = float(R->Num("stone"));
+		T.Thatch = float(R->Num("thatch"));
+	}
+	T.BrickName = J.Str("brick");
+	T.StoneName = J.Str("stone");
+	T.TileName = J.Str("tile");
+	T.Soot = float(std::clamp(J.Num("soot", -1.0), -1.0, 1.0));
+	T.Paint = float(std::clamp(J.Num("paint", -1.0), -1.0, 1.0));
+}
+
 // A table of town entries (a town's look, or a materials atlas area) under the key List.
 bool ReadEntries(const std::string& Text, const char* List, std::vector<TownEntry>& Out)
 {
@@ -310,26 +340,7 @@ bool ReadEntries(const std::string& Text, const char* List, std::vector<TownEntr
 		T.Lat = At->A[0].N;
 		T.Lon = At->A[1].N;
 		T.Km = J.Num("km", 1.5);
-		if (const TorqueFit::Json* W = J.Get("walls"))
-		{
-			T.HasWalls = true;
-			T.Brick = float(W->Num("brick"));
-			T.Stone = float(W->Num("stone"));
-			T.Render = float(W->Num("render"));
-		}
-		if (const TorqueFit::Json* R = J.Get("roofs"))
-		{
-			T.HasRoofs = true;
-			T.Slate = float(R->Num("slate"));
-			T.Tile = float(R->Num("tile"));
-			T.StoneSlate = float(R->Num("stone"));
-			T.Thatch = float(R->Num("thatch"));
-		}
-		T.BrickName = J.Str("brick");
-		T.StoneName = J.Str("stone");
-		T.TileName = J.Str("tile");
-		T.Soot = float(std::clamp(J.Num("soot", -1.0), -1.0, 1.0));
-		T.Paint = float(std::clamp(J.Num("paint", -1.0), -1.0, 1.0));
+		ReadLook(J, T);
 		Out.push_back(std::move(T));
 	}
 	return true;
@@ -343,13 +354,98 @@ std::vector<TownEntry>& Atlas()
 }
 } // namespace
 
+// [towns stage 8] The famous streets under "streets": each one's line and reach, its look as a town's
+// (ReadEntries' words), its colours by "#rrggbb" and its setts, shops and lamps.
+static void ReadStreets(const std::string& Text, std::vector<StreetEntry>& Out)
+{
+	TorqueFit::Json Root;
+	if (!TorqueFit::Json::Parse(Text, Root) || !Root.IsObject()) return;
+	const TorqueFit::Json* Rows = Root.Get("streets");
+	if (Rows == nullptr || !Rows->IsArray()) return;
+	for (const TorqueFit::Json& J : Rows->A)
+	{
+		StreetEntry S;
+		S.Name = J.Str("name");
+		if (const TorqueFit::Json* Lines = J.Get("lines"); Lines != nullptr && Lines->IsArray())
+			for (const TorqueFit::Json& L : Lines->A)
+			{
+				std::vector<std::pair<double, double>> Line;
+				if (L.IsArray())
+					for (const TorqueFit::Json& P : L.A)
+						if (P.IsArray() && P.A.size() >= 2) Line.emplace_back(P.A[0].N, P.A[1].N);
+				if (Line.size() >= 2) S.Lines.push_back(std::move(Line));
+			}
+		if (S.Lines.empty()) continue;
+		S.Reach = std::clamp(J.Num("reach", 30.0), 5.0, 200.0);
+		ReadLook(J, S.Look);
+		S.Look.Name = S.Name;
+		S.Look.Lat = S.Lines[0][0].first;
+		S.Look.Lon = S.Lines[0][0].second;
+		S.HasRender = HexTint(J.Str("render"), S.Render);
+		for (const char* Key : {"washes", "doors"})
+			if (const TorqueFit::Json* Cs = J.Get(Key); Cs != nullptr && Cs->IsArray())
+				for (const TorqueFit::Json& C : Cs->A)
+				{
+					Tint T;
+					if (C.IsString() && HexTint(C.S, T)) (Key[0] == 'w' ? S.Washes : S.Doors).push_back(T);
+				}
+		S.Setts = J.Flag("setts");
+		S.Shops = J.Flag("shops");
+		S.Lamps = J.Flag("lamps");
+		Out.push_back(std::move(S));
+	}
+}
+
 bool SetTownTable(const std::string& Text)
 {
 	std::vector<TownEntry> List;
 	if (!ReadEntries(Text, "towns", List)) return false;
+	std::vector<StreetEntry> StreetList;
+	ReadStreets(Text, StreetList);
 	std::lock_guard<std::mutex> Hold(TownLock);
 	Towns() = std::move(List);
+	Streets() = std::move(StreetList);
 	return true;
+}
+
+std::vector<StreetEntry> StreetTable()
+{
+	std::lock_guard<std::mutex> Hold(TownLock);
+	return Streets();
+}
+
+bool HexTint(const std::string& Hex, Tint& Out)
+{
+	if (Hex.size() != 7 || Hex[0] != '#') return false;
+	float C[3];
+	for (int K = 0; K < 3; ++K)
+	{
+		int V = 0;
+		for (int D = 0; D < 2; ++D)
+		{
+			const char Ch = Hex[size_t(1 + K * 2 + D)];
+			const int Digit = Ch >= '0' && Ch <= '9' ? Ch - '0' : Ch >= 'a' && Ch <= 'f' ? Ch - 'a' + 10 : Ch >= 'A' && Ch <= 'F' ? Ch - 'A' + 10 : -1;
+			if (Digit < 0) return false;
+			V = V * 16 + Digit;
+		}
+		const double S = V / 255.0;
+		C[K] = float(S <= 0.04045 ? S / 12.92 : std::pow((S + 0.055) / 1.055, 2.4));
+	}
+	Out = {C[0], C[1], C[2]};
+	return true;
+}
+
+LocalLook StreetLook(const LocalLook& Under, const StreetEntry& Street)
+{
+	LocalLook L = TownLook(Under, Street.Look);
+	L.Street = true;
+	L.Shops = Street.Shops;
+	if (Street.HasRender) L.RenderColour = Street.Render;
+	L.PaintAnywhere = Street.Look.Paint > 0.0f;
+	L.WashCount = int(std::min<size_t>(Street.Washes.size(), 6));
+	for (int K = 0; K < L.WashCount; ++K) L.Washes[K] = Street.Washes[size_t(K)];
+	for (size_t K = 0; K < 4 && !Street.Doors.empty(); ++K) L.Doors[K] = Street.Doors[K % Street.Doors.size()];
+	return L;
 }
 
 bool SetMaterialsAtlas(const std::string& Text)

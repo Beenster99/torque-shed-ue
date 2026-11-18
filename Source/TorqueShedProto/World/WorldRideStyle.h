@@ -49,6 +49,12 @@ struct LocalLook
 	enum EFrom : unsigned char { FromRegion, FromAtlas, FromTable, FromTags };
 	EFrom From = FromRegion;
 	float Soot = 0.0f, Paint = 0.0f;
+	// [towns stage 8] A famous street's own look (StreetEntry): its houses painted (its Paint share) away
+	// from the sea too, in its own colours where it names them (Washes, the first WashCount); its shops
+	// fronted even in a village.
+	bool Street = false, PaintAnywhere = false, Shops = false;
+	int WashCount = 0;
+	Tint Washes[6];
 };
 
 // The look of the place at a latitude and longitude.
@@ -69,9 +75,30 @@ struct TownEntry
 	std::string BrickName, StoneName, TileName;
 	float Soot = -1.0f, Paint = -1.0f;   // [towns stage 5] (-1: the region's)
 };
-// Reads the table (JSON text); false if it isn't one. Kept for every ride after (thread safe).
+// [towns stage 8] A famous street's own look (the "streets" of Data/RideUK/town_looks.json): its lines
+// (each of lat, lon points: the map's ways that make it), how far either side of it the look holds (m), its walls and roofs as a town's,
+// its render's colour and its painted houses' colours (linear), its doors', and whether it is laid
+// in setts, has shop fronts and heritage lamps.
+struct StreetEntry
+{
+	std::string Name;
+	std::vector<std::vector<std::pair<double, double>>> Lines;
+	double Reach = 30.0;
+	TownEntry Look;
+	bool HasRender = false;
+	Tint Render;
+	std::vector<Tint> Washes, Doors;
+	bool Setts = false, Shops = false, Lamps = false;
+};
+// Reads the table (JSON text: its towns and its streets); false if it isn't one. Kept for every ride
+// after (thread safe).
 bool SetTownTable(const std::string& Text);
 std::vector<TownEntry> TownTable();
+std::vector<StreetEntry> StreetTable();
+// [towns stage 8] A look made a street's: the street's shares and colours over it.
+LocalLook StreetLook(const LocalLook& Under, const StreetEntry& Street);
+// A colour "#rrggbb" (as a photo shows it) as a linear tint; false if it isn't one.
+bool HexTint(const std::string& Hex, Tint& Out);
 // [towns stage 5] The materials atlas (Data/RideUK/materials_atlas.json): the country's local building
 // stones and bricks by area, each as a town entry (a centre, a reach, its stone and brick, and where
 // it says, its walls' and roofs' shares). Between the region's look and a town's: a place inside an
