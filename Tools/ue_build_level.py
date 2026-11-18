@@ -3297,10 +3297,12 @@ def cloud_material_v2():
     def link(a, b, pin="", out=""):
         if not (mel.connect_material_expressions(a, out, b, pin)):
             bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
-    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
-        bad.append("domain")
+    # (blend first: a Volume domain on an opaque material compiles once with "Volume materials must use an
+    # Additive blend mode", a harmless in-between error the 155 log showed)
     if not try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE):
         bad.append("blend")
+    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
+        bad.append("domain")
     try:
         mel.set_material_usage(g.m, unreal.MaterialUsage.MATUSAGE_VOLUMETRIC_CLOUD)
     except Exception as e:
