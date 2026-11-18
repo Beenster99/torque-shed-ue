@@ -130,7 +130,7 @@ def sleeve(name, outline, depth):
     return ob
 
 
-def opening(M, name, at, facing, w, spring, kind, surround, stone, glass=GLASS, reveal=0.12, mullions=0, door=None):
+def opening(M, name, at, facing, w, spring, kind, surround, stone, glass=GLASS, reveal=0.12, mullions=0, door=None, surface="stone"):
     """A window or door in a wall: the dark glass (or the door's leaf) set back `reveal` in the wall, the
     reveal's sides, and its dressed stone surround standing 4 cm proud round it. at: the opening's foot on
     the wall's face."""
@@ -139,10 +139,10 @@ def opening(M, name, at, facing, w, spring, kind, surround, stone, glass=GLASS, 
     big = [(u, z + (surround if z > spring + 1e-6 else 0.0) * (z - spring) / max(1e-6, max(zz for _, zz in hole) - spring)) for u, z in big]
     sur = ring(name + "_sur", big, hole, 0.1)
     sur.matrix_world = Matrix.Translation((0, 0.04, 0)) @ sur.matrix_world
-    M.add(place(sur, at, facing), "stone", stone, 0.3)
+    M.add(place(sur, at, facing), surface, stone, 0.3)
     rev = sleeve(name + "_in", hole, reveal + 0.05)
     rev.matrix_world = Matrix.Translation((0, 0.05, 0)) @ rev.matrix_world
-    M.add(place(rev, at, facing), "stone", tuple(c * 0.55 for c in stone), 0.4)   # (the reveal, in shade)
+    M.add(place(rev, at, facing), surface, tuple(c * 0.55 for c in stone), 0.4)   # (the reveal, in shade)
     leaf = prism(name + "_g", hole, 0.03)
     leaf.matrix_world = Matrix.Translation((0, -reveal + 0.05, 0)) @ leaf.matrix_world
     M.add(place(leaf, at, facing), "glass" if door is None else "timber", glass if door is None else door, 0.1)
@@ -152,7 +152,7 @@ def opening(M, name, at, facing, w, spring, kind, surround, stone, glass=GLASS, 
             u = -w * 0.5 + w * k / (mullions + 1)
             mb = box(name + "_mul%d" % k, (u, -reveal * 0.5 + 0.05, spring * 0.5 + (0.0 if kind == "flat" else w * 0.2)),
                      (0.09, reveal, spring + (0.0 if kind == "flat" else w * 0.4)))
-            M.add(place(mb, at, facing), "stone", stone, 0.3)
+            M.add(place(mb, at, facing), surface, stone, 0.3)
     return M
 
 
@@ -163,7 +163,7 @@ def gable_wall(w, eaves, ridge):
 
 
 def range_block(M, name, x0, x1, w, eaves, pitch_deg, wall, roof, roof_thick=0.18, overhang=0.25, verge=0.12,
-                ends=(True, True), ridge_tiles=None):
+                ends=(True, True), ridge_tiles=None, wall_surface="stone", roof_surface="roof"):
     """A gabled range along x from x0 to x1, w wide: its walls (the gable ends as pentagons) and its roof of
     two thick slabs with eaves overhang and a little verge past each gable."""
     h = w * 0.5
@@ -174,7 +174,7 @@ def range_block(M, name, x0, x1, w, eaves, pitch_deg, wall, roof, roof_thick=0.1
     n = len(outline)
     verts = [(x0, y, z) for y, z in outline] + [(x1, y, z) for y, z in outline]
     faces = [tuple(range(n)), tuple(range(2 * n - 1, n - 1, -1))] + [(k, n + k, n + (k + 1) % n, (k + 1) % n) for k in range(n)]
-    M.add(_object(name + "_walls", verts, faces), "stone", wall, 0.35)
+    M.add(_object(name + "_walls", verts, faces), wall_surface, wall, 0.35)
     # (the roof: each slope a slab from the ridge out past the eaves)
     a = math.radians(pitch_deg)
     xa, xb = x0 - (verge if ends[0] else 0.0), x1 + (verge if ends[1] else 0.0)
@@ -186,7 +186,7 @@ def range_block(M, name, x0, x1, w, eaves, pitch_deg, wall, roof, roof_thick=0.1
         quad = [top[0], top[1], bot[1], bot[0]]
         v = [(xa, y, z) for y, z in quad] + [(xb, y, z) for y, z in quad]
         f = [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]
-        M.add(_object("%s_roof%d" % (name, s), v, f), "roof", roof, 0.3)
+        M.add(_object("%s_roof%d" % (name, s), v, f), roof_surface, roof, 0.3)
     if ridge_tiles is not None:
         rb = box(name + "_ridge", ((xa + xb) * 0.5, 0.0, ridge + roof_thick / math.cos(a) + 0.04), (xb - xa, 0.22, 0.1))
         M.add(rb, "roof", ridge_tiles, 0.3)
@@ -257,21 +257,21 @@ def cross(M, name, at, stone, size=0.7):
     M.add(box(name + "_h", (x, y, z + size * 0.68), (0.12, size * 0.6, 0.12)), "stone", stone, 0.3)
 
 
-def porch(M, name, px, wall_y, pw, pd, eaves, pitch, wall, roof, dressed, kind, door_w):
+def porch(M, name, px, wall_y, pw, pd, eaves, pitch, wall, roof, dressed, kind, door_w, wall_surface="stone", roof_surface="roof"):
     """A gabled south porch in front of a wall at y = wall_y: its two side walls, its gable face with the
     outer arch, its roof; the inner door in the church's wall."""
     y0 = wall_y - pd
     for s in (-1, 1):
-        M.add(box("%s_w%d" % (name, s), (px + s * (pw * 0.5 - 0.2), wall_y - pd * 0.5, (FOOT + eaves) * 0.5), (0.4, pd, eaves - FOOT)), "stone", wall, 0.35)
+        M.add(box("%s_w%d" % (name, s), (px + s * (pw * 0.5 - 0.2), wall_y - pd * 0.5, (FOOT + eaves) * 0.5), (0.4, pd, eaves - FOOT)), wall_surface, wall, 0.35)
     pr = eaves + (pw * 0.5) * math.tan(math.radians(pitch))
     face = prism(name + "_face", [(-pw * 0.5, eaves), (pw * 0.5, eaves), (0.0, pr)], 0.4)
-    M.add(place(face, (px, y0, 0.0), SOUTH), "stone", wall, 0.35)
+    M.add(place(face, (px, y0, 0.0), SOUTH), wall_surface, wall, 0.35)
     for s in (-1, 1):
         v = [(px, y0 - 0.15, pr + 0.02), (px + s * (pw * 0.5 + 0.2), y0 - 0.15, eaves - 0.2 * math.tan(math.radians(pitch))),
              (px + s * (pw * 0.5 + 0.2), wall_y + 0.05, eaves - 0.2 * math.tan(math.radians(pitch))), (px, wall_y + 0.05, pr + 0.02)]
         v = v + [(x, y, z + 0.16) for x, y, z in v]
         f = [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]
-        M.add(_object("%s_roof%d" % (name, s), v, f), "roof", roof, 0.3)
+        M.add(_object("%s_roof%d" % (name, s), v, f), roof_surface, roof, 0.3)
     opening(M, name + "_arch", (px, y0, 0.0), SOUTH, door_w + 0.2, 1.8, kind, 0.2, dressed, door=(0.01, 0.01, 0.01))
     opening(M, name + "_door", (px, wall_y, 0.0), SOUTH, door_w, 1.8, kind, 0.15, dressed, door=DOOR_OAK)
 
@@ -397,7 +397,7 @@ def victorian_spire():
     M.add(box("aisle", (NL * 0.5 + 0.5, ay, (FOOT + AE) * 0.5), (NL - 1.0, AW, AE - FOOT)), "stone", ROCKFACE, 0.35)
     a = math.atan2(NE - 1.4 - AE, AW)
     roof = box("aisle_roof", (0, 0, 0), (NL - 0.6, math.hypot(AW + 0.3, NE - 1.4 - AE) + 0.1, 0.18))
-    roof.matrix_world = Matrix.Translation((NL * 0.5 + 0.5, NW * 0.5 + AW * 0.5 + 0.1, (AE + NE - 1.4) * 0.5 + 0.12)) @ Matrix.Rotation(a, 4, "X")
+    roof.matrix_world = Matrix.Translation((NL * 0.5 + 0.5, NW * 0.5 + AW * 0.5 + 0.1, (AE + NE - 1.4) * 0.5 + 0.12)) @ Matrix.Rotation(-a, 4, "X")
     M.add(roof, "roof", SLATE, 0.3)
     # (the clerestory: small paired lancets over the aisle roof; the aisle's own two-light windows)
     for x in range(3, int(NL) - 1, 4):
@@ -451,53 +451,62 @@ def victorian_spire():
     return M
 
 
-def methodist_chapel():
+def methodist_chapel(name="SM_Church_methodist_chapel", D=16.0, W=12.0, E=9.0, wall=BRICK, dressed=STUCCO, roof=SLATE,
+                     tiers=2, wall_surface="stone"):
     """A Methodist chapel of the 1860s, gable to the street: 16 m deep by 12 m wide, walls 9 m, a 25-degree
     slate roof; a pedimented stucco front over brick, two tiers of tall round-headed windows, a doorcase."""
-    M = Model("SM_Church_methodist_chapel")
-    D, W, E = 16.0, 12.0, 9.0
-    ridge = range_block(M, "body", 0.0, D, W, E, 25.0, BRICK, SLATE, overhang=0.35, verge=0.0, ridge_tiles=SLATE)
+    M = Model(name)
+    if tiers == 1:
+        E = min(E, 6.4)
+    ridge = range_block(M, "body", 0.0, D, W, E, 25.0, wall, roof, overhang=0.35, verge=0.0, ridge_tiles=roof, wall_surface=wall_surface)
     # (the front at x = 0 faces west: the pediment's cornices, the date panel, pilasters, a plinth)
     rise = ridge - E
-    M.add(box("cornice", (-0.15, 0.0, E + 0.1), (0.4, W + 0.6, 0.3)), "stone", STUCCO, 0.3)
+    M.add(box("cornice", (-0.15, 0.0, E + 0.1), (0.4, W + 0.6, 0.3)), "stone", dressed, 0.3)
     for s in (-1, 1):
         a = Vector((-0.15, s * (W * 0.5 + 0.3), E + 0.2))
         b = Vector((-0.15, 0.0, ridge + 0.25))
         d = b - a
         cb = box("rake%d" % s, (0, 0, 0), (0.4, d.length + 0.2, 0.3))
         cb.matrix_world = Matrix.Translation((a + b) * 0.5) @ Matrix.Rotation(-s * math.atan2(d.z, -s * d.y), 4, "X")
-        M.add(cb, "stone", STUCCO, 0.3)
+        M.add(cb, "stone", dressed, 0.3)
     tym = prism("tympanum", [(-W * 0.5 + 0.4, E + 0.3), (W * 0.5 - 0.4, E + 0.3), (0.0, ridge - 0.25)], 0.05)
-    M.add(place(tym, (-0.02, 0.0, 0.0), WEST), "stone", STUCCO, 0.3)
+    M.add(place(tym, (-0.02, 0.0, 0.0), WEST), "stone", dressed, 0.3)
     dp = box("datepanel", (-0.08, 0.0, E + rise * 0.42), (0.1, 2.4, 0.9))
-    M.add(dp, "stone", tuple(c * 1.05 for c in STUCCO), 0.2)
+    M.add(dp, "stone", tuple(c * 1.05 for c in dressed), 0.2)
     for u in (-W * 0.5 + 0.25, -W * 0.18, W * 0.18, W * 0.5 - 0.25):
-        M.add(box("pil%.1f" % u, (-0.1, u, (0.6 + E) * 0.5), (0.25, 0.6, E - 0.6)), "stone", STUCCO, 0.3)
-    M.add(box("plinth", (-0.08, 0.0, (FOOT + 0.6) * 0.5), (0.2, W + 0.1, 0.6 - FOOT)), "stone", STUCCO, 0.4)
-    M.add(box("band", (-0.08, 0.0, 4.4), (0.18, W, 0.25)), "stone", STUCCO, 0.3)
+        M.add(box("pil%.1f" % u, (-0.1, u, (0.6 + E) * 0.5), (0.25, 0.6, E - 0.6)), "stone", dressed, 0.3)
+    M.add(box("plinth", (-0.08, 0.0, (FOOT + 0.6) * 0.5), (0.2, W + 0.1, 0.6 - FOOT)), "stone", dressed, 0.4)
+    if tiers == 2:
+        M.add(box("band", (-0.08, 0.0, 4.4), (0.18, W, 0.25)), "stone", dressed, 0.3)
     # (the doorcase: two columns, an entablature, a fanlight over double doors; steps up to it)
-    M.add(box("step0", (-0.9, 0.0, 0.08), (1.2, 3.4, 0.16)), "stone", STUCCO, 0.4)
-    M.add(box("step1", (-0.6, 0.0, 0.24), (0.6, 3.0, 0.16)), "stone", STUCCO, 0.4)
-    opening(M, "door", (0.0, 0.0, 0.32), WEST, 1.8, 2.5, "round", 0.18, STUCCO, door=DOOR_PAINT)
+    M.add(box("step0", (-0.9, 0.0, 0.08), (1.2, 3.4, 0.16)), "stone", dressed, 0.4)
+    M.add(box("step1", (-0.6, 0.0, 0.24), (0.6, 3.0, 0.16)), "stone", dressed, 0.4)
+    opening(M, "door", (0.0, 0.0, 0.32), WEST, 1.8, 2.5, "round", 0.18, dressed, door=DOOR_PAINT)
     for s in (-1, 1):
-        M.add(lathe("col%d" % s, [(0.18, 0.0), (0.16, 3.2), (0.22, 3.25), (0.22, 3.4)], seg=12, at=(-0.35, s * 1.35, 0.32)), "stone", STUCCO, 0.3)
-    M.add(box("entab", (-0.35, 0.0, 3.9), (0.6, 3.3, 0.45)), "stone", STUCCO, 0.3)
+        M.add(lathe("col%d" % s, [(0.18, 0.0), (0.16, 3.2), (0.22, 3.25), (0.22, 3.4)], seg=12, at=(-0.35, s * 1.35, 0.32)), "stone", dressed, 0.3)
+    M.add(box("entab", (-0.35, 0.0, 3.9), (0.6, 3.3, 0.45)), "stone", dressed, 0.3)
     # (front windows: the lower tier each side of the door, the upper tier five across)
+    low = 2.0 if tiers == 2 else E - 1.2 - 1.4 - 0.6
     for u in (-W * 0.34, -W * 0.18 - 0.9, W * 0.18 + 0.9, W * 0.34):
-        opening(M, "fl%.1f" % u, (0.0, -u, 1.2), WEST, 1.0, 2.0, "round", 0.14, STUCCO)
-    for u in (-W * 0.34, -W * 0.18, 0.0, W * 0.18, W * 0.34):
-        opening(M, "fu%.1f" % u, (0.0, -u, 5.2), WEST, 1.1, 2.4, "round", 0.14, STUCCO)
+        if abs(u) < W * 0.5 - 0.8:
+            opening(M, "fl%.1f" % u, (0.0, -u, 1.2), WEST, 1.0, low, "round", 0.14, dressed)
+    if tiers == 2:
+        for u in (-W * 0.34, -W * 0.18, 0.0, W * 0.18, W * 0.34):
+            opening(M, "fu%.1f" % u, (0.0, -u, 5.2), WEST, 1.1, 2.4, "round", 0.14, dressed)
     # (side windows, two tiers, in brick with stucco heads and sills)
-    for x in (3.0, 6.5, 10.0, 13.5):
+    bays = max(2, int((D - 2.0) / 3.5))
+    for k in range(bays):
+        x = 1.0 + (D - 2.0) * (k + 0.5) / bays
         for s, f in ((-1, SOUTH), (1, NORTH)):
-            opening(M, "sl%d%d" % (int(x), s), (x, s * W * 0.5, 1.2), f, 1.0, 2.0, "round", 0.12, STUCCO)
-            opening(M, "su%d%d" % (int(x), s), (x, s * W * 0.5, 5.2), f, 1.1, 2.4, "round", 0.12, STUCCO)
+            opening(M, "sl%d%d" % (k, s), (x, s * W * 0.5, 1.2), f, 1.0, low, "round", 0.12, dressed)
+            if tiers == 2:
+                opening(M, "su%d%d" % (k, s), (x, s * W * 0.5, 5.2), f, 1.1, 2.4, "round", 0.12, dressed)
     # (quoins on the front corners)
     for y in (-W * 0.5, W * 0.5):
-        for k in range(13):
+        for k in range(int((E - FOOT - 0.9) / 0.7) + 1):
             big = k % 2 == 0
             M.add(box("q%.0f%d" % (y, k), (0.12 if big else 0.06, y + (0.15 if y < 0 else -0.15) * (0.5 if big else 1), FOOT + 0.9 + k * 0.7),
-                      (0.26 if big else 0.14, 0.3 if big else 0.5, 0.3)), "stone", STUCCO, 0.3)
+                      (0.26 if big else 0.14, 0.3 if big else 0.5, 0.3)), "stone", dressed, 0.3)
     return M
 
 

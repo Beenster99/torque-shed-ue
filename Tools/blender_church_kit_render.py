@@ -9,7 +9,8 @@ from mathutils import Vector
 from PIL import Image, ImageDraw, ImageFont
 
 LOOK = {"stone": (0.88, 0.0, True), "roof": (0.62, 0.0, True), "glass": (0.08, 0.0, False), "timber": (0.6, 0.0, False),
-        "steel": (0.45, 0.8, False)}
+        "steel": (0.45, 0.8, False), "flint": (0.7, 0.0, True), "render": (0.85, 0.0, False), "tin": (0.45, 0.3, False),
+        "thatch": (0.95, 0.0, False)}
 
 
 def _material(cache, part):
@@ -27,7 +28,7 @@ def _material(cache, part):
         # (each stone its own shade: Voronoi cells about a block's size, broken by fine noise; mortar darker)
         co = nt.nodes.new("ShaderNodeTexCoord")
         vor = nt.nodes.new("ShaderNodeTexVoronoi")
-        vor.inputs["Scale"].default_value = 2.6 if part.surface == "stone" else 5.0
+        vor.inputs["Scale"].default_value = {"stone": 2.6, "flint": 9.0}.get(part.surface, 5.0)
         nt.links.new(co.outputs["Object"], vor.inputs["Vector"])
         edge = nt.nodes.new("ShaderNodeTexVoronoi")
         edge.feature = "DISTANCE_TO_EDGE"
@@ -118,9 +119,10 @@ def _bounds(M):
 
 
 def _shoot(sc, M, yaw_deg, pitch_deg, size, path, lens=40.0):
+    mine = {p.obj.name for p in M.parts}
     for ob in sc.collection.objects:
         if ob.type == "MESH" and ob.name != "ground":
-            ob.hide_render = ob not in [p.obj for p in M.parts]
+            ob.hide_render = ob.name not in mine
     lo, hi = _bounds(M)
     lo.z = max(lo.z, 0.0)
     centre = (lo + hi) * 0.5
@@ -176,6 +178,39 @@ def render_sheet(models, out_dir):
         sheet.paste(Image.open(b).convert("RGB"), (2 * pad + size[0], y))
         y += size[1] + pad
     path = os.path.join(out_dir, "churches_stage1.png")
+    sheet.save(path)
+    print("review sheet:", path)
+    return path
+
+
+def render_grid(models, out_dir, cols=5):
+    """Stage 2's sheet: every assembled church from the south-west, small, labelled, in a grid."""
+    os.makedirs(out_dir, exist_ok=True)
+    sc = _scene(models)
+    size = (400, 300)
+    shots = []
+    for M in models:
+        a = os.path.join(out_dir, M.name + "_g.png")
+        _shoot(sc, M, 232, 13, size, a)
+        shots.append((M, a))
+    font = small = None
+    for cand in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf"):
+        if os.path.exists(cand):
+            font = ImageFont.truetype(cand, 22)
+            small = ImageFont.truetype(cand, 14)
+    pad, head = 8, 22
+    rows = (len(shots) + cols - 1) // cols
+    W = cols * size[0] + (cols + 1) * pad
+    H = 48 + rows * (size[1] + head + pad)
+    sheet = Image.new("RGB", (W, H), (245, 245, 242))
+    d = ImageDraw.Draw(sheet)
+    d.text((pad, 12), "Ride UK churches, stage 2: forty assembled from the kit (Blender renders, plain materials)", fill=(20, 20, 20), font=font)
+    for i, (M, a) in enumerate(shots):
+        x = pad + (i % cols) * (size[0] + pad)
+        y = 48 + (i // cols) * (size[1] + head + pad)
+        d.text((x, y + 3), "%d. %s" % (i + 1, getattr(M, "label", M.name)), fill=(30, 30, 30), font=small)
+        sheet.paste(Image.open(a).convert("RGB"), (x, y + head))
+    path = os.path.join(out_dir, "churches_stage2.png")
     sheet.save(path)
     print("review sheet:", path)
     return path
