@@ -470,7 +470,7 @@ def water_normal(L):
     return tex
 
 
-def water_material(L):
+def water_material(L, real=False):
     """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
     rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
     with ripples drifting across it (UV0 is the world's metres over 8, whole tens of units from one square
@@ -480,8 +480,13 @@ def water_material(L):
     tiles for the surface". Now the wave normal map (water_normal) three times over: long wind waves (27 m
     across) and two sizes of ripple on them, each drifting its own way at its own pace, so the surface
     moves all the time and no pattern repeats; the ripples fade with distance (where they would only
-    shimmer) and are stronger and weaker in broad patches, as wind gusts make them."""
-    g = L.Graph(L.new_material("M_RideWater"))
+    shimmer) and are stronger and weaker in broad patches, as wind gusts make them.
+    [build 156] beenster: "let's do the single layer water material route and put a toggle in the settings".
+    real=True makes M_RideWaterReal: the same surface in Unreal's single layer water, which you see into:
+    the light scattered and absorbed in the water as it deepens (sea blue-green and clear, a lake or river
+    peaty brown, told apart by the vertex colour), the bed refracted under it. World/TorqueRideWorld draws
+    it while Settings > Graphics > Realistic water is on."""
+    g = L.Graph(L.new_material("M_RideWaterReal" if real else "M_RideWater"))
     vc = g.node(unreal.MaterialExpressionVertexColor)
     wn = water_normal(L)
     nt = L.noise_texture()
@@ -552,6 +557,26 @@ def water_material(L):
         rough = g.const(0.04)
     base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
     mel = L.mel
+    if real:
+        g.m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
+        g.m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_OPAQUE)
+        out = g.node(unreal.MaterialExpressionSingleLayerWaterMaterialOutput, 0)
+        # (how brown the water is: the sea's colour is blue-grey, a lake's peaty, a river's brown, by the red)
+        brown = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, vc, const_b=0.024, a_out="R"), const_b=80.0))
+        # (per metre: the sea absorbs the red most, so it goes blue-green as it deepens; peaty water the
+        # blue, so it goes brown; both scatter a little of their own colour back)
+        absorb = g.lerp(g.const((0.42, 0.075, 0.05)), g.const((0.32, 0.5, 1.1)), brown)
+        scatter = g.op(unreal.MaterialExpressionMultiply, vc, const_b=0.9)
+        pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
+                "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
+                "phase": (g.const(0.15), ("PhaseG", "Phase G")),
+                "behind": (g.const(1.0), ("ColorScaleBehindWater", "Color Scale Behind Water"))}
+        for key, (node, names) in pins.items():
+            if not any(mel.connect_material_expressions(node, "", out, n) for n in names):
+                unreal.log_warning("[Torque] M_RideWaterReal: couldn't link its %s to the single layer water output" % key)
+        # (the base colour in single layer water is the surface's own: none, the water's colour is its depth)
+        base = g.const((0.0, 0.0, 0.0))
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
@@ -683,6 +708,8 @@ def scanned_materials(L):
                            ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender")),
                            # (stage 5: the sea, lakes and rivers)
                            ("M_RideWater", lambda: water_material(L)),
+                           # ([build 156] the same in single layer water: Settings > Graphics > Realistic water)
+                           ("M_RideWaterReal", lambda: water_material(L, real=True)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
                            ("M_RideNight", lambda: night_material(L)),
                            # (OSM stage 5D: traffic lights and Belisha beacons, on the shared clock)

@@ -1481,7 +1481,8 @@ int main()
 					RideMesh Tile, Piece;
 					const double X0 = std::floor(Mid.At.X / 256.0) * 256.0, Z0 = std::floor(Mid.At.Z / 256.0) * 256.0;
 					Plan->LandTile(X0, Z0, 256.0, 64, Tile);
-					bool Sound = Tile.Vertices() == size_t(65 * 65 + 4 * 65) && Tile.Idx.size() == size_t(64 * 64 * 6 + 4 * 64 * 6) && Tile.Nrm.size() == Tile.Pos.size() && Tile.Uv.size() == Tile.Vertices() * 2;
+					// (any brook's or river's bank strips come after the grid and its skirt)
+					bool Sound = Tile.Vertices() >= size_t(65 * 65 + 4 * 65) && Tile.Idx.size() >= size_t(64 * 64 * 6 + 4 * 64 * 6) && Tile.Nrm.size() == Tile.Pos.size() && Tile.Uv.size() == Tile.Vertices() * 2;
 					int Up = 0, Tris = 0;
 					double Worst = 0.0;
 					for (size_t T = 0; T + 2 < Tile.Idx.size() && T < size_t(64 * 64 * 6); T += 3)
@@ -1495,7 +1496,7 @@ int main()
 					for (size_t V = 0; V < size_t(65 * 65); ++V)
 					{
 						Sound = Sound && Tile.Nrm[V * 3 + 1] > 0.3f;
-						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->Ground(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]))));
+						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->LandGround(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]), 4.0)));
 					}
 					Check(Sound && Up == Tris && Worst < 0.01, "a 256 m square of ground comes as a mesh with its skirt: every triangle facing up, every height the ground's");
 					{
@@ -1570,9 +1571,11 @@ int main()
 						if (First >= 0) Plan->RoadPiece(0, First, Last, Deck);
 						Plan->RoadPiece(0, 100, 100 + std::max(Last - First, 1), Plain);
 						float Highest = -1e9f, Lowest = 1e9f;
-						for (size_t V = 0; V < Deck.Vertices(); ++V) { Highest = std::fmax(Highest, Deck.Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Deck.Pos[V * 3 + 1]); }
+						// ([Nov 18] the parapets and underside in the deck's stone, Deck.Stone)
+						for (const RideMesh* Part : {&Deck, Deck.Stone.get()})
+							for (size_t V = 0; Part && V < Part->Vertices(); ++V) { Highest = std::fmax(Highest, Part->Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Part->Pos[V * 3 + 1]); }
 						std::printf("      %d bridges and %d tunnels on it; the first deck is %d knots\n", Plan->Bridges, Plan->Tunnels, First >= 0 ? Last - First + 1 : 0);
-						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() >= 24 && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
+						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Stone && Deck.Stone->Vertices() >= 24 && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
 							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
 					// A tunnel (the fixture's ride has none, so 30 knots of it are called one): a tube with the

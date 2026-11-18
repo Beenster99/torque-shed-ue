@@ -591,7 +591,10 @@ public:
 	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const;
 	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
-	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
+	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;
+	// [build 155 feedback] The land mesh's own heights at its points (LandTile, LandDrawnAt): Ground, with the
+	// near squares' points by a watercourse under its water (BanksTile draws the banks over them).
+	double LandGround(double X, double Z, double Step) const { return GroundOf(X, Z, Step, Step > 8.5, std::fabs(Step - LandGrid) < 0.1); }
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack), coloured by what covers it. A square with points 8 m
@@ -835,10 +838,14 @@ public:
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> WaterNear;   // (run, first point) by every WaterCell square within reach
 	std::unordered_map<long long, char> StillCells;   // the FieldCell squares a lake's outline covers
 	static constexpr double WaterStep = 3.0, WaterCell = 32.0, BankRun = 1.2, BankReach = 14.0;
+	// [build 155 feedback] (the near land's points within BankTrough of its squares past a watercourse's edge
+	// lie under its water, BanksTile's strips of bank reaching BankStrip squares out over them; a lake's and
+	// the sea's shore eased over ShoreReach m round its outline)
+	static constexpr double BankTrough = 0.9, BankStrip = 2.4, ShoreReach = 10.0;
 	void IndexWater();   // (after IndexFields)
 	// The run nearest (X, Z) within its bank's reach: how far from its middle, its water's level, half
 	// width and depth there, and its kind.
-	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr) const;
+	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr, bool* Beside = nullptr) const;   // (Beside: alongside it, not past either end)
 	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
 	double StillLevel(double X, double Z) const;
 	void IndexFields();
@@ -1538,6 +1545,13 @@ private:
 	void RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const;
 	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
 	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
+	// [build 155 feedback] A near square's watercourses' banks and channels, in the land's own colours, added
+	// to its land mesh Out: each side from under the water's edge out BankStrip squares, finely, over the
+	// near land's points that lie under the water (GroundOf), to meet the land as drawn at its outer edge.
+	void BanksTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// [build 155 feedback] The ground as the near squares draw it: the land mesh's (LandDrawnAt), or by a
+	// watercourse its banks' (BanksTile): what a path laid on the ground lies on.
+	double LandSurfaceAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
 	// [OSM stage 4] The map's footpaths, bridleways, cycleways, pedestrian streets and steps beside the roads
 	// (Region::Ground.Paths): a ribbon on the ground along each, its colour its surface's, never on a road.
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;

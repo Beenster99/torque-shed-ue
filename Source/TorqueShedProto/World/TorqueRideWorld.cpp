@@ -630,6 +630,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	LampMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLamp.M_RideLamp"));
 	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
 	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
+	WaterMaterialReal = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWaterReal.M_RideWaterReal"));
 	NightMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideNight.M_RideNight"));
 	SignalMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSignal.M_RideSignal"));
 	SignMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSign.M_RideSign"));
@@ -1039,7 +1040,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		{
 			bNextInRayTracing = Key.X == 0;
 			bDeferNext = true;
-			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterNow(), false, bAtOnce, false)) TileWater.Add(Key, Wet);
 		}
 	}
 	RideCosts::FScope BuildingsCost(RideCosts::Buildings);
@@ -1121,6 +1122,7 @@ void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Me
 	if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
 	if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
 	if (Mesh.Turf) Sections.Emplace(Mesh.Turf.get(), LandMaterial.Get());       // [road edges, Nov 18] the shoulders' grass, as the land
+	if (Mesh.Stone) Sections.Emplace(Mesh.Stone.get(), StoneMaterial.Get());     // [Nov 18] a bridge's parapets, in the scanned stone
 	PreparedNow = Ready;
 	bNextInRayTracing = TRWI::CVarRoadsRayTraced.GetValueOnGameThread() != 0;
 	UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
@@ -1221,6 +1223,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 						TRWI::Prepare(Made->Glow.get(), *Ready);
 						TRWI::Prepare(Made->Night.get(), *Ready);
 						TRWI::Prepare(Made->Turf.get(), *Ready);
+						TRWI::Prepare(Made->Stone.get(), *Ready);
 					}
 					{
 						FScopeLock Hold(&Share->Lock);
@@ -1452,7 +1455,7 @@ void ATorqueRideWorld::TickWarmUp()
 	if (!WarmUp)
 	{
 		if (TRWI::CVarWarmUp.GetValueOnGameThread() == 0) { WarmUpFrames = -1; return; }
-		UMaterialInterface* const Each[] = {LandMaterial, RoadMaterial, StoneMaterial, MasonryMaterial, LampMaterial, RenderMaterial, WaterMaterial,
+		UMaterialInterface* const Each[] = {LandMaterial, RoadMaterial, StoneMaterial, MasonryMaterial, LampMaterial, RenderMaterial, WaterNow(),
 			NightMaterial, SignalMaterial, SignMaterial, RoofMaterial, BrickMaterial};
 		WarmUp = NewObject<UProceduralMeshComponent>(this, NAME_None, RF_Transient);
 		WarmUp->SetupAttachment(RootComponent);
@@ -1494,12 +1497,25 @@ void ATorqueRideWorld::TickWarmUp()
 	}
 }
 
+UMaterialInterface* ATorqueRideWorld::WaterNow() const
+{
+	return FTorqueSettings::Get().bRealWater && WaterMaterialReal ? WaterMaterialReal.Get() : WaterMaterial.Get();
+}
+
 void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
 	TickWarmUp();
 	if (Impostors) Impostors->Tick();   // [build 157] a few views of a far tree's impostor
+	// [build 156] (Settings > Graphics > Realistic water changed: the water already laid takes it too)
+	if (UMaterialInterface* Want = WaterNow(); Want != WaterShown)
+	{
+		WaterShown = Want;
+		for (TPair<FIntVector, TObjectPtr<UProceduralMeshComponent>>& Each : TileWater)
+			if (UProceduralMeshComponent* Wet = Each.Value.Get())
+				for (int32 Si = 0; Si < Wet->GetNumSections(); ++Si) Wet->SetMaterial(Si, Want);
+	}
 	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
 	TRProbe::WatchGc();
 	{

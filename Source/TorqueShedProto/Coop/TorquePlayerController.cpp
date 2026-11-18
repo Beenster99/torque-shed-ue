@@ -750,6 +750,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("clouds")) S.Clouds = FMath::Clamp(N, -1, 4);
 	else if (F == TEXT("ao")) S.bAmbientOcclusion = bOn;
 	else if (F == TEXT("avatarshadows")) S.bAvatarShadows = bOn;
+	else if (F == TEXT("realwater")) S.bRealWater = bOn;
 	else if (F == TEXT("aa")) S.AntiAliasing = FMath::Clamp(N, 0, 3);
 	else if (F == TEXT("hdr")) S.bHdr = bOn;
 	else if (F == TEXT("filmgrain")) S.FilmGrain = FMath::Clamp(V, 0.0f, 2.0f);
@@ -1263,6 +1264,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		}
 		Toggle(TEXT("Ambient occlusion"), S.bAmbientOcclusion, TEXT("Soft shade in corners and under things"));
 		Toggle(TEXT("Character shadows"), S.bAvatarShadows, TEXT("Players and people on foot cast shadows"));
+		Toggle(TEXT("Realistic water"), S.bRealWater, TEXT("Clear, deep water you can see into, with refraction: off for the plain glossy water (faster)"));
 
 		Heading(TEXT("POST-PROCESSING"));
 		SettingF(TEXT("Bloom"), Times(S.Bloom), TEXT("The glow round bright lights: off, up to twice the usual"), S.Bloom, 0.0f, 2.0f, 0.1f);
