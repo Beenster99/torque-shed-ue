@@ -496,6 +496,7 @@ public:
 	// ground), then steeply down into the ground by Shoulder. The grass meets it on the steep part, so
 	// the line between them stays put though the land's mesh is only a point every 4 m.
 	static constexpr double Shoulder = 1.3, ShoulderDrop = 0.4, ShoulderFlat = 0.8, ShoulderDip = 0.03;
+	static constexpr double MeetUnder = 0.015;  // [road edges, Nov 17] the shoulder's outer edge this far under the ground as drawn
 	// Where a side road joins a greater one: how far under its surface it sinks, and how far out from
 	// its edge it leans into it.
 	static constexpr double JoinSink = 0.02, JoinLean = 4.0;
@@ -521,6 +522,10 @@ public:
 	double Ground(double X, double Z, double Coarse = 0.0) const;
 	// The road's surface at (X, Z), crown and bank and all, if it is on a road, else NaN.
 	double RoadHeight(double X, double Z) const;
+	// [road edges, Nov 17] The ground's height as the nearest squares draw it: their 4 m grid of Ground's
+	// heights, each cell's two triangles (Cache, if given, keeps the grid's heights met for the next call).
+	static constexpr double LandGrid = 4.0;   // (ATorqueRideWorld's finest squares: 256 m, 64 cells)
+	double LandDrawnAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
 	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
 	// edge the point is): how far from its middle, its height, which point, its half width, which
 	// road. MainOnly looks at the ride's own road alone. Cross is how far the road's surface is above
