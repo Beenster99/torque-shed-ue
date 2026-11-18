@@ -28,6 +28,7 @@ import unreal
 
 IMP_DIR = "/Game/RideUK/Impostors"
 FRAMES = 8          # frames a side: 64 views
+FOV_DEG = 6.0       # the capture's narrow perspective view (round 155: orthographic captures hung the GPU)
 CAPTURE_PX = 256    # each view captured at this size
 CELL_PX = 128       # and drawn into the atlas at this size
 ATLAS_PX = FRAMES * CELL_PX
@@ -313,8 +314,29 @@ def bake(mesh_path, rebake=False):
     tree.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
     cap_actor = acts.spawn_actor_from_class(unreal.SceneCapture2D, at)
     cap = cap_actor.capture_component2d
-    _set(cap, capture_every_frame=False, capture_on_movement=False, projection_type=unreal.CameraProjectionMode.ORTHOGRAPHIC,
-         ortho_width=radius * 2.0, primitive_render_mode=unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST)
+    log("%s: step 1 tree and capture spawned (radius %.0f cm)" % (base, radius))
+    # ([round 155] the GPU hung (DXGI_ERROR_DEVICE_HUNG) at the bake's first capture, three times: an
+    # orthographic scene capture with Lumen, virtual shadow maps and the rest is a known trouble spot.
+    # Now a narrow perspective view from far off (near enough orthographic) and every lighting feature
+    # off: base colour, normals and depth need none of them.)
+    _set(cap, capture_every_frame=False, capture_on_movement=False, projection_type=unreal.CameraProjectionMode.PERSPECTIVE,
+         fov_angle=FOV_DEG, primitive_render_mode=unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST)
+    flags = []
+    for name in ("Lighting", "GlobalIllumination", "Lumen", "LumenGlobalIllumination", "LumenReflections", "DynamicShadows",
+                 "VirtualShadowMaps", "ContactShadows", "AmbientOcclusion", "DistanceFieldAO", "Fog", "VolumetricFog",
+                 "Atmosphere", "Cloud", "PostProcessing", "MotionBlur", "Bloom", "ScreenSpaceReflections", "RayTracedDistanceFieldShadows",
+                 "SkyLighting", "ReflectionEnvironment", "Translucency", "TemporalAA", "AntiAliasing"):
+        try:
+            flags.append(unreal.EngineShowFlagsSetting(show_flag_name=name, enabled=False))
+        except Exception:
+            try:
+                f = unreal.EngineShowFlagsSetting()
+                f.set_editor_property("show_flag_name", name)
+                f.set_editor_property("enabled", False)
+                flags.append(f)
+            except Exception:
+                pass
+    _set(cap, show_flag_settings=flags)
     # ([round 154] the ShowOnlyActors property can't be set from Python on UE 5.8 ("cannot be edited on
     # templates"), which left the list empty and every capture black: the component's own function)
     try:
@@ -330,7 +352,7 @@ def bake(mesh_path, rebake=False):
              "N": (unreal.SceneCaptureSource.SCS_NORMAL, _rt(F.RTF_RGBA16F, CAPTURE_PX), _rt_asset("RT_Imp_N", F.RTF_RGBA16F, ATLAS_PX)),
              "D": (unreal.SceneCaptureSource.SCS_SCENE_DEPTH, _rt(F.RTF_R16F, CAPTURE_PX), _rt_asset("RT_Imp_D", F.RTF_R16F, ATLAS_PX))}
     centre_ws = at + centre
-    dist = radius * 2.0
+    dist = radius / math.tan(math.radians(FOV_DEG * 0.5))   # (the view is 2 radii wide at the tree)
     probe = None
     for key, (source, shot, atlas) in shots.items():
         _set(cap, capture_source=source, texture_target=shot)
@@ -338,7 +360,12 @@ def bake(mesh_path, rebake=False):
             for j in range(FRAMES):
                 d = frame_dir(i, j)
                 cap_actor.set_actor_location_and_rotation(centre_ws + d * dist, unreal.MathLibrary.make_rot_from_x(d * -1.0), False, False)
+                if i == 0 and j == 0 and key == "C":
+                    log("%s: step 2 first capture (%s)" % (base, key))
                 cap.capture_scene()
+                if i == 0 and j == 0 and key == "C":
+                    unreal.RenderingLibrary.read_render_target_raw_pixel(world, shot, 0, 0)
+                    log("%s: step 3 first capture survived" % base)
                 if i == 0 and j == 0:
                     # ([round 154] the first views came out black: give the tree's Nanite data and
                     # textures a few captures to stream in before the one that counts)
@@ -402,6 +429,8 @@ def bake(mesh_path, rebake=False):
     for key in ("C", "N", "D"):
         mel.set_material_instance_texture_parameter_value(mi, "Tex" + key, made[key])
     mel.set_material_instance_scalar_parameter_value(mi, "R", radius)
+    # (the captures' depth runs from the far-off camera: the tree is within a radius of dist)
+    mel.set_material_instance_scalar_parameter_value(mi, "MaskDepth", dist / radius + 1.5)
     mel.set_material_instance_scalar_parameter_value(mi, "MinZ", centre.z - ext.z)
     mel.set_material_instance_scalar_parameter_value(mi, "MaxZ", centre.z + ext.z)
     mel.set_material_instance_vector_parameter_value(mi, "Centre", unreal.LinearColor(centre.x, centre.y, centre.z, 0))
