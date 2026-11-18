@@ -128,6 +128,18 @@ private:
 		TArray<FString> Caps;
 		int32 CapOn = -1;
 		FString Warning;
+		// [ride date] Boxes along the row (beenster, build 155: day, month and year pull-downs with a reset
+		// button on the same line): a pull-down has Options (Pick the one showing) and Set; a button Press.
+		struct FCell
+		{
+			FString Text;
+			TArray<FString> Options;
+			int32 Pick = -1;
+			TFunction<void(int32)> Set;
+			TFunction<void()> Press;
+			bool IsDrop() const { return Options.Num() > 0 && (bool)Set; }
+		};
+		TArray<FCell> Cells;
 		bool Works() const { return Choose || Step; }
 	};
 
@@ -208,6 +220,11 @@ private:
 	// [profile] Torque Shed's profile picture, top right of the Esc menu: it opens the Profile page
 	// (your MetaHuman, height and face; Shed/TorqueProfile.h), which shows you beside its sliders.
 	TWeakObjectPtr<ATorqueProfilePreview> Preview;
+	// [ride date] A row's pull-down open (its row and box), the option lit, and the first one shown.
+	int32 DropRow = -1, DropCell = -1, DropHot = 0, DropFirst = 0;
+	static constexpr int32 DropShown = 10;
+	void OpenDrop(const FRow& Row, int32 RowIndex, int32 Cell);
+	bool DropInput(TArray<FRow>& List, int32 MoveX, int32 MoveY, bool bChoose, bool bBack);
 	int32 DragRow = -1;         // the slider being dragged, and its track's ends on screen
 	double DragX0 = 0.0, DragX1 = 1.0;
 	bool bProfileSent = false;
