@@ -2,6 +2,8 @@
 // Data/Furniture, the shed's say over it (UTorqueBuildSubsystem's furniture requests), and drawing it.
 #include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueDecals.h"
+#include "Photo/TorquePhotos.h"
 #include "Shed/TorqueShedKit.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueToolModels.h"
@@ -11,6 +13,8 @@
 #include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
+#include "HAL/PlatformTime.h"
 #include "Engine/World.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -165,6 +169,21 @@ static const FData& Data()
 
 bool HasLabel(const FModel& M) { return M.Kind == FName(TEXT("shelf")); }
 bool IsTv(const FModel& M) { return M.Kind == FName(TEXT("tv")); }
+bool IsPhotoPrint(const FModel& M)
+{
+	static const FName Photo(TEXT("photo"));
+	return M.Kind == Photo;
+}
+FName PhotoPrintModel()
+{
+	static const FName Print(TEXT("photo_print"));
+	return Print;
+}
+FName BinSpot()
+{
+	static const FName Bin(TEXT("bin"));
+	return Bin;
+}
 
 FString NameOf(const FTorqueFurniture& F)
 {
@@ -486,11 +505,27 @@ FString UTorqueBuildSubsystem::CheckFurniture(int32 Peer, const FTorqueShedReque
 		return F && F->Mover == Peer ? FString() : FString(TEXT("You're not moving that."));
 	case ETorqueShedAct::ReleaseFurniture:
 		if (!F || F->Mover != Peer) return TEXT("You're not moving that.");
+		if (R.Spot == TorqueFurniture::BinSpot()) return M && TorqueFurniture::IsPhotoPrint(*M) ? FString() : FString(TEXT("Only a photo print goes in the bin."));   // [drone]
 		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("Not out there: keep it in the shed or the yard.");
 		return FString();
 	case ETorqueShedAct::OrderFurniture:
 	{
 		const TorqueFurniture::FModel* O = TorqueFurniture::Find(R.Part);
+		// [drone] A photo printed from the album: into the hands of whoever printed it.
+		if (O && TorqueFurniture::IsPhotoPrint(*O))
+		{
+			if (!TorqueDecals::IsSharedId(R.Text)) return TEXT("That print didn't come out.");
+			if (FurnitureMovedBy(Peer) != 0) return TEXT("Put down what you're moving first (F).");
+			if (HeldBy(Peer) != 0 || Paint.Held.Contains(Peer) || Paint.TapeBy == Peer || PushedBy(Peer) != INDEX_NONE
+				|| StandPusher == Peer || ExtinguisherBy == Peer)
+				return TEXT("Your hands are full: put it down first.");
+			int32 Prints = 0;
+			for (const FTorqueFurniture& P : Furnishings)
+				if (const TorqueFurniture::FModel* PM = TorqueFurniture::Find(P.Model); PM && TorqueFurniture::IsPhotoPrint(*PM)) ++Prints;
+			if (Prints >= 300) return TEXT("That's plenty of photos on the walls: bin one first.");
+			if (Furnishings.Num() >= 600) return TEXT("The shed and the yard are full of kit: that's plenty.");
+			return FString();
+		}
 		if (!O || !O->bSold) return TEXT("The shop doesn't sell that.");
 		if (Furnishings.Num() >= 400) return TEXT("The shed and the yard are full of kit: that's plenty.");
 		return FString();
@@ -525,6 +560,12 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 	case ETorqueShedAct::ReleaseFurniture:
 	{
 		if (!F) return FString();
+		if (R.Spot == TorqueFurniture::BinSpot())   // [drone] a photo print in the bin
+		{
+			const int32 Gone = F->Id;
+			Furnishings.RemoveAll([Gone](const FTorqueFurniture& X) { return X.Id == Gone; });
+			return TEXT("The print's in the bin (the photo's still in your album).");
+		}
 		const FVector At = R.Place.GetLocation();
 		const bool bLifted = M && (M->bWall || M->Small());
 		const FTransform Was = F->Xf;
@@ -553,6 +594,17 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 	{
 		const TorqueFurniture::FModel* O = TorqueFurniture::Find(R.Part);
 		if (!O) return FString();
+		if (TorqueFurniture::IsPhotoPrint(*O))   // [drone] in the hands of whoever printed it, to hang
+		{
+			FTorqueFurniture Print;
+			Print.Id = FurnitureNextId++;
+			Print.Model = R.Part;
+			Print.Mover = Peer;
+			Print.Label = TorqueFurniture::CleanLabel(R.Text);
+			if (const APawn* Who = TorqueShedKit::PawnOf(this, Peer)) Print.Xf = TorqueFurniture::MovedXf(Who, *O, 0.0, 0.0);
+			Furnishings.Add(Print);
+			return TEXT("Printed at 7 x 5: look at a wall and press F (Triangle) to hang it.");
+		}
 		FVector At = FurnitureDropAt(*O);
 		if (O->bWall) At.Z += O->Size.Y * 0.5;   // stood on its bottom edge until it's hung (its origin's its middle)
 		Furnishings.Add({FurnitureNextId++, R.Part, FTransform(FRotator(0.0, 180.0, 0.0), At), 0, 0.0f});
@@ -573,6 +625,12 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 void UTorqueBuildSubsystem::DropFurnitureOf(int32 Peer)
 {
 	bool bChanged = false;
+	// [drone] A photo print still in their hands goes (it can be printed again from the album).
+	bChanged = Furnishings.RemoveAll([Peer](const FTorqueFurniture& X)
+	{
+		const TorqueFurniture::FModel* XM = X.Mover == Peer ? TorqueFurniture::Find(X.Model) : nullptr;
+		return XM && TorqueFurniture::IsPhotoPrint(*XM);
+	}) > 0;
 	for (FTorqueFurniture& F : Furnishings)
 		if (F.Mover == Peer)
 		{
@@ -811,7 +869,9 @@ void ATorqueFurnishings::SpawnMissing(UWorld* World)
 UStaticMeshComponent* ATorqueFurnishings::Make(FName Model, const FTransform& Xf, bool bMovable)
 {
 	const TorqueFurniture::FModel* M = TorqueFurniture::Find(Model);
-	UStaticMesh* Mesh = TorqueFurniture::Mesh(Model);
+	// [drone] A photo print is made here (Photo/TorquePhotos.h), not imported.
+	const bool bPrint = M && TorqueFurniture::IsPhotoPrint(*M);
+	UStaticMesh* Mesh = bPrint ? TorquePhotos::PrintMesh() : TorqueFurniture::Mesh(Model);
 	if (!M || !Mesh)
 	{
 		if (!Missing.Contains(Model))
@@ -833,6 +893,13 @@ UStaticMeshComponent* ATorqueFurnishings::Make(FName Model, const FTransform& Xf
 	C->RegisterComponent();
 	C->SetWorldTransform(FTransform(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0)) * Xf);
 	if (!bMovable) C->ComponentTags.Add(TEXT("FixedKit"));
+	if (bPrint)
+	{
+		// Blank paper till its picture's here (DressPrint).
+		UMaterialInterface* Paper = TorquePhotos::PaperMaterial();
+		for (int32 I = 0; I < C->GetNumMaterials(); ++I) C->SetMaterial(I, Paper);
+		return C;
+	}
 	TFI::DressFab(C, Model);
 	return C;
 }
@@ -921,6 +988,21 @@ void ATorqueFurnishings::Paint()
 	}
 }
 
+void ATorqueFurnishings::DressPrint(int32 Id, UStaticMeshComponent* C, const FString& Picture)
+{
+	// [drone] A photo print's picture, once it's here (a friend's comes from the host; this machine's
+	// own is loaded off the game thread): looked for again every half second till then.
+	if (!C) return;
+	if (const FString* Was = PrintsShown.Find(Id); Was && *Was == Picture) return;
+	const double Now = FPlatformTime::Seconds();
+	if (Now < PrintTryAt.FindRef(Id)) return;
+	PrintTryAt.Add(Id, Now + 0.5);
+	UTexture2D* Tex = TorquePhotos::PrintPicture(this, Picture);
+	if (!Tex) return;
+	if (UMaterialInterface* Mat = TorquePhotos::PrintMaterial(C, Tex)) C->SetMaterial(0, Mat);
+	PrintsShown.Add(Id, Picture);
+}
+
 int32 ATorqueFurnishings::PieceOf(const UPrimitiveComponent* C) const
 {
 	for (const TPair<int32, UStaticMeshComponent*>& KV : Drawn)
@@ -942,6 +1024,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		{
 			TFI::Unmake(*Have);
 			Drawn.Remove(F.Id);
+			PrintsShown.Remove(F.Id);
 			Have = nullptr;
 		}
 		if (!Have)
@@ -963,6 +1046,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		if (C->GetCollisionEnabled() != Want) C->SetCollisionEnabled(Want);
 		const FTransform Draw = FTransform(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0)) * Xf;
 		if (!C->GetComponentTransform().Equals(Draw, 0.01)) C->SetWorldTransform(Draw);
+		if (F.Model == TorqueFurniture::PhotoPrintModel()) DressPrint(F.Id, C, F.Label);   // [drone] its photo on it
 		// A Fab look is outlined with its piece (the look outline marks the piece's own mesh, which
 		// isn't drawn: the Fab model in front of it would hide the outline's depth test).
 		for (USceneComponent* Kid : C->GetAttachChildren())
@@ -978,6 +1062,8 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		{
 			TFI::Unmake(It.Value());
 			DrawnModel.Remove(It.Key());
+			PrintsShown.Remove(It.Key());
+			PrintTryAt.Remove(It.Key());
 			It.RemoveCurrent();
 		}
 	DrawLabels();

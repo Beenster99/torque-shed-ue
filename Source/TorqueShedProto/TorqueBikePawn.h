@@ -136,6 +136,8 @@ public:
 	// bike gets back on. Parked: a bike seen standing with nobody on it (ours, or in co-op another
 	// rider's), its stand down and the rider hidden.
 	bool IsOnFoot() const { return bOnFoot; }
+	// [drone] The PlayStation pad as it is now (the drone camera reads it while it's up: one reader).
+	FSonyPadState PadState() const;
 	void SetParkedLook(bool bParked);
 	// [co-op] Riding a mate's bike on the road (beenster, build 141): a bike standing parked with its
 	// rider off it, ours or as their snapshots say. Their parked bike nearest our feet (within reach),

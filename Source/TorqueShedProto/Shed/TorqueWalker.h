@@ -572,6 +572,7 @@ private:
 	// F puts it down; its HUD lines and outline.
 	int32 TargetFurniture = 0;
 	bool bFurnArmed = false;
+	bool bBinJust = false;   // [drone] Delete / Circle this frame: a photo print held goes in the bin
 	double FurnFHeld = 0.0;
 	void FindFurniture();
 	bool FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust);

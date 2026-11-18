@@ -9,6 +9,8 @@
 #include "TorqueTft.h"
 #include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
 #include "Coop/TorqueSession.h"
@@ -38,6 +40,18 @@ void ATorqueHUD::DrawHUD()
 	if (TPC && TPC->IsMenuUp())
 	{
 		TPC->DrawMenu(this, Canvas);   // the pause menu: nothing else over it
+		return;
+	}
+	// [drone] The drone's viewfinder, and nothing else over its view (nothing at all on the photo's frame).
+	if (ATorqueDrone* Drone = ATorqueDrone::For(GetOwningPlayerController()))
+	{
+		Drone->DrawHud(this, Canvas);
+		return;
+	}
+	// [drone] The photo album over the shed.
+	if (ATorquePhotoAlbum* Album = ATorquePhotoAlbum::For(GetOwningPlayerController()))
+	{
+		Album->DrawHud(this, Canvas);
 		return;
 	}
 	if (ATorqueGeometryMode* Geo = ATorqueGeometryMode::For(GetOwningPlayerController()))

@@ -1,4 +1,5 @@
 #include "TorqueBikePawn.h"
+#include "Photo/TorqueDrone.h"
 #include "Coop/TorquePing.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Coop/TorquePlayerController.h"
@@ -1458,6 +1459,18 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Throttle = FrontBrake = RearBrake = Shift = Lean = 0.0;
 		// [garage] In a forecourt garage: the spanner on the bike, the wall computer (its page takes the controls).
 		if (TickGarage(PC, Dt, SonyDown, SonyPressed)) return;
+		// [drone] The drone camera (Photo/TorqueDrone.h): B or View sends it up; while it's up it has the controls.
+		if (ATorqueDrone::For(PC)) return;
+		if (!bPushing && (FTorqueKeys::Just(PC, ETorqueKey::Drone) || SonyHit(ESonyButton::Create) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left)))
+		{
+			FString Why;
+			if (!ATorqueDrone::Launch(this, Why) && !Why.IsEmpty())
+			{
+				FootNote = Why;
+				FootNoteFor = 2.0;
+			}
+			return;
+		}
 		const double KeyX = (FTorqueKeys::Down(PC, ETorqueKey::WalkRight) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkLeft) ? 1.0 : 0.0);
 		const double KeyY = (FTorqueKeys::Down(PC, ETorqueKey::WalkForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ? 1.0 : 0.0);
 		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
@@ -1858,6 +1871,11 @@ void ATorqueBikePawn::ChooseStand()
 		ParkStand = 2;
 		ParkLift = Centre->Num("lift", 0.04);
 	}
+}
+
+FSonyPadState ATorqueBikePawn::PadState() const
+{
+	return Pad ? Pad->Get() : FSonyPadState();
 }
 
 bool ATorqueBikePawn::GetOff()
@@ -5115,6 +5133,7 @@ void ATorqueBikePawn::DrawHud()
 				*Use, Mate ? *MateLine : Away <= 250.0 ? *FString::Printf(TEXT("to get back on, hold %s to wheel it"), *Use) : TEXT("by the bike to get back on"),
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
+			Add(FString::Printf(TEXT("%s / View: drone camera (fly it, take photos)"), *FTorqueKeys::Text(ETorqueKey::Drone)), FColor(200, 230, 200), 0.8f);   // [drone]
 		}
 		GarageHudLines();   // [garage]
 	}

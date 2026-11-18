@@ -107,6 +107,17 @@ bool ATorqueWalker::FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust
 			R.Amount = bBack ? -TWFI::TurnStep : TWFI::TurnStep;
 			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 		}
+		// [drone] A photo print in the bin (its photo's still in the album).
+		if (bBinJust && M && TorqueFurniture::IsPhotoPrint(*M))
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::ReleaseFurniture;
+			R.Item = Moving;
+			R.Spot = TorqueFurniture::BinSpot();
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+			else Doing(FString(), 0.0);
+			return true;
+		}
 		if (!bF) return true;   // (nothing else happens with your hands full of it)
 		if (!M) return true;
 		FTorqueShedRequest R;
@@ -175,6 +186,7 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 		Lines.Add({FString::Printf(TEXT("R / Square: turn it (Shift+R the other way, %+.0f deg)   Wheel, Q / E: out or in (%+.0f cm)   F / Triangle: put it down"),
 			F->Turn, F->Reach), Prompt, 0.65f});
 		if (!M->bWall && !M->Small()) Lines.Add({TEXT("Square to a wall, it snaps flush to it and lines up with the kit beside it."), Info, 0.55f});
+		if (TorqueFurniture::IsPhotoPrint(*M)) Lines.Add({TEXT("Delete / Circle: put it in the bin (print it again from the album, Y / D-pad down)"), Prompt, 0.65f});   // [drone]
 		if (NoteFor > 0.0) Lines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
 		return true;
 	}
