@@ -1182,6 +1182,18 @@
    "yard": true,
    "sold": false,
    "pass": true
+  },
+  "photo_print": {
+   "kind": "photo",
+   "name": "Photo print",
+   "desc": "One of your drone photos, printed at 7 x 5 inches for the shed wall.",
+   "size": [
+    0.1778,
+    0.127,
+    0.002
+   ],
+   "wall": true,
+   "sold": false
   }
  }
 }

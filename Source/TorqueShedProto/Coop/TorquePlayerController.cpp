@@ -5,6 +5,8 @@
 #include "Shed/TorqueDecals.h"
 #include "Fit/BikeDecal.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
@@ -804,6 +806,7 @@ bool ATorquePlayerController::WantsPause()
 {
 	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
 	if (ATorqueGeometryMode::For(this) || ATorqueDecalMode::For(this)) return false;
+	if (ATorqueDrone::For(this) || ATorquePhotoAlbum::For(this)) return false;   // [drone] (Esc brings it back, closes the album)
 	const APawn* P = GetPawn();
 	if (const ATorqueWalker* W = Cast<ATorqueWalker>(P); W && W->ComputerUpOrJustClosed()) return false;   // [shed] Esc closes the parts computer
 	if (const ATorqueBikePawn* BP = Cast<ATorqueBikePawn>(P); BP && BP->GarageComputerUpOrJustClosed()) return false;   // [garage] and the garage's
