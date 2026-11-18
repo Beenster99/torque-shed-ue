@@ -861,7 +861,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	Side.Length = Along.back();
 	Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
 	Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
-	Side.Setts = SettsSurface(G.SurfaceOf(int(E)));
+	Side.Setts = SettsSurface(G.SurfaceOf(int(E))) || SettsStreet(Line);   // ([towns stage 8] or a famous street's)
 	const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 	const RoadX::Across Ax = RoadX::Of(G, int(E), RoadLine::WidthOf(Class));   // [OSM stage 5]
 	const double Half = Ax.Half;

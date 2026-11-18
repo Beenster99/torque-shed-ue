@@ -285,6 +285,7 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 const LocalLook& RidePlan::LookHere(double X, double Z) const
 {
 	if (!Britain()) return WorldLook();   // [stage 8]
+	if (const LocalLook* Street = StreetLookAt(X, Z)) return *Street;   // [towns stage 8]
 	if (const LocalLook* Town = TownLookAt(X, Z)) return *Town;   // [towns stage 1]
 	if (const LocalLook* Held = AtlasLookAt(X, Z)) return *Held;  // [towns stage 5]
 	const Geo Here = Frame(Area.Roads.FrameLat, Area.Roads.FrameLon).ToGeo(X, Z);
