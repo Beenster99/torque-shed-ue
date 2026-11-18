@@ -342,6 +342,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 				B.Gravity = 120.0f;
 				B.Drag = 2.5f;
 				B.Soft = 1.0f;
+				B.Trail = Fwd;
 			}
 			else
 			{
@@ -454,7 +455,16 @@ void ATorqueWeatherFx::DrawBits()
 		Data[1] = C.G;
 		Data[2] = C.B;
 		const float Strength = B.Soft > 0.5f ? FMath::Sin(UE_PI * FMath::Min(1.0f, F * 1.1f + 0.05f)) : 1.0f - FMath::Square(F);
-		Data[3] = FMath::Clamp(B.Alpha * Fade * Strength, 0.0f, 1.0f);
+		// [spray] A bike's mist seen along its trail (from behind or ahead) stacks hundreds of faint puffs in a
+		// line, so it read as thick white smoke from the riders behind (beenster, build 155; side on it looked
+		// right): thinned the more end-on it's seen.
+		float EndOn = 1.0f;
+		if (!B.Trail.IsZero())
+		{
+			const float Along2 = FMath::Square((float)FVector::DotProduct(ToEye, B.Trail));
+			EndOn = FMath::Lerp(1.0f, 0.12f, FMath::Square(Along2));
+		}
+		Data[3] = FMath::Clamp(B.Alpha * Fade * Strength * EndOn, 0.0f, 1.0f);
 		Data[4] = B.bStreak ? 2.0f : B.Soft;
 		Data[5] = B.Seed;
 		Puffs->SetCustomData(Slot, Data, false);

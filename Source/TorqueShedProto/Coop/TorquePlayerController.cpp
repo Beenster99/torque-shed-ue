@@ -23,6 +23,7 @@
 #include "Engine/DirectionalLight.h"
 #include "EngineUtils.h"
 #include "TorqueBikePawn.h"
+#include "TorqueReports.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
@@ -1506,6 +1507,13 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Heading(TEXT("CO-OP"));
 		Toggle(TEXT("Open my router for internet friends"), S.bOpenRouter,
 			TEXT("Hosting asks your router to open UDP port 7777 (UPnP), and closes it again after. Off: forward it by hand"));
+		// [reports] beenster, build 155: a friend's game crashed. The crash and freeze reports, to zip up and send.
+		{
+			const int32 Reports = TorqueReports::Count();
+			Add(TEXT("Crash and freeze reports"), Reports > 0 ? FString::Printf(TEXT("%d saved"), Reports) : FString(TEXT("None")),
+				TEXT("If the game crashed or froze, a report is saved here (the call stack and the log). Opens the folder: zip it up and send it to fix the cause"),
+				[]() { TorqueReports::OpenFolder(); });
+		}
 		// [Ride UK stage 8] The real world kept on this machine.
 		Heading(TEXT("RIDE UK: THE REAL WORLD"));
 		{
