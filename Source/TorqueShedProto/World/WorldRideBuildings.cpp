@@ -1192,6 +1192,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					const double Foot = std::fmin(Ga, Gb) - 0.3, Head = std::fmax(Ga, Gb) + WallH;
 					const P2 Dir(Mb.X - Ma.X, Mb.Z - Ma.Z);
 					RideMesh& Into = Rendered ? Washed : Brick ? BrickOut : Houses;
+					const size_t WallFrom = Into.Vertices();
 					Box(Into, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5, 0.11, Foot, Head, Rendered || Brick ? Wall : Mask);
 					Box(Out, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5 + 0.02, 0.15, Head, Head + 0.09, Coping);
 					// (a gate pier each side of the path)
@@ -1201,6 +1202,13 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						const P3 Pp = Local(Pu, Line, 0.0);
 						Box(Into, Pp.X, Pp.Z, Dir, 0.17, 0.17, Foot, Head + 0.25, Rendered || Brick ? Wall : Mask);
 						Box(Out, Pp.X, Pp.Z, Dir, 0.2, 0.2, Head + 0.25, Head + 0.35, Coping);
+					}
+					// ([Nov 18] the stone garden wall's moss as the house's own, 0.06: Box gives none, and the
+					// house mesh's alpha must cover every vertex or none, see Quad)
+					if (&Into == &Houses && !Houses.Alpha.empty() && Houses.Alpha.size() < Houses.Vertices())
+					{
+						Houses.Alpha.resize(WallFrom, 1.0f);
+						Houses.Alpha.resize(Houses.Vertices(), 0.06f);
 					}
 				}
 				if (Tally && NRuns > 0) ++Tally->FrontWalls;
