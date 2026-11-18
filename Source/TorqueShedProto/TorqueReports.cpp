@@ -9,6 +9,7 @@
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/App.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -36,7 +37,7 @@ FString Stamp()
 // A copy of the log as it is now (it's written with others allowed to read it).
 void CopyLog(const FString& To)
 {
-	const FString Log = FPlatformOutputDevices::GetAbsoluteLog();
+	const FString Log = FPlatformOutputDevices::GetAbsoluteLogFilename();
 	if (!Log.IsEmpty() && IFileManager::Get().FileExists(*Log)) IFileManager::Get().Copy(*To, *Log, true, true, true);
 }
 
@@ -48,7 +49,8 @@ void WriteFreeze(double Silent)
 		*FDateTime::Now().ToString(), Silent, *BuildStamp());
 	static ANSICHAR Stack[64 * 1024];
 	Stack[0] = 0;
-	if (FPlatformStackWalk::ThreadStackWalkAndDump(Stack, sizeof(Stack), 0, GGameThreadId)) Text += ANSI_TO_TCHAR(Stack);
+	FPlatformStackWalk::ThreadStackWalkAndDump(Stack, sizeof(Stack), 0, GGameThreadId);   // (returns void on Windows)
+	if (Stack[0]) Text += ANSI_TO_TCHAR(Stack);
 	else Text += TEXT("(this platform couldn't walk the game thread's stack)\n");
 	FFileHelper::SaveStringToFile(Text, *FPaths::Combine(Dir, TEXT("freeze.txt")));
 	CopyLog(FPaths::Combine(Dir, TEXT("log_at_freeze.log")));
@@ -112,6 +114,15 @@ void CollectLastTime()
 		Seen.Add(D);
 		bChanged = true;
 		const FString From = FPaths::Combine(Crashes, D), To = FPaths::Combine(Out, TEXT("crash_") + D);
+		// Only a real crash (hub, 156: a non-fatal ensure writes a crash folder too and the game carries on):
+		// an ensure, or a hang the engine noticed but lived through, is a log line here, not a report.
+		FString Context;
+		FFileHelper::LoadFileToString(Context, *FPaths::Combine(From, TEXT("CrashContext.runtime-xml")));
+		if (Context.Contains(TEXT("<IsEnsure>true</IsEnsure>")) || Context.Contains(TEXT("<CrashType>Ensure</CrashType>")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque reports: %s was an ensure (the game carried on): not a crash report"), *D);
+			continue;
+		}
 		TArray<FString> Inside;
 		Files.FindFiles(Inside, *FPaths::Combine(From, TEXT("*")), true, false);
 		for (const FString& F : Inside)
@@ -122,7 +133,8 @@ void CollectLastTime()
 	// The newest backed-up log is last session's: if it never says it closed, the game was killed or froze.
 	const FString Logs = FPaths::ProjectLogDir();
 	TArray<FString> Backups;
-	Files.FindFiles(Backups, *FPaths::Combine(Logs, TEXT("*-backup-*.log")), true, false);
+	// (our own game's logs only: not the web browser's cef3 logs that share the folder)
+	Files.FindFiles(Backups, *FPaths::Combine(Logs, FString(FApp::GetProjectName()) + TEXT("-backup-*.log")), true, false);
 	Backups.Sort();
 	if (Backups.Num() > 0 && !Seen.Contains(Backups.Last()))
 	{
