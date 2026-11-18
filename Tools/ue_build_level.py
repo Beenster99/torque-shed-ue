@@ -1085,12 +1085,19 @@ def bike_glass_materials():
         mel.connect_material_expressions(opac, "", mix, "A")
         mel.connect_material_expressions(edge, "", mix, "B")
         mel.connect_material_expressions(fres, "", mix, "Alpha")
-        mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        # Clear glass and perspex scatter almost no light: lit at its full (near white) colour the windscreen came
+        # out frosted and milky (beenster, build 155: "the perspex screens lack transparency"). The colour is
+        # taken right down, so what shows is what is behind it and the reflections on it.
+        dim = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Dim", default_value=0.04)
+        dark = g.node(unreal.MaterialExpressionMultiply, -600)
+        mel.connect_material_expressions(col, "", dark, "A")
+        mel.connect_material_expressions(dim, "", dark, "B")
+        mel.connect_material_property(dark, "", unreal.MaterialProperty.MP_BASE_COLOR)
         mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
         mel.connect_material_property(mix, "", unreal.MaterialProperty.MP_OPACITY)
         mel.recompile_material(m)
         unreal.EditorAssetLibrary.save_loaded_asset(m)
-        for name, opacity, edge_opacity in (("v2glass", 0.1, 0.4), ("v2screen", 0.3, 0.6)):
+        for name, opacity, edge_opacity in (("v2glass", 0.05, 0.3), ("v2screen", 0.07, 0.35)):
             path = BIKE_MAT_DIR + "/MI_" + name
             if unreal.EditorAssetLibrary.does_asset_exist(path):
                 unreal.EditorAssetLibrary.delete_asset(path)
@@ -1100,7 +1107,7 @@ def bike_glass_materials():
             mel.set_material_instance_scalar_parameter_value(mi, "Opacity", opacity)
             mel.set_material_instance_scalar_parameter_value(mi, "EdgeOpacity", edge_opacity)
             unreal.EditorAssetLibrary.save_loaded_asset(mi)
-        unreal.log("[Torque] V2 bike glass: M_BikeGlass, MI_v2glass, MI_v2screen")
+        unreal.log("[Torque] V2 bike glass: M_BikeGlass (dimmed colour), MI_v2glass 0.05/0.3, MI_v2screen 0.07/0.35")
     except Exception as e:
         unreal.log_warning("[Torque] V2 bike glass materials not made: %s" % e)
 
