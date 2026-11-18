@@ -141,6 +141,22 @@ return CtoV + (Rt * u + Upv * v) * R * Sc;
 """
 
 
+_FAILED_LINKS = []
+
+
+def _link(src, dst, pin):
+    """Connects src to dst's pin. ([round 156 cook] "Missing Transform input vector": a one-input node's
+    pin has no name, so "Input" did not connect: the empty name is tried too, and failures are counted.)"""
+    for name in ([pin, ""] if pin else [""]):
+        try:
+            if mel.connect_material_expressions(src, "", dst, name):
+                return True
+        except Exception:
+            pass
+    _FAILED_LINKS.append("%s.%s" % (dst.get_name(), pin))
+    return False
+
+
 def _expr(m, cls, x, y):
     return mel.create_material_expression(m, cls, x, y)
 
@@ -163,7 +179,7 @@ def _custom(m, code, out_type, inputs, x, y, label):
     _set(e, code=code, output_type=out_type, description=label,
          inputs=[_custom_input(name) for name, _ in inputs])
     for name, src in inputs:
-        mel.connect_material_expressions(src, "", e, name)
+        _link(src, e, name)
     return e
 
 
@@ -174,7 +190,7 @@ def _pos_transform(m, src, to_world, x, y):
         _set(e, transform_source_type=P.TRANSFORMPOSSOURCE_LOCAL, transform_type=P.TRANSFORMPOSSOURCE_WORLD)
     else:
         _set(e, transform_source_type=P.TRANSFORMPOSSOURCE_WORLD, transform_type=P.TRANSFORMPOSSOURCE_LOCAL)
-    mel.connect_material_expressions(src, "", e, "Input")
+    _link(src, e, "Input")
     return e
 
 
@@ -185,14 +201,14 @@ def _vec_transform(m, src, to_world, x, y):
         _set(e, transform_source_type=S.TRANSFORMSOURCE_LOCAL, transform_type=D.TRANSFORM_WORLD)
     else:
         _set(e, transform_source_type=S.TRANSFORMSOURCE_WORLD, transform_type=D.TRANSFORM_LOCAL)
-    mel.connect_material_expressions(src, "", e, "Input")
+    _link(src, e, "Input")
     return e
 
 
 def _sub(m, a, b, x, y):
     e = _expr(m, unreal.MaterialExpressionSubtract, x, y)
-    mel.connect_material_expressions(a, "", e, "A")
-    mel.connect_material_expressions(b, "", e, "B")
+    _link(a, e, "A")
+    _link(b, e, "B")
     return e
 
 
@@ -213,8 +229,18 @@ def _asset(name, folder, cls, factory):
 
 def master_material():
     path = "%s/%s" % (IMP_DIR, MASTER)
+    # ([build 157] the crashed round 156 bake left a half-built M_RideImpostor that fails to cook: deleted
+    # and made fresh (unattended, nothing else holds it); made again in place only if it can't be deleted)
+    del _FAILED_LINKS[:]
+    if eal.does_asset_exist(path):
+        try:
+            gone = eal.delete_asset(path)
+        except Exception as e:
+            gone = False
+            log("could not delete the old %s: %s" % (path, e))
+        log("old %s %s" % (MASTER, "deleted" if gone else "kept, cleared in place"))
     m = _asset(MASTER, IMP_DIR, unreal.Material, unreal.MaterialFactoryNew())
-    mel.delete_all_material_expressions(m)   # (made again in place)
+    mel.delete_all_material_expressions(m)
     _set(m, blend_mode=unreal.BlendMode.BLEND_MASKED, two_sided=True, tangent_space_normal=False,
          opacity_mask_clip_value=0.5, used_with_instanced_static_meshes=True)
     tex = {}
@@ -230,7 +256,7 @@ def master_material():
     _set(centre, parameter_name="Centre", default_value=unreal.LinearColor(0, 0, 500, 0))
     centre3 = _expr(m, unreal.MaterialExpressionComponentMask, -2000, 900)
     _set(centre3, r=True, g=True, b=True, a=False)
-    mel.connect_material_expressions(centre, "", centre3, "")
+    _link(centre, centre3, "")
     centre_ws = _pos_transform(m, centre3, True, -1800, 900)
     cam = _expr(m, unreal.MaterialExpressionCameraPositionWS, -1800, 1100)
     wp = _expr(m, unreal.MaterialExpressionWorldPosition, -1800, 1250)
@@ -264,15 +290,24 @@ def master_material():
     spec = _expr(m, unreal.MaterialExpressionConstant, -500, 1000)
     _set(spec, r=0.2)
     MP = unreal.MaterialProperty
-    mel.connect_material_property(colour, "", MP.MP_BASE_COLOR)
-    mel.connect_material_property(opacity, "", MP.MP_OPACITY_MASK)
-    mel.connect_material_property(normal_w, "", MP.MP_NORMAL)
-    mel.connect_material_property(wpo, "", MP.MP_WORLD_POSITION_OFFSET)
-    mel.connect_material_property(rough, "", MP.MP_ROUGHNESS)
-    mel.connect_material_property(spec, "", MP.MP_SPECULAR)
+    if not mel.connect_material_property(colour, "", MP.MP_BASE_COLOR):
+        _FAILED_LINKS.append("MP_BASE_COLOR")
+    if not mel.connect_material_property(opacity, "", MP.MP_OPACITY_MASK):
+        _FAILED_LINKS.append("MP_OPACITY_MASK")
+    if not mel.connect_material_property(normal_w, "", MP.MP_NORMAL):
+        _FAILED_LINKS.append("MP_NORMAL")
+    if not mel.connect_material_property(wpo, "", MP.MP_WORLD_POSITION_OFFSET):
+        _FAILED_LINKS.append("MP_WORLD_POSITION_OFFSET")
+    if not mel.connect_material_property(rough, "", MP.MP_ROUGHNESS):
+        _FAILED_LINKS.append("MP_ROUGHNESS")
+    if not mel.connect_material_property(spec, "", MP.MP_SPECULAR):
+        _FAILED_LINKS.append("MP_SPECULAR")
     mel.recompile_material(m)
     eal.save_loaded_asset(m)
-    log("made %s" % path)
+    if _FAILED_LINKS:
+        log("made %s BUT %d links failed (the material will not compile): %s" % (path, len(_FAILED_LINKS), ", ".join(_FAILED_LINKS)))
+    else:
+        log("made %s: all links connected, recompiled and saved" % path)
     return m
 
 
