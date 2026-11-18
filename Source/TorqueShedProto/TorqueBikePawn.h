@@ -715,7 +715,14 @@ private:
 	FString GarageSaid;          // the shed's answer to our last garage job
 	bool bGarageSaidOk = true;
 	double GarageSaidFor = 0.0, GarageAskedAt = -100.0;
-	int32 GarageTells = 0;       // the shed's answers heard (one came back at once: the host)
+	int32 GarageTells = 0;
+	// [garage] The spanner in your hand while you're in a garage (beenster, build 155: "spanner in hand for
+	// the new garages"): the shed's wrench (TorqueToolModels), held as the shed walker holds it, turning
+	// as you work; put away while you carry a part or use the computer.
+	UPROPERTY(Transient) USceneComponent* GarageToolHolder = nullptr;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GarageToolParts;
+	double GarageToolClock = 0.0, GarageWorkBlend = 0.0;
+	void UpdateGarageTool(float Dt);       // the shed's answers heard (one came back at once: the host)
 	// SideM: metres to the right of the line (co-op start slots).
 	void Respawn(int32 LineIndex, double SideM = 0.0);
 	void PlaceOnGround(TorqueSim::V3 Pos, double Heading);   // Respawn's second half: upright there, on the ground

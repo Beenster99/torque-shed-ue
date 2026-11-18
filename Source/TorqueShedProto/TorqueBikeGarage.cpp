@@ -20,6 +20,8 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorquePartsComputer.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueToolModels.h"
+#include "Camera/CameraComponent.h"
 #include "World/TorqueForecourtGarage.h"
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRide.h"
@@ -443,6 +445,41 @@ void ATorqueBikePawn::GarageHudLines()
 		else Says += FString::Printf(TEXT("   hold %s (Cross / A): %s"), *Work, Held ? TEXT("fit and bolt up what's in your hands") : TEXT("take it off (it goes back to the shed)"));
 		HudLines.Add({Says, Why.IsEmpty() ? ColBody : ColBad, 1.0f});
 	}
+}
+
+void ATorqueBikePawn::UpdateGarageTool(float Dt)
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	const bool bShow = IsLocallyControlled() && InGarage() && !bGarageComputer && !bPushing && B && B->HeldBy(B->Me()) == 0;
+	if (!bShow && !GarageToolHolder) return;
+	if (!GarageToolHolder && Camera)
+	{
+		GarageToolHolder = NewObject<USceneComponent>(this, TEXT("GarageToolHolder"));
+		GarageToolHolder->SetupAttachment(Camera);
+		GarageToolHolder->RegisterComponent();
+		FVector Nozzle = FVector::ZeroVector;
+		TorqueToolModels::Make(this, GarageToolHolder, TorqueToolModels::Wrench, FLinearColor::Black, GarageToolParts, Nozzle);
+		for (UStaticMeshComponent* C : GarageToolParts)
+			if (C)
+			{
+				C->SetCastShadow(false);
+				C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			}
+		UE_LOG(LogTemp, Log, TEXT("Torque garage: the spanner in hand (%d meshes)"), GarageToolParts.Num());
+	}
+	if (!GarageToolHolder) return;
+	GarageToolHolder->SetVisibility(bShow, true);
+	if (!bShow) return;
+	// As the shed walker's spanner (TorqueWalker UpdateToolView): Torque Shed's hold, and while the spanner's
+	// on a bolt, a quarter swing about the view, out and back, pushed onto the job.
+	GarageWorkBlend = FMath::FInterpTo(GarageWorkBlend, bGarageWorkArmed ? 1.0 : 0.0, (double)Dt, 12.0);
+	GarageToolClock += Dt;
+	const double T = GarageToolClock, W = GarageWorkBlend;
+	FTransform Hold = TorqueToolModels::HoldOf(TorqueToolModels::Wrench);
+	const FRotator Turn(0.0, 0.0, (FMath::Sin(T * 8.0) * 0.5 + 0.5) * 35.0 * W);
+	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
+	Hold.AddToTranslation(FVector(6.0, -4.0, 3.0) * W);
+	GarageToolHolder->SetRelativeTransform(Hold);
 }
 
 void ATorqueBikePawn::DrawGarageComputer(AHUD* Hud, UCanvas* Canvas) const
