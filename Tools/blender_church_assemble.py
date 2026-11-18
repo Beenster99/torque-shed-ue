@@ -113,24 +113,43 @@ def belfry(M, name, x, ridge, roof_pitch, nave_w):
     M.add(lathe(name + "_vane", [(0.04, 0.0), (0.0, 1.0)], seg=6, at=(x, 0.0, base + 10.6)), "steel", (0.05, 0.05, 0.05), 0.2)
 
 
-def tower(M, name, cx, cy, T, TH, R, kind, spire="stone"):
+def tower(M, name, cx, cy, T, TH, R, kind, spire="stone", cap=None):
     """A tower T square (or round) TH to its top, and what crowns it:
        norman   a corbel table and a low pyramid cap        perp     battlements, pinnacles, angle buttresses
        plain    battlements, no pinnacles                   broach   a broach spire with lucarnes
        needle   battlements and a spire set back behind     saddle   a gabled top (a saddleback)
-       round    a round tower with a conical cap (East Anglia)"""
+       round    a round tower (East Anglia), an octagonal belfry or a conical cap"""
     wall, ws = R["wall"]
     dr = R["dressed"]
     spire_c = {"stone": dr, "lead": K.LEAD, "shingle": SHINGLE, "slate": K.SLATE}[spire]
     spire_s = "stone" if spire == "stone" else "roof"
     if kind == "round":
+        # (a round flint shaft; most carry an octagonal belfry stage with a battlemented parapet and a flat
+        # lead roof, a few a conical cap straight on the drum)
         r = T * 0.5
-        M.add(lathe(name, [(r, 0.0), (r, TH - FOOT)], seg=16, at=(cx, cy, FOOT)), ws, wall, 0.35)
-        M.add(lathe(name + "_band", [(r + 0.08, 0.0), (r + 0.08, 0.2)], seg=16, at=(cx, cy, TH - 3.6)), "stone", dr, 0.3)
-        M.add(lathe(name + "_cap", [(r + 0.25, 0.0), (0.0, T * 0.9)], seg=16, at=(cx, cy, TH)), "roof", R["roof"][0], 0.3)
+        cone = cap == "cone"
+        shaft = TH if cone else TH - 3.6
+        M.add(lathe(name, [(r, 0.0), (r, shaft - FOOT)], seg=20, at=(cx, cy, FOOT)), ws, wall, 0.35)
+        M.add(lathe(name + "_band", [(r + 0.08, 0.0), (r + 0.08, 0.2)], seg=20, at=(cx, cy, shaft - (3.6 if cone else 0.1))), "stone", dr, 0.3)
+        if cone:
+            M.add(lathe(name + "_cap", [(r + 0.25, 0.0), (0.0, T * 0.9)], seg=20, at=(cx, cy, TH)), "roof", R["roof"][0], 0.3)
+            bz, br = TH - 3.0, r
+        else:
+            ro = r * 0.98
+            M.add(lathe(name + "_oct", [(ro, 0.0), (ro, TH - shaft)], seg=8, at=(cx, cy, shaft), phase=math.pi / 8), ws, wall, 0.35)
+            M.add(lathe(name + "_ostr", [(ro + 0.12, 0.0), (ro + 0.12, 0.18)], seg=8, at=(cx, cy, TH), phase=math.pi / 8), "stone", dr, 0.3)
+            M.add(lathe(name + "_opar", [(ro, 0.0), (ro, 0.5)], seg=8, at=(cx, cy, TH + 0.18), phase=math.pi / 8), "stone", dr, 0.3)
+            M.add(lathe(name + "_lead", [(ro - 0.3, 0.0), (0.0, 0.5)], seg=8, at=(cx, cy, TH + 0.2), phase=math.pi / 8), "roof", K.LEAD, 0.3)
+            for k in range(8):
+                a = math.pi / 8 + 2 * math.pi * k / 8
+                ap = math.cos(math.pi / 8) * ro
+                M.add(box("%s_mer%d" % (name, k), (cx + ap * math.cos(a + math.pi / 8), cy + ap * math.sin(a + math.pi / 8), TH + 0.9),
+                          (0.3, 0.7, 0.5), rot_z=a + math.pi / 8), "stone", dr, 0.3)
+            bz, br = shaft + 0.7, ro * math.cos(math.pi / 8)
         for f, (dx, dy) in ((SOUTH, (0, -1)), (WEST, (-1, 0)), (NORTH, (0, 1)), (EAST, (1, 0))):
-            opening(M, "%s_b%d%d" % (name, dx, dy), (cx + dx * (r - 0.05), cy + dy * (r - 0.05), TH - 3.0), f, 0.5, 1.0, "round", 0.12, dr)
-        opening(M, name + "_slit", (cx, cy - r + 0.05, TH * 0.45), SOUTH, 0.25, 0.8, "round", 0.1, dr)
+            opening(M, "%s_b%d%d" % (name, dx, dy), (cx + dx * (br - 0.05), cy + dy * (br - 0.05), bz), f, 0.7 if not cone else 0.5,
+                    1.3 if not cone else 1.0, "pointed" if not cone else "round", 0.12, dr, mullions=0 if cone else 1)
+        opening(M, name + "_slit", (cx, cy - r + 0.05, TH * 0.4), SOUTH, 0.25, 0.8, "round", 0.1, dr)
         return
     if kind == "saddle":
         range_block(M, name, cx - T * 0.5, cx + T * 0.5, T, TH, 52.0, wall, R["roof"][0], overhang=0.1, verge=0.1, wall_surface=ws)
@@ -299,7 +318,7 @@ def church(spec):
                 ww = {"perp": 2.2, "dec": 1.5}.get(win)
                 if ww and TH > 12:
                     opening(M, "twin", (cx - T * 0.5, cy, 3.2), WEST, ww, 2.6, "pointed", 0.2, dr, mullions=2 if win == "perp" else 1)
-        tower(M, "tower", cx, cy, T, TH, R, kind, tw.get("spire", "stone"))
+        tower(M, "tower", cx, cy, T, TH, R, kind, tw.get("spire", "stone"), tw.get("cap"))
     else:
         window(M, "west", 0.0, 0.0, WEST, E + 1.0, win, dr, sill=2.0, scale=1.2 if win in ("dec", "perp") else 1.0)
         if spec.get("belfry"):
@@ -370,7 +389,7 @@ SPECS = [
     S("ea_round_thatch", "Norfolk: round tower, thatched nave", "east_anglia", nave=(15, 6.8, 4.4, 52), chancel=(6, 5.2, 3.8),
       roof=(THATCH, "thatch"), tower=dict(kind="round", T=5.0, TH=13.0), win="dec"),
     S("ea_round_tile", "Suffolk: round tower, tiled roof", "east_anglia", nave=(16, 7.0, 4.8, 48), chancel=(7, 5.5, 4.0),
-      tower=dict(kind="round", T=4.8, TH=14.0), win="lancet"),
+      tower=dict(kind="round", T=4.8, TH=14.0, cap="cone"), win="lancet"),
     S("ea_wool", "East Anglian wool church: flint, clerestory, battlements", "east_anglia", nave=(28, 8.5, 9.0, 40), chancel=(10, 7.0, 7.0),
       aisles="NS", clerestory=True, parapet="battled", tower=dict(kind="perp", T=7.0, TH=28.0), win="perp", porch_x=5.0),
     S("ea_bellcote", "Fenland: flint, bellcote", "east_anglia", nave=(13, 6.2, 4.0, 48), win="lancet", bellcote=1),
