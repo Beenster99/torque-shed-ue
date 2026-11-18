@@ -225,6 +225,21 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		}
 		double Y = 0.0, Nx = 0.0, Nz = 0.0;
 		Surface(X, Z, Y, Nx, Nz);
+		// ([road edges, build 155] the PC saw a see-through dark green band along every road's edges: the
+		// verge's grass mats stood on the field's 4 m grid, which lies a few centimetres under the road's
+		// own grass shoulder (and 10 under its tarmac), so only their blades' tips came through it. On the
+		// shoulder's flat they stand on the shoulder instead.)
+		if (RoadEdge(X, Z) < 2.5)
+		{
+			NearOpts Opts;
+			NearHit Hit;
+			if (NearestOf(X, Z, Opts, Hit) && !Hit.Deck && !Hit.Bore)
+			{
+				const double Beyond = Hit.Dist - Hit.Half;
+				if (Beyond >= 0.0 && Beyond < ShoulderFlat)
+					Y = std::fmax(Y, Hit.Height + Hit.Cross - 0.012 - ShoulderDip * Beyond / ShoulderFlat);
+			}
+		}
 		RidePlant P;
 		P.Kind = What;
 		P.Far = Far;
@@ -328,6 +343,8 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		return H;
 	};
 	const double Pi2 = 6.283185307179586;
+	// (the carpet mats' reach at full size, as Tools/make_foliage.py makes them)
+	constexpr double CarpetRadius = 0.95, CarpetFarRadius = 2.0;
 
 	if (Fine && Keep > 0.0)
 	{
@@ -342,7 +359,8 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				if (H.Cover == CUrban && H2 > 0.4) return;   // (gardens and greens, not the yards and lanes)
 				if (H1 > Keep) return;
 				const bool Moor = (Smooth(0.4, 0.6, H.Molinia + 0.3 * H.Dry - 0.15) * (D > 4.0 ? 1.0 : 0.0) + (H.Cover == CShrub ? 0.3 : 0.0)) > H2;
-				Put(Moor ? B.Moor : B.Green, X, Z, H3 * Pi2, 0.9 + 0.25 * Hash(int64_t(X * 10.0), int64_t(Z * 10.0), 7u), 0.02, true, 0.0, 0.0, false);
+				const double Radius = B.Spacing < 2.0 ? CarpetRadius : CarpetFarRadius;
+				Put(Moor ? B.Moor : B.Green, X, Z, H3 * Pi2, std::fmin(0.9 + 0.25 * Hash(int64_t(X * 10.0), int64_t(Z * 10.0), 7u), (D - 0.05) / Radius), 0.02, true, 0.0, 0.0, false);
 			});
 		// ...and a closer row along the verge, so the grass runs up to the tarmac's edge.
 		Scatter(0.85, 1.5, 3000u, 0.2, [&](double X, double Z, double D, double H1, double, double H3)
@@ -350,7 +368,8 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 			if (D < 0.75 || H1 > Keep) return;
 			const Here H = Look(X, Z);
 			if (H.Cover == CWater || H.Cover == CRock) return;
-			Put(CarpetGreen, X, Z, H3 * Pi2, 0.75 + 0.15 * H1, 0.02, true, 0.0, 0.0, false);
+			// ([road edges, build 155] a mat is 0.95 m round at full size: never reaching over the tarmac)
+			Put(CarpetGreen, X, Z, H3 * Pi2, std::fmin(0.75 + 0.15 * H1, (D - 0.05) / CarpetRadius), 0.02, true, 0.0, 0.0, false);
 		});
 
 		// Grass clumps, the main cover, within 58 m of a road.
