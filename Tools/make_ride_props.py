@@ -268,7 +268,7 @@ POLE_WOOD = (0.12, 0.085, 0.06)
 
 
 def street_lamp(rng):
-    """A street lamp as the code drew it: a tapered round column on a wider foot, an outreach arm swept
+    """(Replaced by Tools/blender_street_kit.py's lamps; kept for reference.) A street lamp as the code drew it: a tapered round column on a wider foot, an outreach arm swept
     up to the lantern 1.1 m out over the road (+x), and the lantern's cowl (its glowing face is the
     code's). 6.05 m to the top of the arm."""
     M = ST.Mesh()
@@ -326,7 +326,7 @@ def lamp_heritage(rng):
 
 
 def power_pole(rng):
-    """A round timber telegraph pole, tapering, with its cross-arm along the wire (z), three insulators
+    """(Replaced by Tools/blender_street_kit.py's poles; kept for reference.) A round timber telegraph pole, tapering, with its cross-arm along the wire (z), three insulators
     and a cap: 9 m (the kit's height; a Fab pole takes its place where the PC has one)."""
     M = ST.Mesh()
     wood = toned(rng, POLE_WOOD, 0.12)
@@ -340,8 +340,11 @@ def power_pole(rng):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    # ([street kit] the lamp posts and telegraph poles are Tools/blender_street_kit.py's, made in Blender:
+    # left as they are)
+    theirs = ("SM_Prop_street_lamp_", "SM_Prop_power_pole_")
     for f in os.listdir(OUT):
-        if f.endswith(".glb"):
+        if f.endswith(".glb") and not f.startswith(theirs):
             os.remove(os.path.join(OUT, f))
     R = np.random.default_rng
     made = {
@@ -357,9 +360,7 @@ def main():
         "seat": [seat(R(990)), seat(R(991))],
         "post_box": [post_box(R(1000))],
         "phone_box": [phone_box(R(1010))],
-        "street_lamp": [street_lamp(R(1020))],
         "lamp_heritage": [lamp_heritage(R(1040))],
-        "power_pole": [power_pole(R(1030)), power_pole(R(1031))],
     }
     total = 0
     for kind, meshes in made.items():
