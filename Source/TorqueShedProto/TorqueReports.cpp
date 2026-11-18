@@ -36,7 +36,7 @@ FString Stamp()
 // A copy of the log as it is now (it's written with others allowed to read it).
 void CopyLog(const FString& To)
 {
-	const FString Log = FPlatformOutputDevices::GetAbsoluteLog();
+	const FString Log = FPlatformOutputDevices::GetAbsoluteLogFilename();
 	if (!Log.IsEmpty() && IFileManager::Get().FileExists(*Log)) IFileManager::Get().Copy(*To, *Log, true, true, true);
 }
 
@@ -48,7 +48,8 @@ void WriteFreeze(double Silent)
 		*FDateTime::Now().ToString(), Silent, *BuildStamp());
 	static ANSICHAR Stack[64 * 1024];
 	Stack[0] = 0;
-	if (FPlatformStackWalk::ThreadStackWalkAndDump(Stack, sizeof(Stack), 0, GGameThreadId)) Text += ANSI_TO_TCHAR(Stack);
+	FPlatformStackWalk::ThreadStackWalkAndDump(Stack, sizeof(Stack), 0, GGameThreadId);   // (returns void on Windows)
+	if (Stack[0]) Text += ANSI_TO_TCHAR(Stack);
 	else Text += TEXT("(this platform couldn't walk the game thread's stack)\n");
 	FFileHelper::SaveStringToFile(Text, *FPaths::Combine(Dir, TEXT("freeze.txt")));
 	CopyLog(FPaths::Combine(Dir, TEXT("log_at_freeze.log")));
