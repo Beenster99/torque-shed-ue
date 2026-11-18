@@ -6,6 +6,7 @@ SPECS holds forty assembled for the stage 2 review sheet, five or so from each r
 designs among them.
 
     python Tools/blender_church_assemble.py --render DIR     # the sheet of forty in DIR
+    python Tools/blender_church_assemble.py --export         # Data/RideUK/church_kit.bin and .json, for the game
 
 Frame as in blender_church_kit.py: x east, y north, z up, the nave's west end at x = 0.
 """
@@ -468,9 +469,177 @@ def main():
             tris += len(me.loop_triangles)
         M.tris = tris
         print("%-34s %4d parts %6d triangles" % (M.name, len(M.parts), tris))
+    if "--export" in args:
+        export(models, SPECS, os.path.join(os.path.dirname(HERE), "Data", "RideUK"))
     if "--render" in args:
         from blender_church_kit_render import render_grid
         render_grid(models, args[args.index("--render") + 1])
+
+
+
+# --- the export: Data/RideUK/church_kit.bin and church_kit.json (churches stage 3) -----------------------
+#
+# The game builds each church into its square's own meshes, so they take the game's scanned looks:
+# walls in M_RideMasonry (tinted by the place's stone), brick in M_RideBrick, stucco and harling in
+# M_RideRender, roofs in M_RideRoof by their roofing, glass and timber plain. Each part says which,
+# with its colour or masks; the game works out the UVs as it does for its houses.
+
+PLAIN, MASONRY, ROOFING, BRICKWORK, RENDER = 0, 1, 2, 3, 4
+ROOFINGS = [(K.SLATE, 0.0), (K.STONE_SLATE, 0.25), (COTS_SLATE, 0.25), (SHINGLE, 0.25), (TILE, 0.5), ((0.18, 0.06, 0.04), 0.5),
+            (THATCH, 0.75), (K.LEAD, 1.0)]
+BRICKS = [K.BRICK, YELLOW_BRICK[0]]
+LOOKS = {   # (the kit's regions, by World/WorldRideStyle's looks)
+    "pennine": ["dales", "peak", "moors", "northumberland", "lakes"],
+    "cotswold": ["cotswolds"],
+    "east_anglia": ["fens"],
+    "south_east": ["lowland", "world"],
+    "somerset": ["lowland", "devon"],
+    "cornwall": ["cornwall", "devon"],
+    "wales": ["wales", "ulster"],
+    "town": [],
+    "scotland": ["highlands", "lowlands", "ulster"],
+}
+
+
+def _near(a, b, tol=0.02):
+    return all(abs(x - y) < tol for x, y in zip(a, b))
+
+
+def _lum(c):
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+def part_class(p):
+    """(section, three bytes, a code byte) for a part: see the export's notes."""
+    rgb = tuple(p.rgb)
+    s = p.surface
+    if s in ("glass", "timber", "steel"):
+        return PLAIN, rgb, 1.0
+    if s == "tin":
+        return ROOFING, rgb, 1.0
+    if s == "thatch":
+        return ROOFING, rgb, 0.75
+    if s == "render" or _near(rgb, K.STUCCO):
+        return RENDER, rgb, 0.08
+    if s == "roof":
+        for c, code in ROOFINGS:
+            if _near(rgb, c):
+                return ROOFING, rgb, code
+    if any(_near(rgb, b) for b in BRICKS):
+        return BRICKWORK, rgb, 0.06
+    if s == "flint":
+        return MASONRY, None, "flint"
+    return MASONRY, None, rgb
+
+
+def _triangles(M):
+    """Every triangle's corners in the props' frame (x east, y up, z south): places, normals, parts."""
+    import numpy as np
+    from mathutils import Vector
+    dg = bpy.context.evaluated_depsgraph_get()
+    P, N, I = [], [], []
+    for i, part in enumerate(M.parts):
+        ev = part.obj.evaluated_get(dg)
+        me = ev.to_mesh()
+        me.calc_loop_triangles()
+        mw = part.obj.matrix_world
+        nw = mw.to_3x3().inverted().transposed()
+        co = np.array([mw @ v.co for v in me.vertices], np.float64)
+        cn = np.zeros((len(me.loops), 3))
+        me.corner_normals.foreach_get("vector", cn.ravel())
+        cn = np.array([nw @ Vector(n) for n in cn]) if len(cn) else cn
+        cn /= np.maximum(np.linalg.norm(cn, axis=1, keepdims=True), 1e-9) if len(cn) else 1.0
+        for lt in me.loop_triangles:
+            P.append(co[list(lt.vertices)])
+            N.append(cn[list(lt.loops)])
+            I += [i, i, i]
+        ev.to_mesh_clear()
+    P = np.concatenate(P)
+    N = np.concatenate(N)
+    to_frame = lambda a: np.stack([a[:, 0], a[:, 2], -a[:, 1]], 1)
+    return to_frame(P), to_frame(N), np.array(I)
+
+
+def export(models, specs, data_dir):
+    import json
+    import struct
+    import numpy as np
+    rows = []
+    blob = bytearray(b"TSCK" + struct.pack("<II", 1, len(models)))
+    for M, spec in zip(models, specs):
+        # (in the props' frame: x east, y up, z south; about the nave's middle at the ground)
+        pos, nrm, part_of = _triangles(M)
+        nave = next(p for p in M.parts if p.obj.name.split(".")[0] in ("nave_walls", "body_walls"))
+        nb = [nave.obj.matrix_world @ __import__("mathutils").Vector(c) for c in nave.obj.bound_box]
+        nx0, nx1 = min(v.x for v in nb), max(v.x for v in nb)
+        ny0, ny1 = min(v.y for v in nb), max(v.y for v in nb)
+        cx, cz = (nx0 + nx1) * 0.5, -(ny0 + ny1) * 0.5
+        pos = pos - np.array([cx, 0.0, cz])
+        # (the masonry's brightness against its main stone, by area)
+        area = {}
+        for i, p in enumerate(M.parts):
+            sec, _, ref = part_class(p)
+            if sec == MASONRY and ref != "flint":
+                t = pos[part_of == i].reshape(-1, 3, 3)
+                a = float(np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1).sum()) * 0.5 if len(t) else 0.0
+                area[tuple(p.rgb)] = area.get(tuple(p.rgb), 0.0) + a
+        main = max(area, key=area.get) if area else (0.3, 0.3, 0.3)
+        parts = []
+        for p in M.parts:
+            sec, rgb, code = part_class(p)
+            if sec == MASONRY:
+                # (the brightness kept within the houses' own range, 0.31 to 0.69 about the scan's 0.5)
+                if code == "flint":
+                    b = (0.31, 1.0, 0.1)
+                else:
+                    b = (min(0.69, max(0.31, 0.5 * _lum(code) / max(1e-4, _lum(main)))), 0.8, 0.3)
+                parts.append((sec, b, 0.06))
+            else:
+                parts.append((sec, rgb, code))
+        # (shared corners: the same place, normal and part)
+        q = np.round(pos * 100.0).astype(np.int64)
+        qn = np.round(nrm * 127.0).astype(np.int64)
+        key = np.concatenate([q, qn, part_of[:, None]], 1)
+        uniq, inv = np.unique(key, axis=0, return_inverse=True)
+        inv = inv.reshape(-1)
+        assert len(uniq) < 65536, M.name
+        lo, hi = pos.min(0), pos.max(0)
+        name = M.name.encode()
+        blob += struct.pack("<H", len(name)) + name
+        blob += struct.pack("<7f", nx1 - nx0, ny1 - ny0, lo[0], hi[0], lo[2], hi[2], hi[1])
+        blob += struct.pack("<H", len(parts))
+        for sec, rgb, code in parts:
+            blob += struct.pack("<5B", sec, *[int(round(max(0.0, min(1.0, c)) * 255)) for c in rgb], int(round(code * 255)))
+        blob += struct.pack("<II", len(uniq), len(inv) // 3)
+        v = np.zeros(len(uniq), dtype=[("p", "<i2", 3), ("n", "i1", 3), ("k", "u1")])
+        v["p"] = uniq[:, 0:3]
+        v["n"] = np.clip(uniq[:, 3:6], -127, 127)
+        v["k"] = uniq[:, 6]
+        blob += v.tobytes()
+        blob += inv.astype("<u2").tobytes()
+        kind = spec.get("kind", "church") if "hero" not in spec else ("chapel" if "methodist" in spec["name"] else "church")
+        rows.append({"name": M.name, "label": spec["label"], "kind": kind, "region": spec["region"],
+                     "nave": [round(nx1 - nx0, 2), round(ny1 - ny0, 2)], "size": [round(float(hi[0] - lo[0]), 2), round(float(hi[2] - lo[2]), 2),
+                     round(float(hi[1]), 2)], "triangles": int(len(inv) // 3), "weight": 1.0})
+    with open(os.path.join(data_dir, "church_kit.bin"), "wb") as f:
+        f.write(bytes(blob))
+    about = ("Ride UK's churches (churches stage 3): the kit's forty churches (Tools/blender_church_assemble.py --export, "
+             "which writes this file and church_kit.bin), and the rules World/WorldRideChurches.cpp chooses one by for a "
+             "place of worship's building: from the churches of its region (looks: World/WorldRideStyle's looks) and, "
+             "in a town, the town ones too; a chapel where the map says chapel (or Methodist, Baptist and the like), a "
+             "church otherwise; the one whose nave fits the building's box best, within 'pick' of the best by the "
+             "building's own seed; stretched to fit, each way within 'stretch'. Its east end east; a chapel's front "
+             "to its road. 'skip_names': words in a name that mean it is no church (left as the map's building).")
+    rules = {"_about": about, "looks": LOOKS, "town_share": 0.3, "stretch": [0.72, 1.35], "pick": 0.18, "area": [55.0, 1500.0],
+             "chapel_names": ["chapel", "methodist", "wesleyan", "baptist", "congregational", "united reformed", "evangelical",
+                              "pentecostal", "gospel", "united reform", "free church", "salvation army", "quaker", "friends meeting", "unitarian",
+                              "capel", "tabernacle", "mission", "elim", "brethren"],
+             "skip_names": ["mosque", "masjid", "gurdwara", "temple", "mandir", "synagogue", "kingdom hall", "buddhist", "vihara",
+                            "jamia", "islamic", "hindu", "sikh"],
+             "churches": rows}
+    with open(os.path.join(data_dir, "church_kit.json"), "w") as f:
+        json.dump(rules, f, indent=1)
+    print("church kit: %d churches, %d KB" % (len(rows), len(blob) // 1024))
 
 
 if __name__ == "__main__":

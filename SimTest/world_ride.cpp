@@ -11,6 +11,7 @@
 #include <map>
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldRoadLine.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
@@ -161,6 +162,10 @@ int main(int Argc, char** Argv)
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
 		std::string TypesText;   // [towns stage 4]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
+		std::string KitText, KitBin;   // [churches stage 3] (WORLD_RIDE_CHURCHES=0: the drawn churches, to compare)
+		const char* KitOff = std::getenv("WORLD_RIDE_CHURCHES");
+		if ((!KitOff || std::string(KitOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.json"), KitText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.bin"), KitBin)) SetChurchKit(KitText, KitBin);
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string PlaceText;   // [OSM stage 6C]
@@ -1332,6 +1337,18 @@ int main(int Argc, char** Argv)
 		}
 		for (const RoadPoint& P : Plan->Road)
 			if (P.At.DistanceTo(C) < 80.0) std::printf("  ride road %.1f %.1f at %.0f h %.1f half %.1f%s%s\n", P.At.X - C.X, P.At.Z - C.Z, P.Along, P.Height, P.Half, P.Bridge ? " bridge" : "", P.Tunnel ? " tunnel" : "");
+	}
+	if (const char* WorshipNear = std::getenv("WORLD_RIDE_WORSHIP"))
+	{
+		// [churches stage 3] (debug: the map's places of worship within WORLD_RIDE_WORSHIP m of the ride's start, as lat, lon)
+		const double Wr = std::atof(WorshipNear);
+		const P2 S0 = Plan->Road.empty() ? P2(0.0, 0.0) : Plan->Road[0].At;
+		for (const TorqueFit::Json& Mark : Plan->Area.Roads.Landmarks)
+		{
+			if (Mark.Str("kind") != "worship" || std::hypot(Mark.Num("x") - S0.X, Mark.Num("z") - S0.Z) > Wr) continue;
+			const Geo WAt = Plan->Area.Roads.FrameOf().ToGeo(Mark.Num("x"), Mark.Num("z"));
+			std::printf("worship %.5f,%.5f %s\n", WAt.Lat, WAt.Lon, Mark.Str("name").c_str());
+		}
 	}
 	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
 	{

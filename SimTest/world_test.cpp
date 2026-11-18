@@ -11,6 +11,7 @@
 #include "WorldInflate.h"
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRideSigns.h"
@@ -99,6 +100,40 @@ int main()
 	// [towns stage 4] (the house types)
 	std::string TypesText;
 	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
+	// [churches stage 3] (the church kit: read, a church and a chapel chosen for a building, built whole into the meshes)
+	{
+		std::string KitText, KitBin;
+		const bool KitRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.json"), KitText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.bin"), KitBin)
+			&& SetChurchKit(KitText, KitBin);
+		const std::shared_ptr<const ChurchKit> Kit = ChurchKitNow();
+		bool Ok = KitRead && Kit && Kit->Models.size() == 40;
+		double Along = 0.0, Across = 0.0;
+		bool Whole = false;
+		const int Church = Ok ? Kit->Pick("dales", false, false, 26.0, 9.0, 0.3, 0.9, Along, Across, Whole) : -1;
+		const int Chapel = Ok ? Kit->Pick("wales", false, true, 15.0, 11.5, 0.6, 0.9, Along, Across, Whole) : -1;
+		Ok = Ok && Church >= 0 && Kit->Models[size_t(Church)].Kind == "church" && Chapel >= 0 && Kit->Models[size_t(Chapel)].Kind != "church";
+		Ok = Ok && Kit->NameKind("Hall Green Baptist Church") == 1 && Kit->NameKind("St Michael and All Angels Church") == 0 && Kit->NameKind("Central Mosque") == 2;
+		// (twice into the same meshes, one already holding vertices without alpha: every mesh's alpha whole, every triangle in range)
+		RideMesh Out, Washed, Houses, Roofs, Bricks;
+		Houses.Pos = {0.0f, 0.0f, 0.0f};
+		Houses.Nrm = {0.0f, 1.0f, 0.0f};
+		Houses.Uv = {0.0f, 0.0f};
+		Houses.Col = {0.5f, 0.8f, 0.3f};
+		if (Ok)
+			for (const int M : {Church, Chapel})
+				BuildChurch(Kit->Models[size_t(M)], true, 10.0, 100.0, 20.0, 98.0, 0.6, 0.8, 1.1, 0.9, 1.0, false, Out, Washed, Houses, Roofs, Bricks);
+		size_t Tris = 0;
+		for (const RideMesh* M : {&Out, &Washed, &Houses, &Roofs, &Bricks})
+		{
+			Ok = Ok && M->Alpha.size() == M->Vertices() && M->Col.size() == M->Vertices() * 3 && M->Uv.size() == M->Vertices() * 2 && M->Nrm.size() == M->Vertices() * 3;
+			for (const uint32_t I : M->Idx) Ok = Ok && I < M->Vertices();
+			Tris += M->Idx.size() / 3;
+		}
+		Ok = Ok && Houses.Alpha[0] == 1.0f && Roofs.Vertices() > 0 && Houses.Vertices() > 1 && Tris > 2000;
+		std::printf("      church kit: %s, %zu churches; church %s, chapel %s; %zu triangles built\n", KitRead ? "read" : "unreadable", Kit ? Kit->Models.size() : size_t(0),
+			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
+		Check(Ok, "church kit: forty read; a Dales church and a Welsh chapel chosen; names say chapel or no church; built with whole alpha");
+	}
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;
 	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
@@ -986,12 +1021,14 @@ int main()
 							RideMesh Body, Wash, Homes, Tops, Brick;
 							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
 							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
+							const int KitBefore = Tally.KitChurches;
 							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Tally);
 							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size() + Tops.Idx.size() + Brick.Idx.size()) / 3);
 							RoofTris += Tops.Idx.size() / 3;
 							BrickTris += Brick.Idx.size() / 3;
-							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves)
-							for (size_t Vq = 0; Vq + 3 < Tops.Vertices(); Vq += 4)
+							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves; a
+							// square with a kit church left out, its roofs' triangles not in quads)
+							for (size_t Vq = 0; Tally.KitChurches == KitBefore && Vq + 3 < Tops.Vertices(); Vq += 4)
 							{
 								++RoofFaces;
 								if (std::fabs(Tops.Uv[Vq * 2 + 1] - Tops.Uv[(Vq + 1) * 2 + 1]) < 0.01f && Tops.Alpha.size() == Tops.Vertices()) ++LevelFaces;

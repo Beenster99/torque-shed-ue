@@ -2,6 +2,7 @@
 // footprint, its walls in the local stone, render, brick or the map's own material, under the roof
 // the map or the local look gives it, windows a floor and a door near, a church's tower.
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldRideSceneBits.h"
 
 #include <algorithm>
@@ -199,10 +200,126 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			for (int K = 0; K < 8 && !Seaside; ++K)
 				Seaside = Land->SeaAt(Mx + std::cos(K * 0.7853981633974483) * R, Mz + std::sin(K * 0.7853981633974483) * R);
 	}
+	// [churches stage 3] The places of worship the church kit builds (World/WorldRideChurches.h): each one's
+	// church chosen and fitted first, so whatever else stands on its ground (its outline's other boxes, a
+	// tower or an aisle the map drew apart) is left out wherever it comes, then built after the rest.
+	struct KitChurch
+	{
+		const Building* B = nullptr;
+		double X = 0.0, Z = 0.0;   // (its outline's middle: all of the outline's pieces, where it came in pieces)
+		int Model = -1;
+		double Along = 1.0, Across = 1.0, Up = 1.0, Dx = 1.0, Dz = 0.0, Y = 0.0, Low = 0.0;
+		bool Sooted = false, Whole = false;
+	};
+	std::vector<KitChurch> Churches;
+	std::vector<const Building*> ChurchTaken;   // (the pieces a kit church stands in for)
+	const std::shared_ptr<const ChurchKit> ChurchSet = Fine ? ChurchKitNow() : nullptr;
+	if (ChurchSet)
+		for (const Candidate& Each : Here)
+		{
+			const Building& B = *Each.B;
+			if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || (Each.Piece != nullptr && !Each.Piece->Main)) continue;
+			const std::string Called = Each.Look ? Each.Look->Words[0] : std::string();
+			const int Baked = B.More.empty() ? 0 : int(B.More[0]);
+			const bool Role = Each.Index >= 0 && size_t(Each.Index) < BuildingRole.size() && BuildingRole[size_t(Each.Index)] == 1;
+			if (!(Baked == 6 || Called == "church" || Called == "chapel" || Role) || Called == "cathedral" || Called == "ruins" || Called == "ruin") continue;
+			if (UnderTower(B.X, B.Z)) continue;
+			// (its whole outline, where the map's came cut in pieces: their corners along the main piece's sides)
+			const double Cs0 = std::cos(B.Yaw), Sn0 = std::sin(B.Yaw);
+			double U0 = -B.W * 0.5, U1 = B.W * 0.5, V0 = -B.D * 0.5, V1 = B.D * 0.5;
+			std::vector<const Building*> Mine{&B};
+			if (Each.Piece != nullptr)
+				for (const Candidate& O : Here)
+				{
+					if (O.Piece == nullptr || O.Piece == Each.Piece || O.Piece->Outline != Each.Piece->Outline || std::hypot(O.B->X - B.X, O.B->Z - B.Z) > 60.0) continue;
+					const Building& P = *O.B;
+					const double Pc = std::cos(P.Yaw), Ps = std::sin(P.Yaw);
+					for (double Su : {-0.5, 0.5})
+						for (double Sv : {-0.5, 0.5})
+						{
+							const double Qx = P.X + Su * P.W * Pc + Sv * P.D * Ps - B.X, Qz = P.Z - Su * P.W * Ps + Sv * P.D * Pc - B.Z;
+							const double U = Qx * Cs0 - Qz * Sn0, V = Qx * Sn0 + Qz * Cs0;
+							U0 = std::fmin(U0, U); U1 = std::fmax(U1, U); V0 = std::fmin(V0, V); V1 = std::fmax(V1, V);
+						}
+					Mine.push_back(O.B);
+				}
+			const double Wo = U1 - U0, Do = V1 - V0, Um = (U0 + U1) * 0.5, Vm = (V0 + V1) * 0.5;
+			const double Mx = B.X + Um * Cs0 + Vm * Sn0, Mz = B.Z - Um * Sn0 + Vm * Cs0;
+			const double Area0 = Wo * Do;
+			if (Area0 < ChurchSet->AreaLo || Area0 > ChurchSet->AreaHi) continue;
+			// (its name, from the map's place of worship on or by it: a chapel's, or one that is no church)
+			std::string Name;
+			double NameDist = 40.0;
+			for (const TorqueFit::Json& Mark : G.Landmarks)
+			{
+				const double Md = std::hypot(Mark.Num("x") - Mx, Mark.Num("z") - Mz);
+				if (Md < NameDist && Mark.Str("kind") == "worship") { NameDist = Md; Name = Mark.Str("name"); }
+			}
+			const int Says = ChurchSet->NameKind(Name);
+			if (Says == 2) continue;
+			const bool LongX0 = Wo >= Do;
+			const double Long = std::fmax(Wo, Do), Short = std::fmin(Wo, Do);
+			const bool Chapel = Called == "chapel" || Says == 1 || (Name.empty() && !Role && Long < 1.45 * Short && Area0 < 260.0);
+			const LocalLook* OnStreet0 = StreetLookAt(Mx, Mz);
+			const LocalLook& Look0 = OnStreet0 ? *OnStreet0 : TileLook;
+			KitChurch C;
+			C.B = &B;
+			C.X = Mx;
+			C.Z = Mz;
+			C.Model = ChurchSet->Pick(Look0.Name, TownLookAt(Mx, Mz) != nullptr, Chapel, Long, Short, Chance(B.X, B.Z, 121), Chance(B.X, B.Z, 122), C.Along, C.Across, C.Whole);
+			if (C.Model < 0) continue;
+			C.Up = std::clamp(std::sqrt(C.Along * C.Across), 0.85, 1.15);
+			// (along its length: a church's altar end east, a chapel's front, its -x end, to its road)
+			C.Dx = LongX0 ? Cs0 : Sn0;
+			C.Dz = LongX0 ? -Sn0 : Cs0;
+			double Flip = C.Dx >= 0.0 ? 1.0 : -1.0;
+			if (Chapel)
+			{
+				NearOpts Opts;
+				NearHit H;
+				if (NearestOf(Mx, Mz, Opts, H) && H.Dist - H.Half < 60.0) Flip = (H.Foot.X - Mx) * C.Dx + (H.Foot.Z - Mz) * C.Dz > 0.0 ? -1.0 : 1.0;
+			}
+			C.Dx *= Flip;
+			C.Dz *= Flip;
+			// (on its ground at its middle, on a plinth where the ground falls away; none on a steep bank)
+			const double Base0 = Ground(Mx, Mz);
+			if (std::isnan(Base0)) continue;
+			double Low = Base0;
+			bool Steep = false;
+			for (double Su : {-0.5, 0.5})
+				for (double Sv : {-0.5, 0.5})
+				{
+					const double Gx = Mx + C.Dx * Su * Long - C.Dz * Sv * Short, Gz = Mz + C.Dz * Su * Long + C.Dx * Sv * Short;
+					const double Gy = Ground(Gx, Gz);
+					if (std::isnan(Gy)) continue;
+					Low = std::fmin(Low, Gy);
+					Steep = Steep || std::fabs(Gy - Base0) > 7.0;
+				}
+			if (Steep) continue;
+			C.Y = Base0;
+			C.Low = Low;
+			C.Sooted = Chance(B.X, B.Z, 94) < Look0.Soot;
+			Churches.push_back(C);
+			ChurchTaken.insert(ChurchTaken.end(), Mine.begin(), Mine.end());
+		}
+	// (whether a place lies on a kit church's ground: its whole footprint, a metre round)
+	const auto OnChurch = [&](double X, double Z)
+	{
+		for (const KitChurch& C : Churches)
+		{
+			const ChurchModel& M = ChurchSet->Models[size_t(C.Model)];
+			const double Rx = X - C.X, Rz = Z - C.Z;
+			const double A = (Rx * C.Dx + Rz * C.Dz) / C.Along + (C.Whole ? (M.MinX + M.MaxX) * 0.5 : 0.0);
+			const double Cr = (-Rx * C.Dz + Rz * C.Dx) / C.Across + (C.Whole ? (M.MinZ + M.MaxZ) * 0.5 : 0.0);
+			if (A > M.MinX - 1.0 && A < M.MaxX + 1.0 && Cr > M.MinZ - 1.0 && Cr < M.MaxZ + 1.0) return true;
+		}
+		return false;
+	};
 	for (const Candidate& Each : Here)
 	{
 		const Building& B = *Each.B;
 		const int Index = Each.Index;
+		if (!Churches.empty() && (std::find(ChurchTaken.begin(), ChurchTaken.end(), &B) != ChurchTaken.end() || OnChurch(B.X, B.Z))) continue;
 		// [towns stage 8] (a building on a famous street takes the street's own look over the square's)
 		const LocalLook* OnStreet = StreetLookAt(B.X, B.Z);
 		const LocalLook& Look = OnStreet ? *OnStreet : TileLook;
@@ -1329,6 +1446,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 			}
 		}
+	}
+	// [churches stage 3] (the kit's churches, now the rest is in)
+	for (const KitChurch& C : Churches)
+	{
+		BuildChurch(ChurchSet->Models[size_t(C.Model)], C.Whole, C.X, C.Y, C.Z, C.Low, C.Dx, C.Dz, C.Along, C.Across, C.Up, C.Sooted, Out, Washed, Houses, RoofOut, BrickOut);
+		if (Tally) ++Tally->KitChurches;
 	}
 }
 // [build 141 feedback] Farther off (beenster: "increase the drawing of objects in the very far
