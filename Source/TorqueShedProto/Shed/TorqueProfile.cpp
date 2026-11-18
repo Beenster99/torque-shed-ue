@@ -57,6 +57,11 @@ FLinearColor FTorqueProfile::HelmetColour() const
 	return TorqueProfileHelmet::FromHsv(HelmetHue, HelmetSat, HelmetVal);
 }
 
+FLinearColor FTorqueProfile::HsvColour(float H, float S, float V)
+{
+	return TorqueProfileHelmet::FromHsv(H, S, V);
+}
+
 FLinearColor FTorqueProfile::HelmetPearlTint() const
 {
 	return TorqueProfileHelmet::FromHsv(HelmetHue + 0.11f, HelmetSat * 0.45f, FMath::Min(1.0f, HelmetVal + 0.25f));

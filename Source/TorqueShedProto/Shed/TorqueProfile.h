@@ -61,6 +61,7 @@ struct FTorqueProfile
 	// The paint colour (linear), and the lighter, hue-turned tint a pearl finish shows at grazing angles.
 	FLinearColor HelmetColour() const;
 	FLinearColor HelmetPearlTint() const;
+	static FLinearColor HsvColour(float H, float S, float V);   // the same (H, S, V 0..1) to linear, for pickers
 	// The named colours the Profile page steps through (the sliders then make any colour).
 	struct FHelmetSwatch { const TCHAR* Name; float Hue, Sat, Val; };
 	enum { NumHelmetSwatch = 16 };
