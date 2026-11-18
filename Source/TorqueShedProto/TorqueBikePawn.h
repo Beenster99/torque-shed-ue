@@ -325,6 +325,7 @@ private:
 	TArray<TorqueSim::ContactBox> BaseBoxes;
 	int32 FurnitureSeen = 0;
 	int32 GarageSeen = 0;   // [garage] ATorqueForecourtGarage::ContactVersion as last taken in
+	FVector2D ParkedFrom = FVector2D(1e18, 1e18);   // [car parks] where the parked cars round the rider were last gathered
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it

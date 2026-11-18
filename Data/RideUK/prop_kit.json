@@ -40,6 +40,9 @@
   "bay_canted": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "bay_square": {"words": [], "reach": 250, "height": 0, "shadow": false, "credit": ""},
   "wall_stone": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"},
-  "wall_end": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"}
+  "wall_end": {"words": [], "reach": 1000, "height": 0, "shadow": true, "credit": "", "folder": "Walls"},
+  "parked_car": {"words": [], "reach": 220, "height": 0, "shadow": true, "credit": "", "folder": "Cars", "variants": 12,
+   "models": ["sm_hatchback", "sm_suv", "vehicle02_car", "vehicle03_car", "vehicle05_car"],
+   "colours": [[0.55, 0.56, 0.57], [0.012, 0.03, 0.09], [0.8, 0.8, 0.78], [0.2, 0.012, 0.012], [0.08, 0.08, 0.085], [0.015, 0.07, 0.03], [0.32, 0.28, 0.2], [0.18, 0.3, 0.45], [0.006, 0.006, 0.007], [0.45, 0.45, 0.46]]}
  }
 }

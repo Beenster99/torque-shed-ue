@@ -350,6 +350,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexFurniture();
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexTownLife();   // [roads stage 7] (before the fields too: forecourts are field areas)
+	R->IndexCarParks();   // [car parks]
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
@@ -2006,6 +2007,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
 		TownLifeTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
+		CarParksTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [car parks] (the finest squares only)
 		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
