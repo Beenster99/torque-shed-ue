@@ -378,6 +378,51 @@ int main(int Argc, char** Argv)
 	}
 	const Json* Styles = Ref.Get("styles");
 	Sweep = Ref.Get("sweep");
+	bool WheelieRun = false;
+	for (int A = 1; A < Argc; ++A) WheelieRun |= std::strcmp(Argv[A], "--wheelie") == 0;
+	if (WheelieRun)
+	{
+		// --wheelie: each reference bike (with --swap's changes) with every rider aid off, flat out from a
+		// standstill in first for 4 s: the most the front comes up (deg), sat normally and with the weight
+		// right back, at Riding realism 0 (full sim) and 0.5.
+		std::printf("style,engine,hp,sat_r0,back_r0,sat_r05,back_r05,dump_sat_r0,dump_back_r0\n");
+		for (const Real& Rl : Reals)
+		{
+			const Json* G = Styles ? Styles->Get(Rl.Name) : nullptr;
+			BikeSpec S;
+			UseGameCurve = true;
+			if (!G || !SpecFor(Lay, Rl.Name, *G, S)) continue;
+			S.TractionControl = false;
+			S.TractionStrength = S.LeanTraction = S.AntiWheelie = S.Stability = 0.0;
+			double PeakKw = 0.0;
+			for (double Rpm = S.IdleRpm; Rpm <= S.Redline; Rpm += 50.0) PeakKw = std::max(PeakKw, S.EngineTorque(Rpm) * Rpm * 6.2832 / 60.0 / 1000.0);
+			auto Run = [&](double Shift, double Assist, bool Dump) {
+				BikeSim Sim;
+				Start(Sim, S);
+				Sim.Assist = Assist;
+				double Most = 0.0;
+				for (int I = 0; I < 2 * 120; ++I) Sim.Step(Dt);   // settled on its wheels before the throttle opens
+				for (int I = 0; I < 4 * 120 && !Sim.IsCrashed; ++I)
+				{
+					// A clutch dump: revs held up on the lever for a second, then let go.
+					Sim.ClutchIn = Dump && I < 120;
+					Sim.Throttle = 1.0;
+					Sim.BodyShift = Shift;
+					Sim.Step(Dt);
+					Most = std::max(Most, Sim.PitchAngle * Deg);
+					if (TraceStyle == Rl.Name && Shift < 0 && !Dump && Assist == 0.5 && I % 12 == 0)
+						std::printf("    t %.1f %5.1f m/s gear %d rpm %5.0f pitch %5.1f slip %.3f thrEff %.2f tc %.2f rearload %5.0f front %d drive %5.0f\n", I * Dt, Sim.Speed, Sim.Gear, Sim.Rpm,
+							Sim.PitchAngle * Deg, Sim.Wheels[1].Kappa, Sim.ThrottleNow(), Sim.TractionNow(), Sim.Wheels[1].Load, Sim.Wheels[0].Contact ? 1 : 0, Sim.Wheels[1].DriveTorque);
+				}
+				return Most;
+			};
+			auto Parts = Lay.ReferenceBuild(Rl.Name);
+			for (const auto& [Slot, Id] : Swaps[Rl.Name]) Parts[Slot] = Id;
+			std::printf("%s,%s,%.0f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n", Rl.Name, Parts["engine"].c_str(), PeakKw * 1.341, Run(0.0, 0.0, false), Run(-1.0, 0.0, false),
+				Run(0.0, 0.5, false), Run(-1.0, 0.5, false), Run(0.0, 0.0, true), Run(-1.0, 0.0, true));
+		}
+		return 0;
+	}
 	bool TopRun = false;
 	for (int A = 1; A < Argc; ++A) TopRun |= std::strcmp(Argv[A], "--top") == 0;
 	if (TopRun)
