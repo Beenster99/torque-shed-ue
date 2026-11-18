@@ -2052,14 +2052,61 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			static const Rgb Paints[4] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
 			static const Rgb Cream = {0.70f, 0.64f, 0.48f};
 			const Rgb& Paint = Paints[std::min(3, int(Chance(F.At.X, F.At.Z, 52) * 4.0))];
+			// ([Nov 18] beenster, Long Lee, build 156: "pub sign is not attached to pub". The sign was put on the
+			// map's rough box for the pub, but where the world has the buildings' true outlines the pub is
+			// drawn from those (BuildingsTile), and its wall stood back from the sign. So where outlines
+			// cover it: the outline's box nearest the sign, the sign on that box's wall towards the road;
+			// and no sign where none is near enough to be the pub.)
+			P2 WallAt = F.At, WallFace = Face;
+			double Widest = F.Size, PubHigh = F.Big, Foot = Y;
+			{
+				std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> Hold;
+				std::vector<const OutlinePiece*> PubNear;
+				std::vector<CellId> Covered;
+				OutlinesIn(F.At.X - 30.0, F.At.Z - 30.0, 60.0, Hold, PubNear, Covered);
+				if (!Covered.empty())
+				{
+					const Building* Pub = nullptr;
+					double BestGap = 12.0;
+					for (const OutlinePiece* Piece : PubNear)
+					{
+						const Building& Pb = Piece->B;
+						if (Pb.W < 4.0 || Pb.D < 3.0) continue;
+						// (how far the sign's spot is outside the box, in the box's own axes)
+						const double Cp = std::cos(Pb.Yaw), Sp = std::sin(Pb.Yaw);
+						const P2 Rel = F.At - P2(Pb.X, Pb.Z);
+						const double Gx = std::fmax(0.0, std::fabs(Rel.X * Cp - Rel.Z * Sp) - Pb.W * 0.5), Gz = std::fmax(0.0, std::fabs(Rel.X * Sp + Rel.Z * Cp) - Pb.D * 0.5);
+						const double PubGap = std::hypot(Gx, Gz);
+						if (PubGap < BestGap) { BestGap = PubGap; Pub = &Pb; }
+					}
+					if (Pub == nullptr) break;
+					NearOpts Opts;
+					NearHit Hit;
+					if (!NearestOf(Pub->X, Pub->Z, Opts, Hit)) break;
+					const double Cp = std::cos(Pub->Yaw), Sp = std::sin(Pub->Yaw);
+					const P2 Ax(Cp, -Sp), Az(Sp, Cp);
+					const P2 ToRoad = Hit.Foot - P2(Pub->X, Pub->Z);
+					const double Ux = (ToRoad.X * Ax.X + ToRoad.Z * Ax.Z) / std::fmax(Pub->W * 0.5, 0.5), Uz = (ToRoad.X * Az.X + ToRoad.Z * Az.Z) / std::fmax(Pub->D * 0.5, 0.5);
+					const bool OnX = std::fabs(Ux) >= std::fabs(Uz);
+					WallFace = OnX ? Ax * (Ux >= 0.0 ? 1.0 : -1.0) : Az * (Uz >= 0.0 ? 1.0 : -1.0);
+					const double WallLong = OnX ? Pub->W : Pub->D, Deep = OnX ? Pub->D : Pub->W;
+					if (WallLong < 4.0) break;
+					WallAt = P2(Pub->X, Pub->Z) + WallFace * (Deep * 0.5);
+					Widest = std::fmin(WallLong - 1.0, 6.5);
+					PubHigh = Pub->Height;
+					const double Under = Ground(Pub->X, Pub->Z);
+					if (!std::isnan(Under)) Foot = Under;
+					if (!std::isnan(RoadHeight(WallAt.X, WallAt.Z))) break;
+				}
+			}
 			const double Letters = double(F.Text.size());
-			const double W = std::clamp(0.8 + 0.2 * Letters, 2.0, std::fmax(2.0, F.Size));
+			const double W = std::clamp(0.8 + 0.2 * Letters, 2.0, std::fmax(2.0, Widest));
 			const double Hb = 0.55;
-			const double Lift = F.Big > 5.0 ? 2.75 : std::fmax(2.2, F.Big * 0.5);
-			const P3 Mid = At3(F.At.X, Y + Lift, F.At.Z);
-			Board(Mid, Face, W + 0.12, Hb + 0.12, Shade(Paint, 0.6), 0.03);
-			Board(Mid, Face, W, Hb, Paint, 0.06);
-			Label(At3(Mid.X + Face.X * 0.075, Mid.Y, Mid.Z + Face.Z * 0.075), Face, std::fmin(0.3, 0.9 * (W - 0.3) / std::fmax(1.0, Letters * 0.6)), F.Text, Cream);
+			const double Lift = PubHigh > 5.0 ? 2.75 : std::fmax(2.2, PubHigh * 0.5);
+			const P3 Mid = At3(WallAt.X, Foot + Lift, WallAt.Z);
+			Board(Mid, WallFace, W + 0.12, Hb + 0.12, Shade(Paint, 0.6), 0.03);
+			Board(Mid, WallFace, W, Hb, Paint, 0.06);
+			Label(At3(Mid.X + WallFace.X * 0.075, Mid.Y, Mid.Z + WallFace.Z * 0.075), WallFace, std::fmin(0.3, 0.9 * (W - 0.3) / std::fmax(1.0, Letters * 0.6)), F.Text, Cream);
 			break;
 		}
 		case CrossingBarrier:
