@@ -93,6 +93,13 @@ public:
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
 	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
 	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
+	// [car parks] The parked cars within Reach (m) of At (the ride's frame, metres), for the bike to bump into:
+	// eight numbers each (RidePlan::ParkedCarBox: middle x, z; nose x, z; half length, half width; foot, roof).
+	// False with no ride.
+	static bool ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out);
+	// [car parks] Whether At (Unreal cm) is in one of the ride's car parks: its surface (RidePlan::ECarParkSurface:
+	// 0 tarmac, 1 setts, 2 gravel) and how far it is laid over the ground there (m).
+	static bool CarParkUnder(const FVector& At, int32& Kind, double& Lift);
 	// Where to put a bike back after a fall (beenster, build 142: off on a side road, it always went back
 	// to the ride's road): the middle of the nearest road of any kind to At (the ride's frame, metres), a
 	// little to its left as the UK keeps, facing along it the way nearer Heading (sim: 0 faces -z, + left).

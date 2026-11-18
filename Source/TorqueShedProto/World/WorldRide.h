@@ -724,6 +724,9 @@ public:
 		// [towns stage 6] A town centre's heritage street lamp (cast iron, swan neck, lantern), in place of the
 		// plain one where the street is a shopping street (ShopStreetNear) and it has its model.
 		PropLampHeritage,
+		// [car parks] A parked car in a car park's bay (Tools/ue_build_rideuk.py: the Fab cars of
+		// Data/Buttertubs/car_swaps.json in Data/RideUK/prop_kit.json's colours, SM_Prop_parked_car_<n>, as modelled)
+		PropParkedCar,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1218,6 +1221,59 @@ public:
 	int ForecourtAt(double X, double Z, double Within = 4.0) const;
 	bool OnForecourt(double X, double Z) const;
 	void TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [car parks] The map's car parks (World/WorldRideCarParks.cpp): each one's tarmac laid over its ground with
+	// its bays painted into it, flush (no strips over it), in rows along its aisles (a service road through it, or
+	// its longest side); low kerbs round it where no road runs by; a blue P sign and a pay machine at its way in;
+	// lamps over a big one; and parked cars in about a third of its bays, solid to the bike (ParkedCarsNear).
+	// Gravel ones get no paint or kerbs; "grass", "street_side" and "layby" ones are left as the ground is.
+	enum ECarParkSurface { ParkTarmac = 0, ParkSetts, ParkGravel };
+	struct CarPark
+	{
+		std::vector<P2> Ring;
+		double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0, Area = 0.0;
+		int Surface = ParkTarmac;
+		P2 U = P2(1.0, 0.0), V = P2(0.0, 1.0);   // the rows of bays run along U; V across them
+		double PhaseU = 0.0, PhaseV = 0.0;       // (along U, V from the origin) a bay's side; an aisle's middle
+		P2 Entry, EntryIn;                       // its way in, and the way into it there
+		bool HasEntry = false;
+		uint32_t Seed = 0;
+	};
+	struct ParkBay
+	{
+		P2 Mid, Along, In;   // its middle; along its row; from the aisle into it
+		bool Car = false;    // a car parked in it
+		uint8_t Pick = 0;    // which car
+		bool Badge = false;  // a blue badge bay by the way in (its lines yellow, never a car)
+		int Row = 0, Col = 0;   // which row (two to an aisle: 2k below it, 2k + 1 above) and which along it
+	};
+	static constexpr double ParkBayWide = 2.4, ParkBayLong = 4.8, ParkAisle = 6.0;
+	std::vector<CarPark> CarParks;
+	std::unordered_map<long long, std::vector<int>> CarParkGrid;   // by every 64 m square each one covers
+	void IndexCarParks();
+	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
+	// its buildings, water and edge.
+	void CarParkBays(int Which, std::vector<ParkBay>& Out) const;
+	void LayOutBays(int Which, std::vector<ParkBay>& Out) const;   // (CarParkBays' work, before it is kept)
+	void CarParkStands(double X0, double Z0, double X1, double Z1, std::vector<Building>& Out) const;   // (the buildings over it as drawn)
+	void CarParksTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// The parked cars within Reach of (X, Z) as boxes for the bike to bump into: the middle, the way its nose
+	// points (a level unit direction), half its length and width, its foot and roof heights.
+	struct ParkedCarBox
+	{
+		double X = 0.0, Z = 0.0, Ux = 1.0, Uz = 0.0, HalfLong = 2.1, HalfWide = 0.9, Y0 = 0.0, Y1 = 1.5;
+	};
+	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
+	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
+	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none)
+	static constexpr double ParkLift = 0.05;          // its surface over the drawn ground (the wheels ride on it)
+	int CarParkCount[3] = {};   // by surface, indexed (for the desk test)
+	// Whether the bays have cars in (the game: when the kit has the car models and -TorqueRideParkedCars=0 isn't
+	// given, the hub's frame rate A/B; the desk test draws plain shapes for them).
+	bool ParkedCars = true;
+	static constexpr int ParkedCarsMost = 150;   // in any one car park
+	// (each car park's bays once laid out, kept: the squares and the bike's contacts ask again and again)
+	struct CarParkMemo;
+	std::shared_ptr<CarParkMemo> ParkMemo;
 	// [places stage 3] The places drawn by their kind's recipe (World/WorldRidePlaces.cpp: PlacesTile):
 	// stone circles and standing stones in the local stone, crosses and memorials on their steps,
 	// obelisks, small churches where the map has no building for one (its tower at the west end),

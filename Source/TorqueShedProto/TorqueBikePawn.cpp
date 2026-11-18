@@ -282,6 +282,12 @@ void ATorqueBikePawn::BeginPlay()
 				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 || Kind == 4 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;   // [OSM stage 1] 4: a gravel road
 				Out.Lift = Lift;
 			}
+			// [car parks] On the land in a car park: its tarmac (or gravel) laid a little over it (RidePlan::ParkLift).
+			else if (Out.Surface == SURF_GRASS && ATorqueRideWorld::CarParkUnder(Hit.ImpactPoint, Kind, Lift))
+			{
+				Out.Surface = Kind == 2 ? SURF_GRAVEL : SURF_TARMAC;
+				Out.Lift = Lift;
+			}
 		}
 		return Out;
 	};
@@ -1008,11 +1014,40 @@ void ATorqueBikePawn::GatherOtherBikes()
 {
 	// [garage] On a real-world ride: the walls of the forecourt garages standing near the rider (the
 	// ride has no boxes of its own, so the contacts are made the first time one stands).
-	if (!bYard && !FPaths::IsRelative(RouteFile) && GarageSeen != ATorqueForecourtGarage::ContactVersion())
+	// [car parks] And the parked cars round the rider (ATorqueRideWorld::ParkedCarBoxes), gathered again each time
+	// the bike has gone ParkedReach / 3 from where they were last gathered.
+	const bool bRealRide = !bYard && !FPaths::IsRelative(RouteFile);
+	static constexpr double ParkedReach = 60.0;
+	const bool bCarsDue = bRealRide && Sim && (ParkedFrom.X > 1e17 || FVector2D(Sim->Position.x - ParkedFrom.X, Sim->Position.z - ParkedFrom.Y).Size() > ParkedReach / 3.0);
+	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || bCarsDue))
 	{
 		GarageSeen = ATorqueForecourtGarage::ContactVersion();
 		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
 		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
+		if (Sim)
+		{
+			ParkedFrom = FVector2D(Sim->Position.x, Sim->Position.z);
+			TArray<double> Cars;
+			if (ATorqueRideWorld::ParkedCarBoxes(FVector(Sim->Position.x, Sim->Position.y, Sim->Position.z), ParkedReach, Cars))
+				for (int32 I = 0; I + 7 < Cars.Num(); I += 8)
+				{
+					ContactBox Car;
+					Car.Cx = Cars[I];
+					Car.Cz = Cars[I + 1];
+					Car.Ux = Cars[I + 2];
+					Car.Uz = Cars[I + 3];
+					Car.Hu = Cars[I + 4];
+					Car.Hv = Cars[I + 5];
+					Car.Y0 = Cars[I + 6];
+					Car.Y1 = Cars[I + 7];
+					Boxes.push_back(Car);
+				}
+			if (Cars.Num() == 0 && Boxes.empty() && !Contacts)
+			{
+				// (nothing to bump into yet: no contact world made for it)
+				return;
+			}
+		}
 		if (!Contacts)
 		{
 			Contacts = MakeUnique<ContactWorld>();

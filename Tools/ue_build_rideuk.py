@@ -1293,6 +1293,75 @@ def street_kit_material(L):
     return g.m
 
 
+CAR_DEST = "/Game/RideUK/Cars"
+
+
+def parked_cars(L, kind, row, add):
+    """[car parks] The car parks' parked cars (World/WorldRideCarParks.cpp, PropParkedCar): the Fab cars Thwaite's
+    parked cars use (Data/Buttertubs/car_swaps.json; the packs live in /Content, never committed), each copied to
+    /Game/RideUK/Cars/SM_ParkedCar_<n> in one of the kit row's colours (its body slots in MI_FabCarPaint_Park_<n>;
+    a copy per colour, so each is one instanced mesh), Nanite on, no collision (the bike meets plain boxes,
+    RidePlan::ParkedCarsNear), listed as SM_Prop_<kind>_<n> at their own size. The row's "models" names which of
+    car_swaps' meshes (by their names' words: vans and pickups are too long for a bay). Returns a note."""
+    cp = os.path.join(L.data_dir(), "car_swaps.json")
+    if not os.path.exists(cp):
+        return "parked cars: no car_swaps.json"
+    cfg = json.load(open(cp))
+    want = [w.lower() for w in row.get("models", [])]
+    models = []
+    for md in cfg.get("models", []):
+        if want and not any(w in md["mesh"].lower() for w in want):
+            continue
+        m = L.find_static_mesh(md["mesh"])
+        if m is not None:
+            models.append((m, md))
+    if not models:
+        return "parked cars: none of the Fab cars are in the project (car parks have none)"
+    colours = row.get("colours") or cfg.get("colours") or [[0.5, 0.5, 0.5]]
+    count = int(row.get("variants", 12))
+    if unreal.EditorAssetLibrary.does_asset_exist(L.MAT_DIR + "/M_FabCarPaint"):
+        L.fab_car_paint.made = True   # (Thwaite's master kept: its own instances point at it)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    made = 0
+    for n in range(count):
+        mesh, md = models[n % len(models)]
+        colour = colours[(n * 5 + n // len(models)) % len(colours)]
+        paint = L.fab_car_paint("Park_%d" % n, colour, cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
+        path = "%s/SM_ParkedCar_%d" % (CAR_DEST, n)
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        copy = unreal.EditorAssetLibrary.duplicate_asset(mesh.get_path_name().split(".")[0], path)
+        if copy is None:
+            unreal.log_warning("[Torque] parked cars: couldn't copy %s" % mesh.get_name())
+            continue
+        listed = set(md.get("paint_slots", []))
+        painted = []
+        for si, sm in enumerate(copy.get_editor_property("static_materials")):
+            slot = str(sm.get_editor_property("material_slot_name"))
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            names = " ".join([slot, mat.get_name() if mat else "", base.get_name() if base else ""])
+            if slot in listed or str(si) in listed or "paint" in names.lower():
+                copy.set_material(si, paint)
+                painted.append(si)
+        try:
+            sme.remove_collisions(copy)
+        except Exception:
+            pass
+        try:
+            ns = copy.get_editor_property("nanite_settings")
+            ns.set_editor_property("enabled", True)
+            copy.set_editor_property("nanite_settings", ns)
+        except Exception as e:
+            unreal.log_warning("[Torque] parked cars: Nanite not set on %s (%s)" % (path, e))
+        unreal.EditorAssetLibrary.save_loaded_asset(copy)
+        add("SM_Prop_%s_%d" % (kind, n), copy, True, row)
+        made += 1
+        if not painted:
+            unreal.log_warning("[Torque] parked cars: %s has no paint slot (left in its own colour)" % mesh.get_name())
+    return "parked cars: %d (%d Fab models, %d colours)" % (made, len(models), len(colours))
+
+
 def prop_kit(L):
     """The things by the road (OSM stage 2): Data/RideUK/Props/*.glb (Tools/make_ride_props.py)
     imported to /Game/RideUK/Props, no collision, and any static mesh under /Game whose path holds one
@@ -1422,6 +1491,8 @@ def prop_kit(L):
             unreal.EditorAssetLibrary.save_loaded_asset(mi)
             wall_tints.append(mi)
     for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            continue   # ([car parks] made below)
         if row.get("folder") == "Walls":
             names = sorted((n for n in walls if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit()), key=size_of)
             if len(names) != len(WALL_TINTS) * WALL_VARIANTS or [size_of(n) for n in names] != list(range(len(names))):
@@ -1445,6 +1516,10 @@ def prop_kit(L):
             for name, mesh in sorted(ours.items()):
                 if name.startswith("SM_Prop_%s_" % kind):
                     add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
+    cars_note = ""
+    for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            cars_note = parked_cars(L, kind, row, add)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])
@@ -1456,9 +1531,9 @@ def prop_kit(L):
     a.set_editor_property("frame_scale", float(frame[2]))
     kinds = {str(e.get_editor_property("name")).rsplit("_", 1)[0][len("SM_Prop_"):] for e in species}
     none = [k for k in spec["kinds"] if k not in kinds]
-    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s" % (
+    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s%s" % (
         len(species), len(found), ", ".join("%s %s" % (k, v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or "none",
-        len(none), ", ".join(none) or "none")
+        len(none), ", ".join(none) or "none", "; " + cars_note if cars_note else "")
 
 
 def build():
