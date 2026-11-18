@@ -1586,6 +1586,9 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
 					FrameGameMs / CostFrames, FrameRenderMs / CostFrames, FrameGpuMs / CostFrames,
 					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
+				// ([build 157] the far trees' impostors: the robot gate's timed window should start after "all ready")
+				if (Impostors && Impostors->IsOn())
+					UE_LOG(LogTemp, Display, TEXT("Ride impostors: %d of %d ready%s"), Impostors->Baked(), Impostors->Queued(), UTorqueImpostors::bAllReady ? TEXT(" (all ready)") : TEXT(" (photographing)"));
 				SceneSquares = Tiles.Num();
 				ScenePlantGroups = Ism;
 				SceneTreeGroups = TreeGroups;

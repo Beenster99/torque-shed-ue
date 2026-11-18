@@ -6,7 +6,12 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Engine/Texture2D.h"
 #include "HAL/FileManager.h"
+#include "Misc/Compression.h"
+#include "Misc/SecureHash.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "Kismet/KismetRenderingLibrary.h"
@@ -50,6 +55,34 @@ const TCHAR* MasterPath = TEXT("/Game/RideUK/Impostors/M_RideImpostor.M_RideImpo
 constexpr float EmptyDepth = 1.0e7f;
 
 FString MarkPath() { return FPaths::ProjectSavedDir() / TEXT("TorqueImpostorBake.lock"); }
+// ([build 157] the photographed atlases are kept in Saved/Impostors, one file a scan, named by what they
+// depend on: the scan (path, size, triangles) and this layout's version. A changed scan or layout makes
+// a new name, so it is photographed again.)
+constexpr int32 CacheVersion = 1;
+constexpr uint32 CacheMagic = 0x504D4954;   // 'TIMP'
+
+FString CacheFileOf(const UStaticMesh* Scan, float Radius, float Height)
+{
+	const FString Key = FString::Printf(TEXT("%s|v%d|%d|%d|%.1f|%.1f|%d"), *Scan->GetPathName(), CacheVersion, Frames, Cell, Radius, Height, Scan->GetNumTriangles(0));
+	return FPaths::ProjectSavedDir() / TEXT("Impostors") / FString::Printf(TEXT("%s_%s.imp"), *Scan->GetName(), *FMD5::HashAnsiString(*Key).Left(12));
+}
+
+UTexture2D* MakeTexture(UObject* Outer, EPixelFormat Format, const uint8* Data, int64 Bytes)
+{
+	UTexture2D* T = UTexture2D::CreateTransient(AtlasPx, AtlasPx, Format);
+	if (!T || !T->GetPlatformData() || T->GetPlatformData()->Mips.Num() == 0) return nullptr;
+	T->SRGB = false;
+	T->Filter = TF_Bilinear;
+	T->NeverStream = true;
+	FTexture2DMipMap& Mip = T->GetPlatformData()->Mips[0];
+	void* Dst = Mip.BulkData.Lock(LOCK_READ_WRITE);
+	const bool bFits = Dst && Mip.BulkData.GetBulkDataSize() == Bytes;
+	if (bFits) FMemory::Memcpy(Dst, Data, Bytes);
+	Mip.BulkData.Unlock();
+	if (!bFits) return nullptr;
+	T->UpdateResource();
+	return T;
+}
 
 // The direction from the tree towards the camera for view (I, J): the inverse of the material's mapping
 // (Tools/ue_tree_impostors.py frame_dir, kept the same).
@@ -180,16 +213,25 @@ FTorqueImpostor* UTorqueImpostors::Entry(UStaticMesh* Scan)
 	E.Centre = B.Origin;
 	E.Radius = FMath::Max(float(B.SphereRadius), 10.0f);
 	const float MinZ = float(B.Origin.Z - B.BoxExtent.Z), MaxZ = float(B.Origin.Z + B.BoxExtent.Z);
-	E.Colour = TImp::MakeTarget(this, TImp::AtlasPx, 0);
-	E.Normal = TImp::MakeTarget(this, TImp::AtlasPx, 1);
-	E.Depth = TImp::MakeTarget(this, TImp::AtlasPx, 2);
+	if (FirstAskAt <= 0.0) FirstAskAt = FPlatformTime::Seconds();
+	bAllLogged = false;
+	bAllReady = false;
+	E.CacheFile = TImp::CacheFileOf(Scan, E.Radius, MaxZ - MinZ);
+	E.bFromCache = Load(E);
+	if (!E.bFromCache)
+	{
+		E.Colour = TImp::MakeTarget(this, TImp::AtlasPx, 0);
+		E.Normal = TImp::MakeTarget(this, TImp::AtlasPx, 1);
+		E.Depth = TImp::MakeTarget(this, TImp::AtlasPx, 2);
+	}
+	E.bBaked = E.bFromCache;
 	E.Material = UMaterialInstanceDynamic::Create(Master, this);
 	if (E.Material)
 	{
 		const float Dist = E.Radius / FMath::Tan(FMath::DegreesToRadians(TImp::FovDeg * 0.5f));
-		E.Material->SetTextureParameterValue(TEXT("TexC"), E.Colour);
-		E.Material->SetTextureParameterValue(TEXT("TexN"), E.Normal);
-		E.Material->SetTextureParameterValue(TEXT("TexD"), E.Depth);
+		E.Material->SetTextureParameterValue(TEXT("TexC"), E.bFromCache ? static_cast<UTexture*>(E.CachedColour.Get()) : static_cast<UTexture*>(E.Colour.Get()));
+		E.Material->SetTextureParameterValue(TEXT("TexN"), E.bFromCache ? static_cast<UTexture*>(E.CachedNormal.Get()) : static_cast<UTexture*>(E.Normal.Get()));
+		E.Material->SetTextureParameterValue(TEXT("TexD"), E.bFromCache ? static_cast<UTexture*>(E.CachedDepth.Get()) : static_cast<UTexture*>(E.Depth.Get()));
 		E.Material->SetScalarParameterValue(TEXT("R"), E.Radius);
 		E.Material->SetScalarParameterValue(TEXT("Frames"), float(TImp::Frames));
 		E.Material->SetScalarParameterValue(TEXT("MinZ"), MinZ);
@@ -207,7 +249,8 @@ FTorqueImpostor* UTorqueImpostors::Entry(UStaticMesh* Scan)
 		UE_LOG(LogTemp, Warning, TEXT("Torque impostors: %s: no card made; its far trees are not drawn"), *Scan->GetName());
 		return nullptr;
 	}
-	UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s queued (radius %.0f cm, height %.0f cm)"), *Scan->GetName(), E.Radius, MaxZ - MinZ);
+	UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s %s (radius %.0f cm, height %.0f cm)"), *Scan->GetName(),
+		E.bFromCache ? TEXT("ready from Saved/Impostors") : TEXT("queued to be photographed"), E.Radius, MaxZ - MinZ);
 	return &E;
 }
 
@@ -228,6 +271,75 @@ int32 UTorqueImpostors::Baked() const
 	int32 N = 0;
 	for (const FTorqueImpostor& E : Entries) N += E.bBaked ? 1 : 0;
 	return N;
+}
+
+bool UTorqueImpostors::bAllReady = false;
+
+bool UTorqueImpostors::Load(FTorqueImpostor& E)
+{
+	TArray<uint8> File;
+	if (!FFileHelper::LoadFileToArray(File, *E.CacheFile, FILEREAD_Silent)) return false;
+	FMemoryReader Ar(File);
+	uint32 Magic = 0;
+	int32 Version = 0, Px = 0, RawBytes = 0, PackedBytes = 0;
+	Ar << Magic << Version << Px << RawBytes << PackedBytes;
+	const int64 Pixels = int64(TImp::AtlasPx) * TImp::AtlasPx;
+	const int64 Expect = Pixels * (8 + 8 + 2);   // (colour and normal half-float RGBA, depth half-float R)
+	if (Magic != TImp::CacheMagic || Version != TImp::CacheVersion || Px != TImp::AtlasPx || RawBytes != Expect || PackedBytes <= 0 || Ar.Tell() + PackedBytes > File.Num())
+		return false;
+	TArray<uint8> Raw;
+	Raw.SetNumUninitialized(RawBytes);
+	if (!FCompression::UncompressMemory(NAME_Zlib, Raw.GetData(), RawBytes, File.GetData() + Ar.Tell(), PackedBytes)) return false;
+	E.CachedColour = TImp::MakeTexture(this, PF_FloatRGBA, Raw.GetData(), Pixels * 8);
+	E.CachedNormal = TImp::MakeTexture(this, PF_FloatRGBA, Raw.GetData() + Pixels * 8, Pixels * 8);
+	E.CachedDepth = TImp::MakeTexture(this, PF_R16F, Raw.GetData() + Pixels * 16, Pixels * 2);
+	return E.CachedColour && E.CachedNormal && E.CachedDepth;
+}
+
+void UTorqueImpostors::Save(FTorqueImpostor& E)
+{
+	FTextureRenderTargetResource* C = E.Colour ? E.Colour->GameThread_GetRenderTargetResource() : nullptr;
+	FTextureRenderTargetResource* N = E.Normal ? E.Normal->GameThread_GetRenderTargetResource() : nullptr;
+	FTextureRenderTargetResource* D = E.Depth ? E.Depth->GameThread_GetRenderTargetResource() : nullptr;
+	if (!C || !N || !D) return;
+	// (reading back waits for the GPU once per tree: the copies just queued included)
+	TArray<FFloat16Color> Cs, Ns;
+	TArray<FLinearColor> Ds;
+	if (!C->ReadFloat16Pixels(Cs) || !N->ReadFloat16Pixels(Ns) || !D->ReadLinearColorPixels(Ds)) return;
+	const int64 Pixels = int64(TImp::AtlasPx) * TImp::AtlasPx;
+	if (Cs.Num() != Pixels || Ns.Num() != Pixels || Ds.Num() != Pixels) return;
+	int64 Covered = 0;
+	TArray<uint8> Raw;
+	Raw.SetNumUninitialized(Pixels * 18);
+	FMemory::Memcpy(Raw.GetData(), Cs.GetData(), Pixels * 8);
+	FMemory::Memcpy(Raw.GetData() + Pixels * 8, Ns.GetData(), Pixels * 8);
+	FFloat16* Dh = reinterpret_cast<FFloat16*>(Raw.GetData() + Pixels * 16);
+	const float Dist = E.Radius / FMath::Tan(FMath::DegreesToRadians(TImp::FovDeg * 0.5f));
+	for (int64 P = 0; P < Pixels; ++P)
+	{
+		const float Depth = Ds[P].R;
+		Covered += (FMath::IsFinite(Depth) && Depth < Dist + 1.5f * E.Radius) ? 1 : 0;
+		Dh[P] = FFloat16(FMath::IsFinite(Depth) ? FMath::Min(Depth, 65000.0f) : 65000.0f);
+	}
+	const double Coverage = 100.0 * double(Covered) / double(Pixels);
+	UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s: the tree covers %.1f%% of its atlas"), *E.Scan->GetName(), Coverage);
+	if (Covered == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque impostors: %s: the pictures are empty: not kept (photographed again next ride)"), *E.Scan->GetName());
+		return;
+	}
+	int32 PackedBytes = FCompression::CompressMemoryBound(NAME_Zlib, int32(Raw.Num()));
+	TArray<uint8> Packed;
+	Packed.SetNumUninitialized(PackedBytes);
+	if (!FCompression::CompressMemory(NAME_Zlib, Packed.GetData(), PackedBytes, Raw.GetData(), int32(Raw.Num()))) return;
+	TArray<uint8> File;
+	FMemoryWriter Ar(File);
+	uint32 Magic = TImp::CacheMagic;
+	int32 Version = TImp::CacheVersion, Px = TImp::AtlasPx, RawBytes = int32(Raw.Num());
+	Ar << Magic << Version << Px << RawBytes << PackedBytes;
+	File.Append(Packed.GetData(), PackedBytes);
+	if (FFileHelper::SaveArrayToFile(File, *E.CacheFile))
+		UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s: kept in %s (%.1f MB)"), *E.Scan->GetName(), *FPaths::GetCleanFilename(E.CacheFile), File.Num() / 1048576.0);
 }
 
 void UTorqueImpostors::Mark(bool bOnNow)
@@ -366,6 +478,8 @@ void UTorqueImpostors::Tick()
 	if (bInTick || !bOn) return;
 	TGuardValue<bool> Guard(bInTick, true);
 	CopyPending();
+	if (Entries.IsValidIndex(SaveEntry)) Save(Entries[SaveEntry]);
+	SaveEntry = -1;
 	if (Current >= 0 && (!Entries.IsValidIndex(Current) || Entries[Current].bBaked)) Current = -1;
 	if (Current < 0)
 	{
@@ -374,6 +488,15 @@ void UTorqueImpostors::Tick()
 		if (Current < 0)
 		{
 			Mark(false);   // (all done: no bake in progress)
+			if (!bAllLogged && Entries.Num() > 0)
+			{
+				int32 Cached = 0;
+				for (const FTorqueImpostor& Each : Entries) Cached += Each.bFromCache ? 1 : 0;
+				UE_LOG(LogTemp, Display, TEXT("Torque impostors: all ready: %d trees (%d from Saved/Impostors, %d photographed), %.1f s after the first was asked for"),
+					Entries.Num(), Cached, Entries.Num() - Cached, FPlatformTime::Seconds() - FirstAskAt);
+				bAllLogged = true;
+			}
+			bAllReady = true;
 			if (Tree && Tree->IsRegistered() && Tree->GetStaticMesh()) Tree->SetStaticMesh(nullptr);
 			return;
 		}
@@ -424,6 +547,7 @@ void UTorqueImpostors::Tick()
 	{
 		// (its last views are copied next tick, before anything else is captured)
 		E.bBaked = true;
+		SaveEntry = Current;
 		UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s: done in %.1f s (%d of %d trees)"), *E.Scan->GetName(),
 			FPlatformTime::Seconds() - StartedAt, Baked(), Entries.Num());
 	}

@@ -32,6 +32,7 @@ class USceneCaptureComponent2D;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextureRenderTarget2D;
+class UTexture2D;
 
 USTRUCT()
 struct FTorqueImpostor
@@ -43,6 +44,12 @@ struct FTorqueImpostor
 	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> Colour;
 	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> Normal;
 	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> Depth;
+	// ([build 157] atlases read back from Saved/Impostors instead, when this scan was photographed before)
+	UPROPERTY(Transient) TObjectPtr<UTexture2D> CachedColour;
+	UPROPERTY(Transient) TObjectPtr<UTexture2D> CachedNormal;
+	UPROPERTY(Transient) TObjectPtr<UTexture2D> CachedDepth;
+	FString CacheFile;
+	bool bFromCache = false;
 	FVector Centre = FVector::ZeroVector;   // (the scan's bounds, in its own space)
 	float Radius = 0.0f;
 	bool bBaked = false;
@@ -65,6 +72,8 @@ public:
 	void Stop();
 
 	int32 Baked() const;
+	// [build 157] Every impostor asked for so far is ready (the robot gate starts its timed window after this).
+	static bool bAllReady;
 	int32 Queued() const { return Entries.Num(); }
 
 private:
@@ -73,6 +82,8 @@ private:
 	void BeginTree(FTorqueImpostor& E);
 	void CopyPending();
 	void Mark(bool bOnNow);
+	bool Load(FTorqueImpostor& E);
+	void Save(FTorqueImpostor& E);
 
 	UPROPERTY(Transient) TObjectPtr<AActor> Owner;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> Master;
@@ -94,4 +105,7 @@ private:
 	TArray<FIntPoint> Pending;
 	int32 PendingEntry = -1;
 	double StartedAt = 0.0;
+	int32 SaveEntry = -1;     // a tree whose last views were copied this tick: written to Saved/Impostors
+	bool bAllLogged = false;
+	double FirstAskAt = 0.0;
 };
