@@ -2982,6 +2982,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	// [garage] Its parts changed in a garage: drawn again once it's standing parked.
 	BindGarage();
 	if (bModelStale && ((bOnFoot && !bPushing) || bParkedLook)) RebuildBikeModel();
+	UpdateGarageTool(DeltaSeconds);
 
 	if (bRemote)
 	{
