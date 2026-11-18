@@ -2997,6 +2997,7 @@
      "fork": "v2_hartwell_chopper__fork",
      "front_wheel": "v2_hartwell_chopper__front_wheel",
      "rear_wheel": "v2_hartwell_chopper__rear_wheel",
+     "shock": "v2_hartwell_chopper__shock",
      "side_stand": "v2_hartwell_chopper__side_stand",
      "front_caliper": "v2_hartwell_chopper__front_caliper",
      "rear_caliper": "v2_hartwell_chopper__rear_caliper",
@@ -4480,6 +4481,7 @@
      "fork": "v2_kazeda_chopper__fork",
      "front_wheel": "v2_kazeda_chopper__front_wheel",
      "rear_wheel": "v2_kazeda_chopper__rear_wheel",
+     "shock": "v2_kazeda_chopper__shock",
      "side_stand": "v2_kazeda_chopper__side_stand",
      "front_caliper": "v2_kazeda_chopper__front_caliper",
      "rear_caliper": "v2_kazeda_chopper__rear_caliper",
@@ -6219,6 +6221,7 @@
      "fork": "v2_lodestar_chopper__fork",
      "front_wheel": "v2_lodestar_chopper__front_wheel",
      "rear_wheel": "v2_lodestar_chopper__rear_wheel",
+     "shock": "v2_lodestar_chopper__shock",
      "side_stand": "v2_lodestar_chopper__side_stand",
      "front_caliper": "v2_lodestar_chopper__front_caliper",
      "rear_caliper": "v2_lodestar_chopper__rear_caliper",
@@ -18969,10 +18972,10 @@
     0.15,
     0.16
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Corvano Adventure front wheel",
    "description": "Off the Corvano adventure. Bolts to any adventure frame on the hidden mounting standard.",
@@ -18998,10 +19001,10 @@
    "style": "cast",
    "diameter": 17,
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.25,
    "tyres": [
-    160,
-    200
+    140,
+    170
    ],
    "color": [
     0.2,
@@ -19030,17 +19033,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 17,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Corvano Cafe front wheel",
    "description": "Off the Corvano cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -19064,17 +19067,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 17,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Corvano Cafe rear wheel",
    "description": "Off the Corvano cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -19105,10 +19108,10 @@
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Corvano Classic front wheel",
    "description": "Off the Corvano classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -19139,10 +19142,10 @@
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Corvano Classic rear wheel",
    "description": "Off the Corvano classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -19167,16 +19170,16 @@
    "type": "Cast alloy",
    "style": "cast",
    "spokes": 6,
-   "diameter": 17,
+   "diameter": 19,
    "color": [
     0.72,
     0.73,
     0.75
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Corvano Cruiser front wheel",
    "description": "Off the Corvano cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -19201,16 +19204,16 @@
    "type": "Spoked",
    "style": "wire",
    "spokes": 40,
-   "diameter": 15,
+   "diameter": 16,
    "color": [
     0.9,
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "Corvano Cruiser rear wheel",
    "description": "Off the Corvano cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -19235,17 +19238,17 @@
    "type": "Spoked alloy",
    "style": "spoked",
    "spokes": 36,
-   "diameter": 22,
+   "diameter": 21,
    "color": [
     0.06,
     0.06,
     0.07
    ],
    "lightweight": true,
-   "rim_width": 2.5,
+   "rim_width": 1.6,
    "tyres": [
-    64,
-    104
+    80,
+    100
    ],
    "name": "Corvano MX front wheel",
    "description": "Off the Corvano mx. Bolts to any mx frame on the hidden mounting standard.",
@@ -19269,17 +19272,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 20,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 3.4,
+   "rim_width": 2.15,
    "tyres": [
-    96,
-    136
+    90,
+    130
    ],
    "name": "Corvano MX rear wheel",
    "description": "Off the Corvano mx. Bolts to any mx frame on the hidden mounting standard.",
@@ -19312,8 +19315,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Corvano Naked front wheel",
    "description": "Off the Corvano naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -19344,10 +19347,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Corvano Naked rear wheel",
    "description": "Off the Corvano naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -19380,8 +19383,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Corvano Sport front wheel",
    "description": "Off the Corvano sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -19412,10 +19415,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Corvano Sport rear wheel",
    "description": "Off the Corvano sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -19446,10 +19449,10 @@
     0.15,
     0.16
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "BSX Adventure front wheel",
    "description": "Off the BSX adventure. Bolts to any adventure frame on the hidden mounting standard.",
@@ -19475,10 +19478,10 @@
    "style": "cast",
    "diameter": 17,
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.25,
    "tyres": [
-    160,
-    200
+    140,
+    170
    ],
    "color": [
     0.2,
@@ -19507,17 +19510,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 17,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "BSX Cafe front wheel",
    "description": "Off the BSX cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -19541,17 +19544,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 17,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "BSX Cafe rear wheel",
    "description": "Off the BSX cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -19575,17 +19578,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 22,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "BSX Chopper front wheel",
    "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
@@ -19616,10 +19619,10 @@
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "BSX Chopper rear wheel",
    "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
@@ -19650,10 +19653,10 @@
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "BSX Classic front wheel",
    "description": "Off the BSX classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -19684,10 +19687,10 @@
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "BSX Classic rear wheel",
    "description": "Off the BSX classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -19720,8 +19723,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "BSX Naked front wheel",
    "description": "Off the BSX naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -19752,10 +19755,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "BSX Naked rear wheel",
    "description": "Off the BSX naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -19788,8 +19791,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "BSX Sport front wheel",
    "description": "Off the BSX sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -19820,10 +19823,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "BSX Sport rear wheel",
    "description": "Off the BSX sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -19854,10 +19857,10 @@
     0.15,
     0.16
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Kazeda Adventure front wheel",
    "description": "Off the Kazeda adventure. Bolts to any adventure frame on the hidden mounting standard.",
@@ -19883,10 +19886,10 @@
    "style": "cast",
    "diameter": 17,
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.25,
    "tyres": [
-    160,
-    200
+    140,
+    170
    ],
    "color": [
     0.2,
@@ -19915,17 +19918,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 17,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Kazeda Cafe front wheel",
    "description": "Off the Kazeda cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -19949,17 +19952,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 17,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Kazeda Cafe rear wheel",
    "description": "Off the Kazeda cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -19983,17 +19986,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 22,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Kazeda Chopper front wheel",
    "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
@@ -20024,10 +20027,10 @@
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "Kazeda Chopper rear wheel",
    "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
@@ -20058,10 +20061,10 @@
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Kazeda Classic front wheel",
    "description": "Off the Kazeda classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -20092,10 +20095,10 @@
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Kazeda Classic rear wheel",
    "description": "Off the Kazeda classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -20120,16 +20123,16 @@
    "type": "Cast alloy",
    "style": "cast",
    "spokes": 6,
-   "diameter": 15,
+   "diameter": 19,
    "color": [
     0.72,
     0.73,
     0.75
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Kazeda Cruiser front wheel",
    "description": "Off the Kazeda cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -20154,16 +20157,16 @@
    "type": "Spoked",
    "style": "wire",
    "spokes": 40,
-   "diameter": 15,
+   "diameter": 16,
    "color": [
     0.9,
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "Kazeda Cruiser rear wheel",
    "description": "Off the Kazeda cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -20188,17 +20191,17 @@
    "type": "Spoked alloy",
    "style": "spoked",
    "spokes": 36,
-   "diameter": 22,
+   "diameter": 21,
    "color": [
     0.06,
     0.06,
     0.07
    ],
    "lightweight": true,
-   "rim_width": 2.5,
+   "rim_width": 1.6,
    "tyres": [
-    64,
-    104
+    80,
+    100
    ],
    "name": "Kazeda MX front wheel",
    "description": "Off the Kazeda mx. Bolts to any mx frame on the hidden mounting standard.",
@@ -20222,17 +20225,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 20,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 3.4,
+   "rim_width": 2.15,
    "tyres": [
-    96,
-    136
+    90,
+    130
    ],
    "name": "Kazeda MX rear wheel",
    "description": "Off the Kazeda mx. Bolts to any mx frame on the hidden mounting standard.",
@@ -20265,8 +20268,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Kazeda Naked front wheel",
    "description": "Off the Kazeda naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -20297,10 +20300,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Kazeda Naked rear wheel",
    "description": "Off the Kazeda naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -20333,8 +20336,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Kazeda Sport front wheel",
    "description": "Off the Kazeda sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -20365,10 +20368,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Kazeda Sport rear wheel",
    "description": "Off the Kazeda sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -20392,17 +20395,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 17,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Lodestar Cafe front wheel",
    "description": "Off the Lodestar cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -20426,17 +20429,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 17,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Lodestar Cafe rear wheel",
    "description": "Off the Lodestar cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -20460,17 +20463,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 22,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Lodestar Chopper front wheel",
    "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
@@ -20501,10 +20504,10 @@
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "Lodestar Chopper rear wheel",
    "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
@@ -20535,10 +20538,10 @@
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Lodestar Classic front wheel",
    "description": "Off the Lodestar classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -20569,10 +20572,10 @@
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Lodestar Classic rear wheel",
    "description": "Off the Lodestar classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -20597,16 +20600,16 @@
    "type": "Cast alloy",
    "style": "cast",
    "spokes": 6,
-   "diameter": 16,
+   "diameter": 19,
    "color": [
     0.72,
     0.73,
     0.75
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Lodestar Cruiser front wheel",
    "description": "Off the Lodestar cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -20637,10 +20640,10 @@
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "Lodestar Cruiser rear wheel",
    "description": "Off the Lodestar cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -20671,10 +20674,10 @@
     0.15,
     0.16
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Rheinhart Adventure front wheel",
    "description": "Off the Rheinhart adventure. Bolts to any adventure frame on the hidden mounting standard.",
@@ -20700,10 +20703,10 @@
    "style": "cast",
    "diameter": 17,
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.25,
    "tyres": [
-    160,
-    200
+    140,
+    170
    ],
    "color": [
     0.2,
@@ -20732,17 +20735,17 @@
    "mass": 7.0,
    "type": "Spoked",
    "style": "wire",
-   "diameter": 17,
+   "diameter": 19,
    "color": [
     0.9,
     0.9,
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Rheinhart Cafe front wheel",
    "description": "Off the Rheinhart cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -20766,17 +20769,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 17,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Rheinhart Cafe rear wheel",
    "description": "Off the Rheinhart cafe. Bolts to any cafe frame on the hidden mounting standard.",
@@ -20807,10 +20810,10 @@
     0.92
    ],
    "spokes": 40,
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Rheinhart Classic front wheel",
    "description": "Off the Rheinhart classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -20841,10 +20844,10 @@
     0.78
    ],
    "spokes": 36,
-   "rim_width": 5.3,
+   "rim_width": 2.15,
    "tyres": [
-    160,
-    200
+    90,
+    130
    ],
    "name": "Rheinhart Classic rear wheel",
    "description": "Off the Rheinhart classic. Bolts to any classic frame on the hidden mounting standard.",
@@ -20869,16 +20872,16 @@
    "type": "Cast alloy",
    "style": "cast",
    "spokes": 6,
-   "diameter": 16,
+   "diameter": 19,
    "color": [
     0.72,
     0.73,
     0.75
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Rheinhart Cruiser front wheel",
    "description": "Off the Rheinhart cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -20909,10 +20912,10 @@
     0.9,
     0.92
    ],
-   "rim_width": 5.3,
+   "rim_width": 3.5,
    "tyres": [
-    160,
-    200
+    130,
+    160
    ],
    "name": "Rheinhart Cruiser rear wheel",
    "description": "Off the Rheinhart cruiser. Bolts to any cruiser frame on the hidden mounting standard.",
@@ -20945,8 +20948,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Rheinhart Naked front wheel",
    "description": "Off the Rheinhart naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -20977,10 +20980,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Rheinhart Naked rear wheel",
    "description": "Off the Rheinhart naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -21011,10 +21014,10 @@
     0.15,
     0.16
    ],
-   "rim_width": 3.5,
+   "rim_width": 2.5,
    "tyres": [
-    100,
-    140
+    90,
+    130
    ],
    "name": "Varga Adventure front wheel",
    "description": "Off the Varga adventure. Bolts to any adventure frame on the hidden mounting standard.",
@@ -21040,10 +21043,10 @@
    "style": "cast",
    "diameter": 17,
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.25,
    "tyres": [
-    160,
-    200
+    140,
+    170
    ],
    "color": [
     0.2,
@@ -21073,17 +21076,17 @@
    "type": "Spoked alloy",
    "style": "spoked",
    "spokes": 36,
-   "diameter": 22,
+   "diameter": 21,
    "color": [
     0.06,
     0.06,
     0.07
    ],
    "lightweight": true,
-   "rim_width": 2.5,
+   "rim_width": 1.6,
    "tyres": [
-    64,
-    104
+    80,
+    100
    ],
    "name": "Varga MX front wheel",
    "description": "Off the Varga mx. Bolts to any mx frame on the hidden mounting standard.",
@@ -21107,17 +21110,17 @@
    "mass": 6.5,
    "type": "Spoked",
    "style": "spoked",
-   "diameter": 20,
+   "diameter": 18,
    "color": [
     0.75,
     0.76,
     0.78
    ],
    "spokes": 36,
-   "rim_width": 3.4,
+   "rim_width": 2.15,
    "tyres": [
-    96,
-    136
+    90,
+    130
    ],
    "name": "Varga MX rear wheel",
    "description": "Off the Varga mx. Bolts to any mx frame on the hidden mounting standard.",
@@ -21150,8 +21153,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Varga Naked front wheel",
    "description": "Off the Varga naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -21182,10 +21185,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Varga Naked rear wheel",
    "description": "Off the Varga naked. Bolts to any naked frame on the hidden mounting standard.",
@@ -21218,8 +21221,8 @@
    "spokes": 5,
    "rim_width": 3.5,
    "tyres": [
-    100,
-    140
+    110,
+    130
    ],
    "name": "Varga Sport front wheel",
    "description": "Off the Varga sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -21250,10 +21253,10 @@
     0.05
    ],
    "spokes": 5,
-   "rim_width": 5.3,
+   "rim_width": 4.5,
    "tyres": [
-    160,
-    200
+    140,
+    180
    ],
    "name": "Varga Sport rear wheel",
    "description": "Off the Varga sport. Bolts to any sport frame on the hidden mounting standard.",
@@ -21317,7 +21320,7 @@
    "rebound": 3500.0,
    "adjust": 1,
    "adjust_name": "Preload",
-   "layout": "mono",
+   "layout": "twin",
    "color": [
     0.85,
     0.86,
@@ -21572,6 +21575,39 @@
     "twin_shock": true
    }
   },
+  "v2_hartwell_chopper__shock": {
+   "mass": 4.0,
+   "type": "Twin shock",
+   "travel": 0.11,
+   "spring": 36000.0,
+   "bump": 2300.0,
+   "rebound": 3500.0,
+   "adjust": 1,
+   "adjust_name": "Preload",
+   "layout": "twin",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Chopper rear shock",
+   "description": "Off the BSX chopper. Fits any chopper frame with a mono-shock.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 300,
+   "v2part": {
+    "model": "hartwell_chopper",
+    "frame": "v2_hartwell_chopper",
+    "slot": "shock",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "shock",
+    "layout": "triple",
+    "twin_shock": false
+   }
+  },
   "v2_hartwell_classic__shock": {
    "mass": 4.0,
    "type": "Twin shock",
@@ -21735,6 +21771,39 @@
     "fits": "shock",
     "layout": "inline4",
     "twin_shock": true
+   }
+  },
+  "v2_kazeda_chopper__shock": {
+   "mass": 4.0,
+   "type": "Twin shock",
+   "travel": 0.11,
+   "spring": 36000.0,
+   "bump": 2300.0,
+   "rebound": 3500.0,
+   "adjust": 1,
+   "adjust_name": "Preload",
+   "layout": "twin",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Chopper rear shock",
+   "description": "Off the Kazeda chopper. Fits any chopper frame with a mono-shock.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 300,
+   "v2part": {
+    "model": "kazeda_chopper",
+    "frame": "v2_kazeda_chopper",
+    "slot": "shock",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "shock",
+    "layout": "inline4",
+    "twin_shock": false
    }
   },
   "v2_kazeda_classic__shock": {
@@ -21935,6 +22004,39 @@
     "twin_shock": true
    }
   },
+  "v2_lodestar_chopper__shock": {
+   "mass": 4.0,
+   "type": "Twin shock",
+   "travel": 0.11,
+   "spring": 36000.0,
+   "bump": 2300.0,
+   "rebound": 3500.0,
+   "adjust": 1,
+   "adjust_name": "Preload",
+   "layout": "twin",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Lodestar Chopper rear shock",
+   "description": "Off the Lodestar chopper. Fits any chopper frame with a mono-shock.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 300,
+   "v2part": {
+    "model": "lodestar_chopper",
+    "frame": "v2_lodestar_chopper",
+    "slot": "shock",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "shock",
+    "layout": "vtwin45",
+    "twin_shock": false
+   }
+  },
   "v2_lodestar_classic__shock": {
    "mass": 4.0,
    "type": "Twin shock",
@@ -22043,7 +22145,7 @@
    "rebound": 3500.0,
    "adjust": 1,
    "adjust_name": "Preload",
-   "layout": "mono",
+   "layout": "twin",
    "color": [
     0.85,
     0.86,
@@ -25372,20 +25474,20 @@
    }
   },
   "v2_corvano_cafe__engine": {
-   "mass": 47.5,
-   "layout": "vtwin",
+   "mass": 41.0,
+   "layout": "parallel",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 83.1,
-   "stroke": 69.2,
+   "bore": 81.9,
+   "stroke": 71.2,
    "torque_per_cc": 0.1,
-   "peak_torque_rpm": 5550.0,
-   "redline": 8600.0,
+   "peak_torque_rpm": 6700.0,
+   "redline": 9600.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.12,
-    0.12,
-    0.13
+    0.18,
+    0.18,
+    0.2
    ],
    "type": "90 degree v-twin",
    "name": "Corvano Cafe engine block",
@@ -25407,20 +25509,20 @@
    }
   },
   "v2_corvano_classic__engine": {
-   "mass": 47.5,
-   "layout": "vtwin",
+   "mass": 45.0,
+   "layout": "twin",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 83.1,
-   "stroke": 69.2,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 5550.0,
-   "redline": 8600.0,
+   "bore": 76.8,
+   "stroke": 80.9,
+   "torque_per_cc": 0.09,
+   "peak_torque_rpm": 5300.0,
+   "redline": 7700.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.12,
-    0.12,
-    0.13
+    0.66,
+    0.67,
+    0.68
    ],
    "type": "90 degree v-twin",
    "name": "Corvano Classic engine block",
@@ -25442,22 +25544,24 @@
    }
   },
   "v2_corvano_cruiser__engine": {
-   "mass": 70.0,
+   "mass": 66.0,
    "layout": "vtwin",
    "cylinders": 2,
    "displacement": 1200.0,
-   "bore": 97.1,
-   "stroke": 81.0,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 5100.0,
-   "redline": 7900.0,
-   "idle_rpm": 950.0,
+   "bore": 99.0,
+   "stroke": 78.0,
+   "torque_per_cc": 0.095,
+   "peak_torque_rpm": 5200.0,
+   "redline": 8200.0,
+   "idle_rpm": 1000.0,
    "color": [
-    0.12,
-    0.12,
-    0.13
+    0.72,
+    0.73,
+    0.75
    ],
    "type": "90 degree v-twin",
+   "breathing": 0.85,
+   "v_angle": 60.0,
    "name": "Corvano Cruiser engine block",
    "description": "Off the Corvano cruiser: for a cruiser frame built round a 90 degree V-twin.",
    "styles": [
@@ -25477,20 +25581,20 @@
    }
   },
   "v2_corvano_mx__engine": {
-   "mass": 8.5,
-   "layout": "2stroke",
+   "mass": 20.0,
+   "layout": "single",
    "cylinders": 1,
-   "displacement": 125.0,
-   "bore": 54.2,
-   "stroke": 54.2,
-   "torque_per_cc": 0.118,
-   "peak_torque_rpm": 11250.0,
-   "redline": 14600.0,
-   "idle_rpm": 1450.0,
+   "displacement": 450.0,
+   "bore": 95.0,
+   "stroke": 63.4,
+   "torque_per_cc": 0.105,
+   "peak_torque_rpm": 8000.0,
+   "redline": 11000.0,
+   "idle_rpm": 1500.0,
    "color": [
-    0.75,
-    0.76,
-    0.78
+    0.55,
+    0.56,
+    0.58
    ],
    "type": "Two-stroke single",
    "name": "Corvano MX engine block",
@@ -25512,20 +25616,20 @@
    }
   },
   "v2_corvano_naked__engine": {
-   "mass": 50.0,
-   "layout": "vtwin",
-   "cylinders": 2,
-   "displacement": 800.0,
-   "bore": 84.9,
-   "stroke": 70.7,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 5500.0,
-   "redline": 8500.0,
-   "idle_rpm": 1050.0,
+   "mass": 42.0,
+   "layout": "triple",
+   "cylinders": 3,
+   "displacement": 850.0,
+   "bore": 78.0,
+   "stroke": 59.0,
+   "torque_per_cc": 0.102,
+   "peak_torque_rpm": 7500.0,
+   "redline": 10500.0,
+   "idle_rpm": 1250.0,
    "color": [
-    0.12,
-    0.12,
-    0.13
+    0.25,
+    0.26,
+    0.28
    ],
    "type": "90 degree v-twin",
    "name": "Corvano Naked engine block",
@@ -25547,20 +25651,20 @@
    }
   },
   "v2_corvano_sport__engine": {
-   "mass": 47.5,
-   "layout": "vtwin",
-   "cylinders": 2,
-   "displacement": 750.0,
-   "bore": 83.1,
-   "stroke": 69.2,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 5550.0,
-   "redline": 8600.0,
-   "idle_rpm": 1050.0,
+   "mass": 36.0,
+   "layout": "inline",
+   "cylinders": 4,
+   "displacement": 600.0,
+   "bore": 63.6,
+   "stroke": 47.1,
+   "torque_per_cc": 0.098,
+   "peak_torque_rpm": 10000.0,
+   "redline": 14000.0,
+   "idle_rpm": 1100.0,
    "color": [
-    0.12,
-    0.12,
-    0.13
+    0.1,
+    0.1,
+    0.11
    ],
    "type": "90 degree v-twin",
    "name": "Corvano Sport engine block",
@@ -25583,19 +25687,19 @@
   },
   "v2_hartwell_adventure__engine": {
    "mass": 42.0,
-   "layout": "triple",
-   "cylinders": 3,
-   "displacement": 850.0,
-   "bore": 78.0,
-   "stroke": 59.0,
-   "torque_per_cc": 0.102,
-   "peak_torque_rpm": 7500.0,
-   "redline": 10500.0,
-   "idle_rpm": 1250.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 900.0,
+   "bore": 92.0,
+   "stroke": 67.7,
+   "torque_per_cc": 0.1,
+   "peak_torque_rpm": 6200.0,
+   "redline": 8800.0,
+   "idle_rpm": 1100.0,
    "color": [
-    0.25,
-    0.26,
-    0.28
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "Inline triple",
    "name": "BSX Adventure engine block",
@@ -25652,22 +25756,23 @@
    }
   },
   "v2_hartwell_chopper__engine": {
-   "mass": 60.8,
-   "layout": "parallel",
+   "mass": 102.0,
+   "layout": "vtwin",
    "cylinders": 2,
-   "displacement": 1200.0,
-   "bore": 95.8,
-   "stroke": 83.3,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 6200.0,
-   "redline": 8800.0,
-   "idle_rpm": 950.0,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
    "color": [
-    0.18,
-    0.18,
-    0.2
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
    "name": "BSX Chopper engine block",
    "description": "Off the BSX chopper: for a chopper frame built round a air-cooled look parallel twin.",
    "styles": [
@@ -25687,20 +25792,20 @@
    }
   },
   "v2_hartwell_classic__engine": {
-   "mass": 41.0,
-   "layout": "parallel",
+   "mass": 45.0,
+   "layout": "twin",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 81.9,
-   "stroke": 71.2,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 6700.0,
-   "redline": 9600.0,
+   "bore": 76.8,
+   "stroke": 80.9,
+   "torque_per_cc": 0.09,
+   "peak_torque_rpm": 5300.0,
+   "redline": 7700.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.18,
-    0.18,
-    0.2
+    0.66,
+    0.67,
+    0.68
    ],
    "type": "Air-cooled look parallel twin",
    "name": "BSX Classic engine block",
@@ -25758,19 +25863,19 @@
   },
   "v2_hartwell_sport__engine": {
    "mass": 36.0,
-   "layout": "triple",
-   "cylinders": 3,
-   "displacement": 660.0,
-   "bore": 74.0,
-   "stroke": 51.1,
-   "torque_per_cc": 0.096,
-   "peak_torque_rpm": 7800.0,
-   "redline": 10800.0,
-   "idle_rpm": 1300.0,
+   "layout": "inline",
+   "cylinders": 4,
+   "displacement": 600.0,
+   "bore": 63.6,
+   "stroke": 47.1,
+   "torque_per_cc": 0.098,
+   "peak_torque_rpm": 10000.0,
+   "redline": 14000.0,
+   "idle_rpm": 1100.0,
    "color": [
-    0.55,
-    0.56,
-    0.58
+    0.1,
+    0.1,
+    0.11
    ],
    "type": "Inline triple",
    "name": "BSX Sport engine block",
@@ -25792,20 +25897,20 @@
    }
   },
   "v2_kazeda_adventure__engine": {
-   "mass": 52.0,
-   "layout": "inline",
-   "cylinders": 4,
-   "displacement": 1000.0,
-   "bore": 75.5,
-   "stroke": 55.9,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 9100.0,
-   "redline": 12800.0,
-   "idle_rpm": 1000.0,
+   "mass": 42.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 900.0,
+   "bore": 92.0,
+   "stroke": 67.7,
+   "torque_per_cc": 0.1,
+   "peak_torque_rpm": 6200.0,
+   "redline": 8800.0,
+   "idle_rpm": 1100.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "Inline four",
    "name": "Kazeda Adventure engine block",
@@ -25827,20 +25932,20 @@
    }
   },
   "v2_kazeda_cafe__engine": {
-   "mass": 42.0,
-   "layout": "inline",
-   "cylinders": 4,
+   "mass": 41.0,
+   "layout": "parallel",
+   "cylinders": 2,
    "displacement": 750.0,
-   "bore": 68.6,
-   "stroke": 50.8,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 9600.0,
-   "redline": 13400.0,
+   "bore": 81.9,
+   "stroke": 71.2,
+   "torque_per_cc": 0.1,
+   "peak_torque_rpm": 6700.0,
+   "redline": 9600.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.18,
+    0.18,
+    0.2
    ],
    "type": "Inline four",
    "name": "Kazeda Cafe engine block",
@@ -25862,22 +25967,23 @@
    }
   },
   "v2_kazeda_chopper__engine": {
-   "mass": 60.0,
-   "layout": "inline",
-   "cylinders": 4,
-   "displacement": 1200.0,
-   "bore": 80.2,
-   "stroke": 59.4,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 8850.0,
-   "redline": 12400.0,
-   "idle_rpm": 950.0,
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "Air-cooled look inline four",
+   "breathing": 0.65,
    "name": "Kazeda Chopper engine block",
    "description": "Off the Kazeda chopper: for a chopper frame built round a air-cooled look inline four.",
    "styles": [
@@ -25897,20 +26003,20 @@
    }
   },
   "v2_kazeda_classic__engine": {
-   "mass": 42.0,
-   "layout": "inline",
-   "cylinders": 4,
+   "mass": 45.0,
+   "layout": "twin",
+   "cylinders": 2,
    "displacement": 750.0,
-   "bore": 68.6,
-   "stroke": 50.8,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 9600.0,
-   "redline": 13400.0,
+   "bore": 76.8,
+   "stroke": 80.9,
+   "torque_per_cc": 0.09,
+   "peak_torque_rpm": 5300.0,
+   "redline": 7700.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.66,
+    0.67,
+    0.68
    ],
    "type": "Inline four",
    "name": "Kazeda Classic engine block",
@@ -25932,22 +26038,24 @@
    }
   },
   "v2_kazeda_cruiser__engine": {
-   "mass": 60.8,
-   "layout": "parallel",
+   "mass": 66.0,
+   "layout": "vtwin",
    "cylinders": 2,
    "displacement": 1200.0,
-   "bore": 95.8,
-   "stroke": 83.3,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 6200.0,
-   "redline": 8800.0,
-   "idle_rpm": 950.0,
+   "bore": 99.0,
+   "stroke": 78.0,
+   "torque_per_cc": 0.095,
+   "peak_torque_rpm": 5200.0,
+   "redline": 8200.0,
+   "idle_rpm": 1000.0,
    "color": [
-    0.18,
-    0.18,
-    0.2
+    0.72,
+    0.73,
+    0.75
    ],
    "type": "Liquid-cooled parallel twin",
+   "breathing": 0.85,
+   "v_angle": 60.0,
    "name": "Kazeda Cruiser engine block",
    "description": "Off the Kazeda cruiser: for a cruiser frame built round a liquid-cooled parallel twin.",
    "styles": [
@@ -25967,20 +26075,20 @@
    }
   },
   "v2_kazeda_mx__engine": {
-   "mass": 32.0,
-   "layout": "inline",
-   "cylinders": 4,
-   "displacement": 500.0,
-   "bore": 59.9,
-   "stroke": 44.4,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 10350.0,
-   "redline": 14500.0,
-   "idle_rpm": 1150.0,
+   "mass": 20.0,
+   "layout": "single",
+   "cylinders": 1,
+   "displacement": 450.0,
+   "bore": 95.0,
+   "stroke": 63.4,
+   "torque_per_cc": 0.105,
+   "peak_torque_rpm": 8000.0,
+   "redline": 11000.0,
+   "idle_rpm": 1500.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.55,
+    0.56,
+    0.58
    ],
    "type": "Four-stroke single, cylinder leant back",
    "name": "Kazeda MX engine block",
@@ -26002,20 +26110,20 @@
    }
   },
   "v2_kazeda_naked__engine": {
-   "mass": 44.0,
-   "layout": "inline",
-   "cylinders": 4,
-   "displacement": 800.0,
-   "bore": 70.1,
-   "stroke": 51.9,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 9500.0,
-   "redline": 13300.0,
-   "idle_rpm": 1050.0,
+   "mass": 42.0,
+   "layout": "triple",
+   "cylinders": 3,
+   "displacement": 850.0,
+   "bore": 78.0,
+   "stroke": 59.0,
+   "torque_per_cc": 0.102,
+   "peak_torque_rpm": 7500.0,
+   "redline": 10500.0,
+   "idle_rpm": 1250.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.25,
+    0.26,
+    0.28
    ],
    "type": "Inline four",
    "name": "Kazeda Naked engine block",
@@ -26072,24 +26180,22 @@
    }
   },
   "v2_lodestar_cafe__engine": {
-   "mass": 55.0,
-   "layout": "vtwin",
+   "mass": 41.0,
+   "layout": "parallel",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 85.0,
-   "stroke": 66.1,
-   "torque_per_cc": 0.086,
-   "peak_torque_rpm": 4200.0,
-   "redline": 6800.0,
-   "idle_rpm": 1000.0,
+   "bore": 81.9,
+   "stroke": 71.2,
+   "torque_per_cc": 0.1,
+   "peak_torque_rpm": 6700.0,
+   "redline": 9600.0,
+   "idle_rpm": 1050.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.18,
+    0.18,
+    0.2
    ],
    "type": "45 degree v-twin",
-   "breathing": 0.85,
-   "v_angle": 45.0,
    "name": "Lodestar Cafe engine block",
    "description": "Off the Lodestar cafe: for a cafe frame built round a 45 degree V-twin.",
    "styles": [
@@ -26109,24 +26215,23 @@
    }
   },
   "v2_lodestar_chopper__engine": {
-   "mass": 100.0,
+   "mass": 102.0,
    "layout": "vtwin",
    "cylinders": 2,
    "displacement": 1800.0,
    "bore": 101.6,
    "stroke": 111.1,
-   "torque_per_cc": 0.087,
-   "peak_torque_rpm": 3000.0,
-   "redline": 5400.0,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
    "idle_rpm": 850.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "45 degree v-twin",
-   "breathing": 0.62,
-   "v_angle": 45.0,
+   "breathing": 0.65,
    "name": "Lodestar Chopper engine block",
    "description": "Off the Lodestar chopper: for a chopper frame built round a 45 degree V-twin.",
    "styles": [
@@ -26146,24 +26251,22 @@
    }
   },
   "v2_lodestar_classic__engine": {
-   "mass": 55.0,
-   "layout": "vtwin",
+   "mass": 45.0,
+   "layout": "twin",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 85.0,
-   "stroke": 66.1,
-   "torque_per_cc": 0.086,
-   "peak_torque_rpm": 4200.0,
-   "redline": 6800.0,
-   "idle_rpm": 1000.0,
+   "bore": 76.8,
+   "stroke": 80.9,
+   "torque_per_cc": 0.09,
+   "peak_torque_rpm": 5300.0,
+   "redline": 7700.0,
+   "idle_rpm": 1050.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.66,
+    0.67,
+    0.68
    ],
    "type": "45 degree v-twin",
-   "breathing": 0.85,
-   "v_angle": 45.0,
    "name": "Lodestar Classic engine block",
    "description": "Off the Lodestar classic: for a classic frame built round a 45 degree V-twin.",
    "styles": [
@@ -26183,24 +26286,24 @@
    }
   },
   "v2_lodestar_cruiser__engine": {
-   "mass": 74.0,
+   "mass": 66.0,
    "layout": "vtwin",
    "cylinders": 2,
    "displacement": 1200.0,
-   "bore": 88.9,
-   "stroke": 96.8,
-   "torque_per_cc": 0.085,
-   "peak_torque_rpm": 3600.0,
-   "redline": 6000.0,
-   "idle_rpm": 950.0,
+   "bore": 99.0,
+   "stroke": 78.0,
+   "torque_per_cc": 0.095,
+   "peak_torque_rpm": 5200.0,
+   "redline": 8200.0,
+   "idle_rpm": 1000.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.72,
+    0.73,
+    0.75
    ],
    "type": "45 degree v-twin",
-   "breathing": 0.75,
-   "v_angle": 45.0,
+   "breathing": 0.85,
+   "v_angle": 60.0,
    "name": "Lodestar Cruiser engine block",
    "description": "Off the Lodestar cruiser: for a cruiser frame built round a 45 degree V-twin.",
    "styles": [
@@ -26220,20 +26323,20 @@
    }
   },
   "v2_rheinhart_adventure__engine": {
-   "mass": 60.0,
-   "layout": "boxer",
+   "mass": 42.0,
+   "layout": "vtwin",
    "cylinders": 2,
-   "displacement": 1000.0,
-   "bore": 93.9,
-   "stroke": 72.2,
-   "torque_per_cc": 0.095,
-   "peak_torque_rpm": 5450.0,
-   "redline": 8200.0,
-   "idle_rpm": 1000.0,
+   "displacement": 900.0,
+   "bore": 92.0,
+   "stroke": 67.7,
+   "torque_per_cc": 0.1,
+   "peak_torque_rpm": 6200.0,
+   "redline": 8800.0,
+   "idle_rpm": 1100.0,
    "color": [
-    0.72,
-    0.73,
-    0.75
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "Flat twin (boxer), shaft drive",
    "name": "Rheinhart Adventure engine block",
@@ -26255,20 +26358,20 @@
    }
   },
   "v2_rheinhart_cafe__engine": {
-   "mass": 47.5,
-   "layout": "boxer",
+   "mass": 41.0,
+   "layout": "parallel",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 85.3,
-   "stroke": 65.6,
-   "torque_per_cc": 0.095,
-   "peak_torque_rpm": 5750.0,
-   "redline": 8600.0,
+   "bore": 81.9,
+   "stroke": 71.2,
+   "torque_per_cc": 0.1,
+   "peak_torque_rpm": 6700.0,
+   "redline": 9600.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.72,
-    0.73,
-    0.75
+    0.18,
+    0.18,
+    0.2
    ],
    "type": "Flat twin (boxer), shaft drive",
    "name": "Rheinhart Cafe engine block",
@@ -26290,20 +26393,20 @@
    }
   },
   "v2_rheinhart_classic__engine": {
-   "mass": 47.5,
-   "layout": "boxer",
+   "mass": 45.0,
+   "layout": "twin",
    "cylinders": 2,
    "displacement": 750.0,
-   "bore": 85.3,
-   "stroke": 65.6,
-   "torque_per_cc": 0.095,
-   "peak_torque_rpm": 5750.0,
-   "redline": 8600.0,
+   "bore": 76.8,
+   "stroke": 80.9,
+   "torque_per_cc": 0.09,
+   "peak_torque_rpm": 5300.0,
+   "redline": 7700.0,
    "idle_rpm": 1050.0,
    "color": [
-    0.72,
-    0.73,
-    0.75
+    0.66,
+    0.67,
+    0.68
    ],
    "type": "Flat twin (boxer), shaft drive",
    "name": "Rheinhart Classic engine block",
@@ -26325,22 +26428,24 @@
    }
   },
   "v2_rheinhart_cruiser__engine": {
-   "mass": 70.0,
-   "layout": "boxer",
+   "mass": 66.0,
+   "layout": "vtwin",
    "cylinders": 2,
    "displacement": 1200.0,
-   "bore": 99.8,
-   "stroke": 76.7,
+   "bore": 99.0,
+   "stroke": 78.0,
    "torque_per_cc": 0.095,
-   "peak_torque_rpm": 5300.0,
-   "redline": 7900.0,
-   "idle_rpm": 950.0,
+   "peak_torque_rpm": 5200.0,
+   "redline": 8200.0,
+   "idle_rpm": 1000.0,
    "color": [
     0.72,
     0.73,
     0.75
    ],
    "type": "Flat twin (boxer), shaft drive",
+   "breathing": 0.85,
+   "v_angle": 60.0,
    "name": "Rheinhart Cruiser engine block",
    "description": "Off the Rheinhart cruiser: for a cruiser frame built round a flat twin (boxer), shaft drive.",
    "styles": [
@@ -26360,20 +26465,20 @@
    }
   },
   "v2_rheinhart_naked__engine": {
-   "mass": 50.0,
-   "layout": "boxer",
-   "cylinders": 2,
-   "displacement": 800.0,
-   "bore": 87.2,
-   "stroke": 67.0,
-   "torque_per_cc": 0.095,
-   "peak_torque_rpm": 5700.0,
-   "redline": 8500.0,
-   "idle_rpm": 1050.0,
+   "mass": 42.0,
+   "layout": "triple",
+   "cylinders": 3,
+   "displacement": 850.0,
+   "bore": 78.0,
+   "stroke": 59.0,
+   "torque_per_cc": 0.102,
+   "peak_torque_rpm": 7500.0,
+   "redline": 10500.0,
+   "idle_rpm": 1250.0,
    "color": [
-    0.72,
-    0.73,
-    0.75
+    0.25,
+    0.26,
+    0.28
    ],
    "type": "Flat twin (boxer), shaft drive",
    "name": "Rheinhart Naked engine block",
@@ -26395,20 +26500,20 @@
    }
   },
   "v2_varga_adventure__engine": {
-   "mass": 52.0,
-   "layout": "parallel",
+   "mass": 42.0,
+   "layout": "vtwin",
    "cylinders": 2,
-   "displacement": 1000.0,
-   "bore": 90.1,
-   "stroke": 78.4,
+   "displacement": 900.0,
+   "bore": 92.0,
+   "stroke": 67.7,
    "torque_per_cc": 0.1,
-   "peak_torque_rpm": 6400.0,
-   "redline": 9100.0,
-   "idle_rpm": 1000.0,
+   "peak_torque_rpm": 6200.0,
+   "redline": 8800.0,
+   "idle_rpm": 1100.0,
    "color": [
-    0.18,
-    0.18,
-    0.2
+    0.12,
+    0.12,
+    0.13
    ],
    "type": "Parallel twin",
    "name": "Varga Adventure engine block",
@@ -26430,20 +26535,20 @@
    }
   },
   "v2_varga_mx__engine": {
-   "mass": 32.0,
-   "layout": "inline",
-   "cylinders": 4,
-   "displacement": 500.0,
-   "bore": 59.9,
-   "stroke": 44.4,
-   "torque_per_cc": 0.098,
-   "peak_torque_rpm": 10350.0,
-   "redline": 14500.0,
-   "idle_rpm": 1150.0,
+   "mass": 20.0,
+   "layout": "single",
+   "cylinders": 1,
+   "displacement": 450.0,
+   "bore": 95.0,
+   "stroke": 63.4,
+   "torque_per_cc": 0.105,
+   "peak_torque_rpm": 8000.0,
+   "redline": 11000.0,
+   "idle_rpm": 1500.0,
    "color": [
-    0.1,
-    0.1,
-    0.11
+    0.55,
+    0.56,
+    0.58
    ],
    "type": "Four-stroke single",
    "name": "Varga MX engine block",
@@ -26465,20 +26570,20 @@
    }
   },
   "v2_varga_naked__engine": {
-   "mass": 43.2,
-   "layout": "parallel",
-   "cylinders": 2,
-   "displacement": 800.0,
-   "bore": 83.7,
-   "stroke": 72.8,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 6650.0,
-   "redline": 9500.0,
-   "idle_rpm": 1050.0,
+   "mass": 42.0,
+   "layout": "triple",
+   "cylinders": 3,
+   "displacement": 850.0,
+   "bore": 78.0,
+   "stroke": 59.0,
+   "torque_per_cc": 0.102,
+   "peak_torque_rpm": 7500.0,
+   "redline": 10500.0,
+   "idle_rpm": 1250.0,
    "color": [
-    0.18,
-    0.18,
-    0.2
+    0.25,
+    0.26,
+    0.28
    ],
    "type": "Parallel twin",
    "name": "Varga Naked engine block",
@@ -26500,20 +26605,20 @@
    }
   },
   "v2_varga_sport__engine": {
-   "mass": 34.4,
-   "layout": "parallel",
-   "cylinders": 2,
+   "mass": 36.0,
+   "layout": "inline",
+   "cylinders": 4,
    "displacement": 600.0,
-   "bore": 76.0,
-   "stroke": 66.1,
-   "torque_per_cc": 0.1,
-   "peak_torque_rpm": 7000.0,
-   "redline": 10000.0,
+   "bore": 63.6,
+   "stroke": 47.1,
+   "torque_per_cc": 0.098,
+   "peak_torque_rpm": 10000.0,
+   "redline": 14000.0,
    "idle_rpm": 1100.0,
    "color": [
-    0.18,
-    0.18,
-    0.2
+    0.1,
+    0.1,
+    0.11
    ],
    "type": "Parallel twin",
    "name": "Varga Sport engine block",

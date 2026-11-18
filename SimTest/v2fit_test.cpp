@@ -74,6 +74,9 @@ int main()
 		std::printf("FAIL the catalogue with the V2 bikes didn't load under %s (%s)\n", R.c_str(), Error.c_str());
 		return 1;
 	}
+	Json PartsJson, LayoutJson;
+	Json::Parse(PartsText, PartsJson);
+	Json::Parse(LayoutText, LayoutJson);
 	BikeParts::SetV2Source([&R](const std::string& Model, PartMesh& Mesh, std::string& Info) {
 		std::string Bytes, Err;
 		return ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
@@ -118,6 +121,38 @@ int main()
 		PartsMap Parts = Shop::SetPart(Lay, Shop::StockBuild(Lay, Style), Style, "frame", Id);
 		Expect(Parts["frame"] == Id, Id + " goes in its style's stock bike");
 		Expect(Lay.V2Of(Parts) != nullptr, Id + " is a V2 bike");
+		// It rides as its family's stock bike did before the bare-frame parts (the physics preset and the top
+		// speeds are tuned on those): every part the reference build has, the V2 build has one in the same
+		// slot, with the same numbers (the engine's torque, revs and size; the head's, exhaust's... multipliers).
+		{
+			const Json* RefBuilds = LayoutJson.Get("reference_builds");
+			const Json* Ref = RefBuilds ? RefBuilds->Get(Style) : nullptr;
+			int Off = 0;
+			std::string First;
+			for (const auto& KV : Ref ? Ref->O : std::vector<std::pair<std::string, Json>>())
+			{
+				if (!KV.second.IsString() || KV.second.S.empty() || KV.second.S == "none" || KV.first == "frame") continue;
+				const Json* Old = nullptr;
+				for (const auto& Kind : PartsJson.O)
+					if (const Json* P = Kind.second.Get(KV.second.S)) { Old = P; break; }
+				if (!Old) continue;   // (gone from the catalogue altogether: the cruiser's saddlebags)
+				const std::string Now = Parts[KV.first];
+				if (Now.empty() || Now == "none")
+				{
+					if (!Lay.MayBeEmpty(KV.first)) { ++Off; if (First.empty()) First = KV.first + " empty"; }
+					continue;
+				}
+				const Json* New = Lay.Part(Now);
+				if (!New || Now == KV.second.S) continue;
+				for (const auto& F : Old->O)
+					if (F.second.IsNumber() && F.first != "price" && std::fabs(New->Num(F.first, -1e9) - F.second.N) > 1e-6 * std::max(1.0, std::fabs(F.second.N)))
+					{
+						++Off;
+						if (First.empty()) First = KV.first + " " + F.first + " " + Num2(New->Num(F.first, -1e9)) + " (was " + Num2(F.second.N) + ")";
+					}
+			}
+			Expect(Ref != nullptr && Off == 0, Id + " rides as the stock " + Style + " (" + std::to_string(Off) + " off: " + First + ")");
+		}
 		const std::vector<std::string> Offered = Shop::Options(Lay, "frame", Style, Shop::StockBuild(Lay, Style));
 		Expect(std::find(Offered.begin(), Offered.end(), Id) != Offered.end(), Id + " is offered as a frame on a new " + Style);
 		const Layout L = Lay.Solve(Parts);
