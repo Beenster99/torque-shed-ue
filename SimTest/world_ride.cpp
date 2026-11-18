@@ -1347,7 +1347,7 @@ int main(int Argc, char** Argv)
 			if (!NearQ) continue;
 			const RidePlan::SideRoad* Sd = W > 0 ? Plan->SideOf(W) : nullptr;
 			std::printf("road %d%s setts %d:", W, W == 0 ? " (ride)" : "", Sd ? int(Sd->Setts) : -1);
-			for (const RoadPoint& P : Pts) if (P.At.DistanceTo(Q) < Qr) std::printf(" (%.1f %.1f h%.1f)", P.At.X - Q.X, P.At.Z - Q.Z, P.Half);
+			for (const RoadPoint& P : Pts) if (P.At.DistanceTo(Q) < Qr) { const RidePlan::RoadFact* Fa = W == 0 ? Plan->FactAt(P.Along) : nullptr; std::printf(" (%.1f %.1f h%.1f%s %s)", P.At.X - Q.X, P.At.Z - Q.Z, P.Half, Fa && Fa->Setts ? " S" : "", Fa ? Fa->Name.c_str() : ""); }
 			std::printf("\n");
 		}
 	}
