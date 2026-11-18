@@ -93,6 +93,19 @@ def classify(name, model):
 FRONT_GROUPS = ("steer", "front_hub", "front_wheel")
 
 
+def shock_node(name, along):
+    """The moving group of a piece of a shock (the game's riding bike works them: TorqueBikePawn [shocks]):
+    "shock_top" turns about the top mount to point at the bottom one, "shock_bottom" rides on the swingarm's
+    mount, pointing at the top one (the rod slides up into the body), and "shock_spring" is squeezed between
+    them. along: the middle of the piece from the top mount (0) to the bottom one (1)."""
+    st = name.lower()
+    if "spring" in st or "bellows" in st:
+        return "shock_spring"
+    if "bump" in st:
+        return "shock_top"      # the bump stop sits against the body's end
+    return "shock_top" if along < 0.6 else "shock_bottom"
+
+
 def placed(name, slot, grp, x0, x1, model):
     """(slot, group) put right by where the piece really is (mm along the bike from the rear axle): a name
     the front end's rules caught that sits wholly behind the middle of the bike is no part of the front end

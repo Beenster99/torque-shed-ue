@@ -11,6 +11,7 @@
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
+#include "Fit/ShockMove.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
 #include "Shed/TorqueFurniture.h"
@@ -800,12 +801,32 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		// bike goes on its group at T * GroupRest^-1.
 		static const FName SteerNode(TEXT("steer")), FrontHubNode(TEXT("front_hub")), FrontWheelNode(TEXT("front_wheel"));
 		static const FName RearHubNode(TEXT("rear_hub")), RearWheelNode(TEXT("rear_wheel")), SwingNode(TEXT("swingarm"));
+		// [shocks] The rear shock's pieces stay on the bike and are worked each frame (UpdateVisuals).
+		static const FName ShockTopNode(TEXT("shock_top")), ShockBottomNode(TEXT("shock_bottom")), ShockSpringNode(TEXT("shock_spring"));
+		ShockParts.Reset();
+		ShockTop = Frame.ShockTop;
+		ShockBottom = Frame.ShockBottom;
+		ShockSwing = 1.0e9;
 		int32* Count = GroupParts;
 		for (int32 I = 0; I < ModelParts.Num(); ++I)
 		{
 			UStaticMeshComponent* C = ModelParts[I];
 			if (!C) continue;
 			const FName N = Nodes[I];
+			if (Frame.bShock && (N == ShockTopNode || N == ShockBottomNode || N == ShockSpringNode))
+			{
+				FTorqueShockPart Piece;
+				Piece.Part = C;
+				Piece.Rest = C->GetRelativeTransform();
+				Piece.Kind = N == ShockTopNode ? 0 : N == ShockBottomNode ? 1 : 2;
+				if (Piece.Kind == 2 && C->GetStaticMesh())
+				{
+					const FBox SpringBox = C->GetStaticMesh()->GetBoundingBox();
+					Piece.A = SpringBox.Min.X;
+					Piece.B = SpringBox.Max.X;
+				}
+				ShockParts.Add(Piece);
+			}
 			USceneComponent* Group = Holder;
 			FTransform GroupRest = FTransform::Identity;
 			int32 Which = 0;
@@ -3206,6 +3227,32 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	const FVector Rest = RearRest - SwingPivot, Now = BodyToLocal(R.Centre) - SwingPivot;
 	const double Swing = FMath::Atan2(Now.Z, Now.X) - FMath::Atan2(Rest.Z, Rest.X);
 	SwingGroup->SetRelativeLocationAndRotation(SwingPivot, FQuat(FVector::RightVector, -Swing));
+	// [shocks] The rear shock works with it: the body turns about its top mount to point at the bottom one, the
+	// rod end rides on the swingarm's mount and slides up into the body, and the spring is squeezed between them.
+	if (ShockParts.Num() > 0 && FMath::Abs(Swing - ShockSwing) > 1.0e-5)
+	{
+		ShockSwing = Swing;
+		const TorqueFit::ShockPose Pose = TorqueFit::ShockAt(SwingPivot.X, SwingPivot.Z, ShockTop.X, ShockTop.Z, ShockBottom.X, ShockBottom.Z, Swing);
+		const FQuat ShockTurn(FVector::RightVector, -Pose.Turn);
+		const FVector BottomNow(Pose.BottomX, ShockBottom.Y, Pose.BottomZ);
+		const FTransform TopMove(ShockTurn, ShockTop - ShockTurn.RotateVector(ShockTop));
+		const FTransform BottomMove(ShockTurn, BottomNow - ShockTurn.RotateVector(ShockBottom));
+		for (const FTorqueShockPart& Piece : ShockParts)
+		{
+			UStaticMeshComponent* C = Piece.Part.Get();
+			if (!C) continue;
+			if (Piece.Kind != 2)
+			{
+				C->SetRelativeTransform(Piece.Rest * (Piece.Kind == 0 ? TopMove : BottomMove));
+				continue;
+			}
+			// (Its mesh lies along its own x from the top mount: scaled in x about its top end.)
+			const double Squeeze = TorqueFit::SpringScale(Piece.A, Piece.B, Pose);
+			const FQuat Lie = ShockTurn * Piece.Rest.GetRotation();
+			const FVector At = ShockTop + ShockTurn.RotateVector(Piece.Rest.GetLocation() - ShockTop) + Lie.RotateVector(FVector(Piece.A * (1.0 - Squeeze), 0.0, 0.0));
+			C->SetRelativeTransform(FTransform(Lie, At, Piece.Rest.GetScale3D() * FVector(Squeeze, 1.0, 1.0)));
+		}
+	}
 	// Geometry mode's offsets on the wheels' parts: in the fork's or swingarm's frame, under the spin.
 	for (const FTorqueRideFit& Fit : RideFit)
 	{

@@ -48,6 +48,16 @@ struct FTorqueRideFit
 	FTransform Move;                      // the offset, in the carrier's frame
 };
 
+// [shocks] A piece of a V2 bike's rear shock, worked every frame as the swingarm moves (Fit/ShockMove.h): the
+// body end turns about the top mount, the rod end rides on the swingarm's mount, the spring is squeezed between.
+struct FTorqueShockPart
+{
+	TWeakObjectPtr<UStaticMeshComponent> Part;
+	FTransform Rest;          // its place on the bike at rest
+	int32 Kind = 0;           // 0 the top end, 1 the bottom end, 2 the spring
+	double A = 0.0, B = 0.0;  // the spring: where it starts and ends along the shock from the top mount (cm)
+};
+
 struct FHudLine
 {
 	FString Text;
@@ -637,6 +647,10 @@ private:
 	// Geometry mode's fit on the model: the wheels' parts (put back each frame), and the offsets of the
 	// levers' and grips' slots (in the steering frame) for the levers as they're pulled and the hands.
 	TArray<FTorqueRideFit> RideFit;
+	// [shocks] The rear shock's pieces and mounts (the bike's frame, cm), and the swing they were last set for.
+	TArray<FTorqueShockPart> ShockParts;
+	FVector ShockTop = FVector::ZeroVector, ShockBottom = FVector::ZeroVector;
+	double ShockSwing = 1.0e9;
 	FTransform LeverFit[2] = {FTransform::Identity, FTransform::Identity};
 	FTransform GripFitMove[2] = {FTransform::Identity, FTransform::Identity};
 	UStaticMeshComponent* GripParts[2] = {nullptr, nullptr};   // (in ModelParts)

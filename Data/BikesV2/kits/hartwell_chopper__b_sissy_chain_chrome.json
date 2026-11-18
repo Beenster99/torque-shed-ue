@@ -1,0 +1,83 @@
+{
+ "name": "BSX chopper (working title H2)",
+ "format": 2,
+ "kit": true,
+ "triangles": 45610,
+ "surfaces": {
+  "s015": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.148,
+    0.0066,
+    0.0119
+   ],
+   "metallic": 0.55,
+   "roughness": 0.34
+  },
+  "s016": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_chrome",
+   "tag": "d3_chop_chrome",
+   "ue": "chrome",
+   "color": [
+    0.93,
+    0.93,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.035
+  },
+  "s133": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s134": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s135": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s136": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ },
+ "bespoke": {
+  "group": "sissy",
+  "design": "chain",
+  "metal": "chrome",
+  "name": "Chain sissy bar, chrome",
+  "note": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars."
+ }
+}
