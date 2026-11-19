@@ -11,6 +11,7 @@
 #include "ShockMove.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -453,6 +454,50 @@ int main()
 		}
 		std::printf("%s %s: wheelbase %.3f, rake %.1f, seat %.2f, %zu pieces, %zu surfaces, %zu triangles\n", Failures ? "    " : "ok  ", Id.c_str(), Wb,
 			L.Stats.RakeDeg, L.Stats.SeatHeight, Fitted.size(), Surfaces, Tris);
+	}
+	// [names] Every V2 part against its own slot, however the game spells the slot (beenster, Nov 19: "thats a
+	// head not a HEAD", "thats an engine, not an Engine": the game's FNames keep the first spelling seen):
+	// on its own bike, and each engine part on a loose block of its own engine, every size, as on the stand.
+	{
+		auto Upper = [](std::string T) { for (char& C : T) C = static_cast<char>(std::toupper(static_cast<unsigned char>(C))); return T; };
+		auto Capital = [](std::string T) { if (!T.empty()) T[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(T[0]))); return T; };
+		int NameChecks = 0;
+		for (const std::string& Kind : Db.Kinds())
+			for (const std::string& Pid : Db.Ids(Kind))
+			{
+				const Json* Part = Db.Find(Kind, Pid);
+				const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+				if (!Vp || !Vp->IsObject() || Vp->Str("slot").empty()) continue;
+				const std::string Slot = Vp->Str("slot"), Frame = Vp->Str("frame");
+				if (!Lay.Part(Frame)) continue;
+				PartsMap Own = Lay.V2Build(Frame);
+				Own["frame"] = Frame;
+				if (Slot == "engine") Own["engine"] = Pid;
+				for (const std::string& Spelt : {Slot, Upper(Slot), Capital(Slot)})
+				{
+					++NameChecks;
+					const std::string Why = Lay.V2FitReason(Own, Spelt, Pid);
+					Expect(Why.empty(), Pid + " fits its own bike's " + Spelt + ": " + Why);
+				}
+				if (Vp->Str("fits") != "engine") continue;
+				const std::string Model = Vp->Str("of", Vp->Str("model"));
+				for (const std::string& Block : Db.Ids("engine"))
+				{
+					const Json* Bp = Db.Find("engine", Block);
+					const Json* Bv = Bp ? Bp->Get("v2part") : nullptr;
+					if (!Bv || Bv->Str("of", Bv->Str("model")) != Model) continue;
+					PartsMap Loose;
+					Loose["engine"] = Block;
+					for (const std::string& Spelt : {Slot, Upper(Slot), Capital(Slot)})
+					{
+						++NameChecks;
+						const std::string Why = Lay.V2FitReason(Loose, Spelt, Pid);
+						Expect(Why.empty(), Pid + " goes on " + Block + " on the stand as " + Spelt + ": " + Why);
+					}
+				}
+			}
+		std::printf("%d V2 part name checks (own slot in any spelling, engine parts on every size of their block)\n", NameChecks);
+		Expect(NameChecks > 1000, "the V2 parts were name-checked");
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
