@@ -47,9 +47,11 @@ MAX_TEXTURE = 1024
 HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble", "_s_")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
     {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["jacket", "work", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jacket", "jean", "boot"]},
+    # B and D are women (beenster, Nov 19: "Turn 2 of the 4 into women"): made from a female preset of
+    # the Creator (see _female_preset), not the default (male) character.
+    {"name": "Avatar_B", "height": 165.0, "sex": "female", "hair": ["_m_", "bob", "wav", "pony", "long"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["jacket", "jean", "boot"]},
     {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["jacket", "shirt", "jean", "boot"]},
-    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "jacket", "jean", "boot"]},
+    {"name": "Avatar_D", "height": 172.0, "sex": "female", "hair": ["_m_", "curl", "long", "pony", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "jacket", "jean", "boot"]},
 ]
 
 
@@ -663,6 +665,75 @@ def slim():
     log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
 
 
+def _body_type(ch):
+    try:
+        return str(ch.get_editor_property("fixed_body_type"))
+    except Exception:
+        return ""
+
+
+def _is_female(body_type):
+    b = body_type.lower().replace("ebodytype.", "").replace("emetahumanbodytype.", "")
+    return b.startswith("f_") or "female" in b or b.startswith("f") and "_" in b[:3]
+
+
+_PRESETS = None
+
+
+def _female_presets():
+    """Every MetaHuman Character preset outside /Game (the Creator's own, from MetaHuman Creator Core
+    Data) with a female body type, logged with its body type. The default new character is male."""
+    global _PRESETS
+    if _PRESETS is not None:
+        return _PRESETS
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    found = []
+    for mount in ["/MetaHumanCharacter", "/MetaHuman", "/Game/MetaHumans/Presets"] + plugin_mounts():
+        try:
+            assets = reg.get_assets_by_path(mount, recursive=True)
+        except Exception:
+            continue
+        for a in assets:
+            if _cls_name(a) != "MetaHumanCharacter":
+                continue
+            p = "%s.%s" % (a.package_name, a.asset_name)
+            if p in [f[0] for f in found]:
+                continue
+            ch = unreal.load_asset(str(a.package_name))
+            bt = _body_type(ch) if ch else ""
+            log("preset %s: body type %s" % (p, bt or "?"))
+            found.append((p, bt))
+    _PRESETS = [p for p, bt in found if _is_female(bt) or any(w in p.lower() for w in ("female", "_f_", "woman"))]
+    log("female presets: %s" % (", ".join(_PRESETS) or "NONE (install MetaHuman Creator Core Data, or make them in the editor)"))
+    return _PRESETS
+
+
+def _female_source(name, path, nth):
+    """The avatar's character source started again from a female preset (the old one moved to the
+    backup folder first); the existing one kept when it is already female."""
+    eal = unreal.EditorAssetLibrary
+    if eal.does_asset_exist(path):
+        ch = unreal.load_asset(path)
+        bt = _body_type(ch) if ch else ""
+        if ch and _is_female(bt):
+            log("%s: already female (%s)" % (name, bt))
+            return ch
+        keep = BACKUP + "/Sources/" + name + "_male"
+        if eal.does_asset_exist(keep):
+            eal.delete_asset(keep)
+        log("%s: the male source (%s) moved to %s" % (name, bt or "?", keep))
+        if not eal.rename_asset(path, keep):
+            unreal.log_warning("[Torque] %s: couldn't move the old source; not changed" % name)
+            return ch
+    presets = _female_presets()
+    if not presets:
+        return None
+    src = presets[nth % len(presets)]
+    ch = eal.duplicate_asset(src.split(".")[0], path)
+    log("%s: started from the female preset %s (body type %s)" % (name, src, _body_type(ch) if ch else "?"))
+    return ch
+
+
 def make(rig=False, wardrobe=True, only=None):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
@@ -694,6 +765,12 @@ def make(rig=False, wardrobe=True, only=None):
             if not eal.rename_asset(old, path):
                 unreal.log_warning("[Torque] couldn't move %s to %s" % (old, path))
         ch = unreal.load_asset(path) if eal.does_asset_exist(path) else None
+        if av.get("sex") == "female":
+            nth = sum(1 for a in AVATARS[:i] if a.get("sex") == "female")   # a different preset each
+            ch = _female_source(name, path, nth)
+            if ch is None:
+                unreal.log_warning("[Torque] %s: no female preset found; NOT made (kept as it was)" % name)
+                continue
         if ch is None:
             try:
                 ch = tools.create_asset(name, src_folder, cls, factory() if factory else None)
