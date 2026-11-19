@@ -1466,6 +1466,14 @@ int main(int Argc, char** Argv)
 				const Geo CAt = G.FrameOf().ToGeo(L.At.X, L.At.Z);
 				std::printf("  line circuit %d kind %d '%s' at %.5f,%.5f half %.1f\n", L.Circuit, L.Kind, L.Name.c_str(), CAt.Lat, CAt.Lon, L.Half);
 			}
+		if (Plan->CircuitIx)
+		{
+			std::map<int, int> Kinds;
+			for (const CircuitIndex::Prop& Pr : Plan->CircuitIx->Props) ++Kinds[Pr.Kind];
+			std::printf("trackside:");
+			for (const auto& KV : Kinds) std::printf(" %s %d", RidePlan::PropName(KV.first), KV.second);
+			std::printf("\n");
+		}
 		// Ride round each circuit from its start: straight on at every fork along its track.
 		for (size_t C = 0; Plan->CircuitIx && C < G.Circuits.size(); ++C)
 		{
@@ -1510,6 +1518,35 @@ int main(int Argc, char** Argv)
 				Edge = Next;
 			}
 			const std::vector<P2> Once = Walk;
+			{
+				// (its bends: each apex tighter than 160 m, how far round the lap from the start, where, how tight, which way)
+				std::vector<double> Run(Once.size(), 0.0);
+				for (size_t K = 1; K < Once.size(); ++K) Run[K] = Run[K - 1] + Once[K].DistanceTo(Once[K - 1]);
+				const P2 Line0 = CAt;
+				double Near0 = 1e18, Start = 0.0;
+				for (size_t K = 0; K < Once.size(); ++K) if (Once[K].DistanceTo(Line0) < Near0) { Near0 = Once[K].DistanceTo(Line0); Start = Run[K]; }
+				std::vector<double> Curve(Once.size(), 0.0);
+				for (size_t K = 0; K < Once.size(); ++K)
+				{
+					size_t A = K, B = K;
+					while (A > 0 && Run[K] - Run[A] < 10.0) --A;
+					while (B + 1 < Once.size() && Run[B] - Run[K] < 10.0) ++B;
+					if (A == K || B == K) continue;
+					const P2 U = Once[K] - Once[A], V = Once[B] - Once[K];
+					Curve[K] = std::atan2(U.X * V.Z - U.Z * V.X, U.X * V.X + U.Z * V.Z) / std::fmax(Run[B] - Run[A], 1e-6);
+				}
+				for (size_t K = 1; K + 1 < Once.size(); ++K)
+				{
+					if (std::fabs(Curve[K]) < 1.0 / 160.0 || std::fabs(Curve[K]) < std::fabs(Curve[K - 1]) || std::fabs(Curve[K]) < std::fabs(Curve[K + 1])) continue;
+					bool Peak = true;
+					for (size_t J = 0; J < Once.size() && Peak; ++J) Peak = std::fabs(Run[J] - Run[K]) > 30.0 || std::fabs(Curve[J]) <= std::fabs(Curve[K]) + 1e-12;
+					if (!Peak) continue;
+					const Geo Ga = G.FrameOf().ToGeo(Once[K].X, Once[K].Z);
+					const double Lap = Run.back() > 0.0 ? std::fmod(Run[K] - Start + Run.back(), Run.back()) : 0.0;
+					std::printf("  bend '%s' %.0f m round: %.5f,%.5f radius %.0f m %s, height %.1f\n", Name.c_str(), Lap, Ga.Lat, Ga.Lon, 1.0 / std::fabs(Curve[K]),
+						Curve[K] > 0.0 ? "right" : "left", Plan->Ground(Once[K].X, Once[K].Z));
+				}
+			}
 			for (int Lap = 0; Lap < 2; ++Lap) Walk.insert(Walk.end(), Once.begin() + 1, Once.end());
 			CircuitLaps Laps;
 			double Clock = 0.0;

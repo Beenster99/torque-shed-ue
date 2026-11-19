@@ -151,6 +151,15 @@ bool ReadCircuitNotes(const std::string& Text, CircuitNotes& Out)
 				N.Gates.push_back(G);
 				N.GateNames.push_back(P.A.size() > 2 ? P.A[2].S : std::string());
 			}
+		if (const Json* S = C.Get("corners"))
+			for (const Json& P : S->A)
+			{
+				Geo G;
+				if (!GeoOf(&P, G)) continue;
+				N.Corners.push_back(G);
+				N.CornerNames.push_back(P.A.size() > 2 ? P.A[2].S : std::string());
+				N.CornerBank.push_back(P.A.size() > 3 && P.A[3].IsNumber() ? P.A[3].N : 0.0);
+			}
 		N.Test = C.Flag("test");
 		N.About = C.Str("about");
 		if (!N.Name.empty()) Out.Circuits.push_back(std::move(N));
@@ -491,6 +500,35 @@ void RidePlan::CircuitMarks(int Which, double From, double To, std::vector<RoadM
 			Out.push_back(PaintMark(At - 0.4, At + 0.4, Half, -Half, KerbWhite));
 		}
 	std::sort(Out.begin(), Out.end(), [](const RoadMark& A, const RoadMark& B) { return A.From < B.From; });
+}
+
+void RidePlan::CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const
+{
+	const Region& G = Area.Roads;
+	if (!G.CircuitEdge(Edge) || G.ClassOf(Edge) != "raceway" || Line.size() < 5 || Banks.size() != Line.size()) return;
+	const std::shared_ptr<const CircuitNotes> Notes = CircuitNotesNow();
+	if (!Notes) return;
+	const Frame F = G.FrameOf();
+	const CircuitInfo& Info = G.Circuits[size_t(G.CircuitOf[size_t(Edge - G.CircuitFirst)])];
+	const CircuitNote* Note = Notes->Find(Info.Name, F.ToGeo(Info.At.X, Info.At.Z));
+	if (Note == nullptr || Note->Corners.empty()) return;
+	for (size_t K = 0; K < Note->Corners.size(); ++K)
+	{
+		const P2 At = F.FromGeo(Note->Corners[K].Lat, Note->Corners[K].Lon);
+		const double Want = Note->CornerBank[K] / 100.0;
+		for (size_t I = 2; I + 2 < Line.size(); ++I)
+		{
+			const double D = Line[I].DistanceTo(At);
+			if (D >= CircuitNote::CornerReach) continue;
+			// (which way it bends here: + right, so the outside, the left, is the higher for a bank)
+			const P2 A = Line[I - 2], B = Line[I], C = Line[I + 2];
+			const double Cross = (B.X - A.X) * (C.Z - B.Z) - (B.Z - A.Z) * (C.X - B.X);
+			const double Sign = Cross > 0.0 ? 1.0 : Cross < 0.0 ? -1.0 : (Banks[I] >= 0.0 ? 1.0 : -1.0);
+			const double U = 1.0 - D / CircuitNote::CornerReach;
+			const double W = U * U * (3.0 - 2.0 * U);
+			Banks[I] = Banks[I] * (1.0 - W) + Sign * Want * W;
+		}
+	}
 }
 
 // ----- The trackside kit -----

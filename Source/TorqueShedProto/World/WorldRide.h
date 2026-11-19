@@ -1382,6 +1382,8 @@ public:
 	// [circuits] The circuits' trackside kit on a square of ground (added to PropsTile's).
 	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	void IndexTrackside(CircuitIndex& Ix) const;
+	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
+	void CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const;
 	bool CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const;
 	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
 	// its buildings, water and edge.

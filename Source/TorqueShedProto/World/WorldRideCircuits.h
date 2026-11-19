@@ -40,6 +40,12 @@ struct CircuitNote
 	bool Road = false;                 // a road course: Gates on the public road, not a track
 	std::vector<Geo> Gates;            // a road course's gates, in order (the start not among them)
 	std::vector<std::string> GateNames;
+	// [stage 6] Famous corners shaped by hand: each one's place (on its track), name and bank across it (per cent:
+	// + the outside higher, as a bend is banked; - an adverse camber), eased in over CornerReach either side.
+	std::vector<Geo> Corners;
+	std::vector<std::string> CornerNames;
+	std::vector<double> CornerBank;
+	static constexpr double CornerReach = 70.0;
 	bool Test = false;                 // one of the plan's two test circuits
 	std::string About;
 };
