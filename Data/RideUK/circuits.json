@@ -1,10 +1,14 @@
 {
- "about": "[race tracks] What the game knows of the UK's circuits beyond the map (World/WorldRideCircuits.h). Names are place names only: no circuit logos, sponsors or series. 'start' and 'sectors' are [lat, lon] on the track; left out, the start line is beside the middle of the pit lane and the sectors are a third and two thirds of the way round. A road course ('kind': 'road') is timed by gates on the public road, in order; their places are set on the road (checked against the game's map, Nov 19) and snap to the nearest road within 600 m, a main road first.",
+ "about": "[race tracks] What the game knows of the UK's circuits beyond the map (World/WorldRideCircuits.h). Names are place names only: no circuit logos, sponsors or series. 'start' and 'sectors' are [lat, lon] on the track; left out, the start line is beside the middle of the pit lane and the sectors are a third and two thirds of the way round. 'corners' are famous corners shaped by hand: [lat, lon, name, bank per cent] (+ the outside higher, - an adverse camber), placed on the track's bends as the game's map has them (world_ride WORLD_RIDE_CIRCUITS lists the bends). A road course ('kind': 'road') is timed by gates on the public road, in order; their places are set on the road (checked against the game's map, Nov 19) and snap to the nearest road within 600 m, a main road first.",
  "format": 1,
  "circuits": [
   {"name": "Cadwell Park", "match": ["Cadwell"], "lat": 53.3107, "lon": -0.0626, "direction": "clockwise", "test": true,
+   "corners": [[53.30616, -0.05995, "Coppice", 2], [53.30859, -0.07016, "Chris Curve", 3], [53.30774, -0.06588, "Gooseneck", -2], [53.30631, -0.06410, "Mansfield", 2],
+               [53.30953, -0.06127, "The Mountain", 0], [53.31159, -0.05981, "Hall Bends", 3], [53.31306, -0.05952, "Hairpin", 3], [53.31283, -0.05777, "Barn", 2]],
    "about": "Lincolnshire's narrow, hilly park circuit: Coppice, the Mountain and Hall Bends."},
   {"name": "Brands Hatch", "match": ["Brands"], "lat": 51.3569, "lon": 0.2626, "direction": "clockwise", "test": true,
+   "corners": [[51.36080, 0.26385, "Paddock Hill Bend", -3], [51.35807, 0.26439, "Druids", 3], [51.35999, 0.26288, "Graham Hill Bend", 2], [51.35862, 0.25841, "Surtees", 1],
+               [51.35726, 0.25751, "Clearways", 2]],
    "about": "Kent's bowl: down Paddock Hill Bend, up to Druids; the short Indy layout and the long one through the woods."},
   {"name": "Donington Park", "match": ["Donington"], "lat": 52.8306, "lon": -1.3750, "direction": "clockwise", "about": "Redgate, the Craner Curves and the Old Hairpin."},
   {"name": "Oulton Park", "match": ["Oulton"], "lat": 53.1792, "lon": -2.6150, "direction": "clockwise", "about": "Cheshire parkland: Old Hall, Cascades, Druids."},

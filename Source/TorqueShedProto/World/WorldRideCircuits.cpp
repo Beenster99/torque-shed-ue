@@ -306,8 +306,17 @@ void RidePlan::IndexCircuits()
 			bool Round = false;
 			if (E0 >= 0)
 			{
+				// (the way it's raced from the line: clockwise has the circuit's middle on the right)
 				int Edge = E0, Node = G.Edges[size_t(E0)].B;
 				Walk = G.Edges[size_t(E0)].Line;
+				{
+					const P2 D = Walk.back() - Walk.front(), V = Info.At - Start.At;
+					if (((D.X * V.Z - D.Z * V.X) > 0.0) != (Note != nullptr ? Note->Clockwise : true))
+					{
+						std::reverse(Walk.begin(), Walk.end());
+						Node = G.Edges[size_t(E0)].A;
+					}
+				}
 				for (int Step = 0; Step < 400; ++Step)
 				{
 					const P2 In = G.Edges[size_t(Edge)].A == Node ? G.Edges[size_t(Edge)].Line[0] - G.Edges[size_t(Edge)].Line[1]
@@ -319,7 +328,7 @@ void RidePlan::IndexCircuits()
 						if (E == Edge || !G.CircuitEdge(E) || G.ClassOf(E) != "raceway" || G.CircuitOf[size_t(E - G.CircuitFirst)] != int(C)) continue;
 						const std::vector<P2> L = G.LineFrom(E, Node);
 						const P2 Out = L[1] - L[0];
-						const double Cos = -(In.X * Out.X + In.Z * Out.Z) / std::fmax(In.Length() * Out.Length(), 1e-9);
+						const double Cos = (In.X * Out.X + In.Z * Out.Z) / std::fmax(In.Length() * Out.Length(), 1e-9);
 						if (Cos > Straightest) { Straightest = Cos; Next = E; }
 					}
 					if (Next < 0) break;
@@ -934,8 +943,15 @@ bool CircuitLaps::Step(const RidePlan& Plan, double X, double Z, double Now, Lap
 	if (S.Running && S.Way != 2)
 	{
 		const double Wide = Region::TrackWidth * 0.5 + OffTrack;
-		if (G.CircuitAt(X, Z, Wide) < 0) S.Spoilt = true;
+		if (G.CircuitAt(X, Z, Wide) < 0)
+		{
+			S.Spoilt = true;
+			// (gone from the circuit altogether, out through the paddock: no lap under way)
+			if (G.CircuitAt(X, Z, LeftBehind) < 0) S = State();
+		}
 	}
+	// (a road course left: no gate in GateWait seconds)
+	if (S.Running && S.Way == 2 && Now - (S.Splits.empty() ? S.Started : S.Started + S.Splits.back()) > GateWait) S = State();
 	// A road course: its start, then its gates in order, then its start again.
 	for (size_t Li = 0; Li < Ix.Lines.size(); ++Li)
 	{

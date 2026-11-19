@@ -1439,6 +1439,26 @@ int main(int Argc, char** Argv)
 		}
 		std::printf("churchyards: %zu (%zu made, %zu lychgates, %zu yews, %zu wall runs)\n", Plan->Churchyards.size(), Made, Lych, Yews, Runs);
 	}
+	if (const char* EdgeAt = std::getenv("WORLD_RIDE_EDGE_AT"))
+	{
+		// (debug: the roads nearest a place on the map, lat,lon: their class, name, width and distance)
+		double La = 0.0, Lo = 0.0;
+		std::sscanf(EdgeAt, "%lf,%lf", &La, &Lo);
+		const Region& Gr = Plan->Area.Roads;
+		const P2 Q = Gr.FrameOf().FromGeo(La, Lo);
+		std::vector<std::pair<double, int>> Near;
+		for (size_t E = 0; E < Gr.Edges.size(); ++E)
+		{
+			double Best = 1e18;
+			const std::vector<P2>& L = Gr.Edges[E].Line;
+			for (size_t K = 0; K + 1 < L.size(); ++K) { const P2 D = L[K + 1] - L[K]; const double L2 = D.X * D.X + D.Z * D.Z; const double T = L2 > 1e-12 ? std::clamp(((Q.X - L[K].X) * D.X + (Q.Z - L[K].Z) * D.Z) / L2, 0.0, 1.0) : 0.0; Best = std::fmin(Best, (L[K] + D * T).DistanceTo(Q)); }
+			if (Best < 60.0) Near.push_back({Best, int(E)});
+		}
+		std::sort(Near.begin(), Near.end());
+		for (const auto& Nr : Near)
+			std::printf("edge %d %.1f m: %s '%s' surface %s%s\n", Nr.second, Nr.first, Gr.ClassOf(Nr.second).c_str(), Gr.NameOf(Nr.second).c_str(), Gr.SurfaceOf(Nr.second).c_str(),
+				Gr.CircuitFirst >= 0 && Nr.second >= Gr.CircuitFirst ? " (circuit)" : "");
+	}
 	if (std::getenv("WORLD_RIDE_CIRCUITS") != nullptr)
 	{
 		// [circuits] (debug: the race circuits in the ride's area, joined to its roads or not, their start and sector
@@ -2327,6 +2347,26 @@ int main(int Argc, char** Argv)
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
 		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);
+		// [circuits] (the circuits' trackside kit within WORLD_RIDE_MESH_R, to WORLD_RIDE_MESH.trackside: name variant x z y yaw pitch length)
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr && Plan->CircuitIx)
+		{
+			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
+			std::string Side;
+			for (const CircuitIndex::Prop& Pr : Plan->CircuitIx->Props)
+			{
+				if (Pr.At.DistanceTo(Centre) > Round) continue;
+				const double Y = Plan->Ground(Pr.At.X, Pr.At.Z);
+				double Pitch = 0.0;
+				if (Pr.Length > 0.0)
+				{
+					const double Y1 = Plan->Ground(Pr.At.X + std::cos(Pr.Yaw) * Pr.Length, Pr.At.Z + std::sin(Pr.Yaw) * Pr.Length);
+					if (!std::isnan(Y1) && !std::isnan(Y)) Pitch = std::atan2(Y1 - Y, Pr.Length);
+				}
+				std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.3f\n", RidePlan::PropName(Pr.Kind), Pr.Variant, Pr.At.X - Centre.X, Pr.At.Z - Centre.Z, Y, Pr.Yaw, Pitch, Pr.Length);
+				Side += Buf;
+			}
+			Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".trackside", Side);
+		}
 	}
 	{
 		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and

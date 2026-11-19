@@ -99,6 +99,8 @@ class CircuitLaps
 {
 public:
 	static constexpr double OffTrack = 6.0;     // metres off the tarmac's edge that spoil a lap
+	static constexpr double LeftBehind = 200.0;   // a lap under way stops this far from every circuit road
+	static constexpr double GateWait = 900.0;     // a road course's lap stops with no gate passed in this long (s)
 	static constexpr double GateReach = 60.0;   // a road course's gate is passed within this (at the road nearest its note's place)
 	struct Lap
 	{
