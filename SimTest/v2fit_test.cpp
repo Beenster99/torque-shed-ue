@@ -8,6 +8,7 @@
 #include "BikeParts.h"
 #include "BikeRideSpec.h"
 #include "BikeShop.h"
+#include "ShockMove.h"
 
 #include <algorithm>
 #include <cmath>
@@ -63,6 +64,7 @@ std::string Num2(double V)
 
 int main()
 {
+	int Sprung = 0;
 	const std::string R = Root();
 	std::string PartsText, ExtraText, LayoutText, Error;
 	PartsDb Db;
@@ -239,6 +241,30 @@ int main()
 		Expect(AmberLeft >= 1 && AmberRight == AmberLeft && AmberBoth == 0, Id + " has indicator lenses the game can flash a side at a time");
 		Expect(Named, Id + " every surface carries its look");
 		{
+			// [shocks] A sprung bike's shock works in the game: its body end, its rod end and its spring are pieces
+			// of their own, and on a bump the shock shortens, squeezing the spring, its bottom eye staying on the arm.
+			const Json* Pm = V2->Get("points_mm");
+			const Json* Top = Pm ? Pm->Get("shock_top") : nullptr;
+			const Json* Bottom = Pm ? Pm->Get("shock_bottom") : nullptr;
+			const Json* Pivot = Pm ? Pm->Get("swing_pivot") : nullptr;
+			const Json* Axle = Pm ? Pm->Get("rear_axle") : nullptr;
+			if (Top && Bottom && Pivot && Axle && Top->A.size() >= 3 && Bottom->A.size() >= 3 && Pivot->A.size() >= 3 && Axle->A.size() >= 3)
+			{
+				++Sprung;
+				Expect(Nodes.count("shock_top") && Nodes.count("shock_bottom") && Nodes.count("shock_spring"), Id + " shock has a body end, a rod end and a spring the game can work");
+				const double Px = Pivot->A[0].N, Pz = Pivot->A[2].N, Arm = std::hypot(Axle->A[0].N - Px, Axle->A[2].N - Pz);
+				const double RestAngle = std::atan2(Axle->A[2].N - Pz, Axle->A[0].N - Px);
+				const double BumpAngle = TorqueSim::Pi - std::asin(std::clamp((Axle->A[2].N + 60.0 - Pz) / Arm, -1.0, 1.0));   // (the axle is behind the pivot)
+				const ShockPose Still = ShockAt(Px, Pz, Top->A[0].N, Top->A[2].N, Bottom->A[0].N, Bottom->A[2].N, 0.0);
+				const ShockPose Bump = ShockAt(Px, Pz, Top->A[0].N, Top->A[2].N, Bottom->A[0].N, Bottom->A[2].N, BumpAngle - RestAngle);
+				Expect(std::abs(Still.Length - Still.Rest) < 1e-6 && std::abs(Still.Turn) < 1e-9, Id + " shock at rest is as drawn");
+				Expect(Bump.Length < Bump.Rest - 2.0 && Bump.Length > Bump.Rest * 0.75, Id + " shock shortens on a 60 mm bump (" + std::to_string(Bump.Rest - Bump.Length) + " mm)");
+				Expect(std::abs(std::hypot(Bump.BottomX - Px, Bump.BottomZ - Pz) - std::hypot(Bottom->A[0].N - Px, Bottom->A[2].N - Pz)) < 1e-6, Id + " shock's bottom eye stays on the swingarm");
+				const double Squeeze = SpringScale(60.0, Bump.Rest - 60.0, Bump);
+				Expect(Squeeze < 1.0 && Squeeze > 0.45, Id + " spring squeezed, not coil-bound, on a 60 mm bump");
+			}
+		}
+		{
 			// [TFT] A TFT dash shows as itself with a screen for the game to light, in place of the
 			// model's drawn clocks; any other dash leaves the model's clocks.
 			const Json* Dash = Db.Find("dashboard", Parts["dashboard"]);
@@ -405,6 +431,7 @@ int main()
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
+	std::printf("%d sprung bikes with a working shock\n", Sprung);
 	std::printf("%d kit pieces fitted, worst %.3f m from the bike's own\n", KitChecks, WorstKit);
 	std::printf("%d V2 bikes, %d failures\n", Bikes, Failures);
 	return Failures ? 1 : 0;
