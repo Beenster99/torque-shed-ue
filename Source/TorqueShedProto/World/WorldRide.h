@@ -684,6 +684,7 @@ public:
 		bool Blocked(double X, double Z, double Gap) const;   // (Gap at most 2 m)
 	};
 	void GardenPlants(const GardenHouse& House, const GardenClear& Clear, RideMesh& Out) const;
+	bool SeenFromRoad(const GardenClear& Clear, double X, double Z, const P2& Foot) const;   // [gardens] (a clear line to the road)
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
