@@ -3171,6 +3171,8 @@ void ATorqueWalker::UpdateHud()
 				if (!Fits.IsEmpty()) HudLines.Add({Fits, Info, 0.55f});
 			}
 			if (Thing->bBoxed) HudLines.Add({TEXT("F / Triangle: unpack it"), Prompt, 0.65f});
+			if (TargetPlace && TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0 && Wheeling() == INDEX_NONE)   // [kit]
+				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.6f});
 		}
 		break;
 	case ETorqueLook::Place:
