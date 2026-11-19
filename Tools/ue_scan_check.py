@@ -29,7 +29,7 @@ def log(msg):
 
 
 def gs(*names):
-    for home in ("GeometryScript_AssetUtils", "GeometryScript_NewAssetUtils", "GeometryScript_MeshQueryFunctions",
+    for home in ("GeometryScript_MeshUVFunctions", "GeometryScript_AssetUtils", "GeometryScript_NewAssetUtils", "GeometryScript_MeshQueryFunctions",
                  "GeometryScript_MeshMaterialFunctions", "GeometryScript_StaticMeshFunctions"):
         c = getattr(unreal, home, None)
         for n in names:
@@ -94,6 +94,30 @@ def tris_by_material(dm):
                     break
     except Exception as e:
         log("  (triangles by material: %s)" % e)
+    if not out and total > 0:
+        # ([round 160] the list form gave "?": one triangle at a time)
+        one = gs("get_triangle_material_id")
+        try:
+            for t in range(total) if one is not None else []:
+                r = one(dm, t)
+                m = r[0] if isinstance(r, (tuple, list)) else r
+                out[int(m)] = out.get(int(m), 0) + 1
+        except Exception as e:
+            log("  (triangle material ids: %s)" % e)
+    # ([build 161] what else the copy carries: conifer needles may be cards a material expands from
+    # extra UV channels, which a copy that kept only UV 0 would leave at zero size)
+    info = []
+    for label, fname in (("UV sets", "get_num_uv_sets"),):
+        f = gs(fname)
+        try:
+            info.append("%s %s" % (label, f(dm) if f else "?"))
+        except Exception as e:
+            info.append("%s ? (%s)" % (label, e))
+    try:
+        info.append("attributes %s" % ("on" if dm.has_attributes() else "off") if hasattr(dm, "has_attributes") else "")
+    except Exception:
+        pass
+    out["_info"] = ", ".join(x for x in info if x)
     return total, out
 
 
@@ -144,7 +168,7 @@ def check(static_path):
         log("%s: static copy slot %d %s -> %s" % (name, k, m.get_editor_property("material_slot_name"), mi.get_path_name() if mi else None))
     try:
         total, by = static_copy_tris(sm)
-        log("%s: static copy (source model): %d triangles; by material slot: %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted(by.items())) or "?"))
+        log("%s: static copy (source model): %d triangles; by material slot: %s; %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted((k, v) for k, v in by.items() if k != "_info")) or "?", by.get("_info", "")))
     except Exception as e:
         log("%s: static copy count failed: %s" % (name, e))
     nanite_of(sm, "%s: static copy" % name)
@@ -176,7 +200,7 @@ def check(static_path):
             res = copy(skel, dm, unreal.GeometryScriptCopyMeshFromAssetOptions(), unreal.GeometryScriptMeshReadLOD())
             dm = res[0] if isinstance(res, (tuple, list)) else dm
             total, by = tris_by_material(dm)
-            log("%s: skeletal copy: %d triangles; by material slot: %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted(by.items())) or "?"))
+            log("%s: skeletal copy: %d triangles; by material slot: %s; %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted((k, v) for k, v in by.items() if k != "_info")) or "?", by.get("_info", "")))
         except Exception as e:
             log("%s: skeletal copy failed: %s" % (name, e))
     nanite_of(skel, "%s: skeletal" % name)
