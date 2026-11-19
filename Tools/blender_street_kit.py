@@ -46,7 +46,7 @@ OUT = os.path.join(ROOT, "Data", "RideUK", "Props")
 KIT = os.path.join(ROOT, "Data", "RideUK", "prop_kit.json")
 TEX = os.path.join(ROOT, "Data", "Textures", "StreetKit")
 
-LAMP_TOP = 6.2          # every street lamp's highest point (its bracket's crown)
+ARM_BEND = 0.45         # ([Nov 19, beenster] the arms bend over to level and run straight into the lantern)
 LAMP_DROP = 0.3         # columns run on this far into the ground
 LENS_Y = 5.745          # the lantern's lens, just above the code's glow (5.735) and light
 LENS_X = 1.1
@@ -234,21 +234,22 @@ def lamp_led():
     M = Model("SM_Prop_street_lamp_0")
     M.add(lathe("root", [(0.1, -LAMP_DROP), (0.1, 0.0)], 14), "galv", GALV_DULL, 0.6)
     M.add(lathe("base", [(0.105, 0.0), (0.105, 0.04), (0.092, 0.06), (0.09, 1.0), (0.082, 1.03), (0.0725, 1.05)], 16), "galv", GALV, 0.35)
-    M.add(lathe("shaft", [(0.0725, 1.05), (0.046, 5.6)], 16), "galv", GALV, 0.2)
+    M.add(lathe("shaft", [(0.0725, 1.05), (0.05, 5.2)], 16), "galv", GALV, 0.2)
     # (the door at the back, its two bolts, and the maintenance number plate on the front)
     M.add(box("door", (-0.088, 0, 0.62), (0.012, 0.09, 0.42), bevel=0.004), "galv", GALV_DULL, 0.3)
     for z in (0.44, 0.8):
         M.add(rod("doorbolt", (-0.093, 0, z), (-0.1, 0, z), 0.008, 6), "steel", GALV_DULL, 0.3)
     M.add(box("plate", (0.08, 0, 2.3), (0.006, 0.07, 0.16)), "paint", (0.6, 0.6, 0.55), 0.15)
     M.add(box("platenum", (0.0835, 0, 2.3), (0.001, 0.05, 0.1)), "paint", BLACK, 0.1)
-    # (the arm: up out of the column top, over in a curve and down a touch to the lantern's spigot)
+    # (the arm: up out of the column top, over in one easy bend to level, and straight on into the back of
+    # the lantern at its middle, so the lantern hangs flat in line with it)
     r = 0.03
-    crown = LAMP_TOP - r
-    arm = [(0, 0, 5.55)] + bezier((0, 0, 5.8), (0, 0, crown), (0.05, 0, crown), (0.2, 0, crown), 10)
-    arm += [(0.4, 0, crown)]
-    arm += bezier((0.4, 0, crown), (0.62, 0, crown), (0.74, 0, 5.95), (0.79, 0, 5.82), 8)[1:]
+    level = LENS_Y + 0.05
+    arm = [(0, 0, 5.15), (0, 0, level - ARM_BEND)]
+    arm += bezier((0, 0, level - ARM_BEND), (0, 0, level - 0.1), (0.1, 0, level), (ARM_BEND, 0, level), 10)[1:]
+    arm += [(0.82, 0, level)]
     M.add(sweep("arm", arm, r, 10), "galv", GALV, 0.15)
-    M.add(lathe("armcollar", [(0.05, 5.5), (0.05, 5.6), (0.04, 5.63)], 14), "galv", GALV, 0.2)
+    M.add(lathe("armcollar", [(0.054, 5.1), (0.054, 5.2), (0.042, 5.23)], 14), "galv", GALV, 0.2)
     # (the lantern: a slim cast body tapering to the front, its flat lens underneath, a heat-sink top)
     x0, x1 = 0.76, 1.44
     verts, faces = [], []
@@ -268,7 +269,8 @@ def lamp_led():
     for k in range(7):
         x = 0.92 + k * 0.05
         M.add(box("fin", (x, 0, LENS_Y + 0.093), (0.012, 0.2, 0.02)), "enamel", BODY_GREY, 0.2)
-    M.add(lathe("pecell", [(0.022, 0.0), (0.022, 0.025), (0.0, 0.04)], 10, at=(1.32, 0, LENS_Y + 0.07)), "enamel", (0.15, 0.15, 0.15), 0.1)
+    # (its photocell in a socket on top: as high as the sodium lantern's canopy, so both models are one height)
+    M.add(lathe("pecell", [(0.03, 0.0), (0.03, 0.07), (0.022, 0.085), (0.0, 0.09)], 12, at=(1.3, 0, LENS_Y + 0.075)), "enamel", (0.15, 0.15, 0.15), 0.1)
     return M
 
 
@@ -280,15 +282,14 @@ def lamp_sodium():
     M.add(box("door", (-0.102, 0, 0.75), (0.012, 0.11, 0.48), bevel=0.003), "paint", (0.2, 0.22, 0.2), 0.45)
     M.add(box("plate", (0.098, 0, 2.2), (0.006, 0.08, 0.16)), "paint", (0.62, 0.6, 0.5), 0.2)
     M.add(box("platenum", (0.1015, 0, 2.2), (0.001, 0.06, 0.1)), "paint", BLACK, 0.1)
-    # (the bracket: square concrete bar, tapering, up from the column's head and curving out over the road)
-    r0, r1 = 0.06, 0.045
-    crown = LAMP_TOP - 0.06
-    path = bezier((0, 0, 5.2), (0, 0, crown), (0.08, 0, crown), (0.28, 0, crown), 12)
-    path += [(0.42, 0, crown)]
-    path += bezier((0.42, 0, crown), (0.62, 0, crown), (0.72, 0, 6.02), (0.74, 0, 5.92), 6)[1:]
-    radii = [0.06 if p[0] < 0.28 else 0.05 if p[0] <= 0.42 else 0.045 for p in path]
+    # (the bracket: square concrete bar, tapering, up from the column's head, over in one easy bend to level
+    # and straight on into the end of the canopy, so the lantern sits flat in line with it)
+    level = LENS_Y + 0.12
+    path = [(0, 0, 5.2), (0, 0, level - ARM_BEND)]
+    path += bezier((0, 0, level - ARM_BEND), (0, 0, level - 0.1), (0.12, 0, level), (ARM_BEND, 0, level), 12)[1:]
+    path += [(0.86, 0, level)]
+    radii = [0.06 if p[2] < level - 0.2 else 0.052 if p[0] < ARM_BEND else 0.045 for p in path]
     M.add(sweep("bracket", path, radii, 8), "concrete", CONCRETE, 0.3)
-    M.add(rod("spigot", (0.74, 0, 5.93), (0.78, 0, 5.88), 0.022, 8), "steel", GALV_DULL, 0.4)
     # (the lantern: a long enamel canopy, rounded at the ends, and the bowl under it)
     x0, x1 = 0.76, 1.46
     cx = (x0 + x1) * 0.5
@@ -300,7 +301,6 @@ def lamp_sodium():
     M.add(bowl, "lens", SOX_BOWL, 0.15)
     M.add(lathe("rim", [(0.124, 0.0), (0.13, 0.008), (0.124, 0.016)], 16, at=(0, 0, 0)), "steel", GALV_DULL, 0.3)
     M.parts[-1].obj.matrix_world = Matrix.Translation((cx + 0.005, 0, LENS_Y + 0.072)) @ Matrix.Diagonal((2.56, 0.93, 1.0, 1.0))
-    M.add(lathe("pecell", [(0.02, 0.0), (0.02, 0.03), (0.0, 0.045)], 10, at=(1.2, 0, LENS_Y + 0.17)), "enamel", (0.1, 0.1, 0.1), 0.2)
     return M
 
 
