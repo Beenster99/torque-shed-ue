@@ -88,6 +88,8 @@ private:
 	FVector EyeFwd = FVector::ForwardVector;
 	FQuat EyeRot = FQuat::Identity;
 	double LogClock = 0.0;
+	int32 Emitted = 0, EmittedLogged = 0, PeakPuffs = 0;   // (for the log)
+	double HottestTyre = 0.0;
 	bool bMade = false;
 
 	void Make();
