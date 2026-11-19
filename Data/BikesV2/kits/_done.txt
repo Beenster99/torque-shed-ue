@@ -391,3 +391,4 @@ kazeda_chopper__b_sissy_scroll_chrome
 kazeda_chopper__b_sissy_chain_brass
 kazeda_chopper__b_sissy_scroll_steel
 kazeda_chopper__b_sissy_scroll_gold
+kazeda_chopper__b_sissy_scroll_brass
