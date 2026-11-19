@@ -296,6 +296,8 @@ bool ATorqueRideWorld::CarParkUnder(const FVector& At, int32& Kind, double& Lift
 	if (!Ride || !Ride->Plan) return false;
 	Kind = Ride->Plan->CarParkSurfaceAt(At.X / 100.0, At.Y / 100.0);
 	Lift = TorqueWorld::RidePlan::ParkLift;
+	// [circuits] (a circuit's gravel trap (2) or paved run-off (1), on the land as it lies)
+	if (Kind < 0) { Kind = Ride->Plan->CircuitGroundAt(At.X / 100.0, At.Y / 100.0); Lift = 0.0; }
 	return Kind >= 0;
 }
 

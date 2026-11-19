@@ -266,6 +266,7 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 		// [OSM stage 2 batch C] (a quarry's bare stone, a graveyard's mown grass, the allotments' plots)
 		float Here[3] = {float(R), float(G), float(B)};
 		if (FieldTint(X, Z, Here)) { R = Here[0]; G = Here[1]; B = Here[2]; }
+		if (CircuitTint(X, Z, Here)) { R = Here[0]; G = Here[1]; B = Here[2]; }   // [circuits] (gravel traps, paved run-off)
 	}
 	// Steep ground is thin turf, then bare stone.
 	const double Bare = std::fmin(1.0, std::fmax(0.0, (Slope - 0.7) / 0.5));
@@ -3605,6 +3606,7 @@ std::vector<RidePlan::Furnish> RidePlan::RoadFurniture(int Which) const
 	{
 		const std::string& Class = G.ClassOf(Mine->Edge);
 		if (Class == "track" || Class == "service" || Class == "path" || Class == "footway" || Class == "cycleway" || Class == "bridleway") return Out;
+		if (Class == "raceway" || Class == "pit_lane") return Out;   // [circuits] (no road signs, lamps or posts on a circuit)
 	}
 	const auto Dir = [&Pts](size_t I)
 	{
