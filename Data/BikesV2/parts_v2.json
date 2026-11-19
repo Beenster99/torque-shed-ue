@@ -17130,6 +17130,870 @@
     "of": "hartwell_cafe"
    }
   },
+  "v2_hartwell_chopper__tail_blamps_bullet_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Bullet lamp shells, brass (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_bullet_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Bullet lamp shells, chrome (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_bullet_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Bullet lamp shells, gold (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_bullet_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Bullet lamp shells, brushed steel (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_finned_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Finned lamp shells, brass (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_finned_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Finned lamp shells, chrome (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_finned_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Finned lamp shells, gold (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_finned_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Finned lamp shells, brushed steel (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_grille_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Grille lamp shells, brass (tail)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_grille_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Grille lamp shells, chrome (tail)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_grille_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Grille lamp shells, gold (tail)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_blamps_grille_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Grille lamp shells, brushed steel (tail)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_chain_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Chain sissy bar, brass",
+   "description": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_chain_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_chain_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_chain_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Chain sissy bar, chrome",
+   "description": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_chain_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_chain_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_chain_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Chain sissy bar, gold",
+   "description": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_chain_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_chain_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_chain_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Chain sissy bar, brushed steel",
+   "description": "Welded chain: every link fused to the next up both sides and over the top, with two chain cross bars.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_chain_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_chain_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_filigree_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Filigree sissy bar, brass",
+   "description": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_filigree_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_filigree_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_filigree_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Filigree sissy bar, chrome",
+   "description": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_filigree_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_filigree_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_filigree_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Filigree sissy bar, gold",
+   "description": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_filigree_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_filigree_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_filigree_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Filigree sissy bar, brushed steel",
+   "description": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_filigree_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_filigree_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_scroll_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Scrollwork sissy bar, brass",
+   "description": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_scroll_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_scroll_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_scroll_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Scrollwork sissy bar, chrome",
+   "description": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_scroll_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_scroll_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_scroll_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Scrollwork sissy bar, gold",
+   "description": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_scroll_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_scroll_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__tail_bsissy_scroll_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.147,
+    0.0103,
+    0.016
+   ],
+   "material": "metal",
+   "name": "BSX Scrollwork sissy bar, brushed steel",
+   "description": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_sissy_scroll_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_sissy_scroll_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
   "v2_hartwell_chopper__tail_kr1": {
    "mass": 2.4,
    "type": "Steel bobbed fender, side plate",
@@ -17553,6 +18417,294 @@
     "twin_shock": true,
     "kit": "tail2",
     "of": "kazeda_cafe"
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_bullet_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Bullet lamp shells, brass (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_bullet_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Bullet lamp shells, chrome (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_bullet_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Bullet lamp shells, gold (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_bullet_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Bullet lamp shells, brushed steel (tail)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_finned_brass": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Finned lamp shells, brass (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 200,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_finned_chrome": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Finned lamp shells, chrome (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_finned_gold": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Finned lamp shells, gold (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 275,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__tail_blamps_finned_steel": {
+   "mass": 2.4,
+   "type": "Steel bobbed fender, side plate",
+   "style": "bobber",
+   "light": "bullet",
+   "light_at": [
+    -0.1,
+    0.2
+   ],
+   "color": [
+    0.5776,
+    0.0953,
+    0.011
+   ],
+   "material": "metal",
+   "name": "Kazeda Finned lamp shells, brushed steel (tail)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 175,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "tail",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
    }
   },
   "v2_kazeda_chopper__tail_kr1": {
@@ -22850,6 +24002,390 @@
     "of": "hartwell_cafe"
    }
   },
+  "v2_hartwell_chopper__headlight_blamps_bullet_brass": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Bullet lamp shells, brass (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 170,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_bullet_chrome": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Bullet lamp shells, chrome (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_bullet_gold": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Bullet lamp shells, gold (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 240,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_bullet_steel": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Bullet lamp shells, brushed steel (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_bullet_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_finned_brass": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Finned lamp shells, brass (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 170,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_finned_chrome": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Finned lamp shells, chrome (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_finned_gold": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Finned lamp shells, gold (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 240,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_finned_steel": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Finned lamp shells, brushed steel (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_finned_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_grille_brass": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Grille lamp shells, brass (headlight)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 170,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_grille_chrome": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Grille lamp shells, chrome (headlight)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_grille_gold": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Grille lamp shells, gold (headlight)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 240,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__headlight_blamps_grille_steel": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "BSX Grille lamp shells, brushed steel (headlight)",
+   "description": "A plain polished bowl with a three-bar guard and a centre boss across the glass.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_lamps_grille_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_lamps_grille_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
   "v2_hartwell_chopper__headlight_kf1": {
    "mass": 0.9,
    "type": "Halogen",
@@ -23034,6 +24570,262 @@
     "twin_shock": true,
     "kit": "front2",
     "of": "kazeda_cafe"
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_bullet_brass": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Bullet lamp shells, brass (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 170,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_bullet_chrome": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Bullet lamp shells, chrome (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_bullet_gold": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Bullet lamp shells, gold (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 240,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_bullet_steel": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Bullet lamp shells, brushed steel (headlight)",
+   "description": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_bullet_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_bullet_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_finned_brass": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Finned lamp shells, brass (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 170,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_finned_chrome": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Finned lamp shells, chrome (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_finned_gold": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Finned lamp shells, gold (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 240,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__headlight_blamps_finned_steel": {
+   "mass": 0.9,
+   "type": "Halogen",
+   "style": "bucket",
+   "size": 0.07,
+   "lumens": 800,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Kazeda Finned lamp shells, brushed steel (headlight)",
+   "description": "A short drum with cooling fins round it, a peak over the glass and a domed back with a centre nut.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 150,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_lamps_finned_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "headlight",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_lamps_finned_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
    }
   },
   "v2_kazeda_chopper__headlight_kf1": {
@@ -30002,6 +31794,1486 @@
     "layout": "parallel_twin",
     "twin_shock": false
    }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_bloom8_brass": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Crossed petals billet wheel, brass (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_bloom8_brass": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Crossed petals billet wheel, brass (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_bloom8_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Crossed petals billet wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_bloom8_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Crossed petals billet wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_bloom8_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Crossed petals billet wheel, gold (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_bloom8_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Crossed petals billet wheel, gold (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_bloom8_steel": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Crossed petals billet wheel, brushed steel (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_bloom8_steel": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Crossed petals billet wheel, brushed steel (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_bloom8_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_bloom8_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_cyclone9_brass": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Nine split blades billet wheel, brass (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_cyclone9_brass": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Nine split blades billet wheel, brass (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_cyclone9_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Nine split blades billet wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_cyclone9_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Nine split blades billet wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_cyclone9_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Nine split blades billet wheel, gold (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_cyclone9_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Nine split blades billet wheel, gold (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_cyclone9_steel": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Nine split blades billet wheel, brushed steel (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_cyclone9_steel": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Nine split blades billet wheel, brushed steel (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_cyclone9_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_cyclone9_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_fang6_brass": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, brass (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_fang6_brass": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, brass (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_fang6_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_fang6_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_fang6_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, gold (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_fang6_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, gold (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_fang6_steel": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, brushed steel (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_fang6_steel": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Six leaf blades with a rib billet wheel, brushed steel (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_fang6_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_fang6_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_reaper5_brass": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five hooked blades billet wheel, brass (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_reaper5_brass": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five hooked blades billet wheel, brass (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_reaper5_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five hooked blades billet wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_reaper5_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five hooked blades billet wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_reaper5_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five hooked blades billet wheel, gold (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_reaper5_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five hooked blades billet wheel, gold (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_reaper5_steel": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five hooked blades billet wheel, brushed steel (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_reaper5_steel": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five hooked blades billet wheel, brushed steel (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_reaper5_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_reaper5_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_twist7_brass": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Seven s blades billet wheel, brass (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_twist7_brass": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Seven s blades billet wheel, brass (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 630,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_twist7_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Seven s blades billet wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_twist7_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Seven s blades billet wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_twist7_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Seven s blades billet wheel, gold (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_twist7_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Seven s blades billet wheel, gold (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 875,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_billet_twist7_steel": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Seven s blades billet wheel, brushed steel (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_billet_twist7_steel": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Seven s blades billet wheel, brushed steel (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_billet_twist7_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_wheels_billet_twist7_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
   }
  },
  "shock": {
@@ -33174,6 +36446,846 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_faceted_brass": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Faceted footpegs, brass",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 290,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_faceted_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_faceted_chrome": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Faceted footpegs, chrome",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_faceted_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_faceted_gold": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Faceted footpegs, gold",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 400,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_faceted_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_faceted_steel": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Faceted footpegs, brushed steel",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_faceted_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_ringed_brass": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Ringed footpegs, brass",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 290,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_ringed_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_ringed_chrome": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Ringed footpegs, chrome",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_ringed_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_ringed_gold": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Ringed footpegs, gold",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 400,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_ringed_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_ringed_steel": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Ringed footpegs, brushed steel",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_ringed_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_torpedo_brass": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Torpedo footpegs, brass",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 290,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_torpedo_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_torpedo_chrome": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Torpedo footpegs, chrome",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_torpedo_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_torpedo_gold": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Torpedo footpegs, gold",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 400,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_torpedo_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rearsets_bpegs_torpedo_steel": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "BSX Torpedo footpegs, brushed steel",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_pegs_torpedo_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_faceted_brass": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Faceted footpegs, brass",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 290,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_faceted_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_faceted_chrome": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Faceted footpegs, chrome",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_faceted_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_faceted_gold": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Faceted footpegs, gold",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 400,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_faceted_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_faceted_steel": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Faceted footpegs, brushed steel",
+   "description": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_faceted_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_faceted_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_ringed_brass": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Ringed footpegs, brass",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 290,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_ringed_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_ringed_chrome": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Ringed footpegs, chrome",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_ringed_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_ringed_gold": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Ringed footpegs, gold",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 400,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_ringed_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_ringed_steel": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Ringed footpegs, brushed steel",
+   "description": "Turned from the bar: deep grip rings, a knurled band and a domed end cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_ringed_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_ringed_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_torpedo_brass": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Torpedo footpegs, brass",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 290,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_torpedo_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_torpedo_chrome": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Torpedo footpegs, chrome",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_torpedo_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_torpedo_gold": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Torpedo footpegs, gold",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 400,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_torpedo_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rearsets_bpegs_torpedo_steel": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "color": [
+    0.86,
+    0.87,
+    0.9
+   ],
+   "peg": [
+    0.08,
+    -0.46
+   ],
+   "material": "metal",
+   "name": "Kazeda Torpedo footpegs, brushed steel",
+   "description": "A long bullet with cooling fins round the root and a pointed spinner tip.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 255,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_pegs_torpedo_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rearsets",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_pegs_torpedo_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
    }
   }
  },
@@ -37413,6 +41525,942 @@
     "fits": "layout",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_finned_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned engine covers, brass",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_finned_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_finned_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_finned_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned engine covers, chrome",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_finned_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_finned_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_finned_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned engine covers, gold",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_finned_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_finned_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_finned_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned engine covers, brushed steel",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_finned_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_finned_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_spoked_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Starburst engine covers, brass",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_spoked_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_spoked_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Starburst engine covers, chrome",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_spoked_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_spoked_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Starburst engine covers, gold",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_spoked_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_spoked_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Starburst engine covers, brushed steel",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_spoked_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_target_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Target engine covers, brass",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_target_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_target_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_target_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Target engine covers, chrome",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_target_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_target_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_target_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Target engine covers, gold",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_target_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_target_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bcovers_target_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Target engine covers, brushed steel",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_covers_target_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_covers_target_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_finned_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned engine covers, brass",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_finned_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_finned_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_finned_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned engine covers, chrome",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_finned_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_finned_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_finned_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned engine covers, gold",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_finned_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_finned_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_finned_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned engine covers, brushed steel",
+   "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_finned_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_finned_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_spoked_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Starburst engine covers, brass",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_spoked_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_spoked_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Starburst engine covers, chrome",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_spoked_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_spoked_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Starburst engine covers, gold",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_spoked_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_spoked_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Starburst engine covers, brushed steel",
+   "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_spoked_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_spoked_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_target_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Target engine covers, brass",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_target_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_target_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_target_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Target engine covers, chrome",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_target_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_target_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_target_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Target engine covers, gold",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_target_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_target_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bcovers_target_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Target engine covers, brushed steel",
+   "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_covers_target_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_covers_target_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
    }
   }
  },
