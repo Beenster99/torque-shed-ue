@@ -24,6 +24,8 @@ struct ChurchModel
 	double NaveL = 0.0, NaveW = 0.0;         // its nave's walls (m: along, across), the part fitted to the building
 	double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0, Top = 0.0;   // all of it about the nave's middle
 	double Weight = 1.0;
+	bool HasDoor = false;
+	double Door[4] = {0.0, 0.0, 0.0, 0.0};   // [churches stage 5] its door, a metre out (x, z, as Pos about the nave's middle) and its way out
 	// A part's section (ChurchKit::ESection) and three bytes: a colour, or the masonry's masks (brightness,
 	// which scan, lichen); and its alpha byte (the roofing, moss or dirt).
 	struct Part { uint8_t Section = 0, A = 0, B = 0, C = 0, Code = 255; };

@@ -106,7 +106,7 @@ int main()
 		const bool KitRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.json"), KitText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.bin"), KitBin)
 			&& SetChurchKit(KitText, KitBin);
 		const std::shared_ptr<const ChurchKit> Kit = ChurchKitNow();
-		bool Ok = KitRead && Kit && Kit->Models.size() == 44;
+		bool Ok = KitRead && Kit && Kit->Models.size() == 48;
 		double Along = 0.0, Across = 0.0;
 		bool Whole = false;
 		const int Church = Ok ? Kit->Pick("dales", false, false, 26.0, 9.0, 0.3, 0.9, Along, Across, Whole) : -1;
@@ -140,7 +140,7 @@ int main()
 		Ok = Ok && Houses.Alpha[0] == 1.0f && Roofs.Vertices() > 0 && Houses.Vertices() > 1 && Tris > 2000;
 		std::printf("      church kit: %s, %zu churches; church %s, chapel %s; %zu triangles built\n", KitRead ? "read" : "unreadable", Kit ? Kit->Models.size() : size_t(0),
 			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
-		Check(Ok, "church kit: forty-four read; a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; built with whole alpha");
+		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; built with whole alpha");
 	}
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;
@@ -990,6 +990,60 @@ int main()
 						std::printf("      fields: %d quarries, %d graveyards, %d allotments, %d orchards; %d of %d tested tinted inside; %d triangles of headstones, %d of quarry faces\n",
 							Kinds[RidePlan::FieldQuarry], Kinds[RidePlan::FieldGraves], Kinds[RidePlan::FieldAllotments], Kinds[RidePlan::FieldOrchard], Tinted, Tested, Graves, Faces);
 						Check(Kinds[RidePlan::FieldGraves] > 0 && Tinted == Tested && Graves > 0, "field areas: graveyards and quarries found and tinted, headstones stood in the graveyards");
+					}
+					// [churches stage 5] Churchyards: each one's gate on its yard's edge, its path from there to the
+					// church's walk (1.5 m out, a corner's 2.1), its ground a graveyard pointing back at it; no wall run across the path; no headstone
+					// on the path; and every mesh whole once a square's yards are built.
+					{
+						int Yards = 0, Made = 0, Bad = 0, OnPath = 0, Walls = 0, Whole = 1;
+						for (size_t I = 0; I < Plan->Churchyards.size(); ++I)
+						{
+							const RidePlan::Churchyard& Y = Plan->Churchyards[I];
+							++Yards;
+							Made += Y.Made ? 1 : 0;
+							Walls += int(Y.Walls.size());
+							if (Y.Field < 0 || size_t(Y.Field) >= Plan->FieldAreas.size() || Plan->FieldAreas[size_t(Y.Field)].Yard != int(I)) { ++Bad; continue; }
+							const RidePlan::FieldArea& F = Plan->FieldAreas[size_t(Y.Field)];
+							bool OnEdge = false;
+							for (size_t K = 0; K < F.Ring.size() && !OnEdge; ++K)
+							{
+								const P2 Ea = F.Ring[K], Eb = F.Ring[(K + 1) % F.Ring.size()];
+								const double L2 = (Eb.X - Ea.X) * (Eb.X - Ea.X) + (Eb.Z - Ea.Z) * (Eb.Z - Ea.Z);
+								const double T = L2 > 1e-9 ? std::clamp(((Y.Gate.X - Ea.X) * (Eb.X - Ea.X) + (Y.Gate.Z - Ea.Z) * (Eb.Z - Ea.Z)) / L2, 0.0, 1.0) : 0.0;
+								OnEdge = std::hypot(Ea.X + (Eb.X - Ea.X) * T - Y.Gate.X, Ea.Z + (Eb.Z - Ea.Z) * T - Y.Gate.Z) < 0.05;
+							}
+							if (!OnEdge || Plan->OffChurch(Y, Y.PathEnd.X, Y.PathEnd.Z) > 2.13 || std::fabs(std::hypot(Y.Out.X, Y.Out.Z) - 1.0) > 1e-6) ++Bad;
+							for (const auto& W : Y.Walls)
+							{
+								// (a wall run crossing the path: the two lines' ends either side of each other)
+								const auto Side = [](const P2& La, const P2& Lb, const P2& P) { return (Lb.X - La.X) * (P.Z - La.Z) - (Lb.Z - La.Z) * (P.X - La.X); };
+								if (Side(Y.Gate, Y.PathEnd, W.first) * Side(Y.Gate, Y.PathEnd, W.second) < 0.0 && Side(W.first, W.second, Y.Gate) * Side(W.first, W.second, Y.PathEnd) < 0.0) ++Bad;
+							}
+							if (I < 6)
+							{
+								// (its square's headstones, none within a metre of its path)
+								const double Sx = std::floor(Y.Gate.X / 256.0) * 256.0, Sz = std::floor(Y.Gate.Z / 256.0) * 256.0;
+								RideMesh Stones;
+								Stones.OriginX = Sx;
+								Stones.OriginZ = Sz;
+								Plan->FieldsTile(Sx, Sz, 256.0, 2, Stones);
+								const double Ux = Y.PathEnd.X - Y.Gate.X, Uz = Y.PathEnd.Z - Y.Gate.Z, L2 = Ux * Ux + Uz * Uz;
+								for (size_t V = 0; V < Stones.Vertices(); ++V)
+								{
+									const double Px = Stones.Pos[V * 3] + Sx, Pz = Stones.Pos[V * 3 + 2] + Sz;
+									const double T = L2 > 1e-9 ? std::clamp(((Px - Y.Gate.X) * Ux + (Pz - Y.Gate.Z) * Uz) / L2, 0.0, 1.0) : 0.0;
+									if (std::hypot(Y.Gate.X + Ux * T - Px, Y.Gate.Z + Uz * T - Pz) < 0.8 && RideShapes::InRing(F.Ring, Px, Pz)) { ++OnPath; break; }
+								}
+								RideMesh Out, Washed, Houses, Roofs, Bricks;
+								for (RideMesh* M : {&Out, &Washed, &Houses, &Roofs, &Bricks}) { M->OriginX = Sx; M->OriginZ = Sz; }
+								Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Out, Washed, Houses, Roofs, Bricks);
+								for (const RideMesh* M : {&Out, &Washed, &Houses, &Roofs, &Bricks})
+									if ((!M->Alpha.empty() && M->Alpha.size() != M->Vertices()) || M->Uv.size() != M->Vertices() * 2 || M->Col.size() != M->Vertices() * 3) Whole = 0;
+							}
+						}
+						std::printf("      churchyards: %d (%d made round their churches), %d wall runs; %d wrong, %d with a headstone on the path\n", Yards, Made, Walls, Bad, OnPath);
+						Check(Yards > 0 && Walls > 0 && Bad == 0 && OnPath == 0 && Whole == 1,
+							"churchyards: each gate on its yard's edge, its path to the church, no wall across it nor a headstone on it, the meshes whole");
 					}
 					// [OSM stage 2 batch D] Wild ground: cliffs, peaks, dams and weirs found and drawn near and far.
 					{
