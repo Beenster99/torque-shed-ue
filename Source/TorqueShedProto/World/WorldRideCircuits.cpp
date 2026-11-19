@@ -492,6 +492,35 @@ void RidePlan::CircuitMarks(int Which, double From, double To, std::vector<RoadM
 
 // ----- The lap timer -----
 
+bool RidePlan::CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const
+{
+	if (!CircuitIx) return false;
+	const Region& G = Area.Roads;
+	const CircuitIndex& Ix = *CircuitIx;
+	const CircuitIndex::Line* Best = nullptr;
+	double Near = Within;
+	for (const CircuitIndex::Line& L : Ix.Lines)
+	{
+		if (L.Kind != 0 || L.Circuit < 0 || size_t(L.Circuit) >= G.Circuits.size()) continue;
+		const double D = L.At.DistanceTo(P2(X, Z));
+		if (D < Near) { Near = D; Best = &L; }
+	}
+	if (Best == nullptr) return false;
+	const CircuitInfo& Info = G.Circuits[size_t(Best->Circuit)];
+	const std::shared_ptr<const CircuitNote> Note = size_t(Best->Circuit) < Ix.Notes.size() ? Ix.Notes[size_t(Best->Circuit)] : nullptr;
+	// (along the track at the line, the way round it's raced: clockwise has the circuit's middle on the right,
+	// and in this frame (x east, z south) the right of T is where T.X * V.Z - T.Z * V.X > 0)
+	P2 T(Best->Across.Z, -Best->Across.X);
+	const P2 V = Info.At - Best->At;
+	const bool Clockwise = Note ? Note->Clockwise : true;
+	const double Cross = T.X * V.Z - T.Z * V.X;
+	if ((Cross > 0.0) != Clockwise) T = T * -1.0;
+	At = Best->At - T * Back;
+	Heading = std::atan2(-T.X, -T.Z);
+	Name = Note ? Note->Name : Info.Name;
+	return true;
+}
+
 bool CircuitLaps::Step(const RidePlan& Plan, double X, double Z, double Now, Lap& Done)
 {
 	const P2 Here(X, Z);

@@ -31,8 +31,10 @@
 #include "ProceduralMeshComponent.h"
 
 #include "World/WorldRide.h"
+#include "World/WorldRideCircuits.h"
 #include "World/WorldFiles.h"
 #include "Coop/TorqueAwards.h"
+#include "Coop/TorqueLaps.h"
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -299,6 +301,29 @@ bool ATorqueRideWorld::CarParkUnder(const FVector& At, int32& Kind, double& Lift
 	// [circuits] (a circuit's gravel trap (2) or paved run-off (1), on the land as it lies)
 	if (Kind < 0) { Kind = Ride->Plan->CircuitGroundAt(At.X / 100.0, At.Y / 100.0); Lift = 0.0; }
 	return Kind >= 0;
+}
+
+bool ATorqueRideWorld::StepLaps(const FVector& At, double Now, TorqueWorld::CircuitLaps& Laps)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	TorqueWorld::CircuitLaps::Lap Done;
+	return Laps.Step(*Ride->Plan, At.X, At.Z, Now, Done);
+}
+
+bool ATorqueRideWorld::CircuitStart(const FVector& At, FVector& OutPos, double& OutHeading, FString& Name)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	TorqueWorld::P2 P;
+	std::string N;
+	if (!Ride->Plan->CircuitStartNear(At.X, At.Z, 5000.0, 15.0, P, OutHeading, N)) return false;
+	double Y = Ride->Plan->RoadHeight(P.X, P.Z);
+	if (!std::isfinite(Y)) Y = Ride->Plan->Ground(P.X, P.Z);
+	if (!std::isfinite(Y)) Y = At.Y;
+	OutPos = FVector(P.X, Y + 0.3, P.Z);
+	Name = UTF8_TO_TCHAR(N.c_str());
+	return true;
 }
 
 bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out)
@@ -628,6 +653,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	Plan = InPlan;
 	Current = this;
 	TorqueAwardsUe::NewRide();   // [ride awards] this machine's rider's numbers start again
+	TorqueLapsUe::NewRide();     // [circuits] no laps yet
 	if (Plan && Plan->Ok)
 	{
 		// [stage 7] This ride's page in the diary.

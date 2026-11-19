@@ -153,6 +153,9 @@ public:
 	// draws it and the mouse works it), or was closed this moment (Esc shuts it, not into the pause menu).
 	bool InGarage() const;
 	bool GarageComputerUp() const { return bGarageComputer; }
+	// [circuits] To the nearest race circuit's start (within 5 km), upright on the track a little before the line
+	// facing the way it's raced, the lap timer cleared: false (and nowhere) with none. Name: the circuit's.
+	bool ToCircuitStart(FString& Name);
 	bool GarageComputerUpOrJustClosed() const;
 	void DrawGarageComputer(AHUD* Hud, UCanvas* Canvas) const;
 	// For TorqueShedTest: "where", "buy:<part>", "fit[:<slot>]", "off:<slot>", "stow", "computer".

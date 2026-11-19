@@ -1374,6 +1374,9 @@ public:
 	int CircuitGroundAt(double X, double Z) const;
 	void IndexCircuits();
 	std::shared_ptr<const CircuitIndex> CircuitIx;
+	// [circuits] The nearest circuit's start line within Within (m) of (X, Z): a place on its track Back metres
+	// before the line, the heading it's raced at there (sim: 0 faces -z, + left), and its name. False with none.
+	bool CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const;
 	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
 	// its buildings, water and edge.
 	void CarParkBays(int Which, std::vector<ParkBay>& Out) const;

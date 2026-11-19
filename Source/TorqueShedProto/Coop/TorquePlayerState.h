@@ -67,6 +67,10 @@ public:
 	UFUNCTION(Server, Unreliable) void ServerSetAwardStats(const TArray<float>& NewStats);
 	UFUNCTION(Server, Reliable) void ServerSetAwardFinished(bool bAtFinish);
 	UFUNCTION(Server, Reliable) void ServerAwardVote(int32 Seq, const TArray<uint8>& Picks);
+	// [circuits] This rider's best lap of each circuit this ride (Coop/TorqueLaps.h): a line each, "name\tseconds",
+	// for everyone's lap board.
+	UPROPERTY(Replicated) FString LapBests;
+	UFUNCTION(Server, Reliable) void ServerSetLapBests(const FString& Bests);
 	// The hands (the owner's own copy is set at once; the others get the host's).
 	UPROPERTY(ReplicatedUsing = OnRep_Hands) FTorqueHandsNet Hands;
 	UFUNCTION() void OnRep_Hands(const FTorqueHandsNet& Before);

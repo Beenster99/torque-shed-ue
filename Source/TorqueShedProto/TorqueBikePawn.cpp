@@ -7,6 +7,7 @@
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueAwards.h"
+#include "Coop/TorqueLaps.h"
 #include "Shed/TorqueProfile.h"
 #include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -1161,6 +1162,23 @@ void ATorqueBikePawn::LoadRoute()
 		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d cattle grids"), (int32)Sim->Grids.size());
+}
+
+bool ATorqueBikePawn::ToCircuitStart(FString& Name)
+{
+	if (!Sim || bYard) return false;
+	const V3 P = Sim->Position;
+	FVector To;
+	double Heading = 0.0;
+	if (!ATorqueRideWorld::CircuitStart(FVector(P.x, P.y, P.z), To, Heading, Name)) return false;
+	if (bOnFoot)
+	{
+		bOnFoot = bPushing = bUseArmed = false;
+		SetParkedLook(false);
+	}
+	PlaceOnGround(V3(To.X, To.Y, To.Z), Heading);
+	TorqueLapsUe::Moved();
+	return true;
 }
 
 void ATorqueBikePawn::BackOnWheels()
@@ -3327,6 +3345,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	// [ride awards] (Coop/TorqueAwards.h) The rider's own numbers for the end-of-ride awards.
 	if (!bRemote && IsLocallyControlled()) TorqueAwardsUe::StepBike(this, *Sim, Dash, bOnFoot, DeltaSeconds);
+	if (!bRemote && IsLocallyControlled() && !bYard) TorqueLapsUe::StepBike(this, FVector(Sim->Position.x, Sim->Position.y, Sim->Position.z), DeltaSeconds);   // [circuits]
 	StepTft(DeltaSeconds, bRemote);   // [tft]
 	StepLights(DeltaSeconds, bRemote);   // [lights]
 	if (!bRemote)

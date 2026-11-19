@@ -11,7 +11,7 @@
 // start line again after the sectors ends it. A lap with the rider more than OffTrack metres off the
 // circuit's tarmac, or shorter than half the circuit, is not counted. On a road course (the TT, the North
 // West 200, Oliver's Mount, Dundrod) the gates are places on the public road, passed within GateReach in
-// order. The host keeps every rider's timer (co-op: TorqueGameState), so every rider sees the same board.
+// order. Each rider's own game times their laps (Coop/TorqueLaps.h) and tells the others their best.
 #pragma once
 
 #include "WorldGeo.h"
@@ -106,6 +106,8 @@ public:
 	Lap Last;
 	bool HasLast = false;
 	void Reset() { S = State(); HasLast = false; Prev = P2(); HavePrev = false; }
+	// Put somewhere else (a respawn, the start): no line crossed on the way, the lap under way dropped.
+	void Jumped() { S = State(); HavePrev = false; }
 
 private:
 	State S;

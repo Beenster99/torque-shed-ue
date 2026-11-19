@@ -28,6 +28,7 @@
 #include "World/WorldCache.h"
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
+#include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
 #include "IImageWrapper.h"
@@ -197,6 +198,14 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [circuits] The race circuits' notes: start lines, sectors, which way round, the road courses' gates.
+		{
+			std::string CircuitText;
+			const std::string CircuitPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/circuits.json")));
+			const bool bCircuits = TorqueWorld::Files::Read(CircuitPath, CircuitText) && TorqueWorld::SetCircuitNotes(CircuitText);
+			const std::shared_ptr<const TorqueWorld::CircuitNotes> Notes = TorqueWorld::CircuitNotesNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: circuit notes: %d%s"), Notes ? int32(Notes->Circuits.size()) : 0, bCircuits ? TEXT("") : TEXT(" (none: Data/RideUK/circuits.json unreadable)"));
+		}
 		// [towns stage 5] The materials atlas: the local building stones and bricks by area.
 		std::string AtlasText;
 		const std::string AtlasPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/materials_atlas.json")));
