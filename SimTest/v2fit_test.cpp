@@ -164,6 +164,13 @@ int main()
 		}
 		const std::vector<std::string> Offered = Shop::Options(Lay, "frame", Style, Shop::StockBuild(Lay, Style));
 		Expect(std::find(Offered.begin(), Offered.end(), Id) != Offered.end(), Id + " is offered as a frame on a new " + Style);
+		// [configurator, beenster in 160] Every part offered on this bike changes it: no old part its model would draw over.
+		for (const char* Slot : {"exhaust", "tank", "saddle", "handlebars", "headlight", "tail", "front_mudguard", "fork"})
+			for (const std::string& Opt : Shop::Options(Lay, Slot, Style, Parts))
+			{
+				const Json* P = Lay.Part(Opt);
+				Expect(Opt == Parts[Slot] || !P || P->Get("v2part") || P->Get("common"), Id + " offers " + Opt + " as its " + Slot + ", drawn as its own");
+			}
 		const Layout L = Lay.Solve(Parts);
 		const double Wb = L.FrontAxle.x - L.RearAxle.x;
 		Expect(std::fabs(L.FrontAxle.y) < 1e-6 && std::fabs(L.RearAxle.y) < 1e-6, Id + " axles level");

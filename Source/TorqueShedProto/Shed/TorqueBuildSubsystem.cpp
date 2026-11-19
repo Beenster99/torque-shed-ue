@@ -1413,6 +1413,9 @@ FString UTorqueBuildSubsystem::NewOrderedBike(int32 Peer, int32 Bay, const FStri
 		if (!It) continue;
 		It->Colour = FLinearColor((float)KV.second.Colour[0], (float)KV.second.Colour[1], (float)KV.second.Colour[2]);
 		It->Finish = KV.second.Finish.empty() ? NAME_None : FName(*TBI::Ue(KV.second.Finish));
+		// [configurator, beenster in 160] A colour picked is painted on (gloss unless a finish was picked): a V2
+		// bike's bodywork shows its model's own colour only when it hasn't been repainted.
+		if (It->Finish.IsNone() && KV.second.Picked) It->Finish = FName(TEXT("gloss"));
 	}
 	// The badge on the tank (BikeShop.buy_new: the tank item carries it).
 	if (FTorqueItem* Tank = Items.Find(ItemOn(Bay, FName(TEXT("tank")))))
