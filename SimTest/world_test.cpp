@@ -1834,6 +1834,35 @@ int main()
 							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
 						(void)GiveWays;
 					}
+					// [junction priority] The real road's priority at each junction the ride passes: its own roads
+					// ranked as the rule says, none of its own lines across a through road it gives way to, and no
+					// side road that is the through road marked to give way.
+					{
+						int Rules = 0, Minor = 0, Wrong = 0, Lined = 0, SidesThrough = 0, SidesWrong = 0;
+						for (const RidePlan::JunctionRule& J : Plan->Junctions)
+						{
+							++Rules;
+							Wrong += Plan->ArmRankOf(J.Node, J.Came) != (J.CameMinor ? 1 : 2) || Plan->ArmRankOf(J.Node, J.Onto) != (J.OntoMinor ? 1 : 2) ? 1 : 0;
+							if (!J.CameMinor && !J.OntoMinor) continue;
+							++Minor;
+							Lined += Plan->LinesStopAt(J.Along + (J.CameMinor ? -0.5 : 0.5)) ? 0 : 1;
+						}
+						for (size_t W = 0; W < Plan->PlanSides().size(); ++W)
+						{
+							const RidePlan::SideRoad& Sd = (*Plan->SideOf(Plan->PlanSides()[W]));
+							const RoadEdge& Ed = Plan->Area.Roads.Edges[size_t(Sd.Edge)];
+							for (int End = 0; End < 2; ++End)
+								if (Sd.Mouths[End].Is && Plan->ArmRankOf(End == 0 ? Ed.A : Ed.B, Sd.Edge) == 2)
+								{
+									++SidesThrough;
+									SidesWrong += Sd.Mouths[End].GiveWay ? 1 : 0;
+								}
+						}
+						std::printf("      junction priority: %d junctions with a through road, %d where the ride's road gives way (%d give-way lines); %d ranked wrong, %d with its lines across; %d side roads the through road, %d marked to give way\n",
+							Rules, Minor, Plan->JunctionGiveWayCount, Wrong, Lined, SidesThrough, SidesWrong);
+						Check(Rules > 0 && Wrong == 0 && Lined == 0 && SidesWrong == 0,
+							"junction priority: the real road's (the map's classes), the ride's own road giving way where it is the lesser, its lines stopping at the through road");
+					}
 					// Where a side road lies on the ride's road it is just under that road's surface, never over
 					// it (two surfaces fought there and a flat side road on a slope stood proud: build 140's bump).
 					{
