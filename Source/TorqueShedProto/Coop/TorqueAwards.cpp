@@ -15,6 +15,7 @@
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "SonyPad.h"
+#include "TorqueAudio/TorqueSfx.h"
 
 #include <array>
 #include <vector>
@@ -352,6 +353,7 @@ void FTorqueAwardsScreen::SetView(EView V)
 {
 	View = V;
 	ViewAt = FPlatformTime::Seconds();
+	PodiumChimes = 0;
 }
 
 void FTorqueAwardsScreen::Begin(int32 InSeq)
@@ -452,10 +454,47 @@ bool FTorqueAwardsScreen::Tick(APlayerController* PC, uint32 SonyHit)
 		if (bBack) return false;
 		return true;
 	}
-	// The podium.
+	// The podium: Enter during the reveal skips to the end (the chimes it passes stay quiet); after it,
+	// rides on. R / Triangle / Y plays the reveal again.
+	const int32 Steps = FMath::Min(GS->AwardRiders.Num(), 3);
+	const double Age = FPlatformTime::Seconds() - ViewAt;
 	if (bBack) SetView(EView::Dashboard);
+	else if (Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle)) SetView(EView::Podium);
+	else if ((bChoose || bClick) && Age < PodiumEnd(Steps))
+	{
+		ViewAt = FPlatformTime::Seconds() - PodiumEnd(Steps);
+		PodiumChimes = 0xFF;
+	}
 	else if (bChoose || bClick) return false;
+	if (View == EView::Podium) PodiumSounds(PC, Steps);
 	return true;
+}
+
+double FTorqueAwardsScreen::RevealAt(int32 Place, int32 Steps)
+{
+	// The lowest place first, a beat between; the winner after a longer drum roll.
+	if (Steps >= 3) return Place == 2 ? 1.6 : Place == 1 ? 3.4 : 6.2;
+	return Place == 1 ? 1.6 : 4.4;
+}
+
+double FTorqueAwardsScreen::PodiumEnd(int32 Steps)
+{
+	return RevealAt(0, Steps) + 1.6;
+}
+
+void FTorqueAwardsScreen::PodiumSounds(APlayerController* PC, int32 Steps)
+{
+	UTorqueSfx* Sfx = UTorqueSfx::Get(PC);
+	if (!Sfx) return;
+	const double Age = FPlatformTime::Seconds() - ViewAt;
+	for (int32 Place = Steps - 1; Place >= 0; --Place)
+	{
+		const int32 Bit = 1 << Place;
+		if ((PodiumChimes & Bit) || Age < RevealAt(Place, Steps)) continue;
+		PodiumChimes |= Bit;
+		Sfx->PlayUi(Place == 0 ? TEXT("levelup") : TEXT("ting"), Place == 0 ? 0.0f : -4.0f);
+		if (Place == 0) Sfx->PlayUi(TEXT("bead_pop"), -6.0f);   // (the confetti going off)
+	}
 }
 
 void FTorqueAwardsScreen::Draw(UCanvas* Canvas, APlayerController* PC)
@@ -619,6 +658,52 @@ void FTorqueAwardsScreen::DrawDashboard(UCanvas* Canvas, APlayerController* PC)
 	else TAWI::AwHints(Canvas, L, {TEXT("Enter"), TEXT("Close")});
 }
 
+namespace TAWI
+{
+// [podium finale] A steady pseudo-random 0..1, the K-th number of particle I (the same every frame: the
+// confetti keeps no state, it's worked out from the clock).
+float AwRand(int32 I, int32 K)
+{
+	const float V = FMath::Sin((float)I * 12.9898f + (float)K * 78.233f) * 43758.5453f;
+	return V - FMath::FloorToFloat(V);
+}
+// A filled ellipse (a floor's glow, a spotlight's pool).
+void AwEllipse(UCanvas* Canvas, float CX, float CY, float RX, float RY, const FLinearColor& Colour)
+{
+	TArray<FVector2D> Pts;
+	for (int32 I = 0; I < 40; ++I)
+	{
+		const float A = 2.0f * PI * (float)I / 40.0f;
+		Pts.Add(FVector2D(CX + RX * FMath::Cos(A), CY + RY * FMath::Sin(A)));
+	}
+	TorqueUi::Polygon(Canvas, Pts, Colour);
+}
+// A W x H quad turned by Angle round its middle: a piece of confetti.
+void AwQuad(UCanvas* Canvas, float CX, float CY, float W, float H, float Angle, const FLinearColor& Colour)
+{
+	const float Cs = FMath::Cos(Angle), Sn = FMath::Sin(Angle);
+	const float HW = 0.5f * W, HH = 0.5f * H;
+	TArray<FVector2D> Pts;
+	Pts.Add(FVector2D(CX - HW * Cs + HH * Sn, CY - HW * Sn - HH * Cs));
+	Pts.Add(FVector2D(CX + HW * Cs + HH * Sn, CY + HW * Sn - HH * Cs));
+	Pts.Add(FVector2D(CX + HW * Cs - HH * Sn, CY + HW * Sn + HH * Cs));
+	Pts.Add(FVector2D(CX - HW * Cs - HH * Sn, CY - HW * Sn + HH * Cs));
+	TorqueUi::Polygon(Canvas, Pts, Colour);
+}
+// Gold, silver, bronze.
+FLinearColor AwMetal(int32 Place, float Alpha = 1.0f)
+{
+	const FLinearColor C = Place == 0 ? FLinearColor(1.0f, 0.78f, 0.25f) : Place == 1 ? FLinearColor(0.80f, 0.84f, 0.90f) : FLinearColor(0.82f, 0.50f, 0.28f);
+	return FLinearColor(C.R, C.G, C.B, Alpha);
+}
+// 0..1 with a little overshoot at the end (a step landing).
+float AwEaseBack(float T)
+{
+	const float U = FMath::Clamp(T, 0.0f, 1.0f) - 1.0f;
+	return 1.0f + 2.70158f * U * U * U + 1.70158f * U * U;
+}
+} // namespace TAWI
+
 void FTorqueAwardsScreen::DrawPodium(UCanvas* Canvas, APlayerController* PC)
 {
 	using namespace TAWI;
@@ -627,52 +712,266 @@ void FTorqueAwardsScreen::DrawPodium(UCanvas* Canvas, APlayerController* PC)
 	const ATorqueGameState* GS = AwGameStateOf(PC);
 	if (!GS) return;
 	const TArray<FTorqueAwardRider>& Riders = GS->AwardRiders;
-	Ui::Text(Canvas, TEXT("THE PODIUM"), L.X(960.0f), L.Y(84.0f), L.W(40.0f), Ui::Accent, true, Ui::EAlign::Centre);
-	Ui::Text(Canvas, GS->bAwardsNoVotes ? FString(TEXT("Nobody voted: every stat counted the same")) : FString(TEXT("Scored on what you all voted for")),
-		L.X(960.0f), L.Y(140.0f), L.W(18.0f), Ui::Dim, false, Ui::EAlign::Centre);
-	// The steps: 2nd on the left, 1st in the middle, 3rd on the right; rising one after another.
 	const int32 Steps = FMath::Min(Riders.Num(), 3);
-	static const int32 SlotOf[3] = {1, 0, 2};          // the podium place drawn in each column
-	static const float StepH[3] = {380.0f, 270.0f, 190.0f};   // 1st, 2nd, 3rd
-	const double Age = FPlatformTime::Seconds() - ViewAt;
-	const float Base = 860.0f, ColW = 360.0f, ColGap = 30.0f;
-	const float Left = 960.0f - 1.5f * ColW - ColGap;
-	for (int32 Col = 0; Col < 3; ++Col)
+	if (Steps == 0) return;
+	// The reveal (beenster, build 160: "the podium could be improved as it was a bit basic"): the stage goes
+	// dark, spotlights sweep, the lowest place is revealed first, a drum roll, then the winner: their step
+	// lands, the medal drops, the name slams in, the lights settle on them and the confetti goes off. All
+	// drawn on the canvas from the clock: a few hundred flat shapes, nothing to the frame rate.
+	const float Age = (float)(FPlatformTime::Seconds() - ViewAt);
+	const float End = (float)PodiumEnd(Steps);
+	auto Since = [Age, Steps](int32 Place) { return Age - (float)RevealAt(Place, Steps); };
+	const float WinnerAt = Since(0);
+	const float Floor = 820.0f;
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(Age * 7.0f);
+
+	// The stage: darker, a warm glow on the floor.
+	Ui::Rect(Canvas, L.X(120.0f), L.Y(56.0f), L.W(1680.0f), L.W(968.0f), FLinearColor(0.0f, 0.0f, 0.0f, 0.45f));
+	AwEllipse(Canvas, L.X(960.0f), L.Y(Floor + 12.0f), L.W(640.0f), L.W(64.0f), FLinearColor(0.96f, 0.63f, 0.17f, 0.05f));
+	AwEllipse(Canvas, L.X(960.0f), L.Y(Floor + 12.0f), L.W(420.0f), L.W(40.0f), FLinearColor(0.96f, 0.63f, 0.17f, 0.06f));
+
+	// Two spotlights from the top corners, sweeping the stage until the winner, then both on them.
 	{
-		const int32 Place = SlotOf[Col];
-		if (Place >= Steps) continue;
-		// (3rd rises first, the winner last)
-		const double Start = (Steps - 1 - Place) * 0.5;
-		const float Grow = (float)FMath::Clamp((Age - Start) / 0.6, 0.0, 1.0);
-		const float Ease = 1.0f - (1.0f - Grow) * (1.0f - Grow);
-		const FTorqueAwardRider& R = Riders[Place];
-		const float X0 = Left + (float)Col * (ColW + ColGap), H = StepH[Place] * Ease;
-		Ui::Rect(Canvas, L.X(X0), L.Y(Base - H), L.W(ColW), L.W(H), FLinearColor(1.0f, 1.0f, 1.0f, 0.07f));
-		Ui::Rect(Canvas, L.X(X0), L.Y(Base - H), L.W(ColW), L.W(8.0f), AwRiderColour(R.Colour));
-		if (Grow < 1.0f) continue;
-		Ui::Text(Canvas, FString::Printf(TEXT("%d"), Place + 1), L.X(X0 + 0.5f * ColW), L.Y(Base - H + 30.0f), L.W(Place == 0 ? 110.0f : 80.0f),
-			Place == 0 ? Ui::Accent : Ui::Ink, true, Ui::EAlign::Centre);
-		// The rider over their step, in their colour, and their points.
-		Ui::TextFit(Canvas, R.Name, L.X(X0 + 0.5f * ColW), L.Y(Base - H - 92.0f), L.W(Place == 0 ? 44.0f : 34.0f), L.W(ColW), AwRiderColour(R.Colour), true,
-			Ui::EAlign::Centre);
-		Ui::Text(Canvas, FString::Printf(TEXT("%d points"), R.Points), L.X(X0 + 0.5f * ColW), L.Y(Base - H - 40.0f), L.W(18.0f), Ui::Dim, false,
-			Ui::EAlign::Centre);
-		// What they won on: the voted stats they led.
-		TArray<FString> Won;
-		for (int32 K = 0; K < TorqueAwards::Count && K < R.Places.Num(); ++K)
+		const float Settle = FMath::Clamp(WinnerAt / 0.6f, 0.0f, 1.0f);
+		for (int32 Side = 0; Side < 2; ++Side)
 		{
-			const bool bCounts = GS->bAwardsNoVotes || (GS->AwardWeights.IsValidIndex(K) && GS->AwardWeights[K] > 0);
-			if (R.Places[K] == 1 && bCounts) Won.Add(UTF8_TO_TCHAR(TorqueAwards::Info(K).Name));
+			const float FromX = Side == 0 ? 300.0f : 1620.0f;
+			const float Sweep = 960.0f + (Side == 0 ? 1.0f : -1.0f) * 440.0f * FMath::Sin(Age * 1.4f + (float)Side * 1.9f);
+			const float ToX = FMath::Lerp(Sweep, 960.0f, Settle);
+			for (int32 Layer = 0; Layer < 3; ++Layer)
+			{
+				const float Half = 60.0f + 50.0f * (float)Layer;
+				TArray<FVector2D> Beam;
+				Beam.Add(FVector2D(L.X(FromX - 10.0f), L.Y(58.0f)));
+				Beam.Add(FVector2D(L.X(FromX + 10.0f), L.Y(58.0f)));
+				Beam.Add(FVector2D(L.X(ToX + Half), L.Y(Floor + 20.0f)));
+				Beam.Add(FVector2D(L.X(ToX - Half), L.Y(Floor + 20.0f)));
+				Ui::Polygon(Canvas, Beam, FLinearColor(1.0f, 0.95f, 0.82f, 0.03f));
+			}
+			AwEllipse(Canvas, L.X(ToX), L.Y(Floor + 18.0f), L.W(170.0f), L.W(24.0f), FLinearColor(1.0f, 0.95f, 0.82f, 0.08f));
 		}
-		if (Won.Num() > 0)
-			Ui::TextWrap(Canvas, FString::Join(Won, TEXT(", ")), L.X(X0 + 20.0f), L.Y(Base + 14.0f), L.W(16.0f), L.W(ColW - 40.0f), Ui::Dim);
 	}
+
+	// The heading, typed out; then the podium's.
+	{
+		const FString Head = WinnerAt >= 0.0f ? FString(TEXT("THE PODIUM")) : FString(TEXT("AND THE RIDE AWARDS GO TO..."));
+		const int32 Chars = WinnerAt >= 0.0f ? Head.Len() : FMath::Clamp((int32)(Age * 28.0f), 0, Head.Len());
+		Ui::Text(Canvas, Head.Left(Chars), L.X(960.0f), L.Y(78.0f), L.W(40.0f), Ui::Accent, true, Ui::EAlign::Centre);
+		Ui::Text(Canvas, GS->bAwardsNoVotes ? FString(TEXT("Nobody voted: every stat counted the same")) : FString(TEXT("Scored on what you all voted for")),
+			L.X(960.0f), L.Y(132.0f), L.W(17.0f), Ui::Dim, false, Ui::EAlign::Centre);
+	}
+
+	// The steps: 2nd on the left, 1st in the middle, 3rd on the right. Pass 0 the light behind them (a
+	// flash as each is revealed, the winner's rays and halo); pass 1 the steps, medals and names.
+	static const int32 SlotOf[3] = {1, 0, 2};
+	static const float StepH[3] = {300.0f, 210.0f, 150.0f};   // 1st, 2nd, 3rd
+	const float ColW = 340.0f, ColGap = 24.0f;
+	const float Left = 960.0f - 1.5f * ColW - ColGap;
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+		for (int32 Col = 0; Col < 3; ++Col)
+		{
+			const int32 Place = SlotOf[Col];
+			if (Place >= Steps) continue;
+			const FTorqueAwardRider& R = Riders[Place];
+			const float T = Since(Place);
+			const bool bShown = T >= 0.0f;
+			const float X0 = Left + (float)Col * (ColW + ColGap), XM = X0 + 0.5f * ColW;
+			// (a low dark plinth until its moment; then it rises, landing with a little bounce)
+			const float Ease = bShown ? AwEaseBack(T / 0.55f) : 0.0f;
+			const float H = StepH[Place] * (0.15f + 0.85f * Ease);
+			const float Top = Floor - H;
+			const float MedalY = Floor - StepH[Place] - 66.0f;
+			const float NamePx = Place == 0 ? 46.0f : 34.0f;
+			const float NameY = MedalY - 96.0f - NamePx * 1.2f;
+			if (Pass == 0)
+			{
+				if (!bShown) continue;
+				// The flash down the column as it's revealed.
+				if (T < 0.4f) Ui::Rect(Canvas, L.X(X0 - 12.0f), L.Y(58.0f), L.W(ColW + 24.0f), L.W(Floor - 58.0f), FLinearColor(1.0f, 0.97f, 0.9f, 0.22f * (1.0f - T / 0.4f)));
+				if (Place == 0)
+				{
+					// The winner: slow-turning rays and a halo behind the medal.
+					const float Glow = FMath::Clamp(T / 0.6f, 0.0f, 1.0f);
+					const float Spin = Age * 0.25f;
+					for (int32 Ray = 0; Ray < 16; ++Ray)
+					{
+						const float A0 = Spin + 2.0f * PI * (float)Ray / 16.0f, A1 = A0 + 0.12f;
+						TArray<FVector2D> Tri;
+						Tri.Add(FVector2D(L.X(XM), L.Y(MedalY)));
+						Tri.Add(FVector2D(L.X(XM + 300.0f * FMath::Cos(A0)), L.Y(MedalY + 300.0f * FMath::Sin(A0))));
+						Tri.Add(FVector2D(L.X(XM + 300.0f * FMath::Cos(A1)), L.Y(MedalY + 300.0f * FMath::Sin(A1))));
+						Ui::Polygon(Canvas, Tri, AwMetal(0, 0.06f * Glow));
+					}
+					Ui::Disc(Canvas, L.X(XM), L.Y(MedalY), L.W(130.0f), AwMetal(0, 0.05f * Glow), 48);
+					Ui::Disc(Canvas, L.X(XM), L.Y(MedalY), L.W(80.0f), AwMetal(0, 0.07f * Glow), 40);
+				}
+				continue;
+			}
+			// The step: a top face in perspective, the front, a metal trim, the place cut into it.
+			{
+				TArray<FVector2D> Face;
+				Face.Add(FVector2D(L.X(X0), L.Y(Top)));
+				Face.Add(FVector2D(L.X(X0 + ColW), L.Y(Top)));
+				Face.Add(FVector2D(L.X(X0 + ColW - 22.0f), L.Y(Top - 20.0f)));
+				Face.Add(FVector2D(L.X(X0 + 22.0f), L.Y(Top - 20.0f)));
+				Ui::Polygon(Canvas, Face, bShown ? FLinearColor(0.20f, 0.21f, 0.23f, 0.96f) : FLinearColor(0.10f, 0.105f, 0.115f, 0.9f));
+			}
+			Ui::Rect(Canvas, L.X(X0), L.Y(Top), L.W(ColW), L.W(H), FLinearColor(0.07f, 0.075f, 0.085f, 0.97f));
+			Ui::Rect(Canvas, L.X(X0 + ColW - 12.0f), L.Y(Top), L.W(12.0f), L.W(H), FLinearColor(0.0f, 0.0f, 0.0f, 0.3f));
+			Ui::Rect(Canvas, L.X(X0), L.Y(Top), L.W(ColW), L.W(6.0f), AwMetal(Place, bShown ? 1.0f : 0.3f));
+			if (!bShown)
+			{
+				// Still to come: a question mark over the plinth (pulsing for the next one up).
+				const bool bNext = Place == 0 ? Since(1) >= 0.0f || Steps < 2 : true;
+				Ui::Text(Canvas, TEXT("?"), L.X(XM), L.Y(Top - 110.0f), L.W(64.0f), FLinearColor(1.0f, 1.0f, 1.0f, bNext ? 0.15f + 0.25f * Pulse : 0.15f), true,
+					Ui::EAlign::Centre);
+				continue;
+			}
+			const float NumPx = Place == 0 ? 120.0f : 90.0f;
+			if (H > NumPx * 0.9f)
+				Ui::Text(Canvas, FString::Printf(TEXT("%d"), Place + 1), L.X(XM), L.Y(Top + 14.0f), L.W(NumPx), AwMetal(Place, 0.9f), true, Ui::EAlign::Centre, false);
+			// The points, counting up.
+			{
+				const float Counted = FMath::Clamp((T - 0.3f) / 0.8f, 0.0f, 1.0f);
+				const int32 Shown = FMath::RoundToInt((float)R.Points * Counted);
+				if (H > NumPx * 0.9f + 40.0f)
+					Ui::Text(Canvas, FString::Printf(TEXT("%d points"), Shown), L.X(XM), L.Y(Top + 24.0f + NumPx * 1.05f), L.W(18.0f), Ui::Ink, false, Ui::EAlign::Centre);
+			}
+			// The medal drops onto its ribbon, in the rider's colour.
+			{
+				const float Drop = FMath::Clamp(T / 0.35f, 0.0f, 1.0f);
+				const float MY = MedalY - (1.0f - Drop) * (1.0f - Drop) * 180.0f;
+				const FLinearColor Ribbon = AwRiderColour(R.Colour, Drop);
+				TArray<FVector2D> RL, RR;
+				RL.Add(FVector2D(L.X(XM - 34.0f), L.Y(MY - 86.0f)));
+				RL.Add(FVector2D(L.X(XM - 12.0f), L.Y(MY - 86.0f)));
+				RL.Add(FVector2D(L.X(XM + 6.0f), L.Y(MY - 24.0f)));
+				RL.Add(FVector2D(L.X(XM - 14.0f), L.Y(MY - 24.0f)));
+				RR.Add(FVector2D(L.X(XM + 12.0f), L.Y(MY - 86.0f)));
+				RR.Add(FVector2D(L.X(XM + 34.0f), L.Y(MY - 86.0f)));
+				RR.Add(FVector2D(L.X(XM + 14.0f), L.Y(MY - 24.0f)));
+				RR.Add(FVector2D(L.X(XM - 6.0f), L.Y(MY - 24.0f)));
+				Ui::Polygon(Canvas, RL, Ribbon * FLinearColor(0.8f, 0.8f, 0.8f, 1.0f));
+				Ui::Polygon(Canvas, RR, Ribbon);
+				Ui::Disc(Canvas, L.X(XM), L.Y(MY), L.W(38.0f), AwMetal(Place, Drop), 40);
+				Ui::Disc(Canvas, L.X(XM), L.Y(MY), L.W(29.0f), AwMetal(Place, Drop) * FLinearColor(0.78f, 0.78f, 0.78f, 1.0f), 40);
+				Ui::Disc(Canvas, L.X(XM - 10.0f), L.Y(MY - 12.0f), L.W(7.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.35f * Drop), 16);
+				Ui::Text(Canvas, FString::Printf(TEXT("%d"), Place + 1), L.X(XM), L.Y(MY - 19.0f), L.W(30.0f), FLinearColor(0.08f, 0.06f, 0.03f, Drop), true,
+					Ui::EAlign::Centre, false);
+			}
+			// The name slams in (big to its size), in the rider's colour.
+			{
+				const float Slam = FMath::Clamp(T / 0.25f, 0.0f, 1.0f);
+				const float Px = NamePx * FMath::Lerp(1.9f, 1.0f, Slam);
+				Ui::TextFit(Canvas, R.Name, L.X(XM), L.Y(NameY + 0.5f * (NamePx - Px)), L.W(Px), L.W(ColW + 60.0f), AwRiderColour(R.Colour, Slam), true,
+					Ui::EAlign::Centre);
+			}
+			// The winner's banner, unrolling over the name.
+			if (Place == 0)
+			{
+				const float Unroll = FMath::Clamp((T - 0.2f) / 0.45f, 0.0f, 1.0f);
+				const float BW = 440.0f * Unroll, BY = NameY - 58.0f;
+				if (Unroll > 0.0f)
+				{
+					// The swallowtails each side, a shade darker, a little lower: two pieces each (the canvas fans
+					// a shape from its first point, so the notch can't be one shape).
+					const FLinearColor Dark(0.62f, 0.38f, 0.08f, 1.0f);
+					for (int32 Side = -1; Side <= 1; Side += 2)
+					{
+						const float Edge = XM + (float)Side * 0.5f * BW;
+						auto Pt = [&L, Edge, Side, BY](float Out, float Down) { return FVector2D(L.X(Edge + (float)Side * Out), L.Y(BY + Down)); };
+						TArray<FVector2D> Upper, Lower;
+						Upper.Add(Pt(30.0f, 6.0f));
+						Upper.Add(Pt(-4.0f, 6.0f));
+						Upper.Add(Pt(-4.0f, 24.0f));
+						Upper.Add(Pt(16.0f, 24.0f));
+						Lower.Add(Pt(16.0f, 24.0f));
+						Lower.Add(Pt(-4.0f, 24.0f));
+						Lower.Add(Pt(-4.0f, 46.0f));
+						Lower.Add(Pt(30.0f, 46.0f));
+						Ui::Polygon(Canvas, Upper, Dark);
+						Ui::Polygon(Canvas, Lower, Dark);
+					}
+					Ui::Rect(Canvas, L.X(XM - 0.5f * BW), L.Y(BY), L.W(BW), L.W(40.0f), Ui::Accent);
+					Ui::Rect(Canvas, L.X(XM - 0.5f * BW), L.Y(BY), L.W(BW), L.W(3.0f), FLinearColor(1.0f, 0.9f, 0.6f, 1.0f));
+					if (Unroll >= 1.0f)
+						Ui::Text(Canvas, TEXT("CHAMPION OF THE RIDE"), L.X(XM), L.Y(BY + 8.0f), L.W(22.0f), FLinearColor(0.08f, 0.05f, 0.02f, 1.0f), true,
+							Ui::EAlign::Centre, false);
+				}
+			}
+			// What they won on (the voted stats they led), as chips under the step, one after another.
+			{
+				TArray<FString> Won;
+				for (int32 K = 0; K < TorqueAwards::Count && K < R.Places.Num(); ++K)
+				{
+					const bool bCounts = GS->bAwardsNoVotes || (GS->AwardWeights.IsValidIndex(K) && GS->AwardWeights[K] > 0);
+					if (R.Places[K] == 1 && bCounts) Won.Add(UTF8_TO_TCHAR(TorqueAwards::Info(K).Name));
+				}
+				float CX = X0, CY = Floor + 22.0f;
+				const float ChipPx = 14.0f, ChipH = 24.0f, Pad = 10.0f;
+				for (int32 N = 0; N < Won.Num(); ++N)
+				{
+					if (T < 0.8f + 0.15f * (float)N) break;
+					const float TW = (float)Ui::Measure(Won[N], L.W(ChipPx), true).X / L.S + 2.0f * Pad;
+					if (CX + TW > X0 + ColW && CX > X0)
+					{
+						CX = X0;
+						CY += ChipH + 6.0f;
+					}
+					if (CY > Floor + 22.0f + 2.0f * (ChipH + 6.0f)) break;   // (two rows at most)
+					Ui::Rect(Canvas, L.X(CX), L.Y(CY), L.W(TW), L.W(ChipH), AwMetal(Place, 0.18f));
+					Ui::Rect(Canvas, L.X(CX), L.Y(CY), L.W(3.0f), L.W(ChipH), AwMetal(Place));
+					Ui::Text(Canvas, Won[N], L.X(CX + Pad), L.Y(CY + 3.0f), L.W(ChipPx), Ui::Ink, true, Ui::EAlign::Left, false);
+					CX += TW + 6.0f;
+				}
+			}
+		}
+
+	// The confetti: a burst from either side of the winner's step, then a gentle fall from the top for as
+	// long as the podium's up. In the winner's colour, gold, white and amber.
+	if (WinnerAt >= 0.0f)
+	{
+		const FLinearColor Pal[4] = {AwRiderColour(Riders[0].Colour), AwMetal(0), FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Ui::Accent};
+		const float WinTop = Floor - StepH[0];
+		for (int32 I = 0; I < 150; ++I)
+		{
+			const float T = WinnerAt - 0.25f * AwRand(I, 0);
+			if (T < 0.0f || T > 5.0f) continue;
+			const float Dir = (I % 2 == 0) ? -1.0f : 1.0f;
+			const float OX = 960.0f + Dir * 150.0f, OY = WinTop;
+			const float VX = Dir * (80.0f + 520.0f * AwRand(I, 1)), VY = -(450.0f + 650.0f * AwRand(I, 2));
+			const float Peak = -VY / 900.0f;
+			const float Up = FMath::Min(T, Peak);
+			const float X = OX + VX * (1.0f - FMath::Exp(-1.6f * T)) / 1.6f + 22.0f * FMath::Sin(T * 3.0f + (float)I);
+			const float Y = OY + VY * Up + 450.0f * Up * Up + 120.0f * FMath::Max(0.0f, T - Peak);
+			if (Y > 1020.0f || Y < 60.0f || X < 125.0f || X > 1795.0f) continue;
+			const float Alpha = FMath::Clamp(5.0f - T, 0.0f, 1.0f);
+			const float Flip = FMath::Abs(FMath::Cos(T * (5.0f + 4.0f * AwRand(I, 3)) + (float)I));
+			const FLinearColor C = Pal[I % 4];
+			AwQuad(Canvas, L.X(X), L.Y(Y), L.W(11.0f), L.W(2.0f + 6.0f * Flip), T * 3.0f + (float)I, FLinearColor(C.R, C.G, C.B, Alpha));
+		}
+		const float Gentle = FMath::Clamp((WinnerAt - 1.5f) / 1.5f, 0.0f, 0.8f);
+		if (Gentle > 0.0f)
+			for (int32 I = 0; I < 70; ++I)
+			{
+				const float Speed = 70.0f + 60.0f * AwRand(I, 4);
+				const float Span = 960.0f / Speed;
+				const float T = FMath::Fmod(Age + Span * AwRand(I, 5), Span);
+				const float X = 140.0f + 1640.0f * AwRand(I, 6) + 26.0f * FMath::Sin(T * 1.7f + (float)I);
+				const float Y = 60.0f + Speed * T;
+				const float Flip = FMath::Abs(FMath::Cos(T * 4.0f + (float)I));
+				const FLinearColor C = Pal[I % 4];
+				AwQuad(Canvas, L.X(X), L.Y(Y), L.W(9.0f), L.W(2.0f + 5.0f * Flip), T * 2.0f + (float)I, FLinearColor(C.R, C.G, C.B, Gentle));
+			}
+	}
+
 	// Everyone else, below.
-	if (Riders.Num() > 3)
+	if (Riders.Num() > 3 && WinnerAt >= 0.0f)
 	{
 		TArray<FString> Rest;
 		for (int32 I = 3; I < Riders.Num(); ++I) Rest.Add(FString::Printf(TEXT("%d. %s (%d)"), I + 1, *Riders[I].Name, Riders[I].Points));
 		Ui::TextFit(Canvas, FString::Join(Rest, TEXT("    ")), L.X(960.0f), L.Y(930.0f), L.W(17.0f), L.W(1500.0f), Ui::Dim, false, Ui::EAlign::Centre);
 	}
-	TAWI::AwHints(Canvas, L, {TEXT("Enter"), TEXT("Ride on"), TEXT("Esc"), TEXT("Back to the numbers")});
+	if (Age < End) TAWI::AwHints(Canvas, L, {TEXT("Enter"), TEXT("Skip"), TEXT("Esc"), TEXT("Back to the numbers")});
+	else TAWI::AwHints(Canvas, L, {TEXT("Enter"), TEXT("Ride on"), TEXT("R"), TEXT("Again"), TEXT("Esc"), TEXT("Back to the numbers")});
 }
