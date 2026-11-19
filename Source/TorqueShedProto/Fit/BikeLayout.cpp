@@ -543,6 +543,27 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	return std::string();
 }
 
+std::string BikeLayout::V2NeedsReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const
+{
+	const Json* Vp = Sub(Part(Id), "v2part");
+	if (!Vp || !Vp->IsObject()) return std::string();
+	const std::string WithFuel = Vp->Str("with_fuel");
+	if (Slot == "air_filter" && !WithFuel.empty() && Get(Parts, "fuel") != WithFuel)
+	{
+		const Json* Fuel = Part(WithFuel);
+		const std::string Name = Fuel ? Fuel->Str("name", WithFuel) : WithFuel;
+		return "Those are drawn on the " + Name + ": fit them first.";
+	}
+	if (Slot == "fuel" && Vp->Flag("open_air"))
+	{
+		const std::string Air = Get(Parts, "air_filter");
+		const Json* AirVp = Air == "none" ? nullptr : Sub(Part(Air), "v2part");
+		if (Air != "none" && (!AirVp || AirVp->Str("with_fuel") != Id))
+			return "These need an open intake: take the airbox off first.";
+	}
+	return std::string();
+}
+
 std::vector<std::string> BikeLayout::StylesOf(const std::string& Id) const
 {
 	std::vector<std::string> Out;

@@ -1,0 +1,33 @@
+{
+ "name": "Corvano adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1108,
+ "surfaces": {
+  "s009": {
+   "slot": "oil_filter",
+   "node": "",
+   "surface": "d3_oilcan",
+   "tag": "d3_oilcan",
+   "ue": "cat_black_metal",
+   "color": [
+    0.015,
+    0.02,
+    0.05
+   ],
+   "metallic": 0.6,
+   "roughness": 0.28
+  }
+ },
+ "engine_part": {
+  "slot": "oil_filter",
+  "look": "black",
+  "fuel": "throttle_bodies",
+  "air": "pods",
+  "cover": "cast",
+  "finish": "black",
+  "case": "stock",
+  "header": "stock",
+  "oil": "black"
+ }
+}

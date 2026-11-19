@@ -1,0 +1,26 @@
+{
+ "name": "Rheinhart cafe (working title C1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1108,
+ "surfaces": {
+  "s011": {
+   "slot": "oil_filter",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ },
+ "engine_part": {
+  "slot": "oil_filter",
+  "look": "chrome",
+  "fuel": "round_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": null,
+  "case": "crackle",
+  "header": "ceramic",
+  "oil": "chrome"
+ }
+}

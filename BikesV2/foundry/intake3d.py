@@ -177,7 +177,7 @@ OWN_FUEL = ("throttle", "injector", "fuelrail", "throttleshaft", "throttlepulley
 OWN_AIR = ("airbox", "inlethose", "airfilter", "svc_air_filter")
 
 
-def fit(b, model, fuel="throttle_bodies", air="airbox", oil=None):
+def fit(b, model, fuel="throttle_bodies", air="airbox", oil=None, bends=None):
     """Swap the bike's fuel system, air intake and oil filter finish for ours. Returns a report and the parts made."""
     use(b)
     M = mats()
@@ -204,7 +204,7 @@ def fit(b, model, fuel="throttle_bodies", air="airbox", oil=None):
         P = [_side_carb(P, M)]       # one carb on the right, fed from both heads by a Y manifold, as on real 45 degree twins
     bike = _bike_parts()
     for key, o, ax in P:
-        nm = f"in{key}_"
+        nm, an = f"fs{key}_", f"aiq{key}_"     # (game_parts: fs* is the fuel system, aiq* the air intake)
         ax_v, o_v = Vector(ax), Vector(o)
         # where the run may bend (a rubber manifold): at the stub's clamp, turning towards level (TILT) on its own heading
         tb = 24
@@ -222,10 +222,11 @@ def fit(b, model, fuel="throttle_bodies", air="airbox", oil=None):
                 _boot(nm + "boot", o_v, ax_v, bend, ax2, tb, 26 if carb else 27, M)
             mouth = build_fuel(fuel, nm, o2, tuple(ax2), M, roll) if carb else (96, 25)
             if air != "airbox":
-                build_air(air, nm + "a", o2, tuple(ax2), mouth[0], mouth[1], Ln, M)
+                build_air(air, an, o2, tuple(ax2), mouth[0], mouth[1], Ln, M)
 
-        for f in (BEND if carb else (0.0,)):
-            for roll in rolls:
+        forced = (bends or {}).get(key)      # (the run another build of this fuel system chose: pods and stacks share it)
+        for f in ((forced[0],) if forced else BEND if carb else (0.0,)):
+            for roll in ((forced[1],) if forced else rolls):
                 for Ln in _lengths(air):
                     mark = set(bpy.data.objects.keys())
                     make(f, roll, Ln)
@@ -258,10 +259,10 @@ def _side_carb(P, M):
     mid = (e0 + e1) / 2
     for k, e in ((k0, e0), (k1, e1)):
         L_ = (mid - e).length + 14
-        D.lathe(f"iny{k}", tuple(e), tuple((mid - e).normalized()), [(-6, 23), (L_, 23)], M["alu"], 32)
+        D.lathe(f"fsy{k}", tuple(e), tuple((mid - e).normalized()), [(-6, 23), (L_, 23)], M["alu"], 32)
     out = Vector((0, -1, 0))
-    D.lathe("inyside", tuple(mid), tuple(out), [(-20, 25), (26, 25)], M["alu"], 32)
-    return ("s", tuple(mid), tuple(out))
+    D.lathe("fsyside", tuple(mid), tuple(out), [(-20, 25), (26, 25)], M["alu"], 32)
+    return ("9", tuple(mid), tuple(out))
 
 
 BEND = (0.0, 0.35, 0.7, 1.0)          # how far a run may turn from the port's axis towards level
@@ -303,7 +304,7 @@ def _bike_parts():
     """Every bike part our runs may not enter (the stubs, cameras and lamps left out), measured once per fit."""
     out = []
     for o in bpy.data.objects:
-        if o.type != "MESH" or o.hide_render or o.name.startswith(("in", "cam", "lamp")):
+        if o.type != "MESH" or o.hide_render or o.name.startswith(("in", "fs", "aiq", "cam", "lamp")):
             continue
         p = _part(o)
         if p:
@@ -328,7 +329,7 @@ def _hits(mine, bike):
     return out
 
 
-def built(mn, fuel, air, oil=None):
+def built(mn, fuel, air, oil=None, bends=None):
     import build3d
     use(build3d)
     BR.fresh()
@@ -336,7 +337,7 @@ def built(mn, fuel, air, oil=None):
     build3d.DETAIL["on"] = True
     build3d.build(m)
     use(build3d)
-    rep, made = fit(build3d, m, fuel, air, oil)
+    rep, made = fit(build3d, m, fuel, air, oil, bends)
     return build3d, m, rep, made
 
 
@@ -371,7 +372,7 @@ def shots(samples=40):
     import lamps3d as L
     os.makedirs(OUT, exist_ok=True)
     rep = {}
-    ours = tuple(f"in{k}" for k in ("0", "1", "2", "3", "-1", "s_", "y", "s")) + ("inletstub",)
+    ours = ("fs", "aiq", "inletstub")
     jobs = [(f, a_, o, mn, f"{mn}__{f}__{a_}", ours) for f, a_, o, mn in SHOTS]
     jobs += [("throttle_bodies", "airbox", o, "kazeda_naked", f"oil__{o}", ("svc_oil_filter",)) for o in OIL]
     for fuel, air, oil, mn, key, prefix in jobs:
@@ -397,7 +398,7 @@ def shots(samples=40):
     json.dump(rep, open(os.path.join(OUT, "shots.json"), "w"), indent=1)
 
 
-OK = ("in | inletstub", "in | inletclamp", "in | in", "in | throttle", "in | injector")
+OK = tuple(f"{a} | {b}" for a in ("fs", "aiq") for b in ("inletstub", "inletclamp", "fs", "aiq", "throttle", "injector"))
 
 
 def ok_pair(pair):

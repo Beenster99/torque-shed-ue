@@ -94,7 +94,7 @@ for et, per in chk.items():
             how.append("turned towards level")
         if roll:
             how.append(f"tower leans {roll:.0f}°")
-        if ps and ps[0]["port"] == "s":
+        if ps and ps[0]["port"] in ("s", "9"):
             how.append("one carb on the right, Y manifold")
         ok = not r["clips"]
         rows.append(f"<tr><td>{esc(TYPE_NAMES[et])}</td><td>{code[fuel]} + {code[air]}</td><td>{lens} mm</td><td>{esc(', '.join(how)) or 'straight on the port'}</td>"
