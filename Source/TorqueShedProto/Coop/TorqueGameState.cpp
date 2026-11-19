@@ -93,6 +93,7 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, AwardWeights);
 	DOREPLIFETIME(ATorqueGameState, bAwardsNoVotes);
 	DOREPLIFETIME(ATorqueGameState, AwardsRoute);
+	DOREPLIFETIME(ATorqueGameState, bAwardsLaps);
 }
 
 void ATorqueGameState::BeginPlay()
