@@ -114,6 +114,7 @@ struct SlotLook
 {
 	double Colour[3] = {0.5, 0.5, 0.5};
 	std::string Finish;
+	bool Picked = false;   // (a colour or finish chosen for it: a V2 bike's bodywork shows it, else its model's own)
 };
 std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O);
 } // namespace Shop

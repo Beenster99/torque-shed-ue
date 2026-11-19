@@ -206,6 +206,14 @@ std::vector<std::string> Options(const BikeLayout& Lay, const std::string& Slot,
 	// [bare frame] Only the V2 parts that bolt to this bike's frame (its family; the engine's layout...).
 	if (Slot != "frame")
 		Out.erase(std::remove_if(Out.begin(), Out.end(), [&](const std::string& Id) { return !Lay.V2FitReason(Parts, Slot, Id).empty(); }), Out.end());
+	// [configurator, beenster in 160: "some of the models change in the preview but some arent"] On a V2 frame a
+	// part not made for the V2 bikes (an old exhaust) isn't drawn: the model's own stays. Only V2 parts and the
+	// common parts are offered there (the dash, the tyres and the luggage are drawn as their own parts).
+	if (Slot != "frame" && Slot != "dashboard" && Wheel.empty() && Lay.V2Of(Parts) && Lay.V2Build(BSI::ShopGet(Parts, "frame")).count(Slot))
+		Out.erase(std::remove_if(Out.begin(), Out.end(), [&](const std::string& Id) {
+			const Json* P = Lay.Part(Id);
+			return P && !P->Get("v2part") && !P->Get("common");
+		}), Out.end());
 	if (Lay.MayBeEmpty(Slot) && !BSI::ShopHas(Out, "none")) Out.push_back("none");
 	const std::string Now = BSI::ShopGet(Parts, Slot);
 	if (!Now.empty() && !BSI::ShopHas(Out, Now)) Out.insert(Out.begin(), Now);
@@ -535,10 +543,15 @@ std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O
 	const auto Tank = O.Colours.find("tank");
 	if (Tank != O.Colours.end() && Tank->second.size() >= 3)
 		for (int I = 0; I < 3; ++I) Paint[I] = Tank->second[(size_t)I];
+	const bool bTankPicked = Tank != O.Colours.end() && Tank->second.size() >= 3;
 	for (const std::string& S : {std::string("tank"), std::string("fairing")})
 	{
 		const std::string On = BSI::ShopGet(O.Parts, S);
-		if (!On.empty() && On != "none") Rgb(Out[S], Paint);
+		if (!On.empty() && On != "none")
+		{
+			Rgb(Out[S], Paint);
+			Out[S].Picked = bTankPicked;
+		}
 	}
 	// The groups first, then the slots picked one by one over them (the configurator clears a
 	// group's slots when the group is coloured, so a slot set after it is the later word).
@@ -547,7 +560,11 @@ std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O
 		{
 			const bool bGroup = BSI::ShopHas(ColourGroups(), KV.first);
 			if (bGroup != (Pass == 0) || KV.second.size() < 3) continue;
-			for (const std::string& S : ColourSlots(Lay, KV.first, O.Parts)) Rgb(Out[S], KV.second.data());
+			for (const std::string& S : ColourSlots(Lay, KV.first, O.Parts))
+			{
+				Rgb(Out[S], KV.second.data());
+				Out[S].Picked = true;
+			}
 		}
 	// Each finish picked (a slot or a group) on its parts, in their colour now; a part not
 	// coloured yet takes the factory's colour under it (BikeShop.factory_colour).
@@ -567,6 +584,7 @@ std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O
 					It = Out.emplace(S, L).first;
 				}
 				It->second.Finish = KV.second;
+				It->second.Picked = true;
 			}
 		}
 	return Out;
