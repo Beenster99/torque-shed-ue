@@ -982,6 +982,63 @@ def scanned_trees(L, kit):
             why.append("%s: %s" % (name, e))
             return None
 
+    def section_materials(skel):
+        """[build 161] The skeletal mesh's materials in its LOD 0 SECTION order: copy_mesh_from_skeletal_mesh
+        gives each triangle its section's index as material ID, not the material slot's. Until 160 the copy
+        took skel.materials (slot order), so a tree whose sections aren't in slot order drew some parts with
+        another part's material: round 160's spruce and pine were bare brown trunks near and far (their
+        needles drawn with a bark or decoration material) while the broadleaf trees were right. None if
+        Geometry Script can't say."""
+        f = gs("get_section_material_list_from_skeletal_mesh")
+        if f is None:
+            return None
+        for args in ((skel, unreal.GeometryScriptMeshReadLOD()), (skel, 0), (skel,)):
+            try:
+                res = f(*args)
+            except TypeError:
+                continue
+            except Exception as e:
+                why.append("section materials: %s" % e)
+                return None
+            parts = list(res) if isinstance(res, (tuple, list)) else [res]
+            mats = names = None
+            for part in parts:
+                try:
+                    items = list(part)
+                except Exception:
+                    continue
+                if items and all(isinstance(x, unreal.MaterialInterface) or x is None for x in items) and mats is None:
+                    mats = items
+                elif items and all(isinstance(x, (unreal.Name, str)) for x in items) and names is None:
+                    names = [str(x) for x in items]
+            if mats:
+                return [(m, names[k] if names and k < len(names) else "Section%d" % k) for k, m in enumerate(mats)]
+        return None
+
+    def fix_slots(copy_path, skel_path):
+        """The copy's material slots in the skeletal mesh's section order (see section_materials)."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            skel = unreal.load_asset(skel_path.split(".")[0])
+        except Exception as e:
+            why.append("slots of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        want = section_materials(skel)
+        name = copy_path.rsplit(".", 1)[-1]
+        if not want:
+            log("scanned trees: %s: section materials unknown (no Geometry Script get_section_material_list_from_skeletal_mesh); slots left as they are" % name)
+            return False
+        have = sm.get_editor_property("static_materials")
+        before = [(m.get_editor_property("material_interface").get_name() if m.get_editor_property("material_interface") else "None") for m in have]
+        after = [(m.get_name() if m else "None") for m, _ in want]
+        if before == after:
+            log("scanned trees: %s: material slots already in section order (%s)" % (name, ", ".join(after)))
+            return False
+        sm.set_editor_property("static_materials", [unreal.StaticMaterial(material_interface=m, material_slot_name=n) for m, n in want])
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: material slots put in section order: was [%s], now [%s]" % (name, ", ".join(before), ", ".join(after)))
+        return True
+
     def match_nanite(copy_path, skel_path):
         """[build 160] The copy's Nanite settings as the Megaplant's own. A Megaplant's skeletal mesh is Nanite
         Foliage (round 159 scan check: shape_preservation Voxelize, voxel_ndf on); its static copy was made
@@ -1084,6 +1141,7 @@ def scanned_trees(L, kit):
             for p in skels:
                 m = static_of_skeletal(p)
                 if m:
+                    fix_slots(m, p)
                     if spec.get("match_nanite", True):
                         match_nanite(m, p)
                     made.append(m)

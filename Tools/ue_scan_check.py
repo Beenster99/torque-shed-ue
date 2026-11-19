@@ -162,6 +162,13 @@ def check(static_path):
     for k, m in enumerate(skel.get_editor_property("materials")):
         mi = m.get_editor_property("material_interface")
         log("%s:   slot %d %s -> %s" % (name, k, m.get_editor_property("material_slot_name"), mi.get_path_name() if mi else None))
+    f = gs("get_section_material_list_from_skeletal_mesh")
+    if f is not None:
+        try:
+            res = f(skel, unreal.GeometryScriptMeshReadLOD())
+            log("%s: skeletal LOD0 sections' materials (the copy's material IDs follow these): %s" % (name, str(res)[:600]))
+        except Exception as e:
+            log("%s: section materials: %s" % (name, e))
     copy = gs("copy_mesh_from_skeletal_mesh")
     if copy is not None:
         try:
