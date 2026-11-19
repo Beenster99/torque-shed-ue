@@ -139,13 +139,16 @@ void ATorqueHUD::DrawHUD()
 	// The spray mini game's readout (spray_hud.gd): its card stands in for the side panel.
 	const bool bSprayCard = Walker && Walker->SprayHudUp();
 	if (bSprayCard) Walker->DrawSpray(this, Canvas);
+	// The spray gun's two cups at the side, or the cups picker ([ / ]) over the middle.
+	const bool bCupPicker = Walker && Walker->CupPickerUp();
+	if (Walker && Walker->CupsHudUp()) Walker->DrawCups(this, Canvas);
 	// The wash game's readout (wash_hud.gd), the same way.   [wash]
 	const bool bWashCard = Walker && Walker->WashHudUp();
 	if (bWashCard) Walker->DrawWash(this, Canvas);
 	// The tyre fitting game's ring (hud.gd _draw_tyre_game), over the middle of the view.   [tyre]
 	if (Walker && Walker->TyreHudUp()) Walker->DrawTyre(this, Canvas);
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
-	if (Walker && !Walker->SprayControlsUp() && !bWashCard) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
+	if (Walker && !Walker->SprayControlsUp() && !bWashCard && !bCupPicker) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role != 0) continue;

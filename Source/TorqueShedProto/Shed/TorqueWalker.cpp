@@ -673,6 +673,36 @@ void ATorqueWalker::ReadInput(float Dt)
 		LabelInput(PC, SonyHit);
 		return;
 	}
+	// The spray gun's cups picker ([ / ]): it has the keys (you stand still) till a cup's filled or it's shut.
+	if (CupPick != INDEX_NONE)
+	{
+		CupPickerInput(PC, SonyHit, Dt);
+		return;
+	}
+	// [ and ] with the spray gun in hand pick cup 1's or cup 2's colour and finish (D-pad down on a pad:
+	// the picker, L1 / R1 there for the other cup). Spraying a fade (the spray controls up, Fade loaded)
+	// they choose the cup it sprays from instead (D-pad down swaps).
+	if (const UTorqueBuildSubsystem* CupShed = Shed(); CupShed && Tool == ETorqueTool::Gun && !bComputer && !bBench && Wheeling() == INDEX_NONE
+		&& SeatId == 0 && CupShed->HeldBy(CupShed->Me()) == 0 && !CupShed->PaintBay().HeldTin(CupShed->Me()))
+	{
+		const bool bCup1 = KeyJust(ETorqueKey::SprayCup1), bCup2 = KeyJust(ETorqueKey::SprayCup2);
+		const bool bPadCup = Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown);
+		if (SprayItem != 0 && IsFadeLoaded())
+		{
+			if (bCup1 || bCup2 || bPadCup)
+			{
+				FadeCup = bCup1 ? 0 : (bCup2 ? 1 : (FadeStepFor(SprayItem) == 0 ? 1 : 0));
+				Say(FadeCup == 0 ? FString(TEXT("Fade: spraying from cup 1, the base coat all over"))
+					: FString(TEXT("Fade: spraying from cup 2, over about half of it (Enter blends it in)")), true, 2.5);
+				return;
+			}
+		}
+		else if (bCup1 || bCup2 || bPadCup)
+		{
+			OpenCupPicker(bCup2 ? 1 : 0);
+			return;
+		}
+	}
 	// N on a shelving unit: write on its label plate (Torque Shed's label_dialog.gd).
 	const bool bNameJust = KeyJust(ETorqueKey::LabelShelf);
 	if (bNameJust && TargetFurniture != 0 && !bComputer && !bBench && Wheeling() == INDEX_NONE && OpenLabel(TargetFurniture))
@@ -990,6 +1020,8 @@ void ATorqueWalker::ReadInput(float Dt)
 			Say(FString(TorquePaintMix::PatternName(TorquePaintMix::FirstFade + FadeStyle)), true, 2.0);
 		}
 		else if (bColour) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
+		// Spraying a fade's cup 2: Enter blends it in where it went (F, stepping back, does too).
+		if (SprayItem != 0 && Just(EKeys::Enter)) FinishFades();
 		bSprayBreathHeld = SprayItem != 0 && (Down(EKeys::RightMouseButton) || Axis(EKeys::Gamepad_LeftTriggerAxis) > 0.5f || (S.bConnected && S.L2 > 0.5f));
 		// X (D-pad up): the scan lights up what's missed, thin, run or dry.
 		if (Just(EKeys::X) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) SetSprayScan(!bSprayScan);
@@ -1105,6 +1137,24 @@ void ATorqueWalker::TestSpray(int32 Colour, FName Finish)
 	// spray:N:fade: N is the fade's pattern (TorquePaintMix::FirstFade ..).
 	if (Finish == UTorqueBuildSubsystem::FadeFinish())
 		FadeStyle = FMath::Clamp(Colour - TorquePaintMix::FirstFade, 0, TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade);
+}
+
+bool ATorqueWalker::IsFadeLoaded() const
+{
+	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
+	return Tool == ETorqueTool::Gun && L.IsValidIndex(SprayFinish) && L[SprayFinish].Id == UTorqueBuildSubsystem::FadeFinish();
+}
+
+int32 ATorqueWalker::FadeStepFor(int32 Item) const
+{
+	// Picked by hand ([ / ]), else the base coat till the part's in cup 1's paint, then cup 2.
+	if (FadeCup != INDEX_NONE) return FadeCup;
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueItem* It = B ? B->Item(Item) : nullptr;
+	const FTorquePaintCup* One = B ? B->PaintBay().CupOf(B->Me(), 0) : nullptr;
+	if (!It || !One) return 0;
+	const bool bBase = !It->bPrimerTop && !It->MixCode.IsEmpty() && It->MixCode == One->Spec.Code && It->MixName == One->Spec.Name;
+	return bBase ? 1 : 0;
 }
 
 // --- What's looked at ----------------------------------------------------------------------------
@@ -1729,15 +1779,26 @@ ATorqueWalker::FPlan ATorqueWalker::SprayPlanFor(int32 Item, int32 Bay) const
 	}
 	else if (Load.Kind == TWI::FLoad::Cup)
 	{
-		// The gun's cups, filled from tins from the mixing bay: one of them, or a fade from cup 1 into cup 2.
+		// The gun's cups ([ and ] pick their colours, or a tin fills them): one of them, or a fade in two
+		// steps: a full base coat from cup 1, then cup 2 over about half of it, blended in where it went.
 		if (Load.Id == UTorqueBuildSubsystem::FadeFinish())
 		{
 			const FTorquePaintCup* One = B->PaintBay().CupOf(B->Me(), 0);
 			const FTorquePaintCup* Two = B->PaintBay().CupOf(B->Me(), 1);
 			const int32 Pattern = TorquePaintMix::FirstFade + FMath::Clamp(FadeStyle, 0, TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade);
-			P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("fade %s into %s (%s, R changes it): steady passes"),
-				One ? *One->Spec.Name : TEXT("cup 1"), Two ? *Two->Spec.Name : TEXT("cup 2"), *FString(TorquePaintMix::PatternName(Pattern)).ToLower()));
-			P.Request.Colour = Pattern;
+			if (FadeStepFor(Item) == 0)
+			{
+				P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("fade, step 1 of 2: a full base coat of %s from cup 1"),
+					One ? *One->Spec.Name.ToLower() : TEXT("cup 1 (pick it with [)")));
+				P.Request.Finish = UTorqueBuildSubsystem::CupFinish();
+			}
+			else
+			{
+				P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("fade, step 2 of 2: %s from cup 2 over about half of it, then Enter (%s, R changes it)"),
+					Two ? *Two->Spec.Name.ToLower() : TEXT("cup 2 (pick it with ])"), *FString(TorquePaintMix::PatternName(Pattern)).ToLower()));
+				P.Request.Finish = UTorqueBuildSubsystem::FadeFinish();
+				P.Request.Colour = Pattern;
+			}
 		}
 		else
 		{
@@ -1745,8 +1806,8 @@ ATorqueWalker::FPlan ATorqueWalker::SprayPlanFor(int32 Item, int32 Bay) const
 			const FTorquePaintCup* Cup = B->PaintBay().CupOf(B->Me(), Which);
 			const FString What = Cup ? Cup->Spec.Name : FString::Printf(TEXT("cup %d"), Which + 1);
 			P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("spray %s from cup %d: go along the part in steady passes"), *What, Which + 1));
+			P.Request.Finish = Load.Id;
 		}
-		P.Request.Finish = Load.Id;
 	}
 	else
 	{
@@ -2109,6 +2170,8 @@ FLinearColor ATorqueWalker::SprayMistColour(bool* bOutClear) const
 	FTorqueShedRequest R;
 	R.Kind = Load.Kind == TWI::FLoad::Primer ? ETorqueShedAct::Prime : (Load.Kind == TWI::FLoad::Coat ? ETorqueShedAct::Coat : ETorqueShedAct::Paint);
 	R.Finish = Load.Id;
+	// A fade's base coat goes on from cup 1: its mist is cup 1's.
+	if (Load.Id == UTorqueBuildSubsystem::FadeFinish() && (SprayItem != 0 ? FadeStepFor(SprayItem) == 0 : FadeCup == 0)) R.Finish = UTorqueBuildSubsystem::CupFinish();
 	R.Colour = SprayColour;
 	if (bOutClear) *bOutClear = R.Kind == ETorqueShedAct::Coat && UTorqueBuildSubsystem::IsLacquer(R.Finish);
 	const UTorqueBuildSubsystem* B = Shed();
@@ -3127,10 +3190,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("Holding a tin: ") + B->PaintBay().TinText(*Tin), Info, 0.6f});
 		HudLines.Add({TEXT("R / Square: fill the spray gun's cup 1   T / D-pad right: its cup 2 (two colours for a fade)   F: onto the tin shelf, the bench's scale, or into a bin"), Prompt, 0.6f});
 	}
-	if (Tool == ETorqueTool::Gun)
-		for (int32 Which = 0; Which < 2; ++Which)
-			if (const FTorquePaintCup* Cup = B->PaintBay().CupOf(B->Me(), Which))
-				HudLines.Add({FString::Printf(TEXT("Gun's cup %d: %s, %.2f l (T: load Cup %d or Fade)"), Which + 1, *Cup->Spec.Name, Cup->Litres, Which + 1), Info, 0.55f});
+	if (Tool == ETorqueTool::Gun && SprayItem == 0 && !B->PaintBay().HeldTin(B->Me()))
+		HudLines.Add({TEXT("[ / ] (D-pad down): pick cup 1's / cup 2's colour and finish   T (D-pad right): load Cup 1, Cup 2 or Fade"), Info, 0.55f});
 	// What's looked at: hud.gd's panel at the side (the title, its lines, then the prompts).
 	const int32 LookFrom = HudLines.Num();
 	const FTorqueItem* Thing = B->Item(TargetItem);

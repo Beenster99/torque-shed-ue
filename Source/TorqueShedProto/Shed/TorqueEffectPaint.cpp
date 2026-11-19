@@ -74,6 +74,8 @@ bool Apply(UMeshComponent* C, const TorquePaintMix::FPaintLook& L, float Grime, 
 	M->SetScalarParameterValue(TEXT("MaskMetal"), L.MaskMetal);
 	M->SetScalarParameterValue(TEXT("MaskRough"), L.MaskRough);
 	M->SetScalarParameterValue(TEXT("Tape"), L.bTape ? 1.0f : 0.0f);
+	M->SetScalarParameterValue(TEXT("FadeAt"), L.FadeAt);     // a fade's middle and its way (ue_build_shed.py MASK_HLSL)
+	M->SetScalarParameterValue(TEXT("FadeDir"), L.FadeDir);
 	M->SetVectorParameterValue(TEXT("TapeColor"), L.TapeColour);
 	const FVector X = LocalToPart.TransformVector(FVector::XAxisVector), Y = LocalToPart.TransformVector(FVector::YAxisVector),
 		Z = LocalToPart.TransformVector(FVector::ZAxisVector), T = LocalToPart.GetLocation();
