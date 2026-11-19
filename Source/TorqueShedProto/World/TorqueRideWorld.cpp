@@ -1538,12 +1538,12 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	TickWarmUp();
 	if (Impostors) Impostors->Tick();   // [build 157] a few views of a far tree's impostor
 	// [build 156] (Settings > Graphics > Realistic water changed: the water already laid takes it too)
-	if (UMaterialInterface* Want = WaterNow(); Want != WaterShown)
+	if (UMaterialInterface* WantWater = WaterNow(); WantWater != WaterShown)
 	{
-		WaterShown = Want;
+		WaterShown = WantWater;
 		for (TPair<FIntVector, TObjectPtr<UProceduralMeshComponent>>& Each : TileWater)
 			if (UProceduralMeshComponent* Wet = Each.Value.Get())
-				for (int32 Si = 0; Si < Wet->GetNumSections(); ++Si) Wet->SetMaterial(Si, Want);
+				for (int32 Si = 0; Si < Wet->GetNumSections(); ++Si) Wet->SetMaterial(Si, WantWater);
 	}
 	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
 	TRProbe::WatchGc();
