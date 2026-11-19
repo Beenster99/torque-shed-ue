@@ -468,11 +468,24 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 			}
 		});
 
+	// (the share of a region's unmapped woods that are conifer: the Forestry Commission's country figures,
+	// rounded, plantations being where the conifers are)
+	const auto ConiferShare = [](const char* Region)
+	{
+		const std::string R = Region ? Region : "";
+		if (R == "highlands") return 0.7;
+		if (R == "lowlands") return 0.55;
+		if (R == "wales") return 0.5;
+		if (R == "lakes" || R == "northumberland" || R == "ulster") return 0.45;
+		if (R == "peak" || R == "dales" || R == "moors") return 0.35;
+		return 0.2;
+	};
 	// Trees where the map's canopy says there are some, as tall as it says: broadleaved ones (ash and
 	// sycamore mostly, alder in the wet, birch now and then, hawthorn where they are short) or spruce.
 	if (RealTrees && Land->HasTrees())
 	{
 		const double Grid = Fine ? 7.0 : 14.0;
+		double Conifer = -1.0;
 		const int64_t Gx0 = static_cast<int64_t>(std::ceil(X0 / Grid)), Gx1 = static_cast<int64_t>(std::ceil((X0 + Size) / Grid));
 		const int64_t Gz0 = static_cast<int64_t>(std::ceil(Z0 / Grid)), Gz1 = static_cast<int64_t>(std::ceil((Z0 + Size) / Grid));
 		for (int64_t Gz = Gz0; Gz < Gz1; ++Gz)
@@ -488,7 +501,18 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				const int Leaf = (Trees >> 8) & 3;
 				const double Roll = Hash(Gx, Gz, 14u);
 				uint16_t What = Ash;
-				const bool Needle = Leaf == 2 || (Leaf == 3 && Roll < 0.5);
+				bool Needle = Leaf == 2 || (Leaf == 3 && Roll < 0.5);
+				// ([Nov 19] beenster, watching 157: "they all seem to be deciduous, the UK have many evergreen
+				// trees through winter". The leaf type is OpenStreetMap's and most woods don't say, so an
+				// unmapped wood was all broadleaf. Now a wood the map is silent on (a tall, thick one, not a
+				// hedgerow or field tree) is conifer in stands of a few hundred metres, as the plantations are,
+				// as often as in that part of the country: most of the Highlands' woods, half of Wales', a third
+				// of the Peak's and the Dales'.)
+				if (Leaf == 0 && Tall >= 8.0 && Share >= 0.5)
+				{
+					if (Conifer < 0.0) Conifer = ConiferShare(LookHere(X0 + Size * 0.5, Z0 + Size * 0.5).Name);   // (once a square)
+					Needle = Fbm(X, Z, 260.0, 41u) > 0.5 + (0.5 - Conifer) * 0.45;
+				}
 				// (a second roll for which broadleaf or which conifer, so the first's split stays as it was)
 				const double Which = Hash(Gx, Gz, 18u);
 				if (Needle) What = Which < 0.6 ? Spruce : Pine;   // (the plantations' spruce, Scots pine)

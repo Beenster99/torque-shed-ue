@@ -6,7 +6,7 @@ import os
 
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -163,6 +163,61 @@ def render_sheet(models, out_dir, tex, surfaces):
         sheet.paste(im, (x, y))
         d.text((x, y + im.size[1] + 4), label, fill=(30, 30, 30), font=font)
     path = os.path.join(out_dir, "street_kit_review.png")
+    sheet.save(path)
+    print("review sheet:", path)
+    return path
+
+
+def render_signal_sheet(models, out_dir, tex, surfaces):
+    """([Nov 19] the traffic signal) its own sheet: whole, the head close, from the side and lit (the lit
+    face here is a stand-in for the game's own, M_RideSignal on the clock)."""
+    if not models:
+        return None
+    os.makedirs(out_dir, exist_ok=True)
+    sc = _scene(models, tex, surfaces)
+    M = models[0]
+    parts = [p.obj for p in M.parts]
+    # (a lit red face, render only: an emissive disc just in front of the red lens)
+    import bmesh
+    me = bpy.data.meshes.new("lit")
+    bm = bmesh.new()
+    bmesh.ops.create_circle(bm, cap_ends=True, radius=0.098, segments=24)
+    bm.to_mesh(me); bm.free()
+    lit = bpy.data.objects.new("lit", me)
+    sc.collection.objects.link(lit)
+    lit.matrix_world = Matrix.Translation((0.29, 0, 2.8 + 0.32)) @ Matrix.Rotation(math.pi / 2, 4, "Y")
+    mat = bpy.data.materials.new("lit_red"); mat.use_nodes = True
+    nt = mat.node_tree; nt.nodes.clear()
+    em = nt.nodes.new("ShaderNodeEmission"); em.inputs[0].default_value = (1.0, 0.04, 0.01, 1); em.inputs[1].default_value = 12.0
+    out = nt.nodes.new("ShaderNodeOutputMaterial"); nt.links.new(em.outputs[0], out.inputs[0])
+    me.materials.append(mat)
+    shots = [
+        ("Traffic signal, as the traffic sees it", (0.2, 0, 1.9), 7.5, 18, 6, 50, (420, 760), False),
+        ("Lit red, from the kerb", (0.2, 0, 1.9), 7.5, 40, 4, 50, (420, 760), True),
+        ("From the side: hoods and clamps", (0.1, 0, 2.8), 2.8, 80, 6, 50, (420, 760), True),
+        ("The head close", (0.25, 0, 2.8), 2.4, 25, -6, 50, (420, 760), True),
+    ]
+    files = []
+    for i, (label, target, dist, yaw, pitch, lens, size, with_lit) in enumerate(shots):
+        f = os.path.join(out_dir, "signal_%02d.png" % i)
+        _shoot(sc, parts + ([lit] if with_lit else []), target, dist, yaw, pitch, lens, size, f)
+        files.append((f, label))
+    font = None
+    for cand in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf"):
+        if os.path.exists(cand):
+            font = ImageFont.truetype(cand, 18)
+    pad = 10
+    W = 4 * 420 + 5 * pad
+    H = 760 + 2 * pad + 28 + 50
+    sheet = Image.new("RGB", (W, H), (245, 245, 242))
+    d = ImageDraw.Draw(sheet)
+    d.text((pad, 12), "Ride UK street kit: new traffic signal (Blender renders; the lit face is the game's own)", fill=(20, 20, 20), font=font)
+    for i, (f, label) in enumerate(files):
+        im = Image.open(f).convert("RGB")
+        x = pad + i * (420 + pad)
+        sheet.paste(im, (x, 50))
+        d.text((x, 50 + im.size[1] + 4), label, fill=(30, 30, 30), font=font)
+    path = os.path.join(out_dir, "traffic_signal_review.png")
     sheet.save(path)
     print("review sheet:", path)
     return path

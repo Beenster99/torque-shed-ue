@@ -1015,6 +1015,24 @@ def scanned_trees(L, kit):
     # [gardens] The villages' and towns' garden planting (World/WorldRideGardens.cpp): kinds garden_rose and so
     # on, each with its words and its own cull (cm) and shadow, near the rider only (no far models, no impostors).
     garden = spec.get("garden_kinds", {})
+    def mature_first(paths):
+        """([Nov 19] beenster, watching 157: "they all seem a little young, no bulk to the trees. No cover at
+        all in the canopy". The first six by name were taken, young ones among them, and the game stretches
+        each to the canopy map's height. Now the grown trees: names saying young, small or juvenile last,
+        then the tallest as modelled first.)"""
+        young = ("young", "small", "juvenile", "sapling", "seedling", "baby", "sprout")
+        def tall(p):
+            try:
+                sk = unreal.load_asset(p.split(".")[0])
+                b = sk.get_bounds() if hasattr(sk, "get_bounds") else sk.get_imported_bounds()
+                return float(b.box_extent.z) * 2.0
+            except Exception:
+                return 0.0
+        ranked = sorted(paths, key=lambda p: (any(w in p.lower() for w in young), -tall(p), p))
+        if ranked:
+            log("scanned trees: grown first: %s" % ", ".join("%s %.1f m" % (p.rsplit(".", 1)[-1], tall(p) / 100.0) for p in ranked[:8]))
+        return ranked
+
     for kind, words in list(spec["kinds"].items()) + [(k, g.get("words", [])) for k, g in garden.items()]:
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
@@ -1023,7 +1041,7 @@ def scanned_trees(L, kit):
         classes = sorted(set(c for _, c in theirs))
         log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
             ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
-        skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
+        skels = mature_first(sorted(p for p, c in theirs if c == "SkeletalMesh"))[:most]
         if skels:
             # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
             made = [m for m in (static_of_skeletal(p) for p in skels) if m]

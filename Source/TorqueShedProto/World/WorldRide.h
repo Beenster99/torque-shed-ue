@@ -768,6 +768,9 @@ public:
 		// [car parks] A parked car in a car park's bay (Tools/ue_build_rideuk.py: the Fab cars of
 		// Data/Buttertubs/car_swaps.json in Data/RideUK/prop_kit.json's colours, SM_Prop_parked_car_<n>, as modelled)
 		PropParkedCar,
+		// ([Nov 19] beenster: "a more realistic traffic light model") a UK three-aspect signal (Tools/blender_street_kit.py
+		// traffic_signal); its lit faces stay FurnitureTile's, on the shared clock
+		PropTrafficSignal,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1077,7 +1080,7 @@ public:
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
-	// with its tower, 2 a pub).
+	// with its tower, 2 a pub, 3 a café: its shop front named as one).
 	std::vector<unsigned char> BuildingRole;
 	// The local look (Ride UK stage 5: WorldRideStyle) at a place of the ride's frame.
 	const LocalLook& LookHere(double X, double Z) const;
