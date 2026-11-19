@@ -1337,7 +1337,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 								const std::string Name = RideBuildingBits::ShopName(Chance(B.X + Un * 2.3, B.Z + Un * 4.1, 143), Chance(B.X - Un * 3.7, B.Z + Un * 1.3, 144),
 									Chance(B.X + Un * 5.9, B.Z - Un * 0.7, 145), Role == 3, Try == 1);
 								double Cap = std::fmin(0.26, PanelH * 0.55), Wide = 0.0;
-								if (Wide > PanelW) Cap *= PanelW / Wide;
+								if (SignText::Width(Name, Cap, Wide) && Wide > PanelW) Cap *= PanelW / Wide;   // (shrunk to fit its panel)
 								if (Cap < 0.11) continue;
 								SignText::Set(Out.SignsOf(), At.X, At.Y, At.Z, Facing.X, Facing.Z, Cap, Name, Light ? Ink : Gilt);
 								break;
