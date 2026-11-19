@@ -176,7 +176,7 @@ void ATorqueWalker::DrawCups(AHUD* Hud, UCanvas* Canvas) const
 	};
 	const FLinearColor Panel(0.03f, 0.04f, 0.06f, 0.82f), Dim(1.0f, 1.0f, 1.0f, 0.6f), Accent = TorqueUi::Accent;
 	// A gun cup: a steel rim and lid, the paint in it to CupLevel (0 .. 1), seen from the side.
-	auto Cup = [&Rect, &Frame, S](float X, float Y, float W, float H, const FLinearColor& Paint, float CupLevel, bool bLit)
+	auto Cup = [&Rect, &Frame, S, Accent](float X, float Y, float W, float H, const FLinearColor& Paint, float CupLevel, bool bLit)
 	{
 		const FLinearColor Steel(0.7f, 0.72f, 0.76f, 1.0f), Glass(0.12f, 0.13f, 0.15f, 0.9f);
 		Rect(Steel, X - 3.0f * S, Y - 6.0f * S, W + 6.0f * S, 5.0f * S);   // the lid
