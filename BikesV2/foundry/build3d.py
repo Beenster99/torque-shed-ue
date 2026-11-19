@@ -185,7 +185,11 @@ def export_game(name, model, model_file=None):
         for i, m in enumerate(o.data.materials):
             if m is None:
                 continue
-            key = (r[0], r[1], part_sub, m.name)
+            # the red reflector on the plate hanger is no lamp: the game lit it as the tail light and shone the
+            # stop lamp's red from it (beenster, build 157: "the bikes tail light should not be mounted in the
+            # registration plate it should emit from the actual tail light"). A surface of its own, tagged "reflector".
+            reflector = game_parts.stem(o.name).startswith("platelamp")
+            key = (r[0], r[1], part_sub, m.name, reflector)
             if key not in tagged:
                 c = m.copy()
                 c.name = f"s{len(tagged):03d}"
@@ -204,6 +208,8 @@ def export_game(name, model, model_file=None):
                     # solid steel, grips white, dials and hoses brushed metal)
                     ue, lens, colour = game_parts.look(tag.split("__")[0], r[0], colour, metal, rough)
                     tint = colour is not None
+                if reflector:
+                    lens = "reflector"
                 look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
                 if part_sub:
                     look["sub"] = part_sub

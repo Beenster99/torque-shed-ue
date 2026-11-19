@@ -5573,7 +5573,7 @@ int BikeParts::V2Lamps(const PartsMap& Parts, std::vector<FittedPart>& Out) cons
 		for (const PartSurface& S : P.Made->Surfaces)
 		{
 			bWhite = bWhite || Tagged(S, "lens_white") || Tagged(S, "lens_drl");   // (a lamp that is only a DRL ring is still a headlamp)
-			bRed = bRed || Tagged(S, "lens_red");
+			bRed = bRed || (Tagged(S, "lens_red") && !Tagged(S, "reflector"));   // (the plate's red reflector is no lamp)
 		}
 	}
 	int Made = 0;
