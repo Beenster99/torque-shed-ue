@@ -2592,7 +2592,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		// 21 kN, the front never finding ground and the bike tipping onto its nose): a spot whose ground
 		// under the two wheels doesn't look like a road (more than 25% apart, or not found) is skipped for
 		// the next route point along, up to ten.)
-		double RoadUp = 0.0, GroundMid = 0.0;
+		double RoadUp = 0.0, GroundMid = 0.0, GroundAtF = 0.0, GroundAtR = 0.0;
 		bool bGood = false;
 		int32 Placed = Best;
 		for (int32 Try = 0; Try < 10 && !bGood; ++Try)
@@ -2612,13 +2612,16 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 			if (!GroundF.Hit || !GroundR.Hit) continue;
 			RoadUp = std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half);
 			GroundMid = 0.5 * (GroundF.Position.y + GroundR.Position.y);
+			GroundAtF = GroundF.Position.y;
+			GroundAtR = GroundR.Position.y;
 			bGood = std::fabs(std::tan(RoadUp)) < 0.25 && std::fabs(GroundMid - Mid.y) < 0.5;
 		}
 		if (bGood)
 		{
 			Sim->Basis = M3::AxisAngle(Sim->Basis.X, RoadUp) * Sim->Basis;
 			Sim->Position.y = GroundMid + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(RoadUp), 0.5);
-			UE_LOG(LogTemp, Log, TEXT("Torque: climb start pitched %.1f deg up to the road under the wheels"), FMath::RadiansToDegrees(RoadUp));
+			UE_LOG(LogTemp, Log, TEXT("Torque: climb start pitched %.1f deg up to the road under the wheels (ground at the front %.2f m, the back %.2f m, the axles %.2f m)"),
+				FMath::RadiansToDegrees(RoadUp), GroundAtF, GroundAtR, Sim->Position.y);
 		}
 		else UE_LOG(LogTemp, Warning, TEXT("Torque: climb start: no spot near the foot with road under both wheels; left as placed"));
 		Best = Placed;   // (the route point it actually starts from, for the log and TestFromNear)
@@ -2752,10 +2755,10 @@ void ATorqueBikePawn::TestMoveStep()
 	// [r158 climb] The climb's first 2 s, every 0.1 s, and the moment it crashes: the weight the sim is
 	// given and what the bike does with it (naked, chopper and cruiser came off 0.5 s in).
 	if (TestMove == 5 && ((TestClock < 2.0 && FMath::Fmod(TestClock + 0.5 * SimDt, 0.1) < SimDt) || Sim->IsCrashed))
-		UE_LOG(LogTemp, Log, TEXT("Torque: climb t %.2f s: shift %.3f (sim %.3f), pitch %.1f deg (road %.1f), lean %.1f deg, %.1f mph, gear %d, %.0f rpm, throttle %.2f, front %s %.0f N, rear %s %.0f N, rear kappa %.3f%s"),
+		UE_LOG(LogTemp, Log, TEXT("Torque: climb t %.2f s: shift %.3f (sim %.3f), pitch %.1f deg (road %.1f), lean %.1f deg, %.1f mph, gear %d, %.0f rpm, throttle %.2f, brakes %.2f / %.2f, steer %.2f, front %s %.0f N, rear %s %.0f N, rear kappa %.3f, spin %.2f rad/s%s"),
 			TestClock, Shift, Sim->BodyShift, FMath::RadiansToDegrees(Sim->PitchAngle), FMath::RadiansToDegrees(Sim->RoadPitch), FMath::RadiansToDegrees(Sim->LeanAngle),
-			V * 2.23694, Sim->Gear, Sim->Rpm, Throttle, Sim->Wheels[0].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[0].Load,
-			Sim->Wheels[1].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[1].Load, Sim->Wheels[1].Kappa, Sim->IsCrashed ? TEXT(" CRASHED") : TEXT(""));
+			V * 2.23694, Sim->Gear, Sim->Rpm, Throttle, FrontBrake, RearBrake, Lean, Sim->Wheels[0].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[0].Load,
+			Sim->Wheels[1].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[1].Load, Sim->Wheels[1].Kappa, Sim->AngularVelocity.Dot(Sim->Basis.X), Sim->IsCrashed ? TEXT(" CRASHED") : TEXT(""));
 	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
 		// ([r159] the climb says how: knocked off (and how hard), or a fall: leaned or pitched past it)
@@ -2779,7 +2782,13 @@ void ATorqueBikePawn::TestMoveStep()
 			const bool bBothDown = Sim->Wheels[0].Contact && Sim->Wheels[1].Contact;
 			if (TestClock < 0.5 || (!bBothDown && TestClock < 1.5))
 			{
-				Throttle = 0.0;
+				// ([r160] naked and cruiser still went over on their nose 0.4 s in, the throttle shut, where
+				// SimTest's bikes on a 20% plane, braked or not, sit still within 2 deg: so while it settles
+				// it's held, no brakes, no turning (spin wiped each step), rolling on up the road as it
+				// started; whatever threw it shows in the climb log once it's let go.)
+				Throttle = FrontBrake = RearBrake = 0.0;
+				Sim->AngularVelocity = V3();
+				Sim->LinearVelocity = Sim->Basis.Z * -TestMps + Sim->Basis.Y * Sim->LinearVelocity.Dot(Sim->Basis.Y);   // (free to sink onto its springs)
 				return;
 			}
 			bClimbSettled = true;
