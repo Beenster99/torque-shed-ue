@@ -86,7 +86,8 @@ bool ATorqueDrone::Launch(APawn* InPilot, FString& WhyNot)
 	D->Pilot = InPilot;
 	D->Home = Eye;
 	D->Yaw = View.Yaw;
-	D->Pitch = FMath::Clamp(FRotator::NormalizeAxis(View.Pitch), -90.0, 30.0);
+	// Starts looking ahead, a little down at most: a walker looking at the floor doesn't send it up staring at the grass.
+	D->Pitch = FMath::Clamp(FRotator::NormalizeAxis(View.Pitch), -20.0, 10.0);
 	D->Gimbal = FRotator(D->Pitch, D->Yaw, 0.0);
 	D->SetActorRotation(D->Gimbal);
 	// Round the shed it's slower and stays close; out on a ride, the UK drone rules' 120 m up.
@@ -566,6 +567,9 @@ FString ATorqueDrone::TestSet(const FString& What, double Value)
 	else if (What == TEXT("pitch")) Pitch = FMath::Clamp(Value, -90.0, 30.0);
 	else if (What == TEXT("yaw")) Yaw = FRotator::NormalizeAxis(Value);
 	else return FString::Printf(TEXT("drone: no setting %s (zoom, ev, fstop, filter, pitch, yaw)"), *What);
+	// A test's setting is there at once (the gimbal doesn't ease round to it), so a shot straight after shows it.
+	Gimbal = FRotator(Pitch, Yaw, 0.0);
+	SetActorRotation(Gimbal);
 	UpdateLens(1.0f);
 	return TestStatus();
 }
@@ -579,7 +583,8 @@ FString ATorqueDrone::TestFly(const FVector& By)
 FString ATorqueDrone::TestStatus() const
 {
 	const FVector At = GetActorLocation();
-	return FString::Printf(TEXT("drone: at (%.0f, %.0f, %.0f), %.1f m up, %.0f m out, %.0f mm, %s, %s, %s, focus %.1f m, %d photo(s)%s"), At.X, At.Y, At.Z,
-		(At.Z - Home.Z) / 100.0, FVector::Dist2D(At, Home) / 100.0, FocalMm, *SettingText(0), *SettingText(1), *SettingText(2), FocusCm / 100.0, Shots,
+	const FRotator Looks = Camera ? Camera->GetComponentRotation() : GetActorRotation();
+	return FString::Printf(TEXT("drone: at (%.0f, %.0f, %.0f), %.1f m up, %.0f m out, looking pitch %.0f yaw %.0f, %.0f mm, %s, %s, %s, focus %.1f m, %d photo(s)%s"), At.X, At.Y, At.Z,
+		(At.Z - Home.Z) / 100.0, FVector::Dist2D(At, Home) / 100.0, Looks.Pitch, Looks.Yaw, FocalMm, *SettingText(0), *SettingText(1), *SettingText(2), FocusCm / 100.0, Shots,
 		bAtLimit ? TEXT(", at its limit") : TEXT(""));
 }
