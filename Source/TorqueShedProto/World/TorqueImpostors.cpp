@@ -260,6 +260,23 @@ FTorqueImpostor* UTorqueImpostors::Entry(UStaticMesh* Scan)
 		E.Material->SetScalarParameterValue(TEXT("ColourGamma"), TImp::CVarGamma.GetValueOnGameThread());
 		E.Material->SetScalarParameterValue(TEXT("Brightness"), TImp::CVarBrightness.GetValueOnGameThread());
 		E.Material->SetVectorParameterValue(TEXT("Centre"), FLinearColor(float(E.Centre.X), float(E.Centre.Y), float(E.Centre.Z), 0.0f));
+		// ([seasonal trees TEST, Nov 19] the card's kind from its scan's name: pines and spruces keep their
+		// needles; the rest turn their own autumn colour. Tools/ue_tree_season.py AUTUMN, the same colours.)
+		{
+			const FString Name = E.Scan->GetName().ToLower();
+			struct FAutumn { const TCHAR* Word; FLinearColor Colour; };
+			static const FAutumn Autumns[] = {
+				{TEXT("beech"), FLinearColor(0.45f, 0.17f, 0.03f)}, {TEXT("birch"), FLinearColor(0.62f, 0.48f, 0.06f)},
+				{TEXT("maple"), FLinearColor(0.55f, 0.36f, 0.05f)}, {TEXT("sycamore"), FLinearColor(0.55f, 0.36f, 0.05f)},
+				{TEXT("alder"), FLinearColor(0.16f, 0.15f, 0.05f)}, {TEXT("willow"), FLinearColor(0.45f, 0.42f, 0.10f)},
+				{TEXT("rowan"), FLinearColor(0.55f, 0.12f, 0.03f)}, {TEXT("hazel"), FLinearColor(0.50f, 0.40f, 0.07f)}};
+			FLinearColor Autumn(0.30f, 0.17f, 0.04f);   // (oak, and any kind not listed)
+			for (const FAutumn& A : Autumns)
+				if (Name.Contains(A.Word)) { Autumn = A.Colour; break; }
+			const bool bEvergreen = Name.Contains(TEXT("pine")) || Name.Contains(TEXT("spruce"));
+			E.Material->SetScalarParameterValue(TEXT("SeasonOn"), bEvergreen ? 0.0f : 1.0f);
+			E.Material->SetVectorParameterValue(TEXT("AutumnColour"), Autumn);
+		}
 		E.Card = TImp::MakeCard(this, E.Radius, MinZ, MaxZ, E.Material);
 	}
 	if (!E.Card)

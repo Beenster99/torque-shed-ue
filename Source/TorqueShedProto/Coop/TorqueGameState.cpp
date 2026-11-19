@@ -45,12 +45,17 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Net/UnrealNetwork.h"
+#include "HAL/IConsoleManager.h"
 
 bool ATorqueGameState::bRealClockTest = false;
 bool ATorqueGameState::bTestClockSet = false;
 
 namespace
 {
+// ([seasonal trees TEST, Nov 19] beenster: "lets try seasonal trees for this afternoon". The scanned trees'
+// leaves and far cards read LeafFresh, LeafTurn and LeafDrop from MPC_Weather: Tools/ue_tree_season.py.)
+TAutoConsoleVariable<int32> CVarTreeSeason(TEXT("torque.RideTreeSeason"), 0,
+	TEXT("Ride UK seasonal trees TEST: 0 as now (summer leaf), 1 spring, 2 summer, 3 autumn, 4 winter. The scanned trees' leaves and far cards; pines and spruces stay as they are."));
 // The weather's numbers as sent, and back (below).
 FTorqueWeatherNet NetOf(const TorqueWeather::State& S);
 TorqueWeather::State StateOf(const FTorqueWeatherNet& N);
@@ -1314,6 +1319,12 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("Snow"), (float)TorqueWeather::SnowCover(St));
 		// (Ride UK stage 7: lamps and lit windows come on, cat's eyes catch the headlight, as the light goes)
 		SetMpc(TEXT("Night"), 1.0f - DayLight);
+		// ([seasonal trees TEST] fresh, turned, dropped: spring, summer, autumn, winter)
+		static const float SeasonLeaves[5][3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.35f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.85f, 0.2f}, {0.0f, 1.0f, 0.97f}};
+		const int32 Season = FMath::Clamp(CVarTreeSeason.GetValueOnGameThread(), 0, 4);
+		SetMpc(TEXT("LeafFresh"), SeasonLeaves[Season][0]);
+		SetMpc(TEXT("LeafTurn"), SeasonLeaves[Season][1]);
+		SetMpc(TEXT("LeafDrop"), SeasonLeaves[Season][2]);
 	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)

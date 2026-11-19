@@ -1347,7 +1347,19 @@ const FABStep ABSteps[] = {
 	{TEXT("FXAA instead of TSR/TAA"), TEXT("r.AntiAliasingMethod=1"), 0},
 	{TEXT("as set again"), TEXT(""), 0},
 };
+// ([seasonal trees TEST, Nov 19] -TorqueRideAB=2: the four seasons on the scanned trees (Tools/ue_tree_season.py),
+// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png. Start it after the impostors are
+// photographed (-TorqueRideABAfter=90), or they're photographed in the season of the moment.)
+const FABStep SeasonSteps[] = {
+	{TEXT("summer, as now"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("spring"), TEXT("torque.RideTreeSeason=1"), 0},
+	{TEXT("summer"), TEXT("torque.RideTreeSeason=2"), 0},
+	{TEXT("autumn"), TEXT("torque.RideTreeSeason=3"), 0},
+	{TEXT("winter"), TEXT("torque.RideTreeSeason=4"), 0},
+	{TEXT("summer, as now, again"), TEXT("torque.RideTreeSeason=0"), 0},
+};
 constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
+constexpr int32 SeasonCount = UE_ARRAY_COUNT(SeasonSteps);
 // ([perf, build 151] 2 s to settle and 5 measured by default, -TorqueRideABSecs=<measured s>: round 150's
 // 90 s runs fitted only 4 of 14 steps at 3 + 10 s)
 double ABMeasureSecs()
@@ -1427,19 +1439,25 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 	// -TorqueRideAB=1 (and -TorqueRideABAfter=<s>, 12 by default: the squares round the rider made
 	// first). Best parked or standing still, so each step sees the same view. Each step: 2 s to settle,
 	// 5 s measured (-TorqueRideABSecs=), about 130 s for all 18 (build 152). Its console variables are set as the console sets them, and put back after.
-	static const bool bAB = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideAB="), On) && On != 0; }();
+	static const int32 ABMode = []() { int32 On = 0; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideAB="), On); return On; }();
+	const bool bAB = ABMode != 0;
+	const bool bSeasons = ABMode == 2;
+	const TRProbe::FABStep* const Steps = bSeasons ? TRProbe::SeasonSteps : TRProbe::ABSteps;
+	const int32 StepCount = bSeasons ? TRProbe::SeasonCount : TRProbe::ABCount;
+	static bool bSeasonShot = false;
 	static const double ABAfter = []() { float Secs = 12.0f; FParse::Value(FCommandLine::Get(), TEXT("TorqueRideABAfter="), Secs); return double(FMath::Max(Secs, 0.0f)); }();
-	if (!bAB || ABStep >= TRProbe::ABCount) return;
+	if (!bAB || ABStep >= StepCount) return;
 	ABSince += DeltaSeconds;
-	auto StartStep = [this](int32 Which)
+	auto StartStep = [this, Steps, StepCount](int32 Which)
 	{
+		bSeasonShot = false;
 		ABStep = Which;
 		ABSince = 0.0;
 		ABGame = ABRender = ABGpu = ABWall = 0.0;
 		ABFrames = 0;
 		ABWas.Reset();
-		if (Which >= TRProbe::ABCount) return;
-		const TRProbe::FABStep& Doing = TRProbe::ABSteps[Which];
+		if (Which >= StepCount) return;
+		const TRProbe::FABStep& Doing = Steps[Which];
 		TArray<FString> Pairs;
 		FString(Doing.Vars).ParseIntoArray(Pairs, TEXT(";"));
 		for (const FString& Pair : Pairs)
@@ -1453,7 +1471,7 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 			}
 		}
 		if (Doing.Hide) HideForAB(Doing.Hide, true);
-		UE_LOG(LogTemp, Display, TEXT("Ride A/B: step %d of %d, %s"), Which + 1, TRProbe::ABCount, Doing.Label);
+		UE_LOG(LogTemp, Display, TEXT("Ride A/B: step %d of %d, %s"), Which + 1, StepCount, Doing.Label);
 	};
 	if (ABStep < 0)
 	{
@@ -1478,13 +1496,24 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 		GEngine->Exec(GetWorld(), TEXT("CsvProfile Start"));
 		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
 	}
-	if (ABStep == TRProbe::ABCount - 1 && bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
+	if (ABStep == StepCount - 1 && bABProfiled && ABSince > TRProbe::ABSettle + 1.0 && GEngine)
 	{
 		bABProfiled = false;
 		GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
 	}
+	// ([seasonal trees TEST] each season's picture a second into its measuring, the season long since applied)
+	if (bSeasons && !bSeasonShot && ABSince > TRProbe::ABSettle + 1.0)
+	{
+		bSeasonShot = true;
+		const FString Folder = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SeasonTest"));
+		IFileManager::Get().MakeDirectory(*Folder, true);
+		const FString Shot = FPaths::Combine(Folder, FString::Printf(TEXT("season_%d_%s.png"), ABStep + 1,
+			*FString(Steps[ABStep].Label).Replace(TEXT(", "), TEXT("_")).Replace(TEXT(" "), TEXT("_"))));
+		FScreenshotRequest::RequestScreenshot(Shot, false, false);
+		UE_LOG(LogTemp, Display, TEXT("Ride A/B: season shot %s"), *Shot);
+	}
 	if (ABSince < TRProbe::ABSettle + TRProbe::ABMeasureSecs()) return;
-	const TRProbe::FABStep& Done = TRProbe::ABSteps[ABStep];
+	const TRProbe::FABStep& Done = Steps[ABStep];
 	if (ABStep == 0 && GEngine) GEngine->Exec(GetWorld(), TEXT("CsvProfile Stop"));
 	const double Frames = double(FMath::Max(ABFrames, 1));
 	UE_LOG(LogTemp, Display, TEXT("Ride A/B: %-45s %5.1f fps; game %5.1f ms, render %5.1f ms, GPU %5.1f ms (%d frames)"),
@@ -1493,7 +1522,7 @@ void ATorqueRideWorld::TickAB(float DeltaSeconds)
 		if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(*Was.Key)) V->Set(*Was.Value, ECVF_SetByConsole);
 	if (Done.Hide) HideForAB(Done.Hide, false);
 	StartStep(ABStep + 1);
-	if (ABStep >= TRProbe::ABCount) UE_LOG(LogTemp, Display, TEXT("Ride A/B: done"));
+	if (ABStep >= StepCount) UE_LOG(LogTemp, Display, TEXT("Ride A/B: done"));
 }
 
 void ATorqueRideWorld::TickWarmUp()
