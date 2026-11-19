@@ -121,6 +121,29 @@ int main()
 		const int Plain = Ok ? Kit->Pick("dales", false, true, 14.0, 8.0, 0.3, 0.9, Along, Across, Whole) : -1;
 		Ok = Ok && Has(Catholic, "catholic") && Meeting >= 0 && Kit->Models[size_t(Meeting)].Kind == "meeting" && Has(Cross, "cross") && Plain >= 0
 			&& Kit->Models[size_t(Plain)].Kind != "meeting" && Kit->NameFaith("St Michael and All Angels Church").empty();
+		// [churches stage 6] (every church tagged by what stands over its nave, towers and spires among them; a spire
+		// wanted and given; a tower stretched by the LiDAR's top reaching it)
+		int Towers = 0, Spires = 0, Bellcotes = 0;
+		for (const ChurchModel& M : Kit ? Kit->Models : std::vector<ChurchModel>{})
+			if (M.Kind != "yard") (M.Steeple == 2 ? Spires : M.Steeple == 1 ? Towers : Bellcotes) += 1;
+		const int Spired = Ok ? Kit->Pick("town", true, false, 30.0, 12.0, 0.3, 0.9, Along, Across, Whole, {"spire"}) : -1;
+		int Towered = -1;
+		for (size_t M = 0; Kit && M < Kit->Models.size(); ++M)
+			if (Kit->Models[M].Steeple == 1) { Towered = int(M); break; }
+		double StretchedTop = 0.0;
+		if (Towered >= 0)
+		{
+			const ChurchModel& Tm = Kit->Models[size_t(Towered)];
+			RideMesh S0, S1, S2, S3, S4;
+			const double Want = Tm.Top + 6.0, K = (Want - Tm.NaveTop) / (Tm.Top - Tm.NaveTop);
+			BuildChurch(Tm, true, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, false, S0, S1, S2, S3, S4, K);
+			for (const RideMesh* M : {&S0, &S1, &S2, &S3, &S4})
+				for (size_t V = 0; V < M->Vertices(); ++V) StretchedTop = std::fmax(StretchedTop, double(M->Pos[V * 3 + 1]));
+			Ok = Ok && std::fabs(StretchedTop - Want) < 0.05;
+		}
+		std::printf("      church steeples: %d towers, %d spires, %d bellcotes or none; a spire wanted: %s; a tower stretched to %.1f m\n", Towers, Spires, Bellcotes,
+			Spired >= 0 ? Kit->Models[size_t(Spired)].Name.c_str() : "-", StretchedTop);
+		Ok = Ok && Towers > 5 && Spires > 2 && Bellcotes > 2 && Has(Spired, "spire");
 		// (twice into the same meshes, one already holding vertices without alpha: every mesh's alpha whole, every triangle in range)
 		RideMesh Out, Washed, Houses, Roofs, Bricks;
 		Houses.Pos = {0.0f, 0.0f, 0.0f};
@@ -140,7 +163,7 @@ int main()
 		Ok = Ok && Houses.Alpha[0] == 1.0f && Roofs.Vertices() > 0 && Houses.Vertices() > 1 && Tris > 2000;
 		std::printf("      church kit: %s, %zu churches; church %s, chapel %s; %zu triangles built\n", KitRead ? "read" : "unreadable", Kit ? Kit->Models.size() : size_t(0),
 			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
-		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; built with whole alpha");
+		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; towers, spires and bellcotes told apart, a tower stretched to its height; built with whole alpha");
 	}
 	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
 	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.

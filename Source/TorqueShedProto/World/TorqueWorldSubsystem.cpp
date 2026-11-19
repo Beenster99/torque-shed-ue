@@ -192,6 +192,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const bool bKit = TorqueWorld::Files::Read(KitPath, KitText) && TorqueWorld::Files::Read(KitBinPath, KitBin) && TorqueWorld::SetChurchKit(KitText, KitBin);
 		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
+		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
+		std::string HeightsText;
+		const std::string HeightsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_heights.json")));
+		const size_t ChurchSites = TorqueWorld::Files::Read(HeightsPath, HeightsText) ? TorqueWorld::SetChurchHeights(HeightsText) : 0;
+		UE_LOG(LogTemp, Display, TEXT("Torque world: church heights: %d places of worship surveyed"), int32(ChurchSites));
 		// [LiDAR stage 2] Cells' surveyed building heights, where the game's data has them (-TorqueRideLidar=0: none).
 		int32 LidarAsked = 1;
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideLidar="), LidarAsked);
