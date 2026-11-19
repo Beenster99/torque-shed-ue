@@ -1606,6 +1606,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else Said(Out);
 		return true;
 	}
+	if (Verb == TEXT("v2fit") && P.Num() >= 3)
+	{
+		// [engine parts] "v2fit:SLOT:PART": would that V2 part go on bay N's bike now (the fit rule the wrench asks:
+		// family, engine block, cross-brand twin, carb/pod order)? Logs "fits" or the reason.
+		const FString Why = B->V2FitReason(TestBay, 0, FName(*P[1].ToLower()), FName(*P[2].ToLower()));
+		Said(FString::Printf(TEXT("v2fit bay %d %s %s: %s"), TestBay + 1, *P[1], *P[2], Why.IsEmpty() ? TEXT("fits") : *Why));
+		return true;
+	}
 	if (Verb == TEXT("order") && P.Num() >= 2)
 	{
 		Said(W->TestOrder(FName(*P[1])));
