@@ -68,25 +68,68 @@ def props_of(obj, label, depth=0):
 
 
 def tris_by_material(dm):
-    count = gs("get_num_triangle_ids")
-    mat_of = gs("get_triangle_material_id")
-    ids = gs("get_all_triangle_material_ids")
+    """([round 159] the render data is None under -nullrhi: counted on a Geometry Script copy instead)"""
+    total = -1
+    for f in (lambda: dm.get_triangle_count(), lambda: gs("get_num_triangle_ids")(dm), lambda: gs("get_triangle_count")(dm)):
+        try:
+            total = int(f())
+            if total >= 0:
+                break
+        except Exception:
+            continue
     out = {}
-    total = count(dm) if count else -1
+    ids_fn = gs("get_all_triangle_material_ids")
     try:
-        if ids is not None:
-            res = ids(dm)
-            lst = res[0] if isinstance(res, (tuple, list)) and len(res) and isinstance(res[0], (list, tuple, unreal.Array)) else res
-            for m in list(lst):
-                out[m] = out.get(m, 0) + 1
-        elif mat_of is not None and total > 0:
-            for t in range(total):
-                r = mat_of(dm, t)
-                m = r[0] if isinstance(r, (tuple, list)) else r
-                out[m] = out.get(m, 0) + 1
+        if ids_fn is not None:
+            res = ids_fn(dm)
+            cand = [res] + (list(res) if isinstance(res, (tuple, list)) else [])
+            for c in cand:
+                try:
+                    lst = [int(x) for x in list(c)]
+                except Exception:
+                    continue
+                if len(lst) == total or (total < 0 and lst):
+                    for m in lst:
+                        out[m] = out.get(m, 0) + 1
+                    break
     except Exception as e:
         log("  (triangles by material: %s)" % e)
     return total, out
+
+
+def static_copy_tris(sm):
+    copy = gs("copy_mesh_from_static_mesh")
+    if copy is None:
+        return -1, {}
+    lod = unreal.GeometryScriptMeshReadLOD()
+    try:
+        lod.set_editor_property("lod_type", unreal.GeometryScriptLODType.SOURCE_MODEL)
+    except Exception:
+        pass
+    dm = unreal.DynamicMesh()
+    res = copy(sm, dm, unreal.GeometryScriptCopyMeshFromAssetOptions(), lod)
+    dm = res[0] if isinstance(res, (tuple, list)) and isinstance(res[0], unreal.DynamicMesh) else dm
+    return tris_by_material(dm)
+
+
+def nanite_of(obj, label):
+    try:
+        ns = obj.get_editor_property("nanite_settings")
+    except Exception as e:
+        log("%s nanite settings: %s" % (label, e))
+        return
+    fields = []
+    for name in sorted(dir(ns)):
+        if name.startswith("_"):
+            continue
+        try:
+            v = ns.get_editor_property(name)
+        except Exception:
+            continue
+        if callable(v):
+            continue
+        fields.append("%s=%s" % (name, str(v)[:80]))
+    log("%s nanite settings (%s): %s" % (label, type(ns).__name__, "; ".join(fields)))
 
 
 def check(static_path):
@@ -95,11 +138,16 @@ def check(static_path):
         return
     name = sm.get_name()
     sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    slots = sm.get_editor_property("static_materials")
+    for k, m in enumerate(slots):
+        mi = m.get_editor_property("material_interface")
+        log("%s: static copy slot %d %s -> %s" % (name, k, m.get_editor_property("material_slot_name"), mi.get_path_name() if mi else None))
     try:
-        log("%s: static copy: %d sections, %d vertices, %d material slots" % (
-            name, sm.get_num_sections(0), sub.get_number_verts(sm, 0), len(sm.get_editor_property("static_materials"))))
+        total, by = static_copy_tris(sm)
+        log("%s: static copy (source model): %d triangles; by material slot: %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted(by.items())) or "?"))
     except Exception as e:
-        log("%s: static copy: %s" % (name, e))
+        log("%s: static copy count failed: %s" % (name, e))
+    nanite_of(sm, "%s: static copy" % name)
     # (the skeletal mesh it was copied from: SM_<skeletal name>)
     skel_name = name[3:] if name.startswith("SM_") else name
     reg = unreal.AssetRegistryHelpers.get_asset_registry()
@@ -124,6 +172,7 @@ def check(static_path):
             log("%s: skeletal copy: %d triangles; by material slot: %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted(by.items())) or "?"))
         except Exception as e:
             log("%s: skeletal copy failed: %s" % (name, e))
+    nanite_of(skel, "%s: skeletal" % name)
     props_of(skel, "skel")
     for nm in ("nanite_settings", "nanite_assembly", "nanite_assembly_data"):
         try:
@@ -138,7 +187,7 @@ def check(static_path):
             continue
         part = unreal.load_asset("%s.%s" % (a.package_name, a.asset_name))
         try:
-            log("%s:   part beside it: %s (%d vertices, %d slots: %s)" % (name, a.asset_name, sub.get_number_verts(part, 0), len(part.get_editor_property("static_materials")),
+            log("%s:   part beside it: %s (%d triangles, %d slots: %s)" % (name, a.asset_name, static_copy_tris(part)[0], len(part.get_editor_property("static_materials")),
                 ", ".join(str(x.get_editor_property("material_slot_name")) for x in part.get_editor_property("static_materials"))))
         except Exception as e:
             log("%s:   part beside it: %s (%s)" % (name, a.asset_name, e))

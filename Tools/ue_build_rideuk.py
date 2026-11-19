@@ -982,6 +982,42 @@ def scanned_trees(L, kit):
             why.append("%s: %s" % (name, e))
             return None
 
+    def match_nanite(copy_path, skel_path):
+        """[build 160] The copy's Nanite settings as the Megaplant's own. A Megaplant's skeletal mesh is Nanite
+        Foliage (round 159 scan check: shape_preservation Voxelize, voxel_ndf on); its static copy was made
+        with plain Nanite, whose simplification wears thin leaf and needle cards away: the near trees looked
+        "young, no bulk" and the far trees' impostors photographed as bare trunks (3-8% covered)."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            skel = unreal.load_asset(skel_path.split(".")[0])
+            theirs = skel.get_editor_property("nanite_settings")
+            ours = sm.get_editor_property("nanite_settings")
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        changed = []
+        for name in sorted(dir(theirs)):
+            if name.startswith("_"):
+                continue
+            try:
+                want = theirs.get_editor_property(name)
+                have = ours.get_editor_property(name)
+            except Exception:
+                continue
+            if callable(want) or str(want) == str(have):
+                continue
+            try:
+                ours.set_editor_property(name, want)
+                changed.append("%s %s -> %s" % (name, have, want))
+            except Exception:
+                pass
+        if not changed:
+            return False
+        sm.set_editor_property("nanite_settings", ours)   # (rebuilds its Nanite data, on the CPU)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite settings as the Megaplant's: %s" % (copy_path.rsplit(".", 1)[-1], "; ".join(changed)))
+        return True
+
     def ready_materials(path):
         """A static copy's materials made fit for the ride's instanced trees: a Megaplant's are made for
         its skeletal mesh, and a material not flagged for instanced static meshes draws as the default
@@ -1023,7 +1059,13 @@ def scanned_trees(L, kit):
         skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
         if skels:
             # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
-            made = [m for m in (static_of_skeletal(p) for p in skels) if m]
+            made = []
+            for p in skels:
+                m = static_of_skeletal(p)
+                if m:
+                    if spec.get("match_nanite", True):
+                        match_nanite(m, p)
+                    made.append(m)
             for m in made:
                 ready_materials(m)
             log("scanned trees: %s: %d whole trees from its skeletal meshes (%s)%s" % (kind, len(made),
