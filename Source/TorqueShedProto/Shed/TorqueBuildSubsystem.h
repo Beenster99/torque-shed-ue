@@ -723,6 +723,9 @@ public:
 	FTorqueBikeEvent OnLooks;
 	FSimpleMulticastDelegate OnItems;
 
+	// [engine parts] The robot's v2fit:SLOT:PART check (TorqueShedTest): V2FitReason on bay Bay's bike.
+	FString TestV2FitReason(int32 Bay, FName Slot, FName Part) const { return V2FitReason(Bay, 0, Slot, Part); }
+
 private:
 	TArray<FTorqueShedBike> Bikes;
 	FTorqueDynoRoom Dyno;
