@@ -242,6 +242,28 @@ bool SetChurchKit(const std::string& JsonText, const std::string& Bin)
 					}
 				}
 	Kit->Models.erase(std::remove_if(Kit->Models.begin(), Kit->Models.end(), [](const ChurchModel& M) { return M.Kind.empty() || M.Weight <= 0.0; }), Kit->Models.end());
+	// [churches stage 6] (what stands over each church's nave: its nave's top, the highest of it inside the nave's
+	// walls; a tower or a spire where something stands 3 m or more over that, a spire where its top 3 m are
+	// under 2.5 m across; else a bellcote, or nothing: tagged so the LiDAR's highest point can choose)
+	for (ChurchModel& M : Kit->Models)
+	{
+		if (M.Kind == "yard") continue;
+		double NaveTop = 0.0, X0 = 1e9, X1 = -1e9, Z0 = 1e9, Z1 = -1e9;
+		for (size_t V = 0; V < M.Vertices(); ++V)
+		{
+			const double X = M.Pos[V * 3] * 0.01, Y = M.Pos[V * 3 + 1] * 0.01, Z = M.Pos[V * 3 + 2] * 0.01;
+			if (std::fabs(X) < M.NaveL * 0.5 - 0.3 && std::fabs(Z) < M.NaveW * 0.5 - 0.3) NaveTop = std::fmax(NaveTop, Y);
+		}
+		for (size_t V = 0; V < M.Vertices(); ++V)
+			if (M.Pos[V * 3 + 1] * 0.01 > M.Top - 3.0)
+			{
+				const double X = M.Pos[V * 3] * 0.01, Z = M.Pos[V * 3 + 2] * 0.01;
+				X0 = std::fmin(X0, X); X1 = std::fmax(X1, X); Z0 = std::fmin(Z0, Z); Z1 = std::fmax(Z1, Z);
+			}
+		M.NaveTop = NaveTop;
+		M.Steeple = M.Top < NaveTop + 3.0 ? 0 : std::fmax(X1 - X0, Z1 - Z0) < 2.5 ? 2 : 1;
+		M.Tags.push_back(M.Steeple == 2 ? "spire" : M.Steeple == 1 ? "tower" : "bellcote");
+	}
 	std::lock_guard<std::mutex> Hold(ChurchKitLock);
 	ChurchKitTable() = std::move(Kit);
 	return true;
@@ -254,7 +276,7 @@ std::shared_ptr<const ChurchKit> ChurchKitNow()
 }
 
 void BuildChurch(const ChurchModel& M, bool Whole, double X, double Y, double Z, double Low, double Dx, double Dz, double Along, double Across, double Up, bool Sooted,
-	RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& Roofs, RideMesh& Bricks)
+	RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& Roofs, RideMesh& Bricks, double SteepleUp)
 {
 	using namespace RideSceneBits;
 	RideMesh* Into[5] = {&Out, &Houses, &Roofs, &Bricks, &Washed};
@@ -271,10 +293,12 @@ void BuildChurch(const ChurchModel& M, bool Whole, double X, double Y, double Z,
 		const ChurchModel::Part& P = M.Parts[M.PartOf[V]];
 		const int S = P.Section < 5 ? P.Section : 0;
 		RideMesh& Mi = *Into[S];
-		const double Lx = (M.Pos[V * 3] * 0.01 + Ox) * Along, Ly = M.Pos[V * 3 + 1] * 0.01 * Up, Lz = (M.Pos[V * 3 + 2] * 0.01 + Oz) * Across;
+		// ([churches stage 6] what stands over the nave's top stretched on its own, to the tower's surveyed height)
+		const double My = M.Pos[V * 3 + 1] * 0.01, Over = SteepleUp != 1.0 && My > M.NaveTop ? SteepleUp : 1.0;
+		const double Lx = (M.Pos[V * 3] * 0.01 + Ox) * Along, Ly = (Over == 1.0 ? My : M.NaveTop + (My - M.NaveTop) * Over) * Up, Lz = (M.Pos[V * 3 + 2] * 0.01 + Oz) * Across;
 		const double Wx = X + Lx * Dx + Lz * Cx, Wy = Y + Ly, Wz = Z + Lx * Dz + Lz * Cz;
 		// (the normal under the stretch: over each way's stretch, then turned)
-		const double Nx0 = M.Nrm[V * 3] / Along, Ny0 = M.Nrm[V * 3 + 1] / Up, Nz0 = M.Nrm[V * 3 + 2] / Across;
+		const double Nx0 = M.Nrm[V * 3] / Along, Ny0 = M.Nrm[V * 3 + 1] / (Up * Over), Nz0 = M.Nrm[V * 3 + 2] / Across;
 		double Nx = Nx0 * Dx + Nz0 * Cx, Ny = Ny0, Nz = Nx0 * Dz + Nz0 * Cz;
 		const double Nl = std::sqrt(Nx * Nx + Ny * Ny + Nz * Nz);
 		if (Nl > 1e-9) { Nx /= Nl; Ny /= Nl; Nz /= Nl; } else { Nx = 0.0; Ny = 1.0; Nz = 0.0; }
@@ -518,6 +542,56 @@ void RidePlan::ChurchyardsTile(double X0, double Z0, double Size, const LocalLoo
 	if (!Houses.Alpha.empty() && Houses.Alpha.size() < Houses.Vertices()) Houses.Alpha.resize(Houses.Vertices(), 0.06f);
 }
 
+
+// [churches stage 6]
+namespace
+{
+std::mutex HeightsLock;
+std::shared_ptr<const std::vector<ChurchHeight>> HeightsTable;
+}
+
+size_t SetChurchHeights(const std::string& JsonText)
+{
+	TorqueFit::Json Root;
+	if (!TorqueFit::Json::Parse(JsonText, Root) || !Root.IsObject()) return 0;
+	auto Table = std::make_shared<std::vector<ChurchHeight>>();
+	if (const TorqueFit::Json* Rows = Root.Get("sites"); Rows && Rows->IsArray())
+		for (const TorqueFit::Json& R : Rows->A)
+		{
+			if (R.Size() < 7) continue;
+			ChurchHeight H;
+			H.Lat = R.A[0].N * 1e-5; H.Lon = R.A[1].N * 1e-5;
+			H.Top = float(R.A[2].N * 0.1); H.Roof = float(R.A[3].N * 0.1); H.Near = int(R.A[4].N);
+			H.TopLat = H.Lat + R.A[5].N * 1e-5; H.TopLon = H.Lon + R.A[6].N * 1e-5;
+			if (H.Top > 2.0f && H.Top < 200.0f) Table->push_back(H);
+		}
+	std::sort(Table->begin(), Table->end(), [](const ChurchHeight& A, const ChurchHeight& B) { return A.Lat < B.Lat; });
+	const size_t N = Table->size();
+	std::lock_guard<std::mutex> Hold(HeightsLock);
+	HeightsTable = N ? std::move(Table) : nullptr;
+	return N;
+}
+
+bool ChurchHeightNear(double Lat, double Lon, ChurchHeight& Out, double Reach)
+{
+	std::shared_ptr<const std::vector<ChurchHeight>> T;
+	{
+		std::lock_guard<std::mutex> Hold(HeightsLock);
+		T = HeightsTable;
+	}
+	if (!T) return false;
+	const double DLat = Reach / 111000.0, MLon = 111000.0 * std::cos(Lat * 0.0174533);
+	const auto First = std::lower_bound(T->begin(), T->end(), Lat - DLat, [](const ChurchHeight& H, double V) { return H.Lat < V; });
+	const ChurchHeight* Best = nullptr;
+	double BestD = Reach;
+	for (auto It = First; It != T->end() && It->Lat <= Lat + DLat; ++It)
+	{
+		const double D = std::hypot((It->Lat - Lat) * 111000.0, (It->Lon - Lon) * MLon);
+		if (D < BestD) { BestD = D; Best = &*It; }
+	}
+	if (Best) Out = *Best;
+	return Best != nullptr;
+}
 
 // [LiDAR stage 2]
 namespace

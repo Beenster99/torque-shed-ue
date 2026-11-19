@@ -211,6 +211,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		int Model = -1;
 		double Along = 1.0, Across = 1.0, Up = 1.0, Dx = 1.0, Dz = 0.0, Y = 0.0, Low = 0.0;
 		bool Sooted = false, Whole = false;
+		double SteepleUp = 1.0;   // [churches stage 6] its tower or spire stretched to the LiDAR's height
 	};
 	std::vector<KitChurch> Churches;
 	std::vector<const Building*> ChurchTaken;   // (the pieces a kit church stands in for)
@@ -289,6 +290,21 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						Cross = Cross || std::fmin(P0.second, P1.second) - std::fmax(P0.first, P1.first) > 0.5 * std::fmin(P0.second - P0.first, P1.second - P1.first);
 				if (Cross && !Chapel) Wants.push_back("cross");
 			}
+			// [churches stage 6] (the LiDAR's highest point of the place of worship by it, where that point stands on
+			// this church, 4 m round its outline: whether a spire, a tower or nothing stands over its roof, and how high)
+			ChurchHeight Surveyed;
+			bool HasSurvey = false;
+			{
+				const Geo MidGeo = Fr.ToGeo(Mx, Mz);
+				if (ChurchHeightNear(MidGeo.Lat, MidGeo.Lon, Surveyed, 40.0))
+				{
+					const P2 T = Fr.FromGeo(Surveyed.TopLat, Surveyed.TopLon);
+					const double Qx = T.X - B.X, Qz = T.Z - B.Z;
+					const double Tu = Qx * Cs0 - Qz * Sn0, Tv = Qx * Sn0 + Qz * Cs0;
+					HasSurvey = Tu > U0 - 4.0 && Tu < U1 + 4.0 && Tv > V0 - 4.0 && Tv < V1 + 4.0;
+				}
+			}
+			if (HasSurvey && !Chapel) Wants.push_back(Surveyed.Steeple() == 2 ? "spire" : Surveyed.Steeple() == 1 ? "tower" : "bellcote");
 			const LocalLook* OnStreet0 = StreetLookAt(Mx, Mz);
 			const LocalLook& Look0 = OnStreet0 ? *OnStreet0 : TileLook;
 			KitChurch C;
@@ -298,6 +314,13 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			C.Model = ChurchSet->Pick(Look0.Name, TownLookAt(Mx, Mz) != nullptr, Chapel, Long, Short, Chance(B.X, B.Z, 121), Chance(B.X, B.Z, 122), C.Along, C.Across, C.Whole, Wants);
 			if (C.Model < 0) continue;
 			C.Up = std::clamp(std::sqrt(C.Along * C.Across), 0.85, 1.15);
+			{
+				// [churches stage 6] (a tower to a tower's surveyed top, a spire to a spire's: what stands over the nave
+				// stretched, between 0.6 and 1.8 of the model's)
+				const ChurchModel& Mc = ChurchSet->Models[size_t(C.Model)];
+				if (HasSurvey && Mc.Steeple > 0 && Mc.Steeple == Surveyed.Steeple() && Mc.Top > Mc.NaveTop + 1.0)
+					C.SteepleUp = std::clamp((double(Surveyed.Top) / C.Up - Mc.NaveTop) / (Mc.Top - Mc.NaveTop), 0.6, 1.8);
+			}
 			// (along its length: a church's altar end east, a chapel's front, its -x end, to its road)
 			C.Dx = LongX0 ? Cs0 : Sn0;
 			C.Dz = LongX0 ? -Sn0 : Cs0;
@@ -1494,7 +1517,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	for (const KitChurch& C : Churches)
 	{
 		const ChurchModel& M = ChurchSet->Models[size_t(C.Model)];
-		BuildChurch(M, C.Whole, C.X, C.Y, C.Z, C.Low, C.Dx, C.Dz, C.Along, C.Across, C.Up, C.Sooted, Out, Washed, Houses, RoofOut, BrickOut);
+		BuildChurch(M, C.Whole, C.X, C.Y, C.Z, C.Low, C.Dx, C.Dz, C.Along, C.Across, C.Up, C.Sooted, Out, Washed, Houses, RoofOut, BrickOut, C.SteepleUp);
 		if (Tally) ++Tally->KitChurches;
 		// [churches stage 5] (its door, for the churchyard's path: in the model's frame about its nave's middle, as BuildChurch turns it)
 		if (M.HasDoor)

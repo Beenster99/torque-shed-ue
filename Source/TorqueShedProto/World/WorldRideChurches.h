@@ -25,6 +25,8 @@ struct ChurchModel
 	double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0, Top = 0.0;   // all of it about the nave's middle
 	double Weight = 1.0;
 	bool HasDoor = false;
+	double NaveTop = 0.0;   // [churches stage 6] the highest of it inside its nave's walls (m)
+	int Steeple = 0;        // and what stands over that: 0 nothing (or a bellcote), 1 a tower, 2 a spire (tagged so too)
 	double Door[4] = {0.0, 0.0, 0.0, 0.0};   // [churches stage 5] its door, a metre out (x, z, as Pos about the nave's middle) and its way out
 	// A part's section (ChurchKit::ESection) and three bytes: a colour, or the masonry's masks (brightness,
 	// which scan, lichen); and its alpha byte (the roofing, moss or dirt).
@@ -67,6 +69,22 @@ struct ChurchKit
 // after (thread safe); until then none (the old drawn churches stay).
 bool SetChurchKit(const std::string& Json, const std::string& Bin);
 
+// [churches stage 6] Places of worship's highest points from the LiDAR (Tools/lidar_worship.py:
+// Data/RideUK/church_heights.json): each site's landmark, its highest point and where that is, its roof's
+// median, and how many metres of it lie within 3 m of the top (a spire few, a tower many).
+struct ChurchHeight
+{
+	double Lat = 0.0, Lon = 0.0, TopLat = 0.0, TopLon = 0.0;
+	float Top = 0.0f, Roof = 0.0f;
+	int Near = 0;
+	// What it is by its top: 0 nothing standing over the roof, 1 a tower, 2 a spire.
+	int Steeple() const { return Top - Roof < 4.0f ? 0 : Near <= 12 && Top - Roof > 8.0f ? 2 : 1; }
+};
+// Reads the table (how many sites; 0 and none if it isn't one). Kept for every ride after (thread safe).
+size_t SetChurchHeights(const std::string& Json);
+// The site whose landmark is nearest (Lat, Lon) within Reach metres; false if none.
+bool ChurchHeightNear(double Lat, double Lon, ChurchHeight& Out, double Reach = 40.0);
+
 // [LiDAR stage 2] The folders cells' LiDAR heights files are read from (c<ROW>_<COL>.lidar.json, made by
 // Tools/lidar_heights.py --file), first found wins; every ride made after reads them (thread safe). None, no LiDAR.
 void SetLidarDirs(const std::vector<std::string>& Dirs);
@@ -79,5 +97,5 @@ std::shared_ptr<const ChurchKit> ChurchKitNow();
 // stone is; on a slope, on a stone plinth down to Low (its ground's lowest). Out the plain colours, Washed
 // render, Houses masonry, Roofs roofing, Bricks brick (as BuildingsTile's).
 void BuildChurch(const ChurchModel& M, bool Whole, double X, double Y, double Z, double Low, double Dx, double Dz, double Along, double Across, double Up, bool Sooted,
-	RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& Roofs, RideMesh& Bricks);
+	RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& Roofs, RideMesh& Bricks, double SteepleUp = 1.0);
 } // namespace TorqueWorld
