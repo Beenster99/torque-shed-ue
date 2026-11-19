@@ -71,6 +71,13 @@ std::vector<float> RenderCatch(const FSpec& S, bool bKick, int Seed);
 std::vector<float> RenderStarter(const FSpec& S, bool bKick, double Seconds, int Seed);
 // Overrun pops a second at Rpm, OverrunS seconds after the throttle shut (EngineSound.pop_rate).
 double PopRate(const FSpec& S, double Rpm, double OverrunS);
+// [beenster, build 160: "some of the sports engines should make a big pop/bang and a flame shoot from the
+// exhaust"] A revvy engine (a sports bike's: 10,000 rpm or more, or on a race pipe) spits flame with its
+// pops. Of its pops, the share that are a big bang (louder, a long flame), and the share of the rest that
+// show a flame at the pipe's end; none for the rest of the engines.
+bool Sporty(const FSpec& S);
+double BangShare(const FSpec& S);
+double FlameShare(const FSpec& S);
 
 // A mono 16-bit WAV at any rate (the idle recordings, the recorded loops).
 std::vector<float> ReadWav(const std::vector<uint8_t>& Bytes, int& SampleRate);
@@ -157,7 +164,7 @@ public:
 	void Render(float* Out, int N);
 
 	const FBank& Bank() const { return *BankRef; }
-	int Pops = 0, Catches = 0;
+	int Pops = 0, Catches = 0, Bangs = 0;   // (a bang counts as a pop too)
 	double IdleShare = 0.0;
 	int Sounding() const;   // loops playing (tests)
 

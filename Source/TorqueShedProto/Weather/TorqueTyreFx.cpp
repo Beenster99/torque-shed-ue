@@ -6,6 +6,7 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Components/DecalComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -34,9 +35,13 @@ constexpr double NearBikesCm = 40000.0;    // smoke and darkies only from bikes 
 constexpr double FarMarkCm = 150000.0;     // darkies left 1.5 km behind go
 constexpr double MarkLifeS = 600.0;        // and any after ten minutes (fading away)
 constexpr double MarkFadeS = 4.0;
-constexpr double MarkDepthCm = 6.0;        // how far above and below the road a darkie reaches
+constexpr double MarkDepthCm = 6.0;        // half its box's depth (from 2 cm above the road to 10 cm in)
 constexpr double SegmentCm = 120.0;        // a darkie's strip is laid in pieces this long at most
 const FTransform Hidden(FQuat::Identity, FVector(0.0, 0.0, -100000.0), FVector(1e-4));
+constexpr int32 MaxFlames = 12;            // flames at once (all the bikes)
+constexpr int32 FlameBits = 4;             // sprites in each, from the pipe out
+TAutoConsoleVariable<int32> CVarFlames(TEXT("torque.RideExhaustFlames"), 1,
+	TEXT("Flames out of a sports engine's pipe with its pops and bangs (Weather/TorqueTyreFx): 1 on, 0 off."));
 
 // Settings > Graphics > Effects (or the quality preset's): how many puffs, how many darkies.
 int32 Quality()
@@ -118,6 +123,45 @@ void ATorqueTyreFx::Make()
 		Smoke = C;
 	}
 	MarkPool = MarkMaterial ? TTF::MarkCap() : 0;
+
+	// The flames: their own glowing tongue (Tools/ue_build_spray.py); none drawn before it's built.
+	UMaterialInterface* FlameMat = Usable(TEXT("/Game/Shed/Materials/M_ExhaustFlame"), TEXT("/Game/Shed/Materials/M_ExhaustFlame.M_ExhaustFlame"));
+	UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: exhaust flames %s"), FlameMat ? TEXT("drawn with M_ExhaustFlame") : TEXT("off (no M_ExhaustFlame: run Tools/ue_build_shed.py)"));
+	if (Plane && FlameMat)
+	{
+		UInstancedStaticMeshComponent* C = NewObject<UInstancedStaticMeshComponent>(this, TEXT("ExhaustFlames"));
+		C->SetStaticMesh(Plane);
+		C->SetMaterial(0, FlameMat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetCastShadow(false);
+		C->SetCanEverAffectNavigation(false);
+		C->SetUsingAbsoluteLocation(true);
+		C->SetUsingAbsoluteRotation(true);
+		C->SetUsingAbsoluteScale(true);
+		C->SetNumCustomDataFloats(TTF::DataFloats);
+		C->SetupAttachment(GetRootComponent());
+		C->RegisterComponent();
+		C->SetWorldTransform(FTransform::Identity);
+		C->SetBoundsScale(1000.0f);
+		TArray<FTransform> All;
+		All.Init(TTF::Hidden, TTF::MaxFlames * TTF::FlameBits);
+		C->AddInstances(All, false, true);
+		C->SetVisibility(false);
+		FlameSprites = C;
+		// One quick flash for the brightest flame now (no shadows: a tenth of a second of orange light).
+		UPointLightComponent* L = NewObject<UPointLightComponent>(this, TEXT("ExhaustFlash"));
+		L->SetUsingAbsoluteLocation(true);
+		L->SetupAttachment(GetRootComponent());
+		L->SetCastShadows(false);
+		L->SetAttenuationRadius(450.0f);
+		L->SetLightColor(FLinearColor(1.0f, 0.55f, 0.2f));
+		L->SetIntensityUnits(ELightUnits::Candelas);
+		L->SetIntensity(0.0f);
+		L->SetVisibility(false);
+		L->RegisterComponent();
+		FlameLight = L;
+	}
 }
 
 int32 ATorqueTyreFx::MarksShown() const
@@ -153,6 +197,7 @@ void ATorqueTyreFx::Tick(float DeltaSeconds)
 	TickMarks(Dt);
 	SimulatePuffs(Dt, Wind);
 	DrawPuffs();
+	TickFlames(Dt);
 
 	// [r158] The log says how much smoke there's been, not only what's in the air at that moment.
 	PeakPuffs = FMath::Max(PeakPuffs, Puffs.Num());
@@ -205,6 +250,8 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 				In.SlideMs = Got.SlideMs;
 				In.RoadMs = Got.RoadMs;
 				In.HalfWidthCm = Got.HalfWidthCm;
+				In.RadiusCm = Got.RadiusCm;
+				In.SpinMs = Got.SpinMs;
 				In.bTarmac = Got.bTarmac;
 				In.At = Got.At;
 				In.Fwd = Got.Fwd;
@@ -215,6 +262,7 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 			{
 				In.SlideMs = 20.0;
 				In.RoadMs = 0.0;
+				In.SpinMs = 20.0;
 				In.bTarmac = true;
 				if (Bike->TyreScrub(I, Got))
 				{
@@ -222,6 +270,7 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 					In.Fwd = Got.Fwd;
 					In.Up = Got.Up;
 					In.HalfWidthCm = Got.HalfWidthCm;
+					In.RadiusCm = Got.RadiusCm;
 				}
 				else
 				{
@@ -255,46 +304,103 @@ void ATorqueTyreFx::EmitSmoke(FTyreState& St, const FScrub& In, float Dt, double
 	// Hot rubber smokes: from a little once it's warm to a torrent once it's hot, the more the faster it
 	// slides (a burnout's whole rim speed pours it out); a wet road keeps the tyre cool.
 	const double Hot = FMath::SmoothStep(0.03, 0.5, St.Heat);
-	const double Rate = 45.0 * Hot * FMath::Clamp(In.SlideMs / 12.0, 0.0, 1.6) * (1.0 - 0.85 * Wet);
+	// (A spinning tyre's half again: the ball round the wheel is short-lived and doesn't thin the bank.)
+	const double Rate = 45.0 * Hot * FMath::Clamp(In.SlideMs / 12.0, 0.0, 1.6) * (1.0 - 0.85 * Wet) * (In.SpinMs - In.RoadMs > 3.0 ? 1.6 : 1.0);
 	St.Debt = FMath::Min(St.Debt + Rate * Dt, 6.0);
-	const int32 Cap = PuffPool - 1;
+	if (PuffPool <= 1) return;
 	const FVector Side = FVector::CrossProduct(In.Up, In.Fwd).GetSafeNormal();
-	const bool bOnSpot = In.RoadMs < 3.0;
-	while (St.Debt >= 1.0 && Cap > 0)
+	// ([beenster, build 160] "the burnout should gather smoke around the spinning wheel and then flare out
+	// from the back (like the water spray)".) A tyre spinning faster than the road (a burnout, wheelspin
+	// pulling away): the smoke is carried round with the tread, a churning ball wrapped round the back of
+	// the wheel, and flung off the back of it in a fan that widens and rolls out into the bank behind. A
+	// locked or sideways slide's smoke is left hanging where it was made.
+	const double Tread = In.SpinMs - In.RoadMs;   // m/s the tread runs back over the road
+	const bool bSpin = Tread > 3.0;
+	const double R = FMath::Max(In.RadiusCm, 20.0);
+	const FVector Axle = In.At + In.Up * R;
+	while (St.Debt >= 1.0)
 	{
 		St.Debt -= 1.0;
 		FPuff P;
 		P.Seed = FMath::FRand();
-		// From the back of the contact patch, across the tread.
-		P.Pos = In.At + In.Up * FMath::FRandRange(4.0, 14.0) - In.Fwd * FMath::FRandRange(5.0, 30.0) + Side * FMath::FRandRange(-1.0, 1.0) * In.HalfWidthCm;
-		// Flung back off the spinning tyre and rolling out low along the road (a burnout's thick bank behind
-		// the bike), or left hanging where a skid made it; a little lift, a little spread, the wind's drift.
-		const double Throw = bOnSpot ? FMath::FRandRange(100.0, 300.0) : FMath::FRandRange(20.0, 90.0);
-		P.Vel = -In.Fwd * Throw + In.Up * FMath::FRandRange(30.0, 120.0) + Side * FMath::FRandRange(-180.0, 180.0) + Wind * 0.3;
-		P.Life = FMath::FRandRange(9.0f, 15.0f);
-		P.Size0 = FMath::FRandRange(40.0f, 70.0f);
-		P.Size1 = FMath::FRandRange(400.0f, 800.0f);
-		P.Alpha = FMath::FRandRange(0.30f, 0.50f) * (float)FMath::Lerp(0.6, 1.0, Hot);
-		++Emitted;
-		if (Puffs.Num() < Cap) Puffs.Add(P);
+		const double Across = FMath::FRandRange(-1.0, 1.0) * In.HalfWidthCm;
+		if (bSpin && FMath::FRand() < 0.45f)
+		{
+			// Round the wheel: from the contact patch, round the back and over the top (Theta from the
+			// bottom), moving with the tread (back at the bottom, up the back, forward over the top) and
+			// held close to it by the air the tyre drags round; a metre or two across, gone in a second or two.
+			const double Theta = FMath::DegreesToRadians(FMath::FRandRange(0.0, 200.0));
+			const double Out = R + FMath::FRandRange(2.0, 14.0);
+			P.Pos = Axle - In.Up * (Out * FMath::Cos(Theta)) - In.Fwd * (Out * FMath::Sin(Theta)) + Side * Across * 1.4;
+			const FVector Round = -In.Fwd * FMath::Cos(Theta) + In.Up * FMath::Sin(Theta);
+			P.Vel = Round * (Tread * 100.0 * FMath::FRandRange(0.08, 0.16)) + Side * FMath::FRandRange(-40.0, 40.0);
+			P.Life = FMath::FRandRange(1.2f, 2.5f);
+			P.Size0 = FMath::FRandRange(25.0f, 40.0f);
+			P.Size1 = FMath::FRandRange(120.0f, 220.0f);
+			P.Alpha = FMath::FRandRange(0.40f, 0.60f) * (float)FMath::Lerp(0.6, 1.0, Hot);
+			P.Drag = 3.5f;
+		}
+		else if (bSpin)
+		{
+			// Flung off the back: where the tread leaves the road and comes up round the back of the tyre,
+			// thrown back (a fraction of the tread's speed: the air slows it fast) and a little up, in a fan
+			// that spreads to the sides; it slows and swells into the bank behind.
+			const double Theta = FMath::DegreesToRadians(FMath::FRandRange(10.0, 70.0));
+			P.Pos = Axle - In.Up * (R * FMath::Cos(Theta)) - In.Fwd * (R * FMath::Sin(Theta)) + Side * Across;
+			const double Fling = FMath::Min(Tread, 30.0) * 100.0 * FMath::FRandRange(0.14, 0.32);
+			P.Vel = -In.Fwd * Fling + In.Up * (Fling * FMath::FRandRange(0.0, 0.22)) + Side * (Fling * FMath::FRandRange(-0.38, 0.38)) + Wind * 0.3;
+			P.Life = FMath::FRandRange(9.0f, 15.0f);
+			P.Size0 = FMath::FRandRange(30.0f, 50.0f);
+			P.Size1 = FMath::FRandRange(400.0f, 800.0f);
+			P.Alpha = FMath::FRandRange(0.30f, 0.50f) * (float)FMath::Lerp(0.6, 1.0, Hot);
+			P.Drag = 1.4f;
+		}
 		else
 		{
-			// Full: the oldest puff makes way (the cloud by the bike stays thick; the far edge thins).
-			int32 Oldest = 0;
-			float Most = -1.0f;
-			for (int32 K = 0; K < Puffs.Num(); ++K)
-				if (Puffs[K].Age / Puffs[K].Life > Most) { Most = Puffs[K].Age / Puffs[K].Life; Oldest = K; }
-			Puffs[Oldest] = P;
+			// From the back of the contact patch, across the tread, left hanging where the slide made it.
+			P.Pos = In.At + In.Up * FMath::FRandRange(4.0, 14.0) - In.Fwd * FMath::FRandRange(5.0, 30.0) + Side * Across;
+			P.Vel = -In.Fwd * FMath::FRandRange(20.0, 90.0) + In.Up * FMath::FRandRange(30.0, 120.0) + Side * FMath::FRandRange(-120.0, 120.0) + Wind * 0.3;
+			P.Life = FMath::FRandRange(9.0f, 15.0f);
+			P.Size0 = FMath::FRandRange(40.0f, 70.0f);
+			P.Size1 = FMath::FRandRange(400.0f, 800.0f);
+			P.Alpha = FMath::FRandRange(0.30f, 0.50f) * (float)FMath::Lerp(0.6, 1.0, Hot);
+			P.Drag = 0.9f;
 		}
+		AddPuff(P);
 	}
+}
+
+void ATorqueTyreFx::AddPuff(const FPuff& P)
+{
+	++Emitted;
+	const int32 Cap = PuffPool - 1;
+	if (Puffs.Num() < Cap)
+	{
+		Puffs.Add(P);
+		return;
+	}
+	// Full: the puff nearest its end makes way (the cloud by the bike stays thick; the far edge thins).
+	int32 Oldest = 0;
+	float Most = -1.0f;
+	for (int32 K = 0; K < Puffs.Num(); ++K)
+		if (Puffs[K].Age / Puffs[K].Life > Most) { Most = Puffs[K].Age / Puffs[K].Life; Oldest = K; }
+	Puffs[Oldest] = P;
 }
 
 void ATorqueTyreFx::LayMark(FTyreState& St, const FScrub& In, float Dt, double Wet, AActor* Bike)
 {
 	// Where the tread meets the road, and the road's way up there.
 	FVector At = In.At, Up = In.Up;
+	// ([beenster, build 160] "the line seems to hover above the surface": the road's drawn surface, not its
+	// simpler collision, and nothing riding on the bike in the way.)
 	FHitResult Hit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueTyreMark), false, Bike);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueTyreMark), true, Bike);
+	if (Bike)
+	{
+		TArray<AActor*> Riding;
+		Bike->GetAttachedActors(Riding, true, true);
+		Params.AddIgnoredActors(Riding);
+	}
 	if (GetWorld()->LineTraceSingleByChannel(Hit, In.At + In.Up * 25.0, In.At - In.Up * 40.0, ECC_Visibility, Params))
 	{
 		At = Hit.ImpactPoint;
@@ -304,9 +410,11 @@ void ATorqueTyreFx::LayMark(FTyreState& St, const FScrub& In, float Dt, double W
 	if (M)
 	{
 		// Too long, or the slide's swung round: the strip goes on as a new piece from where this one ends.
+		// ([beenster, build 160] a burnout's circle "feels octagonal not round": it took 20 deg of the
+		// chord, some 40 deg of the circle, a piece. Now a piece every 10 deg or so of a curve.)
 		const FVector Seg = At - M->From;
 		const double Len = Seg.Size();
-		const bool bTurned = Len > 25.0 && FVector::DotProduct(Seg / Len, M->Along) < 0.94;
+		const bool bTurned = Len > 8.0 && FVector::DotProduct(Seg / Len, M->Along) < 0.996;
 		if (Len > TTF::SegmentCm || bTurned)
 		{
 			const FVector Joint = M->To;
@@ -394,8 +502,11 @@ int32 ATorqueTyreFx::TakeMark()
 void ATorqueTyreFx::PlaceMark(FMark& M)
 {
 	if (!M.Decal) return;
-	const FVector Centre = (M.From + M.To) * 0.5;
-	const double HalfLen = FMath::Max(FVector::Dist(M.From, M.To) * 0.5 + M.HalfWidth * 0.6, 12.0);
+	// (Its box reaches just 2 cm above the road and well into it: the tyre resting in it, the rider's
+	// boot, a kerb's face aren't painted.)
+	const FVector Centre = (M.From + M.To) * 0.5 - M.Up * (TTF::MarkDepthCm - 2.0);
+	const double Overlap = M.HalfWidth * 0.6;   // past each end, under the next piece's
+	const double HalfLen = FMath::Max(FVector::Dist(M.From, M.To) * 0.5 + Overlap, 12.0);
 	// The decal projects along its X (down into the road); its Y across the tread, its Z along the strip.
 	const FQuat Q = FRotationMatrix::MakeFromXZ(-M.Up, M.Along).ToQuat();
 	M.Decal->SetWorldLocationAndRotation(Centre, Q);
@@ -407,6 +518,16 @@ void ATorqueTyreFx::PlaceMark(FMark& M)
 	{
 		M.Mid->SetScalarParameterValue(TEXT("Opacity"), Show);
 		M.Shown = Show;
+	}
+	// (The ends soften only over the overlap, so the pieces join into one even strip, not beads.)
+	if (M.Mid)
+	{
+		const float Ends = (float)FMath::Clamp(Overlap * 2.0 / HalfLen, 0.05, 0.9);
+		if (FMath::Abs(Ends - M.EndsShown) > 0.02f)
+		{
+			M.Mid->SetScalarParameterValue(TEXT("EndFade"), Ends);
+			M.EndsShown = Ends;
+		}
 	}
 }
 
@@ -447,11 +568,118 @@ void ATorqueTyreFx::TickMarks(float Dt)
 	}
 }
 
+void ATorqueTyreFx::TickFlames(float Dt)
+{
+	if (!FlameSprites) return;
+	const bool bOn = TTF::CVarFlames.GetValueOnGameThread() != 0;
+	// New ones: each bike's pops and bangs due now (taken even when off, so none pile up).
+	const double Now = GetWorld()->GetTimeSeconds();
+	TArray<bool> Bangs;
+	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
+	{
+		ATorqueBikePawn* Bike = *It;
+		if (!Bike || Bike->TakeExhaustFlames(Now, Bangs) == 0 || !bOn) continue;
+		if (FVector::DistSquared(Bike->GetActorLocation(), Eye) > FMath::Square(TTF::NearBikesCm)) continue;
+		for (const bool bBang : Bangs)
+		{
+			if (Flames.Num() >= TTF::MaxFlames) Flames.RemoveAt(0);   // (the oldest goes)
+			FFlame F;
+			F.Bike = Bike;
+			F.bBang = bBang;
+			F.Seed = FMath::FRand();
+			// A pop: a short spit of flame, a hand's length, gone in a tenth of a second. A bang: a long
+			// tongue, half a metre and more, a quarter of a second.
+			F.Life = bBang ? FMath::FRandRange(0.18f, 0.28f) : FMath::FRandRange(0.07f, 0.13f);
+			F.Len = bBang ? FMath::FRandRange(50.0f, 80.0f) : FMath::FRandRange(18.0f, 35.0f);
+			Flames.Add(F);
+		}
+	}
+	for (int32 I = Flames.Num() - 1; I >= 0; --I)
+	{
+		Flames[I].Age += Dt;
+		if (Flames[I].Age >= Flames[I].Life || !Flames[I].Bike.IsValid()) Flames.RemoveAt(I);
+	}
+	if (Flames.Num() == 0)
+	{
+		if (FlameDrawn > 0)
+		{
+			FlameSprites->SetVisibility(false);
+			FlameLight->SetVisibility(false);
+			FlameDrawn = 0;
+		}
+		return;
+	}
+	if (!FlameSprites->IsVisible()) FlameSprites->SetVisibility(true);
+	const int32 Count = TTF::MaxFlames * TTF::FlameBits;
+	TArray<FTransform> Xfs;
+	Xfs.Init(TTF::Hidden, Count);
+	TArray<float> Data;
+	Data.SetNumZeroed(TTF::DataFloats);
+	// From the pipe out: a blue root, a white-yellow heart, orange, a dull red tip.
+	static const FLinearColor Colour[TTF::FlameBits] = {
+		FLinearColor(0.35f, 0.5f, 1.0f), FLinearColor(1.0f, 0.85f, 0.5f), FLinearColor(1.0f, 0.5f, 0.12f), FLinearColor(0.9f, 0.22f, 0.04f)};
+	static const float Glow[TTF::FlameBits] = {0.5f, 1.0f, 0.8f, 0.4f};
+	float Brightest = 0.0f;
+	FVector FlashAt = FVector::ZeroVector;
+	int32 Slot = 0;
+	TArray<FVector> Tips;
+	FVector Dir;
+	for (const FFlame& F : Flames)
+	{
+		ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(F.Bike.Get());
+		if (!Bike || !Bike->ExhaustTips(Tips, Dir)) continue;
+		const float T = F.Age / FMath::Max(F.Life, 0.01f);
+		// Out in a flash, then shrinking back into the pipe; flickering.
+		const float Reach = FMath::Sin(FMath::Min(T * 2.2f, 1.0f) * UE_HALF_PI) * (1.0f - 0.5f * T);
+		const float Flick = 0.75f + 0.25f * FMath::Sin((F.Age * 90.0f) + F.Seed * 20.0f);
+		const float Bright = (1.0f - FMath::SmoothStep(0.5f, 1.0f, T)) * Flick;
+		const float Wide = F.bBang ? 1.6f : 1.0f;
+		for (const FVector& Tip : Tips)
+		{
+			const FVector Mid = Tip + Dir * (F.Len * Reach * 0.5);
+			if (Bright * (F.bBang ? 2.0f : 1.0f) > Brightest)
+			{
+				Brightest = Bright * (F.bBang ? 2.0f : 1.0f);
+				FlashAt = Mid;
+			}
+			for (int32 K = 0; K < TTF::FlameBits && Slot < Count; ++K, ++Slot)
+			{
+				const float Along = (K + 0.5f) / TTF::FlameBits;
+				const FVector At = Tip + Dir * (F.Len * Reach * Along);
+				const float Long = F.Len * Reach * 0.55f + 4.0f;          // each sprite overlaps the next
+				const float Thick = (5.0f + 7.0f * Along) * Wide;         // widening as it leaves the pipe
+				const FVector ToEye = (Eye - At).GetSafeNormal();
+				FVector Across = FVector::CrossProduct(ToEye, Dir);
+				if (Across.SizeSquared() < 1e-4) Across = FVector::CrossProduct(ToEye, FVector::UpVector);
+				const FVector Lengthwise = FVector::CrossProduct(Across.GetSafeNormal(), ToEye);
+				const FMatrix M = FRotationMatrix::MakeFromZX(ToEye, Lengthwise);
+				Xfs[Slot] = FTransform(M.ToQuat(), At, FVector(Long / 100.0f, Thick / 100.0f, 1.0f));
+				Data[0] = Colour[K].R;
+				Data[1] = Colour[K].G;
+				Data[2] = Colour[K].B;
+				Data[3] = Bright * Glow[K] * (F.bBang ? 1.4f : 1.0f);
+				Data[4] = 1.0f;
+				Data[5] = F.Seed + K * 0.37f;
+				FlameSprites->SetCustomData(Slot, Data, false);
+			}
+		}
+	}
+	FlameSprites->BatchUpdateInstancesTransforms(0, Xfs, true, false, true);
+	FlameSprites->MarkRenderStateDirty();
+	FlameDrawn = Slot;
+	if (Brightest > 0.01f)
+	{
+		FlameLight->SetWorldLocation(FlashAt);
+		FlameLight->SetIntensity(60.0f * Brightest);
+		if (!FlameLight->IsVisible()) FlameLight->SetVisibility(true);
+	}
+	else if (FlameLight->IsVisible()) FlameLight->SetVisibility(false);
+}
+
 void ATorqueTyreFx::SimulatePuffs(float Dt, const FVector& Wind)
 {
 	// Smoke drifts with the air and rises a little (it's warm); its first fling dies away quickly.
-	const FVector Drift = Wind + FVector(0.0, 0.0, 25.0);
-	const float Ease = 1.0f - FMath::Exp(-0.9f * Dt);
+	const FVector Drift = Wind + FVector(0.0, 0.0, 15.0);
 	for (int32 I = Puffs.Num() - 1; I >= 0; --I)
 	{
 		FPuff& P = Puffs[I];
@@ -461,7 +689,7 @@ void ATorqueTyreFx::SimulatePuffs(float Dt, const FVector& Wind)
 			Puffs.RemoveAtSwap(I);
 			continue;
 		}
-		P.Vel = FMath::Lerp(P.Vel, Drift, Ease);
+		P.Vel = FMath::Lerp(P.Vel, Drift, 1.0f - FMath::Exp(-P.Drag * Dt));
 		P.Pos += P.Vel * Dt;
 	}
 }
@@ -484,7 +712,7 @@ void ATorqueTyreFx::DrawPuffs()
 		const float F = P.Age / FMath::Max(P.Life, 0.01f);
 		const float Size = FMath::Lerp(P.Size0, P.Size1, 1.0f - FMath::Cube(1.0f - F));
 		// In over a third of a second, held, out over the last of its life; thinner as it spreads.
-		float A = P.Alpha * FMath::Min(P.Age / 0.3f, 1.0f) * (1.0f - FMath::SmoothStep(0.55f, 1.0f, F)) * FMath::Lerp(1.0f, 0.55f, F);
+		float A = P.Alpha * FMath::Min(P.Age / FMath::Min(0.3f, 0.15f * P.Life), 1.0f) * (1.0f - FMath::SmoothStep(0.55f, 1.0f, F)) * FMath::Lerp(1.0f, 0.55f, F);
 		const double D = FVector::Dist(P.Pos, Eye);
 		const double R = Size * 0.5;
 		if (D < R)
