@@ -858,6 +858,8 @@ void FTorqueAvatar::Destroy()
 		if (USceneComponent* C = P.Get()) C->DestroyComponent();
 	Parts.Reset();
 	Hair.Reset();
+	JacketPart.Reset();
+	JacketOn = 0;
 	bRode = false;
 	FaceMesh = nullptr;
 	FaceFromDriver.Reset();
@@ -1439,6 +1441,7 @@ void FTorqueAvatar::SetLook(const FTorqueProfile& Look)
 	using namespace TorqueAvatarMath;
 	if (!Driver) return;
 	Driver->SetRelativeScale3D(FVector(BaseScale * Look.HeightScale()));
+	SetJacket(Look.Jacket);
 	if (!FaceMesh) return;
 	FaceScale = 1.0 + 0.06 * FMath::Clamp((double)Look.Face[0], -1.0, 1.0);
 	const FReferenceSkeleton& Ref = FaceMesh->GetSkinnedAsset()->GetRefSkeleton();
@@ -1497,6 +1500,46 @@ double FTorqueAvatar::StandingHeight() const
 {
 	if (!Driver || Head == INDEX_NONE) return 0.0;
 	return RestHeight * Driver->GetRelativeScale3D().Z;
+}
+
+// [jacket] The profile's jacket worn over the shirt, following the body (leader pose), or taken off.
+// Made for Avatar A's body, so only Avatar A wears it until the others have theirs.
+void FTorqueAvatar::SetJacket(int32 Which)
+{
+	if (!Driver) return;
+	if (!Name.EndsWith(TEXT("_A"))) Which = 0;
+	if (Which == JacketOn) return;
+	JacketOn = Which;
+	if (USceneComponent* Old = JacketPart.Get())
+	{
+		Parts.Remove(JacketPart);
+		Old->DestroyComponent();
+	}
+	JacketPart.Reset();
+	const FString Mesh = FTorqueProfile::JacketMesh(Which);
+	if (Mesh.IsEmpty()) return;
+	const FString Path = FString::Printf(TEXT("/Game/AvatarTry/Crosswind/%s/%s.%s"), *Mesh, *Mesh, *Mesh);
+	USkeletalMesh* JM = LoadObject<USkeletalMesh>(nullptr, *Path);
+	AActor* Owner = Driver->GetOwner();
+	if (!JM || !Owner)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no jacket %s in this build"), *Name, *Path);
+		return;
+	}
+	USkeletalMeshComponent* J = NewObject<USkeletalMeshComponent>(Owner, MakeUniqueObjectName(Owner, USkeletalMeshComponent::StaticClass(), FName(TEXT("Jacket"))));
+	J->SetSkeletalMeshAsset(JM);
+	J->SetupAttachment(Driver);
+	J->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	J->SetGenerateOverlapEvents(false);
+	J->LightingChannels = Driver->LightingChannels;   // (the profile picture's studio lights it as the body)
+	J->SetCastShadow(Driver->CastShadow);
+	J->PrecachePSOs();
+	J->RegisterComponent();
+	J->SetLeaderPoseComponent(Driver, true);
+	J->SetVisibility(Driver->IsVisible(), false);
+	JacketPart = J;
+	Parts.Add(J);
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: wearing the jacket %s"), *Name, *Path);
 }
 
 void FTorqueAvatar::SetShown(bool bBody, bool bHead, bool bHair)
