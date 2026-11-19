@@ -7,6 +7,7 @@
 #include "TorqueSettings.h"
 #include "TorqueUi.h"
 #include "TorqueDash.h"
+#include "TorqueLaps.h"
 #include "Sim/BikeSim.h"
 #include "Engine/Canvas.h"
 #include "Engine/World.h"
@@ -84,6 +85,12 @@ void StepBike(UObject* Bike, const TorqueSim::BikeSim& Sim, const FTorqueDash& D
 	S.FrontSlip = Sim.Wheels[0].Kappa;
 	S.RearSlip = Sim.Wheels[1].Kappa;
 	S.Burnout = Sim.Burnout;
+	{
+		// [race tracks] The lap timer's best counted lap of this ride (Coop/TorqueLaps.h).
+		double LapSeconds = 0.0;
+		FString LapCircuit;
+		if (TorqueLapsUe::BestLap(LapSeconds, LapCircuit)) S.BestLap = LapSeconds;
+	}
 	GAwardTracker.Step(S);
 
 	const APawn* Rider = Cast<APawn>(Bike);
@@ -136,6 +143,10 @@ void ATorqueGameState::StartAwards()
 	FString Code, Name;
 	if (!RideJourney.Split(TEXT("\n"), &Code, &Name)) Name.Reset();
 	AwardsRoute = Name;
+	// [race tracks] The best lap tile only when someone rode a lap.
+	bAwardsLaps = false;
+	for (const ATorquePlayerState* R : Riders)
+		if (R->AwardStats.IsValidIndex(TorqueAwards::BestLap) && R->AwardStats[TorqueAwards::BestLap] > 0.0f) bAwardsLaps = true;
 	for (ATorquePlayerState* R : Riders)
 	{
 		R->AwardPicks.Reset();
@@ -251,8 +262,6 @@ void ATorqueGameState::FinishAwards()
 
 namespace TAWI
 {
-constexpr int32 AwCols = 4;
-
 struct FAwLay
 {
 	float S = 1.0f, OX = 0.0f, OY = 0.0f;
@@ -268,10 +277,24 @@ FAwLay AwLayOf(const UCanvas* Canvas)
 	L.OY = 0.5f * (Canvas->ClipY - 1080.0f * L.S);
 	return L;
 }
-// The grid of a dozen tiles, 1080p pixels.
+// The grid of tiles, 1080p pixels: a dozen, four across; with a best lap (someone rode a circuit) thirteen,
+// five across.
 constexpr float AwGridX = 160.0f, AwGridY = 214.0f, AwGridW = 1600.0f, AwGridH = 690.0f, AwGap = 18.0f;
-constexpr float AwTileW = (AwGridW - AwGap * (AwCols - 1)) / AwCols;
-constexpr float AwTileH = (AwGridH - AwGap * 2.0f) / 3.0f;
+struct FAwGrid
+{
+	int32 Tiles = 12, Cols = 4;
+	float TileW = 0.0f, TileH = 0.0f;
+	explicit FAwGrid(bool bLaps)
+	{
+		Tiles = bLaps ? TorqueAwards::Count : TorqueAwards::BestLap;
+		Cols = Tiles > 12 ? 5 : 4;
+		const int32 Rows = (Tiles + Cols - 1) / Cols;
+		TileW = (AwGridW - AwGap * (float)(Cols - 1)) / (float)Cols;
+		TileH = (AwGridH - AwGap * (float)(Rows - 1)) / (float)Rows;
+	}
+	float X(int32 K) const { return AwGridX + (float)(K % Cols) * (TileW + AwGap); }
+	float Y(int32 K) const { return AwGridY + (float)(K / Cols) * (TileH + AwGap); }
+};
 
 FLinearColor AwRiderColour(uint8 Index, float Alpha = 1.0f)
 {
@@ -303,6 +326,11 @@ FString AwValueText(int32 Stat, double V)
 	case TorqueAwards::Unit::Degrees: return FString::Printf(TEXT("%.0f\u00B0"), V);
 	case TorqueAwards::Unit::Seconds: return FString::Printf(TEXT("%.1f s"), V);
 	case TorqueAwards::Unit::Score: return FString::Printf(TEXT("%.0f / 100"), V);
+	case TorqueAwards::Unit::LapTime:
+	{
+		const int32 Ms = FMath::RoundToInt(V * 1000.0);
+		return FString::Printf(TEXT("%d:%02d.%03d"), Ms / 60000, (Ms / 1000) % 60, Ms % 1000);
+	}
 	}
 	return FString::Printf(TEXT("%.1f"), V);
 }
@@ -399,9 +427,10 @@ bool FTorqueAwardsScreen::Tick(APlayerController* PC, uint32 SonyHit)
 	{
 		if (MoveX != 0 || MoveY != 0)
 		{
-			const int32 Col = FMath::Clamp(Hot % AwCols + MoveX, 0, AwCols - 1);
-			const int32 Row = FMath::Clamp(Hot / AwCols + MoveY, 0, TorqueAwards::Count / AwCols - 1);
-			Hot = Row * AwCols + Col;
+			const FAwGrid G(GS->bAwardsLaps);
+			const int32 Col = FMath::Clamp(Hot % G.Cols + MoveX, 0, G.Cols - 1);
+			const int32 Row = FMath::Clamp(Hot / G.Cols + MoveY, 0, (G.Tiles - 1) / G.Cols);
+			Hot = FMath::Clamp(Row * G.Cols + Col, 0, G.Tiles - 1);
 		}
 		if (bMouseMoved && Under != INDEX_NONE) Hot = Under;
 		if (bClick && Under != INDEX_NONE)
@@ -474,10 +503,11 @@ void FTorqueAwardsScreen::DrawVote(UCanvas* Canvas, APlayerController* PC)
 			X -= L.W(22.0f);
 		}
 	}
-	for (int32 K = 0; K < TorqueAwards::Count; ++K)
+	const FAwGrid G(GS && GS->bAwardsLaps);
+	for (int32 K = 0; K < G.Tiles; ++K)
 	{
-		const float TX = L.X(AwGridX + (float)(K % AwCols) * (AwTileW + AwGap)), TY = L.Y(AwGridY + (float)(K / AwCols) * (AwTileH + AwGap));
-		const float TW = L.W(AwTileW), TH = L.W(AwTileH);
+		const float TX = L.X(G.X(K)), TY = L.Y(G.Y(K));
+		const float TW = L.W(G.TileW), TH = L.W(G.TileH);
 		TileBoxes.Add(FBox2D(FVector2D(TX, TY), FVector2D(TX + TW, TY + TH)));
 		const int32 PickAt = Picks.IndexOfByKey(K);
 		Ui::Rect(Canvas, TX, TY, TW, TH, PickAt != INDEX_NONE ? FLinearColor(0.96f, 0.63f, 0.17f, 0.16f) : Ui::PanelLight);
@@ -530,10 +560,11 @@ void FTorqueAwardsScreen::DrawDashboard(UCanvas* Canvas, APlayerController* PC)
 			Ui::EAlign::Right);
 
 	const double Rise = FMath::Clamp((FPlatformTime::Seconds() - ViewAt) / 0.8, 0.0, 1.0);
-	for (int32 K = 0; K < TorqueAwards::Count; ++K)
+	const FAwGrid G(GS && GS->bAwardsLaps);
+	for (int32 K = 0; K < G.Tiles; ++K)
 	{
-		const float TX = L.X(AwGridX + (float)(K % AwCols) * (AwTileW + AwGap)), TY = L.Y(AwGridY + (float)(K / AwCols) * (AwTileH + AwGap));
-		const float TW = L.W(AwTileW), TH = L.W(AwTileH);
+		const float TX = L.X(G.X(K)), TY = L.Y(G.Y(K));
+		const float TW = L.W(G.TileW), TH = L.W(G.TileH);
 		TileBoxes.Add(FBox2D(FVector2D(TX, TY), FVector2D(TX + TW, TY + TH)));
 		const int32 Pickers = GS->AwardPickers.IsValidIndex(K) ? GS->AwardPickers[K] : 0;
 		const bool bVoted = !GS->bAwardsNoVotes && Pickers > 0;
@@ -544,15 +575,22 @@ void FTorqueAwardsScreen::DrawDashboard(UCanvas* Canvas, APlayerController* PC)
 		if (bVoted)
 			Ui::Text(Canvas, FString::Printf(TEXT("picked by %d"), Pickers), TX + TW - L.W(16.0f), TY + L.W(15.0f), L.W(15.0f), Ui::Accent, true, Ui::EAlign::Right);
 		// The riders, best first.
+		// (a lap time: the smallest best, and nobody's 0 "no lap" ahead of a time)
+		const bool bLower = Info.bLower;
+		auto ValueOf = [&Riders, K](int32 I) { return Riders[I].Stats.IsValidIndex(K) ? (double)Riders[I].Stats[K] : 0.0; };
 		TArray<int32> Order;
 		double Best = 0.0;
 		for (int32 I = 0; I < Riders.Num(); ++I)
 		{
 			Order.Add(I);
-			if (Riders[I].Stats.IsValidIndex(K)) Best = FMath::Max(Best, (double)Riders[I].Stats[K]);
+			const double Mine = ValueOf(I);
+			if (Mine > 1e-6) Best = Best <= 1e-6 ? Mine : bLower ? FMath::Min(Best, Mine) : FMath::Max(Best, Mine);
 		}
-		auto ValueOf = [&Riders, K](int32 I) { return Riders[I].Stats.IsValidIndex(K) ? (double)Riders[I].Stats[K] : 0.0; };
-		Order.StableSort([&ValueOf](int32 A, int32 B) { return ValueOf(A) > ValueOf(B); });
+		Order.StableSort([&ValueOf, bLower](int32 A, int32 B) {
+			const double VA = ValueOf(A), VB = ValueOf(B);
+			if (bLower && (VA > 1e-6) != (VB > 1e-6)) return VA > 1e-6;
+			return bLower ? VA < VB : VA > VB;
+		});
 		if (Best <= 1e-6 || Order.Num() == 0)
 		{
 			Ui::Text(Canvas, TEXT("Nobody"), TX + L.W(18.0f), TY + L.W(46.0f), L.W(40.0f), Ui::Faint, true);
@@ -560,7 +598,7 @@ void FTorqueAwardsScreen::DrawDashboard(UCanvas* Canvas, APlayerController* PC)
 		}
 		// The leader's number, big, in their colour.
 		const FTorqueAwardRider& Top = Riders[Order[0]];
-		Ui::Text(Canvas, AwValueText(K, ValueOf(Order[0]) * Rise), TX + L.W(18.0f), TY + L.W(42.0f), L.W(42.0f), Ui::Ink, true);
+		Ui::Text(Canvas, AwValueText(K, ValueOf(Order[0]) * (bLower ? 1.0 : Rise)), TX + L.W(18.0f), TY + L.W(42.0f), L.W(42.0f), Ui::Ink, true);
 		Ui::TextFit(Canvas, Top.Name, TX + TW - L.W(16.0f), TY + L.W(58.0f), L.W(20.0f), TW * 0.45f, AwRiderColour(Top.Colour), true, Ui::EAlign::Right);
 		// A bar for each rider (up to four).
 		const int32 Shown = FMath::Min(Order.Num(), 4);
@@ -572,7 +610,7 @@ void FTorqueAwardsScreen::DrawDashboard(UCanvas* Canvas, APlayerController* PC)
 			const double V = ValueOf(Order[N]);
 			Ui::TextFit(Canvas, R.Name, TX + L.W(18.0f), RY, L.W(14.0f), L.W(72.0f), N == 0 ? Ui::Ink : Ui::Dim);
 			Ui::Rect(Canvas, BarX, RY + L.W(4.0f), BarW, L.W(10.0f), Ui::Line);
-			Ui::Rect(Canvas, BarX, RY + L.W(4.0f), BarW * (float)FMath::Clamp(V / Best * Rise, 0.0, 1.0), L.W(10.0f), AwRiderColour(R.Colour));
+			Ui::Rect(Canvas, BarX, RY + L.W(4.0f), BarW * (float)FMath::Clamp((V <= 1e-6 ? 0.0 : bLower ? Best / V : V / Best) * Rise, 0.0, 1.0), L.W(10.0f), AwRiderColour(R.Colour));
 			Ui::Text(Canvas, V > 1e-6 ? AwValueText(K, V) : FString(TEXT("-")), TX + TW - L.W(16.0f), RY, L.W(14.0f), N == 0 ? Ui::Ink : Ui::Dim, false,
 				Ui::EAlign::Right);
 		}
