@@ -10,7 +10,7 @@
 //
 // Scoring, as agreed: each stat's weight is the votes it got, 3 for a rider's 1st pick, 2 for a 2nd,
 // 1 for a 3rd (every stat weighs 1 if nobody voted). In each stat the riders are placed by their
-// number (bigger is better in all of them; nothing done, no place) and the top three placings earn
+// number (bigger is better, but a lap time smaller; nothing done, no place) and the top three placings earn
 // 3, 2 and 1. A rider's score is the sum of placing points times weight. Ties go to whoever leads
 // more of the voted stats, then to the most placing points unweighted.
 #pragma once
@@ -37,6 +37,7 @@ enum Stat : int
 	Skid,           // the longest skid (a locked wheel), m
 	Burnout,        // the longest burnout, s
 	Safest,         // 0..100: within the limits, no offs
+	BestLap,        // [race tracks] the best counted lap of any circuit, s (smaller is better; 0 none)
 	Count
 };
 // Kept with them but not voted on: for the dashboard's header.
@@ -44,12 +45,13 @@ constexpr int Distance = Count;   // m
 constexpr int RideTime = Count + 1;   // s on the bike, not off it
 constexpr int Total = Count + 2;
 
-enum class Unit : int { Speed, Metres, Number, Percent, Degrees, Seconds, Score };
+enum class Unit : int { Speed, Metres, Number, Percent, Degrees, Seconds, Score, LapTime };
 struct StatInfo
 {
 	const char* Name;
 	const char* Desc;
 	Unit Kind;
+	bool bLower = false;   // smaller wins (a lap time)
 };
 inline const StatInfo& Info(int S)
 {
@@ -66,6 +68,7 @@ inline const StatInfo& Info(int S)
 		{"Longest skid", "Furthest on a locked wheel", Unit::Metres},
 		{"Best burnout", "The longest burnout", Unit::Seconds},
 		{"Safest rider", "Kept to the limits and stayed on", Unit::Score},
+		{"Best lap", "The fastest lap of a race circuit", Unit::LapTime, true},
 	};
 	return Table[S >= 0 && S < Count ? S : 0];
 }
@@ -85,6 +88,7 @@ struct Sample
 	double LimitMs = 0.0;        // the road's speed limit, m/s (0 not known)
 	double FrontSlip = 0.0, RearSlip = 0.0;   // slip ratio: about -1 locked, + spinning
 	double Burnout = 0.0;        // 0..1, the back tyre spinning on the spot
+	double BestLap = 0.0;        // [race tracks] the ride's best counted lap so far, s (0 none: the lap timer's)
 };
 
 class Tracker
@@ -97,6 +101,7 @@ public:
 	void Step(const Sample& S)
 	{
 		const double Dt = std::max(S.Dt, 0.0);
+		if (S.BestLap > 0.0) V[BestLap] = V[BestLap] > 0.0 ? std::min(V[BestLap], S.BestLap) : S.BestLap;
 		if (S.OnFoot)
 		{
 			EndSpells();
@@ -245,9 +250,14 @@ inline Result Score(const std::vector<std::array<double, Count>>& Stats, const s
 		{
 			const double Mine = Stats[I][S];
 			if (!(Mine > 1e-6)) continue;
+			// (bigger wins; for a lap time, smaller, of those who set one)
+			const bool bLower = Info(S).bLower;
 			int Place = 1;
 			for (int J = 0; J < N; ++J)
-				if (Stats[J][S] > Mine + 1e-9) ++Place;
+			{
+				const double Theirs = Stats[J][S];
+				if (bLower ? (Theirs > 1e-6 && Theirs < Mine - 1e-9) : Theirs > Mine + 1e-9) ++Place;
+			}
 			R.Place[I][S] = Place;
 			const int Pts = std::max(0, 4 - Place);
 			R.Raw[I] += Pts;

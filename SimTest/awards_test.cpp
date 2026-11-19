@@ -191,6 +191,22 @@ int main()
 		const Result D = Score(Stats, {{{TopSpeed, TopSpeed, TopSpeed}}});
 		Check(D.Weight[TopSpeed] == 3 && D.Pickers[TopSpeed] == 1, "a repeated pick counts once");
 	}
+	{
+		// [race tracks] Best lap: smaller wins, and only those who rode one are placed.
+		Tracker T;
+		Sample S = Ride(10.0);
+		S.BestLap = 95.0;
+		T.Step(S);
+		S.BestLap = 0.0;
+		T.Step(S);
+		Check(T.V[BestLap] == 95.0, "best lap kept when the timer has none");
+		std::vector<std::array<double, Count>> Stats(3);
+		for (auto& A : Stats) A.fill(0.0);
+		Stats[0][BestLap] = 92.5; Stats[1][BestLap] = 88.0;   // Cat rode no lap
+		const Result R = Score(Stats, {{{BestLap, -1, -1}}});
+		Check(R.Place[1][BestLap] == 1 && R.Place[0][BestLap] == 2 && R.Place[2][BestLap] == 0, "88.0 beats 92.5; no lap, no place");
+		Check(R.Order[0] == 1 && R.Score[1] == 9 && R.Score[0] == 6, "Bob 9, Ann 6");
+	}
 	std::printf(Failures ? "%d FAILED\n" : "all passed\n", Failures);
 	return Failures ? 1 : 0;
 }

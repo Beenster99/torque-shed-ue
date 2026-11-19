@@ -50,6 +50,7 @@ struct RideMesh;
 struct Tint;
 struct RoamArea;
 struct RideGuide;
+class CircuitLaps;   // [circuits]
 struct RideDetour;
 }
 // [ride anywhere] The sat nav's own: the way back from off the ride's road, and how the rider is going.
@@ -101,6 +102,12 @@ public:
 	// [car parks] Whether At (Unreal cm) is in one of the ride's car parks: its surface (RidePlan::ECarParkSurface:
 	// 0 tarmac, 1 setts, 2 gravel) and how far it is laid over the ground there (m).
 	static bool CarParkUnder(const FVector& At, int32& Kind, double& Lift);
+	// [circuits] The rider's lap timer (World/WorldRideCircuits.h) one frame on, the rider at At (the ride's
+	// frame, metres: x east, z south), the clock at Now (s): true when a lap was just finished (Laps.Last).
+	static bool StepLaps(const FVector& At, double Now, TorqueWorld::CircuitLaps& Laps);
+	// [circuits] The nearest circuit's start (within 5 km of At, the ride's frame, metres): a place on its track a
+	// little before the line, facing the way it's raced, and its name. False with none.
+	static bool CircuitStart(const FVector& At, FVector& OutPos, double& OutHeading, FString& Name);
 	// Where to put a bike back after a fall (beenster, build 142: off on a side road, it always went back
 	// to the ride's road): the middle of the nearest road of any kind to At (the ride's frame, metres), a
 	// little to its left as the UK keeps, facing along it the way nearer Heading (sim: 0 faces -z, + left).

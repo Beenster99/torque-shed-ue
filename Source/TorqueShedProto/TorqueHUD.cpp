@@ -1,6 +1,7 @@
 #include "TorqueHUD.h"
 
 #include "Coop/TorqueUi.h"
+#include "Coop/TorqueLaps.h"
 
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -128,6 +129,7 @@ void ATorqueHUD::DrawHUD()
 	}
 	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
 	if (Bike) DrawSpeedo(Bike);
+	if (Bike) TorqueLapsUe::Draw(Canvas, Bike);   // [circuits] the lap timer
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{

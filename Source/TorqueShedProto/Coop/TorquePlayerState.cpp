@@ -27,6 +27,7 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, RideReadyFor);
 	DOREPLIFETIME(ATorquePlayerState, bAwardFinished);   // [ride awards]
 	DOREPLIFETIME(ATorquePlayerState, AwardVotedSeq);
+	DOREPLIFETIME(ATorquePlayerState, LapBests);   // [circuits]
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
 }
 
@@ -92,6 +93,11 @@ void ATorquePlayerState::ServerSetPlaces_Implementation(int32 Count, const FStri
 {
 	PlacesVisited = FMath::Max(0, Count);
 	LastPlace = Last.Left(80);
+}
+
+void ATorquePlayerState::ServerSetLapBests_Implementation(const FString& Bests)
+{
+	LapBests = Bests.Left(2000);   // [circuits]
 }
 
 void ATorquePlayerState::ServerSetLook_Implementation(const FString& NewName, uint8 NewColour)

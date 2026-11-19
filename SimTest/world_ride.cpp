@@ -12,6 +12,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
@@ -160,6 +161,8 @@ int main(int Argc, char** Argv)
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
 		std::string AtlasText;   // [towns stage 5]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
+		std::string CircuitText;   // [circuits]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/circuits.json"), CircuitText)) SetCircuitNotes(CircuitText);
 		std::string TypesText;   // [towns stage 4]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
 		std::string KitText, KitBin;   // [churches stage 3] (WORLD_RIDE_CHURCHES=0: the drawn churches, to compare)
@@ -1435,6 +1438,101 @@ int main(int Argc, char** Argv)
 				Yd.Walls.size(), Yd.Yews.size(), Yd.Gate.DistanceTo(Yd.PathEnd), GAt.Lat, GAt.Lon);
 		}
 		std::printf("churchyards: %zu (%zu made, %zu lychgates, %zu yews, %zu wall runs)\n", Plan->Churchyards.size(), Made, Lych, Yews, Runs);
+	}
+	if (std::getenv("WORLD_RIDE_CIRCUITS") != nullptr)
+	{
+		// [circuits] (debug: the race circuits in the ride's area, joined to its roads or not, their start and sector
+		// lines, and two laps of each ridden round its track at 40 m/s through the lap timer)
+		const Region& G = Plan->Area.Roads;
+		std::printf("circuits: %zu (%zu ways, %zu areas), circuit roads from edge %d of %zu\n", G.Circuits.size(), G.CircuitWays.size(), G.CircuitAreas.size(), G.CircuitFirst, G.Edges.size());
+		for (size_t C = 0; C < G.Circuits.size(); ++C)
+		{
+			int Track = 0, Pit = 0, Links = 0;
+			double TrackM = 0.0;
+			for (int E = G.CircuitFirst; E >= 0 && E < int(G.Edges.size()); ++E)
+			{
+				const int Of = G.CircuitOf[size_t(E - G.CircuitFirst)];
+				if (Of < 0) { ++Links; continue; }
+				if (Of != int(C)) continue;
+				if (G.ClassOf(E) == "raceway") { ++Track; for (size_t K = 1; K < G.Edges[size_t(E)].Line.size(); ++K) TrackM += G.Edges[size_t(E)].Line[K].DistanceTo(G.Edges[size_t(E)].Line[K - 1]); }
+				else ++Pit;
+			}
+			const Geo CAt = G.FrameOf().ToGeo(G.Circuits[C].At.X, G.Circuits[C].At.Z);
+			std::printf("circuit %zu '%s' at %.4f,%.4f: %d track roads (%.0f m), %d pit lane roads; %d links to the public roads in all\n", C, G.Circuits[C].Name.c_str(), CAt.Lat, CAt.Lon, Track, TrackM, Pit, Links);
+		}
+		if (Plan->CircuitIx)
+			for (const CircuitIndex::Line& L : Plan->CircuitIx->Lines)
+			{
+				const Geo CAt = G.FrameOf().ToGeo(L.At.X, L.At.Z);
+				std::printf("  line circuit %d kind %d '%s' at %.5f,%.5f half %.1f\n", L.Circuit, L.Kind, L.Name.c_str(), CAt.Lat, CAt.Lon, L.Half);
+			}
+		// Ride round each circuit from its start: straight on at every fork along its track.
+		for (size_t C = 0; Plan->CircuitIx && C < G.Circuits.size(); ++C)
+		{
+			P2 CAt;
+			double Heading = 0.0;
+			std::string Name;
+			if (!Plan->CircuitStartNear(G.Circuits[C].At.X, G.Circuits[C].At.Z, 6000.0, 30.0, CAt, Heading, Name)) continue;
+			// the track edge nearest the start, then walk it the way the heading says
+			const P2 Fwd(-std::sin(Heading), -std::cos(Heading));
+			int E0 = -1;
+			double Best = 30.0;
+			for (int E = G.CircuitFirst; E >= 0 && E < int(G.Edges.size()); ++E)
+			{
+				if (!G.CircuitEdge(E) || G.CircuitOf[size_t(E - G.CircuitFirst)] != int(C) || G.ClassOf(E) != "raceway") continue;
+				for (const P2& P : G.Edges[size_t(E)].Line) if (P.DistanceTo(CAt) < Best) { Best = P.DistanceTo(CAt); E0 = E; }
+			}
+			if (E0 < 0) { std::printf("laps '%s': no track by the start\n", Name.c_str()); continue; }
+			std::vector<P2> L0 = G.Edges[size_t(E0)].Line;
+			const P2 Dir = L0.back() - L0.front();
+			int Node = G.Edges[size_t(E0)].B;
+			if (Dir.X * Fwd.X + Dir.Z * Fwd.Z < 0.0) { std::reverse(L0.begin(), L0.end()); Node = G.Edges[size_t(E0)].A; }
+			std::vector<P2> Walk = L0;
+			int Edge = E0;
+			for (int Step = 0; Step < 600; ++Step)
+			{
+				const std::vector<P2> In = G.LineFrom(Edge, Node);
+				const P2 InDir = In[0] - In[1];
+				int Next = -1;
+				double Straightest = -2.0;
+				for (int E : G.Adjacent[size_t(Node)])
+				{
+					if (E == Edge || !G.CircuitEdge(E) || G.ClassOf(E) != "raceway" || G.CircuitOf[size_t(E - G.CircuitFirst)] != int(C)) continue;
+					const std::vector<P2> Lx = G.LineFrom(E, Node);
+					const P2 Out = Lx[1] - Lx[0];
+					const double Cos = (InDir.X * Out.X + InDir.Z * Out.Z) / std::fmax(InDir.Length() * Out.Length(), 1e-9);
+					if (Cos > Straightest) { Straightest = Cos; Next = E; }
+				}
+				if (Next < 0 || Next == E0) break;
+				const std::vector<P2> Lx = G.LineFrom(Next, Node);
+				Walk.insert(Walk.end(), Lx.begin() + 1, Lx.end());
+				Node = G.OtherEnd(Next, Node);
+				Edge = Next;
+			}
+			const std::vector<P2> Once = Walk;
+			for (int Lap = 0; Lap < 2; ++Lap) Walk.insert(Walk.end(), Once.begin() + 1, Once.end());
+			CircuitLaps Laps;
+			double Clock = 0.0;
+			int Done = 0;
+			for (size_t K = 1; K < Walk.size(); ++K)
+			{
+				const double Seg = Walk[K].DistanceTo(Walk[K - 1]);
+				for (double T = 0.0; T < Seg; T += 2.0)
+				{
+					const P2 P = Walk[K - 1] + (Walk[K] - Walk[K - 1]) * (T / Seg);
+					Clock += 2.0 / 40.0;
+					CircuitLaps::Lap Finished;
+					if (Laps.Step(*Plan, P.X, P.Z, Clock, Finished))
+					{
+						++Done;
+						std::printf("laps '%s': lap %s%s, sectors", Finished.Circuit.c_str(), LapText(Finished.Seconds).c_str(), Finished.Counted ? "" : " (not counted)");
+						for (double Sp : Finished.Splits) std::printf(" %s", LapText(Sp).c_str());
+						std::printf("\n");
+					}
+				}
+			}
+			std::printf("laps '%s': %d laps from a walk of %.0f m (once round %zu points)%s\n", Name.c_str(), Done, Clock * 40.0, Once.size(), Laps.Now().Spoilt ? " spoilt" : "");
+		}
 	}
 	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
 	{

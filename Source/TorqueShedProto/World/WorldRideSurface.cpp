@@ -62,6 +62,7 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 	if (Which < 0 || Which >= RoadCount()) return;
 	const std::vector<RoadPoint>& Pts = RoadOf(Which);
 	if (Pts.size() < 2) return;
+	if (CircuitRoad(Which)) { CircuitMarks(Which, From, To, Out); return; }   // [circuits] (a circuit's own paint, no patches)
 	const double RoadLen = Pts.back().Along;
 	const bool Main = Which == 0;
 	const auto Built = [&](double Along)

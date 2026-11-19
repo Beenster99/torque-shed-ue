@@ -139,6 +139,31 @@ struct Sight
 	std::vector<P2> Outline;
 };
 
+// [circuits] A race circuit's pieces as the circuit bake gave them (a cell's circuit file: the world
+// repo's scripts/circuit_bake.py; WorldCircuits.cpp): a way of its track (Kind 0 track, 1 pit lane, 2 a
+// kart track, 3 loose ground) with its mapped width (m, 0 none) and one-way (1 as drawn, -1 against, 0
+// not said); an area round it (Kind 4 its outline, 5 gravel, 6 sand, 7 grass, 8 paved run-off, 9 a
+// grandstand); and the circuit itself, its middle and its track's length (m). Circuit: the circuit's id.
+struct CircuitWay
+{
+	std::string Id, Circuit, Name;
+	int Kind = 0, Oneway = 0;
+	double Width = 0.0;
+	std::vector<P2> Line;
+};
+struct CircuitArea
+{
+	std::string Id, Circuit, Name;
+	int Kind = 0;
+	std::vector<P2> Ring;
+};
+struct CircuitInfo
+{
+	std::string Id, Name, Kind;
+	P2 At;
+	double Length = 0.0;
+};
+
 struct GroundData
 {
 	std::vector<GroundShape> Areas, Lines, Points, Paths;
@@ -267,6 +292,22 @@ public:
 	static constexpr int RoadXFormat = 1;
 	// [places stage 1] A places file (a cell's) into the region; another format is left out.
 	void AddSights(const TorqueFit::Json& File);
+	// [circuits] A circuit file (a cell's) into the region, each way, area and circuit once (WorldCircuits.cpp);
+	// then the tracks and pit lanes joined into the roads (once, after every cell's): edges of class "raceway"
+	// and "pit_lane" from CircuitFirst on, each joined to the roads that reach it (or, where none does, by a
+	// paddock road of class "service" to the nearest). Returns how many edges it added.
+	void AddCircuits(const TorqueFit::Json& File);
+	int JoinCircuits();
+	static constexpr int CircuitsFormat = 1;
+	std::vector<CircuitInfo> Circuits;
+	std::vector<CircuitWay> CircuitWays;
+	std::vector<CircuitArea> CircuitAreas;
+	int CircuitFirst = -1;                  // the first circuit edge (they are the last), -1 none
+	std::vector<int> CircuitOf;             // for each edge from CircuitFirst on: its circuit in Circuits, -1 a paddock road
+	static constexpr double TrackWidth = 12.0, PitWidth = 8.0, KartWidth = 8.0;   // (m, where the map gives none)
+	// The circuit (in Circuits) whose track or pit lane is nearest (X, Z) within Within m, or -1.
+	int CircuitAt(double X, double Z, double Within) const;
+	bool CircuitEdge(int Edge) const { return CircuitFirst >= 0 && Edge >= CircuitFirst && Edge < int(Edges.size()) && size_t(Edge - CircuitFirst) < CircuitOf.size() && CircuitOf[size_t(Edge - CircuitFirst)] >= 0; }
 	static constexpr int SightsFormat = 1;
 	// A tower this tall (m) is a skyscraper, seen from miles off.
 	static constexpr double Skyscraper = 100.0;

@@ -361,6 +361,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexTownLife();   // [roads stage 7] (before the fields too: forecourts are field areas)
 	R->IndexCarParks();   // [car parks]
+	R->IndexCircuits();   // [circuits]
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
@@ -442,6 +443,8 @@ std::shared_ptr<RidePlan> RidePlan::Grow(CellStore& Store, HeightStore& Heights,
 		if (G1.Adjacent[N].size() != G0.Adjacent[N].size())
 			for (int E : G1.Adjacent[N])
 				if (E < int(G0.Edges.size())) R->RedrawRoads.push_back(1 + E);
+	// [circuits] (the circuits' roads come after the cells' own, so they are numbered again as the area grows)
+	for (int E = G0.CircuitFirst; E >= 0 && E < int(G0.Edges.size()); ++E) R->RedrawRoads.push_back(1 + E);
 	std::sort(R->RedrawRoads.begin(), R->RedrawRoads.end());
 	R->RedrawRoads.erase(std::unique(R->RedrawRoads.begin(), R->RedrawRoads.end()), R->RedrawRoads.end());
 	const Frame F = G0.FrameOf();

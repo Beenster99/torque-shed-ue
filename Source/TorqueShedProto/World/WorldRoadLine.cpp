@@ -27,7 +27,10 @@ constexpr ClassRow ClassRows[] = {
 	{"tertiary", 6.0, 9.0, 1.0, 70.0}, {"unclassified", 4.6, 7.0, 1.15, 60.0}, {"residential", 6.0, 5.0, 1.3, 40.0}, {"living_street", 5.0, 4.0, 1.4, 30.0},
 	{"track", 3.3, 6.0, 3.0, 30.0},
 	// [OSM stage 4] (service roads, alleys, drives and car park aisles: narrow, slow, a last resort)
-	{"service", 3.5, 3.0, 8.0, 25.0}};
+	{"service", 3.5, 3.0, 8.0, 25.0},
+	// [circuits] (a race circuit's track and pit lane: as wide as a circuit, kept to the map's shape, never a
+	// way through for the sat nav, and banked no more than a slow road)
+	{"raceway", 12.0, 3.0, 40.0, 40.0}, {"pit_lane", 8.0, 3.0, 45.0, 30.0}};
 
 const ClassRow* RowOf(const std::string& Class)
 {

@@ -35,6 +35,7 @@ const char* FolderOf(CellStore::EKind Kind)
 	case CellStore::EKind::Paths: return "paths";
 	case CellStore::EKind::RoadX: return "roadx";
 	case CellStore::EKind::Sights: return "places";
+	case CellStore::EKind::Circuits: return "circuit";   // [circuits]
 	default: return "sketch";
 	}
 }
@@ -75,6 +76,7 @@ bool WorldIndex::Parse(const std::string& Text)
 	Hashes(Root, "paths", Paths);
 	Hashes(Root, "roadx", RoadX);   // [OSM stage 5]
 	Hashes(Root, "places", Sights);   // [places stage 1]
+	Hashes(Root, "circuits", Circuits);   // [circuits]
 	if (const Json* B = Root.Get("buildings"))
 		if (B->IsObject())
 			for (const auto& Kv : B->O)
@@ -239,7 +241,7 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 {
 	const std::unordered_map<std::string, std::string>& Map = Kind == EKind::Streams ? Idx.Streams
 		: Kind == EKind::Trees ? Idx.Trees : Kind == EKind::Features ? Idx.Features : Kind == EKind::Profiles ? Idx.Profiles
-		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Kind == EKind::RoadX ? Idx.RoadX : Kind == EKind::Sights ? Idx.Sights : Idx.Sketches;
+		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Kind == EKind::RoadX ? Idx.RoadX : Kind == EKind::Sights ? Idx.Sights : Kind == EKind::Circuits ? Idx.Circuits : Idx.Sketches;
 	auto It = Map.find(Name);
 	if (It == Map.end() || It->second.empty()) return false;
 	const std::string Rel = std::string(FolderOf(Kind)) + "/" + (Kind == EKind::Sketches ? "b" : "c") + Name + ".json";

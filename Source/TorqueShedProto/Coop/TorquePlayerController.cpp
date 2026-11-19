@@ -1030,6 +1030,19 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				CloseMenu();
 				Bike->RestartRide();
 			});
+			// [circuits] Near a race circuit: to its start line (the lap timer starts as you cross it).
+			{
+				const FVector Here = Bike->GetActorLocation();
+				FVector StartAt;
+				double StartHeading = 0.0;
+				FString CircuitName;
+				if (ATorqueRideWorld::CircuitStart(FVector(Here.X / 100.0, Here.Z / 100.0, Here.Y / 100.0), StartAt, StartHeading, CircuitName))
+					Add(TEXT("To the start line"), FString(), FString::Printf(TEXT("%s: just before the line, facing the way it's raced"), *CircuitName), [this, Bike]() {
+						CloseMenu();
+						FString Went;
+						if (Bike->ToCircuitStart(Went)) ShowNote(FString::Printf(TEXT("%s: the lap timer starts at the line"), *Went), 5.0);
+					});
+			}
 			// [ride awards] The host can start them before everyone's at the finish (or on a ride with no finish).
 			const ATorqueGameState* AwardsState = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 			if (!bClient && AwardsState && AwardsState->bAwardsOn && AwardsState->AwardsPhase != 1)

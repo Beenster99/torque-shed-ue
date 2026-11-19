@@ -338,6 +338,7 @@ public:
 	UPROPERTY(Replicated) TArray<uint8> AwardWeights;
 	UPROPERTY(Replicated) bool bAwardsNoVotes = false;
 	UPROPERTY(Replicated) FString AwardsRoute;   // the journey's name
+	UPROPERTY(Replicated) bool bAwardsLaps = false;   // [race tracks] someone rode a circuit lap: the Best lap tile and vote
 	void StartAwards();
 	// The riders not at the finish yet ("" for none).
 	FString AwardsWaitingFor() const;
