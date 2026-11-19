@@ -2588,19 +2588,40 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		// chopper's (1.8 m wheelbase) was buried some 18 cm, the fork spring threw the nose up (16 kN on
 		// the front 0.2 s in) and now and then it came off. Pitched to the road under its two wheels and
 		// sat on it, both tyres just touching.
-		const double Half = Sim->Build.Wheelbase * 0.5;
-		const V3 Ahead = Sim->Basis.Z * -1.0;
-		const V3 Mid = Sim->Position - V3(0.0, Sim->Build.RearRadius + 0.05, 0.0);
-		const RayHit GroundF = Sim->Ray(Mid + Ahead * Half + V3(0.0, 3.0, 0.0), Mid + Ahead * Half - V3(0.0, 5.0, 0.0));
-		const RayHit GroundR = Sim->Ray(Mid - Ahead * Half + V3(0.0, 3.0, 0.0), Mid - Ahead * Half - V3(0.0, 5.0, 0.0));
-		if (GroundF.Hit && GroundR.Hit)
+		// ([r159 crash run] Dropped from above the road (both wheels up at 0.1 s, the back landing at
+		// 21 kN, the front never finding ground and the bike tipping onto its nose): a spot whose ground
+		// under the two wheels doesn't look like a road (more than 25% apart, or not found) is skipped for
+		// the next route point along, up to ten.)
+		double RoadUp = 0.0, GroundMid = 0.0;
+		bool bGood = false;
+		int32 Placed = Best;
+		for (int32 Try = 0; Try < 10 && !bGood; ++Try)
 		{
-			const double RoadUp = std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half);
+			if (Try > 0)
+			{
+				if (Best + Try >= Line.Num() - 2) break;
+				Placed = Best + Try;
+				Respawn(Placed);
+				UE_LOG(LogTemp, Log, TEXT("Torque: climb start moved on to route point %d (the last one's ground didn't look like a road)"), Best + Try);
+			}
+			const double Half = Sim->Build.Wheelbase * 0.5;
+			const V3 Ahead = Sim->Basis.Z * -1.0;
+			const V3 Mid = Sim->Position - V3(0.0, Sim->Build.RearRadius + 0.05, 0.0);
+			const RayHit GroundF = Sim->Ray(Mid + Ahead * Half + V3(0.0, 3.0, 0.0), Mid + Ahead * Half - V3(0.0, 5.0, 0.0));
+			const RayHit GroundR = Sim->Ray(Mid - Ahead * Half + V3(0.0, 3.0, 0.0), Mid - Ahead * Half - V3(0.0, 5.0, 0.0));
+			if (!GroundF.Hit || !GroundR.Hit) continue;
+			RoadUp = std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half);
+			GroundMid = 0.5 * (GroundF.Position.y + GroundR.Position.y);
+			bGood = std::fabs(std::tan(RoadUp)) < 0.25 && std::fabs(GroundMid - Mid.y) < 0.5;
+		}
+		if (bGood)
+		{
 			Sim->Basis = M3::AxisAngle(Sim->Basis.X, RoadUp) * Sim->Basis;
-			const double GroundMid = 0.5 * (GroundF.Position.y + GroundR.Position.y);
 			Sim->Position.y = GroundMid + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(RoadUp), 0.5);
 			UE_LOG(LogTemp, Log, TEXT("Torque: climb start pitched %.1f deg up to the road under the wheels"), FMath::RadiansToDegrees(RoadUp));
 		}
+		else UE_LOG(LogTemp, Warning, TEXT("Torque: climb start: no spot near the foot with road under both wheels; left as placed"));
+		Best = Placed;   // (the route point it actually starts from, for the log and TestFromNear)
 		bClimbSettled = false;
 	}
 	const V3 Fwd = Sim->Basis.Z * -1.0;
@@ -2751,10 +2772,16 @@ void ATorqueBikePawn::TestMoveStep()
 		// the bends); this only watches, from the foot to the top. ([r158] sat in the middle, whatever an
 		// earlier test left in Shift: logged above as it came.)
 		Shift = 0.0;
-		// ([r159] Half a second on its wheels first; the climb's measured from there.)
+		// ([r159] Half a second on its wheels first, the throttle shut until both are down (at most
+		// 1.5 s); the climb's measured from there.)
 		if (!bClimbSettled)
 		{
-			if (TestClock < 0.5) return;
+			const bool bBothDown = Sim->Wheels[0].Contact && Sim->Wheels[1].Contact;
+			if (TestClock < 0.5 || (!bBothDown && TestClock < 1.5))
+			{
+				Throttle = 0.0;
+				return;
+			}
 			bClimbSettled = true;
 			TestClock = TestDist = 0.0;
 			TestY0 = Sim->Position.y;
