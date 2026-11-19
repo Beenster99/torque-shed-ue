@@ -61,7 +61,8 @@ constexpr float SignalNightGlow = 0.05f;
 // read clearly from behind: their own night levels, between build 132's haze and build 134's.
 // (Build 156: raised about four times with the headlamp's, still well under build 132's haze.)
 // (Build 157: the tail lamp at 20 was "faint red"; three times that, the brake light kept well above it.)
-constexpr float StopNightGlow = 0.8f, IndicatorNightGlow = 0.3f, TailNightGlow = 1.5f;
+// (Build 159: at 320 the brake lens left a pink cast on the rider's back; down to 220, still well over the tail lamp's 60.)
+constexpr float StopNightGlow = 0.55f, IndicatorNightGlow = 0.3f, TailNightGlow = 1.5f;
 // The little lamps: an indicator's amber glow round it, the stop lamp's red on the road behind (bike_model.gd
 // STOP_GLOW_RANGE 3 m). Candela.
 // (Build 132's 40 cd over 2.6 m and 60 cd over 3.2 m lit the whole road round the bike at night: a
