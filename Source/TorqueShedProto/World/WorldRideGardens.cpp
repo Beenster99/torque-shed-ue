@@ -4,6 +4,9 @@
 // cover in beds along its front, behind its front wall, along its free gable ends and at the back, and now
 // and then a small garden tree. Each house's garden has its own character (a tidy one full of roses and
 // flowers, a shrubby one, now and then one nearly bare), the same every time for the same house.
+// Only what a rider could see ([Nov 19] beenster: "focus the vegetation on what might be seen from the road
+// - no need to create bushes in inaccessible or unseeable areas"): within 30 m of a road's edge (a garden tree
+// 45 m) and, but for the trees, with a clear line to that road past every building (SeenFromRoad).
 //
 // Performance first: the plants are drawn as the trees are (instanced, Nanite, by the square), only as the
 // scanned Megaplants (no stand-ins), out to 40 to 90 m (the kit's cull, Tools/ue_build_rideuk.py) and only
@@ -26,6 +29,10 @@ enum GardenKind : uint16_t
 static_assert(GardenTree + 1 == RidePlan::PlantKinds, "the garden kinds are the last plant kinds");
 
 inline constexpr double Bucket = 16.0;
+
+// How far from a road's edge garden plants are planted (m): past that no rider sees them; a garden
+// tree, seen over the roofs, a little further.
+inline constexpr double SeenReach = 30.0, SeenReachTree = 45.0;
 
 inline long long BucketKey(int I, int J)
 {
@@ -57,6 +64,30 @@ bool RidePlan::GardenClear::Blocked(double X, double Z, double Gap) const
 		// (into its own frame, as SceneryTile draws it: x across W, z deep D, turned by Yaw)
 		const double Cs = std::cos(B->Yaw), Sn = std::sin(B->Yaw), Dx = X - B->X, Dz = Z - B->Z;
 		if (std::fabs(Dx * Cs - Dz * Sn) < B->W * 0.5 + Gap && std::fabs(Dx * Sn + Dz * Cs) < B->D * 0.5 + Gap) return true;
+	}
+	return false;
+}
+
+// [Nov 19] Whether a plant at (X, Z) can be seen from the road whose middle's nearest point is Foot: a clear
+// line (no building on it) from the plant to that point or to one 12 m either way along the road (the road
+// taken as straight there), so a back garden behind its house, or one shut in by others, is left out.
+bool RidePlan::SeenFromRoad(const GardenClear& Clear, double X, double Z, const P2& Foot) const
+{
+	const double Dx = X - Foot.X, Dz = Z - Foot.Z, Len = std::hypot(Dx, Dz);
+	if (Len < 1e-3) return true;
+	const double Tx = -Dz / Len, Tz = Dx / Len;   // (along the road, square to the line to it)
+	for (const double Shift : {0.0, 12.0, -12.0})
+	{
+		const double Ex = Foot.X + Tx * Shift, Ez = Foot.Z + Tz * Shift;
+		const double Run = std::hypot(Ex - X, Ez - Z);
+		bool Open = true;
+		// (from 0.7 m off the plant, so a bed against a wall isn't blocked by that wall, every metre)
+		for (double T = 0.7; Open && T < Run; T += 1.0)
+		{
+			const double F = T / Run;
+			Open = !Clear.Blocked(X + (Ex - X) * F, Z + (Ez - Z) * F, 0.0);
+		}
+		if (Open) return true;
 	}
 	return false;
 }
@@ -107,7 +138,13 @@ void RidePlan::GardenPlants(const GardenHouse& House, const GardenClear& Clear, 
 		{
 			NearOpts Opts;
 			NearHit Hit;
-			if (NearestOf(X, Z, Opts, Hit) && Hit.Dist < Hit.Half + (What == GardenTree ? 3.0 : 1.9)) return;
+			if (!NearestOf(X, Z, Opts, Hit)) return;
+			if (Hit.Dist < Hit.Half + (What == GardenTree ? 3.0 : 1.9)) return;
+			// ([Nov 19] beenster: "focus the vegetation on what might be seen from the road": only what a rider
+			// on some road could see, within SeenReach of its edge, and (bar a garden tree, which shows over
+			// the roofs) with a clear line to the road past every building)
+			if (Hit.Dist - Hit.Half > (What == GardenTree ? SeenReachTree : SeenReach)) return;
+			if (What != GardenTree && !SeenFromRoad(Clear, X, Z, Hit.Foot)) return;
 		}
 		{
 			double RailDist = 0.0, RailTop = 0.0;
