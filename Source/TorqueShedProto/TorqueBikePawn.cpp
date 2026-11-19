@@ -633,7 +633,7 @@ bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FSt
 	}
 	// The dyno desk's tune (pressures, sprockets, clickers, ratio spacing, rider aids, steering
 	// damper), the chain's slack and the parts drilled and trimmed for lightness.
-	for (const TPair<FName, float>& KV : B.TuneOf(Bay)) In.Tune[PawnStd(KV.Key.ToString())] = KV.Value;
+	for (const TPair<FName, float>& KV : B.TuneOf(Bay)) In.Tune[PawnStd(KV.Key.ToString().ToLower())] = KV.Value;
 	In.ChainSlack = B.ChainSlackOf(Bay);
 	// [fluids] The petrol in its tanks and the oil in its engine, as the shed has them.
 	if (B.FuelCapacityOf(Bay) > 0.0f) In.FuelLitres = B.FuelOf(Bay);

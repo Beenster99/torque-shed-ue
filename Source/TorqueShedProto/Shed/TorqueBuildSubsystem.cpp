@@ -2247,7 +2247,7 @@ FString UTorqueBuildSubsystem::TyreFitReason(FName Tyre, FName Wheel)
 	// PartsDB.tyre_fit_reason, on fitting's catalogue (TorqueFit::Shop::TyreFit).
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	if (!Lay) return FString();
-	const std::string T = TBI::Std(Tyre.ToString()), W = TBI::Std(Wheel.ToString());
+	const std::string T = TBI::Id(Tyre), W = TBI::Id(Wheel);
 	const int Fit = TorqueFit::Shop::TyreFit(*Lay, T, W);
 	if (Fit == 0) return FString();
 	const TorqueFit::Json* Tp = Lay->Part(T);
@@ -2282,7 +2282,7 @@ FString UTorqueBuildSubsystem::TyresThatFit(FName Wheel)
 {
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	if (!Lay) return FString();
-	const std::string W = TBI::Std(Wheel.ToString());
+	const std::string W = TBI::Id(Wheel);
 	const TorqueFit::Json* Wp = Lay->Part(W);
 	if (!Wp) return FString();
 	auto Inch = [](double D) { return FMath::IsNearlyEqual(D, FMath::RoundToDouble(D)) ? FString::Printf(TEXT("%d\""), (int32)FMath::RoundToDouble(D)) : FString::Printf(TEXT("%.1f\""), D); };
