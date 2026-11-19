@@ -100,7 +100,10 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 		P.Y = float(F.Height);
 		// Its front (the model's +x) to the road, or for a thing that stands in a line (a gate,
 		// a stile) square to the line: the line runs along Face, so the front is across it.
-		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate;
+		// ([Nov 19, beenster: "turn the telegraph poles to the direction of cable travel"] a telegraph
+		// pole too: its wires run along Face, and the model's cross arm lies along its x, so its front is
+		// across them and the arm square to the wires, its stay along them)
+		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate || F.Kind == PowerPole;
 		const P2 Front = InLine ? P2(F.Face.Z, -F.Face.X) : F.Face;
 		P.Yaw = float(std::atan2(Front.Z, Front.X));
 		P.Scale = 1.0f;
