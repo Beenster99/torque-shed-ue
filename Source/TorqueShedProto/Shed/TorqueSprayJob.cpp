@@ -840,6 +840,41 @@ float FTorqueSprayJob::Quality(const FStats& S) const
 	return FMath::Clamp(S.Covered * (1.0f - S.Runs * 0.6f - S.Dry * 0.35f), 0.0f, 1.0f);
 }
 
+bool FTorqueSprayJob::FadeFit(bool bAlong, const FVector& Middle, float& OutAt, float& OutDir, float& OutShare) const
+{
+	OutAt = 0.0f;
+	OutDir = 1.0f;
+	OutShare = 0.0f;
+	if (Points.Num() == 0 || Coats.Num() == 0) return false;
+	const int32 Ax = bAlong ? 0 : 2;
+	double SumOn = 0.0, SumOff = 0.0;
+	int32 On = 0, Off = 0;
+	TArray<float> Along;
+	Along.Reserve(Points.Num());
+	for (int32 I = 0; I < Points.Num(); ++I)
+	{
+		const float V = (float)(Points[I][Ax] - Middle[Ax]);
+		Along.Add(V);
+		// Half a film counts: the soft edge of a pass is where the fade goes anyway.
+		if (CoatsFacing(Vox[I], Normals[I]) >= Full * 0.5f) { SumOn += V; ++On; }
+		else { SumOff += V; ++Off; }
+	}
+	OutShare = (float)On / (float)Points.Num();
+	if (On < 3 || OutShare < 0.03f) return false;
+	if (Off < 3)
+	{
+		// All of it: the second colour everywhere (the fade's middle off the part's end).
+		OutAt = -500.0f;
+		return true;
+	}
+	OutDir = SumOn / On >= SumOff / Off ? 1.0f : -1.0f;
+	for (float& V : Along) V *= OutDir;
+	Along.Sort();
+	const int32 Cut = FMath::Clamp(FMath::RoundToInt((1.0f - OutShare) * (Along.Num() - 1)), 0, Along.Num() - 1);
+	OutAt = Along[Cut] * OutDir;
+	return true;
+}
+
 bool FTorqueSprayJob::Ready() const
 {
 	if (Points.Num() == 0) return false;

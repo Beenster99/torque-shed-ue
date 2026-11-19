@@ -48,6 +48,8 @@ struct FTorqueShedSaveItem
 	UPROPERTY() FLinearColor MaskColour = FLinearColor::White;
 	UPROPERTY() float MaskMetal = 0.05f;
 	UPROPERTY() float MaskRough = 0.15f;
+	UPROPERTY() float FadeAt = 0.0f;     // a fade's middle (cm) and which end the second colour's at (FTorqueItem)
+	UPROPERTY() float FadeDir = 1.0f;
 	UPROPERTY() FString Badge;          // a tank's badge (FTorqueItem)
 	UPROPERTY() FString Decals;         // decals placed on it (FTorqueItem, Fit/BikeDecal text)
 	UPROPERTY() TMap<FName, float> Tune;   // the dyno desk's settings kept on the part (FTorqueItem)

@@ -164,7 +164,8 @@ inline float FadeCm(int32 Pattern)
 }
 // How much of the colour under the mask is kept at a point (cm, in the part's frame from its middle:
 // x forward, z up), 0 .. 1, for the fades (the material's MASK_HLSL does the same).
-float FadeKeep(int32 Pattern, float X, float Z);
+// At: the fade's middle along its way (cm), Dir: -1 for the mask's colour at the back or bottom.
+float FadeKeep(int32 Pattern, float X, float Z, float At = 0.0f, float Dir = 1.0f);
 // The tape that shows on paint Under: blue, or cream on a part too near the blue for that to show.
 FLinearColor TapeColourOn(const FLinearColor& Under);
 
@@ -176,6 +177,7 @@ struct FPaintLook
 	int32 Pattern = 0;            // the masked pattern (or the taped one, before it's sprayed over)
 	FLinearColor MaskColour = FLinearColor::White;
 	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	float FadeAt = 0.0f, FadeDir = 1.0f;   // a fade's middle (cm) and which end the mask's colour is at
 	bool bTape = false;           // the tape's still on
 	FLinearColor TapeColour = FLinearColor(0.18f, 0.42f, 0.85f);
 };

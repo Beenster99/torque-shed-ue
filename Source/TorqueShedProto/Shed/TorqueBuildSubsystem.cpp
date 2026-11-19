@@ -479,6 +479,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MaskColour = It.MaskColour;
 		To.MaskMetal = It.MaskMetal;
 		To.MaskRough = It.MaskRough;
+		To.FadeAt = It.FadeAt;
+		To.FadeDir = It.FadeDir;
 		To.Badge = It.Badge;
 		To.Decals = It.Decals;
 		To.Tune = It.Tune;
@@ -610,6 +612,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MaskColour = From.MaskColour;
 		It.MaskMetal = From.MaskMetal;
 		It.MaskRough = From.MaskRough;
+		It.FadeAt = FMath::IsFinite(From.FadeAt) ? FMath::Clamp(From.FadeAt, -500.0f, 500.0f) : 0.0f;
+		It.FadeDir = From.FadeDir < 0.0f ? -1.0f : 1.0f;
 		It.Badge = From.Badge;
 		It.Decals = TorqueDecals::ToUe(TorqueFit::Decals::Sanitize(TorqueDecals::ToStd(From.Decals)));
 		It.Tune = From.Tune;
@@ -678,7 +682,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 22;   // bumped when the layout below changes (22: the TVs' YouTube video, 21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 23;   // bumped when the layout below changes (23: a fade's middle and way on a masked part, 22: the TVs' YouTube video, 21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -853,7 +857,8 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		uint8 Tape = (uint8)It.Tape, Mask = (uint8)It.Mask, MaskMetal = TBI::Quant(It.MaskMetal), MaskRough = TBI::Quant(It.MaskRough);
 		FColor MaskColour = It.MaskColour.QuantizeRound();
 		Ar << Tape << Mask;
-		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough;
+		float FadeAt = It.FadeAt, FadeDir = It.FadeDir;
+		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough << FadeAt << FadeDir;
 		// A tank's badge (bit 1), and decals placed on it (bit 2).
 		uint8 bBadge = uint8((It.Badge.IsEmpty() ? 0 : 1) | (It.Decals.IsEmpty() ? 0 : 2));
 		Ar << bBadge;
@@ -1071,7 +1076,10 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			{
 				uint8 MaskMetal = 0, MaskRough = 0;
 				FColor MaskColour;
-				Ar << MaskColour << MaskMetal << MaskRough;
+				float FadeAt = 0.0f, FadeDir = 1.0f;
+				Ar << MaskColour << MaskMetal << MaskRough << FadeAt << FadeDir;
+				It.FadeAt = FMath::IsFinite(FadeAt) ? FMath::Clamp(FadeAt, -500.0f, 500.0f) : 0.0f;
+				It.FadeDir = FadeDir < 0.0f ? -1.0f : 1.0f;
 				It.MaskColour = MaskColour.ReinterpretAsLinear();
 				It.MaskMetal = TBI::Unquant(MaskMetal);
 				It.MaskRough = TBI::Unquant(MaskRough);
@@ -2480,6 +2488,8 @@ bool UTorqueBuildSubsystem::EffectLook(const FTorqueItem& It, TorquePaintMix::FP
 		Out.MaskColour = It.MaskColour;
 		Out.MaskMetal = It.MaskMetal;
 		Out.MaskRough = It.MaskRough;
+		Out.FadeAt = It.FadeAt;
+		Out.FadeDir = It.FadeDir;
 	}
 	if (bTaped)
 	{
@@ -2524,6 +2534,33 @@ FString UTorqueBuildSubsystem::PaintName(int32 Index)
 		TEXT("Black"), TEXT("Teal"), TEXT("Silver"), TEXT("Gold"), TEXT("Yellow"), TEXT("Pink"), TEXT("Burgundy"), TEXT("Brown"),
 		TEXT("Cream"), TEXT("Olive")};
 	return Index >= 0 && Index < (int32)UE_ARRAY_COUNT(Names) ? FString(Names[Index]) : FString(TEXT("Custom"));
+}
+
+TorquePaintMix::FPaintSpec UTorqueBuildSubsystem::PaletteSpec(int32 Colour, FName Finish)
+{
+	const int32 Idx = FMath::Clamp(Colour, 0, Paints().Num() - 1);
+	const FName F = Finishes().Contains(Finish) ? Finish : FName(TEXT("gloss"));
+	TorquePaintMix::FPaintSpec S;
+	S.Name = FinishName(F) + TEXT(" ") + PaintName(Idx).ToLower();
+	S.Code = FString::Printf(TEXT("P%d:%s"), Idx, *F.ToString());
+	S.Effect = F == FName(TEXT("gloss")) ? FName(TEXT("solid")) : F;   // (TorquePaintMix::FinishOf gives the finish back)
+	S.Colour = Paints()[Idx];
+	// The finish's shine and metal as FinishLook draws them, for the wet coat going on.
+	FTorqueItem Look;
+	Look.Colour = S.Colour;
+	Look.Finish = F;
+	Look.PaintQ = 1.0f;
+	FLinearColor Shown = S.Colour;
+	float Metal = 0.05f, Rough = 0.12f;
+	if (FinishLook(Look, Shown, Metal, Rough))
+	{
+		// (The colour stays as picked: the part's finish draws it, so it isn't done twice.)
+		S.Metal = Metal;
+		S.Rough = Rough;
+	}
+	S.Colour.A = 1.0f;
+	S.Need = 1;   // (ready-mixed: one good coat covers)
+	return S;
 }
 
 const TArray<FName>& UTorqueBuildSubsystem::Finishes()
@@ -3311,16 +3348,18 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		// dust settles in it, and over a good primer it keys on and comes out better.
 		FTorqueItem& It = Items[R.Item];
 		const bool bPrimed = It.bPrimerTop;
+		const float WasQ = It.PaintQ;   // (a fade's base coat counts as much as its second colour)
 		float CoatsQ = 1.0f;
 		FString What;
 		if (R.Finish == FadeFinish())
 		{
-			// A fade from the gun's two cups: cup 1 blending into cup 2 across it (TorquePaintBay.cpp).
-			CoatsQ = FadeFromCups(Peer, It, R.Colour);
-			const FTorquePaintCup* One = Paint.CupOf(Peer, 0);
+			// A fade: cup 2 over part of the base coat, blended in where it went (TorquePaintBay.cpp). The
+			// spray game sends the fade's middle and way as Place's X and Y.
+			const FString Base = It.MixName.IsEmpty() ? FString(TEXT("the base coat")) : It.MixName;
+			CoatsQ = FadeFromCups(Peer, It, R.Colour, (float)R.Place.GetLocation().X, (float)R.Place.GetLocation().Y);
 			const FTorquePaintCup* Two = Paint.CupOf(Peer, 1);
-			What = FString::Printf(TEXT("%s fading into %s (%s, coat %d)"), One ? *One->Spec.Name : TEXT("cup 1"), Two ? *Two->Spec.Name : TEXT("cup 2"),
-				*FString(TorquePaintMix::PatternName(R.Colour)).ToLower(), It.MixCoats);
+			What = FString::Printf(TEXT("%s fading into %s (%s)"), *Base, Two ? *Two->Spec.Name : TEXT("cup 2"),
+				*FString(TorquePaintMix::PatternName(R.Colour)).ToLower());
 		}
 		else if (IsCupFinish(R.Finish))
 		{
@@ -3352,6 +3391,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		if (bPrimed) Q = FMath::Min(1.0f, Q + PrimerBonus * It.Primer);
 		It.bPrimerTop = false;
 		Q *= CoatsQ;
+		if (R.Finish == FadeFinish() && WasQ >= 0.0f) Q = 0.5f * (Q + WasQ);
 		It.PaintQ = Q;
 		Text = FString::Printf(TEXT("Sprayed the %s %s"), *ItemTitle(R.Item), *What);
 		if (bPrimed) Text += TEXT(" over primer");

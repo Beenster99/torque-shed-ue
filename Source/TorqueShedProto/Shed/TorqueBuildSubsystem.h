@@ -83,6 +83,11 @@ struct FTorqueItem
 	int32 Mask = 0;
 	FLinearColor MaskColour = FLinearColor::White;
 	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	// A fade's middle along its way across the part (cm in the part's frame from its middle) and
+	// which end the mask's colour is at (+1: the front or the top; -1: the back or the bottom): where
+	// the second cup went on in the spray game (beenster, 19 Nov 2026).
+	float FadeAt = 0.0f;
+	float FadeDir = 1.0f;
 	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
 	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
 	FString Badge;
@@ -588,6 +593,9 @@ public:
 	static bool IsCupFinish(FName F) { return F == CupFinish() || F == Cup2Finish() || F == FadeFinish(); }
 	// The cup a cup finish sprays (a fade: cup 2, the colour that goes over).
 	static int32 CupWhich(FName F) { return F == CupFinish() ? 0 : 1; }
+	// One of the gun's colours (Paints()) in one of its finishes, as paint for a cup: what [ and ]
+	// pick into cup 1 and cup 2 (beenster, 19 Nov 2026).
+	static TorquePaintMix::FPaintSpec PaletteSpec(int32 Colour, FName Finish);
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }
@@ -850,7 +858,7 @@ private:
 	FString ApplyPaintBay(int32 Peer, const FTorqueShedRequest& R);
 	FString CheckCup(int32 Peer, const FTorqueItem& It, FName Finish) const;
 	float SprayFromCup(int32 Peer, FTorqueItem& It, int32 Which, float Share = 1.0f);
-	float FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern);
+	float FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern, float At, float Dir);
 	static float LaySpec(FTorqueItem& It, const TorquePaintMix::FPaintSpec& S);
 	// After a change: redraw what changed, save, tell the net layer.
 	void RebuildBuild(int32 Bay);

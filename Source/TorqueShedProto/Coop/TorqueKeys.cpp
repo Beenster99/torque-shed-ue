@@ -37,6 +37,8 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("DecalMode"), TEXT("Decal mode (place decals on a bike)"), F, {EKeys::F3, FKey()}},
 	{TEXT("Drone"), TEXT("Drone camera: send it up / bring it back (on foot)"), F, {EKeys::B, FKey()}},
 	{TEXT("PhotoAlbum"), TEXT("Photo album: your photos, print one for the shed wall"), F, {EKeys::Y, FKey()}},
+	{TEXT("SprayCup1"), TEXT("Spray gun: pick cup 1's colour and finish (spraying a fade: spray from cup 1)"), F, {EKeys::LeftBracket, FKey()}},
+	{TEXT("SprayCup2"), TEXT("Spray gun: pick cup 2's colour and finish (spraying a fade: spray from cup 2)"), F, {EKeys::RightBracket, FKey()}},
 	{TEXT("Throttle"), TEXT("Throttle"), R, {EKeys::W, EKeys::Up}},
 	{TEXT("FrontBrake"), TEXT("Front brake"), R, {EKeys::S, EKeys::Down}},
 	{TEXT("RearBrake"), TEXT("Rear brake"), R, {EKeys::SpaceBar, FKey()}},

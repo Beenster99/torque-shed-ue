@@ -472,7 +472,8 @@ def decal_material():
 # The masked pattern, in the part's frame in cm (paint_mix.gd masked(), its metres x 100): 1 a centre
 # stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone);
 # 5 .. 10 the fades (TorquePaintMix::FadeKeep): front to back (5 .. 7) or top to bottom (8 .. 10),
-# over 8, 20 or 40 cm. While the fade's paper mask is still on (Tape) it shows as a sheet over the
+# over 8, 20 or 40 cm, centred on FadeAt (cm) with the mask's colour at the front / top (FadeDir 1)
+# or the back / bottom (-1): where the spray game's second cup went on (beenster, 19 Nov 2026). While the fade's paper mask is still on (Tape) it shows as a sheet over the
 # kept half, with a plain edge.
 MASK_HLSL = """
 float3 q = float3(dot(R0, P), dot(R1, P), dot(R2, P)) + Offset;
@@ -486,7 +487,7 @@ if (Pattern > 4.5)
     float along = f < 2.5 ? 1.0 : 0.0;
     float soft = fmod(f, 3.0);
     float len = soft < 0.5 ? 8.0 : (soft < 1.5 ? 20.0 : 40.0);
-    float c = along > 0.5 ? q.x : q.z;
+    float c = ((along > 0.5 ? q.x : q.z) - FadeAt) * (FadeDir < 0.0 ? -1.0 : 1.0);
     if (Tape > 0.5) return smoothstep(-aa, aa, c);
     return smoothstep(-len * 0.5, len * 0.5, c);
 }
@@ -568,7 +569,7 @@ def effect_paint_material():
     try_set(mask, "code", MASK_HLSL)
     try_set(mask, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     ins = []
-    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern", "Tape"):
+    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern", "Tape", "FadeAt", "FadeDir"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
@@ -581,6 +582,8 @@ def effect_paint_material():
     mel.connect_material_expressions(num("Pattern", -1200, 2250, 0.0), "", mask, "Pattern")
     tape_on = num("Tape", -900, 2000, 0.0)
     mel.connect_material_expressions(tape_on, "", mask, "Tape")
+    mel.connect_material_expressions(num("FadeAt", -1200, 2350, 0.0), "", mask, "FadeAt")
+    mel.connect_material_expressions(num("FadeDir", -1200, 2450, 1.0), "", mask, "FadeDir")
     tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, tape_on)
     masked = lerp(-500, 0, c5, vec("MaskColor", -700, 1700, (1.0, 1.0, 1.0)), mask)
     taped = lerp(-450, 0, masked, vec("TapeColor", -700, 2100, (0.18, 0.42, 0.85)), tape)
