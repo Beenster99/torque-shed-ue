@@ -38,6 +38,8 @@ TAutoConsoleVariable<int32> CVarViewsPerTick(TEXT("torque.RideImpostorViewsPerTi
 	TEXT("Ride UK impostors: views of a tree photographed per frame while baking (each 3 captures of 512 px; 1-8). Read as the ride starts."));
 TAutoConsoleVariable<int32> CVarFill(TEXT("torque.RideImpostorFill"), 2,
 	TEXT("Ride UK impostors: of the 16 photographed pixels behind each impostor pixel, how many must be tree for it to count as tree (1 fullest canopy .. 16 thinnest; build 158). For trees photographed after the change (delete Saved/Impostors)."));
+TAutoConsoleVariable<float> CVarFov(TEXT("torque.RideImpostorFov"), 30.0f,
+	TEXT("Ride UK impostors: the photographing camera's view angle (degrees, 4-60): it stands as far off as the tree needs to fill the view (6 until 158: ~19 tree radii, too far for the leaves). Read as the ride starts; a new angle photographs again."));
 TAutoConsoleVariable<float> CVarNormal01(TEXT("torque.RideImpostorNormal01"), 0.0f,
 	TEXT("Ride UK impostors: 1 if the normal capture comes out 0..1 rather than -1..1 (the trees look flat or wrongly lit). For impostors made after the change."));
 TAutoConsoleVariable<float> CVarGamma(TEXT("torque.RideImpostorGamma"), 1.0f,
@@ -55,7 +57,12 @@ constexpr int32 AtlasPx = Frames * Cell;
 constexpr int32 Super = 4;
 constexpr int32 ShotPx = Cell * Super;
 constexpr int32 WorkPx = Frames * ShotPx;
-constexpr float FovDeg = 6.0f;       // a narrow view from far off: near enough orthographic
+// ([build 158b] the view's angle, from torque.RideImpostorFov at ride start. Round 157 used 6 degrees from
+// ~19 tree radii away (150-300 m for these trees), and the leaves were missing from the photographs
+// altogether (spruce and pine 1-3% covered: trunks only), the taller trees worst. The scans are never
+// drawn past torque.RideNearTreeM (200 m) in play, and their leaf materials fade out by distance; so the
+// camera now stands close: 30 degrees is ~3.7 radii, 30-60 m, at the cost of a little perspective.)
+float FovDeg = 30.0f;
 constexpr int32 WarmTicks = 20;      // frames for a new tree's textures and Nanite pages to stream in
 constexpr int32 Sources = 3;         // colour, normal, depth
 const TCHAR* MasterPath = TEXT("/Game/RideUK/Impostors/M_RideImpostor.M_RideImpostor");
@@ -67,12 +74,12 @@ FString MarkPath() { return FPaths::ProjectSavedDir() / TEXT("TorqueImpostorBake
 // ([build 157] the photographed atlases are kept in Saved/Impostors, one file a scan, named by what they
 // depend on: the scan (path, size, triangles) and this layout's version. A changed scan or layout makes
 // a new name, so it is photographed again.)
-constexpr int32 CacheVersion = 2;   // (2: build 158, photographed at 512 px with the leaves kept)
+constexpr int32 CacheVersion = 3;   // (3: build 158b, the camera close enough for the leaves)   // (2: build 158, photographed at 512 px with the leaves kept)
 constexpr uint32 CacheMagic = 0x504D4954;   // 'TIMP'
 
 FString CacheFileOf(const UStaticMesh* Scan, float Radius, float Height)
 {
-	const FString Key = FString::Printf(TEXT("%s|v%d|%d|%d|%.1f|%.1f|%d"), *Scan->GetPathName(), CacheVersion, Frames, Cell, Radius, Height, Scan->GetNumTriangles(0));
+	const FString Key = FString::Printf(TEXT("%s|v%d|%d|%d|%.1f|%.1f|%d|fov%.1f"), *Scan->GetPathName(), CacheVersion, Frames, Cell, Radius, Height, Scan->GetNumTriangles(0), FovDeg);
 	return FPaths::ProjectSavedDir() / TEXT("Impostors") / FString::Printf(TEXT("%s_%s.imp"), *Scan->GetName(), *FMD5::HashAnsiString(*Key).Left(12));
 }
 
@@ -189,6 +196,7 @@ UStaticMesh* MakeCard(UObject* Outer, float R, float MinZ, float MaxZ, UMaterial
 void UTorqueImpostors::Start(AActor* InOwner)
 {
 	Owner = InOwner;
+	TImp::FovDeg = FMath::Clamp(TImp::CVarFov.GetValueOnGameThread(), 4.0f, 60.0f);
 	int32 Forced = -1;
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueImpostors="), Forced);
 	bOn = Forced >= 0 ? Forced != 0 : TImp::CVarOn.GetValueOnGameThread() != 0;
@@ -225,7 +233,8 @@ void UTorqueImpostors::Start(AActor* InOwner)
 			bOn = false;
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s"), bOn ? TEXT("on (far trees photographed from the scans at ride start)") : TEXT("off"));
+	UE_LOG(LogTemp, Display, TEXT("Torque impostors: %s (camera %.0f degrees, %.1f tree radii off)"), bOn ? TEXT("on (far trees photographed from the scans at ride start)") : TEXT("off"),
+		TImp::FovDeg, 1.0f / FMath::Tan(FMath::DegreesToRadians(TImp::FovDeg * 0.5f)));
 }
 
 FTorqueImpostor* UTorqueImpostors::Entry(UStaticMesh* Scan)
