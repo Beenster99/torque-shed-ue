@@ -1466,6 +1466,37 @@ int main(int Argc, char** Argv)
 				const Geo CAt = G.FrameOf().ToGeo(L.At.X, L.At.Z);
 				std::printf("  line circuit %d kind %d '%s' at %.5f,%.5f half %.1f\n", L.Circuit, L.Kind, L.Name.c_str(), CAt.Lat, CAt.Lon, L.Half);
 			}
+		if (const std::shared_ptr<const CircuitNotes> RoadNotes = CircuitNotesNow())
+			for (const CircuitNote& Nt : RoadNotes->Circuits)
+			{
+				if (!Nt.Road) continue;
+				// (each gate of a road course: how far the timer's place for it is from its note's)
+				if (!Plan->CircuitIx) continue;
+				const auto Found = Plan->CircuitIx->RoadGates.find(Nt.Name);
+				if (Found == Plan->CircuitIx->RoadGates.end()) continue;
+				for (size_t K = 0; K < Nt.Gates.size() && K < Found->second.size(); ++K)
+				{
+					const P2 Gp = G.FrameOf().FromGeo(Nt.Gates[K].Lat, Nt.Gates[K].Lon);
+					const Geo Sg = G.FrameOf().ToGeo(Found->second[K].X, Found->second[K].Z);
+					std::printf("  gate '%s' %zu '%s': on the main road %.0f m off, at %.5f,%.5f\n", Nt.Name.c_str(), K + 1, Nt.GateNames[K].c_str(), Found->second[K].DistanceTo(Gp), Sg.Lat, Sg.Lon);
+					if (std::getenv("WORLD_RIDE_GATE_ROADS") != nullptr)
+					{
+						std::map<std::string, std::pair<double, P2>> Near;
+						for (size_t E = 0; E < G.Edges.size(); ++E)
+						{
+							const std::string& Cl = G.ClassOf(int(E));
+							if (Cl != "trunk" && Cl != "primary" && Cl != "secondary" && Cl != "tertiary") continue;
+							for (const P2& Q : G.Edges[E].Line)
+							{
+								const double Dq = Q.DistanceTo(Gp);
+								const std::string Key = G.NameOf(int(E)) + " (" + Cl + ")";
+								if (Dq < 1500.0 && (Near.find(Key) == Near.end() || Dq < Near[Key].first)) Near[Key] = {Dq, Q};
+							}
+						}
+						for (const auto& KV : Near) { const Geo Qg = G.FrameOf().ToGeo(KV.second.second.X, KV.second.second.Z); std::printf("      %s %.0f m at %.5f,%.5f\n", KV.first.c_str(), KV.second.first, Qg.Lat, Qg.Lon); }
+					}
+				}
+			}
 		if (Plan->CircuitIx)
 		{
 			std::map<int, int> Kinds;

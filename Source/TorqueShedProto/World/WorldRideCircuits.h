@@ -76,6 +76,8 @@ struct CircuitIndex
 		std::string Name;
 	};
 	std::vector<Line> Lines;
+	// Each road course's gates (by its name), on the main road nearest each note's place.
+	std::unordered_map<std::string, std::vector<P2>> RoadGates;
 	// For each circuit (Region::Circuits): its note's index in CircuitNotes (-1 none) and the note.
 	std::vector<std::shared_ptr<const CircuitNote>> Notes;
 	// The trackside kit (RidePlan::EProp kinds from PropArmco on): each piece's place, its facing (radians, the

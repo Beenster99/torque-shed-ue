@@ -361,14 +361,38 @@ void RidePlan::IndexCircuits()
 			if (OnTrack(F.FromGeo(Note->Sectors[S].Lat, Note->Sectors[S].Lon), 150.0, Sector)) Ix->Lines.push_back(Sector);
 		}
 	}
+	// (a road course's gate: on the nearest road to its note's place, a main road first, within 600 m; where the
+	// area has none yet, the place as noted)
+	const auto OnMainRoad = [&G](const P2& Want)
+	{
+		P2 Best = Want;
+		double Bd = 600.0;
+		for (size_t E = 0; E < G.Edges.size(); ++E)
+		{
+			// (a main road preferred: a lesser one is as if 100 m further; the circuits' own roads never)
+			const std::string& Class = G.ClassOf(int(E));
+			if (G.CircuitFirst >= 0 && int(E) >= G.CircuitFirst) continue;
+			const double Lesser = Class == "trunk" || Class == "primary" || Class == "secondary" || Class == "tertiary" ? 0.0 : 100.0;
+			const std::vector<P2>& L = G.Edges[E].Line;
+			if (L.empty() || std::fabs(L[0].X - Want.X) > 20000.0 || std::fabs(L[0].Z - Want.Z) > 20000.0) continue;
+			for (size_t K = 0; K + 1 < L.size(); ++K)
+			{
+				const P2 D = L[K + 1] - L[K];
+				const double L2 = D.X * D.X + D.Z * D.Z;
+				const double T = L2 > 1e-12 ? std::clamp(((Want.X - L[K].X) * D.X + (Want.Z - L[K].Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+				const P2 P = L[K] + D * T;
+				const double Dist = P.DistanceTo(Want) + Lesser;
+				if (Dist < Bd) { Bd = Dist; Best = P; }
+			}
+		}
+		return Best;
+	};
 	// The road courses whose start is within the ride's area (their gates may be beyond it yet).
 	if (Notes)
 		for (const CircuitNote& N : Notes->Circuits)
 		{
 			if (!N.Road || N.Start.Lat == 0.0) continue;
-			P2 S = F.FromGeo(N.Start.Lat, N.Start.Lon);
-			const int Snap = G.NearestNode(S.X, S.Z, 400.0);
-			if (Snap >= 0) S = G.Nodes[size_t(Snap)];
+			const P2 S = OnMainRoad(F.FromGeo(N.Start.Lat, N.Start.Lon));
 			if (!G.Bounds.Empty() && (S.X < G.Bounds.X0 - 20000.0 || S.X > G.Bounds.X1 + 20000.0 || S.Z < G.Bounds.Z0 - 20000.0 || S.Z > G.Bounds.Z1 + 20000.0)) continue;
 			CircuitIndex::Line Gate;
 			Gate.Circuit = -1;
@@ -377,6 +401,8 @@ void RidePlan::IndexCircuits()
 			Gate.At = S;
 			Gate.Half = CircuitLaps::GateReach;
 			Ix->Lines.push_back(Gate);
+			std::vector<P2>& Gates = Ix->RoadGates[N.Name];
+			for (const Geo& Ga : N.Gates) Gates.push_back(OnMainRoad(F.FromGeo(Ga.Lat, Ga.Lon)));
 		}
 	IndexTrackside(*Ix);   // (the trackside kit, once the lines are known)
 	CircuitIx = Ix;
@@ -951,10 +977,10 @@ bool CircuitLaps::Step(const RidePlan& Plan, double X, double Z, double Now, Lap
 		{
 			const CircuitNote& N = Notes->Circuits[K];
 			if (!N.Road || N.Name != S.Circuit || S.NextSector >= int(N.Gates.size())) continue;
-			P2 Gate = G.FrameOf().FromGeo(N.Gates[size_t(S.NextSector)].Lat, N.Gates[size_t(S.NextSector)].Lon);
-			// (the note's place is rough: on the nearest road to it)
-			const int Snap = G.NearestNode(Gate.X, Gate.Z, 400.0);
-			if (Snap >= 0) Gate = G.Nodes[size_t(Snap)];
+			// (on the main road nearest the note's place, as IndexCircuits found it)
+			const auto Found = Ix.RoadGates.find(N.Name);
+			const P2 Gate = Found != Ix.RoadGates.end() && size_t(S.NextSector) < Found->second.size() ? Found->second[size_t(S.NextSector)]
+				: G.FrameOf().FromGeo(N.Gates[size_t(S.NextSector)].Lat, N.Gates[size_t(S.NextSector)].Lon);
 			if (Here.DistanceTo(Gate) < GateReach)
 			{
 				S.Splits.push_back(Now - S.Started);
