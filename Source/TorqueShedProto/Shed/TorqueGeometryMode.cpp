@@ -385,7 +385,7 @@ void ATorqueGeometryMode::UndoOnce()
 void ATorqueGeometryMode::ResetPart()
 {
 	FState& S = *St;
-	if (S.Selected.IsNone() || !S.Draft.Slots.count(TGMI::TgmStd(S.Selected.ToString()))) return;
+	if (S.Selected.IsNone() || !S.Draft.Slots.count(TGMI::TgmStd(S.Selected.ToString().ToLower()))) return;
 	PushUndo();
 	S.Draft.Set(TGMI::TgmStd(S.Selected.ToString()), TorqueFit::GeoOffset());
 	Refit(false);
@@ -616,7 +616,7 @@ FString ATorqueGeometryMode::TestMove(FName Slot, const FVector& Cm)
 	S.List = PickableSlots();
 	if (!S.List.Contains(Slot)) return FString::Printf(TEXT("%s isn't on this bike"), *Slot.ToString());
 	Select(Slot);
-	const std::string Name = TGMI::TgmStd(Slot.ToString());
+	const std::string Name = TGMI::TgmStd(Slot.ToString().ToLower());
 	PushUndo();
 	TorqueFit::GeoOffset Off = S.Draft.Of(Name);
 	Off.P += TGMI::GV3(Cm.X, Cm.Y, Cm.Z) / 100.0;
@@ -991,7 +991,7 @@ void ATorqueGeometryMode::ReadInput(float Dt)
 			if (!S.Typed.IsEmpty() && !S.Selected.IsNone())
 			{
 				PushUndo();
-				const std::string Slot = TGMI::TgmStd(S.Selected.ToString());
+				const std::string Slot = TGMI::TgmStd(S.Selected.ToString().ToLower());
 				const TorqueFit::GeoHandle H = (TorqueFit::GeoHandle)(S.TypeField / 3);
 				S.Draft.Set(Slot, TorqueFit::Geo::WithValue(S.Draft.Of(Slot), H, S.TypeField % 3, FCString::Atod(*S.Typed)));
 				Refit(false);
@@ -1095,7 +1095,7 @@ void ATorqueGeometryMode::ReadInput(float Dt)
 	if (Nudge != 0 && FreeMove() && !S.Selected.IsNone() && !S.bDrag)
 	{
 		const bool bBig = bCtrl || Down(EKeys::Gamepad_FaceButton_Left) || (PadDown & ESonyButton::Square);
-		const std::string Slot = TGMI::TgmStd(S.Selected.ToString());
+		const std::string Slot = TGMI::TgmStd(S.Selected.ToString().ToLower());
 		PushUndo();
 		S.Draft.Set(Slot, TorqueFit::Geo::Nudged(S.Draft.Of(Slot), S.Mode, TGMI::TgmAxisOfKey(S.Axis), Nudge, !bBig, S.bPartAxes));
 		Refit(false);
@@ -1459,7 +1459,7 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 		{
 			const FName Slot = S.List[I];
 			const int32 Item = B ? B->ItemOn(S.Bay, Slot) : 0;
-			FString Row = (S.Draft.Slots.count(TGMI::TgmStd(Slot.ToString())) ? TEXT("* ") : TEXT("")) + TorqueShedParts::SlotName(Slot) + TEXT(": ") +
+			FString Row = (S.Draft.Slots.count(TGMI::TgmStd(Slot.ToString().ToLower())) ? TEXT("* ") : TEXT("")) + TorqueShedParts::SlotName(Slot) + TEXT(": ") +
 				(Item != 0 ? B->ItemTitle(Item) : FString(TEXT("(empty)")));
 			while (Row.Len() > 4 && D.Measure(Row, 14.0f).X > LW - 2.0f * Pad - 16.0f * Sc) Row = Row.LeftChop(4) + TEXT("...");
 			const FBox2D R(FVector2D(LX + Pad, Ly), FVector2D(LX + LW - Pad, Ly + RowH - 4.0f * Sc));

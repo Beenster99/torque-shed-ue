@@ -638,7 +638,7 @@ bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FSt
 	// [fluids] The petrol in its tanks and the oil in its engine, as the shed has them.
 	if (B.FuelCapacityOf(Bay) > 0.0f) In.FuelLitres = B.FuelOf(Bay);
 	if (const FTorqueItem* Sump = B.Item(B.ItemOn(Bay, FName(TEXT("engine"))))) In.OilLitres = Sump->Litres;
-	for (const FName& Slot : B.LightenedOf(Bay)) In.Lightened.push_back(PawnStd(Slot.ToString()));
+	for (const FName& Slot : B.LightenedOf(Bay)) In.Lightened.push_back(PawnStd(Slot.ToString().ToLower()));
 	// [tyre] How well each tyre's bead was seated on the tyre changer.
 	In.BeadFront = B.BeadOf(Bay, true);
 	In.BeadRear = B.BeadOf(Bay, false);
