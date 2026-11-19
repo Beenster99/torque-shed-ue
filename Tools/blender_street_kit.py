@@ -11,6 +11,7 @@ Data/RideUK/prop_kit.json to the models' own, so the game draws them at the size
   power_pole 0   a creosoted timber pole, its step bolts, a cross arm with pin insulators, a slight lean
   power_pole 1   the same with a stay wire to the ground, its insulator and a yellow guard
   power_pole 2   the same carrying a pole-mounted transformer, its fuses and down-leads
+  traffic_signal 0  a UK three-aspect signal: grey column, black head under deep hoods, white-edged board
 
 (The heritage lamp stays Tools/make_ride_props.py lamp_heritage.) Every street lamp's lantern face is
 1.1 m out along +x and 5.745 m up, where World/WorldRideScenery.cpp FurnitureTile draws its glowing face
@@ -26,6 +27,7 @@ Needs Blender's Python module (pip install bpy, Blender 4.2 or later):
 
     python Tools/blender_street_kit.py            # the models
     python Tools/blender_street_kit.py --render DIR   # and a review sheet of renders in DIR
+    python Tools/blender_street_kit.py --render-signal DIR   # the traffic signal's own sheet
 """
 import json
 import math
@@ -462,9 +464,88 @@ def clear():
         bpy.data.meshes.remove(me)
 
 
+# --- the traffic signal ([Nov 19] beenster: "can you create a more realistic traffic light model") --------
+
+SIG_HEAD_Y = 2.8      # the middle (amber) aspect's centre: World/WorldRideScenery.cpp TrafficSignal's lamps
+SIG_STEP = 0.32       # aspect to aspect
+SIG_LENS_X = 0.284    # the lens dome's front (the code's lit disc sits just in front, at 0.29)
+SIG_BACK, SIG_FRONT = 0.07, 0.27   # the housing, behind the lenses
+SIGNAL_BLACK = (0.012, 0.012, 0.013)
+SIGNAL_WHITE = (0.8, 0.8, 0.78)
+LENS_OFF = {"red": (0.22, 0.02, 0.015), "amber": (0.24, 0.1, 0.01), "green": (0.03, 0.14, 0.09)}
+
+
+def rounded_plate(name, x, w, h, r, thick, zc, seg=6):
+    """A flat plate in the y-z plane (facing +x), w wide and h tall about (x, 0, zc), corners rounded r."""
+    pts = []
+    for cy, cz, a0 in ((w / 2 - r, h / 2 - r, 0.0), (-(w / 2 - r), h / 2 - r, 90.0), (-(w / 2 - r), -(h / 2 - r), 180.0), (w / 2 - r, -(h / 2 - r), 270.0)):
+        for k in range(seg + 1):
+            a = math.radians(a0 + 90.0 * k / seg)
+            pts.append((cy + r * math.cos(a), cz + r * math.sin(a)))
+    n = len(pts)
+    verts = [(x - thick / 2, py, zc + pz) for py, pz in pts] + [(x + thick / 2, py, zc + pz) for py, pz in pts]
+    faces = [tuple(range(n)), tuple(range(2 * n - 1, n - 1, -1))]
+    faces += [(k, (k + 1) % n, n + (k + 1) % n, n + k) for k in range(n)]
+    return _object(name, verts, faces, 30.0)
+
+
+def hood(name, x0, y, z, r, thick, top_len, side_len, span_deg=105.0, seg=14):
+    """A tunnel visor (the cowl over a lens): part of a tube along +x round the lens, over the top and down
+    the sides, open underneath, longest at the top and cut back towards its lower edges."""
+    verts, faces = [], []
+    ring = []
+    for k in range(seg + 1):
+        a = math.radians(-span_deg + 2 * span_deg * k / seg)
+        L = side_len + (top_len - side_len) * (0.5 + 0.5 * math.cos(a * 180.0 / span_deg))
+        cy, cz = math.sin(a), math.cos(a)
+        i = len(verts)
+        for rr in (r, r + thick):
+            verts.append((x0, y + rr * cy, z + rr * cz))
+            verts.append((x0 + L, y + rr * cy, z + rr * cz))
+        ring.append(i)   # (inner back, inner front, outer back, outer front)
+    for A, B in zip(ring, ring[1:]):
+        faces += [(A, B, B + 1, A + 1), (A + 2, A + 3, B + 3, B + 2), (A + 1, B + 1, B + 3, A + 3), (A, A + 2, B + 2, B)]
+    A, B = ring[0], ring[-1]
+    faces += [(A, A + 1, A + 3, A + 2), (B, B + 2, B + 3, B + 1)]
+    return _object(name, verts, faces, 40.0)
+
+
+def traffic_signal():
+    """A UK three-aspect signal: a 114 mm grey column, a black head of three moulded modules on two
+    clamp brackets, each lens (200 mm, its off colour) under a deep tunnel hood, and the black backing
+    board with its white reflective border. Faces +x, the traffic; the lit faces are the game's own
+    (the shared clock's M_RideSignal), drawn just in front of these lenses."""
+    M = Model("SM_Prop_traffic_signal_0")
+    M.add(lathe("pole", [(0.057, -LAMP_DROP), (0.057, 3.33), (0.04, 3.36), (0.0, 3.37)], 16), "galv", GALV, 0.3)
+    M.add(lathe("base", [(0.075, -0.05), (0.075, 0.25), (0.06, 0.29)], 16), "paint", (0.1, 0.1, 0.1), 0.6)
+    # (the clamps: a band round the column and an arm to the head's back, top and bottom)
+    for zc in (SIG_HEAD_Y - 1.1 * SIG_STEP, SIG_HEAD_Y + 1.1 * SIG_STEP):
+        M.add(lathe("clamp", [(0.068, zc - 0.03), (0.068, zc + 0.03)], 16), "paint", SIGNAL_BLACK, 0.25)
+        M.add(box("arm", (0.07, 0, zc), (0.06, 0.07, 0.05), bevel=0.006), "paint", SIGNAL_BLACK, 0.25)
+    # (the backing board, black with a white border, its corners rounded; just behind the hoods)
+    bh = 3 * SIG_STEP + 0.26
+    M.add(rounded_plate("board_white", 0.172, 0.62, bh, 0.06, 0.008, SIG_HEAD_Y), "paint", SIGNAL_WHITE, 0.2)
+    M.add(rounded_plate("board_black", 0.177, 0.54, bh - 0.08, 0.035, 0.004, SIG_HEAD_Y), "paint", SIGNAL_BLACK, 0.2)
+    Ry = Matrix.Rotation(math.pi / 2, 4, "Y")
+    for k, colour in enumerate(("red", "amber", "green")):
+        zc = SIG_HEAD_Y + SIG_STEP * (1 - k)
+        # (the module: a moulded box, a hair apart from the next so the joins show)
+        M.add(box("module", ((SIG_BACK + SIG_FRONT) / 2, 0, zc), (SIG_FRONT - SIG_BACK, 0.3, SIG_STEP - 0.006), bevel=0.012), "paint", SIGNAL_BLACK, 0.2)
+        # (the bezel round the lens and the lens: a shallow dome)
+        bez = lathe("bezel", [(0.125, 0.0), (0.125, 0.008), (0.104, 0.012)], 20)
+        bez.matrix_world = Matrix.Translation((SIG_FRONT, 0, zc)) @ Ry
+        M.add(bez, "paint", SIGNAL_BLACK, 0.2)
+        lens = lathe("lens_" + colour, [(0.102, 0.0), (0.08, 0.008), (0.045, 0.012), (0.0, 0.014)], 20)
+        lens.matrix_world = Matrix.Translation((SIG_FRONT, 0, zc)) @ Ry
+        M.add(lens, "lens", LENS_OFF[colour], 0.05)
+        # (its hood: 270 mm at the top, cut back to 170 mm at the lower edges)
+        M.add(hood("hood", SIG_FRONT, 0, zc, 0.118, 0.006, 0.27, 0.17, 100.0), "paint", SIGNAL_BLACK, 0.2)
+    return M
+
+
 def build():
     clear()
-    return [lamp_led(), lamp_sodium(), power_pole(0, 3001), power_pole(1, 3002), power_pole(2, 3003)]
+    return [lamp_led(), lamp_sodium(), power_pole(0, 3001), power_pole(1, 3002), power_pole(2, 3003), traffic_signal()]
 
 
 def main():
@@ -506,4 +587,8 @@ if __name__ == "__main__":
     if "--render" in sys.argv:
         sys.path.insert(0, HERE)
         from blender_street_kit_render import render_sheet   # noqa: E402
-        render_sheet(models, sys.argv[sys.argv.index("--render") + 1], TEX, SURFACES)
+        render_sheet([M for M in models if "traffic_signal" not in M.name], sys.argv[sys.argv.index("--render") + 1], TEX, SURFACES)
+    if "--render-signal" in sys.argv:
+        # (the traffic signal's own sheet: a run of its own, one lit scene)
+        from blender_street_kit_render import render_signal_sheet   # noqa: E402
+        render_signal_sheet([M for M in models if "traffic_signal" in M.name], sys.argv[sys.argv.index("--render-signal") + 1], TEX, SURFACES)

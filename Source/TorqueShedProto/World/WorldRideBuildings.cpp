@@ -4,6 +4,7 @@
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
 #include "WorldRideSceneBits.h"
+#include "WorldRideSigns.h"
 
 #include <array>
 #include <algorithm>
@@ -48,6 +49,35 @@ int FacadeSize(const double (*Sizes)[2], int Count, double W, double H)
 	for (int I = 0; I < Count; ++I)
 		if (std::fabs(Sizes[I][0] - W) < 0.03 && std::fabs(Sizes[I][1] - H) < 0.03) return I;
 	return -1;
+}
+// ([Nov 19] beenster, watching 157: "I see the shop fronts but they do not have names over the shops. I thought
+// we decided to have generic names and no real world brands") A shop's name for its fascia, made up: a family
+// name and the trade, or "The <something> <trade>". Rolls 0..1 pick each part; Cafe for a building the map
+// has a café in. Short, if it must fit a narrow unit. No real firm's name: the family names are common ones
+// with no chain of shops called after them.
+std::string ShopName(double RollName, double RollTrade, double RollForm, bool Cafe, bool Short)
+{
+	static const char* const Families[] = {"Harland", "Wainwright", "Ashworth", "Pickering", "Thornton", "Lister", "Barraclough", "Holroyd",
+		"Kershaw", "Sutcliffe", "Dobson", "Fairbairn", "Metcalfe", "Brearley", "Calvert", "Dewhurst", "Atkinson", "Hepworth", "Ingham",
+		"Jowett", "Kitson", "Marsden", "Nuttall", "Ormerod", "Pollard", "Rushworth", "Tillotson", "Whiteley", "Holdsworth", "Crowther",
+		"Fawcett", "Garside", "Haigh", "Mallinson", "Priestley", "Bramley", "Openshaw", "Cockcroft", "Hirst", "Lumb"};
+	struct FTrade { const char* Name; bool The; };
+	static const FTrade Trades[] = {{"Bakery", true}, {"Butchers", false}, {"Newsagents", false}, {"Greengrocer", false}, {"Chemist", false},
+		{"Hardware", false}, {"Florist", false}, {"Tea Rooms", true}, {"Fish & Chips", false}, {"Barbers", false}, {"Hair Studio", false},
+		{"Books", false}, {"Antiques", false}, {"Gift Shop", true}, {"Wine Merchants", false}, {"Ironmongers", false}, {"Opticians", false},
+		{"Deli", true}, {"Sweet Shop", true}, {"Cycles", false}, {"Outdoor Shop", true}, {"Estate Agents", false}, {"Launderette", true},
+		{"Jewellers", false}, {"Shoes", false}, {"Pet Supplies", false}, {"Toy Shop", true}, {"Gallery", true}, {"Fabrics", false}, {"Café", true}};
+	static const FTrade CafeTrades[] = {{"Café", true}, {"Tea Rooms", true}, {"Coffee House", true}, {"Kitchen", true}};
+	static const char* const Thes[] = {"Corner", "Old", "Market", "Village", "Little", "Square", "Bridge", "Town"};
+	const int NF = int(sizeof(Families) / sizeof(Families[0])), NT = int(sizeof(Trades) / sizeof(Trades[0]));
+	const FTrade& T = Cafe ? CafeTrades[std::min(3, int(RollTrade * 4.0))] : Trades[std::min(NT - 1, int(RollTrade * NT))];
+	const std::string Family = Families[std::min(NF - 1, int(RollName * NF))];
+	const std::string Trade = T.Name;
+	if (Short) return Family + (RollForm < 0.5 ? "'s" : "");
+	if (T.The && RollForm < 0.35) return "The " + std::string(Thes[std::min(7, int(RollName * 37.0) % 8)]) + " " + Trade;
+	if (RollForm < 0.6) return Family + " & Sons " + Trade;
+	if (RollForm < 0.8) return Family + "'s " + Trade;
+	return Family + " " + Trade;
 }
 } // namespace RideBuildingBits
 
@@ -1240,11 +1270,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					// to 7 m along the front, each between panelled pilasters under a fascia board and a moulded
 					// cornice the width of the unit; a stall riser under a tall display window, its transom
 					// lights over a bar, two mullions; the door at one side, glazed, set back in its own frame.
-					// The fascia is painted (one colour a unit, a deep heritage colour or a cream) and carries
-					// no name: beenster's rule, only pubs have signs. After dark most windows are lit.
+					// The fascia is painted (one colour a unit, a deep heritage colour or a cream) and carries a
+					// made-up name (ShopName). After dark most windows are lit.
 					static const Rgb ShopPaints[8] = {{0.012f, 0.04f, 0.022f}, {0.01f, 0.018f, 0.05f}, {0.07f, 0.012f, 0.014f}, {0.012f, 0.012f, 0.012f},
 						{0.5f, 0.47f, 0.38f}, {0.05f, 0.06f, 0.065f}, {0.025f, 0.06f, 0.07f}, {0.4f, 0.41f, 0.4f}};
 					const int Units = std::max(1, int(std::lround(HalfLong * 2.0 / 5.6)));
+					const int Role = size_t(Index) < BuildingRole.size() ? int(BuildingRole[size_t(Index)]) : 0;
 					const double Uw = HalfLong * 2.0 / Units;
 					const double Cornice = std::fmin(3.45, Eaves - 0.25);              // (the cornice's top)
 					const double FasciaHi = Cornice - 0.1, FasciaLo = FasciaHi - std::fmin(0.55, Cornice * 0.16);
@@ -1264,6 +1295,27 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						Bar(U0 + 0.05, U1 - 0.05, FasciaLo + 0.06, FasciaHi - 0.06, 0.215, SpDark);   // (its sunk panel)
 						Bar(U0 - 0.03, U1 + 0.03, FasciaHi, Cornice, 0.3, SpLight);       // (the cornice, and its lead flashing)
 						Bar(U0 - 0.03, U1 + 0.03, Cornice - 0.015, Cornice + 0.01, 0.32, Shade(Slate, 0.9));
+						// ([Nov 19] its name in signwriter's letters on the sunk panel: gilt on a dark fascia, black on a
+						// light one; not a pub's, which has its own board)
+						if (Role != 2)
+						{
+							const double PanelW = U1 - U0 - 0.1 - 0.3, PanelH = FasciaHi - FasciaLo - 0.12;
+							const bool Light = Pick0 * 8.0 >= 4.0 && (int(Pick0 * 8.0) == 4 || int(Pick0 * 8.0) == 7);
+							static const float Gilt[3] = {0.62f, 0.5f, 0.26f}, Ink[3] = {0.02f, 0.02f, 0.02f};
+							const double Uc = (U0 + U1) * 0.5;
+							const P3 At = Local(Uc, Sg * (HalfShort + 0.245), (FasciaLo + FasciaHi) * 0.5), Out1 = Local(Uc, Sg * (HalfShort + 1.245), (FasciaLo + FasciaHi) * 0.5);
+							const P2 Facing = P2(Out1.X - At.X, Out1.Z - At.Z) * (1.0 / std::fmax(1e-6, std::hypot(Out1.X - At.X, Out1.Z - At.Z)));
+							for (int Try = 0; Try < 2 && PanelW > 0.8 && PanelH > 0.12; ++Try)
+							{
+								const std::string Name = RideBuildingBits::ShopName(Chance(B.X + Un * 2.3, B.Z + Un * 4.1, 143), Chance(B.X - Un * 3.7, B.Z + Un * 1.3, 144),
+									Chance(B.X + Un * 5.9, B.Z - Un * 0.7, 145), Role == 3, Try == 1);
+								double Cap = std::fmin(0.26, PanelH * 0.55), Wide = 0.0;
+								if (Wide > PanelW) Cap *= PanelW / Wide;
+								if (Cap < 0.11) continue;
+								SignText::Set(Out.SignsOf(), At.X, At.Y, At.Z, Facing.X, Facing.Z, Cap, Name, Light ? Ink : Gilt);
+								break;
+							}
+						}
 						const double In0 = U0 + 0.02 + Pw, In1 = U1 - 0.02 - Pw;
 						if (In1 - In0 < 1.2) continue;
 						// (the door: at the unit's end nearer the building's middle, 1 m wide, set back 30 cm in its frame)

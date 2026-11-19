@@ -1129,6 +1129,14 @@ void RidePlan::IndexFurniture()
 			}
 		return Best;
 	};
+	// ([Nov 19] the cafés' buildings (BuildingRole 3): a shop front there is named as a café, tea room or
+	// coffee house; the map's other shops carry no trade in our data, so theirs are a high street's mix)
+	for (const TorqueFit::Json& Poi : G.Pois)
+	{
+		if (Poi.Str("kind") != "cafe") continue;
+		const int Home = NearestBuilding(Poi.Num("x"), Poi.Num("z"), 20.0);
+		if (Home >= 0 && BuildingRole[size_t(Home)] == 0) BuildingRole[size_t(Home)] = 3;
+	}
 	std::vector<int> SignedHomes;
 	for (const TorqueFit::Json& Poi : G.Pois)
 	{
@@ -1696,8 +1704,8 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
 		if (!Fine && F.Kind != PowerPole && F.Kind != StreetLamp) continue;
 		// [OSM stage 2] a kind the prop kit has a model for is drawn from it (PropsTile), but a
-		// street lamp's glowing head and real light stay here
-		if (Modelled(F.Kind) && F.Kind != StreetLamp) continue;
+		// street lamp's glowing head and real light stay here, and a traffic signal's lit faces
+		if (Modelled(F.Kind) && F.Kind != StreetLamp && F.Kind != TrafficSignal) continue;
 		const double Y = F.Height;
 		const P2 Face = F.Face;
 		const P2 Side(Face.Z, -Face.X);
@@ -2295,18 +2303,25 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			// [OSM stage 5D] A grey pole, and on it a black head with a white-edged backing board facing the
 			// traffic: red over amber over green, lit in turn by the shared clock (M_RideSignal).
 			static const Rgb LampRed = {1.0f, 0.03f, 0.01f}, LampAmber = {1.0f, 0.35f, 0.0f}, LampGreen = {0.05f, 1.0f, 0.35f};
-			Box(Out, F.At.X, F.At.Z, Face, 0.055, 0.055, Y - 0.3, Y + 2.35, Shade(Grey, 0.7));
-			Box(Out, F.At.X, F.At.Z, Face, 0.13, 0.17, Y + 2.3, Y + 3.3, Black);
+			// ([Nov 19] with the kit's model, Tools/blender_street_kit.py traffic_signal, only the lit faces, on its
+			// lenses: 0.32 m apart, 0.29 m out in front of the column)
+			const bool Drawn = !Modelled(F.Kind);
+			const double Ahead = Drawn ? 0.14 : 0.29, Step = Drawn ? 0.3 : 0.32;
 			const P3 Head = At3(F.At.X, Y + 2.8, F.At.Z);
-			Board(Head, Face * -1.0, 0.62, 1.22, Black, 0.13);
-			Board(Head, Face, 0.62, 1.22, White, -0.135);
-			Board(Head, Face, 0.56, 1.16, Black, -0.13);
+			if (Drawn)
+			{
+				Box(Out, F.At.X, F.At.Z, Face, 0.055, 0.055, Y - 0.3, Y + 2.35, Shade(Grey, 0.7));
+				Box(Out, F.At.X, F.At.Z, Face, 0.13, 0.17, Y + 2.3, Y + 3.3, Black);
+				Board(Head, Face * -1.0, 0.62, 1.22, Black, 0.13);
+				Board(Head, Face, 0.62, 1.22, White, -0.135);
+				Board(Head, Face, 0.56, 1.16, Black, -0.13);
+			}
 			RideMesh& Lamps = Out.SignalsOf();
 			const Rgb* Colours[3] = {&LampRed, &LampAmber, &LampGreen};
 			for (int L = 0; L < 3; ++L)
 			{
 				const size_t V0 = Lamps.Vertices();
-				Disc(Lamps, At3(Head.X + Face.X * 0.14, Head.Y + 0.3 - 0.3 * L, Head.Z + Face.Z * 0.14), Face, 0.1, *Colours[L], 14);
+				Disc(Lamps, At3(Head.X + Face.X * Ahead, Head.Y + Step - Step * L, Head.Z + Face.Z * Ahead), Face, Drawn ? 0.1 : 0.098, *Colours[L], 14);
 				for (size_t V = V0; V < Lamps.Vertices(); ++V)
 				{
 					Lamps.Uv[V * 2] = float(F.Size);
