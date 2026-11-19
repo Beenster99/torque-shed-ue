@@ -66,6 +66,12 @@ struct ChurchKit
 // Reads the rules (JSON) and the triangles (church_kit.bin); false if either isn't one. Kept for every ride
 // after (thread safe); until then none (the old drawn churches stay).
 bool SetChurchKit(const std::string& Json, const std::string& Bin);
+
+// [LiDAR stage 2] The folders cells' LiDAR heights files are read from (c<ROW>_<COL>.lidar.json, made by
+// Tools/lidar_heights.py --file), first found wins; every ride made after reads them (thread safe). None, no LiDAR.
+void SetLidarDirs(const std::vector<std::string>& Dirs);
+// The reader a ride's plan is given (RidePlan::LidarFrom): false where no folder has the cell's file.
+std::function<bool(const std::string& Cell, std::string& Text)> LidarReader();
 std::shared_ptr<const ChurchKit> ChurchKitNow();
 
 // Builds a model into the square's meshes: its nave's middle (Whole: its whole footprint's) at (X, Z) on the ground at Y, its +x towards

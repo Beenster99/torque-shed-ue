@@ -1,6 +1,7 @@
 // [churches stage 3] The church kit: reading it, choosing a church for a building, building it into a
 // square's meshes. See WorldRideChurches.h.
 #include "WorldRideChurches.h"
+#include "WorldFiles.h"
 
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
@@ -517,4 +518,33 @@ void RidePlan::ChurchyardsTile(double X0, double Z0, double Size, const LocalLoo
 	if (!Houses.Alpha.empty() && Houses.Alpha.size() < Houses.Vertices()) Houses.Alpha.resize(Houses.Vertices(), 0.06f);
 }
 
+
+// [LiDAR stage 2]
+namespace
+{
+std::mutex LidarLock;
+std::shared_ptr<const std::vector<std::string>> LidarDirs;
+}
+
+void SetLidarDirs(const std::vector<std::string>& Dirs)
+{
+	std::lock_guard<std::mutex> Lock(LidarLock);
+	LidarDirs = Dirs.empty() ? nullptr : std::make_shared<const std::vector<std::string>>(Dirs);
+}
+
+std::function<bool(const std::string& Cell, std::string& Text)> LidarReader()
+{
+	std::shared_ptr<const std::vector<std::string>> Dirs;
+	{
+		std::lock_guard<std::mutex> Lock(LidarLock);
+		Dirs = LidarDirs;
+	}
+	if (!Dirs) return nullptr;
+	return [Dirs](const std::string& Cell, std::string& Text)
+	{
+		for (const std::string& D : *Dirs)
+			if (Files::Read(Files::Join(D, "c" + Cell + ".lidar.json"), Text)) return true;
+		return false;
+	};
+}
 } // namespace TorqueWorld

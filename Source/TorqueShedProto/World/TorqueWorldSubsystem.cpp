@@ -214,6 +214,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const bool bKit = TorqueWorld::Files::Read(KitPath, KitText) && TorqueWorld::Files::Read(KitBinPath, KitBin) && TorqueWorld::SetChurchKit(KitText, KitBin);
 		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
+		// [LiDAR stage 2] Cells' surveyed building heights, where the game's data has them (-TorqueRideLidar=0: none).
+		int32 LidarAsked = 1;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideLidar="), LidarAsked);
+		if (LidarAsked != 0)
+			TorqueWorld::SetLidarDirs({TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/lidar")))});
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));

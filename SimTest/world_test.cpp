@@ -145,6 +145,22 @@ int main()
 			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
 		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; built with whole alpha");
 	}
+	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
+	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.
+	{
+		RidePlan::LidarTiles T, Old;
+		const std::string LidarText = R"({"v":1,"cell":"575_715","release":"2026-10-21.0","tiles":{"5_6":[12,4321,58,81, 13,77,3,2],"0_1":[0,9,95,120]}})";
+		const size_t Kept = RidePlan::ReadLidar(LidarText, "2026-10-21.0", T), None = RidePlan::ReadLidar(LidarText, "2026-11-01.0", Old);
+		float E = 0.0f, Rg = 0.0f, E2 = 0.0f, Rg2 = 0.0f;
+		const bool Found = RidePlan::LidarOfRow(T, "5_6", 12, 53964321LL, E, Rg);
+		const bool Moved = RidePlan::LidarOfRow(T, "5_6", 12, 53964322LL, E2, Rg2) || RidePlan::LidarOfRow(T, "5_6", 13, 53960077LL, E2, Rg2) || RidePlan::LidarOfRow(T, "1_1", 0, 9LL, E2, Rg2);
+		RidePlan::LidarTiles York;
+		std::string YorkText;
+		const size_t YorkRows = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/lidar/c575_715.lidar.json"), YorkText) ? RidePlan::ReadLidar(YorkText, "2026-10-21.0", York) : 0;
+		std::printf("      LiDAR file: %zu rows kept (%zu for another release); row found %s (%.1f, %.1f m); York's file %zu rows\n", Kept, None, Found ? "yes" : "no", E, Rg, YorkRows);
+		Check(Kept == 2 && None == 0 && Found && std::fabs(E - 5.8f) < 0.01f && std::fabs(Rg - 8.1f) < 0.01f && !Moved && YorkRows > 3000,
+			"LiDAR heights: a cell's file read for its release only, each outline's eaves and ridge found by its row, none for a row that has moved");
+	}
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;
 	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
