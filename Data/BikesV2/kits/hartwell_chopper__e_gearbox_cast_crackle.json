@@ -1,0 +1,89 @@
+{
+ "name": "BSX chopper (working title H2)",
+ "format": 2,
+ "kit": true,
+ "triangles": 5160,
+ "surfaces": {
+  "s000": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s001": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s002": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s003": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s004": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_casecrackle",
+   "tag": "d3_casecrackle",
+   "ue": "cat_plastic",
+   "color": [
+    0.016,
+    0.016,
+    0.018
+   ],
+   "metallic": 0.25,
+   "roughness": 0.72
+  },
+  "s005": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_polishedcase",
+   "tag": "d3_polishedcase",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  }
+ },
+ "engine_part": {
+  "slot": "gearbox",
+  "look": "cast_crackle",
+  "fuel": "throttle_bodies",
+  "air": "airbox",
+  "cover": "cast",
+  "finish": null,
+  "case": "crackle",
+  "header": "stock",
+  "oil": null
+ }
+}

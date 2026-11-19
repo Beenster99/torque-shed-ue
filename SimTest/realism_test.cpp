@@ -11,7 +11,7 @@
 // Each bike is BikeRideSpec's from this game's reference parts (Data/Fitment/layout.json, with the
 // overlay's changes), with Godot's curve for the same engine (SimTest/data/godot_spec.json).
 //
-//     build/simtest/realism_test [--table] [--swap style:slot=part,...]
+//     build/simtest/realism_test [--table] [--swap style:slot=part,...] [--sizes]
 // --table prints the markdown table for the docs; --swap tries other parts on the reference bikes;
 // --trace STYLE prints that style's launch; --top prints each bike's times to 60/100/120/140/160 mph,
 // its top speed and what holds it there; --game rides the game's engine curve instead of Godot's.
@@ -172,6 +172,7 @@ bool SpecFor(const BikeLayout& Lay, const std::string& Style, const Json& G, Bik
 	if (!Engine || In.Parts["engine"] != Engine->S)
 	{
 		Curve = Sweep ? Sweep->Get("engine/" + In.Parts["engine"]) : nullptr;
+		if (!Curve && UseGameCurve) Curve = &G;     // (the game's own curve replaces it below: a block Godot never had)
 		if (!Curve) return false;
 	}
 	const Json& Gc = *Curve;
@@ -369,7 +370,49 @@ int main(int Argc, char** Argv)
 	PartsDb Db;
 	BikeLayout Lay;
 	Json Ref;
-	if (!(ReadFile(R + "/Data/Parts/parts.json", PartsText) && ReadFile(R + "/Data/Fitment/layout.json", LayoutText) &&
+	bool SizesRun = false;
+	for (int A = 1; A < Argc; ++A) SizesRun |= std::strcmp(Argv[A], "--sizes") == 0;
+	// --sizes: every V2 engine block (each brand's sizes, BikesV2/data/engine_sizes.json) in its family's reference
+	// bike, on the game's own engine curve: believable 0-60 and top speed for its size, and a bigger block of the
+	// same bike never slower (engine parts pass stage 5).
+	struct SizeRow { std::string Id, Model, Style; double Cc = 0; };
+	std::vector<SizeRow> SizeRows;
+	if (SizesRun)
+	{
+		std::string V2Text, Extra;
+		Json V2;
+		if (!ReadFile(R + "/Data/BikesV2/parts_v2.json", V2Text) || !Json::Parse(V2Text, V2, &Error) || !ReadFile(R + "/Data/Parts/parts.json", PartsText))
+		{
+			std::printf("FAIL: parts_v2.json won't load: %s\n", Error.c_str());
+			return 1;
+		}
+		const Json* Engines = V2.Get("engine");
+		for (const auto& KV : Engines ? Engines->O : std::vector<std::pair<std::string, Json>>())
+		{
+			const Json* Vp = KV.second.Get("v2part");
+			if (!Vp || KV.second.Num("displacement", 0.0) <= 0.0 || Vp->Num("cc", 0.0) <= 0.0 || !Vp->Str("kit").empty()) continue;
+			const Json* St = KV.second.Get("styles");
+			if (!St || St->A.empty()) continue;
+			SizeRows.push_back({KV.first, Vp->Str("model"), St->A[0].S, Vp->Num("cc", 0.0)});
+			std::string Fields;
+			for (const auto& F : KV.second.O)
+				if (F.second.IsNumber())
+				{
+					char B[96];
+					std::snprintf(B, sizeof B, "%s\"%s\": %.6g", Fields.empty() ? "" : ", ", F.first.c_str(), F.second.N);
+					Fields += B;
+				}
+			Extra += "\n\t\t\"" + KV.first + "\": {\"name\": \"" + KV.first + "\", \"layout\": \"" + KV.second.Str("layout") + "\", " + Fields + "},";
+		}
+		const size_t At = PartsText.find("\n\t\"engine\": {");
+		if (At == std::string::npos)
+		{
+			std::printf("FAIL: no engine section in parts.json\n");
+			return 1;
+		}
+		PartsText.insert(At + std::strlen("\n\t\"engine\": {"), Extra);
+	}
+	if (!((SizesRun || ReadFile(R + "/Data/Parts/parts.json", PartsText)) && ReadFile(R + "/Data/Fitment/layout.json", LayoutText) &&
 		  Db.LoadFromText(PartsText, Error) && Lay.Load(LayoutText, Db, Error) && ReadFile(R + "/SimTest/data/godot_spec.json", RefText) &&
 		  Json::Parse(RefText, Ref, &Error)))
 	{
@@ -422,6 +465,59 @@ int main(int Argc, char** Argv)
 				Run(0.0, 0.5, false), Run(-1.0, 0.5, false), Run(0.0, 0.0, true), Run(-1.0, 0.0, true));
 		}
 		return 0;
+	}
+	if (SizesRun)
+	{
+		UseGameCurve = true;
+		std::map<std::string, std::vector<std::pair<double, std::pair<double, double>>>> ByModel;   // model -> (cc, (t60, top))
+		std::printf("engine,style,cc,hp,t60_s,top_mph\n");
+		for (const SizeRow& Row : SizeRows)
+		{
+			const Json* G = Styles ? Styles->Get(Row.Style) : nullptr;
+			BikeSpec S;
+			Swaps[Row.Style]["engine"] = Row.Id;
+			const bool Ok = G && SpecFor(Lay, Row.Style, *G, S);
+			Swaps[Row.Style].erase("engine");
+			if (!Ok)
+			{
+				Expect(false, "%s rides in the %s", Row.Id.c_str(), Row.Style.c_str());
+				continue;
+			}
+			double PeakKw = 0.0;
+			for (double Rpm = S.IdleRpm; Rpm <= S.Redline; Rpm += 50.0) PeakKw = std::max(PeakKw, S.EngineTorque(Rpm) * Rpm * 6.2832 / 60.0 / 1000.0);
+			const Result Res = Ride(S);
+			double Top = 0.0;
+			{
+				BikeSim Sim;
+				Start(Sim, S);
+				for (int I = 0; I < 120 * 120 && !Sim.IsCrashed; ++I)
+				{
+					Sim.Throttle = 1.0;
+					Sim.BodyShift = I > 10 * 120 ? 0.0 : 0.6;
+					Sim.Step(Dt);
+					Top = std::max(Top, Sim.Speed * 2.23694);
+				}
+			}
+			std::printf("%s,%s,%.0f,%.0f,%.2f,%.0f\n", Row.Id.c_str(), Row.Style.c_str(), Row.Cc, PeakKw * 1.341, Res.T60, Top);
+			const bool Mx = Row.Style == "mx";
+			// (a small block in a heavy road bike may not see 60 mph inside the 8 s launch: a 450 classic, as in life)
+			const bool Slow = Res.T60 < 0.0 && Row.Cc < 500.0 && !Mx;
+			Expect(!Res.Crashed[0] && (Slow || (Res.T60 > 2.2 && Res.T60 < (Mx ? 7.5 : 9.5))), "%s: 0-60 mph in %.2f s%s", Row.Id.c_str(), Res.T60, Slow ? " (over 8 s)" : "");
+			Expect(Top > (Mx ? 50.0 : 75.0) && Top < 200.0, "%s: top speed %.0f mph", Row.Id.c_str(), Top);
+			ByModel[Row.Model].push_back({Row.Cc, {Res.T60, Top}});
+		}
+		for (auto& [Model, Rows] : ByModel)
+		{
+			std::sort(Rows.begin(), Rows.end());
+			for (size_t I = 1; I < Rows.size(); ++I)
+				// (a launch held by the tyre's grip, not the engine, may lose a few hundredths with a heavier block)
+				Expect((Rows[I - 1].second.first < 0.0 || Rows[I].second.first <= Rows[I - 1].second.first * 1.06) && Rows[I].second.first > 0.0 &&
+						   Rows[I].second.second >= Rows[I - 1].second.second - 2.0,
+					"%s: the %.0f cc block is no slower than the %.0f (%.2f s, %.0f mph against %.2f s, %.0f mph)", Model.c_str(), Rows[I].first, Rows[I - 1].first,
+					Rows[I].second.first, Rows[I].second.second, Rows[I - 1].second.first, Rows[I - 1].second.second);
+		}
+		std::printf("%zu engine blocks, %d failures\n", SizeRows.size(), Failures);
+		return Failures ? 1 : 0;
 	}
 	bool TopRun = false;
 	for (int A = 1; A < Argc; ++A) TopRun |= std::strcmp(Argv[A], "--top") == 0;

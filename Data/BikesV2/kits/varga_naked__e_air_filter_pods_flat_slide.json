@@ -1,0 +1,61 @@
+{
+ "name": "Varga naked (working title N1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1884,
+ "surfaces": {
+  "s003": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s004": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s020": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s021": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "d3_podgauze",
+   "tag": "d3_podgauze",
+   "ue": "cat_plastic",
+   "color": [
+    0.55,
+    0.05,
+    0.04
+   ],
+   "metallic": 0.0,
+   "roughness": 0.85
+  }
+ },
+ "engine_part": {
+  "slot": "air_filter",
+  "look": "pods_flat_slide",
+  "fuel": "flat_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": "gold",
+  "case": "stock",
+  "header": "wrapped",
+  "oil": null
+ }
+}

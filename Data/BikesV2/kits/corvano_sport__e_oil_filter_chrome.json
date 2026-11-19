@@ -1,0 +1,26 @@
+{
+ "name": "Corvano sport (working title S1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1108,
+ "surfaces": {
+  "s014": {
+   "slot": "oil_filter",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ },
+ "engine_part": {
+  "slot": "oil_filter",
+  "look": "chrome",
+  "fuel": "round_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": "polished",
+  "case": "stock",
+  "header": "ceramic",
+  "oil": "chrome"
+ }
+}

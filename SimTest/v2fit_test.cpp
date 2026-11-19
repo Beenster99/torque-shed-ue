@@ -148,6 +148,10 @@ int main()
 				}
 				const Json* New = Lay.Part(Now);
 				if (!New || Now == KV.second.S) continue;
+				// [sizes] Only the family's lead keeps the reference engine: another brand's block is its own size
+				// (BikesV2/data/engine_sizes.json), its torque scaled with the capacity (engine parts pass stage 5).
+				const Json* HostV2 = Lay.V2Of(Parts);
+				if (KV.first == "engine" && !(HostV2 && HostV2->Flag("lead"))) continue;
 				for (const auto& F : Old->O)
 					if (F.second.IsNumber() && F.first != "price" && std::fabs(New->Num(F.first, -1e9) - F.second.N) > 1e-6 * std::max(1.0, std::fabs(F.second.N)))
 					{
@@ -398,6 +402,24 @@ int main()
 					const std::string Slot = Vp->Str("slot");
 					++KitChecks;
 					Expect(Lay.V2FitReason(Parts, Slot, Kid).empty(), Kid + " fits its own bike: " + Lay.V2FitReason(Parts, Slot, Kid));
+					// [engine parts] An open intake goes on only with its own fuel system; a carb only with the airbox off.
+					if (!Vp->Str("with_fuel").empty())
+					{
+						PartsMap Need = Parts;
+						Need["fuel"] = Vp->Str("with_fuel");
+						Expect(Lay.Part(Vp->Str("with_fuel")) != nullptr, Kid + " has its fuel system in the shop (" + Vp->Str("with_fuel") + ")");
+						Expect(Lay.V2NeedsReason(Need, Slot, Kid).empty(), Kid + " goes on with its fuel system: " + Lay.V2NeedsReason(Need, Slot, Kid));
+						if (Parts.count("fuel") && Parts.at("fuel") != Vp->Str("with_fuel"))
+							Expect(!Lay.V2NeedsReason(Parts, Slot, Kid).empty(), Kid + " wants its own fuel system first");
+					}
+					if (Vp->Flag("open_air"))
+					{
+						PartsMap Open = Parts;
+						Open["air_filter"] = "none";
+						Expect(Lay.V2NeedsReason(Open, Slot, Kid).empty(), Kid + " goes on with the airbox off");
+						if (Parts.count("air_filter") && !Parts.at("air_filter").empty() && Parts.at("air_filter") != "none")
+							Expect(!Lay.V2NeedsReason(Parts, Slot, Kid).empty(), Kid + " wants the airbox off first");
+					}
 					PartsMap With = Parts;
 					With[Slot] = Kid;
 					const std::vector<FittedPart> Got = Placer.Fit(With, Lay.Solve(With));

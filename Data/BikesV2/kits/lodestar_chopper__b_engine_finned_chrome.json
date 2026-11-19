@@ -2,7 +2,7 @@
  "name": "Lodestar chopper (working title H1)",
  "format": 2,
  "kit": true,
- "triangles": 22067,
+ "triangles": 14646,
  "surfaces": {
   "s006": {
    "slot": "engine",
@@ -81,21 +81,7 @@
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s091": {
-   "slot": "engine",
-   "node": "",
-   "surface": "d3_polishedcase",
-   "tag": "d3_polishedcase",
-   "ue": "cat_polished_alloy",
-   "color": [
-    0.82,
-    0.82,
-    0.84
-   ],
-   "metallic": 1.0,
-   "roughness": 0.16
-  },
-  "s096": {
+  "s100": {
    "slot": "engine",
    "node": "",
    "surface": "gold",
@@ -109,7 +95,7 @@
    "metallic": 1.0,
    "roughness": 0.32
   },
-  "s150": {
+  "s154": {
    "slot": "engine",
    "node": "",
    "surface": "d3_chop_chrome",
@@ -123,7 +109,7 @@
    "metallic": 1.0,
    "roughness": 0.035
   },
-  "s151": {
+  "s155": {
    "slot": "engine",
    "node": "",
    "surface": "d3_chop_blacked",

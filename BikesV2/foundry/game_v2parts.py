@@ -69,6 +69,30 @@ PRICE = {"swingarm": 450, "rearsets": 160, "tank": 260, "saddle": 130, "tail": 1
          "shock": 300, "engine": 2400, "head": 600, "gearbox": 500, "fuel": 300, "air_filter": 60, "cooling": 250,
          "exhaust": 420, "side_stand": 40, "caliper": 220}
 DROP = ("name", "description", "styles", "pack", "price", "look", "v2", "common")
+# Engine sizes (engine parts pass stage 5; beenster's table, data/engine_sizes.json): each size its own block.
+SIZES = json.load(open(os.path.join(ROOT, "data", "engine_sizes.json")))
+TWO_STROKE = {"torque_per_cc": 1.7, "peak_torque_rpm": 1.1, "redline": 1.05, "mass": 0.6}   # light, peaky, half the cc
+
+
+def sized(base, cc, ref_cc, two_stroke=False):
+    """An engine block's numbers at cc: torque (and so power) with the capacity, bore and stroke with its cube root,
+    the mass with its square root. ref_cc's own numbers come back unchanged."""
+    e = dict(base)
+    if abs(cc - ref_cc) < 0.5 and not two_stroke:
+        return e
+    k = cc / ref_cc
+    e["displacement"] = float(cc)
+    for f in ("bore", "stroke"):
+        if isinstance(e.get(f), (int, float)):
+            e[f] = round(e[f] * k ** (1 / 3), 1)
+    if isinstance(e.get("mass"), (int, float)):
+        e["mass"] = round(e["mass"] * k ** 0.5 * (TWO_STROKE["mass"] if two_stroke else 1.0), 1)
+    if two_stroke:
+        for f in ("torque_per_cc", "peak_torque_rpm", "redline"):
+            if isinstance(e.get(f), (int, float)):
+                e[f] = round(e[f] * TWO_STROKE[f], 4 if f == "torque_per_cc" else 0)
+        e["two_stroke"] = True
+    return e
 
 
 def main():
@@ -133,6 +157,27 @@ def main():
                              "layout": eng["layout"], "twin_shock": bool(st.get("twin_shock"))})
             if kind == "engine":
                 p["type"] = model.get("engine_label", base.get("type", "")).capitalize()
+                # [sizes] The brand's sizes for this family: the lead keeps its reference block; another model's own
+                # block is its size nearest the reference, and every other size is a block of its own.
+                ref_cc = float(base.get("displacement", 0) or 0)
+                sizes = (SIZES["sizes"].get(family.lower(), {}).get(brand.lower()) or SIZES["sizes"].get(family.lower(), {}).get(name.split("_")[0]) or [])
+                two = "two-stroke" in model.get("engine_label", "").lower()
+                if sizes and ref_cc:
+                    own_cc = ref_cc if name in SIZES["leads"] and not two else min(sizes, key=lambda c: abs(c - ref_cc))
+                    p.update(sized(base, own_cc, ref_cc, two))
+                    p["v2part"]["cc"] = own_cc
+                    for cc in sizes:
+                        if abs(cc - own_cc) < 0.5:
+                            continue
+                        q = json.loads(json.dumps(p))
+                        q.update(sized(base, cc, ref_cc, two))
+                        q["name"] = f"{frame['name']} {cc} cc engine block"
+                        q["description"] = f"Off the {brand} {family}, bored out or down to {cc} cc: for a {family} frame built round a {model.get('engine_label', eng['layout'])}."
+                        q["price"] = int(round(price * (cc / ref_cc) ** 0.7 / 10.0) * 10)
+                        q["v2part"]["cc"] = cc
+                        q["v2part"]["size_of"] = pid
+                        made.setdefault(kind, {})[f"{pid}_{cc}cc"] = q
+                    p["name"] = f"{frame['name']} {int(own_cc)} cc engine block"
             made.setdefault(kind, {})[pid] = p
             build[slot] = pid
         info["build"] = build

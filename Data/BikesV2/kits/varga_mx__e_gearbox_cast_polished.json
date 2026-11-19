@@ -1,0 +1,110 @@
+{
+ "name": "Varga MX (working title X1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 5186,
+ "surfaces": {
+  "s005": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_polishedcase",
+   "tag": "d3_polishedcase",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s006": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s007": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s008": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s009": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_sidecase",
+   "tag": "d3_sidecase",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s010": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_crinkle",
+   "tag": "d3_crinkle",
+   "ue": "cat_plastic",
+   "color": [
+    0.022,
+    0.022,
+    0.024
+   ],
+   "metallic": 0.3,
+   "roughness": 0.62
+  },
+  "s011": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "engine",
+   "tag": "engine",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  }
+ },
+ "engine_part": {
+  "slot": "gearbox",
+  "look": "cast_polished",
+  "fuel": "round_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": "polished",
+  "case": "stock",
+  "header": "ceramic",
+  "oil": "chrome"
+ }
+}

@@ -262,6 +262,10 @@ def catalogue():
         if rest.startswith("b_"):
             made += bespoke_entries(parts, model, f[:-5], json.load(open(os.path.join(KITS, f))))
             continue
+        if rest.startswith("e_"):
+            import game_engineparts
+            made += game_engineparts.entries(parts, model, f[:-5], json.load(open(os.path.join(KITS, f))))
+            continue
         grp = next(g for g in GROUPS if rest.startswith(g))
         n = int(rest[len(grp):])
         variant = json.load(open(os.path.join(ROOT, "data", "models", model + ".json")))["kit"][grp][n - 1]

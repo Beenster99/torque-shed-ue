@@ -1,0 +1,96 @@
+{
+ "name": "Corvano cruiser (working title R2)",
+ "format": 2,
+ "kit": true,
+ "triangles": 5255,
+ "surfaces": {
+  "s002": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s003": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_sidecase",
+   "tag": "d3_sidecase",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s004": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_crinkle",
+   "tag": "d3_crinkle",
+   "ue": "cat_plastic",
+   "color": [
+    0.022,
+    0.022,
+    0.024
+   ],
+   "metallic": 0.3,
+   "roughness": 0.62
+  },
+  "s005": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "engine",
+   "tag": "engine",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "s006": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s009": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_coverblack",
+   "tag": "d3_coverblack",
+   "ue": "cat_black_metal",
+   "color": [
+    0.018,
+    0.018,
+    0.02
+   ],
+   "metallic": 0.5,
+   "roughness": 0.32
+  }
+ },
+ "engine_part": {
+  "slot": "gearbox",
+  "look": "finned_black",
+  "fuel": "round_slide",
+  "air": "stacks",
+  "cover": "finned",
+  "finish": "black",
+  "case": "stock",
+  "header": "stock",
+  "oil": null
+ }
+}
