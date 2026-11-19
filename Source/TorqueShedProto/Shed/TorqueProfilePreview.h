@@ -87,5 +87,6 @@ private:
 	FBox2D PictureBox = FBox2D(ForceInit);
 
 	void MakeHelmet();
-	void StudioLit();          // everything it shows lit only by its own lights
+	void StudioLit();          // everything it shows lit only by its own lights (sharp: finest LOD, full textures)
+	int32 LitCount = -1;       // how many parts it last did that for
 };

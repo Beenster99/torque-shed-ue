@@ -860,6 +860,7 @@ void FTorqueAvatar::Destroy()
 	Hair.Reset();
 	JacketPart.Reset();
 	JacketOn = 0;
+	bBodyShown = true;
 	bRode = false;
 	FaceMesh = nullptr;
 	FaceFromDriver.Reset();
@@ -1516,6 +1517,7 @@ void FTorqueAvatar::SetJacket(int32 Which)
 		Old->DestroyComponent();
 	}
 	JacketPart.Reset();
+	if (USceneComponent* Top = TopGarment()) Top->SetVisibility(bBodyShown, false);   // the shirt back
 	const FString Mesh = FTorqueProfile::JacketMesh(Which);
 	if (Mesh.IsEmpty()) return;
 	const FString Path = FString::Printf(TEXT("/Game/AvatarTry/Crosswind/%s/%s.%s"), *Mesh, *Mesh, *Mesh);
@@ -1536,22 +1538,36 @@ void FTorqueAvatar::SetJacket(int32 Which)
 	J->PrecachePSOs();
 	J->RegisterComponent();
 	J->SetLeaderPoseComponent(Driver, true);
-	J->SetVisibility(Driver->IsVisible(), false);
+	J->SetVisibility(bBodyShown, false);
 	JacketPart = J;
 	Parts.Add(J);
+	if (USceneComponent* Top = TopGarment()) Top->SetVisibility(false, false);   // the shirt under it (it clipped through)
 	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: wearing the jacket %s"), *Name, *Path);
+}
+
+USceneComponent* FTorqueAvatar::TopGarment() const
+{
+	for (const TWeakObjectPtr<USceneComponent>& P : Parts)
+	{
+		const USkinnedMeshComponent* S = Cast<USkinnedMeshComponent>(P.Get());
+		if (S && S != JacketPart.Get() && S->GetSkinnedAsset() && S->GetSkinnedAsset()->GetName().Contains(TEXT("TopGarment")))
+			return P.Get();
+	}
+	return nullptr;
 }
 
 void FTorqueAvatar::SetShown(bool bBody, bool bHead, bool bHair)
 {
 	if (!Driver) return;
+	bBodyShown = bBody;
 	Driver->SetVisibility(bBody, false);
+	const USceneComponent* Under = JacketPart.IsValid() ? TopGarment() : nullptr;
 	for (const TWeakObjectPtr<USceneComponent>& P : Parts)
 	{
 		USceneComponent* C = P.Get();
 		if (!C) continue;
 		const bool bIsHair = Hair.Contains(P);
-		C->SetVisibility(bIsHair ? (bHead && bHair) : (C == FaceMesh ? bHead : bBody), false);
+		C->SetVisibility(bIsHair ? (bHead && bHair) : (C == FaceMesh ? bHead : (bBody && C != Under)), false);
 	}
 }
 
