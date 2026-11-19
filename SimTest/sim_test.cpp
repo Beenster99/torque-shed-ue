@@ -390,6 +390,21 @@ static void WheelieTests()
 		const bool Lifted = LiftTo(S, 20.0);
 		Check(Lifted, "weight back, full throttle: front up to 20 deg (deg)", S.PitchAngle * 180.0 / Pi);
 
+		// [Nov 19, beenster: "a little hard to pull"] Weight only part way back (a stick pulled most of the
+		// way, not against its stop) brings it up too.
+		RollInFirst(S, Assist);
+		{
+			S.BodyShift = -0.5;
+			S.Throttle = 1.0;
+			double Part = 0.0;
+			for (int i = 0; i < 120 * 3 && !S.IsCrashed; ++i)
+			{
+				S.Step(Dt);
+				Part = std::max(Part, S.PitchAngle);
+			}
+			Check(Part > DegToRad(12.0), "weight half back, full throttle: front comes up (deg)", Part * 180.0 / Pi);
+		}
+
 		RollInFirst(S, Assist);
 		LiftTo(S, 25.0);
 		S.Throttle = 0.0;

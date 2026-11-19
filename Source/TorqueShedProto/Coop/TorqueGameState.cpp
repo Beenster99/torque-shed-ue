@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "Weather/TorqueWeatherFx.h"
+#include "Weather/TorqueTyreFx.h"
 #include "Weather/TorqueSky.h"
 #include "Weather/NightSky.h"
 #include "Camera/PlayerCameraManager.h"
@@ -145,6 +146,8 @@ void ATorqueGameState::BeginPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		Params.ObjectFlags |= RF_Transient;
 		Fx = GetWorld()->SpawnActor<ATorqueWeatherFx>(Params);
+		// [tyre fx] Burnout and skid smoke and the darkies tyres lay on the road, for every bike here.
+		TyreFx = GetWorld()->SpawnActor<ATorqueTyreFx>(Params);
 		// The sky: sun, sky light, air, fog, clouds and the camera, from the weather (skies plan).
 		Sky = GetWorld()->SpawnActor<ATorqueSky>(Params);
 	}

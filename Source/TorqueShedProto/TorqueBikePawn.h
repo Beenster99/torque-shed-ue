@@ -96,6 +96,17 @@ struct FTorqueTelemetry
 	float PowerMult = 1.0f;                      // what the heat leaves of the engine's power
 };
 
+
+// [tyre fx] A tyre scrubbing the road now (ATorqueBikePawn::TyreScrub).
+struct FTorqueTyreScrub
+{
+	double SlideMs = 0.0;
+	double RoadMs = 0.0;       // the bike's own speed over the road, m/s
+	double HalfWidthCm = 7.0;  // half the tread laid on the road
+	bool bTarmac = true;
+	FVector At = FVector::ZeroVector, Fwd = FVector::ForwardVector, Up = FVector::UpVector;
+};
+
 UCLASS()
 class ATorqueBikePawn : public APawn
 {
@@ -126,6 +137,13 @@ public:
 	// snapshots), and whether its rider is off.
 	double SpeedMs() const;
 	bool RiderCrashed() const;
+	// [tyre fx] A tyre scrubbing the road now, for the burnout smoke and the darkies (Weather/TorqueTyreFx),
+	// ours or a co-op rider's (from their snapshots). Wheel 0 the front, 1 the rear. False when it's off
+	// the ground, the bike's down or parked. SlideMs: how fast the tread slides over the road, m/s (a
+	// burnout: the whole rim speed; a locked wheel: the road speed; a slide past the tyre's grip: some
+	// of it). At: the contact patch (world cm); Fwd: the way the bike points, level; Up: the ground's
+	// way up there as the bike stands on it.
+	bool TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const;
 	// [info] The pointer is out (M) to click a place in the info panel: the mouse moves it, not the view.
 	bool IsPointing() const { return bPointing; }
 	void SetPointing(bool bOn) { bPointing = bOn; }

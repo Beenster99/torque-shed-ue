@@ -335,5 +335,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialParameterCollection> WeatherMpc;
 	// The weather effects you see around you (rain, splashes, tyre spray): one per machine.
 	UPROPERTY(Transient) TObjectPtr<class ATorqueWeatherFx> Fx;
+	// [tyre fx] Tyre smoke and darkies (Weather/TorqueTyreFx): one per machine.
+	UPROPERTY(Transient) TObjectPtr<class ATorqueTyreFx> TyreFx;
 	int32 LoggedKind = -1;
 };
