@@ -278,6 +278,9 @@ enum class ETorqueShedAct : uint8
 	GarageFit,
 	GarageOff,
 	GarageStow,
+	// Bay Bay's bike renamed Text (TorqueFurniture::CleanLabel: printable, trimmed, 24 at most; never
+	// empty): N (D-pad up) next to a bike, as Torque Shed's rename box (beenster, Nov 19).
+	NameBike,
 	Count
 };
 
@@ -393,6 +396,9 @@ public:
 	int32 NumBikes() const { return Bikes.Num(); }
 	bool Exists(int32 Bay) const { return Bikes.IsValidIndex(Bay) && Bikes[Bay].bExists; }
 	const FTorqueShedBike& Bike(int32 Bay) const;
+	// The names a project bike can come in with (shed_state BIKE_NAMES), for the rename box's ideas.
+	static int32 BikeNameIdeas();
+	static FString BikeNameIdea(int32 Index);
 	// A bay's bike as the fitment API draws it (a stock Speed Twin for an empty or unknown bay).
 	const FTorqueBuild& Get(int32 Bay) const;
 	// Whether a part of the drawn model is on the bike (its slot has something in it).

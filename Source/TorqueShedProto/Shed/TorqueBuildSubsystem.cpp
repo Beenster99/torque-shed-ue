@@ -1706,6 +1706,14 @@ bool UTorqueBuildSubsystem::FreeDelivery(FName Part, FVector& Out) const
 
 // --- Reads ---------------------------------------------------------------------------------------
 
+int32 UTorqueBuildSubsystem::BikeNameIdeas() { return (int32)UE_ARRAY_COUNT(TBI::BikeNames); }
+
+FString UTorqueBuildSubsystem::BikeNameIdea(int32 Index)
+{
+	const int32 N = BikeNameIdeas();
+	return TBI::BikeNames[((Index % N) + N) % N];
+}
+
 const FTorqueShedBike& UTorqueBuildSubsystem::Bike(int32 Bay) const
 {
 	return Bikes.IsValidIndex(Bay) ? Bikes[Bay] : TBI::NoBike();
@@ -3009,6 +3017,10 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!R.Text.IsEmpty() && TorqueFit::Decals::Parse(TorqueDecals::ToStd(R.Text)).empty()) return TEXT("Those decals didn't read.");
 		return FString();
 	}
+	case ETorqueShedAct::NameBike:
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		if (TorqueFurniture::CleanLabel(R.Text).IsEmpty()) return TEXT("Give it a name first.");
+		return FString();
 	case ETorqueShedAct::Tune:
 	{
 		// shed_state check "tune": the bike, the setting, the part that keeps it, what its parts allow.
@@ -3659,6 +3671,14 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = N == 0 ? FString::Printf(TEXT("Took the decals off the %s"), *ItemTitle(R.Item))
 			: FString::Printf(TEXT("Saved %d decal%s on the %s"), N, N == 1 ? TEXT("") : TEXT("s"), *ItemTitle(R.Item));
 		Touch(R.Item);
+		break;
+	}
+	case ETorqueShedAct::NameBike:
+	{
+		const FString Was = Bikes[R.Bay].Name;
+		Bikes[R.Bay].Name = TorqueFurniture::CleanLabel(R.Text);
+		Text = FString::Printf(TEXT("%s is now called %s."), *Was, *Bikes[R.Bay].Name);
+		PartsOf.Add(R.Bay);
 		break;
 	}
 	case ETorqueShedAct::Tune:

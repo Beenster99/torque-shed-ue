@@ -33,7 +33,7 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("Tool6"), TEXT("Spray gun"), F, {EKeys::Six, FKey()}},
 	{TEXT("SprayFinish"), TEXT("Spray finish"), F, {EKeys::T, FKey()}},
 	{TEXT("GeometryMode"), TEXT("Geometry mode"), F, {EKeys::F2, FKey()}},
-	{TEXT("LabelShelf"), TEXT("Write on a shelving unit's label"), F, {EKeys::N, FKey()}},
+	{TEXT("LabelShelf"), TEXT("Write on a shelving unit's label, or name the bike you're next to"), F, {EKeys::N, FKey()}},
 	{TEXT("DecalMode"), TEXT("Decal mode (place decals on a bike)"), F, {EKeys::F3, FKey()}},
 	{TEXT("Drone"), TEXT("Drone camera: send it up / bring it back (on foot)"), F, {EKeys::B, FKey()}},
 	{TEXT("PhotoAlbum"), TEXT("Photo album: your photos, print one for the shed wall"), F, {EKeys::Y, FKey()}},
