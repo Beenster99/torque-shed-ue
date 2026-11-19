@@ -1,0 +1,97 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 30816,
+ "surfaces": {
+  "s013": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0127,
+    0.0478,
+    0.2758
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s014": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_brass",
+   "tag": "d3_chop_brass",
+   "ue": "cat_anodised",
+   "color": [
+    0.78,
+    0.6,
+    0.27
+   ],
+   "metallic": 1.0,
+   "roughness": 0.2
+  },
+  "s015": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_stone",
+   "tag": "d3_chop_stone",
+   "ue": "cat_plastic",
+   "color": [
+    0.5,
+    0.02,
+    0.03
+   ],
+   "metallic": 0.0,
+   "roughness": 0.08
+  },
+  "s134": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s135": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s136": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s137": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ },
+ "bespoke": {
+  "group": "sissy",
+  "design": "scroll",
+  "metal": "brass",
+  "name": "Scrollwork sissy bar, brass",
+  "note": "A round-topped hoop filled with wrought scrolls, a star medallion in a ring and a ball finial."
+ }
+}
