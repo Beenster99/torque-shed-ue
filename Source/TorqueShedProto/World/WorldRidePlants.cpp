@@ -15,7 +15,8 @@ namespace
 const char* const KindNames[RidePlan::PlantKinds] = {
 	"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "tuft_a", "tuft_b", "tussock_a", "tussock_b", "matgrass", "far_a", "far_b",
 	"rush_a", "rush_b", "heather_twig_a", "heather_twig_b", "heather_a", "heather_b", "bracken",
-	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel", "hedge"};
+	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel", "hedge",
+	"garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree"};
 
 enum Kind : uint16_t
 {
@@ -94,7 +95,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 	if (Step > 8.5) return;
 
 	const double Keep = std::fmin(1.0, std::fmax(0.0, GrassDensity));
-	if (!(Fine && Keep > 0.0) && !(RealTrees && Land->HasTrees())) return;
+	if (!(Fine && Keep > 0.0) && !(RealTrees && Land->HasTrees()) && !(Fine && RealGardens)) return;
 
 	// The ground drawn: its height and its tilt anywhere on the square, from the mesh's own points.
 	const auto GridY = [&Mesh, N](int I, int J) { return double(Mesh.Pos[(size_t(J) * N + I) * 3 + 1]); };
@@ -439,6 +440,33 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 			Put(Bracken, X, Z, H3 * Pi2, 0.8 + 0.45 * H2, 0.03, false, 0.0, 0.0, false);
 		});
 	}
+
+	// [gardens] On the towns' and villages' own grass (the map's built-up cover, not a field), 3 to 14 m from
+	// a road: now and then a clump of low cover, flowers or a shrub, as on a green or a planted verge. The
+	// houses' own gardens are BuildingsTile's (GardenPlants). Never within 3 m of a building (Put's bare
+	// ground for anything with a height), on a car park, a yard or a forecourt.
+	if (Fine && RealGardens && GardenShare > 0.0)
+		Scatter(5.5, 14.0, 9000u, 1.0, [&](double X, double Z, double D, double H1, double H2, double H3)
+		{
+			if (D < 3.0) return;
+			if (H1 >= 0.2 * std::fmin(1.0, GardenShare)) return;
+			const Here H = Look(X, Z);
+			if (H.Cover != CUrban || H.Slope > 0.5) return;
+			const int Fa = FieldAt(X, Z);
+			if (Fa >= 0 && FieldAreas[size_t(Fa)].Kind != FieldLawn && FieldAreas[size_t(Fa)].Kind != FieldPark) return;
+			const uint16_t What = uint16_t(FirstGarden + (H2 < 0.45 ? 3 : H2 < 0.8 ? 2 : 1));   // (low cover, flowers, a shrub)
+			const double Tall = What == FirstGarden + 1 ? 1.1 + 0.8 * H3 : 0.3 + 0.3 * H3;
+			// (a clump: two or three of a kind together)
+			const int Many = 1 + int(H3 * 2.99);
+			for (int K = 0; K < Many; ++K)
+			{
+				const double A = (H2 * 7.0 + K * 2.4), R = K == 0 ? 0.0 : 0.7;
+				const double Px = X + std::cos(A) * R, Pz = Z + std::sin(A) * R;
+				if (Px < X0 || Px >= X0 + Size || Pz < Z0 || Pz >= Z0 + Size) continue;   // (the square's bare ground is all Put knows)
+				Put(What, Px, Pz, Hash(int64_t(Px * 10.0), int64_t(Pz * 10.0), 91u) * Pi2, 1.0, 0.06, false, Tall * (0.85 + 0.3 * Hash(int64_t(Px * 10.0), int64_t(Pz * 10.0), 92u)),
+					Hash(int64_t(Px * 10.0), int64_t(Pz * 10.0), 93u), false);
+			}
+		});
 
 	// Trees where the map's canopy says there are some, as tall as it says: broadleaved ones (ash and
 	// sycamore mostly, alder in the wet, birch now and then, hawthorn where they are short) or spruce.

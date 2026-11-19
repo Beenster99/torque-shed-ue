@@ -2074,6 +2074,44 @@ int main()
 						std::printf("      real trees asked for: %d near and %d far along it; what stands on the squares %d points with them, %d with the stand-ins; %d plants in a building\n", int(RealTrees), int(FarTrees), int(StandIns), int(Without), int(InHouse));
 						Check(Total > 20000 && Kinds >= 8 && Trees == 0 && PlantOnRoad == 0 && PlantAstray == 0 && InHouse == 0 && Alike == Squares && RealTrees > 20 && FarTrees > 20 && StandIns < Without,
 							"grass, rushes, heather and bracken lie on the finest squares near the roads and none on a road, each on the ground drawn, the same every time; real trees (near and far models) in place of the stand-ins when the game has them");
+						// [gardens] The villages' and towns' garden planting, when the game has its models: roses, shrubs,
+						// flowers and low cover round the houses and on the towns' grass; none on a road or in a building,
+						// none without it asked for, the same every time.
+						{
+							size_t Garden = 0, GardenOnRoad = 0, GardenInHouse = 0, GardenOff = 0, GardenSquares = 0, GardenAlike = 0, GardenKinds[5] = {0, 0, 0, 0, 0};
+							double GardenMs = 0.0;
+							for (size_t I = 0; I < Plan->Road.size(); I += 100)
+							{
+								const double Tx = std::floor(Plan->Road[I].At.X / 256.0) * 256.0, Tz = std::floor(Plan->Road[I].At.Z / 256.0) * 256.0;
+								RideMesh GardenNo, On, Again;
+								Plan->LandTile(Tx, Tz, 256.0, 64, GardenNo);
+								for (const RidePlant& P : GardenNo.Plants) if (P.Kind >= RidePlan::FirstGarden) ++GardenOff;
+								Plan->RealGardens = true;
+								const auto T0 = std::chrono::steady_clock::now();
+								Plan->LandTile(Tx, Tz, 256.0, 64, On);
+								GardenMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
+								Plan->LandTile(Tx, Tz, 256.0, 64, Again);
+								Plan->RealGardens = false;
+								++GardenSquares;
+								bool GardenSame = On.Plants.size() == Again.Plants.size();
+								for (size_t K = 0; GardenSame && K < On.Plants.size(); ++K) GardenSame = On.Plants[K].Kind == Again.Plants[K].Kind && On.Plants[K].X == Again.Plants[K].X && On.Plants[K].Z == Again.Plants[K].Z;
+								if (GardenSame) ++GardenAlike;
+								for (const RidePlant& P : On.Plants)
+								{
+									if (P.Kind < RidePlan::FirstGarden) continue;
+									++Garden;
+									if (P.Kind < RidePlan::PlantKinds) ++GardenKinds[P.Kind - RidePlan::FirstGarden];
+									const double X = On.OriginX + P.X, Z = On.OriginZ + P.Z;
+									if (!std::isnan(Plan->RoadHeight(X, Z))) ++GardenOnRoad;
+									if (InBuilding(X, Z)) ++GardenInHouse;
+								}
+							}
+							std::printf("      garden planting asked for: %d plants on %d squares (%d roses, %d shrubs, %d flowers, %d low cover, %d garden trees), %.0f ms a square with it; %d on a road, %d in a building, %d without it asked for\n",
+								int(Garden), int(GardenSquares), int(GardenKinds[0]), int(GardenKinds[1]), int(GardenKinds[2]), int(GardenKinds[3]), int(GardenKinds[4]), GardenMs / double(std::max<size_t>(1, GardenSquares)),
+								int(GardenOnRoad), int(GardenInHouse), int(GardenOff));
+							Check(Garden > 50 && GardenOnRoad == 0 && GardenInHouse == 0 && GardenOff == 0 && GardenAlike == GardenSquares,
+								"the villages' and towns' gardens are planted (roses, shrubs, flowers, low cover) when the game has the models: none on a road or in a building, none when not asked for, the same every time");
+						}
 					}
 					// Bridges on the roads beside it.
 					{

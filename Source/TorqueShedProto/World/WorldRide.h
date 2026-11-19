@@ -625,7 +625,10 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 31, FirstTree = 18, HedgeKind = 30;
+	static constexpr int PlantKinds = 36, FirstTree = 18, HedgeKind = 30, FirstGarden = 31;
+	// [gardens] Kinds FirstGarden on are the villages' and towns' garden planting (WorldRideGardens.cpp):
+	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", drawn only as scanned
+	// models (Megaplants: SM_Tree_garden_<kind>_scan, Tools/ue_build_rideuk.py) and close to the rider.
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
 	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
 	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
@@ -656,6 +659,31 @@ public:
 	// squares' hedges are then those models laid along their lines (HedgePlants), not lumpy shapes.
 	bool RealHedges = false;
 	double GrassDensity = 1.0;
+	// [gardens] Set when the game has the garden kinds' models and -TorqueRidePlanting=0 isn't given: the
+	// finest squares' houses get garden planting (GardenPlants) and the towns' and villages' grass a few
+	// shrubs and flowers (PlantsTile). GardenShare (0..1, -TorqueRidePlanting=0.5) thins it out.
+	bool RealGardens = false;
+	double GardenShare = 1.0;
+	// [gardens] One house's garden as BuildingsTile builds it: its middle, its turn (Cs, Sn: as Local's),
+	// its length along (LongX: x) and depth; which side its front is on (FrontSide +1/-1, across), how far
+	// from 1 m out of the front to the road's edge (FrontGap); its door (along) and drive (DriveFrom..DriveTo
+	// along, none if equal); which of its ends are party walls; Kind (HouseTypes::EKind); Seed its own.
+	struct GardenHouse
+	{
+		double X = 0.0, Z = 0.0, Cs = 1.0, Sn = 0.0, HalfLong = 0.0, HalfShort = 0.0;
+		bool LongX = true, PartyPlus = false, PartyMinus = false, FrontWall = false, InTown = false;
+		double FrontSide = 1.0, FrontGap = 1e9, DoorU = 0.0, DriveFrom = 0.0, DriveTo = 0.0;
+		int Kind = 0, Bays = 1;   // (a row drawn as one building: a door a bay, in pairs, as BuildingsTile draws them)
+	};
+	// [gardens] Footprints (each a Building, its own frame) that garden plants keep clear of: the square's
+	// buildings and its neighbours' near its edges, by 16 m bucket (each in every bucket it reaches).
+	struct GardenClear
+	{
+		std::unordered_map<long long, std::vector<const Building*>> Buckets;
+		void Add(const Building& B);
+		bool Blocked(double X, double Z, double Gap) const;   // (Gap at most 2 m)
+	};
+	void GardenPlants(const GardenHouse& House, const GardenClear& Clear, RideMesh& Out) const;
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
