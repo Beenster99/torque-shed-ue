@@ -1951,7 +1951,9 @@ FString UTorqueBuildSubsystem::V2FitReason(int32 Bay, int32 Engine, FName Slot, 
 		if (!LayoutParts(Bay, Parts)) return FString();
 		for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	}
-	const std::string SlotS = TBI::Std(Slot.ToString()), PartS = TBI::Std(Part.ToString().ToLower());
+	// (Lowered, as TBI::Id: the FName "head" can carry another spelling seen first, "HEAD", and the
+	// rule then read a head as not a head: beenster, Nov 19 "thats a head not a HEAD".)
+	const std::string SlotS = TBI::Id(Slot), PartS = TBI::Std(Part.ToString().ToLower());
 	const std::string Why = Lay->V2FitReason(Map, SlotS, PartS);
 	return TBI::Ue(Why.empty() && Engine == 0 ? Lay->V2NeedsReason(Map, SlotS, PartS) : Why);
 }
