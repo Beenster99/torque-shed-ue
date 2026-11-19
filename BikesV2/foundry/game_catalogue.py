@@ -91,6 +91,9 @@ def main():
     # every V2 bike's own parts as shop parts, and the old shapes they replace retired (game_v2parts.py)
     import game_v2parts
     game_v2parts.main()
+    # the kit variants cut by game_kits.py, as shop parts of their own
+    import game_kits
+    game_kits.catalogue()
 
 
 if __name__ == "__main__":

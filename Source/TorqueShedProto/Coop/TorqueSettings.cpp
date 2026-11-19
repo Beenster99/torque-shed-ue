@@ -124,6 +124,7 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->GetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->GetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
+	GConfig->GetBool(Section, TEXT("RealWater"), bRealWater, Ini);
 	GConfig->GetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->GetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->GetFloat(Section, TEXT("Engine"), Engine, Ini);
@@ -271,6 +272,7 @@ void FTorqueSettings::Save()
 	GConfig->SetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->SetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->SetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
+	GConfig->SetBool(Section, TEXT("RealWater"), bRealWater, Ini);
 	GConfig->SetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->SetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->SetFloat(Section, TEXT("Engine"), Engine, Ini);

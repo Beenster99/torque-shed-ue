@@ -62,6 +62,11 @@ struct FBikeFrame
 	bool bLever[2] = {false, false};
 	FVector LeverPin[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
+	// [shocks] A V2 bike's rear shock mounts (the meshes' space, cm; the middle of the bike for a pair). Its pieces
+	// carry the nodes "shock_top", "shock_bottom" and "shock_spring"; the spring's mesh lies along its own x from
+	// the top mount, its component turned to match, so a scale in x squeezes it along the shock.
+	bool bShock = false;
+	FVector ShockTop = FVector::ZeroVector, ShockBottom = FVector::ZeroVector;
 };
 // [dash] OutGauges: the clocks' working pieces among the meshes made (FittedPart::Gauge), for the
 // ridden bike to drive: in the meshes' own space (the bike's frame, cm), as the meshes are made.

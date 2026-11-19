@@ -47,14 +47,18 @@ constexpr double DefaultLumens = 1000.0;
 // fifth of it, so a lit lens reads as a lamp, not a white blot.
 constexpr float HeadGlow = 300.0f, MainGlow = 600.0f, FogGlow = 300.0f, DrlGlow = 200.0f;
 constexpr float TailGlow = 40.0f, StopGlowLens = 400.0f, IndicatorGlowLens = 500.0f;
-constexpr float NightGlow = 0.2f;
+// (Build 156, beenster at night on Mull: "bikes cast a light but their lights dont glow". With the sky's
+// night exposure now set by the lit road, a fifth left the headlamp lens no brighter than the tarmac it
+// lights: at night the lens keeps its full strength.)
+constexpr float NightGlow = 1.0f;
 // The indicators and the rear light are small lamps seen up close: at night (the eye opened right up)
 // they glow at a twentieth of their daytime strength, or they bloom into a big haze round the bike
 // (beenster, build 132 at night: "a huge diffuse light ... too much").
 constexpr float SignalNightGlow = 0.05f;
 // ...but the brake light must stand out (build 135: "brakes should be brighter"), and the indicators
 // read clearly from behind: their own night levels, between build 132's haze and build 134's.
-constexpr float StopNightGlow = 0.2f, IndicatorNightGlow = 0.09f, TailNightGlow = 0.12f;
+// (Build 156: raised about four times with the headlamp's, still well under build 132's haze.)
+constexpr float StopNightGlow = 0.6f, IndicatorNightGlow = 0.3f, TailNightGlow = 0.5f;
 // The little lamps: an indicator's amber glow round it, the stop lamp's red on the road behind (bike_model.gd
 // STOP_GLOW_RANGE 3 m). Candela.
 // (Build 132's 40 cd over 2.6 m and 60 cd over 3.2 m lit the whole road round the bike at night: a

@@ -867,8 +867,10 @@ void Face(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& Q3,
 	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
 	const double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
 	const double Mx = (Q0.X + Q1.X + Q2.X + Q3.X) * 0.25 - Inside.X, My = (Q0.Y + Q1.Y + Q2.Y + Q3.Y) * 0.25 - Inside.Y, Mz = (Q0.Z + Q1.Z + Q2.Z + Q3.Z) * 0.25 - Inside.Z;
-	if (Nx * Mx + Ny * My + Nz * Mz >= 0.0) RideShapes::SkyQuad(Out, Q0, Q1, Q2, Q3, C, false);
-	else RideShapes::SkyQuad(Out, Q3, Q2, Q1, Q0, C, false);
+	// ([Nov 18] SkyQuad shows the side its cross product points away from: so the order whose cross
+	// product points in. These faces were shown from inside and lit from outside: near black)
+	if (Nx * Mx + Ny * My + Nz * Mz >= 0.0) RideShapes::SkyQuad(Out, Q3, Q2, Q1, Q0, C, false);
+	else RideShapes::SkyQuad(Out, Q0, Q1, Q2, Q3, C, false);
 }
 
 // A block standing on (X, Y, Z): Long along Way (level, unit) by Wide across, High tall; its top Taper

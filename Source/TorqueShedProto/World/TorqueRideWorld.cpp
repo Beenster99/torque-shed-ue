@@ -289,6 +289,26 @@ bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
 	return true;
 }
 
+bool ATorqueRideWorld::CarParkUnder(const FVector& At, int32& Kind, double& Lift)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan) return false;
+	Kind = Ride->Plan->CarParkSurfaceAt(At.X / 100.0, At.Y / 100.0);
+	Lift = TorqueWorld::RidePlan::ParkLift;
+	return Kind >= 0;
+}
+
+bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out)
+{
+	Out.Reset();
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	std::vector<TorqueWorld::RidePlan::ParkedCarBox> Boxes;
+	Ride->Plan->ParkedCarsNear(At.X, At.Z, Reach, Boxes);
+	for (const TorqueWorld::RidePlan::ParkedCarBox& B : Boxes) Out.Append({B.X, B.Z, B.Ux, B.Uz, B.HalfLong, B.HalfWide, B.Y0, B.Y1});
+	return true;
+}
+
 bool ATorqueRideWorld::RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which)
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -630,6 +650,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	LampMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLamp.M_RideLamp"));
 	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
 	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
+	WaterMaterialReal = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWaterReal.M_RideWaterReal"));
 	NightMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideNight.M_RideNight"));
 	SignalMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSignal.M_RideSignal"));
 	SignMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideSign.M_RideSign"));
@@ -675,6 +696,15 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		Plan->FacadeKit = bFacade && FacadeAsked != 0;
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: facade kit %s"), Plan->FacadeKit ? TEXT("on (windows and doors instanced)")
 			: bAsked && FacadeAsked == 0 ? TEXT("off (-TorqueRideFacadeKit=0)") : TEXT("off (its models or M_RideFacade missing: Tools/ue_build_rideuk.py prop_kit)"));
+	}
+	{
+		// [car parks] Parked cars in the car parks' bays, solid to the bike: only as the kit's models (the Fab cars,
+		// Tools/ue_build_rideuk.py prop_kit), and not with -TorqueRideParkedCars=0 (the hub's frame rate A/B).
+		int32 CarsAsked = 1;
+		const bool bCarsAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRideParkedCars="), CarsAsked);
+		Plan->ParkedCars = CarsAsked != 0 && Plan->PropModelled[TorqueWorld::RidePlan::PropParkedCar];
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: parked cars %s"), Plan->ParkedCars ? TEXT("on")
+			: bCarsAsked && CarsAsked == 0 ? TEXT("off (-TorqueRideParkedCars=0)") : TEXT("off (no parked_car models: Tools/ue_build_rideuk.py prop_kit)"));
 	}
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
@@ -1039,7 +1069,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		{
 			bNextInRayTracing = Key.X == 0;
 			bDeferNext = true;
-			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterNow(), false, bAtOnce, false)) TileWater.Add(Key, Wet);
 		}
 	}
 	RideCosts::FScope BuildingsCost(RideCosts::Buildings);
@@ -1121,6 +1151,7 @@ void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Me
 	if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
 	if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
 	if (Mesh.Turf) Sections.Emplace(Mesh.Turf.get(), LandMaterial.Get());       // [road edges, Nov 18] the shoulders' grass, as the land
+	if (Mesh.Stone) Sections.Emplace(Mesh.Stone.get(), StoneMaterial.Get());     // [Nov 18] a bridge's parapets, in the scanned stone
 	PreparedNow = Ready;
 	bNextInRayTracing = TRWI::CVarRoadsRayTraced.GetValueOnGameThread() != 0;
 	UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
@@ -1221,6 +1252,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 						TRWI::Prepare(Made->Glow.get(), *Ready);
 						TRWI::Prepare(Made->Night.get(), *Ready);
 						TRWI::Prepare(Made->Turf.get(), *Ready);
+						TRWI::Prepare(Made->Stone.get(), *Ready);
 					}
 					{
 						FScopeLock Hold(&Share->Lock);
@@ -1452,7 +1484,7 @@ void ATorqueRideWorld::TickWarmUp()
 	if (!WarmUp)
 	{
 		if (TRWI::CVarWarmUp.GetValueOnGameThread() == 0) { WarmUpFrames = -1; return; }
-		UMaterialInterface* const Each[] = {LandMaterial, RoadMaterial, StoneMaterial, MasonryMaterial, LampMaterial, RenderMaterial, WaterMaterial,
+		UMaterialInterface* const Each[] = {LandMaterial, RoadMaterial, StoneMaterial, MasonryMaterial, LampMaterial, RenderMaterial, WaterNow(),
 			NightMaterial, SignalMaterial, SignMaterial, RoofMaterial, BrickMaterial};
 		WarmUp = NewObject<UProceduralMeshComponent>(this, NAME_None, RF_Transient);
 		WarmUp->SetupAttachment(RootComponent);
@@ -1494,12 +1526,25 @@ void ATorqueRideWorld::TickWarmUp()
 	}
 }
 
+UMaterialInterface* ATorqueRideWorld::WaterNow() const
+{
+	return FTorqueSettings::Get().bRealWater && WaterMaterialReal ? WaterMaterialReal.Get() : WaterMaterial.Get();
+}
+
 void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
 	TickWarmUp();
 	if (Impostors) Impostors->Tick();   // [build 157] a few views of a far tree's impostor
+	// [build 156] (Settings > Graphics > Realistic water changed: the water already laid takes it too)
+	if (UMaterialInterface* Want = WaterNow(); Want != WaterShown)
+	{
+		WaterShown = Want;
+		for (TPair<FIntVector, TObjectPtr<UProceduralMeshComponent>>& Each : TileWater)
+			if (UProceduralMeshComponent* Wet = Each.Value.Get())
+				for (int32 Si = 0; Si < Wet->GetNumSections(); ++Si) Wet->SetMaterial(Si, Want);
+	}
 	// [perf, build 150] The whole frame (summed for the 5 s line), hitches, and the A/B run.
 	TRProbe::WatchGc();
 	{
@@ -2165,8 +2210,16 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 			const FVector Front(FMath::Cos(Facing), FMath::Sin(Facing), 0.0);
 			Rot = FQuat(FVector::CrossProduct(Front, FVector::UpVector).GetSafeNormal(), double(P.Pitch)) * Rot;
 		}
+		FVector Spot(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z);
+		if (P.Kind == RidePlan::PropParkedCar)
+		{
+			// [car parks] (a Fab car's own pivot is anywhere: its box's foot, middle under it, on the bay's spot, as
+			// Thwaite's parked cars are put, Tools/ue_build_level.py place_fab_cars)
+			const FBoxSphereBounds Box = Model->GetBounds();
+			Spot += Rot.RotateVector(FVector(-Box.Origin.X, -Box.Origin.Y, -(Box.Origin.Z - Box.BoxExtent.Z)) * Scale3);
+		}
 		FPropGroup& Group = Groups.FindOrAdd(Mi);
-		Group.At.Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
+		Group.At.Add(FTransform(Rot, Spot, Scale3));
 		if (P.Facade) Group.Tint.Append(P.Tint, 9);
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);

@@ -197,7 +197,7 @@ void RidePlan::IndexWater()
 	}
 }
 
-bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind) const
+bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind, bool* Beside) const
 {
 	if (WaterNear.empty()) return false;
 	const auto It = WaterNear.find(WaterKey(X, Z, WaterCell));
@@ -212,7 +212,8 @@ bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, doub
 		const P2 A = Run.At[I], B = Run.At[I + 1];
 		const P2 D = B - A;
 		const double L2 = D.X * D.X + D.Z * D.Z;
-		const double T = L2 > 1e-12 ? std::clamp(((X - A.X) * D.X + (Z - A.Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+		const double Along = L2 > 1e-12 ? ((X - A.X) * D.X + (Z - A.Z) * D.Z) / L2 : 0.0;
+		const double T = std::clamp(Along, 0.0, 1.0);
 		const double Dd = Here.DistanceTo(A + D * T);
 		const double Hh = Run.Half[I] + (Run.Half[I + 1] - Run.Half[I]) * T;
 		const double Past = Dd - Hh;
@@ -224,6 +225,7 @@ bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, doub
 		Surface = Run.Surface[I] + (Run.Surface[I + 1] - Run.Surface[I]) * T;
 		Depth = Run.Depth[I] + (Run.Depth[I + 1] - Run.Depth[I]) * T;
 		if (Kind) *Kind = Run.Kind;
+		if (Beside) *Beside = !((I == 0 && Along < 0.0) || (I + 2 == Run.At.size() && Along > 1.0));
 	}
 	return Found;
 }

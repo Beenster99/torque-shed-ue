@@ -42,6 +42,7 @@
 #include "WorldRoute.h"
 
 #include <cstdint>
+#include <functional>
 #include <array>
 #include <memory>
 #include <string>
@@ -481,6 +482,14 @@ public:
 	int GroundRound(double X, double Z) const;
 	CellStore* CellsFrom = nullptr;
 	HeightStore* HeightsFrom = nullptr;
+	// [LiDAR stage 2] A cell's LiDAR heights file (Tools/lidar_heights.py --file: its outlines' surveyed eaves and
+	// ridges by tile and row), false where there is none; asked once per cell, from a worker. Unset, no LiDAR.
+	std::function<bool(const std::string& Cell, std::string& Text)> LidarFrom;
+	// (a LiDAR file read: by tile, then row, the row's check (its first latitude mod 10000), eaves and ridge; how
+	// many rows it kept, none unless it is for Release; and one row's heights, false where unmeasured or moved)
+	using LidarTiles = std::unordered_map<std::string, std::unordered_map<int, std::array<float, 3>>>;
+	static size_t ReadLidar(const std::string& Text, const std::string& Release, LidarTiles& Out);
+	static bool LidarOfRow(const LidarTiles& Tiles, const std::string& Tile, int Row, long long FirstLat, float& Eaves, float& Ridge);
 	std::shared_ptr<void> StoresAlive;   // (whatever holds them, kept as long as the plan is)
 	// The junction (knot) a road's end is one of the arms of, once its block is laid; null for none.
 	const Knot* KnotAt(int Which, int End) const;
@@ -591,7 +600,10 @@ public:
 	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const;
 	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
-	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
+	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;
+	// [build 155 feedback] The land mesh's own heights at its points (LandTile, LandDrawnAt): Ground, with the
+	// near squares' points by a watercourse under its water (BanksTile draws the banks over them).
+	double LandGround(double X, double Z, double Step) const { return GroundOf(X, Z, Step, Step > 8.5, std::fabs(Step - LandGrid) < 0.1); }
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack), coloured by what covers it. A square with points 8 m
@@ -724,6 +736,9 @@ public:
 		// [towns stage 6] A town centre's heritage street lamp (cast iron, swan neck, lantern), in place of the
 		// plain one where the street is a shopping street (ShopStreetNear) and it has its model.
 		PropLampHeritage,
+		// [car parks] A parked car in a car park's bay (Tools/ue_build_rideuk.py: the Fab cars of
+		// Data/Buttertubs/car_swaps.json in Data/RideUK/prop_kit.json's colours, SM_Prop_parked_car_<n>, as modelled)
+		PropParkedCar,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -817,8 +832,36 @@ public:
 		uint32_t Id = 0;
 		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
 		bool Flowing = false;   // a river's or canal's own outline (its water runs: WaterRuns), not a lake's
+		int Yard = -1;          // [churches stage 5] a graveyard round a church: its Churchyards entry
 	};
 	std::vector<FieldArea> FieldAreas;
+	// [churches stage 5] Each place of worship's churchyard (IndexChurchyards, World/WorldRideFields.cpp): the
+	// map's graveyard round it, else (out of a town) one made round it as far as its neighbours and roads
+	// allow; its wall's runs (where the map draws no wall, fence or hedge of its own), its gate (the yard's
+	// edge nearest the road), the path from the gate to the church's walk round it, its yews. FieldsTile keeps
+	// the graves off the path, the walk, the gate and the yews; ChurchyardsTile builds the rest.
+	struct Churchyard
+	{
+		int Field = -1;                 // its ground (FieldAreas: a FieldGraves area)
+		bool Made = false, Chapel = false, Lych = false;
+		P2 Church;                      // the church's outline's middle (all its pieces)
+		double Cs = 1.0, Sn = 0.0, HalfU = 0.0, HalfV = 0.0;   // its box: half sizes along its building's axes (Yaw)
+		P2 Gate, Out;                   // the gate's middle on the yard's edge, and outward (unit)
+		P2 PathEnd;                     // where the path from the gate meets the walk round the church (1.5 m out)
+		std::vector<std::pair<P2, P2>> Walls;   // the wall's runs
+		std::vector<std::pair<P2, int>> Yews;   // where, and which (0 an old spreading one, 1 an Irish yew)
+		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
+	};
+	std::vector<Churchyard> Churchyards;
+	void IndexChurchyards();   // (from IndexFields: made yards are field areas too)
+	// How far (X, Z) is outside a churchyard's church box (negative inside).
+	double OffChurch(const Churchyard& Y, double X, double Z) const;
+	// The churchyards' walls, gates, paths and yews on a square (fine squares only), in the place's stone.
+	// Doors: the kit churches built on it, each its middle, its door (a metre out) and the way it faces, and
+	// its footprint as built: its middle, its length's way (unit) and half sizes along and across.
+	struct ChurchDoor { P2 Middle, Door, Out, Box, Along; double HalfA = 0.0, HalfC = 0.0; };
+	void ChurchyardsTile(double X0, double Z0, double Size, const LocalLook& Look, const std::vector<ChurchDoor>& Doors, RideMesh& Out, RideMesh& Washed,
+		RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut) const;
 	// [beenster, build 147: "flat water surfaces and well formed banks for rivers, streams, brooks, lakes and
 	// the coastal shoreline"] (World/WorldRideWater.cpp) Each of the map's rivers, streams and canals as a run
 	// of points every WaterStep m down it (turned to run downhill), each with its water's level (never rising
@@ -835,10 +878,14 @@ public:
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> WaterNear;   // (run, first point) by every WaterCell square within reach
 	std::unordered_map<long long, char> StillCells;   // the FieldCell squares a lake's outline covers
 	static constexpr double WaterStep = 3.0, WaterCell = 32.0, BankRun = 1.2, BankReach = 14.0;
+	// [build 155 feedback] (the near land's points within BankTrough of its squares past a watercourse's edge
+	// lie under its water, BanksTile's strips of bank reaching BankStrip squares out over them; a lake's and
+	// the sea's shore eased over ShoreReach m round its outline)
+	static constexpr double BankTrough = 0.9, BankStrip = 2.4, ShoreReach = 10.0;
 	void IndexWater();   // (after IndexFields)
 	// The run nearest (X, Z) within its bank's reach: how far from its middle, its water's level, half
 	// width and depth there, and its kind.
-	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr) const;
+	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr, bool* Beside = nullptr) const;   // (Beside: alongside it, not past either end)
 	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
 	double StillLevel(double X, double Z) const;
 	void IndexFields();
@@ -945,6 +992,9 @@ public:
 		Building B;
 		BuildingLook Look;
 		double Floors = 0.0;   // the map's floors (0: it doesn't say)
+		// [LiDAR stage 2] Its outline's surveyed eaves and ridge above the ground (metres; 0: not measured), from
+		// the cell's LiDAR file (Tools/lidar_heights.py): the drawer takes these before the map's height or floors.
+		float LidarEaves = 0.0f, LidarRidge = 0.0f;
 		// [towns stage 4] Its place in a row (MarkRows, once per tile read): which outline it came from and
 		// whether it is that outline's main box; the sides of the main box another house's main box shares
 		// (bit 1 its +x side, 2 its -x, 4 its +z, 8 its -z, x across W, z deep D), and on which of those it
@@ -976,6 +1026,7 @@ public:
 	{
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
+		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
@@ -1218,6 +1269,59 @@ public:
 	int ForecourtAt(double X, double Z, double Within = 4.0) const;
 	bool OnForecourt(double X, double Z) const;
 	void TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [car parks] The map's car parks (World/WorldRideCarParks.cpp): each one's tarmac laid over its ground with
+	// its bays painted into it, flush (no strips over it), in rows along its aisles (a service road through it, or
+	// its longest side); low kerbs round it where no road runs by; a blue P sign and a pay machine at its way in;
+	// lamps over a big one; and parked cars in about a third of its bays, solid to the bike (ParkedCarsNear).
+	// Gravel ones get no paint or kerbs; "grass", "street_side" and "layby" ones are left as the ground is.
+	enum ECarParkSurface { ParkTarmac = 0, ParkSetts, ParkGravel };
+	struct CarPark
+	{
+		std::vector<P2> Ring;
+		double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0, Area = 0.0;
+		int Surface = ParkTarmac;
+		P2 U = P2(1.0, 0.0), V = P2(0.0, 1.0);   // the rows of bays run along U; V across them
+		double PhaseU = 0.0, PhaseV = 0.0;       // (along U, V from the origin) a bay's side; an aisle's middle
+		P2 Entry, EntryIn;                       // its way in, and the way into it there
+		bool HasEntry = false;
+		uint32_t Seed = 0;
+	};
+	struct ParkBay
+	{
+		P2 Mid, Along, In;   // its middle; along its row; from the aisle into it
+		bool Car = false;    // a car parked in it
+		uint8_t Pick = 0;    // which car
+		bool Badge = false;  // a blue badge bay by the way in (its lines yellow, never a car)
+		int Row = 0, Col = 0;   // which row (two to an aisle: 2k below it, 2k + 1 above) and which along it
+	};
+	static constexpr double ParkBayWide = 2.4, ParkBayLong = 4.8, ParkAisle = 6.0;
+	std::vector<CarPark> CarParks;
+	std::unordered_map<long long, std::vector<int>> CarParkGrid;   // by every 64 m square each one covers
+	void IndexCarParks();
+	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
+	// its buildings, water and edge.
+	void CarParkBays(int Which, std::vector<ParkBay>& Out) const;
+	void LayOutBays(int Which, std::vector<ParkBay>& Out) const;   // (CarParkBays' work, before it is kept)
+	void CarParkStands(double X0, double Z0, double X1, double Z1, std::vector<Building>& Out) const;   // (the buildings over it as drawn)
+	void CarParksTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// The parked cars within Reach of (X, Z) as boxes for the bike to bump into: the middle, the way its nose
+	// points (a level unit direction), half its length and width, its foot and roof heights.
+	struct ParkedCarBox
+	{
+		double X = 0.0, Z = 0.0, Ux = 1.0, Uz = 0.0, HalfLong = 2.1, HalfWide = 0.9, Y0 = 0.0, Y1 = 1.5;
+	};
+	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
+	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
+	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none)
+	static constexpr double ParkLift = 0.05;          // its surface over the drawn ground (the wheels ride on it)
+	int CarParkCount[3] = {};   // by surface, indexed (for the desk test)
+	// Whether the bays have cars in (the game: when the kit has the car models and -TorqueRideParkedCars=0 isn't
+	// given, the hub's frame rate A/B; the desk test draws plain shapes for them).
+	bool ParkedCars = true;
+	static constexpr int ParkedCarsMost = 150;   // in any one car park
+	// (each car park's bays once laid out, kept: the squares and the bike's contacts ask again and again)
+	struct CarParkMemo;
+	std::shared_ptr<CarParkMemo> ParkMemo;
 	// [places stage 3] The places drawn by their kind's recipe (World/WorldRidePlaces.cpp: PlacesTile):
 	// stone circles and standing stones in the local stone, crosses and memorials on their steps,
 	// obelisks, small churches where the map has no building for one (its tower at the west end),
@@ -1538,6 +1642,13 @@ private:
 	void RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const;
 	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
 	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
+	// [build 155 feedback] A near square's watercourses' banks and channels, in the land's own colours, added
+	// to its land mesh Out: each side from under the water's edge out BankStrip squares, finely, over the
+	// near land's points that lie under the water (GroundOf), to meet the land as drawn at its outer edge.
+	void BanksTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// [build 155 feedback] The ground as the near squares draw it: the land mesh's (LandDrawnAt), or by a
+	// watercourse its banks' (BanksTile): what a path laid on the ground lies on.
+	double LandSurfaceAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
 	// [OSM stage 4] The map's footpaths, bridleways, cycleways, pedestrian streets and steps beside the roads
 	// (Region::Ground.Paths): a ribbon on the ground along each, its colour its surface's, never on a road.
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;

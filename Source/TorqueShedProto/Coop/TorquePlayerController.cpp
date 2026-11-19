@@ -5,6 +5,8 @@
 #include "Shed/TorqueDecals.h"
 #include "Fit/BikeDecal.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
@@ -750,6 +752,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("clouds")) S.Clouds = FMath::Clamp(N, -1, 4);
 	else if (F == TEXT("ao")) S.bAmbientOcclusion = bOn;
 	else if (F == TEXT("avatarshadows")) S.bAvatarShadows = bOn;
+	else if (F == TEXT("realwater")) S.bRealWater = bOn;
 	else if (F == TEXT("aa")) S.AntiAliasing = FMath::Clamp(N, 0, 3);
 	else if (F == TEXT("hdr")) S.bHdr = bOn;
 	else if (F == TEXT("filmgrain")) S.FilmGrain = FMath::Clamp(V, 0.0f, 2.0f);
@@ -803,6 +806,7 @@ bool ATorquePlayerController::WantsPause()
 {
 	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
 	if (ATorqueGeometryMode::For(this) || ATorqueDecalMode::For(this)) return false;
+	if (ATorqueDrone::For(this) || ATorquePhotoAlbum::For(this)) return false;   // [drone] (Esc brings it back, closes the album)
 	const APawn* P = GetPawn();
 	if (const ATorqueWalker* W = Cast<ATorqueWalker>(P); W && W->ComputerUpOrJustClosed()) return false;   // [shed] Esc closes the parts computer
 	if (const ATorqueBikePawn* BP = Cast<ATorqueBikePawn>(P); BP && BP->GarageComputerUpOrJustClosed()) return false;   // [garage] and the garage's
@@ -1263,6 +1267,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		}
 		Toggle(TEXT("Ambient occlusion"), S.bAmbientOcclusion, TEXT("Soft shade in corners and under things"));
 		Toggle(TEXT("Character shadows"), S.bAvatarShadows, TEXT("Players and people on foot cast shadows"));
+		Toggle(TEXT("Realistic water"), S.bRealWater, TEXT("Clear, deep water you can see into, with refraction: off for the plain glossy water (faster)"));
 
 		Heading(TEXT("POST-PROCESSING"));
 		SettingF(TEXT("Bloom"), Times(S.Bloom), TEXT("The glow round bright lights: off, up to twice the usual"), S.Bloom, 0.0f, 2.0f, 0.1f);

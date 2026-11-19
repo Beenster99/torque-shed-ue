@@ -190,7 +190,7 @@ def bus_stop(rng):
     block(M, c, (0.27, 0.22, 0.012), WHITE, 0.1)
     block(M, c + [0, 0.17, 0], (0.27, 0.05, 0.014), (0.02, 0.06, 0.25), 0.1)   # the blue band
     for s in (1, -1):
-        ST.lettering(M, "BUS", c + [0, -0.05, s * 0.014], (s * -1.0, 0, 0), (0, 1, 0), (0, 0, s), 0.13, BLACK)
+        ST.lettering(M, "BUS", c + [0, -0.05, s * 0.014], (s * 1.0, 0, 0), (0, 1, 0), (0, 0, s), 0.13, BLACK)
     block(M, (0.06, 1.5, 0), (0.03, 0.12, 0.09), (0.6, 0.6, 0.58), 0.2)   # the timetable case
     return M
 

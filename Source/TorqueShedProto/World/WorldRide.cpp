@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRoadLine.h"
@@ -313,6 +314,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->Land->SetRoam(true);   // [ride anywhere]
 	R->CellsFrom = &Store;
 	R->HeightsFrom = &Heights;
+	R->LidarFrom = LidarReader();   // [LiDAR stage 2]
 	Tell("Fetching the ground: " + std::to_string(R->Land->UsedKeys().size()) + " tiles");
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
 	if (R->TilesFailed > 0)
@@ -350,6 +352,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexFurniture();
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexTownLife();   // [roads stage 7] (before the fields too: forecourts are field areas)
+	R->IndexCarParks();   // [car parks]
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
@@ -409,6 +412,7 @@ std::shared_ptr<RidePlan> RidePlan::Grow(CellStore& Store, HeightStore& Heights,
 	R->MadeSteps = Old.MadeSteps;
 	R->Grown = Old.Grown + 1;
 	R->StoresAlive = Old.StoresAlive;
+	R->LidarFrom = Old.LidarFrom;
 	if (!LoadArea(Store, Heights, Cells, Old.Area.Roads.FrameLat, Old.Area.Roads.FrameLon, "the roads here", R->Area, &R->Why)) return No(R->Why);
 	// (a cell that was read before and can't be now would renumber what follows it)
 	if (R->Area.Cells.size() < Had || !std::equal(Old.Area.Cells.begin(), Old.Area.Cells.end(), R->Area.Cells.begin())
@@ -1677,7 +1681,7 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 	return GroundOf(X, Z, Coarse, Coarse > 8.5);
 }
 
-double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
+double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough) const
 {
 	double Lie = Land ? Land->Height(X, Z) : std::nan("");
 	// A railway's cutting or bank (Ride UK stage 5): its bed level 5 m either side of it, the land
@@ -1694,7 +1698,8 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 	if (!std::isnan(Lie))
 	{
 		double WDist = 0.0, WSurf = 0.0, WHalf = 0.0, WDepth = 0.0;
-		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth))
+		bool Beside = true;
+		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth, nullptr, &Beside))
 		{
 			if (WDist < WHalf)
 			{
@@ -1707,10 +1712,54 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 				Lie = std::fmin(Lie, WSurf + 0.06 + Out / BankRun);
 				if (Out < 1.2) Lie = std::fmax(Lie, WSurf + 0.06 + Out * 0.15);
 			}
+			// [build 155 feedback] (beenster: "I still see brooks represented as floating rectangles": a
+			// brook's channel is narrower than the near land's 4 m squares, which drew the field straight
+			// across it at its banks' height, the water showing through only here and there.) The near
+			// squares' points by a watercourse lie under its water, and BanksTile draws its banks and
+			// channel in the land's own colours over them, finely; only for the near squares' own heights.
+			if (Trough && Beside && WDist < WHalf + Coarse * BankTrough) Lie = std::fmin(Lie, WSurf - 0.3);
 		}
-		const double Still = StillLevel(X, Z);
-		if (!std::isnan(Still)) Lie = std::fmin(Lie, Still - 0.6);
-		if (Lie < 12.0 && Land->SeaAt(X, Z)) Lie = std::fmin(Lie, -0.9);
+		// [build 155 feedback] (beenster: "Lakesides and river banks and edges seem rough edged".) A lake's
+		// bed, and the sea's, came in one step at its outline as the 4 m squares (and the sea's map pixels)
+		// fall, so its shore was a staircase. Now how much of the ground round a point is lake (or sea), out
+		// to ShoreReach, eases the land from its own lie down to the bed: the shore follows the outline
+		// smoothly, a steep bank in a slope, a gentle one on the flat.
+		const auto Share = [X, Z](const auto& In)
+		{
+			int Hits = In(X, Z) ? 1 : 0, Count = 1;
+			for (const double R : {ShoreReach * 0.5, ShoreReach})
+				for (int K = 0; K < 8; ++K)
+				{
+					const double A = K * 0.7853981633974483 + (R > ShoreReach * 0.75 ? 0.3926990816987241 : 0.0);
+					Hits += In(X + std::cos(A) * R, Z + std::sin(A) * R) ? 1 : 0;
+					++Count;
+				}
+			return double(Hits) / Count;
+		};
+		const auto Ease = [](double F) { const double T = std::clamp((F - 0.15) / 0.7, 0.0, 1.0); return T * T * (3.0 - 2.0 * T); };
+		{
+			double Level = StillLevel(X, Z);
+			bool Near = !std::isnan(Level);
+			for (int K = 0; K < 4 && !Near; ++K)
+			{
+				const double S = StillLevel(X + (K == 0 ? ShoreReach : K == 1 ? -ShoreReach : 0.0), Z + (K == 2 ? ShoreReach : K == 3 ? -ShoreReach : 0.0));
+				if (!std::isnan(S)) { Level = S; Near = true; }
+			}
+			if (Near)
+			{
+				const double W = Ease(Share([this](double Px, double Pz) { return !std::isnan(StillLevel(Px, Pz)); }));
+				Lie = std::fmin(Lie, Lie + (Level - 0.6 - Lie) * W);
+			}
+		}
+		if (Lie < 12.0)
+		{
+			const bool Here = Land->SeaAt(X, Z);
+			bool Mixed = false;
+			for (int K = 0; K < 4 && !Mixed; ++K)
+				Mixed = Land->SeaAt(X + (K == 0 ? ShoreReach : K == 1 ? -ShoreReach : 0.0), Z + (K == 2 ? ShoreReach : K == 3 ? -ShoreReach : 0.0)) != Here;
+			if (Mixed) Lie = std::fmin(Lie, Lie + (-0.9 - Lie) * Ease(Share([this](double Px, double Pz) { return Land->SeaAt(Px, Pz); })));
+			else if (Here) Lie = std::fmin(Lie, -0.9);
+		}
 	}
 	NearOpts Opts;
 	Opts.NoBores = NoBores;
@@ -1820,7 +1869,7 @@ double RidePlan::LandDrawnAt(double X, double Z, std::unordered_map<long long, d
 			const auto It = Cache->find(Key);
 			if (It != Cache->end()) return It->second;
 		}
-		const double Y = Ground(double(Gi) * LandGrid, double(Gj) * LandGrid, LandGrid);
+		const double Y = LandGround(double(Gi) * LandGrid, double(Gj) * LandGrid, LandGrid);
 		if (Cache != nullptr) (*Cache)[Key] = Y;
 		return Y;
 	};
@@ -1844,7 +1893,7 @@ void RidePlan::LandColourDrawnAt(double X, double Z, float* Out, std::unordered_
 		}
 		// (as LandTile colours its points: over 12 m round, by the slope across its neighbours)
 		const double Gx = double(Gi) * LandGrid, Gz = double(Gj) * LandGrid;
-		const double E = Ground(Gx + LandGrid, Gz, LandGrid), W = Ground(Gx - LandGrid, Gz, LandGrid), Sn = Ground(Gx, Gz + LandGrid, LandGrid), Nn = Ground(Gx, Gz - LandGrid, LandGrid);
+		const double E = LandGround(Gx + LandGrid, Gz, LandGrid), W = LandGround(Gx - LandGrid, Gz, LandGrid), Sn = LandGround(Gx, Gz + LandGrid, LandGrid), Nn = LandGround(Gx, Gz - LandGrid, LandGrid);
 		const double Sx = std::isnan(E) || std::isnan(W) ? 0.0 : (E - W) / (2.0 * LandGrid), Sz = std::isnan(Sn) || std::isnan(Nn) ? 0.0 : (Sn - Nn) / (2.0 * LandGrid);
 		std::array<float, 3> C{};
 		LandColour(Gx, Gz, 12.0, std::sqrt(Sx * Sx + Sz * Sz), C.data());
@@ -1881,7 +1930,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	for (int J = 0; J < M; ++J)
 		for (int I = 0; I < M; ++I)
 		{
-			const double Y = Ground(X0 + (I - 1) * Step, Z0 + (J - 1) * Step, Step);
+			const double Y = LandGround(X0 + (I - 1) * Step, Z0 + (J - 1) * Step, Step);
 			H[size_t(J) * M + I] = Y;
 			if (!std::isnan(Y) && !Any) { Fallback = Y; Any = true; }
 		}
@@ -1950,6 +1999,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		WaterTile(X0, Z0, Size, Cells, Out, *Wet);
 		if (Wet->Vertices() > 0) Out.Water = Wet;
 	}
+	if (std::fabs(Step - LandGrid) < 0.1) BanksTile(X0, Z0, Size, Out);   // [build 155 feedback]
 	if (Step <= 8.5 && Scene)
 	{
 		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();
@@ -1960,6 +2010,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
 		TownLifeTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
+		CarParksTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [car parks] (the finest squares only)
 		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
@@ -2151,7 +2202,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	// road borders and blend the road into the side")
 	static constexpr float VergeGrass[3] = {0.10f, 0.16f, 0.03f};
 	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, Paint[3] = {0.83f, 0.83f, 0.75f},
-		Stone[3] = {0.2f, 0.19f, 0.17f}, Tile[3] = {0.51f, 0.49f, 0.43f}, Concrete[3] = {0.21f, 0.21f, 0.2f}, Soot[3] = {0.06f, 0.06f, 0.06f},
+		Tile[3] = {0.51f, 0.49f, 0.43f}, Concrete[3] = {0.21f, 0.21f, 0.2f}, Soot[3] = {0.06f, 0.06f, 0.06f},
 		Portal[3] = {0.34f, 0.33f, 0.3f}, Grass[3] = {0.088f, 0.105f, 0.04f};
 	static constexpr float Yellow[3] = {0.78f, 0.52f, 0.03f};   // [OSM stage 5D] no-parking lines
 	static constexpr double YellowReach = 12.0;
@@ -2274,14 +2325,31 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	std::shared_ptr<RideMesh> TurfMesh = std::make_shared<RideMesh>();
 	TurfMesh->OriginX = Out.OriginX;
 	TurfMesh->OriginZ = Out.OriginZ;
+	std::shared_ptr<RideMesh> StoneMesh;   // (a bridge's parapets and underside: Out.Stone, made when first needed)
 	// ([build 154] UV0 is metres across and along over 4, the along counted from a whole 36 m behind this bit
 	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
 	// slabs, 0.9 m long, line up across bits of road)
 	double AlongBase = 0.0;
-	const auto Put = [&Into, &Settle, &AlongBase](const Row& R, double Off, double Lift, const float* Colour)
+	// ([weather, Nov 18] beenster on 156: no puddles on Ride UK's roads. The road's own mesh carries where
+	// rain water stands in its vertex alpha, for M_RideRoad's puddles as Buttertubs' road.glb carries it:
+	// 0 the crown .. 0.9 the edge, scaled by the camber, most on a bend's inside half where the road leans
+	// in and least on its outside. 1 means no puddle data (any vertex not written here).)
+	const auto StandsAt = [](const Row& R, double Off)
+	{
+		const double Edge = R.Half > 0.1 ? std::clamp(std::fabs(Off) / R.Half, 0.0, 1.0) : 0.0;
+		const double Tilt = Off >= 0.0 ? R.Bank : -R.Bank;   // + this half is the bend's outside
+		const double Inside = std::clamp(-Tilt / 0.03, 0.0, 1.0), Outside = std::clamp(Tilt / 0.03, 0.0, 1.0);
+		return float(0.9 * Edge * (0.8 + 0.2 * Inside - 0.3 * Outside));
+	};
+	const auto Put = [&Into, &Out, &Settle, &AlongBase, &StandsAt](const Row& R, double Off, double Lift, const float* Colour)
 	{
 		// (Off is to the left of the middle)
 		RideMesh& M = *Into;
+		if (&M == &Out)
+		{
+			M.Alpha.resize(M.Vertices(), 1.0f);
+			M.Alpha.push_back(StandsAt(R, Off));
+		}
 		const P2 At = R.At + R.Left * Off;
 		const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
 		M.Pos.push_back(float(At.X - M.OriginX)); M.Pos.push_back(float(Y + Lift)); M.Pos.push_back(float(At.Z - M.OriginZ));
@@ -3058,25 +3126,45 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		{
 			// A bridge: a stone parapet each side (its top, and its faces down past the deck to the
 			// deck's underside), and the underside. Faces that stand upright are drawn from both sides.
+			// ([Nov 18] beenster: "the very basic bridges ... have a very low def material on the walls": they
+			// were the tarmac's scan stretched up the faces. Now in the scanned stone, Out.Stone (M_RideStone),
+			// its UVs metres of each face's own surface and each face lit by its own facing; the masks as
+			// the rail viaducts': a little lichened, mostly the bare scan.)
+			if (!StoneMesh)
+			{
+				StoneMesh = std::make_shared<RideMesh>();
+				StoneMesh->OriginX = Out.OriginX;
+				StoneMesh->OriginZ = Out.OriginZ;
+			}
 			const double In = 0.15, Out2 = 0.55, Top = 1.0, Under = -1.2;
+			const auto Corner = [&Settle](const Row& R, double Off, double Lift)
+			{
+				const P2 At = R.At + R.Left * Off;
+				return RideSceneBits::At3(At.X, Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank)) + Lift, At.Z);
+			};
+			const auto Face = [&](double A0, double B0, double A1, double B1, double LiftA, double LiftB, const RideSceneBits::P3& Toward, float Moss, bool BothSides)
+			{
+				RideSceneBits::Rgb Mask;
+				Mask.R = 0.46f;
+				Mask.G = 0.7f;
+				Mask.B = 0.35f;
+				RideSceneBits::Quad(*StoneMesh, Corner(A, A0, LiftA), Corner(A, B0, LiftB), Corner(B, B1, LiftB), Corner(B, A1, LiftA), Toward, Mask, BothSides, Moss);
+			};
+			const P2 MidAB = (A.At + B.At) * 0.5;
+			const double HighAB = std::fmax(A.Height, B.Height);
+			const RideSceneBits::P3 Above = RideSceneBits::At3(MidAB.X, HighAB + 1e4, MidAB.Z), Below = RideSceneBits::At3(MidAB.X, HighAB - 1e4, MidAB.Z);
 			for (double Side : {1.0, -1.0})
 			{
 				const double A0 = A.Half + In, A1 = A.Half + Out2, B0 = B.Half + In, B1 = B.Half + Out2;
+				const P2 Lm = (A.Left + B.Left) * 0.5;
+				const RideSceneBits::P3 Away = RideSceneBits::At3(MidAB.X + Lm.X * Side * 100.0, HighAB, MidAB.Z + Lm.Z * Side * 100.0);
 				// (kerb strip, top, inner face, outer face)
-				if (Side > 0.0)
-				{
-					Strip(A, B, A0, A.Half, B0, B.Half, 0.0, 0.0, Stone);
-					Strip(A, B, A1, A0, B1, B0, Top, Top, Stone);
-				}
-				else
-				{
-					Strip(A, B, -A.Half, -A0, -B.Half, -B0, 0.0, 0.0, Stone);
-					Strip(A, B, -A0, -A1, -B0, -B1, Top, Top, Stone);
-				}
-				Strip(A, B, Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Stone, true);
-				Strip(A, B, Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Stone, true);
+				Face(Side * A0, Side * A.Half, Side * B0, Side * B.Half, 0.0, 0.0, Above, 0.4f, false);
+				Face(Side * A1, Side * A0, Side * B1, Side * B0, Top, Top, Above, 0.5f, false);
+				Face(Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Away, 0.3f, true);
+				Face(Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Away, 0.3f, true);
 			}
-			Strip(A, B, A.Half + Out2, -A.Half - Out2, B.Half + Out2, -B.Half - Out2, Under, Under, Stone, true);
+			Face(A.Half + Out2, -A.Half - Out2, B.Half + Out2, -B.Half - Out2, Under, Under, Below, 0.1f, false);
 		}
 		else if (A.Bore && B.Bore)
 		{
@@ -3874,6 +3962,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			}
 		}
 	}
+	// (every vertex of the road's own mesh with its water, so the alpha reaches UE: 1, none, where not Put)
+	if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f);
 	// [road edges, Nov 18] The country shoulders' turf, as the land draws its own ground: the land's colour
 	// there, its UVs the world's metres over 8.
 	if (TurfMesh->Vertices() > 0)
@@ -3889,6 +3979,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		Out.Turf = TurfMesh;
 	}
+	if (StoneMesh && StoneMesh->Vertices() > 0) Out.Stone = StoneMesh;
 }
 
 std::string RidePlan::RouteJson() const

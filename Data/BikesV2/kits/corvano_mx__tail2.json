@@ -1,0 +1,45 @@
+{
+ "name": "Corvano MX (working title X3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 17500,
+ "surfaces": {
+  "s026": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.82,
+    0.7969,
+    0.7445
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s027": {
+   "slot": "tail",
+   "node": "",
+   "surface": "redlens",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s031": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  }
+ }
+}

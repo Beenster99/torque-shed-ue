@@ -172,6 +172,13 @@ def export_game(name, model, model_file=None):
             r = ("frame", "")
         xs = [(o.matrix_world @ __import__("mathutils").Vector(q)).x / MM for q in o.bound_box]
         r = game_parts.placed(o.name, r[0], r[1], min(xs), max(xs), model)
+        sk_ = model.get("shock")
+        if r == ("shock", "") and sk_ and not model.get("swingarm", {}).get("rigid"):
+            # the shock works in the game (beenster: shocks that compress): its pieces by which end they belong to
+            ws = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
+            cx, cz = sum(w.x for w in ws) / 8 / MM, sum(w.z for w in ws) / 8 / MM
+            ax, az = sk_["bottom"][0] - sk_["top"][0], sk_["bottom"][1] - sk_["top"][1]
+            r = ("shock", game_parts.shock_node(o.name, ((cx - sk_["top"][0]) * ax + (cz - sk_["top"][1]) * az) / (ax * ax + az * az)))
         # the piece of its slot a common part can take the place of ("grip", "silencer", ...: common parts'
         # foundry/game_common.py sub_of; "" for the rest of the slot)
         part_sub = (game_common.sub_of(game_parts.stem(o.name), o) or "") if game_common else ""
@@ -2189,7 +2196,8 @@ if __name__ == "__main__":
             GAME_STAND["angle_down_deg"] = round(float(rep_["stand"]["angle_down_deg"]), 2)
         else:
             print("NO SIDE STAND FITTED on", name)
-        print("game files in", export_game(name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
+        # (BIKE_GAME_NAME: the files' name, for builds that run side by side on one model: game_kits.py bespoke)
+        print("game files in", export_game(os.environ.get("BIKE_GAME_NAME") or name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
         import clip3d

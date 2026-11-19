@@ -6,6 +6,7 @@
 #include "WorldZip.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <functional>
 #include <cmath>
@@ -31,6 +32,10 @@ struct RidePlan::OutlineStore
 		std::vector<ZipEntry> Entries;
 		std::vector<std::string> Words;
 		int Tiles = 8;
+		std::string Release;
+		// [LiDAR stage 2] By tile ("TX_TZ"), then row: the row's first latitude (micro-degrees, mod 10000, so a
+		// row that has moved is not given another's height), its eaves and its ridge (metres).
+		LidarTiles Lidar;
 	};
 	std::mutex Lock;
 	std::condition_variable Ready;   // (a cell's read finished: State left 3)
@@ -46,6 +51,38 @@ std::vector<std::string> RidePlan::TakeOutlineNotes() const
 	std::lock_guard<std::mutex> Lock(Outlines->Lock);
 	Out.swap(Outlines->Notes);
 	return Out;
+}
+
+size_t RidePlan::ReadLidar(const std::string& Text, const std::string& Release, LidarTiles& Out)
+{
+	TorqueFit::Json J;
+	if (!TorqueFit::Json::Parse(Text, J) || !J.IsObject() || J.Str("release") != Release) return 0;
+	const TorqueFit::Json* Tiles = J.Get("tiles");
+	if (Tiles == nullptr) return 0;
+	size_t Rows = 0;
+	for (const auto& [TileName, Flat] : Tiles->O)
+	{
+		auto& Into = Out[TileName];
+		for (size_t K = 0; K + 3 < Flat.A.size(); K += 4)
+		{
+			const float Eaves = float(Flat.A[K + 2].N * 0.1), Ridge = float(Flat.A[K + 3].N * 0.1);
+			if (!(Eaves >= 2.0f && Ridge >= Eaves && Ridge < 400.0f)) continue;
+			Into[int(Flat.A[K].N)] = {float(Flat.A[K + 1].N), Eaves, Ridge};
+			++Rows;
+		}
+	}
+	return Rows;
+}
+
+bool RidePlan::LidarOfRow(const LidarTiles& Tiles, const std::string& Tile, int Row, long long FirstLat, float& Eaves, float& Ridge)
+{
+	const auto T = Tiles.find(Tile);
+	if (T == Tiles.end()) return false;
+	const auto R = T->second.find(Row);
+	if (R == T->second.end() || int(R->second[0]) != int(FirstLat % 10000)) return false;
+	Eaves = R->second[1];
+	Ridge = R->second[2];
+	return true;
 }
 
 std::shared_ptr<RidePlan::OutlineStore> RidePlan::NewOutlineStore()
@@ -338,6 +375,9 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 			std::vector<ZipEntry> List;
 			std::vector<std::string> Words;
 			int Tiles = 8;
+			std::string Release;
+			LidarTiles Lidar;
+			std::string LidarNote;
 			TorqueFit::Json Head;
 			// ([build 155] the hub, from beenster's 154 log: "a fetch was asked for on the game thread and
 			// refused (c580_701 .bld.zip)", then "cell 580_701: no outlines", and that town stayed boxes all
@@ -357,8 +397,17 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 						if (const TorqueFit::Json* W = Head.Get("words"))
 							for (const TorqueFit::Json& Word : W->A) Words.push_back(Word.S);
 						State = 1;
+						Release = Head.Str("release");
 						break;
 					}
+			}
+			// [LiDAR stage 2] (the cell's heights, kept only where they were measured on this release's outlines; a
+			// local read, done here with the lock let go like the zip itself)
+			std::string LidarText;
+			if (State == 1 && LidarFrom && LidarFrom(Name, LidarText))
+			{
+				const size_t LidarRows = ReadLidar(LidarText, Release, Lidar);
+				LidarNote = "cell " + Name + ": LiDAR heights for " + std::to_string(LidarRows) + " outlines" + (LidarRows == 0 ? " (none for release " + Release + ")" : "");
 			}
 			{
 				std::lock_guard<std::mutex> Lock(St.Lock);
@@ -368,6 +417,9 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 					Z->Entries = std::move(List);
 					Z->Words = std::move(Words);
 					Z->Tiles = Tiles;
+					Z->Release = std::move(Release);
+					Z->Lidar = std::move(Lidar);
+					if (!LidarNote.empty()) St.Notes.push_back(LidarNote);
 				}
 				Z->State = State;
 				if (State != 0)
@@ -401,8 +453,9 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 				TorqueFit::Json Rows;
 				for (const ZipEntry& E : Z->Entries)
 					if (E.Name == "t" + Key + ".json" && ZipRead(Z->Zip, E, Text) && TorqueFit::Json::Parse(Text, Rows) && Rows.IsArray())
-						for (const TorqueFit::Json& R : Rows.A)
+						for (size_t Row = 0; Row < Rows.A.size(); ++Row)
 						{
+							const TorqueFit::Json& R = Rows.A[Row];
 							if (R.Size() < 15) continue;
 							const auto Word = [&](size_t I) { const int W = int(R.A[I].N); return W > 0 && W < int(Z->Words.size()) ? Z->Words[size_t(W)] : std::string(); };
 							std::vector<P2> Ring;
@@ -421,6 +474,8 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 							BuildingLook Look;
 							// (the drawer's words: class, roof shape, roof colour, roof material, wall material, wall colour)
 							Look.Words[0] = Word(3); Look.Words[1] = Word(4); Look.Words[2] = Word(6); Look.Words[3] = Word(5); Look.Words[4] = Word(7); Look.Words[5] = Word(8);
+							float LidarEaves = 0.0f, LidarRidge = 0.0f;
+							LidarOfRow(Z->Lidar, Key, int(Row), static_cast<long long>(R.A[9].N), LidarEaves, LidarRidge);
 							const size_t FirstPiece = Made->size();
 							for (Building& Bp : PiecesOf(Ring, Height, KindOfClass(Look.Words[0], std::fabs(Sum) * 0.5)))
 							{
@@ -429,6 +484,8 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 								P.B = std::move(Bp);
 								P.Look = Look;
 								P.Floors = Floors > 0.0 ? Floors : 0.0;
+								P.LidarEaves = LidarEaves;
+								P.LidarRidge = LidarRidge;
 								Made->push_back(std::move(P));
 							}
 							// (the outline's number, and its biggest box its main one)

@@ -1,0 +1,178 @@
+{
+ "name": "Kazeda chopper (working title H3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 28874,
+ "surfaces": {
+  "s015": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.586,
+    0.0939,
+    0.0072
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  },
+  "s016": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s048": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_lampsilver",
+   "tag": "d3_lampsilver",
+   "ue": "cat_polished_alloy",
+   "sub": "headlamp",
+   "color": [
+    0.92,
+    0.92,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s049": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "headlamp"
+  },
+  "s050": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_lampdip",
+   "tag": "lens_white",
+   "ue": "lens_clear",
+   "sub": "headlamp"
+  },
+  "s051": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "headlamp",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s133": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s134": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s135": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s136": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s150": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_chop_brass",
+   "tag": "d3_chop_brass",
+   "ue": "cat_anodised",
+   "color": [
+    0.78,
+    0.6,
+    0.27
+   ],
+   "metallic": 1.0,
+   "roughness": 0.2
+  },
+  "s151": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  },
+  "s152": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_brass",
+   "tag": "d3_chop_brass",
+   "ue": "cat_anodised",
+   "color": [
+    0.78,
+    0.6,
+    0.27
+   ],
+   "metallic": 1.0,
+   "roughness": 0.2
+  },
+  "s153": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  }
+ },
+ "bespoke": {
+  "group": "lamps",
+  "design": "bullet",
+  "metal": "brass",
+  "name": "Bullet lamp shells, brass",
+  "note": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim."
+ }
+}
