@@ -67,7 +67,7 @@ constexpr float StopNightGlow = 0.8f, IndicatorNightGlow = 0.3f, TailNightGlow =
 // (Build 132's 40 cd over 2.6 m and 60 cd over 3.2 m lit the whole road round the bike at night: a
 // real lamp's spill is a faint tint on the ground just under it.)
 constexpr float IndicatorCd = 2.0f, IndicatorRange = 70.0f;
-constexpr float StopCd = 12.0f, StopRange = 200.0f;
+constexpr float StopCd = 6.0f, StopRange = 200.0f;
 
 const FName LensDrl(TEXT("Surf:lens_drl"));
 const FName LensWhite(TEXT("Surf:lens_white")), LensAmber(TEXT("Surf:lens_amber")), LensRed(TEXT("Surf:lens_red"));
@@ -236,10 +236,16 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	if (Rear)
 	{
 		const FBox Box = TLI::BoxOf(Rear);
-		USpotLightComponent* S = TLI::MakeSpot(Owner, Rear, FVector(Box.Min.X - 3.0, Box.GetCenter().Y, Box.GetCenter().Z), 0.0, FLinearColor(1.0f, 0.08f, 0.04f), false);
+		// From behind the whole bike, at the lamp's height: a tail lamp tucked under the seat (the nakeds': over the
+		// rear axle) shone its red, unshadowed, through the tail onto the wheel, the road under the bike and the
+		// rider's back (build 158's night brake shot). A narrower cone, on the road behind only, and half as strong.
+		double RearEnd = Box.Min.X;
+		for (UStaticMeshComponent* C : Meshes)
+			if (C && C->GetStaticMesh()) RearEnd = FMath::Min(RearEnd, TLI::BoxOf(C).Min.X);
+		USpotLightComponent* S = TLI::MakeSpot(Owner, Rear, FVector(RearEnd - 3.0, Box.GetCenter().Y, Box.GetCenter().Z), 0.0, FLinearColor(1.0f, 0.08f, 0.04f), false);
 		S->SetRelativeRotation(FRotationMatrix::MakeFromX(FVector(-1.0, 0.0, -0.6)).Rotator());
-		S->SetOuterConeAngle(70.0f);
-		S->SetInnerConeAngle(30.0f);
+		S->SetOuterConeAngle(40.0f);
+		S->SetInnerConeAngle(15.0f);
 		S->SetAttenuationRadius(TLI::StopRange);
 		S->SetIntensity(TLI::StopCd);
 		StopGlow = S;
