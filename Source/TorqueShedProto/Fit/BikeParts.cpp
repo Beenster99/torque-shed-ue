@@ -4867,7 +4867,9 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	std::map<std::string, const Json*> Donors;   // slot -> the other V2 model's part in it ("v2part")
 	for (const auto& KV : Parts)
 	{
-		const Json* Part = KV.second.empty() || KV.second == "none" ? nullptr : Lay.Part(KV.second);
+		// ([engine parts] another engine's part on this block: drawn as this block's own version of it)
+		const std::string Drawn = KV.second.empty() || KV.second == "none" ? KV.second : Lay.V2EngineTwin(Parts, KV.first, KV.second);
+		const Json* Part = Drawn.empty() || Drawn == "none" ? nullptr : Lay.Part(Drawn);
 		const Json* Vp = Part ? Part->Get("v2part") : nullptr;
 		if (Vp && Vp->IsObject() && Vp->Str("model") != Model) Donors[KV.first] = Vp;
 	}

@@ -356,6 +356,15 @@ int main()
 				const Json* OF = Db.Find("frame", Other);
 				const Json* OV = OF ? OF->Get("v2") : nullptr;
 				if (Other == Id || !OV || OV->Str("family") != Family) continue;
+				// [engine parts] Another brand's engine parts go on this engine as its own version of them (beenster in 157).
+				for (const auto& KV : Lay.V2Build(Other))
+				{
+					const Json* OP = Lay.Part(KV.second);
+					const Json* OVp = OP ? OP->Get("v2part") : nullptr;
+					if (!OVp || OVp->Str("fits") != "engine" || KV.first == "engine" || !Parts.count("engine")) continue;
+					Expect(Lay.V2FitReason(Parts, KV.first, KV.second).empty(), Id + " takes " + Other + "'s " + KV.first + ": " + Lay.V2FitReason(Parts, KV.first, KV.second));
+					Expect(Lay.V2EngineTwin(Parts, KV.first, KV.second) == Parts.at(KV.first), Id + " draws " + Other + "'s " + KV.first + " as its own");
+				}
 				PartsMap Mixed = Parts;
 				std::vector<std::string> Took;
 				for (const auto& KV : Lay.V2Build(Other))
