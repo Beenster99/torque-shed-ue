@@ -518,7 +518,13 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	// ([kits] A kit piece is drawn from its own file ("model") but is its bike's part ("of").)
 	const std::string OfModel = Vp->Str("of", Vp->Str("model"));
 	if (Fits == "engine" && Block && Block->Str("of", Block->Str("model")) != OfModel)
-		return "That's off the " + Brand + " " + Family + " engine: it bolts to that engine block only.";
+	{
+		// (Another engine's part goes on as this block's own version of it: any brand, the same family.)
+		if (Block->Str("family") != Family)
+			return "That's a " + Family + " engine part: it goes on " + Family + " engines only, and this is a " + Block->Str("family") + " engine.";
+		if (V2EngineTwin(Parts, Slot, Id).empty())
+			return "That doesn't go on this engine: there's no " + Noun(Own) + " like it for the " + Block->Str("brand") + " " + Block->Str("family") + " engine.";
+	}
 	if (!V2 || !V2->IsObject()) return std::string();   // (a loose engine: only its block counts)
 	const std::string HostFamily = V2->Str("family");
 	if (HostFamily != Family)
@@ -547,21 +553,45 @@ std::string BikeLayout::V2NeedsReason(const PartsMap& Parts, const std::string& 
 {
 	const Json* Vp = Sub(Part(Id), "v2part");
 	if (!Vp || !Vp->IsObject()) return std::string();
+	// (Which fuel system a part is, whatever its brand: its engine-part look, or the engine's own.)
+	auto FuelLook = [this](const std::string& FuelId) {
+		const Json* F = Sub(Part(FuelId), "v2part");
+		const std::string Kit = F ? F->Str("kit") : std::string();
+		return Kit.rfind("e_", 0) == 0 ? Kit : std::string("own");
+	};
 	const std::string WithFuel = Vp->Str("with_fuel");
-	if (Slot == "air_filter" && !WithFuel.empty() && Get(Parts, "fuel") != WithFuel)
+	if (Slot == "air_filter" && !WithFuel.empty() && (Get(Parts, "fuel") == "none" || FuelLook(Get(Parts, "fuel")) != FuelLook(WithFuel)))
 	{
 		const Json* Fuel = Part(WithFuel);
-		const std::string Name = Fuel ? Fuel->Str("name", WithFuel) : WithFuel;
-		return "Those are drawn on the " + Name + ": fit them first.";
+		const std::string Type = Fuel ? Fuel->Str("type", "their fuel system") : std::string("their fuel system");
+		return "Those fit " + Type + ": fit those first.";
 	}
 	if (Slot == "fuel" && Vp->Flag("open_air"))
 	{
 		const std::string Air = Get(Parts, "air_filter");
 		const Json* AirVp = Air == "none" ? nullptr : Sub(Part(Air), "v2part");
-		if (Air != "none" && (!AirVp || AirVp->Str("with_fuel") != Id))
+		if (Air != "none" && (!AirVp || AirVp->Str("with_fuel").empty() || FuelLook(AirVp->Str("with_fuel")) != FuelLook(Id)))
 			return "These need an open intake: take the airbox off first.";
 	}
 	return std::string();
+}
+
+std::string BikeLayout::V2EngineTwin(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const
+{
+	const Json* Vp = Sub(Part(Id), "v2part");
+	if (Slot == "engine" || !Vp || !Vp->IsObject() || Vp->Str("fits") != "engine") return Id;
+	const Json* Block = Sub(Part(Get(Parts, "engine")), "v2part");
+	if (!Block || !Block->IsObject()) return Id;
+	const std::string BlockModel = Block->Str("of", Block->Str("model"));
+	if (BlockModel.empty() || BlockModel == Vp->Str("of", Vp->Str("model"))) return Id;
+	if (Block->Str("family") != Vp->Str("family")) return std::string();
+	const std::string Kit = Vp->Str("kit");
+	std::string TwinId = "v2_" + BlockModel + "__" + Vp->Str("slot", Slot);
+	if (Kit.rfind("e_", 0) == 0)
+		TwinId += "_e" + Kit.substr(2);
+	else if (!Kit.empty())
+		return std::string();      // (another bike's own kit piece: drawn for that bike only)
+	return Part(TwinId) ? TwinId : std::string();
 }
 
 std::vector<std::string> BikeLayout::StylesOf(const std::string& Id) const
