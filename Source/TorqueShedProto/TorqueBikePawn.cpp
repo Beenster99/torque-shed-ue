@@ -2707,6 +2707,13 @@ void ATorqueBikePawn::TestMoveStep()
 	};
 	TestClock += SimDt;
 	const double V = Sim->Speed;
+	// [r158 climb] The climb's first 2 s, every 0.1 s, and the moment it crashes: the weight the sim is
+	// given and what the bike does with it (naked, chopper and cruiser came off 0.5 s in).
+	if (TestMove == 5 && ((TestClock < 2.0 && FMath::Fmod(TestClock + 0.5 * SimDt, 0.1) < SimDt) || Sim->IsCrashed))
+		UE_LOG(LogTemp, Log, TEXT("Torque: climb t %.2f s: shift %.3f (sim %.3f), pitch %.1f deg (road %.1f), lean %.1f deg, %.1f mph, gear %d, %.0f rpm, throttle %.2f, front %s %.0f N, rear %s %.0f N, rear kappa %.3f%s"),
+			TestClock, Shift, Sim->BodyShift, FMath::RadiansToDegrees(Sim->PitchAngle), FMath::RadiansToDegrees(Sim->RoadPitch), FMath::RadiansToDegrees(Sim->LeanAngle),
+			V * 2.23694, Sim->Gear, Sim->Rpm, Throttle, Sim->Wheels[0].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[0].Load,
+			Sim->Wheels[1].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[1].Load, Sim->Wheels[1].Kappa, Sim->IsCrashed ? TEXT(" CRASHED") : TEXT(""));
 	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
 		Finish(FString::Printf(TEXT("%scrashed (%s, %.1f s in, %.1f m)"), TestMove == 5 ? TEXT("CLIMB FAIL: ") : TEXT(""), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
@@ -2715,7 +2722,9 @@ void ATorqueBikePawn::TestMoveStep()
 	if (TestMove == 5)
 	{
 		// [tests off Buttertubs] The climb: the robot rides it (ReadInput: up to TestMps, slowing for
-		// the bends); this only watches, from the foot to the top.
+		// the bends); this only watches, from the foot to the top. ([r158] sat in the middle, whatever an
+		// earlier test left in Shift: logged above as it came.)
+		Shift = 0.0;
 		TestDist += FMath::Abs(V) * SimDt;
 		if (TestClock > 1.0) TestSlowest = FMath::Min(TestSlowest, V);
 		const bool bStalled = !Sim->EngineOn && !Sim->IsStarting();
