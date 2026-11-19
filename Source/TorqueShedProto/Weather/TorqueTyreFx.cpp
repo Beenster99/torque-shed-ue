@@ -15,12 +15,16 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/CommandLine.h"
 #include "Misc/PackageName.h"
+#include "Misc/Parse.h"
 
 namespace TorqueTyreFxImpl
 {
 TAutoConsoleVariable<int32> CVarSmoke(TEXT("torque.RideTyreSmoke"), 1,
 	TEXT("Tyre smoke from burnouts, wheelspin and skids (Weather/TorqueTyreFx): 1 on, 0 off."));
+TAutoConsoleVariable<float> CVarSmokeTest(TEXT("torque.RideTyreSmokeTest"), 0.0f,
+	TEXT("[test] For this many seconds, the rider's own back tyre smokes as in a burnout wherever the bike is (also -TorqueTyreSmokeTest=<s>, from 5 s into the ride)."));
 TAutoConsoleVariable<int32> CVarMarks(TEXT("torque.RideTyreMarks"), 1,
 	TEXT("Darkies, the rubber a spinning or skidding tyre lays on the road (Weather/TorqueTyreFx): 1 on, 0 off."));
 
@@ -150,11 +154,15 @@ void ATorqueTyreFx::Tick(float DeltaSeconds)
 	SimulatePuffs(Dt, Wind);
 	DrawPuffs();
 
-	if ((LogClock += Dt) > 30.0 && (Puffs.Num() > 0 || MarksShown() > 0))
+	// [r158] The log says how much smoke there's been, not only what's in the air at that moment.
+	PeakPuffs = FMath::Max(PeakPuffs, Puffs.Num());
+	if ((LogClock += Dt) > 30.0 && (Puffs.Num() > 0 || MarksShown() > 0 || Emitted > EmittedLogged))
 	{
 		LogClock = 0.0;
-		UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: %d smoke puffs (of %d), %d darkies (of %d), smoke round the camera %.2f"),
-			Puffs.Num(), FMath::Max(PuffPool - 1, 0), MarksShown(), MarkPool, Veil);
+		UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: %d smoke puffs now (of %d; %d made so far, most at once %d, hottest tyre %.2f), %d darkies (of %d), smoke round the camera %.2f"),
+			Puffs.Num(), FMath::Max(PuffPool - 1, 0), Emitted, PeakPuffs, HottestTyre, MarksShown(), MarkPool, Veil);
+		EmittedLogged = Emitted;
+		HottestTyre = 0.0;
 	}
 }
 
@@ -162,6 +170,25 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 {
 	const bool bSmoke = TTF::CVarSmoke.GetValueOnGameThread() != 0 && Smoke != nullptr;
 	const bool bMarks = TTF::CVarMarks.GetValueOnGameThread() != 0 && MarkPool > 0;
+	// [r158 test] A forced burnout on our own back tyre, to see the smoke without riding one.
+	static double TestFrom = -1.0;
+	static bool bTestArgRead = false;
+	if (!bTestArgRead)
+	{
+		bTestArgRead = true;
+		float Secs = 0.0f;
+		if (FParse::Value(FCommandLine::Get(), TEXT("TorqueTyreSmokeTest="), Secs) && Secs > 0.0f) TTF::CVarSmokeTest->Set(Secs);
+	}
+	const float TestSecs = TTF::CVarSmokeTest.GetValueOnGameThread();
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (TestSecs > 0.0f && TestFrom < 0.0) TestFrom = Now + 5.0;
+	if (TestSecs <= 0.0f) TestFrom = -1.0;
+	const bool bTestNow = TestSecs > 0.0f && Now >= TestFrom && Now < TestFrom + TestSecs;
+	if (TestSecs > 0.0f && Now >= TestFrom + TestSecs)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: smoke test done: %d puffs made, most at once %d, smoke round the camera %.2f"), Emitted, PeakPuffs, Veil);
+		TTF::CVarSmokeTest->Set(0.0f);
+	}
 	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
 	{
 		ATorqueBikePawn* Bike = *It;
@@ -184,9 +211,31 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 				In.Up = Got.Up;
 			}
 			else In.bTarmac = false;   // (in the air, down, parked, far off: nothing laid, the tyre cools)
-			// The tyre heats as it slides (a second sliding at 10 m/s, hot) and cools when it stops.
+			if (bTestNow && I == 1 && Bike->IsLocallyControlled())
+			{
+				In.SlideMs = 20.0;
+				In.RoadMs = 0.0;
+				In.bTarmac = true;
+				if (Bike->TyreScrub(I, Got))
+				{
+					In.At = Got.At;
+					In.Fwd = Got.Fwd;
+					In.Up = Got.Up;
+					In.HalfWidthCm = Got.HalfWidthCm;
+				}
+				else
+				{
+					In.Fwd = Bike->GetActorForwardVector().GetSafeNormal2D(UE_SMALL_NUMBER, FVector::ForwardVector);
+					In.Up = FVector::UpVector;
+					In.At = Bike->GetActorLocation() - In.Fwd * 70.0 - In.Up * 30.0;
+				}
+			}
+			// The tyre heats as it slides (half a second sliding at 12 m/s, hot) and cools when it stops.
+			// ([r158] a hard skid or a spin pulling away smokes too now, not only a long burnout: it was
+			// a second at 10 m/s before the first wisp, so the robot's slides laid darkies but no smoke)
 			const double Sliding = In.bTarmac ? In.SlideMs : 0.0;
-			St.Heat = FMath::Clamp(St.Heat + (Sliding > 1.0 ? Sliding / 10.0 : -0.5) * Dt, 0.0, 1.0);
+			St.Heat = FMath::Clamp(St.Heat + (Sliding > 1.0 ? Sliding / 6.0 : -0.5) * Dt, 0.0, 1.0);
+			HottestTyre = FMath::Max(HottestTyre, St.Heat);
 			if (bSmoke && Sliding > 1.0) EmitSmoke(St, In, Dt, Wet, Wind);
 			else St.Debt = 0.0;
 			if (bMarks && Sliding > 1.2) LayMark(St, In, Dt, Wet, Bike);
@@ -205,7 +254,7 @@ void ATorqueTyreFx::EmitSmoke(FTyreState& St, const FScrub& In, float Dt, double
 {
 	// Hot rubber smokes: from a little once it's warm to a torrent once it's hot, the more the faster it
 	// slides (a burnout's whole rim speed pours it out); a wet road keeps the tyre cool.
-	const double Hot = FMath::SmoothStep(0.1, 0.7, St.Heat);
+	const double Hot = FMath::SmoothStep(0.03, 0.5, St.Heat);
 	const double Rate = 45.0 * Hot * FMath::Clamp(In.SlideMs / 12.0, 0.0, 1.6) * (1.0 - 0.85 * Wet);
 	St.Debt = FMath::Min(St.Debt + Rate * Dt, 6.0);
 	const int32 Cap = PuffPool - 1;
@@ -226,6 +275,7 @@ void ATorqueTyreFx::EmitSmoke(FTyreState& St, const FScrub& In, float Dt, double
 		P.Size0 = FMath::FRandRange(40.0f, 70.0f);
 		P.Size1 = FMath::FRandRange(400.0f, 800.0f);
 		P.Alpha = FMath::FRandRange(0.30f, 0.50f) * (float)FMath::Lerp(0.6, 1.0, Hot);
+		++Emitted;
 		if (Puffs.Num() < Cap) Puffs.Add(P);
 		else
 		{
