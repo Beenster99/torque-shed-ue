@@ -202,6 +202,9 @@ WEATHER_PARAMS = (
     ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
     ("Night", 0.0),          # how dark it is (Ride UK stage 7): 0 day .. 1 night; street lamps, lit windows, cat's eyes
     ("Signals", 0.0),        # the traffic lights' clock (OSM stage 5D): the server's seconds, under an hour
+    ("LeafFresh", 0.0),      # [seasonal trees test] the scanned trees' leaves: spring's paler green, 0 .. 1
+    ("LeafTurn", 0.0),       # autumn's colour, 0 .. 1 (Tools/ue_tree_season.py)
+    ("LeafDrop", 0.0),       # the share of leaves gone, 0 .. 1
 )
 _weather_mpc = None
 
@@ -1072,7 +1075,10 @@ def bike_glass_materials():
         m = new_material("M_BikeGlass", BIKE_MAT_DIR)
         m.set_editor_property("two_sided", True)
         m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
-        try_set(m, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE)
+        # Lit per pixel, so the sun and the sky make real highlights on it (beenster, build 156: "barely visible,
+        # please make them reflect light to pick out their shape better"); the cheaper mode if this one is not there.
+        mode = getattr(unreal.TranslucencyLightingMode, "TLM_SURFACE_PER_PIXEL_LIGHTING", unreal.TranslucencyLightingMode.TLM_SURFACE)
+        try_set(m, "translucency_lighting_mode", mode)
         try_set(m, "screen_space_reflections", True)
         g = Graph(m)
         col = g.node(unreal.MaterialExpressionVectorParameter, -900, parameter_name="Color",
@@ -1081,6 +1087,8 @@ def bike_glass_materials():
         opac = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Opacity", default_value=0.12)
         edge = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="EdgeOpacity", default_value=0.45)
         fres = g.node(unreal.MaterialExpressionFresnel, -900)
+        try_set(fres, "exponent", 3.0)                 # (a broad edge: the curve of a screen reads well before the rim)
+        try_set(fres, "base_reflect_fraction", 0.02)
         mix = g.node(unreal.MaterialExpressionLinearInterpolate, -600)
         mel.connect_material_expressions(opac, "", mix, "A")
         mel.connect_material_expressions(edge, "", mix, "B")
@@ -1090,14 +1098,24 @@ def bike_glass_materials():
         # taken right down, so what shows is what is behind it and the reflections on it.
         dim = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Dim", default_value=0.04)
         dark = g.node(unreal.MaterialExpressionMultiply, -600)
+        # Towards its edges and where it curves away it catches the light: the colour comes up there (EdgeDim), so
+        # the outline and the curve show in sun and under cloud, the middle staying clear to look through.
+        edge_dim = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="EdgeDim", default_value=0.04)
+        dim_mix = g.node(unreal.MaterialExpressionLinearInterpolate, -750)
+        mel.connect_material_expressions(dim, "", dim_mix, "A")
+        mel.connect_material_expressions(edge_dim, "", dim_mix, "B")
+        mel.connect_material_expressions(fres, "", dim_mix, "Alpha")
         mel.connect_material_expressions(col, "", dark, "A")
-        mel.connect_material_expressions(dim, "", dark, "B")
+        mel.connect_material_expressions(dim_mix, "", dark, "B")
+        spec = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Specular", default_value=0.5)
+        mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
         mel.connect_material_property(dark, "", unreal.MaterialProperty.MP_BASE_COLOR)
         mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
         mel.connect_material_property(mix, "", unreal.MaterialProperty.MP_OPACITY)
         mel.recompile_material(m)
         unreal.EditorAssetLibrary.save_loaded_asset(m)
-        for name, opacity, edge_opacity in (("v2glass", 0.05, 0.3), ("v2screen", 0.07, 0.35)):
+        # (opacity in the middle, at the edge; the colour at the edge; how strongly it mirrors)
+        for name, opacity, edge_opacity, edge_colour, mirror in (("v2glass", 0.05, 0.3, 0.04, 0.5), ("v2screen", 0.12, 0.7, 0.3, 1.0)):
             path = BIKE_MAT_DIR + "/MI_" + name
             if unreal.EditorAssetLibrary.does_asset_exist(path):
                 unreal.EditorAssetLibrary.delete_asset(path)
@@ -1106,8 +1124,10 @@ def bike_glass_materials():
             mel.set_material_instance_parent(mi, m)
             mel.set_material_instance_scalar_parameter_value(mi, "Opacity", opacity)
             mel.set_material_instance_scalar_parameter_value(mi, "EdgeOpacity", edge_opacity)
+            mel.set_material_instance_scalar_parameter_value(mi, "EdgeDim", edge_colour)
+            mel.set_material_instance_scalar_parameter_value(mi, "Specular", mirror)
             unreal.EditorAssetLibrary.save_loaded_asset(mi)
-        unreal.log("[Torque] V2 bike glass: M_BikeGlass (dimmed colour), MI_v2glass 0.05/0.3, MI_v2screen 0.07/0.35")
+        unreal.log("[Torque] V2 bike glass: M_BikeGlass (per-pixel lit, bright edge), MI_v2glass 0.05/0.3, MI_v2screen 0.12/0.7 edge colour 0.3")
     except Exception as e:
         unreal.log_warning("[Torque] V2 bike glass materials not made: %s" % e)
 

@@ -551,7 +551,7 @@
    "slot": "tail",
    "node": "",
    "surface": "redlens",
-   "tag": "lens_red",
+   "tag": "reflector",
    "ue": "lens_red",
    "sub": "plate_hanger"
   },

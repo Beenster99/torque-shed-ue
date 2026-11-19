@@ -99,6 +99,191 @@ void RidePlan::FindPathNodes(int From, const std::vector<int>& Path, double RawL
 	}
 }
 
+unsigned char RidePlan::ArmRankOf(int Node, int Edge) const
+{
+	const auto It = ArmRank.find(static_cast<long long>(Node) * 4000037LL + Edge);
+	return It == ArmRank.end() ? 0 : It->second;
+}
+
+bool RidePlan::LinesStopAt(double Along) const
+{
+	for (const std::pair<double, double>& R : JunctionNoLines)
+		if (Along >= R.first && Along <= R.second) return true;
+	return false;
+}
+
+bool RidePlan::NoJunctionPriority = false;
+
+void RidePlan::FindPriorities(int From, const std::vector<int>& Path)
+{
+	using namespace RideNavBits;
+	Junctions.clear();
+	ArmRank.clear();
+	if (Path.empty() || NoJunctionPriority) return;
+	const Region& G = Area.Roads;
+	const auto IsRing = [&G](int E)
+	{
+		const RoadExtra* X = E >= 0 ? G.ExtraOf(E) : nullptr;
+		return X != nullptr && X->Has(RoadExtra::Roundabout);
+	};
+	int Node = From;
+	double Raw = 0.0;
+	for (size_t I = 0; I + 1 < Path.size(); ++I)
+	{
+		Node = G.OtherEnd(Path[I], Node);
+		Raw += G.Edges[size_t(Path[I])].Length;
+		const int Came = Path[I], Onto = Path[I + 1];
+		const std::vector<int>& Here = G.Adjacent[size_t(Node)];
+		if (Here.size() < 3 || RingAt(Node) >= 0) continue;
+		bool Ring = false;
+		for (int E : Here) Ring = Ring || IsRing(E);
+		if (Ring) continue;
+		// (each road there: what a metre of it costs the quick way, the lower the greater; its heading out)
+		const size_t N = Here.size();
+		std::vector<double> Cost(N);
+		std::vector<P2> Out(N);
+		for (size_t K = 0; K < N; ++K)
+		{
+			Cost[K] = RoadLine::MainCostOf(G.ClassOf(Here[K]));
+			Out[K] = HeadingOut(G, Here[K], Node);
+		}
+		// (the through road: the pair of the best class, then the straightest; none where two pairs are
+		// as good, an unmarked crossroads)
+		int Pa = -1, Pb = -1;
+		double PairCost = 1e9, PairBend = 1e9, NextCost = 1e9, NextBend = 1e9;
+		for (size_t A = 0; A < N; ++A)
+			for (size_t B = A + 1; B < N; ++B)
+			{
+				if (Here[A] == Here[B]) continue;   // (a loop's two ends)
+				const double Bend = WorldPi - std::fabs(TurnOf(Out[A], Out[B]));
+				if (Bend > JunctionBent) continue;
+				const double C = std::fmax(Cost[A], Cost[B]);
+				const bool Better = C < PairCost - 0.05 || (C < PairCost + 0.05 && Bend < PairBend);
+				if (Better) { NextCost = PairCost; NextBend = PairBend; PairCost = C; PairBend = Bend; Pa = int(A); Pb = int(B); }
+				else if (C < NextCost - 0.05 || (C < NextCost + 0.05 && Bend < NextBend)) { NextCost = C; NextBend = Bend; }
+			}
+		if (Pa < 0) continue;
+		double OthersBest = 1e9;
+		int OfBest = 0;
+		for (size_t K = 0; K < N; ++K)
+		{
+			if (int(K) == Pa || int(K) == Pb) continue;
+			OthersBest = std::fmin(OthersBest, Cost[K]);
+		}
+		for (size_t K = 0; K < N; ++K) OfBest += Cost[K] < PairCost + 0.05 ? 1 : 0;
+		// (a through road no lesser than the others; bent past JunctionStraight only where it alone is the best class)
+		if (OthersBest < PairCost - 0.05) continue;
+		if (PairBend > JunctionStraight && OfBest > 2) continue;
+		if (NextCost < PairCost + 0.05 && NextBend < PairBend + 0.2 && OthersBest < PairCost + 0.05) continue;
+		for (size_t K = 0; K < N; ++K)
+			ArmRank[static_cast<long long>(Node) * 4000037LL + Here[K]] = int(K) == Pa || int(K) == Pb ? 2 : 1;
+		const bool CameThrough = Came == Here[size_t(Pa)] || Came == Here[size_t(Pb)], OntoThrough = Onto == Here[size_t(Pa)] || Onto == Here[size_t(Pb)];
+		JunctionRule J;
+		J.Node = Node;
+		J.Came = Came;
+		J.Onto = Onto;
+		J.RawAlong = Raw;
+		J.ThroughA = Here[size_t(Pa)];
+		J.ThroughB = Here[size_t(Pb)];
+		J.MajorHalf = 0.5 * RoadLine::WidthOf(G.ClassOf(Here[size_t(Pa)]));
+		const P2 Back = HeadingOut(G, Came, Node);
+		J.Turn = TurnOf(P2(-Back.X, -Back.Z), HeadingOut(G, Onto, Node));
+		J.CameMinor = !CameThrough;
+		J.OntoMinor = !OntoThrough;
+		Junctions.push_back(J);
+	}
+}
+
+void RidePlan::PlaceJunctions(double RawLength)
+{
+	JunctionNoLines.clear();
+	JunctionGiveWayCount = 0;
+	if (Road.size() < 2) return;
+	const double Scale = RawLength > 1.0 ? Length / RawLength : 1.0;
+	bool Added = false;
+	for (JunctionRule& J : Junctions)
+	{
+		// (where the junction is on the road as laid: the nearest point within 80 m of where its share says)
+		const P2 At = Area.Roads.Nodes[size_t(J.Node)];
+		const double Guess = J.RawAlong * Scale;
+		double Best = 1e18;
+		J.Along = Guess;
+		for (const RoadPoint& P : Road)
+		{
+			if (P.Along < Guess - 80.0) continue;
+			if (P.Along > Guess + 80.0) break;
+			const double D = P.At.DistanceTo(At);
+			if (D < Best) { Best = D; J.Along = P.Along; }
+		}
+		if (!J.CameMinor && !J.OntoMinor) continue;
+		// (where the ride's road leaves the through road's carriageway each way: the map's line of the
+		// through road, its first 40 m each way from the junction, and the ride's road walked out from the
+		// junction till it is half that road's width and a little from it)
+		std::vector<P2> ThroughLine;
+		for (int Arm : {J.ThroughA, J.ThroughB})
+		{
+			const std::vector<P2> L = Area.Roads.LineFrom(Arm, J.Node);
+			std::vector<P2> Piece;
+			double Gone = 0.0;
+			for (size_t K = 0; K < L.size(); ++K)
+			{
+				if (K > 0) Gone += L[K].DistanceTo(L[K - 1]);
+				Piece.push_back(L[K]);
+				if (Gone > 40.0) break;
+			}
+			if (Arm == J.ThroughA) ThroughLine.assign(Piece.rbegin(), Piece.rend());
+			else ThroughLine.insert(ThroughLine.end(), Piece.begin() + (Piece.empty() ? 0 : 1), Piece.end());
+		}
+		const auto OffThrough = [&ThroughLine](const P2& P)
+		{
+			double Near = 1e18;
+			for (size_t K = 0; K + 1 < ThroughLine.size(); ++K)
+			{
+				const P2 A = ThroughLine[K], D = ThroughLine[K + 1] - A, Q = P - A;
+				const double L2 = D.X * D.X + D.Z * D.Z, T = L2 > 1e-9 ? std::clamp((Q.X * D.X + Q.Z * D.Z) / L2, 0.0, 1.0) : 0.0;
+				Near = std::fmin(Near, P.DistanceTo(A + D * T));
+			}
+			return Near;
+		};
+		const auto EdgeAlong = [&](int Way)
+		{
+			// (the first point that way, from the junction, clear of the through road's carriageway)
+			size_t I = 0;
+			while (I + 1 < Road.size() && Road[I].Along < J.Along) ++I;
+			for (int Steps = 0; Steps < 40; ++Steps)
+			{
+				if (OffThrough(Road[I].At) > J.MajorHalf + 0.2) return Road[I].Along;
+				if ((Way < 0 && I == 0) || (Way > 0 && I + 1 >= Road.size())) break;
+				I = Way < 0 ? I - 1 : I + 1;
+			}
+			return J.Along + Way * J.MajorHalf;
+		};
+		const double In = J.CameMinor ? EdgeAlong(-1) : J.Along - 1.0, Out = J.OntoMinor ? EdgeAlong(1) : J.Along + 1.0;
+		// (none of its own lines across the through road; past the junction's middle only on the minor side)
+		JunctionNoLines.emplace_back(In - 0.4, Out + 0.4);
+		// (the give-way lines, as the map's own are drawn: across the lane coming up to the through road, at
+		// its edge; none where the map has its own give-way, stop or lights by it)
+		bool Mapped = false;
+		for (const MappedMark& M : MainMapped)
+			Mapped = Mapped || ((M.Kind == "give_way" || M.Kind == "stop" || M.Kind == "traffic_signals") && std::fabs(M.Along - J.Along) < 30.0);
+		if (Mapped) continue;
+		for (int Way : {1, -1})
+		{
+			if (Way > 0 ? !J.CameMinor : !J.OntoMinor) continue;
+			const double Line = Way > 0 ? In : Out;
+			if (Line < 5.0 || Line > Length - 5.0) continue;
+			MappedMark M;
+			M.Kind = "give_way";
+			M.Dir = Way;
+			M.Along = Line + Way * 0.8;   // (MappedMarks draws it a metre before, as the traffic meets it)
+			MainMapped.push_back(M);
+			++JunctionGiveWayCount;
+			Added = true;
+		}
+	}
+	if (Added) std::stable_sort(MainMapped.begin(), MainMapped.end(), [](const MappedMark& A, const MappedMark& B) { return A.Along < B.Along; });
+}
+
 void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double RawLength)
 {
 	using namespace RideNavBits;

@@ -67,7 +67,7 @@ const double CLUTCH_PULL = 0.08;
 const double CLUTCH_LET_OUT = 0.35;
 const double CLUTCH_BITE = 25.0;
 // The rider's pull on the bars with their weight right back, on the road (N m of pitch, front up).
-const double PITCH_HAUL = 150.0;
+const double PITCH_HAUL = 190.0;
 const double NEUTRAL_FIND_SPEED = 2.0;
 // In neutral the engine spins only itself: it makes this share of its torque to do it (fuel, heat).
 const double FREE_REV_LOAD = 0.12;
@@ -833,6 +833,10 @@ void BikeSim::UpdateEngine(double Delta)
 	double TcTarget = 1.0;
 	const double AidStrength = Build.TractionControl ? Build.TractionStrength : 0.0;
 	double Tc = std::max(std::min(1.0, Assist), AidStrength);
+	// [wheelies, Nov 19] Weight back for a wheelie, even at full sim, the rider works the throttle against
+	// the back tyre spinning up (a snapped-open trigger otherwise just spins a tall adventure bike's
+	// dual-sport tyre and the front never comes up): their own feel, as at Riding realism 0.5.
+	if (BodyShift < -0.15 && Rear.Contact) Tc = std::max(Tc, Clamp((-BodyShift - 0.15) / 0.35, 0.0, 1.0) * 0.6);
 	double TcFrom = 0.12, TcGain = 4.0;
 	if (Build.TractionControl) TcFrom = Lerp(0.1, 0.06, Clamp(AidStrength, 0.0, 1.0));
 	else
@@ -1007,8 +1011,14 @@ double BikeSim::WheelieTarget() const
 	// Asked for, nothing holds it up: the rider keeps it there with the throttle and their weight.
 	// Only near the loop-over point does the rider's instinct (and more so with more assist) roll
 	// off and cover the rear brake.
+	// [wheelies, beenster Nov 19: "a little hard to pull ... even with assists turned off"] Only weight
+	// right back (-0.6 or more) let it up before: a pad's stick pulled part way back while leaning, or the
+	// weight key let go a moment early, held the front down as if sat in the middle. Now the further back,
+	// the higher it's let come: from a little back (-0.15, a few degrees up) to right back (the full
+	// balance point). Sat in the middle still keeps it down (beenster's earlier rule, sim_test).
 	double T = 0.0;
-	if (BodyShift <= -0.6) T = Lerp(DegToRad(78.0), DegToRad(46.0), Clamp(Assist, 0.0, 1.0));
+	const double Back = Clamp((-BodyShift - 0.15) / 0.4, 0.0, 1.0);
+	if (Back > 0.0) T = Lerp(DegToRad(14.0), Lerp(DegToRad(78.0), DegToRad(46.0), Clamp(Assist, 0.0, 1.0)), Back * Back);
 	if (Build.AntiWheelie > 0.0) T = std::min(T, DegToRad(Lerp(20.0, 4.0, std::min(Build.AntiWheelie, 1.0))));
 	return T;
 }
@@ -1437,7 +1447,9 @@ void BikeSim::ApplyRiderBalance(double Delta)
 	// adventure up on a handful (beenster, build 155: "Turned all assist off on a 800cc bike and it couldn't
 	// wheelie"); weight forward is as it was.
 	const V3 Right = B.X;
-	double PitchTau = -BodyShift * (AnyContact ? (BodyShift < 0.0 ? PITCH_HAUL : 60.0) : 220.0);
+	// [wheelies, Nov 19] The haul is all there from the weight two thirds back (a stick pulled most of the
+	// way, not hard against its stop), and a little stronger (was 150 at -1, so 90 at -0.6).
+	double PitchTau = AnyContact ? (BodyShift < 0.0 ? PITCH_HAUL * Clamp(-BodyShift / 0.5, 0.0, 1.0) : -BodyShift * 60.0) : -BodyShift * 220.0;
 	const double PitchRate = AngularVelocity.Dot(Right);
 	if (!AnyContact)
 	{

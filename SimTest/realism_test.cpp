@@ -17,6 +17,7 @@
 // its top speed and what holds it there; --game rides the game's engine curve instead of Godot's.
 #include "BikeRideSpec.h"
 #include "BikeSim.h"
+#include "FuelModel.h"
 #include "PartsDb.h"
 
 #include <algorithm>
@@ -428,7 +429,7 @@ int main(int Argc, char** Argv)
 		// --wheelie: each reference bike (with --swap's changes) with every rider aid off, flat out from a
 		// standstill in first for 4 s: the most the front comes up (deg), sat normally and with the weight
 		// right back, at Riding realism 0 (full sim) and 0.5.
-		std::printf("style,engine,hp,sat_r0,back_r0,sat_r05,back_r05,dump_sat_r0,dump_back_r0\n");
+		std::printf("style,engine,hp,sat_r0,back_r0,sat_r05,back_r05,dump_sat_r0,dump_back_r0,halfback_r0,rollon1_sat,rollon1_half,rollon1_back,rollon2_back\n");
 		for (const Real& Rl : Reals)
 		{
 			const Json* G = Styles ? Styles->Get(Rl.Name) : nullptr;
@@ -459,10 +460,38 @@ int main(int Argc, char** Argv)
 				}
 				return Most;
 			};
+			// A roll-on: already riding in a gear at a speed, then the throttle snapped wide open with the
+			// weight where it's held (how most riders pull one on the road), at Riding realism 0.
+			auto RollOn = [&](double Shift, int Gear, double Mps) {
+				BikeSim Sim;
+				Start(Sim, S);
+				Sim.Assist = 0.0;
+				Sim.AutoShift = false;
+				for (int I = 0; I < 2 * 120; ++I) Sim.Step(Dt);
+				Sim.Gear = Gear;
+				for (int I = 0; I < 20 * 120 && Sim.Speed < Mps; ++I)
+				{
+					Sim.Throttle = TorqueSim::Clamp((Mps - Sim.Speed) * 0.3, 0.0, 0.35);
+					Sim.Step(Dt);
+				}
+				double Most = 0.0;
+				for (int I = 0; I < 3 * 120 && !Sim.IsCrashed; ++I)
+				{
+					Sim.Throttle = 1.0;
+					Sim.BodyShift = Shift;
+					Sim.Step(Dt);
+					Most = std::max(Most, Sim.PitchAngle * Deg);
+					if (TraceStyle == Rl.Name && Shift <= -1.0 && Gear == 1 && I % 12 == 0)
+						std::printf("    roll t %.1f %5.1f m/s gear %d rpm %5.0f pitch %5.1f kappa %.3f thrEff %.2f tc %.2f rearload %5.0f frontload %5.0f drive %5.0f\n", I * Dt, Sim.Speed, Sim.Gear, Sim.Rpm,
+							Sim.PitchAngle * Deg, Sim.Wheels[1].Kappa, Sim.ThrottleNow(), Sim.TractionNow(), Sim.Wheels[1].Load, Sim.Wheels[0].Load, Sim.Wheels[1].DriveTorque);
+				}
+				return Most;
+			};
 			auto Parts = Lay.ReferenceBuild(Rl.Name);
 			for (const auto& [Slot, Id] : Swaps[Rl.Name]) Parts[Slot] = Id;
-			std::printf("%s,%s,%.0f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n", Rl.Name, Parts["engine"].c_str(), PeakKw * 1.341, Run(0.0, 0.0, false), Run(-1.0, 0.0, false),
-				Run(0.0, 0.5, false), Run(-1.0, 0.5, false), Run(0.0, 0.0, true), Run(-1.0, 0.0, true));
+			std::printf("%s,%s,%.0f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n", Rl.Name, Parts["engine"].c_str(), PeakKw * 1.341, Run(0.0, 0.0, false), Run(-1.0, 0.0, false),
+				Run(0.0, 0.5, false), Run(-1.0, 0.5, false), Run(0.0, 0.0, true), Run(-1.0, 0.0, true), Run(-0.4, 0.0, false),
+				RollOn(0.0, 1, 4.5), RollOn(-0.4, 1, 4.5), RollOn(-1.0, 1, 4.5), RollOn(-1.0, 2, 9.0));
 		}
 		return 0;
 	}
@@ -569,6 +598,81 @@ int main(int Argc, char** Argv)
 		}
 		return 0;
 	}
+	bool MpgRun = false;
+	for (int A = 1; A < Argc; ++A) MpgRun |= std::strcmp(Argv[A], "--mpg") == 0;
+	if (MpgRun)
+	{
+		// --mpg: the trip computer's sums (TorqueDash: Sim/FuelModel.h on the crank's share of the back
+		// wheel's drive, the sim's Overrun, injected) on each reference bike ridden by the sim: steady 30, 56 and 70 mph in top,
+		// and a mixed ride (pull away hard to 60, cruise a mile, brake to a stop, idle 20 s; five times).
+		std::printf("style,cc,steady30,steady56,steady70,mixed,mixed_l_per_100km\n");
+		for (const Real& Rl : Reals)
+		{
+			const Json* G = Styles ? Styles->Get(Rl.Name) : nullptr;
+			BikeSpec S;
+			if (!G || !SpecFor(Lay, Rl.Name, *G, S)) continue;
+			auto Parts = Lay.ReferenceBuild(Rl.Name);
+			for (const auto& [Slot, Id] : Swaps[Rl.Name]) Parts[Slot] = Id;
+			auto PartJ = [&](const char* Slot) -> const Json* { auto It = Parts.find(Slot); return It == Parts.end() ? nullptr : Lay.Part(It->second); };
+			const Json* Block = PartJ("engine");
+			const Json* Head = PartJ("head");
+			TorqueSim::FuelModel Fm;
+			Fm.Displacement = Block ? Block->Num("displacement", 700.0) : 700.0;
+			Fm.bTwoStroke = Block && Block->Str("layout") == "2stroke";
+			Fm.FrictionMult = TorqueSim::FuelModel::FrictionOf(Head ? Head->Num("thirst", 1.0) : 1.0, Block ? Block->Num("cylinders", 2.0) : 2.0);
+			auto Burn = [&](const BikeSim& Sim) {
+				if (Sim.Overrun) return 0.0;   // injected: cut off
+				const double Revs = std::max(Sim.Rpm, S.IdleRpm);
+				const double Ratio = S.OverallRatio(std::clamp(Sim.Gear, 1, S.GearCount()));
+				const double NetKw = std::max(Sim.Wheels[1].DriveTorque / std::max(Ratio * S.DrivetrainEfficiency, 0.01), 0.0) * Sim.Rpm * 6.283185 / 60.0 / 1000.0;
+				return Fm.LitresPerHour(NetKw, Revs, S.EngineTorque(Revs) * Revs * 6.283185 / 60.0 / 1000.0) / 3600.0 * Dt;
+			};
+			auto Steady = [&](double Mph) {
+				BikeSim Sim;
+				Start(Sim, S);
+				const double Want = Mph / 2.23694;
+				double Litres = 0.0, Metres = 0.0;
+				for (int I = 0; I < 150 * 120 && !Sim.IsCrashed; ++I)
+				{
+					Sim.Throttle = TorqueSim::Clamp((Want - Sim.Speed) * 0.5 + 0.15, 0.0, 1.0);
+					Sim.Step(Dt);
+					if (I >= 90 * 120)
+					{
+						Litres += Burn(Sim);
+						Metres += Sim.Speed * Dt;
+					}
+				}
+				if (TraceStyle == Rl.Name)
+					std::printf("    steady %.0f mph: gear %d rpm %.0f engine %.1f kW (road needs %.1f) throttle %.2f kappa %.3f\n", Mph, Sim.Gear, Sim.Rpm, Sim.EngineKw,
+						(0.5 * 1.2 * S.CdA * Want * Want * Want + S.Rolling * S.TotalMass * 9.81 * Want) / 1000.0, Sim.ThrottleNow(), Sim.Wheels[1].Kappa);
+				return Litres > 0.0 ? Metres / 1000.0 / Litres : 0.0;
+			};
+			BikeSim Sim;
+			Start(Sim, S);
+			double Litres = 0.0, Metres = 0.0;
+			for (int Lap = 0; Lap < 5 && !Sim.IsCrashed; ++Lap)
+			{
+				int Phase = 0;
+				double Cruise = 0.0, Idle = 0.0;
+				for (int I = 0; I < 400 * 120 && Phase < 4; ++I)
+				{
+					Sim.FrontBrake = Sim.RearBrake = 0.0;
+					Sim.BodyShift = 0.0;
+					if (Phase == 0) { Sim.Throttle = 1.0; Sim.BodyShift = 0.6; if (Sim.Speed > 60.0 / 2.23694) Phase = 1; }
+					else if (Phase == 1) { Sim.Throttle = TorqueSim::Clamp((26.8 - Sim.Speed) * 0.5 + 0.15, 0.0, 1.0); Cruise += Sim.Speed * Dt; if (Cruise > 1609.0) Phase = 2; }
+					else if (Phase == 2) { Sim.Throttle = 0.0; Sim.FrontBrake = 0.5; Sim.RearBrake = 0.3; if (Sim.Speed < 0.3) Phase = 3; }
+					else { Sim.Throttle = 0.0; Sim.FrontBrake = 0.3; Idle += Dt; if (Idle > 20.0) Phase = 4; }
+					Sim.Step(Dt);
+					Litres += Burn(Sim);
+					Metres += std::fabs(Sim.Speed) * Dt;
+				}
+			}
+			const double Mixed = Litres > 0.0 ? Metres / 1000.0 / Litres : 0.0;
+			std::printf("%s,%.0f,%.0f,%.0f,%.0f,%.0f,%.1f\n", Rl.Name, Fm.Displacement, TorqueSim::FuelModel::UkMpg(Steady(30.0)), TorqueSim::FuelModel::UkMpg(Steady(56.0)),
+				TorqueSim::FuelModel::UkMpg(Steady(70.0)), TorqueSim::FuelModel::UkMpg(Mixed), Mixed > 0.0 ? 100.0 / Mixed : 0.0);
+		}
+		return 0;
+	}
 	bool Calib = false;
 	for (int A = 1; A < Argc; ++A) Calib |= std::strcmp(Argv[A], "--calib") == 0;
 	if (Calib)
@@ -607,17 +711,17 @@ int main(int Argc, char** Argv)
 			const Json* Head = PartJ("head");
 			const double Disp = Block ? Block->Num("displacement", 700.0) : 700.0;
 			const bool Two = Block && Block->Str("layout") == "2stroke";
-			const double Fric = (Head ? Head->Num("thirst", 1.0) : 1.0) * (1.0 + 0.08 * ((Block ? Block->Num("cylinders", 2.0) : 2.0) - 2.0));
+			const double Fric = TorqueSim::FuelModel::FrictionOf(Head ? Head->Num("thirst", 1.0) : 1.0, Block ? Block->Num("cylinders", 2.0) : 2.0);
 			const double V = 25.0;
 			const double Kw = (0.5 * 1.2 * S.CdA * V * V * V + S.Rolling * S.TotalMass * 9.81 * V) / S.DrivetrainEfficiency / 1000.0;
 			const double Rpm = std::max(V / S.RearRadius * S.OverallRatio(S.GearCount()) * 60.0 / 6.2832, S.IdleRpm);
 			const double Pk = S.EngineTorque(Rpm) * Rpm * 6.2832 / 60.0 / 1000.0;
-			const double Load = std::clamp(Kw / std::max(Pk, 0.1), 0.0, 1.0);
-			const double Bar = (0.9 + 0.13 * Rpm / 1000.0) * Fric + 0.75 * (1.0 - Load);
-			const double FricKw = Bar * 100000.0 * Disp / 1e6 * Rpm / 120.0 / 1000.0;
-			const double Lph = (Kw + FricKw) * 0.30 * (Two ? 1.35 : 1.0);
-			const double KmPerL = 90.0 / Lph;
-			const double MpgUk = KmPerL * 0.621371 * 4.54609;
+			TorqueSim::FuelModel Fm;
+			Fm.Displacement = Disp;
+			Fm.FrictionMult = Fric;
+			Fm.bTwoStroke = Two;
+			const double KmPerL = 90.0 / Fm.LitresPerHour(Kw, Rpm, Pk);
+			const double MpgUk = TorqueSim::FuelModel::UkMpg(KmPerL);
 			std::printf("%s,%.0f,%.0f,%.0f,%.0f,%.0f,%.2f,%.0f,%.2f,%d\n", Rl.Name, PeakKw * 1.341, S.BikeMass, S.Wheelbase * 1000.0, S.SeatHeight * 1000.0,
 				Top * 2.23694, Res.T60, MpgUk, S.CdA, S.GearCount());
 		}

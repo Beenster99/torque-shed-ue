@@ -36,7 +36,7 @@ const char* RidePlan::PropName(int Kind)
 		"lift_gate", "bollard", "picnic_table", "info_board",
 		"win_sash6", "win_sash2", "win_casement", "win_casement_top", "win_mullion", "win_mullion_leaded", "sur_stone", "sur_brick", "sur_plain",
 		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood",
-		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage", "parked_car"};
+		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage", "parked_car", "traffic_signal"};
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -58,7 +58,8 @@ int RidePlan::PropOf(int FurnishKind)
 	case Bollard: return PropBollard;
 	case PicnicTable: return PropPicnicTable;
 	case InfoBoard: return PropInfoBoard;
-	default: return -1;   // (the signs, the cattle grids, the pubs' signs and the crossings' barriers stay code-made)
+	case TrafficSignal: return PropTrafficSignal;
+	default: return -1;   // (the signs, the cattle grids, the pubs' signs, the beacons and the crossings' barriers stay code-made)
 	}
 }
 
@@ -100,7 +101,10 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 		P.Y = float(F.Height);
 		// Its front (the model's +x) to the road, or for a thing that stands in a line (a gate,
 		// a stile) square to the line: the line runs along Face, so the front is across it.
-		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate;
+		// ([Nov 19, beenster: "turn the telegraph poles to the direction of cable travel"] a telegraph
+		// pole too: its wires run along Face, and the model's cross arm lies along its x, so its front is
+		// across them and the arm square to the wires, its stay along them)
+		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate || F.Kind == PowerPole;
 		const P2 Front = InLine ? P2(F.Face.Z, -F.Face.X) : F.Face;
 		P.Yaw = float(std::atan2(Front.Z, Front.X));
 		P.Scale = 1.0f;

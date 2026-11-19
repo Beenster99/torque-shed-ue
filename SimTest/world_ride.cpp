@@ -171,6 +171,7 @@ int main(int Argc, char** Argv)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_heights.json"), HeightsText)) SetChurchHeights(HeightsText);
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
+		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
 		std::string GlyphText;   // [OSM stage 6A]
@@ -843,6 +844,50 @@ int main(int Argc, char** Argv)
 					const Geo ParkGeo = Plan->Area.Roads.FrameOf().ToGeo(Mid.X, Mid.Z);
 					std::printf("  car park %d at %.5f,%.5f (%.0f, %.0f): %.0f m2, surface %d, %d bays (%d badge), %d cars, way in %s (%.0f, %.0f, in %.2f, %.2f)\n", Big[size_t(K)].second, ParkGeo.Lat, ParkGeo.Lon, Mid.X, Mid.Z,
 						C.Area, C.Surface, int(Bays.size()), Badges, Cars, C.HasEntry ? "found" : "none", C.Entry.X - Mid.X, C.Entry.Z - Mid.Z, C.EntryIn.X, C.EntryIn.Z);
+				}
+				// [build 157 feedback] (banks inside car parks: WORLD_RIDE_CARPARKS_STEEP=n lists the n with most of
+				// their ground too steep to be car park, left as land)
+				const int ShowSteep = std::getenv("WORLD_RIDE_CARPARKS_STEEP") != nullptr ? std::atoi(std::getenv("WORLD_RIDE_CARPARKS_STEEP")) : 0;
+				if (ShowSteep > 0)
+				{
+					std::vector<std::pair<double, int>> ByBank;
+					int AnySteep = 0;
+					for (size_t I = 0; I < Plan->CarParks.size(); ++I)
+					{
+						const RidePlan::CarPark& C = Plan->CarParks[I];
+						int Inside = 0, Banked = 0;
+						for (double Z = C.MinZ + 2.0; Z < C.MaxZ; Z += 4.0)
+							for (double X = C.MinX + 2.0; X < C.MaxX; X += 4.0)
+								if (RideShapes::InRing(C.Ring, X, Z)) { ++Inside; Banked += Plan->CarParkSteep(X, Z) ? 1 : 0; }
+						if (Banked > 0) ++AnySteep;
+						if (Inside > 0) ByBank.push_back({-double(Banked) / Inside, int(I)});
+					}
+					std::sort(ByBank.begin(), ByBank.end());
+					{
+						// (how level their ground is drawn: the share of points falling under 1 in 15 across 4 m)
+						long long Flat = 0, All = 0;
+						for (const RidePlan::CarPark& C : Plan->CarParks)
+							for (double Z = C.MinZ + 2.0; Z < C.MaxZ; Z += 4.0)
+								for (double X = C.MinX + 2.0; X < C.MaxX; X += 4.0)
+								{
+									if (!RideShapes::InRing(C.Ring, X, Z)) continue;
+									const double A = Plan->LandDrawnAt(X - 2.0, Z), B = Plan->LandDrawnAt(X + 2.0, Z), Cc = Plan->LandDrawnAt(X, Z - 2.0), D = Plan->LandDrawnAt(X, Z + 2.0);
+									if (std::isnan(A) || std::isnan(B) || std::isnan(Cc) || std::isnan(D)) continue;
+									++All;
+									Flat += std::hypot(B - A, D - Cc) < 4.0 / 15.0 ? 1 : 0;
+								}
+						std::printf("Car parks' ground: %.1f%% of %lld points level (under 1 in 15)\n", All ? 100.0 * double(Flat) / double(All) : 0.0, All);
+					}
+					std::printf("Car parks with steep ground in: %d\n", AnySteep);
+					for (int K = 0; K < ShowSteep && K < int(ByBank.size()); ++K)
+					{
+						const RidePlan::CarPark& C = Plan->CarParks[size_t(ByBank[size_t(K)].second)];
+						P2 Mid;
+						RideShapes::RingArea(C.Ring, Mid);
+						const Geo SteepGeo = Plan->Area.Roads.FrameOf().ToGeo(Mid.X, Mid.Z);
+						Plan->CarParkBays(ByBank[size_t(K)].second, Bays);
+						std::printf("  steep car park %d at %.5f,%.5f: %.0f m2, %.0f%% too steep, %d bays\n", ByBank[size_t(K)].second, SteepGeo.Lat, SteepGeo.Lon, C.Area, -ByBank[size_t(K)].first * 100.0, int(Bays.size()));
+					}
 				}
 			}
 			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
@@ -2182,6 +2227,25 @@ int main(int Argc, char** Argv)
 		for (const Building& B : Plan->Area.Roads.Buildings) Under += Plan->UnderTower(B.X, B.Z) ? 1 : 0;
 		std::printf("Towers: %zu (%d 40 m or more, %d parts, %d outlines drawn as their parts, %d heights guessed); %d box buildings left to them\n", Plan->TowerShapes.size(), Tall, Parts,
 			Plan->TowersOutlines, Plan->TowersGuessed, Under);
+	}
+	{
+		// [junction priority] (each junction of the map the ride passes with a through road: where the ride gives way)
+		int CameMinor = 0, OntoMinor = 0, Through = 0;
+		for (const RidePlan::JunctionRule& J : Plan->Junctions)
+		{
+			CameMinor += J.CameMinor ? 1 : 0;
+			OntoMinor += J.OntoMinor ? 1 : 0;
+			Through += !J.CameMinor && !J.OntoMinor ? 1 : 0;
+			if (std::getenv("WORLD_RIDE_JUNCTIONS") && (J.CameMinor || J.OntoMinor))
+			{
+				const Geo NodeAt = Frame(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon).ToGeo(Plan->Area.Roads.Nodes[size_t(J.Node)].X, Plan->Area.Roads.Nodes[size_t(J.Node)].Z);
+				std::printf("  junction at %.0f m (%.5f,%.5f): %s %s, turn %.0f deg, %s -> %s\n", J.Along, NodeAt.Lat, NodeAt.Lon, J.CameMinor ? "comes in giving way" : "comes in on the through road",
+					J.OntoMinor ? "leaves by a road that gives way" : "leaves on the through road", J.Turn * 57.3,
+					Plan->Area.Roads.ClassOf(J.Came).c_str(), Plan->Area.Roads.ClassOf(J.Onto).c_str());
+			}
+		}
+		std::printf("Junctions: %zu with a through road; the ride on it through %d, comes in giving way at %d, leaves by a lesser road at %d; %d give-way lines on its own road\n",
+			Plan->Junctions.size(), Through, CameMinor, OntoMinor, Plan->JunctionGiveWayCount);
 	}
 	for (const std::string& Note : Plan->TakeOutlineNotes()) std::printf("Outlines: %s\n", Note.c_str());   // [LiDAR stage 2]
 	{

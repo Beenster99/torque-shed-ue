@@ -625,7 +625,10 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 31, FirstTree = 18, HedgeKind = 30;
+	static constexpr int PlantKinds = 36, FirstTree = 18, HedgeKind = 30, FirstGarden = 31;
+	// [gardens] Kinds FirstGarden on are the villages' and towns' garden planting (WorldRideGardens.cpp):
+	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", drawn only as scanned
+	// models (Megaplants: SM_Tree_garden_<kind>_scan, Tools/ue_build_rideuk.py) and close to the rider.
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
 	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
 	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
@@ -656,6 +659,32 @@ public:
 	// squares' hedges are then those models laid along their lines (HedgePlants), not lumpy shapes.
 	bool RealHedges = false;
 	double GrassDensity = 1.0;
+	// [gardens] Set when the game has the garden kinds' models and -TorqueRidePlanting=0 isn't given: the
+	// finest squares' houses get garden planting (GardenPlants) and the towns' and villages' grass a few
+	// shrubs and flowers (PlantsTile). GardenShare (0..1, -TorqueRidePlanting=0.5) thins it out.
+	bool RealGardens = false;
+	double GardenShare = 1.0;
+	// [gardens] One house's garden as BuildingsTile builds it: its middle, its turn (Cs, Sn: as Local's),
+	// its length along (LongX: x) and depth; which side its front is on (FrontSide +1/-1, across), how far
+	// from 1 m out of the front to the road's edge (FrontGap); its door (along) and drive (DriveFrom..DriveTo
+	// along, none if equal); which of its ends are party walls; Kind (HouseTypes::EKind); Seed its own.
+	struct GardenHouse
+	{
+		double X = 0.0, Z = 0.0, Cs = 1.0, Sn = 0.0, HalfLong = 0.0, HalfShort = 0.0;
+		bool LongX = true, PartyPlus = false, PartyMinus = false, FrontWall = false, InTown = false;
+		double FrontSide = 1.0, FrontGap = 1e9, DoorU = 0.0, DriveFrom = 0.0, DriveTo = 0.0;
+		int Kind = 0, Bays = 1;   // (a row drawn as one building: a door a bay, in pairs, as BuildingsTile draws them)
+	};
+	// [gardens] Footprints (each a Building, its own frame) that garden plants keep clear of: the square's
+	// buildings and its neighbours' near its edges, by 16 m bucket (each in every bucket it reaches).
+	struct GardenClear
+	{
+		std::unordered_map<long long, std::vector<const Building*>> Buckets;
+		void Add(const Building& B);
+		bool Blocked(double X, double Z, double Gap) const;   // (Gap at most 2 m)
+	};
+	void GardenPlants(const GardenHouse& House, const GardenClear& Clear, RideMesh& Out) const;
+	bool SeenFromRoad(const GardenClear& Clear, double X, double Z, const P2& Foot) const;   // [gardens] (a clear line to the road)
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
@@ -739,6 +768,9 @@ public:
 		// [car parks] A parked car in a car park's bay (Tools/ue_build_rideuk.py: the Fab cars of
 		// Data/Buttertubs/car_swaps.json in Data/RideUK/prop_kit.json's colours, SM_Prop_parked_car_<n>, as modelled)
 		PropParkedCar,
+		// ([Nov 19] beenster: "a more realistic traffic light model") a UK three-aspect signal (Tools/blender_street_kit.py
+		// traffic_signal); its lit faces stay FurnitureTile's, on the shared clock
+		PropTrafficSignal,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1048,7 +1080,7 @@ public:
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
-	// with its tower, 2 a pub).
+	// with its tower, 2 a pub, 3 a café: its shop front named as one).
 	std::vector<unsigned char> BuildingRole;
 	// The local look (Ride UK stage 5: WorldRideStyle) at a place of the ride's frame.
 	const LocalLook& LookHere(double X, double Z) const;
@@ -1137,6 +1169,35 @@ public:
 	static constexpr int Finish = 9;
 	std::vector<RideTurn> Turns;
 	std::vector<double> RingGiveWays;   // [OSM stage 5B] how far along the ride's road it gives way onto a roundabout
+	// [junction priority, Nov 19] (beenster: "Our routed road is THE road that everything else comes from.
+	// This is wrong.") Who gives way at each junction of the map the ride passes (three or more roads, not a
+	// roundabout), as on the real road and whichever way the ride goes: the through road is the pair of its
+	// roads of the best class running on most nearly straight (within JunctionStraight, or the only two of
+	// that class within JunctionBent), and every other road there gives way to it. Where the ride comes in
+	// or goes out by one of those, its own road stops at the through road's edge: give-way lines across the
+	// lane coming up to it, none of its own lines across the through road, and a junction's tight corner
+	// where it turns (not a bend faired as the road's class would be).
+	struct JunctionRule
+	{
+		int Node = -1, Came = -1, Onto = -1;
+		int ThroughA = -1, ThroughB = -1;   // the through road's two roads there
+		double RawAlong = 0.0;    // where it is along the map's line of the ride
+		double Along = -1.0;      // and along the road as laid (PlaceJunctions)
+		double MajorHalf = 0.0;   // half the through road's width
+		double Turn = 0.0;        // the ride's turn there (radians, + to the left)
+		bool CameMinor = false, OntoMinor = false;   // the ride comes in, goes out, by a road that gives way
+	};
+	static constexpr double JunctionStraight = 0.7, JunctionBent = 1.2, JunctionTurn = 0.6, JunctionCorner = 25.0, JunctionFair = 2.0;
+	std::vector<JunctionRule> Junctions;
+	// (each road's end at a junction of the ride's: node * 4000037 + edge; 1 it gives way, 2 it is the through road)
+	std::unordered_map<long long, unsigned char> ArmRank;
+	unsigned char ArmRankOf(int Node, int Edge) const;
+	std::vector<std::pair<double, double>> JunctionNoLines;   // (stretches of the ride's road across a through road: none of its lines)
+	bool LinesStopAt(double Along) const;
+	int JunctionGiveWayCount = 0;   // (give-way lines the rule painted on the ride's own road)
+	void FindPriorities(int From, const std::vector<int>& Path);
+	static bool NoJunctionPriority;   // (the tests' before-and-after: every junction as the ride's road had it)
+	void PlaceJunctions(double RawLength);
 	// Places to stop along it from the map: fuel, cafes, pubs, viewpoints, lay-bys, within StopReach of
 	// the road; how far along, and which side (+ the left).
 	// [OSM stage 1] inns, campsites and castles too.
@@ -1285,6 +1346,10 @@ public:
 		P2 Entry, EntryIn;                       // its way in, and the way into it there
 		bool HasEntry = false;
 		uint32_t Seed = 0;
+		// [build 157 feedback] Its level: the plane its ground is laid to (GroundOf, CarParkLevel), fitted to the
+		// land in it and no steeper than ParkFallMost; LevelY at LevelAt, rising LevelGx, LevelGz a metre (nan: none).
+		P2 LevelAt;
+		double LevelY = std::nan(""), LevelGx = 0.0, LevelGz = 0.0;
 	};
 	struct ParkBay
 	{
@@ -1312,7 +1377,13 @@ public:
 	};
 	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
 	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
-	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none)
+	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none or too steep)
+	// [build 157 feedback] (beenster: "strange carpark", Sandgate: bays and cars draped down an embankment) The
+	// land under and round a car park as built: within ParkCutMost of its level laid to it (cut or filled), the
+	// rest of a bank kept as a bank; outside its edge easing back to the land 2 in 3. Lie: the land as it lies.
+	double CarParkLevel(double X, double Z, double Lie) const;
+	static constexpr double ParkFallMost = 1.0 / 15.0, ParkCutMost = 2.5, ParkLevelReach = 6.0;
+	bool CarParkSteep(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;   // (a bank inside one: land, not car park)
 	static constexpr double ParkLift = 0.05;          // its surface over the drawn ground (the wheels ride on it)
 	int CarParkCount[3] = {};   // by surface, indexed (for the desk test)
 	// Whether the bays have cars in (the game: when the kit has the car models and -TorqueRideParkedCars=0 isn't

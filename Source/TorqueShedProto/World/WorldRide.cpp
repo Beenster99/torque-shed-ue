@@ -266,6 +266,13 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		if (R->OnRoundRing(Owner[I])) Fair[I] = 0.0;
 		if (I > 0) RawAlong[I] = RawAlong[I - 1] + Raw[I].DistanceTo(Raw[I - 1]);
 	}
+	// [junction priority] (who gives way at each junction; where the ride turns at one to or from a road
+	// that gives way, a junction's corner, hardly faired, not a sweeping bend)
+	R->FindPriorities(From, Path);
+	for (const JunctionRule& J : R->Junctions)
+		if ((J.CameMinor || J.OntoMinor) && std::fabs(J.Turn) > JunctionTurn)
+			for (size_t I = 0; I < Raw.size(); ++I)
+				if (std::fabs(RawAlong[I] - J.RawAlong) < JunctionCorner) Fair[I] = std::fmin(Fair[I], JunctionFair);
 	Tell("Smoothing the road");
 	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair);
 	// Each knot as wide as the road it is on (by how far along it is), eased where the width changes.
@@ -336,6 +343,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	// ([156] the facts first too: a side road's mouth asks the class of the road it meets, FactAt)
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->LaySides(Path);
+	R->PlaceJunctions(RawAlong.empty() ? 0.0 : RawAlong.back());   // [junction priority] (after the map's own marks)
 	{
 		// [ride anywhere] The network round the start laid now, its ground fetched (not on the game thread
 		// as the first squares are made).
@@ -992,6 +1000,10 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			if (!M.GiveWay && Half >= 1.6)
 				if (const RoadFact* MainFact = FactAt(Here.Along))
 					M.GiveWay = RoadLine::MainCostOf(G.ClassOf(E)) > RoadLine::MainCostOf(MainFact->Class) + 0.05;
+			// [junction priority] (at a junction of the ride's, the real road's priority: a through road never
+			// gives way, a road that meets it always does, the ride's own road one or the other)
+			if (Half >= 1.6)
+				if (const unsigned char Rank = ArmRankOf(End == 0 ? Edge.A : Edge.B, E)) M.GiveWay = Rank == 1;
 			// [OSM stage 5B] (at a roundabout every road onto the ring gives way to it, with one broken line;
 			// the ring's own edges never do)
 			{
@@ -1692,6 +1704,8 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores, bool 
 	const bool RailBed = !std::isnan(Lie) && NearRail(X, Z, RailDist, RailTop, RailOn, nullptr, &RailRoom) && (RailOn == 0 || RailOn == 3) && RailDist <= RailRoom;
 	const double RailLevel = RailTop - 0.47, RailRise = std::fmax(0.0, RailDist - RailBedHalf) / 1.5;
 	if (RailBed) Lie = std::fmin(std::fmax(Lie, RailLevel - RailRise), RailLevel + RailRise);
+	// [car parks, build 157 feedback] (a car park's ground laid level, its banks eased back to the land)
+	if (!std::isnan(Lie) && !CarParks.empty()) Lie = CarParkLevel(X, Z, Lie);
 	// [build 147 feedback] Water's channels and beds (World/WorldRideWater.cpp): a river's, stream's or
 	// canal's bed under its level, a lip just over the level at its edge, its bank rising BankRun across
 	// for each metre up to the land; a lake's bed under its level; the sea's under the sea.
@@ -2939,7 +2953,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
 			// 3 m dashes with 6 m gaps.
 			// ([OSM stage 5D] none along a town street's kerbs)
-			if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0))
+			// ([junction priority] nor any of the ride's own lines across a through road it gives way to)
+			const bool AcrossThrough = Which == 0 && (LinesStopAt(A.Along) || LinesStopAt(B.Along));
+			if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0) && !AcrossThrough)
 			{
 				for (double Side : {1.0, -1.0})
 				{
@@ -3018,7 +3034,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				}
 			// ([OSM stage 5] a centre line where the map's lanes say, else by the rule; lane lines between a
 			// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
-			if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength)
+			if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength && !AcrossThrough)
 			{
 				if (RoadX::CentreLine(A.Lanes, A.OneWay, Half)) Cut(0.0, 1.0, 0.06, -0.06, 0.06, -0.06, Paint);
 				// ([OSM stage 5C] a motorway's lanes between its offside edge and its hard shoulder)

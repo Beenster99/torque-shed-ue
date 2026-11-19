@@ -1012,7 +1012,28 @@ def scanned_trees(L, kit):
             why.append("%s materials: %s" % (path.rsplit(".", 1)[-1], e))
             return None
 
-    for kind, words in spec["kinds"].items():
+    # [gardens] The villages' and towns' garden planting (World/WorldRideGardens.cpp): kinds garden_rose and so
+    # on, each with its words and its own cull (cm) and shadow, near the rider only (no far models, no impostors).
+    garden = spec.get("garden_kinds", {})
+    def mature_first(paths):
+        """([Nov 19] beenster, watching 157: "they all seem a little young, no bulk to the trees. No cover at
+        all in the canopy". The first six by name were taken, young ones among them, and the game stretches
+        each to the canopy map's height. Now the grown trees: names saying young, small or juvenile last,
+        then the tallest as modelled first.)"""
+        young = ("young", "small", "juvenile", "sapling", "seedling", "baby", "sprout")
+        def tall(p):
+            try:
+                sk = unreal.load_asset(p.split(".")[0])
+                b = sk.get_bounds() if hasattr(sk, "get_bounds") else sk.get_imported_bounds()
+                return float(b.box_extent.z) * 2.0
+            except Exception:
+                return 0.0
+        ranked = sorted(paths, key=lambda p: (any(w in p.lower() for w in young), -tall(p), p))
+        if ranked:
+            log("scanned trees: grown first: %s" % ", ".join("%s %.1f m" % (p.rsplit(".", 1)[-1], tall(p) / 100.0) for p in ranked[:8]))
+        return ranked
+
+    for kind, words in list(spec["kinds"].items()) + [(k, g.get("words", [])) for k, g in garden.items()]:
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
         got = sorted(p for n, p in meshes if wanted(n))[:most]
@@ -1020,7 +1041,7 @@ def scanned_trees(L, kit):
         classes = sorted(set(c for _, c in theirs))
         log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
             ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
-        skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
+        skels = mature_first(sorted(p for p, c in theirs if c == "SkeletalMesh"))[:most]
         if skels:
             # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
             made = [m for m in (static_of_skeletal(p) for p in skels) if m]
@@ -1040,6 +1061,14 @@ def scanned_trees(L, kit):
         found[kind] = got
         if not use:
             continue
+        # ([seasonal trees test, Nov 19] the leaves follow torque.RideTreeSeason: Tools/ue_tree_season.py)
+        if spec.get("season_test", False):
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import ue_tree_season as SEASON
+                SEASON.season_kind(L, kind, got)
+            except Exception as e:
+                log("scanned trees: %s: season test FAILED (leaves stay as they are): %s" % (kind, e))
         # (ours of this kind go near: the scanned ones take every near tree of it. Our far models stay
         # for the trees past the finest squares: build 148 measured the scans at about 10 ms of GPU at
         # Whaley Bridge, most of it from the far ring's thousands of full Nanite trees)
@@ -1048,6 +1077,9 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
+        if kind in garden:
+            r.update({"cull_distance": float(garden[kind].get("cull", 8000.0)), "cast_shadow": bool(garden[kind].get("shadow", True))})
+            continue
         # [perf, build 157] Far off, the scans as impostors: the GAME photographs each scan at ride start
         # (World/TorqueImpostors.cpp) and draws its far trees with M_RideImpostor. Here only the material
         # is made (once per run, below); no editor captures (rounds 155-156 crashed beenster's GPU), and
@@ -1056,7 +1088,7 @@ def scanned_trees(L, kit):
             try:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 import ue_tree_impostors as IMP
-                IMP.master_material()
+                IMP.master_material(L if spec.get("season_test", False) else None)
                 _IMPOSTOR_MATERIAL.append(True)
             except Exception as e:
                 log("scanned trees: impostor material failed (the game uses the old far models): %s" % e)
@@ -1374,6 +1406,7 @@ def parked_cars(L, kind, row, add):
         L.fab_car_paint.made = True   # (Thwaite's master kept: its own instances point at it)
     sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     made = 0
+    flagged, reflagged = set(), []
     for n in range(count):
         mesh, md = models[n % len(models)]
         colour = colours[(n * 5 + n // len(models)) % len(colours)]
@@ -1395,13 +1428,45 @@ def parked_cars(L, kind, row, add):
             if slot in listed or str(si) in listed or "paint" in names.lower():
                 copy.set_material(si, paint)
                 painted.append(si)
+        # [build 157 feedback] (beenster: the parked cars came out all grey, untextured) The Fab cars' materials
+        # were made for Thwaite's placed actors; drawn instanced (an ISM, as every prop is) a material without
+        # these usage flags draws as the default grey in a packaged game: flagged here, each base material once.
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            if base is None or base.get_path_name() in flagged:
+                continue
+            flagged.add(base.get_path_name())
+            changed = False
+            for flag in ("used_with_instanced_static_meshes", "used_with_nanite"):
+                try:
+                    if not base.get_editor_property(flag):
+                        base.set_editor_property(flag, True)
+                        changed = True
+                except Exception as e:
+                    unreal.log_warning("[Torque] parked cars: %s not set on %s (%s)" % (flag, base.get_name(), e))
+            if changed:
+                unreal.MaterialEditingLibrary.recompile_material(base)
+                unreal.EditorAssetLibrary.save_loaded_asset(base)
+                reflagged.append(base.get_name())
         try:
             sme.remove_collisions(copy)
         except Exception:
             pass
+        # (Nanite only where every material is opaque or masked: a Nanite mesh draws a translucent material,
+        # the cars' glass, as the default grey)
+        see_through = False
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            try:
+                mode = base.get_editor_property("blend_mode") if base else None
+                see_through = see_through or mode in (unreal.BlendMode.BLEND_TRANSLUCENT, unreal.BlendMode.BLEND_ADDITIVE, unreal.BlendMode.BLEND_MODULATE)
+            except Exception:
+                pass
         try:
             ns = copy.get_editor_property("nanite_settings")
-            ns.set_editor_property("enabled", True)
+            ns.set_editor_property("enabled", not see_through)
             copy.set_editor_property("nanite_settings", ns)
         except Exception as e:
             unreal.log_warning("[Torque] parked cars: Nanite not set on %s (%s)" % (path, e))
@@ -1410,7 +1475,9 @@ def parked_cars(L, kind, row, add):
         made += 1
         if not painted:
             unreal.log_warning("[Torque] parked cars: %s has no paint slot (left in its own colour)" % mesh.get_name())
-    return "parked cars: %d (%d Fab models, %d colours)" % (made, len(models), len(colours))
+    if reflagged:
+        unreal.log("[Torque] parked cars: flagged for instancing/Nanite: %s" % ", ".join(reflagged))
+    return "parked cars: %d (%d Fab models, %d colours; %d materials flagged for instancing)" % (made, len(models), len(colours), len(reflagged))
 
 
 def prop_kit(L):

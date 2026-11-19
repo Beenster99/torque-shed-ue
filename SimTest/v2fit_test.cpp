@@ -11,6 +11,7 @@
 #include "ShockMove.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -64,7 +65,7 @@ std::string Num2(double V)
 
 int main()
 {
-	int Sprung = 0;
+	int Sprung = 0, AllReflectors = 0;
 	const std::string R = Root();
 	std::string PartsText, ExtraText, LayoutText, Error;
 	PartsDb Db;
@@ -180,7 +181,7 @@ int main()
 		const std::vector<FittedPart> Fitted = Placer.Fit(Parts, L);
 		size_t Tris = 0, Surfaces = 0;
 		int AmberLeft = 0, AmberRight = 0, AmberBoth = 0;
-		int HeadLens = 0, RearLens = 0;
+		int HeadLens = 0, RearLens = 0, Reflectors = 0;
 		std::set<std::string> Nodes, Slots;
 		double Low = 1e9, FrontLow = 1e9, RearLow = 1e9;
 		V3 FrontMin(1e9, 1e9, 1e9), FrontMax(-1e9, -1e9, -1e9);
@@ -222,7 +223,9 @@ int main()
 					auto Has = [&S](const char* T) { const std::string K = std::string("/") + T; return S.Material == T || S.Material.find(K + "/") != std::string::npos ||
 						(S.Material.size() > K.size() && S.Material.compare(S.Material.size() - K.size(), K.size(), K) == 0); };
 					if ((Has("lens_white") || Has("lens_drl")) && (P.Slot == "headlight" || P.Slot == "fairing" || P.Slot == "number_boards")) ++HeadLens;
-					if (Has("lens_red") && P.Gauge.empty() && P.Slot != "dashboard") ++RearLens;
+					if (Has("lens_red") && !Has("reflector") && P.Gauge.empty() && P.Slot != "dashboard") ++RearLens;
+					// [lights] The plate's red reflector is not a lamp: nothing the lights would light sits on the plate hanger's reflector.
+					if (Has("reflector")) ++Reflectors;
 				}
 				if (S.Material.rfind("v2/", 0) != 0 && !P.Code) Named = false;   // (a TFT dash's unit is made in code)
 				for (const V3& V : S.Pos)
@@ -242,6 +245,7 @@ int main()
 		Expect(TyresMade == 2, Id + " both tyres are the game's own tread sections");
 		Expect(HeadLens >= 1, Id + " has a headlamp lens the game can light");
 		Expect(RearLens >= 1, Id + " has a rear lamp lens the game can light");
+		AllReflectors += Reflectors;
 		Expect(AmberLeft >= 1 && AmberRight == AmberLeft && AmberBoth == 0, Id + " has indicator lenses the game can flash a side at a time");
 		Expect(Named, Id + " every surface carries its look");
 		{
@@ -460,8 +464,54 @@ int main()
 		std::printf("%s %s: wheelbase %.3f, rake %.1f, seat %.2f, %zu pieces, %zu surfaces, %zu triangles\n", Failures ? "    " : "ok  ", Id.c_str(), Wb,
 			L.Stats.RakeDeg, L.Stats.SeatHeight, Fitted.size(), Surfaces, Tris);
 	}
+	// [names] Every V2 part against its own slot, however the game spells the slot (beenster, Nov 19: "thats a
+	// head not a HEAD", "thats an engine, not an Engine": the game's FNames keep the first spelling seen):
+	// on its own bike, and each engine part on a loose block of its own engine, every size, as on the stand.
+	{
+		auto Upper = [](std::string T) { for (char& C : T) C = static_cast<char>(std::toupper(static_cast<unsigned char>(C))); return T; };
+		auto Capital = [](std::string T) { if (!T.empty()) T[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(T[0]))); return T; };
+		int NameChecks = 0;
+		for (const std::string& Kind : Db.Kinds())
+			for (const std::string& Pid : Db.Ids(Kind))
+			{
+				const Json* Part = Db.Find(Kind, Pid);
+				const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+				if (!Vp || !Vp->IsObject() || Vp->Str("slot").empty()) continue;
+				const std::string Slot = Vp->Str("slot"), Frame = Vp->Str("frame");
+				if (!Lay.Part(Frame)) continue;
+				PartsMap Own = Lay.V2Build(Frame);
+				Own["frame"] = Frame;
+				if (Slot == "engine") Own["engine"] = Pid;
+				for (const std::string& Spelt : {Slot, Upper(Slot), Capital(Slot)})
+				{
+					++NameChecks;
+					const std::string Why = Lay.V2FitReason(Own, Spelt, Pid);
+					Expect(Why.empty(), Pid + " fits its own bike's " + Spelt + ": " + Why);
+				}
+				if (Vp->Str("fits") != "engine") continue;
+				const std::string Model = Vp->Str("of", Vp->Str("model"));
+				for (const std::string& Block : Db.Ids("engine"))
+				{
+					const Json* Bp = Db.Find("engine", Block);
+					const Json* Bv = Bp ? Bp->Get("v2part") : nullptr;
+					if (!Bv || Bv->Str("of", Bv->Str("model")) != Model) continue;
+					PartsMap Loose;
+					Loose["engine"] = Block;
+					for (const std::string& Spelt : {Slot, Upper(Slot), Capital(Slot)})
+					{
+						++NameChecks;
+						const std::string Why = Lay.V2FitReason(Loose, Spelt, Pid);
+						Expect(Why.empty(), Pid + " goes on " + Block + " on the stand as " + Spelt + ": " + Why);
+					}
+				}
+			}
+		std::printf("%d V2 part name checks (own slot in any spelling, engine parts on every size of their block)\n", NameChecks);
+		Expect(NameChecks > 1000, "the V2 parts were name-checked");
+	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
+	std::printf("%d plate reflectors left unlit\n", AllReflectors);
+	Expect(AllReflectors >= 15, "the plate reflectors are tagged, so the tail light is the real lamp");
 	std::printf("%d sprung bikes with a working shock\n", Sprung);
 	std::printf("%d kit pieces fitted, worst %.3f m from the bike's own\n", KitChecks, WorstKit);
 	std::printf("%d V2 bikes, %d failures\n", Bikes, Failures);

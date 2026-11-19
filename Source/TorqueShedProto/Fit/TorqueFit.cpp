@@ -51,7 +51,7 @@ bool ReadText(const FString& Rel, std::string& Out)
 }
 
 std::string ToStd(const FString& S) { return std::string(TCHAR_TO_UTF8(*S)); }
-std::string ToStd(FName N) { return ToStd(N.ToString()); }
+std::string ToStd(FName N) { return ToStd(N.ToString().ToLower()); }   // (ids are lower case; an FName keeps the first spelling seen: "Engine")
 FString ToF(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
 FName ToName(const std::string& S) { return S.empty() ? NAME_None : FName(*ToF(S)); }
 

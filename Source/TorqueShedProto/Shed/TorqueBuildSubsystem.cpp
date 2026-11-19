@@ -1706,6 +1706,14 @@ bool UTorqueBuildSubsystem::FreeDelivery(FName Part, FVector& Out) const
 
 // --- Reads ---------------------------------------------------------------------------------------
 
+int32 UTorqueBuildSubsystem::BikeNameIdeas() { return (int32)UE_ARRAY_COUNT(TBI::BikeNames); }
+
+FString UTorqueBuildSubsystem::BikeNameIdea(int32 Index)
+{
+	const int32 N = BikeNameIdeas();
+	return TBI::BikeNames[((Index % N) + N) % N];
+}
+
 const FTorqueShedBike& UTorqueBuildSubsystem::Bike(int32 Bay) const
 {
 	return Bikes.IsValidIndex(Bay) ? Bikes[Bay] : TBI::NoBike();
@@ -1943,7 +1951,9 @@ FString UTorqueBuildSubsystem::V2FitReason(int32 Bay, int32 Engine, FName Slot, 
 		if (!LayoutParts(Bay, Parts)) return FString();
 		for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	}
-	const std::string SlotS = TBI::Std(Slot.ToString()), PartS = TBI::Std(Part.ToString().ToLower());
+	// (Lowered, as TBI::Id: the FName "head" can carry another spelling seen first, "HEAD", and the
+	// rule then read a head as not a head: beenster, Nov 19 "thats a head not a HEAD".)
+	const std::string SlotS = TBI::Id(Slot), PartS = TBI::Std(Part.ToString().ToLower());
 	const std::string Why = Lay->V2FitReason(Map, SlotS, PartS);
 	return TBI::Ue(Why.empty() && Engine == 0 ? Lay->V2NeedsReason(Map, SlotS, PartS) : Why);
 }
@@ -2229,7 +2239,7 @@ FString UTorqueBuildSubsystem::TyreFitReason(FName Tyre, FName Wheel)
 	// PartsDB.tyre_fit_reason, on fitting's catalogue (TorqueFit::Shop::TyreFit).
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	if (!Lay) return FString();
-	const std::string T = TBI::Std(Tyre.ToString()), W = TBI::Std(Wheel.ToString());
+	const std::string T = TBI::Id(Tyre), W = TBI::Id(Wheel);
 	const int Fit = TorqueFit::Shop::TyreFit(*Lay, T, W);
 	if (Fit == 0) return FString();
 	const TorqueFit::Json* Tp = Lay->Part(T);
@@ -2264,7 +2274,7 @@ FString UTorqueBuildSubsystem::TyresThatFit(FName Wheel)
 {
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	if (!Lay) return FString();
-	const std::string W = TBI::Std(Wheel.ToString());
+	const std::string W = TBI::Id(Wheel);
 	const TorqueFit::Json* Wp = Lay->Part(W);
 	if (!Wp) return FString();
 	auto Inch = [](double D) { return FMath::IsNearlyEqual(D, FMath::RoundToDouble(D)) ? FString::Printf(TEXT("%d\""), (int32)FMath::RoundToDouble(D)) : FString::Printf(TEXT("%.1f\""), D); };
@@ -3009,6 +3019,10 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!R.Text.IsEmpty() && TorqueFit::Decals::Parse(TorqueDecals::ToStd(R.Text)).empty()) return TEXT("Those decals didn't read.");
 		return FString();
 	}
+	case ETorqueShedAct::NameBike:
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		if (TorqueFurniture::CleanLabel(R.Text).IsEmpty()) return TEXT("Give it a name first.");
+		return FString();
 	case ETorqueShedAct::Tune:
 	{
 		// shed_state check "tune": the bike, the setting, the part that keeps it, what its parts allow.
@@ -3659,6 +3673,14 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = N == 0 ? FString::Printf(TEXT("Took the decals off the %s"), *ItemTitle(R.Item))
 			: FString::Printf(TEXT("Saved %d decal%s on the %s"), N, N == 1 ? TEXT("") : TEXT("s"), *ItemTitle(R.Item));
 		Touch(R.Item);
+		break;
+	}
+	case ETorqueShedAct::NameBike:
+	{
+		const FString Was = Bikes[R.Bay].Name;
+		Bikes[R.Bay].Name = TorqueFurniture::CleanLabel(R.Text);
+		Text = FString::Printf(TEXT("%s is now called %s."), *Was, *Bikes[R.Bay].Name);
+		PartsOf.Add(R.Bay);
 		break;
 	}
 	case ETorqueShedAct::Tune:

@@ -309,14 +309,53 @@ bool ATorqueWalker::OpenLabel(int32 Piece)
 	return true;
 }
 
+// The bike's name box (Torque Shed's rename: N next to a bike; beenster, Nov 19 "add naming a bike back
+// in"): the bike looked at, else the nearest one in the shed within 2.5 m.
+bool ATorqueWalker::OpenBikeName(int32 LookedAtBay)
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!B) return false;
+	int32 Pick = B->Exists(LookedAtBay) && !B->Bike(LookedAtBay).bAway ? LookedAtBay : INDEX_NONE;
+	double BestD = 250.0;
+	for (int32 I = 0; Pick != LookedAtBay && I < B->NumBikes(); ++I)
+	{
+		if (!B->Exists(I) || B->Bike(I).bAway) continue;
+		const double D = FVector::Dist2D(B->Bike(I).Xf.GetLocation(), GetActorLocation());
+		if (D < BestD)
+		{
+			BestD = D;
+			Pick = I;
+		}
+	}
+	if (Pick == INDEX_NONE) return false;
+	NameBay = Pick;
+	NameIdea = -1;
+	LabelEdit = B->Bike(Pick).Name;
+	bFurnArmed = false;
+	return true;
+}
+
 void ATorqueWalker::CloseLabel(bool bSave)
 {
 	const int32 Piece = LabelPiece;
+	const int32 Bay = NameBay;
 	LabelPiece = 0;
+	NameBay = INDEX_NONE;
 	ComputerClosedFrame = GFrameCounter;   // (the Esc that closed it isn't also the pause menu's)
-	if (!bSave || Piece == 0) return;
+	if (!bSave || (Piece == 0 && Bay == INDEX_NONE)) return;
 	UTorqueBuildSubsystem* B = Shed();
 	if (!B) return;
+	if (Bay != INDEX_NONE)
+	{
+		FTorqueShedRequest Rename;
+		Rename.Kind = ETorqueShedAct::NameBike;
+		Rename.Bay = Bay;
+		Rename.Text = TorqueFurniture::CleanLabel(LabelEdit);
+		FString WhyNot;
+		if (Rename.Text == B->Bike(Bay).Name) return;   // (unchanged)
+		if (!B->Request(Rename, WhyNot)) Say(WhyNot, false);
+		return;
+	}
 	FTorqueShedRequest R;
 	R.Kind = ETorqueShedAct::LabelFurniture;
 	R.Item = Piece;
@@ -330,13 +369,28 @@ void ATorqueWalker::LabelInput(APlayerController* PC, uint32 SonyHit)
 	// Typed: letters (Shift for capitals), digits, space, hyphen; Backspace, Delete clears it, Ctrl+V
 	// pastes. Enter (Cross) writes it on, Esc (Circle) leaves it as it was.
 	const UTorqueBuildSubsystem* B = Shed();
-	const FTorqueFurniture* F = B ? B->FurnitureById(LabelPiece) : nullptr;
-	if (!PC || !F || F->Mover != 0)
+	const bool bBike = NameBay != INDEX_NONE;
+	const FTorqueFurniture* F = B && !bBike ? B->FurnitureById(LabelPiece) : nullptr;
+	if (!PC || !B || (bBike ? (!B->Exists(NameBay) || B->Bike(NameBay).bAway) : (!F || F->Mover != 0)))
 	{
-		CloseLabel(false);   // gone, or someone's taken hold of it
+		CloseLabel(false);   // gone (ridden off, scrapped), or someone's taken hold of it
 		return;
 	}
 	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
+	if (bBike)
+	{
+		// No keyboard on a pad: D-pad left / right (or Tab) step through name ideas to save as they are.
+		int32 Step = 0;
+		if (Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight) || Just(EKeys::Tab)) Step = 1;
+		if (Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)) Step = -1;
+		if (Step != 0)
+		{
+			NameIdea = NameIdea < 0 && Step < 0 ? UTorqueBuildSubsystem::BikeNameIdeas() - 1 : NameIdea + Step;
+			NameIdea = (NameIdea + UTorqueBuildSubsystem::BikeNameIdeas()) % UTorqueBuildSubsystem::BikeNameIdeas();
+			LabelEdit = UTorqueBuildSubsystem::BikeNameIdea(NameIdea);
+			return;
+		}
+	}
 	if (Just(EKeys::Enter) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross))
 	{
 		CloseLabel(true);
@@ -353,7 +407,8 @@ void ATorqueWalker::LabelInput(APlayerController* PC, uint32 SonyHit)
 void ATorqueWalker::DrawLabelBox(UCanvas* Canvas) const
 {
 	// label_dialog.gd: a small box in the middle, SHELF LABEL over a line to type in, Save and Cancel.
-	if (!Canvas || LabelPiece == 0) return;
+	if (!Canvas || !LabelBoxUp()) return;
+	const bool bBike = NameBay != INDEX_NONE;
 	namespace UI = TorqueUi;
 	const float S = UI::Scale(Canvas);
 	UI::Backdrop(Canvas, 0.35f);
@@ -362,14 +417,14 @@ void ATorqueWalker::DrawLabelBox(UCanvas* Canvas) const
 	UI::Rect(Canvas, X, Y, W, H, UI::Panel);
 	UI::Rect(Canvas, X, Y, 3.0f * S, H, UI::Accent);
 	const float Margin = 26.0f * S;
-	UI::Text(Canvas, TEXT("SHELF LABEL"), X + Margin, Y + 20.0f * S, 24.0f * S, UI::Accent, true);
+	UI::Text(Canvas, bBike ? TEXT("NAME THIS BIKE") : TEXT("SHELF LABEL"), X + Margin, Y + 20.0f * S, 24.0f * S, UI::Accent, true);
 	// The line to type on, with its caret; the hint in it while it's empty.
 	const float FX = X + Margin, FY = Y + 66.0f * S, FW = W - 2.0f * Margin, FH = 46.0f * S;
 	UI::Rect(Canvas, FX, FY, FW, FH, UI::PanelLight);
 	UI::Frame(Canvas, FX, FY, FW, FH, UI::Accent, FMath::Max(1.0f, 1.5f * S));
 	const float Px = 22.0f * S, TY = FY + 0.5f * (FH - Px * 1.2f);
 	float Typed = 0.0f;
-	if (LabelEdit.IsEmpty()) UI::Text(Canvas, TEXT("Brakes, engine spares, Barn find..."), FX + 12.0f * S, TY, Px, UI::Faint, false, UI::EAlign::Left, false);
+	if (LabelEdit.IsEmpty()) UI::Text(Canvas, bBike ? TEXT("Old Faithful, Hedge Hopper...") : TEXT("Brakes, engine spares, Barn find..."), FX + 12.0f * S, TY, Px, UI::Faint, false, UI::EAlign::Left, false);
 	else Typed = UI::Text(Canvas, LabelEdit, FX + 12.0f * S, TY, Px, UI::Ink);
 	if (FMath::Fmod(FPlatformTime::Seconds(), 1.0) < 0.6)
 		UI::Rect(Canvas, FX + 12.0f * S + Typed + 2.0f * S, FY + 9.0f * S, FMath::Max(1.0f, 2.0f * S), FH - 18.0f * S, UI::Accent);
@@ -379,7 +434,8 @@ void ATorqueWalker::DrawLabelBox(UCanvas* Canvas) const
 	const float HY = Y + H - 44.0f * S;
 	HX += UI::KeyHint(Canvas, TEXT("Enter"), TEXT("Save"), HX, HY, S) + 22.0f * S;
 	HX += UI::KeyHint(Canvas, TEXT("Esc"), TEXT("Cancel"), HX, HY, S) + 22.0f * S;
-	UI::KeyHint(Canvas, TEXT("Delete"), TEXT("Clear"), HX, HY, S);
+	HX += UI::KeyHint(Canvas, TEXT("Delete"), TEXT("Clear"), HX, HY, S) + 22.0f * S;
+	if (bBike) UI::KeyHint(Canvas, TEXT("Tab"), TEXT("Ideas"), HX, HY, S);
 }
 
 // --- Tests ------------------------------------------------------------------------------------------------

@@ -248,7 +248,9 @@ inline void MoveStand(const FTransform& Xf)
 		{
 			FTorquePlace& P = const_cast<FTorquePlace&>(C);
 			P.Put = Xf.TransformPosition(FVector(0.0, 0.0, 82.0));
-			P.Box = FBox(FVector(-35.0, -30.0, 20.0), FVector(35.0, 30.0, 95.0)).TransformBy(Xf);
+			// (Round the plate and an engine bolted to it along the arm, ATorqueShedItems::OnStand: the
+			// engine hangs off the plate's face on -x since 157.)
+			P.Box = FBox(FVector(-75.0, -35.0, 20.0), FVector(35.0, 35.0, 110.0)).TransformBy(Xf);
 		}
 }
 

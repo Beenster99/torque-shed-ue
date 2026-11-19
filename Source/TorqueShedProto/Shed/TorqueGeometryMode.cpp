@@ -385,9 +385,9 @@ void ATorqueGeometryMode::UndoOnce()
 void ATorqueGeometryMode::ResetPart()
 {
 	FState& S = *St;
-	if (S.Selected.IsNone() || !S.Draft.Slots.count(TGMI::TgmStd(S.Selected.ToString()))) return;
+	if (S.Selected.IsNone() || !S.Draft.Slots.count(TGMI::TgmStd(S.Selected.ToString().ToLower()))) return;
 	PushUndo();
-	S.Draft.Set(TGMI::TgmStd(S.Selected.ToString()), TorqueFit::GeoOffset());
+	S.Draft.Set(TGMI::TgmStd(S.Selected.ToString().ToLower()), TorqueFit::GeoOffset());
 	Refit(false);
 }
 
@@ -570,7 +570,7 @@ void ATorqueGeometryMode::UpdateGaps()
 		Pv.Bake(S.Draft, S.FitParts[I], Moved[I]);
 		Meshes.push_back({&S.FitParts[I], &Moved[I]});
 	}
-	for (const TorqueFit::GeoGap& G : TorqueFit::Gaps(Meshes, TGMI::TgmStd(S.Selected.ToString()), 0.03)) S.Gaps.Add(G);
+	for (const TorqueFit::GeoGap& G : TorqueFit::Gaps(Meshes, TGMI::TgmStd(S.Selected.ToString().ToLower()), 0.03)) S.Gaps.Add(G);
 }
 
 TArray<FName> ATorqueGeometryMode::PickableSlots() const
@@ -616,7 +616,7 @@ FString ATorqueGeometryMode::TestMove(FName Slot, const FVector& Cm)
 	S.List = PickableSlots();
 	if (!S.List.Contains(Slot)) return FString::Printf(TEXT("%s isn't on this bike"), *Slot.ToString());
 	Select(Slot);
-	const std::string Name = TGMI::TgmStd(Slot.ToString());
+	const std::string Name = TGMI::TgmStd(Slot.ToString().ToLower());
 	PushUndo();
 	TorqueFit::GeoOffset Off = S.Draft.Of(Name);
 	Off.P += TGMI::GV3(Cm.X, Cm.Y, Cm.Z) / 100.0;
@@ -692,7 +692,7 @@ int32 ATorqueGeometryMode::PickHandle(const FVector2D& Mouse) const
 	const FVector* PivotCm = Bike->FitView.Pivots.Find(S.Selected);
 	if (!PivotCm) return -1;
 	const FTransform BikeXf = Bike->BikeRoot->GetComponentTransform();
-	const TorqueFit::GeoOffset O = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString()));
+	const TorqueFit::GeoOffset O = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString().ToLower()));
 	const TGMI::GV3 C = TGMI::TgmGOf(*PivotCm) + O.P;
 	auto World = [&](const TGMI::GV3& G) { return BikeXf.TransformPosition(TGMI::TgmUeOf(G)); };
 	FVector Eye;
@@ -826,7 +826,7 @@ void ATorqueGeometryMode::Press(const FVector2D& Mouse)
 		S.DragMode = S.Mode;
 		S.DragMouse = Mouse;
 		S.Before = S.Draft;
-		S.Start = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString()));
+		S.Start = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString().ToLower()));
 		S.Center = TGMI::TgmGOf(*PivotCm) + S.Start.P;
 		S.bV0 = false;
 		TGMI::GV3 Unit;
@@ -931,7 +931,7 @@ void ATorqueGeometryMode::DragTo(const FVector2D& Mouse)
 		break;
 	}
 	}
-	S.Draft.Set(TGMI::TgmStd(S.Selected.ToString()), Off);
+	S.Draft.Set(TGMI::TgmStd(S.Selected.ToString().ToLower()), Off);
 	if (ATorqueShedBike* B = S.Bike.Get()) B->FitView.Show(B->Parts, TGMI::TgmText(S.Draft));
 }
 
@@ -991,7 +991,7 @@ void ATorqueGeometryMode::ReadInput(float Dt)
 			if (!S.Typed.IsEmpty() && !S.Selected.IsNone())
 			{
 				PushUndo();
-				const std::string Slot = TGMI::TgmStd(S.Selected.ToString());
+				const std::string Slot = TGMI::TgmStd(S.Selected.ToString().ToLower());
 				const TorqueFit::GeoHandle H = (TorqueFit::GeoHandle)(S.TypeField / 3);
 				S.Draft.Set(Slot, TorqueFit::Geo::WithValue(S.Draft.Of(Slot), H, S.TypeField % 3, FCString::Atod(*S.Typed)));
 				Refit(false);
@@ -1095,7 +1095,7 @@ void ATorqueGeometryMode::ReadInput(float Dt)
 	if (Nudge != 0 && FreeMove() && !S.Selected.IsNone() && !S.bDrag)
 	{
 		const bool bBig = bCtrl || Down(EKeys::Gamepad_FaceButton_Left) || (PadDown & ESonyButton::Square);
-		const std::string Slot = TGMI::TgmStd(S.Selected.ToString());
+		const std::string Slot = TGMI::TgmStd(S.Selected.ToString().ToLower());
 		PushUndo();
 		S.Draft.Set(Slot, TorqueFit::Geo::Nudged(S.Draft.Of(Slot), S.Mode, TGMI::TgmAxisOfKey(S.Axis), Nudge, !bBig, S.bPartAxes));
 		Refit(false);
@@ -1183,7 +1183,7 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 	if (bFree && PivotCm && PC && !S.bConfirm)
 	{
 		const FTransform BikeXf = Bike->BikeRoot->GetComponentTransform();
-		const TorqueFit::GeoOffset O = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString()));
+		const TorqueFit::GeoOffset O = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString().ToLower()));
 		const TGMI::GV3 Cg = TGMI::TgmGOf(*PivotCm) + O.P;
 		auto World = [&](const TGMI::GV3& G) { return BikeXf.TransformPosition(TGMI::TgmUeOf(G)); };
 		FVector Eye;
@@ -1384,7 +1384,7 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 			D.Text(TorqueShedParts::SlotName(S.Selected) + TEXT(": ") + (Item != 0 ? B->ItemTitle(Item) : FString(TEXT("(empty)"))), X, Y, 17.0f, TGMI::Accent);
 			Y += 26.0f * Sc;
 			// The readout, each number a field to click and type into (finer).
-			const TorqueFit::GeoOffset O = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString()));
+			const TorqueFit::GeoOffset O = S.Draft.Of(TGMI::TgmStd(S.Selected.ToString().ToLower()));
 			const TCHAR* Rows[3] = {TEXT("Move"), TEXT("Rotate"), TEXT("Scale")};
 			const TCHAR* Units[3] = {TEXT("cm"), TEXT("deg"), TEXT("%")};
 			const double Vals[3][3] = {{O.P.x * 100.0, O.P.y * 100.0, O.P.z * 100.0}, {O.R.x, O.R.y, O.R.z}, {O.S.x * 100.0, O.S.y * 100.0, O.S.z * 100.0}};
@@ -1459,7 +1459,7 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 		{
 			const FName Slot = S.List[I];
 			const int32 Item = B ? B->ItemOn(S.Bay, Slot) : 0;
-			FString Row = (S.Draft.Slots.count(TGMI::TgmStd(Slot.ToString())) ? TEXT("* ") : TEXT("")) + TorqueShedParts::SlotName(Slot) + TEXT(": ") +
+			FString Row = (S.Draft.Slots.count(TGMI::TgmStd(Slot.ToString().ToLower())) ? TEXT("* ") : TEXT("")) + TorqueShedParts::SlotName(Slot) + TEXT(": ") +
 				(Item != 0 ? B->ItemTitle(Item) : FString(TEXT("(empty)")));
 			while (Row.Len() > 4 && D.Measure(Row, 14.0f).X > LW - 2.0f * Pad - 16.0f * Sc) Row = Row.LeftChop(4) + TEXT("...");
 			const FBox2D R(FVector2D(LX + Pad, Ly), FVector2D(LX + LW - Pad, Ly + RowH - 4.0f * Sc));

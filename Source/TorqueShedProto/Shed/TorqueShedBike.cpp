@@ -120,6 +120,18 @@ float FlyGain(FName Slot)
 	return G ? *G : 0.0f;
 }
 
+// A wheel, for the muck it throws (DIRT_HLSL F.Spray, TorqueBikeDirt): its axle's x and z, its tyre's
+// radius and half width, from its tyre's slot's box (End: "front" or "rear"), else its wheel's.
+FLinearColor WheelSpray(const TMap<FName, FBox>& Boxes, const TCHAR* End)
+{
+	const FBox* Tyre = Boxes.Find(FName(*FString::Printf(TEXT("%s_tyre"), End)));
+	const FBox* Rim = Boxes.Find(FName(*FString::Printf(TEXT("%s_wheel"), End)));
+	const FBox* Box = Tyre && Tyre->IsValid ? Tyre : (Rim && Rim->IsValid ? Rim : nullptr);
+	if (!Box) return FLinearColor(0, 0, 0, 0);
+	const FVector Mid = Box->GetCenter(), Half = Box->GetExtent();
+	return FLinearColor((float)Mid.X, (float)Mid.Z, (float)FMath::Max(Half.Z, 1.0), (float)FMath::Max(Half.Y * 0.95, 1.0));
+}
+
 void SetDirtFrame(UMaterialInstanceDynamic* M, const FTransform& PartToBike, const FVector2D& ZRange)
 {
 	if (!M) return;
@@ -156,6 +168,9 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 	FBox Whole(ForceInit);
 	for (const TPair<FName, FBox>& Bx : Boxes) Whole += Bx.Value;
 	const FVector2D ZRange = Whole.IsValid ? FVector2D(Whole.Min.Z, FMath::Max(Whole.Max.Z, Whole.Min.Z + 10.0)) : FVector2D(0.0, 120.0);
+	// Its wheels, for the muck they throw (DIRT_HLSL F.Spray, TorqueBikeDirt).
+	const FLinearColor SprayF = WheelSpray(Boxes, TEXT("front"));
+	const FLinearColor SprayR = WheelSpray(Boxes, TEXT("rear"));
 	auto Dirt = [&](UStaticMeshComponent* C, FName Which, float Grime)
 	{
 		UMaterialInstanceDynamic* M = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0));
@@ -166,7 +181,9 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		// On a wheel: the muck evenly round it, about the axle (the middle of its slot's box).
 		const FBox* WheelBox = C->ComponentHasTag(FName(TorqueShedCatalogue::SpinsTag)) ? Boxes.Find(Which) : nullptr;
 		const FVector Axle = WheelBox && WheelBox->IsValid ? WheelBox->GetCenter() : FVector::ZeroVector;
-		M->SetVectorParameterValue(TEXT("Spin"), FLinearColor((float)Axle.X, (float)Axle.Z, WheelBox && WheelBox->IsValid ? 1.0f : 0.0f, 0.0f));
+		M->SetVectorParameterValue(TEXT("Spin"), FLinearColor((float)Axle.X, (float)Axle.Z, WheelBox && WheelBox->IsValid ? 1.0f : 0.0f, (float)Axle.Y));
+		M->SetVectorParameterValue(TEXT("SprayF"), SprayF);
+		M->SetVectorParameterValue(TEXT("SprayR"), SprayR);
 		M->SetScalarParameterValue(TEXT("FlyGain"), FlyGain(Which));
 		if (!bWashing || M->K2_GetScalarParameterValue(TEXT("HasMask")) < 0.5f) M->SetScalarParameterValue(TEXT("Grime"), Grime);
 	};

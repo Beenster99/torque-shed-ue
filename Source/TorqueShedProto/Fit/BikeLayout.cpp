@@ -192,6 +192,15 @@ std::string FamilyWord(const std::string& F)
 	return F;
 }
 
+// An id as the catalogue spells it: lower case. (The game hands slot names over from FNames, which keep
+// whatever spelling was seen first: "Engine", "HEAD". Beenster, Nov 19: "thats an engine, not an Engine".)
+std::string LowerId(const std::string& S)
+{
+	std::string L = S;
+	for (char& C : L) C = static_cast<char>(std::tolower(static_cast<unsigned char>(C)));
+	return L;
+}
+
 std::string WithA(const std::string& W)
 {
 	const char C = W.empty() ? 'x' : static_cast<char>(std::tolower(static_cast<unsigned char>(W[0])));
@@ -491,8 +500,9 @@ PartsMap BikeLayout::V2Dress(const PartsMap& Parts) const
 	return Out;
 }
 
-std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const
+std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& SlotGiven, const std::string& IdGiven) const
 {
+	const std::string Slot = LowerId(SlotGiven), Id = LowerId(IdGiven);
 	const Json* Vp = Sub(Part(Id), "v2part");
 	if (!Vp || !Vp->IsObject()) return std::string();
 	const std::string Own = Vp->Str("slot", Slot);
@@ -508,7 +518,7 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 		const auto It = Words.find(L);
 		return It == Words.end() ? L : It->second;
 	};
-	if (Own != Slot) return "That's a " + Noun(Own) + ", not a " + Noun(Slot) + ".";
+	if (Own != Slot) return "That's " + WithA(Noun(Own)) + ", not " + WithA(Noun(Slot)) + ".";
 	const std::string Family = Vp->Str("family"), Brand = Vp->Str("brand");
 	const Json* Frame = Part(Get(Parts, "frame"));
 	const Json* V2 = Sub(Frame, "v2");
@@ -528,7 +538,7 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	if (!V2 || !V2->IsObject()) return std::string();   // (a loose engine: only its block counts)
 	const std::string HostFamily = V2->Str("family");
 	if (HostFamily != Family)
-		return "That's a " + Family + " part: it bolts to " + Family + " frames only, and this is a " + HostFamily + ".";
+		return "That's " + WithA(Family) + " part: it bolts to " + Family + " frames only, and this is " + WithA(HostFamily) + ".";
 	const Json* Pts = Sub(V2, "points_mm");
 	if (Fits == "model" && V2->Str("model") != OfModel)
 		return "Those are made for the " + Brand + " " + Family + " frame only.";
@@ -549,8 +559,9 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	return std::string();
 }
 
-std::string BikeLayout::V2NeedsReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const
+std::string BikeLayout::V2NeedsReason(const PartsMap& Parts, const std::string& SlotGiven, const std::string& IdGiven) const
 {
+	const std::string Slot = LowerId(SlotGiven), Id = LowerId(IdGiven);
 	const Json* Vp = Sub(Part(Id), "v2part");
 	if (!Vp || !Vp->IsObject()) return std::string();
 	// (Which fuel system a part is, whatever its brand: its engine-part look, or the engine's own.)

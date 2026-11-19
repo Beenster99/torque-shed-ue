@@ -220,7 +220,7 @@ void FTorqueBikeConfigurator::SetPart(const FString& Slot, const std::string& Id
 	// it goes on, else takes one that does).
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	if (!Lay) return;
-	B().Parts = TorqueFit::Shop::SetPart(*Lay, B().Parts, B().Style, TBCI::CfgStd(Slot), Id);
+	B().Parts = TorqueFit::Shop::SetPart(*Lay, B().Parts, B().Style, TBCI::CfgStd(Slot.ToLower()), Id);
 	bDirty = true;
 }
 
@@ -272,8 +272,8 @@ void FTorqueBikeConfigurator::Relist()
 FLinearColor FTorqueBikeConfigurator::FactoryColour(const FString& Slot) const
 {
 	// BikeShop.factory_colour: the paint on the tank and fairing, the catalogue's colour on the rest.
-	if (TorqueFit::Shop::Painted(TBCI::CfgStd(Slot))) return Paint;
-	const auto It = B().Parts.find(TBCI::CfgStd(Slot));
+	if (TorqueFit::Shop::Painted(TBCI::CfgStd(Slot.ToLower()))) return Paint;
+	const auto It = B().Parts.find(TBCI::CfgStd(Slot.ToLower()));
 	return It == B().Parts.end() || It->second == "none" ? FLinearColor(0.5f, 0.5f, 0.5f) : TorqueShedParts::DefaultColour(FName(*TBCI::CfgUe(It->second)));
 }
 
@@ -307,7 +307,7 @@ bool FTorqueBikeConfigurator::Changed(const FString& Slot) const
 bool FTorqueBikeConfigurator::TakesColour(const FString& Slot) const
 {
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
-	return Lay && !TorqueFit::Shop::ColourSlots(*Lay, TBCI::CfgStd(Slot), B().Parts).empty();
+	return Lay && !TorqueFit::Shop::ColourSlots(*Lay, TBCI::CfgStd(Slot.ToLower()), B().Parts).empty();
 }
 
 void FTorqueBikeConfigurator::SetColour(const FString& Key, const FLinearColor& C)
@@ -328,7 +328,7 @@ void FTorqueBikeConfigurator::SetColour(const FString& Key, const FLinearColor& 
 	bool bGroup = false;
 	for (const std::string& G : TorqueFit::Shop::ColourGroups()) bGroup = bGroup || TBCI::CfgUe(G) == Key;
 	if (bGroup && Lay)
-		for (const std::string& S : TorqueFit::Shop::ColourSlots(*Lay, TBCI::CfgStd(Key), B().Parts)) Colours.Remove(TBCI::CfgUe(S));
+		for (const std::string& S : TorqueFit::Shop::ColourSlots(*Lay, TBCI::CfgStd(Key.ToLower()), B().Parts)) Colours.Remove(TBCI::CfgUe(S));
 }
 
 void FTorqueBikeConfigurator::SetFinish(const FString& Key, FName Finish)
@@ -360,7 +360,7 @@ TorqueFit::Shop::Order FTorqueBikeConfigurator::MakeOrder() const
 	O.Paint[2] = Paint.B;
 	for (const TPair<FString, FLinearColor>& KV : Colours) O.Colours[TBCI::CfgStd(KV.Key)] = {KV.Value.R, KV.Value.G, KV.Value.B};
 	O.Colours["tank"] = {Paint.R, Paint.G, Paint.B};
-	for (const TPair<FString, FName>& KV : Finishes) O.Finishes[TBCI::CfgStd(KV.Key)] = TBCI::CfgStd(KV.Value.ToString());
+	for (const TPair<FString, FName>& KV : Finishes) O.Finishes[TBCI::CfgStd(KV.Key)] = TBCI::CfgStd(KV.Value.ToString().ToLower());
 	O.TankBadge = TorqueFit::Shop::CleanBadge(B().Badge);
 	return O;
 }

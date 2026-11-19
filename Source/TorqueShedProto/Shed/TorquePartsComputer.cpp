@@ -130,7 +130,7 @@ FString TypeName(FName Type)
 {
 	if (Type.IsNone()) return TEXT("Any bike");
 	if (const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout())
-		return FString(UTF8_TO_TCHAR(Lay->StyleName(TCHAR_TO_UTF8(*Type.ToString())).c_str()));
+		return FString(UTF8_TO_TCHAR(Lay->StyleName(TCHAR_TO_UTF8(*Type.ToString().ToLower())).c_str()));
 	return StyleTitle(Type.ToString());
 }
 
