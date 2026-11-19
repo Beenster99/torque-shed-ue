@@ -32,6 +32,7 @@
 
 #include "World/WorldRide.h"
 #include "World/WorldFiles.h"
+#include "Coop/TorqueAwards.h"
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -624,6 +625,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 {
 	Plan = InPlan;
 	Current = this;
+	TorqueAwardsUe::NewRide();   // [ride awards] this machine's rider's numbers start again
 	if (Plan && Plan->Ok)
 	{
 		// [stage 7] This ride's page in the diary.

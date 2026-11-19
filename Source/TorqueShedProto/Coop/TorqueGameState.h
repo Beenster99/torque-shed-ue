@@ -91,6 +91,19 @@ enum class ETorqueWeatherSource : uint8
 	LiveOffline,   // live, never reached (or the last is hours old): changing by itself meanwhile
 };
 
+// [ride awards] One rider's line in the awards' results (Coop/TorqueAwards.h), as the host scored them.
+USTRUCT()
+struct FTorqueAwardRider
+{
+	GENERATED_BODY()
+	UPROPERTY() FString Name;
+	UPROPERTY() uint8 Colour = 0;
+	UPROPERTY() TArray<float> Stats;    // TorqueAwards::Total numbers
+	UPROPERTY() TArray<uint8> Places;   // their place in each stat (1 first, 0 none)
+	UPROPERTY() int32 Points = 0;
+	UPROPERTY() uint8 Led = 0;          // voted stats they led
+};
+
 UCLASS()
 class ATorqueGameState : public AGameStateBase
 {
@@ -311,6 +324,28 @@ public:
 		RideJourneyBy = By;
 		RideJourneyById = ById;
 	}
+	// [ride awards] (Coop/TorqueAwards.h) The host's Settings switch, and the awards at the end of a
+	// planned ride: 0 none, 1 the private vote (until VoteEnds, server seconds), 2 the results (the
+	// riders in podium order, how many riders picked each stat and its weight). Seq goes up with each.
+	// They start when every rider has stopped at the finish (ATorquePlayerState::bAwardFinished), or
+	// when the host picks "Ride awards now" in the pause menu.
+	UPROPERTY(Replicated) bool bAwardsOn = false;
+	UPROPERTY(Replicated) uint8 AwardsPhase = 0;
+	UPROPERTY(Replicated) int32 AwardsSeq = 0;
+	UPROPERTY(Replicated) double AwardsVoteEnds = 0.0;
+	UPROPERTY(Replicated) TArray<FTorqueAwardRider> AwardRiders;
+	UPROPERTY(Replicated) TArray<uint8> AwardPickers;
+	UPROPERTY(Replicated) TArray<uint8> AwardWeights;
+	UPROPERTY(Replicated) bool bAwardsNoVotes = false;
+	UPROPERTY(Replicated) FString AwardsRoute;   // the journey's name
+	void StartAwards();
+	// The riders not at the finish yet ("" for none).
+	FString AwardsWaitingFor() const;
+	static constexpr double AwardsVoteSeconds = 60.0;
+private:
+	void TickAwards(float DeltaSeconds);
+	void FinishAwards();
+
 private:
 	// The shed: written by the host, read by everyone else.
 	UPROPERTY(ReplicatedUsing = OnRep_Shed) FTorqueShedBayNet Shed;

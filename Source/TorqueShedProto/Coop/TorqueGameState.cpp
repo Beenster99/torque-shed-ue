@@ -83,6 +83,15 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SkyDriftMid);
 	DOREPLIFETIME(ATorqueGameState, SkyDriftHigh);
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
+	DOREPLIFETIME(ATorqueGameState, bAwardsOn);   // [ride awards]
+	DOREPLIFETIME(ATorqueGameState, AwardsPhase);
+	DOREPLIFETIME(ATorqueGameState, AwardsSeq);
+	DOREPLIFETIME(ATorqueGameState, AwardsVoteEnds);
+	DOREPLIFETIME(ATorqueGameState, AwardRiders);
+	DOREPLIFETIME(ATorqueGameState, AwardPickers);
+	DOREPLIFETIME(ATorqueGameState, AwardWeights);
+	DOREPLIFETIME(ATorqueGameState, bAwardsNoVotes);
+	DOREPLIFETIME(ATorqueGameState, AwardsRoute);
 }
 
 void ATorqueGameState::BeginPlay()
@@ -313,6 +322,7 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	TickWeather(DeltaSeconds);
 	if (!HasAuthority()) return;
+	TickAwards(DeltaSeconds);   // [ride awards] (Coop/TorqueAwards.cpp)
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	// The weather changing by itself (Torque Shed's "Changes by itself"): every few minutes, a step to
 	// the next kind along (sunny, overcast, wet roads), never straight from sun to rain, fading over a

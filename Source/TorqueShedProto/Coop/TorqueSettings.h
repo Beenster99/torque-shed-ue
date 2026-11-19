@@ -63,6 +63,9 @@ struct FTorqueSettings
 	// Gameplay.
 	float Realism = 0.6f;       // riding realism: 0 full sim .. 1 easy (Torque Shed's slider)
 	bool bOpenRouter = true;    // hosting asks the router to open the port (UPnP), as Torque Shed always did
+	// [ride awards] At the end of a planned ride: a private vote, the stats dashboard and a podium
+	// (Coop/TorqueAwards.h). The host's choice for everyone in co-op; off unless turned on.
+	bool bRideAwards = false;
 	float Fov = 80.0f;          // field of view, degrees: on foot as it is, the bike's cameras moved by as much
 	bool bAutoShift = true;     // the gearbox changes itself (G / R3 while riding)
 	bool bTelemetry = false;    // live strips of what the bike is doing, while riding (F3)

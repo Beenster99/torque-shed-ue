@@ -255,3 +255,10 @@ if(MSVC)
 else()
   target_compile_options(commonparts_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# [ride awards] The end-of-ride stats counted from riding, and the vote's scoring and podium.
+add_executable(awards_test awards_test.cpp)
+target_include_directories(awards_test PRIVATE ${COOP})
+if(NOT MSVC)
+  target_compile_options(awards_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
+endif()

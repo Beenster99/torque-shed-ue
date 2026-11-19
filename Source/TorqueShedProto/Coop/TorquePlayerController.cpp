@@ -738,6 +738,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("telemetry")) S.bTelemetry = bOn;
 	else if (F == TEXT("infopanel")) S.bInfoPanel = bOn;   // [info]
 	else if (F == TEXT("placelookup")) S.bPlaceLookup = bOn;
+	else if (F == TEXT("rideawards")) S.bRideAwards = bOn;   // [ride awards]
 	else if (F == TEXT("fps")) S.bFpsCounter = bOn;
 	else if (F == TEXT("autoshift")) S.bAutoShift = bOn;
 	else if (F == TEXT("recentre")) S.bCameraRecentre = bOn;
@@ -1029,6 +1030,19 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				CloseMenu();
 				Bike->RestartRide();
 			});
+			// [ride awards] The host can start them before everyone's at the finish (or on a ride with no finish).
+			const ATorqueGameState* AwardsState = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			if (!bClient && AwardsState && AwardsState->bAwardsOn && AwardsState->AwardsPhase != 1)
+			{
+				const FString Waiting = AwardsState->AwardsWaitingFor();
+				Add(bHost ? TEXT("Ride awards now (everyone)") : TEXT("Ride awards now"), FString(),
+					Waiting.IsEmpty() || !bHost ? FString(TEXT("The vote, the numbers and the podium for the ride so far"))
+						: FString::Printf(TEXT("The vote, the numbers and the podium now (not at the finish yet: %s)"), *Waiting),
+					[this]() {
+						CloseMenu();
+						if (ATorqueGameState* StartState = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr) StartState->StartAwards();
+					});
+			}
 			if (!bClient && TorqueFlow::ShedExists())
 				Add(bHost ? TEXT("Back to the shed (everyone)") : TEXT("Back to the shed"), FString(), TEXT("Backspace"), [this]() {
 					CloseMenu();
@@ -1545,6 +1559,19 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Heading(TEXT("CO-OP"));
 		Toggle(TEXT("Open my router for internet friends"), S.bOpenRouter,
 			TEXT("Hosting asks your router to open UDP port 7777 (UPnP), and closes it again after. Off: forward it by hand"));
+		// [ride awards] The host's choice for everyone (shown, not changed, on a joined machine).
+		{
+			const ATorqueGameState* AwardsState = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			if (bClient)
+			{
+				Add(TEXT("Ride awards"), AwardsState && AwardsState->bAwardsOn ? FString(TEXT("On")) : FString(TEXT("Off")),
+					TEXT("At the end of a planned ride: a private vote, the numbers and a podium (set by the host)"), nullptr);
+				R.Last().bDisabled = true;
+			}
+			else
+				Toggle(TEXT("Ride awards"), S.bRideAwards,
+					TEXT("At the end of a planned ride: everyone privately ranks the three stats they care about, then sees the numbers and the top three on a podium"));
+		}
 		// [reports] beenster, build 155: a friend's game crashed. The crash and freeze reports, to zip up and send.
 		{
 			const int32 Reports = TorqueReports::Count();
@@ -1838,8 +1865,31 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 	if (bChoosingRide && !IsMenuUp()) Open(EPage::JoinRide);
 	UpdateCursor();
 	SyncRideJourney();
+	CheckAwards();   // [ride awards]
 	ReadMenuInput(DeltaTime);
 	UpdateProfilePreview();   // [profile]
+}
+
+// [ride awards] The host has started the awards (or the results are in, alone): everyone's awards page opens.
+void ATorquePlayerController::CheckAwards()
+{
+	ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS) return;
+	if (AwardsGS.Get() != GS)
+	{
+		// (a new level's game state: awards already under way when we arrived aren't ours)
+		AwardsGS = GS;
+		AwardsSeen = GS->AwardsPhase != 0 ? GS->AwardsSeq : INDEX_NONE;
+	}
+	if (GS->AwardsPhase == 0 || GS->AwardsSeq == AwardsSeen) return;
+	AwardsSeen = GS->AwardsSeq;
+	if (!AwardsScreen) AwardsScreen = MakeUnique<FTorqueAwardsScreen>();
+	AwardsScreen->Begin(GS->AwardsSeq);
+	if (Page != EPage::Awards)
+	{
+		if (Page != EPage::None) CloseMenu();
+		Open(EPage::Awards);
+	}
 }
 
 void ATorquePlayerController::UpdateCursor()
@@ -1896,6 +1946,12 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	if (Page == EPage::None)
 	{
 		if (bMenuKey && WantsPause()) OpenPause();
+		return;
+	}
+	// [ride awards] The awards read their own keys, pad and mouse until the podium's done.
+	if (Page == EPage::Awards)
+	{
+		if (!AwardsScreen || !AwardsScreen->Tick(this, Hit)) CloseMenu();
 		return;
 	}
 	// The Route planner reads its own keys and mouse; Esc there goes back to the pause menu.
@@ -2157,6 +2213,11 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	if (Page == EPage::Route)
 	{
 		if (Planner) Planner->Draw(Canvas);
+		return;
+	}
+	if (Page == EPage::Awards)   // [ride awards]
+	{
+		if (AwardsScreen) AwardsScreen->Draw(Canvas, this);
 		return;
 	}
 	const FMenuLayout L = MenuLayout(Canvas);
