@@ -6,6 +6,7 @@
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerState.h"
+#include "Coop/TorqueAwards.h"
 #include "Shed/TorqueProfile.h"
 #include "Shed/TorqueDecals.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -3254,6 +3255,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 2.5 * DeltaSeconds);
 	}
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
+	// [ride awards] (Coop/TorqueAwards.h) The rider's own numbers for the end-of-ride awards.
+	if (!bRemote && IsLocallyControlled()) TorqueAwardsUe::StepBike(this, *Sim, Dash, bOnFoot, DeltaSeconds);
 	StepTft(DeltaSeconds, bRemote);   // [tft]
 	StepLights(DeltaSeconds, bRemote);   // [lights]
 	if (!bRemote)

@@ -6,6 +6,7 @@
 #include "TorqueSettings.h"
 #include "TorqueGameMode.h"
 #include "TorqueGameState.h"
+#include "RideAwards.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
@@ -24,12 +25,40 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, HelmetDecals);   // [decals stage 4]
 	DOREPLIFETIME(ATorquePlayerState, Bay);
 	DOREPLIFETIME(ATorquePlayerState, RideReadyFor);
+	DOREPLIFETIME(ATorquePlayerState, bAwardFinished);   // [ride awards]
+	DOREPLIFETIME(ATorquePlayerState, AwardVotedSeq);
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
 }
 
 void ATorquePlayerState::ServerSetRideReady_Implementation(const FString& Code)
 {
 	RideReadyFor = Code.Left(4096);
+}
+
+// [ride awards]
+void ATorquePlayerState::ServerSetAwardStats_Implementation(const TArray<float>& NewStats)
+{
+	if (NewStats.Num() > 64) return;
+	AwardStats = NewStats;
+	for (float& V : AwardStats)
+		if (!FMath::IsFinite(V) || V < 0.0f) V = 0.0f;
+}
+
+void ATorquePlayerState::ServerSetAwardFinished_Implementation(bool bAtFinish)
+{
+	bAwardFinished = bAtFinish;
+}
+
+void ATorquePlayerState::ServerAwardVote_Implementation(int32 Seq, const TArray<uint8>& Picks)
+{
+	// Only the awards being voted on now; three different stats, or the vote taken back.
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS || GS->AwardsPhase != 1 || Seq != GS->AwardsSeq) return;
+	AwardPicks.Reset();
+	for (const uint8 P : Picks)
+		if (P < TorqueAwards::Count && !AwardPicks.Contains((int32)P) && AwardPicks.Num() < 3) AwardPicks.Add((int32)P);
+	AwardVotedSeq = AwardPicks.Num() == 3 ? Seq : -1;
+	if (AwardPicks.Num() != 3) AwardPicks.Reset();
 }
 
 void ATorquePlayerState::ServerSetRideJourney_Implementation(const FString& Code, const FString& Name)
