@@ -6,7 +6,8 @@
 // with the stick put fully over instead (what a player slamming it across gets); at Riding realism 0
 // (full sim), 0.6 (the game's default) and 1. With the Flick each bike gets and the style it's taken for.
 //
-//     build/simtest/handling_test [--only STYLE] [--steer-rate-x K] [--flick-x K]
+//     build/simtest/handling_test [--only STYLE] [--bike ID] [--mph 40|60|90] [--realism 0|0.6|1] [--steer-rate-x K] [--flick-x K]
+// (HTRACE=1 in the environment prints each flick as it goes.)
 #include "BikeLayout.h"
 #include "BikeRideSpec.h"
 #include "BikeShop.h"
@@ -168,6 +169,9 @@ Flick Measure(const BikeSpec& S, double Assist, double V, double Hold, double St
 		if (T0 < 0.0 && L * Was < Thirty) T0 = I * Dt;
 		if (T0 >= 0.0 && F.T < 0.0 && -L * Was >= Thirty) F.T = I * Dt - T0;
 		F.Over = std::max(F.Over, -L * Was * Deg);
+		if (std::getenv("HTRACE") && I % 6 == 0)
+			std::printf("    t %.2f lean %6.1f rate %6.1f steer %6.2f bar %6.1f grip %.2f/%.2f v %.1f crashed %d\n", I * Dt, L * Deg, R.Sim.LeanRate * Deg, R.Sim.Steer * Deg,
+				R.Sim.BarTorque, R.Sim.Wheels[0].GripUsed, R.Sim.Wheels[1].GripUsed, R.Sim.Speed, R.Sim.IsCrashed ? 1 : 0);
 	}
 	F.Crashed = R.Sim.IsCrashed;
 	if (F.T > 0.0) F.Avg = 60.0 / F.T;
@@ -178,11 +182,15 @@ Flick Measure(const BikeSpec& S, double Assist, double V, double Hold, double St
 int main(int Argc, char** Argv)
 {
 	// --only STYLE: that family's bikes; --steer-rate-x K, --flick-x K: try the bars' speed or the Flick K times.
-	std::string Only;
+	std::string Only, OnlyBike;
+	double OnlyMph = -1.0, OnlyAssist = -1.0;
 	double SteerX = 1.0, FlickX = 1.0;
 	for (int A = 1; A + 1 < Argc; ++A)
 	{
 		if (std::strcmp(Argv[A], "--only") == 0) Only = Argv[A + 1];
+		if (std::strcmp(Argv[A], "--bike") == 0) OnlyBike = Argv[A + 1];
+		if (std::strcmp(Argv[A], "--mph") == 0) OnlyMph = std::atof(Argv[A + 1]);
+		if (std::strcmp(Argv[A], "--realism") == 0) OnlyAssist = std::atof(Argv[A + 1]);
 		if (std::strcmp(Argv[A], "--steer-rate-x") == 0) SteerX = std::atof(Argv[A + 1]);
 		if (std::strcmp(Argv[A], "--flick-x") == 0) FlickX = std::atof(Argv[A + 1]);
 	}
@@ -207,7 +215,7 @@ int main(int Argc, char** Argv)
 		if (!Frame || !Frame->Get("v2")) continue;
 		const Json* Styles = Frame->Get("styles");
 		const std::string Style = Styles && !Styles->A.empty() ? Styles->A[0].S : std::string("naked");
-		if (!Only.empty() && Style != Only) continue;
+		if ((!Only.empty() && Style != Only) || (!OnlyBike.empty() && Id != OnlyBike)) continue;
 		const PartsMap Parts = Shop::SetPart(Lay, Shop::StockBuild(Lay, Style), Style, "frame", Id);
 		RideSpecInput In;
 		In.Parts = Parts;
@@ -225,10 +233,12 @@ int main(int Argc, char** Argv)
 		++Bikes;
 		for (const double M : Speeds)
 		{
+			if (OnlyMph > 0.0 && M != OnlyMph) continue;
 			const double V = M * Mph;
 			const double Hold = StickFor35(S, V);
 			for (const double A : Assists)
 			{
+				if (OnlyAssist >= 0.0 && std::fabs(A - OnlyAssist) > 0.01) continue;
 				const Flick F = Measure(S, A, V, Hold, Hold);
 				const Flick Full = Measure(S, A, V, Hold, 1.0);
 				std::printf("%s,%s,%s,%.2f,%.2f,%.0f,%.0f,%.0f,%.0f,%.2f,%.0f,%.1f,%.2f,%.0f,%.0f,%.0f,%.2f,%d\n", Id.c_str(), Style.c_str(), Detected.c_str(), Coherence, S.Flick,
