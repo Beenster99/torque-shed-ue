@@ -573,8 +573,13 @@ void ATorqueShedItems::Draw(int32 Id)
 		if (P && P->Kind == ETorquePlace::Bench) Rest.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
 		// Hung on a spray bay hook: its top at the hook's tip, along the rail, never down on the grate.
 		if (P && P->Kind == ETorquePlace::Hook) Rest = HungAt(D.Hook, D.Height);
-		// [kit] On the engine stand: turned as the stand is.
-		if (P && P->Kind == ETorquePlace::Stand) Rest.SetRotation(TorqueShedLayout::StandNow().GetRotation());
+		// [kit] On the engine stand: bolted to its plate (the holder placed below, as Tick does).
+		if (P && P->Kind == ETorquePlace::Stand && D.HeldBy == 0)
+		{
+			const FTransform On = OnStand(D);
+			Holder->SetWorldLocationAndRotation(On.GetLocation(), On.GetRotation());
+			return;
+		}
 		// [tyre] On the tyre changer: flat on its turntable (the holder's placed below, as Tick does).
 		if (D.bOnChanger)
 		{
@@ -605,6 +610,20 @@ bool ATorqueShedItems::HandOf(int32 Peer, FTransform& Out) const
 		return true;
 	}
 	return false;
+}
+
+FTransform ATorqueShedItems::OnStand(const FDrawn& D) const
+{
+	// The stand's frame (TorqueShedLayout::StandNow): origin on the floor under the plate, +x back along
+	// the arm to the column, +y its front. Its model (Tools/props/make_props.py _engine_stand) has the
+	// four-arm mounting plate's face at x 0, 62 cm up, the arm along x.
+	constexpr double PlateHeight = 62.0, PlateFace = -2.0;
+	const FTransform& Stand = TorqueShedLayout::StandNow();
+	// The engine's crank (its holder's y, across the bike) along the arm: turned a quarter about the
+	// upright, so its left side (-y) faces the plate.
+	const FQuat Rot = Stand.GetRotation() * FRotator(0.0, 90.0, 0.0).Quaternion();
+	const FVector Middle = Stand.TransformPosition(FVector(PlateFace - D.Size.Y * 0.5, 0.0, PlateHeight));
+	return FTransform(Rot, Middle - Rot.RotateVector(D.Centre));
 }
 
 FTransform ATorqueShedItems::HungAt(int32 Hook, double Height) const
@@ -698,11 +717,8 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 		if (H && D.HeldBy == 0 && D.bOnStand)
 		{
 			// [kit] On the engine stand: where it is now, rolling with it while someone wheels it.
-			if (const FTorquePlace* P = TorqueShedLayout::FindPlace(FName(TEXT("stand"))))
-			{
-				const FQuat Turn = TorqueShedLayout::StandNow().GetRotation();
-				H->SetWorldLocationAndRotation(P->Put - Turn.RotateVector(D.Offset), Turn);
-			}
+			const FTransform On = OnStand(D);
+			H->SetWorldLocationAndRotation(On.GetLocation(), On.GetRotation());
 			continue;
 		}
 		if (!H || D.HeldBy == 0) continue;

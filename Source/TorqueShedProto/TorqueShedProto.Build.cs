@@ -35,6 +35,6 @@ public class TorqueShedProto : ModuleRules
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Fit"));
 		// SonyPad reads PlayStation pads through Windows HID.
 		if (Target.Platform == UnrealTargetPlatform.Win64)
-			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });
+			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib", "shell32.lib" });   // shell32: [drone] the Pictures folder
 	}
 }

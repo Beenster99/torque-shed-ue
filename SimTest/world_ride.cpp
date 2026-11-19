@@ -821,6 +821,28 @@ int main(int Argc, char** Argv)
 			std::printf("Town life: %d of %d campsites with pitches (%d tents, %d caravans, %d statics), %d fountains, %d chargers\n", Plan->CampsMade, Plan->CampsSeen,
 				Plan->ThingCount[RidePlan::ThingTent], Plan->ThingCount[RidePlan::ThingCaravan], Plan->ThingCount[RidePlan::ThingStatic], Plan->ThingCount[RidePlan::ThingFountain],
 				Plan->ThingCount[RidePlan::ThingCharger]);
+			{
+				// [car parks] How many, and the biggest near the ride's start (WORLD_RIDE_CARPARKS=n lists n with their bays
+				// and cars, laid out as the squares lay them).
+				std::printf("Car parks: %d tarmac, %d setts, %d gravel\n", Plan->CarParkCount[RidePlan::ParkTarmac], Plan->CarParkCount[RidePlan::ParkSetts], Plan->CarParkCount[RidePlan::ParkGravel]);
+				const int Show = std::getenv("WORLD_RIDE_CARPARKS") != nullptr ? std::atoi(std::getenv("WORLD_RIDE_CARPARKS")) : 0;
+				std::vector<std::pair<double, int>> Big;
+				for (size_t I = 0; I < Plan->CarParks.size(); ++I) Big.push_back({-Plan->CarParks[I].Area, int(I)});
+				std::sort(Big.begin(), Big.end());
+				std::vector<RidePlan::ParkBay> Bays;
+				for (int K = 0; K < Show && K < int(Big.size()); ++K)
+				{
+					const RidePlan::CarPark& C = Plan->CarParks[size_t(Big[size_t(K)].second)];
+					Plan->CarParkBays(Big[size_t(K)].second, Bays);
+					int Cars = 0, Badges = 0;
+					for (const RidePlan::ParkBay& B : Bays) { Cars += B.Car ? 1 : 0; Badges += B.Badge ? 1 : 0; }
+					P2 Mid;
+					RideShapes::RingArea(C.Ring, Mid);
+					const Geo ParkGeo = Plan->Area.Roads.FrameOf().ToGeo(Mid.X, Mid.Z);
+					std::printf("  car park %d at %.5f,%.5f (%.0f, %.0f): %.0f m2, surface %d, %d bays (%d badge), %d cars, way in %s (%.0f, %.0f, in %.2f, %.2f)\n", Big[size_t(K)].second, ParkGeo.Lat, ParkGeo.Lon, Mid.X, Mid.Z,
+						C.Area, C.Surface, int(Bays.size()), Badges, Cars, C.HasEntry ? "found" : "none", C.Entry.X - Mid.X, C.Entry.Z - Mid.Z, C.EntryIn.X, C.EntryIn.Z);
+				}
+			}
 			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
 			{
 				const RidePlan::Forecourt& F = Plan->Forecourts[I];

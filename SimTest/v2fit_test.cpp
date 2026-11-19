@@ -8,6 +8,7 @@
 #include "BikeParts.h"
 #include "BikeRideSpec.h"
 #include "BikeShop.h"
+#include "ShockMove.h"
 
 #include <algorithm>
 #include <cmath>
@@ -63,6 +64,7 @@ std::string Num2(double V)
 
 int main()
 {
+	int Sprung = 0;
 	const std::string R = Root();
 	std::string PartsText, ExtraText, LayoutText, Error;
 	PartsDb Db;
@@ -74,6 +76,9 @@ int main()
 		std::printf("FAIL the catalogue with the V2 bikes didn't load under %s (%s)\n", R.c_str(), Error.c_str());
 		return 1;
 	}
+	Json PartsJson, LayoutJson;
+	Json::Parse(PartsText, PartsJson);
+	Json::Parse(LayoutText, LayoutJson);
 	BikeParts::SetV2Source([&R](const std::string& Model, PartMesh& Mesh, std::string& Info) {
 		std::string Bytes, Err;
 		return ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
@@ -91,6 +96,8 @@ int main()
 	Expect(Db.Find("frame", "steel_backbone") && Db.Find("disc", "floating_310"), "parts the kept types use stay");
 	int Bikes = 0;
 	int MixChecks = 0;
+	int KitChecks = 0;
+	double WorstKit = 0.0;
 	double WorstMix = 0.0;
 	// The old bikes are retired: the shop sells the eight styles that have V2 bikes, each starting as
 	// its lead V2 bike, and only V2 frames are offered.
@@ -118,6 +125,38 @@ int main()
 		PartsMap Parts = Shop::SetPart(Lay, Shop::StockBuild(Lay, Style), Style, "frame", Id);
 		Expect(Parts["frame"] == Id, Id + " goes in its style's stock bike");
 		Expect(Lay.V2Of(Parts) != nullptr, Id + " is a V2 bike");
+		// It rides as its family's stock bike did before the bare-frame parts (the physics preset and the top
+		// speeds are tuned on those): every part the reference build has, the V2 build has one in the same
+		// slot, with the same numbers (the engine's torque, revs and size; the head's, exhaust's... multipliers).
+		{
+			const Json* RefBuilds = LayoutJson.Get("reference_builds");
+			const Json* Ref = RefBuilds ? RefBuilds->Get(Style) : nullptr;
+			int Off = 0;
+			std::string First;
+			for (const auto& KV : Ref ? Ref->O : std::vector<std::pair<std::string, Json>>())
+			{
+				if (!KV.second.IsString() || KV.second.S.empty() || KV.second.S == "none" || KV.first == "frame") continue;
+				const Json* Old = nullptr;
+				for (const auto& Kind : PartsJson.O)
+					if (const Json* P = Kind.second.Get(KV.second.S)) { Old = P; break; }
+				if (!Old) continue;   // (gone from the catalogue altogether: the cruiser's saddlebags)
+				const std::string Now = Parts[KV.first];
+				if (Now.empty() || Now == "none")
+				{
+					if (!Lay.MayBeEmpty(KV.first)) { ++Off; if (First.empty()) First = KV.first + " empty"; }
+					continue;
+				}
+				const Json* New = Lay.Part(Now);
+				if (!New || Now == KV.second.S) continue;
+				for (const auto& F : Old->O)
+					if (F.second.IsNumber() && F.first != "price" && std::fabs(New->Num(F.first, -1e9) - F.second.N) > 1e-6 * std::max(1.0, std::fabs(F.second.N)))
+					{
+						++Off;
+						if (First.empty()) First = KV.first + " " + F.first + " " + Num2(New->Num(F.first, -1e9)) + " (was " + Num2(F.second.N) + ")";
+					}
+			}
+			Expect(Ref != nullptr && Off == 0, Id + " rides as the stock " + Style + " (" + std::to_string(Off) + " off: " + First + ")");
+		}
 		const std::vector<std::string> Offered = Shop::Options(Lay, "frame", Style, Shop::StockBuild(Lay, Style));
 		Expect(std::find(Offered.begin(), Offered.end(), Id) != Offered.end(), Id + " is offered as a frame on a new " + Style);
 		const Layout L = Lay.Solve(Parts);
@@ -201,6 +240,30 @@ int main()
 		Expect(RearLens >= 1, Id + " has a rear lamp lens the game can light");
 		Expect(AmberLeft >= 1 && AmberRight == AmberLeft && AmberBoth == 0, Id + " has indicator lenses the game can flash a side at a time");
 		Expect(Named, Id + " every surface carries its look");
+		{
+			// [shocks] A sprung bike's shock works in the game: its body end, its rod end and its spring are pieces
+			// of their own, and on a bump the shock shortens, squeezing the spring, its bottom eye staying on the arm.
+			const Json* Pm = V2->Get("points_mm");
+			const Json* Top = Pm ? Pm->Get("shock_top") : nullptr;
+			const Json* Bottom = Pm ? Pm->Get("shock_bottom") : nullptr;
+			const Json* Pivot = Pm ? Pm->Get("swing_pivot") : nullptr;
+			const Json* Axle = Pm ? Pm->Get("rear_axle") : nullptr;
+			if (Top && Bottom && Pivot && Axle && Top->A.size() >= 3 && Bottom->A.size() >= 3 && Pivot->A.size() >= 3 && Axle->A.size() >= 3)
+			{
+				++Sprung;
+				Expect(Nodes.count("shock_top") && Nodes.count("shock_bottom") && Nodes.count("shock_spring"), Id + " shock has a body end, a rod end and a spring the game can work");
+				const double Px = Pivot->A[0].N, Pz = Pivot->A[2].N, Arm = std::hypot(Axle->A[0].N - Px, Axle->A[2].N - Pz);
+				const double RestAngle = std::atan2(Axle->A[2].N - Pz, Axle->A[0].N - Px);
+				const double BumpAngle = TorqueSim::Pi - std::asin(std::clamp((Axle->A[2].N + 60.0 - Pz) / Arm, -1.0, 1.0));   // (the axle is behind the pivot)
+				const ShockPose Still = ShockAt(Px, Pz, Top->A[0].N, Top->A[2].N, Bottom->A[0].N, Bottom->A[2].N, 0.0);
+				const ShockPose Bump = ShockAt(Px, Pz, Top->A[0].N, Top->A[2].N, Bottom->A[0].N, Bottom->A[2].N, BumpAngle - RestAngle);
+				Expect(std::abs(Still.Length - Still.Rest) < 1e-6 && std::abs(Still.Turn) < 1e-9, Id + " shock at rest is as drawn");
+				Expect(Bump.Length < Bump.Rest - 2.0 && Bump.Length > Bump.Rest * 0.75, Id + " shock shortens on a 60 mm bump (" + std::to_string(Bump.Rest - Bump.Length) + " mm)");
+				Expect(std::abs(std::hypot(Bump.BottomX - Px, Bump.BottomZ - Pz) - std::hypot(Bottom->A[0].N - Px, Bottom->A[2].N - Pz)) < 1e-6, Id + " shock's bottom eye stays on the swingarm");
+				const double Squeeze = SpringScale(60.0, Bump.Rest - 60.0, Bump);
+				Expect(Squeeze < 1.0 && Squeeze > 0.45, Id + " spring squeezed, not coil-bound, on a 60 mm bump");
+			}
+		}
 		{
 			// [TFT] A TFT dash shows as itself with a screen for the game to light, in place of the
 			// model's drawn clocks; any other dash leaves the model's clocks.
@@ -315,6 +378,44 @@ int main()
 			}
 		}   // (with the tyres at the catalogue's full tread detail, as every catalogue bike has them near the camera)
 
+		// [kits] Every kit piece sold for this bike goes on it, in its slot, where the bike's own was.
+		{
+			auto Box = [](const std::vector<FittedPart>& Ps, const std::string& Slot, V3& Lo, V3& Hi) {
+				Lo = V3(1e9, 1e9, 1e9);
+				Hi = V3(-1e9, -1e9, -1e9);
+				for (const FittedPart& P : Ps)
+					if (P.Slot == Slot && P.Made && !P.Hidden)
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& V : S.Pos) { Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); }
+				return Lo.x <= Hi.x;
+			};
+			for (const std::string& Kind : Db.Kinds())
+				for (const std::string& Kid : Db.Ids(Kind))
+				{
+					const Json* Part = Db.Find(Kind, Kid);
+					const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+					if (!Vp || Vp->Str("kit").empty() || Vp->Str("frame") != Id) continue;
+					const std::string Slot = Vp->Str("slot");
+					++KitChecks;
+					Expect(Lay.V2FitReason(Parts, Slot, Kid).empty(), Kid + " fits its own bike: " + Lay.V2FitReason(Parts, Slot, Kid));
+					PartsMap With = Parts;
+					With[Slot] = Kid;
+					const std::vector<FittedPart> Got = Placer.Fit(With, Lay.Solve(With));
+					V3 Lo, Hi, OwnLo, OwnHi;
+					const bool bGot = Box(Got, Slot, Lo, Hi);
+					Expect(bGot, Kid + " is drawn on " + Id);
+					if (!bGot) continue;
+					Expect(Lo.y > -L.Stats.RearRadius - 0.02 && Lo.x > L.RearAxle.x - 0.75 && Hi.x < L.FrontAxle.x + 0.6 && Hi.y < 1.75 && std::fabs(Lo.z + Hi.z) < 0.5,
+						Kid + " sits on the bike (x " + std::to_string(Lo.x) + " to " + std::to_string(Hi.x) + ", y " + std::to_string(Lo.y) + " to " + std::to_string(Hi.y) + ")");
+					if (Box(Fitted, Slot, OwnLo, OwnHi))
+					{
+						const double Off = std::hypot((Lo.x + Hi.x - OwnLo.x - OwnHi.x) * 0.5, (Lo.y + Hi.y - OwnLo.y - OwnHi.y) * 0.5);
+						WorstKit = std::max(WorstKit, Off);
+						Expect(Off < 0.45, Kid + " is where the bike's own " + Slot + " was (" + std::to_string(Off) + " m off)");
+					}
+				}
+		}
+
 		RideSpecInput In;
 		In.Parts = Parts;
 		TorqueSim::BikeSpec Spec;
@@ -330,6 +431,8 @@ int main()
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
+	std::printf("%d sprung bikes with a working shock\n", Sprung);
+	std::printf("%d kit pieces fitted, worst %.3f m from the bike's own\n", KitChecks, WorstKit);
 	std::printf("%d V2 bikes, %d failures\n", Bikes, Failures);
 	return Failures ? 1 : 0;
 }

@@ -352,6 +352,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexFurniture();
 	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexTownLife();   // [roads stage 7] (before the fields too: forecourts are field areas)
+	R->IndexCarParks();   // [car parks]
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
@@ -2009,6 +2010,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
 		TownLifeTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
+		CarParksTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [car parks] (the finest squares only)
 		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
@@ -2328,10 +2330,26 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
 	// slabs, 0.9 m long, line up across bits of road)
 	double AlongBase = 0.0;
-	const auto Put = [&Into, &Settle, &AlongBase](const Row& R, double Off, double Lift, const float* Colour)
+	// ([weather, Nov 18] beenster on 156: no puddles on Ride UK's roads. The road's own mesh carries where
+	// rain water stands in its vertex alpha, for M_RideRoad's puddles as Buttertubs' road.glb carries it:
+	// 0 the crown .. 0.9 the edge, scaled by the camber, most on a bend's inside half where the road leans
+	// in and least on its outside. 1 means no puddle data (any vertex not written here).)
+	const auto StandsAt = [](const Row& R, double Off)
+	{
+		const double Edge = R.Half > 0.1 ? std::clamp(std::fabs(Off) / R.Half, 0.0, 1.0) : 0.0;
+		const double Tilt = Off >= 0.0 ? R.Bank : -R.Bank;   // + this half is the bend's outside
+		const double Inside = std::clamp(-Tilt / 0.03, 0.0, 1.0), Outside = std::clamp(Tilt / 0.03, 0.0, 1.0);
+		return float(0.9 * Edge * (0.8 + 0.2 * Inside - 0.3 * Outside));
+	};
+	const auto Put = [&Into, &Out, &Settle, &AlongBase, &StandsAt](const Row& R, double Off, double Lift, const float* Colour)
 	{
 		// (Off is to the left of the middle)
 		RideMesh& M = *Into;
+		if (&M == &Out)
+		{
+			M.Alpha.resize(M.Vertices(), 1.0f);
+			M.Alpha.push_back(StandsAt(R, Off));
+		}
 		const P2 At = R.At + R.Left * Off;
 		const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
 		M.Pos.push_back(float(At.X - M.OriginX)); M.Pos.push_back(float(Y + Lift)); M.Pos.push_back(float(At.Z - M.OriginZ));
@@ -3944,6 +3962,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			}
 		}
 	}
+	// (every vertex of the road's own mesh with its water, so the alpha reaches UE: 1, none, where not Put)
+	if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f);
 	// [road edges, Nov 18] The country shoulders' turf, as the land draws its own ground: the land's colour
 	// there, its UVs the world's metres over 8.
 	if (TurfMesh->Vertices() > 0)

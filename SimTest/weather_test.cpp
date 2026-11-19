@@ -150,12 +150,22 @@ int main()
 		State Falling = Preset(Overcast);
 		Falling.Snow = 2.0;
 		Falling.Air = -1.0;
+		State Thaw = Preset(Wet);
+		Thaw.SnowDepth = 0.05;
+		Thaw.Air = 3.0;
+		Thaw.Rain = 0.6;
+		State Cool = Thaw;
+		Cool.Rain = 0.0;
+		Cool.Air = 2.0;
 		State Back;
 		const bool Loaded = Load(Save(Deep), Back);
 		std::printf("      snow cover: deep %.2f, a dusting %.2f, falling on bare ground %.2f\n", SnowCover(Deep), SnowCover(Dust), SnowCover(Falling));
 		Check(SnowCover(Preset(Sunny)) == 0.0 && SnowCover(Preset(Wet)) == 0.0 && SnowCover(Live) == 0.0, "no snow on the presets or the live afternoon");
 		Check(SnowCover(Deep) == 1.0 && SnowCover(Dust) > 0.05 && SnowCover(Dust) < 0.3, "a few centimetres whiten the land, a dusting only a little");
 		Check(SnowCover(Falling) > 0.2 && SnowCover(Falling) <= 0.6, "snow falling in the cold starts to settle");
+		std::printf("      snow cover: model depth at 3C in light rain %.2f, at 2C dry %.2f\n", SnowCover(Thaw), SnowCover(Cool));
+		Check(SnowCover(Thaw) == 0.0, "no white land at 3C in light rain, even when the model keeps a snow depth");
+		Check(SnowCover(Cool) < 0.5, "lying snow thins as it thaws above freezing");
 		Check(Loaded && Near(Back.SnowDepth, 0.05, 1e-3), "the snow depth survives a save");
 	}
 

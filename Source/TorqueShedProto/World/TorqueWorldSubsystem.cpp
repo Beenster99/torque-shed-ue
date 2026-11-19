@@ -56,6 +56,8 @@ namespace TWSI
 struct FAnswer
 {
 	FCriticalSection Lock;
+	bool bSent = false;        // [build 158] the game thread has taken it up
+	bool bAbandoned = false;   // [build 158] the worker stopped waiting for it to be sent: don't
 	bool bDone = false;
 	int32 Code = 0;
 	TArray<uint8> Bytes;
@@ -76,6 +78,9 @@ static bool ForcedOffline()
 
 // GETs a URL (redirects followed): the HTTP code, 0 for no answer, and the body. Blocks, so never
 // on the game thread, which is the one that has to send it.
+// [build 158] How long a worker waits for the game thread to take a fetch up before giving it up for now.
+constexpr double CellStoreNotSentSeconds = 10.0;
+
 static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const std::string& Url, std::string& Body)
 {
 	Body.clear();
@@ -90,6 +95,11 @@ static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const 
 	const FString Agent(UTF8_TO_TCHAR(TorqueWorld::CellStore::UserAgent));
 	AsyncTask(ENamedThreads::GameThread, [Answer, Address, Agent]()
 	{
+		{
+			FScopeLock Hold(&Answer->Lock);
+			if (Answer->bAbandoned) return;
+			Answer->bSent = true;
+		}
 		TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
 		Req->SetURL(Address);
 		Req->SetVerb(TEXT("GET"));
@@ -112,7 +122,8 @@ static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const 
 		}
 	});
 	// (a little longer than the request's own limit, in case the game thread was slow to send it)
-	const double GiveUpAt = FPlatformTime::Seconds() + 150.0;
+	const double AskedAt = FPlatformTime::Seconds();
+	const double GiveUpAt = AskedAt + 150.0;
 	for (;;)
 	{
 		{
@@ -121,6 +132,17 @@ static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const 
 			{
 				if (Answer->Bytes.Num() > 0) Body.assign(reinterpret_cast<const char*>(Answer->Bytes.GetData()), size_t(Answer->Bytes.Num()));
 				return int(Answer->Code);
+			}
+			// [build 158] (beenster's 156 freezes: the game thread was itself waiting on this worker, so the
+			// request was never sent. Whatever holds the game thread up, a fetch it hasn't sent within
+			// NotSentSeconds is given up as "not now" (-1): what wanted it makes do, as a cell's buildings
+			// do with their boxes, and asks again later.)
+			if (!Answer->bSent && FPlatformTime::Seconds() - AskedAt > CellStoreNotSentSeconds)
+			{
+				Answer->bAbandoned = true;
+				UE_LOG(LogTemp, Warning, TEXT("Torque world: the game thread didn't send a fetch within %.0f s; given up for now (%s)"),
+					CellStoreNotSentSeconds, *Address);
+				return -1;
 			}
 		}
 		if (Shared->bStop || FPlatformTime::Seconds() > GiveUpAt) return 0;

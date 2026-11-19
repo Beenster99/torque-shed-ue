@@ -323,6 +323,36 @@ def road_material_scanned(L, tex, roles):
     wet = L.wetness(g)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), hard), near), wet))
     road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), hard), wet))
+    # [weather, Nov 18] Standing water, as Buttertubs' M_Road (beenster on 156: "I am not seeing any puddles (we
+    # had them on buttertubs)"). The camber drains rain to the edges, most on a bend's inside; only after long
+    # rain does it reach across the middle; few puddles, now and then a bigger one. The road mesh's vertex
+    # alpha says where water stands (World/WorldRide's RoadPiece StandsAt): 0 the crown .. 0.9 the edge of a
+    # bend's inside half (0.72 a straight's, 0.45 an outside's); 1 is no data (other meshes in this material:
+    # no puddles). Only on the tarmac itself, never the paving, setts, gravel or verge.
+    va = g.node(unreal.MaterialExpressionVertexColor)
+    known = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                 g.op(unreal.MaterialExpressionSubtract, g.const(0.97), va, b_out="A"), const_b=40.0))     # 1 up to 0.945 .. 0 by 0.97
+    share = g.op(unreal.MaterialExpressionMultiply, va, const_b=1.0 / 0.9, a_out="A")                    # 0 crown .. 1 an inside edge
+    p_edge = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.5), const_b=2.6))
+    big = g.mask_noise(0.0009, -3.0, 1.4)
+    p_wide = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.25), const_b=1.6))
+    p_edge = g.lerp(p_edge, p_wide, big)
+    pud = L.weather_param(g, "Puddles")
+    fill = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, pud, const_b=2.5))
+    where = g.op(unreal.MaterialExpressionMultiply, p_edge, fill)
+    centre = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, pud, const_b=0.6), const_b=2.5))
+    where = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax, where, centre))
+    small = g.mask_noise(0.006, -7.0, 2.0)
+    large = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0022, -2.5, 2.2), big)
+    patches = g.op(unreal.MaterialExpressionMax, small, large)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, patches, where), wet)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, puddle, hard), known)
+    road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
+    road[2] = g.lerp(road[2], g.const(0.03), puddle)
+    road[1] = g.lerp(road[1], g.const((0.0, 0.0, 1.0)), puddle)   # still water is flat
     return g.finish(road, specular=0.4)
 
 
@@ -830,6 +860,9 @@ SCAN_DEST = "/Game/ScannedTrees"
 OLD_SCAN_DEST = "/Game/RideUK/ScannedTrees"
 
 
+_IMPOSTOR_MATERIAL = []   # ([build 157] M_RideImpostor made once a run)
+
+
 def scanned_trees(L, kit):
     """Scanned trees (Data/RideUK/scanned_trees.json: Quixel Megaplants once imported on the PC) in
     the kit's "Trees" in place of Buttertubs' own models of the same kind, as species named
@@ -1015,27 +1048,18 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
-        # [perf, build 155] Far off, the scans as impostors baked from them (Tools/ue_tree_impostors.py)
-        # in place of Buttertubs' low-poly far models (beenster, build 153: "the new trees are BAD").
-        if spec.get("impostors", True):
+        # [perf, build 157] Far off, the scans as impostors: the GAME photographs each scan at ride start
+        # (World/TorqueImpostors.cpp) and draws its far trees with M_RideImpostor. Here only the material
+        # is made (once per run, below); no editor captures (rounds 155-156 crashed beenster's GPU), and
+        # the kit keeps the old far models for when impostors are off (torque.RideImpostors 0).
+        if spec.get("impostors", True) and not _IMPOSTOR_MATERIAL:
             try:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 import ue_tree_impostors as IMP
-                cards = IMP.bake_all(got, rebake=bool(spec.get("rebake_impostors", False)))
+                IMP.master_material()
+                _IMPOSTOR_MATERIAL.append(True)
             except Exception as e:
-                log("scanned trees: %s: impostors failed: %s" % (kind, e))
-                cards = []
-            # (the same order as the scans, so a tree's near scan and far card are the same variant;
-            # if any one failed, the kind keeps its old far models rather than mismatching)
-            if cards and all(cards):
-                rows[:] = [x for x in rows if not x["name"].startswith("SM_TreeFar_%s_" % kind)]
-                f = dict(template)
-                f.update({"name": "SM_TreeFar_%s_imp" % kind, "mesh": "", "material": "", "variants": cards, "variant_materials": [],
-                          "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": False})
-                rows.append(f)
-                log("scanned trees: %s: %d impostors for the far trees" % (kind, len(cards)))
-            else:
-                log("scanned trees: %s: impostors NOT used (%d of %d baked); old far models kept" % (kind, len([c for c in cards if c]), len(got)))
+                log("scanned trees: impostor material failed (the game uses the old far models): %s" % e)
     log("scanned trees%s: %s" % ("" if use else " (trial, not planted)", ", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
 
@@ -1320,6 +1344,75 @@ def street_kit_material(L):
     return g.m
 
 
+CAR_DEST = "/Game/RideUK/Cars"
+
+
+def parked_cars(L, kind, row, add):
+    """[car parks] The car parks' parked cars (World/WorldRideCarParks.cpp, PropParkedCar): the Fab cars Thwaite's
+    parked cars use (Data/Buttertubs/car_swaps.json; the packs live in /Content, never committed), each copied to
+    /Game/RideUK/Cars/SM_ParkedCar_<n> in one of the kit row's colours (its body slots in MI_FabCarPaint_Park_<n>;
+    a copy per colour, so each is one instanced mesh), Nanite on, no collision (the bike meets plain boxes,
+    RidePlan::ParkedCarsNear), listed as SM_Prop_<kind>_<n> at their own size. The row's "models" names which of
+    car_swaps' meshes (by their names' words: vans and pickups are too long for a bay). Returns a note."""
+    cp = os.path.join(L.data_dir(), "car_swaps.json")
+    if not os.path.exists(cp):
+        return "parked cars: no car_swaps.json"
+    cfg = json.load(open(cp))
+    want = [w.lower() for w in row.get("models", [])]
+    models = []
+    for md in cfg.get("models", []):
+        if want and not any(w in md["mesh"].lower() for w in want):
+            continue
+        m = L.find_static_mesh(md["mesh"])
+        if m is not None:
+            models.append((m, md))
+    if not models:
+        return "parked cars: none of the Fab cars are in the project (car parks have none)"
+    colours = row.get("colours") or cfg.get("colours") or [[0.5, 0.5, 0.5]]
+    count = int(row.get("variants", 12))
+    if unreal.EditorAssetLibrary.does_asset_exist(L.MAT_DIR + "/M_FabCarPaint"):
+        L.fab_car_paint.made = True   # (Thwaite's master kept: its own instances point at it)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    made = 0
+    for n in range(count):
+        mesh, md = models[n % len(models)]
+        colour = colours[(n * 5 + n // len(models)) % len(colours)]
+        paint = L.fab_car_paint("Park_%d" % n, colour, cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
+        path = "%s/SM_ParkedCar_%d" % (CAR_DEST, n)
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        copy = unreal.EditorAssetLibrary.duplicate_asset(mesh.get_path_name().split(".")[0], path)
+        if copy is None:
+            unreal.log_warning("[Torque] parked cars: couldn't copy %s" % mesh.get_name())
+            continue
+        listed = set(md.get("paint_slots", []))
+        painted = []
+        for si, sm in enumerate(copy.get_editor_property("static_materials")):
+            slot = str(sm.get_editor_property("material_slot_name"))
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            names = " ".join([slot, mat.get_name() if mat else "", base.get_name() if base else ""])
+            if slot in listed or str(si) in listed or "paint" in names.lower():
+                copy.set_material(si, paint)
+                painted.append(si)
+        try:
+            sme.remove_collisions(copy)
+        except Exception:
+            pass
+        try:
+            ns = copy.get_editor_property("nanite_settings")
+            ns.set_editor_property("enabled", True)
+            copy.set_editor_property("nanite_settings", ns)
+        except Exception as e:
+            unreal.log_warning("[Torque] parked cars: Nanite not set on %s (%s)" % (path, e))
+        unreal.EditorAssetLibrary.save_loaded_asset(copy)
+        add("SM_Prop_%s_%d" % (kind, n), copy, True, row)
+        made += 1
+        if not painted:
+            unreal.log_warning("[Torque] parked cars: %s has no paint slot (left in its own colour)" % mesh.get_name())
+    return "parked cars: %d (%d Fab models, %d colours)" % (made, len(models), len(colours))
+
+
 def prop_kit(L):
     """The things by the road (OSM stage 2): Data/RideUK/Props/*.glb (Tools/make_ride_props.py)
     imported to /Game/RideUK/Props, no collision, and any static mesh under /Game whose path holds one
@@ -1449,6 +1542,8 @@ def prop_kit(L):
             unreal.EditorAssetLibrary.save_loaded_asset(mi)
             wall_tints.append(mi)
     for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            continue   # ([car parks] made below)
         if row.get("folder") == "Walls":
             names = sorted((n for n in walls if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit()), key=size_of)
             if len(names) != len(WALL_TINTS) * WALL_VARIANTS or [size_of(n) for n in names] != list(range(len(names))):
@@ -1472,6 +1567,10 @@ def prop_kit(L):
             for name, mesh in sorted(ours.items()):
                 if name.startswith("SM_Prop_%s_" % kind):
                     add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
+    cars_note = ""
+    for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            cars_note = parked_cars(L, kind, row, add)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])
@@ -1483,9 +1582,9 @@ def prop_kit(L):
     a.set_editor_property("frame_scale", float(frame[2]))
     kinds = {str(e.get_editor_property("name")).rsplit("_", 1)[0][len("SM_Prop_"):] for e in species}
     none = [k for k in spec["kinds"] if k not in kinds]
-    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s" % (
+    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s%s" % (
         len(species), len(found), ", ".join("%s %s" % (k, v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or "none",
-        len(none), ", ".join(none) or "none")
+        len(none), ", ".join(none) or "none", "; " + cars_note if cars_note else "")
 
 
 def build():

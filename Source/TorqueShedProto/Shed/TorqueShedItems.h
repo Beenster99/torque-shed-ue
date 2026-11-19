@@ -79,6 +79,10 @@ private:
 	// [tyre] A wheel lying flat on the tyre changer's turntable, turned Spin radians about the
 	// upright (workshop.gd: it turns while someone works a tyre on or off, ATorqueWalker::TurningChanger).
 	FTransform OnChanger(const FDrawn& D, double Spin) const;
+	// [kit] An engine on the engine stand, bolted to its mounting plate along the stand's arm (beenster
+	// after 156: "attach along the axis, not sit on top"): its crank in line with the arm, one side
+	// against the plate. The holder's transform.
+	FTransform OnStand(const FDrawn& D) const;
 	double ChangerSpin = 0.0;
 	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
 	FTransform HungAt(int32 Hook, double Height) const;

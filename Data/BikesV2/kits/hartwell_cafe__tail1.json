@@ -1,0 +1,167 @@
+{
+ "name": "BSX cafe (working title C1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 26346,
+ "surfaces": {
+  "s022": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.5924,
+    0.6253,
+    0.6592
+   ],
+   "metallic": 0.55,
+   "roughness": 0.34
+  },
+  "s025": {
+   "slot": "tail",
+   "node": "",
+   "surface": "redlens",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "plate_hanger"
+  },
+  "s026": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s027": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s028": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plate",
+   "tag": "plate",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s156": {
+   "slot": "tail",
+   "node": "",
+   "surface": "frame__frame",
+   "tag": "frame",
+   "ue": "cat_powder",
+   "paint": "frame",
+   "color": [
+    0.006,
+    0.0078,
+    0.0097
+   ],
+   "metallic": 0.6,
+   "roughness": 0.35
+  },
+  "s157": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s158": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s159": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s160": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s161": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s172": {
+   "slot": "tail",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "plate_hanger",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s173": {
+   "slot": "tail",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "plate_hanger"
+  }
+ }
+}

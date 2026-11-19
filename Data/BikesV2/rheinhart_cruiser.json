@@ -187,7 +187,9 @@
   "rear_wheel|rear_wheel",
   "rearsets|",
   "saddle|",
-  "shock|",
+  "shock|shock_bottom",
+  "shock|shock_spring",
+  "shock|shock_top",
   "side_stand|",
   "spark_plugs|",
   "swingarm|swingarm",
@@ -1914,7 +1916,7 @@
   },
   "s136": {
    "slot": "shock",
-   "node": "",
+   "node": "shock_top",
    "surface": "steel",
    "tag": "steel",
    "ue": "cat_brushed_steel",
@@ -1928,7 +1930,7 @@
   },
   "s137": {
    "slot": "shock",
-   "node": "",
+   "node": "shock_top",
    "surface": "alu",
    "tag": "alu",
    "ue": "cat_brushed_steel",
@@ -1942,14 +1944,14 @@
   },
   "s138": {
    "slot": "shock",
-   "node": "",
+   "node": "shock_top",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
   "s139": {
    "slot": "shock",
-   "node": "",
+   "node": "shock_top",
    "surface": "alu",
    "tag": "alu",
    "ue": "cat_brushed_steel",
@@ -1964,7 +1966,7 @@
   },
   "s140": {
    "slot": "shock",
-   "node": "",
+   "node": "shock_top",
    "surface": "chrome",
    "tag": "chrome",
    "ue": "chrome",
@@ -1972,13 +1974,79 @@
   },
   "s141": {
    "slot": "shock",
-   "node": "",
+   "node": "shock_bottom",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "shock"
+  },
+  "s142": {
+   "slot": "shock",
+   "node": "shock_top",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber",
    "sub": "shock"
   },
-  "s142": {
+  "s143": {
+   "slot": "shock",
+   "node": "shock_bottom",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "sub": "shock",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s144": {
+   "slot": "shock",
+   "node": "shock_spring",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "shock"
+  },
+  "s145": {
+   "slot": "shock",
+   "node": "shock_bottom",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s146": {
+   "slot": "shock",
+   "node": "shock_bottom",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s147": {
+   "slot": "shock",
+   "node": "shock_bottom",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s148": {
    "slot": "tail",
    "node": "",
    "surface": "chrome",
@@ -1986,7 +2054,7 @@
    "ue": "chrome",
    "sub": "tail_light"
   },
-  "s143": {
+  "s149": {
    "slot": "tail",
    "node": "",
    "surface": "d3_redglass",
@@ -1994,7 +2062,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s144": {
+  "s150": {
    "slot": "tail",
    "node": "",
    "surface": "d3_tailred",
@@ -2002,7 +2070,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s145": {
+  "s151": {
    "slot": "tail",
    "node": "",
    "surface": "d3_bulb",
@@ -2017,55 +2085,55 @@
    "metallic": 0.0,
    "roughness": 0.5
   },
-  "s146": {
-   "slot": "indicators",
-   "node": "steer",
-   "surface": "chrome",
-   "tag": "chrome",
-   "ue": "chrome",
-   "sub": "ind_front"
-  },
-  "s147": {
-   "slot": "indicators",
-   "node": "steer",
-   "surface": "d3_amberglass",
-   "tag": "lens_amber",
-   "ue": "lens_amber",
-   "sub": "ind_front"
-  },
-  "s148": {
-   "slot": "indicators",
-   "node": "steer",
-   "surface": "d3_amberbulb",
-   "tag": "lens_amber",
-   "ue": "lens_amber",
-   "sub": "ind_front"
-  },
-  "s149": {
-   "slot": "indicators",
-   "node": "",
-   "surface": "chrome",
-   "tag": "chrome",
-   "ue": "chrome",
-   "sub": "ind_rear"
-  },
-  "s150": {
-   "slot": "indicators",
-   "node": "",
-   "surface": "d3_amberglass",
-   "tag": "lens_amber",
-   "ue": "lens_amber",
-   "sub": "ind_rear"
-  },
-  "s151": {
-   "slot": "indicators",
-   "node": "",
-   "surface": "d3_amberbulb",
-   "tag": "lens_amber",
-   "ue": "lens_amber",
-   "sub": "ind_rear"
-  },
   "s152": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "ind_front"
+  },
+  "s153": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "d3_amberglass",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_front"
+  },
+  "s154": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "d3_amberbulb",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_front"
+  },
+  "s155": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "ind_rear"
+  },
+  "s156": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberglass",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_rear"
+  },
+  "s157": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberbulb",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_rear"
+  },
+  "s158": {
    "slot": "frame",
    "node": "",
    "surface": "d3_hose",
@@ -2079,7 +2147,7 @@
    "metallic": 0.0,
    "roughness": 0.42
   },
-  "s153": {
+  "s159": {
    "slot": "side_stand",
    "node": "",
    "surface": "chrome",
@@ -2087,7 +2155,7 @@
    "ue": "chrome",
    "sub": "side_stand"
   },
-  "s154": {
+  "s160": {
    "slot": "side_stand",
    "node": "",
    "surface": "steel",
@@ -2102,7 +2170,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s155": {
+  "s161": {
    "slot": "side_stand",
    "node": "",
    "surface": "d3_ss_spring",
@@ -2117,7 +2185,7 @@
    "metallic": 0.9,
    "roughness": 0.35
   },
-  "s156": {
+  "s162": {
    "slot": "frame",
    "node": "",
    "surface": "d3_ss_black",

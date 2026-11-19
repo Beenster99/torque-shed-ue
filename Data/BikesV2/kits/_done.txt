@@ -1,0 +1,390 @@
+corvano_adventure tank_seat 1
+corvano_adventure tank_seat 2
+corvano_adventure tail 1
+corvano_adventure tail 2
+corvano_adventure front 1
+corvano_adventure front 2
+corvano_cafe tank_seat 1
+corvano_adventure exhaust 1
+corvano_adventure exhaust 2
+corvano_cafe tank_seat 2
+corvano_cafe tail 1
+corvano_cafe tail 2
+corvano_cafe front 1
+corvano_cafe front 2
+corvano_cafe exhaust 1
+corvano_classic tank_seat 1
+corvano_classic tank_seat 2
+corvano_cafe exhaust 2
+corvano_classic tail 1
+corvano_classic tail 2
+corvano_classic front 1
+corvano_classic front 2
+corvano_classic exhaust 1
+corvano_classic exhaust 2
+corvano_cruiser tank_seat 1
+corvano_cruiser tank_seat 2
+corvano_cruiser front 1
+corvano_cruiser front 2
+corvano_cruiser exhaust 2
+corvano_cruiser exhaust 1
+corvano_mx tank_seat 1
+corvano_mx tank_seat 2
+corvano_mx tail 1
+corvano_mx tail 2
+corvano_mx front 2
+corvano_mx front 1
+corvano_mx exhaust 1
+corvano_mx exhaust 2
+corvano_naked tank_seat 1
+corvano_naked tank_seat 2
+corvano_naked tail 1
+corvano_naked tail 2
+corvano_naked front 1
+corvano_naked exhaust 1
+corvano_naked front 2
+corvano_naked exhaust 2
+corvano_naked exhaust 3
+corvano_sport tank_seat 1
+corvano_sport tank_seat 2
+corvano_sport tail 1
+corvano_sport tail 2
+corvano_sport front 1
+corvano_sport front 2
+corvano_sport exhaust 1
+corvano_sport exhaust 2
+hartwell_adventure tank_seat 1
+hartwell_adventure tank_seat 2
+hartwell_adventure tail 1
+hartwell_adventure tail 2
+hartwell_adventure front 1
+hartwell_adventure front 2
+hartwell_adventure exhaust 1
+hartwell_cafe tank_seat 1
+hartwell_cafe tank_seat 2
+hartwell_cafe tail 1
+hartwell_cafe tail 2
+hartwell_adventure exhaust 2
+hartwell_cafe front 1
+hartwell_cafe front 2
+hartwell_cafe exhaust 1
+hartwell_chopper tank_seat 2
+hartwell_chopper tank_seat 1
+hartwell_cafe exhaust 2
+hartwell_chopper tank_seat 3
+hartwell_chopper front 1
+hartwell_chopper front 2
+hartwell_chopper exhaust 1
+hartwell_chopper exhaust 2
+hartwell_chopper exhaust 3
+hartwell_classic tank_seat 1
+hartwell_classic tank_seat 2
+hartwell_classic tail 1
+hartwell_classic front 1
+hartwell_classic tail 2
+hartwell_classic front 2
+hartwell_classic exhaust 1
+hartwell_classic exhaust 2
+hartwell_naked tank_seat 1
+hartwell_naked tank_seat 2
+hartwell_naked tail 2
+hartwell_naked front 1
+hartwell_naked front 2
+hartwell_naked exhaust 1
+hartwell_naked exhaust 2
+hartwell_sport tank_seat 1
+hartwell_sport tank_seat 2
+hartwell_sport tail 1
+hartwell_sport tail 2
+hartwell_sport front 1
+hartwell_sport front 2
+hartwell_sport exhaust 1
+kazeda_adventure tank_seat 1
+hartwell_sport exhaust 2
+kazeda_adventure tank_seat 2
+kazeda_adventure tail 1
+kazeda_adventure tail 2
+kazeda_adventure front 1
+kazeda_adventure exhaust 1
+kazeda_adventure front 2
+kazeda_cafe tank_seat 1
+kazeda_cafe tank_seat 2
+kazeda_adventure exhaust 2
+kazeda_cafe tail 2
+kazeda_cafe tail 1
+kazeda_cafe front 1
+kazeda_cafe front 2
+kazeda_cafe exhaust 1
+kazeda_chopper tank_seat 1
+kazeda_chopper tank_seat 2
+kazeda_cafe exhaust 2
+kazeda_chopper tank_seat 3
+kazeda_chopper tail 3
+kazeda_chopper front 1
+kazeda_chopper exhaust 1
+kazeda_chopper front 2
+kazeda_chopper exhaust 2
+kazeda_chopper exhaust 3
+kazeda_classic tank_seat 1
+kazeda_classic tank_seat 2
+kazeda_classic tail 1
+kazeda_classic tail 2
+kazeda_classic front 1
+kazeda_classic front 2
+kazeda_cruiser tank_seat 1
+kazeda_classic exhaust 1
+kazeda_classic exhaust 2
+kazeda_cruiser tank_seat 2
+kazeda_cruiser front 1
+kazeda_cruiser front 2
+kazeda_cruiser exhaust 1
+kazeda_cruiser exhaust 2
+kazeda_mx tank_seat 1
+kazeda_mx tank_seat 2
+kazeda_mx tail 1
+kazeda_mx tail 2
+kazeda_mx front 1
+kazeda_mx front 2
+kazeda_mx exhaust 1
+kazeda_mx exhaust 2
+kazeda_naked tank_seat 1
+kazeda_naked tank_seat 2
+kazeda_naked tail 1
+kazeda_naked tail 2
+kazeda_naked front 1
+kazeda_naked front 2
+kazeda_naked exhaust 1
+kazeda_naked exhaust 2
+kazeda_sport tank_seat 1
+kazeda_sport tank_seat 2
+kazeda_sport tail 1
+kazeda_sport tail 2
+kazeda_sport front 1
+kazeda_sport exhaust 2
+kazeda_sport front 2
+kazeda_sport exhaust 1
+lodestar_cafe tank_seat 2
+lodestar_cafe tank_seat 1
+lodestar_cafe tail 1
+lodestar_cafe tail 2
+lodestar_cafe front 1
+lodestar_cafe front 2
+lodestar_chopper tank_seat 1
+lodestar_cafe exhaust 1
+lodestar_cafe exhaust 2
+lodestar_chopper tank_seat 2
+lodestar_chopper tank_seat 3
+lodestar_chopper front 1
+lodestar_chopper front 2
+lodestar_chopper exhaust 1
+lodestar_chopper exhaust 2
+lodestar_chopper exhaust 3
+lodestar_classic tank_seat 1
+lodestar_classic tank_seat 2
+lodestar_classic tail 1
+lodestar_classic tail 2
+lodestar_classic front 1
+lodestar_classic front 2
+lodestar_classic exhaust 1
+lodestar_classic exhaust 2
+lodestar_cruiser tank_seat 1
+lodestar_cruiser tank_seat 2
+lodestar_cruiser front 2
+lodestar_cruiser front 1
+lodestar_cruiser exhaust 1
+lodestar_cruiser exhaust 2
+rheinhart_adventure tank_seat 1
+rheinhart_adventure tank_seat 2
+rheinhart_adventure tail 1
+rheinhart_adventure tail 2
+rheinhart_adventure front 2
+rheinhart_adventure front 1
+rheinhart_adventure exhaust 1
+rheinhart_cafe tank_seat 1
+rheinhart_adventure exhaust 2
+rheinhart_cafe tank_seat 2
+rheinhart_cafe tail 1
+rheinhart_cafe tail 2
+rheinhart_cafe front 1
+rheinhart_cafe front 2
+rheinhart_cafe exhaust 1
+rheinhart_cafe exhaust 2
+rheinhart_classic tank_seat 1
+rheinhart_classic tank_seat 2
+rheinhart_classic tail 1
+rheinhart_classic tail 2
+rheinhart_classic front 1
+rheinhart_classic front 2
+rheinhart_classic exhaust 1
+rheinhart_classic exhaust 2
+rheinhart_cruiser tank_seat 1
+rheinhart_cruiser tank_seat 2
+rheinhart_cruiser front 1
+rheinhart_cruiser front 2
+rheinhart_cruiser exhaust 1
+rheinhart_cruiser exhaust 2
+rheinhart_naked tank_seat 1
+rheinhart_naked tank_seat 2
+rheinhart_naked tail 2
+rheinhart_naked front 1
+rheinhart_naked front 2
+rheinhart_naked exhaust 1
+rheinhart_naked exhaust 2
+varga_adventure tank_seat 1
+varga_adventure tank_seat 2
+varga_adventure tail 1
+varga_adventure tail 2
+varga_adventure front 1
+varga_adventure front 2
+varga_mx tank_seat 1
+varga_adventure exhaust 1
+varga_mx tank_seat 2
+varga_mx tail 1
+varga_adventure exhaust 2
+varga_mx tail 2
+varga_mx front 1
+varga_mx front 2
+varga_mx exhaust 1
+varga_mx exhaust 2
+varga_naked tank_seat 1
+varga_naked tank_seat 2
+varga_naked tail 1
+varga_naked tail 2
+varga_naked front 1
+varga_naked front 2
+varga_naked exhaust 1
+varga_naked exhaust 2
+varga_sport tank_seat 1
+varga_sport tank_seat 2
+varga_sport tail 1
+varga_sport tail 2
+varga_sport front 1
+varga_sport front 2
+varga_sport exhaust 1
+varga_sport exhaust 2
+hartwell_chopper tail 1
+corvano_cruiser tail 1
+corvano_cruiser tail 2
+hartwell_chopper tail 2
+hartwell_chopper tail 3
+hartwell_naked tail 1
+kazeda_chopper tail 1
+kazeda_chopper tail 2
+kazeda_cruiser tail 1
+kazeda_cruiser tail 2
+lodestar_chopper tail 1
+lodestar_chopper tail 2
+lodestar_chopper tail 3
+lodestar_cruiser tail 1
+lodestar_cruiser tail 2
+rheinhart_cruiser tail 1
+rheinhart_cruiser tail 2
+rheinhart_naked tail 1
+hartwell_chopper__b_pegs_ringed_chrome
+hartwell_chopper__b_pegs_ringed_steel
+hartwell_chopper__b_pegs_ringed_gold
+hartwell_chopper__b_pegs_torpedo_chrome
+hartwell_chopper__b_pegs_ringed_brass
+hartwell_chopper__b_pegs_torpedo_steel
+hartwell_chopper__b_pegs_torpedo_gold
+hartwell_chopper__b_pegs_torpedo_brass
+hartwell_chopper__b_pegs_faceted_chrome
+hartwell_chopper__b_pegs_faceted_steel
+hartwell_chopper__b_pegs_faceted_gold
+hartwell_chopper__b_pegs_faceted_brass
+hartwell_chopper__b_covers_finned_chrome
+hartwell_chopper__b_covers_finned_steel
+hartwell_chopper__b_covers_finned_gold
+hartwell_chopper__b_covers_finned_brass
+hartwell_chopper__b_covers_spoked_chrome
+hartwell_chopper__b_covers_spoked_steel
+hartwell_chopper__b_covers_spoked_gold
+hartwell_chopper__b_covers_spoked_brass
+hartwell_chopper__b_covers_target_chrome
+hartwell_chopper__b_covers_target_steel
+hartwell_chopper__b_covers_target_gold
+hartwell_chopper__b_covers_target_brass
+hartwell_chopper__b_lamps_bullet_chrome
+hartwell_chopper__b_lamps_bullet_steel
+hartwell_chopper__b_lamps_bullet_gold
+hartwell_chopper__b_lamps_bullet_brass
+hartwell_chopper__b_lamps_finned_chrome
+hartwell_chopper__b_lamps_finned_steel
+hartwell_chopper__b_lamps_finned_gold
+hartwell_chopper__b_lamps_finned_brass
+hartwell_chopper__b_lamps_grille_chrome
+hartwell_chopper__b_lamps_grille_steel
+hartwell_chopper__b_lamps_grille_gold
+hartwell_chopper__b_lamps_grille_brass
+hartwell_chopper__b_sissy_chain_chrome
+hartwell_chopper__b_sissy_chain_steel
+hartwell_chopper__b_sissy_chain_gold
+hartwell_chopper__b_sissy_chain_brass
+hartwell_chopper__b_sissy_scroll_chrome
+hartwell_chopper__b_sissy_scroll_steel
+hartwell_chopper__b_sissy_scroll_brass
+hartwell_chopper__b_sissy_scroll_gold
+hartwell_chopper__b_sissy_filigree_chrome
+hartwell_chopper__b_sissy_filigree_steel
+hartwell_chopper__b_sissy_filigree_gold
+hartwell_chopper__b_sissy_filigree_brass
+hartwell_chopper__b_wheels_billet_reaper5_chrome
+hartwell_chopper__b_wheels_billet_reaper5_gold
+hartwell_chopper__b_wheels_billet_reaper5_steel
+hartwell_chopper__b_wheels_billet_reaper5_brass
+hartwell_chopper__b_wheels_billet_cyclone9_chrome
+hartwell_chopper__b_wheels_billet_cyclone9_steel
+hartwell_chopper__b_wheels_billet_cyclone9_gold
+hartwell_chopper__b_wheels_billet_cyclone9_brass
+hartwell_chopper__b_wheels_billet_bloom8_chrome
+hartwell_chopper__b_wheels_billet_bloom8_steel
+hartwell_chopper__b_wheels_billet_bloom8_brass
+hartwell_chopper__b_wheels_billet_bloom8_gold
+hartwell_chopper__b_wheels_billet_fang6_chrome
+hartwell_chopper__b_wheels_billet_fang6_steel
+hartwell_chopper__b_wheels_billet_fang6_gold
+hartwell_chopper__b_wheels_billet_twist7_steel
+hartwell_chopper__b_wheels_billet_twist7_chrome
+hartwell_chopper__b_wheels_billet_fang6_brass
+hartwell_chopper__b_wheels_billet_twist7_gold
+kazeda_chopper__b_pegs_ringed_chrome
+hartwell_chopper__b_wheels_billet_twist7_brass
+kazeda_chopper__b_pegs_ringed_gold
+kazeda_chopper__b_pegs_ringed_steel
+kazeda_chopper__b_pegs_ringed_brass
+kazeda_chopper__b_pegs_torpedo_chrome
+kazeda_chopper__b_pegs_torpedo_steel
+kazeda_chopper__b_pegs_torpedo_gold
+kazeda_chopper__b_pegs_torpedo_brass
+kazeda_chopper__b_pegs_faceted_chrome
+kazeda_chopper__b_pegs_faceted_steel
+kazeda_chopper__b_pegs_faceted_gold
+kazeda_chopper__b_pegs_faceted_brass
+kazeda_chopper__b_covers_finned_chrome
+kazeda_chopper__b_covers_finned_gold
+kazeda_chopper__b_covers_finned_steel
+kazeda_chopper__b_covers_finned_brass
+kazeda_chopper__b_covers_spoked_steel
+kazeda_chopper__b_covers_spoked_chrome
+kazeda_chopper__b_covers_spoked_gold
+kazeda_chopper__b_covers_spoked_brass
+kazeda_chopper__b_covers_target_chrome
+kazeda_chopper__b_covers_target_steel
+kazeda_chopper__b_covers_target_gold
+kazeda_chopper__b_covers_target_brass
+kazeda_chopper__b_lamps_bullet_chrome
+kazeda_chopper__b_lamps_bullet_steel
+kazeda_chopper__b_lamps_bullet_gold
+kazeda_chopper__b_lamps_finned_chrome
+kazeda_chopper__b_lamps_bullet_brass
+kazeda_chopper__b_lamps_finned_steel
+kazeda_chopper__b_lamps_finned_gold
+kazeda_chopper__b_lamps_finned_brass
+kazeda_chopper__b_lamps_grille_chrome
+kazeda_chopper__b_lamps_grille_steel
+kazeda_chopper__b_lamps_grille_gold
+kazeda_chopper__b_lamps_grille_brass
+kazeda_chopper__b_sissy_chain_chrome
+kazeda_chopper__b_sissy_chain_steel
+kazeda_chopper__b_sissy_chain_gold
+kazeda_chopper__b_sissy_scroll_chrome

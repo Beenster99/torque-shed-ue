@@ -41,6 +41,7 @@ class UMaterialInterface;
 class UProceduralMeshComponent;
 struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
+class UTorqueImpostors;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -93,6 +94,13 @@ public:
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
 	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
 	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
+	// [car parks] The parked cars within Reach (m) of At (the ride's frame, metres), for the bike to bump into:
+	// eight numbers each (RidePlan::ParkedCarBox: middle x, z; nose x, z; half length, half width; foot, roof).
+	// False with no ride.
+	static bool ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out);
+	// [car parks] Whether At (Unreal cm) is in one of the ride's car parks: its surface (RidePlan::ECarParkSurface:
+	// 0 tarmac, 1 setts, 2 gravel) and how far it is laid over the ground there (m).
+	static bool CarParkUnder(const FVector& At, int32& Kind, double& Lift);
 	// Where to put a bike back after a fall (beenster, build 142: off on a side road, it always went back
 	// to the ride's road): the middle of the nearest road of any kind to At (the ride's frame, metres), a
 	// little to its left as the UK keeps, facing along it the way nearer Heading (sim: 0 faces -z, + left).
@@ -254,6 +262,10 @@ private:
 	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;
 	TArray<TArray<int32>> KindNear, KindFar;
+	// [perf, build 157] Far trees of a scanned kind as impostors the game photographs from the scan
+	// (World/TorqueImpostors.h); ImpostorFar: a scan's species -> its kind's far species (for reach).
+	UPROPERTY(Transient) TObjectPtr<UTorqueImpostors> Impostors;
+	TMap<int32, int32> ImpostorFar;
 	// [stage 6] A few birds overhead near the rider: buzzards circling, red kites where kites live,
 	// gulls by the sea. Each wheels round a point of its own until the rider is far past it, then
 	// another is found ahead.

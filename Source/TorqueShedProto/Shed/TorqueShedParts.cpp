@@ -43,7 +43,6 @@ const TCHAR* const OptionalSlotNames[] = {TEXT("headlight"), TEXT("indicators"),
 	TEXT("toolbox"), TEXT("fog_lights"), TEXT("horn"), TEXT("side_panels"), TEXT("centre_stand"),
 	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
 	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
-const TCHAR* const FrameOwnSlotNames[] = {TEXT("rearsets"), TEXT("swingarm")};
 const TCHAR* const KindNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TEXT("wheel"), TEXT("tyre"), TEXT("disc"),
 	TEXT("caliper"), TEXT("pads"), TEXT("master"), TEXT("tank"), TEXT("saddle"), TEXT("handlebars"), TEXT("dashboard"),
 	TEXT("engine"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs"), TEXT("cooling"),
@@ -430,8 +429,10 @@ bool IsOptional(FName Slot) { static const TArray<FName> L = TORQUE_LIST(Optiona
 
 bool MayBeEmpty(FName Slot)
 {
-	static const TArray<FName> Own = TORQUE_LIST(FrameOwnSlotNames);
-	return IsOptional(Slot) || Own.Contains(Slot);
+	// [bare frame] Every frame is a V2 one now, and it comes bare (beenster after 156: "the swingarm and heel
+	// plates come in with the frame ... it should be frame only"): its swingarm and footrests are parts
+	// you fit like any other, and a bike needs them to ride. Only the optional slots may be empty.
+	return IsOptional(Slot);
 }
 
 FName KindOf(FName Slot)

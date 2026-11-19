@@ -582,6 +582,36 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	}
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
+	// [shocks] The ridden bike's rear shock works (beenster: shocks that compress): a V2 bike's shock mounts, and
+	// its spring made lying along its own x from the top mount, so the pawn can squeeze it with a plain scale.
+	bool bShockAxis = false;
+	TorqueSim::V3 ShockTopO, ShockAlongO, ShockAcrossO;
+	if (OutNodes && OutFrame)
+	{
+		const FString* FrameId = Parts.Find(TEXT("frame"));
+		const TorqueFit::Json* FramePart = FrameId ? Lay->Part(TSCI::Std(*FrameId)) : nullptr;
+		const TorqueFit::Json* V2 = FramePart ? FramePart->Get("v2") : nullptr;
+		const TorqueFit::Json* Points = V2 ? V2->Get("points_mm") : nullptr;
+		const TorqueFit::Json* Top = Points ? Points->Get("shock_top") : nullptr;
+		const TorqueFit::Json* Bottom = Points ? Points->Get("shock_bottom") : nullptr;
+		const TorqueFit::V2Frame V2F = TorqueFit::V2Frame::Of(FramePart);
+		if (V2F.Valid && Top && Bottom && Top->A.size() >= 3 && Bottom->A.size() >= 3)
+		{
+			ShockTopO = V2F.Point(Top->A[0].N, 0.0, Top->A[2].N);
+			const TorqueSim::V3 BottomO = V2F.Point(Bottom->A[0].N, 0.0, Bottom->A[2].N);
+			const TorqueSim::V3 Run = BottomO - ShockTopO;
+			const double Len = std::sqrt(Run.x * Run.x + Run.y * Run.y + Run.z * Run.z);
+			if (Len > 0.05)
+			{
+				bShockAxis = true;
+				ShockAlongO = Run * (1.0 / Len);
+				ShockAcrossO = TorqueSim::V3(-ShockAlongO.y, ShockAlongO.x, 0.0);   // (ours' right (0, 0, 1) x along)
+				OutFrame->bShock = true;
+				OutFrame->ShockTop = FVector(TSCI::ToUe(ShockTopO));
+				OutFrame->ShockBottom = FVector(TSCI::ToUe(BottomO));
+			}
+		}
+	}
 	int32 Made = 0;
 	TMap<FString, int32> Summary;   // what each surface's finish became, for the log
 	int32 Turned = 0, Kept = 0;     // surfaces wound the other way from their glb, or as it
@@ -649,7 +679,21 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			// in metres it showed only the page's black corner: build 144's dark screens.)
 			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal")) && P.Gauge.rfind("screen_", 0) != 0;
 			const bool bWheel = P.Node == "front_wheel" || P.Node == "rear_wheel";
-			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
+			// [shocks] The spring, from the top mount along the shock (x), up across it (y) and to the right (z).
+			const bool bSpring = bShockAxis && bV2 && P.Node == "shock_spring";
+			TorqueFit::PartSurface Laid;
+			if (bSpring)
+			{
+				Laid = S;
+				for (TorqueSim::V3& Q : Laid.Pos)
+				{
+					const TorqueSim::V3 D = Q - ShockTopO;
+					Q = TorqueSim::V3(D.x * ShockAlongO.x + D.y * ShockAlongO.y, D.x * ShockAcrossO.x + D.y * ShockAcrossO.y, D.z);
+				}
+				for (TorqueSim::V3& N : Laid.Nrm)
+					N = TorqueSim::V3(N.x * ShockAlongO.x + N.y * ShockAlongO.y, N.x * ShockAcrossO.x + N.y * ShockAcrossO.y, N.z);
+			}
+			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, bSpring ? Laid : S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
 			if (OutFrame && P.Slot == "tank")
@@ -657,6 +701,11 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
+			if (bSpring)
+			{
+				const FVector Along = (OutFrame->ShockBottom - OutFrame->ShockTop).GetSafeNormal();
+				C->SetRelativeTransform(FTransform(FRotationMatrix::MakeFromXY(Along, FVector::RightVector).ToQuat(), OutFrame->ShockTop));
+			}
 			if (bV2) TSCI::ApplyV2Look(C, V2Look);
 			if (bV2 && (V2Look.Paint == TEXT("body") || V2Look.Paint == TEXT("rim"))) C->ComponentTags.Add(FName(V2PaintTag));
 			if (bV2 && V2Look.Paint == TEXT("body")) C->ComponentTags.Add(FName(V2BodyTag));

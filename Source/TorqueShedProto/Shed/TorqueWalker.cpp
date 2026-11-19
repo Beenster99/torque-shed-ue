@@ -25,6 +25,8 @@
 #include "Shed/TorqueYard.h"
 #include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedKit.h"
@@ -582,8 +584,11 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		return;
 	}
 	// Geometry mode is open (F2, ATorqueGeometryMode): it has the keys, the pad and the screen.
-	if (ATorqueGeometryMode::For(GetController()) || ATorqueDecalMode::For(GetController()))   // (and decal mode, F3)
+	// [drone] The drone camera and the photo album (Photo/) have them the same way.
+	const bool bDroneUp = ATorqueDrone::For(GetController()) || ATorquePhotoAlbum::For(GetController());
+	if (ATorqueGeometryMode::For(GetController()) || ATorqueDecalMode::For(GetController()) || bDroneUp)   // (and decal mode, F3)
 	{
+		if (bDroneUp) LookOutline.Clear();   // (nothing's looked at while you fly it or look through your photos)
 		bWorkHeld = bAltHeld = bWorkPressed = bAltPressed = false;
 		const FSonyPadState Now = PadState();   // (what's held as it closes isn't pressed again here)
 		PrevPadButtons = Now.bConnected ? Now.Buttons : 0;
@@ -685,6 +690,19 @@ void ATorqueWalker::ReadInput(float Dt)
 		FString Why;
 		if (!ATorqueDecalMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
 			Say(Why.IsEmpty() ? FString(TEXT("Decal mode couldn't open here.")) : Why, false);
+		return;
+	}
+	// [drone] B (the View / Create button): the drone camera goes up from over your head (Photo/TorqueDrone.h).
+	if ((KeyJust(ETorqueKey::Drone) || Just(EKeys::Gamepad_Special_Left) || (SonyHit & ESonyButton::Create)) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	{
+		FString Why;
+		if (!ATorqueDrone::Launch(this, Why) && !Why.IsEmpty()) Say(Why, false);
+		return;
+	}
+	// [drone] Y (the D-pad's down): the photo album, to print one for the wall (Photo/TorquePhotoAlbum.h).
+	if ((KeyJust(ETorqueKey::PhotoAlbum) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	{
+		ATorquePhotoAlbum::Open(this);
 		return;
 	}
 	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
@@ -985,6 +1003,8 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
+	// [drone] Holding a photo print: Delete (Circle / B) bins it (another can be printed from the album).
+	bBinJust = Just(EKeys::Delete) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle);
 	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bAltJust, bWorkJust);   // [furniture] first; [fluids] the pump (left mouse; right hangs it up)
 	if (bKitF)
 	{
@@ -2991,6 +3011,13 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 FString ATorqueWalker::TestComputerType(const FString& Type)
 {
 	if (!bComputer) OpenComputer();
+	// [engines] "layout=Inline four", "size=2", "maker=Kazeda", "sort=1": the engine list's filters.
+	FString FilterKey, FilterValue;
+	if (Type.Split(TEXT("="), &FilterKey, &FilterValue))
+	{
+		if (!Computer.SetEngineFilter(FilterKey.ToLower(), FilterValue)) return FString::Printf(TEXT("no engine filter %s on the computer"), *FilterKey);
+		return Computer.Describe();
+	}
 	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);
 	return Computer.Describe();
 }
@@ -3244,6 +3271,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("Hold left mouse / Cross: work   Q / E, wheel, 1-6 or L1 / R1: tool (hands, wrench, brush, grinder, spray, washer)"), Help, 0.5f});
 		HudLines.Add({TEXT("Unbolt with the wrench, then take it off by hand; fit what you hold, then bolt it up. R / T: spray colour and finish"), Help, 0.5f});
 		HudLines.Add({TEXT("F / Triangle: unpack a box, the parts computer, ride out   H: hide help   Esc: menu"), Help, 0.5f});
+		HudLines.Add({FString::Printf(TEXT("%s / View: drone camera   %s / D-pad down: photo album (print one for the wall)"),
+			*FTorqueKeys::Text(ETorqueKey::Drone), *FTorqueKeys::Text(ETorqueKey::PhotoAlbum)), Help, 0.5f});
 	}
 }
 

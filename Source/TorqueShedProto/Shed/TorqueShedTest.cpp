@@ -1,4 +1,6 @@
 #include "Shed/TorqueShedTest.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
 #include "Shed/TorqueProfile.h"
@@ -1621,7 +1623,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			W->TestCloseComputer();
 			return true;
 		}
-		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type.
+		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type; "computer:type:size=2" (layout=, maker=, sort=) the engine list's filters.
 		if (P.Num() >= 3 && P[1] == TEXT("type"))
 		{
 			Said(W->TestComputerType(P[2]));
@@ -2009,6 +2011,62 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(B->TestReload());
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("opening the shed again") : TEXT("couldn't open the shed again (no shed map, or a client)"));
+		return true;
+	}
+	// [drone] drone:up | drone:shot | drone:set:<zoom|ev|fstop|filter|pitch|yaw>:<value> | drone:fly:<x>:<y>:<z> (cm)
+	// | drone:status | drone:land; album:open | album:print:<n> (0 the newest) | album:close
+	if (Verb == TEXT("drone") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		ATorqueDrone* D = ATorqueDrone::For(W->GetController());
+		if (What == TEXT("up"))
+		{
+			FString Why;
+			if (D) Said(TEXT("the drone's already up"));
+			else if (ATorqueDrone::Launch(W, Why) && ATorqueDrone::For(W->GetController())) Said(ATorqueDrone::For(W->GetController())->TestStatus());
+			else Warn(TEXT("the drone didn't go up: ") + Why);
+			return true;
+		}
+		if (!D)
+		{
+			Warn(TEXT("the drone isn't up (drone:up first)"));
+			return true;
+		}
+		if (What == TEXT("shot")) Said(D->TestShot());
+		else if (What == TEXT("set") && P.Num() >= 4) Said(D->TestSet(P[2], FCString::Atod(*P[3])));
+		else if (What == TEXT("fly") && P.Num() >= 5) Said(D->TestFly(FVector(FCString::Atod(*P[2]), FCString::Atod(*P[3]), FCString::Atod(*P[4]))));
+		else if (What == TEXT("status")) Said(D->TestStatus());
+		else if (What == TEXT("land"))
+		{
+			D->Land();
+			Said(TEXT("the drone's back down"));
+		}
+		else Warn(TEXT("drone: up, shot, set:<what>:<value>, fly:<x>:<y>:<z>, status or land"));
+		return true;
+	}
+	if (Verb == TEXT("album") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		if (What == TEXT("open"))
+		{
+			ATorquePhotoAlbum::Open(W);
+			if (ATorquePhotoAlbum* A = ATorquePhotoAlbum::For(W->GetController())) Said(A->TestStatus());
+			else Warn(TEXT("the album didn't open"));
+			return true;
+		}
+		ATorquePhotoAlbum* A = ATorquePhotoAlbum::For(W->GetController());
+		if (!A)
+		{
+			Warn(TEXT("the album isn't open (album:open first)"));
+			return true;
+		}
+		if (What == TEXT("print")) Said(A->TestPrint(P.Num() > 2 ? FCString::Atoi(*P[2]) : 0));
+		else if (What == TEXT("close"))
+		{
+			A->Close();
+			Said(TEXT("album closed"));
+		}
+		else Said(A->TestStatus());
 		return true;
 	}
 	// decal:open | decal:place:<slot>:<what>:<side +1/-1> | decal:save | decal:exit | decal:check:<slot>

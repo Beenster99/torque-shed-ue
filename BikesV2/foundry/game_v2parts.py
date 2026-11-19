@@ -4,8 +4,8 @@ game_catalogue.py writes each V2 bike's frame part ("v2_<model>"); this lays the
 one shop part for each slot the model draws: "v2_<model>__<slot>" (its tank, saddle, tail, mudguard, lamps, fork,
 wheels, shock, calipers, stand, bars, engine block, cylinder head, gearbox, fuel system, air filter, cooling, exhaust...).
 
-Each part rides as the family's stock part of its slot (its numbers copied, the engine's from the old engine of the
-model's own layout nearest the family's size) and carries "v2part": which model draws it, and what it fits:
+Each part rides as the family's stock part of its slot (its numbers copied, the engine's too, so a V2 bike rides as the
+155 whole bikes did) and carries "v2part": which model draws it, and what it fits:
   family  - any frame of its family (the hidden mounting standard, docs/mounting_standard.md)
   layout  - a frame of its family built round the same engine layout (joint rule 3: the engine block, engine guards)
   engine  - the engine block of its own model (cylinder head, gearbox, fuel system, air filter, cooling and exhaust:
@@ -44,6 +44,8 @@ SLOTS = {
     "front_wheel": ("wheel", "family", "front wheel"),
     "rear_wheel": ("wheel", "family", "rear wheel"),
     "shock": ("shock", "shock", "rear shock"),
+    "swingarm": ("swingarm", "shock", "swingarm"),
+    "rearsets": ("rearsets", "family", "footrests and controls"),
     "side_stand": ("side_stand", "family", "side stand"),
     "front_caliper": ("caliper", "family", "front caliper"),
     "rear_caliper": ("caliper", "family", "rear caliper"),
@@ -56,39 +58,17 @@ SLOTS = {
     "cooling": ("cooling", "engine", "cooling"),
     "exhaust": ("exhaust", "engine", "exhaust"),
 }
+# Slots a bike needs to ride that some models draw nothing in.
+HIDDEN_NEEDED = ("shock",)
 # The old Godot parts of these kinds are shapes the V2 bikes no longer draw: out of the shop (the common parts stay).
 RETIRE_KINDS = ("tank", "saddle", "tail", "side_panels", "front_mudguard", "fairing", "number_boards", "headlight",
-                "indicators", "mirrors", "handlebars", "guards", "wheel", "fork", "shock", "engine", "side_stand")
-PRICE = {"tank": 260, "saddle": 130, "tail": 110, "side_panels": 60, "front_mudguard": 70, "fairing": 380, "number_boards": 60,
+                "indicators", "mirrors", "handlebars", "guards", "wheel", "fork", "shock", "engine", "side_stand",
+                "swingarm", "rearsets")
+PRICE = {"swingarm": 450, "rearsets": 160, "tank": 260, "saddle": 130, "tail": 110, "side_panels": 60, "front_mudguard": 70, "fairing": 380, "number_boards": 60,
          "headlight": 95, "indicators": 40, "mirrors": 50, "handlebars": 85, "guards": 120, "wheel": 350, "fork": 540,
          "shock": 300, "engine": 2400, "head": 600, "gearbox": 500, "fuel": 300, "air_filter": 60, "cooling": 250,
          "exhaust": 420, "side_stand": 40, "caliper": 220}
 DROP = ("name", "description", "styles", "pack", "price", "look", "v2", "common")
-ENGINE_SIZE = {"classic": 750, "cafe": 750, "chopper": 1800, "cruiser": 1200, "adventure": 900, "sport": 600, "naked": 850, "mx": 450}
-
-
-def engine_stats(old, label, family):
-    """The old engine whose layout matches the drawn one, nearest the family's size."""
-    lab = label.lower()
-    if "two-stroke" in lab:
-        pick = lambda k, v: k.startswith("2stroke_") and v.get("cylinders") == 1
-    elif "45 degree" in lab:
-        pick = lambda k, v: k.startswith("vtwin45_")
-    elif "v-twin" in lab:
-        pick = lambda k, v: k.startswith("vtwin_")
-    elif "parallel twin" in lab:
-        pick = lambda k, v: k.startswith("parallel_")
-    elif "triple" in lab:
-        pick = lambda k, v: k.startswith("triple_")
-    elif "four" in lab:
-        pick = lambda k, v: k.startswith("inline_")
-    elif "boxer" in lab or "flat twin" in lab:
-        pick = lambda k, v: k.startswith("boxer_")
-    else:
-        pick = lambda k, v: k.startswith("single_")
-    want = ENGINE_SIZE.get(family, 800)
-    cands = [(abs(v.get("displacement", 0) - want), k) for k, v in old.items() if isinstance(v, dict) and pick(k, v)]
-    return sorted(cands)[0][1]
 
 
 def main():
@@ -124,14 +104,17 @@ def main():
         ref = layout["reference_builds"][style]
         brand = info["brand"]
         build = {}
+        # A slot the bike needs to ride but draws nothing in (the choppers' hidden shock): still its own part.
+        for slot in HIDDEN_NEEDED:
+            if ref.get(slot) and ref[slot] != "none":
+                slots.add(slot)
         for slot in SLOTS:
             if slot not in slots:
                 continue
             kind, fits, noun = SLOTS[slot]
-            if kind == "engine":
-                src = engine_stats(parts["engine"], model.get("engine_label", ""), family)
-            else:
-                src = ref.get(slot) or ""
+            # Every part's numbers are the family's stock part's, the engine's too: a V2 bike rides as the 155 whole
+            # bikes did (the physics preset and top speeds are tuned on them); only its shape and name are its own.
+            src = ref.get(slot) or ""
             base = dict(parts.get(kind, {}).get(src) or {})
             if not base:   # (the family's stock bike has none: the first of the kind with numbers)
                 base = dict(next((v for v in parts.get(kind, {}).values() if isinstance(v, dict) and v.get("mass")), {}))
@@ -150,16 +133,6 @@ def main():
                              "layout": eng["layout"], "twin_shock": bool(st.get("twin_shock"))})
             if kind == "engine":
                 p["type"] = model.get("engine_label", base.get("type", "")).capitalize()
-            if kind == "wheel":
-                front = slot == "front_wheel"
-                rim = st.get("front_rim" if front else "rear_rim")
-                width = st.get("front_width" if front else "rear_width", 120 if front else 180)
-                if rim:
-                    p["diameter"] = int(round(2.0 * rim / 25.4))
-                p["tyres"] = [int(width - 20), int(width + 20)]
-                p["rim_width"] = round(width / 34.0, 1)
-            if kind == "shock":
-                p["layout"] = "twin" if st.get("twin_shock") else "mono"
             made.setdefault(kind, {})[pid] = p
             build[slot] = pid
         info["build"] = build

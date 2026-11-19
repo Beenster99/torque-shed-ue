@@ -7,8 +7,10 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <functional>
 #include <cmath>
+#include <condition_variable>
 #include <map>
 #include <mutex>
 #include <string>
@@ -16,11 +18,16 @@
 
 namespace TorqueWorld
 {
+namespace
+{
+constexpr double WaitForCellSeconds = 20.0;   // [build 158] a worker's longest wait for a cell another is reading
+}
+
 struct RidePlan::OutlineStore
 {
 	struct CellZip
 	{
-		int State = 0;   // 0 not looked at, 1 here, 2 none
+		int State = 0;   // 0 not looked at, 1 here, 2 none, 3 being read (by one thread, without the lock)
 		std::string Zip;
 		std::vector<ZipEntry> Entries;
 		std::vector<std::string> Words;
@@ -31,6 +38,7 @@ struct RidePlan::OutlineStore
 		LidarTiles Lidar;
 	};
 	std::mutex Lock;
+	std::condition_variable Ready;   // (a cell's read finished: State left 3)
 	std::map<std::string, CellZip> Cells;
 	std::map<std::string, std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> TilesRead;   // "ROW_COL/TX_TZ"
 	std::vector<std::string> Notes;   // what each cell's first read came to, for the log (TakeOutlineNotes)
@@ -331,57 +339,99 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 	{
 		const std::string Name = C.Name();
 		OutlineStore::CellZip* Z = nullptr;
+		// ([build 157] beenster's two hard freezes in 156 (freeze reports 17:37 and 17:42 Nov 18, both with the
+		// game thread stuck in TakeOutlineNotes): a worker held St.Lock all through CellsFrom->BuildingsZip, and
+		// a fetch from a worker waits for the GAME thread to send the request (BlockingGet). The game thread
+		// meanwhile waited on St.Lock (TakeOutlineNotes, or its own OutlinesIn): neither could move for up to
+		// 150 s a cell, fullscreen, so the PC looked dead. Now the lock is never held while a cell is read or
+		// fetched: the cell is marked 3 (being read), the reading done unlocked, and the result put back under
+		// the lock. The game thread never waits for a cell being read (that square keeps its boxes); a worker
+		// waits for it on Ready, which lets go of the lock while it waits.)
+		bool Mine = false;
 		{
-			std::lock_guard<std::mutex> Lock(St.Lock);
-			Z = &St.Cells[Name];
+			std::unique_lock<std::mutex> Lock(St.Lock);
+			Z = &St.Cells[Name];   // (std::map: the pointer stays good as other cells are added)
+			// ([build 158] and a worker waits at most WaitForCellSeconds: a slow download leaves this
+			// square its boxes rather than holding every worker up)
+			const auto WaitUntil = std::chrono::steady_clock::now() + std::chrono::duration<double>(WaitForCellSeconds);
+			while (Z->State == 3)
+			{
+				if (CellsFrom->MayFetch && !CellsFrom->MayFetch()) break;   // (the game thread: never waits)
+				if (St.Ready.wait_until(Lock, WaitUntil) == std::cv_status::timeout) break;
+			}
+			if (Z->State == 3) continue;
 			if (Z->State == 0)
 			{
-				// (read once: the zip's list and its words; a cell that can't be had keeps its boxes)
-				Z->State = 2;
-				std::string Bytes;
-				std::vector<ZipEntry> List;
-				TorqueFit::Json Head;
-				// ([build 155] the hub, from beenster's 154 log: "a fetch was asked for on the game thread and
-				// refused (c580_701 .bld.zip)", then "cell 580_701: no outlines", and that town stayed boxes all
-				// ride, as Harehills did. Asked where it may not be fetched, a cell is left to be asked again from
-				// a worker, its boxes only for this square.)
-				bool Deferred = false;
-				const bool Got = CellsFrom->BuildingsZip(Name, *Idx, Bytes, &Deferred);
-				if (Deferred)
-				{
-					Z->State = 0;
-					continue;
-				}
-				if (Got && ZipList(Bytes, List))
-				{
-					std::string Text;
-					for (const ZipEntry& E : List)
-						if (E.Name == "buildings.json" && ZipRead(Bytes, E, Text) && TorqueFit::Json::Parse(Text, Head) && Head.IsObject())
-						{
-							Z->Zip = std::move(Bytes);
-							Z->Entries = std::move(List);
-							Z->Tiles = std::max(1, int(Head.Num("tiles", 8)));
-							if (const TorqueFit::Json* W = Head.Get("words"))
-								for (const TorqueFit::Json& Word : W->A) Z->Words.push_back(Word.S);
-							Z->State = 1;
-							Z->Release = Head.Str("release");
-							break;
-						}
-				}
-				// [LiDAR stage 2] (the cell's heights, kept only where they were measured on this release's outlines; a
-				// local read: LidarFrom never waits on the network, as this holds the lock)
-				std::string LidarText;
-				if (Z->State == 1 && LidarFrom && LidarFrom(Name, LidarText))
-				{
-					const size_t LidarRows = ReadLidar(LidarText, Z->Release, Z->Lidar);
-					St.Notes.push_back("cell " + Name + ": LiDAR heights for " + std::to_string(LidarRows) + " outlines" + (LidarRows == 0 ? " (none for release " + Z->Release + ")" : ""));
-				}
-				const auto Have = Idx->Buildings.find(Name);
-				St.Notes.push_back(Z->State == 1
-					? "cell " + Name + ": outlines read (" + std::to_string(Z->Entries.size() - 1) + " tiles, " + std::to_string(Z->Zip.size() / 1024) + " KB)"
-					: "cell " + Name + ": no outlines (" + (Have == Idx->Buildings.end() ? "not in the index" : "zip not had or unreadable") + "), the cell's own boxes");
+				Z->State = 3;
+				Mine = true;
 			}
-			if (Z->State != 1) continue;
+			else if (Z->State != 1) continue;
+		}
+		if (Mine)
+		{
+			// (read once: the zip's list and its words; a cell that can't be had keeps its boxes)
+			int State = 2;
+			std::string Bytes;
+			std::vector<ZipEntry> List;
+			std::vector<std::string> Words;
+			int Tiles = 8;
+			std::string Release;
+			LidarTiles Lidar;
+			std::string LidarNote;
+			TorqueFit::Json Head;
+			// ([build 155] the hub, from beenster's 154 log: "a fetch was asked for on the game thread and
+			// refused (c580_701 .bld.zip)", then "cell 580_701: no outlines", and that town stayed boxes all
+			// ride, as Harehills did. Asked where it may not be fetched, a cell is left to be asked again from
+			// a worker, its boxes only for this square.)
+			bool Deferred = false;
+			const bool Got = CellsFrom->BuildingsZip(Name, *Idx, Bytes, &Deferred);
+			if (Deferred)
+				State = 0;
+			else if (Got && ZipList(Bytes, List))
+			{
+				std::string Text;
+				for (const ZipEntry& E : List)
+					if (E.Name == "buildings.json" && ZipRead(Bytes, E, Text) && TorqueFit::Json::Parse(Text, Head) && Head.IsObject())
+					{
+						Tiles = std::max(1, int(Head.Num("tiles", 8)));
+						if (const TorqueFit::Json* W = Head.Get("words"))
+							for (const TorqueFit::Json& Word : W->A) Words.push_back(Word.S);
+						State = 1;
+						Release = Head.Str("release");
+						break;
+					}
+			}
+			// [LiDAR stage 2] (the cell's heights, kept only where they were measured on this release's outlines; a
+			// local read, done here with the lock let go like the zip itself)
+			std::string LidarText;
+			if (State == 1 && LidarFrom && LidarFrom(Name, LidarText))
+			{
+				const size_t LidarRows = ReadLidar(LidarText, Release, Lidar);
+				LidarNote = "cell " + Name + ": LiDAR heights for " + std::to_string(LidarRows) + " outlines" + (LidarRows == 0 ? " (none for release " + Release + ")" : "");
+			}
+			{
+				std::lock_guard<std::mutex> Lock(St.Lock);
+				if (State == 1)
+				{
+					Z->Zip = std::move(Bytes);
+					Z->Entries = std::move(List);
+					Z->Words = std::move(Words);
+					Z->Tiles = Tiles;
+					Z->Release = std::move(Release);
+					Z->Lidar = std::move(Lidar);
+					if (!LidarNote.empty()) St.Notes.push_back(LidarNote);
+				}
+				Z->State = State;
+				if (State != 0)
+				{
+					const auto Have = Idx->Buildings.find(Name);
+					St.Notes.push_back(State == 1
+						? "cell " + Name + ": outlines read (" + std::to_string(Z->Entries.size() - 1) + " tiles, " + std::to_string(Z->Zip.size() / 1024) + " KB)"
+						: "cell " + Name + ": no outlines (" + (Have == Idx->Buildings.end() ? "not in the index" : "zip not had or unreadable") + "), the cell's own boxes");
+				}
+			}
+			St.Ready.notify_all();
+			if (State != 1) continue;
 		}
 		Covered.push_back(C);
 		const Geo Mid = CellMiddle(C);

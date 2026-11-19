@@ -31,6 +31,9 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 using namespace TorqueWorld;
 using TorqueFit::Json;
@@ -2302,6 +2305,116 @@ int main()
 		Check(Before.CellBytes == 3500 && Before.HeightBytes == 10000 && Before.Cells == 1 && Before.Tiles == 10 && Freed == 4000 && After.Tiles == 6 && Cleared.Total() == 0
 			&& Cache::CellsToKeep(10000000000LL) == 1250 && Cache::CellsToKeep(0) == 24,
 			"what is kept on disk is weighed, its oldest ground let go to stay under the limit, and all of it cleared");
+	}
+
+	// [build 157] beenster's two hard freezes in 156: a worker reading a cell's building outlines held the
+	// outline store's lock through the fetch, and the fetch waits for the game thread to send it, while the
+	// game thread waited for that lock (TakeOutlineNotes). Here the main thread plays the game thread: it
+	// sends every fetch, asks for the notes and reads a square itself, and must never be held up by a cell
+	// a worker is fetching.
+	{
+		using namespace std::chrono;
+		std::mutex QLock;
+		std::vector<std::function<void()>> Queue;   // (what only the "game thread" may do)
+		const std::thread::id Game = std::this_thread::get_id();
+		CellStore Cells;
+		Cells.IndexUrl = "https://test/index.json";
+		Cells.MayFetch = [Game]() { return std::this_thread::get_id() != Game; };
+		RidePlan Plan;
+		Plan.Area.Roads.FrameLat = 54.3;
+		Plan.Area.Roads.FrameLon = -2.2;
+		const Frame F = Plan.Area.Roads.FrameOf();
+		const Geo A = F.ToGeo(0.0, 50.0), B = F.ToGeo(50.0, 0.0);
+		std::string Index = "{\"format\": 1, \"cells\": {\"1_1\": {\"hash\": \"x\", \"url\": \"https://test/c1_1.zip\"}}, \"buildings\": {";
+		bool FirstCell = true;
+		for (const CellId& C : CellsInBox(A.Lat, A.Lon, B.Lat, B.Lon))
+		{
+			Index += std::string(FirstCell ? "" : ", ") + "\"" + C.Name() + "\": {\"hash\": \"0123456789ab\", \"url\": \"https://test/b" + C.Name() + ".zip\"}";
+			FirstCell = false;
+		}
+		Index += "}}";
+		Cells.Get = [&](const std::string& Url, std::string& Body) -> int
+		{
+			if (Url == Cells.IndexUrl) { Body = Index; return 200; }
+			if (std::this_thread::get_id() == Game) return 0;   // (as the game's BlockingGet: refused there)
+			// (as BlockingGet: the game thread sends it; the answer waited for, given up after 3 s)
+			auto Done = std::make_shared<std::atomic<bool>>(false);
+			{
+				std::lock_guard<std::mutex> G(QLock);
+				Queue.push_back([Done]() { std::this_thread::sleep_for(milliseconds(300)); *Done = true; });
+			}
+			const auto GiveUp = steady_clock::now() + seconds(3);
+			while (!*Done && steady_clock::now() < GiveUp) std::this_thread::sleep_for(milliseconds(5));
+			Body = "not the zip the index names";
+			return *Done ? 200 : 0;
+		};
+		Cells.Index();
+		Plan.CellsFrom = &Cells;
+		std::atomic<bool> WorkerDone(false);
+		std::thread Worker([&]()
+		{
+			std::vector<std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> Hold;
+			std::vector<const RidePlan::OutlinePiece*> Out;
+			std::vector<CellId> Covered;
+			Plan.OutlinesIn(0.0, 0.0, 50.0, Hold, Out, Covered);
+			WorkerDone = true;
+		});
+		double Worst = 0.0;
+		int Notes = 0, Sent = 0;
+		const auto Start = steady_clock::now();
+		while (!WorkerDone && steady_clock::now() - Start < seconds(10))
+		{
+			const auto T0 = steady_clock::now();
+			Notes += int(Plan.TakeOutlineNotes().size());
+			std::vector<std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> Hold;
+			std::vector<const RidePlan::OutlinePiece*> Out;
+			std::vector<CellId> Covered;
+			Plan.OutlinesIn(0.0, 0.0, 50.0, Hold, Out, Covered);
+			Worst = std::max(Worst, duration<double>(steady_clock::now() - T0).count());
+			std::vector<std::function<void()>> Now;
+			{
+				std::lock_guard<std::mutex> G(QLock);
+				Now.swap(Queue);
+			}
+			for (auto& Job : Now) { Job(); ++Sent; }
+			std::this_thread::sleep_for(milliseconds(2));
+		}
+		Worker.join();
+		Notes += int(Plan.TakeOutlineNotes().size());
+		std::printf("      outlines: game thread's longest wait %.3f s, %d fetch(es) sent by it, %d note(s), worker %s\n", Worst, Sent, Notes, WorkerDone ? "done" : "stuck");
+		Check(WorkerDone && Worst < 0.25 && Sent >= 1 && Notes >= 1,
+			"a cell's building outlines fetched by a worker never hold up the game thread (the 156 hard freeze)");
+		// [build 158] A fetch the game thread couldn't send in time (NotNow) leaves the cell to be asked
+		// again: boxes for that square, the outlines on a later one.
+		RidePlan Later;
+		Later.Area.Roads.FrameLat = Plan.Area.Roads.FrameLat;
+		Later.Area.Roads.FrameLon = Plan.Area.Roads.FrameLon;
+		Later.CellsFrom = &Cells;
+		int Asked = 0;
+		bool SayNotNow = true;
+		Cells.Get = [&](const std::string& Url, std::string& Body) -> int
+		{
+			if (Url == Cells.IndexUrl) { Body = Index; return 200; }
+			++Asked;
+			Body = "not the zip the index names";
+			return SayNotNow ? CellStore::NotNow : 200;
+		};
+		int FirstNotes = 0, SecondNotes = 0, AskedFirst = 0;
+		std::thread([&]()
+		{
+			std::vector<std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> Hold;
+			std::vector<const RidePlan::OutlinePiece*> Out;
+			std::vector<CellId> Covered;
+			Later.OutlinesIn(0.0, 0.0, 50.0, Hold, Out, Covered);
+			FirstNotes = int(Later.TakeOutlineNotes().size());
+			AskedFirst = Asked;
+			SayNotNow = false;
+			Later.OutlinesIn(0.0, 0.0, 50.0, Hold, Out, Covered);
+			SecondNotes = int(Later.TakeOutlineNotes().size());
+		}).join();
+		std::printf("      outlines: a fetch not sent in time: %d note(s), asked %d; asked again: %d note(s), asked %d\n", FirstNotes, AskedFirst, SecondNotes, Asked);
+		Check(FirstNotes == 0 && AskedFirst >= 1 && SecondNotes >= 1 && Asked > AskedFirst,
+			"a cell's buildings fetch the game couldn't send in time is asked again later, its boxes meanwhile");
 	}
 
 	std::printf("\n%s\n", Fails == 0 ? "world_test: all passed" : "world_test: FAILED");

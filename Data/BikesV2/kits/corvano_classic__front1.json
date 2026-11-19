@@ -1,0 +1,22 @@
+{
+ "name": "Corvano classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 92,
+ "surfaces": {
+  "s021": {
+   "slot": "fairing",
+   "node": "steer",
+   "surface": "screen",
+   "tag": "screen",
+   "ue": "v2screen",
+   "color": [
+    0.1,
+    0.12,
+    0.14
+   ],
+   "metallic": 0.0,
+   "roughness": 0.05
+  }
+ }
+}

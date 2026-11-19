@@ -9,6 +9,10 @@
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/App.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "HAL/PlatformMisc.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -17,6 +21,16 @@
 namespace TorqueReportsImpl
 {
 constexpr double FreezeSeconds = 15.0;   // the game thread silent this long: a freeze (or a very long load)
+// [build 158] (beenster, 156: two freezes needed a PC reboot, "a crash that needs handling"): still silent
+// this long, the game is closed so the screen comes back, rather than a fullscreen game nobody can get past.
+// Loads are a few seconds (RideUK 4.5 s); -TorqueFreezeKeep keeps a frozen game open (for a debugger).
+constexpr double CloseSeconds = 30.0;
+
+bool KeepFrozen()
+{
+	static const bool bKeep = FParse::Param(FCommandLine::Get(), TEXT("TorqueFreezeKeep"));
+	return bKeep || FPlatformMisc::IsDebuggerPresent();
+}
 
 std::atomic<double> LastBeat{0.0};
 FTSTicker::FDelegateHandle BeatHandle;
@@ -40,6 +54,8 @@ void CopyLog(const FString& To)
 	if (!Log.IsEmpty() && IFileManager::Get().FileExists(*Log)) IFileManager::Get().Copy(*To, *Log, true, true, true);
 }
 
+FString FreezeDir;   // (the report being written for this freeze)
+
 void WriteFreeze(double Silent)
 {
 	const FString Dir = FPaths::Combine(TorqueReports::Folder(), TEXT("freeze_") + Stamp());
@@ -53,6 +69,22 @@ void WriteFreeze(double Silent)
 	else Text += TEXT("(this platform couldn't walk the game thread's stack)\n");
 	FFileHelper::SaveStringToFile(Text, *FPaths::Combine(Dir, TEXT("freeze.txt")));
 	CopyLog(FPaths::Combine(Dir, TEXT("log_at_freeze.log")));
+	FreezeDir = Dir;
+}
+
+// [build 158] Still frozen: say so in the report, take the log as it is now, and end the game at once
+// (no tidy exit: that would wait on the very thread that's stuck).
+void CloseFrozen(double Silent)
+{
+	if (!FreezeDir.IsEmpty())
+	{
+		const FString Note = FString::Printf(TEXT("\nStill frozen after %.0f s: the game closed itself so the PC could be used (%s).\n"), Silent, *FDateTime::Now().ToString());
+		FFileHelper::SaveStringToFile(Note, *FPaths::Combine(FreezeDir, TEXT("freeze.txt")), FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
+		CopyLog(FPaths::Combine(FreezeDir, TEXT("log_at_close.log")));
+		// (read at the next start: CollectLastTime says it was closed, not crashed)
+		FFileHelper::SaveStringToFile(FreezeDir, *FPaths::Combine(TorqueReports::Folder(), TEXT("closed_frozen.txt")));
+	}
+	FPlatformMisc::RequestExit(true, TEXT("TorqueReports: frozen game closed"));
 }
 
 // Watches the game thread's heartbeat from a thread of its own.
@@ -75,6 +107,11 @@ public:
 				bFrozen = true;
 				FrozenSince = Beat;
 				WriteFreeze(Silent);
+			}
+			else if (bFrozen && Silent >= CloseSeconds && !KeepFrozen())
+			{
+				CloseFrozen(Silent);
+				return 0;
 			}
 			else if (bFrozen && Silent < 2.0)
 			{
@@ -113,6 +150,15 @@ void CollectLastTime()
 		Seen.Add(D);
 		bChanged = true;
 		const FString From = FPaths::Combine(Crashes, D), To = FPaths::Combine(Out, TEXT("crash_") + D);
+		// Only a real crash (hub, 156: a non-fatal ensure writes a crash folder too and the game carries on):
+		// an ensure, or a hang the engine noticed but lived through, is a log line here, not a report.
+		FString Context;
+		FFileHelper::LoadFileToString(Context, *FPaths::Combine(From, TEXT("CrashContext.runtime-xml")));
+		if (Context.Contains(TEXT("<IsEnsure>true</IsEnsure>")) || Context.Contains(TEXT("<CrashType>Ensure</CrashType>")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque reports: %s was an ensure (the game carried on): not a crash report"), *D);
+			continue;
+		}
 		TArray<FString> Inside;
 		Files.FindFiles(Inside, *FPaths::Combine(From, TEXT("*")), true, false);
 		for (const FString& F : Inside)
@@ -123,7 +169,8 @@ void CollectLastTime()
 	// The newest backed-up log is last session's: if it never says it closed, the game was killed or froze.
 	const FString Logs = FPaths::ProjectLogDir();
 	TArray<FString> Backups;
-	Files.FindFiles(Backups, *FPaths::Combine(Logs, TEXT("*-backup-*.log")), true, false);
+	// (our own game's logs only: not the web browser's cef3 logs that share the folder)
+	Files.FindFiles(Backups, *FPaths::Combine(Logs, FString(FApp::GetProjectName()) + TEXT("-backup-*.log")), true, false);
 	Backups.Sort();
 	if (Backups.Num() > 0 && !Seen.Contains(Backups.Last()))
 	{
@@ -140,6 +187,14 @@ void CollectLastTime()
 				UE_LOG(LogTemp, Warning, TEXT("Torque reports: last session's log %s never closed (a crash, a freeze or the game was killed): copied"), *Backups.Last());
 			}
 		}
+	}
+	// [build 158] Last time the game froze and closed itself (CloseFrozen): said once.
+	const FString ClosedFile = FPaths::Combine(Out, TEXT("closed_frozen.txt"));
+	FString ClosedDir;
+	if (FFileHelper::LoadFileToString(ClosedDir, *ClosedFile))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque reports: last session froze and the game closed itself after %.0f s; report in %s"), CloseSeconds, *ClosedDir.TrimStartAndEnd());
+		Files.Delete(*ClosedFile);
 	}
 	if (bChanged) FFileHelper::SaveStringToFile(FString::Join(Seen, TEXT("\n")), *SeenFile);
 }
@@ -164,7 +219,7 @@ int32 TorqueReports::Count()
 	IFileManager::Get().FindFiles(Found, *FPaths::Combine(Folder(), TEXT("*")), true, true);
 	int32 N = 0;
 	for (const FString& F : Found)
-		if (F != TEXT("seen.txt")) ++N;
+		if (F != TEXT("seen.txt") && F != TEXT("closed_frozen.txt")) ++N;
 	Last = N;
 	return N;
 }

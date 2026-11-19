@@ -1,4 +1,5 @@
 #include "TorqueBikePawn.h"
+#include "Photo/TorqueDrone.h"
 #include "Coop/TorquePing.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Coop/TorquePlayerController.h"
@@ -11,6 +12,7 @@
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
+#include "Fit/ShockMove.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
 #include "Shed/TorqueFurniture.h"
@@ -280,6 +282,12 @@ void ATorqueBikePawn::BeginPlay()
 			if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
 			{
 				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 || Kind == 4 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;   // [OSM stage 1] 4: a gravel road
+				Out.Lift = Lift;
+			}
+			// [car parks] On the land in a car park: its tarmac (or gravel) laid a little over it (RidePlan::ParkLift).
+			else if (Out.Surface == SURF_GRASS && ATorqueRideWorld::CarParkUnder(Hit.ImpactPoint, Kind, Lift))
+			{
+				Out.Surface = Kind == 2 ? SURF_GRAVEL : SURF_TARMAC;
 				Out.Lift = Lift;
 			}
 		}
@@ -800,12 +808,32 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		// bike goes on its group at T * GroupRest^-1.
 		static const FName SteerNode(TEXT("steer")), FrontHubNode(TEXT("front_hub")), FrontWheelNode(TEXT("front_wheel"));
 		static const FName RearHubNode(TEXT("rear_hub")), RearWheelNode(TEXT("rear_wheel")), SwingNode(TEXT("swingarm"));
+		// [shocks] The rear shock's pieces stay on the bike and are worked each frame (UpdateVisuals).
+		static const FName ShockTopNode(TEXT("shock_top")), ShockBottomNode(TEXT("shock_bottom")), ShockSpringNode(TEXT("shock_spring"));
+		ShockParts.Reset();
+		ShockTop = Frame.ShockTop;
+		ShockBottom = Frame.ShockBottom;
+		ShockSwing = 1.0e9;
 		int32* Count = GroupParts;
 		for (int32 I = 0; I < ModelParts.Num(); ++I)
 		{
 			UStaticMeshComponent* C = ModelParts[I];
 			if (!C) continue;
 			const FName N = Nodes[I];
+			if (Frame.bShock && (N == ShockTopNode || N == ShockBottomNode || N == ShockSpringNode))
+			{
+				FTorqueShockPart Piece;
+				Piece.Part = C;
+				Piece.Rest = C->GetRelativeTransform();
+				Piece.Kind = N == ShockTopNode ? 0 : N == ShockBottomNode ? 1 : 2;
+				if (Piece.Kind == 2 && C->GetStaticMesh())
+				{
+					const FBox SpringBox = C->GetStaticMesh()->GetBoundingBox();
+					Piece.A = SpringBox.Min.X;
+					Piece.B = SpringBox.Max.X;
+				}
+				ShockParts.Add(Piece);
+			}
 			USceneComponent* Group = Holder;
 			FTransform GroupRest = FTransform::Identity;
 			int32 Which = 0;
@@ -1008,11 +1036,40 @@ void ATorqueBikePawn::GatherOtherBikes()
 {
 	// [garage] On a real-world ride: the walls of the forecourt garages standing near the rider (the
 	// ride has no boxes of its own, so the contacts are made the first time one stands).
-	if (!bYard && !FPaths::IsRelative(RouteFile) && GarageSeen != ATorqueForecourtGarage::ContactVersion())
+	// [car parks] And the parked cars round the rider (ATorqueRideWorld::ParkedCarBoxes), gathered again each time
+	// the bike has gone ParkedReach / 3 from where they were last gathered.
+	const bool bRealRide = !bYard && !FPaths::IsRelative(RouteFile);
+	static constexpr double ParkedReach = 60.0;
+	const bool bCarsDue = bRealRide && Sim && (ParkedFrom.X > 1e17 || FVector2D(Sim->Position.x - ParkedFrom.X, Sim->Position.z - ParkedFrom.Y).Size() > ParkedReach / 3.0);
+	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || bCarsDue))
 	{
 		GarageSeen = ATorqueForecourtGarage::ContactVersion();
 		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
 		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
+		if (Sim)
+		{
+			ParkedFrom = FVector2D(Sim->Position.x, Sim->Position.z);
+			TArray<double> Cars;
+			if (ATorqueRideWorld::ParkedCarBoxes(FVector(Sim->Position.x, Sim->Position.y, Sim->Position.z), ParkedReach, Cars))
+				for (int32 I = 0; I + 7 < Cars.Num(); I += 8)
+				{
+					ContactBox Car;
+					Car.Cx = Cars[I];
+					Car.Cz = Cars[I + 1];
+					Car.Ux = Cars[I + 2];
+					Car.Uz = Cars[I + 3];
+					Car.Hu = Cars[I + 4];
+					Car.Hv = Cars[I + 5];
+					Car.Y0 = Cars[I + 6];
+					Car.Y1 = Cars[I + 7];
+					Boxes.push_back(Car);
+				}
+			if (Cars.Num() == 0 && Boxes.empty() && !Contacts)
+			{
+				// (nothing to bump into yet: no contact world made for it)
+				return;
+			}
+		}
 		if (!Contacts)
 		{
 			Contacts = MakeUnique<ContactWorld>();
@@ -1458,6 +1515,18 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Throttle = FrontBrake = RearBrake = Shift = Lean = 0.0;
 		// [garage] In a forecourt garage: the spanner on the bike, the wall computer (its page takes the controls).
 		if (TickGarage(PC, Dt, SonyDown, SonyPressed)) return;
+		// [drone] The drone camera (Photo/TorqueDrone.h): B or View sends it up; while it's up it has the controls.
+		if (ATorqueDrone::For(PC)) return;
+		if (!bPushing && (FTorqueKeys::Just(PC, ETorqueKey::Drone) || SonyHit(ESonyButton::Create) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left)))
+		{
+			FString Why;
+			if (!ATorqueDrone::Launch(this, Why) && !Why.IsEmpty())
+			{
+				FootNote = Why;
+				FootNoteFor = 2.0;
+			}
+			return;
+		}
 		const double KeyX = (FTorqueKeys::Down(PC, ETorqueKey::WalkRight) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkLeft) ? 1.0 : 0.0);
 		const double KeyY = (FTorqueKeys::Down(PC, ETorqueKey::WalkForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ? 1.0 : 0.0);
 		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
@@ -1858,6 +1927,11 @@ void ATorqueBikePawn::ChooseStand()
 		ParkStand = 2;
 		ParkLift = Centre->Num("lift", 0.04);
 	}
+}
+
+FSonyPadState ATorqueBikePawn::PadState() const
+{
+	return Pad ? Pad->Get() : FSonyPadState();
 }
 
 bool ATorqueBikePawn::GetOff()
@@ -3147,8 +3221,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	{
 		ATorqueRideWorld::NavFor(GetActorLocation(), Dash, NavWas);   // [Ride UK] the sat nav
 		if (bOnFoot) ATorqueRideWorld::ViewSpotFor(FootPos, Dash);   // [places stage 7] walked in to a place's view spot
-		// (stopped at the pumps: the tank fills, a litre every second or so)
-		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 0.9 * DeltaSeconds);
+		// (stopped at the pumps: the tank fills, the shed pump's 2.5 litres a second: beenster, build 156, faster)
+		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 2.5 * DeltaSeconds);
 	}
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	StepTft(DeltaSeconds, bRemote);   // [tft]
@@ -3206,6 +3280,32 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	const FVector Rest = RearRest - SwingPivot, Now = BodyToLocal(R.Centre) - SwingPivot;
 	const double Swing = FMath::Atan2(Now.Z, Now.X) - FMath::Atan2(Rest.Z, Rest.X);
 	SwingGroup->SetRelativeLocationAndRotation(SwingPivot, FQuat(FVector::RightVector, -Swing));
+	// [shocks] The rear shock works with it: the body turns about its top mount to point at the bottom one, the
+	// rod end rides on the swingarm's mount and slides up into the body, and the spring is squeezed between them.
+	if (ShockParts.Num() > 0 && FMath::Abs(Swing - ShockSwing) > 1.0e-5)
+	{
+		ShockSwing = Swing;
+		const TorqueFit::ShockPose Pose = TorqueFit::ShockAt(SwingPivot.X, SwingPivot.Z, ShockTop.X, ShockTop.Z, ShockBottom.X, ShockBottom.Z, Swing);
+		const FQuat ShockTurn(FVector::RightVector, -Pose.Turn);
+		const FVector BottomNow(Pose.BottomX, ShockBottom.Y, Pose.BottomZ);
+		const FTransform TopMove(ShockTurn, ShockTop - ShockTurn.RotateVector(ShockTop));
+		const FTransform BottomMove(ShockTurn, BottomNow - ShockTurn.RotateVector(ShockBottom));
+		for (const FTorqueShockPart& Piece : ShockParts)
+		{
+			UStaticMeshComponent* C = Piece.Part.Get();
+			if (!C) continue;
+			if (Piece.Kind != 2)
+			{
+				C->SetRelativeTransform(Piece.Rest * (Piece.Kind == 0 ? TopMove : BottomMove));
+				continue;
+			}
+			// (Its mesh lies along its own x from the top mount: scaled in x about its top end.)
+			const double Squeeze = TorqueFit::SpringScale(Piece.A, Piece.B, Pose);
+			const FQuat Lie = ShockTurn * Piece.Rest.GetRotation();
+			const FVector At = ShockTop + ShockTurn.RotateVector(Piece.Rest.GetLocation() - ShockTop) + Lie.RotateVector(FVector(Piece.A * (1.0 - Squeeze), 0.0, 0.0));
+			C->SetRelativeTransform(FTransform(Lie, At, Piece.Rest.GetScale3D() * FVector(Squeeze, 1.0, 1.0)));
+		}
+	}
 	// Geometry mode's offsets on the wheels' parts: in the fork's or swingarm's frame, under the spin.
 	for (const FTorqueRideFit& Fit : RideFit)
 	{
@@ -5115,6 +5215,7 @@ void ATorqueBikePawn::DrawHud()
 				*Use, Mate ? *MateLine : Away <= 250.0 ? *FString::Printf(TEXT("to get back on, hold %s to wheel it"), *Use) : TEXT("by the bike to get back on"),
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
+			Add(FString::Printf(TEXT("%s / View: drone camera (fly it, take photos)"), *FTorqueKeys::Text(ETorqueKey::Drone)), FColor(200, 230, 200), 0.8f);   // [drone]
 		}
 		GarageHudLines();   // [garage]
 	}

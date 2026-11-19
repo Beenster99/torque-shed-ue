@@ -2781,6 +2781,7 @@ void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMes
 						NearHit Hit;
 						if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Half + 0.4) continue;   // (on or at the road: the road's own)
 						if (Land->Cover(Pm.X, Pm.Z) == Terrain::CoverWater || Land->SeaAt(Pm.X, Pm.Z)) continue;
+						if (InCarPark(Pm.X, Pm.Z)) continue;   // [car parks] (a footway mapped across one: its tarmac is the way)
 						// (beenster, build 147, Jenkin Chapel: a path was a flat slab with hard straight edges on the
 						// grass. Now its worn middle in the colour M_RideRoad draws as its surface's scan, and each
 						// side a ragged lip from the verge's grit out to its grass, every 1.5 m its own width, laid
