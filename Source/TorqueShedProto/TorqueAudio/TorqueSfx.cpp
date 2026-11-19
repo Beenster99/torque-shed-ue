@@ -532,6 +532,31 @@ std::shared_ptr<TorqueEngine::FBank> UTorqueSfx::BikeEngine(const UObject* World
 			AllParts = Root;
 		else
 			AllParts = MakeShared<FJsonObject>();
+		// [bikes v2] The V2 bikes' parts (their engines, heads, exhausts, air filters, gearboxes) and the
+		// common bolt-on parts, laid over it as the shed's catalogue lays them (TorqueShedParts): without
+		// them no V2 engine was found and every bike rode on the recorded 270 twin (beenster, build 160:
+		// "all bike sounds the same").
+		for (const TCHAR* OverFile : {TEXT("Data/BikesV2/parts_v2.json"), TEXT("Data/BikesV2/common_parts.json")})
+		{
+			FString OverText;
+			TSharedPtr<FJsonObject> OverRoot;
+			if (!FFileHelper::LoadFileToString(OverText, *FPaths::Combine(FPaths::ProjectDir(), OverFile)) ||
+				!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(OverText), OverRoot) || !OverRoot.IsValid())
+				continue;
+			for (const auto& OverKind : OverRoot->Values)
+			{
+				const FString KindName(OverKind.Key);
+				const TSharedPtr<FJsonObject>* Extra = nullptr;
+				if (KindName.StartsWith(TEXT("_")) || !OverKind.Value.IsValid() || !OverKind.Value->TryGetObject(Extra)) continue;
+				const TSharedPtr<FJsonObject>* Into = nullptr;
+				if (!AllParts->TryGetObjectField(KindName, Into))
+				{
+					AllParts->SetObjectField(KindName, *Extra);
+					continue;
+				}
+				for (const auto& OverPart : (*Extra)->Values) (*Into)->SetField(FString(OverPart.Key), OverPart.Value);
+			}
+		}
 	}
 	auto PartOf = [&Parts](const TCHAR* Slot) {
 		TSharedPtr<FJsonObject> Out;
