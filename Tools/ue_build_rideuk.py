@@ -1388,6 +1388,7 @@ def parked_cars(L, kind, row, add):
         L.fab_car_paint.made = True   # (Thwaite's master kept: its own instances point at it)
     sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     made = 0
+    flagged, reflagged = set(), []
     for n in range(count):
         mesh, md = models[n % len(models)]
         colour = colours[(n * 5 + n // len(models)) % len(colours)]
@@ -1409,13 +1410,45 @@ def parked_cars(L, kind, row, add):
             if slot in listed or str(si) in listed or "paint" in names.lower():
                 copy.set_material(si, paint)
                 painted.append(si)
+        # [build 157 feedback] (beenster: the parked cars came out all grey, untextured) The Fab cars' materials
+        # were made for Thwaite's placed actors; drawn instanced (an ISM, as every prop is) a material without
+        # these usage flags draws as the default grey in a packaged game: flagged here, each base material once.
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            if base is None or base.get_path_name() in flagged:
+                continue
+            flagged.add(base.get_path_name())
+            changed = False
+            for flag in ("used_with_instanced_static_meshes", "used_with_nanite"):
+                try:
+                    if not base.get_editor_property(flag):
+                        base.set_editor_property(flag, True)
+                        changed = True
+                except Exception as e:
+                    unreal.log_warning("[Torque] parked cars: %s not set on %s (%s)" % (flag, base.get_name(), e))
+            if changed:
+                unreal.MaterialEditingLibrary.recompile_material(base)
+                unreal.EditorAssetLibrary.save_loaded_asset(base)
+                reflagged.append(base.get_name())
         try:
             sme.remove_collisions(copy)
         except Exception:
             pass
+        # (Nanite only where every material is opaque or masked: a Nanite mesh draws a translucent material,
+        # the cars' glass, as the default grey)
+        see_through = False
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            try:
+                mode = base.get_editor_property("blend_mode") if base else None
+                see_through = see_through or mode in (unreal.BlendMode.BLEND_TRANSLUCENT, unreal.BlendMode.BLEND_ADDITIVE, unreal.BlendMode.BLEND_MODULATE)
+            except Exception:
+                pass
         try:
             ns = copy.get_editor_property("nanite_settings")
-            ns.set_editor_property("enabled", True)
+            ns.set_editor_property("enabled", not see_through)
             copy.set_editor_property("nanite_settings", ns)
         except Exception as e:
             unreal.log_warning("[Torque] parked cars: Nanite not set on %s (%s)" % (path, e))
@@ -1424,7 +1457,9 @@ def parked_cars(L, kind, row, add):
         made += 1
         if not painted:
             unreal.log_warning("[Torque] parked cars: %s has no paint slot (left in its own colour)" % mesh.get_name())
-    return "parked cars: %d (%d Fab models, %d colours)" % (made, len(models), len(colours))
+    if reflagged:
+        unreal.log("[Torque] parked cars: flagged for instancing/Nanite: %s" % ", ".join(reflagged))
+    return "parked cars: %d (%d Fab models, %d colours; %d materials flagged for instancing)" % (made, len(models), len(colours), len(reflagged))
 
 
 def prop_kit(L):

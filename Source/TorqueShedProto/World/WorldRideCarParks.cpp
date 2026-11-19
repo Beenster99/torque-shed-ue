@@ -17,6 +17,7 @@
 #include "WorldTerrain.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -47,6 +48,11 @@ constexpr double SlabStep = 2.0;       // the surface's points at most this far 
 constexpr double KerbHigh = 0.12, KerbWide = 0.15;
 constexpr double CarLong = 4.3, CarWide = 1.8, CarHigh = 1.45;
 constexpr double CarShare = 0.35;      // of the bays with a car in
+// [build 157 feedback] (Sandgate, Newcastle: an embankment mapped inside a car park drew bays and cars down the
+// bank) Ground steeper than this (rise over run, across 4 m: a bank, not a sloping lay-by) is not car park: the land's own grass shows there,
+// no bays, no kerbs, no tarmac under the wheels; a bay whose corners differ more than BayRiseMost is left out.
+constexpr double ParkSteepest = 1.0 / 6.0;
+constexpr double BayRiseMost = 0.4;
 constexpr int LampEvery = 10;          // bays between lamps along a back line
 constexpr int BaysMost = 3000;
 
@@ -395,9 +401,45 @@ void RidePlan::IndexCarParks()
 					}
 				}
 		}
+		// [build 157 feedback] Its level: a plane fitted to the land in it (twice, the second time without the
+		// points more than ParkCutMost off the first: a bank mapped inside it stays a bank), its fall no more than
+		// ParkFallMost. None where the ground isn't fetched yet.
+		if (Land)
+		{
+			const double Step = std::fmax(LandGrid, std::sqrt(C.Area / 400.0));
+			std::vector<std::array<double, 3>> Pts;
+			for (double Z = C.MinZ + Step * 0.5; Z < C.MaxZ; Z += Step)
+				for (double X = C.MinX + Step * 0.5; X < C.MaxX; X += Step)
+				{
+					if (!RideShapes::InRing(C.Ring, X, Z)) continue;
+					const double Y = Land->Height(X, Z);
+					if (!std::isnan(Y)) Pts.push_back({X - Middle.X, Z - Middle.Z, Y});
+				}
+			double Y0 = std::nan(""), Gx = 0.0, Gz = 0.0;
+			for (int Pass = 0; Pass < 2 && Pts.size() >= 3; ++Pass)
+			{
+				double N = 0, Sx = 0, Sz = 0, Sy = 0, Sxx = 0, Szz = 0, Sxz = 0, Sxy = 0, Szy = 0;
+				for (const auto& Q : Pts)
+				{
+					if (Pass == 1 && std::fabs(Q[2] - (Y0 + Gx * Q[0] + Gz * Q[1])) > ParkCutMost) continue;
+					N += 1; Sx += Q[0]; Sz += Q[1]; Sy += Q[2]; Sxx += Q[0] * Q[0]; Szz += Q[1] * Q[1]; Sxz += Q[0] * Q[1]; Sxy += Q[0] * Q[2]; Szy += Q[1] * Q[2];
+				}
+				if (N < 3) break;
+				const double Mx = Sx / N, Mz = Sz / N, My = Sy / N;
+				const double Cxx = Sxx / N - Mx * Mx, Czz = Szz / N - Mz * Mz, Cxz = Sxz / N - Mx * Mz, Cxy = Sxy / N - Mx * My, Czy = Szy / N - Mz * My;
+				const double Det = Cxx * Czz - Cxz * Cxz;
+				Gx = Gz = 0.0;
+				if (Det > 1e-6) { Gx = (Cxy * Czz - Czy * Cxz) / Det; Gz = (Czy * Cxx - Cxy * Cxz) / Det; }
+				const double Fall = std::hypot(Gx, Gz);
+				if (Fall > ParkFallMost) { Gx *= ParkFallMost / Fall; Gz *= ParkFallMost / Fall; }
+				Y0 = My - Gx * Mx - Gz * Mz;
+			}
+			if (!std::isnan(Y0)) { C.LevelAt = Middle; C.LevelY = Y0; C.LevelGx = Gx; C.LevelGz = Gz; }
+		}
 		const int Index = int(CarParks.size());
-		for (long long Cz = static_cast<long long>(std::floor(C.MinZ / ParkCell)); Cz <= static_cast<long long>(std::floor(C.MaxZ / ParkCell)); ++Cz)
-			for (long long Cx = static_cast<long long>(std::floor(C.MinX / ParkCell)); Cx <= static_cast<long long>(std::floor(C.MaxX / ParkCell)); ++Cx)
+		// (filed with ParkLevelReach round it: the land eases back to its own lie out there)
+		for (long long Cz = static_cast<long long>(std::floor((C.MinZ - ParkLevelReach) / ParkCell)); Cz <= static_cast<long long>(std::floor((C.MaxZ + ParkLevelReach) / ParkCell)); ++Cz)
+			for (long long Cx = static_cast<long long>(std::floor((C.MinX - ParkLevelReach) / ParkCell)); Cx <= static_cast<long long>(std::floor((C.MaxX + ParkLevelReach) / ParkCell)); ++Cx)
 				CarParkGrid[ParkKey(Cx, Cz)].push_back(Index);
 		++CarParkCount[C.Surface];
 		CarParks.push_back(std::move(C));
@@ -454,6 +496,7 @@ void RidePlan::LayOutBays(int Which, std::vector<ParkBay>& Out) const
 		Umin = std::fmin(Umin, Dot(P, C.U)); Umax = std::fmax(Umax, Dot(P, C.U));
 		Vmin = std::fmin(Vmin, Dot(P, C.V)); Vmax = std::fmax(Vmax, Dot(P, C.V));
 	}
+	std::unordered_map<long long, double> Heights;
 	const double Period = 2.0 * ParkBayLong + ParkAisle;
 	const int K0 = int(std::floor((Vmin - C.PhaseV) / Period)) - 1, K1 = int(std::ceil((Vmax - C.PhaseV) / Period)) + 1;
 	const int I0 = int(std::floor((Umin - C.PhaseU) / ParkBayWide)), I1 = int(std::ceil((Umax - C.PhaseU) / ParkBayWide));
@@ -472,6 +515,16 @@ void RidePlan::LayOutBays(int Which, std::vector<ParkBay>& Out) const
 				bool Ok2 = true;
 				for (const P2& P : Corners) Ok2 = Ok2 && Clear(P);
 				if (!Ok2) continue;
+				{
+					// (level enough to park on: its corners within BayRiseMost, its middle not on a bank)
+					double Lo = 1e18, Hi = -1e18;
+					for (int Q = 0; Q < 4; ++Q)
+					{
+						const double Y = LandDrawnAt(Corners[Q].X, Corners[Q].Z, &Heights);
+						if (!std::isnan(Y)) { Lo = std::fmin(Lo, Y); Hi = std::fmax(Hi, Y); }
+					}
+					if (Hi - Lo > BayRiseMost || CarParkSteep(Corners[4].X, Corners[4].Z, &Heights)) continue;
+				}
 				ParkBay B;
 				B.Mid = Corners[4];
 				B.Along = C.U;
@@ -501,6 +554,36 @@ void RidePlan::LayOutBays(int Which, std::vector<ParkBay>& Out) const
 	}
 }
 
+double RidePlan::CarParkLevel(double X, double Z, double Lie) const
+{
+	const auto It = CarParkGrid.find(ParkKey(static_cast<long long>(std::floor(X / ParkCell)), static_cast<long long>(std::floor(Z / ParkCell))));
+	if (It == CarParkGrid.end()) return Lie;
+	double Most = 0.0, Shift = 0.0;
+	for (int Which : It->second)
+	{
+		const CarPark& C = CarParks[size_t(Which)];
+		if (std::isnan(C.LevelY) || X < C.MinX - ParkLevelReach || X > C.MaxX + ParkLevelReach || Z < C.MinZ - ParkLevelReach || Z > C.MaxZ + ParkLevelReach) continue;
+		const double Off = std::clamp(Lie - (C.LevelY + C.LevelGx * (X - C.LevelAt.X) + C.LevelGz * (Z - C.LevelAt.Z)), -ParkCutMost, ParkCutMost);
+		double W = 1.0;
+		if (!RideShapes::InRing(C.Ring, X, Z))
+		{
+			double Out = 1e18;
+			for (size_t I = 0; I < C.Ring.size(); ++I) Out = std::fmin(Out, SegDist(P2(X, Z), C.Ring[I], C.Ring[(I + 1) % C.Ring.size()]));
+			const double T = std::clamp(1.0 - Out / std::fmax(1.0, std::fmin(ParkLevelReach, 1.5 * std::fabs(Off))), 0.0, 1.0);
+			W = T * T * (3.0 - 2.0 * T);
+		}
+		if (W > Most) { Most = W; Shift = Off * W; }
+	}
+	return Lie - Shift;
+}
+
+bool RidePlan::CarParkSteep(double X, double Z, std::unordered_map<long long, double>* Cache) const
+{
+	const double Hx0 = LandDrawnAt(X - 2.0, Z, Cache), Hx1 = LandDrawnAt(X + 2.0, Z, Cache), Hz0 = LandDrawnAt(X, Z - 2.0, Cache), Hz1 = LandDrawnAt(X, Z + 2.0, Cache);
+	if (std::isnan(Hx0) || std::isnan(Hx1) || std::isnan(Hz0) || std::isnan(Hz1)) return false;
+	return std::hypot(Hx1 - Hx0, Hz1 - Hz0) > ParkSteepest * 4.0;
+}
+
 bool RidePlan::InCarPark(double X, double Z) const
 {
 	const int Surface = CarParkSurfaceAt(X, Z);
@@ -514,7 +597,7 @@ int RidePlan::CarParkSurfaceAt(double X, double Z) const
 	for (int Which : It->second)
 	{
 		const CarPark& C = CarParks[size_t(Which)];
-		if (X >= C.MinX && X <= C.MaxX && Z >= C.MinZ && Z <= C.MaxZ && RideShapes::InRing(C.Ring, X, Z)) return C.Surface;
+		if (X >= C.MinX && X <= C.MaxX && Z >= C.MinZ && Z <= C.MaxZ && RideShapes::InRing(C.Ring, X, Z)) return CarParkSteep(X, Z) ? -1 : C.Surface;
 	}
 	return -1;
 }
@@ -728,7 +811,7 @@ void RidePlan::CarParksTile(double X0, double Z0, double Size, int Detail, RideM
 					if (Cut.size() < 3) continue;
 					for (const P2& P : Cut) Piece.push_back(World(P.X, P.Z));
 				}
-				if (OnRoad(Mid, 0.2) || InBuilding(Mid)) continue;
+				if (OnRoad(Mid, 0.2) || InBuilding(Mid) || CarParkSteep(Mid.X, Mid.Z, &Heights)) continue;
 				bool IsYellow = false;
 				const bool Painted = C.Surface != ParkGravel && Covered(Uc, Vc, IsYellow);
 				const Paint& Colour = Painted ? (IsYellow ? Yellow : White) : Ground0;
@@ -759,7 +842,8 @@ void RidePlan::CarParksTile(double X0, double Z0, double Size, int Detail, RideM
 				for (int K = 0; K < Bits; ++K)
 				{
 					const P2 Pa = A + Dir * (L * K / Bits), Pb = A + Dir * (L * (K + 1) / Bits), Pm = (Pa + Pb) * 0.5;
-					if (!InTile(Pm) || (C.HasEntry && Pm.DistanceTo(C.Entry) < 5.0) || OnRoad(Pm + In * 0.1, 2.0) || InBuilding(Pm + In * 0.3)) continue;
+					if (!InTile(Pm) || (C.HasEntry && Pm.DistanceTo(C.Entry) < 5.0) || OnRoad(Pm + In * 0.1, 2.0) || InBuilding(Pm + In * 0.3)
+						|| CarParkSteep(Pm.X + In.X * 1.5, Pm.Z + In.Z * 1.5, &Heights)) continue;
 					const P2 Qa = Pa + In * KerbWide, Qb = Pb + In * KerbWide;
 					const double Ya = Floor(Pa.X, Pa.Z), Yb = Floor(Pb.X, Pb.Z);
 					if (std::isnan(Ya) || std::isnan(Yb)) continue;

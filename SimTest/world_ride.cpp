@@ -845,6 +845,50 @@ int main(int Argc, char** Argv)
 					std::printf("  car park %d at %.5f,%.5f (%.0f, %.0f): %.0f m2, surface %d, %d bays (%d badge), %d cars, way in %s (%.0f, %.0f, in %.2f, %.2f)\n", Big[size_t(K)].second, ParkGeo.Lat, ParkGeo.Lon, Mid.X, Mid.Z,
 						C.Area, C.Surface, int(Bays.size()), Badges, Cars, C.HasEntry ? "found" : "none", C.Entry.X - Mid.X, C.Entry.Z - Mid.Z, C.EntryIn.X, C.EntryIn.Z);
 				}
+				// [build 157 feedback] (banks inside car parks: WORLD_RIDE_CARPARKS_STEEP=n lists the n with most of
+				// their ground too steep to be car park, left as land)
+				const int ShowSteep = std::getenv("WORLD_RIDE_CARPARKS_STEEP") != nullptr ? std::atoi(std::getenv("WORLD_RIDE_CARPARKS_STEEP")) : 0;
+				if (ShowSteep > 0)
+				{
+					std::vector<std::pair<double, int>> ByBank;
+					int AnySteep = 0;
+					for (size_t I = 0; I < Plan->CarParks.size(); ++I)
+					{
+						const RidePlan::CarPark& C = Plan->CarParks[I];
+						int Inside = 0, Banked = 0;
+						for (double Z = C.MinZ + 2.0; Z < C.MaxZ; Z += 4.0)
+							for (double X = C.MinX + 2.0; X < C.MaxX; X += 4.0)
+								if (RideShapes::InRing(C.Ring, X, Z)) { ++Inside; Banked += Plan->CarParkSteep(X, Z) ? 1 : 0; }
+						if (Banked > 0) ++AnySteep;
+						if (Inside > 0) ByBank.push_back({-double(Banked) / Inside, int(I)});
+					}
+					std::sort(ByBank.begin(), ByBank.end());
+					{
+						// (how level their ground is drawn: the share of points falling under 1 in 15 across 4 m)
+						long long Flat = 0, All = 0;
+						for (const RidePlan::CarPark& C : Plan->CarParks)
+							for (double Z = C.MinZ + 2.0; Z < C.MaxZ; Z += 4.0)
+								for (double X = C.MinX + 2.0; X < C.MaxX; X += 4.0)
+								{
+									if (!RideShapes::InRing(C.Ring, X, Z)) continue;
+									const double A = Plan->LandDrawnAt(X - 2.0, Z), B = Plan->LandDrawnAt(X + 2.0, Z), Cc = Plan->LandDrawnAt(X, Z - 2.0), D = Plan->LandDrawnAt(X, Z + 2.0);
+									if (std::isnan(A) || std::isnan(B) || std::isnan(Cc) || std::isnan(D)) continue;
+									++All;
+									Flat += std::hypot(B - A, D - Cc) < 4.0 / 15.0 ? 1 : 0;
+								}
+						std::printf("Car parks' ground: %.1f%% of %lld points level (under 1 in 15)\n", All ? 100.0 * double(Flat) / double(All) : 0.0, All);
+					}
+					std::printf("Car parks with steep ground in: %d\n", AnySteep);
+					for (int K = 0; K < ShowSteep && K < int(ByBank.size()); ++K)
+					{
+						const RidePlan::CarPark& C = Plan->CarParks[size_t(ByBank[size_t(K)].second)];
+						P2 Mid;
+						RideShapes::RingArea(C.Ring, Mid);
+						const Geo SteepGeo = Plan->Area.Roads.FrameOf().ToGeo(Mid.X, Mid.Z);
+						Plan->CarParkBays(ByBank[size_t(K)].second, Bays);
+						std::printf("  steep car park %d at %.5f,%.5f: %.0f m2, %.0f%% too steep, %d bays\n", ByBank[size_t(K)].second, SteepGeo.Lat, SteepGeo.Lon, C.Area, -ByBank[size_t(K)].first * 100.0, int(Bays.size()));
+					}
+				}
 			}
 			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
 			{

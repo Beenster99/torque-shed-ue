@@ -1704,6 +1704,8 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores, bool 
 	const bool RailBed = !std::isnan(Lie) && NearRail(X, Z, RailDist, RailTop, RailOn, nullptr, &RailRoom) && (RailOn == 0 || RailOn == 3) && RailDist <= RailRoom;
 	const double RailLevel = RailTop - 0.47, RailRise = std::fmax(0.0, RailDist - RailBedHalf) / 1.5;
 	if (RailBed) Lie = std::fmin(std::fmax(Lie, RailLevel - RailRise), RailLevel + RailRise);
+	// [car parks, build 157 feedback] (a car park's ground laid level, its banks eased back to the land)
+	if (!std::isnan(Lie) && !CarParks.empty()) Lie = CarParkLevel(X, Z, Lie);
 	// [build 147 feedback] Water's channels and beds (World/WorldRideWater.cpp): a river's, stream's or
 	// canal's bed under its level, a lip just over the level at its edge, its bank rising BankRun across
 	// for each metre up to the land; a lake's bed under its level; the sea's under the sea.
