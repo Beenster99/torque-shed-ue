@@ -171,6 +171,7 @@ int main(int Argc, char** Argv)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_heights.json"), HeightsText)) SetChurchHeights(HeightsText);
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
+		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
 		std::string GlyphText;   // [OSM stage 6A]
@@ -2182,6 +2183,25 @@ int main(int Argc, char** Argv)
 		for (const Building& B : Plan->Area.Roads.Buildings) Under += Plan->UnderTower(B.X, B.Z) ? 1 : 0;
 		std::printf("Towers: %zu (%d 40 m or more, %d parts, %d outlines drawn as their parts, %d heights guessed); %d box buildings left to them\n", Plan->TowerShapes.size(), Tall, Parts,
 			Plan->TowersOutlines, Plan->TowersGuessed, Under);
+	}
+	{
+		// [junction priority] (each junction of the map the ride passes with a through road: where the ride gives way)
+		int CameMinor = 0, OntoMinor = 0, Through = 0;
+		for (const RidePlan::JunctionRule& J : Plan->Junctions)
+		{
+			CameMinor += J.CameMinor ? 1 : 0;
+			OntoMinor += J.OntoMinor ? 1 : 0;
+			Through += !J.CameMinor && !J.OntoMinor ? 1 : 0;
+			if (std::getenv("WORLD_RIDE_JUNCTIONS") && (J.CameMinor || J.OntoMinor))
+			{
+				const Geo NodeAt = Frame(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon).ToGeo(Plan->Area.Roads.Nodes[size_t(J.Node)].X, Plan->Area.Roads.Nodes[size_t(J.Node)].Z);
+				std::printf("  junction at %.0f m (%.5f,%.5f): %s %s, turn %.0f deg, %s -> %s\n", J.Along, NodeAt.Lat, NodeAt.Lon, J.CameMinor ? "comes in giving way" : "comes in on the through road",
+					J.OntoMinor ? "leaves by a road that gives way" : "leaves on the through road", J.Turn * 57.3,
+					Plan->Area.Roads.ClassOf(J.Came).c_str(), Plan->Area.Roads.ClassOf(J.Onto).c_str());
+			}
+		}
+		std::printf("Junctions: %zu with a through road; the ride on it through %d, comes in giving way at %d, leaves by a lesser road at %d; %d give-way lines on its own road\n",
+			Plan->Junctions.size(), Through, CameMinor, OntoMinor, Plan->JunctionGiveWayCount);
 	}
 	for (const std::string& Note : Plan->TakeOutlineNotes()) std::printf("Outlines: %s\n", Note.c_str());   // [LiDAR stage 2]
 	{

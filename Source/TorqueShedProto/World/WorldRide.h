@@ -1137,6 +1137,35 @@ public:
 	static constexpr int Finish = 9;
 	std::vector<RideTurn> Turns;
 	std::vector<double> RingGiveWays;   // [OSM stage 5B] how far along the ride's road it gives way onto a roundabout
+	// [junction priority, Nov 19] (beenster: "Our routed road is THE road that everything else comes from.
+	// This is wrong.") Who gives way at each junction of the map the ride passes (three or more roads, not a
+	// roundabout), as on the real road and whichever way the ride goes: the through road is the pair of its
+	// roads of the best class running on most nearly straight (within JunctionStraight, or the only two of
+	// that class within JunctionBent), and every other road there gives way to it. Where the ride comes in
+	// or goes out by one of those, its own road stops at the through road's edge: give-way lines across the
+	// lane coming up to it, none of its own lines across the through road, and a junction's tight corner
+	// where it turns (not a bend faired as the road's class would be).
+	struct JunctionRule
+	{
+		int Node = -1, Came = -1, Onto = -1;
+		int ThroughA = -1, ThroughB = -1;   // the through road's two roads there
+		double RawAlong = 0.0;    // where it is along the map's line of the ride
+		double Along = -1.0;      // and along the road as laid (PlaceJunctions)
+		double MajorHalf = 0.0;   // half the through road's width
+		double Turn = 0.0;        // the ride's turn there (radians, + to the left)
+		bool CameMinor = false, OntoMinor = false;   // the ride comes in, goes out, by a road that gives way
+	};
+	static constexpr double JunctionStraight = 0.7, JunctionBent = 1.2, JunctionTurn = 0.6, JunctionCorner = 25.0, JunctionFair = 2.0;
+	std::vector<JunctionRule> Junctions;
+	// (each road's end at a junction of the ride's: node * 4000037 + edge; 1 it gives way, 2 it is the through road)
+	std::unordered_map<long long, unsigned char> ArmRank;
+	unsigned char ArmRankOf(int Node, int Edge) const;
+	std::vector<std::pair<double, double>> JunctionNoLines;   // (stretches of the ride's road across a through road: none of its lines)
+	bool LinesStopAt(double Along) const;
+	int JunctionGiveWayCount = 0;   // (give-way lines the rule painted on the ride's own road)
+	void FindPriorities(int From, const std::vector<int>& Path);
+	static bool NoJunctionPriority;   // (the tests' before-and-after: every junction as the ride's road had it)
+	void PlaceJunctions(double RawLength);
 	// Places to stop along it from the map: fuel, cafes, pubs, viewpoints, lay-bys, within StopReach of
 	// the road; how far along, and which side (+ the left).
 	// [OSM stage 1] inns, campsites and castles too.
