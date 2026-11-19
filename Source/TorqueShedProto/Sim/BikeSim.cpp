@@ -1447,9 +1447,12 @@ void BikeSim::ApplyRiderBalance(double Delta)
 	// adventure up on a handful (beenster, build 155: "Turned all assist off on a 800cc bike and it couldn't
 	// wheelie"); weight forward is as it was.
 	const V3 Right = B.X;
-	// [wheelies, Nov 19] The haul is all there from the weight two thirds back (a stick pulled most of the
-	// way, not hard against its stop), and a little stronger (was 150 at -1, so 90 at -0.6).
-	double PitchTau = AnyContact ? (BodyShift < 0.0 ? PITCH_HAUL * Clamp(-BodyShift / 0.5, 0.0, 1.0) : -BodyShift * 60.0) : -BodyShift * 220.0;
+	// [wheelies, Nov 19] Past 0.15 back, the haul builds to all of it from half back (a stick pulled most of
+	// the way, not hard against its stop), and a little stronger (was 150 at -1, so 90 at -0.6).
+	// ([r158 climb] Within 0.15 of the middle it's exactly as before, 150 N m x the shift: a stick resting a
+	// touch back, or a robot's shift that isn't quite 0, can't lift the front any more than it used to.)
+	double PitchTau = -BodyShift * (AnyContact ? (BodyShift < 0.0 ? 150.0 : 60.0) : 220.0);
+	if (AnyContact && BodyShift < -0.15) PitchTau = std::max(PitchTau, PITCH_HAUL * Clamp((-BodyShift - 0.15) / 0.35, 0.0, 1.0));
 	const double PitchRate = AngularVelocity.Dot(Right);
 	if (!AnyContact)
 	{
