@@ -1346,6 +1346,10 @@ public:
 		P2 Entry, EntryIn;                       // its way in, and the way into it there
 		bool HasEntry = false;
 		uint32_t Seed = 0;
+		// [build 157 feedback] Its level: the plane its ground is laid to (GroundOf, CarParkLevel), fitted to the
+		// land in it and no steeper than ParkFallMost; LevelY at LevelAt, rising LevelGx, LevelGz a metre (nan: none).
+		P2 LevelAt;
+		double LevelY = std::nan(""), LevelGx = 0.0, LevelGz = 0.0;
 	};
 	struct ParkBay
 	{
@@ -1373,7 +1377,13 @@ public:
 	};
 	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
 	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
-	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none)
+	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none or too steep)
+	// [build 157 feedback] (beenster: "strange carpark", Sandgate: bays and cars draped down an embankment) The
+	// land under and round a car park as built: within ParkCutMost of its level laid to it (cut or filled), the
+	// rest of a bank kept as a bank; outside its edge easing back to the land 2 in 3. Lie: the land as it lies.
+	double CarParkLevel(double X, double Z, double Lie) const;
+	static constexpr double ParkFallMost = 1.0 / 15.0, ParkCutMost = 2.5, ParkLevelReach = 6.0;
+	bool CarParkSteep(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;   // (a bank inside one: land, not car park)
 	static constexpr double ParkLift = 0.05;          // its surface over the drawn ground (the wheels ride on it)
 	int CarParkCount[3] = {};   // by surface, indexed (for the desk test)
 	// Whether the bays have cars in (the game: when the kit has the car models and -TorqueRideParkedCars=0 isn't
