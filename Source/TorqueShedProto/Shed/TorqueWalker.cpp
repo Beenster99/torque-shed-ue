@@ -667,15 +667,24 @@ void ATorqueWalker::ReadInput(float Dt)
 	// Settings > Controller > Key bindings: the keyboard and mouse as the player bound them.
 	auto KeyDown = [PC](ETorqueKey A) { return FTorqueKeys::Down(PC, A); };
 	auto KeyJust = [PC](ETorqueKey A) { return FTorqueKeys::Just(PC, A); };
-	// [label] The shelf label box is up: the keys type its label till Enter or Esc.
-	if (LabelPiece != 0)
+	// [label] The shelf label box (or the bike's name box) is up: the keys type it till Enter or Esc.
+	if (LabelBoxUp())
 	{
 		LabelInput(PC, SonyHit);
 		return;
 	}
 	// N on a shelving unit: write on its label plate (Torque Shed's label_dialog.gd).
-	if (KeyJust(ETorqueKey::LabelShelf) && TargetFurniture != 0 && !bComputer && !bBench && Wheeling() == INDEX_NONE && OpenLabel(TargetFurniture))
+	const bool bNameJust = KeyJust(ETorqueKey::LabelShelf);
+	if (bNameJust && TargetFurniture != 0 && !bComputer && !bBench && Wheeling() == INDEX_NONE && OpenLabel(TargetFurniture))
 		return;
+	// N anywhere else, or D-pad up on the pad (free on foot bar the spray gun's and the lance's scan):
+	// name the bike looked at or stood next to (Torque Shed's rename box; beenster, Nov 19).
+	const bool bPadName = (Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) && !TWI::Sprays(Tool) && Tool != ETorqueTool::Lance;
+	if ((bNameJust || bPadName) && !bComputer && !bBench && Wheeling() == INDEX_NONE && SeatId == 0)
+	{
+		if (!OpenBikeName(Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE)) Say(TEXT("Walk up to a bike to give it a name."), false);
+		return;
+	}
 	// F2: geometry mode on the bike looked at, or the nearest (main.gd's F2).
 	if (KeyJust(ETorqueKey::GeometryMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{
