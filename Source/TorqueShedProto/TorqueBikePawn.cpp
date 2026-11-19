@@ -2063,8 +2063,20 @@ void ATorqueBikePawn::TakeOver(const FVector& Feet, double Yaw, bool bRide)
 	SetParkedLook(true);
 	ShowNetWalker(false, Feet, Yaw, 0.0f);   // their body walked beside it here: they're on another bike now
 	if (NetBike) NetBike->TakenOver();
-	UE_LOG(LogTemp, Log, TEXT("Torque net: took over bay %d's bike where it stands, engine %s%s"), RideBay + 1,
-		Sim->EngineOn ? TEXT("ticking over") : TEXT("off"), bRide ? TEXT(", getting on") : TEXT(", on foot beside it"));
+	// [r160] Its way along the road from where it stands now (ridden by a mate until now, its Near here
+	// was still where it set off): else the trip read 0 km and a fall put it back at the start.
+	if (Line.Num() >= 2 && !bYard)
+	{
+		const V3 Here = Sim->Position;
+		double Closest = 1e18;
+		for (int32 I = 0; I < Line.Num(); ++I)
+		{
+			const double D = FMath::Square(Line[I].X - Here.x) + FMath::Square(Line[I].Z - Here.z);
+			if (D < Closest) { Closest = D; Near = I; }
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque net: took over bay %d's bike where it stands (route point %d of %d), engine %s%s"), RideBay + 1,
+		Near, Line.Num(), Sim->EngineOn ? TEXT("ticking over") : TEXT("off"), bRide ? TEXT(", getting on") : TEXT(", on foot beside it"));
 	if (bRide) GetOn();
 }
 
@@ -4933,6 +4945,21 @@ void ATorqueBikePawn::UpdateProgress()
 	{
 		const double D = FMath::Square(Line[I].X - P.x) + FMath::Square(Line[I].Z - P.z);
 		if (D < Best) { Best = D; BestI = I; }
+	}
+	// [r160] Far from every point near where it last was (a mate's bike taken over, which had ridden on
+	// from snapshots while this machine's Near stayed at the start; a circuit's start line; back on a
+	// side road): the nearest point along the whole road instead, if that's nearer. Without it "back on
+	// the road" after a fall put a swapped bike back at the start of the ride (beenster, build 160).
+	if (Best > FMath::Square(150.0))
+	{
+		double Whole = Best;
+		int32 WholeI = BestI;
+		for (int32 I = 0; I < Line.Num(); ++I)
+		{
+			const double D = FMath::Square(Line[I].X - P.x) + FMath::Square(Line[I].Z - P.z);
+			if (D < Whole) { Whole = D; WholeI = I; }
+		}
+		if (Whole < Best * 0.25) BestI = WholeI;
 	}
 	Near = BestI;
 	if (!bFinished && Near >= Line.Num() - 1) bFinished = true;
