@@ -10,6 +10,8 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
+#include <unordered_map>
 #include <mutex>
 
 namespace TorqueWorld
@@ -148,6 +150,15 @@ bool ReadCircuitNotes(const std::string& Text, CircuitNotes& Out)
 				if (!GeoOf(&P, G)) continue;
 				N.Gates.push_back(G);
 				N.GateNames.push_back(P.A.size() > 2 ? P.A[2].S : std::string());
+			}
+		if (const Json* S = C.Get("corners"))
+			for (const Json& P : S->A)
+			{
+				Geo G;
+				if (!GeoOf(&P, G)) continue;
+				N.Corners.push_back(G);
+				N.CornerNames.push_back(P.A.size() > 2 ? P.A[2].S : std::string());
+				N.CornerBank.push_back(P.A.size() > 3 && P.A[3].IsNumber() ? P.A[3].N : 0.0);
 			}
 		N.Test = C.Flag("test");
 		N.About = C.Str("about");
@@ -295,8 +306,17 @@ void RidePlan::IndexCircuits()
 			bool Round = false;
 			if (E0 >= 0)
 			{
+				// (the way it's raced from the line: clockwise has the circuit's middle on the right)
 				int Edge = E0, Node = G.Edges[size_t(E0)].B;
 				Walk = G.Edges[size_t(E0)].Line;
+				{
+					const P2 D = Walk.back() - Walk.front(), V = Info.At - Start.At;
+					if (((D.X * V.Z - D.Z * V.X) > 0.0) != (Note != nullptr ? Note->Clockwise : true))
+					{
+						std::reverse(Walk.begin(), Walk.end());
+						Node = G.Edges[size_t(E0)].A;
+					}
+				}
 				for (int Step = 0; Step < 400; ++Step)
 				{
 					const P2 In = G.Edges[size_t(Edge)].A == Node ? G.Edges[size_t(Edge)].Line[0] - G.Edges[size_t(Edge)].Line[1]
@@ -308,7 +328,7 @@ void RidePlan::IndexCircuits()
 						if (E == Edge || !G.CircuitEdge(E) || G.ClassOf(E) != "raceway" || G.CircuitOf[size_t(E - G.CircuitFirst)] != int(C)) continue;
 						const std::vector<P2> L = G.LineFrom(E, Node);
 						const P2 Out = L[1] - L[0];
-						const double Cos = -(In.X * Out.X + In.Z * Out.Z) / std::fmax(In.Length() * Out.Length(), 1e-9);
+						const double Cos = (In.X * Out.X + In.Z * Out.Z) / std::fmax(In.Length() * Out.Length(), 1e-9);
 						if (Cos > Straightest) { Straightest = Cos; Next = E; }
 					}
 					if (Next < 0) break;
@@ -350,14 +370,38 @@ void RidePlan::IndexCircuits()
 			if (OnTrack(F.FromGeo(Note->Sectors[S].Lat, Note->Sectors[S].Lon), 150.0, Sector)) Ix->Lines.push_back(Sector);
 		}
 	}
+	// (a road course's gate: on the nearest road to its note's place, a main road first, within 600 m; where the
+	// area has none yet, the place as noted)
+	const auto OnMainRoad = [&G](const P2& Want)
+	{
+		P2 Best = Want;
+		double Bd = 600.0;
+		for (size_t E = 0; E < G.Edges.size(); ++E)
+		{
+			// (a main road preferred: a lesser one is as if 100 m further; the circuits' own roads never)
+			const std::string& Class = G.ClassOf(int(E));
+			if (G.CircuitFirst >= 0 && int(E) >= G.CircuitFirst) continue;
+			const double Lesser = Class == "trunk" || Class == "primary" || Class == "secondary" || Class == "tertiary" ? 0.0 : 100.0;
+			const std::vector<P2>& L = G.Edges[E].Line;
+			if (L.empty() || std::fabs(L[0].X - Want.X) > 20000.0 || std::fabs(L[0].Z - Want.Z) > 20000.0) continue;
+			for (size_t K = 0; K + 1 < L.size(); ++K)
+			{
+				const P2 D = L[K + 1] - L[K];
+				const double L2 = D.X * D.X + D.Z * D.Z;
+				const double T = L2 > 1e-12 ? std::clamp(((Want.X - L[K].X) * D.X + (Want.Z - L[K].Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+				const P2 P = L[K] + D * T;
+				const double Dist = P.DistanceTo(Want) + Lesser;
+				if (Dist < Bd) { Bd = Dist; Best = P; }
+			}
+		}
+		return Best;
+	};
 	// The road courses whose start is within the ride's area (their gates may be beyond it yet).
 	if (Notes)
 		for (const CircuitNote& N : Notes->Circuits)
 		{
 			if (!N.Road || N.Start.Lat == 0.0) continue;
-			P2 S = F.FromGeo(N.Start.Lat, N.Start.Lon);
-			const int Snap = G.NearestNode(S.X, S.Z, 400.0);
-			if (Snap >= 0) S = G.Nodes[size_t(Snap)];
+			const P2 S = OnMainRoad(F.FromGeo(N.Start.Lat, N.Start.Lon));
 			if (!G.Bounds.Empty() && (S.X < G.Bounds.X0 - 20000.0 || S.X > G.Bounds.X1 + 20000.0 || S.Z < G.Bounds.Z0 - 20000.0 || S.Z > G.Bounds.Z1 + 20000.0)) continue;
 			CircuitIndex::Line Gate;
 			Gate.Circuit = -1;
@@ -366,7 +410,10 @@ void RidePlan::IndexCircuits()
 			Gate.At = S;
 			Gate.Half = CircuitLaps::GateReach;
 			Ix->Lines.push_back(Gate);
+			std::vector<P2>& Gates = Ix->RoadGates[N.Name];
+			for (const Geo& Ga : N.Gates) Gates.push_back(OnMainRoad(F.FromGeo(Ga.Lat, Ga.Lon)));
 		}
+	IndexTrackside(*Ix);   // (the trackside kit, once the lines are known)
 	CircuitIx = Ix;
 }
 
@@ -490,6 +537,344 @@ void RidePlan::CircuitMarks(int Which, double From, double To, std::vector<RoadM
 	std::sort(Out.begin(), Out.end(), [](const RoadMark& A, const RoadMark& B) { return A.From < B.From; });
 }
 
+void RidePlan::CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const
+{
+	const Region& G = Area.Roads;
+	if (!G.CircuitEdge(Edge) || G.ClassOf(Edge) != "raceway" || Line.size() < 5 || Banks.size() != Line.size()) return;
+	const std::shared_ptr<const CircuitNotes> Notes = CircuitNotesNow();
+	if (!Notes) return;
+	const Frame F = G.FrameOf();
+	const CircuitInfo& Info = G.Circuits[size_t(G.CircuitOf[size_t(Edge - G.CircuitFirst)])];
+	const CircuitNote* Note = Notes->Find(Info.Name, F.ToGeo(Info.At.X, Info.At.Z));
+	if (Note == nullptr || Note->Corners.empty()) return;
+	for (size_t K = 0; K < Note->Corners.size(); ++K)
+	{
+		const P2 At = F.FromGeo(Note->Corners[K].Lat, Note->Corners[K].Lon);
+		const double Want = Note->CornerBank[K] / 100.0;
+		for (size_t I = 2; I + 2 < Line.size(); ++I)
+		{
+			const double D = Line[I].DistanceTo(At);
+			if (D >= CircuitNote::CornerReach) continue;
+			// (which way it bends here: + right, so the outside, the left, is the higher for a bank)
+			const P2 A = Line[I - 2], B = Line[I], C = Line[I + 2];
+			const double Cross = (B.X - A.X) * (C.Z - B.Z) - (B.Z - A.Z) * (C.X - B.X);
+			const double Sign = Cross > 0.0 ? 1.0 : Cross < 0.0 ? -1.0 : (Banks[I] >= 0.0 ? 1.0 : -1.0);
+			const double U = 1.0 - D / CircuitNote::CornerReach;
+			const double W = U * U * (3.0 - 2.0 * U);
+			Banks[I] = Banks[I] * (1.0 - W) + Sign * Want * W;
+		}
+	}
+}
+
+// ----- The trackside kit -----
+
+namespace
+{
+// (every circuit road, the paddock's links too, by 32 m square: what a barrier mustn't stand on)
+struct TracksideRoads
+{
+	static constexpr double Cell = 32.0;
+	struct Seg { P2 A, B; double Half; int Edge; };
+	std::vector<Seg> Segs;
+	std::unordered_map<long long, std::vector<int>> Cells;
+	static long long Key(int Cx, int Cz) { return static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz); }
+	void Add(const Seg& S)
+	{
+		const int I = int(Segs.size());
+		Segs.push_back(S);
+		const int X0 = int(std::floor((std::fmin(S.A.X, S.B.X) - S.Half) / Cell)), X1 = int(std::floor((std::fmax(S.A.X, S.B.X) + S.Half) / Cell));
+		const int Z0 = int(std::floor((std::fmin(S.A.Z, S.B.Z) - S.Half) / Cell)), Z1 = int(std::floor((std::fmax(S.A.Z, S.B.Z) + S.Half) / Cell));
+		for (int Cz = Z0; Cz <= Z1; ++Cz)
+			for (int Cx = X0; Cx <= X1; ++Cx) Cells[Key(Cx, Cz)].push_back(I);
+	}
+	// How far P is clear of every circuit road's edge (negative: on one), up to Reach.
+	double Clear(const P2& P, double Reach, int* Edge = nullptr) const
+	{
+		double Best = Reach;
+		const int Cx0 = int(std::floor((P.X - Reach) / Cell)), Cx1 = int(std::floor((P.X + Reach) / Cell));
+		const int Cz0 = int(std::floor((P.Z - Reach) / Cell)), Cz1 = int(std::floor((P.Z + Reach) / Cell));
+		for (int Cz = Cz0; Cz <= Cz1; ++Cz)
+			for (int Cx = Cx0; Cx <= Cx1; ++Cx)
+			{
+				const auto It = Cells.find(Key(Cx, Cz));
+				if (It == Cells.end()) continue;
+				for (int I : It->second)
+				{
+					const Seg& S = Segs[size_t(I)];
+					const P2 D = S.B - S.A;
+					const double L2 = D.X * D.X + D.Z * D.Z;
+					const double T = L2 > 1e-12 ? std::clamp(((P.X - S.A.X) * D.X + (P.Z - S.A.Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+					const double Dist = (S.A + D * T).DistanceTo(P) - S.Half;
+					if (Dist < Best) { Best = Dist; if (Edge != nullptr) *Edge = S.Edge; }
+				}
+			}
+		return Best;
+	}
+};
+
+uint32_t TracksideId(const P2& P, int Kind)
+{
+	return static_cast<uint32_t>(std::lround(P.X * 5.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(P.Z * 5.0)) * 19349663u ^ static_cast<uint32_t>(Kind) * 83492791u;
+}
+} // namespace
+
+void RidePlan::IndexTrackside(CircuitIndex& Ix) const
+{
+	const Region& G = Area.Roads;
+	if (G.CircuitFirst < 0) return;
+	TracksideRoads Roads;
+	for (int E = G.CircuitFirst; E < int(G.Edges.size()); ++E)
+	{
+		const RoadExtra* X = G.ExtraOf(E);
+		const std::string& Class = G.ClassOf(E);
+		const double Half = (X != nullptr && X->Width > 0.0 ? X->Width : Class == "raceway" ? Region::TrackWidth : Class == "pit_lane" ? Region::PitWidth : 6.0) * 0.5;
+		const std::vector<P2>& L = G.Edges[size_t(E)].Line;
+		for (size_t K = 0; K + 1 < L.size(); ++K) Roads.Add({L[K], L[K + 1], Half, E});
+	}
+	const auto TrapAt = [&](const P2& P)
+	{
+		const auto It = Ix.Areas.find(CircuitIndex::KeyOf(P.X, P.Z));
+		if (It == Ix.Areas.end()) return -1;
+		for (int A : It->second)
+			if (InRing(G.CircuitAreas[size_t(A)].Ring, P.X, P.Z)) return G.CircuitAreas[size_t(A)].Kind == 8 ? 1 : 2;
+		return -1;
+	};
+	const auto Put = [&](int Kind, int Variant, const P2& At, double Yaw, double RunLen, double Own)
+	{
+		CircuitIndex::Prop P;
+		P.Kind = Kind;
+		P.Variant = Variant;
+		P.At = At;
+		P.Yaw = Yaw;
+		P.Length = RunLen;
+		P.Stretch = Own > 0.0 ? float(RunLen / Own) : 1.0f;
+		P.Id = TracksideId(At, Kind);
+		Ix.Props.push_back(P);
+	};
+	// (a long piece from A to B, if both its ends and its middle stand clear of every circuit road)
+	const auto Run = [&](int Kind, const P2& A, const P2& B, double Own)
+	{
+		const double Len = A.DistanceTo(B);
+		if (Len < 0.5 || Len > Own * 1.6) return;
+		const P2 Mid = (A + B) * 0.5;
+		if (Roads.Clear(A, 2.0) < 0.6 || Roads.Clear(B, 2.0) < 0.6 || Roads.Clear(Mid, 2.0) < 0.6) return;
+		Put(Kind, 0, A, std::atan2(B.Z - A.Z, B.X - A.X), Len, Own);
+	};
+	for (int E = G.CircuitFirst; E < int(G.Edges.size()); ++E)
+	{
+		if (!G.CircuitEdge(E)) continue;
+		const int C = G.CircuitOf[size_t(E - G.CircuitFirst)];
+		const std::string& Class = G.ClassOf(E);
+		const RoadExtra* X = G.ExtraOf(E);
+		std::vector<P2> L = G.Edges[size_t(E)].Line;
+		if (L.size() < 2) continue;
+		// (the way it's raced: clockwise has the circuit's middle on the right)
+		const CircuitInfo& Info = G.Circuits[size_t(C)];
+		const std::shared_ptr<const CircuitNote>& Note = size_t(C) < Ix.Notes.size() ? Ix.Notes[size_t(C)] : nullptr;
+		{
+			const P2 M = L[L.size() / 2], D = L[L.size() / 2] - L[L.size() / 2 - 1];
+			const P2 V = Info.At - M;
+			if (((D.X * V.Z - D.Z * V.X) > 0.0) != (Note ? Note->Clockwise : true)) std::reverse(L.begin(), L.end());
+		}
+		// The line every 2 m, its heading's turn (radians a metre: + right) over 8 m either side.
+		std::vector<P2> Pt;
+		std::vector<double> Along;
+		double Total = 0.0;
+		Pt.push_back(L[0]);
+		Along.push_back(0.0);
+		for (size_t K = 1; K < L.size(); ++K)
+		{
+			const double Seg = L[K].DistanceTo(L[K - 1]);
+			if (Seg < 1e-6) continue;
+			for (double T = 2.0 - std::fmod(Total, 2.0); T <= Seg + 1e-9; T += 2.0)
+			{
+				Pt.push_back(L[K - 1] + (L[K] - L[K - 1]) * (T / Seg));
+				Along.push_back(Total + T);
+			}
+			Total += Seg;
+		}
+		if (Pt.size() < 4) continue;
+		const size_t N = Pt.size();
+		std::vector<P2> Dir(N), Left(N);
+		std::vector<double> Turn(N, 0.0);
+		for (size_t I = 0; I < N; ++I)
+		{
+			const P2 D = Pt[std::min(I + 1, N - 1)] - Pt[I > 0 ? I - 1 : 0];
+			const double Len = std::fmax(D.Length(), 1e-9);
+			Dir[I] = D * (1.0 / Len);
+			Left[I] = P2(Dir[I].Z, -Dir[I].X);
+			const size_t J0 = I >= 4 ? I - 4 : 0, J1 = std::min(I + 4, N - 1);
+			if (J0 >= I || J1 <= I) continue;
+			const P2 A = Pt[I] - Pt[J0], B = Pt[J1] - Pt[I];
+			Turn[I] = std::atan2(A.X * B.Z - A.Z * B.X, A.X * B.X + A.Z * B.Z) / std::fmax(Along[J1] - Along[J0], 1e-6);
+		}
+		if (Class == "pit_lane")
+		{
+			// The pit wall: on the pit lane's side towards the track, its ends left open (where it leaves and joins).
+			const double Half = (X != nullptr && X->Width > 0.0 ? X->Width : Region::PitWidth) * 0.5;
+			for (size_t I = 0; I + 2 < N; I += 2)
+			{
+				if (Along[I] < 40.0 || Along[I + 2] > Total - 40.0) continue;
+				double Side = 0.0;
+				for (const double S : {1.0, -1.0})
+				{
+					int Near = -1;
+					if (Roads.Clear(Pt[I + 1] + Left[I + 1] * (S * (Half + 2.0)), 25.0, &Near) < 25.0 && Near >= 0 && G.CircuitEdge(Near)
+						&& G.ClassOf(Near) == "raceway") Side = Side == 0.0 ? S : Side;
+				}
+				if (Side == 0.0) continue;
+				Run(PropPitWall, Pt[I] + Left[I] * (Side * (Half + 0.5)), Pt[I + 2] + Left[I + 2] * (Side * (Half + 0.5)), 4.0);
+			}
+			continue;
+		}
+		if (Class != "raceway") continue;
+		const double Half = (X != nullptr && X->Width > 0.0 ? X->Width : Region::TrackWidth) * 0.5;
+		constexpr double Corner = 1.0 / 160.0, Hard = 1.0 / 70.0;
+		// (where a corner is: its turn tight at a point within 20 m)
+		std::vector<int> Bend(N, 0);
+		for (size_t I = 0; I < N; ++I)
+			for (size_t J = I >= 10 ? I - 10 : 0; J < std::min(I + 11, N); ++J)
+				if (std::fabs(Turn[J]) >= Corner) { Bend[I] = Turn[J] > 0.0 ? 1 : -1; if (std::fabs(Turn[J]) >= std::fabs(Turn[I])) break; }
+		// The barriers each side: out past the run-off (gravel or paved, as mapped), else a little off the edge;
+		// tyres on a corner's outside, armco elsewhere. Pieces of 4 m (two tyre lengths).
+		for (const double S : {1.0, -1.0})
+		{
+			for (size_t I = 0; I + 2 < N; I += 2)
+			{
+				const int B = Bend[I + 1];
+				// (+ offsets are the left: a right-hand bend's outside is its left)
+				const bool Outside = B != 0 && (B > 0) == (S > 0.0);
+				double Off = Half + (Outside ? 9.0 : 5.0);
+				for (double D = Half + 1.0; D < Half + 70.0; D += 2.0)
+				{
+					if (TrapAt(Pt[I + 1] + Left[I + 1] * (S * D)) < 0) { if (D > Half + 3.0) Off = std::fmax(Off, D + 1.0); break; }
+				}
+				const P2 A = Pt[I] + Left[I] * (S * Off), Bp = Pt[I + 2] + Left[I + 2] * (S * Off);
+				if (Outside)
+				{
+					const P2 M = (A + Bp) * 0.5;
+					Run(PropTyreWall, A, M, 2.0);
+					Run(PropTyreWall, M, Bp, 2.0);
+				}
+				else Run(PropArmco, A, Bp, 4.0);
+			}
+		}
+		// Marshals' posts every 350 m or so, behind the barrier on the outside of the bend there (else the left).
+		for (double At = 150.0; At < Total - 50.0; At += 350.0)
+		{
+			const size_t I = std::min(N - 1, size_t(At / 2.0));
+			const double S = Bend[I] > 0 ? 1.0 : Bend[I] < 0 ? -1.0 : 1.0;
+			double Off = Half + 12.0;
+			for (double D = Half + 1.0; D < Half + 70.0; D += 2.0)
+				if (TrapAt(Pt[I] + Left[I] * (S * D)) < 0) { Off = std::fmax(Off, D + 4.0); break; }
+			const P2 P = Pt[I] + Left[I] * (S * Off);
+			if (Roads.Clear(P, 4.0) < 2.5) continue;
+			Put(PropMarshalPost, 0, P, std::atan2(Pt[I].Z - P.Z, Pt[I].X - P.X), 0.0, 0.0);
+		}
+		// Braking boards before a hard corner met after 150 m of straighter track: at 150, 100 and 50 m, on its outside.
+		for (size_t I = 75; I < N; ++I)
+		{
+			if (std::fabs(Turn[I]) < Hard || std::fabs(Turn[I - 1]) >= Corner) continue;
+			bool Straight = true;
+			for (size_t J = I - 75; J < I && Straight; ++J) Straight = std::fabs(Turn[J]) < Corner;
+			if (!Straight) continue;
+			const double S = Turn[I] > 0.0 ? 1.0 : -1.0;
+			for (int V = 0; V < 3; ++V)
+			{
+				const size_t J = I - size_t(75 - 25 * V);
+				const P2 P = Pt[J] + Left[J] * (S * (Half + 2.5));
+				if (Roads.Clear(P, 3.0) < 1.2) continue;
+				// (facing the riders coming: back along the track)
+				Put(PropBrakingBoard, V, P, std::atan2(-Dir[J].Z, -Dir[J].X), 0.0, 0.0);
+			}
+		}
+	}
+	// The start gantry over each circuit's line, its lights facing the grid (back along the way it's raced).
+	for (const CircuitIndex::Line& Ln : Ix.Lines)
+	{
+		if (Ln.Kind != 0 || Ln.Circuit < 0 || size_t(Ln.Circuit) >= G.Circuits.size()) continue;
+		P2 T(Ln.Across.Z, -Ln.Across.X);
+		const P2 V = G.Circuits[size_t(Ln.Circuit)].At - Ln.At;
+		const std::shared_ptr<const CircuitNote>& Note = size_t(Ln.Circuit) < Ix.Notes.size() ? Ix.Notes[size_t(Ln.Circuit)] : nullptr;
+		if (((T.X * V.Z - T.Z * V.X) > 0.0) != (Note ? Note->Clockwise : true)) T = T * -1.0;
+		Put(PropStartGantry, 0, Ln.At, std::atan2(-T.Z, -T.X), 0.0, 0.0);
+	}
+	// The grandstands where the map has them: 10 m bays along the stand's front, facing the nearest track.
+	for (const CircuitArea& Ar : G.CircuitAreas)
+	{
+		if (Ar.Kind != 9 || Ar.Ring.size() < 3) continue;
+		P2 Mid(0.0, 0.0);
+		for (const P2& P : Ar.Ring) Mid = Mid + P;
+		Mid = Mid * (1.0 / double(Ar.Ring.size()));
+		int Near = -1;
+		const double Gap = Roads.Clear(Mid, 150.0, &Near);
+		if (Near < 0 || Gap >= 150.0) continue;
+		// (the nearest point of that road: the stand faces it)
+		const std::vector<P2>& Rl = G.Edges[size_t(Near)].Line;
+		P2 Best = Rl[0];
+		double Bd = 1e18;
+		for (size_t K = 0; K + 1 < Rl.size(); ++K)
+		{
+			const P2 D = Rl[K + 1] - Rl[K];
+			const double L2 = D.X * D.X + D.Z * D.Z;
+			const double T = L2 > 1e-12 ? std::clamp(((Mid.X - Rl[K].X) * D.X + (Mid.Z - Rl[K].Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+			const P2 P = Rl[K] + D * T;
+			if (P.DistanceTo(Mid) < Bd) { Bd = P.DistanceTo(Mid); Best = P; }
+		}
+		const P2 Face = (Best - Mid) * (1.0 / std::fmax(Bd, 1e-6));
+		const P2 Across(-Face.Z, Face.X);
+		double Lo = 1e18, Hi = -1e18;
+		for (const P2& P : Ar.Ring)
+		{
+			const double U = (P.X - Mid.X) * Across.X + (P.Z - Mid.Z) * Across.Z;
+			Lo = std::fmin(Lo, U); Hi = std::fmax(Hi, U);
+		}
+		const int Bays = std::clamp(int(std::lround((Hi - Lo) / 10.0)), 1, 30);
+		for (int K = 0; K < Bays; ++K)
+		{
+			const double U = Lo + (Hi - Lo) * (K + 0.5) / Bays;
+			Put(PropGrandstand, 0, Mid + Across * U, std::atan2(Face.Z, Face.X), 0.0, 0.0);
+		}
+	}
+	for (size_t K = 0; K < Ix.Props.size(); ++K) Ix.PropSquares[CircuitIndex::KeyOf(Ix.Props[K].At.X, Ix.Props[K].At.Z)].push_back(int(K));
+}
+
+void RidePlan::CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const
+{
+	if (!CircuitIx || CircuitIx->Props.empty()) return;
+	const CircuitIndex& Ix = *CircuitIx;
+	for (double Z = std::floor(Z0 / CircuitIndex::Square) * CircuitIndex::Square; Z < Z0 + Size; Z += CircuitIndex::Square)
+		for (double X = std::floor(X0 / CircuitIndex::Square) * CircuitIndex::Square; X < X0 + Size; X += CircuitIndex::Square)
+		{
+			const auto It = Ix.PropSquares.find(CircuitIndex::KeyOf(X + 1.0, Z + 1.0));
+			if (It == Ix.PropSquares.end()) continue;
+			for (int Pi : It->second)
+			{
+				const CircuitIndex::Prop& Pr = Ix.Props[size_t(Pi)];
+				if (Pr.At.X < X0 || Pr.At.X >= X0 + Size || Pr.At.Z < Z0 || Pr.At.Z >= Z0 + Size) continue;
+				if (Pr.Kind < 0 || Pr.Kind >= PropKinds || !PropModelled[Pr.Kind]) continue;
+				const double Y = Ground(Pr.At.X, Pr.At.Z);
+				if (std::isnan(Y)) continue;
+				RideProp P;
+				P.Kind = uint16_t(Pr.Kind);
+				P.Variant = uint8_t(Pr.Variant);
+				P.Id = Pr.Id;
+				P.X = float(Pr.At.X - X0);
+				P.Z = float(Pr.At.Z - Z0);
+				P.Y = float(Y);
+				P.Yaw = float(Pr.Yaw);
+				if (Pr.Length > 0.0)
+				{
+					// (laid along its run: tipped up the slope to its far end)
+					const double Y1 = Ground(Pr.At.X + std::cos(Pr.Yaw) * Pr.Length, Pr.At.Z + std::sin(Pr.Yaw) * Pr.Length);
+					if (!std::isnan(Y1)) P.Pitch = float(std::atan2(Y1 - Y, Pr.Length));
+					P.Stretch = Pr.Stretch;
+				}
+				Out.push_back(P);
+			}
+		}
+}
+
 // ----- The lap timer -----
 
 bool RidePlan::CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const
@@ -558,8 +943,15 @@ bool CircuitLaps::Step(const RidePlan& Plan, double X, double Z, double Now, Lap
 	if (S.Running && S.Way != 2)
 	{
 		const double Wide = Region::TrackWidth * 0.5 + OffTrack;
-		if (G.CircuitAt(X, Z, Wide) < 0) S.Spoilt = true;
+		if (G.CircuitAt(X, Z, Wide) < 0)
+		{
+			S.Spoilt = true;
+			// (gone from the circuit altogether, out through the paddock: no lap under way)
+			if (G.CircuitAt(X, Z, LeftBehind) < 0) S = State();
+		}
 	}
+	// (a road course left: no gate in GateWait seconds)
+	if (S.Running && S.Way == 2 && Now - (S.Splits.empty() ? S.Started : S.Started + S.Splits.back()) > GateWait) S = State();
 	// A road course: its start, then its gates in order, then its start again.
 	for (size_t Li = 0; Li < Ix.Lines.size(); ++Li)
 	{
@@ -601,10 +993,10 @@ bool CircuitLaps::Step(const RidePlan& Plan, double X, double Z, double Now, Lap
 		{
 			const CircuitNote& N = Notes->Circuits[K];
 			if (!N.Road || N.Name != S.Circuit || S.NextSector >= int(N.Gates.size())) continue;
-			P2 Gate = G.FrameOf().FromGeo(N.Gates[size_t(S.NextSector)].Lat, N.Gates[size_t(S.NextSector)].Lon);
-			// (the note's place is rough: on the nearest road to it)
-			const int Snap = G.NearestNode(Gate.X, Gate.Z, 400.0);
-			if (Snap >= 0) Gate = G.Nodes[size_t(Snap)];
+			// (on the main road nearest the note's place, as IndexCircuits found it)
+			const auto Found = Ix.RoadGates.find(N.Name);
+			const P2 Gate = Found != Ix.RoadGates.end() && size_t(S.NextSector) < Found->second.size() ? Found->second[size_t(S.NextSector)]
+				: G.FrameOf().FromGeo(N.Gates[size_t(S.NextSector)].Lat, N.Gates[size_t(S.NextSector)].Lon);
 			if (Here.DistanceTo(Gate) < GateReach)
 			{
 				S.Splits.push_back(Now - S.Started);

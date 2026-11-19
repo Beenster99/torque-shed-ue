@@ -36,7 +36,8 @@ const char* RidePlan::PropName(int Kind)
 		"lift_gate", "bollard", "picnic_table", "info_board",
 		"win_sash6", "win_sash2", "win_casement", "win_casement_top", "win_mullion", "win_mullion_leaded", "sur_stone", "sur_brick", "sur_plain",
 		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood",
-		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage", "parked_car", "traffic_signal"};
+		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage", "parked_car", "traffic_signal",
+		"armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand"};   // [circuits]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -110,6 +111,7 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 		P.Scale = 1.0f;
 		Out.push_back(P);
 	}
+	CircuitProps(X0, Z0, Size, Out);   // [circuits]
 }
 
 bool RidePlan::ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out)

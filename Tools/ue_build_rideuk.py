@@ -1386,7 +1386,8 @@ def facade_material(L):
     return g.m
 
 
-STREET_KIT_KINDS = ("street_lamp", "power_pole")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+# ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
 
 def street_kit_texture(L, file_name, asset, compression, nearest=False):
