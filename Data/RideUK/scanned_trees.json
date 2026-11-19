@@ -9,6 +9,14 @@
  "hedge_words": ["hedgerow", "hedge row", "privet hedge", "beech hedge", "hornbeam hedge", "boxwood hedge", "laurel hedge", "hedge"],
  "_hedge_words": "A scanned hedge (any static mesh under /Game whose path holds one of these) takes the place of our own hedge models (Tools/make_hedges.py) in hedgerows.",
  "skip": ["billboard", "impostor", "branch", "twig", "debris", "stump", "fallen", "leaves", "atlas", "sapling", "seedling", "leaf", "bud", "decoration", "needle"],
+ "garden_kinds": {
+  "garden_rose": {"words": ["beach rose"], "cull": 9000.0, "shadow": true},
+  "garden_shrub": {"words": ["european spindle"], "cull": 9000.0, "shadow": true},
+  "garden_flowers": {"words": ["small balsam", "wood anemone"], "cull": 4500.0, "shadow": false},
+  "garden_low": {"words": ["lingonberry", "bilberry", "shrub heather"], "cull": 5000.0, "shadow": false},
+  "garden_tree": {"words": ["yoshino cherry", "tree elder"], "cull": 25000.0, "shadow": true}
+ },
+ "_garden_kinds": "[gardens, Nov 19] Village and town garden planting (World/WorldRideGardens.cpp), from the Megaplants already in /Game/Megaplant_Library. Each kind: its words, its cull (cm: flowers 45 m, low cover 50 m, roses and shrubs 90 m, garden trees 250 m) and whether it casts shadows. A kind with none found is not planted (no stand-ins). -TorqueRidePlanting=0 turns it off in game, -TorqueRidePlanting=0.5 keeps half. Not Japanese knotweed (invasive) nor the American desert shrubs.",
  "kinds": {
   "oak": ["english oak", "european oak", "common oak"],
   "birch": ["silver birch"],

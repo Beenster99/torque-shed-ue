@@ -1012,7 +1012,10 @@ def scanned_trees(L, kit):
             why.append("%s materials: %s" % (path.rsplit(".", 1)[-1], e))
             return None
 
-    for kind, words in spec["kinds"].items():
+    # [gardens] The villages' and towns' garden planting (World/WorldRideGardens.cpp): kinds garden_rose and so
+    # on, each with its words and its own cull (cm) and shadow, near the rider only (no far models, no impostors).
+    garden = spec.get("garden_kinds", {})
+    for kind, words in list(spec["kinds"].items()) + [(k, g.get("words", [])) for k, g in garden.items()]:
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
         got = sorted(p for n, p in meshes if wanted(n))[:most]
@@ -1048,6 +1051,9 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
+        if kind in garden:
+            r.update({"cull_distance": float(garden[kind].get("cull", 8000.0)), "cast_shadow": bool(garden[kind].get("shadow", True))})
+            continue
         # [perf, build 157] Far off, the scans as impostors: the GAME photographs each scan at ride start
         # (World/TorqueImpostors.cpp) and draws its far trees with M_RideImpostor. Here only the material
         # is made (once per run, below); no editor captures (rounds 155-156 crashed beenster's GPU), and

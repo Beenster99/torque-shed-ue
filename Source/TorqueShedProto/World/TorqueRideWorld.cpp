@@ -707,9 +707,22 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 			: bCarsAsked && CarsAsked == 0 ? TEXT("off (-TorqueRideParkedCars=0)") : TEXT("off (no parked_car models: Tools/ue_build_rideuk.py prop_kit)"));
 	}
 	bool bTreeModels = false;
-	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
+	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::FirstGarden && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
 	Plan->RealTrees = bTreeModels;
 	Plan->RealHedges = bTreeModels && KindNear.IsValidIndex(TorqueWorld::RidePlan::HedgeKind) && KindNear[TorqueWorld::RidePlan::HedgeKind].Num() > 0;
+	{
+		// [gardens] The villages' and towns' garden planting (WorldRideGardens.cpp): only as the scanned garden
+		// plants (the kit's SM_Tree_garden_<kind>_scan), and not with -TorqueRidePlanting=0 (the share kept:
+		// -TorqueRidePlanting=0.5 half; the frame rate gate's A/B, and the switch to ship without them).
+		bool bGardenModels = false;
+		for (int32 K = TorqueWorld::RidePlan::FirstGarden; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bGardenModels = bGardenModels || KindNear[K].Num() > 0;
+		float PlantingAsked = 1.0f;
+		const bool bPlantingAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRidePlanting="), PlantingAsked);
+		Plan->GardenShare = FMath::Clamp(PlantingAsked, 0.0f, 1.0f);
+		Plan->RealGardens = bGardenModels && Plan->GardenShare > 0.0;
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: garden planting %s"), Plan->RealGardens ? *FString::Printf(TEXT("on (%.0f%%)"), Plan->GardenShare * 100.0)
+			: bPlantingAsked && PlantingAsked <= 0.0f ? TEXT("off (-TorqueRidePlanting=0)") : TEXT("off (no garden_* models in the kit: Data/RideUK/scanned_trees.json garden_kinds, Tools/ue_build_rideuk.py)"));
+	}
 	float Density = 1.0f;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliage="), Density)) Plan->GrassDensity = FMath::Clamp(Density, 0.0f, 1.0f);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliageCull="), CullScale)) CullScale = FMath::Clamp(CullScale, 0.05f, 4.0f);
@@ -1305,7 +1318,8 @@ FString CVarText(const TCHAR* Name)
 }
 // The A/B run's steps: what each turns off (console variables, "name=value;..."), and which of the
 // ride's things it hides (1 trees, 2 grass and small plants, 4 ground, roads, walls and buildings; [build 152]
-// 8 the far ring's trees, 64 the near trees; 16 trees' shadows and 32 their swaying turned off instead).
+// 8 the far ring's trees, 64 the near trees; 16 trees' shadows and 32 their swaying turned off instead;
+// [gardens] 128 the villages' and towns' garden planting).
 struct FABStep
 {
 	const TCHAR* Label;
@@ -1321,6 +1335,7 @@ const FABStep ABSteps[] = {
 	{TEXT("trees cast no shadows"), TEXT(""), 16},
 	{TEXT("trees don't sway"), TEXT(""), 32},
 	{TEXT("no grass or small plants"), TEXT(""), 2},
+	{TEXT("no garden planting"), TEXT(""), 128},
 	{TEXT("no ground, roads, walls or buildings drawn"), TEXT(""), 4},
 	{TEXT("no virtual shadow maps"), TEXT("r.Shadow.Virtual.Enable=0"), 0},
 	{TEXT("no shadows"), TEXT("r.ShadowQuality=0"), 0},
@@ -1361,13 +1376,19 @@ float ATorqueRideWorld::PresetReach(bool bTree) const
 
 void ATorqueRideWorld::HideForAB(int32 What, bool bHide)
 {
-	if (What & (1 | 2 | 8 | 16 | 32 | 64))
+	if (What & (1 | 2 | 8 | 16 | 32 | 64 | 128))
 		for (const auto& Square : TilePlants)
 			for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Kind : Square.Value)
 				if (UInstancedStaticMeshComponent* C = Kind.Get())
 				{
 					const bool bIsTree = C->ComponentHasTag(TEXT("RideTree"));
 					const bool bIsFarTree = bIsTree && C->ComponentHasTag(TEXT("RideTreeFar"));
+					// [gardens] (the garden planting: hidden on its own step only, 128)
+					if (C->ComponentHasTag(TEXT("RideGarden")))
+					{
+						if (What & 128) C->SetVisibility(!bHide);
+						continue;
+					}
 					if ((bIsTree && (What & 1)) || (!bIsTree && (What & 2)) || (bIsFarTree && (What & 8)) || (bIsTree && !bIsFarTree && (What & 64)))
 						C->SetVisibility(!bHide);
 					if (bIsTree && (What & 16))
@@ -2474,6 +2495,9 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		UStaticMesh* Model = S0.Variants.Num() ? S0.Variants[Vi].Get() : S0.Mesh.Get();
 		UMaterialInterface* Mat = S0.Variants.Num() ? (S0.VariantMaterials.IsValidIndex(Vi) ? S0.VariantMaterials[Vi].Get() : nullptr) : S0.Material.Get();
 		const bool bTree = Group.Key.X >= KitTrees;
+		// [gardens] (the garden plants: drawn as the trees are, but near only, never lighting the distance
+		// fields, and counted, hidden and switched off apart from them)
+		const bool bGarden = bTree && S0.Name.ToString().StartsWith(TEXT("SM_Tree_garden_"));
 		const bool bNearScan = bTree && Group.Key.Z <= -1000 && Group.Key.Z > -2000;   // ([build 153] scans, near the rider only)
 		const bool bFarCopy = bTree && Group.Key.Z <= -2000;   // ([build 153] a near tree as its far model, past the scans)
 		// ([build 157] a scan's far trees as its impostor: the card and material the game photographs it
@@ -2494,7 +2518,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		if (TRWI::Unseen(Key, PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread))))) continue;
 		// [perf, build 148] -TorqueRideTrees=0: no trees, to measure what they cost (A/B in one build).
 		static const bool bNoTrees = []() { int32 On = 1; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideTrees="), On) && On == 0; }();
-		if (bTree && bNoTrees) continue;
+		if (bTree && !bGarden && bNoTrees) continue;
 		// As ATorqueFoliage makes its parts (see TorqueFoliage.cpp): no collision, shadows only from the
 		// taller plants and cached while they sway, out of Lumen's and the ray tracer's scenes.
 		UInstancedStaticMeshComponent* Ism = nullptr;
@@ -2519,13 +2543,13 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bCastContactShadow = S.bCastShadow && !bTree;
 		Ism->ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Rigid;
 		Ism->bReceivesDecals = false;
-		const bool bTreeLit = bTree && !bImpostorGroup && (!bFarTree || TRWI::CVarFarTreeLighting.GetValueOnGameThread() != 0);
+		const bool bTreeLit = bTree && !bGarden && !bImpostorGroup && (!bFarTree || TRWI::CVarFarTreeLighting.GetValueOnGameThread() != 0);
 		Ism->bAffectDistanceFieldLighting = bTreeLit;
 		Ism->bAffectDynamicIndirectLighting = bTreeLit;
 		Ism->bVisibleInRayTracing = false;
 		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
 		const bool bImpostor = bImpostorGroup || (bTree && S.Name.ToString().EndsWith(TEXT("_imp")));
-		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2533,7 +2557,8 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// ([build 153] the scans' patches and their far copies hand over at the same distance, as whole patches)
 		if (bNearScan) Ism->LDMaxDrawDistance = FMath::Min(Ism->LDMaxDrawDistance, NearTreeM * 100.0f);
 		if (bFarCopy) Ism->MinDrawDistance = NearTreeM * 100.0f;
-		if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
+		if (bGarden) Ism->ComponentTags.Add(TEXT("RideGarden"));   // [gardens] (for the A/B run)
+		else if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
 		Ism->RegisterComponent();

@@ -371,6 +371,33 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		}
 		return false;
 	};
+	// [gardens] (what the gardens' plants keep clear of: every building on the square and its neighbours'
+	// within 16 m of its edges, the outlines' pieces and the cells' own boxes alike)
+	const bool Planting = Fine && RealGardens && GardenShare > 0.0;
+	GardenClear Clearing;
+	std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> ClearHeld;
+	if (Planting)
+	{
+		constexpr double Margin = 16.0;
+		std::vector<const OutlinePiece*> ClearPieces;
+		std::vector<CellId> ClearCovered;
+		OutlinesIn(X0 - Margin, Z0 - Margin, Size + 2.0 * Margin, ClearHeld, ClearPieces, ClearCovered);
+		for (const OutlinePiece* P : ClearPieces) Clearing.Add(P->B);
+		for (const Candidate& Each : Here) Clearing.Add(*Each.B);
+		const int Gx0 = int(std::floor((X0 - Margin) / SceneCell)), Gx1 = int(std::floor((X0 + Size + Margin) / SceneCell));
+		const int Gz0 = int(std::floor((Z0 - Margin) / SceneCell)), Gz1 = int(std::floor((Z0 + Size + Margin) / SceneCell));
+		for (int Cz = Gz0; Cz <= Gz1; ++Cz)
+			for (int Cx = Gx0; Cx <= Gx1; ++Cx)
+			{
+				const auto It = Scene->Buildings.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
+				if (It == Scene->Buildings.end()) continue;
+				for (int I : It->second)
+				{
+					const Building& Bi = G.Buildings[size_t(I)];
+					if (Bi.X > X0 - Margin - 60.0 && Bi.X < X0 + Size + Margin + 60.0 && Bi.Z > Z0 - Margin - 60.0 && Bi.Z < Z0 + Size + Margin + 60.0) Clearing.Add(Bi);
+				}
+			}
+	}
 	for (const Candidate& Each : Here)
 	{
 		const Building& B = *Each.B;
@@ -1392,6 +1419,43 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 				if (Tally && NRuns > 0) ++Tally->FrontWalls;
 			}
+		}
+		// [gardens] (beenster, Nov 19: "a sparsity of planting" in the villages and towns) A house's garden
+		// planting: roses, shrubs and flowers in beds along its front and its gable ends, behind its front
+		// wall, at the back; now and then a small tree (GardenPlants). Not a shop, a barn or a ruin.
+		if (Planting && IsHouse && !Big && !ShopHere && !Ruin && !Plain && HouseKind >= 0 && HouseKind != HouseTypes::Tenement)
+		{
+			GardenHouse Gh;
+			Gh.X = B.X;
+			Gh.Z = B.Z;
+			Gh.Cs = Cs;
+			Gh.Sn = Sn;
+			Gh.LongX = LongX;
+			Gh.HalfLong = HalfLong;
+			Gh.HalfShort = HalfShort;
+			Gh.PartyPlus = PartyPlus;
+			Gh.PartyMinus = PartyMinus;
+			Gh.InTown = InTown;
+			Gh.FrontSide = DoorSide;
+			Gh.FrontGap = FrontGap;
+			Gh.Kind = HouseKind;
+			Gh.Bays = Bays;
+			const double GardenDeep = FrontGap + 1.0 - 1.6;
+			Gh.FrontWall = InTown && Bays == 1 && HouseKind >= HouseTypes::Detached && HouseKind <= HouseTypes::Terrace && GardenDeep >= 1.2 && GardenDeep <= 7.0
+				&& !(Modern && Chance(RowX, RowZ, 151) < 0.5);
+			if (InRow && Bays == 1) Gh.DoorU = DoorPlus ? HalfLong - 0.9 : -HalfLong + 0.9;
+			else
+			{
+				const int Along0 = std::max(1, int(HalfLong * 2.0 / 3.5));
+				Gh.DoorU = -HalfLong + (Along0 / 2 + 0.5) * (HalfLong * 2.0 / Along0);
+			}
+			if (Bays == 1 && HouseKind != HouseTypes::Terrace && HouseKind != HouseTypes::VillageRow && HalfLong * 2.0 >= 5.0)
+			{
+				// (the drive, as the front wall leaves its gap: at the end away from the door, 2.9 m wide)
+				if (Gh.DoorU < 0.0) { Gh.DriveFrom = HalfLong - 2.9; Gh.DriveTo = HalfLong + 1.0; }
+				else { Gh.DriveFrom = -HalfLong - 1.0; Gh.DriveTo = -HalfLong + 2.9; }
+			}
+			GardenPlants(Gh, Clearing, Out);
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
 		// builds them; a terrace's on every other party wall), shops and now and then a civic building;
