@@ -2582,6 +2582,27 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		TestPadY = Ground.Hit ? Ground.Position.y : Sim->Position.y - Sim->Build.RearRadius;
 		bTestFlat = true;
 	}
+	if (TestMove == 5)
+	{
+		// [r159 climb] Put down level, the bike's front wheel sat inside the hill: on a 20% climb a
+		// chopper's (1.8 m wheelbase) was buried some 18 cm, the fork spring threw the nose up (16 kN on
+		// the front 0.2 s in) and now and then it came off. Pitched to the road under its two wheels and
+		// sat on it, both tyres just touching.
+		const double Half = Sim->Build.Wheelbase * 0.5;
+		const V3 Ahead = Sim->Basis.Z * -1.0;
+		const V3 Mid = Sim->Position - V3(0.0, Sim->Build.RearRadius + 0.05, 0.0);
+		const RayHit GroundF = Sim->Ray(Mid + Ahead * Half + V3(0.0, 3.0, 0.0), Mid + Ahead * Half - V3(0.0, 5.0, 0.0));
+		const RayHit GroundR = Sim->Ray(Mid - Ahead * Half + V3(0.0, 3.0, 0.0), Mid - Ahead * Half - V3(0.0, 5.0, 0.0));
+		if (GroundF.Hit && GroundR.Hit)
+		{
+			const double RoadUp = std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half);
+			Sim->Basis = M3::AxisAngle(Sim->Basis.X, RoadUp) * Sim->Basis;
+			const double GroundMid = 0.5 * (GroundF.Position.y + GroundR.Position.y);
+			Sim->Position.y = GroundMid + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(RoadUp), 0.5);
+			UE_LOG(LogTemp, Log, TEXT("Torque: climb start pitched %.1f deg up to the road under the wheels"), FMath::RadiansToDegrees(RoadUp));
+		}
+		bClimbSettled = false;
+	}
 	const V3 Fwd = Sim->Basis.Z * -1.0;
 	Sim->LinearVelocity = Fwd * TestMps;
 	Sim->Wheels[0].Omega = TestMps / Sim->Build.FrontRadius;
@@ -2716,7 +2737,12 @@ void ATorqueBikePawn::TestMoveStep()
 			Sim->Wheels[1].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[1].Load, Sim->Wheels[1].Kappa, Sim->IsCrashed ? TEXT(" CRASHED") : TEXT(""));
 	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
-		Finish(FString::Printf(TEXT("%scrashed (%s, %.1f s in, %.1f m)"), TestMove == 5 ? TEXT("CLIMB FAIL: ") : TEXT(""), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		// ([r159] the climb says how: knocked off (and how hard), or a fall: leaned or pitched past it)
+		const FString How = TestMove != 5 ? FString() : Sim->KnockedOff
+			? FString::Printf(TEXT(", knocked off at %.1f m/s, lean %.0f deg, pitch %.0f deg"), Sim->LastHitSpeed, FMath::RadiansToDegrees(Sim->LeanAngle), FMath::RadiansToDegrees(Sim->PitchAngle))
+			: FString::Printf(TEXT(", fell: lean %.0f deg, pitch %.0f deg (off at 78 / 72)"), FMath::RadiansToDegrees(Sim->LeanAngle), FMath::RadiansToDegrees(Sim->PitchAngle));
+		Finish(FString::Printf(TEXT("%scrashed (%s, %.1f s in, %.1f m%s)"), TestMove == 5 ? TEXT("CLIMB FAIL: ") : TEXT(""),
+			TestMove == 5 && !bClimbSettled ? TEXT("settling") : TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist, *How));
 		return;
 	}
 	if (TestMove == 5)
@@ -2725,6 +2751,14 @@ void ATorqueBikePawn::TestMoveStep()
 		// the bends); this only watches, from the foot to the top. ([r158] sat in the middle, whatever an
 		// earlier test left in Shift: logged above as it came.)
 		Shift = 0.0;
+		// ([r159] Half a second on its wheels first; the climb's measured from there.)
+		if (!bClimbSettled)
+		{
+			if (TestClock < 0.5) return;
+			bClimbSettled = true;
+			TestClock = TestDist = 0.0;
+			TestY0 = Sim->Position.y;
+		}
 		TestDist += FMath::Abs(V) * SimDt;
 		if (TestClock > 1.0) TestSlowest = FMath::Min(TestSlowest, V);
 		const bool bStalled = !Sim->EngineOn && !Sim->IsStarting();
