@@ -840,7 +840,7 @@ float FTorqueSprayJob::Quality(const FStats& S) const
 	return FMath::Clamp(S.Covered * (1.0f - S.Runs * 0.6f - S.Dry * 0.35f), 0.0f, 1.0f);
 }
 
-bool FTorqueSprayJob::FadeFit(bool bAlong, const FVector& Middle, float& OutAt, float& OutDir, float& OutShare) const
+bool FTorqueSprayJob::FadeFit(bool bAlong, const FVector& PartMiddle, float& OutAt, float& OutDir, float& OutShare) const
 {
 	OutAt = 0.0f;
 	OutDir = 1.0f;
@@ -853,7 +853,7 @@ bool FTorqueSprayJob::FadeFit(bool bAlong, const FVector& Middle, float& OutAt, 
 	Along.Reserve(Points.Num());
 	for (int32 I = 0; I < Points.Num(); ++I)
 	{
-		const float V = (float)(Points[I][Ax] - Middle[Ax]);
+		const float V = (float)(Points[I][Ax] - PartMiddle[Ax]);
 		Along.Add(V);
 		// Half a film counts: the soft edge of a pass is where the fade goes anyway.
 		if (CoatsFacing(Vox[I], Normals[I]) >= Full * 0.5f) { SumOn += V; ++On; }

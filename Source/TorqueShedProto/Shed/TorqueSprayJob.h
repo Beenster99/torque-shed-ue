@@ -182,7 +182,7 @@ public:
 	// (bAlong) or z, from Middle (the part's middle, in this job's frame: TorqueEffectPaint's part
 	// frame). OutAt: the fade's middle, so as much of the part lies past it (OutDir's way) as this
 	// coat covered (OutShare). False if hardly any of it was sprayed.
-	bool FadeFit(bool bAlong, const FVector& Middle, float& OutAt, float& OutDir, float& OutShare) const;
+	bool FadeFit(bool bAlong, const FVector& PartMiddle, float& OutAt, float& OutDir, float& OutShare) const;
 	// One frame of spraying from Eye along Dir, meeting a surface at At (bHit false: nothing). Not
 	// bFiring it only works out where the fan would land, how far off and how fast (aiming). Returns
 	// the cubes it coated.
