@@ -47327,6 +47327,318 @@
     "bespoke": true
    }
   },
+  "v2_hartwell_chopper__engine_bengine_finned_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned top engine dress kit, brass",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_finned_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_finned_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_finned_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned top engine dress kit, chrome",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_finned_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_finned_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_finned_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned top engine dress kit, gold",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_finned_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_finned_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_finned_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Finned top engine dress kit, brushed steel",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_finned_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_finned_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_pots_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Twin pot engine dress kit, brass",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_pots_brass",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_pots_brass",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_pots_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Twin pot engine dress kit, chrome",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_pots_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_pots_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_pots_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Twin pot engine dress kit, gold",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_pots_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_pots_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__engine_bengine_pots_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look parallel twin",
+   "breathing": 0.65,
+   "name": "BSX Twin pot engine dress kit, brushed steel",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_engine_pots_steel",
+    "frame": "v2_hartwell_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "layout",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "b_engine_pots_steel",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
   "v2_kazeda_chopper__engine_bcovers_finned_brass": {
    "mass": 102.0,
    "layout": "vtwin",
@@ -47795,6 +48107,318 @@
     "bespoke": true
    }
   },
+  "v2_kazeda_chopper__engine_bengine_finned_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned top engine dress kit, brass",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_finned_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_finned_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_finned_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned top engine dress kit, chrome",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_finned_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_finned_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_finned_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned top engine dress kit, gold",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_finned_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_finned_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_finned_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Finned top engine dress kit, brushed steel",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_finned_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_finned_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_pots_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Twin pot engine dress kit, brass",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_pots_brass",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_pots_brass",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_pots_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Twin pot engine dress kit, chrome",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_pots_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_pots_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_pots_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Twin pot engine dress kit, gold",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_pots_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_pots_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__engine_bengine_pots_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "Air-cooled look inline four",
+   "breathing": 0.65,
+   "name": "Kazeda Twin pot engine dress kit, brushed steel",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_engine_pots_steel",
+    "frame": "v2_kazeda_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "layout",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_engine_pots_steel",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
   "v2_lodestar_chopper__engine_bcovers_finned_brass": {
    "mass": 102.0,
    "layout": "vtwin",
@@ -48259,6 +48883,318 @@
     "layout": "vtwin45",
     "twin_shock": false,
     "kit": "b_covers_target_steel",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_finned_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Finned top engine dress kit, brass",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_finned_brass",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_finned_brass",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_finned_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Finned top engine dress kit, chrome",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_finned_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_finned_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_finned_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Finned top engine dress kit, gold",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_finned_gold",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_finned_gold",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_finned_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Finned top engine dress kit, brushed steel",
+   "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_finned_steel",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_finned_steel",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_pots_brass": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Twin pot engine dress kit, brass",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 4320,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_pots_brass",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_pots_brass",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_pots_chrome": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Twin pot engine dress kit, chrome",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_pots_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_pots_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_pots_gold": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Twin pot engine dress kit, gold",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 6000,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_pots_gold",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_pots_gold",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__engine_bengine_pots_steel": {
+   "mass": 102.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1800.0,
+   "bore": 101.6,
+   "stroke": 111.1,
+   "torque_per_cc": 0.088,
+   "peak_torque_rpm": 4000.0,
+   "redline": 5800.0,
+   "idle_rpm": 850.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "45 degree v-twin",
+   "breathing": 0.65,
+   "name": "Lodestar Twin pot engine dress kit, brushed steel",
+   "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 3840,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_engine_pots_steel",
+    "frame": "v2_lodestar_chopper",
+    "slot": "engine",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "layout",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_engine_pots_steel",
     "of": "lodestar_chopper",
     "bespoke": true
    }
