@@ -1040,6 +1040,14 @@ def scanned_trees(L, kit):
         found[kind] = got
         if not use:
             continue
+        # ([seasonal trees test, Nov 19] the leaves follow torque.RideTreeSeason: Tools/ue_tree_season.py)
+        if spec.get("season_test", False):
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import ue_tree_season as SEASON
+                SEASON.season_kind(L, kind, got)
+            except Exception as e:
+                log("scanned trees: %s: season test FAILED (leaves stay as they are): %s" % (kind, e))
         # (ours of this kind go near: the scanned ones take every near tree of it. Our far models stay
         # for the trees past the finest squares: build 148 measured the scans at about 10 ms of GPU at
         # Whaley Bridge, most of it from the far ring's thousands of full Nanite trees)
@@ -1056,7 +1064,7 @@ def scanned_trees(L, kit):
             try:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 import ue_tree_impostors as IMP
-                IMP.master_material()
+                IMP.master_material(L if spec.get("season_test", False) else None)
                 _IMPOSTOR_MATERIAL.append(True)
             except Exception as e:
                 log("scanned trees: impostor material failed (the game uses the old far models): %s" % e)

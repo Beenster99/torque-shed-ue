@@ -202,6 +202,9 @@ WEATHER_PARAMS = (
     ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
     ("Night", 0.0),          # how dark it is (Ride UK stage 7): 0 day .. 1 night; street lamps, lit windows, cat's eyes
     ("Signals", 0.0),        # the traffic lights' clock (OSM stage 5D): the server's seconds, under an hour
+    ("LeafFresh", 0.0),      # [seasonal trees test] the scanned trees' leaves: spring's paler green, 0 .. 1
+    ("LeafTurn", 0.0),       # autumn's colour, 0 .. 1 (Tools/ue_tree_season.py)
+    ("LeafDrop", 0.0),       # the share of leaves gone, 0 .. 1
 )
 _weather_mpc = None
 

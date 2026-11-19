@@ -227,7 +227,7 @@ def _asset(name, folder, cls, factory):
     return made
 
 
-def master_material():
+def master_material(season_L=None):
     path = "%s/%s" % (IMP_DIR, MASTER)
     # ([build 157] the crashed round 156 bake left a half-built M_RideImpostor that fails to cook: deleted
     # and made fresh (unattended, nothing else holds it); made again in place only if it can't be deleted)
@@ -285,6 +285,15 @@ def master_material():
     normal_w = _vec_transform(m, normal_l, True, -500, 600)
     wpo = _custom(m, _CODE_WPO, O.CMOT_FLOAT3, [("Rel", rel), ("CtoV", ctov), ("LocalP", local_p), ("ScaleX", scale_x), ("R", r),
                                                 ("MinZ", minz), ("MaxZ", maxz)], -800, 1000, "impostor card faces the camera")
+    # ([seasonal trees test, Nov 19] with season_L (Tools/ue_build_level), the far cards follow the
+    # season too: Tools/ue_tree_season.py; a failure leaves them as they were)
+    if season_L is not None:
+        try:
+            import ue_tree_season as SEASON
+            colour, opacity = SEASON.wrap(m, season_L, colour, "", opacity, "", -500, -400, impostor=True)
+            log("season test: the far cards follow the season")
+        except Exception as e:
+            log("season test: the far cards stay as they are: %s" % e)
     rough = _expr(m, unreal.MaterialExpressionConstant, -500, 900)
     _set(rough, r=0.85)
     spec = _expr(m, unreal.MaterialExpressionConstant, -500, 1000)

@@ -5,6 +5,8 @@
  "most": 6,
  "impostors": true,
  "rebake_impostors": false,
+ "season_test": true,
+ "_season_test": "Nov 19 (beenster: try seasonal trees this afternoon): the scans' leaf master and the impostor master follow the season (Tools/ue_tree_season.py), driven by torque.RideTreeSeason (0 as now, 1 spring, 2 summer, 3 autumn, 4 winter); -TorqueRideAB=2 steps through them with shots and fps. false takes it out again (the leaf master keeps its season nodes, which do nothing at 0).",
  "_impostors": "Build 155: far trees (past torque.RideNearTreeM, 200 m, and the far ring) drawn as impostors baked from these scans by Tools/ue_tree_impostors.py into /Game/RideUK/Impostors, made once and kept; rebake_impostors true makes them again (after changing the bake).",
  "hedge_words": ["hedgerow", "hedge row", "privet hedge", "beech hedge", "hornbeam hedge", "boxwood hedge", "laurel hedge", "hedge"],
  "_hedge_words": "A scanned hedge (any static mesh under /Game whose path holds one of these) takes the place of our own hedge models (Tools/make_hedges.py) in hedgerows.",
