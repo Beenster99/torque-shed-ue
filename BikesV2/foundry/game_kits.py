@@ -169,7 +169,7 @@ def bespoke_jobs(models):
         if json.load(open(os.path.join(ROOT, "data", "models", model + ".json")))["family"] not in pool["families"]:
             continue
         for grp in BESPOKE:
-            for d in pool.get(grp) or []:
+            for d in pool.get(grp) or pool.get(grp + "s") or []:      # (the pool lists the dress kits as "engines")
                 for m in pool["metals"]:
                     jobs.append((model, grp, d, m))
     return jobs
