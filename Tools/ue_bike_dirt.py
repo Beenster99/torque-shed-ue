@@ -85,6 +85,17 @@ struct FBikeDirt
         float wing = step(0.55, h.z) * (1.0 - smoothstep(0.02, 0.035, length(float2(u.x + 0.01, abs(u.y) - 0.065) * float2(0.6, 1.0))));
         return float4(1.0, body, smear * 0.85, wing);
     }
+    // A droplet of road spray in a cell of c (drawn out fore and aft the way it flew): 0..1 how much
+    // of it covers here. chance: how many cells have one; size about a third of the cell, varied.
+    float Drop(float3 c, float chance, float seed)
+    {
+        float3 ci = floor(c);
+        if (Hash(ci + seed) > chance) return 0.0;
+        float3 j = float3(Hash(ci + seed + 2.1), Hash(ci + seed + 4.7), Hash(ci + seed + 6.3)) - 0.5;
+        float r = length(frac(c) - 0.5 - j * 0.45);
+        float size = 0.1 + 0.22 * (j.x + 0.5);
+        return 1.0 - smoothstep(size * 0.65, size, r);
+    }
     // The muck a wheel throws onto a point on the bike (m cm, facing n, the bike's frame), 0..1.
     // W: its axle's x and z, its tyre's radius and half width (cm). Muck picked up off the road rides
     // round on the tread and flies off it along the tyre's way of turning (a straight line on from the
@@ -203,7 +214,41 @@ float3 col = float3(0, 0, 0);
 float px = length(fwidth(mp0));                    // a pixel here, in metres: fine detail fades before it shimmers
 if (s > 0.004)
 {
-    if (mudw > 0.0)
+    if (mudw > 0.0 && mudk >= 0.0)
+    {
+        // On a ridden bike: road spray, not mud. Fine dark speckles flicked up off the road, spatters
+        // of thin brown road water dried to a pale stain with a darker rim, and a whitish bloom of
+        // road salt where it's wettest; the paint shows through all of it. Heavier dirt is more of
+        // them, not a thicker coat.
+        float3 sp = mp0 * float3(1.0, 1.0, 0.5);              // drawn out fore and aft, the way it flew
+        float far = smoothstep(0.002, 0.008, px);           // too small to draw one by one: a faint haze
+        float fine = F.Drop(sp * 420.0, s * 0.7, 1.0);
+        float speck = max(F.Drop(sp * 160.0, s * 0.55, 9.0), fine * 0.85);
+        speck = lerp(speck, s * 0.2, far);
+        float3 c2 = sp * 38.0;
+        float rag = (F.Noise(mp0 * 320.0) - 0.5) * 0.08;
+        float blot = max(F.Drop(c2, s * 0.5, 21.0), F.Drop(c2 * 2.3 + 0.37, s * 0.45, 33.0));
+        float rim = blot * (1.0 - smoothstep(0.2, 0.75, blot + rag * 4.0));
+        float stain = saturate(blot + rag) * 0.2 + rim * 0.28;
+        float salt = smoothstep(0.15, 0.9, s) * smoothstep(0.4, 0.8, F.Fbm(mp0 * float3(9.0, 3.0, 9.0))) * 0.38;
+        float wash = s * 0.12 * (0.6 + 0.8 * F.Noise(mp0 * 14.0));   // the thin brown road water's tint
+        float3 spk_c = lerp(float3(0.16, 0.14, 0.12), float3(0.3, 0.26, 0.2), F.Noise(mp0 * 90.0));
+        float3 stn_c = lerp(float3(0.46, 0.39, 0.3), float3(0.3, 0.24, 0.17), saturate(rim * 2.5));
+        float3 salt_c = float3(0.8, 0.79, 0.76);
+        // laid one over another: salt, then the stains, then the specks on top
+        float3 c = lerp(float3(0.45, 0.4, 0.33), salt_c, salt / max(salt + wash, 0.001)) * max(salt, wash);
+        float a = max(salt, wash);
+        c = c * (1.0 - stain) + stn_c * stain;
+        a = a + stain * (1.0 - a);
+        c = c * (1.0 - speck) + spk_c * speck;
+        a = a + speck * (1.0 - a);
+        float spray_a = saturate(a);
+        float3 spray_c = c / max(a, 0.001);
+        alpha += spray_a * mudw;
+        col += spray_c * spray_a * mudw;
+        rough += lerp(0.55, 0.85, salt / max(a, 0.001)) * spray_a * mudw;
+    }
+    else if (mudw > 0.0)
     {
         float3 mp = mp0 * float3(1.0, 1.0, 0.42);
         float shape = F.Fbm(mp * 13.0) * 0.75 + F.Noise(mp * 46.0) * 0.25;
