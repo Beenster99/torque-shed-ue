@@ -772,6 +772,9 @@ public:
 		// ([Nov 19] beenster: "a more realistic traffic light model") a UK three-aspect signal (Tools/blender_street_kit.py
 		// traffic_signal); its lit faces stay FurnitureTile's, on the shared clock
 		PropTrafficSignal,
+		// [circuits] The race circuits' trackside kit (Tools/blender_circuit_kit.py), placed by IndexCircuits: armco,
+		// tyre walls and the pit wall laid along their runs (Stretch), the rest facing the track
+		PropArmco, PropTyreWall, PropPitWall, PropMarshalPost, PropBrakingBoard, PropStartGantry, PropGrandstand,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1376,6 +1379,9 @@ public:
 	std::shared_ptr<const CircuitIndex> CircuitIx;
 	// [circuits] The nearest circuit's start line within Within (m) of (X, Z): a place on its track Back metres
 	// before the line, the heading it's raced at there (sim: 0 faces -z, + left), and its name. False with none.
+	// [circuits] The circuits' trackside kit on a square of ground (added to PropsTile's).
+	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	void IndexTrackside(CircuitIndex& Ix) const;
 	bool CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const;
 	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
 	// its buildings, water and edge.

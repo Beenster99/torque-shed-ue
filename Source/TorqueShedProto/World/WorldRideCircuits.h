@@ -17,6 +17,7 @@
 #include "WorldGeo.h"
 #include "WorldRegion.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -71,6 +72,18 @@ struct CircuitIndex
 	std::vector<Line> Lines;
 	// For each circuit (Region::Circuits): its note's index in CircuitNotes (-1 none) and the note.
 	std::vector<std::shared_ptr<const CircuitNote>> Notes;
+	// The trackside kit (RidePlan::EProp kinds from PropArmco on): each piece's place, its facing (radians, the
+	// model's +x; along its run for a long piece), how far it is stretched along it, its pick; by 64 m square.
+	struct Prop
+	{
+		int Kind = 0, Variant = 0;
+		P2 At;
+		double Yaw = 0.0, Length = 0.0;   // (Length: a long piece's run, m; 0 the others)
+		float Stretch = 1.0f;
+		uint32_t Id = 0;
+	};
+	std::vector<Prop> Props;
+	std::unordered_map<long long, std::vector<int>> PropSquares;
 };
 
 // The lap timer: one rider's laps of the circuits on a ride.
