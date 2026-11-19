@@ -1390,9 +1390,21 @@ void BikeSim::ApplyFeet()
 			// (Both feet planted and braced where it lit up: Godot's damping alone, 6/s, let the drive
 			// walk the bike forward at 1-1.5 m/s on the locked front without the back ever breaking
 			// loose. Braced against the locked front, they hold up to about 1 g.)
-			const double Off = (Position - BurnoutAt).Dot(Flat);
+			double Off = (Position - BurnoutAt).Dot(Flat);
+			// ([beenster, build 160] "the bikes can do a burnout backward": lit while still rolling on, the
+			// spring hauled it back to where it lit, at over 1 m/s. Now the spot moves up with it while it's
+			// still rolling on, and the feet only ever stop it going forward: never push it back.)
+			if (Burnout > 0.0 && Off > 0.0 && V > 0.3)
+			{
+				BurnoutAt = BurnoutAt + Flat * Off;
+				Off = 0.0;
+			}
 			if (Burnout > 0.0)
-				ApplyCentralForce(Flat * Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass));
+			{
+				double Hold = Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass);
+				if (Hold < 0.0 && V < 0.0) Hold = 0.0;
+				ApplyCentralForce(Flat * Hold);
+			}
 			else ApplyCentralForce(Flat * ((-PADDLE_SPEED - V) * Build.TotalMass * 2.5));
 		}
 	}

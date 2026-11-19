@@ -926,6 +926,31 @@ double PopRate(const FSpec& S, double Rpm, double OverrunS)
 	return Style.Pops * 3.0 * Revs * Settle * (1.0 + S.Rust) * Two;
 }
 
+bool Sporty(const FSpec& S)
+{
+	// (a four-stroke of two cylinders or more: not the MX singles and the two-strokes, revvy as they are)
+	if (IsTwoStroke(S) || S.Cylinders < 2) return false;
+	return S.Redline >= 10000.0 || S.Exhaust == "race";
+}
+
+double BangShare(const FSpec& S)
+{
+	if (!Sporty(S)) return 0.0;
+	if (S.Exhaust == "race" || S.Exhaust == "straight") return 0.3;
+	if (S.Exhaust == "full") return 0.18;
+	if (S.Exhaust == "slip") return 0.1;
+	return 0.04;
+}
+
+double FlameShare(const FSpec& S)
+{
+	if (!Sporty(S)) return 0.0;
+	if (S.Exhaust == "race" || S.Exhaust == "straight") return 0.85;
+	if (S.Exhaust == "full") return 0.6;
+	if (S.Exhaust == "slip") return 0.45;
+	return 0.2;
+}
+
 std::vector<float> ReadWav(const std::vector<uint8_t>& B, int& SampleRate)
 {
 	std::vector<float> Out;
@@ -1292,7 +1317,13 @@ void FVoice::Update(double Dt)
 		{
 			const double Pops2 = ExhaustOf(S.Exhaust).Pops;
 			const double Ex = Mix[0] * std::pow(10.0, 2.0 * (S.Loud - 1.0) / 20.0);
-			if (Uni(0.0, 1.0) < 0.04 * Pops2) PlayShot(B.Cracks, Ex, Uni(0.9, 1.1));
+			// ([build 160] a sports engine's big bang: the bank's bangs, never played before)
+			if (!B.Bangs.empty() && Uni(0.0, 1.0) < BangShare(S))
+			{
+				PlayShot(B.Bangs, Uni(0.9, 1.15) * Ex, Uni(0.92, 1.05));
+				++Bangs;
+			}
+			else if (Uni(0.0, 1.0) < 0.04 * Pops2) PlayShot(B.Cracks, Ex, Uni(0.9, 1.1));
 			else PlayShot(B.Pops, Uni(0.6, 1.1) * Ex, Uni(0.9, 1.1));
 			++Pops;
 		}
