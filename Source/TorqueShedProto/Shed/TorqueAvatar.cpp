@@ -459,6 +459,37 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (bFace) ByName.Add(TEXT("Face"), C);   // what the hair is attached to, whatever the part's name
 		Out.Add(C);
 	}
+	// [jacket try] beenster's own MetaHuman biker jacket (Tools/ue_try_jacket.py imports it to
+	// /Game/AvatarTry/Crosswind), worn over the shirt for a preview: -TorqueTryJacket=<mesh name> on
+	// Avatar A (-TorqueTryJacketOn=all: everyone; or a list such as A,C).
+	{
+		FString Jacket, On = TEXT("A");
+		if (FParse::Value(FCommandLine::Get(), TEXT("TorqueTryJacket="), Jacket) && !Jacket.IsEmpty())
+		{
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueTryJacketOn="), On);
+			const FString Letter = E.Name.Right(1);
+			if (On.Equals(TEXT("all"), ESearchCase::IgnoreCase) || On.Contains(Letter, ESearchCase::IgnoreCase))
+			{
+				const FString Path = FString::Printf(TEXT("/Game/AvatarTry/Crosswind/%s/%s.%s"), *Jacket, *Jacket, *Jacket);
+				USkeletalMesh* JM = LoadObject<USkeletalMesh>(nullptr, *Path);
+				if (!JM) UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: try jacket: no %s (run Tools/ue_try_jacket.py)"), *E.Name, *Path);
+				else
+				{
+					USkeletalMeshComponent* J = NewObject<USkeletalMeshComponent>(Owner, MakeUniqueObjectName(Owner, USkeletalMeshComponent::StaticClass(), FName(TEXT("TryJacket"))));
+					J->SetSkeletalMeshAsset(JM);
+					J->SetupAttachment(Driver);
+					J->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+					J->SetGenerateOverlapEvents(false);
+					J->PrecachePSOs();
+					J->RegisterComponent();
+					J->SetLeaderPoseComponent(Driver, true);
+					Out.Add(J);
+					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: try jacket %s worn (%d materials, box %s)"), *E.Name, *Path,
+						JM->GetMaterials().Num(), *JM->GetBounds().GetBox().ToString());
+				}
+			}
+		}
+	}
 	// Round 143: the Creator's only top (its default garment) comes with shorts, which drew over the
 	// Fab jeans (white shorts blotched with denim). With a bottom garment worn, the top's shorts,
 	// trouser or bottom sections are hidden: drawn with M_HairCards at no opacity (masked, so nothing
