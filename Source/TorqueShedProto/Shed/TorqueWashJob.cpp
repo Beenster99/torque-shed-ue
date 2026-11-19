@@ -1,5 +1,6 @@
 #include "Shed/TorqueWashJob.h"
 
+#include "Shed/TorqueBikeDirt.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedPick.h"
@@ -130,37 +131,6 @@ void Rows(const FTransform& ToModel, FLinearColor& R0, FLinearColor& R1, FLinear
 	Off = FLinearColor((float)M.M[3][0], (float)M.M[3][1], (float)M.M[3][2], 0.0f);
 }
 
-// How much of a part's muck lies at a point (Dirt's usual pattern, roughly): road muck thick low down
-// and on the undersides, a film of dust on top. The bike's materials work the same out per pixel
-// (Tools/ue_bike_dirt.py DIRT_HLSL).
-float Pattern(double H, const FVector& N)
-{
-	const double Hn = FMath::Clamp(H, 0.0, 1.0);
-	double P = FMath::Lerp(1.35, 0.4, Hn * Hn * (3.0 - 2.0 * Hn));
-	if (N.Z < -0.5) P *= 1.45;                    // the undersides catch the spray off the tyres
-	else if (N.Z > 0.6) P *= 0.75;                // the tops: settled dust
-	return (float)P;
-}
-
-// A point on a part that turns with a wheel (Spin: the axle's x and z, on), where its muck is
-// worked out from: half way down from the axle to it, facing neither up nor down, so the muck lies
-// evenly round the wheel (DIRT_HLSL's mw and nw).
-void SpunAt(const FLinearColor& Spin, FVector& P, FVector& N)
-{
-	if (Spin.B < 0.5f) return;
-	P.Z = Spin.G - 0.5 * FVector2D(P.X - Spin.R, P.Z - Spin.G).Size();
-	N.Z = 0.0;
-	N = N.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
-}
-
-// Where dead flies lie (on a part that collects them, FlyGain): the forward faces, up off the ground
-// (Up, cm). DIRT_HLSL's flyw.
-double FlyWeight(const FVector& N, double Up)
-{
-	auto Smooth = [](double A, double B, double X) { const double T = FMath::Clamp((X - A) / (B - A), 0.0, 1.0); return T * T * (3.0 - 2.0 * T); };
-	return Smooth(0.45, 0.8, N.X) * Smooth(0.12, 0.4, Up * 0.01);
-}
-
 ATorqueShedBike* BikeOf(UWorld* World, int32 Bay)
 {
 	if (!World) return nullptr;
@@ -286,8 +256,9 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	for (const FVector& P : RawP) Box += P;
 	ZLo = Box.Min.Z;
 	ZHi = FMath::Max(Box.Max.Z, ZLo + 10.0);
-	// The bike's height as its materials have it (TorqueShedModel::ApplyLooks), so the dirt here lies
-	// exactly as it's drawn.
+	// The bike's height and its wheels as its materials have them (TorqueShedModel::ApplyLooks), so the
+	// dirt here lies exactly as it's drawn.
+	FLinearColor WheelF(0, 0, 0, 0), WheelR(0, 0, 0, 0);
 	for (UStaticMeshComponent* C : Meshes)
 		if (UMaterialInstanceDynamic* Dyn = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0)))
 		{
@@ -296,6 +267,8 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 			{
 				ZLo = Z.R;
 				ZHi = Z.G;
+				WheelF = Dyn->K2_GetVectorParameterValue(TEXT("SprayF"));
+				WheelR = Dyn->K2_GetVectorParameterValue(TEXT("SprayR"));
 				break;
 			}
 		}
@@ -347,10 +320,9 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	for (int32 I = 0; I < Points.Num(); ++I)
 	{
 		Vox[I] = IndexOf(Points[I]);
-		FVector PatAt = Points[I], PatN = Normals[I];
-		if (PartSpin.IsValidIndex(PointPart[I])) TWJ::SpunAt(PartSpin[PointPart[I]], PatAt, PatN);
-		Pat[I] = FMath::Max(TWJ::Pattern((PatAt.Z - ZLo) / (ZHi - ZLo), PatN),
-			(float)(TorqueShedModel::FlyGain(Slots[PointPart[I]]) * TWJ::FlyWeight(PatN, PatAt.Z - ZLo) * 1.6));
+		// (Where the muck lies as the bike's materials draw it: TorqueBikeDirt, DIRT_HLSL.)
+		const FLinearColor PointSpin = PartSpin.IsValidIndex(PointPart[I]) ? PartSpin[PointPart[I]] : FLinearColor(0, 0, 0, 0);
+		Pat[I] = TorqueBikeDirt::Pattern(Points[I], Normals[I], ZLo, ZHi, PointSpin, WheelF, WheelR, TorqueShedModel::FlyGain(Slots[PointPart[I]]));
 		PartN[PointPart[I]] += 1;
 		PatMean[PointPart[I]] += Pat[I];
 		Sum += Points[I];
