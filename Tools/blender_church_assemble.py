@@ -339,7 +339,10 @@ def church(spec):
                     opening(M, "twin", (cx - T * 0.5, cy, 3.2), WEST, ww, 2.6, "pointed", 0.2, dr, mullions=2 if win == "perp" else 1)
         tower(M, "tower", cx, cy, T, TH, R, kind, tw.get("spire", "stone"), tw.get("cap"))
     else:
-        window(M, "west", 0.0, 0.0, WEST, E + 1.0, win, dr, sill=2.0, scale=1.2 if win in ("dec", "perp") else 1.0)
+        # [churches stage 5] (a west door where there is no porch, under its window: the way in from the path)
+        if not pside:
+            opening(M, "wdoor", (0.0, 0.0, 0.0), WEST, 1.4, 2.0, "pointed" if win != "round" else "round", 0.22, dr, door=K.DOOR_OAK)
+        window(M, "west", 0.0, 0.0, WEST, E + 1.0, win, dr, sill=2.0 if pside else 3.5, scale=1.2 if win in ("dec", "perp") else 1.0)
         if spec.get("belfry"):
             belfry(M, "belfry", 1.6, nr, P, W)
         elif spec.get("bellcote", 2):
@@ -397,6 +400,64 @@ def meeting_house(spec):
         window(M, "end%d" % s, L if s > 0 else 0.0, 0.0, EAST if s > 0 else WEST, E + (nr - E) * 0.5, "round", dr)
     if R.get("quoins"):
         quoins(M, "q", [(0.0, -W * 0.5, 1, 1), (0.0, W * 0.5, 1, -1), (L, -W * 0.5, -1, 1), (L, W * 0.5, -1, -1)], E, dr)
+    return M
+
+
+# --- [churches stage 5] the churchyard's own pieces: lychgates, yews ----------------------------------
+#
+# Each stands about its own middle, a lychgate's ridge along x (its way through); kind "yard".
+
+def lychgate(spec):
+    """A lychgate: a gabled roof on four oak posts over the churchyard's gate, the posts on low stone
+    side walls, a tie beam and braces each end; 3 m through, 3.4 m across."""
+    R = REGIONS[spec["region"]]
+    wall, ws = R["wall"]
+    dr = R["dressed"]
+    roof, rs = spec.get("roof", R["roof"])
+    oak = (0.09, 0.06, 0.035)
+    M = Model(spec["name"])
+    L, W = 3.0, 3.4
+    for s in (-1, 1):
+        M.add(box("sill%d" % s, (0.0, s * (W * 0.5 - 0.2), 0.4), (L, 0.4, 0.8)), ws, wall, 0.35)
+        M.add(box("cap%d" % s, (0.0, s * (W * 0.5 - 0.2), 0.84), (L + 0.1, 0.46, 0.08)), "stone", dr, 0.3)
+        for u in (-1, 1):
+            M.add(box("post%d%d" % (s, u), (u * (L * 0.5 - 0.15), s * (W * 0.5 - 0.2), 1.55), (0.2, 0.2, 1.4)), "timber", oak, 0.3)
+        M.add(box("plate%d" % s, (0.0, s * (W * 0.5 - 0.2), 2.33), (L + 0.2, 0.22, 0.16)), "timber", oak, 0.3)
+    for u in (-1, 1):
+        M.add(box("tie%d" % u, (u * (L * 0.5 - 0.15), 0.0, 2.33), (0.2, W - 0.2, 0.16)), "timber", oak, 0.3)
+        for s in (-1, 1):
+            br = box("brace%d%d" % (u, s), (0, 0, 0), (0.12, 0.85, 0.12))
+            br.matrix_world = Matrix.Translation((u * (L * 0.5 - 0.15), s * (W * 0.5 - 0.6), 2.05)) @ Matrix.Rotation(s * 0.8, 4, "X")
+            M.add(br, "timber", oak, 0.3)
+    # (the roof: two slopes, the ridge along x through the gate, its gables to the road and the yard)
+    pitch = math.radians(50.0)
+    half = W * 0.5 + 0.35
+    rise = half * math.tan(pitch)
+    for s in (-1, 1):
+        sl = box("roof%d" % s, (0, 0, 0), (L + 0.7, half / math.cos(pitch) + 0.05, 0.12))
+        sl.matrix_world = Matrix.Translation((0.0, s * half * 0.5, 2.41 + rise * 0.5)) @ Matrix.Rotation(-s * pitch, 4, "X")
+        M.add(sl, "roof", roof, 0.3)
+    M.add(box("ridge", (0.0, 0.0, 2.41 + rise + 0.05), (L + 0.7, 0.18, 0.14)), "roof", roof, 0.3)
+    for u in (-1, 1):
+        gb = K.prism("gable%d" % u, [(-W * 0.5 + 0.2, 0.0), (W * 0.5 - 0.2, 0.0), (0.0, rise - 0.1)], 0.04)
+        M.add(K.place(gb, (u * (L * 0.5 + 0.2), 0.0, 2.41), EAST if u > 0 else WEST), "timber", oak, 0.3)
+    return M
+
+
+def yew(spec):
+    """A churchyard yew: an old spreading one, a dark dome on a short thick trunk, or an Irish yew, a tight
+    dark column."""
+    M = Model(spec["name"])
+    leaf = (0.022, 0.04, 0.02)
+    bark = (0.12, 0.06, 0.04)
+    if spec.get("irish"):
+        M.add(lathe("trunk", [(0.18, 0.0), (0.15, 0.6), (0.0, 0.62)], seg=6), "timber", bark, 0.3)
+        M.add(lathe("crown", [(0.35, 0.3), (0.75, 1.2), (0.85, 2.6), (0.7, 4.0), (0.35, 5.0), (0.0, 5.4)], seg=14, sharp_deg=80.0), "timber", leaf, 0.2)
+        return M
+    M.add(lathe("trunk", [(0.6, 0.0), (0.45, 1.4), (0.0, 1.45)], seg=7), "timber", bark, 0.3)
+    for k, (x, y, r, z) in enumerate(((0.0, 0.0, 3.0, 0.9), (1.2, 0.8, 2.0, 2.2), (-1.0, -0.7, 2.1, 2.0), (0.3, -0.2, 1.7, 3.4))):
+        M.add(lathe("crown%d" % k, [(r * 0.3, 0.0), (r * 0.85, r * 0.3), (r, r * 0.7), (r * 0.8, r * 1.1), (r * 0.4, r * 1.4), (0.0, r * 1.5)], seg=14,
+                    at=(x, y, z), phase=k * 0.4, sharp_deg=80.0), "timber", leaf, 0.2)
     return M
 
 
@@ -498,6 +559,11 @@ SPECS = [
       spire="slate"), win="round"),
     S("sco_free", "Scottish Free Church: sandstone, needle spire", "scotland", wall=((0.3, 0.27, 0.22), "stone"), dressed=(0.38, 0.34, 0.27),
       nave=(20, 10.0, 8.0, 50), tower=dict(kind="needle", T=5.0, TH=16.0, at="SW"), win="dec", buttresses=True, porch=None),
+    # [churches stage 5] (the churchyards')
+    S("yard_lychgate_slate", "Lychgate, slate", "pennine", kind="lychgate", roof=(K.SLATE, "roof")),
+    S("yard_lychgate_tile", "Lychgate, clay tiles", "south_east", kind="lychgate", roof=(TILE, "roof")),
+    S("yard_yew", "Old churchyard yew", "town", kind="yew"),
+    S("yard_yew_irish", "Irish yew", "town", kind="yew", irish=True),
 ]
 
 
@@ -505,7 +571,7 @@ def build_one(spec):
     if "hero" in spec:
         return spec["hero"]()
     kind = spec.get("kind", "church")
-    return {"church": church, "chapel": chapel, "tin": tin_tabernacle, "meeting": meeting_house}[kind](spec)
+    return {"church": church, "chapel": chapel, "tin": tin_tabernacle, "meeting": meeting_house, "lychgate": lychgate, "yew": yew}[kind](spec)
 
 
 def main():
@@ -628,11 +694,29 @@ def export(models, specs, data_dir):
     for M, spec in zip(models, specs):
         # (in the props' frame: x east, y up, z south; about the nave's middle at the ground)
         pos, nrm, part_of = _triangles(M)
-        nave = next(p for p in M.parts if p.obj.name.split(".")[0] in ("nave_walls", "body_walls"))
-        nb = [nave.obj.matrix_world @ __import__("mathutils").Vector(c) for c in nave.obj.bound_box]
-        nx0, nx1 = min(v.x for v in nb), max(v.x for v in nb)
-        ny0, ny1 = min(v.y for v in nb), max(v.y for v in nb)
+        # (a churchyard's piece has no nave: its whole size)
+        nave = next((p for p in M.parts if p.obj.name.split(".")[0] in ("nave_walls", "body_walls")), None)
+        if nave is not None:
+            nb = [nave.obj.matrix_world @ __import__("mathutils").Vector(c) for c in nave.obj.bound_box]
+            nx0, nx1 = min(v.x for v in nb), max(v.x for v in nb)
+            ny0, ny1 = min(v.y for v in nb), max(v.y for v in nb)
+        else:
+            nx0, nx1 = float(pos[:, 0].min()), float(pos[:, 0].max())
+            ny0, ny1 = float(-pos[:, 2].max()), float(-pos[:, 2].min())
         cx, cz = (nx0 + nx1) * 0.5, -(ny0 + ny1) * 0.5
+        # [churches stage 5] (its door, where the churchyard's path ends: a metre out from the porch's arch,
+        # else the west door, the tower's, the chapel's front door; and which way out it faces)
+        door = None
+        for want in ("porch_arch_g", "wdoor_g", "tdoorS_g", "tdoor_g", "door_g"):
+            ob = next((p.obj for p in M.parts if p.obj.name.split(".")[0] == want), None)
+            if ob is None:
+                continue
+            db = [ob.matrix_world @ __import__("mathutils").Vector(c) for c in ob.bound_box]
+            dx, dy = sum(v.x for v in db) / 8.0, sum(v.y for v in db) / 8.0
+            ox, oy = dx - (nx0 + nx1) * 0.5, dy - (ny0 + ny1) * 0.5
+            ox, oy = (1.0 if ox > 0 else -1.0, 0.0) if abs(ox) / max(1e-6, nx1 - nx0) > abs(oy) / max(1e-6, ny1 - ny0) else (0.0, 1.0 if oy > 0 else -1.0)
+            door = [round(dx + ox - cx, 2), round(-(dy + oy) - cz, 2), ox, -oy]
+            break
         pos = pos - np.array([cx, 0.0, cz])
         # (the masonry's brightness against its main stone, by area)
         area = {}
@@ -677,10 +761,11 @@ def export(models, specs, data_dir):
         blob += v.tobytes()
         blob += inv.astype("<u2").tobytes()
         kind = spec.get("kind", "church") if "hero" not in spec else ("chapel" if "methodist" in spec["name"] else "church")
+        kind = "yard" if kind in ("lychgate", "yew") else kind
         rows.append({"name": M.name, "label": spec["label"], "kind": kind, "region": spec["region"],
                      "nave": [round(nx1 - nx0, 2), round(ny1 - ny0, 2)], "size": [round(float(hi[0] - lo[0]), 2), round(float(hi[2] - lo[2]), 2),
                      round(float(hi[1]), 2)], "triangles": int(len(inv) // 3), "weight": 1.0,
-                     "tags": sorted(set(spec.get("tags", [])) | ({"catholic"} if M.name in CATHOLIC else set()))})
+                     "door": door, "tags": sorted(set(spec.get("tags", [])) | ({"catholic"} if M.name in CATHOLIC else set()))})
     with open(os.path.join(data_dir, "church_kit.bin"), "wb") as f:
         f.write(bytes(blob))
     about = ("Ride UK's churches (churches stage 3): the kit's forty churches (Tools/blender_church_assemble.py --export, "

@@ -1371,6 +1371,18 @@ int main(int Argc, char** Argv)
 			const Geo WAt = Plan->Area.Roads.FrameOf().ToGeo(Mark.Num("x"), Mark.Num("z"));
 			std::printf("worship %.5f,%.5f %s\n", WAt.Lat, WAt.Lon, Mark.Str("name").c_str());
 		}
+		// [churches stage 5] (and their churchyards: mapped or made, walls, yews, lychgate)
+		size_t Made = 0, Lych = 0, Yews = 0, Runs = 0;
+		for (const RidePlan::Churchyard& Yd : Plan->Churchyards)
+		{
+			Made += Yd.Made ? 1 : 0; Lych += Yd.Lych ? 1 : 0; Yews += Yd.Yews.size(); Runs += Yd.Walls.size();
+			if (std::hypot(Yd.Church.X - S0.X, Yd.Church.Z - S0.Z) > Wr && !(Yd.Made && std::getenv("WORLD_RIDE_MADE"))) continue;
+			const Geo YAt = Plan->Area.Roads.FrameOf().ToGeo(Yd.Church.X, Yd.Church.Z);
+			const Geo GAt = Plan->Area.Roads.FrameOf().ToGeo(Yd.Gate.X, Yd.Gate.Z);
+			std::printf("churchyard %.5f,%.5f %s%s, %zu wall runs, %zu yews, path %.0f m, gate %.5f,%.5f\n", YAt.Lat, YAt.Lon, Yd.Made ? "made" : "mapped", Yd.Lych ? ", lychgate" : "",
+				Yd.Walls.size(), Yd.Yews.size(), Yd.Gate.DistanceTo(Yd.PathEnd), GAt.Lat, GAt.Lon);
+		}
+		std::printf("churchyards: %zu (%zu made, %zu lychgates, %zu yews, %zu wall runs)\n", Plan->Churchyards.size(), Made, Lych, Yews, Runs);
 	}
 	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
 	{

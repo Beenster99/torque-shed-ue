@@ -1484,11 +1484,31 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		}
 	}
 	// [churches stage 3] (the kit's churches, now the rest is in)
+	std::vector<ChurchDoor> Doors;
 	for (const KitChurch& C : Churches)
 	{
-		BuildChurch(ChurchSet->Models[size_t(C.Model)], C.Whole, C.X, C.Y, C.Z, C.Low, C.Dx, C.Dz, C.Along, C.Across, C.Up, C.Sooted, Out, Washed, Houses, RoofOut, BrickOut);
+		const ChurchModel& M = ChurchSet->Models[size_t(C.Model)];
+		BuildChurch(M, C.Whole, C.X, C.Y, C.Z, C.Low, C.Dx, C.Dz, C.Along, C.Across, C.Up, C.Sooted, Out, Washed, Houses, RoofOut, BrickOut);
 		if (Tally) ++Tally->KitChurches;
+		// [churches stage 5] (its door, for the churchyard's path: in the model's frame about its nave's middle, as BuildChurch turns it)
+		if (M.HasDoor)
+		{
+			const double Ox = C.Whole ? -(M.MinX + M.MaxX) * 0.5 : 0.0, Oz = C.Whole ? -(M.MinZ + M.MaxZ) * 0.5 : 0.0;
+			const double Lx = (M.Door[0] + Ox) * C.Along, Lz = (M.Door[1] + Oz) * C.Across;
+			ChurchDoor D;
+			D.Middle = P2(C.X, C.Z);
+			D.Door = P2(C.X + Lx * C.Dx - Lz * C.Dz, C.Z + Lx * C.Dz + Lz * C.Dx);
+			D.Out = P2(M.Door[2] * C.Dx - M.Door[3] * C.Dz, M.Door[2] * C.Dz + M.Door[3] * C.Dx);
+			const double Ba = ((M.MinX + M.MaxX) * 0.5 + Ox) * C.Along, Bc = ((M.MinZ + M.MaxZ) * 0.5 + Oz) * C.Across;
+			D.Box = P2(C.X + Ba * C.Dx - Bc * C.Dz, C.Z + Ba * C.Dz + Bc * C.Dx);
+			D.Along = P2(C.Dx, C.Dz);
+			D.HalfA = (M.MaxX - M.MinX) * 0.5 * C.Along;
+			D.HalfC = (M.MaxZ - M.MinZ) * 0.5 * C.Across;
+			Doors.push_back(D);
+		}
 	}
+	// [churches stage 5] (the churchyards: walls, gates, paths, yews)
+	if (Fine) ChurchyardsTile(X0, Z0, Size, TileLook, Doors, Out, Washed, Houses, RoofOut, BrickOut);
 }
 // [build 141 feedback] Farther off (beenster: "increase the drawing of objects in the very far
 // distance"): the coarse squares had no buildings at all, so villages and towns vanished past a few

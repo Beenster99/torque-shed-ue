@@ -823,8 +823,36 @@ public:
 		uint32_t Id = 0;
 		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
 		bool Flowing = false;   // a river's or canal's own outline (its water runs: WaterRuns), not a lake's
+		int Yard = -1;          // [churches stage 5] a graveyard round a church: its Churchyards entry
 	};
 	std::vector<FieldArea> FieldAreas;
+	// [churches stage 5] Each place of worship's churchyard (IndexChurchyards, World/WorldRideFields.cpp): the
+	// map's graveyard round it, else (out of a town) one made round it as far as its neighbours and roads
+	// allow; its wall's runs (where the map draws no wall, fence or hedge of its own), its gate (the yard's
+	// edge nearest the road), the path from the gate to the church's walk round it, its yews. FieldsTile keeps
+	// the graves off the path, the walk, the gate and the yews; ChurchyardsTile builds the rest.
+	struct Churchyard
+	{
+		int Field = -1;                 // its ground (FieldAreas: a FieldGraves area)
+		bool Made = false, Chapel = false, Lych = false;
+		P2 Church;                      // the church's outline's middle (all its pieces)
+		double Cs = 1.0, Sn = 0.0, HalfU = 0.0, HalfV = 0.0;   // its box: half sizes along its building's axes (Yaw)
+		P2 Gate, Out;                   // the gate's middle on the yard's edge, and outward (unit)
+		P2 PathEnd;                     // where the path from the gate meets the walk round the church (1.5 m out)
+		std::vector<std::pair<P2, P2>> Walls;   // the wall's runs
+		std::vector<std::pair<P2, int>> Yews;   // where, and which (0 an old spreading one, 1 an Irish yew)
+		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
+	};
+	std::vector<Churchyard> Churchyards;
+	void IndexChurchyards();   // (from IndexFields: made yards are field areas too)
+	// How far (X, Z) is outside a churchyard's church box (negative inside).
+	double OffChurch(const Churchyard& Y, double X, double Z) const;
+	// The churchyards' walls, gates, paths and yews on a square (fine squares only), in the place's stone.
+	// Doors: the kit churches built on it, each its middle, its door (a metre out) and the way it faces, and
+	// its footprint as built: its middle, its length's way (unit) and half sizes along and across.
+	struct ChurchDoor { P2 Middle, Door, Out, Box, Along; double HalfA = 0.0, HalfC = 0.0; };
+	void ChurchyardsTile(double X0, double Z0, double Size, const LocalLook& Look, const std::vector<ChurchDoor>& Doors, RideMesh& Out, RideMesh& Washed,
+		RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut) const;
 	// [beenster, build 147: "flat water surfaces and well formed banks for rivers, streams, brooks, lakes and
 	// the coastal shoreline"] (World/WorldRideWater.cpp) Each of the map's rivers, streams and canals as a run
 	// of points every WaterStep m down it (turned to run downhill), each with its water's level (never rising
