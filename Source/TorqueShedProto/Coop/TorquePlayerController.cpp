@@ -2493,7 +2493,7 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		if (Pv && Pv->HasAvatar())
 		{
 			Pv->DrawWorked(Canvas, PX, PY, PW, PH);
-			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
+			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom (into the face)    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
 				Ui::EAlign::Centre);
 		}
 		else
@@ -2760,8 +2760,8 @@ void ATorquePlayerController::UpdateProfilePreview()
 		const TArray<FRow> List = Rows();
 		const int32 At = DragRow >= 0 ? DragRow : Selected;
 		const bool bHelmetRow = PickDrag != 0 || (List.IsValidIndex(At) && List[At].bHelmet);
-		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet
-			: List.IsValidIndex(At) && List[At].bFace ? ATorqueProfilePreview::EView::Face : ATorqueProfilePreview::EView::Body;
+		// (Build 160: the whole figure on every avatar row, face rows too; the wheel zooms into the face.)
+		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet : ATorqueProfilePreview::EView::Body;
 	}
 	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Want, FTorqueSettings::Get().Colour);
 }
