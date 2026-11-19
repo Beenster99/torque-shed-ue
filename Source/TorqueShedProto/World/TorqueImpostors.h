@@ -13,7 +13,7 @@
 //    instance reading them, and queues the scan for its pictures. Until they are taken the atlas's depth
 //    says "nothing here", so the card draws nothing (no black cards);
 //  - Tick() takes torque.RideImpostorViewsPerTick views a frame (each a colour, a normal and a depth
-//    picture of 128 px) of one tree at a time, 1 km above the ride, seen by nothing else;
+//    picture of 512 px, shrunk to 128 on the CPU keeping the leaves; build 158) of one tree at a time, 1 km above the ride, seen by nothing else;
 //  - a file in Saved/ marks a bake in progress. If the game dies during one, the next start leaves
 //    impostors off (the old far models instead) and says so in the log; -TorqueImpostors=1 tries again.
 //
@@ -41,10 +41,8 @@ struct FTorqueImpostor
 	UPROPERTY(Transient) TObjectPtr<UStaticMesh> Scan;
 	UPROPERTY(Transient) TObjectPtr<UStaticMesh> Card;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> Material;
-	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> Colour;
-	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> Normal;
-	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> Depth;
-	// ([build 157] atlases read back from Saved/Impostors instead, when this scan was photographed before)
+	// The atlases (1024 px, 8 x 8 views of 128): from Saved/Impostors, or made from the photographs
+	// (built 158: the views are photographed at 512 px and shrunk on the CPU with the leaves kept)
 	UPROPERTY(Transient) TObjectPtr<UTexture2D> CachedColour;
 	UPROPERTY(Transient) TObjectPtr<UTexture2D> CachedNormal;
 	UPROPERTY(Transient) TObjectPtr<UTexture2D> CachedDepth;
@@ -83,7 +81,9 @@ private:
 	void CopyPending();
 	void Mark(bool bOnNow);
 	bool Load(FTorqueImpostor& E);
-	void Save(FTorqueImpostor& E);
+	void Finish(FTorqueImpostor& E);
+	void Show(FTorqueImpostor& E);
+	void SaveCache(const FTorqueImpostor& E, const TArray<uint8>& Raw);
 
 	UPROPERTY(Transient) TObjectPtr<AActor> Owner;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> Master;
@@ -93,6 +93,10 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> Tree;
 	UPROPERTY(Transient) TArray<TObjectPtr<USceneCaptureComponent2D>> Captures;
 	UPROPERTY(Transient) TArray<TObjectPtr<UTextureRenderTarget2D>> Shots;
+	// ([build 158] the tree being photographed, at 4 x the final size: colour, normal, depth)
+	UPROPERTY(Transient) TArray<TObjectPtr<UTextureRenderTarget2D>> Work;
+	// (tiny "nothing here" atlases a card shows until its own are made)
+	UPROPERTY(Transient) TArray<TObjectPtr<UTexture2D>> Empty;
 
 	bool bOn = false;
 	bool bInTick = false;     // (re-entry guard: nothing in Tick may run Tick again)
@@ -105,7 +109,7 @@ private:
 	TArray<FIntPoint> Pending;
 	int32 PendingEntry = -1;
 	double StartedAt = 0.0;
-	int32 SaveEntry = -1;     // a tree whose last views were copied this tick: written to Saved/Impostors
+	int32 SaveEntry = -1;     // a tree whose last views were copied this tick: shrunk, shown and kept
 	bool bAllLogged = false;
 	double FirstAskAt = 0.0;
 };
