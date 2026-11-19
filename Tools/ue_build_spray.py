@@ -19,6 +19,9 @@ Script... and pick this file). Safe to run again: each material is rebuilt from 
                 M_SprayMist's custom data, but lit per pixel (the mist's volume lighting speckled
                 over the road in shade), a crisper streak, a little light of its own so rain reads
                 against a dark hillside.
+  M_TyreSmoke   burnout and skid smoke (Weather/TorqueTyreFx): as M_SprayMist's custom data, billowing
+                puffs, and Soft 2 a flat fill (the veil over the view from inside the cloud).
+  M_TyreMark    the darkies tyres lay on the road: a deferred decal, near-black rubber, Opacity.
 """
 
 import unreal
@@ -478,9 +481,108 @@ def ring_material():
     return finish(m)
 
 
+# --- M_TyreSmoke and M_TyreMark (Weather/TorqueTyreFx) ----------------------------------------------
+
+# Soft 2: the veil laid over the view from inside the cloud (a flat fill). Otherwise a billowing puff:
+# a soft round with a lumpy edge and a few lighter and thicker patches, by its seed.
+SMOKE_HLSL = """
+if (Soft > 1.5) return 1.0;
+float2 q = UV * 2.0 - 1.0;
+float d = length(q);
+float a = atan2(q.y, q.x);
+float lump = 0.10 * sin(a * 3.0 + Seed * 31.0) + 0.07 * sin(a * 5.0 + Seed * 17.0) + 0.04 * sin(a * 9.0 + Seed * 5.0);
+float r = d * (1.0 - lump);
+float puff = pow(saturate(1.0 - r), 1.35);
+float billow = 0.72 + 0.28 * sin(q.x * 4.5 + Seed * 13.0) * sin(q.y * 3.7 + Seed * 7.0);
+return puff * billow;
+"""
+
+# The depth fade's distance: a puff fades over 60 cm where it meets the road or the bike (no hard line
+# across it), the veil hardly at all (it's 30 cm from the lens, over the rider's own dash).
+SMOKE_FADE_HLSL = """
+return Soft > 1.5 ? 0.5 : 60.0;
+"""
+
+
+def tyre_smoke_material():
+    m = new_material("M_TyreSmoke")
+    translucent(m, "volume")
+    try_set(m, "two_sided", True)
+    try_set(m, "used_with_instanced_static_meshes", True)
+    velocity_off = try_set(m, "output_translucent_velocity", False)
+
+    def data(i, x, y, default):
+        return expr(m, unreal.MaterialExpressionPerInstanceCustomData, x, y, data_index=i, const_default_value=default)
+
+    r, g, b = data(0, -1400, 0, 0.8), data(1, -1400, 100, 0.8), data(2, -1400, 200, 0.82)
+    alpha, soft, seed = data(3, -1400, 300, 0.4), data(4, -1400, 400, 1.0), data(5, -1400, 500, 0.0)
+    rg = expr(m, unreal.MaterialExpressionAppendVector, -1200, 50)
+    mel.connect_material_expressions(r, "", rg, "A")
+    mel.connect_material_expressions(g, "", rg, "B")
+    rgb = expr(m, unreal.MaterialExpressionAppendVector, -1000, 100)
+    mel.connect_material_expressions(rg, "", rgb, "A")
+    mel.connect_material_expressions(b, "", rgb, "B")
+    mel.connect_material_property(rgb, "", M.MP_BASE_COLOR)
+    # A touch of its own light so a thick bank never goes muddy grey in shade (and reads at night under
+    # the bike's lights without glowing).
+    em = expr(m, unreal.MaterialExpressionMultiply, -700, 200, const_b=0.05)
+    mel.connect_material_expressions(rgb, "", em, "A")
+    mel.connect_material_property(em, "", M.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -700, 300, r=0.9), "", M.MP_ROUGHNESS)
+    uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1400, 650)
+    shape = custom(m, -1100, 600, SMOKE_HLSL, [("UV", uv, ""), ("Soft", soft, ""), ("Seed", seed, "")],
+                   out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    op = expr(m, unreal.MaterialExpressionMultiply, -800, 500)
+    mel.connect_material_expressions(shape, "", op, "A")
+    mel.connect_material_expressions(alpha, "", op, "B")
+    if velocity_off:
+        fade = expr(m, unreal.MaterialExpressionDepthFade, -550, 500)
+        try_set(fade, "fade_distance_default", 60.0)
+        dist = custom(m, -800, 700, SMOKE_FADE_HLSL, [("Soft", soft, "")], out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+        mel.connect_material_expressions(op, "", fade, "Opacity")
+        mel.connect_material_expressions(dist, "", fade, "FadeDistance")
+        mel.connect_material_property(fade, "", M.MP_OPACITY)
+    else:
+        mel.connect_material_property(op, "", M.MP_OPACITY)
+    return finish(m)
+
+
+# A darkie: rubber laid on the road, soft along its edges, a little patchy (the tread's grooves and the
+# rubber smearing), darkest down its middle.
+MARK_HLSL = """
+float2 q = abs(UV * 2.0 - 1.0);
+float edge = (1.0 - smoothstep(0.55, 1.0, q.x)) * (1.0 - smoothstep(0.55, 1.0, q.y));
+float2 c = floor(UV * float2(48.0, 48.0));
+float grain = frac(sin(dot(c, float2(12.9898, 78.233))) * 43758.5453);
+float streak = 0.75 + 0.25 * sin(UV.x * 90.0) * sin(UV.y * 7.0 + 1.3);
+return edge * lerp(0.75, 1.0, grain) * streak;
+"""
+
+
+def tyre_mark_material():
+    m = new_material("M_TyreMark")
+    domain = enum("MaterialDomain", "MD_DEFERRED_DECAL")
+    if domain is None or not try_set(m, "material_domain", domain):
+        raise RuntimeError("can't make a deferred decal material on this engine")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    # Rubber: nearly black, a touch smoother and shinier than the worn tarmac round it.
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant3Vector, -700, 0,
+                                       constant=unreal.LinearColor(0.012, 0.012, 0.013, 1.0)), "", M.MP_BASE_COLOR)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -700, 120, r=0.55), "", M.MP_ROUGHNESS)
+    uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1200, 300)
+    shape = custom(m, -1000, 300, MARK_HLSL, [("UV", uv, "")], out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    op = expr(m, unreal.MaterialExpressionScalarParameter, -1000, 450, parameter_name="Opacity", default_value=0.6)
+    mul = expr(m, unreal.MaterialExpressionMultiply, -700, 300)
+    mel.connect_material_expressions(shape, "", mul, "A")
+    mel.connect_material_expressions(op, "", mul, "B")
+    mel.connect_material_property(mul, "", M.MP_OPACITY)
+    return finish(m)
+
+
 def build():
     out = {}
-    for name, fn in (("coat", coat_material), ("mist", mist_material), ("ring", ring_material), ("rain", rain_material)):
+    for name, fn in (("coat", coat_material), ("mist", mist_material), ("ring", ring_material), ("rain", rain_material),
+                     ("tyre smoke", tyre_smoke_material), ("tyre mark", tyre_mark_material)):
         try:
             out[name] = fn()
         except Exception as e:

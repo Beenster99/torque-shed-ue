@@ -2379,6 +2379,35 @@ bool ATorqueBikePawn::RiderCrashed() const
 	return Sim && Sim->IsCrashed;
 }
 
+bool ATorqueBikePawn::TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const
+{
+	Out = FTorqueTyreScrub();
+	if (!Sim || Sim->IsCrashed || IsParkedUp()) return false;
+	const bool bRear = WheelIndex != 0;
+	const Wheel& W = Sim->Wheels[bRear ? 1 : 0];
+	const UStaticMeshComponent* Comp = bRear ? RearWheel : FrontWheel;
+	if (!W.Contact || !Comp) return false;
+	const double Radius = bRear ? Sim->Build.RearRadius : Sim->Build.FrontRadius;
+	const double Road = Sim->Speed;
+	// Along the tyre: the tread's speed against the road's, once it's past the tyre's peak slip (a tyre
+	// pulling or braking hard always creeps a little; that lays no rubber).
+	const double Long = FMath::Abs(W.Omega * Radius - Road);
+	const double PastPeak = FMath::Clamp((FMath::Abs(W.Kappa) - 0.14) / 0.25, 0.0, 1.0);
+	// Across it: a slide past its grip (Slip, 0..1 how far over).
+	const double Across = FMath::Clamp(W.Slip * 2.0, 0.0, 1.0) * FMath::Abs(Road) * 0.4;
+	Out.SlideMs = FMath::Max(Long * PastPeak, Across);
+	Out.RoadMs = FMath::Abs(Road);
+	Out.HalfWidthCm = bRear ? 8.0 : 5.5;
+	Out.bTarmac = W.Surf == SURF_TARMAC || W.Surf == SURF_SLICK || W.Surf == SURF_STEEL || W.Surf == SURF_GRID;
+	const FQuat Q = GetActorQuat();
+	Out.Up = Q.GetUpVector();
+	FVector Fwd = Q.GetForwardVector();
+	Fwd.Z = 0.0;
+	Out.Fwd = Fwd.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	Out.At = Comp->GetComponentLocation() - Out.Up * (Radius * 100.0);
+	return true;
+}
+
 void ATorqueBikePawn::PressIgnition()
 {
 	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
