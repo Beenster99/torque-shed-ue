@@ -1,0 +1,83 @@
+{
+ "name": "Kazeda chopper (working title H3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 25938,
+ "surfaces": {
+  "s015": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.586,
+    0.0939,
+    0.0072
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  },
+  "s016": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_chrome",
+   "tag": "d3_chop_chrome",
+   "ue": "chrome",
+   "color": [
+    0.93,
+    0.93,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.035
+  },
+  "s134": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s135": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s136": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s137": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ },
+ "bespoke": {
+  "group": "sissy",
+  "design": "filigree",
+  "metal": "chrome",
+  "name": "Filigree sissy bar, chrome",
+  "note": "A pointed arch with a diamond lattice, a rosette on every crossing, an oval boss and a flame finial."
+ }
+}

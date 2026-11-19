@@ -1,0 +1,178 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 35185,
+ "surfaces": {
+  "s013": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0127,
+    0.0478,
+    0.2758
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s014": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s047": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_lampsilver",
+   "tag": "d3_lampsilver",
+   "ue": "cat_polished_alloy",
+   "sub": "headlamp",
+   "color": [
+    0.92,
+    0.92,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s048": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "headlamp"
+  },
+  "s049": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_lampdip",
+   "tag": "lens_white",
+   "ue": "lens_clear",
+   "sub": "headlamp"
+  },
+  "s050": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "headlamp",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s132": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s133": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s134": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s135": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s149": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_chop_chrome",
+   "tag": "d3_chop_chrome",
+   "ue": "chrome",
+   "color": [
+    0.93,
+    0.93,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.035
+  },
+  "s150": {
+   "slot": "headlight",
+   "node": "steer",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  },
+  "s151": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_chrome",
+   "tag": "d3_chop_chrome",
+   "ue": "chrome",
+   "color": [
+    0.93,
+    0.93,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.035
+  },
+  "s152": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  }
+ },
+ "bespoke": {
+  "group": "lamps",
+  "design": "bullet",
+  "metal": "chrome",
+  "name": "Bullet lamp shells, chrome",
+  "note": "A long shell drawn back to a pointed finial, three speed lines turned round it, a stepped rim."
+ }
+}
