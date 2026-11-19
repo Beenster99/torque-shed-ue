@@ -472,7 +472,10 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 			{
 				const FString Path = FString::Printf(TEXT("/Game/AvatarTry/Crosswind/%s/%s.%s"), *Jacket, *Jacket, *Jacket);
 				USkeletalMesh* JM = LoadObject<USkeletalMesh>(nullptr, *Path);
-				if (!JM) UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: try jacket: no %s (run Tools/ue_try_jacket.py)"), *E.Name, *Path);
+				if (!JM)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: try jacket: no %s (run Tools/ue_try_jacket.py)"), *E.Name, *Path);
+				}
 				else
 				{
 					USkeletalMeshComponent* J = NewObject<USkeletalMeshComponent>(Owner, MakeUniqueObjectName(Owner, USkeletalMeshComponent::StaticClass(), FName(TEXT("TryJacket"))));
