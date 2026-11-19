@@ -498,13 +498,19 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// [towns stage 4] (a terrace's roofs run on from house to house: gabled through every party wall;
 		// a pair of semis may be hipped, but only at their outer ends)
 		if (InRow && InRow->RowSize >= 3 && Shape == ERoof::Hipped) Shape = ERoof::Gabled;
-		const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
+		const double Rise0 = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
 			: Big ? HalfShort * 0.35 : IsWorship ? std::fmin(HalfShort * 1.15, 6.5) : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
+		// [LiDAR stage 2] (the surveyed height where the square's LiDAR file has this outline: its eaves, and the
+		// roof's rise from them to the ridge, kept within a shallower or steeper roof of the kind it is)
+		const OutlinePiece* Measured = Each.Piece != nullptr && Each.Piece->LidarEaves > 0.0f ? Each.Piece : nullptr;
+		const double Rise = Measured == nullptr || Rise0 <= 0.0 ? Rise0
+			: std::clamp(double(Measured->LidarRidge - Measured->LidarEaves), Rise0 * 0.6, std::fmax(Rise0 * 0.6, std::fmin(Rise0 * 1.6, HalfShort * 1.4)));
 		// (the map's floors where it has them; its height, except a house's under 7 m: Overture's British
 		// heights put most two-storey houses at 4-6 m to the ridge, which drew them as bungalows in build 145)
 		const double MapFloors = Each.Floors;
 		const bool TrustHeight = B.Height > 2.0 && !(IsHouse && B.Height >= 3.0 && B.Height < 7.0);
-		const double Eaves = MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
+		const double Eaves = Measured != nullptr ? std::fmax(2.3, double(Measured->LidarEaves))
+			: MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
 			: TrustHeight ? std::fmax(2.3, B.Height - Rise)
 			: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
 		// ([towns stage 5] a row's walling chosen once for the whole row; a detached house or a cottage its own)

@@ -2,7 +2,12 @@
 inside a lat/lon box, the median of (surface - ground) over the outline from the Environment Agency's
 1 m LiDAR composites (DSM first return minus DTM), fetched over WCS in 1 km chunks.
 
-python lidar_heights.py CELLDIR south west north east out.json
+python lidar_heights.py CELLDIR south west north east out.json [c<CELL>.lidar.json]
+
+The second file is what the game reads (Data/RideUK/lidar, RidePlan::LidarFrom): {"v", "cell", "release",
+"tiles": {"TX_TZ": [row, check, eaves dm, ridge dm, ...]}}, the outlines' rows by their index in the tile's
+list, check the row's first latitude (micro-degrees) mod 10000. Kept only where the survey makes sense
+(file_rows says which).
 """
 import json, sys, os, glob, io, urllib.request, time
 import numpy as np, tifffile
@@ -39,6 +44,25 @@ def fetch(src, e0, n0):
     a[(a < -100) | (a > 2000)] = np.nan
     return a   # row 0 = north edge (n0 + CHUNK), col 0 = west edge
 
+def file_rows(res):
+    """(row, eaves, ridge) for the outlines whose survey makes sense: 4 or more pixels, 25 m2 or more, the
+    median 2.5 to 150 m, not wildly off a mapped height (a tree over it, a crane, built since)."""
+    for r in res:
+        if r.get("tile") == "box" or "med" not in r or r["px"] < 4 or r["area"] < 25.0 or not 2.5 <= r["med"] <= 150.0: continue
+        ridge = r["p90"]
+        eaves = max(r["low"], 2.0 * r["med"] - ridge) if ridge - r["med"] > 0.4 else r["med"]
+        eaves = max(2.3, min(eaves, ridge))
+        m = r.get("mapped")
+        if m and (ridge > 2.5 * m + 10.0 or ridge < 0.4 * m - 2.0): continue
+        yield r, eaves, ridge
+
+def write_file(path, head, res):
+    tiles = {}
+    for r, eaves, ridge in file_rows(res):
+        tiles.setdefault(r["tile"], []).extend([r["i"], r["chk"], int(round(eaves * 10)), int(round(ridge * 10))])
+    json.dump({"v": 1, "cell": head["cell"], "release": head["release"], "tiles": tiles}, open(path, "w"), separators=(",", ":"))
+    print(path, sum(len(v) // 4 for v in tiles.values()), "outlines with LiDAR heights")
+
 def main():
     celldir, s, w, n, e, out = sys.argv[1], *map(float, sys.argv[2:6]), sys.argv[6]
     head = json.load(open(os.path.join(celldir, "buildings.json")))
@@ -55,7 +79,7 @@ def main():
             la = np.array([p[0] for p in ring]) * 1e-6; lo = np.array([p[1] for p in ring]) * 1e-6
             if not (s <= la.mean() <= n and w <= lo.mean() <= e): continue
             E, N = tr.transform(lo, la)
-            rows.append(dict(tile=tile, i=i, dm=r[0], floors=r[2], cls=words[r[3]] if 0 < r[3] < len(words) else "",
+            rows.append(dict(tile=tile, i=i, chk=r[9] % 10000, dm=r[0], floors=r[2], cls=words[r[3]] if 0 < r[3] < len(words) else "",
                              E=np.array(E), N=np.array(N)))
     # The cell's own boxes over 2500 m2 (the outlines zip leaves those out): CELLBOXES=the cell's buildings.json.
     if os.environ.get("CELLBOXES"):
@@ -108,13 +132,15 @@ def main():
             h = (big_s[y0:y1, x0:x1] - big_t[y0:y1, x0:x1])[inside]
             h = h[np.isfinite(h)]
             area = 0.5 * abs(np.dot(b["E"], np.roll(b["N"], 1)) - np.dot(b["N"], np.roll(b["E"], 1)))
-            row = dict(tile=b["tile"], i=b["i"], cls=b["cls"], mapped=b["dm"] * 0.1 if b["dm"] >= 0 else None,
+            row = dict(tile=b["tile"], i=b["i"], chk=b.get("chk", 0), cls=b["cls"], mapped=b["dm"] * 0.1 if b["dm"] >= 0 else None,
                        floors=b["floors"] or None, area=round(float(area), 1), px=int(h.size))
             if h.size >= 4:
                 row.update(med=round(float(np.median(h)), 2), p90=round(float(np.percentile(h, 90)), 2),
                            top=round(float(h.max()), 2), low=round(float(np.percentile(h, 10)), 2))
             res.append(row)
     json.dump(res, open(out, "w"))
+    if len(sys.argv) > 7:
+        write_file(sys.argv[7], head, res)
     print(len(res), "measured;", sum(1 for r in res if "med" in r), "with LiDAR pixels")
 
 main()

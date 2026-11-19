@@ -42,6 +42,7 @@
 #include "WorldRoute.h"
 
 #include <cstdint>
+#include <functional>
 #include <array>
 #include <memory>
 #include <string>
@@ -481,6 +482,14 @@ public:
 	int GroundRound(double X, double Z) const;
 	CellStore* CellsFrom = nullptr;
 	HeightStore* HeightsFrom = nullptr;
+	// [LiDAR stage 2] A cell's LiDAR heights file (Tools/lidar_heights.py --file: its outlines' surveyed eaves and
+	// ridges by tile and row), false where there is none; asked once per cell, from a worker. Unset, no LiDAR.
+	std::function<bool(const std::string& Cell, std::string& Text)> LidarFrom;
+	// (a LiDAR file read: by tile, then row, the row's check (its first latitude mod 10000), eaves and ridge; how
+	// many rows it kept, none unless it is for Release; and one row's heights, false where unmeasured or moved)
+	using LidarTiles = std::unordered_map<std::string, std::unordered_map<int, std::array<float, 3>>>;
+	static size_t ReadLidar(const std::string& Text, const std::string& Release, LidarTiles& Out);
+	static bool LidarOfRow(const LidarTiles& Tiles, const std::string& Tile, int Row, long long FirstLat, float& Eaves, float& Ridge);
 	std::shared_ptr<void> StoresAlive;   // (whatever holds them, kept as long as the plan is)
 	// The junction (knot) a road's end is one of the arms of, once its block is laid; null for none.
 	const Knot* KnotAt(int Which, int End) const;
@@ -980,6 +989,9 @@ public:
 		Building B;
 		BuildingLook Look;
 		double Floors = 0.0;   // the map's floors (0: it doesn't say)
+		// [LiDAR stage 2] Its outline's surveyed eaves and ridge above the ground (metres; 0: not measured), from
+		// the cell's LiDAR file (Tools/lidar_heights.py): the drawer takes these before the map's height or floors.
+		float LidarEaves = 0.0f, LidarRidge = 0.0f;
 		// [towns stage 4] Its place in a row (MarkRows, once per tile read): which outline it came from and
 		// whether it is that outline's main box; the sides of the main box another house's main box shares
 		// (bit 1 its +x side, 2 its -x, 4 its +z, 8 its -z, x across W, z deep D), and on which of those it

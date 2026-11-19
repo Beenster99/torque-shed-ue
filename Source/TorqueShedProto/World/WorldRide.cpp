@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRoadLine.h"
@@ -313,6 +314,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->Land->SetRoam(true);   // [ride anywhere]
 	R->CellsFrom = &Store;
 	R->HeightsFrom = &Heights;
+	R->LidarFrom = LidarReader();   // [LiDAR stage 2]
 	Tell("Fetching the ground: " + std::to_string(R->Land->UsedKeys().size()) + " tiles");
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
 	if (R->TilesFailed > 0)
@@ -409,6 +411,7 @@ std::shared_ptr<RidePlan> RidePlan::Grow(CellStore& Store, HeightStore& Heights,
 	R->MadeSteps = Old.MadeSteps;
 	R->Grown = Old.Grown + 1;
 	R->StoresAlive = Old.StoresAlive;
+	R->LidarFrom = Old.LidarFrom;
 	if (!LoadArea(Store, Heights, Cells, Old.Area.Roads.FrameLat, Old.Area.Roads.FrameLon, "the roads here", R->Area, &R->Why)) return No(R->Why);
 	// (a cell that was read before and can't be now would renumber what follows it)
 	if (R->Area.Cells.size() < Had || !std::equal(Old.Area.Cells.begin(), Old.Area.Cells.end(), R->Area.Cells.begin())
