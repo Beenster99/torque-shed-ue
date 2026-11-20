@@ -5296,8 +5296,94 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				for (const std::vector<V3>& Ps : Pos)
 					for (const V3& M : Ps)
 						if (std::fabs(M.y) < 25.0) NewPair = false;
+			// [grips, beenster Nov 20: "make sure that the grips align to the handlebars"] Each grip laid along the
+			// bike's own grip on that side (its long axis, its middle), so it sits on the bar end at the bar's own
+			// sweep and drop: turned from its own axis to that one about its middle, then moved there.
+			bool bAligned = false;
+			if (Sub == "grip" && Own.Pair())
+			{
+				std::vector<V3> Theirs[2];
+				for (const FittedPart& P : Out)
+				{
+					if (P.Sub != Sub || !P.Made || P.Code) continue;
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& Q : S.Pos)
+						{
+							const V3 M = V2ToMm(F, Q);
+							Theirs[M.y >= 0.0 ? 0 : 1].push_back(M);
+						}
+				}
+				std::vector<V3> Mine[2];
+				for (const std::vector<V3>& Ps : Pos)
+					for (const V3& M : Ps) Mine[M.y >= 0.0 ? 0 : 1].push_back(M);
+				// The middle and the long axis (pointing out from the bike's middle) of a grip's points.
+				auto AxisOf = [](const std::vector<V3>& Pts, V3& Mid, V3& Axis) {
+					if (Pts.size() < 8) return false;
+					Mid = V3(0.0, 0.0, 0.0);
+					for (const V3& Q : Pts) Mid += Q;
+					Mid = Mid / double(Pts.size());
+					double C[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+					for (const V3& Q : Pts)
+					{
+						const double D[3] = {Q.x - Mid.x, Q.y - Mid.y, Q.z - Mid.z};
+						for (int I = 0; I < 3; ++I)
+							for (int J = 0; J < 3; ++J) C[I][J] += D[I] * D[J];
+					}
+					V3 A(0.0, 1.0, 0.0);
+					for (int It = 0; It < 40; ++It)
+						A = V3(C[0][0] * A.x + C[0][1] * A.y + C[0][2] * A.z, C[1][0] * A.x + C[1][1] * A.y + C[1][2] * A.z,
+							C[2][0] * A.x + C[2][1] * A.y + C[2][2] * A.z).Normalized();
+					if (A.Length() < 0.5) return false;
+					if (A.y * Mid.y < 0.0) A = -A;
+					Axis = A;
+					return std::fabs(Mid.y) > 20.0;
+				};
+				V3 TMid[2], TAx[2], MMid[2], MAx[2];
+				bool bOk = true;
+				for (int K = 0; K < 2; ++K) bOk = bOk && AxisOf(Theirs[K], TMid[K], TAx[K]) && AxisOf(Mine[K], MMid[K], MAx[K]);
+				// A common bar on: along its own end instead (it has its own sweep and drop; the bike's grip was only
+				// moved there, not turned), the grip's middle kept where it was along that end.
+				for (int K = 0; K < 2 && bOk; ++K)
+				{
+					std::vector<V3> End;
+					for (const FittedPart& P : Out)
+					{
+						if (P.Sub != "bar" || !P.Made || P.Hidden || P.Glb.rfind("v2c/", 0) != 0) continue;
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if ((M - TMid[K]).Length() < 60.0) End.push_back(M);
+							}
+					}
+					V3 EMid, EAx;
+					if (End.size() >= 16 && AxisOf(End, EMid, EAx))
+					{
+						TAx[K] = EAx;
+						TMid[K] = EMid + EAx * (TMid[K] - EMid).Dot(EAx);
+					}
+				}
+				if (bOk)
+				{
+					New = MmBox();
+					for (size_t I = 0; I < Pos.size(); ++I)
+						for (size_t J = 0; J < Pos[I].size(); ++J)
+						{
+							const int K = Pos[I][J].y >= 0.0 ? 0 : 1;
+							const V3 Ax = MAx[K].Cross(TAx[K]);
+							const double SinA = Ax.Length(), CosA = MAx[K].Dot(TAx[K]);
+							const double Ang = std::atan2(SinA, CosA);
+							const V3 U = SinA > 1e-9 ? Ax / SinA : V3(0.0, 0.0, 1.0);
+							Pos[I][J] = TMid[K] + (Pos[I][J] - MMid[K]).Rotated(U, Ang);
+							if (J < Nrm[I].size()) Nrm[I][J] = Nrm[I][J].Rotated(U, Ang);
+							New.Add(Pos[I][J]);
+						}
+					bAligned = true;
+				}
+			}
 			std::vector<Placing> Places;
-			if (!Own.Any() || Sub == "bar") Places.push_back(Placing());
+			if (bAligned) Places.push_back(Placing());
+			else if (!Own.Any() || Sub == "bar") Places.push_back(Placing());
 			else if (NewPair && Own.Pair())
 			{
 				Placing Pl;
@@ -5431,6 +5517,91 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 			Out.push_back(std::move(P));
 			++Added;
 		}
+	}
+	// [grips, beenster Nov 20] A common bar has its own sweep and drop: what sits on its ends (the grips, the bike's own
+	// or a shop pair, and the bar ends) only moved there would stand off its line. Each side's turned about the grip's
+	// middle onto the line of the bar's end there, and slid onto it.
+	bool bCommonBar = false;
+	for (const FittedPart& P : Out) bCommonBar = bCommonBar || (P.Sub == "bar" && P.Made && !P.Hidden && P.Glb.rfind("v2c/", 0) == 0);
+	if (bCommonBar)
+	{
+		auto LongAxis = [](const std::vector<V3>& Pts, V3& Mid, V3& Axis) {
+			if (Pts.size() < 8) return false;
+			Mid = V3(0.0, 0.0, 0.0);
+			for (const V3& Q : Pts) Mid += Q;
+			Mid = Mid / double(Pts.size());
+			double C[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+			for (const V3& Q : Pts)
+			{
+				const double D[3] = {Q.x - Mid.x, Q.y - Mid.y, Q.z - Mid.z};
+				for (int I = 0; I < 3; ++I)
+					for (int J = 0; J < 3; ++J) C[I][J] += D[I] * D[J];
+			}
+			V3 A(0.0, 1.0, 0.0);
+			for (int It = 0; It < 40; ++It)
+				A = V3(C[0][0] * A.x + C[0][1] * A.y + C[0][2] * A.z, C[1][0] * A.x + C[1][1] * A.y + C[1][2] * A.z,
+					C[2][0] * A.x + C[2][1] * A.y + C[2][2] * A.z).Normalized();
+			if (A.Length() < 0.5 || std::fabs(Mid.y) < 20.0) return false;
+			if (A.y * Mid.y < 0.0) A = -A;
+			Axis = A;
+			return true;
+		};
+		// (each piece turned by the grip it was drawn round: the bike's own pieces by the bike's own grip, hidden
+		// or not, a shop grip and bar end by the shop grip)
+		for (int K = 0; K < 2; ++K)
+			for (int Shop = 0; Shop < 2; ++Shop)
+			{
+				const double Side = K == 0 ? 1.0 : -1.0;
+				auto IsShop = [](const FittedPart& P) { return P.Glb.rfind("v2c/", 0) == 0; };
+				std::vector<V3> GripPts;
+				for (const FittedPart& P : Out)
+					if (P.Sub == "grip" && P.Made && !P.Code && IsShop(P) == (Shop == 1) && (Shop == 0 || !P.Hidden))
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if (M.y * Side > 0.0) GripPts.push_back(M);
+							}
+				V3 GMid, GAx;
+				if (!LongAxis(GripPts, GMid, GAx)) continue;
+				std::vector<V3> End;
+				for (const FittedPart& P : Out)
+					if (P.Sub == "bar" && P.Made && !P.Hidden && IsShop(P))
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if ((M - GMid).Length() < 60.0) End.push_back(M);
+							}
+				V3 EMid, EAx;
+				if (End.size() < 16 || !LongAxis(End, EMid, EAx)) continue;
+				const V3 To = EMid + EAx * (GMid - EMid).Dot(EAx);
+				const V3 Ax = GAx.Cross(EAx);
+				const double SinA = Ax.Length(), CosA = GAx.Dot(EAx);
+				if (SinA < 1e-4 && (To - GMid).Length() < 0.5) continue;
+				const double Ang = std::atan2(SinA, CosA);
+				const V3 U = SinA > 1e-9 ? Ax / SinA : V3(0.0, 0.0, 1.0);
+				// (a direction in ours to the drawings' mm and back: V2ToMm's turn)
+				auto DirToMm = [&F](const V3& D) { return V3(F.Cos * D.x - F.Sin * D.y, -D.z, F.Sin * D.x + F.Cos * D.y); };
+				auto DirFromMm = [&F](const V3& D) { return V3(F.Cos * D.x + F.Sin * D.z, -F.Sin * D.x + F.Cos * D.z, -D.y); };
+				for (FittedPart& P : Out)
+				{
+					if ((P.Sub != "grip" && P.Sub != "bar_end") || !P.Made || P.Code || IsShop(P) != (Shop == 1)) continue;
+					auto Copy = std::make_shared<PartMesh>(*P.Made);
+					bool bAny = false;
+					for (PartSurface& S : Copy->Surfaces)
+						for (size_t I = 0; I < S.Pos.size(); ++I)
+						{
+							const V3 M = V2ToMm(F, S.Pos[I]);
+							if (M.y * Side <= 0.0) continue;
+							const V3 N = To + (M - GMid).Rotated(U, Ang);
+							S.Pos[I] = F.Point(N.x, N.y, N.z);
+							if (I < S.Nrm.size()) S.Nrm[I] = DirFromMm(DirToMm(S.Nrm[I]).Rotated(U, Ang));
+							bAny = true;
+						}
+					if (bAny) P.Made = Copy;
+				}
+			}
 	}
 	return Added;
 }
