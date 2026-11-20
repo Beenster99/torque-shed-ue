@@ -53,6 +53,8 @@
 
 namespace TorqueWorld
 {
+namespace Ferries { struct Layout; }   // WorldFerries.h
+
 // (beenster, build 147: walls "very low def", their top stones smeared. The game draws these UVs at half
 // precision, a quarter metre apart at 300 m up a fell and half a metre 600 m along a square: each face's
 // metres of UV start again within UvRepeat of nought. 18 m is a whole number of every scan's repeat on
@@ -395,6 +397,21 @@ public:
 		double OnM = 0.0;              // the way on by road from where it lands (as planned)
 	};
 	std::shared_ptr<const FerryLink> Ferry;
+	// [ferries, build 163 robot] Each listed crossing in the area laid with the plan (World/WorldRideFerry.cpp), so the
+	// land is cut down along its slipways' approaches (Corran's ran up to a metre under the hillside, its front wheel
+	// on nothing) before any of the land's squares are made; ATorqueFerry stands up the same layout. A crossing whose
+	// ground wasn't in yet is laid by ATorqueFerry itself, uncut.
+	struct FerryLaid
+	{
+		int Listed = -1;
+		std::shared_ptr<const Ferries::Layout> Lay;
+		double X0 = 0.0, Z0 = 0.0, X1 = 0.0, Z1 = 0.0;   // the land it cuts (m)
+	};
+	std::vector<FerryLaid> FerryLays;
+	void IndexFerries();
+	std::shared_ptr<const Ferries::Layout> FerryLayOf(int Listed) const;
+	double FerryCut(double X, double Z, double Lie) const;
+	static constexpr double FerryCutBelow = 0.12, FerryCutVerge = 2.5, FerryCutBank = 1.5;
 
 	bool Ok = false;
 	std::string Why;
@@ -615,6 +632,7 @@ public:
 	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
 	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;
+	double GroundUncut(double X, double Z, double Coarse, bool NoBores, bool Trough) const;   // [ferries] (GroundOf before FerryCut)
 	// [build 155 feedback] The land mesh's own heights at its points (LandTile, LandDrawnAt): Ground, with the
 	// near squares' points by a watercourse under its water (BanksTile draws the banks over them).
 	double LandGround(double X, double Z, double Step) const { return GroundOf(X, Z, Step, Step > 8.5, std::fabs(Step - LandGrid) < 0.1); }

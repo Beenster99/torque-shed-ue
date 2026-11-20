@@ -2,6 +2,7 @@
 // to the boarding slipway; from where the ferry lands, the way on to the pins still to come is found by the map's
 // roads (the area has them: the planner found the way through them) and guided as a detour that never rejoins.
 #include "WorldRide.h"
+#include "WorldFerries.h"
 #include "WorldRegion.h"
 
 #include <algorithm>
@@ -52,6 +53,88 @@ std::vector<int> WayOver(const Region& G, int From, int To)
 	return Path;
 }
 } // namespace
+
+// [ferries, build 163 robot] The crossings in the area laid with the plan, and the land cut down along their slipways'
+// approaches: within the tarmac and FerryCutVerge past its edge FerryCutBelow under it, then a bank up FerryCutBank a
+// metre out to the land (only ever lower: where the land is under the approach its skirts go down into it).
+void RidePlan::IndexFerries()
+{
+	FerryLays.clear();
+	const std::shared_ptr<const std::vector<Ferries::Listed>> List = Ferries::ListNow();
+	if (!List || List->empty() || !Land) return;
+	const std::vector<Ferries::Crossing> Here = Ferries::InPlan(*this, *List);
+	if (Here.empty()) return;
+	const Ferries::WorldAsk Ask = Ferries::AskOf(*this);   // (FerryLays empty while laying: the land uncut)
+	std::vector<FerryLaid> Out;
+	for (const Ferries::Crossing& C : Here)
+	{
+		std::shared_ptr<Ferries::Layout> L = std::make_shared<Ferries::Layout>();
+		if (!Ferries::Lay(C, Ask, *L) || !L->Ok) continue;
+		FerryLaid F;
+		F.Listed = C.Listed;
+		F.X0 = F.Z0 = 1e18;
+		F.X1 = F.Z1 = -1e18;
+		const auto Take = [&F](double X, double Z)
+		{
+			F.X0 = std::min(F.X0, X); F.X1 = std::max(F.X1, X);
+			F.Z0 = std::min(F.Z0, Z); F.Z1 = std::max(F.Z1, Z);
+		};
+		for (const Ferries::End& N : L->Ends)
+		{
+			Take(N.Head.X, N.Head.Z);
+			Take(N.Foot.X, N.Foot.Z);
+			for (const std::array<double, 3>& A : N.Approach) Take(A[0], A[2]);
+		}
+		// (out to where the bank could still be under the land: 40 m up a hill at 1.5 is far enough)
+		const double Pad = Ferries::SlipHalfW + FerryCutVerge + 40.0 / FerryCutBank;
+		F.X0 -= Pad; F.Z0 -= Pad; F.X1 += Pad; F.Z1 += Pad;
+		F.Lay = L;
+		Out.push_back(F);
+	}
+	FerryLays = std::move(Out);
+}
+
+std::shared_ptr<const Ferries::Layout> RidePlan::FerryLayOf(int Listed) const
+{
+	for (const FerryLaid& F : FerryLays)
+		if (F.Listed == Listed) return F.Lay;
+	return nullptr;
+}
+
+double RidePlan::FerryCut(double X, double Z, double Lie) const
+{
+	const P2 Q(X, Z);
+	for (const FerryLaid& F : FerryLays)
+	{
+		if (X < F.X0 || X > F.X1 || Z < F.Z0 || Z > F.Z1 || !F.Lay) continue;
+		for (const Ferries::End& N : F.Lay->Ends)
+		{
+			// Each piece: a segment of the tarmac's middle line, its heights at either end and its half width.
+			// (past either end of a piece the cut rises at once: the next piece, the road or the slipway's head carries on
+			// at its own level, and the land beside a joint mustn't be cut to the lower piece's)
+			const auto Piece = [&](const P2& A, double Ya, const P2& B, double Yb, double Half)
+			{
+				const P2 AB = B - A;
+				const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
+				const double Raw = Len2 > 1e-9 ? ((Q.X - A.X) * AB.X + (Q.Z - A.Z) * AB.Z) / Len2 : 0.0;
+				const double T = std::clamp(Raw, 0.0, 1.0);
+				const double Over = std::fabs(Raw - T) * std::sqrt(Len2);
+				const double Off = std::sqrt(std::max(0.0, (A + AB * T).DistanceTo(Q) * (A + AB * T).DistanceTo(Q) - Over * Over));
+				const double Top = Ya + (Yb - Ya) * T - FerryCutBelow + std::max(0.0, Off - Half - FerryCutVerge) * FerryCutBank + Over * 6.0;
+				Lie = std::min(Lie, Top);
+			};
+			for (size_t K = 0; K + 1 < N.Approach.size(); ++K)
+			{
+				const std::array<double, 3>& A = N.Approach[K];
+				const std::array<double, 3>& B = N.Approach[K + 1];
+				Piece(P2(A[0], A[2]), A[1], P2(B[0], B[2]), B[1], Ferries::ApproachHalfW);
+			}
+			// (the slipway, head to foot)
+			Piece(N.Head, N.HeadY, N.Foot, N.FootY, Ferries::SlipHalfW);
+		}
+	}
+	return Lie;
+}
 
 std::shared_ptr<const RideDetour> RidePlan::FerryOnward(double X, double Z, double Heading) const
 {
