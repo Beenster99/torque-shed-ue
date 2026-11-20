@@ -224,18 +224,39 @@ int main(int Argc, char** Argv)
 		V.W = 1024; V.H = 768;
 		if (const char* Layer = std::getenv("WORLD_RIDE_MAP_LAYER")) V.Layer = std::atoi(Layer);
 		Route::MapRoads Roads;
+		Route::MapStreets Streets;   // [map detail] (zoomed in, every road of the cells in view, fetched as the game does)
+		Route::MapImagery Imagery;   // (WORLD_RIDE_MAP_LAYER=3/4: the pictures; plain C++ has no JPEG, so none here)
 		const std::vector<TileKey> Keys = V.Tiles();
+		Cells.Index();
 		if (std::getenv("WORLD_RIDE_MAP_NOCOAST") == nullptr)
 		{
 			std::set<CellId> Under;
 			for (const TileKey& K : Keys)
 				for (const CellId& C : CellsUnder(K)) Under.insert(C);
-			Cells.IndexNow();
 			KnowCoasts(Cells, Heights, std::vector<CellId>(Under.begin(), Under.end()), 24, &Roads);
 		}
 		Heights.Fetch(Keys, Cells.Get, 6);
+		const auto T0 = std::chrono::steady_clock::now();
+		const int Missing = Route::RoadLayer(V.Layer) ? KnowStreets(Cells, Streets, V, Route::MapStreets::MostCells) : 0;
+		const auto T1 = std::chrono::steady_clock::now();
 		std::vector<uint8_t> Px;
-		Route::DrawRelief(Heights, V, Px, &Roads);
+		Route::DrawRelief(Heights, V, Px, &Roads, &Imagery, &Streets);
+		const auto T2 = std::chrono::steady_clock::now();
+		std::printf("streets: %d cells for the view, %d missing, read in %.0f ms; drawn in %.0f ms\n", int(Route::MapStreets::CellsFor(V).size()), Missing,
+			std::chrono::duration<double, std::milli>(T1 - T0).count(), std::chrono::duration<double, std::milli>(T2 - T1).count());
+		// (the roads' names the planner writes over it: WORLD_RIDE_MAP_NAMES=file gets them as "x y kind name" lines)
+		const std::vector<Route::MapStreets::Label> Names = Streets.Labels(V);
+		std::printf("street names: %d in %.1f ms\n", int(Names.size()), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T2).count());
+		if (const char* NamesFile = std::getenv("WORLD_RIDE_MAP_NAMES"))
+		{
+			std::string Text;
+			for (const Route::MapStreets::Label& L : Names)
+			{
+				const P2 Pix = V.PixelOf(L.Lat, L.Lon);
+				Text += std::to_string(int(Pix.X)) + " " + std::to_string(int(Pix.Z)) + " " + std::to_string(L.Kind) + " " + L.Name + "\n";
+			}
+			Files::Write(NamesFile, Text);
+		}
 		size_t Sea = 0, All = 0;
 		for (int J = 0; J < V.H; ++J)
 			for (int I = 0; I < V.W; ++I)

@@ -41,6 +41,10 @@ int FetchKeys(CellStore& Store, HeightStore& Heights, const std::vector<TileKey>
 // low ground is sea only outside the land. Each block once; none when Cells span more than MostBlocks.
 // With Roads, their main roads too (the route planner's road map).
 void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, size_t MostBlocks = 64, Route::MapRoads* Roads = nullptr);
+// [map detail] The route planner's streets for a view: up to Load of its cells not held yet read into
+// Streets (the middle's first), from disk, else fetched, until Stop says the view has moved on. Returns
+// how many of its cells with roads aren't held yet; Loaded, how many it read. Blocks: a worker's job.
+int KnowStreets(CellStore& Store, Route::MapStreets& Streets, const Route::MapView& View, int Load, const std::function<bool()>& Stop = nullptr, int* Loaded = nullptr);
 // A road's points no further apart than Step metres (a ride's road, for Terrain::ForRoad), with how
 // far along the road each is.
 std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along = nullptr);
