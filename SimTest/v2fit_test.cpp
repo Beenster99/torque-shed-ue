@@ -209,7 +209,7 @@ int main()
 					++TyresMade;
 				}
 			}
-			if (!P.Made) { AllMade = false; continue; }
+			if (!P.Made) { AllMade = AllMade && P.Slot.size() > 5 && P.Slot.compare(P.Slot.size() - 5, 5, "_pads") == 0 && P.Glb.rfind("pads/", 0) == 0; continue; }   // ([brake pads] the shop's pads, from their glb)
 			Nodes.insert(P.Node);
 			Slots.insert(P.Slot);
 			const auto In = Parts.find(P.Slot);
