@@ -549,7 +549,8 @@ def tyre_smoke_material():
 
 
 # A darkie: rubber laid on the road, soft along its edges, a little patchy (the tread's grooves and the
-# rubber smearing), darkest down its middle. EndFade: how much of each end (of its half length) softens,
+# rubber smearing), darkest down its middle. ([r163] a straight strip read faint: the patchiness was
+# taking up to half its darkness; now a tenth or so.) EndFade: how much of each end (of its half length) softens,
 # just the overlap under the next piece ([build 160] the pieces of a strip joined in beads before).
 # (A decal's UV: U along its Z, the strip's length; V along its Y, across the tread.)
 MARK_HLSL = """
@@ -557,8 +558,8 @@ float2 q = abs(UV * 2.0 - 1.0);
 float edge = (1.0 - smoothstep(0.55, 1.0, q.y)) * (1.0 - smoothstep(1.0 - EndFade, 1.0, q.x));
 float2 c = floor(UV * float2(48.0, 48.0));
 float grain = frac(sin(dot(c, float2(12.9898, 78.233))) * 43758.5453);
-float streak = 0.75 + 0.25 * sin(UV.y * 90.0) * sin(UV.x * 7.0 + 1.3);
-return edge * lerp(0.75, 1.0, grain) * streak;
+float streak = 0.9 + 0.1 * sin(UV.y * 90.0) * sin(UV.x * 7.0 + 1.3);
+return edge * lerp(0.88, 1.0, grain) * streak;
 """
 
 

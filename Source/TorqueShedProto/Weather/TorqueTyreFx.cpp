@@ -19,6 +19,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
+#include "RHI.h"
 
 namespace TorqueTyreFxImpl
 {
@@ -85,7 +86,7 @@ void ATorqueTyreFx::Make()
 		if (!FPackageName::DoesPackageExist(Package)) return nullptr;
 		UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, Object);
 		if (M && World)
-			if (UMaterial* Base = M->GetMaterial(); Base && Base->IsCompilingOrHadCompileError(World->GetFeatureLevel())) return nullptr;
+			if (UMaterial* Base = M->GetMaterial(); Base && Base->IsCompilingOrHadCompileError(GShaderPlatformForFeatureLevel[World->GetFeatureLevel()])) return nullptr;   // ([r163] the feature-level form is deprecated: C4996)
 		return M;
 	};
 	// The smoke: its own soft billows (Tools/ue_build_spray.py), or the rain's soft puff before it's built.
@@ -492,7 +493,7 @@ void ATorqueTyreFx::LayMark(FTyreState& St, const FScrub& In, float Dt, double W
 	// solid grey-black stripe; wheelspin pulling away a fainter one; a burnout's spot black in a second.
 	M->Laid += In.SlideMs * Dt;
 	const double LenM = FMath::Max(FVector::Dist(M->From, M->To) / 100.0, 0.25);
-	M->Opacity = (float)(FMath::Clamp(0.6 * M->Laid / LenM, 0.0, 0.9) * (1.0 - 0.7 * Wet));
+	M->Opacity = (float)(FMath::Clamp(0.6 * M->Laid / LenM, 0.0, 0.95) * (1.0 - 0.7 * Wet));
 	PlaceMark(*M);
 }
 
