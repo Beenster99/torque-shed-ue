@@ -666,6 +666,7 @@ def slim():
 
 
 _PRESETS = None
+BUILT = set()   # the avatars this make really built (register keeps the others' avatars.json entries)
 PRESET_PICK = []   # `make B D from=Name1,Name2`: the presets (a word of each name) the women start from
 
 
@@ -896,6 +897,7 @@ def make(rig=False, wardrobe=True, only=None):
                 unreal.log_warning("[Torque] %s: build_meta_human failed: %s" % (name, e))
             built = made.get("SkeletalMesh", 0) > 0
             if built:
+                BUILT.add(name)
                 if had_old:
                     eal.delete_directory(backup)
                     log("%s: new build has %d skeletal meshes; old build deleted" % (name, made["SkeletalMesh"]))
@@ -1904,8 +1906,30 @@ def main(args):
         if not NO_FAB:
             fab_wardrobe()
         only = [a for a in rest if a not in ("rig", "nowardrobe", "nofab")]   # e.g. `make rig A B`: just those
+        # Round 163: an avatar make couldn't build (its new source needs a rig) still got a fresh,
+        # broken avatars.json entry from register. Its old entry is kept instead.
+        jpath = os.path.join(project_dir(), "Data", "Avatars", "avatars.json")
+        before = {}
+        try:
+            before = {a.get("name"): a for a in json.load(open(jpath)).get("avatars", [])}
+        except Exception:
+            pass
         make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()
+        try:
+            data = json.load(open(jpath))
+            kept = []
+            for idx, a in enumerate(data.get("avatars", [])):
+                n = a.get("name")
+                tried = not only or any(n.lower().endswith("_" + o.lower()) or n.lower() == o.lower() for o in only)
+                if tried and n not in BUILT and n in before:
+                    data["avatars"][idx] = before[n]
+                    kept.append(n)
+            if kept:
+                json.dump(data, open(jpath, "w"), indent=1)
+                log("avatars.json: kept the old entries of %s (not built this time)" % ", ".join(kept))
+        except Exception as e:
+            unreal.log_warning("[Torque] couldn't keep the old avatars.json entries: %s" % e)
     else:
         register()
 
