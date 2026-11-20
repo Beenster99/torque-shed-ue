@@ -130,6 +130,31 @@ void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId
 	}
 }
 
+int KnowStreets(CellStore& Store, Route::MapStreets& Streets, const Route::MapView& View, int Load, const std::function<bool()>& Stop, int* LoadedOut)
+{
+	if (LoadedOut != nullptr) *LoadedOut = 0;
+	const std::vector<CellId> Cells = Route::MapStreets::CellsFor(View);
+	if (Cells.empty()) return 0;
+	const std::shared_ptr<const WorldIndex> Idx = Store.IndexNow();
+	const std::vector<std::string> Roots = Store.CellRoots();
+	int Missing = 0, Loaded = 0;
+	for (const CellId& C : Cells)
+	{
+		if (Streets.Has(C)) continue;
+		std::string D = Region::CellDir(Roots, C);
+		// (the sea, or not baked yet, or offline: nothing to draw)
+		if (D.empty() && (Store.Offline || !Idx || Store.StateOf(C, *Idx) != CellStore::EState::Baked)) continue;
+		if (Loaded >= Load || (Stop && Stop())) { ++Missing; continue; }
+		++Loaded;
+		if (LoadedOut != nullptr) *LoadedOut = Loaded;
+		if (D.empty() && (!Store.FetchCells({C}).empty() || (D = Region::CellDir(Roots, C)).empty())) { ++Missing; continue; }
+		std::shared_ptr<const Route::MapStreets::Cell> Got = Route::MapStreets::Read(D);
+		if (!Got) { ++Missing; continue; }
+		Streets.Put(C, std::move(Got));
+	}
+	return Missing;
+}
+
 bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, LoadedArea& Out, std::string* Why)
 {
 	if (Cells.empty()) return false;

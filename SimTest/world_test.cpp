@@ -503,6 +503,38 @@ int main()
 		std::printf("      the map round Hawes at zoom 10: %d tiles at zoom %d, %.0f%% with ground, %d light and %d shaded pixels\n", int(Need.size()), V.TileZoom(), Share * 100.0, NLit, NDark);
 		Check(V.TileZoom() == 9 && Need.size() >= 1 && Share > 0.95 && NLit > 1000 && NDark > 1000 && Px.size() == size_t(V.W) * size_t(V.H) * 4,
 			"and the land under it drawn from the height tiles, hills shaded");
+		// [map detail] Zoomed in, every road of the cells in view drawn over the road map, with their names.
+		{
+			Route::MapStreets Streets;
+			const std::shared_ptr<const Route::MapStreets::Cell> Hawes = Route::MapStreets::Read(Files::Join(Data, "cells/c577_711"));
+			int Lanes = 0, Tracks = 0, Named = 0;
+			if (Hawes)
+				for (const Route::MapStreets::Line& L : Hawes->Lines)
+				{
+					Lanes += L.Kind == Route::MapStreets::Minor ? 1 : 0;
+					Tracks += L.Kind == Route::MapStreets::Track ? 1 : 0;
+					Named += L.Name > 0 ? 1 : 0;
+				}
+			Streets.Put({577, 711}, Hawes);
+			Route::MapView Z = V;
+			Z.Layer = Route::RoadMap;
+			Z.Lat = 54.304;
+			Z.Lon = -2.1965;
+			Z.Zoom = 14.0;
+			std::vector<uint8_t> Plain, Detailed;
+			Route::DrawRelief(Store, Z, Plain);
+			Route::DrawRelief(Store, Z, Detailed, nullptr, nullptr, &Streets);
+			int White = 0;
+			for (size_t K = 0; K < Detailed.size(); K += 4)
+				if (Detailed[K] > 250 && Detailed[K + 1] > 250 && Detailed[K + 2] > 250 && Plain[K] < 250) ++White;
+			const std::vector<Route::MapStreets::Label> Names = Streets.Labels(Z);
+			Route::MapView Far = Z;
+			Far.Zoom = 9.0;
+			std::printf("      Hawes's cell: %d roads (%d lanes, %d tracks, %d named); at zoom 14, %d white lane pixels, %d names\n", Hawes ? int(Hawes->Lines.size()) : 0, Lanes, Tracks, Named, White, int(Names.size()));
+			Check(Hawes && Lanes > 500 && Tracks > 1000 && White > 500 && !Names.empty() && Route::MapStreets::CellsFor(Far).empty() && Route::MapStreets::KindOf("primary_link") == Route::MapStreets::Primary
+					&& Route::MapStreets::KindOf("residential") == Route::MapStreets::Minor && Route::MapView::MaxZoom >= 16.0,
+				"[map detail] zoomed in, the road map draws every lane and track of the cells in view, and writes their names");
+		}
 		const char* Dump = std::getenv("WORLD_MAP_PPM");
 		if (Dump)
 		{

@@ -1,5 +1,6 @@
 #include "WorldRouteMap.h"
 
+#include "FitJson.h"
 #include "HeightTiles.h"
 #include "WorldFerries.h"
 #include "WorldFiles.h"
@@ -8,6 +9,7 @@
 #include <cmath>
 #include <map>
 #include <memory>
+#include <set>
 #include <thread>
 #include <atomic>
 
@@ -119,7 +121,7 @@ std::vector<TileKey> MapView::Tiles() const
 
 const char* LayerName(int Layer)
 {
-	return Layer == RoadMap ? "Road map" : Layer == TerrainMap ? "Terrain" : Layer == Satellite ? "Satellite" : "Relief";
+	return Layer == RoadMap ? "Road map" : Layer == TerrainMap ? "Terrain" : Layer == Satellite ? "Satellite" : Layer == Hybrid ? "Sat + roads" : "Relief";
 }
 
 bool MapRoads::Claim(const std::string& Block)
@@ -158,7 +160,7 @@ double ContourStep(double Mpp)
 }
 
 // A line on the picture, its edges smoothed: Width pixels wide, Col blended in.
-void Stroke(std::vector<uint8_t>& Bgra, int W, int H, double Ax, double Ay, double Bx, double By, double Width, const Rgb& Col)
+void Stroke(std::vector<uint8_t>& Bgra, int W, int H, double Ax, double Ay, double Bx, double By, double Width, const Rgb& Col, double Alpha = 1.0)
 {
 	const double Half = Width * 0.5;
 	const int X0 = std::max(0, int(std::floor(std::min(Ax, Bx) - Half - 1.0))), X1 = std::min(W - 1, int(std::ceil(std::max(Ax, Bx) + Half + 1.0)));
@@ -171,7 +173,7 @@ void Stroke(std::vector<uint8_t>& Bgra, int W, int H, double Ax, double Ay, doub
 			const double Px = X + 0.5 - Ax, Py = Y + 0.5 - Ay;
 			const double T = L2 > 1e-9 ? std::max(0.0, std::min(1.0, (Px * Dx + Py * Dy) / L2)) : 0.0;
 			const double Ex = Px - T * Dx, Ey = Py - T * Dy;
-			const double Cover = std::max(0.0, std::min(1.0, Half + 0.5 - std::sqrt(Ex * Ex + Ey * Ey)));
+			const double Cover = std::max(0.0, std::min(1.0, Half + 0.5 - std::sqrt(Ex * Ex + Ey * Ey))) * Alpha;
 			if (Cover <= 0.0) continue;
 			uint8_t* P = &Bgra[(size_t(Y) * size_t(W) + size_t(X)) * 4];
 			P[0] = Byte(P[0] / 255.0 + (Col.B - P[0] / 255.0) * Cover);
@@ -180,36 +182,123 @@ void Stroke(std::vector<uint8_t>& Bgra, int W, int H, double Ax, double Ay, doub
 		}
 }
 
-// The road map's roads: casings under all, then the fills, the minor classes first. Zoomed far out,
-// only motorways and trunk roads.
-void DrawRoads(MapRoads& Roads, const MapView& View, std::vector<uint8_t>& Bgra)
+// [map detail] How a road of a kind (MapStreets::EKind) is drawn: its fill, and its width in pixels: no
+// thinner than a web map's line for the zoom, and zoomed right in, as wide as the road really is.
+const Rgb RoadFill[MapStreets::KindCount] = {{0.27, 0.47, 0.84}, {0.22, 0.60, 0.33}, {0.86, 0.33, 0.27}, {0.95, 0.62, 0.26}, {0.99, 0.87, 0.45}, {1.0, 1.0, 1.0}, {0.62, 0.50, 0.37}};
+double RoadWidth(int Kind, double Mpp)
+{
+	static const double Base[MapStreets::KindCount] = {3.4, 2.8, 2.2, 2.0, 1.8, 1.6, 1.3};
+	static const double Real[MapStreets::KindCount] = {11.0, 9.0, 8.0, 7.0, 6.5, 5.0, 3.0};   // (a carriageway: a dual one is mapped as two)
+	const double Grow = std::max(0.55, std::min(2.0, 1.0 + (6.0 - std::log2(std::max(0.5, Mpp))) * 0.14));
+	return std::min(48.0, std::max(Base[Kind] * Grow, Real[Kind] / std::max(0.1, Mpp)));
+}
+Rgb RoadCasing(int Kind, bool OnPhoto)
+{
+	if (OnPhoto) return {0.08, 0.08, 0.08};
+	return Kind == MapStreets::Minor ? Rgb{0.56, 0.55, 0.52} : Mix(RoadFill[Kind], {0.1, 0.1, 0.1}, 0.55);
+}
+
+// The road map's main roads (each block's sketch): casings under all, then the fills, the minor classes
+// first. Zoomed far out, only motorways and trunk roads. [map detail] Not where a cell's own roads are
+// drawn instead (Covered), and over the satellite's pictures a little see-through.
+void DrawRoads(MapRoads& Roads, const MapView& View, std::vector<uint8_t>& Bgra, const std::set<CellId>& Covered)
 {
 	const int W = View.W, H = View.H;
 	const Geo TopLeft = View.PlaceAt(-8.0, -8.0), BottomRight = View.PlaceAt(W + 8.0, H + 8.0);
 	const double Mpp = View.MetresPerPixel();
 	const int Most = Mpp > 900.0 ? 1 : 2;
-	const double Grow = std::max(0.55, std::min(1.4, 1.0 + (6.0 - std::log2(std::max(1.0, Mpp))) * 0.12));
-	static const Rgb Fill[] = {{0.27, 0.47, 0.84}, {0.22, 0.60, 0.33}, {0.86, 0.33, 0.27}};
-	static const double Wide[] = {3.4, 2.8, 2.2};
+	const bool OnPhoto = PhotoLayer(View.Layer);
+	const double Alpha = OnPhoto ? 0.85 : 1.0;
 	std::lock_guard<std::mutex> G(Roads.Lock);
 	for (int Pass = 0; Pass < 2; ++Pass)
 		for (int Class = Most; Class >= 0; --Class)
 		{
-			const double Width = Wide[Class] * Grow + (Pass == 0 ? 1.6 : 0.0);
-			const Rgb Col = Pass == 0 ? Mix(Fill[Class], {0.1, 0.1, 0.1}, 0.55) : Fill[Class];
+			const double Fill = RoadWidth(Class, Mpp);
+			const double Width = Pass == 0 ? Fill + std::max(1.6, Fill * 0.2) : Fill;
+			const Rgb Col = Pass == 0 ? RoadCasing(Class, OnPhoto) : RoadFill[Class];
 			for (const MapRoads::Line& L : Roads.Lines)
 			{
 				if (L.Class != Class || L.East < TopLeft.Lon || L.West > BottomRight.Lon || L.North < BottomRight.Lat || L.South > TopLeft.Lat) continue;
 				P2 Last = View.PixelOf(L.Pts[0].first, L.Pts[0].second);
+				CellId LastCell = CellOf(L.Pts[0].first, L.Pts[0].second);
 				for (size_t K = 1; K < L.Pts.size(); ++K)
 				{
 					const P2 Next = View.PixelOf(L.Pts[K].first, L.Pts[K].second);
 					if ((Next.X - Last.X) * (Next.X - Last.X) + (Next.Z - Last.Z) * (Next.Z - Last.Z) < 1.0 && K + 1 < L.Pts.size()) continue;   // (finer than a pixel: skipped)
-					Stroke(Bgra, W, H, Last.X, Last.Z, Next.X, Next.Z, Width, Col);
+					const CellId NextCell = CellOf(L.Pts[K].first, L.Pts[K].second);
+					if (Covered.empty() || !Covered.count(LastCell) || !Covered.count(NextCell))
+						Stroke(Bgra, W, H, Last.X, Last.Z, Next.X, Next.Z, Width, Col, Alpha);
 					Last = Next;
+					LastCell = NextCell;
 				}
 			}
 		}
+}
+
+// [map detail] The cells' own roads: every kind the zoom shows, casings under all, then the fills, the
+// smallest first. Tracks dashed, with no casing.
+void DrawStreets(const std::map<CellId, std::shared_ptr<const MapStreets::Cell>>& Cells, const MapView& View, std::vector<uint8_t>& Bgra)
+{
+	const int W = View.W, H = View.H;
+	const Geo TopLeft = View.PlaceAt(-8.0, -8.0), BottomRight = View.PlaceAt(W + 8.0, H + 8.0);
+	const double Mpp = View.MetresPerPixel();
+	const bool OnPhoto = PhotoLayer(View.Layer);
+	for (int Pass = 0; Pass < 2; ++Pass)
+		for (int Kind = MapStreets::KindCount - 1; Kind >= 0; --Kind)
+		{
+			const double From = MapStreets::ShownFrom(Kind);
+			if (View.Zoom < From) continue;
+			const bool Dashed = Kind == MapStreets::Track;
+			if (Dashed && Pass == 0) continue;
+			// (a kind just come in fades in over the first half step of zoom)
+			const double In = std::max(0.0, std::min(1.0, (View.Zoom - From) / 0.5));
+			const double Alpha = (0.45 + 0.55 * In) * (OnPhoto ? (Kind >= MapStreets::Minor ? 0.7 : 0.85) : (Dashed ? 0.8 : 1.0));
+			const double Fill = RoadWidth(Kind, Mpp) * (Dashed ? 0.8 : 1.0);
+			const double Width = Pass == 0 ? Fill + std::max(1.4, Fill * 0.2) : Fill;
+			const Rgb Col = Pass == 0 ? RoadCasing(Kind, OnPhoto) : (OnPhoto && Dashed ? Rgb{0.93, 0.85, 0.70} : RoadFill[Kind]);
+			const double On = std::max(4.0, Fill * 2.5), Off = std::max(3.0, Fill * 1.6);
+			for (const auto& Kv : Cells)
+				for (const MapStreets::Line& L : Kv.second->Lines)
+				{
+					if (L.Kind != Kind || L.East < TopLeft.Lon || L.West > BottomRight.Lon || L.North < BottomRight.Lat || L.South > TopLeft.Lat) continue;
+					P2 Last = View.PixelOf(L.Pts[0].first, L.Pts[0].second);
+					double Along = 0.0;   // (for the dashes: pixels along the line)
+					for (size_t K = 1; K < L.Pts.size(); ++K)
+					{
+						const P2 Next = View.PixelOf(L.Pts[K].first, L.Pts[K].second);
+						const double Len = std::hypot(Next.X - Last.X, Next.Z - Last.Z);
+						if (Len < 1.0 && K + 1 < L.Pts.size()) continue;   // (finer than a pixel: skipped)
+						if (!Dashed)
+							Stroke(Bgra, W, H, Last.X, Last.Z, Next.X, Next.Z, Width, Col, Alpha);
+						else
+							for (double D = 0.0; D < Len;)
+							{
+								// (where along the dash pattern this point is: on, or off till the next dash)
+								const double Phase = std::fmod(Along + D, On + Off);
+								const double Step = Phase < On ? std::min(On - Phase, Len - D) : std::min(On + Off - Phase, Len - D);
+								if (Phase < On)
+								{
+									const double T0 = D / std::max(Len, 1e-9), T1 = (D + Step) / std::max(Len, 1e-9);
+									Stroke(Bgra, W, H, Last.X + (Next.X - Last.X) * T0, Last.Z + (Next.Z - Last.Z) * T0, Last.X + (Next.X - Last.X) * T1, Last.Z + (Next.Z - Last.Z) * T1, Width, Col, Alpha);
+								}
+								D += std::max(Step, 1e-3);
+							}
+						Along += Len;
+						Last = Next;
+					}
+				}
+		}
+}
+
+// The roads over a picture drawn: the sketches' main roads, and zoomed in, the cells' own.
+void DrawOverlay(const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads, MapStreets* Streets)
+{
+	std::map<CellId, std::shared_ptr<const MapStreets::Cell>> Got;
+	if (Streets != nullptr) Got = Streets->Held(MapStreets::CellsFor(View));
+	std::set<CellId> Covered;
+	for (const auto& Kv : Got) Covered.insert(Kv.first);
+	if (Roads != nullptr) DrawRoads(*Roads, View, Bgra, Covered);
+	if (!Got.empty()) DrawStreets(Got, View, Bgra);
 }
 
 // [ferries] The listed ferry crossings (Data/RideUK/ferries.json, as the game read it at start) as dashed lines end to
@@ -241,6 +330,185 @@ void DrawFerries(const MapView& View, std::vector<uint8_t>& Bgra)
 	}
 }
 } // namespace
+
+int MapStreets::KindOf(const std::string& Class)
+{
+	const std::string C = Class.size() > 5 && Class.compare(Class.size() - 5, 5, "_link") == 0 ? Class.substr(0, Class.size() - 5) : Class;
+	if (C == "motorway") return Motorway;
+	if (C == "trunk") return Trunk;
+	if (C == "primary") return Primary;
+	if (C == "secondary") return Secondary;
+	if (C == "tertiary") return Tertiary;
+	if (C == "track") return Track;
+	return Minor;
+}
+
+double MapStreets::ShownFrom(int Kind)
+{
+	// (as a web map brings them in: B roads first, then the yellow C roads, the lanes and streets, the tracks)
+	static const double At[KindCount] = {0.0, 0.0, 0.0, 10.5, 11.0, 11.75, 13.25};
+	return At[std::max(0, std::min(KindCount - 1, Kind))];
+}
+
+std::vector<CellId> MapStreets::CellsFor(const MapView& View)
+{
+	if (View.Zoom < From) return {};
+	const Geo NW = View.PlaceAt(0.0, 0.0), SE = View.PlaceAt(double(View.W), double(View.H));
+	std::vector<CellId> Out = CellsInBox(SE.Lat, NW.Lon, NW.Lat, SE.Lon);
+	if (int(Out.size()) > MostCells) return {};
+	const CellId Mid = CellOf(View.Lat, View.Lon);
+	std::stable_sort(Out.begin(), Out.end(), [&Mid](const CellId& A, const CellId& B)
+	{
+		const auto D = [&Mid](const CellId& C) { return std::abs(C.Row - Mid.Row) + std::abs(C.Col - Mid.Col); };
+		return D(A) < D(B);
+	});
+	return Out;
+}
+
+std::shared_ptr<const MapStreets::Cell> MapStreets::Read(const std::string& Dir)
+{
+	using TorqueFit::Json;
+	std::string MetaText, RowsText;
+	Json Meta, Rows;
+	if (!Files::Read(Files::Join(Dir, "region.json"), MetaText) || !Files::Read(Files::Join(Dir, "roads.json"), RowsText)) return nullptr;
+	if (!Json::Parse(MetaText, Meta) || !Json::Parse(RowsText, Rows) || Meta.Get("frame") == nullptr) return nullptr;
+	const Json* NodesJ = Rows.Get("nodes");
+	const Json* EdgesJ = Rows.Get("edges");
+	const Json* ClassesJ = Rows.Get("classes");
+	if (NodesJ == nullptr || EdgesJ == nullptr || !NodesJ->IsArray() || !EdgesJ->IsArray()) return nullptr;
+	const Frame F(Meta.Get("frame")->Num("lat"), Meta.Get("frame")->Num("lon"));
+	std::vector<int> Kinds;
+	if (ClassesJ != nullptr)
+		for (const Json& C : ClassesJ->A) Kinds.push_back(KindOf(C.S));
+	auto Out = std::make_shared<Cell>();
+	if (const Json* NamesJ = Rows.Get("names"))
+		for (const Json& N : NamesJ->A) Out->Names.push_back(N.S);
+	if (Out->Names.empty()) Out->Names.push_back(std::string());
+	Out->Lines.reserve(EdgesJ->A.size());
+	const int NodeCount = int(NodesJ->A.size());
+	for (const Json& E : EdgesJ->A)
+	{
+		const int A = int(E.Num("a", -1)), B = int(E.Num("b", -1)), C = int(E.Num("c", -1));
+		if (A < 0 || B < 0 || A >= NodeCount || B >= NodeCount || NodesJ->A[size_t(A)].Size() < 2 || NodesJ->A[size_t(B)].Size() < 2) continue;
+		Line L;
+		L.Kind = C >= 0 && C < int(Kinds.size()) ? Kinds[size_t(C)] : int(Minor);
+		const int Nm = int(E.Num("n"));
+		L.Name = Nm > 0 && Nm < int(Out->Names.size()) ? Nm : 0;
+		const auto Add = [&L, &F](double X, double Z)
+		{
+			const Geo G = F.ToGeo(X, Z);
+			L.Pts.emplace_back(float(G.Lat), float(G.Lon));
+		};
+		Add(NodesJ->A[size_t(A)].A[0].N, NodesJ->A[size_t(A)].A[1].N);
+		if (const Json* P = E.Get("p"))
+			for (size_t K = 0; K + 1 < P->A.size(); K += 2) Add(P->A[K].N, P->A[K + 1].N);
+		Add(NodesJ->A[size_t(B)].A[0].N, NodesJ->A[size_t(B)].A[1].N);
+		L.South = L.North = L.Pts[0].first;
+		L.West = L.East = L.Pts[0].second;
+		for (const auto& Pt : L.Pts)
+		{
+			L.South = std::min(L.South, Pt.first); L.North = std::max(L.North, Pt.first);
+			L.West = std::min(L.West, Pt.second); L.East = std::max(L.East, Pt.second);
+		}
+		Out->Lines.push_back(std::move(L));
+	}
+	return Out;
+}
+
+bool MapStreets::Has(CellId C)
+{
+	std::lock_guard<std::mutex> G(Lock);
+	return Mem.count(C) != 0;
+}
+
+void MapStreets::Put(CellId C, std::shared_ptr<const Cell> Got)
+{
+	if (!Got) return;
+	std::lock_guard<std::mutex> G(Lock);
+	Mem[C] = {std::move(Got), ++Tick};
+	while (Mem.size() > size_t(Memory))
+	{
+		auto Oldest = Mem.begin();
+		for (auto It = Mem.begin(); It != Mem.end(); ++It)
+			if (It->second.second < Oldest->second.second) Oldest = It;
+		Mem.erase(Oldest);
+	}
+}
+
+std::map<CellId, std::shared_ptr<const MapStreets::Cell>> MapStreets::Held(const std::vector<CellId>& Cells)
+{
+	std::map<CellId, std::shared_ptr<const Cell>> Out;
+	std::lock_guard<std::mutex> G(Lock);
+	for (const CellId& C : Cells)
+	{
+		auto It = Mem.find(C);
+		if (It == Mem.end()) continue;
+		It->second.second = ++Tick;
+		Out[C] = It->second.first;
+	}
+	return Out;
+}
+
+std::vector<MapStreets::Label> MapStreets::Labels(const MapView& View, size_t Most)
+{
+	if (View.Zoom < NamesFrom) return {};
+	const std::map<CellId, std::shared_ptr<const Cell>> Cells = Held(CellsFor(View));
+	const double Margin = 30.0, Shortest = 36.0, Apart = 320.0;
+	struct Cand
+	{
+		Label L;
+		P2 Px;
+		double Len = 0.0;
+	};
+	std::vector<Cand> All;
+	const Geo NW = View.PlaceAt(0.0, 0.0), SE = View.PlaceAt(double(View.W), double(View.H));
+	for (const auto& Kv : Cells)
+		for (const Line& L : Kv.second->Lines)
+		{
+			if (L.Name <= 0 || size_t(L.Name) >= Kv.second->Names.size() || View.Zoom < ShownFrom(L.Kind)) continue;
+			if (L.East < NW.Lon || L.West > SE.Lon || L.North < SE.Lat || L.South > NW.Lat) continue;
+			// (its length in pixels, and its middle, if that is well inside the view)
+			std::vector<P2> Px;
+			Px.reserve(L.Pts.size());
+			double Len = 0.0;
+			for (const auto& Pt : L.Pts)
+			{
+				Px.push_back(View.PixelOf(Pt.first, Pt.second));
+				if (Px.size() > 1) Len += std::hypot(Px.back().X - Px[Px.size() - 2].X, Px.back().Z - Px[Px.size() - 2].Z);
+			}
+			if (Len < Shortest) continue;
+			double Half = Len * 0.5;
+			P2 Mid = Px.front();
+			for (size_t K = 1; K < Px.size(); ++K)
+			{
+				const double Seg = std::hypot(Px[K].X - Px[K - 1].X, Px[K].Z - Px[K - 1].Z);
+				if (Seg >= Half && Seg > 0.0)
+				{
+					Mid = {Px[K - 1].X + (Px[K].X - Px[K - 1].X) * Half / Seg, Px[K - 1].Z + (Px[K].Z - Px[K - 1].Z) * Half / Seg};
+					break;
+				}
+				Half -= Seg;
+			}
+			if (Mid.X < Margin || Mid.Z < Margin || Mid.X > View.W - Margin || Mid.Z > View.H - Margin) continue;
+			const Geo G = View.PlaceAt(Mid.X, Mid.Z);
+			All.push_back({Label{G.Lat, G.Lon, Kv.second->Names[size_t(L.Name)], L.Kind}, Mid, Len});
+		}
+	std::sort(All.begin(), All.end(), [](const Cand& A, const Cand& B) { return A.L.Kind != B.L.Kind ? A.L.Kind < B.L.Kind : A.Len > B.Len; });
+	// (a long road named again only well along it)
+	std::vector<Label> Out;
+	std::map<std::string, std::vector<P2>> Placed;
+	for (Cand& C : All)
+	{
+		if (Out.size() >= Most) break;
+		std::vector<P2>& Was = Placed[C.L.Name];
+		bool Near = false;
+		for (const P2& P : Was) Near = Near || std::hypot(P.X - C.Px.X, P.Z - C.Px.Z) < Apart;
+		if (Near) continue;
+		Was.push_back(C.Px);
+		Out.push_back(std::move(C.L));
+	}
+	return Out;
+}
 
 const char* MapImagery::Credit()
 {
@@ -329,11 +597,11 @@ int MapImagery::Fetch(const std::vector<TileKey>& Keys, const std::function<int(
 	return Failed.load();
 }
 
-double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads, MapImagery* Imagery)
+double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads, MapImagery* Imagery, MapStreets* Streets)
 {
 	const int W = std::max(1, View.W), H = std::max(1, View.H);
 	Bgra.assign(size_t(W) * size_t(H) * 4, 255);
-	if (View.Layer == Satellite && Imagery != nullptr)
+	if (PhotoLayer(View.Layer) && Imagery != nullptr)
 	{
 		// (the pictures, bilinear between their pixels; dark grey where none is on disk yet)
 		const int Zi = MapImagery::ZoomFor(View), Ni = 1 << Zi;
@@ -365,6 +633,7 @@ double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t
 				}
 				++Had;
 			}
+		if (View.Layer == Hybrid) DrawOverlay(View, Bgra, Roads, Streets);
 		DrawFerries(View, Bgra);
 		return double(Had) / (double(W) * double(H));
 	}
@@ -470,7 +739,7 @@ double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t
 			Px[2] = Byte(C.R);
 			Px[3] = 255;
 		}
-	if (View.Layer == RoadMap && Roads != nullptr) DrawRoads(*Roads, View, Bgra);
+	if (View.Layer == RoadMap) DrawOverlay(View, Bgra, Roads, Streets);
 	DrawFerries(View, Bgra);
 	return double(Known) / (double(W) * double(H));
 }
