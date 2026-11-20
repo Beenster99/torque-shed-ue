@@ -608,6 +608,9 @@ private:
 	bool bTestFlat = false, bTestWantFlat = false;
 	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
 	bool bClimbSettled = false;   // [r159] the climb's first half second on its wheels is done (measured from there)
+	bool bClimbPlaced = false;    // [r161] found road under both wheels at the foot and put on it
+	TorqueSim::V3 ClimbHoldAt = TorqueSim::V3(0.0, -1e9, 0.0);   // where it's held till then
+	double ClimbSettleFrom = 0.0;
 	FString TestMoveText;
 	void TestMoveStep();
 	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps

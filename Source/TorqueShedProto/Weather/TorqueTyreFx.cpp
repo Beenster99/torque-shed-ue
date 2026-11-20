@@ -204,8 +204,8 @@ void ATorqueTyreFx::Tick(float DeltaSeconds)
 	if ((LogClock += Dt) > 30.0 && (Puffs.Num() > 0 || MarksShown() > 0 || Emitted > EmittedLogged))
 	{
 		LogClock = 0.0;
-		UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: %d smoke puffs now (of %d; %d made so far, most at once %d, hottest tyre %.2f), %d darkies (of %d), smoke round the camera %.2f"),
-			Puffs.Num(), FMath::Max(PuffPool - 1, 0), Emitted, PeakPuffs, HottestTyre, MarksShown(), MarkPool, Veil);
+		UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: %d smoke puffs now (of %d; %d made so far, most at once %d, hottest tyre %.2f), %d darkies (of %d; %d laid so far), smoke round the camera %.2f"),
+			Puffs.Num(), FMath::Max(PuffPool - 1, 0), Emitted, PeakPuffs, HottestTyre, MarksShown(), MarkPool, MarksLaid, Veil);
 		EmittedLogged = Emitted;
 		HottestTyre = 0.0;
 	}
@@ -227,7 +227,7 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 	const float TestSecs = TTF::CVarSmokeTest.GetValueOnGameThread();
 	const double Now = GetWorld()->GetTimeSeconds();
 	if (TestSecs > 0.0f && TestFrom < 0.0) TestFrom = Now + 5.0;
-	if (TestSecs <= 0.0f) TestFrom = -1.0;
+	if (TestSecs <= 0.0f) { TestFrom = -1.0; bTestMarksLaid = false; }
 	const bool bTestNow = TestSecs > 0.0f && Now >= TestFrom && Now < TestFrom + TestSecs;
 	if (TestSecs > 0.0f && Now >= TestFrom + TestSecs)
 	{
@@ -278,6 +278,34 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 					In.Up = FVector::UpVector;
 					In.At = Bike->GetActorLocation() - In.Fwd * 70.0 - In.Up * 30.0;
 				}
+			}
+			// ([r161] "marks barely draw": the forced burnout sits on one spot, its one darkie under the
+			// tyre. The test lays a strip 4 m behind the back tyre and a burnout's circle beside it too, to
+			// see them by.)
+			if (bTestNow && I == 1 && Bike->IsLocallyControlled() && !bTestMarksLaid && bMarks)
+			{
+				bTestMarksLaid = true;
+				const int32 Before = MarksLaid;
+				FTyreState Test;
+				FScrub S = In;
+				S.SlideMs = 20.0;
+				const FVector Side = FVector::CrossProduct(In.Up, In.Fwd).GetSafeNormal();
+				for (int32 K = 0; K <= 40; ++K)
+				{
+					S.At = In.At - In.Fwd * (60.0 + K * 10.0);
+					LayMark(Test, S, 0.1f, 0.0, Bike);
+				}
+				CloseMark(Test);
+				const FVector Centre = In.At + Side * 250.0;
+				for (int32 K = 0; K <= 120; ++K)
+				{
+					const double A = FMath::DegreesToRadians(K * 3.0);
+					S.At = Centre + (In.Fwd * FMath::Cos(A) + Side * FMath::Sin(A)) * 145.0;
+					S.Fwd = (Side * FMath::Cos(A) - In.Fwd * FMath::Sin(A)).GetSafeNormal();
+					LayMark(Test, S, 0.1f, 0.0, Bike);
+				}
+				CloseMark(Test);
+				UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: smoke test laid %d darkies: a 4 m strip behind the back tyre and a 1.45 m circle 2.5 m to its side"), MarksLaid - Before);
 			}
 			// The tyre heats as it slides (half a second sliding at 12 m/s, hot) and cools when it stops.
 			// ([r158] a hard skid or a spin pulling away smokes too now, not only a long burnout: it was
@@ -496,6 +524,7 @@ int32 ATorqueTyreFx::TakeMark()
 	M.Mid = Mid;
 	M.bLive = M.bOpen = true;
 	M.Born = GetWorld()->GetTimeSeconds();
+	++MarksLaid;
 	return Index;
 }
 
