@@ -203,6 +203,78 @@ def envelope(sp, rng, n):
     return P
 
 
+# [Nov 20, build 166] beenster: "The trees look a bit to similar, a trunk with all branches popping out.
+# They should have large branches coming out along their length". The crown used to grow from the top of
+# a bare stem, so every limb left one point. Now the trunk runs on up into the crown as a leader and the
+# great limbs leave it one above another, each kind its own way, before the twigs fill the crown around
+# them: (leader: how far up the trunk runs, of the height; limbs: (fewest, most); angle: from the vertical,
+# degrees, lowest limb first, top limb last; reach: how far out a limb goes, of the crown's radius; rise:
+# how much a limb curves up towards its end; low: the share of the crown's depth limbs start in, from its base).
+FORMS = {
+    # oak: a short trunk, then a few great limbs spreading wide and low, rising at their ends
+    "oak": dict(leader=0.55, limbs=(5, 7), angle=(75, 55), reach=0.7, rise=0.35, low=0.8),
+    # ash: upswept limbs from a long trunk, curving up at the tips
+    "ash": dict(leader=0.7, limbs=(5, 7), angle=(55, 30), reach=0.65, rise=0.35, low=0.85),
+    # beech: a tall smooth trunk dividing into steep forks
+    "beech": dict(leader=0.65, limbs=(4, 6), angle=(42, 22), reach=0.7, rise=0.25, low=0.8),
+    # sycamore: a broad dome on stout limbs at middling angles
+    "sycamore": dict(leader=0.6, limbs=(5, 7), angle=(65, 38), reach=0.8, rise=0.3, low=0.8),
+    # alder, birch: a leader to near the top, many lighter limbs along it
+    "alder": dict(leader=0.88, limbs=(7, 10), angle=(70, 45), reach=0.6, rise=0.2, low=0.9),
+    "birch": dict(leader=0.9, limbs=(6, 9), angle=(55, 35), reach=0.55, rise=0.15, low=0.9),
+    "rowan": dict(leader=0.7, limbs=(4, 6), angle=(50, 30), reach=0.65, rise=0.3, low=0.85),
+    "hawthorn": dict(leader=0.5, limbs=(4, 6), angle=(70, 45), reach=0.75, rise=0.2, low=0.8),
+    "holly": dict(leader=0.9, limbs=(7, 10), angle=(70, 50), reach=0.55, rise=0.15, low=0.95),
+    # Scots pine: a long bare stem, a few near-level limbs in the high crown
+    "pine": dict(leader=0.9, limbs=(4, 6), angle=(80, 60), reach=0.7, rise=0.2, low=0.9),
+}
+
+
+def scaffold(sp, rng, nodes, parent, last, c0):
+    """The leader and the great limbs along it (FORMS): nodes and parents added in place; the leader's
+    top node returned."""
+    f = sp["form"]
+    h = sp["height"]
+    R = sp["crown"][2] * h
+    step = sp["step"]
+    top = max(c0 + step * 3, f["leader"] * h)
+    # the leader, wandering a little
+    trunk = [(nodes[last][1], last)]
+    wob = rng.normal(0, 0.03, 2)
+    y = nodes[last][1]
+    while y < top - 1e-6:
+        y = min(y + step, top)
+        q = nodes[last].copy(); q[1] = y
+        q[0] += wob[0] * step; q[2] += wob[1] * step
+        nodes.append(q); parent.append(last); last = len(nodes) - 1
+        trunk.append((y, last))
+    lo, hi = f["limbs"]
+    n = int(rng.integers(lo, hi + 1))
+    span = (top - c0) * f["low"]
+    az0 = rng.uniform(0, 2 * np.pi)
+    for i in range(n):
+        t = (i + rng.uniform(0.15, 0.85)) / n
+        ly = c0 + span * t
+        at = min(trunk, key=lambda e: abs(e[0] - ly))[1]
+        a = math.radians(f["angle"][0] + (f["angle"][1] - f["angle"][0]) * t + rng.normal(0, 6))
+        az = az0 + i * 2.39996 + rng.normal(0, 0.35)     # (the golden angle round the trunk)
+        d = np.array([math.sin(a) * math.cos(az), math.cos(a), math.sin(a) * math.sin(az)])
+        # (the lowest limbs reach furthest out; the top ones are short)
+        L = f["reach"] * R * (1.15 - 0.45 * t) * rng.uniform(0.85, 1.15) / max(math.sin(a), 0.45)
+        L = min(L, (h - nodes[at][1]) / max(math.cos(a), 0.2) * 0.9)
+        p_, q = at, nodes[at].copy()
+        base = nodes[at].copy()
+        for j in range(max(2, int(L / step))):
+            d = d + np.array([0.0, f["rise"] * step / max(L, 1e-6) * 2.0, 0.0]) + rng.normal(0, 0.09, 3)
+            d /= np.linalg.norm(d)
+            q = q + d * step
+            # (a limb stays well inside the crown: the twigs grow on out from it)
+            if j > 2 and (np.hypot(q[0] - base[0], q[2] - base[2]) > 0.7 * R or q[1] > 0.88 * h):
+                break
+            nodes.append(q.copy()); parent.append(p_); p_ = len(nodes) - 1
+    return last
+
+
 def colonise(sp, rng):
     """Space colonisation from the top of the stem(s): nodes (n, 3) and their parents (-1 for the root).
     One stem (a trunk) or several from the same root (a stool: hazel, willow)."""
@@ -233,6 +305,8 @@ def colonise(sp, rng):
             if stems > 1 and y < 0:
                 # (the stems share the stool below ground)
                 pass
+    if stems == 1 and sp.get("form"):
+        last = scaffold(sp, rng, nodes, parent, last, c0)
     N = np.array(nodes)
     best_d = np.full(len(A), np.inf); best_i = np.full(len(A), -1)
 
@@ -666,6 +740,7 @@ def veteran_spec(name):
     sp["leaf"] = (shape, size * v["leaf"], max(2, int(round(count * v.get("count", 1.0)))), col, spread * v["leaf"])
     sp["far_blobs"] = int(sp.get("far_blobs", 12) * 1.3)
     sp["veteran"] = True
+    sp["kind"] = name
     return sp
 
 
@@ -694,6 +769,12 @@ def vary(name, rng, k=None, n=5):
         sp["stems"] = max(1, int(round(sp["stems"] * rng.uniform(0.6, 1.3))))
     sp["attract"] = int(sp["attract"] * (0.75 + 0.3 * age))
     sp["age"] = age
+    kind = name if isinstance(name, str) else sp.get("kind")
+    if kind in FORMS and "form" not in sp:
+        sp["form"] = dict(FORMS[kind])
+        if age < 0.8:   # (a young tree: its limbs fewer and steeper)
+            sp["form"]["limbs"] = (max(2, FORMS[kind]["limbs"][0] - 2), max(3, FORMS[kind]["limbs"][1] - 2))
+            sp["form"]["angle"] = tuple(a * 0.8 for a in FORMS[kind]["angle"])
     # (the leaves a little over life size and more of them, so a crown reads as a mass of leaves and not
     # a tangle of twigs: life-sized, a model with Nanite's budget of leaves is mostly holes)
     shape, size, count, col, spread = sp["leaf"]
