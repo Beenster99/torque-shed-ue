@@ -9,11 +9,27 @@
    "from": "synth",
    "loop": false
   },
+  "ferry_chain": {
+   "files": [
+    "ferry_chain.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
   "ferry_clank": {
    "files": [
     "ferry_clank_0.wav",
     "ferry_clank_1.wav",
     "ferry_clank_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "ferry_creak": {
+   "files": [
+    "ferry_creak_0.wav",
+    "ferry_creak_1.wav",
+    "ferry_creak_2.wav"
    ],
    "from": "synth",
    "loop": false
@@ -25,6 +41,15 @@
    "from": "synth",
    "loop": true
   },
+  "ferry_gull": {
+   "files": [
+    "ferry_gull_0.wav",
+    "ferry_gull_1.wav",
+    "ferry_gull_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
   "ferry_lap": {
    "files": [
     "ferry_lap.wav"
@@ -35,6 +60,13 @@
   "ferry_ramp": {
    "files": [
     "ferry_ramp.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "ferry_spray": {
+   "files": [
+    "ferry_spray.wav"
    ],
    "from": "synth",
    "loop": true

@@ -81,6 +81,15 @@ private:
 	void TickWake(double Dt, double SpeedMs, const FTransform& Now);
 	void TickLamps();
 	bool EveryoneAboard() const;
+	// [ferries stage 6] Co-op: the host's boat sends its state as it changes (Publish, into the game state's FerryNet;
+	// bGone takes it out); a client's follows the host's (Follow: false while the host has none for this crossing,
+	// and then it runs itself).
+	void Publish(bool bGone = false);
+	bool Follow();
+	// The riders the boat waits for: within WaitM of either slipway's head, or aboard (a mate far off isn't waited for).
+	bool WaitsFor(const ATorqueBikePawn* P) const;
+	// [ferries stage 6] The host on deck holding the horn: it sails without the riders not aboard yet.
+	bool HostSaysGo(double Dt);
 
 	std::shared_ptr<TorqueWorld::Ferries::Crossing> Cross;
 	std::shared_ptr<TorqueWorld::Ferries::Layout> Lay;
@@ -100,6 +109,16 @@ private:
 	FTransform BoatWas;
 	bool bBoatPlaced = false;
 	double Bob = 0.0;                 // the boat's gentle roll and heave's clock
+	double HornHeld = 0.0;            // [stage 6] the host's horn held on deck (s)
+	int32 Waiting = 0;                // [stage 6] riders it waits for not aboard yet (for the hint)
+	bool bFollowing = false;          // [stage 6] a client's boat following the host's
+	// [stage 7] The spray at the bow under way, a chain ferry's chains; the gulls and the ropes' creak now and then.
+	int32 SprayLoop = 0, ChainLoop = 0;
+	double GullIn = 6.0, CreakIn = 3.0;
+	double Rough() const;             // [stage 7] how rough the water is from the weather's wind (0 calm .. 2)
+	void PutBackAshore();             // [stage 7] a rider in the water by the crossing: back at the nearer slipway
+	void FadeForHold();               // [stage 7] a long route's hold at sea: the riders' screens dark over the jump
+	bool bHoldFade = false;
 
 	UPROPERTY(Transient) USceneComponent* Boat = nullptr;
 	UPROPERTY(Transient) USceneComponent* Look = nullptr;          // the boat's model (rolls a little; the boxes don't)

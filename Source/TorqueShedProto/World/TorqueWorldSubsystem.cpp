@@ -26,6 +26,7 @@
 #include "World/CellStore.h"
 #include "World/HeightTiles.h"
 #include "World/WorldCache.h"
+#include "World/WorldFerries.h"
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
 #include "World/WorldRideCircuits.h"
@@ -205,6 +206,14 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			const bool bCircuits = TorqueWorld::Files::Read(CircuitPath, CircuitText) && TorqueWorld::SetCircuitNotes(CircuitText);
 			const std::shared_ptr<const TorqueWorld::CircuitNotes> Notes = TorqueWorld::CircuitNotesNow();
 			UE_LOG(LogTemp, Display, TEXT("Torque world: circuit notes: %d%s"), Notes ? int32(Notes->Circuits.size()) : 0, bCircuits ? TEXT("") : TEXT(" (none: Data/RideUK/circuits.json unreadable)"));
+		}
+		// [ferries stage 5] The ferries the route planner may take (Data/RideUK/ferries.json).
+		{
+			std::string FerryText;
+			const std::string FerryPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/ferries.json")));
+			const bool bFerries = TorqueWorld::Files::Read(FerryPath, FerryText) && TorqueWorld::Ferries::SetList(FerryText);
+			const std::shared_ptr<const std::vector<TorqueWorld::Ferries::Listed>> FerryList = TorqueWorld::Ferries::ListNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: ferries: %d%s"), FerryList ? int32(FerryList->size()) : 0, bFerries ? TEXT("") : TEXT(" (none: Data/RideUK/ferries.json unreadable)"));
 		}
 		// [towns stage 5] The materials atlas: the local building stones and bricks by area.
 		std::string AtlasText;

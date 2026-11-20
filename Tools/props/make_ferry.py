@@ -377,6 +377,49 @@ def ferry_sign():
           0.006, "paint_white", axis="z", centre=0.011, bevel=0.0)
 
 
+@model("ferry_chain")
+def ferry_chain():
+    """[stage 7] A chain ferry's chain where it leaves the boat: from the origin out along +z and down into the water
+    (9 m, falling 1 in 2.4), links of 20 mm bar 160 mm long, each turned a quarter to the last (the boat has four)."""
+    n = 56
+    step = 0.16
+    for k in range(n):
+        z = k * step
+        y = -z / 2.4
+        if k % 2 == 0:
+            span("Link%d" % k, (-0.07, y - 0.012, z), (0.07, y + 0.012, z + step + 0.03), "steel_dark", bevel=0.006)
+        else:
+            span("Link%d" % k, (-0.012, y - 0.07, z), (0.012, y + 0.07, z + step + 0.03), "steel_dark", bevel=0.006)
+    # The guide wheel's housing it leaves the deck's end by.
+    span("Guide", (-0.32, -0.45, -0.3), (0.32, 0.25, 0.3), "ferry_teal", bevel=0.03)
+    cyl("Wheel", (0.0, -0.1, 0.0), 0.28, 0.2, "steel_dark", axis="x", verts=20, bevel=0.01)
+
+
+@model("ferry_turntable")
+def ferry_turntable():
+    """[stage 7] A turntable ferry's turning deck (Glenelg's): a steel disc 6.8 m across over the car deck, its rim
+    painted, its centre pivot plate (+y up; its top 12 mm over the deck)."""
+    R = 3.4
+    cyl("Disc", (0.0, 0.006, 0.0), R, 0.012, "ferry_deck", axis="y", verts=64, bevel=0.0)
+    cyl("RimPaint", (0.0, 0.0125, 0.0), R - 0.05, 0.002, "paint_yellow", axis="y", verts=64, bevel=0.0)
+    cyl("RimInner", (0.0, 0.0135, 0.0), R - 0.2, 0.002, "ferry_deck", axis="y", verts=64, bevel=0.0)
+    cyl("Pivot", (0.0, 0.016, 0.0), 0.6, 0.008, "steel_dark", axis="y", verts=32, bevel=0.002)
+
+
+@model("ferry_queue")
+def ferry_queue():
+    """[stage 5] The queue sign up the approach: a white board on one post, FERRY QUEUE and a little boat, black (+z its face)."""
+    W, H0, H1 = 1.0, 1.4, 2.3
+    cyl("Post", (0.0, H1 / 2, -0.05), 0.04, H1, "galvanised", verts=12)
+    span("Board", (-W / 2, H0, -0.02), (W / 2, H1, 0.0), "paint_white", bevel=0.01)
+    span("Edge", (-W / 2 + 0.03, H0 + 0.03, 0.0), (W / 2 - 0.03, H1 - 0.03, 0.003), "paint_black", bevel=0.0)
+    span("Field", (-W / 2 + 0.06, H0 + 0.06, 0.003), (W / 2 - 0.06, H1 - 0.06, 0.006), "paint_white", bevel=0.0)
+    text("Word", "FERRY", (0.0, H1 - 0.24, 0.008), 0.2, "paint_black", rot=(90, 0, 0), extrude=0.002)
+    text("Word2", "QUEUE", (0.0, H1 - 0.48, 0.008), 0.2, "paint_black", rot=(90, 0, 0), extrude=0.002)
+    prism("BoatHull", [(-0.25, H0 + 0.3), (0.25, H0 + 0.3), (0.19, H0 + 0.2), (-0.19, H0 + 0.2)], 0.004, "paint_black", axis="z", centre=0.009, bevel=0.0)
+    span("BoatCabin", (0.03, H0 + 0.3, 0.006), (0.17, H0 + 0.42, 0.011), "paint_black", bevel=0.0)
+
+
 @model("ferry_barrier")
 def ferry_barrier():
     """The barrier's post (its pivot 1.0 m up, the arm reaching along +x) and a red and green signal over it."""

@@ -162,6 +162,8 @@ int main(int Argc, char** Argv)
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
 		std::string AtlasText;   // [towns stage 5]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
+		std::string FerryText;   // [ferries stage 5] (the ferries the planner may take, as the game sets them)
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/ferries.json"), FerryText)) Ferries::SetList(FerryText);
 		std::string CircuitText;   // [circuits]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/circuits.json"), CircuitText)) SetCircuitNotes(CircuitText);
 		std::string TypesText;   // [towns stage 4]
@@ -305,7 +307,7 @@ int main(int Argc, char** Argv)
 	const RideCheck R = CheckRide(Cells, Heights, At[0], At[1], At[2], At[3], [](const std::string& Text) { std::printf("  %s\n", Text.c_str()); std::fflush(stdout); });
 	std::printf("%s\n", R.Dump().c_str());
 	std::printf("%d fetches. %s\n", GAsked.load(), R.Ok ? "PASS" : ("FAIL: " + R.Why).c_str());
-	if (!R.Ok) return 1;
+	if (!R.Ok && !(Ferries::ListNow() && R.Why == "There is no way by road between them.")) return 1;   // ([ferries stage 5] a ferry may be the way)
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
@@ -316,6 +318,27 @@ int main(int Argc, char** Argv)
 		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
+	if (Plan->Ferry)
+	{
+		// [ferries stage 5] (the way by a ferry: the ride's road to its slipway, and the sat nav's way on from where it lands)
+		const RidePlan::FerryLink& Fl = *Plan->Ferry;
+		std::printf("ferry link: %s (%s), boarded at end %d: road %.0f m to %.1f,%.1f (finish '%s'), lands at %.1f,%.1f, %zu pins on, %.0f m on by road\n", Fl.Name.c_str(), Fl.Id.c_str(),
+			Fl.BoardEnd, Plan->Length, Fl.Board.X, Fl.Board.Z, Plan->Turns.empty() ? "" : Plan->Turns.back().Onto.c_str(), Fl.Land.X, Fl.Land.Z, Fl.Pins.size(), Fl.OnM);
+		Rect Round;
+		Round.X0 = Fl.Land.X - 600.0; Round.Z0 = Fl.Land.Z - 600.0; Round.X1 = Fl.Land.X + 600.0; Round.Z1 = Fl.Land.Z + 600.0;
+		Plan->LayBlocks(Round);
+		const P2 To = Fl.Pins.back();
+		const double Heading = std::atan2(-(To.X - Fl.Land.X), -(To.Z - Fl.Land.Z));
+		std::shared_ptr<const RideDetour> On = Plan->FerryOnward(Fl.Land.X, Fl.Land.Z, Heading);
+		if (!On) On = Plan->FerryOnward(Fl.Land.X, Fl.Land.Z, Heading + 3.14159265);
+		if (On)
+		{
+			std::printf("ferry way on: %.0f m, %zu turns:", On->Length, On->Turns.size());
+			for (const RidePlan::RideTurn& T : On->Turns) std::printf(" [%.0f %d %s]", T.Along, T.Turn, T.Onto.c_str());
+			std::printf("\n");
+		}
+		else std::printf("ferry way on: NONE\n");
+	}
 	{
 		int Urban = 0, All = 0;
 		for (size_t I = 0; I < Plan->Road.size(); I += 12, ++All) Urban += Plan->Land->Cover(Plan->Road[I].At.X + 60.0, Plan->Road[I].At.Z) == 5 ? 1 : 0;
@@ -1478,7 +1501,24 @@ int main(int Argc, char** Argv)
 			Ferries::Layout L;
 			const bool Ok = Ferries::Lay(C, Ask, L);
 			std::printf("  %s (%s, %s): %.0f m%s, %zu points, from the map %d\n", C.Name.c_str(), C.Id.c_str(), Ferries::KindName(C.Kind), C.Length, C.Long ? " long" : "", C.Line.size(), int(C.FromMap));
-			if (!Ok) { std::printf("    not laid: %s\n", L.Why.c_str()); continue; }
+			if (!Ok)
+			{
+				std::printf("    not laid: %s (water %.2f%s)\n", L.Why.c_str(), L.Water, L.Sea ? " sea" : "");
+				for (int E = 0; E < 2 && C.Line.size() >= 2; ++E)
+				{
+					const P2 A0 = E == 0 ? C.Line.front() : C.Line.back();
+					const P2 A1 = E == 0 ? C.Line[1] : C.Line[C.Line.size() - 2];
+					const P2 Ax = (A1 - A0) * (1.0 / std::max(1e-6, A1.DistanceTo(A0)));
+					std::printf("    end %d ground along the route:", E);
+					for (double D = -160.0; D <= 90.0; D += 10.0)
+					{
+						const P2 Q = A0 + Ax * D;
+						std::printf(" %.0f:%.1f%s", D, Ask.Height(Q.X, Q.Z), Ask.Sea(Q.X, Q.Z) ? "s" : "");
+					}
+					std::printf("\n");
+				}
+				continue;
+			}
 			std::printf("    water %.2f (%s), path %.0f m, a sailing %.0f s\n", L.Water, L.Sea ? "sea" : "loch", L.PathLength, L.Seconds);
 			for (int E = 0; E < 2; ++E)
 			{

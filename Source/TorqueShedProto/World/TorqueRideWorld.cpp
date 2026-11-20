@@ -424,6 +424,22 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
 	// [waypoint] Going by a place picked in the info panel: its way, on or off the ride's road, until
 	// it's reached (then the way on is the way back to the ride's road, as after any detour).
+	// [ferries stage 5] (over the water: nearer the ferry's landing than its boarding, off the ride's road)
+	if (const std::shared_ptr<const RidePlan::FerryLink>& Ferry = Ride->Plan->Ferry)
+	{
+		// (off the ride's road, or past its end: a short crossing's far bank may be within its reach)
+		const double ToLand = FVector2D::Distance(Here, FVector2D(Ferry->Land.X, Ferry->Land.Z)), ToBoard = FVector2D::Distance(Here, FVector2D(Ferry->Board.X, Ferry->Board.Z));
+		const bool bOver = ToLand < ToBoard && ToBoard > 20.0 && (N.OffRoute || N.Along > Ride->Plan->FinishM - 30.0);
+		if (bOver != S.bFerryOver)
+		{
+			S.bFerryOver = bOver;
+			S.Detour.reset();
+			S.LastTry = -1e9;
+			S.OffSince = Now - 10.0;   // (the way on found at once)
+			UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s the %s ferry"), bOver ? TEXT("over") : TEXT("back across"), UTF8_TO_TCHAR(Ferry->Name.c_str()));
+		}
+		if (S.bFerryOver) N.OffRoute = true;   // (the way on is all there is)
+	}
 	bool bViaNav = false;
 	if (S.bVia)
 	{
@@ -502,7 +518,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		if (!bOnIt && Now - S.OffSince > 3.0 && Now - S.LastTry > 4.0)
 		{
 			S.LastTry = Now;
-			S.Detour = Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
+			S.Detour = S.bFerryOver ? Ride->Plan->FerryOnward(X, Z, S.Heading) : Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
 			if (S.Detour)
 			{
 				Back = Ride->Plan->NavDetour(*S.Detour, X, Z);

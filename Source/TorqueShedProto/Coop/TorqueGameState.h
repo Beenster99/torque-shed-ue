@@ -20,6 +20,23 @@
 class UMaterialParameterCollection;
 class ATorqueSky;
 
+// [ferries stage 6] A ferry as the host runs it (World/TorqueFerry.cpp): its crossing's row in Data/RideUK/ferries.json,
+// its state (ATorqueFerry::EState), where it's tied up or bound for, whether it's coming over empty, how long into the
+// state it was when sent (s), the sailing's time, and the server's world time then. Every machine stands the boat up
+// for itself near its own rider; a client's follows this.
+USTRUCT()
+struct FTorqueFerryNet
+{
+	GENERATED_BODY()
+	UPROPERTY() int32 Row = -1;
+	UPROPERTY() uint8 State = 0;
+	UPROPERTY() uint8 DockEnd = 0;
+	UPROPERTY() bool bEmpty = false;
+	UPROPERTY() float Clock = 0.0f;
+	UPROPERTY() float SailFor = 60.0f;
+	UPROPERTY() double SentAt = 0.0;
+};
+
 // The host's weather as it is now, sent to everyone (the numbers of TorqueWeather::State, and where
 // they came from).
 USTRUCT()
@@ -329,6 +346,8 @@ public:
 	// riders in podium order, how many riders picked each stat and its weight). Seq goes up with each.
 	// They start when every rider has stopped at the finish (ATorquePlayerState::bAwardFinished), or
 	// when the host picks "Ride awards now" in the pause menu.
+	// [ferries stage 6] The host's ferries (FTorqueFerryNet), each sent as it changes state.
+	UPROPERTY(Replicated) TArray<FTorqueFerryNet> FerryNet;
 	UPROPERTY(Replicated) bool bAwardsOn = false;
 	UPROPERTY(Replicated) uint8 AwardsPhase = 0;
 	UPROPERTY(Replicated) int32 AwardsSeq = 0;

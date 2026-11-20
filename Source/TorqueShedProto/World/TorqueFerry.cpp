@@ -9,12 +9,15 @@
 #include "Components/BoxComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Coop/TorqueGameState.h"
+#include "Coop/TorqueKeys.h"
 #include "Coop/TorqueSettings.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
@@ -31,6 +34,7 @@ namespace TFer = TorqueWorld::Ferries;
 
 constexpr double NearM = 1500.0, FarM = 2500.0;   // stood up within, taken down past (m, from either end)
 constexpr double RampSeconds = 5.0, ArmSeconds = 3.0, ReadySeconds = 4.0, CallSeconds = 2.0;
+constexpr double WaitM = 600.0, HostHornSeconds = 1.5;   // [stage 6] riders this near a slipway are waited for; the host's horn held this long
 constexpr double RaisedDeg = 72.0;                // a ramp raised for sailing
 constexpr double CallReach = 90.0, HintReach = 260.0;   // a rider this near a slipway's head calls the boat; the HUD's line (m)
 // The boat in its own frame (cm: x across, y along with +y the bow, z up from the waterline), as make_ferry.py draws it.
@@ -93,8 +97,9 @@ ATorqueFerry::ATorqueFerry()
 
 void ATorqueFerry::EndPlay(const EEndPlayReason::Type Reason)
 {
+	Publish(true);
 	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this))
-		for (int32 L : {EngineLoop, WashLoop, LapLoop, RampLoop[0], RampLoop[1]})
+		for (int32 L : {EngineLoop, WashLoop, LapLoop, RampLoop[0], RampLoop[1], SprayLoop, ChainLoop})
 			if (L) Sfx->FreeLoop(L);
 	TFerI::Live().RemoveAll([this](const TWeakObjectPtr<ATorqueFerry>& F) { return !F.IsValid() || F.Get() == this; });
 	++TFerI::Version();
@@ -306,6 +311,10 @@ void ATorqueFerry::BuildShore(const TorqueWorld::RidePlan& Plan, int32 End)
 	Put(TEXT("ferry_shelter"), ShelterAt, GroundAt(ShelterAt, Lay->Water + 0.5), Right);
 	const TorqueWorld::P2 SignAt = N.Head + Inland * 18.0 - Right * 4.8;
 	Put(TEXT("ferry_sign"), SignAt, GroundAt(SignAt, Lay->Water + 0.5), Inland);
+	// [stage 5] The queue sign further back, on the nearside of the way down (the left as the traffic comes to it).
+	const TorqueWorld::P2 QueueAt = N.Head + Inland * 36.0 - Right * (TFer::ApproachHalfW + 1.4);
+	if (const double QueueGround = Plan.Ground(QueueAt.X, QueueAt.Z); !std::isnan(QueueGround) && QueueGround > Lay->Water + 0.3)
+		Put(TEXT("ferry_queue"), QueueAt, QueueGround, Inland);
 }
 
 void ATorqueFerry::BuildBoat()
@@ -379,6 +388,77 @@ void ATorqueFerry::BuildBoat()
 		}
 		AddBox(Boat, *FString::Printf(TEXT("Car%d"), K), FVector(LaneCars - 92.0, Y - 225.0, Deck), FVector(LaneCars + 92.0, Y + 225.0, Deck + 145.0), false, true);
 	}
+	// [stage 7] A chain ferry (King Harry, Sandbanks, Torpoint...): its chains out of each end either side, down into
+	// the water; a turntable ferry (Glenelg): its turning deck under the stern car.
+	if (Cross && Cross->Kind == TFer::EKind::Chain)
+		for (int32 E = 0; E < 2; ++E)
+			for (const double X : {-SideIn - 10.0, SideIn + 10.0})
+				AddProp(Boat, TEXT("ferry_chain"), FVector(X, (E == 0 ? -1.0 : 1.0) * (HalfDeck + 10.0), Deck - 70.0), FRotator(0.0, E == 0 ? 180.0 : 0.0, 0.0));
+	if (Cross && Cross->Kind == TFer::EKind::Turntable)
+		AddProp(Look, TEXT("ferry_turntable"), FVector(-90.0, -700.0, Deck), FRotator::ZeroRotator);
+}
+
+void ATorqueFerry::FadeForHold()
+{
+	// The open sea between a long route's legs is passed in a hold (TFer::Sail): the boat lies at the end of the
+	// outward leg, then at the start of the inward, the riders aboard with it. Their screens go dark for the jump,
+	// a second or two either side (the ground at the far side streams in meanwhile).
+	using namespace TorqueFerryImpl;
+	if (!Cross || !Cross->Long) return;
+	const double Into = FMath::Min(Along - TFer::HoldFrom, TFer::HoldTo - Along);
+	const float Dark = State == EState::Sailing && Into > -0.02 ? float(FMath::Clamp((Into + 0.02) / 0.02, 0.0, 1.0)) : 0.0f;
+	if (Dark <= 0.0f && !bHoldFade) return;
+	TArray<ATorqueBikePawn*> All;
+	Riders(All);
+	for (ATorqueBikePawn* P : All)
+	{
+		if (!P->IsLocallyControlled() || !(OnBoard(P->FeetAt()) || OnBoard(P->GetActorLocation()))) continue;
+		APlayerController* PC = Cast<APlayerController>(P->GetController());
+		if (!PC || !PC->PlayerCameraManager) continue;
+		if (Dark > 0.0f) PC->PlayerCameraManager->SetManualCameraFade(Dark, FLinearColor::Black, false);
+		else PC->PlayerCameraManager->StopCameraFade();
+	}
+	bHoldFade = Dark > 0.0f;
+}
+
+double ATorqueFerry::Rough() const
+{
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS) return 0.0;
+	return FMath::Clamp((double(GS->Net.Wind) - 6.0) / 9.0, 0.0, 1.5) + FMath::Clamp((double(GS->Net.Gust) - 12.0) / 20.0, 0.0, 0.5);
+}
+
+void ATorqueFerry::PutBackAshore()
+{
+	using namespace TorqueFerryImpl;
+	if (!Lay) return;
+	TArray<ATorqueBikePawn*> All;
+	Riders(All);
+	const double WetZ = (Lay->Water - 0.5) * 100.0;
+	for (ATorqueBikePawn* P : All)
+	{
+		if (!P->IsLocallyControlled()) continue;
+		const FVector Feet = P->IsOnFoot() ? P->FeetAt() : P->GetActorLocation();
+		if (Feet.Z > WetZ || OnBoard(Feet)) continue;
+		// (only by this crossing: within its slipways' reach or along the way between its berths)
+		const TorqueWorld::P2 At(Feet.X / 100.0, Feet.Y / 100.0);
+		int32 Near = At.DistanceTo(Lay->Ends[0].Head) <= At.DistanceTo(Lay->Ends[1].Head) ? 0 : 1;
+		const TorqueWorld::P2 A = Lay->Ends[0].Berth, Ab = Lay->Ends[1].Berth - A;
+		const double L2 = FMath::Max(1e-6, Ab.X * Ab.X + Ab.Z * Ab.Z);
+		const double T = FMath::Clamp(((At.X - A.X) * Ab.X + (At.Z - A.Z) * Ab.Z) / L2, 0.0, 1.0);
+		const double Off = At.DistanceTo(A + Ab * T);
+		if (At.DistanceTo(Lay->Ends[Near].Head) > 120.0 && Off > 60.0) continue;
+		const TFer::End& N = Lay->Ends[Near];
+		const TorqueWorld::P2 Dry = N.Head - N.Axis * 4.0;
+		if (P->IsOnFoot())
+		{
+			const FVector To = TFerI::Ue(Dry, N.HeadY + 0.05);
+			P->FerryCarry(FTransform::Identity, FTransform(To - P->FeetAt()), true, false);
+		}
+		else
+			P->TestPlaceAt(Dry.X * 100.0, Dry.Z * 100.0, FMath::RadiansToDegrees(std::atan2(-N.Axis.Z, -N.Axis.X)));
+		UE_LOG(LogTemp, Log, TEXT("Torque ferry: a rider in the water by %s put back on the slipway at %s"), UTF8_TO_TCHAR(Cross->Name.c_str()), *PlaceName[Near]);
+	}
 }
 
 FTransform ATorqueFerry::BoatAt(double S) const
@@ -444,11 +524,114 @@ bool ATorqueFerry::EveryoneAboard() const
 	TArray<ATorqueBikePawn*> All;
 	Riders(All);
 	if (All.Num() == 0) return false;
+	int32 Aboard = 0;
 	for (ATorqueBikePawn* P : All)
 	{
+		if (!WaitsFor(P)) continue;
 		// Parked on the deck (a bike nobody's on) and, for ours, our feet aboard too.
 		if (!P->IsParkedUp() || !OnBoard(P->GetActorLocation(), 40.0)) return false;
 		if (P->IsLocallyControlled() && !OnBoard(P->FeetAt(), 20.0)) return false;
+		++Aboard;
+	}
+	return Aboard > 0;
+}
+
+bool ATorqueFerry::WaitsFor(const ATorqueBikePawn* P) const
+{
+	if (!P || !Lay) return false;
+	if (OnBoard(P->GetActorLocation()) || (P->IsLocallyControlled() && P->IsOnFoot() && OnBoard(P->FeetAt()))) return true;
+	for (int32 E = 0; E < 2; ++E)
+		if (FVector::Dist2D(P->GetActorLocation(), TFerI::Ue(Lay->Ends[E].Head, 0.0)) < WaitM * 100.0) return true;
+	return false;
+}
+
+bool ATorqueFerry::HostSaysGo(double Dt)
+{
+	// (the host's own machine only: in co-op the server, solo there's nobody to leave)
+	UWorld* W = GetWorld();
+	if (!W || W->GetNetMode() == NM_Client || W->GetNetMode() == NM_Standalone || State != EState::Docked)
+	{
+		HornHeld = 0.0;
+		return false;
+	}
+	APlayerController* PC = W->GetFirstPlayerController();
+	const ATorqueBikePawn* Me = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
+	const bool bAboard = Me && Me->IsOnFoot() && OnBoard(Me->FeetAt(), 20.0) && OnBoard(Me->GetActorLocation(), 40.0);
+	const bool bHorn = bAboard && (FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick));
+	HornHeld = bHorn ? HornHeld + Dt : 0.0;
+	return HornHeld >= HostHornSeconds;
+}
+
+void ATorqueFerry::Publish(bool bGone)
+{
+	UWorld* W = GetWorld();
+	if (!W || W->GetNetMode() == NM_Client || W->GetNetMode() == NM_Standalone || ListRow < 0) return;
+	ATorqueGameState* GS = W->GetGameState<ATorqueGameState>();
+	if (!GS) return;
+	int32 I = GS->FerryNet.IndexOfByPredicate([this](const FTorqueFerryNet& N) { return N.Row == ListRow; });
+	if (bGone)
+	{
+		if (I != INDEX_NONE) GS->FerryNet.RemoveAt(I);
+		return;
+	}
+	if (I == INDEX_NONE) I = GS->FerryNet.AddDefaulted();
+	FTorqueFerryNet& N = GS->FerryNet[I];
+	N.Row = ListRow;
+	N.State = uint8(State);
+	N.DockEnd = uint8(DockEnd);
+	N.bEmpty = bEmpty;
+	N.Clock = float(Clock);
+	N.SailFor = float(SailFor);
+	N.SentAt = GS->GetServerWorldTimeSeconds();
+	GS->ForceNetUpdate();
+}
+
+bool ATorqueFerry::Follow()
+{
+	using namespace TorqueFerryImpl;
+	const UWorld* W = GetWorld();
+	const ATorqueGameState* GS = W ? W->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS || W->GetNetMode() != NM_Client) return false;
+	const FTorqueFerryNet* N = GS->FerryNet.FindByPredicate([this](const FTorqueFerryNet& E) { return E.Row == ListRow; });
+	if (!N || N->State > uint8(EState::Lowering)) return false;
+	// The host's state, and how far into it the host is by now; the ramps, barriers and the boat's place from those.
+	State = EState(N->State);
+	DockEnd = N->DockEnd != 0 ? 1 : 0;
+	bEmpty = N->bEmpty;
+	SailFor = FMath::Max(1.0, double(N->SailFor));
+	Clock = double(N->Clock) + FMath::Max(0.0, GS->GetServerWorldTimeSeconds() - N->SentAt);
+	const int32 Other = 1 - DockEnd;
+	const double At = DockEnd == 1 ? 1.0 : 0.0;
+	switch (State)
+	{
+	case EState::Docked:
+		RampAt[DockEnd] = 0.0;
+		RampAt[Other] = 1.0;
+		ArmAt[DockEnd] = FMath::Min(1.0, Clock / ArmSeconds);
+		ArmAt[Other] = 0.0;
+		Along = At;
+		break;
+	case EState::Raising:
+		RampAt[DockEnd] = FMath::Min(1.0, Clock / RampSeconds);
+		RampAt[Other] = 1.0;
+		ArmAt[DockEnd] = FMath::Max(0.0, 1.0 - Clock / ArmSeconds);
+		ArmAt[Other] = 0.0;
+		Along = At;
+		break;
+	case EState::Sailing:
+	{
+		RampAt[0] = RampAt[1] = 1.0;
+		ArmAt[0] = ArmAt[1] = 0.0;
+		const double P = TorqueWorld::Ferries::Progress(FMath::Clamp(Clock / SailFor, 0.0, 1.0));
+		Along = DockEnd == 1 ? P : 1.0 - P;
+		break;
+	}
+	case EState::Lowering:
+		RampAt[DockEnd] = FMath::Max(0.0, 1.0 - Clock / RampSeconds);
+		RampAt[Other] = 1.0;
+		ArmAt[0] = ArmAt[1] = 0.0;
+		Along = At;
+		break;
 	}
 	return true;
 }
@@ -499,9 +682,17 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 			if (OnBoard(P->GetActorLocation()) || (P->IsLocallyControlled() && P->IsOnFoot() && OnBoard(P->FeetAt()))) return true;
 		return false;
 	};
-	Clock += Dt;
 	const EState Was = State;
-	switch (State)
+	const int32 WasEnd = DockEnd;
+	bFollowing = Follow();   // [stage 6] (a client's boat: the host's)
+	if (bFollowing && State == EState::Docked && bJustIn && !EveryoneAboard()) bJustIn = false;
+	if (!bFollowing) Clock += Dt;
+	{
+		Waiting = 0;
+		for (ATorqueBikePawn* P : All)
+			if (WaitsFor(P) && !(P->IsParkedUp() && OnBoard(P->GetActorLocation(), 40.0))) ++Waiting;
+	}
+	if (!bFollowing) switch (State)
 	{
 	case EState::Docked:
 	{
@@ -514,8 +705,15 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 		if (ReadyFor >= ReadySeconds)
 		{
 			State = EState::Raising;
-			if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayOn(TEXT("horn_ship"), Boat, FVector(300.0, 0.0, 620.0), -4.0f);
 			UE_LOG(LogTemp, Log, TEXT("Torque ferry: %s sails from %s to %s with everyone aboard"), UTF8_TO_TCHAR(Cross->Name.c_str()), *PlaceName[DockEnd], *PlaceName[1 - DockEnd]);
+		}
+		// [stage 6] The host on deck holding the horn: away now, the rest catch the next sailing.
+		else if (AnyAboard() && HostSaysGo(Dt))
+		{
+			State = EState::Raising;
+			HornHeld = 0.0;
+			UE_LOG(LogTemp, Log, TEXT("Torque ferry: %s sails from %s to %s on the host's word, %d rider(s) left for the next sailing"), UTF8_TO_TCHAR(Cross->Name.c_str()),
+				*PlaceName[DockEnd], *PlaceName[1 - DockEnd], Waiting);
 		}
 		// Called over: a rider at the other slipway, nobody aboard or waiting here.
 		else if (Clock > CallSeconds && !AnyAboard() && NearHead(1 - DockEnd, CallReach) && !NearHead(DockEnd, CallReach))
@@ -558,11 +756,16 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 		}
 		break;
 	}
-	if (State != Was)
+	if (State != Was || DockEnd != WasEnd)
 	{
-		Clock = 0.0;
+		if (!bFollowing) Clock = 0.0;
 		ReadyFor = 0.0;
 		++TFerI::Version();   // (its walls come and go from the bike's contacts as it ties up and casts off)
+		// (the horn as it casts off with riders aboard, on every machine)
+		if (Was == EState::Docked && State == EState::Raising && !bEmpty)
+			if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayOn(TEXT("horn_ship"), Boat, FVector(300.0, 0.0, 620.0), -4.0f);
+		if (!bFollowing) Publish();   // [stage 6] (the host's: to everyone)
+		if (bFollowing && State == EState::Docked && Was == EState::Lowering) bJustIn = AnyAboard();
 	}
 	// The boat where it is on its way, the riders' feet and parked bikes carried with it.
 	const FTransform Now = BoatAt(Along);
@@ -574,14 +777,18 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 	// Its model rolls and heaves a little (only the look: the deck the wheels and feet stand on stays level), more
 	// when under way.
 	Bob += Dt;
-	const double Sea = State == EState::Sailing ? 1.0 : 0.25;
-	Look->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 3.0 * Sea * std::sin(Bob * 0.9)),
-		FRotator(0.35 * Sea * std::sin(Bob * 0.6 + 1.0), 0.0, 0.9 * Sea * std::sin(Bob * 0.75)));
+	// [stage 7] (rougher in a wind: up to three times the roll and heave, the pitch more still)
+	const double Wild = Rough();
+	const double Sea = (State == EState::Sailing ? 1.0 : 0.25) * (1.0 + Wild * 1.3);
+	Look->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 3.0 * Sea * std::sin(Bob * 0.9) + 2.0 * Wild * std::sin(Bob * 1.7 + 0.4)),
+		FRotator((0.35 + 0.4 * Wild) * Sea * std::sin(Bob * 0.6 + 1.0), 0.0, 0.9 * Sea * std::sin(Bob * 0.75)));
 	PoseRamps();
 	PoseBarriers();
 	TickSounds(Dt, SpeedMs);
 	TickWake(Dt, SpeedMs, Now);
 	TickLamps();
+	PutBackAshore();   // [stage 7]
+	FadeForHold();
 	// Nobody gets back on while it's under way (the bike's sim never meets a moving ground).
 	if (State != EState::Docked && Here)
 		for (ATorqueBikePawn* P : All)
@@ -590,7 +797,7 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 
 void ATorqueFerry::TickSounds(double Dt, double SpeedMs)
 {
-	(void)Dt;
+	using namespace TorqueFerryImpl;
 	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
 	if (!Sfx || !Boat) return;
 	if (!EngineLoop)
@@ -602,6 +809,9 @@ void ATorqueFerry::TickSounds(double Dt, double SpeedMs)
 		for (int32 E = 0; E < 2; ++E) RampLoop[E] = Ramps.IsValidIndex(E) && Ramps[E] ? Sfx->MakeLoop(Ramps[E], FVector(0.0, 60.0, 80.0), -7.0f, 600.0f) : 0;
 		Sfx->SetLoop(EngineLoop, TEXT("ferry_engine"));
 		Sfx->SetLoop(LapLoop, TEXT("ferry_lap"));
+		// [stage 7] (the spray at the bow; a chain ferry's chains at its side)
+		SprayLoop = Sfx->MakeLoop(Boat, FVector(0.0, HalfDeck, 60.0), -60.0f, 1200.0f);
+		if (Cross && Cross->Kind == TFer::EKind::Chain) ChainLoop = Sfx->MakeLoop(Boat, FVector(SideIn, 0.0, Deck), -60.0f, 900.0f);
 	}
 	// The engine ticks over tied up and works under way; the wash comes with the speed; the lapping while still.
 	const bool bUnderWay = State == EState::Sailing;
@@ -612,6 +822,36 @@ void ATorqueFerry::TickSounds(double Dt, double SpeedMs)
 	if (!bUnderWay && !Sfx->LoopSound(WashLoop).IsEmpty() && Pace < 0.02) Sfx->SetLoop(WashLoop, FString());
 	Sfx->SetLoopDb(WashLoop, float(-30.0 + 24.0 * Pace));
 	Sfx->SetLoopDb(LapLoop, float(-10.0 - 14.0 * Pace));
+	// [stage 7] The bow's spray under way (more in a wind); a chain ferry's chains clattering over its wheels.
+	const double Wild = Rough();
+	const bool bSpray = bUnderWay && !(Cross && Cross->Kind == TFer::EKind::Chain);
+	if (bSpray != !Sfx->LoopSound(SprayLoop).IsEmpty()) Sfx->SetLoop(SprayLoop, bSpray ? TEXT("ferry_spray") : FString());
+	Sfx->SetLoopDb(SprayLoop, float(-28.0 + 16.0 * Pace + 6.0 * Wild));
+	if (ChainLoop)
+	{
+		const bool bChain = bUnderWay || State == EState::Raising || State == EState::Lowering;
+		if (bChain != !Sfx->LoopSound(ChainLoop).IsEmpty()) Sfx->SetLoop(ChainLoop, bChain ? TEXT("ferry_chain") : FString());
+		Sfx->SetLoopDb(ChainLoop, float(-16.0 + 7.0 * Pace));
+		Sfx->SetLoopPitch(ChainLoop, float(0.8 + 0.35 * Pace));
+	}
+	// The gulls now and then by day, over the water by the boat; the ropes and fenders creaking while it's tied up.
+	GullIn -= Dt;
+	if (GullIn <= 0.0)
+	{
+		GullIn = FMath::FRandRange(9.0, 26.0);
+		const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+		if (!GS || GS->GetDayLight() > 0.3f)
+			Sfx->PlayOn(TEXT("ferry_gull"), Boat, FVector(FMath::FRandRange(-1800.0, 1800.0), FMath::FRandRange(-2400.0, 2400.0), FMath::FRandRange(700.0, 1600.0)), -15.0f);
+	}
+	if (State == EState::Docked)
+	{
+		CreakIn -= Dt * (1.0 + Wild);
+		if (CreakIn <= 0.0)
+		{
+			CreakIn = FMath::FRandRange(4.0, 11.0);
+			Sfx->PlayOn(TEXT("ferry_creak"), Boat, FVector(FMath::RandBool() ? -Beam : Beam, (DockEnd == 1 ? 1.0 : -1.0) * HalfDeck * 0.8, Deck), -13.0f);
+		}
+	}
 	// Each ramp's hydraulics while it moves, and its clank as it comes home (down on the slipway or up shut).
 	for (int32 E = 0; E < 2; ++E)
 	{
@@ -784,10 +1024,22 @@ void ATorqueFerry::Keep(ATorqueRideWorld* Ride, const TorqueWorld::RidePlan& Pla
 				C.FromMap ? TEXT("from the map") : TEXT("straight between its ends"));
 	}
 	TArray<TWeakObjectPtr<ATorqueFerry>>& Have = TFerI::Live();
-	auto EndsFrom = [&RiderAt](const TFer::Crossing& C)
+	// [stage 6] (the host stands a crossing up near any rider, so a mate's ferry runs on the host's word)
+	TArray<FVector2D, TInlineAllocator<8>> Spots;
+	Spots.Add(RiderAt);
+	if (World->GetNetMode() != NM_Client && World->GetNetMode() != NM_Standalone)
+		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+			if (!It->IsLocallyControlled() && It->GetPlayerState()) Spots.Add(FVector2D(It->GetActorLocation().X / 100.0, It->GetActorLocation().Y / 100.0));
+	auto FromRiders = [&Spots](const TorqueWorld::P2& P)
+	{
+		double Best = 1e18;
+		for (const FVector2D& R : Spots) Best = FMath::Min(Best, FVector2D::Distance(R, FVector2D(P.X, P.Z)));
+		return Best;
+	};
+	auto EndsFrom = [&FromRiders](const TFer::Crossing& C)
 	{
 		if (C.Line.empty()) return 1e18;
-		return FMath::Min(FVector2D::Distance(RiderAt, FVector2D(C.Line.front().X, C.Line.front().Z)), FVector2D::Distance(RiderAt, FVector2D(C.Line.back().X, C.Line.back().Z)));
+		return FMath::Min(FromRiders(C.Line.front()), FromRiders(C.Line.back()));
 	};
 	// Gone too far: taken down (never with a rider aboard).
 	for (int32 I = Have.Num() - 1; I >= 0; --I)
@@ -832,10 +1084,10 @@ void ATorqueFerry::Keep(ATorqueRideWorld* Ride, const TorqueWorld::RidePlan& Pla
 		const TFer::Listed* Row = C.Listed >= 0 && C.Listed < int32(D.List.size()) ? &D.List[size_t(C.Listed)] : nullptr;
 		for (int32 E = 0; E < 2; ++E) F->PlaceName[E] = Row ? UTF8_TO_TCHAR(Row->Places[E].c_str()) : (E == 0 ? TEXT("one side") : TEXT("the other side"));
 		// (tied up at the end nearer the rider, so there's no wait to get on)
-		const double D0 = FVector2D::Distance(RiderAt, FVector2D(L->Ends[0].Head.X, L->Ends[0].Head.Z));
-		const double D1 = FVector2D::Distance(RiderAt, FVector2D(L->Ends[1].Head.X, L->Ends[1].Head.Z));
+		const double D0 = FromRiders(L->Ends[0].Head), D1 = FromRiders(L->Ends[1].Head);
 		F->DockEnd = D1 < D0 ? 1 : 0;
 		F->Build(Plan);
+		F->Publish();   // [stage 6] (the host's: where it's tied up, to everyone)
 		Have.Add(F);
 		++TFerI::Version();
 		UE_LOG(LogTemp, Log, TEXT("Torque ferry: %s stood up (%s to %s, water %.2f m, %.0f m berth to berth, a sailing %.0f s), tied up at %s"),
@@ -933,9 +1185,12 @@ FString ATorqueFerry::HintFor(const ATorqueBikePawn* Pawn)
 			if (!Pawn->IsOnFoot()) return FString::Printf(TEXT("%s ferry to %s: park in the bike bay by the tower and get off; it sails once everyone's aboard"), *Name, *To);
 			if (F.ReadyFor > 0.0)
 				return FString::Printf(TEXT("%s ferry: sailing for %s in %d"), *Name, *To, FMath::Max(1, FMath::CeilToInt(ReadySeconds - F.ReadyFor)));
-			return F.bJustIn
-				? FString::Printf(TEXT("%s ferry: tied up at %s, ramp down: get back on and ride off"), *Name, *F.PlaceName[F.DockEnd])
-				: FString::Printf(TEXT("%s ferry: waiting for everyone to park aboard"), *Name);
+			if (F.bJustIn) return FString::Printf(TEXT("%s ferry: tied up at %s, ramp down: get back on and ride off"), *Name, *F.PlaceName[F.DockEnd]);
+			// [stage 6] (in co-op, how many it waits for; the host may sail without them)
+			if (F.Waiting > 0 && Pawn->GetWorld()->GetNetMode() == NM_ListenServer)
+				return FString::Printf(TEXT("%s ferry: waiting for %d more rider%s. Hold the horn to sail without them"), *Name, F.Waiting, F.Waiting == 1 ? TEXT("") : TEXT("s"));
+			if (F.Waiting > 0) return FString::Printf(TEXT("%s ferry: waiting for %d more rider%s to park aboard"), *Name, F.Waiting, F.Waiting == 1 ? TEXT("") : TEXT("s"));
+			return FString::Printf(TEXT("%s ferry: waiting for everyone to park aboard"), *Name);
 		case EState::Raising:
 		case EState::Sailing:
 			return FString::Printf(TEXT("%s ferry to %s: %d:%02d to go. Walk about (the stair by the tower goes up top); get back on once the ramp is down"),

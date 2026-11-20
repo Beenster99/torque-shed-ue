@@ -834,6 +834,21 @@
    "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
    "source": "blender"
   },
+  "ferry_chain": {
+   "name": "Chain ferry chain and guide",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_turntable": {
+   "name": "Turntable ferry turning deck",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_queue": {
+   "name": "Ferry queue sign",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
   "ferry_barrier": {
    "name": "Ferry slipway barrier post and lights",
    "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",

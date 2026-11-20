@@ -65,6 +65,9 @@ struct FRideNavState
 	double ViaX = 0.0, ViaZ = 0.0, ViaTry = -1e9;
 	std::string ViaName;
 	int32 ViaReached = 0;   // goes up each time one is reached
+	// [ferries stage 5] Over the water on a journey by a ferry (RidePlan::Ferry): nearer where it lands than where it
+	// was boarded, so the way on is FerryOnward's (never back to the ride's road).
+	bool bFerryOver = false;
 };
 struct FTorqueRideJobs;
 struct FTorqueDash;

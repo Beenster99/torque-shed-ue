@@ -362,6 +362,37 @@ int main()
 		Ok = Ok && std::fabs(Ferries::Progress(0.0)) < 1e-9 && std::fabs(Ferries::Progress(1.0) - 1.0) < 1e-9 && L.Seconds >= 55.0 && L.Seconds <= 185.0;
 		Check(Ok, "ferries: a crossing laid on its shores (slipways down to the ramps' toes, never under the land, approaches no steeper than 1 in 7), sailed berth to berth bow first in a minute or two");
 	}
+	// ------------------------------------------------------------------ [ferries stage 5] a ferry as a link in the way
+	{
+		// The mainland's road along z = 0 and an island's along z = 1200 (no road between), a crossing between a
+		// slipway road off each; and a road round by a long bridge for the second try.
+		Json Rows;
+		const bool Parsed = Json::Parse(
+			"{\"classes\": [\"primary\"], \"surfaces\": [\"paved\"], \"names\": [\"\"],"
+			" \"nodes\": [[0, 0], [1000, 0], [2000, 0], [1000, -150], [0, 1200], [1000, 1200], [2000, 1200], [1000, 1350]],"
+			" \"edges\": [{\"a\": 0, \"b\": 1}, {\"a\": 1, \"b\": 2}, {\"a\": 1, \"b\": 3}, {\"a\": 4, \"b\": 5}, {\"a\": 5, \"b\": 6}, {\"a\": 5, \"b\": 7}]}", Rows);
+		Region G;
+		bool Ok = Parsed && Region::FromRows(Rows, G);
+		G.FrameLat = 56.7;
+		G.FrameLon = -5.24;
+		const Frame F = G.FrameOf();
+		std::vector<Ferries::Listed> List(1);
+		const Geo A = F.ToGeo(1000.0, 150.0), B = F.ToGeo(1000.0, 1050.0);
+		List[0].Id = "test";
+		List[0].Name = "Test";
+		List[0].LatA = A.Lat; List[0].LonA = A.Lon; List[0].LatB = B.Lat; List[0].LonB = B.Lon;
+		const std::vector<double> Costs(G.Edges.size(), 1.0);
+		// (no road over: the ferry, boarded at the mainland's end, landed on the island's)
+		const Ferries::Link L = Ok ? Ferries::BestLink(G, Costs, 0, 6, List, G.CheapestPath(0, 6, &Costs)) : Ferries::Link();
+		Ok = Ok && L.Row == 0 && L.BoardEnd == 0 && L.BoardNode == 1 && L.LandNode == 5 && L.ToBoard.size() == 1 && L.RoadsCost < 0.0;
+		// (the other way round: boarded on the island)
+		const Ferries::Link Back = Ferries::BestLink(G, Costs, 6, 0, List, {});
+		Ok = Ok && Back.Row == 0 && Back.BoardEnd == 1 && Back.BoardNode == 5 && Back.LandNode == 1;
+		// (a road round shorter than the sailing's cost: the roads)
+		const Ferries::Link Roads = Ferries::BestLink(G, Costs, 0, 2, List, G.CheapestPath(0, 2, &Costs));
+		Ok = Ok && Roads.Row < 0 && Roads.RoadsCost > 0.0;
+		Check(Ok, "ferries: a ferry is the way to an island with no road over, boarded at the nearer side, and not where the roads are quicker");
+	}
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
 	{
 		const Json& G = *Ref.Get("geo");

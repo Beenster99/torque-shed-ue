@@ -11,6 +11,10 @@ it after Data/Audio/TS's; Tools/import_ts_sounds.py never touches this folder).
   ferry_ramp      the ramp's hydraulics: the pump's motor and whine, the oil's hiss (loop, while a ramp moves)
   ferry_clank     a ramp coming down onto the slipway's concrete, or home against the deck (three takes)
   ferry_barrier   the barrier's motor lifting or lowering its arm, and its stop (two takes)
+  ferry_gull      [stage 7] a herring gull's call over the slipway: a few raspy "kyow"s (three takes)
+  ferry_creak     [stage 7] the mooring ropes and the fenders creaking as the boat works at the slipway (three takes)
+  ferry_spray     [stage 7] the bow's spray and the slap of a wave on the hull under way, rougher in a wind (loop)
+  ferry_chain     [stage 7] a chain ferry's chains running over its wheels: the links' clatter and the wheels' grind (loop)
 
 Every loop is made whole round its own length (its noise filtered round the loop, every tone a whole number of
 cycles), so it joins without a click.
@@ -203,6 +207,89 @@ def barrier(up):
     return x
 
 
+def gull(seed):
+    r = np.random.default_rng(seed)
+    secs = 2.4
+    n = int(RATE * secs)
+    x = np.zeros(n)
+    at = 0.05
+    for c in range(r.integers(2, 5)):
+        L = int(r.uniform(0.18, 0.32) * RATE)
+        if int(at * RATE) + L >= n:
+            break
+        k = np.arange(L) / L
+        # The call: up quickly then falling away, a nasal voice (strong odd and even harmonics), a raspy flutter.
+        f0 = r.uniform(780, 980) * (1.0 + 0.35 * np.sin(np.pi * np.clip(k * 1.6, 0, 1)) - 0.25 * k)
+        ph = 2 * np.pi * np.cumsum(f0) / RATE
+        flutter = 1.0 + 0.35 * np.sin(2 * np.pi * r.uniform(55, 75) * np.arange(L) / RATE)
+        voice = sum(a * np.sin(h * ph) for h, a in ((1, 0.6), (2, 1.0), (3, 0.7), (4, 0.4), (5, 0.25), (6, 0.12)))
+        env = np.sin(np.pi * k) ** 0.6 * np.exp(-1.2 * k)
+        rasp = np.fft.irfft(np.fft.rfft(r.standard_normal(L)) * band(1500, 5000)(np.fft.rfftfreq(L, 1.0 / RATE)), L)
+        rasp = rasp / (np.std(rasp) + 1e-9)
+        i = int(at * RATE)
+        x[i:i + L] += (voice * flutter + rasp * 0.5) * env * r.uniform(0.6, 1.0)
+        at += L / RATE + r.uniform(0.08, 0.25)
+    return x
+
+
+def creak(seed):
+    r = np.random.default_rng(seed)
+    secs = 1.6
+    n = int(RATE * secs)
+    k = np.arange(n) / RATE
+    # Rope or rubber under load: a stick-slip, a train of little pulses whose rate sweeps, ringing a hollow body.
+    rate = r.uniform(35, 60) * (1.0 + 0.6 * np.sin(np.pi * np.clip(k / 1.2, 0, 1)))
+    ph = np.cumsum(rate) / RATE
+    pulses = (np.diff(np.floor(ph), prepend=0) > 0).astype(float) * (0.6 + 0.4 * r.random(n))
+    body = np.zeros(n)
+    for fr, d in ((r.uniform(180, 260), 0.02), (r.uniform(520, 700), 0.012), (r.uniform(1100, 1500), 0.006)):
+        L = int(0.08 * RATE)
+        kk = np.arange(L) / RATE
+        body = body + np.convolve(pulses, np.sin(2 * np.pi * fr * kk) * np.exp(-kk / d))[:n]
+    env = np.sin(np.pi * np.clip(k / 1.3, 0, 1)) ** 0.7
+    return body * env
+
+
+def spray():
+    secs = 7.0
+    n = int(RATE * secs)
+    t = np.arange(n) / n
+    # The hiss of the bow wave and its spray, swelling with the swell; now and then a wave's slap on the hull.
+    hiss = shaped(n, band(900, 9000, 1.5)) * periodic_wobble(n, [0.35, 0.8], 0.45)
+    hiss = hiss / (np.std(hiss) + 1e-9) * 0.25
+    x = hiss
+    for c in range(5):
+        i = rng.integers(0, n)
+        L = int(0.5 * RATE)
+        kk = np.arange(L) / RATE
+        thud = np.sin(2 * np.pi * rng.uniform(60, 95) * kk) * np.exp(-kk / 0.07)
+        splash = shaped(L, band(500, 6000)) * np.exp(-kk / 0.18)
+        splash = splash / (np.std(splash) + 1e-9) * 0.35
+        x[(i + np.arange(L)) % n] += (thud * 0.8 + splash) * rng.uniform(0.5, 1.0)
+    return x
+
+
+def chain():
+    secs = 4.0
+    n = int(RATE * secs)
+    t = np.arange(n) / n
+    x = np.zeros(n)
+    # Links over the wheel's teeth about 6 a second (whole cycles round the loop), each a little clack and ring.
+    links = round(6.0 * secs)
+    for j in range(links):
+        i = int(j * n / links + rng.integers(-300, 300)) % n
+        L = int(0.12 * RATE)
+        kk = np.arange(L) / RATE
+        ring = sum(a * np.sin(2 * np.pi * fr * rng.uniform(0.95, 1.05) * kk) * np.exp(-kk / d) for fr, d, a in ((420, 0.05, 0.5), (1150, 0.03, 0.35), (2600, 0.015, 0.2)))
+        x[(i + np.arange(L)) % n] += ring * rng.uniform(0.6, 1.0)
+    # The wheels' grind and the chain dragging up out of the water.
+    grind = shaped(n, band(120, 900)) * periodic_wobble(n, [1.5, 3.0], 0.3)
+    x += grind / (np.std(grind) + 1e-9) * 0.12
+    drip = shaped(n, band(2000, 7000))
+    x += drip / (np.std(drip) + 1e-9) * 0.04
+    return x
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     sounds = {
@@ -212,6 +299,10 @@ def main():
         "ferry_ramp": {"files": [write("ferry_ramp.wav", ramp())], "from": "synth", "loop": True},
         "ferry_clank": {"files": [write("ferry_clank_%d.wav" % i, clank(40 + i)) for i in range(3)], "from": "synth", "loop": False},
         "ferry_barrier": {"files": [write("ferry_barrier_up.wav", barrier(True)), write("ferry_barrier_down.wav", barrier(False))], "from": "synth", "loop": False},
+        "ferry_gull": {"files": [write("ferry_gull_%d.wav" % i, gull(70 + i)) for i in range(3)], "from": "synth", "loop": False},
+        "ferry_creak": {"files": [write("ferry_creak_%d.wav" % i, creak(80 + i)) for i in range(3)], "from": "synth", "loop": False},
+        "ferry_spray": {"files": [write("ferry_spray.wav", spray())], "from": "synth", "loop": True},
+        "ferry_chain": {"files": [write("ferry_chain.wav", chain())], "from": "synth", "loop": True},
     }
     manifest = {
         "about": "The ferries' own sounds for TorqueSfx, made by Tools/audio/make_ferry_sounds.py from maths alone (no recordings: "

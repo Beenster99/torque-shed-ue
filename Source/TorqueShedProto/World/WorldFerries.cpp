@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <mutex>
+#include <cstdio>
+#include <cstdlib>
 
 namespace TorqueWorld
 {
@@ -337,7 +340,12 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 	// The water's level: the sea's 0, or a loch's (the lowest ground along the route's middle, as the ride's water
 	// lies level at the lowest wet ground round it).
 	const P2 Mid = AlongLine(C.Line, C.Length * 0.5, false);
-	Out.Sea = Ask.Sea && Ask.Sea(Mid.X, Mid.Z);
+	Out.Sea = false;
+	for (int K = 1; K < 10 && Ask.Sea && !Out.Sea; ++K)   // (anywhere along its middle: a firth's middle may be an island's shore)
+	{
+		const P2 P = AlongLine(C.Line, C.Length * (0.1 + 0.8 * K / 10.0), false);
+		Out.Sea = Ask.Sea(P.X, P.Z);
+	}
 	if (Out.Sea)
 		Out.Water = 0.0;
 	else if (const double Drawn = Ask.Water ? Ask.Water(Mid.X, Mid.Z) : std::numeric_limits<double>::quiet_NaN(); !std::isnan(Drawn))
@@ -562,5 +570,117 @@ void Sail(const Layout& L, bool Long, double S, P2& Pos, P2& Bow)
 	}
 	Pos = Bezier(Leg[1][0], Leg[1][1], Leg[1][2], Leg[1][3], (S - HoldTo) / (1.0 - HoldTo), &Bow);
 }
+
+// ----- [ferries stage 5] the list for the planner, and ferries as links in a journey's way -----
+
+namespace
+{
+std::mutex ListLock;
+std::shared_ptr<const std::vector<Listed>> TheList;
+}
+
+bool SetList(const std::string& Text)
+{
+	std::shared_ptr<std::vector<Listed>> List = std::make_shared<std::vector<Listed>>();
+	if (!ReadList(Text, *List)) return false;
+	std::lock_guard<std::mutex> Hold(ListLock);
+	TheList = List;
+	return true;
+}
+
+std::shared_ptr<const std::vector<Listed>> ListNow()
+{
+	std::lock_guard<std::mutex> Hold(ListLock);
+	return TheList;
+}
+
+double PathCost(const Region& G, const std::vector<double>& EdgeCost, const std::vector<int>& Path)
+{
+	double Sum = 0.0;
+	for (int E : Path)
+		if (E >= 0 && size_t(E) < G.Edges.size())
+			Sum += G.Edges[size_t(E)].Length * (size_t(E) < EdgeCost.size() ? EdgeCost[size_t(E)] : 1.0);
+	return Sum;
+}
+
+namespace
+{
+// The junctions within Within of At on the same piece of road as junction Of (any piece where the region has none
+// worked out), the nearest first, at most Most.
+std::vector<int> NearestOn(const Region& G, const P2& At, double Within, int Of, size_t Most = 6)
+{
+	const bool Pieces = G.Component.size() == G.Nodes.size() && Of >= 0 && size_t(Of) < G.Nodes.size();
+	std::vector<std::pair<double, int>> Near;
+	for (size_t N = 0; N < G.Nodes.size(); ++N)
+	{
+		if (Pieces && G.Component[N] != G.Component[size_t(Of)]) continue;
+		const double D = Dist(G.Nodes[N], At);
+		if (D < Within) Near.push_back({D, int(N)});
+	}
+	std::sort(Near.begin(), Near.end());
+	std::vector<int> Out;
+	for (size_t K = 0; K < Near.size() && K < Most; ++K) Out.push_back(Near[K].second);
+	return Out;
+}
+} // namespace
+
+bool ServedPiece(const Region& G, int Node)
+{
+	const std::shared_ptr<const std::vector<Listed>> List = ListNow();
+	if (!List || Node < 0 || size_t(Node) >= G.Nodes.size()) return false;
+	const Frame F = G.FrameOf();
+	for (const Listed& L : *List)
+		for (int E = 0; E < 2; ++E)
+			if (!NearestOn(G, F.FromGeo(E == 0 ? L.LatA : L.LatB, E == 0 ? L.LonA : L.LonB), SlipSnap, Node, 1).empty()) return true;
+	return false;
+}
+
+Link BestLink(const Region& G, const std::vector<double>& EdgeCost, int From, int To, const std::vector<Listed>& List, const std::vector<int>& ByRoad)
+{
+	Link Best;
+	Best.RoadsCost = ByRoad.empty() && From != To ? -1.0 : PathCost(G, EdgeCost, ByRoad);
+	Best.Cost = Best.RoadsCost < 0.0 ? std::numeric_limits<double>::max() : Best.RoadsCost;
+	if (From < 0 || To < 0 || G.Nodes.empty()) return Best;
+	const Frame F = G.FrameOf();
+	// (a crossing worth trying: both its ends in the area, and the two of them nearer each other than the roads' way)
+	for (size_t Row = 0; Row < List.size(); ++Row)
+	{
+		const Listed& L = List[Row];
+		const P2 Ends[2] = {F.FromGeo(L.LatA, L.LonA), F.FromGeo(L.LatB, L.LonB)};
+		const double Across = Dist(Ends[0], Ends[1]);
+		if (Across + SailCost >= Best.Cost) continue;
+		for (int Board = 0; Board < 2; ++Board)
+		{
+			// (each slipway's junction: the nearest on the piece of road the ride is on at that side that the ride can
+			// get to and from: a bit of road the map left unjoined by the water, or a turn the map bans, isn't it)
+			int BoardNode = -1, LandNode = -1;
+			std::vector<int> ToBoard, After;
+			for (int N : NearestOn(G, Ends[Board], SlipSnap, From))
+			{
+				ToBoard = G.CheapestPath(From, N, &EdgeCost);
+				if (!ToBoard.empty() || From == N) { BoardNode = N; break; }
+			}
+			if (BoardNode < 0) continue;
+			const double Before = PathCost(G, EdgeCost, ToBoard) + Across + SailCost;
+			if (Before >= Best.Cost) continue;
+			for (int N : NearestOn(G, Ends[1 - Board], SlipSnap, To))
+			{
+				After = G.CheapestPath(N, To, &EdgeCost);
+				if (!After.empty() || N == To) { LandNode = N; break; }
+			}
+			if (LandNode < 0 || LandNode == BoardNode) continue;
+			const double Whole = Before + PathCost(G, EdgeCost, After);
+			if (Whole >= Best.Cost) continue;
+			Best.Row = int(Row);
+			Best.BoardEnd = Board;
+			Best.BoardNode = BoardNode;
+			Best.LandNode = LandNode;
+			Best.ToBoard = ToBoard;
+			Best.Cost = Whole;
+		}
+	}
+	return Best;
+}
+
 } // namespace Ferries
 } // namespace TorqueWorld

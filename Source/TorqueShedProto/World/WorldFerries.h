@@ -22,12 +22,14 @@
 
 #include <array>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace TorqueWorld
 {
 class RidePlan;
+class Region;
 namespace Ferries
 {
 // The boat (ferry_small) and its ramps (ferry_ramp), as Tools/props/make_ferry.py draws them (m).
@@ -77,6 +79,32 @@ struct FerryLine
 std::vector<Crossing> InArea(const std::vector<Listed>& List, const std::vector<FerryLine>& Lines, const Frame& F, const Rect& Box);
 // The same from a ride's plan (its area's feature lines and its box).
 std::vector<Crossing> InPlan(const RidePlan& Plan, const std::vector<Listed>& List);
+
+// [ferries stage 5] The list as the game read it at start (thread safe; null before it is set), for the planner.
+bool SetList(const std::string& Text);
+std::shared_ptr<const std::vector<Listed>> ListNow();
+// Whether a listed crossing has an end within SlipSnap of a junction on the same piece of road as Node (an island's
+// roads a ferry serves).
+bool ServedPiece(const Region& G, int Node);
+
+// A ferry as a link in a journey's way (RidePlan::Make): the cheaper of riding the roads from junction From to To and
+// riding to a listed crossing's nearer slipway, sailing, and riding on from the other's. A journey takes one ferry at
+// most (the first leg that one beats the roads on); from where it lands the sat nav finds the way on
+// (RidePlan::FerryOnward).
+struct Link
+{
+	int Row = -1;                // into the list; -1: the roads are the way
+	int BoardEnd = 0;            // the end it's boarded at (0 the list's a)
+	int BoardNode = -1, LandNode = -1;   // the junctions nearest the slipways
+	std::vector<int> ToBoard;    // the edges From to BoardNode (empty when From is it)
+	double Cost = 0.0;           // the whole way's, roads and sailing
+	double RoadsCost = -1.0;     // the roads' way's (-1 none)
+};
+static constexpr double SailCost = 3000.0;   // a sailing's cost on top of its length: the wait and the boarding, about 3 km of road
+static constexpr double SlipSnap = 400.0;    // a crossing's end is this near a junction of the map's roads or isn't a link
+// ByRoad: the roads' way From to To (empty where there is none).
+Link BestLink(const Region& G, const std::vector<double>& EdgeCost, int From, int To, const std::vector<Listed>& List, const std::vector<int>& ByRoad);
+double PathCost(const Region& G, const std::vector<double>& EdgeCost, const std::vector<int>& Path);
 
 // What Lay needs of the world: the ground's height (NaN where it isn't known yet), whether a point is the sea, and
 // the map's road best for an approach to a point within Reach whose height is WantY (its middle's nearest point unless
