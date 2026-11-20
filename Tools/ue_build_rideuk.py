@@ -989,6 +989,11 @@ def scanned_trees(L, kit):
         another part's material: round 160's spruce and pine were bare brown trunks near and far (their
         needles drawn with a bark or decoration material) while the broadleaf trees were right. None if
         Geometry Script can't say."""
+        mats = [m.get_editor_property("material_interface") for m in skel.get_editor_property("materials")]
+        names = [str(m.get_editor_property("material_slot_name")) for m in skel.get_editor_property("materials")]
+        smap = skeletal_section_slots(skel)
+        if smap is not None:
+            return [(mats[k] if 0 <= k < len(mats) else None, names[k] if 0 <= k < len(names) else "Section%d" % n) for n, k in enumerate(smap)]
         f = gs("get_section_material_list_from_skeletal_mesh")
         if f is None:
             return None
@@ -1014,6 +1019,56 @@ def scanned_trees(L, kit):
             if mats:
                 return [(m, names[k] if names and k < len(names) else "Section%d" % k) for k, m in enumerate(mats)]
         return None
+
+    def skeletal_section_slots(skel):
+        """[build 162] LOD 0's material slot for each section, in section order, or None. UE 5.8's Python
+        has no Geometry Script get_section_material_list_from_skeletal_mesh (round 161), so the skeletal
+        mesh editor's own functions are tried (their home and names moved between releases), with the
+        LOD's material map overriding a section's slot where it says so."""
+        homes = [getattr(unreal, n, None) for n in ("SkeletalMeshEditorSubsystem", "EditorSkeletalMeshLibrary", "SkeletalMeshEditingLibrary")]
+        objs = []
+        for h in homes:
+            if h is None:
+                continue
+            try:
+                objs.append(unreal.get_editor_subsystem(h))
+            except Exception:
+                objs.append(h)
+        count = None
+        for o in objs:
+            for fn in ("get_num_sections", "get_section_count", "get_lod_section_count"):
+                f = getattr(o, fn, None)
+                if f is None:
+                    continue
+                try:
+                    count = int(f(skel, 0))
+                    break
+                except Exception:
+                    continue
+            if count is not None:
+                break
+        slots = None
+        for o in objs:
+            f = getattr(o, "get_lod_material_slot", None)
+            if f is None or count is None:
+                continue
+            try:
+                slots = [int(f(skel, 0, n)) for n in range(count)]
+                break
+            except Exception as e:
+                why.append("get_lod_material_slot: %s" % e)
+        if slots is None:
+            log("scanned trees: %s: no way to read section slots (sections %s; functions: %s)" % (skel.get_name(), count,
+                ", ".join(sorted(set(n for o in objs for n in dir(o) if "section" in n.lower() or "material" in n.lower())))[:600]))
+            return None
+        try:
+            info = skel.get_editor_property("lod_info")
+            remap = list(info[0].get_editor_property("lod_material_map")) if info else []
+            slots = [int(remap[n]) if n < len(remap) and int(remap[n]) >= 0 else s0 for n, s0 in enumerate(slots)]
+        except Exception:
+            pass
+        log("scanned trees: %s: LOD 0 sections -> material slots %s" % (skel.get_name(), slots))
+        return slots
 
     def fix_slots(copy_path, skel_path):
         """The copy's material slots in the skeletal mesh's section order (see section_materials)."""
