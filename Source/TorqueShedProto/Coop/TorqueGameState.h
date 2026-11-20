@@ -396,4 +396,6 @@ private:
 	// [tyre fx] Tyre smoke and darkies (Weather/TorqueTyreFx): one per machine.
 	UPROPERTY(Transient) TObjectPtr<class ATorqueTyreFx> TyreFx;
 	int32 LoggedKind = -1;
+	int32 LoggedSeason = -1;   // ([seasonal trees] the trees' season last logged, and its leaf drop)
+	float LoggedDrop = -1.0f;
 };

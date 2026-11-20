@@ -9,7 +9,7 @@
 // 45 m) and, but for the trees, with a clear line to that road past every building (SeenFromRoad).
 //
 // Performance first: the plants are drawn as the trees are (instanced, Nanite, by the square), only as the
-// scanned Megaplants (no stand-ins), out to 40 to 90 m (the kit's cull, Tools/ue_build_rideuk.py) and only
+// garden models (ours, Tools/make_gardens.py, or scanned; no stand-ins), out to 40 to 90 m (the kit's cull, Tools/ue_build_rideuk.py) and only
 // on the finest squares; -TorqueRidePlanting=0 leaves them all out, -TorqueRidePlanting=0.5 half.
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
@@ -24,9 +24,9 @@ namespace RideGardens
 {
 enum GardenKind : uint16_t
 {
-	GardenRose = RidePlan::FirstGarden, GardenShrub, GardenFlowers, GardenLow, GardenTree
+	GardenRose = RidePlan::FirstGarden, GardenShrub, GardenFlowers, GardenLow, GardenTree, GardenHedge
 };
-static_assert(GardenTree + 1 == RidePlan::PlantKinds, "the garden kinds are the last plant kinds");
+static_assert(GardenHedge + 1 == RidePlan::PlantKinds, "the garden kinds are the last plant kinds");
 
 inline constexpr double Bucket = 16.0;
 
@@ -128,8 +128,9 @@ void RidePlan::GardenPlants(const GardenHouse& House, const GardenClear& Clear, 
 	const auto OnDrive = [&House](double U) { return House.DriveTo > House.DriveFrom && U > House.DriveFrom - 0.3 && U < House.DriveTo + 0.3; };
 	// One plant: What, Tall metres high, at (U, V) of the house, if the place is fit for it: clear of every
 	// building (a tree 2 m clear), of the roads and their pavements, of a railway, of water, and only on a
-	// garden's kind of ground (not a car park, a yard, a pitch or a forecourt).
-	const auto Plant = [&](uint16_t What, double U, double V, double Tall, int Salt)
+	// garden's kind of ground (not a car park, a yard, a pitch or a forecourt). A hedge's length is laid
+	// along Yaw (else any way), at Size (its length's share, not a height) and with one pick (PickAs) for them all.
+	const auto PlantFull = [&](uint16_t What, double U, double V, double Tall, int Salt, double Yaw, double Size, double PickAs)
 	{
 		if (Roll(U, V, Salt + 1) >= Share) return;
 		double X = 0.0, Z = 0.0;
@@ -166,12 +167,13 @@ void RidePlan::GardenPlants(const GardenHouse& House, const GardenClear& Clear, 
 		P.X = float(X - Out.OriginX);
 		P.Z = float(Z - Out.OriginZ);
 		P.Y = float(Y - (What == GardenTree ? 0.15 : 0.06));
-		P.Yaw = float(Roll(U, V, Salt + 2) * Pi2);
-		P.Scale = 1.0f;
-		P.Height = float(Tall);
-		P.Pick = float(Roll(U, V, Salt + 3));
+		P.Yaw = float(Yaw >= -10.0 ? Yaw : Roll(U, V, Salt + 2) * Pi2);
+		P.Scale = float(Size);
+		P.Height = float(Tall);   // (0 for a hedge: Scale, not a height, PlacePlants)
+		P.Pick = float(PickAs >= 0.0 ? PickAs : Roll(U, V, Salt + 3));
 		Out.Plants.push_back(P);
 	};
+	const auto Plant = [&](uint16_t What, double U, double V, double Tall, int Salt) { PlantFull(What, U, V, Tall, Salt, -100.0, 1.0, -1.0); };
 	// What grows in a bed's place: a tidy garden's roses and flowers, a shrubby one's shrubs and low cover;
 	// Back for the beds against a wall (nothing taller than the sills), and its height.
 	const auto Pick = [&](double U, double V, int Salt, bool AgainstWall, double& Tall)
@@ -193,6 +195,27 @@ void RidePlan::GardenPlants(const GardenHouse& House, const GardenClear& Clear, 
 	// (the front garden's depth, its wall to the pavement's back: FrontGap is from 1 m out to the road's edge)
 	const double Deep = House.FrontGap + 1.0 - 1.6;
 
+	// [Nov 20] beenster: "please consider building a small library of bushes, hedges for gardens". Half the
+	// front gardens with no wall have a clipped hedge along the front instead (privet, beech, laurel, box:
+	// Tools/make_gardens.py), knee to chest high, in 1.5 m lengths end to end, one kind a house, open at the
+	// path to the door and at the drive; a detached house's runs a little past each side, as a wall does.
+	if (!House.FrontWall && !Bare && Deep >= 1.2 && Roll(0.0, 0.0, 450) < 0.5)
+	{
+		const double Ends = House.Kind == HouseTypes::Detached ? 0.6 : 0.0;
+		const double V = Fs * (Hs + Deep - 0.4);
+		const double Dx = House.LongX ? House.Cs : House.Sn, Dz = House.LongX ? -House.Sn : House.Cs;   // (along U, in the world)
+		const double Yaw = std::atan2(Dz, Dx);
+		const double U0 = -Hl - Ends, U1 = Hl + Ends, Len = 1.5;
+		const int Count = std::max(1, int(std::floor((U1 - U0) / Len + 0.5)));
+		const double Step = (U1 - U0) / Count;
+		const double HedgePick = Roll(0.0, 0.0, 452);
+		for (int K = 0; K < Count; ++K)
+		{
+			const double U = U0 + (K + 0.5) * Step;
+			if (ByDoor(U) || OnDrive(U)) continue;
+			PlantFull(GardenHedge, U, V, 0.0, 460 + 7 * K, Yaw + (Roll(U, 9.0, 461) < 0.5 ? 0.0 : Pi2 * 0.5), Step / Len * 1.04, HedgePick);
+		}
+	}
 	// The bed under the front windows, either side of the door.
 	if (Deep >= 0.9)
 		for (double U = -Hl + 0.4; U <= Hl - 0.4; U += 0.8)

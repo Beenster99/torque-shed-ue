@@ -3,6 +3,7 @@
 
     python Tools/make_trees.py --torque-shed ../torque-shed                (fetches the canopy map once, ~300 MB)
     python Tools/make_trees.py --torque-shed ../torque-shed --models-only  (just the tree meshes)
+    python Tools/make_trees.py --keep-placement                            (new tree meshes, the trees where they are)
 
 Where the trees are comes from a canopy height map: Meta and the World Resources Institute's 1 m map of
 how tall the trees are (from satellite pictures and lidar; CC BY 4.0,
@@ -57,8 +58,11 @@ FAR_SPLIT = 1500.0    # trees further than this from the ride use their far mode
 CREDIT = ("Trees: canopy heights from Meta and World Resources Institute, High Resolution Canopy Height Maps "
           "(2024), CC BY 4.0, https://registry.opendata.aws/dataforgood-fb-forests/")
 
-# The models: species and how many variants of each.
-VARIANTS = {"ash": 4, "sycamore": 4, "alder": 3, "birch": 2, "hawthorn": 3, "spruce": 2}
+# The models: species and how many variants of each ([Nov 20] 14 species, young to old: beenster "can you
+# build more trees and more variety and change with season, evergreens and deciduous?". 3 each, as many as
+# the ride draws of a kind (torque.RideTreeVariants); ash and sycamore keep the 4 Buttertubs' placement has.)
+VARIANTS = {"ash": 4, "sycamore": 4, "alder": 3, "birch": 3, "hawthorn": 3, "spruce": 3, "oak": 3, "beech": 3,
+            "willow": 3, "rowan": 3, "pine": 3, "hazel": 3, "holly": 3, "larch": 3}
 
 
 # --- Canopy map ------------------------------------------------------------------------------------
@@ -478,11 +482,10 @@ def build_models():
     for sp, n in VARIANTS.items():
         for k in range(n):
             t0 = time.time()
-            near, far, meta = TM.make(sp, 1000 + 37 * k + len(sp))
+            near, far, meta = TM.make(sp, 1000 + 37 * k + len(sp), k, n)
             for tag, m in (("SM_Tree", near), ("SM_TreeFar", far)):
-                P, T, N, C, UV = m.arrays(weld=True)
                 name = "%s_%s_%d" % (tag, sp, k)
-                write_glb(os.path.join(OUT, name + ".glb"), P, T, N, C, name, UV, m.uv1())
+                P, T = m.write(os.path.join(OUT, name + ".glb"), name, write_glb)
                 info[name] = {"species": sp, "height": round(float(P[:, 1].max()), 2), "triangles": int(len(T)),
                               "radius": round(float(np.percentile(np.linalg.norm(P[P[:, 1] > 1][:, [0, 2]], axis=1), 98)), 2)}
             print("%-10s %d: %6d triangles near, %5d far, %.0f m, %.1f s" % (
@@ -499,8 +502,27 @@ def main():
                     help="where the canopy tiles are kept (about 300 MB)")
     ap.add_argument("--models-only", action="store_true")
     ap.add_argument("--placement-only", action="store_true", help="keep the models already in Data/Buttertubs/Trees")
+    ap.add_argument("--keep-placement", action="store_true",
+                    help="new models, Buttertubs' trees where they are: trees.json keeps its species in their order "
+                         "(instances.bin indexes them) and lists the new models after them, planted nowhere")
     args = ap.parse_args()
     t_start = time.time()
+    if args.keep_placement:
+        spec_path = os.path.join(OUT, "trees.json")
+        spec = json.load(open(spec_path))
+        old = [s["name"] for s in spec["species"]]
+        for f in os.listdir(OUT):
+            if f.endswith(".glb") and f[:-4] not in old:
+                os.remove(os.path.join(OUT, f))   # (models of a previous make that nothing lists)
+        info = build_models()
+        spec["models"] = info
+        for n in sorted(info):
+            if n not in old:
+                spec["species"].append({"name": n, "mesh": n, "count": 0, "far": n.startswith("SM_TreeFar"),
+                                        "cull_m": 30000, "shadow": True})
+        json.dump(spec, open(spec_path, "w"), indent=1)
+        print("models made; Buttertubs' placement kept (%d species listed); %.0f s" % (len(spec["species"]), time.time() - t_start))
+        return
 
     if args.placement_only:
         info = json.load(open(os.path.join(OUT, "trees.json")))["models"]

@@ -639,14 +639,16 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 36, FirstTree = 18, HedgeKind = 30, FirstGarden = 31;
+	static constexpr int PlantKinds = 39, FirstTree = 18, HedgeKind = 32, FirstGarden = 33;
 	// [gardens] Kinds FirstGarden on are the villages' and towns' garden planting (WorldRideGardens.cpp):
-	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", drawn only as scanned
-	// models (Megaplants: SM_Tree_garden_<kind>_scan, Tools/ue_build_rideuk.py) and close to the rider.
+	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", "garden_hedge", drawn
+	// as our own models (Tools/make_gardens.py: SM_Tree_garden_<kind>_<n>, [Nov 20]) or scanned ones, close
+	// to the rider.
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
 	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
-	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
-	// ones only; the game draws one of the first six in their place until they are in: PlantStandIn).
+	// SM_TreeFar_<kind>_N), "oak", "beech", "willow", "rowan", "pine", "hazel", "holly", "larch" ([Nov 20]
+	// ours too, Tools/tree_models.py; the game draws one of the first six in their place until they are in:
+	// PlantStandIn), "hedge" (the field hedges).
 	// What a tree kind is drawn as when there are no models of it (itself for the first six).
 	static int PlantStandIn(int Kind);
 	static const char* PlantName(int Kind);
