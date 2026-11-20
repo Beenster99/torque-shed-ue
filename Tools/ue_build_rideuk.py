@@ -1354,6 +1354,58 @@ def hedge_kit(L, kit):
     log("hedges: %d hedge models (%s)" % (len(meshes), ", ".join(sorted(meshes))))
 
 
+GARDEN_DEST = "/Game/RideUK/Gardens"
+# (each garden kind's cull, cm, and shadow, when scanned_trees.json doesn't say: as its scanned ones')
+GARDEN_DEFAULTS = {"garden_rose": (9000.0, True), "garden_shrub": (9000.0, True), "garden_flowers": (4500.0, False),
+                   "garden_low": (5000.0, False), "garden_tree": (25000.0, True), "garden_hedge": (9000.0, True)}
+
+
+def garden_kit(L, kit):
+    """[Nov 20] The villages' and towns' garden planting as our own models (beenster: "please consider building
+    a small library of bushes, hedges for gardens"; the scanned Megaplants are off since Nov 20): Tools/
+    make_gardens.py's roses, shrubs, flowers, low cover, small trees and clipped hedge lengths
+    (Data/RideUK/Gardens/SM_Tree_garden_<kind>_<n>.glb) imported as Nanite foliage with the trees' material
+    (M_Tree: they turn and drop with the season too), added to the kit's "Trees" as kinds garden_<kind>,
+    each with its cull and shadow (scanned_trees.json "garden_kinds", else GARDEN_DEFAULTS). A kind that
+    already has scanned models in the kit keeps them. Changes the kit in place."""
+    if "Trees" not in kit:
+        return
+    rows = kit["Trees"]["species"]
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Gardens")
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        log("gardens: none (python Tools/make_gardens.py); no garden planting")
+        return
+    spec_f = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "scanned_trees.json")
+    spec = (json.load(open(spec_f)).get("garden_kinds", {}) if os.path.exists(spec_f) else {})
+    template = next((r for r in rows if r["name"].startswith("SM_Tree_hawthorn_")), None) or next((r for r in rows if r.get("material")), None)
+    if template is None:
+        log("gardens: no tree rows in the kit to copy; no garden planting")
+        return
+    scanned = set(r["name"][len("SM_Tree_"):-len("_scan")] for r in rows if r["name"].startswith("SM_Tree_garden_") and r["name"].endswith("_scan"))
+    meshes = L.import_glbs(folder, GARDEN_DEST)
+    added = []
+    for name, mesh in sorted(meshes.items()):
+        kind = next((k for k in GARDEN_DEFAULTS if name.startswith("SM_Tree_%s_" % k)), None)
+        if kind is None or kind in scanned:
+            continue
+        L.foliage_nanite(mesh)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        cull, shadow = GARDEN_DEFAULTS[kind]
+        if kind in spec:
+            cull = float(spec[kind].get("cull", cull)); shadow = bool(spec[kind].get("shadow", shadow))
+        r = dict(template)
+        r.update({"name": name, "mesh": mesh.get_path_name(), "variants": [], "variant_materials": [],
+                  "native_mesh": False, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0,
+                  "cast_shadow": shadow, "cull_distance": cull})
+        rows.append(r)
+        added.append(name)
+    log("gardens: %d garden models (%s)" % (len(added), ", ".join(added[:6]) + (" ..." if len(added) > 6 else "")))
+
+
 def place_kit(kit):
     """The ride's plant kit: two TorqueFoliage actors that plant nothing themselves (Density 0), tagged
     RideGrass and RideTrees, with Buttertubs' species; World/TorqueRideWorld lays them out as it goes."""
@@ -1879,6 +1931,7 @@ def build():
     grass_materials(L, kit)
     scanned_trees(L, kit)
     hedge_kit(L, kit)
+    garden_kit(L, kit)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)

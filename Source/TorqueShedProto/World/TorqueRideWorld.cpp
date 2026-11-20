@@ -1423,16 +1423,15 @@ const FABStep ABSteps[] = {
 	{TEXT("FXAA instead of TSR/TAA"), TEXT("r.AntiAliasingMethod=1"), 0},
 	{TEXT("as set again"), TEXT(""), 0},
 };
-// ([seasonal trees TEST, Nov 19] -TorqueRideAB=2: the four seasons on the scanned trees (Tools/ue_tree_season.py),
-// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png. Start it after the impostors are
-// photographed (-TorqueRideABAfter=90), or they're photographed in the season of the moment.)
+// ([seasonal trees, Nov 20] -TorqueRideAB=2: the four seasons on our own trees (Tools/tree_models.py, M_Tree),
+// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png.)
 const FABStep SeasonSteps[] = {
-	{TEXT("summer, as now"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("the ride's date"), TEXT("torque.RideTreeSeason=0"), 0},
 	{TEXT("spring"), TEXT("torque.RideTreeSeason=1"), 0},
 	{TEXT("summer"), TEXT("torque.RideTreeSeason=2"), 0},
 	{TEXT("autumn"), TEXT("torque.RideTreeSeason=3"), 0},
 	{TEXT("winter"), TEXT("torque.RideTreeSeason=4"), 0},
-	{TEXT("summer, as now, again"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("the ride's date again"), TEXT("torque.RideTreeSeason=0"), 0},
 };
 constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
 constexpr int32 SeasonCount = UE_ARRAY_COUNT(SeasonSteps);
@@ -2542,7 +2541,16 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// One plant's model, size and place, with the kit's species chosen from Among, grouped with Patch.
 		auto AddPlant = [&](const TArray<int32>& Among, int32 Patch)
 		{
-			const int32 Si = Among[FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1)];
+			// ([Nov 20] our trees come in 5 ages a kind: as with the scans, torque.RideTreeVariants of them at most
+			// (3: the youngest, the middle and the oldest), so a square keeps as few groups as it had)
+			int32 Ai = FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1);
+			if (bTree && P.Kind < TorqueWorld::RidePlan::HedgeKind && Among.Num() > 2)
+			{
+				const int32 Use = FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, Among.Num());
+				const int32 J = FMath::Min(int32(P.Pick * Use), Use - 1);
+				Ai = Use > 1 ? FMath::RoundToInt(float(J) * float(Among.Num() - 1) / float(Use - 1)) : Among.Num() / 2;
+			}
+			const int32 Si = Among[Ai];
 			const FTorqueFoliageSpecies& S = Kit[Si];
 			if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) return;   // (bigger scanned plants: fewer of them)
 			const int32 Models = bTree ? FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, FMath::Max(S.Variants.Num(), 1)) : S.Variants.Num();

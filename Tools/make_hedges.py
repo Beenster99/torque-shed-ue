@@ -33,11 +33,14 @@ LENGTH = 4.2          # the model's length (m); planted every 3.9 m
 VARIANTS = 4
 
 # The hedge's shrubs (leaves drawn ~1.5x life size, so a light hedge still reads as solid): leaf (shape, size m, leaves per twig end, sRGB colour, spread), bark, share.
+# ([Nov 20] and each shrub's season, as the trees' (Tools/tree_models.py): hawthorn and blackthorn turn
+# red-brown and fall, hazel and field maple yellow; holly, now in the mix, stays green all winter.)
 SHRUBS = {
-    "hawthorn": (("diamond", 0.05, 13, (58, 80, 34), 0.09), ((62, 54, 46), 0.08), 0.55),
-    "blackthorn": (("diamond", 0.045, 12, (44, 60, 30), 0.08), ((40, 36, 34), 0.08), 0.2),
-    "hazel": (("round", 0.07, 8, (72, 94, 40), 0.08), ((96, 76, 58), 0.08), 0.15),
-    "maple": (("palmate", 0.065, 6, (66, 90, 36), 0.09), ((84, 76, 64), 0.08), 0.1),
+    "hawthorn": (("diamond", 0.05, 13, (58, 80, 34), 0.09), ((62, 54, 46), 0.08), 0.5, (1, 0.6, 0.0)),
+    "blackthorn": (("diamond", 0.045, 12, (44, 60, 30), 0.08), ((40, 36, 34), 0.08), 0.18, (1, 0.85, 0.0)),
+    "hazel": (("round", 0.07, 8, (72, 94, 40), 0.08), ((96, 76, 58), 0.08), 0.14, (1, 0.05, 0.0)),
+    "maple": (("palmate", 0.065, 6, (66, 90, 36), 0.09), ((84, 76, 64), 0.08), 0.1, (1, 0.1, 0.0)),
+    "holly": (("holly", 0.05, 8, (26, 46, 22), 0.06), ((112, 110, 100), 0.05), 0.08, (2, 0.0, 0.0)),
 }
 
 
@@ -154,7 +157,9 @@ def core(mesh, rng, height, width, ao_fn):
     P = np.array(P)
     col = TM.lin((40, 56, 26)) * np.exp(rng.normal(0, 0.06, (len(P), 3)))
     ao = np.clip(ao_fn(P) * 0.55, 0.08, 1)
-    mesh.add(P, np.array(Tr), np.concatenate([col, ao[:, None]], 1), np.stack([np.ones(len(P)), np.full(len(P), 0.05)], 1))
+    # (its season: a hawthorn's turn, and it never falls, so in winter the hedge is a dense brown heart of twigs)
+    mesh.add(P, np.array(Tr), np.concatenate([col, ao[:, None]], 1), np.stack([np.ones(len(P)), np.full(len(P), 0.05)], 1),
+             None, None, np.tile([0.6, 0.0], (len(P), 1)))
 
 
 def hedge(seed):
@@ -212,7 +217,7 @@ def hedge(seed):
         if N[i][1] < 0.15:
             continue
         name = names[kind[i]]
-        sp = {"leaf": SHRUBS[name][0]}
+        sp = {"leaf": SHRUBS[name][0], "season": SHRUBS[name][3]}
         d = N[i] - N[parent[i]]
         d /= max(np.linalg.norm(d), 1e-9)
         out = np.array([0.0, 0.5 if N[i][1] > height * 0.85 else 0.0, np.sign(N[i][2]) or 1.0])
@@ -239,9 +244,8 @@ def main():
     info = {}
     for k in range(VARIANTS):
         mesh, meta = hedge(5100 + 71 * k)
-        P, T, Nn, C, UV = mesh.arrays(weld=True)
         name = "SM_Tree_hedge_%d" % k
-        write_glb(os.path.join(OUT, name + ".glb"), P, T, Nn, C, name, UV, mesh.uv1())
+        P, T = mesh.write(os.path.join(OUT, name + ".glb"), name, write_glb)
         meta["triangles"] = int(len(T))
         info[name] = meta
         print(name, meta, flush=True)
