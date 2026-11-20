@@ -224,6 +224,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 			const int Bi = int(std::floor(X - X0)), Bj = int(std::floor(Z - Z0));
 			if (Bi >= 0 && Bj >= 0 && Bi < Mg && Bj < Mg && (Bare[size_t(Bj) * Mg + Bi] & (Height > 0.0 ? 2 : 1)) != 0) return;
 		}
+		if (CircuitGroundAt(X, Z) >= 0) return;   // [circuits] (nothing grows in a gravel trap or on paved run-off)
 		double Y = 0.0, Nx = 0.0, Nz = 0.0;
 		Surface(X, Z, Y, Nx, Nz);
 		// ([road edges, build 155] the PC saw a see-through dark green band along every road's edges: the

@@ -1524,6 +1524,20 @@ int main(int Argc, char** Argv)
 			std::printf("trackside:");
 			for (const auto& KV : Kinds) std::printf(" %s %d", RidePlan::PropName(KV.first), KV.second);
 			std::printf("\n");
+			// [gravel traps] the traps the game shaped (the map's own: "areas" above)
+			double Square = 0.0;
+			for (const CircuitArea& Ar : Plan->CircuitIx->Made)
+			{
+				double A2 = 0.0;
+				for (size_t K = 0; K < Ar.Ring.size(); ++K)
+				{
+					const P2& Pa = Ar.Ring[K];
+					const P2& Pb = Ar.Ring[(K + 1) % Ar.Ring.size()];
+					A2 += Pa.X * Pb.Z - Pb.X * Pa.Z;
+				}
+				Square += std::fabs(A2) * 0.5;
+			}
+			std::printf("gravel traps shaped: %zu (%.0f m2)\n", Plan->CircuitIx->Made.size(), Square);
 		}
 		// Ride round each circuit from its start: straight on at every fork along its track.
 		for (size_t C = 0; Plan->CircuitIx && C < G.Circuits.size(); ++C)

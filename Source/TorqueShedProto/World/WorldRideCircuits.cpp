@@ -417,6 +417,21 @@ void RidePlan::IndexCircuits()
 	CircuitIx = Ix;
 }
 
+void CircuitIndex::AddArea(const Region& G, CircuitArea&& Ar)
+{
+	double X0 = 1e18, X1 = -1e18, Z0 = 1e18, Z1 = -1e18;
+	for (const P2& P : Ar.Ring)
+	{
+		X0 = std::fmin(X0, P.X); X1 = std::fmax(X1, P.X);
+		Z0 = std::fmin(Z0, P.Z); Z1 = std::fmax(Z1, P.Z);
+	}
+	const int A = int(G.CircuitAreas.size() + Made.size());
+	Made.push_back(std::move(Ar));
+	for (double Z = std::floor(Z0 / Square) * Square; Z <= Z1; Z += Square)
+		for (double X = std::floor(X0 / Square) * Square; X <= X1; X += Square)
+			Areas[KeyOf(X + 1.0, Z + 1.0)].push_back(A);
+}
+
 bool RidePlan::CircuitTint(double X, double Z, float* Rgb) const
 {
 	const int Kind = CircuitGroundAt(X, Z);
@@ -435,7 +450,7 @@ int RidePlan::CircuitGroundAt(double X, double Z) const
 	if (It == CircuitIx->Areas.end()) return -1;
 	for (int A : It->second)
 	{
-		const CircuitArea& Ar = Area.Roads.CircuitAreas[size_t(A)];
+		const CircuitArea& Ar = CircuitIx->AreaOf(Area.Roads, A);
 		if (!InRing(Ar.Ring, X, Z)) continue;
 		return Ar.Kind == 8 ? 1 : 2;
 	}
@@ -636,8 +651,25 @@ void RidePlan::IndexTrackside(CircuitIndex& Ix) const
 		const auto It = Ix.Areas.find(CircuitIndex::KeyOf(P.X, P.Z));
 		if (It == Ix.Areas.end()) return -1;
 		for (int A : It->second)
-			if (InRing(G.CircuitAreas[size_t(A)].Ring, P.X, P.Z)) return G.CircuitAreas[size_t(A)].Kind == 8 ? 1 : 2;
+		{
+			const CircuitArea& Ar = Ix.AreaOf(G, A);
+			if (InRing(Ar.Ring, P.X, P.Z)) return Ar.Kind == 8 ? 1 : 2;
+		}
 		return -1;
+	};
+	// (the far edge of the run-off out from P along Out, or -1 where there is none within 70 m of the track's edge)
+	const auto RunOffEdge = [&](const P2& P, const P2& Out, double Half)
+	{
+		double Edge = -1.0;
+		bool In = false;
+		for (double D = Half + 0.5; D < Half + 70.0; D += 1.0)
+		{
+			const bool Here = TrapAt(P + Out * D) >= 0;
+			if (Here) { In = true; Edge = D; }
+			else if (In) break;
+			else if (D > Half + 6.0) break;   // (none starting near the edge: not this track's run-off)
+		}
+		return Edge;
 	};
 	const auto Put = [&](int Kind, int Variant, const P2& At, double Yaw, double RunLen, double Own)
 	{
@@ -660,6 +692,8 @@ void RidePlan::IndexTrackside(CircuitIndex& Ix) const
 		if (Roads.Clear(A, 2.0) < 0.6 || Roads.Clear(B, 2.0) < 0.6 || Roads.Clear(Mid, 2.0) < 0.6) return;
 		Put(Kind, 0, A, std::atan2(B.Z - A.Z, B.X - A.X), Len, Own);
 	};
+	// (twice round: the gravel traps first, every track's, so that each barrier stands behind whichever trap it meets)
+	for (int Pass = 0; Pass < 2; ++Pass)
 	for (int E = G.CircuitFirst; E < int(G.Edges.size()); ++E)
 	{
 		if (!G.CircuitEdge(E)) continue;
@@ -708,7 +742,7 @@ void RidePlan::IndexTrackside(CircuitIndex& Ix) const
 			const P2 A = Pt[I] - Pt[J0], B = Pt[J1] - Pt[I];
 			Turn[I] = std::atan2(A.X * B.Z - A.Z * B.X, A.X * B.X + A.Z * B.Z) / std::fmax(Along[J1] - Along[J0], 1e-6);
 		}
-		if (Class == "pit_lane")
+		if (Class == "pit_lane" && Pass == 1)
 		{
 			// The pit wall: on the pit lane's side towards the track, its ends left open (where it leaves and joins).
 			const double Half = (X != nullptr && X->Width > 0.0 ? X->Width : Region::PitWidth) * 0.5;
@@ -735,6 +769,51 @@ void RidePlan::IndexTrackside(CircuitIndex& Ix) const
 		for (size_t I = 0; I < N; ++I)
 			for (size_t J = I >= 10 ? I - 10 : 0; J < std::min(I + 11, N); ++J)
 				if (std::fabs(Turn[J]) >= Corner) { Bend[I] = Turn[J] > 0.0 ? 1 : -1; if (std::fabs(Turn[J]) >= std::fabs(Turn[I])) break; }
+		// [gravel traps] A gravel trap on the outside of each proper corner (tighter than 110 m) of a race circuit's
+		// track where the map has none: from a kerb's width off the edge, as deep as the corner is fast (deeper after
+		// a long straight), from the corner's start to 30 m past its exit (where a rider runs wide), its ends tapered;
+		// cut short wherever another circuit road (the track doubling back, the pit lane) comes nearer than its own.
+		if (Pass == 0 && Info.Kind == "track")
+		{
+			constexpr double Proper = 1.0 / 110.0, Kerb = 1.5;
+			for (size_t I0 = 0; I0 < N;)
+			{
+				if (Bend[I0] == 0) { ++I0; continue; }
+				size_t I1 = I0;
+				double Tight = 0.0;
+				while (I1 + 1 < N && Bend[I1 + 1] == Bend[I0]) { ++I1; Tight = std::fmax(Tight, std::fabs(Turn[I1])); }
+				const int Way = Bend[I0];
+				const size_t From = I0, To = std::min(N - 1, I1 + 15);
+				I0 = I1 + 1;
+				if (Tight < Proper || To < From + 8) continue;
+				const double S = Way > 0 ? 1.0 : -1.0;   // (a right-hand bend's outside is its left: +)
+				const size_t Mid = (From + To) / 2;
+				if (TrapAt(Pt[Mid] + Left[Mid] * (S * (Half + 6.0))) >= 0) continue;   // (the map's own run-off)
+				// (how fast it's met: the straighter track before it, up to 300 m)
+				size_t Run0 = From;
+				while (Run0 > 0 && From - Run0 < 150 && std::fabs(Turn[Run0 - 1]) < Corner) --Run0;
+				const double Depth = std::clamp(12.0 + double(From - Run0) * 2.0 * 0.06, 12.0, 30.0) * (Tight >= Hard ? 1.0 : 0.8);
+				std::vector<P2> Inner, Outer;
+				for (size_t I = From; I <= To; ++I)
+				{
+					const double T = double(I - From) / double(To - From);
+					const double Ease = std::fmin(std::fmin(T / 0.2, (1.0 - T) / 0.25), 1.0);
+					double D = std::fmax(3.0, Depth * (Ease * Ease * (3.0 - 2.0 * Ease)));
+					// (no nearer another circuit road than to this one's edge)
+					while (D > 2.0 && Roads.Clear(Pt[I] + Left[I] * (S * (Half + Kerb + D)), Kerb + D + 1.0) < Kerb + D - 1.5) D -= 1.0;
+					Inner.push_back(Pt[I] + Left[I] * (S * (Half + Kerb)));
+					Outer.push_back(Pt[I] + Left[I] * (S * (Half + Kerb + D)));
+				}
+				CircuitArea Ar;
+				Ar.Kind = 5;
+				Ar.Circuit = Info.Id;
+				Ar.Name = "gravel trap";
+				Ar.Ring = Inner;
+				Ar.Ring.insert(Ar.Ring.end(), Outer.rbegin(), Outer.rend());
+				Ix.AddArea(G, std::move(Ar));
+			}
+		}
+		if (Pass == 0) continue;
 		// The barriers each side: out past the run-off (gravel or paved, as mapped), else a little off the edge;
 		// tyres on a corner's outside, armco elsewhere. Pieces of 4 m (two tyre lengths).
 		for (const double S : {1.0, -1.0})
@@ -745,10 +824,8 @@ void RidePlan::IndexTrackside(CircuitIndex& Ix) const
 				// (+ offsets are the left: a right-hand bend's outside is its left)
 				const bool Outside = B != 0 && (B > 0) == (S > 0.0);
 				double Off = Half + (Outside ? 9.0 : 5.0);
-				for (double D = Half + 1.0; D < Half + 70.0; D += 2.0)
-				{
-					if (TrapAt(Pt[I + 1] + Left[I + 1] * (S * D)) < 0) { if (D > Half + 3.0) Off = std::fmax(Off, D + 1.0); break; }
-				}
+				const double Edge = RunOffEdge(Pt[I + 1], Left[I + 1] * S, Half);
+				if (Edge > 0.0) Off = std::fmax(Off, Edge + 1.5);
 				const P2 A = Pt[I] + Left[I] * (S * Off), Bp = Pt[I + 2] + Left[I + 2] * (S * Off);
 				if (Outside)
 				{
@@ -765,8 +842,8 @@ void RidePlan::IndexTrackside(CircuitIndex& Ix) const
 			const size_t I = std::min(N - 1, size_t(At / 2.0));
 			const double S = Bend[I] > 0 ? 1.0 : Bend[I] < 0 ? -1.0 : 1.0;
 			double Off = Half + 12.0;
-			for (double D = Half + 1.0; D < Half + 70.0; D += 2.0)
-				if (TrapAt(Pt[I] + Left[I] * (S * D)) < 0) { Off = std::fmax(Off, D + 4.0); break; }
+			const double Edge = RunOffEdge(Pt[I], Left[I] * S, Half);
+			if (Edge > 0.0) Off = std::fmax(Off, Edge + 4.0);
 			const P2 P = Pt[I] + Left[I] * (S * Off);
 			if (Roads.Clear(P, 4.0) < 2.5) continue;
 			Put(PropMarshalPost, 0, P, std::atan2(Pt[I].Z - P.Z, Pt[I].X - P.X), 0.0, 0.0);
