@@ -724,7 +724,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
-		Verb == TEXT("helmet") || Verb == TEXT("garage"))
+		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
