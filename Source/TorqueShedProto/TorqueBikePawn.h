@@ -187,6 +187,10 @@ public:
 	bool IsParkedUp() const { return !Sim->IsCrashed && (bOnFoot || bParkedLook) && !bPushing; }
 	ATorqueBikePawn* MateBikeInReach() const;
 	FVector FeetAt() const { return FootPos; }
+	// [ferries] Carried by a ferry (World/TorqueFerry.h) as its deck moves From To (world): our feet, our bike parked
+	// on its stand, or both. Getting back on is held until FerryHoldUntil (world seconds) while it's under way.
+	void FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike);
+	double FerryHoldUntil = -1.0;
 	double FeetYaw() const { return FootYaw; }
 	void TakeOver(const FVector& Feet, double Yaw, bool bRide);
 	void LetOver();
@@ -368,6 +372,7 @@ private:
 	TArray<TorqueSim::ContactBox> BaseBoxes;
 	int32 FurnitureSeen = 0;
 	int32 GarageSeen = 0;   // [garage] ATorqueForecourtGarage::ContactVersion as last taken in
+	int32 FerrySeen = 0;    // [ferries] ATorqueFerry::ContactVersion as last taken in
 	FVector2D ParkedFrom = FVector2D(1e18, 1e18);   // [car parks] where the parked cars round the rider were last gathered
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it

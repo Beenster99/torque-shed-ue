@@ -55,6 +55,10 @@ std::shared_ptr<TorqueSfxBank::FBank> TheBank()
 			return true;
 		});
 		UE_LOG(LogTemp, Log, TEXT("Torque: Torque Shed's sounds: %d (%s)"), (int32)Bank->Count(), bOk ? TEXT("ok") : TEXT("manifest unreadable"));
+		// [ferries] The ferries' own sounds (Tools/audio/make_ferry_sounds.py), their files beside TS's folder.
+		FString FerryText;
+		if (FFileHelper::LoadFileToString(FerryText, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Audio/Ferry/manifest.json"))))
+			UE_LOG(LogTemp, Log, TEXT("Torque: the ferries' sounds %s"), Bank->Add(TCHAR_TO_UTF8(*FerryText), "../Ferry/") ? TEXT("added") : TEXT("unreadable"));
 		// Every take but the place beds read in the background, so the first of each doesn't stall.
 		std::shared_ptr<TorqueSfxBank::FBank> Keep = Bank;
 		Async(EAsyncExecution::ThreadPool, [Keep] {

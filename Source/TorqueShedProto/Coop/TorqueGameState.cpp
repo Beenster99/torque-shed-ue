@@ -86,6 +86,7 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
 	DOREPLIFETIME(ATorqueGameState, bAwardsOn);   // [ride awards]
 	DOREPLIFETIME(ATorqueGameState, AwardsPhase);
+	DOREPLIFETIME(ATorqueGameState, FerryNet);   // [ferries stage 6]
 	DOREPLIFETIME(ATorqueGameState, AwardsSeq);
 	DOREPLIFETIME(ATorqueGameState, AwardsVoteEnds);
 	DOREPLIFETIME(ATorqueGameState, AwardRiders);

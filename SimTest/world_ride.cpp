@@ -14,6 +14,7 @@
 #include "WorldRideChurches.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
+#include "WorldFerries.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
 #include <set>
@@ -161,6 +162,8 @@ int main(int Argc, char** Argv)
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
 		std::string AtlasText;   // [towns stage 5]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
+		std::string FerryText;   // [ferries stage 5] (the ferries the planner may take, as the game sets them)
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/ferries.json"), FerryText)) Ferries::SetList(FerryText);
 		std::string CircuitText;   // [circuits]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/circuits.json"), CircuitText)) SetCircuitNotes(CircuitText);
 		std::string TypesText;   // [towns stage 4]
@@ -304,7 +307,7 @@ int main(int Argc, char** Argv)
 	const RideCheck R = CheckRide(Cells, Heights, At[0], At[1], At[2], At[3], [](const std::string& Text) { std::printf("  %s\n", Text.c_str()); std::fflush(stdout); });
 	std::printf("%s\n", R.Dump().c_str());
 	std::printf("%d fetches. %s\n", GAsked.load(), R.Ok ? "PASS" : ("FAIL: " + R.Why).c_str());
-	if (!R.Ok) return 1;
+	if (!R.Ok && !(Ferries::ListNow() && R.Why == "There is no way by road between them.")) return 1;   // ([ferries stage 5] a ferry may be the way)
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
@@ -315,6 +318,27 @@ int main(int Argc, char** Argv)
 		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
+	if (Plan->Ferry)
+	{
+		// [ferries stage 5] (the way by a ferry: the ride's road to its slipway, and the sat nav's way on from where it lands)
+		const RidePlan::FerryLink& Fl = *Plan->Ferry;
+		std::printf("ferry link: %s (%s), boarded at end %d: road %.0f m to %.1f,%.1f (finish '%s'), lands at %.1f,%.1f, %zu pins on, %.0f m on by road\n", Fl.Name.c_str(), Fl.Id.c_str(),
+			Fl.BoardEnd, Plan->Length, Fl.Board.X, Fl.Board.Z, Plan->Turns.empty() ? "" : Plan->Turns.back().Onto.c_str(), Fl.Land.X, Fl.Land.Z, Fl.Pins.size(), Fl.OnM);
+		Rect Round;
+		Round.X0 = Fl.Land.X - 600.0; Round.Z0 = Fl.Land.Z - 600.0; Round.X1 = Fl.Land.X + 600.0; Round.Z1 = Fl.Land.Z + 600.0;
+		Plan->LayBlocks(Round);
+		const P2 To = Fl.Pins.back();
+		const double Heading = std::atan2(-(To.X - Fl.Land.X), -(To.Z - Fl.Land.Z));
+		std::shared_ptr<const RideDetour> On = Plan->FerryOnward(Fl.Land.X, Fl.Land.Z, Heading);
+		if (!On) On = Plan->FerryOnward(Fl.Land.X, Fl.Land.Z, Heading + 3.14159265);
+		if (On)
+		{
+			std::printf("ferry way on: %.0f m, %zu turns:", On->Length, On->Turns.size());
+			for (const RidePlan::RideTurn& T : On->Turns) std::printf(" [%.0f %d %s]", T.Along, T.Turn, T.Onto.c_str());
+			std::printf("\n");
+		}
+		else std::printf("ferry way on: NONE\n");
+	}
 	{
 		int Urban = 0, All = 0;
 		for (size_t I = 0; I < Plan->Road.size(); I += 12, ++All) Urban += Plan->Land->Cover(Plan->Road[I].At.X + 60.0, Plan->Road[I].At.Z) == 5 ? 1 : 0;
@@ -1458,6 +1482,92 @@ int main(int Argc, char** Argv)
 		for (const auto& Nr : Near)
 			std::printf("edge %d %.1f m: %s '%s' surface %s%s\n", Nr.second, Nr.first, Gr.ClassOf(Nr.second).c_str(), Gr.NameOf(Nr.second).c_str(), Gr.SurfaceOf(Nr.second).c_str(),
 				Gr.CircuitFirst >= 0 && Nr.second >= Gr.CircuitFirst ? " (circuit)" : "");
+	}
+	if (const char* FerryOut = std::getenv("WORLD_RIDE_FERRY"))
+	{
+		// [ferries] (the listed crossings in the ride's area, each laid on the real shore: its water, both slipways,
+		// the approaches, the berths and a sailing; with WORLD_RIDE_FERRY=<file> each end's ground along its slipway's
+		// axis and the approach, for a picture)
+		std::string ListText;
+		std::vector<Ferries::Listed> List;
+		if (!Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/ferries.json"), ListText) || !Ferries::ReadList(ListText, List))
+			std::printf("ferries: no list\n");
+		const std::vector<Ferries::Crossing> Here = Ferries::InPlan(*Plan, List);
+		const Ferries::WorldAsk Ask = Ferries::AskOf(*Plan);
+		std::printf("ferries: %zu listed, %zu in the area\n", List.size(), Here.size());
+		FILE* Dump = std::string(FerryOut).size() > 1 ? std::fopen(FerryOut, "w") : nullptr;
+		for (const Ferries::Crossing& C : Here)
+		{
+			Ferries::Layout L;
+			const bool Ok = Ferries::Lay(C, Ask, L);
+			std::printf("  %s (%s, %s): %.0f m%s, %zu points, from the map %d\n", C.Name.c_str(), C.Id.c_str(), Ferries::KindName(C.Kind), C.Length, C.Long ? " long" : "", C.Line.size(), int(C.FromMap));
+			if (!Ok)
+			{
+				std::printf("    not laid: %s (water %.2f%s)\n", L.Why.c_str(), L.Water, L.Sea ? " sea" : "");
+				for (int E = 0; E < 2 && C.Line.size() >= 2; ++E)
+				{
+					const P2 A0 = E == 0 ? C.Line.front() : C.Line.back();
+					const P2 A1 = E == 0 ? C.Line[1] : C.Line[C.Line.size() - 2];
+					const P2 Ax = (A1 - A0) * (1.0 / std::max(1e-6, A1.DistanceTo(A0)));
+					std::printf("    end %d ground along the route:", E);
+					for (double D = -160.0; D <= 90.0; D += 10.0)
+					{
+						const P2 Q = A0 + Ax * D;
+						std::printf(" %.0f:%.1f%s", D, Ask.Height(Q.X, Q.Z), Ask.Sea(Q.X, Q.Z) ? "s" : "");
+					}
+					std::printf("\n");
+				}
+				continue;
+			}
+			std::printf("    water %.2f (%s), path %.0f m, a sailing %.0f s\n", L.Water, L.Sea ? "sea" : "loch", L.PathLength, L.Seconds);
+			for (int E = 0; E < 2; ++E)
+			{
+				const Ferries::End& N = L.Ends[E];
+				std::printf("    end %d: axis %.2f,%.2f shore %.1f,%.1f head %.1f,%.1f y %.2f (ground %.2f) tip y %.2f foot y %.2f grade 1 in %.1f ramp %.1f deg\n", E, N.Axis.X, N.Axis.Z, N.Shore.X, N.Shore.Z, N.Head.X, N.Head.Z, N.HeadY, Ask.Height(N.Head.X, N.Head.Z), N.TipY, N.FootY, N.Grade > 0 ? 1.0 / N.Grade : 0.0, N.RampDown * 57.29578);
+				std::printf("           approach %zu points from road %.1f,%.1f y %.2f (%.0f m from the head); berth %.1f,%.1f\n", N.Approach.size(), N.Road.X, N.Road.Z, N.RoadY, N.Road.DistanceTo(N.Head), N.Berth.X, N.Berth.Z);
+				if (Dump)
+				{
+					for (double D = -60.0; D <= 60.0; D += 1.0)
+					{
+						const P2 Q(N.Shore.X - N.Axis.X * D, N.Shore.Z - N.Axis.Z * D);
+						std::fprintf(Dump, "profile %s %d %.1f %.3f %d\n", C.Id.c_str(), E, D, Ask.Height(Q.X, Q.Z), int(Ask.Sea(Q.X, Q.Z)));
+					}
+					for (const auto& A : N.Approach) std::fprintf(Dump, "approach %s %d %.2f %.3f %.2f %.3f\n", C.Id.c_str(), E, A[0], A[1], A[2], Ask.Height(A[0], A[2]));
+					std::fprintf(Dump, "end %s %d %.2f %.2f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.2f %.2f %.3f\n", C.Id.c_str(), E, N.Axis.X, N.Axis.Z, N.Head.X, N.Head.Z, N.HeadY, N.Tip.X, N.Tip.Z, N.TipY, N.Foot.X, N.Foot.Z, N.FootY, N.Berth.X, N.Berth.Z, N.Shore.X, N.Shore.Z, L.Water);
+				}
+			}
+			for (int I = 0; I <= 10; ++I)
+			{
+				P2 Pos, Bow;
+				Ferries::Sail(L, C.Long, I / 10.0, Pos, Bow);
+				std::printf("    sail %.1f: %.1f,%.1f bow %.2f,%.2f%s\n", I / 10.0, Pos.X, Pos.Z, Bow.X, Bow.Z, Ask.Sea(Pos.X, Pos.Z) || Ask.Height(Pos.X, Pos.Z) < L.Water + 0.2 ? "" : "  ON LAND");
+				if (Dump) std::fprintf(Dump, "sail %s %.2f %.2f %.2f\n", C.Id.c_str(), Pos.X, Pos.Z, Ask.Height(Pos.X, Pos.Z));
+			}
+			if (Dump)
+				for (const P2& Q : C.Line) std::fprintf(Dump, "line %s %.2f %.2f\n", C.Id.c_str(), Q.X, Q.Z);
+		}
+		if (Dump)
+		{
+			// the ground around each crossing on a 4 m grid, for the picture
+			for (const Ferries::Crossing& C : Here)
+			{
+				double Gx0 = 1e18, Gx1 = -1e18, Gz0 = 1e18, Gz1 = -1e18;
+				for (const P2& Q : C.Line) { Gx0 = std::min(Gx0, Q.X); Gx1 = std::max(Gx1, Q.X); Gz0 = std::min(Gz0, Q.Z); Gz1 = std::max(Gz1, Q.Z); }
+				for (double Z = Gz0 - 250.0; Z <= Gz1 + 250.0; Z += 4.0)
+					for (double X = Gx0 - 250.0; X <= Gx1 + 250.0; X += 4.0)
+						std::fprintf(Dump, "g %s %.0f %.0f %.2f %d\n", C.Id.c_str(), X, Z, Ask.Height(X, Z), int(Ask.Sea(X, Z)));
+				for (const RoadEdge& Ed : Plan->Area.Roads.Edges)
+				{
+					bool Near = false;
+					for (const P2& Q : Ed.Line) Near = Near || (Q.X > Gx0 - 250 && Q.X < Gx1 + 250 && Q.Z > Gz0 - 250 && Q.Z < Gz1 + 250);
+					if (!Near) continue;
+					std::fprintf(Dump, "road %s", C.Id.c_str());
+					for (const P2& Q : Ed.Line) std::fprintf(Dump, " %.1f %.1f", Q.X, Q.Z);
+					std::fprintf(Dump, "\n");
+				}
+			}
+			std::fclose(Dump);
+		}
 	}
 	if (std::getenv("WORLD_RIDE_CIRCUITS") != nullptr)
 	{

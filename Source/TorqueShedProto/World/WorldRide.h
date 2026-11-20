@@ -382,6 +382,19 @@ public:
 	std::vector<int> PinNodes;          // each pin's junction
 	double RunOutFrom = 0.0;            // how far along the map's roads the last pin is (the run-out is after it)
 	double FinishM = 0.0;               // and how far along the road as laid
+	// [ferries stage 5] A journey whose way takes a ferry: the ride's road runs to the boarding slipway's road (its
+	// finish there, named for the ferry), and from where it lands the sat nav finds the way on to the pins still to
+	// come (FerryOnward). Null without one.
+	struct FerryLink
+	{
+		std::string Id, Name;          // the crossing's (Data/RideUK/ferries.json)
+		int BoardEnd = 0;              // the end it's boarded at (0 the list's a)
+		P2 Board, Land;                // the junctions nearest its slipways
+		std::vector<P2> Pins;          // the junctions of the pins still to come from where it lands, the finish last
+		std::vector<std::string> PinNames;
+		double OnM = 0.0;              // the way on by road from where it lands (as planned)
+	};
+	std::shared_ptr<const FerryLink> Ferry;
 
 	bool Ok = false;
 	std::string Why;
@@ -1595,6 +1608,10 @@ public:
 	// of the ride's road ahead of Was that leaves least to ride to the finish, with its turns (the last
 	// onto the ride's road there, Onto its name). Null when they are on no road, or none gets back.
 	std::shared_ptr<const RideDetour> DetourFrom(double X, double Z, double Heading, double Was) const;
+	// [ferries stage 5] Over the water: the way on from where the rider is (the junction ahead of them, as
+	// DetourFrom) by the map's roads through the pins still to come to the finish, each pin an arrival; RejoinAlong
+	// FinishM (nothing of the ride's road left). Null without a ferry, off any road, or no way on (WorldRideFerry.cpp).
+	std::shared_ptr<const RideDetour> FerryOnward(double X, double Z, double Heading) const;
 	// [waypoint] The way by a place the rider picked (the info panel's waypoint; beenster, build 146:
 	// "add it as a waypoint and retain our final destination"): from where they are (on the ride's
 	// road, from its next junction; on another road, from the junction ahead as DetourFrom) by the
