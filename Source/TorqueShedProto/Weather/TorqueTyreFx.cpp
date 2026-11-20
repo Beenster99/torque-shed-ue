@@ -35,7 +35,7 @@ constexpr double NearBikesCm = 40000.0;    // smoke and darkies only from bikes 
 constexpr double FarMarkCm = 150000.0;     // darkies left 1.5 km behind go
 constexpr double MarkLifeS = 600.0;        // and any after ten minutes (fading away)
 constexpr double MarkFadeS = 4.0;
-constexpr double MarkDepthCm = 6.0;        // half its box's depth (from 2 cm above the road to 10 cm in)
+constexpr double MarkDepthCm = 6.0;        // half its box's depth (from 4 cm above the road to 8 cm in)
 constexpr double SegmentCm = 120.0;        // a darkie's strip is laid in pieces this long at most
 const FTransform Hidden(FQuat::Identity, FVector(0.0, 0.0, -100000.0), FVector(1e-4));
 constexpr int32 MaxFlames = 12;            // flames at once (all the bikes)
@@ -292,11 +292,12 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 				const FVector Side = FVector::CrossProduct(In.Up, In.Fwd).GetSafeNormal();
 				for (int32 K = 0; K <= 40; ++K)
 				{
-					S.At = In.At - In.Fwd * (60.0 + K * 10.0);
+					// ([r162] 1.5 m to the side, from beside the bike back: not under the burnout's bank)
+					S.At = In.At - Side * 150.0 + In.Fwd * (100.0 - K * 10.0);
 					LayMark(Test, S, 0.1f, 0.0, Bike);
 				}
 				CloseMark(Test);
-				const FVector Centre = In.At + Side * 250.0;
+				const FVector Centre = In.At + Side * 250.0 + In.Fwd * 150.0;
 				for (int32 K = 0; K <= 120; ++K)
 				{
 					const double A = FMath::DegreesToRadians(K * 3.0);
@@ -305,7 +306,18 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 					LayMark(Test, S, 0.1f, 0.0, Bike);
 				}
 				CloseMark(Test);
-				UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: smoke test laid %d darkies: a 4 m strip behind the back tyre and a 1.45 m circle 2.5 m to its side"), MarksLaid - Before);
+				UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: smoke test laid %d darkies: a 4 m strip 1.5 m to one side of the bike and a 1.45 m circle 2.5 m to the other, a bit ahead"), MarksLaid - Before);
+				// (where the first few went and what they sit on, to check by)
+				for (int32 K = 0; K < FMath::Min(Marks.Num(), 4); ++K)
+				{
+					const FMark& M = Marks[K];
+					FHitResult Under;
+					FCollisionQueryParams Q(SCENE_QUERY_STAT(TorqueTyreMarkLog), true, Bike);
+					const bool bOn = GetWorld()->LineTraceSingleByChannel(Under, M.To + M.Up * 25.0, M.To - M.Up * 40.0, ECC_Visibility, Q);
+					UE_LOG(LogTemp, Log, TEXT("Torque tyre fx: darkie %d from %s to %s, up %s, %.0f cm wide, opacity %.2f, visible %d, on %s %.1f cm below its end"),
+						K, *M.From.ToCompactString(), *M.To.ToCompactString(), *M.Up.ToCompactString(), M.HalfWidth * 2.0, M.Opacity * M.Fade,
+						M.Decal && M.Decal->IsVisible() ? 1 : 0, bOn && Under.GetActor() ? *Under.GetActor()->GetName() : TEXT("nothing"), bOn ? (M.To - Under.ImpactPoint).Size() : -1.0);
+				}
 			}
 			// The tyre heats as it slides (half a second sliding at 12 m/s, hot) and cools when it stops.
 			// ([r158] a hard skid or a spin pulling away smokes too now, not only a long burnout: it was
@@ -442,7 +454,10 @@ void ATorqueTyreFx::LayMark(FTyreState& St, const FScrub& In, float Dt, double W
 		// chord, some 40 deg of the circle, a piece. Now a piece every 10 deg or so of a curve.)
 		const FVector Seg = At - M->From;
 		const double Len = Seg.Size();
-		const bool bTurned = Len > 8.0 && FVector::DotProduct(Seg / Len, M->Along) < 0.996;
+		// ([r162] and the piece's way along is now set once, from its first 8 cm: it was re-aimed along the
+		// chord every frame, so a curve never looked "turned" and only the 120 cm limit cut it: the
+		// octagon was still there.)
+		const bool bTurned = M->bAimed && Len > 8.0 && FVector::DotProduct(Seg / Len, M->Along) < 0.996;
 		if (Len > TTF::SegmentCm || bTurned)
 		{
 			const FVector Joint = M->To;
@@ -455,7 +470,11 @@ void ATorqueTyreFx::LayMark(FTyreState& St, const FScrub& In, float Dt, double W
 			M->From = Joint;
 			M->Along = (At - Joint).GetSafeNormal2D(UE_SMALL_NUMBER, In.Fwd);
 		}
-		else if (Len > 5.0) M->Along = Seg / Len;
+		else if (!M->bAimed && Len > 8.0)
+		{
+			M->Along = Seg / Len;
+			M->bAimed = true;
+		}
 	}
 	else
 	{
@@ -531,9 +550,9 @@ int32 ATorqueTyreFx::TakeMark()
 void ATorqueTyreFx::PlaceMark(FMark& M)
 {
 	if (!M.Decal) return;
-	// (Its box reaches just 2 cm above the road and well into it: the tyre resting in it, the rider's
+	// (Its box reaches just 4 cm above the road and well into it: the tyre resting in it, the rider's
 	// boot, a kerb's face aren't painted.)
-	const FVector Centre = (M.From + M.To) * 0.5 - M.Up * (TTF::MarkDepthCm - 2.0);
+	const FVector Centre = (M.From + M.To) * 0.5 - M.Up * (TTF::MarkDepthCm - 4.0);
 	const double Overlap = M.HalfWidth * 0.6;   // past each end, under the next piece's
 	const double HalfLen = FMath::Max(FVector::Dist(M.From, M.To) * 0.5 + Overlap, 12.0);
 	// The decal projects along its X (down into the road); its Y across the tread, its Z along the strip.
