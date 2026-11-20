@@ -116,6 +116,9 @@ TAutoConsoleVariable<float> CVarTreePatch(TEXT("torque.RideTreePatch"), 128.0f,
 // kind make fewer groups; the far cards follow the same choice, so a tree keeps its look at the handover.)
 TAutoConsoleVariable<int32> CVarTreeVariants(TEXT("torque.RideTreeVariants"), 3,
 	TEXT("Ride UK: at most this many models of each tree kind (6 until 154). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarGardenVariants(TEXT("torque.RideGardenVariants"), 2,
+	TEXT("Ride UK: a square's gardens use at most this many models of each garden kind (roses, shrubs, flowers, low cover, garden trees, ")
+	TEXT("clipped hedges; all of them in 164-165), which ones changing from square to square. For squares made after the change."));
 TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
 	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
@@ -2550,6 +2553,16 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 				const int32 Use = FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, Among.Num());
 				const int32 J = FMath::Min(int32(P.Pick * Use), Use - 1);
 				Ai = Use > 1 ? FMath::RoundToInt(float(J) * float(Among.Num() - 1) / float(Use - 1)) : Among.Num() / 2;
+			}
+			else if (bTree && P.Kind >= TorqueWorld::RidePlan::FirstGarden && Among.Num() > 1)
+			{
+				// ([perf, build 166] a square's gardens take torque.RideGardenVariants of each garden kind's
+				// models, which ones turning with the square, so the town keeps its variety and a square
+				// makes a handful of garden groups, not 25: in 165 the render thread ran over its budget)
+				const int32 Use = FMath::Clamp(TRWI::CVarGardenVariants.GetValueOnGameThread(), 1, Among.Num());
+				const uint32 Sq = (uint32(Key.Y) * 73856093u) ^ (uint32(Key.Z) * 19349663u) ^ (uint32(P.Kind) * 83492791u);
+				const int32 J = FMath::Min(int32(P.Pick * Use), Use - 1);
+				Ai = int32((Sq % uint32(Among.Num()) + uint32(J)) % uint32(Among.Num()));
 			}
 			const int32 Si = Among[Ai];
 			const FTorqueFoliageSpecies& S = Kit[Si];
