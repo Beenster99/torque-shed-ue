@@ -595,7 +595,10 @@ public:
 	static int32 CupWhich(FName F) { return F == CupFinish() ? 0 : 1; }
 	// One of the gun's colours (Paints()) in one of its finishes, as paint for a cup: what [ and ]
 	// pick into cup 1 and cup 2 (beenster, 19 Nov 2026).
+	// Colour < 0 is any colour from the cups picker's colour square (beenster, 20 Nov 2026: "a colour
+	// picker, not the limited palette"): -(1 + 0xRRGGBB), sRGB (OwnColour makes it).
 	static TorquePaintMix::FPaintSpec PaletteSpec(int32 Colour, FName Finish);
+	static int32 OwnColour(const FColor& Srgb) { return -(1 + (int32)(((uint32)Srgb.R << 16) | ((uint32)Srgb.G << 8) | (uint32)Srgb.B)); }
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }

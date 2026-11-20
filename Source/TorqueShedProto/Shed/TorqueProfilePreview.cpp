@@ -379,6 +379,61 @@ bool ATorqueProfilePreview::RightPress(const FVector2D& Mouse)
 	return true;
 }
 
+// --- [helmet decals] The helmet worked by the decal editor ----------------------------------------------
+
+UStaticMeshComponent* ATorqueProfilePreview::EditHelmet()
+{
+	if (!bHelmetTried) MakeHelmet();
+	if (!Helmet || !TorqueDecals::ReadyHelmet(Helmet)) return nullptr;
+	return Helmet;
+}
+
+void ATorqueProfilePreview::TurnBy(double DYaw, double DPitch)
+{
+	bSpin = false;
+	Yaw = FMath::Fmod(Yaw - DYaw, 360.0);
+	Pitch = FMath::Clamp(Pitch + DPitch, -60.0, 75.0);
+}
+
+void ATorqueProfilePreview::ZoomBy(int32 Dir)
+{
+	if (Dir == 0) return;
+	Zoom = FMath::Clamp(Zoom * (Dir < 0 ? 1.12 : 1.0 / 1.12), TPPS::MinZoom, TPPS::MaxZoom);
+}
+
+bool ATorqueProfilePreview::ScreenRay(const FVector2D& Mouse, FVector& OutFrom, FVector& OutDir) const
+{
+	if (!PictureBox.bIsValid || !PictureBox.IsInside(Mouse) || !Capture) return false;
+	const FVector2D Size = PictureBox.GetSize();
+	if (Size.X < 1.0 || Size.Y < 1.0) return false;
+	// The capture's field of view is across; the picture is as tall as the target over its width.
+	const double TanH = FMath::Tan(FMath::DegreesToRadians((double)Capture->FOVAngle * 0.5));
+	const double TanV = TanH * Size.Y / Size.X;
+	const double U = (Mouse.X - PictureBox.Min.X) / Size.X * 2.0 - 1.0;
+	const double V = 1.0 - (Mouse.Y - PictureBox.Min.Y) / Size.Y * 2.0;
+	const FTransform& T = Capture->GetComponentTransform();
+	const FVector Fwd = T.GetUnitAxis(EAxis::X), Right = T.GetUnitAxis(EAxis::Y), Up = T.GetUnitAxis(EAxis::Z);
+	OutFrom = T.GetLocation();
+	OutDir = (Fwd + Right * (U * TanH) + Up * (V * TanV)).GetSafeNormal();
+	return true;
+}
+
+bool ATorqueProfilePreview::ToScreen(const FVector& World, FVector2D& Out) const
+{
+	if (!PictureBox.bIsValid || !Capture) return false;
+	const FVector2D Size = PictureBox.GetSize();
+	const double TanH = FMath::Tan(FMath::DegreesToRadians((double)Capture->FOVAngle * 0.5));
+	const double TanV = TanH * Size.Y / FMath::Max(Size.X, 1.0);
+	const FTransform& T = Capture->GetComponentTransform();
+	const FVector D = World - T.GetLocation();
+	const double Ahead = FVector::DotProduct(D, T.GetUnitAxis(EAxis::X));
+	if (Ahead <= 1.0) return false;
+	const double U = FVector::DotProduct(D, T.GetUnitAxis(EAxis::Y)) / (Ahead * TanH);
+	const double V = FVector::DotProduct(D, T.GetUnitAxis(EAxis::Z)) / (Ahead * TanV);
+	Out = FVector2D(PictureBox.Min.X + (U + 1.0) * 0.5 * Size.X, PictureBox.Min.Y + (1.0 - V) * 0.5 * Size.Y);
+	return true;
+}
+
 FString ATorqueProfilePreview::Describe() const
 {
 	static const TCHAR* Views[] = {TEXT("body"), TEXT("face"), TEXT("helmet")};

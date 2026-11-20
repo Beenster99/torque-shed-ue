@@ -2681,6 +2681,26 @@ TorquePaintMix::FPaintSpec UTorqueBuildSubsystem::PaletteSpec(int32 Colour, FNam
 	S.Code = FString::Printf(TEXT("P%d:%s"), Idx, *F.ToString());
 	S.Effect = F == FName(TEXT("gloss")) ? FName(TEXT("solid")) : F;   // (TorquePaintMix::FinishOf gives the finish back)
 	S.Colour = Paints()[Idx];
+	if (Colour < 0)
+	{
+		// Any colour (the picker's square): named after the nearest of the gun's own colours.
+		const uint32 Rgb = (uint32)(-(int64)Colour - 1) & 0xFFFFFFu;
+		S.Colour = FLinearColor::FromSRGBColor(FColor((uint8)((Rgb >> 16) & 0xFFu), (uint8)((Rgb >> 8) & 0xFFu), (uint8)(Rgb & 0xFFu), 255));
+		int32 Near = 0;
+		float NearD = TNumericLimits<float>::Max();
+		for (int32 I = 0; I < Paints().Num(); ++I)
+		{
+			const FLinearColor& Pc = Paints()[I];
+			const float D = FMath::Square(Pc.R - S.Colour.R) + FMath::Square(Pc.G - S.Colour.G) + FMath::Square(Pc.B - S.Colour.B);
+			if (D < NearD)
+			{
+				NearD = D;
+				Near = I;
+			}
+		}
+		S.Name = FinishName(F) + TEXT(" ") + PaintName(Near).ToLower() + (NearD < 0.0004f ? TEXT("") : TEXT(" (own shade)"));
+		S.Code = FString::Printf(TEXT("C%06X:%s"), Rgb, *F.ToString());
+	}
 	// The finish's shine and metal as FinishLook draws them, for the wet coat going on.
 	FTorqueItem Look;
 	Look.Colour = S.Colour;

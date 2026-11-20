@@ -166,7 +166,7 @@ const TCHAR* const MixSteps =
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot,")
-	TEXT("tool:hands,paint:pick:1:6:matte,paint:pick:2:9:metallic,paintlog,")   // the fade: matt black in cup 1, metallic gold in cup 2 ([ and ])
+	TEXT("tool:hands,paint:pick:1:6:matte,paint:pick:2:#C9A23A:metallic,paintlog,")   // the fade: matt black in cup 1, metallic gold in cup 2 ([ and ])
 	TEXT("tool:gun,spray:6:fade,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,paint:hook:1:200,look:hook:1,shot,paint:hook:1:90,look:hook:1,shot,paint:hook:1:138,log");
 
@@ -1781,7 +1781,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			// paint:pick:CUP:COLOUR:FINISH: cup 1 or 2 filled with a gun colour (0 ..) and finish, as [ and ] do.
 			R.Kind = ETorqueShedAct::PaintCup;
 			R.Item = FCString::Atoi(*P[2]) == 2 ? 1 : 0;
-			R.Colour = FCString::Atoi(*P[3]);
+			// (COLOUR: a gun colour's number, or any colour as #RRGGBB, as the picker's colour square gives.)
+			R.Colour = P[3].StartsWith(TEXT("#")) ? UTorqueBuildSubsystem::OwnColour(FColor::FromHex(P[3])) : FCString::Atoi(*P[3]);
 			R.Finish = FName(*P[4].ToLower());
 		}
 		else if (What == TEXT("cup")) { R.Kind = ETorqueShedAct::PaintCup; R.Item = P.Num() >= 3 && P[2] == TEXT("2") ? 1 : 0; }   // paint:cup[:2]
@@ -2107,6 +2108,21 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			if (Dm) Said(TEXT("already open"));
 			else if (ATorqueDecalMode::Open(W, TestBay, Why)) Said(FString::Printf(TEXT("decal mode open on bay %d"), TestBay + 1));
 			else Warn(TEXT("refused: ") + Why);
+			return true;
+		}
+		// decal:helmet: Settings > Profile > Helmet decals (the helmet's own page), for decal:place:helmet:...
+		if (What == TEXT("helmet"))
+		{
+			ATorquePlayerController* HPC = Cast<ATorquePlayerController>(W->GetController());
+			if (Dm) Said(TEXT("already open"));
+			else if (!HPC) Warn(TEXT("refused: no player controller"));
+			else
+			{
+				HPC->TestMenu(TEXT("profile:helmet"));
+				HPC->OpenHelmetDecals();
+				if (ATorqueDecalMode* Hm = ATorqueDecalMode::For(HPC); Hm && Hm->IsHelmetOnly()) Said(TEXT("helmet decals open"));
+				else Warn(TEXT("refused: the helmet's decals didn't open"));
+			}
 			return true;
 		}
 		if (What == TEXT("check"))
