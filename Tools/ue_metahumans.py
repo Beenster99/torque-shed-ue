@@ -739,6 +739,13 @@ def _female_source(name, path, nth):
         if not eal.does_asset_exist(path) and eal.does_asset_exist(keep):
             ok = eal.rename_asset(keep, path)
             log("%s: no preset picked; its source put back from %s: %s" % (name, keep, "ok" if ok else "FAILED"))
+            return None
+        # No preset named this time: the source as it is (round 163 made it from a female preset, which
+        # beenster then auto-rigs in the editor before this builds it).
+        ch = unreal.load_asset(path) if eal.does_asset_exist(path) else None
+        if ch is not None and eal.does_asset_exist(keep):
+            log("%s: building the source as it is (from a preset; the old one is in %s)" % (name, keep))
+            return ch
         return None
     if eal.does_asset_exist(path):
         if eal.does_asset_exist(keep):
