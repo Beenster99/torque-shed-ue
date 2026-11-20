@@ -1520,7 +1520,18 @@ int main(int Argc, char** Argv)
 		for (const Ferries::Crossing& C : Here)
 		{
 			Ferries::Layout L;
-			const bool Ok = Ferries::Lay(C, Ask, L);
+			const std::shared_ptr<const Ferries::Layout> Laid = Plan->FerryLayOf(C.Listed);
+			if (Laid) L = *Laid;
+			const bool Ok = Laid ? true : Ferries::Lay(C, Ask, L);
+			if (Laid) std::printf("  (laid with the plan: the land cut down along its approaches)\n");
+			if (Laid && std::getenv("WORLD_RIDE_FERRY_DEBUG"))
+				for (const RidePlan::FerryLaid& F : Plan->FerryLays)
+					for (const Ferries::End& N : F.Lay->Ends)
+						if (!N.Approach.empty())
+						{
+							const auto& A = N.Approach.front();
+							std::printf("    debug row %d approach0 %.2f %.3f %.2f uncut %.3f fine %.3f ground %.3f\n", F.Listed, A[0], A[1], A[2], Plan->GroundUncut(A[0], A[2], 0.0, false, false), Plan->GroundOf(A[0], A[2], 0.0, false), Plan->Ground(A[0], A[2]));
+						}
 			std::printf("  %s (%s, %s): %.0f m%s, %zu points, from the map %d\n", C.Name.c_str(), C.Id.c_str(), Ferries::KindName(C.Kind), C.Length, C.Long ? " long" : "", C.Line.size(), int(C.FromMap));
 			if (!Ok)
 			{

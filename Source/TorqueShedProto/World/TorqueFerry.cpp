@@ -1070,7 +1070,9 @@ void ATorqueFerry::Keep(ATorqueRideWorld* Ride, const TorqueWorld::RidePlan& Pla
 		for (const TWeakObjectPtr<ATorqueFerry>& F : Have) bStanding |= F.IsValid() && F->ListRow == C.Listed;
 		if (bStanding) continue;
 		auto L = std::make_shared<TFer::Layout>();
-		if (!TFer::Lay(C, TFer::AskOf(Plan), *L))
+		// (the plan's own layout where it laid this one: the land is cut down to it)
+		if (const std::shared_ptr<const TFer::Layout> Laid = Plan.FerryLayOf(C.Listed)) *L = *Laid;
+		else if (!TFer::Lay(C, TFer::AskOf(Plan), *L))
 		{
 			D.TriedAt[K] = Now;
 			UE_LOG(LogTemp, Log, TEXT("Torque ferry: %s not laid yet: %s"), UTF8_TO_TCHAR(C.Name.c_str()), UTF8_TO_TCHAR(L->Why.c_str()));
@@ -1247,7 +1249,34 @@ FString ATorqueFerry::Test(const UWorld* World, const FString& What, ATorqueBike
 				At = Last - Face * FMath::Min(6.0, Len * 0.5);
 			}
 		}
-		return Pawn->TestPlaceAt(At.X * 100.0, At.Z * 100.0, FMath::RadiansToDegrees(std::atan2(Face.Z, Face.X))) + TEXT("; ") + Where;
+		const FString Placed = Pawn->TestPlaceAt(At.X * 100.0, At.Z * 100.0, FMath::RadiansToDegrees(std::atan2(Face.Z, Face.X)));
+		// What lies under the front wheel's spot, all of it from 10 m up to 10 m down (the wheel test only looks 40 cm
+		// down), and the approach's own height there: where the ground a wheel can't find has gone.
+		FString Column;
+		if (UWorld* W = Pawn->GetWorld())
+		{
+			const TorqueWorld::P2 Front = At + Face * 0.7;
+			const FVector Top(Front.X * 100.0, Front.Z * 100.0, Pawn->GetActorLocation().Z + 1000.0);
+			FCollisionQueryParams Q(SCENE_QUERY_STAT(TorqueFerryColumn), true, Pawn);
+			for (int32 K = 0; K < 6; ++K)
+			{
+				FHitResult Hit;
+				if (!W->LineTraceSingleByChannel(Hit, Top, Top - FVector(0.0, 0.0, 2000.0), ECC_Visibility, Q)) break;
+				Column += FString::Printf(TEXT("%s%s.%s z %.1f"), Column.IsEmpty() ? TEXT("") : TEXT(", "), Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("?"),
+					Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("?"), Hit.ImpactPoint.Z);
+				if (!Hit.GetComponent()) break;
+				Q.AddIgnoredComponent(Hit.GetComponent());
+			}
+			double Best = 1e18, BestY = 0.0;
+			for (const std::array<double, 3>& A : N.Approach)
+			{
+				const double D = TorqueWorld::P2(A[0], A[2]).DistanceTo(Front);
+				if (D < Best) { Best = D; BestY = A[1]; }
+			}
+			Column += FString::Printf(TEXT("; approach point %.1f m off at y %.2f m, road y %.2f m, head y %.2f m"), Best, BestY, N.RoadY, N.HeadY);
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque ferry: under the front wheel at goto: %s"), Column.IsEmpty() ? TEXT("nothing at all") : *Column);
+		return Placed + TEXT("; ") + Where;
 	}
 	if (What == TEXT("board"))
 	{

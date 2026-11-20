@@ -415,6 +415,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
+	R->IndexFerries();   // [ferries] (after the water: a slipway goes down to its level)
 	R->IndexWild();      // [OSM stage 2 batch D]
 	R->IndexTowers();    // [towns stage 2]
 	R->IndexPlaceRecipes();   // [places stage 3] (after the towers and the churches' buildings)
@@ -1752,6 +1753,14 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 }
 
 double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough) const
+{
+	const double Lie = GroundUncut(X, Z, Coarse, NoBores, Trough);
+	// [ferries] (cut down along a slipway's approach and the slipway itself, so the tarmac shows and can be ridden;
+	// last, as the ride's road's bench beside it would fill it again)
+	return std::isnan(Lie) || FerryLays.empty() ? Lie : FerryCut(X, Z, Lie);
+}
+
+double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bool Trough) const
 {
 	double Lie = Land ? Land->Height(X, Z) : std::nan("");
 	// A railway's cutting or bank (Ride UK stage 5): its bed level 5 m either side of it, the land
