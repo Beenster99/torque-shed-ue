@@ -867,8 +867,10 @@ void Face(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& Q3,
 	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
 	const double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
 	const double Mx = (Q0.X + Q1.X + Q2.X + Q3.X) * 0.25 - Inside.X, My = (Q0.Y + Q1.Y + Q2.Y + Q3.Y) * 0.25 - Inside.Y, Mz = (Q0.Z + Q1.Z + Q2.Z + Q3.Z) * 0.25 - Inside.Z;
-	if (Nx * Mx + Ny * My + Nz * Mz >= 0.0) RideShapes::SkyQuad(Out, Q0, Q1, Q2, Q3, C, false);
-	else RideShapes::SkyQuad(Out, Q3, Q2, Q1, Q0, C, false);
+	// ([Nov 18] SkyQuad shows the side its cross product points away from: so the order whose cross
+	// product points in. These faces were shown from inside and lit from outside: near black)
+	if (Nx * Mx + Ny * My + Nz * Mz >= 0.0) RideShapes::SkyQuad(Out, Q3, Q2, Q1, Q0, C, false);
+	else RideShapes::SkyQuad(Out, Q0, Q1, Q2, Q3, C, false);
 }
 
 // A block standing on (X, Y, Z): Long along Way (level, unit) by Wide across, High tall; its top Taper
@@ -1054,7 +1056,7 @@ void RidePlan::IndexPlaceRecipes()
 				}
 				R.Base = Low;
 				for (size_t T = 0; T < TowerShapes.size(); ++T)
-					if (TowerShapes[T].Mid.DistanceTo(R.At) < Model->Reach) TowerTaken[T] = 1;
+					if (TowerShapes[T].Mid.DistanceTo(R.At) < Model->Reach && ModelCovers(R, TowerShapes[T].Mid.X, TowerShapes[T].Mid.Z, 2.0)) TowerTaken[T] = 1;
 				++ModelCount;
 				RecipeGrid[SceneKey(R.At.X, R.At.Z)].push_back(int(PlaceRecipes.size()));
 				PlaceRecipes.push_back(R);
@@ -1149,6 +1151,21 @@ void RidePlan::IndexPlaceRecipes()
 	for (size_t I = 0; I < PlaceRecipes.size(); ++I) RecipeGrid[SceneKey(PlaceRecipes[I].At.X, PlaceRecipes[I].At.Z)].push_back(int(I));
 }
 
+bool RidePlan::ModelCovers(const PlaceRecipe& R, double X, double Z, double Spare)
+{
+	// ([towns stage 7] a long model, a cathedral, claims the buildings under its parts' own boxes, not a
+	// circle round it: the houses round a minster's close stand; its windows and lights claim nothing)
+	if (!R.Model) return false;
+	const double Tc = std::cos(R.Turn), Ts = std::sin(R.Turn), Dx = X - R.At.X, Dz = Z - R.At.Z;
+	const double Px = Dx * Tc + Dz * Ts, Pz = -Dx * Ts + Dz * Tc;
+	for (const SiteModel::Part& P : R.Model->Parts)
+	{
+		if (P.Drop || P.Layer == SiteModel::Painted || P.Layer == SiteModel::Glow) continue;
+		if (Px >= P.X0 - Spare && Px <= P.X1 + Spare && Pz >= P.Z0 - Spare && Pz <= P.Z1 + Spare) return true;
+	}
+	return false;
+}
+
 bool RidePlan::UnderPlace(double X, double Z) const
 {
 	for (int Dz = -1; Dz <= 1; ++Dz)
@@ -1159,7 +1176,8 @@ bool RidePlan::UnderPlace(double X, double Z) const
 			for (int I : It->second)
 			{
 				const PlaceRecipe& R = PlaceRecipes[size_t(I)];
-				if (R.Claim > 0.0 && std::hypot(R.At.X - X, R.At.Z - Z) < R.Claim) return true;
+				if (R.Claim <= 0.0 || std::hypot(R.At.X - X, R.At.Z - Z) >= R.Claim) continue;
+				if (!R.Model || ModelCovers(R, X, Z, 2.0)) return true;
 			}
 		}
 	return false;

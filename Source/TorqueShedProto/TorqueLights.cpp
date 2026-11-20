@@ -45,25 +45,34 @@ constexpr double DefaultLumens = 1000.0;
 
 // The lenses' glow (the lens finish's Emissive, which is its colour times this), by day; at night a
 // fifth of it, so a lit lens reads as a lamp, not a white blot.
-constexpr float HeadGlow = 300.0f, MainGlow = 600.0f, FogGlow = 300.0f;
+constexpr float HeadGlow = 300.0f, MainGlow = 600.0f, FogGlow = 300.0f, DrlGlow = 200.0f;
 constexpr float TailGlow = 40.0f, StopGlowLens = 400.0f, IndicatorGlowLens = 500.0f;
-constexpr float NightGlow = 0.2f;
+// (Build 156, beenster at night on Mull: "bikes cast a light but their lights dont glow". With the sky's
+// night exposure now set by the lit road, a fifth left the headlamp lens no brighter than the tarmac it
+// lights: at night the lens keeps its full strength.)
+// (Build 157's night shots: "the headlamp is dim" at 300. Doubled at night: the dark-adapted picture needs more
+// from the lens than the daylight one does.)
+constexpr float NightGlow = 2.0f;
 // The indicators and the rear light are small lamps seen up close: at night (the eye opened right up)
 // they glow at a twentieth of their daytime strength, or they bloom into a big haze round the bike
 // (beenster, build 132 at night: "a huge diffuse light ... too much").
 constexpr float SignalNightGlow = 0.05f;
 // ...but the brake light must stand out (build 135: "brakes should be brighter"), and the indicators
 // read clearly from behind: their own night levels, between build 132's haze and build 134's.
-constexpr float StopNightGlow = 0.2f, IndicatorNightGlow = 0.09f, TailNightGlow = 0.12f;
+// (Build 156: raised about four times with the headlamp's, still well under build 132's haze.)
+// (Build 157: the tail lamp at 20 was "faint red"; three times that, the brake light kept well above it.)
+// (Build 159: at 320 the brake lens left a pink cast on the rider's back; down to 220, still well over the tail lamp's 60.)
+constexpr float StopNightGlow = 0.55f, IndicatorNightGlow = 0.3f, TailNightGlow = 1.5f;
 // The little lamps: an indicator's amber glow round it, the stop lamp's red on the road behind (bike_model.gd
 // STOP_GLOW_RANGE 3 m). Candela.
 // (Build 132's 40 cd over 2.6 m and 60 cd over 3.2 m lit the whole road round the bike at night: a
 // real lamp's spill is a faint tint on the ground just under it.)
 constexpr float IndicatorCd = 2.0f, IndicatorRange = 70.0f;
-constexpr float StopCd = 12.0f, StopRange = 200.0f;
+constexpr float StopCd = 6.0f, StopRange = 200.0f;
 
+const FName LensDrl(TEXT("Surf:lens_drl"));
 const FName LensWhite(TEXT("Surf:lens_white")), LensAmber(TEXT("Surf:lens_amber")), LensRed(TEXT("Surf:lens_red"));
-const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights"));
+const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights")), BoardSlot(TEXT("Slot:number_boards"));
 
 std::string Std(const FString& S) { return std::string(TCHAR_TO_UTF8(*S)); }
 
@@ -133,6 +142,7 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	FogBeams.Reset();
 	IndicatorGlow.Reset();
 	HeadLenses.Reset();
+	DrlLenses.Reset();
 	FogLenses.Reset();
 	TailLenses.Reset();
 	Indicators.Reset();
@@ -145,10 +155,12 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	for (UStaticMeshComponent* C : Meshes)
 	{
 		if (!C || !C->GetStaticMesh() || C->ComponentHasTag(TLI::DashSlot)) continue;
-		if (C->ComponentHasTag(TLI::LensWhite))
+		if (C->ComponentHasTag(TLI::LensDrl)) DrlLenses.Add({C});
+		else if (C->ComponentHasTag(TLI::LensWhite))
 		{
 			if (C->ComponentHasTag(TLI::FogSlot)) FogLenses.Add({C});
-			else if (C->ComponentHasTag(TLI::HeadSlot) || C->ComponentHasTag(TLI::FairingSlot)) HeadLenses.Add({C});
+			// ([bikes v2] an MX bike's lamp is let into its front number board)
+			else if (C->ComponentHasTag(TLI::HeadSlot) || C->ComponentHasTag(TLI::FairingSlot) || C->ComponentHasTag(TLI::BoardSlot)) HeadLenses.Add({C});
 		}
 		else if (C->ComponentHasTag(TLI::LensAmber))
 		{
@@ -225,17 +237,23 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	if (Rear)
 	{
 		const FBox Box = TLI::BoxOf(Rear);
-		USpotLightComponent* S = TLI::MakeSpot(Owner, Rear, FVector(Box.Min.X - 3.0, Box.GetCenter().Y, Box.GetCenter().Z), 0.0, FLinearColor(1.0f, 0.08f, 0.04f), false);
+		// From behind the whole bike, at the lamp's height: a tail lamp tucked under the seat (the nakeds': over the
+		// rear axle) shone its red, unshadowed, through the tail onto the wheel, the road under the bike and the
+		// rider's back (build 158's night brake shot). A narrower cone, on the road behind only, and half as strong.
+		double RearEnd = Box.Min.X;
+		for (UStaticMeshComponent* C : Meshes)
+			if (C && C->GetStaticMesh()) RearEnd = FMath::Min(RearEnd, TLI::BoxOf(C).Min.X);
+		USpotLightComponent* S = TLI::MakeSpot(Owner, Rear, FVector(RearEnd - 3.0, Box.GetCenter().Y, Box.GetCenter().Z), 0.0, FLinearColor(1.0f, 0.08f, 0.04f), false);
 		S->SetRelativeRotation(FRotationMatrix::MakeFromX(FVector(-1.0, 0.0, -0.6)).Rotator());
-		S->SetOuterConeAngle(70.0f);
-		S->SetInnerConeAngle(30.0f);
+		S->SetOuterConeAngle(40.0f);
+		S->SetInnerConeAngle(15.0f);
 		S->SetAttenuationRadius(TLI::StopRange);
 		S->SetIntensity(TLI::StopCd);
 		StopGlow = S;
 	}
-	UE_LOG(LogTemp, Log, TEXT("Torque: the bike's lamps: headlight %s (%.0f lm, %d lens surfaces), fog lights %s (%.0f lm, %d), %d indicators (%d left), %d rear light surfaces"),
+	UE_LOG(LogTemp, Log, TEXT("Torque: the bike's lamps: headlight %s (%.0f lm, %d lens surfaces), fog lights %s (%.0f lm, %d), %d indicators (%d left), %d rear light surfaces, %d DRL surfaces"),
 		Beam.IsValid() ? TEXT("lit") : TEXT("none"), HeadLumens, HeadLenses.Num(), FogBeams.Num() > 0 ? TEXT("lit") : TEXT("none"), FogLumens, FogLenses.Num(),
-		Indicators.Num(), IndicatorSide.FilterByPredicate([](int8 S) { return S < 0; }).Num(), TailLenses.Num());
+		Indicators.Num(), IndicatorSide.FilterByPredicate([](int8 S) { return S < 0; }).Num(), TailLenses.Num(), DrlLenses.Num());
 }
 
 FString FTorqueLights::ToggleHeadlight(bool& bOk)
@@ -257,6 +275,7 @@ FString FTorqueLights::ToggleMainBeam(bool& bOk)
 		bMainBeam = true;
 	}
 	else bMainBeam = !bMainBeam;
+	if (!bMainBeam) bFog = false;   // (fog lamps only with the main beam)
 	return bMainBeam ? TEXT("Main beam") : TEXT("Dipped beam");
 }
 
@@ -265,10 +284,10 @@ FString FTorqueLights::ToggleFog(bool& bOk)
 	bOk = HasFog();
 	if (!bOk) return TEXT("No fog lights on this bike (fit some in the shed)");
 	bFog = !bFog;
-	if (bFog && !bHeadlight)
+	if (bFog && !(bHeadlight && bMainBeam))
 	{
-		bHeadlight = true;   // fog lamps only with the headlight on, as on the road
-		return TEXT("Fog lights on (and the headlight)");
+		bHeadlight = bMainBeam = true;   // fog lamps only with the main beam (beenster Nov 17)
+		return TEXT("Fog lights on (and the main beam)");
 	}
 	return bFog ? TEXT("Fog lights on") : TEXT("Fog lights off");
 }
@@ -389,7 +408,7 @@ void FTorqueLights::Show(float DayLight)
 {
 	const bool bHead = HeadOn(), bMain = MainOn(), bFogOn = FogOn(), bLeft = LeftLit(), bRight = RightLit();
 	const bool bTail = bIgnition && (bHead || bBraking);
-	const int32 State = (bHead ? 1 : 0) | (bMain ? 2 : 0) | (bFogOn ? 4 : 0) | (bLeft ? 8 : 0) | (bRight ? 16 : 0) | (bBraking ? 32 : 0) | (bTail ? 64 : 0);
+	const int32 State = (bHead ? 1 : 0) | (bMain ? 2 : 0) | (bFogOn ? 4 : 0) | (bLeft ? 8 : 0) | (bRight ? 16 : 0) | (bBraking ? 32 : 0) | (bTail ? 64 : 0) | (bIgnition ? 128 : 0);
 	const float Day = FMath::Clamp(DayLight, 0.0f, 1.0f);
 	if (State == Shown && FMath::Abs(Day - ShownDay) < 0.02f) return;
 	Shown = State;
@@ -401,6 +420,7 @@ void FTorqueLights::Show(float DayLight)
 	const float IndicatorLensK = FMath::Lerp(TLI::IndicatorNightGlow, 1.0f, Day * Day);
 	for (FLens& L : HeadLenses) SetLens(L, bHead ? (bMain ? TLI::MainGlow : TLI::HeadGlow) * Glow : 0.0f);
 	for (FLens& L : FogLenses) SetLens(L, bFogOn ? TLI::FogGlow * Glow : 0.0f);
+	for (FLens& L : DrlLenses) SetLens(L, bIgnition ? TLI::DrlGlow * Glow : 0.0f);
 	for (FLens& L : TailLenses) SetLens(L, bBraking ? TLI::StopGlowLens * StopLensK : bTail ? TLI::TailGlow * TailLensK : 0.0f);
 	for (int32 I = 0; I < Indicators.Num(); ++I)
 	{

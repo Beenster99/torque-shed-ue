@@ -390,6 +390,21 @@ static void WheelieTests()
 		const bool Lifted = LiftTo(S, 20.0);
 		Check(Lifted, "weight back, full throttle: front up to 20 deg (deg)", S.PitchAngle * 180.0 / Pi);
 
+		// [Nov 19, beenster: "a little hard to pull"] Weight only part way back (a stick pulled most of the
+		// way, not against its stop) brings it up too.
+		RollInFirst(S, Assist);
+		{
+			S.BodyShift = -0.5;
+			S.Throttle = 1.0;
+			double Part = 0.0;
+			for (int i = 0; i < 120 * 3 && !S.IsCrashed; ++i)
+			{
+				S.Step(Dt);
+				Part = std::max(Part, S.PitchAngle);
+			}
+			Check(Part > DegToRad(12.0), "weight half back, full throttle: front comes up (deg)", Part * 180.0 / Pi);
+		}
+
 		RollInFirst(S, Assist);
 		LiftTo(S, 25.0);
 		S.Throttle = 0.0;
@@ -872,6 +887,31 @@ static void EngineTests()
 			S.Step(Dt);
 		}
 		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "front brake held at a standstill: the rider walks it backwards (m/s)", S.Speed);
+	}
+	{
+		// ([beenster, build 160] "the bikes can do a burnout backward") Lit while still rolling on at
+		// 2 m/s: it stops, then stays; it never goes back.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		S.AutoShift = false;
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		S.Gear = 1;
+		for (int i = 0; i < 600 && S.Speed < 2.0; ++i)
+		{
+			S.Throttle = 0.3;
+			S.Step(Dt);
+		}
+		double Back = 0.0;
+		for (int i = 0; i < 6 * 120; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Throttle = 1.0;
+			S.Step(Dt);
+			Back = std::min(Back, S.Speed);
+		}
+		Check(S.Burnout > 0.4 && Back > -0.15 && !S.IsCrashed, "burnout lit while rolling on: never goes backwards (slowest m/s)", Back);
 	}
 	for (const bool Aid : {false, true})
 	{

@@ -101,7 +101,7 @@ std::vector<uint32_t> CodePoints(const std::string& Utf8)
 
 namespace
 {
-// (the advance of each letter in em, the space's for a space; false if one is missing)
+// (the advance of each letter in em, the space's for a space or a letter the alphabet lacks)
 bool Advances(const SignFont& Font, const std::vector<uint32_t>& Codes, std::vector<const SignGlyph*>& Glyphs, double& Em)
 {
 	Em = 0.0;
@@ -114,8 +114,26 @@ bool Advances(const SignFont& Font, const std::vector<uint32_t>& Codes, std::vec
 			Em += Font.Space;
 			continue;
 		}
-		const auto It = Font.Glyphs.find(C);
-		if (It == Font.Glyphs.end()) return false;
+		auto It = Font.Glyphs.find(C);
+		if (It == Font.Glyphs.end())
+		{
+			// ([roundabouts] beenster, Nov 17: "check that we no longer use 3D letters for signs". A letter
+			// the baked alphabet lacks no longer sends the whole sign to a text component, the floating 3D
+			// letters: Welsh's w and y with a grave, acute or diaeresis are set as the plain letter, any other
+			// as the nearest the alphabet has, a dash for a dash, else left as a space.)
+			uint32_t Plain = 0;
+			if (C >= 0x1E80u && C <= 0x1E85u) Plain = (C % 2u == 0u) ? uint32_t('W') : uint32_t('w');
+			else if (C >= 0x1EF2u && C <= 0x1EF9u) Plain = (C % 2u == 0u) ? uint32_t('Y') : uint32_t('y');
+			else if (C == 0x2010u || C == 0x2011u || C == 0x2012u || C == 0x2212u) Plain = uint32_t('-');
+			else if (C == 0x2018u || C == 0x2019u || C == 0x02BCu) Plain = uint32_t('\'');
+			It = Plain != 0 ? Font.Glyphs.find(Plain) : Font.Glyphs.end();
+			if (It == Font.Glyphs.end())
+			{
+				Glyphs.push_back(nullptr);
+				Em += Font.Space;
+				continue;
+			}
+		}
 		Glyphs.push_back(&It->second);
 		Em += It->second.Width;
 	}
@@ -615,8 +633,10 @@ bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHig
 {
 	W = H = 0.0;
 	std::vector<std::string> Ahead, Left, Right;
+	bool Ring = false;   // [roundabouts round 2] ("o" first: the junction a roundabout, drawn as a ring on the stem)
 	for (const std::string& Arm : Split(Arms, '|'))
 	{
+		if (Arm == "o") { Ring = true; continue; }
 		if (Arm.size() < 2) continue;
 		std::vector<std::string>& To = Arm[0] == '^' ? Ahead : Arm[0] == '<' ? Left : Right;
 		for (const std::string& P : Split(Arm.substr(1), ';'))
@@ -656,9 +676,29 @@ bool AdvanceBoard(RideMesh* Into, RideMesh* Back, const Frame& At, double CapHig
 	const double Mu = (U0 + U1) * 0.5, Mv = (V0 + V1) * 0.5;
 	Plate(*Into, *Back, At, Rect(W, H, C * 0.6), Ground, C * 0.22, Ink, Grey);
 	const auto Line = [&](std::initializer_list<double> Uv) { std::vector<double> Out; bool X = true; for (double D : Uv) { Out.push_back(D - (X ? Mu : Mv)); X = !X; } return Out; };
-	Arrow(*Into, At, Line({0.0, StemFoot, 0.0, StemTop}), Stem, C * 1.1, 0.003, Ink);
-	if (!Left.empty()) Arrow(*Into, At, Line({0.0, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
-	if (!Right.empty()) Arrow(*Into, At, Line({0.0, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	if (Ring)
+	{
+		// (the stem up to a ring, the arms and the way ahead out of it)
+		const double Rr = C * 0.95;
+		Stroke(*Into, At, Line({0.0, StemFoot, 0.0, -Rr}), Stem, 0.003, Ink);
+		std::vector<double> Round;
+		for (int K = 0; K <= 28; ++K)
+		{
+			const double A = 6.283185307 * K / 28.0;
+			Round.push_back(Rr * std::cos(A) - Mu);
+			Round.push_back(Rr * std::sin(A) - Mv);
+		}
+		Stroke(*Into, At, Round, Side, 0.003, Ink);
+		if (!Ahead.empty()) Arrow(*Into, At, Line({0.0, Rr, 0.0, StemTop}), Side, C * 0.9, 0.003, Ink);
+		if (!Left.empty()) Arrow(*Into, At, Line({-Rr, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+		if (!Right.empty()) Arrow(*Into, At, Line({Rr, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	}
+	else
+	{
+		Arrow(*Into, At, Line({0.0, StemFoot, 0.0, StemTop}), Stem, C * 1.1, 0.003, Ink);
+		if (!Left.empty()) Arrow(*Into, At, Line({0.0, 0.0, -Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+		if (!Right.empty()) Arrow(*Into, At, Line({0.0, 0.0, Reach, 0.0}), Side, C * 0.9, 0.003, Ink);
+	}
 	bool Ok = true;
 	for (size_t K = 0; K < Left.size(); ++K) Ok = SetOn(*Into, At, -Reach - Gap - Mu, (double(Left.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch - Mv, C, Left[K], Ink, 1) && Ok;
 	for (size_t K = 0; K < Right.size(); ++K) Ok = SetOn(*Into, At, Reach + Gap - Mu, (double(Right.size()) - 1.0) * Pitch * 0.5 - double(K) * Pitch - Mv, C, Right[K], Ink, -1) && Ok;

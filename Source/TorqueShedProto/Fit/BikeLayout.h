@@ -55,6 +55,34 @@ struct AdjustRange
 	double Min = 0.0, Max = 0.0, Step = 1.0;
 };
 
+// [bikes v2] A Bike Models V2 bike is a frame part with "v2" (Data/BikesV2/parts_v2.json): its model's
+// name and its key points as BikesV2 draws them (mm: x forward from the rear axle, y to the rider's
+// left, z up from the ground). This takes those, and the model's glb (metres: x forward, y up, z to
+// the right, the same origin), into ours: the origin midway between the axles, both axles at y = 0
+// (a V2 bike's wheels differ in size, so the drawing is tipped by that much, as the sim stands it).
+struct V2Frame
+{
+	bool Valid = false;
+	double MidX = 0.0, MidZ = 0.0, Cos = 1.0, Sin = 0.0;   // mm, and the tip
+	const Json* Points = nullptr;                         // "points_mm"
+	static V2Frame Of(const Json* FramePart);
+	V3 Point(double X, double YLeft, double ZUp) const;
+	V3 Dir(double X, double YLeft, double ZUp) const;
+	// A named point of points_mm ("front_axle"); False if it has none.
+	bool Named(const std::string& Key, V3& Out) const;
+	V3 FromGlb(const V3& G) const { return Point(G.x * 1000.0, -G.z * 1000.0, G.y * 1000.0); }
+	V3 DirFromGlb(const V3& G) const { return Dir(G.x, -G.z, G.y); }
+};
+
+// [common parts] A slot for the common bolt-on parts that the Godot game never had (Data/BikesV2/common_parts.json
+// "new_slots"): BikeLayout::Load adds each, optional, its kind its own name, mounted on On.
+struct CommonSlot
+{
+	const char* Slot;
+	const char* On;
+};
+const std::vector<CommonSlot>& CommonSlots();
+
 // How the engine and frame go together (BikeRig._fit).
 struct FitReport
 {
@@ -133,6 +161,34 @@ public:
 	// The styles a part belongs to (PartsDB.styles_of).
 	std::vector<std::string> StylesOf(const std::string& Id) const;
 	const Json* Part(const std::string& Id) const;
+	// [bikes v2] The frame's "v2" if the bike of Parts is a Bike Models V2 one, else nullptr.
+	const Json* V2Of(const PartsMap& Parts) const;
+	// [bikes v2] The old bikes are retired (beenster, 17 Nov): wherever the game hands out a bike it is a
+	// V2 one. The V2 frames made for a style (the family's lead first), the styles that have any
+	// (every style when the catalogue has no V2 bikes at all, as in the tests against the Godot game),
+	// and a style's bike to start from: its reference bike on its lead V2 frame.
+	std::vector<std::string> V2Frames(const std::string& Style) const;
+	const std::vector<std::string>& ShopStyles() const { return ShopStyleList.empty() ? StyleList : ShopStyleList; }
+	bool HasV2() const { return !ShopStyleList.empty(); }
+	PartsMap ShopBuild(const std::string& Style) const;
+	// [bare frame] Every V2 bike's own parts are shop parts ("v2part" in Data/BikesV2/parts_v2.json): a frame's
+	// own, slot -> id (its "v2" "build"), and Parts with a new frame's own in place of other V2 parts (and in the
+	// slots that were empty); what the player chose that isn't a V2 model's part (common, service parts) stays.
+	PartsMap V2Build(const std::string& FrameId) const;
+	PartsMap V2Dress(const PartsMap& Parts) const;
+	// Why a V2 model's part won't go in Slot on a bike of Parts (empty: it fits, or isn't a V2 model's part). The
+	// family's mounting standard (docs/mounting_standard.md): its family's frames; an engine and what bolts to it
+	// only a frame built round its layout; a shock only the same rear end; handlebars only their own model. On a
+	// loose engine (Parts has its engine and no frame) its parts go by the engine's layout.
+	std::string V2FitReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
+	// [engine parts] What the engine part needs fitted with it: an open intake drawn on one fuel system ("with_fuel"),
+	// a carb that needs the airbox off ("open_air"). Empty when it can go on now. (The shop lists them all the same.)
+	std::string V2NeedsReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
+	// [engine parts] A part that bolts to an engine block, from another engine of the family: the same part as drawn
+	// on the block that's fitted (its own part, or its own version of the look). Id itself when it is that block's
+	// own or not an engine part; empty when the block has no such look (a carb on a two-stroke, race headers that
+	// don't clear it). (beenster in 157: "we COULD mix and match brands as long as we stayed within the family".)
+	std::string V2EngineTwin(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
 	// The parts catalogue it was loaded on (its kinds and ids in parts.json's order).
 	const PartsDb* Catalogue() const { return Db; }
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).
@@ -166,7 +222,7 @@ private:
 	const PartsDb* Db = nullptr;
 	Json Data;
 	std::map<std::string, std::string> PartKind, SlotKind;
-	std::vector<std::string> StyleList, SlotList;
+	std::vector<std::string> StyleList, SlotList, ShopStyleList;
 
 	const Json* Lines(const std::string& Style) const;
 	std::string Brief(const PartsMap& Parts, Json& LinesOut) const;

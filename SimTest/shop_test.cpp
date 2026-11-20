@@ -4,6 +4,7 @@
 // fabrication, brief, model and mudguard group after each, dumped from Godot by
 // Tools/make_godot_reference.py --shop (SimTest/data/godot_shop.json). Then the order's text
 // round trip and the colours it puts on each slot.
+#include <algorithm>
 #include "BikeShop.h"
 #include "BikeRideSpec.h"
 #include "PartsDb.h"
@@ -166,7 +167,12 @@ int main()
 		const std::vector<std::string> Got = Shop::KindIds(GLay, Kind);
 		Expect(Got == Strings(&Ids), "  " + Kind + " in Godot's order");
 	}
-	Expect(Shop::ConfigSlots() == Strings(Ref.Get("slots")), "the configurator's slots: " + List(Shop::ConfigSlots()));
+	{
+		// beenster Nov 17: toolboxes are gone from the game, so Godot's toolbox slot is left out
+		std::vector<std::string> WantSlots = Strings(Ref.Get("slots"));
+		WantSlots.erase(std::remove(WantSlots.begin(), WantSlots.end(), std::string("toolbox")), WantSlots.end());
+		Expect(Shop::ConfigSlots() == WantSlots, "the configurator's slots: " + List(Shop::ConfigSlots()));
+	}
 
 	Json Overlay, OverlayRef = Json::MakeObject();
 	{

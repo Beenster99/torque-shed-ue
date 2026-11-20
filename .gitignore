@@ -15,6 +15,7 @@ Data/Buttertubs/sim_*
 __pycache__/
 Data/Textures/*/
 !Data/Textures/Noise/
+!Data/Textures/StreetKit/
 
 # NVIDIA DLSS plugin: installed locally on the PC, not committed (1+ GB of binaries)
 Plugins/DLSS*/
@@ -29,3 +30,8 @@ SimTest/sfx_test.wav
 
 # Unreal content is built on the PC by the Tools scripts or added from Fab; none of it is tracked.
 /Content/
+
+# game_kits.py: whole-bike kit builds, cut down and removed
+Data/BikesV2/*_kit*_def.glb
+Data/BikesV2/*_kit*_def.json
+Data/BikesV2/_b_*

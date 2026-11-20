@@ -1,0 +1,244 @@
+{
+ "about": "Stage 3 common parts approved by beenster 16 Nov 21:42 ('These look great, let's move on'). Proposed pool entries for the Bikes V2 thread to add to data/pool.json. Geometry in foundry/lamps3d.py: fit(build3d, model, c, head, tail, ind) after detail3d (removes the bike's own lamp, tail light and indicators it replaces). Sport and adventure fairing lamps are built by Bikes V2 as separate units; MX keeps its number board.",
+ "headlamps": [
+  {
+   "key": "round_big",
+   "name": "Large round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "round_small",
+   "name": "Small round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "halo",
+   "name": "Round halo",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "twin",
+   "name": "Twin round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "stacked",
+   "name": "Stacked twin",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "rect",
+   "name": "Flat rectangle",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "hex",
+   "name": "Angular",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "oval",
+   "name": "Tall oval",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  }
+ ],
+ "tail_lights": [
+  {
+   "key": "round",
+   "name": "Round",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "oval",
+   "name": "Oval",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "strip",
+   "name": "LED strip",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "twin_dot",
+   "name": "Twin dot",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "classic",
+   "name": "Classic unit",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "hanger",
+   "name": "Hanger lamp",
+   "fits": [
+    "Naked",
+    "Cafe"
+   ]
+  }
+ ],
+ "indicators": [
+  {
+   "key": "led_short",
+   "name": "LED, short stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "led_long",
+   "name": "LED, long stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "chrome_short",
+   "name": "Chrome, short stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "chrome_long",
+   "name": "Chrome, long stalk",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "bullet",
+   "name": "Bullet",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ]
+  },
+  {
+   "key": "flush",
+   "name": "Flush blade",
+   "fits": [
+    "Naked",
+    "Cafe",
+    "Classic",
+    "Cruiser",
+    "Adventure",
+    "MX",
+    "Chopper"
+   ]
+  }
+ ],
+ "rules": [
+  "Every lens clear so reflector and bulb/LEDs show (beenster 16 Nov)",
+  "Lights are intricate separate parts (beenster 16 Nov 21:19)",
+  "Front indicators on the headlamp ears, rear on the sides of the tail light",
+  "Hanger tail lamp not on mudguard bikes"
+ ]
+}

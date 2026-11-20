@@ -1,0 +1,41 @@
+{
+ "group": "mirrors",
+ "key": "barend_teardrop",
+ "name": "Bar-end teardrop",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  52.8,
+  1005.6,
+  128.1
+ ],
+ "triangles": 4404,
+ "surfaces": {
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_mirrorglass": {
+   "ue": "mirror_glass",
+   "tag": "d3_mirrorglass"
+  }
+ }
+}

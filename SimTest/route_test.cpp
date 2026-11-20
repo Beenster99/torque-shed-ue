@@ -139,6 +139,22 @@ int main()
 		}
 		std::printf("      %d famous roads\n", int(Roads.size()));
 		Check(Read && Roads.size() >= 8 && InUk && Stelvio, "the famous roads are ready to ride, every pin of them in the UK but the Stelvio's");
+		// ([towns stage 8] the famous streets: after the roads, each ridden to from a place within 60 km,
+		// its own pins (the street's ends) within a kilometre of each other)
+		int Streets = 0;
+		bool After = true, Near = true, SeenStreet = false;
+		for (const Route::FamousRoad& F : Roads)
+		{
+			if (!F.Street) { After = After && !SeenStreet; continue; }
+			SeenStreet = true;
+			++Streets;
+			const std::vector<RoutePin>& P = F.Journey.Pins;
+			const double Approach = Route::GroundMetres(P[0].Lat, P[0].Lon, P[1].Lat, P[1].Lon);
+			const double Along = Route::GroundMetres(P[1].Lat, P[1].Lon, P.back().Lat, P.back().Lon);
+			if (Approach > 60000.0 || Along > 1000.0) { Near = false; std::printf("      %s: approach %.1f km, street %.0f m\n", F.Name.c_str(), Approach / 1000.0, Along); }
+		}
+		std::printf("      %d famous streets\n", Streets);
+		Check(Streets >= 20 && After && Near, "the famous streets are listed after the roads, each ridden to from nearby and along its own short length");
 	}
 	// ------------------------------------------------------------------ the styles
 	{

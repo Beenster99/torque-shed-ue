@@ -26,7 +26,10 @@
 #include "World/CellStore.h"
 #include "World/HeightTiles.h"
 #include "World/WorldCache.h"
+#include "World/WorldFerries.h"
 #include "World/WorldFiles.h"
+#include "World/WorldRideChurches.h"
+#include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
 #include "IImageWrapper.h"
@@ -44,8 +47,10 @@ struct FTorqueWorldShared
 	TorqueWorld::CellStore Cells;
 	TorqueWorld::HeightStore Heights;
 	TorqueWorld::Route::MapRoads MapRoads;   // [build 147] the planner's road map's main roads
+	TorqueWorld::Route::MapStreets MapStreets;   // [map detail] and zoomed in, every road of the cells in view
 	TorqueWorld::Route::MapImagery Imagery;  // [build 147] the planner's satellite pictures
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
+	std::atomic<bool> bMapMoved{false};   // [map detail] the planner's map asked for again while one draws
 	std::atomic<bool> bOffline{false};   // [stage 8] Settings' offline: nothing is fetched
 };
 
@@ -55,6 +60,8 @@ namespace TWSI
 struct FAnswer
 {
 	FCriticalSection Lock;
+	bool bSent = false;        // [build 158] the game thread has taken it up
+	bool bAbandoned = false;   // [build 158] the worker stopped waiting for it to be sent: don't
 	bool bDone = false;
 	int32 Code = 0;
 	TArray<uint8> Bytes;
@@ -75,6 +82,9 @@ static bool ForcedOffline()
 
 // GETs a URL (redirects followed): the HTTP code, 0 for no answer, and the body. Blocks, so never
 // on the game thread, which is the one that has to send it.
+// [build 158] How long a worker waits for the game thread to take a fetch up before giving it up for now.
+constexpr double CellStoreNotSentSeconds = 10.0;
+
 static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const std::string& Url, std::string& Body)
 {
 	Body.clear();
@@ -89,6 +99,11 @@ static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const 
 	const FString Agent(UTF8_TO_TCHAR(TorqueWorld::CellStore::UserAgent));
 	AsyncTask(ENamedThreads::GameThread, [Answer, Address, Agent]()
 	{
+		{
+			FScopeLock Hold(&Answer->Lock);
+			if (Answer->bAbandoned) return;
+			Answer->bSent = true;
+		}
 		TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
 		Req->SetURL(Address);
 		Req->SetVerb(TEXT("GET"));
@@ -111,7 +126,8 @@ static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const 
 		}
 	});
 	// (a little longer than the request's own limit, in case the game thread was slow to send it)
-	const double GiveUpAt = FPlatformTime::Seconds() + 150.0;
+	const double AskedAt = FPlatformTime::Seconds();
+	const double GiveUpAt = AskedAt + 150.0;
 	for (;;)
 	{
 		{
@@ -120,6 +136,17 @@ static int BlockingGet(const std::shared_ptr<FTorqueWorldShared>& Shared, const 
 			{
 				if (Answer->Bytes.Num() > 0) Body.assign(reinterpret_cast<const char*>(Answer->Bytes.GetData()), size_t(Answer->Bytes.Num()));
 				return int(Answer->Code);
+			}
+			// [build 158] (beenster's 156 freezes: the game thread was itself waiting on this worker, so the
+			// request was never sent. Whatever holds the game thread up, a fetch it hasn't sent within
+			// NotSentSeconds is given up as "not now" (-1): what wanted it makes do, as a cell's buildings
+			// do with their boxes, and asks again later.)
+			if (!Answer->bSent && FPlatformTime::Seconds() - AskedAt > CellStoreNotSentSeconds)
+			{
+				Answer->bAbandoned = true;
+				UE_LOG(LogTemp, Warning, TEXT("Torque world: the game thread didn't send a fetch within %.0f s; given up for now (%s)"),
+					CellStoreNotSentSeconds, *Address);
+				return -1;
 			}
 		}
 		if (Shared->bStop || FPlatformTime::Seconds() > GiveUpAt) return 0;
@@ -163,6 +190,8 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::shared_ptr<FTorqueWorldShared> Held = Weak.lock();
 		return Held && !Held->bOffline ? TWSI::BlockingGet(Held, Url, Body) : 0;
 	};
+	// [build 155] (never fetched on the game thread: asked there, a cell's buildings wait for a worker)
+	Shared->Cells.MayFetch = []() { return !IsInGameThread(); };
 	// [stage 8] Offline or not, before anything is asked for.
 	Shared->bOffline = FTorqueSettings::Get().bWorldOffline || TWSI::ForcedOffline();
 	Shared->Cells.Offline = Shared->bOffline;
@@ -172,6 +201,49 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [circuits] The race circuits' notes: start lines, sectors, which way round, the road courses' gates.
+		{
+			std::string CircuitText;
+			const std::string CircuitPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/circuits.json")));
+			const bool bCircuits = TorqueWorld::Files::Read(CircuitPath, CircuitText) && TorqueWorld::SetCircuitNotes(CircuitText);
+			const std::shared_ptr<const TorqueWorld::CircuitNotes> Notes = TorqueWorld::CircuitNotesNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: circuit notes: %d%s"), Notes ? int32(Notes->Circuits.size()) : 0, bCircuits ? TEXT("") : TEXT(" (none: Data/RideUK/circuits.json unreadable)"));
+		}
+		// [ferries stage 5] The ferries the route planner may take (Data/RideUK/ferries.json).
+		{
+			std::string FerryText;
+			const std::string FerryPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/ferries.json")));
+			const bool bFerries = TorqueWorld::Files::Read(FerryPath, FerryText) && TorqueWorld::Ferries::SetList(FerryText);
+			const std::shared_ptr<const std::vector<TorqueWorld::Ferries::Listed>> FerryList = TorqueWorld::Ferries::ListNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: ferries: %d%s"), FerryList ? int32(FerryList->size()) : 0, bFerries ? TEXT("") : TEXT(" (none: Data/RideUK/ferries.json unreadable)"));
+		}
+		// [towns stage 5] The materials atlas: the local building stones and bricks by area.
+		std::string AtlasText;
+		const std::string AtlasPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/materials_atlas.json")));
+		const bool bAtlas = TorqueWorld::Files::Read(AtlasPath, AtlasText) && TorqueWorld::SetMaterialsAtlas(AtlasText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: materials atlas: %d areas%s"), int32(TorqueWorld::MaterialsAtlas().size()), bAtlas ? TEXT("") : TEXT(" (none: Data/RideUK/materials_atlas.json unreadable)"));
+		// [towns stage 4] The house types and their periods (the built-in figures without the file).
+		std::string TypesText;
+		const std::string TypesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_types.json")));
+		const bool bTypes = TorqueWorld::Files::Read(TypesPath, TypesText) && TorqueWorld::SetHouseTypes(TypesText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: house types %s"), bTypes ? TEXT("from Data/RideUK/house_types.json") : TEXT("built in (Data/RideUK/house_types.json unreadable)"));
+		// [churches stage 3] The church kit: its forty churches and the rules that choose one for a place of worship.
+		std::string KitText, KitBin;
+		const std::string KitPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_kit.json")));
+		const std::string KitBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_kit.bin")));
+		const bool bKit = TorqueWorld::Files::Read(KitPath, KitText) && TorqueWorld::Files::Read(KitBinPath, KitBin) && TorqueWorld::SetChurchKit(KitText, KitBin);
+		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
+		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
+		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
+		std::string HeightsText;
+		const std::string HeightsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_heights.json")));
+		const size_t ChurchSites = TorqueWorld::Files::Read(HeightsPath, HeightsText) ? TorqueWorld::SetChurchHeights(HeightsText) : 0;
+		UE_LOG(LogTemp, Display, TEXT("Torque world: church heights: %d places of worship surveyed"), int32(ChurchSites));
+		// [LiDAR stage 2] Cells' surveyed building heights, where the game's data has them (-TorqueRideLidar=0: none).
+		int32 LidarAsked = 1;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideLidar="), LidarAsked);
+		if (LidarAsked != 0)
+			TorqueWorld::SetLidarDirs({TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/lidar")))});
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));
@@ -505,6 +577,7 @@ void UTorqueWorldSubsystem::AskMap(const TorqueWorld::Route::MapView& View)
 	{
 		MapNext = View;
 		bMapWaiting = true;
+		Shared->bMapMoved = true;
 		return;
 	}
 	DrawMap(View);
@@ -514,6 +587,7 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 {
 	bMapBusy = true;
 	bMapWaiting = false;
+	if (Shared) Shared->bMapMoved = false;
 	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
 	TWeakObjectPtr<UTorqueWorldSubsystem> Self(this);
 	if (MapRun.IsValid()) MapRun.Wait();
@@ -522,23 +596,57 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		const auto Draw = [&Held, &View]()
 		{
 			std::vector<uint8_t> Px;
-			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery);
-			TArray<uint8> Out;
-			Out.Append(Px.data(), int32(Px.size()));
+			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery, &Held->MapStreets);
+			FTorqueMapPicture Out;
+			Out.Pixels.Append(Px.data(), int32(Px.size()));
+			// [map detail] (and the roads' names to write over it, found here rather than on the game thread)
+			if (TorqueWorld::Route::RoadLayer(View.Layer)) Out.Names = Held->MapStreets.Labels(View);
 			return Out;
 		};
+		// [map detail] Zoomed in, the roads of the cells in view: those on disk at once, the rest fetched
+		// (the middle's first) while the first picture shows, given up on once the view has moved on.
+		const bool bRoads = TorqueWorld::Route::RoadLayer(View.Layer);
+		const auto Moved = [&Held]() { return Held->bStop.load() || Held->bMapMoved.load(); };
+		const auto Streets = [&Held, &View, &Moved](int Load, int* Loaded)
+		{
+			return TorqueWorld::KnowStreets(Held->Cells, Held->MapStreets, View, Load, Moved, Loaded);
+		};
+		// (a few cells at a time, the picture drawn again after each few, so the roads come in round the middle first)
+		const auto FetchStreets = [&]()
+		{
+			int Was = TNumericLimits<int32>::Max();
+			for (int Round = 0; Round < 16 && !Moved(); ++Round)
+			{
+				int Loaded = 0;
+				const int Missing = Streets(3, &Loaded);
+				if (Loaded == 0 || Missing >= Was || Moved()) return;   // (none read this round: offline, or cells that won't read)
+				Was = Missing;
+				FTorqueMapPicture More = Draw();
+				AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(More)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), false); });
+			}
+		};
 		// [build 147] The satellite layer: its pictures on disk at once, then again with those that weren't.
-		if (View.Layer == TorqueWorld::Route::Satellite)
+		if (TorqueWorld::Route::PhotoLayer(View.Layer))
 		{
 			const std::vector<TorqueWorld::TileKey> Pics = TorqueWorld::Route::MapImagery::Keys(View);
 			bool bHave = true;
 			for (const TorqueWorld::TileKey& K : Pics) bHave = bHave && Held->Imagery.OnDisk(K);
-			TArray<uint8> First = Draw();
+			if (bRoads)
+			{
+				// (the main roads too, as the road map has them)
+				std::set<TorqueWorld::CellId> Under;
+				for (const TorqueWorld::TileKey& K : View.Tiles())
+					for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
+				TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24, &Held->MapRoads);
+				bHave = Streets(0, nullptr) == 0 && bHave;   // (none read yet: the picture first)
+			}
+			FTorqueMapPicture First = Draw();
 			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bHave]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bHave); });
 			if (bHave || Held->bStop) return;
 			Held->Imagery.Fetch(Pics, Held->Cells.Get, 6);
+			if (bRoads && !Held->bStop) FetchStreets();
 			if (Held->bStop) return;
-			TArray<uint8> Second = Draw();
+			FTorqueMapPicture Second = Draw();
 			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
 			return;
 		}
@@ -550,25 +658,28 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 			for (const TorqueWorld::TileKey& K : Keys)
 				for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
 			TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24,
-				View.Layer == TorqueWorld::Route::RoadMap ? &Held->MapRoads : nullptr);
+				bRoads ? &Held->MapRoads : nullptr);
 		}
 		bool bAll = true;
 		for (const TorqueWorld::TileKey& K : Keys) bAll = bAll && Held->Heights.Has(K);
-		TArray<uint8> First = Draw();
+		if (bRoads) bAll = Streets(0, nullptr) == 0 && bAll;
+		FTorqueMapPicture First = Draw();
 		AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bAll]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bAll); });
 		if (bAll || Held->bStop) return;
 		Held->Heights.Fetch(Keys, Held->Cells.Get, 6);
+		if (bRoads && !Held->bStop) FetchStreets();
 		if (Held->bStop) return;
-		TArray<uint8> Second = Draw();
+		FTorqueMapPicture Second = Draw();
 		AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
 	});
 }
 
-void UTorqueWorldSubsystem::MapDone(const TorqueWorld::Route::MapView& View, TArray<uint8>&& Pixels, bool bFinal)
+void UTorqueWorldSubsystem::MapDone(const TorqueWorld::Route::MapView& View, FTorqueMapPicture&& Picture, bool bFinal)
 {
 	// (a picture of a view since moved on from is still shown while the newer one draws)
 	MapDrawn = View;
-	MapPixels = MoveTemp(Pixels);
+	MapPixels = MoveTemp(Picture.Pixels);
+	MapNames = std::move(Picture.Names);
 	bMapNew = true;
 	if (!bFinal) return;
 	bMapBusy = false;

@@ -83,9 +83,17 @@ struct FTorqueItem
 	int32 Mask = 0;
 	FLinearColor MaskColour = FLinearColor::White;
 	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	// A fade's middle along its way across the part (cm in the part's frame from its middle) and
+	// which end the mask's colour is at (+1: the front or the top; -1: the back or the bottom): where
+	// the second cup went on in the spray game (beenster, 19 Nov 2026).
+	float FadeAt = 0.0f;
+	float FadeDir = 1.0f;
 	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
 	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
 	FString Badge;
+	// Decals the player placed on it in decal mode (F3; the decals plan): Fit/BikeDecal text ("" for
+	// none). They go wherever the part goes, and stay put when it's repainted.
+	FString Decals;
 	// The dyno desk's settings kept on the part they adjust (shed_state TUNE_HOME: a fork's or
 	// shock's preload / bump / rebound, a tyre's pressure, the sprockets' front / rear teeth, a
 	// cassette gearbox's spread, a steering damper's clicks, the chain's slack), so they go with it
@@ -262,6 +270,22 @@ enum class ETorqueShedAct : uint8
 	// [label] Shelving unit Item's label plate written as Text (an empty Text wipes it): label_dialog.gd
 	// and shed_state.gd "label".
 	LabelFurniture,
+	// Decal mode (F3, ATorqueDecalMode): part Item's decals set to Text (Fit/BikeDecal text, "" for none).
+	DecalSave,
+	// [garage] At a Ride UK forecourt's garage (World/TorqueForecourtGarage.h, Shed/TorqueGarageActs.cpp):
+	// part Part bought at the garage's wall computer, unboxed into your hands; the part in your hands
+	// fitted to bay Bay's bike and bolted up in one go with the spanner (its slot: the one looked at,
+	// Slot, if it takes it), whatever was in that slot sent back to the shed; slot Slot's part unbolted
+	// and taken off with the spanner and sent back to the shed; the part in your hands sent back to the
+	// shed. What's sent back waits unboxed in the shed's delivery area. No roadside spannering (beenster,
+	// Nov 17): the ride only sends these from inside a garage.
+	GarageBuy,
+	GarageFit,
+	GarageOff,
+	GarageStow,
+	// Bay Bay's bike renamed Text (TorqueFurniture::CleanLabel: printable, trimmed, 24 at most; never
+	// empty): N (D-pad up) next to a bike, as Torque Shed's rename box (beenster, Nov 19).
+	NameBike,
 	Count
 };
 
@@ -377,6 +401,9 @@ public:
 	int32 NumBikes() const { return Bikes.Num(); }
 	bool Exists(int32 Bay) const { return Bikes.IsValidIndex(Bay) && Bikes[Bay].bExists; }
 	const FTorqueShedBike& Bike(int32 Bay) const;
+	// The names a project bike can come in with (shed_state BIKE_NAMES), for the rename box's ideas.
+	static int32 BikeNameIdeas();
+	static FString BikeNameIdea(int32 Index);
 	// A bay's bike as the fitment API draws it (a stock Speed Twin for an empty or unknown bay).
 	const FTorqueBuild& Get(int32 Bay) const;
 	// Whether a part of the drawn model is on the bike (its slot has something in it).
@@ -510,8 +537,12 @@ public:
 	float DirtOf(int32 Bay, FName Slot) const;
 	float RustOf(int32 Bay, FName Slot) const;
 	bool PaintOf(int32 Bay, FName Slot, FLinearColor& Out) const;
+	// [bikes v2] Whether the part in the slot has been painted or primed by someone (Repainted).
+	bool RepaintedOn(int32 Bay, FName Slot) const;
 	// The badge on bay Bay's tank (Fit/BikeShop's badge text), "" for none.
 	FString BadgeOf(int32 Bay) const;
+	// The decals on the part in bay Bay's Slot (Fit/BikeDecal text, "" for none).
+	FString DecalsOf(int32 Bay, FName Slot) const;
 	// How a repainted part's finish looks (bike_model.gd _apply_finish): gloss is wet-look, matte
 	// soaks up the light, metallic has flake under the lacquer, chrome is a tinted mirror, patina is
 	// faded old paint; primer is flat grey, and a lacquer's flattener takes the shine off. The colour
@@ -521,8 +552,6 @@ public:
 	// with a masked stripe or tape on it: how it's drawn (TorqueEffectPaint.h). False for anything
 	// else, which keeps the part's own material.
 	static bool EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintLook& Out);
-	// Sprayed over masking tape: the pattern of the paint under it kept as its mask (TorquePaintBay.cpp).
-	static void MaskUnderTape(FTorqueItem& It);
 	// Who player Peer is, for a delivery's sticky note: their name and player colour.
 	void OrdererOf(int32 Peer, FString& OutName, FLinearColor& OutTint) const;
 	bool EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintLook& Out) const;
@@ -555,8 +584,18 @@ public:
 	// How well a coat goes on when no score comes with it (a test's act: the spray game sends its
 	// own, TorqueSprayJob, as the request's Amount and its runs as Tilt); the booth makes it better.
 	static constexpr float HandCoat = 0.82f;
-	// Paint mixed in the mixing bay: Paint with this Finish and bGun sprays from the gun's cup.
+	// Paint mixed in the mixing bay: Paint with this Finish and bGun sprays from the gun's cup 1,
+	// Cup2Finish from cup 2, and FadeFinish blends cup 1 into cup 2 across the part (Colour: the
+	// fade's pattern, TorquePaintMix::FirstFade ..; beenster, 18 Nov 2026, in place of masking tape).
 	static FName CupFinish() { return FName(TEXT("cup")); }
+	static FName Cup2Finish() { return FName(TEXT("cup2")); }
+	static FName FadeFinish() { return FName(TEXT("fade")); }
+	static bool IsCupFinish(FName F) { return F == CupFinish() || F == Cup2Finish() || F == FadeFinish(); }
+	// The cup a cup finish sprays (a fade: cup 2, the colour that goes over).
+	static int32 CupWhich(FName F) { return F == CupFinish() ? 0 : 1; }
+	// One of the gun's colours (Paints()) in one of its finishes, as paint for a cup: what [ and ]
+	// pick into cup 1 and cup 2 (beenster, 19 Nov 2026).
+	static TorquePaintMix::FPaintSpec PaletteSpec(int32 Colour, FName Finish);
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }
@@ -565,6 +604,8 @@ public:
 	static bool IsPaintBayAct(ETorqueShedAct A);
 	// [kit] The shed's lights, roller door, engine stand and extinguisher (TorqueShedKit.cpp).
 	static bool IsKitAct(ETorqueShedAct A);
+	// [garage] The forecourt garage's (TorqueGarageActs.cpp).
+	static bool IsGarageAct(ETorqueShedAct A);
 
 	// --- [fluids] Fluids, the drain pan and the petrol pump (TorqueShedFluids.cpp) -------------
 	static bool IsFluidAct(ETorqueShedAct A);
@@ -600,7 +641,7 @@ public:
 	static FVector PumpHoseRoot();
 	static FVector PumpHolster();
 	static constexpr double PumpHose = 340.0;     // cm (ShedPump.HOSE)
-	static constexpr float PumpRate = 0.6f;      // litres a second (FuelStop.FILL_RATE)
+	static constexpr float PumpRate = 2.5f;      // litres a second (FuelStop.FILL_RATE was 0.6: beenster, build 156, "petrol pump should be faster to fill")
 	FVector FillerOf(int32 Bay) const;           // where a bay's bike's filler cap is (world cm)
 	bool PumpReaches(int32 Bay) const;
 	// The bike pawn: the petrol its own dash says is left (sent each quarter litre burnt, and as the
@@ -682,6 +723,9 @@ public:
 	FTorqueBikeEvent OnLooks;
 	FSimpleMulticastDelegate OnItems;
 
+	// [engine parts] The robot's v2fit:SLOT:PART check (TorqueShedTest): V2FitReason on bay Bay's bike.
+	FString TestV2FitReason(int32 Bay, FName Slot, FName Part) const { return V2FitReason(Bay, 0, Slot, Part); }
+
 private:
 	TArray<FTorqueShedBike> Bikes;
 	FTorqueDynoRoom Dyno;
@@ -724,6 +768,9 @@ private:
 	void DropFurnitureOf(int32 Peer);
 	static void SerializeFurniture(FArchive& Ar, bool bNet, TArray<FTorqueFurniture>& List, int32& NextIdIo);
 	FTorquePaintBay Paint;
+	// A co-op guest's own winding of a booth hook, shown at once while the host catches up (the
+	// hook's height, and when it was wound there).
+	TMap<int32, TPair<float, double>> HookWound;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;
 	TArray<FTorqueBuild> Builds;     // per bay, for drawing
@@ -782,6 +829,8 @@ private:
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
 	int32 DropRetiredParts();   // [tft] the ECUs and the old sat nav units
+	// [bare frame] Why a V2 bike's part won't go in Slot on the bay's bike, or on the loose engine Engine (empty: it fits).
+	FString V2FitReason(int32 Bay, int32 Engine, FName Slot, FName Part) const;
 	int32 FreeBay() const;
 	// [co-op] A bay whose bike is parked away from it (wheeled out, in the wash bay) is free for a
 	// frame: that bike's record goes to an empty bay's place, standing where it is. Empty when it
@@ -797,12 +846,23 @@ private:
 	FString DoApply(int32 Peer, const FTorqueShedRequest& R);
 	// The mixing bay's requests and the gun's cup (TorquePaintBay.cpp).
 	FString CheckKit(int32 Peer, const FTorqueShedRequest& R) const;   // [kit] TorqueShedKit.cpp
+	// [garage] The forecourt garage's requests (TorqueGarageActs.cpp): GarageSlot is the slot a part in
+	// your hands goes in (the one looked at if it takes it, else a free one, else the first), NAME_None
+	// with Why; GarageOffWhy why a fitted part can't come off at a garage ("" if it can); SendHome puts
+	// a part in the shed's delivery area, unboxed.
+	FString CheckGarage(int32 Peer, const FTorqueShedRequest& R) const;
+	FString ApplyGarage(int32 Peer, const FTorqueShedRequest& R);
+	FName GarageSlot(int32 Bay, FName Looked, const FTorqueItem& It, FString& Why) const;
+	FString GarageOffWhy(int32 Bay, FName Slot) const;
+	void SendHome(int32 Id);
 	FString ApplyKit(int32 Peer, const FTorqueShedRequest& R);
 	void DropKitOf(int32 Peer);   // someone's left: the stand let go, the extinguisher back in its place
 	FString CheckPaintBay(int32 Peer, const FTorqueShedRequest& R) const;
 	FString ApplyPaintBay(int32 Peer, const FTorqueShedRequest& R);
-	FString CheckCup(int32 Peer, const FTorqueItem& It) const;
-	float SprayFromCup(int32 Peer, FTorqueItem& It);
+	FString CheckCup(int32 Peer, const FTorqueItem& It, FName Finish) const;
+	float SprayFromCup(int32 Peer, FTorqueItem& It, int32 Which, float Share = 1.0f);
+	float FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern, float At, float Dir);
+	static float LaySpec(FTorqueItem& It, const TorquePaintMix::FPaintSpec& S);
 	// After a change: redraw what changed, save, tell the net layer.
 	void RebuildBuild(int32 Bay);
 	// What's on a bay (and how it looks), and the loose parts, as text: the host's shed coming in

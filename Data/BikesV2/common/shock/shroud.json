@@ -1,0 +1,37 @@
+{
+ "group": "shock",
+ "key": "shroud",
+ "name": "Chrome shroud",
+ "fitted_on": "hartwell_cafe",
+ "family": "Cafe",
+ "mount": "shock_top",
+ "mount_mm": [
+  300,
+  0.0,
+  762
+ ],
+ "moves_with": "shock",
+ "size_mm": [
+  264.8,
+  369.0,
+  337.7
+ ],
+ "triangles": 20704,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_sk_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
+  }
+ }
+}

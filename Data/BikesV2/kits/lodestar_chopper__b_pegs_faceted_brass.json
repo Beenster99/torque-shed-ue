@@ -1,0 +1,118 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 8186,
+ "surfaces": {
+  "s121": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "foot_controls",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s122": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "foot_controls"
+  },
+  "s123": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s124": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s125": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "d3_hangercast",
+   "tag": "d3_hangercast",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.09,
+    0.09,
+    0.1
+   ],
+   "metallic": 0.9,
+   "roughness": 0.42
+  },
+  "s149": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "d3_chop_brass",
+   "tag": "d3_chop_brass",
+   "ue": "cat_anodised",
+   "sub": "pegs",
+   "color": [
+    0.78,
+    0.6,
+    0.27
+   ],
+   "metallic": 1.0,
+   "roughness": 0.2
+  },
+  "s150": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "pegs"
+  },
+  "s151": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "sub": "pegs",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  }
+ },
+ "bespoke": {
+  "group": "pegs",
+  "design": "faceted",
+  "metal": "brass",
+  "name": "Faceted footpegs, brass",
+  "note": "Eight flat-cut faces with rubber rings let in, and a stepped end with a cap bolt."
+ }
+}

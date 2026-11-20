@@ -1,0 +1,134 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 18476,
+ "surfaces": {
+  "s006": {
+   "slot": "engine",
+   "node": "",
+   "surface": "d3_sandcast",
+   "tag": "d3_sandcast",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.42,
+    0.42,
+    0.43
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "s019": {
+   "slot": "engine",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s020": {
+   "slot": "engine",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s021": {
+   "slot": "engine",
+   "node": "",
+   "surface": "lens",
+   "tag": "lens",
+   "ue": "lens_clear"
+  },
+  "s023": {
+   "slot": "engine",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s078": {
+   "slot": "engine",
+   "node": "",
+   "surface": "engine",
+   "tag": "engine",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "s079": {
+   "slot": "engine",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s100": {
+   "slot": "engine",
+   "node": "",
+   "surface": "gold",
+   "tag": "gold",
+   "ue": "cat_anodised",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.32
+  },
+  "s154": {
+   "slot": "engine",
+   "node": "",
+   "surface": "d3_chop_gold",
+   "tag": "d3_chop_gold",
+   "ue": "chrome",
+   "color": [
+    0.95,
+    0.66,
+    0.2
+   ],
+   "metallic": 1.0,
+   "roughness": 0.09
+  },
+  "s155": {
+   "slot": "engine",
+   "node": "",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  }
+ },
+ "bespoke": {
+  "group": "engine",
+  "design": "pots",
+  "metal": "gold",
+  "name": "Twin pot engine dress kit, gold",
+  "note": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder."
+ }
+}

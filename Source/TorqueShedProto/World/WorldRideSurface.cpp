@@ -62,6 +62,7 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 	if (Which < 0 || Which >= RoadCount()) return;
 	const std::vector<RoadPoint>& Pts = RoadOf(Which);
 	if (Pts.size() < 2) return;
+	if (CircuitRoad(Which)) { CircuitMarks(Which, From, To, Out); return; }   // [circuits] (a circuit's own paint, no patches)
 	const double RoadLen = Pts.back().Along;
 	const bool Main = Which == 0;
 	const auto Built = [&](double Along)
@@ -186,7 +187,7 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 
 double RidePlan::MarkUp(int Kind)
 {
-	return Kind == MarkPaint ? 0.013 : Kind == MarkHump ? 0.004 : Kind == MarkBay ? 0.0 : Kind == MarkTar ? 0.009 : Kind == MarkJoint ? 0.012 : Kind == MarkCover ? 0.01
+	return Kind == MarkPaint ? 0.0 : Kind == MarkHump ? 0.004 : Kind == MarkBay ? 0.0 : Kind == MarkTar ? 0.009 : Kind == MarkJoint ? 0.012 : Kind == MarkCover ? 0.01
 		: Kind == MarkGrit ? 0.007 : 0.006;
 }
 

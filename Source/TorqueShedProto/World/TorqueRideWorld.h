@@ -41,6 +41,7 @@ class UMaterialInterface;
 class UProceduralMeshComponent;
 struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
+class UTorqueImpostors;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -49,6 +50,7 @@ struct RideMesh;
 struct Tint;
 struct RoamArea;
 struct RideGuide;
+class CircuitLaps;   // [circuits]
 struct RideDetour;
 }
 // [ride anywhere] The sat nav's own: the way back from off the ride's road, and how the rider is going.
@@ -63,6 +65,9 @@ struct FRideNavState
 	double ViaX = 0.0, ViaZ = 0.0, ViaTry = -1e9;
 	std::string ViaName;
 	int32 ViaReached = 0;   // goes up each time one is reached
+	// [ferries stage 5] Over the water on a journey by a ferry (RidePlan::Ferry): nearer where it lands than where it
+	// was boarded, so the way on is FerryOnward's (never back to the ride's road).
+	bool bFerryOver = false;
 };
 struct FTorqueRideJobs;
 struct FTorqueDash;
@@ -74,6 +79,10 @@ class ATorqueRideWorld : public AActor
 
 public:
 	ATorqueRideWorld();
+	// [perf, build 155] The scene's counts from the last 5 s line, for the bike's perf CSV (O in game):
+	// so a slow stretch in a player's own recording says what was in view.
+	static int32 SceneSquares, ScenePlantGroups, SceneTreeGroups;
+	static int64 SceneTrees, ScenePlants;
 	// The ride to lay out. The ground and road round its start are made before this returns (with
 	// their collision), so a bike put down there has something to stand on.
 	void Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan);
@@ -89,6 +98,24 @@ public:
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
 	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
 	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
+	// [car parks] The parked cars within Reach (m) of At (the ride's frame, metres), for the bike to bump into:
+	// eight numbers each (RidePlan::ParkedCarBox: middle x, z; nose x, z; half length, half width; foot, roof).
+	// False with no ride.
+	static bool ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out);
+	// [ferries] One of the prop kit's models of a kind (RidePlan::EPropKind) stood as the ride stands its own: Variant
+	// picks among its models, Spot (Unreal cm) is its foot's middle, Yaw (radians, the ride's frame) its facing. False
+	// when the kit has none of that kind. The mesh and its transform (world: for a part of a moving actor, make it
+	// relative to the actor's).
+	static bool PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, class UStaticMesh*& OutMesh, FTransform& OutAt);
+	// [car parks] Whether At (Unreal cm) is in one of the ride's car parks: its surface (RidePlan::ECarParkSurface:
+	// 0 tarmac, 1 setts, 2 gravel) and how far it is laid over the ground there (m).
+	static bool CarParkUnder(const FVector& At, int32& Kind, double& Lift);
+	// [circuits] The rider's lap timer (World/WorldRideCircuits.h) one frame on, the rider at At (the ride's
+	// frame, metres: x east, z south), the clock at Now (s): true when a lap was just finished (Laps.Last).
+	static bool StepLaps(const FVector& At, double Now, TorqueWorld::CircuitLaps& Laps);
+	// [circuits] The nearest circuit's start (within 5 km of At, the ride's frame, metres): a place on its track a
+	// little before the line, facing the way it's raced, and its name. False with none.
+	static bool CircuitStart(const FVector& At, FVector& OutPos, double& OutHeading, FString& Name);
 	// Where to put a bike back after a fall (beenster, build 142: off on a side road, it always went back
 	// to the ride's road): the middle of the nearest road of any kind to At (the ride's frame, metres), a
 	// little to its left as the UK keeps, facing along it the way nearer Heading (sim: 0 faces -z, + left).
@@ -206,6 +233,11 @@ private:
 	// [stage 5] A square's water (RideMesh::Water: the sea, lakes, rivers), in M_RideWater, never collided with.
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> TileWater;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterMaterial;
+	// [build 156] M_RideWaterReal (single layer water), drawn instead while Settings > Graphics > Realistic water is on; and
+	// the water the squares were last given, so a change of the setting is put on the water already laid.
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterMaterialReal;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterShown;
+	UMaterialInterface* WaterNow() const;
 	void DropWater(const FIntVector& Key);
 	// [stage 5] The words on a square's signs (RideMesh::Labels), let go with it.
 	TMap<FIntVector, TArray<TWeakObjectPtr<class UTextRenderComponent>>> TileWords;
@@ -245,6 +277,10 @@ private:
 	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;
 	TArray<TArray<int32>> KindNear, KindFar;
+	// [perf, build 157] Far trees of a scanned kind as impostors the game photographs from the scan
+	// (World/TorqueImpostors.h); ImpostorFar: a scan's species -> its kind's far species (for reach).
+	UPROPERTY(Transient) TObjectPtr<UTorqueImpostors> Impostors;
+	TMap<int32, int32> ImpostorFar;
 	// [stage 6] A few birds overhead near the rider: buzzards circling, red kites where kites live,
 	// gulls by the sea. Each wheels round a point of its own until the rider is far past it, then
 	// another is found ahead.

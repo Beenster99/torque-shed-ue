@@ -50,10 +50,12 @@ constexpr double MinZoom = 0.6, MaxZoom = 3.5;
 // a white part (albedo 0.8) in it is ~4.9 nits and lands just under 1.0 before the tone curve.
 // (Auto exposure metered the dim backdrop and the level's sky light lit the item as well: the
 // washed-out, cream and orange look of build 125.)
-constexpr float ExposureBias = -2.0f;
+// beenster (build 155): "the preview window in the shop is so dark": 1.2 stops up from -2.0, and the
+// fill and bounce lifted so the shadow side reads; the backdrop's glow cut to keep it about where it was.
+constexpr float ExposureBias = -0.8f;
 // The backdrop's glow (M_ShedScreenPage's Brightness, nits for a white page): the gradient's top
 // ~0.15 and the pool behind the item ~0.3 after exposure, well under the lit part.
-constexpr float BackdropBrightness = 3.5f;
+constexpr float BackdropBrightness = 2.0f;
 
 // The backdrop's picture: a light grey at the top falling to a dark grey at the floor, a soft
 // pool of light behind the middle of the item, and the corners shaded off.
@@ -493,7 +495,7 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 	for (const FName& S : Painted)
 	{
 		const FTorqueShopFinish& F = Finishes[S];
-		Sig += FString::Printf(TEXT("|%s=%s,%.2f,%.2f"), *S.ToString(), *F.Colour.ToString(), F.Metallic, F.Roughness);
+		Sig += FString::Printf(TEXT("|%s=%s,%.2f,%.2f,%d"), *S.ToString(), *F.Colour.ToString(), F.Metallic, F.Roughness, F.bPicked ? 1 : 0);
 	}
 	Rebuild(Sig, [this, &Parts, &Finishes]
 	{
@@ -507,6 +509,15 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 			TSPI::Clean(C);
 			if (C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag))) continue;
 			const FName Slot = TorqueShedModel::SlotTag(C);
+			// [bikes v2] Its model's own colour, until a colour is picked for it (beenster in 160: "colours rarely
+			// show in the new bike configurator"); the bodywork follows the tank's, as the shed paints it.
+			if (C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag)))
+			{
+				const FTorqueShopFinish* F = Finishes.Find(Slot);
+				if ((!F || !F->bPicked) && C->ComponentHasTag(FName(TorqueShedCatalogue::V2BodyTag))) F = Finishes.Find(FName(TEXT("tank")));
+				if (F && F->bPicked) TSPI::Paint(C, F->Colour, F->Metallic, F->Roughness);
+				continue;
+			}
 			if (const FTorqueShopFinish* F = Finishes.Find(Slot))
 				TSPI::Paint(C, F->Colour, F->Metallic, F->Roughness);
 			else if (const FString* Part = Parts.Find(Slot.ToString().ToLower()))
@@ -521,7 +532,7 @@ TArray<FString> ATorqueShopPreview::BikeStyles()
 {
 	TArray<FString> Out;
 	if (const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout())
-		for (const std::string& S : Lay->Styles()) Out.Add(FString(UTF8_TO_TCHAR(S.c_str())));
+		for (const std::string& S : Lay->ShopStyles()) Out.Add(FString(UTF8_TO_TCHAR(S.c_str())));
 	return Out;
 }
 
@@ -531,7 +542,7 @@ TMap<FString, FString> ATorqueShopPreview::StyleBike(const FString& Style)
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	if (!Lay) return Out;
 	const std::string Want(TCHAR_TO_UTF8(*Style.ToLower()));
-	for (const auto& KV : Lay->ReferenceBuild(Want))
+	for (const auto& KV : Lay->ShopBuild(Want))
 		if (!KV.second.empty() && KV.second != "none") Out.Add(FString(UTF8_TO_TCHAR(KV.first.c_str())), FString(UTF8_TO_TCHAR(KV.second.c_str())));
 	return Out;
 }
@@ -589,9 +600,9 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 		Light->SetSourceRadius((float)(L * 0.08));   // soft boxes: broad highlights on paint and chrome
 	};
 	Place(KeyLight, -Fwd * 0.8 - Right * 0.75 + Up * 0.85, 120.0);
-	Place(FillLight, -Fwd * 0.9 + Right * 0.85 - Up * 0.1, 45.0);
+	Place(FillLight, -Fwd * 0.9 + Right * 0.85 - Up * 0.1, 70.0);
 	Place(RimLight, Fwd * 0.9 + Right * 0.35 + Up * 0.95, 100.0);
-	Place(BounceLight, -Fwd * 0.6 - Up * 0.8, 22.0);
+	Place(BounceLight, -Fwd * 0.6 - Up * 0.8, 35.0);
 }
 
 void ATorqueShopPreview::Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, const FVector2D& Mouse)

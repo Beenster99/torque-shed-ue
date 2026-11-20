@@ -192,6 +192,15 @@ std::string FamilyWord(const std::string& F)
 	return F;
 }
 
+// An id as the catalogue spells it: lower case. (The game hands slot names over from FNames, which keep
+// whatever spelling was seen first: "Engine", "HEAD". Beenster, Nov 19: "thats an engine, not an Engine".)
+std::string LowerId(const std::string& S)
+{
+	std::string L = S;
+	for (char& C : L) C = static_cast<char>(std::tolower(static_cast<unsigned char>(C)));
+	return L;
+}
+
 std::string WithA(const std::string& W)
 {
 	const char C = W.empty() ? 'x' : static_cast<char>(std::tolower(static_cast<unsigned char>(W[0])));
@@ -342,6 +351,14 @@ std::vector<AdjustRange> BikeLayout::AdjustRanges()
 		{"hoop_deg", "Seat hoop angle", "deg", -6.0, 8.0, 0.5}};
 }
 
+const std::vector<CommonSlot>& CommonSlots()
+{
+	static const std::vector<CommonSlot> List = {{"grips", "handlebars"}, {"bar_ends", "handlebars"}, {"levers", "handlebars"},
+		{"switchgear", "handlebars"}, {"tail_light", "frame"}, {"plate_hanger", "frame"}, {"silencers", "exhaust"},
+		{"heel_plates", "frame"}, {"foot_controls", "frame"}, {"sprocket", "rear_wheel"}, {"filler_cap", "tank"}};
+	return List;
+}
+
 bool BikeLayout::Load(const std::string& Text, const PartsDb& InDb, std::string& Error)
 {
 	Json Parsed;
@@ -354,6 +371,18 @@ bool BikeLayout::Load(const std::string& Text, const PartsDb& InDb, std::string&
 		Error = "layout.json: missing styles, slots, slot_kind, lines or tank_shapes";
 		return false;
 	}
+	// [common parts] The slots for the common bolt-on parts (Data/BikesV2/common_parts.json "new_slots"),
+	// which the Godot game never had: each optional, its kind its own name, on the part it bolts to.
+	for (const CommonSlot& C : CommonSlots())
+	{
+		bool Have = false;
+		for (const Json& S : Sl->A) Have = Have || S.S == C.Slot;
+		if (Have) continue;
+		Parsed.GetMutable("slots")->Push(Json::MakeString(C.Slot));
+		Parsed.GetMutable("slot_kind")->Set(C.Slot, Json::MakeString(C.Slot));
+		if (Json* M = Parsed.GetMutable("mounts")) M->Set(C.Slot, Json::MakeArray().Push(Json::MakeString(C.On)));
+		if (Json* O = Parsed.GetMutable("optional_slots")) O->Push(Json::MakeString(C.Slot));
+	}
 	Data = std::move(Parsed);
 	StyleList.clear();
 	SlotList.clear();
@@ -365,6 +394,9 @@ bool BikeLayout::Load(const std::string& Text, const PartsDb& InDb, std::string&
 	for (const std::string& K : InDb.Kinds())
 		for (const std::string& Id : InDb.Ids(K)) PartKind[Id] = K;
 	Db = &InDb;
+	ShopStyleList.clear();
+	for (const std::string& Each : StyleList)
+		if (!V2Frames(Each).empty()) ShopStyleList.push_back(Each);
 	return true;
 }
 
@@ -410,6 +442,167 @@ PartsMap BikeLayout::ReferenceBuild(const std::string& Style) const
 	if (B)
 		for (const auto& KV : B->O) Out[KV.first] = KV.second.S;
 	return Out;
+}
+
+// [bikes v2]
+std::vector<std::string> BikeLayout::V2Frames(const std::string& Style) const
+{
+	std::vector<std::string> Out;
+	if (!Db) return Out;
+	for (const std::string& Id : Db->Ids("frame"))
+	{
+		const Json* Frame = Db->Find("frame", Id);
+		const Json* V2 = Sub(Frame, "v2");
+		if (!V2 || !V2->IsObject() || !Db->HasStyle("frame", Id, Style)) continue;
+		if (V2->Flag("lead")) Out.insert(Out.begin(), Id);
+		else Out.push_back(Id);
+	}
+	return Out;
+}
+
+PartsMap BikeLayout::ShopBuild(const std::string& Style) const
+{
+	PartsMap Out = ReferenceBuild(Style);
+	const std::vector<std::string> Frames = V2Frames(Style);
+	if (!Frames.empty()) Out["frame"] = Frames.front();
+	// (A stock bike built with a part since retired, the cruiser's saddlebags: it comes without.)
+	for (auto& KV : Out)
+		if (!KV.second.empty() && KV.second != "none" && !Part(KV.second)) KV.second = "none";
+	// [bare frame] ...and with its frame's own parts.
+	for (const auto& KV : V2Build(Get(Out, "frame"))) Out[KV.first] = KV.second;
+	return Out;
+}
+
+PartsMap BikeLayout::V2Build(const std::string& FrameId) const
+{
+	PartsMap Out;
+	if (const Json* B = Sub(Sub(Part(FrameId), "v2"), "build"))
+		for (const auto& KV : B->O)
+			if (KV.second.IsString() && Part(KV.second.S)) Out[KV.first] = KV.second.S;
+	return Out;
+}
+
+PartsMap BikeLayout::V2Dress(const PartsMap& Parts) const
+{
+	PartsMap Out = Parts;
+	const PartsMap Own = V2Build(Get(Parts, "frame"));
+	if (Own.empty()) return Out;
+	for (auto& KV : Out)
+	{
+		const Json* Vp = Sub(Part(KV.second), "v2part");
+		if (Vp && KV.first != "frame") KV.second = "none";
+	}
+	for (const auto& KV : Own)
+	{
+		const std::string Now = Get(Out, KV.first);
+		if (Now.empty() || Now == "none") Out[KV.first] = KV.second;
+	}
+	return Out;
+}
+
+std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& SlotGiven, const std::string& IdGiven) const
+{
+	const std::string Slot = LowerId(SlotGiven), Id = LowerId(IdGiven);
+	const Json* Vp = Sub(Part(Id), "v2part");
+	if (!Vp || !Vp->IsObject()) return std::string();
+	const std::string Own = Vp->Str("slot", Slot);
+	auto Noun = [](const std::string& S) {
+		std::string N = S;
+		for (char& C : N) C = C == '_' ? ' ' : C;
+		return N;
+	};
+	auto Engine = [](const std::string& L) {
+		static const std::map<std::string, std::string> Words = {{"vtwin90", "90 degree V-twin"}, {"vtwin45", "45 degree V-twin"},
+			{"parallel_twin", "parallel twin"}, {"twin", "parallel twin"}, {"triple", "triple"}, {"inline4", "inline four"},
+			{"boxer", "boxer twin"}, {"single", "single"}};
+		const auto It = Words.find(L);
+		return It == Words.end() ? L : It->second;
+	};
+	if (Own != Slot) return "That's " + WithA(Noun(Own)) + ", not " + WithA(Noun(Slot)) + ".";
+	const std::string Family = Vp->Str("family"), Brand = Vp->Str("brand");
+	const Json* Frame = Part(Get(Parts, "frame"));
+	const Json* V2 = Sub(Frame, "v2");
+	const std::string Fits = Vp->Str("fits", "family");
+	// What bolts to an engine block goes on its own model's block (its ports and cases), on a bike or a stand.
+	const Json* Block = Slot == "engine" ? nullptr : Sub(Part(Get(Parts, "engine")), "v2part");
+	// ([kits] A kit piece is drawn from its own file ("model") but is its bike's part ("of").)
+	const std::string OfModel = Vp->Str("of", Vp->Str("model"));
+	if (Fits == "engine" && Block && Block->Str("of", Block->Str("model")) != OfModel)
+	{
+		// (Another engine's part goes on as this block's own version of it: any brand, the same family.)
+		if (Block->Str("family") != Family)
+			return "That's a " + Family + " engine part: it goes on " + Family + " engines only, and this is a " + Block->Str("family") + " engine.";
+		if (V2EngineTwin(Parts, Slot, Id).empty())
+			return "That doesn't go on this engine: there's no " + Noun(Own) + " like it for the " + Block->Str("brand") + " " + Block->Str("family") + " engine.";
+	}
+	if (!V2 || !V2->IsObject()) return std::string();   // (a loose engine: only its block counts)
+	const std::string HostFamily = V2->Str("family");
+	if (HostFamily != Family)
+		return "That's " + WithA(Family) + " part: it bolts to " + Family + " frames only, and this is " + WithA(HostFamily) + ".";
+	const Json* Pts = Sub(V2, "points_mm");
+	if (Fits == "model" && V2->Str("model") != OfModel)
+		return "Those are made for the " + Brand + " " + Family + " frame only.";
+	if (Fits == "layout" || (Fits == "engine" && !Block))
+	{
+		// The frame's own engine layout (its engine block's part, as the model is drawn round it).
+		const Json* Built = Sub(V2, "build");
+		const Json* HostEngine = Built ? Sub(Part(Built->Str("engine")), "v2part") : nullptr;
+		if (HostEngine && HostEngine->Str("layout") != Vp->Str("layout"))
+			return "This frame is built round a " + Engine(HostEngine->Str("layout")) + ": that's for a " + Engine(Vp->Str("layout")) + ".";
+	}
+	if (Fits == "shock")
+	{
+		const Json* St = Sub(Pts, "stats");
+		if (St && St->Flag("twin_shock") != Vp->Flag("twin_shock"))
+			return St->Flag("twin_shock") ? std::string("This frame takes twin shocks, not a mono-shock.") : std::string("This frame takes a mono-shock, not twin shocks.");
+	}
+	return std::string();
+}
+
+std::string BikeLayout::V2NeedsReason(const PartsMap& Parts, const std::string& SlotGiven, const std::string& IdGiven) const
+{
+	const std::string Slot = LowerId(SlotGiven), Id = LowerId(IdGiven);
+	const Json* Vp = Sub(Part(Id), "v2part");
+	if (!Vp || !Vp->IsObject()) return std::string();
+	// (Which fuel system a part is, whatever its brand: its engine-part look, or the engine's own.)
+	auto FuelLook = [this](const std::string& FuelId) {
+		const Json* F = Sub(Part(FuelId), "v2part");
+		const std::string Kit = F ? F->Str("kit") : std::string();
+		return Kit.rfind("e_", 0) == 0 ? Kit : std::string("own");
+	};
+	const std::string WithFuel = Vp->Str("with_fuel");
+	if (Slot == "air_filter" && !WithFuel.empty() && (Get(Parts, "fuel") == "none" || FuelLook(Get(Parts, "fuel")) != FuelLook(WithFuel)))
+	{
+		const Json* Fuel = Part(WithFuel);
+		const std::string Type = Fuel ? Fuel->Str("type", "their fuel system") : std::string("their fuel system");
+		return "Those fit " + Type + ": fit those first.";
+	}
+	if (Slot == "fuel" && Vp->Flag("open_air"))
+	{
+		const std::string Air = Get(Parts, "air_filter");
+		const Json* AirVp = Air == "none" ? nullptr : Sub(Part(Air), "v2part");
+		if (Air != "none" && (!AirVp || AirVp->Str("with_fuel").empty() || FuelLook(AirVp->Str("with_fuel")) != FuelLook(Id)))
+			return "These need an open intake: take the airbox off first.";
+	}
+	return std::string();
+}
+
+std::string BikeLayout::V2EngineTwin(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const
+{
+	const Json* Vp = Sub(Part(Id), "v2part");
+	if (Slot == "engine" || !Vp || !Vp->IsObject() || Vp->Str("fits") != "engine") return Id;
+	const Json* Block = Sub(Part(Get(Parts, "engine")), "v2part");
+	if (!Block || !Block->IsObject()) return Id;
+	const std::string BlockModel = Block->Str("of", Block->Str("model"));
+	if (BlockModel.empty() || BlockModel == Vp->Str("of", Vp->Str("model"))) return Id;
+	if (Block->Str("family") != Vp->Str("family")) return std::string();
+	const std::string Kit = Vp->Str("kit");
+	std::string TwinId = "v2_" + BlockModel + "__" + Vp->Str("slot", Slot);
+	if (Kit.rfind("e_", 0) == 0)
+		TwinId += "_e" + Kit.substr(2);
+	else if (!Kit.empty())
+		return std::string();      // (another bike's own kit piece: drawn for that bike only)
+	return Part(TwinId) ? TwinId : std::string();
 }
 
 std::vector<std::string> BikeLayout::StylesOf(const std::string& Id) const
@@ -489,6 +682,126 @@ std::string BikeLayout::Brief(const PartsMap& Parts, Json& LinesOut) const
 	return std::string();
 }
 
+// [bikes v2]
+V2Frame V2Frame::Of(const Json* FramePart)
+{
+	V2Frame F;
+	const Json* V2 = Sub(FramePart, "v2");
+	const Json* P = Sub(V2, "points_mm");
+	const Json* Fa = Sub(P, "front_axle");
+	const Json* Ra = Sub(P, "rear_axle");
+	if (!Fa || !Ra || Fa->A.size() < 3 || Ra->A.size() < 3) return F;
+	const double Dx = Fa->A[0].N - Ra->A[0].N, Dz = Fa->A[2].N - Ra->A[2].N;
+	const double Len = std::sqrt(Dx * Dx + Dz * Dz);
+	if (Len < 100.0) return F;
+	F.Valid = true;
+	F.Points = P;
+	F.MidX = (Fa->A[0].N + Ra->A[0].N) * 0.5;
+	F.MidZ = (Fa->A[2].N + Ra->A[2].N) * 0.5;
+	F.Cos = Dx / Len;
+	F.Sin = Dz / Len;
+	return F;
+}
+
+V3 V2Frame::Dir(double X, double YLeft, double ZUp) const
+{
+	return V3(Cos * X + Sin * ZUp, -Sin * X + Cos * ZUp, -YLeft);
+}
+
+V3 V2Frame::Point(double X, double YLeft, double ZUp) const
+{
+	return Dir(X - MidX, YLeft, ZUp - MidZ) * 0.001;
+}
+
+bool V2Frame::Named(const std::string& Key, V3& Out) const
+{
+	const Json* P = Sub(Points, Key);
+	if (!P || P->A.size() < 3) return false;
+	Out = Point(P->A[0].N, P->A[1].N, P->A[2].N);
+	return true;
+}
+
+const Json* BikeLayout::V2Of(const PartsMap& Parts) const
+{
+	const Json* V2 = Sub(Part(Get(Parts, "frame")), "v2");
+	return V2 && V2->IsObject() && !V2->Str("model").empty() ? V2 : nullptr;
+}
+
+namespace
+{
+// The sizes a V2 bike is drawn to, over what its catalogue parts add up to.
+void V2Stats(const Json* FramePart, BuildStats& S)
+{
+	const V2Frame F = V2Frame::Of(FramePart);
+	if (!F.Valid) return;
+	const Json* St = Sub(F.Points, "stats");
+	V3 Fa, Ra;
+	F.Named("front_axle", Fa);
+	F.Named("rear_axle", Ra);
+	S.Wheelbase = Fa.x - Ra.x;
+	const Json* Fd = Sub(F.Points, "fork_dir");
+	if (Fd && Fd->A.size() >= 3)
+	{
+		const V3 Up = F.Dir(Fd->A[0].N, Fd->A[1].N, Fd->A[2].N);
+		S.RakeDeg = std::atan2(-Up.x, Up.y) * 180.0 / TorqueSim::Pi;
+	}
+	S.SeatHeight = Num(St, "seat_height", S.SeatHeight * 1000.0) / 1000.0;
+	S.ForkLength = Num(St, "fork_length", S.ForkLength * 1000.0) / 1000.0;
+	S.FrontRadius = Num(St, "front_radius", S.FrontRadius * 1000.0) / 1000.0;
+	S.RearRadius = Num(St, "rear_radius", S.RearRadius * 1000.0) / 1000.0;
+	S.FrontRimRadius = Num(St, "front_rim", S.FrontRimRadius * 1000.0) / 1000.0;
+	S.RearRimRadius = Num(St, "rear_rim", S.RearRimRadius * 1000.0) / 1000.0;
+	S.FrontTyreWidth = Num(St, "front_width", S.FrontTyreWidth * 1000.0) / 1000.0;
+	S.RearTyreWidth = Num(St, "rear_width", S.RearTyreWidth * 1000.0) / 1000.0;
+	V3 Pivot;
+	if (F.Named("swing_pivot", Pivot))
+	{
+		S.PivotY = Pivot.y;
+		S.Arm = Pivot.x - Ra.x;
+	}
+	// A rigid chopper's rear wheel is bolted to its frame.
+	const Json* Rigid = Sub(F.Points, "rigid");
+	if (Rigid && Rigid->B) S.RearTravel = 0.0;
+}
+
+// The V2 bike's own points over the solved ones (the rest of the layout, the engine's hard points
+// and the tank's lines, stays the catalogue's: only the bodywork the game no longer draws used them).
+void V2Layout(const Json* FramePart, Layout& R)
+{
+	const V2Frame F = V2Frame::Of(FramePart);
+	if (!F.Valid) return;
+	F.Named("front_axle", R.FrontAxle);
+	F.Named("rear_axle", R.RearAxle);
+	V3 Top = R.Head, Bottom = R.HeadBottom;
+	if (F.Named("steer_top", Top) && F.Named("steer_bottom", Bottom))
+	{
+		R.Head = Top;
+		R.HeadBottom = Bottom;
+		const V3 Along = Top - Bottom;
+		const double Len = std::sqrt(Along.x * Along.x + Along.y * Along.y + Along.z * Along.z);
+		if (Len > 1.0e-6) R.SteerAxis = Along * (1.0 / Len);
+	}
+	F.Named("swing_pivot", R.Pivot);
+	const V3 OldHip = R.Hip;
+	if (F.Named("hip", R.Hip))
+	{
+		const V3 Move = R.Hip - OldHip;
+		R.KneeL = R.KneeL + Move;
+		R.KneeR = R.KneeR + Move;
+		R.SeatFront = R.SeatFront + Move;
+	}
+	// (The right-hand peg and grip, as the solver gives them: the drawing's are the left ones.)
+	if (F.Named("peg", R.Peg)) R.Peg.z = std::fabs(R.Peg.z);
+	if (F.Named("grip", R.GripR)) R.GripR.z = std::fabs(R.GripR.z);
+	R.BarBackM = 0.0;
+	R.BarUpM = 0.0;
+	// Built as one bike: nothing to fabricate between its frame and whatever engine is in it.
+	R.Fit.Tier = TierBolts;
+	R.Fit.Work.clear();
+	R.Fit.Reason.clear();
+}
+} // namespace
+
 BuildStats BikeLayout::Stats(const PartsMap& Parts) const
 {
 	BuildStats S;
@@ -514,6 +827,7 @@ BuildStats BikeLayout::Stats(const PartsMap& Parts) const
 	};
 	Wheel("front_wheel", "front_tyre", S.FrontRimRadius, S.FrontTyreWidth, S.FrontRadius);
 	Wheel("rear_wheel", "rear_tyre", S.RearRimRadius, S.RearTyreWidth, S.RearRadius);
+	if (Sub(Frame, "v2")) V2Stats(Frame, S);   // [bikes v2]
 	return S;
 }
 
@@ -827,6 +1141,7 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	R.EngineMax = V3(std::max(Bm.x, Bx.x), std::max(Bm.y, Bx.y), std::max(Bm.z, Bx.z));
 	R.FrontClear = Nearest;
 	R.Fit = FitOf(R, Engine, FrontClearWant, Notes);
+	if (Sub(Frame, "v2")) V2Layout(Frame, R);   // [bikes v2]
 	return R;
 }
 

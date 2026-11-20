@@ -22,19 +22,23 @@ def slots(x0, pitch, n, w=24, lean=38):
 STYLE = {
     # British, classic and sculpted: a deep rounded stub of a beak, one big round lamp in a bright ring, a tall rounded screen
     "hartwell": {"beak": (0.5, 1.05, 1.3, 0, 0.0), "eye": circle_half(47, 1046), "drl": circle_half(47, 1046, 4, 176) + circle_half(41, 1046, 4, 176)[::-1],
-                 "proj": [[19, 1046]], "slots": slots(1096, 62, 2, 28), "screen": 1.06, "wing": 58, "louvre_paint": True},
+                 "proj": [[19, 1046]], "slots": slots(1096, 62, 2, 28), "screen": 1.25, "wing": 58, "louvre_paint": True},
     # Japanese, angular and layered: a long thin beak that droops to a point, a slit running light over a pair of projectors
-    "kazeda": {"beak": (1.32, 0.85, 0.7, 0, -0.12), "eye": [[12, 1058], [92, 1074], [99, 1090], [60, 1092], [12, 1074]],
+    "kazeda": {"beak": (1.32, 0.85, 0.7, 0, -0.12), "beak_carbon": True, "eye": [[12, 1058], [92, 1074], [99, 1090], [60, 1092], [12, 1074]],
                "drl": [[12, 1074], [60, 1092], [99, 1090], [97, 1084], [60, 1085], [12, 1067]], "proj": [[38, 1028], [70, 1034]],
-               "slots": slots(1072, 42, 4, 20), "screen": 0.88, "wing": 96},
+               "slots": slots(1072, 42, 4, 20), "screen": 0.88, "wing": 96,
+               # its own cutaway: the black panel ends in a raked notch behind the louvres
+               "black": [[958, 903, 1], [1290, 898, 1], [1345, 930, 1], [1318, 840], [1270, 740], [1230, 660, 1], [1150, 690, 1], [1060, 680, 1], [1040, 760], [1000, 830, 1]]},
     # German, functional and blocky: a broad flat duck bill, two big square lamps under a light bar, the tallest screen
-    "rheinhart": {"beak": (1.0, 1.35, 0.58, 0, 0.0), "eye": [[10, 1020], [96, 1024], [96, 1070], [10, 1070]],
+    "rheinhart": {"beak": (1.0, 1.35, 0.58, 0, 0.0), "beak_carbon": True, "eye": [[10, 1020], [96, 1024], [96, 1070], [10, 1070]],
                   "drl": [[10, 1075], [96, 1075], [96, 1084], [10, 1084]], "proj": [[34, 1045], [72, 1046]],
-                  "slots": slots(1090, 72, 2, 40), "screen": 1.13, "wing": 70},
+                  "slots": slots(1090, 72, 2, 40), "screen": 1.42, "wing": 70},
     # Central European, tall and flat sided: a short rally beak set high with its tip turned up, a vertical lamp stack, a low screen
     "varga": {"beak": (0.7, 0.85, 1.0, 34, 0.14), "eye": [[0, 1042], [25, 1044], [29, 1090], [0, 1093]],
               "drl": [[34, 1044], [41, 1046], [47, 1088], [38, 1090]], "proj": [[0, 1055], [0, 1079]],
-              "slots": slots(1100, 50, 3, 22, 22), "screen": 0.74, "wing": 46},
+              "slots": slots(1100, 50, 3, 22, 22), "screen": 0.74, "wing": 46,
+              # its own cutaway, and painted: the panel is scooped away behind the front wheel and carries the bike's colour
+              "black": [[958, 903, 1], [1290, 898, 1], [1345, 930, 1], [1330, 860, 1], [1270, 800], [1250, 690, 1], [1196, 640, 1], [1096, 618, 1], [1024, 684], [978, 790]], "black_paint": True},
 }
 
 
@@ -64,6 +68,24 @@ def run():
         m["body"]["plate_hanger"] = copy.deepcopy(lead["body"]["plate_hanger"])
         if st.get("louvre_paint"):
             adv["louvre_paint"] = True
+        if st.get("beak_carbon"):
+            adv["beak_carbon"] = True
+        if st.get("black"):
+            adv["black"] = st["black"]
+        if st.get("black_paint"):
+            adv["black_paint"] = True
+        # the front mudguard sits down close to the tyre, as the lead's does (beenster, rollout round 2)
+        for s in m["body"]["front_guard"]:
+            if "arc" in s:
+                s["arc"]["r0"], s["arc"]["r1"] = 338, 360
+        if brand == "hartwell":
+            # the lead's pillion seat, so the seat frame's hoop and the rack sit under and beside it, not across it
+            ls = lead["body"]["seat"]
+            own = m["body"]["seat"][0]["pts"]
+            i0 = next(i for i, q in enumerate(own) if q[0] <= 404)
+            i1 = max(i for i, q in enumerate(own) if q[0] <= 404)
+            m["body"]["seat"][0]["pts"] = own[:i0] + copy.deepcopy([q for q in ls[0]["pts"] if q[0] <= 404]) + own[i1 + 1:]
+            m["body"]["seat"][2] = copy.deepcopy(ls[2])
         m["adv"] = adv
         # the drawing: drop the old flat fairing, lamp and rack; carry the lead's shaped parts with this brand's beak and louvres
         keep = [s for s in m["body"]["panels"] if not s.get("adv") and ("pts" not in s or (bbox(s)[1] < 960 and not s.get("tube")))]

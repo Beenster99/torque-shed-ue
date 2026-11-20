@@ -113,8 +113,7 @@ namespace BSI = BikeShopImpl;
 const std::vector<std::string>& ConfigSlots()
 {
 	static const std::vector<std::string> S = {"frame", "engine", "tank", "fairing", "saddle", "exhaust", "front_wheel", "front_tyre",
-		"rear_wheel", "rear_tyre", "fork", "headlight", "handlebars", "dashboard", "front_mudguard", "tail", "panniers", "top_box", "satnav",
-		"toolbox"};
+		"rear_wheel", "rear_tyre", "fork", "headlight", "handlebars", "dashboard", "front_mudguard", "tail", "panniers", "top_box", "satnav"};   // (beenster Nov 17: no toolbox)
 	return S;
 }
 
@@ -198,6 +197,23 @@ std::vector<std::string> Options(const BikeLayout& Lay, const std::string& Slot,
 	for (const std::string& Id : All)
 		if (BSI::ShopHas(Lay.StylesOf(Id), Style)) Suits.push_back(Id);
 	Out = Suits.size() >= 2 ? Suits : All;
+	// [bikes v2] The old frames are retired: a style with V2 bikes offers only those as its frame.
+	if (Slot == "frame")
+	{
+		const std::vector<std::string> V2 = Lay.V2Frames(Style);
+		if (!V2.empty()) Out = V2;
+	}
+	// [bare frame] Only the V2 parts that bolt to this bike's frame (its family; the engine's layout...).
+	if (Slot != "frame")
+		Out.erase(std::remove_if(Out.begin(), Out.end(), [&](const std::string& Id) { return !Lay.V2FitReason(Parts, Slot, Id).empty(); }), Out.end());
+	// [configurator, beenster in 160: "some of the models change in the preview but some arent"] On a V2 frame a
+	// part not made for the V2 bikes (an old exhaust) isn't drawn: the model's own stays. Only V2 parts and the
+	// common parts are offered there (the dash, the tyres and the luggage are drawn as their own parts).
+	if (Slot != "frame" && Slot != "dashboard" && Wheel.empty() && Lay.V2Of(Parts) && Lay.V2Build(BSI::ShopGet(Parts, "frame")).count(Slot))
+		Out.erase(std::remove_if(Out.begin(), Out.end(), [&](const std::string& Id) {
+			const Json* P = Lay.Part(Id);
+			return P && !P->Get("v2part") && !P->Get("common");
+		}), Out.end());
 	if (Lay.MayBeEmpty(Slot) && !BSI::ShopHas(Out, "none")) Out.push_back("none");
 	const std::string Now = BSI::ShopGet(Parts, Slot);
 	if (!Now.empty() && !BSI::ShopHas(Out, Now)) Out.insert(Out.begin(), Now);
@@ -239,13 +255,15 @@ PartsMap FitTyres(const BikeLayout& Lay, const PartsMap& Parts, const std::strin
 
 PartsMap StockBuild(const BikeLayout& Lay, const std::string& Style)
 {
-	return FitTyres(Lay, RideParts(Lay, Lay.ReferenceBuild(Style)), Style);
+	return FitTyres(Lay, RideParts(Lay, Lay.ShopBuild(Style)), Style);   // [bikes v2] on its lead V2 frame, if the style has one
 }
 
 PartsMap SetPart(const BikeLayout& Lay, const PartsMap& Parts, const std::string& Style, const std::string& Slot, const std::string& Id)
 {
 	PartsMap In = Parts;
 	In[Slot] = Id;
+	// [bare frame] Another frame comes with its own parts (the old frame's V2 parts don't fit it).
+	if (Slot == "frame") In = Lay.V2Dress(In);
 	return FitTyres(Lay, RideParts(Lay, In), Style);
 }
 
@@ -488,7 +506,7 @@ bool ParseOrder(const BikeLayout& Lay, const std::string& Text, Order& Out)
 	if (!Json::Parse(Text, J) || !J.IsObject()) return false;
 	Out = Order();
 	Out.Style = J.Str("style");
-	if (!BSI::ShopHas(Lay.Styles(), Out.Style)) return false;
+	if (!BSI::ShopHas(Lay.ShopStyles(), Out.Style)) return false;   // [bikes v2] only the styles still sold
 	BSI::ShopRgb(J.Get("paint"), Out.Paint);
 	// The style's stock bike with the configurator's slots over it, made whole: a part that isn't
 	// the slot's kind is dropped for the stock one (sanitize_build), and the tyres put right.
@@ -525,10 +543,15 @@ std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O
 	const auto Tank = O.Colours.find("tank");
 	if (Tank != O.Colours.end() && Tank->second.size() >= 3)
 		for (int I = 0; I < 3; ++I) Paint[I] = Tank->second[(size_t)I];
+	const bool bTankPicked = Tank != O.Colours.end() && Tank->second.size() >= 3;
 	for (const std::string& S : {std::string("tank"), std::string("fairing")})
 	{
 		const std::string On = BSI::ShopGet(O.Parts, S);
-		if (!On.empty() && On != "none") Rgb(Out[S], Paint);
+		if (!On.empty() && On != "none")
+		{
+			Rgb(Out[S], Paint);
+			Out[S].Picked = bTankPicked;
+		}
 	}
 	// The groups first, then the slots picked one by one over them (the configurator clears a
 	// group's slots when the group is coloured, so a slot set after it is the later word).
@@ -537,7 +560,11 @@ std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O
 		{
 			const bool bGroup = BSI::ShopHas(ColourGroups(), KV.first);
 			if (bGroup != (Pass == 0) || KV.second.size() < 3) continue;
-			for (const std::string& S : ColourSlots(Lay, KV.first, O.Parts)) Rgb(Out[S], KV.second.data());
+			for (const std::string& S : ColourSlots(Lay, KV.first, O.Parts))
+			{
+				Rgb(Out[S], KV.second.data());
+				Out[S].Picked = true;
+			}
 		}
 	// Each finish picked (a slot or a group) on its parts, in their colour now; a part not
 	// coloured yet takes the factory's colour under it (BikeShop.factory_colour).
@@ -557,6 +584,7 @@ std::map<std::string, SlotLook> OrderLooks(const BikeLayout& Lay, const Order& O
 					It = Out.emplace(S, L).first;
 				}
 				It->second.Finish = KV.second;
+				It->second.Picked = true;
 			}
 		}
 	return Out;

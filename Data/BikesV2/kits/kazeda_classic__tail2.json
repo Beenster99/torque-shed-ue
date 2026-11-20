@@ -1,0 +1,91 @@
+{
+ "name": "Kazeda classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 20080,
+ "surfaces": {
+  "s017": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0078,
+    0.0759,
+    0.5295
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  },
+  "s020": {
+   "slot": "tail",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s021": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plate",
+   "tag": "plate",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s153": {
+   "slot": "tail",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "tail_light"
+  },
+  "s154": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_redglass",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s155": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s156": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_bulb",
+   "tag": "d3_bulb",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ }
+}

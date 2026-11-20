@@ -63,6 +63,35 @@ void RidePlan::IndexWater()
 		}
 		if (Run.At.empty() || Run.At.back().DistanceTo(Flow.Line.back()) > 0.5) Run.At.push_back(Flow.Line.back());
 		if (Run.At.size() < 2) continue;
+		// ([build 154] beenster: "too many long water objects for streams and rivers, with very jagged corners":
+		// the map's line turns sharply at each of its points, and the water ran straight between them. Now its
+		// points every WaterStep m are eased round each turn, over about 10 m either side, its ends kept.)
+		if (Run.At.size() > 4)
+		{
+			static constexpr double Weights[4] = {1.0, 0.8, 0.5, 0.2};
+			for (int Pass = 0; Pass < 2; ++Pass)
+			{
+				const std::vector<P2> Was = Run.At;
+				const size_t Count = Was.size();
+				for (size_t I = 1; I + 1 < Count; ++I)
+				{
+					// (as far either side as the line reaches both ways, so the ends stay put)
+					const size_t Reach = std::min<size_t>({3, I, Count - 1 - I});
+					P2 Sum(0.0, 0.0);
+					double Total = 0.0;
+					for (size_t D = 0; D <= Reach; ++D)
+					{
+						const double W = Weights[D];
+						Sum = Sum + Was[I - D] * W;
+						Total += W;
+						if (D == 0) continue;
+						Sum = Sum + Was[I + D] * W;
+						Total += W;
+					}
+					Run.At[I] = Sum * (1.0 / Total);
+				}
+			}
+		}
 		const size_t N = Run.At.size();
 		// (downhill: the map draws a watercourse the way it flows, but not always)
 		{
@@ -168,7 +197,7 @@ void RidePlan::IndexWater()
 	}
 }
 
-bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind) const
+bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind, bool* Beside) const
 {
 	if (WaterNear.empty()) return false;
 	const auto It = WaterNear.find(WaterKey(X, Z, WaterCell));
@@ -183,7 +212,8 @@ bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, doub
 		const P2 A = Run.At[I], B = Run.At[I + 1];
 		const P2 D = B - A;
 		const double L2 = D.X * D.X + D.Z * D.Z;
-		const double T = L2 > 1e-12 ? std::clamp(((X - A.X) * D.X + (Z - A.Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+		const double Along = L2 > 1e-12 ? ((X - A.X) * D.X + (Z - A.Z) * D.Z) / L2 : 0.0;
+		const double T = std::clamp(Along, 0.0, 1.0);
 		const double Dd = Here.DistanceTo(A + D * T);
 		const double Hh = Run.Half[I] + (Run.Half[I + 1] - Run.Half[I]) * T;
 		const double Past = Dd - Hh;
@@ -195,6 +225,7 @@ bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, doub
 		Surface = Run.Surface[I] + (Run.Surface[I + 1] - Run.Surface[I]) * T;
 		Depth = Run.Depth[I] + (Run.Depth[I + 1] - Run.Depth[I]) * T;
 		if (Kind) *Kind = Run.Kind;
+		if (Beside) *Beside = !((I == 0 && Along < 0.0) || (I + 2 == Run.At.size() && Along > 1.0));
 	}
 	return Found;
 }

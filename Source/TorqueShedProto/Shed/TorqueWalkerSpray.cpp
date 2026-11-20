@@ -7,6 +7,8 @@
 
 #include "Shed/TorqueBoothHooks.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueEffectPaint.h"
+#include "Shed/TorquePaintMix.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
@@ -14,6 +16,7 @@
 #include "Shed/TorqueSprayJob.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Camera/CameraComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "CollisionQueryParams.h"
 #include "Engine/Canvas.h"
@@ -79,7 +82,9 @@ bool ATorqueWalker::IsSprayPlan(const FPlan& P) const
 
 FString ATorqueWalker::SprayKey(const FTorqueShedRequest& R) const
 {
-	return FString::Printf(TEXT("%d|%d|%d|%s|%d"), (int32)R.Kind, R.Item, R.Colour, *R.Finish.ToString(), R.bGun ? 1 : 0);
+	// (A fade's type, R, can change while cup 2 goes on: it's the same coat.)
+	const int32 Colour = R.Finish == UTorqueBuildSubsystem::FadeFinish() ? 0 : R.Colour;
+	return FString::Printf(TEXT("%d|%d|%d|%s|%d"), (int32)R.Kind, R.Item, Colour, *R.Finish.ToString(), R.bGun ? 1 : 0);
 }
 
 bool ATorqueWalker::SprayOwns(const UStaticMeshComponent* C) const
@@ -234,20 +239,27 @@ bool ATorqueWalker::SprayWork(float Dt)
 	FVector Normal = bHit ? FVector(Hit.ImpactNormal) : -Dir;
 	const AActor* HitBy = bHit ? Hit.GetActor() : nullptr;
 	const bool bOwnBox = HitBy && (HitBy->IsA<ATorqueShedItems>() || HitBy->IsA<ATorqueShedBike>() || HitBy->IsA<ATorqueBoothHooks>());
+	// The part's own surface under the crosshair (as near as its points are apart), else, if the line
+	// only met the part's box or slipped past an edge, the nearest of it inside the fan: the spray
+	// lands on the part, never on the empty air of its box (beenster's 155 test: "the paint spray
+	// doesn't seem to land on the object I am spraying").
 	double Nearest = TNumericLimits<double>::Max();
-	for (const TSharedPtr<FTorqueSprayJob>& J : Jobs)
-	{
-		FVector SAt, SN;
-		double T = 0.0;
-		if (!J->SurfaceHit(Eye, Dir, 3.5, SAt, SN, T) || T >= Nearest) continue;
-		Nearest = T;
-		if (!bHit || bOwnBox || FVector::Dist(Eye, Hit.ImpactPoint) > T - 5.0)
+	bool bOnSurface = false;
+	for (int32 Pass = 0; Pass < 2 && !bOnSurface; ++Pass)
+		for (const TSharedPtr<FTorqueSprayJob>& J : Jobs)
 		{
+			FVector SAt, SN;
+			double T = 0.0;
+			const double Width = Pass == 0 ? J->HitWidth() : FMath::Max(J->HitWidth(), (bGun ? GunRadius : CanRadius) * 0.7);
+			if (!J->SurfaceHit(Eye, Dir, Width, SAt, SN, T) || T >= Nearest) continue;
+			if (bHit && !bOwnBox && FVector::Dist(Eye, Hit.ImpactPoint) <= T - 5.0) continue;   // something really in the way
+			Nearest = T;
 			At = SAt;
 			Normal = SN;
 			bHit = true;
+			bOnSurface = true;
 		}
-	}
+	if (!bOnSurface && bOwnBox) bHit = false;   // only the box round a part: nothing to land on
 	for (const TSharedPtr<FTorqueSprayJob>& J : Jobs) J->Step(Dt, Eye, Dir, bHit, At, Normal, bFiring);
 	if (!bFiring)
 	{
@@ -259,8 +271,10 @@ bool ATorqueWalker::SprayWork(float Dt)
 	Progress = FMath::Max(Progress, 0.0) + Dt;   // working, for the sounds and the others' view of your hands
 	ProgressKey = Plan.Key();
 	Doing(Bay != INDEX_NONE ? FString::Printf(TEXT("%s on bay %d"), *Plan.Verb, Bay + 1) : Plan.Verb, 1.5);
+	const bool bFadeTwo = Main->Request.Finish == UTorqueBuildSubsystem::FadeFinish();   // (a fade's cup 2 isn't a whole coat: no "coat on")
 	for (const FCue& C : Main->Cues)
 	{
+		if (bFadeTwo && C.Kind == ECue::Ready) continue;
 		SprayCue = C;
 		SprayCueAge = 0.0;
 		if (C.Kind == ECue::Ready)
@@ -271,7 +285,7 @@ bool ATorqueWalker::SprayWork(float Dt)
 	}
 	for (const TSharedPtr<FTorqueSprayJob>& J : Jobs) J->Cues.Reset();
 	for (const TSharedPtr<FTorqueSprayJob>& J : Jobs)
-		if (J->Complete()) FinishSpray(J);
+		if (J->Complete() && J->Request.Finish != UTorqueBuildSubsystem::FadeFinish()) FinishSpray(J);   // (a fade: Enter blends it)
 	return true;
 }
 
@@ -286,7 +300,8 @@ void ATorqueWalker::SprayLetGo(bool bFinishReady)
 	const FString Want = TWSI::Tail(Spray->Key);
 	TArray<TSharedPtr<FTorqueSprayJob>> On;
 	for (const TPair<FString, TSharedPtr<FTorqueSprayJob>>& KV : SprayJobs)
-		if (KV.Value.IsValid() && TWSI::Tail(KV.Key) == Want && KV.Value->Ready()) On.Add(KV.Value);
+		if (KV.Value.IsValid() && TWSI::Tail(KV.Key) == Want && KV.Value->Ready() && KV.Value->Request.Finish != UTorqueBuildSubsystem::FadeFinish())
+			On.Add(KV.Value);
 	for (const TSharedPtr<FTorqueSprayJob>& J : On) FinishSpray(J);
 }
 
@@ -300,6 +315,12 @@ void ATorqueWalker::FinishSpray(const TSharedPtr<FTorqueSprayJob>& InJob)
 	P.Request = Job->Result();
 	const bool bDone = Do(P);
 	const TCHAR* What = Job->Layer == ELayer::Primer ? TEXT("Primer") : (Job->Layer == ELayer::Clear ? TEXT("Lacquer") : TEXT("Colour coat"));
+	if (bDone && IsFadeLoaded() && P.Request.Finish == UTorqueBuildSubsystem::CupFinish())
+	{
+		// A fade's base coat on: on to cup 2 by itself.
+		FadeCup = INDEX_NONE;
+		Say(TEXT("Base coat on! Now cup 2: spray about half of it, then Enter to blend it in"), true, 5.0);
+	}
 	if (bDone)
 	{
 		SprayCue = FCue{ECue::Done, FString::Printf(TEXT("%s on: %d%%"), What, FMath::RoundToInt(P.Request.Amount * 100.0f))};
@@ -317,6 +338,63 @@ void ATorqueWalker::FinishSpray(const TSharedPtr<FTorqueSprayJob>& InJob)
 		Spray.Reset();
 		Progress = 0.0;
 		bSprayNeedRelease = bWorkHeld || ActHeldFor > 0.0;
+	}
+}
+
+void ATorqueWalker::FinishFades()
+{
+	// beenster, 19 Nov 2026: base coat from cup 1, cup 2 over about half, "the game makes it into a
+	// beautiful gentle fade". Where cup 2 went on says where the fade's middle is and which way it
+	// runs (FTorqueSprayJob::FadeFit), the fade type how soft it is and whether it runs front to back
+	// or top to bottom; the host draws it (FadeFromCups, the mask material).
+	TArray<TSharedPtr<FTorqueSprayJob>> Fades;
+	for (const TPair<FString, TSharedPtr<FTorqueSprayJob>>& KV : SprayJobs)
+		if (KV.Value.IsValid() && KV.Value->Request.Kind == ETorqueShedAct::Paint && KV.Value->Request.Finish == UTorqueBuildSubsystem::FadeFinish()
+			&& KV.Value->PaintedCount() > 0)
+			Fades.Add(KV.Value);
+	const int32 Pattern = TorquePaintMix::FirstFade + FMath::Clamp(FadeStyle, 0, TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade);
+	for (const TSharedPtr<FTorqueSprayJob>& J : Fades)
+	{
+		J->bLive = false;
+		FBox Box(ForceInit);
+		for (const TWeakObjectPtr<UStaticMeshComponent>& W : J->Meshes())
+			if (const UStaticMeshComponent* C = W.Get()) Box += TorqueEffectPaint::BoxIn(C, J->ModelTransform());
+		float At = 0.0f, Dir = 1.0f, Share = 0.0f;
+		if (!J->FadeFit(TorquePaintMix::FadeAlong(Pattern), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector, At, Dir, Share))
+		{
+			Say(TEXT("Spray cup 2 over part of it first (about half), then Enter."), false);
+			continue;
+		}
+		FPlan P = Plan;
+		P.bValid = true;
+		P.bComputer = false;
+		P.Request = J->Result();
+		P.Request.Colour = Pattern;
+		P.Request.Place = FTransform(FVector(At, Dir, 0.0f));
+		// How well cup 2 went on where it went (not how much of the part it covered: half's the idea).
+		const FStats St = J->Stats();
+		const float Of = FMath::Max(Share, 0.05f);
+		P.Request.Amount = FMath::Clamp(1.0f - (St.Runs / Of) * 0.6f - (St.Dry / Of) * 0.35f, 0.05f, 1.0f);
+		const bool bDone = Do(P);
+		if (bDone)
+		{
+			SprayCue = FCue{ECue::Done, FString::Printf(TEXT("Fade blended in: %d%% cup 2, %s"), FMath::RoundToInt(Share * 100.0f),
+				*FString(TorquePaintMix::PatternName(Pattern)).ToLower())};
+			SprayCueAge = 0.0;
+			SprayFlash = 0.25;
+			if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("ting"), J->ModelTransform().GetLocation(), -2.0f);
+		}
+		J->Finish(bDone);
+		SprayJobs.Remove(J->Key);
+		if (bDone) SprayDrying.Add(J);
+		else J->Detach();
+		if (Spray == J)
+		{
+			SprayShown = J;
+			Spray.Reset();
+			Progress = 0.0;
+			bSprayNeedRelease = bWorkHeld || ActHeldFor > 0.0;
+		}
 	}
 }
 
@@ -409,6 +487,8 @@ void ATorqueWalker::EnterSprayMode()
 void ATorqueWalker::LeaveSprayMode()
 {
 	if (SprayItem == 0) return;
+	FinishFades();   // a fade's cup 2 on: blended in as you step back
+	FadeCup = INDEX_NONE;
 	SprayItem = 0;
 	SprayBay = INDEX_NONE;
 	SpraySlot = NAME_None;
@@ -439,7 +519,10 @@ void ATorqueWalker::SetSprayScan(bool bOn)
 int32 ATorqueWalker::SprayHook() const
 {
 	const UTorqueBuildSubsystem* B = Shed();
-	const FTorqueItem* It = B && SprayItem != 0 ? B->Item(SprayItem) : nullptr;
+	// The gun or can in your hand (the spray controls down), aimed at a hook or the part on it: the
+	// same keys wind it, so you needn't put the gun down to set the height.
+	if (SprayItem == 0) return B && TWSI::Sprays(Tool) && B->HeldBy(B->Me()) == 0 ? HookOf() : INDEX_NONE;
+	const FTorqueItem* It = B ? B->Item(SprayItem) : nullptr;
 	if (!It || It->At != ETorqueAt::Spot) return INDEX_NONE;
 	const FTorquePlace* P = TorqueShedLayout::FindPlace(It->Spot);
 	return P && P->Kind == ETorquePlace::Hook ? P->Index : INDEX_NONE;
@@ -589,6 +672,8 @@ void ATorqueWalker::UpdateSprayFx(float Dt)
 
 FString ATorqueWalker::SprayControlsText() const
 {
+	if (IsFadeLoaded())
+		return TEXT("FADE: 1) a full base coat from cup 1   2) cup 2 over about half of it   3) Enter (or F) blends it in      [ / ] (D-pad down): which cup   R (Square): fade type   Hold left mouse (Cross): spray   F (Triangle): step back");
 	return SprayHook() != INDEX_NONE
 		? FString(TEXT("Hold left mouse (Cross): sweep in steady passes   Right mouse (L2): steady your hand   Q / E or wheel (L1 / R1): hook down / up   X (D-pad up): what's missed   F (Triangle): step back"))
 		: FString(TEXT("Hold left mouse (Cross): sweep in steady passes; go round it and crouch for underneath   Right mouse (L2): steady your hand   X (D-pad up): what's missed   F (Triangle): step back"));
@@ -644,7 +729,9 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		const FString What = Job->Layer == ELayer::Primer ? TEXT("PRIMER") : (Job->Layer == ELayer::Clear ? TEXT("LACQUER") : TEXT("COLOUR"));
 		FString Title = FString::Printf(TEXT("SPRAYING %s"), *What);
 		if (Job->Request.Kind == ETorqueShedAct::Paint)
-			Title = Job->Request.Finish == UTorqueBuildSubsystem::CupFinish() ? FString(TEXT("SPRAYING  -  FROM THE CUP"))
+			Title = Job->Request.Finish == UTorqueBuildSubsystem::FadeFinish() ? FString(TEXT("FADE  -  STEP 2 OF 2: CUP 2 OVER ABOUT HALF"))
+				: (IsFadeLoaded() && Job->Request.Finish == UTorqueBuildSubsystem::CupFinish()) ? FString(TEXT("FADE  -  STEP 1 OF 2: BASE COAT FROM CUP 1"))
+				: UTorqueBuildSubsystem::IsCupFinish(Job->Request.Finish) ? FString::Printf(TEXT("SPRAYING  -  FROM CUP %d"), UTorqueBuildSubsystem::CupWhich(Job->Request.Finish) + 1)
 				: FString::Printf(TEXT("SPRAYING  -  %s %s"), *Load, *UTorqueBuildSubsystem::PaintName(Job->Request.Colour).ToUpper());
 		const float In = 16.0f * S, Inner = W - 2.0f * In;
 		Text(Title, X0 + In, Y0 + 12.0f * S, Px(18.0f), TWSI::Accent);
@@ -656,8 +743,11 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		Rect(FLinearColor::White, X0 + In + Inner * Done - 1.0f * S, BarY - 3.0f * S, 2.0f * S, BarH + 6.0f * S);
 		Frame(FLinearColor(1, 1, 1, 0.25f), X0 + In, BarY, Inner, BarH, 1.0f);
 		Text(B->ItemTitle(Job->Item), X0 + In, Y0 + 62.0f * S, Px(14.0f), TWSI::Dim);
-		Text(bReady ? FString(TEXT("Let go to finish the coat")) : FString::Printf(TEXT("On at %d%%"), FMath::RoundToInt(Done * 100.0f)),
-			X0 + In, Y0 + 62.0f * S, Px(14.0f), bReady ? TWSI::Good : TWSI::Dim, 2, Inner);
+		if (Job->Request.Finish == UTorqueBuildSubsystem::FadeFinish())
+			Text(TEXT("About half, then Enter (F) to blend it in"), X0 + In, Y0 + 62.0f * S, Px(14.0f), TWSI::Good, 2, Inner);
+		else
+			Text(bReady ? FString(TEXT("Let go to finish the coat")) : FString::Printf(TEXT("On at %d%%"), FMath::RoundToInt(Done * 100.0f)),
+				X0 + In, Y0 + 62.0f * S, Px(14.0f), bReady ? TWSI::Good : TWSI::Dim, 2, Inner);
 		// Evenness, and what's spoiling it.
 		float Y = Y0 + 88.0f * S;
 		Text(TEXT("EVENNESS"), X0 + In, Y, Px(13.0f), TWSI::Dim);

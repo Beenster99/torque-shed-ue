@@ -6,24 +6,39 @@
 #include "WorldZip.h"
 
 #include <algorithm>
+#include <array>
+#include <chrono>
+#include <functional>
 #include <cmath>
+#include <condition_variable>
 #include <map>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 
 namespace TorqueWorld
 {
+namespace
+{
+constexpr double WaitForCellSeconds = 20.0;   // [build 158] a worker's longest wait for a cell another is reading
+}
+
 struct RidePlan::OutlineStore
 {
 	struct CellZip
 	{
-		int State = 0;   // 0 not looked at, 1 here, 2 none
+		int State = 0;   // 0 not looked at, 1 here, 2 none, 3 being read (by one thread, without the lock)
 		std::string Zip;
 		std::vector<ZipEntry> Entries;
 		std::vector<std::string> Words;
 		int Tiles = 8;
+		std::string Release;
+		// [LiDAR stage 2] By tile ("TX_TZ"), then row: the row's first latitude (micro-degrees, mod 10000, so a
+		// row that has moved is not given another's height), its eaves and its ridge (metres).
+		LidarTiles Lidar;
 	};
 	std::mutex Lock;
+	std::condition_variable Ready;   // (a cell's read finished: State left 3)
 	std::map<std::string, CellZip> Cells;
 	std::map<std::string, std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> TilesRead;   // "ROW_COL/TX_TZ"
 	std::vector<std::string> Notes;   // what each cell's first read came to, for the log (TakeOutlineNotes)
@@ -36,6 +51,38 @@ std::vector<std::string> RidePlan::TakeOutlineNotes() const
 	std::lock_guard<std::mutex> Lock(Outlines->Lock);
 	Out.swap(Outlines->Notes);
 	return Out;
+}
+
+size_t RidePlan::ReadLidar(const std::string& Text, const std::string& Release, LidarTiles& Out)
+{
+	TorqueFit::Json J;
+	if (!TorqueFit::Json::Parse(Text, J) || !J.IsObject() || J.Str("release") != Release) return 0;
+	const TorqueFit::Json* Tiles = J.Get("tiles");
+	if (Tiles == nullptr) return 0;
+	size_t Rows = 0;
+	for (const auto& [TileName, Flat] : Tiles->O)
+	{
+		auto& Into = Out[TileName];
+		for (size_t K = 0; K + 3 < Flat.A.size(); K += 4)
+		{
+			const float Eaves = float(Flat.A[K + 2].N * 0.1), Ridge = float(Flat.A[K + 3].N * 0.1);
+			if (!(Eaves >= 2.0f && Ridge >= Eaves && Ridge < 400.0f)) continue;
+			Into[int(Flat.A[K].N)] = {float(Flat.A[K + 1].N), Eaves, Ridge};
+			++Rows;
+		}
+	}
+	return Rows;
+}
+
+bool RidePlan::LidarOfRow(const LidarTiles& Tiles, const std::string& Tile, int Row, long long FirstLat, float& Eaves, float& Ridge)
+{
+	const auto T = Tiles.find(Tile);
+	if (T == Tiles.end()) return false;
+	const auto R = T->second.find(Row);
+	if (R == T->second.end() || int(R->second[0]) != int(FirstLat % 10000)) return false;
+	Eaves = R->second[1];
+	Ridge = R->second[2];
+	return true;
 }
 
 std::shared_ptr<RidePlan::OutlineStore> RidePlan::NewOutlineStore()
@@ -179,6 +226,105 @@ std::vector<Building> RidePlan::PiecesOf(const std::vector<P2>& Ring, double Hei
 	return Out;
 }
 
+void RidePlan::MarkRows(std::vector<OutlinePiece>& Pieces)
+{
+	// Two houses' main boxes share a wall where they lie square to each other (within 6 degrees), a side
+	// of each on the same line (within 0.7 m) and overlapping along it by 3 m or half the shorter side.
+	// Rows are the houses joined so; a pair are semis, three or more a terrace.
+	const size_t N = Pieces.size();
+	std::unordered_map<long long, std::vector<int>> Grid;
+	constexpr double Cell = 24.0;
+	const auto Key = [](long long Gx, long long Gz) { return Gx * 4000037LL + Gz; };
+	for (size_t I = 0; I < N; ++I)
+	{
+		const OutlinePiece& P = Pieces[I];
+		if (!P.Main || P.B.More.empty() || int(P.B.More[0]) != 0) continue;   // (houses' main boxes)
+		Grid[Key(static_cast<long long>(std::floor(P.B.X / Cell)), static_cast<long long>(std::floor(P.B.Z / Cell)))].push_back(int(I));
+	}
+	std::vector<int> Root(N);
+	for (size_t I = 0; I < N; ++I) Root[I] = int(I);
+	const std::function<int(int)> Find = [&](int A) { while (Root[size_t(A)] != A) { Root[size_t(A)] = Root[size_t(Root[size_t(A)])]; A = Root[size_t(A)]; } return A; };
+	for (const auto& Bucket : Grid)
+		for (const int I : Bucket.second)
+		{
+			OutlinePiece& A = Pieces[size_t(I)];
+			const double Cs = std::cos(A.B.Yaw), Sn = std::sin(A.B.Yaw);
+			const long long Gx = static_cast<long long>(std::floor(A.B.X / Cell)), Gz = static_cast<long long>(std::floor(A.B.Z / Cell));
+			for (long long Dx = -1; Dx <= 1; ++Dx)
+				for (long long Dz = -1; Dz <= 1; ++Dz)
+				{
+					const auto It = Grid.find(Key(Gx + Dx, Gz + Dz));
+					if (It == Grid.end()) continue;
+					for (const int J : It->second)
+					{
+						if (J <= I) continue;
+						OutlinePiece& Bo = Pieces[size_t(J)];
+						if (Bo.Outline == A.Outline) continue;
+						double Turn = std::fmod(std::fabs(A.B.Yaw - Bo.B.Yaw), 3.14159265358979 * 0.5);
+						Turn = std::fmin(Turn, 3.14159265358979 * 0.5 - Turn);
+						if (Turn > 0.105) continue;
+						// (Bo's corners in A's frame: x along (cos, -sin), z along (sin, cos), as the drawer has it)
+						double Bx0 = 1e18, Bx1 = -1e18, Bz0 = 1e18, Bz1 = -1e18;
+						const double Cb = std::cos(Bo.B.Yaw), Sb = std::sin(Bo.B.Yaw);
+						for (double Su : {-0.5, 0.5})
+							for (double Sv : {-0.5, 0.5})
+							{
+								const double Wx = Bo.B.X + Su * Bo.B.W * Cb + Sv * Bo.B.D * Sb, Wz = Bo.B.Z - Su * Bo.B.W * Sb + Sv * Bo.B.D * Cb;
+								const double Dxw = Wx - A.B.X, Dzw = Wz - A.B.Z;
+								const double Lx = Dxw * Cs - Dzw * Sn, Lz = Dxw * Sn + Dzw * Cs;
+								Bx0 = std::fmin(Bx0, Lx); Bx1 = std::fmax(Bx1, Lx); Bz0 = std::fmin(Bz0, Lz); Bz1 = std::fmax(Bz1, Lz);
+							}
+						const double Hw = A.B.W * 0.5, Hd = A.B.D * 0.5;
+						const auto Overlap = [](double A0, double A1, double C0, double C1) { return std::fmin(A1, C1) - std::fmax(A0, C0); };
+						unsigned char Side = 0;
+						const double Oz = Overlap(-Hd, Hd, Bz0, Bz1), Ox = Overlap(-Hw, Hw, Bx0, Bx1);
+						const double NeedZ = std::fmin(3.0, 0.5 * std::fmin(A.B.D, Bz1 - Bz0)), NeedX = std::fmin(3.0, 0.5 * std::fmin(A.B.W, Bx1 - Bx0));
+						if (std::fabs(Bx0 - Hw) < 0.7 && Oz >= NeedZ) Side = 1;
+						else if (std::fabs(Bx1 + Hw) < 0.7 && Oz >= NeedZ) Side = 2;
+						else if (std::fabs(Bz0 - Hd) < 0.7 && Ox >= NeedX) Side = 4;
+						else if (std::fabs(Bz1 + Hd) < 0.7 && Ox >= NeedX) Side = 8;
+						if (Side == 0) continue;
+						A.Party |= Side;
+						A.Stacks |= Side;   // (the first of a pair draws the stack on their wall)
+						// (and the side of Bo that faces A)
+						const double Dxw = A.B.X - Bo.B.X, Dzw = A.B.Z - Bo.B.Z;
+						const double Lx = Dxw * Cb - Dzw * Sb, Lz = Dxw * Sb + Dzw * Cb;
+						Bo.Party |= std::fabs(Lx) / std::fmax(Bo.B.W, 0.1) > std::fabs(Lz) / std::fmax(Bo.B.D, 0.1) ? (Lx > 0.0 ? 1 : 2) : (Lz > 0.0 ? 4 : 8);
+						Root[size_t(Find(J))] = Find(I);
+					}
+				}
+		}
+	// The rows: their size, each house's place along it, and the row's spot.
+	std::unordered_map<int, std::vector<int>> Rows;
+	for (size_t I = 0; I < N; ++I)
+		if (Pieces[I].Main && Pieces[I].Party != 0) Rows[Find(int(I))].push_back(int(I));
+	for (auto& Row : Rows)
+	{
+		std::vector<int>& M = Row.second;
+		const OutlinePiece& First = Pieces[size_t(M.front())];
+		// (along the row: across its party walls)
+		const bool AlongX = (First.Party & 3) != 0;
+		const double Cs = std::cos(First.B.Yaw), Sn = std::sin(First.B.Yaw);
+		const double Ax = AlongX ? Cs : Sn, Az = AlongX ? -Sn : Cs;
+		std::sort(M.begin(), M.end(), [&](int A, int C) { return Pieces[size_t(A)].B.X * Ax + Pieces[size_t(A)].B.Z * Az < Pieces[size_t(C)].B.X * Ax + Pieces[size_t(C)].B.Z * Az; });
+		const P2 Seed(Pieces[size_t(M.front())].B.X, Pieces[size_t(M.front())].B.Z);
+		for (size_t K = 0; K < M.size(); ++K)
+		{
+			OutlinePiece& P = Pieces[size_t(M[K])];
+			P.RowSize = int(M.size());
+			P.RowPos = int(K);
+			P.RowSeed = Seed;
+		}
+	}
+	// (the pieces that aren't main boxes take their outline's row)
+	for (OutlinePiece& P : Pieces)
+		if (!P.Main && P.Outline >= 0 && size_t(P.Outline) < N)
+			for (size_t K = size_t(P.Outline); K < N && Pieces[K].Outline == P.Outline; ++K)
+				if (Pieces[K].Main) { P.RowSize = Pieces[K].RowSize; P.RowPos = Pieces[K].RowPos; P.RowSeed = Pieces[K].RowSeed; break; }
+	for (OutlinePiece& P : Pieces)
+		if (P.RowSize <= 1) P.RowSeed = P2(P.B.X, P.B.Z);
+}
+
 void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<OutlinePiece>>>& Hold,
 	std::vector<const OutlinePiece*>& Out, std::vector<CellId>& Covered) const
 {
@@ -193,37 +339,99 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 	{
 		const std::string Name = C.Name();
 		OutlineStore::CellZip* Z = nullptr;
+		// ([build 157] beenster's two hard freezes in 156 (freeze reports 17:37 and 17:42 Nov 18, both with the
+		// game thread stuck in TakeOutlineNotes): a worker held St.Lock all through CellsFrom->BuildingsZip, and
+		// a fetch from a worker waits for the GAME thread to send the request (BlockingGet). The game thread
+		// meanwhile waited on St.Lock (TakeOutlineNotes, or its own OutlinesIn): neither could move for up to
+		// 150 s a cell, fullscreen, so the PC looked dead. Now the lock is never held while a cell is read or
+		// fetched: the cell is marked 3 (being read), the reading done unlocked, and the result put back under
+		// the lock. The game thread never waits for a cell being read (that square keeps its boxes); a worker
+		// waits for it on Ready, which lets go of the lock while it waits.)
+		bool Mine = false;
 		{
-			std::lock_guard<std::mutex> Lock(St.Lock);
-			Z = &St.Cells[Name];
+			std::unique_lock<std::mutex> Lock(St.Lock);
+			Z = &St.Cells[Name];   // (std::map: the pointer stays good as other cells are added)
+			// ([build 158] and a worker waits at most WaitForCellSeconds: a slow download leaves this
+			// square its boxes rather than holding every worker up)
+			const auto WaitUntil = std::chrono::steady_clock::now() + std::chrono::duration<double>(WaitForCellSeconds);
+			while (Z->State == 3)
+			{
+				if (CellsFrom->MayFetch && !CellsFrom->MayFetch()) break;   // (the game thread: never waits)
+				if (St.Ready.wait_until(Lock, WaitUntil) == std::cv_status::timeout) break;
+			}
+			if (Z->State == 3) continue;
 			if (Z->State == 0)
 			{
-				// (read once: the zip's list and its words; a cell that can't be had keeps its boxes)
-				Z->State = 2;
-				std::string Bytes;
-				std::vector<ZipEntry> List;
-				TorqueFit::Json Head;
-				if (CellsFrom->BuildingsZip(Name, *Idx, Bytes) && ZipList(Bytes, List))
-				{
-					std::string Text;
-					for (const ZipEntry& E : List)
-						if (E.Name == "buildings.json" && ZipRead(Bytes, E, Text) && TorqueFit::Json::Parse(Text, Head) && Head.IsObject())
-						{
-							Z->Zip = std::move(Bytes);
-							Z->Entries = std::move(List);
-							Z->Tiles = std::max(1, int(Head.Num("tiles", 8)));
-							if (const TorqueFit::Json* W = Head.Get("words"))
-								for (const TorqueFit::Json& Word : W->A) Z->Words.push_back(Word.S);
-							Z->State = 1;
-							break;
-						}
-				}
-				const auto Have = Idx->Buildings.find(Name);
-				St.Notes.push_back(Z->State == 1
-					? "cell " + Name + ": outlines read (" + std::to_string(Z->Entries.size() - 1) + " tiles, " + std::to_string(Z->Zip.size() / 1024) + " KB)"
-					: "cell " + Name + ": no outlines (" + (Have == Idx->Buildings.end() ? "not in the index" : "zip not had or unreadable") + "), the cell's own boxes");
+				Z->State = 3;
+				Mine = true;
 			}
-			if (Z->State != 1) continue;
+			else if (Z->State != 1) continue;
+		}
+		if (Mine)
+		{
+			// (read once: the zip's list and its words; a cell that can't be had keeps its boxes)
+			int State = 2;
+			std::string Bytes;
+			std::vector<ZipEntry> List;
+			std::vector<std::string> Words;
+			int Tiles = 8;
+			std::string Release;
+			LidarTiles Lidar;
+			std::string LidarNote;
+			TorqueFit::Json Head;
+			// ([build 155] the hub, from beenster's 154 log: "a fetch was asked for on the game thread and
+			// refused (c580_701 .bld.zip)", then "cell 580_701: no outlines", and that town stayed boxes all
+			// ride, as Harehills did. Asked where it may not be fetched, a cell is left to be asked again from
+			// a worker, its boxes only for this square.)
+			bool Deferred = false;
+			const bool Got = CellsFrom->BuildingsZip(Name, *Idx, Bytes, &Deferred);
+			if (Deferred)
+				State = 0;
+			else if (Got && ZipList(Bytes, List))
+			{
+				std::string Text;
+				for (const ZipEntry& E : List)
+					if (E.Name == "buildings.json" && ZipRead(Bytes, E, Text) && TorqueFit::Json::Parse(Text, Head) && Head.IsObject())
+					{
+						Tiles = std::max(1, int(Head.Num("tiles", 8)));
+						if (const TorqueFit::Json* W = Head.Get("words"))
+							for (const TorqueFit::Json& Word : W->A) Words.push_back(Word.S);
+						State = 1;
+						Release = Head.Str("release");
+						break;
+					}
+			}
+			// [LiDAR stage 2] (the cell's heights, kept only where they were measured on this release's outlines; a
+			// local read, done here with the lock let go like the zip itself)
+			std::string LidarText;
+			if (State == 1 && LidarFrom && LidarFrom(Name, LidarText))
+			{
+				const size_t LidarRows = ReadLidar(LidarText, Release, Lidar);
+				LidarNote = "cell " + Name + ": LiDAR heights for " + std::to_string(LidarRows) + " outlines" + (LidarRows == 0 ? " (none for release " + Release + ")" : "");
+			}
+			{
+				std::lock_guard<std::mutex> Lock(St.Lock);
+				if (State == 1)
+				{
+					Z->Zip = std::move(Bytes);
+					Z->Entries = std::move(List);
+					Z->Words = std::move(Words);
+					Z->Tiles = Tiles;
+					Z->Release = std::move(Release);
+					Z->Lidar = std::move(Lidar);
+					if (!LidarNote.empty()) St.Notes.push_back(LidarNote);
+				}
+				Z->State = State;
+				if (State != 0)
+				{
+					const auto Have = Idx->Buildings.find(Name);
+					St.Notes.push_back(State == 1
+						? "cell " + Name + ": outlines read (" + std::to_string(Z->Entries.size() - 1) + " tiles, " + std::to_string(Z->Zip.size() / 1024) + " KB)"
+						: "cell " + Name + ": no outlines (" + (Have == Idx->Buildings.end() ? "not in the index" : "zip not had or unreadable") + "), the cell's own boxes");
+				}
+			}
+			St.Ready.notify_all();
+			if (State != 1) continue;
 		}
 		Covered.push_back(C);
 		const Geo Mid = CellMiddle(C);
@@ -245,8 +453,9 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 				TorqueFit::Json Rows;
 				for (const ZipEntry& E : Z->Entries)
 					if (E.Name == "t" + Key + ".json" && ZipRead(Z->Zip, E, Text) && TorqueFit::Json::Parse(Text, Rows) && Rows.IsArray())
-						for (const TorqueFit::Json& R : Rows.A)
+						for (size_t Row = 0; Row < Rows.A.size(); ++Row)
 						{
+							const TorqueFit::Json& R = Rows.A[Row];
 							if (R.Size() < 15) continue;
 							const auto Word = [&](size_t I) { const int W = int(R.A[I].N); return W > 0 && W < int(Z->Words.size()) ? Z->Words[size_t(W)] : std::string(); };
 							std::vector<P2> Ring;
@@ -265,6 +474,9 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 							BuildingLook Look;
 							// (the drawer's words: class, roof shape, roof colour, roof material, wall material, wall colour)
 							Look.Words[0] = Word(3); Look.Words[1] = Word(4); Look.Words[2] = Word(6); Look.Words[3] = Word(5); Look.Words[4] = Word(7); Look.Words[5] = Word(8);
+							float LidarEaves = 0.0f, LidarRidge = 0.0f;
+							LidarOfRow(Z->Lidar, Key, int(Row), static_cast<long long>(R.A[9].N), LidarEaves, LidarRidge);
+							const size_t FirstPiece = Made->size();
 							for (Building& Bp : PiecesOf(Ring, Height, KindOfClass(Look.Words[0], std::fabs(Sum) * 0.5)))
 							{
 								OutlinePiece P;
@@ -272,9 +484,20 @@ void RidePlan::OutlinesIn(double X0, double Z0, double Size, std::vector<std::sh
 								P.B = std::move(Bp);
 								P.Look = Look;
 								P.Floors = Floors > 0.0 ? Floors : 0.0;
+								P.LidarEaves = LidarEaves;
+								P.LidarRidge = LidarRidge;
 								Made->push_back(std::move(P));
 							}
+							// (the outline's number, and its biggest box its main one)
+							size_t Biggest = FirstPiece;
+							for (size_t K = FirstPiece; K < Made->size(); ++K)
+							{
+								(*Made)[K].Outline = int(FirstPiece);
+								if ((*Made)[K].B.W * (*Made)[K].B.D > (*Made)[Biggest].B.W * (*Made)[Biggest].B.D) Biggest = K;
+							}
+							if (Biggest < Made->size()) (*Made)[Biggest].Main = true;
 						}
+				MarkRows(*Made);
 				std::lock_guard<std::mutex> Lock(St.Lock);
 				Hold.push_back(St.TilesRead.emplace(Name + "/" + Key, Made).first->second);
 			}

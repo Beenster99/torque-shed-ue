@@ -69,6 +69,9 @@
 //   log                   log every bay's bike and the loose parts
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   shot:ui               a screenshot of the viewport with the HUD and menus (FScreenshotRequest)
+//   drone:up | drone:shot | drone:set:<zoom|ev|fstop|filter|pitch|yaw>:<v> | drone:fly:<x>:<y>:<z> | drone:status | drone:land
+//                         [drone] the drone camera (Photo/TorqueDrone.h): photos go to Pictures/Torque Shed
+//   album:open | album:print:<n> | album:close   [drone] the photo album; print the n'th newest into your hands
 //   wait:<seconds>        wait longer
 //   geo                   geometry mode on a catalogue bike (a steel backbone set up in bay 3, finished as a
 //                         cafe racer): a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved,

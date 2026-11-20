@@ -1,0 +1,46 @@
+{
+ "group": "heel_plates",
+ "key": "carbon",
+ "name": "Carbon",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rider_peg",
+ "mount_mm": [
+  590,
+  0.0,
+  355
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  134.5,
+  375.8,
+  111.9
+ ],
+ "triangles": 1448,
+ "surfaces": {
+  "d3_cf_twill": {
+   "ue": "cat_carbon",
+   "coat": 1.0,
+   "tag": "d3_cf_twill"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

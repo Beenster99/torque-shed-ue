@@ -1,0 +1,33 @@
+{
+ "group": "sprocket",
+ "key": "alu",
+ "name": "Alloy spoke",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  316.0
+ ],
+ "moves_with": "rear_wheel",
+ "size_mm": [
+  189.5,
+  6.4,
+  189.5
+ ],
+ "triangles": 8848,
+ "surfaces": {
+  "d3_bk_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.32,
+   "tag": "d3_bk_black"
+  }
+ }
+}

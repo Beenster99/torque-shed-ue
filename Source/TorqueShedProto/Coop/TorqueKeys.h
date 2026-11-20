@@ -16,12 +16,12 @@ enum class ETorqueKey : uint8
 {
 	// On foot.
 	WalkForward, WalkBack, WalkLeft, WalkRight, Run, Crouch, Jump,
-	Work, AltWork, Use, NextTool, PrevTool, Tool1, Tool2, Tool3, Tool4, Tool5, Tool6, SprayFinish, GeometryMode, LabelShelf,
+	Work, AltWork, Use, NextTool, PrevTool, Tool1, Tool2, Tool3, Tool4, Tool5, Tool6, SprayFinish, GeometryMode, LabelShelf, DecalMode, Drone, PhotoAlbum, SprayCup1, SprayCup2,
 	// Riding.
 	Throttle, FrontBrake, RearBrake, LeanLeft, LeanRight, WeightBack, WeightForward, ShiftUp, ShiftDown, AutoShift, Abs, Clutch, Ignition,
 	Camera, CamCloser, CamFarther, CamHigher, CamLower, CamTiltUp, CamTiltDown, LookBack, BackOnRoad, Restart, RealismDown, RealismUp, Weather, Horn,
 	Headlight, MainBeam, FogLights, IndicateLeft, IndicateRight, Hazards, BackToShed, Telemetry, RideHud, Nod, Wave, InfoPanel, PickPlace, Photo,
-	TftLeft, TftRight, TftUp, TftDown, TftOverlay, TftMap, TftArrange, Cruise,   // [tft] the bike's screen
+	TftLeft, TftRight, TftUp, TftDown, TftOverlay, TftMap, TftZoomIn, TftZoomOut, TftArrange, Cruise,   // [tft] the bike's screen
 	// Both.
 	Help, Perf, PerfLog, Ping,
 	Count

@@ -92,12 +92,15 @@ private:
 // back another (start, two turning points, start), heading off in different directions.
 std::vector<RouteRequest> Loops(double Lat, double Lon, double Km, const std::string& Mode, int Count = 3);
 
-// The famous roads ready to ride (Data/RideUK/famous_roads.json: [{name, about, mode, pins: [[lat,
-// lon, name], ...]}, ...]).
+// The famous roads ready to ride (Data/RideUK/famous_roads.json: [{name, about, mode, street, pins:
+// [[lat, lon, name], ...]}, ...]). [towns stage 8] A famous street ("street": true) is a ride from a
+// town or station nearby to the street, then along it where it can be ridden; the planner lists the
+// streets under the roads.
 struct FamousRoad
 {
 	std::string Name, About;
 	RouteRequest Journey;
+	bool Street = false;
 };
 bool ReadFamousRoads(const std::string& Text, std::vector<FamousRoad>& Out);
 

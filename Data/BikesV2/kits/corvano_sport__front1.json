@@ -1,0 +1,51 @@
+{
+ "name": "Corvano sport (working title S1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 102368,
+ "surfaces": {
+  "s027": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.4591,
+    0.0029,
+    0.0189
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s028": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s167": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "d3_perspex",
+   "tag": "d3_perspex",
+   "ue": "v2screen",
+   "color": [
+    0.82,
+    0.86,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  }
+ }
+}

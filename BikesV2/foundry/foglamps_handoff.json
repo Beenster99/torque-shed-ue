@@ -1,0 +1,62 @@
+{
+ "about": "Fog lights (beenster 17 Nov): a pair clamped to the fork's upper tubes, outside each leg; foundry/foglamps3d.py. Lit on the game's light toggle (off, dipped, high, high + fog) as the fog_lights slot.",
+ "fogs": [
+  {
+   "key": "chrome_spot",
+   "name": "Chrome spot lamps",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "stock": "halogen_spots",
+   "note": "Deep chrome bowls with a rolled rim, a silvered reflector and a bulb behind clear domed glass, on chrome arms."
+  },
+  {
+   "key": "amber_round",
+   "name": "Amber fog lamps",
+   "fits": [
+    "Classic",
+    "Cafe",
+    "Cruiser",
+    "Chopper"
+   ],
+   "stock": "amber_fogs",
+   "note": "Black bowls with a chrome rim and a yellow-amber glass: the old-school fog lamp."
+  },
+  {
+   "key": "rally",
+   "name": "Rally lamps",
+   "fits": [
+    "Naked",
+    "Adventure",
+    "Classic"
+   ],
+   "stock": "rally_lamps",
+   "note": "Bigger black round lamps with a satin rim, a reflector and a projector: for the long dark lanes."
+  },
+  {
+   "key": "led_cube",
+   "name": "LED cube pods",
+   "fits": [
+    "Naked",
+    "Adventure",
+    "MX"
+   ],
+   "stock": "led_pods",
+   "note": "Small square black pods with cooling fins at the back and four LEDs behind a clear face."
+  },
+  {
+   "key": "slim_bar",
+   "name": "Slim LED bars",
+   "fits": [
+    "Naked",
+    "Adventure",
+    "MX"
+   ],
+   "stock": "light_bar",
+   "note": "A short slim LED bar each side, black with a light strip across a clear face."
+  }
+ ]
+}

@@ -165,7 +165,7 @@ endif()
 
 add_executable(world_test world_test.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
   ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-  ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
+  ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideTownLife.cpp ${WORLD}/WorldRideCarParks.cpp ${WORLD}/WorldCircuits.cpp ${WORLD}/WorldRideCircuits.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRideFerry.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideGardens.cpp ${WORLD}/WorldRideChurches.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${WORLD}/WorldFerries.cpp ${FIT}/FitJson.cpp)
 target_include_directories(world_test PRIVATE ${WORLD} ${FIT})
 target_compile_definitions(world_test PRIVATE TORQUE_WORLD_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/world" TORQUE_WORLD_TMP="${CMAKE_CURRENT_BINARY_DIR}" TORQUE_REPO_DATA="${CMAKE_CURRENT_SOURCE_DIR}/../Data")
 find_package(Threads REQUIRED)
@@ -179,7 +179,7 @@ endif()
 if(NOT WIN32)
   add_executable(world_ride world_ride.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
     ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
+    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideTownLife.cpp ${WORLD}/WorldRideCarParks.cpp ${WORLD}/WorldCircuits.cpp ${WORLD}/WorldRideCircuits.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRideFerry.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideGardens.cpp ${WORLD}/WorldRideChurches.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${WORLD}/WorldFerries.cpp ${FIT}/FitJson.cpp)
   target_include_directories(world_ride PRIVATE ${WORLD} ${FIT})
   target_compile_definitions(world_ride PRIVATE TORQUE_SIMTEST="${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(world_ride PRIVATE Threads::Threads)
@@ -227,4 +227,47 @@ if(MSVC)
   target_compile_options(bikesv2_test PRIVATE /W4)
 else()
   target_compile_options(bikesv2_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# Decals (the decals plan): a part's decals as text, the skin under each, mirror twins, arches.
+add_executable(decal_test decal_test.cpp ${FIT}/BikeDecal.cpp)
+target_include_directories(decal_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(decal_test PRIVATE /W4)
+else()
+  target_compile_options(decal_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# [bikes v2] Every V2 bike in the catalogue laid out, fitted from its own files and given its riding spec.
+add_executable(v2fit_test v2fit_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(v2fit_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(v2fit_test PRIVATE /W4)
+else()
+  target_compile_options(v2fit_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# [common parts] every common part on every V2 bike it suits
+add_executable(commonparts_test commonparts_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(commonparts_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(commonparts_test PRIVATE /W4)
+else()
+  target_compile_options(commonparts_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# [ride awards] The end-of-ride stats counted from riding, and the vote's scoring and podium.
+add_executable(awards_test awards_test.cpp)
+target_include_directories(awards_test PRIVATE ${COOP})
+if(NOT MSVC)
+  target_compile_options(awards_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
+endif()
+
+# How quickly each V2 bike flicks from side to side, as through a chicane (a measurement, not pass/fail).
+add_executable(handling_test handling_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(handling_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(handling_test PRIVATE /W4)
+else()
+  target_compile_options(handling_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()

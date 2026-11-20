@@ -1,0 +1,120 @@
+{
+ "group": "clocks",
+ "key": "wide_screen",
+ "name": "Wide screen",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  70.2,
+  144.0,
+  93.3
+ ],
+ "triangles": 4640,
+ "surfaces": {
+  "d3_lp_satin": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
+  },
+  "d3_ck_screen": {
+   "ue": "cat_plastic",
+   "color": [
+    0.004,
+    0.005,
+    0.008
+   ],
+   "metallic": 0.0,
+   "roughness": 0.04,
+   "coat": 1.0,
+   "tag": "d3_ck_screen"
+  },
+  "d3_ck_boot": {
+   "ue": "cat_plastic",
+   "color": [
+    0.25,
+    0.55,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 0.25,
+   "tag": "d3_ck_boot"
+  },
+  "d3_ck_green": {
+   "ue": "cat_plastic",
+   "color": [
+    0.1,
+    1.0,
+    0.2
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_green"
+  },
+  "d3_ck_blue": {
+   "ue": "cat_plastic",
+   "color": [
+    0.15,
+    0.35,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_blue"
+  },
+  "d3_ck_amber": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.45,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_amber"
+  },
+  "d3_ck_red": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.05,
+    0.03
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_red"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

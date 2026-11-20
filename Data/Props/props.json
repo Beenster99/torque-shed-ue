@@ -803,6 +803,61 @@
    "name": "Spray cans, another row of eight",
    "torque_shed": "dressing (beenster, Nov 10: more spray cans at the back of the workbench)",
    "source": "blender"
+  },
+  "forecourt_garage": {
+   "name": "Forecourt garage unit (Ride UK)",
+   "torque_shed": "none (UE only: beenster Nov 17 2026)",
+   "source": "blender"
+  },
+  "ferry_small": {
+   "name": "Small double-ended ferry (Ride UK; Tools/props/make_ferry.py)",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_ramp": {
+   "name": "Ferry ramp, one end's",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_hut": {
+   "name": "Ferry ticket hut",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_shelter": {
+   "name": "Ferry waiting shelter",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_sign": {
+   "name": "Ferry sign",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_chain": {
+   "name": "Chain ferry chain and guide",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_turntable": {
+   "name": "Turntable ferry turning deck",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_queue": {
+   "name": "Ferry queue sign",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_barrier": {
+   "name": "Ferry slipway barrier post and lights",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_barrier_arm": {
+   "name": "Ferry slipway barrier arm",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
   }
  }
 }

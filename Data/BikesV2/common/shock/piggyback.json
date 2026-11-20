@@ -1,0 +1,60 @@
+{
+ "group": "shock",
+ "key": "piggyback",
+ "name": "Piggyback",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "shock_top",
+ "mount_mm": [
+  610,
+  0.0,
+  700
+ ],
+ "moves_with": "shock",
+ "size_mm": [
+  228.5,
+  80.5,
+  286.1
+ ],
+ "triangles": 11252,
+ "surfaces": {
+  "d3_sk_gold": {
+   "ue": "cat_anodised",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28,
+   "tag": "d3_sk_gold"
+  },
+  "d3_sk_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.85,
+   "roughness": 0.28,
+   "tag": "d3_sk_black"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_sk_spring_red": {
+   "ue": "cat_plastic",
+   "color": [
+    0.5,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.35,
+   "roughness": 0.3,
+   "coat": 0.6,
+   "tag": "d3_sk_spring_red"
+  }
+ }
+}

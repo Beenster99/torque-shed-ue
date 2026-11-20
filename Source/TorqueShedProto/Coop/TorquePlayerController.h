@@ -18,6 +18,7 @@
 #include "TorqueShedNet.h"
 #include "TorquePing.h"
 #include "TorqueRoutePlanner.h"
+#include "TorqueAwards.h"
 #include "TorquePlayerController.generated.h"
 
 class AHUD;
@@ -25,6 +26,7 @@ class UCanvas;
 class ATorqueProfilePreview;
 
 class ATorqueBikePawn;
+class AGameStateBase;
 
 UCLASS()
 class ATorquePlayerController : public APlayerController
@@ -52,6 +54,14 @@ public:
 	// The shed in co-op: a joined player's actions, for the host to apply.
 	UFUNCTION(Server, Reliable) void ServerShed(const FTorqueShedRequestNet& Request);
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
+	// [decals stage 5] Own pictures on decals (TorqueDecals::ShareOwn, "p" + 8 hex): a joined player's
+	// go to the host as they're saved, and the host passes them on to everyone; a machine drawing one
+	// it hasn't got asks the host once. Sent in pieces of DecalPiece bytes.
+	void SendDecalPicture(const FString& Id);
+	void WantDecalPicture(const FString& Id);
+	UFUNCTION(Server, Reliable) void ServerDecalPicture(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
+	UFUNCTION(Server, Reliable) void ServerWantDecalPicture(const FString& Id);
+	UFUNCTION(Client, Reliable) void ClientDecalPicture(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
 	// A note under the middle of the screen from this machine (a ping's "nothing there").
 	void ShowNote(const FString& Text, double Seconds);
 	// [info] A place picked in the riding info panel (beenster, Nov 13: "makes us want to ride off and
@@ -84,6 +94,14 @@ public:
 	UFUNCTION(Server, Reliable) void ServerTakeBike(ATorqueBikePawn* Theirs);
 	UFUNCTION(Client, Reliable) void ClientSwappedBike(ATorqueBikePawn* NowMine, ATorqueBikePawn* Was, bool bRide, const FString& Whose);
 
+	// [co-op] Joining (or rejoining) while the host is out on the road (beenster, build 155): no bike
+	// handed out at once. The host holds the new rider back (bJoinWaiting, ATorqueGameMode) and their
+	// game shows the join page: which of the shed's bikes to ride (one nobody else is on), then join
+	// the ride on it, or wait in their own shed with the ride kept to rejoin (UTorqueSession::WaitInShed).
+	bool bJoinWaiting = false;   // (the host's copy)
+	UFUNCTION(Client, Reliable) void ClientChooseRideBike(bool bChoose);
+	UFUNCTION(Server, Reliable) void ServerJoinRide(int32 Bay);
+
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
 	// "pause", "profile", "settings", "credits" or "close" (the world isn't paused, so the test runs on), and a
 	// profile slider set by its name's first word ("jaw", "chin", ... or "height", "avatar").
@@ -93,12 +111,17 @@ public:
 	FString TestSet(const FString& Field, const FString& Value);
 
 private:
+	static constexpr int32 DecalPiece = 16 * 1024;
+	TMap<FString, TArray<uint8>> DecalPieces;   // pictures part way here
+	bool TakeDecalPiece(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
 	// [co-op] The bike picker for Buttertubs: a bay's name ("Bay 3: Simon's cruiser"), the other
 	// rider who has picked it (empty: free), and the next free bike from From in direction Dir.
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide, Awards };
+	bool bChoosingRide = false;   // [co-op] the join page is this player's until they pick
+	int32 JoinBay = INDEX_NONE;
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -109,6 +132,7 @@ private:
 		float Frac = -1.0f;
 		TFunction<void(float)> SetFrac;
 		bool bFace = false;                 // the Profile picture shows the face for this row
+		bool bHelmet = false;               // [profile] ... or your helmet on its own (and its colour picker)
 		bool bCentred = false;              // [profile] the slider fills out from its middle
 		TFunction<void()> Commit;           // a slider let go: saved and put on the game
 		bool bToggle = false, bOn = false;  // an on / off switch, and which
@@ -117,6 +141,18 @@ private:
 		TArray<FString> Caps;
 		int32 CapOn = -1;
 		FString Warning;
+		// [ride date] Boxes along the row (beenster, build 155: day, month and year pull-downs with a reset
+		// button on the same line): a pull-down has Options (Pick the one showing) and Set; a button Press.
+		struct FCell
+		{
+			FString Text;
+			TArray<FString> Options;
+			int32 Pick = -1;
+			TFunction<void(int32)> Set;
+			TFunction<void()> Press;
+			bool IsDrop() const { return Options.Num() > 0 && (bool)Set; }
+		};
+		TArray<FCell> Cells;
 		bool Works() const { return Choose || Step; }
 	};
 
@@ -128,6 +164,12 @@ private:
 	// Ride UK's Route planner (stage 4), a page of its own drawn full screen.
 	TUniquePtr<FTorqueRoutePlanner> Planner;
 	void OpenPlanner();
+	// [ride awards] (Coop/TorqueAwards.h) The vote, the dashboard and the podium, a page of their own
+	// opened for everyone when the host starts the awards; the game state they were last opened for.
+	TUniquePtr<FTorqueAwardsScreen> AwardsScreen;
+	TWeakObjectPtr<AGameStateBase> AwardsGS;
+	int32 AwardsSeen = INDEX_NONE;
+	void CheckAwards();
 	// [co-op] A joined rider's game plans the host's journey (ATorqueGameState::RideJourney) as it
 	// changes, and tells the host once it is ready to set off.
 	void SyncRideJourney();
@@ -158,7 +200,9 @@ private:
 	void Open(EPage P);
 	void Back();
 	FString Title() const;
-	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Character), -1 for none
+	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Profile), -1 for none
+	// [profile] Settings > Profile (EPage::Character; EPage::Profile opens it too): you, your avatar and helmet.
+	bool IsProfilePage() const { return Page == EPage::Character || Page == EPage::Profile; }
 	void SwitchTab(int32 Dir);
 	TArray<FRow> Rows();
 	void Changed();
@@ -197,9 +241,24 @@ private:
 	// [profile] Torque Shed's profile picture, top right of the Esc menu: it opens the Profile page
 	// (your MetaHuman, height and face; Shed/TorqueProfile.h), which shows you beside its sliders.
 	TWeakObjectPtr<ATorqueProfilePreview> Preview;
+	// [ride date] A row's pull-down open (its row and box), the option lit, and the first one shown.
+	int32 DropRow = -1, DropCell = -1, DropHot = 0, DropFirst = 0;
+	static constexpr int32 DropShown = 10;
+	void OpenDrop(const FRow& Row, int32 RowIndex, int32 Cell);
+	bool DropInput(TArray<FRow>& List, int32 MoveX, int32 MoveY, bool bChoose, bool bBack);
 	int32 DragRow = -1;         // the slider being dragged, and its track's ends on screen
 	double DragX0 = 0.0, DragX1 = 1.0;
 	bool bProfileSent = false;
+	// [profile] The helmet's colour picker under the picture (as the shop's): the square (richness
+	// across, brightness up), the hue strip and the named colours, where the last drawing put them,
+	// and which is being dragged (0 none, 1 the square, 2 the strip).
+	FBox2D PickSquare = FBox2D(ForceInit), PickHue = FBox2D(ForceInit);
+	TArray<FBox2D> PickSwatches;   // [0] as it came, then each named colour
+	int32 PickDrag = 0;
+	bool HelmetPickerMouse(const FVector2D& Mouse, bool bJustDown);   // true when the mouse was the picker's
+	void DrawHelmetPicker(UCanvas* Canvas, float X, float Y, float W, float H, float Px);
+	FString SentHelmetDecals;   // [decals stage 4]
+	bool bHelmetDecalsSent = false;
 	void ProfileChanged();
 	void UpdateProfilePreview();
 	void DrawProfile(AHUD* Hud, UCanvas* Canvas);

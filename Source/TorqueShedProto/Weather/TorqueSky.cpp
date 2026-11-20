@@ -511,9 +511,9 @@ void ATorqueSky::TickCloudsCheck()
 	// lost (its actor remade) or the sky collection gone is found again, and the rebuilt clouds worn again.
 	UWorld* W = GetWorld();
 	if (!W || !bFound) return;
-	const double Now = W->GetTimeSeconds();
-	if (Now - CloudsCheckedAt < 1.0) return;
-	CloudsCheckedAt = Now;
+	const double NowSec = W->GetTimeSeconds();
+	if (NowSec - CloudsCheckedAt < 1.0) return;
+	CloudsCheckedAt = NowSec;
 	FString Why = CloudsWhyNot();
 	if (!Why.IsEmpty() && (!CloudPtr.IsValid() || !SkyMpc))
 	{
@@ -527,10 +527,10 @@ void ATorqueSky::TickCloudsCheck()
 	if (Why != CloudsWhyLogged)
 	{
 		const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-		const AActor* Owner = Cloud ? Cloud->GetOwner() : nullptr;
+		const AActor* CloudOwner = Cloud ? Cloud->GetOwner() : nullptr;
 		const FString State = Why.IsEmpty() ? FString(TEXT("drawn")) : TEXT("not drawn: ") + Why;
 		UE_LOG(LogTemp, Display, TEXT("Torque sky: clouds %s (cloud %s, visible %d, actor hidden %d, wears %s)"),
-			*State, *GetNameSafe(Owner), Cloud && Cloud->IsVisible() ? 1 : 0, Owner && Owner->IsHidden() ? 1 : 0,
+			*State, *GetNameSafe(CloudOwner), Cloud && Cloud->IsVisible() ? 1 : 0, CloudOwner && CloudOwner->IsHidden() ? 1 : 0,
 			*GetNameSafe(Cloud ? ReadObjectProperty(Cloud, TEXT("Material")) : nullptr));
 		CloudsWhyLogged = Why;
 	}

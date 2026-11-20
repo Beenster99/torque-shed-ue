@@ -1,0 +1,83 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#8a8f96}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const P = new URLSearchParams(location.search);
+const bike = P.get('bike'), mode = P.get('mode') || 'new', grime = parseFloat(P.get('grime') || '0.8');
+const W = 1400, H = 900;
+const ren = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
+ren.setSize(W, H); document.body.appendChild(ren.domElement);
+ren.setClearColor(0x9aa0a8);
+const glsl = await (await fetch('dirt.glsl')).text();
+const spec = await (await fetch(bike + '.json')).json();
+const gltf = await new GLTFLoader().loadAsync(bike + '.glb');
+const scene = new THREE.Scene(); scene.add(gltf.scene); gltf.scene.updateMatrixWorld(true);
+// bike frame, cm: x forward, y right, z up  (glb: x fwd, y up, z = lateral)
+// tyres (the game fits them as their own slot): a lathed section on each axle, as stats give it
+const st = spec.points_mm.stats;
+const tyre = (k, ax, R, w, rim) => {
+  const pts = []; const hw = w / 2, cr = R - hw * 0.9;
+  for (let i = 0; i <= 40; i++) { const a = -Math.PI / 2 + Math.PI * i / 40;   // round the section
+    const r = Math.max(cr + Math.cos(a) * hw * 0.9 + (Math.abs(Math.sin(a)) > 0.9 ? 0 : 0), rim); pts.push(new THREE.Vector2(r, Math.sin(a) * hw)); }
+  const g = new THREE.LatheGeometry(pts, 96); g.rotateX(Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({name: k}));
+  m.position.set(ax[0] / 1000, ax[2] / 1000, 0); gltf.scene.add(m);
+  spec.surfaces[k] = {slot: k, node: k.replace('tyre', 'wheel'), tag: 'rubber', color: [0.025, 0.025, 0.027], metallic: 0, roughness: 0.75};
+};
+tyre('front_tyre', spec.points_mm.front_axle, st.front_radius / 1000, st.front_width / 1000, st.front_rim / 1000);
+tyre('rear_tyre', spec.points_mm.rear_axle, st.rear_radius / 1000, st.rear_width / 1000, st.rear_rim / 1000);
+gltf.scene.updateMatrixWorld(true);
+const toBike = v => new THREE.Vector3(v.x * 100, -v.z * 100, v.y * 100);
+const meshes = []; gltf.scene.traverse(o => { if (o.isMesh) meshes.push(o); });
+const info = o => spec.surfaces[o.material.name] || {};
+const boxes = {}, rub = {front: new THREE.Box3(), rear: new THREE.Box3()};
+let whole = new THREE.Box3();
+for (const o of meshes) {
+  const s = info(o); const b = new THREE.Box3();
+  const pos = o.geometry.attributes.position; const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); b.expandByPoint(toBike(v)); }
+  o.userData.box = b; whole.union(b);
+  (boxes[s.slot] ||= new THREE.Box3()).union(b);
+  if (s.slot === 'front_tyre' || s.slot === 'rear_tyre') rub[s.slot.split('_')[0]].union(b);
+}
+const spray = k => { const b = rub[k]; const c = b.getCenter(new THREE.Vector3()), h = b.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  return new THREE.Vector4(c.x, c.z, Math.max(h.z, 1), Math.max(h.y * 0.95, 1)); };
+const SF = mode === 'old' ? new THREE.Vector4() : spray('front'), SR = mode === 'old' ? new THREE.Vector4() : spray('rear');
+console.log('SprayF', JSON.stringify(SF), 'SprayR', JSON.stringify(SR), 'Z', whole.min.z, whole.max.z);
+const fly = {headlight:1, fairing:1, fog_lights:0.9, mirrors:0.6, front_mudguard:0.7, fork:0.55, indicators:0.5, number_boards:0.6, handlebars:0.35, dashboard:0.35, tank:0.3, front_master:0.3, horn:0.5, cooling:0.45, steering_damper:0.3, lever_guards:0.3};
+const vs = `out vec3 vP; out vec3 vN; out vec3 vW;
+void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz;
+ vP = vec3(w.x*100.0, -w.z*100.0, w.y*100.0); vec3 nw = normalize(mat3(modelMatrix)*normal); vN = vec3(nw.x, -nw.z, nw.y);
+ gl_Position = projectionMatrix * viewMatrix * w; }`;
+const fs = `precision highp float; in vec3 vP; in vec3 vN; in vec3 vW; out vec4 frag;
+uniform float Grime, FlyGain, Metal, Rough; uniform vec4 Spin, SprayF, SprayR; uniform vec3 ZRange, Base, CamPos;
+const vec4 R0 = vec4(1,0,0,0), R1 = vec4(0,1,0,0), R2 = vec4(0,0,1,0), Off = vec4(0);
+${glsl}
+void main(){ vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+ vec4 look; float dr; dirt(vP, n, look, dr);
+ vec3 L1 = normalize(vec3(0.3, 0.5, 0.8)), L2 = normalize(vec3(-0.6, -0.4, 0.3));
+ vec3 V = normalize(vec3((CamPos.x*100.0)-vP.x, (-CamPos.z*100.0)-vP.y, (CamPos.y*100.0)-vP.z));
+ vec3 base = mix(Base, look.rgb, look.a); float met = mix(Metal, 0.0, look.a); float rough = mix(Rough, dr, look.a);
+ float d = max(dot(n,L1),0.0)*1.0 + max(dot(n,L2),0.0)*0.35 + 0.35 + 0.15*n.z;
+ vec3 Hh = normalize(L1+V); float sp = pow(max(dot(n,Hh),0.0), mix(200.0, 4.0, rough)) * (1.0-rough) * 1.5;
+ vec3 diff = base * (1.0-met) * d; vec3 spec = mix(vec3(0.04), base, met) * (sp + 0.25*(1.0-rough));
+ vec3 c = diff + spec; frag = vec4(pow(c / (1.0 + c*0.3), vec3(1.0/2.2)), 1.0); }`;
+for (const o of meshes) {
+  const s = info(o); const spin = (s.node === 'front_wheel' || s.node === 'rear_wheel');
+  const sb = boxes[s.slot]; const c = sb.getCenter(new THREE.Vector3());
+  const col = s.color || [0.5,0.5,0.5];
+  o.material = new THREE.ShaderMaterial({glslVersion: THREE.GLSL3, side: THREE.DoubleSide, vertexShader: vs, fragmentShader: fs,
+    extensions: {derivatives: true},
+    uniforms: {Grime:{value: grime}, FlyGain:{value: fly[s.slot]||0}, Metal:{value: s.metallic ?? 0}, Rough:{value: s.roughness ?? 0.5},
+      Spin:{value: spin ? new THREE.Vector4(c.x, c.z, 1, c.y) : new THREE.Vector4()}, SprayF:{value: SF}, SprayR:{value: SR},
+      ZRange:{value: new THREE.Vector3(whole.min.z, whole.max.z, 0)}, Base:{value: new THREE.Vector3(...col)}, CamPos:{value: new THREE.Vector3()}}});
+}
+const cam = new THREE.PerspectiveCamera(parseFloat(P.get('fov')||'30'), W/H, 0.01, 50);
+const [ex,ey,ez,tx,ty,tz] = P.get('view').split(',').map(Number);
+cam.position.set(ex,ey,ez); cam.lookAt(tx,ty,tz);
+for (const o of meshes) o.material.uniforms.CamPos.value.copy(cam.position);
+ren.render(scene, cam);
+window.DONE = true;
+</script></body></html>

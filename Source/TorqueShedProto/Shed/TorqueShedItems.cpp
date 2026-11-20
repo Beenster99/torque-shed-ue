@@ -316,8 +316,7 @@ int32 ATorqueShedItems::MakeNewPart(AActor* Outer, USceneComponent* Holder, FNam
 	const int32 Before = Made.Num();
 	if (!Outer || !Holder || !TorqueShedParts::IsPart(Part)) return 0;
 	const FName Kind = TorqueShedParts::PartKind(Part);
-	const TArray<FName> KindSlots = TorqueShedParts::SlotsForKind(Kind);
-	const FName Home = TorqueShedParts::IsStock(Part) ? TorqueShedParts::StockSlot(Part) : (KindSlots.Num() > 0 ? KindSlots[0] : NAME_None);
+	const FName Home = TorqueShedParts::HomeSlot(Part);   // [bare frame] (a V2 rear wheel is a rear wheel)
 	const bool bCatalogue = !TorqueShedParts::IsStock(Part);
 	if (bCatalogue && !Home.IsNone())
 	{
@@ -356,7 +355,8 @@ int32 ATorqueShedItems::MakeNewPart(AActor* Outer, USceneComponent* Holder, FNam
 	for (int32 I = Before; I < Made.Num(); ++I)
 	{
 		UStaticMeshComponent* C = Made[I];
-		const bool bPaint = bTint && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+		const bool bPaint = bTint && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) &&
+			!C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag));   // [bikes v2] its model's own colour
 		TSI::SetLooks(C, 0.0f, 0.0f, bPaint ? &Colour : nullptr);
 	}
 	return Made.Num() - Before;
@@ -451,9 +451,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	{
 		// The model's own part, its fit option for a catalogue part, or the stock part of that kind
 		// tinted the catalogue's colour; an engine with what's on it, a wheel with its tyre.
-		const TArray<FName> KindSlots = TorqueShedParts::SlotsForKind(It->Kind);
-		const FName Home = TorqueShedParts::IsStock(It->Part) ? TorqueShedParts::StockSlot(It->Part)
-			: (KindSlots.Num() > 0 ? KindSlots[0] : NAME_None);
+		const FName Home = TorqueShedParts::HomeSlot(It->Part);   // [bare frame] (a V2 rear wheel is a rear wheel)
 		TSet<FName> Show;
 		Show.Add(Home);
 		for (const TPair<FName, int32>& KV : It->Slots)
@@ -509,7 +507,9 @@ void ATorqueShedItems::Draw(int32 Id)
 				const FTorqueItem* Own = OwnOf(C);
 				const bool bBare = C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
 				const bool bOverBare = bBare && !HasPaint.Contains(Own) && UTorqueBuildSubsystem::Repainted(*Own);
-				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && (!bBare || bOverBare);
+				// [bikes v2] (A V2 bike's bodywork keeps its model's colour until it's repainted.)
+				const bool bV2Own = C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag)) && !UTorqueBuildSubsystem::Repainted(*Own);
+				const bool bOwnTint = !bV2Own && (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && (!bBare || bOverBare);
 				const FLinearColor OwnShown = UTorqueBuildSubsystem::ShownColour(*Own);   // grey while it's in primer
 				const FBox Box = Boxes.FindRef(Own);
 				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr, UTorqueBuildSubsystem::Repainted(*Own) ? Own : nullptr,
@@ -573,8 +573,13 @@ void ATorqueShedItems::Draw(int32 Id)
 		if (P && P->Kind == ETorquePlace::Bench) Rest.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
 		// Hung on a spray bay hook: its top at the hook's tip, along the rail, never down on the grate.
 		if (P && P->Kind == ETorquePlace::Hook) Rest = HungAt(D.Hook, D.Height);
-		// [kit] On the engine stand: turned as the stand is.
-		if (P && P->Kind == ETorquePlace::Stand) Rest.SetRotation(TorqueShedLayout::StandNow().GetRotation());
+		// [kit] On the engine stand: bolted to its plate (the holder placed below, as Tick does).
+		if (P && P->Kind == ETorquePlace::Stand && D.HeldBy == 0)
+		{
+			const FTransform On = OnStand(D);
+			Holder->SetWorldLocationAndRotation(On.GetLocation(), On.GetRotation());
+			return;
+		}
 		// [tyre] On the tyre changer: flat on its turntable (the holder's placed below, as Tick does).
 		if (D.bOnChanger)
 		{
@@ -605,6 +610,20 @@ bool ATorqueShedItems::HandOf(int32 Peer, FTransform& Out) const
 		return true;
 	}
 	return false;
+}
+
+FTransform ATorqueShedItems::OnStand(const FDrawn& D) const
+{
+	// The stand's frame (TorqueShedLayout::StandNow): origin on the floor under the plate, +x back along
+	// the arm to the column, +y its front. Its model (Tools/props/make_props.py _engine_stand) has the
+	// four-arm mounting plate's face at x 0, 62 cm up, the arm along x.
+	constexpr double PlateHeight = 62.0, PlateFace = -2.0;
+	const FTransform& Stand = TorqueShedLayout::StandNow();
+	// The engine's crank (its holder's y, across the bike) along the arm: turned a quarter about the
+	// upright, so its left side (-y) faces the plate.
+	const FQuat Rot = Stand.GetRotation() * FRotator(0.0, 90.0, 0.0).Quaternion();
+	const FVector Middle = Stand.TransformPosition(FVector(PlateFace - D.Size.Y * 0.5, 0.0, PlateHeight));
+	return FTransform(Rot, Middle - Rot.RotateVector(D.Centre));
 }
 
 FTransform ATorqueShedItems::HungAt(int32 Hook, double Height) const
@@ -698,11 +717,8 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 		if (H && D.HeldBy == 0 && D.bOnStand)
 		{
 			// [kit] On the engine stand: where it is now, rolling with it while someone wheels it.
-			if (const FTorquePlace* P = TorqueShedLayout::FindPlace(FName(TEXT("stand"))))
-			{
-				const FQuat Turn = TorqueShedLayout::StandNow().GetRotation();
-				H->SetWorldLocationAndRotation(P->Put - Turn.RotateVector(D.Offset), Turn);
-			}
+			const FTransform On = OnStand(D);
+			H->SetWorldLocationAndRotation(On.GetLocation(), On.GetRotation());
 			continue;
 		}
 		if (!H || D.HeldBy == 0) continue;

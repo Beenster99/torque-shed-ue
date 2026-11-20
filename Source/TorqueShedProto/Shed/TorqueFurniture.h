@@ -105,6 +105,13 @@ constexpr int32 LabelMax = 24;
 bool HasLabel(const FModel& M);
 // [tv] A TV (equipment.gd's "tv" kind): it shows a channel, right mouse at it changes it, as the wall's.
 bool IsTv(const FModel& M);
+// [drone] A photo print (Photo/TorquePhotos.h: one of the drone's photos at 7 x 5): hangs on a wall, its
+// label the print's picture id ("p" + 8 hex, shared with co-op friends as an own decal picture is).
+// Printed from the photo album straight into your hands (OrderFurniture, Text the id); held, it can go in
+// the bin (ReleaseFurniture at BinSpot()).
+bool IsPhotoPrint(const FModel& M);
+FName PhotoPrintModel();
+FName BinSpot();
 FString NameOf(const FTorqueFurniture& F);
 FString CleanLabel(const FString& Text);
 
@@ -174,6 +181,9 @@ private:
 	// trace only stands its wheels on what's tagged Road or Land).
 	UPROPERTY(Transient) AActor* RideHolder = nullptr;
 	TMap<int32, FName> DrawnModel;
+	TMap<int32, FString> PrintsShown;   // [drone] each photo print's picture as it's drawn (its id)
+	TMap<int32, double> PrintTryAt;     // and when to look again for one that isn't here yet
+	void DressPrint(int32 Id, UStaticMeshComponent* C, const FString& Picture);
 	TSet<FName> Missing;   // models not imported, warned about once
 	UStaticMeshComponent* Make(FName Model, const FTransform& Xf, bool bMovable);
 	void Paint();

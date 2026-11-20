@@ -202,6 +202,9 @@ WEATHER_PARAMS = (
     ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
     ("Night", 0.0),          # how dark it is (Ride UK stage 7): 0 day .. 1 night; street lamps, lit windows, cat's eyes
     ("Signals", 0.0),        # the traffic lights' clock (OSM stage 5D): the server's seconds, under an hour
+    ("LeafFresh", 0.0),      # [seasonal trees test] the scanned trees' leaves: spring's paler green, 0 .. 1
+    ("LeafTurn", 0.0),       # autumn's colour, 0 .. 1 (Tools/ue_tree_season.py)
+    ("LeafDrop", 0.0),       # the share of leaves gone, 0 .. 1
 )
 _weather_mpc = None
 
@@ -1063,6 +1066,72 @@ def bike_decal_master(tex, name="M_BikeDecal", wrap=False):
     return m
 
 
+def bike_glass_materials():
+    """[bikes v2] The see-through finishes of the V2 bikes: M_BikeGlass (lit, translucent: a colour, a roughness
+    and an opacity, a little more solid at a glancing angle) with MI_v2glass (lamp and clock glass, nearly clear)
+    and MI_v2screen (a windscreen, lightly smoked). The game tints them with each surface's own colour (the
+    Color parameter); without them it leaves lamp glass out and draws screens solid. Never fails the build."""
+    try:
+        m = new_material("M_BikeGlass", BIKE_MAT_DIR)
+        m.set_editor_property("two_sided", True)
+        m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+        # Lit per pixel, so the sun and the sky make real highlights on it (beenster, build 156: "barely visible,
+        # please make them reflect light to pick out their shape better"); the cheaper mode if this one is not there.
+        mode = getattr(unreal.TranslucencyLightingMode, "TLM_SURFACE_PER_PIXEL_LIGHTING", unreal.TranslucencyLightingMode.TLM_SURFACE)
+        try_set(m, "translucency_lighting_mode", mode)
+        try_set(m, "screen_space_reflections", True)
+        g = Graph(m)
+        col = g.node(unreal.MaterialExpressionVectorParameter, -900, parameter_name="Color",
+                     default_value=unreal.LinearColor(0.9, 0.93, 0.95, 1.0))
+        rough = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Roughness", default_value=0.03)
+        opac = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Opacity", default_value=0.12)
+        edge = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="EdgeOpacity", default_value=0.45)
+        fres = g.node(unreal.MaterialExpressionFresnel, -900)
+        try_set(fres, "exponent", 3.0)                 # (a broad edge: the curve of a screen reads well before the rim)
+        try_set(fres, "base_reflect_fraction", 0.02)
+        mix = g.node(unreal.MaterialExpressionLinearInterpolate, -600)
+        mel.connect_material_expressions(opac, "", mix, "A")
+        mel.connect_material_expressions(edge, "", mix, "B")
+        mel.connect_material_expressions(fres, "", mix, "Alpha")
+        # Clear glass and perspex scatter almost no light: lit at its full (near white) colour the windscreen came
+        # out frosted and milky (beenster, build 155: "the perspex screens lack transparency"). The colour is
+        # taken right down, so what shows is what is behind it and the reflections on it.
+        dim = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Dim", default_value=0.04)
+        dark = g.node(unreal.MaterialExpressionMultiply, -600)
+        # Towards its edges and where it curves away it catches the light: the colour comes up there (EdgeDim), so
+        # the outline and the curve show in sun and under cloud, the middle staying clear to look through.
+        edge_dim = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="EdgeDim", default_value=0.04)
+        dim_mix = g.node(unreal.MaterialExpressionLinearInterpolate, -750)
+        mel.connect_material_expressions(dim, "", dim_mix, "A")
+        mel.connect_material_expressions(edge_dim, "", dim_mix, "B")
+        mel.connect_material_expressions(fres, "", dim_mix, "Alpha")
+        mel.connect_material_expressions(col, "", dark, "A")
+        mel.connect_material_expressions(dim_mix, "", dark, "B")
+        spec = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Specular", default_value=0.5)
+        mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
+        mel.connect_material_property(dark, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+        mel.connect_material_property(mix, "", unreal.MaterialProperty.MP_OPACITY)
+        mel.recompile_material(m)
+        unreal.EditorAssetLibrary.save_loaded_asset(m)
+        # (opacity in the middle, at the edge; the colour at the edge; how strongly it mirrors)
+        for name, opacity, edge_opacity, edge_colour, mirror in (("v2glass", 0.05, 0.3, 0.04, 0.5), ("v2screen", 0.12, 0.7, 0.3, 1.0)):
+            path = BIKE_MAT_DIR + "/MI_" + name
+            if unreal.EditorAssetLibrary.does_asset_exist(path):
+                unreal.EditorAssetLibrary.delete_asset(path)
+            mi = asset_tools.create_asset("MI_" + name, BIKE_MAT_DIR, unreal.MaterialInstanceConstant,
+                                          unreal.MaterialInstanceConstantFactoryNew())
+            mel.set_material_instance_parent(mi, m)
+            mel.set_material_instance_scalar_parameter_value(mi, "Opacity", opacity)
+            mel.set_material_instance_scalar_parameter_value(mi, "EdgeOpacity", edge_opacity)
+            mel.set_material_instance_scalar_parameter_value(mi, "EdgeDim", edge_colour)
+            mel.set_material_instance_scalar_parameter_value(mi, "Specular", mirror)
+            unreal.EditorAssetLibrary.save_loaded_asset(mi)
+        unreal.log("[Torque] V2 bike glass: M_BikeGlass (per-pixel lit, bright edge), MI_v2glass 0.05/0.3, MI_v2screen 0.12/0.7 edge colour 0.3")
+    except Exception as e:
+        unreal.log_warning("[Torque] V2 bike glass materials not made: %s" % e)
+
+
 def bike_materials(finishes):
     """A master for plain finishes and a clear coat one for paint, and an instance per finish (see
     Tools/make_speedtwin.py for what a finish holds; the rider's kit gives just colour and the two
@@ -1114,6 +1183,7 @@ def bike_materials(finishes):
             unreal.log_warning("[Torque] detail set %s for %s not found" % (f.get("detail"), name))
         unreal.EditorAssetLibrary.save_loaded_asset(mi)
         paths[name] = mi.get_path_name()
+    bike_glass_materials()
     return paths
 
 
@@ -1291,6 +1361,76 @@ def helmet_paint_masters():
         log("helmet paint master %s/%s (%s)" % (RIDER_MAT_DIR, name, kind))
 
 
+
+def garment_push_master():
+    """[build 155] M_GarmentPush: an avatar's T-shirt drawn a few mm out along its normals (World
+    Position Offset), so its hem sits just outside the jeans' waistband instead of fighting it
+    (beenster: "make the t shirt of our rider not clip with their jeans"). TorqueAvatar.cpp copies the
+    shirt's own colour, colour map and normal map onto it. Parameters: Color, BaseColorMap,
+    NormalMap, Roughness, Specular, Push (cm)."""
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    flat = unreal.load_asset("/Engine/EngineMaterials/DefaultNormal")
+    m = new_material("M_GarmentPush", RIDER_MAT_DIR)
+    m.set_editor_property("used_with_skeletal_mesh", True)
+    try_set(m, "two_sided", True)
+
+    def scalar(pname, v, x, y):
+        e = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, x, y)
+        e.set_editor_property("parameter_name", pname)
+        e.set_editor_property("default_value", v)
+        return e
+
+    col = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -700, 0)
+    col.set_editor_property("parameter_name", "Color")
+    col.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
+    tex = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -700, 200)
+    tex.set_editor_property("parameter_name", "BaseColorMap")
+    if white is not None:
+        tex.set_editor_property("texture", white)
+    base = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -350, 100)
+    mel.connect_material_expressions(col, "", base, "A")
+    mel.connect_material_expressions(tex, "RGB", base, "B")
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    nrm = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -700, 450)
+    nrm.set_editor_property("parameter_name", "NormalMap")
+    if flat is not None:
+        nrm.set_editor_property("texture", flat)
+    nrm.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    mel.connect_material_property(scalar("Roughness", 0.8, -350, 650), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(scalar("Specular", 0.35, -350, 750), "", unreal.MaterialProperty.MP_SPECULAR)
+    # How far out: Push everywhere, plus HemPush below HemTop (the mesh's own height, cm), fading in
+    # over 10 cm above it (round 155: specks of jeans at the hem with 0.5 cm all over).
+    vn = mel.create_material_expression(m, unreal.MaterialExpressionVertexNormalWS, -900, 900)
+    pre = mel.create_material_expression(m, unreal.MaterialExpressionPreSkinnedPosition, -1300, 1100)
+    mask = mel.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1100, 1100)
+    mask.set_editor_property("r", False)
+    mask.set_editor_property("g", False)
+    mask.set_editor_property("b", True)
+    mask.set_editor_property("a", False)
+    mel.connect_material_expressions(pre, "", mask, "")
+    below = mel.create_material_expression(m, unreal.MaterialExpressionSubtract, -900, 1100)
+    mel.connect_material_expressions(scalar("HemTop", 0.0, -1100, 1220), "", below, "A")
+    mel.connect_material_expressions(mask, "", below, "B")
+    fade = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -750, 1100)
+    mel.connect_material_expressions(below, "", fade, "A")
+    mel.connect_material_expressions(const1(m, 0.1, -900, 1220), "", fade, "B")
+    sat = mel.create_material_expression(m, unreal.MaterialExpressionSaturate, -600, 1100)
+    mel.connect_material_expressions(fade, "", sat, "")
+    hem = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -450, 1100)
+    mel.connect_material_expressions(sat, "", hem, "A")
+    mel.connect_material_expressions(scalar("HemPush", 0.0, -600, 1220), "", hem, "B")
+    amount = mel.create_material_expression(m, unreal.MaterialExpressionAdd, -300, 1000)
+    mel.connect_material_expressions(scalar("Push", 0.5, -450, 960), "", amount, "A")
+    mel.connect_material_expressions(hem, "", amount, "B")
+    push = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -150, 900)
+    mel.connect_material_expressions(vn, "", push, "A")
+    mel.connect_material_expressions(amount, "", push, "B")
+    mel.connect_material_property(push, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    log("garment push master %s/M_GarmentPush" % RIDER_MAT_DIR)
+
 def rider_materials(finishes, tex=None, roles=None):
     """The kit: a master lit by the rider's baked occlusion (vertex colour), and a clear-coated one
     for the helmet's paint and visor. One instance per finish in rider.json."""
@@ -1448,13 +1588,33 @@ def import_rider(tex=None, roles=None):
         helmet_paint_masters()
     except Exception as e:
         unreal.log_warning("[Torque] helmet paint masters not made: %s" % e)
+    try:
+        garment_push_master()
+    except Exception as e:
+        unreal.log_warning("[Torque] garment push master not made: %s" % e)
     log("rider: %s, helmet %s" % (body.get_path_name(), helmet.get_path_name() if helmet else "missing"))
     out = {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
     fab = fab_helmet(helmet) if helmet else None
     if fab:
         out["helmet"], out["helmet_fit"] = fab
         FAB_HELMET_USED[:] = [fab[0]]
+    helmet_cpu_access(out["helmet"])
     return out
+
+
+def helmet_cpu_access(path):
+    """[decals stage 4] Decals on the helmet are cut from its triangles at run time, so the worn
+    helmet keeps a copy of its mesh on the CPU in the cooked game (a static mesh; a skeletal one gets none)."""
+    if not path:
+        return
+    try:
+        m = unreal.load_asset(path)
+        if isinstance(m, unreal.StaticMesh) and not m.get_editor_property("allow_cpu_access"):
+            m.set_editor_property("allow_cpu_access", True)
+            unreal.EditorAssetLibrary.save_loaded_asset(m)
+            log("helmet %s: CPU access on (for decals)" % path)
+    except Exception as e:
+        unreal.log_warning("[Torque] helmet CPU access not set: %s" % e)
 
 
 def place_fab_helmet_anchor():
@@ -2674,6 +2834,8 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     def uv(metres):
         return g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / metres, v_tiling=1.0 / metres)
 
+    nt0 = noise_texture() if tint_param else None
+
     def layer(role, fallback):
         if role in tex:
             m = tex[role]; u = uv(roles[role]["tile_m"])
@@ -2682,6 +2844,21 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
                 col = g.op(unreal.MaterialExpressionMultiply, col, g.sample(m["ao"], u, "ao"), b_out="R")
             nrm = g.sample(m["normal"], u, "normal") if "normal" in m else g.const((0.0, 0.0, 1.0))
             rough = g.sample(m["rough"], u, "rough") if "rough" in m else g.const(0.85)
+            if nt0 is not None and role != "moss":
+                # [build 153] Ride UK's walls (beenster: "a repetitive tiling"): the same scan again at another
+                # size and offset, the two blended in broad soft patches, so no repeat lines up.
+                t2 = 1.0 / (roles[role]["tile_m"] * 1.37)
+                u2 = g.op(unreal.MaterialExpressionAdd, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=t2, v_tiling=t2 * 0.91),
+                          g.node(unreal.MaterialExpressionConstant2Vector, r=0.31, g=0.57))
+                col2 = g.sample(m["color"], u2, "color")
+                nrm2 = g.sample(m["normal"], u2, "normal") if "normal" in m else g.const((0.0, 0.0, 1.0))
+                rough2 = g.sample(m["rough"], u2, "rough") if "rough" in m else g.const(0.85)
+                pn = g.sample(nt0, uv(9.0), "rough")
+                pm = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                          g.op(unreal.MaterialExpressionSubtract, pn, a_out="G", const_b=0.35), const_b=3.0))
+                col = g.lerp(col, col2, pm)
+                nrm = g.lerp(nrm, nrm2, pm)
+                rough = g.lerp(rough, rough2, pm, a_out="R" if "rough" in m else "", b_out="R" if "rough" in m else "")
             return [col, nrm, rough]
         return [g.op(unreal.MaterialExpressionMultiply, g.const(lin(fallback)), noise(g.m, 0.5, 0.7, 1.2, -1200, g.y)),
                 g.const((0.0, 0.0, 1.0)), g.const(0.88)]
@@ -2697,6 +2874,11 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     if tint_param:
         tp = g.node(unreal.MaterialExpressionVectorParameter, parameter_name="Tint", default_value=unreal.LinearColor(1, 1, 1, 1))
         st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], tp, b_out="")
+        if nt0 is not None:
+            # (and the wall a shade lighter and darker over several metres, as weather leaves it)
+            mv = g.sample(nt0, uv(23.0), "rough")
+            mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.3), const_b=0.85)
+            st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], mv)
     # Lichen: pale crusts in patches, on the stones the blue channel picks. The patches come from a
     # noise texture on each stone's own UVs (the Noise node costs too much on 10 km of wall).
     nt = noise_texture()
@@ -2764,6 +2946,11 @@ def render_material(tex, roles, name="M_LimeRender"):
         st = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, st, const_b=2.2))
         st = g.op(unreal.MaterialExpressionMultiply, st, const_b=0.22)
         col = g.lerp(col, g.op(unreal.MaterialExpressionMultiply, col, g.const((0.62, 0.6, 0.55))), st)
+        if name != "M_LimeRender":
+            # [build 153] (Ride UK's render: a shade lighter and darker over several metres, so no repeat shows)
+            mv = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / 23.0, v_tiling=1.0 / 23.0), "rough")
+            mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.24), const_b=0.88)
+            col = g.op(unreal.MaterialExpressionMultiply, col, mv)
     dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
     col = g.lerp(col, dirt, vc, alpha_out="A")
     rough = g.lerp(g.const(0.88), g.const(0.95), vc, alpha_out="A")

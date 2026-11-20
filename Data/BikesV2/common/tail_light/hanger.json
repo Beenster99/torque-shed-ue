@@ -1,0 +1,56 @@
+{
+ "group": "tail_light",
+ "key": "hanger",
+ "name": "Hanger lamp",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  47.7,
+  0.0,
+  912.5
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  36.0,
+  84.0,
+  53.3
+ ],
+ "triangles": 754,
+ "surfaces": {
+  "d3_lp_gloss": {
+   "ue": "cat_plastic",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
+  },
+  "d3_redglass": {
+   "ue": "lens_red",
+   "clear": 1.0,
+   "tag": "lens_red"
+  },
+  "d3_tailred": {
+   "ue": "lens_red",
+   "glow": 2.6,
+   "tag": "lens_red"
+  },
+  "d3_bulb": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 2.0,
+   "tag": "d3_bulb"
+  }
+ }
+}

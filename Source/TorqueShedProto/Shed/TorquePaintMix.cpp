@@ -439,8 +439,20 @@ float CoatsFactor(const FPaintSpec& S, int32 Coats)
 
 const TCHAR* PatternName(int32 Pattern)
 {
-	static const TCHAR* const Names[] = {TEXT("None"), TEXT("Centre stripe"), TEXT("Twin stripes"), TEXT("Pinstripe"), TEXT("Two-tone (top)")};
+	static const TCHAR* const Names[] = {TEXT("None"), TEXT("Centre stripe"), TEXT("Twin stripes"), TEXT("Pinstripe"), TEXT("Two-tone (top)"),
+		TEXT("Fade front to back, short"), TEXT("Fade front to back, medium"), TEXT("Fade front to back, long"),
+		TEXT("Fade top to bottom, short"), TEXT("Fade top to bottom, medium"), TEXT("Fade top to bottom, long")};
+	static_assert(UE_ARRAY_COUNT(Names) == TapePatterns + 1, "a name for every pattern");
 	return Pattern >= 0 && Pattern <= TapePatterns ? Names[Pattern] : Names[0];
+}
+
+float FadeKeep(int32 Pattern, float X, float Z, float At, float Dir)
+{
+	if (!IsFade(Pattern)) return 0.0f;
+	const float Half = FadeCm(Pattern) * 0.5f;
+	const float C = ((FadeAlong(Pattern) ? X : Z) - At) * (Dir < 0.0f ? -1.0f : 1.0f);
+	const float T = FMath::Clamp((C + Half) / (2.0f * Half), 0.0f, 1.0f);
+	return T * T * (3.0f - 2.0f * T);
 }
 
 FLinearColor TapeColourOn(const FLinearColor& Under)
@@ -454,6 +466,8 @@ FName FinishOf(const FPaintSpec& S)
 {
 	// The finishes a part's drawn with: the effect itself is kept as its MixEffect.
 	if (S.Effect == FName(TEXT("chrome"))) return FName(TEXT("chrome"));
+	// A colour and finish picked straight into the gun's cup ([ and ]): the finish as picked.
+	if (S.Effect == FName(TEXT("matte")) || S.Effect == FName(TEXT("patina"))) return S.Effect;
 	if (S.Effect == FName(TEXT("metallic")) || S.Effect == FName(TEXT("pearl")) || S.Effect == FName(TEXT("flake")) || S.Effect == FName(TEXT("chameleon")))
 		return FName(TEXT("metallic"));
 	return FName(TEXT("gloss"));

@@ -94,9 +94,24 @@ def mat(name, col=None, finish=None):
     return m
 
 
-def export_game(name, model):
+GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "2.0,0.3,0.6,0.5").split(",")]
+
+
+GAME_STAND = {}      # the fitted side stand's pivot and swing, for the game (points_mm "stand")
+
+
+def export_game(name, model, model_file=None):
     """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
-    surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json (each surface's look)."""
+    surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
+    game slot, one moving group and one finish (game_parts.classify), named s000.. in the glb; the json
+    gives each its slot, group ("node"), look and paint slot, and the bike's key points."""
+    import re
+    import detail3d
+    import game_parts
+    try:
+        import game_common
+    except ImportError:
+        game_common = None
     dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
     os.makedirs(dst, exist_ok=True)
     obs = [o for o in bpy.context.scene.objects if o.type in ("MESH", "CURVE")]
@@ -105,29 +120,155 @@ def export_game(name, model):
         o.select_set(True)
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.convert(target="MESH")
+    bpy.ops.object.make_single_user(object=True, obdata=True, material=False)
     obs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+    # What the game makes itself is left out: the tyres (its own tread sections bent round the drawn wheels, as
+    # sharp as the catalogue's: Fit/BikeParts V2Tyres) and the clocks' working pieces (its numbered scale, needle
+    # and lit screen: V2Gauges).
+    gauges = []
+    for nm, gz in sorted(detail3d.GAUGES.items()):
+        if bpy.data.objects.get(nm):
+            cl = game_parts.classify(nm, model)
+            gauges.append(dict(gz, node=cl[1] if cl else ""))
+    own = re.compile(r"^(front_tyre|rear_tyre|clocktick|clockneedle|dashrev)")
+    for o in [o for o in obs if own.match(o.name)]:
+        obs.remove(o)
+        bpy.data.objects.remove(o, do_unlink=True)
+    tagged, looks, unknown = {}, {}, set()
+    # the Definition build is drawn for close-up pictures (543,000 triangles on the naked lead); the game
+    # gets every piece thinned to what reads at riding and shed distance
+    hist = [0] * 5
+    for o in obs:
+        n = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        hist[min(4, 0 if n < 100 else 1 if n < 240 else 2 if n < 800 else 3 if n < 2500 else 4)] += n
+        if n < 100 or "tyre" in o.name or "rotor" in o.name:      # (a drilled disc is a flat face full of holes: left exactly as drawn)
+            continue
+        bpy.context.view_layer.objects.active = o
+        if any(m and m.name.startswith(("paint", "accent")) for m in o.data.materials):
+            # paintwork shows every dent in its reflections: only halved, never flattened
+            if n > 2500:
+                md = o.modifiers.new("thin", "DECIMATE")
+                md.ratio = GAME_THIN[3]
+                bpy.ops.object.modifier_apply(modifier=md.name)
+            continue
+        # first what costs nothing to look at: faces that lie in one plane or along a straight run become one
+        # (a drilled disc, a plate, a straight tube keep their exact shape)
+        md = o.modifiers.new("flat", "DECIMATE")
+        md.decimate_type = "DISSOLVE"
+        md.angle_limit = math.radians(GAME_THIN[0])
+        md.delimit = {"MATERIAL", "SHARP"}
+        bpy.ops.object.modifier_apply(modifier=md.name)
+        n2 = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        ratio = GAME_THIN[1] if n2 > 2500 else GAME_THIN[2] if n2 > 800 else 1.0
+        if ratio < 1.0:
+            md = o.modifiers.new("thin", "DECIMATE")
+            md.ratio = ratio
+            bpy.ops.object.modifier_apply(modifier=md.name)
+    bpy.context.view_layer.update()
+    for o in obs:
+        r = game_parts.classify(o.name, model)
+        if not r:
+            unknown.add(game_parts.stem(o.name))
+            r = ("frame", "")
+        xs = [(o.matrix_world @ __import__("mathutils").Vector(q)).x / MM for q in o.bound_box]
+        r = game_parts.placed(o.name, r[0], r[1], min(xs), max(xs), model)
+        sk_ = model.get("shock")
+        if r == ("shock", "") and sk_ and not model.get("swingarm", {}).get("rigid"):
+            # the shock works in the game (beenster: shocks that compress): its pieces by which end they belong to
+            ws = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
+            cx, cz = sum(w.x for w in ws) / 8 / MM, sum(w.z for w in ws) / 8 / MM
+            ax, az = sk_["bottom"][0] - sk_["top"][0], sk_["bottom"][1] - sk_["top"][1]
+            r = ("shock", game_parts.shock_node(o.name, ((cx - sk_["top"][0]) * ax + (cz - sk_["top"][1]) * az) / (ax * ax + az * az)))
+        # the piece of its slot a common part can take the place of ("grip", "silencer", ...: common parts'
+        # foundry/game_common.py sub_of; "" for the rest of the slot)
+        part_sub = (game_common.sub_of(game_parts.stem(o.name), o) or "") if game_common else ""
+        for i, m in enumerate(o.data.materials):
+            if m is None:
+                continue
+            # the red reflector on the plate hanger is no lamp: the game lit it as the tail light and shone the
+            # stop lamp's red from it (beenster, build 157: "the bikes tail light should not be mounted in the
+            # registration plate it should emit from the actual tail light"). A surface of its own, tagged "reflector".
+            reflector = game_parts.stem(o.name).startswith("platelamp")
+            key = (r[0], r[1], part_sub, m.name, reflector)
+            if key not in tagged:
+                c = m.copy()
+                c.name = f"s{len(tagged):03d}"
+                tagged[key] = c
+                tag = m.name.split(".")[0]
+                spec = LIB["surfaces"].get(tag.split("__")[0], {})
+                b = m.node_tree.nodes["Principled BSDF"]
+                ue = spec.get("ue")
+                colour = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
+                metal, rough = round(b.inputs["Metallic"].default_value, 3), round(b.inputs["Roughness"].default_value, 3)
+                # the game's lights find their lenses by these names (TorqueLights: Surf:lens_white / amber / red)
+                lens = "lens_white" if ue == "lens_clear" and r[0] in ("headlight", "fog_lights") else ue if ue in ("lens_red", "lens_amber") else ""
+                tint = spec.get("ue_tint", True)
+                if ue is None or tag.split("__")[0] == "screen":
+                    # the pipeline's own material: the game finish that suits it (build 154: glass came out as
+                    # solid steel, grips white, dials and hoses brushed metal)
+                    ue, lens, colour = game_parts.look(tag.split("__")[0], r[0], colour, metal, rough)
+                    tint = colour is not None
+                if reflector:
+                    lens = "reflector"
+                look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
+                if part_sub:
+                    look["sub"] = part_sub
+                if spec.get("slot"):
+                    look["paint"] = spec["slot"]
+                if tint:
+                    look["color"], look["metallic"], look["roughness"] = colour, metal, rough
+                looks[c.name] = look
+            o.data.materials[i] = tagged[key]
+    pts = game_parts.points(model)
+    bpy.context.view_layer.update()
+    for key, obname in (("peg", "peg01"), ("grip", "grip1")):      # the rider's left peg and grip as built
+        o = bpy.data.objects.get(obname)
+        if o:
+            bb = [o.matrix_world @ __import__("mathutils").Vector(q) for q in o.bound_box]
+            pts[key] = [round((min(getattr(q, a) for q in bb) + max(getattr(q, a) for q in bb)) / 2 / MM, 1) for a in "xyz"]
+    # the filler cap's middle (the common parts' caps go on here)
+    capq = [o.matrix_world @ __import__("mathutils").Vector(q) for o in obs if re.match(r"cap(bolt|lid|neck|ring|hinge)", o.name) for q in o.bound_box]
+    if capq:
+        pts["tank_cap"] = [round((min(getattr(q, a) for q in capq) + max(getattr(q, a) for q in capq)) / 2 / MM, 1) for a in "xyz"]
+    if not gauges:
+        # a bike drawn with no clocks (the MX bikes): the game gets a small cased display above the top yoke
+        ft = pts["fork_top"]
+        gauges = [{"what": "screen", "at": [round(ft[0] + 58, 1), 0.0, round(ft[2] + 31, 1)], "axis": [-0.75054, 0.0, 0.66083],
+                   "up": [0.66083, 0.0, 0.75054], "w": 62.0, "h": 38.0, "node": "steer", "case": True}]
+    pts["gauges"] = gauges
+    if GAME_STAND:
+        pts["stand"] = dict(GAME_STAND)
+    # [lights] A DRL ring is its own lamp (on with the ignition; beenster Nov 17) when the headlamp also has a
+    # dipped lens; a lamp that is only a ring stays the headlamp, or dipped beam would have nothing to light.
+    heads = [v for v in looks.values() if v["slot"] == "headlight" and v["tag"] == "lens_white"]
+    if any(v["surface"] != "d3_drl" for v in heads):
+        for v in heads:
+            if v["surface"] == "d3_drl":
+                v["tag"] = "lens_drl"
+    name = model_file or name
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
     ob.name = ob.data.name = name
+    # the joined bike must sit at the world origin with nothing above it: a parent left on the first object
+    # (a wheel hung on its axle) put a 1.4 m shift in the file that the game does not read
+    mw = ob.matrix_world.copy()
+    ob.parent = None
+    ob.matrix_world = mw
+    bpy.context.view_layer.update()
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    assert ob.matrix_world.translation.length < 1e-6, "game export: the bike is not at the origin"
+    tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     bpy.ops.export_scene.gltf(filepath=os.path.join(dst, name + ".glb"), use_selection=True, export_apply=True, export_yup=True,
-                              export_texcoords=True, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
-    looks = {}
-    for m in ob.data.materials:
-        tag = m.name.split(".")[0]
-        spec = LIB["surfaces"].get(tag.split("__")[0], {})
-        b = m.node_tree.nodes["Principled BSDF"]
-        look = {"ue": spec.get("ue", "cat_brushed_steel")}
-        if spec.get("ue_tint", True):
-            look["color"] = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
-            look["metallic"] = round(b.inputs["Metallic"].default_value, 3)
-            look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
-        looks[m.name] = look
+                              export_texcoords=False, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
     g = model["geometry"]
     info = {"name": model["name"], "brand": model["brand"], "family": model["family"], "rev": model.get("rev"),
-            "wheelbase_mm": g["wheelbase"], "seat_height_mm": g["seat_height"], "surfaces": looks}
+            "wheelbase_mm": g["wheelbase"], "seat_height_mm": g["seat_height"], "format": 2, "triangles": tris,
+            "points_mm": pts, "pieces": sorted({f"{v['slot']}|{v['node']}" for v in looks.values()}),
+            "surfaces": looks}
     json.dump(info, open(os.path.join(dst, name + ".json"), "w"), indent=1)
+    print("triangles before thinning, by piece size (<100, <240, <800, <2500, more):", hist)
+    print(f"game export {name}: {len(looks)} surfaces, {len(info['pieces'])} pieces, {tris} triangles, no rule for: {sorted(unknown) or 'none'}")
     return dst
 
 
@@ -441,6 +582,14 @@ def is_belly(ex, i):
     return i == 0 and len(cans) > 1 and not cans[0].get("nip") and cans[0]["a"][1] < 300 and cans[0]["w"] >= 130
 
 
+def arm_sides(model):
+    """Which sides the swingarm has a leg on (beenster, 16 Nov): two on every bike, but a chain-drive sport or naked
+    bike that was drawn with a one-legged arm keeps it, on the chain side, and carries its rear brake there too."""
+    sw = model["swingarm"]
+    one = model["family"].lower() in ("sport", "naked") and sw.get("cls") not in ("alu", "chromef") and not sw.get("shaft") and not sw.get("rigid")
+    return (1,) if one else (1, -1)
+
+
 def boxer_y(eng, y):
     """Across-the-bike position on a boxer's cylinder: the drawing's 110..372 scaled to the model's reach."""
     return 110 + (y - 110) * (eng["boxer"].get("reach", 298) - 110) / 262.0
@@ -481,6 +630,10 @@ def wheel(tag, c, w, width, rim_col, discs):
             (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
     if not game_tyre(tag, c, w, hw):
         revolve(tag + "_tyre", prof, c, mat("rubber"))
+    for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+        if kv.split("=")[0] == "wheels":          # a trial fit: BIKE_BESPOKE="wheels=billet_reaper5:chrome"
+            st_ = kv.split("=")[1].split(":")
+            w = dict(w, style=st_[0], **({"finish": st_[1]} if len(st_) > 1 else {}))
     if DETAIL["on"] and w.get("style"):
         # a wheel from the library (wheels3d.py) at this bike's rim size; the bike keeps its tyre and discs
         import wheels3d
@@ -1029,7 +1182,7 @@ def build(model):
     sw = model["swingarm"]
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
-    sides = (1, -1) if sw.get("cls") == "alu" or model["family"].lower() in ("classic", "cruiser") else (1,)      # classics and cruisers never have a single-sided arm (beenster, 16 Nov)
+    sides = arm_sides(model)
     # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
     # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
     CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174
@@ -1163,13 +1316,25 @@ def build(model):
         if len(sp_) > 3 and sp_[-1][0] > sp_[-2][0]:
             sp_ = sp_[:-1]                # the drawn hook at the stop_ is the hoop's bend seen side on
         z0_, z1_ = sp_[0][1], sp_[-1][1]
-        ornate = model.get("detail", {}).get("sissy") == "ornate"
+        show_ = model.get("detail", {}).get("sissy")
+        show_ = [show_, model.get("detail", {}).get("sissy_metal", "chrome")] if show_ in ("chain", "scroll", "filigree") else None
+        for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+            if kv.split("=")[0] == "sissy":
+                show_ = (kv.split("=")[1].split(":") + ["chrome"])[:2]
+        ornate = model.get("detail", {}).get("sissy") == "ornate" or bool(show_)
         ys_ = [128 - 40 * min(1.0, (q[1] - z0_) / max(1.0, 700 - z0_)) - (6 if ornate else 30) * max(0.0, (q[1] - 700) / max(1.0, z1_ - 700)) for q in sp_]
         sleft = [(q[0], y, q[1]) for q, y in zip(sp_, ys_)]
         xt, zt, yt = sp_[-1][0], sp_[-1][1], ys_[-1]
         chrome_ = mat("chrome")
         f_ = lambda z: next(((a[0] + (b[0] - a[0]) * (z - a[2]) / (b[2] - a[2]), a[1] + (b[1] - a[1]) * (z - a[2]) / (b[2] - a[2])) for a, b in zip(sleft, sleft[1:]) if a[2] <= z <= b[2]), (sleft[-1][0], sleft[-1][1]))
-        if ornate:
+        if show_:
+            # the show bars to order (beenster, Nov 17): chain, scrollwork, filigree, in any of the four metals
+            import chopper_parts3d
+            chopper_parts3d.use(sys.modules[__name__])
+            chopper_parts3d.sissy_bar(show_[0], show_[1], sleft, sissy[0]["tube"] / 2)
+            chrome_ = chopper_parts3d.metal(show_[1])
+            straps = (sp_[-2][1] - 150, sp_[-2][1] - 20)
+        elif ornate:
             # a show sissy bar (beenster, chopper round 1: "elaborately designed"): the two uprights close in a pointed
             # arch with a spear finial, a centre bar with collars, and wrought scrolls between the bars above the pad
             ux_, uz_ = sp_[-1][0] - sp_[-2][0], sp_[-1][1] - sp_[-2][1]
@@ -1549,7 +1714,9 @@ def build(model):
             if clip:
                 # clip-ons: a clamp round each fork leg and a short bar straight out from it
                 tube(f"clamp{s}", [(rz[0] + 20, s * 96, rz[1] - 16), (rz[0] + 20, s * 96, rz[1] + 14)], 36, mat("alu_dark"))
-                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 8, s * 200, grip[1] + 2), (grip[0] - 4, s * 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+                # the last stretch runs dead straight along the grip's own centre line (the grip sat 11 degrees off the bar)
+                on_ = lambda y: (grip[0] - 6 * (y - 258) / 126, s * y, grip[1] - 4 * (y - 258) / 126)
+                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 9, s * 186, grip[1] + 2.5), on_(232), on_(258), on_(320), on_(384)], 11.5, mat("alu_dark"))
             else:
                 tube(f"riser{s}", [(top[0], s * 45, top[1]), (rz[0], s * 45, rz[1])], 15, mat("alu_dark"))
             tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
@@ -1600,6 +1767,26 @@ def build(model):
         definition(model, locals())
         import detail3d
         detail3d.run(sys.modules[__name__], model, locals())
+        # bespoke chopper parts to order: model detail.bespoke {"pegs": [design, metal], "covers": [design, metal]},
+        # or for a trial fit BIKE_BESPOKE="pegs=torpedo:gold,covers=spoked:gold"
+        bs = dict(model.get("detail", {}).get("bespoke", {}))
+        for kv in filter(None, os.environ.get("BIKE_BESPOKE", "").split(",")):
+            bs[kv.split("=")[0]] = kv.split("=")[1].split(":")
+        if bs:
+            import chopper_parts3d
+            chopper_parts3d.use(sys.modules[__name__])
+            if "pegs" in bs:
+                chopper_parts3d.fit_pegs(model, *bs["pegs"])
+            if "covers" in bs:
+                chopper_parts3d.fit_covers(model, *bs["covers"])
+            if "lamps" in bs:
+                chopper_parts3d.fit_lamps(model, *bs["lamps"])
+            if "engine" in bs:
+                chopper_parts3d.fit_engine(model, *bs["engine"])
+        lr = model.get("detail", {}).get("lock_relief")
+        if lr:
+            import lock_relief
+            lock_relief.relieve(sys.modules[__name__], model, lr["deg"] if isinstance(lr, dict) else lr, tuple(lr.get("parts", ("tank",))) if isinstance(lr, dict) else ("tank",))
     return dict(A=A, F=F, wb=wb)
 
 
@@ -1757,6 +1944,7 @@ def definition(model, c):
             return (x0 + (x1 - x0) * u, w, (tb[0] + tb[1]) / 2 + dz) if tb else None
         for sg in (-1, 1):
             if part == "tail":
+                continue      # beenster, 17 Nov: "weird piping along the side of the tail, please remove"
                 pts = [side(k / 100) for k in range(14, 90, 6)]
                 pts = [(q[0], sg * (q[1] - 0.5), q[2]) for q in pts if q]
                 if len(pts) > 3:
@@ -1809,8 +1997,21 @@ def definition(model, c):
         xf = max(q[0] for q in case if q[1] < zb + 90)
         cone("oilfilter", (xf - 34, -40, zb + 52), (xf + 34, -40, zb + 44), 33, 33, dark, 24)
         cone("oilfilterend", (xf + 34, -40, zb + 44), (xf + 41, -40, zb + 43), 33, 22, dark, 24)
-    cone("starter", (cs_[0] - 40, -wide / 2 + 40, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), 30, 30, dark, 24)
-    cone("starterend", (cs_[0] - 40, wide / 2 - 96, cs_[1] + 96), (cs_[0] - 40, wide / 2 - 84, cs_[1] + 96), 30, 20, steel, 24)
+    # the starter motor: on a single-shock bike whose shock passes it on the centre line, a short motor
+    # on the left of the shock (a full-width one would run straight through the spring)
+    st_y0, sh_ = -wide / 2 + 40, model.get("shock", {})
+    if "top" in sh_ and not sh_.get("twin"):
+        a_, b_, p_ = sh_["top"], sh_["bottom"], (cs_[0] - 40, cs_[1] + 96)
+        t_ = max(0.0, min(1.0, ((p_[0] - b_[0]) * (a_[0] - b_[0]) + (p_[1] - b_[1]) * (a_[1] - b_[1])) / ((a_[0] - b_[0]) ** 2 + (a_[1] - b_[1]) ** 2)))
+        if math.hypot(p_[0] - b_[0] - t_ * (a_[0] - b_[0]), p_[1] - b_[1] - t_ * (a_[1] - b_[1])) < 82:
+            st_y0 = 56 if wide / 2 - 96 - 56 >= 50 else None
+    sx_, sz_ = cs_[0] - 40, cs_[1] + 96
+    if st_y0 is None:       # a narrow engine has no room on the left: the motor goes to the right of the shock
+        cone("starter", (sx_, -wide / 2 + 40, sz_), (sx_, -46, sz_), 30, 30, dark, 24)
+        cone("starterend", (sx_, -wide / 2 + 40, sz_), (sx_, -wide / 2 + 28, sz_), 30, 20, steel, 24)
+    else:
+        cone("starter", (sx_, st_y0, sz_), (sx_, wide / 2 - 96, sz_), 30, 30, dark, 24)
+        cone("starterend", (sx_, wide / 2 - 96, sz_), (sx_, wide / 2 - 84, sz_), 30, 20, steel, 24)
     # seat base: a moulded pan under the foam, so the seat reads as a pad on a base and not one soft lump
     if st:
         outline = shapes.dense(st["pts"], True, st.get("t", 1.0))
@@ -1993,7 +2194,16 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
     if "--game" in sys.argv:
-        print("game files in", export_game(name, model))
+        # the side stand (common parts' sidestand3d: drawn folded, the game swings it down on its pivot)
+        import sidestand3d
+        rep_, _made = sidestand3d.fit(sys.modules[__name__], model)
+        if rep_.get("fitted"):
+            GAME_STAND.update({k: [round(float(q), 4) for q in rep_["stand"][k]] for k in ("pivot", "axis", "folded_dir", "down_dir")})
+            GAME_STAND["angle_down_deg"] = round(float(rep_["stand"]["angle_down_deg"]), 2)
+        else:
+            print("NO SIDE STAND FITTED on", name)
+        # (BIKE_GAME_NAME: the files' name, for builds that run side by side on one model: game_kits.py bespoke)
+        print("game files in", export_game(os.environ.get("BIKE_GAME_NAME") or name, model, sys.argv[1] if not ("--kit" in sys.argv or "--donor" in sys.argv or "--pool" in sys.argv) else None))
         sys.exit(0)
     if "--clip" in sys.argv or "--clip-accept" in sys.argv:      # part-against-part clipping check, no pictures
         import clip3d

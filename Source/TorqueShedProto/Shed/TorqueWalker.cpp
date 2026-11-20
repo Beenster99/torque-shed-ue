@@ -23,7 +23,10 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
+#include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedKit.h"
@@ -104,7 +107,9 @@ TArray<FLoad> Loads(ETorqueTool T)
 	(void)T;   // only the spray gun sprays now
 	for (const FName& C : UTorqueBuildSubsystem::Coats()) Out.Add({FLoad::Coat, C});
 	Out.Add({FLoad::Primer, FName(TEXT("primer"))});
-	Out.Add({FLoad::Cup, UTorqueBuildSubsystem::CupFinish()});   // paint mixed in the mixing bay
+	Out.Add({FLoad::Cup, UTorqueBuildSubsystem::CupFinish()});    // paint mixed in the mixing bay: the gun's two cups
+	Out.Add({FLoad::Cup, UTorqueBuildSubsystem::Cup2Finish()});
+	Out.Add({FLoad::Cup, UTorqueBuildSubsystem::FadeFinish()});   // cup 1 fading into cup 2 (beenster, 18 Nov 2026)
 	return Out;
 }
 
@@ -579,8 +584,11 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		return;
 	}
 	// Geometry mode is open (F2, ATorqueGeometryMode): it has the keys, the pad and the screen.
-	if (ATorqueGeometryMode::For(GetController()))
+	// [drone] The drone camera and the photo album (Photo/) have them the same way.
+	const bool bDroneUp = ATorqueDrone::For(GetController()) || ATorquePhotoAlbum::For(GetController());
+	if (ATorqueGeometryMode::For(GetController()) || ATorqueDecalMode::For(GetController()) || bDroneUp)   // (and decal mode, F3)
 	{
+		if (bDroneUp) LookOutline.Clear();   // (nothing's looked at while you fly it or look through your photos)
 		bWorkHeld = bAltHeld = bWorkPressed = bAltPressed = false;
 		const FSonyPadState Now = PadState();   // (what's held as it closes isn't pressed again here)
 		PrevPadButtons = Now.bConnected ? Now.Buttons : 0;
@@ -659,21 +667,81 @@ void ATorqueWalker::ReadInput(float Dt)
 	// Settings > Controller > Key bindings: the keyboard and mouse as the player bound them.
 	auto KeyDown = [PC](ETorqueKey A) { return FTorqueKeys::Down(PC, A); };
 	auto KeyJust = [PC](ETorqueKey A) { return FTorqueKeys::Just(PC, A); };
-	// [label] The shelf label box is up: the keys type its label till Enter or Esc.
-	if (LabelPiece != 0)
+	// [label] The shelf label box (or the bike's name box) is up: the keys type it till Enter or Esc.
+	if (LabelBoxUp())
 	{
 		LabelInput(PC, SonyHit);
 		return;
 	}
-	// N on a shelving unit: write on its label plate (Torque Shed's label_dialog.gd).
-	if (KeyJust(ETorqueKey::LabelShelf) && TargetFurniture != 0 && !bComputer && !bBench && Wheeling() == INDEX_NONE && OpenLabel(TargetFurniture))
+	// The spray gun's cups picker ([ / ]): it has the keys (you stand still) till a cup's filled or it's shut.
+	if (CupPick != INDEX_NONE)
+	{
+		CupPickerInput(PC, SonyHit, Dt);
 		return;
+	}
+	// [ and ] with the spray gun in hand pick cup 1's or cup 2's colour and finish (D-pad down on a pad:
+	// the picker, L1 / R1 there for the other cup). Spraying a fade (the spray controls up, Fade loaded)
+	// they choose the cup it sprays from instead (D-pad down swaps).
+	if (const UTorqueBuildSubsystem* CupShed = Shed(); CupShed && Tool == ETorqueTool::Gun && !bComputer && !bBench && Wheeling() == INDEX_NONE
+		&& SeatId == 0 && CupShed->HeldBy(CupShed->Me()) == 0 && !CupShed->PaintBay().HeldTin(CupShed->Me()))
+	{
+		const bool bCup1 = KeyJust(ETorqueKey::SprayCup1), bCup2 = KeyJust(ETorqueKey::SprayCup2);
+		const bool bPadCup = Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown);
+		if (SprayItem != 0 && IsFadeLoaded())
+		{
+			if (bCup1 || bCup2 || bPadCup)
+			{
+				FadeCup = bCup1 ? 0 : (bCup2 ? 1 : (FadeStepFor(SprayItem) == 0 ? 1 : 0));
+				Say(FadeCup == 0 ? FString(TEXT("Fade: spraying from cup 1, the base coat all over"))
+					: FString(TEXT("Fade: spraying from cup 2, over about half of it (Enter blends it in)")), true, 2.5);
+				return;
+			}
+		}
+		else if (bCup1 || bCup2 || bPadCup)
+		{
+			OpenCupPicker(bCup2 ? 1 : 0);
+			return;
+		}
+	}
+	// N on a shelving unit: write on its label plate (Torque Shed's label_dialog.gd).
+	const bool bNameJust = KeyJust(ETorqueKey::LabelShelf);
+	if (bNameJust && TargetFurniture != 0 && !bComputer && !bBench && Wheeling() == INDEX_NONE && OpenLabel(TargetFurniture))
+		return;
+	// N anywhere else, or D-pad up on the pad (free on foot bar the spray gun's and the lance's scan):
+	// name the bike looked at or stood next to (Torque Shed's rename box; beenster, Nov 19).
+	const bool bPadName = (Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) && !TWI::Sprays(Tool) && Tool != ETorqueTool::Lance;
+	if ((bNameJust || bPadName) && !bComputer && !bBench && Wheeling() == INDEX_NONE && SeatId == 0)
+	{
+		if (!OpenBikeName(Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE)) Say(TEXT("Walk up to a bike to give it a name."), false);
+		return;
+	}
 	// F2: geometry mode on the bike looked at, or the nearest (main.gd's F2).
 	if (KeyJust(ETorqueKey::GeometryMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{
 		FString Why;
 		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
 			Say(Why.IsEmpty() ? FString(TEXT("Geometry mode couldn't open here.")) : Why, false);
+		return;
+	}
+	// F3: decal mode on the bike looked at, or the nearest (the decals plan).
+	if (KeyJust(ETorqueKey::DecalMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	{
+		FString Why;
+		if (!ATorqueDecalMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
+			Say(Why.IsEmpty() ? FString(TEXT("Decal mode couldn't open here.")) : Why, false);
+		return;
+	}
+	// [drone] B (the View / Create button): the drone camera goes up from over your head (Photo/TorqueDrone.h).
+	if ((KeyJust(ETorqueKey::Drone) || Just(EKeys::Gamepad_Special_Left) || (SonyHit & ESonyButton::Create)) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	{
+		FString Why;
+		if (!ATorqueDrone::Launch(this, Why) && !Why.IsEmpty()) Say(Why, false);
+		return;
+	}
+	// [drone] Y (the D-pad's down): the photo album, to print one for the wall (Photo/TorquePhotoAlbum.h).
+	if ((KeyJust(ETorqueKey::PhotoAlbum) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	{
+		ATorquePhotoAlbum::Open(this);
 		return;
 	}
 	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
@@ -891,7 +959,7 @@ void ATorqueWalker::ReadInput(float Dt)
 		TurnKeyFor = -1.0;
 		CarryFor = 0;
 		HoldTurn = 0.0;
-		if (SprayItem != 0 && SprayHook() != INDEX_NONE)
+		if (SprayHook() != INDEX_NONE)
 		{
 			// The spray controls up on a part on a booth hook: Q / E, the wheel or L1 / R1 wind the hook
 			// down and up (a click a step, held it keeps going), so you can get at it all without
@@ -915,34 +983,23 @@ void ATorqueWalker::ReadInput(float Dt)
 	// The spray gun: R / right mouse / Square the colour, T the finish. Otherwise those are the
 	// second button (lift a wheel off the tyre changer whole).
 	const UTorqueBuildSubsystem* TinShed = Shed();
+	const bool bFinishJust = KeyJust(ETorqueKey::SprayFinish) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight);
+	bool bFinishUsed = false;
 	if (TinShed && TinShed->PaintBay().HeldTin(TinShed->Me()))
 	{
-		// A tin from the mixing bay in your hands: R fills the spray gun's cup from it.
+		// A tin from the mixing bay in your hands: R (Square) fills the spray gun's cup 1 from it, T
+		// (D-pad right) its cup 2: two colours on the gun for a fade.
 		bAltPressed = bAltHeld = false;
-		if (bAltJust)
+		bFinishUsed = bFinishJust;
+		if (bAltJust || bFinishJust)
 		{
 			FTorqueShedRequest Cup;
 			Cup.Kind = ETorqueShedAct::PaintCup;
+			Cup.Item = bAltJust ? 0 : 1;
 			FString WhyNot;
 			if (UTorqueBuildSubsystem* CupShed = Shed())
 				if (!CupShed->Request(Cup, WhyNot)) Say(WhyNot, false);
 		}
-	}
-	else if (TinShed && TinShed->PaintBay().TapeBy == TinShed->Me())
-	{
-		// The masking tape in your hands: R / Square picks the pattern, right mouse peels it off a part.
-		if (KeyJust(ETorqueKey::AltWork) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square))
-			if (UTorqueBuildSubsystem* TapeShed = Shed())
-			{
-				FTorqueShedRequest Pick;
-				Pick.Kind = ETorqueShedAct::PaintTapePattern;
-				Pick.Colour = TapeShed->PaintBay().TapePattern % TorquePaintMix::TapePatterns + 1;
-				FString WhyNot;
-				if (!TapeShed->Request(Pick, WhyNot)) Say(WhyNot, false);
-				else Say(FString::Printf(TEXT("Masking tape: %s"), *FString(TorquePaintMix::PatternName(Pick.Colour)).ToLower()), true);
-			}
-		bAltPressed = Just(EKeys::RightMouseButton);
-		bAltHeld = Down(EKeys::RightMouseButton);
 	}
 	else if (bCarryPart)
 	{
@@ -955,7 +1012,16 @@ void ATorqueWalker::ReadInput(float Dt)
 		// With the spray controls up the right mouse (L2 / LT) holds your breath to steady your hand,
 		// so only R and Square change the colour then.
 		const bool bColour = SprayItem != 0 ? (Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square)) : bAltJust;
-		if (bColour) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
+		const TArray<TWI::FLoad> GunLoads = TWI::Loads(Tool);
+		if (bColour && GunLoads.IsValidIndex(SprayFinish) && GunLoads[SprayFinish].Id == UTorqueBuildSubsystem::FadeFinish())
+		{
+			// The Fade load: R steps through the fades (front to back or top to bottom, short to long).
+			FadeStyle = (FadeStyle + 1) % (TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade + 1);
+			Say(FString(TorquePaintMix::PatternName(TorquePaintMix::FirstFade + FadeStyle)), true, 2.0);
+		}
+		else if (bColour) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
+		// Spraying a fade's cup 2: Enter blends it in where it went (F, stepping back, does too).
+		if (SprayItem != 0 && Just(EKeys::Enter)) FinishFades();
 		bSprayBreathHeld = SprayItem != 0 && (Down(EKeys::RightMouseButton) || Axis(EKeys::Gamepad_LeftTriggerAxis) > 0.5f || (S.bConnected && S.L2 > 0.5f));
 		// X (D-pad up): the scan lights up what's missed, thin, run or dry.
 		if (Just(EKeys::X) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) SetSprayScan(!bSprayScan);
@@ -967,7 +1033,7 @@ void ATorqueWalker::ReadInput(float Dt)
 		// The lance: X (D-pad up) lights up the muck still to do, or puts it out.   [wash]
 		if (Tool == ETorqueTool::Lance && (Just(EKeys::X) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp))) bWashScan = !bWashScan;
 	}
-	if (KeyJust(ETorqueKey::SprayFinish) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight))
+	if (bFinishJust && !bFinishUsed)
 		if (TWI::Sprays(Tool)) SprayFinish = (SprayFinish + 1) % FMath::Max(1, TWI::Loads(Tool).Num());
 	bWorkPressed = bWorkJust;
 	bWorkHeld = KeyDown(ETorqueKey::Work) || Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
@@ -978,6 +1044,8 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
+	// [drone] Holding a photo print: Delete (Circle / B) bins it (another can be printed from the album).
+	bBinJust = Just(EKeys::Delete) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle);
 	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bAltJust, bWorkJust);   // [furniture] first; [fluids] the pump (left mouse; right hangs it up)
 	if (bKitF)
 	{
@@ -1066,6 +1134,27 @@ void ATorqueWalker::TestSpray(int32 Colour, FName Finish)
 	// A finish, a coat or "primer", among what the spray gun takes.
 	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
 	SprayFinish = FMath::Max(L.IndexOfByPredicate([Finish](const TWI::FLoad& X) { return X.Id == Finish; }), 0);
+	// spray:N:fade: N is the fade's pattern (TorquePaintMix::FirstFade ..).
+	if (Finish == UTorqueBuildSubsystem::FadeFinish())
+		FadeStyle = FMath::Clamp(Colour - TorquePaintMix::FirstFade, 0, TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade);
+}
+
+bool ATorqueWalker::IsFadeLoaded() const
+{
+	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
+	return Tool == ETorqueTool::Gun && L.IsValidIndex(SprayFinish) && L[SprayFinish].Id == UTorqueBuildSubsystem::FadeFinish();
+}
+
+int32 ATorqueWalker::FadeStepFor(int32 Item) const
+{
+	// Picked by hand ([ / ]), else the base coat till the part's in cup 1's paint, then cup 2.
+	if (FadeCup != INDEX_NONE) return FadeCup;
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueItem* It = B ? B->Item(Item) : nullptr;
+	const FTorquePaintCup* One = B ? B->PaintBay().CupOf(B->Me(), 0) : nullptr;
+	if (!It || !One) return 0;
+	const bool bBase = !It->bPrimerTop && !It->MixCode.IsEmpty() && It->MixCode == One->Spec.Code && It->MixName == One->Spec.Name;
+	return bBase ? 1 : 0;
 }
 
 // --- What's looked at ----------------------------------------------------------------------------
@@ -1445,34 +1534,6 @@ void ATorqueWalker::MakePlan()
 		Plan.Blocked = B->Check(Me, Plan.Request);
 		return;
 	}
-	// Masking tape (walker.gd _paint_plan "tape"): off its hook or back on it, and in your hands, on a
-	// painted part to mask it off (R picks the pattern), right mouse peeling it off again.
-	const bool bTape = B->PaintBay().TapeBy == Me;
-	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tape)
-	{
-		Plan = bTape ? MakeOne(ETorqueShedAct::PaintTapePut, 0.3, TEXT("hang the tape back on its hook"))
-			: MakeOne(ETorqueShedAct::PaintTapeTake, 0.3, TEXT("take the masking tape"));
-		Plan.Blocked = B->Check(Me, Plan.Request);
-		return;
-	}
-	if (bTape)
-	{
-		if (TargetItem != 0)
-		{
-			Plan = MakeOne(ETorqueShedAct::PaintTape, 2.5, FString::Printf(TEXT("mask it off: %s (R picks)"),
-				*FString(TorquePaintMix::PatternName(B->PaintBay().TapePattern)).ToLower()));
-			Plan.Request.Item = TargetItem;
-			Plan.Blocked = B->Check(Me, Plan.Request);
-			const FTorqueItem* Taped = B->Item(TargetItem);
-			if (Taped && Taped->Tape != 0)
-			{
-				AltPlan = MakeOne(ETorqueShedAct::PaintPeel, 1.2, TEXT("peel the masking tape off"));
-				AltPlan.Request.Item = TargetItem;
-				AltPlan.Blocked = B->Check(Me, AltPlan.Request);
-			}
-		}
-		return;   // the tape in your hands: nothing else until it's hung back up
-	}
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::PaintBench || TargetPlace->Kind == ETorquePlace::PaintShelf)) return;   // F, as the tins go
 	if (B->PaintBay().HeldTin(Me)) return;   // a tin in your hands: nothing else until it's put down
 	// A part in your hands: your hands are full, whatever tool was last picked (the scroll wheel
@@ -1675,16 +1736,9 @@ void ATorqueWalker::MakePlan()
 	default:
 		break;
 	}
-	// Hands free on a part with masking tape on it: right mouse peels it off (walker.gd _part_alt).
-	if (!AltPlan.bValid && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me) && TargetItem != 0)
-		if (const FTorqueItem* Taped = B->Item(TargetItem); Taped && Taped->Tape != 0)
-		{
-			AltPlan = MakeOne(ETorqueShedAct::PaintPeel, 1.2, TEXT("peel the masking tape off"));
-			AltPlan.Request.Item = TargetItem;
-		}
 	// Hands free at a spray booth hook (or the part on it): right mouse winds it up or down.
 	const int32 Hook = HookOf();
-	if (!AltPlan.bValid && Hook != INDEX_NONE && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me))
+	if (!AltPlan.bValid && Hook != INDEX_NONE && !TWI::Sprays(Tool) && !HeldIt && !B->PaintBay().HeldTin(Me))
 	{
 		const bool bUp = HookMoving == Hook ? HookDir < 0 : HookDir > 0;   // while winding: the way it's going
 		AltPlan = MakeOne(ETorqueShedAct::PaintHook, 0.0, FString::Printf(TEXT("hold to %s the hook (%d cm)"),
@@ -1725,11 +1779,35 @@ ATorqueWalker::FPlan ATorqueWalker::SprayPlanFor(int32 Item, int32 Bay) const
 	}
 	else if (Load.Kind == TWI::FLoad::Cup)
 	{
-		// The gun's cup, filled from a tin from the mixing bay.
-		const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(B->Me());
-		const FString What = Cup ? Cup->Spec.Name : FString(TEXT("the cup"));
-		P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("spray %s from the cup: go along the part in steady passes"), *What));
-		P.Request.Finish = UTorqueBuildSubsystem::CupFinish();
+		// The gun's cups ([ and ] pick their colours, or a tin fills them): one of them, or a fade in two
+		// steps: a full base coat from cup 1, then cup 2 over about half of it, blended in where it went.
+		if (Load.Id == UTorqueBuildSubsystem::FadeFinish())
+		{
+			const FTorquePaintCup* One = B->PaintBay().CupOf(B->Me(), 0);
+			const FTorquePaintCup* Two = B->PaintBay().CupOf(B->Me(), 1);
+			const int32 Pattern = TorquePaintMix::FirstFade + FMath::Clamp(FadeStyle, 0, TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade);
+			if (FadeStepFor(Item) == 0)
+			{
+				P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("fade, step 1 of 2: a full base coat of %s from cup 1"),
+					One ? *One->Spec.Name.ToLower() : TEXT("cup 1 (pick it with [)")));
+				P.Request.Finish = UTorqueBuildSubsystem::CupFinish();
+			}
+			else
+			{
+				P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("fade, step 2 of 2: %s from cup 2 over about half of it, then Enter (%s, R changes it)"),
+					Two ? *Two->Spec.Name.ToLower() : TEXT("cup 2 (pick it with ])"), *FString(TorquePaintMix::PatternName(Pattern)).ToLower()));
+				P.Request.Finish = UTorqueBuildSubsystem::FadeFinish();
+				P.Request.Colour = Pattern;
+			}
+		}
+		else
+		{
+			const int32 Which = UTorqueBuildSubsystem::CupWhich(Load.Id);
+			const FTorquePaintCup* Cup = B->PaintBay().CupOf(B->Me(), Which);
+			const FString What = Cup ? Cup->Spec.Name : FString::Printf(TEXT("cup %d"), Which + 1);
+			P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("spray %s from cup %d: go along the part in steady passes"), *What, Which + 1));
+			P.Request.Finish = Load.Id;
+		}
 	}
 	else
 	{
@@ -1868,7 +1946,12 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	// The can is drawn in the spray colour; a new colour or tool redraws it.
 	const int32 ToolIndex = (int32)Tool;
 	const TArray<FLinearColor>& Paints = UTorqueBuildSubsystem::Paints();
-	const FLinearColor Can = Paints.IsValidIndex(SprayColour) ? Paints[SprayColour] : FLinearColor(0.9f, 0.75f, 0.1f);
+	FLinearColor Can = Paints.IsValidIndex(SprayColour) ? Paints[SprayColour] : FLinearColor(0.9f, 0.75f, 0.1f);
+	{
+		// Loaded from a cup (or a fade): the gun's cup shows that paint.
+		const TArray<TWI::FLoad> GunLoads = TWI::Loads(ETorqueTool::Gun);
+		if (TWI::Sprays(Tool) && GunLoads.IsValidIndex(SprayFinish) && GunLoads[SprayFinish].Kind == TWI::FLoad::Cup) Can = SprayMistColour(nullptr);
+	}
 	if (ToolIndex != ShownTool || (TWI::Sprays(Tool) && !Can.Equals(ShownCan)))
 	{
 		for (UStaticMeshComponent* C : ToolParts)
@@ -2087,6 +2170,8 @@ FLinearColor ATorqueWalker::SprayMistColour(bool* bOutClear) const
 	FTorqueShedRequest R;
 	R.Kind = Load.Kind == TWI::FLoad::Primer ? ETorqueShedAct::Prime : (Load.Kind == TWI::FLoad::Coat ? ETorqueShedAct::Coat : ETorqueShedAct::Paint);
 	R.Finish = Load.Id;
+	// A fade's base coat goes on from cup 1: its mist is cup 1's.
+	if (Load.Id == UTorqueBuildSubsystem::FadeFinish() && (SprayItem != 0 ? FadeStepFor(SprayItem) == 0 : FadeCup == 0)) R.Finish = UTorqueBuildSubsystem::CupFinish();
 	R.Colour = SprayColour;
 	if (bOutClear) *bOutClear = R.Kind == ETorqueShedAct::Coat && UTorqueBuildSubsystem::IsLacquer(R.Finish);
 	const UTorqueBuildSubsystem* B = Shed();
@@ -2106,7 +2191,9 @@ TArray<FString> ATorqueWalker::SprayLoadNames() const
 	{
 		if (L.Kind == TWI::FLoad::Paint) Out.Add(UTorqueBuildSubsystem::FinishName(L.Id));
 		else if (L.Kind == TWI::FLoad::Coat) Out.Add(UTorqueBuildSubsystem::CoatName(L.Id));
-		else if (L.Kind == TWI::FLoad::Cup) Out.Add(TEXT("Cup"));
+		else if (L.Kind == TWI::FLoad::Cup)
+			Out.Add(L.Id == UTorqueBuildSubsystem::FadeFinish() ? FString(TEXT("Fade: cup 1 into cup 2"))
+				: FString::Printf(TEXT("Cup %d"), UTorqueBuildSubsystem::CupWhich(L.Id) + 1));
 		else Out.Add(TEXT("Grey primer"));
 	}
 	return Out;
@@ -2238,6 +2325,7 @@ FTransform ATorqueWalker::CarryDrop() const
 		}
 	}
 	FVector At = Feet + Flat * Dist;
+	double KitTop = -1.0e9;   // [trolley] the top of the kit piece looked at, when it's that
 	// beenster (Nov 12): where the crosshair points. Looking down at the floor (or a low surface)
 	// within reach, it goes down there; looking ahead or up, the wheel's reach as before.
 	if (World)
@@ -2247,17 +2335,32 @@ FTransform ATorqueWalker::CarryDrop() const
 			const FVector Look = AimPC->PlayerCameraManager->GetCameraRotation().Vector();
 			FHitResult Aim;
 			const double AimRange = 55.0 + Half + TWI::CarryMax + 150.0;
-			if (Look.Z < -0.05 && World->LineTraceSingleByChannel(Aim, Eye, Eye + Look * AimRange, ECC_Visibility, Params) &&
-				Aim.ImpactNormal.Z > 0.7 && Aim.ImpactPoint.Z < Feet.Z + 60.0)
+			// [trolley] A trolley's deck (or a piece of kit's top) looked at: it goes on there, whatever its
+			// height (beenster, build 155: "Trolleys should allow for objects to be put on them").
+			const bool bAimHit = Look.Z < -0.05 && World->LineTraceSingleByChannel(Aim, Eye, Eye + Look * AimRange, ECC_Visibility, Params);
+			const bool bOnKit = bAimHit && Cast<ATorqueFurnishings>(Aim.GetActor()) != nullptr;
+			if (bAimHit && Aim.ImpactNormal.Z > 0.7 && (Aim.ImpactPoint.Z < Feet.Z + 60.0 || (bOnKit && Aim.ImpactPoint.Z < Feet.Z + 170.0)))
 			{
+				KitTop = bOnKit ? Aim.ImpactPoint.Z : KitTop;
 				const FVector2D Off(Aim.ImpactPoint.X - Feet.X, Aim.ImpactPoint.Y - Feet.Y);
-				const double Along = FMath::Clamp(Off.Size(), Base + TWI::CarryMin, Base + TWI::CarryMax);
+				// The wheel (Q / E, L1 / R1) still pushes it out or pulls it in from where you're looking
+				// (beenster, build 155: "I cant use mousewheel to move carried object away from me any more").
+				double Along = FMath::Clamp(Off.Size() + CarryReach, Base + TWI::CarryMin, Base + TWI::CarryMax);
 				const FVector2D Dir2 = Off.SizeSquared() > 1.0 ? Off.GetSafeNormal() : FVector2D(Flat.X, Flat.Y);
+				if (CarryReach > 0.0 && !bOnKit)
+					for (const double H : {30.0, 100.0})
+					{
+						// Pushed past where you look: still not through a wall.
+						FHitResult Wall;
+						const FVector From = Feet + FVector(0.0, 0.0, H);
+						if (World->LineTraceSingleByChannel(Wall, From, From + FVector(Dir2.X, Dir2.Y, 0.0) * (Along + Half + 10.0), ECC_Visibility, Params))
+							Along = FMath::Min(Along, FMath::Max(Base, Wall.Distance - Half - 2.0));
+					}
 				At = FVector(Feet.X + Dir2.X * Along, Feet.Y + Dir2.Y * Along, Feet.Z);
 			}
 		}
 	FHitResult Down;
-	const FVector Top(At.X, At.Y, Feet.Z + 120.0);
+	const FVector Top(At.X, At.Y, FMath::Max(Feet.Z + 120.0, KitTop + 40.0));
 	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
 	else At.Z = Feet.Z;
 	// A box or crate let go over another box on the floor goes on top of it (beenster, Nov 10: boxes
@@ -2662,15 +2765,6 @@ void ATorqueWalker::Interact()
 		return;
 	}
 	if (TinInteract()) return;   // the mixing bay's bench, its tin shelf, a tin into a bin
-	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tape)
-	{
-		// The masking tape's hook (walker.gd interact "tape"): take it, or hang it back.
-		FTorqueShedRequest R;
-		R.Kind = B->PaintBay().TapeBy == B->Me() ? ETorqueShedAct::PaintTapePut : ETorqueShedAct::PaintTapeTake;
-		FString WhyNot;
-		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
-		return;
-	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Computer)
 	{
 		OpenComputer();
@@ -2989,6 +3083,13 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 FString ATorqueWalker::TestComputerType(const FString& Type)
 {
 	if (!bComputer) OpenComputer();
+	// [engines] "layout=Inline four", "size=2", "maker=Kazeda", "sort=1": the engine list's filters.
+	FString FilterKey, FilterValue;
+	if (Type.Split(TEXT("="), &FilterKey, &FilterValue))
+	{
+		if (!Computer.SetEngineFilter(FilterKey.ToLower(), FilterValue)) return FString::Printf(TEXT("no engine filter %s on the computer"), *FilterKey);
+		return Computer.Describe();
+	}
 	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);
 	return Computer.Describe();
 }
@@ -3087,16 +3188,10 @@ void ATorqueWalker::UpdateHud()
 	if (const FTorqueTin* Tin = B->PaintBay().HeldTin(B->Me()))
 	{
 		HudLines.Add({TEXT("Holding a tin: ") + B->PaintBay().TinText(*Tin), Info, 0.6f});
-		HudLines.Add({TEXT("R / Square: fill the spray gun's cup from it   F: onto the tin shelf, the bench's scale, or into a bin"), Prompt, 0.6f});
+		HudLines.Add({TEXT("R / Square: fill the spray gun's cup 1   T / D-pad right: its cup 2 (two colours for a fade)   F: onto the tin shelf, the bench's scale, or into a bin"), Prompt, 0.6f});
 	}
-	if (B->PaintBay().TapeBy == B->Me())
-	{
-		HudLines.Add({FString::Printf(TEXT("Holding the masking tape: %s"), *FString(TorquePaintMix::PatternName(B->PaintBay().TapePattern)).ToLower()), Info, 0.6f});
-		HudLines.Add({TEXT("R / Square: the pattern   Hold the work button on a painted part: tape it   F on its hook: hang it back"), Prompt, 0.6f});
-	}
-	if (Tool == ETorqueTool::Gun)
-		if (const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(B->Me()))
-			HudLines.Add({FString::Printf(TEXT("Gun's cup: %s, %.2f l (load Cup with T)"), *Cup->Spec.Name, Cup->Litres), Info, 0.55f});
+	if (Tool == ETorqueTool::Gun && SprayItem == 0 && !B->PaintBay().HeldTin(B->Me()))
+		HudLines.Add({TEXT("[ / ] (D-pad down): pick cup 1's / cup 2's colour and finish   T (D-pad right): load Cup 1, Cup 2 or Fade"), Info, 0.55f});
 	// What's looked at: hud.gd's panel at the side (the title, its lines, then the prompts).
 	const int32 LookFrom = HudLines.Num();
 	const FTorqueItem* Thing = B->Item(TargetItem);
@@ -3116,6 +3211,8 @@ void ATorqueWalker::UpdateHud()
 		}
 		if (B->Exists(TargetBay))
 			HudLines.Add({FString::Printf(TEXT("%s: geometry mode (fit this bike's parts)"), *FTorqueKeys::Text(ETorqueKey::GeometryMode)), Prompt, 0.55f});
+		if (B->Exists(TargetBay))
+			HudLines.Add({FString::Printf(TEXT("%s: decal mode (put decals on this bike)"), *FTorqueKeys::Text(ETorqueKey::DecalMode)), Prompt, 0.55f});
 		const FString Fab = B->FabOwedText(TargetBay);
 		if (!Fab.IsEmpty()) HudLines.Add({TEXT("Needs fabrication: ") + Fab + TEXT(" (grinder and welder)"), Info, 0.55f});
 		break;
@@ -3135,6 +3232,8 @@ void ATorqueWalker::UpdateHud()
 				if (!Fits.IsEmpty()) HudLines.Add({Fits, Info, 0.55f});
 			}
 			if (Thing->bBoxed) HudLines.Add({TEXT("F / Triangle: unpack it"), Prompt, 0.65f});
+			if (TargetPlace && TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0 && Wheeling() == INDEX_NONE)   // [kit]
+				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.6f});
 		}
 		break;
 	case ETorqueLook::Place:
@@ -3197,8 +3296,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("Roller door"), FColor::White, 0.8f});
 		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out from the door"), B->MyBike() + 1), Prompt, 0.65f});
 		// [yard] The adventure is the host's to start, from the pause menu.
-		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on Buttertubs (their menu)"))
-			: FString(TEXT("Esc / Options: Set off on Buttertubs")), Info, 0.55f});
+		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on the ride (their menu)"))
+			: FString(TEXT("Esc / Options: Plan a ride (Ride UK)")), Info, 0.55f});
 		break;
 	default:
 		break;
@@ -3213,6 +3312,10 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({AltPlan.Blocked.IsEmpty() ? FString::Printf(TEXT("%s: %s"),
 				AltPlan.Request.Kind == ETorqueShedAct::PumpFill ? TEXT("Hold right mouse / Square") : TEXT("Right mouse / Square"), *AltPlan.Verb)
 			: FString::Printf(TEXT("Can't %s: %s"), *AltPlan.Verb, *AltPlan.Blocked), AltPlan.Blocked.IsEmpty() ? Prompt : Blocked, 0.6f});
+	// The gun aimed at a booth hook (or the part on it): the wheel winds it, not the tools.
+	if (SprayItem == 0 && SprayHook() != INDEX_NONE)
+		HudLines.Add({FString::Printf(TEXT("Q / E or wheel (L1 / R1): hook down / up (%d cm)   1 - 6: change tool"),
+			FMath::RoundToInt(B->HookTipOf(SprayHook()))), Prompt, 0.6f});
 	// [fluids] The nozzle in your hand, away from the pump and not filling: the same button hangs it up.
 	if (B->PumpHeldBy() == B->Me() && !(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
 		HudLines.Add({TEXT("Right mouse / Square: hang the nozzle back on the pump"), Prompt, 0.6f});
@@ -3240,6 +3343,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("Hold left mouse / Cross: work   Q / E, wheel, 1-6 or L1 / R1: tool (hands, wrench, brush, grinder, spray, washer)"), Help, 0.5f});
 		HudLines.Add({TEXT("Unbolt with the wrench, then take it off by hand; fit what you hold, then bolt it up. R / T: spray colour and finish"), Help, 0.5f});
 		HudLines.Add({TEXT("F / Triangle: unpack a box, the parts computer, ride out   H: hide help   Esc: menu"), Help, 0.5f});
+		HudLines.Add({FString::Printf(TEXT("%s / View: drone camera   %s / D-pad down: photo album (print one for the wall)"),
+			*FTorqueKeys::Text(ETorqueKey::Drone), *FTorqueKeys::Text(ETorqueKey::PhotoAlbum)), Help, 0.5f});
 	}
 }
 

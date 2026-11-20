@@ -1,0 +1,143 @@
+{
+ "group": "clocks",
+ "key": "single_round",
+ "name": "Single round clock",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  90.5,
+  107.6,
+  134.0
+ ],
+ "triangles": 4340,
+ "surfaces": {
+  "d3_lp_satin": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.85,
+   "roughness": 0.3,
+   "tag": "d3_lp_satin"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_clearglass": {
+   "ue": "v2glass",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02,
+   "clear": 1.0,
+   "tag": "d3_clearglass"
+  },
+  "d3_dialblack": {
+   "ue": "cat_plastic",
+   "color": [
+    0.012,
+    0.012,
+    0.013
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6,
+   "tag": "d3_dialblack"
+  },
+  "d3_dialwhite": {
+   "ue": "cat_plastic",
+   "color": [
+    0.9,
+    0.9,
+    0.86
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 0.5,
+   "tag": "d3_dialwhite"
+  },
+  "d3_needle": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.32,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.2,
+   "tag": "d3_needle"
+  },
+  "d3_ck_green": {
+   "ue": "cat_plastic",
+   "color": [
+    0.1,
+    1.0,
+    0.2
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_green"
+  },
+  "d3_ck_blue": {
+   "ue": "cat_plastic",
+   "color": [
+    0.15,
+    0.35,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_blue"
+  },
+  "d3_ck_amber": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.45,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_amber"
+  },
+  "d3_ck_red": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.05,
+    0.03
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 1.5,
+   "tag": "d3_ck_red"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

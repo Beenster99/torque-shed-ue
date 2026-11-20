@@ -190,7 +190,7 @@ def bus_stop(rng):
     block(M, c, (0.27, 0.22, 0.012), WHITE, 0.1)
     block(M, c + [0, 0.17, 0], (0.27, 0.05, 0.014), (0.02, 0.06, 0.25), 0.1)   # the blue band
     for s in (1, -1):
-        ST.lettering(M, "BUS", c + [0, -0.05, s * 0.014], (s * -1.0, 0, 0), (0, 1, 0), (0, 0, s), 0.13, BLACK)
+        ST.lettering(M, "BUS", c + [0, -0.05, s * 0.014], (s * 1.0, 0, 0), (0, 1, 0), (0, 0, s), 0.13, BLACK)
     block(M, (0.06, 1.5, 0), (0.03, 0.12, 0.09), (0.6, 0.6, 0.58), 0.2)   # the timetable case
     return M
 
@@ -268,7 +268,7 @@ POLE_WOOD = (0.12, 0.085, 0.06)
 
 
 def street_lamp(rng):
-    """A street lamp as the code drew it: a tapered round column on a wider foot, an outreach arm swept
+    """(Replaced by Tools/blender_street_kit.py's lamps; kept for reference.) A street lamp as the code drew it: a tapered round column on a wider foot, an outreach arm swept
     up to the lantern 1.1 m out over the road (+x), and the lantern's cowl (its glowing face is the
     code's). 6.05 m to the top of the arm."""
     M = ST.Mesh()
@@ -281,8 +281,52 @@ def street_lamp(rng):
     return M
 
 
+# [towns stage 6] The heritage lamp of a town's old centre: a cast iron column painted black, gold bands.
+HERITAGE_BLACK = (0.018, 0.02, 0.02)
+HERITAGE_GOLD = (0.45, 0.33, 0.1)
+
+
+def lamp_heritage(rng):
+    """A town centre's heritage street lamp, as the code-made lamp's light hangs (the lantern's foot
+    1.1 m out over the road (+x) at 5.8 m; its glass a 0.3 m box the code's glowing faces lie on): a moulded plinth, a
+    fluted column with gold bands, a scrolled swan-neck arm over to a four-sided lantern under a domed
+    cap and finial. Black, 6.2 m to the finial."""
+    M = ST.Mesh()
+    blk, gold = HERITAGE_BLACK, HERITAGE_GOLD
+    # (the plinth: three mouldings stepping in)
+    for y0, y1, r0, r1 in ((0.0, 0.18, 0.2, 0.19), (0.18, 0.75, 0.16, 0.13), (0.75, 0.9, 0.15, 0.12)):
+        P, T = ST.tube([[0, y0, 0], [0, y1, 0]], [r0, r1], 12); paint(M, P, T, P[:, [0, 1]], blk, 0.3)
+    # (the column, its flutes as eight thin ribs, and its bands)
+    P, T = ST.tube([[0, 0.9, 0], [0, 4.7, 0]], [0.075, 0.055], 12); paint(M, P, T, P[:, [0, 1]], blk, 0.25)
+    for k in range(8):
+        a = k * np.pi / 4
+        rod(M, (np.cos(a) * 0.075, 1.0, np.sin(a) * 0.075), (np.cos(a) * 0.057, 4.55, np.sin(a) * 0.057), 0.012, blk, 0.25, 4)
+    for y, r in ((0.95, 0.1), (2.6, 0.075), (4.6, 0.072)):
+        P, T = ST.tube([[0, y - 0.035, 0], [0, y + 0.035, 0]], [r, r], 12); paint(M, P, T, P[:, [0, 1]], gold, 0.15)
+    P, T = ST.tube([[0, 4.7, 0], [0, 4.85, 0]], [0.09, 0.05], 12); paint(M, P, T, P[:, [0, 1]], blk, 0.25)
+    # (the swan neck: up and over in a curve to the lantern's hanger, a scroll under it)
+    pts = [(0.0, 4.8), (0.02, 5.3), (0.12, 5.75), (0.35, 6.05), (0.65, 6.2), (0.92, 6.18), (1.1, 6.08)]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        rod(M, (x0, y0, 0), (x1, y1, 0), 0.032, blk, 0.2, 8)
+    sc = [(0.05, 5.05), (0.25, 5.15), (0.42, 5.4), (0.45, 5.65), (0.33, 5.78), (0.22, 5.68)]
+    for (x0, y0), (x1, y1) in zip(sc, sc[1:]):
+        rod(M, (x0, y0, 0), (x1, y1, 0), 0.016, blk, 0.2, 6)
+    rod(M, (0.45, 5.65, 0), (0.55, 6.13, 0), 0.016, blk, 0.2, 6)
+    # (the lantern: a tapered glazed box, its frame black, a domed cap and a finial)
+    cx, foot = 1.1, 5.8
+    P, T = ST.tube([[cx, foot - 0.08, 0], [cx, foot, 0]], [0.06, 0.13], 4); paint(M, P, T, P[:, [0, 1]], blk, 0.2)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            rod(M, (cx + sx * 0.155, foot, sz * 0.155), (cx + sx * 0.155, foot + 0.38, sz * 0.155), 0.014, blk, 0.2, 4)
+    block(M, (cx, foot + 0.19, 0), (0.15, 0.19, 0.15), (0.1, 0.1, 0.09), 0.05)   # (its glass: the code's glow lies on it after dark)
+    P, T = ST.tube([[cx, foot + 0.38, 0], [cx, foot + 0.44, 0]], [0.23, 0.22], 4); paint(M, P, T, P[:, [0, 1]], blk, 0.2)
+    P, T = ST.tube([[cx, foot + 0.44, 0], [cx, foot + 0.58, 0]], [0.2, 0.05], 8); paint(M, P, T, P[:, [0, 1]], blk, 0.2)
+    P, T = ST.tube([[cx, foot + 0.58, 0], [cx, foot + 0.7, 0]], [0.025, 0.0], 6); paint(M, P, T, P[:, [0, 1]], gold, 0.1)
+    return M
+
+
 def power_pole(rng):
-    """A round timber telegraph pole, tapering, with its cross-arm along the wire (z), three insulators
+    """(Replaced by Tools/blender_street_kit.py's poles; kept for reference.) A round timber telegraph pole, tapering, with its cross-arm along the wire (z), three insulators
     and a cap: 9 m (the kit's height; a Fab pole takes its place where the PC has one)."""
     M = ST.Mesh()
     wood = toned(rng, POLE_WOOD, 0.12)
@@ -296,8 +340,11 @@ def power_pole(rng):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    # ([street kit] the lamp posts and telegraph poles are Tools/blender_street_kit.py's, made in Blender:
+    # left as they are)
+    theirs = ("SM_Prop_street_lamp_", "SM_Prop_power_pole_")
     for f in os.listdir(OUT):
-        if f.endswith(".glb"):
+        if f.endswith(".glb") and not f.startswith(theirs):
             os.remove(os.path.join(OUT, f))
     R = np.random.default_rng
     made = {
@@ -313,8 +360,7 @@ def main():
         "seat": [seat(R(990)), seat(R(991))],
         "post_box": [post_box(R(1000))],
         "phone_box": [phone_box(R(1010))],
-        "street_lamp": [street_lamp(R(1020))],
-        "power_pole": [power_pole(R(1030)), power_pole(R(1031))],
+        "lamp_heritage": [lamp_heritage(R(1040))],
     }
     total = 0
     for kind, meshes in made.items():

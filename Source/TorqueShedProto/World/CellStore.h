@@ -41,6 +41,7 @@ struct WorldIndex
 	std::unordered_map<std::string, std::string> Streams, Trees, Features, Profiles, Sketches;
 	// [OSM stage 4] Each cell's ground (water shapes, land use, parks, car parks, single trees) and paths.
 	std::unordered_map<std::string, std::string> Grounds, Paths, RoadX, Sights;
+	std::unordered_map<std::string, std::string> Circuits;   // [circuits] ("circuits": circuit/cROW_COL.json)
 	// [towns stage 3] Each cell's buildings (every one's outline and height): a zip of its own, a
 	// release asset, read a tile at a time (tools/building_bake.py in the Godot game's repository).
 	std::unordered_map<std::string, CellEntry> Buildings;
@@ -58,8 +59,11 @@ public:
 	static constexpr const char* UserAgent = "TorqueShedUE (+https://github.com/Beenster99/torque-shed-ue)";
 	// GETs a URL, following redirects: the HTTP code (0 for no answer) and the body. Blocks.
 	using Fetcher = std::function<int(const std::string& Url, std::string& Body)>;
+	// [build 158] A Fetcher's answer for "couldn't be sent just now" (the game's: its game thread didn't
+	// take it up in time): not a failure, asked again later.
+	static constexpr int NotNow = -1;
 	// A cell's own files beside the index.
-	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX, Sights };
+	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX, Sights, Circuits };
 	enum class EState { Here, Baked, Sea, Unknown };
 
 	// Where fetched cells (and the index) are kept, and other folders cells are found in (the game's own).
@@ -67,6 +71,9 @@ public:
 	std::vector<std::string> MoreRoots;
 	std::string IndexUrl = DefaultIndexUrl;
 	Fetcher Get;
+	// [build 155] Whether this thread may fetch (the game sets it: never its game thread). A file that is
+	// not on disk, asked for where it may not be fetched, is "deferred": not had now, to be asked again.
+	std::function<bool()> MayFetch;
 	// No network: what isn't on disk stays missing.
 	bool Offline = false;
 	// At most this many fetched cells are kept on disk (each about 2.5 MB with its streams and trees):
@@ -100,7 +107,7 @@ public:
 	// [towns stage 3] A cell's buildings zip ("ROW_COL"), from the copy kept on disk if it is the one the
 	// index names, else fetched (and kept). False when the index has none for it, or it can't be had.
 	// Blocks while it fetches.
-	bool BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out);
+	bool BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out, bool* Deferred = nullptr);
 
 	// Notes cells used now (fetched, or stitched into a region): kept the longest, never pruned this run.
 	void Touch(const std::vector<CellId>& Cells);

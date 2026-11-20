@@ -1,0 +1,36 @@
+{
+ "group": "indicators_front",
+ "key": "bullet",
+ "name": "Bullet",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "top_yoke",
+ "mount_mm": [
+  1164.0,
+  0.0,
+  976.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  53.0,
+  274.0,
+  26.0
+ ],
+ "triangles": 1832,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_amberglass": {
+   "ue": "lens_amber",
+   "clear": 1.0,
+   "tag": "lens_amber"
+  },
+  "d3_amberled": {
+   "ue": "lens_amber",
+   "glow": 1.2,
+   "tag": "lens_amber"
+  }
+ }
+}

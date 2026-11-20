@@ -1,0 +1,75 @@
+{
+ "name": "Corvano adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 18882,
+ "surfaces": {
+  "s015": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.4591,
+    0.0029,
+    0.0189
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s018": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s019": {
+   "slot": "tail",
+   "node": "",
+   "surface": "redlens",
+   "tag": "reflector",
+   "ue": "lens_red",
+   "sub": "plate_hanger"
+  },
+  "s020": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s021": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plate",
+   "tag": "plate",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ }
+}

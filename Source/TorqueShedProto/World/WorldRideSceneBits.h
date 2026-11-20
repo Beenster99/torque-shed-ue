@@ -122,6 +122,11 @@ inline void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const 
 	double U0, W0;
 	UvOf(Q0, U0, W0);
 	const double ShiftU = UvShift(U0), ShiftW = UvShift(W0);
+	// ([Nov 18] beenster, build 156: "why are these houses green?". A mesh's alpha is all or nothing: one
+	// vertex short and Unreal is given none, which reads as 1, full moss on every house wall. So a quad with
+	// a moss value first gives the vertices before it the 1 they would have had, and a quad without one
+	// gives its own 1 where the mesh already has alpha.)
+	if (Moss >= 0.0f && Out.Alpha.size() < size_t(V)) Out.Alpha.resize(size_t(V), 1.0f);
 	for (const P3* Q : {&Q0, &Q1, &Q2, &Q3})
 	{
 		Out.Pos.push_back(float(Q->X - Out.OriginX)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Q->Z - Out.OriginZ));
@@ -130,7 +135,7 @@ inline void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const 
 		UvOf(*Q, U, W);
 		Out.Uv.push_back(float(U - ShiftU)); Out.Uv.push_back(float(W - ShiftW));
 		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
-		if (Moss >= 0.0f) Out.Alpha.push_back(Moss);
+		if (Moss >= 0.0f || !Out.Alpha.empty()) Out.Alpha.push_back(Moss >= 0.0f ? Moss : 1.0f);
 	}
 	if (!Flip || BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
 	if (Flip || BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});

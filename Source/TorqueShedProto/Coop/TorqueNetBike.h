@@ -56,6 +56,8 @@ struct FTorqueBikeNetState
 	UPROPERTY() uint8 Sounds = 0;               // 1 the engine running, 2 the horn held: heard on everyone's copy
 	UPROPERTY() FVector_NetQuantize10 FootPos;  // off the bike (Flags 16): where the rider stands, world cm (their feet)
 	UPROPERTY() float FootYaw = 0.f;            // and the way they face, degrees
+	UPROPERTY() float LookYaw = 0.f;            // [build 155] where they look, degrees from ahead (riding: the camera's look; off: 0)
+	UPROPERTY() float LookPitch = 0.f;          // and up (+) or down: riding, the camera's; off the bike, their walking view's
 	UPROPERTY() int32 Seq = 0;
 	UPROPERTY() int32 Sender = 0;               // [co-op] the sending machine (bikes can change hands): a new one starts afresh
 };

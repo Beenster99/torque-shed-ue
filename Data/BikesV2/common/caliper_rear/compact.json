@@ -1,0 +1,59 @@
+{
+ "group": "caliper_rear",
+ "key": "compact",
+ "name": "Compact twin-pot",
+ "fitted_on": "hartwell_classic",
+ "family": "Classic",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  322.0
+ ],
+ "moves_with": "swingarm",
+ "size_mm": [
+  57.0,
+  51.6,
+  69.1
+ ],
+ "triangles": 3584,
+ "surfaces": {
+  "d3_bk_silver": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.62,
+    0.64
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "tag": "d3_bk_silver"
+  },
+  "d3_bk_pad": {
+   "ue": "cat_plastic",
+   "color": [
+    0.06,
+    0.055,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.8,
+   "tag": "d3_bk_pad"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

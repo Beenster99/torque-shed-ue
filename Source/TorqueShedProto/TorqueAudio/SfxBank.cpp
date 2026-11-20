@@ -32,6 +32,28 @@ bool FBank::Load(const std::string& ManifestText, FReader Reader)
 	return !Defs.empty();
 }
 
+bool FBank::Add(const std::string& ManifestText, const std::string& Prefix)
+{
+	Json M;
+	if (!Json::Parse(ManifestText, M) || !M.IsObject()) return false;
+	const Json* Sounds = M.Get("sounds");
+	if (!Sounds || !Sounds->IsObject()) return false;
+	std::lock_guard<std::mutex> G(Lock);
+	for (const auto& KV : Sounds->O)
+	{
+		FSoundDef D;
+		if (const Json* F = KV.second.Get("files"))
+			for (const Json& X : F->A)
+				if (X.IsString()) D.Files.push_back(Prefix + X.S);
+		D.bLoop = KV.second.Flag("loop");
+		D.From = KV.second.Str("from");
+		D.Horn = KV.second.Str("horn");
+		D.LoopFrom = KV.second.Num("loop_from", 0.0);
+		Defs[KV.first] = D;
+	}
+	return true;
+}
+
 const FSoundDef* FBank::Def(const std::string& Sound) const
 {
 	std::lock_guard<std::mutex> G(Lock);

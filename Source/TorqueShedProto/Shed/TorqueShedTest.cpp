@@ -1,4 +1,6 @@
 #include "Shed/TorqueShedTest.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
 #include "Shed/TorqueProfile.h"
@@ -14,6 +16,9 @@
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
+#include "Shed/TorqueDecalMode.h"
+#include "Shed/TorqueDecals.h"
+#include "Fit/BikeDecal.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -23,6 +28,7 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
+#include "World/TorqueFerry.h"
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -57,7 +63,7 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
 	TEXT("tool:hands,item:exhaust,act,place:bench_0,act,")   // onto the workbench
 	TEXT("look:computer,f,computer:exhaust:slip_on,shot:ui,computer:paint:tints,shot:ui,computer:close,")   // the computer's page
-	TEXT("order:slip_on,order:steel_backbone,look:deliveries,shot,item:slip_on,f,item:slip_on,act,")   // order a slip-on (and a frame: a crate), the boxes, unpack it, pick it up
+	TEXT("order:slip_on,order:v2_hartwell_cafe,look:deliveries,shot,item:slip_on,f,item:slip_on,act,")   // order a slip-on (and a frame: a crate), the boxes, unpack it, pick it up
 	TEXT("floor:300:700,act,item:slip_on,act,")               // put it down in the yard and pick it up again
 	TEXT("part:tank,act,")                                   // fit it to the bike
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
@@ -135,18 +141,20 @@ const TCHAR* const TyreGameSteps =
 	TEXT("item:wire_19_chrome,act,place:changer,hold:7,tyrelog,look:changer,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
-// test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
+// test run): the pause menu, the Profile page (Settings > Profile) with the jaw and chin moved and the figure taller, its helmet view with the colour picker, then
 // the Settings. The face isn't saved, so your own comes back next time.
 const TCHAR* const MenuSteps =
 	TEXT("menu:pause,wait:1,shot:ui,menu:profile,wait:2,shot:ui,face:jaw:0.8,face:chin:-0.6,face:height:0.8,wait:2,shot:ui,")
-	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:settings,wait:1,shot:ui,menu:close");
+	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:profile:helmet,wait:2,shot:ui,menu:settings,wait:1,shot:ui,menu:close");
 
 // The paint mixing bay (paint_bay.gd): at the bench a litre of white with phthalo blue and lemon
 // yellow poured in (a green), stirred, a test card, saved as Mix 1 (its card on the swatch wall);
 // that card on the bench and mixed again to it as Mix 2; a satin lacquer (10% flattener); a silver with ultramarine
 // in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
 // the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
-// Then twin stripes masked off with tape, Mix 3 (the silver) sprayed over, and the tape peeled.
+// Then a fade from the gun's two cups, picked as [ and ] do: matt black in cup 1, metallic gold in
+// cup 2, front to back, medium: the base coat, then cup 2 (beenster, 19 Nov 2026). Then hook 1 wound
+// up and down.
 const TCHAR* const MixSteps =
 	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,shot:ui,look:mixbench,shot,")
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
@@ -158,9 +166,9 @@ const TCHAR* const MixSteps =
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot,")
-	TEXT("tool:hands,paint:tapetake,paint:pattern:2,item:exhaust,act,log,look:hook_0,shot,paint:tapeput,")   // masking tape: twin stripes
-	TEXT("paint:take:3,paint:cup,paint:put:3,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
-	TEXT("tool:hands,item:exhaust,act:alt,log,look:hook_0,shot");
+	TEXT("tool:hands,paint:pick:1:6:matte,paint:pick:2:9:metallic,paintlog,")   // the fade: matt black in cup 1, metallic gold in cup 2 ([ and ])
+	TEXT("tool:gun,spray:6:fade,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
+	TEXT("tool:hands,paint:hook:1:200,look:hook:1,shot,paint:hook:1:90,look:hook:1,shot,paint:hook:1:138,log");
 
 // The bike lifts on bay 1's bike: its post, raised (the bike rides up), wheeling it off refused,
 // a part off it standing (no crouching), lowered, wheeled out, onto the wash bay's lift and up on
@@ -186,11 +194,11 @@ const TCHAR* const WashGameSteps =
 const TCHAR* const ScrapSteps =
 	TEXT("bay:2,tool:hands,log,look:screen,shot,part:frame,act:alt,log,wait:2,look:screen,shot,look:bike,shot");
 
-// Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
+// Geometry mode on a catalogue bike: a V2 cafe frame set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
 // the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
 const TCHAR* const GeoSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,")
 	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
 	TEXT("geo:open,wait:3,geo:rig:tank_up:12,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
@@ -203,12 +211,12 @@ const TCHAR* const GeoTwinSteps =
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,geo:exit,look:bike,shot,geo:check,")
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,geo:check");
 
-// A scratch-built bike ridden: a steel backbone set up in the empty bay 3 and finished as a cafe
+// A scratch-built bike ridden: a V2 cafe frame set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), ridden out on its own physics; its spec logged at the start, then the
 // robot rider (-TorqueAutoRide's) takes it 10 s down the road, logged again (speed, gear, the
 // wheels' spin, the bars' turn, the suspension), and back to the shed.
 const TCHAR* const RideSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,")
 	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
 	TEXT("tool:hands,rideout,wait:6,ridelog,robot:on,wait:10,ridelog,shot,robot:off,back,wait:6,log");
 
@@ -219,7 +227,7 @@ const TCHAR* const RideSteps =
 #define TORQUE_RIDE_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",log,look:bike,shot,tool:hands,rideout,wait:6,ridelog,shot,robot:on,wait:10,ridelog,shot,") \
 	TEXT("camera:3:90:450:60,wait:1,shot,camera:0,robot:off,back,wait:6,")
 const TCHAR* const RidesSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
 	TORQUE_RIDE_STYLE("cafe") TORQUE_RIDE_STYLE("chopper") TORQUE_RIDE_STYLE("sport") TORQUE_RIDE_STYLE("mx")
 	TEXT("log");
 #undef TORQUE_RIDE_STYLE
@@ -229,11 +237,10 @@ const TCHAR* const RidesSteps =
 // and a full-lean bend at 45, each logged; then back.
 #define TORQUE_PHYSICS_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,ridelog,launch,brakestop:60:flat,lean:max,back,wait:6,")
 const TCHAR* const PhysicsSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
-	TORQUE_PHYSICS_STYLE("classic") TORQUE_PHYSICS_STYLE("cafe") TORQUE_PHYSICS_STYLE("scrambler") TORQUE_PHYSICS_STYLE("tourer")
-	TORQUE_PHYSICS_STYLE("roader") TORQUE_PHYSICS_STYLE("naked") TORQUE_PHYSICS_STYLE("sport") TORQUE_PHYSICS_STYLE("race")
-	TORQUE_PHYSICS_STYLE("bobber") TORQUE_PHYSICS_STYLE("chopper") TORQUE_PHYSICS_STYLE("cruiser") TORQUE_PHYSICS_STYLE("adventure")
-	TORQUE_PHYSICS_STYLE("supermoto") TORQUE_PHYSICS_STYLE("mx")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
+	// [bikes v2] the eight families that have V2 bikes (the old bike types are retired): each style's lead V2 bike
+	TORQUE_PHYSICS_STYLE("classic") TORQUE_PHYSICS_STYLE("cafe") TORQUE_PHYSICS_STYLE("naked") TORQUE_PHYSICS_STYLE("sport")
+	TORQUE_PHYSICS_STYLE("chopper") TORQUE_PHYSICS_STYLE("cruiser") TORQUE_PHYSICS_STYLE("adventure") TORQUE_PHYSICS_STYLE("mx")
 	TEXT("log");
 #undef TORQUE_PHYSICS_STYLE
 
@@ -244,11 +251,10 @@ const TCHAR* const PhysicsSteps =
 // the old test area's were), then the climb up the pass's steepest 300 m on the real road; then back.
 #define TORQUE_PHYSICS_UK_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideuk:buttertubs,wait:6,ridelog,launch,brakestop:60:flat,lean:max,climb,back,wait:6,")
 const TCHAR* const PhysicsUkSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
-	TORQUE_PHYSICS_UK_STYLE("classic") TORQUE_PHYSICS_UK_STYLE("cafe") TORQUE_PHYSICS_UK_STYLE("scrambler") TORQUE_PHYSICS_UK_STYLE("tourer")
-	TORQUE_PHYSICS_UK_STYLE("roader") TORQUE_PHYSICS_UK_STYLE("naked") TORQUE_PHYSICS_UK_STYLE("sport") TORQUE_PHYSICS_UK_STYLE("race")
-	TORQUE_PHYSICS_UK_STYLE("bobber") TORQUE_PHYSICS_UK_STYLE("chopper") TORQUE_PHYSICS_UK_STYLE("cruiser") TORQUE_PHYSICS_UK_STYLE("adventure")
-	TORQUE_PHYSICS_UK_STYLE("supermoto") TORQUE_PHYSICS_UK_STYLE("mx")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
+	// [bikes v2] the eight families that have V2 bikes (the old bike types are retired): each style's lead V2 bike
+	TORQUE_PHYSICS_UK_STYLE("classic") TORQUE_PHYSICS_UK_STYLE("cafe") TORQUE_PHYSICS_UK_STYLE("naked") TORQUE_PHYSICS_UK_STYLE("sport")
+	TORQUE_PHYSICS_UK_STYLE("chopper") TORQUE_PHYSICS_UK_STYLE("cruiser") TORQUE_PHYSICS_UK_STYLE("adventure") TORQUE_PHYSICS_UK_STYLE("mx")
 	TEXT("log");
 #undef TORQUE_PHYSICS_UK_STYLE
 
@@ -264,11 +270,10 @@ const TCHAR* const PhysicsUkSteps =
 #define TORQUE_RIDER_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,robot:on,wait:8,") \
 	TORQUE_RIDER_VIEWS(S, "old") TORQUE_RIDER_VIEWS(S, "new") TEXT("camera:0,robot:off,back,wait:6,")
 const TCHAR* const RiderPoseSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
-	TORQUE_RIDER_STYLE("classic") TORQUE_RIDER_STYLE("cafe") TORQUE_RIDER_STYLE("scrambler") TORQUE_RIDER_STYLE("tourer")
-	TORQUE_RIDER_STYLE("roader") TORQUE_RIDER_STYLE("naked") TORQUE_RIDER_STYLE("sport") TORQUE_RIDER_STYLE("race")
-	TORQUE_RIDER_STYLE("bobber") TORQUE_RIDER_STYLE("chopper") TORQUE_RIDER_STYLE("cruiser") TORQUE_RIDER_STYLE("adventure")
-	TORQUE_RIDER_STYLE("supermoto") TORQUE_RIDER_STYLE("mx")
+	TEXT("bay:3,order:v2_hartwell_cafe,item:v2_hartwell_cafe,f,item:v2_hartwell_cafe,act,place:bay_2,act,finish:cafe,")
+	// [bikes v2] the eight families that have V2 bikes (the old bike types are retired): each style's lead V2 bike
+	TORQUE_RIDER_STYLE("classic") TORQUE_RIDER_STYLE("cafe") TORQUE_RIDER_STYLE("naked") TORQUE_RIDER_STYLE("sport")
+	TORQUE_RIDER_STYLE("chopper") TORQUE_RIDER_STYLE("cruiser") TORQUE_RIDER_STYLE("adventure") TORQUE_RIDER_STYLE("mx")
 	TEXT("riderpose:new,log");
 #undef TORQUE_RIDER_STYLE
 #undef TORQUE_RIDER_VIEWS
@@ -719,7 +724,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
-		Verb == TEXT("helmet"))
+		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -801,6 +806,22 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Bike->TestStop(false);
 			if (Mph > 2.0) Warn(FString::Printf(TEXT("stop: still rolling at %.1f mph after 40 s"), Mph));
 			else Said(FString::Printf(TEXT("stopped (%.1f mph), the robot's off"), Mph));
+			return true;
+		}
+		// [garage] garage:goto|state|computer|buy:<part>|fit[:<slot>]|off:<slot>|stow: our bike put in the
+		// nearest forecourt garage and off it, or a garage job as the spanner and the wall computer do it.
+		if (Verb == TEXT("garage"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("state"));
+			Said(Bike->TestGarage(What));
+			return true;
+		}
+		// [ferries] ferry[:where|goto:<end>|board]: the nearest ferry's state; our bike put at that end's slipway head
+		// facing down it; or in the tied-up boat's bike bay (then foot:off, and it sails once we're aboard).
+		if (Verb == TEXT("ferry"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"));
+			Said(ATorqueFerry::Test(World, What, Bike));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
@@ -1369,6 +1390,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("yard")) Said(W->TestInteract());
 		if (Verb == TEXT("rideout"))
 		{
+			// [bikes v2] The bike of the bay being worked on ("bay:N"), as rideuk does; without this a bike
+			// ordered whole into a bay (newbike) was never ridden: the ride took the player's last bike.
+			if (UTorqueBuildSubsystem* OutB = UTorqueBuildSubsystem::Of(World))
+			{
+				if (OutB->Exists(TestBay)) OutB->SetMyBike(TestBay);
+			}
 			W->StartAdventure();
 			Said(W->IsRidingOut() ? TEXT("setting off on Buttertubs") : TEXT("not setting off (see the walker's note)"));
 		}
@@ -1589,6 +1616,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else Said(Out);
 		return true;
 	}
+	if (Verb == TEXT("v2fit") && P.Num() >= 3)
+	{
+		// [engine parts] "v2fit:SLOT:PART": would that V2 part go on bay N's bike now (the fit rule the wrench asks:
+		// family, engine block, cross-brand twin, carb/pod order)? Logs "fits" or the reason.
+		const FString Why = B->TestV2FitReason(TestBay, FName(*P[1].ToLower()), FName(*P[2].ToLower()));
+		Said(FString::Printf(TEXT("v2fit bay %d %s %s: %s"), TestBay + 1, *P[1], *P[2], Why.IsEmpty() ? TEXT("fits") : *Why));
+		return true;
+	}
 	if (Verb == TEXT("order") && P.Num() >= 2)
 	{
 		Said(W->TestOrder(FName(*P[1])));
@@ -1606,7 +1641,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			W->TestCloseComputer();
 			return true;
 		}
-		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type.
+		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type; "computer:type:size=2" (layout=, maker=, sort=) the engine list's filters.
 		if (P.Num() >= 3 && P[1] == TEXT("type"))
 		{
 			Said(W->TestComputerType(P[2]));
@@ -1741,10 +1776,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("put") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTinPut; R.Item = FCString::Atoi(*P[2]); }
 		else if (What == TEXT("tobench")) R.Kind = ETorqueShedAct::PaintTinBench;
 		else if (What == TEXT("bin")) R.Kind = ETorqueShedAct::PaintTinBin;
-		else if (What == TEXT("cup")) R.Kind = ETorqueShedAct::PaintCup;
-		else if (What == TEXT("tapetake")) R.Kind = ETorqueShedAct::PaintTapeTake;
-		else if (What == TEXT("tapeput")) R.Kind = ETorqueShedAct::PaintTapePut;
-		else if (What == TEXT("pattern") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTapePattern; R.Colour = FCString::Atoi(*P[2]); }
+		else if (What == TEXT("pick") && P.Num() >= 5)
+		{
+			// paint:pick:CUP:COLOUR:FINISH: cup 1 or 2 filled with a gun colour (0 ..) and finish, as [ and ] do.
+			R.Kind = ETorqueShedAct::PaintCup;
+			R.Item = FCString::Atoi(*P[2]) == 2 ? 1 : 0;
+			R.Colour = FCString::Atoi(*P[3]);
+			R.Finish = FName(*P[4].ToLower());
+		}
+		else if (What == TEXT("cup")) { R.Kind = ETorqueShedAct::PaintCup; R.Item = P.Num() >= 3 && P[2] == TEXT("2") ? 1 : 0; }   // paint:cup[:2]
 		else if (What == TEXT("hook") && P.Num() >= 4)
 		{
 			// paint:hook:N:CM: spray booth hook N (1 .. 10) wound to CM off the floor.
@@ -1752,7 +1792,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			R.Item = FCString::Atoi(*P[2]) - 1;
 			R.Amount = FCString::Atof(*P[3]);
 		}
-		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM, tapetake, pattern:N, tapeput")); return true; }
+		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup[:2], pick:CUP:COLOUR:FINISH, hook:N:CM")); return true; }
 		Said(W->TestPaint(R));
 		return true;
 	}
@@ -1998,6 +2038,111 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("opening the shed again") : TEXT("couldn't open the shed again (no shed map, or a client)"));
 		return true;
+	}
+	// [drone] drone:up | drone:shot | drone:set:<zoom|ev|fstop|filter|pitch|yaw>:<value> | drone:fly:<x>:<y>:<z> (cm)
+	// | drone:status | drone:land; album:open | album:print:<n> (0 the newest) | album:close
+	if (Verb == TEXT("drone") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		ATorqueDrone* D = ATorqueDrone::For(W->GetController());
+		if (What == TEXT("up"))
+		{
+			FString Why;
+			if (D) Said(TEXT("the drone's already up"));
+			else if (ATorqueDrone::Launch(W, Why) && ATorqueDrone::For(W->GetController())) Said(ATorqueDrone::For(W->GetController())->TestStatus());
+			else Warn(TEXT("the drone didn't go up: ") + Why);
+			return true;
+		}
+		if (!D)
+		{
+			Warn(TEXT("the drone isn't up (drone:up first)"));
+			return true;
+		}
+		if (What == TEXT("shot")) Said(D->TestShot());
+		else if (What == TEXT("set") && P.Num() >= 4) Said(D->TestSet(P[2], FCString::Atod(*P[3])));
+		else if (What == TEXT("fly") && P.Num() >= 5) Said(D->TestFly(FVector(FCString::Atod(*P[2]), FCString::Atod(*P[3]), FCString::Atod(*P[4]))));
+		else if (What == TEXT("status")) Said(D->TestStatus());
+		else if (What == TEXT("land"))
+		{
+			D->Land();
+			Said(TEXT("the drone's back down"));
+		}
+		else Warn(TEXT("drone: up, shot, set:<what>:<value>, fly:<x>:<y>:<z>, status or land"));
+		return true;
+	}
+	if (Verb == TEXT("album") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		if (What == TEXT("open"))
+		{
+			ATorquePhotoAlbum::Open(W);
+			if (ATorquePhotoAlbum* A = ATorquePhotoAlbum::For(W->GetController())) Said(A->TestStatus());
+			else Warn(TEXT("the album didn't open"));
+			return true;
+		}
+		ATorquePhotoAlbum* A = ATorquePhotoAlbum::For(W->GetController());
+		if (!A)
+		{
+			Warn(TEXT("the album isn't open (album:open first)"));
+			return true;
+		}
+		if (What == TEXT("print")) Said(A->TestPrint(P.Num() > 2 ? FCString::Atoi(*P[2]) : 0));
+		else if (What == TEXT("close"))
+		{
+			A->Close();
+			Said(TEXT("album closed"));
+		}
+		else Said(A->TestStatus());
+		return true;
+	}
+	// decal:open | decal:place:<slot>:<what>:<side +1/-1> | decal:save | decal:exit | decal:check:<slot>
+	// (what: a library id, or text=<face>=<words>, as ':' splits the verb)
+	if (Verb == TEXT("decal") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		ATorqueDecalMode* Dm = ATorqueDecalMode::For(W->GetController());
+		if (What == TEXT("open"))
+		{
+			FString Why;
+			if (Dm) Said(TEXT("already open"));
+			else if (ATorqueDecalMode::Open(W, TestBay, Why)) Said(FString::Printf(TEXT("decal mode open on bay %d"), TestBay + 1));
+			else Warn(TEXT("refused: ") + Why);
+			return true;
+		}
+		if (What == TEXT("check"))
+		{
+			const FName Slot(P.Num() > 2 ? *P[2] : TEXT("tank"));
+			const FString Now = Slot == FName(TEXT("helmet")) ? TorqueDecals::MyHelmet() : B->DecalsOf(TestBay, Slot);
+			const std::vector<TorqueFit::Decals::Decal> L = TorqueFit::Decals::Parse(TorqueDecals::ToStd(Now));
+			if (!L.empty()) Said(FString::Printf(TEXT("Decals survived: yes, %d on the %s"), (int32)L.size(), *Slot.ToString()));
+			else Warn(FString::Printf(TEXT("Decals survived: NO, the %s has %s"), *Slot.ToString(), Now.IsEmpty() ? TEXT("none") : *Now));
+			return true;
+		}
+		if (!Dm)
+		{
+			Warn(TEXT("decal mode isn't open (decal:open first)"));
+			return true;
+		}
+		if (What == TEXT("place") && P.Num() >= 4)
+		{
+			const FString Pick = P[3].Replace(TEXT("="), TEXT(":"));
+			const int32 Side = P.Num() > 4 && P[4].StartsWith(TEXT("-")) ? -1 : 1;
+			const FString R = Dm->TestPlace(FName(*P[2]), Pick, Side);
+			if (R.Contains(TEXT(" on the "))) Said(R);
+			else Warn(R);
+			return true;
+		}
+		if (What == TEXT("save"))
+		{
+			Said(Dm->TestSave());
+			return true;
+		}
+		if (What == TEXT("exit"))
+		{
+			Dm->TestExit();
+			Said(TEXT("decal mode closed"));
+			return true;
+		}
 	}
 	if (Verb == TEXT("geo") && P.Num() >= 2)
 	{

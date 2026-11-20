@@ -1,0 +1,30 @@
+{
+ "group": "pegs",
+ "key": "bullet",
+ "name": "Chrome bullet",
+ "fitted_on": "hartwell_classic",
+ "family": "Classic",
+ "mount": "rider_peg",
+ "mount_mm": [
+  600,
+  0.0,
+  360
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  29.2,
+  521.2,
+  29.2
+ ],
+ "triangles": 2680,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  }
+ }
+}

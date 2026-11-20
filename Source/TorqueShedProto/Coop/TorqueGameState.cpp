@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "Weather/TorqueWeatherFx.h"
+#include "Weather/TorqueTyreFx.h"
 #include "Weather/TorqueSky.h"
 #include "Weather/NightSky.h"
 #include "Camera/PlayerCameraManager.h"
@@ -45,12 +46,17 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Net/UnrealNetwork.h"
+#include "HAL/IConsoleManager.h"
 
 bool ATorqueGameState::bRealClockTest = false;
 bool ATorqueGameState::bTestClockSet = false;
 
 namespace
 {
+// ([seasonal trees TEST, Nov 19] beenster: "lets try seasonal trees for this afternoon". The scanned trees'
+// leaves and far cards read LeafFresh, LeafTurn and LeafDrop from MPC_Weather: Tools/ue_tree_season.py.)
+TAutoConsoleVariable<int32> CVarTreeSeason(TEXT("torque.RideTreeSeason"), 0,
+	TEXT("Ride UK seasonal trees TEST: 0 as now (summer leaf), 1 spring, 2 summer, 3 autumn, 4 winter. The scanned trees' leaves and far cards; pines and spruces stay as they are."));
 // The weather's numbers as sent, and back (below).
 FTorqueWeatherNet NetOf(const TorqueWeather::State& S);
 TorqueWeather::State StateOf(const FTorqueWeatherNet& N);
@@ -78,6 +84,17 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SkyDriftMid);
 	DOREPLIFETIME(ATorqueGameState, SkyDriftHigh);
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
+	DOREPLIFETIME(ATorqueGameState, bAwardsOn);   // [ride awards]
+	DOREPLIFETIME(ATorqueGameState, AwardsPhase);
+	DOREPLIFETIME(ATorqueGameState, FerryNet);   // [ferries stage 6]
+	DOREPLIFETIME(ATorqueGameState, AwardsSeq);
+	DOREPLIFETIME(ATorqueGameState, AwardsVoteEnds);
+	DOREPLIFETIME(ATorqueGameState, AwardRiders);
+	DOREPLIFETIME(ATorqueGameState, AwardPickers);
+	DOREPLIFETIME(ATorqueGameState, AwardWeights);
+	DOREPLIFETIME(ATorqueGameState, bAwardsNoVotes);
+	DOREPLIFETIME(ATorqueGameState, AwardsRoute);
+	DOREPLIFETIME(ATorqueGameState, bAwardsLaps);
 }
 
 void ATorqueGameState::BeginPlay()
@@ -140,6 +157,8 @@ void ATorqueGameState::BeginPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		Params.ObjectFlags |= RF_Transient;
 		Fx = GetWorld()->SpawnActor<ATorqueWeatherFx>(Params);
+		// [tyre fx] Burnout and skid smoke and the darkies tyres lay on the road, for every bike here.
+		TyreFx = GetWorld()->SpawnActor<ATorqueTyreFx>(Params);
 		// The sky: sun, sky light, air, fog, clouds and the camera, from the weather (skies plan).
 		Sky = GetWorld()->SpawnActor<ATorqueSky>(Params);
 	}
@@ -161,7 +180,7 @@ void ATorqueGameState::BeginPlay()
 	// The clock where it was left (the level's own light until the player sets one).
 	// (A test run keeps the level's light unless one of its steps set the clock.)
 	if (HasAuthority() && (!bTest || bTestClockSet)) Hour = Set.TimeOfDay;
-	if (HasAuthority() && !bTest) RideDay = FMath::Clamp(Set.RideDate, 0, 365);
+	if (HasAuthority() && !bTest) RideDay = FMath::Clamp(Set.RideDate, 0, 366);
 	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
 	// (-TorqueHour=<0..24> sets it for a test: a night shot of Ride UK's lamps and windows)
 	if (float ForcedHour = -1.0f; HasAuthority() && FParse::Value(FCommandLine::Get(), TEXT("TorqueHour="), ForcedHour) && ForcedHour >= 0.0f)
@@ -308,6 +327,7 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	TickWeather(DeltaSeconds);
 	if (!HasAuthority()) return;
+	TickAwards(DeltaSeconds);   // [ride awards] (Coop/TorqueAwards.cpp)
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	// The weather changing by itself (Torque Shed's "Changes by itself"): every few minutes, a step to
 	// the next kind along (sunny, overcast, wet roads), never straight from sun to rain, fading over a
@@ -396,7 +416,7 @@ void ATorqueGameState::OnRep_Hour()
 void ATorqueGameState::SetRideDay(int32 Day)
 {
 	if (!HasAuthority()) return;
-	RideDay = FMath::Clamp(Day, 0, 365);
+	RideDay = FMath::Clamp(Day, 0, 366);
 	// (the land's season is set when a ride's ground is planned: the next ride takes it)
 	TorqueWorld::RidePlan::SeasonMonth = RideDay > 0 ? DateOfDay(RideDay).GetMonth() : 0;
 	UE_LOG(LogTemp, Display, TEXT("Torque clock: ride date %s (day %d)"), RideDay > 0 ? *DayMonthText(DateOfDay(RideDay), true) : TEXT("today"), RideDay);
@@ -411,7 +431,9 @@ int32 ATorqueGameState::DayOfYearNow() const
 
 FDateTime ATorqueGameState::DateOfDay(int32 DayOfYear)
 {
-	const int32 Year = FDateTime::UtcNow().GetYear();
+	// (the year picked with the date in Settings > Gameplay, else this one)
+	const int32 Picked = FTorqueSettings::Get().RideYear;
+	const int32 Year = Picked > 0 ? Picked : FDateTime::UtcNow().GetYear();
 	return FDateTime(Year, 1, 1) + FTimespan::FromDays(FMath::Clamp(DayOfYear, 1, FDateTime::DaysInYear(Year)) - 1);
 }
 
@@ -1312,6 +1334,12 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("Snow"), (float)TorqueWeather::SnowCover(St));
 		// (Ride UK stage 7: lamps and lit windows come on, cat's eyes catch the headlight, as the light goes)
 		SetMpc(TEXT("Night"), 1.0f - DayLight);
+		// ([seasonal trees TEST] fresh, turned, dropped: spring, summer, autumn, winter)
+		static const float SeasonLeaves[5][3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.35f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.85f, 0.2f}, {0.0f, 1.0f, 0.97f}};
+		const int32 Season = FMath::Clamp(CVarTreeSeason.GetValueOnGameThread(), 0, 4);
+		SetMpc(TEXT("LeafFresh"), SeasonLeaves[Season][0]);
+		SetMpc(TEXT("LeafTurn"), SeasonLeaves[Season][1]);
+		SetMpc(TEXT("LeafDrop"), SeasonLeaves[Season][2]);
 	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)

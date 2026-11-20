@@ -47,9 +47,11 @@ MAX_TEXTURE = 1024
 HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble", "_s_")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
     {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["jacket", "work", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jacket", "jean", "boot"]},
+    # B and D are women (beenster, Nov 19: "Turn 2 of the 4 into women"): made from a female preset of
+    # the Creator (see _female_preset), not the default (male) character.
+    {"name": "Avatar_B", "height": 165.0, "sex": "female", "hair": ["_m_", "bob", "wav", "pony", "long"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["jacket", "jean", "boot"]},
     {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["jacket", "shirt", "jean", "boot"]},
-    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "jacket", "jean", "boot"]},
+    {"name": "Avatar_D", "height": 172.0, "sex": "female", "hair": ["_m_", "curl", "long", "pony", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "jacket", "jean", "boot"]},
 ]
 
 
@@ -663,6 +665,94 @@ def slim():
     log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
 
 
+_PRESETS = None
+PRESET_PICK = []   # `make B D from=Name1,Name2`: the presets (a word of each name) the women start from
+
+
+def _measure(ch):
+    """A character's body measurements (cm) by constraint name, as the Creator holds them."""
+    out = {}
+    try:
+        sub = unreal.get_editor_subsystem(unreal.MetaHumanCharacterEditorSubsystem)
+        sub.try_add_object_to_edit(ch)
+        for c in sub.get_body_constraints(ch, False):
+            try:
+                out[_constraint_name(c)] = round(float(c.get_editor_property("target_measurement")), 1)
+            except Exception:
+                pass
+    except Exception as e:
+        out["error"] = str(e)
+    return out
+
+
+def _presets():
+    """Every MetaHuman Character preset outside /Game (the Creator's own), logged with its body
+    measurements, so the women can be picked from them (round 161: fixed_body_type is only a bool,
+    so the body type can't say which are women)."""
+    global _PRESETS
+    if _PRESETS is not None:
+        return _PRESETS
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    found = []
+    for mount in ["/MetaHumanCharacter", "/MetaHuman"] + plugin_mounts():
+        try:
+            assets = reg.get_assets_by_path(mount, recursive=True)
+        except Exception:
+            continue
+        for a in assets:
+            if _cls_name(a) != "MetaHumanCharacter":
+                continue
+            p = "%s.%s" % (a.package_name, a.asset_name)
+            if p not in found:
+                found.append(p)
+    for p in found:
+        ch = unreal.load_asset(p.split(".")[0])
+        m = _measure(ch) if ch else {}
+        keys = [k for k in m if any(w in k.lower() for w in ("height", "chest", "bust", "waist", "hip", "shoulder"))]
+        log("preset %s: %s" % (p, ", ".join("%s %s" % (k, m[k]) for k in keys) or json.dumps(m)[:300]))
+    _PRESETS = found
+    return found
+
+
+def _female_presets():
+    """The presets named by `from=` (each a word of a preset's name), in that order."""
+    found = _presets()
+    picked = []
+    for word in PRESET_PICK:
+        hit = [p for p in found if word.lower() in p.rsplit("/", 1)[-1].lower()]
+        if hit:
+            picked.append(hit[0])
+        else:
+            unreal.log_warning("[Torque] no preset named like %s" % word)
+    log("female presets: %s" % (", ".join(picked) or "NONE picked (run `make B D from=<name>,<name>` with names from the preset lines)"))
+    return picked
+
+
+def _female_source(name, path, nth):
+    """The avatar's character source started again from a female preset, the old one moved to the
+    backup folder first (only once a preset is in hand); with no preset, the source as it is (put
+    back from the backup if an earlier run moved it, as round 161's did)."""
+    eal = unreal.EditorAssetLibrary
+    keep = BACKUP + "/Sources/" + name + "_male"
+    presets = _female_presets()
+    if not presets:
+        if not eal.does_asset_exist(path) and eal.does_asset_exist(keep):
+            ok = eal.rename_asset(keep, path)
+            log("%s: no preset picked; its source put back from %s: %s" % (name, keep, "ok" if ok else "FAILED"))
+        return None
+    if eal.does_asset_exist(path):
+        if eal.does_asset_exist(keep):
+            eal.delete_asset(keep)
+        log("%s: the old source moved to %s" % (name, keep))
+        if not eal.rename_asset(path, keep):
+            unreal.log_warning("[Torque] %s: couldn't move the old source; not changed" % name)
+            return None
+    src = presets[nth % len(presets)]
+    ch = eal.duplicate_asset(src.split(".")[0], path)
+    log("%s: started from the preset %s" % (name, src))
+    return ch
+
+
 def make(rig=False, wardrobe=True, only=None):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
@@ -694,6 +784,12 @@ def make(rig=False, wardrobe=True, only=None):
             if not eal.rename_asset(old, path):
                 unreal.log_warning("[Torque] couldn't move %s to %s" % (old, path))
         ch = unreal.load_asset(path) if eal.does_asset_exist(path) else None
+        if av.get("sex") == "female":
+            nth = sum(1 for a in AVATARS[:i] if a.get("sex") == "female")   # a different preset each
+            ch = _female_source(name, path, nth)
+            if ch is None:
+                unreal.log_warning("[Torque] %s: no female preset found; NOT made (kept as it was)" % name)
+                continue
         if ch is None:
             try:
                 ch = tools.create_asset(name, src_folder, cls, factory() if factory else None)
@@ -1788,8 +1884,14 @@ def main(args):
     elif mode == "fab":
         fab_wardrobe()
         _wardrobe()
+    elif mode == "presets":
+        _presets()   # each preset's name and body measurements, to pick the women from
     elif mode == "make":
-        rest = args[1:]
+        rest = [a for a in args[1:] if not a.startswith("from=")]
+        global PRESET_PICK
+        for a in args[1:]:
+            if a.startswith("from="):
+                PRESET_PICK = [w for w in a[5:].split(",") if w]
         global NO_FAB
         NO_FAB = "nofab" in rest
         if not NO_FAB:

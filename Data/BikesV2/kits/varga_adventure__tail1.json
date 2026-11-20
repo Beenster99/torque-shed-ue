@@ -1,0 +1,75 @@
+{
+ "name": "Varga adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 18310,
+ "surfaces": {
+  "s022": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.8913,
+    0.145,
+    0.0072
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s025": {
+   "slot": "tail",
+   "node": "",
+   "surface": "redlens",
+   "tag": "reflector",
+   "ue": "lens_red",
+   "sub": "plate_hanger"
+  },
+  "s026": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s027": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s028": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plate",
+   "tag": "plate",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ }
+}

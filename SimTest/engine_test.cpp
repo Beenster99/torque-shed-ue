@@ -174,8 +174,10 @@ int main(int Argc, char** Argv)
 		const double OverRms = Rms(&All[OverAt], OutRate * 3);
 		IdleLoud.push_back(IdleRms);
 		PullLoud.push_back(PullRms);
-		std::printf("  idle rms %.3f (recorded share %.2f), pull %.3f, overrun %.3f (%d pops), peak %.2f, catches %d\n", IdleRms, IdleShare, PullRms,
-			OverRms, V.Pops - Pops0, Peak, V.Catches);
+		std::printf("  idle rms %.3f (recorded share %.2f), pull %.3f, overrun %.3f (%d pops, %d bangs; flames on %.0f%% of pops), peak %.2f, catches %d\n", IdleRms, IdleShare, PullRms,
+			OverRms, V.Pops - Pops0, V.Bangs, 100.0 * FlameShare(V.Bank().Spec), Peak, V.Catches);
+		// ([build 160] the big bangs and the flames: sports engines only)
+		CHECK(Sporty(V.Bank().Spec) || (V.Bangs == 0 && FlameShare(V.Bank().Spec) == 0.0), "%s: bangs or flames on an engine that isn't a sports one", C.Name);
 		CHECK(bFinite, "%s: NaN in the ride", C.Name);
 		CHECK(Peak < 1.5, "%s: too loud (peak %.2f)", C.Name, Peak);
 		CHECK(IdleRms > 0.004, "%s: silent at idle", C.Name);

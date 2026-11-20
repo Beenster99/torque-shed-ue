@@ -1,0 +1,119 @@
+{
+ "name": "BSX adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 27463,
+ "surfaces": {
+  "s024": {
+   "slot": "tank",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0097,
+    0.0718,
+    0.0385
+   ],
+   "metallic": 0.55,
+   "roughness": 0.34
+  },
+  "s025": {
+   "slot": "saddle",
+   "node": "",
+   "surface": "d3_leather",
+   "tag": "d3_leather",
+   "ue": "leather",
+   "color": [
+    0.014,
+    0.014,
+    0.016
+   ],
+   "metallic": 0.0,
+   "roughness": 0.46
+  },
+  "s146": {
+   "slot": "saddle",
+   "node": "",
+   "surface": "d3_thread",
+   "tag": "d3_thread",
+   "ue": "cat_plastic",
+   "color": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic": 0.0,
+   "roughness": 0.75
+  },
+  "s147": {
+   "slot": "tank",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "filler_cap",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s148": {
+   "slot": "tank",
+   "node": "",
+   "surface": "d3_capring",
+   "tag": "d3_capring",
+   "ue": "cat_brushed_steel",
+   "sub": "filler_cap",
+   "color": [
+    0.5,
+    0.5,
+    0.52
+   ],
+   "metallic": 1.0,
+   "roughness": 0.25
+  },
+  "s149": {
+   "slot": "tank",
+   "node": "",
+   "surface": "d3_caplid",
+   "tag": "d3_caplid",
+   "ue": "cat_black_metal",
+   "sub": "filler_cap",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "metallic": 0.9,
+   "roughness": 0.3
+  },
+  "s150": {
+   "slot": "tank",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "filler_cap",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s151": {
+   "slot": "tank",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "filler_cap"
+  }
+ }
+}

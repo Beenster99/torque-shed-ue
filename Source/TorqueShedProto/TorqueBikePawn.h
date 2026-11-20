@@ -29,6 +29,11 @@ class USoundWaveProcedural;
 class UAudioComponent;
 class UTorqueNetBikeComponent;
 class UTorqueTftComponent;
+class UCanvas;
+class AHUD;
+class FTorquePartsComputer;
+class ATorqueForecourtGarage;
+struct FTorqueComputerAction;
 
 // A part of the Speed Twin model moved by its slot's offset from geometry mode (the bay's saved fit).
 // On a part that turns with a group (the bars with the steering), the offset is in that group's frame,
@@ -41,6 +46,16 @@ struct FTorqueRideFit
 	USceneComponent* Spin = nullptr;      // the wheel's pivot it spins on (null: set once)
 	USceneComponent* Carrier = nullptr;   // the fork lowers or the swingarm that carry that wheel
 	FTransform Move;                      // the offset, in the carrier's frame
+};
+
+// [shocks] A piece of a V2 bike's rear shock, worked every frame as the swingarm moves (Fit/ShockMove.h): the
+// body end turns about the top mount, the rod end rides on the swingarm's mount, the spring is squeezed between.
+struct FTorqueShockPart
+{
+	TWeakObjectPtr<UStaticMeshComponent> Part;
+	FTransform Rest;          // its place on the bike at rest
+	int32 Kind = 0;           // 0 the top end, 1 the bottom end, 2 the spring
+	double A = 0.0, B = 0.0;  // the spring: where it starts and ends along the shock from the top mount (cm)
 };
 
 struct FHudLine
@@ -81,6 +96,19 @@ struct FTorqueTelemetry
 	float PowerMult = 1.0f;                      // what the heat leaves of the engine's power
 };
 
+
+// [tyre fx] A tyre scrubbing the road now (ATorqueBikePawn::TyreScrub).
+struct FTorqueTyreScrub
+{
+	double SlideMs = 0.0;
+	double RoadMs = 0.0;       // the bike's own speed over the road, m/s
+	double HalfWidthCm = 7.0;  // half the tread laid on the road
+	double RadiusCm = 30.0;    // the tyre's (its axle is RadiusCm up from At)
+	double SpinMs = 0.0;       // the tread's speed round the wheel, m/s (+ rolling forward)
+	bool bTarmac = true;
+	FVector At = FVector::ZeroVector, Fwd = FVector::ForwardVector, Up = FVector::UpVector;
+};
+
 UCLASS()
 class ATorqueBikePawn : public APawn
 {
@@ -111,9 +139,35 @@ public:
 	// snapshots), and whether its rider is off.
 	double SpeedMs() const;
 	bool RiderCrashed() const;
+	// [tyre fx] A tyre scrubbing the road now, for the burnout smoke and the darkies (Weather/TorqueTyreFx),
+	// ours or a co-op rider's (from their snapshots). Wheel 0 the front, 1 the rear. False when it's off
+	// the ground, the bike's down or parked. SlideMs: how fast the tread slides over the road, m/s (a
+	// burnout: the whole rim speed; a locked wheel: the road speed; a slide past the tyre's grip: some
+	// of it). At: the contact patch (world cm); Fwd: the way the bike points, level; Up: the ground's
+	// way up there as the bike stands on it.
+	bool TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const;
+	// [exhaust flames, beenster build 160] A sports engine's pops and bangs on the overrun shoot flame out
+	// of its pipe(s) (Weather/TorqueTyreFx draws them). TakeExhaustFlames: the flames due by world time
+	// Now, timed to the pops heard (the sound's queued ahead), each true for a bang. ExhaustTips: each
+	// silencer's open end (world cm) and the way the flame shoots out of it; false with none fitted.
+	int32 TakeExhaustFlames(double Now, TArray<bool>& OutBangs);
+	bool ExhaustTips(TArray<FVector>& OutAt, FVector& OutDir) const;
 	// [info] The pointer is out (M) to click a place in the info panel: the mouse moves it, not the view.
 	bool IsPointing() const { return bPointing; }
 	void SetPointing(bool bOn) { bPointing = bOn; }
+	// [garage] On foot in a forecourt garage (World/TorqueForecourtGarage.h) with the bike parked in it:
+	// the spanner works on the bike there (hold Work: take off the part looked at, or fit the part in
+	// your hands), and the wall computer sells parts straight into your hands. Its page is up (the HUD
+	// draws it and the mouse works it), or was closed this moment (Esc shuts it, not into the pause menu).
+	bool InGarage() const;
+	bool GarageComputerUp() const { return bGarageComputer; }
+	// [circuits] To the nearest race circuit's start (within 5 km), upright on the track a little before the line
+	// facing the way it's raced, the lap timer cleared: false (and nowhere) with none. Name: the circuit's.
+	bool ToCircuitStart(FString& Name);
+	bool GarageComputerUpOrJustClosed() const;
+	void DrawGarageComputer(AHUD* Hud, UCanvas* Canvas) const;
+	// For TorqueShedTest: "where", "buy:<part>", "fit[:<slot>]", "off:<slot>", "stow", "computer".
+	FString TestGarage(const FString& What);
 
 	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
 	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand
@@ -121,6 +175,8 @@ public:
 	// bike gets back on. Parked: a bike seen standing with nobody on it (ours, or in co-op another
 	// rider's), its stand down and the rider hidden.
 	bool IsOnFoot() const { return bOnFoot; }
+	// [drone] The PlayStation pad as it is now (the drone camera reads it while it's up: one reader).
+	FSonyPadState PadState() const;
 	void SetParkedLook(bool bParked);
 	// [co-op] Riding a mate's bike on the road (beenster, build 141): a bike standing parked with its
 	// rider off it, ours or as their snapshots say. Their parked bike nearest our feet (within reach),
@@ -131,6 +187,10 @@ public:
 	bool IsParkedUp() const { return !Sim->IsCrashed && (bOnFoot || bParkedLook) && !bPushing; }
 	ATorqueBikePawn* MateBikeInReach() const;
 	FVector FeetAt() const { return FootPos; }
+	// [ferries] Carried by a ferry (World/TorqueFerry.h) as its deck moves From To (world): our feet, our bike parked
+	// on its stand, or both. Getting back on is held until FerryHoldUntil (world seconds) while it's under way.
+	void FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike);
+	double FerryHoldUntil = -1.0;
 	double FeetYaw() const { return FootYaw; }
 	void TakeOver(const FVector& Feet, double Yaw, bool bRide);
 	void LetOver();
@@ -198,7 +258,7 @@ public:
 	// "cancel" (indicators off), "brake" / "nobrake" (the stop lamp held on), "night" / "day" (the clock
 	// at 23:00, or the level's own light: the host's), then the lamps shown at once and described.
 	FString TestLights(const FString& What);
-	// [tft] tft[:state|left|right|up|down|overlay|map|arrange|cruise]: works the bike's screen as its
+	// [tft] tft[:state|left|right|up|down|overlay|map|zoomin|zoomout|arrange|cruise]: works the bike's screen as its
 	// buttons do, then what it is and shows in one line.
 	FString TestTft(const FString& What);
 	UTorqueTftComponent* GetTft() const { return Tft; }
@@ -265,6 +325,10 @@ public:
 
 	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ExhaustParts;   // the silencers (else the exhaust), for the flames
+	struct FFlameDue { double Due = 0.0; bool bBang = false; };
+	TArray<FFlameDue> FlamesDue;
+	int32 PopsSeen = 0, BangsSeen = 0;
 	// The clutch (0) and front brake (1) levers, which the rider's fingers pull.
 	UPROPERTY(Transient) UStaticMeshComponent* LeverParts[2];
 
@@ -307,6 +371,9 @@ private:
 	// rebuilt whenever the kit's moved (its ContactVersion changes).
 	TArray<TorqueSim::ContactBox> BaseBoxes;
 	int32 FurnitureSeen = 0;
+	int32 GarageSeen = 0;   // [garage] ATorqueForecourtGarage::ContactVersion as last taken in
+	int32 FerrySeen = 0;    // [ferries] ATorqueFerry::ContactVersion as last taken in
+	FVector2D ParkedFrom = FVector2D(1e18, 1e18);   // [car parks] where the parked cars round the rider were last gathered
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it
@@ -328,6 +395,7 @@ private:
 	// again whenever it changes.
 	void UpdateHelmetPaint();
 	TArray<uint8> HelmetPaintLook;
+	double RiderWave = 0.0, RiderWaveTime = 0.0;   // [build 155] the wave as last posed (for the MetaHuman)
 	bool bHelmetPaintDone = false;
 	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
@@ -376,6 +444,7 @@ private:
 	UPROPERTY(Transient) UTorqueTftComponent* Tft = nullptr;
 	TorqueSim::BikeSpec ModeBase;
 	bool bModeBase = false;
+	int32 TftStickWas = 0;        // the right stick's last push with LB held (the map's zoom: one step a push)
 	bool bTftPadNav = false;      // LB is working the screen (not the clutch) until it's let go
 	bool bCruise = false;
 	double CruiseMs = 0.0, CruiseHeld = 0.0;
@@ -505,6 +574,9 @@ private:
 	double ParkPitch = 0.0;
 	void PitchToGround();
 	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
+	// [bikes v2] The side stand as fitted to a V2 bike (TorqueShedCatalogue::V2Stand), in place of the catalogue's.
+	bool bV2Stand = false;
+	FVector V2StandPivot = FVector::ZeroVector, V2StandFolded = FVector::ZeroVector, V2StandDown = FVector::ZeroVector;
 	FString SideStandPart, CentreStandPart;
 	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
 	void ChooseStand();
@@ -556,6 +628,10 @@ private:
 	// else, so a manoeuvre measures the bike as SimTest/realism_test's flat ground does.
 	bool bTestFlat = false, bTestWantFlat = false;
 	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
+	bool bClimbSettled = false;   // [r159] the climb's first half second on its wheels is done (measured from there)
+	bool bClimbPlaced = false;    // [r161] found road under both wheels at the foot and put on it
+	TorqueSim::V3 ClimbHoldAt = TorqueSim::V3(0.0, -1e9, 0.0);   // where it's held till then
+	double ClimbSettleFrom = 0.0;
 	FString TestMoveText;
 	void TestMoveStep();
 	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps
@@ -616,6 +692,10 @@ private:
 	// Geometry mode's fit on the model: the wheels' parts (put back each frame), and the offsets of the
 	// levers' and grips' slots (in the steering frame) for the levers as they're pulled and the hands.
 	TArray<FTorqueRideFit> RideFit;
+	// [shocks] The rear shock's pieces and mounts (the bike's frame, cm), and the swing they were last set for.
+	TArray<FTorqueShockPart> ShockParts;
+	FVector ShockTop = FVector::ZeroVector, ShockBottom = FVector::ZeroVector;
+	double ShockSwing = 1.0e9;
 	FTransform LeverFit[2] = {FTransform::Identity, FTransform::Identity};
 	FTransform GripFitMove[2] = {FTransform::Identity, FTransform::Identity};
 	UStaticMeshComponent* GripParts[2] = {nullptr, nullptr};   // (in ModelParts)
@@ -664,6 +744,44 @@ private:
 	void LoadRoute();
 	void BuildModel();
 	bool BuildCatalogueModel();   // true if the bike is all catalogue parts and was drawn so
+	// [garage] The model taken down and drawn again from the shed's bay (a part fitted or taken off in a
+	// garage), the bike where it stands; only while it's parked. Stale: the shed's parts for RideBay changed.
+	void RebuildBikeModel();
+	bool bModelStale = false;
+	FString BuiltParts;   // the bay's parts as last drawn (LayoutParts, as one line)
+	FString PartsKey() const;
+	void BindGarage();
+	void OnShedChanged(int32 Bay);
+	void OnShedTell(int32 Peer, const FString& Text, bool bOk);
+	bool bGarageBound = false;
+	// [garage] On foot in a garage: what's looked at (a slot of our bike, the computer), the spanner's
+	// hold, the computer's page, and what the shed last said back.
+	bool TickGarage(APlayerController* PC, float Dt, uint32 SonyDown, uint32 SonyPressed);
+	void GarageAim();
+	bool GarageRequest(uint8 Kind, FName Slot, FName Part, const FString& Doing);
+	void GarageComputerDo(const FTorqueComputerAction& A);
+	void OpenGarageComputer(APlayerController* PC);
+	void CloseGarageComputer(APlayerController* PC);
+	void GarageHudLines();
+	TWeakObjectPtr<ATorqueForecourtGarage> GarageHere;
+	FName GarageSlot;            // the slot of our bike looked at (none: not looking at it)
+	bool bGarageLookComputer = false;
+	bool bGarageComputer = false;
+	double GarageComputerShut = -100.0;   // world seconds it was last closed
+	FTorquePartsComputer* GarageComputer = nullptr;   // (made the first time; deleted with the pawn)
+	double GarageHeld = 0.0;     // Work held on the bike (s)
+	bool bGarageWorkArmed = false;
+	FString GarageSaid;          // the shed's answer to our last garage job
+	bool bGarageSaidOk = true;
+	double GarageSaidFor = 0.0, GarageAskedAt = -100.0;
+	int32 GarageTells = 0;
+	// [garage] The spanner in your hand while you're in a garage (beenster, build 155: "spanner in hand for
+	// the new garages"): the shed's wrench (TorqueToolModels), held as the shed walker holds it, turning
+	// as you work; put away while you carry a part or use the computer.
+	UPROPERTY(Transient) USceneComponent* GarageToolHolder = nullptr;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GarageToolParts;
+	double GarageToolClock = 0.0, GarageWorkBlend = 0.0;
+	void UpdateGarageTool(float Dt);       // the shed's answers heard (one came back at once: the host)
 	// SideM: metres to the right of the line (co-op start slots).
 	void Respawn(int32 LineIndex, double SideM = 0.0);
 	void PlaceOnGround(TorqueSim::V3 Pos, double Heading);   // Respawn's second half: upright there, on the ground

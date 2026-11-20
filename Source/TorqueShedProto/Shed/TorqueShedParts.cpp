@@ -28,7 +28,10 @@ const TCHAR* const SlotNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TE
 	TEXT("fog_lights"), TEXT("tail"), TEXT("fairing"), TEXT("mirrors"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"),
 	TEXT("oil_filter"), TEXT("spark_plugs"), TEXT("cooling"), TEXT("gearbox"), TEXT("front_mudguard"), TEXT("indicators"),
 	TEXT("side_panels"), TEXT("rearsets"), TEXT("guards"), TEXT("number_boards"), TEXT("swingarm"), TEXT("steering_damper"),
-	TEXT("tank_bag"), TEXT("aux_tank"), TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards")};
+	TEXT("tank_bag"), TEXT("aux_tank"), TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards"),
+	// [common parts] the common bolt-on parts' own slots (Fit/BikeLayout CommonSlots)
+	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
+	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
 const TCHAR* const EngineSlotNames[] = {TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"),
 	TEXT("spark_plugs"), TEXT("cooling"), TEXT("gearbox")};
 const TCHAR* const ServiceSlotNames[] = {TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs")};
@@ -37,8 +40,9 @@ const TCHAR* const LowSlotNames[] = {TEXT("side_stand"), TEXT("centre_stand"), T
 const TCHAR* const OptionalSlotNames[] = {TEXT("headlight"), TEXT("indicators"), TEXT("front_mudguard"),
 	TEXT("steering_damper"), TEXT("mirrors"), TEXT("lever_guards"), TEXT("fairing"), TEXT("satnav"), TEXT("tail"),
 	TEXT("guards"), TEXT("panniers"), TEXT("top_box"), TEXT("tank_bag"), TEXT("number_boards"), TEXT("aux_tank"),
-	TEXT("toolbox"), TEXT("fog_lights"), TEXT("horn"), TEXT("side_panels"), TEXT("centre_stand")};
-const TCHAR* const FrameOwnSlotNames[] = {TEXT("rearsets"), TEXT("swingarm")};
+	TEXT("toolbox"), TEXT("fog_lights"), TEXT("horn"), TEXT("side_panels"), TEXT("centre_stand"),
+	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
+	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
 const TCHAR* const KindNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TEXT("wheel"), TEXT("tyre"), TEXT("disc"),
 	TEXT("caliper"), TEXT("pads"), TEXT("master"), TEXT("tank"), TEXT("saddle"), TEXT("handlebars"), TEXT("dashboard"),
 	TEXT("engine"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs"), TEXT("cooling"),
@@ -46,7 +50,9 @@ const TCHAR* const KindNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TE
 	TEXT("headlight"), TEXT("horn"), TEXT("panniers"), TEXT("top_box"), TEXT("fog_lights"), TEXT("tail"),
 	TEXT("fairing"), TEXT("mirrors"), TEXT("front_mudguard"), TEXT("indicators"), TEXT("side_panels"), TEXT("rearsets"),
 	TEXT("guards"), TEXT("number_boards"), TEXT("swingarm"), TEXT("steering_damper"), TEXT("tank_bag"), TEXT("aux_tank"),
-	TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards")};
+	TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards"),
+	TEXT("grips"), TEXT("bar_ends"), TEXT("levers"), TEXT("switchgear"), TEXT("tail_light"), TEXT("plate_hanger"),
+	TEXT("silencers"), TEXT("heel_plates"), TEXT("foot_controls"), TEXT("sprocket"), TEXT("filler_cap")};
 
 // PartsDB.KIND_NAMES
 struct FPair { const TCHAR* Key; const TCHAR* Value; };
@@ -68,6 +74,10 @@ const FPair KindTitles[] = {
 	{TEXT("tank_bag"), TEXT("Tank bag")}, {TEXT("aux_tank"), TEXT("Auxiliary fuel tank")}, {TEXT("toolbox"), TEXT("Toolbox")},
 	{TEXT("satnav"), TEXT("Sat nav")}, {TEXT("lever_guards"), TEXT("Lever guards")}, {TEXT("petrol"), TEXT("Petrol")},
 	{TEXT("oil"), TEXT("Engine oil")}, {TEXT("brake_fluid"), TEXT("Brake fluid")}, {TEXT("chain_lube"), TEXT("Chain lube")},
+	{TEXT("grips"), TEXT("Grips")}, {TEXT("bar_ends"), TEXT("Bar ends")}, {TEXT("levers"), TEXT("Levers")},
+	{TEXT("switchgear"), TEXT("Switchgear")}, {TEXT("tail_light"), TEXT("Tail light")}, {TEXT("plate_hanger"), TEXT("Plate hanger")},
+	{TEXT("silencers"), TEXT("Silencer")}, {TEXT("heel_plates"), TEXT("Heel plates")}, {TEXT("foot_controls"), TEXT("Foot controls")},
+	{TEXT("sprocket"), TEXT("Rear sprocket")}, {TEXT("filler_cap"), TEXT("Filler cap")},
 };
 
 // PartsDB.KIND_MATERIAL
@@ -90,6 +100,9 @@ const FPair KindMaterials[] = {
 	// [fluids] Torque Shed's cans were steel; ours are the plastic ones you can see the level through
 	// (oil and brake fluid bottles were plastic there too), and the chain lube's an aerosol.
 	{TEXT("petrol"), TEXT("plastic")}, {TEXT("oil"), TEXT("plastic")}, {TEXT("brake_fluid"), TEXT("plastic")}, {TEXT("chain_lube"), TEXT("metal")},
+	{TEXT("grips"), TEXT("rubber")}, {TEXT("bar_ends"), TEXT("metal")}, {TEXT("levers"), TEXT("metal")}, {TEXT("switchgear"), TEXT("plastic")},
+	{TEXT("tail_light"), TEXT("electronics")}, {TEXT("plate_hanger"), TEXT("metal")}, {TEXT("silencers"), TEXT("metal")},
+	{TEXT("heel_plates"), TEXT("metal")}, {TEXT("foot_controls"), TEXT("metal")}, {TEXT("sprocket"), TEXT("metal")}, {TEXT("filler_cap"), TEXT("metal")},
 };
 const FPair MaterialTitles[] = {{TEXT("metal"), TEXT("Metal")}, {TEXT("plastic"), TEXT("Plastic")}, {TEXT("rubber"), TEXT("Rubber")},
 	{TEXT("carbon"), TEXT("Carbon fibre")}, {TEXT("mixed"), TEXT("Mixed materials")}, {TEXT("electronics"), TEXT("Electronics")},
@@ -129,6 +142,10 @@ const FMount Mounts[] = {
 	{TEXT("steering_damper"), {TEXT("fork"), nullptr}},
 	{TEXT("tank_bag"), {TEXT("tank"), nullptr}}, {TEXT("satnav"), {TEXT("handlebars"), nullptr}}, {TEXT("aux_tank"), {TEXT("frame"), nullptr}},
 	{TEXT("toolbox"), {TEXT("frame"), nullptr}}, {TEXT("lever_guards"), {TEXT("handlebars"), nullptr}},
+	{TEXT("grips"), {TEXT("handlebars"), nullptr}}, {TEXT("bar_ends"), {TEXT("handlebars"), nullptr}}, {TEXT("levers"), {TEXT("handlebars"), nullptr}},
+	{TEXT("switchgear"), {TEXT("handlebars"), nullptr}}, {TEXT("tail_light"), {TEXT("frame"), nullptr}}, {TEXT("plate_hanger"), {TEXT("frame"), nullptr}},
+	{TEXT("silencers"), {TEXT("exhaust"), nullptr}}, {TEXT("heel_plates"), {TEXT("frame"), nullptr}}, {TEXT("foot_controls"), {TEXT("frame"), nullptr}},
+	{TEXT("sprocket"), {TEXT("rear_wheel"), nullptr}}, {TEXT("filler_cap"), {TEXT("tank"), nullptr}},
 };
 
 const TMap<FName, TArray<FName>>& MountTable()
@@ -216,6 +233,9 @@ struct FPartInfo
 	FName Grade;
 	bool bEmpty = false;
 	FLinearColor Liquid = FLinearColor(0.6f, 0.45f, 0.15f);
+	bool bV2 = false;   // [bikes v2] a V2 bike's frame
+	FName V2Slot;       // [bare frame] a V2 bike's own part: its slot ("v2part"), and what it bolts to in words
+	FString V2Fits;
 };
 
 struct FCatalogue
@@ -237,6 +257,59 @@ FCatalogue& Catalogue()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque shed: no parts catalogue (Data/Parts/parts.json)"));
 		return C;
+	}
+	// [bikes v2] The V2 bikes' frames laid over the catalogue (Data/BikesV2/parts_v2.json, the same shape).
+	{
+		FString V2Text;
+		TSharedPtr<FJsonObject> V2Root;
+		if (FFileHelper::LoadFileToString(V2Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/BikesV2/parts_v2.json"))) &&
+			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V2Text), V2Root) && V2Root.IsValid())
+		{
+			// "_retired" {kind: [ids]}: parts taken out of the game (the six bike types with no V2 bikes and
+			// the parts made only for them: beenster, Nov 17), as Fit/PartsDb AddFromText drops them.
+			const TSharedPtr<FJsonObject>* Retired = nullptr;
+			if (V2Root->TryGetObjectField(TEXT("_retired"), Retired))
+				for (const auto& GoneKind : (*Retired)->Values)
+				{
+					const TSharedPtr<FJsonObject>* From = nullptr;
+					const TArray<TSharedPtr<FJsonValue>>* Ids = nullptr;
+					if (!Root->TryGetObjectField(FString(GoneKind.Key), From) || !GoneKind.Value.IsValid() || !GoneKind.Value->TryGetArray(Ids)) continue;
+					for (const TSharedPtr<FJsonValue>& GoneId : *Ids) (*From)->RemoveField(GoneId->AsString());
+				}
+			for (const auto& V2Kind : V2Root->Values)
+			{
+				const TSharedPtr<FJsonObject>* Extra = nullptr;
+				if (FString(V2Kind.Key) == TEXT("_retired")) continue;
+				if (!V2Kind.Value.IsValid() || !V2Kind.Value->TryGetObject(Extra)) continue;
+				const TSharedPtr<FJsonObject>* Into = nullptr;
+				if (!Root->TryGetObjectField(FString(V2Kind.Key), Into))
+				{
+					Root->SetObjectField(FString(V2Kind.Key), *Extra);
+					continue;
+				}
+				for (const auto& V2Part : (*Extra)->Values) (*Into)->SetField(FString(V2Part.Key), V2Part.Value);
+			}
+		}
+	}
+	// [common parts] The common bolt-on parts for the V2 bikes (Data/BikesV2/common_parts.json, the same shape;
+	// its "about" and "new_slots" aren't kinds and are passed over below).
+	{
+		FString CommonText;
+		TSharedPtr<FJsonObject> CommonRoot;
+		if (FFileHelper::LoadFileToString(CommonText, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/BikesV2/common_parts.json"))) &&
+			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(CommonText), CommonRoot) && CommonRoot.IsValid())
+			for (const auto& CommonKind : CommonRoot->Values)
+			{
+				const TSharedPtr<FJsonObject>* Extra = nullptr;
+				if (!CommonKind.Value.IsValid() || !CommonKind.Value->TryGetObject(Extra)) continue;
+				const TSharedPtr<FJsonObject>* Into = nullptr;
+				if (!Root->TryGetObjectField(FString(CommonKind.Key), Into))
+				{
+					Root->SetObjectField(FString(CommonKind.Key), *Extra);
+					continue;
+				}
+				for (const auto& CommonPart : (*Extra)->Values) (*Into)->SetField(FString(CommonPart.Key), CommonPart.Value);
+			}
 	}
 	for (const auto& KindKV : Root->Values)
 	{
@@ -270,6 +343,23 @@ FCatalogue& Catalogue()
 			FString Grade;
 			if ((*P)->TryGetStringField(TEXT("grade"), Grade) && !Grade.IsEmpty()) Info.Grade = FName(*Grade);
 			(*P)->TryGetBoolField(TEXT("empty"), Info.bEmpty);
+			Info.bV2 = (*P)->HasField(TEXT("v2"));
+			const TSharedPtr<FJsonObject>* V2Part = nullptr;
+			if ((*P)->TryGetObjectField(TEXT("v2part"), V2Part))
+			{
+				FString Slot, Fits, Family, Brand;
+				(*V2Part)->TryGetStringField(TEXT("slot"), Slot);
+				(*V2Part)->TryGetStringField(TEXT("fits"), Fits);
+				(*V2Part)->TryGetStringField(TEXT("family"), Family);
+				(*V2Part)->TryGetStringField(TEXT("brand"), Brand);
+				Info.V2Slot = Slot.IsEmpty() ? NAME_None : FName(*Slot);
+				const FString Bike = Brand + TEXT(" ") + Family;
+				if (Fits == TEXT("model")) Info.V2Fits = FString::Printf(TEXT("The %s frame only"), *Bike);
+				else if (Fits == TEXT("engine")) Info.V2Fits = FString::Printf(TEXT("The %s engine block"), *Bike);
+				else if (Fits == TEXT("layout")) Info.V2Fits = FString::Printf(TEXT("%s frames built round the %s's engine layout"), *Family.Left(1).ToUpper().Append(Family.Mid(1)), *Bike);
+				else if (Fits == TEXT("shock")) Info.V2Fits = FString::Printf(TEXT("%s frames with the %s's rear suspension layout"), *Family.Left(1).ToUpper().Append(Family.Mid(1)), *Bike);
+				else Info.V2Fits = FString::Printf(TEXT("Any %s frame, any brand"), *Family);
+			}
 			const TArray<TSharedPtr<FJsonValue>>* Liq = nullptr;
 			if ((*P)->TryGetArrayField(TEXT("liquid"), Liq) && Liq->Num() >= 3)
 				Info.Liquid = FLinearColor((float)(*Liq)[0]->AsNumber(), (float)(*Liq)[1]->AsNumber(), (float)(*Liq)[2]->AsNumber());
@@ -286,6 +376,23 @@ FCatalogue& Catalogue()
 			C.Parts.Add(Id, Info);
 			List.Add(Id);
 		}
+	}
+	// [bare frame] The bike types still sold are those with V2 frames: a part's other types are left off it, so
+	// the shop never says a part suits a type that's gone (beenster after 155).
+	{
+		TSet<FName> Kept;
+		for (const TPair<FName, FPartInfo>& KV : C.Parts)
+			if (KV.Value.bV2)
+				for (const FName& S : KV.Value.Styles) Kept.Add(S);
+		if (Kept.Num() > 0)
+			for (TPair<FName, FPartInfo>& KV : C.Parts)
+			{
+				const bool bHadStyles = KV.Value.Styles.Num() > 0 || !KV.Value.Pack.IsNone();
+				KV.Value.Styles.RemoveAll([&Kept](const FName& S) { return !Kept.Contains(S); });
+				if (!KV.Value.Pack.IsNone() && !Kept.Contains(KV.Value.Pack)) KV.Value.Pack = NAME_None;
+				// (one made only for types that are gone: still sold, for any bike)
+				(void)bHadStyles;
+			}
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque shed: parts catalogue has %d parts"), C.Parts.Num());
 	return C;
@@ -322,8 +429,10 @@ bool IsOptional(FName Slot) { static const TArray<FName> L = TORQUE_LIST(Optiona
 
 bool MayBeEmpty(FName Slot)
 {
-	static const TArray<FName> Own = TORQUE_LIST(FrameOwnSlotNames);
-	return IsOptional(Slot) || Own.Contains(Slot);
+	// [bare frame] Every frame is a V2 one now, and it comes bare (beenster after 156: "the swingarm and heel
+	// plates come in with the frame ... it should be frame only"): its swingarm and footrests are parts
+	// you fit like any other, and a bike needs them to ride. Only the optional slots may be empty.
+	return IsOptional(Slot);
 }
 
 FName KindOf(FName Slot)
@@ -484,6 +593,27 @@ bool SuitsStyle(FName Part, FName Style)
 	return P->Pack == Style || P->Styles.Contains(Style);
 }
 
+FName V2Slot(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P ? P->V2Slot : NAME_None;
+}
+
+FString V2Fits(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P ? P->V2Fits : FString();
+}
+
+FName HomeSlot(FName Part)
+{
+	if (IsStock(Part)) return StockSlot(Part);
+	const FName Own = V2Slot(Part);
+	if (!Own.IsNone()) return Own;
+	const TArray<FName> KindSlots = SlotsForKind(PartKind(Part));
+	return KindSlots.Num() > 0 ? KindSlots[0] : NAME_None;
+}
+
 FLinearColor DefaultColour(FName Part)
 {
 	const FPartInfo* P = Catalogue().Parts.Find(Part);
@@ -493,7 +623,20 @@ FLinearColor DefaultColour(FName Part)
 TArray<FName> PartsOfKind(FName Kind)
 {
 	const TArray<FName>* L = Catalogue().ByKind.Find(Kind);
-	return L ? *L : TArray<FName>();
+	if (!L) return TArray<FName>();
+	// [bikes v2] The old bikes are retired (beenster, Nov 17): once there are V2 frames, they are the only frames sold.
+	// An old frame already in a save still works; it just cannot be ordered any more.
+	if (Kind == FName(TEXT("frame")))
+	{
+		TArray<FName> New;
+		for (const FName& Id : *L)
+		{
+			const FPartInfo* Info = Catalogue().Parts.Find(Id);
+			if (Info && Info->bV2) New.Add(Id);
+		}
+		if (New.Num() > 0) return New;
+	}
+	return *L;
 }
 
 TArray<FName> PartMounts(FName Slot, FName Part)

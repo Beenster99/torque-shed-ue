@@ -1,0 +1,68 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 9199,
+ "surfaces": {
+  "s000": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s001": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_polishedcase",
+   "tag": "d3_polishedcase",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s002": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s003": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_coverblack",
+   "tag": "d3_coverblack",
+   "ue": "cat_black_metal",
+   "color": [
+    0.018,
+    0.018,
+    0.02
+   ],
+   "metallic": 0.5,
+   "roughness": 0.32
+  }
+ },
+ "engine_part": {
+  "slot": "gearbox",
+  "look": "billet_black",
+  "fuel": "throttle_bodies",
+  "air": "airbox",
+  "cover": "billet",
+  "finish": "black",
+  "case": "stock",
+  "header": "stock",
+  "oil": null
+ }
+}

@@ -1,0 +1,48 @@
+{
+ "group": "tail_light",
+ "key": "classic",
+ "name": "Classic unit",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "part_centre",
+ "mount_mm": [
+  47.7,
+  0.0,
+  933.5
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  56.0,
+  92.0,
+  53.3
+ ],
+ "triangles": 964,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_redglass": {
+   "ue": "lens_red",
+   "clear": 1.0,
+   "tag": "lens_red"
+  },
+  "d3_tailred": {
+   "ue": "lens_red",
+   "glow": 2.6,
+   "tag": "lens_red"
+  },
+  "d3_bulb": {
+   "ue": "cat_plastic",
+   "color": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "glow": 2.0,
+   "tag": "d3_bulb"
+  }
+ }
+}

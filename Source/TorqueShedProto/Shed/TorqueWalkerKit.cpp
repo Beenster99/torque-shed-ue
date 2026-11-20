@@ -52,7 +52,10 @@ bool ATorqueWalker::KitInput(float Dt, bool bF, bool bFDown)
 	}
 	bSprayAsked = false;
 	// (F at the switch boxes and the extinguisher's place is Interact's, as at the dyno room's switches.)
-	const FTorquePlace* At = Target == ETorqueLook::Place ? TargetPlace : nullptr;
+	// (An engine on the stand counts as the stand too (beenster, Nov 19: "add back the ability to move the
+	// engine mount"): bolted along its arm since 157, the engine is most of what you see of it.)
+	const bool bEngineOnStand = Target == ETorqueLook::Item && TargetPlace && TargetPlace->Kind == ETorquePlace::Stand;
+	const FTorquePlace* At = Target == ETorqueLook::Place || bEngineOnStand ? TargetPlace : nullptr;
 	// The engine stand: hold F on it to take hold of its handle and wheel it; a tap does what F does.
 	const bool bAtStand = At && At->Kind == ETorquePlace::Stand && B->HeldBy(Me) == 0 && Wheeling() == INDEX_NONE;
 	if (bF && bAtStand)

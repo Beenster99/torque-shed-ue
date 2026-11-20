@@ -1,0 +1,190 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 23033,
+ "surfaces": {
+  "s006": {
+   "slot": "engine",
+   "node": "",
+   "surface": "d3_sandcast",
+   "tag": "d3_sandcast",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.42,
+    0.42,
+    0.43
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "s019": {
+   "slot": "engine",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s020": {
+   "slot": "engine",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s021": {
+   "slot": "engine",
+   "node": "",
+   "surface": "lens",
+   "tag": "lens",
+   "ue": "lens_clear"
+  },
+  "s023": {
+   "slot": "engine",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s078": {
+   "slot": "engine",
+   "node": "",
+   "surface": "engine",
+   "tag": "engine",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "s079": {
+   "slot": "engine",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s089": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s090": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s091": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s094": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s095": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_polishedcase",
+   "tag": "d3_polishedcase",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s100": {
+   "slot": "engine",
+   "node": "",
+   "surface": "gold",
+   "tag": "gold",
+   "ue": "cat_anodised",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.32
+  },
+  "s154": {
+   "slot": "engine",
+   "node": "",
+   "surface": "d3_chop_steel",
+   "tag": "d3_chop_steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.56,
+    0.57,
+    0.59
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "s155": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_chop_steel",
+   "tag": "d3_chop_steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.56,
+    0.57,
+    0.59
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  }
+ },
+ "bespoke": {
+  "group": "covers",
+  "design": "finned",
+  "metal": "steel",
+  "name": "Finned engine covers, brushed steel",
+  "note": "Straight cooling fins milled across the face, the tops polished, a plain rim."
+ }
+}

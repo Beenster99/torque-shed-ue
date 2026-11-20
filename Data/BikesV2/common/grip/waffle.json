@@ -1,0 +1,33 @@
+{
+ "group": "grip",
+ "key": "waffle",
+ "name": "Waffle",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  56.6,
+  771.7,
+  50.4
+ ],
+ "triangles": 14968,
+ "surfaces": {
+  "grip_waffle": {
+   "ue": "grip",
+   "color": [
+    0.016,
+    0.016,
+    0.018
+   ],
+   "metallic": 0.0,
+   "roughness": 0.82,
+   "tag": "grip_waffle"
+  }
+ }
+}

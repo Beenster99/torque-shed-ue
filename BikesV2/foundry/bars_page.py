@@ -97,7 +97,7 @@ parts = []
 fitted = []
 for i, (bar, (mn, grip, end)) in enumerate(FITTED.items()):
     st = BARS[bar]
-    body = f'On the {esc(mn.replace("_", " ").title())} with {esc(GRIPS[grip]["label"].lower())} grips and {esc(ENDS[end]["label"].lower())} ends. {esc(FINISH[st["finish"]]["label"].capitalize())}.'
+    body = f'On the {esc(mn.replace("_", " ").title().replace("Hartwell", "BSX"))} with {esc(GRIPS[grip]["label"].lower())} grips and {esc(ENDS[end]["label"].lower())} ends. {esc(FINISH[st["finish"]]["label"].capitalize())}.'
     fitted.append(card(img(f"fit_{bar}.png"), f'{i + 1}. {st["label"]}', body))
 
 bars = []
@@ -136,7 +136,7 @@ for fam in FAMS:
     b = base.get(fam)
     if b and b.get("lock"):
         L = b["lock"]
-        own.append(f"<li>{esc(b['model'].replace('_', ' ').title())}: its own bars turn {L['max_lock']:g}° each way before coming within 15 mm of the {nice(L['against'])}.</li>")
+        own.append(f"<li>{esc(b['model'].replace('_', ' ').title().replace('Hartwell', 'BSX'))}: its own bars turn {L['max_lock']:g}° each way before coming within 15 mm of the {nice(L['against'])}.</li>")
 
 css = open(os.path.join(os.path.dirname(__file__), "bars_page.css")).read()
 page = f'''<title>Bars, Grips and Bar Ends</title>

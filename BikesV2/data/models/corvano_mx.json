@@ -28,7 +28,8 @@
    "tread": "knobbly",
    "width": 84,
    "spoke_fat": 3.2,
-   "single_disc": true
+   "single_disc": true,
+   "style": "wire_enduro32"
   },
   "rear": {
    "tyre_r": 340,
@@ -39,7 +40,8 @@
    "phase": 15,
    "tread": "knobbly",
    "width": 116,
-   "spoke_fat": 3.2
+   "spoke_fat": 3.2,
+   "style": "wire_enduro32"
   }
  },
  "fork": {
@@ -392,6 +394,14 @@
    ],
    "cls": "dark",
    "t": 0.3
+  },
+  {
+   "circle": 9,
+   "at": [
+    600,
+    404
+   ],
+   "cls": "bolt"
   }
  ],
  "fit": {
@@ -793,7 +803,7 @@
     ],
     "cls": "body",
     "t": 0.5,
-    "out_r": 52
+    "out_r": 70
    },
    {
     "pts": [
@@ -824,7 +834,7 @@
     ],
     "cls": "plate",
     "t": 0.9,
-    "out_r": 52
+    "out_r": 70
    }
   ],
   "caps": [
@@ -1131,14 +1141,14 @@
      140,
      930
     ],
-    "w": 66,
+    "w": 56,
     "front": true
    }
   ],
   "join": true,
   "can_y": [
-   146,
-   146
+   108,
+   110
   ]
  },
  "frame": {
@@ -1895,9 +1905,14 @@
         194.4,
         913.0
        ],
-       "w": 78,
+       "w": 68,
        "front": true
       }
+     ],
+     "join": true,
+     "can_y": [
+      108,
+      110
      ]
     }
    },
@@ -1970,6 +1985,11 @@
        "w": 60,
        "front": true
       }
+     ],
+     "join": true,
+     "can_y": [
+      108,
+      110
      ]
     }
    }

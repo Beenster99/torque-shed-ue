@@ -61,6 +61,14 @@ struct FTorqueProfile
 	// The paint colour (linear), and the lighter, hue-turned tint a pearl finish shows at grazing angles.
 	FLinearColor HelmetColour() const;
 	FLinearColor HelmetPearlTint() const;
+	static FLinearColor HsvColour(float H, float S, float V);   // the same (H, S, V 0..1) to linear, for pickers
+
+	// [jacket] beenster's Crosswind leather jacket, worn over the shirt (0 none, 1 Crosswind, 2 worn,
+	// 3 distressed). Made for Avatar A's body: only Avatar A wears it so far (FTorqueAvatar::SetLook).
+	int32 Jacket = 0;
+	enum { NumJackets = 4 };
+	static const TCHAR* JacketName(int32 I);
+	static const TCHAR* JacketMesh(int32 I);   // its skeletal mesh's name under /Game/AvatarTry/Crosswind ("" for none)
 	// The named colours the Profile page steps through (the sliders then make any colour).
 	struct FHelmetSwatch { const TCHAR* Name; float Hue, Sat, Val; };
 	enum { NumHelmetSwatch = 16 };

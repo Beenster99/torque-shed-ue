@@ -129,13 +129,73 @@ def road_material_scanned(L, tex, roles):
         g.link(road[0], dull)
         g.link(g.const(grey), dull, "Fraction")
         paler = [g.op(unreal.MaterialExpressionMultiply, dull, g.const(bright)), road[1], road[2]]
+        if key == (0.12, 0.118, 0.11):
+            # [build 154] Paving slabs (beenster: "I haven't yet seen anything that looks like paving slabs"):
+            # most streets' pavements (by broad patches, a street or two each) laid in pale concrete slabs,
+            # 600 mm across by 900 mm along, every other row half a slab on, each slab its own shade, dark
+            # 8 mm joints; the rest stay asphalt footways. UV0 is the road's metres across and along over 4
+            # (World/WorldRide's RoadPiece Put, kept small for UE's half-precision UVs).
+            fu, fv, var = _coursed(g, L, 0.6 / 4.0, 0.9 / 4.0)
+            sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+            one_minus = lambda e: g.op(unreal.MaterialExpressionOneMinus, e)
+            # ([build 155] beenster on 154: "was paving slabs in the last build? I didn't see any": 8 mm joints
+            # vanished at a few metres. Now each joint is a dark 12 mm line in a 4 cm shaded edge (the slabs'
+            # worn arrises and the dirt in them), and the slabs differ more, so the grid reads from the bike.)
+            def edge(f, w):
+                return g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, f, const_b=w)),
+                            sat(g.op(unreal.MaterialExpressionDivide, one_minus(f), const_b=w)))
+            slab = g.op(unreal.MaterialExpressionMultiply, edge(fu, 0.012 / 0.6), edge(fv, 0.012 / 0.9))
+            arris = g.op(unreal.MaterialExpressionMultiply, edge(fu, 0.04 / 0.6), edge(fv, 0.04 / 0.9))
+            concrete = g.node(unreal.MaterialExpressionDesaturation, -600)
+            g.link(road[0], concrete)
+            g.link(g.const(0.92), concrete, "Fraction")
+            face = g.op(unreal.MaterialExpressionMultiply, concrete, g.const((1.6, 1.58, 1.53)))
+            if var is not None:
+                face = g.op(unreal.MaterialExpressionMultiply, face,
+                            g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.45, a_out="R"), const_b=0.76))
+            face = g.op(unreal.MaterialExpressionMultiply, face, g.lerp(g.const(0.72), g.const(1.0), arris))
+            slabs = [g.lerp(g.op(unreal.MaterialExpressionMultiply, face, const_b=0.25), face, slab), road[1],
+                     g.lerp(g.const(0.95), g.const(0.75), slab)]
+            slabbed = g.mask_noise(0.00011, -0.5, 3.5)   # (about three streets in four)
+            paler = g.mix(paler, slabs, slabbed)
         own = g.mix(own, paler, keyed(key))
+    # [towns stage 6] Setts and cobbles (World/WorldRide: a road the map says is "sett" or "cobblestone", its
+    # vertex colour the key (0.09, 0.095, 0.11)): grey granite setts 220 mm across the road by 120 mm along it,
+    # laid in courses, every other course half a sett on; each sett its own shade, its top domed (a normal
+    # tilted towards its edges) and worn smooth, dark gritty joints 15 mm wide between.
+    fu, fv, var = _coursed(g, L, 0.22 / 4.0, 0.12 / 4.0)
+    sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+    one_minus = lambda e: g.op(unreal.MaterialExpressionOneMinus, e)
+    def sedge(f, w):
+        return g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, f, const_b=w)),
+                    sat(g.op(unreal.MaterialExpressionDivide, one_minus(f), const_b=w)))
+    sett = g.op(unreal.MaterialExpressionMultiply, sedge(fu, 0.015 / 0.22), sedge(fv, 0.015 / 0.12))
+    dome = g.op(unreal.MaterialExpressionMultiply, sedge(fu, 0.3), sedge(fv, 0.3))
+    granite = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(road[0], granite)
+    g.link(g.const(0.85), granite, "Fraction")
+    sface = g.op(unreal.MaterialExpressionMultiply, granite, g.const((1.25, 1.27, 1.33)))
+    if var is not None:
+        sface = g.op(unreal.MaterialExpressionMultiply, sface,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.6, a_out="R"), const_b=0.7))
+    sface = g.op(unreal.MaterialExpressionMultiply, sface, g.lerp(g.const(0.75), g.const(1.05), dome))
+    tilt_u = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, fu, const_b=0.5), const_b=0.9)
+    tilt_v = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, fv, const_b=0.5), const_b=0.9)
+    snrm = g.node(unreal.MaterialExpressionNormalize, -600)   # (its input the unnamed pin)
+    g.link(g.op(unreal.MaterialExpressionAppendVector, g.op(unreal.MaterialExpressionAppendVector, tilt_u, tilt_v), g.const(1.0)), snrm, "")
+    setts = [g.lerp(g.op(unreal.MaterialExpressionMultiply, sface, const_b=0.2), sface, sett),
+             g.lerp(g.const((0.0, 0.0, 1.0)), snrm, sett),
+             g.lerp(g.const(0.95), g.const(0.55), sett)]
+    own = g.mix(own, setts, keyed((0.09, 0.095, 0.11)))
     # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
     # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
     # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near
     # the line it is (Near) pick the surface; where the two meet the gravel scan's own bright stones break
     # through the tarmac first, by their height, so the edge is as fine as the scans.
-    gravel_key = "track_gravel" if "track_gravel" in tex else ("gravel" if "gravel" in tex else None)
+    # [build 154] beenster, shown the cloud preview of Nov 13 (rideuk/stage4_previews/gravel_fade_preview.png):
+    # "use this when there is gravel on the road". That preview is the ambientCG scan (the "gravel" role,
+    # always imported) graded as below, so the road uses exactly it, not the Megascans one.
+    gravel_key = "gravel" if "gravel" in tex else ("track_gravel" if "track_gravel" in tex else None)
     if gravel_key:
         tar_c, grit_c = (0.022, 0.022, 0.025), (0.095, 0.088, 0.07)
         span = tuple(b - a for a, b in zip(tar_c, grit_c))
@@ -156,15 +216,14 @@ def road_material_scanned(L, tex, roles):
                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, along, const_b=0.15), const_b=8.0)),
                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), along), const_b=8.0)))
         near = g.op(unreal.MaterialExpressionMultiply, near, ends)
-        grav = g.layer(tex[gravel_key], roles[gravel_key]["tile_m"])
-        # (the Megascans scan is paler than ambientCG's dark wet gravel, the fallback: each its own tint and middle)
+        grav = g.layer(tex[gravel_key], 1.6)
+        # (the preview's grade: two thirds of the scan's colour kept, lifted 1.5 times, a touch warm; its
+        # middle brightness 0.15, measured on the scan so graded. The Megascans fallback keeps build 148's.)
         megascan = "ue" in roles[gravel_key]
-        # (beenster, build 148: the grit "like sandstone poured on the road": grey chippings now, near the
-        # tarmac's own tone, the scan almost all its colour taken out and darkened towards the road)
-        tint, middle = ((0.78, 0.78, 0.79), 0.22) if megascan else ((1.1, 1.1, 1.12), 0.15)
+        tint, middle, keep = ((0.78, 0.78, 0.79), 0.22, 0.15) if megascan else ((1.5, 1.48, 1.4), 0.166, 0.65)   # (0.166: as Unreal samples it)
         gdull = g.node(unreal.MaterialExpressionDesaturation, -600)
         g.link(grav[0], gdull)
-        g.link(g.const(0.85), gdull, "Fraction")
+        g.link(g.const(1.0 - keep), gdull, "Fraction")
         grav[0] = g.op(unreal.MaterialExpressionMultiply, gdull, g.const(tint))
         # Its stones' height from the scan's brightness (with its AO in it), and a slow wobble so the edge
         # isn't a line across the road.
@@ -177,9 +236,16 @@ def road_material_scanned(L, tex, roles):
         wobble = g.op(unreal.MaterialExpressionSubtract, L.noise(g.m, 0.01, 0.0, 1.0, -1200, g.y + 200), const_b=0.5)
         g.y += 140
         edge = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, along, const_b=0.5),
-                    g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, height, const_b=0.54),
+                    g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, height, const_b=0.54 if megascan else 0.9 * 0.6),
                          g.op(unreal.MaterialExpressionMultiply, wobble, const_b=0.25)))
         stones = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, edge, const_b=25.0))
+        # ([build 154] beenster: "it looks like you have blended gravel into everything; I only want it on the
+        # middle of lanes". The scan's brightest stones stood out of the tarmac itself (Along 0) and of the
+        # tarmac's blend into the verge (which crosses this line about a third of the way). Now only colours
+        # well along to the grit carry stones: the lanes' middle grit (0.75), gravel roads and their tongues.)
+        gate = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSubtract, along, const_b=0.5), const_b=10.0))
+        stones = g.op(unreal.MaterialExpressionMultiply, stones, gate)
         surface = g.mix(road, grav, stones)
         road = g.mix(own, surface, near)
         hard = g.op(unreal.MaterialExpressionMultiply, near, g.op(unreal.MaterialExpressionOneMinus, stones))   # (the tarmac itself, for the wet)
@@ -214,22 +280,42 @@ def road_material_scanned(L, tex, roles):
                      g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, valong, const_b=0.15), const_b=8.0)),
                      g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), valong), const_b=8.0)))
         vnear = g.op(unreal.MaterialExpressionMultiply, vnear, vends)
+        # ([build 154] beenster: "remove the edge we currently have": the verge's grass is now graded exactly
+        # as M_RideLandScan grades the ground beside it, its moor-grass patches, livelier greens and slow
+        # brightness by the same world-position noises, so where the road's mesh ends and the land's begins
+        # nothing shows; its odd peat hollow left out, to keep the road's pixels cheap)
         lawn = g.layer(tex["grass"], roles["grass"]["tile_m"])
+        depth0 = g.node(unreal.MaterialExpressionPixelDepth)
+        calm = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth0, const_b=8000.0), const_b=30000.0))
+        if "moor" in tex:
+            lawn = g.mix(lawn, g.layer(tex["moor"], roles["moor"]["tile_m"]), g.lerp(g.mask_noise(0.00028, -0.6, 1.6), g.const(0.35), calm))
         lawn[0] = g.op(unreal.MaterialExpressionMultiply, lawn[0], const_b=0.75)
         lgrey = g.node(unreal.MaterialExpressionDesaturation, -600)
         g.link(lawn[0], lgrey)
         g.link(g.const(1.0), lgrey, "Fraction")
         lawn[0] = g.lerp(lgrey, lawn[0], g.const(1.6))
+        lawn[0] = g.op(unreal.MaterialExpressionMultiply, lawn[0], L.noise(g.m, 0.0003, 0.9, 1.07, -1200, g.y + 200))
         g.y += 140
         # (the inner end: the tarmac's own scan, so the road runs on under the grass)
         grit = tar_scan
         wob = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.02, -0.5, 0.5, -1200, g.y + 200),
                    g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.004, -0.5, 0.5, -1200, g.y + 400), const_b=1.5))
         g.y += 140
-        # (grass from about a third of the way out, ragged by the wobble: at the tarmac's edge, give or take)
+        # (grass from about a third of the way out, at the tarmac's edge: [build 154] beenster wants it to blend
+        # as the gravel does: as the gravel's stones break through the tarmac, the grass comes over it in tufts,
+        # ragged at three sizes (half a metre, ten centimetres, a few centimetres: its tufts and blades), a
+        # sharp line at each, never a straight one; tufts reach a hand's breadth or two onto the road)
+        fine = g.op(unreal.MaterialExpressionAdd, L.noise(g.m, 0.09, -0.5, 0.5, -1200, g.y + 200),
+                    g.op(unreal.MaterialExpressionMultiply, L.noise(g.m, 0.3, -0.5, 0.5, -1200, g.y + 400), const_b=0.6))
+        g.y += 140
+        reach = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.45),
+                     g.op(unreal.MaterialExpressionMultiply, fine, const_b=0.55))
         lawny = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
-                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.3), g.op(unreal.MaterialExpressionMultiply, wob, const_b=0.35)),
-                     const_b=7.0))
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, valong, const_b=0.32), reach),
+                     const_b=5.0))
+        # (where the grass thins out over the tarmac, a little earth in it: the tarmac browned by the half-way)
+        thin = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, lawny, g.op(unreal.MaterialExpressionOneMinus, lawny)), const_b=4.0)
+        grit = [g.lerp(grit[0], g.op(unreal.MaterialExpressionMultiply, grit[0], g.const((0.95, 0.9, 0.75))), thin), grit[1], grit[2]]
         verge = g.mix(grit, lawn, lawny)
         road = g.mix(road, verge, vnear)
     # Wet: the tarmac dark and glossy (as Buttertubs' road), the gravel darker but still rough; dry keeps a
@@ -237,6 +323,36 @@ def road_material_scanned(L, tex, roles):
     wet = L.wetness(g)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), hard), near), wet))
     road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), hard), wet))
+    # [weather, Nov 18] Standing water, as Buttertubs' M_Road (beenster on 156: "I am not seeing any puddles (we
+    # had them on buttertubs)"). The camber drains rain to the edges, most on a bend's inside; only after long
+    # rain does it reach across the middle; few puddles, now and then a bigger one. The road mesh's vertex
+    # alpha says where water stands (World/WorldRide's RoadPiece StandsAt): 0 the crown .. 0.9 the edge of a
+    # bend's inside half (0.72 a straight's, 0.45 an outside's); 1 is no data (other meshes in this material:
+    # no puddles). Only on the tarmac itself, never the paving, setts, gravel or verge.
+    va = g.node(unreal.MaterialExpressionVertexColor)
+    known = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                 g.op(unreal.MaterialExpressionSubtract, g.const(0.97), va, b_out="A"), const_b=40.0))     # 1 up to 0.945 .. 0 by 0.97
+    share = g.op(unreal.MaterialExpressionMultiply, va, const_b=1.0 / 0.9, a_out="A")                    # 0 crown .. 1 an inside edge
+    p_edge = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.5), const_b=2.6))
+    big = g.mask_noise(0.0009, -3.0, 1.4)
+    p_wide = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.25), const_b=1.6))
+    p_edge = g.lerp(p_edge, p_wide, big)
+    pud = L.weather_param(g, "Puddles")
+    fill = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, pud, const_b=2.5))
+    where = g.op(unreal.MaterialExpressionMultiply, p_edge, fill)
+    centre = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, pud, const_b=0.6), const_b=2.5))
+    where = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax, where, centre))
+    small = g.mask_noise(0.006, -7.0, 2.0)
+    large = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0022, -2.5, 2.2), big)
+    patches = g.op(unreal.MaterialExpressionMax, small, large)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, patches, where), wet)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, puddle, hard), known)
+    road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
+    road[2] = g.lerp(road[2], g.const(0.03), puddle)
+    road[1] = g.lerp(road[1], g.const((0.0, 0.0, 1.0)), puddle)   # still water is flat
     return g.finish(road, specular=0.4)
 
 
@@ -364,15 +480,99 @@ def sign_material(L):
     return g.m
 
 
-def water_material(L):
+def water_normal(L):
+    """[build 154] Data/Textures/Water/normal.png (Tools/make_water_normal.py), a tiling normal map of wind
+    ripples 8 m across, as /Game/RideUK/Textures/T_WaterNormal; None if it isn't there."""
+    f = os.path.join(os.path.dirname(L.data_dir()), "Textures", "Water", "normal.png")
+    if not os.path.exists(f):
+        return None
+    dest = "/Game/RideUK/Textures"
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", dest), ("destination_name", "T_WaterNormal"),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+    tex = unreal.load_asset(dest + "/T_WaterNormal")
+    if tex:
+        tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+        tex.set_editor_property("srgb", False)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+def water_material(L, real=False):
     """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
     rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
-    with slow ripples drifting across it (UV0 is the world's metres over 8). Opaque: open water at a
-    distance shows the sky in it, not its bed."""
-    g = L.Graph(L.new_material("M_RideWater"))
+    with ripples drifting across it (UV0 is the world's metres over 8, whole tens of units from one square
+    to the next, so every sample's tiling times 10 is a whole number). Opaque: open water at a distance
+    shows the sky in it, not its bed.
+    [build 154] beenster: "can we move to a proper water animation, as it does look like a lot of static
+    tiles for the surface". Now the wave normal map (water_normal) three times over: long wind waves (27 m
+    across) and two sizes of ripple on them, each drifting its own way at its own pace, so the surface
+    moves all the time and no pattern repeats; the ripples fade with distance (where they would only
+    shimmer) and are stronger and weaker in broad patches, as wind gusts make them.
+    [build 156] beenster: "let's do the single layer water material route and put a toggle in the settings".
+    real=True makes M_RideWaterReal: the same surface in Unreal's single layer water, which you see into:
+    the light scattered and absorbed in the water as it deepens (sea blue-green and clear, a lake or river
+    peaty brown, told apart by the vertex colour), the bed refracted under it. World/TorqueRideWorld draws
+    it while Settings > Graphics > Realistic water is on."""
+    g = L.Graph(L.new_material("M_RideWaterReal" if real else "M_RideWater"))
     vc = g.node(unreal.MaterialExpressionVertexColor)
+    wn = water_normal(L)
     nt = L.noise_texture()
-    if nt is not None:
+    if wn is not None:
+        # [build 155] beenster: "Major tiling on the sea (pic)". The three samples were all square to the
+        # world's axes and at tilings whose repeats all met every 80 m, and the long swell never faded,
+        # so from a headland the sea was a grid of wave stripes to the horizon. Now each sample is turned
+        # its own way (by 3-4-5, 5-12-13 and 20-21-29 triangles, so a square's 10 units still land on
+        # whole repeats and the squares meet), the swell's coordinates are pushed about by the slow noise
+        # so its rows wander, and every layer, the swell too, calms with distance, the far sea a little
+        # rougher instead, which is how open water reads from a cliff. Same three texture reads.
+        def turned(tiling, ca, sa):
+            uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=tiling, v_tiling=tiling)
+            u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+            v = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(uv, v)
+            mul = lambda e, k: g.op(unreal.MaterialExpressionMultiply, e, const_b=float(k))
+            ru = g.op(unreal.MaterialExpressionSubtract, mul(u, ca), mul(v, sa))
+            rv = g.op(unreal.MaterialExpressionAdd, mul(u, sa), mul(v, ca))
+            return g.op(unreal.MaterialExpressionAppendVector, ru, rv)
+
+        def ripple(coord, sx, sy, strength):
+            p = g.node(unreal.MaterialExpressionPanner, speed_x=sx, speed_y=sy)
+            g.link(coord, p, "Coordinate")
+            n = g.sample(wn, p, "normal")
+            return g.op(unreal.MaterialExpressionMultiply, n, g.const((strength, strength, 0.0)))
+        swell_uv = turned(0.5, 0.8, 0.6)            # 16 m, turned 37 degrees
+        if nt is not None:
+            # (the swell's rows bent by the slow noise, 80 m across, by up to half a repeat)
+            wuv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.1, v_tiling=0.1)
+            warp = g.sample(nt, wuv, "linear")
+            wxy = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(warp, wxy)
+            swell_uv = g.op(unreal.MaterialExpressionAdd, swell_uv, g.op(unreal.MaterialExpressionMultiply, wxy, const_b=0.55))
+        big = ripple(swell_uv, 0.010, 0.006, 0.7)                     # the swell of the wind waves
+        mid = ripple(turned(1.3, 12.0 / 13.0, -5.0 / 13.0), -0.021, 0.034, 0.6)   # 6 m, turned -23 degrees
+        small = ripple(turned(2.9, 20.0 / 29.0, 21.0 / 29.0), 0.055, -0.04, 0.5)  # 2.8 m, turned 46 degrees
+        depth = g.node(unreal.MaterialExpressionPixelDepth)
+        near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
+                    g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=3000.0), const_b=25000.0)))
+        # (the swell fades later and less: 60 m to 600 m, down to a third)
+        swell_near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
+                    g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=6000.0), const_b=54000.0)))
+        big = g.op(unreal.MaterialExpressionMultiply, big, g.lerp(g.const(0.33), g.const(1.0), swell_near))
+        detail = g.op(unreal.MaterialExpressionAdd, mid, small)
+        if nt is not None:
+            # (gusts: the ripples stronger and calmer in broad slow patches)
+            guv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.1, v_tiling=0.1)
+            gp = g.node(unreal.MaterialExpressionPanner, speed_x=0.004, speed_y=0.003)
+            g.link(guv, gp, "Coordinate")
+            gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, g.sample(nt, gp, "linear"), const_b=1.2, a_out="G"), const_b=0.4)
+            detail = g.op(unreal.MaterialExpressionMultiply, detail, gust)
+        detail = g.op(unreal.MaterialExpressionMultiply, detail, g.lerp(g.const(0.15), g.const(1.0), near))
+        n = g.op(unreal.MaterialExpressionAdd, big, detail)
+        normal = g.node(unreal.MaterialExpressionNormalize)
+        g.link(g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0))), normal)
+        rough = g.lerp(g.const(0.11), g.const(0.04), swell_near)
+    elif nt is not None:
         uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.9, v_tiling=0.9)
         p1 = g.node(unreal.MaterialExpressionPanner, speed_x=0.012, speed_y=0.02); g.link(uv, p1, "Coordinate")
         uv2 = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=2.3, v_tiling=2.3)
@@ -383,10 +583,32 @@ def water_material(L):
         normal = g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0)))
     else:
         normal = g.const((0.0, 0.0, 1.0))
+    if wn is None:
+        rough = g.const(0.04)
     base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
     mel = L.mel
+    if real:
+        g.m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
+        g.m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_OPAQUE)
+        out = g.node(unreal.MaterialExpressionSingleLayerWaterMaterialOutput, 0)
+        # (how brown the water is: the sea's colour is blue-grey, a lake's peaty, a river's brown, by the red)
+        brown = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, vc, const_b=0.024, a_out="R"), const_b=80.0))
+        # (per metre: the sea absorbs the red most, so it goes blue-green as it deepens; peaty water the
+        # blue, so it goes brown; both scatter a little of their own colour back)
+        absorb = g.lerp(g.const((0.42, 0.075, 0.05)), g.const((0.32, 0.5, 1.1)), brown)
+        scatter = g.op(unreal.MaterialExpressionMultiply, vc, const_b=0.9)
+        pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
+                "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
+                "phase": (g.const(0.15), ("PhaseG", "Phase G")),
+                "behind": (g.const(1.0), ("ColorScaleBehindWater", "Color Scale Behind Water"))}
+        for key, (node, names) in pins.items():
+            if not any(mel.connect_material_expressions(node, "", out, n) for n in names):
+                unreal.log_warning("[Torque] M_RideWaterReal: couldn't link its %s to the single layer water output" % key)
+        # (the base colour in single layer water is the surface's own: none, the water's colour is its depth)
+        base = g.const((0.0, 0.0, 0.0))
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    mel.connect_material_property(g.const(0.05), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.recompile_material(g.m)
@@ -484,6 +706,12 @@ def brick_material(L):
     mortar = g.op(unreal.MaterialExpressionMultiply, vc, g.const((1.5, 1.6, 1.8)))
     mortar = g.op(unreal.MaterialExpressionMin, mortar, g.const((0.42, 0.4, 0.36)))
     col = g.lerp(mortar, col, brick)
+    nt = L.noise_texture()
+    if nt:
+        # [build 153] (beenster: "a repetitive tiling": a wall a shade lighter and darker over several metres)
+        mv = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / 23.0, v_tiling=1.0 / 23.0), "rough")
+        mv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, mv, a_out="G", const_b=0.3), const_b=0.85)
+        col = g.op(unreal.MaterialExpressionMultiply, col, mv)
     dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
     col = g.lerp(col, dirt, vc, alpha_out="A")
     col = L.far_dull(g, col)
@@ -510,6 +738,8 @@ def scanned_materials(L):
                            ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender")),
                            # (stage 5: the sea, lakes and rivers)
                            ("M_RideWater", lambda: water_material(L)),
+                           # ([build 156] the same in single layer water: Settings > Graphics > Realistic water)
+                           ("M_RideWaterReal", lambda: water_material(L, real=True)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
                            ("M_RideNight", lambda: night_material(L)),
                            # (OSM stage 5D: traffic lights and Belisha beacons, on the shared clock)
@@ -628,6 +858,9 @@ def grass_materials(L, kit):
 # so while scanned_trees.json is off they stay out of the package; round 144 cooked them, +452 MB)
 SCAN_DEST = "/Game/ScannedTrees"
 OLD_SCAN_DEST = "/Game/RideUK/ScannedTrees"
+
+
+_IMPOSTOR_MATERIAL = []   # ([build 157] M_RideImpostor made once a run)
 
 
 def scanned_trees(L, kit):
@@ -749,6 +982,190 @@ def scanned_trees(L, kit):
             why.append("%s: %s" % (name, e))
             return None
 
+    def section_materials(skel):
+        """[build 161] The skeletal mesh's materials in its LOD 0 SECTION order: copy_mesh_from_skeletal_mesh
+        gives each triangle its section's index as material ID, not the material slot's. Until 160 the copy
+        took skel.materials (slot order), so a tree whose sections aren't in slot order drew some parts with
+        another part's material: round 160's spruce and pine were bare brown trunks near and far (their
+        needles drawn with a bark or decoration material) while the broadleaf trees were right. None if
+        Geometry Script can't say."""
+        mats = [m.get_editor_property("material_interface") for m in skel.get_editor_property("materials")]
+        names = [str(m.get_editor_property("material_slot_name")) for m in skel.get_editor_property("materials")]
+        smap = skeletal_section_slots(skel)
+        if smap is not None:
+            return [(mats[k] if 0 <= k < len(mats) else None, names[k] if 0 <= k < len(names) else "Section%d" % n) for n, k in enumerate(smap)]
+        f = gs("get_section_material_list_from_skeletal_mesh")
+        if f is None:
+            return None
+        for args in ((skel, unreal.GeometryScriptMeshReadLOD()), (skel, 0), (skel,)):
+            try:
+                res = f(*args)
+            except TypeError:
+                continue
+            except Exception as e:
+                why.append("section materials: %s" % e)
+                return None
+            parts = list(res) if isinstance(res, (tuple, list)) else [res]
+            mats = names = None
+            for part in parts:
+                try:
+                    items = list(part)
+                except Exception:
+                    continue
+                if items and all(isinstance(x, unreal.MaterialInterface) or x is None for x in items) and mats is None:
+                    mats = items
+                elif items and all(isinstance(x, (unreal.Name, str)) for x in items) and names is None:
+                    names = [str(x) for x in items]
+            if mats:
+                return [(m, names[k] if names and k < len(names) else "Section%d" % k) for k, m in enumerate(mats)]
+        return None
+
+    def skeletal_section_slots(skel):
+        """[build 162] LOD 0's material slot for each section, in section order, or None. UE 5.8's Python
+        has no Geometry Script get_section_material_list_from_skeletal_mesh (round 161), so the skeletal
+        mesh editor's own functions are tried (their home and names moved between releases), with the
+        LOD's material map overriding a section's slot where it says so."""
+        homes = [getattr(unreal, n, None) for n in ("SkeletalMeshEditorSubsystem", "EditorSkeletalMeshLibrary", "SkeletalMeshEditingLibrary")]
+        objs = []
+        for h in homes:
+            if h is None:
+                continue
+            try:
+                objs.append(unreal.get_editor_subsystem(h))
+            except Exception:
+                objs.append(h)
+        count = None
+        for o in objs:
+            for fn in ("get_num_sections", "get_section_count", "get_lod_section_count"):
+                f = getattr(o, fn, None)
+                if f is None:
+                    continue
+                try:
+                    count = int(f(skel, 0))
+                    break
+                except Exception:
+                    continue
+            if count is not None:
+                break
+        slots = None
+        for o in objs:
+            f = getattr(o, "get_lod_material_slot", None)
+            if f is None or count is None:
+                continue
+            try:
+                slots = [int(f(skel, 0, n)) for n in range(count)]
+                break
+            except Exception as e:
+                why.append("get_lod_material_slot: %s" % e)
+        if slots is None:
+            log("scanned trees: %s: no way to read section slots (sections %s; functions: %s)" % (skel.get_name(), count,
+                ", ".join(sorted(set(n for o in objs for n in dir(o) if "section" in n.lower() or "material" in n.lower())))[:600]))
+            return None
+        try:
+            info = skel.get_editor_property("lod_info")
+            remap = list(info[0].get_editor_property("lod_material_map")) if info else []
+            slots = [int(remap[n]) if n < len(remap) and int(remap[n]) >= 0 else s0 for n, s0 in enumerate(slots)]
+        except Exception:
+            pass
+        log("scanned trees: %s: LOD 0 sections -> material slots %s" % (skel.get_name(), slots))
+        return slots
+
+    def fix_slots(copy_path, skel_path):
+        """The copy's material slots in the skeletal mesh's section order (see section_materials)."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            skel = unreal.load_asset(skel_path.split(".")[0])
+        except Exception as e:
+            why.append("slots of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        want = section_materials(skel)
+        name = copy_path.rsplit(".", 1)[-1]
+        if not want:
+            log("scanned trees: %s: section materials unknown (no Geometry Script get_section_material_list_from_skeletal_mesh); slots left as they are" % name)
+            return False
+        have = sm.get_editor_property("static_materials")
+        before = [(m.get_editor_property("material_interface").get_name() if m.get_editor_property("material_interface") else "None") for m in have]
+        after = [(m.get_name() if m else "None") for m, _ in want]
+        if len(after) != len(before):
+            # ([round 162] a Megaplant reads as ONE section at LOD 0: cutting the slots to it left every
+            # tree bark only. Never change the number of slots.)
+            log("scanned trees: %s: %d sections but %d slots: slots left as they are" % (name, len(after), len(before)))
+            return False
+        if before == after:
+            log("scanned trees: %s: material slots already in section order (%s)" % (name, ", ".join(after)))
+            return False
+        sm.set_editor_property("static_materials", [unreal.StaticMaterial(material_interface=m, material_slot_name=n) for m, n in want])
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: material slots put in section order: was [%s], now [%s]" % (name, ", ".join(before), ", ".join(after)))
+        return True
+
+    def plain_copy(copy_path):
+        """A copy match_nanite gave Nanite Foliage (round 160) put back as it was made: Nanite off."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            ns = sm.get_editor_property("nanite_settings")
+            shape = str(ns.get_editor_property("shape_preservation")) if "shape_preservation" in dir(ns) else ""
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        if "VOXEL" not in shape.upper():
+            return False
+        changed = []
+        for name, value in (("enabled", False), ("voxel_ndf", False)):
+            try:
+                ns.set_editor_property(name, value)
+                changed.append("%s %s" % (name, value))
+            except Exception:
+                pass
+        enum = getattr(unreal, "NaniteShapePreservation", None)
+        none = getattr(enum, "NONE", None) if enum else None
+        if none is not None:
+            try:
+                ns.set_editor_property("shape_preservation", none)
+                changed.append("shape_preservation NONE")
+            except Exception:
+                pass
+        sm.set_editor_property("nanite_settings", ns)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite Foliage undone (%s)" % (copy_path.rsplit(".", 1)[-1], ", ".join(changed)))
+        return True
+
+    def match_nanite(copy_path, skel_path):
+        """[build 160] The copy's Nanite settings as the Megaplant's own. A Megaplant's skeletal mesh is Nanite
+        Foliage (round 159 scan check: shape_preservation Voxelize, voxel_ndf on); its static copy was made
+        with plain Nanite, whose simplification wears thin leaf and needle cards away: the near trees looked
+        "young, no bulk" and the far trees' impostors photographed as bare trunks (3-8% covered)."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            skel = unreal.load_asset(skel_path.split(".")[0])
+            theirs = skel.get_editor_property("nanite_settings")
+            ours = sm.get_editor_property("nanite_settings")
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        changed = []
+        for name in sorted(dir(theirs)):
+            if name.startswith("_"):
+                continue
+            try:
+                want = theirs.get_editor_property(name)
+                have = ours.get_editor_property(name)
+            except Exception:
+                continue
+            if callable(want) or str(want) == str(have):
+                continue
+            try:
+                ours.set_editor_property(name, want)
+                changed.append("%s %s -> %s" % (name, have, want))
+            except Exception:
+                pass
+        if not changed:
+            return False
+        sm.set_editor_property("nanite_settings", ours)   # (rebuilds its Nanite data, on the CPU)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite settings as the Megaplant's: %s" % (copy_path.rsplit(".", 1)[-1], "; ".join(changed)))
+        return True
+
     def ready_materials(path):
         """A static copy's materials made fit for the ride's instanced trees: a Megaplant's are made for
         its skeletal mesh, and a material not flagged for instanced static meshes draws as the default
@@ -779,7 +1196,28 @@ def scanned_trees(L, kit):
             why.append("%s materials: %s" % (path.rsplit(".", 1)[-1], e))
             return None
 
-    for kind, words in spec["kinds"].items():
+    # [gardens] The villages' and towns' garden planting (World/WorldRideGardens.cpp): kinds garden_rose and so
+    # on, each with its words and its own cull (cm) and shadow, near the rider only (no far models, no impostors).
+    garden = spec.get("garden_kinds", {})
+    def mature_first(paths):
+        """([Nov 19] beenster, watching 157: "they all seem a little young, no bulk to the trees. No cover at
+        all in the canopy". The first six by name were taken, young ones among them, and the game stretches
+        each to the canopy map's height. Now the grown trees: names saying young, small or juvenile last,
+        then the tallest as modelled first.)"""
+        young = ("young", "small", "juvenile", "sapling", "seedling", "baby", "sprout")
+        def tall(p):
+            try:
+                sk = unreal.load_asset(p.split(".")[0])
+                b = sk.get_bounds() if hasattr(sk, "get_bounds") else sk.get_imported_bounds()
+                return float(b.box_extent.z) * 2.0
+            except Exception:
+                return 0.0
+        ranked = sorted(paths, key=lambda p: (any(w in p.lower() for w in young), -tall(p), p))
+        if ranked:
+            log("scanned trees: grown first: %s" % ", ".join("%s %.1f m" % (p.rsplit(".", 1)[-1], tall(p) / 100.0) for p in ranked[:8]))
+        return ranked
+
+    for kind, words in list(spec["kinds"].items()) + [(k, g.get("words", [])) for k, g in garden.items()]:
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
         got = sorted(p for n, p in meshes if wanted(n))[:most]
@@ -787,10 +1225,23 @@ def scanned_trees(L, kit):
         classes = sorted(set(c for _, c in theirs))
         log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
             ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
-        skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
+        skels = mature_first(sorted(p for p, c in theirs if c == "SkeletalMesh"))[:most]
         if skels:
             # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
-            made = [m for m in (static_of_skeletal(p) for p in skels) if m]
+            made = []
+            for p in skels:
+                m = static_of_skeletal(p)
+                if m:
+                    if spec.get("slots_by_section", False):
+                        fix_slots(m, p)
+                    # ([build 162] round 161: with the Megaplants' Voxelize Nanite the broadleaf trees turned
+                    # to smooth green blobs at 30-45 m and the conifers stayed bare: back to the copies as
+                    # they were until 159 (Nanite off), unless scanned_trees.json "match_nanite" is true)
+                    if spec.get("match_nanite", False):
+                        match_nanite(m, p)
+                    else:
+                        plain_copy(m)
+                    made.append(m)
             for m in made:
                 ready_materials(m)
             log("scanned trees: %s: %d whole trees from its skeletal meshes (%s)%s" % (kind, len(made),
@@ -807,6 +1258,14 @@ def scanned_trees(L, kit):
         found[kind] = got
         if not use:
             continue
+        # ([seasonal trees test, Nov 19] the leaves follow torque.RideTreeSeason: Tools/ue_tree_season.py)
+        if spec.get("season_test", False):
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import ue_tree_season as SEASON
+                SEASON.season_kind(L, kind, got)
+            except Exception as e:
+                log("scanned trees: %s: season test FAILED (leaves stay as they are): %s" % (kind, e))
         # (ours of this kind go near: the scanned ones take every near tree of it. Our far models stay
         # for the trees past the finest squares: build 148 measured the scans at about 10 ms of GPU at
         # Whaley Bridge, most of it from the far ring's thousands of full Nanite trees)
@@ -815,6 +1274,21 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
+        if kind in garden:
+            r.update({"cull_distance": float(garden[kind].get("cull", 8000.0)), "cast_shadow": bool(garden[kind].get("shadow", True))})
+            continue
+        # [perf, build 157] Far off, the scans as impostors: the GAME photographs each scan at ride start
+        # (World/TorqueImpostors.cpp) and draws its far trees with M_RideImpostor. Here only the material
+        # is made (once per run, below); no editor captures (rounds 155-156 crashed beenster's GPU), and
+        # the kit keeps the old far models for when impostors are off (torque.RideImpostors 0).
+        if spec.get("impostors", True) and not _IMPOSTOR_MATERIAL:
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import ue_tree_impostors as IMP
+                IMP.master_material(L if spec.get("season_test", False) else None)
+                _IMPOSTOR_MATERIAL.append(True)
+            except Exception as e:
+                log("scanned trees: impostor material failed (the game uses the old far models): %s" % e)
     log("scanned trees%s: %s" % ("" if use else " (trial, not planted)", ", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
 
@@ -966,6 +1440,12 @@ def animal_kit(L):
 
 
 PROP_DEST = "/Game/RideUK/Props"
+WALL_DEST = "/Game/RideUK/Walls"
+# [build 154] The walls' styles' stone tints, in Tools/make_wall_kit.py's WALL_STYLES order (dales, cotswold,
+# slate, gritstone, granite, sandstone), as World/WorldRideStyle.cpp's One, Honey, Slate, Gritstone, Granite
+# and Sandstone; and the models of each.
+WALL_TINTS = [(1.0, 1.0, 1.0), (1.30, 1.06, 0.66), (0.66, 0.70, 0.70), (0.80, 0.76, 0.68), (0.92, 0.90, 0.88), (1.12, 0.98, 0.82)]
+WALL_VARIANTS = 4
 FACADE_DEST = "/Game/RideUK/Facade"
 
 
@@ -992,15 +1472,211 @@ def facade_material(L):
     paint, trim, third = custom(0), custom(3), custom(6)
     tint = g.lerp(third, trim, above(0.17))
     tint = g.lerp(tint, paint, above(0.5))
-    shade = g.op(unreal.MaterialExpressionMultiply, vc, a_out="RGB", const_b=2.0)
+    shade = g.op(unreal.MaterialExpressionMultiply, vc, const_b=2.0)   # (vertex colour's unnamed pin is its RGB)
     own = above(0.83)
-    col = g.lerp(g.op(unreal.MaterialExpressionMultiply, tint, shade), vc, own, b_out="RGB")
+    col = g.lerp(g.op(unreal.MaterialExpressionMultiply, tint, shade), vc, own)
     rough = g.lerp(g.const(0.7), g.const(0.12), own)
     L.mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
     L.mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     L.mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     return g.m
+
+
+STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
+                    "touring_caravan", "static_caravan")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+# ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
+
+
+def street_kit_texture(L, file_name, asset, compression, nearest=False):
+    """One of Data/Textures/StreetKit's textures (Tools/make_street_kit_textures.py) as
+    /Game/RideUK/Textures/<asset>, linear; None if it isn't there."""
+    f = os.path.join(os.path.dirname(L.data_dir()), "Textures", "StreetKit", file_name)
+    if not os.path.exists(f):
+        return None
+    dest = "/Game/RideUK/Textures"
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", dest), ("destination_name", asset),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+    tex = unreal.load_asset(dest + "/" + asset)
+    if tex:
+        tex.set_editor_property("srgb", False)
+        tex.set_editor_property("compression_settings", compression)
+        if nearest:
+            # (the table: one texel per surface, read exactly)
+            tex.set_editor_property("filter", unreal.TextureFilter.TF_NEAREST)
+            tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+def street_kit_material(L):
+    """[street kit] M_RideStreetKit: the one material of the lamp posts and telegraph poles that
+    Tools/blender_street_kit.py builds in Blender (Chat with Fable, approved by beenster Nov 18: "please
+    build them yourself in blender and use suitable materials to improve their look"). The vertex colour
+    is the colour; its alpha a byte, 32 * surface + 2 + 28 * dirt, the surface a column of T_StreetKitLut
+    (Tools/make_street_kit_textures.py SURFACES: timber, galvanised steel, concrete, porcelain, glass,
+    enamel, bare steel), which gives its roughness, metal, specular and how much of each detail it shows:
+    the timber's grain and checks, the zinc's spangle, the concrete's pits, and weathering, from
+    T_StreetKitDetail and T_StreetKitNormal over UV0 in metres. Four texture reads for every kind of
+    surface, so one material and draw for the whole kit. Falls back to M_RideProp's look (None) if the
+    textures aren't there."""
+    detail = street_kit_texture(L, "detail.png", "T_StreetKitDetail", unreal.TextureCompressionSettings.TC_DEFAULT)
+    nmap = street_kit_texture(L, "normal.png", "T_StreetKitNormal", unreal.TextureCompressionSettings.TC_DEFAULT)
+    lut = street_kit_texture(L, "lut.png", "T_StreetKitLut", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP, True)
+    if detail is None or nmap is None or lut is None:
+        return None
+    g = L.Graph(L.new_material("M_RideStreetKit"))
+    L.instanced_usage(g.m)
+    E = unreal
+    mul = lambda a, k, a_out="": g.op(E.MaterialExpressionMultiply, a, const_b=float(k), a_out=a_out)
+    add = lambda a, b: g.op(E.MaterialExpressionAdd, a, b)
+    addk = lambda a, k: g.op(E.MaterialExpressionAdd, a, const_b=float(k))
+    times = lambda a, b, a_out="", b_out="": g.op(E.MaterialExpressionMultiply, a, b, a_out=a_out, b_out=b_out)
+    pin = lambda node, p: mul(node, 1.0, p)
+    vc = g.node(E.MaterialExpressionVertexColor)
+    # (the surface and its dirt, from the alpha's byte)
+    band = mul(vc, 255.0 / 32.0, "A")
+    surface = g.op(E.MaterialExpressionFloor, band)
+    dirt = g.op(E.MaterialExpressionSaturate, mul(addk(mul(g.op(E.MaterialExpressionFrac, band), 32.0), -2.0), 1.0 / 28.0))
+    u = mul(addk(surface, 0.5), 1.0 / 8.0)
+    row0 = g.sample(lut, g.op(E.MaterialExpressionAppendVector, u, g.const(0.25)), "linear")
+    row1 = g.sample(lut, g.op(E.MaterialExpressionAppendVector, u, g.const(0.75)), "linear")
+    uv = g.node(E.MaterialExpressionTextureCoordinate)
+    d = g.sample(detail, uv, "linear")
+    centred = lambda p: addk(pin(d, p), -0.5)
+    f = times(mul(centred("R"), 0.7), row0, b_out="A")                       # grain
+    f = add(f, times(mul(centred("G"), 0.5), row1, b_out="R"))               # spangle
+    f = add(f, times(mul(centred("B"), 0.6), row1, b_out="G"))               # pits
+    f = add(f, times(mul(centred("A"), 0.5), row1, b_out="B"))               # weathering
+    f = add(f, addk(mul(dirt, -0.45), 1.0))
+    base = times(vc, f)
+    rough = add(pin(row0, "R"), add(mul(dirt, 0.25), times(mul(centred("G"), 0.25), row1, b_out="R")))
+    metal = times(pin(row0, "G"), addk(mul(dirt, -0.5), 1.0))
+    spec = pin(row0, "B")
+    n = g.sample(nmap, uv, "linear")
+    rg = g.node(E.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(n, rg, "", "RGBA")
+    ba = g.node(E.MaterialExpressionComponentMask, r=False, g=False, b=True, a=True); g.link(n, ba, "", "RGBA")   # (the sample's default pin is RGB: no alpha)
+    wood = times(addk(mul(rg, 2.0), -1.0), row0, b_out="A")
+    pits = times(addk(mul(ba, 2.0), -1.0), row1, b_out="G")
+    xy = times(add(wood, pits), row1, b_out="A")
+    normal = g.node(E.MaterialExpressionNormalize)
+    g.link(g.op(E.MaterialExpressionAppendVector, xy, g.const(1.0)), normal)
+    mel = L.mel
+    mel.connect_material_property(base, "", E.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(g.op(E.MaterialExpressionSaturate, rough), "", E.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(metal, "", E.MaterialProperty.MP_METALLIC)
+    mel.connect_material_property(spec, "", E.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(normal, "", E.MaterialProperty.MP_NORMAL)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+CAR_DEST = "/Game/RideUK/Cars"
+
+
+def parked_cars(L, kind, row, add):
+    """[car parks] The car parks' parked cars (World/WorldRideCarParks.cpp, PropParkedCar): the Fab cars Thwaite's
+    parked cars use (Data/Buttertubs/car_swaps.json; the packs live in /Content, never committed), each copied to
+    /Game/RideUK/Cars/SM_ParkedCar_<n> in one of the kit row's colours (its body slots in MI_FabCarPaint_Park_<n>;
+    a copy per colour, so each is one instanced mesh), Nanite on, no collision (the bike meets plain boxes,
+    RidePlan::ParkedCarsNear), listed as SM_Prop_<kind>_<n> at their own size. The row's "models" names which of
+    car_swaps' meshes (by their names' words: vans and pickups are too long for a bay). Returns a note."""
+    cp = os.path.join(L.data_dir(), "car_swaps.json")
+    if not os.path.exists(cp):
+        return "parked cars: no car_swaps.json"
+    cfg = json.load(open(cp))
+    want = [w.lower() for w in row.get("models", [])]
+    models = []
+    for md in cfg.get("models", []):
+        if want and not any(w in md["mesh"].lower() for w in want):
+            continue
+        m = L.find_static_mesh(md["mesh"])
+        if m is not None:
+            models.append((m, md))
+    if not models:
+        return "parked cars: none of the Fab cars are in the project (car parks have none)"
+    colours = row.get("colours") or cfg.get("colours") or [[0.5, 0.5, 0.5]]
+    count = int(row.get("variants", 12))
+    if unreal.EditorAssetLibrary.does_asset_exist(L.MAT_DIR + "/M_FabCarPaint"):
+        L.fab_car_paint.made = True   # (Thwaite's master kept: its own instances point at it)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    made = 0
+    flagged, reflagged = set(), []
+    for n in range(count):
+        mesh, md = models[n % len(models)]
+        colour = colours[(n * 5 + n // len(models)) % len(colours)]
+        paint = L.fab_car_paint("Park_%d" % n, colour, cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
+        path = "%s/SM_ParkedCar_%d" % (CAR_DEST, n)
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        copy = unreal.EditorAssetLibrary.duplicate_asset(mesh.get_path_name().split(".")[0], path)
+        if copy is None:
+            unreal.log_warning("[Torque] parked cars: couldn't copy %s" % mesh.get_name())
+            continue
+        listed = set(md.get("paint_slots", []))
+        painted = []
+        for si, sm in enumerate(copy.get_editor_property("static_materials")):
+            slot = str(sm.get_editor_property("material_slot_name"))
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            names = " ".join([slot, mat.get_name() if mat else "", base.get_name() if base else ""])
+            if slot in listed or str(si) in listed or "paint" in names.lower():
+                copy.set_material(si, paint)
+                painted.append(si)
+        # [build 157 feedback] (beenster: the parked cars came out all grey, untextured) The Fab cars' materials
+        # were made for Thwaite's placed actors; drawn instanced (an ISM, as every prop is) a material without
+        # these usage flags draws as the default grey in a packaged game: flagged here, each base material once.
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            if base is None or base.get_path_name() in flagged:
+                continue
+            flagged.add(base.get_path_name())
+            changed = False
+            for flag in ("used_with_instanced_static_meshes", "used_with_nanite"):
+                try:
+                    if not base.get_editor_property(flag):
+                        base.set_editor_property(flag, True)
+                        changed = True
+                except Exception as e:
+                    unreal.log_warning("[Torque] parked cars: %s not set on %s (%s)" % (flag, base.get_name(), e))
+            if changed:
+                unreal.MaterialEditingLibrary.recompile_material(base)
+                unreal.EditorAssetLibrary.save_loaded_asset(base)
+                reflagged.append(base.get_name())
+        try:
+            sme.remove_collisions(copy)
+        except Exception:
+            pass
+        # (Nanite only where every material is opaque or masked: a Nanite mesh draws a translucent material,
+        # the cars' glass, as the default grey)
+        see_through = False
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            try:
+                mode = base.get_editor_property("blend_mode") if base else None
+                see_through = see_through or mode in (unreal.BlendMode.BLEND_TRANSLUCENT, unreal.BlendMode.BLEND_ADDITIVE, unreal.BlendMode.BLEND_MODULATE)
+            except Exception:
+                pass
+        try:
+            ns = copy.get_editor_property("nanite_settings")
+            ns.set_editor_property("enabled", not see_through)
+            copy.set_editor_property("nanite_settings", ns)
+        except Exception as e:
+            unreal.log_warning("[Torque] parked cars: Nanite not set on %s (%s)" % (path, e))
+        unreal.EditorAssetLibrary.save_loaded_asset(copy)
+        add("SM_Prop_%s_%d" % (kind, n), copy, True, row)
+        made += 1
+        if not painted:
+            unreal.log_warning("[Torque] parked cars: %s has no paint slot (left in its own colour)" % mesh.get_name())
+    if reflagged:
+        unreal.log("[Torque] parked cars: flagged for instancing/Nanite: %s" % ", ".join(reflagged))
+    return "parked cars: %d (%d Fab models, %d colours; %d materials flagged for instancing)" % (made, len(models), len(colours), len(reflagged))
 
 
 def prop_kit(L):
@@ -1028,11 +1704,27 @@ def prop_kit(L):
     if os.path.isdir(folder) and any(f.endswith(".glb") for f in os.listdir(folder)):
         ours = L.import_glbs(folder, PROP_DEST)
         sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-        for mesh in ours.values():
+        for name, mesh in ours.items():
             try:
                 sme.remove_collisions(mesh)
             except Exception:
                 pass
+            # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
+            # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
+            kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
+            lods = spec["kinds"].get(kind, {}).get("lods")
+            if lods:
+                try:
+                    settings = [unreal.EditorScriptingMeshReductionSettings(1.0, 1.0)]
+                    for keep, screen in zip((0.5, 0.25, 0.1), lods):
+                        settings.append(unreal.EditorScriptingMeshReductionSettings(keep, float(screen)))
+                    opts = unreal.EditorScriptingMeshReductionOptions()
+                    opts.set_editor_property("auto_compute_lod_screen_size", False)
+                    opts.set_editor_property("reduction_settings", settings)
+                    got = sme.set_lods_with_notification(mesh, opts, True)
+                    log("props: %s: %d LODs" % (name, got))
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: no LODs made for %s (%s)" % (name, e))
             unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # [fps plan step 2] The houses' facade kit, made by Tools/make_facade_kit.py: windows, their surrounds
     # and doors, a model per size, coloured per instance by M_RideFacade (always ours, never Fab's).
@@ -1066,6 +1758,7 @@ def prop_kit(L):
     try:
         L.new_material = lambda name, folder=None: original(name, MAT_DIR)
         paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+        kit_paint = street_kit_material(L) if any(n.startswith("SM_Prop_%s_" % k) for n in ours for k in STREET_KIT_KINDS) else None
         facade_paint = facade_material(L) if facade else None
     finally:
         L.new_material = original
@@ -1090,7 +1783,58 @@ def prop_kit(L):
         species.append(e)
 
     size_of = lambda name: int(name.rsplit("_", 1)[1]) if name.rsplit("_", 1)[1].isdigit() else 0
+    # [build 154] The dry stone walls, laid stone by stone in each region's walling (Tools/make_wall_kit.py):
+    # Data/RideUK/Walls imported to /Game/RideUK/Walls, each style in its own instance of M_RideStone tinted
+    # its stone (WALL_TINTS, as World/WorldRideStyle's region tints). The game picks a model by style, so a
+    # kind goes in whole or not at all; and they must have come in the kit's frame (checked).
+    walls = {}
+    wall_folder = os.path.join(ride, "Walls")
+    stone = unreal.load_asset(MAT_DIR + "/M_RideStone")
+    if stone and os.path.isdir(wall_folder) and any(f.endswith(".glb") for f in os.listdir(wall_folder)):
+        walls = L.import_glbs(wall_folder, WALL_DEST)
+        sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        for name, mesh in walls.items():
+            try:
+                sme.remove_collisions(mesh)
+            except Exception:
+                pass
+            try:
+                ns = mesh.get_editor_property("nanite_settings")
+                ns.set_editor_property("enabled", True)
+                mesh.set_editor_property("nanite_settings", ns)
+            except Exception as e:
+                unreal.log_warning("[Torque] walls: Nanite not set on %s (%s)" % (name, e))
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        first = sorted(walls)[0]
+        if ours and tuple(L.find_frame(walls[first], os.path.join(wall_folder, first + ".glb"))) != tuple(frame):
+            unreal.log_warning("[Torque] walls imported in another frame than the prop kit's: left code-made")
+            walls = {}
+    wall_tints = []
+    if walls:
+        asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+        mel = unreal.MaterialEditingLibrary
+        for si, tint in enumerate(WALL_TINTS):
+            name = "MI_RideWall_%d" % si
+            path = MAT_DIR + "/" + name
+            if unreal.EditorAssetLibrary.does_asset_exist(path):
+                unreal.EditorAssetLibrary.delete_asset(path)
+            mi = asset_tools.create_asset(name, MAT_DIR, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            mel.set_material_instance_parent(mi, stone)
+            mel.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(tint[0], tint[1], tint[2], 1.0))
+            unreal.EditorAssetLibrary.save_loaded_asset(mi)
+            wall_tints.append(mi)
     for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            continue   # ([car parks] made below)
+        if row.get("folder") == "Walls":
+            names = sorted((n for n in walls if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit()), key=size_of)
+            if len(names) != len(WALL_TINTS) * WALL_VARIANTS or [size_of(n) for n in names] != list(range(len(names))):
+                if walls:
+                    unreal.log_warning("[Torque] walls: %d models of %s, not %d: left code-made" % (len(names), kind, len(WALL_TINTS) * WALL_VARIANTS))
+                continue
+            for n in names:
+                add(n, walls[n], False, row, wall_tints[size_of(n) // WALL_VARIANTS])
+            continue
         if float(row.get("height", 1.0)) <= 0.0:
             # (the facade kit's: in order of size, the game's Variant)
             for name, mesh in sorted(facade.items(), key=lambda kv: size_of(kv[0])):
@@ -1104,7 +1848,11 @@ def prop_kit(L):
         else:
             for name, mesh in sorted(ours.items()):
                 if name.startswith("SM_Prop_%s_" % kind):
-                    add(name, mesh, False, row)
+                    add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
+    cars_note = ""
+    for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            cars_note = parked_cars(L, kind, row, add)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])
@@ -1116,9 +1864,9 @@ def prop_kit(L):
     a.set_editor_property("frame_scale", float(frame[2]))
     kinds = {str(e.get_editor_property("name")).rsplit("_", 1)[0][len("SM_Prop_"):] for e in species}
     none = [k for k in spec["kinds"] if k not in kinds]
-    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s" % (
+    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s%s" % (
         len(species), len(found), ", ".join("%s %s" % (k, v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or "none",
-        len(none), ", ".join(none) or "none")
+        len(none), ", ".join(none) or "none", "; " + cars_note if cars_note else "")
 
 
 def build():

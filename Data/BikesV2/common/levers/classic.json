@@ -1,0 +1,52 @@
+{
+ "group": "levers",
+ "key": "classic",
+ "name": "Classic polished set",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  88.2,
+  760.6,
+  68.7
+ ],
+ "triangles": 8316,
+ "surfaces": {
+  "d3_ctl_polished": {
+   "ue": "chrome",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.1,
+   "tag": "d3_ctl_polished"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  }
+ }
+}

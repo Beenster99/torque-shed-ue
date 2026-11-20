@@ -74,6 +74,22 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("Performance"), bPerformance, Ini);
 	GConfig->GetBool(Section, TEXT("FrameGen"), bFrameGen, Ini);
 	GConfig->GetBool(Section, TEXT("Reflex"), bReflex, Ini);
+	// [build 155] Once, for settings saved before it: frame generation and VSync off (beenster, Nov 17:
+	// "the game might work better without frame gen"; VSync off for their 120 Hz screen). Both stay in
+	// Settings > Graphics, and what is chosen after this is kept.
+	{
+		int32 Seen = 0;
+		GConfig->GetInt(Section, TEXT("DefaultsSeen"), Seen, Ini);
+		if (Seen < 155)
+		{
+			bFrameGen = false;
+			bVSync = false;
+			GConfig->SetInt(Section, TEXT("DefaultsSeen"), 155, Ini);
+			GConfig->SetBool(Section, TEXT("FrameGen"), false, Ini);
+			GConfig->SetBool(Section, TEXT("VSync"), false, Ini);
+			GConfig->Flush(false, Ini);
+		}
+	}
 	GConfig->GetInt(Section, TEXT("Monitor"), Monitor, Ini);
 	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
 	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
@@ -108,6 +124,7 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->GetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->GetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
+	GConfig->GetBool(Section, TEXT("RealWater"), bRealWater, Ini);
 	GConfig->GetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->GetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->GetFloat(Section, TEXT("Engine"), Engine, Ini);
@@ -129,6 +146,7 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->GetInt(Section, TEXT("RideDate"), RideDate, Ini);
+	GConfig->GetInt(Section, TEXT("RideYear"), RideYear, Ini);
 	GConfig->GetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->GetString(Section, TEXT("WeatherPreset"), WeatherPresetKey, Ini);
@@ -140,6 +158,7 @@ void FTorqueSettings::Load()
 	for (int32 I = 0; I < 4; ++I) GConfig->GetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->GetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
+	GConfig->GetBool(Section, TEXT("RideAwards"), bRideAwards, Ini);   // [ride awards]
 	GConfig->GetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	MouseLook = FMath::Clamp(MouseLook, 0.1f, 10.0f);
 	GConfig->GetFloat(Section, TEXT("PadLook"), PadLook, Ini);
@@ -198,7 +217,8 @@ void FTorqueSettings::Load()
 	ScreenBright = FMath::Clamp(ScreenBright, 0, 3);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
 	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
-	RideDate = FMath::Clamp(RideDate, 0, 365);
+	RideDate = FMath::Clamp(RideDate, 0, 366);
+	RideYear = RideYear < 1900 || RideYear > 2200 ? 0 : RideYear;
 	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherPreset);
 	FSonyPad::SetCentre(PadCentre);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
@@ -253,6 +273,7 @@ void FTorqueSettings::Save()
 	GConfig->SetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->SetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->SetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
+	GConfig->SetBool(Section, TEXT("RealWater"), bRealWater, Ini);
 	GConfig->SetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->SetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->SetFloat(Section, TEXT("Engine"), Engine, Ini);
@@ -273,6 +294,7 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->SetInt(Section, TEXT("RideDate"), RideDate, Ini);
+	GConfig->SetInt(Section, TEXT("RideYear"), RideYear, Ini);
 	GConfig->SetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->SetString(Section, TEXT("WeatherPreset"), *WeatherPresetKey, Ini);
@@ -280,6 +302,7 @@ void FTorqueSettings::Save()
 	for (int32 I = 0; I < 4; ++I) GConfig->SetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->SetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
+	GConfig->SetBool(Section, TEXT("RideAwards"), bRideAwards, Ini);   // [ride awards]
 	GConfig->SetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	GConfig->SetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->SetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);

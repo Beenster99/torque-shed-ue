@@ -1,0 +1,33 @@
+{
+ "group": "pegs",
+ "key": "cleat",
+ "name": "Wide cleat",
+ "fitted_on": "corvano_adventure",
+ "family": "Adventure",
+ "mount": "rider_peg",
+ "mount_mm": [
+  590,
+  0.0,
+  405
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  249.0,
+  508.0,
+  273.0
+ ],
+ "triangles": 2048,
+ "surfaces": {
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  }
+ }
+}

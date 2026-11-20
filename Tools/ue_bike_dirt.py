@@ -85,6 +85,43 @@ struct FBikeDirt
         float wing = step(0.55, h.z) * (1.0 - smoothstep(0.02, 0.035, length(float2(u.x + 0.01, abs(u.y) - 0.065) * float2(0.6, 1.0))));
         return float4(1.0, body, smear * 0.85, wing);
     }
+    // A droplet of road spray in a cell of c (drawn out fore and aft the way it flew): 0..1 how much
+    // of it covers here. chance: how many cells have one; size about a third of the cell, varied.
+    float Drop(float3 c, float chance, float seed)
+    {
+        float3 ci = floor(c);
+        if (Hash(ci + seed) > chance) return 0.0;
+        float3 j = float3(Hash(ci + seed + 2.1), Hash(ci + seed + 4.7), Hash(ci + seed + 6.3)) - 0.5;
+        float r = length(frac(c) - 0.5 - j * 0.45);
+        float size = 0.1 + 0.22 * (j.x + 0.5);
+        return 1.0 - smoothstep(size * 0.65, size, r);
+    }
+    // The muck a wheel throws onto a point on the bike (m cm, facing n, the bike's frame), 0..1.
+    // W: its axle's x and z, its tyre's radius and half width (cm). Muck picked up off the road rides
+    // round on the tread and flies off it along the tyre's way of turning (a straight line on from the
+    // tangent where it lets go), most of it just after it leaves the road, at the back of the tyre,
+    // less carried on over the top. So a point's hit by what let go where the tangent through it
+    // touches the tyre, if it faces back along that line, as wide as the tread and spreading as it goes:
+    // behind the front wheel the front of the engine; above and behind the rear one the undertray and
+    // the underside of the hugger and the tail. Beside a wheel, inside its round (a caliper, a fork
+    // leg's foot, the swingarm's end), the spray off its sides. TorqueBikeDirt::Spray works the same.
+    float Spray(float3 m, float3 n, float4 W)
+    {
+        if (W.z < 1.0) return 0.0;
+        float2 v = float2(m.x - W.x, m.z - W.y);
+        float r = length(v);
+        float d = r - W.z;
+        float side = abs(m.y) - W.w;
+        if (d < 0.0) return 0.5 * (1.0 - smoothstep(4.0, 16.0, side));
+        float psi = atan2(v.y, -v.x);                 // round from straight back, up over the top
+        float rel = psi - acos(saturate(W.z / r));    // where it let go of the tyre (0: straight back)
+        float relD = degrees(rel);
+        float leave = smoothstep(-100.0, -70.0, relD) * lerp(1.0, 0.25, smoothstep(15.0, 120.0, relD)) * (1.0 - smoothstep(130.0, 165.0, relD));
+        float2 t = float2(sin(rel), cos(rel));        // its way (x forward, z up)
+        float face = smoothstep(-0.05, 0.45, -dot(n.xz, t));
+        float lat = 1.0 - smoothstep(0.25 * d, 6.0 + 0.6 * d, side);
+        return leave * face * lat * exp(-d / 35.0);
+    }
 };
 
 if (Grime <= 0.0 && Scan <= 0.0 && Flash <= 0.0 && Wet <= 0.0) return float4(0, 0, 0, 0);
@@ -96,10 +133,10 @@ float3 m = float3(dot(R0.xyz, P), dot(R1.xyz, P), dot(R2.xyz, P)) + Off.xyz;
 float3 n = float3(dot(R0.xyz, N), dot(R1.xyz, N), dot(R2.xyz, N));
 n = n / max(length(n), 1e-4);
 
-// A part that turns with a wheel (Spin: the axle's x and z, on): its muck lies evenly round it, as
+// A part that turns with a wheel (Spin: the axle's x and z, on, the axle's y): its muck lies evenly round it, as
 // it would on a wheel that's been ridden, not caked on whichever side was at the bottom when it was
 // drawn. It's taken as lying at the height half way down from the axle to where the point is round
-// the wheel, and facing neither up nor down (TorqueWashJob SpunAt works it out the same way).
+// the wheel, and facing neither up nor down (TorqueBikeDirt::Pattern works it out the same way).
 float3 mw = m, nw = n;
 if (Spin.z > 0.5)
 {
@@ -108,13 +145,47 @@ if (Spin.z > 0.5)
     nw = nw / max(length(nw), 1e-4);
 }
 
-// How much is on it here (TorqueWashJob Pattern and FlyWeight work it out the same way): muck thick
-// low down and underneath, a film of dust on top, flies on the forward faces of the parts up front.
-float h = saturate((mw.z - ZRange.x) / max(ZRange.y - ZRange.x, 1.0));
-float pat = lerp(1.35, 0.4, smoothstep(0.0, 1.0, h));
-if (nw.z < -0.5) pat *= 1.45;
-else if (nw.z > 0.6) pat *= 0.75;
+// How much is on it here (TorqueBikeDirt::Pattern works it out the same way for the wash game).
+// On a bike (its wheels known, SprayF and SprayR: each axle's x and z, its tyre's radius and half
+// width): the muck the wheels throw (Spray), splash off the road on whatever's low down, and road film
+// under the belly, with no more than a faint settled dust anywhere else; the wheels and tyres mucky
+// all round, but for the middle two thirds of the tread, which the road keeps clean. A loose part
+// (no wheels): muck thick low down and underneath, a film of dust on top. Flies on the forward faces
+// of the parts up front.
 float up = (mw.z - ZRange.x) * 0.01;             // metres off the ground
+float pat, mudk;
+if (SprayF.z > 0.5 || SprayR.z > 0.5)
+{
+    float muck, dust = 0.1 + 0.1 * smoothstep(0.6, 1.0, nw.z);
+    if (Spin.z > 0.5)
+    {
+        float4 W = abs(m.x - SprayF.x) < abs(m.x - SprayR.x) ? SprayF : SprayR;
+        float R = max(W.z, 1.0), hw = max(W.w, 1.0);
+        float r = length(float2(m.x - Spin.x, m.z - Spin.y));
+        muck = 0.35 + 0.85 * smoothstep(0.4 * R, 0.95 * R, r);   // more out towards the tyre
+        float crown = smoothstep(0.82 * R, 0.88 * R, r) * (1.0 - smoothstep(0.85, 0.97, abs(n.y)));
+        float mid = 1.0 - smoothstep(0.6 * hw, 0.72 * hw, abs(m.y - Spin.w));
+        float kept = 1.0 - 0.97 * crown * mid;   // the tread's middle two thirds: worn clean on the road
+        muck *= kept;
+        dust *= kept;
+    }
+    else
+    {
+        muck = max(F.Spray(m, n, SprayF), F.Spray(m, n, SprayR)) * 1.4;
+        muck = max(muck, (1.0 - smoothstep(0.08, 0.4, up)) * (0.55 + 0.45 * saturate(0.5 - n.z)) * 1.1);
+        muck = max(muck, smoothstep(0.5, 0.9, -n.z) * (1.0 - smoothstep(0.3, 0.8, up)) * 0.7);
+    }
+    pat = max(muck, dust);
+    mudk = saturate((muck - dust) * 3.0);
+}
+else
+{
+    float h = saturate((mw.z - ZRange.x) / max(ZRange.y - ZRange.x, 1.0));
+    pat = lerp(1.35, 0.4, smoothstep(0.0, 1.0, h));
+    if (nw.z < -0.5) pat *= 1.45;
+    else if (nw.z > 0.6) pat *= 0.75;
+    mudk = -1.0;
+}
 float flyw = FlyGain > 0.0 ? smoothstep(0.45, 0.8, nw.x) * smoothstep(0.12, 0.4, up) : 0.0;
 float lvl = min(Grime * max(pat, FlyGain * flyw * 1.6), 1.0);
 
@@ -136,14 +207,48 @@ float s = lvl * (1.0 - smoothstep(0.55, 0.98, washed)) * (1.0 - 0.45 * washed);
 float3 mp0 = float3(m.y, m.z - ZRange.x, -m.x) * 0.01;
 float3 tn = float3(nw.y, nw.z, -nw.x);
 float fly = flyw;
-float mudw = saturate((1.0 - smoothstep(-0.12, 0.35, (mw.z - ZRange.x) * 0.01)) + smoothstep(0.2, 0.9, -tn.y) * 0.6) * (1.0 - fly);
+float mudw = (mudk >= 0.0 ? mudk : saturate((1.0 - smoothstep(-0.12, 0.35, up)) + smoothstep(0.2, 0.9, -tn.y) * 0.6)) * (1.0 - fly);
 float dustw = max(0.0, 1.0 - mudw - fly);
 float alpha = 0.0, rough = 0.0;
 float3 col = float3(0, 0, 0);
 float px = length(fwidth(mp0));                    // a pixel here, in metres: fine detail fades before it shimmers
 if (s > 0.004)
 {
-    if (mudw > 0.0)
+    if (mudw > 0.0 && mudk >= 0.0)
+    {
+        // On a ridden bike: road spray, not mud. Fine dark speckles flicked up off the road, spatters
+        // of thin brown road water dried to a pale stain with a darker rim, and a whitish bloom of
+        // road salt where it's wettest; the paint shows through all of it. Heavier dirt is more of
+        // them, not a thicker coat.
+        float3 sp = mp0 * float3(1.0, 1.0, 0.5);              // drawn out fore and aft, the way it flew
+        float far = smoothstep(0.002, 0.008, px);           // too small to draw one by one: a faint haze
+        float fine = F.Drop(sp * 420.0, s * 0.7, 1.0);
+        float speck = max(F.Drop(sp * 160.0, s * 0.55, 9.0), fine * 0.85);
+        speck = lerp(speck, s * 0.2, far);
+        float3 c2 = sp * 38.0;
+        float rag = (F.Noise(mp0 * 320.0) - 0.5) * 0.08;
+        float blot = max(F.Drop(c2, s * 0.5, 21.0), F.Drop(c2 * 2.3 + 0.37, s * 0.45, 33.0));
+        float rim = blot * (1.0 - smoothstep(0.2, 0.75, blot + rag * 4.0));
+        float stain = saturate(blot + rag) * 0.2 + rim * 0.28;
+        float salt = smoothstep(0.15, 0.9, s) * smoothstep(0.4, 0.8, F.Fbm(mp0 * float3(9.0, 3.0, 9.0))) * 0.38;
+        float wash = s * 0.12 * (0.6 + 0.8 * F.Noise(mp0 * 14.0));   // the thin brown road water's tint
+        float3 spk_c = lerp(float3(0.16, 0.14, 0.12), float3(0.3, 0.26, 0.2), F.Noise(mp0 * 90.0));
+        float3 stn_c = lerp(float3(0.46, 0.39, 0.3), float3(0.3, 0.24, 0.17), saturate(rim * 2.5));
+        float3 salt_c = float3(0.8, 0.79, 0.76);
+        // laid one over another: salt, then the stains, then the specks on top
+        float3 c = lerp(float3(0.45, 0.4, 0.33), salt_c, salt / max(salt + wash, 0.001)) * max(salt, wash);
+        float a = max(salt, wash);
+        c = c * (1.0 - stain) + stn_c * stain;
+        a = a + stain * (1.0 - a);
+        c = c * (1.0 - speck) + spk_c * speck;
+        a = a + speck * (1.0 - a);
+        float spray_a = saturate(a);
+        float3 spray_c = c / max(a, 0.001);
+        alpha += spray_a * mudw;
+        col += spray_c * spray_a * mudw;
+        rough += lerp(0.55, 0.85, salt / max(a, 0.001)) * spray_a * mudw;
+    }
+    else if (mudw > 0.0)
     {
         float3 mp = mp0 * float3(1.0, 1.0, 0.42);
         float shape = F.Fbm(mp * 13.0) * 0.75 + F.Noise(mp * 46.0) * 0.25;
@@ -279,11 +384,12 @@ def add_dirt(m, x=-2600, y=2400):
         ("AtlasSize", vec("AtlasSize", 1300, (1, 1, 0, 0)), ""), ("Voxel", num("Voxel", 1400, 3.0), ""),
         ("Wet", num("Wet", 1500, 0.0), ""), ("Scan", num("Scan", 1600, 0.0), ""),
         ("ScanT", num("ScanT", 1700, 0.0), ""), ("Flash", num("Flash", 1800, 0.0), ""),
-        ("Spin", vec("Spin", 1850, (0, 0, 0, 0)), ""),
+        ("Spin", vec("Spin", 1850, (0, 0, 0, 0)), "RGBA"),
+        ("SprayF", vec("SprayF", 1950, (0, 0, 0, 0)), "RGBA"), ("SprayR", vec("SprayR", 2050, (0, 0, 0, 0)), "RGBA"),
     ]
     outs = []
     for mode in range(2):
-        k = sp.expr(m, unreal.MaterialExpressionConstant, x + 300, y + 1900 + mode * 100, r=float(mode))
+        k = sp.expr(m, unreal.MaterialExpressionConstant, x + 300, y + 2200 + mode * 100, r=float(mode))
         outs.append(sp.custom(m, x + 600, y + mode * 400, DIRT_HLSL, shared + [("Mode", k, "")]))
     return outs[0], outs[1]
 

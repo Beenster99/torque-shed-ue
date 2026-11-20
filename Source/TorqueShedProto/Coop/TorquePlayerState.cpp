@@ -1,9 +1,12 @@
 #include "TorquePlayerState.h"
 
 #include "HandsState.h"
+#include "Shed/TorqueDecals.h"
+#include "Fit/BikeDecal.h"
 #include "TorqueSettings.h"
 #include "TorqueGameMode.h"
 #include "TorqueGameState.h"
+#include "RideAwards.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
@@ -19,14 +22,44 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, Colour);
 	DOREPLIFETIME(ATorquePlayerState, RiderStyle);
 	DOREPLIFETIME(ATorquePlayerState, Profile);   // [profile]
+	DOREPLIFETIME(ATorquePlayerState, HelmetDecals);   // [decals stage 4]
 	DOREPLIFETIME(ATorquePlayerState, Bay);
 	DOREPLIFETIME(ATorquePlayerState, RideReadyFor);
+	DOREPLIFETIME(ATorquePlayerState, bAwardFinished);   // [ride awards]
+	DOREPLIFETIME(ATorquePlayerState, AwardVotedSeq);
+	DOREPLIFETIME(ATorquePlayerState, LapBests);   // [circuits]
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
 }
 
 void ATorquePlayerState::ServerSetRideReady_Implementation(const FString& Code)
 {
 	RideReadyFor = Code.Left(4096);
+}
+
+// [ride awards]
+void ATorquePlayerState::ServerSetAwardStats_Implementation(const TArray<float>& NewStats)
+{
+	if (NewStats.Num() > 64) return;
+	AwardStats = NewStats;
+	for (float& V : AwardStats)
+		if (!FMath::IsFinite(V) || V < 0.0f) V = 0.0f;
+}
+
+void ATorquePlayerState::ServerSetAwardFinished_Implementation(bool bAtFinish)
+{
+	bAwardFinished = bAtFinish;
+}
+
+void ATorquePlayerState::ServerAwardVote_Implementation(int32 Seq, const TArray<uint8>& Picks)
+{
+	// Only the awards being voted on now; three different stats, or the vote taken back.
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS || GS->AwardsPhase != 1 || Seq != GS->AwardsSeq) return;
+	AwardPicks.Reset();
+	for (const uint8 P : Picks)
+		if (P < TorqueAwards::Count && !AwardPicks.Contains((int32)P) && AwardPicks.Num() < 3) AwardPicks.Add((int32)P);
+	AwardVotedSeq = AwardPicks.Num() == 3 ? Seq : -1;
+	if (AwardPicks.Num() != 3) AwardPicks.Reset();
 }
 
 void ATorquePlayerState::ServerSetRideJourney_Implementation(const FString& Code, const FString& Name)
@@ -62,6 +95,11 @@ void ATorquePlayerState::ServerSetPlaces_Implementation(int32 Count, const FStri
 	LastPlace = Last.Left(80);
 }
 
+void ATorquePlayerState::ServerSetLapBests_Implementation(const FString& Bests)
+{
+	LapBests = Bests.Left(2000);   // [circuits]
+}
+
 void ATorquePlayerState::ServerSetLook_Implementation(const FString& NewName, uint8 NewColour)
 {
 	Colour = (uint8)FMath::Clamp<int32>(NewColour, 0, FTorqueSettings::Colours().Num() - 1);
@@ -87,6 +125,12 @@ void ATorquePlayerState::ServerSetProfile_Implementation(const TArray<uint8>& Ne
 {
 	Profile = NewProfile;
 	Profile.SetNum(FMath::Min(Profile.Num(), 32));
+}
+
+void ATorquePlayerState::ServerSetHelmetDecals_Implementation(const FString& Text)
+{
+	if (Text.Len() > 8192) return;
+	HelmetDecals = TorqueDecals::ToUe(TorqueFit::Decals::Sanitize(TorqueDecals::ToStd(Text)));
 }
 
 void ATorquePlayerState::ServerSetBay_Implementation(int32 NewBay)

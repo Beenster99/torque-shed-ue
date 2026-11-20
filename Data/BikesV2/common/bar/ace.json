@@ -1,0 +1,44 @@
+{
+ "group": "bar",
+ "key": "ace",
+ "name": "Ace bar",
+ "fitted_on": "kazeda_sport",
+ "family": "Sport",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1127.0,
+  0.0,
+  998.0
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  146.2,
+  751.5,
+  85.5
+ ],
+ "triangles": 7964,
+ "surfaces": {
+  "d3_bars_chrome": {
+   "ue": "chrome",
+   "color": [
+    0.88,
+    0.88,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.05,
+   "tag": "d3_bars_chrome"
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45,
+   "tag": "alu_dark"
+  }
+ }
+}

@@ -1,0 +1,110 @@
+{
+ "name": "Kazeda chopper (working title H3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 10405,
+ "surfaces": {
+  "s122": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "foot_controls",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s123": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "foot_controls"
+  },
+  "s124": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s125": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s126": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "d3_hangercast",
+   "tag": "d3_hangercast",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.09,
+    0.09,
+    0.1
+   ],
+   "metallic": 0.9,
+   "roughness": 0.42
+  },
+  "s150": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "d3_chop_steel",
+   "tag": "d3_chop_steel",
+   "ue": "cat_brushed_steel",
+   "sub": "pegs",
+   "color": [
+    0.56,
+    0.57,
+    0.59
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "s151": {
+   "slot": "rearsets",
+   "node": "",
+   "surface": "d3_chop_blacked",
+   "tag": "d3_chop_blacked",
+   "ue": "cat_black_metal",
+   "sub": "pegs",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  }
+ },
+ "bespoke": {
+  "group": "pegs",
+  "design": "ringed",
+  "metal": "steel",
+  "name": "Ringed footpegs, brushed steel",
+  "note": "Turned from the bar: deep grip rings, a knurled band and a domed end cap."
+ }
+}

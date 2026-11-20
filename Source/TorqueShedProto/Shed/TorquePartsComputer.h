@@ -69,7 +69,7 @@ private:
 	enum class ESection : uint8 { Bike, Shed, NewBike };
 	struct FKindRow { FName Kind; FString Heading; };   // a heading row has no Kind
 	struct FRow { FName Part; int32 Stock = INDEX_NONE; };
-	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type };
+	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type, EngineFilter };
 	struct FHit { FBox2D Box; EHit What; int32 Arg; };
 
 	ESection Section = ESection::Bike;
@@ -90,6 +90,17 @@ private:
 	FName TypeFilter;
 	bool Filtered() const;       // the kind showing is a part kind (the filter applies to it)
 	void StepType(int32 Dir);
+	// The engine list's filters and order (beenster after 156: "a sort order and filter for type, size,
+	// manufacturer"): a layout ("" every one), a size band (0 any), a maker ("" every one), and the sort
+	// (0 layout, 1 smallest first, 2 biggest first, 3 maker). StepEngine: 0/1 layout back/on, 2 size,
+	// 3 maker, 4 sort.
+	FString EngineLayoutFilter, EngineMakerFilter;
+	int32 EngineSize = 0, EngineSort = 0;
+	void StepEngine(int32 What);
+public:
+	// For the test robot: "layout=Inline four", "size=2", "maker=Kazeda", "sort=1" ("" or "all" clears).
+	bool SetEngineFilter(const FString& Key, const FString& Value);
+private:
 
 	int32 BikeStyle = 0;         // the project bike's style shown (the one ordered is any of them)
 	FString StyleShown;          // ... and its reference bike's parts, looked up when it changes

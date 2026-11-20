@@ -1,19 +1,24 @@
 #include "TorqueHUD.h"
 
 #include "Coop/TorqueUi.h"
+#include "Coop/TorqueLaps.h"
 
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "TorqueBikePawn.h"
 #include "TorqueTft.h"
+#include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
 #include "Coop/TorqueSession.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueSettings.h"
+#include "HAL/IConsoleManager.h"
 #include "Coop/TorqueKeys.h"
 #include "HAL/PlatformTime.h"
 #include "EngineUtils.h"
@@ -38,9 +43,26 @@ void ATorqueHUD::DrawHUD()
 		TPC->DrawMenu(this, Canvas);   // the pause menu: nothing else over it
 		return;
 	}
+	// [drone] The drone's viewfinder, and nothing else over its view (nothing at all on the photo's frame).
+	if (ATorqueDrone* Drone = ATorqueDrone::For(GetOwningPlayerController()))
+	{
+		Drone->DrawHud(this, Canvas);
+		return;
+	}
+	// [drone] The photo album over the shed.
+	if (ATorquePhotoAlbum* Album = ATorquePhotoAlbum::For(GetOwningPlayerController()))
+	{
+		Album->DrawHud(this, Canvas);
+		return;
+	}
 	if (ATorqueGeometryMode* Geo = ATorqueGeometryMode::For(GetOwningPlayerController()))
 	{
 		Geo->DrawPanel(this, Canvas);   // geometry mode's panel, parts list and gizmo
+		return;
+	}
+	if (ATorqueDecalMode* Dec = ATorqueDecalMode::For(GetOwningPlayerController()))
+	{
+		Dec->DrawPanel(this, Canvas);   // decal mode's library, colours and switches
 		return;
 	}
 	if (TPC) TPC->DrawPings(Canvas);   // [ping] under everything else on the HUD, over the world
@@ -99,23 +121,36 @@ void ATorqueHUD::DrawHUD()
 		Walker->DrawLabelBox(Canvas);
 		return;
 	}
+	// [garage] At a forecourt garage's wall computer: its page, as the shed's.
+	if (Bike && Bike->GarageComputerUp())
+	{
+		Bike->DrawGarageComputer(this, Canvas);
+		return;
+	}
 	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
 	if (Bike) DrawSpeedo(Bike);
+	if (Bike) TorqueLapsUe::Draw(Canvas, Bike);   // [circuits] the lap timer
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{
 		DrawWalkerCues(Walker, S);
 	}
+	// [garage] On foot in a garage: a dot in the middle, for what the spanner's on.
+	if (Bike && Bike->InGarage())
+		TorqueUi::Rect(Canvas, Canvas->ClipX * 0.5f - 3.0f * S, Canvas->ClipY * 0.5f - 3.0f * S, 6.0f * S, 6.0f * S, TorqueUi::Ink);
 	// The spray mini game's readout (spray_hud.gd): its card stands in for the side panel.
 	const bool bSprayCard = Walker && Walker->SprayHudUp();
 	if (bSprayCard) Walker->DrawSpray(this, Canvas);
+	// The spray gun's two cups at the side, or the cups picker ([ / ]) over the middle.
+	const bool bCupPicker = Walker && Walker->CupPickerUp();
+	if (Walker && Walker->CupsHudUp()) Walker->DrawCups(this, Canvas);
 	// The wash game's readout (wash_hud.gd), the same way.   [wash]
 	const bool bWashCard = Walker && Walker->WashHudUp();
 	if (bWashCard) Walker->DrawWash(this, Canvas);
 	// The tyre fitting game's ring (hud.gd _draw_tyre_game), over the middle of the view.   [tyre]
 	if (Walker && Walker->TyreHudUp()) Walker->DrawTyre(this, Canvas);
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
-	if (Walker && !Walker->SprayControlsUp() && !bWashCard) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
+	if (Walker && !Walker->SprayControlsUp() && !bWashCard && !bCupPicker) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role != 0) continue;
@@ -224,10 +259,13 @@ void ATorqueHUD::DrawRiderNames()
 		// Subtle (beenster, build 141: too big and bold): the name in plain text, not bold, with no box,
 		// a soft shadow to read over the world, a touch see-through, smaller the further off they are;
 		// the distance after it, dimmer still.
-		const float Px = Sc * (Metres < 30.0 ? 19.0f : Metres < 100.0 ? 17.0f : 15.0f);
-		const float Fade = Metres < 100.0 ? 0.9f : 0.75f;
+		// Riding (beenster, build 155: "we should only see the other player name and it should be subtle - no
+		// other information needed"): the name alone, small and half see-through; no distance, no activity.
+		const bool bRiding = Mine && Mine->IsA<ATorqueBikePawn>();
+		const float Px = bRiding ? Sc * (Metres < 60.0 ? 15.0f : 13.0f) : Sc * (Metres < 30.0 ? 19.0f : Metres < 100.0 ? 17.0f : 15.0f);
+		const float Fade = bRiding ? (Metres < 150.0 ? 0.6f : 0.45f) : (Metres < 100.0 ? 0.9f : 0.75f);
 		const FString Name = PS->GetPlayerName();
-		const FString Dist = Metres < 30.0 ? FString() : FString::Printf(TEXT("  %.0f m"), Metres);
+		const FString Dist = (bRiding || Metres < 30.0) ? FString() : FString::Printf(TEXT("  %.0f m"), Metres);
 		const float NameW = (float)TorqueUi::Measure(Name, Px).X;
 		const float DistW = Dist.IsEmpty() ? 0.0f : (float)TorqueUi::Measure(Dist, Px * 0.85f).X;
 		const float H = (float)TorqueUi::Measure(Name, Px).Y;
@@ -245,7 +283,7 @@ void ATorqueHUD::DrawRiderNames()
 		if (!Dist.IsEmpty())
 			TorqueUi::Text(Canvas, Dist, X + NameW, Y + (Px - Px * 0.85f) * 0.6f, Px * 0.85f, FLinearColor(0.85f, 0.85f, 0.85f, Fade * 0.8f));
 		// In the shed, what they're doing: "fitting clubman bars to bay 2".
-		if (TPS && !TPS->Activity.IsEmpty() && Metres < 40.0)
+		if (!bRiding && TPS && !TPS->Activity.IsEmpty() && Metres < 40.0)
 			TorqueUi::Text(Canvas, TPS->Activity, Screen.X, Y + H + 2.0f * Sc, Px * 0.8f, FLinearColor(0.78f, 0.9f, 0.78f, Fade * 0.85f),
 				false, TorqueUi::EAlign::Centre);
 	}
@@ -411,7 +449,12 @@ void ATorqueHUD::DrawFrameRate()
 		FpsFrames = 0;
 	}
 	const float Sc = TorqueUi::Scale(Canvas), Px = 17.0f * Sc;
-	const FString Fps = FString::Printf(TEXT("%.0f FPS"), FpsShown);
+	// ([build 155] with DLSS frame generation on, the game draws these and the card adds one between
+	// each pair: beenster read "60" on a 120 Hz screen and thought it was capped)
+	static IConsoleVariable* const FrameGenVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streamline.DLSSG.Enable"));
+	const bool bFrameGenOn = FrameGenVar && FrameGenVar->GetInt() != 0;
+	const FString Fps = bFrameGenOn ? FString::Printf(TEXT("%.0f FPS  (%.0f on screen with frame generation)"), FpsShown, FpsShown * 2.0f)
+		: FString::Printf(TEXT("%.0f FPS"), FpsShown);
 	const float W = (float)TorqueUi::Measure(Fps, Px, true).X;
 	const float FX = 0.5f * (Canvas->ClipX - W), FY = 8.0f * Sc;
 	TorqueUi::Rect(Canvas, FX - 10.0f * Sc, FY - 3.0f * Sc, W + 20.0f * Sc, Px * 1.2f + 6.0f * Sc, TorqueUi::Panel);

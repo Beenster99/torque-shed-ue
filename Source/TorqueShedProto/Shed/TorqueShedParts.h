@@ -20,7 +20,7 @@ bool IsEngineSlot(FName Slot);
 bool IsServiceSlot(FName Slot);        // engine parts you can change with the engine in the frame
 bool IsLowSlot(FName Slot);            // crouch to reach it while it's on the bike
 bool IsOptional(FName Slot);           // a bike is complete without it
-bool MayBeEmpty(FName Slot);           // optional, or the frame's own pegs or swingarm
+bool MayBeEmpty(FName Slot);           // optional (a V2 frame brings no swingarm or pegs of its own)
 FName KindOf(FName Slot);              // the kind of part the slot takes ("front_wheel" -> "wheel")
 const TArray<FName>& MountsOf(FName Slot);   // what it bolts onto
 // Slots that bolt onto this one (which come off first). Engine parts ride along with the block.
@@ -45,6 +45,12 @@ double PartNumber(FName Part, FName Field, double Default);
 // The field's mean over every part of the kind (a Speed Twin part's mass), or Default.
 double KindAverage(FName Kind, FName Field, double Default);
 FLinearColor DefaultColour(FName Part);
+// [bare frame] A V2 bike's own part ("v2part" in Data/BikesV2/parts_v2.json): the one slot it goes in (a front
+// wheel isn't a rear one), NAME_None for any other part; and what it bolts to, in words ("Any naked frame").
+FName V2Slot(FName Part);
+FString V2Fits(FName Part);
+// The slot a loose part is drawn and fitted as: a V2 part's own, else the first of its kind's.
+FName HomeSlot(FName Part);
 // Bike types (Torque Shed's styles: "cafe", "bobber", "adventure"...; layout.json style_names has
 // their names). A part's preferred type is the style pack it came in, else the first of its
 // "styles"; NAME_None when it has none (brakes, gearboxes, plugs...: they go on any bike).

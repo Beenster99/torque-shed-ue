@@ -35,6 +35,7 @@ const char* FolderOf(CellStore::EKind Kind)
 	case CellStore::EKind::Paths: return "paths";
 	case CellStore::EKind::RoadX: return "roadx";
 	case CellStore::EKind::Sights: return "places";
+	case CellStore::EKind::Circuits: return "circuit";   // [circuits]
 	default: return "sketch";
 	}
 }
@@ -75,6 +76,7 @@ bool WorldIndex::Parse(const std::string& Text)
 	Hashes(Root, "paths", Paths);
 	Hashes(Root, "roadx", RoadX);   // [OSM stage 5]
 	Hashes(Root, "places", Sights);   // [places stage 1]
+	Hashes(Root, "circuits", Circuits);   // [circuits]
 	if (const Json* B = Root.Get("buildings"))
 		if (B->IsObject())
 			for (const auto& Kv : B->O)
@@ -239,7 +241,7 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 {
 	const std::unordered_map<std::string, std::string>& Map = Kind == EKind::Streams ? Idx.Streams
 		: Kind == EKind::Trees ? Idx.Trees : Kind == EKind::Features ? Idx.Features : Kind == EKind::Profiles ? Idx.Profiles
-		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Kind == EKind::RoadX ? Idx.RoadX : Kind == EKind::Sights ? Idx.Sights : Idx.Sketches;
+		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Kind == EKind::RoadX ? Idx.RoadX : Kind == EKind::Sights ? Idx.Sights : Kind == EKind::Circuits ? Idx.Circuits : Idx.Sketches;
 	auto It = Map.find(Name);
 	if (It == Map.end() || It->second.empty()) return false;
 	const std::string Rel = std::string(FolderOf(Kind)) + "/" + (Kind == EKind::Sketches ? "b" : "c") + Name + ".json";
@@ -256,16 +258,30 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 	return Json::Parse(Text, Out);
 }
 
-bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out)
+bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out, bool* Deferred)
 {
+	if (Deferred) *Deferred = false;
 	const auto It = Idx.Buildings.find(Name);
 	if (It == Idx.Buildings.end()) return false;
 	const CellEntry& E = It->second;
 	const std::string Path = Dir.empty() ? std::string() : Files::Join(Files::Join(Dir, "bld"), "c" + Name + "-" + E.Hash + ".zip");
 	if (!Path.empty() && Files::Read(Path, Out) && Sha256Hex(Out).substr(0, E.Hash.size()) == E.Hash) return true;
 	if (Offline || !Get) return false;
+	if (MayFetch && !MayFetch())
+	{
+		if (Deferred) *Deferred = true;
+		return false;
+	}
 	Out.clear();
-	if (Get(E.Url, Out) != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
+	const int Code = Get(E.Url, Out);
+	if (Code == NotNow)
+	{
+		// [build 158] (the fetch couldn't be sent just now: asked again later, the boxes meanwhile)
+		Out.clear();
+		if (Deferred) *Deferred = true;
+		return false;
+	}
+	if (Code != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
 	if (!Path.empty())
 	{
 		// (the cell's older zips go: only the one the index names is kept)

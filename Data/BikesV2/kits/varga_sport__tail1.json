@@ -1,0 +1,115 @@
+{
+ "name": "Varga sport (working title S1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 20720,
+ "surfaces": {
+  "s026": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.8913,
+    0.145,
+    0.0072
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s031": {
+   "slot": "tail",
+   "node": "",
+   "surface": "redlens",
+   "tag": "reflector",
+   "ue": "lens_red",
+   "sub": "plate_hanger"
+  },
+  "s032": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s033": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plate",
+   "tag": "plate",
+   "ue": "cat_plastic",
+   "sub": "plate_hanger",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s160": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s161": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_taillens",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s162": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s167": {
+   "slot": "tail",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "plate_hanger",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s168": {
+   "slot": "tail",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "plate_hanger"
+  }
+ }
+}

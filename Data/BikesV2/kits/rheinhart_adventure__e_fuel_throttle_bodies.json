@@ -1,0 +1,110 @@
+{
+ "name": "Rheinhart adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 3852,
+ "surfaces": {
+  "s008": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s009": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s010": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s011": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "d3_fuelfilter",
+   "tag": "d3_fuelfilter",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.58
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "s012": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "d3_fuelhose",
+   "tag": "d3_fuelhose",
+   "ue": "cat_rubber",
+   "color": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s013": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "alu_cast",
+   "tag": "alu_cast",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.42,
+    0.43,
+    0.45
+   ],
+   "metallic": 0.9,
+   "roughness": 0.55
+  },
+  "s014": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ },
+ "engine_part": {
+  "slot": "fuel",
+  "look": "throttle_bodies",
+  "fuel": "throttle_bodies",
+  "air": "pods",
+  "cover": "cast",
+  "finish": null,
+  "case": "ribbed",
+  "header": "stock",
+  "oil": "black"
+ }
+}

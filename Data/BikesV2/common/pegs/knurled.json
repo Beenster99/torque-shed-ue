@@ -1,0 +1,33 @@
+{
+ "group": "pegs",
+ "key": "knurled",
+ "name": "Knurled billet",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "rider_peg",
+ "mount_mm": [
+  590,
+  0.0,
+  355
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  220.0,
+  520.0,
+  273.0
+ ],
+ "triangles": 20816,
+ "surfaces": {
+  "alu": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38,
+   "tag": "alu"
+  }
+ }
+}

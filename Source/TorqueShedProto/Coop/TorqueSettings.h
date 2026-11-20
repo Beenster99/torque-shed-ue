@@ -46,6 +46,7 @@ struct FTorqueSettings
 	float Bloom = 1.0f;         // glow and bloom: 0 off .. 2, times the level's own
 	bool bFpsCounter = false;   // the frame rate at the top of the screen
 	bool bAvatarShadows = true; // people on foot cast shadows
+	bool bRealWater = true;     // [build 156] the sea, lakes and rivers in Unreal's single layer water (depth colour, refraction); off: the plain glossy water
 	// The rest of a PC game's graphics page.
 	int32 PostProcess = -1, Shading = -1;   // Unreal's post-processing and shading groups, as the others
 	int32 Anisotropy = -1;      // texture filtering: -1 the preset's, 0 bilinear (1x), 1 2x, 2 4x, 3 8x, 4 16x
@@ -62,6 +63,9 @@ struct FTorqueSettings
 	// Gameplay.
 	float Realism = 0.6f;       // riding realism: 0 full sim .. 1 easy (Torque Shed's slider)
 	bool bOpenRouter = true;    // hosting asks the router to open the port (UPnP), as Torque Shed always did
+	// [ride awards] At the end of a planned ride: a private vote, the stats dashboard and a podium
+	// (Coop/TorqueAwards.h). The host's choice for everyone in co-op; off unless turned on.
+	bool bRideAwards = false;
 	float Fov = 80.0f;          // field of view, degrees: on foot as it is, the bike's cameras moved by as much
 	bool bAutoShift = true;     // the gearbox changes itself (G / R3 while riding)
 	bool bTelemetry = false;    // live strips of what the bike is doing, while riding (F3)
@@ -87,6 +91,7 @@ struct FTorqueSettings
 	// The ride's date (beenster Nov 17): the day of the year, 1 .. 365, or 0 for today. The sun's path,
 	// sunrise and sunset, the night sky, the season on the land and the HUD's date follow it.
 	int32 RideDate = 0;
+	int32 RideYear = 0;          // [ride date] the year picked with it (0: this year; build 155 feedback)
 	bool bRealClock = false;    // the clock and sun follow the real time and date where you ride (weather plan stage 5)
 	// 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads, 4 live (the real
 	// weather where you ride; the default, as beenster chose: the host can switch it off any time),

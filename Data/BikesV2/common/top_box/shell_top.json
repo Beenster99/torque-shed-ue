@@ -1,0 +1,77 @@
+{
+ "group": "top_box",
+ "key": "shell_top",
+ "name": "Moulded top case",
+ "fitted_on": "corvano_adventure",
+ "family": "Adventure",
+ "mount": "rear_axle",
+ "mount_mm": [
+  0.0,
+  0.0,
+  320.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  409.0,
+  376.0,
+  333.0
+ ],
+ "triangles": 1276,
+ "surfaces": {
+  "d3_lp_gloss": {
+   "ue": "cat_plastic",
+   "color": [
+    0.01,
+    0.01,
+    0.012
+   ],
+   "metallic": 0.3,
+   "roughness": 0.12,
+   "coat": 1.0,
+   "tag": "d3_lp_gloss"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "d3_lugshell": {
+   "ue": "cat_plastic",
+   "color": [
+    0.09,
+    0.095,
+    0.1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.45,
+   "coat": 0.3,
+   "tag": "d3_lugshell"
+  },
+  "d3_lugpad": {
+   "ue": "cat_plastic",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.0,
+   "roughness": 0.7,
+   "tag": "d3_lugpad"
+  },
+  "d3_redglass": {
+   "ue": "lens_red",
+   "clear": 1.0,
+   "tag": "lens_red"
+  }
+ }
+}

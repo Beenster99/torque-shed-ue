@@ -160,9 +160,6 @@ inline const TArray<FTorquePlace>& Places()
 	// past the front of the props' radio model (which stops the look like a wall), so the look
 	// reaches the radio and not the wall behind it.
 	Add(ETorquePlace::Radio, TEXT("radio"), FVector(-650.0, -178.0, 158.0), FVector(-606.0, -112.0, 205.0), FVector(-638.0, -145.0, 161.5), 0);
-	// The masking tape's hook (paint_bay.gd TAPE_AT, by the door): on the mixing bay's west wall just
-	// inside its door (y 418 .. 502), the roll drawn by ATorquePaintBayRoom (TorquePaintBayLayout::TapeAt).
-	Add(ETorquePlace::Tape, TEXT("tape"), FVector(1430.0, 380.0, 112.0), FVector(1450.0, 410.0, 148.0), FVector(1438.0, 395.0, 130.0), 0);
 	// [kit] The switch boxes right of the roller door, inside (swaps.json light_switches at 285, 548,
 	// 128, facing in): the light switch's plate 122 up, the door's yellow box with its buttons above
 	// it. And the fire extinguisher standing by the end of the workbench (swaps.json dress at -630, 440).
@@ -251,7 +248,9 @@ inline void MoveStand(const FTransform& Xf)
 		{
 			FTorquePlace& P = const_cast<FTorquePlace&>(C);
 			P.Put = Xf.TransformPosition(FVector(0.0, 0.0, 82.0));
-			P.Box = FBox(FVector(-35.0, -30.0, 20.0), FVector(35.0, 30.0, 95.0)).TransformBy(Xf);
+			// (Round the plate and an engine bolted to it along the arm, ATorqueShedItems::OnStand: the
+			// engine hangs off the plate's face on -x since 157.)
+			P.Box = FBox(FVector(-75.0, -35.0, 20.0), FVector(35.0, 35.0, 110.0)).TransformBy(Xf);
 		}
 }
 

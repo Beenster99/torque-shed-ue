@@ -1,0 +1,92 @@
+{
+ "group": "levers",
+ "key": "standard",
+ "name": "Billet adjustable set",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  93.7,
+  771.3,
+  82.1
+ ],
+ "triangles": 7012,
+ "surfaces": {
+  "d3_leverblack": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.035,
+    0.035,
+    0.04
+   ],
+   "metallic": 0.85,
+   "roughness": 0.36,
+   "tag": "d3_leverblack"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  },
+  "rubber": {
+   "ue": "cat_rubber",
+   "tag": "rubber"
+  },
+  "d3_anored": {
+   "ue": "cat_anodised",
+   "color": [
+    0.5,
+    0.025,
+    0.03
+   ],
+   "metallic": 1.0,
+   "roughness": 0.32,
+   "tag": "d3_anored"
+  },
+  "d3_ctl_polished": {
+   "ue": "chrome",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.1,
+   "tag": "d3_ctl_polished"
+  },
+  "d3_rescup": {
+   "ue": "cat_plastic",
+   "color": [
+    0.55,
+    0.5,
+    0.36
+   ],
+   "metallic": 0.0,
+   "roughness": 0.25,
+   "tag": "d3_rescup"
+  },
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52,
+   "tag": "plastic"
+  }
+ }
+}

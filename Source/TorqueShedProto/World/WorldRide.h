@@ -42,6 +42,8 @@
 #include "WorldRoute.h"
 
 #include <cstdint>
+#include <functional>
+#include <array>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -94,6 +96,9 @@ struct RideProp
 	// and is placed at its model's own size (Variant is the size, not a pick).
 	bool Facade = false;
 	float Tint[9] = {};
+	// [build 154] A model laid along a line (Buttertubs' wall lengths): tipped up its slope by Pitch (radians,
+	// its far end up) and drawn Stretch times its own length along it.
+	float Pitch = 0.0f, Stretch = 1.0f;
 };
 
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
@@ -220,6 +225,11 @@ struct RideMesh
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
 	std::shared_ptr<RideMesh> Glow;
 	std::vector<float> Lights;
+	// [road edges, Nov 18] With a piece of road: the grass of its shoulders in the country, drawn as the land
+	// is (its material, the land's colours as the squares draw them, its UVs the world's metres over 8), so
+	// the field runs to the tarmac's worn edge with no strip of another grass between (beenster: "remove
+	// this edge and blend the topology of the countryside to the edge of the road"). Null for none.
+	std::shared_ptr<RideMesh> Turf;
 };
 
 // [OSM stage 2] Plain shapes for what stands by the road and on the skyline, made in code into a
@@ -324,6 +334,7 @@ void PutSitePart(RideMesh& Out, const SiteModel::Part& P, double X, double Y, do
 std::shared_ptr<const SiteModel> SiteModelOf(const std::string& Id);
 
 struct RideDetour;
+struct CircuitIndex;   // [circuits] (WorldRideCircuits.h)
 
 class RidePlan
 {
@@ -371,6 +382,19 @@ public:
 	std::vector<int> PinNodes;          // each pin's junction
 	double RunOutFrom = 0.0;            // how far along the map's roads the last pin is (the run-out is after it)
 	double FinishM = 0.0;               // and how far along the road as laid
+	// [ferries stage 5] A journey whose way takes a ferry: the ride's road runs to the boarding slipway's road (its
+	// finish there, named for the ferry), and from where it lands the sat nav finds the way on to the pins still to
+	// come (FerryOnward). Null without one.
+	struct FerryLink
+	{
+		std::string Id, Name;          // the crossing's (Data/RideUK/ferries.json)
+		int BoardEnd = 0;              // the end it's boarded at (0 the list's a)
+		P2 Board, Land;                // the junctions nearest its slipways
+		std::vector<P2> Pins;          // the junctions of the pins still to come from where it lands, the finish last
+		std::vector<std::string> PinNames;
+		double OnM = 0.0;              // the way on by road from where it lands (as planned)
+	};
+	std::shared_ptr<const FerryLink> Ferry;
 
 	bool Ok = false;
 	std::string Why;
@@ -394,6 +418,7 @@ public:
 		double MainHalf = 0.0;
 		bool GiveWay = false;  // the side road is the lesser: give-way lines across it
 		bool Ring = false;     // [OSM stage 5B] it is a roundabout's entry: one broken line, not two
+		bool Flare = false;    // [roundabouts] at a roundabout drawn as a circle: its corners flared wide
 		double From = 0.0;     // how far along the side road from its end At is: nearer the end it lies on the ride's road
 		double Clear[2] = {0.0, 0.0};   // and how far along its left (as Away heads) and right edges are clear of the rounded corners
 	};
@@ -413,6 +438,7 @@ public:
 		double Length = 0.0;
 		Mouth Mouths[2];       // at its first point's end and its last's
 		bool Track = false, Gravel = false;   // [OSM stage 1] a farm track (no paint); gravel, not tarmac
+		bool Setts = false;    // [towns stage 6] laid in setts or cobbles (the map's surface): no paint
 		int Edge = -1;         // [ride anywhere] its edge in the area's roads
 		std::vector<MappedMark> Mapped;   // [OSM stage 5] its lights, crossings, humps (MapPoints)
 	};
@@ -470,6 +496,14 @@ public:
 	int GroundRound(double X, double Z) const;
 	CellStore* CellsFrom = nullptr;
 	HeightStore* HeightsFrom = nullptr;
+	// [LiDAR stage 2] A cell's LiDAR heights file (Tools/lidar_heights.py --file: its outlines' surveyed eaves and
+	// ridges by tile and row), false where there is none; asked once per cell, from a worker. Unset, no LiDAR.
+	std::function<bool(const std::string& Cell, std::string& Text)> LidarFrom;
+	// (a LiDAR file read: by tile, then row, the row's check (its first latitude mod 10000), eaves and ridge; how
+	// many rows it kept, none unless it is for Release; and one row's heights, false where unmeasured or moved)
+	using LidarTiles = std::unordered_map<std::string, std::unordered_map<int, std::array<float, 3>>>;
+	static size_t ReadLidar(const std::string& Text, const std::string& Release, LidarTiles& Out);
+	static bool LidarOfRow(const LidarTiles& Tiles, const std::string& Tile, int Row, long long FirstLat, float& Eaves, float& Ridge);
 	std::shared_ptr<void> StoresAlive;   // (whatever holds them, kept as long as the plan is)
 	// The junction (knot) a road's end is one of the arms of, once its block is laid; null for none.
 	const Knot* KnotAt(int Which, int End) const;
@@ -486,10 +520,12 @@ public:
 	static constexpr double BankWiden = 0.9, BankMost = 30.0, BatterRun = 2.0, BatterLeast = 4.0;
 	static constexpr double NearestReach = 40.0;   // NearestOf finds roads within this of a point (m)
 	static constexpr double Sink = 0.1;         // how far under the road's surface the ground under it lies
+	static constexpr double FlushSink = 0.045;  // [build 154] and beside it, past the edge: just under the shoulder's flat
 	// The road's shoulder: nearly level out to ShoulderFlat (ShoulderDip down, still clear of the
 	// ground), then steeply down into the ground by Shoulder. The grass meets it on the steep part, so
 	// the line between them stays put though the land's mesh is only a point every 4 m.
 	static constexpr double Shoulder = 1.3, ShoulderDrop = 0.4, ShoulderFlat = 0.8, ShoulderDip = 0.03;
+	static constexpr double MeetUnder = 0.015;  // [road edges, Nov 17] the shoulder's outer edge this far under the ground as drawn
 	// Where a side road joins a greater one: how far under its surface it sinks, and how far out from
 	// its edge it leans into it.
 	static constexpr double JoinSink = 0.02, JoinLean = 4.0;
@@ -515,6 +551,13 @@ public:
 	double Ground(double X, double Z, double Coarse = 0.0) const;
 	// The road's surface at (X, Z), crown and bank and all, if it is on a road, else NaN.
 	double RoadHeight(double X, double Z) const;
+	// [road edges, Nov 17] The ground's height as the nearest squares draw it: their 4 m grid of Ground's
+	// heights, each cell's two triangles (Cache, if given, keeps the grid's heights met for the next call).
+	static constexpr double LandGrid = 4.0;   // (ATorqueRideWorld's finest squares: 256 m, 64 cells)
+	double LandDrawnAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
+	// [road edges, Nov 18] And its colour as they draw it: LandColour at the grid's points (as LandTile has
+	// them), across each cell's two triangles (Cache keeps the points' colours met).
+	void LandColourDrawnAt(double X, double Z, float* Out, std::unordered_map<long long, std::array<float, 3>>* Cache = nullptr) const;
 	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
 	// edge the point is): how far from its middle, its height, which point, its half width, which
 	// road. MainOnly looks at the ride's own road alone. Cross is how far the road's surface is above
@@ -571,7 +614,10 @@ public:
 	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const;
 	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
-	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
+	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;
+	// [build 155 feedback] The land mesh's own heights at its points (LandTile, LandDrawnAt): Ground, with the
+	// near squares' points by a watercourse under its water (BanksTile draws the banks over them).
+	double LandGround(double X, double Z, double Step) const { return GroundOf(X, Z, Step, Step > 8.5, std::fabs(Step - LandGrid) < 0.1); }
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack), coloured by what covers it. A square with points 8 m
@@ -593,7 +639,10 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 31, FirstTree = 18, HedgeKind = 30;
+	static constexpr int PlantKinds = 36, FirstTree = 18, HedgeKind = 30, FirstGarden = 31;
+	// [gardens] Kinds FirstGarden on are the villages' and towns' garden planting (WorldRideGardens.cpp):
+	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", drawn only as scanned
+	// models (Megaplants: SM_Tree_garden_<kind>_scan, Tools/ue_build_rideuk.py) and close to the rider.
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
 	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
 	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
@@ -624,6 +673,32 @@ public:
 	// squares' hedges are then those models laid along their lines (HedgePlants), not lumpy shapes.
 	bool RealHedges = false;
 	double GrassDensity = 1.0;
+	// [gardens] Set when the game has the garden kinds' models and -TorqueRidePlanting=0 isn't given: the
+	// finest squares' houses get garden planting (GardenPlants) and the towns' and villages' grass a few
+	// shrubs and flowers (PlantsTile). GardenShare (0..1, -TorqueRidePlanting=0.5) thins it out.
+	bool RealGardens = false;
+	double GardenShare = 1.0;
+	// [gardens] One house's garden as BuildingsTile builds it: its middle, its turn (Cs, Sn: as Local's),
+	// its length along (LongX: x) and depth; which side its front is on (FrontSide +1/-1, across), how far
+	// from 1 m out of the front to the road's edge (FrontGap); its door (along) and drive (DriveFrom..DriveTo
+	// along, none if equal); which of its ends are party walls; Kind (HouseTypes::EKind); Seed its own.
+	struct GardenHouse
+	{
+		double X = 0.0, Z = 0.0, Cs = 1.0, Sn = 0.0, HalfLong = 0.0, HalfShort = 0.0;
+		bool LongX = true, PartyPlus = false, PartyMinus = false, FrontWall = false, InTown = false;
+		double FrontSide = 1.0, FrontGap = 1e9, DoorU = 0.0, DriveFrom = 0.0, DriveTo = 0.0;
+		int Kind = 0, Bays = 1;   // (a row drawn as one building: a door a bay, in pairs, as BuildingsTile draws them)
+	};
+	// [gardens] Footprints (each a Building, its own frame) that garden plants keep clear of: the square's
+	// buildings and its neighbours' near its edges, by 16 m bucket (each in every bucket it reaches).
+	struct GardenClear
+	{
+		std::unordered_map<long long, std::vector<const Building*>> Buckets;
+		void Add(const Building& B);
+		bool Blocked(double X, double Z, double Gap) const;   // (Gap at most 2 m)
+	};
+	void GardenPlants(const GardenHouse& House, const GardenClear& Clear, RideMesh& Out) const;
+	bool SeenFromRoad(const GardenClear& Clear, double X, double Z, const P2& Foot) const;   // [gardens] (a clear line to the road)
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
@@ -695,8 +770,35 @@ public:
 		PropWinSash6, PropWinSash2, PropWinCasement, PropWinCasementTop, PropWinMullion, PropWinMullionLeaded,
 		PropSurStone, PropSurBrick, PropSurPlain,
 		PropDoorPanel6, PropDoorVictorian, PropDoorLedged, PropDoorLedgedLight, PropDoorModern, PropDoorDouble, PropDoorHood,
+		// [towns stage 4] Bay windows (Variant: storeys less one), placed only where the game has their models
+		PropBayCanted, PropBaySquare,
+		// [build 154] Dry stone walls laid stone by stone (Tools/make_wall_kit.py): 2 m lengths and 1 m wall heads,
+		// finished at the model's +x; Variant is the region's walling (WallStyle) times WallVariants plus a pick.
+		// Placed on the finest squares where both are modelled.
+		PropWallStone, PropWallEnd,
+		// [towns stage 6] A town centre's heritage street lamp (cast iron, swan neck, lantern), in place of the
+		// plain one where the street is a shopping street (ShopStreetNear) and it has its model.
+		PropLampHeritage,
+		// [car parks] A parked car in a car park's bay (Tools/ue_build_rideuk.py: the Fab cars of
+		// Data/Buttertubs/car_swaps.json in Data/RideUK/prop_kit.json's colours, SM_Prop_parked_car_<n>, as modelled)
+		PropParkedCar,
+		// ([Nov 19] beenster: "a more realistic traffic light model") a UK three-aspect signal (Tools/blender_street_kit.py
+		// traffic_signal); its lit faces stay FurnitureTile's, on the shared clock
+		PropTrafficSignal,
+		// [circuits] The race circuits' trackside kit (Tools/blender_circuit_kit.py), placed by IndexCircuits: armco,
+		// tyre walls and the pit wall laid along their runs (Stretch), the rest facing the track
+		PropArmco, PropTyreWall, PropPitWall, PropMarshalPost, PropBrakingBoard, PropStartGantry, PropGrandstand,
+		// [caravans] The campsites' touring caravans and static caravans (Tools/blender_caravan_kit.py), in place of
+		// TownLifeTile's boxes where they have models (TownLifeProps)
+		PropTouringCaravan, PropStaticCaravan,
 		PropKinds };
+	static constexpr int WallStyles = 6, WallVariants = 4;
+	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
+	// limestone (Buttertubs' own), 1 Cotswold, 2 slate (the Lakes, Wales), 3 gritstone (the Peak, southern
+	// Scotland), 4 granite (the Highlands, Ulster), 5 sandstone (the Moors, the North East, the rest).
+	static int WallStyle(const LocalLook& Look);
 	static constexpr int FirstFacade = PropWinSash6;
+	static constexpr int FacadeCoreEnd = PropBayCanted;   // (the kinds the kit can't go without: it is off unless all have models)
 	// [fps plan step 2] Whether the houses' windows and doors come as the facade kit's instances (the game
 	// sets it when every facade kind has its models and -TorqueRideFacadeKit=0 isn't given), else drawn.
 	bool FacadeKit = false;
@@ -732,7 +834,9 @@ public:
 		int Strands = 2;
 		bool High = false;   // a power line's (pylons'), or a telegraph pole's
 	};
-	enum ETall { TallMast, TallMonopole, TallTurbine, TallSilo, TallWaterTower, TallTank, TallPylon, TallKiosk, TallKinds };
+	// ([roads stage 8] the skyline's big shapes too: gasholders' frames, power stations' cooling towers, and
+	// the floodlights' masts round sports grounds)
+	enum ETall { TallMast, TallMonopole, TallTurbine, TallSilo, TallWaterTower, TallTank, TallPylon, TallKiosk, TallGasholder, TallCooling, TallFlood, TallKinds };
 	struct TallThing
 	{
 		int Kind = 0;
@@ -770,7 +874,7 @@ public:
 	// smallest wins (a pitch in a park in a town).
 	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldScree, FieldReservoir,
 		FieldLawn, FieldHard, FieldFarmyard, FieldSite, FieldBrownfield, FieldPark, FieldPitch, FieldSand, FieldMud, FieldCarPark,
-		FieldWood, FieldScrub, FieldHeath, FieldWetland, FieldPullOff, FieldKinds };   // [places stage 2] a pull-off made for a place (gravel)
+		FieldWood, FieldScrub, FieldHeath, FieldWetland, FieldPullOff, FieldForecourt, FieldKinds };   // [places stage 2] a pull-off made for a place (gravel); [roads stage 7] a petrol station's forecourt (tarmac)
 	struct FieldArea
 	{
 		int Kind = 0;
@@ -780,8 +884,36 @@ public:
 		uint32_t Id = 0;
 		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
 		bool Flowing = false;   // a river's or canal's own outline (its water runs: WaterRuns), not a lake's
+		int Yard = -1;          // [churches stage 5] a graveyard round a church: its Churchyards entry
 	};
 	std::vector<FieldArea> FieldAreas;
+	// [churches stage 5] Each place of worship's churchyard (IndexChurchyards, World/WorldRideFields.cpp): the
+	// map's graveyard round it, else (out of a town) one made round it as far as its neighbours and roads
+	// allow; its wall's runs (where the map draws no wall, fence or hedge of its own), its gate (the yard's
+	// edge nearest the road), the path from the gate to the church's walk round it, its yews. FieldsTile keeps
+	// the graves off the path, the walk, the gate and the yews; ChurchyardsTile builds the rest.
+	struct Churchyard
+	{
+		int Field = -1;                 // its ground (FieldAreas: a FieldGraves area)
+		bool Made = false, Chapel = false, Lych = false;
+		P2 Church;                      // the church's outline's middle (all its pieces)
+		double Cs = 1.0, Sn = 0.0, HalfU = 0.0, HalfV = 0.0;   // its box: half sizes along its building's axes (Yaw)
+		P2 Gate, Out;                   // the gate's middle on the yard's edge, and outward (unit)
+		P2 PathEnd;                     // where the path from the gate meets the walk round the church (1.5 m out)
+		std::vector<std::pair<P2, P2>> Walls;   // the wall's runs
+		std::vector<std::pair<P2, int>> Yews;   // where, and which (0 an old spreading one, 1 an Irish yew)
+		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
+	};
+	std::vector<Churchyard> Churchyards;
+	void IndexChurchyards();   // (from IndexFields: made yards are field areas too)
+	// How far (X, Z) is outside a churchyard's church box (negative inside).
+	double OffChurch(const Churchyard& Y, double X, double Z) const;
+	// The churchyards' walls, gates, paths and yews on a square (fine squares only), in the place's stone.
+	// Doors: the kit churches built on it, each its middle, its door (a metre out) and the way it faces, and
+	// its footprint as built: its middle, its length's way (unit) and half sizes along and across.
+	struct ChurchDoor { P2 Middle, Door, Out, Box, Along; double HalfA = 0.0, HalfC = 0.0; };
+	void ChurchyardsTile(double X0, double Z0, double Size, const LocalLook& Look, const std::vector<ChurchDoor>& Doors, RideMesh& Out, RideMesh& Washed,
+		RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut) const;
 	// [beenster, build 147: "flat water surfaces and well formed banks for rivers, streams, brooks, lakes and
 	// the coastal shoreline"] (World/WorldRideWater.cpp) Each of the map's rivers, streams and canals as a run
 	// of points every WaterStep m down it (turned to run downhill), each with its water's level (never rising
@@ -798,10 +930,14 @@ public:
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> WaterNear;   // (run, first point) by every WaterCell square within reach
 	std::unordered_map<long long, char> StillCells;   // the FieldCell squares a lake's outline covers
 	static constexpr double WaterStep = 3.0, WaterCell = 32.0, BankRun = 1.2, BankReach = 14.0;
+	// [build 155 feedback] (the near land's points within BankTrough of its squares past a watercourse's edge
+	// lie under its water, BanksTile's strips of bank reaching BankStrip squares out over them; a lake's and
+	// the sea's shore eased over ShoreReach m round its outline)
+	static constexpr double BankTrough = 0.9, BankStrip = 2.4, ShoreReach = 10.0;
 	void IndexWater();   // (after IndexFields)
 	// The run nearest (X, Z) within its bank's reach: how far from its middle, its water's level, half
 	// width and depth there, and its kind.
-	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr) const;
+	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr, bool* Beside = nullptr) const;   // (Beside: alongside it, not past either end)
 	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
 	double StillLevel(double X, double Z) const;
 	void IndexFields();
@@ -838,8 +974,46 @@ public:
 	std::vector<LocalLook> TownLooks;
 	std::vector<std::string> TownSources;   // each look's: "tags N" (counted from N) or the table's town
 	int TownsCounted = 0, TownsTabled = 0;  // squares counted; the table's towns met
+	// [towns stage 5] Out of town, the materials atlas's area's look over the region's (in TownLooks,
+	// by the kilometre square: AtlasLookAt; null where no area holds it); the squares it covers.
+	std::unordered_map<long long, int> AtlasGrid;
+	int AtlasSquares = 0;
+	// [towns stage 6] The shopping streets (IndexTowns): the map's retail areas (a town centre's
+	// shops, as the map draws them) and its pedestrian streets, each with its box; ShopStreetNear whether a
+	// place is within Reach of either (a building there with its front to a street has a shop front; a
+	// street lamp there is a heritage one).
+	struct ShopPlace
+	{
+		double X0 = 0.0, Z0 = 0.0, X1 = 0.0, Z1 = 0.0;
+		const std::vector<P2>* Ring = nullptr;   // (an area's; null for a street)
+		P2 A, B;                                 // (a street's piece)
+	};
+	std::vector<ShopPlace> ShopPlaces;
+	std::unordered_map<long long, std::vector<int>> ShopGrid;   // by 128 m square, each place whose box (and 60 m) covers it
+	bool ShopStreetNear(double X, double Z, double Reach) const;
+	bool HeritageLampAt(double X, double Z) const;
+	// [towns stage 6] Whether the map's surface for a road is setts or cobbles (drawn in M_RideRoad's setts).
+	static bool SettsSurface(const std::string& Surface);   // (a street lamp here is the heritage kind)
+	// [towns stage 8] The famous streets' own looks (StreetTable): each piece of a street's line with its
+	// look (in TownLooks: the street's over the town's), how far either side it holds, and whether the
+	// street is laid in setts and lit by heritage lamps; by 128 m square. StreetLookAt gives a place's
+	// street look (LookHere's first); SettsStreet whether a road's line runs along a street in setts.
+	struct StreetPiece
+	{
+		P2 A, B;
+		int Look = -1;
+		double Reach = 30.0;
+		bool Setts = false, Lamps = false;
+	};
+	std::vector<StreetPiece> StreetPieces;
+	std::unordered_map<long long, std::vector<int>> StreetGrid;
+	std::vector<std::string> StreetsHere;   // the table's streets in this ride's region
+	const StreetPiece* StreetAt(double X, double Z, double Extra = 0.0) const;
+	const LocalLook* StreetLookAt(double X, double Z) const;
+	bool SettsStreet(const std::vector<P2>& Line) const;
 	void IndexTowns();
 	const LocalLook* TownLookAt(double X, double Z) const;
+	const LocalLook* AtlasLookAt(double X, double Z) const;
 	// [towns stage 2] The large and tall buildings at their true outlines and heights (World/
 	// WorldRideTowers.cpp): the baker's "towers" (and a tall building's parts), simplified to 16
 	// corners or fewer, each on its building's lowest ground.
@@ -870,7 +1044,22 @@ public:
 		Building B;
 		BuildingLook Look;
 		double Floors = 0.0;   // the map's floors (0: it doesn't say)
+		// [LiDAR stage 2] Its outline's surveyed eaves and ridge above the ground (metres; 0: not measured), from
+		// the cell's LiDAR file (Tools/lidar_heights.py): the drawer takes these before the map's height or floors.
+		float LidarEaves = 0.0f, LidarRidge = 0.0f;
+		// [towns stage 4] Its place in a row (MarkRows, once per tile read): which outline it came from and
+		// whether it is that outline's main box; the sides of the main box another house's main box shares
+		// (bit 1 its +x side, 2 its -x, 4 its +z, 8 its -z, x across W, z deep D), and on which of those it
+		// draws the shared chimney stack; the row's size (1 alone, 2 a pair of semis, 3 or more a
+		// terrace), its place along it, and one spot for the whole row (so the row is built alike).
+		int Outline = -1;
+		bool Main = false;
+		unsigned char Party = 0, Stacks = 0;
+		int RowSize = 1, RowPos = 0;
+		P2 RowSeed;
 	};
+	// [towns stage 4] Finds the rows in a tile's pieces (see OutlinePiece).
+	static void MarkRows(std::vector<OutlinePiece>& Pieces);
 	// Those whose middles lie in (X0, Z0)-(+Size) into Out (kept alive by Hold); the cells under the
 	// square that have outlines into Covered (their own boxes aren't drawn there).
 	void OutlinesIn(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<OutlinePiece>>>& Hold,
@@ -889,9 +1078,20 @@ public:
 	{
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
+		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
+		int HouseKinds[6] = {};   // [towns stage 4] houses by HouseTypes::EKind (cottage, village row, detached, semi, terrace, tenement)
+		int BayWindows = 0;       // and the bay windows on them
+		int DoorsDropped = 0, DoorSteps = 0;   // doors set lower than the floor to meet the ground before them; doors with steps down to it
+		// [towns stage 5] Houses', shops' and flats' walling and roofs by where they came from: their own tags,
+		// the street's, the town's look counted from tags, the town table's, the materials atlas's area, the
+		// region's (and for roofs, the house's period); the stone ones sooted; the painted ones by the sea.
+		int WallFrom[7] = {}, RoofFrom[7] = {};
+		int Sooted = 0, Painted = 0;
+		int ShopFronts = 0;   // [towns stage 6] shop units fronted
+		int FrontWalls = 0;   // [towns stage 6] houses with a front garden wall
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or
@@ -900,7 +1100,7 @@ public:
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
-	// with its tower, 2 a pub).
+	// with its tower, 2 a pub, 3 a café: its shop front named as one).
 	std::vector<unsigned char> BuildingRole;
 	// The local look (Ride UK stage 5: WorldRideStyle) at a place of the ride's frame.
 	const LocalLook& LookHere(double X, double Z) const;
@@ -930,6 +1130,8 @@ public:
 		int Line = 0, First = 0, Last = 0;
 		double Side = 1.0;
 		std::string Name;
+		bool Halt = false;    // [roads stage 8] a halt: the platform and its board, no more
+		bool Built = false;   // [roads stage 8] the map has a building behind it (the station's own): none drawn
 	};
 	std::vector<Platform> Platforms;
 	// The nearest railway to (X, Z) within 40 m: how far, its ballast's top there, what it is on there
@@ -987,6 +1189,35 @@ public:
 	static constexpr int Finish = 9;
 	std::vector<RideTurn> Turns;
 	std::vector<double> RingGiveWays;   // [OSM stage 5B] how far along the ride's road it gives way onto a roundabout
+	// [junction priority, Nov 19] (beenster: "Our routed road is THE road that everything else comes from.
+	// This is wrong.") Who gives way at each junction of the map the ride passes (three or more roads, not a
+	// roundabout), as on the real road and whichever way the ride goes: the through road is the pair of its
+	// roads of the best class running on most nearly straight (within JunctionStraight, or the only two of
+	// that class within JunctionBent), and every other road there gives way to it. Where the ride comes in
+	// or goes out by one of those, its own road stops at the through road's edge: give-way lines across the
+	// lane coming up to it, none of its own lines across the through road, and a junction's tight corner
+	// where it turns (not a bend faired as the road's class would be).
+	struct JunctionRule
+	{
+		int Node = -1, Came = -1, Onto = -1;
+		int ThroughA = -1, ThroughB = -1;   // the through road's two roads there
+		double RawAlong = 0.0;    // where it is along the map's line of the ride
+		double Along = -1.0;      // and along the road as laid (PlaceJunctions)
+		double MajorHalf = 0.0;   // half the through road's width
+		double Turn = 0.0;        // the ride's turn there (radians, + to the left)
+		bool CameMinor = false, OntoMinor = false;   // the ride comes in, goes out, by a road that gives way
+	};
+	static constexpr double JunctionStraight = 0.7, JunctionBent = 1.2, JunctionTurn = 0.6, JunctionCorner = 25.0, JunctionFair = 2.0;
+	std::vector<JunctionRule> Junctions;
+	// (each road's end at a junction of the ride's: node * 4000037 + edge; 1 it gives way, 2 it is the through road)
+	std::unordered_map<long long, unsigned char> ArmRank;
+	unsigned char ArmRankOf(int Node, int Edge) const;
+	std::vector<std::pair<double, double>> JunctionNoLines;   // (stretches of the ride's road across a through road: none of its lines)
+	bool LinesStopAt(double Along) const;
+	int JunctionGiveWayCount = 0;   // (give-way lines the rule painted on the ride's own road)
+	void FindPriorities(int From, const std::vector<int>& Path);
+	static bool NoJunctionPriority;   // (the tests' before-and-after: every junction as the ride's road had it)
+	void PlaceJunctions(double RawLength);
 	// Places to stop along it from the map: fuel, cafes, pubs, viewpoints, lay-bys, within StopReach of
 	// the road; how far along, and which side (+ the left).
 	// [OSM stage 1] inns, campsites and castles too.
@@ -1042,6 +1273,166 @@ public:
 	// Whether (X, Z) is on a pull-off made for a place (gravel under the tyres).
 	bool OnPullOff(double X, double Z) const;
 	std::unordered_map<long long, std::vector<int>> PlaceGrid;   // stops by the 64 m square their arrival is in
+	// [roads stage 7] Petrol stations (OSM stage 7C: World/WorldRideTownLife.cpp): at each of the map's fuel
+	// stops near enough a road, a tarmac forecourt from the road's edge (made as a pull-off is: where nothing
+	// stands in the way and the ground is level enough), a canopy on its posts over two or three pump
+	// islands, a kiosk behind where the map has no building for one, and a tall price board by the road. No
+	// maker's name or colours: each canopy's band is one plain colour picked by hash. Stopped by a pump, the
+	// tank fills (ForecourtAt). Not on motorways: their services are stage 8's.
+	struct Forecourt
+	{
+		P2 RoadMid, RoadDir, Out;   // the road's middle beside its middle, the road's way there, out towards it (level, unit)
+		double Half = 0.0;          // the road's half width there
+		double Depth = 0.0, Length = 0.0;   // from the road's edge back, and along the road (m)
+		std::vector<P2> Ring;       // its outline (a field area: FieldForecourt)
+		P2 Canopy;                  // the canopy's middle
+		double CanopyLong = 12.0;   // along the road (8 m deep)
+		int Islands = 2;
+		bool Kiosk = true;          // false: the map has a building there already
+		double Base = 0.0;          // the ground's height under the canopy
+		uint32_t Seed = 1;
+		std::string Name;
+		// [garage] The workshop unit you ride into to work on your bike (beenster, Nov 17: room for three
+		// bikes, the spanner and a wall-mounted parts computer). Its door faces the road (-Out); GarageU is
+		// its middle along the road from the road's edge's frame (as the canopy's), GarageV its front's
+		// distance out from the road's edge. Beside the kiosk in the row behind the canopy where there's
+		// one (the kiosk shortened to share it), else beyond the canopy's end, set back from the lane.
+		bool Garage = false;
+		double GarageU = 0.0, GarageV = 0.0;
+	};
+	// [garage] A forecourt's garage unit in the world: the middle of its floor, the way its door faces
+	// (out of it, level, unit), the floor's height (just over the ground's highest under it), the
+	// ground's 1.5 m out of its door (a ramp joins them), its forecourt.
+	struct GarageSpot
+	{
+		P2 Middle, Door;
+		double Base = 0.0, DoorGround = 0.0;
+		int Court = -1;
+	};
+	static constexpr double GarageWide = 7.5, GarageDeep = 6.5;   // outside, along its front and front to back (m)
+	bool GarageOf(int Court, GarageSpot& Out) const;
+	// The garages with their middles within Reach m of (X, Z).
+	void GaragesNear(double X, double Z, double Reach, std::vector<GarageSpot>& Out) const;
+	std::vector<Forecourt> Forecourts;
+	std::unordered_map<long long, std::vector<int>> ForecourtGrid;   // by the 64 m square each's canopy is in
+	int FuelSeen = 0;                       // fuel stops looked at (Forecourts.size() of them made)
+	static constexpr double ForecourtDepth = 24.0, ForecourtLeast = 13.0;
+	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
+	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its
+	// point on open level ground, fountains (a stone basin and its water, a pillar and bowl in the middle,
+	// as big as the map's outline when it has one) and electric car chargers (a post each).
+	enum EThing { ThingTent, ThingCaravan, ThingStatic, ThingFountain, ThingCharger, ThingKinds };
+	struct TownThing
+	{
+		int Kind = ThingTent;
+		P2 At;
+		double Yaw = 0.0, Base = 0.0, Size = 0.0;   // which way it faces; the ground's height; a fountain's radius
+		uint32_t Seed = 1;
+	};
+	std::vector<TownThing> TownThings;
+	std::unordered_map<long long, std::vector<int>> ThingGrid;   // by the 64 m square each is in
+	int ThingCount[ThingKinds] = {};
+	int CampsSeen = 0, CampsMade = 0;
+	// [roads stage 8] The airfields' runways and taxiways (tarmac with their paint, or a mown strip for a
+	// short one no wider than a farm strip) and the piers (a deck on piles at its higher end's height, rails
+	// either side), from the map's lines; aprons are tarmac fields (FieldForecourt's).
+	struct AirLine
+	{
+		int Line = -1;          // into Area.Roads.Scenery.Lines
+		int Kind = 0;           // 0 a hard runway, 1 a grass one, 2 a taxiway, 3 a pier
+		double Width = 0.0, Deck = 0.0, Length = 0.0;   // a pier's deck height
+	};
+	std::vector<AirLine> AirLines;
+	std::unordered_map<long long, std::vector<int>> AirGrid;   // by every 64 m square a bit of each passes
+	std::vector<std::vector<P2>> Aprons;   // the airfields' aprons' outlines (fields)
+	void IndexTownLife();   // the forecourts and the things
+	// The forecourt with a pump within Within m of (X, Z), -1 none (the tank fills there).
+	int ForecourtAt(double X, double Z, double Within = 4.0) const;
+	bool OnForecourt(double X, double Z) const;
+	void TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [car parks] The map's car parks (World/WorldRideCarParks.cpp): each one's tarmac laid over its ground with
+	// its bays painted into it, flush (no strips over it), in rows along its aisles (a service road through it, or
+	// its longest side); low kerbs round it where no road runs by; a blue P sign and a pay machine at its way in;
+	// lamps over a big one; and parked cars in about a third of its bays, solid to the bike (ParkedCarsNear).
+	// Gravel ones get no paint or kerbs; "grass", "street_side" and "layby" ones are left as the ground is.
+	enum ECarParkSurface { ParkTarmac = 0, ParkSetts, ParkGravel };
+	struct CarPark
+	{
+		std::vector<P2> Ring;
+		double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0, Area = 0.0;
+		int Surface = ParkTarmac;
+		P2 U = P2(1.0, 0.0), V = P2(0.0, 1.0);   // the rows of bays run along U; V across them
+		double PhaseU = 0.0, PhaseV = 0.0;       // (along U, V from the origin) a bay's side; an aisle's middle
+		P2 Entry, EntryIn;                       // its way in, and the way into it there
+		bool HasEntry = false;
+		uint32_t Seed = 0;
+		// [build 157 feedback] Its level: the plane its ground is laid to (GroundOf, CarParkLevel), fitted to the
+		// land in it and no steeper than ParkFallMost; LevelY at LevelAt, rising LevelGx, LevelGz a metre (nan: none).
+		P2 LevelAt;
+		double LevelY = std::nan(""), LevelGx = 0.0, LevelGz = 0.0;
+	};
+	struct ParkBay
+	{
+		P2 Mid, Along, In;   // its middle; along its row; from the aisle into it
+		bool Car = false;    // a car parked in it
+		uint8_t Pick = 0;    // which car
+		bool Badge = false;  // a blue badge bay by the way in (its lines yellow, never a car)
+		int Row = 0, Col = 0;   // which row (two to an aisle: 2k below it, 2k + 1 above) and which along it
+	};
+	static constexpr double ParkBayWide = 2.4, ParkBayLong = 4.8, ParkAisle = 6.0;
+	std::vector<CarPark> CarParks;
+	std::unordered_map<long long, std::vector<int>> CarParkGrid;   // by every 64 m square each one covers
+	void IndexCarParks();
+	// [circuits] Race circuits (WorldRideCircuits.cpp): whether a road is a circuit's track or pit lane; its
+	// paint (red and white kerbs on its corners, the start line, the pit lane's lines) in place of a public
+	// road's; the ground's colour on a gravel trap or paved run-off, and what the tyres feel there (2
+	// gravel, 1 tarmac, -1 not a circuit's). IndexCircuits once the ride is laid out.
+	bool CircuitRoad(int Which) const;
+	void CircuitMarks(int Which, double From, double To, std::vector<RoadMark>& Out) const;
+	bool CircuitTint(double X, double Z, float* Rgb) const;
+	int CircuitGroundAt(double X, double Z) const;
+	void IndexCircuits();
+	std::shared_ptr<const CircuitIndex> CircuitIx;
+	// [circuits] The nearest circuit's start line within Within (m) of (X, Z): a place on its track Back metres
+	// before the line, the heading it's raced at there (sim: 0 faces -z, + left), and its name. False with none.
+	// [circuits] The circuits' trackside kit on a square of ground (added to PropsTile's).
+	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [caravans] The campsites' caravans in the square, as models (when the kit has them: PropModelled).
+	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	void IndexTrackside(CircuitIndex& Ix) const;
+	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
+	void CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const;
+	bool CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const;
+	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
+	// its buildings, water and edge.
+	void CarParkBays(int Which, std::vector<ParkBay>& Out) const;
+	void LayOutBays(int Which, std::vector<ParkBay>& Out) const;   // (CarParkBays' work, before it is kept)
+	void CarParkStands(double X0, double Z0, double X1, double Z1, std::vector<Building>& Out) const;   // (the buildings over it as drawn)
+	void CarParksTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// The parked cars within Reach of (X, Z) as boxes for the bike to bump into: the middle, the way its nose
+	// points (a level unit direction), half its length and width, its foot and roof heights.
+	struct ParkedCarBox
+	{
+		double X = 0.0, Z = 0.0, Ux = 1.0, Uz = 0.0, HalfLong = 2.1, HalfWide = 0.9, Y0 = 0.0, Y1 = 1.5;
+	};
+	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
+	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
+	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none or too steep)
+	// [build 157 feedback] (beenster: "strange carpark", Sandgate: bays and cars draped down an embankment) The
+	// land under and round a car park as built: within ParkCutMost of its level laid to it (cut or filled), the
+	// rest of a bank kept as a bank; outside its edge easing back to the land 2 in 3. Lie: the land as it lies.
+	double CarParkLevel(double X, double Z, double Lie) const;
+	static constexpr double ParkFallMost = 1.0 / 15.0, ParkCutMost = 2.5, ParkLevelReach = 6.0;
+	bool CarParkSteep(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;   // (a bank inside one: land, not car park)
+	static constexpr double ParkLift = 0.05;          // its surface over the drawn ground (the wheels ride on it)
+	int CarParkCount[3] = {};   // by surface, indexed (for the desk test)
+	// Whether the bays have cars in (the game: when the kit has the car models and -TorqueRideParkedCars=0 isn't
+	// given, the hub's frame rate A/B; the desk test draws plain shapes for them).
+	bool ParkedCars = true;
+	static constexpr int ParkedCarsMost = 150;   // in any one car park
+	// (each car park's bays once laid out, kept: the squares and the bike's contacts ask again and again)
+	struct CarParkMemo;
+	std::shared_ptr<CarParkMemo> ParkMemo;
 	// [places stage 3] The places drawn by their kind's recipe (World/WorldRidePlaces.cpp: PlacesTile):
 	// stone circles and standing stones in the local stone, crosses and memorials on their steps,
 	// obelisks, small churches where the map has no building for one (its tower at the west end),
@@ -1077,6 +1468,8 @@ public:
 		double Turn = 0.0;
 	};
 	// [OSM stage 5B] The roundabouts: the map's roundabout edges joined into closed rings (IndexRings).
+	// [towns stage 7] Whether a model's own parts (not its windows or lights) stand over (X, Z), Spare m round.
+	static bool ModelCovers(const PlaceRecipe& R, double X, double Z, double Spare);
 	struct RoadRing
 	{
 		std::vector<int> Edges, Nodes;   // round it, each edge from the node before it
@@ -1087,10 +1480,63 @@ public:
 		bool Circle = false;             // near enough a circle to be drawn as one
 		bool Mini = false;               // small enough to be a mini-roundabout
 		bool Clockwise = false;          // its edges run clockwise seen from above
+		double Half = 0.0;               // [roundabouts] the ring's half width, the same all round (drawn as a circle)
+		// [roundabouts round 2] (beenster: "roundabouts aren't always round, large ones can be elongated
+		// circles and other shapes") A ring that isn't near a circle but goes once round its middle without
+		// doubling back (an oval, a rounded triangle or square) is drawn smoothed to its own shape: its
+		// middle line's distance from Mid by bearing (Prof, RingProfBins bins round from east, empty for
+		// a circle), Reach the farthest it gets. Circle is then set too: drawn as a smooth ring.
+		std::vector<double> Prof;
+		double Reach = 0.0;
+		bool Shaped = false;
+		// Its middle line's distance from Mid at a bearing (radians, atan2(z, x)), and how fast that changes.
+		double RAt(double Angle) const;
+		double RSlope(double Angle) const;
+		// A point Off metres out (- in) from its middle line, square to it, at a bearing.
+		P2 At(double Angle, double Off) const;
+		// How far a point is out from its middle line (- in towards the island), square to it.
+		double OffOf(const P2& P) const;
+		// The least distance of its middle line from Mid.
+		double Least() const;
 	};
+	static constexpr int RingProfBins = 180;
+	static constexpr double RingIslandLeast = 6.0;   // [roundabouts round 2] a shaped ring's island at its narrowest (m)
 	std::vector<RoadRing> RoadRings;
 	std::unordered_map<int, int> RingOfNode;   // a node on a ring: which
-	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12, RingRoundLeast = 12.0;
+	// ([roundabouts] RingRoundLeast was 12 m: the compact rings under it were left as the map drew them, a
+	// knot of tarmac with no island; beenster on 154: "a lot of poor implementations of roundabouts")
+	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12, RingRoundLeast = 8.0;
+	// [roundabouts] The ring's markings and island: corners onto it rounded to RingFlare m (6 m elsewhere),
+	// the island's kerb (RingKerb high, its face a 45 degree slope as the town kerbs), an overrun apron of
+	// setts RingApron wide round an island under RingApronUnder across, the arms' painted splitters.
+	static constexpr double RingFlare = 15.0, RingKerb = 0.125, RingApron = 1.6, RingApronUnder = 14.0;   // ([roundabouts round 2] under 9 m: none ever had one)
+	// [roundabouts round 2] How far out from a ring's outer edge roads are checked for grass shoulders on tarmac (m).
+	static constexpr double RingClearReach = 30.0;
+	static constexpr double RingMouthClear = 10.0;   // [roundabouts round 4] no road shoulder or pavement this near a ring's edge but the ring's own (m)
+	static constexpr double RingFlareLeast = 6.0;   // [roundabouts 156] the flare onto a small ring (m); RingFlare is a big one's
+	static constexpr double RingGapFill = 8.0;
+	static constexpr double RingArmLines = 25.0;   // [roundabouts 156] edge lines this far along each one-way road off and on to a ring (m)
+	static constexpr double RingCornerClear = 18.0;   // [roundabouts 156] no junction corner kerb or verge this near a ring's edge (m): its arms' pavements stop short of the mouth
+	static constexpr double RingBarrierClear = 40.0;   // [roundabouts 156] no central reservation barrier this near a ring's edge (m)   // [roundabouts round 4] near a ring, a gap to another road this narrow or less is tarmac (m)
+	bool ShapeRing(RoadRing& R) const;
+	// [roundabouts round 2] The roads onto a ring drawn as one: where each meets its outer edge, which way it
+	// heads out, how wide, and which way its traffic may go (+1 out only, -1 in only, 0 both).
+	struct RingArm
+	{
+		P2 At, Out;
+		double Angle = 0.0, Half = 0.0;
+		int Way = 0, Edge = -1, Node = -1;
+		std::vector<P2> Line;   // (its middle out from the ring's edge)
+	};
+	std::vector<RingArm> RingArms(const RoadRing& R) const;
+	// [roundabouts round 2] A ring's own furniture: a chevron board on its island facing each way on, and
+	// on a bigger ring's ways on a roundabout warning triangle before it (NetworkFurniture's, once a ring).
+	std::vector<Furnish> RingFurniture(int Ring) const;   // [roundabouts round 2] give a ring that isn't round its own smooth shape, if it has one
+	std::unordered_map<int, int> RingOfEdge;   // [roundabouts] an edge on a ring drawn as a circle: which
+	std::unordered_map<long long, std::vector<int>> RingCells;   // [roundabouts] the circle rings by 64 m square they reach
+	double RingHalfOf(int Edge, double Half) const;   // [roundabouts] its half width: the ring's, if on one drawn as a circle
+	int PaintedRingNear(const P2& At, double Pad) const;   // [roundabouts] the circle ring whose tarmac (and Pad) is at a point, -1 none
+	void RingPaint(const RoadRing& R, RideMesh& Out) const;   // [roundabouts] its lines, give-ways and splitters
 	void IndexRings();
 	int RoundRings();   // the rings near a circle made true arcs (before any road is laid): how many
 	static constexpr double RingStep = 2.0;
@@ -1114,7 +1560,10 @@ public:
 	// [OSM stage 5D] Town streets: a kerb KerbHigh high (its face a 45 degree slope) and a pavement out to
 	// PaveWide from the road's edge, each side, in place of the verge (beenster Nov 14: one continuous kerb
 	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
-	static constexpr double KerbHigh = 0.125, PaveWide = 1.8;
+	// ([build 154] beenster: pavements "too wide": 1.8 m was; [build 155] "lower and 10% narrower": 0.125 m and 1.4 m were)
+	static constexpr double KerbHigh = 0.09, PaveWide = 1.26;
+	static constexpr double PaveBack = 1.2;   // ([build 155] "make the ground meet the other side of the pavement": its back a slope down to the ground as drawn, this wide; [156] drawn as the land, Turf)
+	static constexpr double CornerBack = 0.8;   // ([156] round a corner, as it was: wider, its back folds on a tight one)
 	// [OSM stage 5D] Traffic lights: a fixed cycle of SignalCycle seconds from the shared clock (the master
 	// plan's open question: until it is answered, nothing happens to a rider who goes through on red).
 	// The lamps' codes in RideMesh::Signals' UV0 y.
@@ -1164,6 +1613,10 @@ public:
 	// of the ride's road ahead of Was that leaves least to ride to the finish, with its turns (the last
 	// onto the ride's road there, Onto its name). Null when they are on no road, or none gets back.
 	std::shared_ptr<const RideDetour> DetourFrom(double X, double Z, double Heading, double Was) const;
+	// [ferries stage 5] Over the water: the way on from where the rider is (the junction ahead of them, as
+	// DetourFrom) by the map's roads through the pins still to come to the finish, each pin an arrival; RejoinAlong
+	// FinishM (nothing of the ride's road left). Null without a ferry, off any road, or no way on (WorldRideFerry.cpp).
+	std::shared_ptr<const RideDetour> FerryOnward(double X, double Z, double Heading) const;
 	// [waypoint] The way by a place the rider picked (the info panel's waypoint; beenster, build 146:
 	// "add it as a waypoint and retain our final destination"): from where they are (on the ride's
 	// road, from its next junction; on another road, from the junction ahead as DetourFrom) by the
@@ -1194,6 +1647,7 @@ public:
 		int MappedKmh = 0;
 		std::string Name, Class;
 		bool Gravel = false;
+		bool Setts = false;   // [towns stage 6]
 	};
 	std::vector<RoadFact> Facts;
 	struct LimitStretch
@@ -1303,6 +1757,13 @@ private:
 	void RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const;
 	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
 	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
+	// [build 155 feedback] A near square's watercourses' banks and channels, in the land's own colours, added
+	// to its land mesh Out: each side from under the water's edge out BankStrip squares, finely, over the
+	// near land's points that lie under the water (GroundOf), to meet the land as drawn at its outer edge.
+	void BanksTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// [build 155 feedback] The ground as the near squares draw it: the land mesh's (LandDrawnAt), or by a
+	// watercourse its banks' (BanksTile): what a path laid on the ground lies on.
+	double LandSurfaceAt(double X, double Z, std::unordered_map<long long, double>* Cache = nullptr) const;
 	// [OSM stage 4] The map's footpaths, bridleways, cycleways, pedestrian streets and steps beside the roads
 	// (Region::Ground.Paths): a ribbon on the ground along each, its colour its surface's, never on a road.
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;

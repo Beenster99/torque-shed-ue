@@ -43,6 +43,9 @@ SURROUND_SIZES = WINDOW_SIZES["sash"] + WINDOW_SIZES["casement"] + WINDOW_SIZES[
 DOOR_SIZES = [(0.95, 2.05), (0.9, 2.05)]
 WIDE_DOOR_SIZES = [(1.6, 2.05), (1.6, 2.6)]
 REV_D = 0.15
+# [build 153] beenster: "the frames stand out a little far from the brick faces": every model's depth out
+# of the wall (x) is drawn at this share of the figures above.
+DEPTH = 0.5
 
 
 def colour(slot, shade=1.0, own=None):
@@ -237,6 +240,90 @@ def hood(W, H):
     return M
 
 
+# --- [towns stage 4] Bay windows: a Victorian terrace's canted bay, an inter-war semi's square one ----------
+
+def moved(M, part, n, t, origin):
+    """part (made with the wall's frame: d out of it as x, y up, u along it as z) set on a face of the bay
+    whose outward normal is n and whose run is t (both (d, u)), its u = 0 at origin (d, u)."""
+    for k in range(len(part.P)):
+        P = part.P[k]
+        d, y, u = P[:, 0], P[:, 1], P[:, 2]
+        out = np.stack([origin[0] + d * n[0] + u * t[0], y, origin[1] + d * n[1] + u * t[1]], 1)
+        M.add(out, part.T[k] - sum(len(q) for q in part.P[:k]), part.C[k], part.U[k])
+
+
+BAY_PIER = 0.12          # the masonry each side of a light
+BAY_LIGHT = 1.45         # its sash's height (the house's own windows')
+
+
+def bay_storey(F, L, y0, top):
+    """One storey of one face of a bay, L long (u from -L/2): its plinth or the band between floors under
+    the sill at y0 + 1.0, the light (a two-over-two sash) between piers, its head, and on the top storey a
+    cornice. In the trim's colour (the bay's dressed or painted stone), the joinery in the paint's."""
+    lo = y0 + 1.0
+    face(F, -L / 2, L / 2, y0 - (0.6 if y0 == 0 else 0.0), lo - 0.1, 0.0, TRIM)
+    box(F, -L / 2 - 0.02, L / 2 + 0.02, lo - 0.1, lo, -0.02, 0.06, TRIM, 1.1)      # the sill
+    W = L - 2 * BAY_PIER
+    if W < 0.5:
+        # (a square bay's short side: too narrow for a light, solid masonry)
+        face(F, -L / 2, L / 2, lo, lo + BAY_LIGHT, 0.0, TRIM)
+        face(F, -L / 2, L / 2, lo + BAY_LIGHT, y0 + 2.7 + (0.15 if top else 0.0), 0.0, TRIM)
+        if top:
+            box(F, -L / 2 - 0.05, L / 2 + 0.05, y0 + 2.7 + 0.15, y0 + 2.7 + 0.27, -0.02, 0.09, TRIM, 1.15)
+        return
+    for su in (-1, 1):
+        box(F, su * (L / 2 - BAY_PIER / 2) - BAY_PIER / 2, su * (L / 2 - BAY_PIER / 2) + BAY_PIER / 2, lo, lo + BAY_LIGHT, -0.08, 0.0, TRIM)
+    win = window("win_sash2", W, BAY_LIGHT)
+    for k in range(len(win.P)):
+        win.P[k] = win.P[k] + np.array([-0.09, lo, 0.0])
+    F.P += win.P; F.T += [t + F.n for t in win.T]; F.C += win.C; F.U += win.U
+    F.n += sum(len(q) for q in win.P)
+    face(F, -L / 2, L / 2, lo + BAY_LIGHT, y0 + 2.7 + (0.15 if top else 0.0), 0.0, TRIM)   # the head (the band up to the next sill)
+    if top:
+        box(F, -L / 2 - 0.05, L / 2 + 0.05, y0 + 2.7 + 0.15, y0 + 2.7 + 0.27, -0.02, 0.09, TRIM, 1.15)   # the cornice
+
+
+def bay(shape, storeys):
+    """A bay window, its back on the wall (x = 0), its middle at z = 0, its foot at the ground: canted (a
+    front 1.1 m and sides at 45 degrees, 0.65 m out) or square (2.3 m wide, 0.6 m out), one storey or two,
+    under a slate hipped roof (the third colour) leaning back to the wall."""
+    M = ST.Mesh()
+    if shape == "canted":
+        P, Fw = 0.65, 1.1
+        Wt = Fw + 2 * P
+        pts = [(0.0, -Wt / 2), (P, -Fw / 2), (P, Fw / 2), (0.0, Wt / 2)]
+    else:
+        P, Wt = 0.6, 2.3
+        pts = [(0.0, -Wt / 2), (P, -Wt / 2), (P, Wt / 2), (0.0, Wt / 2)]
+    top_y = 2.7 * storeys + 0.27
+    for a, b in zip(pts[:-1], pts[1:]):
+        dd, du = b[0] - a[0], b[1] - a[1]
+        L = float(np.hypot(dd, du))
+        t = (dd / L, du / L)
+        n = (t[1], -t[0])
+        F = ST.Mesh()
+        for s in range(storeys):
+            bay_storey(F, L, 2.7 * s, s == storeys - 1)
+        moved(M, F, n, t, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))
+    # The roof: from the cornice's edge (a hair outside the faces) up to the wall, 0.5 m higher.
+    rim = [(0.0, pts[0][1] - 0.08)] + [(d + 0.09, u + (0.06 if u > 0 else -0.06) * (1 if d > 0 else 0)) for d, u in pts[1:-1]] + [(0.0, pts[-1][1] + 0.08)]
+    hi = top_y + 0.5
+    for (d0, u0), (d1, u1) in zip(rim[:-1], rim[1:]):
+        # a slope from this run of the rim back to the wall's line (its ends drawn in toward the middle)
+        q = np.array([[d0, top_y, u0], [d1, top_y, u1], [0.0, hi, u1 * 0.6], [0.0, hi, u0 * 0.6]], float)
+        T = np.array([[0, 1, 2], [0, 2, 3]])
+        fn = np.cross(q[T[:, 1]] - q[T[:, 0]], q[T[:, 2]] - q[T[:, 0]])
+        T[fn[:, 1] < 0] = T[fn[:, 1] < 0][:, [0, 2, 1]]
+        M.add(q, T, np.repeat(np.array([colour(THIRD, 1.0)]), 4, 0), q[:, [2, 0]])
+    # (the roof's soffit, under the rim, so it doesn't show daylight from below)
+    q = np.array([[r[0], top_y - 0.001, r[1]] for r in rim], float)
+    T = np.array([[0, k, k + 1] for k in range(1, len(q) - 1)])
+    fn = np.cross(q[T[:, 1]] - q[T[:, 0]], q[T[:, 2]] - q[T[:, 0]])
+    T[fn[:, 1] > 0] = T[fn[:, 1] > 0][:, [0, 2, 1]]
+    M.add(q, T, np.repeat(np.array([colour(TRIM, 0.8)]), len(q), 0), q[:, [2, 0]])
+    return M
+
+
 def made():
     out = {}
     for kind, sizes in (("win_sash6", "sash"), ("win_sash2", "sash"), ("win_casement", "casement"), ("win_casement_top", "casement"),
@@ -248,6 +335,9 @@ def made():
         out[style] = [door(style, W, H) for W, H in DOOR_SIZES]
     out["door_double"] = [door("door_double", W, H) for W, H in WIDE_DOOR_SIZES]
     out["door_hood"] = [hood(W, H) for W, H in DOOR_SIZES]
+    # [towns stage 4] (a bay's n its storeys less one)
+    out["bay_canted"] = [bay("canted", 1), bay("canted", 2)]
+    out["bay_square"] = [bay("square", 1), bay("square", 2)]
     return out
 
 
@@ -261,6 +351,9 @@ def main():
     for kind, meshes in made().items():
         for n, M in enumerate(meshes):
             name = "SM_Prop_%s_%d" % (kind, n)
+            if not kind.startswith("bay_"):   # (a bay stands its own depth out: it is no frame)
+                for k in range(len(M.P)):
+                    M.P[k] = M.P[k] * np.array([DEPTH, 1.0, 1.0])
             nv, nt = M.write(os.path.join(OUT, name + ".glb"), write_glb, name)
             total += nt
             count += 1

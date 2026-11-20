@@ -62,6 +62,11 @@ struct FBikeFrame
 	bool bLever[2] = {false, false};
 	FVector LeverPin[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
+	// [shocks] A V2 bike's rear shock mounts (the meshes' space, cm; the middle of the bike for a pair). Its pieces
+	// carry the nodes "shock_top", "shock_bottom" and "shock_spring"; the spring's mesh lies along its own x from
+	// the top mount, its component turned to match, so a scale in x squeezes it along the shock.
+	bool bShock = false;
+	FVector ShockTop = FVector::ZeroVector, ShockBottom = FVector::ZeroVector;
 };
 // [dash] OutGauges: the clocks' working pieces among the meshes made (FittedPart::Gauge), for the
 // ridden bike to drive: in the meshes' own space (the bike's frame, cm), as the meshes are made.
@@ -70,7 +75,11 @@ struct FDashGauge
 	FName What;                   // speed, rpm, led0 .. led5, readout
 	int32 Mesh = INDEX_NONE;      // which of Out
 	FVector At = FVector::ZeroVector, Axis = FVector::UpVector, Up = FVector::ForwardVector;
+	float Size = 1.0f;            // [bikes v2] a dial's radius over the catalogue dial's (the scale is drawn to it)
 };
+// [bikes v2] A V2 bike's side stand as fitted: its pivot (cm) and the leg's direction folded and down, in
+// the drawn bike's frame. False for a catalogue bike (or a V2 bike with no stand fitted).
+bool V2Stand(const TMap<FString, FString>& Parts, FVector& OutPivot, FVector& OutFolded, FVector& OutDown);
 // bOnlyFitted: leave out what the layout puts on for a slot that's empty ("none"), so a bare frame
 // in the shed is only the frame (no bars, tyres, sprockets...) until those are fitted.
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
@@ -100,6 +109,12 @@ int32 MakeV2Display(AActor* Owner, USceneComponent* Parent, const FString& Model
 
 // Tagged on a surface that isn't paint (chrome, rubber...): ApplyLooks leaves its colour alone.
 extern const TCHAR* const NoPaintTag;
+
+// [bikes v2] Tagged on a V2 bike's bodywork and rim paint: it's drawn in the model's own colour, which
+// stays until the part is repainted (ApplyLooks; the shop's preview and a loose part leave it alone).
+extern const TCHAR* const V2PaintTag;
+// ...and on the bodywork's of those (not the rims'): it follows the tank's paint when the tank's been painted.
+extern const TCHAR* const V2BodyTag;
 
 // Tagged on a surface that turns with a wheel (the tyre, the rim, a disc): its road dirt lies evenly
 // round the wheel (ApplyLooks), not caked on whichever side was at the bottom when it was drawn.

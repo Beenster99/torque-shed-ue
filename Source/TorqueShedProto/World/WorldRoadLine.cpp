@@ -19,13 +19,18 @@ struct ClassRow
 	const char* Name;
 	double Width, Fair, MainCost, Speed;
 };
-// (route_planner.gd's WIDTH, FAIR and CLASS_COST["main"])
+// (route_planner.gd's WIDTH, FAIR and CLASS_COST["main"]; [156] beenster, build 155: "many of the town roads
+// are improbably narrow": a residential street 6 m between its kerbs (was 4.6, a country lane's), a living
+// street 5 m, the pavements outside that)
 constexpr ClassRow ClassRows[] = {
 	{"motorway", 7.4, 18.0, 0.7, 110.0}, {"trunk", 7.4, 16.0, 0.75, 100.0}, {"primary", 7.4, 13.0, 0.8, 95.0}, {"secondary", 6.0, 11.0, 0.9, 80.0},
-	{"tertiary", 6.0, 9.0, 1.0, 70.0}, {"unclassified", 4.6, 7.0, 1.15, 60.0}, {"residential", 4.6, 5.0, 1.3, 40.0}, {"living_street", 4.6, 4.0, 1.4, 30.0},
+	{"tertiary", 6.0, 9.0, 1.0, 70.0}, {"unclassified", 4.6, 7.0, 1.15, 60.0}, {"residential", 6.0, 5.0, 1.3, 40.0}, {"living_street", 5.0, 4.0, 1.4, 30.0},
 	{"track", 3.3, 6.0, 3.0, 30.0},
 	// [OSM stage 4] (service roads, alleys, drives and car park aisles: narrow, slow, a last resort)
-	{"service", 3.5, 3.0, 8.0, 25.0}};
+	{"service", 3.5, 3.0, 8.0, 25.0},
+	// [circuits] (a race circuit's track and pit lane: as wide as a circuit, kept to the map's shape, never a
+	// way through for the sat nav, and banked no more than a slow road)
+	{"raceway", 12.0, 3.0, 40.0, 40.0}, {"pit_lane", 8.0, 3.0, 45.0, 30.0}};
 
 const ClassRow* RowOf(const std::string& Class)
 {

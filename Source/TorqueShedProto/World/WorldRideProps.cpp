@@ -19,12 +19,26 @@ namespace RidePropBits
 constexpr double PropCell = 256.0;   // as the scenery's squares (SceneCell)
 } // namespace RidePropBits
 
+int RidePlan::WallStyle(const LocalLook& Look)
+{
+	const std::string N = Look.Name;
+	if (N == "dales") return 0;
+	if (N == "cotswolds") return 1;
+	if (N == "lakes" || N == "wales") return 2;
+	if (N == "peak" || N == "lowlands") return 3;
+	if (N == "highlands" || N == "ulster" || N == "cornwall") return 4;
+	return 5;
+}
+
 const char* RidePlan::PropName(int Kind)
 {
 	static const char* Names[PropKinds] = {"post_box", "seat", "bus_stop", "milestone", "phone_box", "power_pole", "field_gate", "street_lamp", "stile", "kissing_gate",
 		"lift_gate", "bollard", "picnic_table", "info_board",
 		"win_sash6", "win_sash2", "win_casement", "win_casement_top", "win_mullion", "win_mullion_leaded", "sur_stone", "sur_brick", "sur_plain",
-		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood"};
+		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood",
+		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage", "parked_car", "traffic_signal",
+		"armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",   // [circuits]
+		"touring_caravan", "static_caravan"};   // [caravans]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -46,7 +60,8 @@ int RidePlan::PropOf(int FurnishKind)
 	case Bollard: return PropBollard;
 	case PicnicTable: return PropPicnicTable;
 	case InfoBoard: return PropInfoBoard;
-	default: return -1;   // (the signs, the cattle grids, the pubs' signs and the crossings' barriers stay code-made)
+	case TrafficSignal: return PropTrafficSignal;
+	default: return -1;   // (the signs, the cattle grids, the pubs' signs, the beacons and the crossings' barriers stay code-made)
 	}
 }
 
@@ -75,7 +90,8 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 	{
 		const Furnish& F = *Each;
 		if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
-		const int Kind = PropOf(F.Kind);
+		int Kind = PropOf(F.Kind);
+		if (Kind == PropStreetLamp && HeritageLampAt(F.At.X, F.At.Z)) Kind = PropLampHeritage;   // [towns stage 6]
 		if (Kind < 0 || !PropModelled[Kind] || std::isnan(F.Height)) continue;
 		RideProp P;
 		P.Kind = uint16_t(Kind);
@@ -87,12 +103,17 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 		P.Y = float(F.Height);
 		// Its front (the model's +x) to the road, or for a thing that stands in a line (a gate,
 		// a stile) square to the line: the line runs along Face, so the front is across it.
-		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate;
+		// ([Nov 19, beenster: "turn the telegraph poles to the direction of cable travel"] a telegraph
+		// pole too: its wires run along Face, and the model's cross arm lies along its x, so its front is
+		// across them and the arm square to the wires, its stay along them)
+		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate || F.Kind == PowerPole;
 		const P2 Front = InLine ? P2(F.Face.Z, -F.Face.X) : F.Face;
 		P.Yaw = float(std::atan2(Front.Z, Front.X));
 		P.Scale = 1.0f;
 		Out.push_back(P);
 	}
+	CircuitProps(X0, Z0, Size, Out);   // [circuits]
+	TownLifeProps(X0, Z0, Size, Out);   // [caravans]
 }
 
 bool RidePlan::ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out)

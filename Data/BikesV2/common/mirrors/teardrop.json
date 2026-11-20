@@ -1,0 +1,30 @@
+{
+ "group": "mirrors",
+ "key": "teardrop",
+ "name": "Teardrop stalk",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "bar_clamp",
+ "mount_mm": [
+  1135,
+  0.0,
+  1040
+ ],
+ "moves_with": "steering",
+ "size_mm": [
+  57.9,
+  797.7,
+  167.5
+ ],
+ "triangles": 3172,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "d3_mirrorglass": {
+   "ue": "mirror_glass",
+   "tag": "d3_mirrorglass"
+  }
+ }
+}

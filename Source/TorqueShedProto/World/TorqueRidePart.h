@@ -39,6 +39,12 @@ public:
 	// The part's look goes with it.
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
 
+	// [perf, build 154] Its shaders (PSOs) asked for when it is registered, as a static mesh's are:
+	// Unreal's procedural mesh asks for none, so each ride material's first sight compiled them on the
+	// render thread (rounds 151-153: 620-750 ms hitches after "PSO PRECACHING MISS" for M_RideSign,
+	// M_RideBrick, M_RideRoad...). torque.RidePartPrecache=0 turns it off.
+	virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams) override;
+
 	// Whether parts are drawn as static meshes now (torque.RideStaticParts, -TorqueRideStatic=).
 	static bool StaticLooks();
 

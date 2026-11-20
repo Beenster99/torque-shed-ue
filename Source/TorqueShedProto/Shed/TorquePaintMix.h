@@ -145,8 +145,27 @@ FName FinishOf(const FPaintSpec& S);
 // Masking tape (paint_mix.gd PATTERNS, TAPE_PATTERNS): what a strip of tape on a painted part
 // keeps of the colour under it when the next colour's sprayed over. 1 a centre stripe (6 cm), 2
 // twin stripes, 3 a pinstripe round it, 4 two-tone (the top half). 0: none.
-constexpr int32 TapePatterns = 4;
+// (The tape itself is gone, beenster 18 Nov 2026: 1 .. 4 only stay on parts masked before.)
+// 5 .. 10 a FADE: sprayed from the gun's two cups (its Fade load), cup 1 kept at one end blending into
+// cup 2, its finish too (matt black to gloss gold): 5 .. 7 front to back (cup 1 at the front),
+// 8 .. 10 top to bottom (cup 1 on top), each short, medium or long (FadeCm). R on the gun with Fade
+// loaded steps through the six.
+constexpr int32 TapePatterns = 10;
+constexpr int32 FirstFade = 5;
 const TCHAR* PatternName(int32 Pattern);
+inline bool IsFade(int32 Pattern) { return Pattern >= FirstFade && Pattern <= TapePatterns; }
+// The fade's direction (true: front to back; false: top to bottom) and how long the blend is (cm).
+inline bool FadeAlong(int32 Pattern) { return Pattern < FirstFade + 3; }
+inline float FadeCm(int32 Pattern)
+{
+	if (!IsFade(Pattern)) return 0.0f;
+	const int32 Soft = (Pattern - FirstFade) % 3;
+	return Soft == 0 ? 8.0f : (Soft == 1 ? 20.0f : 40.0f);
+}
+// How much of the colour under the mask is kept at a point (cm, in the part's frame from its middle:
+// x forward, z up), 0 .. 1, for the fades (the material's MASK_HLSL does the same).
+// At: the fade's middle along its way (cm), Dir: -1 for the mask's colour at the back or bottom.
+float FadeKeep(int32 Pattern, float X, float Z, float At = 0.0f, float Dir = 1.0f);
 // The tape that shows on paint Under: blue, or cream on a part too near the blue for that to show.
 FLinearColor TapeColourOn(const FLinearColor& Under);
 
@@ -158,6 +177,7 @@ struct FPaintLook
 	int32 Pattern = 0;            // the masked pattern (or the taped one, before it's sprayed over)
 	FLinearColor MaskColour = FLinearColor::White;
 	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	float FadeAt = 0.0f, FadeDir = 1.0f;   // a fade's middle (cm) and which end the mask's colour is at
 	bool bTape = false;           // the tape's still on
 	FLinearColor TapeColour = FLinearColor(0.18f, 0.42f, 0.85f);
 };

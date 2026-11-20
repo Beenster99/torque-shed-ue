@@ -11,7 +11,10 @@
 #include <map>
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
+#include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
+#include "WorldFerries.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
 #include <set>
@@ -157,6 +160,26 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string AtlasText;   // [towns stage 5]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/materials_atlas.json"), AtlasText)) SetMaterialsAtlas(AtlasText);
+		std::string FerryText;   // [ferries stage 5] (the ferries the planner may take, as the game sets them)
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/ferries.json"), FerryText)) Ferries::SetList(FerryText);
+		std::string CircuitText;   // [circuits]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/circuits.json"), CircuitText)) SetCircuitNotes(CircuitText);
+		std::string TypesText;   // [towns stage 4]
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_types.json"), TypesText)) SetHouseTypes(TypesText);
+		std::string KitText, KitBin;   // [churches stage 3] (WORLD_RIDE_CHURCHES=0: the drawn churches, to compare)
+		const char* KitOff = std::getenv("WORLD_RIDE_CHURCHES");
+		if ((!KitOff || std::string(KitOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.json"), KitText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.bin"), KitBin)) SetChurchKit(KitText, KitBin);
+		std::string HeightsText;   // [churches stage 6]
+		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
+		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_heights.json"), HeightsText)) SetChurchHeights(HeightsText);
+		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
+		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
+		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
+		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string PlaceText;   // [OSM stage 6C]
@@ -201,18 +224,39 @@ int main(int Argc, char** Argv)
 		V.W = 1024; V.H = 768;
 		if (const char* Layer = std::getenv("WORLD_RIDE_MAP_LAYER")) V.Layer = std::atoi(Layer);
 		Route::MapRoads Roads;
+		Route::MapStreets Streets;   // [map detail] (zoomed in, every road of the cells in view, fetched as the game does)
+		Route::MapImagery Imagery;   // (WORLD_RIDE_MAP_LAYER=3/4: the pictures; plain C++ has no JPEG, so none here)
 		const std::vector<TileKey> Keys = V.Tiles();
+		Cells.Index();
 		if (std::getenv("WORLD_RIDE_MAP_NOCOAST") == nullptr)
 		{
 			std::set<CellId> Under;
 			for (const TileKey& K : Keys)
 				for (const CellId& C : CellsUnder(K)) Under.insert(C);
-			Cells.IndexNow();
 			KnowCoasts(Cells, Heights, std::vector<CellId>(Under.begin(), Under.end()), 24, &Roads);
 		}
 		Heights.Fetch(Keys, Cells.Get, 6);
+		const auto T0 = std::chrono::steady_clock::now();
+		const int Missing = Route::RoadLayer(V.Layer) ? KnowStreets(Cells, Streets, V, Route::MapStreets::MostCells) : 0;
+		const auto T1 = std::chrono::steady_clock::now();
 		std::vector<uint8_t> Px;
-		Route::DrawRelief(Heights, V, Px, &Roads);
+		Route::DrawRelief(Heights, V, Px, &Roads, &Imagery, &Streets);
+		const auto T2 = std::chrono::steady_clock::now();
+		std::printf("streets: %d cells for the view, %d missing, read in %.0f ms; drawn in %.0f ms\n", int(Route::MapStreets::CellsFor(V).size()), Missing,
+			std::chrono::duration<double, std::milli>(T1 - T0).count(), std::chrono::duration<double, std::milli>(T2 - T1).count());
+		// (the roads' names the planner writes over it: WORLD_RIDE_MAP_NAMES=file gets them as "x y kind name" lines)
+		const std::vector<Route::MapStreets::Label> Names = Streets.Labels(V);
+		std::printf("street names: %d in %.1f ms\n", int(Names.size()), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T2).count());
+		if (const char* NamesFile = std::getenv("WORLD_RIDE_MAP_NAMES"))
+		{
+			std::string Text;
+			for (const Route::MapStreets::Label& L : Names)
+			{
+				const P2 Pix = V.PixelOf(L.Lat, L.Lon);
+				Text += std::to_string(int(Pix.X)) + " " + std::to_string(int(Pix.Z)) + " " + std::to_string(L.Kind) + " " + L.Name + "\n";
+			}
+			Files::Write(NamesFile, Text);
+		}
 		size_t Sea = 0, All = 0;
 		for (int J = 0; J < V.H; ++J)
 			for (int I = 0; I < V.W; ++I)
@@ -284,13 +328,38 @@ int main(int Argc, char** Argv)
 	const RideCheck R = CheckRide(Cells, Heights, At[0], At[1], At[2], At[3], [](const std::string& Text) { std::printf("  %s\n", Text.c_str()); std::fflush(stdout); });
 	std::printf("%s\n", R.Dump().c_str());
 	std::printf("%d fetches. %s\n", GAsked.load(), R.Ok ? "PASS" : ("FAIL: " + R.Why).c_str());
-	if (!R.Ok) return 1;
+	if (!R.Ok && !(Ferries::ListNow() && R.Why == "There is no way by road between them.")) return 1;   // ([ferries stage 5] a ferry may be the way)
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
 	// the game places them when it has them all.
-	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr) Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
+	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr)
+	{
+		Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
+		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
+	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
+	if (Plan->Ferry)
+	{
+		// [ferries stage 5] (the way by a ferry: the ride's road to its slipway, and the sat nav's way on from where it lands)
+		const RidePlan::FerryLink& Fl = *Plan->Ferry;
+		std::printf("ferry link: %s (%s), boarded at end %d: road %.0f m to %.1f,%.1f (finish '%s'), lands at %.1f,%.1f, %zu pins on, %.0f m on by road\n", Fl.Name.c_str(), Fl.Id.c_str(),
+			Fl.BoardEnd, Plan->Length, Fl.Board.X, Fl.Board.Z, Plan->Turns.empty() ? "" : Plan->Turns.back().Onto.c_str(), Fl.Land.X, Fl.Land.Z, Fl.Pins.size(), Fl.OnM);
+		Rect Round;
+		Round.X0 = Fl.Land.X - 600.0; Round.Z0 = Fl.Land.Z - 600.0; Round.X1 = Fl.Land.X + 600.0; Round.Z1 = Fl.Land.Z + 600.0;
+		Plan->LayBlocks(Round);
+		const P2 To = Fl.Pins.back();
+		const double Heading = std::atan2(-(To.X - Fl.Land.X), -(To.Z - Fl.Land.Z));
+		std::shared_ptr<const RideDetour> On = Plan->FerryOnward(Fl.Land.X, Fl.Land.Z, Heading);
+		if (!On) On = Plan->FerryOnward(Fl.Land.X, Fl.Land.Z, Heading + 3.14159265);
+		if (On)
+		{
+			std::printf("ferry way on: %.0f m, %zu turns:", On->Length, On->Turns.size());
+			for (const RidePlan::RideTurn& T : On->Turns) std::printf(" [%.0f %d %s]", T.Along, T.Turn, T.Onto.c_str());
+			std::printf("\n");
+		}
+		else std::printf("ferry way on: NONE\n");
+	}
 	{
 		int Urban = 0, All = 0;
 		for (size_t I = 0; I < Plan->Road.size(); I += 12, ++All) Urban += Plan->Land->Cover(Plan->Road[I].At.X + 60.0, Plan->Road[I].At.Z) == 5 ? 1 : 0;
@@ -418,6 +487,40 @@ int main(int Argc, char** Argv)
 				Tally.HouseFloors[0], Tally.HouseMapped[0], Tally.HouseFloors[1], Tally.HouseMapped[1], Tally.HouseFloors[2], Tally.HouseMapped[2],
 				Tally.HousesByRoad, Tally.LongSideToRoad);
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
+			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
+				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
+			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]
+			{
+				// [towns stage 6] (the heritage lamps among the street lamps there, with WORLD_RIDE_FACADE)
+				int Heritage = 0;
+				std::vector<RideProp> Stood;
+				for (int Dz = -2; Dz <= 2; ++Dz)
+					for (int Dx = -2; Dx <= 2; ++Dx)
+					{
+						Plan->PropsTile(Cx + Dx * 256.0, Cz + Dz * 256.0, 256.0, Stood);
+						for (const RideProp& Pr : Stood) Heritage += Pr.Kind == RidePlan::PropLampHeritage ? 1 : 0;
+					}
+				std::printf("Heritage street lamps: %d (shopping streets: %zu pieces)\n", Heritage, Plan->ShopPlaces.size());
+			}
+			// [towns stage 5] (the coverage: where the walls and roofs came from)
+			const auto Share = [](const int* From, int K)
+			{
+				int All = 0;
+				for (int I = 0; I < 7; ++I) All += From[I];
+				return All > 0 ? 100.0 * From[K] / All : 0.0;
+			};
+			std::printf("Walling of houses, shops and flats: own tags %.0f%%, the street's %.0f%%, the town counted from tags %.0f%%, the town table %.0f%%, the atlas %.0f%%, the region %.0f%% (data: %.0f%%); %d sooted, %d painted by the sea\n",
+				Share(Tally.WallFrom, 0), Share(Tally.WallFrom, 1), Share(Tally.WallFrom, 2), Share(Tally.WallFrom, 3), Share(Tally.WallFrom, 4), Share(Tally.WallFrom, 5),
+				Share(Tally.WallFrom, 0) + Share(Tally.WallFrom, 1) + Share(Tally.WallFrom, 2), Tally.Sooted, Tally.Painted);
+			std::printf("Their roofs: own tags %.0f%%, the street's %.0f%%, the town counted %.0f%%, the town table %.0f%%, the atlas %.0f%%, the region %.0f%%, by period %.0f%%\n",
+				Share(Tally.RoofFrom, 0), Share(Tally.RoofFrom, 1), Share(Tally.RoofFrom, 2), Share(Tally.RoofFrom, 3), Share(Tally.RoofFrom, 4), Share(Tally.RoofFrom, 5), Share(Tally.RoofFrom, 6));
+			{
+				const LocalLook& L = Plan->LookHere(Cx + 128.0, Cz + 128.0);
+				std::printf("The look at the start: %s, from %s; stone tint %.2f %.2f %.2f, brick %.3f %.3f %.3f, render %.0f%% brick %.0f%%, soot %.2f, paint %.2f\n", L.Name,
+					L.From == LocalLook::FromTags ? "the map's tags" : L.From == LocalLook::FromTable ? "the town table" : L.From == LocalLook::FromAtlas ? "the atlas" : "the region",
+					L.HouseStone.R, L.HouseStone.G, L.HouseStone.B, L.BrickColour.R, L.BrickColour.G, L.BrickColour.B, 100.0 * L.RenderShare, 100.0 * L.BrickShare, L.Soot, L.Paint);
+				for (const auto& Src : Plan->TownSources) if (Src.rfind("atlas", 0) == 0) std::printf("  area: %s\n", Src.c_str());
+			}
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.
@@ -740,6 +843,108 @@ int main(int Argc, char** Argv)
 			int(Plan->Area.Roads.Sights.size()), Plan->PlacesFar, Plan->PlaceStopCount[RidePlan::PlaceMade], Plan->PlaceStopCount[RidePlan::PlaceCarPark],
 			Plan->PlaceStopCount[RidePlan::PlaceLayby], Plan->PlaceStopCount[RidePlan::PlaceStreet]);
 		std::printf("Places stage 7: %d paths in to the places, %d kissing gates on them\n", Plan->PlacePaths, Plan->PlaceGates);
+		// [roads stage 7] The petrol stations.
+		{
+			const Frame Fc(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
+			int Kiosks = 0, Three = 0, Garages = 0;
+			for (const RidePlan::Forecourt& F : Plan->Forecourts) { Kiosks += F.Kiosk ? 1 : 0; Three += F.Islands == 3 ? 1 : 0; Garages += F.Garage ? 1 : 0; }
+			std::printf("Forecourts: %d made of %d fuel stops (%d with a kiosk, %d with three islands, %d with a garage)\n", int(Plan->Forecourts.size()), Plan->FuelSeen, Kiosks, Three, Garages);
+			// [garage] each garage clear of the canopy, the kiosk and the forecourt's edge
+			for (size_t I = 0; I < Plan->Forecourts.size(); ++I)
+			{
+				RidePlan::GarageSpot G;
+				if (!Plan->GarageOf(int(I), G)) continue;
+				const RidePlan::Forecourt& F = Plan->Forecourts[I];
+				const double Gu = F.GarageU, Gv0 = F.GarageV, Gv1 = F.GarageV + RidePlan::GarageDeep;
+				const bool UnderCanopy = Gv0 < 5.0 + 9.0 && std::fabs(Gu) < F.CanopyLong * 0.5 + RidePlan::GarageWide * 0.5;
+				const bool PastDepth = Gv1 > F.Depth - 0.5;
+				const bool PastEnd = std::fabs(Gu) + RidePlan::GarageWide * 0.5 > F.Length * 0.5 - 5.0;
+				bool OffRing = false;
+				for (double U : {-0.5, 0.5})
+					for (double V : {0.0, 1.0})
+					{
+						const P2 Q = F.RoadMid + F.Out * (F.Half + Gv0 + V * RidePlan::GarageDeep) + F.RoadDir * (Gu + U * RidePlan::GarageWide);
+						OffRing = OffRing || !Plan->OnForecourt(Q.X, Q.Z);
+					}
+				if (UnderCanopy || PastDepth || PastEnd || OffRing)
+					std::printf("  GARAGE FAIL %s: under canopy %d, past depth %d, past end %d, off the forecourt %d\n", F.Name.c_str(), UnderCanopy, PastDepth, PastEnd, OffRing);
+			}
+			std::printf("Town life: %d of %d campsites with pitches (%d tents, %d caravans, %d statics), %d fountains, %d chargers\n", Plan->CampsMade, Plan->CampsSeen,
+				Plan->ThingCount[RidePlan::ThingTent], Plan->ThingCount[RidePlan::ThingCaravan], Plan->ThingCount[RidePlan::ThingStatic], Plan->ThingCount[RidePlan::ThingFountain],
+				Plan->ThingCount[RidePlan::ThingCharger]);
+			{
+				// [car parks] How many, and the biggest near the ride's start (WORLD_RIDE_CARPARKS=n lists n with their bays
+				// and cars, laid out as the squares lay them).
+				std::printf("Car parks: %d tarmac, %d setts, %d gravel\n", Plan->CarParkCount[RidePlan::ParkTarmac], Plan->CarParkCount[RidePlan::ParkSetts], Plan->CarParkCount[RidePlan::ParkGravel]);
+				const int Show = std::getenv("WORLD_RIDE_CARPARKS") != nullptr ? std::atoi(std::getenv("WORLD_RIDE_CARPARKS")) : 0;
+				std::vector<std::pair<double, int>> Big;
+				for (size_t I = 0; I < Plan->CarParks.size(); ++I) Big.push_back({-Plan->CarParks[I].Area, int(I)});
+				std::sort(Big.begin(), Big.end());
+				std::vector<RidePlan::ParkBay> Bays;
+				for (int K = 0; K < Show && K < int(Big.size()); ++K)
+				{
+					const RidePlan::CarPark& C = Plan->CarParks[size_t(Big[size_t(K)].second)];
+					Plan->CarParkBays(Big[size_t(K)].second, Bays);
+					int Cars = 0, Badges = 0;
+					for (const RidePlan::ParkBay& B : Bays) { Cars += B.Car ? 1 : 0; Badges += B.Badge ? 1 : 0; }
+					P2 Mid;
+					RideShapes::RingArea(C.Ring, Mid);
+					const Geo ParkGeo = Plan->Area.Roads.FrameOf().ToGeo(Mid.X, Mid.Z);
+					std::printf("  car park %d at %.5f,%.5f (%.0f, %.0f): %.0f m2, surface %d, %d bays (%d badge), %d cars, way in %s (%.0f, %.0f, in %.2f, %.2f)\n", Big[size_t(K)].second, ParkGeo.Lat, ParkGeo.Lon, Mid.X, Mid.Z,
+						C.Area, C.Surface, int(Bays.size()), Badges, Cars, C.HasEntry ? "found" : "none", C.Entry.X - Mid.X, C.Entry.Z - Mid.Z, C.EntryIn.X, C.EntryIn.Z);
+				}
+				// [build 157 feedback] (banks inside car parks: WORLD_RIDE_CARPARKS_STEEP=n lists the n with most of
+				// their ground too steep to be car park, left as land)
+				const int ShowSteep = std::getenv("WORLD_RIDE_CARPARKS_STEEP") != nullptr ? std::atoi(std::getenv("WORLD_RIDE_CARPARKS_STEEP")) : 0;
+				if (ShowSteep > 0)
+				{
+					std::vector<std::pair<double, int>> ByBank;
+					int AnySteep = 0;
+					for (size_t I = 0; I < Plan->CarParks.size(); ++I)
+					{
+						const RidePlan::CarPark& C = Plan->CarParks[I];
+						int Inside = 0, Banked = 0;
+						for (double Z = C.MinZ + 2.0; Z < C.MaxZ; Z += 4.0)
+							for (double X = C.MinX + 2.0; X < C.MaxX; X += 4.0)
+								if (RideShapes::InRing(C.Ring, X, Z)) { ++Inside; Banked += Plan->CarParkSteep(X, Z) ? 1 : 0; }
+						if (Banked > 0) ++AnySteep;
+						if (Inside > 0) ByBank.push_back({-double(Banked) / Inside, int(I)});
+					}
+					std::sort(ByBank.begin(), ByBank.end());
+					{
+						// (how level their ground is drawn: the share of points falling under 1 in 15 across 4 m)
+						long long Flat = 0, All = 0;
+						for (const RidePlan::CarPark& C : Plan->CarParks)
+							for (double Z = C.MinZ + 2.0; Z < C.MaxZ; Z += 4.0)
+								for (double X = C.MinX + 2.0; X < C.MaxX; X += 4.0)
+								{
+									if (!RideShapes::InRing(C.Ring, X, Z)) continue;
+									const double A = Plan->LandDrawnAt(X - 2.0, Z), B = Plan->LandDrawnAt(X + 2.0, Z), Cc = Plan->LandDrawnAt(X, Z - 2.0), D = Plan->LandDrawnAt(X, Z + 2.0);
+									if (std::isnan(A) || std::isnan(B) || std::isnan(Cc) || std::isnan(D)) continue;
+									++All;
+									Flat += std::hypot(B - A, D - Cc) < 4.0 / 15.0 ? 1 : 0;
+								}
+						std::printf("Car parks' ground: %.1f%% of %lld points level (under 1 in 15)\n", All ? 100.0 * double(Flat) / double(All) : 0.0, All);
+					}
+					std::printf("Car parks with steep ground in: %d\n", AnySteep);
+					for (int K = 0; K < ShowSteep && K < int(ByBank.size()); ++K)
+					{
+						const RidePlan::CarPark& C = Plan->CarParks[size_t(ByBank[size_t(K)].second)];
+						P2 Mid;
+						RideShapes::RingArea(C.Ring, Mid);
+						const Geo SteepGeo = Plan->Area.Roads.FrameOf().ToGeo(Mid.X, Mid.Z);
+						Plan->CarParkBays(ByBank[size_t(K)].second, Bays);
+						std::printf("  steep car park %d at %.5f,%.5f: %.0f m2, %.0f%% too steep, %d bays\n", ByBank[size_t(K)].second, SteepGeo.Lat, SteepGeo.Lon, C.Area, -ByBank[size_t(K)].first * 100.0, int(Bays.size()));
+					}
+				}
+			}
+			for (size_t I = 0; I < Plan->Forecourts.size() && I < 8; ++I)
+			{
+				const RidePlan::Forecourt& F = Plan->Forecourts[I];
+				const Geo Gp = Fc.ToGeo(F.Canopy.X, F.Canopy.Z);
+				std::printf("  forecourt %s at %.5f,%.5f: %.0f m deep, %d islands%s\n", F.Name.c_str(), Gp.Lat, Gp.Lon, F.Depth, F.Islands, F.Kiosk ? ", kiosk" : "");
+			}
+		}
 		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
 		int Shown = 0;
 		for (size_t I = 0; I < Plan->PlaceStops.size() && Shown < 12; ++I)
@@ -982,6 +1187,7 @@ int main(int Argc, char** Argv)
 					Time("wild", [&](RideMesh& M) { Plan->WildTile(Kx, Kz, Sz, Detail, M); });
 					Time("towers", [&](RideMesh& M) { Plan->TowersTile(Kx, Kz, Sz, Detail, M); });
 					Time("places", [&](RideMesh& M) { Plan->PlacesTile(Kx, Kz, Sz, Detail, M); });
+					Time("town life", [&](RideMesh& M) { Plan->TownLifeTile(Kx, Kz, Sz, Detail, M); });
 					Time("rings", [&](RideMesh& M) { Plan->RingsTile(Kx, Kz, Sz, Detail, M); });
 				}
 				for (const auto& [Name, A] : Parts) std::printf("Draw parts level %d: %-14s %9.0f triangles, %.2f s\n", Lv, Name.c_str(), A[0], A[1]);
@@ -1024,6 +1230,7 @@ int main(int Argc, char** Argv)
 		// half width and the land's own height; each lake's level)
 		const double Reach = std::atof(WaterAt);
 		const P2 Start = Plan->Road[0].At;
+		std::printf("  water near the start, %.1f, %.1f in the frame\n", Start.X, Start.Z);
 		for (size_t Wr = 0; Wr < Plan->WaterRuns.size(); ++Wr)
 		{
 			const RidePlan::WaterRun& Run = Plan->WaterRuns[Wr];
@@ -1202,14 +1409,27 @@ int main(int Argc, char** Argv)
 				const double Cross = std::fabs((B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X));
 				if (Cross > 1e-9) Tightest = std::fmin(Tightest, Ab * Bc * Ac / (2.0 * Cross));
 			}
+			// [roundabouts] (which way round the ride goes: clockwise seen from above is Britain's way)
+			double Turn = 0.0;
+			for (size_t K = 1; K < Plan->Road.size(); ++K)
+			{
+				const P2 A = Plan->Road[K - 1].At - Rg.Mid, B = Plan->Road[K].At - Rg.Mid;
+				if (A.Length() > Rg.Radius + 8.0 || B.Length() > Rg.Radius + 8.0) continue;
+				Turn += A.X * B.Z - A.Z * B.X;
+			}
+			std::printf("  ridden ring %zu goes round %s\n", I, Turn > 0.0 ? "clockwise" : "ANTICLOCKWISE");
 			std::printf("  ridden ring %zu (radius %.1f%s): %d road knots within 12 m, %.1f to %.1f m from its middle, tightest bend %.1f m\n", I, Rg.Radius,
 				Rg.Circle ? ", a circle" : "", On, Least, Most, Tightest);
 		}
 		for (const RidePlan::RideTurn& T : Plan->Turns)
 			if (T.Exit > 0) std::printf("  sat nav: at %.0f m, roundabout, exit %d (turn %d) onto '%s'\n", T.Along, T.Exit, T.Turn, T.Onto.c_str());
-		for (size_t I = 0; I < Plan->RoadRings.size() && I < 20; ++I)
+		const bool AllRings = std::getenv("WORLD_RIDE_RINGS_ALL") != nullptr;
+		for (size_t I = 0; I < Plan->RoadRings.size() && (I < 20 || AllRings); ++I)
 		{
 			const RidePlan::RoadRing& Rg = Plan->RoadRings[I];
+			double Near = 1e18;
+			for (const RoadPoint& P : Plan->Road) Near = std::fmin(Near, P.At.DistanceTo(Rg.Mid));
+			if (AllRings) std::printf("  ring %zu is %.0f m from the ride's road\n", I, Near);
 			std::printf("  ring %zu at %.0f, %.0f: radius %.1f m, strays %.1f m, %zu edges, %zu points%s%s\n", I, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Stray, Rg.Edges.size(), Rg.Line.size(),
 				Rg.Circle ? ", a circle" : "", Rg.Clockwise ? ", clockwise" : ", anticlockwise");
 		}
@@ -1239,6 +1459,317 @@ int main(int Argc, char** Argv)
 		}
 		for (const RoadPoint& P : Plan->Road)
 			if (P.At.DistanceTo(C) < 80.0) std::printf("  ride road %.1f %.1f at %.0f h %.1f half %.1f%s%s\n", P.At.X - C.X, P.At.Z - C.Z, P.Along, P.Height, P.Half, P.Bridge ? " bridge" : "", P.Tunnel ? " tunnel" : "");
+	}
+	if (const char* WorshipNear = std::getenv("WORLD_RIDE_WORSHIP"))
+	{
+		// [churches stage 3] (debug: the map's places of worship within WORLD_RIDE_WORSHIP m of the ride's start, as lat, lon)
+		const double Wr = std::atof(WorshipNear);
+		const P2 S0 = Plan->Road.empty() ? P2(0.0, 0.0) : Plan->Road[0].At;
+		for (const TorqueFit::Json& Mark : Plan->Area.Roads.Landmarks)
+		{
+			if (Mark.Str("kind") != "worship" || std::hypot(Mark.Num("x") - S0.X, Mark.Num("z") - S0.Z) > Wr) continue;
+			const Geo WAt = Plan->Area.Roads.FrameOf().ToGeo(Mark.Num("x"), Mark.Num("z"));
+			std::printf("worship %.5f,%.5f %s\n", WAt.Lat, WAt.Lon, Mark.Str("name").c_str());
+		}
+		// [churches stage 5] (and their churchyards: mapped or made, walls, yews, lychgate)
+		size_t Made = 0, Lych = 0, Yews = 0, Runs = 0;
+		for (const RidePlan::Churchyard& Yd : Plan->Churchyards)
+		{
+			Made += Yd.Made ? 1 : 0; Lych += Yd.Lych ? 1 : 0; Yews += Yd.Yews.size(); Runs += Yd.Walls.size();
+			if (std::hypot(Yd.Church.X - S0.X, Yd.Church.Z - S0.Z) > Wr && !(Yd.Made && std::getenv("WORLD_RIDE_MADE"))) continue;
+			const Geo YAt = Plan->Area.Roads.FrameOf().ToGeo(Yd.Church.X, Yd.Church.Z);
+			const Geo GAt = Plan->Area.Roads.FrameOf().ToGeo(Yd.Gate.X, Yd.Gate.Z);
+			std::printf("churchyard %.5f,%.5f %s%s, %zu wall runs, %zu yews, path %.0f m, gate %.5f,%.5f\n", YAt.Lat, YAt.Lon, Yd.Made ? "made" : "mapped", Yd.Lych ? ", lychgate" : "",
+				Yd.Walls.size(), Yd.Yews.size(), Yd.Gate.DistanceTo(Yd.PathEnd), GAt.Lat, GAt.Lon);
+		}
+		std::printf("churchyards: %zu (%zu made, %zu lychgates, %zu yews, %zu wall runs)\n", Plan->Churchyards.size(), Made, Lych, Yews, Runs);
+	}
+	if (const char* EdgeAt = std::getenv("WORLD_RIDE_EDGE_AT"))
+	{
+		// (debug: the roads nearest a place on the map, lat,lon: their class, name, width and distance)
+		double La = 0.0, Lo = 0.0;
+		std::sscanf(EdgeAt, "%lf,%lf", &La, &Lo);
+		const Region& Gr = Plan->Area.Roads;
+		const P2 Q = Gr.FrameOf().FromGeo(La, Lo);
+		std::vector<std::pair<double, int>> Near;
+		for (size_t E = 0; E < Gr.Edges.size(); ++E)
+		{
+			double Best = 1e18;
+			const std::vector<P2>& L = Gr.Edges[E].Line;
+			for (size_t K = 0; K + 1 < L.size(); ++K) { const P2 D = L[K + 1] - L[K]; const double L2 = D.X * D.X + D.Z * D.Z; const double T = L2 > 1e-12 ? std::clamp(((Q.X - L[K].X) * D.X + (Q.Z - L[K].Z) * D.Z) / L2, 0.0, 1.0) : 0.0; Best = std::fmin(Best, (L[K] + D * T).DistanceTo(Q)); }
+			if (Best < 60.0) Near.push_back({Best, int(E)});
+		}
+		std::sort(Near.begin(), Near.end());
+		for (const auto& Nr : Near)
+			std::printf("edge %d %.1f m: %s '%s' surface %s%s\n", Nr.second, Nr.first, Gr.ClassOf(Nr.second).c_str(), Gr.NameOf(Nr.second).c_str(), Gr.SurfaceOf(Nr.second).c_str(),
+				Gr.CircuitFirst >= 0 && Nr.second >= Gr.CircuitFirst ? " (circuit)" : "");
+	}
+	if (const char* FerryOut = std::getenv("WORLD_RIDE_FERRY"))
+	{
+		// [ferries] (the listed crossings in the ride's area, each laid on the real shore: its water, both slipways,
+		// the approaches, the berths and a sailing; with WORLD_RIDE_FERRY=<file> each end's ground along its slipway's
+		// axis and the approach, for a picture)
+		std::string ListText;
+		std::vector<Ferries::Listed> List;
+		if (!Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/ferries.json"), ListText) || !Ferries::ReadList(ListText, List))
+			std::printf("ferries: no list\n");
+		const std::vector<Ferries::Crossing> Here = Ferries::InPlan(*Plan, List);
+		const Ferries::WorldAsk Ask = Ferries::AskOf(*Plan);
+		std::printf("ferries: %zu listed, %zu in the area\n", List.size(), Here.size());
+		FILE* Dump = std::string(FerryOut).size() > 1 ? std::fopen(FerryOut, "w") : nullptr;
+		for (const Ferries::Crossing& C : Here)
+		{
+			Ferries::Layout L;
+			const bool Ok = Ferries::Lay(C, Ask, L);
+			std::printf("  %s (%s, %s): %.0f m%s, %zu points, from the map %d\n", C.Name.c_str(), C.Id.c_str(), Ferries::KindName(C.Kind), C.Length, C.Long ? " long" : "", C.Line.size(), int(C.FromMap));
+			if (!Ok)
+			{
+				std::printf("    not laid: %s (water %.2f%s)\n", L.Why.c_str(), L.Water, L.Sea ? " sea" : "");
+				for (int E = 0; E < 2 && C.Line.size() >= 2; ++E)
+				{
+					const P2 A0 = E == 0 ? C.Line.front() : C.Line.back();
+					const P2 A1 = E == 0 ? C.Line[1] : C.Line[C.Line.size() - 2];
+					const P2 Ax = (A1 - A0) * (1.0 / std::max(1e-6, A1.DistanceTo(A0)));
+					std::printf("    end %d ground along the route:", E);
+					for (double D = -160.0; D <= 90.0; D += 10.0)
+					{
+						const P2 Q = A0 + Ax * D;
+						std::printf(" %.0f:%.1f%s", D, Ask.Height(Q.X, Q.Z), Ask.Sea(Q.X, Q.Z) ? "s" : "");
+					}
+					std::printf("\n");
+				}
+				continue;
+			}
+			std::printf("    water %.2f (%s), path %.0f m, a sailing %.0f s\n", L.Water, L.Sea ? "sea" : "loch", L.PathLength, L.Seconds);
+			for (int E = 0; E < 2; ++E)
+			{
+				const Ferries::End& N = L.Ends[E];
+				std::printf("    end %d: axis %.2f,%.2f shore %.1f,%.1f head %.1f,%.1f y %.2f (ground %.2f) tip y %.2f foot y %.2f grade 1 in %.1f ramp %.1f deg\n", E, N.Axis.X, N.Axis.Z, N.Shore.X, N.Shore.Z, N.Head.X, N.Head.Z, N.HeadY, Ask.Height(N.Head.X, N.Head.Z), N.TipY, N.FootY, N.Grade > 0 ? 1.0 / N.Grade : 0.0, N.RampDown * 57.29578);
+				std::printf("           approach %zu points from road %.1f,%.1f y %.2f (%.0f m from the head); berth %.1f,%.1f\n", N.Approach.size(), N.Road.X, N.Road.Z, N.RoadY, N.Road.DistanceTo(N.Head), N.Berth.X, N.Berth.Z);
+				if (Dump)
+				{
+					for (double D = -60.0; D <= 60.0; D += 1.0)
+					{
+						const P2 Q(N.Shore.X - N.Axis.X * D, N.Shore.Z - N.Axis.Z * D);
+						std::fprintf(Dump, "profile %s %d %.1f %.3f %d\n", C.Id.c_str(), E, D, Ask.Height(Q.X, Q.Z), int(Ask.Sea(Q.X, Q.Z)));
+					}
+					for (const auto& A : N.Approach) std::fprintf(Dump, "approach %s %d %.2f %.3f %.2f %.3f\n", C.Id.c_str(), E, A[0], A[1], A[2], Ask.Height(A[0], A[2]));
+					std::fprintf(Dump, "end %s %d %.2f %.2f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.2f %.2f %.3f\n", C.Id.c_str(), E, N.Axis.X, N.Axis.Z, N.Head.X, N.Head.Z, N.HeadY, N.Tip.X, N.Tip.Z, N.TipY, N.Foot.X, N.Foot.Z, N.FootY, N.Berth.X, N.Berth.Z, N.Shore.X, N.Shore.Z, L.Water);
+				}
+			}
+			for (int I = 0; I <= 10; ++I)
+			{
+				P2 Pos, Bow;
+				Ferries::Sail(L, C.Long, I / 10.0, Pos, Bow);
+				std::printf("    sail %.1f: %.1f,%.1f bow %.2f,%.2f%s\n", I / 10.0, Pos.X, Pos.Z, Bow.X, Bow.Z, Ask.Sea(Pos.X, Pos.Z) || Ask.Height(Pos.X, Pos.Z) < L.Water + 0.2 ? "" : "  ON LAND");
+				if (Dump) std::fprintf(Dump, "sail %s %.2f %.2f %.2f\n", C.Id.c_str(), Pos.X, Pos.Z, Ask.Height(Pos.X, Pos.Z));
+			}
+			if (Dump)
+				for (const P2& Q : C.Line) std::fprintf(Dump, "line %s %.2f %.2f\n", C.Id.c_str(), Q.X, Q.Z);
+		}
+		if (Dump)
+		{
+			// the ground around each crossing on a 4 m grid, for the picture
+			for (const Ferries::Crossing& C : Here)
+			{
+				double Gx0 = 1e18, Gx1 = -1e18, Gz0 = 1e18, Gz1 = -1e18;
+				for (const P2& Q : C.Line) { Gx0 = std::min(Gx0, Q.X); Gx1 = std::max(Gx1, Q.X); Gz0 = std::min(Gz0, Q.Z); Gz1 = std::max(Gz1, Q.Z); }
+				for (double Z = Gz0 - 250.0; Z <= Gz1 + 250.0; Z += 4.0)
+					for (double X = Gx0 - 250.0; X <= Gx1 + 250.0; X += 4.0)
+						std::fprintf(Dump, "g %s %.0f %.0f %.2f %d\n", C.Id.c_str(), X, Z, Ask.Height(X, Z), int(Ask.Sea(X, Z)));
+				for (const RoadEdge& Ed : Plan->Area.Roads.Edges)
+				{
+					bool Near = false;
+					for (const P2& Q : Ed.Line) Near = Near || (Q.X > Gx0 - 250 && Q.X < Gx1 + 250 && Q.Z > Gz0 - 250 && Q.Z < Gz1 + 250);
+					if (!Near) continue;
+					std::fprintf(Dump, "road %s", C.Id.c_str());
+					for (const P2& Q : Ed.Line) std::fprintf(Dump, " %.1f %.1f", Q.X, Q.Z);
+					std::fprintf(Dump, "\n");
+				}
+			}
+			std::fclose(Dump);
+		}
+	}
+	if (std::getenv("WORLD_RIDE_CIRCUITS") != nullptr)
+	{
+		// [circuits] (debug: the race circuits in the ride's area, joined to its roads or not, their start and sector
+		// lines, and two laps of each ridden round its track at 40 m/s through the lap timer)
+		const Region& G = Plan->Area.Roads;
+		std::printf("circuits: %zu (%zu ways, %zu areas), circuit roads from edge %d of %zu\n", G.Circuits.size(), G.CircuitWays.size(), G.CircuitAreas.size(), G.CircuitFirst, G.Edges.size());
+		for (size_t C = 0; C < G.Circuits.size(); ++C)
+		{
+			int Track = 0, Pit = 0, Links = 0;
+			double TrackM = 0.0;
+			for (int E = G.CircuitFirst; E >= 0 && E < int(G.Edges.size()); ++E)
+			{
+				const int Of = G.CircuitOf[size_t(E - G.CircuitFirst)];
+				if (Of < 0) { ++Links; continue; }
+				if (Of != int(C)) continue;
+				if (G.ClassOf(E) == "raceway") { ++Track; for (size_t K = 1; K < G.Edges[size_t(E)].Line.size(); ++K) TrackM += G.Edges[size_t(E)].Line[K].DistanceTo(G.Edges[size_t(E)].Line[K - 1]); }
+				else ++Pit;
+			}
+			const Geo CAt = G.FrameOf().ToGeo(G.Circuits[C].At.X, G.Circuits[C].At.Z);
+			std::printf("circuit %zu '%s' at %.4f,%.4f: %d track roads (%.0f m), %d pit lane roads; %d links to the public roads in all\n", C, G.Circuits[C].Name.c_str(), CAt.Lat, CAt.Lon, Track, TrackM, Pit, Links);
+		}
+		if (Plan->CircuitIx)
+			for (const CircuitIndex::Line& L : Plan->CircuitIx->Lines)
+			{
+				const Geo CAt = G.FrameOf().ToGeo(L.At.X, L.At.Z);
+				std::printf("  line circuit %d kind %d '%s' at %.5f,%.5f half %.1f\n", L.Circuit, L.Kind, L.Name.c_str(), CAt.Lat, CAt.Lon, L.Half);
+			}
+		if (const std::shared_ptr<const CircuitNotes> RoadNotes = CircuitNotesNow())
+			for (const CircuitNote& Nt : RoadNotes->Circuits)
+			{
+				if (!Nt.Road) continue;
+				// (each gate of a road course: how far the timer's place for it is from its note's)
+				if (!Plan->CircuitIx) continue;
+				const auto Found = Plan->CircuitIx->RoadGates.find(Nt.Name);
+				if (Found == Plan->CircuitIx->RoadGates.end()) continue;
+				for (size_t K = 0; K < Nt.Gates.size() && K < Found->second.size(); ++K)
+				{
+					const P2 Gp = G.FrameOf().FromGeo(Nt.Gates[K].Lat, Nt.Gates[K].Lon);
+					const Geo Sg = G.FrameOf().ToGeo(Found->second[K].X, Found->second[K].Z);
+					std::printf("  gate '%s' %zu '%s': on the main road %.0f m off, at %.5f,%.5f\n", Nt.Name.c_str(), K + 1, Nt.GateNames[K].c_str(), Found->second[K].DistanceTo(Gp), Sg.Lat, Sg.Lon);
+					if (std::getenv("WORLD_RIDE_GATE_ROADS") != nullptr)
+					{
+						std::map<std::string, std::pair<double, P2>> Near;
+						for (size_t E = 0; E < G.Edges.size(); ++E)
+						{
+							const std::string& Cl = G.ClassOf(int(E));
+							if (Cl != "trunk" && Cl != "primary" && Cl != "secondary" && Cl != "tertiary") continue;
+							for (const P2& Q : G.Edges[E].Line)
+							{
+								const double Dq = Q.DistanceTo(Gp);
+								const std::string Key = G.NameOf(int(E)) + " (" + Cl + ")";
+								if (Dq < 1500.0 && (Near.find(Key) == Near.end() || Dq < Near[Key].first)) Near[Key] = {Dq, Q};
+							}
+						}
+						for (const auto& KV : Near) { const Geo Qg = G.FrameOf().ToGeo(KV.second.second.X, KV.second.second.Z); std::printf("      %s %.0f m at %.5f,%.5f\n", KV.first.c_str(), KV.second.first, Qg.Lat, Qg.Lon); }
+					}
+				}
+			}
+		if (Plan->CircuitIx)
+		{
+			std::map<int, int> Kinds;
+			for (const CircuitIndex::Prop& Pr : Plan->CircuitIx->Props) ++Kinds[Pr.Kind];
+			std::printf("trackside:");
+			for (const auto& KV : Kinds) std::printf(" %s %d", RidePlan::PropName(KV.first), KV.second);
+			std::printf("\n");
+		}
+		// Ride round each circuit from its start: straight on at every fork along its track.
+		for (size_t C = 0; Plan->CircuitIx && C < G.Circuits.size(); ++C)
+		{
+			P2 CAt;
+			double Heading = 0.0;
+			std::string Name;
+			if (!Plan->CircuitStartNear(G.Circuits[C].At.X, G.Circuits[C].At.Z, 6000.0, 30.0, CAt, Heading, Name)) continue;
+			// the track edge nearest the start, then walk it the way the heading says
+			const P2 Fwd(-std::sin(Heading), -std::cos(Heading));
+			int E0 = -1;
+			double Best = 30.0;
+			for (int E = G.CircuitFirst; E >= 0 && E < int(G.Edges.size()); ++E)
+			{
+				if (!G.CircuitEdge(E) || G.CircuitOf[size_t(E - G.CircuitFirst)] != int(C) || G.ClassOf(E) != "raceway") continue;
+				for (const P2& P : G.Edges[size_t(E)].Line) if (P.DistanceTo(CAt) < Best) { Best = P.DistanceTo(CAt); E0 = E; }
+			}
+			if (E0 < 0) { std::printf("laps '%s': no track by the start\n", Name.c_str()); continue; }
+			std::vector<P2> L0 = G.Edges[size_t(E0)].Line;
+			const P2 Dir = L0.back() - L0.front();
+			int Node = G.Edges[size_t(E0)].B;
+			if (Dir.X * Fwd.X + Dir.Z * Fwd.Z < 0.0) { std::reverse(L0.begin(), L0.end()); Node = G.Edges[size_t(E0)].A; }
+			std::vector<P2> Walk = L0;
+			int Edge = E0;
+			for (int Step = 0; Step < 600; ++Step)
+			{
+				const std::vector<P2> In = G.LineFrom(Edge, Node);
+				const P2 InDir = In[0] - In[1];
+				int Next = -1;
+				double Straightest = -2.0;
+				for (int E : G.Adjacent[size_t(Node)])
+				{
+					if (E == Edge || !G.CircuitEdge(E) || G.ClassOf(E) != "raceway" || G.CircuitOf[size_t(E - G.CircuitFirst)] != int(C)) continue;
+					const std::vector<P2> Lx = G.LineFrom(E, Node);
+					const P2 Out = Lx[1] - Lx[0];
+					const double Cos = (InDir.X * Out.X + InDir.Z * Out.Z) / std::fmax(InDir.Length() * Out.Length(), 1e-9);
+					if (Cos > Straightest) { Straightest = Cos; Next = E; }
+				}
+				if (Next < 0 || Next == E0) break;
+				const std::vector<P2> Lx = G.LineFrom(Next, Node);
+				Walk.insert(Walk.end(), Lx.begin() + 1, Lx.end());
+				Node = G.OtherEnd(Next, Node);
+				Edge = Next;
+			}
+			const std::vector<P2> Once = Walk;
+			{
+				// (its bends: each apex tighter than 160 m, how far round the lap from the start, where, how tight, which way)
+				std::vector<double> Run(Once.size(), 0.0);
+				for (size_t K = 1; K < Once.size(); ++K) Run[K] = Run[K - 1] + Once[K].DistanceTo(Once[K - 1]);
+				const P2 Line0 = CAt;
+				double Near0 = 1e18, Start = 0.0;
+				for (size_t K = 0; K < Once.size(); ++K) if (Once[K].DistanceTo(Line0) < Near0) { Near0 = Once[K].DistanceTo(Line0); Start = Run[K]; }
+				std::vector<double> Curve(Once.size(), 0.0);
+				for (size_t K = 0; K < Once.size(); ++K)
+				{
+					size_t A = K, B = K;
+					while (A > 0 && Run[K] - Run[A] < 10.0) --A;
+					while (B + 1 < Once.size() && Run[B] - Run[K] < 10.0) ++B;
+					if (A == K || B == K) continue;
+					const P2 U = Once[K] - Once[A], V = Once[B] - Once[K];
+					Curve[K] = std::atan2(U.X * V.Z - U.Z * V.X, U.X * V.X + U.Z * V.Z) / std::fmax(Run[B] - Run[A], 1e-6);
+				}
+				for (size_t K = 1; K + 1 < Once.size(); ++K)
+				{
+					if (std::fabs(Curve[K]) < 1.0 / 160.0 || std::fabs(Curve[K]) < std::fabs(Curve[K - 1]) || std::fabs(Curve[K]) < std::fabs(Curve[K + 1])) continue;
+					bool Peak = true;
+					for (size_t J = 0; J < Once.size() && Peak; ++J) Peak = std::fabs(Run[J] - Run[K]) > 30.0 || std::fabs(Curve[J]) <= std::fabs(Curve[K]) + 1e-12;
+					if (!Peak) continue;
+					const Geo Ga = G.FrameOf().ToGeo(Once[K].X, Once[K].Z);
+					const double Lap = Run.back() > 0.0 ? std::fmod(Run[K] - Start + Run.back(), Run.back()) : 0.0;
+					std::printf("  bend '%s' %.0f m round: %.5f,%.5f radius %.0f m %s, height %.1f\n", Name.c_str(), Lap, Ga.Lat, Ga.Lon, 1.0 / std::fabs(Curve[K]),
+						Curve[K] > 0.0 ? "right" : "left", Plan->Ground(Once[K].X, Once[K].Z));
+				}
+			}
+			for (int Lap = 0; Lap < 2; ++Lap) Walk.insert(Walk.end(), Once.begin() + 1, Once.end());
+			CircuitLaps Laps;
+			double Clock = 0.0;
+			int Done = 0;
+			for (size_t K = 1; K < Walk.size(); ++K)
+			{
+				const double Seg = Walk[K].DistanceTo(Walk[K - 1]);
+				for (double T = 0.0; T < Seg; T += 2.0)
+				{
+					const P2 P = Walk[K - 1] + (Walk[K] - Walk[K - 1]) * (T / Seg);
+					Clock += 2.0 / 40.0;
+					CircuitLaps::Lap Finished;
+					if (Laps.Step(*Plan, P.X, P.Z, Clock, Finished))
+					{
+						++Done;
+						std::printf("laps '%s': lap %s%s, sectors", Finished.Circuit.c_str(), LapText(Finished.Seconds).c_str(), Finished.Counted ? "" : " (not counted)");
+						for (double Sp : Finished.Splits) std::printf(" %s", LapText(Sp).c_str());
+						std::printf("\n");
+					}
+				}
+			}
+			std::printf("laps '%s': %d laps from a walk of %.0f m (once round %zu points)%s\n", Name.c_str(), Done, Clock * 40.0, Once.size(), Laps.Now().Spoilt ? " spoilt" : "");
+		}
+	}
+	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
+	{
+		// (debug: the laid roads within R of a point X,Z off the ride's start, X,Z,R, with their setts flags)
+		double Qx = 0.0, Qz = 0.0, Qr = 40.0;
+		std::sscanf(RoadsAt, "%lf,%lf,%lf", &Qx, &Qz, &Qr);
+		const P2 Q = Plan->Road.empty() ? P2(Qx, Qz) : Plan->Road[0].At + P2(Qx, Qz);   // (from the ride's start)
+		for (const int W : LaidRoads(*Plan))
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+			bool NearQ = false;
+			for (const RoadPoint& P : Pts) NearQ = NearQ || P.At.DistanceTo(Q) < Qr;
+			if (!NearQ) continue;
+			const RidePlan::SideRoad* Sd = W > 0 ? Plan->SideOf(W) : nullptr;
+			std::printf("road %d%s setts %d:", W, W == 0 ? " (ride)" : "", Sd ? int(Sd->Setts) : -1);
+			for (const RoadPoint& P : Pts) if (P.At.DistanceTo(Q) < Qr) { const RidePlan::RoadFact* Fa = W == 0 ? Plan->FactAt(P.Along) : nullptr; std::printf(" (%.1f %.1f h%.1f%s %s)", P.At.X - Q.X, P.At.Z - Q.Z, P.Half, Fa && Fa->Setts ? " S" : "", Fa ? Fa->Name.c_str() : ""); }
+			std::printf("\n");
+		}
 	}
 	if (std::getenv("WORLD_RIDE_STATS") != nullptr)
 	{
@@ -1278,6 +1809,12 @@ int main(int Argc, char** Argv)
 		for (const FeatureLine& F : G.Scenery.Lines) ++Kinds["line " + F.Kind];
 		for (const FeatureArea& F : G.Scenery.Areas) ++Kinds["area " + F.Kind];
 		std::printf("Buildings %d (looks %d), streams %d, pois %d, landmarks %d, places %d\n", int(G.Buildings.size()), int(G.Scenery.Buildings.size()), int(G.Streams.size()), int(G.Pois.size()), int(G.Landmarks.size()), int(G.Places.size()));
+		if (std::getenv("WORLD_RIDE_POI_KINDS") != nullptr)
+		{
+			std::map<std::string, int> PoiKinds;
+			for (const TorqueFit::Json& Poi : G.Pois) ++PoiKinds[Poi.Str("kind")];
+			for (const auto& Pk : PoiKinds) std::printf("  poi %s: %d\n", Pk.first.c_str(), Pk.second);
+		}
 		for (const auto& K : Kinds) std::printf("  %s: %d\n", K.first.c_str(), K.second);
 		int CoverN[11] = {0}, Treed = 0, Pts = 0;
 		for (size_t I = 0; I < Plan->Road.size(); I += 5)
@@ -1376,6 +1913,44 @@ int main(int Argc, char** Argv)
 				}
 			}
 			std::printf("  roads' pieces through it: %zu tris, %zu of them paint\n", RoadTris, PaintTris);
+		}
+	}
+	// [towns stage 4] WORLD_RIDE_ROWS=lat,lon: the houses in the 512 m round there by the rows MarkRows finds
+	// (alone, semis, terraces by length).
+	if (const char* RowsAt = std::getenv("WORLD_RIDE_ROWS"))
+	{
+		double La = 0.0, Lo = 0.0;
+		if (std::sscanf(RowsAt, "%lf,%lf", &La, &Lo) == 2)
+		{
+			const P2 C = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+			std::vector<std::shared_ptr<const std::vector<RidePlan::OutlinePiece>>> Hold;
+			std::vector<const RidePlan::OutlinePiece*> Got;
+			std::vector<CellId> Covered;
+			Plan->OutlinesIn(C.X - 256.0, C.Z - 256.0, 512.0, Hold, Got, Covered);
+			int Houses = 0, Alone = 0, Semis = 0, Terraced = 0, Longest = 0, LongAlone = 0, GapHist[4] = {};
+			std::map<int, int> BySize;
+			for (const RidePlan::OutlinePiece* P : Got)
+			{
+				if (!P->Main || P->B.More.empty() || int(P->B.More[0]) != 0) continue;
+				++Houses;
+				(P->RowSize <= 1 ? Alone : P->RowSize == 2 ? Semis : Terraced) += 1;
+				Longest = std::max(Longest, P->RowSize);
+				if (P->RowPos == 0) ++BySize[std::min(P->RowSize, 12)];
+				if (P->RowSize <= 1 && std::fmax(P->B.W, P->B.D) >= 12.0 && std::fmax(P->B.W, P->B.D) > 2.5 * std::fmin(P->B.W, P->B.D)) ++LongAlone;
+				if (P->RowSize <= 1)
+				{
+					// (how near its nearest other house's middle is, against their sizes)
+					double Gap = 1e9;
+					for (const RidePlan::OutlinePiece* Q : Got)
+						if (Q != P && Q->Main && !Q->B.More.empty() && int(Q->B.More[0]) == 0)
+							Gap = std::fmin(Gap, std::hypot(Q->B.X - P->B.X, Q->B.Z - P->B.Z) - 0.5 * (std::sqrt(P->B.W * P->B.D) + std::sqrt(Q->B.W * Q->B.D)));
+					++GapHist[Gap < 0.0 ? 0 : Gap < 1.0 ? 1 : Gap < 3.0 ? 2 : 3];
+				}
+			}
+			std::printf("  alone: %d long single outlines (drawn as terraces by length); centre gaps <0 %d, <1 m %d, <3 m %d, more %d\n", LongAlone, GapHist[0], GapHist[1], GapHist[2], GapHist[3]);
+			std::printf("rows round %.5f,%.5f: %d houses: %d alone, %d semis, %d in terraces (longest %d); rows by size:", La, Lo, Houses, Alone, Semis, Terraced, Longest);
+			for (const auto& Kv : BySize) std::printf(" %d:%d", Kv.first, Kv.second);
+			std::printf("\n");
 		}
 	}
 	// [build 150] WORLD_RIDE_PIECETIME=1: how long each road piece (64 knots) takes to make, the slowest listed.
@@ -1667,6 +2242,21 @@ int main(int Argc, char** Argv)
 				break;
 			}
 		}
+		else if (std::getenv("WORLD_RIDE_RINGAT") != nullptr)
+		{
+			// [roundabouts] (or the nth roundabout the map has, ridden or not)
+			const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_RINGAT")));
+			if (Plan->RoadRings.empty()) Plan->IndexRings();
+			if (Nth < Plan->RoadRings.size())
+			{
+				const RidePlan::RoadRing& Rg = Plan->RoadRings[Nth];
+				Rect Round;
+				Round.X0 = Rg.Mid.X - 300.0; Round.Z0 = Rg.Mid.Z - 300.0; Round.X1 = Rg.Mid.X + 300.0; Round.Z1 = Rg.Mid.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = Rg.Mid;
+				std::printf("ring %zu at %.0f, %.0f, radius %.1f%s%s\n", Nth, Rg.Mid.X, Rg.Mid.Z, Rg.Radius, Rg.Circle ? ", a circle" : "", Rg.Mini ? ", mini" : "");
+			}
+		}
 		else if (std::getenv("WORLD_RIDE_PLACEPATH") != nullptr)
 		{
 			// [places stage 7] (or the nth stop with a path in to its place: centred halfway along it)
@@ -1744,7 +2334,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText;
+		std::string Text, PropText, WallText, TurfText;   // ([road edges, Nov 18] the turf with the land, after it)
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -1756,8 +2346,14 @@ int main(int Argc, char** Argv)
 				const double Reach2 = std::getenv("WORLD_RIDE_MESH_R") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_R")) : 45.0;
 				for (int I = First; I <= Last && !NearIt; ++I) NearIt = Pts[size_t(I)].At.DistanceTo(Centre) < Reach2 + 15.0;
 				if (!NearIt) continue;
-				RideMesh Mesh;
-				Plan->RoadPiece(W, First, Last, Mesh);
+				RideMesh Piece;
+				Plan->RoadPiece(W, First, Last, Piece);
+				// ([road edges, Nov 18] with its country shoulders' turf, drawn as the land)
+				for (const RideMesh* Sub : {&Piece, Piece.Turf.get(), Piece.Stone.get()})   // ([Nov 18] and its bridge parapets, with the walls)
+				{
+				if (Sub == nullptr) continue;
+				const RideMesh& Mesh = *Sub;
+				std::string& Lines = Sub == &Piece ? Text : Sub == Piece.Stone.get() ? WallText : TurfText;
 				for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
 				{
 					bool In = false;
@@ -1768,8 +2364,9 @@ int main(int Argc, char** Argv)
 						const uint32_t V = Mesh.Idx[T + C];
 						std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh.OriginX + Mesh.Pos[V * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - Centre.Z, double(Mesh.Pos[V * 3 + 1]),
 							double(Mesh.Col[V * 3]), double(Mesh.Col[V * 3 + 1]), double(Mesh.Col[V * 3 + 2]));
-						Text += Buf;
+						Lines += Buf;
 					}
+				}
 				}
 			}
 		}
@@ -1807,6 +2404,9 @@ int main(int Argc, char** Argv)
 								{
 									const double Lit = Cr * 2.0 * (1.0 + 0.25 * Cb);
 									Cr = 0.235 * Lit; Cg = 0.225 * Lit; Cb = 0.205 * Lit;
+									// ([towns stage 5] the houses' stone in the square's own tint)
+									if (Mesh == Houses && Extra) { Cr *= Extra->MasonryTint.R; Cg *= Extra->MasonryTint.G; Cb *= Extra->MasonryTint.B; }
+									else if (Mesh == Walls && Extra) { Cr *= Extra->StoneTint.R; Cg *= Extra->StoneTint.G; Cb *= Extra->StoneTint.B; }
 								}
 								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
 									Cr, Cg, Cb);
@@ -1829,6 +2429,14 @@ int main(int Argc, char** Argv)
 					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
 					for (const RideProp& P : Stands.Props)
 					{
+						// ([build 154] and the dry stone walls' lengths and heads, to WORLD_RIDE_MESH.walls: name variant x z y yaw pitch stretch)
+						if (P.Kind == RidePlan::PropWallStone || P.Kind == RidePlan::PropWallEnd)
+						{
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
+								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+							WallText += Buf;
+							continue;
+						}
 						if (!P.Facade) continue;
 						std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X, Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw));
 						PropText += Buf;
@@ -1866,8 +2474,30 @@ int main(int Argc, char** Argv)
 					}
 				}
 		}
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr) Text += TurfText;
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
+		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);
+		// [circuits] (the circuits' trackside kit within WORLD_RIDE_MESH_R, to WORLD_RIDE_MESH.trackside: name variant x z y yaw pitch length)
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr && Plan->CircuitIx)
+		{
+			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
+			std::string Side;
+			for (const CircuitIndex::Prop& Pr : Plan->CircuitIx->Props)
+			{
+				if (Pr.At.DistanceTo(Centre) > Round) continue;
+				const double Y = Plan->Ground(Pr.At.X, Pr.At.Z);
+				double Pitch = 0.0;
+				if (Pr.Length > 0.0)
+				{
+					const double Y1 = Plan->Ground(Pr.At.X + std::cos(Pr.Yaw) * Pr.Length, Pr.At.Z + std::sin(Pr.Yaw) * Pr.Length);
+					if (!std::isnan(Y1) && !std::isnan(Y)) Pitch = std::atan2(Y1 - Y, Pr.Length);
+				}
+				std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.3f\n", RidePlan::PropName(Pr.Kind), Pr.Variant, Pr.At.X - Centre.X, Pr.At.Z - Centre.Z, Y, Pr.Yaw, Pitch, Pr.Length);
+				Side += Buf;
+			}
+			Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".trackside", Side);
+		}
 	}
 	{
 		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and
@@ -1935,6 +2565,26 @@ int main(int Argc, char** Argv)
 		std::printf("Towers: %zu (%d 40 m or more, %d parts, %d outlines drawn as their parts, %d heights guessed); %d box buildings left to them\n", Plan->TowerShapes.size(), Tall, Parts,
 			Plan->TowersOutlines, Plan->TowersGuessed, Under);
 	}
+	{
+		// [junction priority] (each junction of the map the ride passes with a through road: where the ride gives way)
+		int CameMinor = 0, OntoMinor = 0, Through = 0;
+		for (const RidePlan::JunctionRule& J : Plan->Junctions)
+		{
+			CameMinor += J.CameMinor ? 1 : 0;
+			OntoMinor += J.OntoMinor ? 1 : 0;
+			Through += !J.CameMinor && !J.OntoMinor ? 1 : 0;
+			if (std::getenv("WORLD_RIDE_JUNCTIONS") && (J.CameMinor || J.OntoMinor))
+			{
+				const Geo NodeAt = Frame(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon).ToGeo(Plan->Area.Roads.Nodes[size_t(J.Node)].X, Plan->Area.Roads.Nodes[size_t(J.Node)].Z);
+				std::printf("  junction at %.0f m (%.5f,%.5f): %s %s, turn %.0f deg, %s -> %s\n", J.Along, NodeAt.Lat, NodeAt.Lon, J.CameMinor ? "comes in giving way" : "comes in on the through road",
+					J.OntoMinor ? "leaves by a road that gives way" : "leaves on the through road", J.Turn * 57.3,
+					Plan->Area.Roads.ClassOf(J.Came).c_str(), Plan->Area.Roads.ClassOf(J.Onto).c_str());
+			}
+		}
+		std::printf("Junctions: %zu with a through road; the ride on it through %d, comes in giving way at %d, leaves by a lesser road at %d; %d give-way lines on its own road\n",
+			Plan->Junctions.size(), Through, CameMinor, OntoMinor, Plan->JunctionGiveWayCount);
+	}
+	for (const std::string& Note : Plan->TakeOutlineNotes()) std::printf("Outlines: %s\n", Note.c_str());   // [LiDAR stage 2]
 	{
 		// [OSM stage 1] The road's facts: the limit all along it, the stops, the place at the start.
 		std::printf("Limits along the ride (%s):\n", Plan->Britain() ? "mph" : "km/h");

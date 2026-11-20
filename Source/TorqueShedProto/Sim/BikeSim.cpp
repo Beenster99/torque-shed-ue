@@ -27,6 +27,11 @@ const double ARM_INERTIA = 0.35;
 const double ARM_HOLD = 120.0;
 const double ARM_HOLD_SLOW = 500.0;
 const double MAX_BAR_TORQUE = 45.0;
+// How much harder a rider pushes the bars for each unit of the bike's Flick over 1 (a classic's).
+const double BAR_FLICK = 1.0;
+// Past this share of the tyre's lean the rider stops leaning on the extra shove once the bike is rolling as fast
+// as they want: a flick right to the edge of the tyre has to land exactly, or it carries on past the grip.
+const double BAR_FLICK_EDGE = 0.8;
 const double BAR_PUSH_FAST = 1.0;
 const double BAR_PUSH_FROM = 15.0;
 const double BAR_PUSH_FULL = 40.0;
@@ -66,6 +71,8 @@ const double CARELESS_SLIP = 0.9;
 const double CLUTCH_PULL = 0.08;
 const double CLUTCH_LET_OUT = 0.35;
 const double CLUTCH_BITE = 25.0;
+// The rider's pull on the bars with their weight right back, on the road (N m of pitch, front up).
+const double PITCH_HAUL = 190.0;
 const double NEUTRAL_FIND_SPEED = 2.0;
 // In neutral the engine spins only itself: it makes this share of its torque to do it (fuel, heat).
 const double FREE_REV_LOAD = 0.12;
@@ -616,6 +623,7 @@ void BikeSim::UpdateSteering(double Delta)
 	Seen[2] = Lerp(Seen[2], LeanRate, K);
 	Seen[3] = Lerp(Seen[3], Seen[2], K);
 	double Cmd;
+	bool Catching = false;
 	if (V < 2.0)
 	{
 		Cmd = LeanInput * MaxSteer();
@@ -635,6 +643,7 @@ void BikeSim::UpdateSteering(double Delta)
 		double RWant = Clamp(Err * LEAN_RATE_GAIN, -RateMax, RateMax);
 		const double Stop = std::sqrt(2.0 * LEAN_CATCH * Flick * Flick * std::fabs(Err));
 		RWant = Clamp(RWant, -Stop, Stop) * Push;
+		Catching = Seen[3] * Err > 0.0 && std::fabs(Seen[3]) > std::fabs(RWant) && std::fabs(Target) > BAR_FLICK_EDGE * GripLean();
 		const double Catch = Clamp(STEER_CATCH / (V * V), 0.004, 0.15) * (1.0 + STEER_CATCH_FAST * Fast(V));
 		Cmd = SteerEq + Catch * (Seen[3] - RWant) - Push * Gain * 0.25 * LeanI;
 	}
@@ -656,7 +665,9 @@ void BikeSim::UpdateSteering(double Delta)
 		const double Hold = Lerp(ARM_HOLD_SLOW, ARM_HOLD, Riding) * Lever;
 		double Most = BarStrength(V);
 		const double KArm = Hold + 0.5 * FrontStiffness(V) * Riding;
-		Trim = Riding > 0.0 ? Clamp(Trim + KArm * (SteerAim - Steer) * Delta / ARM_TRIM * Riding, -Most, Most) : 0.0;
+		// Catching a flick to the tyre's edge, the arms' held push doesn't get the Flick extra (see BAR_FLICK_EDGE).
+		const double TrimMost = Catching ? Most / (1.0 + BAR_FLICK * std::max(Build.Flick - 1.0, 0.0)) : Most;
+		Trim = Riding > 0.0 ? Clamp(Trim + KArm * (SteerAim - Steer) * Delta / ARM_TRIM * Riding, -TrimMost, TrimMost) : 0.0;
 		const double Raw = KArm * (SteerAim - Steer) + Trim + ArmC * AimRate;
 		const double Th = std::tanh(Raw / Most);
 		Ks = KArm * (1.0 - Th * Th);
@@ -679,7 +690,12 @@ double BikeSim::BarStrength(double V) const
 {
 	const double Lever = Build.BarWidthMm / 720.0;
 	const double F = Fast(V);
-	return MAX_BAR_TORQUE * Lerp(Lever, 1.0, F) * (1.0 + BAR_PUSH_FAST * F);
+	// A bike made to flick (a sports or naked bike's light, quick front end and a rider tucked over it) takes a
+	// harder shove on the bars than a classic's or a cruiser's (beenster, 19 Nov: "slow to tip into a corner and
+	// especially through chicanes"): without it every bike topped out at the same push, so their Flick made no
+	// difference (SimTest/handling_test).
+	const double Flicky = 1.0 + BAR_FLICK * std::max(Build.Flick - 1.0, 0.0);
+	return MAX_BAR_TORQUE * Lerp(Lever, 1.0, F) * (1.0 + BAR_PUSH_FAST * F) * Flicky;
 }
 
 double BikeSim::Fast(double V) { return Clamp((V - BAR_PUSH_FROM) / (BAR_PUSH_FULL - BAR_PUSH_FROM), 0.0, 1.0); }
@@ -831,6 +847,10 @@ void BikeSim::UpdateEngine(double Delta)
 	double TcTarget = 1.0;
 	const double AidStrength = Build.TractionControl ? Build.TractionStrength : 0.0;
 	double Tc = std::max(std::min(1.0, Assist), AidStrength);
+	// [wheelies, Nov 19] Weight back for a wheelie, even at full sim, the rider works the throttle against
+	// the back tyre spinning up (a snapped-open trigger otherwise just spins a tall adventure bike's
+	// dual-sport tyre and the front never comes up): their own feel, as at Riding realism 0.5.
+	if (BodyShift < -0.15 && Rear.Contact) Tc = std::max(Tc, Clamp((-BodyShift - 0.15) / 0.35, 0.0, 1.0) * 0.6);
 	double TcFrom = 0.12, TcGain = 4.0;
 	if (Build.TractionControl) TcFrom = Lerp(0.1, 0.06, Clamp(AidStrength, 0.0, 1.0));
 	else
@@ -920,9 +940,12 @@ void BikeSim::UpdateEngine(double Delta)
 	else if (AutoShift && !Shifting && SinceShift > 0.6)
 	{
 		const double RoadRpm = std::fabs(Speed) / Build.RearRadius * Ratio * 60.0 / TAU;
+		// Flat out near the top speed the back tyre creeps a little (the drive needs it), so the revs sit
+		// a shade over the road's: the box goes by the engine's revs then (not while it's spinning up).
+		const double UpRpm = SpinRatio < 0.05 ? std::max(RoadRpm, Rpm) : RoadRpm;
 		const double UpAt = AutoUpRpm(ShiftLoad);
 		const double FloorRpm = AutoFloorRpm(ShiftLoad);
-		if (Gear < Build.GearCount() && RoadRpm > UpAt && RoadRpm * Build.OverallRatio(Gear + 1) / Ratio > FloorRpm * 1.1)
+		if (Gear < Build.GearCount() && UpRpm > UpAt && RoadRpm * Build.OverallRatio(Gear + 1) / Ratio > FloorRpm * 1.1)
 			Select(Gear + 1);
 		else if (Gear > 1)
 		{
@@ -1002,8 +1025,14 @@ double BikeSim::WheelieTarget() const
 	// Asked for, nothing holds it up: the rider keeps it there with the throttle and their weight.
 	// Only near the loop-over point does the rider's instinct (and more so with more assist) roll
 	// off and cover the rear brake.
+	// [wheelies, beenster Nov 19: "a little hard to pull ... even with assists turned off"] Only weight
+	// right back (-0.6 or more) let it up before: a pad's stick pulled part way back while leaning, or the
+	// weight key let go a moment early, held the front down as if sat in the middle. Now the further back,
+	// the higher it's let come: from a little back (-0.15, a few degrees up) to right back (the full
+	// balance point). Sat in the middle still keeps it down (beenster's earlier rule, sim_test).
 	double T = 0.0;
-	if (BodyShift <= -0.6) T = Lerp(DegToRad(78.0), DegToRad(46.0), Clamp(Assist, 0.0, 1.0));
+	const double Back = Clamp((-BodyShift - 0.15) / 0.4, 0.0, 1.0);
+	if (Back > 0.0) T = Lerp(DegToRad(14.0), Lerp(DegToRad(78.0), DegToRad(46.0), Clamp(Assist, 0.0, 1.0)), Back * Back);
 	if (Build.AntiWheelie > 0.0) T = std::min(T, DegToRad(Lerp(20.0, 4.0, std::min(Build.AntiWheelie, 1.0))));
 	return T;
 }
@@ -1375,9 +1404,21 @@ void BikeSim::ApplyFeet()
 			// (Both feet planted and braced where it lit up: Godot's damping alone, 6/s, let the drive
 			// walk the bike forward at 1-1.5 m/s on the locked front without the back ever breaking
 			// loose. Braced against the locked front, they hold up to about 1 g.)
-			const double Off = (Position - BurnoutAt).Dot(Flat);
+			double Off = (Position - BurnoutAt).Dot(Flat);
+			// ([beenster, build 160] "the bikes can do a burnout backward": lit while still rolling on, the
+			// spring hauled it back to where it lit, at over 1 m/s. Now the spot moves up with it while it's
+			// still rolling on, and the feet only ever stop it going forward: never push it back.)
+			if (Burnout > 0.0 && Off > 0.0 && V > 0.3)
+			{
+				BurnoutAt = BurnoutAt + Flat * Off;
+				Off = 0.0;
+			}
 			if (Burnout > 0.0)
-				ApplyCentralForce(Flat * Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass));
+			{
+				double Hold = Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass);
+				if (Hold < 0.0 && V < 0.0) Hold = 0.0;
+				ApplyCentralForce(Flat * Hold);
+			}
 			else ApplyCentralForce(Flat * ((-PADDLE_SPEED - V) * Build.TotalMass * 2.5));
 		}
 	}
@@ -1427,9 +1468,17 @@ void BikeSim::ApplyRiderBalance(double Delta)
 	}
 	if (!AnyContact) Tau *= 0.4;
 	ApplyTorque(FwdFlat * Tau);
-	// Pitch control by shifting body weight, mostly useful in the air.
+	// Pitch control by shifting body weight, mostly useful in the air. On the road, weight right back is the
+	// rider hauling on the bars as they open it up, enough to bring the front of a tall, long bike like the
+	// adventure up on a handful (beenster, build 155: "Turned all assist off on a 800cc bike and it couldn't
+	// wheelie"); weight forward is as it was.
 	const V3 Right = B.X;
-	double PitchTau = -BodyShift * (AnyContact ? 60.0 : 220.0);
+	// [wheelies, Nov 19] Past 0.15 back, the haul builds to all of it from half back (a stick pulled most of
+	// the way, not hard against its stop), and a little stronger (was 150 at -1, so 90 at -0.6).
+	// ([r158 climb] Within 0.15 of the middle it's exactly as before, 150 N m x the shift: a stick resting a
+	// touch back, or a robot's shift that isn't quite 0, can't lift the front any more than it used to.)
+	double PitchTau = -BodyShift * (AnyContact ? (BodyShift < 0.0 ? 150.0 : 60.0) : 220.0);
+	if (AnyContact && BodyShift < -0.15) PitchTau = std::max(PitchTau, PITCH_HAUL * Clamp((-BodyShift - 0.15) / 0.35, 0.0, 1.0));
 	const double PitchRate = AngularVelocity.Dot(Right);
 	if (!AnyContact)
 	{

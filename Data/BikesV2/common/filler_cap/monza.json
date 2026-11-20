@@ -1,0 +1,37 @@
+{
+ "group": "filler_cap",
+ "key": "monza",
+ "name": "Flip-up",
+ "fitted_on": "corvano_naked",
+ "family": "Naked",
+ "mount": "cap_base",
+ "mount_mm": [
+  935.0,
+  0.0,
+  1060.0
+ ],
+ "moves_with": "frame",
+ "size_mm": [
+  96.0,
+  96.0,
+  38.0
+ ],
+ "triangles": 2784,
+ "surfaces": {
+  "chrome": {
+   "ue": "chrome",
+   "tag": "chrome"
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22,
+   "tag": "steel"
+  }
+ }
+}

@@ -107,7 +107,7 @@ public:
 	// category (NAME_None: project bikes) and its rows, and the one picked.
 	bool AtComputer() const { return bComputer; }
 	// At the computer this frame or the last (Esc that closed it isn't also the pause menu's).
-	bool ComputerUpOrJustClosed() const { return bComputer || bBench || LabelPiece != 0 || GFrameCounter <= ComputerClosedFrame + 1; }   // (the mixing bench and the shelf label box too: Esc closes them)
+	bool ComputerUpOrJustClosed() const { return bComputer || bBench || LabelBoxUp() || CupPick != INDEX_NONE || GFrameCounter <= ComputerClosedFrame + 1; }   // (the mixing bench and the shelf label box too: Esc closes them)
 	FName ComputerKind() const { return Computer.ScreenKind(); }
 	TArray<FName> ComputerRows() const { return Computer.ScreenRows(); }
 	int32 ComputerRow() const { return Computer.PickedRow(); }
@@ -134,14 +134,20 @@ public:
 	// The mixing bench's card (TorquePaintBenchPanel), on the HUD's canvas.
 	void DrawBench(class AHUD* Hud, class UCanvas* Canvas) const;
 	// [label] Writing on a shelving unit's label plate (N looking at one, as label_dialog.gd's
-	// SHELF LABEL box): the box is up, and drawn over the view.
-	bool LabelBoxUp() const { return LabelPiece != 0; }
+	// SHELF LABEL box), or naming the bike you're next to (N or D-pad up, as Torque Shed's rename box):
+	// the box is up, and drawn over the view.
+	bool LabelBoxUp() const { return LabelPiece != 0 || NameBay != INDEX_NONE; }
 	void DrawLabelBox(class UCanvas* Canvas) const;
 
 	// The spray mini game (Torque Shed's spray_job.gd, spray_hud.gd; TorqueWalkerSpray.cpp): its
 	// readout's up (a coat going on, the spray controls up, or a cue showing), drawn over the view.
 	bool SprayHudUp() const;
 	void DrawSpray(class AHUD* Hud, class UCanvas* Canvas) const;
+	// The spray gun's two cups (TorqueWalkerCups.cpp, beenster 19 Nov 2026): [ and ] pick each one's
+	// colour and finish (the picker), and the cups are drawn at the side while the gun's in hand.
+	bool CupsHudUp() const;
+	void DrawCups(class AHUD* Hud, class UCanvas* Canvas) const;
+	bool CupPickerUp() const { return CupPick != INDEX_NONE; }
 	bool SprayControlsUp() const { return SprayItem != 0; }
 	// The wash game (Torque Shed's wash_job.gd, wash_hud.gd; TorqueWalkerWash.cpp): its readout's up
 	// (the lance out at a bike in the wash bay, or a cue showing), and whether this walker's jet is
@@ -388,6 +394,22 @@ private:
 	// of a wall), turned by HoldTurn (walker.gd _push_transform, for a part).
 	FTransform CarryDrop() const;
 	int32 SprayColour = 0;
+	int32 FadeStyle = 0;               // the gun's Fade load: which fade (R steps through them), TorquePaintMix::FirstFade + this
+	// The cups picker: which cup it's on (INDEX_NONE: shut), each cup's colour and finish as picked,
+	// and the cup filling after Enter (seconds; < 0: not filling).
+	int32 CupPick = INDEX_NONE;
+	int32 PickColour[2] = {0, 5};
+	int32 PickFinish[2] = {0, 0};
+	double PickFill = -1.0;
+	// Spraying a fade: the cup picked by hand with [ or ] (INDEX_NONE: the game's own step, cup 1's
+	// base coat first, then cup 2).
+	int32 FadeCup = INDEX_NONE;
+	void OpenCupPicker(int32 Which);
+	void CloseCupPicker();
+	void CupPickerInput(class APlayerController* PC, uint32 SonyHit, float Dt);
+	bool IsFadeLoaded() const;
+	int32 FadeStepFor(int32 Item) const;   // 0: cup 1's base coat, 1: cup 2 over part of it
+	void FinishFades();                    // cup 2 sprayed: blended in where it went (Enter, or stepping back)
 	int32 SprayFinish = 0;
 	bool bCrouched = false;
 	void SetCrouched(bool bOn);
@@ -571,6 +593,7 @@ private:
 	// F puts it down; its HUD lines and outline.
 	int32 TargetFurniture = 0;
 	bool bFurnArmed = false;
+	bool bBinJust = false;   // [drone] Delete / Circle this frame: a photo print held goes in the bin
 	double FurnFHeld = 0.0;
 	void FindFurniture();
 	bool FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust);
@@ -581,6 +604,11 @@ private:
 	int32 LabelPiece = 0;
 	FString LabelEdit;
 	bool OpenLabel(int32 Piece);
+	// The bay whose bike is being named (INDEX_NONE: not naming one), and the last name idea shown
+	// (D-pad left / right, Tab: the BIKE_NAMES list, for a pad with no keyboard).
+	int32 NameBay = INDEX_NONE;
+	int32 NameIdea = -1;
+	bool OpenBikeName(int32 LookedAtBay);
 	void LabelInput(class APlayerController* PC, uint32 SonyHit);
 	void CloseLabel(bool bSave);
 	// Sitting on a seat (F on one; F, Space or a step gets up): the piece sat on, the eye's height

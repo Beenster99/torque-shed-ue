@@ -1,0 +1,886 @@
+{
+ "about": "The UK's vehicle ferries Ride UK sails (ferries plan stage 1, Nov 2026). Each is a ferry route in the world's feature cells (kind 'ferry', Overture water segments, release 2026-10-21.0): its id there, its two ends as the map draws the line (lat, lon), the places at those ends as people know them (the order may not match: the game names each end by the nearer one), its length by the map (m), and what kind of small ferry the game sails on it. The game finds a route by its id, else by its ends within 400 m. Every ferry in the game is small (a couple of cars and a couple of bikes) and every crossing takes 1 to 3 minutes; routes longer than short_m are long routes (stage 7: the open sea passed in a short hold). Foot-only ferries, freight routes and routes to other countries are left out. The operators and the boats' names and colours are the game's own.",
+ "short_m": 3000,
+ "crossings": [
+  {
+   "id": "a9df7a453efd",
+   "name": "Reedham",
+   "map_name": "Reedham Ferry",
+   "a": [
+    52.55766,
+    1.55064
+   ],
+   "b": [
+    52.55802,
+    1.55029
+   ],
+   "places": [
+    "Reedham",
+    "Norton Subcourse"
+   ],
+   "kind": "chain",
+   "m": 46,
+   "country": "en"
+  },
+  {
+   "id": "c0fd32c7900b",
+   "name": "Cowes Floating Bridge",
+   "map_name": "Cowes Floating Bridge (Chain Ferry)",
+   "a": [
+    50.75803,
+    -1.29247
+   ],
+   "b": [
+    50.75735,
+    -1.29043
+   ],
+   "places": [
+    "Cowes",
+    "East Cowes"
+   ],
+   "kind": "chain",
+   "m": 162,
+   "country": "en"
+  },
+  {
+   "id": "9d82282582cc",
+   "name": "Bodinnick",
+   "map_name": "Bodinnick Ferry",
+   "a": [
+    50.34051,
+    -4.63326
+   ],
+   "b": [
+    50.3397,
+    -4.63055
+   ],
+   "places": [
+    "Fowey",
+    "Bodinnick"
+   ],
+   "kind": "open",
+   "m": 218,
+   "country": "en"
+  },
+  {
+   "id": "95a73c3b1db3",
+   "name": "King Harry",
+   "map_name": "King Harry Ferry",
+   "a": [
+    50.21678,
+    -5.02843
+   ],
+   "b": [
+    50.21668,
+    -5.02477
+   ],
+   "places": [
+    "Philleigh",
+    "Feock"
+   ],
+   "kind": "chain",
+   "m": 261,
+   "country": "en"
+  },
+  {
+   "id": "a46851dc1faa",
+   "name": "Cuan",
+   "map_name": "Cuan ferry",
+   "a": [
+    56.26642,
+    -5.63316
+   ],
+   "b": [
+    56.26795,
+    -5.62923
+   ],
+   "places": [
+    "Cuan",
+    "Luing"
+   ],
+   "kind": "open",
+   "m": 306,
+   "country": "sc"
+  },
+  {
+   "id": "826f36ccc569",
+   "name": "Dartmouth Lower",
+   "map_name": "Dartmouth Lower Ferry",
+   "a": [
+    50.34894,
+    -3.57753
+   ],
+   "b": [
+    50.34838,
+    -3.57317
+   ],
+   "places": [
+    "Dartmouth",
+    "Kingswear"
+   ],
+   "kind": "open",
+   "m": 316,
+   "country": "en"
+  },
+  {
+   "id": "36ebe2c5de57",
+   "name": "Sandbanks",
+   "map_name": "Sandbanks Ferry",
+   "a": [
+    50.68304,
+    -1.94876
+   ],
+   "b": [
+    50.68018,
+    -1.94995
+   ],
+   "places": [
+    "Sandbanks",
+    "Studland"
+   ],
+   "kind": "chain",
+   "m": 329,
+   "country": "en"
+  },
+  {
+   "id": "70d458d43218",
+   "name": "Dartmouth Higher",
+   "map_name": "Dartmouth Higher Ferry",
+   "a": [
+    50.35677,
+    -3.57653
+   ],
+   "b": [
+    50.35963,
+    -3.57348
+   ],
+   "places": [
+    "Dartmouth",
+    "Kingswear"
+   ],
+   "kind": "chain",
+   "m": 385,
+   "country": "en"
+  },
+  {
+   "id": "3c85d5295fbf",
+   "name": "Ballylumford",
+   "map_name": "Larne - Ballylumford",
+   "a": [
+    54.84764,
+    -5.79695
+   ],
+   "b": [
+    54.84837,
+    -5.79077
+   ],
+   "places": [
+    "Larne",
+    "Ballylumford"
+   ],
+   "kind": "open",
+   "m": 422,
+   "country": "ni"
+  },
+  {
+   "id": "570743bb4553",
+   "name": "Colintraive",
+   "map_name": "Colintraive - Rhubodach",
+   "a": [
+    55.92118,
+    -5.15869
+   ],
+   "b": [
+    55.92336,
+    -5.15306
+   ],
+   "places": [
+    "Colintraive",
+    "Rhubodach"
+   ],
+   "kind": "open",
+   "m": 436,
+   "country": "sc"
+  },
+  {
+   "id": "ebc88d1e76aa",
+   "name": "Woolwich",
+   "map_name": "Woolwich Free Ferry",
+   "a": [
+    51.49778,
+    0.06118
+   ],
+   "b": [
+    51.49518,
+    0.06245
+   ],
+   "places": [
+    "North Woolwich",
+    "Woolwich"
+   ],
+   "kind": "open",
+   "m": 489,
+   "country": "en"
+  },
+  {
+   "id": "193ef6214ac2",
+   "name": "Windermere",
+   "map_name": "Windermere Ferry",
+   "a": [
+    54.35323,
+    -2.9387
+   ],
+   "b": [
+    54.35423,
+    -2.93122
+   ],
+   "places": [
+    "Far Sawrey",
+    "Bowness"
+   ],
+   "kind": "chain",
+   "m": 497,
+   "country": "en"
+  },
+  {
+   "id": "2593bd711808",
+   "name": "Corran",
+   "map_name": "Corran Ferry",
+   "a": [
+    56.72271,
+    -5.2431
+   ],
+   "b": [
+    56.7215,
+    -5.2355
+   ],
+   "places": [
+    "Ardgour",
+    "Nether Lochaber"
+   ],
+   "kind": "open",
+   "m": 518,
+   "country": "sc"
+  },
+  {
+   "id": "2aa1d89693b6",
+   "name": "Torpoint",
+   "map_name": "Torpoint Ferry",
+   "a": [
+    50.37577,
+    -4.18386
+   ],
+   "b": [
+    50.37526,
+    -4.19275
+   ],
+   "places": [
+    "Devonport",
+    "Torpoint"
+   ],
+   "kind": "chain",
+   "m": 633,
+   "country": "en"
+  },
+  {
+   "id": "f3fa943d8dfa",
+   "name": "Glenelg",
+   "map_name": "Glenelg-Skye",
+   "a": [
+    57.22776,
+    -5.66488
+   ],
+   "b": [
+    57.22913,
+    -5.65555
+   ],
+   "places": [
+    "Glenelg",
+    "Kylerhea"
+   ],
+   "kind": "turntable",
+   "m": 659,
+   "country": "sc"
+  },
+  {
+   "id": "b23bc1d69284",
+   "name": "Feolin",
+   "map_name": "Port Askaig - Feolin",
+   "a": [
+    55.84806,
+    -6.09067
+   ],
+   "b": [
+    55.84807,
+    -6.1047
+   ],
+   "places": [
+    "Port Askaig",
+    "Feolin"
+   ],
+   "kind": "open",
+   "m": 889,
+   "country": "sc"
+  },
+  {
+   "id": "69e4d51997a3",
+   "name": "Strangford",
+   "map_name": "Strangford Ferry",
+   "a": [
+    54.37154,
+    -5.55449
+   ],
+   "b": [
+    54.38042,
+    -5.55034
+   ],
+   "places": [
+    "Strangford",
+    "Portaferry"
+   ],
+   "kind": "open",
+   "m": 1114,
+   "country": "ni"
+  },
+  {
+   "id": "5ed4096c491a",
+   "name": "Cromarty",
+   "map_name": "Cromarty - Nigg ferry (seasonal)",
+   "a": [
+    57.69221,
+    -4.02074
+   ],
+   "b": [
+    57.68402,
+    -4.03695
+   ],
+   "places": [
+    "Cromarty",
+    "Nigg"
+   ],
+   "kind": "open",
+   "m": 1390,
+   "country": "sc"
+  },
+  {
+   "id": "bbcd83059d5e",
+   "name": "Cumbrae",
+   "map_name": "Largs - Cumbrae Slip",
+   "a": [
+    55.78674,
+    -4.89772
+   ],
+   "b": [
+    55.79514,
+    -4.8712
+   ],
+   "places": [
+    "Largs",
+    "Cumbrae Slip"
+   ],
+   "kind": "open",
+   "m": 2027,
+   "country": "sc"
+  },
+  {
+   "id": "56c66e7042e0",
+   "name": "Fishnish",
+   "map_name": "Lochaline - Fishnish",
+   "a": [
+    56.515,
+    -5.81013
+   ],
+   "b": [
+    56.53669,
+    -5.77519
+   ],
+   "places": [
+    "Lochaline",
+    "Fishnish"
+   ],
+   "kind": "open",
+   "m": 3625,
+   "country": "sc"
+  },
+  {
+   "id": "17401b9bc184",
+   "name": "Flotta",
+   "map_name": "Lyness - Flotta",
+   "a": [
+    58.83352,
+    -3.19154
+   ],
+   "b": [
+    58.83769,
+    -3.13077
+   ],
+   "places": [
+    "Lyness",
+    "Flotta"
+   ],
+   "kind": "open",
+   "m": 3847,
+   "country": "sc"
+  },
+  {
+   "id": "882a2108453a",
+   "name": "Cowal",
+   "map_name": "Hunter's Quay - McInroy's Point",
+   "a": [
+    55.97108,
+    -4.90862
+   ],
+   "b": [
+    55.95179,
+    -4.85292
+   ],
+   "places": [
+    "Hunter's Quay",
+    "McInroy's Point"
+   ],
+   "kind": "open",
+   "m": 4254,
+   "country": "sc"
+  },
+  {
+   "id": "2387bd69015b",
+   "name": "Gigha",
+   "map_name": "Tayinloan - Gigha",
+   "a": [
+    55.65756,
+    -5.67091
+   ],
+   "b": [
+    55.67789,
+    -5.73315
+   ],
+   "places": [
+    "Tayinloan",
+    "Gigha"
+   ],
+   "kind": "open",
+   "m": 4526,
+   "country": "sc"
+  },
+  {
+   "id": "07e1e6920a5b",
+   "name": "Portavadie",
+   "map_name": "Tarbert to Portavadie",
+   "a": [
+    55.87668,
+    -5.31694
+   ],
+   "b": [
+    55.86622,
+    -5.40339
+   ],
+   "places": [
+    "Tarbert",
+    "Portavadie"
+   ],
+   "kind": "open",
+   "m": 5565,
+   "country": "sc"
+  },
+  {
+   "id": "9519e9d2145a",
+   "name": "Longhope",
+   "map_name": "Longhope - Lyness",
+   "a": [
+    58.80107,
+    -3.20559
+   ],
+   "b": [
+    58.83352,
+    -3.19154
+   ],
+   "places": [
+    "Longhope",
+    "Lyness"
+   ],
+   "kind": "open",
+   "m": 6132,
+   "country": "sc"
+  },
+  {
+   "id": "9691c2005256",
+   "name": "Yarmouth",
+   "map_name": "Wightlink Yarmouth - Lymington",
+   "a": [
+    50.70651,
+    -1.50064
+   ],
+   "b": [
+    50.75684,
+    -1.52891
+   ],
+   "places": [
+    "Yarmouth",
+    "Lymington"
+   ],
+   "kind": "open",
+   "m": 6298,
+   "country": "en"
+  },
+  {
+   "id": "3c813f799cd6",
+   "name": "Lochranza",
+   "map_name": "Claonaig to Lochranza",
+   "a": [
+    55.75068,
+    -5.38785
+   ],
+   "b": [
+    55.7079,
+    -5.3014
+   ],
+   "places": [
+    "Claonaig",
+    "Lochranza"
+   ],
+   "kind": "open",
+   "m": 7291,
+   "country": "sc"
+  },
+  {
+   "id": "b6cc2729086b",
+   "name": "Kilchoan",
+   "map_name": "Tobermory - Kilchoan",
+   "a": [
+    56.62348,
+    -6.0629
+   ],
+   "b": [
+    56.68878,
+    -6.09418
+   ],
+   "places": [
+    "Tobermory",
+    "Kilchoan"
+   ],
+   "kind": "open",
+   "m": 7901,
+   "country": "sc"
+  },
+  {
+   "id": "1d689fd26be8",
+   "name": "Armadale",
+   "map_name": "Mallaig - Armadale",
+   "a": [
+    57.06487,
+    -5.89455
+   ],
+   "b": [
+    57.00731,
+    -5.8264
+   ],
+   "places": [
+    "Mallaig",
+    "Armadale"
+   ],
+   "kind": "open",
+   "m": 8339,
+   "country": "sc"
+  },
+  {
+   "id": "d6c083e33f02",
+   "name": "Houton",
+   "map_name": "Houton - Lyness",
+   "a": [
+    58.83352,
+    -3.19154
+   ],
+   "b": [
+    58.91689,
+    -3.1843
+   ],
+   "places": [
+    "Houton",
+    "Lyness"
+   ],
+   "kind": "open",
+   "m": 9633,
+   "country": "sc"
+  },
+  {
+   "id": "c80480a5089d",
+   "name": "Eriskay",
+   "map_name": "Ardmhor, Barra - Eriskay",
+   "a": [
+    57.00861,
+    -7.40266
+   ],
+   "b": [
+    57.07097,
+    -7.30816
+   ],
+   "places": [
+    "Ardmhor",
+    "Eriskay"
+   ],
+   "kind": "open",
+   "m": 9640,
+   "country": "sc"
+  },
+  {
+   "id": "a4c51399a9ad",
+   "name": "Rathlin",
+   "map_name": "Rathlin Island ferry",
+   "a": [
+    55.29218,
+    -6.19494
+   ],
+   "b": [
+    55.20819,
+    -6.23862
+   ],
+   "places": [
+    "Rathlin",
+    "Ballycastle"
+   ],
+   "kind": "open",
+   "m": 10334,
+   "country": "ni"
+  },
+  {
+   "id": "22996b38c7c5",
+   "name": "Fishbourne",
+   "map_name": "Wightlink: Fishbourne - Portsmouth",
+   "a": [
+    50.79289,
+    -1.10621
+   ],
+   "b": [
+    50.73435,
+    -1.21341
+   ],
+   "places": [
+    "Portsmouth",
+    "Fishbourne"
+   ],
+   "kind": "open",
+   "m": 10947,
+   "country": "en"
+  },
+  {
+   "id": "8680b0db0c84",
+   "name": "Rothesay",
+   "map_name": "Rothesay - Wemyss Bay",
+   "a": [
+    55.87575,
+    -4.89087
+   ],
+   "b": [
+    55.83896,
+    -5.05298
+   ],
+   "places": [
+    "Rothesay",
+    "Wemyss Bay"
+   ],
+   "kind": "open",
+   "m": 11492,
+   "country": "sc"
+  },
+  {
+   "id": "cf7f7f41d4c2",
+   "name": "Lismore",
+   "map_name": "Oban - Lismore",
+   "a": [
+    56.41094,
+    -5.47754
+   ],
+   "b": [
+    56.5119,
+    -5.49166
+   ],
+   "places": [
+    "Oban",
+    "Lismore"
+   ],
+   "kind": "open",
+   "m": 11885,
+   "country": "sc"
+  },
+  {
+   "id": "ed410d798668",
+   "name": "Craignure",
+   "map_name": "Oban - Craignure",
+   "a": [
+    56.4116,
+    -5.47728
+   ],
+   "b": [
+    56.47127,
+    -5.70568
+   ],
+   "places": [
+    "Oban",
+    "Craignure"
+   ],
+   "kind": "open",
+   "m": 16459,
+   "country": "sc"
+  },
+  {
+   "id": "ba91ff9230b4",
+   "name": "East Cowes",
+   "map_name": "Southampton - East Cowes",
+   "a": [
+    50.75913,
+    -1.29058
+   ],
+   "b": [
+    50.89601,
+    -1.40623
+   ],
+   "places": [
+    "East Cowes",
+    "Southampton"
+   ],
+   "kind": "open",
+   "m": 19156,
+   "country": "en"
+  },
+  {
+   "id": "21b6d0f80ca9",
+   "name": "Brodick",
+   "map_name": "Ardrossan - Brodick",
+   "a": [
+    55.64019,
+    -4.82398
+   ],
+   "b": [
+    55.57736,
+    -5.13619
+   ],
+   "places": [
+    "Ardrossan",
+    "Brodick"
+   ],
+   "kind": "open",
+   "m": 21120,
+   "country": "sc"
+  },
+  {
+   "id": "046eb60df8b0",
+   "name": "Harris",
+   "map_name": "Uig - Tarbert",
+   "a": [
+    57.89701,
+    -6.79931
+   ],
+   "b": [
+    57.58525,
+    -6.3718
+   ],
+   "places": [
+    "Uig",
+    "Tarbert"
+   ],
+   "kind": "open",
+   "m": 44873,
+   "country": "sc"
+  },
+  {
+   "id": "afce204521a6",
+   "name": "Stromness",
+   "map_name": "Stromness to Scrabster",
+   "a": [
+    58.96362,
+    -3.29511
+   ],
+   "b": [
+    58.61204,
+    -3.54012
+   ],
+   "places": [
+    "Stromness",
+    "Scrabster"
+   ],
+   "kind": "open",
+   "m": 46306,
+   "country": "sc"
+  },
+  {
+   "id": "e2164aba218a",
+   "name": "Islay",
+   "map_name": "Kennacraig - Port Askaig",
+   "a": [
+    55.80651,
+    -5.48324
+   ],
+   "b": [
+    55.84833,
+    -6.10469
+   ],
+   "places": [
+    "Kennacraig",
+    "Port Askaig"
+   ],
+   "kind": "open",
+   "m": 47278,
+   "country": "sc"
+  },
+  {
+   "id": "b3f5bf6cffe6",
+   "name": "North Uist",
+   "map_name": "Uig - Lochmaddy",
+   "a": [
+    57.59648,
+    -7.15739
+   ],
+   "b": [
+    57.58525,
+    -6.3718
+   ],
+   "places": [
+    "Lochmaddy",
+    "Uig"
+   ],
+   "kind": "open",
+   "m": 48223,
+   "country": "sc"
+  },
+  {
+   "id": "44b62b9e8c83",
+   "name": "Lewis",
+   "map_name": "Ullapool - Stornoway",
+   "a": [
+    57.8948,
+    -5.16001
+   ],
+   "b": [
+    58.20627,
+    -6.38751
+   ],
+   "places": [
+    "Ullapool",
+    "Stornoway"
+   ],
+   "kind": "open",
+   "m": 83296,
+   "country": "sc"
+  },
+  {
+   "id": "f876d8ea3fda",
+   "name": "Isle of Man",
+   "map_name": "Douglas - Heysham",
+   "a": [
+    54.0337,
+    -2.91354
+   ],
+   "b": [
+    54.14714,
+    -4.47278
+   ],
+   "places": [
+    "Heysham",
+    "Douglas"
+   ],
+   "kind": "open",
+   "m": 108746,
+   "country": "en"
+  }
+ ]
+}

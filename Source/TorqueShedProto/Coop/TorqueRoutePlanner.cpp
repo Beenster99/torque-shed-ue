@@ -605,6 +605,7 @@ bool FTorqueRoutePlanner::Tick(APlayerController* PC)
 			MapTex.Reset(T);
 			TexView = Drawn;
 			bHaveTex = true;
+			bStreetsStale = true;   // [map detail] (its cells' roads may have come in with it)
 		}
 	if (bRideWhenPlanned && (PlanFor != Serial || !W->IsPlanningRide()))
 	{
@@ -713,6 +714,12 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 		const char* Kinds = View.Zoom < 6.6 ? "city" : View.Zoom < 8.2 ? "city town" : View.Zoom < 10.2 ? "city town village" : "city town village hamlet peak pass lake castle";
 		Labels = W->Places().InBox(SE.Lat, NW.Lon, NW.Lat, SE.Lon, Kinds, 400);
 	}
+	// [map detail] (the roads' names for the picture shown: found again only when a new one comes, not as it is dragged)
+	if (bStreetsStale && bHaveTex)
+	{
+		bStreetsStale = false;
+		StreetLabels = TorqueWorld::Route::RoadLayer(TexView.Layer) && !bDiaryMap ? W->StreetNames() : std::vector<TorqueWorld::Route::MapStreets::Label>();
+	}
 	{
 		TArray<FBox2D> Taken;
 		int32 Shown = 0;
@@ -734,6 +741,34 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 			const bool bLand = P->Kind == "peak" || P->Kind == "pass" || P->Kind == "lake";
 			Ui::Disc(Canvas, float(At.X), float(At.Y), (bBig ? 3.5f : 2.5f) * S, FLinearColor(0.1f, 0.1f, 0.1f, 0.9f), 10);
 			Ui::Text(Canvas, Name, float(At.X), float(At.Y - Size.Y) - 3.0f * S, Px, bLand ? FLinearColor(0.16f, 0.2f, 0.32f, 1.0f) : FLinearColor(0.08f, 0.08f, 0.08f, 1.0f), bBig, Ui::EAlign::Centre, false);
+		}
+		// [map detail] The roads' names, zoomed in, round the places' (each on its road, none over another):
+		// dark on the road map, light over the satellite's pictures. None once zoomed out past them.
+		const bool bOnPhoto = TorqueWorld::Route::PhotoLayer(View.Layer);
+		int32 NamesShown = 0;
+		for (const TorqueWorld::Route::MapStreets::Label& L : StreetLabels)
+		{
+			if (View.Zoom < TorqueWorld::Route::MapStreets::NamesFrom - 0.25 || View.Layer != TexView.Layer) break;
+			if (NamesShown >= 80) break;
+			const FVector2D At = ToScreen(L.Lat, L.Lon);
+			const float Px = 11.5f * S;
+			const FString Name = TRPI::ToF(L.Name);
+			const FVector2D Size = Ui::Measure(Name, Px);
+			const FBox2D Box(At - Size * 0.5 - FVector2D(3.0 * S, 1.0 * S), At + Size * 0.5 + FVector2D(3.0 * S, 1.0 * S));
+			if (Box.Min.X < MapPos.X || Box.Min.Y < MapPos.Y || Box.Max.X > MapPos.X + MapSize.X || Box.Max.Y > MapPos.Y + MapSize.Y) continue;
+			bool bClear = true;
+			for (const FBox2D& T : Taken) bClear = bClear && !T.Intersect(Box);
+			if (!bClear) continue;
+			Taken.Add(Box);
+			++NamesShown;
+			if (bOnPhoto)
+				Ui::Text(Canvas, Name, float(At.X), float(At.Y - Size.Y * 0.5), Px, FLinearColor(0.97f, 0.97f, 0.95f, 1.0f), false, Ui::EAlign::Centre, true);
+			else
+			{
+				// (a pale halo, so the name reads over the roads under it)
+				Ui::Rect(Canvas, float(Box.Min.X), float(Box.Min.Y), float(Box.Max.X - Box.Min.X), float(Box.Max.Y - Box.Min.Y), FLinearColor(0.955f, 0.945f, 0.905f, 0.72f));
+				Ui::Text(Canvas, Name, float(At.X), float(At.Y - Size.Y * 0.5), Px, FLinearColor(0.22f, 0.22f, 0.22f, 1.0f), false, Ui::EAlign::Centre, false);
+			}
 		}
 	}
 	// [stage 8] Where the planned road's map data is thin: an amber mark.
@@ -794,6 +829,7 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 			{
 				if (View.Layer == L) return;
 				View.Layer = L;
+				bStreetsStale = true;
 				bViewDirty = true;
 			}, 13.5f * S);
 	}
@@ -834,11 +870,18 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 	{
 		const std::vector<TorqueWorld::Route::FamousRoad>& Roads = W->FamousRoads();
 		const float RowH = 50.0f * S;
-		const int32 Fits = FMath::Max(1, int32((BottomY - Y) / RowH));
+		// ([towns stage 8] the famous streets under the roads, with a heading over the first of them)
+		const float HeadH = 28.0f * S;
+		const int32 Fits = FMath::Max(1, int32((BottomY - Y - HeadH) / RowH));
 		FamousFirst = FMath::Clamp(FamousFirst, 0, FMath::Max(0, int32(Roads.size()) - Fits));
 		for (int32 I = FamousFirst; I < int32(Roads.size()) && I < FamousFirst + Fits; ++I)
 		{
 			const TorqueWorld::Route::FamousRoad& F = Roads[size_t(I)];
+			if (F.Street && (I == 0 || !Roads[size_t(I - 1)].Street))
+			{
+				Ui::Text(Canvas, TEXT("FAMOUS STREETS"), X0, Y + 6.0f * S, 14.0f * S, Ui::Accent, true);
+				Y += HeadH;
+			}
 			const bool bOver = Mouse.X >= X0 && Mouse.X < X0 + PW && Mouse.Y >= Y && Mouse.Y < Y + RowH - 4.0f * S;
 			Ui::Rect(Canvas, X0, Y, PW, RowH - 4.0f * S, bOver ? FLinearColor(1, 1, 1, 0.10f) : Ui::PanelLight);
 			Ui::TextFit(Canvas, TRPI::ToF(F.Name), X0 + 12.0f * S, Y + 5.0f * S, 17.0f * S, PW - 24.0f * S, Ui::Ink, true);
@@ -1059,8 +1102,9 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 	FX += Ui::KeyHint(Canvas, TEXT("Ctrl+V"), TEXT("Paste a code, map link or GPX"), FX, FY, S) + 26.0f * S;
 	Ui::KeyHint(Canvas, TEXT("Esc"), TEXT("Back"), FX, FY, S);
 	// Who made the map, as their licences ask.
-	if (View.Layer == TorqueWorld::Route::Satellite)
-		Ui::Text(Canvas, FString(UTF8_TO_TCHAR(TorqueWorld::Route::MapImagery::Credit())) + TEXT(" Places: GeoNames (CC BY 4.0)."), SW - Gap, FY + 4.0f * S, 11.5f * S, Ui::Faint, false, Ui::EAlign::Right);
+	if (TorqueWorld::Route::PhotoLayer(View.Layer))
+		Ui::Text(Canvas, FString(UTF8_TO_TCHAR(TorqueWorld::Route::MapImagery::Credit())) + TEXT(" Places: GeoNames (CC BY 4.0).")
+			+ (View.Layer == TorqueWorld::Route::Hybrid ? TEXT(" Roads: © OpenStreetMap contributors.") : TEXT("")), SW - Gap, FY + 4.0f * S, 11.5f * S, Ui::Faint, false, Ui::EAlign::Right);
 	else
 		Ui::Text(Canvas, TEXT("Relief: Mapterhorn. Places: GeoNames (CC BY 4.0). Roads: © OpenStreetMap contributors."), SW - Gap, FY + 4.0f * S, 11.5f * S, Ui::Faint, false, Ui::EAlign::Right);
 }
