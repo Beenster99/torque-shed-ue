@@ -1914,6 +1914,230 @@
    "rough": 0.4,
    "metal": 0.1,
    "tile": 4.0
+  },
+  "lx_board": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_board.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.7,
+   "unit_uv": true
+  },
+  "lx_keep_clear": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_keep_clear.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.4,
+   "unit_uv": true
+  },
+  "lx_contact": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_contact.png",
+   "rows": 16,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.4,
+   "unit_uv": true
+  },
+  "lx_danger": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_danger.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.4,
+   "unit_uv": true
+  },
+  "lx_give_way": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_give_way.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.35,
+   "unit_uv": true
+  },
+  "lx_loco": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_loco.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.4,
+   "unit_uv": true
+  },
+  "lx_user_worked": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/lx_user_worked.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.4,
+   "unit_uv": true
+  },
+  "lx_lens_red": {
+   "base": "plastic",
+   "tint": [
+    0.16,
+    0.008,
+    0.006
+   ],
+   "rough": 0.12,
+   "tile": 4.0
+  },
+  "lx_lens_amber": {
+   "base": "plastic",
+   "tint": [
+    0.2,
+    0.07,
+    0.0
+   ],
+   "rough": 0.12,
+   "tile": 4.0
+  },
+  "lx_lens_green": {
+   "base": "plastic",
+   "tint": [
+    0.008,
+    0.09,
+    0.03
+   ],
+   "rough": 0.12,
+   "tile": 4.0
+  },
+  "lx_lit_red": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.02,
+    0.01
+   ],
+   "rough": 0.15,
+   "emissive": 40.0
+  },
+  "lx_lit_amber": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.33,
+    0.0
+   ],
+   "rough": 0.15,
+   "emissive": 40.0
+  },
+  "lx_lit_green": {
+   "base": "emissive",
+   "tint": [
+    0.05,
+    1.0,
+    0.35
+   ],
+   "rough": 0.15,
+   "emissive": 40.0
+  },
+  "lx_sign_red": {
+   "base": "painted",
+   "tint": [
+    0.6,
+    0.02,
+    0.02
+   ],
+   "rough": 0.35,
+   "metal": 0.05,
+   "tile": 4.0
+  },
+  "lx_sign_white": {
+   "base": "painted",
+   "tint": [
+    0.82,
+    0.82,
+    0.8
+   ],
+   "rough": 0.35,
+   "metal": 0.05,
+   "tile": 4.0
+  },
+  "lx_reflect_red": {
+   "base": "painted",
+   "tint": [
+    0.62,
+    0.03,
+    0.025
+   ],
+   "rough": 0.32,
+   "metal": 0.05,
+   "tile": 4.0
+  },
+  "lx_reflect_white": {
+   "base": "painted",
+   "tint": [
+    0.84,
+    0.84,
+    0.82
+   ],
+   "rough": 0.32,
+   "metal": 0.05,
+   "tile": 4.0
+  },
+  "lx_picket_white": {
+   "base": "painted",
+   "tint": [
+    0.78,
+    0.78,
+    0.75
+   ],
+   "rough": 0.6,
+   "metal": 0.0,
+   "tile": 2.0,
+   "grime": 0.5
+  },
+  "lx_palisade_white": {
+   "base": "painted",
+   "tint": [
+    0.8,
+    0.8,
+    0.79
+   ],
+   "rough": 0.45,
+   "metal": 0.2,
+   "tile": 2.0,
+   "grime": 0.4
+  },
+  "lx_case_grey": {
+   "base": "painted",
+   "tint": [
+    0.42,
+    0.44,
+    0.43
+   ],
+   "rough": 0.5,
+   "metal": 0.3,
+   "tile": 2.0,
+   "grime": 0.5
   }
  }
 }

@@ -24,6 +24,7 @@
 #include "World/TorqueRideWorld.h"
 #include "World/TorqueForecourtGarage.h"
 #include "World/TorqueFerry.h"
+#include "World/TorqueLevelCrossing.h"
 #include "Shed/TorquePartsComputer.h"
 #include "TorqueTft.h"
 #include "RideModes.h"
@@ -1051,13 +1052,15 @@ void ATorqueBikePawn::GatherOtherBikes()
 	const bool bRealRide = !bYard && !FPaths::IsRelative(RouteFile);
 	static constexpr double ParkedReach = 60.0;
 	const bool bCarsDue = bRealRide && Sim && (ParkedFrom.X > 1e17 || FVector2D(Sim->Position.x - ParkedFrom.X, Sim->Position.z - ParkedFrom.Y).Size() > ParkedReach / 3.0);
-	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || FerrySeen != ATorqueFerry::ContactVersion() || bCarsDue))
+	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || FerrySeen != ATorqueFerry::ContactVersion() || CrossingSeen != ATorqueLevelCrossing::ContactVersion() || bCarsDue))
 	{
 		GarageSeen = ATorqueForecourtGarage::ContactVersion();
 		FerrySeen = ATorqueFerry::ContactVersion();
+		CrossingSeen = ATorqueLevelCrossing::ContactVersion();
 		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
 		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
 		ATorqueFerry::ContactBoxes(GetWorld(), Boxes);   // [ferries] a tied-up boat's sides, the cars on it, the shut barriers
+		ATorqueLevelCrossing::ContactBoxes(GetWorld(), Boxes);   // [level crossings] the lowered booms, the shut gates
 		if (Sim)
 		{
 			ParkedFrom = FVector2D(Sim->Position.x, Sim->Position.z);

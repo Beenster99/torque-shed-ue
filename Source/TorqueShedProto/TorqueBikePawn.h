@@ -373,6 +373,7 @@ private:
 	int32 FurnitureSeen = 0;
 	int32 GarageSeen = 0;   // [garage] ATorqueForecourtGarage::ContactVersion as last taken in
 	int32 FerrySeen = 0;    // [ferries] ATorqueFerry::ContactVersion as last taken in
+	int32 CrossingSeen = 0; // [level crossings] ATorqueLevelCrossing::ContactVersion as last taken in
 	FVector2D ParkedFrom = FVector2D(1e18, 1e18);   // [car parks] where the parked cars round the rider were last gathered
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
