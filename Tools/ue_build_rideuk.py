@@ -1241,6 +1241,21 @@ def scanned_trees(L, kit):
                         match_nanite(m, p)
                     else:
                         plain_copy(m)
+                    # ([build 164] the leaves: the Megaplant's Nanite assembly flattened onto the bark,
+                    # Tools/ue_megaplant_assembly.py; the bark-only copy stays if that fails)
+                    if spec.get("assembly_copies", True):
+                        asm_name = "SM_%s_asm" % p.rsplit(".", 1)[-1]
+                        asm_dest = "%s/%s" % (SCAN_DEST, asm_name)
+                        if unreal.EditorAssetLibrary.does_asset_exist(asm_dest) and not spec.get("rebuild_assembly_copies", False):
+                            m = "%s.%s" % (asm_dest, asm_name)
+                        else:
+                            try:
+                                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                                import ue_megaplant_assembly as MA
+                                m = MA.flatten(p, asm_dest) or m
+                            except Exception as e:
+                                import traceback
+                                log("scanned trees: %s: assembly copy failed: %s\n%s" % (asm_name, e, traceback.format_exc()))
                     made.append(m)
             for m in made:
                 ready_materials(m)
