@@ -59,13 +59,13 @@ FLinearColor FTorqueProfile::HelmetColour() const
 
 const TCHAR* FTorqueProfile::JacketName(int32 I)
 {
-	static const TCHAR* Names[NumJackets] = {TEXT("None"), TEXT("Crosswind leather"), TEXT("Crosswind, worn"), TEXT("Crosswind, distressed")};
+	static const TCHAR* Names[NumJackets] = {TEXT("None"), TEXT("Crosswind, oiled leather"), TEXT("Crosswind, distressed"), TEXT("Crosswind, smooth")};
 	return Names[FMath::Clamp(I, 0, (int32)NumJackets - 1)];
 }
 
 const TCHAR* FTorqueProfile::JacketMesh(int32 I)
 {
-	static const TCHAR* Meshes[NumJackets] = {TEXT(""), TEXT("SK_Crosswind_Avatar_A"), TEXT("SK_Crosswind_Worn_Avatar_A"), TEXT("SK_Crosswind_Distressed_Avatar_A")};
+	static const TCHAR* Meshes[NumJackets] = {TEXT(""), TEXT("SK_Crosswind_Worn_Avatar_A"), TEXT("SK_Crosswind_Distressed_Avatar_A"), TEXT("SK_Crosswind_Avatar_A")};   // (161: the plain one first drew grey)
 	return Meshes[FMath::Clamp(I, 0, (int32)NumJackets - 1)];
 }
 
