@@ -262,6 +262,14 @@ WorldAsk AskOf(const RidePlan& Plan)
 	const RidePlan* P = &Plan;
 	Ask.Height = [P](double X, double Z) { return P->Ground(X, Z); };
 	Ask.Sea = [P](double X, double Z) { return P->Land && P->Land->SeaAt(X, Z); };
+	Ask.Water = [P](double X, double Z)
+	{
+		const double Still = P->StillLevel(X, Z);
+		if (!std::isnan(Still)) return Still;
+		double Off = 0.0, Surface = 0.0, Half = 0.0, Depth = 0.0;
+		if (P->NearWater(X, Z, Off, Surface, Half, Depth) && Off < Half + 2.0) return Surface;
+		return std::numeric_limits<double>::quiet_NaN();
+	};
 	Ask.Road = [P](const P2& At, double Reach, double WantY, P2& Foot, double& Y, double& Half)
 	{
 		// The best point of any of the area's roads (their lines, laid or not): the nearest, unless the way from it to
@@ -332,6 +340,8 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 	Out.Sea = Ask.Sea && Ask.Sea(Mid.X, Mid.Z);
 	if (Out.Sea)
 		Out.Water = 0.0;
+	else if (const double Drawn = Ask.Water ? Ask.Water(Mid.X, Mid.Z) : std::numeric_limits<double>::quiet_NaN(); !std::isnan(Drawn))
+		Out.Water = Drawn;   // (the lake's or the river's level as the world draws its water: the boat floats on it)
 	else
 	{
 		double Low = std::numeric_limits<double>::max();

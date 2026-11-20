@@ -86,6 +86,8 @@ struct WorldAsk
 	std::function<double(double X, double Z)> Height;
 	std::function<bool(double X, double Z)> Sea;
 	std::function<bool(const P2& At, double Reach, double WantY, P2& Foot, double& Y, double& Half)> Road;
+	// The water's own level at a point off the sea (a lake's, a river's as the world draws it), NaN where it knows none.
+	std::function<double(double X, double Z)> Water;
 };
 WorldAsk AskOf(const RidePlan& Plan);
 
