@@ -60,6 +60,10 @@ struct FModel
 	bool bSolid = false;   // the bike bumps into it
 	bool bSold = false;    // on the parts computer's Shed aisle
 	double Sit = 0.0;      // a seat: how high you sit on it, cm (0: not one)
+	// [posters] Drawn with another model's mesh ("mesh" in models.json: every framed poster is the props'
+	// poster_frame), and a picture under its glass ("picture": a file under the project, Data/Posters/*.jpg).
+	FName MeshId;
+	FString Picture;
 	bool Small() const { return FMath::Max3(Size.X, Size.Y, Size.Z) < 70.0; }   // carried in your hands
 };
 const TMap<FName, FModel>& Models();
@@ -96,6 +100,10 @@ struct FYard
 const FYard& Yard();
 // The few pieces a new shed has indoors beside its own fixed kit.
 const TArray<FPlaced>& ShedStart();
+// [posters] The six bike makers' logo posters (beenster, Nov 20: "Re-use the brand logos and names as
+// posters we can have on the walls of our shed"), hung either side of the roller door inside: part of
+// ShedStart, and hung once in a shed saved before they were (UTorqueBuildSubsystem's load).
+const TArray<FPlaced>& BrandPosters();
 
 // [label] A shelving unit's label plate (equipment.gd _build_shelf: 0.7 x 0.14 m, 12 cm under its
 // top, on its front): the longest label (LabelMax letters, as label_dialog.gd), whether a model has
@@ -112,6 +120,16 @@ bool IsTv(const FModel& M);
 bool IsPhotoPrint(const FModel& M);
 FName PhotoPrintModel();
 FName BinSpot();
+// [posters] A framed poster (a "picture" in models.json): hangs on a wall, its picture drawn under the
+// frame's glass (PosterArt). A photo print or a poster can go in the bin; the shop sells posters again.
+bool IsPoster(const FModel& M);
+bool Binnable(const FModel& M);
+// The picture on a poster frame: a thin card (TorquePhotos' print card, stretched to the frame's
+// paper: 59 x 84 cm) just in front of its paper, under the glass, attached to Frame and tagged
+// FabLook (outlined with its piece, gone with it). Blank paper till DressPosterArt finds its picture
+// (loaded off the game thread: true once it's on).
+UStaticMeshComponent* AddPosterArt(UStaticMeshComponent* Frame, const FModel& M);
+bool DressPosterArt(UStaticMeshComponent* Art, const FModel& M);
 FString NameOf(const FTorqueFurniture& F);
 FString CleanLabel(const FString& Text);
 
@@ -200,6 +218,8 @@ private:
 	TMap<int32, FName> DrawnModel;
 	TMap<int32, FString> PrintsShown;   // [drone] each photo print's picture as it's drawn (its id)
 	TMap<int32, double> PrintTryAt;     // and when to look again for one that isn't here yet
+	// [posters] Each poster's picture card (a child of its frame, PosterArt), till its picture's on it.
+	TMap<int32, TWeakObjectPtr<UStaticMeshComponent>> PosterArtWaiting;
 	void DressPrint(int32 Id, UStaticMeshComponent* C, const FString& Picture);
 	TSet<FName> Missing;   // models not imported, warned about once
 	UStaticMeshComponent* Make(FName Model, const FTransform& Xf, bool bMovable);
