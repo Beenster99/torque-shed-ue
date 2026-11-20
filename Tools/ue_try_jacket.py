@@ -30,8 +30,13 @@ JACKETS = {   # fbx: the leather it wears (folder, file prefix); None: the plain
     "SK_Crosswind_Worn_Avatar_A.fbx": ("Leather", "Oiled_Hide"),
     "SK_Crosswind_Distressed_Avatar_A.fbx": ("Distressed Leather", "Dry_Hide"),
 }
-METAL_WORDS = ("metal", "zip", "buckle", "hardware", "stud", "chrome", "rivet", "snap", "steel", "silver")
-CLOTH_WORDS = ("shirt", "tee", "inner", "lining", "liner", "cotton", "fabric", "under")   # a dark cloth, not leather
+# By the SLOT's name only (round 162: the imported materials' own names made every Worn and
+# Distressed slot read as metal, so no leather went on). Slots: Graphite_cowhide, Smooth_edge_leather,
+# Punched_leather (leather); Graphite_thread (kept); Charcoal_twill (the lining: dark cloth, it showed
+# as pale patches across the back yoke); Brushed_pewter, Antique_nickel, tooth (zip teeth) (metal, kept).
+METAL_WORDS = ("metal", "zip", "buckle", "hardware", "stud", "chrome", "rivet", "snap", "steel", "silver", "pewter", "nickel", "tooth", "brass")
+CLOTH_WORDS = ("shirt", "tee", "inner", "lining", "liner", "cotton", "fabric", "under", "twill")   # a dark cloth, not leather
+KEEP_WORDS = ("thread", "stitch")   # as imported
 EXPORT = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Saved", "AvatarExport")
 
 
@@ -187,8 +192,8 @@ def main():
         for i, sm in enumerate(mats):
             slot = str(sm.material_slot_name)
             was = sm.material_interface
-            words = (slot + " " + (was.get_name() if was else "")).lower()
-            metal = any(w in words for w in METAL_WORDS)
+            words = slot.lower()
+            metal = any(w in words for w in METAL_WORDS) or any(w in words for w in KEEP_WORDS)
             is_cloth = not metal and any(w in words for w in CLOTH_WORDS)
             use = cl if is_cloth else (mi if not metal else None)
             if use is not None:
