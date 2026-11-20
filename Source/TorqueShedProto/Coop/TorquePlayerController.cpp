@@ -889,6 +889,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	if (Page == EPage::Credits) return TEXT("MAP DATA");
 	if (Page == EPage::Route) return TEXT("ROUTE PLANNER");
+	if (Page == EPage::HelmetDecals) return TEXT("HELMET DECALS");
 	if (Page == EPage::SkyPresets) return TEXT("PRESET SKY");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
@@ -1831,6 +1832,15 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				[this, &Me]() { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + 1, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); },
 				[this, &Me](int32 D) { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + D, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); });
 			R.Last().bHelmet = true;
+			// [helmet decals] (build 160, beenster: "decals added in the settings, profile section ...
+			// isolate this from the bike decal") A page of its own: the helmet big, the decal library beside it.
+			{
+				const int32 OnIt = (int32)TorqueFit::Decals::Parse(TorqueDecals::ToStd(TorqueDecals::MyHelmet())).size();
+				Add(TEXT("Helmet decals"), OnIt > 0 ? FString::Printf(TEXT("%d on it: change them"), OnIt) : FString(TEXT("Add some")),
+					TEXT("Lettering, stripes, artwork or your own pictures on your helmet, placed with the mouse on a big picture of it"),
+					[this]() { OpenHelmetDecals(); });
+				R.Last().bHelmet = true;
+			}
 		}
 		break;
 	}
@@ -1964,6 +1974,22 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	auto Just = [this](const FKey& K) { return WasInputKeyJustPressed(K); };
 	const bool bMenuKey = Just(EKeys::Escape) || Just(EKeys::Gamepad_Special_Right) || (Hit & ESonyButton::Options);
 
+	// [helmet decals] The helmet's decal page has the keys and the mouse while it's open; it closes
+	// itself (Esc, Leave), and the Profile page comes back.
+	if (ATorqueDecalMode* Dm = ATorqueDecalMode::For(this); Dm && Dm->IsHelmetOnly())
+	{
+		if (Page != EPage::HelmetDecals) Dm->TestExit();   // (the menu went: it goes too, unsaved)
+		else
+		{
+			if (Just(EKeys::Gamepad_FaceButton_Right) || (Hit & ESonyButton::Circle)) Dm->AskToLeave();
+			return;
+		}
+	}
+	else if (Page == EPage::HelmetDecals)
+	{
+		Back();
+		return;
+	}
 	if (Page == EPage::None)
 	{
 		if (bMenuKey && WantsPause()) OpenPause();
@@ -2239,6 +2265,11 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	if (Page == EPage::Awards)   // [ride awards]
 	{
 		if (AwardsScreen) AwardsScreen->Draw(Canvas, this);
+		return;
+	}
+	if (Page == EPage::HelmetDecals)   // [helmet decals] the helmet big, the library beside it
+	{
+		if (ATorqueDecalMode* Dm = ATorqueDecalMode::For(this)) Dm->DrawPanel(Hud, Canvas);
 		return;
 	}
 	const FMenuLayout L = MenuLayout(Canvas);
@@ -2764,6 +2795,18 @@ void ATorquePlayerController::UpdateProfilePreview()
 		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet : ATorqueProfilePreview::EView::Body;
 	}
 	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Want, FTorqueSettings::Get().Colour);
+}
+
+void ATorquePlayerController::OpenHelmetDecals()
+{
+	FString Why;
+	if (!ATorqueDecalMode::OpenHelmet(this, Why))
+	{
+		Note = Why.IsEmpty() ? FString(TEXT("The helmet's decals couldn't open.")) : Why;
+		NoteFor = 4.0;
+		return;
+	}
+	Open(EPage::HelmetDecals);
 }
 
 void ATorquePlayerController::DrawProfile(AHUD* Hud, UCanvas* Canvas)

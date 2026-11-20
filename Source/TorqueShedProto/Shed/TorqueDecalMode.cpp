@@ -9,6 +9,8 @@
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueWalker.h"
 #include "Shed/TorqueProfile.h"
+#include "Shed/TorqueProfilePreview.h"
+#include "Coop/TorqueSettings.h"
 #include "RiderRig.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
@@ -117,12 +119,12 @@ struct ATorqueDecalMode::FState
 	int32 SeenCount = -1;
 	TArray<TWeakObjectPtr<AActor>> Hidden;
 	uint32 PrevPad = 0;
-	// The helmet on its stand (stage 4), and where the camera looks at the bike.
-	UStaticMeshComponent* Stand = nullptr;
-	UStaticMeshComponent* Pole = nullptr;
-	bool bAtHelmet = false;
-	FVector BikeFocus = FVector::ZeroVector;
-	double BikeDist = 200.0;
+	// [helmet decals] Opened on the player's own helmet alone (Settings > Profile), worked through the
+	// Profile page's picture of it; and the helmet being turned by a drag.
+	bool bHelmetOnly = false;
+	TWeakObjectPtr<ATorqueProfilePreview> Preview;
+	TWeakObjectPtr<UStaticMeshComponent> Helmet;
+	bool bTurning = false;
 };
 
 namespace TorqueDecalModeImpl
@@ -193,6 +195,59 @@ bool ATorqueDecalMode::Open(ATorqueWalker* Walker, int32 LookedAtBay, FString& W
 	return true;
 }
 
+bool ATorqueDecalMode::IsHelmetOnly() const { return St && St->bHelmetOnly; }
+
+ATorqueDecalMode* ATorqueDecalMode::OpenHelmet(APlayerController* PC, FString& WhyNot)
+{
+	namespace BD = TorqueFit::Decals;
+	UWorld* World = PC ? PC->GetWorld() : nullptr;
+	if (!World || !PC->IsLocalController()) return nullptr;
+	if (ATorqueDecalMode* Was = For(PC))
+	{
+		if (Was->IsHelmetOnly()) return Was;
+		WhyNot = TEXT("Close the bike's decals first.");
+		return nullptr;
+	}
+	ATorqueProfilePreview* Pv = ATorqueProfilePreview::For(PC);
+	UStaticMeshComponent* Helmet = Pv ? Pv->EditHelmet() : nullptr;
+	if (!Helmet)
+	{
+		WhyNot = Pv ? FString(TEXT("This helmet can't take decals in this build.")) : FString(TEXT("There's no helmet to put decals on in this build."));
+		return nullptr;
+	}
+	FActorSpawnParameters SP;
+	SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ATorqueDecalMode* M = World->SpawnActor<ATorqueDecalMode>(FVector::ZeroVector, FRotator::ZeroRotator, SP);
+	if (!M) return nullptr;
+	M->SetTickableWhenPaused(true);   // (the menu's up: the game's paused when alone)
+	FState& S = *M->St;
+	S.bHelmetOnly = true;
+	S.PC = PC;
+	S.Walker = Cast<ATorqueWalker>(PC->GetPawn());
+	S.Preview = Pv;
+	S.Helmet = Helmet;
+	S.OpenFrame = GFrameCounter;
+	S.Brush = BD::Decal();
+	S.Brush.Rgb1 = 0xE8DCC0;
+	S.Brush.Rgb2 = 0x0A0A0A;
+	S.Brush.Flag = BD::Filled;
+	const FString Mine = TorqueDecals::MyHelmet();
+	S.Slots.Add(TDMI::HelmetSlot);
+	S.Saved.Add(TDMI::HelmetSlot, Mine);
+	S.Draft.Add(TDMI::HelmetSlot, BD::Parse(TorqueDecals::ToStd(Mine)));
+	S.SelSlot = TDMI::HelmetSlot;
+	Pv->SetSpin(false);
+	Pv->Want(ATorqueProfilePreview::EView::Helmet, FTorqueSettings::Get().Colour);
+	M->AddHelmetShape();
+	if (const ATorqueWalker* W = S.Walker.Get())
+	{
+		const FSonyPadState Now = W->PadState();
+		S.PrevPad = Now.bConnected ? Now.Buttons : 0;
+	}
+	M->Say(TEXT("Pick a decal or type some lettering on the left, then click the helmet to stick it on. Drag the helmet to turn it."));
+	return M;
+}
+
 void ATorqueDecalMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, int32 Bay)
 {
 	namespace BD = TorqueFit::Decals;
@@ -219,7 +274,6 @@ void ATorqueDecalMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, int32
 	S.Brush.Flag = BD::Filled;
 	// The camera orbits the tank from where you stood.
 	S.Focus = Bike->GetActorLocation() + FVector(0.0, 0.0, 80.0);
-	S.BikeFocus = S.Focus;
 	FVector From = S.Focus + FVector(0.0, 160.0, 30.0);
 	if (Walker->Camera) From = Walker->Camera->GetComponentLocation();
 	const FVector V = From - S.Focus;
@@ -271,7 +325,6 @@ void ATorqueDecalMode::Save()
 {
 	FState& S = *St;
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-	if (!B) return;
 	int32 Sent = 0;
 	for (const TPair<FName, std::vector<TorqueFit::Decals::Decal>>& KV : S.Draft)
 	{
@@ -286,6 +339,7 @@ void ATorqueDecalMode::Save()
 			Say(TEXT("Saved the helmet's decals."));
 			continue;
 		}
+		if (!B) continue;
 		// A joined player's own pictures go to the host first (it passes them on to everyone).
 		if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(S.PC.Get()))
 			for (const TorqueFit::Decals::Decal& D : KV.Value)
@@ -321,6 +375,20 @@ void ATorqueDecalMode::RequestExit()
 void ATorqueDecalMode::Close()
 {
 	FState& S = *St;
+	if (S.bHelmetOnly)
+	{
+		// The helmet as saved (the Profile page's picture draws its decals again), and back to that page.
+		if (ATorqueProfilePreview* Pv = S.Preview.Get())
+		{
+			if (UStaticMeshComponent* H = S.Helmet.Get()) TorqueDecals::ApplyHelmet(H, TorqueDecals::MyHelmet());
+			Pv->ForgetDecals();
+			Pv->Relit();
+		}
+		S.PC = nullptr;
+		TDMI::GDecalClosedFrame = GFrameCounter;
+		Destroy();
+		return;
+	}
 	// The bike as saved (the previews put back).
 	if (ATorqueShedBike* Bike = S.Bike.Get())
 	{
@@ -379,10 +447,8 @@ void ATorqueDecalMode::UpdateCamera()
 bool ATorqueDecalMode::HoverAt(const FVector2D& Mouse, FName& OutSlot, FVector& OutAt, FVector& OutN) const
 {
 	const FState& S = *St;
-	const APlayerController* PC = S.PC.Get();
-	if (!PC) return false;
 	FVector From, Dir;
-	if (!PC->DeprojectScreenPositionToWorld(Mouse.X, Mouse.Y, From, Dir)) return false;
+	if (!ScreenRay(Mouse, From, Dir)) return false;
 	double Best = TNumericLimits<double>::Max();
 	bool bFound = false;
 	for (const TPair<FName, FState::FSlotShape>& KV : S.Shapes)
@@ -421,6 +487,30 @@ int32 ATorqueDecalMode::DecalUnder(FName Slot, const FVector& At) const
 		}
 	}
 	return INDEX_NONE;
+}
+
+bool ATorqueDecalMode::ScreenRay(const FVector2D& Mouse, FVector& OutFrom, FVector& OutDir) const
+{
+	const FState& S = *St;
+	if (S.bHelmetOnly)
+	{
+		const ATorqueProfilePreview* Pv = S.Preview.Get();
+		return Pv && Pv->ScreenRay(Mouse, OutFrom, OutDir);
+	}
+	const APlayerController* PC = S.PC.Get();
+	return PC && PC->DeprojectScreenPositionToWorld(Mouse.X, Mouse.Y, OutFrom, OutDir);
+}
+
+bool ATorqueDecalMode::ToScreen(const FVector& World, FVector2D& Out) const
+{
+	const FState& S = *St;
+	if (S.bHelmetOnly)
+	{
+		const ATorqueProfilePreview* Pv = S.Preview.Get();
+		return Pv && Pv->ToScreen(World, Out);
+	}
+	const APlayerController* PC = S.PC.Get();
+	return PC && PC->ProjectWorldLocationToScreen(World, Out, false);
 }
 
 // --- What's done to the decals ---------------------------------------------------------------------
@@ -589,7 +679,7 @@ FName ATorqueDecalMode::KeepFrom() const
 	const FState& S = *St;
 	auto Has = [&S](FName Slot) { const std::vector<TorqueFit::Decals::Decal>* L = S.Draft.Find(Slot); return L && !L->empty(); };
 	if (!S.SelSlot.IsNone() && Has(S.SelSlot)) return S.SelSlot;
-	if (S.bAtHelmet && Has(TDMI::HelmetSlot)) return TDMI::HelmetSlot;
+	if (S.bHelmetOnly) return Has(TDMI::HelmetSlot) ? TDMI::HelmetSlot : NAME_None;
 	if (Has(FName(TEXT("tank")))) return FName(TEXT("tank"));
 	for (const FName& Slot : S.Slots)
 		if (Has(Slot)) return Slot;
@@ -612,13 +702,8 @@ void ATorqueDecalMode::UseSet(const FString& Name)
 	FName Was;
 	FString Text;
 	if (!TorqueDecals::LoadSet(Name, Was, Text)) return;
-	// Onto the same part on this bike (the helmet's onto the helmet), else the part picked.
-	FName To = S.Shapes.Contains(Was) ? Was : S.SelSlot;
-	if (Was == TDMI::HelmetSlot && !S.Stand)
-	{
-		ShowHelmet(true);
-		To = S.Shapes.Contains(Was) ? Was : NAME_None;
-	}
+	// Onto the same part on this bike, else the part picked (on the helmet's page: onto the helmet).
+	const FName To = S.bHelmetOnly ? TDMI::HelmetSlot : (S.Shapes.Contains(Was) ? Was : S.SelSlot);
 	const FState::FSlotShape* Shape = S.Shapes.Find(To);
 	if (!Shape || Shape->Tris.empty())
 	{
@@ -634,89 +719,17 @@ void ATorqueDecalMode::UseSet(const FString& Name)
 	Say(FString::Printf(TEXT("\"%s\" put on the %s (%d decals): save to keep it."), *Name, *TDMI::SlotName(To).ToLower(), (int32)L.size()));
 }
 
-// --- The helmet on its stand ---------------------------------------------------------------------------
+// --- The helmet (its own page) ---------------------------------------------------------------------------
 
 void ATorqueDecalMode::AddHelmetShape()
 {
 	FState& S = *St;
-	if (!S.Stand) return;
-	FState::FSlotShape& H = S.Shapes.FindOrAdd(TDMI::HelmetSlot);
-	H.Meshes = {S.Stand};
-	H.Frame = TorqueDecals::PartFrame(H.Meshes, true);
-	H.Tris = TorqueDecals::PartTriangles(H.Meshes, H.Frame);
-}
-
-void ATorqueDecalMode::ShowHelmet(bool bHelmet)
-{
-	FState& S = *St;
-	ATorqueShedBike* Bike = S.Bike.Get();
-	if (bHelmet && !S.Stand && Bike)
-	{
-		FTransform Fit;
-		UMaterialInterface* KitPaint = nullptr;
-		UStaticMesh* Mesh = TorqueDecals::HelmetMesh(Fit, KitPaint);
-		if (!Mesh)
-		{
-			Say(TEXT("There's no helmet to put decals on in this build."));
-			return;
-		}
-		// Beside the bike, on the side the camera's on, at about chest height.
-		const FVector Right = Bike->GetActorRightVector();
-		const FVector Side = Right * (FVector::DotProduct(GetActorLocation() - S.BikeFocus, Right) >= 0.0 ? 1.0 : -1.0);
-		const FVector Floor = Bike->GetActorLocation() + Side * 95.0;
-		const FVector At = Floor + FVector(0.0, 0.0, 110.0);
-		S.Stand = NewObject<UStaticMeshComponent>(this);
-		S.Stand->SetStaticMesh(Mesh);
-		S.Stand->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		S.Stand->SetupAttachment(RootComponent);
-		S.Stand->RegisterComponent();
-		S.Stand->SetWorldTransform(Fit * FTransform(Bike->GetActorRotation(), At));
-		TorqueHelmetLook::ApplyPaint(S.Stand, FTorqueProfile::Mine(), KitPaint);   // (the player's own paint, as worn)
-		// Its middle at At, on a pole down to the floor.
-		S.Stand->UpdateBounds();
-		const FBox Box = S.Stand->Bounds.GetBox();
-		S.Stand->SetWorldLocation(S.Stand->GetComponentLocation() + (At - Box.GetCenter()));
-		if (UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")))
-		{
-			const double Low = At.Z - 0.5 * Box.GetSize().Z;
-			const double Tall = FMath::Max(10.0, Low - Floor.Z);
-			S.Pole = NewObject<UStaticMeshComponent>(this);
-			S.Pole->SetStaticMesh(Cyl);
-			S.Pole->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			S.Pole->SetupAttachment(RootComponent);
-			S.Pole->RegisterComponent();
-			S.Pole->SetWorldTransform(FTransform(FRotator::ZeroRotator, FVector(At.X, At.Y, Floor.Z + 0.5 * Tall), FVector(0.05, 0.05, Tall / 100.0)));
-		}
-		if (!TorqueDecals::ReadyHelmet(S.Stand))
-		{
-			Say(TEXT("This helmet can't take decals yet (it needs the next build)."));
-			S.Stand->DestroyComponent();
-			S.Stand = nullptr;
-			if (S.Pole) S.Pole->DestroyComponent();
-			S.Pole = nullptr;
-			return;
-		}
-		const FString Mine = TorqueDecals::MyHelmet();
-		S.Slots.AddUnique(TDMI::HelmetSlot);
-		S.Saved.Add(TDMI::HelmetSlot, Mine);
-		S.Draft.Add(TDMI::HelmetSlot, TorqueFit::Decals::Parse(TorqueDecals::ToStd(Mine)));
-		AddHelmetShape();
-	}
-	if (bHelmet == S.bAtHelmet || (bHelmet && !S.Stand)) return;
-	S.bAtHelmet = bHelmet;
-	if (bHelmet)
-	{
-		S.BikeDist = S.Dist;
-		S.Focus = S.Stand->Bounds.Origin;
-		S.Dist = 75.0;
-		Say(TEXT("Your helmet: its decals go with you onto every bike."));
-	}
-	else
-	{
-		S.Focus = S.BikeFocus;
-		S.Dist = S.BikeDist;
-	}
-	S.Sel = INDEX_NONE;
+	UStaticMeshComponent* H = S.Helmet.Get();
+	if (!S.bHelmetOnly || !H) return;
+	FState::FSlotShape& Shape = S.Shapes.FindOrAdd(TDMI::HelmetSlot);
+	Shape.Meshes = {H};
+	Shape.Frame = TorqueDecals::PartFrame(Shape.Meshes, true);
+	Shape.Tris = TorqueDecals::PartTriangles(Shape.Meshes, Shape.Frame);
 }
 
 // --- Drawing the drafts on the bike ----------------------------------------------------------------
@@ -726,10 +739,11 @@ void ATorqueDecalMode::Refresh(bool bForce)
 	namespace BD = TorqueFit::Decals;
 	FState& S = *St;
 	ATorqueShedBike* Bike = S.Bike.Get();
-	if (!Bike) return;
+	if (!Bike && !S.bHelmetOnly) return;
+	if (S.bHelmetOnly && !S.Shapes.Contains(TDMI::HelmetSlot)) AddHelmetShape();
 	// The slots' shapes, made again when the bike's been drawn again.
-	UStaticMeshComponent* First = Bike->Parts.Num() > 0 ? Bike->Parts[0] : nullptr;
-	if (First != S.SeenFirst || Bike->Parts.Num() != S.SeenCount)
+	UStaticMeshComponent* First = Bike && Bike->Parts.Num() > 0 ? Bike->Parts[0] : nullptr;
+	if (Bike && (First != S.SeenFirst || Bike->Parts.Num() != S.SeenCount))
 	{
 		S.SeenFirst = First;
 		S.SeenCount = Bike->Parts.Num();
@@ -767,6 +781,8 @@ void ATorqueDecalMode::Refresh(bool bForce)
 		TorqueDecals::Apply(KV.Value.Meshes, Text, KV.Key == TDMI::HelmetSlot);
 		S.Shown.Add(KV.Key, Text);
 		S.ShownAt = Now;
+		if (S.bHelmetOnly)
+			if (ATorqueProfilePreview* Pv = S.Preview.Get()) Pv->Relit();   // (the new skins lit by its studio)
 	}
 }
 
@@ -777,6 +793,20 @@ void ATorqueDecalMode::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	FState& S = *St;
 	if (!S.PC.IsValid()) return;
+	if (S.bHelmetOnly)
+	{
+		ATorqueProfilePreview* Pv = S.Preview.Get();
+		if (!Pv || !S.Helmet.IsValid())
+		{
+			Close();
+			return;
+		}
+		Pv->Want(ATorqueProfilePreview::EView::Helmet, FTorqueSettings::Get().Colour);   // (filmed while it's up)
+		ReadInput(DeltaSeconds);
+		if (!S.PC.IsValid()) return;   // (closed)
+		Refresh(false);
+		return;
+	}
 	ATorqueShedBike* Bike = S.Bike.Get();
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (!Bike || !B || !B->Exists(S.Bay))
@@ -807,6 +837,9 @@ void ATorqueDecalMode::Press(const FVector2D& Mouse)
 	if (!HoverAt(Mouse, Slot, At, N))
 	{
 		S.Sel = INDEX_NONE;
+		// [helmet decals] Off the helmet, in its picture: a drag turns it.
+		if (S.bHelmetOnly)
+			if (const ATorqueProfilePreview* Pv = S.Preview.Get(); Pv && Pv->Picture().bIsValid && Pv->Picture().IsInside(Mouse)) S.bTurning = true;
 		return;
 	}
 	const int32 Under = DecalUnder(Slot, At);
@@ -887,9 +920,16 @@ void ATorqueDecalMode::ReadInput(float Dt)
 			D->Normal = TDMI::DmOf(S.HoverN).Normalized();
 			S.bConfirm = false;
 		}
-	if (Just(EKeys::RightMouseButton)) S.bOrbit = true;
+	if (Just(EKeys::RightMouseButton) && !bOverPanel) S.bOrbit = true;
 	if (!Down(EKeys::RightMouseButton)) S.bOrbit = false;
-	if (S.bOrbit)
+	if (!Down(EKeys::LeftMouseButton)) S.bTurning = false;
+	ATorqueProfilePreview* Pv = S.bHelmetOnly ? S.Preview.Get() : nullptr;
+	if (S.bHelmetOnly)
+	{
+		// [helmet decals] Drag off the helmet (or right-drag anywhere) turns it round and tips it.
+		if ((S.bOrbit || S.bTurning) && Pv && !Moved.IsNearlyZero()) Pv->TurnBy(Moved.X * 0.45, Moved.Y * 0.3);
+	}
+	else if (S.bOrbit)
 	{
 		S.Yaw += Moved.X * 0.006;
 		S.Pitch = FMath::Clamp(S.Pitch + Moved.Y * 0.005, -1.35, 0.6);
@@ -897,9 +937,14 @@ void ATorqueDecalMode::ReadInput(float Dt)
 	const float Wheel = (Just(EKeys::MouseScrollUp) ? 1.0f : 0.0f) - (Just(EKeys::MouseScrollDown) ? 1.0f : 0.0f);
 	if (Wheel != 0.0f)
 	{
+		// (Build 160, beenster: Shift / Ctrl + wheel "the whole scene changed": with nothing picked or
+		// in hand they did nothing to see. Now they say so, and never move the view.)
+		const bool bSomething = S.bBrush || PickedDecal(S.Draft, S.SelSlot, S.Sel) != nullptr;
 		if (bOverPanel) S.Scroll = FMath::Max(0, S.Scroll - (int32)Wheel);
+		else if ((bShift || bCtrl) && !bSomething) Say(TEXT("Click a decal to pick it (or pick one on the left) first: then Shift + wheel sizes it, Ctrl + wheel turns it."));
 		else if (bShift) Resize(Wheel > 0.0f ? 1.08f : 1.0f / 1.08f);
 		else if (bCtrl) Turn(Wheel * 5.0f);
+		else if (Pv) Pv->ZoomBy(Wheel > 0.0f ? -1 : 1);
 		else S.Dist = FMath::Clamp(S.Dist * (Wheel > 0.0f ? 0.9 : 1.0 / 0.9), 40.0, 400.0);
 	}
 	// The keys.
@@ -910,8 +955,8 @@ void ATorqueDecalMode::ReadInput(float Dt)
 	if (Just(EKeys::Delete) || Just(EKeys::BackSpace)) Remove();
 	if (Just(EKeys::M)) Toggle(TorqueFit::Decals::Pair);
 	if (bCtrl && Just(EKeys::S)) Save();
-	// The pad: the right stick orbits, the triggers zoom, Circle leaves.
-	if (const ATorqueWalker* W = S.Walker.Get())
+	// The pad: the right stick orbits, Circle leaves (on the helmet's page the menu reads Circle).
+	if (const ATorqueWalker* W = S.bHelmetOnly ? nullptr : S.Walker.Get())
 	{
 		const FSonyPadState Pad = W->PadState();
 		const uint32 PadDown = Pad.bConnected ? Pad.Buttons : 0;
@@ -920,6 +965,11 @@ void ATorqueDecalMode::ReadInput(float Dt)
 		if ((PadHit & ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right)) RequestExit();
 	}
 	const float RX = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX), RY = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
+	if (Pv)
+	{
+		if (FMath::Abs(RX) > 0.15f || FMath::Abs(RY) > 0.15f) Pv->TurnBy(-RX * 100.0 * Dt, -RY * 60.0 * Dt);
+		return;
+	}
 	if (FMath::Abs(RX) > 0.15f) S.Yaw += RX * 1.8 * Dt;
 	if (FMath::Abs(RY) > 0.15f) S.Pitch = FMath::Clamp(S.Pitch - RY * 1.4 * Dt, -1.35, 0.6);
 }
@@ -929,7 +979,6 @@ void ATorqueDecalMode::ReadInput(float Dt)
 FString ATorqueDecalMode::TestPlace(FName Slot, const FString& What, int32 Side)
 {
 	FState& S = *St;
-	if (Slot == TDMI::HelmetSlot) ShowHelmet(true);
 	Refresh(true);
 	const FState::FSlotShape* Shape = S.Shapes.Find(Slot);
 	if (!Shape || Shape->Tris.empty()) return FString::Printf(TEXT("decal: no %s to put it on"), *Slot.ToString());
@@ -997,6 +1046,24 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 		Canvas->DrawItem(T);
 	};
 
+	// --- [helmet decals] Its own page: nothing of the world behind, and the helmet's picture big on the
+	// right of the panel (3 wide by 4 high, as the Profile page films it).
+	if (S.bHelmetOnly)
+	{
+		UI::Backdrop(Canvas, 1.0f);
+		if (ATorqueProfilePreview* Pv = S.Preview.Get())
+		{
+			const float L0 = 18.0f * Sc + 470.0f * Sc + 30.0f * Sc, R0 = Canvas->ClipX - 30.0f * Sc;
+			const float T0 = 30.0f * Sc, B0 = Canvas->ClipY - 70.0f * Sc;
+			const float PicH = FMath::Min(B0 - T0, (R0 - L0) * 4.0f / 3.0f), PicW = PicH * 0.75f;
+			const float PicX = 0.5f * (L0 + R0 - PicW), PicY = T0 + 0.5f * (B0 - T0 - PicH);
+			UI::Rect(Canvas, PicX - 2.0f * Sc, PicY - 2.0f * Sc, PicW + 4.0f * Sc, PicH + 4.0f * Sc, UI::Line);
+			Pv->DrawWorked(Canvas, PicX, PicY, PicW, PicH);
+			UI::Text(Canvas, TEXT("Drag off the helmet (or right-drag) to turn it    Wheel to zoom    Click a decal to pick it, drag to slide it"),
+				0.5f * (L0 + R0), PicY + PicH + 12.0f * Sc, 16.0f * Sc, UI::Dim, false, UI::EAlign::Centre);
+		}
+	}
+
 	// --- The picked decal's outline on the bike.
 	if (const BD::Decal* D = PickedDecal(S.Draft, S.SelSlot, S.Sel))
 		if (const FState::FSlotShape* Shape = S.Shapes.Find(S.SelSlot))
@@ -1008,7 +1075,7 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 			for (int32 I = 0; I < 4; ++I)
 			{
 				const TDMI::DmV3 Q = F.O + F.R * (Cx[I] * D->W) + F.U * (Cy[I] * D->H) + F.N * 0.5;
-				bAll = bAll && S.PC->ProjectWorldLocationToScreen(Shape->Frame.TransformPosition(TDMI::DmUe(Q)), P[I], false);
+				bAll = bAll && ToScreen(Shape->Frame.TransformPosition(TDMI::DmUe(Q)), P[I]);
 			}
 			if (bAll)
 				for (int32 I = 0; I < 4; ++I) Canvas->K2_DrawLine(P[I], P[(I + 1) % 4], 2.0f * Sc, UI::Accent);
@@ -1021,16 +1088,16 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 	UI::Rect(Canvas, X0, Y0, 3.0f * Sc, PH, UI::Accent);
 	const float M = 18.0f * Sc, IX = X0 + M, IW = PW - 2.0f * M;
 	float Y = Y0 + 14.0f * Sc;
-	const FString BikeName = B && B->Exists(S.Bay) ? B->Bike(S.Bay).Name : FString();
-	UI::Text(Canvas, TEXT("DECALS"), IX, Y, 24.0f * Sc, UI::Accent, true);
-	UI::TextFit(Canvas, BikeName, IX + 120.0f * Sc, Y + 4.0f * Sc, 18.0f * Sc, IW - 120.0f * Sc, UI::Dim);
+	const FString BikeName = S.bHelmetOnly ? FString(TEXT("Your helmet")) : (B && B->Exists(S.Bay) ? B->Bike(S.Bay).Name : FString());
+	UI::Text(Canvas, S.bHelmetOnly ? TEXT("HELMET DECALS") : TEXT("DECALS"), IX, Y, 24.0f * Sc, UI::Accent, true);
+	const float NameX = S.bHelmetOnly ? 230.0f * Sc : 120.0f * Sc;
+	UI::TextFit(Canvas, BikeName, IX + NameX, Y + 4.0f * Sc, 18.0f * Sc, IW - NameX, UI::Dim);
 	Y += 38.0f * Sc;
-	// On the bike or on the helmet.
+	// (The helmet's decals are on a page of their own now: Settings > Profile > Helmet decals.)
+	if (!S.bHelmetOnly)
 	{
-		const float HW = 0.5f * (IW - 6.0f * Sc), HH = 30.0f * Sc;
-		Button(TEXT("Bike"), IX, Y, HW, HH, !S.bAtHelmet, [this]() { ShowHelmet(false); });
-		Button(TEXT("Helmet"), IX + HW + 6.0f * Sc, Y, HW, HH, S.bAtHelmet, [this]() { ShowHelmet(true); });
-		Y += HH + 10.0f * Sc;
+		UI::TextFit(Canvas, TEXT("Your helmet's decals: Settings > Profile > Helmet decals"), IX, Y, 15.0f * Sc, IW, UI::Faint);
+		Y += 26.0f * Sc;
 	}
 	// How many on each part.
 	{
@@ -1227,11 +1294,11 @@ void ATorqueDecalMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 	const float FY = Y0 + PH - 120.0f * Sc;
 	if (!S.Status.IsEmpty()) UI::TextWrap(Canvas, S.Status, IX, FY - 46.0f * Sc, 16.0f * Sc, IW, S.bConfirm ? UI::Warn : UI::Ink);
 	const float HalfW = 0.5f * (IW - 6.0f * Sc);
-	Button(IsDirty() ? TEXT("Save to this bike") : TEXT("Saved"), IX, FY, HalfW, 38.0f * Sc, IsDirty(), [this]() { Save(); });
+	Button(IsDirty() ? (S.bHelmetOnly ? TEXT("Save to my helmet") : TEXT("Save to this bike")) : TEXT("Saved"), IX, FY, HalfW, 38.0f * Sc, IsDirty(), [this]() { Save(); });
 	Button(TEXT("Leave"), IX + HalfW + 6.0f * Sc, FY, HalfW, 38.0f * Sc, false, [this]() { RequestExit(); });
 	float HX = IX;
 	const float HY = FY + 50.0f * Sc;
-	HX += UI::KeyHint(Canvas, TEXT("RMB"), TEXT("orbit"), HX, HY, Sc) + 14.0f * Sc;
+	HX += UI::KeyHint(Canvas, TEXT("RMB"), S.bHelmetOnly ? TEXT("turn") : TEXT("orbit"), HX, HY, Sc) + 14.0f * Sc;
 	HX += UI::KeyHint(Canvas, TEXT("Wheel"), TEXT("zoom"), HX, HY, Sc) + 14.0f * Sc;
 	UI::KeyHint(Canvas, TEXT("Esc"), S.bBrush ? TEXT("put back") : TEXT("leave"), HX, HY, Sc);
 	HX = IX;

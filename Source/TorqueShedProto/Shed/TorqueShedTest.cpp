@@ -2109,6 +2109,21 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			else Warn(TEXT("refused: ") + Why);
 			return true;
 		}
+		// decal:helmet: Settings > Profile > Helmet decals (the helmet's own page), for decal:place:helmet:...
+		if (What == TEXT("helmet"))
+		{
+			ATorquePlayerController* HPC = Cast<ATorquePlayerController>(W->GetController());
+			if (Dm) Said(TEXT("already open"));
+			else if (!HPC) Warn(TEXT("refused: no player controller"));
+			else
+			{
+				HPC->TestMenu(TEXT("profile:helmet"));
+				HPC->OpenHelmetDecals();
+				if (ATorqueDecalMode* Hm = ATorqueDecalMode::For(HPC); Hm && Hm->IsHelmetOnly()) Said(TEXT("helmet decals open"));
+				else Warn(TEXT("refused: the helmet's decals didn't open"));
+			}
+			return true;
+		}
 		if (What == TEXT("check"))
 		{
 			const FName Slot(P.Num() > 2 ? *P[2] : TEXT("tank"));
