@@ -154,7 +154,7 @@ struct Looks
 	double V2ShapeM = 8000.0, V2DetailM = 600.0, V2MidShapeM = 5000.0, V2MidDetailM = 400.0, V2BroadM = 40000.0, V2Patchy = 0.35;
 	double V2Erode = 0.5, V2ErodeRagged = 0.3, V2EdgeSharp = 3.0, V2Billow = 0.3, V2Extinction = 0.1, V2DeckThin = 0.5;
 	// A deep layer (a shower cloud 9 km tall) is marched in long steps, so its edge detail grows by
-	// sqrt(depth / V2DetailDeepM): fine grain a long step can't resolve shimmers (beenster Nov 16).
+	// depth / V2DetailDeepM less: fine grain a long step can't resolve shimmers (beenster Nov 16).
 	double V2DetailDeepM = 3000.0;
 	// Cover from V2ClosedFrom to V2ClosedFull closes the sky into one lumpy sheet (below it, gaps: 7/8
 	// stratocumulus still shows its cells).
@@ -425,8 +425,8 @@ struct Inputs
 // The sky.
 Sky Compute(const Inputs& In, const Looks& L);
 
-// The rebuilt clouds' edge detail size, metres, for a layer DepthM deep (see Looks::V2DetailDeepM).
-double V2DetailSize(double DetailM, double DepthM, const Looks& L);
+// How much of the edge erosion a layer DepthM deep keeps (1, less for a deeper one: see Looks::V2DetailDeepM).
+double V2DeepErode(double DepthM, const Looks& L);
 
 // The pieces, for the tests.
 // The ground's light under a clear sky, real lux.
@@ -453,6 +453,12 @@ struct WeatherMap
 	double HereLow = 0.0, HereMid = 0.0;
 	bool Valid() const { return Px > 0 && (int)Bgra.size() == Px * Px * 4; }
 };
+// The map's texels moved by whole texels (the map's centre stepped DCol east, DRow south): what stays in
+// view moves with the ground, the newly uncovered edge repeats its neighbour (build 160: clouds jumped as
+// the map was painted again round a new centre).
+void ShiftWeatherMap(std::vector<unsigned char>& Bgra, int Px, int DCol, int DRow);
+// From .. To by T (0..1), texel by texel, into Out (all Px * Px * 4).
+void BlendWeatherMap(const std::vector<unsigned char>& From, const std::vector<unsigned char>& To, double T, std::vector<unsigned char>& Out);
 struct MapGrids
 {
 	const TorqueWeather::Grid* Near = nullptr;

@@ -315,7 +315,7 @@ SKY_PARAMS = (
     # density 1, and each layer's density.
     ("V2LowShapeM", 8000.0), ("V2LowDetailM", 600.0), ("V2MidShapeM", 5000.0), ("V2MidDetailM", 400.0),
     ("V2BroadM", 40000.0), ("V2Patchy", 0.35), ("V2Erode", 0.5), ("V2ErodeRagged", 0.3), ("V2EdgeSharp", 3.0),
-    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2ClosedFrom", 0.85), ("V2ClosedFull", 0.92), ("V2DetailFadeKm", 10.0), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
+    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2ClosedFrom", 0.85), ("V2ClosedFull", 0.92), ("V2DetailFadeKm", 10.0), ("V2LowDeepErode", 1.0), ("V2MidDeepErode", 1.0), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
 )
 
 
@@ -3437,10 +3437,13 @@ float best = 0.0;
             float md = lerp(df, 1.0 - df, saturate(h * 4.0));
             // (the fine detail fades out with distance: far off it is finer than a pixel and only
             // sparkles from frame to frame, build 155 "a constant shimmering")
-            float er = md * (Erode + ErodeRagged * saturate(raggeds[ly])) * (1.0 - 0.5 * saturate(DistKm / max(DetailFadeKm, 0.1)));
+            float er = md * (Erode + ErodeRagged * saturate(raggeds[ly])) * (ly == 0 ? LowDeepErode : MidDeepErode) * (1.0 - 0.5 * saturate(DistKm / max(DetailFadeKm, 0.1)));
             bc = saturate((bc - er) / max(1.0 - er, 0.001));
         }
-        bc = saturate(bc * lerp(EdgeSharp, 1.0, saturate(DistKm / max(DetailFadeKm, 0.1))));
+        // (soft skins far off, and on a deep layer: it is marched in long steps, and crisp skins between
+        // them only sparkle)
+        float sharp = lerp(1.0, EdgeSharp, ly == 0 ? LowDeepErode : MidDeepErode);
+        bc = saturate(bc * lerp(sharp, 1.0, saturate(DistKm / max(DetailFadeKm, 0.1))));
         // (a deck is thinner stuff than a heaped cloud: lighter underneath, as real stratocumulus)
         best = max(best, bc * densities[ly] * lerp(1.0, DeckThin, saturate(kinds[ly])));
     }
@@ -3484,10 +3487,12 @@ def cloud_material_v2():
     def link(a, b, pin="", out=""):
         if not (mel.connect_material_expressions(a, out, b, pin)):
             bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
-    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
-        bad.append("domain")
+    # (blend first: a Volume domain on an opaque material compiles once with "Volume materials must use an
+    # Additive blend mode", a harmless in-between error the 155 log showed)
     if not try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE):
         bad.append("blend")
+    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
+        bad.append("domain")
     try:
         mel.set_material_usage(g.m, unreal.MaterialUsage.MATUSAGE_VOLUMETRIC_CLOUD)
     except Exception as e:
@@ -3496,12 +3501,12 @@ def cloud_material_v2():
     floats = ("NormAlt", "Cover", "Shape", "LowBottom", "LowTop", "LowRagged", "LowDensity",
               "MidCover", "MidBottom", "MidTop", "MidShape", "MidRagged", "MidDens",
               "MapOn", "MapHereLow", "MapHereMid", "Anvil",
-              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin", "ClosedFrom", "ClosedFull", "DetailFadeKm")
+              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin", "ClosedFrom", "ClosedFull", "DetailFadeKm", "LowDeepErode", "MidDeepErode")
     # (MPC_Sky's names for the inputs that aren't the same)
     mpc_name = {"LowDensity": "V2LowDensity", "MidDens": "V2MidDensity", "Patchy": "V2Patchy", "Erode": "V2Erode",
                 "ErodeRagged": "V2ErodeRagged", "EdgeSharp": "V2EdgeSharp", "Billow": "V2Billow", "Extinction": "V2Extinction",
                 "DeckThin": "V2DeckThin", "ClosedFrom": "V2ClosedFrom", "ClosedFull": "V2ClosedFull",
-                "DetailFadeKm": "V2DetailFadeKm"}
+                "DetailFadeKm": "V2DetailFadeKm", "LowDeepErode": "V2LowDeepErode", "MidDeepErode": "V2MidDeepErode"}
     names = ("LS", "LB", "LD", "MS", "MB", "MD", "BR") + floats + ("DistKm", "ShapeTex", "DetailTex", "MapUV", "WeatherMap")
     c = _custom(g, CLOUD_V2_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, names)
     alb = _custom(g, CLOUD_ALBEDO_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1,
