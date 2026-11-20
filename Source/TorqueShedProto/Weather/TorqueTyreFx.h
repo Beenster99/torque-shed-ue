@@ -91,6 +91,8 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UObject>> Keep;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MarkMaterial = nullptr;
 	int32 MarkPool = 0;
+	int32 MarksLaid = 0;          // (for the log)
+	bool bTestMarksLaid = false;  // the smoke test's strip and circle
 
 	// Each bike's tyres: how hot they are from sliding (0..1), the smoke owed, and the mark being laid.
 	struct FTyreState
