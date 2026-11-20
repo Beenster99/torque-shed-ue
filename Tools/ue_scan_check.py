@@ -246,6 +246,19 @@ def check(static_path):
                 ", ".join(str(x.get_editor_property("material_slot_name")) for x in part.get_editor_property("static_materials"))))
         except Exception as e:
             log("%s:   part beside it: %s (%s)" % (name, a.asset_name, e))
+    # ([build 163] the Megaplants' leaves live in the Nanite foliage assembly; Epic's forum: converting one
+    # to a plain static mesh drops them. What can the Procedural Vegetation asset and the skeletal mesh
+    # offer from Python to get a static mesh WITH them?)
+    for a in reg.get_assets_by_path(folder, recursive=True):
+        if str(a.asset_class_path.asset_name) != "ProceduralVegetation":
+            continue
+        pve = unreal.load_asset("%s.%s" % (a.package_name, a.asset_name))
+        log("%s:   PVE %s functions: %s" % (name, a.asset_name, ", ".join(n for n in dir(pve) if not n.startswith("_"))[:1500]))
+        props_of(pve, "pve")
+    log("%s:   skeletal mesh functions: %s" % (name, ", ".join(n for n in dir(skel) if any(w in n.lower() for w in ("assembl", "nanite", "static", "export", "bake", "merge")))))
+    for home in dir(unreal):
+        if any(w in home.lower() for w in ("proceduralveget", "pvexport", "naniteassembl", "assemblylib", "vegetation")):
+            log("%s:   unreal.%s: %s" % (name, home, ", ".join(n for n in dir(getattr(unreal, home)) if not n.startswith("_"))[:800]))
     # (anything else in that folder that isn't a mesh, texture or material: assembly / vegetation assets)
     for a in reg.get_assets_by_path(folder, recursive=True):
         cls = str(a.asset_class_path.asset_name)
