@@ -118,6 +118,7 @@ private:
 	int32 BayHidden = 0;              // how many of the kind were left out
 	TMap<FName, FString> BayWhyNot;
 	TMap<FName, int32> PartSides;     // wheels and tyres: 1 front, 2 rear, 3 either
+	FName BayEngine;                  // the loose engine (on the stand) the engine parts went by as well as the frame
 	uint32 BaySignature() const;
 	void PickBay(int32 Bay);
 	// Front and rear tyres (and wheels) are their own lists (beenster, Nov 20: "Its also not that obvious what

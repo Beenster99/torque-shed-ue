@@ -402,13 +402,14 @@ void FTorquePartsComputer::Relist()
 	BayHidden = 0;
 	BayWhyNot.Reset();
 	PartSides.Reset();
+	BayEngine = NAME_None;
 	if (Section == ESection::Bike && Kind != TPCI::Bikes)
 	{
 		if (const UTorqueBuildSubsystem* Shed = ShopBay >= 0 ? ShedSeen.Get() : nullptr)
 		{
 			TArray<FName> Parts;
 			for (const FRow& R : Rows) Parts.Add(R.Part);
-			bBayJudged = Shed->ShopFit(ShopBay, Parts, BayWhyNot, PartSides);
+			bBayJudged = Shed->ShopFit(ShopBay, Parts, BayWhyNot, PartSides, &BayEngine);
 		}
 		if (const int32 Side = TPCI::SideList(Kind))
 			Rows.RemoveAll([this, Side](const FRow& R) {
@@ -649,6 +650,7 @@ FString FTorquePartsComputer::Describe() const
 		Out += FString::Printf(TEXT(" (layout: %s, size: %s, maker: %s, %s, %d listed)"), EngineLayoutFilter.IsEmpty() ? TEXT("all") : *EngineLayoutFilter,
 			TPCI::SizeBandName(EngineSize), EngineMakerFilter.IsEmpty() ? TEXT("all") : *EngineMakerFilter, TPCI::EngineSortName(EngineSort), Rows.Num());
 	if (bBayJudged) Out += FString::Printf(TEXT(" (for bay %d's bike: %d listed, %d that don't fit left out)"), ShopBay + 1, Rows.Num(), BayHidden);
+	if (bBayJudged && !BayEngine.IsNone()) Out += TEXT(" (engine parts also go by the loose engine ") + BayEngine.ToString() + TEXT(")");
 	else if (Section == ESection::Bike && ShopBay < 0) Out += TEXT(" (for any bike)");
 	if (Filtered())
 	{
@@ -982,6 +984,12 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		else
 		{
 			Note = FString::Printf(TEXT("Only what fits bay %d's bike"), ShopBay + 1);
+			// (Engine parts with no engine in the frame: the engine on the stand counts too.)
+			const FName ListKind = TPCI::BaseKind(Kind);
+			bool bEngineList = false;
+			for (const FName& Slot : TorqueShedParts::SlotsForKind(ListKind))
+				bEngineList = bEngineList || (ListKind != FName(TEXT("engine")) && TorqueShedParts::IsEngineSlot(Slot));
+			if (bEngineList && !BayEngine.IsNone()) Note += TEXT(" and its loose engine");
 			if (BayHidden > 0) Note += FString::Printf(TEXT(" (%d that don't are hidden)"), BayHidden);
 			bLit = true;
 		}
