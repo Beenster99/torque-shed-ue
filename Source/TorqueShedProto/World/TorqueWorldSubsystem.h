@@ -49,6 +49,13 @@ class RidePlan;
 }
 struct FTorqueWorldShared;
 
+// [map detail] A picture of the planner's map drawn on a worker, and the roads' names to write over it.
+struct FTorqueMapPicture
+{
+	TArray<uint8> Pixels;
+	std::vector<TorqueWorld::Route::MapStreets::Label> Names;
+};
+
 UCLASS()
 class UTorqueWorldSubsystem : public UGameInstanceSubsystem
 {
@@ -112,6 +119,8 @@ public:
 	void AskMap(const TorqueWorld::Route::MapView& View);
 	bool TakeMap(TorqueWorld::Route::MapView& View, TArray<uint8>& Bgra);
 	bool IsDrawingMap() const { return bMapBusy; }
+	// [map detail] The roads' names to write on the picture TakeMap last handed over (zoomed in).
+	const std::vector<TorqueWorld::Route::MapStreets::Label>& StreetNames() const { return MapNames; }
 	// [stage 8] What of the world is kept on disk: Settings > Gameplay's limit and offline switch put
 	// on the stores (and the oldest let go past the limit, on a worker, now and at start), how much is
 	// kept as last weighed ("" before the first), and clearing it all (refused while a ride is being
@@ -170,6 +179,7 @@ private:
 	bool bMapBusy = false, bMapWaiting = false, bMapNew = false;
 	TorqueWorld::Route::MapView MapNext, MapDrawn;
 	TArray<uint8> MapPixels;
+	std::vector<TorqueWorld::Route::MapStreets::Label> MapNames;
 	void DrawMap(const TorqueWorld::Route::MapView& View);
-	void MapDone(const TorqueWorld::Route::MapView& View, TArray<uint8>&& Pixels, bool bFinal);
+	void MapDone(const TorqueWorld::Route::MapView& View, FTorqueMapPicture&& Picture, bool bFinal);
 };

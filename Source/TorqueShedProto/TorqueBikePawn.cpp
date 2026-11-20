@@ -2811,7 +2811,9 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		}
 		else UE_LOG(LogTemp, Warning, TEXT("Torque: climb start: no spot near the foot with road under both wheels; left as placed"));
 		Best = Placed;   // (the route point it actually starts from, for the log and TestFromNear)
-		bClimbSettled = false;
+		bClimbSettled = bClimbPlaced = false;
+		ClimbHoldAt = V3(0.0, -1e9, 0.0);
+		ClimbSettleFrom = 0.0;
 	}
 	const V3 Fwd = Sim->Basis.Z * -1.0;
 	Sim->LinearVelocity = Fwd * TestMps;
@@ -2963,10 +2965,59 @@ void ATorqueBikePawn::TestMoveStep()
 		Shift = 0.0;
 		// ([r159] Half a second on its wheels first, the throttle shut until both are down (at most
 		// 1.5 s); the climb's measured from there.)
+		if (!bClimbSettled && !bClimbPlaced)
+		{
+			// ([r161] naked and chopper fell from the start: no "pitched" line, the road's pitch never
+			// measured (never both wheels down), 30 mph held for the settle's 1.5 s, then gaining speed nose
+			// down and over. The ground under the start wasn't there for the wheels' rays yet (the place's
+			// collision still coming in after the jump to the foot of the climb). So: held still where it was
+			// put, no speed, until there's road under both wheels (up to 15 s), then put on it, pitched to
+			// it, rolling at the start speed, and the settle runs from there.)
+			const double Half = Sim->Build.Wheelbase * 0.5;
+			V3 Ahead = Sim->Basis.Z * -1.0;
+			Ahead.y = 0.0;
+			Ahead = Ahead.Normalized();
+			const V3 C = Sim->Position;
+			const RayHit GroundF = Sim->Ray(C + Ahead * Half + V3(0.0, 40.0, 0.0), C + Ahead * Half - V3(0.0, 200.0, 0.0));
+			const RayHit GroundR = Sim->Ray(C - Ahead * Half + V3(0.0, 40.0, 0.0), C - Ahead * Half - V3(0.0, 200.0, 0.0));
+			const double Up = GroundF.Hit && GroundR.Hit ? std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half) : 0.0;
+			if (!GroundF.Hit || !GroundR.Hit || std::fabs(std::tan(Up)) > 0.35)
+			{
+				if (TestClock > 15.0)
+				{
+					Finish(FString::Printf(TEXT("CLIMB FAIL: no road under the bike at the foot of the climb after 15 s (front %s, back %s)"),
+						GroundF.Hit ? TEXT("found") : TEXT("nothing"), GroundR.Hit ? TEXT("found") : TEXT("nothing")));
+					return;
+				}
+				if (ClimbHoldAt.y < -1e8) ClimbHoldAt = C;
+				if (FMath::Fmod(TestClock + 0.5 * SimDt, 1.0) < SimDt)
+					UE_LOG(LogTemp, Log, TEXT("Torque: climb start: waiting for road under the wheels, %.0f s (front %s, back %s, grade %.0f%%)"),
+						TestClock, GroundF.Hit ? TEXT("found") : TEXT("nothing"), GroundR.Hit ? TEXT("found") : TEXT("nothing"), std::tan(Up) * 100.0);
+				Throttle = FrontBrake = RearBrake = 0.0;
+				Sim->Position = ClimbHoldAt;
+				Sim->LinearVelocity = Sim->AngularVelocity = V3();
+				Sim->Wheels[0].Omega = Sim->Wheels[1].Omega = 0.0;
+				return;
+			}
+			// On it: level on its heading, pitched to the road, both tyres just touching, rolling.
+			const double Heading = std::atan2(-Ahead.x, -Ahead.z);
+			Sim->Basis = M3::AxisAngle(TorqueSim::UP, Heading);
+			Sim->Basis = M3::AxisAngle(Sim->Basis.X, Up) * Sim->Basis;
+			Sim->Position.y = 0.5 * (GroundF.Position.y + GroundR.Position.y) + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(Up), 0.5);
+			Sim->AngularVelocity = V3();
+			Sim->LinearVelocity = Sim->Basis.Z * -TestMps;
+			Sim->Wheels[0].Omega = TestMps / Sim->Build.FrontRadius;
+			Sim->Wheels[1].Omega = TestMps / Sim->Build.RearRadius;
+			UE_LOG(LogTemp, Log, TEXT("Torque: climb start put on the road after %.1f s: pitched %.1f deg (ground at the front %.2f m, the back %.2f m, the axles %.2f m)"),
+				TestClock, FMath::RadiansToDegrees(Up), GroundF.Position.y, GroundR.Position.y, Sim->Position.y);
+			bClimbPlaced = true;
+			ClimbSettleFrom = TestClock;
+		}
 		if (!bClimbSettled)
 		{
 			const bool bBothDown = Sim->Wheels[0].Contact && Sim->Wheels[1].Contact;
-			if (TestClock < 0.5 || (!bBothDown && TestClock < 1.5))
+			const double Settling = TestClock - ClimbSettleFrom;
+			if (Settling < 0.5 || (!bBothDown && Settling < 1.5))
 			{
 				// ([r160] naked and cruiser still went over on their nose 0.4 s in, the throttle shut, where
 				// SimTest's bikes on a 20% plane, braked or not, sit still within 2 deg: so while it settles

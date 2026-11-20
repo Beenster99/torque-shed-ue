@@ -26,11 +26,13 @@ DEST = "/Game/AvatarTry/Crosswind"
 BODY = "/Game/MetaHumans/Avatar_A/Avatar_A/Body/SKM_Avatar_A_BodyMesh"
 PUSH = "/Game/Rider/Materials/M_GarmentPush"
 JACKETS = {   # fbx: the leather it wears (folder, file prefix); None: the plain one, its own (or a smooth black)
-    "SK_Crosswind_Avatar_A.fbx": None,
+    "SK_Crosswind_Avatar_A.fbx": ("Leather", "Oiled_Hide"),   # (round 161: left as imported it drew grey)
     "SK_Crosswind_Worn_Avatar_A.fbx": ("Leather", "Oiled_Hide"),
     "SK_Crosswind_Distressed_Avatar_A.fbx": ("Distressed Leather", "Dry_Hide"),
 }
 METAL_WORDS = ("metal", "zip", "buckle", "hardware", "stud", "chrome", "rivet", "snap", "steel", "silver")
+CLOTH_WORDS = ("shirt", "tee", "inner", "lining", "liner", "cotton", "fabric", "under")   # a dark cloth, not leather
+EXPORT = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Saved", "AvatarExport")
 
 
 def log(msg):
@@ -91,6 +93,48 @@ def leather(name, folder, prefix, dest):
     return mi
 
 
+def cloth(dest):
+    """A dark cotton for the jacket's shirt or lining pieces (round 161: a grey band showed at the back)."""
+    parent = unreal.load_asset(PUSH)
+    if parent is None:
+        return None
+    mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset("MI_Crosswind_Cloth", dest, unreal.MaterialInstanceConstant,
+                                                                 unreal.MaterialInstanceConstantFactoryNew())
+    mel = unreal.MaterialEditingLibrary
+    mel.set_material_instance_parent(mi, parent)
+    mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(0.025, 0.025, 0.027, 1.0))
+    mel.set_material_instance_scalar_parameter_value(mi, "Push", 0.0)
+    mel.set_material_instance_scalar_parameter_value(mi, "HemPush", 0.0)
+    mel.set_material_instance_scalar_parameter_value(mi, "Roughness", 0.9)
+    unreal.EditorAssetLibrary.save_loaded_asset(mi)
+    return mi
+
+
+def export_for_refit():
+    """Avatar A's body and shirt as they are in the game, as FBX in Saved/AvatarExport, to refit the
+    jacket to them (round 161: the collar floated and the armpits showed gaps). Never in git."""
+    os.makedirs(EXPORT, exist_ok=True)
+    for p in (BODY, "/Game/MetaHumans/Avatar_A/Avatar_A/Clothing/Avatar_A_TopGarment",
+              "/Game/MetaHumans/Avatar_A/Avatar_A/Face/SKM_Avatar_A_FaceMesh"):
+        a = unreal.load_asset(p)
+        if a is None:
+            log("export: no %s" % p)
+            continue
+        t = unreal.AssetExportTask()
+        t.set_editor_property("object", a)
+        f = os.path.join(EXPORT, a.get_name() + ".fbx")
+        t.set_editor_property("filename", f)
+        t.set_editor_property("automated", True)
+        t.set_editor_property("prompt", False)
+        t.set_editor_property("replace_identical", True)
+        ok = unreal.Exporter.run_asset_export_task(t)
+        b = a.get_bounds()
+        log("export %s -> %s: %s (%d KB), box (%.1f %.1f %.1f)..(%.1f %.1f %.1f)" % (a.get_name(), f, "ok" if ok else "FAILED",
+            os.path.getsize(f) // 1024 if os.path.isfile(f) else -1,
+            b.origin.x - b.box_extent.x, b.origin.y - b.box_extent.y, b.origin.z - b.box_extent.z,
+            b.origin.x + b.box_extent.x, b.origin.y + b.box_extent.y, b.origin.z + b.box_extent.z))
+
+
 def main():
     global SRC
     args = [a for a in sys.argv[1:] if a.strip()]
@@ -138,19 +182,23 @@ def main():
         log("%s -> %s: skeleton %s, box (%.0f %.0f %.0f)..(%.0f %.0f %.0f) cm" % (fbx, mesh.get_path_name(), msk.get_path_name() if msk else "none",
             lo.x, lo.y, lo.z, hi.x, hi.y, hi.z))
         mi = leather(name, leather_of[0], leather_of[1], dest) if leather_of else None
+        cl = cloth(dest)
         mats = mesh.get_editor_property("materials")
         for i, sm in enumerate(mats):
             slot = str(sm.material_slot_name)
             was = sm.material_interface
             words = (slot + " " + (was.get_name() if was else "")).lower()
             metal = any(w in words for w in METAL_WORDS)
-            if mi is not None and not metal:
-                sm.material_interface = mi
+            is_cloth = not metal and any(w in words for w in CLOTH_WORDS)
+            use = cl if is_cloth else (mi if not metal else None)
+            if use is not None:
+                sm.material_interface = use
                 mats[i] = sm
             log("%s slot %d %s: %s%s" % (name, i, slot, was.get_name() if was else "none",
-                " -> " + mi.get_name() if (mi is not None and not metal) else (" (metal, kept)" if metal else "")))
+                " -> " + use.get_name() if use is not None else " (metal, kept)"))
         mesh.set_editor_property("materials", mats)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    export_for_refit()
     log("done: wear one in game with -TorqueTryJacket=<mesh name> (Avatar A; -TorqueTryJacketOn=all for everyone)")
 
 

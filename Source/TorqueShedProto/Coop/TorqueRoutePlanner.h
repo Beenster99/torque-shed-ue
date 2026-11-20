@@ -102,6 +102,9 @@ private:
 	// The names on the map (redone when the view moves).
 	std::vector<const TorqueWorld::Route::Place*> Labels;
 	double LabelLat = 0.0, LabelLon = 0.0, LabelZoom = -1.0;
+	// [map detail] And zoomed in, the roads' names (redone when the view moves or a new picture comes).
+	std::vector<TorqueWorld::Route::MapStreets::Label> StreetLabels;
+	bool bStreetsStale = true;
 
 	// The mouse: held on the map (a drag pans it; let go where it went down, a pin).
 	FVector2D Mouse = FVector2D(-1.0, -1.0), DownAt = FVector2D::ZeroVector, LastDrag = FVector2D::ZeroVector;

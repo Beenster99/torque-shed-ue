@@ -665,30 +665,36 @@ def slim():
     log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
 
 
-def _body_type(ch):
-    try:
-        return str(ch.get_editor_property("fixed_body_type"))
-    except Exception:
-        return ""
-
-
-def _is_female(body_type):
-    b = body_type.lower().replace("ebodytype.", "").replace("emetahumanbodytype.", "")
-    return b.startswith("f_") or "female" in b or b.startswith("f") and "_" in b[:3]
-
-
 _PRESETS = None
+PRESET_PICK = []   # `make B D from=Name1,Name2`: the presets (a word of each name) the women start from
 
 
-def _female_presets():
-    """Every MetaHuman Character preset outside /Game (the Creator's own, from MetaHuman Creator Core
-    Data) with a female body type, logged with its body type. The default new character is male."""
+def _measure(ch):
+    """A character's body measurements (cm) by constraint name, as the Creator holds them."""
+    out = {}
+    try:
+        sub = unreal.get_editor_subsystem(unreal.MetaHumanCharacterEditorSubsystem)
+        sub.try_add_object_to_edit(ch)
+        for c in sub.get_body_constraints(ch, False):
+            try:
+                out[_constraint_name(c)] = round(float(c.get_editor_property("target_measurement")), 1)
+            except Exception:
+                pass
+    except Exception as e:
+        out["error"] = str(e)
+    return out
+
+
+def _presets():
+    """Every MetaHuman Character preset outside /Game (the Creator's own), logged with its body
+    measurements, so the women can be picked from them (round 161: fixed_body_type is only a bool,
+    so the body type can't say which are women)."""
     global _PRESETS
     if _PRESETS is not None:
         return _PRESETS
     reg = unreal.AssetRegistryHelpers.get_asset_registry()
     found = []
-    for mount in ["/MetaHumanCharacter", "/MetaHuman", "/Game/MetaHumans/Presets"] + plugin_mounts():
+    for mount in ["/MetaHumanCharacter", "/MetaHuman"] + plugin_mounts():
         try:
             assets = reg.get_assets_by_path(mount, recursive=True)
         except Exception:
@@ -697,40 +703,53 @@ def _female_presets():
             if _cls_name(a) != "MetaHumanCharacter":
                 continue
             p = "%s.%s" % (a.package_name, a.asset_name)
-            if p in [f[0] for f in found]:
-                continue
-            ch = unreal.load_asset(str(a.package_name))
-            bt = _body_type(ch) if ch else ""
-            log("preset %s: body type %s" % (p, bt or "?"))
-            found.append((p, bt))
-    _PRESETS = [p for p, bt in found if _is_female(bt) or any(w in p.lower() for w in ("female", "_f_", "woman"))]
-    log("female presets: %s" % (", ".join(_PRESETS) or "NONE (install MetaHuman Creator Core Data, or make them in the editor)"))
-    return _PRESETS
+            if p not in found:
+                found.append(p)
+    for p in found:
+        ch = unreal.load_asset(p.split(".")[0])
+        m = _measure(ch) if ch else {}
+        keys = [k for k in m if any(w in k.lower() for w in ("height", "chest", "bust", "waist", "hip", "shoulder"))]
+        log("preset %s: %s" % (p, ", ".join("%s %s" % (k, m[k]) for k in keys) or json.dumps(m)[:300]))
+    _PRESETS = found
+    return found
+
+
+def _female_presets():
+    """The presets named by `from=` (each a word of a preset's name), in that order."""
+    found = _presets()
+    picked = []
+    for word in PRESET_PICK:
+        hit = [p for p in found if word.lower() in p.rsplit("/", 1)[-1].lower()]
+        if hit:
+            picked.append(hit[0])
+        else:
+            unreal.log_warning("[Torque] no preset named like %s" % word)
+    log("female presets: %s" % (", ".join(picked) or "NONE picked (run `make B D from=<name>,<name>` with names from the preset lines)"))
+    return picked
 
 
 def _female_source(name, path, nth):
-    """The avatar's character source started again from a female preset (the old one moved to the
-    backup folder first); the existing one kept when it is already female."""
+    """The avatar's character source started again from a female preset, the old one moved to the
+    backup folder first (only once a preset is in hand); with no preset, the source as it is (put
+    back from the backup if an earlier run moved it, as round 161's did)."""
     eal = unreal.EditorAssetLibrary
-    if eal.does_asset_exist(path):
-        ch = unreal.load_asset(path)
-        bt = _body_type(ch) if ch else ""
-        if ch and _is_female(bt):
-            log("%s: already female (%s)" % (name, bt))
-            return ch
-        keep = BACKUP + "/Sources/" + name + "_male"
-        if eal.does_asset_exist(keep):
-            eal.delete_asset(keep)
-        log("%s: the male source (%s) moved to %s" % (name, bt or "?", keep))
-        if not eal.rename_asset(path, keep):
-            unreal.log_warning("[Torque] %s: couldn't move the old source; not changed" % name)
-            return ch
+    keep = BACKUP + "/Sources/" + name + "_male"
     presets = _female_presets()
     if not presets:
+        if not eal.does_asset_exist(path) and eal.does_asset_exist(keep):
+            ok = eal.rename_asset(keep, path)
+            log("%s: no preset picked; its source put back from %s: %s" % (name, keep, "ok" if ok else "FAILED"))
         return None
+    if eal.does_asset_exist(path):
+        if eal.does_asset_exist(keep):
+            eal.delete_asset(keep)
+        log("%s: the old source moved to %s" % (name, keep))
+        if not eal.rename_asset(path, keep):
+            unreal.log_warning("[Torque] %s: couldn't move the old source; not changed" % name)
+            return None
     src = presets[nth % len(presets)]
     ch = eal.duplicate_asset(src.split(".")[0], path)
-    log("%s: started from the female preset %s (body type %s)" % (name, src, _body_type(ch) if ch else "?"))
+    log("%s: started from the preset %s" % (name, src))
     return ch
 
 
@@ -1865,8 +1884,14 @@ def main(args):
     elif mode == "fab":
         fab_wardrobe()
         _wardrobe()
+    elif mode == "presets":
+        _presets()   # each preset's name and body measurements, to pick the women from
     elif mode == "make":
-        rest = args[1:]
+        rest = [a for a in args[1:] if not a.startswith("from=")]
+        global PRESET_PICK
+        for a in args[1:]:
+            if a.startswith("from="):
+                PRESET_PICK = [w for w in a[5:].split(",") if w]
         global NO_FAB
         NO_FAB = "nofab" in rest
         if not NO_FAB:
