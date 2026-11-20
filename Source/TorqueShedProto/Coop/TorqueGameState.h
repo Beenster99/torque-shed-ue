@@ -139,6 +139,9 @@ public:
 	// local from the host's grid (live), on every machine.
 	const TorqueWeather::State& GetWeatherState() const { return Here; }
 	ETorqueWeatherSource GetWeatherSource() const { return (ETorqueWeatherSource)Net.Source; }
+	// [ferries] The shared weather's wind and gust (m/s), for how rough the crossings are.
+	float GetNetWind() const { return Net.Wind; }
+	float GetNetGust() const { return Net.Gust; }
 	// How open to the sky this machine's camera is: 0 under a roof .. 1 out in it (the rain's).
 	float WeatherOpen() const;
 	// [lights] 0 at night .. 1 by day, as the sun and the exposure have it (the bike's lamps glow by it).

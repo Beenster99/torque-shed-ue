@@ -425,7 +425,7 @@ double ATorqueFerry::Rough() const
 {
 	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 	if (!GS) return 0.0;
-	return FMath::Clamp((double(GS->Net.Wind) - 6.0) / 9.0, 0.0, 1.5) + FMath::Clamp((double(GS->Net.Gust) - 12.0) / 20.0, 0.0, 0.5);
+	return FMath::Clamp((double(GS->GetNetWind()) - 6.0) / 9.0, 0.0, 1.5) + FMath::Clamp((double(GS->GetNetGust()) - 12.0) / 20.0, 0.0, 0.5);
 }
 
 void ATorqueFerry::PutBackAshore()
@@ -1007,9 +1007,13 @@ void ATorqueFerry::Keep(ATorqueRideWorld* Ride, const TorqueWorld::RidePlan& Pla
 		FString Text;
 		const FString Path = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/ferries.json"));
 		if (!FFileHelper::LoadFileToString(Text, *Path) || !TFer::ReadList(std::string(TCHAR_TO_UTF8(*Text)), D.List))
+		{
 			UE_LOG(LogTemp, Warning, TEXT("Torque ferry: no crossings (%s unreadable)"), *Path);
+		}
 		else
+		{
 			UE_LOG(LogTemp, Display, TEXT("Torque ferry: %d crossings listed"), int32(D.List.size()));
+		}
 	}
 	// The listed crossings in the ride's area, found again when the area grows.
 	const size_t Lines = Plan.Area.Roads.Scenery.Lines.size() * 1000003u + Plan.Area.Roads.Edges.size();
