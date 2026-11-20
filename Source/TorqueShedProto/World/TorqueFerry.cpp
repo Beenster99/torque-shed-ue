@@ -1232,11 +1232,22 @@ FString ATorqueFerry::Test(const UWorld* World, const FString& What, ATorqueBike
 		F->OnBoard(Pawn->GetActorLocation()) ? TEXT("is") : TEXT("isn't"));
 	if (What.StartsWith(TEXT("goto")))
 	{
-		// goto:<end>: the bike at that end's slipway head, facing down it.
+		// goto:<end>: the bike on that end's approach road 6 m short of the slipway head, facing the head (the approach
+		// needn't run in line with the slipway: 6 m back along the slipway's own line can be off the tarmac).
 		const int32 E = FMath::Clamp(What.Len() > 5 ? FCString::Atoi(*What.Mid(5)) : F->DockEnd, 0, 1);
 		const TFer::End& N = F->Lay->Ends[E];
-		const TorqueWorld::P2 At = N.Head - N.Axis * 6.0;
-		return Pawn->TestPlaceAt(At.X * 100.0, At.Z * 100.0, FMath::RadiansToDegrees(std::atan2(N.Axis.Z, N.Axis.X))) + TEXT("; ") + Where;
+		TorqueWorld::P2 At = N.Head - N.Axis * 6.0, Face = N.Axis;
+		if (N.Approach.size() >= 2)
+		{
+			const TorqueWorld::P2 Last(N.Approach.back()[0], N.Approach.back()[2]), First(N.Approach.front()[0], N.Approach.front()[2]);
+			const double Len = Last.DistanceTo(First);
+			if (Len > 0.5)
+			{
+				Face = (Last - First) * (1.0 / Len);
+				At = Last - Face * FMath::Min(6.0, Len * 0.5);
+			}
+		}
+		return Pawn->TestPlaceAt(At.X * 100.0, At.Z * 100.0, FMath::RadiansToDegrees(std::atan2(Face.Z, Face.X))) + TEXT("; ") + Where;
 	}
 	if (What == TEXT("board"))
 	{
