@@ -506,3 +506,5 @@ kazeda_cafe extras 1
 kazeda_cafe extras 2
 kazeda_chopper extras 1
 kazeda_chopper extras 2
+kazeda_classic tail 1
+kazeda_classic tail 2
