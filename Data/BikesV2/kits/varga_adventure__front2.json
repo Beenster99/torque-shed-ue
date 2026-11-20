@@ -1,0 +1,53 @@
+{
+ "name": "Varga adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1242,
+ "surfaces": {
+  "s076": {
+   "slot": "dashboard",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s077": {
+   "slot": "dashboard",
+   "node": "",
+   "surface": "d3_screen",
+   "tag": "d3_screen",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.004,
+    0.005,
+    0.008
+   ],
+   "metallic": 0.0,
+   "roughness": 0.04
+  },
+  "s078": {
+   "slot": "dashboard",
+   "node": "",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "clocks",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  }
+ }
+}

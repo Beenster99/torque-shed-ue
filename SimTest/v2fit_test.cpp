@@ -414,7 +414,9 @@ int main()
 					{
 						const double Off = std::hypot((Lo.x + Hi.x - OwnLo.x - OwnHi.x) * 0.5, (Lo.y + Hi.y - OwnLo.y - OwnHi.y) * 0.5);
 						WorstKit = std::max(WorstKit, Off);
-						Expect(Off < 0.45, Kid + " is where the bike's own " + Slot + " was (" + std::to_string(Off) + " m off)");
+						// (a kit may add to what the bike had: the MX enduro tail adds rear indicators to the front pair)
+						const bool bAddsTo = Lo.x < OwnLo.x + 0.05 && Hi.x > OwnHi.x - 0.05 && Lo.y < OwnLo.y + 0.05 && Hi.y > OwnHi.y - 0.05;
+						Expect(Off < 0.45 || bAddsTo, Kid + " is where the bike's own " + Slot + " was (" + std::to_string(Off) + " m off)");
 					}
 				}
 		}

@@ -1,0 +1,22 @@
+{
+ "name": "Varga adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1456,
+ "surfaces": {
+  "s025": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  }
+ }
+}

@@ -269,6 +269,8 @@ def catalogue():
         n = int(rest[len(grp):])
         variant = json.load(open(os.path.join(ROOT, "data", "models", model + ".json")))["kit"][grp][n - 1]
         slots = sorted({v["slot"] for v in json.load(open(os.path.join(KITS, f)))["surfaces"].values()})
+        if grp == "extras" and variant["name"].lower() in ("panniers", "top box", "saddlebag"):
+            continue      # luggage is the common parts' to sell, not a body piece with a box drawn on
         for slot in slots:
             own_id = f"v2_{model}__{slot}"
             kind = next((k for k, es in parts.items() if isinstance(es, dict) and own_id in es), None)

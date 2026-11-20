@@ -2,9 +2,9 @@
  "name": "Rheinhart naked (working title N1)",
  "format": 2,
  "kit": true,
- "triangles": 6158,
+ "triangles": 7398,
  "surfaces": {
-  "s060": {
+  "s061": {
    "slot": "headlight",
    "node": "steer",
    "surface": "plastic",
@@ -19,7 +19,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s061": {
+  "s062": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_bezel",
@@ -34,7 +34,7 @@
    "metallic": 0.85,
    "roughness": 0.3
   },
-  "s062": {
+  "s063": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_drl",
@@ -42,7 +42,7 @@
    "ue": "lens_clear",
    "sub": "headlamp"
   },
-  "s063": {
+  "s064": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_smokechrome",
@@ -57,7 +57,7 @@
    "metallic": 1.0,
    "roughness": 0.1
   },
-  "s064": {
+  "s065": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_clearglass",
@@ -72,7 +72,7 @@
    "metallic": 0.0,
    "roughness": 0.02
   },
-  "s065": {
+  "s066": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_bulb",
@@ -80,13 +80,58 @@
    "ue": "lens_clear",
    "sub": "headlamp"
   },
-  "s066": {
+  "s067": {
    "slot": "headlight",
    "node": "steer",
    "surface": "alu_dark",
    "tag": "alu_dark",
    "ue": "cat_anodised",
    "sub": "headlamp",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s068": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s069": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_screen",
+   "tag": "d3_screen",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.004,
+    0.005,
+    0.008
+   ],
+   "metallic": 0.0,
+   "roughness": 0.04
+  },
+  "s070": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "clocks",
    "color": [
     0.06,
     0.065,
