@@ -1094,6 +1094,37 @@ def scanned_trees(L, kit):
         log("scanned trees: %s: material slots put in section order: was [%s], now [%s]" % (name, ", ".join(before), ", ".join(after)))
         return True
 
+    def plain_copy(copy_path):
+        """A copy match_nanite gave Nanite Foliage (round 160) put back as it was made: Nanite off."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            ns = sm.get_editor_property("nanite_settings")
+            shape = str(ns.get_editor_property("shape_preservation")) if "shape_preservation" in dir(ns) else ""
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        if "VOXEL" not in shape.upper():
+            return False
+        changed = []
+        for name, value in (("enabled", False), ("voxel_ndf", False)):
+            try:
+                ns.set_editor_property(name, value)
+                changed.append("%s %s" % (name, value))
+            except Exception:
+                pass
+        enum = getattr(unreal, "NaniteShapePreservation", None)
+        none = getattr(enum, "NONE", None) if enum else None
+        if none is not None:
+            try:
+                ns.set_editor_property("shape_preservation", none)
+                changed.append("shape_preservation NONE")
+            except Exception:
+                pass
+        sm.set_editor_property("nanite_settings", ns)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite Foliage undone (%s)" % (copy_path.rsplit(".", 1)[-1], ", ".join(changed)))
+        return True
+
     def match_nanite(copy_path, skel_path):
         """[build 160] The copy's Nanite settings as the Megaplant's own. A Megaplant's skeletal mesh is Nanite
         Foliage (round 159 scan check: shape_preservation Voxelize, voxel_ndf on); its static copy was made
@@ -1198,8 +1229,13 @@ def scanned_trees(L, kit):
                 if m:
                     if spec.get("slots_by_section", True):
                         fix_slots(m, p)
-                    if spec.get("match_nanite", True):
+                    # ([build 162] round 161: with the Megaplants' Voxelize Nanite the broadleaf trees turned
+                    # to smooth green blobs at 30-45 m and the conifers stayed bare: back to the copies as
+                    # they were until 159 (Nanite off), unless scanned_trees.json "match_nanite" is true)
+                    if spec.get("match_nanite", False):
                         match_nanite(m, p)
+                    else:
+                        plain_copy(m)
                     made.append(m)
             for m in made:
                 ready_materials(m)
