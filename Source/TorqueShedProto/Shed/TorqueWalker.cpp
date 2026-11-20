@@ -1264,14 +1264,16 @@ void ATorqueWalker::FindTarget()
 			TargetBay = Bike ? Bike->Bay : INDEX_NONE;
 			TargetSlot = TorqueShedModel::SlotTag(Pick->C.Get());
 			TargetItem = B->ItemOn(TargetBay, TargetSlot);
-			// [brake pads, beenster Nov 20] The pads sit in the caliper: a bolted caliper with its pads still loose
-			// is looked at for the pads, so the wrench finds them.
+			// [brake pads, beenster Nov 20; 164 test: the rear pads sit inside the caliper, so the aim landed on the
+			// caliper and the pads could never be unbolted] The pads sit in the caliper: a bolted caliper with pads in
+			// it, loose or bolted, is looked at for the pads, so the wrench bolts and unbolts them (they come off
+			// before the caliper anyway; with no pads the caliper is itself).
 			static const FName FrontCaliper(TEXT("front_caliper")), RearCaliper(TEXT("rear_caliper"));
 			if (TargetSlot == FrontCaliper || TargetSlot == RearCaliper)
 			{
 				const FName PadsSlot(TargetSlot == FrontCaliper ? TEXT("front_pads") : TEXT("rear_pads"));
 				const TArray<FName> LooseNow = B->LooseSlots(TargetBay);
-				if (LooseNow.Contains(PadsSlot) && !LooseNow.Contains(TargetSlot) && B->ItemOn(TargetBay, PadsSlot) != 0)
+				if (!LooseNow.Contains(TargetSlot) && B->ItemOn(TargetBay, PadsSlot) != 0)
 				{
 					TargetSlot = PadsSlot;
 					TargetItem = B->ItemOn(TargetBay, PadsSlot);
