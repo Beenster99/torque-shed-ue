@@ -1086,6 +1086,11 @@ def scanned_trees(L, kit):
         have = sm.get_editor_property("static_materials")
         before = [(m.get_editor_property("material_interface").get_name() if m.get_editor_property("material_interface") else "None") for m in have]
         after = [(m.get_name() if m else "None") for m, _ in want]
+        if len(after) != len(before):
+            # ([round 162] a Megaplant reads as ONE section at LOD 0: cutting the slots to it left every
+            # tree bark only. Never change the number of slots.)
+            log("scanned trees: %s: %d sections but %d slots: slots left as they are" % (name, len(after), len(before)))
+            return False
         if before == after:
             log("scanned trees: %s: material slots already in section order (%s)" % (name, ", ".join(after)))
             return False
@@ -1227,7 +1232,7 @@ def scanned_trees(L, kit):
             for p in skels:
                 m = static_of_skeletal(p)
                 if m:
-                    if spec.get("slots_by_section", True):
+                    if spec.get("slots_by_section", False):
                         fix_slots(m, p)
                     # ([build 162] round 161: with the Megaplants' Voxelize Nanite the broadleaf trees turned
                     # to smooth green blobs at 30-45 m and the conifers stayed bare: back to the copies as
