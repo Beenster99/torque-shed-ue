@@ -3180,6 +3180,13 @@ FString ATorqueWalker::TestComputerType(const FString& Type)
 	FString FilterKey, FilterValue;
 	if (Type.Split(TEXT("="), &FilterKey, &FilterValue))
 	{
+		// [shop bay] "bay=2" shops for bay 2's bike, "bay=all" for any bike.
+		if (FilterKey.Equals(TEXT("bay"), ESearchCase::IgnoreCase))
+		{
+			const bool bAny = FilterValue.IsEmpty() || FilterValue.Equals(TEXT("all"), ESearchCase::IgnoreCase) || FilterValue.Equals(TEXT("any"), ESearchCase::IgnoreCase);
+			if (!Computer.SetShopBay(Shed(), bAny ? -1 : FCString::Atoi(*FilterValue) - 1)) return FString::Printf(TEXT("no bay %s on the computer"), *FilterValue);
+			return Computer.Describe();
+		}
 		if (!Computer.SetEngineFilter(FilterKey.ToLower(), FilterValue)) return FString::Printf(TEXT("no engine filter %s on the computer"), *FilterKey);
 		return Computer.Describe();
 	}

@@ -660,6 +660,16 @@ public:
 	// The tyres that go on a wheel (beenster, Nov 12: "when you hover over a wheel rim, it should tell
 	// you what tyres fit it"): its rim and the widths it takes, then the catalogue's tyres for it.
 	static FString TyresThatFit(FName Wheel);
+	// [shop bay] The parts computer cut to the bike in a bay (beenster, Nov 20: "the frame you buy then defines the
+	// engines, the engines you buy then defines some of the engine parts... the same with the wheels, tyres"): for
+	// each of Parts that won't go on bay Bay's bike, why (as fitting it would say: a V2 part's mounting standard,
+	// the frame / engine / tank / fork layout check, a tyre that no wheel the bike has or can take will carry). Parts
+	// it can't judge, and frames (a frame starts a bike, it doesn't go on one), stay out of the map. Sides: for each
+	// wheel and tyre, 1 it goes on the front, 2 the rear, 3 either (a tyre: on this bike's wheels, or the wheels its
+	// frame takes when there's none on yet). False when there's no catalogue bike in the bay (nothing judged).
+	bool ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides) const;
+	// A tyre's sides on any bike in the game (every wheel the shop sells): 1 front, 2 rear, 3 either, 0 none.
+	static int32 TyreSides(FName Tyre);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
 	float BeadOf(int32 Bay, bool bFront) const;
 
