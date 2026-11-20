@@ -1139,6 +1139,13 @@ void ATorqueWalker::TestSpray(int32 Colour, FName Finish)
 		FadeStyle = FMath::Clamp(Colour - TorquePaintMix::FirstFade, 0, TorquePaintMix::TapePatterns - TorquePaintMix::FirstFade);
 }
 
+void ATorqueWalker::LoadFade()
+{
+	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
+	const int32 At = L.IndexOfByPredicate([](const TWI::FLoad& X) { return X.Id == UTorqueBuildSubsystem::FadeFinish(); });
+	if (At != INDEX_NONE) SprayFinish = At;
+}
+
 bool ATorqueWalker::IsFadeLoaded() const
 {
 	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
