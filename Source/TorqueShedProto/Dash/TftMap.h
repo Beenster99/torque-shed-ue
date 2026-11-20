@@ -90,6 +90,7 @@ struct MapScene
 	double Heading = 0.0;           // radians, 0 north, clockwise
 	double Metres = 600.0;          // ground across the view's width
 	bool NorthUp = false;
+	int Declutter = 0;              // the rider's map detail, like an aircraft display's declutter: 0 full, 1 some, 2 clear
 	bool Night = false;
 	bool HasFinish = false;
 	MapPt Finish;

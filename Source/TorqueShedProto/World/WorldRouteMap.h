@@ -25,9 +25,11 @@ struct MapView
 {
 	double Lat = 54.6, Lon = -3.4;   // the middle
 	double Zoom = 5.6;               // as web maps have it: the world is 256 x 2^Zoom pixels across
-	int Layer = 0;                   // [build 147] how it is drawn: 0 relief, 1 road map, 2 terrain, 3 satellite (ELayer)
+	int Layer = 0;                   // [build 147] how it is drawn: 0 relief, 1 road map, 2 terrain, 3 satellite, 4 satellite with roads (ELayer)
 	int W = 1024, H = 1024;          // the picture's pixels
-	static constexpr double MinZoom = 4.5, MaxZoom = 13.0;
+	// [map detail] In as far as a street map goes (about 2 m a pixel), so every lane can be seen and pinned
+	// (beenster, Nov 20: "more of a google maps experience where when we zoom in more details appear").
+	static constexpr double MinZoom = 4.5, MaxZoom = 16.5;
 
 	// Where a place is on the picture (pixels from its top left), and the place at a pixel.
 	P2 PixelOf(double Lat, double Lon) const;
@@ -42,8 +44,11 @@ struct MapView
 	std::vector<TileKey> Tiles() const;
 };
 
-enum ELayer { Relief = 0, RoadMap = 1, TerrainMap = 2, Satellite = 3, LayerCount = 4 };
+enum ELayer { Relief = 0, RoadMap = 1, TerrainMap = 2, Satellite = 3, Hybrid = 4, LayerCount = 5 };
 const char* LayerName(int Layer);
+// Whether a layer is drawn from the satellite's pictures; whether it draws roads.
+inline bool PhotoLayer(int Layer) { return Layer == Satellite || Layer == Hybrid; }
+inline bool RoadLayer(int Layer) { return Layer == RoadMap || Layer == Hybrid; }
 
 // [build 147] The main roads the map draws on its road map: each 5 degree block's sketch's motorways,
 // trunk roads and A roads (sketch_bake.py), read once. Safe from any thread.
@@ -61,6 +66,57 @@ struct MapRoads
 	// Whether Block's roads are still to read: true once, for the one who then reads them.
 	bool Claim(const std::string& Block);
 	void Add(std::vector<Line>&& More);
+};
+
+// [map detail] Every road of the world's cells (the same 0.25 degree cells the rides are built from: each
+// one's roads.json), for the road map zoomed in: B roads, lanes and tracks come in as the map zooms, as a
+// web map's do. Kept a cell at a time, the most recently drawn Memory of them. Safe from any thread.
+struct MapStreets
+{
+	// What a road is drawn as, the biggest first.
+	enum EKind { Motorway = 0, Trunk, Primary, Secondary, Tertiary, Minor, Track, KindCount };
+	static int KindOf(const std::string& Class);
+	// The zoom a kind is drawn from (Motorway to Primary: always).
+	static double ShownFrom(int Kind);
+	// Cells are read (and those not on disk fetched) for a view from this zoom, when it covers no more than
+	// MostCells (about 1400 x 900 pixels at zoom 10.5).
+	static constexpr double From = 10.5;
+	static constexpr int MostCells = 32, Memory = 64;
+	struct Line
+	{
+		int Kind = Minor;
+		int Name = 0;   // into its cell's Names (0: none)
+		std::vector<std::pair<float, float>> Pts;   // (lat, lon)
+		float South = 0.0f, West = 0.0f, North = 0.0f, East = 0.0f;
+	};
+	struct Cell
+	{
+		std::vector<Line> Lines;
+		std::vector<std::string> Names;
+	};
+	// The roads' names, from this zoom: where each named road's longest stretch in view is, its middle,
+	// at most Most, the biggest roads (then the longest stretches) first.
+	static constexpr double NamesFrom = 13.5;
+	struct Label
+	{
+		double Lat = 0.0, Lon = 0.0;
+		std::string Name;
+		int Kind = Minor;
+	};
+	std::vector<Label> Labels(const MapView& View, size_t Most = 120);
+	// The cells a view draws streets from (empty when zoomed too far out), the middle's first.
+	static std::vector<CellId> CellsFor(const MapView& View);
+	// A cell's roads from its folder's roads.json and region.json (its frame); null if they won't read.
+	static std::shared_ptr<const Cell> Read(const std::string& Dir);
+	bool Has(CellId C);
+	void Put(CellId C, std::shared_ptr<const Cell> Got);
+	// Those of Cells held (and so drawn), noted as just used.
+	std::map<CellId, std::shared_ptr<const Cell>> Held(const std::vector<CellId>& Cells);
+
+private:
+	std::mutex Lock;
+	std::map<CellId, std::pair<std::shared_ptr<const Cell>, long long>> Mem;
+	long long Tick = 0;
 };
 
 // [build 147] The satellite layer's pictures: EOX's Sentinel-2 cloudless (s2maps.eu; CC BY-NC-SA 4.0:
@@ -96,8 +152,10 @@ private:
 };
 
 // The map under a view in its layer, W x H pixels, B G R A each (as a texture takes them). Where no
-// tile is on disk yet the land is a dark grey. Roads (null: none) are drawn on the road map. Returns
-// the share of pixels it had ground for.
-double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads = nullptr, MapImagery* Imagery = nullptr);
+// tile is on disk yet the land is a dark grey. Roads (null: none) are drawn on the road map, and zoomed in,
+// Streets' (null: none) on the road map and over the satellite's pictures. Returns the share of pixels it
+// had ground for.
+double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads = nullptr, MapImagery* Imagery = nullptr,
+	MapStreets* Streets = nullptr);
 } // namespace Route
 } // namespace TorqueWorld

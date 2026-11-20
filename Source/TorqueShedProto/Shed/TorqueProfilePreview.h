@@ -53,6 +53,21 @@ public:
 	bool RightPress(const FVector2D& Mouse);        // stops or starts the turning; true when over it
 	bool IsDragging() const { return bDrag; }
 
+	// [helmet decals] Settings > Profile > Helmet decals (ATorqueDecalMode::OpenHelmet): the helmet on
+	// its own, worked by the decal editor. The helmet (made and got ready to cut decals from; null if
+	// there's none), its look lit again after new decal skins, the view turned and zoomed by the editor,
+	// and the ray under the mouse through the picture (and a point back onto it) as last drawn.
+	UStaticMeshComponent* EditHelmet();
+	void Relit() { LitCount = -1; StudioLit(); }
+	void TurnBy(double DYaw, double DPitch);
+	void ZoomBy(int32 Dir);
+	void SetSpin(bool bOn) { bSpin = bOn; }
+	bool ScreenRay(const FVector2D& Mouse, FVector& OutFrom, FVector& OutDir) const;
+	bool ToScreen(const FVector& World, FVector2D& Out) const;
+	const FBox2D& Picture() const { return PictureBox; }
+	// The decals the preview last drew from the saved helmet's (so it draws them again after an edit).
+	void ForgetDecals() { HelmetDecalsOn = TEXT("\x1"); }
+
 	bool HasAvatar() const { return Avatar.IsValid(); }
 	const FString& AvatarName() const { return Avatar.Name; }
 	double Height() const { return Avatar.StandingHeight(); }
@@ -87,5 +102,6 @@ private:
 	FBox2D PictureBox = FBox2D(ForceInit);
 
 	void MakeHelmet();
-	void StudioLit();          // everything it shows lit only by its own lights
+	void StudioLit();          // everything it shows lit only by its own lights (sharp: finest LOD, full textures)
+	int32 LitCount = -1;       // how many parts it last did that for
 };

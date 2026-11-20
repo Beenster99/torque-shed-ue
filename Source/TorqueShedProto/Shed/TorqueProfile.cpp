@@ -57,6 +57,18 @@ FLinearColor FTorqueProfile::HelmetColour() const
 	return TorqueProfileHelmet::FromHsv(HelmetHue, HelmetSat, HelmetVal);
 }
 
+const TCHAR* FTorqueProfile::JacketName(int32 I)
+{
+	static const TCHAR* Names[NumJackets] = {TEXT("None"), TEXT("Crosswind, oiled leather"), TEXT("Crosswind, distressed"), TEXT("Crosswind, smooth")};
+	return Names[FMath::Clamp(I, 0, (int32)NumJackets - 1)];
+}
+
+const TCHAR* FTorqueProfile::JacketMesh(int32 I)
+{
+	static const TCHAR* Meshes[NumJackets] = {TEXT(""), TEXT("SK_Crosswind_Worn_Avatar_A"), TEXT("SK_Crosswind_Distressed_Avatar_A"), TEXT("SK_Crosswind_Avatar_A")};   // (161: the plain one first drew grey)
+	return Meshes[FMath::Clamp(I, 0, (int32)NumJackets - 1)];
+}
+
 FLinearColor FTorqueProfile::HsvColour(float H, float S, float V)
 {
 	return TorqueProfileHelmet::FromHsv(H, S, V);
@@ -116,6 +128,7 @@ TArray<uint8> FTorqueProfile::Pack() const
 	// [helmet plan] The helmet's paint.
 	B.Add((uint8)((bHelmetPainted ? 1 : 0) | (FMath::Clamp(HelmetFinish, 0, (int32)NumHelmetFinish - 1) << 1)));
 	for (float V : {HelmetHue, HelmetSat, HelmetVal}) B.Add((uint8)FMath::Clamp(FMath::RoundToInt(V * 255.0f), 0, 255));
+	B.Add((uint8)FMath::Clamp(Jacket, 0, (int32)NumJackets - 1));   // [jacket]
 	return B;
 }
 
@@ -135,6 +148,7 @@ FTorqueProfile FTorqueProfile::Unpack(const TArray<uint8>& Bytes)
 		P.HelmetSat = Bytes[H + 2] / 255.0f;
 		P.HelmetVal = Bytes[H + 3] / 255.0f;
 	}
+	if (Bytes.Num() >= H + 5) P.Jacket = FMath::Clamp((int32)Bytes[H + 4], 0, (int32)NumJackets - 1);   // [jacket]
 	return P;
 }
 
@@ -164,6 +178,8 @@ FTorqueProfile& FTorqueProfile::Mine()
 		GConfig->GetFloat(Section, TEXT("HelmetVal"), P.HelmetVal, GGameUserSettingsIni);
 		GConfig->GetInt(Section, TEXT("HelmetFinish"), P.HelmetFinish, GGameUserSettingsIni);
 		P.HelmetFinish = FMath::Clamp(P.HelmetFinish, 0, (int32)NumHelmetFinish - 1);
+		GConfig->GetInt(Section, TEXT("Jacket"), P.Jacket, GGameUserSettingsIni);
+		P.Jacket = FMath::Clamp(P.Jacket, 0, (int32)NumJackets - 1);
 		P.ClampChase();
 	}
 	return P;
@@ -201,6 +217,7 @@ void FTorqueProfile::Save() const
 	GConfig->SetFloat(Section, TEXT("HelmetSat"), HelmetSat, GGameUserSettingsIni);
 	GConfig->SetFloat(Section, TEXT("HelmetVal"), HelmetVal, GGameUserSettingsIni);
 	GConfig->SetInt(Section, TEXT("HelmetFinish"), HelmetFinish, GGameUserSettingsIni);
+	GConfig->SetInt(Section, TEXT("Jacket"), Jacket, GGameUserSettingsIni);
 	GConfig->Flush(false, GGameUserSettingsIni);
 }
 

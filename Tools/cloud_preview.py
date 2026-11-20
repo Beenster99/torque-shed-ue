@@ -86,12 +86,12 @@ class Clouds:
         scene["looks"] = L
         self.L = L
         lo, mi = scene["low"], scene["mid"]
-        # (as ATorqueSky sets MPC_Sky: each layer's shape size by its lumps, its detail size)
-        self.scale = [L["v2_shape_m"] * (1.3 - 0.6 * lo["lumps"]), L["v2_mid_shape_m"] * (1.3 - 0.6 * mi["lumps"])]
-        # (V2DetailSize: a deep layer's detail grows by sqrt(depth / v2_detail_deep_m))
+        # (as ATorqueSky sets MPC_Sky: fixed sizes; a deep layer erodes less, V2DeepErode)
+        self.scale = [L["v2_shape_m"], L["v2_mid_shape_m"]]
+        self.dscale = [L["v2_detail_m"], L["v2_mid_detail_m"]]
         depth = max(scene["top"] - scene["base"], 0.0)
         grow = lambda P: max(np.sqrt(max(depth * (P["top"] - P["bottom"]), 0.0) / L.get("v2_detail_deep_m", 3000.0)), 1.0)
-        self.dscale = [L["v2_detail_m"] * grow(lo), L["v2_mid_detail_m"] * grow(mi)]
+        self.deep = [1.0 / grow(lo) ** 2, 1.0 / grow(mi) ** 2]
         self.ext = L["v2_extinction"]
 
     def density(self, x, y, alt, shape_only=False):
@@ -132,10 +132,11 @@ class Clouds:
                 d = trilinear(self.detail, np.stack([x / ds, y / ds, alt / ds], -1))
                 df = d[..., 0] * 0.625 + d[..., 1] * 0.25 + d[..., 2] * 0.125
                 mod = df + ((1.0 - df) - df) * sat(h * 4.0)
-                erode = (L["v2_erode"] + L["v2_erode_ragged"] * P["ragged"]) * (1.0 - 0.5 * sat(dist_km / max(L.get("v2_detail_fade_km", 10.0), 0.1)))
+                erode = (L["v2_erode"] + L["v2_erode_ragged"] * P["ragged"]) * self.deep[ly] * (1.0 - 0.5 * sat(dist_km / max(L.get("v2_detail_fade_km", 10.0), 0.1)))
                 bc = sat(remap(bc, mod * erode, 1.0, 0.0, 1.0))
             # (crisp edges: a cumulus is dense right to its skin, not a fog thinning over a kilometre)
-            bc = sat(bc * (L["v2_edge_sharp"] + (1.0 - L["v2_edge_sharp"]) * sat(dist_km / max(L.get("v2_detail_fade_km", 10.0), 0.1))))
+            sharp = 1.0 + (L["v2_edge_sharp"] - 1.0) * self.deep[ly]
+            bc = sat(bc * (sharp + (1.0 - sharp) * sat(dist_km / max(L.get("v2_detail_fade_km", 10.0), 0.1))))
             thin = 1.0 + (L.get("v2_deck_thin", 1.0) - 1.0) * P["shape"]
             best = np.maximum(best, np.where(inside, bc * P["density"] * thin, 0.0))
         return best * self.ext

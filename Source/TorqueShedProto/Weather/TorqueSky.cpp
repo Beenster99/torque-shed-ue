@@ -436,11 +436,15 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidAlbedo"), (float)Mi.Albedo);
 		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
 		// The rebuilt clouds' figures (M_RideCloudV2; harmless to the old cloud, which doesn't read them).
-		SetMpc(SkyMpc, TEXT("V2LowShapeM"), (float)FMath::Max(Looks.V2ShapeM * (1.3 - 0.6 * FMath::Clamp(Lo.Look.Lumps, 0.0, 1.0)), 100.0));
+		// (sizes fixed: a size that followed the weather rescaled the whole sky about the level's origin, and the
+		// clouds slid or jumped as the weather changed, build 160; a deep layer erodes less instead)
+		SetMpc(SkyMpc, TEXT("V2LowShapeM"), (float)FMath::Max(Looks.V2ShapeM, 100.0));
+		SetMpc(SkyMpc, TEXT("V2LowDetailM"), (float)FMath::Max(Looks.V2DetailM, 10.0));
+		SetMpc(SkyMpc, TEXT("V2MidShapeM"), (float)FMath::Max(Looks.V2MidShapeM, 100.0));
+		SetMpc(SkyMpc, TEXT("V2MidDetailM"), (float)FMath::Max(Looks.V2MidDetailM, 10.0));
 		const double LayerDepth = FMath::Max(S.TopAsl - S.BaseAsl, 0.0);
-		SetMpc(SkyMpc, TEXT("V2LowDetailM"), (float)TorqueSky::V2DetailSize(Looks.V2DetailM, LayerDepth * FMath::Max(Lo.Top - Lo.Bottom, 0.0), Looks));
-		SetMpc(SkyMpc, TEXT("V2MidShapeM"), (float)FMath::Max(Looks.V2MidShapeM * (1.3 - 0.6 * FMath::Clamp(Mi.Look.Lumps, 0.0, 1.0)), 100.0));
-		SetMpc(SkyMpc, TEXT("V2MidDetailM"), (float)TorqueSky::V2DetailSize(Looks.V2MidDetailM, LayerDepth * FMath::Max(Mi.Top - Mi.Bottom, 0.0), Looks));
+		SetMpc(SkyMpc, TEXT("V2LowDeepErode"), (float)TorqueSky::V2DeepErode(LayerDepth * FMath::Max(Lo.Top - Lo.Bottom, 0.0), Looks));
+		SetMpc(SkyMpc, TEXT("V2MidDeepErode"), (float)TorqueSky::V2DeepErode(LayerDepth * FMath::Max(Mi.Top - Mi.Bottom, 0.0), Looks));
 		SetMpc(SkyMpc, TEXT("V2BroadM"), (float)FMath::Max(Looks.V2BroadM, 1000.0));
 		SetMpc(SkyMpc, TEXT("V2Patchy"), (float)Looks.V2Patchy);
 		SetMpc(SkyMpc, TEXT("V2Erode"), (float)Looks.V2Erode);
@@ -654,29 +658,70 @@ void ATorqueSky::TickWeatherMap()
 		}
 	}
 	if (!CloudMid || !MapTex) return;
-	// Painted again every so often or after the camera has moved; the camera's offset from the map's
-	// centre every frame (small numbers for the material).
+	// Painted again every so often or after the camera has moved, round a centre on whole texels of a grid
+	// fixed to the ground; then eased from what was shown to the new painting over the next repaint's time,
+	// so the clouds' cover changes gradually (build 160, beenster: "the clouds would change noticeably in
+	// the sky ... it wasn't a subtle shift"). The camera's offset from the centre every frame (small numbers).
 	const double Now = W->GetTimeSeconds();
+	const double TexelCm = FMath::Max(Looks.MapSizeM, 1000.0) * 100.0 / FMath::Max((double)MapTex->GetSizeX(), 1.0);
+	if (bMapCentrePending)
+	{
+		// (the texture moved with its new centre last frame: the offsets follow now, never a frame apart)
+		MapCentreShown = MapCentre;
+		bMapCentrePending = false;
+	}
 	if (Now - MapPaintedAt > Looks.MapRepaintS || FVector::Dist2D(Cam, MapCentre) > Looks.MapMoveM * 100.0)
 	{
-		const TorqueSky::WeatherMap M = TorqueSky::PaintWeatherMap(Grids, Lat, Lon, Looks);
+		const FVector Centre(FMath::RoundToDouble(Cam.X / TexelCm) * TexelCm, FMath::RoundToDouble(Cam.Y / TexelCm) * TexelCm, Cam.Z);
+		double CLat = Lat, CLon = Lon, CAsl = 0.0;
+		GS->GeoAt(Centre, CLat, CLon, CAsl);
+		const TorqueSky::WeatherMap M = TorqueSky::PaintWeatherMap(Grids, CLat, CLon, Looks);
 		if (M.Valid() && M.Px == MapTex->GetSizeX())
 		{
 			MapPaintedAt = Now;
-			MapCentre = Cam;
-			const int32 Bytes = M.Px * M.Px * 4;
-			uint8* Data = new uint8[Bytes];
-			FMemory::Memcpy(Data, M.Bgra.data(), Bytes);
-			FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, M.Px, M.Px);
-			MapTex->UpdateTextureRegions(0, 1, Region, (uint32)(M.Px * 4), 4, Data,
-				[](uint8* Src, const FUpdateTextureRegion2D* Regions) { delete[] Src; delete Regions; });
+			const bool bFirst = MapShown.size() != M.Bgra.size();
+			// What is shown now is where the easing starts, moved with the ground to the new centre.
+			MapFrom = bFirst ? M.Bgra : MapShown;
+			if (!bFirst && Centre != MapCentre)
+				TorqueSky::ShiftWeatherMap(MapFrom, M.Px, FMath::RoundToInt((Centre.X - MapCentre.X) / TexelCm), FMath::RoundToInt((Centre.Y - MapCentre.Y) / TexelCm));
+			MapTo = M.Bgra;
+			const double K = bFirst ? 1.0 : FMath::Clamp((Now - MapBlendAt) / FMath::Max(Looks.MapRepaintS, 1.0), 0.0, 1.0);
+			MapHereFrom[0] = bFirst ? M.HereLow : FMath::Lerp(MapHereFrom[0], MapHereTo[0], K);
+			MapHereFrom[1] = bFirst ? M.HereMid : FMath::Lerp(MapHereFrom[1], MapHereTo[1], K);
+			MapHereTo[0] = M.HereLow;
+			MapHereTo[1] = M.HereMid;
+			MapBlendAt = Now;
+			MapUploadAt = -1000.0;
+			if (Centre != MapCentre)
+			{
+				MapCentre = Centre;
+				bMapCentrePending = !bFirst;
+				if (bFirst) MapCentreShown = Centre;
+			}
 			SetMpc(TEXT("MapSize"), (float)M.SizeM);
-			SetMpc(TEXT("MapHereLow"), (float)M.HereLow);
-			SetMpc(TEXT("MapHereMid"), (float)M.HereMid);
 		}
 	}
-	SetMpc(TEXT("MapX"), (float)((Cam.X - MapCentre.X) / 100.0));
-	SetMpc(TEXT("MapY"), (float)((Cam.Y - MapCentre.Y) / 100.0));
+	// The easing, a few times a second (a 64 x 64 texture: cheap).
+	if (MapTo.size() > 0 && (Now - MapUploadAt > 0.2 || bMapCentrePending))
+	{
+		MapUploadAt = Now;
+		const double K = FMath::Clamp((Now - MapBlendAt) / FMath::Max(Looks.MapRepaintS, 1.0), 0.0, 1.0);
+		TorqueSky::BlendWeatherMap(MapFrom, MapTo, K, MapShown);
+		const int32 Px = MapTex->GetSizeX();
+		if ((int32)MapShown.size() == Px * Px * 4)
+		{
+			const int32 Bytes = Px * Px * 4;
+			uint8* Data = new uint8[Bytes];
+			FMemory::Memcpy(Data, MapShown.data(), Bytes);
+			FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, Px, Px);
+			MapTex->UpdateTextureRegions(0, 1, Region, (uint32)(Px * 4), 4, Data,
+				[](uint8* Src, const FUpdateTextureRegion2D* Regions) { delete[] Src; delete Regions; });
+		}
+		SetMpc(TEXT("MapHereLow"), (float)FMath::Lerp(MapHereFrom[0], MapHereTo[0], K));
+		SetMpc(TEXT("MapHereMid"), (float)FMath::Lerp(MapHereFrom[1], MapHereTo[1], K));
+	}
+	SetMpc(TEXT("MapX"), (float)((Cam.X - MapCentreShown.X) / 100.0));
+	SetMpc(TEXT("MapY"), (float)((Cam.Y - MapCentreShown.Y) / 100.0));
 	const float On = (float)FMath::Clamp(Looks.MapGain, 0.0, 2.0);
 	if (On != MapOnApplied) SetMpc(TEXT("MapOn"), On);
 	MapOnApplied = On;

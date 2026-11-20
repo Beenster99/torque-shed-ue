@@ -888,6 +888,31 @@ static void EngineTests()
 		}
 		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "front brake held at a standstill: the rider walks it backwards (m/s)", S.Speed);
 	}
+	{
+		// ([beenster, build 160] "the bikes can do a burnout backward") Lit while still rolling on at
+		// 2 m/s: it stops, then stays; it never goes back.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		S.AutoShift = false;
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		S.Gear = 1;
+		for (int i = 0; i < 600 && S.Speed < 2.0; ++i)
+		{
+			S.Throttle = 0.3;
+			S.Step(Dt);
+		}
+		double Back = 0.0;
+		for (int i = 0; i < 6 * 120; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Throttle = 1.0;
+			S.Step(Dt);
+			Back = std::min(Back, S.Speed);
+		}
+		Check(S.Burnout > 0.4 && Back > -0.15 && !S.IsCrashed, "burnout lit while rolling on: never goes backwards (slowest m/s)", Back);
+	}
 	for (const bool Aid : {false, true})
 	{
 		// Weight back, full throttle in first, Riding realism 0: anti-wheelie keeps the front skimming.

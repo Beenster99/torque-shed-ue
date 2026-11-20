@@ -77,6 +77,16 @@ void ATorqueWalker::FindFurniture()
 		TargetFurniture = 0;
 		return;
 	}
+	// [shelf] A part on the kit (on a shelf, on a trolley's deck) is inside the kit's box, past where the
+	// look first goes into it, but it's what you're looking at: the part, so it can be picked up.
+	if (Target == ETorqueLook::Item)
+		for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
+			if (UStaticMeshComponent* const* C = It->Pieces().Find(TargetFurniture))
+				if (*C && (*C)->Bounds.GetBox().ExpandBy(5.0).IsInside(TargetPoint))
+				{
+					TargetFurniture = 0;
+					return;
+				}
 	Target = ETorqueLook::None;
 	TargetItem = TargetEngine = 0;
 	TargetBay = INDEX_NONE;

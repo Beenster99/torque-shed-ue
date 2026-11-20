@@ -32,6 +32,7 @@ struct FTorqueShopFinish
 	FLinearColor Colour = FLinearColor::White;
 	float Metallic = -1.0f;
 	float Roughness = -1.0f;
+	bool bPicked = false;   // (chosen in the configurator: a V2 bike's bodywork shows it, else its model's own colour)
 };
 
 UCLASS(NotPlaceable, Transient)

@@ -889,6 +889,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	if (Page == EPage::Credits) return TEXT("MAP DATA");
 	if (Page == EPage::Route) return TEXT("ROUTE PLANNER");
+	if (Page == EPage::HelmetDecals) return TEXT("HELMET DECALS");
 	if (Page == EPage::SkyPresets) return TEXT("PRESET SKY");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
@@ -1791,6 +1792,14 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				[this, &Me, NumAv](int32 D) { Me.Avatar = Wrap(Me.Avatar + 1 + D, NumAv + 1) - 1; ProfileChanged(); });
 			FaceSlide(TEXT("Height"), Me.Height, Pv && Pv->Height() > 0.0 ? FString::Printf(TEXT("%.2f m"), Pv->Height() / 100.0) : FString::Printf(TEXT("%+.0f%%"), Me.Height * 6.0f),
 				TEXT("Shorter or taller than the MetaHuman's own height, by up to 6%"), false);
+			// [jacket] beenster's Crosswind leather jacket over the shirt (made for Avatar A so far).
+			{
+				const bool bOnA = Own.EndsWith(TEXT("_A"));
+				Add(TEXT("Jacket"), FString(FTorqueProfile::JacketName(Me.Jacket)) + (Me.Jacket > 0 && !bOnA ? TEXT(" (Avatar A only)") : TEXT("")),
+					TEXT("A leather jacket over your shirt, as everyone in co-op sees you; it fits Avatar A for now"),
+					[this, &Me]() { Me.Jacket = Wrap(Me.Jacket + 1, (int32)FTorqueProfile::NumJackets); ProfileChanged(); },
+					[this, &Me](int32 D) { Me.Jacket = Wrap(Me.Jacket + D, (int32)FTorqueProfile::NumJackets); ProfileChanged(); });
+			}
 			Heading(TEXT("FACE"));
 			for (int32 F = 0; F < FTorqueProfile::NumFace; ++F)
 				FaceSlide(FTorqueProfile::Sliders[F].Name, Me.Face[F], FString::Printf(TEXT("%+.1f"), Me.Face[F]), FTorqueProfile::Sliders[F].Hint, true);
@@ -1823,6 +1832,15 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				[this, &Me]() { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + 1, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); },
 				[this, &Me](int32 D) { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + D, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); });
 			R.Last().bHelmet = true;
+			// [helmet decals] (build 160, beenster: "decals added in the settings, profile section ...
+			// isolate this from the bike decal") A page of its own: the helmet big, the decal library beside it.
+			{
+				const int32 OnIt = (int32)TorqueFit::Decals::Parse(TorqueDecals::ToStd(TorqueDecals::MyHelmet())).size();
+				Add(TEXT("Helmet decals"), OnIt > 0 ? FString::Printf(TEXT("%d on it: change them"), OnIt) : FString(TEXT("Add some")),
+					TEXT("Lettering, stripes, artwork or your own pictures on your helmet, placed with the mouse on a big picture of it"),
+					[this]() { OpenHelmetDecals(); });
+				R.Last().bHelmet = true;
+			}
 		}
 		break;
 	}
@@ -1956,6 +1974,22 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	auto Just = [this](const FKey& K) { return WasInputKeyJustPressed(K); };
 	const bool bMenuKey = Just(EKeys::Escape) || Just(EKeys::Gamepad_Special_Right) || (Hit & ESonyButton::Options);
 
+	// [helmet decals] The helmet's decal page has the keys and the mouse while it's open; it closes
+	// itself (Esc, Leave), and the Profile page comes back.
+	if (ATorqueDecalMode* Dm = ATorqueDecalMode::For(this); Dm && Dm->IsHelmetOnly())
+	{
+		if (Page != EPage::HelmetDecals) Dm->TestExit();   // (the menu went: it goes too, unsaved)
+		else
+		{
+			if (Just(EKeys::Gamepad_FaceButton_Right) || (Hit & ESonyButton::Circle)) Dm->AskToLeave();
+			return;
+		}
+	}
+	else if (Page == EPage::HelmetDecals)
+	{
+		Back();
+		return;
+	}
 	if (Page == EPage::None)
 	{
 		if (bMenuKey && WantsPause()) OpenPause();
@@ -2233,6 +2267,11 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		if (AwardsScreen) AwardsScreen->Draw(Canvas, this);
 		return;
 	}
+	if (Page == EPage::HelmetDecals)   // [helmet decals] the helmet big, the library beside it
+	{
+		if (ATorqueDecalMode* Dm = ATorqueDecalMode::For(this)) Dm->DrawPanel(Hud, Canvas);
+		return;
+	}
 	const FMenuLayout L = MenuLayout(Canvas);
 	const float S = L.S;
 	const float Hair = FMath::Max(1.0f, FMath::RoundToFloat(S));
@@ -2485,7 +2524,7 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		if (Pv && Pv->HasAvatar())
 		{
 			Pv->DrawWorked(Canvas, PX, PY, PW, PH);
-			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
+			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom (into the face)    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
 				Ui::EAlign::Centre);
 		}
 		else
@@ -2752,10 +2791,22 @@ void ATorquePlayerController::UpdateProfilePreview()
 		const TArray<FRow> List = Rows();
 		const int32 At = DragRow >= 0 ? DragRow : Selected;
 		const bool bHelmetRow = PickDrag != 0 || (List.IsValidIndex(At) && List[At].bHelmet);
-		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet
-			: List.IsValidIndex(At) && List[At].bFace ? ATorqueProfilePreview::EView::Face : ATorqueProfilePreview::EView::Body;
+		// (Build 160: the whole figure on every avatar row, face rows too; the wheel zooms into the face.)
+		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet : ATorqueProfilePreview::EView::Body;
 	}
 	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Want, FTorqueSettings::Get().Colour);
+}
+
+void ATorquePlayerController::OpenHelmetDecals()
+{
+	FString Why;
+	if (!ATorqueDecalMode::OpenHelmet(this, Why))
+	{
+		Note = Why.IsEmpty() ? FString(TEXT("The helmet's decals couldn't open.")) : Why;
+		NoteFor = 4.0;
+		return;
+	}
+	Open(EPage::HelmetDecals);
 }
 
 void ATorquePlayerController::DrawProfile(AHUD* Hud, UCanvas* Canvas)

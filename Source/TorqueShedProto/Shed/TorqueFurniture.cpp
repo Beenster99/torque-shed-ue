@@ -239,9 +239,96 @@ bool IsTrolley(const FModel& M)
 	return M.Kind == FName(TEXT("trolley"));
 }
 
+bool IsShelf(const FModel& M)
+{
+	return M.Kind == FName(TEXT("shelf"));
+}
+
+bool Carries(const FModel& M)
+{
+	return IsTrolley(M) || IsShelf(M);
+}
+
+int32 ShelfBoards(const FModel& M, double* Tops, int32 Max, double& Post)
+{
+	if (!IsShelf(M) || !Tops || Max <= 0) return 0;
+	// make_props.py: shelf_tall has five shelves, the rest four; the racking (heavy) has 6 cm posts.
+	const int32 Levels = M.Id == FName(TEXT("shelf_tall")) ? 5 : 4;
+	const bool bHeavy = M.Id == FName(TEXT("shelf_racking")) || M.Id == FName(TEXT("shelf_delivery"));
+	Post = bHeavy ? 6.0 : 4.0;
+	const double H = M.Size.Y, Pitch = (H - 15.0) / Levels;
+	int32 N = 0;
+	for (int32 L = 0; L <= Levels && N < Max; ++L)
+		Tops[N++] = FMath::Min(6.0 + L * Pitch, H - 2.0) + 0.9;   // (each board 1.8 cm thick, its middle at the pitch)
+	return N;
+}
+
+bool ShelfDropFor(const FModel& M, const FTransform& Xf, const FVector& Eye, const FVector& Look, const FVector& Size, double DropYaw,
+	FTransform& Out, double& Ceiling, double& Dist, FString& WhyNot)
+{
+	double Tops[8];
+	double Post = 4.0;
+	const int32 N = ShelfBoards(M, Tops, UE_ARRAY_COUNT(Tops), Post);
+	if (N == 0) return false;
+	// In the unit's own frame (its x along it, y front to back, z up from its foot).
+	const FVector O = Xf.InverseTransformPosition(Eye);
+	const FVector D = Xf.InverseTransformVectorNoScale(Look).GetSafeNormal();
+	const FVector Lo(-M.Size.X * 0.5, -M.Size.Z * 0.5, 0.0), Hi(M.Size.X * 0.5, M.Size.Z * 0.5, M.Size.Y);
+	double TIn = 0.0, TOut = 1.0e9;
+	for (int32 A = 0; A < 3; ++A)
+	{
+		if (FMath::Abs(D[A]) < 1.0e-6)
+		{
+			if (O[A] < Lo[A] || O[A] > Hi[A]) return false;
+			continue;
+		}
+		double T0 = (Lo[A] - O[A]) / D[A], T1 = (Hi[A] - O[A]) / D[A];
+		if (T0 > T1) Swap(T0, T1);
+		TIn = FMath::Max(TIn, T0);
+		TOut = FMath::Min(TOut, T1);
+	}
+	if (TIn > TOut) return false;
+	Dist = TIn;
+	// The board the look comes down on inside the unit; else the one under the gap it goes into (with
+	// a little over, so a board's front edge looked at is that board).
+	int32 Board = INDEX_NONE;
+	double At = TIn;
+	if (D.Z < -1.0e-3)
+		for (int32 K = N - 1; K >= 0; --K)
+		{
+			const double T = (Tops[K] - O.Z) / D.Z;
+			if (T < TIn - 0.01 || T > TOut + 0.01) continue;
+			Board = K;
+			At = T;
+			break;
+		}
+	if (Board == INDEX_NONE)
+	{
+		const double Enter = O.Z + D.Z * TIn;
+		Board = 0;
+		for (int32 K = 0; K < N; ++K)
+			if (Tops[K] <= Enter + 4.0) Board = K;
+	}
+	// Squared to the unit: the turn it had in your hands, to the nearest quarter.
+	const double UnitYaw = Xf.Rotator().Yaw;
+	const double Quarter = FMath::RoundToDouble(FRotator::NormalizeAxis(DropYaw - UnitYaw) / 90.0);
+	const bool bAcross = FMath::Abs(FMath::Fmod(Quarter, 2.0)) > 0.5;
+	const double Along = (bAcross ? Size.Y : Size.X) * 0.5, Deep = (bAcross ? Size.X : Size.Y) * 0.5;
+	const double Room = M.Size.X * 0.5 - Post;
+	const double X = FMath::Clamp(O.X + D.X * At, -FMath::Max(Room - Along, 0.0), FMath::Max(Room - Along, 0.0));
+	Ceiling = Board + 1 < N ? Tops[Board + 1] - 1.8 : 1.0e9;
+	WhyNot.Reset();
+	if (Along > Room + 1.0) WhyNot = TEXT("It's too long for this shelving. Turn it (R), or try the floor.");
+	else if (Deep > M.Size.Z * 0.5 + 15.0) WhyNot = TEXT("It's too deep for this shelving: it would hang off the front.");
+	else if (Tops[Board] + Size.Z > Ceiling + 1.0) WhyNot = TEXT("It won't fit under the shelf above. Try a lower shelf, or the top.");
+	Out = FTransform(FRotator(0.0, UnitYaw + 90.0 * Quarter, 0.0), Xf.TransformPosition(FVector(X, 0.0, Tops[Board])));
+	Ceiling = Ceiling < 1.0e8 ? Xf.GetLocation().Z + Ceiling : Ceiling;
+	return true;
+}
+
 bool OnTrolley(const FModel& M, const FTransform& TrolleyXf, const FVector& At)
 {
-	if (!IsTrolley(M)) return false;
+	if (!Carries(M)) return false;
 	// The model's x is its width, its y its depth (front to back), up its height.
 	const FVector L = TrolleyXf.InverseTransformPosition(At);
 	return FMath::Abs(L.X) <= M.Size.X * 0.5 + 4.0 && FMath::Abs(L.Y) <= M.Size.Z * 0.5 + 4.0 && L.Z > 4.0 && L.Z < M.Size.Y + 250.0;
@@ -571,7 +658,7 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 		const FTransform Was = F->Xf;
 		F->Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), FVector(At.X, At.Y, bLifted ? FMath::Clamp(At.Z, -10.0, 400.0) : 0.0));
 		// [trolley] What's on its deck (boxes, stacks of them, parts) goes where it went.
-		if (M && TorqueFurniture::IsTrolley(*M))
+		if (M && TorqueFurniture::Carries(*M))   // [shelf] and what's on a shelving unit's boards
 		{
 			int32 Carried = 0;
 			for (TPair<int32, FTorqueItem>& KV : Items)

@@ -4,6 +4,7 @@
 #include "World/WorldRoam.h"
 #include <algorithm>
 #include "TorqueDash.h"
+#include "TorqueLeafFall.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
 #include "Shed/TorqueProfile.h"
@@ -39,6 +40,7 @@
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueFerry.h"
 #include "World/TorqueImpostors.h"
 #include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
@@ -337,6 +339,35 @@ bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<do
 	return true;
 }
 
+bool ATorqueRideWorld::PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, UStaticMesh*& OutMesh, FTransform& OutAt)
+{
+	// (PlaceProps's own sums for one prop, level, at its own scale)
+	OutMesh = nullptr;
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->PropModels.IsValidIndex(Kind) || !Ride->PropFix.IsValidIndex(Kind)) return false;
+	const TArray<int32>& Choice = Ride->PropModels[Kind];
+	if (Choice.Num() == 0) return false;
+	const int32 Mi = Choice[FMath::Abs(Variant) % Choice.Num()];
+	if (!Ride->PropKit.IsValidIndex(Mi)) return false;
+	const FTorqueFoliageSpecies& S = Ride->PropKit[Mi];
+	UStaticMesh* Model = S.Mesh.Get();
+	if (!Model) return false;
+	const FVector& Fix = Ride->PropFix[Kind];
+	const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(Ride->PropFrame.Z));
+	const double Size = (Own > 1.0 && Fix.X > 0.0 ? Fix.X / Own : 1.0) * S.ScaleMultiplier;
+	const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(Yaw) + Fix.Y + (S.bNativeMesh ? 0.0 : Ride->PropFrame.X)));
+	const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * Ride->PropFrame.Z, Size * Ride->PropFrame.Z * Ride->PropFrame.Y, Size * Ride->PropFrame.Z);
+	FVector At = Spot - FVector(0.0, 0.0, Fix.Z);
+	if (Kind == TorqueWorld::RidePlan::PropParkedCar)
+	{
+		const FBoxSphereBounds Box = Model->GetBounds();
+		At += Rot.RotateVector(FVector(-Box.Origin.X, -Box.Origin.Y, -(Box.Origin.Z - Box.BoxExtent.Z)) * Scale3);
+	}
+	OutMesh = Model;
+	OutAt = FTransform(Rot, At, Scale3);
+	return true;
+}
+
 bool ATorqueRideWorld::RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which)
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -394,6 +425,22 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
 	// [waypoint] Going by a place picked in the info panel: its way, on or off the ride's road, until
 	// it's reached (then the way on is the way back to the ride's road, as after any detour).
+	// [ferries stage 5] (over the water: nearer the ferry's landing than its boarding, off the ride's road)
+	if (const std::shared_ptr<const RidePlan::FerryLink>& Ferry = Ride->Plan->Ferry)
+	{
+		// (off the ride's road, or past its end: a short crossing's far bank may be within its reach)
+		const double ToLand = FVector2D::Distance(Here, FVector2D(Ferry->Land.X, Ferry->Land.Z)), ToBoard = FVector2D::Distance(Here, FVector2D(Ferry->Board.X, Ferry->Board.Z));
+		const bool bOver = ToLand < ToBoard && ToBoard > 20.0 && (N.OffRoute || N.Along > Ride->Plan->FinishM - 30.0);
+		if (bOver != S.bFerryOver)
+		{
+			S.bFerryOver = bOver;
+			S.Detour.reset();
+			S.LastTry = -1e9;
+			S.OffSince = Now - 10.0;   // (the way on found at once)
+			UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s the %s ferry"), bOver ? TEXT("over") : TEXT("back across"), UTF8_TO_TCHAR(Ferry->Name.c_str()));
+		}
+		if (S.bFerryOver) N.OffRoute = true;   // (the way on is all there is)
+	}
 	bool bViaNav = false;
 	if (S.bVia)
 	{
@@ -472,7 +519,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		if (!bOnIt && Now - S.OffSince > 3.0 && Now - S.LastTry > 4.0)
 		{
 			S.LastTry = Now;
-			S.Detour = Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
+			S.Detour = S.bFerryOver ? Ride->Plan->FerryOnward(X, Z, S.Heading) : Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
 			if (S.Detour)
 			{
 				Back = Ride->Plan->NavDetour(*S.Detour, X, Z);
@@ -1377,16 +1424,15 @@ const FABStep ABSteps[] = {
 	{TEXT("FXAA instead of TSR/TAA"), TEXT("r.AntiAliasingMethod=1"), 0},
 	{TEXT("as set again"), TEXT(""), 0},
 };
-// ([seasonal trees TEST, Nov 19] -TorqueRideAB=2: the four seasons on the scanned trees (Tools/ue_tree_season.py),
-// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png. Start it after the impostors are
-// photographed (-TorqueRideABAfter=90), or they're photographed in the season of the moment.)
+// ([seasonal trees, Nov 20] -TorqueRideAB=2: the four seasons on our own trees (Tools/tree_models.py, M_Tree),
+// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png.)
 const FABStep SeasonSteps[] = {
-	{TEXT("summer, as now"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("the ride's date"), TEXT("torque.RideTreeSeason=0"), 0},
 	{TEXT("spring"), TEXT("torque.RideTreeSeason=1"), 0},
 	{TEXT("summer"), TEXT("torque.RideTreeSeason=2"), 0},
 	{TEXT("autumn"), TEXT("torque.RideTreeSeason=3"), 0},
 	{TEXT("winter"), TEXT("torque.RideTreeSeason=4"), 0},
-	{TEXT("summer, as now, again"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("the ride's date again"), TEXT("torque.RideTreeSeason=0"), 0},
 };
 constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
 constexpr int32 SeasonCount = UE_ARRAY_COUNT(SeasonSteps);
@@ -1869,6 +1915,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		Update(At, false);
 	}
 	ATorqueForecourtGarage::Keep(this, *Plan, At);   // [garage] the forecourts' garage units near the rider
+	ATorqueFerry::Keep(this, *Plan, At);   // [ferries] the ferries near the rider
 	{
 		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
 		RideCosts::FScope Cost(RideCosts::RoadLook);
@@ -2495,7 +2542,16 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// One plant's model, size and place, with the kit's species chosen from Among, grouped with Patch.
 		auto AddPlant = [&](const TArray<int32>& Among, int32 Patch)
 		{
-			const int32 Si = Among[FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1)];
+			// ([Nov 20] our trees come in 5 ages a kind: as with the scans, torque.RideTreeVariants of them at most
+			// (3: the youngest, the middle and the oldest), so a square keeps as few groups as it had)
+			int32 Ai = FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1);
+			if (bTree && P.Kind < TorqueWorld::RidePlan::HedgeKind && Among.Num() > 2)
+			{
+				const int32 Use = FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, Among.Num());
+				const int32 J = FMath::Min(int32(P.Pick * Use), Use - 1);
+				Ai = Use > 1 ? FMath::RoundToInt(float(J) * float(Among.Num() - 1) / float(Use - 1)) : Among.Num() / 2;
+			}
+			const int32 Si = Among[Ai];
 			const FTorqueFoliageSpecies& S = Kit[Si];
 			if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) return;   // (bigger scanned plants: fewer of them)
 			const int32 Models = bTree ? FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, FMath::Max(S.Variants.Num(), 1)) : S.Variants.Num();
@@ -2608,7 +2664,10 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bVisibleInRayTracing = false;
 		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
 		const bool bImpostor = bImpostorGroup || (bTree && S.Name.ToString().EndsWith(TEXT("_imp")));
-		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		const int32 WpoCm = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		// ([build 165] a near broadleaf's or a garden plant's fallen leaves need their offset further out
+		// while leaves are down: TorqueLeafFall.h)
+		TorqueLeafFall::Apply(Ism, WpoCm, bTree && !bImpostor && !bFarTree && TorqueLeafFall::IsLeafyTreeName(Model->GetName()));
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2620,8 +2679,10 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		else if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
-		Ism->RegisterComponent();
+		// ([perf, build 165] the instances in before it registers: its render state made once, with them,
+		// not made empty and then rebuilt; 164's Brecbowie read "our worst job 19/8 OVER (plants)")
 		Ism->AddInstances(Group.Value, false, false);
+		Ism->RegisterComponent();
 		if (!bReused) AddInstanceComponent(Ism);
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.Num();

@@ -393,14 +393,23 @@ private:
 	// Where the part in your hands goes down on the floor: arm's length plus CarryReach ahead (short
 	// of a wall), turned by HoldTurn (walker.gd _push_transform, for a part).
 	FTransform CarryDrop() const;
+	// [shelf] The part in your hands looked at a shelving unit with: where it goes on the board you look
+	// at (TorqueFurniture::ShelfDropFor), the underside of the board above, and why it won't fit (empty:
+	// it does). False: no shelving in the look.
+	bool ShelfDrop(FTransform& Out, double& Ceiling, FString& WhyNot) const;
+	void ShelfPlan();   // MakePlan's last word on a drop onto shelving
 	int32 SprayColour = 0;
 	int32 FadeStyle = 0;               // the gun's Fade load: which fade (R steps through them), TorquePaintMix::FirstFade + this
-	// The cups picker: which cup it's on (INDEX_NONE: shut), each cup's colour and finish as picked,
-	// and the cup filling after Enter (seconds; < 0: not filling).
+	// The cups picker: which cup it's on (INDEX_NONE: shut), each cup's colour (hue 0 .. 360,
+	// richness, brightness, of its sRGB) and finish as picked, the cup filling after Fill (seconds;
+	// < 0: not filling), and what the mouse is dragging (0 nothing, 1 the colour square, 2 the hue strip).
 	int32 CupPick = INDEX_NONE;
-	int32 PickColour[2] = {0, 5};
-	int32 PickFinish[2] = {0, 0};
+	FVector3f PickHsv[2] = {FVector3f(0.0f, 0.0f, 0.04f), FVector3f(42.0f, 0.71f, 0.79f)};
+	int32 PickFinish[2] = {0, 2};
 	double PickFill = -1.0;
+	int32 CupDrag = 0;
+	void FillPickedCup();
+	void LoadFade();   // the gun's Fade load, as T steps to it
 	// Spraying a fade: the cup picked by hand with [ or ] (INDEX_NONE: the game's own step, cup 1's
 	// base coat first, then cup 2).
 	int32 FadeCup = INDEX_NONE;

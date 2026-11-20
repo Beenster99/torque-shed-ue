@@ -474,7 +474,7 @@ FString UTorqueBuildSubsystem::CheckPaintBay(int32 Peer, const FTorqueShedReques
 		{
 			// A colour and finish picked straight into a cup ([ and ]): no tin needed.
 			if (R.Item < 0 || R.Item > 1) return TEXT("The spray gun has two cups.");
-			if (!Paints().IsValidIndex(R.Colour)) return TEXT("There's no colour like that.");
+			if (!Paints().IsValidIndex(R.Colour) && !(R.Colour < 0 && R.Colour >= -0x1000000)) return TEXT("There's no colour like that.");   // (< 0: any colour)
 			if (!Finishes().Contains(R.Finish)) return TEXT("There's no finish like that.");
 			return FString();
 		}

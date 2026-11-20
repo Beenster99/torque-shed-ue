@@ -29,7 +29,7 @@ def log(msg):
 
 
 def gs(*names):
-    for home in ("GeometryScript_AssetUtils", "GeometryScript_NewAssetUtils", "GeometryScript_MeshQueryFunctions",
+    for home in ("GeometryScript_MeshUVFunctions", "GeometryScript_AssetUtils", "GeometryScript_NewAssetUtils", "GeometryScript_MeshQueryFunctions",
                  "GeometryScript_MeshMaterialFunctions", "GeometryScript_StaticMeshFunctions"):
         c = getattr(unreal, home, None)
         for n in names:
@@ -94,6 +94,30 @@ def tris_by_material(dm):
                     break
     except Exception as e:
         log("  (triangles by material: %s)" % e)
+    if not out and total > 0:
+        # ([round 160] the list form gave "?": one triangle at a time)
+        one = gs("get_triangle_material_id")
+        try:
+            for t in range(total) if one is not None else []:
+                r = one(dm, t)
+                m = r[0] if isinstance(r, (tuple, list)) else r
+                out[int(m)] = out.get(int(m), 0) + 1
+        except Exception as e:
+            log("  (triangle material ids: %s)" % e)
+    # ([build 161] what else the copy carries: conifer needles may be cards a material expands from
+    # extra UV channels, which a copy that kept only UV 0 would leave at zero size)
+    info = []
+    for label, fname in (("UV sets", "get_num_uv_sets"),):
+        f = gs(fname)
+        try:
+            info.append("%s %s" % (label, f(dm) if f else "?"))
+        except Exception as e:
+            info.append("%s ? (%s)" % (label, e))
+    try:
+        info.append("attributes %s" % ("on" if dm.has_attributes() else "off") if hasattr(dm, "has_attributes") else "")
+    except Exception:
+        pass
+    out["_info"] = ", ".join(x for x in info if x)
     return total, out
 
 
@@ -144,7 +168,7 @@ def check(static_path):
         log("%s: static copy slot %d %s -> %s" % (name, k, m.get_editor_property("material_slot_name"), mi.get_path_name() if mi else None))
     try:
         total, by = static_copy_tris(sm)
-        log("%s: static copy (source model): %d triangles; by material slot: %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted(by.items())) or "?"))
+        log("%s: static copy (source model): %d triangles; by material slot: %s; %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted((k, v) for k, v in by.items() if k != "_info")) or "?", by.get("_info", "")))
     except Exception as e:
         log("%s: static copy count failed: %s" % (name, e))
     nanite_of(sm, "%s: static copy" % name)
@@ -162,6 +186,37 @@ def check(static_path):
     for k, m in enumerate(skel.get_editor_property("materials")):
         mi = m.get_editor_property("material_interface")
         log("%s:   slot %d %s -> %s" % (name, k, m.get_editor_property("material_slot_name"), mi.get_path_name() if mi else None))
+        # ([build 162] the needles' material: its master, how it blends, and what it may be used with)
+        base = mi.get_base_material() if mi else None
+        if base is not None:
+            flags = []
+            for f in ("blend_mode", "two_sided", "shading_model", "used_with_skeletal_mesh", "used_with_instanced_static_meshes",
+                      "used_with_nanite", "used_with_static_lighting", "opacity_mask_clip_value", "is_masked"):
+                try:
+                    flags.append("%s=%s" % (f, base.get_editor_property(f)))
+                except Exception:
+                    pass
+            log("%s:     base %s: %s" % (name, base.get_path_name(), ", ".join(flags)))
+    for home in ("SkeletalMeshEditorSubsystem", "EditorSkeletalMeshLibrary"):
+        h = getattr(unreal, home, None)
+        if h is None:
+            continue
+        try:
+            o = unreal.get_editor_subsystem(h)
+        except Exception:
+            o = h
+        try:
+            n = int(o.get_num_sections(skel, 0))
+            log("%s: %s: LOD 0 has %d sections -> slots %s" % (name, home, n, [int(o.get_lod_material_slot(skel, 0, k)) for k in range(n)]))
+        except Exception as e:
+            log("%s: %s: sections: %s; has %s" % (name, home, e, ", ".join(x for x in dir(o) if "section" in x.lower() or "material" in x.lower())))
+    f = gs("get_section_material_list_from_skeletal_mesh")
+    if f is not None:
+        try:
+            res = f(skel, unreal.GeometryScriptMeshReadLOD())
+            log("%s: skeletal LOD0 sections' materials (the copy's material IDs follow these): %s" % (name, str(res)[:600]))
+        except Exception as e:
+            log("%s: section materials: %s" % (name, e))
     copy = gs("copy_mesh_from_skeletal_mesh")
     if copy is not None:
         try:
@@ -169,7 +224,7 @@ def check(static_path):
             res = copy(skel, dm, unreal.GeometryScriptCopyMeshFromAssetOptions(), unreal.GeometryScriptMeshReadLOD())
             dm = res[0] if isinstance(res, (tuple, list)) else dm
             total, by = tris_by_material(dm)
-            log("%s: skeletal copy: %d triangles; by material slot: %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted(by.items())) or "?"))
+            log("%s: skeletal copy: %d triangles; by material slot: %s; %s" % (name, total, ", ".join("%s: %d" % kv for kv in sorted((k, v) for k, v in by.items() if k != "_info")) or "?", by.get("_info", "")))
         except Exception as e:
             log("%s: skeletal copy failed: %s" % (name, e))
     nanite_of(skel, "%s: skeletal" % name)
@@ -191,6 +246,19 @@ def check(static_path):
                 ", ".join(str(x.get_editor_property("material_slot_name")) for x in part.get_editor_property("static_materials"))))
         except Exception as e:
             log("%s:   part beside it: %s (%s)" % (name, a.asset_name, e))
+    # ([build 163] the Megaplants' leaves live in the Nanite foliage assembly; Epic's forum: converting one
+    # to a plain static mesh drops them. What can the Procedural Vegetation asset and the skeletal mesh
+    # offer from Python to get a static mesh WITH them?)
+    for a in reg.get_assets_by_path(folder, recursive=True):
+        if str(a.asset_class_path.asset_name) != "ProceduralVegetation":
+            continue
+        pve = unreal.load_asset("%s.%s" % (a.package_name, a.asset_name))
+        log("%s:   PVE %s functions: %s" % (name, a.asset_name, ", ".join(n for n in dir(pve) if not n.startswith("_"))[:1500]))
+        props_of(pve, "pve")
+    log("%s:   skeletal mesh functions: %s" % (name, ", ".join(n for n in dir(skel) if any(w in n.lower() for w in ("assembl", "nanite", "static", "export", "bake", "merge")))))
+    for home in dir(unreal):
+        if any(w in home.lower() for w in ("proceduralveget", "pvexport", "naniteassembl", "assemblylib", "vegetation")):
+            log("%s:   unreal.%s: %s" % (name, home, ", ".join(n for n in dir(getattr(unreal, home)) if not n.startswith("_"))[:800]))
     # (anything else in that folder that isn't a mesh, texture or material: assembly / vegetation assets)
     for a in reg.get_assets_by_path(folder, recursive=True):
         cls = str(a.asset_class_path.asset_name)

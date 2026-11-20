@@ -26,6 +26,7 @@
 #include "World/CellStore.h"
 #include "World/HeightTiles.h"
 #include "World/WorldCache.h"
+#include "World/WorldFerries.h"
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
 #include "World/WorldRideCircuits.h"
@@ -46,8 +47,10 @@ struct FTorqueWorldShared
 	TorqueWorld::CellStore Cells;
 	TorqueWorld::HeightStore Heights;
 	TorqueWorld::Route::MapRoads MapRoads;   // [build 147] the planner's road map's main roads
+	TorqueWorld::Route::MapStreets MapStreets;   // [map detail] and zoomed in, every road of the cells in view
 	TorqueWorld::Route::MapImagery Imagery;  // [build 147] the planner's satellite pictures
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
+	std::atomic<bool> bMapMoved{false};   // [map detail] the planner's map asked for again while one draws
 	std::atomic<bool> bOffline{false};   // [stage 8] Settings' offline: nothing is fetched
 };
 
@@ -205,6 +208,14 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			const bool bCircuits = TorqueWorld::Files::Read(CircuitPath, CircuitText) && TorqueWorld::SetCircuitNotes(CircuitText);
 			const std::shared_ptr<const TorqueWorld::CircuitNotes> Notes = TorqueWorld::CircuitNotesNow();
 			UE_LOG(LogTemp, Display, TEXT("Torque world: circuit notes: %d%s"), Notes ? int32(Notes->Circuits.size()) : 0, bCircuits ? TEXT("") : TEXT(" (none: Data/RideUK/circuits.json unreadable)"));
+		}
+		// [ferries stage 5] The ferries the route planner may take (Data/RideUK/ferries.json).
+		{
+			std::string FerryText;
+			const std::string FerryPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/ferries.json")));
+			const bool bFerries = TorqueWorld::Files::Read(FerryPath, FerryText) && TorqueWorld::Ferries::SetList(FerryText);
+			const std::shared_ptr<const std::vector<TorqueWorld::Ferries::Listed>> FerryList = TorqueWorld::Ferries::ListNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: ferries: %d%s"), FerryList ? int32(FerryList->size()) : 0, bFerries ? TEXT("") : TEXT(" (none: Data/RideUK/ferries.json unreadable)"));
 		}
 		// [towns stage 5] The materials atlas: the local building stones and bricks by area.
 		std::string AtlasText;
@@ -566,6 +577,7 @@ void UTorqueWorldSubsystem::AskMap(const TorqueWorld::Route::MapView& View)
 	{
 		MapNext = View;
 		bMapWaiting = true;
+		Shared->bMapMoved = true;
 		return;
 	}
 	DrawMap(View);
@@ -575,6 +587,7 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 {
 	bMapBusy = true;
 	bMapWaiting = false;
+	if (Shared) Shared->bMapMoved = false;
 	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
 	TWeakObjectPtr<UTorqueWorldSubsystem> Self(this);
 	if (MapRun.IsValid()) MapRun.Wait();
@@ -583,23 +596,57 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		const auto Draw = [&Held, &View]()
 		{
 			std::vector<uint8_t> Px;
-			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery);
-			TArray<uint8> Out;
-			Out.Append(Px.data(), int32(Px.size()));
+			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery, &Held->MapStreets);
+			FTorqueMapPicture Out;
+			Out.Pixels.Append(Px.data(), int32(Px.size()));
+			// [map detail] (and the roads' names to write over it, found here rather than on the game thread)
+			if (TorqueWorld::Route::RoadLayer(View.Layer)) Out.Names = Held->MapStreets.Labels(View);
 			return Out;
 		};
+		// [map detail] Zoomed in, the roads of the cells in view: those on disk at once, the rest fetched
+		// (the middle's first) while the first picture shows, given up on once the view has moved on.
+		const bool bRoads = TorqueWorld::Route::RoadLayer(View.Layer);
+		const auto Moved = [&Held]() { return Held->bStop.load() || Held->bMapMoved.load(); };
+		const auto Streets = [&Held, &View, &Moved](int Load, int* Loaded)
+		{
+			return TorqueWorld::KnowStreets(Held->Cells, Held->MapStreets, View, Load, Moved, Loaded);
+		};
+		// (a few cells at a time, the picture drawn again after each few, so the roads come in round the middle first)
+		const auto FetchStreets = [&]()
+		{
+			int Was = TNumericLimits<int32>::Max();
+			for (int Round = 0; Round < 16 && !Moved(); ++Round)
+			{
+				int Loaded = 0;
+				const int Missing = Streets(3, &Loaded);
+				if (Loaded == 0 || Missing >= Was || Moved()) return;   // (none read this round: offline, or cells that won't read)
+				Was = Missing;
+				FTorqueMapPicture More = Draw();
+				AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(More)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), false); });
+			}
+		};
 		// [build 147] The satellite layer: its pictures on disk at once, then again with those that weren't.
-		if (View.Layer == TorqueWorld::Route::Satellite)
+		if (TorqueWorld::Route::PhotoLayer(View.Layer))
 		{
 			const std::vector<TorqueWorld::TileKey> Pics = TorqueWorld::Route::MapImagery::Keys(View);
 			bool bHave = true;
 			for (const TorqueWorld::TileKey& K : Pics) bHave = bHave && Held->Imagery.OnDisk(K);
-			TArray<uint8> First = Draw();
+			if (bRoads)
+			{
+				// (the main roads too, as the road map has them)
+				std::set<TorqueWorld::CellId> Under;
+				for (const TorqueWorld::TileKey& K : View.Tiles())
+					for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
+				TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24, &Held->MapRoads);
+				bHave = Streets(0, nullptr) == 0 && bHave;   // (none read yet: the picture first)
+			}
+			FTorqueMapPicture First = Draw();
 			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bHave]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bHave); });
 			if (bHave || Held->bStop) return;
 			Held->Imagery.Fetch(Pics, Held->Cells.Get, 6);
+			if (bRoads && !Held->bStop) FetchStreets();
 			if (Held->bStop) return;
-			TArray<uint8> Second = Draw();
+			FTorqueMapPicture Second = Draw();
 			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
 			return;
 		}
@@ -611,25 +658,28 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 			for (const TorqueWorld::TileKey& K : Keys)
 				for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
 			TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24,
-				View.Layer == TorqueWorld::Route::RoadMap ? &Held->MapRoads : nullptr);
+				bRoads ? &Held->MapRoads : nullptr);
 		}
 		bool bAll = true;
 		for (const TorqueWorld::TileKey& K : Keys) bAll = bAll && Held->Heights.Has(K);
-		TArray<uint8> First = Draw();
+		if (bRoads) bAll = Streets(0, nullptr) == 0 && bAll;
+		FTorqueMapPicture First = Draw();
 		AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bAll]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bAll); });
 		if (bAll || Held->bStop) return;
 		Held->Heights.Fetch(Keys, Held->Cells.Get, 6);
+		if (bRoads && !Held->bStop) FetchStreets();
 		if (Held->bStop) return;
-		TArray<uint8> Second = Draw();
+		FTorqueMapPicture Second = Draw();
 		AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
 	});
 }
 
-void UTorqueWorldSubsystem::MapDone(const TorqueWorld::Route::MapView& View, TArray<uint8>&& Pixels, bool bFinal)
+void UTorqueWorldSubsystem::MapDone(const TorqueWorld::Route::MapView& View, FTorqueMapPicture&& Picture, bool bFinal)
 {
 	// (a picture of a view since moved on from is still shown while the newer one draws)
 	MapDrawn = View;
-	MapPixels = MoveTemp(Pixels);
+	MapPixels = MoveTemp(Picture.Pixels);
+	MapNames = std::move(Picture.Names);
 	bMapNew = true;
 	if (!bFinal) return;
 	bMapBusy = false;

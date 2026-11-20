@@ -15,13 +15,13 @@ namespace
 const char* const KindNames[RidePlan::PlantKinds] = {
 	"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "tuft_a", "tuft_b", "tussock_a", "tussock_b", "matgrass", "far_a", "far_b",
 	"rush_a", "rush_b", "heather_twig_a", "heather_twig_b", "heather_a", "heather_b", "bracken",
-	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel", "hedge",
-	"garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree"};
+	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel", "holly", "larch", "hedge",
+	"garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", "garden_hedge"};
 
 enum Kind : uint16_t
 {
 	CarpetGreen, CarpetMoor, CarpetFarGreen, CarpetFarMoor, TuftA, TuftB, TussockA, TussockB, MatGrass, FarA, FarB, RushA, RushB,
-	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel, Hedge
+	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel, Holly, Larch, Hedge
 };
 
 // The cover ids the baker writes (Terrain::Cover).
@@ -80,6 +80,8 @@ int RidePlan::PlantStandIn(int Kind)
 	case Rowan: return Birch;
 	case Pine: return Spruce;
 	case Hazel: return Hawthorn;
+	case Holly: return Hawthorn;
+	case Larch: return Spruce;
 	default: return Kind;
 	}
 }
@@ -516,8 +518,10 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				}
 				// (a second roll for which broadleaf or which conifer, so the first's split stays as it was)
 				const double Which = Hash(Gx, Gz, 18u);
-				if (Needle) What = Which < 0.6 ? Spruce : Pine;   // (the plantations' spruce, Scots pine)
-				else if (Tall < 6.5) What = Which < 0.65 ? Hawthorn : Which < 0.9 ? Hazel : Rowan;
+				// ([Nov 20] and larch, gold in autumn and bare in winter, among the plantations; holly in the
+				// understorey and the scrub, green all year)
+				if (Needle) What = Which < 0.5 ? Spruce : Which < 0.8 ? Pine : Larch;   // (the plantations' spruce, Scots pine, larch)
+				else if (Tall < 6.5) What = Which < 0.55 ? Hawthorn : Which < 0.78 ? Hazel : Which < 0.9 ? Holly : Rowan;
 				else
 				{
 					// A Dales wood: ash and sycamore, oak, some beech and birch, the odd rowan; alder and
@@ -525,7 +529,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 					const Here H = Look(X, Z);
 					const double Wet = H.Wet + (H.Cover == CWetland ? 0.3 : 0.0);
 					if (Roll < 0.1 + 0.4 * Smooth(0.45, 0.8, Wet)) What = Which < 0.7 ? Alder : Willow;
-					else What = Which < 0.32 ? Ash : Which < 0.55 ? Sycamore : Which < 0.77 ? Oak : Which < 0.86 ? Beech : Which < 0.96 ? Birch : Rowan;
+					else What = Which < 0.32 ? Ash : Which < 0.55 ? Sycamore : Which < 0.77 ? Oak : Which < 0.86 ? Beech : Which < 0.94 ? Birch : Which < 0.97 ? Holly : Rowan;
 				}
 				const double Height = Tall * (0.8 + 0.35 * Hash(Gx, Gz, 15u));
 				Put(What, X, Z, Hash(Gx, Gz, 17u) * Pi2, 1.0, 0.15, false, Height, Hash(Gx, Gz, 16u), !Fine);

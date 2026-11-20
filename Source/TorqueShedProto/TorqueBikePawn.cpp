@@ -23,6 +23,7 @@
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueFerry.h"
 #include "Shed/TorquePartsComputer.h"
 #include "TorqueTft.h"
 #include "RideModes.h"
@@ -281,7 +282,9 @@ void ATorqueBikePawn::BeginPlay()
 			// [Ride UK] what the road there is made of: paint and tar, grit, iron covers, a bridge's joints, rails.
 			int32 Kind = 0;
 			double Lift = 0.0;
-			if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
+			if (Part && Part->ComponentHasTag(TEXT("Steel")))
+				Out.Surface = SURF_STEEL;   // [ferries] a ferry's deck and ramps
+			else if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
 			{
 				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 || Kind == 4 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;   // [OSM stage 1] 4: a gravel road
 				Out.Lift = Lift;
@@ -473,6 +476,8 @@ void ATorqueBikePawn::BuildModel()
 	GripDelta[0] = GripDelta[1] = FTransform::Identity;
 	GripParts[0] = GripParts[1] = nullptr;
 	int32 Made = 0;
+	ExhaustParts.Reset();
+	TArray<UStaticMeshComponent*> ExhaustPipes;   // (the headers, when there's no silencer of its own)
 	TArray<FName> PartSlots, PartGroups;   // per part made, for geometry mode's fit
 	TArray<FTransform> PartRest;
 	for (const FPartToMake& P : ToMake)
@@ -496,6 +501,8 @@ void ATorqueBikePawn::BuildModel()
 		C->ComponentTags.Add(FName(*(TEXT("Part:") + P.Name)));   // for the shed's dirt and paint (ApplyLooks)
 		C->RegisterComponent();
 		ModelParts.Add(C);
+		if (P.Slot == FName(TEXT("silencers")) || P.Name.Contains(TEXT("silenc")) || P.Name.Contains(TEXT("muffler"))) ExhaustParts.Add(C);
+		else if (P.Slot == FName(TEXT("exhaust"))) ExhaustPipes.Add(C);
 		PartSlots.Add(P.Slot);
 		PartGroups.Add(FName(*P.Group));
 		PartRest.Add(Fix * P.Delta);
@@ -507,6 +514,7 @@ void ATorqueBikePawn::BuildModel()
 		else if (UnitName == TEXT("grip_r") || UnitName == TEXT("grips_r")) { GripDelta[1] = P.Delta; GripParts[1] = C; }
 		++Made;
 	}
+	if (ExhaustParts.Num() == 0) ExhaustParts = ExhaustPipes;
 	// The dirt and paint the bike has in the shed (washed or not, resprayed or not) ride out with it.
 	TorqueShedModel::ApplyLooks(this, ModelParts);
 	// And its fit from geometry mode, as the shed draws it (-TorqueBuild= test builds have none).
@@ -1043,11 +1051,13 @@ void ATorqueBikePawn::GatherOtherBikes()
 	const bool bRealRide = !bYard && !FPaths::IsRelative(RouteFile);
 	static constexpr double ParkedReach = 60.0;
 	const bool bCarsDue = bRealRide && Sim && (ParkedFrom.X > 1e17 || FVector2D(Sim->Position.x - ParkedFrom.X, Sim->Position.z - ParkedFrom.Y).Size() > ParkedReach / 3.0);
-	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || bCarsDue))
+	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || FerrySeen != ATorqueFerry::ContactVersion() || bCarsDue))
 	{
 		GarageSeen = ATorqueForecourtGarage::ContactVersion();
+		FerrySeen = ATorqueFerry::ContactVersion();
 		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
 		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
+		ATorqueFerry::ContactBoxes(GetWorld(), Boxes);   // [ferries] a tied-up boat's sides, the cars on it, the shut barriers
 		if (Sim)
 		{
 			ParkedFrom = FVector2D(Sim->Position.x, Sim->Position.z);
@@ -2063,8 +2073,20 @@ void ATorqueBikePawn::TakeOver(const FVector& Feet, double Yaw, bool bRide)
 	SetParkedLook(true);
 	ShowNetWalker(false, Feet, Yaw, 0.0f);   // their body walked beside it here: they're on another bike now
 	if (NetBike) NetBike->TakenOver();
-	UE_LOG(LogTemp, Log, TEXT("Torque net: took over bay %d's bike where it stands, engine %s%s"), RideBay + 1,
-		Sim->EngineOn ? TEXT("ticking over") : TEXT("off"), bRide ? TEXT(", getting on") : TEXT(", on foot beside it"));
+	// [r160] Its way along the road from where it stands now (ridden by a mate until now, its Near here
+	// was still where it set off): else the trip read 0 km and a fall put it back at the start.
+	if (Line.Num() >= 2 && !bYard)
+	{
+		const V3 Here = Sim->Position;
+		double Closest = 1e18;
+		for (int32 I = 0; I < Line.Num(); ++I)
+		{
+			const double D = FMath::Square(Line[I].X - Here.x) + FMath::Square(Line[I].Z - Here.z);
+			if (D < Closest) { Closest = D; Near = I; }
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque net: took over bay %d's bike where it stands (route point %d of %d), engine %s%s"), RideBay + 1,
+		Near, Line.Num(), Sim->EngineOn ? TEXT("ticking over") : TEXT("off"), bRide ? TEXT(", getting on") : TEXT(", on foot beside it"));
 	if (bRide) GetOn();
 }
 
@@ -2122,6 +2144,13 @@ bool ATorqueBikePawn::GetOn()
 		FootNoteFor = 1.5;
 		return false;
 	}
+	if (GetWorld() && GetWorld()->GetTimeSeconds() < FerryHoldUntil)
+	{
+		// [ferries] (the bike's never ridden on a moving deck)
+		FootNote = TEXT("Wait for the ferry to tie up and the ramp to come down.");
+		FootNoteFor = 2.0;
+		return false;
+	}
 	bOnFoot = false;
 	// Upright on its wheels where it stood, the stand up, the engine as it was.
 	const bool bRunning = Sim->EngineOn;
@@ -2161,6 +2190,31 @@ void ATorqueBikePawn::PitchToGround()
 	}
 	ParkPitch = FMath::Clamp(std::atan2(Under[0].y - Under[1].y, 2.0 * Half), -0.45, 0.45);
 	ParkGround = (Under[0] + Under[1]) * 0.5;
+}
+
+void ATorqueBikePawn::FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike)
+{
+	// [ferries] Each place carried as the deck carries it (into the boat's frame as it was, out of it as it is), each
+	// heading turned by the boat's turn. (The sim's frame turns the other way about its up: ParkHeading is
+	// atan2(-fwd.x, -fwd.z) with z the world's y.)
+	const FQuat Turn = To.GetRotation() * From.GetRotation().Inverse();
+	const double TurnDeg = Turn.Rotator().Yaw;
+	auto Move = [&From, &To](const FVector& P) { return To.TransformPosition(From.InverseTransformPosition(P)); };
+	if (bFeet)
+	{
+		FootPos = Move(FootPos);
+		FootYaw += TurnDeg;
+	}
+	if (bBike && bOnFoot)
+	{
+		ParkGround = ToSim(Move(ToUE(ParkGround)));
+		ParkHeading -= FMath::DegreesToRadians(TurnDeg);
+		PrevPos = Move(PrevPos);
+		CurPos = Move(CurPos);
+		PrevRot = Turn * PrevRot;
+		CurRot = Turn * CurRot;
+		HoldParked();
+	}
 }
 
 void ATorqueBikePawn::HoldParked()
@@ -2437,7 +2491,8 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 		const FVector Ahead = FRotator(0.0, Yaw, 0.0).Vector();
 		PlaceOnGround(ToSim(FVector(X, Y, 0.0)), std::atan2(-Ahead.X, -Ahead.Y));
 	}
-	// What's under each wheel: the ground trace the wheels use, from 60 cm up to 40 cm down.
+	// What's under each wheel: the ground trace the wheels use, from 60 cm up to 100 cm down (the bike is placed
+	// level: on a slope, 1 in 7 on a ferry's approach, the lower wheel's ground is more than 40 cm under the middle).
 	FString Under;
 	UWorld* World = GetWorld();
 	const FVector Mid = ToUE(Sim->Position);
@@ -2447,7 +2502,7 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 		const FVector Wheel = Mid + Along * Off;
 		FHitResult Hit;
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueTestPlace), true, this);
-		const bool bHit = World && GroundTrace(World, Wheel + FVector(0.0, 0.0, 60.0), Wheel - FVector(0.0, 0.0, 40.0), Params, Hit);
+		const bool bHit = World && GroundTrace(World, Wheel + FVector(0.0, 0.0, 60.0), Wheel - FVector(0.0, 0.0, 100.0), Params, Hit);
 		Under += FString::Printf(TEXT("%s%s wheel on %s.%s at z %.1f"), Under.IsEmpty() ? TEXT("") : TEXT(", "), Off > 0.0 ? TEXT("front") : TEXT("rear"),
 			bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("nothing"), bHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("-"),
 			bHit ? Hit.ImpactPoint.Z : 0.0);
@@ -2491,6 +2546,8 @@ bool ATorqueBikePawn::TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const
 	Out.SlideMs = FMath::Max(Long * PastPeak, Across);
 	Out.RoadMs = FMath::Abs(Road);
 	Out.HalfWidthCm = bRear ? 8.0 : 5.5;
+	Out.RadiusCm = Radius * 100.0;
+	Out.SpinMs = W.Omega * Radius;
 	Out.bTarmac = W.Surf == SURF_TARMAC || W.Surf == SURF_SLICK || W.Surf == SURF_STEEL || W.Surf == SURF_GRID;
 	const FQuat Q = GetActorQuat();
 	Out.Up = Q.GetUpVector();
@@ -2499,6 +2556,43 @@ bool ATorqueBikePawn::TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const
 	Out.Fwd = Fwd.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 	Out.At = Comp->GetComponentLocation() - Out.Up * (Radius * 100.0);
 	return true;
+}
+
+int32 ATorqueBikePawn::TakeExhaustFlames(double Now, TArray<bool>& OutBangs)
+{
+	OutBangs.Reset();
+	for (int32 I = FlamesDue.Num() - 1; I >= 0; --I)
+		if (FlamesDue[I].Due <= Now)
+		{
+			OutBangs.Add(FlamesDue[I].bBang);
+			FlamesDue.RemoveAtSwap(I);
+		}
+	return OutBangs.Num();
+}
+
+bool ATorqueBikePawn::ExhaustTips(TArray<FVector>& OutAt, FVector& OutDir) const
+{
+	OutAt.Reset();
+	const FVector Back = -GetActorForwardVector();
+	const FVector Up = GetActorUpVector();
+	// Out of the back of the can, a little up (as they're angled), along the way the bike points.
+	OutDir = (Back + Up * 0.15).GetSafeNormal();
+	for (const UStaticMeshComponent* C : ExhaustParts)
+	{
+		if (!C || !C->GetStaticMesh() || !C->IsVisible()) continue;
+		// Its box's end furthest back: the middle of that face (the pipe's open end).
+		const FBox Box = C->GetStaticMesh()->GetBoundingBox();
+		const FTransform& Xf = C->GetComponentTransform();
+		const FVector Mid = Xf.TransformPosition(Box.GetCenter());
+		double Far = 0.0;
+		for (int32 K = 0; K < 8; ++K)
+		{
+			const FVector Corner((K & 1) ? Box.Max.X : Box.Min.X, (K & 2) ? Box.Max.Y : Box.Min.Y, (K & 4) ? Box.Max.Z : Box.Min.Z);
+			Far = FMath::Max(Far, FVector::DotProduct(Xf.TransformPosition(Corner) - Mid, Back));
+		}
+		OutAt.Add(Mid + Back * Far);
+	}
+	return OutAt.Num() > 0;
 }
 
 void ATorqueBikePawn::PressIgnition()
@@ -2685,7 +2779,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		// 21 kN, the front never finding ground and the bike tipping onto its nose): a spot whose ground
 		// under the two wheels doesn't look like a road (more than 25% apart, or not found) is skipped for
 		// the next route point along, up to ten.)
-		double RoadUp = 0.0, GroundMid = 0.0;
+		double RoadUp = 0.0, GroundMid = 0.0, GroundAtF = 0.0, GroundAtR = 0.0;
 		bool bGood = false;
 		int32 Placed = Best;
 		for (int32 Try = 0; Try < 10 && !bGood; ++Try)
@@ -2705,17 +2799,22 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 			if (!GroundF.Hit || !GroundR.Hit) continue;
 			RoadUp = std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half);
 			GroundMid = 0.5 * (GroundF.Position.y + GroundR.Position.y);
+			GroundAtF = GroundF.Position.y;
+			GroundAtR = GroundR.Position.y;
 			bGood = std::fabs(std::tan(RoadUp)) < 0.25 && std::fabs(GroundMid - Mid.y) < 0.5;
 		}
 		if (bGood)
 		{
 			Sim->Basis = M3::AxisAngle(Sim->Basis.X, RoadUp) * Sim->Basis;
 			Sim->Position.y = GroundMid + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(RoadUp), 0.5);
-			UE_LOG(LogTemp, Log, TEXT("Torque: climb start pitched %.1f deg up to the road under the wheels"), FMath::RadiansToDegrees(RoadUp));
+			UE_LOG(LogTemp, Log, TEXT("Torque: climb start pitched %.1f deg up to the road under the wheels (ground at the front %.2f m, the back %.2f m, the axles %.2f m)"),
+				FMath::RadiansToDegrees(RoadUp), GroundAtF, GroundAtR, Sim->Position.y);
 		}
 		else UE_LOG(LogTemp, Warning, TEXT("Torque: climb start: no spot near the foot with road under both wheels; left as placed"));
 		Best = Placed;   // (the route point it actually starts from, for the log and TestFromNear)
-		bClimbSettled = false;
+		bClimbSettled = bClimbPlaced = false;
+		ClimbHoldAt = V3(0.0, -1e9, 0.0);
+		ClimbSettleFrom = 0.0;
 	}
 	const V3 Fwd = Sim->Basis.Z * -1.0;
 	Sim->LinearVelocity = Fwd * TestMps;
@@ -2845,10 +2944,10 @@ void ATorqueBikePawn::TestMoveStep()
 	// [r158 climb] The climb's first 2 s, every 0.1 s, and the moment it crashes: the weight the sim is
 	// given and what the bike does with it (naked, chopper and cruiser came off 0.5 s in).
 	if (TestMove == 5 && ((TestClock < 2.0 && FMath::Fmod(TestClock + 0.5 * SimDt, 0.1) < SimDt) || Sim->IsCrashed))
-		UE_LOG(LogTemp, Log, TEXT("Torque: climb t %.2f s: shift %.3f (sim %.3f), pitch %.1f deg (road %.1f), lean %.1f deg, %.1f mph, gear %d, %.0f rpm, throttle %.2f, front %s %.0f N, rear %s %.0f N, rear kappa %.3f%s"),
+		UE_LOG(LogTemp, Log, TEXT("Torque: climb t %.2f s: shift %.3f (sim %.3f), pitch %.1f deg (road %.1f), lean %.1f deg, %.1f mph, gear %d, %.0f rpm, throttle %.2f, brakes %.2f / %.2f, steer %.2f, front %s %.0f N, rear %s %.0f N, rear kappa %.3f, spin %.2f rad/s%s"),
 			TestClock, Shift, Sim->BodyShift, FMath::RadiansToDegrees(Sim->PitchAngle), FMath::RadiansToDegrees(Sim->RoadPitch), FMath::RadiansToDegrees(Sim->LeanAngle),
-			V * 2.23694, Sim->Gear, Sim->Rpm, Throttle, Sim->Wheels[0].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[0].Load,
-			Sim->Wheels[1].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[1].Load, Sim->Wheels[1].Kappa, Sim->IsCrashed ? TEXT(" CRASHED") : TEXT(""));
+			V * 2.23694, Sim->Gear, Sim->Rpm, Throttle, FrontBrake, RearBrake, Lean, Sim->Wheels[0].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[0].Load,
+			Sim->Wheels[1].Contact ? TEXT("down") : TEXT("UP"), Sim->Wheels[1].Load, Sim->Wheels[1].Kappa, Sim->AngularVelocity.Dot(Sim->Basis.X), Sim->IsCrashed ? TEXT(" CRASHED") : TEXT(""));
 	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
 		// ([r159] the climb says how: knocked off (and how hard), or a fall: leaned or pitched past it)
@@ -2867,12 +2966,67 @@ void ATorqueBikePawn::TestMoveStep()
 		Shift = 0.0;
 		// ([r159] Half a second on its wheels first, the throttle shut until both are down (at most
 		// 1.5 s); the climb's measured from there.)
+		if (!bClimbSettled && !bClimbPlaced)
+		{
+			// ([r161] naked and chopper fell from the start: no "pitched" line, the road's pitch never
+			// measured (never both wheels down), 30 mph held for the settle's 1.5 s, then gaining speed nose
+			// down and over. The ground under the start wasn't there for the wheels' rays yet (the place's
+			// collision still coming in after the jump to the foot of the climb). So: held still where it was
+			// put, no speed, until there's road under both wheels (up to 15 s), then put on it, pitched to
+			// it, rolling at the start speed, and the settle runs from there.)
+			const double Half = Sim->Build.Wheelbase * 0.5;
+			V3 Ahead = Sim->Basis.Z * -1.0;
+			Ahead.y = 0.0;
+			Ahead = Ahead.Normalized();
+			const V3 C = Sim->Position;
+			const RayHit GroundF = Sim->Ray(C + Ahead * Half + V3(0.0, 40.0, 0.0), C + Ahead * Half - V3(0.0, 200.0, 0.0));
+			const RayHit GroundR = Sim->Ray(C - Ahead * Half + V3(0.0, 40.0, 0.0), C - Ahead * Half - V3(0.0, 200.0, 0.0));
+			const double Up = GroundF.Hit && GroundR.Hit ? std::atan2(GroundF.Position.y - GroundR.Position.y, 2.0 * Half) : 0.0;
+			if (!GroundF.Hit || !GroundR.Hit || std::fabs(std::tan(Up)) > 0.35)
+			{
+				if (TestClock > 15.0)
+				{
+					Finish(FString::Printf(TEXT("CLIMB FAIL: no road under the bike at the foot of the climb after 15 s (front %s, back %s)"),
+						GroundF.Hit ? TEXT("found") : TEXT("nothing"), GroundR.Hit ? TEXT("found") : TEXT("nothing")));
+					return;
+				}
+				if (ClimbHoldAt.y < -1e8) ClimbHoldAt = C;
+				if (FMath::Fmod(TestClock + 0.5 * SimDt, 1.0) < SimDt)
+					UE_LOG(LogTemp, Log, TEXT("Torque: climb start: waiting for road under the wheels, %.0f s (front %s, back %s, grade %.0f%%)"),
+						TestClock, GroundF.Hit ? TEXT("found") : TEXT("nothing"), GroundR.Hit ? TEXT("found") : TEXT("nothing"), std::tan(Up) * 100.0);
+				Throttle = FrontBrake = RearBrake = 0.0;
+				Sim->Position = ClimbHoldAt;
+				Sim->LinearVelocity = Sim->AngularVelocity = V3();
+				Sim->Wheels[0].Omega = Sim->Wheels[1].Omega = 0.0;
+				return;
+			}
+			// On it: level on its heading, pitched to the road, both tyres just touching, rolling.
+			const double Heading = std::atan2(-Ahead.x, -Ahead.z);
+			Sim->Basis = M3::AxisAngle(TorqueSim::UP, Heading);
+			Sim->Basis = M3::AxisAngle(Sim->Basis.X, Up) * Sim->Basis;
+			Sim->Position.y = 0.5 * (GroundF.Position.y + GroundR.Position.y) + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(Up), 0.5);
+			Sim->AngularVelocity = V3();
+			Sim->LinearVelocity = Sim->Basis.Z * -TestMps;
+			Sim->Wheels[0].Omega = TestMps / Sim->Build.FrontRadius;
+			Sim->Wheels[1].Omega = TestMps / Sim->Build.RearRadius;
+			UE_LOG(LogTemp, Log, TEXT("Torque: climb start put on the road after %.1f s: pitched %.1f deg (ground at the front %.2f m, the back %.2f m, the axles %.2f m)"),
+				TestClock, FMath::RadiansToDegrees(Up), GroundF.Position.y, GroundR.Position.y, Sim->Position.y);
+			bClimbPlaced = true;
+			ClimbSettleFrom = TestClock;
+		}
 		if (!bClimbSettled)
 		{
 			const bool bBothDown = Sim->Wheels[0].Contact && Sim->Wheels[1].Contact;
-			if (TestClock < 0.5 || (!bBothDown && TestClock < 1.5))
+			const double Settling = TestClock - ClimbSettleFrom;
+			if (Settling < 0.5 || (!bBothDown && Settling < 1.5))
 			{
-				Throttle = 0.0;
+				// ([r160] naked and cruiser still went over on their nose 0.4 s in, the throttle shut, where
+				// SimTest's bikes on a 20% plane, braked or not, sit still within 2 deg: so while it settles
+				// it's held, no brakes, no turning (spin wiped each step), rolling on up the road as it
+				// started; whatever threw it shows in the climb log once it's let go.)
+				Throttle = FrontBrake = RearBrake = 0.0;
+				Sim->AngularVelocity = V3();
+				Sim->LinearVelocity = Sim->Basis.Z * -TestMps + Sim->Basis.Y * Sim->LinearVelocity.Dot(Sim->Basis.Y);   // (free to sink onto its springs)
 				return;
 			}
 			bClimbSettled = true;
@@ -4876,6 +5030,21 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	if (Need <= 0) return;
 	SoundFloat.SetNumUninitialized(Need);
 	Sound->Render(SoundFloat.GetData(), Need);
+	// [exhaust flames] Pops and bangs the engine just made: a flame for each that shows one, due when
+	// it's heard (the queue ahead of it, and half this block).
+	if (const TorqueEngine::FVoice* Voice = Sound->EngineSound())
+	{
+		if (Voice->Pops < PopsSeen || Voice->Bangs < BangsSeen) PopsSeen = BangsSeen = 0;   // (a new engine)
+		const int32 NewBangs = Voice->Bangs - BangsSeen;
+		const int32 NewPops = FMath::Max(Voice->Pops - PopsSeen - NewBangs, 0);
+		PopsSeen = Voice->Pops;
+		BangsSeen = Voice->Bangs;
+		const double Share = TorqueEngine::FlameShare(Voice->Bank().Spec);
+		const double Due = (GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0) + (Have + Need * 0.5) / double(Rate);
+		for (int32 I = 0; I < NewBangs && FlamesDue.Num() < 8 && ExhaustParts.Num() > 0; ++I) FlamesDue.Add({Due, true});
+		for (int32 I = 0; I < NewPops && FlamesDue.Num() < 8 && ExhaustParts.Num() > 0; ++I)
+			if (FMath::FRand() < Share) FlamesDue.Add({Due, false});
+	}
 	SoundPcm.SetNumUninitialized(Need);
 	for (int32 I = 0; I < Need; ++I) SoundPcm[I] = (int16)FMath::Clamp(FMath::RoundToInt(SoundFloat[I] * 32767.0f), -32767, 32767);
 	SoundWave->QueueAudio(reinterpret_cast<const uint8*>(SoundPcm.GetData()), Need * 2);
@@ -4933,6 +5102,21 @@ void ATorqueBikePawn::UpdateProgress()
 	{
 		const double D = FMath::Square(Line[I].X - P.x) + FMath::Square(Line[I].Z - P.z);
 		if (D < Best) { Best = D; BestI = I; }
+	}
+	// [r160] Far from every point near where it last was (a mate's bike taken over, which had ridden on
+	// from snapshots while this machine's Near stayed at the start; a circuit's start line; back on a
+	// side road): the nearest point along the whole road instead, if that's nearer. Without it "back on
+	// the road" after a fall put a swapped bike back at the start of the ride (beenster, build 160).
+	if (Best > FMath::Square(150.0))
+	{
+		double Whole = Best;
+		int32 WholeI = BestI;
+		for (int32 I = 0; I < Line.Num(); ++I)
+		{
+			const double D = FMath::Square(Line[I].X - P.x) + FMath::Square(Line[I].Z - P.z);
+			if (D < Whole) { Whole = D; WholeI = I; }
+		}
+		if (Whole < Best * 0.25) BestI = WholeI;
 	}
 	Near = BestI;
 	if (!bFinished && Near >= Line.Num() - 1) bFinished = true;
@@ -5319,6 +5503,11 @@ void ATorqueBikePawn::DrawHud()
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.
 	if (FootNoteFor > 0.0) Add(FootNote, FColor(255, 220, 120), 1.2f);
+	{
+		// [ferries] Near a ferry or aboard one: what to do, and how long the crossing has to go.
+		const FString Ferry = ATorqueFerry::HintFor(this);
+		if (!Ferry.IsEmpty()) Add(Ferry, FColor(170, 220, 255), 1.1f);
+	}
 	if (CamNoteFor > 0.0 && !bOnFoot) Add(CamNote, FColor(200, 220, 255), 1.1f);
 	if (bOnFoot)
 	{

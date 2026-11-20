@@ -53,7 +53,7 @@ private:
 	TArray<int32> Picks;   // stats, in pick order (up to three)
 	int32 Hot = 0;         // the tile lit for the pad and the keys
 	int32 SentFor = -1;    // the picks last sent (a hash), so a change is sent once
-	double ViewAt = 0.0;   // when the view was opened (for the podium's rise)
+	double ViewAt = 0.0;   // when the view was opened (the dashboard's bars, the podium's reveal)
 	FVector2D Mouse = FVector2D(-1.0, -1.0), LastMouse = FVector2D(-1.0, -1.0);
 	TArray<FBox2D> TileBoxes;   // where the last drawing put each stat's tile
 	int32 StickX = 0, StickY = 0;
@@ -63,4 +63,10 @@ private:
 	void DrawVote(UCanvas* Canvas, APlayerController* PC);
 	void DrawDashboard(UCanvas* Canvas, APlayerController* PC);
 	void DrawPodium(UCanvas* Canvas, APlayerController* PC);
+	// [podium finale] The reveal's clock (seconds since the podium opened): each place's moment, when it all
+	// ends (Enter before then skips to the end), and the chimes already played this showing.
+	static double RevealAt(int32 Place, int32 Steps);
+	static double PodiumEnd(int32 Steps);
+	int32 PodiumChimes = 0;
+	void PodiumSounds(APlayerController* PC, int32 Steps);
 };

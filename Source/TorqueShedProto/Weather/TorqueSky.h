@@ -108,6 +108,13 @@ private:
 	bool bMapTried = false;
 	double MapPaintedAt = -1000.0;
 	FVector MapCentre = FVector(1e12);
+	// (build 160: the map eased from the last painting to the new one, its centre on whole texels, so the
+	// clouds don't jump each time it is painted)
+	std::vector<unsigned char> MapFrom, MapTo, MapShown;
+	double MapHereFrom[2] = {0.0, 0.0}, MapHereTo[2] = {0.0, 0.0};
+	double MapBlendAt = -1000.0, MapUploadAt = -1000.0;
+	FVector MapCentreShown = FVector(1e12);
+	bool bMapCentrePending = false;
 	float MapOnApplied = -1.0f;
 	void TickWeatherMap();
 	// Rain shafts under the far showers (a pool the level script places, tagged TorqueRainShaft), each

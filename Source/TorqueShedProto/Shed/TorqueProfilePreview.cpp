@@ -4,6 +4,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Components/SkinnedMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/StaticMesh.h"
@@ -54,6 +55,9 @@ ATorqueProfilePreview::ATorqueProfilePreview()
 	Capture->ShowFlags.SetVolumetricFog(false);
 	Capture->ShowFlags.SetAtmosphere(false);
 	Capture->ShowFlags.SetMotionBlur(false);
+	// No temporal anti-aliasing: its history blended each slider move in over many frames (beenster,
+	// build 160: "respond so slowly to my slider input"); the picture is drawn larger than shown instead.
+	Capture->ShowFlags.SetTemporalAA(false);
 	// Only its own lights (as the shop's studio): not the level's sky light, nor bounce from the level.
 	Capture->ShowFlags.SetSkyLighting(false);
 	Capture->ShowFlags.SetLensFlares(false);
@@ -132,8 +136,18 @@ void ATorqueProfilePreview::StudioLit()
 {
 	TArray<UPrimitiveComponent*> Prims;
 	GetComponents<UPrimitiveComponent>(Prims);
+	if (Prims.Num() == LitCount) return;   // (nothing new: called as the sliders move, so kept cheap)
+	LitCount = Prims.Num();
 	for (UPrimitiveComponent* C : Prims)
-		if (C) C->SetLightingChannels(false, false, true);
+	{
+		if (!C) continue;
+		C->SetLightingChannels(false, false, true);
+		// (Build 160, beenster: "the preview looks so low def". It stands far above the level, where
+		// the texture streamer, which only thinks of the player's view, left its textures blurry, and
+		// the avatar picked its LODs for a small picture: full-size textures and the finest LOD here.)
+		C->bForceMipStreaming = true;
+		if (USkinnedMeshComponent* S = Cast<USkinnedMeshComponent>(C)) S->SetForcedLOD(1);
+	}
 }
 
 void ATorqueProfilePreview::MakeHelmet()
@@ -181,6 +195,7 @@ void ATorqueProfilePreview::Want(EView NewView, int32 Colour)
 		Feet->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));   // facing the camera's start, on -x
 		Capture->ShowOnlyActors.Reset();
 		Capture->ShowOnlyActors.Add(this);
+		LitCount = -1;
 		StudioLit();
 		Shown = EView::Body;
 	}
@@ -189,6 +204,7 @@ void ATorqueProfilePreview::Want(EView NewView, int32 Colour)
 	{
 		LookOn = Now;
 		Avatar.SetLook(Mine);
+		StudioLit();   // (a jacket put on just now too)
 	}
 	if (View == EView::Helmet && !bHelmetTried) MakeHelmet();
 	if (Helmet)
@@ -213,7 +229,7 @@ void ATorqueProfilePreview::Want(EView NewView, int32 Colour)
 		Target = NewObject<UTextureRenderTarget2D>(this);
 		Target->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8_SRGB;
 		Target->ClearColor = FLinearColor(0.02f, 0.02f, 0.025f, 1.0f);
-		Target->InitAutoFormat(768, 1024);
+		Target->InitAutoFormat(1152, 1536);   // (build 160: 768 x 1024 looked soft; drawn smaller, so smooth without TAA)
 		Target->UpdateResourceImmediate(true);
 		Capture->TextureTarget = Target;
 	}
@@ -255,18 +271,23 @@ void ATorqueProfilePreview::Tick(float DeltaSeconds)
 		Aim = B.Origin;
 		Radius = FMath::Max(B.SphereRadius * 0.8, 12.0);
 	}
-	else if (View == EView::Face)
+	else if (View == EView::Face)   // the badge's portrait
 	{
 		Aim = Avatar.HeadWorld() + FVector(0.0, 0.0, 6.0);
 		Radius = 17.0;
 	}
 	else
 	{
-		Aim = Base + FVector(0.0, 0.0, Tall * 0.52);
-		Radius = Tall * 0.5 + 6.0;
+		// (Build 160, beenster: "why cant i see them in full figure". The Profile page shows the whole
+		// figure always; the wheel zooms in towards the face, which it fills at full zoom.)
+		const double ZoomIn = FMath::Clamp((Zoom - 1.0) / (TPPS::MaxZoom - 1.0), 0.0, 1.0);
+		const double T = ZoomIn * ZoomIn * (3.0 - 2.0 * ZoomIn);
+		Aim = FMath::Lerp(Base + FVector(0.0, 0.0, Tall * 0.52), Avatar.HeadWorld() + FVector(0.0, 0.0, 6.0), T);
+		Radius = FMath::Lerp(Tall * 0.5 + 6.0, 17.0, T);
 	}
 	const double TanV = FMath::Tan(FMath::DegreesToRadians(TPPS::Fov * 0.5)) * 4.0 / 3.0;   // (FOV is across; 3 wide by 4 high)
-	const double Dist = FMath::Max(Radius / FMath::Max(TanV, 0.01) * 1.08 / Zoom, Radius * 0.6 + 5.0);
+	const double Fit = Radius / FMath::Max(TanV, 0.01) * 1.08;
+	const double Dist = FMath::Max(bHelmetView || View == EView::Face || Zoom < 1.0 ? Fit / Zoom : Fit, Radius * 0.6 + 5.0);
 	// The camera starts on -x looking back at its front; Yaw takes it round, Pitch up over it.
 	const FRotator ViewRot(-Pitch, Yaw, 0.0);
 	const FVector Fwd = ViewRot.Vector();
@@ -355,6 +376,61 @@ bool ATorqueProfilePreview::RightPress(const FVector2D& Mouse)
 {
 	if (!PictureBox.bIsValid || !PictureBox.IsInside(Mouse)) return false;
 	bSpin = !bSpin;
+	return true;
+}
+
+// --- [helmet decals] The helmet worked by the decal editor ----------------------------------------------
+
+UStaticMeshComponent* ATorqueProfilePreview::EditHelmet()
+{
+	if (!bHelmetTried) MakeHelmet();
+	if (!Helmet || !TorqueDecals::ReadyHelmet(Helmet)) return nullptr;
+	return Helmet;
+}
+
+void ATorqueProfilePreview::TurnBy(double DYaw, double DPitch)
+{
+	bSpin = false;
+	Yaw = FMath::Fmod(Yaw - DYaw, 360.0);
+	Pitch = FMath::Clamp(Pitch + DPitch, -60.0, 75.0);
+}
+
+void ATorqueProfilePreview::ZoomBy(int32 Dir)
+{
+	if (Dir == 0) return;
+	Zoom = FMath::Clamp(Zoom * (Dir < 0 ? 1.12 : 1.0 / 1.12), TPPS::MinZoom, TPPS::MaxZoom);
+}
+
+bool ATorqueProfilePreview::ScreenRay(const FVector2D& Mouse, FVector& OutFrom, FVector& OutDir) const
+{
+	if (!PictureBox.bIsValid || !PictureBox.IsInside(Mouse) || !Capture) return false;
+	const FVector2D Size = PictureBox.GetSize();
+	if (Size.X < 1.0 || Size.Y < 1.0) return false;
+	// The capture's field of view is across; the picture is as tall as the target over its width.
+	const double TanH = FMath::Tan(FMath::DegreesToRadians((double)Capture->FOVAngle * 0.5));
+	const double TanV = TanH * Size.Y / Size.X;
+	const double U = (Mouse.X - PictureBox.Min.X) / Size.X * 2.0 - 1.0;
+	const double V = 1.0 - (Mouse.Y - PictureBox.Min.Y) / Size.Y * 2.0;
+	const FTransform& T = Capture->GetComponentTransform();
+	const FVector Fwd = T.GetUnitAxis(EAxis::X), Right = T.GetUnitAxis(EAxis::Y), Up = T.GetUnitAxis(EAxis::Z);
+	OutFrom = T.GetLocation();
+	OutDir = (Fwd + Right * (U * TanH) + Up * (V * TanV)).GetSafeNormal();
+	return true;
+}
+
+bool ATorqueProfilePreview::ToScreen(const FVector& World, FVector2D& Out) const
+{
+	if (!PictureBox.bIsValid || !Capture) return false;
+	const FVector2D Size = PictureBox.GetSize();
+	const double TanH = FMath::Tan(FMath::DegreesToRadians((double)Capture->FOVAngle * 0.5));
+	const double TanV = TanH * Size.Y / FMath::Max(Size.X, 1.0);
+	const FTransform& T = Capture->GetComponentTransform();
+	const FVector D = World - T.GetLocation();
+	const double Ahead = FVector::DotProduct(D, T.GetUnitAxis(EAxis::X));
+	if (Ahead <= 1.0) return false;
+	const double U = FVector::DotProduct(D, T.GetUnitAxis(EAxis::Y)) / (Ahead * TanH);
+	const double V = FVector::DotProduct(D, T.GetUnitAxis(EAxis::Z)) / (Ahead * TanV);
+	Out = FVector2D(PictureBox.Min.X + (U + 1.0) * 0.5 * Size.X, PictureBox.Min.Y + (1.0 - V) * 0.5 * Size.Y);
 	return true;
 }
 

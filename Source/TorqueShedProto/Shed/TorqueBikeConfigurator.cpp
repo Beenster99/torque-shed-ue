@@ -359,7 +359,8 @@ TorqueFit::Shop::Order FTorqueBikeConfigurator::MakeOrder() const
 	O.Paint[1] = Paint.G;
 	O.Paint[2] = Paint.B;
 	for (const TPair<FString, FLinearColor>& KV : Colours) O.Colours[TBCI::CfgStd(KV.Key)] = {KV.Value.R, KV.Value.G, KV.Value.B};
-	O.Colours["tank"] = {Paint.R, Paint.G, Paint.B};
+	// (The tank's paint as picked: the style's own paint left as it is lets a V2 bike keep its model's colours.)
+	if (!Paint.Equals(StylePaint(B().Style), 0.001f)) O.Colours["tank"] = {Paint.R, Paint.G, Paint.B};
 	for (const TPair<FString, FName>& KV : Finishes) O.Finishes[TBCI::CfgStd(KV.Key)] = TBCI::CfgStd(KV.Value.ToString().ToLower());
 	O.TankBadge = TorqueFit::Shop::CleanBadge(B().Badge);
 	return O;
@@ -483,9 +484,10 @@ void FTorqueBikeConfigurator::ShowOnPreview(AHUD* Hud)
 	{
 		FTorqueItem It;
 		It.Colour = FLinearColor((float)KV.second.Colour[0], (float)KV.second.Colour[1], (float)KV.second.Colour[2]);
-		It.Finish = KV.second.Finish.empty() ? NAME_None : FName(*TBCI::CfgUe(KV.second.Finish));
+		It.Finish = KV.second.Finish.empty() ? (KV.second.Picked ? FName(TEXT("gloss")) : NAME_None) : FName(*TBCI::CfgUe(KV.second.Finish));
 		FTorqueShopFinish F;
 		F.Colour = It.Colour;
+		F.bPicked = KV.second.Picked;
 		float Metallic = -1.0f, Roughness = -1.0f;
 		if (UTorqueBuildSubsystem::FinishLook(It, F.Colour, Metallic, Roughness))
 		{

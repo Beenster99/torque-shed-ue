@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldFerries.h"
 #include "WorldRideChurches.h"
 #include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
@@ -173,7 +174,13 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		for (size_t I = 0; I < Want.Pins.size(); ++I)
 		{
 			const P2 At = F0.FromGeo(Want.Pins[I].Lat, Want.Pins[I].Lon);
-			const int Node = G0.NearestConnected(At.X, At.Z, SnapM);
+			int Node = G0.NearestConnected(At.X, At.Z, SnapM);
+			// [ferries stage 5] (a pin on a small island, Luing or Cumbrae, on its own roads when they are near it and a
+			// listed ferry goes there: not the mainland's bigger network across the water)
+			if (const int Near = G0.NearestNode(At.X, At.Z, 500.0); Node >= 0 && Near >= 0 && Near != Node && G0.Component.size() == G0.Nodes.size()
+				&& G0.Component[size_t(Near)] != G0.Component[size_t(Node)] && G0.ComponentSize[size_t(G0.Component[size_t(Near)])] >= 12
+				&& G0.Nodes[size_t(Near)].DistanceTo(At) * 2.0 + 200.0 < G0.Nodes[size_t(Node)].DistanceTo(At) && Ferries::ServedPiece(G0, Near))
+				Node = Near;
 			if (Node < 0)
 			{
 				Snapped = false;
@@ -187,11 +194,53 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		Tell("Finding the way by road");
 		const std::vector<double> Costs = Route::EdgeCosts(G0, R->Request.Mode);
 		Steps.clear();
+		R->Ferry.reset();
 		bool Through = true;
 		for (size_t I = 0; I + 1 < R->PinNodes.size() && Through; ++I)
 		{
 			if (R->PinNodes[I] == R->PinNodes[I + 1]) continue;
 			const std::vector<int> Leg = G0.CheapestPath(R->PinNodes[I], R->PinNodes[I + 1], &Costs);
+			// [ferries stage 5] (a listed ferry where it beats the roads, or where they have no way over: the ride's
+			// road ends at its slipway, and the sat nav takes them on from where it lands)
+			if (const std::shared_ptr<const std::vector<Ferries::Listed>> FerryList = Ferries::ListNow(); FerryList && !FerryList->empty())
+			{
+				const Ferries::Link L = Ferries::BestLink(G0, Costs, R->PinNodes[I], R->PinNodes[I + 1], *FerryList, Leg);
+				if (L.Row >= 0)
+				{
+					int Node = R->PinNodes[I];
+					for (int E : L.ToBoard)
+					{
+						const int Next = G0.OtherEnd(E, Node);
+						Steps.push_back({Node, E, Next});
+						Node = Next;
+					}
+					std::shared_ptr<FerryLink> Took = std::make_shared<FerryLink>();
+					const Ferries::Listed& Row = (*FerryList)[size_t(L.Row)];
+					Took->Id = Row.Id;
+					Took->Name = Row.Name;
+					Took->BoardEnd = L.BoardEnd;
+					Took->Board = G0.Nodes[size_t(L.BoardNode)];
+					Took->Land = G0.Nodes[size_t(L.LandNode)];
+					int On = L.LandNode;
+					for (size_t K = I + 1; K < R->PinNodes.size(); ++K)
+					{
+						Took->Pins.push_back(G0.Nodes[size_t(R->PinNodes[K])]);   // (the pin's junction, as the planner snapped it)
+						Took->PinNames.push_back(Want.Pins[K].Name);
+						for (int E : G0.CheapestPath(On, R->PinNodes[K], &Costs)) Took->OnM += G0.Edges[size_t(E)].Length;
+						On = R->PinNodes[K];
+					}
+					R->Ferry = Took;
+					// (pinned at the slipway itself: the ride's road is the last road in to it)
+					if (Steps.empty())
+						for (int E : G0.Adjacent[size_t(L.BoardNode)])
+							if (G0.Edges[size_t(E)].A != G0.Edges[size_t(E)].B && G0.Passable(E, G0.OtherEnd(E, L.BoardNode)))
+							{
+								Steps.push_back({G0.OtherEnd(E, L.BoardNode), E, L.BoardNode});
+								break;
+							}
+					break;
+				}
+			}
 			if (Leg.empty()) { Through = false; break; }
 			int Node = R->PinNodes[I];
 			for (int E : Leg)
@@ -212,6 +261,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (Steps.empty()) { R->Why = "Those pins are the same place: pin somewhere else to get to."; return R; }
 	double PinsEnd = 0.0;
 	for (const RideStep& St : Steps) PinsEnd += G.Edges[size_t(St.Edge)].Length;
+	if (!R->Ferry)   // ([ferries stage 5] none past a ferry's slipway: the ride's road ends there)
 	{
 		const std::vector<double> Costs = Route::EdgeCosts(G, R->Request.Mode);
 		const std::vector<RideStep> Tail = RunOut(G, Steps, Costs);
@@ -365,10 +415,14 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
+	R->IndexFerries();   // [ferries] (after the water: a slipway goes down to its level)
 	R->IndexWild();      // [OSM stage 2 batch D]
 	R->IndexTowers();    // [towns stage 2]
 	R->IndexPlaceRecipes();   // [places stage 3] (after the towers and the churches' buildings)
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
+	// [ferries stage 5] (a way by a ferry: the ride's road's finish is its slipway, named for it)
+	if (R->Ferry && !R->Turns.empty() && R->Turns.back().Turn == Finish)
+		R->Turns.back().Onto = R->Ferry->Name.find("Ferry") != std::string::npos || R->Ferry->Name.find("Bridge") != std::string::npos ? R->Ferry->Name : R->Ferry->Name + " Ferry";
 	R->FindThinData();
 	R->Ok = true;
 	return R;
@@ -419,6 +473,7 @@ std::shared_ptr<RidePlan> RidePlan::Grow(CellStore& Store, HeightStore& Heights,
 	R->RunOutFrom = Old.RunOutFrom;
 	R->Title = Old.Title;
 	R->MadeSteps = Old.MadeSteps;
+	R->Ferry = Old.Ferry;   // [ferries stage 5]
 	R->Grown = Old.Grown + 1;
 	R->StoresAlive = Old.StoresAlive;
 	R->LidarFrom = Old.LidarFrom;
@@ -1698,6 +1753,14 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 }
 
 double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough) const
+{
+	const double Lie = GroundUncut(X, Z, Coarse, NoBores, Trough);
+	// [ferries] (cut down along a slipway's approach and the slipway itself, so the tarmac shows and can be ridden;
+	// last, as the ride's road's bench beside it would fill it again)
+	return std::isnan(Lie) || FerryLays.empty() ? Lie : FerryCut(X, Z, Lie);
+}
+
+double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bool Trough) const
 {
 	double Lie = Land ? Land->Height(X, Z) : std::nan("");
 	// A railway's cutting or bank (Ride UK stage 5): its bed level 5 m either side of it, the land

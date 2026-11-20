@@ -845,8 +845,18 @@ int main()
 		Check(Grey.CloudMs < 0.5 && Nov.CloudMs > 0.95, "a dull deck keeps a grey base (less bounced light), fair cumulus keeps it all");
 		Check(Lk.DensityMost >= 1.0 && Lk.CloudViewSamples >= 1.0, "the cloud's density capped and its samples raised (148's flickering white dots)");
 		Check(Lk.CloudMsOctaves == 2.0 && Lk.CloudPhaseG > 0.3 && Lk.CloudMsContribution > 0.3, "the cloud scatters the sun many times, forward (white cumulus, silver linings)");
-		Check(V2DetailSize(600.0, 1200.0, Lk) == 600.0 && V2DetailSize(600.0, 9600.0, Lk) > 1000.0,
-			"a 9 km shower cloud gets coarser edge detail than fair cumulus (no shimmer)");
+		Check(V2DeepErode(1200.0, Lk) == 1.0 && V2DeepErode(9600.0, Lk) < 0.6,
+			"a 9 km shower cloud erodes its edges less than fair cumulus (no shimmer), its sizes fixed (no jumps)");
+		{
+			// (build 160: the weather map moved with the ground and eased, not jumped)
+			const int Px = 4;
+			std::vector<unsigned char> Map(Px * Px * 4, 0), Shown;
+			Map[(1 * Px + 2) * 4 + 2] = 200;   // a cloudy texel at row 1, column 2
+			ShiftWeatherMap(Map, Px, 1, 0);   // the centre a texel east: it shows a column further west
+			BlendWeatherMap(std::vector<unsigned char>(Px * Px * 4, 0), Map, 0.5, Shown);
+			Check(Map[(1 * Px + 1) * 4 + 2] == 200 && Shown[(1 * Px + 1) * 4 + 2] == 100,
+				"the weather map moves with the ground when its centre steps, and eases to a new painting");
+		}
 	}
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
