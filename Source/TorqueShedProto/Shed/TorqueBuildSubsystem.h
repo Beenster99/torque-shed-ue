@@ -667,7 +667,10 @@ public:
 	// it can't judge, and frames (a frame starts a bike, it doesn't go on one), stay out of the map. Sides: for each
 	// wheel and tyre, 1 it goes on the front, 2 the rear, 3 either (a tyre: on this bike's wheels, or the wheels its
 	// frame takes when there's none on yet). False when there's no catalogue bike in the bay (nothing judged).
-	bool ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides) const;
+	// With no engine in the frame, the parts that bolt to an engine go by both (beenster, Nov 20: "both"): the loose
+	// engine being built up for it (one that fits the frame, the one on the engine stand first) and the frame;
+	// OutEngine says which engine that was (NAME_None: none, they go by the frame's own engine layout).
+	bool ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides, FName* OutEngine = nullptr) const;
 	// A tyre's sides on any bike in the game (every wheel the shop sells): 1 front, 2 rear, 3 either, 0 none.
 	static int32 TyreSides(FName Tyre);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).

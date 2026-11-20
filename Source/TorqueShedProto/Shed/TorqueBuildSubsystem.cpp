@@ -2331,10 +2331,11 @@ int32 UTorqueBuildSubsystem::TyreSides(FName Tyre)
 	return Sides;
 }
 
-bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides) const
+bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides, FName* OutEngine) const
 {
 	OutWhyNot.Reset();
 	OutSides.Reset();
+	if (OutEngine) *OutEngine = NAME_None;
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	TMap<FString, FString> Have;
 	if (!Lay || !LayoutParts(Bay, Have)) return false;
@@ -2345,6 +2346,31 @@ bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<
 		return It == Map.end() ? std::string("none") : It->second;
 	};
 	const bool bRig = On("frame") != "none" && On("engine") != "none";
+	// No engine in the frame yet: the loose engine being built up for it (on the engine stand first, else any
+	// loose one that goes in this frame). Its parts are judged on it and on the frame together.
+	TorqueFit::PartsMap WithEngine = Map;
+	if (On("frame") != "none" && On("engine") == "none")
+	{
+		int32 Best = 0;
+		bool bBestOnStand = false;
+		for (const TPair<int32, FTorqueItem>& KV : Items)
+		{
+			const FTorqueItem& It = KV.Value;
+			if (It.Kind != TBI::EngineKind() || It.bBoxed || It.At == ETorqueAt::Bike || It.At == ETorqueAt::Engine) continue;
+			if (!Lay->V2FitReason(Map, "engine", TBI::Id(It.Part)).empty()) continue;
+			const bool bOnStand = It.At == ETorqueAt::Spot && It.Spot == FName(TEXT("stand"));
+			if (Best == 0 || (bOnStand && !bBestOnStand) || (bOnStand == bBestOnStand && KV.Key < Best))
+			{
+				Best = KV.Key;
+				bBestOnStand = bOnStand;
+			}
+		}
+		if (const FTorqueItem* Loose = Best != 0 ? Items.Find(Best) : nullptr)
+		{
+			WithEngine["engine"] = TBI::Id(Loose->Part);
+			if (OutEngine) *OutEngine = Loose->Part;
+		}
+	}
 	const FName WheelKind(TEXT("wheel")), TyreKind(TEXT("tyre")), FrameKind(TEXT("frame"));
 
 	// The wheels a tyre can go on, each side: the one on the bike, or (none on yet) every wheel its frame takes.
@@ -2400,7 +2426,8 @@ bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<
 		if (Slot.IsNone()) continue;
 		const std::string SlotS = TBI::Id(Slot), PartS = TBI::Id(P);
 		// A V2 bike's part: its family's mounting standard (the engine's layout, its parts' block, the rear end...).
-		const std::string V2Why = Lay->V2FitReason(Map, SlotS, PartS);
+		const bool bOnEngine = SlotS != "engine" && TorqueShedParts::IsEngineSlot(Slot);
+		const std::string V2Why = Lay->V2FitReason(bOnEngine ? WithEngine : Map, SlotS, PartS);
 		if (!V2Why.empty())
 		{
 			OutWhyNot.Add(P, TBI::Ue(V2Why));
