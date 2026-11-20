@@ -15,6 +15,7 @@
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
+#include "WorldTrains.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
 #include <set>
@@ -977,6 +978,120 @@ int main(int Argc, char** Argv)
 			std::printf("    ground there %.2f\n", Plan->Ground(Q.X, Q.Z));
 			O.NotRoad = H.Which;
 			// (only one road can be left out at a time: the next nearest after this one)
+		}
+	}
+	// [trains] WORLD_RIDE_TRAINS=1: the railways as the trains' routes (class, double track, wires, stops) and the
+	// timetable's trains past the ride's start over two hours; WORLD_RIDE_TRAINS_PPM=file the routes from above,
+	// coloured by class (main red, secondary orange, branch green, freight purple, heritage blue; lead ins grey,
+	// buffers white dots); WORLD_RIDE_TRAINS_AT=lat,lon the place watched instead of the start.
+	if (std::getenv("WORLD_RIDE_TRAINS") != nullptr)
+	{
+		const auto TrT0 = std::chrono::steady_clock::now();
+		const std::shared_ptr<Trains::Network> Net = Trains::Network::Build(*Plan);
+		const double TrMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - TrT0).count();
+		std::printf("Trains: %s; built in %.0f ms\n", Net->Summary().c_str(), TrMs);
+		for (size_t Ri = 0; Ri < Net->Routes.size(); ++Ri)
+		{
+			const Trains::Route& Rt = Net->Routes[Ri];
+			std::string Stops;
+			for (const Trains::Stop& Sp : Rt.Stops) Stops += (Stops.empty() ? "" : ", ") + Sp.Name + (Sp.Major ? "*" : "");
+			std::printf("  route %zu %-9s %-40s %6.1f km own %6.1f km%s%s way %+d start %s end %s, %zu services; stops: %s\n", Ri, Trains::ClassName(Rt.Class), Rt.Name.empty() ? "(unnamed)" : Rt.Name.c_str(),
+				(Rt.S[size_t(Rt.OwnTo)] - Rt.S[size_t(Rt.OwnFrom)]) / 1000.0, Rt.Length() / 1000.0, Rt.Double ? " double" : "", Rt.Electric ? " wired" : "", Rt.Way, Rt.OpenStart ? "open" : "BUFFERS", Rt.OpenEnd ? "open" : "BUFFERS",
+				Net->Services[Ri].size(), Stops.c_str());
+			// (WORLD_RIDE_TRAINS_RAILS=1: the drawn railway lines it runs along, in order, and the km on each)
+			if (std::getenv("WORLD_RIDE_TRAINS_RAILS") != nullptr && Rt.Length() > 5000.0)
+			{
+				size_t From = 0;
+				for (size_t K = 1; K <= Rt.Rail.size(); ++K)
+					if (K == Rt.Rail.size() || Rt.Rail[K] != Rt.Rail[From])
+					{
+						const P2 A = Rt.At[From];
+						std::printf("      rail %d %.1f-%.1f km (at %.0f,%.0f)\n", Rt.Rail[From], Rt.S[From] / 1000.0, Rt.S[K - 1] / 1000.0, A.X, A.Z);
+						From = K;
+					}
+			}
+		}
+		P2 Watch = Plan->Road[0].At;
+		if (const char* AtEnv = std::getenv("WORLD_RIDE_TRAINS_AT"))
+		{
+			double La = 0.0, Lo = 0.0;
+			if (std::sscanf(AtEnv, "%lf,%lf", &La, &Lo) == 2) Watch = Plan->Area.Roads.FrameOf().FromGeo(La, Lo);
+			// (or a station by name: stop:Levisham)
+			else if (std::string(AtEnv).rfind("stop:", 0) == 0)
+				for (const Trains::Route& Rt : Net->Routes)
+					for (const Trains::Stop& St : Rt.Stops)
+						if (St.Name == AtEnv + 5) Watch = Rt.At[size_t(St.At)];
+		}
+		// (two hours from 08:00 (WORLD_RIDE_TRAINS_HOUR=h: from h) in 10 s steps: each train seen within 400 m, once)
+		const double FromHour = std::getenv("WORLD_RIDE_TRAINS_HOUR") ? std::atof(std::getenv("WORLD_RIDE_TRAINS_HOUR")) : 8.0;
+		std::set<uint64_t> Seen;
+		std::vector<Trains::TrainNow> Now;
+		int Passed = 0;
+		double Worst = 0.0;
+		for (double T = 0.0; T < 7200.0; T += 10.0)
+		{
+			Trains::Clock C;
+			C.T = 1.0e6 + T;
+			C.Hour = FromHour + T / 3600.0;
+			C.Day = 180;
+			const auto Q0 = std::chrono::steady_clock::now();
+			Net->Near(C, Watch.X, Watch.Z, 400.0, Now);
+			Worst = std::fmax(Worst, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Q0).count());
+			for (const Trains::TrainNow& Tr : Now)
+			{
+				if (!Seen.insert(Tr.Id).second) continue;
+				++Passed;
+				const Trains::Route& Rt = Net->Routes[size_t(Tr.Route)];
+				const Trains::Service& Sv = Net->Services[size_t(Tr.Route)][size_t(Tr.Service)];
+				std::printf("    %02d:%02d %-10s on %-34s %s %3.0f mph, %zu vehicles, %.0f m away%s\n", int(C.Hour), int(std::fmod(C.Hour, 1.0) * 60.0), Trains::KindName(Tr.Train), Rt.Name.c_str(),
+					Sv.Dir > 0 ? "along" : "back ", Tr.Speed * 2.23694, Tr.Cars.size(), Tr.Dist, Tr.Standing ? " (standing)" : "");
+			}
+		}
+		std::printf("Trains past the watched place %02d:00 for two hours: %d; worst Near() %.3f ms\n", int(FromHour), Passed, Worst);
+		if (const char* Ppm = std::getenv("WORLD_RIDE_TRAINS_PPM"))
+		{
+			double Mx0 = 1e18, Mz0 = 1e18, Mx1 = -1e18, Mz1 = -1e18;
+			for (const Trains::Route& Rt : Net->Routes) { Mx0 = std::fmin(Mx0, Rt.X0); Mz0 = std::fmin(Mz0, Rt.Z0); Mx1 = std::fmax(Mx1, Rt.X1); Mz1 = std::fmax(Mz1, Rt.Z1); }
+			const int W = 2000;
+			const double Scale = double(W) / std::fmax(1.0, std::fmax(Mx1 - Mx0, Mz1 - Mz0));
+			const int H = std::max(1, int((Mz1 - Mz0) * Scale) + 1), Wd = std::max(1, int((Mx1 - Mx0) * Scale) + 1);
+			std::vector<unsigned char> Px(size_t(Wd) * size_t(H) * 3, 18);
+			const auto Dot = [&](double X, double Z, int Cr, int Cg, int Cb, int Rad)
+			{
+				const int Cx = int((X - Mx0) * Scale), Cz = int((Z - Mz0) * Scale);
+				for (int Dz = -Rad; Dz <= Rad; ++Dz)
+					for (int Dx = -Rad; Dx <= Rad; ++Dx)
+					{
+						const int Ix = Cx + Dx, Iz = Cz + Dz;
+						if (Ix < 0 || Iz < 0 || Ix >= Wd || Iz >= H) continue;
+						unsigned char* P = &Px[(size_t(Iz) * size_t(Wd) + size_t(Ix)) * 3];
+						P[0] = (unsigned char)Cr; P[1] = (unsigned char)Cg; P[2] = (unsigned char)Cb;
+					}
+			};
+			// (the drawn railways under them, dim: a broken run shows as dim track without colour)
+			for (const RidePlan::RailLine& Run : Plan->Rails)
+				for (const P2& Q : Run.At) Dot(Q.X, Q.Z, Run.Disused ? 45 : 90, Run.Disused ? 40 : 90, Run.Disused ? 35 : 90, 0);
+			static const int Col[6][3] = {{90, 90, 90}, {230, 40, 40}, {250, 150, 30}, {60, 200, 60}, {170, 80, 220}, {60, 140, 255}};
+			for (const Trains::Route& Rt : Net->Routes)
+				for (size_t I = 0; I < Rt.At.size(); ++I)
+				{
+					const bool Own = int(I) >= Rt.OwnFrom && int(I) <= Rt.OwnTo;
+					const int* C = Col[int(Rt.Class)];
+					if (Own) Dot(Rt.At[I].X, Rt.At[I].Z, C[0], C[1], C[2], Rt.Class == Trains::LineClass::Main ? 1 : 0);
+				}
+			for (const Trains::Route& Rt : Net->Routes)
+			{
+				if (!Rt.OpenStart) Dot(Rt.At.front().X, Rt.At.front().Z, 255, 255, 255, 3);
+				if (!Rt.OpenEnd) Dot(Rt.At.back().X, Rt.At.back().Z, 255, 255, 255, 3);
+				for (const Trains::Stop& Sp : Rt.Stops) Dot(Rt.At[size_t(Sp.At)].X, Rt.At[size_t(Sp.At)].Z, 255, 255, 0, 2);
+			}
+			if (FILE* F = std::fopen(Ppm, "wb"))
+			{
+				std::fprintf(F, "P6\n%d %d\n255\n", Wd, H);
+				std::fwrite(Px.data(), 1, Px.size(), F);
+				std::fclose(F);
+				std::printf("Trains: routes drawn to %s (%d x %d, %.2f px a metre)\n", Ppm, Wd, H, Scale);
+			}
 		}
 	}
 	if (const char* RailsNear = std::getenv("WORLD_RIDE_RAILS_NEAR"))

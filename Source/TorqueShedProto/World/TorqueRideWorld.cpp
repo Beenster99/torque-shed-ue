@@ -40,6 +40,7 @@
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueFerry.h"
 #include "World/TorqueImpostors.h"
 #include "Engine/GameInstance.h"
@@ -1916,6 +1917,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	}
 	ATorqueForecourtGarage::Keep(this, *Plan, At);   // [garage] the forecourts' garage units near the rider
 	ATorqueFerry::Keep(this, *Plan, At);   // [ferries] the ferries near the rider
+	ATorqueTrains::Keep(this, Plan, At);   // [trains] the trains on the railways (World/TorqueTrains.h)
 	{
 		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
 		RideCosts::FScope Cost(RideCosts::RoadLook);

@@ -352,6 +352,8 @@ public:
 	// [ferries stage 6] The host's ferries (FTorqueFerryNet), each sent as it changes state.
 	UPROPERTY(Replicated) TArray<FTorqueFerryNet> FerryNet;
 	UPROPERTY(Replicated) bool bAwardsOn = false;
+	// [trains] The host's Settings > Gameplay > Trains, for everyone (World/TorqueTrains.cpp).
+	UPROPERTY(Replicated) bool bTrainsOn = true;
 	UPROPERTY(Replicated) uint8 AwardsPhase = 0;
 	UPROPERTY(Replicated) int32 AwardsSeq = 0;
 	UPROPERTY(Replicated) double AwardsVoteEnds = 0.0;

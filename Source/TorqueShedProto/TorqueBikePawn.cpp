@@ -23,6 +23,7 @@
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueFerry.h"
 #include "Shed/TorquePartsComputer.h"
 #include "TorqueTft.h"
@@ -1089,6 +1090,12 @@ void ATorqueBikePawn::GatherOtherBikes()
 		}
 		Contacts->SetBoxes(Boxes);
 	}
+	// [trains] A train near the bike: its contacts made for it (a rider who meets a train is knocked off).
+	if (bRealRide && Sim && !Contacts && ATorqueTrains::AnyNear(GetWorld(), Sim->Position.x, Sim->Position.z, 60.0))
+	{
+		Contacts = MakeUnique<ContactWorld>();
+		Sim->Contacts = Contacts.Get();
+	}
 	if (!Contacts) return;
 	// [furniture] In the shed's yard, the solid yard kit (walls, fences, the old car and buses) too.
 	if (bYard && FurnitureSeen != TorqueFurniture::ContactVersion())
@@ -1099,6 +1106,7 @@ void ATorqueBikePawn::GatherOtherBikes()
 		Contacts->SetBoxes(Boxes);
 	}
 	Contacts->Capsules.clear();
+	if (bRealRide && Sim) ATorqueTrains::Capsules(GetWorld(), Sim->Position.x, Sim->Position.y, Sim->Position.z, Contacts->Capsules);   // [trains] the trains' vehicles, moving
 	// [co-op] Riders pass through each other (beenster, build 135: no clashing); -TorqueRiderCollide
 	// puts the other bikes back as solid, for checking the contacts.
 	static const bool bCollide = FParse::Param(FCommandLine::Get(), TEXT("TorqueRiderCollide"));

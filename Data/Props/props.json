@@ -858,6 +858,76 @@
    "name": "Ferry slipway barrier arm",
    "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
    "source": "blender"
+  },
+  "train_dmu_car": {
+   "name": "Diesel unit car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_emu_cab": {
+   "name": "Electric unit cab car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_emu_mid": {
+   "name": "Electric unit middle car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_ic_power": {
+   "name": "Intercity power car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_ic_coach": {
+   "name": "Intercity coach",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_freight_loco": {
+   "name": "Freight locomotive",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_wagon_box": {
+   "name": "Container wagon",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_wagon_hopper": {
+   "name": "Hopper wagon",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_wagon_tank": {
+   "name": "Tank wagon",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_steam_tank": {
+   "name": "Steam tank engine",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_steam_big": {
+   "name": "Steam express engine",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_steam_tender": {
+   "name": "Steam tender",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_coach_old": {
+   "name": "Heritage coach",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_diesel_old": {
+   "name": "Heritage diesel",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
   }
  }
 }

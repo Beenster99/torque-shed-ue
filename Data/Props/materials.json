@@ -1914,6 +1914,691 @@
    "rough": 0.4,
    "metal": 0.1,
    "tile": 4.0
+  },
+  "train_livery_a": {
+   "base": "painted",
+   "tint": [
+    0.55,
+    0.55,
+    0.55
+   ],
+   "rough": 0.4,
+   "metal": 0.2,
+   "tile": 2.0,
+   "grime": 0.35
+  },
+  "train_livery_b": {
+   "base": "painted",
+   "tint": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "rough": 0.4,
+   "metal": 0.2,
+   "tile": 2.0,
+   "grime": 0.35
+  },
+  "train_roof": {
+   "base": "painted",
+   "tint": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "rough": 0.6,
+   "metal": 0.3,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_roof_old": {
+   "base": "painted",
+   "tint": [
+    0.08,
+    0.08,
+    0.08
+   ],
+   "rough": 0.7,
+   "metal": 0.2,
+   "tile": 2.0,
+   "grime": 0.8
+  },
+  "train_bogie": {
+   "base": "metal",
+   "tint": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "rough": 0.7,
+   "metal": 0.6,
+   "tile": 2.0,
+   "grime": 0.9
+  },
+  "train_wheel": {
+   "base": "metal",
+   "tint": [
+    0.35,
+    0.33,
+    0.31
+   ],
+   "rough": 0.4,
+   "metal": 1.0,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_spring": {
+   "base": "metal",
+   "tint": [
+    0.15,
+    0.1,
+    0.07
+   ],
+   "rough": 0.7,
+   "metal": 0.8,
+   "tile": 2.0,
+   "grime": 0.8
+  },
+  "train_under": {
+   "base": "painted",
+   "tint": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "rough": 0.75,
+   "metal": 0.3,
+   "tile": 2.0,
+   "grime": 0.9
+  },
+  "train_grille": {
+   "base": "metal",
+   "tint": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "rough": 0.55,
+   "metal": 0.8,
+   "tile": 4.0,
+   "grime": 0.6
+  },
+  "train_window": {
+   "base": "glass",
+   "tint": [
+    0.05,
+    0.06,
+    0.07
+   ],
+   "rough": 0.05,
+   "opacity": 0.55
+  },
+  "train_window_lit": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.9,
+    0.7
+   ],
+   "rough": 0.1,
+   "emissive": 1.5
+  },
+  "train_cab_glass": {
+   "base": "glass",
+   "tint": [
+    0.03,
+    0.04,
+    0.05
+   ],
+   "rough": 0.03,
+   "opacity": 0.5
+  },
+  "train_warning": {
+   "base": "painted",
+   "tint": [
+    0.85,
+    0.62,
+    0.02
+   ],
+   "rough": 0.45,
+   "metal": 0.15,
+   "tile": 2.0,
+   "grime": 0.5
+  },
+  "train_lamp_head": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.96,
+    0.88
+   ],
+   "rough": 0.15,
+   "emissive": 12.0
+  },
+  "train_lamp_tail": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.04,
+    0.02
+   ],
+   "rough": 0.15,
+   "emissive": 8.0
+  },
+  "train_lamp_off": {
+   "base": "plastic",
+   "tint": [
+    0.2,
+    0.2,
+    0.2
+   ],
+   "rough": 0.15
+  },
+  "train_lamp_red": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.05,
+    0.02
+   ],
+   "rough": 0.15,
+   "emissive": 10.0
+  },
+  "train_lamp_green": {
+   "base": "emissive",
+   "tint": [
+    0.1,
+    1.0,
+    0.35
+   ],
+   "rough": 0.15,
+   "emissive": 10.0
+  },
+  "train_mast": {
+   "base": "metal",
+   "tint": [
+    0.42,
+    0.43,
+    0.44
+   ],
+   "rough": 0.5,
+   "metal": 1.0,
+   "tile": 2.0,
+   "grime": 0.5
+  },
+  "train_insulator": {
+   "base": "plastic",
+   "tint": [
+    0.45,
+    0.2,
+    0.08
+   ],
+   "rough": 0.25
+  },
+  "train_wagon_frame": {
+   "base": "painted",
+   "tint": [
+    0.06,
+    0.06,
+    0.06
+   ],
+   "rough": 0.7,
+   "metal": 0.4,
+   "tile": 2.0,
+   "grime": 0.9
+  },
+  "train_container_1": {
+   "base": "painted",
+   "tint": [
+    0.08,
+    0.22,
+    0.38
+   ],
+   "rough": 0.55,
+   "metal": 0.4,
+   "tile": 2.0,
+   "grime": 0.6
+  },
+  "train_container_2": {
+   "base": "painted",
+   "tint": [
+    0.45,
+    0.12,
+    0.06
+   ],
+   "rough": 0.55,
+   "metal": 0.4,
+   "tile": 2.0,
+   "grime": 0.6
+  },
+  "train_hopper": {
+   "base": "painted",
+   "tint": [
+    0.32,
+    0.3,
+    0.28
+   ],
+   "rough": 0.7,
+   "metal": 0.3,
+   "tile": 2.0,
+   "grime": 0.95
+  },
+  "train_tank": {
+   "base": "painted",
+   "tint": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "rough": 0.45,
+   "metal": 0.4,
+   "tile": 2.0,
+   "grime": 0.8
+  },
+  "train_brass": {
+   "base": "metal",
+   "tint": [
+    0.78,
+    0.58,
+    0.25
+   ],
+   "rough": 0.25,
+   "metal": 1.0,
+   "tile": 2.0
+  },
+  "train_buffer_red": {
+   "base": "painted",
+   "tint": [
+    0.5,
+    0.03,
+    0.02
+   ],
+   "rough": 0.45,
+   "metal": 0.15,
+   "tile": 2.0,
+   "grime": 0.6
+  },
+  "train_coal": {
+   "base": "rubber",
+   "tint": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "rough": 0.95,
+   "tile": 6.0
+  },
+  "train_rod": {
+   "base": "metal",
+   "tint": [
+    0.5,
+    0.5,
+    0.52
+   ],
+   "rough": 0.3,
+   "metal": 1.0,
+   "tile": 2.0,
+   "grime": 0.5
+  },
+  "train_liv_0_0_a": {
+   "base": "painted",
+   "tint": [
+    0.55,
+    0.08,
+    0.18
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_0_0_b": {
+   "base": "painted",
+   "tint": [
+    0.85,
+    0.85,
+    0.82
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_0_1_a": {
+   "base": "painted",
+   "tint": [
+    0.05,
+    0.3,
+    0.45
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_0_1_b": {
+   "base": "painted",
+   "tint": [
+    0.9,
+    0.75,
+    0.1
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_0_2_a": {
+   "base": "painted",
+   "tint": [
+    0.35,
+    0.45,
+    0.1
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_0_2_b": {
+   "base": "painted",
+   "tint": [
+    0.85,
+    0.85,
+    0.82
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_1_0_a": {
+   "base": "painted",
+   "tint": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_1_0_b": {
+   "base": "painted",
+   "tint": [
+    0.05,
+    0.2,
+    0.5
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_1_1_a": {
+   "base": "painted",
+   "tint": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_1_1_b": {
+   "base": "painted",
+   "tint": [
+    0.95,
+    0.45,
+    0.05
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_1_2_a": {
+   "base": "painted",
+   "tint": [
+    0.6,
+    0.65,
+    0.7
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_1_2_b": {
+   "base": "painted",
+   "tint": [
+    0.5,
+    0.05,
+    0.4
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_2_0_a": {
+   "base": "painted",
+   "tint": [
+    0.03,
+    0.07,
+    0.2
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_2_0_b": {
+   "base": "painted",
+   "tint": [
+    0.75,
+    0.6,
+    0.25
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_2_1_a": {
+   "base": "painted",
+   "tint": [
+    0.75,
+    0.75,
+    0.72
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_2_1_b": {
+   "base": "painted",
+   "tint": [
+    0.6,
+    0.04,
+    0.06
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_2_2_a": {
+   "base": "painted",
+   "tint": [
+    0.15,
+    0.17,
+    0.18
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_2_2_b": {
+   "base": "painted",
+   "tint": [
+    0.05,
+    0.5,
+    0.55
+   ],
+   "rough": 0.35,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.45
+  },
+  "train_liv_3_0_a": {
+   "base": "painted",
+   "tint": [
+    0.25,
+    0.27,
+    0.28
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_3_0_b": {
+   "base": "painted",
+   "tint": [
+    0.85,
+    0.55,
+    0.02
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_3_1_a": {
+   "base": "painted",
+   "tint": [
+    0.05,
+    0.25,
+    0.1
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_3_1_b": {
+   "base": "painted",
+   "tint": [
+    0.85,
+    0.85,
+    0.8
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_3_2_a": {
+   "base": "painted",
+   "tint": [
+    0.45,
+    0.12,
+    0.05
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_3_2_b": {
+   "base": "painted",
+   "tint": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_4_0_a": {
+   "base": "painted",
+   "tint": [
+    0.02,
+    0.2,
+    0.08
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_4_0_b": {
+   "base": "painted",
+   "tint": [
+    0.3,
+    0.05,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_4_1_a": {
+   "base": "painted",
+   "tint": [
+    0.25,
+    0.03,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_4_1_b": {
+   "base": "painted",
+   "tint": [
+    0.55,
+    0.4,
+    0.2
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_4_2_a": {
+   "base": "painted",
+   "tint": [
+    0.04,
+    0.04,
+    0.05
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
+  },
+  "train_liv_4_2_b": {
+   "base": "painted",
+   "tint": [
+    0.4,
+    0.1,
+    0.06
+   ],
+   "rough": 0.45,
+   "metal": 0.25,
+   "tile": 2.0,
+   "grime": 0.7
   }
  }
 }

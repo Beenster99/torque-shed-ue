@@ -739,6 +739,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("infopanel")) S.bInfoPanel = bOn;   // [info]
 	else if (F == TEXT("placelookup")) S.bPlaceLookup = bOn;
 	else if (F == TEXT("rideawards")) S.bRideAwards = bOn;   // [ride awards]
+	else if (F == TEXT("trains")) S.bTrains = bOn;   // [trains]
 	else if (F == TEXT("fps")) S.bFpsCounter = bOn;
 	else if (F == TEXT("autoshift")) S.bAutoShift = bOn;
 	else if (F == TEXT("recentre")) S.bCameraRecentre = bOn;
@@ -1585,6 +1586,19 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			else
 				Toggle(TEXT("Ride awards"), S.bRideAwards,
 					TEXT("At the end of a planned ride: everyone privately ranks the three stats they care about, then sees the numbers and the top three on a podium"));
+		}
+		// [trains] Trains on the railways: the host's choice for everyone (shown, not changed, on a joined machine).
+		{
+			const ATorqueGameState* TrainState = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			if (bClient)
+			{
+				Add(TEXT("Trains"), TrainState && TrainState->bTrainsOn ? FString(TEXT("On")) : FString(TEXT("Off")),
+					TEXT("Trains running on the railways, with working level crossings (set by the host)"), nullptr);
+				R.Last().bDisabled = true;
+			}
+			else
+				Toggle(TEXT("Trains"), S.bTrains,
+					TEXT("Trains running on every railway line to a made-up timetable, with working level crossings. Off: no trains, crossings stay open"));
 		}
 		// [reports] beenster, build 155: a friend's game crashed. The crash and freeze reports, to zip up and send.
 		{
