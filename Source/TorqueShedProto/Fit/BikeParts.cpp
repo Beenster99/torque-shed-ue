@@ -4938,6 +4938,97 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 			if (Placed) TftUnitInto(Out, Dash, GAffine::Rotation(GodotRight, 0.9), V3(0.0, 0.0, 0.0), V3(0.0, Mid.y, Mid.z));
 		}
 	}
+	// [brake pads, beenster Nov 20: "brake pads do not have a 3D model", and so they couldn't be bolted up and no bike
+	// could be finished] The pads (the shop's own; no V2 model draws them) at the caliper's body where it clamps the
+	// disc, their backing showing on its outer face, so they're seen and the wrench reaches them (and drawn on their
+	// own as a loose part or in the shop).
+	for (const std::string Side : {std::string("front"), std::string("rear")})
+	{
+		const std::string PadsId = PartIn(Parts, Side + "_pads");
+		const Json* PadsPart = PadsId == "none" ? nullptr : Lay.Part(PadsId);
+		if (!PadsPart || PadsPart->Get("v2part")) continue;
+		// The disc on the caliper's side (the left one of a pair): its middle, radius and plane.
+		std::vector<V3> Disc, Cal;
+		std::string CalNode;
+		for (const FittedPart& P : Out)
+		{
+			if (!P.Made || P.Hidden) continue;
+			const bool bDisc = P.Sub == "disc_" + Side || P.Slot == Side + "_disc";
+			const bool bCal = P.Slot == Side + "_caliper";
+			if (!bDisc && !bCal) continue;
+			if (bCal && CalNode.empty()) CalNode = P.Node;
+			for (const PartSurface& S : P.Made->Surfaces)
+				for (const V3& Q : S.Pos) (bDisc ? Disc : Cal).push_back(Q);
+		}
+		if (Cal.empty()) continue;
+		V3 At, Lo(1.0e9, 1.0e9, 1.0e9), Hi(-1.0e9, -1.0e9, -1.0e9);
+		for (const V3& Q : Cal)
+		{
+			Lo = V3(std::min(Lo.x, Q.x), std::min(Lo.y, Q.y), std::min(Lo.z, Q.z));
+			Hi = V3(std::max(Hi.x, Q.x), std::max(Hi.y, Q.y), std::max(Hi.z, Q.z));
+		}
+		At = V3((Lo.x + Hi.x) * 0.5, Hi.y + 0.012, (Lo.z + Hi.z) * 0.5);   // (no disc to go by: on top, as the older bikes)
+		if (!Disc.empty())
+		{
+			double DLoX = 1.0e9, DHiX = -1.0e9, DLoY = 1.0e9, DHiY = -1.0e9, Zs = 0.0;
+			int Left = 0;
+			for (const V3& Q : Disc) Left += Q.z > 0.0 ? 1 : 0;
+			const double Sgn = Left * 2 >= int(Disc.size()) ? 1.0 : -1.0;
+			int N = 0;
+			for (const V3& Q : Disc)
+				if (Q.z * Sgn > 0.0)
+				{
+					DLoX = std::min(DLoX, Q.x); DHiX = std::max(DHiX, Q.x); DLoY = std::min(DLoY, Q.y); DHiY = std::max(DHiY, Q.y);
+					Zs += Q.z;
+					++N;
+				}
+			if (N > 0)
+			{
+				const double Cx = (DLoX + DHiX) * 0.5, Cy = (DLoY + DHiY) * 0.5, R = (DHiX - DLoX) * 0.5, Dz = Zs / N;
+				// The caliper's body: its points over the disc's outer band, near its plane.
+				V3 Sum(0.0, 0.0, 0.0);
+				double OutZ = Dz;
+				int M = 0;
+				for (const V3& Q : Cal)
+				{
+					const double Rr = std::hypot(Q.x - Cx, Q.y - Cy);
+					if (std::fabs(Q.z - Dz) > 0.045 || Rr < R * 0.55 || Rr > R * 1.25) continue;
+					Sum += Q;
+					OutZ = Sgn > 0.0 ? std::max(OutZ, Q.z) : std::min(OutZ, Q.z);
+					++M;
+				}
+				if (M >= 8)
+				{
+					const V3 Body = Sum / double(M);
+					// (the pad's thin side across the bike, its backing just proud of the body's outer face)
+					At = V3(Body.x, Body.y, OutZ + Sgn * 0.006);
+					// (a rear disc on the chain's side: outboard they'd sit in the chain run, so inboard of the disc
+					// instead, inside the caliper's inner half, where aiming at the caliper still finds them)
+					bool bClash = false;
+					for (const FittedPart& P : Out)
+					{
+						if (bClash || !P.Made || P.Hidden) continue;
+						if (P.Slot != "chain" && P.Slot != "final_drive" && P.Sub.find("sprocket") == std::string::npos) continue;
+						for (const PartSurface& S : P.Made->Surfaces)
+						{
+							for (const V3& Q : S.Pos)
+								if (std::fabs(Q.x - At.x) < 0.035 && std::fabs(Q.y - At.y) < 0.03 && std::fabs(Q.z - At.z) < 0.02)
+								{
+									bClash = true;
+									break;
+								}
+							if (bClash) break;
+						}
+					}
+					if (bClash) At = V3(Body.x, Body.y, Dz - Sgn * 0.016);
+				}
+			}
+		}
+		// (the pad file lies flat, thin up its y: stood on edge, thin across the bike)
+		const GAffine PadBasis = GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5);
+		Put(Out, Side + "_pads", "pads/" + PadsId + ".glb", AtWith(PadBasis, ToGodot(At)),
+			CalNode.empty() ? (Side == "front" ? std::string("front_hub") : std::string("swingarm")) : CalNode);
+	}
 	V2Common(Parts, F, Out);
 	return true;
 }
