@@ -2491,7 +2491,8 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 		const FVector Ahead = FRotator(0.0, Yaw, 0.0).Vector();
 		PlaceOnGround(ToSim(FVector(X, Y, 0.0)), std::atan2(-Ahead.X, -Ahead.Y));
 	}
-	// What's under each wheel: the ground trace the wheels use, from 60 cm up to 40 cm down.
+	// What's under each wheel: the ground trace the wheels use, from 60 cm up to 100 cm down (the bike is placed
+	// level: on a slope, 1 in 7 on a ferry's approach, the lower wheel's ground is more than 40 cm under the middle).
 	FString Under;
 	UWorld* World = GetWorld();
 	const FVector Mid = ToUE(Sim->Position);
@@ -2501,7 +2502,7 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 		const FVector Wheel = Mid + Along * Off;
 		FHitResult Hit;
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueTestPlace), true, this);
-		const bool bHit = World && GroundTrace(World, Wheel + FVector(0.0, 0.0, 60.0), Wheel - FVector(0.0, 0.0, 40.0), Params, Hit);
+		const bool bHit = World && GroundTrace(World, Wheel + FVector(0.0, 0.0, 60.0), Wheel - FVector(0.0, 0.0, 100.0), Params, Hit);
 		Under += FString::Printf(TEXT("%s%s wheel on %s.%s at z %.1f"), Under.IsEmpty() ? TEXT("") : TEXT(", "), Off > 0.0 ? TEXT("front") : TEXT("rear"),
 			bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("nothing"), bHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("-"),
 			bHit ? Hit.ImpactPoint.Z : 0.0);
