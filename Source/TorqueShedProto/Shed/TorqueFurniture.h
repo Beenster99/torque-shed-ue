@@ -141,6 +141,23 @@ FTransform Snapped(const UWorld* World, const FModel& M, const FTransform& Xf, i
 // the floor whose bottom centre At is over its deck, off the floor, rides along when it's moved.
 bool IsTrolley(const FModel& M);
 bool OnTrolley(const FModel& M, const FTransform& TrolleyXf, const FVector& At);
+// [shelf] Shelving (equipment.gd's "shelf" kind: beenster, Nov 20: "the storage shelves need to allow
+// things to be placed on them"). A part or box goes down on the board you look at, as on the floor
+// (a floor item at that height: saved, sent and picked up as any other), and rides along when the unit
+// is moved, as a trolley's load does (Carries, OnTrolley).
+bool IsShelf(const FModel& M);
+bool Carries(const FModel& M);   // a trolley or a shelving unit: what's on it moves with it
+// Its boards' tops (cm up from its foot, lowest first) as make_props.py _shelving builds them, and the
+// posts' width. 0 for anything that isn't shelving.
+int32 ShelfBoards(const FModel& M, double* Tops, int32 Max, double& Post);
+// Where a part of Size (its x, y footprint and its height, cm) turned to DropYaw goes on the shelving
+// unit at Xf, looked at from Eye along Look: on the board the look comes down on, or the one under
+// the gap the look goes into (a board above eye height: the gap under the board above it), squared to
+// the unit, centred front to back, along it where you look but not past its posts. Out: its bottom
+// centre and turn; Ceiling: the underside of the board above (a very big number on the top board);
+// Dist: how far from Eye the look meets the unit. False when the look misses it. WhyNot: it doesn't fit.
+bool ShelfDropFor(const FModel& M, const FTransform& Xf, const FVector& Eye, const FVector& Look, const FVector& Size, double DropYaw,
+	FTransform& Out, double& Ceiling, double& Dist, FString& WhyNot);
 // Where a trolley being moved is drawn now (its mover's, snapped), or where it stands.
 FTransform DrawnXf(const UObject* WorldContext, const FTorqueFurniture& F);
 
