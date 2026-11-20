@@ -1478,7 +1478,8 @@ def facade_material(L):
     return g.m
 
 
-STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
+                    "touring_caravan", "static_caravan")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
 
@@ -1698,11 +1699,27 @@ def prop_kit(L):
     if os.path.isdir(folder) and any(f.endswith(".glb") for f in os.listdir(folder)):
         ours = L.import_glbs(folder, PROP_DEST)
         sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-        for mesh in ours.values():
+        for name, mesh in ours.items():
             try:
                 sme.remove_collisions(mesh)
             except Exception:
                 pass
+            # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
+            # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
+            kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
+            lods = spec["kinds"].get(kind, {}).get("lods")
+            if lods:
+                try:
+                    settings = [unreal.EditorScriptingMeshReductionSettings(1.0, 1.0)]
+                    for keep, screen in zip((0.5, 0.25, 0.1), lods):
+                        settings.append(unreal.EditorScriptingMeshReductionSettings(keep, float(screen)))
+                    opts = unreal.EditorScriptingMeshReductionOptions()
+                    opts.set_editor_property("auto_compute_lod_screen_size", False)
+                    opts.set_editor_property("reduction_settings", settings)
+                    got = sme.set_lods_with_notification(mesh, opts, True)
+                    log("props: %s: %d LODs" % (name, got))
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: no LODs made for %s (%s)" % (name, e))
             unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # [fps plan step 2] The houses' facade kit, made by Tools/make_facade_kit.py: windows, their surrounds
     # and doors, a model per size, coloured per instance by M_RideFacade (always ours, never Fab's).
