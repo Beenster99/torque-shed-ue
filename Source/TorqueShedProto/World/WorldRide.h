@@ -788,6 +788,9 @@ public:
 		// [circuits] The race circuits' trackside kit (Tools/blender_circuit_kit.py), placed by IndexCircuits: armco,
 		// tyre walls and the pit wall laid along their runs (Stretch), the rest facing the track
 		PropArmco, PropTyreWall, PropPitWall, PropMarshalPost, PropBrakingBoard, PropStartGantry, PropGrandstand,
+		// [caravans] The campsites' touring caravans and static caravans (Tools/blender_caravan_kit.py), in place of
+		// TownLifeTile's boxes where they have models (TownLifeProps)
+		PropTouringCaravan, PropStaticCaravan,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1394,6 +1397,8 @@ public:
 	// before the line, the heading it's raced at there (sim: 0 faces -z, + left), and its name. False with none.
 	// [circuits] The circuits' trackside kit on a square of ground (added to PropsTile's).
 	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [caravans] The campsites' caravans in the square, as models (when the kit has them: PropModelled).
+	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
 	void CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const;
