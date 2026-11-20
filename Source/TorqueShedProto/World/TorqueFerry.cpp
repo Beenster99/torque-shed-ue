@@ -1284,7 +1284,11 @@ FString ATorqueFerry::Test(const UWorld* World, const FString& What, ATorqueBike
 		if (F->State != EState::Docked) return TEXT("not tied up: ") + Where;
 		const FVector Bay = F->Boat->GetComponentTransform().TransformPosition(FVector((BayX0 + BayX1) * 0.5, (BayY0 + BayY1) * 0.5, Deck));
 		const FVector Bow = F->Boat->GetComponentQuat().RotateVector(FVector::YAxisVector);
-		return Pawn->TestPlaceAt(Bay.X, Bay.Y, Bow.Rotation().Yaw) + TEXT("; ") + Where;
+		// (Where was said before the bike was moved: whether it's aboard now, and what the sailing still waits for)
+		const FString Placed = Pawn->TestPlaceAt(Bay.X, Bay.Y, Bow.Rotation().Yaw);
+		const bool bAboard = F->OnBoard(Pawn->GetActorLocation());
+		return Placed + FString::Printf(TEXT("; %s: the bike %s aboard now; it sails about 4 s after every rider's bike is parked aboard with the rider off it (foot:off), feet on deck"),
+			*F->PlaceName[F->DockEnd], bAboard ? TEXT("is") : TEXT("ISN'T"));
 	}
 	return Where;
 }
