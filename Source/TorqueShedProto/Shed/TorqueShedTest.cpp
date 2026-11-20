@@ -29,6 +29,7 @@
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
 #include "World/TorqueFerry.h"
+#include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -724,7 +725,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
-		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry"))
+		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry") || Verb == TEXT("trains"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -822,6 +823,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"));
 			Said(ATorqueFerry::Test(World, What, Bike));
+			return true;
+		}
+		// [trains] trains[:where|count]: the nearest train in sight and its route, or how many are in sight.
+		if (Verb == TEXT("trains"))
+		{
+			Said(ATorqueTrains::Test(World, P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"))));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
