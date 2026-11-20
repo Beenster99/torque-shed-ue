@@ -704,6 +704,70 @@
    "far": false,
    "cull_m": 30000,
    "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_4",
+   "mesh": "SM_TreeFar_ash_4",
+   "count": 0,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_beech_3",
+   "mesh": "SM_TreeFar_beech_3",
+   "count": 0,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_oak_3",
+   "mesh": "SM_TreeFar_oak_3",
+   "count": 0,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_4",
+   "mesh": "SM_TreeFar_sycamore_4",
+   "count": 0,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_4",
+   "mesh": "SM_Tree_ash_4",
+   "count": 0,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_beech_3",
+   "mesh": "SM_Tree_beech_3",
+   "count": 0,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_oak_3",
+   "mesh": "SM_Tree_oak_3",
+   "count": 0,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_4",
+   "mesh": "SM_Tree_sycamore_4",
+   "count": 0,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
   }
  ],
  "models": {
@@ -1234,6 +1298,54 @@
    "height": 17.15,
    "triangles": 690,
    "radius": 2.94
+  },
+  "SM_Tree_ash_4": {
+   "species": "ash",
+   "height": 20.15,
+   "triangles": 184948,
+   "radius": 14.0
+  },
+  "SM_TreeFar_ash_4": {
+   "species": "ash",
+   "height": 20.35,
+   "triangles": 4174,
+   "radius": 13.71
+  },
+  "SM_Tree_sycamore_4": {
+   "species": "sycamore",
+   "height": 20.69,
+   "triangles": 148896,
+   "radius": 12.71
+  },
+  "SM_TreeFar_sycamore_4": {
+   "species": "sycamore",
+   "height": 19.63,
+   "triangles": 3646,
+   "radius": 12.67
+  },
+  "SM_Tree_oak_3": {
+   "species": "oak",
+   "height": 20.59,
+   "triangles": 170716,
+   "radius": 12.78
+  },
+  "SM_TreeFar_oak_3": {
+   "species": "oak",
+   "height": 20.89,
+   "triangles": 4956,
+   "radius": 12.73
+  },
+  "SM_Tree_beech_3": {
+   "species": "beech",
+   "height": 22.77,
+   "triangles": 176594,
+   "radius": 13.99
+  },
+  "SM_TreeFar_beech_3": {
+   "species": "beech",
+   "height": 23.39,
+   "triangles": 5656,
+   "radius": 13.05
   }
  },
  "counts": {

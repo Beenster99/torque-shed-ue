@@ -63,6 +63,9 @@ CREDIT = ("Trees: canopy heights from Meta and World Resources Institute, High R
 # the ride draws of a kind (torque.RideTreeVariants); ash and sycamore keep the 4 Buttertubs' placement has.)
 VARIANTS = {"ash": 4, "sycamore": 4, "alder": 3, "birch": 3, "hawthorn": 3, "spruce": 3, "oak": 3, "beech": 3,
             "willow": 3, "rowan": 3, "pine": 3, "hazel": 3, "holly": 3, "larch": 3}
+# ([build 166] beenster: "none of them look very large or mature (an oak or ash tree is huge)": a veteran of
+# each big broadleaf as its last model (SM_Tree_<sp>_<n>), the ride's tallest field and hedgerow trees)
+VETERANS = ("oak", "ash", "beech", "sycamore")
 
 
 # --- Canopy map ------------------------------------------------------------------------------------
@@ -476,13 +479,16 @@ def write_instances(path, groups, names):
     return total, len(comp)
 
 
-def build_models():
+def build_models(only=None):
+    """The models (only: just these names' k, as (species, k) pairs), their info by name."""
     os.makedirs(OUT, exist_ok=True)
     info = {}
     for sp, n in VARIANTS.items():
-        for k in range(n):
+        for k in range(n + (1 if sp in VETERANS else 0)):
+            if only is not None and (sp, k) not in only:
+                continue
             t0 = time.time()
-            near, far, meta = TM.make(sp, 1000 + 37 * k + len(sp), k, n)
+            near, far, meta = TM.make(sp, 1000 + 37 * k + len(sp), k, n, veteran=k == n)
             for tag, m in (("SM_Tree", near), ("SM_TreeFar", far)):
                 name = "%s_%s_%d" % (tag, sp, k)
                 P, T = m.write(os.path.join(OUT, name + ".glb"), name, write_glb)
@@ -502,6 +508,8 @@ def main():
                     help="where the canopy tiles are kept (about 300 MB)")
     ap.add_argument("--models-only", action="store_true")
     ap.add_argument("--placement-only", action="store_true", help="keep the models already in Data/Buttertubs/Trees")
+    ap.add_argument("--veterans-only", action="store_true",
+                    help="with --keep-placement: make only the veterans (VETERANS), the other models as they are")
     ap.add_argument("--keep-placement", action="store_true",
                     help="new models, Buttertubs' trees where they are: trees.json keeps its species in their order "
                          "(instances.bin indexes them) and lists the new models after them, planted nowhere")
@@ -511,10 +519,14 @@ def main():
         spec_path = os.path.join(OUT, "trees.json")
         spec = json.load(open(spec_path))
         old = [s["name"] for s in spec["species"]]
-        for f in os.listdir(OUT):
-            if f.endswith(".glb") and f[:-4] not in old:
-                os.remove(os.path.join(OUT, f))   # (models of a previous make that nothing lists)
-        info = build_models()
+        if args.veterans_only:
+            info = dict(spec["models"])
+            info.update(build_models(only={(sp, VARIANTS[sp]) for sp in VETERANS}))
+        else:
+            for f in os.listdir(OUT):
+                if f.endswith(".glb") and f[:-4] not in old:
+                    os.remove(os.path.join(OUT, f))   # (models of a previous make that nothing lists)
+            info = build_models()
         spec["models"] = info
         for n in sorted(info):
             if n not in old:

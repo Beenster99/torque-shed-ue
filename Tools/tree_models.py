@@ -640,6 +640,35 @@ def crown_ao(leaf_pts, h):
 LEAF_SIZE, LEAF_COUNT = 1.45, 1.4
 
 
+# [Nov 20, build 166] beenster: "none of them look very large or mature (an oak or ash tree is huge)". A
+# veteran of each big broadleaf: the lone field or hedgerow tree of 22-28 m, its crown low and as broad as
+# it is tall, the trunk a metre and more across, a few great limbs. Coarser steps and bigger leaf clusters
+# keep it inside a big young tree's triangles. (multiplies the species' own numbers; crown: start, width, radius, flatness)
+VETERAN = {"oak": dict(height=1.5, crown=(0.55, 1.0, 0.78, 1.15), trunk_r=1.35, attract=1.3, step=1.6, leaf=1.65, count=0.8, sparse=0.8),
+           "ash": dict(height=1.55, crown=(0.75, 1.0, 0.95, 1.05), trunk_r=1.3, attract=1.25, step=1.6, leaf=1.65, count=0.8, sparse=1.0),
+           "beech": dict(height=1.45, crown=(0.6, 1.0, 1.0, 1.1), trunk_r=1.3, attract=1.25, step=1.6, leaf=1.65, count=0.8, sparse=1.0),
+           "sycamore": dict(height=1.5, crown=(0.65, 1.0, 1.0, 1.1), trunk_r=1.3, attract=1.25, step=1.6, leaf=1.65, count=0.8, sparse=1.0)}
+
+
+def veteran_spec(name):
+    """The species' numbers grown on to a veteran (VETERAN)."""
+    sp = dict(SPECIES[name]); v = VETERAN[name]
+    sp["height"] = sp["height"] * v["height"]
+    c0, cw, cr, flat = sp["crown"]; m = v["crown"]
+    sp["crown"] = (c0 * m[0], cw * m[1], cr * m[2], flat * m[3])
+    sp["trunk_r"] = sp["trunk_r"] * v["trunk_r"]
+    sp["attract"] = int(sp["attract"] * v["attract"])
+    sp["step"] = sp["step"] * v["step"]
+    sp["infl"] = sp["infl"] * v["step"]
+    sp["kill"] = sp["kill"] * v["step"]
+    sp["sparse"] = sp["sparse"] * v["sparse"]
+    shape, size, count, col, spread = sp["leaf"]
+    sp["leaf"] = (shape, size * v["leaf"], max(2, int(round(count * v.get("count", 1.0)))), col, spread * v["leaf"])
+    sp["far_blobs"] = int(sp.get("far_blobs", 12) * 1.3)
+    sp["veteran"] = True
+    return sp
+
+
 def vary(name, rng, k=None, n=5):
     """A variant's own shape: its age (young: slim, high-crowned, upright; old: broad, low-limbed,
     thick-trunked), its crown lower or higher, wider or narrower, flatter or rounder, leaning one way,
@@ -647,6 +676,8 @@ def vary(name, rng, k=None, n=5):
     sp = dict(SPECIES[name]) if isinstance(name, str) else dict(name)
     age = (0.55 + 0.75 * k / max(n - 1, 1)) if k is not None else rng.uniform(0.55, 1.3)
     age = float(np.clip(age + rng.normal(0, 0.08), 0.5, 1.35))
+    if sp.get("veteran"):
+        age = 1.35 + rng.uniform(0.0, 0.1)
     c0, cw, cr, flat = sp["crown"]
     lift = rng.uniform(0.9, 1.1) if sp.get("high_crown") else rng.uniform(0.6, 1.15) * (1.35 - 0.4 * age)
     sp["crown"] = (float(np.clip(c0 * lift, 0.03, 0.75)),
@@ -957,7 +988,9 @@ def spruce(seed, name="spruce", k=None, n=5):
     return near, far, {"shoots": len(shoots), "height": h, "age": round(age, 2)}
 
 
-def make(name, seed, k=None, n=5):
+def make(name, seed, k=None, n=5, veteran=False):
+    if veteran:
+        return broadleaf(veteran_spec(name), seed, n - 1, n)
     if name in ("spruce", "larch"):
         return spruce(seed, name, k, n)
     return broadleaf(name, seed, k, n)

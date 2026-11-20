@@ -2439,6 +2439,11 @@ bool ATorqueRideWorld::FindKit()
 		// trees are thousands, and full scanned trees there cost about 10 ms of GPU at Whaley Bridge
 		// (build 148). -TorqueRideFarScans=1 draws them as before.
 		static const bool bFarScans = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFarScans="), On) && On != 0; }();
+		// ([build 166] a kind's models youngest to oldest, by their names' numbers (the veteran last, whatever
+		// order the level lists them in): a tree's Pick follows its height)
+		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
+			for (TArray<int32>* Models : {&KindNear[K], &KindFar[K]})
+				Models->Sort([this](int32 A, int32 B) { return Kit[A].Name.ToString() < Kit[B].Name.ToString(); });
 		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
 		{
 			const bool bScanned = KindNear[K].ContainsByPredicate([this](int32 Si) { return Kit[Si].Name.ToString().EndsWith(TEXT("_scan")); });

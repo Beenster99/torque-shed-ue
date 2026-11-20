@@ -530,8 +530,18 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 					if (Roll < 0.1 + 0.4 * Smooth(0.45, 0.8, Wet)) What = Which < 0.7 ? Alder : Willow;
 					else What = Which < 0.32 ? Ash : Which < 0.55 ? Sycamore : Which < 0.77 ? Oak : Which < 0.86 ? Beech : Which < 0.94 ? Birch : Which < 0.97 ? Holly : Rowan;
 				}
-				const double Height = Tall * (0.8 + 0.35 * Hash(Gx, Gz, 15u));
-				Put(What, X, Z, Hash(Gx, Gz, 17u) * Pi2, 1.0, 0.15, false, Height, Hash(Gx, Gz, 16u), !Fine);
+				double Height = Tall * (0.8 + 0.35 * Hash(Gx, Gz, 15u));
+				double Pick = Hash(Gx, Gz, 16u);
+				if (!Needle && Tall >= 6.5)
+				{
+					// ([Nov 20, build 166] beenster: "none of them look very large or mature (an oak or ash tree is
+					// huge)". A lone field or hedgerow broadleaf (a thin share of canopy) stands taller than the
+					// map's cell gives it, and a broadleaf's model follows its height: young and slim when short,
+					// the broad-crowned veteran (Tools/tree_models.py VETERAN) when it is over about 20 m.)
+					if (Share <= 0.375) Height *= 1.1 + 0.25 * Hash(Gx, Gz, 19u);
+					Pick = std::fmin(std::fmax((Height - 6.0) / 17.0 + (Pick - 0.5) * 0.3, 0.0), 0.999);
+				}
+				Put(What, X, Z, Hash(Gx, Gz, 17u) * Pi2, 1.0, 0.15, false, Height, Pick, !Fine);
 			}
 	}
 	// [OSM stage 2 batch C] An orchard's fruit trees, in rows 6 m apart and 5 m along them, low and
