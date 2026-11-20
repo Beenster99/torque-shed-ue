@@ -85,7 +85,7 @@ private:
 		double HalfWidth = 7.0, Laid = 0.0;   // cm; metres of tread slid over it
 		double Born = 0.0;                    // world seconds
 		float Opacity = 0.0f, Shown = -1.0f, Fade = 1.0f, EndsShown = -1.0f;
-		bool bLive = false, bOpen = false, bFading = false;
+		bool bLive = false, bOpen = false, bFading = false, bAimed = false;
 	};
 	TArray<FMark> Marks;
 	UPROPERTY(Transient) TArray<TObjectPtr<UObject>> Keep;
