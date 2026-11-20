@@ -751,10 +751,31 @@ std::vector<RainShaft> FindRainShafts(const MapGrids& G, double Lat, double Lon,
 	if (Out.size() > static_cast<size_t>(L.ShaftMost)) Out.resize(static_cast<size_t>(L.ShaftMost));
 	return Out;
 }
-double V2DetailSize(double DetailM, double DepthM, const Looks& L)
+double V2DeepErode(double DepthM, const Looks& L)
 {
 	const double Grow = L.V2DetailDeepM > 1.0 ? std::sqrt(std::max(DepthM, 0.0) / L.V2DetailDeepM) : 1.0;
-	return std::max(DetailM, 10.0) * std::max(Grow, 1.0);
+	return 1.0 / std::max(Grow * Grow, 1.0);
+}
+
+void ShiftWeatherMap(std::vector<unsigned char>& Bgra, int Px, int DCol, int DRow)
+{
+	if (Px <= 0 || (int)Bgra.size() != Px * Px * 4 || (DCol == 0 && DRow == 0)) return;
+	const std::vector<unsigned char> Was = Bgra;
+	for (int Row = 0; Row < Px; ++Row)
+		for (int Col = 0; Col < Px; ++Col)
+		{
+			const int R = std::clamp(Row + DRow, 0, Px - 1), C = std::clamp(Col + DCol, 0, Px - 1);
+			for (int K = 0; K < 4; ++K) Bgra[(static_cast<size_t>(Row) * Px + Col) * 4 + K] = Was[(static_cast<size_t>(R) * Px + C) * 4 + K];
+		}
+}
+
+void BlendWeatherMap(const std::vector<unsigned char>& From, const std::vector<unsigned char>& To, double T, std::vector<unsigned char>& Out)
+{
+	Out.resize(To.size());
+	const bool bFrom = From.size() == To.size();
+	const double K = Clamp01(T);
+	for (size_t I = 0; I < To.size(); ++I)
+		Out[I] = bFrom ? static_cast<unsigned char>(std::lround(From[I] + (To[I] - From[I]) * K)) : To[I];
 }
 
 } // namespace TorqueSky
