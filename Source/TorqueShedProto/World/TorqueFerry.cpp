@@ -34,7 +34,7 @@ namespace TFer = TorqueWorld::Ferries;
 
 constexpr double NearM = 1500.0, FarM = 2500.0;   // stood up within, taken down past (m, from either end)
 constexpr double RampSeconds = 5.0, ArmSeconds = 3.0, ReadySeconds = 4.0, CallSeconds = 2.0;
-constexpr double WaitM = 600.0, HostHornSeconds = 1.5;   // [stage 6] riders this near a slipway are waited for; the host's horn held this long
+constexpr double WaitM = 600.0, HostHornSeconds = 5.0;   // [stage 6] riders this near a slipway are waited for; the host's horn held this long
 constexpr double RaisedDeg = 72.0;                // a ramp raised for sailing
 constexpr double CallReach = 90.0, HintReach = 260.0;   // a rider this near a slipway's head calls the boat; the HUD's line (m)
 // The boat in its own frame (cm: x across, y along with +y the bow, z up from the waterline), as make_ferry.py draws it.
@@ -1188,7 +1188,7 @@ FString ATorqueFerry::HintFor(const ATorqueBikePawn* Pawn)
 			if (F.bJustIn) return FString::Printf(TEXT("%s ferry: tied up at %s, ramp down: get back on and ride off"), *Name, *F.PlaceName[F.DockEnd]);
 			// [stage 6] (in co-op, how many it waits for; the host may sail without them)
 			if (F.Waiting > 0 && Pawn->GetWorld()->GetNetMode() == NM_ListenServer)
-				return FString::Printf(TEXT("%s ferry: waiting for %d more rider%s. Hold the horn to sail without them"), *Name, F.Waiting, F.Waiting == 1 ? TEXT("") : TEXT("s"));
+				return FString::Printf(TEXT("%s ferry: waiting for %d more rider%s. Hold the horn 5 s to sail without them"), *Name, F.Waiting, F.Waiting == 1 ? TEXT("") : TEXT("s"));
 			if (F.Waiting > 0) return FString::Printf(TEXT("%s ferry: waiting for %d more rider%s to park aboard"), *Name, F.Waiting, F.Waiting == 1 ? TEXT("") : TEXT("s"));
 			return FString::Printf(TEXT("%s ferry: waiting for everyone to park aboard"), *Name);
 		case EState::Raising:
