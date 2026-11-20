@@ -1473,6 +1473,7 @@ void ATorqueWalker::MakePlan()
 			Plan = MakeOne(ETorqueShedAct::Drop, 0.25, CarryReach > 1.0 ? TEXT("put it down there") : TEXT("put it down in front of you"));
 			Plan.Request.Place = CarryDrop();
 			Plan.Blocked = B->Check(Me, Plan.Request);
+			ShelfPlan();
 		}
 		return;
 	}
@@ -1756,6 +1757,19 @@ void ATorqueWalker::MakePlan()
 	}
 	if (Plan.bValid && !Plan.bComputer) Plan.Blocked = B->Check(Me, Plan.Request);
 	if (AltPlan.bValid) AltPlan.Blocked = B->Check(Me, AltPlan.Request);
+	ShelfPlan();
+}
+
+void ATorqueWalker::ShelfPlan()
+{
+	// [shelf] A part put down on a shelving unit: says so, or why it won't go (too long, too tall).
+	if (!Plan.bValid || Plan.Request.Kind != ETorqueShedAct::Drop) return;
+	FTransform OnShelf;
+	double Ceiling = 0.0;
+	FString WhyNot;
+	if (!ShelfDrop(OnShelf, Ceiling, WhyNot)) return;
+	Plan.Verb = TEXT("put it on the shelf");
+	if (Plan.Blocked.IsEmpty()) Plan.Blocked = WhyNot;
 }
 
 // walker.gd _spray_plan: what the can or gun does to Item (a bike part on bay Bay): its colour,
@@ -2290,12 +2304,75 @@ FString ATorqueWalker::CarryText() const
 		Shown == 0 ? TEXT("hidden") : (Plan.Blocked.IsEmpty() ? TEXT("blue") : TEXT("red")), Shown, Through);
 }
 
+bool ATorqueWalker::ShelfDrop(FTransform& Out, double& Ceiling, FString& WhyNot) const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	UWorld* World = GetWorld();
+	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
+	if (!B || !World || Held == 0 || B->FurnitureMovedBy(B->Me()) != 0) return false;
+	// Seen from where the look comes from (as CarryDrop's aim).
+	FVector Eye = Camera ? Camera->GetComponentLocation() : GetActorLocation();
+	FVector Look = Controller ? GetControlRotation().Vector() : (Camera ? Camera->GetForwardVector() : GetActorForwardVector());
+	if (const APlayerController* AimPC = Cast<APlayerController>(GetController()); AimPC && AimPC->PlayerCameraManager)
+	{
+		Eye = AimPC->PlayerCameraManager->GetCameraLocation();
+		Look = AimPC->PlayerCameraManager->GetCameraRotation().Vector();
+	}
+	FVector Size(60.0, 30.0, 20.0);
+	for (TActorIterator<ATorqueShedItems> It(World); It; ++It)
+		if (It->SizeOf(Held, Size)) break;
+	const double DropYaw = GetControlRotation().Yaw + HoldTurn;
+	// The nearest shelving unit the look goes into, within reach.
+	const FTorqueFurniture* Best = nullptr;
+	double BestDist = (double)Reach + 30.0, BestCeiling = 1.0e9;
+	FTransform BestXf;
+	FString BestWhy;
+	for (const FTorqueFurniture& F : B->Furniture())
+	{
+		if (F.Mover != 0) continue;
+		const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model);
+		if (!M || !TorqueFurniture::IsShelf(*M)) continue;
+		FTransform Xf;
+		double Ceil = 1.0e9, Dist = 0.0;
+		FString Why;
+		if (!TorqueFurniture::ShelfDropFor(*M, F.Xf, Eye, Look, Size, DropYaw, Xf, Ceil, Dist, Why) || Dist > BestDist) continue;
+		Best = &F;
+		BestDist = Dist;
+		BestXf = Xf;
+		BestCeiling = Ceil;
+		BestWhy = Why;
+	}
+	if (!Best) return false;
+	// Not through a wall, a bench or another piece of kit in front of it (the parts and bikes don't
+	// count: a part already on the shelf is looked past).
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerShelf), true, this);
+	for (TActorIterator<ATorqueShedBike> It(World); It; ++It) Params.AddIgnoredActor(*It);
+	for (TActorIterator<ATorqueShedItems> It(World); It; ++It) Params.AddIgnoredActor(*It);
+	FHitResult Hit;
+	if (BestDist > 2.0 && World->LineTraceSingleByChannel(Hit, Eye, Eye + Look * (BestDist - 2.0), ECC_Visibility, Params))
+	{
+		const ATorqueFurnishings* Kit = Cast<ATorqueFurnishings>(Hit.GetActor());
+		UStaticMeshComponent* const* Mine = Kit ? Kit->Pieces().Find(Best->Id) : nullptr;
+		if (!Mine || *Mine != Hit.GetComponent()) return false;
+	}
+	Out = BestXf;
+	Ceiling = BestCeiling;
+	WhyNot = BestWhy;
+	return true;
+}
+
 FTransform ATorqueWalker::CarryDrop() const
 {
 	const UTorqueBuildSubsystem* B = Shed();
 	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
 	UWorld* World = GetWorld();
 	const double Yaw = GetControlRotation().Yaw;
+	// [shelf] Looking at a shelving unit: on the board you look at (boxes still stack on what's there,
+	// up to the board above).
+	FTransform OnShelf;
+	double ShelfCeiling = 1.0e9;
+	FString ShelfWhy;
+	const bool bShelf = ShelfDrop(OnShelf, ShelfCeiling, ShelfWhy);
 	const FVector Flat = FRotator(0.0, Yaw, 0.0).Vector();
 	// How far it reaches towards you and away, turned however you've turned it (walker.gd _push_transform).
 	FVector Size(60.0, 30.0, 20.0);
@@ -2324,11 +2401,11 @@ FTransform ATorqueWalker::CarryDrop() const
 				Dist = FMath::Min(Dist, FMath::Max(Base, Hit.Distance - Half - 2.0));
 		}
 	}
-	FVector At = Feet + Flat * Dist;
+	FVector At = bShelf ? OnShelf.GetLocation() : Feet + Flat * Dist;
 	double KitTop = -1.0e9;   // [trolley] the top of the kit piece looked at, when it's that
 	// beenster (Nov 12): where the crosshair points. Looking down at the floor (or a low surface)
 	// within reach, it goes down there; looking ahead or up, the wheel's reach as before.
-	if (World)
+	if (World && !bShelf)
 		if (const APlayerController* AimPC = Cast<APlayerController>(GetController()); AimPC && AimPC->PlayerCameraManager)
 		{
 			const FVector Eye = AimPC->PlayerCameraManager->GetCameraLocation();
@@ -2361,13 +2438,14 @@ FTransform ATorqueWalker::CarryDrop() const
 		}
 	FHitResult Down;
 	const FVector Top(At.X, At.Y, FMath::Max(Feet.Z + 120.0, KitTop + 40.0));
-	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
+	if (bShelf) {}   // (on the board: OnShelf's height)
+	else if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
 	else At.Z = Feet.Z;
 	// A box or crate let go over another box on the floor goes on top of it (beenster, Nov 10: boxes
 	// and crates stack), squared up on it when it's about over the middle; the pile no higher than the
 	// delivery area's.
 	const FTorqueItem* HeldIt = B ? B->Item(Held) : nullptr;
-	double DropYaw = Yaw + HoldTurn;
+	double DropYaw = bShelf ? OnShelf.Rotator().Yaw : Yaw + HoldTurn;
 	if (B && HeldIt && HeldIt->bBoxed)
 	{
 		const FVector Mine = TorqueShedLayout::DeliverySize(HeldIt->Kind);
@@ -2376,6 +2454,8 @@ FTransform ATorqueWalker::CarryDrop() const
 		{
 			const FTorqueItem& Under = KV.Value;
 			if (KV.Key == Held || Under.At != ETorqueAt::Floor || !Under.bBoxed) continue;
+			// [shelf] On a shelf: only what's on that board, and no higher than the board above.
+			if (bShelf && (Under.Place.GetLocation().Z < At.Z - 3.0 || Under.Place.GetLocation().Z > ShelfCeiling)) continue;
 			const FVector S = TorqueShedLayout::DeliverySize(Under.Kind);
 			const FVector Local = Under.Place.InverseTransformPosition(FVector(At.X, At.Y, Under.Place.GetLocation().Z));
 			if (FMath::Abs(Local.X) > S.X * 0.5 || FMath::Abs(Local.Y) > S.Y * 0.5) continue;
@@ -2390,7 +2470,7 @@ FTransform ATorqueWalker::CarryDrop() const
 				: FVector2D(FMath::Max(Mine.X, Mine.Y) * 0.5);
 			const double TopZ = Under.Place.GetLocation().Z
 				+ TorqueShedDelivery::TopAt(Under.Kind, S, bSquare ? FVector2D::ZeroVector : FVector2D(Local.X, Local.Y), OnHalf);
-			if (TopZ <= Best || TopZ + Mine.Z > TorqueShedLayout::DeliveryPileTop + 5.0) continue;
+			if (TopZ <= Best || (bShelf ? TopZ + Mine.Z > ShelfCeiling + 1.0 : TopZ + Mine.Z > TorqueShedLayout::DeliveryPileTop + 5.0)) continue;
 			Best = TopZ;
 			if (bSquare)
 			{

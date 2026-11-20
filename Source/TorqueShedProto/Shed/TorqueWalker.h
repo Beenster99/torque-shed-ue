@@ -393,6 +393,11 @@ private:
 	// Where the part in your hands goes down on the floor: arm's length plus CarryReach ahead (short
 	// of a wall), turned by HoldTurn (walker.gd _push_transform, for a part).
 	FTransform CarryDrop() const;
+	// [shelf] The part in your hands looked at a shelving unit with: where it goes on the board you look
+	// at (TorqueFurniture::ShelfDropFor), the underside of the board above, and why it won't fit (empty:
+	// it does). False: no shelving in the look.
+	bool ShelfDrop(FTransform& Out, double& Ceiling, FString& WhyNot) const;
+	void ShelfPlan();   // MakePlan's last word on a drop onto shelving
 	int32 SprayColour = 0;
 	int32 FadeStyle = 0;               // the gun's Fade load: which fade (R steps through them), TorquePaintMix::FirstFade + this
 	// The cups picker: which cup it's on (INDEX_NONE: shut), each cup's colour and finish as picked,
