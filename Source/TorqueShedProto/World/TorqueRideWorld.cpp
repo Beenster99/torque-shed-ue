@@ -42,6 +42,7 @@
 #include "World/TorqueForecourtGarage.h"
 #include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueFerry.h"
+#include "World/TorqueLevelCrossing.h"
 #include "World/TorqueImpostors.h"
 #include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
@@ -754,6 +755,11 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+	// [level crossings] The crossings' kit (Tools/props/make_level_crossing.py, imported with the props): with it the
+	// real crossings stand up near the rider (ATorqueLevelCrossing) in place of the code-made barrier.
+	Plan->CrossingKit = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Shed/Props/lx_unit/SM_lx_unit.SM_lx_unit")) != nullptr;
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: level crossings %s (%d in the area)"), Plan->CrossingKit ? TEXT("from the kit") : TEXT("code-made (no lx_ models: Tools/ue_import_props.py)"),
+		int32(Plan->LevelCrossings.size()));
 	{
 		// [fps plan step 2] The houses' windows and doors as the facade kit's instances when every kind of it
 		// has its models in M_RideFacade (Tools/ue_build_rideuk.py prop_kit), unless -TorqueRideFacadeKit=0
@@ -1918,6 +1924,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	ATorqueForecourtGarage::Keep(this, *Plan, At);   // [garage] the forecourts' garage units near the rider
 	ATorqueFerry::Keep(this, *Plan, At);   // [ferries] the ferries near the rider
 	ATorqueTrains::Keep(this, Plan, At);   // [trains] the trains on the railways (World/TorqueTrains.h)
+	ATorqueLevelCrossing::Keep(this, *Plan, At);   // [level crossings] the crossings near the rider
 	{
 		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
 		RideCosts::FScope Cost(RideCosts::RoadLook);

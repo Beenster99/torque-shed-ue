@@ -1141,6 +1141,24 @@ public:
 		bool Disused = false;
 	};
 	std::vector<RailLine> Rails;
+	// [level crossings] Each level crossing of a railway in use (World/WorldLevelCrossing.h lays it out; the game's
+	// ATorqueLevelCrossing stands it up near the rider and runs it; the trains warn it by Key): where the rails cross
+	// the road (Rails[Line] points First..Last, On == 3), the middle of that, the road's way across and the line's
+	// (unit), the road's half width, the map's road class there and the crossing's type (LevelX::EType). Key is a
+	// hash of where it is, the same on every machine. Found by IndexFurniture.
+	struct LevelCrossing
+	{
+		uint32_t Key = 0;
+		int Line = 0, First = 0, Last = 0;
+		P2 Mid, Road, Rail;
+		double Half = 3.0;
+		int Type = 0;
+		std::string Class;
+	};
+	std::vector<LevelCrossing> LevelCrossings;
+	// [level crossings] The game has the crossings' kit (Tools/props/make_level_crossing.py's models): the code-made
+	// barrier and lights (CrossingBarrier) aren't drawn, ATorqueLevelCrossing stands the real ones up instead.
+	bool CrossingKit = false;
 	static constexpr double RailBedHalf = 5.0;
 	static constexpr double RailStep = 4.0, RailGauge = 1.435;
 	// A station's platform: along line Line from point First to Last, on the Side (+1 the left going
@@ -1788,6 +1806,7 @@ private:
 	// (Region::Ground.Paths): a ribbon on the ground along each, its colour its surface's, never on a road.
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;
 	void IndexFurniture();
+	void FindLevelCrossing(int Line, int First, int Last);   // [level crossings] (one of LevelCrossings, from IndexFurniture)
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
 	// [OSM stage 2] A bit of a wall, hedge or fence from A to B less the gateways in it: its pieces

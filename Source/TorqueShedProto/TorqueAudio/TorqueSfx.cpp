@@ -63,6 +63,10 @@ std::shared_ptr<TorqueSfxBank::FBank> TheBank()
 		FString TrainText;
 		if (FFileHelper::LoadFileToString(TrainText, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Audio/Trains/manifest.json"))))
 			UE_LOG(LogTemp, Log, TEXT("Torque: the trains' sounds %s"), Bank->Add(TCHAR_TO_UTF8(*TrainText), "../Trains/") ? TEXT("added") : TEXT("unreadable"));
+		// [level crossings] The crossings' alarm and barrier motors (Tools/audio/make_crossing_sounds.py).
+		FString CrossingText;
+		if (FFileHelper::LoadFileToString(CrossingText, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Audio/Crossing/manifest.json"))))
+			UE_LOG(LogTemp, Log, TEXT("Torque: the level crossings' sounds %s"), Bank->Add(TCHAR_TO_UTF8(*CrossingText), "../Crossing/") ? TEXT("added") : TEXT("unreadable"));
 		// Every take but the place beds read in the background, so the first of each doesn't stall.
 		std::shared_ptr<TorqueSfxBank::FBank> Keep = Bank;
 		Async(EAsyncExecution::ThreadPool, [Keep] {

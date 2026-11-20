@@ -8,6 +8,8 @@
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRideSigns.h"
+#include "WorldLevelCrossing.h"
+#include "WorldRoadLine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -875,6 +877,64 @@ std::vector<char> RidePlan::StreetsAlong(int Which) const
 	return Out;
 }
 
+// [level crossings] The crossing of road and rails Rails[Line] points First..Last: the map's road nearest its middle
+// (its way across, its class and width) and the type its road calls for (World/WorldLevelCrossing).
+void RidePlan::FindLevelCrossing(int Line, int First, int Last)
+{
+	const RailLine& Run = Rails[size_t(Line)];
+	LevelCrossing C;
+	C.Line = Line;
+	C.First = First;
+	C.Last = Last;
+	C.Mid = (Run.At[size_t(First)] + Run.At[size_t(Last)]) * 0.5;
+	const size_t A = First > 0 ? size_t(First) - 1 : size_t(First), B = std::min(Run.At.size() - 1, size_t(Last) + 1);
+	C.Rail = Run.At[B] - Run.At[A];
+	const double RailLen = C.Rail.Length();
+	if (RailLen < 1e-6) return;
+	C.Rail = C.Rail * (1.0 / RailLen);
+	// (the nearest piece of the map's roads to the middle, within 15 m)
+	double Best = 15.0;
+	int BestEdge = -1;
+	const std::vector<RoadEdge>& Edges = Area.Roads.Edges;
+	for (size_t E = 0; E < Edges.size(); ++E)
+	{
+		const std::vector<P2>& L = Edges[E].Line;
+		for (size_t K = 0; K + 1 < L.size(); ++K)
+		{
+			const P2 P = L[K], Q = L[K + 1];
+			if (std::min(P.X, Q.X) > C.Mid.X + Best || std::max(P.X, Q.X) < C.Mid.X - Best || std::min(P.Z, Q.Z) > C.Mid.Z + Best || std::max(P.Z, Q.Z) < C.Mid.Z - Best) continue;
+			const P2 D = Q - P;
+			const double Len2 = D.X * D.X + D.Z * D.Z;
+			const double T = Len2 > 0.0 ? std::clamp(((C.Mid.X - P.X) * D.X + (C.Mid.Z - P.Z) * D.Z) / Len2, 0.0, 1.0) : 0.0;
+			const double Dist = (P + D * T - C.Mid).Length();
+			if (Dist < Best && Len2 > 1e-6)
+			{
+				Best = Dist;
+				BestEdge = int(E);
+				C.Road = D * (1.0 / std::sqrt(Len2));
+			}
+		}
+	}
+	if (BestEdge < 0)
+	{
+		// (no mapped road that near: square across the line, a lane's width)
+		C.Road = P2(-C.Rail.Z, C.Rail.X);
+		C.Class = "unclassified";
+	}
+	else
+		C.Class = Area.Roads.ClassOf(BestEdge);
+	// (its width where the map gives one, else its class's; never under a single track's)
+	C.Half = std::max(1.6, RoadLine::WidthOf(C.Class) * 0.5);
+	if (BestEdge >= 0)
+	{
+		const auto X = Area.Roads.Extras.find(Edges[size_t(BestEdge)].Gid);
+		if (X != Area.Roads.Extras.end() && X->second.Width > 2.5) C.Half = std::clamp(X->second.Width * 0.5, 1.6, 7.0);
+	}
+	C.Key = static_cast<uint32_t>(std::lround(C.Mid.X * 2.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(C.Mid.Z * 2.0)) * 19349663u ^ 0x5bd1e995u;
+	C.Type = LevelX::TypeFor(C.Class, C.Half, C.Key);
+	LevelCrossings.push_back(C);
+}
+
 void RidePlan::IndexFurniture()
 {
 	Furniture.clear();
@@ -1195,15 +1255,19 @@ void RidePlan::IndexFurniture()
 		if (Home >= 0 && G.Buildings[size_t(Home)].W * G.Buildings[size_t(Home)].D >= 60.0) BuildingRole[size_t(Home)] = 1;
 	}
 	// Level crossings: on each road's approach to a railway in use, a barrier (up: no trains run) and
-	// its lights, on the traffic's left.
-	for (const RailLine& Run : Rails)
+	// its lights, on the traffic's left. ([level crossings] and each one listed, for ATorqueLevelCrossing to stand
+	// the kit's real crossing up: then this code-made one isn't drawn)
+	LevelCrossings.clear();
+	for (size_t Ri = 0; Ri < Rails.size(); ++Ri)
 	{
+		const RailLine& Run = Rails[Ri];
 		if (Run.Disused) continue;
 		for (size_t I = 0; I < Run.At.size(); ++I)
 		{
 			if (Run.On[I] != 3 || (I > 0 && Run.On[I - 1] == 3)) continue;
 			size_t J = I;
 			while (J + 1 < Run.At.size() && Run.On[J + 1] == 3) ++J;
+			FindLevelCrossing(int(Ri), int(I), int(J));
 			// (the rail's points just off the road each side, and the way across the line there)
 			for (int End = 0; End < 2; ++End)
 			{
@@ -1707,6 +1771,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		// [OSM stage 2] a kind the prop kit has a model for is drawn from it (PropsTile), but a
 		// street lamp's glowing head and real light stay here, and a traffic signal's lit faces
 		if (Modelled(F.Kind) && F.Kind != StreetLamp && F.Kind != TrafficSignal) continue;
+		if (F.Kind == CrossingBarrier && CrossingKit) continue;   // [level crossings] (ATorqueLevelCrossing's real one stands there)
 		const double Y = F.Height;
 		const P2 Face = F.Face;
 		const P2 Side(Face.Z, -Face.X);

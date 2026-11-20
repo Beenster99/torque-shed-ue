@@ -16,6 +16,7 @@
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
 #include "WorldTrains.h"
+#include "WorldLevelCrossing.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
 #include <set>
@@ -390,6 +391,9 @@ int main(int Argc, char** Argv)
 				Bank = std::fmax(Bank, -Lie);
 			}
 		std::printf("  railways: deepest cutting %.1f m, highest bank %.1f m\n", Cut, Bank);
+		// [level crossings] Each one, its road and type (World/WorldLevelCrossing).
+		for (const RidePlan::LevelCrossing& X : Plan->LevelCrossings)
+			std::printf("  level crossing at %.0f, %.0f: %s road %.1f m wide, %s (key %u)\n", X.Mid.X, X.Mid.Z, X.Class.c_str(), X.Half * 2.0, LevelX::TypeName(X.Type), X.Key);
 	}
 	double Steep = 0.0, Crest = 0.0, Off = 0.0;
 	for (size_t I = 1; I + 1 < Plan->Road.size(); ++I)
@@ -1048,6 +1052,28 @@ int main(int Argc, char** Argv)
 			}
 		}
 		std::printf("Trains past the watched place %02d:00 for two hours: %d; worst Near() %.3f ms\n", int(FromHour), Passed, Worst);
+		// (the level crossings: how long each is shut over the same two hours, by the timetable)
+		if (!Plan->LevelCrossings.empty())
+		{
+			int Ever = 0;
+			double ShutS = 0.0, LongestS = 0.0;
+			for (const RidePlan::LevelCrossing& Lx : Plan->LevelCrossings)
+			{
+				double Run = 0.0, Sum = 0.0;
+				for (double T = 0.0; T < 7200.0; T += 5.0)
+				{
+					Trains::Clock C;
+					C.T = 1.0e6 + T;
+					C.Hour = FromHour + T / 3600.0;
+					if (Net->Closed(C, Lx.Line, Lx.First, Lx.Last, 30.0)) { Sum += 5.0; Run += 5.0; LongestS = std::fmax(LongestS, Run); }
+					else Run = 0.0;
+				}
+				if (Sum > 0.0) ++Ever;
+				ShutS += Sum;
+			}
+			std::printf("Level crossings: %zu, %d shut for a train in the two hours; shut %.1f min an hour on average, longest %.0f s\n", Plan->LevelCrossings.size(), Ever,
+				ShutS / 60.0 / 2.0 / double(Plan->LevelCrossings.size()), LongestS);
+		}
 		if (const char* Ppm = std::getenv("WORLD_RIDE_TRAINS_PPM"))
 		{
 			double Mx0 = 1e18, Mz0 = 1e18, Mx1 = -1e18, Mz1 = -1e18;
