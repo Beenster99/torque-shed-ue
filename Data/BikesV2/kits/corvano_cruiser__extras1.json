@@ -1,0 +1,29 @@
+{
+ "name": "Corvano cruiser (working title R2)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1108,
+ "surfaces": {
+  "s016": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s017": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  }
+ }
+}

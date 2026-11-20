@@ -1,0 +1,30 @@
+{
+ "name": "Corvano classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 3080,
+ "surfaces": {
+  "s017": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.4591,
+    0.0029,
+    0.0189
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s018": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ }
+}
