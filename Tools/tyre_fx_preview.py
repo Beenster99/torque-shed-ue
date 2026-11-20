@@ -33,41 +33,56 @@ def smoothstep(a, b, x):
 
 
 class Puff:
-    __slots__ = ("pos", "vel", "age", "life", "s0", "s1", "alpha", "seed")
+    __slots__ = ("pos", "vel", "age", "life", "s0", "s1", "alpha", "seed", "drag")
 
 
-def burnout(seconds, wind):
-    """The smoke of a burnout, in metres (x ahead of the bike, y left, z up), rear tyre's patch at 0."""
+def burnout(seconds, wind, radius=0.30):
+    """The smoke of a burnout, in metres (x ahead of the bike, y left, z up), rear tyre's patch at 0.
+
+    As EmitSmoke after build 160: a ball carried round the back of the wheel with the tread, and a fan
+    flung off the back of it that slows and swells into the bank behind."""
     fwd, up, side = np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), np.array([0, 1.0, 0])
+    axle = up * radius
     puffs, heat, debt = [], 0.0, 0.0
     slide, road, half = 20.0, 0.0, 0.08
+    tread = slide - road
     for _ in range(int(seconds / DT)):
-        heat = min(heat + slide / 10.0 * DT, 1.0)
-        hot = float(smoothstep(0.1, 0.7, heat))
-        debt = min(debt + 45.0 * hot * min(slide / 12.0, 1.6) * DT, 6.0)
+        heat = min(heat + slide / 6.0 * DT, 1.0)
+        hot = float(smoothstep(0.03, 0.5, heat))
+        debt = min(debt + 45.0 * hot * min(slide / 12.0, 1.6) * 1.6 * DT, 6.0)
         while debt >= 1.0:
             debt -= 1.0
             p = Puff()
             p.seed = RNG.random()
-            p.pos = up * frand(0.04, 0.14) - fwd * frand(0.05, 0.30) + side * frand(-1, 1) * half
-            throw = frand(1.0, 3.0) if road < 3.0 else frand(0.2, 0.9)
-            p.vel = -fwd * throw + up * frand(0.3, 1.2) + side * frand(-1.8, 1.8) + wind * 0.3
-            p.age, p.life = 0.0, frand(9.0, 15.0)
-            p.s0, p.s1 = frand(0.40, 0.70), frand(4.0, 8.0)
-            p.alpha = frand(0.30, 0.50) * (0.6 + 0.4 * hot)
+            across = frand(-1, 1) * half
+            if RNG.random() < 0.45:
+                th = math.radians(frand(0.0, 200.0))
+                out = radius + frand(0.02, 0.14)
+                p.pos = axle - up * out * math.cos(th) - fwd * out * math.sin(th) + side * across * 1.4
+                rnd = -fwd * math.cos(th) + up * math.sin(th)
+                p.vel = rnd * tread * frand(0.08, 0.16) + side * frand(-0.4, 0.4)
+                p.life, p.s0, p.s1 = frand(1.2, 2.5), frand(0.25, 0.40), frand(1.2, 2.2)
+                p.alpha, p.drag = frand(0.40, 0.60) * (0.6 + 0.4 * hot), 3.5
+            else:
+                th = math.radians(frand(10.0, 70.0))
+                p.pos = axle - up * radius * math.cos(th) - fwd * radius * math.sin(th) + side * across
+                fl = min(tread, 30.0) * frand(0.14, 0.32)
+                p.vel = -fwd * fl + up * fl * frand(0.0, 0.22) + side * fl * frand(-0.38, 0.38) + wind * 0.3
+                p.life, p.s0, p.s1 = frand(9.0, 15.0), frand(0.30, 0.50), frand(4.0, 8.0)
+                p.alpha, p.drag = frand(0.30, 0.50) * (0.6 + 0.4 * hot), 1.4
+            p.age = 0.0
             if len(puffs) < CAP:
                 puffs.append(p)
             else:
                 old = max(range(len(puffs)), key=lambda k: puffs[k].age / puffs[k].life)
                 puffs[old] = p
-        drift = wind + np.array([0, 0, 0.25])
-        ease = 1.0 - math.exp(-0.9 * DT)
+        drift = wind + np.array([0, 0, 0.15])
         keep = []
         for p in puffs:
             p.age += DT
             if p.age >= p.life:
                 continue
-            p.vel = p.vel + (drift - p.vel) * ease
+            p.vel = p.vel + (drift - p.vel) * (1.0 - math.exp(-p.drag * DT))
             p.pos = p.pos + p.vel * DT
             keep.append(p)
         puffs = keep
@@ -77,7 +92,7 @@ def burnout(seconds, wind):
 def puff_look(p):
     f = p.age / p.life
     size = p.s0 + (p.s1 - p.s0) * (1.0 - (1.0 - f) ** 3)
-    a = p.alpha * min(p.age / 0.3, 1.0) * (1.0 - float(smoothstep(0.55, 1.0, f))) * (1.0 + (0.55 - 1.0) * f)
+    a = p.alpha * min(p.age / min(0.3, 0.15 * p.life), 1.0) * (1.0 - float(smoothstep(0.55, 1.0, f))) * (1.0 + (0.55 - 1.0) * f)
     return size, a
 
 
@@ -187,7 +202,14 @@ def darkies(w, h):
         x += seg
         v += 2.5
         slide *= 0.7
-    dr.text((10, 8), "darkies from above (24 m): burnout patch / locked-rear skid from 34 mph / wheelspin pulling away",
+    # A donut: the back tyre round the front on a 1.45 m circle, a piece every 10 deg (was 40: an octagon).
+    cx, cy, rr = 17.0, 2.6, 1.45
+    for k in range(36):
+        a0, a1 = math.radians(k * 10.0), math.radians(k * 10.0 + 10.0)
+        p0 = (cx + rr * math.cos(a0), cy + 0.9 + rr * math.sin(a0) * 0.6)
+        p1 = (cx + rr * math.cos(a1), cy + 0.9 + rr * math.sin(a1) * 0.6)
+        dr.line([(p0[0] * px, p0[1] * px), (p1[0] * px, p1[1] * px)], fill=(4, 4, 4, 200), width=int(0.16 * px))
+    dr.text((10, 8), "darkies from above (24 m): burnout patch / locked-rear skid from 34 mph / wheelspin pulling away / donut",
             fill=(255, 255, 255))
     return img
 

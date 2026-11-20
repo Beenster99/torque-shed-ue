@@ -103,6 +103,8 @@ struct FTorqueTyreScrub
 	double SlideMs = 0.0;
 	double RoadMs = 0.0;       // the bike's own speed over the road, m/s
 	double HalfWidthCm = 7.0;  // half the tread laid on the road
+	double RadiusCm = 30.0;    // the tyre's (its axle is RadiusCm up from At)
+	double SpinMs = 0.0;       // the tread's speed round the wheel, m/s (+ rolling forward)
 	bool bTarmac = true;
 	FVector At = FVector::ZeroVector, Fwd = FVector::ForwardVector, Up = FVector::UpVector;
 };
@@ -144,6 +146,12 @@ public:
 	// of it). At: the contact patch (world cm); Fwd: the way the bike points, level; Up: the ground's
 	// way up there as the bike stands on it.
 	bool TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const;
+	// [exhaust flames, beenster build 160] A sports engine's pops and bangs on the overrun shoot flame out
+	// of its pipe(s) (Weather/TorqueTyreFx draws them). TakeExhaustFlames: the flames due by world time
+	// Now, timed to the pops heard (the sound's queued ahead), each true for a bang. ExhaustTips: each
+	// silencer's open end (world cm) and the way the flame shoots out of it; false with none fitted.
+	int32 TakeExhaustFlames(double Now, TArray<bool>& OutBangs);
+	bool ExhaustTips(TArray<FVector>& OutAt, FVector& OutDir) const;
 	// [info] The pointer is out (M) to click a place in the info panel: the mouse moves it, not the view.
 	bool IsPointing() const { return bPointing; }
 	void SetPointing(bool bOn) { bPointing = bOn; }
@@ -317,6 +325,10 @@ public:
 
 	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ExhaustParts;   // the silencers (else the exhaust), for the flames
+	struct FFlameDue { double Due = 0.0; bool bBang = false; };
+	TArray<FFlameDue> FlamesDue;
+	int32 PopsSeen = 0, BangsSeen = 0;
 	// The clutch (0) and front brake (1) levers, which the rider's fingers pull.
 	UPROPERTY(Transient) UStaticMeshComponent* LeverParts[2];
 

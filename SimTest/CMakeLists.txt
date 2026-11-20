@@ -262,3 +262,12 @@ target_include_directories(awards_test PRIVATE ${COOP})
 if(NOT MSVC)
   target_compile_options(awards_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# How quickly each V2 bike flicks from side to side, as through a chicane (a measurement, not pass/fail).
+add_executable(handling_test handling_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(handling_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(handling_test PRIVATE /W4)
+else()
+  target_compile_options(handling_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

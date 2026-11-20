@@ -476,6 +476,8 @@ void ATorqueBikePawn::BuildModel()
 	GripDelta[0] = GripDelta[1] = FTransform::Identity;
 	GripParts[0] = GripParts[1] = nullptr;
 	int32 Made = 0;
+	ExhaustParts.Reset();
+	TArray<UStaticMeshComponent*> ExhaustPipes;   // (the headers, when there's no silencer of its own)
 	TArray<FName> PartSlots, PartGroups;   // per part made, for geometry mode's fit
 	TArray<FTransform> PartRest;
 	for (const FPartToMake& P : ToMake)
@@ -499,6 +501,8 @@ void ATorqueBikePawn::BuildModel()
 		C->ComponentTags.Add(FName(*(TEXT("Part:") + P.Name)));   // for the shed's dirt and paint (ApplyLooks)
 		C->RegisterComponent();
 		ModelParts.Add(C);
+		if (P.Slot == FName(TEXT("silencers")) || P.Name.Contains(TEXT("silenc")) || P.Name.Contains(TEXT("muffler"))) ExhaustParts.Add(C);
+		else if (P.Slot == FName(TEXT("exhaust"))) ExhaustPipes.Add(C);
 		PartSlots.Add(P.Slot);
 		PartGroups.Add(FName(*P.Group));
 		PartRest.Add(Fix * P.Delta);
@@ -510,6 +514,7 @@ void ATorqueBikePawn::BuildModel()
 		else if (UnitName == TEXT("grip_r") || UnitName == TEXT("grips_r")) { GripDelta[1] = P.Delta; GripParts[1] = C; }
 		++Made;
 	}
+	if (ExhaustParts.Num() == 0) ExhaustParts = ExhaustPipes;
 	// The dirt and paint the bike has in the shed (washed or not, resprayed or not) ride out with it.
 	TorqueShedModel::ApplyLooks(this, ModelParts);
 	// And its fit from geometry mode, as the shed draws it (-TorqueBuild= test builds have none).
@@ -2540,6 +2545,8 @@ bool ATorqueBikePawn::TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const
 	Out.SlideMs = FMath::Max(Long * PastPeak, Across);
 	Out.RoadMs = FMath::Abs(Road);
 	Out.HalfWidthCm = bRear ? 8.0 : 5.5;
+	Out.RadiusCm = Radius * 100.0;
+	Out.SpinMs = W.Omega * Radius;
 	Out.bTarmac = W.Surf == SURF_TARMAC || W.Surf == SURF_SLICK || W.Surf == SURF_STEEL || W.Surf == SURF_GRID;
 	const FQuat Q = GetActorQuat();
 	Out.Up = Q.GetUpVector();
@@ -2548,6 +2555,43 @@ bool ATorqueBikePawn::TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const
 	Out.Fwd = Fwd.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 	Out.At = Comp->GetComponentLocation() - Out.Up * (Radius * 100.0);
 	return true;
+}
+
+int32 ATorqueBikePawn::TakeExhaustFlames(double Now, TArray<bool>& OutBangs)
+{
+	OutBangs.Reset();
+	for (int32 I = FlamesDue.Num() - 1; I >= 0; --I)
+		if (FlamesDue[I].Due <= Now)
+		{
+			OutBangs.Add(FlamesDue[I].bBang);
+			FlamesDue.RemoveAtSwap(I);
+		}
+	return OutBangs.Num();
+}
+
+bool ATorqueBikePawn::ExhaustTips(TArray<FVector>& OutAt, FVector& OutDir) const
+{
+	OutAt.Reset();
+	const FVector Back = -GetActorForwardVector();
+	const FVector Up = GetActorUpVector();
+	// Out of the back of the can, a little up (as they're angled), along the way the bike points.
+	OutDir = (Back + Up * 0.15).GetSafeNormal();
+	for (const UStaticMeshComponent* C : ExhaustParts)
+	{
+		if (!C || !C->GetStaticMesh() || !C->IsVisible()) continue;
+		// Its box's end furthest back: the middle of that face (the pipe's open end).
+		const FBox Box = C->GetStaticMesh()->GetBoundingBox();
+		const FTransform& Xf = C->GetComponentTransform();
+		const FVector Mid = Xf.TransformPosition(Box.GetCenter());
+		double Far = 0.0;
+		for (int32 K = 0; K < 8; ++K)
+		{
+			const FVector Corner((K & 1) ? Box.Max.X : Box.Min.X, (K & 2) ? Box.Max.Y : Box.Min.Y, (K & 4) ? Box.Max.Z : Box.Min.Z);
+			Far = FMath::Max(Far, FVector::DotProduct(Xf.TransformPosition(Corner) - Mid, Back));
+		}
+		OutAt.Add(Mid + Back * Far);
+	}
+	return OutAt.Num() > 0;
 }
 
 void ATorqueBikePawn::PressIgnition()
@@ -4934,6 +4978,21 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	if (Need <= 0) return;
 	SoundFloat.SetNumUninitialized(Need);
 	Sound->Render(SoundFloat.GetData(), Need);
+	// [exhaust flames] Pops and bangs the engine just made: a flame for each that shows one, due when
+	// it's heard (the queue ahead of it, and half this block).
+	if (const TorqueEngine::FVoice* Voice = Sound->EngineSound())
+	{
+		if (Voice->Pops < PopsSeen || Voice->Bangs < BangsSeen) PopsSeen = BangsSeen = 0;   // (a new engine)
+		const int32 NewBangs = Voice->Bangs - BangsSeen;
+		const int32 NewPops = FMath::Max(Voice->Pops - PopsSeen - NewBangs, 0);
+		PopsSeen = Voice->Pops;
+		BangsSeen = Voice->Bangs;
+		const double Share = TorqueEngine::FlameShare(Voice->Bank().Spec);
+		const double Due = (GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0) + (Have + Need * 0.5) / double(Rate);
+		for (int32 I = 0; I < NewBangs && FlamesDue.Num() < 8 && ExhaustParts.Num() > 0; ++I) FlamesDue.Add({Due, true});
+		for (int32 I = 0; I < NewPops && FlamesDue.Num() < 8 && ExhaustParts.Num() > 0; ++I)
+			if (FMath::FRand() < Share) FlamesDue.Add({Due, false});
+	}
 	SoundPcm.SetNumUninitialized(Need);
 	for (int32 I = 0; I < Need; ++I) SoundPcm[I] = (int16)FMath::Clamp(FMath::RoundToInt(SoundFloat[I] * 32767.0f), -32767, 32767);
 	SoundWave->QueueAudio(reinterpret_cast<const uint8*>(SoundPcm.GetData()), Need * 2);

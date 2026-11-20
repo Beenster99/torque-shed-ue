@@ -1791,6 +1791,14 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				[this, &Me, NumAv](int32 D) { Me.Avatar = Wrap(Me.Avatar + 1 + D, NumAv + 1) - 1; ProfileChanged(); });
 			FaceSlide(TEXT("Height"), Me.Height, Pv && Pv->Height() > 0.0 ? FString::Printf(TEXT("%.2f m"), Pv->Height() / 100.0) : FString::Printf(TEXT("%+.0f%%"), Me.Height * 6.0f),
 				TEXT("Shorter or taller than the MetaHuman's own height, by up to 6%"), false);
+			// [jacket] beenster's Crosswind leather jacket over the shirt (made for Avatar A so far).
+			{
+				const bool bOnA = Own.EndsWith(TEXT("_A"));
+				Add(TEXT("Jacket"), FString(FTorqueProfile::JacketName(Me.Jacket)) + (Me.Jacket > 0 && !bOnA ? TEXT(" (Avatar A only)") : TEXT("")),
+					TEXT("A leather jacket over your shirt, as everyone in co-op sees you; it fits Avatar A for now"),
+					[this, &Me]() { Me.Jacket = Wrap(Me.Jacket + 1, (int32)FTorqueProfile::NumJackets); ProfileChanged(); },
+					[this, &Me](int32 D) { Me.Jacket = Wrap(Me.Jacket + D, (int32)FTorqueProfile::NumJackets); ProfileChanged(); });
+			}
 			Heading(TEXT("FACE"));
 			for (int32 F = 0; F < FTorqueProfile::NumFace; ++F)
 				FaceSlide(FTorqueProfile::Sliders[F].Name, Me.Face[F], FString::Printf(TEXT("%+.1f"), Me.Face[F]), FTorqueProfile::Sliders[F].Hint, true);
@@ -2485,7 +2493,7 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		if (Pv && Pv->HasAvatar())
 		{
 			Pv->DrawWorked(Canvas, PX, PY, PW, PH);
-			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
+			Ui::Text(Canvas, TEXT("Drag to turn    Wheel to zoom (into the face)    Right-click to stop or start"), 0.5f * (DX0 + DX1), PY + PH + L.W(6), L.W(14), Ui::Faint, false,
 				Ui::EAlign::Centre);
 		}
 		else
@@ -2752,8 +2760,8 @@ void ATorquePlayerController::UpdateProfilePreview()
 		const TArray<FRow> List = Rows();
 		const int32 At = DragRow >= 0 ? DragRow : Selected;
 		const bool bHelmetRow = PickDrag != 0 || (List.IsValidIndex(At) && List[At].bHelmet);
-		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet
-			: List.IsValidIndex(At) && List[At].bFace ? ATorqueProfilePreview::EView::Face : ATorqueProfilePreview::EView::Body;
+		// (Build 160: the whole figure on every avatar row, face rows too; the wheel zooms into the face.)
+		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet : ATorqueProfilePreview::EView::Body;
 	}
 	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Want, FTorqueSettings::Get().Colour);
 }
