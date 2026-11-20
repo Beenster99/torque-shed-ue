@@ -541,7 +541,7 @@ bool ATorqueFerry::WaitsFor(const ATorqueBikePawn* P) const
 	if (!P || !Lay) return false;
 	if (OnBoard(P->GetActorLocation()) || (P->IsLocallyControlled() && P->IsOnFoot() && OnBoard(P->FeetAt()))) return true;
 	for (int32 E = 0; E < 2; ++E)
-		if (FVector::Dist2D(P->GetActorLocation(), TFerI::Ue(Lay->Ends[E].Head, 0.0)) < WaitM * 100.0) return true;
+		if (FVector::Dist2D(P->GetActorLocation(), TFerI::Ue(Lay->Ends[E].Head, 0.0)) < TFerI::WaitM * 100.0) return true;
 	return false;
 }
 
@@ -559,7 +559,7 @@ bool ATorqueFerry::HostSaysGo(double Dt)
 	const bool bAboard = Me && Me->IsOnFoot() && OnBoard(Me->FeetAt(), 20.0) && OnBoard(Me->GetActorLocation(), 40.0);
 	const bool bHorn = bAboard && (FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick));
 	HornHeld = bHorn ? HornHeld + Dt : 0.0;
-	return HornHeld >= HostHornSeconds;
+	return HornHeld >= TFerI::HostHornSeconds;
 }
 
 void ATorqueFerry::Publish(bool bGone)
