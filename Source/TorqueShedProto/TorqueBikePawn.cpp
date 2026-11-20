@@ -2859,7 +2859,7 @@ void ATorqueBikePawn::TestMoveStep()
 			}
 			// On it: level on its heading, pitched to the road, both tyres just touching, rolling.
 			const double Heading = std::atan2(-Ahead.x, -Ahead.z);
-			Sim->Basis = M3::AxisAngle(UP, Heading);
+			Sim->Basis = M3::AxisAngle(TorqueSim::UP, Heading);
 			Sim->Basis = M3::AxisAngle(Sim->Basis.X, Up) * Sim->Basis;
 			Sim->Position.y = 0.5 * (GroundF.Position.y + GroundR.Position.y) + (Sim->Build.RearRadius + 0.02) / FMath::Max(std::cos(Up), 0.5);
 			Sim->AngularVelocity = V3();
