@@ -1196,7 +1196,8 @@ def scanned_trees(L, kit):
             for p in skels:
                 m = static_of_skeletal(p)
                 if m:
-                    fix_slots(m, p)
+                    if spec.get("slots_by_section", True):
+                        fix_slots(m, p)
                     if spec.get("match_nanite", True):
                         match_nanite(m, p)
                     made.append(m)
