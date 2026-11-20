@@ -28,6 +28,7 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
+#include "World/TorqueFerry.h"
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -813,6 +814,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("state"));
 			Said(Bike->TestGarage(What));
+			return true;
+		}
+		// [ferries] ferry[:where|goto:<end>|board]: the nearest ferry's state; our bike put at that end's slipway head
+		// facing down it; or in the tied-up boat's bike bay (then foot:off, and it sails once we're aboard).
+		if (Verb == TEXT("ferry"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"));
+			Said(ATorqueFerry::Test(World, What, Bike));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.

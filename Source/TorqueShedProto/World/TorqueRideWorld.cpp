@@ -39,6 +39,7 @@
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueFerry.h"
 #include "World/TorqueImpostors.h"
 #include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
@@ -334,6 +335,35 @@ bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<do
 	std::vector<TorqueWorld::RidePlan::ParkedCarBox> Boxes;
 	Ride->Plan->ParkedCarsNear(At.X, At.Z, Reach, Boxes);
 	for (const TorqueWorld::RidePlan::ParkedCarBox& B : Boxes) Out.Append({B.X, B.Z, B.Ux, B.Uz, B.HalfLong, B.HalfWide, B.Y0, B.Y1});
+	return true;
+}
+
+bool ATorqueRideWorld::PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, UStaticMesh*& OutMesh, FTransform& OutAt)
+{
+	// (PlaceProps's own sums for one prop, level, at its own scale)
+	OutMesh = nullptr;
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->PropModels.IsValidIndex(Kind) || !Ride->PropFix.IsValidIndex(Kind)) return false;
+	const TArray<int32>& Choice = Ride->PropModels[Kind];
+	if (Choice.Num() == 0) return false;
+	const int32 Mi = Choice[FMath::Abs(Variant) % Choice.Num()];
+	if (!Ride->PropKit.IsValidIndex(Mi)) return false;
+	const FTorqueFoliageSpecies& S = Ride->PropKit[Mi];
+	UStaticMesh* Model = S.Mesh.Get();
+	if (!Model) return false;
+	const FVector& Fix = Ride->PropFix[Kind];
+	const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(Ride->PropFrame.Z));
+	const double Size = (Own > 1.0 && Fix.X > 0.0 ? Fix.X / Own : 1.0) * S.ScaleMultiplier;
+	const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(Yaw) + Fix.Y + (S.bNativeMesh ? 0.0 : Ride->PropFrame.X)));
+	const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * Ride->PropFrame.Z, Size * Ride->PropFrame.Z * Ride->PropFrame.Y, Size * Ride->PropFrame.Z);
+	FVector At = Spot - FVector(0.0, 0.0, Fix.Z);
+	if (Kind == TorqueWorld::RidePlan::PropParkedCar)
+	{
+		const FBoxSphereBounds Box = Model->GetBounds();
+		At += Rot.RotateVector(FVector(-Box.Origin.X, -Box.Origin.Y, -(Box.Origin.Z - Box.BoxExtent.Z)) * Scale3);
+	}
+	OutMesh = Model;
+	OutAt = FTransform(Rot, At, Scale3);
 	return true;
 }
 
@@ -1869,6 +1899,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		Update(At, false);
 	}
 	ATorqueForecourtGarage::Keep(this, *Plan, At);   // [garage] the forecourts' garage units near the rider
+	ATorqueFerry::Keep(this, *Plan, At);   // [ferries] the ferries near the rider
 	{
 		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
 		RideCosts::FScope Cost(RideCosts::RoadLook);

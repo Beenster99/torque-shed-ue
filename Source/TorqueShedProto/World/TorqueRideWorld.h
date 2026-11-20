@@ -99,6 +99,11 @@ public:
 	// eight numbers each (RidePlan::ParkedCarBox: middle x, z; nose x, z; half length, half width; foot, roof).
 	// False with no ride.
 	static bool ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out);
+	// [ferries] One of the prop kit's models of a kind (RidePlan::EPropKind) stood as the ride stands its own: Variant
+	// picks among its models, Spot (Unreal cm) is its foot's middle, Yaw (radians, the ride's frame) its facing. False
+	// when the kit has none of that kind. The mesh and its transform (world: for a part of a moving actor, make it
+	// relative to the actor's).
+	static bool PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, class UStaticMesh*& OutMesh, FTransform& OutAt);
 	// [car parks] Whether At (Unreal cm) is in one of the ride's car parks: its surface (RidePlan::ECarParkSurface:
 	// 0 tarmac, 1 setts, 2 gravel) and how far it is laid over the ground there (m).
 	static bool CarParkUnder(const FVector& At, int32& Kind, double& Lift);

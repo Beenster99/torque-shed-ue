@@ -23,6 +23,7 @@
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueFerry.h"
 #include "Shed/TorquePartsComputer.h"
 #include "TorqueTft.h"
 #include "RideModes.h"
@@ -281,7 +282,9 @@ void ATorqueBikePawn::BeginPlay()
 			// [Ride UK] what the road there is made of: paint and tar, grit, iron covers, a bridge's joints, rails.
 			int32 Kind = 0;
 			double Lift = 0.0;
-			if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
+			if (Part && Part->ComponentHasTag(TEXT("Steel")))
+				Out.Surface = SURF_STEEL;   // [ferries] a ferry's deck and ramps
+			else if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
 			{
 				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 || Kind == 4 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;   // [OSM stage 1] 4: a gravel road
 				Out.Lift = Lift;
@@ -1043,11 +1046,13 @@ void ATorqueBikePawn::GatherOtherBikes()
 	const bool bRealRide = !bYard && !FPaths::IsRelative(RouteFile);
 	static constexpr double ParkedReach = 60.0;
 	const bool bCarsDue = bRealRide && Sim && (ParkedFrom.X > 1e17 || FVector2D(Sim->Position.x - ParkedFrom.X, Sim->Position.z - ParkedFrom.Y).Size() > ParkedReach / 3.0);
-	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || bCarsDue))
+	if (bRealRide && (GarageSeen != ATorqueForecourtGarage::ContactVersion() || FerrySeen != ATorqueFerry::ContactVersion() || bCarsDue))
 	{
 		GarageSeen = ATorqueForecourtGarage::ContactVersion();
+		FerrySeen = ATorqueFerry::ContactVersion();
 		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
 		ATorqueForecourtGarage::ContactBoxes(GetWorld(), Boxes);
+		ATorqueFerry::ContactBoxes(GetWorld(), Boxes);   // [ferries] a tied-up boat's sides, the cars on it, the shut barriers
 		if (Sim)
 		{
 			ParkedFrom = FVector2D(Sim->Position.x, Sim->Position.z);
@@ -2134,6 +2139,13 @@ bool ATorqueBikePawn::GetOn()
 		FootNoteFor = 1.5;
 		return false;
 	}
+	if (GetWorld() && GetWorld()->GetTimeSeconds() < FerryHoldUntil)
+	{
+		// [ferries] (the bike's never ridden on a moving deck)
+		FootNote = TEXT("Wait for the ferry to tie up and the ramp to come down.");
+		FootNoteFor = 2.0;
+		return false;
+	}
 	bOnFoot = false;
 	// Upright on its wheels where it stood, the stand up, the engine as it was.
 	const bool bRunning = Sim->EngineOn;
@@ -2173,6 +2185,31 @@ void ATorqueBikePawn::PitchToGround()
 	}
 	ParkPitch = FMath::Clamp(std::atan2(Under[0].y - Under[1].y, 2.0 * Half), -0.45, 0.45);
 	ParkGround = (Under[0] + Under[1]) * 0.5;
+}
+
+void ATorqueBikePawn::FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike)
+{
+	// [ferries] Each place carried as the deck carries it (into the boat's frame as it was, out of it as it is), each
+	// heading turned by the boat's turn. (The sim's frame turns the other way about its up: ParkHeading is
+	// atan2(-fwd.x, -fwd.z) with z the world's y.)
+	const FQuat Turn = To.GetRotation() * From.GetRotation().Inverse();
+	const double TurnDeg = Turn.Rotator().Yaw;
+	auto Move = [&From, &To](const FVector& P) { return To.TransformPosition(From.InverseTransformPosition(P)); };
+	if (bFeet)
+	{
+		FootPos = Move(FootPos);
+		FootYaw += TurnDeg;
+	}
+	if (bBike && bOnFoot)
+	{
+		ParkGround = ToSim(Move(ToUE(ParkGround)));
+		ParkHeading -= FMath::DegreesToRadians(TurnDeg);
+		PrevPos = Move(PrevPos);
+		CurPos = Move(CurPos);
+		PrevRot = Turn * PrevRot;
+		CurRot = Turn * CurRot;
+		HoldParked();
+	}
 }
 
 void ATorqueBikePawn::HoldParked()
@@ -5355,6 +5392,11 @@ void ATorqueBikePawn::DrawHud()
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.
 	if (FootNoteFor > 0.0) Add(FootNote, FColor(255, 220, 120), 1.2f);
+	{
+		// [ferries] Near a ferry or aboard one: what to do, and how long the crossing has to go.
+		const FString Ferry = ATorqueFerry::HintFor(this);
+		if (!Ferry.IsEmpty()) Add(Ferry, FColor(170, 220, 255), 1.1f);
+	}
 	if (CamNoteFor > 0.0 && !bOnFoot) Add(CamNote, FColor(200, 220, 255), 1.1f);
 	if (bOnFoot)
 	{

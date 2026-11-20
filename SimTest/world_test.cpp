@@ -2,6 +2,7 @@
 // (WebP lossless and PNG, read by the game's own code), two cells of the world store stitched into
 // one road graph, and the ground's height, each checked against what the Godot game answers on the
 // same files (data/world/godot_world.json, written by Tools/make_godot_reference.py --world).
+#include "WorldFerries.h"
 #include "CellStore.h"
 #include "FitJson.h"
 #include "HeightTiles.h"
@@ -303,6 +304,64 @@ int main()
 		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name; direction signs and miles");
 	}
 
+	// ------------------------------------------------------------------ [ferries] the list, a crossing laid, a sailing
+	{
+		std::string FerryText;
+		std::vector<Ferries::Listed> List;
+		const bool Read = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/ferries.json"), FerryText) && Ferries::ReadList(FerryText, List);
+		bool Corran = false;
+		for (const Ferries::Listed& L : List) Corran = Corran || (L.Id == "2593bd711808" && L.Places[0] == "Ardgour" && L.Kind == Ferries::EKind::Open);
+		Check(Read && List.size() >= 40 && Corran, "ferries: the list read, Corran's crossing in it");
+		// A sound 500 m wide running east, its shores rising 1 in 15 from the water at x 0 and x 500 (their edge, half a
+		// metre up, 7.5 m back); a road on each side 60 m back, at right angles to the crossing.
+		Ferries::Crossing C;
+		C.Name = "Test";
+		C.Line = {P2(-20.0, 0.0), P2(250.0, 3.0), P2(520.0, 0.0)};
+		C.Length = 540.0;
+		Ferries::WorldAsk Ask;
+		Ask.Height = [](double X, double) { return X < 0.0 ? -X / 15.0 : X > 500.0 ? (X - 500.0) / 15.0 : -6.0; };
+		Ask.Sea = [](double X, double) { return X > 0.0 && X < 500.0; };
+		Ask.Road = [](const P2& At, double, double, P2& Foot, double& Y, double& Half)
+		{
+			Foot = P2(At.X < 250.0 ? -60.0 : 560.0, At.Z);
+			Y = 4.0;
+			Half = 3.0;
+			return true;
+		};
+		Ferries::Layout L;
+		const bool Laid = Ferries::Lay(C, Ask, L);
+		bool Ok = Laid && L.Sea && L.Water == 0.0;
+		for (int E = 0; Ok && E < 2; ++E)
+		{
+			const Ferries::End& N = L.Ends[E];
+			Ok = std::fabs(N.TipY - Ferries::ToeOverWater) < 1e-9 && N.Grade >= Ferries::SlipGentlest - 1e-9 && N.Grade <= Ferries::SlipSteepest + 1e-9
+				&& std::fabs(N.Shore.X - (E == 0 ? -7.5 : 507.5)) < 1.5 && N.Approach.size() >= 2 && N.RampDown > 0.0 && N.RampDown < 0.3;
+			// (the slipway on or over the ground all the way down, and its approach no steeper than 1 in 7)
+			for (double D = 0.0; Ok && D < N.Head.DistanceTo(N.Tip); D += 0.5)
+			{
+				const P2 Q = N.Head + N.Axis * D;
+				Ok = N.HeadY - N.Grade * D >= Ask.Height(Q.X, Q.Z) - 1e-6;
+			}
+			for (size_t K = 1; Ok && K < N.Approach.size(); ++K)
+			{
+				const double Run = std::hypot(N.Approach[K][0] - N.Approach[K - 1][0], N.Approach[K][2] - N.Approach[K - 1][2]);
+				Ok = std::fabs(N.Approach[K][1] - N.Approach[K - 1][1]) <= Run / 7.0 + 1e-6;
+			}
+		}
+		P2 Pos, Bow, Pos1, Bow1;
+		Ferries::Sail(L, false, 0.0, Pos, Bow);
+		Ferries::Sail(L, false, 1.0, Pos1, Bow1);
+		Ok = Ok && Pos.DistanceTo(L.Ends[0].Berth) < 0.01 && Pos1.DistanceTo(L.Ends[1].Berth) < 0.01 && Bow.X > 0.9 && Bow1.X > 0.9;
+		double Was = 0.0;
+		for (int K = 1; K <= 100; ++K)
+		{
+			const double P = Ferries::Progress(K / 100.0);
+			Ok = Ok && P >= Was - 1e-12;
+			Was = P;
+		}
+		Ok = Ok && std::fabs(Ferries::Progress(0.0)) < 1e-9 && std::fabs(Ferries::Progress(1.0) - 1.0) < 1e-9 && L.Seconds >= 55.0 && L.Seconds <= 185.0;
+		Check(Ok, "ferries: a crossing laid on its shores (slipways down to the ramps' toes, never under the land, approaches no steeper than 1 in 7), sailed berth to berth bow first in a minute or two");
+	}
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
 	{
 		const Json& G = *Ref.Get("geo");
