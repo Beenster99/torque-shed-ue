@@ -28,6 +28,7 @@
 class ATorqueRideWorld;
 class ATorqueBikePawn;
 class UBoxComponent;
+class UPointLightComponent;
 class UProceduralMeshComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -74,6 +75,11 @@ private:
 	void PoseBarriers();
 	void Carry(const FTransform& From, const FTransform& To);
 	void Riders(TArray<ATorqueBikePawn*>& Out) const;
+	// [ferries stage 4] Its sounds (the engine, the wash, the water lapping, the ramps' hydraulics and clank, the
+	// barriers, the horn as it casts off), its wake, its lamps after dark.
+	void TickSounds(double Dt, double SpeedMs);
+	void TickWake(double Dt, double SpeedMs, const FTransform& Now);
+	void TickLamps();
 	bool EveryoneAboard() const;
 
 	std::shared_ptr<TorqueWorld::Ferries::Crossing> Cross;
@@ -105,4 +111,14 @@ private:
 	UPROPERTY(Transient) TArray<UBoxComponent*> Boxes;
 	TArray<bool> BoxSolid;   // per box: a wall the bike bumps into (while tied up)
 	TArray<TWeakObjectPtr<ATorqueBikePawn>> Tied;   // pawns told to tick after this
+	int32 EngineLoop = 0, WashLoop = 0, LapLoop = 0, RampLoop[2] = {0, 0};
+	double RampHeard[2] = {0.0, 1.0}, ArmHeard[2] = {0.0, 0.0};
+	bool bRampMoving[2] = {false, false};
+	TArray<FVector> Trail;            // the wake: where the boat's trailing end passed (world cm), oldest first
+	TArray<float> TrailAge, TrailStrength;
+	double WakeClock = 0.0;
+	bool bWakeShown = false;
+	bool bLampsOn = false;
+	UPROPERTY(Transient) UProceduralMeshComponent* WakeMesh = nullptr;
+	UPROPERTY(Transient) TArray<UPointLightComponent*> Lamps;
 };

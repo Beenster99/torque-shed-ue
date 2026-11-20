@@ -98,6 +98,15 @@ int main()
 	Check(Bank.Def("step_tile") && Bank.Def("step_tile")->Files.size() == 8, "footsteps have eight variants");
 	Check(Bank.Def("horn_air") && Bank.Def("horn_air")->Horn == "hold" && Bank.Def("horn_air")->LoopFrom == 0.25, "a held horn loops from 0.25 s");
 	Check(Bank.Def("horn_ship") && Bank.Def("horn_ship")->Horn == "once", "the ship's horn plays its whole blast");
+	{
+		// [ferries] The ferries' own sounds added from their folder beside TS's, every take reading.
+		std::vector<uint8_t> FerryText;
+		const bool Read = ReadFile(std::string(TORQUE_DATA "/Audio/Ferry/manifest.json"), FerryText) && Bank.Add(std::string(FerryText.begin(), FerryText.end()), "../Ferry/");
+		bool Ok = Read && Bank.Def("ferry_engine") && Bank.Def("ferry_engine")->bLoop && Bank.Def("ferry_clank") && Bank.Def("ferry_clank")->Files.size() == 3 && Bank.Def("horn_ship");
+		for (const char* S : {"ferry_engine", "ferry_wash", "ferry_lap", "ferry_ramp", "ferry_clank", "ferry_barrier"})
+			for (const auto& Take : Bank.Takes(S)) Ok = Ok && Take && Take->S.size() > 1000;
+		Check(Ok, "the ferries' sounds are added beside Torque Shed's, every take reading");
+	}
 
 	// sfx_synth.gd LEVELS: peaks for one-shots, RMS for steady loops.
 	struct FLevel { const char* Sound; bool bRms; double Want; };

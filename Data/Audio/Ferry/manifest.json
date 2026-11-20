@@ -1,0 +1,50 @@
+{
+ "about": "The ferries' own sounds for TorqueSfx, made by Tools/audio/make_ferry_sounds.py from maths alone (no recordings: nothing to licence). UTorqueSfx reads this after Data/Audio/TS/manifest.json; the files are relative to this folder.",
+ "sounds": {
+  "ferry_barrier": {
+   "files": [
+    "ferry_barrier_up.wav",
+    "ferry_barrier_down.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "ferry_clank": {
+   "files": [
+    "ferry_clank_0.wav",
+    "ferry_clank_1.wav",
+    "ferry_clank_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "ferry_engine": {
+   "files": [
+    "ferry_engine.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "ferry_lap": {
+   "files": [
+    "ferry_lap.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "ferry_ramp": {
+   "files": [
+    "ferry_ramp.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "ferry_wash": {
+   "files": [
+    "ferry_wash.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  }
+ }
+}

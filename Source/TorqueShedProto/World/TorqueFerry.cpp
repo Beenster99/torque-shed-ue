@@ -7,6 +7,10 @@
 #include "Sim/BikeContacts.h"
 
 #include "Components/BoxComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Coop/TorqueGameState.h"
+#include "Coop/TorqueSettings.h"
+#include "TorqueAudio/TorqueSfx.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -89,6 +93,9 @@ ATorqueFerry::ATorqueFerry()
 
 void ATorqueFerry::EndPlay(const EEndPlayReason::Type Reason)
 {
+	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this))
+		for (int32 L : {EngineLoop, WashLoop, LapLoop, RampLoop[0], RampLoop[1]})
+			if (L) Sfx->FreeLoop(L);
 	TFerI::Live().RemoveAll([this](const TWeakObjectPtr<ATorqueFerry>& F) { return !F.IsValid() || F.Get() == this; });
 	++TFerI::Version();
 	Super::EndPlay(Reason);
@@ -507,6 +514,7 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 		if (ReadyFor >= ReadySeconds)
 		{
 			State = EState::Raising;
+			if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayOn(TEXT("horn_ship"), Boat, FVector(300.0, 0.0, 620.0), -4.0f);
 			UE_LOG(LogTemp, Log, TEXT("Torque ferry: %s sails from %s to %s with everyone aboard"), UTF8_TO_TCHAR(Cross->Name.c_str()), *PlaceName[DockEnd], *PlaceName[1 - DockEnd]);
 		}
 		// Called over: a rider at the other slipway, nobody aboard or waiting here.
@@ -558,6 +566,7 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 	}
 	// The boat where it is on its way, the riders' feet and parked bikes carried with it.
 	const FTransform Now = BoatAt(Along);
+	const double SpeedMs = Dt > 1e-4 ? FVector::Dist(Now.GetLocation(), BoatWas.GetLocation()) / 100.0 / Dt : 0.0;
 	if (bBoatPlaced && !Now.Equals(BoatWas, 0.01)) Carry(BoatWas, Now);
 	Boat->SetWorldTransform(Now);
 	BoatWas = Now;
@@ -570,10 +579,180 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 		FRotator(0.35 * Sea * std::sin(Bob * 0.6 + 1.0), 0.0, 0.9 * Sea * std::sin(Bob * 0.75)));
 	PoseRamps();
 	PoseBarriers();
+	TickSounds(Dt, SpeedMs);
+	TickWake(Dt, SpeedMs, Now);
+	TickLamps();
 	// Nobody gets back on while it's under way (the bike's sim never meets a moving ground).
 	if (State != EState::Docked && Here)
 		for (ATorqueBikePawn* P : All)
 			if (P->IsLocallyControlled() && OnBoard(P->GetActorLocation())) P->FerryHoldUntil = Here->GetTimeSeconds() + 0.25;
+}
+
+void ATorqueFerry::TickSounds(double Dt, double SpeedMs)
+{
+	(void)Dt;
+	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
+	if (!Sfx || !Boat) return;
+	if (!EngineLoop)
+	{
+		// (the engine room under the deck, the wash and the lapping at the hull's waterline: a big source each)
+		EngineLoop = Sfx->MakeLoop(Boat, FVector(0.0, 0.0, 60.0), -9.0f, 1400.0f);
+		WashLoop = Sfx->MakeLoop(Boat, FVector(0.0, 0.0, 0.0), -60.0f, 1600.0f);
+		LapLoop = Sfx->MakeLoop(Boat, FVector(0.0, 0.0, 0.0), -10.0f, 900.0f);
+		for (int32 E = 0; E < 2; ++E) RampLoop[E] = Ramps.IsValidIndex(E) && Ramps[E] ? Sfx->MakeLoop(Ramps[E], FVector(0.0, 60.0, 80.0), -7.0f, 600.0f) : 0;
+		Sfx->SetLoop(EngineLoop, TEXT("ferry_engine"));
+		Sfx->SetLoop(LapLoop, TEXT("ferry_lap"));
+	}
+	// The engine ticks over tied up and works under way; the wash comes with the speed; the lapping while still.
+	const bool bUnderWay = State == EState::Sailing;
+	const double Pace = FMath::Clamp(SpeedMs / 5.0, 0.0, 1.0);
+	Sfx->SetLoopPitch(EngineLoop, float(0.82 + 0.26 * Pace));
+	Sfx->SetLoopDb(EngineLoop, float(-11.0 + 6.0 * Pace));
+	if (bUnderWay && Sfx->LoopSound(WashLoop).IsEmpty()) Sfx->SetLoop(WashLoop, TEXT("ferry_wash"));
+	if (!bUnderWay && !Sfx->LoopSound(WashLoop).IsEmpty() && Pace < 0.02) Sfx->SetLoop(WashLoop, FString());
+	Sfx->SetLoopDb(WashLoop, float(-30.0 + 24.0 * Pace));
+	Sfx->SetLoopDb(LapLoop, float(-10.0 - 14.0 * Pace));
+	// Each ramp's hydraulics while it moves, and its clank as it comes home (down on the slipway or up shut).
+	for (int32 E = 0; E < 2; ++E)
+	{
+		const bool bMoving = FMath::Abs(RampAt[E] - RampHeard[E]) > 1e-6;
+		if (bMoving != bRampMoving[E] && RampLoop[E]) Sfx->SetLoop(RampLoop[E], bMoving ? TEXT("ferry_ramp") : FString());
+		if (!bMoving && bRampMoving[E] && Ramps.IsValidIndex(E) && Ramps[E])
+			Sfx->PlayOn(TEXT("ferry_clank"), Ramps[E], FVector(0.0, RampAt[E] < 0.5 ? 420.0 : 0.0, 0.0), RampAt[E] < 0.5 ? -2.0f : -8.0f);
+		bRampMoving[E] = bMoving;
+		RampHeard[E] = RampAt[E];
+		// The barrier's motor as its arm starts to move.
+		const bool bArmMoving = FMath::Abs(ArmAt[E] - ArmHeard[E]) > 1e-6;
+		if (bArmMoving && (ArmHeard[E] <= 0.0 || ArmHeard[E] >= 1.0) && Arms.IsValidIndex(E) && Arms[E])
+			Sfx->PlayOn(TEXT("ferry_barrier"), Arms[E], FVector::ZeroVector, -12.0f);
+		ArmHeard[E] = ArmAt[E];
+	}
+}
+
+void ATorqueFerry::TickWake(double Dt, double SpeedMs, const FTransform& Now)
+{
+	using namespace TorqueFerryImpl;
+	// Where the trailing end of the hull is now (the boat sails bow first one way, stern first back), every 1.5 m
+	// it goes; each point ages, spreads and fades, gone after 40 s.
+	const FVector Ahead = Now.GetRotation().RotateVector(FVector::YAxisVector);
+	const FVector Going = (Now.GetLocation() - BoatWas.GetLocation()).GetSafeNormal2D();
+	for (int32 I = 0; I < TrailAge.Num(); ++I) TrailAge[I] += float(Dt);
+	while (TrailAge.Num() > 0 && TrailAge[0] > 40.0f)
+	{
+		Trail.RemoveAt(0);
+		TrailAge.RemoveAt(0);
+		TrailStrength.RemoveAt(0);
+	}
+	if (SpeedMs > 0.3 && !Going.IsNearlyZero())
+	{
+		const double Sign = FVector::DotProduct(Going, Ahead) >= 0.0 ? -1.0 : 1.0;
+		const FVector Tail = Now.GetLocation() + Ahead * (Sign * (HalfDeck + 40.0));
+		if (Trail.Num() == 0 || FVector::Dist2D(Trail.Last(), Tail) > 150.0)
+		{
+			Trail.Add(FVector(Tail.X, Tail.Y, Lay->Water * 100.0 + 3.0));
+			TrailAge.Add(0.0f);
+			TrailStrength.Add(float(FMath::Clamp(SpeedMs / 4.0, 0.0, 1.0)));
+		}
+	}
+	WakeClock += Dt;
+	if (WakeClock < 0.1) return;
+	WakeClock = 0.0;
+	if (!WakeMesh)
+	{
+		WakeMesh = NewObject<UProceduralMeshComponent>(this, TEXT("Wake"));
+		WakeMesh->SetupAttachment(RootComponent);
+		WakeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WakeMesh->SetCastShadow(false);
+		WakeMesh->RegisterComponent();
+	}
+	if (Trail.Num() < 2)
+	{
+		if (bWakeShown) WakeMesh->ClearAllMeshSections();
+		bWakeShown = false;
+		return;
+	}
+	// A strip down the trail, three points across (the sea's own colour at its edges, white water down its middle,
+	// fading and spreading as it ages), on the ride's water material a few cm over the water.
+	const FVector Base = GetActorLocation();
+	const FLinearColor Sea(0.022f, 0.048f, 0.062f, 1.0f), Foam(0.42f, 0.46f, 0.47f, 1.0f);
+	TArray<FVector> Points, Normals;
+	TArray<FVector2D> Uvs;
+	TArray<FLinearColor> Colours;
+	TArray<int32> Tris;
+	for (int32 I = 0; I < Trail.Num(); ++I)
+	{
+		const FVector A = Trail[FMath::Max(I - 1, 0)], B = Trail[FMath::Min(I + 1, Trail.Num() - 1)];
+		const FVector Way = (B - A).GetSafeNormal2D();
+		const FVector Across(-Way.Y, Way.X, 0.0);
+		const double Age = TrailAge[I];
+		const double Half = FMath::Min(420.0 + Age * 40.0, 1500.0);
+		// (fresh at the stern it's churned white; it thins to streaks and then to the sea in half a minute)
+		const double White = TrailStrength[I] * std::exp(-Age / 9.0) * (I == Trail.Num() - 1 ? 0.6 : 1.0);
+		const FLinearColor Mid = FMath::Lerp(Sea, Foam, float(FMath::Clamp(White, 0.0, 1.0)));
+		const int32 First = Points.Num();
+		for (int32 K = 0; K < 3; ++K)
+		{
+			const double Side = (K - 1) * Half;
+			Points.Add(Trail[I] + Across * Side - Base);
+			Normals.Add(FVector::UpVector);
+			Uvs.Add(FVector2D((Trail[I].X + Across.X * Side) / 800.0, (Trail[I].Y + Across.Y * Side) / 800.0));   // (the water's: the world's metres over 8)
+			Colours.Add(K == 1 ? Mid : Sea);
+		}
+		if (I == 0) continue;
+		const int32 Prev = First - 3;
+		for (int32 K = 0; K < 2; ++K)
+		{
+			Tris.Append({Prev + K, Prev + K + 1, First + K});
+			Tris.Append({Prev + K + 1, First + K + 1, First + K});
+		}
+	}
+	WakeMesh->CreateMeshSection_LinearColor(0, Points, Tris, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), false, false);
+	static const TCHAR* const WaterPath[2] = {TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"), TEXT("/Game/RideUK/Materials/M_RideWaterReal.M_RideWaterReal")};
+	UMaterialInterface* Water = FTorqueSettings::Get().bRealWater ? LoadObject<UMaterialInterface>(nullptr, WaterPath[1]) : nullptr;
+	if (!Water) Water = LoadObject<UMaterialInterface>(nullptr, WaterPath[0]);
+	if (Water) WakeMesh->SetMaterial(0, Water);
+	bWakeShown = true;
+}
+
+void ATorqueFerry::TickLamps()
+{
+	using namespace TorqueFerryImpl;
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	const bool bDark = GS && GS->GetDayLight() < 0.35f;
+	if (bDark == bLampsOn && (Lamps.Num() > 0 || !bDark)) return;
+	bLampsOn = bDark;
+	if (Lamps.Num() == 0 && bDark)
+	{
+		auto Lamp = [this](USceneComponent* Parent, const FVector& At, const FLinearColor& Colour, float Lumens, float Radius)
+		{
+			UPointLightComponent* L = NewObject<UPointLightComponent>(this);
+			L->SetMobility(EComponentMobility::Movable);
+			L->SetupAttachment(Parent);
+			L->SetRelativeLocation(At);
+			L->SetIntensityUnits(ELightUnits::Lumens);
+			L->SetIntensity(Lumens);
+			L->SetAttenuationRadius(Radius);
+			L->SetLightColor(Colour);
+			L->SetCastShadows(false);
+			L->RegisterComponent();
+			Lamps.Add(L);
+		};
+		// The deck's floodlights on each end's gantry, the wheelhouse's sidelights (red to port, green to
+		// starboard) and its masthead light, and a lamp by each slipway's hut.
+		const FLinearColor Flood(1.0f, 0.93f, 0.8f);
+		for (int32 E = 0; E < 2; ++E) Lamp(Boat, FVector(0.0, (E == 0 ? -1.0 : 1.0) * (HalfDeck - 60.0), 285.0), Flood, 9000.0f, 2200.0f);
+		Lamp(Boat, FVector(HouseX0 - 10.0, 0.0, HouseTop - 40.0), FLinearColor(1.0f, 0.08f, 0.05f), 60.0f, 400.0f);
+		Lamp(Boat, FVector(HouseX1 + 10.0, 0.0, HouseTop - 40.0), FLinearColor(0.05f, 1.0f, 0.25f), 60.0f, 400.0f);
+		Lamp(Boat, FVector((HouseX0 + HouseX1) * 0.5, 0.0, HouseTop + 250.0), FLinearColor(1.0f, 0.95f, 0.85f), 80.0f, 500.0f);
+		for (int32 E = 0; E < 2; ++E)
+		{
+			const TFer::End& N = Lay->Ends[E];
+			const FVector Head = Ue(N.Head, N.HeadY + 4.5) - GetActorLocation();
+			Lamp(RootComponent, Head, FLinearColor(1.0f, 0.85f, 0.62f), 5000.0f, 1800.0f);
+		}
+	}
+	for (UPointLightComponent* L : Lamps)
+		if (L) L->SetVisibility(bDark);
 }
 
 void ATorqueFerry::Keep(ATorqueRideWorld* Ride, const TorqueWorld::RidePlan& Plan, const FVector2D& RiderAt)
