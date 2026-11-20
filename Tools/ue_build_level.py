@@ -2501,6 +2501,9 @@ def tree_wind(g, w, leaf):
 # (UV0 x 1 deciduous, 2 evergreen; UV1/UV2 x the way to the leaf's middle; UV2 y its turn to fall; UV3
 # its autumn colour and the share held through winter) and the game sets MPC_Weather's LeafFresh,
 # LeafTurn and LeafDrop from the ride's date (Coop/TorqueGameState.cpp). Evergreens and bark: unchanged.
+# [build 165] A fallen leaf is moved into a speck by the offset below, which the game keeps on out to 200 m
+# while leaves are down (TorqueLeafFall.h); past about 200 m (Buttertubs' near trees reach 1.5 km) it is
+# painted the far woods' winter grey-brown instead of twig dark, as the far lumps are.
 TREE_SEASON_COLOUR_HLSL = """float dec = saturate(Kind) * (1.0 - saturate(Kind - 1.0));
 float l = dot(Base, float3(0.3, 0.59, 0.11));
 float3 c = lerp(Base, l * float3(1.5, 2.1, 0.55), saturate(Fresh * dec) * 0.55);
@@ -2511,7 +2514,8 @@ float al = max(dot(a, float3(0.3, 0.59, 0.11)), 0.01);
 float h = frac(sin(dot(floor(Pos / 40.0), float3(12.9898, 78.233, 37.719))) * 43758.5453);
 c = lerp(c, a * (l / al) * 1.15, saturate(Turn * dec * (0.75 + 0.5 * h)));
 float gone = (Rank > 0.0 && Rank <= min(Drop, 1.0 - Keep) * dec) ? 1.0 : 0.0;
-c = lerp(c, float3(0.06, 0.05, 0.045), gone);
+float3 twig = lerp(float3(0.06, 0.05, 0.045), lerp(c, float3(0.075, 0.062, 0.058), 0.85), saturate((Depth - 18000.0) / 3000.0));
+c = lerp(c, twig, gone);
 float far = Rank < 0.0 ? 1.0 : 0.0;
 return lerp(c, float3(0.075, 0.062, 0.058), saturate(Drop * dec * far * (1.0 - Keep)) * 0.85);
 """
@@ -2565,10 +2569,11 @@ def tree_season(g, base, kind, frame):
     keep = uvset(3, False, True)
     fresh, turn, drop = (weather_param(g, n) for n in ("LeafFresh", "LeafTurn", "LeafDrop"))
     wp = g.node(unreal.MaterialExpressionWorldPosition)
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
     O = unreal.CustomMaterialOutputType
-    c = _custom(g, TREE_SEASON_COLOUR_HLSL, O.CMOT_FLOAT3, ("Base", "Kind", "Hue", "Keep", "Rank", "Fresh", "Turn", "Drop", "Pos"))
+    c = _custom(g, TREE_SEASON_COLOUR_HLSL, O.CMOT_FLOAT3, ("Base", "Kind", "Hue", "Keep", "Rank", "Fresh", "Turn", "Drop", "Pos", "Depth"))
     for src, pin in ((base, "Base"), (kind, "Kind"), (hue, "Hue"), (keep, "Keep"), (rank, "Rank"), (fresh, "Fresh"),
-                     (turn, "Turn"), (drop, "Drop"), (wp, "Pos")):
+                     (turn, "Turn"), (drop, "Drop"), (wp, "Pos"), (depth, "Depth")):
         g.link(src, c, pin)
     off = g.node(unreal.MaterialExpressionAppendVector)
     g.link(uv1, off, "A")

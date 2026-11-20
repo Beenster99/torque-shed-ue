@@ -4,6 +4,7 @@
 #include "World/WorldRoam.h"
 #include <algorithm>
 #include "TorqueDash.h"
+#include "TorqueLeafFall.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
 #include "Shed/TorqueProfile.h"
@@ -2663,7 +2664,10 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bVisibleInRayTracing = false;
 		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
 		const bool bImpostor = bImpostorGroup || (bTree && S.Name.ToString().EndsWith(TEXT("_imp")));
-		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		const int32 WpoCm = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		// ([build 165] a near broadleaf's or a garden plant's fallen leaves need their offset further out
+		// while leaves are down: TorqueLeafFall.h)
+		TorqueLeafFall::Apply(Ism, WpoCm, bTree && !bImpostor && !bFarTree && TorqueLeafFall::IsLeafyTreeName(Model->GetName()));
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2675,8 +2679,10 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		else if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
-		Ism->RegisterComponent();
+		// ([perf, build 165] the instances in before it registers: its render state made once, with them,
+		// not made empty and then rebuilt; 164's Brecbowie read "our worst job 19/8 OVER (plants)")
 		Ism->AddInstances(Group.Value, false, false);
+		Ism->RegisterComponent();
 		if (!bReused) AddInstanceComponent(Ism);
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.Num();

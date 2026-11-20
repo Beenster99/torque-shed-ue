@@ -6,6 +6,7 @@
 #include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "TorqueSettings.h"
+#include "TorqueLeafFall.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorquePaintBay.h"
 #include "GameFramework/Pawn.h"
@@ -1372,6 +1373,7 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("LeafFresh"), Fresh);
 		SetMpc(TEXT("LeafTurn"), Turn);
 		SetMpc(TEXT("LeafDrop"), Drop);
+		TorqueLeafFall::SetDrop(Drop);   // ([build 165] near broadleaves keep their fallen leaves' offset further out)
 		if (Season != LoggedSeason || FMath::Abs(Drop - LoggedDrop) > 0.05f)
 		{
 			LoggedSeason = Season;
