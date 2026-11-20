@@ -69,7 +69,7 @@ private:
 	enum class ESection : uint8 { Bike, Shed, NewBike };
 	struct FKindRow { FName Kind; FString Heading; };   // a heading row has no Kind
 	struct FRow { FName Part; int32 Stock = INDEX_NONE; };
-	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type, EngineFilter };
+	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type, EngineFilter, Bay };
 	struct FHit { FBox2D Box; EHit What; int32 Arg; };
 
 	ESection Section = ESection::Bike;
@@ -100,7 +100,29 @@ private:
 public:
 	// For the test robot: "layout=Inline four", "size=2", "maker=Kazeda", "sort=1" ("" or "all" clears).
 	bool SetEngineFilter(const FString& Key, const FString& Value);
+	// [shop bay] The bay the Bike aisle shops for (0 .. 3; -1 any bike), for the test robot ("bay=2" is bay 2,
+	// index 1). False for a bay that isn't one.
+	bool SetShopBay(const UTorqueBuildSubsystem* Shed, int32 Bay);
 private:
+	// [shop bay] beenster, Nov 20: "when you are shopping for parts you should nominate the bay number at the
+	// top. The frame you buy then defines the engines, the engines you buy then defines some of the engine
+	// parts and so on... the same with the wheels, tyres". The bay picked over the lists (-1 any bike; -2 not
+	// picked yet: the first bay with a bike in it, when the page first draws), and what fitting says of the
+	// kind's parts on that bay's bike (UTorqueBuildSubsystem::ShopFit): those that won't go on are left out.
+	// Looked at again when the bike changes (checked twice a second while the page is up), never per row.
+	int32 ShopBay = -2;
+	TWeakObjectPtr<const UTorqueBuildSubsystem> ShedSeen;
+	uint32 BikeSig = 0;
+	double SigCheckAt = 0.0;
+	bool bBayJudged = false;          // the list is cut to the bay's bike
+	int32 BayHidden = 0;              // how many of the kind were left out
+	TMap<FName, FString> BayWhyNot;
+	TMap<FName, int32> PartSides;     // wheels and tyres: 1 front, 2 rear, 3 either
+	uint32 BaySignature() const;
+	void PickBay(int32 Bay);
+	// Front and rear tyres (and wheels) are their own lists (beenster, Nov 20: "Its also not that obvious what
+	// the front and rear tyres are"): which side of the bike a part goes on (1 front, 2 rear, 3 either, 0 none).
+	int32 SideOf(FName Part) const;
 
 	int32 BikeStyle = 0;         // the project bike's style shown (the one ordered is any of them)
 	FString StyleShown;          // ... and its reference bike's parts, looked up when it changes

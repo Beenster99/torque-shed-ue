@@ -94,8 +94,38 @@ bool IsKit(FName K) { return K.ToString().StartsWith(KitPrefix); }
 FName KitKind(FName K) { return FName(*K.ToString().RightChop(4)); }
 FName KitOf(FName Kind) { return FName(*(FString(KitPrefix) + Kind.ToString())); }
 
+// [shop bay] Front and rear lists of wheels and tyres (beenster, Nov 20: "Its also not that obvious what the front
+// and rear tyres are"): "tyre:front", "wheel:rear"... A list's side (1 front, 2 rear, 0 not a sided list), the kind
+// it lists, and the kinds that get two lists.
+int32 SideList(FName K)
+{
+	const FString S = K.ToString();
+	return S.EndsWith(TEXT(":front")) ? 1 : (S.EndsWith(TEXT(":rear")) ? 2 : 0);
+}
+FName BaseKind(FName K)
+{
+	if (SideList(K) == 0) return K;
+	FString Left, Right;
+	K.ToString().Split(TEXT(":"), &Left, &Right);
+	return FName(*Left);
+}
+bool Sided(FName K) { return K == FName(TEXT("wheel")) || K == FName(TEXT("tyre")); }
+FName SideKind(FName K, int32 Side) { return FName(*(K.ToString() + (Side == 1 ? TEXT(":front") : TEXT(":rear")))); }
+const TCHAR* SideText(int32 Sides)
+{
+	switch (Sides)
+	{
+	case 1: return TEXT("Front");
+	case 2: return TEXT("Rear");
+	case 3: return TEXT("Front or rear");
+	default: return TEXT("No wheel takes it");
+	}
+}
+
 FString KindTitle(FName K)
 {
+	if (const int32 Side = SideList(K))
+		return (Side == 1 ? FString(TEXT("Front ")) : FString(TEXT("Rear "))) + TorqueShedParts::KindName(BaseKind(K)).ToLower();
 	if (IsKit(K))
 	{
 		const FName Kind = KitKind(K);
@@ -162,6 +192,7 @@ int32 Essential(FName Kind)
 TArray<FName> ListedKinds(FName Kind)
 {
 	if (Kind == FName(TEXT("final_drive"))) return {Kind, FName(TEXT("sprocket"))};
+	if (SideList(Kind) != 0) return {BaseKind(Kind)};
 	return {Kind};
 }
 
@@ -259,7 +290,13 @@ void FTorquePartsComputer::Relist()
 				if (!Sold.Contains(Name)) continue;
 				if (!bHeading) KindRows.Add({NAME_None, G.Heading});
 				bHeading = true;
-				KindRows.Add({Name, FString()});
+				if (TPCI::Sided(Name))
+				{
+					// [shop bay] Front and rear their own lists.
+					KindRows.Add({TPCI::SideKind(Name, 1), FString()});
+					KindRows.Add({TPCI::SideKind(Name, 2), FString()});
+				}
+				else KindRows.Add({Name, FString()});
 				Shown.Add(Name);
 			}
 		}
@@ -360,7 +397,73 @@ void FTorquePartsComputer::Relist()
 		}
 		for (const FName& P : Also) Rows.Add({P});
 	}
+	// [shop bay] Cut to the side the list is for, then to what goes on the bay's bike.
+	bBayJudged = false;
+	BayHidden = 0;
+	BayWhyNot.Reset();
+	PartSides.Reset();
+	if (Section == ESection::Bike && Kind != TPCI::Bikes)
+	{
+		if (const UTorqueBuildSubsystem* Shed = ShopBay >= 0 ? ShedSeen.Get() : nullptr)
+		{
+			TArray<FName> Parts;
+			for (const FRow& R : Rows) Parts.Add(R.Part);
+			bBayJudged = Shed->ShopFit(ShopBay, Parts, BayWhyNot, PartSides);
+		}
+		if (const int32 Side = TPCI::SideList(Kind))
+			Rows.RemoveAll([this, Side](const FRow& R) {
+				const int32 Sides = SideOf(R.Part);
+				return Sides != 0 && (Sides & Side) == 0;
+			});
+		if (bBayJudged)
+			BayHidden = Rows.RemoveAll([this](const FRow& R) { return BayWhyNot.Contains(R.Part); });
+	}
 	Row = Rows.Num() > 0 ? FMath::Clamp(Row, 0, Rows.Num() - 1) : 0;
+}
+
+int32 FTorquePartsComputer::SideOf(FName Part) const
+{
+	if (const int32* Known = PartSides.Find(Part)) return *Known;
+	const FName K = TorqueShedParts::PartKind(Part);
+	if (K == FName(TEXT("tyre"))) return UTorqueBuildSubsystem::TyreSides(Part);
+	if (K == FName(TEXT("wheel")))
+	{
+		const FName Own = TorqueShedParts::V2Slot(Part);
+		return Own == FName(TEXT("front_wheel")) ? 1 : (Own == FName(TEXT("rear_wheel")) ? 2 : 3);
+	}
+	return 3;
+}
+
+uint32 FTorquePartsComputer::BaySignature() const
+{
+	const UTorqueBuildSubsystem* Shed = ShedSeen.Get();
+	if (!Shed || ShopBay < 0) return 0;
+	if (!Shed->Exists(ShopBay)) return 1;
+	TMap<FString, FString> Parts;
+	if (!Shed->LayoutParts(ShopBay, Parts)) return 2;
+	uint32 Sig = 3;
+	for (const TPair<FString, FString>& KV : Parts) Sig += HashCombine(GetTypeHash(KV.Key), GetTypeHash(KV.Value));   // (any order)
+	return Sig;
+}
+
+void FTorquePartsComputer::PickBay(int32 Bay)
+{
+	ShopBay = Bay;
+	BikeSig = BaySignature();
+	const FName Was = Rows.IsValidIndex(Row) ? Rows[Row].Part : NAME_None;
+	Row = 0;
+	RowScroll = 0;
+	Relist();
+	for (int32 I = 0; I < Rows.Num(); ++I)
+		if (!Was.IsNone() && Rows[I].Part == Was) Row = I;
+}
+
+bool FTorquePartsComputer::SetShopBay(const UTorqueBuildSubsystem* Shed, int32 Bay)
+{
+	if (Shed) ShedSeen = Shed;
+	if (Bay < -1 || Bay >= UTorqueBuildSubsystem::Bays) return false;
+	PickBay(Bay);
+	return true;
 }
 
 void FTorquePartsComputer::PickKindAt(int32 Index)
@@ -497,12 +600,31 @@ bool FTorquePartsComputer::PickPart(FName Part)
 		TypeFilter = NAME_None;
 		Relist();
 	}
-	for (int32 I = 0; I < Rows.Num(); ++I)
-		if (Rows[I].Part == Part || (Rows[I].Stock != INDEX_NONE && FTorquePaintBay::StockName(Rows[I].Stock).Equals(Part.ToString(), ESearchCase::IgnoreCase)))
-		{
-			Row = I;
-			return true;
-		}
+	auto Find = [this, Part]() {
+		for (int32 I = 0; I < Rows.Num(); ++I)
+			if (Rows[I].Part == Part || (Rows[I].Stock != INDEX_NONE && FTorquePaintBay::StockName(Rows[I].Stock).Equals(Part.ToString(), ESearchCase::IgnoreCase)))
+			{
+				Row = I;
+				return true;
+			}
+		return false;
+	};
+	if (Find()) return true;
+	// [shop bay] On the other side's list (a rear tyre asked for under "tyre"), or left out for the bay's bike.
+	if (const int32 Side = TPCI::SideList(Kind))
+	{
+		const FName Was = Kind;
+		Kind = TPCI::SideKind(TPCI::BaseKind(Kind), Side == 1 ? 2 : 1);
+		Relist();
+		if (Find()) return true;
+		Kind = Was;
+		Relist();
+	}
+	if (bBayJudged && BayWhyNot.Contains(Part))
+	{
+		PickBay(-1);
+		return Find();
+	}
 	return false;
 }
 
@@ -526,6 +648,8 @@ FString FTorquePartsComputer::Describe() const
 	if (Section == ESection::Bike && Kind == FName(TEXT("engine")))
 		Out += FString::Printf(TEXT(" (layout: %s, size: %s, maker: %s, %s, %d listed)"), EngineLayoutFilter.IsEmpty() ? TEXT("all") : *EngineLayoutFilter,
 			TPCI::SizeBandName(EngineSize), EngineMakerFilter.IsEmpty() ? TEXT("all") : *EngineMakerFilter, TPCI::EngineSortName(EngineSort), Rows.Num());
+	if (bBayJudged) Out += FString::Printf(TEXT(" (for bay %d's bike: %d listed, %d that don't fit left out)"), ShopBay + 1, Rows.Num(), BayHidden);
+	else if (Section == ESection::Bike && ShopBay < 0) Out += TEXT(" (for any bike)");
 	if (Filtered())
 	{
 		Out += FString::Printf(TEXT(" (bike type: %s, %d listed)"), TypeFilter.IsNone() ? TEXT("all") : *TPCI::TypeName(TypeFilter), Rows.Num());
@@ -537,7 +661,7 @@ FString FTorquePartsComputer::Describe() const
 
 FName FTorquePartsComputer::ScreenKind() const
 {
-	return (Kind == TPCI::Bikes || Kind == TPCI::PaintBases || Kind == TPCI::PaintTints || TPCI::IsKit(Kind)) ? NAME_None : Kind;
+	return (Kind == TPCI::Bikes || Kind == TPCI::PaintBases || Kind == TPCI::PaintTints || TPCI::IsKit(Kind)) ? NAME_None : TPCI::BaseKind(Kind);
 }
 
 TArray<FName> FTorquePartsComputer::ScreenRows() const
@@ -604,6 +728,7 @@ FTorqueComputerAction FTorquePartsComputer::Click(const FVector2D& Mouse)
 	case EHit::Order: A = OrderPicked(); break;
 	case EHit::Type: StepType(H->Arg); break;
 	case EHit::EngineFilter: StepEngine(H->Arg); break;
+	case EHit::Bay: PickBay(H->Arg); break;
 	case EHit::Style:
 	{
 		const int32 N = ATorqueShopPreview::BikeStyles().Num();
@@ -730,6 +855,26 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 {
 	Hits.Reset();
 	if (!Hud || !Canvas || !GEngine) return;
+	// [shop bay] The shed seen (the lists are cut to a bay's bike), the bay picked the first time, and the lists
+	// again when the bay's bike has changed (a part fitted or taken off, by you or a mate).
+	if (Shed != ShedSeen.Get())
+	{
+		ShedSeen = Shed;
+		SigCheckAt = 0.0;
+	}
+	if (Shed && ShopBay == -2)
+	{
+		int32 First = -1;
+		for (int32 B = 0; B < UTorqueBuildSubsystem::Bays && First < 0; ++B)
+			if (Shed->Exists(B)) First = B;
+		PickBay(First);
+	}
+	else if (Shed && Section == ESection::Bike && FPlatformTime::Seconds() >= SigCheckAt)
+	{
+		SigCheckAt = FPlatformTime::Seconds() + 0.5;
+		const uint32 Sig = BaySignature();
+		if (Sig != BikeSig) PickBay(ShopBay);
+	}
 	TPCI::FPen Pen;
 	Pen.C = Canvas;
 	const float S = TorqueUi::Scale(Canvas);   // Torque Shed's sizes at 1080p (the kit's scale, as the menus)
@@ -771,6 +916,27 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 	for (int32 I = 0; I < 3; ++I)
 		Btn(X0 + Margin + I * 130.0f * S, Y, 120.0f * S, 34.0f * S, Aisles[I], 16.0f * S, (int32)Section == I, EHit::Section, I);
 	Y += 34.0f * S + 12.0f * S;
+	if (Section == ESection::Bike && Shed)
+	{
+		// [shop bay] The bay you're shopping for: its bike decides what's listed (Any bike: everything).
+		const float BayH = 30.0f * S, BayPx = 14.0f * S;
+		const FString Lead = TEXT("Shopping for:");
+		Pen.Text(X0 + Margin, Y + (BayH - 18.0f * S) * 0.5f, Lead, 15.0f * S, TPCI::Dim);
+		float BX = X0 + Margin + Pen.Width(Lead, 15.0f * S) + 12.0f * S;
+		const float AnyW = 110.0f * S, BGap = 8.0f * S;
+		Btn(BX, Y, AnyW, BayH, TEXT("Any bike"), BayPx, ShopBay < 0, EHit::Bay, -1);
+		BX += AnyW + BGap;
+		const int32 N = UTorqueBuildSubsystem::Bays;
+		const float BW = FMath::Max(60.0f * S, (X0 + PW - Margin - BX - (N - 1) * BGap) / N);
+		for (int32 B = 0; B < N; ++B)
+		{
+			FString Label = FString::Printf(TEXT("Bay %d: "), B + 1);
+			if (!Shed->Exists(B)) Label += TEXT("empty");
+			else Label += Shed->Bike(B).Name.IsEmpty() ? FString(TEXT("a bike")) : Shed->Bike(B).Name;
+			Btn(BX + B * (BW + BGap), Y, BW, BayH, Label, BayPx, ShopBay == B, EHit::Bay, B);
+		}
+		Y += BayH + 10.0f * S;
+	}
 	if (Section == ESection::NewBike)
 	{
 		Configurator.Draw(Hud, Canvas, Shed, FBox2D(FVector2D(X0 + Margin, Y), FVector2D(X0 + PW - Margin, Y0 + PH - Margin)), S, Mouse, Status, bStatusOk);
@@ -804,18 +970,36 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 	if (KindRows.Num() > KindsShown)
 		Pen.Text(KX + KindW - 70.0f * S, ColBottom - 22.0f * S, TEXT("(wheel)"), 12.0f * S, TPCI::Dim);
 
+	// [shop bay] Over the list: what bay it's cut to, and how many were left out.
+	float ListTop = ColTop;
+	if (Section == ESection::Bike && Kind != TPCI::Bikes && ShopBay >= 0 && Shed)
+	{
+		FString Note;
+		bool bLit = false;
+		if (!Shed->Exists(ShopBay)) Note = FString::Printf(TEXT("Bay %d is empty: buy a frame to start a bike there."), ShopBay + 1);
+		else if (!bBayJudged) Note = FString::Printf(TEXT("Bay %d's bike can't be checked: every part shown."), ShopBay + 1);
+		else if (Kind == FName(TEXT("frame"))) Note = TEXT("A frame starts a new bike: every one is shown.");
+		else
+		{
+			Note = FString::Printf(TEXT("Only what fits bay %d's bike"), ShopBay + 1);
+			if (BayHidden > 0) Note += FString::Printf(TEXT(" (%d that don't are hidden)"), BayHidden);
+			bLit = true;
+		}
+		Pen.Text(RX + 12.0f * S, ColTop + 7.0f * S, Pen.Fit(Note, 13.0f * S, RowW - 24.0f * S), 13.0f * S, bLit ? TPCI::Accent : TPCI::Dim);
+		ListTop += 24.0f * S;
+	}
 	// Over the models of a part kind: the bike type they're cut to (< and > go round the types).
-	float RowTop = ColTop;
+	float RowTop = ListTop;
 	if (Filtered())
 	{
-		const float TB = 32.0f * S, TX = RX + 6.0f * S, TWide = RowW - 12.0f * S, TY = ColTop + 6.0f * S;
+		const float TB = 32.0f * S, TX = RX + 6.0f * S, TWide = RowW - 12.0f * S, TY = ListTop + 6.0f * S;
 		Btn(TX, TY, TB, TB, TEXT("<"), 16.0f * S, false, EHit::Type, -1);
 		Btn(TX + TWide - TB, TY, TB, TB, TEXT(">"), 16.0f * S, false, EHit::Type, 1);
 		const bool bAll = TypeFilter.IsNone();
 		const FString Label = Pen.Fit(bAll ? FString(TEXT("Bike type: all types")) : TEXT("Bike type: ") + TPCI::TypeName(TypeFilter), 15.0f * S, TWide - 2.0f * TB - 16.0f * S);
 		Pen.Text(TX + (TWide - Pen.Width(Label, 15.0f * S)) * 0.5f, TY + (TB - 18.0f * S) * 0.5f, Label, 15.0f * S, bAll ? TPCI::Text : TPCI::Accent, !bAll);
 		RowTop = TY + TB + 4.0f * S;
-		if (Rows.Num() == 0)
+		if (Rows.Num() == 0 && BayHidden == 0)
 			for (const FString& L : Pen.Wrap(FString::Printf(TEXT("No %s here suits this bike type. Press < or > for another."),
 				*TPCI::KindTitle(Kind).ToLower()), 14.0f * S, TWide - 20.0f * S))
 			{
@@ -827,7 +1011,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 	// button that steps on (beenster after 156).
 	if (Section == ESection::Bike && Kind == FName(TEXT("engine")))
 	{
-		const float TB = 32.0f * S, TX = RX + 6.0f * S, TWide = RowW - 12.0f * S, TY = ColTop + 6.0f * S;
+		const float TB = 32.0f * S, TX = RX + 6.0f * S, TWide = RowW - 12.0f * S, TY = ListTop + 6.0f * S;
 		Btn(TX, TY, TB, TB, TEXT("<"), 16.0f * S, false, EHit::EngineFilter, 0);
 		Btn(TX + TWide - TB, TY, TB, TB, TEXT(">"), 16.0f * S, false, EHit::EngineFilter, 1);
 		const bool bAll = EngineLayoutFilter.IsEmpty();
@@ -839,13 +1023,20 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			!EngineMakerFilter.IsEmpty(), EHit::EngineFilter, 3);
 		Btn(TX + 2.0f * (EBW + EGap), Y2, EBW, TB, Pen.Fit(FString(TEXT("Sort: ")) + TPCI::EngineSortName(EngineSort), 13.0f * S, EBW - 8.0f * S), 13.0f * S, false, EHit::EngineFilter, 4);
 		RowTop = Y2 + TB + 4.0f * S;
-		if (Rows.Num() == 0)
+		if (Rows.Num() == 0 && BayHidden == 0)
 			for (const FString& L : Pen.Wrap(TEXT("No engine here matches. Change the layout, size or maker."), 14.0f * S, TWide - 20.0f * S))
 			{
 				Pen.Text(TX + 10.0f * S, RowTop + 8.0f * S, L, 14.0f * S, TPCI::Dim);
 				RowTop += 19.0f * S;
 			}
 	}
+	if (Rows.Num() == 0 && BayHidden > 0)
+		for (const FString& L : Pen.Wrap(FString::Printf(TEXT("Nothing here fits bay %d's bike. Pick Any bike at the top to see every one."), ShopBay + 1),
+			14.0f * S, RowW - 32.0f * S))
+		{
+			Pen.Text(RX + 16.0f * S, RowTop + 8.0f * S, L, 14.0f * S, TPCI::Dim);
+			RowTop += 19.0f * S;
+		}
 	// The models of the kind: name, and under it what it is (or how much the bay has).
 	const float RH = 50.0f * S;
 	RowsShown = FMath::Max(1, FMath::FloorToInt((ColBottom - RowTop - 8.0f * S) / RH));
@@ -886,6 +1077,12 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 				Tag = TorqueShedParts::EngineLayout(R.Part);
 				const double Cc = TorqueShedParts::PartNumber(R.Part, TEXT("displacement"), 0.0);
 				if (Cc > 0.0) Tag += FString::Printf(TEXT(" \u00B7 %d cc"), FMath::RoundToInt(Cc));
+				bTagMatch = false;
+			}
+			else if (TPCI::Sided(TorqueShedParts::PartKind(R.Part)))
+			{
+				// [shop bay] Wheels and tyres: the side of the bike they go on.
+				Tag = TPCI::SideText(SideOf(R.Part));
 				bTagMatch = false;
 			}
 			else if (Kind == FName(TEXT("frame")))
@@ -980,8 +1177,17 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			const FName OwnSlot = TorqueShedParts::V2Slot(R.Part);
 			if (!OwnSlot.IsNone()) Fits.Add(TorqueShedParts::SlotName(OwnSlot).ToLower());
 			else
-				for (const FName& Slot : TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R.Part))) Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
+				for (const FName& Slot : TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R.Part)))
+				{
+					// [shop bay] A tyre (or wheel) only on the side it goes.
+					const FString SlotText = Slot.ToString();
+					const int32 Bit = SlotText.StartsWith(TEXT("front_")) ? 1 : (SlotText.StartsWith(TEXT("rear_")) ? 2 : 3);
+					if (TPCI::Sided(TorqueShedParts::PartKind(R.Part)) && SideOf(R.Part) != 0 && (SideOf(R.Part) & Bit) == 0) continue;
+					Fits.Add(TorqueShedParts::SlotName(Slot).ToLower());
+				}
 			Spec = Fits.Num() > 0 ? TEXT("Fits: ") + TPCI::Join(Fits) : FString();
+			if (bBayJudged && TorqueShedParts::PartKind(R.Part) != FName(TEXT("frame")))
+				Spec += FString::Printf(TEXT("\nGoes on bay %d's bike"), ShopBay + 1);
 			const FString BoltsTo = TorqueShedParts::V2Fits(R.Part);
 			if (!BoltsTo.IsEmpty()) Spec += TEXT("\nBolts to: ") + BoltsTo;
 			const int32 Need = TPCI::Essential(TorqueShedParts::PartKind(R.Part));

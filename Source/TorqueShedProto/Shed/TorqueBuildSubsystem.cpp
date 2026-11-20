@@ -2313,6 +2313,112 @@ FString UTorqueBuildSubsystem::TyresThatFit(FName Wheel)
 	return Text;
 }
 
+// [shop bay]
+int32 UTorqueBuildSubsystem::TyreSides(FName Tyre)
+{
+	// (Every wheel the shop sells, looked at once per tyre: the catalogue doesn't change while the game runs.)
+	static TMap<FName, int32> Known;
+	if (const int32* Was = Known.Find(Tyre)) return *Was;
+	int32 Sides = 0;
+	for (const FName& W : TorqueShedParts::PartsOfKind(FName(TEXT("wheel"))))
+	{
+		const FName Own = TorqueShedParts::V2Slot(W);
+		const int32 Side = Own == FName(TEXT("front_wheel")) ? 1 : (Own == FName(TEXT("rear_wheel")) ? 2 : 3);
+		if ((Sides & Side) == Side) continue;
+		if (TyreFitReason(Tyre, W).IsEmpty()) Sides |= Side;
+	}
+	Known.Add(Tyre, Sides);
+	return Sides;
+}
+
+bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides) const
+{
+	OutWhyNot.Reset();
+	OutSides.Reset();
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	TMap<FString, FString> Have;
+	if (!Lay || !LayoutParts(Bay, Have)) return false;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Have) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	auto On = [&Map](const char* Slot) {
+		const auto It = Map.find(Slot);
+		return It == Map.end() ? std::string("none") : It->second;
+	};
+	const bool bRig = On("frame") != "none" && On("engine") != "none";
+	const FName WheelKind(TEXT("wheel")), TyreKind(TEXT("tyre")), FrameKind(TEXT("frame"));
+
+	// The wheels a tyre can go on, each side: the one on the bike, or (none on yet) every wheel its frame takes.
+	TArray<FName> Wheels[2];
+	bool bWheelsDone = false;
+	auto WheelsFor = [&]() {
+		if (bWheelsDone) return;
+		bWheelsDone = true;
+		const char* WheelSlots[2] = {"front_wheel", "rear_wheel"};
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const std::string Fitted = On(WheelSlots[Side]);
+			if (Fitted != "none")
+			{
+				Wheels[Side].Add(FName(*TBI::Ue(Fitted)));
+				continue;
+			}
+			for (const FName& W : TorqueShedParts::PartsOfKind(WheelKind))
+			{
+				const FName Own = TorqueShedParts::V2Slot(W);
+				if (!Own.IsNone() && Own != FName(UTF8_TO_TCHAR(WheelSlots[Side]))) continue;
+				if (!Own.IsNone() && !Lay->V2FitReason(Map, WheelSlots[Side], TBI::Id(W)).empty()) continue;
+				Wheels[Side].Add(W);
+			}
+		}
+	};
+
+	for (const FName& P : Parts)
+	{
+		const FName Kind = TorqueShedParts::PartKind(P);
+		if (Kind == FrameKind) continue;
+		if (Kind == TyreKind)
+		{
+			WheelsFor();
+			int32 Sides = 0;
+			FString Why;
+			for (int32 Side = 0; Side < 2; ++Side)
+				for (const FName& W : Wheels[Side])
+				{
+					const FString WhyW = TyreFitReason(P, W);
+					if (WhyW.IsEmpty()) { Sides |= 1 << Side; break; }
+					if (Why.IsEmpty() && Wheels[Side].Num() == 1) Why = WhyW;
+				}
+			OutSides.Add(P, Sides);
+			if (Sides == 0)
+				OutWhyNot.Add(P, Why.IsEmpty() ? FString(TEXT("None of the wheels this bike can take carries that tyre.")) : Why);
+			continue;
+		}
+		const FName Own = TorqueShedParts::V2Slot(P);
+		if (Kind == WheelKind)
+			OutSides.Add(P, Own == FName(TEXT("front_wheel")) ? 1 : (Own == FName(TEXT("rear_wheel")) ? 2 : 3));
+		const FName Slot = Own.IsNone() ? TorqueShedParts::HomeSlot(P) : Own;
+		if (Slot.IsNone()) continue;
+		const std::string SlotS = TBI::Id(Slot), PartS = TBI::Id(P);
+		// A V2 bike's part: its family's mounting standard (the engine's layout, its parts' block, the rear end...).
+		const std::string V2Why = Lay->V2FitReason(Map, SlotS, PartS);
+		if (!V2Why.empty())
+		{
+			OutWhyNot.Add(P, TBI::Ue(V2Why));
+			continue;
+		}
+		// The engine, tank and fork: the layout check fitting it does (BikeLayout::PartFit's, without the "needs a
+		// mount first" step: you can buy it before what it mounts on).
+		if (bRig && (SlotS == "engine" || SlotS == "tank" || SlotS == "fork"))
+		{
+			TorqueFit::PartsMap After = Map;
+			After[SlotS] = PartS;
+			const TorqueFit::FitReport R = Lay->Solve(After).Fit;
+			if (R.Tier == "won't fit") OutWhyNot.Add(P, R.Reason.empty() ? FString(TEXT("That won't fit this bike.")) : TBI::Ue(R.Reason));
+		}
+	}
+	return true;
+}
+
 FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 {
 	// shed_state finish_text and coat_text.
