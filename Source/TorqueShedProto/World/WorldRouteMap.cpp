@@ -1,6 +1,7 @@
 #include "WorldRouteMap.h"
 
 #include "HeightTiles.h"
+#include "WorldFerries.h"
 #include "WorldFiles.h"
 
 #include <algorithm>
@@ -210,6 +211,35 @@ void DrawRoads(MapRoads& Roads, const MapView& View, std::vector<uint8_t>& Bgra)
 			}
 		}
 }
+
+// [ferries] The listed ferry crossings (Data/RideUK/ferries.json, as the game read it at start) as dashed lines end to
+// end, a dot at each end, on every layer, so a route can be planned over them (beenster, Nov 20: "add dashed lines to
+// the map to show the locations of the ferry crossings, this helps with planning a route").
+void DrawFerries(const MapView& View, std::vector<uint8_t>& Bgra)
+{
+	const std::shared_ptr<const std::vector<Ferries::Listed>> List = Ferries::ListNow();
+	if (!List) return;
+	const int W = View.W, H = View.H;
+	const Rgb Edge = {0.97, 0.97, 0.97}, Dash = {0.07, 0.20, 0.50};
+	const double On = 7.0, Off = 5.0;
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		const double Width = Pass == 0 ? 3.8 : 2.2;
+		const Rgb Col = Pass == 0 ? Edge : Dash;
+		for (const Ferries::Listed& L : *List)
+		{
+			const P2 A = View.PixelOf(L.LatA, L.LonA), B = View.PixelOf(L.LatB, L.LonB);
+			if (std::max(A.X, B.X) < -10.0 || std::min(A.X, B.X) > W + 10.0 || std::max(A.Z, B.Z) < -10.0 || std::min(A.Z, B.Z) > H + 10.0) continue;
+			const double Len = std::hypot(B.X - A.X, B.Z - A.Z);
+			for (double D = 0.0; D < Len; D += On + Off)
+			{
+				const double T0 = D / std::max(Len, 1e-9), T1 = std::min(D + On, Len) / std::max(Len, 1e-9);
+				Stroke(Bgra, W, H, A.X + (B.X - A.X) * T0, A.Z + (B.Z - A.Z) * T0, A.X + (B.X - A.X) * T1, A.Z + (B.Z - A.Z) * T1, Width, Col);
+			}
+			for (const P2& End : {A, B}) Stroke(Bgra, W, H, End.X, End.Z, End.X, End.Z, Width + 2.2, Col);
+		}
+	}
+}
 } // namespace
 
 const char* MapImagery::Credit()
@@ -335,6 +365,7 @@ double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t
 				}
 				++Had;
 			}
+		DrawFerries(View, Bgra);
 		return double(Had) / (double(W) * double(H));
 	}
 	const int Z = View.TileZoom();
@@ -440,6 +471,7 @@ double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t
 			Px[3] = 255;
 		}
 	if (View.Layer == RoadMap && Roads != nullptr) DrawRoads(*Roads, View, Bgra);
+	DrawFerries(View, Bgra);
 	return double(Known) / (double(W) * double(H));
 }
 } // namespace Route
