@@ -2407,6 +2407,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	TurfMesh->OriginX = Out.OriginX;
 	TurfMesh->OriginZ = Out.OriginZ;
 	std::shared_ptr<RideMesh> StoneMesh;   // (a bridge's parapets and underside: Out.Stone, made when first needed)
+	// ([Nov 20] a bridge's walls from the dry stone wall kit when the game has its models: see the pass at the end)
+	// (on a country road's bridge: a wide road's, a dual carriageway's or a motorway's keeps the plain parapet)
+	const bool BridgeWalls = PropModelled[PropWallStone] && PropModelled[PropWallEnd];
+	const auto StoneParapet = [BridgeWalls](double Half, int Lanes) { return BridgeWalls && Half <= 4.5 && Lanes <= 2; };
+	static constexpr double ParapetFootHalf = 0.25, ParapetHigh = 1.15;   // (the walls laid on a deck: half their width at the foot, their height)
 	// ([build 154] UV0 is metres across and along over 4, the along counted from a whole 36 m behind this bit
 	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
 	// slabs, 0.9 m long, line up across bits of road)
@@ -2728,6 +2733,18 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		C.T0 = T0; C.T1 = T1; C.L0 = L0; C.R0 = R0; C.L1 = L1; C.R1 = R1; C.Colour = Colour;
 		PaintCuts.push_back(C);
 	};
+	// ([Nov 20] which rows' bridge has the wall kit's walls: a whole run of deck or none of it)
+	std::vector<char> WallRow(Rows.size(), 0);
+	for (size_t S0 = 0; S0 < Rows.size(); ++S0)
+	{
+		if (!Rows[S0].Deck) continue;
+		size_t S1 = S0;
+		while (S1 + 1 < Rows.size() && Rows[S1 + 1].Deck) ++S1;
+		bool Country = true;
+		for (size_t J = S0; J <= S1; ++J) Country = Country && StoneParapet(Rows[J].Half, Rows[J].Lanes);
+		for (size_t J = S0; J <= S1; ++J) WallRow[J] = Country ? 1 : 0;
+		S0 = S1;
+	}
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
 	{
 		Row RowA = Rows[K], RowB = Rows[K + 1];
@@ -3219,7 +3236,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				StoneMesh->OriginX = Out.OriginX;
 				StoneMesh->OriginZ = Out.OriginZ;
 			}
-			const double In = 0.15, Out2 = 0.55, Top = 1.0, Under = -1.2;
+			// ([Nov 20] beenster, build 164 by Hawes: "we still have these weird bridge walls": tall smooth slabs,
+			// the inner face of one black. The inner faces were drawn both ways with the outer face's normal, so
+			// the side seen from the road was lit from behind. Where the wall kit is in (BridgeWalls), the walls
+			// themselves are its stone-by-stone lengths laid along the deck (the field walls' own models, lower
+			// and thinner: see the pass after this loop); here only the kerb, the deck's outer face below them
+			// and the underside. Without the kit, the old slab, each face lit by its own side.)
+			const bool Kitted = WallRow[K] != 0 && WallRow[K + 1] != 0;
+			const double In = 0.15, Out2 = Kitted ? In + 2.0 * ParapetFootHalf : 0.55, Top = 1.0, Under = -1.2;
 			const auto Corner = [&Settle](const Row& R, double Off, double Lift)
 			{
 				const P2 At = R.At + R.Left * Off;
@@ -3236,16 +3260,22 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const P2 MidAB = (A.At + B.At) * 0.5;
 			const double HighAB = std::fmax(A.Height, B.Height);
 			const RideSceneBits::P3 Above = RideSceneBits::At3(MidAB.X, HighAB + 1e4, MidAB.Z), Below = RideSceneBits::At3(MidAB.X, HighAB - 1e4, MidAB.Z);
+			const RideSceneBits::P3 Middle = RideSceneBits::At3(MidAB.X, HighAB + 0.5, MidAB.Z);   // (the road's middle: the inner faces face it)
 			for (double Side : {1.0, -1.0})
 			{
 				const double A0 = A.Half + In, A1 = A.Half + Out2, B0 = B.Half + In, B1 = B.Half + Out2;
 				const P2 Lm = (A.Left + B.Left) * 0.5;
 				const RideSceneBits::P3 Away = RideSceneBits::At3(MidAB.X + Lm.X * Side * 100.0, HighAB, MidAB.Z + Lm.Z * Side * 100.0);
-				// (kerb strip, top, inner face, outer face)
+				// (kerb strip; then the top, the inner face and the outer face, or with the kit, the outer face below the wall)
 				Face(Side * A0, Side * A.Half, Side * B0, Side * B.Half, 0.0, 0.0, Above, 0.4f, false);
+				if (Kitted)
+				{
+					Face(Side * A1, Side * A1, Side * B1, Side * B1, 0.0, Under, Away, 0.3f, false);
+					continue;
+				}
 				Face(Side * A1, Side * A0, Side * B1, Side * B0, Top, Top, Above, 0.5f, false);
-				Face(Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Away, 0.3f, true);
-				Face(Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Away, 0.3f, true);
+				Face(Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Middle, 0.3f, false);
+				Face(Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Away, 0.3f, false);
 			}
 			Face(A.Half + Out2, -A.Half - Out2, B.Half + Out2, -B.Half - Out2, Under, Under, Below, 0.1f, false);
 		}
@@ -4061,6 +4091,98 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			LandColourDrawnAt(X, Z, &T.Col[V * 3], &Colours);
 		}
 		Out.Turf = TurfMesh;
+	}
+	// [Nov 20] A bridge's walls: each run of deck in this piece, each side, the wall kit's 2 m lengths laid end to
+	// end along a line just in from the deck's outer face, in the region's walling, brought down to a parapet's
+	// height (ParapetHigh above the road) and thinned to ParapetFootHalf each side at the foot; a wall head where
+	// the bridge itself ends (not where this piece of road does: the next piece carries the wall on). Instanced
+	// as the field walls are, so a bridge costs what as much field wall does.
+	if (BridgeWalls)
+	{
+		const int Style = WallStyle(LookHere(Out.OriginX, Out.OriginZ));
+		// (each walling's height to the top of its cope and half width at its foot, Tools/make_wall_kit.py and
+		// buttertubs_stone.py's)
+		static constexpr double StyleHigh[WallStyles] = {1.37, 1.17, 1.42, 1.33, 1.41, 1.27};
+		static constexpr double StyleFoot[WallStyles] = {0.42, 0.36, 0.40, 0.40, 0.45, 0.36};
+		const int Sk = std::clamp(Style, 0, WallStyles - 1);
+		const double Size = ParapetHigh / StyleHigh[Sk];
+		const double Narrow = std::clamp(ParapetFootHalf / (StyleFoot[Sk] * Size), 0.3, 1.0);
+		const auto LayWall = [&](int Model, int Variant, const RideSceneBits::P3& Q0, const RideSceneBits::P3& Q1)
+		{
+			const double Run = std::hypot(Q1.X - Q0.X, Q1.Z - Q0.Z);
+			if (Run < 0.05) return;
+			RideProp Pr;
+			Pr.Kind = uint16_t(Model);
+			Pr.Variant = uint8_t(Sk * WallVariants + Variant);
+			Pr.Mapped = false;
+			Pr.X = float((Q0.X + Q1.X) * 0.5 - Out.OriginX);
+			Pr.Y = float((Q0.Y + Q1.Y) * 0.5 - 0.02);
+			Pr.Z = float((Q0.Z + Q1.Z) * 0.5 - Out.OriginZ);
+			Pr.Yaw = float(std::atan2(Q1.Z - Q0.Z, Q1.X - Q0.X));
+			Pr.Pitch = float(std::atan2(Q1.Y - Q0.Y, Run));
+			Pr.Scale = float(Size);
+			// (Stretch is of the model's own length; the model is already Size times it)
+			Pr.Stretch = float(Run / ((Model == PropWallEnd ? 1.0 : 2.0) * Size));
+			Pr.Across = float(Narrow);
+			Out.Props.push_back(Pr);
+		};
+		const int RowN = int(Rows.size());
+		for (int S0 = 0; S0 + 1 < RowN; ++S0)
+		{
+			if (!(Rows[size_t(S0)].Deck && Rows[size_t(S0) + 1].Deck)) continue;
+			int S1 = S0 + 1;
+			while (S1 + 1 < RowN && Rows[size_t(S1) + 1].Deck) ++S1;
+			if (WallRow[size_t(S0)] == 0)
+			{
+				S0 = S1;
+				continue;
+			}
+			// (does the bridge go on past this piece's ends? then no head there)
+			const bool OnBefore = S0 == 0 && First > 0 && Pts[size_t(First) - 1].Bridge;
+			const bool OnAfter = S1 == RowN - 1 && Last + 1 < Count && Pts[size_t(Last) + 1].Bridge;
+			for (double Side : {1.0, -1.0})
+			{
+				std::vector<RideSceneBits::P3> Line;
+				std::vector<double> Dist;
+				for (int K = S0; K <= S1; ++K)
+				{
+					const Row& R = Rows[size_t(K)];
+					const double Off = Side * (R.Half + 0.15 + ParapetFootHalf);
+					const P2 At = R.At + R.Left * Off;
+					const RideSceneBits::P3 Q = RideSceneBits::At3(At.X, R.Height + RoadLine::CrossHeight(Side * R.Half, R.Half, R.Bank), At.Z);
+					if (!Line.empty() && std::hypot(Q.X - Line.back().X, Q.Z - Line.back().Z) < 0.05) continue;
+					Dist.push_back(Line.empty() ? 0.0 : Dist.back() + std::hypot(Q.X - Line.back().X, Q.Z - Line.back().Z));
+					Line.push_back(Q);
+				}
+				if (Line.size() < 2 || Dist.back() < 0.4) continue;
+				const auto PointAt = [&](double D)
+				{
+					D = std::clamp(D, 0.0, Dist.back());
+					size_t J = 0;
+					while (J + 2 < Line.size() && Dist[J + 1] < D) ++J;
+					const double Span = std::fmax(1e-9, Dist[J + 1] - Dist[J]), T = std::clamp((D - Dist[J]) / Span, 0.0, 1.0);
+					RideSceneBits::P3 Q;
+					Q.X = Line[J].X + (Line[J + 1].X - Line[J].X) * T;
+					Q.Y = Line[J].Y + (Line[J + 1].Y - Line[J].Y) * T;
+					Q.Z = Line[J].Z + (Line[J + 1].Z - Line[J].Z) * T;
+					return Q;
+				};
+				const double Total = Dist.back();
+				const double HeadLen = std::fmin(1.0, Total * 0.3);
+				const bool HeadA = !OnBefore && Total >= 1.6, HeadB = !OnAfter && Total >= (HeadA ? 2.6 : 1.6);
+				const double From = HeadA ? HeadLen : 0.0, To = Total - (HeadB ? HeadLen : 0.0);
+				const int Lengths = To - From > 0.2 ? std::max(1, int(std::round((To - From) / (2.0 * Size)))) : 0;
+				for (int Ln = 0; Ln < Lengths; ++Ln)
+				{
+					const RideSceneBits::P3 Q0 = PointAt(From + (To - From) * Ln / Lengths), Q1 = PointAt(From + (To - From) * (Ln + 1) / Lengths);
+					LayWall(PropWallStone, int(RideSceneBits::Chance(Q0.X, Q0.Z, 51) * WallVariants) % WallVariants, Q0, Q1);
+				}
+				// (a head is finished at its model's +x: laid from inside the wall out to the bridge's end)
+				if (HeadA) { const RideSceneBits::P3 E = PointAt(0.0), In2 = PointAt(HeadLen); LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
+				if (HeadB) { const RideSceneBits::P3 E = PointAt(Total), In2 = PointAt(Total - HeadLen); LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
+			}
+			S0 = S1;
+		}
 	}
 	if (StoneMesh && StoneMesh->Vertices() > 0) Out.Stone = StoneMesh;
 }

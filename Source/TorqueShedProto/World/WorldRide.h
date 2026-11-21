@@ -101,6 +101,8 @@ struct RideProp
 	// [build 154] A model laid along a line (Buttertubs' wall lengths): tipped up its slope by Pitch (radians,
 	// its far end up) and drawn Stretch times its own length along it.
 	float Pitch = 0.0f, Stretch = 1.0f;
+	// [Nov 20] And drawn Across times its own width across that line (a bridge's walls: the field walls thinned)
+	float Across = 1.0f;
 };
 
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the

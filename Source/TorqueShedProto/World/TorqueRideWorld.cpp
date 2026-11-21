@@ -202,6 +202,13 @@ void PrepareSquare(const TorqueWorld::RideMesh& Mesh, FRidePrepared& Out)
 // 1 and up is split before the rider comes within SplitWithin of it): never drawn there, so never
 // made. Build 148 had 5,700-11,700 plant groups in the scene, most of them on squares past every
 // grass's cull distance.
+// [Nov 20] A road piece's props (a bridge's walls) are kept with the squares' plants, under X -1 (no level of
+// squares has it, and Unseen passes it) and the piece's road and number.
+FIntVector RoadPropsKey(int64 Piece)
+{
+	return FIntVector(-1, int32(Piece / 4096), int32(Piece % 4096));
+}
+
 bool Unseen(const FIntVector& Key, float CullCm)
 {
 	return Key.X > 0 && double(CullCm) < SplitWithin[Key.X] * 100.0 * 0.97;
@@ -1274,6 +1281,13 @@ void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Me
 		if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
 	}
 	RoadParts.Add(Key, Part);
+	// [Nov 20] (a bridge's walls: the dry stone wall kit's lengths, kept with the plants under a key of their own
+	// for the piece, let go with it: DropRoadProps)
+	DropPlants(TRWI::RoadPropsKey(Key));
+	{
+		RideCosts::FScope Cost(RideCosts::Props);
+		PlaceProps(TRWI::RoadPropsKey(Key), Mesh);
+	}
 }
 
 void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
@@ -1362,6 +1376,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			{
 				LetGo(RoadParts[Key]);
 				RoadParts.Remove(Key);
+				DropPlants(TRWI::RoadPropsKey(Key));
 				if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
 				{
 					for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
@@ -2156,6 +2171,7 @@ void ATorqueRideWorld::Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, c
 	{
 		LetGo(RoadParts[Key]);
 		RoadParts.Remove(Key);
+		DropPlants(TRWI::RoadPropsKey(Key));
 		if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
 		{
 			for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
@@ -2335,13 +2351,14 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
 		FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
 		FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
-		if (P.Pitch != 0.0f || P.Stretch != 1.0f)
+		if (P.Pitch != 0.0f || P.Stretch != 1.0f || P.Across != 1.0f)
 		{
 			// [build 154] (a wall length laid along its line: drawn Stretch times its own length, along the model's
 			// own axis that the importer's turn makes its front, then tipped about the level line across it so its
 			// far end climbs the slope)
 			const bool bAcross = !S.bNativeMesh && FMath::Abs(FMath::Fmod(FMath::Abs(PropFrame.X), 180.0) - 90.0) < 1.0;
 			(bAcross ? Scale3.Y : Scale3.X) *= double(P.Stretch);
+			(bAcross ? Scale3.X : Scale3.Y) *= double(P.Across);   // [Nov 20] (a bridge's walls: thinner than a field's)
 			const double Facing = double(P.Yaw) + FMath::DegreesToRadians(Fix.Y);
 			const FVector Front(FMath::Cos(Facing), FMath::Sin(Facing), 0.0);
 			Rot = FQuat(FVector::CrossProduct(Front, FVector::UpVector).GetSafeNormal(), double(P.Pitch)) * Rot;

@@ -341,6 +341,64 @@ int main(int Argc, char** Argv)
 		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
+	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
+	// piece with a deck, its road and stone as an .obj and its wall lengths listed (kind variant x y z yaw pitch
+	// scale stretch across) for a picture; then the slab's way without the kit.
+	if (const char* BridgeDir = std::getenv("WORLD_RIDE_BRIDGES"))
+	{
+		for (const bool Kit : {true, false})
+		{
+			Plan->PropModelled[RidePlan::PropWallStone] = Plan->PropModelled[RidePlan::PropWallEnd] = Kit;
+			int Pieces = 0, Walls = 0, Heads = 0;
+			for (const int W : LaidRoads(*Plan))
+			{
+				const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+				for (int First = 0; First < int(Pts.size()) - 1; First += 64)
+				{
+					const int Last = std::min(First + 64, int(Pts.size()) - 1);
+					bool Deck = false;
+					for (int I = First; I <= Last; ++I) Deck = Deck || Pts[size_t(I)].Bridge;
+					if (!Deck) continue;
+					RideMesh Piece;
+					Plan->RoadPiece(W, First, Last, Piece);
+					++Pieces;
+					std::string Obj, List;
+					char Ln[256];
+					int Base = 1;
+					for (const RideMesh* M : {&Piece, Piece.Stone.get()})
+					{
+						if (M == nullptr) continue;
+						std::snprintf(Ln, sizeof(Ln), "o %s\n", M == &Piece ? "road" : "stone");
+						Obj += Ln;
+						for (size_t V = 0; V < M->Vertices(); ++V)
+						{
+							std::snprintf(Ln, sizeof(Ln), "v %.3f %.3f %.3f\nvn %.3f %.3f %.3f\n", M->Pos[V * 3] + M->OriginX - Piece.OriginX, M->Pos[V * 3 + 1], M->Pos[V * 3 + 2] + M->OriginZ - Piece.OriginZ,
+								M->Nrm[V * 3], M->Nrm[V * 3 + 1], M->Nrm[V * 3 + 2]);
+							Obj += Ln;
+						}
+						for (size_t T = 0; T + 2 < M->Idx.size(); T += 3)
+						{
+							std::snprintf(Ln, sizeof(Ln), "f %u//%u %u//%u %u//%u\n", M->Idx[T] + Base, M->Idx[T] + Base, M->Idx[T + 1] + Base, M->Idx[T + 1] + Base, M->Idx[T + 2] + Base, M->Idx[T + 2] + Base);
+							Obj += Ln;
+						}
+						Base += int(M->Vertices());
+					}
+					for (const RideProp& Pr : Piece.Props)
+					{
+						if (Pr.Kind == RidePlan::PropWallStone) ++Walls;
+						if (Pr.Kind == RidePlan::PropWallEnd) ++Heads;
+						std::snprintf(Ln, sizeof(Ln), "%d %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", int(Pr.Kind), int(Pr.Variant), Pr.X, Pr.Y, Pr.Z, Pr.Yaw, Pr.Pitch, Pr.Scale, Pr.Stretch, Pr.Across);
+						List += Ln;
+					}
+					const std::string Name = std::string(BridgeDir) + "/bridge_" + (Kit ? "kit_" : "slab_") + std::to_string(W) + "_" + std::to_string(First);
+					Files::Write(Name + ".obj", Obj);
+					if (Kit) Files::Write(Name + ".walls", List);
+				}
+			}
+			std::printf("Bridges (%s): %d road pieces with a deck, %d wall lengths, %d wall heads\n", Kit ? "wall kit" : "slab", Pieces, Walls, Heads);
+		}
+		Plan->PropModelled[RidePlan::PropWallStone] = Plan->PropModelled[RidePlan::PropWallEnd] = false;
+	}
 	if (Plan->Ferry)
 	{
 		// [ferries stage 5] (the way by a ferry: the ride's road to its slipway, and the sat nav's way on from where it lands)
