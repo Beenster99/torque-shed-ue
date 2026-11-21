@@ -493,6 +493,9 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			KnotOneWay[I] = static_cast<char>(static_cast<unsigned char>((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0) | (Ax.Banked << 2) | (ParkL << 4) | (ParkR << 6)));
 			KnotShoulder[I] = Ax.Shoulder;
 			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
+			// ([square T] a junction lies flat: no banking round the turn into or out of a side road)
+			for (const SquareTurn& Sq : Squares)
+				if (Line[I].DistanceTo(Sq.Hub) < 25.0) Speeds[I] = 0.0;
 		}
 		for (int Pass = 0; Pass < 2; ++Pass)
 		{
