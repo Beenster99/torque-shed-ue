@@ -12,11 +12,11 @@
  ],
  "moves_with": "steering",
  "size_mm": [
-  87.8,
+  66.9,
   797.7,
   167.5
  ],
- "triangles": 4452,
+ "triangles": 3172,
  "surfaces": {
   "chrome__mirror_head_r": {
    "ue": "chrome",

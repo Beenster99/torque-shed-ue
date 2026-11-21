@@ -12,11 +12,11 @@
  ],
  "moves_with": "steering",
  "size_mm": [
-  91.9,
+  70.7,
   806.1,
   167.5
  ],
- "triangles": 4452,
+ "triangles": 3172,
  "surfaces": {
   "plastic__mirror_head_r": {
    "ue": "cat_plastic",

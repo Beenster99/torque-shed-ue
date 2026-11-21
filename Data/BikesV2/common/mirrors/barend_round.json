@@ -12,11 +12,11 @@
  ],
  "moves_with": "steering",
  "size_mm": [
-  59.9,
+  46.2,
   932.0,
   142.0
  ],
- "triangles": 5508,
+ "triangles": 4228,
  "surfaces": {
   "alu_dark": {
    "ue": "cat_anodised",

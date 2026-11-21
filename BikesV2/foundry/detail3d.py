@@ -2123,6 +2123,13 @@ def controls(model, c):
         # mirror: a stem from the perch, a ball joint, and a shaped head with the glass facing back
         root = (bx + 4, yc, bz + 18)
         mc = (bx - 2, s * 318, bz + 150)
+        def stem_path(first, mc_, reach):
+            # the head is turned on its ball afterwards (aim_mirrors): the stem is drawn for the head as aimed
+            from mathutils import Vector
+            ball = Vector((mc_[0] + BALL, mc_[1], mc_[2]))
+            v_ = (Vector(mc_) - Vector((c.get("model_hip", 0) + 80, 0, 1560))).normalized()
+            n1 = (Vector((-1.0, s * 0.14, -0.05)).normalized() - v_).normalized()
+            return ball_path(first, ball + n1 * BALL, -n1, reach)
         cowl = next((v for v in model["body"].get("panels", []) if v.get("cowl")), None) if model["family"].lower() == "sport" else None
         hit = None
         if cowl:
@@ -2141,27 +2148,26 @@ def controls(model, c):
             # behind the head: the game turns the head on that ball to aim the glass, and a stem that came in
             # from the side came out through the glass. Under the wide glass the stem keeps deep behind it, so the
             # glass's edge clears it when the head is turned 20 degrees: the same shape as controls3d.ball_path)
-            strap(f"mstalk{s}", [(root[0], root[1] + s * 8, root[2] + 2), (root[0] - 6, root[1] + s * 46, root[2] + 18), (mc[0] + 73, mc[1] - s * 100, mc[2] - 36),
-                                 (mc[0] + 49, mc[1] - s * 45, mc[2] - 16), (mc[0] + 44, mc[1] - s * 4, mc[2] - 1), (mc[0] + BALL, mc[1], mc[2])],
-                  [(16, 6), (14, 5.5), (12, 5.5), (11, 5.5), (9, 5.5), (7, 5.5)], plastic)
+            strap(f"mstalk{s}", stem_path([(root[0], root[1] + s * 8, root[2] + 2), (root[0] - 6, root[1] + s * 46, root[2] + 18)], mc, 86),
+                  [(16, 6), (14, 5.5), (10, 5.5), (7, 5.5)], plastic)
         elif barend:
             # bar-end mirrors (beenster, cafe round 2): a clamp on the end of the bar, a short stem standing up
             # and out from it, and a round head
             e_ = tuple(g0[i] + d[i] * (L_ + 24) for i in range(3))
             mc = (e_[0] - 6, e_[1] + s * 26, e_[2] + 104)
             lathe(f"mirrorboss{s}", e_, d, [(0, 0), (0, 15), (3, 17.5), (15, 17.5), (18, 15), (18, 0)], B.mat("alu_dark"), 28)
-            B.smooth_tube(f"mstalk{s}", [(e_[0], e_[1] + s * 9, e_[2] + 12), (e_[0] - 1, e_[1] + s * 12, e_[2] + 40), (mc[0] + 46, mc[1] - s * 4, mc[2] - 42), (mc[0] + 46, mc[1], mc[2] - 2), (mc[0] + BALL, mc[1], mc[2])], 5.6, B.mat("alu_dark"))
+            B.smooth_tube(f"mstalk{s}", stem_path([(e_[0], e_[1] + s * 9, e_[2] + 12), (e_[0] - 1, e_[1] + s * 12, e_[2] + 40)], mc, 54), 5.6, B.mat("alu_dark"))
         else:
             if opt.get("mirrors") == "adv":
                 # substantial but stylish (beenster, adventure round 2): a cast aero stem, wide where it leaves
                 # the perch and at the head, and a bigger five-sided head
                 mc = (bx - 6, s * 336, bz + 158)
                 B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 14), 12, 9.5, satin, 16)
-                strap(f"mstalk{s}", [(root[0], root[1], root[2] + 10), (root[0] + 12, yc + s * 10, root[2] + 70), (mc[0] + 48, s * 272, mc[2] - 38), (mc[0] + 44, s * 330, mc[2] - 4), (mc[0] + BALL, s * 336, mc[2])],
-                      [(9, 9), (9, 7), (10, 6.5), (9, 6), (7, 5.5)], plastic)
+                strap(f"mstalk{s}", stem_path([(root[0], root[1], root[2] + 10), (root[0] + 12, yc + s * 10, root[2] + 70)], mc, 92),
+                      [(9, 9), (9, 7), (9, 6), (7, 5.5)], plastic)
             else:
                 B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
-                B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 46, s * 285, mc[2] - 34), (mc[0] + 46, s * 316, mc[2] - 3), (mc[0] + BALL, s * 318, mc[2])], 5.2, satin)
+                B.smooth_tube(f"mstalk{s}", stem_path([(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62)], mc, 86), 5.2, satin)
         outline = chaikin([(s * -86, -10), (s * -64, 30), (s * 10, 44), (s * 76, 32), (s * 86, -4), (s * 58, -36), (s * -52, -40)], 3)
         if opt.get("mirrors") == "adv":
             outline = chaikin([(s * -86, -18), (s * -74, 30), (s * 8, 50), (s * 84, 35), (s * 92, -12), (s * 50, -44), (s * -52, -42)], 1)
@@ -3527,6 +3533,27 @@ def shots(build3d, name, tags, samples=24):
 
 
 BALL = 14.0     # a mirror head's ball joint: this far behind the middle of its glass (mm); the game's AimMirrors uses the same
+
+
+def ball_path(first, mc, bk, reach=60.0):
+    """A stem's path (beenster, build 167 sketch: no turning in towards the back of the head): its first points
+    from the root, then one straight run past the inner edge of the head and into its back, ending on the ball
+    joint BALL mm behind the middle of the glass. bk: the unit direction out of the back of the head; reach: how
+    far the glass spreads from its middle. The run stands off the glass by 0.40 mm for each mm out from the
+    ball (the game turns the head up to 20 degrees on that ball, tan 20 = 0.36), so the glass never meets it."""
+    from mathutils import Vector
+    mc, bk = Vector(mc), Vector(bk).normalized()
+    last = Vector(first[-1])
+    d = last - mc
+    d -= bk * d.dot(bk)                # across the back of the head, towards where the stem comes from
+    far = d.length
+    u = d / far if far > 1e-6 else Vector((0, 0, 0))
+    edge = min(far, reach + 10.0)      # where the stem passes the glass's edge
+    ball = mc + bk * BALL
+    outer = mc + bk * (BALL + 0.40 * edge) + u * edge
+    if far <= edge + 20.0 and (last - mc).dot(bk) >= BALL + 0.40 * far - 6.0:
+        outer = (last + ball) / 2      # (already behind the head and close: straight in)
+    return [tuple(q) for q in first] + [tuple(outer), tuple(ball)]
 
 
 def mesh_now(name):

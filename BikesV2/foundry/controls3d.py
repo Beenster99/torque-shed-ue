@@ -571,29 +571,13 @@ def mirror_head(name, centre, eye, s, key, M, back_mat, depth=26.0):
 
 
 def ball_path(first, mc, bk, reach=60.0):
-    """A stem's path: its first points from the root, then round behind the head and straight in to the ball joint
-    D.BALL mm behind the middle of the glass (bk: the unit direction out of the back of the head; reach: how far
-    the glass spreads from its middle). The game turns the head up to 20 degrees on that ball, which swings the
-    glass's edge back: under the glass the stem keeps deep enough behind it to stay clear (0.42 mm deeper for
-    each mm out from the ball, tan 22.5 degrees), so it comes round the back of the head like a real arm."""
-    mc = Vector(mc)
-    d = Vector(first[-1]) - mc
-    d -= bk * d.dot(bk)                # across the back of the head, towards where the stem comes from
-    far = d.length
-    u = d / far if far > 1e-6 else Vector((0, 0, 0))
-    edge = min(far, reach + 10.0)      # where the stem comes in under the glass's edge
-    deep = lambda r: max(44.0, D.BALL + r * 0.42 + 16.0)
-    inner = mc + bk * deep(edge * 0.45) + u * (edge * 0.45)
-    if Vector(first[-1]).dot(bk) - mc.dot(bk) < deep(edge) - 6.0 or far > edge + 20.0:
-        outer = mc + bk * deep(edge) + u * edge
-    else:
-        outer = (Vector(first[-1]) + inner) / 2          # (already deep and close: nothing to go round)
-    return [tuple(q) for q in first] + [tuple(outer), tuple(inner), tuple(mc + bk * 44 + u * min(far, 4.0)), tuple(mc + bk * D.BALL)]
+    """The stem's path to the head's ball joint: D.ball_path (one straight run into the back of the head)."""
+    return D.ball_path(first, mc, bk, reach)
 
 
 def W5(secs):
-    """A strap's sections for a ball_path from two first points: one more section for the point that goes round."""
-    return secs[:2] + [tuple((a + b) / 2 for a, b in zip(secs[1], secs[2]))] + secs[2:]
+    """A strap's sections for a ball_path from two first points: the root's two, one for the run and the ball's."""
+    return [secs[0], secs[1], secs[-2], secs[-1]]
 
 
 def mirror(fr, s, key, M, model, lines, hand):
