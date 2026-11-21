@@ -342,7 +342,9 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     # ([street kit] the lamp posts and telegraph poles are Tools/blender_street_kit.py's, made in Blender:
     # left as they are)
-    theirs = ("SM_Prop_street_lamp_", "SM_Prop_power_pole_")
+    # ([Nov 21] and the post boxes and telephone kiosks, Tools/blender_post_phone_kit.py's; the traffic signal,
+    # Tools/blender_street_kit.py's)
+    theirs = ("SM_Prop_street_lamp_", "SM_Prop_power_pole_", "SM_Prop_post_box_", "SM_Prop_phone_box_", "SM_Prop_traffic_signal_")
     for f in os.listdir(OUT):
         if f.endswith(".glb") and not f.startswith(theirs):
             os.remove(os.path.join(OUT, f))
@@ -358,8 +360,6 @@ def main():
         "info_board": [info_board(R(970))],
         "picnic_table": [picnic_table(R(980)), picnic_table(R(981))],
         "seat": [seat(R(990)), seat(R(991))],
-        "post_box": [post_box(R(1000))],
-        "phone_box": [phone_box(R(1010))],
         "lamp_heritage": [lamp_heritage(R(1040))],
     }
     total = 0

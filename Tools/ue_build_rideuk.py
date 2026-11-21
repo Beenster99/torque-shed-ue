@@ -1536,7 +1536,8 @@ def facade_material(L):
 
 
 STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
-                    "touring_caravan", "static_caravan")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+                    "touring_caravan", "static_caravan", "post_box", "phone_box")   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+# [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
 
