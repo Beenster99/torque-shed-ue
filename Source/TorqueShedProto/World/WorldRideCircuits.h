@@ -65,8 +65,16 @@ bool ReadCircuitNotes(const std::string& Text, CircuitNotes& Out);
 struct CircuitIndex
 {
 	static constexpr double Square = 64.0;
-	std::unordered_map<long long, std::vector<int>> Areas;   // into Region::CircuitAreas
+	std::unordered_map<long long, std::vector<int>> Areas;   // into Region::CircuitAreas, then Made (past their end)
 	static long long KeyOf(double X, double Z);
+	// [gravel traps] The gravel traps the game shapes itself, on the outside of a circuit's corners where the map has
+	// none (RidePlan::IndexTrackside): kind 5, as the map's gravel.
+	std::vector<CircuitArea> Made;
+	const CircuitArea& AreaOf(const Region& G, int A) const
+	{
+		return size_t(A) < G.CircuitAreas.size() ? G.CircuitAreas[size_t(A)] : Made[size_t(A) - G.CircuitAreas.size()];
+	}
+	void AddArea(const Region& G, CircuitArea&& Ar);
 	struct Line
 	{
 		P2 At, Across;        // its middle and its direction across the track (unit)
