@@ -2622,19 +2622,37 @@ def tree_material(tex=None, roles=None, frame=None):
         # The bark: the scan's detail (mostly its light and dark, a little of its colour) on the tree's
         # own bark colour, so ash stays grey and birch white; its relief; its crevices' occlusion.
         bm = tex["bark"]; tile = float(roles["bark"].get("tile_m", 0.7))
-        buv = g.node(unreal.MaterialExpressionTextureCoordinate, coordinate_index=1, u_tiling=1.0 / tile, v_tiling=1.0 / tile)
-        bc = g.sample(bm["color"], buv, "color")
+        # ([build 168] beenster on 167: "We need to make sure that the textures on the trees arent so
+        # tiled". Each tree's bark starts somewhere else on the scan (by its instance), and a second
+        # reading of it, 2.7 times larger and shifted, comes through in patches a few metres long,
+        # so neither one trunk nor a row of trees shows the same 0.7 m of bark over and over.)
+        uv1 = g.node(unreal.MaterialExpressionTextureCoordinate, coordinate_index=1)
+        shift = g.op(unreal.MaterialExpressionMultiply, pir, g.node(unreal.MaterialExpressionConstant2Vector, r=13.71, g=5.37))
+        buv = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, uv1, const_b=1.0 / tile), shift)
+        buv_b = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, uv1, const_b=1.0 / (tile * 2.7)),
+                     g.op(unreal.MaterialExpressionAdd, shift, g.node(unreal.MaterialExpressionConstant2Vector, r=0.37, g=0.71)))
+        nt_b = noise_texture()
+        if nt_b is not None:
+            patch = g.sample(nt_b, g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, uv1, const_b=1.0 / 3.5), shift), "linear")
+            mix_b = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                         g.op(unreal.MaterialExpressionSubtract, patch, const_b=0.42, a_out="G"), const_b=4.0))
+        else:
+            mix_b = g.const(0.35)
+
+        def bark_sample(t, kind, out=""):
+            return g.lerp(g.sample(t, buv, kind), g.sample(t, buv_b, kind), mix_b, a_out=out, b_out=out)
+        bc = bark_sample(bm["color"], "color")
         bd = g.node(unreal.MaterialExpressionDesaturation, -700)
         g.link(bc, bd)
         g.link(g.const(0.6), bd, "Fraction")
         detail = g.op(unreal.MaterialExpressionMultiply, bd, const_b=1.0 / float(roles["bark"].get("mean", 0.3)))
         base = g.lerp(base, g.op(unreal.MaterialExpressionMultiply, base, detail), bark_w)
         if "normal" in bm:
-            bn = g.sample(bm["normal"], buv, "normal")
+            bn = bark_sample(bm["normal"], "normal")
             bn = g.op(unreal.MaterialExpressionMultiply, bn, g.const((1.0, -1.0, 1.0)))   # ambientCG's are OpenGL's
             normal = g.lerp(normal, bn, bark_w)
         if "ao" in bm:
-            bao = g.lerp(g.const(1.0), g.sample(bm["ao"], buv, "ao"), bark_w, b_out="R")
+            bao = g.lerp(g.const(1.0), bark_sample(bm["ao"], "ao", "R"), bark_w)
             ao = g.op(unreal.MaterialExpressionMultiply, ao, bao)
     nt = noise_texture()
     if nt is not None:
