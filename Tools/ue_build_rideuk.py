@@ -748,9 +748,26 @@ def water_material(L, real=False):
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
                 "phase": (g.const(0.15), ("PhaseG", "Phase G")),
                 "behind": (g.const(1.0), ("ColorScaleBehindWater", "Color Scale Behind Water"))}
+        # (round 167: the PC said "No inputs to Single Layer Water Material" though every link here said it
+        # worked. So the pins' names come from the node itself, and the links are read back afterwards.)
+        try:
+            have = [str(n_) for n_ in mel.get_material_expression_input_names(out)]
+        except Exception as e:
+            have = []
+            unreal.log_warning("[Torque] M_RideWaterReal: couldn't read the output's pin names (%s)" % e)
+        unreal.log("[Torque] M_RideWaterReal: single layer water output pins %s" % have)
+        squash = lambda t: t.lower().replace(" ", "").replace("_", "")
         for key, (node, names) in pins.items():
-            if not any(mel.connect_material_expressions(node, "", out, n_) for n_ in names):
+            tries = [n_ for n_ in have if squash(n_).startswith(squash(names[0]))] + list(names)
+            if not any(mel.connect_material_expressions(node, "", out, n_) for n_ in tries):
                 unreal.log_warning("[Torque] M_RideWaterReal: couldn't link its %s to the single layer water output" % key)
+        try:
+            got = [e_ for e_ in mel.get_inputs_for_material_expression(g.m, out) if e_ is not None]
+            unreal.log("[Torque] M_RideWaterReal: %d of the output's %d pins linked" % (len(got), len(have)))
+            if not got:
+                unreal.log_error("[Torque] M_RideWaterReal: the single layer water output has NO inputs after linking")
+        except Exception as e:
+            unreal.log_warning("[Torque] M_RideWaterReal: couldn't read the output's links back (%s)" % e)
         # (single layer water: its own colour is the depth's; the base colour is the foam on top of it, laid
         # over the water by the opacity)
         base = foam_colour
