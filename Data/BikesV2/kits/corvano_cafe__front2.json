@@ -2,9 +2,9 @@
  "name": "Corvano cafe (working title C1)",
  "format": 2,
  "kit": true,
- "triangles": 5520,
+ "triangles": 8088,
  "surfaces": {
-  "s063": {
+  "s064": {
    "slot": "headlight",
    "node": "steer",
    "surface": "plastic",
@@ -19,7 +19,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s064": {
+  "s065": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_bezel",
@@ -34,7 +34,7 @@
    "metallic": 0.85,
    "roughness": 0.3
   },
-  "s065": {
+  "s066": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_drl",
@@ -42,7 +42,7 @@
    "ue": "lens_clear",
    "sub": "headlamp"
   },
-  "s066": {
+  "s067": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_smokechrome",
@@ -57,7 +57,7 @@
    "metallic": 1.0,
    "roughness": 0.1
   },
-  "s067": {
+  "s068": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_clearglass",
@@ -72,7 +72,7 @@
    "metallic": 0.0,
    "roughness": 0.02
   },
-  "s068": {
+  "s069": {
    "slot": "headlight",
    "node": "steer",
    "surface": "d3_bulb",
@@ -80,7 +80,7 @@
    "ue": "lens_clear",
    "sub": "headlamp"
   },
-  "s069": {
+  "s070": {
    "slot": "headlight",
    "node": "steer",
    "surface": "alu_dark",
@@ -94,6 +94,89 @@
    ],
    "metallic": 0.9,
    "roughness": 0.45
+  },
+  "s071": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s072": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_screen",
+   "tag": "d3_screen",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.004,
+    0.005,
+    0.008
+   ],
+   "metallic": 0.0,
+   "roughness": 0.04
+  },
+  "s073": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "clocks",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s074": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_dialblack",
+   "tag": "d3_dialblack",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.012,
+    0.012,
+    0.013
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6
+  },
+  "s075": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "clocks"
+  },
+  "s076": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "clocks",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
   }
  }
 }

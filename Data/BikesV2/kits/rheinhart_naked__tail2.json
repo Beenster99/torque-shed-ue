@@ -2,9 +2,9 @@
  "name": "Rheinhart naked (working title N1)",
  "format": 2,
  "kit": true,
- "triangles": 17464,
+ "triangles": 24568,
  "surfaces": {
-  "s020": {
+  "s021": {
    "slot": "tail",
    "node": "",
    "surface": "paint__body",
@@ -19,7 +19,7 @@
    "metallic": 0.55,
    "roughness": 0.34
   },
-  "s021": {
+  "s022": {
    "slot": "tail",
    "node": "",
    "surface": "redlens",
@@ -27,7 +27,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s024": {
+  "s025": {
    "slot": "tail",
    "node": "",
    "surface": "redlens",
@@ -35,7 +35,7 @@
    "ue": "lens_red",
    "sub": "plate_hanger"
   },
-  "s025": {
+  "s026": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -50,7 +50,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s026": {
+  "s027": {
    "slot": "tail",
    "node": "",
    "surface": "plate",
@@ -64,6 +64,114 @@
    ],
    "metallic": 0.0,
    "roughness": 0.5
+  },
+  "s156": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "ind_front"
+  },
+  "s157": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_front",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s158": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "ind_front",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s159": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "ind_front"
+  },
+  "s160": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_front"
+  },
+  "s161": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "ind_rear"
+  },
+  "s162": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_rear",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s163": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "ind_rear",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s164": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "ind_rear"
+  },
+  "s165": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_rear"
   }
  }
 }

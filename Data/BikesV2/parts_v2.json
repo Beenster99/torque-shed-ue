@@ -16919,6 +16919,42 @@
     "of": "corvano_naked"
    }
   },
+  "v2_corvano_sport__tail_ke2": {
+   "mass": 1.1,
+   "type": "Plastic undertray, LED strip",
+   "style": "tidy",
+   "light": "strip",
+   "light_at": [
+    0.06,
+    0.35
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano sport tail with tail tidy",
+   "description": "number plate arm taken off",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 125,
+   "v2part": {
+    "model": "kits/corvano_sport__extras2",
+    "frame": "v2_corvano_sport",
+    "slot": "tail",
+    "family": "sport",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "corvano_sport"
+   }
+  },
   "v2_corvano_sport__tail_kr1": {
    "mass": 1.1,
    "type": "Plastic undertray, LED strip",
@@ -18206,6 +18242,42 @@
     "twin_shock": false,
     "kit": "tail2",
     "of": "hartwell_naked"
+   }
+  },
+  "v2_hartwell_sport__tail_ke2": {
+   "mass": 1.1,
+   "type": "Plastic undertray, LED strip",
+   "style": "tidy",
+   "light": "strip",
+   "light_at": [
+    0.06,
+    0.35
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "color": [
+    0.0137,
+    0.0742,
+    0.0423
+   ],
+   "name": "BSX sport tail with tail tidy",
+   "description": "number plate arm taken off",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 125,
+   "v2part": {
+    "model": "kits/hartwell_sport__extras2",
+    "frame": "v2_hartwell_sport",
+    "slot": "tail",
+    "family": "sport",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "hartwell_sport"
    }
   },
   "v2_hartwell_sport__tail_kr1": {
@@ -19603,6 +19675,42 @@
     "twin_shock": false,
     "kit": "tail2",
     "of": "kazeda_naked"
+   }
+  },
+  "v2_kazeda_sport__tail_ke2": {
+   "mass": 1.1,
+   "type": "Plastic undertray, LED strip",
+   "style": "tidy",
+   "light": "strip",
+   "light_at": [
+    0.06,
+    0.35
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda sport tail with tail tidy",
+   "description": "number plate arm taken off",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 125,
+   "v2part": {
+    "model": "kits/kazeda_sport__extras2",
+    "frame": "v2_kazeda_sport",
+    "slot": "tail",
+    "family": "sport",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "kazeda_sport"
    }
   },
   "v2_kazeda_sport__tail_kr1": {
@@ -21250,6 +21358,42 @@
     "of": "varga_naked"
    }
   },
+  "v2_varga_sport__tail_ke2": {
+   "mass": 1.1,
+   "type": "Plastic undertray, LED strip",
+   "style": "tidy",
+   "light": "strip",
+   "light_at": [
+    0.06,
+    0.35
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "color": [
+    0.8879,
+    0.1441,
+    0.011
+   ],
+   "name": "Varga sport tail with tail tidy",
+   "description": "number plate arm taken off",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 125,
+   "v2part": {
+    "model": "kits/varga_sport__extras2",
+    "frame": "v2_varga_sport",
+    "slot": "tail",
+    "family": "sport",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "varga_sport"
+   }
+  },
   "v2_varga_sport__tail_kr1": {
    "mass": 1.1,
    "type": "Plastic undertray, LED strip",
@@ -22097,6 +22241,863 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_corvano_adventure__side_panels_ke3": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with crash bars",
+   "description": "steel bars round the fairing and engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/corvano_adventure__extras3",
+    "frame": "v2_corvano_adventure",
+    "slot": "side_panels",
+    "family": "adventure",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras3",
+    "of": "corvano_adventure"
+   }
+  },
+  "v2_corvano_cafe__side_panels_ke1": {
+   "mass": 0.8,
+   "type": "Plastic, oval number",
+   "style": "oval",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "material": "plastic",
+   "name": "Corvano cafe side panels with number board",
+   "description": "oval race number board on the side",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 70,
+   "v2part": {
+    "model": "kits/corvano_cafe__extras1",
+    "frame": "v2_corvano_cafe",
+    "slot": "side_panels",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "corvano_cafe"
+   }
+  },
+  "v2_corvano_classic__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano classic side panels with rack",
+   "description": "chrome luggage rack behind the saddle",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 70,
+   "v2part": {
+    "model": "kits/corvano_classic__extras1",
+    "frame": "v2_corvano_classic",
+    "slot": "side_panels",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "corvano_classic"
+   }
+  },
+  "v2_corvano_cruiser__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with sissy bar",
+   "description": "chrome hoop and back pad behind the seat",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/corvano_cruiser__extras1",
+    "frame": "v2_corvano_cruiser",
+    "slot": "side_panels",
+    "family": "cruiser",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "corvano_cruiser"
+   }
+  },
+  "v2_corvano_mx__side_panels_ke1": {
+   "mass": 0.7,
+   "type": "Plastic, MX",
+   "style": "mx",
+   "color": [
+    0.8148,
+    0.7913,
+    0.7379
+   ],
+   "material": "plastic",
+   "name": "Corvano mx side panels with hand guards",
+   "description": "plastic guards over the levers",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 70,
+   "v2part": {
+    "model": "kits/corvano_mx__extras1",
+    "frame": "v2_corvano_mx",
+    "slot": "side_panels",
+    "family": "mx",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "corvano_mx"
+   }
+  },
+  "v2_corvano_mx__side_panels_ke2": {
+   "mass": 0.7,
+   "type": "Plastic, MX",
+   "style": "mx",
+   "color": [
+    0.8148,
+    0.7913,
+    0.7379
+   ],
+   "material": "plastic",
+   "name": "Corvano mx side panels with bash plate",
+   "description": "aluminium plate under the engine",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 70,
+   "v2part": {
+    "model": "kits/corvano_mx__extras2",
+    "frame": "v2_corvano_mx",
+    "slot": "side_panels",
+    "family": "mx",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "corvano_mx"
+   }
+  },
+  "v2_hartwell_adventure__side_panels_ke3": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.0137,
+    0.0742,
+    0.0423
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "BSX adventure side panels with crash bars",
+   "description": "steel bars round the fairing and engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/hartwell_adventure__extras3",
+    "frame": "v2_hartwell_adventure",
+    "slot": "side_panels",
+    "family": "adventure",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "extras3",
+    "of": "hartwell_adventure"
+   }
+  },
+  "v2_hartwell_cafe__side_panels_ke1": {
+   "mass": 0.8,
+   "type": "Plastic, oval number",
+   "style": "oval",
+   "color": [
+    0.5841,
+    0.6172,
+    0.6514
+   ],
+   "material": "plastic",
+   "name": "BSX cafe side panels with number board",
+   "description": "oval race number board on the side",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 70,
+   "v2part": {
+    "model": "kits/hartwell_cafe__extras1",
+    "frame": "v2_hartwell_cafe",
+    "slot": "side_panels",
+    "family": "cafe",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "hartwell_cafe"
+   }
+  },
+  "v2_hartwell_chopper__side_panels_ke2": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with tool roll",
+   "description": "leather roll strapped across the fork",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/hartwell_chopper__extras2",
+    "frame": "v2_hartwell_chopper",
+    "slot": "side_panels",
+    "family": "chopper",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "hartwell_chopper"
+   }
+  },
+  "v2_hartwell_classic__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.0137,
+    0.0742,
+    0.0423
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "BSX classic side panels with rack",
+   "description": "chrome luggage rack behind the saddle",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 70,
+   "v2part": {
+    "model": "kits/hartwell_classic__extras1",
+    "frame": "v2_hartwell_classic",
+    "slot": "side_panels",
+    "family": "classic",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "hartwell_classic"
+   }
+  },
+  "v2_kazeda_adventure__side_panels_ke3": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Kazeda adventure side panels with crash bars",
+   "description": "steel bars round the fairing and engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_adventure__extras3",
+    "frame": "v2_kazeda_adventure",
+    "slot": "side_panels",
+    "family": "adventure",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras3",
+    "of": "kazeda_adventure"
+   }
+  },
+  "v2_kazeda_cafe__side_panels_ke1": {
+   "mass": 0.8,
+   "type": "Plastic, oval number",
+   "style": "oval",
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "material": "plastic",
+   "name": "Kazeda cafe side panels with number board",
+   "description": "oval race number board on the side",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_cafe__extras1",
+    "frame": "v2_kazeda_cafe",
+    "slot": "side_panels",
+    "family": "cafe",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "kazeda_cafe"
+   }
+  },
+  "v2_kazeda_chopper__side_panels_ke2": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with tool roll",
+   "description": "leather roll strapped across the fork",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_chopper__extras2",
+    "frame": "v2_kazeda_chopper",
+    "slot": "side_panels",
+    "family": "chopper",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "kazeda_chopper"
+   }
+  },
+  "v2_kazeda_classic__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Kazeda classic side panels with rack",
+   "description": "chrome luggage rack behind the saddle",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_classic__extras1",
+    "frame": "v2_kazeda_classic",
+    "slot": "side_panels",
+    "family": "classic",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "kazeda_classic"
+   }
+  },
+  "v2_kazeda_cruiser__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with sissy bar",
+   "description": "chrome hoop and back pad behind the seat",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_cruiser__extras1",
+    "frame": "v2_kazeda_cruiser",
+    "slot": "side_panels",
+    "family": "cruiser",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "kazeda_cruiser"
+   }
+  },
+  "v2_kazeda_mx__side_panels_ke1": {
+   "mass": 0.7,
+   "type": "Plastic, MX",
+   "style": "mx",
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "material": "plastic",
+   "name": "Kazeda mx side panels with hand guards",
+   "description": "plastic guards over the levers",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_mx__extras1",
+    "frame": "v2_kazeda_mx",
+    "slot": "side_panels",
+    "family": "mx",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "kazeda_mx"
+   }
+  },
+  "v2_kazeda_mx__side_panels_ke2": {
+   "mass": 0.7,
+   "type": "Plastic, MX",
+   "style": "mx",
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "material": "plastic",
+   "name": "Kazeda mx side panels with bash plate",
+   "description": "aluminium plate under the engine",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 70,
+   "v2part": {
+    "model": "kits/kazeda_mx__extras2",
+    "frame": "v2_kazeda_mx",
+    "slot": "side_panels",
+    "family": "mx",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "kazeda_mx"
+   }
+  },
+  "v2_lodestar_cafe__side_panels_ke1": {
+   "mass": 0.8,
+   "type": "Plastic, oval number",
+   "style": "oval",
+   "color": [
+    0.1946,
+    0.0137,
+    0.0137
+   ],
+   "material": "plastic",
+   "name": "Lodestar cafe side panels with number board",
+   "description": "oval race number board on the side",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 70,
+   "v2part": {
+    "model": "kits/lodestar_cafe__extras1",
+    "frame": "v2_lodestar_cafe",
+    "slot": "side_panels",
+    "family": "cafe",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "lodestar_cafe"
+   }
+  },
+  "v2_lodestar_chopper__side_panels_ke2": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with tool roll",
+   "description": "leather roll strapped across the fork",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/lodestar_chopper__extras2",
+    "frame": "v2_lodestar_chopper",
+    "slot": "side_panels",
+    "family": "chopper",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "lodestar_chopper"
+   }
+  },
+  "v2_lodestar_classic__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.1946,
+    0.0137,
+    0.0137
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Lodestar classic side panels with rack",
+   "description": "chrome luggage rack behind the saddle",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 70,
+   "v2part": {
+    "model": "kits/lodestar_classic__extras1",
+    "frame": "v2_lodestar_classic",
+    "slot": "side_panels",
+    "family": "classic",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "lodestar_classic"
+   }
+  },
+  "v2_lodestar_cruiser__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with sissy bar",
+   "description": "chrome hoop and back pad behind the seat",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/lodestar_cruiser__extras1",
+    "frame": "v2_lodestar_cruiser",
+    "slot": "side_panels",
+    "family": "cruiser",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "lodestar_cruiser"
+   }
+  },
+  "v2_rheinhart_adventure__side_panels_ke3": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.807,
+    0.8148,
+    0.8228
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Rheinhart adventure side panels with crash bars",
+   "description": "steel bars round the fairing and engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/rheinhart_adventure__extras3",
+    "frame": "v2_rheinhart_adventure",
+    "slot": "side_panels",
+    "family": "adventure",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false,
+    "kit": "extras3",
+    "of": "rheinhart_adventure"
+   }
+  },
+  "v2_rheinhart_cafe__side_panels_ke1": {
+   "mass": 0.8,
+   "type": "Plastic, oval number",
+   "style": "oval",
+   "color": [
+    0.807,
+    0.8148,
+    0.8228
+   ],
+   "material": "plastic",
+   "name": "Rheinhart cafe side panels with number board",
+   "description": "oval race number board on the side",
+   "styles": [
+    "cafe"
+   ],
+   "pack": "cafe",
+   "price": 70,
+   "v2part": {
+    "model": "kits/rheinhart_cafe__extras1",
+    "frame": "v2_rheinhart_cafe",
+    "slot": "side_panels",
+    "family": "cafe",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "rheinhart_cafe"
+   }
+  },
+  "v2_rheinhart_classic__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.807,
+    0.8148,
+    0.8228
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Rheinhart classic side panels with rack",
+   "description": "chrome luggage rack behind the saddle",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 70,
+   "v2part": {
+    "model": "kits/rheinhart_classic__extras1",
+    "frame": "v2_rheinhart_classic",
+    "slot": "side_panels",
+    "family": "classic",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": true,
+    "kit": "extras1",
+    "of": "rheinhart_classic"
+   }
+  },
+  "v2_rheinhart_cruiser__side_panels_ke1": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Corvano adventure side panels with sissy bar",
+   "description": "chrome hoop and back pad behind the seat",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/rheinhart_cruiser__extras1",
+    "frame": "v2_rheinhart_cruiser",
+    "slot": "side_panels",
+    "family": "cruiser",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "rheinhart_cruiser"
+   }
+  },
+  "v2_varga_adventure__side_panels_ke3": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.8879,
+    0.1441,
+    0.011
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Varga adventure side panels with crash bars",
+   "description": "steel bars round the fairing and engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 70,
+   "v2part": {
+    "model": "kits/varga_adventure__extras3",
+    "frame": "v2_varga_adventure",
+    "slot": "side_panels",
+    "family": "adventure",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "extras3",
+    "of": "varga_adventure"
+   }
+  },
+  "v2_varga_mx__side_panels_ke1": {
+   "mass": 0.7,
+   "type": "Plastic, MX",
+   "style": "mx",
+   "color": [
+    0.8879,
+    0.1441,
+    0.011
+   ],
+   "material": "plastic",
+   "name": "Varga mx side panels with hand guards",
+   "description": "plastic guards over the levers",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 70,
+   "v2part": {
+    "model": "kits/varga_mx__extras1",
+    "frame": "v2_varga_mx",
+    "slot": "side_panels",
+    "family": "mx",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "varga_mx"
+   }
+  },
+  "v2_varga_mx__side_panels_ke2": {
+   "mass": 0.7,
+   "type": "Plastic, MX",
+   "style": "mx",
+   "color": [
+    0.8879,
+    0.1441,
+    0.011
+   ],
+   "material": "plastic",
+   "name": "Varga mx side panels with bash plate",
+   "description": "aluminium plate under the engine",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 70,
+   "v2part": {
+    "model": "kits/varga_mx__extras2",
+    "frame": "v2_varga_mx",
+    "slot": "side_panels",
+    "family": "mx",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "varga_mx"
    }
   }
  },
@@ -23404,6 +24405,39 @@
     "twin_shock": false
    }
   },
+  "v2_corvano_cafe__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/corvano_cafe__extras2",
+    "frame": "v2_corvano_cafe",
+    "slot": "fairing",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "corvano_cafe"
+   }
+  },
   "v2_corvano_cafe__fairing_kf1": {
    "mass": 5.0,
    "type": "Frame-mounted, tall adjustable screen",
@@ -23435,6 +24469,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "corvano_cafe"
+   }
+  },
+  "v2_corvano_classic__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/corvano_classic__extras2",
+    "frame": "v2_corvano_classic",
+    "slot": "fairing",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "corvano_classic"
    }
   },
   "v2_corvano_classic__fairing_kf1": {
@@ -23503,6 +24570,68 @@
     "of": "corvano_cruiser"
    }
   },
+  "v2_corvano_naked__fairing_ke1": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with carena",
+   "description": "painted belly pan",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/corvano_naked__extras1",
+    "frame": "v2_corvano_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "corvano_naked"
+   }
+  },
+  "v2_corvano_naked__fairing_ke2": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with monoposto",
+   "description": "painted single seat cowl",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/corvano_naked__extras2",
+    "frame": "v2_corvano_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "corvano_naked"
+   }
+  },
   "v2_corvano_naked__fairing_kf2": {
    "mass": 0.8,
    "type": "Headlight cowl",
@@ -23532,6 +24661,39 @@
     "twin_shock": false,
     "kit": "front2",
     "of": "corvano_naked"
+   }
+  },
+  "v2_corvano_sport__fairing_ke1": {
+   "mass": 6.5,
+   "type": "Fibreglass, full",
+   "style": "race",
+   "cda": -0.09,
+   "screen": 0.16,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "material": "mixed",
+   "name": "Corvano sport fairing with seat cowl",
+   "description": "painted cowl over the pillion seat",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 600,
+   "v2part": {
+    "model": "kits/corvano_sport__extras1",
+    "frame": "v2_corvano_sport",
+    "slot": "fairing",
+    "family": "sport",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "corvano_sport"
    }
   },
   "v2_corvano_sport__fairing_kf1": {
@@ -23600,6 +24762,39 @@
     "of": "corvano_sport"
    }
   },
+  "v2_hartwell_cafe__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/hartwell_cafe__extras2",
+    "frame": "v2_hartwell_cafe",
+    "slot": "fairing",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "hartwell_cafe"
+   }
+  },
   "v2_hartwell_cafe__fairing_kf1": {
    "mass": 5.0,
    "type": "Frame-mounted, tall adjustable screen",
@@ -23631,6 +24826,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "hartwell_cafe"
+   }
+  },
+  "v2_hartwell_classic__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/hartwell_classic__extras2",
+    "frame": "v2_hartwell_classic",
+    "slot": "fairing",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "hartwell_classic"
    }
   },
   "v2_hartwell_classic__fairing_kf1": {
@@ -23666,6 +24894,37 @@
     "of": "hartwell_classic"
    }
   },
+  "v2_hartwell_naked__fairing_ke1": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/hartwell_naked__extras1",
+    "frame": "v2_hartwell_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "hartwell_naked"
+   }
+  },
   "v2_hartwell_naked__fairing_kf1": {
    "mass": 0.8,
    "type": "Headlight cowl",
@@ -23695,6 +24954,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "hartwell_naked"
+   }
+  },
+  "v2_hartwell_sport__fairing_ke1": {
+   "mass": 6.5,
+   "type": "Fibreglass, full",
+   "style": "race",
+   "cda": -0.09,
+   "screen": 0.16,
+   "frame_mount": true,
+   "color": [
+    0.0137,
+    0.0742,
+    0.0423
+   ],
+   "material": "mixed",
+   "name": "BSX sport fairing with seat cowl",
+   "description": "painted cowl over the pillion seat",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 600,
+   "v2part": {
+    "model": "kits/hartwell_sport__extras1",
+    "frame": "v2_hartwell_sport",
+    "slot": "fairing",
+    "family": "sport",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "hartwell_sport"
    }
   },
   "v2_hartwell_sport__fairing_kf1": {
@@ -23763,6 +25055,39 @@
     "of": "hartwell_sport"
    }
   },
+  "v2_kazeda_cafe__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/kazeda_cafe__extras2",
+    "frame": "v2_kazeda_cafe",
+    "slot": "fairing",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "kazeda_cafe"
+   }
+  },
   "v2_kazeda_cafe__fairing_kf1": {
    "mass": 5.0,
    "type": "Frame-mounted, tall adjustable screen",
@@ -23794,6 +25119,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "kazeda_cafe"
+   }
+  },
+  "v2_kazeda_classic__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/kazeda_classic__extras2",
+    "frame": "v2_kazeda_classic",
+    "slot": "fairing",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "kazeda_classic"
    }
   },
   "v2_kazeda_classic__fairing_kf1": {
@@ -23862,6 +25220,68 @@
     "of": "kazeda_cruiser"
    }
   },
+  "v2_kazeda_naked__fairing_ke1": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with sune",
+   "description": "painted chin spoiler",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/kazeda_naked__extras1",
+    "frame": "v2_kazeda_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "kazeda_naked"
+   }
+  },
+  "v2_kazeda_naked__fairing_ke2": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with tandoku",
+   "description": "painted single seat cowl",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/kazeda_naked__extras2",
+    "frame": "v2_kazeda_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "kazeda_naked"
+   }
+  },
   "v2_kazeda_naked__fairing_kf2": {
    "mass": 0.8,
    "type": "Headlight cowl",
@@ -23891,6 +25311,39 @@
     "twin_shock": false,
     "kit": "front2",
     "of": "kazeda_naked"
+   }
+  },
+  "v2_kazeda_sport__fairing_ke1": {
+   "mass": 6.5,
+   "type": "Fibreglass, full",
+   "style": "race",
+   "cda": -0.09,
+   "screen": 0.16,
+   "frame_mount": true,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "material": "mixed",
+   "name": "Kazeda sport fairing with seat cowl",
+   "description": "painted cowl over the pillion seat",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 600,
+   "v2part": {
+    "model": "kits/kazeda_sport__extras1",
+    "frame": "v2_kazeda_sport",
+    "slot": "fairing",
+    "family": "sport",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "kazeda_sport"
    }
   },
   "v2_kazeda_sport__fairing_kf1": {
@@ -23959,6 +25412,39 @@
     "of": "kazeda_sport"
    }
   },
+  "v2_lodestar_cafe__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/lodestar_cafe__extras2",
+    "frame": "v2_lodestar_cafe",
+    "slot": "fairing",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "lodestar_cafe"
+   }
+  },
   "v2_lodestar_cafe__fairing_kf1": {
    "mass": 5.0,
    "type": "Frame-mounted, tall adjustable screen",
@@ -23990,6 +25476,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "lodestar_cafe"
+   }
+  },
+  "v2_lodestar_classic__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/lodestar_classic__extras2",
+    "frame": "v2_lodestar_classic",
+    "slot": "fairing",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "lodestar_classic"
    }
   },
   "v2_lodestar_classic__fairing_kf1": {
@@ -24058,6 +25577,39 @@
     "of": "lodestar_cruiser"
    }
   },
+  "v2_rheinhart_cafe__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/rheinhart_cafe__extras2",
+    "frame": "v2_rheinhart_cafe",
+    "slot": "fairing",
+    "family": "cafe",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "rheinhart_cafe"
+   }
+  },
   "v2_rheinhart_cafe__fairing_kf1": {
    "mass": 5.0,
    "type": "Frame-mounted, tall adjustable screen",
@@ -24089,6 +25641,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "rheinhart_cafe"
+   }
+  },
+  "v2_rheinhart_classic__fairing_ke2": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.4508,
+    0.006,
+    0.0232
+   ],
+   "name": "Corvano adventure fairing with sump plate",
+   "description": "painted plate under the engine",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 485,
+   "v2part": {
+    "model": "kits/rheinhart_classic__extras2",
+    "frame": "v2_rheinhart_classic",
+    "slot": "fairing",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "rheinhart_classic"
    }
   },
   "v2_rheinhart_classic__fairing_kf1": {
@@ -24157,6 +25742,37 @@
     "of": "rheinhart_cruiser"
    }
   },
+  "v2_rheinhart_naked__fairing_ke1": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with schutz",
+   "description": "painted sump guard",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/rheinhart_naked__extras1",
+    "frame": "v2_rheinhart_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "rheinhart_naked"
+   }
+  },
   "v2_rheinhart_naked__fairing_kf1": {
    "mass": 0.8,
    "type": "Headlight cowl",
@@ -24188,6 +25804,68 @@
     "of": "rheinhart_naked"
    }
   },
+  "v2_varga_naked__fairing_ke1": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with has",
+   "description": "painted belly pan",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/varga_naked__extras1",
+    "frame": "v2_varga_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "varga_naked"
+   }
+  },
+  "v2_varga_naked__fairing_ke2": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.0116,
+    0.0782,
+    0.521
+   ],
+   "name": "Kazeda naked fairing with egyes",
+   "description": "painted single seat cowl",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 105,
+   "v2part": {
+    "model": "kits/varga_naked__extras2",
+    "frame": "v2_varga_naked",
+    "slot": "fairing",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "extras2",
+    "of": "varga_naked"
+   }
+  },
   "v2_varga_naked__fairing_kf1": {
    "mass": 0.8,
    "type": "Headlight cowl",
@@ -24217,6 +25895,39 @@
     "twin_shock": false,
     "kit": "front1",
     "of": "varga_naked"
+   }
+  },
+  "v2_varga_sport__fairing_ke1": {
+   "mass": 6.5,
+   "type": "Fibreglass, full",
+   "style": "race",
+   "cda": -0.09,
+   "screen": 0.16,
+   "frame_mount": true,
+   "color": [
+    0.8879,
+    0.1441,
+    0.011
+   ],
+   "material": "mixed",
+   "name": "Varga sport fairing with seat cowl",
+   "description": "painted cowl over the pillion seat",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 600,
+   "v2part": {
+    "model": "kits/varga_sport__extras1",
+    "frame": "v2_varga_sport",
+    "slot": "fairing",
+    "family": "sport",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "extras1",
+    "of": "varga_sport"
    }
   },
   "v2_varga_sport__fairing_kf1": {
@@ -28364,6 +30075,847 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_corvano_classic__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Corvano classic Bobbed indicators",
+   "description": "mudguard cut short over the tyre",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_classic__tail1",
+    "frame": "v2_corvano_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": true,
+    "kit": "tail1",
+    "of": "corvano_classic"
+   }
+  },
+  "v2_corvano_classic__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Corvano classic Ducktail indicators",
+   "description": "mudguard tip flicked out",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_classic__tail2",
+    "frame": "v2_corvano_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": true,
+    "kit": "tail2",
+    "of": "corvano_classic"
+   }
+  },
+  "v2_corvano_mx__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Corvano mx Enduro indicators",
+   "description": "longer mudguard with a tail light",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_mx__tail2",
+    "frame": "v2_corvano_mx",
+    "slot": "indicators",
+    "family": "mx",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "corvano_mx"
+   }
+  },
+  "v2_corvano_naked__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Corvano naked Mozza indicators",
+   "description": "shortest, a stub of the same swept line",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_naked__tail1",
+    "frame": "v2_corvano_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "corvano_naked"
+   }
+  },
+  "v2_corvano_naked__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Corvano naked Coda indicators",
+   "description": "longest, swept up to a point",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_naked__tail2",
+    "frame": "v2_corvano_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "corvano_naked"
+   }
+  },
+  "v2_corvano_sport__indicators_kr1": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Corvano sport Short tail indicators",
+   "description": "tail tip cut shorter",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_sport__tail1",
+    "frame": "v2_corvano_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "corvano_sport"
+   }
+  },
+  "v2_corvano_sport__indicators_kr2": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Corvano sport Kicked tail indicators",
+   "description": "longer tip, kicked up",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/corvano_sport__tail2",
+    "frame": "v2_corvano_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "Corvano",
+    "fits": "family",
+    "layout": "vtwin90",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "corvano_sport"
+   }
+  },
+  "v2_hartwell_naked__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "BSX naked Bobtail indicators",
+   "description": "cut shorter",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/hartwell_naked__tail1",
+    "frame": "v2_hartwell_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "hartwell_naked"
+   }
+  },
+  "v2_hartwell_naked__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "BSX naked Longtail indicators",
+   "description": "longer, with a lifted tip",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/hartwell_naked__tail2",
+    "frame": "v2_hartwell_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "hartwell_naked"
+   }
+  },
+  "v2_hartwell_sport__indicators_kr1": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "BSX sport Short tail indicators",
+   "description": "tail tip cut shorter",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/hartwell_sport__tail1",
+    "frame": "v2_hartwell_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "hartwell_sport"
+   }
+  },
+  "v2_hartwell_sport__indicators_kr2": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "BSX sport Kicked tail indicators",
+   "description": "longer tip, kicked up",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/hartwell_sport__tail2",
+    "frame": "v2_hartwell_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "triple",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "hartwell_sport"
+   }
+  },
+  "v2_kazeda_classic__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Kazeda classic Bobbed indicators",
+   "description": "mudguard cut short over the tyre",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_classic__tail1",
+    "frame": "v2_kazeda_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": true,
+    "kit": "tail1",
+    "of": "kazeda_classic"
+   }
+  },
+  "v2_kazeda_classic__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Kazeda classic Ducktail indicators",
+   "description": "mudguard tip flicked out",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_classic__tail2",
+    "frame": "v2_kazeda_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": true,
+    "kit": "tail2",
+    "of": "kazeda_classic"
+   }
+  },
+  "v2_kazeda_mx__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Kazeda mx Enduro indicators",
+   "description": "longer mudguard with a tail light",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_mx__tail2",
+    "frame": "v2_kazeda_mx",
+    "slot": "indicators",
+    "family": "mx",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "kazeda_mx"
+   }
+  },
+  "v2_kazeda_naked__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Kazeda naked Tanto indicators",
+   "description": "cut short",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_naked__tail1",
+    "frame": "v2_kazeda_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "kazeda_naked"
+   }
+  },
+  "v2_kazeda_naked__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Kazeda naked Tsubasa indicators",
+   "description": "long and flatter",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_naked__tail2",
+    "frame": "v2_kazeda_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "kazeda_naked"
+   }
+  },
+  "v2_kazeda_sport__indicators_kr1": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Kazeda sport Short tail indicators",
+   "description": "tail tip cut shorter",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_sport__tail1",
+    "frame": "v2_kazeda_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "kazeda_sport"
+   }
+  },
+  "v2_kazeda_sport__indicators_kr2": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Kazeda sport Kicked tail indicators",
+   "description": "longer tip, kicked up",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/kazeda_sport__tail2",
+    "frame": "v2_kazeda_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "kazeda_sport"
+   }
+  },
+  "v2_lodestar_classic__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Lodestar classic Bobbed indicators",
+   "description": "mudguard cut short over the tyre",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/lodestar_classic__tail1",
+    "frame": "v2_lodestar_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true,
+    "kit": "tail1",
+    "of": "lodestar_classic"
+   }
+  },
+  "v2_lodestar_classic__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Lodestar classic Ducktail indicators",
+   "description": "mudguard tip flicked out",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/lodestar_classic__tail2",
+    "frame": "v2_lodestar_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": true,
+    "kit": "tail2",
+    "of": "lodestar_classic"
+   }
+  },
+  "v2_rheinhart_classic__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Rheinhart classic Bobbed indicators",
+   "description": "mudguard cut short over the tyre",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/rheinhart_classic__tail1",
+    "frame": "v2_rheinhart_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": true,
+    "kit": "tail1",
+    "of": "rheinhart_classic"
+   }
+  },
+  "v2_rheinhart_classic__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Rheinhart classic Ducktail indicators",
+   "description": "mudguard tip flicked out",
+   "styles": [
+    "classic"
+   ],
+   "pack": "classic",
+   "price": 45,
+   "v2part": {
+    "model": "kits/rheinhart_classic__tail2",
+    "frame": "v2_rheinhart_classic",
+    "slot": "indicators",
+    "family": "classic",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": true,
+    "kit": "tail2",
+    "of": "rheinhart_classic"
+   }
+  },
+  "v2_rheinhart_naked__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Rheinhart naked Kurzheck indicators",
+   "description": "cut shorter",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/rheinhart_naked__tail1",
+    "frame": "v2_rheinhart_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "rheinhart_naked"
+   }
+  },
+  "v2_rheinhart_naked__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Rheinhart naked Langheck indicators",
+   "description": "longer, with a lifted tip",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/rheinhart_naked__tail2",
+    "frame": "v2_rheinhart_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Rheinhart",
+    "fits": "family",
+    "layout": "boxer",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "rheinhart_naked"
+   }
+  },
+  "v2_varga_mx__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Varga mx Enduro indicators",
+   "description": "longer mudguard with a tail light",
+   "styles": [
+    "mx"
+   ],
+   "pack": "mx",
+   "price": 45,
+   "v2part": {
+    "model": "kits/varga_mx__tail2",
+    "frame": "v2_varga_mx",
+    "slot": "indicators",
+    "family": "mx",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "single",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "varga_mx"
+   }
+  },
+  "v2_varga_naked__indicators_kr1": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Varga naked Kurta indicators",
+   "description": "cut shorter",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/varga_naked__tail1",
+    "frame": "v2_varga_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "varga_naked"
+   }
+  },
+  "v2_varga_naked__indicators_kr2": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Varga naked Hosszu indicators",
+   "description": "longer and kicked higher",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 45,
+   "v2part": {
+    "model": "kits/varga_naked__tail2",
+    "frame": "v2_varga_naked",
+    "slot": "indicators",
+    "family": "naked",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "varga_naked"
+   }
+  },
+  "v2_varga_sport__indicators_kr1": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Varga sport Short tail indicators",
+   "description": "tail tip cut shorter",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/varga_sport__tail1",
+    "frame": "v2_varga_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "tail1",
+    "of": "varga_sport"
+   }
+  },
+  "v2_varga_sport__indicators_kr2": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Varga sport Kicked tail indicators",
+   "description": "longer tip, kicked up",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 45,
+   "v2part": {
+    "model": "kits/varga_sport__tail2",
+    "frame": "v2_varga_sport",
+    "slot": "indicators",
+    "family": "sport",
+    "brand": "Varga",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "tail2",
+    "of": "varga_sport"
    }
   }
  },

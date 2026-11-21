@@ -1,0 +1,23 @@
+{
+ "name": "Varga naked (working title N1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 140,
+ "surfaces": {
+  "s022": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.8913,
+    0.145,
+    0.0072
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  }
+ }
+}

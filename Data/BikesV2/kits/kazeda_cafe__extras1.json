@@ -1,0 +1,37 @@
+{
+ "name": "Kazeda cafe (working title C1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 3072,
+ "surfaces": {
+  "s026": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s027": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.5924,
+    0.6661,
+    0.0265
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  }
+ }
+}

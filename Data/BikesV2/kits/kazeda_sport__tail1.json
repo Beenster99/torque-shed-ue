@@ -2,9 +2,9 @@
  "name": "Kazeda sport (working title S1)",
  "format": 2,
  "kit": true,
- "triangles": 20720,
+ "triangles": 22614,
  "surfaces": {
-  "s027": {
+  "s028": {
    "slot": "tail",
    "node": "",
    "surface": "paint__body",
@@ -19,7 +19,7 @@
    "metallic": 0.3,
    "roughness": 0.3
   },
-  "s032": {
+  "s033": {
    "slot": "tail",
    "node": "",
    "surface": "redlens",
@@ -27,7 +27,7 @@
    "ue": "lens_red",
    "sub": "plate_hanger"
   },
-  "s033": {
+  "s034": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -42,7 +42,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s034": {
+  "s035": {
    "slot": "tail",
    "node": "",
    "surface": "plate",
@@ -57,7 +57,7 @@
    "metallic": 0.0,
    "roughness": 0.5
   },
-  "s159": {
+  "s160": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -72,7 +72,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s160": {
+  "s161": {
    "slot": "tail",
    "node": "",
    "surface": "d3_taillens",
@@ -80,7 +80,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s161": {
+  "s162": {
    "slot": "tail",
    "node": "",
    "surface": "d3_tailred",
@@ -88,7 +88,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s166": {
+  "s169": {
    "slot": "tail",
    "node": "",
    "surface": "steel",
@@ -103,13 +103,59 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s167": {
+  "s170": {
    "slot": "tail",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber",
    "sub": "plate_hanger"
+  },
+  "s178": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_front"
+  },
+  "s179": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_front",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s180": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_rear",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s181": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_rear"
   }
  }
 }
