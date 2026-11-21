@@ -26,4 +26,7 @@ void SetDrop(float Drop);
 // Whether a tree model (by its asset name) drops its leaves: our own near broadleaves, not the far
 // lumps (M_Tree greys those), not the evergreens.
 bool IsLeafyTreeName(const FString& Name);
+// [build 167] A broadleaf's half-bare or bare model (SM_Tree_<kind>_<n>_half/_bare), which Apply swaps in
+// while leaves are down: not a model of its own for the kit's choices.
+bool IsSeasonModelName(const FString& Name);
 }

@@ -66,6 +66,9 @@ VARIANTS = {"ash": 4, "sycamore": 4, "alder": 3, "birch": 3, "hawthorn": 3, "spr
 # ([build 166] beenster: "none of them look very large or mature (an oak or ash tree is huge)": a veteran of
 # each big broadleaf as its last model (SM_Tree_<sp>_<n>), the ride's tallest field and hedgerow trees)
 VETERANS = ("oak", "ash", "beech", "sycamore")
+# ([build 167] the leaf-drop steps the game swaps a broadleaf's near model at: TorqueLeafFall.cpp. Only
+# the bare one, for git's sake: a half-bare set ("_half", 0.5) would add about 180 MB)
+SEASON_CUTS = (("_bare", 1.0),)
 
 
 # --- Canopy map ------------------------------------------------------------------------------------
@@ -489,8 +492,14 @@ def build_models(only=None):
                 continue
             t0 = time.time()
             near, far, meta = TM.make(sp, 1000 + 37 * k + len(sp), k, n, veteran=k == n)
-            for tag, m in (("SM_Tree", near), ("SM_TreeFar", far)):
-                name = "%s_%s_%d" % (tag, sp, k)
+            # ([build 167] and the near model with its falling leaves gone (SEASON_CUTS), drawn in winter in
+            # place of the full one, SM_Tree_<sp>_<k>_bare)
+            seasonal = [(sfx, near.season_cut(upto)) for sfx, upto in SEASON_CUTS]
+            for tag, m in [("SM_Tree", near), ("SM_TreeFar", far)] + [("SM_Tree", c) for _, c in seasonal]:
+                if m is None:
+                    continue
+                sfx = next((x for x, c in seasonal if c is m), "")
+                name = "%s_%s_%d%s" % (tag, sp, k, sfx)
                 P, T = m.write(os.path.join(OUT, name + ".glb"), name, write_glb)
                 info[name] = {"species": sp, "height": round(float(P[:, 1].max()), 2), "triangles": int(len(T)),
                               "radius": round(float(np.percentile(np.linalg.norm(P[P[:, 1] > 1][:, [0, 2]], axis=1), 98)), 2)}

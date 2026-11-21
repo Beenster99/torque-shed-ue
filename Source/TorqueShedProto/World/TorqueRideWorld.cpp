@@ -2426,7 +2426,9 @@ bool ATorqueRideWorld::FindKit()
 		{
 			if (!S.Mesh && S.Variants.Num() == 0) continue;
 			const FString Name = S.Name.ToString();
-			for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
+			// ([build 167] a broadleaf's half-bare and bare models are swapped in by TorqueLeafFall, never chosen)
+			const bool bSeasonModel = TorqueLeafFall::IsSeasonModelName(Name);
+			for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && !bSeasonModel; ++K)
 			{
 				const FString Kind = UTF8_TO_TCHAR(TorqueWorld::RidePlan::PlantName(K));
 				if (Name.StartsWith(TEXT("SM_Tree_") + Kind + TEXT("_"))) KindNear[K].Add(Kit.Num());

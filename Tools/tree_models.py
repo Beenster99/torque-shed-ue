@@ -88,6 +88,30 @@ class Mesh:
         rgba = np.clip(np.round(C * 255), 0, 255).astype(np.uint8)
         return P, T, N, rgba, UV
 
+    def season_cut(self, upto):
+        """[build 167] This mesh with the leaves that have fallen by a leaf drop of upto taken out (a
+        deciduous leaf, UV0 x 1, whose turn to fall, UV2 y, is in (0, min(upto, 1 - its keep, UV3 y)]):
+        the game draws it in place of the full one while that many leaves are down, as Nanite's
+        simplified clusters, past a few tens of metres, can't drop a leaf by moving it. None when no
+        leaf falls."""
+        out = Mesh()
+        cut = False
+        base = 0
+        for P, T, C, UV, U1, U2, U3 in zip(self.P, self.T, self.C, self.UV, self.UV1, self.UV2, self.UV3):
+            t = T - base
+            base += len(P)
+            gone = (np.abs(UV[:, 0] - 1.0) < 0.5) & (U2[:, 1] > 0) & (U2[:, 1] <= np.minimum(upto, 1.0 - U3[:, 1]))
+            keep_t = ~gone[t].all(axis=1)
+            if not keep_t.all():
+                cut = True
+            t = t[keep_t]
+            if not len(t):
+                continue
+            used = np.unique(t)
+            remap = np.full(len(P), -1, np.int64); remap[used] = np.arange(len(used))
+            out.add(P[used], remap[t], C[used], UV[used], U1[used], U2[used], U3[used])
+        return out if cut and out.n else None
+
     def write(self, path, name, write_glb):
         P, T, N, C, UV = self.arrays(weld=True)
         write_glb(path, P, T, N, C, name, UV, self.uv1(), self.uv2(), self.uv3())
