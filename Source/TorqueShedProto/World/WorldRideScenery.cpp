@@ -2544,11 +2544,113 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 		Out.Uv.push_back(float((X - std::floor(Out.OriginX / 80.0) * 80.0) / 8.0)); Out.Uv.push_back(float((Z - std::floor(Out.OriginZ / 80.0) * 80.0) / 8.0));
 		Out.Col.push_back(C.R); Out.Col.push_back(C.G); Out.Col.push_back(C.B);
 	};
+	// [real water stage 1] Each wet point's level, and the water spread out over the low ground round it.
+	// (beenster, build 166 at Tayinloan: "the side of a loch!?": the sea stood as a box, a wall of water
+	// textured cliff above the land. The land a pixel inside the map's sea line is pressed down towards
+	// the sea bed, and the dry corner of a shore square was pulled down to that ground, so the water's
+	// edge dropped 24 m as a sheer face. Now water never stands up: every point lower than the water
+	// beside it, within FloodReach, is under that water at its level, the lattice run past the square's
+	// edge so the squares either side agree, and a dry corner stays at the water's level, under the
+	// land that rises out of it, so the land itself draws the shore.)
+	std::vector<double> LevelAt(size_t(N) * N, std::nan(""));
+	bool Below = false;   // (ground under the sea's level: the sea's pressed down shore, from a square beside it)
+	for (size_t V = 0; V < size_t(N) * N && !Below; ++V) Below = Sheet.Pos[V * 3 + 1] < -0.02f;
+	if (AnyWet || Below)
+	{
+		// (the sea over the whole pressed down shore; a lake only over the ring round its edge that the
+		// lake bed's pressing reaches)
+		const double FloodReach = 80.0, LakeReach = 24.0;
+		const int Rim = std::max(1, int(std::ceil(FloodReach / Step)));
+		const int M = N + 2 * Rim;
+		std::vector<double> Lv(size_t(M) * M, std::nan("")), Gr(size_t(M) * M, 1e9), Gone(size_t(M) * M, 1e9);
+		std::vector<unsigned char> Kind(size_t(M) * M, 0);
+		std::vector<int> Queue;
+		for (int J = 0; J < M; ++J)
+			for (int I = 0; I < M; ++I)
+			{
+				const int Ii = I - Rim, Jj = J - Rim;
+				const size_t P = size_t(J) * M + I;
+				const double X = X0 + Ii * Step, Z = Z0 + Jj * Step;
+				if (Ii >= 0 && Ii < N && Jj >= 0 && Jj < N)
+				{
+					const size_t V = size_t(Jj) * N + Ii;
+					Gr[P] = double(Sheet.Pos[V * 3 + 1]);
+					Kind[P] = Wet[V];
+					if (Wet[V] != 0)
+						Lv[P] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? Held[V] : !std::isnan(Lake[V]) ? Lake[V] : Gr[P] + 0.12;
+				}
+				else
+				{
+					// (past the square's edge only the sea is known: enough, as the pressed down shore is the sea's)
+					const double G = Ground(X, Z, Step);
+					if (!std::isnan(G)) Gr[P] = G;
+					if (Land->SeaAt(X, Z)) { Kind[P] = 2; Lv[P] = 0.0; }
+				}
+				if (Kind[P] != 0) { Gone[P] = 0.0; Queue.push_back(int(P)); }
+			}
+		// (out from every wet point over the ground under its water, nearest first by rings of the lattice)
+		for (size_t Q = 0; Q < Queue.size(); ++Q)
+		{
+			const int P = Queue[Q];
+			const int I = P % M, J = P / M;
+			const int Di[4] = {1, -1, 0, 0}, Dj[4] = {0, 0, 1, -1};
+			for (int K = 0; K < 4; ++K)
+			{
+				const int Ni = I + Di[K], Nj = J + Dj[K];
+				if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) continue;
+				const size_t Np = size_t(Nj) * M + Ni;
+				if (Kind[Np] != 0 || Gone[size_t(P)] + Step > (Kind[size_t(P)] == 2 ? FloodReach : LakeReach) || Gr[Np] >= Lv[size_t(P)] - 0.02) continue;
+				Kind[Np] = Kind[size_t(P)];
+				Lv[Np] = Lv[size_t(P)];
+				Gone[Np] = Gone[size_t(P)] + Step;
+				Queue.push_back(int(Np));
+			}
+		}
+		// (a lake's water spread over ground that keeps falling away past LakeReach, or past the lattice's
+		// edge, is its outflow or a dam's foot: water would run off there, so it stays dry. The sea's
+		// pressed down shore is all the sea's.)
+		{
+			std::vector<int> Part(size_t(M) * M, -1), Members;
+			const int Di[4] = {1, -1, 0, 0}, Dj[4] = {0, 0, 1, -1};
+			for (int Start = 0; Start < M * M; ++Start)
+			{
+				if (Part[size_t(Start)] >= 0 || Kind[size_t(Start)] == 0 || Kind[size_t(Start)] == 2 || Gone[size_t(Start)] <= 0.0) continue;
+				Members.assign(1, Start);
+				Part[size_t(Start)] = Start;
+				bool Spills = false;
+				for (size_t Q = 0; Q < Members.size(); ++Q)
+				{
+					const int P = Members[Q];
+					const int I = P % M, J = P / M;
+					for (int K = 0; K < 4; ++K)
+					{
+						const int Ni = I + Di[K], Nj = J + Dj[K];
+						if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) { Spills = true; continue; }
+						const size_t Np = size_t(Nj) * M + Ni;
+						if (Kind[Np] == 0) { Spills = Spills || Gr[Np] < Lv[size_t(P)] - 0.02; continue; }
+						if (Kind[Np] == 2 || Gone[Np] <= 0.0 || Part[Np] >= 0) continue;
+						Part[Np] = Start;
+						Members.push_back(int(Np));
+					}
+				}
+				if (Spills)
+					for (int P : Members) { Kind[size_t(P)] = 0; Lv[size_t(P)] = std::nan(""); }
+			}
+		}
+		for (int J = 0; J < N; ++J)
+			for (int I = 0; I < N; ++I)
+			{
+				const size_t P = size_t(J + Rim) * M + I + Rim, V = size_t(J) * N + I;
+				if (Kind[P] == 0) continue;
+				Wet[V] = Kind[P];
+				LevelAt[V] = Lv[P];
+				AnyWet = true;
+			}
+	}
 	if (AnyWet)
 	{
-		// A quad of water over every cell with a wet corner: a wet corner at its own ground and a little
-		// over (the sea at its level), a dry one no higher than the lowest wet one, so the water runs
-		// under the bank and the land itself draws the shore.
+		// A quad of water over every cell with a wet corner: a wet corner at its level, a dry one at the
+		// lowest wet one's, so the water runs flat under the bank and the land itself draws the shore.
 		for (int J = 0; J < Cells; ++J)
 			for (int I = 0; I < Cells; ++I)
 			{
@@ -2559,20 +2661,21 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				{
 					const size_t V = size_t(Cj[K]) * N + Ci[K];
 					Level[K] = std::nan("");
-					if (Wet[V] == 0) continue;
+					if (Wet[V] == 0 || std::isnan(LevelAt[V])) continue;
 					Any = true;
 					Sea = Sea || Wet[V] == 2;
-					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? Held[V]
-						: !std::isnan(Lake[V]) ? Lake[V] : double(Sheet.Pos[V * 3 + 1]) + 0.12;
+					Level[K] = LevelAt[V];
 					Lowest = std::fmin(Lowest, Level[K]);
 				}
 				if (!Any) continue;
 				const uint32_t Base = uint32_t(Out.Vertices());
 				for (int K = 0; K < 4; ++K)
 				{
-					// (a dry corner a little under its own ground, so on flat land the shore runs between
-					// the points, not round the squares)
-					const double Y = std::isnan(Level[K]) ? std::fmin(Lowest, double(Sheet.Pos[(size_t(Cj[K]) * N + Ci[K]) * 3 + 1]) - 0.25) : Level[K];
+					// (a dry corner at the water's level, under the land rising out of it. Where the land still
+					// falls away, at a dam or a lake's outflow, eased down no steeper than a weir's lip, never
+					// pulled down to the ground: that drew the water's edge as a wall)
+					const double Dry = double(Sheet.Pos[(size_t(Cj[K]) * N + Ci[K]) * 3 + 1]);
+					const double Y = !std::isnan(Level[K]) ? Level[K] : Dry >= Lowest ? Lowest : std::fmax(Dry - 0.25, Lowest - 0.17 * Step);
 					Put(X0 + Ci[K] * Step, Y, Z0 + Cj[K] * Step, Sea ? SeaWater : LakeWater);
 				}
 				// (A B across the top, C D below: as LandTile's own quads, facing up)
@@ -2615,13 +2718,17 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					NearHit Hit;
 					if (NearestOf(Mid.X, Mid.Z, Opts, Hit) && Hit.Dist <= Hit.Half + 1.0 && Run.Kind == 1) continue;
 				}
+				// ([real water stage 1] a stream's last stretch into the sea follows the pressed down shore
+				// below the sea's level: there the sea's own water, never a sloping sheet under it)
+				const double Ya = std::fmax(double(Run.Surface[I]), 0.0), Yb = std::fmax(double(Run.Surface[I + 1]), 0.0);
+				if (Ya <= 0.0 && Yb <= 0.0) continue;
 				const P2 La = LeftOf(Run, I), Lb = LeftOf(Run, I + 1);
 				const Rgb C = Run.Kind == 2 ? LakeWater : RiverWater;
 				const uint32_t Base = uint32_t(Out.Vertices());
-				Put(A.X + La.X * Ha, Run.Surface[I], A.Z + La.Z * Ha, C);
-				Put(A.X - La.X * Ha, Run.Surface[I], A.Z - La.Z * Ha, C);
-				Put(B.X + Lb.X * Hb, Run.Surface[I + 1], B.Z + Lb.Z * Hb, C);
-				Put(B.X - Lb.X * Hb, Run.Surface[I + 1], B.Z - Lb.Z * Hb, C);
+				Put(A.X + La.X * Ha, Ya, A.Z + La.Z * Ha, C);
+				Put(A.X - La.X * Ha, Ya, A.Z - La.Z * Ha, C);
+				Put(B.X + Lb.X * Hb, Yb, B.Z + Lb.Z * Hb, C);
+				Put(B.X - Lb.X * Hb, Yb, B.Z - Lb.Z * Hb, C);
 				// (left is the run's left going down it, so these face up)
 				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
 			}
