@@ -22,6 +22,7 @@ Script... and pick this file). Safe to run again: each material is rebuilt from 
   M_TyreSmoke   burnout and skid smoke (Weather/TorqueTyreFx): as M_SprayMist's custom data, billowing
                 puffs, and Soft 2 a flat fill (the veil over the view from inside the cloud).
   M_TyreMark    the darkies tyres lay on the road: a deferred decal, near-black rubber, Opacity.
+  M_ExhaustFlame  a sports engine's pop of flame out of the pipe: unlit, additive, glowing (instanced).
 """
 
 import unreal
@@ -548,14 +549,17 @@ def tyre_smoke_material():
 
 
 # A darkie: rubber laid on the road, soft along its edges, a little patchy (the tread's grooves and the
-# rubber smearing), darkest down its middle.
+# rubber smearing), darkest down its middle. ([r163] a straight strip read faint: the patchiness was
+# taking up to half its darkness; now a tenth or so.) EndFade: how much of each end (of its half length) softens,
+# just the overlap under the next piece ([build 160] the pieces of a strip joined in beads before).
+# (A decal's UV: U along its Z, the strip's length; V along its Y, across the tread.)
 MARK_HLSL = """
 float2 q = abs(UV * 2.0 - 1.0);
-float edge = (1.0 - smoothstep(0.55, 1.0, q.x)) * (1.0 - smoothstep(0.55, 1.0, q.y));
+float edge = (1.0 - smoothstep(0.55, 1.0, q.y)) * (1.0 - smoothstep(1.0 - EndFade, 1.0, q.x));
 float2 c = floor(UV * float2(48.0, 48.0));
 float grain = frac(sin(dot(c, float2(12.9898, 78.233))) * 43758.5453);
-float streak = 0.75 + 0.25 * sin(UV.x * 90.0) * sin(UV.y * 7.0 + 1.3);
-return edge * lerp(0.75, 1.0, grain) * streak;
+float streak = 0.9 + 0.1 * sin(UV.y * 90.0) * sin(UV.x * 7.0 + 1.3);
+return edge * lerp(0.88, 1.0, grain) * streak;
 """
 
 
@@ -568,9 +572,11 @@ def tyre_mark_material():
     # Rubber: nearly black, a touch smoother and shinier than the worn tarmac round it.
     mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant3Vector, -700, 0,
                                        constant=unreal.LinearColor(0.012, 0.012, 0.013, 1.0)), "", M.MP_BASE_COLOR)
-    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -700, 120, r=0.55), "", M.MP_ROUGHNESS)
+    # (0.72, near the tarmac's own: shinier, the strip read as a sheet laid over the road, [build 160])
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -700, 120, r=0.72), "", M.MP_ROUGHNESS)
     uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1200, 300)
-    shape = custom(m, -1000, 300, MARK_HLSL, [("UV", uv, "")], out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    ends = expr(m, unreal.MaterialExpressionScalarParameter, -1200, 400, parameter_name="EndFade", default_value=0.45)
+    shape = custom(m, -1000, 300, MARK_HLSL, [("UV", uv, ""), ("EndFade", ends, "")], out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     op = expr(m, unreal.MaterialExpressionScalarParameter, -1000, 450, parameter_name="Opacity", default_value=0.6)
     mul = expr(m, unreal.MaterialExpressionMultiply, -700, 300)
     mel.connect_material_expressions(shape, "", mul, "A")
@@ -579,10 +585,54 @@ def tyre_mark_material():
     return finish(m)
 
 
+# An exhaust flame (Weather/TorqueTyreFx, [build 160]): a glowing tongue, long along U (its sprite is
+# stretched along the flame), soft round its edges, licking a little by its seed. Unlit, additive.
+FLAME_HLSL = """
+float2 q = UV * 2.0 - 1.0;
+float d = length(float2(q.x, q.y * 1.15));
+float body = pow(saturate(1.0 - d), 1.5);
+float lick = 0.7 + 0.3 * sin(q.x * 7.0 + Seed * 40.0) * sin(q.y * 5.0 + Seed * 13.0);
+return body * lick;
+"""
+
+
+def exhaust_flame_material():
+    m = new_material("M_ExhaustFlame")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    try_set(m, "two_sided", True)
+    try_set(m, "used_with_instanced_static_meshes", True)
+    try_set(m, "output_translucent_velocity", False)
+
+    def data(i, x, y, default):
+        return expr(m, unreal.MaterialExpressionPerInstanceCustomData, x, y, data_index=i, const_default_value=default)
+
+    r, g, b = data(0, -1400, 0, 1.0), data(1, -1400, 100, 0.5), data(2, -1400, 200, 0.1)
+    alpha, seed = data(3, -1400, 300, 0.0), data(5, -1400, 500, 0.0)
+    rg = expr(m, unreal.MaterialExpressionAppendVector, -1200, 50)
+    mel.connect_material_expressions(r, "", rg, "A")
+    mel.connect_material_expressions(g, "", rg, "B")
+    rgb = expr(m, unreal.MaterialExpressionAppendVector, -1000, 100)
+    mel.connect_material_expressions(rg, "", rgb, "A")
+    mel.connect_material_expressions(b, "", rgb, "B")
+    uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1400, 650)
+    shape = custom(m, -1100, 600, FLAME_HLSL, [("UV", uv, ""), ("Seed", seed, "")], out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    k = expr(m, unreal.MaterialExpressionMultiply, -800, 500)
+    mel.connect_material_expressions(shape, "", k, "A")
+    mel.connect_material_expressions(alpha, "", k, "B")
+    hot = expr(m, unreal.MaterialExpressionMultiply, -650, 500, const_b=40.0)   # (HDR: it glows, and blooms)
+    mel.connect_material_expressions(k, "", hot, "A")
+    em = expr(m, unreal.MaterialExpressionMultiply, -450, 300)
+    mel.connect_material_expressions(rgb, "", em, "A")
+    mel.connect_material_expressions(hot, "", em, "B")
+    mel.connect_material_property(em, "", M.MP_EMISSIVE_COLOR)
+    return finish(m)
+
+
 def build():
     out = {}
     for name, fn in (("coat", coat_material), ("mist", mist_material), ("ring", ring_material), ("rain", rain_material),
-                     ("tyre smoke", tyre_smoke_material), ("tyre mark", tyre_mark_material)):
+                     ("tyre smoke", tyre_smoke_material), ("tyre mark", tyre_mark_material), ("exhaust flame", exhaust_flame_material)):
         try:
             out[name] = fn()
         except Exception as e:

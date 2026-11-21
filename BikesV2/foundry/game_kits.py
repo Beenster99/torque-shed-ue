@@ -25,11 +25,15 @@ GAME = os.path.dirname(ROOT)
 DATA = os.path.join(GAME, "Data", "BikesV2")
 KITS = os.path.join(DATA, "kits")
 
-GROUPS = ("tank_seat", "tail", "front", "exhaust")
+GROUPS = ("tank_seat", "tail", "front", "exhaust", "extras")
 # what a group may change (a slot outside these that differs from the bike as drawn is reported, not sold)
-SLOTS = {"tank_seat": ("tank", "saddle"), "tail": ("tail", "saddle"), "front": ("headlight", "fairing"), "exhaust": ("exhaust",)}
-LETTER = {"tank_seat": "t", "tail": "r", "front": "f", "exhaust": "x"}
-WORD = {"tank": "tank", "saddle": "seat", "tail": "tail", "headlight": "headlamp", "fairing": "fairing", "exhaust": "exhaust"}
+# (a tail carries its own rear indicators and a front its own clocks: sold with it, each as its own piece; an extra
+# is a bolt-on drawn into whichever slot it sits on. Panniers and top boxes are common parts, not sold from here.)
+SLOTS = {"tank_seat": ("tank", "saddle"), "tail": ("tail", "saddle", "indicators"), "front": ("headlight", "fairing", "dashboard"), "exhaust": ("exhaust",),
+         "extras": ("tank", "saddle", "tail", "guards", "fairing", "side_panels", "front_mudguard", "handlebars")}
+LETTER = {"tank_seat": "t", "tail": "r", "front": "f", "exhaust": "x", "extras": "e"}
+WORD = {"tank": "tank", "saddle": "seat", "tail": "tail", "headlight": "headlamp", "fairing": "fairing", "exhaust": "exhaust", "indicators": "indicators",
+        "dashboard": "clocks", "guards": "guards", "side_panels": "side panels", "front_mudguard": "front mudguard", "handlebars": "bars"}
 
 
 def read_glb(path):
@@ -105,11 +109,10 @@ def cut(g, blob, info, slots, dst, meta=None):
 def build_one(model, grp, n):
     """One build with variant n of one group (alone, so what differs from the bike as drawn is that variant's
     doing), cut to the slots it changes. Returns report lines."""
-    ka = [n if g == grp else 0 for g in GROUPS]
-    tag = "".join(str(x) for x in ka)
-    name = f"{model}_kit{tag}_def"
+    ka = [n if g == grp else 0 for g in GROUPS[:4]] + ([str(n)] if grp == "extras" else [])
+    name = f"_b_{model}__{grp}{n}"       # (a name of its own, so builds side by side never share a file)
     r = subprocess.run([sys.executable, os.path.join(ROOT, "foundry", "build3d.py"), model, "--kit", ",".join(str(x) for x in ka), "--definition", "--game"],
-                       cwd=ROOT, capture_output=True, text=True, timeout=1500)
+                       cwd=ROOT, capture_output=True, text=True, timeout=1500, env=dict(os.environ, BIKE_GAME_NAME=name))
     glb = os.path.join(DATA, name + ".glb")
     if "game export" not in r.stdout or not os.path.exists(glb):
         return [f"FAILED {model} {grp} {n}: {(r.stdout + r.stderr)[-400:]}"]
@@ -270,6 +273,8 @@ def catalogue():
         n = int(rest[len(grp):])
         variant = json.load(open(os.path.join(ROOT, "data", "models", model + ".json")))["kit"][grp][n - 1]
         slots = sorted({v["slot"] for v in json.load(open(os.path.join(KITS, f)))["surfaces"].values()})
+        if grp == "extras" and variant["name"].lower() in ("panniers", "top box", "saddlebag"):
+            continue      # luggage is the common parts' to sell, not a body piece with a box drawn on
         for slot in slots:
             own_id = f"v2_{model}__{slot}"
             kind = next((k for k, es in parts.items() if isinstance(es, dict) and own_id in es), None)
@@ -288,7 +293,8 @@ def catalogue():
                 continue
             e = json.loads(json.dumps(own))
             vp = e["v2part"]
-            e["name"] = f"{vp.get('brand', '')} {vp.get('family', '')} {variant['name']} {WORD[slot]}".strip()
+            e["name"] = (f"{vp.get('brand', '')} {vp.get('family', '')} {WORD[slot]} with {variant['name'].lower()}" if grp == "extras" else
+                         f"{vp.get('brand', '')} {vp.get('family', '')} {variant['name']} {WORD[slot]}").strip()
             e["description"] = (variant.get("note") or f"The {variant['name']} kit {WORD[slot]} for the {vp.get('brand', '')} {vp.get('family', '')}.").strip()
             if isinstance(e.get("price"), (int, float)):
                 e["price"] = int(round(e["price"] * 1.15 / 5.0) * 5)

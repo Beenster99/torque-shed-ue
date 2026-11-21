@@ -4,6 +4,7 @@
 #include "World/WorldRoam.h"
 #include <algorithm>
 #include "TorqueDash.h"
+#include "TorqueLeafFall.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
 #include "Shed/TorqueProfile.h"
@@ -39,6 +40,9 @@
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/TorqueForecourtGarage.h"
+#include "World/TorqueTrains.h"   // [trains]
+#include "World/TorqueFerry.h"
+#include "World/TorqueLevelCrossing.h"
 #include "World/TorqueImpostors.h"
 #include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
@@ -114,6 +118,9 @@ TAutoConsoleVariable<float> CVarTreePatch(TEXT("torque.RideTreePatch"), 128.0f,
 // kind make fewer groups; the far cards follow the same choice, so a tree keeps its look at the handover.)
 TAutoConsoleVariable<int32> CVarTreeVariants(TEXT("torque.RideTreeVariants"), 3,
 	TEXT("Ride UK: at most this many models of each tree kind (6 until 154). For squares made after the change."));
+TAutoConsoleVariable<int32> CVarGardenVariants(TEXT("torque.RideGardenVariants"), 2,
+	TEXT("Ride UK: a square's gardens use at most this many models of each garden kind (roses, shrubs, flowers, low cover, garden trees, ")
+	TEXT("clipped hedges; all of them in 164-165), which ones changing from square to square. For squares made after the change."));
 TAutoConsoleVariable<int32> CVarWarmUp(TEXT("torque.RideWarmUp"), 0,
 	TEXT("Ride UK: draw each ride material once at the start so its shaders are made then (1, build 153) or not (0, build 154)."));
 TAutoConsoleVariable<float> CVarTreeSwayM(TEXT("torque.RideTreeSwayM"), 30.0f,
@@ -198,6 +205,13 @@ void PrepareSquare(const TorqueWorld::RideMesh& Mesh, FRidePrepared& Out)
 // 1 and up is split before the rider comes within SplitWithin of it): never drawn there, so never
 // made. Build 148 had 5,700-11,700 plant groups in the scene, most of them on squares past every
 // grass's cull distance.
+// [Nov 20] A road piece's props (a bridge's walls) are kept with the squares' plants, under X -1 (no level of
+// squares has it, and Unseen passes it) and the piece's road and number.
+FIntVector RoadPropsKey(int64 Piece)
+{
+	return FIntVector(-1, int32(Piece / 4096), int32(Piece % 4096));
+}
+
 bool Unseen(const FIntVector& Key, float CullCm)
 {
 	return Key.X > 0 && double(CullCm) < SplitWithin[Key.X] * 100.0 * 0.97;
@@ -337,6 +351,35 @@ bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<do
 	return true;
 }
 
+bool ATorqueRideWorld::PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, UStaticMesh*& OutMesh, FTransform& OutAt)
+{
+	// (PlaceProps's own sums for one prop, level, at its own scale)
+	OutMesh = nullptr;
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->PropModels.IsValidIndex(Kind) || !Ride->PropFix.IsValidIndex(Kind)) return false;
+	const TArray<int32>& Choice = Ride->PropModels[Kind];
+	if (Choice.Num() == 0) return false;
+	const int32 Mi = Choice[FMath::Abs(Variant) % Choice.Num()];
+	if (!Ride->PropKit.IsValidIndex(Mi)) return false;
+	const FTorqueFoliageSpecies& S = Ride->PropKit[Mi];
+	UStaticMesh* Model = S.Mesh.Get();
+	if (!Model) return false;
+	const FVector& Fix = Ride->PropFix[Kind];
+	const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(Ride->PropFrame.Z));
+	const double Size = (Own > 1.0 && Fix.X > 0.0 ? Fix.X / Own : 1.0) * S.ScaleMultiplier;
+	const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(Yaw) + Fix.Y + (S.bNativeMesh ? 0.0 : Ride->PropFrame.X)));
+	const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * Ride->PropFrame.Z, Size * Ride->PropFrame.Z * Ride->PropFrame.Y, Size * Ride->PropFrame.Z);
+	FVector At = Spot - FVector(0.0, 0.0, Fix.Z);
+	if (Kind == TorqueWorld::RidePlan::PropParkedCar)
+	{
+		const FBoxSphereBounds Box = Model->GetBounds();
+		At += Rot.RotateVector(FVector(-Box.Origin.X, -Box.Origin.Y, -(Box.Origin.Z - Box.BoxExtent.Z)) * Scale3);
+	}
+	OutMesh = Model;
+	OutAt = FTransform(Rot, At, Scale3);
+	return true;
+}
+
 bool ATorqueRideWorld::RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which)
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -394,6 +437,22 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
 	// [waypoint] Going by a place picked in the info panel: its way, on or off the ride's road, until
 	// it's reached (then the way on is the way back to the ride's road, as after any detour).
+	// [ferries stage 5] (over the water: nearer the ferry's landing than its boarding, off the ride's road)
+	if (const std::shared_ptr<const RidePlan::FerryLink>& Ferry = Ride->Plan->Ferry)
+	{
+		// (off the ride's road, or past its end: a short crossing's far bank may be within its reach)
+		const double ToLand = FVector2D::Distance(Here, FVector2D(Ferry->Land.X, Ferry->Land.Z)), ToBoard = FVector2D::Distance(Here, FVector2D(Ferry->Board.X, Ferry->Board.Z));
+		const bool bOver = ToLand < ToBoard && ToBoard > 20.0 && (N.OffRoute || N.Along > Ride->Plan->FinishM - 30.0);
+		if (bOver != S.bFerryOver)
+		{
+			S.bFerryOver = bOver;
+			S.Detour.reset();
+			S.LastTry = -1e9;
+			S.OffSince = Now - 10.0;   // (the way on found at once)
+			UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s the %s ferry"), bOver ? TEXT("over") : TEXT("back across"), UTF8_TO_TCHAR(Ferry->Name.c_str()));
+		}
+		if (S.bFerryOver) N.OffRoute = true;   // (the way on is all there is)
+	}
 	bool bViaNav = false;
 	if (S.bVia)
 	{
@@ -472,7 +531,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		if (!bOnIt && Now - S.OffSince > 3.0 && Now - S.LastTry > 4.0)
 		{
 			S.LastTry = Now;
-			S.Detour = Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
+			S.Detour = S.bFerryOver ? Ride->Plan->FerryOnward(X, Z, S.Heading) : Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
 			if (S.Detour)
 			{
 				Back = Ride->Plan->NavDetour(*S.Detour, X, Z);
@@ -706,6 +765,11 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+	// [level crossings] The crossings' kit (Tools/props/make_level_crossing.py, imported with the props): with it the
+	// real crossings stand up near the rider (ATorqueLevelCrossing) in place of the code-made barrier.
+	Plan->CrossingKit = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Shed/Props/lx_unit/SM_lx_unit.SM_lx_unit")) != nullptr;
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: level crossings %s (%d in the area)"), Plan->CrossingKit ? TEXT("from the kit") : TEXT("code-made (no lx_ models: Tools/ue_import_props.py)"),
+		int32(Plan->LevelCrossings.size()));
 	{
 		// [fps plan step 2] The houses' windows and doors as the facade kit's instances when every kind of it
 		// has its models in M_RideFacade (Tools/ue_build_rideuk.py prop_kit), unless -TorqueRideFacadeKit=0
@@ -1220,6 +1284,13 @@ void ATorqueRideWorld::PlaceRoadPiece(int64 Key, const TorqueWorld::RideMesh& Me
 		if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
 	}
 	RoadParts.Add(Key, Part);
+	// [Nov 20] (a bridge's walls: the dry stone wall kit's lengths, kept with the plants under a key of their own
+	// for the piece, let go with it: DropRoadProps)
+	DropPlants(TRWI::RoadPropsKey(Key));
+	{
+		RideCosts::FScope Cost(RideCosts::Props);
+		PlaceProps(TRWI::RoadPropsKey(Key), Mesh);
+	}
 }
 
 void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
@@ -1308,6 +1379,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			{
 				LetGo(RoadParts[Key]);
 				RoadParts.Remove(Key);
+				DropPlants(TRWI::RoadPropsKey(Key));
 				if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
 				{
 					for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
@@ -1377,16 +1449,15 @@ const FABStep ABSteps[] = {
 	{TEXT("FXAA instead of TSR/TAA"), TEXT("r.AntiAliasingMethod=1"), 0},
 	{TEXT("as set again"), TEXT(""), 0},
 };
-// ([seasonal trees TEST, Nov 19] -TorqueRideAB=2: the four seasons on the scanned trees (Tools/ue_tree_season.py),
-// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png. Start it after the impostors are
-// photographed (-TorqueRideABAfter=90), or they're photographed in the season of the moment.)
+// ([seasonal trees, Nov 20] -TorqueRideAB=2: the four seasons on our own trees (Tools/tree_models.py, M_Tree),
+// each step's fps and a screenshot, Saved/SeasonTest/season_<n>_<name>.png.)
 const FABStep SeasonSteps[] = {
-	{TEXT("summer, as now"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("the ride's date"), TEXT("torque.RideTreeSeason=0"), 0},
 	{TEXT("spring"), TEXT("torque.RideTreeSeason=1"), 0},
 	{TEXT("summer"), TEXT("torque.RideTreeSeason=2"), 0},
 	{TEXT("autumn"), TEXT("torque.RideTreeSeason=3"), 0},
 	{TEXT("winter"), TEXT("torque.RideTreeSeason=4"), 0},
-	{TEXT("summer, as now, again"), TEXT("torque.RideTreeSeason=0"), 0},
+	{TEXT("the ride's date again"), TEXT("torque.RideTreeSeason=0"), 0},
 };
 constexpr int32 ABCount = UE_ARRAY_COUNT(ABSteps);
 constexpr int32 SeasonCount = UE_ARRAY_COUNT(SeasonSteps);
@@ -1869,6 +1940,9 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		Update(At, false);
 	}
 	ATorqueForecourtGarage::Keep(this, *Plan, At);   // [garage] the forecourts' garage units near the rider
+	ATorqueFerry::Keep(this, *Plan, At);   // [ferries] the ferries near the rider
+	ATorqueTrains::Keep(this, Plan, At);   // [trains] the trains on the railways (World/TorqueTrains.h)
+	ATorqueLevelCrossing::Keep(this, *Plan, At);   // [level crossings] the crossings near the rider
 	{
 		// ([perf, build 151] its own line: "roads" is now only putting the made pieces in place)
 		RideCosts::FScope Cost(RideCosts::RoadLook);
@@ -2100,6 +2174,7 @@ void ATorqueRideWorld::Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, c
 	{
 		LetGo(RoadParts[Key]);
 		RoadParts.Remove(Key);
+		DropPlants(TRWI::RoadPropsKey(Key));
 		if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
 		{
 			for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
@@ -2279,13 +2354,14 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
 		FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
 		FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
-		if (P.Pitch != 0.0f || P.Stretch != 1.0f)
+		if (P.Pitch != 0.0f || P.Stretch != 1.0f || P.Across != 1.0f)
 		{
 			// [build 154] (a wall length laid along its line: drawn Stretch times its own length, along the model's
 			// own axis that the importer's turn makes its front, then tipped about the level line across it so its
 			// far end climbs the slope)
 			const bool bAcross = !S.bNativeMesh && FMath::Abs(FMath::Fmod(FMath::Abs(PropFrame.X), 180.0) - 90.0) < 1.0;
 			(bAcross ? Scale3.Y : Scale3.X) *= double(P.Stretch);
+			(bAcross ? Scale3.X : Scale3.Y) *= double(P.Across);   // [Nov 20] (a bridge's walls: thinner than a field's)
 			const double Facing = double(P.Yaw) + FMath::DegreesToRadians(Fix.Y);
 			const FVector Front(FMath::Cos(Facing), FMath::Sin(Facing), 0.0);
 			Rot = FQuat(FVector::CrossProduct(Front, FVector::UpVector).GetSafeNormal(), double(P.Pitch)) * Rot;
@@ -2389,6 +2465,11 @@ bool ATorqueRideWorld::FindKit()
 		// trees are thousands, and full scanned trees there cost about 10 ms of GPU at Whaley Bridge
 		// (build 148). -TorqueRideFarScans=1 draws them as before.
 		static const bool bFarScans = []() { int32 On = 0; return FParse::Value(FCommandLine::Get(), TEXT("TorqueRideFarScans="), On) && On != 0; }();
+		// ([build 166] a kind's models youngest to oldest, by their names' numbers (the veteran last, whatever
+		// order the level lists them in): a tree's Pick follows its height)
+		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
+			for (TArray<int32>* Models : {&KindNear[K], &KindFar[K]})
+				Models->Sort([this](int32 A, int32 B) { return Kit[A].Name.ToString() < Kit[B].Name.ToString(); });
 		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
 		{
 			const bool bScanned = KindNear[K].ContainsByPredicate([this](int32 Si) { return Kit[Si].Name.ToString().EndsWith(TEXT("_scan")); });
@@ -2495,7 +2576,26 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// One plant's model, size and place, with the kit's species chosen from Among, grouped with Patch.
 		auto AddPlant = [&](const TArray<int32>& Among, int32 Patch)
 		{
-			const int32 Si = Among[FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1)];
+			// ([Nov 20] our trees come in 5 ages a kind: as with the scans, torque.RideTreeVariants of them at most
+			// (3: the youngest, the middle and the oldest), so a square keeps as few groups as it had)
+			int32 Ai = FMath::Min(int32(P.Pick * Among.Num()), Among.Num() - 1);
+			if (bTree && P.Kind < TorqueWorld::RidePlan::HedgeKind && Among.Num() > 2)
+			{
+				const int32 Use = FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, Among.Num());
+				const int32 J = FMath::Min(int32(P.Pick * Use), Use - 1);
+				Ai = Use > 1 ? FMath::RoundToInt(float(J) * float(Among.Num() - 1) / float(Use - 1)) : Among.Num() / 2;
+			}
+			else if (bTree && P.Kind >= TorqueWorld::RidePlan::FirstGarden && Among.Num() > 1)
+			{
+				// ([perf, build 166] a square's gardens take torque.RideGardenVariants of each garden kind's
+				// models, which ones turning with the square, so the town keeps its variety and a square
+				// makes a handful of garden groups, not 25: in 165 the render thread ran over its budget)
+				const int32 Use = FMath::Clamp(TRWI::CVarGardenVariants.GetValueOnGameThread(), 1, Among.Num());
+				const uint32 Sq = (uint32(Key.Y) * 73856093u) ^ (uint32(Key.Z) * 19349663u) ^ (uint32(P.Kind) * 83492791u);
+				const int32 J = FMath::Min(int32(P.Pick * Use), Use - 1);
+				Ai = int32((Sq % uint32(Among.Num()) + uint32(J)) % uint32(Among.Num()));
+			}
+			const int32 Si = Among[Ai];
 			const FTorqueFoliageSpecies& S = Kit[Si];
 			if (!bTree && S.Keep < 1.0f && Roll >= S.Keep) return;   // (bigger scanned plants: fewer of them)
 			const int32 Models = bTree ? FMath::Clamp(TRWI::CVarTreeVariants.GetValueOnGameThread(), 1, FMath::Max(S.Variants.Num(), 1)) : S.Variants.Num();
@@ -2608,7 +2708,10 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->bVisibleInRayTracing = false;
 		// ([build 155] an impostor's card turns to face the camera by its world position offset: never off)
 		const bool bImpostor = bImpostorGroup || (bTree && S.Name.ToString().EndsWith(TEXT("_imp")));
-		Ism->WorldPositionOffsetDisableDistance = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		const int32 WpoCm = bImpostor ? 0 : bGarden ? 2000 : bTree ? int32(FMath::Clamp(TRWI::CVarTreeSwayM.GetValueOnGameThread(), 0.0f, 200.0f) * 100.0f) : 2500;
+		// ([build 165] a near broadleaf's or a garden plant's fallen leaves need their offset further out
+		// while leaves are down: TorqueLeafFall.h)
+		TorqueLeafFall::Apply(Ism, WpoCm, bTree && !bImpostor && !bFarTree && TorqueLeafFall::IsLeafyTreeName(Model->GetName()));
 		const float Cull = PlantReach * S.CullDistance * (bTree ? 1.0f : CullScale * 0.5f * (1.0f + FMath::Max(1.0f, S.CullSpread)));
 		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
@@ -2620,8 +2723,10 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		else if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
 		if (bImpostor) Ism->ComponentTags.Add(TEXT("RideImpostor"));   // (its card's offset is never turned off)
-		Ism->RegisterComponent();
+		// ([perf, build 165] the instances in before it registers: its render state made once, with them,
+		// not made empty and then rebuilt; 164's Brecbowie read "our worst job 19/8 OVER (plants)")
 		Ism->AddInstances(Group.Value, false, false);
+		Ism->RegisterComponent();
 		if (!bReused) AddInstanceComponent(Ism);
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.Num();

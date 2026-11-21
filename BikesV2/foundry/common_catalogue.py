@@ -42,6 +42,9 @@ CATEGORY = {
     "sprocket": "sprocket", "shock": "shock", "filler_cap": "filler_cap", "side_stand": "side_stand",
     "fog_lights": "fog_lights", "panniers": "panniers", "top_box": "top_box",
 }
+# (out of the shop: the single sprocket looks, which the bike didn't count as fitted; beenster Nov 20 "please remove the
+# single sprockets")
+DROPPED = ("sprocket",)
 NEW_SLOTS = ("grips", "bar_ends", "levers", "switchgear", "tail_light", "plate_hanger", "silencers", "heel_plates",
              "foot_controls", "sprocket", "filler_cap")
 BASE = {
@@ -248,7 +251,7 @@ def main(data):
     cats = {}
     done = set()
     for (g, k), p in by.items():
-        if (g, k) in done:
+        if (g, k) in done or g in DROPPED:
             continue
         pair = next((pg for pg, halves in PAIRS.items() if g in halves), None)
         if pair:
@@ -278,6 +281,8 @@ def main(data):
     if os.path.isdir(dst):
         shutil.rmtree(dst)
     for (g, k), p in by.items():
+        if g in DROPPED:
+            continue
         os.makedirs(os.path.join(dst, g), exist_ok=True)
         shutil.copy(os.path.join(SRC, g, k + ".glb"), os.path.join(dst, g, k + ".glb"))
         info = json.load(open(os.path.join(SRC, g, k + ".json")))

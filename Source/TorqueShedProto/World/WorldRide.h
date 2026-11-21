@@ -53,6 +53,8 @@
 
 namespace TorqueWorld
 {
+namespace Ferries { struct Layout; }   // WorldFerries.h
+
 // (beenster, build 147: walls "very low def", their top stones smeared. The game draws these UVs at half
 // precision, a quarter metre apart at 300 m up a fell and half a metre 600 m along a square: each face's
 // metres of UV start again within UvRepeat of nought. 18 m is a whole number of every scan's repeat on
@@ -99,6 +101,8 @@ struct RideProp
 	// [build 154] A model laid along a line (Buttertubs' wall lengths): tipped up its slope by Pitch (radians,
 	// its far end up) and drawn Stretch times its own length along it.
 	float Pitch = 0.0f, Stretch = 1.0f;
+	// [Nov 20] And drawn Across times its own width across that line (a bridge's walls: the field walls thinned)
+	float Across = 1.0f;
 };
 
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
@@ -382,6 +386,34 @@ public:
 	std::vector<int> PinNodes;          // each pin's junction
 	double RunOutFrom = 0.0;            // how far along the map's roads the last pin is (the run-out is after it)
 	double FinishM = 0.0;               // and how far along the road as laid
+	// [ferries stage 5] A journey whose way takes a ferry: the ride's road runs to the boarding slipway's road (its
+	// finish there, named for the ferry), and from where it lands the sat nav finds the way on to the pins still to
+	// come (FerryOnward). Null without one.
+	struct FerryLink
+	{
+		std::string Id, Name;          // the crossing's (Data/RideUK/ferries.json)
+		int BoardEnd = 0;              // the end it's boarded at (0 the list's a)
+		P2 Board, Land;                // the junctions nearest its slipways
+		std::vector<P2> Pins;          // the junctions of the pins still to come from where it lands, the finish last
+		std::vector<std::string> PinNames;
+		double OnM = 0.0;              // the way on by road from where it lands (as planned)
+	};
+	std::shared_ptr<const FerryLink> Ferry;
+	// [ferries, build 163 robot] Each listed crossing in the area laid with the plan (World/WorldRideFerry.cpp), so the
+	// land is cut down along its slipways' approaches (Corran's ran up to a metre under the hillside, its front wheel
+	// on nothing) before any of the land's squares are made; ATorqueFerry stands up the same layout. A crossing whose
+	// ground wasn't in yet is laid by ATorqueFerry itself, uncut.
+	struct FerryLaid
+	{
+		int Listed = -1;
+		std::shared_ptr<const Ferries::Layout> Lay;
+		double X0 = 0.0, Z0 = 0.0, X1 = 0.0, Z1 = 0.0;   // the land it cuts (m)
+	};
+	std::vector<FerryLaid> FerryLays;
+	void IndexFerries();
+	std::shared_ptr<const Ferries::Layout> FerryLayOf(int Listed) const;
+	double FerryCut(double X, double Z, double Lie) const;
+	static constexpr double FerryCutBelow = 0.12, FerryCutVerge = 2.5, FerryCutBank = 1.5;
 
 	bool Ok = false;
 	std::string Why;
@@ -602,6 +634,7 @@ public:
 	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
 	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;
+	double GroundUncut(double X, double Z, double Coarse, bool NoBores, bool Trough) const;   // [ferries] (GroundOf before FerryCut)
 	// [build 155 feedback] The land mesh's own heights at its points (LandTile, LandDrawnAt): Ground, with the
 	// near squares' points by a watercourse under its water (BanksTile draws the banks over them).
 	double LandGround(double X, double Z, double Step) const { return GroundOf(X, Z, Step, Step > 8.5, std::fabs(Step - LandGrid) < 0.1); }
@@ -626,14 +659,16 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 36, FirstTree = 18, HedgeKind = 30, FirstGarden = 31;
+	static constexpr int PlantKinds = 39, FirstTree = 18, HedgeKind = 32, FirstGarden = 33;
 	// [gardens] Kinds FirstGarden on are the villages' and towns' garden planting (WorldRideGardens.cpp):
-	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", drawn only as scanned
-	// models (Megaplants: SM_Tree_garden_<kind>_scan, Tools/ue_build_rideuk.py) and close to the rider.
+	// "garden_rose", "garden_shrub", "garden_flowers", "garden_low", "garden_tree", "garden_hedge", drawn
+	// as our own models (Tools/make_gardens.py: SM_Tree_garden_<kind>_<n>, [Nov 20]) or scanned ones, close
+	// to the rider.
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
 	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
-	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
-	// ones only; the game draws one of the first six in their place until they are in: PlantStandIn).
+	// SM_TreeFar_<kind>_N), "oak", "beech", "willow", "rowan", "pine", "hazel", "holly", "larch" ([Nov 20]
+	// ours too, Tools/tree_models.py; the game draws one of the first six in their place until they are in:
+	// PlantStandIn), "hedge" (the field hedges).
 	// What a tree kind is drawn as when there are no models of it (itself for the first six).
 	static int PlantStandIn(int Kind);
 	static const char* PlantName(int Kind);
@@ -775,6 +810,9 @@ public:
 		// [circuits] The race circuits' trackside kit (Tools/blender_circuit_kit.py), placed by IndexCircuits: armco,
 		// tyre walls and the pit wall laid along their runs (Stretch), the rest facing the track
 		PropArmco, PropTyreWall, PropPitWall, PropMarshalPost, PropBrakingBoard, PropStartGantry, PropGrandstand,
+		// [caravans] The campsites' touring caravans and static caravans (Tools/blender_caravan_kit.py), in place of
+		// TownLifeTile's boxes where they have models (TownLifeProps)
+		PropTouringCaravan, PropStaticCaravan,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1105,6 +1143,24 @@ public:
 		bool Disused = false;
 	};
 	std::vector<RailLine> Rails;
+	// [level crossings] Each level crossing of a railway in use (World/WorldLevelCrossing.h lays it out; the game's
+	// ATorqueLevelCrossing stands it up near the rider and runs it; the trains warn it by Key): where the rails cross
+	// the road (Rails[Line] points First..Last, On == 3), the middle of that, the road's way across and the line's
+	// (unit), the road's half width, the map's road class there and the crossing's type (LevelX::EType). Key is a
+	// hash of where it is, the same on every machine. Found by IndexFurniture.
+	struct LevelCrossing
+	{
+		uint32_t Key = 0;
+		int Line = 0, First = 0, Last = 0;
+		P2 Mid, Road, Rail;
+		double Half = 3.0;
+		int Type = 0;
+		std::string Class;
+	};
+	std::vector<LevelCrossing> LevelCrossings;
+	// [level crossings] The game has the crossings' kit (Tools/props/make_level_crossing.py's models): the code-made
+	// barrier and lights (CrossingBarrier) aren't drawn, ATorqueLevelCrossing stands the real ones up instead.
+	bool CrossingKit = false;
 	static constexpr double RailBedHalf = 5.0;
 	static constexpr double RailStep = 4.0, RailGauge = 1.435;
 	// A station's platform: along line Line from point First to Last, on the Side (+1 the left going
@@ -1381,6 +1437,8 @@ public:
 	// before the line, the heading it's raced at there (sim: 0 faces -z, + left), and its name. False with none.
 	// [circuits] The circuits' trackside kit on a square of ground (added to PropsTile's).
 	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [caravans] The campsites' caravans in the square, as models (when the kit has them: PropModelled).
+	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
 	void CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const;
@@ -1595,6 +1653,10 @@ public:
 	// of the ride's road ahead of Was that leaves least to ride to the finish, with its turns (the last
 	// onto the ride's road there, Onto its name). Null when they are on no road, or none gets back.
 	std::shared_ptr<const RideDetour> DetourFrom(double X, double Z, double Heading, double Was) const;
+	// [ferries stage 5] Over the water: the way on from where the rider is (the junction ahead of them, as
+	// DetourFrom) by the map's roads through the pins still to come to the finish, each pin an arrival; RejoinAlong
+	// FinishM (nothing of the ride's road left). Null without a ferry, off any road, or no way on (WorldRideFerry.cpp).
+	std::shared_ptr<const RideDetour> FerryOnward(double X, double Z, double Heading) const;
 	// [waypoint] The way by a place the rider picked (the info panel's waypoint; beenster, build 146:
 	// "add it as a waypoint and retain our final destination"): from where they are (on the ride's
 	// road, from its next junction; on another road, from the junction ahead as DetourFrom) by the
@@ -1746,6 +1808,7 @@ private:
 	// (Region::Ground.Paths): a ribbon on the ground along each, its colour its surface's, never on a road.
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;
 	void IndexFurniture();
+	void FindLevelCrossing(int Line, int First, int Last);   // [level crossings] (one of LevelCrossings, from IndexFurniture)
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
 	// [OSM stage 2] A bit of a wall, hedge or fence from A to B less the gateways in it: its pieces

@@ -677,7 +677,7 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 	if (Shed)
 		for (const FTorqueFurniture& F : Shed->Furniture())
 			if (F.Mover != 0)
-				if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model); M && TorqueFurniture::IsTrolley(*M))
+				if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model); M && TorqueFurniture::Carries(*M))   // [shelf] shelving too
 					Moving.Add({M, F.Xf, TorqueFurniture::DrawnXf(this, F)});
 	TSet<int32> RidingNow;
 	for (const FDrawn& D : Drawn)

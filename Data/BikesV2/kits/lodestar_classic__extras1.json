@@ -1,0 +1,30 @@
+{
+ "name": "Lodestar classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 3068,
+ "surfaces": {
+  "s017": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.1975,
+    0.0097,
+    0.0097
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "s018": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ }
+}

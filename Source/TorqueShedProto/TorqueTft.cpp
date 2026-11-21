@@ -105,6 +105,7 @@ FTorqueTftPrefs& FTorqueTftPrefs::Get()
 		GConfig->GetInt(TTI::Section, TEXT("Design"), P.Design, GGameUserSettingsIni);
 		GConfig->GetBool(TTI::Section, TEXT("NorthUp"), P.bNorthUp, GGameUserSettingsIni);
 		GConfig->GetInt(TTI::Section, TEXT("Zoom"), P.Zoom, GGameUserSettingsIni);
+		GConfig->GetInt(TTI::Section, TEXT("Declutter"), P.Declutter, GGameUserSettingsIni);
 		GConfig->GetBool(TTI::Section, TEXT("Overlay"), P.bOverlay, GGameUserSettingsIni);
 		GConfig->GetBool(TTI::Section, TEXT("MapTile"), P.bMapTile, GGameUserSettingsIni);
 		GConfig->GetFloat(TTI::Section, TEXT("OverlayX"), P.OverlayX, GGameUserSettingsIni);
@@ -126,6 +127,7 @@ FTorqueTftPrefs& FTorqueTftPrefs::Get()
 		}
 		P.Design = FMath::Clamp(P.Design, 0, (int32)TorqueTft::Design::Count - 1);
 		P.Zoom = FMath::Clamp(P.Zoom, -2, 2);
+		P.Declutter = FMath::Clamp(P.Declutter, 0, 2);
 		P.OverlayScale = FMath::Clamp(P.OverlayScale, 0.5f, 2.0f);
 		P.TileScale = FMath::Clamp(P.TileScale, 0.5f, 2.0f);
 	}
@@ -138,6 +140,7 @@ void FTorqueTftPrefs::Save() const
 	GConfig->SetInt(TTI::Section, TEXT("Design"), Design, GGameUserSettingsIni);
 	GConfig->SetBool(TTI::Section, TEXT("NorthUp"), bNorthUp, GGameUserSettingsIni);
 	GConfig->SetInt(TTI::Section, TEXT("Zoom"), Zoom, GGameUserSettingsIni);
+	GConfig->SetInt(TTI::Section, TEXT("Declutter"), Declutter, GGameUserSettingsIni);
 	GConfig->SetBool(TTI::Section, TEXT("Overlay"), bOverlay, GGameUserSettingsIni);
 	GConfig->SetBool(TTI::Section, TEXT("MapTile"), bMapTile, GGameUserSettingsIni);
 	GConfig->SetFloat(TTI::Section, TEXT("OverlayX"), OverlayX, GGameUserSettingsIni);
@@ -245,6 +248,7 @@ void UTorqueTftComponent::Own()
 	Menu.Take(Saved);
 	Menu.Look = TorqueTft::Design(FMath::Clamp(P.Design, 0, (int32)TorqueTft::Design::Count - 1));
 	Menu.NorthUp = P.bNorthUp;
+	Menu.Declutter = FMath::Clamp(P.Declutter, 0, 2);
 	Menu.Zoom = P.Zoom;
 	bModeDirty = true;
 	if (!TileRT && HasMap())
@@ -271,6 +275,7 @@ void UTorqueTftComponent::KeepPrefs() const
 	FTorqueTftPrefs& P = FTorqueTftPrefs::Get();
 	P.Design = (int32)Menu.Look;
 	P.bNorthUp = Menu.NorthUp;
+	P.Declutter = Menu.Declutter;
 	P.Zoom = Menu.Zoom;
 	if (Menu.HasModes())
 	{
@@ -300,12 +305,19 @@ int32 UTorqueTftComponent::Press(TorqueTft::Press P, double SpeedMs, double Thro
 	if (bTft) Did = Menu.Do(P, SpeedMs, Throttle);
 	else if (bPhone)
 	{
-		// The phone's only the map: up and down its zoom, left and right which way is up.
+		// The phone's only the map: up and down its zoom, left which way is up, right its detail (full, some, clear).
 		if (P == TorqueTft::Press::Up || P == TorqueTft::Press::Down)
 		{
 			const int32 To = FMath::Clamp(Menu.Zoom + (P == TorqueTft::Press::Up ? -1 : 1), -2, 2);
 			if (To != Menu.Zoom) Did = TorqueTft::Menu::MapChanged;
 			Menu.Zoom = To;
+		}
+		else if (P == TorqueTft::Press::Right)
+		{
+			Menu.Declutter = (Menu.Declutter + 1) % 3;
+			Menu.Notice = Menu.Declutter == 0 ? "Map detail: full" : Menu.Declutter == 1 ? "Map detail: some" : "Map detail: clear";
+			Menu.NoticeFor = 3.0;
+			Did = TorqueTft::Menu::MapChanged;
 		}
 		else
 		{
@@ -335,6 +347,7 @@ void UTorqueTftComponent::TakeWorld(const FVector& At, const FVector& Forward, d
 	Scene.Bike = TorqueTft::MapPt(At.X / 100.0, At.Y / 100.0);
 	Scene.Heading = FMath::Atan2(Forward.X, -Forward.Y);
 	Scene.NorthUp = Menu.NorthUp;
+	Scene.Declutter = Menu.Declutter;
 	Scene.Metres = TorqueTft::ViewMetres(SpeedMs, Shown.Nav && !Shown.NavOff ? Shown.NavMetres : 0.0, Menu.Zoom);
 	bRerouting = bOffRoute = false;
 #if TORQUE_TFT_ROAM

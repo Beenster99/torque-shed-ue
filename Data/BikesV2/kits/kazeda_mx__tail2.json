@@ -2,9 +2,9 @@
  "name": "Kazeda MX (working title X2)",
  "format": 2,
  "kit": true,
- "triangles": 16996,
+ "triangles": 24100,
  "surfaces": {
-  "s024": {
+  "s025": {
    "slot": "tail",
    "node": "",
    "surface": "paint__body",
@@ -19,13 +19,121 @@
    "metallic": 0.3,
    "roughness": 0.3
   },
-  "s025": {
+  "s026": {
    "slot": "tail",
    "node": "",
    "surface": "redlens",
    "tag": "lens_red",
    "ue": "lens_red",
    "sub": "tail_light"
+  },
+  "s159": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "ind_front"
+  },
+  "s160": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_front",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s161": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "ind_front",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s162": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "ind_front"
+  },
+  "s163": {
+   "slot": "indicators",
+   "node": "steer",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_front"
+  },
+  "s164": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "ind_rear"
+  },
+  "s165": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_rear",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s166": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "ind_rear",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
+  },
+  "s167": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "ind_rear"
+  },
+  "s168": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_rear"
   }
  }
 }

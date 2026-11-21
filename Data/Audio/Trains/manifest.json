@@ -1,0 +1,78 @@
+{
+ "about": "The trains' own sounds for TorqueSfx, made by Tools/audio/make_train_sounds.py from maths alone (no recordings: nothing to licence). UTorqueSfx reads this after Data/Audio/TS/manifest.json; the files are relative to this folder.",
+ "sounds": {
+  "train_brakes": {
+   "files": [
+    "train_brakes_0.wav",
+    "train_brakes_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "train_dmu": {
+   "files": [
+    "train_dmu.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_electric": {
+   "files": [
+    "train_electric.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_horn": {
+   "files": [
+    "train_horn_0.wav",
+    "train_horn_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "train_intercity": {
+   "files": [
+    "train_intercity.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_loco": {
+   "files": [
+    "train_loco.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_rails": {
+   "files": [
+    "train_rails.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_rush": {
+   "files": [
+    "train_rush.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_steam": {
+   "files": [
+    "train_steam.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "train_whistle": {
+   "files": [
+    "train_whistle_0.wav",
+    "train_whistle_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  }
+ }
+}

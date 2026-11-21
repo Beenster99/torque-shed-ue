@@ -27,6 +27,11 @@ const double ARM_INERTIA = 0.35;
 const double ARM_HOLD = 120.0;
 const double ARM_HOLD_SLOW = 500.0;
 const double MAX_BAR_TORQUE = 45.0;
+// How much harder a rider pushes the bars for each unit of the bike's Flick over 1 (a classic's).
+const double BAR_FLICK = 1.0;
+// Past this share of the tyre's lean the rider stops leaning on the extra shove once the bike is rolling as fast
+// as they want: a flick right to the edge of the tyre has to land exactly, or it carries on past the grip.
+const double BAR_FLICK_EDGE = 0.8;
 const double BAR_PUSH_FAST = 1.0;
 const double BAR_PUSH_FROM = 15.0;
 const double BAR_PUSH_FULL = 40.0;
@@ -618,6 +623,7 @@ void BikeSim::UpdateSteering(double Delta)
 	Seen[2] = Lerp(Seen[2], LeanRate, K);
 	Seen[3] = Lerp(Seen[3], Seen[2], K);
 	double Cmd;
+	bool Catching = false;
 	if (V < 2.0)
 	{
 		Cmd = LeanInput * MaxSteer();
@@ -637,6 +643,7 @@ void BikeSim::UpdateSteering(double Delta)
 		double RWant = Clamp(Err * LEAN_RATE_GAIN, -RateMax, RateMax);
 		const double Stop = std::sqrt(2.0 * LEAN_CATCH * Flick * Flick * std::fabs(Err));
 		RWant = Clamp(RWant, -Stop, Stop) * Push;
+		Catching = Seen[3] * Err > 0.0 && std::fabs(Seen[3]) > std::fabs(RWant) && std::fabs(Target) > BAR_FLICK_EDGE * GripLean();
 		const double Catch = Clamp(STEER_CATCH / (V * V), 0.004, 0.15) * (1.0 + STEER_CATCH_FAST * Fast(V));
 		Cmd = SteerEq + Catch * (Seen[3] - RWant) - Push * Gain * 0.25 * LeanI;
 	}
@@ -658,7 +665,9 @@ void BikeSim::UpdateSteering(double Delta)
 		const double Hold = Lerp(ARM_HOLD_SLOW, ARM_HOLD, Riding) * Lever;
 		double Most = BarStrength(V);
 		const double KArm = Hold + 0.5 * FrontStiffness(V) * Riding;
-		Trim = Riding > 0.0 ? Clamp(Trim + KArm * (SteerAim - Steer) * Delta / ARM_TRIM * Riding, -Most, Most) : 0.0;
+		// Catching a flick to the tyre's edge, the arms' held push doesn't get the Flick extra (see BAR_FLICK_EDGE).
+		const double TrimMost = Catching ? Most / (1.0 + BAR_FLICK * std::max(Build.Flick - 1.0, 0.0)) : Most;
+		Trim = Riding > 0.0 ? Clamp(Trim + KArm * (SteerAim - Steer) * Delta / ARM_TRIM * Riding, -TrimMost, TrimMost) : 0.0;
 		const double Raw = KArm * (SteerAim - Steer) + Trim + ArmC * AimRate;
 		const double Th = std::tanh(Raw / Most);
 		Ks = KArm * (1.0 - Th * Th);
@@ -681,7 +690,12 @@ double BikeSim::BarStrength(double V) const
 {
 	const double Lever = Build.BarWidthMm / 720.0;
 	const double F = Fast(V);
-	return MAX_BAR_TORQUE * Lerp(Lever, 1.0, F) * (1.0 + BAR_PUSH_FAST * F);
+	// A bike made to flick (a sports or naked bike's light, quick front end and a rider tucked over it) takes a
+	// harder shove on the bars than a classic's or a cruiser's (beenster, 19 Nov: "slow to tip into a corner and
+	// especially through chicanes"): without it every bike topped out at the same push, so their Flick made no
+	// difference (SimTest/handling_test).
+	const double Flicky = 1.0 + BAR_FLICK * std::max(Build.Flick - 1.0, 0.0);
+	return MAX_BAR_TORQUE * Lerp(Lever, 1.0, F) * (1.0 + BAR_PUSH_FAST * F) * Flicky;
 }
 
 double BikeSim::Fast(double V) { return Clamp((V - BAR_PUSH_FROM) / (BAR_PUSH_FULL - BAR_PUSH_FROM), 0.0, 1.0); }
@@ -1390,9 +1404,21 @@ void BikeSim::ApplyFeet()
 			// (Both feet planted and braced where it lit up: Godot's damping alone, 6/s, let the drive
 			// walk the bike forward at 1-1.5 m/s on the locked front without the back ever breaking
 			// loose. Braced against the locked front, they hold up to about 1 g.)
-			const double Off = (Position - BurnoutAt).Dot(Flat);
+			double Off = (Position - BurnoutAt).Dot(Flat);
+			// ([beenster, build 160] "the bikes can do a burnout backward": lit while still rolling on, the
+			// spring hauled it back to where it lit, at over 1 m/s. Now the spot moves up with it while it's
+			// still rolling on, and the feet only ever stop it going forward: never push it back.)
+			if (Burnout > 0.0 && Off > 0.0 && V > 0.3)
+			{
+				BurnoutAt = BurnoutAt + Flat * Off;
+				Off = 0.0;
+			}
 			if (Burnout > 0.0)
-				ApplyCentralForce(Flat * Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass));
+			{
+				double Hold = Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass);
+				if (Hold < 0.0 && V < 0.0) Hold = 0.0;
+				ApplyCentralForce(Flat * Hold);
+			}
 			else ApplyCentralForce(Flat * ((-PADDLE_SPEED - V) * Build.TotalMass * 2.5));
 		}
 	}

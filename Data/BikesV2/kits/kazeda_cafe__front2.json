@@ -2,7 +2,7 @@
  "name": "Kazeda cafe (working title C1)",
  "format": 2,
  "kit": true,
- "triangles": 5528,
+ "triangles": 8100,
  "surfaces": {
   "s061": {
    "slot": "headlight",
@@ -94,6 +94,89 @@
    ],
    "metallic": 0.9,
    "roughness": 0.45
+  },
+  "s068": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s069": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_screen",
+   "tag": "d3_screen",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.004,
+    0.005,
+    0.008
+   ],
+   "metallic": 0.0,
+   "roughness": 0.04
+  },
+  "s070": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "sub": "clocks",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s071": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_dialblack",
+   "tag": "d3_dialblack",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.012,
+    0.012,
+    0.013
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6
+  },
+  "s072": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "clocks"
+  },
+  "s073": {
+   "slot": "dashboard",
+   "node": "steer",
+   "surface": "d3_clearglass",
+   "tag": "d3_clearglass",
+   "ue": "v2glass",
+   "sub": "clocks",
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "metallic": 0.0,
+   "roughness": 0.02
   }
  }
 }

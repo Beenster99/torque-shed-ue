@@ -66,6 +66,10 @@ struct FTorqueSettings
 	// [ride awards] At the end of a planned ride: a private vote, the stats dashboard and a podium
 	// (Coop/TorqueAwards.h). The host's choice for everyone in co-op; off unless turned on.
 	bool bRideAwards = false;
+	// [trains] Trains on Ride UK's railways (beenster, Nov 20 2026: on by default, "add a setting in gameplay to turn them
+	// off if this doesn't work well"). Off: no trains, no train sounds, the level crossings stay open. The host's choice
+	// for everyone in co-op (ATorqueGameState::bTrainsOn).
+	bool bTrains = true;
 	float Fov = 80.0f;          // field of view, degrees: on foot as it is, the bike's cameras moved by as much
 	bool bAutoShift = true;     // the gearbox changes itself (G / R3 while riding)
 	bool bTelemetry = false;    // live strips of what the bike is doing, while riding (F3)

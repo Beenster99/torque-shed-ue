@@ -225,9 +225,19 @@ int main()
 		size_t Base = 1;
 		for (const FittedPart& P : Placer.Fit(Parts, L))
 		{
-			if (P.Hidden || !P.Made) continue;
+			if (P.Hidden) continue;
+			// (a part drawn from the game's own part glbs, as the game loads it: the brake pads)
+			std::shared_ptr<const PartMesh> Loaded = P.Made;
+			if (!Loaded)
+			{
+				std::string Bytes, Err;
+				PartMesh G;
+				if (!ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !G.LoadGlb(Bytes, Err)) continue;
+				Loaded = std::make_shared<PartMesh>(BikeParts::Draw(G, P));
+			}
+			const PartMesh* Mesh = Loaded.get();
 			Obj << "o " << P.Slot << "_" << (P.Sub.empty() ? "piece" : P.Sub) << (P.Glb.rfind("v2c/", 0) == 0 ? "_COMMON" : "") << "\n";
-			for (const PartSurface& S : P.Made->Surfaces)
+			for (const PartSurface& S : Mesh->Surfaces)
 			{
 				for (const V3& Q : S.Pos) Obj << "v " << Q.x << " " << Q.y << " " << Q.z << "\n";
 				for (size_t T = 0; T + 2 < S.Idx.size(); T += 3) Obj << "f " << Base + S.Idx[T] << " " << Base + S.Idx[T + 1] << " " << Base + S.Idx[T + 2] << "\n";

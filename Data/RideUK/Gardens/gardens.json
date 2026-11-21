@@ -1,0 +1,131 @@
+{
+ "about": "Garden plants made by Tools/make_gardens.py (see its docstring).",
+ "models": {
+  "SM_Tree_garden_rose_0": {
+   "kind": "garden_rose",
+   "triangles": 9836,
+   "height": 1.27
+  },
+  "SM_Tree_garden_rose_1": {
+   "kind": "garden_rose",
+   "triangles": 11492,
+   "height": 1.19
+  },
+  "SM_Tree_garden_rose_2": {
+   "kind": "garden_rose",
+   "triangles": 6756,
+   "height": 1.15
+  },
+  "SM_Tree_garden_rose_3": {
+   "kind": "garden_rose",
+   "triangles": 15560,
+   "height": 1.36
+  },
+  "SM_Tree_garden_shrub_0": {
+   "kind": "garden_shrub",
+   "triangles": 10524,
+   "height": 2.65
+  },
+  "SM_Tree_garden_shrub_1": {
+   "kind": "garden_shrub",
+   "triangles": 13004,
+   "height": 1.81
+  },
+  "SM_Tree_garden_shrub_2": {
+   "kind": "garden_shrub",
+   "triangles": 15948,
+   "height": 1.85
+  },
+  "SM_Tree_garden_shrub_3": {
+   "kind": "garden_shrub",
+   "triangles": 22030,
+   "height": 2.04
+  },
+  "SM_Tree_garden_flowers_0": {
+   "kind": "garden_flowers",
+   "triangles": 3428,
+   "height": 0.65
+  },
+  "SM_Tree_garden_flowers_1": {
+   "kind": "garden_flowers",
+   "triangles": 3392,
+   "height": 0.82
+  },
+  "SM_Tree_garden_flowers_2": {
+   "kind": "garden_flowers",
+   "triangles": 4180,
+   "height": 0.94
+  },
+  "SM_Tree_garden_flowers_3": {
+   "kind": "garden_flowers",
+   "triangles": 5952,
+   "height": 0.73
+  },
+  "SM_Tree_garden_low_0": {
+   "kind": "garden_low",
+   "triangles": 2920,
+   "height": 0.42
+  },
+  "SM_Tree_garden_low_1": {
+   "kind": "garden_low",
+   "triangles": 5980,
+   "height": 0.6
+  },
+  "SM_Tree_garden_low_2": {
+   "kind": "garden_low",
+   "triangles": 2004,
+   "height": 0.52
+  },
+  "SM_Tree_garden_tree_0": {
+   "kind": "garden_tree",
+   "triangles": 12160,
+   "height": 5.25
+  },
+  "SM_Tree_garden_tree_1": {
+   "kind": "garden_tree",
+   "triangles": 23406,
+   "height": 3.93
+  },
+  "SM_Tree_garden_tree_2": {
+   "kind": "garden_tree",
+   "triangles": 25150,
+   "height": 2.89
+  },
+  "SM_Tree_garden_tree_3": {
+   "kind": "garden_tree",
+   "triangles": 15274,
+   "height": 6.7
+  },
+  "SM_Tree_garden_shrub_4": {
+   "kind": "garden_shrub",
+   "form": "box ball",
+   "triangles": 20592,
+   "height": 0.97
+  },
+  "SM_Tree_garden_hedge_0": {
+   "height": 1.21,
+   "kind": "privet",
+   "triangles": 25428
+  },
+  "SM_Tree_garden_hedge_1": {
+   "height": 1.41,
+   "kind": "beech",
+   "triangles": 18492
+  },
+  "SM_Tree_garden_hedge_2": {
+   "height": 1.34,
+   "kind": "laurel",
+   "triangles": 5952
+  },
+  "SM_Tree_garden_hedge_3": {
+   "height": 0.78,
+   "kind": "box",
+   "triangles": 30340
+  },
+  "SM_Tree_garden_hedge_4": {
+   "height": 1.84,
+   "kind": "leylandii",
+   "triangles": 44100
+  }
+ }
+}

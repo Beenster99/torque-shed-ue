@@ -33,6 +33,7 @@ struct FTorqueTftPrefs
 {
 	int32 Design = 0;
 	bool bNorthUp = false;
+	int32 Declutter = 0;         // the map's detail: 0 full, 1 some, 2 clear
 	int32 Zoom = 0;
 	bool bOverlay = true;        // the TFT shown on the HUD
 	bool bMapTile = true;        // the map tile on the HUD

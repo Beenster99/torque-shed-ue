@@ -739,6 +739,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("infopanel")) S.bInfoPanel = bOn;   // [info]
 	else if (F == TEXT("placelookup")) S.bPlaceLookup = bOn;
 	else if (F == TEXT("rideawards")) S.bRideAwards = bOn;   // [ride awards]
+	else if (F == TEXT("trains")) S.bTrains = bOn;   // [trains]
 	else if (F == TEXT("fps")) S.bFpsCounter = bOn;
 	else if (F == TEXT("autoshift")) S.bAutoShift = bOn;
 	else if (F == TEXT("recentre")) S.bCameraRecentre = bOn;
@@ -889,6 +890,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	if (Page == EPage::Credits) return TEXT("MAP DATA");
 	if (Page == EPage::Route) return TEXT("ROUTE PLANNER");
+	if (Page == EPage::HelmetDecals) return TEXT("HELMET DECALS");
 	if (Page == EPage::SkyPresets) return TEXT("PRESET SKY");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
@@ -1585,6 +1587,19 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				Toggle(TEXT("Ride awards"), S.bRideAwards,
 					TEXT("At the end of a planned ride: everyone privately ranks the three stats they care about, then sees the numbers and the top three on a podium"));
 		}
+		// [trains] Trains on the railways: the host's choice for everyone (shown, not changed, on a joined machine).
+		{
+			const ATorqueGameState* TrainState = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			if (bClient)
+			{
+				Add(TEXT("Trains"), TrainState && TrainState->bTrainsOn ? FString(TEXT("On")) : FString(TEXT("Off")),
+					TEXT("Trains running on the railways, with working level crossings (set by the host)"), nullptr);
+				R.Last().bDisabled = true;
+			}
+			else
+				Toggle(TEXT("Trains"), S.bTrains,
+					TEXT("Trains running on every railway line to a made-up timetable, with working level crossings. Off: no trains, crossings stay open"));
+		}
 		// [reports] beenster, build 155: a friend's game crashed. The crash and freeze reports, to zip up and send.
 		{
 			const int32 Reports = TorqueReports::Count();
@@ -1831,6 +1846,15 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				[this, &Me]() { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + 1, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); },
 				[this, &Me](int32 D) { if (!Me.bHelmetPainted) return; Me.HelmetFinish = Wrap(Me.HelmetFinish + D, (int32)FTorqueProfile::NumHelmetFinish); ProfileChanged(); });
 			R.Last().bHelmet = true;
+			// [helmet decals] (build 160, beenster: "decals added in the settings, profile section ...
+			// isolate this from the bike decal") A page of its own: the helmet big, the decal library beside it.
+			{
+				const int32 OnIt = (int32)TorqueFit::Decals::Parse(TorqueDecals::ToStd(TorqueDecals::MyHelmet())).size();
+				Add(TEXT("Helmet decals"), OnIt > 0 ? FString::Printf(TEXT("%d on it: change them"), OnIt) : FString(TEXT("Add some")),
+					TEXT("Lettering, stripes, artwork or your own pictures on your helmet, placed with the mouse on a big picture of it"),
+					[this]() { OpenHelmetDecals(); });
+				R.Last().bHelmet = true;
+			}
 		}
 		break;
 	}
@@ -1964,6 +1988,22 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	auto Just = [this](const FKey& K) { return WasInputKeyJustPressed(K); };
 	const bool bMenuKey = Just(EKeys::Escape) || Just(EKeys::Gamepad_Special_Right) || (Hit & ESonyButton::Options);
 
+	// [helmet decals] The helmet's decal page has the keys and the mouse while it's open; it closes
+	// itself (Esc, Leave), and the Profile page comes back.
+	if (ATorqueDecalMode* Dm = ATorqueDecalMode::For(this); Dm && Dm->IsHelmetOnly())
+	{
+		if (Page != EPage::HelmetDecals) Dm->TestExit();   // (the menu went: it goes too, unsaved)
+		else
+		{
+			if (Just(EKeys::Gamepad_FaceButton_Right) || (Hit & ESonyButton::Circle)) Dm->AskToLeave();
+			return;
+		}
+	}
+	else if (Page == EPage::HelmetDecals)
+	{
+		Back();
+		return;
+	}
 	if (Page == EPage::None)
 	{
 		if (bMenuKey && WantsPause()) OpenPause();
@@ -2239,6 +2279,11 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	if (Page == EPage::Awards)   // [ride awards]
 	{
 		if (AwardsScreen) AwardsScreen->Draw(Canvas, this);
+		return;
+	}
+	if (Page == EPage::HelmetDecals)   // [helmet decals] the helmet big, the library beside it
+	{
+		if (ATorqueDecalMode* Dm = ATorqueDecalMode::For(this)) Dm->DrawPanel(Hud, Canvas);
 		return;
 	}
 	const FMenuLayout L = MenuLayout(Canvas);
@@ -2764,6 +2809,18 @@ void ATorquePlayerController::UpdateProfilePreview()
 		Want = bHelmetRow ? ATorqueProfilePreview::EView::Helmet : ATorqueProfilePreview::EView::Body;
 	}
 	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Want, FTorqueSettings::Get().Colour);
+}
+
+void ATorquePlayerController::OpenHelmetDecals()
+{
+	FString Why;
+	if (!ATorqueDecalMode::OpenHelmet(this, Why))
+	{
+		Note = Why.IsEmpty() ? FString(TEXT("The helmet's decals couldn't open.")) : Why;
+		NoteFor = 4.0;
+		return;
+	}
+	Open(EPage::HelmetDecals);
 }
 
 void ATorquePlayerController::DrawProfile(AHUD* Hud, UCanvas* Canvas)

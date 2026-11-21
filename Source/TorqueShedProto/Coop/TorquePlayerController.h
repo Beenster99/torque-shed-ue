@@ -119,7 +119,7 @@ private:
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide, Awards };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide, Awards, HelmetDecals };
 	bool bChoosingRide = false;   // [co-op] the join page is this player's until they pick
 	int32 JoinBay = INDEX_NONE;
 	struct FRow
@@ -262,4 +262,8 @@ private:
 	void ProfileChanged();
 	void UpdateProfilePreview();
 	void DrawProfile(AHUD* Hud, UCanvas* Canvas);
+public:
+	// [helmet decals] Settings > Profile > Helmet decals: the decal editor on your helmet alone
+	// (ATorqueDecalMode::OpenHelmet), a page of its own that has the keys and mouse until it closes.
+	void OpenHelmetDecals();
 };

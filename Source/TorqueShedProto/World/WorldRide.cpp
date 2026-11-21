@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldFerries.h"
 #include "WorldRideChurches.h"
 #include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
@@ -173,7 +174,13 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		for (size_t I = 0; I < Want.Pins.size(); ++I)
 		{
 			const P2 At = F0.FromGeo(Want.Pins[I].Lat, Want.Pins[I].Lon);
-			const int Node = G0.NearestConnected(At.X, At.Z, SnapM);
+			int Node = G0.NearestConnected(At.X, At.Z, SnapM);
+			// [ferries stage 5] (a pin on a small island, Luing or Cumbrae, on its own roads when they are near it and a
+			// listed ferry goes there: not the mainland's bigger network across the water)
+			if (const int Near = G0.NearestNode(At.X, At.Z, 500.0); Node >= 0 && Near >= 0 && Near != Node && G0.Component.size() == G0.Nodes.size()
+				&& G0.Component[size_t(Near)] != G0.Component[size_t(Node)] && G0.ComponentSize[size_t(G0.Component[size_t(Near)])] >= 12
+				&& G0.Nodes[size_t(Near)].DistanceTo(At) * 2.0 + 200.0 < G0.Nodes[size_t(Node)].DistanceTo(At) && Ferries::ServedPiece(G0, Near))
+				Node = Near;
 			if (Node < 0)
 			{
 				Snapped = false;
@@ -187,11 +194,53 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		Tell("Finding the way by road");
 		const std::vector<double> Costs = Route::EdgeCosts(G0, R->Request.Mode);
 		Steps.clear();
+		R->Ferry.reset();
 		bool Through = true;
 		for (size_t I = 0; I + 1 < R->PinNodes.size() && Through; ++I)
 		{
 			if (R->PinNodes[I] == R->PinNodes[I + 1]) continue;
 			const std::vector<int> Leg = G0.CheapestPath(R->PinNodes[I], R->PinNodes[I + 1], &Costs);
+			// [ferries stage 5] (a listed ferry where it beats the roads, or where they have no way over: the ride's
+			// road ends at its slipway, and the sat nav takes them on from where it lands)
+			if (const std::shared_ptr<const std::vector<Ferries::Listed>> FerryList = Ferries::ListNow(); FerryList && !FerryList->empty())
+			{
+				const Ferries::Link L = Ferries::BestLink(G0, Costs, R->PinNodes[I], R->PinNodes[I + 1], *FerryList, Leg);
+				if (L.Row >= 0)
+				{
+					int Node = R->PinNodes[I];
+					for (int E : L.ToBoard)
+					{
+						const int Next = G0.OtherEnd(E, Node);
+						Steps.push_back({Node, E, Next});
+						Node = Next;
+					}
+					std::shared_ptr<FerryLink> Took = std::make_shared<FerryLink>();
+					const Ferries::Listed& Row = (*FerryList)[size_t(L.Row)];
+					Took->Id = Row.Id;
+					Took->Name = Row.Name;
+					Took->BoardEnd = L.BoardEnd;
+					Took->Board = G0.Nodes[size_t(L.BoardNode)];
+					Took->Land = G0.Nodes[size_t(L.LandNode)];
+					int On = L.LandNode;
+					for (size_t K = I + 1; K < R->PinNodes.size(); ++K)
+					{
+						Took->Pins.push_back(G0.Nodes[size_t(R->PinNodes[K])]);   // (the pin's junction, as the planner snapped it)
+						Took->PinNames.push_back(Want.Pins[K].Name);
+						for (int E : G0.CheapestPath(On, R->PinNodes[K], &Costs)) Took->OnM += G0.Edges[size_t(E)].Length;
+						On = R->PinNodes[K];
+					}
+					R->Ferry = Took;
+					// (pinned at the slipway itself: the ride's road is the last road in to it)
+					if (Steps.empty())
+						for (int E : G0.Adjacent[size_t(L.BoardNode)])
+							if (G0.Edges[size_t(E)].A != G0.Edges[size_t(E)].B && G0.Passable(E, G0.OtherEnd(E, L.BoardNode)))
+							{
+								Steps.push_back({G0.OtherEnd(E, L.BoardNode), E, L.BoardNode});
+								break;
+							}
+					break;
+				}
+			}
 			if (Leg.empty()) { Through = false; break; }
 			int Node = R->PinNodes[I];
 			for (int E : Leg)
@@ -212,6 +261,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (Steps.empty()) { R->Why = "Those pins are the same place: pin somewhere else to get to."; return R; }
 	double PinsEnd = 0.0;
 	for (const RideStep& St : Steps) PinsEnd += G.Edges[size_t(St.Edge)].Length;
+	if (!R->Ferry)   // ([ferries stage 5] none past a ferry's slipway: the ride's road ends there)
 	{
 		const std::vector<double> Costs = Route::EdgeCosts(G, R->Request.Mode);
 		const std::vector<RideStep> Tail = RunOut(G, Steps, Costs);
@@ -365,10 +415,14 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWater();     // [build 147 feedback] (after the fields: a river's outline gives it its width)
+	R->IndexFerries();   // [ferries] (after the water: a slipway goes down to its level)
 	R->IndexWild();      // [OSM stage 2 batch D]
 	R->IndexTowers();    // [towns stage 2]
 	R->IndexPlaceRecipes();   // [places stage 3] (after the towers and the churches' buildings)
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
+	// [ferries stage 5] (a way by a ferry: the ride's road's finish is its slipway, named for it)
+	if (R->Ferry && !R->Turns.empty() && R->Turns.back().Turn == Finish)
+		R->Turns.back().Onto = R->Ferry->Name.find("Ferry") != std::string::npos || R->Ferry->Name.find("Bridge") != std::string::npos ? R->Ferry->Name : R->Ferry->Name + " Ferry";
 	R->FindThinData();
 	R->Ok = true;
 	return R;
@@ -419,6 +473,7 @@ std::shared_ptr<RidePlan> RidePlan::Grow(CellStore& Store, HeightStore& Heights,
 	R->RunOutFrom = Old.RunOutFrom;
 	R->Title = Old.Title;
 	R->MadeSteps = Old.MadeSteps;
+	R->Ferry = Old.Ferry;   // [ferries stage 5]
 	R->Grown = Old.Grown + 1;
 	R->StoresAlive = Old.StoresAlive;
 	R->LidarFrom = Old.LidarFrom;
@@ -1699,6 +1754,14 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 
 double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough) const
 {
+	const double Lie = GroundUncut(X, Z, Coarse, NoBores, Trough);
+	// [ferries] (cut down along a slipway's approach and the slipway itself, so the tarmac shows and can be ridden;
+	// last, as the ride's road's bench beside it would fill it again)
+	return std::isnan(Lie) || FerryLays.empty() ? Lie : FerryCut(X, Z, Lie);
+}
+
+double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bool Trough) const
+{
 	double Lie = Land ? Land->Height(X, Z) : std::nan("");
 	// A railway's cutting or bank (Ride UK stage 5): its bed level 5 m either side of it, the land
 	// sloping 2 in 3 from there to meet it (not under a railway bridge, nor over its tunnel).
@@ -2344,6 +2407,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	TurfMesh->OriginX = Out.OriginX;
 	TurfMesh->OriginZ = Out.OriginZ;
 	std::shared_ptr<RideMesh> StoneMesh;   // (a bridge's parapets and underside: Out.Stone, made when first needed)
+	// ([Nov 20] a bridge's walls from the dry stone wall kit when the game has its models: see the pass at the end)
+	// (on a country road's bridge: a wide road's, a dual carriageway's or a motorway's keeps the plain parapet)
+	const bool BridgeWalls = PropModelled[PropWallStone] && PropModelled[PropWallEnd];
+	const auto StoneParapet = [BridgeWalls](double Half, int Lanes) { return BridgeWalls && Half <= 4.5 && Lanes <= 2; };
+	static constexpr double ParapetFootHalf = 0.25, ParapetHigh = 1.15;   // (the walls laid on a deck: half their width at the foot, their height)
 	// ([build 154] UV0 is metres across and along over 4, the along counted from a whole 36 m behind this bit
 	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
 	// slabs, 0.9 m long, line up across bits of road)
@@ -2665,6 +2733,18 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		C.T0 = T0; C.T1 = T1; C.L0 = L0; C.R0 = R0; C.L1 = L1; C.R1 = R1; C.Colour = Colour;
 		PaintCuts.push_back(C);
 	};
+	// ([Nov 20] which rows' bridge has the wall kit's walls: a whole run of deck or none of it)
+	std::vector<char> WallRow(Rows.size(), 0);
+	for (size_t S0 = 0; S0 < Rows.size(); ++S0)
+	{
+		if (!Rows[S0].Deck) continue;
+		size_t S1 = S0;
+		while (S1 + 1 < Rows.size() && Rows[S1 + 1].Deck) ++S1;
+		bool Country = true;
+		for (size_t J = S0; J <= S1; ++J) Country = Country && StoneParapet(Rows[J].Half, Rows[J].Lanes);
+		for (size_t J = S0; J <= S1; ++J) WallRow[J] = Country ? 1 : 0;
+		S0 = S1;
+	}
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
 	{
 		Row RowA = Rows[K], RowB = Rows[K + 1];
@@ -3156,7 +3236,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				StoneMesh->OriginX = Out.OriginX;
 				StoneMesh->OriginZ = Out.OriginZ;
 			}
-			const double In = 0.15, Out2 = 0.55, Top = 1.0, Under = -1.2;
+			// ([Nov 20] beenster, build 164 by Hawes: "we still have these weird bridge walls": tall smooth slabs,
+			// the inner face of one black. The inner faces were drawn both ways with the outer face's normal, so
+			// the side seen from the road was lit from behind. Where the wall kit is in (BridgeWalls), the walls
+			// themselves are its stone-by-stone lengths laid along the deck (the field walls' own models, lower
+			// and thinner: see the pass after this loop); here only the kerb, the deck's outer face below them
+			// and the underside. Without the kit, the old slab, each face lit by its own side.)
+			const bool Kitted = WallRow[K] != 0 && WallRow[K + 1] != 0;
+			const double In = 0.15, Out2 = Kitted ? In + 2.0 * ParapetFootHalf : 0.55, Top = 1.0, Under = -1.2;
 			const auto Corner = [&Settle](const Row& R, double Off, double Lift)
 			{
 				const P2 At = R.At + R.Left * Off;
@@ -3173,16 +3260,22 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const P2 MidAB = (A.At + B.At) * 0.5;
 			const double HighAB = std::fmax(A.Height, B.Height);
 			const RideSceneBits::P3 Above = RideSceneBits::At3(MidAB.X, HighAB + 1e4, MidAB.Z), Below = RideSceneBits::At3(MidAB.X, HighAB - 1e4, MidAB.Z);
+			const RideSceneBits::P3 Middle = RideSceneBits::At3(MidAB.X, HighAB + 0.5, MidAB.Z);   // (the road's middle: the inner faces face it)
 			for (double Side : {1.0, -1.0})
 			{
 				const double A0 = A.Half + In, A1 = A.Half + Out2, B0 = B.Half + In, B1 = B.Half + Out2;
 				const P2 Lm = (A.Left + B.Left) * 0.5;
 				const RideSceneBits::P3 Away = RideSceneBits::At3(MidAB.X + Lm.X * Side * 100.0, HighAB, MidAB.Z + Lm.Z * Side * 100.0);
-				// (kerb strip, top, inner face, outer face)
+				// (kerb strip; then the top, the inner face and the outer face, or with the kit, the outer face below the wall)
 				Face(Side * A0, Side * A.Half, Side * B0, Side * B.Half, 0.0, 0.0, Above, 0.4f, false);
+				if (Kitted)
+				{
+					Face(Side * A1, Side * A1, Side * B1, Side * B1, 0.0, Under, Away, 0.3f, false);
+					continue;
+				}
 				Face(Side * A1, Side * A0, Side * B1, Side * B0, Top, Top, Above, 0.5f, false);
-				Face(Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Away, 0.3f, true);
-				Face(Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Away, 0.3f, true);
+				Face(Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Middle, 0.3f, false);
+				Face(Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Away, 0.3f, false);
 			}
 			Face(A.Half + Out2, -A.Half - Out2, B.Half + Out2, -B.Half - Out2, Under, Under, Below, 0.1f, false);
 		}
@@ -3998,6 +4091,98 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			LandColourDrawnAt(X, Z, &T.Col[V * 3], &Colours);
 		}
 		Out.Turf = TurfMesh;
+	}
+	// [Nov 20] A bridge's walls: each run of deck in this piece, each side, the wall kit's 2 m lengths laid end to
+	// end along a line just in from the deck's outer face, in the region's walling, brought down to a parapet's
+	// height (ParapetHigh above the road) and thinned to ParapetFootHalf each side at the foot; a wall head where
+	// the bridge itself ends (not where this piece of road does: the next piece carries the wall on). Instanced
+	// as the field walls are, so a bridge costs what as much field wall does.
+	if (BridgeWalls)
+	{
+		const int Style = WallStyle(LookHere(Out.OriginX, Out.OriginZ));
+		// (each walling's height to the top of its cope and half width at its foot, Tools/make_wall_kit.py and
+		// buttertubs_stone.py's)
+		static constexpr double StyleHigh[WallStyles] = {1.37, 1.17, 1.42, 1.33, 1.41, 1.27};
+		static constexpr double StyleFoot[WallStyles] = {0.42, 0.36, 0.40, 0.40, 0.45, 0.36};
+		const int Sk = std::clamp(Style, 0, WallStyles - 1);
+		const double Size = ParapetHigh / StyleHigh[Sk];
+		const double Narrow = std::clamp(ParapetFootHalf / (StyleFoot[Sk] * Size), 0.3, 1.0);
+		const auto LayWall = [&](int Model, int Variant, const RideSceneBits::P3& Q0, const RideSceneBits::P3& Q1)
+		{
+			const double Run = std::hypot(Q1.X - Q0.X, Q1.Z - Q0.Z);
+			if (Run < 0.05) return;
+			RideProp Pr;
+			Pr.Kind = uint16_t(Model);
+			Pr.Variant = uint8_t(Sk * WallVariants + Variant);
+			Pr.Mapped = false;
+			Pr.X = float((Q0.X + Q1.X) * 0.5 - Out.OriginX);
+			Pr.Y = float((Q0.Y + Q1.Y) * 0.5 - 0.02);
+			Pr.Z = float((Q0.Z + Q1.Z) * 0.5 - Out.OriginZ);
+			Pr.Yaw = float(std::atan2(Q1.Z - Q0.Z, Q1.X - Q0.X));
+			Pr.Pitch = float(std::atan2(Q1.Y - Q0.Y, Run));
+			Pr.Scale = float(Size);
+			// (Stretch is of the model's own length; the model is already Size times it)
+			Pr.Stretch = float(Run / ((Model == PropWallEnd ? 1.0 : 2.0) * Size));
+			Pr.Across = float(Narrow);
+			Out.Props.push_back(Pr);
+		};
+		const int RowN = int(Rows.size());
+		for (int S0 = 0; S0 + 1 < RowN; ++S0)
+		{
+			if (!(Rows[size_t(S0)].Deck && Rows[size_t(S0) + 1].Deck)) continue;
+			int S1 = S0 + 1;
+			while (S1 + 1 < RowN && Rows[size_t(S1) + 1].Deck) ++S1;
+			if (WallRow[size_t(S0)] == 0)
+			{
+				S0 = S1;
+				continue;
+			}
+			// (does the bridge go on past this piece's ends? then no head there)
+			const bool OnBefore = S0 == 0 && First > 0 && Pts[size_t(First) - 1].Bridge;
+			const bool OnAfter = S1 == RowN - 1 && Last + 1 < Count && Pts[size_t(Last) + 1].Bridge;
+			for (double Side : {1.0, -1.0})
+			{
+				std::vector<RideSceneBits::P3> Line;
+				std::vector<double> Dist;
+				for (int K = S0; K <= S1; ++K)
+				{
+					const Row& R = Rows[size_t(K)];
+					const double Off = Side * (R.Half + 0.15 + ParapetFootHalf);
+					const P2 At = R.At + R.Left * Off;
+					const RideSceneBits::P3 Q = RideSceneBits::At3(At.X, R.Height + RoadLine::CrossHeight(Side * R.Half, R.Half, R.Bank), At.Z);
+					if (!Line.empty() && std::hypot(Q.X - Line.back().X, Q.Z - Line.back().Z) < 0.05) continue;
+					Dist.push_back(Line.empty() ? 0.0 : Dist.back() + std::hypot(Q.X - Line.back().X, Q.Z - Line.back().Z));
+					Line.push_back(Q);
+				}
+				if (Line.size() < 2 || Dist.back() < 0.4) continue;
+				const auto PointAt = [&](double D)
+				{
+					D = std::clamp(D, 0.0, Dist.back());
+					size_t J = 0;
+					while (J + 2 < Line.size() && Dist[J + 1] < D) ++J;
+					const double Span = std::fmax(1e-9, Dist[J + 1] - Dist[J]), T = std::clamp((D - Dist[J]) / Span, 0.0, 1.0);
+					RideSceneBits::P3 Q;
+					Q.X = Line[J].X + (Line[J + 1].X - Line[J].X) * T;
+					Q.Y = Line[J].Y + (Line[J + 1].Y - Line[J].Y) * T;
+					Q.Z = Line[J].Z + (Line[J + 1].Z - Line[J].Z) * T;
+					return Q;
+				};
+				const double Total = Dist.back();
+				const double HeadLen = std::fmin(1.0, Total * 0.3);
+				const bool HeadA = !OnBefore && Total >= 1.6, HeadB = !OnAfter && Total >= (HeadA ? 2.6 : 1.6);
+				const double From = HeadA ? HeadLen : 0.0, To = Total - (HeadB ? HeadLen : 0.0);
+				const int Lengths = To - From > 0.2 ? std::max(1, int(std::round((To - From) / (2.0 * Size)))) : 0;
+				for (int Ln = 0; Ln < Lengths; ++Ln)
+				{
+					const RideSceneBits::P3 Q0 = PointAt(From + (To - From) * Ln / Lengths), Q1 = PointAt(From + (To - From) * (Ln + 1) / Lengths);
+					LayWall(PropWallStone, int(RideSceneBits::Chance(Q0.X, Q0.Z, 51) * WallVariants) % WallVariants, Q0, Q1);
+				}
+				// (a head is finished at its model's +x: laid from inside the wall out to the bridge's end)
+				if (HeadA) { const RideSceneBits::P3 E = PointAt(0.0), In2 = PointAt(HeadLen); LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
+				if (HeadB) { const RideSceneBits::P3 E = PointAt(Total), In2 = PointAt(Total - HeadLen); LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
+			}
+			S0 = S1;
+		}
 	}
 	if (StoneMesh && StoneMesh->Vertices() > 0) Out.Stone = StoneMesh;
 }

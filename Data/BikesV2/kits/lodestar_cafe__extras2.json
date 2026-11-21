@@ -1,0 +1,23 @@
+{
+ "name": "Lodestar cafe (working title C1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 140,
+ "surfaces": {
+  "s016": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.1975,
+    0.0097,
+    0.0097
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  }
+ }
+}

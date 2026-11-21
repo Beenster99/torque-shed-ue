@@ -1,0 +1,23 @@
+{
+ "name": "BSX cafe (working title C1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 140,
+ "surfaces": {
+  "s025": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.5924,
+    0.6253,
+    0.6592
+   ],
+   "metallic": 0.55,
+   "roughness": 0.34
+  }
+ }
+}

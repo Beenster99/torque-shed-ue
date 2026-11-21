@@ -92,6 +92,9 @@ private:
 	TorqueFluidModels::FVessel Vessel;
 	FName VesselPart;
 	bool bVessel = false;
+	// [posters] A framed poster's picture card, till its picture's loaded (TorqueFurniture::DressPosterArt).
+	TWeakObjectPtr<UStaticMeshComponent> PosterArt;
+	FName PosterModel;
 	FString Key;                // what's built
 	double Radius = 50.0;       // its bounding sphere (cm)
 	double Yaw = 0.0, Pitch = 0.0, Zoom = 1.0;

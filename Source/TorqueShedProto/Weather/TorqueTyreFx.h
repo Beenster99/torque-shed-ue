@@ -27,6 +27,7 @@ class UInstancedStaticMeshComponent;
 class UDecalComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
+class UPointLightComponent;
 
 UCLASS(NotPlaceable, Transient)
 class ATorqueTyreFx : public AActor
@@ -50,6 +51,7 @@ private:
 	{
 		FVector Pos = FVector::ZeroVector, Vel = FVector::ZeroVector;
 		float Age = 0.0f, Life = 8.0f, Size0 = 40.0f, Size1 = 350.0f, Alpha = 0.4f, Seed = 0.0f;
+		float Drag = 0.9f;   // per second: how fast its first fling dies into the air's drift
 	};
 	TArray<FPuff> Puffs;
 	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> Smoke = nullptr;
@@ -57,6 +59,21 @@ private:
 	bool bOwnSmoke = false;    // M_TyreSmoke (it draws the veil as a flat fill); else the rain's sprite
 	float Veil = 0.0f;         // how thick the smoke round the camera is, eased
 	int32 DrawnSlots = 0;
+
+	// --- Exhaust flames ([beenster, build 160] a sports engine's pops and bangs: ATorqueBikePawn's
+	// TakeExhaustFlames / ExhaustTips). Each a few glowing sprites stretched out of the pipe, and a quick
+	// flash of light; a fixed handful at once.
+	struct FFlame
+	{
+		TWeakObjectPtr<AActor> Bike;
+		float Age = 0.0f, Life = 0.1f, Len = 35.0f, Seed = 0.0f;
+		bool bBang = false;
+	};
+	TArray<FFlame> Flames;
+	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> FlameSprites = nullptr;
+	UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FlameLight = nullptr;
+	int32 FlameDrawn = 0;
+	void TickFlames(float Dt);
 
 	// --- Darkies.
 	struct FMark
@@ -67,13 +84,15 @@ private:
 		FVector Along = FVector::ForwardVector;
 		double HalfWidth = 7.0, Laid = 0.0;   // cm; metres of tread slid over it
 		double Born = 0.0;                    // world seconds
-		float Opacity = 0.0f, Shown = -1.0f, Fade = 1.0f;
-		bool bLive = false, bOpen = false, bFading = false;
+		float Opacity = 0.0f, Shown = -1.0f, Fade = 1.0f, EndsShown = -1.0f;
+		bool bLive = false, bOpen = false, bFading = false, bAimed = false;
 	};
 	TArray<FMark> Marks;
 	UPROPERTY(Transient) TArray<TObjectPtr<UObject>> Keep;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MarkMaterial = nullptr;
 	int32 MarkPool = 0;
+	int32 MarksLaid = 0;          // (for the log)
+	bool bTestMarksLaid = false;  // the smoke test's strip and circle
 
 	// Each bike's tyres: how hot they are from sliding (0..1), the smoke owed, and the mark being laid.
 	struct FTyreState
@@ -96,12 +115,13 @@ private:
 	// A tyre's scrub this frame (ATorqueBikePawn::TyreScrub's, copied).
 	struct FScrub
 	{
-		double SlideMs = 0.0, RoadMs = 0.0, HalfWidthCm = 7.0;
+		double SlideMs = 0.0, RoadMs = 0.0, HalfWidthCm = 7.0, RadiusCm = 30.0, SpinMs = 0.0;
 		bool bTarmac = true;
 		FVector At = FVector::ZeroVector, Fwd = FVector::ForwardVector, Up = FVector::UpVector;
 	};
 	void TickBikes(float Dt, double Wet, const FVector& Wind);
 	void EmitSmoke(FTyreState& St, const FScrub& In, float Dt, double Wet, const FVector& Wind);
+	void AddPuff(const FPuff& P);
 	void LayMark(FTyreState& St, const FScrub& In, float Dt, double Wet, AActor* Bike);
 	void CloseMark(FTyreState& St);
 	int32 TakeMark();

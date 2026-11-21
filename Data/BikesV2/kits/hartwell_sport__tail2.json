@@ -2,9 +2,9 @@
  "name": "BSX sport (working title S1)",
  "format": 2,
  "kit": true,
- "triangles": 20616,
+ "triangles": 22512,
  "surfaces": {
-  "s026": {
+  "s027": {
    "slot": "tail",
    "node": "",
    "surface": "paint__body",
@@ -19,7 +19,7 @@
    "metallic": 0.55,
    "roughness": 0.34
   },
-  "s031": {
+  "s032": {
    "slot": "tail",
    "node": "",
    "surface": "redlens",
@@ -27,7 +27,7 @@
    "ue": "lens_red",
    "sub": "plate_hanger"
   },
-  "s032": {
+  "s033": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -42,7 +42,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s033": {
+  "s034": {
    "slot": "tail",
    "node": "",
    "surface": "plate",
@@ -57,7 +57,7 @@
    "metallic": 0.0,
    "roughness": 0.5
   },
-  "s157": {
+  "s158": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -72,7 +72,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s158": {
+  "s159": {
    "slot": "tail",
    "node": "",
    "surface": "d3_taillens",
@@ -80,7 +80,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s159": {
+  "s160": {
    "slot": "tail",
    "node": "",
    "surface": "d3_tailred",
@@ -88,7 +88,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s164": {
+  "s167": {
    "slot": "tail",
    "node": "",
    "surface": "steel",
@@ -103,13 +103,59 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s165": {
+  "s168": {
    "slot": "tail",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber",
    "sub": "plate_hanger"
+  },
+  "s176": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_front"
+  },
+  "s177": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_front",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s178": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "ind_rear",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s179": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber",
+   "sub": "ind_rear"
   }
  }
 }

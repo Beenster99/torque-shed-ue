@@ -1,0 +1,54 @@
+{
+ "name": "Kazeda sport (working title S1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 18360,
+ "surfaces": {
+  "s028": {
+   "slot": "tail",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0078,
+    0.0759,
+    0.5295
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  },
+  "s157": {
+   "slot": "tail",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "tail_light",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s158": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_taillens",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  },
+  "s159": {
+   "slot": "tail",
+   "node": "",
+   "surface": "d3_tailred",
+   "tag": "lens_red",
+   "ue": "lens_red",
+   "sub": "tail_light"
+  }
+ }
+}

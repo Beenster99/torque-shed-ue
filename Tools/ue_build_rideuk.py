@@ -989,6 +989,11 @@ def scanned_trees(L, kit):
         another part's material: round 160's spruce and pine were bare brown trunks near and far (their
         needles drawn with a bark or decoration material) while the broadleaf trees were right. None if
         Geometry Script can't say."""
+        mats = [m.get_editor_property("material_interface") for m in skel.get_editor_property("materials")]
+        names = [str(m.get_editor_property("material_slot_name")) for m in skel.get_editor_property("materials")]
+        smap = skeletal_section_slots(skel)
+        if smap is not None:
+            return [(mats[k] if 0 <= k < len(mats) else None, names[k] if 0 <= k < len(names) else "Section%d" % n) for n, k in enumerate(smap)]
         f = gs("get_section_material_list_from_skeletal_mesh")
         if f is None:
             return None
@@ -1015,6 +1020,56 @@ def scanned_trees(L, kit):
                 return [(m, names[k] if names and k < len(names) else "Section%d" % k) for k, m in enumerate(mats)]
         return None
 
+    def skeletal_section_slots(skel):
+        """[build 162] LOD 0's material slot for each section, in section order, or None. UE 5.8's Python
+        has no Geometry Script get_section_material_list_from_skeletal_mesh (round 161), so the skeletal
+        mesh editor's own functions are tried (their home and names moved between releases), with the
+        LOD's material map overriding a section's slot where it says so."""
+        homes = [getattr(unreal, n, None) for n in ("SkeletalMeshEditorSubsystem", "EditorSkeletalMeshLibrary", "SkeletalMeshEditingLibrary")]
+        objs = []
+        for h in homes:
+            if h is None:
+                continue
+            try:
+                objs.append(unreal.get_editor_subsystem(h))
+            except Exception:
+                objs.append(h)
+        count = None
+        for o in objs:
+            for fn in ("get_num_sections", "get_section_count", "get_lod_section_count"):
+                f = getattr(o, fn, None)
+                if f is None:
+                    continue
+                try:
+                    count = int(f(skel, 0))
+                    break
+                except Exception:
+                    continue
+            if count is not None:
+                break
+        slots = None
+        for o in objs:
+            f = getattr(o, "get_lod_material_slot", None)
+            if f is None or count is None:
+                continue
+            try:
+                slots = [int(f(skel, 0, n)) for n in range(count)]
+                break
+            except Exception as e:
+                why.append("get_lod_material_slot: %s" % e)
+        if slots is None:
+            log("scanned trees: %s: no way to read section slots (sections %s; functions: %s)" % (skel.get_name(), count,
+                ", ".join(sorted(set(n for o in objs for n in dir(o) if "section" in n.lower() or "material" in n.lower())))[:600]))
+            return None
+        try:
+            info = skel.get_editor_property("lod_info")
+            remap = list(info[0].get_editor_property("lod_material_map")) if info else []
+            slots = [int(remap[n]) if n < len(remap) and int(remap[n]) >= 0 else s0 for n, s0 in enumerate(slots)]
+        except Exception:
+            pass
+        log("scanned trees: %s: LOD 0 sections -> material slots %s" % (skel.get_name(), slots))
+        return slots
+
     def fix_slots(copy_path, skel_path):
         """The copy's material slots in the skeletal mesh's section order (see section_materials)."""
         try:
@@ -1031,12 +1086,48 @@ def scanned_trees(L, kit):
         have = sm.get_editor_property("static_materials")
         before = [(m.get_editor_property("material_interface").get_name() if m.get_editor_property("material_interface") else "None") for m in have]
         after = [(m.get_name() if m else "None") for m, _ in want]
+        if len(after) != len(before):
+            # ([round 162] a Megaplant reads as ONE section at LOD 0: cutting the slots to it left every
+            # tree bark only. Never change the number of slots.)
+            log("scanned trees: %s: %d sections but %d slots: slots left as they are" % (name, len(after), len(before)))
+            return False
         if before == after:
             log("scanned trees: %s: material slots already in section order (%s)" % (name, ", ".join(after)))
             return False
         sm.set_editor_property("static_materials", [unreal.StaticMaterial(material_interface=m, material_slot_name=n) for m, n in want])
         unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
         log("scanned trees: %s: material slots put in section order: was [%s], now [%s]" % (name, ", ".join(before), ", ".join(after)))
+        return True
+
+    def plain_copy(copy_path):
+        """A copy match_nanite gave Nanite Foliage (round 160) put back as it was made: Nanite off."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            ns = sm.get_editor_property("nanite_settings")
+            shape = str(ns.get_editor_property("shape_preservation")) if "shape_preservation" in dir(ns) else ""
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        if "VOXEL" not in shape.upper():
+            return False
+        changed = []
+        for name, value in (("enabled", False), ("voxel_ndf", False)):
+            try:
+                ns.set_editor_property(name, value)
+                changed.append("%s %s" % (name, value))
+            except Exception:
+                pass
+        enum = getattr(unreal, "NaniteShapePreservation", None)
+        none = getattr(enum, "NONE", None) if enum else None
+        if none is not None:
+            try:
+                ns.set_editor_property("shape_preservation", none)
+                changed.append("shape_preservation NONE")
+            except Exception:
+                pass
+        sm.set_editor_property("nanite_settings", ns)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite Foliage undone (%s)" % (copy_path.rsplit(".", 1)[-1], ", ".join(changed)))
         return True
 
     def match_nanite(copy_path, skel_path):
@@ -1141,9 +1232,15 @@ def scanned_trees(L, kit):
             for p in skels:
                 m = static_of_skeletal(p)
                 if m:
-                    fix_slots(m, p)
-                    if spec.get("match_nanite", True):
+                    if spec.get("slots_by_section", False):
+                        fix_slots(m, p)
+                    # ([build 162] round 161: with the Megaplants' Voxelize Nanite the broadleaf trees turned
+                    # to smooth green blobs at 30-45 m and the conifers stayed bare: back to the copies as
+                    # they were until 159 (Nanite off), unless scanned_trees.json "match_nanite" is true)
+                    if spec.get("match_nanite", False):
                         match_nanite(m, p)
+                    else:
+                        plain_copy(m)
                     made.append(m)
             for m in made:
                 ready_materials(m)
@@ -1255,6 +1352,58 @@ def hedge_kit(L, kit):
                   "native_mesh": False, "scale_multiplier": 1.0, "cast_shadow": True, "cull_distance": 60000.0})
         rows.append(r)
     log("hedges: %d hedge models (%s)" % (len(meshes), ", ".join(sorted(meshes))))
+
+
+GARDEN_DEST = "/Game/RideUK/Gardens"
+# (each garden kind's cull, cm, and shadow, when scanned_trees.json doesn't say: as its scanned ones')
+GARDEN_DEFAULTS = {"garden_rose": (9000.0, True), "garden_shrub": (9000.0, True), "garden_flowers": (4500.0, False),
+                   "garden_low": (5000.0, False), "garden_tree": (25000.0, True), "garden_hedge": (9000.0, True)}
+
+
+def garden_kit(L, kit):
+    """[Nov 20] The villages' and towns' garden planting as our own models (beenster: "please consider building
+    a small library of bushes, hedges for gardens"; the scanned Megaplants are off since Nov 20): Tools/
+    make_gardens.py's roses, shrubs, flowers, low cover, small trees and clipped hedge lengths
+    (Data/RideUK/Gardens/SM_Tree_garden_<kind>_<n>.glb) imported as Nanite foliage with the trees' material
+    (M_Tree: they turn and drop with the season too), added to the kit's "Trees" as kinds garden_<kind>,
+    each with its cull and shadow (scanned_trees.json "garden_kinds", else GARDEN_DEFAULTS). A kind that
+    already has scanned models in the kit keeps them. Changes the kit in place."""
+    if "Trees" not in kit:
+        return
+    rows = kit["Trees"]["species"]
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Gardens")
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        log("gardens: none (python Tools/make_gardens.py); no garden planting")
+        return
+    spec_f = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "scanned_trees.json")
+    spec = (json.load(open(spec_f)).get("garden_kinds", {}) if os.path.exists(spec_f) else {})
+    template = next((r for r in rows if r["name"].startswith("SM_Tree_hawthorn_")), None) or next((r for r in rows if r.get("material")), None)
+    if template is None:
+        log("gardens: no tree rows in the kit to copy; no garden planting")
+        return
+    scanned = set(r["name"][len("SM_Tree_"):-len("_scan")] for r in rows if r["name"].startswith("SM_Tree_garden_") and r["name"].endswith("_scan"))
+    meshes = L.import_glbs(folder, GARDEN_DEST)
+    added = []
+    for name, mesh in sorted(meshes.items()):
+        kind = next((k for k in GARDEN_DEFAULTS if name.startswith("SM_Tree_%s_" % k)), None)
+        if kind is None or kind in scanned:
+            continue
+        L.foliage_nanite(mesh)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        cull, shadow = GARDEN_DEFAULTS[kind]
+        if kind in spec:
+            cull = float(spec[kind].get("cull", cull)); shadow = bool(spec[kind].get("shadow", shadow))
+        r = dict(template)
+        r.update({"name": name, "mesh": mesh.get_path_name(), "variants": [], "variant_materials": [],
+                  "native_mesh": False, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0,
+                  "cast_shadow": shadow, "cull_distance": cull})
+        rows.append(r)
+        added.append(name)
+    log("gardens: %d garden models (%s)" % (len(added), ", ".join(added[:6]) + (" ..." if len(added) > 6 else "")))
 
 
 def place_kit(kit):
@@ -1386,7 +1535,8 @@ def facade_material(L):
     return g.m
 
 
-STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
+                    "touring_caravan", "static_caravan")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
 
@@ -1606,11 +1756,27 @@ def prop_kit(L):
     if os.path.isdir(folder) and any(f.endswith(".glb") for f in os.listdir(folder)):
         ours = L.import_glbs(folder, PROP_DEST)
         sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-        for mesh in ours.values():
+        for name, mesh in ours.items():
             try:
                 sme.remove_collisions(mesh)
             except Exception:
                 pass
+            # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
+            # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
+            kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
+            lods = spec["kinds"].get(kind, {}).get("lods")
+            if lods:
+                try:
+                    settings = [unreal.EditorScriptingMeshReductionSettings(1.0, 1.0)]
+                    for keep, screen in zip((0.5, 0.25, 0.1), lods):
+                        settings.append(unreal.EditorScriptingMeshReductionSettings(keep, float(screen)))
+                    opts = unreal.EditorScriptingMeshReductionOptions()
+                    opts.set_editor_property("auto_compute_lod_screen_size", False)
+                    opts.set_editor_property("reduction_settings", settings)
+                    got = sme.set_lods_with_notification(mesh, opts, True)
+                    log("props: %s: %d LODs" % (name, got))
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: no LODs made for %s (%s)" % (name, e))
             unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # [fps plan step 2] The houses' facade kit, made by Tools/make_facade_kit.py: windows, their surrounds
     # and doors, a model per size, coloured per instance by M_RideFacade (always ours, never Fab's).
@@ -1765,6 +1931,7 @@ def build():
     grass_materials(L, kit)
     scanned_trees(L, kit)
     hedge_kit(L, kit)
+    garden_kit(L, kit)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)

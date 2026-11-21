@@ -2,6 +2,7 @@
 // (WebP lossless and PNG, read by the game's own code), two cells of the world store stitched into
 // one road graph, and the ground's height, each checked against what the Godot game answers on the
 // same files (data/world/godot_world.json, written by Tools/make_godot_reference.py --world).
+#include "WorldFerries.h"
 #include "CellStore.h"
 #include "FitJson.h"
 #include "HeightTiles.h"
@@ -303,6 +304,95 @@ int main()
 		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name; direction signs and miles");
 	}
 
+	// ------------------------------------------------------------------ [ferries] the list, a crossing laid, a sailing
+	{
+		std::string FerryText;
+		std::vector<Ferries::Listed> List;
+		const bool Read = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/ferries.json"), FerryText) && Ferries::ReadList(FerryText, List);
+		bool Corran = false;
+		for (const Ferries::Listed& L : List) Corran = Corran || (L.Id == "2593bd711808" && L.Places[0] == "Ardgour" && L.Kind == Ferries::EKind::Open);
+		Check(Read && List.size() >= 40 && Corran, "ferries: the list read, Corran's crossing in it");
+		// A sound 500 m wide running east, its shores rising 1 in 15 from the water at x 0 and x 500 (their edge, half a
+		// metre up, 7.5 m back); a road on each side 60 m back, at right angles to the crossing.
+		Ferries::Crossing C;
+		C.Name = "Test";
+		C.Line = {P2(-20.0, 0.0), P2(250.0, 3.0), P2(520.0, 0.0)};
+		C.Length = 540.0;
+		Ferries::WorldAsk Ask;
+		Ask.Height = [](double X, double) { return X < 0.0 ? -X / 15.0 : X > 500.0 ? (X - 500.0) / 15.0 : -6.0; };
+		Ask.Sea = [](double X, double) { return X > 0.0 && X < 500.0; };
+		Ask.Road = [](const P2& At, double, double, P2& Foot, double& Y, double& Half)
+		{
+			Foot = P2(At.X < 250.0 ? -60.0 : 560.0, At.Z);
+			Y = 4.0;
+			Half = 3.0;
+			return true;
+		};
+		Ferries::Layout L;
+		const bool Laid = Ferries::Lay(C, Ask, L);
+		bool Ok = Laid && L.Sea && L.Water == 0.0;
+		for (int E = 0; Ok && E < 2; ++E)
+		{
+			const Ferries::End& N = L.Ends[E];
+			Ok = std::fabs(N.TipY - Ferries::ToeOverWater) < 1e-9 && N.Grade >= Ferries::SlipGentlest - 1e-9 && N.Grade <= Ferries::SlipSteepest + 1e-9
+				&& std::fabs(N.Shore.X - (E == 0 ? -7.5 : 507.5)) < 1.5 && N.Approach.size() >= 2 && N.RampDown > 0.0 && N.RampDown < 0.3;
+			// (the slipway on or over the ground all the way down, and its approach no steeper than 1 in 7)
+			for (double D = 0.0; Ok && D < N.Head.DistanceTo(N.Tip); D += 0.5)
+			{
+				const P2 Q = N.Head + N.Axis * D;
+				Ok = N.HeadY - N.Grade * D >= Ask.Height(Q.X, Q.Z) - 1e-6;
+			}
+			for (size_t K = 1; Ok && K < N.Approach.size(); ++K)
+			{
+				const double Run = std::hypot(N.Approach[K][0] - N.Approach[K - 1][0], N.Approach[K][2] - N.Approach[K - 1][2]);
+				Ok = std::fabs(N.Approach[K][1] - N.Approach[K - 1][1]) <= Run / 7.0 + 1e-6;
+			}
+		}
+		P2 Pos, Bow, Pos1, Bow1;
+		Ferries::Sail(L, false, 0.0, Pos, Bow);
+		Ferries::Sail(L, false, 1.0, Pos1, Bow1);
+		Ok = Ok && Pos.DistanceTo(L.Ends[0].Berth) < 0.01 && Pos1.DistanceTo(L.Ends[1].Berth) < 0.01 && Bow.X > 0.9 && Bow1.X > 0.9;
+		double Was = 0.0;
+		for (int K = 1; K <= 100; ++K)
+		{
+			const double P = Ferries::Progress(K / 100.0);
+			Ok = Ok && P >= Was - 1e-12;
+			Was = P;
+		}
+		Ok = Ok && std::fabs(Ferries::Progress(0.0)) < 1e-9 && std::fabs(Ferries::Progress(1.0) - 1.0) < 1e-9 && L.Seconds >= 55.0 && L.Seconds <= 185.0;
+		Check(Ok, "ferries: a crossing laid on its shores (slipways down to the ramps' toes, never under the land, approaches no steeper than 1 in 7), sailed berth to berth bow first in a minute or two");
+	}
+	// ------------------------------------------------------------------ [ferries stage 5] a ferry as a link in the way
+	{
+		// The mainland's road along z = 0 and an island's along z = 1200 (no road between), a crossing between a
+		// slipway road off each; and a road round by a long bridge for the second try.
+		Json Rows;
+		const bool Parsed = Json::Parse(
+			"{\"classes\": [\"primary\"], \"surfaces\": [\"paved\"], \"names\": [\"\"],"
+			" \"nodes\": [[0, 0], [1000, 0], [2000, 0], [1000, -150], [0, 1200], [1000, 1200], [2000, 1200], [1000, 1350]],"
+			" \"edges\": [{\"a\": 0, \"b\": 1}, {\"a\": 1, \"b\": 2}, {\"a\": 1, \"b\": 3}, {\"a\": 4, \"b\": 5}, {\"a\": 5, \"b\": 6}, {\"a\": 5, \"b\": 7}]}", Rows);
+		Region G;
+		bool Ok = Parsed && Region::FromRows(Rows, G);
+		G.FrameLat = 56.7;
+		G.FrameLon = -5.24;
+		const Frame F = G.FrameOf();
+		std::vector<Ferries::Listed> List(1);
+		const Geo A = F.ToGeo(1000.0, 150.0), B = F.ToGeo(1000.0, 1050.0);
+		List[0].Id = "test";
+		List[0].Name = "Test";
+		List[0].LatA = A.Lat; List[0].LonA = A.Lon; List[0].LatB = B.Lat; List[0].LonB = B.Lon;
+		const std::vector<double> Costs(G.Edges.size(), 1.0);
+		// (no road over: the ferry, boarded at the mainland's end, landed on the island's)
+		const Ferries::Link L = Ok ? Ferries::BestLink(G, Costs, 0, 6, List, G.CheapestPath(0, 6, &Costs)) : Ferries::Link();
+		Ok = Ok && L.Row == 0 && L.BoardEnd == 0 && L.BoardNode == 1 && L.LandNode == 5 && L.ToBoard.size() == 1 && L.RoadsCost < 0.0;
+		// (the other way round: boarded on the island)
+		const Ferries::Link Back = Ferries::BestLink(G, Costs, 6, 0, List, {});
+		Ok = Ok && Back.Row == 0 && Back.BoardEnd == 1 && Back.BoardNode == 5 && Back.LandNode == 1;
+		// (a road round shorter than the sailing's cost: the roads)
+		const Ferries::Link Roads = Ferries::BestLink(G, Costs, 0, 2, List, G.CheapestPath(0, 2, &Costs));
+		Ok = Ok && Roads.Row < 0 && Roads.RoadsCost > 0.0;
+		Check(Ok, "ferries: a ferry is the way to an island with no road over, boarded at the nearer side, and not where the roads are quicker");
+	}
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
 	{
 		const Json& G = *Ref.Get("geo");
@@ -413,6 +503,38 @@ int main()
 		std::printf("      the map round Hawes at zoom 10: %d tiles at zoom %d, %.0f%% with ground, %d light and %d shaded pixels\n", int(Need.size()), V.TileZoom(), Share * 100.0, NLit, NDark);
 		Check(V.TileZoom() == 9 && Need.size() >= 1 && Share > 0.95 && NLit > 1000 && NDark > 1000 && Px.size() == size_t(V.W) * size_t(V.H) * 4,
 			"and the land under it drawn from the height tiles, hills shaded");
+		// [map detail] Zoomed in, every road of the cells in view drawn over the road map, with their names.
+		{
+			Route::MapStreets Streets;
+			const std::shared_ptr<const Route::MapStreets::Cell> Hawes = Route::MapStreets::Read(Files::Join(Data, "cells/c577_711"));
+			int Lanes = 0, Tracks = 0, Named = 0;
+			if (Hawes)
+				for (const Route::MapStreets::Line& L : Hawes->Lines)
+				{
+					Lanes += L.Kind == Route::MapStreets::Minor ? 1 : 0;
+					Tracks += L.Kind == Route::MapStreets::Track ? 1 : 0;
+					Named += L.Name > 0 ? 1 : 0;
+				}
+			Streets.Put({577, 711}, Hawes);
+			Route::MapView Z = V;
+			Z.Layer = Route::RoadMap;
+			Z.Lat = 54.304;
+			Z.Lon = -2.1965;
+			Z.Zoom = 14.0;
+			std::vector<uint8_t> Plain, Detailed;
+			Route::DrawRelief(Store, Z, Plain);
+			Route::DrawRelief(Store, Z, Detailed, nullptr, nullptr, &Streets);
+			int White = 0;
+			for (size_t K = 0; K < Detailed.size(); K += 4)
+				if (Detailed[K] > 250 && Detailed[K + 1] > 250 && Detailed[K + 2] > 250 && Plain[K] < 250) ++White;
+			const std::vector<Route::MapStreets::Label> Names = Streets.Labels(Z);
+			Route::MapView Far = Z;
+			Far.Zoom = 9.0;
+			std::printf("      Hawes's cell: %d roads (%d lanes, %d tracks, %d named); at zoom 14, %d white lane pixels, %d names\n", Hawes ? int(Hawes->Lines.size()) : 0, Lanes, Tracks, Named, White, int(Names.size()));
+			Check(Hawes && Lanes > 500 && Tracks > 1000 && White > 500 && !Names.empty() && Route::MapStreets::CellsFor(Far).empty() && Route::MapStreets::KindOf("primary_link") == Route::MapStreets::Primary
+					&& Route::MapStreets::KindOf("residential") == Route::MapStreets::Minor && Route::MapView::MaxZoom >= 16.0,
+				"[map detail] zoomed in, the road map draws every lane and track of the cells in view, and writes their names");
+		}
 		const char* Dump = std::getenv("WORLD_MAP_PPM");
 		if (Dump)
 		{

@@ -1,0 +1,30 @@
+{
+ "name": "Rheinhart classic (working title K1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 3068,
+ "surfaces": {
+  "s022": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.8122,
+    0.82,
+    0.8277
+   ],
+   "metallic": 0.55,
+   "roughness": 0.34
+  },
+  "s023": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ }
+}

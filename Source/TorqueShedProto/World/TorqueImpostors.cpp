@@ -74,7 +74,7 @@ FString MarkPath() { return FPaths::ProjectSavedDir() / TEXT("TorqueImpostorBake
 // ([build 157] the photographed atlases are kept in Saved/Impostors, one file a scan, named by what they
 // depend on: the scan (path, size, triangles) and this layout's version. A changed scan or layout makes
 // a new name, so it is photographed again.)
-constexpr int32 CacheVersion = 5;   // (5: build 161, the scans' copies with their materials in section order)
+constexpr int32 CacheVersion = 6;   // (6: build 162, the scans' copies back to Nanite off)
 constexpr uint32 CacheMagic = 0x504D4954;   // 'TIMP'
 
 FString CacheFileOf(const UStaticMesh* Scan, float Radius, float Height)

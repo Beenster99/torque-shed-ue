@@ -1,0 +1,45 @@
+{
+ "name": "Varga MX (working title X1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 2516,
+ "surfaces": {
+  "s023": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.8913,
+    0.145,
+    0.0072
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s024": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.9075,
+    0.9075,
+    0.8913
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s025": {
+   "slot": "side_panels",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ }
+}

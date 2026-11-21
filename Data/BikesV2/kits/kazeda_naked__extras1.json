@@ -1,0 +1,37 @@
+{
+ "name": "Kazeda naked (working title N1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 256,
+ "surfaces": {
+  "s025": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s026": {
+   "slot": "fairing",
+   "node": "",
+   "surface": "paint__body",
+   "tag": "paint",
+   "ue": "paint_silver",
+   "paint": "body",
+   "color": [
+    0.0078,
+    0.0759,
+    0.5295
+   ],
+   "metallic": 0.3,
+   "roughness": 0.3
+  }
+ }
+}

@@ -595,7 +595,10 @@ public:
 	static int32 CupWhich(FName F) { return F == CupFinish() ? 0 : 1; }
 	// One of the gun's colours (Paints()) in one of its finishes, as paint for a cup: what [ and ]
 	// pick into cup 1 and cup 2 (beenster, 19 Nov 2026).
+	// Colour < 0 is any colour from the cups picker's colour square (beenster, 20 Nov 2026: "a colour
+	// picker, not the limited palette"): -(1 + 0xRRGGBB), sRGB (OwnColour makes it).
 	static TorquePaintMix::FPaintSpec PaletteSpec(int32 Colour, FName Finish);
+	static int32 OwnColour(const FColor& Srgb) { return -(1 + (int32)(((uint32)Srgb.R << 16) | ((uint32)Srgb.G << 8) | (uint32)Srgb.B)); }
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }
@@ -660,6 +663,19 @@ public:
 	// The tyres that go on a wheel (beenster, Nov 12: "when you hover over a wheel rim, it should tell
 	// you what tyres fit it"): its rim and the widths it takes, then the catalogue's tyres for it.
 	static FString TyresThatFit(FName Wheel);
+	// [shop bay] The parts computer cut to the bike in a bay (beenster, Nov 20: "the frame you buy then defines the
+	// engines, the engines you buy then defines some of the engine parts... the same with the wheels, tyres"): for
+	// each of Parts that won't go on bay Bay's bike, why (as fitting it would say: a V2 part's mounting standard,
+	// the frame / engine / tank / fork layout check, a tyre that no wheel the bike has or can take will carry). Parts
+	// it can't judge, and frames (a frame starts a bike, it doesn't go on one), stay out of the map. Sides: for each
+	// wheel and tyre, 1 it goes on the front, 2 the rear, 3 either (a tyre: on this bike's wheels, or the wheels its
+	// frame takes when there's none on yet). False when there's no catalogue bike in the bay (nothing judged).
+	// With no engine in the frame, the parts that bolt to an engine go by both (beenster, Nov 20: "both"): the loose
+	// engine being built up for it (one that fits the frame, the one on the engine stand first) and the frame;
+	// OutEngine says which engine that was (NAME_None: none, they go by the frame's own engine layout).
+	bool ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides, FName* OutEngine = nullptr) const;
+	// A tyre's sides on any bike in the game (every wheel the shop sells): 1 front, 2 rear, 3 either, 0 none.
+	static int32 TyreSides(FName Tyre);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
 	float BeadOf(int32 Bay, bool bFront) const;
 
