@@ -118,7 +118,7 @@ UStaticMeshComponent* ATorqueLevelCrossing::AddProp(USceneComponent* Parent, con
 		return nullptr;
 	}
 	UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this);
-	Part->SetupAttachment(Parent ? Parent : RootComponent);
+	Part->SetupAttachment(Parent ? Parent : RootComponent.Get());
 	Part->SetMobility(EComponentMobility::Movable);
 	Part->SetStaticMesh(Mesh);
 	Part->SetRelativeLocationAndRotation(At, Rot);

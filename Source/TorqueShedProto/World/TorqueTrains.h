@@ -25,6 +25,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "World/WorldTrains.h"   // the full TrainNow: the generated code instantiates ~vector<TrainNow> (MSVC C2036)
+
 #include "TorqueTrains.generated.h"
 
 class ATorqueRideWorld;
