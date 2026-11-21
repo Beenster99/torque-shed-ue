@@ -283,8 +283,20 @@ void RidePlan::PlaceJunctions(double RawLength)
 		};
 		for (int Way : {1, -1})
 		{
-			if ((Way > 0 ? !J.CameMinor : !J.OntoMinor) || Mapped(Way)) continue;
+			if (Way > 0 ? !J.CameMinor : !J.OntoMinor) continue;
+			// ([square T] the map's own give-way or stop line, wherever its point was put on the side road,
+			// drawn at the through road's edge as laid, as the rule's would be)
 			const double Line = Way > 0 ? GiveIn : GiveOut;
+			if (Mapped(Way))
+			{
+				for (MappedMark& M : MainMapped)
+					if ((M.Kind == "give_way" || M.Kind == "stop") && (J.Along - M.Along) * Way > -3.0 && (J.Along - M.Along) * Way < 30.0 && Line >= 5.0 && Line <= Length - 5.0)
+					{
+						M.Along = Line + Way * 0.8;
+						Added = true;
+					}
+				continue;
+			}
 			if (Line < 5.0 || Line > Length - 5.0) continue;
 			MappedMark M;
 			M.Kind = "give_way";
@@ -465,6 +477,18 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 			}
 			return Near;
 		};
+		// [square T] (at a T, the through road as the ride's road lies where it is that road again, carried
+		// straight on back through the junction: the give-way line at its edge, square across the side road)
+		const P2 MainA = HasMinor ? (CameMinor ? AtAlong(RideA1) : AtAlong(RideA0)) : P2(0.0, 0.0);
+		const P2 MainB = HasMinor ? (CameMinor ? AtAlong(RideA1 + 15.0) : AtAlong(RideA0 - 15.0)) : P2(0.0, 0.0);
+		const double MainLen = MainA.DistanceTo(MainB);
+		const double MainHalf = HasMinor ? (CameMinor ? Half1 : Half0) : HalfT;
+		const auto OffMain = [&](const P2& P)
+		{
+			if (!HasMinor || MainLen < 1.0) return Off(P);
+			const P2 D = (MainB - MainA) * (1.0 / MainLen);
+			return std::fabs((P.X - MainA.X) * D.Z - (P.Z - MainA.Z) * D.X);
+		};
 		// (walked out from the junction a metre at a time, the first clear of it; left as the map's where none is)
 		for (int Way : {-1, 1})
 		{
@@ -473,7 +497,7 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 			{
 				const double A = J.Along + Way * Step;
 				if (A < 0.0 || A > Length) break;
-				if (Off(AtAlong(A)) > HalfT + 0.3) { (Way < 0 ? GiveIn : GiveOut) = A; break; }
+				if (OffMain(AtAlong(A)) > (HasMinor ? MainHalf : HalfT) + 0.3) { (Way < 0 ? GiveIn : GiveOut) = A; break; }
 			}
 		}
 	}

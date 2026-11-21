@@ -324,6 +324,66 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	// [junction priority] (who gives way at each junction; where the ride turns at one to or from a road
 	// that gives way, a junction's corner, hardly faired, not a sweeping bend)
 	R->FindPriorities(From, Path);
+	// [junction priority, square T] (beenster, Nov 21 23:30: "The t junction is called a T junction because it
+	// looks like a T. The main road is straight, a road which joins it does not always have curvature... the
+	// rider would stop at the junction and then take a much sharper turn".) Where the ride turns to or from a
+	// road that gives way, each road's last bit into the junction laid straight to the map's junction (the
+	// road's own line there, square on, not its bend into the other road), so the main road's kerbs run straight
+	// past it and the side road meets it as a T; the turn itself tight, on the main road's tarmac.
+	struct SquareTurn
+	{
+		P2 Hub, In, Out;   // the junction, and each road's line into it this far out
+		double Radius = 6.0;
+	};
+	std::vector<SquareTurn> Squares;
+	{
+		std::vector<double> Nodes;   // (the ride's other junctions: no straightening past one)
+		{
+			int Node = From;
+			double At = 0.0;
+			for (size_t I = 0; I + 1 < Path.size(); ++I)
+			{
+				Node = G.OtherEnd(Path[I], Node);
+				At += G.Edges[size_t(Path[I])].Length;
+				if (G.Adjacent[size_t(Node)].size() >= 3) Nodes.push_back(At);
+			}
+		}
+		const auto PointAt = [&Raw, &RawAlong](double A)
+		{
+			size_t K = 0;
+			while (K + 2 < Raw.size() && RawAlong[K + 1] < A) ++K;
+			const double T = std::clamp((A - RawAlong[K]) / std::fmax(1e-9, RawAlong[K + 1] - RawAlong[K]), 0.0, 1.0);
+			return Raw[K] + (Raw[K + 1] - Raw[K]) * T;
+		};
+		for (const JunctionRule& J : R->Junctions)
+		{
+			if ((!J.CameMinor && !J.OntoMinor) || std::fabs(J.Turn) <= JunctionTurn || Raw.size() < 3) continue;
+			size_t Mid = 0;
+			for (size_t I = 0; I < Raw.size(); ++I)
+				if (std::fabs(RawAlong[I] - J.RawAlong) < std::fabs(RawAlong[Mid] - J.RawAlong)) Mid = I;
+			if (std::fabs(RawAlong[Mid] - J.RawAlong) > 2.0) continue;
+			SquareTurn Sq;
+			Sq.Hub = Raw[Mid];
+			Sq.Radius = std::clamp(J.MajorHalf + 2.5, 5.0, 9.0);
+			bool Both = true;
+			for (const int Way : {-1, 1})
+			{
+				double Span = JunctionSquare;
+				for (const double N : Nodes)
+					if (std::fabs(N - J.RawAlong) > 1.0 && (N - J.RawAlong) * Way > 0.0) Span = std::fmin(Span, std::fabs(N - J.RawAlong) * 0.5);
+				const double EndA = RawAlong[Mid] + Way * Span;
+				if (EndA <= 0.0 || EndA >= RawAlong.back()) { Both = false; continue; }
+				const P2 Hub = Raw[Mid], Far = PointAt(EndA);
+				(Way < 0 ? Sq.In : Sq.Out) = Far;
+				for (size_t I = 0; I < Raw.size(); ++I)
+				{
+					const double D = (RawAlong[I] - RawAlong[Mid]) * Way;
+					if (D > 0.0 && D < Span) Raw[I] = Hub + (Far - Hub) * (D / Span);
+				}
+			}
+			if (Both) Squares.push_back(Sq);
+		}
+	}
 	for (const JunctionRule& J : R->Junctions)
 		if ((J.CameMinor || J.OntoMinor) && std::fabs(J.Turn) > JunctionTurn)
 			for (size_t I = 0; I < Raw.size(); ++I)
@@ -352,7 +412,62 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		}
 	}
 	Tell("Smoothing the road");
-	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair, Tight);
+	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair, Tight);
+	// [square T] (the turn at each such junction made exactly: straight in along the one road, round a
+	// circle of Radius, straight out along the other, a knot a metre round it; so the side road's inner corner
+	// is a tight kerb's, the main road's edges straight up to it, and the ride's line a sharp turn)
+	for (const SquareTurn& Sq : Squares)
+	{
+		const P2 InD = Sq.Hub - Sq.In, OutD = Sq.Out - Sq.Hub;
+		const double Li = InD.Length(), Lo = OutD.Length();
+		if (Li < 4.0 || Lo < 4.0) continue;
+		const P2 U0 = InD * (1.0 / Li), U1 = OutD * (1.0 / Lo);
+		const double Cos = std::clamp(U0.X * U1.X + U0.Z * U1.Z, -1.0, 1.0);
+		const double Theta = std::acos(Cos);
+		if (Theta < 0.3 || Theta > 2.6) continue;
+		double Radius = Sq.Radius;
+		double Cut = Radius * std::tan(Theta * 0.5);
+		const double Most = std::fmin(Li, Lo) - 2.0;
+		if (Cut > Most) { Cut = Most; Radius = Cut / std::tan(Theta * 0.5); }
+		const P2 T0 = Sq.Hub - U0 * Cut, T1 = Sq.Hub + U1 * Cut;
+		// (the knots nearest where the straight lines begin and end: In and Out)
+		size_t A = 0, B = 0;
+		for (size_t I = 0; I < Line.size(); ++I)
+		{
+			if (Line[I].DistanceTo(Sq.In) < Line[A].DistanceTo(Sq.In)) A = I;
+			if (Line[I].DistanceTo(Sq.Out) < Line[B].DistanceTo(Sq.Out)) B = I;
+		}
+		if (B <= A + 1 || Line[A].DistanceTo(Sq.In) > 4.0 || Line[B].DistanceTo(Sq.Out) > 4.0) continue;
+		std::vector<P2> Mid;
+		const auto Straight = [&Mid](const P2& P0, const P2& P1, double Each)
+		{
+			const double L = P0.DistanceTo(P1);
+			const int N = std::max(1, int(std::ceil(L / Each)));
+			for (int K = 1; K < N; ++K) Mid.push_back(P0 + (P1 - P0) * (double(K) / N));
+		};
+		Straight(Line[A], T0, RoadLine::Step);
+		Mid.push_back(T0);
+		// (the circle's middle, Radius to the inside of the turn)
+		const P2 Inside = P2(U0.Z, -U0.X) * (U1.X * U0.Z - U1.Z * U0.X >= 0.0 ? 1.0 : -1.0);
+		const P2 Centre = T0 + Inside * Radius;
+		const double Arc = Radius * Theta;
+		const int Bits = std::max(2, int(std::ceil(Arc / 1.0)));
+		const double Ang0 = std::atan2(T0.Z - Centre.Z, T0.X - Centre.X);
+		double Sweep = std::atan2(T1.Z - Centre.Z, T1.X - Centre.X) - Ang0;
+		while (Sweep > 3.14159265358979) Sweep -= 6.28318530717959;
+		while (Sweep < -3.14159265358979) Sweep += 6.28318530717959;
+		for (int K = 1; K < Bits; ++K)
+		{
+			const double Ang = Ang0 + Sweep * K / Bits;
+			Mid.push_back(Centre + P2(std::cos(Ang), std::sin(Ang)) * Radius);
+		}
+		Mid.push_back(T1);
+		Straight(T1, Line[B], RoadLine::Step);
+		std::vector<P2> Next(Line.begin(), Line.begin() + static_cast<long>(A) + 1);
+		Next.insert(Next.end(), Mid.begin(), Mid.end());
+		Next.insert(Next.end(), Line.begin() + static_cast<long>(B), Line.end());
+		Line.swap(Next);
+	}
 	// Each knot as wide as the road it is on (by how far along it is), eased where the width changes.
 	std::vector<double> Halves(Line.size(), 2.3), Speeds(Line.size(), 60.0);
 	std::vector<int> KnotLanes(Line.size(), 0);

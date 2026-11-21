@@ -1263,6 +1263,7 @@ public:
 		bool CameMinor = false, OntoMinor = false;   // the ride comes in, goes out, by a road that gives way
 	};
 	static constexpr double JunctionStraight = 0.7, JunctionBent = 1.2, JunctionTurn = 0.6, JunctionCorner = 25.0, JunctionFair = 2.0;
+	static constexpr double JunctionSquare = 15.0;   // (each road laid straight into a T the ride turns at, this far)
 	std::vector<JunctionRule> Junctions;
 	// (each road's end at a junction of the ride's: node * 4000037 + edge; 1 it gives way, 2 it is the through road)
 	std::unordered_map<long long, unsigned char> ArmRank;
