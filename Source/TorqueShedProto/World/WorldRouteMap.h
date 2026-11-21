@@ -94,6 +94,17 @@ struct MapStreets
 	{
 		std::vector<Line> Lines;
 		std::vector<std::string> Names;
+		// [map water] Its water (rivers' banks, lakes, docks: the cell's ground file) and its rivers, canals and
+		// streams as lines (Kind 0 river, 1 stream, 2 canal), all (lat, lon) (beenster, Nov 21: "why is there
+		// no River Thames in London").
+		std::vector<std::vector<std::pair<float, float>>> Water;
+		struct Flow
+		{
+			int Kind = 0;
+			std::vector<std::pair<float, float>> Pts;
+		};
+		std::vector<Flow> Flows;
+		static bool IsWater(const std::string& Kind, const std::string& Word);
 	};
 	// The roads' names, from this zoom: where each named road's longest stretch in view is, its middle,
 	// at most Most, the biggest roads (then the longest stretches) first.
@@ -108,7 +119,7 @@ struct MapStreets
 	// The cells a view draws streets from (empty when zoomed too far out), the middle's first.
 	static std::vector<CellId> CellsFor(const MapView& View);
 	// A cell's roads from its folder's roads.json and region.json (its frame); null if they won't read.
-	static std::shared_ptr<const Cell> Read(const std::string& Dir);
+	static std::shared_ptr<Cell> Read(const std::string& Dir);
 	bool Has(CellId C);
 	void Put(CellId C, std::shared_ptr<const Cell> Got);
 	// Those of Cells held (and so drawn), noted as just used.

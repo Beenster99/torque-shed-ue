@@ -290,11 +290,97 @@ void DrawStreets(const std::map<CellId, std::shared_ptr<const MapStreets::Cell>>
 		}
 }
 
+// [map water] A shape filled on the picture (even-odd, by rows of pixels, its edges a little smoothed by
+// four rows of samples in each).
+void FillRing(std::vector<uint8_t>& Bgra, int W, int H, const std::vector<P2>& Ring, const Rgb& Col)
+{
+	if (Ring.size() < 3) return;
+	double Y0 = Ring[0].Z, Y1 = Ring[0].Z, X0 = Ring[0].X, X1 = Ring[0].X;
+	for (const P2& Q : Ring) { Y0 = std::min(Y0, Q.Z); Y1 = std::max(Y1, Q.Z); X0 = std::min(X0, Q.X); X1 = std::max(X1, Q.X); }
+	if (Y1 < 0.0 || Y0 > H || X1 < 0.0 || X0 > W) return;
+	const int J0 = std::max(0, int(std::floor(Y0))), J1 = std::min(H - 1, int(std::floor(Y1)));
+	std::vector<double> Cover(size_t(W), 0.0), Cross;
+	for (int J = J0; J <= J1; ++J)
+	{
+		std::fill(Cover.begin(), Cover.end(), 0.0);
+		bool Any = false;
+		for (int Sub = 0; Sub < 4; ++Sub)
+		{
+			const double Y = J + 0.125 + 0.25 * Sub;
+			Cross.clear();
+			for (size_t K = 0; K < Ring.size(); ++K)
+			{
+				const P2& A = Ring[K];
+				const P2& B = Ring[(K + 1) % Ring.size()];
+				if ((A.Z <= Y) == (B.Z <= Y)) continue;
+				Cross.push_back(A.X + (Y - A.Z) / (B.Z - A.Z) * (B.X - A.X));
+			}
+			std::sort(Cross.begin(), Cross.end());
+			for (size_t K = 0; K + 1 < Cross.size(); K += 2)
+			{
+				const double L = std::max(0.0, Cross[K]), R = std::min(double(W), Cross[K + 1]);
+				if (R <= L) continue;
+				Any = true;
+				for (int I = int(std::floor(L)); I < int(std::ceil(R)) && I < W; ++I)
+					Cover[size_t(I)] += 0.25 * (std::min(R, I + 1.0) - std::max(L, double(I)));
+			}
+		}
+		if (!Any) continue;
+		for (int I = 0; I < W; ++I)
+		{
+			const double C = std::min(1.0, Cover[size_t(I)]);
+			if (C <= 0.0) continue;
+			uint8_t* P = &Bgra[(size_t(J) * size_t(W) + size_t(I)) * 4];
+			P[0] = Byte(P[0] / 255.0 + (Col.B - P[0] / 255.0) * C);
+			P[1] = Byte(P[1] / 255.0 + (Col.G - P[1] / 255.0) * C);
+			P[2] = Byte(P[2] / 255.0 + (Col.R - P[2] / 255.0) * C);
+		}
+	}
+}
+
+// [map water] The cells' water under the roads: lakes and rivers' banks filled, rivers and canals as lines
+// (streams only zoomed in), in the sea's colour of the layer.
+void DrawWater(const std::map<CellId, std::shared_ptr<const MapStreets::Cell>>& Cells, const MapView& View, std::vector<uint8_t>& Bgra)
+{
+	const int W = View.W, H = View.H;
+	const Geo TopLeft = View.PlaceAt(-8.0, -8.0), BottomRight = View.PlaceAt(W + 8.0, H + 8.0);
+	const Rgb Col = View.Layer == RoadMap ? PaperSea : Rgb{0.56, 0.70, 0.84};
+	const double Mpp = View.MetresPerPixel();
+	std::vector<P2> Px;
+	for (const auto& Kv : Cells)
+		for (const auto& Ring : Kv.second->Water)
+		{
+			float S = 90.0f, N = -90.0f, Wst = 180.0f, E = -180.0f;
+			for (const auto& Pt : Ring) { S = std::min(S, Pt.first); N = std::max(N, Pt.first); Wst = std::min(Wst, Pt.second); E = std::max(E, Pt.second); }
+			if (E < TopLeft.Lon || Wst > BottomRight.Lon || N < BottomRight.Lat || S > TopLeft.Lat) continue;
+			Px.clear();
+			for (const auto& Pt : Ring) Px.push_back(View.PixelOf(Pt.first, Pt.second));
+			FillRing(Bgra, W, H, Px, Col);
+		}
+	for (const auto& Kv : Cells)
+		for (const MapStreets::Cell::Flow& F : Kv.second->Flows)
+		{
+			if (F.Kind == 1 && View.Zoom < 13.0) continue;
+			// (a river or canal a few metres wide, never thinner than a fine line; a stream a hair)
+			const double Width = F.Kind == 1 ? 1.0 : std::max(1.4, std::min(10.0, (F.Kind == 2 ? 10.0 : 14.0) / Mpp));
+			P2 Last = View.PixelOf(F.Pts[0].first, F.Pts[0].second);
+			for (size_t K = 1; K < F.Pts.size(); ++K)
+			{
+				const P2 Next = View.PixelOf(F.Pts[K].first, F.Pts[K].second);
+				if (std::max(Last.X, Next.X) < -10.0 || std::min(Last.X, Next.X) > W + 10.0 || std::max(Last.Z, Next.Z) < -10.0 || std::min(Last.Z, Next.Z) > H + 10.0) { Last = Next; continue; }
+				if ((Next.X - Last.X) * (Next.X - Last.X) + (Next.Z - Last.Z) * (Next.Z - Last.Z) < 1.0 && K + 1 < F.Pts.size()) continue;
+				Stroke(Bgra, W, H, Last.X, Last.Z, Next.X, Next.Z, Width, Col);
+				Last = Next;
+			}
+		}
+}
+
 // The roads over a picture drawn: the sketches' main roads, and zoomed in, the cells' own.
 void DrawOverlay(const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads, MapStreets* Streets)
 {
 	std::map<CellId, std::shared_ptr<const MapStreets::Cell>> Got;
 	if (Streets != nullptr) Got = Streets->Held(MapStreets::CellsFor(View));
+	if (!PhotoLayer(View.Layer) && !Got.empty()) DrawWater(Got, View, Bgra);
 	std::set<CellId> Covered;
 	for (const auto& Kv : Got) Covered.insert(Kv.first);
 	if (Roads != nullptr) DrawRoads(*Roads, View, Bgra, Covered);
@@ -365,7 +451,15 @@ std::vector<CellId> MapStreets::CellsFor(const MapView& View)
 	return Out;
 }
 
-std::shared_ptr<const MapStreets::Cell> MapStreets::Read(const std::string& Dir)
+bool MapStreets::Cell::IsWater(const std::string& Kind, const std::string& Word)
+{
+	const std::string K = Kind + " " + Word;
+	for (const char* W : {"water", "lake", "reservoir", "pond", "basin", "dock", "river", "canal", "riverbank", "tidal"})
+		if (K.find(W) != std::string::npos) return true;
+	return false;
+}
+
+std::shared_ptr<MapStreets::Cell> MapStreets::Read(const std::string& Dir)
 {
 	using TorqueFit::Json;
 	std::string MetaText, RowsText;
@@ -752,6 +846,12 @@ double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t
 			Px[3] = 255;
 		}
 	if (View.Layer == RoadMap) DrawOverlay(View, Bgra, Roads, Streets);
+	else if (Streets != nullptr)
+	{
+		// [map water] (the relief and the terrain: the water of the cells already read, no roads)
+		const std::map<CellId, std::shared_ptr<const MapStreets::Cell>> Got = Streets->Held(MapStreets::CellsFor(View));
+		if (!Got.empty()) DrawWater(Got, View, Bgra);
+	}
 	DrawFerries(View, Bgra);
 	return double(Known) / (double(W) * double(H));
 }
