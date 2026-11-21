@@ -103,37 +103,76 @@ std::shared_ptr<const Ferries::Layout> RidePlan::FerryLayOf(int Listed) const
 
 double RidePlan::FerryCut(double X, double Z, double Lie) const
 {
+	// [build 166 feedback] (beenster, Gigha: "the modelling of the roads at the other side needs more detailed work":
+	// concrete edges standing out of the ground, grass through the tarmac, steps) Both ways now: the land is laid to
+	// FerryCutBelow under the nearest piece of tarmac across it and its verges, cut down where it stood higher and
+	// filled up where it lay lower (the slipway only above the water: under it the bed stays the sea's), then a bank
+	// either way back to the land. (The nearest piece only: a slipway's head stands higher than the dip in its approach
+	// a few metres off, and the land between eases from the one to the other.) And never over any tarmac.
+	const P2 Q(X, Z);
+	double Best = 1e18, Target = 0.0, Ceiling = 1e18;
+	bool bFill = true;
+	for (const FerryLaid& F : FerryLays)
+	{
+		if (X < F.X0 || X > F.X1 || Z < F.Z0 || Z > F.Z1 || !F.Lay) continue;
+		const double Wet = F.Lay->Water + 0.3;
+		for (const Ferries::End& N : F.Lay->Ends)
+		{
+			const auto Piece = [&](const P2& A, double Ya, const P2& B, double Yb, double Half, bool bSlip)
+			{
+				const P2 AB = B - A;
+				const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
+				const double Raw = Len2 > 1e-9 ? ((Q.X - A.X) * AB.X + (Q.Z - A.Z) * AB.Z) / Len2 : 0.0;
+				const double T = std::clamp(Raw, 0.0, 1.0);
+				const double Level = Ya + (Yb - Ya) * T - FerryCutBelow;
+				const double Edge = (A + AB * T).DistanceTo(Q) - Half;   // (past the tarmac's edge, m; under 0 on it)
+				// (on this piece itself, not past its ends: the next piece carries on there at its own level)
+				if (Edge < 0.3 && std::fabs(Raw - T) * std::sqrt(Len2) < 0.3) Ceiling = std::min(Ceiling, Level);
+				if (Edge < Best)
+				{
+					Best = Edge;
+					Target = Level;
+					bFill = !bSlip || Level > Wet;
+				}
+			};
+			for (size_t K = 0; K + 1 < N.Approach.size(); ++K)
+			{
+				const std::array<double, 3>& A = N.Approach[K];
+				const std::array<double, 3>& B = N.Approach[K + 1];
+				Piece(P2(A[0], A[2]), A[1], P2(B[0], B[2]), B[1], Ferries::ApproachHalfW, false);
+			}
+			// (the slipway, head to foot)
+			Piece(N.Head, N.HeadY, N.Foot, N.FootY, Ferries::SlipHalfW, true);
+		}
+	}
+	if (Best > 1e17) return Lie;
+	const double Away = std::max(0.0, Best - FerryCutVerge) * FerryCutBank;
+	double Laid = std::min(Lie, Target + Away);
+	if (bFill) Laid = std::max(Laid, Target - Away);
+	return std::min(Laid, Ceiling);
+}
+
+bool RidePlan::OnFerryWay(double X, double Z, double Margin) const
+{
 	const P2 Q(X, Z);
 	for (const FerryLaid& F : FerryLays)
 	{
 		if (X < F.X0 || X > F.X1 || Z < F.Z0 || Z > F.Z1 || !F.Lay) continue;
 		for (const Ferries::End& N : F.Lay->Ends)
 		{
-			// Each piece: a segment of the tarmac's middle line, its heights at either end and its half width.
-			// (past either end of a piece the cut rises at once: the next piece, the road or the slipway's head carries on
-			// at its own level, and the land beside a joint mustn't be cut to the lower piece's)
-			const auto Piece = [&](const P2& A, double Ya, const P2& B, double Yb, double Half)
+			const auto Within = [&Q](const P2& A, const P2& B, double Reach)
 			{
 				const P2 AB = B - A;
 				const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
-				const double Raw = Len2 > 1e-9 ? ((Q.X - A.X) * AB.X + (Q.Z - A.Z) * AB.Z) / Len2 : 0.0;
-				const double T = std::clamp(Raw, 0.0, 1.0);
-				const double Over = std::fabs(Raw - T) * std::sqrt(Len2);
-				const double Off = std::sqrt(std::max(0.0, (A + AB * T).DistanceTo(Q) * (A + AB * T).DistanceTo(Q) - Over * Over));
-				const double Top = Ya + (Yb - Ya) * T - FerryCutBelow + std::max(0.0, Off - Half - FerryCutVerge) * FerryCutBank + Over * 6.0;
-				Lie = std::min(Lie, Top);
+				const double T = Len2 > 1e-9 ? std::clamp(((Q.X - A.X) * AB.X + (Q.Z - A.Z) * AB.Z) / Len2, 0.0, 1.0) : 0.0;
+				return (A + AB * T).DistanceTo(Q) < Reach;
 			};
 			for (size_t K = 0; K + 1 < N.Approach.size(); ++K)
-			{
-				const std::array<double, 3>& A = N.Approach[K];
-				const std::array<double, 3>& B = N.Approach[K + 1];
-				Piece(P2(A[0], A[2]), A[1], P2(B[0], B[2]), B[1], Ferries::ApproachHalfW);
-			}
-			// (the slipway, head to foot)
-			Piece(N.Head, N.HeadY, N.Foot, N.FootY, Ferries::SlipHalfW);
+				if (Within(P2(N.Approach[K][0], N.Approach[K][2]), P2(N.Approach[K + 1][0], N.Approach[K + 1][2]), Ferries::ApproachHalfW + Margin)) return true;
+			if (Within(N.Head, N.Foot, Ferries::SlipHalfW + Margin)) return true;
 		}
 	}
-	return Lie;
+	return false;
 }
 
 std::shared_ptr<const RideDetour> RidePlan::FerryOnward(double X, double Z, double Heading) const
