@@ -996,6 +996,193 @@
    {
     "key": "billet_twist7",
     "name": "Seven s blades"
+   },
+   {
+    "key": "sweep7",
+    "name": "Seven swept spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "gloss_black",
+      "name": "Gloss black"
+     }
+    ]
+   },
+   {
+    "key": "y5",
+    "name": "Five Y spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "gunmetal",
+      "name": "Gunmetal"
+     }
+    ]
+   },
+   {
+    "key": "hex6",
+    "name": "Six hex web",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "gloss_black",
+      "name": "Gloss black"
+     }
+    ]
+   },
+   {
+    "key": "ten",
+    "name": "Ten spokes in five pairs",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "matt_black",
+      "name": "Matt black"
+     }
+    ]
+   },
+   {
+    "key": "turbine10",
+    "name": "Ten turbine blades",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "chrome",
+      "name": "Chrome"
+     }
+    ]
+   },
+   {
+    "key": "five_inlay",
+    "name": "Five inlaid spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "gloss_black",
+      "name": "Gloss black"
+     }
+    ]
+   },
+   {
+    "key": "sickle5",
+    "name": "Five sickle spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "chrome",
+      "name": "Chrome"
+     }
+    ]
+   },
+   {
+    "key": "twin5",
+    "name": "Five fine twin spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "carbon",
+      "name": "Carbon"
+     }
+    ]
+   },
+   {
+    "key": "web10",
+    "name": "Petal web",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "gloss_black",
+      "name": "Gloss black"
+     }
+    ]
+   },
+   {
+    "key": "blade7",
+    "name": "Seven straight blades",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "carbon",
+      "name": "Carbon"
+     }
+    ]
+   },
+   {
+    "key": "offset5",
+    "name": "Five offset twin spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "gloss_black",
+      "name": "Gloss black"
+     }
+    ]
+   },
+   {
+    "key": "split6",
+    "name": "Six split spokes",
+    "word": "cast wheel",
+    "metals": [
+     {
+      "key": "bronze",
+      "name": "Bronze"
+     }
+    ]
+   },
+   {
+    "key": "wire_mx36",
+    "name": "36 spoke flat rim",
+    "word": "wire wheel",
+    "metals": [
+     {
+      "key": "anodised_gold",
+      "name": "Anodised gold"
+     }
+    ]
+   },
+   {
+    "key": "wire_enduro32",
+    "name": "32 heavy spoke",
+    "word": "wire wheel",
+    "metals": [
+     {
+      "key": "matt_black",
+      "name": "Matt black"
+     }
+    ]
+   },
+   {
+    "key": "wire_cross40",
+    "name": "40 spoke tubeless",
+    "word": "wire wheel",
+    "metals": [
+     {
+      "key": "gloss_black",
+      "name": "Gloss black"
+     }
+    ]
+   },
+   {
+    "key": "wire_spine32",
+    "name": "Centre rib 32 spoke",
+    "word": "wire wheel",
+    "metals": [
+     {
+      "key": "gunmetal",
+      "name": "Gunmetal"
+     }
+    ]
+   },
+   {
+    "key": "wire_rally36",
+    "name": "36 spoke deep rim",
+    "word": "wire wheel",
+    "metals": [
+     {
+      "key": "chrome",
+      "name": "Chrome"
+     }
+    ]
    }
   ]
  },
