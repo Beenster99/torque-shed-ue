@@ -480,24 +480,33 @@ def sign_material(L):
     return g.m
 
 
-def water_normal(L):
-    """[build 154] Data/Textures/Water/normal.png (Tools/make_water_normal.py), a tiling normal map of wind
-    ripples 8 m across, as /Game/RideUK/Textures/T_WaterNormal; None if it isn't there."""
-    f = os.path.join(os.path.dirname(L.data_dir()), "Textures", "Water", "normal.png")
+def water_texture(L, name, asset, kind="data"):
+    """[real water] Data/Textures/Water/<name>.png (Tools/make_water_normal.py, Tools/make_water_fx.py) as
+    /Game/RideUK/Textures/<asset>, linear: kind "normal" a normal map, "data" kept uncompressed (the rain's
+    drop data, the foam; sampled as linear colour). None if it isn't there."""
+    f = os.path.join(os.path.dirname(L.data_dir()), "Textures", "Water", name + ".png")
     if not os.path.exists(f):
         return None
     dest = "/Game/RideUK/Textures"
     t = unreal.AssetImportTask()
-    for k, v in (("filename", f), ("destination_path", dest), ("destination_name", "T_WaterNormal"),
+    for k, v in (("filename", f), ("destination_path", dest), ("destination_name", asset),
                  ("automated", True), ("replace_existing", True), ("save", False)):
         t.set_editor_property(k, v)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
-    tex = unreal.load_asset(dest + "/T_WaterNormal")
+    tex = unreal.load_asset(dest + "/" + asset)
     if tex:
-        tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+        comp = {"normal": unreal.TextureCompressionSettings.TC_NORMALMAP,
+                "data": unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP}[kind]
+        tex.set_editor_property("compression_settings", comp)
         tex.set_editor_property("srgb", False)
         unreal.EditorAssetLibrary.save_loaded_asset(tex)
     return tex
+
+
+def water_normal(L):
+    """[build 154] Data/Textures/Water/normal.png (Tools/make_water_normal.py), a tiling normal map of wind
+    ripples 8 m across, as /Game/RideUK/Textures/T_WaterNormal; None if it isn't there."""
+    return water_texture(L, "normal", "T_WaterNormal", "normal")
 
 
 def water_material(L, real=False):
@@ -515,11 +524,90 @@ def water_material(L, real=False):
     real=True makes M_RideWaterReal: the same surface in Unreal's single layer water, which you see into:
     the light scattered and absorbed in the water as it deepens (sea blue-green and clear, a lake or river
     peaty brown, told apart by the vertex colour), the bed refracted under it. World/TorqueRideWorld draws
-    it while Settings > Graphics > Realistic water is on."""
+    it while Settings > Graphics > Realistic water is on.
+    [real water, Nov 21 2026] beenster: "make the water finally look like water ... ALL watercourses, lakes,
+    lochs, the sea, all coastlines, banks". World/WorldRideScenery's WaterTile now gives each point UV1:
+    u its depth (m, under 0 beneath the bank), v the sea's tidal half range or a river's pace (m/s), and
+    the alpha white water. So: foam where the water meets the land (gentle lapping on lochs, surf running
+    up and back on sea beaches, stronger with the wind), whitecaps in a gale, white water where a river
+    falls fast; rivers' ripples flowing downstream at their own pace (UV0 runs down them); the sea and
+    lakes calm to a mirror in still air and choppy in wind (MPC_Weather Wind, WindX, WindY); rain rings
+    on the water (Rain); swell that moves the surface itself near the rider (WaterWaves, off for an A/B);
+    and the sea lifted and lowered by the tide (Tide times its half range, MPC_Weather from the ride's
+    date and clock)."""
     g = L.Graph(L.new_material("M_RideWaterReal" if real else "M_RideWater"))
-    vc = g.node(unreal.MaterialExpressionVertexColor)
+    U = unreal
+    vc = g.node(U.MaterialExpressionVertexColor)
     wn = water_normal(L)
     nt = L.noise_texture()
+    foam_t = water_texture(L, "foam", "T_WaterFoam", "data")
+    rain_t = water_texture(L, "rain", "T_WaterRain", "data")
+
+    def num(v):
+        return g.const(float(v)) if isinstance(v, (int, float)) else v
+
+    def mul(a, b):
+        return g.op(U.MaterialExpressionMultiply, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(U.MaterialExpressionMultiply, a, b)
+
+    def add(a, b):
+        return g.op(U.MaterialExpressionAdd, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(U.MaterialExpressionAdd, a, b)
+
+    def sub(a, b):
+        return g.op(U.MaterialExpressionSubtract, num(a), const_b=float(b)) if isinstance(b, (int, float)) else g.op(U.MaterialExpressionSubtract, num(a), b)
+
+    def div(a, b):
+        return g.op(U.MaterialExpressionDivide, a, const_b=float(b))
+
+    def sat(a):
+        return g.op(U.MaterialExpressionSaturate, a)
+
+    def chan(src, c):
+        # (a vertex colour's or texture sample's default pin is RGB, a float3: a mask of its A fails to
+        # compile (round 167), so take each channel from its own pin and mask that scalar's R)
+        if isinstance(src, (U.MaterialExpressionVertexColor, U.MaterialExpressionTextureSample)):
+            e = g.node(U.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
+            g.link(src, e, "", c)
+            return e
+        e = g.node(U.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=c == "A")
+        g.link(src, e)
+        return e
+
+    def pair(src, a="R", b="G"):
+        if "A" in (a, b) and isinstance(src, (U.MaterialExpressionVertexColor, U.MaterialExpressionTextureSample)):
+            return g.op(U.MaterialExpressionAppendVector, chan(src, a), chan(src, b))
+        e = g.node(U.MaterialExpressionComponentMask, r="R" in (a, b), g="G" in (a, b), b="B" in (a, b), a="A" in (a, b))
+        g.link(src, e)
+        return e
+
+    def append(a, b):
+        return g.op(U.MaterialExpressionAppendVector, num(a), num(b))
+
+    def sine(a):
+        return g.op(U.MaterialExpressionSine, a, period=6.2831853)
+
+    def cosine(a):
+        return g.op(U.MaterialExpressionCosine, a, period=6.2831853)
+
+    param = lambda name: L.weather_param(g, name)
+    time = g.node(U.MaterialExpressionTime)
+    wind, wind_x, wind_y = param("Wind"), param("WindX"), param("WindY")
+    uv1 = g.node(U.MaterialExpressionTextureCoordinate, coordinate_index=1)
+    depth, second = chan(uv1, "R"), chan(uv1, "G")
+    white = chan(vc, "A")
+    red = chan(vc, "R")
+    # (which water: the vertex colour's red, as bytes: the sea 6, a lake or canal 7, a river 9 of 255)
+    is_sea = sat(mul(sub(0.0255, red), 600.0))
+    is_river = sat(mul(sub(red, 0.031), 400.0))
+    is_lake = sat(sub(sub(1.0, is_sea), is_river))
+    # (the tide: the sea's water lifted by Tide times its half range there; its depth with it)
+    tide_m = mul(mul(param("Tide"), second), is_sea)
+    deep = add(depth, tide_m)
+    # (0 in still air .. 1 in a strong wind; the usual breeze about 0.6)
+    calm = sat(div(wind, 1.6))
+
+    # The sea's and lakes' own ripples (as before), stronger in wind, a mirror in still air.
+    n = None
+    rough = None
     if wn is not None:
         # [build 155] beenster: "Major tiling on the sea (pic)". The three samples were all square to the
         # world's axes and at tilings whose repeats all met every 80 m, and the long swell never faded,
@@ -569,48 +657,109 @@ def water_material(L, real=False):
             detail = g.op(unreal.MaterialExpressionMultiply, detail, gust)
         detail = g.op(unreal.MaterialExpressionMultiply, detail, g.lerp(g.const(0.15), g.const(1.0), near))
         n = g.op(unreal.MaterialExpressionAdd, big, detail)
-        normal = g.node(unreal.MaterialExpressionNormalize)
-        g.link(g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0))), normal)
         rough = g.lerp(g.const(0.11), g.const(0.04), swell_near)
-    elif nt is not None:
-        uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.9, v_tiling=0.9)
-        p1 = g.node(unreal.MaterialExpressionPanner, speed_x=0.012, speed_y=0.02); g.link(uv, p1, "Coordinate")
-        uv2 = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=2.3, v_tiling=2.3)
-        p2 = g.node(unreal.MaterialExpressionPanner, speed_x=-0.025, speed_y=0.01); g.link(uv2, p2, "Coordinate")
-        n = g.op(unreal.MaterialExpressionAdd, g.sample(nt, p1, "linear"), g.sample(nt, p2, "linear"))
-        n = g.op(unreal.MaterialExpressionSubtract, n, const_b=1.0)
-        n = g.op(unreal.MaterialExpressionMultiply, n, g.const((0.35, 0.35, 0.0)))
-        normal = g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0)))
-    else:
-        normal = g.const((0.0, 0.0, 1.0))
-    if wn is None:
-        rough = g.const(0.04)
-    base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
+    if n is None:
+        n = g.const((0.0, 0.0, 0.0))
+        rough = g.const(0.05)
+    still = g.lerp(g.const(0.1), g.const(1.35), calm)
+    n = g.op(U.MaterialExpressionMultiply, n, g.lerp(still, mul(still, 0.7), is_lake))
+    uv0 = g.node(U.MaterialExpressionTextureCoordinate)
+    if wn is not None:
+        # A river's ripples run down it at its pace (UV0 is metres across it and down it over 8).
+        pace = mul(second, 0.125)
+        def flowing(tiling, speed, side):
+            uv = g.op(U.MaterialExpressionMultiply, uv0, const_b=float(tiling))
+            drift = append(mul(time, side), mul(mul(time, pace), -tiling * speed))
+            return g.sample(wn, g.op(U.MaterialExpressionAdd, uv, drift), "normal")
+        river = g.op(U.MaterialExpressionAdd, mul(flowing(1.6, 1.0, 0.004), 0.8), mul(flowing(3.1, 1.15, -0.011), 0.55))
+        river = g.op(U.MaterialExpressionMultiply, river, append(append(add(mul(white, 0.8), 0.45), add(mul(white, 0.8), 0.45)), 0.0))
+        n = g.lerp(n, river, is_river)
+    if rain_t is not None:
+        # Rain: a ring grows out from each drop in turn and fades (the texture: distance, when, which way).
+        drop = g.sample(rain_t, g.world_uv(1.0), "linear")
+        t = g.op(U.MaterialExpressionFrac, add(mul(time, 0.9), chan(drop, "G")))
+        d = sub(chan(drop, "R"), t)
+        ring = mul(sat(sub(1.0, mul(g.op(U.MaterialExpressionAbs, d), 7.0))), sub(1.0, t))
+        ring = mul(mul(ring, sine(mul(d, 40.0))), mul(param("Rain"), 0.9))
+        way = mul(sub(pair(drop, "B", "A"), 0.5), 2.0)
+        n = g.op(U.MaterialExpressionAdd, n, append(mul(way, ring), 0.0))
+
+    # Waves that move the surface near the rider: two trains with the wind (28 m and 13 m), the sea's up to
+    # 0.45 m in a gale, a lake's a few cm, smaller in the shallows, gone past 500 m (MPC_Weather WaterWaves).
+    wp = g.node(U.MaterialExpressionWorldPosition)
+    xy = div(pair(wp, "R", "G"), 100.0)
+    dir1 = append(wind_x, wind_y)
+    dir2 = append(add(mul(wind_x, 0.82), mul(wind_y, -0.57)), add(mul(wind_x, 0.57), mul(wind_y, 0.82)))
+    ph1 = sub(mul(g.op(U.MaterialExpressionDotProduct, xy, dir1), 0.224), mul(time, 1.48))
+    ph2 = sub(mul(g.op(U.MaterialExpressionDotProduct, xy, dir2), 0.483), mul(time, 2.18))
+    cam = g.node(U.MaterialExpressionCameraPositionWS)
+    dist = g.op(U.MaterialExpressionDistance, wp, cam)
+    near_waves = sat(sub(1.0, div(sub(dist, 30000.0), 20000.0)))
+    amp = add(mul(is_sea, 0.45), mul(is_lake, 0.05))
+    amp = mul(mul(mul(amp, mul(calm, calm)), sat(div(deep, 3.0))), mul(near_waves, param("WaterWaves")))
+    swell = mul(amp, add(sine(ph1), mul(sine(ph2), 0.45)))
+    slope = g.op(U.MaterialExpressionAdd, mul(mul(dir1, cosine(ph1)), 0.224), mul(mul(dir2, cosine(ph2)), 0.217))
+    n = g.op(U.MaterialExpressionSubtract, n, append(mul(slope, amp), 0.0))
+    normal = g.node(U.MaterialExpressionNormalize)
+    g.link(g.op(U.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0))), normal)
+    lift = mul(add(swell, tide_m), 100.0)
+    wpo = append(g.node(U.MaterialExpressionConstant2Vector, r=0.0, g=0.0), lift)
+
+    # Foam: along the shore, the sea's surf running in, lapping at a loch's edge, whitecaps, white water.
+    # (a narrower band on rivers: they are shallow right across, and a 0.55 m band would whiten the lot)
+    shore = mul(sat(sub(1.0, g.op(U.MaterialExpressionDivide, deep, g.lerp(g.const(0.55), g.const(0.12), is_river)))), sat(add(mul(deep, 20.0), 1.0)))
+    wobble = g.const(0.0)
+    if nt is not None:
+        nuv = g.node(U.MaterialExpressionTextureCoordinate, u_tiling=0.05, v_tiling=0.05)
+        wobble = chan(g.sample(nt, nuv, "linear"), "G")
+    surf = sat(sub(mul(sine(add(sub(mul(deep, 4.5), mul(time, 1.2)), mul(wobble, 6.0))), 2.5), 1.5))
+    surf = mul(mul(mul(surf, sat(sub(1.0, div(deep, 2.5)))), sat(mul(deep, 3.0))), mul(is_sea, g.lerp(g.const(0.35), g.const(1.0), calm)))
+    lap = sat(sub(mul(sine(sub(mul(deep, 30.0), mul(time, 2.2))), 2.0), 1.0))
+    lap = mul(mul(lap, sat(sub(1.0, div(deep, 0.3)))), mul(is_lake, 0.6))
+    caps = mul(mul(is_sea, sat(mul(sub(wind, 1.4), 0.9))), sat(sub(mul(wobble, 4.0), 2.6)))
+    rapids = mul(sat(add(white, mul(shore, 0.4))), is_river)
+    amount = g.op(U.MaterialExpressionMax, mul(shore, 0.85), surf)
+    amount = g.op(U.MaterialExpressionMax, amount, lap)
+    amount = g.op(U.MaterialExpressionMax, amount, caps)
+    amount = g.op(U.MaterialExpressionMax, amount, rapids)
+    foam = amount
+    if foam_t is not None:
+        drift_uv = g.op(U.MaterialExpressionAdd, g.world_uv(4.0), mul(append(wind_x, wind_y), mul(time, 0.004)))
+        river_uv = g.op(U.MaterialExpressionAdd, mul(uv0, 2.0), append(0.0, mul(mul(time, second), -0.25)))
+        lace = chan(g.sample(foam_t, g.lerp(drift_uv, river_uv, is_river), "linear"), "R")
+        foam = sat(mul(mul(amount, lace), 1.8))
+    rough = g.op(U.MaterialExpressionMultiply, rough, g.lerp(g.const(0.4), g.const(1.3), calm))
+    rough = g.lerp(rough, g.const(0.6), foam)
+    foam_colour = g.const((0.82, 0.85, 0.86))
+    base = g.lerp(g.op(U.MaterialExpressionMultiply, vc, g.const(1.0)), foam_colour, foam)
     mel = L.mel
     if real:
-        g.m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
-        g.m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_OPAQUE)
-        out = g.node(unreal.MaterialExpressionSingleLayerWaterMaterialOutput, 0)
+        g.m.set_editor_property("shading_model", U.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
+        g.m.set_editor_property("blend_mode", U.BlendMode.BLEND_OPAQUE)
+        out = g.node(U.MaterialExpressionSingleLayerWaterMaterialOutput, 0)
         # (how brown the water is: the sea's colour is blue-grey, a lake's peaty, a river's brown, by the red)
-        brown = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
-                     g.op(unreal.MaterialExpressionSubtract, vc, const_b=0.024, a_out="R"), const_b=80.0))
+        brown = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionMultiply,
+                     g.op(U.MaterialExpressionSubtract, vc, const_b=0.024, a_out="R"), const_b=80.0))
         # (per metre: the sea absorbs the red most, so it goes blue-green as it deepens; peaty water the
         # blue, so it goes brown; both scatter a little of their own colour back)
         absorb = g.lerp(g.const((0.42, 0.075, 0.05)), g.const((0.32, 0.5, 1.1)), brown)
-        scatter = g.op(unreal.MaterialExpressionMultiply, vc, const_b=0.9)
+        scatter = g.op(U.MaterialExpressionMultiply, vc, const_b=0.9)
         pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
                 "phase": (g.const(0.15), ("PhaseG", "Phase G")),
                 "behind": (g.const(1.0), ("ColorScaleBehindWater", "Color Scale Behind Water"))}
         for key, (node, names) in pins.items():
-            if not any(mel.connect_material_expressions(node, "", out, n) for n in names):
+            if not any(mel.connect_material_expressions(node, "", out, n_) for n_ in names):
                 unreal.log_warning("[Torque] M_RideWaterReal: couldn't link its %s to the single layer water output" % key)
-        # (the base colour in single layer water is the surface's own: none, the water's colour is its depth)
-        base = g.const((0.0, 0.0, 0.0))
-    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
-    mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
+        # (single layer water: its own colour is the depth's; the base colour is the foam on top of it, laid
+        # over the water by the opacity)
+        base = foam_colour
+        mel.connect_material_property(foam, "", U.MaterialProperty.MP_OPACITY)
+    mel.connect_material_property(base, "", U.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(rough, "", U.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.5), "", U.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(normal, "", U.MaterialProperty.MP_NORMAL)
+    mel.connect_material_property(wpo, "", U.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     return g.m
@@ -731,7 +880,8 @@ def scanned_materials(L):
     made = []
     original = L.new_material
     try:
-        for want, make in (("M_RideLandScan", lambda: L.land_material_scanned(tex, roles) if "grass" in tex else None),
+        caustics = water_texture(L, "caustics", "T_WaterCaustics", "data")   # [real water] (the bed under shallow water)
+        for want, make in (("M_RideLandScan", lambda: L.land_material_scanned(tex, roles, shore={"caustics": caustics}) if "grass" in tex else None),
                            ("M_RideStone", lambda: L.stone_material(tex, roles, tint_param=True)),
                            ("M_RideMasonry", lambda: L.stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False, tint_param=True)),
                            # (stage 5: rendered and limewashed houses, the vertex colour their wash)
@@ -1536,7 +1686,8 @@ def facade_material(L):
 
 
 STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
-                    "touring_caravan", "static_caravan")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+                    "touring_caravan", "static_caravan", "post_box", "phone_box")   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+# [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
 
@@ -1765,7 +1916,16 @@ def prop_kit(L):
             # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
             kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
             lods = spec["kinds"].get(kind, {}).get("lods")
-            if lods:
+            if not lods:
+                # ([caravans, build 166] reduced LODs of these models break up: each triangle has its own corners,
+                # so the reducer cuts holes. A model without "lods" is drawn whole, its old LODs taken off.)
+                try:
+                    if sme.get_lod_count(mesh) > 1:
+                        sme.remove_lods(mesh)
+                        log("props: %s: LODs removed" % name)
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: LODs of %s not removed (%s)" % (name, e))
+            elif lods:
                 try:
                     settings = [unreal.EditorScriptingMeshReductionSettings(1.0, 1.0)]
                     for keep, screen in zip((0.5, 0.25, 0.1), lods):

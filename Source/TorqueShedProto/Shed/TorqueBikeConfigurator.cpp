@@ -231,7 +231,7 @@ void FTorqueBikeConfigurator::Relist()
 	About.Reset();
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	if (!Lay) return;
-	for (const std::string& Slot : TorqueFit::Shop::ConfigSlots())
+	for (const std::string& Slot : TorqueFit::Shop::AllConfigSlots(*Lay))
 	{
 		FSlotRow Row;
 		Row.Slot = TBCI::CfgUe(Slot);
@@ -259,6 +259,7 @@ void FTorqueBikeConfigurator::Relist()
 			if (Id == On) Row.Picked = Row.Choices.Num();
 			Row.Choices.Add(C);
 		}
+		if (Row.Choices.Num() == 0) continue;   // (nothing the catalogue has goes there)
 		SlotRows.Add(Row);
 	}
 	// BikeShopTab._refresh, the new bike's lines (the shed has no money: no price).

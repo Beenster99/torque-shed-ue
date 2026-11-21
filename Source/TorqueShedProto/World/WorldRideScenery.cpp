@@ -10,6 +10,8 @@
 #include "WorldRideSigns.h"
 #include "WorldLevelCrossing.h"
 #include "WorldRoadLine.h"
+#include "WorldFerries.h"
+#include "WorldTide.h"
 
 #include <algorithm>
 #include <cmath>
@@ -453,11 +455,30 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const size_t LineN = F.Line.size();
 				const bool Closed = LineN > 2 && F.Line.front().DistanceTo(F.Line.back()) < 0.05;
 				const auto BitsOf = [&](size_t Si) { return std::max(1, int(std::ceil(F.Line[Si].DistanceTo(F.Line[Si + 1]) / Step))); };
+				// (how far clear of a road's edge it stops: a hedge further, a crash barrier right up to it)
+				const double Spare = Hedge ? 1.6 : Rail || Concrete ? 0.2 : 1.0;
 				const auto Standing = [&](const P2& Qa, const P2& Qb)
 				{
 					const P2 Qm = (Qa + Qb) * 0.5;
-					return RailClear(Qm.X, Qm.Z) >= 2.6 && OffRoad(Qm.X, Qm.Z, 1.0) && OffRoad(Qa.X, Qa.Z, 1.0) && OffRoad(Qb.X, Qb.Z, 1.0) &&
+					return RailClear(Qm.X, Qm.Z) >= 2.6 && OffRoad(Qm.X, Qm.Z, Spare) && OffRoad(Qa.X, Qa.Z, Spare) && OffRoad(Qb.X, Qb.Z, Spare) &&
 						!std::isnan(Ground(Qa.X, Qa.Z)) && !std::isnan(Ground(Qb.X, Qb.Z));
+				};
+				// ([Nov 21] beenster, build 166 at Gigha: "ALL hedges and walls need ends". Every wall, hedge, hedge
+				// bank and concrete barrier is closed where it stops (its end faced, a hedge's leafy end, a wall's
+				// head), and where its line turns a corner each piece runs on past the corner's point by as much as
+				// the turn opens its outside (its half width times the tangent of half the turn), so the two meet
+				// on the outside with no slot between them; on the inside they sit in each other, unseen.)
+				const double HalfWide = Bank ? 1.05 : Hedge ? 0.72 : Concrete ? 0.3 : 0.42;
+				const auto CornerRun = [&](const P2& Da, const P2& Db)
+				{
+					const double Cos = std::clamp(Da.X * Db.X + Da.Z * Db.Z, -1.0, 1.0);
+					if (Cos > 0.996 || Cos < -0.5) return 0.0;   // (straight on, or doubling back past 120 degrees: an end each)
+					return std::fmin(2.0, HalfWide * std::sqrt((1.0 - Cos) / (1.0 + Cos)));
+				};
+				const auto SegDir = [&](size_t Si)
+				{
+					const double Ls = F.Line[Si].DistanceTo(F.Line[Si + 1]);
+					return Ls > 1e-6 ? (F.Line[Si + 1] - F.Line[Si]) * (1.0 / Ls) : P2(0.0, 0.0);
 				};
 				// (whether the wall carries on through At, from bit Kn of the line's segment Sn: its first
 				// piece if FromStart, else its last)
@@ -490,13 +511,38 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						const int Count = CutGaps(A + (B - A) * (double(K) / Bits), A + (B - A) * (double(K + 1) / Bits), Pieces);
 						for (int Pc = 0; Pc < Count; ++Pc)
 						{
-						const P2 Pa = Pieces[Pc][0], Pb = Pieces[Pc][1];
+						P2 Pa = Pieces[Pc][0], Pb = Pieces[Pc][1];
 						const P2 Pm = (Pa + Pb) * 0.5;
 						if (RailClear(Pm.X, Pm.Z) < 2.6) continue;   // (nor across a railway)
-						const double Spare = Hedge ? 1.6 : Rail || Concrete ? 0.2 : 1.0;
 						if (!OffRoad(Pm.X, Pm.Z, Spare) || !OffRoad(Pa.X, Pa.Z, Spare) || !OffRoad(Pb.X, Pb.Z, Spare)) continue;
 						const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
 						if (std::isnan(Ga) || std::isnan(Gb)) continue;
+						// [Nov 21] (whether the line carries on from each end of this piece: no end there if so; and
+						// where it turns a corner, how far this piece runs on past the corner's point)
+						bool OnBefore = false, OnAfter = false;
+						double RunA = 0.0, RunB = 0.0;
+						if (!Fence && !Rail)
+						{
+							const P2 BitA = A + (B - A) * (double(K) / Bits), BitB = A + (B - A) * (double(K + 1) / Bits);
+							if (Pc == 0 && Pa.DistanceTo(BitA) < 0.05)
+							{
+								const bool Prior = I > 0 || Closed;
+								const size_t Ip = I > 0 ? I - 1 : LineN - 2;
+								if (K > 0) OnBefore = CarriesOn(Pa, I, K - 1, false);
+								else if (Prior) OnBefore = CarriesOn(Pa, Ip, BitsOf(Ip) - 1, false);
+								if (OnBefore && K == 0 && Prior) RunA = CornerRun(SegDir(Ip), Dir);
+							}
+							if (Pc == Count - 1 && Pb.DistanceTo(BitB) < 0.05)
+							{
+								const bool Next = I + 2 < LineN || Closed;
+								const size_t In = I + 2 < LineN ? I + 1 : 0;
+								if (K + 1 < Bits) OnAfter = CarriesOn(Pb, I, K + 1, true);
+								else if (Next) OnAfter = CarriesOn(Pb, In, 0, true);
+								if (OnAfter && K + 1 == Bits && Next) RunB = CornerRun(Dir, SegDir(In));
+							}
+							Pa = Pa - Dir * RunA;
+							Pb = Pb + Dir * RunB;
+						}
 						if (Rail || Concrete)
 						{
 							// [OSM stage 5C] A crash barrier: a steel beam on a post at each bit's start, a face each
@@ -515,6 +561,17 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								}
 								Quad(Out, At3(Pa.X + Side.X * 0.12, Ga + 0.9, Pa.Z + Side.Z * 0.12), At3(Pb.X + Side.X * 0.12, Gb + 0.9, Pb.Z + Side.Z * 0.12),
 									At3(Pb.X - Side.X * 0.12, Gb + 0.9, Pb.Z - Side.Z * 0.12), At3(Pa.X - Side.X * 0.12, Ga + 0.9, Pa.Z - Side.Z * 0.12), Sky, Shade(Cast, 1.1), false);
+								// [Nov 21] (its ends, where it stops: the step section's foot, step and top)
+								for (int End = 0; End < 2; ++End)
+								{
+									if (End == 0 ? OnBefore : OnAfter) continue;
+									const P2 E = End == 0 ? Pa : Pb;
+									const double Ge = End == 0 ? Ga : Gb, Outward = End == 0 ? -1.0 : 1.0;
+									const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.5, E.Z + Dir.Z * Outward * 50.0);
+									const auto Sec = [&](double Across, double Up) { return At3(E.X + Side.X * Across, Ge + Up, E.Z + Side.Z * Across); };
+									Quad(Out, Sec(0.3, -0.05), Sec(-0.3, -0.05), Sec(-0.2, 0.25), Sec(0.2, 0.25), Away, Shade(Cast, 0.9), false);
+									Quad(Out, Sec(0.2, 0.25), Sec(-0.2, 0.25), Sec(-0.12, 0.9), Sec(0.12, 0.9), Away, Shade(Cast, 0.9), false);
+								}
 								continue;
 							}
 							const P2 Along = Dir * 0.06, Across = Side * 0.06;
@@ -544,9 +601,21 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								Quad(Out, At3(Pa.X, Ga + High - 0.22, Pa.Z), At3(Pb.X, Gb + High - 0.22, Pb.Z), At3(Pb.X, Gb + High - 0.12, Pb.Z), At3(Pa.X, Ga + High - 0.12, Pa.Z), Out3, Colour, true);
 							continue;
 						}
-						// A length of it: two faces leaning in from Foot to Top, Lo to Hi over the ground, and its top.
+						// A length of it: two faces leaning in from Foot to Top, Lo to Hi over the ground, and its top; and
+						// ([build 147] and [Nov 21]) an end face across it wherever it stops.
 						const auto Stretch = [&](double FootW, double TopW, double Lo, double Hi, const Rgb& Col, bool Scanned)
 						{
+							for (int End = 0; End < 2; ++End)
+							{
+								if (End == 0 ? OnBefore : OnAfter) continue;
+								const P2 E = End == 0 ? Pa : Pb;
+								const double Ge = End == 0 ? Ga : Gb;
+								const double Outward = End == 0 ? -1.0 : 1.0;
+								const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.6, E.Z + Dir.Z * Outward * 50.0);
+								Quad(Into, At3(E.X + Side.X * FootW, Ge + Lo, E.Z + Side.Z * FootW), At3(E.X - Side.X * FootW, Ge + Lo, E.Z - Side.Z * FootW),
+									At3(E.X - Side.X * TopW, Ge + Hi, E.Z - Side.Z * TopW), At3(E.X + Side.X * TopW, Ge + Hi, E.Z + Side.Z * TopW), Away,
+									Scanned ? Mask : Shade(Col, 0.92), false, Scanned ? 0.22f : -1.0f);
+							}
 							for (double Sg : {1.0, -1.0})
 							{
 								const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
@@ -592,6 +661,20 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 										const Rgb Leaf = Chance(C.X, C.Z + Pk, 45) < 0.18 ? Rgb{0.05f, 0.07f, 0.022f} : HedgeGreen;
 										Quad(Out, Prev[Pk], Here[Pk], Here[Pk + 1], Prev[Pk + 1], Toward, Shade(Leaf, Lit));
 									}
+								// [Nov 21] (where it stops, its end closed: rounded off, a nose of leaves a third of its width out
+								// from the last cut, fanned from the foot over the top to the foot)
+								if ((Cut == 0 && !OnBefore) || (Cut == Cuts && !OnAfter))
+								{
+									const double Outward = Cut == 0 ? -1.0 : 1.0;
+									const P3 Nose = At3(C.X + Dir.X * Outward * Ww * 0.35, Gc + Lo + Hh * 0.45, C.Z + Dir.Z * Outward * Ww * 0.35);
+									const P3 Toward = At3(C.X + Dir.X * Outward * 50.0, Gc + Lo + Hh * 0.6, C.Z + Dir.Z * Outward * 50.0);
+									for (int Pk = 0; Pk < 7; ++Pk)
+									{
+										const int Pn = (Pk + 1) % 7;
+										const double Up = (Prof[Pk][1] + Prof[Pn][1]) * 0.5;
+										Quad(Out, Here[Pk], Here[Pn], Nose, Here[Pk], Toward, Shade(HedgeGreen, (0.62 + 0.45 * Up) * (0.8 + 0.4 * Chance(C.X + Pk, C.Z, 46))));
+									}
+								}
 								for (int Pk = 0; Pk < 7; ++Pk) Prev[Pk] = Here[Pk];
 							}
 						};
@@ -618,6 +701,17 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 									Quad(*Walls, Edge(Pa, Ga, 1.05, -0.4), Edge(Pb, Gb, 1.05, -0.4), Edge(Pb, Gb, 0.86, Hb * 0.55), Edge(Pa, Ga, 0.86, Ha * 0.55), Far, Faced, false, 0.3f);
 									Quad(*Walls, Edge(Pa, Ga, 0.86, Ha * 0.55), Edge(Pb, Gb, 0.86, Hb * 0.55), Edge(Pb, Gb, 0.55, Hb), Edge(Pa, Ga, 0.55, Ha), Far, Faced, false, 0.55f);
 								}
+								// [Nov 21] (where it stops, its end faced as its sides are: the stone foot, then the shoulder)
+								for (int End = 0; End < 2; ++End)
+								{
+									if (End == 0 ? OnBefore : OnAfter) continue;
+									const P2 E = End == 0 ? Pa : Pb;
+									const double Ge = End == 0 ? Ga : Gb, He = End == 0 ? Ha : Hb, Outward = End == 0 ? -1.0 : 1.0;
+									const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.5, E.Z + Dir.Z * Outward * 50.0);
+									const auto Sec = [&](double Across, double Up) { return At3(E.X + Side.X * Across, Ge + Up, E.Z + Side.Z * Across); };
+									Quad(*Walls, Sec(1.05, -0.4), Sec(-1.05, -0.4), Sec(-0.86, He * 0.55), Sec(0.86, He * 0.55), Away, Faced, false, 0.3f);
+									Quad(*Walls, Sec(0.86, He * 0.55), Sec(-0.86, He * 0.55), Sec(-0.55, He), Sec(0.55, He), Away, Faced, false, 0.55f);
+								}
 								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + Ha, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + Hb, Pb.Z + Side.Z * 0.55),
 									At3(Pb.X - Side.X * 0.55, Gb + Hb, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + Ha, Pa.Z - Side.Z * 0.55), Sky, Turf);
 								if (RealHedges) HedgePlants(Pa, Pb, Ga + Ha, Gb + Hb, -0.2, 0.9, Out);
@@ -643,20 +737,6 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						if (!Kitted) Stretch(Foot, Top, -0.4, High, Colour, IsWall);
 						if (IsWall && Fine)
 						{
-							const P2 BitA = A + (B - A) * (double(K) / Bits), BitB = A + (B - A) * (double(K + 1) / Bits);
-							bool OnBefore = false, OnAfter = false;
-							if (Pc == 0 && Pa.DistanceTo(BitA) < 0.05)
-							{
-								if (K > 0) OnBefore = CarriesOn(Pa, I, K - 1, false);
-								else if (I > 0) OnBefore = CarriesOn(Pa, I - 1, BitsOf(I - 1) - 1, false);
-								else if (Closed) OnBefore = CarriesOn(Pa, LineN - 2, BitsOf(LineN - 2) - 1, false);
-							}
-							if (Pc == Count - 1 && Pb.DistanceTo(BitB) < 0.05)
-							{
-								if (K + 1 < Bits) OnAfter = CarriesOn(Pb, I, K + 1, true);
-								else if (I + 2 < LineN) OnAfter = CarriesOn(Pb, I + 1, 0, true);
-								else if (Closed) OnAfter = CarriesOn(Pb, 0, 0, true);
-							}
 							if (Kitted)
 							{
 								// (its whole 2 m lengths, stretched to fit the piece, each pitched up the slope between its
@@ -678,11 +758,13 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 									Pr.Stretch = float(Run / (Model == PropWallEnd ? 1.0 : 2.0));
 									Out.Props.push_back(Pr);
 								};
+								// ([Nov 21] a short piece too: its head as long as the piece, or half each when it stops at both ends)
 								const double Run = Pa.DistanceTo(Pb);
-								const bool HeadA = !OnBefore && Run >= 1.6, HeadB = !OnAfter && Run >= (HeadA ? 2.6 : 1.6);
-								const P2 La = HeadA ? Pa + Dir * 1.0 : Pa, Lb = HeadB ? Pb - Dir * 1.0 : Pb;
+								const bool HeadA = !OnBefore, HeadB = !OnAfter;
+								const double HeadLen = std::fmin(1.0, Run / (HeadA && HeadB ? 2.0 : 1.0));
+								const P2 La = HeadA ? Pa + Dir * HeadLen : Pa, Lb = HeadB ? Pb - Dir * HeadLen : Pb;
 								const double Lr = La.DistanceTo(Lb);
-								const int Lengths = Lr > 0.4 ? std::max(1, int(std::ceil(Lr / 2.0 - 0.2))) : 0;   // (each 0.7 to 1.25 of its own length)
+								const int Lengths = Lr > 0.1 ? std::max(1, int(std::ceil(Lr / 2.0 - 0.2))) : 0;   // (each 0.7 to 1.25 of its own length; [Nov 21] a short one, so no slot)
 								for (int Ln = 0; Ln < Lengths; ++Ln)
 								{
 									const P2 Q0 = La + (Lb - La) * (double(Ln) / Lengths), Q1 = La + (Lb - La) * (double(Ln + 1) / Lengths);
@@ -691,17 +773,6 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								if (HeadA) Lay(PropWallEnd, WallKind * WallVariants + (int(Chance(Pa.X, Pa.Z, 52) * WallVariants) % WallVariants), La, Pa);
 								if (HeadB) Lay(PropWallEnd, WallKind * WallVariants + (int(Chance(Pb.X, Pb.Z, 52) * WallVariants) % WallVariants), Lb, Pb);
 								continue;
-							}
-							// (an end face: across the wall, its foot to its top, and the top stones' end above it)
-							for (int End = 0; End < 2; ++End)
-							{
-								if (End == 0 ? OnBefore : OnAfter) continue;
-								const P2 E = End == 0 ? Pa : Pb;
-								const double Ge = End == 0 ? Ga : Gb;
-								const double Outward = End == 0 ? -1.0 : 1.0;
-								const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.6, E.Z + Dir.Z * Outward * 50.0);
-								Quad(Into, At3(E.X + Side.X * Foot, Ge - 0.4, E.Z + Side.Z * Foot), At3(E.X - Side.X * Foot, Ge - 0.4, E.Z - Side.Z * Foot),
-									At3(E.X - Side.X * Top, Ge + High, E.Z - Side.Z * Top), At3(E.X + Side.X * Top, Ge + High, E.Z + Side.Z * Top), Away, Mask, false, 0.22f);
 							}
 						}
 						// (beenster, build 141: walls "low def". Near a road on the finest squares, a dry stone wall
@@ -2431,7 +2502,21 @@ namespace
 const Rgb SeaWater = {0.022f, 0.048f, 0.062f}, LakeWater = {0.026f, 0.040f, 0.044f}, RiverWater = {0.034f, 0.044f, 0.038f};
 }
 
-void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const
+double RidePlan::TideHalfAt(double X, double Z) const
+{
+	const Geo G = Area.Roads.FrameOf().ToGeo(X, Z);
+	double Half = Tide::HalfRange(G.Lat, G.Lon);
+	for (const FerryLaid& F : FerryLays)
+		if (F.Lay && F.Lay->Sea)
+			for (const Ferries::End& E : F.Lay->Ends)
+			{
+				const double D = std::hypot(X - E.Berth.X, Z - E.Berth.Z);
+				Half *= std::clamp((D - 250.0) / 350.0, 0.0, 1.0);
+			}
+	return Half;
+}
+
+void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out, std::vector<float>* Shore) const
 {
 	Out = RideMesh();
 	Out.OriginX = X0;
@@ -2535,8 +2620,11 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				if (Least < 1e8) Lake[size_t(J) * N + I] = Least + 0.1;
 			}
 	}
-	const auto Put = [&Out](double X, double Y, double Z, const Rgb& C)
+	// [real water stage 2] (UV1: the depth there and the flow or the tide; alpha: white water)
+	const auto Put = [&Out](double X, double Y, double Z, const Rgb& C, double DepthHere, double Second, double White)
 	{
+		Out.Uv1.push_back(float(DepthHere)); Out.Uv1.push_back(float(Second));
+		Out.Alpha.push_back(float(std::clamp(White, 0.0, 1.0)));
 		Out.Pos.push_back(float(X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z - Out.OriginZ));
 		Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
 		// (metres over 8 from a corner near the square, a whole 10 of M_RideWater's two ripples' repeats
@@ -2544,11 +2632,174 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 		Out.Uv.push_back(float((X - std::floor(Out.OriginX / 80.0) * 80.0) / 8.0)); Out.Uv.push_back(float((Z - std::floor(Out.OriginZ / 80.0) * 80.0) / 8.0));
 		Out.Col.push_back(C.R); Out.Col.push_back(C.G); Out.Col.push_back(C.B);
 	};
+	// [real water stage 1] Each wet point's level, and the water spread out over the low ground round it.
+	// (beenster, build 166 at Tayinloan: "the side of a loch!?": the sea stood as a box, a wall of water
+	// textured cliff above the land. The land a pixel inside the map's sea line is pressed down towards
+	// the sea bed, and the dry corner of a shore square was pulled down to that ground, so the water's
+	// edge dropped 24 m as a sheer face. Now water never stands up: every point lower than the water
+	// beside it, within FloodReach, is under that water at its level, the lattice run past the square's
+	// edge so the squares either side agree, and a dry corner stays at the water's level, under the
+	// land that rises out of it, so the land itself draws the shore.)
+	std::vector<double> LevelAt(size_t(N) * N, std::nan(""));
+	// ([real water stage 9] the sea's water is laid at its mean level and the tide lifts and lowers it (the
+	// material, by MPC_Weather's Tide): it lies under the beach up to the biggest springs' high water)
+	const double TideHalf = TideHalfAt(X0 + Size * 0.5, Z0 + Size * 0.5), TideTop = TideHalf * 1.25 + 0.2;
+	std::vector<float> ShoreHere;   // (two a point, as Shore)
+	bool Below = false;   // (ground under the sea's level: the sea's pressed down shore, from a square beside it)
+	for (size_t V = 0; V < size_t(N) * N && !Below; ++V) Below = Sheet.Pos[V * 3 + 1] < float(TideTop);
+	if (AnyWet || Below)
+	{
+		// (the sea over the whole pressed down shore; a lake only over the ring round its edge that the
+		// lake bed's pressing reaches)
+		const double FloodReach = 80.0, LakeReach = 24.0;
+		const int Rim = std::max(1, int(std::ceil(FloodReach / Step)));
+		const int M = N + 2 * Rim;
+		std::vector<double> Lv(size_t(M) * M, std::nan("")), Gr(size_t(M) * M, 1e9), Gone(size_t(M) * M, 1e9);
+		std::vector<unsigned char> Kind(size_t(M) * M, 0);
+		std::vector<int> Queue;
+		for (int J = 0; J < M; ++J)
+			for (int I = 0; I < M; ++I)
+			{
+				const int Ii = I - Rim, Jj = J - Rim;
+				const size_t P = size_t(J) * M + I;
+				const double X = X0 + Ii * Step, Z = Z0 + Jj * Step;
+				if (Ii >= 0 && Ii < N && Jj >= 0 && Jj < N)
+				{
+					const size_t V = size_t(Jj) * N + Ii;
+					Gr[P] = double(Sheet.Pos[V * 3 + 1]);
+					Kind[P] = Wet[V];
+					if (Wet[V] != 0)
+						Lv[P] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? Held[V] : !std::isnan(Lake[V]) ? Lake[V] : Gr[P] + 0.12;
+				}
+				else
+				{
+					// (past the square's edge only the sea is known: enough, as the pressed down shore is the sea's)
+					const double G = Ground(X, Z, Step);
+					if (!std::isnan(G)) Gr[P] = G;
+					if (Land->SeaAt(X, Z)) { Kind[P] = 2; Lv[P] = 0.0; }
+				}
+				if (Kind[P] != 0) { Gone[P] = 0.0; Queue.push_back(int(P)); }
+			}
+		// (out from every wet point over the ground under its water, nearest first by rings of the lattice)
+		for (size_t Q = 0; Q < Queue.size(); ++Q)
+		{
+			const int P = Queue[Q];
+			const int I = P % M, J = P / M;
+			const int Di[4] = {1, -1, 0, 0}, Dj[4] = {0, 0, 1, -1};
+			for (int K = 0; K < 4; ++K)
+			{
+				const int Ni = I + Di[K], Nj = J + Dj[K];
+				if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) continue;
+				const size_t Np = size_t(Nj) * M + Ni;
+				if (Kind[Np] != 0 || Gone[size_t(P)] + Step > (Kind[size_t(P)] == 2 ? FloodReach : LakeReach) || Gr[Np] >= Lv[size_t(P)] + (Kind[size_t(P)] == 2 ? TideTop : 0.0) - 0.02) continue;
+				Kind[Np] = Kind[size_t(P)];
+				Lv[Np] = Lv[size_t(P)];
+				Gone[Np] = Gone[size_t(P)] + Step;
+				Queue.push_back(int(Np));
+			}
+		}
+		// (a lake's water spread over ground that keeps falling away past LakeReach, or past the lattice's
+		// edge, is its outflow or a dam's foot: water would run off there, so it stays dry. The sea's
+		// pressed down shore is all the sea's.)
+		{
+			std::vector<int> Part(size_t(M) * M, -1), Members;
+			const int Di[4] = {1, -1, 0, 0}, Dj[4] = {0, 0, 1, -1};
+			for (int Start = 0; Start < M * M; ++Start)
+			{
+				if (Part[size_t(Start)] >= 0 || Kind[size_t(Start)] == 0 || Kind[size_t(Start)] == 2 || Gone[size_t(Start)] <= 0.0) continue;
+				Members.assign(1, Start);
+				Part[size_t(Start)] = Start;
+				bool Spills = false;
+				for (size_t Q = 0; Q < Members.size(); ++Q)
+				{
+					const int P = Members[Q];
+					const int I = P % M, J = P / M;
+					for (int K = 0; K < 4; ++K)
+					{
+						const int Ni = I + Di[K], Nj = J + Dj[K];
+						if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) { Spills = true; continue; }
+						const size_t Np = size_t(Nj) * M + Ni;
+						if (Kind[Np] == 0) { Spills = Spills || Gr[Np] < Lv[size_t(P)] - 0.02; continue; }
+						if (Kind[Np] == 2 || Gone[Np] <= 0.0 || Part[Np] >= 0) continue;
+						Part[Np] = Start;
+						Members.push_back(int(Np));
+					}
+				}
+				if (Spills)
+					for (int P : Members) { Kind[size_t(P)] = 0; Lv[size_t(P)] = std::nan(""); }
+			}
+		}
+		for (int J = 0; J < N; ++J)
+			for (int I = 0; I < N; ++I)
+			{
+				const size_t P = size_t(J + Rim) * M + I + Rim, V = size_t(J) * N + I;
+				if (Kind[P] == 0) continue;
+				Wet[V] = Kind[P];
+				LevelAt[V] = Lv[P];
+				AnyWet = true;
+			}
+		// [real water stage 2] The shore: every point within ShoreSea (the sea) or ShoreLake m of water
+		// takes the level of the water nearest it, for the land's wet band, beach and bed (its UV1).
+		if (Shore)
+		{
+			const double ShoreSea = 44.0, ShoreLake = 14.0;
+			std::vector<double> ShLv(Lv), ShGone(size_t(M) * M, 1e9);
+			std::vector<unsigned char> ShKind(Kind);
+			std::vector<int> Ring;
+			for (int P = 0; P < M * M; ++P)
+				if (ShKind[size_t(P)] != 0) { ShGone[size_t(P)] = 0.0; Ring.push_back(P); }
+			const int Di[4] = {1, -1, 0, 0}, Dj[4] = {0, 0, 1, -1};
+			for (size_t Q = 0; Q < Ring.size(); ++Q)
+			{
+				const int P = Ring[Q];
+				const int I = P % M, J = P / M;
+				for (int K = 0; K < 4; ++K)
+				{
+					const int Ni = I + Di[K], Nj = J + Dj[K];
+					if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) continue;
+					const size_t Np = size_t(Nj) * M + Ni;
+					if (ShKind[Np] != 0 || ShGone[size_t(P)] + Step > (ShKind[size_t(P)] == 2 ? ShoreSea : ShoreLake)) continue;
+					ShKind[Np] = ShKind[size_t(P)];
+					ShLv[Np] = ShLv[size_t(P)];
+					ShGone[Np] = ShGone[size_t(P)] + Step;
+					Ring.push_back(int(Np));
+				}
+			}
+			ShoreHere.assign(size_t(N) * N * 2, 0.0f);
+			for (int J = 0; J < N; ++J)
+				for (int I = 0; I < N; ++I)
+				{
+					const size_t P = size_t(J + Rim) * M + I + Rim, V = size_t(J) * N + I;
+					if (ShKind[P] == 0 || std::isnan(ShLv[P])) continue;
+					const double H = std::clamp(Gr[P] - ShLv[P], -ShoreZero + 1.0, ShoreZero);
+					int Type = ShoreBank;
+					if (ShKind[P] == 2)
+					{
+						// (the sea's shore: the map's beach or mud flats, else by the slope: rock where it is
+						// steep, sand where it is all but flat, shingle between)
+						const double Gx = Gr[P + 1] < 1e8 && Gr[P - 1] < 1e8 ? (Gr[P + 1] - Gr[P - 1]) / (2.0 * Step) : 0.0;
+						const double Gz = Gr[P + size_t(M)] < 1e8 && Gr[P - size_t(M)] < 1e8 ? (Gr[P + size_t(M)] - Gr[P - size_t(M)]) / (2.0 * Step) : 0.0;
+						const double Slope = std::hypot(Gx, Gz);
+						Type = Slope > 0.55 ? ShoreRock : Slope < 0.06 ? ShoreSand : ShoreShingle;
+						const int Fa = FieldAt(X0 + I * Step, Z0 + J * Step);
+						if (Fa >= 0)
+						{
+							const int Fk = FieldAreas[size_t(Fa)].Kind;
+							if (Fk == FieldSand) Type = ShoreSand;
+							else if (Fk == FieldScree) Type = ShoreShingle;
+							else if (Fk == FieldMud) Type = ShoreMud;
+						}
+					}
+					ShoreHere[V * 2] = float(ShoreZero - H);   // (so a point with none, 0, reads as high over any water)
+					ShoreHere[V * 2 + 1] = float(Type * 10) + (ShKind[P] == 2 ? float(std::min(TideHalf, 9.0)) : 0.0f);
+				}
+		}
+	}
+	if (Shore) *Shore = std::move(ShoreHere);
 	if (AnyWet)
 	{
-		// A quad of water over every cell with a wet corner: a wet corner at its own ground and a little
-		// over (the sea at its level), a dry one no higher than the lowest wet one, so the water runs
-		// under the bank and the land itself draws the shore.
+		// A quad of water over every cell with a wet corner: a wet corner at its level, a dry one at the
+		// lowest wet one's, so the water runs flat under the bank and the land itself draws the shore.
 		for (int J = 0; J < Cells; ++J)
 			for (int I = 0; I < Cells; ++I)
 			{
@@ -2559,21 +2810,25 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				{
 					const size_t V = size_t(Cj[K]) * N + Ci[K];
 					Level[K] = std::nan("");
-					if (Wet[V] == 0) continue;
+					if (Wet[V] == 0 || std::isnan(LevelAt[V])) continue;
+					if (Wet[V] == 2 && double(Sheet.Pos[V * 3 + 1]) > LevelAt[V] + TideTop) continue;
 					Any = true;
 					Sea = Sea || Wet[V] == 2;
-					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? Held[V]
-						: !std::isnan(Lake[V]) ? Lake[V] : double(Sheet.Pos[V * 3 + 1]) + 0.12;
+					Level[K] = LevelAt[V];
 					Lowest = std::fmin(Lowest, Level[K]);
 				}
 				if (!Any) continue;
 				const uint32_t Base = uint32_t(Out.Vertices());
 				for (int K = 0; K < 4; ++K)
 				{
-					// (a dry corner a little under its own ground, so on flat land the shore runs between
-					// the points, not round the squares)
-					const double Y = std::isnan(Level[K]) ? std::fmin(Lowest, double(Sheet.Pos[(size_t(Cj[K]) * N + Ci[K]) * 3 + 1]) - 0.25) : Level[K];
-					Put(X0 + Ci[K] * Step, Y, Z0 + Cj[K] * Step, Sea ? SeaWater : LakeWater);
+					// (a dry corner at the water's level, under the land rising out of it. Where the land still
+					// falls away, at a dam or a lake's outflow, eased down no steeper than a weir's lip, never
+					// pulled down to the ground: that drew the water's edge as a wall)
+					const double Dry = double(Sheet.Pos[(size_t(Cj[K]) * N + Ci[K]) * 3 + 1]);
+					const double Y = !std::isnan(Level[K]) ? Level[K] : Dry >= Lowest ? Lowest : std::fmax(Dry - 0.25, Lowest - 0.17 * Step);
+					// (its depth: the water over the ground there, less than 0 under the bank, so the shore's
+					// foam lies where the land comes out of the water, between the points)
+					Put(X0 + Ci[K] * Step, Y, Z0 + Cj[K] * Step, Sea ? SeaWater : LakeWater, Y - Dry, Sea ? TideHalf : 0.0, 0.0);
 				}
 				// (A B across the top, C D below: as LandTile's own quads, facing up)
 				Out.Idx.insert(Out.Idx.end(), {Base, Base + 2, Base + 1, Base + 1, Base + 2, Base + 3});
@@ -2615,15 +2870,38 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					NearHit Hit;
 					if (NearestOf(Mid.X, Mid.Z, Opts, Hit) && Hit.Dist <= Hit.Half + 1.0 && Run.Kind == 1) continue;
 				}
+				// ([real water stage 1] a stream's last stretch into the sea follows the pressed down shore
+				// below the sea's level: there the sea's own water, never a sloping sheet under it)
+				const double Ya = std::fmax(double(Run.Surface[I]), 0.0), Yb = std::fmax(double(Run.Surface[I + 1]), 0.0);
+				if (Ya <= 0.0 && Yb <= 0.0) continue;
 				const P2 La = LeftOf(Run, I), Lb = LeftOf(Run, I + 1);
 				const Rgb C = Run.Kind == 2 ? LakeWater : RiverWater;
+				// ([real water stage 6] a river flows: its UV0 metres across it and down it over 8, so the
+				// material's ripples run downstream, UV1's v its pace from the fall of its water, the alpha
+				// white water where it falls fast; three points across, so its depth (UV1's u) runs from
+				// under each bank to the middle, for the foam along its edges)
+				const double Len = std::fmax(A.DistanceTo(B), 0.01);
+				const double Fall = std::fmax(0.0, double(Run.Surface[I]) - double(Run.Surface[I + 1])) / Len;
+				const double Pace = Run.Kind == 2 ? 0.06 : std::clamp(0.35 + Fall * 25.0, 0.3, 2.6);
+				const double White = Run.Kind == 2 ? 0.0 : (Fall - 0.02) * 12.0;
+				const double Va = double(Run.Along[I]) / 8.0, Vb = Va + Len / 8.0;
+				const double Da = double(Run.Depth[I]), Db = double(Run.Depth[I + 1]);
 				const uint32_t Base = uint32_t(Out.Vertices());
-				Put(A.X + La.X * Ha, Run.Surface[I], A.Z + La.Z * Ha, C);
-				Put(A.X - La.X * Ha, Run.Surface[I], A.Z - La.Z * Ha, C);
-				Put(B.X + Lb.X * Hb, Run.Surface[I + 1], B.Z + Lb.Z * Hb, C);
-				Put(B.X - Lb.X * Hb, Run.Surface[I + 1], B.Z - Lb.Z * Hb, C);
-				// (left is the run's left going down it, so these face up)
-				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
+				const auto Flowing = [&](const P2& At, double Y, double Across, double V, double Deep)
+				{
+					Put(At.X, Y, At.Z, C, Deep, Pace, White);
+					const size_t U = (Out.Vertices() - 1) * 2;
+					Out.Uv[U] = float(Across / 8.0);
+					Out.Uv[U + 1] = float(V);
+				};
+				Flowing(A + La * Ha, Ya, -Ha, Va, -0.25);
+				Flowing(A, Ya, 0.0, Va, Da);
+				Flowing(A - La * Ha, Ya, Ha, Va, -0.25);
+				Flowing(B + Lb * Hb, Yb, -Hb, Vb, -0.25);
+				Flowing(B, Yb, 0.0, Vb, Db);
+				Flowing(B - Lb * Hb, Yb, Hb, Vb, -0.25);
+				// (left is the run's left going down it, so these face up: A's left, middle, right, then B's)
+				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 3, Base + 1, Base + 4, Base + 3, Base + 1, Base + 2, Base + 4, Base + 2, Base + 5, Base + 4});
 			}
 		}
 }

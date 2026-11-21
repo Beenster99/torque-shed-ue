@@ -1414,6 +1414,115 @@ int main()
 								&& N0.Place.find("England") != std::string::npos,
 							"the road's facts: its limit all along it (no flicker under 100 m), a sign each way where it changes, the road's name, the county and country");
 					}
+					// [Nov 21] beenster, build 166 at Gigha: "ALL hedges and walls need ends". Every mapped wall, hedge and
+					// bank drawn up to its own end is closed there: a face turned out of its end within half a metre
+					// of it (a wall's end face, a hedge's leafy nose); and with the wall kit in, a wall head laid over
+					// its end however short its last piece is. TORQUE_ENDS_DUMP=<dir> writes each end's square as .obj.
+					{
+						const Region& Rg = Plan->Area.Roads;
+						const char* DumpTo = std::getenv("TORQUE_ENDS_DUMP");
+						int Drawn = 0, Shut = 0, KitDrawn = 0, KitHeaded = 0, Dumped = 0;
+						for (size_t Li = 0; Li < Rg.Scenery.Lines.size() && Drawn < 60; ++Li)
+						{
+							const FeatureLine& Fl = Rg.Scenery.Lines[Li];
+							if (Fl.Line.size() < 2 || !(Fl.Kind == "wall" || Fl.Kind == "hedge")) continue;
+							if (Fl.Line.front().DistanceTo(Fl.Line.back()) < 0.05) continue;
+							for (int Which = 0; Which < 2; ++Which)
+							{
+								const P2 E = Which == 0 ? Fl.Line.front() : Fl.Line.back(), In = Which == 0 ? Fl.Line[1] : Fl.Line[Fl.Line.size() - 2];
+								const double Lw = E.DistanceTo(In);
+								if (Lw < 0.5) continue;
+								const P2 Way = (E - In) * (1.0 / Lw);
+								const double Tx = std::floor(E.X / 64.0) * 64.0, Tz = std::floor(E.Z / 64.0) * 64.0;
+								// (an end in from its square's edges, so the square draws all of it)
+								if (E.X - Tx < 3.0 || Tx + 64.0 - E.X < 3.0 || E.Z - Tz < 3.0 || Tz + 64.0 - E.Z < 3.0) continue;
+								RideMesh Sq;
+								Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Sq);
+								bool Near1 = false, Out1 = false;
+								double Best = -1.0;
+								for (const RideMesh* M : {&Sq, Sq.Stone.get()})
+								{
+									if (!M) continue;
+									for (size_t T = 0; T + 2 < M->Idx.size(); T += 3)
+									{
+										double Cx = 0.0, Cz = 0.0;
+										for (int Vk = 0; Vk < 3; ++Vk) { Cx += M->Pos[M->Idx[T + Vk] * 3] + M->OriginX; Cz += M->Pos[M->Idx[T + Vk] * 3 + 2] + M->OriginZ; }
+										const P2 C(Cx / 3.0, Cz / 3.0);
+										const double Off = (C - E).X * Way.X + (C - E).Z * Way.Z, Across = std::fabs((C - E).X * Way.Z - (C - E).Z * Way.X);
+										if (Across > 1.3 || Off < -1.0 || Off > 0.6) continue;
+										const uint32_t V0 = M->Idx[T];
+										// (this line's own sides just short of its end: faces turned across it, a hedge's in its leaf
+										// green, a wall's in the stone mesh; not some other thing standing there)
+										const bool Leafy = M == &Sq && M->Col.size() >= (V0 + 1) * 3 && M->Col[V0 * 3 + 1] > M->Col[V0 * 3] && M->Col[V0 * 3 + 1] > M->Col[V0 * 3 + 2] && M->Col[V0 * 3 + 1] < 0.12f;
+										const bool Mine = Fl.Kind == "hedge" ? Leafy : M != &Sq;
+										if (Mine && Off < -0.3 && std::fabs(M->Nrm[V0 * 3] * Way.Z - M->Nrm[V0 * 3 + 2] * Way.X) > 0.5) Near1 = true;
+										if (!Mine) continue;
+										const double Facing = M->Nrm[V0 * 3] * Way.X + M->Nrm[V0 * 3 + 2] * Way.Z;
+										if (Off > -0.5) Best = std::fmax(Best, Facing);
+										if (Off > -0.5 && Facing > 0.45) Out1 = true;
+									}
+								}
+								if (!Near1) continue;   // (not drawn to its end: a road, a railway or a gateway there)
+								++Drawn;
+								Shut += Out1 ? 1 : 0;
+								if (!Out1) std::printf("      open end: %s %zu at %.1f, %.1f (best facing %.2f)\n", Fl.Kind.c_str(), Li, E.X, E.Z, Best);
+								if (DumpTo && Dumped < 8 && (!Out1 || Dumped < 4))
+								{
+									std::string Obj;
+									size_t Base = 0;
+									for (const RideMesh* M : {&Sq, Sq.Stone.get()})
+									{
+										if (!M) continue;
+										for (size_t Vi = 0; Vi < M->Vertices(); ++Vi)
+										{
+											const float* Cv = M->Col.size() >= (Vi + 1) * 3 ? &M->Col[Vi * 3] : nullptr;
+											char Ln[160];
+											std::snprintf(Ln, sizeof Ln, "v %.3f %.3f %.3f %.3f %.3f %.3f\n", M->Pos[Vi * 3] + M->OriginX - E.X, M->Pos[Vi * 3 + 1], M->Pos[Vi * 3 + 2] + M->OriginZ - E.Z,
+												Cv ? Cv[0] : 0.25, Cv ? Cv[1] : 0.24, Cv ? Cv[2] : 0.22);
+											Obj += Ln;
+										}
+										for (size_t T = 0; T + 2 < M->Idx.size(); T += 3)
+											Obj += "f " + std::to_string(Base + M->Idx[T] + 1) + " " + std::to_string(Base + M->Idx[T + 1] + 1) + " " + std::to_string(Base + M->Idx[T + 2] + 1) + "\n";
+										Base += M->Vertices();
+									}
+									char Name[96];
+									std::snprintf(Name, sizeof Name, "/end_%d_%s_%.2f_%.2f_%.2f.obj", Dumped, Fl.Kind.c_str(), Way.X, Way.Z, Plan->Ground(E.X, E.Z));
+									Files::Write(std::string(DumpTo) + Name, Obj);
+									++Dumped;
+								}
+								if (Fl.Kind == "wall")
+								{
+									// (the wall kit in: its last piece's head over the end)
+									Plan->PropModelled[RidePlan::PropWallStone] = Plan->PropModelled[RidePlan::PropWallEnd] = true;
+									RideMesh Kit;
+									Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Kit);
+									Plan->PropModelled[RidePlan::PropWallStone] = Plan->PropModelled[RidePlan::PropWallEnd] = false;
+									++KitDrawn;
+									if (DumpTo)
+									{
+										// (its wall lengths and heads, each: model variant x y z yaw pitch stretch, about the end)
+										std::string List;
+										for (const RideProp& Pr : Kit.Props)
+										{
+											if (Pr.Kind != RidePlan::PropWallStone && Pr.Kind != RidePlan::PropWallEnd) continue;
+											if (std::hypot(Pr.X + Kit.OriginX - E.X, Pr.Z + Kit.OriginZ - E.Z) > 30.0) continue;
+											char Ln[200];
+											std::snprintf(Ln, sizeof Ln, "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", Pr.Kind == RidePlan::PropWallEnd ? "end" : "stone", int(Pr.Variant),
+												Pr.X + Kit.OriginX - E.X, Pr.Y, Pr.Z + Kit.OriginZ - E.Z, Pr.Yaw, Pr.Pitch, Pr.Stretch);
+											List += Ln;
+										}
+										char Name[96];
+										std::snprintf(Name, sizeof Name, "/wall_%d_%.2f_%.2f_%.2f.txt", KitDrawn, Way.X, Way.Z, Plan->Ground(E.X, E.Z));
+										Files::Write(std::string(DumpTo) + Name, List);
+									}
+									for (const RideProp& Pr : Kit.Props)
+										if (Pr.Kind == RidePlan::PropWallEnd && std::hypot(Pr.X + Kit.OriginX - E.X, Pr.Z + Kit.OriginZ - E.Z) < 0.6) { ++KitHeaded; break; }
+								}
+							}
+						}
+						std::printf("      wall and hedge ends drawn to their end: %d, closed %d; with the wall kit, walls %d, headed %d\n", Drawn, Shut, KitDrawn, KitHeaded);
+						Check(Drawn > 0 && Shut == Drawn && KitHeaded == KitDrawn, "every wall and hedge is closed where it stops: an end face or a hedge's leafy end, a wall head with the kit in");
+					}
 					// The road's furniture (stage 5).
 					{
 						int Built = 0;

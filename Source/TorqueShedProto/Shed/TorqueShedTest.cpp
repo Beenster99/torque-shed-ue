@@ -725,7 +725,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
-		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry") || Verb == TEXT("trains"))
+		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry") || Verb == TEXT("trains") || Verb == TEXT("crossings"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -825,10 +825,17 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Said(ATorqueFerry::Test(World, What, Bike));
 			return true;
 		}
-		// [trains] trains[:where|count]: the nearest train in sight and its route, or how many are in sight.
+		// [trains] trains[:where|count|draw|goto]: the nearest train in sight and its route, how many are in sight,
+		// what's laid as instances, or our bike put beside the line ahead of the nearest moving train.
 		if (Verb == TEXT("trains"))
 		{
-			Said(ATorqueTrains::Test(World, P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"))));
+			Said(ATorqueTrains::Test(World, P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where")), Bike));
+			return true;
+		}
+		// [trains] crossings:next: our bike put on the road short of the level crossing that closes soonest.
+		if (Verb == TEXT("crossings"))
+		{
+			Said(ATorqueTrains::NextCrossing(World, Bike));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.

@@ -210,6 +210,9 @@ WEATHER_PARAMS = (
     ("LeafFresh", 0.0),      # [seasonal trees test] the scanned trees' leaves: spring's paler green, 0 .. 1
     ("LeafTurn", 0.0),       # autumn's colour, 0 .. 1 (Tools/ue_tree_season.py)
     ("LeafDrop", 0.0),       # the share of leaves gone, 0 .. 1
+    ("Tide", 0.0),           # [real water] the sea's height as a share of its tidal half range here (-1.25 .. 1.25)
+    ("TideHigh", 0.0),       # the last high water's, as Tide (the beach is wet up to it)
+    ("WaterWaves", 1.0),     # the water's moving waves near the rider: 1 on, 0 off (torque.RideWaterWaves)
 )
 _weather_mpc = None
 
@@ -693,13 +696,110 @@ def lin(rgb255):
     return tuple((c / 255.0) ** 2.2 for c in rgb255)
 
 
-def land_material_scanned(tex, roles):
+def shore_ground(g, tex, roles, land, shore, rock_l, gravel_l, peat_l):
+    """[real water] The ground by the water (land_material_scanned's shore): the land layer with beaches,
+    rock, mud and wet banks laid where its UV1 says the water is, and how wet the shore leaves it (0..1)."""
+    U = unreal
+
+    def chan(src, c):
+        e = g.node(U.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=False)
+        g.link(src, e)
+        return e
+
+    def mul(a, b):
+        return g.op(U.MaterialExpressionMultiply, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(U.MaterialExpressionMultiply, a, b)
+
+    def add(a, b):
+        return g.op(U.MaterialExpressionAdd, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(U.MaterialExpressionAdd, a, b)
+
+    def sub(a, b):
+        a = g.const(float(a)) if isinstance(a, (int, float)) else a
+        return g.op(U.MaterialExpressionSubtract, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(U.MaterialExpressionSubtract, a, b)
+
+    def sat(a):
+        return g.op(U.MaterialExpressionSaturate, a)
+
+    def near(a, k):
+        """1 where a is k, falling to 0 one away."""
+        return sat(sub(1.0, g.op(U.MaterialExpressionAbs, sub(a, float(k)))))
+
+    def lite(maps, metres, tint=None):
+        """A scanned surface at one scale: colour and normal, a fixed roughness (cheaper than layer)."""
+        uv = g.world_uv(metres)
+        col = g.sample(maps["color"], uv, "color")
+        if tint is not None:
+            col = g.op(U.MaterialExpressionMultiply, col, g.const(tint))
+        nrm = g.sample(maps["normal"], uv, "normal") if "normal" in maps else g.const((0.0, 0.0, 1.0))
+        return [col, nrm, g.const(0.75)]
+
+    uv1 = g.node(U.MaterialExpressionTextureCoordinate, coordinate_index=1)
+    h = sub(64.0, chan(uv1, "R"))   # (m over the water near it; 64 where there's none)
+    v = chan(uv1, "G")
+    kind = g.op(U.MaterialExpressionFloor, add(mul(v, 0.1), 0.05))
+    tide_half = sub(v, mul(kind, 10.0))
+    sea = sat(sub(kind, 1.5))
+    bank = near(kind, 1)
+    nt = noise_texture()
+    if nt is not None:
+        nz = g.sample(nt, g.world_uv(9.0), "linear")
+        jag, patch = chan(nz, "R"), chan(nz, "G")
+    else:
+        jag = patch = g.const(0.5)
+    # The shore's own ground: sand, shingle, rock, mud, or a river's or loch's mud and pebbles.
+    # (the scan's sand is a dry desert gold: British sand is greyer and browner)
+    shore_l = lite(tex["sand"], roles["sand"]["tile_m"], (0.78, 0.74, 0.64)) if "sand" in tex else None
+    if "shingle" in tex:
+        shingle = lite(tex["shingle"], roles["shingle"]["tile_m"])
+        shore_l = shingle if shore_l is None else g.mix(shore_l, shingle, near(kind, 3))
+    if shore_l is None:
+        shore_l = gravel_l or rock_l or land
+    if rock_l is not None:
+        shore_l = g.mix(shore_l, rock_l, near(kind, 4))
+    if peat_l is not None:
+        shore_l = g.mix(shore_l, peat_l, g.op(U.MaterialExpressionMax, near(kind, 5), mul(bank, 0.6)))
+    if gravel_l is not None:
+        shore_l = g.mix(shore_l, gravel_l, mul(mul(bank, 0.5), patch))
+    # (up to a storm's reach over the high springs on the sea, a hand's breadth over a loch's level, the
+    # edge broken up; and under the water, the bed)
+    top = g.lerp(g.const(0.35), add(mul(tide_half, 1.3), 1.2), sea)
+    beach = sat(add(mul(sub(top, h), 1.6), mul(sub(jag, 0.5), 1.4)))
+    land = g.mix(land, shore_l, beach)
+    # Weed on the sea's rocks and shingle between the tides, dark olive.
+    weed = mul(mul(sea, add(near(kind, 4), near(kind, 3))),
+               sat(sub(1.0, g.op(U.MaterialExpressionDivide, g.op(U.MaterialExpressionAbs, sub(h, mul(tide_half, 0.1))), add(mul(tide_half, 0.6), 0.25)))))
+    weed = mul(mul(weed, sat(mul(sub(patch, 0.3), 3.0))), 0.85)
+    land[0] = g.lerp(land[0], g.op(U.MaterialExpressionMultiply, land[0], g.const((0.36, 0.33, 0.17))), weed)
+    # Wet up to the last high water on the sea, just over the level by a loch or river: darker.
+    wet_top = g.lerp(g.const(0.12), add(mul(weather_param(g, "TideHigh"), tide_half), 0.3), sea)
+    shore_wet = sat(mul(sub(wet_top, h), 1.0 / 0.35))
+    land[0] = g.op(U.MaterialExpressionMultiply, land[0], g.lerp(g.const(1.0), g.const(0.62), shore_wet))
+    # The sun's light netted on the bed under shallow water (the tide's water over the sea's).
+    caustics = shore.get("caustics")
+    if caustics is not None:
+        level = mul(mul(weather_param(g, "Tide"), tide_half), sea)
+        under = sub(level, h)
+        t = g.node(U.MaterialExpressionTime)
+        drift = g.op(U.MaterialExpressionAppendVector, mul(t, 0.021), mul(t, 0.013))
+        net = chan(g.sample(caustics, add(g.world_uv(3.0), drift), "linear"), "R")
+        light = mul(mul(sat(mul(under, 3.0)), sat(sub(1.0, mul(under, 0.25)))), mul(net, 1.3))
+        land[0] = g.op(U.MaterialExpressionMultiply, land[0], add(light, 1.0))
+    return land, shore_wet
+
+
+def land_material_scanned(tex, roles, shore=None):
     """Moorland from scanned surfaces: grass and moor grass in big patches, peat in hollows, rock on
     slopes steeper than about 35 degrees, gravel on the verge, all tinted by the map's cover colour so
-    fields, moor and scree still fall where the map says."""
+    fields, moor and scree still fall where the map says.
+    shore (Ride UK's M_RideLandScan only, [real water]): {"caustics": texture or None}. The ground's UV1 then
+    says how high it stands over the water near it and what shore it is (World/WorldRide's LandTile:
+    u ShoreZero 64 less the height, v the kind times 10 plus the sea's tidal half range): beaches of sand
+    or shingle, rock, mud flats and a river's or loch's muddy, pebbly edge, wet and dark up to the last
+    high water (MPC_Weather TideHigh) or just over a loch's level, weed on the sea's rocks between the
+    tides, and the sun's light netted on the bed under shallow water."""
     g = Graph(new_material("M_Land"))
     grass = g.layer(tex["grass"], roles["grass"]["tile_m"])
     land = grass
+    rock_l = gravel_l = peat_l = None   # ([real water] the shore reuses them)
     # beenster (8 Nov): the far ground read as "mottled polka dot". The moor and peat patches were
     # 12 m and 3 m blobs at full contrast, which shrink to dots across the dale; make them broad and
     # soft, and from about 80 m out let them settle to an even mix instead of dots.
@@ -717,6 +817,7 @@ def land_material_scanned(tex, roles):
         g.link(peat[0], dull)
         g.link(g.const(0.7), dull, "Fraction")
         peat[0] = g.op(unreal.MaterialExpressionMultiply, dull, g.const((0.55, 0.5, 0.45)))
+        peat_l = list(peat)
         peat_mask = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0011, -6.0, 0.9),
                          g.op(unreal.MaterialExpressionOneMinus, calm))
         land = g.mix(land, peat, peat_mask)
@@ -733,11 +834,13 @@ def land_material_scanned(tex, roles):
         steep = g.op(unreal.MaterialExpressionSubtract, up, const_b=0.80)
         steep = g.op(unreal.MaterialExpressionMultiply, steep, const_b=-7.0)
         steep = g.op(unreal.MaterialExpressionSaturate, steep)
-        land = g.mix(land, g.layer(tex["rock"], roles["rock"]["tile_m"]), steep)
+        rock_l = g.layer(tex["rock"], roles["rock"]["tile_m"])
+        land = g.mix(land, rock_l, steep)
     if "gravel" in tex:
         verge = g.op(unreal.MaterialExpressionOneMinus, vc, a_out="A")
         verge = g.op(unreal.MaterialExpressionMultiply, verge, verge)   # a narrower verge: grit only near the edge
-        land = g.mix(land, g.layer(tex["gravel"], roles["gravel"]["tile_m"]), verge)
+        gravel_l = g.layer(tex["gravel"], roles["gravel"]["tile_m"])
+        land = g.mix(land, gravel_l, verge)
     # Livelier greens: push the colour away from its own grey (lerp past 1 extrapolates).
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
     g.link(land[0], grey)
@@ -773,6 +876,9 @@ def land_material_scanned(tex, roles):
     g.link(land[0], rg)
     blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.4))
     land[0] = g.op(unreal.MaterialExpressionAppendVector, rg, blue)
+    shore_wet = None
+    if shore is not None:
+        land, shore_wet = shore_ground(g, tex, roles, land, shore, rock_l, gravel_l, peat_l)
     # Rain darkens the ground a little and takes the edge off its roughness.
     wet = wetness(g)
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], g.lerp(g.const(1.0), g.const(0.8), wet))
@@ -781,6 +887,9 @@ def land_material_scanned(tex, roles):
     # beenster (8 Nov): still a sheen on the ground looking into the sun. Moorland is matte: a high
     # roughness floor and low specular when dry (rain still brings some shine back).
     land[2] = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.92), g.const(0.55), wet), a_out=r_out)
+    if shore_wet is not None:
+        # ([real water] wet sand and stone by the water shine)
+        land[2] = g.lerp(land[2], g.const(0.22), g.op(unreal.MaterialExpressionMultiply, shore_wet, const_b=0.85))
     snow_cover(g, land)
     return g.finish(land, specular=0.12)
 

@@ -280,6 +280,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				int RailOn = 0;
 				bool Old = false;
 				if (NearRail(X, Z, RailDist, RailTop, RailOn, &Old) && !Old && RailOn != 2 && RailDist < 2.4) continue;
+				if (!FerryLays.empty() && OnFerryWay(X, Z, 0.8)) continue;   // [ferries] (nothing through a slipway's tarmac)
 				if (D < 1.5)
 				{
 					// (right by a road's edge the 4 m grid is too coarse a guide: how far from it exactly)
@@ -501,6 +502,7 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				const double Tall = double(Trees & 31) * 2.0, Share = double((Trees >> 5) & 7) / 8.0;
 				if (Tall < 3.0 || Hash(Gx, Gz, 13u) > Share * (Fine ? 0.8 : 1.0) * 1.2) continue;
 				if (RoadEdge(X, Z) < 5.0) continue;
+				if (!FerryLays.empty() && OnFerryWay(X, Z, 4.0)) continue;
 				const int Leaf = (Trees >> 8) & 3;
 				const double Roll = Hash(Gx, Gz, 14u);
 				uint16_t What = Ash;

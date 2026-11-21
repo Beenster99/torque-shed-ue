@@ -1568,6 +1568,10 @@ void FTorqueAvatar::SetShown(bool bBody, bool bHead, bool bHair)
 		if (!C) continue;
 		const bool bIsHair = Hair.Contains(P);
 		C->SetVisibility(bIsHair ? (bHead && bHair) : (C == FaceMesh ? bHead : (bBody && C != Under)), false);
+		// The face and hair cast their shadow while hidden (the first-person view, SetOwnerView); with
+		// the whole avatar hidden (nobody on the bike) they mustn't (build 166: a shadow of a head).
+		if (UPrimitiveComponent* Pc = Cast<UPrimitiveComponent>(C))
+			if (C == FaceMesh || bIsHair) Pc->SetCastHiddenShadow(bBody && (!bIsHair || bHair));   // (hair off under a helmet: no shadow)
 	}
 }
 

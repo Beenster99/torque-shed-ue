@@ -91,7 +91,7 @@ UStaticMesh* BuildRideLook(UObject* Outer, const TArray<TPair<const TorqueWorld:
 	TVertexInstanceAttributesRef<FVector2f> UVs = Attr.GetVertexInstanceUVs();
 	TVertexInstanceAttributesRef<FVector4f> Colours = Attr.GetVertexInstanceColors();
 	TPolygonGroupAttributesRef<FName> SlotNames = Attr.GetPolygonGroupMaterialSlotNames();
-	UVs.SetNumChannels(1);
+	UVs.SetNumChannels(2);   // [real water] (UV1: the water's depth and flow, the land's shore)
 	Desc.ReserveNewVertices(AllPoints);
 	Desc.ReserveNewVertexInstances(AllPoints);
 	Desc.ReserveNewTriangles(AllTriangles);
@@ -139,6 +139,7 @@ UStaticMesh* BuildRideLook(UObject* Outer, const TArray<TPair<const TorqueWorld:
 			Tangents[Inst] = T.GetSafeNormal(UE_SMALL_NUMBER, FVector3f::ForwardVector);
 			Signs[Inst] = 1.0f;
 			UVs.Set(Inst, 0, bUvs ? FVector2f(M->Uv[size_t(I) * 2], M->Uv[size_t(I) * 2 + 1]) : FVector2f::ZeroVector);
+			UVs.Set(Inst, 1, M->Uv1.size() >= size_t(Count) * 2 ? FVector2f(M->Uv1[size_t(I) * 2], M->Uv1[size_t(I) * 2 + 1]) : FVector2f::ZeroVector);
 			// The procedural mesh kept the colours as they are, linear (CreateMeshSection_LinearColor with
 			// no sRGB conversion): the materials read them as masks and the road's own colour. The static
 			// mesh build stores a colour sRGB-encoded (ToFColor(true)), so it's given the colour whose

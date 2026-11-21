@@ -142,6 +142,12 @@ struct RideMesh
 	std::vector<float> Uv;         // u, v each: the ground's metres across the world over 8; what stands on it, metres of its surface
 	std::vector<float> Col;        // r, g, b each (linear), or empty for a mesh of one colour
 	std::vector<float> Alpha;      // a each, or empty for 1 everywhere
+	// [real water] A second set of UVs (UV1), u, v each, or empty for 0 everywhere. Water: u its depth under
+	// the water at the point (m, less than 0 where the point lies under the bank), v a river's flow (m/s) or
+	// the sea's tidal range there (m, high to low water halved). Land: ShoreZero less its height over the nearest
+	// water's level (0: no water near, read as high above any), v the shore's kind (EShore) times 10 plus that
+	// sea's tidal half range.
+	std::vector<float> Uv1;
 	std::vector<uint32_t> Idx;     // triangles, wound to face up seen from above with x right and z towards you
 	size_t Vertices() const { return Pos.size() / 3; }
 	// With a square of ground: what stands on it (walls, buildings, trees), coloured, or null for nothing.
@@ -413,6 +419,7 @@ public:
 	void IndexFerries();
 	std::shared_ptr<const Ferries::Layout> FerryLayOf(int Listed) const;
 	double FerryCut(double X, double Z, double Lie) const;
+	bool OnFerryWay(double X, double Z, double Margin) const;   // (on a slipway or its approach, or within Margin: no plants)
 	static constexpr double FerryCutBelow = 0.12, FerryCutVerge = 2.5, FerryCutBank = 1.5;
 
 	bool Ok = false;
@@ -947,6 +954,7 @@ public:
 		int Kind = 0;   // as Stream's: 0 a river, 1 a stream, 2 a canal
 		std::vector<P2> At;
 		std::vector<float> Surface, Half, Depth;
+		std::vector<float> Along;   // [real water stage 6] metres down it from its first point, kept under 4 km (its flow's ripples repeat every 80 m)
 	};
 	std::vector<WaterRun> WaterRuns;
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> WaterNear;   // (run, first point) by every WaterCell square within reach
@@ -1796,7 +1804,15 @@ private:
 	void IndexRails();
 	void RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const;
 	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
-	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
+	// [real water stage 2] Shore (if given): two figures per point of the land's sheet, its UV1 (RideMesh::Uv1):
+	// ShoreZero less how high it stands over the water near it, and its shore's kind times 10 plus the tide's half range.
+	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out, std::vector<float>* Shore = nullptr) const;
+	// [real water] The land's UV1 u is ShoreZero less its height over the water near it (0, no water near: 64 m over it).
+	static constexpr double ShoreZero = 64.0;
+	enum EShore { ShoreNone = 0, ShoreBank = 1, ShoreSand = 2, ShoreShingle = 3, ShoreRock = 4, ShoreMud = 5 };
+	// [real water stage 9] The tide's half range (m) for the sea at (X, Z): Tide::HalfRange, eased to none round a
+	// ferry's berths (its boat and slipway are laid for the sea's mean level).
+	double TideHalfAt(double X, double Z) const;
 	// [build 155 feedback] A near square's watercourses' banks and channels, in the land's own colours, added
 	// to its land mesh Out: each side from under the water's edge out BankStrip squares, finely, over the
 	// near land's points that lie under the water (GroundOf), to meet the land as drawn at its outer edge.

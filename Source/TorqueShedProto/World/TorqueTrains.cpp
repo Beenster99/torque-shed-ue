@@ -467,17 +467,99 @@ bool ATorqueTrains::AnyNear(const UWorld* InWorld, double X, double Z, double Re
 	return false;
 }
 
-FString ATorqueTrains::Test(const UWorld* InWorld, const FString& What)
+FString ATorqueTrains::Test(const UWorld* InWorld, const FString& What, ATorqueBikePawn* Bike)
 {
-	const ATorqueTrains* T = TTI::Of(InWorld);
+	namespace TT = TorqueWorld::Trains;
+	ATorqueTrains* T = TTI::Of(InWorld);
 	if (!T) return TEXT("no trains (not on a Ride UK ride)");
 	if (!T->Net) return TEXT("trains: network not built yet");
 	if (What == TEXT("count")) return FString::Printf(TEXT("%d trains in sight"), int32(T->Shown.size()));
+	// draw: what's actually laid as instances (to tell a train not drawn from one not looked at)
+	if (What == TEXT("draw"))
+	{
+		int32 NParts = 0, Instances = 0;
+		FString First;
+		for (auto& P : T->Parts)
+			if (P.Value && P.Value->GetInstanceCount() > 0)
+			{
+				++NParts;
+				Instances += P.Value->GetInstanceCount();
+				if (First.IsEmpty())
+				{
+					FTransform X;
+					P.Value->GetInstanceTransform(0, X, true);
+					First = FString::Printf(TEXT("%s at %s (visible %d, mesh %s, bounds %.0f m)"), *P.Value->GetName(), *X.GetLocation().ToCompactString(), P.Value->IsVisible() ? 1 : 0,
+						P.Value->GetStaticMesh() ? *P.Value->GetStaticMesh()->GetName() : TEXT("none"), P.Value->Bounds.SphereRadius / 100.0);
+				}
+			}
+		return FString::Printf(TEXT("trains drawn: %d parts, %d vehicles; first %s; camera at %s"), NParts, Instances, *First, *T->Eye().ToCompactString());
+	}
+	// goto: our bike put 15 m beside the line ahead of the nearest moving train (within 2.5 km), facing the track,
+	// about 25 s before the train gets there.
+	if (What == TEXT("goto"))
+	{
+		if (!Bike) return TEXT("trains:goto needs our bike");
+		const FVector Me = Bike->GetActorLocation();
+		std::vector<TT::TrainNow> Near;
+		T->Net->Near(T->ClockNow(), Me.X / 100.0, Me.Y / 100.0, 2500.0, Near);
+		for (const TT::TrainNow& N : Near)
+		{
+			if (N.Speed < 5.0 || N.Standing) continue;
+			const TT::Route& R = T->Net->Routes[size_t(N.Route)];
+			const TT::Service& Sv = T->Net->Services[size_t(N.Route)][size_t(N.Service)];
+			const double Ahead = FMath::Max(80.0, N.Speed * 25.0);
+			const double FrontS = Sv.Dir > 0 ? N.Front : R.Length() - N.Front;
+			const double S = FrontS + Sv.Dir * Ahead;
+			if (S < 50.0 || S > R.Length() - 50.0) continue;
+			double X = 0.0, Y = 0.0, Z = 0.0, Dx = 0.0, Dz = 1.0;
+			T->Net->PlaceAt(R, S, X, Y, Z, Dx, Dz);
+			const double Wx = Dx * Sv.Dir, Wz = Dz * Sv.Dir;   // (the way the train comes)
+			const double Lx = Wz, Lz = -Wx;                    // (its left)
+			const double Px = X + Lx * 15.0, Pz = Z + Lz * 15.0;
+			const FString Placed = Bike->TestPlaceAt(Px * 100.0, Pz * 100.0, FMath::RadiansToDegrees(std::atan2(-Lz, -Lx)));
+			return FString::Printf(TEXT("trains:goto: by %s (%s line), a %s due in %.0f s at %.0f mph, %d vehicles; %s"), UTF8_TO_TCHAR(R.Name.c_str()), UTF8_TO_TCHAR(TT::ClassName(R.Class)),
+				UTF8_TO_TCHAR(TT::KindName(N.Train)), Ahead / FMath::Max(1.0, N.Speed), N.Speed * 2.23694, int32(N.Cars.size()), *Placed);
+		}
+		return FString::Printf(TEXT("trains:goto: no moving train within 2.5 km now (%d in reach); try again in a minute"), int32(Near.size()));
+	}
 	if (T->Shown.empty()) return FString::Printf(TEXT("no train within %.0f m; %s"), DrawM, UTF8_TO_TCHAR(T->Net->Summary().c_str()));
-	const TorqueWorld::Trains::TrainNow& N = T->Shown.front();
-	const TorqueWorld::Trains::Route& R = T->Net->Routes[size_t(N.Route)];
-	return FString::Printf(TEXT("nearest train: %s on %s (%s line), %.0f m away, %.0f mph%s"), UTF8_TO_TCHAR(TorqueWorld::Trains::KindName(N.Train)), UTF8_TO_TCHAR(R.Name.c_str()),
-		UTF8_TO_TCHAR(TorqueWorld::Trains::ClassName(R.Class)), N.Dist, N.Speed * 2.23694, N.Standing ? TEXT(" (standing)") : TEXT(""));
+	const TT::TrainNow& N = T->Shown.front();
+	const TT::Route& R = T->Net->Routes[size_t(N.Route)];
+	return FString::Printf(TEXT("nearest train: %s on %s (%s line), %.0f m away, %.0f mph%s"), UTF8_TO_TCHAR(TT::KindName(N.Train)), UTF8_TO_TCHAR(R.Name.c_str()),
+		UTF8_TO_TCHAR(TT::ClassName(R.Class)), N.Dist, N.Speed * 2.23694, N.Standing ? TEXT(" (standing)") : TEXT(""));
+}
+
+// crossings:next: our bike put on the road 25 m short of the level crossing (within 4 km) whose barriers come down
+// soonest but at least 20 s from now (a train's front due within the next 3 minutes), facing it.
+FString ATorqueTrains::NextCrossing(const UWorld* InWorld, ATorqueBikePawn* Bike)
+{
+	namespace TT = TorqueWorld::Trains;
+	ATorqueTrains* T = TTI::Of(InWorld);
+	if (!T || !T->Net || !T->Plan) return TEXT("crossings:next: no trains here yet");
+	if (!Bike) return TEXT("crossings:next needs our bike");
+	const FVector Me = Bike->GetActorLocation();
+	const TT::Clock Now = T->ClockNow();
+	const TorqueWorld::RidePlan::LevelCrossing* Best = nullptr;
+	double BestIn = 1e9;
+	int32 Tried = 0;
+	for (const TorqueWorld::RidePlan::LevelCrossing& C : T->Plan->LevelCrossings)
+	{
+		if (FVector2D::Distance(FVector2D(C.Mid.X, C.Mid.Z), FVector2D(Me.X / 100.0, Me.Y / 100.0)) > 4000.0) continue;
+		++Tried;
+		const double Lead = ATorqueLevelCrossing::LeadSeconds(int32(C.Type));
+		if (T->Net->Closed(Now, C.Line, C.First, C.Last, Lead)) continue;   // (shut already: too late to watch it close)
+		for (double Dt = 20.0; Dt <= 180.0 && Dt < BestIn; Dt += 5.0)
+		{
+			TT::Clock Later = Now;
+			Later.T += Dt;
+			Later.Hour += Dt / 3600.0;
+			if (T->Net->Closed(Later, C.Line, C.First, C.Last, Lead)) { Best = &C; BestIn = Dt; break; }
+		}
+	}
+	if (!Best) return FString::Printf(TEXT("crossings:next: none of %d crossings within 4 km closes in the next 3 minutes; try again soon"), Tried);
+	const double Px = Best->Mid.X - Best->Road.X * 25.0, Pz = Best->Mid.Z - Best->Road.Z * 25.0;
+	const FString Placed = Bike->TestPlaceAt(Px * 100.0, Pz * 100.0, FMath::RadiansToDegrees(std::atan2(Best->Road.Z, Best->Road.X)));
+	return FString::Printf(TEXT("crossings:next: crossing %u (type %d) closes in about %.0f s; %s"), Best->Key, Best->Type, BestIn, *Placed);
 }
 
 // --- [stage 5] Sounds -------------------------------------------------------------------------------------------------

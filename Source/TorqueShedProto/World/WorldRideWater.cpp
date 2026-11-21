@@ -176,11 +176,14 @@ void RidePlan::IndexWater()
 		Run.Surface.resize(N);
 		Run.Half.resize(N);
 		Run.Depth.resize(N);
+		Run.Along.resize(N);
 		for (size_t I = 0; I < N; ++I)
 		{
 			Run.Surface[I] = float(std::fmax(Level[I], Low[I] - 2.0) - Under);
 			Run.Half[I] = float(Half[I]);
 			Run.Depth[I] = float(std::fmin(Deep + Half[I] * 0.04, 2.5));
+			// (wrapped at whole 80 m, so the ripples meet, and short enough for the UVs' precision)
+			Run.Along[I] = I == 0 ? 0.0f : float(std::fmod(double(Run.Along[I - 1]) + Run.At[I].DistanceTo(Run.At[I - 1]), 4000.0));
 		}
 		// Filed by every WaterCell square its banks reach.
 		const int Index = int(WaterRuns.size());

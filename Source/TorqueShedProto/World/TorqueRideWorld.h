@@ -316,6 +316,20 @@ private:
 	float CullScale = 1.0f;
 	// Each square's instanced plants (the components are the actor's own, so this needn't hold them).
 	TMap<FIntVector, TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>> TilePlants;
+	// [build 167] The near trees' patches and their far copies, handed over whole by the game at
+	// torque.RideNearTreeM from the camera (TickTreeHandover), not by draw distances, which Nanite didn't
+	// keep to: round 166's far copies stood over the near trees as "bubble trees" by every road.
+	struct FTreeHandover
+	{
+		TWeakObjectPtr<UInstancedStaticMeshComponent> Ism;
+		FBox Box = FBox(ForceInit);   // (its trees' places, world cm)
+		bool bNearModels = true;      // (the near models, or the far copies)
+		int8 Hidden = -1;             // (as last set: -1 not yet)
+	};
+	TArray<FTreeHandover> TreeHandover;
+	double SinceHandover = 0.0;
+	TOptional<FVector> LastCamera;
+	void TickTreeHandover(float DeltaSeconds);
 	int32 PlantsShown = 0;
 	FVector2D LookedAt = FVector2D(1e12, 1e12);
 	double SinceLook = 0.0;

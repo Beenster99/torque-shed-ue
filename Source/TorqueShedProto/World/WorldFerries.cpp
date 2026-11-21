@@ -457,12 +457,36 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 				// road's height and the head's, no steeper than 1 in 7 (eased twice).
 				const P2 Dir = Unit(S.Head - RoadAt);
 				const P2 From = RoadAt + Dir * std::max(0.0, Half - 0.6);
-				const double Len = Dist(From, S.Head);
+				// [build 166 feedback] (beenster, Gigha: steps where the approach met the slipway: it came in across the
+				// head at a slant, under the slipway's side) A curve that comes into the head along the slipway's own
+				// line, from Lead behind it.
+				const double Lead = std::min(10.0, Dist(From, S.Head) * 0.5);
+				const P2 Behind = S.Head - S.Axis * Lead;
+				// (its points evenly spaced along it: a quadratic's own parameter bunches them at the slow end, and the
+				// grading below takes them as even)
+				const auto Bend = [&From, &Behind, &S](double T)
+				{
+					const double U = 1.0 - T;
+					return From * (U * U) + Behind * (2.0 * U * T) + S.Head * (T * T);
+				};
+				constexpr int Fine = 64;
+				double Along[Fine + 1] = {0.0};
+				for (int K = 1; K <= Fine; ++K) Along[K] = Along[K - 1] + Dist(Bend((K - 1) / double(Fine)), Bend(K / double(Fine)));
+				const double Len = Along[Fine];
+				const auto Curve = [&Along, &Bend, Len](double Share)
+				{
+					const double Want = Share * Len;
+					int K = 1;
+					while (K < Fine && Along[K] < Want) ++K;
+					const double Piece = Along[K] - Along[K - 1];
+					const double F = Piece > 1e-9 ? (Want - Along[K - 1]) / Piece : 0.0;
+					return Bend((K - 1 + std::clamp(F, 0.0, 1.0)) / double(Fine));
+				};
 				const int N = std::max(2, int(std::ceil(Len / 2.0)));
 				std::vector<double> Ys(size_t(N) + 1);
 				for (int K = 0; K <= N; ++K)
 				{
-					const P2 P = From + (S.Head - From) * (double(K) / N);
+					const P2 P = Curve(double(K) / N);
 					const double H = Ask.Height(P.X, P.Z);
 					Ys[size_t(K)] = std::isnan(H) ? RoadY + (S.HeadY - RoadY) * K / N : H + 0.08;
 				}
@@ -482,7 +506,7 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 				}
 				for (int K = 0; K <= N; ++K)
 				{
-					const P2 P = From + (S.Head - From) * (double(K) / N);
+					const P2 P = Curve(double(K) / N);
 					S.Approach.push_back({P.X, Ys[size_t(K)], P.Z});
 				}
 			}

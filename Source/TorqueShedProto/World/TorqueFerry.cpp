@@ -77,6 +77,42 @@ TorqueWorld::P2 UnitOf(const TorqueWorld::P2& V)
 	const double L = V.Length();
 	return L > 1e-9 ? V * (1.0 / L) : TorqueWorld::P2(1.0, 0.0);
 }
+// How the glTF importer lays a prop down (Tools/ue_import_props.py importer_frame, the same reading): the whiteboard
+// is all in front of its wall (+z in Torque Shed's frame) and the mobile bench's handle sticks out on its right (+x).
+// Yaw: the turn to add; Mirror: x to be flipped. Read once; front +y, right +x, unmirrored if either isn't imported.
+void ImporterFrame(double& Yaw, bool& bMirror)
+{
+	static bool bRead = false;
+	static double SavedYaw = 0.0;
+	static bool bSavedMirror = false;
+	if (!bRead)
+	{
+		bRead = true;
+		auto Lopsided = [](const TCHAR* Id, bool bThin, FVector2D& V)
+		{
+			const FString Path = FString::Printf(TEXT("/Game/Shed/Props/%s/SM_%s.SM_%s"), Id, Id, Id);
+			const UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!M) return false;
+			const FBox B = M->GetBoundingBox();
+			const double Ext[2] = {B.Max.X - B.Min.X, B.Max.Y - B.Min.Y};
+			const double Sign[2] = {B.Max.X > -B.Min.X ? 1.0 : -1.0, B.Max.Y > -B.Min.Y ? 1.0 : -1.0};
+			const int32 K = bThin ? (Ext[0] <= Ext[1] ? 0 : 1) : (Ext[0] >= Ext[1] ? 0 : 1);
+			V = FVector2D(K == 0 ? Sign[0] : 0.0, K == 1 ? Sign[1] : 0.0);
+			return true;
+		};
+		FVector2D Front, Right;
+		if (Lopsided(TEXT("whiteboard"), true, Front) && Lopsided(TEXT("bench_mobile"), false, Right) && FMath::Abs(Front.X * Right.X + Front.Y * Right.Y) < 0.5)
+		{
+			bSavedMirror = Right.X * Front.Y - Right.Y * Front.X < 0.0;
+			if (bSavedMirror) Right.X = -Right.X;
+			SavedYaw = -FMath::RadiansToDegrees(std::atan2(Right.Y, Right.X));
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque ferry: the importer's frame: yaw %+.0f%s"), SavedYaw, bSavedMirror ? TEXT(", mirrored") : TEXT(""));
+	}
+	Yaw = SavedYaw;
+	bMirror = bSavedMirror;
+}
+
 double Smooth(double T)
 {
 	T = FMath::Clamp(T, 0.0, 1.0);
@@ -139,7 +175,12 @@ UStaticMeshComponent* ATorqueFerry::AddProp(USceneComponent* Parent, const TCHAR
 	Part->SetupAttachment(Parent);
 	Part->SetMobility(EComponentMobility::Movable);
 	Part->SetStaticMesh(Mesh);
-	Part->SetRelativeLocationAndRotation(At, Rot);
+	// [build 166 feedback] (the deck's MOTORCYCLES read backwards: the glTF importer lays a prop down mirrored and
+	// maybe turned, as Tools/ue_import_props.py importer_frame finds for the shed's props; undone here the same way)
+	double ExtraYaw = 0.0;
+	bool bMirror = false;
+	TFerI::ImporterFrame(ExtraYaw, bMirror);
+	Part->SetRelativeTransform(FTransform(Rot.Quaternion() * FQuat(FVector::UpVector, FMath::DegreesToRadians(ExtraYaw)), At, FVector(bMirror ? -1.0 : 1.0, 1.0, 1.0)));
 	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);   // (the boxes are its collision)
 	Part->RegisterComponent();
 	return Part;
@@ -767,21 +808,29 @@ void ATorqueFerry::Tick(float DeltaSeconds)
 		if (!bFollowing) Publish();   // [stage 6] (the host's: to everyone)
 		if (bFollowing && State == EState::Docked && Was == EState::Lowering) bJustIn = AnyAboard();
 	}
-	// The boat where it is on its way, the riders' feet and parked bikes carried with it.
-	const FTransform Now = BoatAt(Along);
-	const double SpeedMs = Dt > 1e-4 ? FVector::Dist(Now.GetLocation(), BoatWas.GetLocation()) / 100.0 / Dt : 0.0;
+	// The boat where it is on its way, the riders' feet and parked bikes carried with it. [build 166 feedback]
+	// (beenster: "the ramp is unattached to the ferry - they move independently"; the parked bike not seated) The
+	// roll and heave are the whole boat's now, ramps, deck, bikes and feet together, not the hull's model alone; and
+	// only out on the water (eased in and out over the sailing's first and last part): tied up it lies still, so the
+	// wheels ride on exactly what's drawn.
+	Bob += Dt;
+	FTransform Now = BoatAt(Along);
+	if (State == EState::Sailing)
+	{
+		// [stage 7] (rougher in a wind: up to three times the roll and heave, the pitch more still)
+		const double Wild = Rough();
+		const double Out = TFerI::Smooth(FMath::Clamp(FMath::Min(Along, 1.0 - Along) * 6.0, 0.0, 1.0));
+		const double Sea = Out * (1.0 + Wild * 1.3);
+		const FVector Heave(0.0, 0.0, 3.0 * Sea * std::sin(Bob * 0.9) + 2.0 * Wild * Out * std::sin(Bob * 1.7 + 0.4));
+		const FQuat Roll = FRotator((0.35 + 0.4 * Wild) * Sea * std::sin(Bob * 0.6 + 1.0), 0.0, 0.9 * Sea * std::sin(Bob * 0.75)).Quaternion();
+		Now = FTransform(Now.GetRotation() * Roll, Now.GetLocation() + Heave);
+	}
+	const double SpeedMs = Dt > 1e-4 ? FVector::Dist2D(Now.GetLocation(), BoatWas.GetLocation()) / 100.0 / Dt : 0.0;
 	if (bBoatPlaced && !Now.Equals(BoatWas, 0.01)) Carry(BoatWas, Now);
 	Boat->SetWorldTransform(Now);
 	BoatWas = Now;
 	bBoatPlaced = true;
-	// Its model rolls and heaves a little (only the look: the deck the wheels and feet stand on stays level), more
-	// when under way.
-	Bob += Dt;
-	// [stage 7] (rougher in a wind: up to three times the roll and heave, the pitch more still)
-	const double Wild = Rough();
-	const double Sea = (State == EState::Sailing ? 1.0 : 0.25) * (1.0 + Wild * 1.3);
-	Look->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 3.0 * Sea * std::sin(Bob * 0.9) + 2.0 * Wild * std::sin(Bob * 1.7 + 0.4)),
-		FRotator((0.35 + 0.4 * Wild) * Sea * std::sin(Bob * 0.6 + 1.0), 0.0, 0.9 * Sea * std::sin(Bob * 0.75)));
+	Look->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
 	PoseRamps();
 	PoseBarriers();
 	TickSounds(Dt, SpeedMs);
@@ -1241,12 +1290,17 @@ FString ATorqueFerry::Test(const UWorld* World, const FString& What, ATorqueBike
 		TorqueWorld::P2 At = N.Head - N.Axis * 6.0, Face = N.Axis;
 		if (N.Approach.size() >= 2)
 		{
-			const TorqueWorld::P2 Last(N.Approach.back()[0], N.Approach.back()[2]), First(N.Approach.front()[0], N.Approach.front()[2]);
-			const double Len = Last.DistanceTo(First);
-			if (Len > 0.5)
+			// (6 m back along the approach's curve from the head, facing along it there)
+			double Left = 6.0;
+			for (size_t K = N.Approach.size() - 1; K > 0; --K)
 			{
-				Face = (Last - First) * (1.0 / Len);
-				At = Last - Face * FMath::Min(6.0, Len * 0.5);
+				const TorqueWorld::P2 B(N.Approach[K][0], N.Approach[K][2]), A(N.Approach[K - 1][0], N.Approach[K - 1][2]);
+				const double Seg = A.DistanceTo(B);
+				if (Seg < 1e-3) continue;
+				Face = (B - A) * (1.0 / Seg);
+				At = B - Face * FMath::Min(Left, Seg);
+				Left -= Seg;
+				if (Left <= 0.0) break;
 			}
 		}
 		const FString Placed = Pawn->TestPlaceAt(At.X * 100.0, At.Z * 100.0, FMath::RadiansToDegrees(std::atan2(Face.Z, Face.X)));

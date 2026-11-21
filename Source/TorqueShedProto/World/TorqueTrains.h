@@ -29,6 +29,7 @@
 
 #include "TorqueTrains.generated.h"
 
+class ATorqueBikePawn;
 class ATorqueRideWorld;
 class UInstancedStaticMeshComponent;
 class UMaterialInterface;
@@ -55,8 +56,11 @@ public:
 	static void Capsules(const UWorld* InWorld, double X, double Y, double Z, std::vector<TorqueSim::ContactCapsule>& Out);
 	// Whether any train is within Reach (m) of (X, Z) now (a bike makes its contacts for it).
 	static bool AnyNear(const UWorld* InWorld, double X, double Z, double Reach);
-	// For the log and TorqueShedTest: "where" (the nearest train and route), "count".
-	static FString Test(const UWorld* InWorld, const FString& What);
+	// For the log and TorqueShedTest: "where" (the nearest train and route), "count", "draw" (what's laid as instances),
+	// "goto" (our bike put beside the line ahead of the nearest moving train).
+	static FString Test(const UWorld* InWorld, const FString& What, ATorqueBikePawn* Bike = nullptr);
+	// TorqueShedTest crossings:next: our bike put by the level crossing that closes soonest for a train.
+	static FString NextCrossing(const UWorld* InWorld, ATorqueBikePawn* Bike);
 
 	static constexpr double DrawM = 2500.0;    // trains drawn within this of the camera
 	static constexpr double ShadowM = 500.0;   // and cast shadows within this
