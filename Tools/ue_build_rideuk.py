@@ -562,11 +562,19 @@ def water_material(L, real=False):
         return g.op(U.MaterialExpressionSaturate, a)
 
     def chan(src, c):
+        # (a vertex colour's or texture sample's default pin is RGB, a float3: a mask of its A fails to
+        # compile (round 167), so take each channel from its own pin and mask that scalar's R)
+        if isinstance(src, (U.MaterialExpressionVertexColor, U.MaterialExpressionTextureSample)):
+            e = g.node(U.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
+            g.link(src, e, "", c)
+            return e
         e = g.node(U.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=c == "A")
         g.link(src, e)
         return e
 
     def pair(src, a="R", b="G"):
+        if "A" in (a, b) and isinstance(src, (U.MaterialExpressionVertexColor, U.MaterialExpressionTextureSample)):
+            return g.op(U.MaterialExpressionAppendVector, chan(src, a), chan(src, b))
         e = g.node(U.MaterialExpressionComponentMask, r="R" in (a, b), g="G" in (a, b), b="B" in (a, b), a="A" in (a, b))
         g.link(src, e)
         return e
