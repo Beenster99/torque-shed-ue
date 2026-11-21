@@ -666,6 +666,7 @@ def slim():
 
 
 _PRESETS = None
+BUILT = set()   # the avatars this make really built (register keeps the others' avatars.json entries)
 PRESET_PICK = []   # `make B D from=Name1,Name2`: the presets (a word of each name) the women start from
 
 
@@ -739,6 +740,13 @@ def _female_source(name, path, nth):
         if not eal.does_asset_exist(path) and eal.does_asset_exist(keep):
             ok = eal.rename_asset(keep, path)
             log("%s: no preset picked; its source put back from %s: %s" % (name, keep, "ok" if ok else "FAILED"))
+            return None
+        # No preset named this time: the source as it is (round 163 made it from a female preset, which
+        # beenster then auto-rigs in the editor before this builds it).
+        ch = unreal.load_asset(path) if eal.does_asset_exist(path) else None
+        if ch is not None and eal.does_asset_exist(keep):
+            log("%s: building the source as it is (from a preset; the old one is in %s)" % (name, keep))
+            return ch
         return None
     if eal.does_asset_exist(path):
         if eal.does_asset_exist(keep):
@@ -889,6 +897,7 @@ def make(rig=False, wardrobe=True, only=None):
                 unreal.log_warning("[Torque] %s: build_meta_human failed: %s" % (name, e))
             built = made.get("SkeletalMesh", 0) > 0
             if built:
+                BUILT.add(name)
                 if had_old:
                     eal.delete_directory(backup)
                     log("%s: new build has %d skeletal meshes; old build deleted" % (name, made["SkeletalMesh"]))
@@ -1897,8 +1906,30 @@ def main(args):
         if not NO_FAB:
             fab_wardrobe()
         only = [a for a in rest if a not in ("rig", "nowardrobe", "nofab")]   # e.g. `make rig A B`: just those
+        # Round 163: an avatar make couldn't build (its new source needs a rig) still got a fresh,
+        # broken avatars.json entry from register. Its old entry is kept instead.
+        jpath = os.path.join(project_dir(), "Data", "Avatars", "avatars.json")
+        before = {}
+        try:
+            before = {a.get("name"): a for a in json.load(open(jpath)).get("avatars", [])}
+        except Exception:
+            pass
         make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()
+        try:
+            data = json.load(open(jpath))
+            kept = []
+            for idx, a in enumerate(data.get("avatars", [])):
+                n = a.get("name")
+                tried = not only or any(n.lower().endswith("_" + o.lower()) or n.lower() == o.lower() for o in only)
+                if tried and n not in BUILT and n in before:
+                    data["avatars"][idx] = before[n]
+                    kept.append(n)
+            if kept:
+                json.dump(data, open(jpath, "w"), indent=1)
+                log("avatars.json: kept the old entries of %s (not built this time)" % ", ".join(kept))
+        except Exception as e:
+            unreal.log_warning("[Torque] couldn't keep the old avatars.json entries: %s" % e)
     else:
         register()
 

@@ -44,6 +44,18 @@ def log(msg):
     unreal.log("[Torque] try jacket: " + msg)
 
 
+def new_mi(name, dest):
+    """A material instance, the one made by an earlier run reused (round 163: create_asset gives
+    nothing when it exists already, so no leather went on and every slot logged "(metal, kept)")."""
+    path = dest + "/" + name
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        mi = unreal.load_asset(path)
+        if mi is not None:
+            return mi
+    return unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, dest, unreal.MaterialInstanceConstant,
+                                                                   unreal.MaterialInstanceConstantFactoryNew())
+
+
 def import_file(path, dest, options=None):
     t = unreal.AssetImportTask()
     t.set_editor_property("filename", path)
@@ -80,8 +92,10 @@ def leather(name, folder, prefix, dest):
     if parent is None:
         log("no %s (run ue_build_level.py first); the jacket keeps its imported materials" % PUSH)
         return None
-    mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset("MI_" + name, dest, unreal.MaterialInstanceConstant,
-                                                                 unreal.MaterialInstanceConstantFactoryNew())
+    mi = new_mi("MI_" + name, dest)
+    if mi is None:
+        log("%s: COULDN'T make MI_%s" % (name, name))
+        return None
     mel = unreal.MaterialEditingLibrary
     mel.set_material_instance_parent(mi, parent)
     col, nrm = texture(folder, prefix, "BaseColor", dest), texture(folder, prefix, "Normal_DirectX", dest)
@@ -103,8 +117,10 @@ def cloth(dest):
     parent = unreal.load_asset(PUSH)
     if parent is None:
         return None
-    mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset("MI_Crosswind_Cloth", dest, unreal.MaterialInstanceConstant,
-                                                                 unreal.MaterialInstanceConstantFactoryNew())
+    mi = new_mi("MI_Crosswind_Cloth", dest)
+    if mi is None:
+        log("COULDN'T make MI_Crosswind_Cloth in %s" % dest)
+        return None
     mel = unreal.MaterialEditingLibrary
     mel.set_material_instance_parent(mi, parent)
     mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(0.025, 0.025, 0.027, 1.0))
@@ -200,7 +216,7 @@ def main():
                 sm.material_interface = use
                 mats[i] = sm
             log("%s slot %d %s: %s%s" % (name, i, slot, was.get_name() if was else "none",
-                " -> " + use.get_name() if use is not None else " (metal, kept)"))
+                " -> " + use.get_name() if use is not None else (" (metal or thread, kept)" if metal else " (NO material made, kept)")))
         mesh.set_editor_property("materials", mats)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     export_for_refit()
