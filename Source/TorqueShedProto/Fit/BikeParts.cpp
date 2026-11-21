@@ -5677,7 +5677,12 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				auto DirFromMm = [&F](const V3& D) { return V3(F.Cos * D.x + F.Sin * D.z, -F.Sin * D.x + F.Cos * D.z, -D.y); };
 				for (FittedPart& P : Out)
 				{
-					if ((P.Sub != "grip" && P.Sub != "bar_end") || !P.Made || P.Code || IsShop(P) != (Shop == 1)) continue;
+					// (The levers, switches and bar mirrors sit by the grip, whoever made them: they go with the bike's own
+					// grip to the bar's real end, turned as it is. Beenster, build 167, ape bars: they were left where the
+					// bar's catalogue numbers put the grip, floating a few cm off the bar the grips had been laid on.)
+					const bool bByGrip = Shop == 0 && (P.Sub == "levers" || P.Sub == "switches" || (P.Sub == "mirrors" && P.Node == "steer"));
+					if (!bByGrip && ((P.Sub != "grip" && P.Sub != "bar_end") || IsShop(P) != (Shop == 1))) continue;
+					if (!P.Made || P.Code) continue;
 					auto Copy = std::make_shared<PartMesh>(*P.Made);
 					bool bAny = false;
 					for (PartSurface& S : Copy->Surfaces)

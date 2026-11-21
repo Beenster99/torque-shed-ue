@@ -621,6 +621,8 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	int32 Made = 0;
 	TMap<FString, int32> Summary;   // what each surface's finish became, for the log
 	int32 Turned = 0, Kept = 0;     // surfaces wound the other way from their glb, or as it
+	// [rider pose] The right grip as drawn (a V2 bike's: on whatever bar is fitted), for the rider's hands.
+	FBox DrawnGrip(ForceInit);
 	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
 	{
 		if (P.Hidden) continue;   // inside a full fairing's shell (the plain headlight), as Godot hides it
@@ -705,6 +707,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (OutFrame && P.Slot == "tank")
 				for (const FVector& V : Pos)
 					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
+			if (bV2 && P.Sub == "grip")
+				for (const FVector& GripV : Pos)
+					if (GripV.Y > 2.0) DrawnGrip += GripV;
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			if (bSpring)
@@ -797,6 +802,14 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			}
 			++Made;
 		}
+	}
+	if (OutFrame && DrawnGrip.IsValid)
+	{
+		// (The hands go to the grip as drawn: a fitted bar's own end, not the bike's own bar's. Beenster, build 167,
+		// ape bars: the hands stayed down at the bike's own grips.)
+		const FVector DrawnAt = DrawnGrip.GetCenter();
+		UE_LOG(LogTemp, Log, TEXT("Torque: rider grip as drawn %s (the layout's %s, %.1f cm away)"), *DrawnAt.ToCompactString(), *OutFrame->Grip.ToCompactString(), FVector::Dist(DrawnAt, OutFrame->Grip));
+		OutFrame->Grip = FVector(DrawnAt.X, FMath::Abs(DrawnAt.Y), DrawnAt.Z);
 	}
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's %d surfaces (%d wound the other way from their glb, %d as it) by finish:"), Made, Turned, Kept);

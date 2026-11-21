@@ -115,6 +115,8 @@ int main()
 	Expect(Common.size() >= 100, "the common parts are in the catalogue (" + std::to_string(Common.size()) + ")");
 	std::map<std::string, int> Fits, ByAnchor, Lined;
 	int Bikes = 0, Pairs = 0;
+	int BarFits = 0;
+	double WorstHand = 0.0, WorstBar = 0.0, WorstBy = 0.0;
 	for (const std::string& Frame : Db.Ids("frame"))
 	{
 		const Json* FramePart = Db.Find("frame", Frame);
@@ -147,6 +149,81 @@ int main()
 				Parts[Slot] = E.Id;
 				const std::vector<FittedPart> After = Placer.Fit(Parts, L);
 				++Pairs;
+				// A bar: the grips the rider's hands go to (the layout's grip point) are the drawn grips, on the end of
+				// the drawn bar, with the levers and switches by them (beenster, build 167: "ape bars dont seem to work":
+				// the hands stayed at the bike's own grips, far below the fitted bar's).
+				if (Slot == "handlebars" && E.Part->Get("common")->Get("grip_offset_mm"))
+				{
+					const Layout Lb = Lay.Solve(Parts);
+					auto RightIn = [](const std::vector<FittedPart>& Fitted, const std::string& Sub, bool CommonOnly, V3& Mid, const V3* Near, double& Nearest) {
+						V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+						bool Any = false;
+						for (const FittedPart& P : Fitted)
+						{
+							if (P.Sub != Sub || P.Hidden || !P.Made || (CommonOnly && P.Glb.rfind("v2c/", 0) != 0)) continue;
+							for (const PartSurface& Sf : P.Made->Surfaces)
+								for (const V3& Q : Sf.Pos)
+								{
+									if (Q.z <= 0.0) continue;
+									Any = true;
+									Lo = V3(std::min(Lo.x, Q.x), std::min(Lo.y, Q.y), std::min(Lo.z, Q.z));
+									Hi = V3(std::max(Hi.x, Q.x), std::max(Hi.y, Q.y), std::max(Hi.z, Q.z));
+									if (Near) Nearest = std::min(Nearest, Dist(Q, *Near));
+								}
+						}
+						Mid = (Lo + Hi) * 0.5;
+						return Any;
+					};
+					auto RightOf = [&After, &RightIn](const std::string& Sub, bool CommonOnly, V3& Mid, const V3* Near, double& Nearest) {
+						return RightIn(After, Sub, CommonOnly, Mid, Near, Nearest);
+					};
+					// (How far the bike's own hand point is from the middle of its own drawn grip: a slanted grip's, a few cm.)
+					V3 OwnMid;
+					double OwnUnused = 1e9;
+					const double OwnOff = RightIn(Before, "grip", false, OwnMid, nullptr, OwnUnused) ? Dist(OwnMid, L.GripR) : 0.0;
+					V3 GripMid, Other;
+					double Unused = 1e9, BarGap = 1e9;
+					++BarFits;
+					if (RightOf("grip", false, GripMid, nullptr, Unused))
+					{
+						const double HandOff = Dist(GripMid, Lb.GripR);
+						WorstHand = std::max(WorstHand, HandOff);
+						// (The layout's grip is the bar's catalogue figure, within 6 cm; the game's hands take the drawn grip itself.)
+						Expect(HandOff < OwnOff + 0.06, Frame + ": " + E.Id + " the rider's hand goes to the drawn grip (" + std::to_string(HandOff) + " m off, " + std::to_string(OwnOff) + " on the bike's own bar; the bar moved the grip " + std::to_string(Dist(Lb.GripR, L.GripR)) + " m)");
+						Expect(RightOf("bar", true, Other, &GripMid, BarGap) && BarGap < 0.03, Frame + ": " + E.Id + " the grip is on the bar (" + std::to_string(BarGap) + " m from it)");
+						WorstBar = std::max(WorstBar, BarGap);
+						// The levers and switches are clamped on the bar as they are on the bike's own: no further from the
+						// fitted bar's tube than they were from the bike's own (they were left behind by the grips, floating
+						// 4 to 5 cm off four of the bars: build 167's ape bars).
+						auto BarGapOf = [](const std::vector<FittedPart>& Fitted, const std::string& Sub, bool ShopBar) {
+							double Nearest = 1e9;
+							for (const FittedPart& A : Fitted)
+							{
+								if (A.Sub != Sub || A.Hidden || !A.Made) continue;
+								for (const FittedPart& B : Fitted)
+								{
+									if (B.Sub != "bar" || B.Hidden || !B.Made || (B.Glb.rfind("v2c/", 0) == 0) != ShopBar) continue;
+									for (const PartSurface& Sa : A.Made->Surfaces)
+										for (size_t Ia = 0; Ia < Sa.Pos.size(); Ia += 3)
+										{
+											if (Sa.Pos[Ia].z <= 0.0) continue;
+											for (const PartSurface& Sb : B.Made->Surfaces)
+												for (size_t Ib = 0; Ib < Sb.Pos.size(); Ib += 3) Nearest = std::min(Nearest, Dist(Sa.Pos[Ia], Sb.Pos[Ib]));
+										}
+								}
+							}
+							return Nearest;
+						};
+						for (const char* By : {"levers", "switches"})
+						{
+							const double OwnGap = BarGapOf(Before, By, false), Gap = BarGapOf(After, By, true);
+							if (OwnGap > 1.0 || Gap > 1e8) continue;
+							WorstBy = std::max(WorstBy, Gap - OwnGap);
+							Expect(Gap < OwnGap + 0.012, Frame + ": " + E.Id + " the " + By + " are on the bar (" + std::to_string(Gap) + " m from it, " + std::to_string(OwnGap) + " on the bike's own bar)");
+						}
+					}
+					else Expect(false, Frame + ": " + E.Id + " has no drawn grips");
+				}
 				const bool Tft = E.Part->Str("style") == "tft";
 				for (const Json& Piece : Pieces->A)
 				{
@@ -248,6 +325,7 @@ int main()
 	}
 	for (const auto& KV : Fits)
 		std::printf("%-14s %4d fitted, %4d lined up on the bike's own, %4d by anchor\n", KV.first.c_str(), KV.second, Lined[KV.first], ByAnchor[KV.first]);
+	std::printf("%d bike-and-bar fits: layout grip to drawn grip at worst %.3f m, grip to bar at worst %.3f m, levers and switches further off the bar than on the bike's own by at worst %.3f m\n", BarFits, WorstHand, WorstBar, WorstBy);
 	std::printf("%d V2 bikes, %d bike-and-part fits, %d failures\n", Bikes, Pairs, Failures);
 	return Failures ? 1 : 0;
 }
