@@ -4867,7 +4867,9 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 	std::map<std::string, const Json*> Donors;   // slot -> the other V2 model's part in it ("v2part")
 	for (const auto& KV : Parts)
 	{
-		const Json* Part = KV.second.empty() || KV.second == "none" ? nullptr : Lay.Part(KV.second);
+		// ([engine parts] another engine's part on this block: drawn as this block's own version of it)
+		const std::string Drawn = KV.second.empty() || KV.second == "none" ? KV.second : Lay.V2EngineTwin(Parts, KV.first, KV.second);
+		const Json* Part = Drawn.empty() || Drawn == "none" ? nullptr : Lay.Part(Drawn);
 		const Json* Vp = Part ? Part->Get("v2part") : nullptr;
 		if (Vp && Vp->IsObject() && Vp->Str("model") != Model) Donors[KV.first] = Vp;
 	}
@@ -4935,6 +4937,97 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 			}
 			if (Placed) TftUnitInto(Out, Dash, GAffine::Rotation(GodotRight, 0.9), V3(0.0, 0.0, 0.0), V3(0.0, Mid.y, Mid.z));
 		}
+	}
+	// [brake pads, beenster Nov 20: "brake pads do not have a 3D model", and so they couldn't be bolted up and no bike
+	// could be finished] The pads (the shop's own; no V2 model draws them) at the caliper's body where it clamps the
+	// disc, their backing showing on its outer face, so they're seen and the wrench reaches them (and drawn on their
+	// own as a loose part or in the shop).
+	for (const std::string Side : {std::string("front"), std::string("rear")})
+	{
+		const std::string PadsId = PartIn(Parts, Side + "_pads");
+		const Json* PadsPart = PadsId == "none" ? nullptr : Lay.Part(PadsId);
+		if (!PadsPart || PadsPart->Get("v2part")) continue;
+		// The disc on the caliper's side (the left one of a pair): its middle, radius and plane.
+		std::vector<V3> Disc, Cal;
+		std::string CalNode;
+		for (const FittedPart& P : Out)
+		{
+			if (!P.Made || P.Hidden) continue;
+			const bool bDisc = P.Sub == "disc_" + Side || P.Slot == Side + "_disc";
+			const bool bCal = P.Slot == Side + "_caliper";
+			if (!bDisc && !bCal) continue;
+			if (bCal && CalNode.empty()) CalNode = P.Node;
+			for (const PartSurface& S : P.Made->Surfaces)
+				for (const V3& Q : S.Pos) (bDisc ? Disc : Cal).push_back(Q);
+		}
+		if (Cal.empty()) continue;
+		V3 At, Lo(1.0e9, 1.0e9, 1.0e9), Hi(-1.0e9, -1.0e9, -1.0e9);
+		for (const V3& Q : Cal)
+		{
+			Lo = V3(std::min(Lo.x, Q.x), std::min(Lo.y, Q.y), std::min(Lo.z, Q.z));
+			Hi = V3(std::max(Hi.x, Q.x), std::max(Hi.y, Q.y), std::max(Hi.z, Q.z));
+		}
+		At = V3((Lo.x + Hi.x) * 0.5, Hi.y + 0.012, (Lo.z + Hi.z) * 0.5);   // (no disc to go by: on top, as the older bikes)
+		if (!Disc.empty())
+		{
+			double DLoX = 1.0e9, DHiX = -1.0e9, DLoY = 1.0e9, DHiY = -1.0e9, Zs = 0.0;
+			int Left = 0;
+			for (const V3& Q : Disc) Left += Q.z > 0.0 ? 1 : 0;
+			const double Sgn = Left * 2 >= int(Disc.size()) ? 1.0 : -1.0;
+			int N = 0;
+			for (const V3& Q : Disc)
+				if (Q.z * Sgn > 0.0)
+				{
+					DLoX = std::min(DLoX, Q.x); DHiX = std::max(DHiX, Q.x); DLoY = std::min(DLoY, Q.y); DHiY = std::max(DHiY, Q.y);
+					Zs += Q.z;
+					++N;
+				}
+			if (N > 0)
+			{
+				const double Cx = (DLoX + DHiX) * 0.5, Cy = (DLoY + DHiY) * 0.5, R = (DHiX - DLoX) * 0.5, Dz = Zs / N;
+				// The caliper's body: its points over the disc's outer band, near its plane.
+				V3 Sum(0.0, 0.0, 0.0);
+				double OutZ = Dz;
+				int M = 0;
+				for (const V3& Q : Cal)
+				{
+					const double Rr = std::hypot(Q.x - Cx, Q.y - Cy);
+					if (std::fabs(Q.z - Dz) > 0.045 || Rr < R * 0.55 || Rr > R * 1.25) continue;
+					Sum += Q;
+					OutZ = Sgn > 0.0 ? std::max(OutZ, Q.z) : std::min(OutZ, Q.z);
+					++M;
+				}
+				if (M >= 8)
+				{
+					const V3 Body = Sum / double(M);
+					// (the pad's thin side across the bike, its backing just proud of the body's outer face)
+					At = V3(Body.x, Body.y, OutZ + Sgn * 0.006);
+					// (a rear disc on the chain's side: outboard they'd sit in the chain run, so inboard of the disc
+					// instead, inside the caliper's inner half, where aiming at the caliper still finds them)
+					bool bClash = false;
+					for (const FittedPart& P : Out)
+					{
+						if (bClash || !P.Made || P.Hidden) continue;
+						if (P.Slot != "chain" && P.Slot != "final_drive" && P.Sub.find("sprocket") == std::string::npos) continue;
+						for (const PartSurface& S : P.Made->Surfaces)
+						{
+							for (const V3& Q : S.Pos)
+								if (std::fabs(Q.x - At.x) < 0.035 && std::fabs(Q.y - At.y) < 0.03 && std::fabs(Q.z - At.z) < 0.02)
+								{
+									bClash = true;
+									break;
+								}
+							if (bClash) break;
+						}
+					}
+					if (bClash) At = V3(Body.x, Body.y, Dz - Sgn * 0.016);
+				}
+			}
+		}
+		// (the pad file lies flat, thin up its y: stood on edge, thin across the bike)
+		const GAffine PadBasis = GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5);
+		Put(Out, Side + "_pads", "pads/" + PadsId + ".glb", AtWith(PadBasis, ToGodot(At)),
+			CalNode.empty() ? (Side == "front" ? std::string("front_hub") : std::string("swingarm")) : CalNode);
 	}
 	V2Common(Parts, F, Out);
 	return true;
@@ -5034,6 +5127,45 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				}
 		}
 		return Box;
+	};
+
+	// [common parts] The middle and half thickness of one end of a silencer (its front, Front true, or its rear)
+	// from its points in mm, on one side (Side +1 left, -1 right, 0 both): the slice within 25 mm of that end.
+	struct PipeEnd
+	{
+		V3 At;
+		double R = 0.0;
+		bool Ok = false;
+	};
+	auto EndOf = [](const std::vector<const std::vector<V3>*>& Runs, int Side, bool Front) {
+		PipeEnd E;
+		double Xe = Front ? -1.0e9 : 1.0e9;
+		for (const std::vector<V3>* Run : Runs)
+			for (const V3& M : *Run)
+				if (Side == 0 || M.y * Side > 0.0) Xe = Front ? std::max(Xe, M.x) : std::min(Xe, M.x);
+		MmBox Slice;
+		for (const std::vector<V3>* Run : Runs)
+			for (const V3& M : *Run)
+				if ((Side == 0 || M.y * Side > 0.0) && std::fabs(M.x - Xe) <= 25.0) Slice.Add(M);
+		if (!Slice.Any()) return E;
+		E.At = V3(Xe, Slice.Mid().y, Slice.Mid().z);
+		E.R = std::max(Slice.Hi.y - Slice.Lo.y, Slice.Hi.z - Slice.Lo.z) * 0.5;
+		E.Ok = true;
+		return E;
+	};
+	// The bike's own silencer's points in mm (hidden by now, still there to measure).
+	auto OwnRuns = [&](const std::string& Sub, std::vector<std::vector<V3>>& Store, std::string& Material) {
+		Store.clear();
+		for (const FittedPart& P : Out)
+		{
+			if (P.Sub != Sub || !P.Made || P.Code) continue;
+			for (const PartSurface& S : P.Made->Surfaces)
+			{
+				Store.emplace_back();
+				for (const V3& Q : S.Pos) Store.back().push_back(V2ToMm(F, Q));
+				if (Material.empty()) Material = S.Material;
+			}
+		}
 	};
 
 	// The common parts on the bike, the bar first (it moves what's on it before the rest line up on that).
@@ -5192,7 +5324,27 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				V3 By = V3(0.0, 0.0, 0.0);
 				double Spread = 0.0;
 				int Keep = 0;   // +1 only what's on the left, -1 the right
+				double Pitch = 0.0;   // turned in the side view about Pivot (after any mirror, before By)
+				V3 Pivot = V3(0.0, 0.0, 0.0);
+				V3 Turn(const V3& M) const
+				{
+					if (Pitch == 0.0) return M;
+					const double C = std::cos(Pitch), Sn = std::sin(Pitch), Dx = M.x - Pivot.x, Dz = M.z - Pivot.z;
+					return V3(Pivot.x + Dx * C - Dz * Sn, M.y, Pivot.z + Dx * Sn + Dz * C);
+				}
 			};
+			// A silencer much longer than the can that takes its place (a classic's one long megaphone from behind the
+			// header to past the axle): the can sits at the rear end of it, its outlet where the bike's was, and a plain
+			// link pipe of the bike's bore runs from where the bike's silencer began to the can's inlet.
+			struct Link
+			{
+				V3 A, B;
+				double R = 0.0;
+			};
+			std::vector<Link> Links;
+			std::vector<std::vector<V3>> OwnPts;
+			std::string OwnMaterial;
+			if (Sub == "silencer") OwnRuns(Sub, OwnPts, OwnMaterial);
 			auto OneSide = [&](const MmBox& Mine, const MmBox& Theirs, int Keep) {
 				Placing Pl;
 				Pl.Keep = Keep;
@@ -5200,11 +5352,130 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				Pl.By.z = Theirs.Mid().z - Mine.Mid().z;
 				Pl.bMirror = (Mine.Mid().y > 0.0) != (Theirs.Mid().y > 0.0) && std::fabs(Theirs.Mid().y) > 20.0 && std::fabs(Mine.Mid().y) > 20.0;
 				Pl.By.y = Theirs.Mid().y - (Pl.bMirror ? -Mine.Mid().y : Mine.Mid().y);
+				if (Sub == "silencer" && Theirs.Hi.x - Theirs.Lo.x > 1.6 * (Mine.Hi.x - Mine.Lo.x) && !OwnPts.empty())
+				{
+					const int TheirSide = std::fabs(Theirs.Mid().y) > 20.0 ? (Theirs.Mid().y > 0.0 ? 1 : -1) : 0;
+					const int MySide = Keep != 0 ? Keep : (std::fabs(Mine.Mid().y) > 20.0 ? (Mine.Mid().y > 0.0 ? 1 : -1) : 0);
+					std::vector<const std::vector<V3>*> Theirs_, Mine_;
+					for (const std::vector<V3>& R : OwnPts) Theirs_.push_back(&R);
+					for (const std::vector<V3>& R : Pos) Mine_.push_back(&R);
+					const PipeEnd TBack = EndOf(Theirs_, TheirSide, false), TFront = EndOf(Theirs_, TheirSide, true);
+					const PipeEnd MBack = EndOf(Mine_, MySide, false), MFront = EndOf(Mine_, MySide, true);
+					if (TBack.Ok && TFront.Ok && MBack.Ok && MFront.Ok)
+					{
+						const V3 MyBack = Pl.bMirror ? V3(MBack.At.x, -MBack.At.y, MBack.At.z) : MBack.At;
+						V3 MyFront = Pl.bMirror ? V3(MFront.At.x, -MFront.At.y, MFront.At.z) : MFront.At;
+						// (laid along the line of the bike's silencer, turned about its outlet)
+						Pl.Pivot = MyBack;
+						Pl.Pitch = std::atan2(TFront.At.z - TBack.At.z, TFront.At.x - TBack.At.x) - std::atan2(MyFront.z - MyBack.z, MyFront.x - MyBack.x);
+						MyFront = Pl.Turn(MyFront);
+						Pl.By = TBack.At - MyBack;
+						Link L;
+						L.A = TFront.At;
+						L.B = MyFront + Pl.By;
+						// (the bore where the bike's silencer began: no fatter than the can's inlet, nor thinner than a pipe)
+						L.R = std::clamp(std::min(TFront.R, MFront.R * 0.9), 16.0, 32.0);
+						if (L.A.x > L.B.x + 15.0) Links.push_back(L);
+					}
+				}
 				return Pl;
 			};
+			// (A pair has a gap down the middle: one fat can centred on the line, as the library's single cans are
+			// drawn, is one piece, not two halves.)
+			bool NewPair = New.Pair();
+			if (NewPair && Sub == "silencer")
+				for (const std::vector<V3>& Ps : Pos)
+					for (const V3& M : Ps)
+						if (std::fabs(M.y) < 25.0) NewPair = false;
+			// [grips, beenster Nov 20: "make sure that the grips align to the handlebars"] Each grip laid along the
+			// bike's own grip on that side (its long axis, its middle), so it sits on the bar end at the bar's own
+			// sweep and drop: turned from its own axis to that one about its middle, then moved there.
+			bool bAligned = false;
+			if (Sub == "grip" && Own.Pair())
+			{
+				std::vector<V3> Theirs[2];
+				for (const FittedPart& P : Out)
+				{
+					if (P.Sub != Sub || !P.Made || P.Code) continue;
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& Q : S.Pos)
+						{
+							const V3 M = V2ToMm(F, Q);
+							Theirs[M.y >= 0.0 ? 0 : 1].push_back(M);
+						}
+				}
+				std::vector<V3> Mine[2];
+				for (const std::vector<V3>& Ps : Pos)
+					for (const V3& M : Ps) Mine[M.y >= 0.0 ? 0 : 1].push_back(M);
+				// The middle and the long axis (pointing out from the bike's middle) of a grip's points.
+				auto AxisOf = [](const std::vector<V3>& Pts, V3& Mid, V3& Axis) {
+					if (Pts.size() < 8) return false;
+					Mid = V3(0.0, 0.0, 0.0);
+					for (const V3& Q : Pts) Mid += Q;
+					Mid = Mid / double(Pts.size());
+					double C[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+					for (const V3& Q : Pts)
+					{
+						const double D[3] = {Q.x - Mid.x, Q.y - Mid.y, Q.z - Mid.z};
+						for (int I = 0; I < 3; ++I)
+							for (int J = 0; J < 3; ++J) C[I][J] += D[I] * D[J];
+					}
+					V3 A(0.0, 1.0, 0.0);
+					for (int It = 0; It < 40; ++It)
+						A = V3(C[0][0] * A.x + C[0][1] * A.y + C[0][2] * A.z, C[1][0] * A.x + C[1][1] * A.y + C[1][2] * A.z,
+							C[2][0] * A.x + C[2][1] * A.y + C[2][2] * A.z).Normalized();
+					if (A.Length() < 0.5) return false;
+					if (A.y * Mid.y < 0.0) A = -A;
+					Axis = A;
+					return std::fabs(Mid.y) > 20.0;
+				};
+				V3 TMid[2], TAx[2], MMid[2], MAx[2];
+				bool bOk = true;
+				for (int K = 0; K < 2; ++K) bOk = bOk && AxisOf(Theirs[K], TMid[K], TAx[K]) && AxisOf(Mine[K], MMid[K], MAx[K]);
+				// A common bar on: along its own end instead (it has its own sweep and drop; the bike's grip was only
+				// moved there, not turned), the grip's middle kept where it was along that end.
+				for (int K = 0; K < 2 && bOk; ++K)
+				{
+					std::vector<V3> End;
+					for (const FittedPart& P : Out)
+					{
+						if (P.Sub != "bar" || !P.Made || P.Hidden || P.Glb.rfind("v2c/", 0) != 0) continue;
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if ((M - TMid[K]).Length() < 60.0) End.push_back(M);
+							}
+					}
+					V3 EMid, EAx;
+					if (End.size() >= 16 && AxisOf(End, EMid, EAx))
+					{
+						TAx[K] = EAx;
+						TMid[K] = EMid + EAx * (TMid[K] - EMid).Dot(EAx);
+					}
+				}
+				if (bOk)
+				{
+					New = MmBox();
+					for (size_t I = 0; I < Pos.size(); ++I)
+						for (size_t J = 0; J < Pos[I].size(); ++J)
+						{
+							const int K = Pos[I][J].y >= 0.0 ? 0 : 1;
+							const V3 Ax = MAx[K].Cross(TAx[K]);
+							const double SinA = Ax.Length(), CosA = MAx[K].Dot(TAx[K]);
+							const double Ang = std::atan2(SinA, CosA);
+							const V3 U = SinA > 1e-9 ? Ax / SinA : V3(0.0, 0.0, 1.0);
+							Pos[I][J] = TMid[K] + (Pos[I][J] - MMid[K]).Rotated(U, Ang);
+							if (J < Nrm[I].size()) Nrm[I][J] = Nrm[I][J].Rotated(U, Ang);
+							New.Add(Pos[I][J]);
+						}
+					bAligned = true;
+				}
+			}
 			std::vector<Placing> Places;
-			if (!Own.Any() || Sub == "bar") Places.push_back(Placing());
-			else if (New.Pair() && Own.Pair())
+			if (bAligned) Places.push_back(Placing());
+			else if (!Own.Any() || Sub == "bar") Places.push_back(Placing());
+			else if (NewPair && Own.Pair())
 			{
 				Placing Pl;
 				Pl.By.x = Own.Mid().x - New.Mid().x;
@@ -5212,7 +5483,7 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				Pl.Spread = ((Own.Hi.y - New.Hi.y) + (New.Lo.y - Own.Lo.y)) * 0.5;
 				Places.push_back(Pl);
 			}
-			else if (New.Pair() && std::fabs(Own.Mid().y) > 20.0)
+			else if (NewPair && std::fabs(Own.Mid().y) > 20.0)
 			{
 				const int Keep = Own.Mid().y >= 0.0 ? 1 : -1;
 				MmBox Half;
@@ -5248,13 +5519,15 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					for (V3 M : Pos[I])
 					{
 						if (Pl.bMirror) M.y = -M.y;
-						M = M + Pl.By;
+						M = Pl.Turn(M) + Pl.By;
 						if (Pl.Spread != 0.0) M.y += M.y >= 0.0 ? Pl.Spread : -Pl.Spread;
 						Drawn.Pos.push_back(F.Point(M.x, M.y, M.z));
 					}
 					for (V3 N : Nrm[I])
 					{
 						if (Pl.bMirror) N.y = -N.y;
+						if (Pl.Pitch != 0.0)
+							N = V3(N.x * std::cos(Pl.Pitch) - N.z * std::sin(Pl.Pitch), N.y, N.x * std::sin(Pl.Pitch) + N.z * std::cos(Pl.Pitch));
 						Drawn.Nrm.push_back(F.Dir(N.x, N.y, N.z));
 					}
 					Drawn.U = S.U;
@@ -5293,6 +5566,38 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					Made->Surfaces.push_back(std::move(Drawn));
 				}
 			}
+			for (const Link& L : Links)
+			{
+				// (a plain round pipe, 20 sides, from the bike's pipe end back into the can's inlet, 20 mm overlap each end)
+				const V3 Ax = (L.B - L.A).Normalized();
+				const V3 A = L.A + Ax * -20.0, Bp = L.B + Ax * 20.0;
+				V3 U = Ax.Cross(V3(0.0, 0.0, 1.0));
+				if (U.Length() < 1.0e-3) U = Ax.Cross(V3(0.0, 1.0, 0.0));
+				U = U.Normalized();
+				const V3 W = Ax.Cross(U).Normalized();
+				PartSurface Pipe;
+				Pipe.Material = OwnMaterial.empty() ? std::string("v2/chrome//chrome") : OwnMaterial;
+				constexpr int Sides = 20;
+				for (int K = 0; K <= Sides; ++K)
+				{
+					const double Ang = 2.0 * 3.14159265358979 * K / Sides;
+					const V3 N = U * std::cos(Ang) + W * std::sin(Ang);
+					for (int E = 0; E < 2; ++E)
+					{
+						const V3 M = (E == 0 ? A : Bp) + N * L.R;
+						Pipe.Pos.push_back(F.Point(M.x, M.y, M.z));
+						Pipe.Nrm.push_back(F.Dir(N.x, N.y, N.z));
+						Pipe.U.push_back(double(K) / Sides);
+						Pipe.V.push_back(double(E));
+					}
+				}
+				for (int K = 0; K < Sides; ++K)
+				{
+					const unsigned I0 = unsigned(K * 2), I1 = I0 + 1, I2 = I0 + 2, I3 = I0 + 3;
+					for (unsigned Ix : {I0, I2, I1, I1, I2, I3}) Pipe.Idx.push_back(Ix);
+				}
+				Made->Surfaces.push_back(std::move(Pipe));
+			}
 			FittedPart P;
 			P.Slot = Slot;
 			P.Node = Node;
@@ -5303,6 +5608,91 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 			Out.push_back(std::move(P));
 			++Added;
 		}
+	}
+	// [grips, beenster Nov 20] A common bar has its own sweep and drop: what sits on its ends (the grips, the bike's own
+	// or a shop pair, and the bar ends) only moved there would stand off its line. Each side's turned about the grip's
+	// middle onto the line of the bar's end there, and slid onto it.
+	bool bCommonBar = false;
+	for (const FittedPart& P : Out) bCommonBar = bCommonBar || (P.Sub == "bar" && P.Made && !P.Hidden && P.Glb.rfind("v2c/", 0) == 0);
+	if (bCommonBar)
+	{
+		auto LongAxis = [](const std::vector<V3>& Pts, V3& Mid, V3& Axis) {
+			if (Pts.size() < 8) return false;
+			Mid = V3(0.0, 0.0, 0.0);
+			for (const V3& Q : Pts) Mid += Q;
+			Mid = Mid / double(Pts.size());
+			double C[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+			for (const V3& Q : Pts)
+			{
+				const double D[3] = {Q.x - Mid.x, Q.y - Mid.y, Q.z - Mid.z};
+				for (int I = 0; I < 3; ++I)
+					for (int J = 0; J < 3; ++J) C[I][J] += D[I] * D[J];
+			}
+			V3 A(0.0, 1.0, 0.0);
+			for (int It = 0; It < 40; ++It)
+				A = V3(C[0][0] * A.x + C[0][1] * A.y + C[0][2] * A.z, C[1][0] * A.x + C[1][1] * A.y + C[1][2] * A.z,
+					C[2][0] * A.x + C[2][1] * A.y + C[2][2] * A.z).Normalized();
+			if (A.Length() < 0.5 || std::fabs(Mid.y) < 20.0) return false;
+			if (A.y * Mid.y < 0.0) A = -A;
+			Axis = A;
+			return true;
+		};
+		// (each piece turned by the grip it was drawn round: the bike's own pieces by the bike's own grip, hidden
+		// or not, a shop grip and bar end by the shop grip)
+		for (int K = 0; K < 2; ++K)
+			for (int Shop = 0; Shop < 2; ++Shop)
+			{
+				const double Side = K == 0 ? 1.0 : -1.0;
+				auto IsShop = [](const FittedPart& P) { return P.Glb.rfind("v2c/", 0) == 0; };
+				std::vector<V3> GripPts;
+				for (const FittedPart& P : Out)
+					if (P.Sub == "grip" && P.Made && !P.Code && IsShop(P) == (Shop == 1) && (Shop == 0 || !P.Hidden))
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if (M.y * Side > 0.0) GripPts.push_back(M);
+							}
+				V3 GMid, GAx;
+				if (!LongAxis(GripPts, GMid, GAx)) continue;
+				std::vector<V3> End;
+				for (const FittedPart& P : Out)
+					if (P.Sub == "bar" && P.Made && !P.Hidden && IsShop(P))
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if ((M - GMid).Length() < 60.0) End.push_back(M);
+							}
+				V3 EMid, EAx;
+				if (End.size() < 16 || !LongAxis(End, EMid, EAx)) continue;
+				const V3 To = EMid + EAx * (GMid - EMid).Dot(EAx);
+				const V3 Ax = GAx.Cross(EAx);
+				const double SinA = Ax.Length(), CosA = GAx.Dot(EAx);
+				if (SinA < 1e-4 && (To - GMid).Length() < 0.5) continue;
+				const double Ang = std::atan2(SinA, CosA);
+				const V3 U = SinA > 1e-9 ? Ax / SinA : V3(0.0, 0.0, 1.0);
+				// (a direction in ours to the drawings' mm and back: V2ToMm's turn)
+				auto DirToMm = [&F](const V3& D) { return V3(F.Cos * D.x - F.Sin * D.y, -D.z, F.Sin * D.x + F.Cos * D.y); };
+				auto DirFromMm = [&F](const V3& D) { return V3(F.Cos * D.x + F.Sin * D.z, -F.Sin * D.x + F.Cos * D.z, -D.y); };
+				for (FittedPart& P : Out)
+				{
+					if ((P.Sub != "grip" && P.Sub != "bar_end") || !P.Made || P.Code || IsShop(P) != (Shop == 1)) continue;
+					auto Copy = std::make_shared<PartMesh>(*P.Made);
+					bool bAny = false;
+					for (PartSurface& S : Copy->Surfaces)
+						for (size_t I = 0; I < S.Pos.size(); ++I)
+						{
+							const V3 M = V2ToMm(F, S.Pos[I]);
+							if (M.y * Side <= 0.0) continue;
+							const V3 N = To + (M - GMid).Rotated(U, Ang);
+							S.Pos[I] = F.Point(N.x, N.y, N.z);
+							if (I < S.Nrm.size()) S.Nrm[I] = DirFromMm(DirToMm(S.Nrm[I]).Rotated(U, Ang));
+							bAny = true;
+						}
+					if (bAny) P.Made = Copy;
+				}
+			}
 	}
 	return Added;
 }

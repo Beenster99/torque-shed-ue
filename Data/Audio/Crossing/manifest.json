@@ -1,0 +1,19 @@
+{
+ "about": "The level crossings' own sounds for TorqueSfx, made by Tools/audio/make_crossing_sounds.py from maths alone (no recordings: nothing to licence). UTorqueSfx adds this after Data/Audio/TS/manifest.json; the files are relative to this folder.",
+ "sounds": {
+  "lx_alarm": {
+   "files": [
+    "lx_alarm.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "lx_motor": {
+   "files": [
+    "lx_motor.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  }
+ }
+}

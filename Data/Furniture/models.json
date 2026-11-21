@@ -1,5 +1,5 @@
 {
- "about": "Every piece of shed equipment, trinket and yard kit Torque Shed has (equipment.gd MODELS, trinkets.gd MODELS, world_yard.gd fixtures), for the UE port's movable kit (Source/TorqueShedProto/Shed/TorqueFurniture). size: width, height, depth in metres (Torque Shed's footprint, +z the front). yard: outside kit. wall: hangs on a wall. ride: the bike rides on it (tagged Road). solid: the bike bumps into it (a contact box). pass: no contact box (ramps: ridden up and over via ride, never a wall the bike stops on). sold: ordered from the parts computer's Shed aisle (free in the UE port). The model is Data/Props' prop of the same id (/Game/Shed/Props/<id>/SM_<id>).",
+ "about": "Every piece of shed equipment, trinket and yard kit Torque Shed has (equipment.gd MODELS, trinkets.gd MODELS, world_yard.gd fixtures), for the UE port's movable kit (Source/TorqueShedProto/Shed/TorqueFurniture). size: width, height, depth in metres (Torque Shed's footprint, +z the front). yard: outside kit. wall: hangs on a wall. ride: the bike rides on it (tagged Road). solid: the bike bumps into it (a contact box). pass: no contact box (ramps: ridden up and over via ride, never a wall the bike stops on). sold: ordered from the parts computer's Shed aisle (free in the UE port). mesh: drawn with another model's mesh (the framed posters: poster_frame). picture: a poster's picture under its glass (a file under the project). The model is Data/Props' prop of the same id (/Game/Shed/Props/<id>/SM_<id>).",
  "kinds": [
   [
    "stand",
@@ -473,6 +473,300 @@
    ],
    "wall": true,
    "sold": false
+  },
+  "poster_brand_bsx_logo": {
+   "kind": "poster",
+   "name": "BSX logo poster",
+   "desc": "BSX's badge and strapline, framed: \"Made properly.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_logo.jpg"
+  },
+  "poster_brand_corvano_logo": {
+   "kind": "poster",
+   "name": "Corvano logo poster",
+   "desc": "Corvano's badge and strapline, framed: \"Niente di troppo.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_corvano_logo.jpg"
+  },
+  "poster_brand_kazeda_logo": {
+   "kind": "poster",
+   "name": "Kazeda logo poster",
+   "desc": "Kazeda's badge and strapline, framed: \"Precision is a feeling.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_kazeda_logo.jpg"
+  },
+  "poster_brand_varga_logo": {
+   "kind": "poster",
+   "name": "Varga logo poster",
+   "desc": "Varga's badge and strapline, framed: \"Ride it like you mean it.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_varga_logo.jpg"
+  },
+  "poster_brand_lodestar_logo": {
+   "kind": "poster",
+   "name": "Lodestar logo poster",
+   "desc": "Lodestar's badge and strapline, framed: \"Follow your own star.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_lodestar_logo.jpg"
+  },
+  "poster_brand_rheinhart_logo": {
+   "kind": "poster",
+   "name": "Rheinhart logo poster",
+   "desc": "Rheinhart's badge and strapline, framed: \"Nichts ohne Grund.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_rheinhart_logo.jpg"
+  },
+  "poster_brand_bsx_adventure": {
+   "kind": "poster",
+   "name": "BSX Harrier 900 poster",
+   "desc": "The BSX Harrier 900 from the sketchbook, framed: \"For the far side of the hill.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_adventure.jpg"
+  },
+  "poster_brand_bsx_cafe": {
+   "kind": "poster",
+   "name": "BSX Swift 750 poster",
+   "desc": "The BSX Swift 750 from the sketchbook, framed: \"From the Works to the coast before breakfast.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_cafe.jpg"
+  },
+  "poster_brand_bsx_chopper": {
+   "kind": "poster",
+   "name": "BSX Rook 1800 poster",
+   "desc": "The BSX Rook 1800 from the sketchbook, framed: \"Hartwell misbehaves.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_chopper.jpg"
+  },
+  "poster_brand_bsx_classic": {
+   "kind": "poster",
+   "name": "BSX Hartwell 750 poster",
+   "desc": "The BSX Hartwell 750 from the sketchbook, framed: \"The one that carries our address.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_classic.jpg"
+  },
+  "poster_brand_bsx_naked": {
+   "kind": "poster",
+   "name": "BSX Kestrel 850 poster",
+   "desc": "The BSX Kestrel 850 from the sketchbook, framed: \"Quick, and quietly so.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_naked.jpg"
+  },
+  "poster_brand_bsx_sport": {
+   "kind": "poster",
+   "name": "BSX Merlin 600 poster",
+   "desc": "The BSX Merlin 600 from the sketchbook, framed: \"Small, fast and very sure of itself.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_bsx_sport.jpg"
+  },
+  "poster_brand_corvano_adventure": {
+   "kind": "poster",
+   "name": "Corvano Valico 900 poster",
+   "desc": "The Corvano Valico 900 from the sketchbook, framed: \"Over the top.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_corvano_adventure.jpg"
+  },
+  "poster_brand_corvano_cafe": {
+   "kind": "poster",
+   "name": "Corvano Rapida 750 poster",
+   "desc": "The Corvano Rapida 750 from the sketchbook, framed: \"Sunday morning, eight o'clock.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_corvano_cafe.jpg"
+  },
+  "poster_brand_corvano_classic": {
+   "kind": "poster",
+   "name": "Corvano Emilia 750 poster",
+   "desc": "The Corvano Emilia 750 from the sketchbook, framed: \"The road it was named for.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_corvano_classic.jpg"
+  },
+  "poster_brand_corvano_naked": {
+   "kind": "poster",
+   "name": "Corvano Lama 850 poster",
+   "desc": "The Corvano Lama 850 from the sketchbook, framed: \"The blade.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_corvano_naked.jpg"
+  },
+  "poster_brand_kazeda_adventure": {
+   "kind": "poster",
+   "name": "Kazeda Tabi 900 poster",
+   "desc": "The Kazeda Tabi 900 from the sketchbook, framed: \"The journey is the point.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_kazeda_adventure.jpg"
+  },
+  "poster_brand_kazeda_sport": {
+   "kind": "poster",
+   "name": "Kazeda Shiden 600 poster",
+   "desc": "The Kazeda Shiden 600 from the sketchbook, framed: \"Purple lightning.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_kazeda_sport.jpg"
+  },
+  "poster_brand_lodestar_chopper": {
+   "kind": "poster",
+   "name": "Lodestar Vagabond 1800 poster",
+   "desc": "The Lodestar Vagabond 1800 from the sketchbook, framed: \"No fixed address.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_lodestar_chopper.jpg"
+  },
+  "poster_brand_lodestar_cruiser": {
+   "kind": "poster",
+   "name": "Lodestar Wayfarer 1200 poster",
+   "desc": "The Lodestar Wayfarer 1200 from the sketchbook, framed: \"Take the long way home.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_lodestar_cruiser.jpg"
+  },
+  "poster_brand_varga_mx": {
+   "kind": "poster",
+   "name": "Varga Farkas 450 poster",
+   "desc": "The Varga Farkas 450 from the sketchbook, framed: \"The wolf.\"",
+   "size": [
+    0.6,
+    0.85,
+    0.02
+   ],
+   "wall": true,
+   "sold": true,
+   "mesh": "poster_frame",
+   "picture": "Data/Posters/brand_varga_mx.jpg"
   },
   "seat_stool": {
    "kind": "seat",
@@ -1182,6 +1476,18 @@
    "yard": true,
    "sold": false,
    "pass": true
+  },
+  "photo_print": {
+   "kind": "photo",
+   "name": "Photo print",
+   "desc": "One of your drone photos, printed at 7 x 5 inches for the shed wall.",
+   "size": [
+    0.1778,
+    0.127,
+    0.002
+   ],
+   "wall": true,
+   "sold": false
   }
  }
 }

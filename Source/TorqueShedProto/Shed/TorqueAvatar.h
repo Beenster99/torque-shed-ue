@@ -140,6 +140,12 @@ private:
 	TWeakObjectPtr<AActor> Spawned;   // the MetaHuman Blueprint, when one is listed (older avatars.json)
 	TArray<TWeakObjectPtr<USceneComponent>> Parts;   // its face, clothes and grooms, when listed as parts
 	TArray<TWeakObjectPtr<USceneComponent>> Hair;    // the grooms among them
+	// [jacket] The profile's jacket over the shirt (FTorqueProfile::Jacket), and which it is.
+	TWeakObjectPtr<USceneComponent> JacketPart;
+	int32 JacketOn = 0;
+	bool bBodyShown = true;
+	USceneComponent* TopGarment() const;   // the shirt (hidden under the jacket: it clipped through, build 160)
+	void SetJacket(int32 Which);
 	FVector RideHead = FVector::ZeroVector;
 	FQuat RideHeadTurn = FQuat::Identity;
 	bool bRode = false;

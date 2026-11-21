@@ -459,6 +459,40 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (bFace) ByName.Add(TEXT("Face"), C);   // what the hair is attached to, whatever the part's name
 		Out.Add(C);
 	}
+	// [jacket try] beenster's own MetaHuman biker jacket (Tools/ue_try_jacket.py imports it to
+	// /Game/AvatarTry/Crosswind), worn over the shirt for a preview: -TorqueTryJacket=<mesh name> on
+	// Avatar A (-TorqueTryJacketOn=all: everyone; or a list such as A,C).
+	{
+		FString Jacket, On = TEXT("A");
+		if (FParse::Value(FCommandLine::Get(), TEXT("TorqueTryJacket="), Jacket) && !Jacket.IsEmpty())
+		{
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueTryJacketOn="), On);
+			const FString Letter = E.Name.Right(1);
+			if (On.Equals(TEXT("all"), ESearchCase::IgnoreCase) || On.Contains(Letter, ESearchCase::IgnoreCase))
+			{
+				const FString Path = FString::Printf(TEXT("/Game/AvatarTry/Crosswind/%s/%s.%s"), *Jacket, *Jacket, *Jacket);
+				USkeletalMesh* JM = LoadObject<USkeletalMesh>(nullptr, *Path);
+				if (!JM)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: try jacket: no %s (run Tools/ue_try_jacket.py)"), *E.Name, *Path);
+				}
+				else
+				{
+					USkeletalMeshComponent* J = NewObject<USkeletalMeshComponent>(Owner, MakeUniqueObjectName(Owner, USkeletalMeshComponent::StaticClass(), FName(TEXT("TryJacket"))));
+					J->SetSkeletalMeshAsset(JM);
+					J->SetupAttachment(Driver);
+					J->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+					J->SetGenerateOverlapEvents(false);
+					J->PrecachePSOs();
+					J->RegisterComponent();
+					J->SetLeaderPoseComponent(Driver, true);
+					Out.Add(J);
+					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: try jacket %s worn (%d materials, box %s)"), *E.Name, *Path,
+						JM->GetMaterials().Num(), *JM->GetBounds().GetBox().ToString());
+				}
+			}
+		}
+	}
 	// Round 143: the Creator's only top (its default garment) comes with shorts, which drew over the
 	// Fab jeans (white shorts blotched with denim). With a bottom garment worn, the top's shorts,
 	// trouser or bottom sections are hidden: drawn with M_HairCards at no opacity (masked, so nothing
@@ -824,6 +858,9 @@ void FTorqueAvatar::Destroy()
 		if (USceneComponent* C = P.Get()) C->DestroyComponent();
 	Parts.Reset();
 	Hair.Reset();
+	JacketPart.Reset();
+	JacketOn = 0;
+	bBodyShown = true;
 	bRode = false;
 	FaceMesh = nullptr;
 	FaceFromDriver.Reset();
@@ -1405,6 +1442,7 @@ void FTorqueAvatar::SetLook(const FTorqueProfile& Look)
 	using namespace TorqueAvatarMath;
 	if (!Driver) return;
 	Driver->SetRelativeScale3D(FVector(BaseScale * Look.HeightScale()));
+	SetJacket(Look.Jacket);
 	if (!FaceMesh) return;
 	FaceScale = 1.0 + 0.06 * FMath::Clamp((double)Look.Face[0], -1.0, 1.0);
 	const FReferenceSkeleton& Ref = FaceMesh->GetSkinnedAsset()->GetRefSkeleton();
@@ -1465,16 +1503,71 @@ double FTorqueAvatar::StandingHeight() const
 	return RestHeight * Driver->GetRelativeScale3D().Z;
 }
 
+// [jacket] The profile's jacket worn over the shirt, following the body (leader pose), or taken off.
+// Made for Avatar A's body, so only Avatar A wears it until the others have theirs.
+void FTorqueAvatar::SetJacket(int32 Which)
+{
+	if (!Driver) return;
+	if (!Name.EndsWith(TEXT("_A"))) Which = 0;
+	if (Which == JacketOn) return;
+	JacketOn = Which;
+	if (USceneComponent* Old = JacketPart.Get())
+	{
+		Parts.Remove(JacketPart);
+		Old->DestroyComponent();
+	}
+	JacketPart.Reset();
+	if (USceneComponent* Top = TopGarment()) Top->SetVisibility(bBodyShown, false);   // the shirt back
+	const FString Mesh = FTorqueProfile::JacketMesh(Which);
+	if (Mesh.IsEmpty()) return;
+	const FString Path = FString::Printf(TEXT("/Game/AvatarTry/Crosswind/%s/%s.%s"), *Mesh, *Mesh, *Mesh);
+	USkeletalMesh* JM = LoadObject<USkeletalMesh>(nullptr, *Path);
+	AActor* Owner = Driver->GetOwner();
+	if (!JM || !Owner)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no jacket %s in this build"), *Name, *Path);
+		return;
+	}
+	USkeletalMeshComponent* J = NewObject<USkeletalMeshComponent>(Owner, MakeUniqueObjectName(Owner, USkeletalMeshComponent::StaticClass(), FName(TEXT("Jacket"))));
+	J->SetSkeletalMeshAsset(JM);
+	J->SetupAttachment(Driver);
+	J->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	J->SetGenerateOverlapEvents(false);
+	J->LightingChannels = Driver->LightingChannels;   // (the profile picture's studio lights it as the body)
+	J->SetCastShadow(Driver->CastShadow);
+	J->PrecachePSOs();
+	J->RegisterComponent();
+	J->SetLeaderPoseComponent(Driver, true);
+	J->SetVisibility(bBodyShown, false);
+	JacketPart = J;
+	Parts.Add(J);
+	if (USceneComponent* Top = TopGarment()) Top->SetVisibility(false, false);   // the shirt under it (it clipped through)
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: wearing the jacket %s"), *Name, *Path);
+}
+
+USceneComponent* FTorqueAvatar::TopGarment() const
+{
+	for (const TWeakObjectPtr<USceneComponent>& P : Parts)
+	{
+		const USkinnedMeshComponent* S = Cast<USkinnedMeshComponent>(P.Get());
+		if (S && S != JacketPart.Get() && S->GetSkinnedAsset() && S->GetSkinnedAsset()->GetName().Contains(TEXT("TopGarment")))
+			return P.Get();
+	}
+	return nullptr;
+}
+
 void FTorqueAvatar::SetShown(bool bBody, bool bHead, bool bHair)
 {
 	if (!Driver) return;
+	bBodyShown = bBody;
 	Driver->SetVisibility(bBody, false);
+	const USceneComponent* Under = JacketPart.IsValid() ? TopGarment() : nullptr;
 	for (const TWeakObjectPtr<USceneComponent>& P : Parts)
 	{
 		USceneComponent* C = P.Get();
 		if (!C) continue;
 		const bool bIsHair = Hair.Contains(P);
-		C->SetVisibility(bIsHair ? (bHead && bHair) : (C == FaceMesh ? bHead : bBody), false);
+		C->SetVisibility(bIsHair ? (bHead && bHair) : (C == FaceMesh ? bHead : (bBody && C != Under)), false);
 	}
 }
 

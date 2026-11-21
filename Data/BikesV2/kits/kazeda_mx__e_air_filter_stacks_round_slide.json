@@ -1,0 +1,68 @@
+{
+ "name": "Kazeda MX (working title X2)",
+ "format": 2,
+ "kit": true,
+ "triangles": 1204,
+ "surfaces": {
+  "s000": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s001": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s007": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "d3_polishedcase",
+   "tag": "d3_polishedcase",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.82,
+    0.84
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s008": {
+   "slot": "air_filter",
+   "node": "",
+   "surface": "d3_stackmesh",
+   "tag": "d3_stackmesh",
+   "ue": "cat_black_metal",
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "metallic": 0.6,
+   "roughness": 0.6
+  }
+ },
+ "engine_part": {
+  "slot": "air_filter",
+  "look": "stacks_round_slide",
+  "fuel": "round_slide",
+  "air": "stacks",
+  "cover": "finned",
+  "finish": "black",
+  "case": "stock",
+  "header": "stock",
+  "oil": null
+ }
+}

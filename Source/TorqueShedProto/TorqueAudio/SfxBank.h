@@ -36,6 +36,8 @@ class FBank
 public:
 	using FReader = std::function<bool(const std::string& Rel, std::vector<uint8_t>& Out)>;
 	bool Load(const std::string& ManifestText, FReader Reader);
+	// Another manifest's sounds added to these (Data/Audio/Ferry's: its files read as Prefix + file, through Load's reader).
+	bool Add(const std::string& ManifestText, const std::string& Prefix);
 	bool Loaded() const { return !Defs.empty(); }
 	const FSoundDef* Def(const std::string& Sound) const;
 	size_t Count() const { return Defs.size(); }

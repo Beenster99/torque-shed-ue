@@ -1,4 +1,6 @@
 #include "Shed/TorqueShedTest.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
 #include "Shed/TorqueProfile.h"
@@ -26,6 +28,8 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
+#include "World/TorqueFerry.h"
+#include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
@@ -149,8 +153,9 @@ const TCHAR* const MenuSteps =
 // that card on the bench and mixed again to it as Mix 2; a satin lacquer (10% flattener); a silver with ultramarine
 // in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
 // the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
-// Then a fade from the gun's two cups: Mix 1 in cup 1, Mix 3 (the silver) in cup 2, front to back,
-// medium (beenster, 18 Nov 2026: no masking tape). Then hook 1 wound up and down.
+// Then a fade from the gun's two cups, picked as [ and ] do: matt black in cup 1, metallic gold in
+// cup 2, front to back, medium: the base coat, then cup 2 (beenster, 19 Nov 2026). Then hook 1 wound
+// up and down.
 const TCHAR* const MixSteps =
 	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,shot:ui,look:mixbench,shot,")
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
@@ -162,7 +167,7 @@ const TCHAR* const MixSteps =
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot,")
-	TEXT("tool:hands,paint:take:0,paint:cup,paint:put:0,paint:take:3,paint:cup:2,paint:put:3,paintlog,")   // the fade: two cups
+	TEXT("tool:hands,paint:pick:1:6:matte,paint:pick:2:#C9A23A:metallic,paintlog,")   // the fade: matt black in cup 1, metallic gold in cup 2 ([ and ])
 	TEXT("tool:gun,spray:6:fade,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,paint:hook:1:200,look:hook:1,shot,paint:hook:1:90,look:hook:1,shot,paint:hook:1:138,log");
 
@@ -720,7 +725,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
-		Verb == TEXT("helmet") || Verb == TEXT("garage"))
+		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry") || Verb == TEXT("trains"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -810,6 +815,20 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("state"));
 			Said(Bike->TestGarage(What));
+			return true;
+		}
+		// [ferries] ferry[:where|goto:<end>|board]: the nearest ferry's state; our bike put at that end's slipway head
+		// facing down it; or in the tied-up boat's bike bay (then foot:off, and it sails once we're aboard).
+		if (Verb == TEXT("ferry"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"));
+			Said(ATorqueFerry::Test(World, What, Bike));
+			return true;
+		}
+		// [trains] trains[:where|count]: the nearest train in sight and its route, or how many are in sight.
+		if (Verb == TEXT("trains"))
+		{
+			Said(ATorqueTrains::Test(World, P.Num() > 1 ? P[1].ToLower() : FString(TEXT("where"))));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
@@ -1535,6 +1554,10 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Distance = 260.0;
 		}
 		else if (What == TEXT("board")) { At = FVector(-643.0, 60.0, 255.0); Away = FVector(1.0, 0.0, 0.0); Distance = 300.0; }
+		// [posters] The makers' logo posters inside the front wall either side of the roller door
+		// (TorqueFurniture::BrandPosters): the west three, and the east three, from the bays' side.
+		else if (What == TEXT("posters")) { At = FVector(-440.0, 547.0, 215.0); Away = FVector(0.15, -1.0, 0.0).GetSafeNormal(); Distance = 330.0; }
+		else if (What == TEXT("posterseast")) { At = FVector(440.0, 547.0, 215.0); Away = FVector(-0.15, -1.0, 0.0).GetSafeNormal(); Distance = 330.0; }
 		else if (What == TEXT("monitor")) { At = FVector(613.5, 190.0, 110.0); Away = FVector(-1.0, 0.0, 0.0); Distance = 110.0; }
 		else if (What == TEXT("booth")) { At = FVector(1160.0, 0.0, 110.0); Away = FVector(-1.0, 0.25, 0.0).GetSafeNormal(); Distance = 430.0; }
 		// The hall from the back wall (between bays 2 and 3) to the open roller door: the daylight in
@@ -1602,6 +1625,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const FString Out = W->TestFurniture(P[1].ToLower(), Args);
 		if (Out.StartsWith(TEXT("not "))) Warn(Out);
 		else Said(Out);
+		return true;
+	}
+	if (Verb == TEXT("v2fit") && P.Num() >= 3)
+	{
+		// [engine parts] "v2fit:SLOT:PART": would that V2 part go on bay N's bike now (the fit rule the wrench asks:
+		// family, engine block, cross-brand twin, carb/pod order)? Logs "fits" or the reason.
+		const FString Why = B->TestV2FitReason(TestBay, FName(*P[1].ToLower()), FName(*P[2].ToLower()));
+		Said(FString::Printf(TEXT("v2fit bay %d %s %s: %s"), TestBay + 1, *P[1], *P[2], Why.IsEmpty() ? TEXT("fits") : *Why));
 		return true;
 	}
 	if (Verb == TEXT("order") && P.Num() >= 2)
@@ -1756,6 +1787,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("put") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTinPut; R.Item = FCString::Atoi(*P[2]); }
 		else if (What == TEXT("tobench")) R.Kind = ETorqueShedAct::PaintTinBench;
 		else if (What == TEXT("bin")) R.Kind = ETorqueShedAct::PaintTinBin;
+		else if (What == TEXT("pick") && P.Num() >= 5)
+		{
+			// paint:pick:CUP:COLOUR:FINISH: cup 1 or 2 filled with a gun colour (0 ..) and finish, as [ and ] do.
+			R.Kind = ETorqueShedAct::PaintCup;
+			R.Item = FCString::Atoi(*P[2]) == 2 ? 1 : 0;
+			// (COLOUR: a gun colour's number, or any colour as #RRGGBB, as the picker's colour square gives.)
+			R.Colour = P[3].StartsWith(TEXT("#")) ? UTorqueBuildSubsystem::OwnColour(FColor::FromHex(P[3])) : FCString::Atoi(*P[3]);
+			R.Finish = FName(*P[4].ToLower());
+		}
 		else if (What == TEXT("cup")) { R.Kind = ETorqueShedAct::PaintCup; R.Item = P.Num() >= 3 && P[2] == TEXT("2") ? 1 : 0; }   // paint:cup[:2]
 		else if (What == TEXT("hook") && P.Num() >= 4)
 		{
@@ -1764,7 +1804,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			R.Item = FCString::Atoi(*P[2]) - 1;
 			R.Amount = FCString::Atof(*P[3]);
 		}
-		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup[:2], hook:N:CM")); return true; }
+		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup[:2], pick:CUP:COLOUR:FINISH, hook:N:CM")); return true; }
 		Said(W->TestPaint(R));
 		return true;
 	}
@@ -2011,6 +2051,62 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(bOk ? TEXT("opening the shed again") : TEXT("couldn't open the shed again (no shed map, or a client)"));
 		return true;
 	}
+	// [drone] drone:up | drone:shot | drone:set:<zoom|ev|fstop|filter|pitch|yaw>:<value> | drone:fly:<x>:<y>:<z> (cm)
+	// | drone:status | drone:land; album:open | album:print:<n> (0 the newest) | album:close
+	if (Verb == TEXT("drone") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		ATorqueDrone* D = ATorqueDrone::For(W->GetController());
+		if (What == TEXT("up"))
+		{
+			FString Why;
+			if (D) Said(TEXT("the drone's already up"));
+			else if (ATorqueDrone::Launch(W, Why) && ATorqueDrone::For(W->GetController())) Said(ATorqueDrone::For(W->GetController())->TestStatus());
+			else Warn(TEXT("the drone didn't go up: ") + Why);
+			return true;
+		}
+		if (!D)
+		{
+			Warn(TEXT("the drone isn't up (drone:up first)"));
+			return true;
+		}
+		if (What == TEXT("shot")) Said(D->TestShot());
+		else if (What == TEXT("set") && P.Num() >= 4) Said(D->TestSet(P[2], FCString::Atod(*P[3])));
+		else if (What == TEXT("fly") && P.Num() >= 5) Said(D->TestFly(FVector(FCString::Atod(*P[2]), FCString::Atod(*P[3]), FCString::Atod(*P[4]))));
+		else if (What == TEXT("status")) Said(D->TestStatus());
+		else if (What == TEXT("land"))
+		{
+			D->Land();
+			Said(TEXT("the drone's back down"));
+		}
+		else Warn(TEXT("drone: up, shot, set:<what>:<value>, fly:<x>:<y>:<z>, status or land"));
+		return true;
+	}
+	if (Verb == TEXT("album") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		if (What == TEXT("open"))
+		{
+			ATorquePhotoAlbum::Open(W);
+			if (ATorquePhotoAlbum* A = ATorquePhotoAlbum::For(W->GetController())) Said(A->TestStatus());
+			else Warn(TEXT("the album didn't open"));
+			return true;
+		}
+		ATorquePhotoAlbum* A = ATorquePhotoAlbum::For(W->GetController());
+		if (!A)
+		{
+			Warn(TEXT("the album isn't open (album:open first)"));
+			return true;
+		}
+		if (What == TEXT("print")) Said(A->TestPrint(P.Num() > 2 ? FCString::Atoi(*P[2]) : 0));
+		else if (What == TEXT("close"))
+		{
+			A->Close();
+			Said(TEXT("album closed"));
+		}
+		else Said(A->TestStatus());
+		return true;
+	}
 	// decal:open | decal:place:<slot>:<what>:<side +1/-1> | decal:save | decal:exit | decal:check:<slot>
 	// (what: a library id, or text=<face>=<words>, as ':' splits the verb)
 	if (Verb == TEXT("decal") && P.Num() >= 2)
@@ -2023,6 +2119,21 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			if (Dm) Said(TEXT("already open"));
 			else if (ATorqueDecalMode::Open(W, TestBay, Why)) Said(FString::Printf(TEXT("decal mode open on bay %d"), TestBay + 1));
 			else Warn(TEXT("refused: ") + Why);
+			return true;
+		}
+		// decal:helmet: Settings > Profile > Helmet decals (the helmet's own page), for decal:place:helmet:...
+		if (What == TEXT("helmet"))
+		{
+			ATorquePlayerController* HPC = Cast<ATorquePlayerController>(W->GetController());
+			if (Dm) Said(TEXT("already open"));
+			else if (!HPC) Warn(TEXT("refused: no player controller"));
+			else
+			{
+				HPC->TestMenu(TEXT("profile:helmet"));
+				HPC->OpenHelmetDecals();
+				if (ATorqueDecalMode* Hm = ATorqueDecalMode::For(HPC); Hm && Hm->IsHelmetOnly()) Said(TEXT("helmet decals open"));
+				else Warn(TEXT("refused: the helmet's decals didn't open"));
+			}
 			return true;
 		}
 		if (What == TEXT("check"))

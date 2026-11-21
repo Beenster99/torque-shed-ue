@@ -1,14 +1,27 @@
 {
  "_about": "Scanned trees (Quixel Megaplants, free on Fab) for Ride UK, by the ride's tree kinds (World/WorldRidePlants.cpp). Tools/ue_build_rideuk.py looks for static meshes anywhere under /Game whose path holds one of a kind's words (case, spaces and underscores ignored) and uses them in place of Buttertubs' own models of that kind. A kind with none found keeps ours; oak, beech, willow, rowan, pine and hazel then fall back to ash, sycamore, alder, birch, spruce and hawthorn. There is no Megaplants ash or hawthorn. 'skip' words leave out parts that aren't whole trees; 'most' caps the models per kind.",
- "enabled": true,
+ "_off": "beenster Nov 20 15:40: Megaplants dropped (their leaves live in the Nanite foliage assembly and never survive a copy: bare conifers, blob or twig broadleaves). Our own trees (Tools/tree_models.py) are back; set enabled true to try scans again.",
+ "_slots_by_section": "round 162: the Megaplant skeletal meshes read as ONE section at LOD 0, so section order cut every tree to its bark slot. Off until a better read is found.",
+ "slots_by_section": false,
+ "enabled": false,
  "_enabled": "hub, round 143: off. Megaplants whole trees are SkeletalMesh / ProceduralVegetation assets; the only StaticMeshes are leaf, bud and decoration parts, which got planted as trees. Since 144 scanned_trees() turns the whole-tree SkeletalMeshes into static Nanite copies (Geometry Script, /Game/ScannedTrees: outside the always-cooked /Game/RideUK, so they cook only when planted) and, while off, logs a trial of what it would plant. Turn on once that log names whole trees. Build 147: ON (beenster asked where the Megaplants were); the copies' base materials are flagged for instanced static meshes and Nanite.",
  "most": 6,
  "impostors": true,
  "rebake_impostors": false,
+ "season_test": false,
+ "_season_test": "Nov 19 (beenster: try seasonal trees this afternoon): the scans' leaf master and the impostor master follow the season (Tools/ue_tree_season.py), driven by torque.RideTreeSeason (0 as now, 1 spring, 2 summer, 3 autumn, 4 winter); -TorqueRideAB=2 steps through them with shots and fps. false takes it out again (the leaf master keeps its season nodes, which do nothing at 0).",
  "_impostors": "Build 155: far trees (past torque.RideNearTreeM, 200 m, and the far ring) drawn as impostors baked from these scans by Tools/ue_tree_impostors.py into /Game/RideUK/Impostors, made once and kept; rebake_impostors true makes them again (after changing the bake).",
  "hedge_words": ["hedgerow", "hedge row", "privet hedge", "beech hedge", "hornbeam hedge", "boxwood hedge", "laurel hedge", "hedge"],
  "_hedge_words": "A scanned hedge (any static mesh under /Game whose path holds one of these) takes the place of our own hedge models (Tools/make_hedges.py) in hedgerows.",
  "skip": ["billboard", "impostor", "branch", "twig", "debris", "stump", "fallen", "leaves", "atlas", "sapling", "seedling", "leaf", "bud", "decoration", "needle"],
+ "garden_kinds": {
+  "garden_rose": {"words": ["beach rose"], "cull": 9000.0, "shadow": true},
+  "garden_shrub": {"words": ["european spindle"], "cull": 9000.0, "shadow": true},
+  "garden_flowers": {"words": ["small balsam", "wood anemone"], "cull": 4500.0, "shadow": false},
+  "garden_low": {"words": ["lingonberry", "bilberry", "shrub heather"], "cull": 5000.0, "shadow": false},
+  "garden_tree": {"words": ["yoshino cherry", "tree elder"], "cull": 25000.0, "shadow": true}
+ },
+ "_garden_kinds": "[gardens, Nov 19] Village and town garden planting (World/WorldRideGardens.cpp), from the Megaplants already in /Game/Megaplant_Library. Each kind: its words, its cull (cm: flowers 45 m, low cover 50 m, roses and shrubs 90 m, garden trees 250 m) and whether it casts shadows. A kind with none found is not planted (no stand-ins). -TorqueRidePlanting=0 turns it off in game, -TorqueRidePlanting=0.5 keeps half. Not Japanese knotweed (invasive) nor the American desert shrubs.",
  "kinds": {
   "oak": ["english oak", "european oak", "common oak"],
   "birch": ["silver birch"],

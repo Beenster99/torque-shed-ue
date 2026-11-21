@@ -124,6 +124,7 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->GetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->GetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
+	GConfig->GetBool(Section, TEXT("RealWater"), bRealWater, Ini);
 	GConfig->GetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->GetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->GetFloat(Section, TEXT("Engine"), Engine, Ini);
@@ -157,6 +158,8 @@ void FTorqueSettings::Load()
 	for (int32 I = 0; I < 4; ++I) GConfig->GetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->GetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
+	GConfig->GetBool(Section, TEXT("RideAwards"), bRideAwards, Ini);   // [ride awards]
+	GConfig->GetBool(Section, TEXT("Trains"), bTrains, Ini);   // [trains]
 	GConfig->GetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	MouseLook = FMath::Clamp(MouseLook, 0.1f, 10.0f);
 	GConfig->GetFloat(Section, TEXT("PadLook"), PadLook, Ini);
@@ -271,6 +274,7 @@ void FTorqueSettings::Save()
 	GConfig->SetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->SetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->SetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
+	GConfig->SetBool(Section, TEXT("RealWater"), bRealWater, Ini);
 	GConfig->SetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->SetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->SetFloat(Section, TEXT("Engine"), Engine, Ini);
@@ -299,6 +303,8 @@ void FTorqueSettings::Save()
 	for (int32 I = 0; I < 4; ++I) GConfig->SetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->SetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
+	GConfig->SetBool(Section, TEXT("RideAwards"), bRideAwards, Ini);   // [ride awards]
+	GConfig->SetBool(Section, TEXT("Trains"), bTrains, Ini);   // [trains]
 	GConfig->SetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	GConfig->SetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->SetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);

@@ -1,4 +1,5 @@
 #include "TorqueFoliage.h"
+#include "TorqueLeafFall.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -186,7 +187,8 @@ void ATorqueFoliage::Rebuild()
 			Ism->bAffectDistanceFieldLighting = false;
 			Ism->bAffectDynamicIndirectLighting = false;
 			Ism->bVisibleInRayTracing = false;
-			Ism->WorldPositionOffsetDisableDistance = WpoDisableDistance;
+			// ([build 165] our near broadleaves keep their fallen-leaf offset further out while leaves are down)
+			TorqueLeafFall::Apply(Ism, WpoDisableDistance, TorqueLeafFall::IsLeafyTreeName(Mesh->GetName()));
 			const float Cull = S.CullDistance * CullScale * BandCull[Band];
 			Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 			Ism->LDMaxDrawDistance = Cull * 1.05f;

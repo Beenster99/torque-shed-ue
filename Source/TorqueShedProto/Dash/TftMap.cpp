@@ -296,11 +296,14 @@ void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene
 	std::vector<int> NearLines, NearAreas, NearLabels;
 	Scene.Data->Near(Scene.Bike.X, Scene.Bike.Z, Reach, NearLines, NearAreas, NearLabels);
 	const bool Close = Scene.Metres < 1500.0, Far = Scene.Metres > 5000.0;
+	// Declutter: "some" drops the food, drink and landmark pins and the paths; "clear" keeps the land, the roads, the
+	// ride's way and the towns' names only.
+	const bool Some = Scene.Declutter >= 1, Clear = Scene.Declutter >= 2;
 
 	// The land: towns, parks, woods, water, then buildings (only when close enough to tell them apart).
 	for (int Pass = 0; Pass < int(AreaKind::Count); ++Pass)
 	{
-		if (Pass == int(AreaKind::Building) && !Close) continue;
+		if (Pass == int(AreaKind::Building) && (!Close || Clear)) continue;
 		for (int I : NearAreas)
 		{
 			const MapArea& A = Scene.Data->Areas[size_t(I)];
@@ -326,7 +329,8 @@ void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene
 				const RoadLook R = RoadLookOf(Ln.Kind);
 				if (R.Order != Order) continue;
 				if (Far && (Ln.Kind == RoadKind::Track || Ln.Kind == RoadKind::Path || Ln.Kind == RoadKind::Stream)) continue;
-				if (!Close && Ln.Kind == RoadKind::Path) continue;
+				if ((!Close || Some) && Ln.Kind == RoadKind::Path) continue;
+				if (Clear && (Ln.Kind == RoadKind::Track || Ln.Kind == RoadKind::Stream || Ln.Kind == RoadKind::Rail)) continue;
 				const float Px = std::max(R.LeastPx, float(R.Metres * Scale));
 				const bool Water = Ln.Kind == RoadKind::River || Ln.Kind == RoadKind::Stream;
 				const bool Thin = Water || Ln.Kind == RoadKind::Rail || Ln.Kind == RoadKind::Path || Ln.Kind == RoadKind::Track;
@@ -366,7 +370,7 @@ void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene
 		}
 	}
 	// Road names: each once, where its road passes nearest the middle of the view.
-	if (Close)
+	if (Close && !Clear)
 	{
 		struct Named { const std::string* Name; P2 At; float Far2; };
 		std::vector<Named> Names;
@@ -430,13 +434,13 @@ void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene
 			if (At.X < X + 8.0f || At.X > X + W - 8.0f || At.Y < Y + 8.0f || At.Y > Y + H - 8.0f) continue;
 			if (Lb.Kind == LabelKind::Town || Lb.Kind == LabelKind::Village)
 			{
-				if (Lb.Kind == LabelKind::Village && Far) continue;
+				if (Lb.Kind == LabelKind::Village && (Far || Clear)) continue;
 				const float S = Lb.Kind == LabelKind::Town ? Px * 1.25f : Px;
 				P.Text(Lb.Name, At.X + 1.0f, At.Y + 1.0f, S, L.Halo, Align::Centre, true);
 				P.Text(Lb.Name, At.X, At.Y, S, L.Ink, Align::Centre, true);
 				continue;
 			}
-			if (!Close) continue;
+			if (!Close || Clear || (Some && Lb.Kind != LabelKind::Fuel)) continue;
 			const Rgba Pin = Lb.Kind == LabelKind::Fuel ? Rgba(0.30f, 0.50f, 0.95f) : Lb.Kind == LabelKind::Cafe ? Rgba(0.96f, 0.56f, 0.20f) : Rgba(0.55f, 0.40f, 0.75f);
 			const float R = std::max(6.0f, H * 0.022f);
 			P.Disc(At.X, At.Y, R + 1.5f, Rgba(1.0f, 1.0f, 1.0f));

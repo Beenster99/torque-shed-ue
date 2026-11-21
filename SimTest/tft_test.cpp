@@ -292,6 +292,18 @@ int main(int Argc, char** Argv)
 				if (Q.X < -0.5f || Q.Y < -0.5f || Q.X > 420.5f || Q.Y > 300.5f) Inside = false;
 		Check(Inside, "the tile's map is cut to its box");
 		if (!Out.empty()) WriteSvg(Out + "/hud_tile.svg", P, false);
+		// Declutter: each step down draws less.
+		size_t Was = P.Cmds.size();
+		for (int D = 1; D <= 2; ++D)
+		{
+			MapScene Less = Scene;
+			Less.Declutter = D;
+			Paint Q(420.0f, 300.0f);
+			DrawMapTile(Q, St, &Less);
+			Check(Q.Cmds.size() < Was, D == 1 ? "map detail 'some' draws less than full" : "map detail 'clear' draws less than some");
+			Was = Q.Cmds.size();
+			if (!Out.empty()) WriteSvg(Out + (D == 1 ? "/hud_tile_some.svg" : "/hud_tile_clear.svg"), Q, false);
+		}
 	}
 	std::printf("tft_test: %d pictures, %d failed\n", Pictures, Fails);
 	return Fails == 0 ? 0 : 1;

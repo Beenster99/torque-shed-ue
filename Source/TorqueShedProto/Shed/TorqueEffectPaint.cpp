@@ -1,6 +1,7 @@
 #include "Shed/TorqueEffectPaint.h"
 
 #include "Components/MeshComponent.h"
+#include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/StrongObjectPtr.h"
@@ -25,10 +26,21 @@ UMaterialInterface* Base()
 	return M;
 }
 
+void DropWorld(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+
 // What each part wore before the effect paint went on, to put back (held, as nothing else does).
+// That is often the part's own dynamic material (MID_MI_cat_*, made inside the part), so a held one
+// keeps its part, bike and level alive: every entry in a world goes when that world is cleaned up
+// (going for a ride), or UE stops the game with "Old World /Game/Shed/Shed not cleaned up by GC".
 TMap<TWeakObjectPtr<UMeshComponent>, TSharedPtr<TStrongObjectPtr<UMaterialInterface>>>& Kept()
 {
 	static TMap<TWeakObjectPtr<UMeshComponent>, TSharedPtr<TStrongObjectPtr<UMaterialInterface>>> L;
+	static bool bHooked = false;
+	if (!bHooked)
+	{
+		bHooked = true;
+		FWorldDelegates::OnWorldCleanup.AddStatic(&DropWorld);
+	}
 	return L;
 }
 
@@ -36,6 +48,15 @@ void Tidy()
 {
 	for (auto It = Kept().CreateIterator(); It; ++It)
 		if (!It.Key().IsValid()) It.RemoveCurrent();
+}
+
+void DropWorld(UWorld* World, bool bSessionEnded, bool bCleanupResources)
+{
+	for (auto It = Kept().CreateIterator(); It; ++It)
+	{
+		const UMeshComponent* C = It.Key().Get();
+		if (!C || !World || C->GetWorld() == World || C->IsIn(World)) It.RemoveCurrent();
+	}
 }
 }
 
@@ -74,6 +95,8 @@ bool Apply(UMeshComponent* C, const TorquePaintMix::FPaintLook& L, float Grime, 
 	M->SetScalarParameterValue(TEXT("MaskMetal"), L.MaskMetal);
 	M->SetScalarParameterValue(TEXT("MaskRough"), L.MaskRough);
 	M->SetScalarParameterValue(TEXT("Tape"), L.bTape ? 1.0f : 0.0f);
+	M->SetScalarParameterValue(TEXT("FadeAt"), L.FadeAt);     // a fade's middle and its way (ue_build_shed.py MASK_HLSL)
+	M->SetScalarParameterValue(TEXT("FadeDir"), L.FadeDir);
 	M->SetVectorParameterValue(TEXT("TapeColor"), L.TapeColour);
 	const FVector X = LocalToPart.TransformVector(FVector::XAxisVector), Y = LocalToPart.TransformVector(FVector::YAxisVector),
 		Z = LocalToPart.TransformVector(FVector::ZAxisVector), T = LocalToPart.GetLocation();

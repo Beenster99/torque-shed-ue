@@ -20,6 +20,23 @@
 class UMaterialParameterCollection;
 class ATorqueSky;
 
+// [ferries stage 6] A ferry as the host runs it (World/TorqueFerry.cpp): its crossing's row in Data/RideUK/ferries.json,
+// its state (ATorqueFerry::EState), where it's tied up or bound for, whether it's coming over empty, how long into the
+// state it was when sent (s), the sailing's time, and the server's world time then. Every machine stands the boat up
+// for itself near its own rider; a client's follows this.
+USTRUCT()
+struct FTorqueFerryNet
+{
+	GENERATED_BODY()
+	UPROPERTY() int32 Row = -1;
+	UPROPERTY() uint8 State = 0;
+	UPROPERTY() uint8 DockEnd = 0;
+	UPROPERTY() bool bEmpty = false;
+	UPROPERTY() float Clock = 0.0f;
+	UPROPERTY() float SailFor = 60.0f;
+	UPROPERTY() double SentAt = 0.0;
+};
+
 // The host's weather as it is now, sent to everyone (the numbers of TorqueWeather::State, and where
 // they came from).
 USTRUCT()
@@ -91,6 +108,19 @@ enum class ETorqueWeatherSource : uint8
 	LiveOffline,   // live, never reached (or the last is hours old): changing by itself meanwhile
 };
 
+// [ride awards] One rider's line in the awards' results (Coop/TorqueAwards.h), as the host scored them.
+USTRUCT()
+struct FTorqueAwardRider
+{
+	GENERATED_BODY()
+	UPROPERTY() FString Name;
+	UPROPERTY() uint8 Colour = 0;
+	UPROPERTY() TArray<float> Stats;    // TorqueAwards::Total numbers
+	UPROPERTY() TArray<uint8> Places;   // their place in each stat (1 first, 0 none)
+	UPROPERTY() int32 Points = 0;
+	UPROPERTY() uint8 Led = 0;          // voted stats they led
+};
+
 UCLASS()
 class ATorqueGameState : public AGameStateBase
 {
@@ -109,6 +139,9 @@ public:
 	// local from the host's grid (live), on every machine.
 	const TorqueWeather::State& GetWeatherState() const { return Here; }
 	ETorqueWeatherSource GetWeatherSource() const { return (ETorqueWeatherSource)Net.Source; }
+	// [ferries] The shared weather's wind and gust (m/s), for how rough the crossings are.
+	float GetNetWind() const { return Net.Wind; }
+	float GetNetGust() const { return Net.Gust; }
 	// How open to the sky this machine's camera is: 0 under a roof .. 1 out in it (the rain's).
 	float WeatherOpen() const;
 	// [lights] 0 at night .. 1 by day, as the sun and the exposure have it (the bike's lamps glow by it).
@@ -311,6 +344,33 @@ public:
 		RideJourneyBy = By;
 		RideJourneyById = ById;
 	}
+	// [ride awards] (Coop/TorqueAwards.h) The host's Settings switch, and the awards at the end of a
+	// planned ride: 0 none, 1 the private vote (until VoteEnds, server seconds), 2 the results (the
+	// riders in podium order, how many riders picked each stat and its weight). Seq goes up with each.
+	// They start when every rider has stopped at the finish (ATorquePlayerState::bAwardFinished), or
+	// when the host picks "Ride awards now" in the pause menu.
+	// [ferries stage 6] The host's ferries (FTorqueFerryNet), each sent as it changes state.
+	UPROPERTY(Replicated) TArray<FTorqueFerryNet> FerryNet;
+	UPROPERTY(Replicated) bool bAwardsOn = false;
+	// [trains] The host's Settings > Gameplay > Trains, for everyone (World/TorqueTrains.cpp).
+	UPROPERTY(Replicated) bool bTrainsOn = true;
+	UPROPERTY(Replicated) uint8 AwardsPhase = 0;
+	UPROPERTY(Replicated) int32 AwardsSeq = 0;
+	UPROPERTY(Replicated) double AwardsVoteEnds = 0.0;
+	UPROPERTY(Replicated) TArray<FTorqueAwardRider> AwardRiders;
+	UPROPERTY(Replicated) TArray<uint8> AwardPickers;
+	UPROPERTY(Replicated) TArray<uint8> AwardWeights;
+	UPROPERTY(Replicated) bool bAwardsNoVotes = false;
+	UPROPERTY(Replicated) FString AwardsRoute;   // the journey's name
+	UPROPERTY(Replicated) bool bAwardsLaps = false;   // [race tracks] someone rode a circuit lap: the Best lap tile and vote
+	void StartAwards();
+	// The riders not at the finish yet ("" for none).
+	FString AwardsWaitingFor() const;
+	static constexpr double AwardsVoteSeconds = 60.0;
+private:
+	void TickAwards(float DeltaSeconds);
+	void FinishAwards();
+
 private:
 	// The shed: written by the host, read by everyone else.
 	UPROPERTY(ReplicatedUsing = OnRep_Shed) FTorqueShedBayNet Shed;
@@ -335,5 +395,9 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialParameterCollection> WeatherMpc;
 	// The weather effects you see around you (rain, splashes, tyre spray): one per machine.
 	UPROPERTY(Transient) TObjectPtr<class ATorqueWeatherFx> Fx;
+	// [tyre fx] Tyre smoke and darkies (Weather/TorqueTyreFx): one per machine.
+	UPROPERTY(Transient) TObjectPtr<class ATorqueTyreFx> TyreFx;
 	int32 LoggedKind = -1;
+	int32 LoggedSeason = -1;   // ([seasonal trees] the trees' season last logged, and its leaf drop)
+	float LoggedDrop = -1.0f;
 };

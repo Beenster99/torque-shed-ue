@@ -6,6 +6,7 @@
 #include "World/WorldRide.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "TorqueSettings.h"
+#include "TorqueLeafFall.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorquePaintBay.h"
 #include "GameFramework/Pawn.h"
@@ -24,6 +25,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "Weather/TorqueWeatherFx.h"
+#include "Weather/TorqueTyreFx.h"
 #include "Weather/TorqueSky.h"
 #include "Weather/NightSky.h"
 #include "Camera/PlayerCameraManager.h"
@@ -45,12 +47,46 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Net/UnrealNetwork.h"
+#include "HAL/IConsoleManager.h"
 
 bool ATorqueGameState::bRealClockTest = false;
 bool ATorqueGameState::bTestClockSet = false;
 
 namespace
 {
+// ([seasonal trees, Nov 20] beenster: "can you build more trees and more variety and change with season,
+// evergreens and deciduous?". Our own trees' leaves (Tools/tree_models.py, M_Tree in Tools/ue_build_level.py)
+// read LeafFresh, LeafTurn and LeafDrop from MPC_Weather, which follow the ride's date (the clock's day, or
+// today's): fresh pale green from April, full summer leaf, turning from mid September, falling through
+// October and November, bare (but oak's and beech's dead leaves) from December to late March. Holly, the
+// pines and the spruces stay green; the larch turns gold and drops its needles. The switch forces one.)
+TAutoConsoleVariable<int32> CVarTreeSeason(TEXT("torque.RideTreeSeason"), 0,
+	TEXT("The trees' season: 0 the ride's date (default), 1 spring, 2 summer, 3 autumn, 4 winter, 5 summer whatever the date."));
+
+// The leaves on a day of the year (1..366): (fresh, turn, drop), each 0..1, by straight lines between
+// these days (a British lowland year; the turn holds at 1 through winter, the dead leaves kept brown).
+void LeavesOnDay(int32 Day, float& Fresh, float& Turn, float& Drop)
+{
+	struct FKey { float Day, Fresh, Turn, Drop; };
+	static const FKey Keys[] = {
+		{1.0f, 0.0f, 1.0f, 0.97f}, {84.0f, 0.0f, 1.0f, 0.97f}, {92.0f, 0.6f, 0.0f, 0.8f}, {105.0f, 1.0f, 0.0f, 0.4f},
+		{122.0f, 0.9f, 0.0f, 0.08f}, {140.0f, 0.4f, 0.0f, 0.0f}, {165.0f, 0.0f, 0.0f, 0.0f}, {258.0f, 0.0f, 0.0f, 0.0f},
+		{275.0f, 0.0f, 0.3f, 0.0f}, {290.0f, 0.0f, 0.65f, 0.08f}, {302.0f, 0.0f, 0.85f, 0.25f}, {315.0f, 0.0f, 1.0f, 0.6f},
+		{335.0f, 0.0f, 1.0f, 0.97f}, {367.0f, 0.0f, 1.0f, 0.97f}};
+	const float D = FMath::Clamp(float(Day), 1.0f, 366.0f);
+	for (int32 K = 1; K < int32(UE_ARRAY_COUNT(Keys)); ++K)
+		if (D <= Keys[K].Day)
+		{
+			const FKey& A = Keys[K - 1];
+			const FKey& B = Keys[K];
+			const float T = (D - A.Day) / FMath::Max(B.Day - A.Day, 1.0f);
+			Fresh = FMath::Lerp(A.Fresh, B.Fresh, T);
+			Turn = FMath::Lerp(A.Turn, B.Turn, T);
+			Drop = FMath::Lerp(A.Drop, B.Drop, T);
+			return;
+		}
+	Fresh = 0.0f; Turn = 1.0f; Drop = 0.97f;
+}
 // The weather's numbers as sent, and back (below).
 FTorqueWeatherNet NetOf(const TorqueWeather::State& S);
 TorqueWeather::State StateOf(const FTorqueWeatherNet& N);
@@ -78,6 +114,18 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SkyDriftMid);
 	DOREPLIFETIME(ATorqueGameState, SkyDriftHigh);
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
+	DOREPLIFETIME(ATorqueGameState, bAwardsOn);   // [ride awards]
+	DOREPLIFETIME(ATorqueGameState, bTrainsOn);   // [trains]
+	DOREPLIFETIME(ATorqueGameState, AwardsPhase);
+	DOREPLIFETIME(ATorqueGameState, FerryNet);   // [ferries stage 6]
+	DOREPLIFETIME(ATorqueGameState, AwardsSeq);
+	DOREPLIFETIME(ATorqueGameState, AwardsVoteEnds);
+	DOREPLIFETIME(ATorqueGameState, AwardRiders);
+	DOREPLIFETIME(ATorqueGameState, AwardPickers);
+	DOREPLIFETIME(ATorqueGameState, AwardWeights);
+	DOREPLIFETIME(ATorqueGameState, bAwardsNoVotes);
+	DOREPLIFETIME(ATorqueGameState, AwardsRoute);
+	DOREPLIFETIME(ATorqueGameState, bAwardsLaps);
 }
 
 void ATorqueGameState::BeginPlay()
@@ -140,6 +188,8 @@ void ATorqueGameState::BeginPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		Params.ObjectFlags |= RF_Transient;
 		Fx = GetWorld()->SpawnActor<ATorqueWeatherFx>(Params);
+		// [tyre fx] Burnout and skid smoke and the darkies tyres lay on the road, for every bike here.
+		TyreFx = GetWorld()->SpawnActor<ATorqueTyreFx>(Params);
 		// The sky: sun, sky light, air, fog, clouds and the camera, from the weather (skies plan).
 		Sky = GetWorld()->SpawnActor<ATorqueSky>(Params);
 	}
@@ -308,6 +358,8 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	TickWeather(DeltaSeconds);
 	if (!HasAuthority()) return;
+	TickAwards(DeltaSeconds);   // [ride awards] (Coop/TorqueAwards.cpp)
+	bTrainsOn = FTorqueSettings::Get().bTrains;   // [trains] (the host's, for everyone)
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	// The weather changing by itself (Torque Shed's "Changes by itself"): every few minutes, a step to
 	// the next kind along (sunny, overcast, wet roads), never straight from sun to rain, fading over a
@@ -1314,6 +1366,22 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("Snow"), (float)TorqueWeather::SnowCover(St));
 		// (Ride UK stage 7: lamps and lit windows come on, cat's eyes catch the headlight, as the light goes)
 		SetMpc(TEXT("Night"), 1.0f - DayLight);
+		// ([seasonal trees] fresh, turned, dropped: from the ride's date, or forced to spring, summer, autumn,
+		// winter or summer again by torque.RideTreeSeason)
+		static const float SeasonLeaves[6][3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.35f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.85f, 0.2f}, {0.0f, 1.0f, 0.97f}, {0.0f, 0.0f, 0.0f}};
+		const int32 Season = FMath::Clamp(CVarTreeSeason.GetValueOnGameThread(), 0, 5);
+		float Fresh = SeasonLeaves[Season][0], Turn = SeasonLeaves[Season][1], Drop = SeasonLeaves[Season][2];
+		if (Season == 0) LeavesOnDay(DayOfYearNow(), Fresh, Turn, Drop);
+		SetMpc(TEXT("LeafFresh"), Fresh);
+		SetMpc(TEXT("LeafTurn"), Turn);
+		SetMpc(TEXT("LeafDrop"), Drop);
+		TorqueLeafFall::SetDrop(Drop);   // ([build 165] near broadleaves keep their fallen leaves' offset further out)
+		if (Season != LoggedSeason || FMath::Abs(Drop - LoggedDrop) > 0.05f)
+		{
+			LoggedSeason = Season;
+			LoggedDrop = Drop;
+			UE_LOG(LogTemp, Log, TEXT("Torque trees: season %d (day %d): fresh %.2f, turn %.2f, drop %.2f"), Season, DayOfYearNow(), Fresh, Turn, Drop);
+		}
 	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)

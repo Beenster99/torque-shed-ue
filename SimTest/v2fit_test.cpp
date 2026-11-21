@@ -11,6 +11,7 @@
 #include "ShockMove.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -148,6 +149,10 @@ int main()
 				}
 				const Json* New = Lay.Part(Now);
 				if (!New || Now == KV.second.S) continue;
+				// [sizes] Only the family's lead keeps the reference engine: another brand's block is its own size
+				// (BikesV2/data/engine_sizes.json), its torque scaled with the capacity (engine parts pass stage 5).
+				const Json* HostV2 = Lay.V2Of(Parts);
+				if (KV.first == "engine" && !(HostV2 && HostV2->Flag("lead"))) continue;
 				for (const auto& F : Old->O)
 					if (F.second.IsNumber() && F.first != "price" && std::fabs(New->Num(F.first, -1e9) - F.second.N) > 1e-6 * std::max(1.0, std::fabs(F.second.N)))
 					{
@@ -159,6 +164,13 @@ int main()
 		}
 		const std::vector<std::string> Offered = Shop::Options(Lay, "frame", Style, Shop::StockBuild(Lay, Style));
 		Expect(std::find(Offered.begin(), Offered.end(), Id) != Offered.end(), Id + " is offered as a frame on a new " + Style);
+		// [configurator, beenster in 160] Every part offered on this bike changes it: no old part its model would draw over.
+		for (const char* Slot : {"exhaust", "tank", "saddle", "handlebars", "headlight", "tail", "front_mudguard", "fork"})
+			for (const std::string& Opt : Shop::Options(Lay, Slot, Style, Parts))
+			{
+				const Json* P = Lay.Part(Opt);
+				Expect(Opt == Parts[Slot] || !P || P->Get("v2part") || P->Get("common"), Id + " offers " + Opt + " as its " + Slot + ", drawn as its own");
+			}
 		const Layout L = Lay.Solve(Parts);
 		const double Wb = L.FrontAxle.x - L.RearAxle.x;
 		Expect(std::fabs(L.FrontAxle.y) < 1e-6 && std::fabs(L.RearAxle.y) < 1e-6, Id + " axles level");
@@ -197,7 +209,7 @@ int main()
 					++TyresMade;
 				}
 			}
-			if (!P.Made) { AllMade = false; continue; }
+			if (!P.Made) { AllMade = AllMade && P.Slot.size() > 5 && P.Slot.compare(P.Slot.size() - 5, 5, "_pads") == 0 && P.Glb.rfind("pads/", 0) == 0; continue; }   // ([brake pads] the shop's pads, from their glb)
 			Nodes.insert(P.Node);
 			Slots.insert(P.Slot);
 			const auto In = Parts.find(P.Slot);
@@ -355,6 +367,15 @@ int main()
 				const Json* OF = Db.Find("frame", Other);
 				const Json* OV = OF ? OF->Get("v2") : nullptr;
 				if (Other == Id || !OV || OV->Str("family") != Family) continue;
+				// [engine parts] Another brand's engine parts go on this engine as its own version of them (beenster in 157).
+				for (const auto& KV : Lay.V2Build(Other))
+				{
+					const Json* OP = Lay.Part(KV.second);
+					const Json* OVp = OP ? OP->Get("v2part") : nullptr;
+					if (!OVp || OVp->Str("fits") != "engine" || KV.first == "engine" || !Parts.count("engine")) continue;
+					Expect(Lay.V2FitReason(Parts, KV.first, KV.second).empty(), Id + " takes " + Other + "'s " + KV.first + ": " + Lay.V2FitReason(Parts, KV.first, KV.second));
+					Expect(Lay.V2EngineTwin(Parts, KV.first, KV.second) == Parts.at(KV.first), Id + " draws " + Other + "'s " + KV.first + " as its own");
+				}
 				PartsMap Mixed = Parts;
 				std::vector<std::string> Took;
 				for (const auto& KV : Lay.V2Build(Other))
@@ -401,6 +422,24 @@ int main()
 					const std::string Slot = Vp->Str("slot");
 					++KitChecks;
 					Expect(Lay.V2FitReason(Parts, Slot, Kid).empty(), Kid + " fits its own bike: " + Lay.V2FitReason(Parts, Slot, Kid));
+					// [engine parts] An open intake goes on only with its own fuel system; a carb only with the airbox off.
+					if (!Vp->Str("with_fuel").empty())
+					{
+						PartsMap Need = Parts;
+						Need["fuel"] = Vp->Str("with_fuel");
+						Expect(Lay.Part(Vp->Str("with_fuel")) != nullptr, Kid + " has its fuel system in the shop (" + Vp->Str("with_fuel") + ")");
+						Expect(Lay.V2NeedsReason(Need, Slot, Kid).empty(), Kid + " goes on with its fuel system: " + Lay.V2NeedsReason(Need, Slot, Kid));
+						if (Parts.count("fuel") && Parts.at("fuel") != Vp->Str("with_fuel"))
+							Expect(!Lay.V2NeedsReason(Parts, Slot, Kid).empty(), Kid + " wants its own fuel system first");
+					}
+					if (Vp->Flag("open_air"))
+					{
+						PartsMap Open = Parts;
+						Open["air_filter"] = "none";
+						Expect(Lay.V2NeedsReason(Open, Slot, Kid).empty(), Kid + " goes on with the airbox off");
+						if (Parts.count("air_filter") && !Parts.at("air_filter").empty() && Parts.at("air_filter") != "none")
+							Expect(!Lay.V2NeedsReason(Parts, Slot, Kid).empty(), Kid + " wants the airbox off first");
+					}
 					PartsMap With = Parts;
 					With[Slot] = Kid;
 					const std::vector<FittedPart> Got = Placer.Fit(With, Lay.Solve(With));
@@ -433,6 +472,50 @@ int main()
 		}
 		std::printf("%s %s: wheelbase %.3f, rake %.1f, seat %.2f, %zu pieces, %zu surfaces, %zu triangles\n", Failures ? "    " : "ok  ", Id.c_str(), Wb,
 			L.Stats.RakeDeg, L.Stats.SeatHeight, Fitted.size(), Surfaces, Tris);
+	}
+	// [names] Every V2 part against its own slot, however the game spells the slot (beenster, Nov 19: "thats a
+	// head not a HEAD", "thats an engine, not an Engine": the game's FNames keep the first spelling seen):
+	// on its own bike, and each engine part on a loose block of its own engine, every size, as on the stand.
+	{
+		auto Upper = [](std::string T) { for (char& C : T) C = static_cast<char>(std::toupper(static_cast<unsigned char>(C))); return T; };
+		auto Capital = [](std::string T) { if (!T.empty()) T[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(T[0]))); return T; };
+		int NameChecks = 0;
+		for (const std::string& Kind : Db.Kinds())
+			for (const std::string& Pid : Db.Ids(Kind))
+			{
+				const Json* Part = Db.Find(Kind, Pid);
+				const Json* Vp = Part ? Part->Get("v2part") : nullptr;
+				if (!Vp || !Vp->IsObject() || Vp->Str("slot").empty()) continue;
+				const std::string Slot = Vp->Str("slot"), Frame = Vp->Str("frame");
+				if (!Lay.Part(Frame)) continue;
+				PartsMap Own = Lay.V2Build(Frame);
+				Own["frame"] = Frame;
+				if (Slot == "engine") Own["engine"] = Pid;
+				for (const std::string& Spelt : {Slot, Upper(Slot), Capital(Slot)})
+				{
+					++NameChecks;
+					const std::string Why = Lay.V2FitReason(Own, Spelt, Pid);
+					Expect(Why.empty(), Pid + " fits its own bike's " + Spelt + ": " + Why);
+				}
+				if (Vp->Str("fits") != "engine") continue;
+				const std::string Model = Vp->Str("of", Vp->Str("model"));
+				for (const std::string& Block : Db.Ids("engine"))
+				{
+					const Json* Bp = Db.Find("engine", Block);
+					const Json* Bv = Bp ? Bp->Get("v2part") : nullptr;
+					if (!Bv || Bv->Str("of", Bv->Str("model")) != Model) continue;
+					PartsMap Loose;
+					Loose["engine"] = Block;
+					for (const std::string& Spelt : {Slot, Upper(Slot), Capital(Slot)})
+					{
+						++NameChecks;
+						const std::string Why = Lay.V2FitReason(Loose, Spelt, Pid);
+						Expect(Why.empty(), Pid + " goes on " + Block + " on the stand as " + Spelt + ": " + Why);
+					}
+				}
+			}
+		std::printf("%d V2 part name checks (own slot in any spelling, engine parts on every size of their block)\n", NameChecks);
+		Expect(NameChecks > 1000, "the V2 parts were name-checked");
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);

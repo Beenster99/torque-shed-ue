@@ -1,0 +1,93 @@
+{
+ "name": "BSX adventure (working title A1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 5418,
+ "surfaces": {
+  "s000": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "d3_ceramicblack",
+   "tag": "d3_ceramicblack",
+   "ue": "cat_plastic",
+   "color": [
+    0.025,
+    0.025,
+    0.027
+   ],
+   "metallic": 0.35,
+   "roughness": 0.55
+  },
+  "s001": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "exhaust",
+   "tag": "exhaust",
+   "ue": "cat_brushed_steel",
+   "sub": "silencer",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "s002": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "silencer",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s012": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "exhaust_black",
+   "tag": "exhaust_black",
+   "ue": "cat_black_metal",
+   "sub": "silencer",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.4,
+   "roughness": 0.6
+  },
+  "s013": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "d3_soot",
+   "tag": "d3_soot",
+   "ue": "cat_plastic",
+   "sub": "silencer",
+   "color": [
+    0.006,
+    0.006,
+    0.006
+   ],
+   "metallic": 0.0,
+   "roughness": 0.95
+  }
+ },
+ "engine_part": {
+  "slot": "exhaust",
+  "look": "ceramic",
+  "fuel": "round_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": "polished",
+  "case": "stock",
+  "header": "ceramic",
+  "oil": "chrome"
+ }
+}

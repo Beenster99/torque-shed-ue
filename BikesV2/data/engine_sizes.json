@@ -1,0 +1,14 @@
+{
+ "about": "Engine sizes per brand and family (beenster's table in the engine parts plan, https://claude.ai/artifact/TxPXHSRkftpdYsppy6dhXt, 18 Nov 2026). cc; each size is its own engine block in the shop. The family lead's stock size keeps its reference figures; every other size scales torque (and so power) with its capacity. A model's own block is the size nearest its family's reference engine.",
+ "leads": ["corvano_adventure", "hartwell_cafe", "lodestar_chopper", "hartwell_classic", "lodestar_cruiser", "varga_mx", "corvano_naked", "kazeda_sport"],
+ "sizes": {
+  "adventure": {"corvano": [900, 1200], "hartwell": [800, 1200], "kazeda": [1000], "rheinhart": [1100], "varga": [900, 1200]},
+  "cafe": {"corvano": [800], "hartwell": [750], "kazeda": [750], "lodestar": [883], "rheinhart": [800]},
+  "chopper": {"hartwell": [1600], "kazeda": [1300], "lodestar": [1500, 1800]},
+  "classic": {"corvano": [800], "hartwell": [450, 750], "kazeda": [450, 750], "lodestar": [883], "rheinhart": [450, 800]},
+  "cruiser": {"corvano": [1200], "hartwell": [2300], "kazeda": [1100], "lodestar": [1200], "rheinhart": [1250]},
+  "mx": {"corvano": [250], "kazeda": [450], "varga": [450]},
+  "naked": {"corvano": [850, 1100], "hartwell": [765, 1200], "kazeda": [900], "rheinhart": [1000], "varga": [700]},
+  "sport": {"corvano": [750], "hartwell": [660, 800, 1200], "kazeda": [600, 750, 900, 1000], "varga": [700, 1000]}
+ }
+}

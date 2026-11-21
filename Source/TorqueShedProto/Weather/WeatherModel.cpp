@@ -188,7 +188,11 @@ double RoadWaterAfter(const std::vector<double>& RainPerHour, double Air, double
 
 double SnowCover(const State& S)
 {
-	const double Lying = Clamp01((S.SnowDepth - 0.004) / 0.036);
+	// Weather models often keep a few centimetres of snow depth on the ground cell while it is
+	// above freezing and raining. Snow that is really lying thaws to slush and goes once the air
+	// is a few degrees above zero, and rain on it washes it off faster, so only show it cold.
+	double Lying = Clamp01((S.SnowDepth - 0.004) / 0.036) * Clamp01((3.0 - S.Air) / 2.5);
+	if (S.Rain > 0.2) Lying *= Clamp01((2.0 - S.Air) / 1.5);
 	const double Falling = S.Air < 1.5 ? Clamp01(S.Snow / 1.5) * Clamp01((1.5 - S.Air) / 2.0) * 0.6 : 0.0;
 	return std::max(Lying, Falling);
 }

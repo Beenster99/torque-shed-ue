@@ -32,6 +32,7 @@ struct FTorqueShopFinish
 	FLinearColor Colour = FLinearColor::White;
 	float Metallic = -1.0f;
 	float Roughness = -1.0f;
+	bool bPicked = false;   // (chosen in the configurator: a V2 bike's bodywork shows it, else its model's own colour)
 };
 
 UCLASS(NotPlaceable, Transient)
@@ -91,6 +92,9 @@ private:
 	TorqueFluidModels::FVessel Vessel;
 	FName VesselPart;
 	bool bVessel = false;
+	// [posters] A framed poster's picture card, till its picture's loaded (TorqueFurniture::DressPosterArt).
+	TWeakObjectPtr<UStaticMeshComponent> PosterArt;
+	FName PosterModel;
 	FString Key;                // what's built
 	double Radius = 50.0;       // its bounding sphere (cm)
 	double Yaw = 0.0, Pitch = 0.0, Zoom = 1.0;

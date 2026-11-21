@@ -181,6 +181,14 @@ public:
 	// only a frame built round its layout; a shock only the same rear end; handlebars only their own model. On a
 	// loose engine (Parts has its engine and no frame) its parts go by the engine's layout.
 	std::string V2FitReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
+	// [engine parts] What the engine part needs fitted with it: an open intake drawn on one fuel system ("with_fuel"),
+	// a carb that needs the airbox off ("open_air"). Empty when it can go on now. (The shop lists them all the same.)
+	std::string V2NeedsReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
+	// [engine parts] A part that bolts to an engine block, from another engine of the family: the same part as drawn
+	// on the block that's fitted (its own part, or its own version of the look). Id itself when it is that block's
+	// own or not an engine part; empty when the block has no such look (a carb on a two-stroke, race headers that
+	// don't clear it). (beenster in 157: "we COULD mix and match brands as long as we stayed within the family".)
+	std::string V2EngineTwin(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
 	// The parts catalogue it was loaded on (its kinds and ids in parts.json's order).
 	const PartsDb* Catalogue() const { return Db; }
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).

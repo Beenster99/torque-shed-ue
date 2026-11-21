@@ -130,6 +130,31 @@ void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId
 	}
 }
 
+int KnowStreets(CellStore& Store, Route::MapStreets& Streets, const Route::MapView& View, int Load, const std::function<bool()>& Stop, int* LoadedOut)
+{
+	if (LoadedOut != nullptr) *LoadedOut = 0;
+	const std::vector<CellId> Cells = Route::MapStreets::CellsFor(View);
+	if (Cells.empty()) return 0;
+	const std::shared_ptr<const WorldIndex> Idx = Store.IndexNow();
+	const std::vector<std::string> Roots = Store.CellRoots();
+	int Missing = 0, Loaded = 0;
+	for (const CellId& C : Cells)
+	{
+		if (Streets.Has(C)) continue;
+		std::string D = Region::CellDir(Roots, C);
+		// (the sea, or not baked yet, or offline: nothing to draw)
+		if (D.empty() && (Store.Offline || !Idx || Store.StateOf(C, *Idx) != CellStore::EState::Baked)) continue;
+		if (Loaded >= Load || (Stop && Stop())) { ++Missing; continue; }
+		++Loaded;
+		if (LoadedOut != nullptr) *LoadedOut = Loaded;
+		if (D.empty() && (!Store.FetchCells({C}).empty() || (D = Region::CellDir(Roots, C)).empty())) { ++Missing; continue; }
+		std::shared_ptr<const Route::MapStreets::Cell> Got = Route::MapStreets::Read(D);
+		if (!Got) { ++Missing; continue; }
+		Streets.Put(C, std::move(Got));
+	}
+	return Missing;
+}
+
 bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, LoadedArea& Out, std::string* Why)
 {
 	if (Cells.empty()) return false;
@@ -201,6 +226,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		if (Store.Kept(CellStore::EKind::RoadX, Name, *Idx, File)) Out.Roads.AddRoadX(File);
 		// [places stage 1] The places worth riding to: what each is (OpenStreetMap, with its Wikidata id).
 		if (Store.Kept(CellStore::EKind::Sights, Name, *Idx, File)) Out.Roads.AddSights(File);
+		if (Store.Kept(CellStore::EKind::Circuits, Name, *Idx, File)) Out.Roads.AddCircuits(File);   // [circuits]
 		// Its place profile says whether it has sea: land below sea level in a cell with none (a polder) is land.
 		// [OSM stage 1] And where it is: the county and the country.
 		if (Store.Kept(CellStore::EKind::Profiles, Name, *Idx, File) && !File.Flag("guessed", true))
@@ -213,6 +239,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 			if (!Pl.Words.empty()) Out.Roads.CellPlaces.push_back(std::move(Pl));
 		}
 	}
+	if (Out.Roads.JoinCircuits() > 0) Out.Roads.Credits.push_back("Race circuits: OpenStreetMap contributors (ODbL).");   // [circuits] (before the points snap to edges)
 	Out.Roads.SnapRoadPoints();
 	Out.Roads.RingsOneWay();   // [roundabouts] (round each ring only the way traffic goes)
 	if (!Out.Roads.Extras.empty() || !Out.Roads.RoadPoints.empty()) Out.Roads.Credits.push_back("Lanes, crossings and traffic lights: OpenStreetMap contributors (ODbL).");

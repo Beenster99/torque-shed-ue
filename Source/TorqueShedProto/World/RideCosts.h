@@ -8,11 +8,11 @@
 
 namespace RideCosts
 {
-enum EWhich : int32 { Land, Plants, Animals, Props, Buildings, Lights, Words, Water, Roads, Update, Grow, Tft, MapTile, RoadLook, Count };
+enum EWhich : int32 { Land, Plants, Animals, Props, Buildings, Lights, Words, Water, Roads, Update, Grow, Tft, MapTile, RoadLook, Trains, Count };
 inline const TCHAR* Name(int32 Which)
 {
 	static const TCHAR* Names[] = {TEXT("land"), TEXT("plants"), TEXT("animals"), TEXT("props"), TEXT("buildings"), TEXT("lights"), TEXT("signs"),
-		TEXT("water"), TEXT("roads"), TEXT("squares"), TEXT("grow"), TEXT("tft"), TEXT("maptile"), TEXT("roadlook")};
+		TEXT("water"), TEXT("roads"), TEXT("squares"), TEXT("grow"), TEXT("tft"), TEXT("maptile"), TEXT("roadlook"), TEXT("trains")};
 	return Which >= 0 && Which < Count ? Names[Which] : TEXT("?");
 }
 struct FSums

@@ -1,6 +1,7 @@
 #include "TorqueDash.h"
 
 #include "Sim/BikeSim.h"
+#include "Sim/FuelModel.h"
 #include "Fit/BikeLayout.h"
 #include "Fit/FitJson.h"
 #include "Shed/TorqueToolModels.h"
@@ -13,15 +14,11 @@
 
 namespace TorqueDashImpl
 {
-// bike_build.gd's petrol.
-constexpr double FuelPerKwh = 0.30;
-constexpr double FrictionBar = 0.9;
-constexpr double FrictionBarPerKrpm = 0.13;
-constexpr double PumpingBar = 0.75;
-constexpr double FrictionPerCylinder = 0.08;
-constexpr double FullThrottleRich = 0.15;
-constexpr double TwoStrokeThirst = 1.35;
+// (bike_build.gd's petrol: Sim/FuelModel.h, shared with SimTest.)
 constexpr double AirDensity = 1.2;
+// [mpg, Nov 19] The trip's economy shows once the ride's gone this far (before it, a minute warming up
+// in the yard over a few hundred metres read as a silly figure that took miles to settle).
+constexpr double EconomyFromKm = 0.8;
 constexpr double Tau = 6.283185307179586;
 // fuel_stop.gd: the low fuel light under this much of the tank.
 constexpr double LowFuel = 0.15;
@@ -86,7 +83,7 @@ void FTorqueDash::Setup(const TMap<FString, FString>& Parts)
 		Displacement = Block->Num("displacement", 700.0);
 		bTwoStroke = Block->Str("layout") == "2stroke";
 	}
-	FrictionMult = (Head ? Head->Num("thirst", 1.0) : 1.0) * (1.0 + TDI::FrictionPerCylinder * ((Block ? Block->Num("cylinders", 2.0) : 2.0) - 2.0));
+	FrictionMult = TorqueSim::FuelModel::FrictionOf(Head ? Head->Num("thirst", 1.0) : 1.0, Block ? Block->Num("cylinders", 2.0) : 2.0);
 	bInjected = Fuel && Fuel->Flag("injected", false);
 	TripKm = TripFuel = TopKmh = 0.0;
 	bTripFrom = false;
@@ -98,14 +95,12 @@ double FTorqueDash::FuelRate(const TorqueSim::BikeSpec& Spec, double Kw, double 
 	// engine_load: how far open the throttle is to make Kw at that speed.
 	const double RpmOn = FMath::Max(AtRpm, Spec.IdleRpm);
 	const double PowerKw = Spec.EngineTorque(RpmOn) * RpmOn * TDI::Tau / 60.0 / 1000.0;
-	const double Load = FMath::Clamp(FMath::Max(Kw, 0.0) / FMath::Max(PowerKw, 0.1), 0.0, 1.0);
-	// friction_kw: friction and pumping, a mean pressure on the pistons over one power stroke every two turns.
-	const double Bar = (TDI::FrictionBar + TDI::FrictionBarPerKrpm * RpmOn / 1000.0) * FrictionMult + TDI::PumpingBar * (1.0 - Load);
-	const double FrictionKw = Bar * 100000.0 * Displacement / 1000000.0 * RpmOn / 120.0 / 1000.0;
-	double Litres = (FMath::Max(Kw, 0.0) + FrictionKw) * TDI::FuelPerKwh * (bTwoStroke ? TDI::TwoStrokeThirst : 1.0);
-	Litres *= 1.0 + TDI::FullThrottleRich * FMath::Clamp((Load - 0.8) / 0.2, 0.0, 1.0);
+	TorqueSim::FuelModel Fm;
+	Fm.Displacement = Displacement;
+	Fm.FrictionMult = FrictionMult;
+	Fm.bTwoStroke = bTwoStroke;
 	// (economy_mult: the petrol, plugs, filter and the engine's health; as new on fresh unleaded.)
-	return Litres;
+	return Fm.LitresPerHour(Kw, RpmOn, PowerKw);
 }
 
 double FTorqueDash::CruiseEconomy(const TorqueSim::BikeSpec& Spec) const
@@ -138,13 +133,19 @@ void FTorqueDash::Step(const TorqueSim::BikeSim& Sim, double Throttle, bool bRun
 	bTripFrom = true;
 	if (!bRunning || bCrashed || Dt <= 0.0) return;
 	// bike.gd: the petrol the engine burns making what it makes (the crank's share of the back
-	// wheel's drive), or on the overrun, the throttle shut in gear above tickover, what an injected
-	// engine cuts off and carburettors still let through the idle jets.
+	// wheel's drive; its own friction and pumping are FuelRate's), or on the overrun, the throttle shut
+	// in gear above tickover, what an injected engine cuts off and carburettors still let through the
+	// idle jets.
+	// [mpg, beenster Nov 19: "seems a bit off"] The overrun is the sim's own now (Sim.Overrun: its
+	// throttle, not the rider's hand): on cruise control the rider's hand is off the twistgrip, so an
+	// injected bike read as on the overrun and burnt nothing, and the trip's mpg climbed for as long as
+	// the cruise was on.
 	const TorqueSim::BikeSpec& B = Sim.Build;
 	const double Ratio = B.OverallRatio(FMath::Clamp(Sim.Gear, 1, B.GearCount()));
 	const double Made = FMath::Max(Sim.Wheels[1].DriveTorque / FMath::Max(Ratio * B.DrivetrainEfficiency, 0.01), 0.0);
 	const double Kw = Made * Rpm * TDI::Tau / 60.0 / 1000.0;
-	const bool bOverrun = Throttle < 0.02 && Rpm > B.IdleRpm * 1.3;
+	const bool bOverrun = Sim.Overrun;
+	(void)Throttle;
 	const double PerHour = bOverrun ? (bInjected ? 0.0 : FuelRate(B, 0.0, FMath::Min(Rpm, B.IdleRpm * 1.5))) : FuelRate(B, Kw, Rpm);
 	const double Burnt = FMath::Min(PerHour / 3600.0 * Dt, FuelLitres);
 	FuelLitres -= Burnt;
@@ -153,7 +154,7 @@ void FTorqueDash::Step(const TorqueSim::BikeSim& Sim, double Throttle, bool bRun
 
 double FTorqueDash::TripEconomy() const
 {
-	return TripFuel > 0.01 && TripKm > 0.05 ? TripKm / TripFuel : 0.0;
+	return TripFuel > 0.01 && TripKm > TDI::EconomyFromKm ? TripKm / TripFuel : 0.0;
 }
 
 double FTorqueDash::RangeKm(const TorqueSim::BikeSpec& Spec) const

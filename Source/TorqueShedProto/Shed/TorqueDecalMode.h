@@ -11,8 +11,11 @@
 // Right-drag orbits, the wheel zooms. "Save to this bike" sends them to the host (DecalSave, one
 // part each), so friends see them; Esc leaves (asking first if they're not saved).
 //
-// "Helmet" at the top puts the player's own helmet on a stand beside the bike to put decals on it too
-// (stage 4: kept on this machine, TorqueDecals::MyHelmet, and sent to friends with the player).
+// The helmet's decals have a page of their own (beenster, build 160: "decals added in the settings,
+// profile section ... isolate this from the bike decal"): Settings > Profile > Helmet decals opens this
+// with no bike (OpenHelmet), over the Profile page's helmet picture (ATorqueProfilePreview), drawn big
+// beside the same panel; the mouse works the decals on it as on a bike, and drag (or right-drag) turns
+// the helmet, the wheel zooms. Kept on this machine (TorqueDecals::MyHelmet), sent to friends with the player.
 // "Sets" keeps a part's decals by name to put on another bike's (stage 7); "Worn" chips a decal.
 #pragma once
 
@@ -39,6 +42,12 @@ public:
 	// Opens it for the walker on the bike looked at, else the nearest within 4 m. False, and why, if
 	// there's none.
 	static bool Open(ATorqueWalker* Walker, int32 LookedAtBay, FString& WhyNot);
+	// [helmet decals] Opens it on the player's own helmet alone (the Profile page's): null, and why, if
+	// it can't be. It ticks while the game's paused (the menu's up) and closes itself when done.
+	static ATorqueDecalMode* OpenHelmet(APlayerController* PC, FString& WhyNot);
+	bool IsHelmetOnly() const;
+	// Esc or Circle from the menu: leave (asking first when not saved).
+	void AskToLeave() { RequestExit(); }
 	// The one open for this player, or null.
 	static ATorqueDecalMode* For(const AController* Controller);
 	// Over everything else on the screen (ATorqueHUD).
@@ -79,8 +88,10 @@ private:
 	void PickLibrary(const FString& Id);
 	void PickText();
 	void PickOwn(const FString& Name);
-	// The camera on the bike, or on the player's helmet on a stand beside it (made the first time).
-	void ShowHelmet(bool bHelmet);
+	// [helmet decals] The ray under the mouse and a point back on the screen: the view's, or through
+	// the helmet's picture.
+	bool ScreenRay(const FVector2D& Mouse, FVector& OutFrom, FVector& OutDir) const;
+	bool ToScreen(const FVector& World, FVector2D& Out) const;
 	void AddHelmetShape();
 	// Reusable sets (stage 7): the part whose decals "Keep" keeps, keeping them, and putting one on.
 	FName KeepFrom() const;

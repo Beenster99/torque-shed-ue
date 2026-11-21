@@ -1,0 +1,49 @@
+{
+ "name": "Kazeda chopper (working title H3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 7150,
+ "surfaces": {
+  "s000": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s001": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome",
+   "sub": "silencer"
+  },
+  "s007": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "d3_pipeblack",
+   "tag": "d3_pipeblack",
+   "ue": "cat_plastic",
+   "sub": "silencer",
+   "color": [
+    0.0015,
+    0.0015,
+    0.0015
+   ],
+   "metallic": 0.0,
+   "roughness": 1.0
+  }
+ },
+ "engine_part": {
+  "slot": "exhaust",
+  "look": "race",
+  "fuel": "throttle_bodies",
+  "air": "stacks",
+  "cover": "finned",
+  "finish": "alloy",
+  "case": "stock",
+  "header": "race",
+  "oil": null
+ }
+}

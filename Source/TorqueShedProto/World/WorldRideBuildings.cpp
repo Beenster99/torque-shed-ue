@@ -2,8 +2,11 @@
 // footprint, its walls in the local stone, render, brick or the map's own material, under the roof
 // the map or the local look gives it, windows a floor and a door near, a church's tower.
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldRideSceneBits.h"
+#include "WorldRideSigns.h"
 
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -46,6 +49,35 @@ int FacadeSize(const double (*Sizes)[2], int Count, double W, double H)
 	for (int I = 0; I < Count; ++I)
 		if (std::fabs(Sizes[I][0] - W) < 0.03 && std::fabs(Sizes[I][1] - H) < 0.03) return I;
 	return -1;
+}
+// ([Nov 19] beenster, watching 157: "I see the shop fronts but they do not have names over the shops. I thought
+// we decided to have generic names and no real world brands") A shop's name for its fascia, made up: a family
+// name and the trade, or "The <something> <trade>". Rolls 0..1 pick each part; Cafe for a building the map
+// has a café in. Short, if it must fit a narrow unit. No real firm's name: the family names are common ones
+// with no chain of shops called after them.
+std::string ShopName(double RollName, double RollTrade, double RollForm, bool Cafe, bool Short)
+{
+	static const char* const Families[] = {"Harland", "Wainwright", "Ashworth", "Pickering", "Thornton", "Lister", "Barraclough", "Holroyd",
+		"Kershaw", "Sutcliffe", "Dobson", "Fairbairn", "Metcalfe", "Brearley", "Calvert", "Dewhurst", "Atkinson", "Hepworth", "Ingham",
+		"Jowett", "Kitson", "Marsden", "Nuttall", "Ormerod", "Pollard", "Rushworth", "Tillotson", "Whiteley", "Holdsworth", "Crowther",
+		"Fawcett", "Garside", "Haigh", "Mallinson", "Priestley", "Bramley", "Openshaw", "Cockcroft", "Hirst", "Lumb"};
+	struct FTrade { const char* Name; bool The; };
+	static const FTrade Trades[] = {{"Bakery", true}, {"Butchers", false}, {"Newsagents", false}, {"Greengrocer", false}, {"Chemist", false},
+		{"Hardware", false}, {"Florist", false}, {"Tea Rooms", true}, {"Fish & Chips", false}, {"Barbers", false}, {"Hair Studio", false},
+		{"Books", false}, {"Antiques", false}, {"Gift Shop", true}, {"Wine Merchants", false}, {"Ironmongers", false}, {"Opticians", false},
+		{"Deli", true}, {"Sweet Shop", true}, {"Cycles", false}, {"Outdoor Shop", true}, {"Estate Agents", false}, {"Launderette", true},
+		{"Jewellers", false}, {"Shoes", false}, {"Pet Supplies", false}, {"Toy Shop", true}, {"Gallery", true}, {"Fabrics", false}, {"Café", true}};
+	static const FTrade CafeTrades[] = {{"Café", true}, {"Tea Rooms", true}, {"Coffee House", true}, {"Kitchen", true}};
+	static const char* const Thes[] = {"Corner", "Old", "Market", "Village", "Little", "Square", "Bridge", "Town"};
+	const int NF = int(sizeof(Families) / sizeof(Families[0])), NT = int(sizeof(Trades) / sizeof(Trades[0]));
+	const FTrade& T = Cafe ? CafeTrades[std::min(3, int(RollTrade * 4.0))] : Trades[std::min(NT - 1, int(RollTrade * NT))];
+	const std::string Family = Families[std::min(NF - 1, int(RollName * NF))];
+	const std::string Trade = T.Name;
+	if (Short) return Family + (RollForm < 0.5 ? "'s" : "");
+	if (T.The && RollForm < 0.35) return "The " + std::string(Thes[std::min(7, int(RollName * 37.0) % 8)]) + " " + Trade;
+	if (RollForm < 0.6) return Family + " & Sons " + Trade;
+	if (RollForm < 0.8) return Family + "'s " + Trade;
+	return Family + " " + Trade;
 }
 } // namespace RideBuildingBits
 
@@ -199,10 +231,208 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			for (int K = 0; K < 8 && !Seaside; ++K)
 				Seaside = Land->SeaAt(Mx + std::cos(K * 0.7853981633974483) * R, Mz + std::sin(K * 0.7853981633974483) * R);
 	}
+	// [churches stage 3] The places of worship the church kit builds (World/WorldRideChurches.h): each one's
+	// church chosen and fitted first, so whatever else stands on its ground (its outline's other boxes, a
+	// tower or an aisle the map drew apart) is left out wherever it comes, then built after the rest.
+	struct KitChurch
+	{
+		const Building* B = nullptr;
+		double X = 0.0, Z = 0.0;   // (its outline's middle: all of the outline's pieces, where it came in pieces)
+		int Model = -1;
+		double Along = 1.0, Across = 1.0, Up = 1.0, Dx = 1.0, Dz = 0.0, Y = 0.0, Low = 0.0;
+		bool Sooted = false, Whole = false;
+		double SteepleUp = 1.0;   // [churches stage 6] its tower or spire stretched to the LiDAR's height
+	};
+	std::vector<KitChurch> Churches;
+	std::vector<const Building*> ChurchTaken;   // (the pieces a kit church stands in for)
+	const std::shared_ptr<const ChurchKit> ChurchSet = Fine ? ChurchKitNow() : nullptr;
+	if (ChurchSet)
+		for (const Candidate& Each : Here)
+		{
+			const Building& B = *Each.B;
+			if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || (Each.Piece != nullptr && !Each.Piece->Main)) continue;
+			const std::string Called = Each.Look ? Each.Look->Words[0] : std::string();
+			const int Baked = B.More.empty() ? 0 : int(B.More[0]);
+			const bool Role = Each.Index >= 0 && size_t(Each.Index) < BuildingRole.size() && BuildingRole[size_t(Each.Index)] == 1;
+			if (!(Baked == 6 || Called == "church" || Called == "chapel" || Role) || Called == "cathedral" || Called == "ruins" || Called == "ruin") continue;
+			if (UnderTower(B.X, B.Z)) continue;
+			// (its whole outline, where the map's came cut in pieces: their corners along the main piece's sides)
+			const double Cs0 = std::cos(B.Yaw), Sn0 = std::sin(B.Yaw);
+			double U0 = -B.W * 0.5, U1 = B.W * 0.5, V0 = -B.D * 0.5, V1 = B.D * 0.5;
+			std::vector<const Building*> Mine{&B};
+			std::vector<std::array<double, 4>> PieceBox;   // (each other piece's u0, u1, v0, v1)
+			if (Each.Piece != nullptr)
+				for (const Candidate& O : Here)
+				{
+					if (O.Piece == nullptr || O.Piece == Each.Piece || O.Piece->Outline != Each.Piece->Outline || std::hypot(O.B->X - B.X, O.B->Z - B.Z) > 60.0) continue;
+					const Building& P = *O.B;
+					const double Pc = std::cos(P.Yaw), Ps = std::sin(P.Yaw);
+					std::array<double, 4> PBox{1e9, -1e9, 1e9, -1e9};
+					for (double Su : {-0.5, 0.5})
+						for (double Sv : {-0.5, 0.5})
+						{
+							const double Qx = P.X + Su * P.W * Pc + Sv * P.D * Ps - B.X, Qz = P.Z - Su * P.W * Ps + Sv * P.D * Pc - B.Z;
+							const double U = Qx * Cs0 - Qz * Sn0, V = Qx * Sn0 + Qz * Cs0;
+							U0 = std::fmin(U0, U); U1 = std::fmax(U1, U); V0 = std::fmin(V0, V); V1 = std::fmax(V1, V);
+							PBox = {std::fmin(PBox[0], U), std::fmax(PBox[1], U), std::fmin(PBox[2], V), std::fmax(PBox[3], V)};
+						}
+					PieceBox.push_back(PBox);
+					Mine.push_back(O.B);
+				}
+			const double Wo = U1 - U0, Do = V1 - V0, Um = (U0 + U1) * 0.5, Vm = (V0 + V1) * 0.5;
+			const double Mx = B.X + Um * Cs0 + Vm * Sn0, Mz = B.Z - Um * Sn0 + Vm * Cs0;
+			const double Area0 = Wo * Do;
+			if (Area0 < ChurchSet->AreaLo || Area0 > ChurchSet->AreaHi) continue;
+			// (its name, from the map's place of worship on or by it: a chapel's, or one that is no church)
+			std::string Name;
+			double NameDist = 40.0;
+			for (const TorqueFit::Json& Mark : G.Landmarks)
+			{
+				const double Md = std::hypot(Mark.Num("x") - Mx, Mark.Num("z") - Mz);
+				if (Md < NameDist && Mark.Str("kind") == "worship") { NameDist = Md; Name = Mark.Str("name"); }
+			}
+			const int Says = ChurchSet->NameKind(Name);
+			if (Says == 2) continue;
+			const bool LongX0 = Wo >= Do;
+			const double Long = std::fmax(Wo, Do), Short = std::fmin(Wo, Do);
+			const bool Chapel = Called == "chapel" || Says == 1 || (Name.empty() && !Role && Long < 1.45 * Short && Area0 < 260.0);
+			// [churches stage 4] (what the name says of its faith, a Catholic church or a Friends' meeting house; and
+			// a cross-shaped outline, its pieces standing out past the nave's sides both ways, short along it and
+			// away from its ends: transepts)
+			std::vector<std::string> Wants;
+			if (std::string Faith = ChurchSet->NameFaith(Name); !Faith.empty()) Wants.push_back(Faith);
+			{
+				// (an arm at least 4.5 m along and standing 3 m out, so that porches are not taken for arms; the
+				// two across from each other)
+				std::vector<std::pair<double, double>> Arms[2];
+				const double Side0 = LongX0 ? -B.D * 0.5 : -B.W * 0.5, Side1 = -Side0, End0 = LongX0 ? U0 : V0;
+				for (const std::array<double, 4>& Pb : PieceBox)
+				{
+					const double A0 = LongX0 ? Pb[0] : Pb[2], A1 = LongX0 ? Pb[1] : Pb[3], C0 = LongX0 ? Pb[2] : Pb[0], C1 = LongX0 ? Pb[3] : Pb[1];
+					const double Mid = ((A0 + A1) * 0.5 - End0) / Long;
+					if (A1 - A0 > 0.4 * Long || A1 - A0 < 4.5 || Mid < 0.2 || Mid > 0.9) continue;
+					if (C0 < Side0 - 3.0) Arms[0].push_back({A0, A1});
+					if (C1 > Side1 + 3.0) Arms[1].push_back({A0, A1});
+				}
+				bool Cross = false;
+				for (const auto& P0 : Arms[0])
+					for (const auto& P1 : Arms[1])
+						Cross = Cross || std::fmin(P0.second, P1.second) - std::fmax(P0.first, P1.first) > 0.5 * std::fmin(P0.second - P0.first, P1.second - P1.first);
+				if (Cross && !Chapel) Wants.push_back("cross");
+			}
+			// [churches stage 6] (the LiDAR's highest point of the place of worship by it, where that point stands on
+			// this church, 4 m round its outline: whether a spire, a tower or nothing stands over its roof, and how high)
+			ChurchHeight Surveyed;
+			bool HasSurvey = false;
+			{
+				const Geo MidGeo = Fr.ToGeo(Mx, Mz);
+				if (ChurchHeightNear(MidGeo.Lat, MidGeo.Lon, Surveyed, 40.0))
+				{
+					const P2 T = Fr.FromGeo(Surveyed.TopLat, Surveyed.TopLon);
+					const double Qx = T.X - B.X, Qz = T.Z - B.Z;
+					const double Tu = Qx * Cs0 - Qz * Sn0, Tv = Qx * Sn0 + Qz * Cs0;
+					HasSurvey = Tu > U0 - 4.0 && Tu < U1 + 4.0 && Tv > V0 - 4.0 && Tv < V1 + 4.0;
+				}
+			}
+			if (HasSurvey && !Chapel) Wants.push_back(Surveyed.Steeple() == 2 ? "spire" : Surveyed.Steeple() == 1 ? "tower" : "bellcote");
+			const LocalLook* OnStreet0 = StreetLookAt(Mx, Mz);
+			const LocalLook& Look0 = OnStreet0 ? *OnStreet0 : TileLook;
+			KitChurch C;
+			C.B = &B;
+			C.X = Mx;
+			C.Z = Mz;
+			C.Model = ChurchSet->Pick(Look0.Name, TownLookAt(Mx, Mz) != nullptr, Chapel, Long, Short, Chance(B.X, B.Z, 121), Chance(B.X, B.Z, 122), C.Along, C.Across, C.Whole, Wants);
+			if (C.Model < 0) continue;
+			C.Up = std::clamp(std::sqrt(C.Along * C.Across), 0.85, 1.15);
+			{
+				// [churches stage 6] (a tower to a tower's surveyed top, a spire to a spire's: what stands over the nave
+				// stretched, between 0.6 and 1.8 of the model's)
+				const ChurchModel& Mc = ChurchSet->Models[size_t(C.Model)];
+				if (HasSurvey && Mc.Steeple > 0 && Mc.Steeple == Surveyed.Steeple() && Mc.Top > Mc.NaveTop + 1.0)
+					C.SteepleUp = std::clamp((double(Surveyed.Top) / C.Up - Mc.NaveTop) / (Mc.Top - Mc.NaveTop), 0.6, 1.8);
+			}
+			// (along its length: a church's altar end east, a chapel's front, its -x end, to its road)
+			C.Dx = LongX0 ? Cs0 : Sn0;
+			C.Dz = LongX0 ? -Sn0 : Cs0;
+			double Flip = C.Dx >= 0.0 ? 1.0 : -1.0;
+			const bool Meeting = ChurchSet->Models[size_t(C.Model)].Kind == "meeting";
+			if (Chapel || Meeting)
+			{
+				NearOpts Opts;
+				NearHit H;
+				// (a meeting house broadside to it: its door, on its +z side, towards the road)
+				if (NearestOf(Mx, Mz, Opts, H) && H.Dist - H.Half < 60.0)
+					Flip = Meeting ? ((H.Foot.X - Mx) * -C.Dz + (H.Foot.Z - Mz) * C.Dx > 0.0 ? 1.0 : -1.0)
+						: ((H.Foot.X - Mx) * C.Dx + (H.Foot.Z - Mz) * C.Dz > 0.0 ? -1.0 : 1.0);
+			}
+			C.Dx *= Flip;
+			C.Dz *= Flip;
+			// (on its ground at its middle, on a plinth where the ground falls away; none on a steep bank)
+			const double Base0 = Ground(Mx, Mz);
+			if (std::isnan(Base0)) continue;
+			double Low = Base0;
+			bool Steep = false;
+			for (double Su : {-0.5, 0.5})
+				for (double Sv : {-0.5, 0.5})
+				{
+					const double Gx = Mx + C.Dx * Su * Long - C.Dz * Sv * Short, Gz = Mz + C.Dz * Su * Long + C.Dx * Sv * Short;
+					const double Gy = Ground(Gx, Gz);
+					if (std::isnan(Gy)) continue;
+					Low = std::fmin(Low, Gy);
+					Steep = Steep || std::fabs(Gy - Base0) > 7.0;
+				}
+			if (Steep) continue;
+			C.Y = Base0;
+			C.Low = Low;
+			C.Sooted = Chance(B.X, B.Z, 94) < Look0.Soot;
+			Churches.push_back(C);
+			ChurchTaken.insert(ChurchTaken.end(), Mine.begin(), Mine.end());
+		}
+	// (whether a place lies on a kit church's ground: its whole footprint, a metre round)
+	const auto OnChurch = [&](double X, double Z)
+	{
+		for (const KitChurch& C : Churches)
+		{
+			const ChurchModel& M = ChurchSet->Models[size_t(C.Model)];
+			const double Rx = X - C.X, Rz = Z - C.Z;
+			const double A = (Rx * C.Dx + Rz * C.Dz) / C.Along + (C.Whole ? (M.MinX + M.MaxX) * 0.5 : 0.0);
+			const double Cr = (-Rx * C.Dz + Rz * C.Dx) / C.Across + (C.Whole ? (M.MinZ + M.MaxZ) * 0.5 : 0.0);
+			if (A > M.MinX - 1.0 && A < M.MaxX + 1.0 && Cr > M.MinZ - 1.0 && Cr < M.MaxZ + 1.0) return true;
+		}
+		return false;
+	};
+	// [gardens] (what the gardens' plants keep clear of: every building on the square and its neighbours'
+	// within 16 m of its edges, the outlines' pieces and the cells' own boxes alike)
+	const bool Planting = Fine && RealGardens && GardenShare > 0.0;
+	GardenClear Clearing;
+	std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> ClearHeld;
+	if (Planting)
+	{
+		constexpr double Margin = 16.0;
+		std::vector<const OutlinePiece*> ClearPieces;
+		std::vector<CellId> ClearCovered;
+		OutlinesIn(X0 - Margin, Z0 - Margin, Size + 2.0 * Margin, ClearHeld, ClearPieces, ClearCovered);
+		for (const OutlinePiece* P : ClearPieces) Clearing.Add(P->B);
+		for (const Candidate& Each : Here) Clearing.Add(*Each.B);
+		const int Gx0 = int(std::floor((X0 - Margin) / SceneCell)), Gx1 = int(std::floor((X0 + Size + Margin) / SceneCell));
+		const int Gz0 = int(std::floor((Z0 - Margin) / SceneCell)), Gz1 = int(std::floor((Z0 + Size + Margin) / SceneCell));
+		for (int Cz = Gz0; Cz <= Gz1; ++Cz)
+			for (int Cx = Gx0; Cx <= Gx1; ++Cx)
+			{
+				const auto It = Scene->Buildings.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
+				if (It == Scene->Buildings.end()) continue;
+				for (int I : It->second)
+				{
+					const Building& Bi = G.Buildings[size_t(I)];
+					if (Bi.X > X0 - Margin - 60.0 && Bi.X < X0 + Size + Margin + 60.0 && Bi.Z > Z0 - Margin - 60.0 && Bi.Z < Z0 + Size + Margin + 60.0) Clearing.Add(Bi);
+				}
+			}
+	}
 	for (const Candidate& Each : Here)
 	{
 		const Building& B = *Each.B;
 		const int Index = Each.Index;
+		if (!Churches.empty() && (std::find(ChurchTaken.begin(), ChurchTaken.end(), &B) != ChurchTaken.end() || OnChurch(B.X, B.Z))) continue;
 		// [towns stage 8] (a building on a famous street takes the street's own look over the square's)
 		const LocalLook* OnStreet = StreetLookAt(B.X, B.Z);
 		const LocalLook& Look = OnStreet ? *OnStreet : TileLook;
@@ -348,13 +578,19 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// [towns stage 4] (a terrace's roofs run on from house to house: gabled through every party wall;
 		// a pair of semis may be hipped, but only at their outer ends)
 		if (InRow && InRow->RowSize >= 3 && Shape == ERoof::Hipped) Shape = ERoof::Gabled;
-		const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
+		const double Rise0 = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
 			: Big ? HalfShort * 0.35 : IsWorship ? std::fmin(HalfShort * 1.15, 6.5) : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
+		// [LiDAR stage 2] (the surveyed height where the square's LiDAR file has this outline: its eaves, and the
+		// roof's rise from them to the ridge, kept within a shallower or steeper roof of the kind it is)
+		const OutlinePiece* Measured = Each.Piece != nullptr && Each.Piece->LidarEaves > 0.0f ? Each.Piece : nullptr;
+		const double Rise = Measured == nullptr || Rise0 <= 0.0 ? Rise0
+			: std::clamp(double(Measured->LidarRidge - Measured->LidarEaves), Rise0 * 0.6, std::fmax(Rise0 * 0.6, std::fmin(Rise0 * 1.6, HalfShort * 1.4)));
 		// (the map's floors where it has them; its height, except a house's under 7 m: Overture's British
 		// heights put most two-storey houses at 4-6 m to the ridge, which drew them as bungalows in build 145)
 		const double MapFloors = Each.Floors;
 		const bool TrustHeight = B.Height > 2.0 && !(IsHouse && B.Height >= 3.0 && B.Height < 7.0);
-		const double Eaves = MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
+		const double Eaves = Measured != nullptr ? std::fmax(2.3, double(Measured->LidarEaves))
+			: MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
 			: TrustHeight ? std::fmax(2.3, B.Height - Rise)
 			: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
 		// ([towns stage 5] a row's walling chosen once for the whole row; a detached house or a cottage its own)
@@ -1061,11 +1297,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					// to 7 m along the front, each between panelled pilasters under a fascia board and a moulded
 					// cornice the width of the unit; a stall riser under a tall display window, its transom
 					// lights over a bar, two mullions; the door at one side, glazed, set back in its own frame.
-					// The fascia is painted (one colour a unit, a deep heritage colour or a cream) and carries
-					// no name: beenster's rule, only pubs have signs. After dark most windows are lit.
+					// The fascia is painted (one colour a unit, a deep heritage colour or a cream) and carries a
+					// made-up name (ShopName). After dark most windows are lit.
 					static const Rgb ShopPaints[8] = {{0.012f, 0.04f, 0.022f}, {0.01f, 0.018f, 0.05f}, {0.07f, 0.012f, 0.014f}, {0.012f, 0.012f, 0.012f},
 						{0.5f, 0.47f, 0.38f}, {0.05f, 0.06f, 0.065f}, {0.025f, 0.06f, 0.07f}, {0.4f, 0.41f, 0.4f}};
 					const int Units = std::max(1, int(std::lround(HalfLong * 2.0 / 5.6)));
+					const int Role = size_t(Index) < BuildingRole.size() ? int(BuildingRole[size_t(Index)]) : 0;
 					const double Uw = HalfLong * 2.0 / Units;
 					const double Cornice = std::fmin(3.45, Eaves - 0.25);              // (the cornice's top)
 					const double FasciaHi = Cornice - 0.1, FasciaLo = FasciaHi - std::fmin(0.55, Cornice * 0.16);
@@ -1085,6 +1322,27 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						Bar(U0 + 0.05, U1 - 0.05, FasciaLo + 0.06, FasciaHi - 0.06, 0.215, SpDark);   // (its sunk panel)
 						Bar(U0 - 0.03, U1 + 0.03, FasciaHi, Cornice, 0.3, SpLight);       // (the cornice, and its lead flashing)
 						Bar(U0 - 0.03, U1 + 0.03, Cornice - 0.015, Cornice + 0.01, 0.32, Shade(Slate, 0.9));
+						// ([Nov 19] its name in signwriter's letters on the sunk panel: gilt on a dark fascia, black on a
+						// light one; not a pub's, which has its own board)
+						if (Role != 2)
+						{
+							const double PanelW = U1 - U0 - 0.1 - 0.3, PanelH = FasciaHi - FasciaLo - 0.12;
+							const bool Light = Pick0 * 8.0 >= 4.0 && (int(Pick0 * 8.0) == 4 || int(Pick0 * 8.0) == 7);
+							static const float Gilt[3] = {0.62f, 0.5f, 0.26f}, Ink[3] = {0.02f, 0.02f, 0.02f};
+							const double Uc = (U0 + U1) * 0.5;
+							const P3 At = Local(Uc, Sg * (HalfShort + 0.245), (FasciaLo + FasciaHi) * 0.5), Out1 = Local(Uc, Sg * (HalfShort + 1.245), (FasciaLo + FasciaHi) * 0.5);
+							const P2 Facing = P2(Out1.X - At.X, Out1.Z - At.Z) * (1.0 / std::fmax(1e-6, std::hypot(Out1.X - At.X, Out1.Z - At.Z)));
+							for (int Try = 0; Try < 2 && PanelW > 0.8 && PanelH > 0.12; ++Try)
+							{
+								const std::string Name = RideBuildingBits::ShopName(Chance(B.X + Un * 2.3, B.Z + Un * 4.1, 143), Chance(B.X - Un * 3.7, B.Z + Un * 1.3, 144),
+									Chance(B.X + Un * 5.9, B.Z - Un * 0.7, 145), Role == 3, Try == 1);
+								double Cap = std::fmin(0.26, PanelH * 0.55), Wide = 0.0;
+								if (SignText::Width(Name, Cap, Wide) && Wide > PanelW) Cap *= PanelW / Wide;   // (shrunk to fit its panel)
+								if (Cap < 0.11) continue;
+								SignText::Set(Out.SignsOf(), At.X, At.Y, At.Z, Facing.X, Facing.Z, Cap, Name, Light ? Ink : Gilt);
+								break;
+							}
+						}
 						const double In0 = U0 + 0.02 + Pw, In1 = U1 - 0.02 - Pw;
 						if (In1 - In0 < 1.2) continue;
 						// (the door: at the unit's end nearer the building's middle, 1 m wide, set back 30 cm in its frame)
@@ -1192,6 +1450,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					const double Foot = std::fmin(Ga, Gb) - 0.3, Head = std::fmax(Ga, Gb) + WallH;
 					const P2 Dir(Mb.X - Ma.X, Mb.Z - Ma.Z);
 					RideMesh& Into = Rendered ? Washed : Brick ? BrickOut : Houses;
+					const size_t WallFrom = Into.Vertices();
 					Box(Into, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5, 0.11, Foot, Head, Rendered || Brick ? Wall : Mask);
 					Box(Out, Ma.X, Ma.Z, Dir, (U1 - U0) * 0.5 + 0.02, 0.15, Head, Head + 0.09, Coping);
 					// (a gate pier each side of the path)
@@ -1202,9 +1461,53 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						Box(Into, Pp.X, Pp.Z, Dir, 0.17, 0.17, Foot, Head + 0.25, Rendered || Brick ? Wall : Mask);
 						Box(Out, Pp.X, Pp.Z, Dir, 0.2, 0.2, Head + 0.25, Head + 0.35, Coping);
 					}
+					// ([Nov 18] the stone garden wall's moss as the house's own, 0.06: Box gives none, and the
+					// house mesh's alpha must cover every vertex or none, see Quad)
+					if (&Into == &Houses && !Houses.Alpha.empty() && Houses.Alpha.size() < Houses.Vertices())
+					{
+						Houses.Alpha.resize(WallFrom, 1.0f);
+						Houses.Alpha.resize(Houses.Vertices(), 0.06f);
+					}
 				}
 				if (Tally && NRuns > 0) ++Tally->FrontWalls;
 			}
+		}
+		// [gardens] (beenster, Nov 19: "a sparsity of planting" in the villages and towns) A house's garden
+		// planting: roses, shrubs and flowers in beds along its front and its gable ends, behind its front
+		// wall, at the back; now and then a small tree (GardenPlants). Not a shop, a barn or a ruin.
+		if (Planting && IsHouse && !Big && !ShopHere && !Ruin && !Plain && HouseKind >= 0 && HouseKind != HouseTypes::Tenement)
+		{
+			GardenHouse Gh;
+			Gh.X = B.X;
+			Gh.Z = B.Z;
+			Gh.Cs = Cs;
+			Gh.Sn = Sn;
+			Gh.LongX = LongX;
+			Gh.HalfLong = HalfLong;
+			Gh.HalfShort = HalfShort;
+			Gh.PartyPlus = PartyPlus;
+			Gh.PartyMinus = PartyMinus;
+			Gh.InTown = InTown;
+			Gh.FrontSide = DoorSide;
+			Gh.FrontGap = FrontGap;
+			Gh.Kind = HouseKind;
+			Gh.Bays = Bays;
+			const double GardenDeep = FrontGap + 1.0 - 1.6;
+			Gh.FrontWall = InTown && Bays == 1 && HouseKind >= HouseTypes::Detached && HouseKind <= HouseTypes::Terrace && GardenDeep >= 1.2 && GardenDeep <= 7.0
+				&& !(Modern && Chance(RowX, RowZ, 151) < 0.5);
+			if (InRow && Bays == 1) Gh.DoorU = DoorPlus ? HalfLong - 0.9 : -HalfLong + 0.9;
+			else
+			{
+				const int Along0 = std::max(1, int(HalfLong * 2.0 / 3.5));
+				Gh.DoorU = -HalfLong + (Along0 / 2 + 0.5) * (HalfLong * 2.0 / Along0);
+			}
+			if (Bays == 1 && HouseKind != HouseTypes::Terrace && HouseKind != HouseTypes::VillageRow && HalfLong * 2.0 >= 5.0)
+			{
+				// (the drive, as the front wall leaves its gap: at the end away from the door, 2.9 m wide)
+				if (Gh.DoorU < 0.0) { Gh.DriveFrom = HalfLong - 2.9; Gh.DriveTo = HalfLong + 1.0; }
+				else { Gh.DriveFrom = -HalfLong - 1.0; Gh.DriveTo = -HalfLong + 2.9; }
+			}
+			GardenPlants(Gh, Clearing, Out);
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
 		// builds them; a terrace's on every other party wall), shops and now and then a civic building;
@@ -1251,7 +1554,10 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			else Chimney((Chance(B.X, B.Z, 12) - 0.5) * HalfLong * 0.8, Top - 1.0);
 		}
 		// (the map's own churches too, where it tags the building one and it is a church's size)
-		if ((size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1) || ((Kind == "church" || (IsWorship && Kind != "chapel")) && B.W * B.D >= 120.0 && !Plain && !Ruin))
+		// ([churches stage 4] one tower to a church: on its outline's main piece only, not on every piece the
+		// map's outline was cut into, Wells St Cuthbert's had five)
+		const bool MainPiece = Each.Piece == nullptr || Each.Piece->Main;
+		if (MainPiece && ((size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1) || ((Kind == "church" || (IsWorship && Kind != "chapel")) && B.W * B.D >= 120.0 && !Plain && !Ruin)))
 		{
 			// A church: its tower at one end (the other if that one is over a road), square and a
 			// little narrower than the nave, its belfry's openings near the top, battlemented, or in
@@ -1322,6 +1628,32 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			}
 		}
 	}
+	// [churches stage 3] (the kit's churches, now the rest is in)
+	std::vector<ChurchDoor> Doors;
+	for (const KitChurch& C : Churches)
+	{
+		const ChurchModel& M = ChurchSet->Models[size_t(C.Model)];
+		BuildChurch(M, C.Whole, C.X, C.Y, C.Z, C.Low, C.Dx, C.Dz, C.Along, C.Across, C.Up, C.Sooted, Out, Washed, Houses, RoofOut, BrickOut, C.SteepleUp);
+		if (Tally) ++Tally->KitChurches;
+		// [churches stage 5] (its door, for the churchyard's path: in the model's frame about its nave's middle, as BuildChurch turns it)
+		if (M.HasDoor)
+		{
+			const double Ox = C.Whole ? -(M.MinX + M.MaxX) * 0.5 : 0.0, Oz = C.Whole ? -(M.MinZ + M.MaxZ) * 0.5 : 0.0;
+			const double Lx = (M.Door[0] + Ox) * C.Along, Lz = (M.Door[1] + Oz) * C.Across;
+			ChurchDoor D;
+			D.Middle = P2(C.X, C.Z);
+			D.Door = P2(C.X + Lx * C.Dx - Lz * C.Dz, C.Z + Lx * C.Dz + Lz * C.Dx);
+			D.Out = P2(M.Door[2] * C.Dx - M.Door[3] * C.Dz, M.Door[2] * C.Dz + M.Door[3] * C.Dx);
+			const double Ba = ((M.MinX + M.MaxX) * 0.5 + Ox) * C.Along, Bc = ((M.MinZ + M.MaxZ) * 0.5 + Oz) * C.Across;
+			D.Box = P2(C.X + Ba * C.Dx - Bc * C.Dz, C.Z + Ba * C.Dz + Bc * C.Dx);
+			D.Along = P2(C.Dx, C.Dz);
+			D.HalfA = (M.MaxX - M.MinX) * 0.5 * C.Along;
+			D.HalfC = (M.MaxZ - M.MinZ) * 0.5 * C.Across;
+			Doors.push_back(D);
+		}
+	}
+	// [churches stage 5] (the churchyards: walls, gates, paths, yews)
+	if (Fine) ChurchyardsTile(X0, Z0, Size, TileLook, Doors, Out, Washed, Houses, RoofOut, BrickOut);
 }
 // [build 141 feedback] Farther off (beenster: "increase the drawing of objects in the very far
 // distance"): the coarse squares had no buildings at all, so villages and towns vanished past a few

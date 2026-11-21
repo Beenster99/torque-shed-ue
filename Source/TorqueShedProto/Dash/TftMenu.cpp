@@ -97,6 +97,7 @@ std::vector<Menu::Item> Menu::Items() const
 	for (int R = 0; R < int(ModeRow::Count); ++R)
 		if (!Modes.empty() && TorqueSim::RowOn(ModeRow(R), Caps)) Out.push_back({1, ModeRow(R)});
 	Out.push_back({2, ModeRow::Power});
+	Out.push_back({4, ModeRow::Power});
 	if (!Modes.empty()) Out.push_back({3, ModeRow::Power});
 	return Out;
 }
@@ -123,6 +124,13 @@ int Menu::Do(Press P, double SpeedMs, double Throttle)
 		if (It.Kind == 2)
 		{
 			NorthUp = !NorthUp;
+			return MapChanged;
+		}
+		if (It.Kind == 4)
+		{
+			const int To = std::max(0, std::min(2, Declutter - Step));   // up: more detail
+			if (To == Declutter) return Nothing;
+			Declutter = To;
 			return MapChanged;
 		}
 		if (It.Kind == 1)
@@ -262,6 +270,13 @@ void Menu::Fill(State& St) const
 			R.Label = "Map";
 			R.Value = NorthUp ? "North up" : "Heading up";
 		}
+		else if (It.Kind == 4)
+		{
+			R.Label = "Map detail";
+			R.Value = Declutter <= 0 ? "Full" : Declutter == 1 ? "Some" : "Clear";
+			R.Level = 3 - Declutter;
+			R.Levels = 3;
+		}
 		else if (It.Kind == 3)
 		{
 			R.Label = "Put " + std::string(TorqueSim::ModeName(Mode())) + " back as it came";
@@ -285,6 +300,7 @@ void Menu::Fill(State& St) const
 	const Item& Here = All[size_t(std::max(0, St.SetCursor))];
 	St.SetHelp = Here.Kind == 0 ? "Four ways to lay out the clocks. Pick the one you read best."
 		: Here.Kind == 2 ? "Whether the map turns with the bike or keeps north at the top."
+		: Here.Kind == 4 ? "How much the map shows. Full has every pin, Some keeps only fuel, Clear just roads and towns."
 		: Here.Kind == 3 ? "Throws away your changes to this mode."
 		: Mode() == RideMode::Touring ? std::string("Touring is the bike as the dyno desk set it. ") + TorqueSim::RowHelp(Here.Row) : TorqueSim::RowHelp(Here.Row);
 }

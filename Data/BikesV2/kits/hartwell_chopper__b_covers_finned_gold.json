@@ -2,7 +2,7 @@
  "name": "BSX chopper (working title H2)",
  "format": 2,
  "kit": true,
- "triangles": 11342,
+ "triangles": 15194,
  "surfaces": {
   "s006": {
    "slot": "engine",
@@ -18,28 +18,7 @@
    "metallic": 0.9,
    "roughness": 0.5
   },
-  "s007": {
-   "slot": "engine",
-   "node": "",
-   "surface": "engine",
-   "tag": "engine",
-   "ue": "cat_cast_alloy",
-   "color": [
-    0.34,
-    0.35,
-    0.37
-   ],
-   "metallic": 0.9,
-   "roughness": 0.5
-  },
-  "s008": {
-   "slot": "engine",
-   "node": "",
-   "surface": "chrome",
-   "tag": "chrome",
-   "ue": "chrome"
-  },
-  "s021": {
+  "s019": {
    "slot": "engine",
    "node": "",
    "surface": "steel",
@@ -53,7 +32,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s022": {
+  "s020": {
    "slot": "engine",
    "node": "",
    "surface": "alu",
@@ -67,12 +46,33 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s023": {
+  "s021": {
    "slot": "engine",
    "node": "",
    "surface": "lens",
    "tag": "lens",
    "ue": "lens_clear"
+  },
+  "s023": {
+   "slot": "engine",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s078": {
+   "slot": "engine",
+   "node": "",
+   "surface": "engine",
+   "tag": "engine",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
   },
   "s079": {
    "slot": "engine",
@@ -81,8 +81,50 @@
    "tag": "rubber",
    "ue": "cat_rubber"
   },
+  "s089": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  },
+  "s090": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
   "s091": {
-   "slot": "engine",
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s094": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s095": {
+   "slot": "gearbox",
    "node": "",
    "surface": "d3_polishedcase",
    "tag": "d3_polishedcase",
@@ -95,7 +137,7 @@
    "metallic": 1.0,
    "roughness": 0.16
   },
-  "s096": {
+  "s100": {
    "slot": "engine",
    "node": "",
    "surface": "gold",
@@ -109,8 +151,22 @@
    "metallic": 1.0,
    "roughness": 0.32
   },
-  "s151": {
+  "s155": {
    "slot": "engine",
+   "node": "",
+   "surface": "d3_chop_gold",
+   "tag": "d3_chop_gold",
+   "ue": "chrome",
+   "color": [
+    0.95,
+    0.66,
+    0.2
+   ],
+   "metallic": 1.0,
+   "roughness": 0.09
+  },
+  "s156": {
+   "slot": "gearbox",
    "node": "",
    "surface": "d3_chop_gold",
    "tag": "d3_chop_gold",

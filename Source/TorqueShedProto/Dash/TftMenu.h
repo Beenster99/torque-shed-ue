@@ -49,6 +49,7 @@ public:
 	int TripPage = 0;
 	int Zoom = 0;            // the map's, -2 (closest) .. 2
 	bool NorthUp = false;
+	int Declutter = 0;       // the map's detail: 0 full, 1 some, 2 clear
 	std::string Notice;
 	double NoticeFor = 0.0;
 
@@ -65,7 +66,7 @@ private:
 	// map's way up, and putting the mode back as it came.
 	struct Item
 	{
-		int Kind = 0;   // 0 design, 1 a mode row, 2 map north up, 3 reset the mode
+		int Kind = 0;   // 0 design, 1 a mode row, 2 map north up, 3 reset the mode, 4 map detail
 		TorqueSim::ModeRow Row = TorqueSim::ModeRow::Power;
 	};
 	std::vector<Item> Items() const;

@@ -1,0 +1,8652 @@
+{
+ "adapt_mm": 15.0,
+ "types": {
+  "single": {
+   "alternator_cover": {
+    "at": [
+     0.0,
+     148.5,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 0.0,
+     "varga_mx": 0.0
+    },
+    "adapter": []
+   },
+   "cam_caps": {
+    "at": [
+     51.4,
+     73.5,
+     0.2
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 1.2,
+     "varga_mx": 1.1
+    },
+    "adapter": []
+   },
+   "clutch_cover": {
+    "at": [
+     0.0,
+     157.2,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 0.1,
+     "varga_mx": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     88.7,
+     55.0,
+     -5.3
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 30.3,
+     "varga_mx": 30.3
+    },
+    "adapter": [
+     "kazeda_mx",
+     "varga_mx"
+    ]
+   },
+   "intake": {
+    "at": [
+     49.8,
+     0.0,
+     1.2
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 86.4,
+     "varga_mx": 86.5
+    },
+    "adapter": [
+     "kazeda_mx",
+     "varga_mx"
+    ]
+   },
+   "oil_filter": {
+    "at": [
+     129.0,
+     74.5,
+     -56.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 0.0,
+     "varga_mx": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     115.2,
+     0.0,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 2.4,
+     "varga_mx": 2.4
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -64.5,
+     126.0,
+     11.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 0.0,
+     "varga_mx": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -39.0,
+     0.0,
+     -106.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_mx",
+     "varga_mx"
+    ],
+    "off_mm": {
+     "kazeda_mx": 0.0,
+     "varga_mx": 0.0
+    },
+    "adapter": []
+   }
+  },
+  "two_stroke": {
+   "alternator_cover": {
+    "at": [
+     0.0,
+     148.5,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "cam_caps": {
+    "at": [
+     37.0,
+     65.5,
+     0.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "clutch_cover": {
+    "at": [
+     0.0,
+     157.2,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     -17.0,
+     60.0,
+     -22.3
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "intake": {
+    "at": [
+     35.8,
+     0.0,
+     78.4
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "oil_filter": {
+    "at": [
+     117.0,
+     74.5,
+     -58.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     87.1,
+     0.0,
+     2.9
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -57.5,
+     126.0,
+     9.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -35.5,
+     0.0,
+     -95.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_mx"
+    ],
+    "off_mm": {
+     "corvano_mx": 0.0
+    },
+    "adapter": []
+   }
+  },
+  "parallel_twin": {
+   "alternator_cover": {
+    "at": [
+     0.0,
+     148.5,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 0.0,
+     "hartwell_chopper": 0.0,
+     "hartwell_classic": 0.0,
+     "kazeda_cruiser": 0.0,
+     "varga_adventure": 0.0,
+     "varga_naked": 0.0,
+     "varga_sport": 0.0
+    },
+    "adapter": []
+   },
+   "cam_caps": {
+    "at": [
+     57.9,
+     73.5,
+     -0.4
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 2.0,
+     "hartwell_chopper": 2.0,
+     "hartwell_classic": 3.0,
+     "kazeda_cruiser": 38.0,
+     "varga_adventure": 3.1,
+     "varga_naked": 3.1,
+     "varga_sport": 3.1
+    },
+    "adapter": [
+     "kazeda_cruiser"
+    ]
+   },
+   "clutch_cover": {
+    "at": [
+     0.0,
+     157.2,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 0.1,
+     "hartwell_chopper": 0.1,
+     "hartwell_classic": 0.1,
+     "kazeda_cruiser": 0.1,
+     "varga_adventure": 0.1,
+     "varga_naked": 0.1,
+     "varga_sport": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     -28.4,
+     40.0,
+     -62.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 38.7,
+     "hartwell_chopper": 38.3,
+     "hartwell_classic": 58.0,
+     "kazeda_cruiser": 35.4,
+     "varga_adventure": 9.7,
+     "varga_naked": 127.3,
+     "varga_sport": 9.7
+    },
+    "adapter": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_naked"
+    ]
+   },
+   "intake": {
+    "at": [
+     56.3,
+     0.0,
+     86.4
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 1.8,
+     "hartwell_chopper": 1.8,
+     "hartwell_classic": 3.0,
+     "kazeda_cruiser": 37.9,
+     "varga_adventure": 2.6,
+     "varga_naked": 2.6,
+     "varga_sport": 2.6
+    },
+    "adapter": [
+     "kazeda_cruiser"
+    ]
+   },
+   "oil_filter": {
+    "at": [
+     162.0,
+     74.5,
+     -52.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 0.0,
+     "hartwell_chopper": 0.0,
+     "hartwell_classic": 0.0,
+     "kazeda_cruiser": 0.0,
+     "varga_adventure": 0.0,
+     "varga_naked": 0.0,
+     "varga_sport": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     127.8,
+     0.0,
+     3.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 2.2,
+     "hartwell_chopper": 2.2,
+     "hartwell_classic": 2.2,
+     "kazeda_cruiser": 0.0,
+     "varga_adventure": 5.4,
+     "varga_naked": 5.4,
+     "varga_sport": 5.4
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -82.5,
+     126.0,
+     13.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 0.0,
+     "hartwell_chopper": 0.0,
+     "hartwell_classic": 0.0,
+     "kazeda_cruiser": 0.0,
+     "varga_adventure": 0.0,
+     "varga_naked": 0.0,
+     "varga_sport": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -47.5,
+     0.0,
+     -136.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_cafe",
+     "hartwell_chopper",
+     "hartwell_classic",
+     "kazeda_cruiser",
+     "varga_adventure",
+     "varga_naked",
+     "varga_sport"
+    ],
+    "off_mm": {
+     "hartwell_cafe": 0.0,
+     "hartwell_chopper": 0.0,
+     "hartwell_classic": 0.0,
+     "kazeda_cruiser": 0.0,
+     "varga_adventure": 0.0,
+     "varga_naked": 0.0,
+     "varga_sport": 0.0
+    },
+    "adapter": []
+   }
+  },
+  "vtwin90": {
+   "alternator_cover": {
+    "at": [
+     0.0,
+     148.5,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 0.0,
+     "corvano_cafe": 0.0,
+     "corvano_classic": 0.0,
+     "corvano_cruiser": 0.0,
+     "corvano_naked": 0.0,
+     "corvano_sport": 0.0
+    },
+    "adapter": []
+   },
+   "cam_caps": {
+    "at": [
+     33.2,
+     74.5,
+     0.0
+    ],
+    "count": [
+     4
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 2.0,
+     "corvano_cafe": 2.0,
+     "corvano_classic": 2.0,
+     "corvano_cruiser": 6.3,
+     "corvano_naked": 2.0,
+     "corvano_sport": 2.0
+    },
+    "adapter": []
+   },
+   "clutch_cover": {
+    "at": [
+     0.0,
+     157.2,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 0.1,
+     "corvano_cafe": 0.1,
+     "corvano_classic": 0.1,
+     "corvano_cruiser": 0.1,
+     "corvano_naked": 0.1,
+     "corvano_sport": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     41.2,
+     40.0,
+     -7.8
+    ],
+    "count": [
+     2,
+     3
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 21.9,
+     "corvano_cafe": 9.3,
+     "corvano_classic": 2.0,
+     "corvano_cruiser": 13.1,
+     "corvano_naked": 3.4,
+     "corvano_sport": 5.5
+    },
+    "adapter": [
+     "corvano_adventure"
+    ]
+   },
+   "intake": {
+    "at": [
+     -59.6,
+     0.0,
+     -179.4
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 4.8,
+     "corvano_cafe": 4.8,
+     "corvano_classic": 4.8,
+     "corvano_cruiser": 24.0,
+     "corvano_naked": 4.8,
+     "corvano_sport": 4.8
+    },
+    "adapter": [
+     "corvano_cruiser"
+    ]
+   },
+   "oil_filter": {
+    "at": [
+     167.0,
+     74.5,
+     -52.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 0.0,
+     "corvano_cafe": 0.0,
+     "corvano_classic": 0.0,
+     "corvano_cruiser": 0.0,
+     "corvano_naked": 0.0,
+     "corvano_sport": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     75.7,
+     0.0,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 3.2,
+     "corvano_cafe": 3.2,
+     "corvano_classic": 3.2,
+     "corvano_cruiser": 13.5,
+     "corvano_naked": 3.2,
+     "corvano_sport": 3.2
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -63.8,
+     126.0,
+     1.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 3.2,
+     "corvano_cafe": 3.3,
+     "corvano_classic": 3.2,
+     "corvano_cruiser": 3.2,
+     "corvano_naked": 3.3,
+     "corvano_sport": 3.3
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -26.2,
+     0.0,
+     -150.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "corvano_adventure",
+     "corvano_cafe",
+     "corvano_classic",
+     "corvano_cruiser",
+     "corvano_naked",
+     "corvano_sport"
+    ],
+    "off_mm": {
+     "corvano_adventure": 2.8,
+     "corvano_cafe": 2.7,
+     "corvano_classic": 2.8,
+     "corvano_cruiser": 2.8,
+     "corvano_naked": 2.7,
+     "corvano_sport": 2.7
+    },
+    "adapter": []
+   }
+  },
+  "vtwin45": {
+   "alternator_cover": {
+    "at": [
+     -108.5,
+     148.5,
+     7.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 0.0,
+     "lodestar_chopper": 0.0,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   },
+   "cam_caps": {
+    "at": [
+     -13.4,
+     88.5,
+     -127.8
+    ],
+    "count": [
+     2,
+     4
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 14.2,
+     "lodestar_chopper": 9.1,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   },
+   "clutch_cover": {
+    "at": [
+     -108.5,
+     157.2,
+     7.0
+    ],
+    "count": [
+     4
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 0.1,
+     "lodestar_chopper": 0.1,
+     "lodestar_classic": 0.1,
+     "lodestar_cruiser": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     -69.2,
+     60.0,
+     -92.3
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 39.9,
+     "lodestar_chopper": 31.6,
+     "lodestar_classic": 0.2,
+     "lodestar_cruiser": 20.0
+    },
+    "adapter": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_cruiser"
+    ]
+   },
+   "intake": {
+    "at": [
+     21.7,
+     0.0,
+     -142.3
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 14.2,
+     "lodestar_chopper": 9.2,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   },
+   "oil_filter": {
+    "at": [
+     163.0,
+     74.5,
+     -48.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 0.0,
+     "lodestar_chopper": 0.0,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     31.8,
+     0.0,
+     -146.6
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 14.1,
+     "lodestar_chopper": 9.2,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -98.0,
+     126.0,
+     11.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 0.0,
+     "lodestar_chopper": 0.0,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -69.0,
+     0.0,
+     -136.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "lodestar_cafe",
+     "lodestar_chopper",
+     "lodestar_classic",
+     "lodestar_cruiser"
+    ],
+    "off_mm": {
+     "lodestar_cafe": 0.0,
+     "lodestar_chopper": 0.0,
+     "lodestar_classic": 0.0,
+     "lodestar_cruiser": 0.0
+    },
+    "adapter": []
+   }
+  },
+  "boxer": {
+   "exhaust_port": {
+    "at": [
+     -63.5,
+     102.0,
+     -44.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "rheinhart_adventure",
+     "rheinhart_cafe",
+     "rheinhart_classic",
+     "rheinhart_cruiser",
+     "rheinhart_naked"
+    ],
+    "off_mm": {
+     "rheinhart_adventure": 0.0,
+     "rheinhart_cafe": 0.0,
+     "rheinhart_classic": 0.0,
+     "rheinhart_cruiser": 37.5,
+     "rheinhart_naked": 0.0
+    },
+    "adapter": [
+     "rheinhart_cruiser"
+    ]
+   },
+   "intake": {
+    "at": [
+     -63.0,
+     117.0,
+     21.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "rheinhart_adventure",
+     "rheinhart_cafe",
+     "rheinhart_classic",
+     "rheinhart_cruiser",
+     "rheinhart_naked"
+    ],
+    "off_mm": {
+     "rheinhart_adventure": 0.0,
+     "rheinhart_cafe": 0.0,
+     "rheinhart_classic": 0.0,
+     "rheinhart_cruiser": 17.3,
+     "rheinhart_naked": 0.0
+    },
+    "adapter": [
+     "rheinhart_cruiser"
+    ]
+   },
+   "oil_filter": {
+    "at": [
+     177.0,
+     74.5,
+     -37.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "rheinhart_adventure",
+     "rheinhart_cafe",
+     "rheinhart_classic",
+     "rheinhart_cruiser",
+     "rheinhart_naked"
+    ],
+    "off_mm": {
+     "rheinhart_adventure": 0.0,
+     "rheinhart_cafe": 0.0,
+     "rheinhart_classic": 0.0,
+     "rheinhart_cruiser": 25.0,
+     "rheinhart_naked": 0.0
+    },
+    "adapter": [
+     "rheinhart_cruiser"
+    ]
+   },
+   "rocker_cover": {
+    "at": [
+     -20.0,
+     0.5,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "rheinhart_adventure",
+     "rheinhart_cafe",
+     "rheinhart_classic",
+     "rheinhart_cruiser",
+     "rheinhart_naked"
+    ],
+    "off_mm": {
+     "rheinhart_adventure": 0.0,
+     "rheinhart_cafe": 0.0,
+     "rheinhart_classic": 0.0,
+     "rheinhart_cruiser": 0.2,
+     "rheinhart_naked": 0.0
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -57.0,
+     126.0,
+     2.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "rheinhart_adventure",
+     "rheinhart_cafe",
+     "rheinhart_classic",
+     "rheinhart_cruiser",
+     "rheinhart_naked"
+    ],
+    "off_mm": {
+     "rheinhart_adventure": 0.0,
+     "rheinhart_cafe": 0.0,
+     "rheinhart_classic": 0.0,
+     "rheinhart_cruiser": 8.5,
+     "rheinhart_naked": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -45.5,
+     0.0,
+     -152.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "rheinhart_adventure",
+     "rheinhart_cafe",
+     "rheinhart_classic",
+     "rheinhart_cruiser",
+     "rheinhart_naked"
+    ],
+    "off_mm": {
+     "rheinhart_adventure": 0.0,
+     "rheinhart_cafe": 0.0,
+     "rheinhart_classic": 0.0,
+     "rheinhart_cruiser": 23.0,
+     "rheinhart_naked": 0.0
+    },
+    "adapter": [
+     "rheinhart_cruiser"
+    ]
+   }
+  },
+  "triple": {
+   "alternator_cover": {
+    "at": [
+     0.0,
+     208.5,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   },
+   "clutch_cover": {
+    "at": [
+     0.0,
+     217.2,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.1,
+     "hartwell_naked": 0.1,
+     "hartwell_sport": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     -28.2,
+     73.7,
+     -101.2
+    ],
+    "count": [
+     3
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   },
+   "intake": {
+    "at": [
+     58.4,
+     74.0,
+     89.9
+    ],
+    "count": [
+     3
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   },
+   "oil_filter": {
+    "at": [
+     162.0,
+     74.5,
+     -52.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     130.5,
+     0.0,
+     4.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -82.5,
+     186.0,
+     13.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -47.5,
+     0.0,
+     -136.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "hartwell_adventure",
+     "hartwell_naked",
+     "hartwell_sport"
+    ],
+    "off_mm": {
+     "hartwell_adventure": 0.0,
+     "hartwell_naked": 0.0,
+     "hartwell_sport": 0.0
+    },
+    "adapter": []
+   }
+  },
+  "inline4": {
+   "alternator_cover": {
+    "at": [
+     0.0,
+     208.5,
+     0.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 0.0,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   },
+   "clutch_cover": {
+    "at": [
+     0.0,
+     217.2,
+     0.0
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.1,
+     "kazeda_cafe": 0.1,
+     "kazeda_chopper": 0.1,
+     "kazeda_classic": 0.1,
+     "kazeda_naked": 0.1,
+     "kazeda_sport": 0.1
+    },
+    "adapter": []
+   },
+   "exhaust_port": {
+    "at": [
+     43.1,
+     83.0,
+     -67.8
+    ],
+    "count": [
+     4
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 2.3,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   },
+   "intake": {
+    "at": [
+     54.3,
+     82.8,
+     86.1
+    ],
+    "count": [
+     4
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 0.0,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   },
+   "oil_filter": {
+    "at": [
+     162.0,
+     74.5,
+     -52.5
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 0.0,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   },
+   "rocker_cover": {
+    "at": [
+     121.7,
+     0.0,
+     3.3
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 0.5,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   },
+   "side_case": {
+    "at": [
+     -82.5,
+     186.0,
+     13.5
+    ],
+    "count": [
+     2
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 0.0,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   },
+   "sump": {
+    "at": [
+     -47.5,
+     0.0,
+     -136.0
+    ],
+    "count": [
+     1
+    ],
+    "bikes": [
+     "kazeda_adventure",
+     "kazeda_cafe",
+     "kazeda_chopper",
+     "kazeda_classic",
+     "kazeda_naked",
+     "kazeda_sport"
+    ],
+    "off_mm": {
+     "kazeda_adventure": 0.0,
+     "kazeda_cafe": 0.0,
+     "kazeda_chopper": 0.0,
+     "kazeda_classic": 0.0,
+     "kazeda_naked": 0.0,
+     "kazeda_sport": 0.0
+    },
+    "adapter": []
+   }
+  }
+ },
+ "bikes": {
+  "corvano_adventure": {
+   "type": "vtwin90",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       42.8,
+       -36.0,
+       -77.1
+      ],
+      "size": [
+       58.0,
+       58.0,
+       16.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       42.8,
+       36.0,
+       -77.1
+      ],
+      "size": [
+       58.0,
+       58.0,
+       16.0
+      ]
+     },
+     {
+      "name": "portflange2",
+      "c": [
+       35.0,
+       40.0,
+       65.1
+      ],
+      "size": [
+       18.0,
+       58.0,
+       58.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -156.6,
+       0.0,
+       -280.0
+      ],
+      "size": [
+       61.0,
+       60.0,
+       61.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       35.0,
+       0.0,
+       -88.4
+      ],
+      "size": [
+       61.0,
+       60.0,
+       61.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       108.0,
+       9.0,
+       108.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       214.0,
+       44.0,
+       214.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       200.0,
+       53.0,
+       200.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       35.0,
+       -76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       35.0,
+       76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       35.0,
+       -76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       35.0,
+       76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       78.9,
+       0.0,
+       0.0
+      ],
+      "size": [
+       108.0,
+       122.0,
+       108.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       78.9,
+       0.0,
+       0.0
+      ],
+      "size": [
+       108.0,
+       122.0,
+       108.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -67.0,
+       -126.0,
+       1.5
+      ],
+      "size": [
+       402.0,
+       20.0,
+       263.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -67.0,
+       126.0,
+       1.5
+      ],
+      "size": [
+       402.0,
+       20.0,
+       263.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -29.0,
+       0.0,
+       -150.0
+      ],
+      "size": [
+       270.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       167.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "corvano_cafe": {
+   "type": "vtwin90",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       62.9,
+       40.0,
+       -85.2
+      ],
+      "size": [
+       61.0,
+       60.0,
+       18.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       38.2,
+       40.0,
+       56.9
+      ],
+      "size": [
+       18.0,
+       60.0,
+       61.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -148.5,
+       0.0,
+       -264.8
+      ],
+      "size": [
+       61.0,
+       60.0,
+       62.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       31.8,
+       0.0,
+       -84.5
+      ],
+      "size": [
+       61.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       108.0,
+       9.0,
+       108.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       214.0,
+       44.0,
+       214.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       200.0,
+       53.0,
+       200.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       31.5,
+       -72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       31.5,
+       72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       31.5,
+       -72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       31.5,
+       72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       72.5,
+       0.0,
+       0.0
+      ],
+      "size": [
+       102.0,
+       114.0,
+       102.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       72.5,
+       0.0,
+       0.0
+      ],
+      "size": [
+       102.0,
+       114.0,
+       102.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -60.5,
+       -126.0,
+       1.5
+      ],
+      "size": [
+       391.0,
+       20.0,
+       263.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -60.5,
+       126.0,
+       1.5
+      ],
+      "size": [
+       391.0,
+       20.0,
+       263.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -23.5,
+       0.0,
+       -150.0
+      ],
+      "size": [
+       259.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       167.0,
+       -74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "corvano_classic": {
+   "type": "vtwin90",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       42.4,
+       -40.0,
+       -76.7
+      ],
+      "size": [
+       61.0,
+       60.0,
+       18.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       36.1,
+       -40.0,
+       64.7
+      ],
+      "size": [
+       51.0,
+       60.0,
+       42.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -156.6,
+       0.0,
+       -280.0
+      ],
+      "size": [
+       61.0,
+       60.0,
+       61.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       35.0,
+       0.0,
+       -88.4
+      ],
+      "size": [
+       61.0,
+       60.0,
+       61.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       108.0,
+       9.0,
+       108.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       214.0,
+       44.0,
+       214.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       200.0,
+       53.0,
+       200.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       35.0,
+       -76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       35.0,
+       76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       35.0,
+       -76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       35.0,
+       76.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       78.9,
+       0.0,
+       0.0
+      ],
+      "size": [
+       108.0,
+       122.0,
+       108.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       78.9,
+       0.0,
+       0.0
+      ],
+      "size": [
+       108.0,
+       122.0,
+       108.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -67.0,
+       -126.0,
+       1.5
+      ],
+      "size": [
+       402.0,
+       20.0,
+       263.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -67.0,
+       126.0,
+       1.5
+      ],
+      "size": [
+       402.0,
+       20.0,
+       263.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -29.0,
+       0.0,
+       -150.0
+      ],
+      "size": [
+       270.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       167.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "corvano_cruiser": {
+   "type": "vtwin90",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       68.1,
+       -40.0,
+       -51.6
+      ],
+      "size": [
+       64.0,
+       64.0,
+       6.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       40.5,
+       -40.0,
+       32.2
+      ],
+      "size": [
+       47.0,
+       64.0,
+       52.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -183.2,
+       0.0,
+       -315.3
+      ],
+      "size": [
+       63.0,
+       60.0,
+       60.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       39.3,
+       0.0,
+       -91.4
+      ],
+      "size": [
+       60.0,
+       60.0,
+       63.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       108.0,
+       9.0,
+       108.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       214.0,
+       44.0,
+       214.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       200.0,
+       53.0,
+       200.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       39.5,
+       -79.5,
+       -0.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       39.5,
+       79.5,
+       -0.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       39.5,
+       -79.5,
+       -0.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       39.5,
+       79.5,
+       -0.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       89.2,
+       0.0,
+       -0.8
+      ],
+      "size": [
+       105.0,
+       128.0,
+       117.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       89.2,
+       0.0,
+       -0.8
+      ],
+      "size": [
+       117.0,
+       128.0,
+       105.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -67.0,
+       -126.0,
+       1.5
+      ],
+      "size": [
+       402.0,
+       20.0,
+       263.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -67.0,
+       126.0,
+       1.5
+      ],
+      "size": [
+       402.0,
+       20.0,
+       263.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -29.0,
+       0.0,
+       -150.0
+      ],
+      "size": [
+       270.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       167.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "corvano_mx": {
+   "type": "two_stroke",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -17.0,
+       -60.0,
+       -22.3
+      ],
+      "size": [
+       30.0,
+       92.0,
+       91.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       35.8,
+       0.0,
+       78.4
+      ],
+      "size": [
+       41.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       70.0,
+       9.0,
+       70.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       140.0,
+       44.0,
+       140.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       130.0,
+       53.0,
+       130.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       37.0,
+       -65.5,
+       0.5
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       37.0,
+       65.5,
+       0.5
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       87.1,
+       0.0,
+       2.9
+      ],
+      "size": [
+       110.0,
+       100.0,
+       51.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -57.5,
+       -126.0,
+       9.5
+      ],
+      "size": [
+       293.0,
+       20.0,
+       183.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -57.5,
+       126.0,
+       9.5
+      ],
+      "size": [
+       293.0,
+       20.0,
+       183.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -35.5,
+       0.0,
+       -95.0
+      ],
+      "size": [
+       233.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       117.0,
+       74.5,
+       -58.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "corvano_naked": {
+   "type": "vtwin90",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       46.3,
+       40.0,
+       -65.8
+      ],
+      "size": [
+       60.0,
+       60.0,
+       22.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       38.2,
+       -40.0,
+       56.9
+      ],
+      "size": [
+       18.0,
+       60.0,
+       61.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -148.5,
+       0.0,
+       -264.8
+      ],
+      "size": [
+       61.0,
+       60.0,
+       62.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       31.8,
+       0.0,
+       -84.5
+      ],
+      "size": [
+       61.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       108.0,
+       9.0,
+       108.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       214.0,
+       44.0,
+       214.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       200.0,
+       53.0,
+       200.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       31.5,
+       -72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       31.5,
+       72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       31.5,
+       -72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       31.5,
+       72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       72.5,
+       0.0,
+       0.0
+      ],
+      "size": [
+       102.0,
+       114.0,
+       102.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       72.5,
+       0.0,
+       0.0
+      ],
+      "size": [
+       102.0,
+       114.0,
+       102.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -60.5,
+       -126.0,
+       1.5
+      ],
+      "size": [
+       391.0,
+       20.0,
+       263.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -60.5,
+       126.0,
+       1.5
+      ],
+      "size": [
+       391.0,
+       20.0,
+       263.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -23.5,
+       0.0,
+       -150.0
+      ],
+      "size": [
+       259.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       167.0,
+       -74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "corvano_sport": {
+   "type": "vtwin90",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       42.1,
+       40.0,
+       -61.5
+      ],
+      "size": [
+       60.0,
+       60.0,
+       22.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       38.2,
+       -40.0,
+       56.9
+      ],
+      "size": [
+       18.0,
+       60.0,
+       61.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -148.5,
+       0.0,
+       -264.8
+      ],
+      "size": [
+       61.0,
+       60.0,
+       62.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       31.8,
+       0.0,
+       -84.5
+      ],
+      "size": [
+       61.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       108.0,
+       9.0,
+       108.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       214.0,
+       44.0,
+       214.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       200.0,
+       53.0,
+       200.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       31.5,
+       -72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       31.5,
+       72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       31.5,
+       -72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       31.5,
+       72.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       72.5,
+       0.0,
+       0.0
+      ],
+      "size": [
+       102.0,
+       114.0,
+       102.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       72.5,
+       0.0,
+       0.0
+      ],
+      "size": [
+       102.0,
+       114.0,
+       102.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -60.5,
+       -126.0,
+       1.5
+      ],
+      "size": [
+       391.0,
+       20.0,
+       263.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -60.5,
+       126.0,
+       1.5
+      ],
+      "size": [
+       391.0,
+       20.0,
+       263.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -23.5,
+       0.0,
+       -150.0
+      ],
+      "size": [
+       259.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       167.0,
+       -74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "hartwell_adventure": {
+   "type": "triple",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       -28.2,
+       -110.5,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       43.0,
+       10.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       -28.2,
+       0.0,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       44.0,
+       10.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       -28.2,
+       110.5,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       43.0,
+       10.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       58.4,
+       -111.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       58.4,
+       0.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       58.4,
+       111.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       130.5,
+       0.0,
+       4.0
+      ],
+      "size": [
+       140.0,
+       350.0,
+       71.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       -74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "hartwell_cafe": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -28.2,
+       -40.0,
+       -101.2
+      ],
+      "size": [
+       68.0,
+       68.0,
+       12.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       57.9,
+       0.0,
+       88.2
+      ],
+      "size": [
+       47.0,
+       60.0,
+       63.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       58.8,
+       -75.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       58.8,
+       75.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       130.0,
+       0.0,
+       3.8
+      ],
+      "size": [
+       126.0,
+       120.0,
+       66.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "hartwell_chopper": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -28.4,
+       -60.0,
+       -100.8
+      ],
+      "size": [
+       59.0,
+       60.0,
+       16.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       57.9,
+       0.0,
+       88.2
+      ],
+      "size": [
+       47.0,
+       60.0,
+       63.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       58.8,
+       -75.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       58.8,
+       75.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       130.0,
+       0.0,
+       3.8
+      ],
+      "size": [
+       126.0,
+       120.0,
+       66.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "hartwell_classic": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       29.6,
+       -60.0,
+       -62.5
+      ],
+      "size": [
+       44.0,
+       60.0,
+       48.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       57.9,
+       0.0,
+       83.4
+      ],
+      "size": [
+       46.0,
+       60.0,
+       64.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       58.8,
+       -70.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       58.8,
+       70.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       130.0,
+       0.0,
+       3.8
+      ],
+      "size": [
+       116.0,
+       110.0,
+       62.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "hartwell_naked": {
+   "type": "triple",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       -28.2,
+       -110.5,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       43.0,
+       10.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       -28.2,
+       0.0,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       44.0,
+       10.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       -28.2,
+       110.5,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       43.0,
+       10.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       58.4,
+       -111.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       58.4,
+       0.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       58.4,
+       111.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       130.5,
+       0.0,
+       4.0
+      ],
+      "size": [
+       140.0,
+       350.0,
+       71.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "hartwell_sport": {
+   "type": "triple",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       -28.2,
+       -110.5,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       43.0,
+       10.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       -28.2,
+       0.0,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       44.0,
+       10.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       -28.2,
+       110.5,
+       -101.2
+      ],
+      "size": [
+       44.0,
+       43.0,
+       10.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       58.4,
+       -111.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       58.4,
+       0.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       58.4,
+       111.0,
+       89.9
+      ],
+      "size": [
+       40.0,
+       52.0,
+       55.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       130.5,
+       0.0,
+       4.0
+      ],
+      "size": [
+       140.0,
+       350.0,
+       71.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_adventure": {
+   "type": "inline4",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       43.1,
+       -124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       43.1,
+       -41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       43.1,
+       41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_3",
+      "c": [
+       43.1,
+       124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       54.3,
+       -124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       54.3,
+       -41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       54.3,
+       41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub3",
+      "c": [
+       54.3,
+       124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       121.7,
+       0.0,
+       3.3
+      ],
+      "size": [
+       132.0,
+       350.0,
+       77.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       -74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_cafe": {
+   "type": "inline4",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       43.1,
+       -124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       43.1,
+       -41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       43.1,
+       41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_3",
+      "c": [
+       43.1,
+       124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       54.3,
+       -124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       54.3,
+       -41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       54.3,
+       41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub3",
+      "c": [
+       54.3,
+       124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       121.7,
+       0.0,
+       3.3
+      ],
+      "size": [
+       132.0,
+       350.0,
+       77.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_chopper": {
+   "type": "inline4",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       45.4,
+       -124.0,
+       -67.9
+      ],
+      "size": [
+       46.0,
+       46.0,
+       16.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       45.4,
+       -41.5,
+       -67.9
+      ],
+      "size": [
+       46.0,
+       45.0,
+       16.0
+      ]
+     },
+     {
+      "name": "portflange1_0",
+      "c": [
+       45.4,
+       41.5,
+       -67.9
+      ],
+      "size": [
+       46.0,
+       45.0,
+       16.0
+      ]
+     },
+     {
+      "name": "portflange1_1",
+      "c": [
+       45.4,
+       124.0,
+       -67.9
+      ],
+      "size": [
+       46.0,
+       46.0,
+       16.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       54.3,
+       -124.0,
+       86.1
+      ],
+      "size": [
+       43.0,
+       52.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       54.3,
+       -41.5,
+       86.1
+      ],
+      "size": [
+       43.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       54.3,
+       41.5,
+       86.1
+      ],
+      "size": [
+       43.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub3",
+      "c": [
+       54.3,
+       124.0,
+       86.1
+      ],
+      "size": [
+       43.0,
+       52.0,
+       56.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       121.5,
+       0.0,
+       3.8
+      ],
+      "size": [
+       132.0,
+       350.0,
+       77.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_classic": {
+   "type": "inline4",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       43.1,
+       -124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       43.1,
+       -41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       43.1,
+       41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_3",
+      "c": [
+       43.1,
+       124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       54.3,
+       -124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       54.3,
+       -41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       54.3,
+       41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub3",
+      "c": [
+       54.3,
+       124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       121.7,
+       0.0,
+       3.3
+      ],
+      "size": [
+       132.0,
+       350.0,
+       77.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_cruiser": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -63.8,
+       -40.0,
+       -82.4
+      ],
+      "size": [
+       57.0,
+       64.0,
+       40.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       56.3,
+       0.0,
+       124.3
+      ],
+      "size": [
+       42.0,
+       60.0,
+       63.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       57.9,
+       -111.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       57.9,
+       111.5,
+       0.0
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       127.8,
+       0.0,
+       3.0
+      ],
+      "size": [
+       198.0,
+       192.0,
+       75.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_mx": {
+   "type": "single",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       108.5,
+       -60.0,
+       25.0
+      ],
+      "size": [
+       29.0,
+       58.0,
+       55.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       48.9,
+       0.0,
+       -85.2
+      ],
+      "size": [
+       40.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       78.0,
+       9.0,
+       78.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       156.0,
+       44.0,
+       156.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       144.0,
+       53.0,
+       144.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       50.2,
+       -72.5,
+       0.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       50.2,
+       72.5,
+       0.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       113.4,
+       0.0,
+       -2.4
+      ],
+      "size": [
+       123.0,
+       114.0,
+       51.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -64.5,
+       -126.0,
+       11.0
+      ],
+      "size": [
+       327.0,
+       20.0,
+       204.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -64.5,
+       126.0,
+       11.0
+      ],
+      "size": [
+       327.0,
+       20.0,
+       204.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -39.0,
+       0.0,
+       -106.0
+      ],
+      "size": [
+       250.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       129.0,
+       74.5,
+       -56.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_naked": {
+   "type": "inline4",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       43.1,
+       -124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       43.1,
+       -41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       43.1,
+       41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_3",
+      "c": [
+       43.1,
+       124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       54.3,
+       -124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       54.3,
+       -41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       54.3,
+       41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub3",
+      "c": [
+       54.3,
+       124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       121.7,
+       0.0,
+       3.3
+      ],
+      "size": [
+       132.0,
+       350.0,
+       77.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "kazeda_sport": {
+   "type": "inline4",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0_0",
+      "c": [
+       43.1,
+       -124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_1",
+      "c": [
+       43.1,
+       -41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_2",
+      "c": [
+       43.1,
+       41.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     },
+     {
+      "name": "portflange0_3",
+      "c": [
+       43.1,
+       124.5,
+       -67.8
+      ],
+      "size": [
+       51.0,
+       51.0,
+       12.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       54.3,
+       -124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       54.3,
+       -41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub2",
+      "c": [
+       54.3,
+       41.5,
+       86.1
+      ],
+      "size": [
+       42.0,
+       53.0,
+       56.0
+      ]
+     },
+     {
+      "name": "inletstub3",
+      "c": [
+       54.3,
+       124.0,
+       86.1
+      ],
+      "size": [
+       42.0,
+       52.0,
+       56.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -230.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -204.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       208.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       121.7,
+       0.0,
+       3.3
+      ],
+      "size": [
+       132.0,
+       350.0,
+       77.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       186.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       316.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "lodestar_cafe": {
+   "type": "vtwin45",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -178.9,
+       -60.0,
+       -260.9
+      ],
+      "size": [
+       60.0,
+       60.0,
+       20.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -39.2,
+       -60.0,
+       76.3
+      ],
+      "size": [
+       42.0,
+       60.0,
+       52.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       -7.1,
+       0.0,
+       -212.0
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       38.8,
+       0.0,
+       -101.1
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       118.0,
+       9.0,
+       118.0
+      ]
+     },
+     {
+      "name": "clutchcap1",
+      "c": [
+       -217.0,
+       -170.5,
+       14.0
+      ],
+      "size": [
+       90.0,
+       9.0,
+       90.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       234.0,
+       44.0,
+       234.0
+      ]
+     },
+     {
+      "name": "clutchcover1",
+      "c": [
+       -217.0,
+       -144.0,
+       14.0
+      ],
+      "size": [
+       178.0,
+       44.0,
+       178.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       218.0,
+       53.0,
+       218.0
+      ]
+     },
+     {
+      "name": "altcover1",
+      "c": [
+       -217.0,
+       148.5,
+       14.0
+      ],
+      "size": [
+       166.0,
+       53.0,
+       166.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       -78.2,
+       -88.5,
+       -284.3
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       -78.2,
+       88.5,
+       -284.3
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       39.7,
+       -88.5,
+       0.3
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       39.7,
+       88.5,
+       0.3
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       -38.8,
+       0.0,
+       -317.3
+      ],
+      "size": [
+       147.0,
+       146.0,
+       84.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       90.9,
+       0.0,
+       -4.1
+      ],
+      "size": [
+       147.0,
+       146.0,
+       84.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -98.0,
+       -126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -98.0,
+       126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -69.0,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       352.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       163.0,
+       74.5,
+       -48.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "lodestar_chopper": {
+   "type": "vtwin45",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -131.5,
+       -60.0,
+       -252.2
+      ],
+      "size": [
+       54.0,
+       60.0,
+       39.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -3.5,
+       -80.0,
+       4.4
+      ],
+      "size": [
+       28.0,
+       60.0,
+       59.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       12.1,
+       0.0,
+       -165.5
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       38.9,
+       0.0,
+       -100.8
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       118.0,
+       9.0,
+       118.0
+      ]
+     },
+     {
+      "name": "clutchcap1",
+      "c": [
+       -217.0,
+       -170.5,
+       14.0
+      ],
+      "size": [
+       90.0,
+       9.0,
+       90.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       234.0,
+       44.0,
+       234.0
+      ]
+     },
+     {
+      "name": "clutchcover1",
+      "c": [
+       -217.0,
+       -144.0,
+       14.0
+      ],
+      "size": [
+       178.0,
+       44.0,
+       178.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       218.0,
+       53.0,
+       218.0
+      ]
+     },
+     {
+      "name": "altcover1",
+      "c": [
+       -217.0,
+       148.5,
+       14.0
+      ],
+      "size": [
+       166.0,
+       53.0,
+       166.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       -59.0,
+       -88.5,
+       -237.8
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       39.8,
+       -88.5,
+       0.5
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       -19.4,
+       0.0,
+       -270.4
+      ],
+      "size": [
+       146.0,
+       146.0,
+       84.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       90.8,
+       0.0,
+       -4.3
+      ],
+      "size": [
+       146.0,
+       146.0,
+       84.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -98.0,
+       -126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -98.0,
+       126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -69.0,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       352.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       163.0,
+       74.5,
+       -48.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "lodestar_classic": {
+   "type": "vtwin45",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -138.9,
+       -60.0,
+       -260.9
+      ],
+      "size": [
+       60.0,
+       60.0,
+       20.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       0.8,
+       -60.0,
+       76.3
+      ],
+      "size": [
+       42.0,
+       60.0,
+       52.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       4.5,
+       0.0,
+       -183.9
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       38.9,
+       0.0,
+       -100.8
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       118.0,
+       9.0,
+       118.0
+      ]
+     },
+     {
+      "name": "clutchcap1",
+      "c": [
+       -217.0,
+       -170.5,
+       14.0
+      ],
+      "size": [
+       90.0,
+       9.0,
+       90.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       234.0,
+       44.0,
+       234.0
+      ]
+     },
+     {
+      "name": "clutchcover1",
+      "c": [
+       -217.0,
+       -144.0,
+       14.0
+      ],
+      "size": [
+       178.0,
+       44.0,
+       178.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       218.0,
+       53.0,
+       218.0
+      ]
+     },
+     {
+      "name": "altcover1",
+      "c": [
+       -217.0,
+       148.5,
+       14.0
+      ],
+      "size": [
+       166.0,
+       53.0,
+       166.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       -66.6,
+       -88.5,
+       -256.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       -66.6,
+       88.5,
+       -256.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       39.8,
+       -88.5,
+       0.6
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       39.8,
+       88.5,
+       0.6
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       -27.1,
+       0.0,
+       -288.8
+      ],
+      "size": [
+       146.0,
+       146.0,
+       84.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       90.8,
+       0.0,
+       -4.3
+      ],
+      "size": [
+       146.0,
+       146.0,
+       84.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -98.0,
+       -126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -98.0,
+       126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -69.0,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       352.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       163.0,
+       74.5,
+       -48.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "lodestar_cruiser": {
+   "type": "vtwin45",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -138.9,
+       -40.0,
+       -260.9
+      ],
+      "size": [
+       62.0,
+       62.0,
+       22.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       0.3,
+       -40.0,
+       76.5
+      ],
+      "size": [
+       44.0,
+       62.0,
+       53.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       4.5,
+       0.0,
+       -183.9
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     },
+     {
+      "name": "inletstub1",
+      "c": [
+       38.9,
+       0.0,
+       -100.8
+      ],
+      "size": [
+       50.0,
+       60.0,
+       64.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       118.0,
+       9.0,
+       118.0
+      ]
+     },
+     {
+      "name": "clutchcap1",
+      "c": [
+       -217.0,
+       -170.5,
+       14.0
+      ],
+      "size": [
+       90.0,
+       9.0,
+       90.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       234.0,
+       44.0,
+       234.0
+      ]
+     },
+     {
+      "name": "clutchcover1",
+      "c": [
+       -217.0,
+       -144.0,
+       14.0
+      ],
+      "size": [
+       178.0,
+       44.0,
+       178.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       218.0,
+       53.0,
+       218.0
+      ]
+     },
+     {
+      "name": "altcover1",
+      "c": [
+       -217.0,
+       148.5,
+       14.0
+      ],
+      "size": [
+       166.0,
+       53.0,
+       166.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       -66.6,
+       -88.5,
+       -256.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       -66.6,
+       88.5,
+       -256.2
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap1-1",
+      "c": [
+       39.8,
+       -88.5,
+       0.6
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap11",
+      "c": [
+       39.8,
+       88.5,
+       0.6
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       -27.1,
+       0.0,
+       -288.8
+      ],
+      "size": [
+       146.0,
+       146.0,
+       84.0
+      ]
+     },
+     {
+      "name": "cover1",
+      "c": [
+       90.8,
+       0.0,
+       -4.3
+      ],
+      "size": [
+       146.0,
+       146.0,
+       84.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -98.0,
+       -126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -98.0,
+       126.0,
+       11.0
+      ],
+      "size": [
+       448.0,
+       20.0,
+       260.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -69.0,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       352.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       163.0,
+       74.5,
+       -48.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "rheinhart_adventure": {
+   "type": "boxer",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub1",
+      "c": [
+       -63.0,
+       -117.0,
+       21.5
+      ],
+      "size": [
+       42.0,
+       54.0,
+       57.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "boxercover-1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     },
+     {
+      "name": "boxercover1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -57.0,
+       -126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -57.0,
+       126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -45.5,
+       0.0,
+       -152.0
+      ],
+      "size": [
+       309.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       177.0,
+       -74.5,
+       -37.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "rheinhart_cafe": {
+   "type": "boxer",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub1",
+      "c": [
+       -63.0,
+       -117.0,
+       21.5
+      ],
+      "size": [
+       42.0,
+       54.0,
+       57.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "boxercover-1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     },
+     {
+      "name": "boxercover1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -57.0,
+       -126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -57.0,
+       126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -45.5,
+       0.0,
+       -152.0
+      ],
+      "size": [
+       309.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       177.0,
+       -74.5,
+       -37.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "rheinhart_classic": {
+   "type": "boxer",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub1",
+      "c": [
+       -63.0,
+       -117.0,
+       21.5
+      ],
+      "size": [
+       42.0,
+       54.0,
+       57.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "boxercover-1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     },
+     {
+      "name": "boxercover1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -57.0,
+       -126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -57.0,
+       126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -45.5,
+       0.0,
+       -152.0
+      ],
+      "size": [
+       309.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       177.0,
+       -74.5,
+       -37.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "rheinhart_cruiser": {
+   "type": "boxer",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -63.5,
+       116.7,
+       -7.0
+      ],
+      "size": [
+       44.0,
+       61.0,
+       50.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -63.5,
+       116.7,
+       -7.0
+      ],
+      "size": [
+       44.0,
+       61.0,
+       50.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub1",
+      "c": [
+       -63.0,
+       -134.3,
+       21.5
+      ],
+      "size": [
+       42.0,
+       54.0,
+       57.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "boxercover-1",
+      "c": [
+       -20.0,
+       0.7,
+       0.0
+      ],
+      "size": [
+       248.0,
+       40.0,
+       144.0
+      ]
+     },
+     {
+      "name": "boxercover1",
+      "c": [
+       -20.0,
+       0.7,
+       0.0
+      ],
+      "size": [
+       248.0,
+       40.0,
+       144.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -65.5,
+       -126.0,
+       2.5
+      ],
+      "size": [
+       461.0,
+       20.0,
+       313.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -65.5,
+       126.0,
+       2.5
+      ],
+      "size": [
+       461.0,
+       20.0,
+       313.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -52.0,
+       0.0,
+       -175.0
+      ],
+      "size": [
+       340.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       202.0,
+       -74.5,
+       -32.0
+      ],
+      "size": [
+       76.0,
+       67.0,
+       80.0
+      ]
+     }
+    ]
+   }
+  },
+  "rheinhart_naked": {
+   "type": "boxer",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     },
+     {
+      "name": "portflange1",
+      "c": [
+       -63.5,
+       102.0,
+       -44.5
+      ],
+      "size": [
+       38.0,
+       59.0,
+       53.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub1",
+      "c": [
+       -63.0,
+       -117.0,
+       21.5
+      ],
+      "size": [
+       42.0,
+       54.0,
+       57.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "boxercover-1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     },
+     {
+      "name": "boxercover1",
+      "c": [
+       -20.0,
+       0.5,
+       0.0
+      ],
+      "size": [
+       215.0,
+       40.0,
+       126.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -57.0,
+       -126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -57.0,
+       126.0,
+       2.0
+      ],
+      "size": [
+       400.0,
+       20.0,
+       272.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -45.5,
+       0.0,
+       -152.0
+      ],
+      "size": [
+       309.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       177.0,
+       -74.5,
+       -37.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "varga_adventure": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -38.1,
+       40.0,
+       -60.2
+      ],
+      "size": [
+       47.0,
+       60.0,
+       47.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       53.7,
+       0.0,
+       86.4
+      ],
+      "size": [
+       43.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       54.8,
+       -73.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       54.8,
+       73.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       122.4,
+       0.0,
+       3.0
+      ],
+      "size": [
+       124.0,
+       116.0,
+       57.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       -74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "varga_mx": {
+   "type": "single",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       68.9,
+       -50.0,
+       -35.6
+      ],
+      "size": [
+       20.0,
+       56.0,
+       56.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       50.7,
+       0.0,
+       87.7
+      ],
+      "size": [
+       39.0,
+       60.0,
+       61.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       78.0,
+       9.0,
+       78.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       156.0,
+       44.0,
+       156.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       144.0,
+       53.0,
+       144.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       52.5,
+       -74.5,
+       0.1
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       52.5,
+       74.5,
+       0.1
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       117.0,
+       0.0,
+       2.4
+      ],
+      "size": [
+       128.0,
+       118.0,
+       50.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -64.5,
+       -126.0,
+       11.0
+      ],
+      "size": [
+       327.0,
+       20.0,
+       204.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -64.5,
+       126.0,
+       11.0
+      ],
+      "size": [
+       327.0,
+       20.0,
+       204.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -39.0,
+       0.0,
+       -106.0
+      ],
+      "size": [
+       250.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       129.0,
+       74.5,
+       -56.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "varga_naked": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       27.1,
+       -40.0,
+       64.8
+      ],
+      "size": [
+       24.0,
+       60.0,
+       60.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       53.7,
+       0.0,
+       86.4
+      ],
+      "size": [
+       43.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       54.8,
+       -73.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       54.8,
+       73.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       122.4,
+       0.0,
+       3.0
+      ],
+      "size": [
+       124.0,
+       116.0,
+       57.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  },
+  "varga_sport": {
+   "type": "parallel_twin",
+   "joints": {
+    "exhaust_port": [
+     {
+      "name": "portflange0",
+      "c": [
+       -38.1,
+       -40.0,
+       -60.2
+      ],
+      "size": [
+       47.0,
+       60.0,
+       47.0
+      ]
+     }
+    ],
+    "intake": [
+     {
+      "name": "inletstub0",
+      "c": [
+       53.7,
+       0.0,
+       86.4
+      ],
+      "size": [
+       43.0,
+       60.0,
+       62.0
+      ]
+     }
+    ],
+    "clutch_cover": [
+     {
+      "name": "clutchcap0",
+      "c": [
+       0.0,
+       -170.5,
+       0.0
+      ],
+      "size": [
+       100.0,
+       9.0,
+       100.0
+      ]
+     },
+     {
+      "name": "clutchcover0",
+      "c": [
+       0.0,
+       -144.0,
+       0.0
+      ],
+      "size": [
+       198.0,
+       44.0,
+       198.0
+      ]
+     }
+    ],
+    "alternator_cover": [
+     {
+      "name": "altcover0",
+      "c": [
+       0.0,
+       148.5,
+       0.0
+      ],
+      "size": [
+       184.0,
+       53.0,
+       184.0
+      ]
+     }
+    ],
+    "cam_caps": [
+     {
+      "name": "camcap0-1",
+      "c": [
+       54.8,
+       -73.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     },
+     {
+      "name": "camcap01",
+      "c": [
+       54.8,
+       73.5,
+       -0.4
+      ],
+      "size": [
+       54.0,
+       9.0,
+       54.0
+      ]
+     }
+    ],
+    "rocker_cover": [
+     {
+      "name": "cover0",
+      "c": [
+       122.4,
+       0.0,
+       3.0
+      ],
+      "size": [
+       124.0,
+       116.0,
+       57.0
+      ]
+     }
+    ],
+    "side_case": [
+     {
+      "name": "sidecase-1",
+      "c": [
+       -82.5,
+       -126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     },
+     {
+      "name": "sidecase1",
+      "c": [
+       -82.5,
+       126.0,
+       13.5
+      ],
+      "size": [
+       419.0,
+       20.0,
+       261.0
+      ]
+     }
+    ],
+    "sump": [
+     {
+      "name": "sump",
+      "c": [
+       -47.5,
+       0.0,
+       -136.0
+      ],
+      "size": [
+       293.0,
+       196.0,
+       30.0
+      ]
+     }
+    ],
+    "oil_filter": [
+     {
+      "name": "svc_oil_filter",
+      "c": [
+       162.0,
+       74.5,
+       -52.5
+      ],
+      "size": [
+       76.0,
+       67.0,
+       79.0
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

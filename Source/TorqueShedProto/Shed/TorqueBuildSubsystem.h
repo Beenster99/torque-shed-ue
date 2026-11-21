@@ -83,6 +83,11 @@ struct FTorqueItem
 	int32 Mask = 0;
 	FLinearColor MaskColour = FLinearColor::White;
 	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	// A fade's middle along its way across the part (cm in the part's frame from its middle) and
+	// which end the mask's colour is at (+1: the front or the top; -1: the back or the bottom): where
+	// the second cup went on in the spray game (beenster, 19 Nov 2026).
+	float FadeAt = 0.0f;
+	float FadeDir = 1.0f;
 	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
 	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
 	FString Badge;
@@ -278,6 +283,9 @@ enum class ETorqueShedAct : uint8
 	GarageFit,
 	GarageOff,
 	GarageStow,
+	// Bay Bay's bike renamed Text (TorqueFurniture::CleanLabel: printable, trimmed, 24 at most; never
+	// empty): N (D-pad up) next to a bike, as Torque Shed's rename box (beenster, Nov 19).
+	NameBike,
 	Count
 };
 
@@ -393,6 +401,9 @@ public:
 	int32 NumBikes() const { return Bikes.Num(); }
 	bool Exists(int32 Bay) const { return Bikes.IsValidIndex(Bay) && Bikes[Bay].bExists; }
 	const FTorqueShedBike& Bike(int32 Bay) const;
+	// The names a project bike can come in with (shed_state BIKE_NAMES), for the rename box's ideas.
+	static int32 BikeNameIdeas();
+	static FString BikeNameIdea(int32 Index);
 	// A bay's bike as the fitment API draws it (a stock Speed Twin for an empty or unknown bay).
 	const FTorqueBuild& Get(int32 Bay) const;
 	// Whether a part of the drawn model is on the bike (its slot has something in it).
@@ -582,6 +593,12 @@ public:
 	static bool IsCupFinish(FName F) { return F == CupFinish() || F == Cup2Finish() || F == FadeFinish(); }
 	// The cup a cup finish sprays (a fade: cup 2, the colour that goes over).
 	static int32 CupWhich(FName F) { return F == CupFinish() ? 0 : 1; }
+	// One of the gun's colours (Paints()) in one of its finishes, as paint for a cup: what [ and ]
+	// pick into cup 1 and cup 2 (beenster, 19 Nov 2026).
+	// Colour < 0 is any colour from the cups picker's colour square (beenster, 20 Nov 2026: "a colour
+	// picker, not the limited palette"): -(1 + 0xRRGGBB), sRGB (OwnColour makes it).
+	static TorquePaintMix::FPaintSpec PaletteSpec(int32 Colour, FName Finish);
+	static int32 OwnColour(const FColor& Srgb) { return -(1 + (int32)(((uint32)Srgb.R << 16) | ((uint32)Srgb.G << 8) | (uint32)Srgb.B)); }
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }
@@ -646,6 +663,19 @@ public:
 	// The tyres that go on a wheel (beenster, Nov 12: "when you hover over a wheel rim, it should tell
 	// you what tyres fit it"): its rim and the widths it takes, then the catalogue's tyres for it.
 	static FString TyresThatFit(FName Wheel);
+	// [shop bay] The parts computer cut to the bike in a bay (beenster, Nov 20: "the frame you buy then defines the
+	// engines, the engines you buy then defines some of the engine parts... the same with the wheels, tyres"): for
+	// each of Parts that won't go on bay Bay's bike, why (as fitting it would say: a V2 part's mounting standard,
+	// the frame / engine / tank / fork layout check, a tyre that no wheel the bike has or can take will carry). Parts
+	// it can't judge, and frames (a frame starts a bike, it doesn't go on one), stay out of the map. Sides: for each
+	// wheel and tyre, 1 it goes on the front, 2 the rear, 3 either (a tyre: on this bike's wheels, or the wheels its
+	// frame takes when there's none on yet). False when there's no catalogue bike in the bay (nothing judged).
+	// With no engine in the frame, the parts that bolt to an engine go by both (beenster, Nov 20: "both"): the loose
+	// engine being built up for it (one that fits the frame, the one on the engine stand first) and the frame;
+	// OutEngine says which engine that was (NAME_None: none, they go by the frame's own engine layout).
+	bool ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides, FName* OutEngine = nullptr) const;
+	// A tyre's sides on any bike in the game (every wheel the shop sells): 1 front, 2 rear, 3 either, 0 none.
+	static int32 TyreSides(FName Tyre);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
 	float BeadOf(int32 Bay, bool bFront) const;
 
@@ -708,6 +738,9 @@ public:
 	FTorqueBikeEvent OnChanged;
 	FTorqueBikeEvent OnLooks;
 	FSimpleMulticastDelegate OnItems;
+
+	// [engine parts] The robot's v2fit:SLOT:PART check (TorqueShedTest): V2FitReason on bay Bay's bike.
+	FString TestV2FitReason(int32 Bay, FName Slot, FName Part) const { return V2FitReason(Bay, 0, Slot, Part); }
 
 private:
 	TArray<FTorqueShedBike> Bikes;
@@ -844,7 +877,7 @@ private:
 	FString ApplyPaintBay(int32 Peer, const FTorqueShedRequest& R);
 	FString CheckCup(int32 Peer, const FTorqueItem& It, FName Finish) const;
 	float SprayFromCup(int32 Peer, FTorqueItem& It, int32 Which, float Share = 1.0f);
-	float FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern);
+	float FadeFromCups(int32 Peer, FTorqueItem& It, int32 Pattern, float At, float Dir);
 	static float LaySpec(FTorqueItem& It, const TorquePaintMix::FPaintSpec& S);
 	// After a change: redraw what changed, save, tell the net layer.
 	void RebuildBuild(int32 Bay);

@@ -183,7 +183,9 @@ int main()
 					{
 						++Lined[Sub];
 						// (A silencer goes by its front end, where the pipe meets it; a plate hanger can be a side one for a tidy.)
-						const double Off = Sub == "silencer" ? Dist(V3(Old.Hi.x, Old.Mid().y, Old.Mid().z), V3(New.Hi.x, New.Mid().y, New.Mid().z)) : Dist(Old.Mid(), New.Mid());
+						// (A long one, a classic's megaphone: the can at its rear end and a link pipe from its front, so both ends match.)
+						const double Ends = std::max(std::fabs(Old.Hi.x - New.Hi.x), std::fabs(Old.Lo.x - New.Lo.x));
+						const double Off = Sub == "silencer" ? std::min(Ends, Dist(V3(Old.Hi.x, Old.Mid().y, Old.Mid().z), V3(New.Hi.x, New.Mid().y, New.Mid().z))) : Dist(Old.Mid(), New.Mid());
 						Expect(Off < (Sub == "bar" ? 0.2 : Sub == "plate_hanger" ? 0.1 : 0.06), Frame + ": " + E.Id + " " + Sub + " where the bike's was (" + std::to_string(Off) + " m off)");
 					}
 					else ++ByAnchor[Sub];
@@ -223,9 +225,19 @@ int main()
 		size_t Base = 1;
 		for (const FittedPart& P : Placer.Fit(Parts, L))
 		{
-			if (P.Hidden || !P.Made) continue;
+			if (P.Hidden) continue;
+			// (a part drawn from the game's own part glbs, as the game loads it: the brake pads)
+			std::shared_ptr<const PartMesh> Loaded = P.Made;
+			if (!Loaded)
+			{
+				std::string Bytes, Err;
+				PartMesh G;
+				if (!ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !G.LoadGlb(Bytes, Err)) continue;
+				Loaded = std::make_shared<PartMesh>(BikeParts::Draw(G, P));
+			}
+			const PartMesh* Mesh = Loaded.get();
 			Obj << "o " << P.Slot << "_" << (P.Sub.empty() ? "piece" : P.Sub) << (P.Glb.rfind("v2c/", 0) == 0 ? "_COMMON" : "") << "\n";
-			for (const PartSurface& S : P.Made->Surfaces)
+			for (const PartSurface& S : Mesh->Surfaces)
 			{
 				for (const V3& Q : S.Pos) Obj << "v " << Q.x << " " << Q.y << " " << Q.z << "\n";
 				for (size_t T = 0; T + 2 < S.Idx.size(); T += 3) Obj << "f " << Base + S.Idx[T] << " " << Base + S.Idx[T + 1] << " " << Base + S.Idx[T + 2] << "\n";

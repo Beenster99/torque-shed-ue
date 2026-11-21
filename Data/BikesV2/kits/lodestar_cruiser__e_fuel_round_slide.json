@@ -1,0 +1,103 @@
+{
+ "name": "Lodestar cruiser (working title R1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 4004,
+ "surfaces": {
+  "s015": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "alu",
+   "tag": "alu",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s016": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s017": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s018": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "d3_fuelfilter",
+   "tag": "d3_fuelfilter",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.58
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "s019": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "d3_fuelhose",
+   "tag": "d3_fuelhose",
+   "ue": "cat_rubber",
+   "color": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "s020": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "alu_cast",
+   "tag": "alu_cast",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.42,
+    0.43,
+    0.45
+   ],
+   "metallic": 0.9,
+   "roughness": 0.55
+  },
+  "s021": {
+   "slot": "fuel",
+   "node": "",
+   "surface": "chrome",
+   "tag": "chrome",
+   "ue": "chrome"
+  }
+ },
+ "engine_part": {
+  "slot": "fuel",
+  "look": "round_slide",
+  "fuel": "round_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": "polished",
+  "case": "stock",
+  "header": "ceramic",
+  "oil": "chrome"
+ }
+}

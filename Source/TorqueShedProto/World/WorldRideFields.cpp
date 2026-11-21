@@ -3,6 +3,7 @@
 // grass) and stands its own things on it: a quarry's worked faces along its edges, headstones in loose
 // rows facing east, the allotments' sheds, and (in PlantsTile) an orchard's trees in rows.
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 
 #include <algorithm>
 #include <cmath>
@@ -151,6 +152,295 @@ void RidePlan::IndexFields()
 		for (double Z = std::floor(F.MinZ / FieldCell) * FieldCell; Z <= F.MaxZ; Z += FieldCell)
 			for (double X = std::floor(F.MinX / FieldCell) * FieldCell; X <= F.MaxX; X += FieldCell) Scene->Fields[FieldKey(X + 1.0, Z + 1.0)].push_back(Index);
 		FieldAreas.push_back(std::move(F));
+	}
+	// [churches stage 5] (the churchyards, made ones among the field areas)
+	IndexChurchyards();
+}
+
+double RidePlan::OffChurch(const Churchyard& Y, double X, double Z) const
+{
+	const double Qx = X - Y.Church.X, Qz = Z - Y.Church.Z;
+	const double U = std::fabs(Qx * Y.Cs - Qz * Y.Sn) - Y.HalfU, V = std::fabs(Qx * Y.Sn + Qz * Y.Cs) - Y.HalfV;
+	return U > 0.0 && V > 0.0 ? std::hypot(U, V) : std::fmax(U, V);
+}
+
+void RidePlan::IndexChurchyards()
+{
+	using namespace RideFieldsBits;
+	Churchyards.clear();
+	if (!Scene) return;
+	const Region& G = Area.Roads;
+	const std::shared_ptr<const ChurchKit> Kit = ChurchKitNow();
+	const auto OffRoad = [this](double X, double Z, double Spare)
+	{
+		NearOpts Opts;
+		NearHit Hit;
+		return !NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + Spare;
+	};
+	// (in a building other than the church's own pieces, Spare round it)
+	const auto InOther = [&](double X, double Z, double Spare, const std::vector<int>& Own)
+	{
+		const long long Key = static_cast<long long>(std::floor(X / BuildingCell)) * 4000037LL + static_cast<long long>(std::floor(Z / BuildingCell));
+		const auto It = Scene->Buildings.find(Key);
+		if (It == Scene->Buildings.end()) return false;
+		for (int B : It->second)
+		{
+			if (std::find(Own.begin(), Own.end(), B) != Own.end()) continue;
+			const Building& H = G.Buildings[size_t(B)];
+			const double C = std::cos(H.Yaw), S = std::sin(H.Yaw), Dx = X - H.X, Dz = Z - H.Z;
+			if (std::fabs(Dx * C - Dz * S) < H.W * 0.5 + Spare && std::fabs(Dx * S + Dz * C) < H.D * 0.5 + Spare) return true;
+		}
+		return false;
+	};
+	// (the places of worship, biggest first; a smaller one within 30 m of a bigger is a piece of it)
+	std::vector<int> Worship;
+	for (size_t I = 0; I < G.Buildings.size(); ++I)
+	{
+		const Building& B = G.Buildings[I];
+		if (!B.More.empty() && int(B.More[0]) == 6 && B.W >= 2.0 && B.D >= 2.0) Worship.push_back(int(I));
+	}
+	std::sort(Worship.begin(), Worship.end(), [&G](int A, int B) { return G.Buildings[size_t(A)].W * G.Buildings[size_t(A)].D > G.Buildings[size_t(B)].W * G.Buildings[size_t(B)].D; });
+	std::vector<char> Used(Worship.size(), 0);
+	// (the map's own walls, fences and hedges, each line's box, to leave a yard's edge to them)
+	struct LineBox { const FeatureLine* L; double X0, Z0, X1, Z1; };
+	std::vector<LineBox> Bounds;
+	for (const FeatureLine& L : G.Scenery.Lines)
+	{
+		if (L.Line.size() < 2 || !(L.Kind == "wall" || L.Kind == "fence" || L.Kind == "hedge" || L.Kind == "retaining_wall" || L.Kind == "city_wall")) continue;
+		LineBox Lb{&L, L.Line[0].X, L.Line[0].Z, L.Line[0].X, L.Line[0].Z};
+		for (const P2& P : L.Line) { Lb.X0 = std::fmin(Lb.X0, P.X); Lb.X1 = std::fmax(Lb.X1, P.X); Lb.Z0 = std::fmin(Lb.Z0, P.Z); Lb.Z1 = std::fmax(Lb.Z1, P.Z); }
+		Bounds.push_back(Lb);
+	}
+	const auto SegDist = [](const P2& A, const P2& B, double X, double Z)
+	{
+		const double Ux = B.X - A.X, Uz = B.Z - A.Z, L2 = Ux * Ux + Uz * Uz;
+		const double T = L2 > 1e-9 ? std::clamp(((X - A.X) * Ux + (Z - A.Z) * Uz) / L2, 0.0, 1.0) : 0.0;
+		return std::hypot(A.X + Ux * T - X, A.Z + Uz * T - Z);
+	};
+	for (size_t Wi = 0; Wi < Worship.size(); ++Wi)
+	{
+		if (Used[Wi]) continue;
+		Used[Wi] = 1;
+		const Building& B = G.Buildings[size_t(Worship[Wi])];
+		const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+		double U0 = -B.W * 0.5, U1 = B.W * 0.5, V0 = -B.D * 0.5, V1 = B.D * 0.5;
+		std::vector<int> Own{Worship[Wi]};
+		for (size_t Wj = Wi + 1; Wj < Worship.size(); ++Wj)
+		{
+			const Building& P = G.Buildings[size_t(Worship[Wj])];
+			if (Used[Wj] || std::hypot(P.X - B.X, P.Z - B.Z) > 30.0) continue;
+			Used[Wj] = 1;
+			Own.push_back(Worship[Wj]);
+			const double Pc = std::cos(P.Yaw), Ps = std::sin(P.Yaw);
+			for (double Su : {-0.5, 0.5})
+				for (double Sv : {-0.5, 0.5})
+				{
+					const double Qx = P.X + Su * P.W * Pc + Sv * P.D * Ps - B.X, Qz = P.Z - Su * P.W * Ps + Sv * P.D * Pc - B.Z;
+					const double U = Qx * Cs - Qz * Sn, V = Qx * Sn + Qz * Cs;
+					U0 = std::fmin(U0, U); U1 = std::fmax(U1, U); V0 = std::fmin(V0, V); V1 = std::fmax(V1, V);
+				}
+		}
+		const double Area0 = (U1 - U0) * (V1 - V0);
+		if (Area0 < 55.0 || Area0 > 1500.0) continue;
+		Churchyard Y;
+		const double Um = (U0 + U1) * 0.5, Vm = (V0 + V1) * 0.5;
+		Y.Church = P2(B.X + Um * Cs + Vm * Sn, B.Z - Um * Sn + Vm * Cs);
+		Y.Cs = Cs; Y.Sn = Sn; Y.HalfU = (U1 - U0) * 0.5; Y.HalfV = (V1 - V0) * 0.5;
+		const auto Local = [&Y](double U, double V) { return P2(Y.Church.X + U * Y.Cs + V * Y.Sn, Y.Church.Z - U * Y.Sn + V * Y.Cs); };
+		// (its name: a chapel's has no lychgate)
+		std::string Name;
+		double NameDist = 40.0;
+		for (const TorqueFit::Json& Mark : G.Landmarks)
+		{
+			const double Md = std::hypot(Mark.Num("x") - Y.Church.X, Mark.Num("z") - Y.Church.Z);
+			if (Md < NameDist && Mark.Str("kind") == "worship") { NameDist = Md; Name = Mark.Str("name"); }
+		}
+		if (Kit && Kit->NameKind(Name) == 2) continue;
+		Y.Chapel = Kit && Kit->NameKind(Name) == 1;
+		// (the map's graveyard round it: the smallest that holds it or reaches within 6 m of it)
+		int Mapped = -1;
+		for (size_t Fi = 0; Fi < FieldAreas.size(); ++Fi)
+		{
+			const FieldArea& F = FieldAreas[Fi];
+			if (F.Kind != FieldGraves || F.Yard >= 0 || F.MaxX < Y.Church.X - 60.0 || F.MinX > Y.Church.X + 60.0 || F.MaxZ < Y.Church.Z - 60.0 || F.MinZ > Y.Church.Z + 60.0) continue;
+			bool Near = InRing(F.Ring, Y.Church.X, Y.Church.Z);
+			for (size_t K = 0; K < F.Ring.size() && !Near; ++K)
+			{
+				const P2& A = F.Ring[K];
+				Near = OffChurch(Y, A.X, A.Z) < 6.0 || SegDist(A, F.Ring[(K + 1) % F.Ring.size()], Y.Church.X, Y.Church.Z) < std::fmax(Y.HalfU, Y.HalfV) + 6.0;
+			}
+			if (Near && (Mapped < 0 || F.BoxArea < FieldAreas[size_t(Mapped)].BoxArea)) Mapped = int(Fi);
+		}
+		std::vector<P2> Ring;
+		if (Mapped >= 0) Ring = FieldAreas[size_t(Mapped)].Ring;
+		else
+		{
+			// (none mapped: out of a town, a yard made round it, each side out as far as 8 m while clear of the
+			// roads, the other buildings and the map's other grounds; under 3 m, none that side)
+			if (TownLookAt(Y.Church.X, Y.Church.Z) != nullptr) continue;
+			double Grow[4] = {0.0, 0.0, 0.0, 0.0};   // (-u, +u, -v, +v)
+			for (int Side = 0; Side < 4; ++Side)
+				for (double M = 1.0; M <= 8.0; M += 1.0)
+				{
+					bool Clear = true;
+					const bool AlongV = Side < 2;   // (the -u and +u sides run along v)
+					const double Fixed = (Side % 2 == 0 ? -1.0 : 1.0) * ((AlongV ? Y.HalfU : Y.HalfV) + M);
+					const double Run = (AlongV ? Y.HalfV : Y.HalfU) + 2.0;
+					for (double T = -Run; T <= Run + 1e-6 && Clear; T += 2.0)
+					{
+						const P2 Q = AlongV ? Local(Fixed, T) : Local(T, Fixed);
+						Clear = OffRoad(Q.X, Q.Z, 1.5) && !InOther(Q.X, Q.Z, 1.0, Own) && FieldAt(Q.X, Q.Z) < 0;
+					}
+					if (!Clear) break;
+					Grow[Side] = M;
+				}
+			for (double& Gs : Grow) if (Gs < 3.0) Gs = 0.0;
+			if (Grow[0] + Grow[1] + Grow[2] + Grow[3] < 6.0) continue;
+			const double A0 = -Y.HalfU - Grow[0], A1 = Y.HalfU + Grow[1], B0 = -Y.HalfV - Grow[2], B1 = Y.HalfV + Grow[3];
+			Ring = {Local(A0, B0), Local(A1, B0), Local(A1, B1), Local(A0, B1)};
+			Y.Made = true;
+		}
+		if (Ring.size() < 3) continue;
+		// (the gate: the yard's edge nearest the road by the church; its way out across that edge)
+		NearOpts Opts;
+		NearHit H;
+		const bool ByRoad = NearestOf(Y.Church.X, Y.Church.Z, Opts, H) && H.Dist - H.Half < 80.0;
+		const P2 Toward = ByRoad ? H.Foot : Local(0.0, Y.HalfV + 20.0);
+		double Best = 1e18;
+		size_t Edge = 0;
+		for (size_t K = 0; K < Ring.size(); ++K)
+		{
+			const P2& A = Ring[K];
+			const P2& C = Ring[(K + 1) % Ring.size()];
+			const double Ux = C.X - A.X, Uz = C.Z - A.Z, L2 = Ux * Ux + Uz * Uz;
+			if (L2 < 16.0) continue;   // (an edge 4 m long at least, for the gate and its walls)
+			const double T = std::clamp(((Toward.X - A.X) * Ux + (Toward.Z - A.Z) * Uz) / L2, 2.0 / std::sqrt(L2), 1.0 - 2.0 / std::sqrt(L2));
+			const P2 Q(A.X + Ux * T, A.Z + Uz * T);
+			const double D = Q.DistanceTo(Toward);
+			if (D < Best) { Best = D; Y.Gate = Q; Edge = K; }
+		}
+		if (Best > 1e17) continue;
+		{
+			const P2& A = Ring[Edge];
+			const P2& C = Ring[(Edge + 1) % Ring.size()];
+			const double L = A.DistanceTo(C);
+			Y.Out = P2((C.Z - A.Z) / L, -(C.X - A.X) / L);
+			if (InRing(Ring, Y.Gate.X + Y.Out.X * 1.0, Y.Gate.Z + Y.Out.Z * 1.0)) Y.Out = Y.Out * -1.0;
+		}
+		// (the path's end: the point 1.5 m out of the church nearest the gate)
+		{
+			const double Qx = Y.Gate.X - Y.Church.X, Qz = Y.Gate.Z - Y.Church.Z;
+			const double U = std::clamp(Qx * Y.Cs - Qz * Y.Sn, -Y.HalfU - 1.5, Y.HalfU + 1.5), V = std::clamp(Qx * Y.Sn + Qz * Y.Cs, -Y.HalfV - 1.5, Y.HalfV + 1.5);
+			// (onto the walk's ring, wherever the gate's line meets it)
+			const double Su = (Y.HalfU + 1.5) - std::fabs(U), Sv = (Y.HalfV + 1.5) - std::fabs(V);
+			Y.PathEnd = Su < Sv ? Local(U < 0.0 ? -Y.HalfU - 1.5 : Y.HalfU + 1.5, V) : Local(U, V < 0.0 ? -Y.HalfV - 1.5 : Y.HalfV + 1.5);
+		}
+		if (Y.Gate.DistanceTo(Y.PathEnd) < 1.0) continue;
+		const uint32_t Seed = FieldHash(std::to_string(std::lround(Y.Church.X * 10.0)) + "_" + std::to_string(std::lround(Y.Church.Z * 10.0)));
+		Y.Lych = !Y.Chapel && Roll(Y.Church.X, Y.Church.Z, Seed ^ 41u) < 0.55;
+		// (the wall: along the yard's edge, where no road, building or mapped wall, fence or hedge is, a gap at the gate)
+		std::vector<const LineBox*> Near;
+		double Bx0 = 1e18, Bz0 = 1e18, Bx1 = -1e18, Bz1 = -1e18;
+		for (const P2& P : Ring) { Bx0 = std::fmin(Bx0, P.X); Bx1 = std::fmax(Bx1, P.X); Bz0 = std::fmin(Bz0, P.Z); Bz1 = std::fmax(Bz1, P.Z); }
+		Y.MinX = Bx0; Y.MaxX = Bx1; Y.MinZ = Bz0; Y.MaxZ = Bz1;
+		if (Bx1 - Bx0 > 400.0 || Bz1 - Bz0 > 400.0) continue;   // (a town's cemetery, not a churchyard)
+		for (const LineBox& Lb : Bounds)
+			if (Lb.X1 > Bx0 - 3.0 && Lb.X0 < Bx1 + 3.0 && Lb.Z1 > Bz0 - 3.0 && Lb.Z0 < Bz1 + 3.0) Near.push_back(&Lb);
+		const auto Walled = [&](double X, double Z)
+		{
+			for (const LineBox* Lb : Near)
+				for (size_t K = 0; K + 1 < Lb->L->Line.size(); ++K)
+					if (SegDist(Lb->L->Line[K], Lb->L->Line[K + 1], X, Z) < 2.0) return true;
+			return false;
+		};
+		for (size_t K = 0; K < Ring.size(); ++K)
+		{
+			const P2 A = Ring[K], C = Ring[(K + 1) % Ring.size()];
+			const double L = A.DistanceTo(C);
+			if (L < 0.3) continue;
+			const int Steps = std::max(1, int(std::ceil(L / 2.0)));
+			bool Open = false;
+			P2 From;
+			for (int S = 0; S <= Steps; ++S)
+			{
+				const P2 Q = A + (C - A) * (double(S) / Steps);
+				const P2 Mid = S < Steps ? A + (C - A) * ((S + 0.5) / Steps) : Q;
+				// (none across the path, nor along a notch the map cut out of the yard for it: the yard both sides)
+				const P2 Nrm((C.Z - A.Z) / L, -(C.X - A.X) / L);
+				const bool Notch = InRing(Ring, Mid.X + Nrm.X * 2.5, Mid.Z + Nrm.Z * 2.5) && InRing(Ring, Mid.X - Nrm.X * 2.5, Mid.Z - Nrm.Z * 2.5);
+				const bool Keep = S < Steps && Mid.DistanceTo(Y.Gate) > 1.7 && !Notch && SegDist(Y.Gate, Y.PathEnd, Mid.X, Mid.Z) > 1.6 && OffRoad(Mid.X, Mid.Z, 0.6)
+					&& !InOther(Mid.X, Mid.Z, 0.3, Own) && OffChurch(Y, Mid.X, Mid.Z) > 0.5 && !Walled(Mid.X, Mid.Z);
+				if (Keep && !Open) { Open = true; From = Q; }
+				if (!Keep && Open)
+				{
+					Open = false;
+					if (From.DistanceTo(Q) > 0.4) Y.Walls.push_back({From, Q});
+				}
+			}
+		}
+		// (the yews: an old one just inside the gate to one side; a pair of Irish yews either side of a long
+		// path, now and then; an old one in the yard's far corner)
+		const P2 In = Y.Out * -1.0, Side(Y.Out.Z, -Y.Out.X);
+		const auto YewFits = [&](const P2& P, double R)
+		{
+			return InRing(Ring, P.X, P.Z) && OffChurch(Y, P.X, P.Z) > R + 1.5 && OffRoad(P.X, P.Z, R + 1.0) && !InOther(P.X, P.Z, R, Own)
+				&& SegDist(Y.Gate, Y.PathEnd, P.X, P.Z) > R + 0.6;
+		};
+		{
+			const double Sd = Roll(Y.Gate.X, Y.Gate.Z, Seed ^ 42u) < 0.5 ? 1.0 : -1.0;
+			for (double Way : {Sd, -Sd})
+			{
+				const P2 P = Y.Gate + In * 5.5 + Side * (Way * 5.0);
+				if (YewFits(P, 3.0)) { Y.Yews.push_back({P, 0}); break; }
+			}
+		}
+		const double PathL = Y.Gate.DistanceTo(Y.PathEnd);
+		if (PathL > 12.0 && Roll(Y.Gate.X, Y.Gate.Z, Seed ^ 43u) < 0.45)
+		{
+			const P2 Dir = (Y.PathEnd - Y.Gate) * (1.0 / PathL), Across(Dir.Z, -Dir.X);
+			for (double At : {0.45, 0.7})
+				for (double Way : {-1.0, 1.0})
+				{
+					const P2 P = Y.Gate + Dir * (PathL * At) + Across * (Way * 1.7);
+					if (InRing(Ring, P.X, P.Z) && OffChurch(Y, P.X, P.Z) > 2.0) Y.Yews.push_back({P, 1});
+				}
+		}
+		{
+			double Far = 0.0;
+			P2 Corner;
+			P2 Centre(0.0, 0.0);
+			for (const P2& P : Ring) Centre = Centre + P * (1.0 / double(Ring.size()));
+			for (const P2& P : Ring)
+				if (P.DistanceTo(Y.Gate) > Far) { Far = P.DistanceTo(Y.Gate); Corner = P; }
+			const double Cl = Corner.DistanceTo(Centre);
+			if (Cl > 6.0)
+			{
+				const P2 P = Corner + (Centre - Corner) * (4.5 / Cl);
+				if (YewFits(P, 3.0) && P.DistanceTo(Y.Gate) > 12.0) Y.Yews.push_back({P, 0});
+			}
+		}
+		// (its ground: the mapped graveyard's, else the made one as a graveyard of its own)
+		const int YardIndex = int(Churchyards.size());
+		if (Mapped >= 0)
+		{
+			Y.Field = Mapped;
+			FieldAreas[size_t(Mapped)].Yard = YardIndex;
+		}
+		else
+		{
+			FieldArea F;
+			F.Kind = FieldGraves;
+			F.Ring = Ring;
+			F.MinX = Bx0; F.MaxX = Bx1; F.MinZ = Bz0; F.MaxZ = Bz1;
+			F.BoxArea = (Bx1 - Bx0) * (Bz1 - Bz0);
+			F.Id = Seed;
+			F.Yard = YardIndex;
+			Y.Field = int(FieldAreas.size());
+			for (double Z = std::floor(F.MinZ / FieldCell) * FieldCell; Z <= F.MaxZ; Z += FieldCell)
+				for (double X = std::floor(F.MinX / FieldCell) * FieldCell; X <= F.MaxX; X += FieldCell) Scene->Fields[FieldKey(X + 1.0, Z + 1.0)].push_back(Y.Field);
+			FieldAreas.push_back(std::move(F));
+		}
+		Churchyards.push_back(std::move(Y));
 	}
 }
 
@@ -403,12 +693,25 @@ void RidePlan::FieldsTile(double X0, double Z0, double Size, int Detail, RideMes
 		{
 			// Headstones in loose rows running north to south, each facing east (+x), some leaning,
 			// some gone; crosses now and then; none in the church or on the path.
+			// ([churches stage 5] in a churchyard, none on its path, the walk round the church, by the gate or
+			// under its yews)
+			const Churchyard* Yd = F.Yard >= 0 && size_t(F.Yard) < Churchyards.size() ? &Churchyards[size_t(F.Yard)] : nullptr;
+			const auto Kept = [&](double Px, double Pz)
+			{
+				if (!Yd) return true;
+				const double Ux = Yd->PathEnd.X - Yd->Gate.X, Uz = Yd->PathEnd.Z - Yd->Gate.Z, L2 = Ux * Ux + Uz * Uz;
+				const double T = L2 > 1e-9 ? std::clamp(((Px - Yd->Gate.X) * Ux + (Pz - Yd->Gate.Z) * Uz) / L2, 0.0, 1.0) : 0.0;
+				if (std::hypot(Yd->Gate.X + Ux * T - Px, Yd->Gate.Z + Uz * T - Pz) < 1.3 || OffChurch(*Yd, Px, Pz) < 2.6 || std::hypot(Px - Yd->Gate.X, Pz - Yd->Gate.Z) < 2.5) return false;
+				for (const auto& Yw : Yd->Yews)
+					if (std::hypot(Px - Yw.first.X, Pz - Yw.first.Z) < (Yw.second == 0 ? 3.6 : 1.3)) return false;
+				return true;
+			};
 			int Stones = 0;
 			for (double X = std::ceil(std::fmax(F.MinX, X0) / 3.2) * 3.2; X < std::fmin(F.MaxX, X0 + Size) && Stones < 1500; X += 3.2)
 				for (double Z = std::ceil(std::fmax(F.MinZ, Z0) / 1.5) * 1.5; Z < std::fmin(F.MaxZ, Z0 + Size) && Stones < 1500; Z += 1.5)
 				{
 					const double Px = X + (Roll(X, Z, 1u) - 0.5) * 0.5, Pz = Z + (Roll(X, Z, 2u) - 0.5) * 0.3;
-					if (Roll(X, Z, 3u) < 0.3 || !Inside(Px, Pz) || !InRing(F.Ring, Px, Pz) || InBuilding(Px, Pz) || !OffRoad(Px, Pz, 1.0)) continue;
+					if (Roll(X, Z, 3u) < 0.3 || !Inside(Px, Pz) || !InRing(F.Ring, Px, Pz) || InBuilding(Px, Pz) || !OffRoad(Px, Pz, 1.0) || !Kept(Px, Pz)) continue;
 					const double Y = Ground(Px, Pz);
 					if (std::isnan(Y)) continue;
 					++Stones;

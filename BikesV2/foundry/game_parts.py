@@ -59,11 +59,18 @@ RULES = [
     (r"(airbox|svc_air_filter|inletclamp|inletstub)", "air_filter", ""),
     (r"svc_oil_filter", "oil_filter", ""), (r"(svc_spark_plug|plugcap|pluglead|plugleadclip|plugwell)", "spark_plugs", ""),
     (r"(svc_fuel|injector|fuelrail|throttlepulley|throttleshaft)", "fuel", ""),
+    # the engine parts pass's own (foundry/intake3d.py): fs* a fuel system (carbs, throttle bodies, their manifolds),
+    # aiq* an open air intake (pods, stacks)
+    (r"(fs|fsy|fsyside)$", "fuel", ""), (r"aiq$", "air_filter", ""),
     (r"ssmount", "frame", ""),                           # the side stand's lug on the frame (sidestand3d)
     (r"sidestand", "side_stand", ""),                    # the game swings the slot's pieces on the pivot (points "stand")
     (r"(stand|centrestand)", "side_stand", ""),
     # frame
     (r"(frame|framecross|frameloop|weld|head$|pivot|pivotcap|pivotnut|spar|sparbolt|sparweld|mount|lug|cabletie|clutchcable|bolt$)", "frame", ""),
+    # the side covers, their caps and bolts and the sump go with the side cases as the gearbox's (engine parts pass
+    # stage 3: covers and cases with looks of their own, foundry/covers3d.py cv_* and cs_*; the side cases themselves
+    # are the gearbox's in the game by their surface, Fit/BikeParts)
+    (r"(sidecase|clutchcover|clutchcap|clutchcapbolt|altcover|altplug|altplugslot|sump|sumpbolt|sumpflange|drainplug|cv_|cs_)", "gearbox", ""),
     # everything else that was matched nowhere above is the engine (cases, covers, barrels, heads, their bolts)
     (r"(alt|barrel|basenut|block|boxer|cam|casebolt|clutch|cover|crankcase|cylhead|drainplug|headgasket|oilcap|port|pushrod|sidecase|sightglass|starter|sump)", "engine", ""),
 ]

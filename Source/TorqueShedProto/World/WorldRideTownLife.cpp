@@ -12,6 +12,7 @@
 #include "WorldTerrain.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <string>
 #include <unordered_map>
@@ -101,8 +102,10 @@ void Face(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& Q3,
 	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
 	const double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
 	const double Mx = (Q0.X + Q1.X + Q2.X + Q3.X) * 0.25 - Inside.X, My = (Q0.Y + Q1.Y + Q2.Y + Q3.Y) * 0.25 - Inside.Y, Mz = (Q0.Z + Q1.Z + Q2.Z + Q3.Z) * 0.25 - Inside.Z;
-	if (Nx * Mx + Ny * My + Nz * Mz >= 0.0) RideShapes::SkyQuad(Out, Q0, Q1, Q2, Q3, C, false);
-	else RideShapes::SkyQuad(Out, Q3, Q2, Q1, Q0, C, false);
+	// ([Nov 18] SkyQuad shows the side its cross product points away from: so the order whose cross
+	// product points in. These faces were shown from inside and lit from outside: near black)
+	if (Nx * Mx + Ny * My + Nz * Mz >= 0.0) RideShapes::SkyQuad(Out, Q3, Q2, Q1, Q0, C, false);
+	else RideShapes::SkyQuad(Out, Q0, Q1, Q2, Q3, C, false);
 }
 
 // A box in the forecourt's frame: from (A0, V0) to (A1, V1) along and out, Y0 to Y1 up; Top/Bottom its lids.
@@ -473,6 +476,39 @@ void RidePlan::IndexTownLife()
 		Camps.push_back(P);
 		uint32_t Seed = 2166136261u ^ static_cast<uint32_t>(std::lround(P.X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(P.Z * 3.0)) * 19349663u;
 		if (Seed == 0) Seed = 1;
+		// [caravans] A holiday park (its name says so, and not a touring or camping one): rows of statics and
+		// lodges, side by side 10 m apart, 15 m along, a gap here and there, out to 70 m round its point.
+		std::string Lower = Poi.Str("name");
+		for (char& Ch : Lower) Ch = char(std::tolower(static_cast<unsigned char>(Ch)));
+		const auto Says = [&Lower](const char* W) { return Lower.find(W) != std::string::npos; };
+		const bool Holiday = (Says("caravan park") || Says("holiday park") || Says("holiday village") || Says("holiday home") || Says("lodge") || Says("leisure park"))
+			&& !Says("camping") && !Says("campsite") && !Says("club") && !Says("touring") && !Says("motorhome");
+		if (Holiday)
+		{
+			const double ParkYaw = Dice(Seed, 2) * 3.14159265;
+			const P2 U(std::cos(ParkYaw), std::sin(ParkYaw)), V(-U.Z, U.X);
+			const double Ou = Dice(Seed, 3) * 15.0, Ov = Dice(Seed, 4) * 10.0;
+			int Made = 0;
+			for (int Iv = -7; Iv <= 7; ++Iv)
+				for (int Iu = -5; Iu <= 5 && Made < 48; ++Iu)
+				{
+					const double Du = Iu * 15.0 + Ou - 7.5, Dv = Iv * 10.0 + Ov - 5.0;
+					if (Du * Du + Dv * Dv > 70.0 * 70.0) continue;
+					const uint32_t Salt = 1000u + uint32_t((Iv + 8) * 16 + Iu + 8);
+					if (Dice(Seed, Salt) < 0.18) continue;   // (an empty plot, a path, a play area)
+					const P2 Q = P + U * Du + V * Dv;
+					if (!Open(Q, 6.0)) continue;
+					TownThing T;
+					T.Kind = ThingStatic;
+					T.At = Q;
+					T.Yaw = ParkYaw + (Dice(Seed, Salt + 400u) - 0.5) * 0.08 + (Dice(Seed, Salt + 800u) < 0.5 ? 3.14159265 : 0.0);
+					T.Base = Ground(Q.X, Q.Z);
+					T.Seed = Seed * 31u + Salt;
+					AddThing(T);
+					++Made;
+				}
+			if (Made > 0) { ++CampsMade; continue; }
+		}
 		const double Caravans = Dice(Seed, 1);   // (the share of caravans to tents)
 		const double SiteYaw = Dice(Seed, 2) * 3.14159265;
 		const int Want = 6 + int(Dice(Seed, 3) * 10.0);
@@ -961,6 +997,7 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 				}
 				case ThingCaravan:
 				{
+					if (PropModelled[PropTouringCaravan]) break;   // ([caravans] the model's: TownLifeProps)
 					// (a touring caravan on its wheels: a white box, a dark window band, the A-frame forward)
 					const double L = 5.2 + 1.2 * Dice(T.Seed, 1), W = 1.15, Lo = Y + 0.35, Hi = Lo + 2.05;
 					Box(Out, C, -L * 0.5, L * 0.5, -W, W, Lo, Hi, Van, false, true);
@@ -975,6 +1012,7 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 				}
 				case ThingStatic:
 				{
+					if (PropModelled[PropStaticCaravan]) break;
 					// (a static caravan: long and boxy, on blocks, windows round it, a low-pitched roof)
 					const Paint Body = Statics[size_t(Dice(T.Seed, 1) * 2.999)];
 					const double L = 10.0, W = 1.85, Lo = Y + 0.5, Hi = Lo + 2.4;
@@ -1017,6 +1055,36 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 				}
 				default: break;
 				}
+			}
+		}
+}
+// [caravans] The campsites' caravans as models (Tools/blender_caravan_kit.py), length along their Yaw, the tourer's
+// A-frame forward as the boxes had it; which model by the pitch's seed.
+void RidePlan::TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const
+{
+	if (TownThings.empty() || (!PropModelled[PropTouringCaravan] && !PropModelled[PropStaticCaravan])) return;
+	const auto Cx0 = static_cast<long long>(std::floor(X0 / CourtCell)), Cx1 = static_cast<long long>(std::floor((X0 + Size) / CourtCell));
+	const auto Cz0 = static_cast<long long>(std::floor(Z0 / CourtCell)), Cz1 = static_cast<long long>(std::floor((Z0 + Size) / CourtCell));
+	for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
+		for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
+		{
+			const auto It = ThingGrid.find(Cx * 4000037LL + Cz);
+			if (It == ThingGrid.end()) continue;
+			for (int I : It->second)
+			{
+				const TownThing& T = TownThings[size_t(I)];
+				if (T.At.X < X0 || T.At.X >= X0 + Size || T.At.Z < Z0 || T.At.Z >= Z0 + Size || std::isnan(T.Base)) continue;
+				const int Kind = T.Kind == ThingCaravan ? PropTouringCaravan : T.Kind == ThingStatic ? PropStaticCaravan : -1;
+				if (Kind < 0 || !PropModelled[Kind]) continue;
+				RideProp P;
+				P.Kind = uint16_t(Kind);
+				P.Id = T.Seed;
+				P.Variant = uint8_t(Dice(T.Seed, 9) * 255.0);
+				P.X = float(T.At.X - X0);
+				P.Z = float(T.At.Z - Z0);
+				P.Y = float(T.Base);
+				P.Yaw = float(T.Yaw);
+				Out.push_back(P);
 			}
 		}
 }

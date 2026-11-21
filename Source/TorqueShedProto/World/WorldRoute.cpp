@@ -248,6 +248,7 @@ double ClassCost(const std::string& Mode, const std::string& Class)
 	// [OSM stage 4] (a service road, alley, drive or car park aisle: ridden only to start or finish a ride,
 	// never a short cut through a car park)
 	if (Class == "service") return 8.0;
+	if (Class == "raceway" || Class == "pit_lane") return 40.0;   // [circuits] (ridden to, never through)
 	return 1.5;
 }
 

@@ -103,7 +103,7 @@ UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint, FString& OutFi
 {
 	const TorqueFit::Json* Idx = Index();
 	const TorqueFit::Json* Finishes = Idx ? Idx->Get("tag_finish") : nullptr;
-	std::string Finish = Finishes ? Finishes->Str(Std(Tag)) : std::string();
+	std::string Finish = Finishes ? Finishes->Str(Std(Tag.ToLower())) : std::string();
 	if (Finish.empty()) Finish = "steel_brushed";
 	bPaint = Finish == "paint" || Finish == "paint_2";
 	if (bPaint) Finish = "paint_silver";

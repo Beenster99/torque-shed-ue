@@ -808,6 +808,311 @@
    "name": "Forecourt garage unit (Ride UK)",
    "torque_shed": "none (UE only: beenster Nov 17 2026)",
    "source": "blender"
+  },
+  "ferry_small": {
+   "name": "Small double-ended ferry (Ride UK; Tools/props/make_ferry.py)",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_ramp": {
+   "name": "Ferry ramp, one end's",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_hut": {
+   "name": "Ferry ticket hut",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_shelter": {
+   "name": "Ferry waiting shelter",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_sign": {
+   "name": "Ferry sign",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_chain": {
+   "name": "Chain ferry chain and guide",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_turntable": {
+   "name": "Turntable ferry turning deck",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_queue": {
+   "name": "Ferry queue sign",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_barrier": {
+   "name": "Ferry slipway barrier post and lights",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "ferry_barrier_arm": {
+   "name": "Ferry slipway barrier arm",
+   "torque_shed": "the Godot game's unfinished ferries (UE: beenster Nov 19 2026)",
+   "source": "blender"
+  },
+  "lx_barrier_mech": {
+   "name": "Level crossing kit: barrier mech (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_3": {
+   "name": "Level crossing kit: boom 3 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_4": {
+   "name": "Level crossing kit: boom 4 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_5": {
+   "name": "Level crossing kit: boom 5 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_6": {
+   "name": "Level crossing kit: boom 6 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_7": {
+   "name": "Level crossing kit: boom 7 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_8": {
+   "name": "Level crossing kit: boom 8 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_9": {
+   "name": "Level crossing kit: boom 9 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_boom_lit": {
+   "name": "Level crossing kit: boom lit (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_cabinet": {
+   "name": "Level crossing kit: cabinet (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_contact": {
+   "name": "Level crossing kit: contact (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_danger": {
+   "name": "Level crossing kit: danger (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_gate_25": {
+   "name": "Level crossing kit: gate 25 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_gate_30": {
+   "name": "Level crossing kit: gate 30 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_gate_35": {
+   "name": "Level crossing kit: gate 35 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_gate_40": {
+   "name": "Level crossing kit: gate 40 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_gate_45": {
+   "name": "Level crossing kit: gate 45 (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_gate_post": {
+   "name": "Level crossing kit: gate post (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_give_way": {
+   "name": "Level crossing kit: give way (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_keep_clear": {
+   "name": "Level crossing kit: keep clear (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_lamp_post": {
+   "name": "Level crossing kit: lamp post (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_lit_amber": {
+   "name": "Level crossing kit: lit amber (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_lit_red_l": {
+   "name": "Level crossing kit: lit red l (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_lit_red_r": {
+   "name": "Level crossing kit: lit red r (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_loco": {
+   "name": "Level crossing kit: loco (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_msl": {
+   "name": "Level crossing kit: msl (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_msl_lit_green": {
+   "name": "Level crossing kit: msl lit green (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_msl_lit_red": {
+   "name": "Level crossing kit: msl lit red (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_palisade": {
+   "name": "Level crossing kit: palisade (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_picket": {
+   "name": "Level crossing kit: picket (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_post": {
+   "name": "Level crossing kit: post (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_saltire": {
+   "name": "Level crossing kit: saltire (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_saltire_top": {
+   "name": "Level crossing kit: saltire top (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_skirt_bar": {
+   "name": "Level crossing kit: skirt bar (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_skirt_rail": {
+   "name": "Level crossing kit: skirt rail (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_unit": {
+   "name": "Level crossing kit: unit (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "lx_user_worked": {
+   "name": "Level crossing kit: user worked (Ride UK; Tools/props/make_level_crossing.py)",
+   "torque_shed": "none (UE only: beenster Nov 20 2026)",
+   "source": "blender"
+  },
+  "train_dmu_car": {
+   "name": "Diesel unit car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_emu_cab": {
+   "name": "Electric unit cab car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_emu_mid": {
+   "name": "Electric unit middle car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_ic_power": {
+   "name": "Intercity power car",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_ic_coach": {
+   "name": "Intercity coach",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_freight_loco": {
+   "name": "Freight locomotive",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_wagon_box": {
+   "name": "Container wagon",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_wagon_hopper": {
+   "name": "Hopper wagon",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_wagon_tank": {
+   "name": "Tank wagon",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_steam_tank": {
+   "name": "Steam tank engine",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_steam_big": {
+   "name": "Steam express engine",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_steam_tender": {
+   "name": "Steam tender",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_coach_old": {
+   "name": "Heritage coach",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
+  },
+  "train_diesel_old": {
+   "name": "Heritage diesel",
+   "torque_shed": "new (trains: Tools/props/make_trains.py)",
+   "source": "blender"
   }
  }
 }

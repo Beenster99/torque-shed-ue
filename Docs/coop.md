@@ -92,6 +92,7 @@ Ported from Torque Shed's (`scripts/main_menu.gd`), with the same names and orde
 | Who's who | `ATorqueGameMode`, `TorqueHUD` | Riders' names (`-TorqueName=`, else the Windows account name) float over their bikes, with the distance when they're far off. The HUD's blue line shows hosting/joined, riders, ping and each other rider's snapshot rate. |
 | Start grid | `ATorqueBikePawn::PlaceForSlot` | Riders start two abreast either side of the line, a row every 7 m behind the first. |
 | Sound | `TorqueAudio/RideSound` | Other riders' engines are 3D sounds from their bikes (fading over a few hundred metres), without the birds and with little wind. |
+| Ride awards | `Coop/TorqueAwards.*`, `Coop/RideAwards.h` (plain C++, tested in `SimTest/awards_test.cpp`) | Settings > Gameplay > Co-op > Ride awards (the host's, off by default). Each rider's game counts 12 stats and sends them to the host every second (`ATorquePlayerState::AwardStats`). When everyone has stopped at a planned ride's finish (or the host picks "Ride awards now"), each rider privately ranks 3 stats (picks stay on the host), then a stats dashboard and a podium. Score: placing points 3/2/1 per stat times its votes (3/2/1 per pick). Nothing is saved. Test switch `set:rideawards:1`. |
 
 Bandwidth is about 4 KB/s per rider each way; the limits in `DefaultEngine.ini` leave plenty of room
 for eight.

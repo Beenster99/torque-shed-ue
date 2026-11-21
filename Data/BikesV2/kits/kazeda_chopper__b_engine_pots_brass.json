@@ -2,7 +2,7 @@
  "name": "Kazeda chopper (working title H3)",
  "format": 2,
  "kit": true,
- "triangles": 13366,
+ "triangles": 8152,
  "surfaces": {
   "s006": {
    "slot": "engine",
@@ -74,28 +74,7 @@
    "tag": "chrome",
    "ue": "chrome"
   },
-  "s088": {
-   "slot": "engine",
-   "node": "",
-   "surface": "rubber",
-   "tag": "rubber",
-   "ue": "cat_rubber"
-  },
-  "s091": {
-   "slot": "engine",
-   "node": "",
-   "surface": "d3_polishedcase",
-   "tag": "d3_polishedcase",
-   "ue": "cat_polished_alloy",
-   "color": [
-    0.82,
-    0.82,
-    0.84
-   ],
-   "metallic": 1.0,
-   "roughness": 0.16
-  },
-  "s097": {
+  "s100": {
    "slot": "engine",
    "node": "",
    "surface": "gold",
@@ -109,7 +88,7 @@
    "metallic": 1.0,
    "roughness": 0.32
   },
-  "s151": {
+  "s154": {
    "slot": "engine",
    "node": "",
    "surface": "d3_chop_brass",
@@ -123,7 +102,7 @@
    "metallic": 1.0,
    "roughness": 0.2
   },
-  "s152": {
+  "s155": {
    "slot": "engine",
    "node": "",
    "surface": "d3_chop_blacked",

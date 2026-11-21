@@ -1,6 +1,7 @@
 #include "TorqueHUD.h"
 
 #include "Coop/TorqueUi.h"
+#include "Coop/TorqueLaps.h"
 
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -9,6 +10,8 @@
 #include "TorqueTft.h"
 #include "Shed/TorqueDecalMode.h"
 #include "Shed/TorqueGeometryMode.h"
+#include "Photo/TorqueDrone.h"
+#include "Photo/TorquePhotoAlbum.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
 #include "Coop/TorqueSession.h"
@@ -38,6 +41,18 @@ void ATorqueHUD::DrawHUD()
 	if (TPC && TPC->IsMenuUp())
 	{
 		TPC->DrawMenu(this, Canvas);   // the pause menu: nothing else over it
+		return;
+	}
+	// [drone] The drone's viewfinder, and nothing else over its view (nothing at all on the photo's frame).
+	if (ATorqueDrone* Drone = ATorqueDrone::For(GetOwningPlayerController()))
+	{
+		Drone->DrawHud(this, Canvas);
+		return;
+	}
+	// [drone] The photo album over the shed.
+	if (ATorquePhotoAlbum* Album = ATorquePhotoAlbum::For(GetOwningPlayerController()))
+	{
+		Album->DrawHud(this, Canvas);
 		return;
 	}
 	if (ATorqueGeometryMode* Geo = ATorqueGeometryMode::For(GetOwningPlayerController()))
@@ -114,6 +129,7 @@ void ATorqueHUD::DrawHUD()
 	}
 	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
 	if (Bike) DrawSpeedo(Bike);
+	if (Bike) TorqueLapsUe::Draw(Canvas, Bike);   // [circuits] the lap timer
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{
@@ -125,13 +141,16 @@ void ATorqueHUD::DrawHUD()
 	// The spray mini game's readout (spray_hud.gd): its card stands in for the side panel.
 	const bool bSprayCard = Walker && Walker->SprayHudUp();
 	if (bSprayCard) Walker->DrawSpray(this, Canvas);
+	// The spray gun's two cups at the side, or the cups picker ([ / ]) over the middle.
+	const bool bCupPicker = Walker && Walker->CupPickerUp();
+	if (Walker && Walker->CupsHudUp()) Walker->DrawCups(this, Canvas);
 	// The wash game's readout (wash_hud.gd), the same way.   [wash]
 	const bool bWashCard = Walker && Walker->WashHudUp();
 	if (bWashCard) Walker->DrawWash(this, Canvas);
 	// The tyre fitting game's ring (hud.gd _draw_tyre_game), over the middle of the view.   [tyre]
 	if (Walker && Walker->TyreHudUp()) Walker->DrawTyre(this, Canvas);
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
-	if (Walker && !Walker->SprayControlsUp() && !bWashCard) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
+	if (Walker && !Walker->SprayControlsUp() && !bWashCard && !bCupPicker) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role != 0) continue;

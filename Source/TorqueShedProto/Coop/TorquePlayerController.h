@@ -18,6 +18,7 @@
 #include "TorqueShedNet.h"
 #include "TorquePing.h"
 #include "TorqueRoutePlanner.h"
+#include "TorqueAwards.h"
 #include "TorquePlayerController.generated.h"
 
 class AHUD;
@@ -25,6 +26,7 @@ class UCanvas;
 class ATorqueProfilePreview;
 
 class ATorqueBikePawn;
+class AGameStateBase;
 
 UCLASS()
 class ATorquePlayerController : public APlayerController
@@ -117,7 +119,7 @@ private:
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide, Awards, HelmetDecals };
 	bool bChoosingRide = false;   // [co-op] the join page is this player's until they pick
 	int32 JoinBay = INDEX_NONE;
 	struct FRow
@@ -162,6 +164,12 @@ private:
 	// Ride UK's Route planner (stage 4), a page of its own drawn full screen.
 	TUniquePtr<FTorqueRoutePlanner> Planner;
 	void OpenPlanner();
+	// [ride awards] (Coop/TorqueAwards.h) The vote, the dashboard and the podium, a page of their own
+	// opened for everyone when the host starts the awards; the game state they were last opened for.
+	TUniquePtr<FTorqueAwardsScreen> AwardsScreen;
+	TWeakObjectPtr<AGameStateBase> AwardsGS;
+	int32 AwardsSeen = INDEX_NONE;
+	void CheckAwards();
 	// [co-op] A joined rider's game plans the host's journey (ATorqueGameState::RideJourney) as it
 	// changes, and tells the host once it is ready to set off.
 	void SyncRideJourney();
@@ -254,4 +262,8 @@ private:
 	void ProfileChanged();
 	void UpdateProfilePreview();
 	void DrawProfile(AHUD* Hud, UCanvas* Canvas);
+public:
+	// [helmet decals] Settings > Profile > Helmet decals: the decal editor on your helmet alone
+	// (ATorqueDecalMode::OpenHelmet), a page of its own that has the keys and mouse until it closes.
+	void OpenHelmetDecals();
 };

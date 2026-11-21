@@ -363,6 +363,8 @@ void ATorqueShopPreview::Clear()
 	bVessel = false;
 	Vessel = TorqueFluidModels::FVessel();
 	VesselPart = NAME_None;
+	PosterArt.Reset();   // [posters]
+	PosterModel = NAME_None;
 }
 
 void ATorqueShopPreview::Rebuild(const FString& NewKey, TFunctionRef<void()> Make)
@@ -441,6 +443,14 @@ void ATorqueShopPreview::ShowKit(FName Model)
 		C->SetRelativeRotation(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0));
 		C->RegisterComponent();
 		Shown.Add(C);
+		// [posters] A poster with its picture under the glass (dressed in Tick once it's loaded).
+		if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(Model); M && TorqueFurniture::IsPoster(*M))
+			if (UStaticMeshComponent* Art = TorqueFurniture::AddPosterArt(C, *M))
+			{
+				Shown.Add(Art);
+				PosterArt = Art;
+				PosterModel = Model;
+			}
 	});
 }
 
@@ -495,7 +505,7 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 	for (const FName& S : Painted)
 	{
 		const FTorqueShopFinish& F = Finishes[S];
-		Sig += FString::Printf(TEXT("|%s=%s,%.2f,%.2f"), *S.ToString(), *F.Colour.ToString(), F.Metallic, F.Roughness);
+		Sig += FString::Printf(TEXT("|%s=%s,%.2f,%.2f,%d"), *S.ToString(), *F.Colour.ToString(), F.Metallic, F.Roughness, F.bPicked ? 1 : 0);
 	}
 	Rebuild(Sig, [this, &Parts, &Finishes]
 	{
@@ -508,8 +518,16 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 			Shown.Add(C);
 			TSPI::Clean(C);
 			if (C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag))) continue;
-			if (C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag))) continue;   // [bikes v2] its model's own colour
 			const FName Slot = TorqueShedModel::SlotTag(C);
+			// [bikes v2] Its model's own colour, until a colour is picked for it (beenster in 160: "colours rarely
+			// show in the new bike configurator"); the bodywork follows the tank's, as the shed paints it.
+			if (C->ComponentHasTag(FName(TorqueShedCatalogue::V2PaintTag)))
+			{
+				const FTorqueShopFinish* F = Finishes.Find(Slot);
+				if ((!F || !F->bPicked) && C->ComponentHasTag(FName(TorqueShedCatalogue::V2BodyTag))) F = Finishes.Find(FName(TEXT("tank")));
+				if (F && F->bPicked) TSPI::Paint(C, F->Colour, F->Metallic, F->Roughness);
+				continue;
+			}
 			if (const FTorqueShopFinish* F = Finishes.Find(Slot))
 				TSPI::Paint(C, F->Colour, F->Metallic, F->Roughness);
 			else if (const FString* Part = Parts.Find(Slot.ToString().ToLower()))
@@ -547,6 +565,11 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 	Capture->bCaptureEveryFrame = bOn;
 	SetActorHiddenInGame(!bOn);
 	if (!bOn) return;
+	if (PosterArt.IsValid())   // [posters] its picture, once it's loaded
+	{
+		const TorqueFurniture::FModel* M = TorqueFurniture::Find(PosterModel);
+		if (!M || TorqueFurniture::DressPosterArt(PosterArt.Get(), *M)) PosterArt.Reset();
+	}
 
 	if (bSpin && !bDrag) Yaw = FMath::Fmod(Yaw + TSPI::SpinRate * DeltaSeconds, 360.0);
 	Pivot->SetRelativeRotation(FRotator(0.0, Yaw, 0.0));

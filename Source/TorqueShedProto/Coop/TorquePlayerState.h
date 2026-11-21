@@ -56,6 +56,21 @@ public:
 	UFUNCTION(Server, Reliable) void ServerSetRideReady(const FString& Code);
 	// [co-op] This player's change to the shared journey in the Route planner (everyone plans it).
 	UFUNCTION(Server, Reliable) void ServerSetRideJourney(const FString& Code, const FString& Name);
+	// [ride awards] (Coop/TorqueAwards.h) This rider's numbers on the host (TorqueAwards::Total of them,
+	// sent every second while the awards are on), whether they've stopped at the planned ride's finish,
+	// the awards they've voted in (the ready tick: ATorqueGameState::AwardsSeq), and their three picks:
+	// kept on the host alone and never sent to anyone (the vote is private).
+	TArray<float> AwardStats;
+	UPROPERTY(Replicated) bool bAwardFinished = false;
+	UPROPERTY(Replicated) int32 AwardVotedSeq = -1;
+	TArray<int32> AwardPicks;
+	UFUNCTION(Server, Unreliable) void ServerSetAwardStats(const TArray<float>& NewStats);
+	UFUNCTION(Server, Reliable) void ServerSetAwardFinished(bool bAtFinish);
+	UFUNCTION(Server, Reliable) void ServerAwardVote(int32 Seq, const TArray<uint8>& Picks);
+	// [circuits] This rider's best lap of each circuit this ride (Coop/TorqueLaps.h): a line each, "name\tseconds",
+	// for everyone's lap board.
+	UPROPERTY(Replicated) FString LapBests;
+	UFUNCTION(Server, Reliable) void ServerSetLapBests(const FString& Bests);
 	// The hands (the owner's own copy is set at once; the others get the host's).
 	UPROPERTY(ReplicatedUsing = OnRep_Hands) FTorqueHandsNet Hands;
 	UFUNCTION() void OnRep_Hands(const FTorqueHandsNet& Before);

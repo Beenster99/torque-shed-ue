@@ -160,6 +160,9 @@ def transform_box(bmin, bmax, yaw_deg, mirror_y, scale):
     return [min(p[i] for p in pts) for i in range(3)], [max(p[i] for p in pts) for i in range(3)]
 
 
+LAST_FRAME = None   # (the last importer frame found: tree_material's default)
+
+
 def find_frame(mesh, glb_path):
     box = mesh.get_bounding_box()
     imin = [box.min.x, box.min.y, box.min.z]
@@ -174,6 +177,8 @@ def find_frame(mesh, glb_path):
                 if best is None or err < best[0]:
                     best = (err, yaw, mirror, scale)
     err, yaw, mirror, scale = best
+    global LAST_FRAME
+    LAST_FRAME = (yaw, mirror, scale)
     log("importer frame: yaw %d, mirror y %d, scale %g (fit error %.1f cm)" % (yaw, mirror, scale, err))
     if err > 500:
         unreal.log_warning("[Torque] the imported road doesn't match its expected bounds; the level may be off")
@@ -202,6 +207,9 @@ WEATHER_PARAMS = (
     ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
     ("Night", 0.0),          # how dark it is (Ride UK stage 7): 0 day .. 1 night; street lamps, lit windows, cat's eyes
     ("Signals", 0.0),        # the traffic lights' clock (OSM stage 5D): the server's seconds, under an hour
+    ("LeafFresh", 0.0),      # [seasonal trees test] the scanned trees' leaves: spring's paler green, 0 .. 1
+    ("LeafTurn", 0.0),       # autumn's colour, 0 .. 1 (Tools/ue_tree_season.py)
+    ("LeafDrop", 0.0),       # the share of leaves gone, 0 .. 1
 )
 _weather_mpc = None
 
@@ -312,7 +320,7 @@ SKY_PARAMS = (
     # density 1, and each layer's density.
     ("V2LowShapeM", 8000.0), ("V2LowDetailM", 600.0), ("V2MidShapeM", 5000.0), ("V2MidDetailM", 400.0),
     ("V2BroadM", 40000.0), ("V2Patchy", 0.35), ("V2Erode", 0.5), ("V2ErodeRagged", 0.3), ("V2EdgeSharp", 3.0),
-    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2ClosedFrom", 0.85), ("V2ClosedFull", 0.92), ("V2DetailFadeKm", 10.0), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
+    ("V2Billow", 0.3), ("V2Extinction", 0.1), ("V2DeckThin", 0.5), ("V2ClosedFrom", 0.85), ("V2ClosedFull", 0.92), ("V2DetailFadeKm", 10.0), ("V2LowDeepErode", 1.0), ("V2MidDeepErode", 1.0), ("V2LowDensity", 0.8), ("V2MidDensity", 0.6),
 )
 
 
@@ -2488,7 +2496,101 @@ def tree_wind(g, w, leaf):
     return g.op(unreal.MaterialExpressionAdd, limb, flutter)
 
 
-def tree_material(tex=None, roles=None):
+# [Nov 20 2026] The seasons on our own trees (beenster: "can you build more trees and more variety and
+# change with season, evergreens and deciduous?"). Tools/tree_models.py gives every leaf what this needs
+# (UV0 x 1 deciduous, 2 evergreen; UV1/UV2 x the way to the leaf's middle; UV2 y its turn to fall; UV3
+# its autumn colour and the share held through winter) and the game sets MPC_Weather's LeafFresh,
+# LeafTurn and LeafDrop from the ride's date (Coop/TorqueGameState.cpp). Evergreens and bark: unchanged.
+# [build 165] A fallen leaf is moved into a speck by the offset below, which the game keeps on out to 200 m
+# while leaves are down (TorqueLeafFall.h); past about 200 m (Buttertubs' near trees reach 1.5 km) it is
+# painted the far woods' winter grey-brown instead of twig dark, as the far lumps are.
+TREE_SEASON_COLOUR_HLSL = """float dec = saturate(Kind) * (1.0 - saturate(Kind - 1.0));
+float l = dot(Base, float3(0.3, 0.59, 0.11));
+float3 c = lerp(Base, l * float3(1.5, 2.1, 0.55), saturate(Fresh * dec) * 0.55);
+float t = saturate(Hue) * 3.0;
+float3 a0 = float3(0.62, 0.48, 0.06), a1 = float3(0.55, 0.30, 0.05), a2 = float3(0.55, 0.12, 0.03), a3 = float3(0.30, 0.17, 0.04);
+float3 a = t < 1.0 ? lerp(a0, a1, t) : (t < 2.0 ? lerp(a1, a2, t - 1.0) : lerp(a2, a3, t - 2.0));
+float al = max(dot(a, float3(0.3, 0.59, 0.11)), 0.01);
+float h = frac(sin(dot(floor(Pos / 40.0), float3(12.9898, 78.233, 37.719))) * 43758.5453);
+c = lerp(c, a * (l / al) * 1.15, saturate(Turn * dec * (0.75 + 0.5 * h)));
+float gone = (Rank > 0.0 && Rank <= min(Drop, 1.0 - Keep) * dec) ? 1.0 : 0.0;
+float3 twig = lerp(float3(0.06, 0.05, 0.045), lerp(c, float3(0.075, 0.062, 0.058), 0.85), saturate((Depth - 18000.0) / 3000.0));
+c = lerp(c, twig, gone);
+float far = Rank < 0.0 ? 1.0 : 0.0;
+return lerp(c, float3(0.075, 0.062, 0.058), saturate(Drop * dec * far * (1.0 - Keep)) * 0.85);
+"""
+# (a fallen leaf shrinks to a speck of twig at its middle: the way there, glTF metres, into the mesh's own
+# frame by the importer's (filled in by tree_material), then Local to World outside)
+TREE_SEASON_OFFSET_HLSL = """float dec = saturate(Kind) * (1.0 - saturate(Kind - 1.0));
+float gone = (Rank > 0.0 && Rank <= min(Drop, 1.0 - Keep) * dec) ? 0.88 : 0.0;
+float3 o = Off * gone;
+return float3(dot(float3(%s), o), dot(float3(%s), o), dot(float3(%s), o));
+"""
+
+
+def tree_local_matrix(frame):
+    """glTF metres (x east, y up, z south) to the imported mesh's own frame: the importer's frame
+    (yaw, mirror, scale; find_frame) undone from the frame we mean, (100x, 100z, 100y)."""
+    yaw, mirror, scale = frame or LAST_FRAME or (0, 1, 1.0)
+    c, s_ = math.cos(math.radians(-yaw)), math.sin(math.radians(-yaw))
+    R = [[c, -s_, 0.0], [s_, c, 0.0], [0.0, 0.0, 1.0]]
+    P = [[100.0, 0.0, 0.0], [0.0, 0.0, 100.0], [0.0, 100.0, 0.0]]
+    D = [[1.0, 0.0, 0.0], [0.0, float(mirror), 0.0], [0.0, 0.0, 1.0]]
+    mul = lambda A, B: [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+    M = mul(D, mul(R, P))
+    return [[v / float(scale) for v in row] for row in M]
+
+
+def _custom(g, code, out_type, names):
+    e = g.node(unreal.MaterialExpressionCustom, -400)
+    try_set(e, "code", code)
+    try_set(e, "output_type", out_type)
+    ins = []
+    for n in names:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(e, "inputs", ins)
+    return e
+
+
+def tree_season(g, base, kind, frame):
+    """The season on the trees' colour and the fallen leaves' offset (World Position Offset, cm):
+    (colour, offset)."""
+    def uvset(i, r, gg):
+        t = g.node(unreal.MaterialExpressionTextureCoordinate, coordinate_index=i)
+        mk = g.node(unreal.MaterialExpressionComponentMask, r=r, g=gg, b=False, a=False)
+        g.link(t, mk)
+        return mk
+    uv1 = uvset(1, True, True)
+    off_z = uvset(2, True, False)
+    rank = uvset(2, False, True)
+    hue = uvset(3, True, False)
+    keep = uvset(3, False, True)
+    fresh, turn, drop = (weather_param(g, n) for n in ("LeafFresh", "LeafTurn", "LeafDrop"))
+    wp = g.node(unreal.MaterialExpressionWorldPosition)
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    O = unreal.CustomMaterialOutputType
+    c = _custom(g, TREE_SEASON_COLOUR_HLSL, O.CMOT_FLOAT3, ("Base", "Kind", "Hue", "Keep", "Rank", "Fresh", "Turn", "Drop", "Pos", "Depth"))
+    for src, pin in ((base, "Base"), (kind, "Kind"), (hue, "Hue"), (keep, "Keep"), (rank, "Rank"), (fresh, "Fresh"),
+                     (turn, "Turn"), (drop, "Drop"), (wp, "Pos"), (depth, "Depth")):
+        g.link(src, c, pin)
+    off = g.node(unreal.MaterialExpressionAppendVector)
+    g.link(uv1, off, "A")
+    g.link(off_z, off, "B")
+    M = tree_local_matrix(frame)
+    rows = tuple(", ".join("%.6g" % v for v in row) for row in M)
+    o = _custom(g, TREE_SEASON_OFFSET_HLSL % rows, O.CMOT_FLOAT3, ("Off", "Kind", "Rank", "Keep", "Drop"))
+    for src, pin in ((off, "Off"), (kind, "Kind"), (rank, "Rank"), (keep, "Keep"), (drop, "Drop")):
+        g.link(src, o, pin)
+    tl = g.node(unreal.MaterialExpressionTransform)   # the mesh's frame to the world's (the tree's yaw and size)
+    try_set(tl, "transform_source_type", unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL)
+    try_set(tl, "transform_type", unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
+    g.link(o, tl)
+    return c, tl
+
+
+def tree_material(tex=None, roles=None, frame=None):
     """The trees: vertex colour (each tree's leaves a little different, whole stands drifting in tone),
     two-sided foliage shading so the sun glows through the leaves and not the bark, ambient occlusion
     from the vertex alpha (dark inside the crown), and wind (tree_wind). Opaque: no alpha cut-outs.
@@ -2497,11 +2599,13 @@ def tree_material(tex=None, roles=None):
     g = Graph(new_material("M_Tree"))
     m = g.m
     foliage_flags(m)
-    try_set(m, "max_world_position_offset_displacement", 40.0)
+    try_set(m, "max_world_position_offset_displacement", 60.0)
     vc = g.node(unreal.MaterialExpressionVertexColor)
     uv = g.node(unreal.MaterialExpressionTextureCoordinate)
-    leaf = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
-    g.link(uv, leaf)
+    kind = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
+    g.link(uv, kind)
+    # (UV x: 0 bark, 1 a deciduous leaf, 2 an evergreen one: a leaf either way)
+    leaf = g.op(unreal.MaterialExpressionSaturate, kind)
     w = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
     g.link(uv, w)
     pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
@@ -2510,6 +2614,7 @@ def tree_material(tex=None, roles=None):
     tint = g.lerp(g.const((0.95, 0.95, 0.95)), tint, g.op(unreal.MaterialExpressionAdd,
                   g.op(unreal.MaterialExpressionMultiply, leaf, const_b=0.8), const_b=0.2))
     base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
+    base, season_wpo = tree_season(g, base, kind, frame)
     bark_w = g.op(unreal.MaterialExpressionOneMinus, leaf)
     normal = g.const((0.0, 0.0, 1.0))
     ao = g.op(unreal.MaterialExpressionMultiply, vc, a_out="A", const_b=1.0)
@@ -2560,7 +2665,8 @@ def tree_material(tex=None, roles=None):
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
-    mel.connect_material_property(tree_wind(g, w, leaf), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    wpo = g.op(unreal.MaterialExpressionAdd, tree_wind(g, w, leaf), season_wpo)
+    mel.connect_material_property(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
     return m
@@ -2659,7 +2765,7 @@ def place_trees(frame, tex=None, roles=None):
     over_path = os.path.join(folder, "overrides.json")
     overrides = json.load(open(over_path)) if os.path.exists(over_path) else {}
     meshes = import_glbs(folder, TREE_DEST)
-    mat = tree_material(tex, roles)
+    mat = tree_material(tex, roles, frame)
     species = []
     total = 0
     for s in spec["species"]:
@@ -3434,10 +3540,13 @@ float best = 0.0;
             float md = lerp(df, 1.0 - df, saturate(h * 4.0));
             // (the fine detail fades out with distance: far off it is finer than a pixel and only
             // sparkles from frame to frame, build 155 "a constant shimmering")
-            float er = md * (Erode + ErodeRagged * saturate(raggeds[ly])) * (1.0 - 0.5 * saturate(DistKm / max(DetailFadeKm, 0.1)));
+            float er = md * (Erode + ErodeRagged * saturate(raggeds[ly])) * (ly == 0 ? LowDeepErode : MidDeepErode) * (1.0 - 0.5 * saturate(DistKm / max(DetailFadeKm, 0.1)));
             bc = saturate((bc - er) / max(1.0 - er, 0.001));
         }
-        bc = saturate(bc * lerp(EdgeSharp, 1.0, saturate(DistKm / max(DetailFadeKm, 0.1))));
+        // (soft skins far off, and on a deep layer: it is marched in long steps, and crisp skins between
+        // them only sparkle)
+        float sharp = lerp(1.0, EdgeSharp, ly == 0 ? LowDeepErode : MidDeepErode);
+        bc = saturate(bc * lerp(sharp, 1.0, saturate(DistKm / max(DetailFadeKm, 0.1))));
         // (a deck is thinner stuff than a heaped cloud: lighter underneath, as real stratocumulus)
         best = max(best, bc * densities[ly] * lerp(1.0, DeckThin, saturate(kinds[ly])));
     }
@@ -3481,10 +3590,12 @@ def cloud_material_v2():
     def link(a, b, pin="", out=""):
         if not (mel.connect_material_expressions(a, out, b, pin)):
             bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
-    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
-        bad.append("domain")
+    # (blend first: a Volume domain on an opaque material compiles once with "Volume materials must use an
+    # Additive blend mode", a harmless in-between error the 155 log showed)
     if not try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE):
         bad.append("blend")
+    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
+        bad.append("domain")
     try:
         mel.set_material_usage(g.m, unreal.MaterialUsage.MATUSAGE_VOLUMETRIC_CLOUD)
     except Exception as e:
@@ -3493,12 +3604,12 @@ def cloud_material_v2():
     floats = ("NormAlt", "Cover", "Shape", "LowBottom", "LowTop", "LowRagged", "LowDensity",
               "MidCover", "MidBottom", "MidTop", "MidShape", "MidRagged", "MidDens",
               "MapOn", "MapHereLow", "MapHereMid", "Anvil",
-              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin", "ClosedFrom", "ClosedFull", "DetailFadeKm")
+              "Patchy", "Erode", "ErodeRagged", "EdgeSharp", "Billow", "Extinction", "DeckThin", "ClosedFrom", "ClosedFull", "DetailFadeKm", "LowDeepErode", "MidDeepErode")
     # (MPC_Sky's names for the inputs that aren't the same)
     mpc_name = {"LowDensity": "V2LowDensity", "MidDens": "V2MidDensity", "Patchy": "V2Patchy", "Erode": "V2Erode",
                 "ErodeRagged": "V2ErodeRagged", "EdgeSharp": "V2EdgeSharp", "Billow": "V2Billow", "Extinction": "V2Extinction",
                 "DeckThin": "V2DeckThin", "ClosedFrom": "V2ClosedFrom", "ClosedFull": "V2ClosedFull",
-                "DetailFadeKm": "V2DetailFadeKm"}
+                "DetailFadeKm": "V2DetailFadeKm", "LowDeepErode": "V2LowDeepErode", "MidDeepErode": "V2MidDeepErode"}
     names = ("LS", "LB", "LD", "MS", "MB", "MD", "BR") + floats + ("DistKm", "ShapeTex", "DetailTex", "MapUV", "WeatherMap")
     c = _custom(g, CLOUD_V2_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, names)
     alb = _custom(g, CLOUD_ALBEDO_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1,

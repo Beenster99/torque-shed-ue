@@ -1,0 +1,68 @@
+{
+ "name": "Rheinhart cruiser (working title R4)",
+ "format": 2,
+ "kit": true,
+ "triangles": 2890,
+ "surfaces": {
+  "s004": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "d3_casecrackle",
+   "tag": "d3_casecrackle",
+   "ue": "cat_plastic",
+   "color": [
+    0.016,
+    0.016,
+    0.018
+   ],
+   "metallic": 0.25,
+   "roughness": 0.72
+  },
+  "s005": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "engine",
+   "tag": "engine",
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "s006": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s007": {
+   "slot": "gearbox",
+   "node": "",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  }
+ },
+ "engine_part": {
+  "slot": "gearbox",
+  "look": "cast_crackle",
+  "fuel": "round_slide",
+  "air": "pods",
+  "cover": "cast",
+  "finish": null,
+  "case": "crackle",
+  "header": "ceramic",
+  "oil": "chrome"
+ }
+}

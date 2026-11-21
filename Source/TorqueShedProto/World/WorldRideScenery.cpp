@@ -8,6 +8,8 @@
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRideSigns.h"
+#include "WorldLevelCrossing.h"
+#include "WorldRoadLine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -266,6 +268,7 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 		// [OSM stage 2 batch C] (a quarry's bare stone, a graveyard's mown grass, the allotments' plots)
 		float Here[3] = {float(R), float(G), float(B)};
 		if (FieldTint(X, Z, Here)) { R = Here[0]; G = Here[1]; B = Here[2]; }
+		if (CircuitTint(X, Z, Here)) { R = Here[0]; G = Here[1]; B = Here[2]; }   // [circuits] (gravel traps, paved run-off)
 	}
 	// Steep ground is thin turf, then bare stone.
 	const double Bare = std::fmin(1.0, std::fmax(0.0, (Slope - 0.7) / 0.5));
@@ -874,6 +877,64 @@ std::vector<char> RidePlan::StreetsAlong(int Which) const
 	return Out;
 }
 
+// [level crossings] The crossing of road and rails Rails[Line] points First..Last: the map's road nearest its middle
+// (its way across, its class and width) and the type its road calls for (World/WorldLevelCrossing).
+void RidePlan::FindLevelCrossing(int Line, int First, int Last)
+{
+	const RailLine& Run = Rails[size_t(Line)];
+	LevelCrossing C;
+	C.Line = Line;
+	C.First = First;
+	C.Last = Last;
+	C.Mid = (Run.At[size_t(First)] + Run.At[size_t(Last)]) * 0.5;
+	const size_t A = First > 0 ? size_t(First) - 1 : size_t(First), B = std::min(Run.At.size() - 1, size_t(Last) + 1);
+	C.Rail = Run.At[B] - Run.At[A];
+	const double RailLen = C.Rail.Length();
+	if (RailLen < 1e-6) return;
+	C.Rail = C.Rail * (1.0 / RailLen);
+	// (the nearest piece of the map's roads to the middle, within 15 m)
+	double Best = 15.0;
+	int BestEdge = -1;
+	const std::vector<RoadEdge>& Edges = Area.Roads.Edges;
+	for (size_t E = 0; E < Edges.size(); ++E)
+	{
+		const std::vector<P2>& L = Edges[E].Line;
+		for (size_t K = 0; K + 1 < L.size(); ++K)
+		{
+			const P2 P = L[K], Q = L[K + 1];
+			if (std::min(P.X, Q.X) > C.Mid.X + Best || std::max(P.X, Q.X) < C.Mid.X - Best || std::min(P.Z, Q.Z) > C.Mid.Z + Best || std::max(P.Z, Q.Z) < C.Mid.Z - Best) continue;
+			const P2 D = Q - P;
+			const double Len2 = D.X * D.X + D.Z * D.Z;
+			const double T = Len2 > 0.0 ? std::clamp(((C.Mid.X - P.X) * D.X + (C.Mid.Z - P.Z) * D.Z) / Len2, 0.0, 1.0) : 0.0;
+			const double Dist = (P + D * T - C.Mid).Length();
+			if (Dist < Best && Len2 > 1e-6)
+			{
+				Best = Dist;
+				BestEdge = int(E);
+				C.Road = D * (1.0 / std::sqrt(Len2));
+			}
+		}
+	}
+	if (BestEdge < 0)
+	{
+		// (no mapped road that near: square across the line, a lane's width)
+		C.Road = P2(-C.Rail.Z, C.Rail.X);
+		C.Class = "unclassified";
+	}
+	else
+		C.Class = Area.Roads.ClassOf(BestEdge);
+	// (its width where the map gives one, else its class's; never under a single track's)
+	C.Half = std::max(1.6, RoadLine::WidthOf(C.Class) * 0.5);
+	if (BestEdge >= 0)
+	{
+		const auto X = Area.Roads.Extras.find(Edges[size_t(BestEdge)].Gid);
+		if (X != Area.Roads.Extras.end() && X->second.Width > 2.5) C.Half = std::clamp(X->second.Width * 0.5, 1.6, 7.0);
+	}
+	C.Key = static_cast<uint32_t>(std::lround(C.Mid.X * 2.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(C.Mid.Z * 2.0)) * 19349663u ^ 0x5bd1e995u;
+	C.Type = LevelX::TypeFor(C.Class, C.Half, C.Key);
+	LevelCrossings.push_back(C);
+}
+
 void RidePlan::IndexFurniture()
 {
 	Furniture.clear();
@@ -1129,6 +1190,15 @@ void RidePlan::IndexFurniture()
 			}
 		return Best;
 	};
+	// ([Nov 19] the cafés' buildings (BuildingRole 3): a shop front there is named as a café, tea room or
+	// coffee house; the map's other shops carry no trade in our data, so theirs are a high street's mix)
+	for (const TorqueFit::Json& Poi : G.Pois)
+	{
+		if (Poi.Str("kind") != "cafe") continue;
+		const int Home = NearestBuilding(Poi.Num("x"), Poi.Num("z"), 20.0);
+		if (Home >= 0 && BuildingRole[size_t(Home)] == 0) BuildingRole[size_t(Home)] = 3;
+	}
+	std::vector<int> SignedHomes;
 	for (const TorqueFit::Json& Poi : G.Pois)
 	{
 		const std::string What = Poi.Str("kind");
@@ -1138,8 +1208,10 @@ void RidePlan::IndexFurniture()
 		const int Home = NearestBuilding(At.X, At.Z, 30.0);
 		if (Home >= 0) BuildingRole[size_t(Home)] = 2;
 		if (Called.empty() || Home < 0) continue;
-		// (a guest house, a B&B or a lodge the map calls an inn has no sign: only a pub's, beenster build 148)
-		if (What == "inn")
+		// ([Nov 18] beenster, Haworth Main Street: two names run together on one board. One sign to a building:
+		// the first pub the map gives it)
+		if (std::find(SignedHomes.begin(), SignedHomes.end(), Home) != SignedHomes.end()) continue;
+		// (a guest house, a B&B or a lodge the map calls an inn, or a pub, has no sign: only a pub's, beenster build 148)
 		{
 			bool Lodging = false;
 			for (const char* Word : {"Guest House", "Guesthouse", "B&B", "Bed and Breakfast", "Bed & Breakfast", "Lodge", "Cottage", "Farm", "Apartments"})
@@ -1170,7 +1242,11 @@ void RidePlan::IndexFurniture()
 		F.Text = Called;
 		F.Height = Ground(B.X, B.Z);   // (the building's own ground: its walls stand on it)
 		// (none where the map's wall stands on the road's own footprint: it would hang over the riders)
-		if (!std::isnan(F.Height) && std::isnan(RoadHeight(F.At.X, F.At.Z))) Put(F);
+		if (!std::isnan(F.Height) && std::isnan(RoadHeight(F.At.X, F.At.Z)))
+		{
+			Put(F);
+			SignedHomes.push_back(Home);
+		}
 	}
 	for (const TorqueFit::Json& Mark : G.Landmarks)
 	{
@@ -1179,15 +1255,19 @@ void RidePlan::IndexFurniture()
 		if (Home >= 0 && G.Buildings[size_t(Home)].W * G.Buildings[size_t(Home)].D >= 60.0) BuildingRole[size_t(Home)] = 1;
 	}
 	// Level crossings: on each road's approach to a railway in use, a barrier (up: no trains run) and
-	// its lights, on the traffic's left.
-	for (const RailLine& Run : Rails)
+	// its lights, on the traffic's left. ([level crossings] and each one listed, for ATorqueLevelCrossing to stand
+	// the kit's real crossing up: then this code-made one isn't drawn)
+	LevelCrossings.clear();
+	for (size_t Ri = 0; Ri < Rails.size(); ++Ri)
 	{
+		const RailLine& Run = Rails[Ri];
 		if (Run.Disused) continue;
 		for (size_t I = 0; I < Run.At.size(); ++I)
 		{
 			if (Run.On[I] != 3 || (I > 0 && Run.On[I - 1] == 3)) continue;
 			size_t J = I;
 			while (J + 1 < Run.At.size() && Run.On[J + 1] == 3) ++J;
+			FindLevelCrossing(int(Ri), int(I), int(J));
 			// (the rail's points just off the road each side, and the way across the line there)
 			for (int End = 0; End < 2; ++End)
 			{
@@ -1629,6 +1709,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 	static const Rgb White = {0.75f, 0.75f, 0.74f}, Black = {0.012f, 0.012f, 0.012f}, Red = {0.45f, 0.012f, 0.01f}, Grey = {0.16f, 0.16f, 0.165f}, Steel = {0.24f, 0.25f, 0.26f},
 		Wood = {0.075f, 0.05f, 0.032f}, PoleWood = {0.05f, 0.04f, 0.03f}, Stone3 = {0.22f, 0.21f, 0.19f}, Lamp = {0.6f, 0.58f, 0.5f};
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	std::vector<const Building*> PubWalls;   // ([Nov 18] the outline boxes given a pub's sign in this square: one each)
 	const auto Label = [&Out](const P3& At, const P2& Face, double Tall, const std::string& Words, const Rgb& Colour)
 	{
 		// ([OSM stage 6A] set as triangles in the signs' layer, capitals as tall as a text component's
@@ -1688,8 +1769,9 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
 		if (!Fine && F.Kind != PowerPole && F.Kind != StreetLamp) continue;
 		// [OSM stage 2] a kind the prop kit has a model for is drawn from it (PropsTile), but a
-		// street lamp's glowing head and real light stay here
-		if (Modelled(F.Kind) && F.Kind != StreetLamp) continue;
+		// street lamp's glowing head and real light stay here, and a traffic signal's lit faces
+		if (Modelled(F.Kind) && F.Kind != StreetLamp && F.Kind != TrafficSignal) continue;
+		if (F.Kind == CrossingBarrier && CrossingKit) continue;   // [level crossings] (ATorqueLevelCrossing's real one stands there)
 		const double Y = F.Height;
 		const P2 Face = F.Face;
 		const P2 Side(Face.Z, -Face.X);
@@ -2052,14 +2134,62 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			static const Rgb Paints[4] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
 			static const Rgb Cream = {0.70f, 0.64f, 0.48f};
 			const Rgb& Paint = Paints[std::min(3, int(Chance(F.At.X, F.At.Z, 52) * 4.0))];
+			// ([Nov 18] beenster, Long Lee, build 156: "pub sign is not attached to pub". The sign was put on the
+			// map's rough box for the pub, but where the world has the buildings' true outlines the pub is
+			// drawn from those (BuildingsTile), and its wall stood back from the sign. So where outlines
+			// cover it: the outline's box nearest the sign, the sign on that box's wall towards the road;
+			// and no sign where none is near enough to be the pub.)
+			P2 WallAt = F.At, WallFace = Face;
+			double Widest = F.Size, PubHigh = F.Big, Foot = Y;
+			{
+				std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> Hold;
+				std::vector<const OutlinePiece*> PubNear;
+				std::vector<CellId> Covered;
+				OutlinesIn(F.At.X - 30.0, F.At.Z - 30.0, 60.0, Hold, PubNear, Covered);
+				if (!Covered.empty())
+				{
+					const Building* Pub = nullptr;
+					double BestGap = 12.0;
+					for (const OutlinePiece* Piece : PubNear)
+					{
+						const Building& Pb = Piece->B;
+						if (Pb.W < 4.0 || Pb.D < 3.0) continue;
+						// (how far the sign's spot is outside the box, in the box's own axes)
+						const double Cp = std::cos(Pb.Yaw), Sp = std::sin(Pb.Yaw);
+						const P2 Rel = F.At - P2(Pb.X, Pb.Z);
+						const double Gx = std::fmax(0.0, std::fabs(Rel.X * Cp - Rel.Z * Sp) - Pb.W * 0.5), Gz = std::fmax(0.0, std::fabs(Rel.X * Sp + Rel.Z * Cp) - Pb.D * 0.5);
+						const double PubGap = std::hypot(Gx, Gz);
+						if (PubGap < BestGap) { BestGap = PubGap; Pub = &Pb; }
+					}
+					if (Pub == nullptr || std::find(PubWalls.begin(), PubWalls.end(), Pub) != PubWalls.end()) break;
+					PubWalls.push_back(Pub);
+					NearOpts Opts;
+					NearHit Hit;
+					if (!NearestOf(Pub->X, Pub->Z, Opts, Hit)) break;
+					const double Cp = std::cos(Pub->Yaw), Sp = std::sin(Pub->Yaw);
+					const P2 Ax(Cp, -Sp), Az(Sp, Cp);
+					const P2 ToRoad = Hit.Foot - P2(Pub->X, Pub->Z);
+					const double Ux = (ToRoad.X * Ax.X + ToRoad.Z * Ax.Z) / std::fmax(Pub->W * 0.5, 0.5), Uz = (ToRoad.X * Az.X + ToRoad.Z * Az.Z) / std::fmax(Pub->D * 0.5, 0.5);
+					const bool OnX = std::fabs(Ux) >= std::fabs(Uz);
+					WallFace = OnX ? Ax * (Ux >= 0.0 ? 1.0 : -1.0) : Az * (Uz >= 0.0 ? 1.0 : -1.0);
+					const double WallLong = OnX ? Pub->W : Pub->D, Deep = OnX ? Pub->D : Pub->W;
+					if (WallLong < 4.0) break;
+					WallAt = P2(Pub->X, Pub->Z) + WallFace * (Deep * 0.5);
+					Widest = std::fmin(WallLong - 1.0, 6.5);
+					PubHigh = Pub->Height;
+					const double Under = Ground(Pub->X, Pub->Z);
+					if (!std::isnan(Under)) Foot = Under;
+					if (!std::isnan(RoadHeight(WallAt.X, WallAt.Z))) break;
+				}
+			}
 			const double Letters = double(F.Text.size());
-			const double W = std::clamp(0.8 + 0.2 * Letters, 2.0, std::fmax(2.0, F.Size));
+			const double W = std::clamp(0.8 + 0.2 * Letters, 2.0, std::fmax(2.0, Widest));
 			const double Hb = 0.55;
-			const double Lift = F.Big > 5.0 ? 2.75 : std::fmax(2.2, F.Big * 0.5);
-			const P3 Mid = At3(F.At.X, Y + Lift, F.At.Z);
-			Board(Mid, Face, W + 0.12, Hb + 0.12, Shade(Paint, 0.6), 0.03);
-			Board(Mid, Face, W, Hb, Paint, 0.06);
-			Label(At3(Mid.X + Face.X * 0.075, Mid.Y, Mid.Z + Face.Z * 0.075), Face, std::fmin(0.3, 0.9 * (W - 0.3) / std::fmax(1.0, Letters * 0.6)), F.Text, Cream);
+			const double Lift = PubHigh > 5.0 ? 2.75 : std::fmax(2.2, PubHigh * 0.5);
+			const P3 Mid = At3(WallAt.X, Foot + Lift, WallAt.Z);
+			Board(Mid, WallFace, W + 0.12, Hb + 0.12, Shade(Paint, 0.6), 0.03);
+			Board(Mid, WallFace, W, Hb, Paint, 0.06);
+			Label(At3(Mid.X + WallFace.X * 0.075, Mid.Y, Mid.Z + WallFace.Z * 0.075), WallFace, std::fmin(0.3, 0.9 * (W - 0.3) / std::fmax(1.0, Letters * 0.6)), F.Text, Cream);
 			break;
 		}
 		case CrossingBarrier:
@@ -2239,18 +2369,25 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			// [OSM stage 5D] A grey pole, and on it a black head with a white-edged backing board facing the
 			// traffic: red over amber over green, lit in turn by the shared clock (M_RideSignal).
 			static const Rgb LampRed = {1.0f, 0.03f, 0.01f}, LampAmber = {1.0f, 0.35f, 0.0f}, LampGreen = {0.05f, 1.0f, 0.35f};
-			Box(Out, F.At.X, F.At.Z, Face, 0.055, 0.055, Y - 0.3, Y + 2.35, Shade(Grey, 0.7));
-			Box(Out, F.At.X, F.At.Z, Face, 0.13, 0.17, Y + 2.3, Y + 3.3, Black);
+			// ([Nov 19] with the kit's model, Tools/blender_street_kit.py traffic_signal, only the lit faces, on its
+			// lenses: 0.32 m apart, 0.29 m out in front of the column)
+			const bool Drawn = !Modelled(F.Kind);
+			const double Ahead = Drawn ? 0.14 : 0.29, Step = Drawn ? 0.3 : 0.32;
 			const P3 Head = At3(F.At.X, Y + 2.8, F.At.Z);
-			Board(Head, Face * -1.0, 0.62, 1.22, Black, 0.13);
-			Board(Head, Face, 0.62, 1.22, White, -0.135);
-			Board(Head, Face, 0.56, 1.16, Black, -0.13);
+			if (Drawn)
+			{
+				Box(Out, F.At.X, F.At.Z, Face, 0.055, 0.055, Y - 0.3, Y + 2.35, Shade(Grey, 0.7));
+				Box(Out, F.At.X, F.At.Z, Face, 0.13, 0.17, Y + 2.3, Y + 3.3, Black);
+				Board(Head, Face * -1.0, 0.62, 1.22, Black, 0.13);
+				Board(Head, Face, 0.62, 1.22, White, -0.135);
+				Board(Head, Face, 0.56, 1.16, Black, -0.13);
+			}
 			RideMesh& Lamps = Out.SignalsOf();
 			const Rgb* Colours[3] = {&LampRed, &LampAmber, &LampGreen};
 			for (int L = 0; L < 3; ++L)
 			{
 				const size_t V0 = Lamps.Vertices();
-				Disc(Lamps, At3(Head.X + Face.X * 0.14, Head.Y + 0.3 - 0.3 * L, Head.Z + Face.Z * 0.14), Face, 0.1, *Colours[L], 14);
+				Disc(Lamps, At3(Head.X + Face.X * Ahead, Head.Y + Step - Step * L, Head.Z + Face.Z * Ahead), Face, Drawn ? 0.1 : 0.098, *Colours[L], 14);
 				for (size_t V = V0; V < Lamps.Vertices(); ++V)
 				{
 					Lamps.Uv[V * 2] = float(F.Size);
@@ -2319,6 +2456,13 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 		{
 			const double X = X0 + I * Step, Z = Z0 + J * Step;
 			unsigned char W = Land->SeaAt(X, Z) ? 2 : Land->Cover(X, Z) == Terrain::CoverWater ? 1 : 0;
+			// ([build 155 feedback] beenster: "I still see brooks represented as floating rectangles". The land
+			// cover's water is 10 m squares from space: a brook, a wet field or a shadow became a few flat
+			// squares of water. Only a real sheet of it, water 12 m round every way, is drawn so; the map's
+			// own lakes, rivers and streams draw the rest.)
+			if (W == 1)
+				for (int K = 0; K < 4 && W == 1; ++K)
+					if (Land->Cover(X + (K == 0 ? 12.0 : K == 1 ? -12.0 : 0.0), Z + (K == 2 ? 12.0 : K == 3 ? -12.0 : 0.0)) != Terrain::CoverWater) W = 0;
 			// [OSM stage 2 batch D] (a mapped reservoir: flat, at its own level)
 			if (W != 2 && Reservoirs)
 			{
@@ -2462,6 +2606,7 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				// (each bit once: in the square its middle is in)
 				if (int(std::floor(Mid.X / WaterCell)) != Cx || int(std::floor(Mid.Z / WaterCell)) != Cz || !Inside(Mid)) continue;
 				if (Land->SeaAt(Mid.X, Mid.Z) || !std::isnan(StillLevel(Mid.X, Mid.Z))) continue;   // (the sea's or a lake's own water)
+				if (Run.Kind == 1 && Step > LandGrid * 1.1) continue;   // ([build 155 feedback] a brook's water only where BanksTile draws its banks)
 				const double Ha = Run.Half[I] + 0.35, Hb = Run.Half[I + 1] + 0.35;
 				{
 					// (under a road, not a bridge: a culvert)
@@ -2479,6 +2624,151 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				Put(B.X - Lb.X * Hb, Run.Surface[I + 1], B.Z - Lb.Z * Hb, C);
 				// (left is the run's left going down it, so these face up)
 				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
+			}
+		}
+}
+
+double RidePlan::LandSurfaceAt(double X, double Z, std::unordered_map<long long, double>* Cache) const
+{
+	const double Drawn = LandDrawnAt(X, Z, Cache);
+	double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+	bool Beside = true;
+	if (!std::isnan(Drawn) && NearWater(X, Z, Wd, Ws, Wh, Wdp, nullptr, &Beside) && Beside && Wd < Wh + BankStrip * LandGrid)
+	{
+		const double Fine = Ground(X, Z);
+		if (!std::isnan(Fine)) return std::fmax(Fine, Drawn + 0.03);
+	}
+	return Drawn;
+}
+
+void RidePlan::BanksTile(double X0, double Z0, double Size, RideMesh& Out) const
+{
+	if (WaterNear.empty() || !Land) return;
+	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
+	const auto LeftOf = [](const WaterRun& Run, size_t I)
+	{
+		const size_t Count = Run.At.size();
+		const P2 D = Run.At[std::min(Count - 1, I + 1)] - Run.At[I > 0 ? I - 1 : 0];
+		const double L = D.Length();
+		return L > 1e-9 ? P2(D.Z / L, -D.X / L) : P2(1.0, 0.0);
+	};
+	// (how far past the water's edge each line of the strip lies; its last is BankStrip squares out)
+	static constexpr double Past[] = {-0.6, -0.2, 0.15, 0.45, 0.9, 1.5, 2.3, 3.3, 4.6, 6.2, 0.0};
+	static constexpr int Lines = int(sizeof(Past) / sizeof(Past[0]));
+	struct Section
+	{
+		P2 At[Lines];
+		double Y[Lines];
+		float C[Lines][3];
+		int Count = 0;   // (lines it has: fewer where a road, the sea or a lake comes first)
+	};
+	std::unordered_map<long long, double> Drawn;
+	std::unordered_map<long long, std::array<float, 3>> Colours;
+	std::unordered_map<long long, Section> Made;
+	const auto SectionAt = [&](int Ri, size_t I, int Side) -> const Section&
+	{
+		const long long Key = (static_cast<long long>(Ri) * 1000003LL + static_cast<long long>(I)) * 2 + (Side > 0 ? 1 : 0);
+		const auto Found = Made.find(Key);
+		if (Found != Made.end()) return Found->second;
+		const WaterRun& Run = WaterRuns[size_t(Ri)];
+		const P2 L = LeftOf(Run, I) * double(Side);
+		Section S;
+		const double Edge = double(Run.Half[I]);
+		// (on the inside of a bend, no wider than most of its radius: the strips would fold over themselves)
+		double Widest = BankStrip * LandGrid;
+		if (I > 0 && I + 1 < Run.At.size())
+		{
+			const P2 In = Run.At[I] - Run.At[I - 1], On = Run.At[I + 1] - Run.At[I];
+			const double Li = In.Length(), Lo = On.Length();
+			if (Li > 1e-6 && Lo > 1e-6)
+			{
+				const double Turn = std::atan2(In.X * On.Z - In.Z * On.X, In.X * On.X + In.Z * On.Z);
+				// (left is (dz, -dx) going down it, so a turn of negative sign bends towards the left)
+				const bool Inner = (Turn < 0.0) == (Side > 0);
+				if (Inner && std::fabs(Turn) > 1e-4) Widest = std::fmin(Widest, std::fmax(1.0, 0.6 * (Li + Lo) * 0.5 / std::fabs(Turn) - Edge));
+			}
+		}
+		const double Squeeze = Widest / (BankStrip * LandGrid);
+		for (int K = 0; K < Lines; ++K)
+		{
+			const double D = K + 1 == Lines ? Edge + Widest : Edge + (Past[K] > 0.0 ? Past[K] * Squeeze : Past[K]);
+			const P2 P = Run.At[I] + L * D;
+			bool Stop = Land->SeaAt(P.X, P.Z) || !std::isnan(StillLevel(P.X, P.Z));
+			if (!Stop)
+			{
+				NearOpts Opts;
+				NearHit Hit;
+				Stop = NearestOf(P.X, P.Z, Opts, Hit) && Hit.Dist <= Hit.Half + 2.0;
+			}
+			const double Land0 = LandDrawnAt(P.X, P.Z, &Drawn);
+			if (Stop || std::isnan(Land0)) break;
+			S.At[K] = P;
+			const double Fine = GroundOf(P.X, P.Z, 0.0, false);
+			S.Y[K] = K + 1 == Lines || std::isnan(Fine) ? Land0 : std::fmax(Fine, Land0 + 0.03);
+			LandColourDrawnAt(P.X, P.Z, S.C[K], &Colours);
+			// (wet and muddy at the water, its bed darker still)
+			const double Wet = D < Edge ? 0.55 : 0.72 + 0.28 * std::clamp((D - Edge) / 1.6, 0.0, 1.0);
+			for (float& Ch : S.C[K]) Ch = float(Ch * Wet);
+			S.Count = K + 1;
+		}
+		// (cut short: its last line meets the land as drawn)
+		if (S.Count > 0 && S.Count < Lines) S.Y[S.Count - 1] = LandDrawnAt(S.At[S.Count - 1].X, S.At[S.Count - 1].Z, &Drawn);
+		return Made.emplace(Key, S).first->second;
+	};
+	const int CellX0 = int(std::floor(X0 / WaterCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / WaterCell)), CellZ0 = int(std::floor(Z0 / WaterCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / WaterCell));
+	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
+		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
+		{
+			const long long CellKey = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
+			const auto It = WaterNear.find(CellKey);
+			if (It == WaterNear.end()) continue;
+			for (const std::pair<int, int>& Bit : It->second)
+			{
+				const WaterRun& Run = WaterRuns[size_t(Bit.first)];
+				const size_t I = size_t(Bit.second);
+				const P2 Mid = (Run.At[I] + Run.At[I + 1]) * 0.5;
+				if (int(std::floor(Mid.X / WaterCell)) != Cx || int(std::floor(Mid.Z / WaterCell)) != Cz || !Inside(Mid)) continue;
+				if (Land->SeaAt(Mid.X, Mid.Z) || !std::isnan(StillLevel(Mid.X, Mid.Z))) continue;
+				for (int Side : {1, -1})
+				{
+					const Section& A = SectionAt(Bit.first, I, Side);
+					const Section& B = SectionAt(Bit.first, I + 1, Side);
+					const int Count = std::min(A.Count, B.Count);
+					if (Count < 2) continue;
+					const uint32_t Base = uint32_t(Out.Vertices());
+					for (const Section* S : {&A, &B})
+						for (int K = 0; K < Count; ++K)
+						{
+							Out.Pos.push_back(float(S->At[K].X - Out.OriginX)); Out.Pos.push_back(float(S->Y[K])); Out.Pos.push_back(float(S->At[K].Z - Out.OriginZ));
+							Out.Nrm.push_back(0.0f); Out.Nrm.push_back(0.0f); Out.Nrm.push_back(0.0f);
+							Out.Uv.push_back(float(S->At[K].X / 8.0)); Out.Uv.push_back(float(S->At[K].Z / 8.0));
+							Out.Col.push_back(S->C[K][0]); Out.Col.push_back(S->C[K][1]); Out.Col.push_back(S->C[K][2]);
+						}
+					const auto Tri = [&Out](uint32_t P, uint32_t Q, uint32_t R)
+					{
+						const float* V = Out.Pos.data();
+						const double E1x = V[Q * 3] - V[P * 3], E1y = V[Q * 3 + 1] - V[P * 3 + 1], E1z = V[Q * 3 + 2] - V[P * 3 + 2];
+						const double E2x = V[R * 3] - V[P * 3], E2y = V[R * 3 + 1] - V[P * 3 + 1], E2z = V[R * 3 + 2] - V[P * 3 + 2];
+						double Nx = E1y * E2z - E1z * E2y, Ny = E1z * E2x - E1x * E2z, Nz = E1x * E2y - E1y * E2x;
+						// (wound to face up, as the land's own)
+						if (Ny < 0.0) { std::swap(Q, R); Nx = -Nx; Ny = -Ny; Nz = -Nz; }
+						Out.Idx.insert(Out.Idx.end(), {P, Q, R});
+						for (uint32_t W : {P, Q, R}) { Out.Nrm[W * 3] += float(Nx); Out.Nrm[W * 3 + 1] += float(Ny); Out.Nrm[W * 3 + 2] += float(Nz); }
+					};
+					for (int K = 0; K + 1 < Count; ++K)
+					{
+						const uint32_t Pa = Base + uint32_t(K), Qa = Pa + 1, Pb = Base + uint32_t(Count + K), Qb = Pb + 1;
+						Tri(Pa, Qa, Pb);
+						Tri(Qa, Qb, Pb);
+					}
+					for (uint32_t V = Base; V < uint32_t(Out.Vertices()); ++V)
+					{
+						float* N = &Out.Nrm[V * 3];
+						const float Len = std::sqrt(N[0] * N[0] + N[1] * N[1] + N[2] * N[2]);
+						if (Len > 1e-9f) { N[0] /= Len; N[1] /= Len; N[2] /= Len; }
+						else { N[1] = 1.0f; }
+					}
+				}
 			}
 		}
 }
@@ -2536,6 +2826,7 @@ void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMes
 {
 	if (!Scene || Scene->Paths.empty() || Step > 4.5) return;
 	const Region& G = Area.Roads;
+	std::unordered_map<long long, double> Drawn;
 	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
@@ -2571,6 +2862,7 @@ void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMes
 						NearHit Hit;
 						if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Half + 0.4) continue;   // (on or at the road: the road's own)
 						if (Land->Cover(Pm.X, Pm.Z) == Terrain::CoverWater || Land->SeaAt(Pm.X, Pm.Z)) continue;
+						if (InCarPark(Pm.X, Pm.Z)) continue;   // [car parks] (a footway mapped across one: its tarmac is the way)
 						// (beenster, build 147, Jenkin Chapel: a path was a flat slab with hard straight edges on the
 						// grass. Now its worn middle in the colour M_RideRoad draws as its surface's scan, and each
 						// side a ragged lip from the verge's grit out to its grass, every 1.5 m its own width, laid
@@ -2595,7 +2887,10 @@ void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMes
 							// (the middle at the higher of its edge and the line's own ground, so the ground doesn't show
 							// through; the lips down to the ground)
 							const bool Lip = C == 0 || C == 3;
-							const double Ea = Ground(Qa[C].X, Qa[C].Z, Step), Eb = Ground(Qb[C].X, Qb[C].Z, Step), Ca = Ground(Pa.X, Pa.Z, Step), Cb = Ground(Pb.X, Pb.Z, Step);
+							// ([build 155 feedback] on the ground as drawn, not as it is finely: on the near land's 4 m squares
+							// a path laid to the fine ground floated over hollows and sank into humps, flat dark slabs
+							// by brooks and rivers most of all)
+							const double Ea = LandSurfaceAt(Qa[C].X, Qa[C].Z, &Drawn), Eb = LandSurfaceAt(Qb[C].X, Qb[C].Z, &Drawn), Ca = LandSurfaceAt(Pa.X, Pa.Z, &Drawn), Cb = LandSurfaceAt(Pb.X, Pb.Z, &Drawn);
 							Laid = !std::isnan(Ea) && !std::isnan(Eb) && !std::isnan(Ca) && !std::isnan(Cb);
 							Ya[C] = Lip ? Ea + 0.012 : std::fmax(Ea, Ca - 0.15) + Lift * 0.6;
 							Yb[C] = Lip ? Eb + 0.012 : std::fmax(Eb, Cb - 0.15) + Lift * 0.6;
@@ -3010,7 +3305,7 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
 	const P3 Sky = At3(X0, 1e6, Z0);
 	static const Rgb Ballast = {0.125f, 0.118f, 0.108f}, Trackbed = {0.07f, 0.075f, 0.04f}, Sleeper = {0.19f, 0.185f, 0.175f}, RailHead = {0.42f, 0.40f, 0.38f},
-		RailWeb = {0.10f, 0.065f, 0.04f}, Girder = {0.06f, 0.065f, 0.07f}, Asphalt = {0.085f, 0.085f, 0.09f}, Coping = {0.32f, 0.31f, 0.29f},
+		RailWeb = {0.10f, 0.065f, 0.04f}, Asphalt = {0.085f, 0.085f, 0.09f}, Coping = {0.32f, 0.31f, 0.29f},
 		Warning = {0.55f, 0.42f, 0.02f}, Board = {0.008f, 0.04f, 0.22f}, PostGrey = {0.15f, 0.15f, 0.15f};
 	// (the viaducts' stone, as the walls' masks: a little lichened, mostly the bare scan)
 	Rgb Mask;
@@ -3108,9 +3403,10 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 					}
 					else if (High > 0.5)
 					{
-						// (a plain deck's sides and underside)
-						for (double Sg : {1.0, -1.0}) Strip(Out, Run, I, Sg * 2.8, -1.25, Sg * 2.8, -0.2, Beside(Run, I, Sg * 50.0, 0.0), Girder, -1.0f);
-						Strip(Out, Run, I, -2.8, -1.25, 2.8, -1.25, Beside(Run, I, 0.0, -100.0), Girder, -1.0f);
+						// (a plain deck's sides and underside: [Nov 18] in the scanned stone with the parapets, not
+						// the tarmac's scan in a girder's grey; beenster: "a very low def material on the walls")
+						for (double Sg : {1.0, -1.0}) Strip(Stone, Run, I, Sg * 2.8, -1.25, Sg * 2.8, -0.2, Beside(Run, I, Sg * 50.0, 0.0), Shade(Mask, 0.85), 0.25f);
+						Strip(Stone, Run, I, -2.8, -1.25, 2.8, -1.25, Beside(Run, I, 0.0, -100.0), Shade(Mask, 0.75), 0.1f);
 					}
 					// A pier (every 16 m from the bridge's start, not on a road) or an abutment (where it meets the ground).
 					// ([156] and where the line ends on the bridge, an abutment there: beenster at Portreath, "Bridge half finished")
@@ -3375,6 +3671,7 @@ std::vector<RidePlan::Furnish> RidePlan::RoadFurniture(int Which) const
 	{
 		const std::string& Class = G.ClassOf(Mine->Edge);
 		if (Class == "track" || Class == "service" || Class == "path" || Class == "footway" || Class == "cycleway" || Class == "bridleway") return Out;
+		if (Class == "raceway" || Class == "pit_lane") return Out;   // [circuits] (no road signs, lamps or posts on a circuit)
 	}
 	const auto Dir = [&Pts](size_t I)
 	{

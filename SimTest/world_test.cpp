@@ -2,6 +2,7 @@
 // (WebP lossless and PNG, read by the game's own code), two cells of the world store stitched into
 // one road graph, and the ground's height, each checked against what the Godot game answers on the
 // same files (data/world/godot_world.json, written by Tools/make_godot_reference.py --world).
+#include "WorldFerries.h"
 #include "CellStore.h"
 #include "FitJson.h"
 #include "HeightTiles.h"
@@ -11,6 +12,7 @@
 #include "WorldInflate.h"
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRideChurches.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRideSigns.h"
@@ -102,6 +104,87 @@ int main()
 	// [towns stage 4] (the house types)
 	std::string TypesText;
 	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
+	// [churches stage 3] (the church kit: read, a church and a chapel chosen for a building, built whole into the meshes)
+	{
+		std::string KitText, KitBin;
+		const bool KitRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.json"), KitText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/church_kit.bin"), KitBin)
+			&& SetChurchKit(KitText, KitBin);
+		const std::shared_ptr<const ChurchKit> Kit = ChurchKitNow();
+		bool Ok = KitRead && Kit && Kit->Models.size() == 48;
+		double Along = 0.0, Across = 0.0;
+		bool Whole = false;
+		const int Church = Ok ? Kit->Pick("dales", false, false, 26.0, 9.0, 0.3, 0.9, Along, Across, Whole) : -1;
+		const int Chapel = Ok ? Kit->Pick("wales", false, true, 15.0, 11.5, 0.6, 0.9, Along, Across, Whole) : -1;
+		Ok = Ok && Church >= 0 && Kit->Models[size_t(Church)].Kind == "church" && Chapel >= 0 && Kit->Models[size_t(Chapel)].Kind != "church";
+		Ok = Ok && Kit->NameKind("Hall Green Baptist Church") == 1 && Kit->NameKind("St Michael and All Angels Church") == 0 && Kit->NameKind("Central Mosque") == 2;
+		// [churches stage 4] (a Catholic church in the Dales from the Victorian ones; a Friends' meeting house; a cross-shaped outline's transepts)
+		const auto Has = [&](int M, const char* Tag) { return M >= 0 && std::find(Kit->Models[size_t(M)].Tags.begin(), Kit->Models[size_t(M)].Tags.end(), Tag) != Kit->Models[size_t(M)].Tags.end(); };
+		const int Catholic = Ok ? Kit->Pick("dales", false, false, 22.0, 9.0, 0.3, 0.9, Along, Across, Whole, {Kit->NameFaith("St Mary's Catholic Church")}) : -1;
+		const int Meeting = Ok ? Kit->Pick("dales", false, true, 14.0, 8.0, 0.3, 0.9, Along, Across, Whole, {Kit->NameFaith("Friends Meeting House")}) : -1;
+		const int Cross = Ok ? Kit->Pick("dales", false, false, 30.0, 16.0, 0.3, 0.9, Along, Across, Whole, {"cross"}) : -1;
+		const int Plain = Ok ? Kit->Pick("dales", false, true, 14.0, 8.0, 0.3, 0.9, Along, Across, Whole) : -1;
+		Ok = Ok && Has(Catholic, "catholic") && Meeting >= 0 && Kit->Models[size_t(Meeting)].Kind == "meeting" && Has(Cross, "cross") && Plain >= 0
+			&& Kit->Models[size_t(Plain)].Kind != "meeting" && Kit->NameFaith("St Michael and All Angels Church").empty();
+		// [churches stage 6] (every church tagged by what stands over its nave, towers and spires among them; a spire
+		// wanted and given; a tower stretched by the LiDAR's top reaching it)
+		int Towers = 0, Spires = 0, Bellcotes = 0;
+		for (const ChurchModel& M : Kit ? Kit->Models : std::vector<ChurchModel>{})
+			if (M.Kind != "yard") (M.Steeple == 2 ? Spires : M.Steeple == 1 ? Towers : Bellcotes) += 1;
+		const int Spired = Ok ? Kit->Pick("town", true, false, 30.0, 12.0, 0.3, 0.9, Along, Across, Whole, {"spire"}) : -1;
+		int Towered = -1;
+		for (size_t M = 0; Kit && M < Kit->Models.size(); ++M)
+			if (Kit->Models[M].Steeple == 1) { Towered = int(M); break; }
+		double StretchedTop = 0.0;
+		if (Towered >= 0)
+		{
+			const ChurchModel& Tm = Kit->Models[size_t(Towered)];
+			RideMesh S0, S1, S2, S3, S4;
+			const double Want = Tm.Top + 6.0, K = (Want - Tm.NaveTop) / (Tm.Top - Tm.NaveTop);
+			BuildChurch(Tm, true, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, false, S0, S1, S2, S3, S4, K);
+			for (const RideMesh* M : {&S0, &S1, &S2, &S3, &S4})
+				for (size_t V = 0; V < M->Vertices(); ++V) StretchedTop = std::fmax(StretchedTop, double(M->Pos[V * 3 + 1]));
+			Ok = Ok && std::fabs(StretchedTop - Want) < 0.05;
+		}
+		std::printf("      church steeples: %d towers, %d spires, %d bellcotes or none; a spire wanted: %s; a tower stretched to %.1f m\n", Towers, Spires, Bellcotes,
+			Spired >= 0 ? Kit->Models[size_t(Spired)].Name.c_str() : "-", StretchedTop);
+		Ok = Ok && Towers > 5 && Spires > 2 && Bellcotes > 2 && Has(Spired, "spire");
+		// (twice into the same meshes, one already holding vertices without alpha: every mesh's alpha whole, every triangle in range)
+		RideMesh Out, Washed, Houses, Roofs, Bricks;
+		Houses.Pos = {0.0f, 0.0f, 0.0f};
+		Houses.Nrm = {0.0f, 1.0f, 0.0f};
+		Houses.Uv = {0.0f, 0.0f};
+		Houses.Col = {0.5f, 0.8f, 0.3f};
+		if (Ok)
+			for (const int M : {Church, Chapel})
+				BuildChurch(Kit->Models[size_t(M)], true, 10.0, 100.0, 20.0, 98.0, 0.6, 0.8, 1.1, 0.9, 1.0, false, Out, Washed, Houses, Roofs, Bricks);
+		size_t Tris = 0;
+		for (const RideMesh* M : {&Out, &Washed, &Houses, &Roofs, &Bricks})
+		{
+			Ok = Ok && M->Alpha.size() == M->Vertices() && M->Col.size() == M->Vertices() * 3 && M->Uv.size() == M->Vertices() * 2 && M->Nrm.size() == M->Vertices() * 3;
+			for (const uint32_t I : M->Idx) Ok = Ok && I < M->Vertices();
+			Tris += M->Idx.size() / 3;
+		}
+		Ok = Ok && Houses.Alpha[0] == 1.0f && Roofs.Vertices() > 0 && Houses.Vertices() > 1 && Tris > 2000;
+		std::printf("      church kit: %s, %zu churches; church %s, chapel %s; %zu triangles built\n", KitRead ? "read" : "unreadable", Kit ? Kit->Models.size() : size_t(0),
+			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
+		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; towers, spires and bellcotes told apart, a tower stretched to its height; built with whole alpha");
+	}
+	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
+	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.
+	{
+		RidePlan::LidarTiles T, Old;
+		const std::string LidarText = R"({"v":1,"cell":"575_715","release":"2026-10-21.0","tiles":{"5_6":[12,4321,58,81, 13,77,3,2],"0_1":[0,9,95,120]}})";
+		const size_t Kept = RidePlan::ReadLidar(LidarText, "2026-10-21.0", T), None = RidePlan::ReadLidar(LidarText, "2026-11-01.0", Old);
+		float E = 0.0f, Rg = 0.0f, E2 = 0.0f, Rg2 = 0.0f;
+		const bool Found = RidePlan::LidarOfRow(T, "5_6", 12, 53964321LL, E, Rg);
+		const bool Moved = RidePlan::LidarOfRow(T, "5_6", 12, 53964322LL, E2, Rg2) || RidePlan::LidarOfRow(T, "5_6", 13, 53960077LL, E2, Rg2) || RidePlan::LidarOfRow(T, "1_1", 0, 9LL, E2, Rg2);
+		RidePlan::LidarTiles York;
+		std::string YorkText;
+		const size_t YorkRows = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/lidar/c575_715.lidar.json"), YorkText) ? RidePlan::ReadLidar(YorkText, "2026-10-21.0", York) : 0;
+		std::printf("      LiDAR file: %zu rows kept (%zu for another release); row found %s (%.1f, %.1f m); York's file %zu rows\n", Kept, None, Found ? "yes" : "no", E, Rg, YorkRows);
+		Check(Kept == 2 && None == 0 && Found && std::fabs(E - 5.8f) < 0.01f && std::fabs(Rg - 8.1f) < 0.01f && !Moved && YorkRows > 3000,
+			"LiDAR heights: a cell's file read for its release only, each outline's eaves and ridge found by its row, none for a row that has moved");
+	}
 	// [OSM stage 6A] (the signs' alphabet, as the game sets it)
 	std::string GlyphText;
 	const bool GlyphsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/sign_glyphs.json"), GlyphText) && SetSignFont(GlyphText);
@@ -221,6 +304,95 @@ int main()
 		Check(Ok, "warning signs: every symbol in its red-bordered triangle, facing the reader, its back away; a street's name plate fits its name; direction signs and miles");
 	}
 
+	// ------------------------------------------------------------------ [ferries] the list, a crossing laid, a sailing
+	{
+		std::string FerryText;
+		std::vector<Ferries::Listed> List;
+		const bool Read = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/ferries.json"), FerryText) && Ferries::ReadList(FerryText, List);
+		bool Corran = false;
+		for (const Ferries::Listed& L : List) Corran = Corran || (L.Id == "2593bd711808" && L.Places[0] == "Ardgour" && L.Kind == Ferries::EKind::Open);
+		Check(Read && List.size() >= 40 && Corran, "ferries: the list read, Corran's crossing in it");
+		// A sound 500 m wide running east, its shores rising 1 in 15 from the water at x 0 and x 500 (their edge, half a
+		// metre up, 7.5 m back); a road on each side 60 m back, at right angles to the crossing.
+		Ferries::Crossing C;
+		C.Name = "Test";
+		C.Line = {P2(-20.0, 0.0), P2(250.0, 3.0), P2(520.0, 0.0)};
+		C.Length = 540.0;
+		Ferries::WorldAsk Ask;
+		Ask.Height = [](double X, double) { return X < 0.0 ? -X / 15.0 : X > 500.0 ? (X - 500.0) / 15.0 : -6.0; };
+		Ask.Sea = [](double X, double) { return X > 0.0 && X < 500.0; };
+		Ask.Road = [](const P2& At, double, double, P2& Foot, double& Y, double& Half)
+		{
+			Foot = P2(At.X < 250.0 ? -60.0 : 560.0, At.Z);
+			Y = 4.0;
+			Half = 3.0;
+			return true;
+		};
+		Ferries::Layout L;
+		const bool Laid = Ferries::Lay(C, Ask, L);
+		bool Ok = Laid && L.Sea && L.Water == 0.0;
+		for (int E = 0; Ok && E < 2; ++E)
+		{
+			const Ferries::End& N = L.Ends[E];
+			Ok = std::fabs(N.TipY - Ferries::ToeOverWater) < 1e-9 && N.Grade >= Ferries::SlipGentlest - 1e-9 && N.Grade <= Ferries::SlipSteepest + 1e-9
+				&& std::fabs(N.Shore.X - (E == 0 ? -7.5 : 507.5)) < 1.5 && N.Approach.size() >= 2 && N.RampDown > 0.0 && N.RampDown < 0.3;
+			// (the slipway on or over the ground all the way down, and its approach no steeper than 1 in 7)
+			for (double D = 0.0; Ok && D < N.Head.DistanceTo(N.Tip); D += 0.5)
+			{
+				const P2 Q = N.Head + N.Axis * D;
+				Ok = N.HeadY - N.Grade * D >= Ask.Height(Q.X, Q.Z) - 1e-6;
+			}
+			for (size_t K = 1; Ok && K < N.Approach.size(); ++K)
+			{
+				const double Run = std::hypot(N.Approach[K][0] - N.Approach[K - 1][0], N.Approach[K][2] - N.Approach[K - 1][2]);
+				Ok = std::fabs(N.Approach[K][1] - N.Approach[K - 1][1]) <= Run / 7.0 + 1e-6;
+			}
+		}
+		P2 Pos, Bow, Pos1, Bow1;
+		Ferries::Sail(L, false, 0.0, Pos, Bow);
+		Ferries::Sail(L, false, 1.0, Pos1, Bow1);
+		Ok = Ok && Pos.DistanceTo(L.Ends[0].Berth) < 0.01 && Pos1.DistanceTo(L.Ends[1].Berth) < 0.01 && Bow.X > 0.9 && Bow1.X > 0.9;
+		double Was = 0.0;
+		for (int K = 1; K <= 100; ++K)
+		{
+			const double P = Ferries::Progress(K / 100.0);
+			Ok = Ok && P >= Was - 1e-12;
+			Was = P;
+		}
+		Ok = Ok && std::fabs(Ferries::Progress(0.0)) < 1e-9 && std::fabs(Ferries::Progress(1.0) - 1.0) < 1e-9 && L.Seconds >= 55.0 && L.Seconds <= 185.0;
+		Check(Ok, "ferries: a crossing laid on its shores (slipways down to the ramps' toes, never under the land, approaches no steeper than 1 in 7), sailed berth to berth bow first in a minute or two");
+	}
+	// ------------------------------------------------------------------ [ferries stage 5] a ferry as a link in the way
+	{
+		// The mainland's road along z = 0 and an island's along z = 1200 (no road between), a crossing between a
+		// slipway road off each; and a road round by a long bridge for the second try.
+		Json Rows;
+		const bool Parsed = Json::Parse(
+			"{\"classes\": [\"primary\"], \"surfaces\": [\"paved\"], \"names\": [\"\"],"
+			" \"nodes\": [[0, 0], [1000, 0], [2000, 0], [1000, -150], [0, 1200], [1000, 1200], [2000, 1200], [1000, 1350]],"
+			" \"edges\": [{\"a\": 0, \"b\": 1}, {\"a\": 1, \"b\": 2}, {\"a\": 1, \"b\": 3}, {\"a\": 4, \"b\": 5}, {\"a\": 5, \"b\": 6}, {\"a\": 5, \"b\": 7}]}", Rows);
+		Region G;
+		bool Ok = Parsed && Region::FromRows(Rows, G);
+		G.FrameLat = 56.7;
+		G.FrameLon = -5.24;
+		const Frame F = G.FrameOf();
+		std::vector<Ferries::Listed> List(1);
+		const Geo A = F.ToGeo(1000.0, 150.0), B = F.ToGeo(1000.0, 1050.0);
+		List[0].Id = "test";
+		List[0].Name = "Test";
+		List[0].LatA = A.Lat; List[0].LonA = A.Lon; List[0].LatB = B.Lat; List[0].LonB = B.Lon;
+		const std::vector<double> Costs(G.Edges.size(), 1.0);
+		// (no road over: the ferry, boarded at the mainland's end, landed on the island's)
+		const Ferries::Link L = Ok ? Ferries::BestLink(G, Costs, 0, 6, List, G.CheapestPath(0, 6, &Costs)) : Ferries::Link();
+		Ok = Ok && L.Row == 0 && L.BoardEnd == 0 && L.BoardNode == 1 && L.LandNode == 5 && L.ToBoard.size() == 1 && L.RoadsCost < 0.0;
+		// (the other way round: boarded on the island)
+		const Ferries::Link Back = Ferries::BestLink(G, Costs, 6, 0, List, {});
+		Ok = Ok && Back.Row == 0 && Back.BoardEnd == 1 && Back.BoardNode == 5 && Back.LandNode == 1;
+		// (a road round shorter than the sailing's cost: the roads)
+		const Ferries::Link Roads = Ferries::BestLink(G, Costs, 0, 2, List, G.CheapestPath(0, 2, &Costs));
+		Ok = Ok && Roads.Row < 0 && Roads.RoadsCost > 0.0;
+		Check(Ok, "ferries: a ferry is the way to an island with no road over, boarded at the nearer side, and not where the roads are quicker");
+	}
 	// ------------------------------------------------------------------ the grid and the map tiles' maths
 	{
 		const Json& G = *Ref.Get("geo");
@@ -331,6 +503,38 @@ int main()
 		std::printf("      the map round Hawes at zoom 10: %d tiles at zoom %d, %.0f%% with ground, %d light and %d shaded pixels\n", int(Need.size()), V.TileZoom(), Share * 100.0, NLit, NDark);
 		Check(V.TileZoom() == 9 && Need.size() >= 1 && Share > 0.95 && NLit > 1000 && NDark > 1000 && Px.size() == size_t(V.W) * size_t(V.H) * 4,
 			"and the land under it drawn from the height tiles, hills shaded");
+		// [map detail] Zoomed in, every road of the cells in view drawn over the road map, with their names.
+		{
+			Route::MapStreets Streets;
+			const std::shared_ptr<const Route::MapStreets::Cell> Hawes = Route::MapStreets::Read(Files::Join(Data, "cells/c577_711"));
+			int Lanes = 0, Tracks = 0, Named = 0;
+			if (Hawes)
+				for (const Route::MapStreets::Line& L : Hawes->Lines)
+				{
+					Lanes += L.Kind == Route::MapStreets::Minor ? 1 : 0;
+					Tracks += L.Kind == Route::MapStreets::Track ? 1 : 0;
+					Named += L.Name > 0 ? 1 : 0;
+				}
+			Streets.Put({577, 711}, Hawes);
+			Route::MapView Z = V;
+			Z.Layer = Route::RoadMap;
+			Z.Lat = 54.304;
+			Z.Lon = -2.1965;
+			Z.Zoom = 14.0;
+			std::vector<uint8_t> Plain, Detailed;
+			Route::DrawRelief(Store, Z, Plain);
+			Route::DrawRelief(Store, Z, Detailed, nullptr, nullptr, &Streets);
+			int White = 0;
+			for (size_t K = 0; K < Detailed.size(); K += 4)
+				if (Detailed[K] > 250 && Detailed[K + 1] > 250 && Detailed[K + 2] > 250 && Plain[K] < 250) ++White;
+			const std::vector<Route::MapStreets::Label> Names = Streets.Labels(Z);
+			Route::MapView Far = Z;
+			Far.Zoom = 9.0;
+			std::printf("      Hawes's cell: %d roads (%d lanes, %d tracks, %d named); at zoom 14, %d white lane pixels, %d names\n", Hawes ? int(Hawes->Lines.size()) : 0, Lanes, Tracks, Named, White, int(Names.size()));
+			Check(Hawes && Lanes > 500 && Tracks > 1000 && White > 500 && !Names.empty() && Route::MapStreets::CellsFor(Far).empty() && Route::MapStreets::KindOf("primary_link") == Route::MapStreets::Primary
+					&& Route::MapStreets::KindOf("residential") == Route::MapStreets::Minor && Route::MapView::MaxZoom >= 16.0,
+				"[map detail] zoomed in, the road map draws every lane and track of the cells in view, and writes their names");
+		}
 		const char* Dump = std::getenv("WORLD_MAP_PPM");
 		if (Dump)
 		{
@@ -951,6 +1155,60 @@ int main()
 							Kinds[RidePlan::FieldQuarry], Kinds[RidePlan::FieldGraves], Kinds[RidePlan::FieldAllotments], Kinds[RidePlan::FieldOrchard], Tinted, Tested, Graves, Faces);
 						Check(Kinds[RidePlan::FieldGraves] > 0 && Tinted == Tested && Graves > 0, "field areas: graveyards and quarries found and tinted, headstones stood in the graveyards");
 					}
+					// [churches stage 5] Churchyards: each one's gate on its yard's edge, its path from there to the
+					// church's walk (1.5 m out, a corner's 2.1), its ground a graveyard pointing back at it; no wall run across the path; no headstone
+					// on the path; and every mesh whole once a square's yards are built.
+					{
+						int Yards = 0, Made = 0, Bad = 0, OnPath = 0, Walls = 0, Whole = 1;
+						for (size_t I = 0; I < Plan->Churchyards.size(); ++I)
+						{
+							const RidePlan::Churchyard& Y = Plan->Churchyards[I];
+							++Yards;
+							Made += Y.Made ? 1 : 0;
+							Walls += int(Y.Walls.size());
+							if (Y.Field < 0 || size_t(Y.Field) >= Plan->FieldAreas.size() || Plan->FieldAreas[size_t(Y.Field)].Yard != int(I)) { ++Bad; continue; }
+							const RidePlan::FieldArea& F = Plan->FieldAreas[size_t(Y.Field)];
+							bool OnEdge = false;
+							for (size_t K = 0; K < F.Ring.size() && !OnEdge; ++K)
+							{
+								const P2 Ea = F.Ring[K], Eb = F.Ring[(K + 1) % F.Ring.size()];
+								const double L2 = (Eb.X - Ea.X) * (Eb.X - Ea.X) + (Eb.Z - Ea.Z) * (Eb.Z - Ea.Z);
+								const double T = L2 > 1e-9 ? std::clamp(((Y.Gate.X - Ea.X) * (Eb.X - Ea.X) + (Y.Gate.Z - Ea.Z) * (Eb.Z - Ea.Z)) / L2, 0.0, 1.0) : 0.0;
+								OnEdge = std::hypot(Ea.X + (Eb.X - Ea.X) * T - Y.Gate.X, Ea.Z + (Eb.Z - Ea.Z) * T - Y.Gate.Z) < 0.05;
+							}
+							if (!OnEdge || Plan->OffChurch(Y, Y.PathEnd.X, Y.PathEnd.Z) > 2.13 || std::fabs(std::hypot(Y.Out.X, Y.Out.Z) - 1.0) > 1e-6) ++Bad;
+							for (const auto& W : Y.Walls)
+							{
+								// (a wall run crossing the path: the two lines' ends either side of each other)
+								const auto Side = [](const P2& La, const P2& Lb, const P2& P) { return (Lb.X - La.X) * (P.Z - La.Z) - (Lb.Z - La.Z) * (P.X - La.X); };
+								if (Side(Y.Gate, Y.PathEnd, W.first) * Side(Y.Gate, Y.PathEnd, W.second) < 0.0 && Side(W.first, W.second, Y.Gate) * Side(W.first, W.second, Y.PathEnd) < 0.0) ++Bad;
+							}
+							if (I < 6)
+							{
+								// (its square's headstones, none within a metre of its path)
+								const double Sx = std::floor(Y.Gate.X / 256.0) * 256.0, Sz = std::floor(Y.Gate.Z / 256.0) * 256.0;
+								RideMesh Stones;
+								Stones.OriginX = Sx;
+								Stones.OriginZ = Sz;
+								Plan->FieldsTile(Sx, Sz, 256.0, 2, Stones);
+								const double Ux = Y.PathEnd.X - Y.Gate.X, Uz = Y.PathEnd.Z - Y.Gate.Z, L2 = Ux * Ux + Uz * Uz;
+								for (size_t V = 0; V < Stones.Vertices(); ++V)
+								{
+									const double Px = Stones.Pos[V * 3] + Sx, Pz = Stones.Pos[V * 3 + 2] + Sz;
+									const double T = L2 > 1e-9 ? std::clamp(((Px - Y.Gate.X) * Ux + (Pz - Y.Gate.Z) * Uz) / L2, 0.0, 1.0) : 0.0;
+									if (std::hypot(Y.Gate.X + Ux * T - Px, Y.Gate.Z + Uz * T - Pz) < 0.8 && RideShapes::InRing(F.Ring, Px, Pz)) { ++OnPath; break; }
+								}
+								RideMesh Out, Washed, Houses, Roofs, Bricks;
+								for (RideMesh* M : {&Out, &Washed, &Houses, &Roofs, &Bricks}) { M->OriginX = Sx; M->OriginZ = Sz; }
+								Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Out, Washed, Houses, Roofs, Bricks);
+								for (const RideMesh* M : {&Out, &Washed, &Houses, &Roofs, &Bricks})
+									if ((!M->Alpha.empty() && M->Alpha.size() != M->Vertices()) || M->Uv.size() != M->Vertices() * 2 || M->Col.size() != M->Vertices() * 3) Whole = 0;
+							}
+						}
+						std::printf("      churchyards: %d (%d made round their churches), %d wall runs; %d wrong, %d with a headstone on the path\n", Yards, Made, Walls, Bad, OnPath);
+						Check(Yards > 0 && Walls > 0 && Bad == 0 && OnPath == 0 && Whole == 1,
+							"churchyards: each gate on its yard's edge, its path to the church, no wall across it nor a headstone on it, the meshes whole");
+					}
 					// [OSM stage 2 batch D] Wild ground: cliffs, peaks, dams and weirs found and drawn near and far.
 					{
 						int Cliffs = 0, Dams = 0, Weirs = 0, Trigs = 0, Screes = 0, Reservoirs = 0;
@@ -989,12 +1247,14 @@ int main()
 							RideMesh Body, Wash, Homes, Tops, Brick;
 							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
 							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
+							const int KitBefore = Tally.KitChurches;
 							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Tally);
 							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size() + Tops.Idx.size() + Brick.Idx.size()) / 3);
 							RoofTris += Tops.Idx.size() / 3;
 							BrickTris += Brick.Idx.size() / 3;
-							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves)
-							for (size_t Vq = 0; Vq + 3 < Tops.Vertices(); Vq += 4)
+							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves; a
+							// square with a kit church left out, its roofs' triangles not in quads)
+							for (size_t Vq = 0; Tally.KitChurches == KitBefore && Vq + 3 < Tops.Vertices(); Vq += 4)
 							{
 								++RoofFaces;
 								if (std::fabs(Tops.Uv[Vq * 2 + 1] - Tops.Uv[(Vq + 1) * 2 + 1]) < 0.01f && Tops.Alpha.size() == Tops.Vertices()) ++LevelFaces;
@@ -1481,7 +1741,8 @@ int main()
 					RideMesh Tile, Piece;
 					const double X0 = std::floor(Mid.At.X / 256.0) * 256.0, Z0 = std::floor(Mid.At.Z / 256.0) * 256.0;
 					Plan->LandTile(X0, Z0, 256.0, 64, Tile);
-					bool Sound = Tile.Vertices() == size_t(65 * 65 + 4 * 65) && Tile.Idx.size() == size_t(64 * 64 * 6 + 4 * 64 * 6) && Tile.Nrm.size() == Tile.Pos.size() && Tile.Uv.size() == Tile.Vertices() * 2;
+					// (any brook's or river's bank strips come after the grid and its skirt)
+					bool Sound = Tile.Vertices() >= size_t(65 * 65 + 4 * 65) && Tile.Idx.size() >= size_t(64 * 64 * 6 + 4 * 64 * 6) && Tile.Nrm.size() == Tile.Pos.size() && Tile.Uv.size() == Tile.Vertices() * 2;
 					int Up = 0, Tris = 0;
 					double Worst = 0.0;
 					for (size_t T = 0; T + 2 < Tile.Idx.size() && T < size_t(64 * 64 * 6); T += 3)
@@ -1495,7 +1756,7 @@ int main()
 					for (size_t V = 0; V < size_t(65 * 65); ++V)
 					{
 						Sound = Sound && Tile.Nrm[V * 3 + 1] > 0.3f;
-						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->Ground(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]))));
+						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->LandGround(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]), 4.0)));
 					}
 					Check(Sound && Up == Tris && Worst < 0.01, "a 256 m square of ground comes as a mesh with its skirt: every triangle facing up, every height the ground's");
 					{
@@ -1570,9 +1831,11 @@ int main()
 						if (First >= 0) Plan->RoadPiece(0, First, Last, Deck);
 						Plan->RoadPiece(0, 100, 100 + std::max(Last - First, 1), Plain);
 						float Highest = -1e9f, Lowest = 1e9f;
-						for (size_t V = 0; V < Deck.Vertices(); ++V) { Highest = std::fmax(Highest, Deck.Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Deck.Pos[V * 3 + 1]); }
+						// ([Nov 18] the parapets and underside in the deck's stone, Deck.Stone)
+						for (const RideMesh* Part : {&Deck, Deck.Stone.get()})
+							for (size_t V = 0; Part && V < Part->Vertices(); ++V) { Highest = std::fmax(Highest, Part->Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Part->Pos[V * 3 + 1]); }
 						std::printf("      %d bridges and %d tunnels on it; the first deck is %d knots\n", Plan->Bridges, Plan->Tunnels, First >= 0 ? Last - First + 1 : 0);
-						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() >= 24 && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
+						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Stone && Deck.Stone->Vertices() >= 24 && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
 							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
 					// A tunnel (the fixture's ride has none, so 30 knots of it are called one): a tube with the
@@ -1692,6 +1955,35 @@ int main()
 						Check(Mouths > 10 && Tested > 3 && Painted == Tested && FacingUp == Tested && Broken == Wide,
 							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
 						(void)GiveWays;
+					}
+					// [junction priority] The real road's priority at each junction the ride passes: its own roads
+					// ranked as the rule says, none of its own lines across a through road it gives way to, and no
+					// side road that is the through road marked to give way.
+					{
+						int Rules = 0, Minor = 0, Wrong = 0, Lined = 0, SidesThrough = 0, SidesWrong = 0;
+						for (const RidePlan::JunctionRule& J : Plan->Junctions)
+						{
+							++Rules;
+							Wrong += Plan->ArmRankOf(J.Node, J.Came) != (J.CameMinor ? 1 : 2) || Plan->ArmRankOf(J.Node, J.Onto) != (J.OntoMinor ? 1 : 2) ? 1 : 0;
+							if (!J.CameMinor && !J.OntoMinor) continue;
+							++Minor;
+							Lined += Plan->LinesStopAt(J.Along + (J.CameMinor ? -0.5 : 0.5)) ? 0 : 1;
+						}
+						for (size_t W = 0; W < Plan->PlanSides().size(); ++W)
+						{
+							const RidePlan::SideRoad& Sd = (*Plan->SideOf(Plan->PlanSides()[W]));
+							const RoadEdge& Ed = Plan->Area.Roads.Edges[size_t(Sd.Edge)];
+							for (int End = 0; End < 2; ++End)
+								if (Sd.Mouths[End].Is && Plan->ArmRankOf(End == 0 ? Ed.A : Ed.B, Sd.Edge) == 2)
+								{
+									++SidesThrough;
+									SidesWrong += Sd.Mouths[End].GiveWay ? 1 : 0;
+								}
+						}
+						std::printf("      junction priority: %d junctions with a through road, %d where the ride's road gives way (%d give-way lines); %d ranked wrong, %d with its lines across; %d side roads the through road, %d marked to give way\n",
+							Rules, Minor, Plan->JunctionGiveWayCount, Wrong, Lined, SidesThrough, SidesWrong);
+						Check(Rules > 0 && Wrong == 0 && Lined == 0 && SidesWrong == 0,
+							"junction priority: the real road's (the map's classes), the ride's own road giving way where it is the lesser, its lines stopping at the through road");
 					}
 					// Where a side road lies on the ride's road it is just under that road's surface, never over
 					// it (two surfaces fought there and a flat side road on a slope stood proud: build 140's bump).
@@ -1904,6 +2196,44 @@ int main()
 						std::printf("      real trees asked for: %d near and %d far along it; what stands on the squares %d points with them, %d with the stand-ins; %d plants in a building\n", int(RealTrees), int(FarTrees), int(StandIns), int(Without), int(InHouse));
 						Check(Total > 20000 && Kinds >= 8 && Trees == 0 && PlantOnRoad == 0 && PlantAstray == 0 && InHouse == 0 && Alike == Squares && RealTrees > 20 && FarTrees > 20 && StandIns < Without,
 							"grass, rushes, heather and bracken lie on the finest squares near the roads and none on a road, each on the ground drawn, the same every time; real trees (near and far models) in place of the stand-ins when the game has them");
+						// [gardens] The villages' and towns' garden planting, when the game has its models: roses, shrubs,
+						// flowers and low cover round the houses and on the towns' grass; none on a road or in a building,
+						// none without it asked for, the same every time.
+						{
+							size_t Garden = 0, GardenOnRoad = 0, GardenInHouse = 0, GardenOff = 0, GardenSquares = 0, GardenAlike = 0, GardenKinds[5] = {0, 0, 0, 0, 0};
+							double GardenMs = 0.0;
+							for (size_t I = 0; I < Plan->Road.size(); I += 100)
+							{
+								const double Tx = std::floor(Plan->Road[I].At.X / 256.0) * 256.0, Tz = std::floor(Plan->Road[I].At.Z / 256.0) * 256.0;
+								RideMesh GardenNo, On, Again;
+								Plan->LandTile(Tx, Tz, 256.0, 64, GardenNo);
+								for (const RidePlant& P : GardenNo.Plants) if (P.Kind >= RidePlan::FirstGarden) ++GardenOff;
+								Plan->RealGardens = true;
+								const auto T0 = std::chrono::steady_clock::now();
+								Plan->LandTile(Tx, Tz, 256.0, 64, On);
+								GardenMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
+								Plan->LandTile(Tx, Tz, 256.0, 64, Again);
+								Plan->RealGardens = false;
+								++GardenSquares;
+								bool GardenSame = On.Plants.size() == Again.Plants.size();
+								for (size_t K = 0; GardenSame && K < On.Plants.size(); ++K) GardenSame = On.Plants[K].Kind == Again.Plants[K].Kind && On.Plants[K].X == Again.Plants[K].X && On.Plants[K].Z == Again.Plants[K].Z;
+								if (GardenSame) ++GardenAlike;
+								for (const RidePlant& P : On.Plants)
+								{
+									if (P.Kind < RidePlan::FirstGarden) continue;
+									++Garden;
+									if (P.Kind < RidePlan::PlantKinds) ++GardenKinds[P.Kind - RidePlan::FirstGarden];
+									const double X = On.OriginX + P.X, Z = On.OriginZ + P.Z;
+									if (!std::isnan(Plan->RoadHeight(X, Z))) ++GardenOnRoad;
+									if (InBuilding(X, Z)) ++GardenInHouse;
+								}
+							}
+							std::printf("      garden planting asked for: %d plants on %d squares (%d roses, %d shrubs, %d flowers, %d low cover, %d garden trees), %.0f ms a square with it; %d on a road, %d in a building, %d without it asked for\n",
+								int(Garden), int(GardenSquares), int(GardenKinds[0]), int(GardenKinds[1]), int(GardenKinds[2]), int(GardenKinds[3]), int(GardenKinds[4]), GardenMs / double(std::max<size_t>(1, GardenSquares)),
+								int(GardenOnRoad), int(GardenInHouse), int(GardenOff));
+							Check(Garden > 50 && GardenOnRoad == 0 && GardenInHouse == 0 && GardenOff == 0 && GardenAlike == GardenSquares,
+								"the villages' and towns' gardens are planted (roses, shrubs, flowers, low cover) when the game has the models: none on a road or in a building, none when not asked for, the same every time");
+						}
 					}
 					// Bridges on the roads beside it.
 					{

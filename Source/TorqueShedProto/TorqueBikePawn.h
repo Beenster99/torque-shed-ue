@@ -105,6 +105,19 @@ struct FTorqueTelemetry
 	float PowerMult = 1.0f;                      // what the heat leaves of the engine's power
 };
 
+
+// [tyre fx] A tyre scrubbing the road now (ATorqueBikePawn::TyreScrub).
+struct FTorqueTyreScrub
+{
+	double SlideMs = 0.0;
+	double RoadMs = 0.0;       // the bike's own speed over the road, m/s
+	double HalfWidthCm = 7.0;  // half the tread laid on the road
+	double RadiusCm = 30.0;    // the tyre's (its axle is RadiusCm up from At)
+	double SpinMs = 0.0;       // the tread's speed round the wheel, m/s (+ rolling forward)
+	bool bTarmac = true;
+	FVector At = FVector::ZeroVector, Fwd = FVector::ForwardVector, Up = FVector::UpVector;
+};
+
 UCLASS()
 class ATorqueBikePawn : public APawn
 {
@@ -135,6 +148,19 @@ public:
 	// snapshots), and whether its rider is off.
 	double SpeedMs() const;
 	bool RiderCrashed() const;
+	// [tyre fx] A tyre scrubbing the road now, for the burnout smoke and the darkies (Weather/TorqueTyreFx),
+	// ours or a co-op rider's (from their snapshots). Wheel 0 the front, 1 the rear. False when it's off
+	// the ground, the bike's down or parked. SlideMs: how fast the tread slides over the road, m/s (a
+	// burnout: the whole rim speed; a locked wheel: the road speed; a slide past the tyre's grip: some
+	// of it). At: the contact patch (world cm); Fwd: the way the bike points, level; Up: the ground's
+	// way up there as the bike stands on it.
+	bool TyreScrub(int32 WheelIndex, FTorqueTyreScrub& Out) const;
+	// [exhaust flames, beenster build 160] A sports engine's pops and bangs on the overrun shoot flame out
+	// of its pipe(s) (Weather/TorqueTyreFx draws them). TakeExhaustFlames: the flames due by world time
+	// Now, timed to the pops heard (the sound's queued ahead), each true for a bang. ExhaustTips: each
+	// silencer's open end (world cm) and the way the flame shoots out of it; false with none fitted.
+	int32 TakeExhaustFlames(double Now, TArray<bool>& OutBangs);
+	bool ExhaustTips(TArray<FVector>& OutAt, FVector& OutDir) const;
 	// [info] The pointer is out (M) to click a place in the info panel: the mouse moves it, not the view.
 	bool IsPointing() const { return bPointing; }
 	void SetPointing(bool bOn) { bPointing = bOn; }
@@ -144,6 +170,9 @@ public:
 	// draws it and the mouse works it), or was closed this moment (Esc shuts it, not into the pause menu).
 	bool InGarage() const;
 	bool GarageComputerUp() const { return bGarageComputer; }
+	// [circuits] To the nearest race circuit's start (within 5 km), upright on the track a little before the line
+	// facing the way it's raced, the lap timer cleared: false (and nowhere) with none. Name: the circuit's.
+	bool ToCircuitStart(FString& Name);
 	bool GarageComputerUpOrJustClosed() const;
 	void DrawGarageComputer(AHUD* Hud, UCanvas* Canvas) const;
 	// For TorqueShedTest: "where", "buy:<part>", "fit[:<slot>]", "off:<slot>", "stow", "computer".
@@ -155,6 +184,8 @@ public:
 	// bike gets back on. Parked: a bike seen standing with nobody on it (ours, or in co-op another
 	// rider's), its stand down and the rider hidden.
 	bool IsOnFoot() const { return bOnFoot; }
+	// [drone] The PlayStation pad as it is now (the drone camera reads it while it's up: one reader).
+	FSonyPadState PadState() const;
 	void SetParkedLook(bool bParked);
 	// [co-op] Riding a mate's bike on the road (beenster, build 141): a bike standing parked with its
 	// rider off it, ours or as their snapshots say. Their parked bike nearest our feet (within reach),
@@ -165,6 +196,10 @@ public:
 	bool IsParkedUp() const { return !Sim->IsCrashed && (bOnFoot || bParkedLook) && !bPushing; }
 	ATorqueBikePawn* MateBikeInReach() const;
 	FVector FeetAt() const { return FootPos; }
+	// [ferries] Carried by a ferry (World/TorqueFerry.h) as its deck moves From To (world): our feet, our bike parked
+	// on its stand, or both. Getting back on is held until FerryHoldUntil (world seconds) while it's under way.
+	void FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike);
+	double FerryHoldUntil = -1.0;
 	double FeetYaw() const { return FootYaw; }
 	void TakeOver(const FVector& Feet, double Yaw, bool bRide);
 	void LetOver();
@@ -299,6 +334,10 @@ public:
 
 	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ExhaustParts;   // the silencers (else the exhaust), for the flames
+	struct FFlameDue { double Due = 0.0; bool bBang = false; };
+	TArray<FFlameDue> FlamesDue;
+	int32 PopsSeen = 0, BangsSeen = 0;
 	// The clutch (0) and front brake (1) levers, which the rider's fingers pull.
 	UPROPERTY(Transient) UStaticMeshComponent* LeverParts[2];
 
@@ -342,6 +381,9 @@ private:
 	TArray<TorqueSim::ContactBox> BaseBoxes;
 	int32 FurnitureSeen = 0;
 	int32 GarageSeen = 0;   // [garage] ATorqueForecourtGarage::ContactVersion as last taken in
+	int32 FerrySeen = 0;    // [ferries] ATorqueFerry::ContactVersion as last taken in
+	int32 CrossingSeen = 0; // [level crossings] ATorqueLevelCrossing::ContactVersion as last taken in
+	FVector2D ParkedFrom = FVector2D(1e18, 1e18);   // [car parks] where the parked cars round the rider were last gathered
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it
@@ -596,6 +638,10 @@ private:
 	// else, so a manoeuvre measures the bike as SimTest/realism_test's flat ground does.
 	bool bTestFlat = false, bTestWantFlat = false;
 	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
+	bool bClimbSettled = false;   // [r159] the climb's first half second on its wheels is done (measured from there)
+	bool bClimbPlaced = false;    // [r161] found road under both wheels at the foot and put on it
+	TorqueSim::V3 ClimbHoldAt = TorqueSim::V3(0.0, -1e9, 0.0);   // where it's held till then
+	double ClimbSettleFrom = 0.0;
 	FString TestMoveText;
 	void TestMoveStep();
 	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps

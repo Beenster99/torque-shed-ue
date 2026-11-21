@@ -323,6 +323,36 @@ def road_material_scanned(L, tex, roles):
     wet = L.wetness(g)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), hard), near), wet))
     road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), hard), wet))
+    # [weather, Nov 18] Standing water, as Buttertubs' M_Road (beenster on 156: "I am not seeing any puddles (we
+    # had them on buttertubs)"). The camber drains rain to the edges, most on a bend's inside; only after long
+    # rain does it reach across the middle; few puddles, now and then a bigger one. The road mesh's vertex
+    # alpha says where water stands (World/WorldRide's RoadPiece StandsAt): 0 the crown .. 0.9 the edge of a
+    # bend's inside half (0.72 a straight's, 0.45 an outside's); 1 is no data (other meshes in this material:
+    # no puddles). Only on the tarmac itself, never the paving, setts, gravel or verge.
+    va = g.node(unreal.MaterialExpressionVertexColor)
+    known = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                 g.op(unreal.MaterialExpressionSubtract, g.const(0.97), va, b_out="A"), const_b=40.0))     # 1 up to 0.945 .. 0 by 0.97
+    share = g.op(unreal.MaterialExpressionMultiply, va, const_b=1.0 / 0.9, a_out="A")                    # 0 crown .. 1 an inside edge
+    p_edge = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.5), const_b=2.6))
+    big = g.mask_noise(0.0009, -3.0, 1.4)
+    p_wide = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, share, const_b=0.25), const_b=1.6))
+    p_edge = g.lerp(p_edge, p_wide, big)
+    pud = L.weather_param(g, "Puddles")
+    fill = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, pud, const_b=2.5))
+    where = g.op(unreal.MaterialExpressionMultiply, p_edge, fill)
+    centre = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, pud, const_b=0.6), const_b=2.5))
+    where = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax, where, centre))
+    small = g.mask_noise(0.006, -7.0, 2.0)
+    large = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0022, -2.5, 2.2), big)
+    patches = g.op(unreal.MaterialExpressionMax, small, large)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, patches, where), wet)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, puddle, hard), known)
+    road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
+    road[2] = g.lerp(road[2], g.const(0.03), puddle)
+    road[1] = g.lerp(road[1], g.const((0.0, 0.0, 1.0)), puddle)   # still water is flat
     return g.finish(road, specular=0.4)
 
 
@@ -470,7 +500,7 @@ def water_normal(L):
     return tex
 
 
-def water_material(L):
+def water_material(L, real=False):
     """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
     rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
     with ripples drifting across it (UV0 is the world's metres over 8, whole tens of units from one square
@@ -480,8 +510,13 @@ def water_material(L):
     tiles for the surface". Now the wave normal map (water_normal) three times over: long wind waves (27 m
     across) and two sizes of ripple on them, each drifting its own way at its own pace, so the surface
     moves all the time and no pattern repeats; the ripples fade with distance (where they would only
-    shimmer) and are stronger and weaker in broad patches, as wind gusts make them."""
-    g = L.Graph(L.new_material("M_RideWater"))
+    shimmer) and are stronger and weaker in broad patches, as wind gusts make them.
+    [build 156] beenster: "let's do the single layer water material route and put a toggle in the settings".
+    real=True makes M_RideWaterReal: the same surface in Unreal's single layer water, which you see into:
+    the light scattered and absorbed in the water as it deepens (sea blue-green and clear, a lake or river
+    peaty brown, told apart by the vertex colour), the bed refracted under it. World/TorqueRideWorld draws
+    it while Settings > Graphics > Realistic water is on."""
+    g = L.Graph(L.new_material("M_RideWaterReal" if real else "M_RideWater"))
     vc = g.node(unreal.MaterialExpressionVertexColor)
     wn = water_normal(L)
     nt = L.noise_texture()
@@ -552,6 +587,26 @@ def water_material(L):
         rough = g.const(0.04)
     base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
     mel = L.mel
+    if real:
+        g.m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
+        g.m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_OPAQUE)
+        out = g.node(unreal.MaterialExpressionSingleLayerWaterMaterialOutput, 0)
+        # (how brown the water is: the sea's colour is blue-grey, a lake's peaty, a river's brown, by the red)
+        brown = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, vc, const_b=0.024, a_out="R"), const_b=80.0))
+        # (per metre: the sea absorbs the red most, so it goes blue-green as it deepens; peaty water the
+        # blue, so it goes brown; both scatter a little of their own colour back)
+        absorb = g.lerp(g.const((0.42, 0.075, 0.05)), g.const((0.32, 0.5, 1.1)), brown)
+        scatter = g.op(unreal.MaterialExpressionMultiply, vc, const_b=0.9)
+        pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
+                "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
+                "phase": (g.const(0.15), ("PhaseG", "Phase G")),
+                "behind": (g.const(1.0), ("ColorScaleBehindWater", "Color Scale Behind Water"))}
+        for key, (node, names) in pins.items():
+            if not any(mel.connect_material_expressions(node, "", out, n) for n in names):
+                unreal.log_warning("[Torque] M_RideWaterReal: couldn't link its %s to the single layer water output" % key)
+        # (the base colour in single layer water is the surface's own: none, the water's colour is its depth)
+        base = g.const((0.0, 0.0, 0.0))
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
@@ -683,6 +738,8 @@ def scanned_materials(L):
                            ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender")),
                            # (stage 5: the sea, lakes and rivers)
                            ("M_RideWater", lambda: water_material(L)),
+                           # ([build 156] the same in single layer water: Settings > Graphics > Realistic water)
+                           ("M_RideWaterReal", lambda: water_material(L, real=True)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
                            ("M_RideNight", lambda: night_material(L)),
                            # (OSM stage 5D: traffic lights and Belisha beacons, on the shared clock)
@@ -925,6 +982,190 @@ def scanned_trees(L, kit):
             why.append("%s: %s" % (name, e))
             return None
 
+    def section_materials(skel):
+        """[build 161] The skeletal mesh's materials in its LOD 0 SECTION order: copy_mesh_from_skeletal_mesh
+        gives each triangle its section's index as material ID, not the material slot's. Until 160 the copy
+        took skel.materials (slot order), so a tree whose sections aren't in slot order drew some parts with
+        another part's material: round 160's spruce and pine were bare brown trunks near and far (their
+        needles drawn with a bark or decoration material) while the broadleaf trees were right. None if
+        Geometry Script can't say."""
+        mats = [m.get_editor_property("material_interface") for m in skel.get_editor_property("materials")]
+        names = [str(m.get_editor_property("material_slot_name")) for m in skel.get_editor_property("materials")]
+        smap = skeletal_section_slots(skel)
+        if smap is not None:
+            return [(mats[k] if 0 <= k < len(mats) else None, names[k] if 0 <= k < len(names) else "Section%d" % n) for n, k in enumerate(smap)]
+        f = gs("get_section_material_list_from_skeletal_mesh")
+        if f is None:
+            return None
+        for args in ((skel, unreal.GeometryScriptMeshReadLOD()), (skel, 0), (skel,)):
+            try:
+                res = f(*args)
+            except TypeError:
+                continue
+            except Exception as e:
+                why.append("section materials: %s" % e)
+                return None
+            parts = list(res) if isinstance(res, (tuple, list)) else [res]
+            mats = names = None
+            for part in parts:
+                try:
+                    items = list(part)
+                except Exception:
+                    continue
+                if items and all(isinstance(x, unreal.MaterialInterface) or x is None for x in items) and mats is None:
+                    mats = items
+                elif items and all(isinstance(x, (unreal.Name, str)) for x in items) and names is None:
+                    names = [str(x) for x in items]
+            if mats:
+                return [(m, names[k] if names and k < len(names) else "Section%d" % k) for k, m in enumerate(mats)]
+        return None
+
+    def skeletal_section_slots(skel):
+        """[build 162] LOD 0's material slot for each section, in section order, or None. UE 5.8's Python
+        has no Geometry Script get_section_material_list_from_skeletal_mesh (round 161), so the skeletal
+        mesh editor's own functions are tried (their home and names moved between releases), with the
+        LOD's material map overriding a section's slot where it says so."""
+        homes = [getattr(unreal, n, None) for n in ("SkeletalMeshEditorSubsystem", "EditorSkeletalMeshLibrary", "SkeletalMeshEditingLibrary")]
+        objs = []
+        for h in homes:
+            if h is None:
+                continue
+            try:
+                objs.append(unreal.get_editor_subsystem(h))
+            except Exception:
+                objs.append(h)
+        count = None
+        for o in objs:
+            for fn in ("get_num_sections", "get_section_count", "get_lod_section_count"):
+                f = getattr(o, fn, None)
+                if f is None:
+                    continue
+                try:
+                    count = int(f(skel, 0))
+                    break
+                except Exception:
+                    continue
+            if count is not None:
+                break
+        slots = None
+        for o in objs:
+            f = getattr(o, "get_lod_material_slot", None)
+            if f is None or count is None:
+                continue
+            try:
+                slots = [int(f(skel, 0, n)) for n in range(count)]
+                break
+            except Exception as e:
+                why.append("get_lod_material_slot: %s" % e)
+        if slots is None:
+            log("scanned trees: %s: no way to read section slots (sections %s; functions: %s)" % (skel.get_name(), count,
+                ", ".join(sorted(set(n for o in objs for n in dir(o) if "section" in n.lower() or "material" in n.lower())))[:600]))
+            return None
+        try:
+            info = skel.get_editor_property("lod_info")
+            remap = list(info[0].get_editor_property("lod_material_map")) if info else []
+            slots = [int(remap[n]) if n < len(remap) and int(remap[n]) >= 0 else s0 for n, s0 in enumerate(slots)]
+        except Exception:
+            pass
+        log("scanned trees: %s: LOD 0 sections -> material slots %s" % (skel.get_name(), slots))
+        return slots
+
+    def fix_slots(copy_path, skel_path):
+        """The copy's material slots in the skeletal mesh's section order (see section_materials)."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            skel = unreal.load_asset(skel_path.split(".")[0])
+        except Exception as e:
+            why.append("slots of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        want = section_materials(skel)
+        name = copy_path.rsplit(".", 1)[-1]
+        if not want:
+            log("scanned trees: %s: section materials unknown (no Geometry Script get_section_material_list_from_skeletal_mesh); slots left as they are" % name)
+            return False
+        have = sm.get_editor_property("static_materials")
+        before = [(m.get_editor_property("material_interface").get_name() if m.get_editor_property("material_interface") else "None") for m in have]
+        after = [(m.get_name() if m else "None") for m, _ in want]
+        if len(after) != len(before):
+            # ([round 162] a Megaplant reads as ONE section at LOD 0: cutting the slots to it left every
+            # tree bark only. Never change the number of slots.)
+            log("scanned trees: %s: %d sections but %d slots: slots left as they are" % (name, len(after), len(before)))
+            return False
+        if before == after:
+            log("scanned trees: %s: material slots already in section order (%s)" % (name, ", ".join(after)))
+            return False
+        sm.set_editor_property("static_materials", [unreal.StaticMaterial(material_interface=m, material_slot_name=n) for m, n in want])
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: material slots put in section order: was [%s], now [%s]" % (name, ", ".join(before), ", ".join(after)))
+        return True
+
+    def plain_copy(copy_path):
+        """A copy match_nanite gave Nanite Foliage (round 160) put back as it was made: Nanite off."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            ns = sm.get_editor_property("nanite_settings")
+            shape = str(ns.get_editor_property("shape_preservation")) if "shape_preservation" in dir(ns) else ""
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        if "VOXEL" not in shape.upper():
+            return False
+        changed = []
+        for name, value in (("enabled", False), ("voxel_ndf", False)):
+            try:
+                ns.set_editor_property(name, value)
+                changed.append("%s %s" % (name, value))
+            except Exception:
+                pass
+        enum = getattr(unreal, "NaniteShapePreservation", None)
+        none = getattr(enum, "NONE", None) if enum else None
+        if none is not None:
+            try:
+                ns.set_editor_property("shape_preservation", none)
+                changed.append("shape_preservation NONE")
+            except Exception:
+                pass
+        sm.set_editor_property("nanite_settings", ns)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite Foliage undone (%s)" % (copy_path.rsplit(".", 1)[-1], ", ".join(changed)))
+        return True
+
+    def match_nanite(copy_path, skel_path):
+        """[build 160] The copy's Nanite settings as the Megaplant's own. A Megaplant's skeletal mesh is Nanite
+        Foliage (round 159 scan check: shape_preservation Voxelize, voxel_ndf on); its static copy was made
+        with plain Nanite, whose simplification wears thin leaf and needle cards away: the near trees looked
+        "young, no bulk" and the far trees' impostors photographed as bare trunks (3-8% covered)."""
+        try:
+            sm = unreal.load_asset(copy_path.split(".")[0])
+            skel = unreal.load_asset(skel_path.split(".")[0])
+            theirs = skel.get_editor_property("nanite_settings")
+            ours = sm.get_editor_property("nanite_settings")
+        except Exception as e:
+            why.append("nanite settings of %s: %s" % (copy_path.rsplit(".", 1)[-1], e))
+            return False
+        changed = []
+        for name in sorted(dir(theirs)):
+            if name.startswith("_"):
+                continue
+            try:
+                want = theirs.get_editor_property(name)
+                have = ours.get_editor_property(name)
+            except Exception:
+                continue
+            if callable(want) or str(want) == str(have):
+                continue
+            try:
+                ours.set_editor_property(name, want)
+                changed.append("%s %s -> %s" % (name, have, want))
+            except Exception:
+                pass
+        if not changed:
+            return False
+        sm.set_editor_property("nanite_settings", ours)   # (rebuilds its Nanite data, on the CPU)
+        unreal.EditorAssetLibrary.save_asset(copy_path.split(".")[0], only_if_is_dirty=False)
+        log("scanned trees: %s: Nanite settings as the Megaplant's: %s" % (copy_path.rsplit(".", 1)[-1], "; ".join(changed)))
+        return True
+
     def ready_materials(path):
         """A static copy's materials made fit for the ride's instanced trees: a Megaplant's are made for
         its skeletal mesh, and a material not flagged for instanced static meshes draws as the default
@@ -955,7 +1196,28 @@ def scanned_trees(L, kit):
             why.append("%s materials: %s" % (path.rsplit(".", 1)[-1], e))
             return None
 
-    for kind, words in spec["kinds"].items():
+    # [gardens] The villages' and towns' garden planting (World/WorldRideGardens.cpp): kinds garden_rose and so
+    # on, each with its words and its own cull (cm) and shadow, near the rider only (no far models, no impostors).
+    garden = spec.get("garden_kinds", {})
+    def mature_first(paths):
+        """([Nov 19] beenster, watching 157: "they all seem a little young, no bulk to the trees. No cover at
+        all in the canopy". The first six by name were taken, young ones among them, and the game stretches
+        each to the canopy map's height. Now the grown trees: names saying young, small or juvenile last,
+        then the tallest as modelled first.)"""
+        young = ("young", "small", "juvenile", "sapling", "seedling", "baby", "sprout")
+        def tall(p):
+            try:
+                sk = unreal.load_asset(p.split(".")[0])
+                b = sk.get_bounds() if hasattr(sk, "get_bounds") else sk.get_imported_bounds()
+                return float(b.box_extent.z) * 2.0
+            except Exception:
+                return 0.0
+        ranked = sorted(paths, key=lambda p: (any(w in p.lower() for w in young), -tall(p), p))
+        if ranked:
+            log("scanned trees: grown first: %s" % ", ".join("%s %.1f m" % (p.rsplit(".", 1)[-1], tall(p) / 100.0) for p in ranked[:8]))
+        return ranked
+
+    for kind, words in list(spec["kinds"].items()) + [(k, g.get("words", [])) for k, g in garden.items()]:
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
         got = sorted(p for n, p in meshes if wanted(n))[:most]
@@ -963,10 +1225,23 @@ def scanned_trees(L, kit):
         classes = sorted(set(c for _, c in theirs))
         log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
             ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
-        skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
+        skels = mature_first(sorted(p for p, c in theirs if c == "SkeletalMesh"))[:most]
         if skels:
             # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
-            made = [m for m in (static_of_skeletal(p) for p in skels) if m]
+            made = []
+            for p in skels:
+                m = static_of_skeletal(p)
+                if m:
+                    if spec.get("slots_by_section", False):
+                        fix_slots(m, p)
+                    # ([build 162] round 161: with the Megaplants' Voxelize Nanite the broadleaf trees turned
+                    # to smooth green blobs at 30-45 m and the conifers stayed bare: back to the copies as
+                    # they were until 159 (Nanite off), unless scanned_trees.json "match_nanite" is true)
+                    if spec.get("match_nanite", False):
+                        match_nanite(m, p)
+                    else:
+                        plain_copy(m)
+                    made.append(m)
             for m in made:
                 ready_materials(m)
             log("scanned trees: %s: %d whole trees from its skeletal meshes (%s)%s" % (kind, len(made),
@@ -983,6 +1258,14 @@ def scanned_trees(L, kit):
         found[kind] = got
         if not use:
             continue
+        # ([seasonal trees test, Nov 19] the leaves follow torque.RideTreeSeason: Tools/ue_tree_season.py)
+        if spec.get("season_test", False):
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import ue_tree_season as SEASON
+                SEASON.season_kind(L, kind, got)
+            except Exception as e:
+                log("scanned trees: %s: season test FAILED (leaves stay as they are): %s" % (kind, e))
         # (ours of this kind go near: the scanned ones take every near tree of it. Our far models stay
         # for the trees past the finest squares: build 148 measured the scans at about 10 ms of GPU at
         # Whaley Bridge, most of it from the far ring's thousands of full Nanite trees)
@@ -991,6 +1274,9 @@ def scanned_trees(L, kit):
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
+        if kind in garden:
+            r.update({"cull_distance": float(garden[kind].get("cull", 8000.0)), "cast_shadow": bool(garden[kind].get("shadow", True))})
+            continue
         # [perf, build 157] Far off, the scans as impostors: the GAME photographs each scan at ride start
         # (World/TorqueImpostors.cpp) and draws its far trees with M_RideImpostor. Here only the material
         # is made (once per run, below); no editor captures (rounds 155-156 crashed beenster's GPU), and
@@ -999,7 +1285,7 @@ def scanned_trees(L, kit):
             try:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 import ue_tree_impostors as IMP
-                IMP.master_material()
+                IMP.master_material(L if spec.get("season_test", False) else None)
                 _IMPOSTOR_MATERIAL.append(True)
             except Exception as e:
                 log("scanned trees: impostor material failed (the game uses the old far models): %s" % e)
@@ -1066,6 +1352,58 @@ def hedge_kit(L, kit):
                   "native_mesh": False, "scale_multiplier": 1.0, "cast_shadow": True, "cull_distance": 60000.0})
         rows.append(r)
     log("hedges: %d hedge models (%s)" % (len(meshes), ", ".join(sorted(meshes))))
+
+
+GARDEN_DEST = "/Game/RideUK/Gardens"
+# (each garden kind's cull, cm, and shadow, when scanned_trees.json doesn't say: as its scanned ones')
+GARDEN_DEFAULTS = {"garden_rose": (9000.0, True), "garden_shrub": (9000.0, True), "garden_flowers": (4500.0, False),
+                   "garden_low": (5000.0, False), "garden_tree": (25000.0, True), "garden_hedge": (9000.0, True)}
+
+
+def garden_kit(L, kit):
+    """[Nov 20] The villages' and towns' garden planting as our own models (beenster: "please consider building
+    a small library of bushes, hedges for gardens"; the scanned Megaplants are off since Nov 20): Tools/
+    make_gardens.py's roses, shrubs, flowers, low cover, small trees and clipped hedge lengths
+    (Data/RideUK/Gardens/SM_Tree_garden_<kind>_<n>.glb) imported as Nanite foliage with the trees' material
+    (M_Tree: they turn and drop with the season too), added to the kit's "Trees" as kinds garden_<kind>,
+    each with its cull and shadow (scanned_trees.json "garden_kinds", else GARDEN_DEFAULTS). A kind that
+    already has scanned models in the kit keeps them. Changes the kit in place."""
+    if "Trees" not in kit:
+        return
+    rows = kit["Trees"]["species"]
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Gardens")
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        log("gardens: none (python Tools/make_gardens.py); no garden planting")
+        return
+    spec_f = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "scanned_trees.json")
+    spec = (json.load(open(spec_f)).get("garden_kinds", {}) if os.path.exists(spec_f) else {})
+    template = next((r for r in rows if r["name"].startswith("SM_Tree_hawthorn_")), None) or next((r for r in rows if r.get("material")), None)
+    if template is None:
+        log("gardens: no tree rows in the kit to copy; no garden planting")
+        return
+    scanned = set(r["name"][len("SM_Tree_"):-len("_scan")] for r in rows if r["name"].startswith("SM_Tree_garden_") and r["name"].endswith("_scan"))
+    meshes = L.import_glbs(folder, GARDEN_DEST)
+    added = []
+    for name, mesh in sorted(meshes.items()):
+        kind = next((k for k in GARDEN_DEFAULTS if name.startswith("SM_Tree_%s_" % k)), None)
+        if kind is None or kind in scanned:
+            continue
+        L.foliage_nanite(mesh)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        cull, shadow = GARDEN_DEFAULTS[kind]
+        if kind in spec:
+            cull = float(spec[kind].get("cull", cull)); shadow = bool(spec[kind].get("shadow", shadow))
+        r = dict(template)
+        r.update({"name": name, "mesh": mesh.get_path_name(), "variants": [], "variant_materials": [],
+                  "native_mesh": False, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0,
+                  "cast_shadow": shadow, "cull_distance": cull})
+        rows.append(r)
+        added.append(name)
+    log("gardens: %d garden models (%s)" % (len(added), ", ".join(added[:6]) + (" ..." if len(added) > 6 else "")))
 
 
 def place_kit(kit):
@@ -1197,7 +1535,9 @@ def facade_material(L):
     return g.m
 
 
-STREET_KIT_KINDS = ("street_lamp", "power_pole")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
+                    "touring_caravan", "static_caravan")   # (Tools/blender_street_kit.py's models: M_RideStreetKit)
+# ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
 
 def street_kit_texture(L, file_name, asset, compression, nearest=False):
@@ -1287,6 +1627,110 @@ def street_kit_material(L):
     return g.m
 
 
+CAR_DEST = "/Game/RideUK/Cars"
+
+
+def parked_cars(L, kind, row, add):
+    """[car parks] The car parks' parked cars (World/WorldRideCarParks.cpp, PropParkedCar): the Fab cars Thwaite's
+    parked cars use (Data/Buttertubs/car_swaps.json; the packs live in /Content, never committed), each copied to
+    /Game/RideUK/Cars/SM_ParkedCar_<n> in one of the kit row's colours (its body slots in MI_FabCarPaint_Park_<n>;
+    a copy per colour, so each is one instanced mesh), Nanite on, no collision (the bike meets plain boxes,
+    RidePlan::ParkedCarsNear), listed as SM_Prop_<kind>_<n> at their own size. The row's "models" names which of
+    car_swaps' meshes (by their names' words: vans and pickups are too long for a bay). Returns a note."""
+    cp = os.path.join(L.data_dir(), "car_swaps.json")
+    if not os.path.exists(cp):
+        return "parked cars: no car_swaps.json"
+    cfg = json.load(open(cp))
+    want = [w.lower() for w in row.get("models", [])]
+    models = []
+    for md in cfg.get("models", []):
+        if want and not any(w in md["mesh"].lower() for w in want):
+            continue
+        m = L.find_static_mesh(md["mesh"])
+        if m is not None:
+            models.append((m, md))
+    if not models:
+        return "parked cars: none of the Fab cars are in the project (car parks have none)"
+    colours = row.get("colours") or cfg.get("colours") or [[0.5, 0.5, 0.5]]
+    count = int(row.get("variants", 12))
+    if unreal.EditorAssetLibrary.does_asset_exist(L.MAT_DIR + "/M_FabCarPaint"):
+        L.fab_car_paint.made = True   # (Thwaite's master kept: its own instances point at it)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    made = 0
+    flagged, reflagged = set(), []
+    for n in range(count):
+        mesh, md = models[n % len(models)]
+        colour = colours[(n * 5 + n // len(models)) % len(colours)]
+        paint = L.fab_car_paint("Park_%d" % n, colour, cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
+        path = "%s/SM_ParkedCar_%d" % (CAR_DEST, n)
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        copy = unreal.EditorAssetLibrary.duplicate_asset(mesh.get_path_name().split(".")[0], path)
+        if copy is None:
+            unreal.log_warning("[Torque] parked cars: couldn't copy %s" % mesh.get_name())
+            continue
+        listed = set(md.get("paint_slots", []))
+        painted = []
+        for si, sm in enumerate(copy.get_editor_property("static_materials")):
+            slot = str(sm.get_editor_property("material_slot_name"))
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            names = " ".join([slot, mat.get_name() if mat else "", base.get_name() if base else ""])
+            if slot in listed or str(si) in listed or "paint" in names.lower():
+                copy.set_material(si, paint)
+                painted.append(si)
+        # [build 157 feedback] (beenster: the parked cars came out all grey, untextured) The Fab cars' materials
+        # were made for Thwaite's placed actors; drawn instanced (an ISM, as every prop is) a material without
+        # these usage flags draws as the default grey in a packaged game: flagged here, each base material once.
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            if base is None or base.get_path_name() in flagged:
+                continue
+            flagged.add(base.get_path_name())
+            changed = False
+            for flag in ("used_with_instanced_static_meshes", "used_with_nanite"):
+                try:
+                    if not base.get_editor_property(flag):
+                        base.set_editor_property(flag, True)
+                        changed = True
+                except Exception as e:
+                    unreal.log_warning("[Torque] parked cars: %s not set on %s (%s)" % (flag, base.get_name(), e))
+            if changed:
+                unreal.MaterialEditingLibrary.recompile_material(base)
+                unreal.EditorAssetLibrary.save_loaded_asset(base)
+                reflagged.append(base.get_name())
+        try:
+            sme.remove_collisions(copy)
+        except Exception:
+            pass
+        # (Nanite only where every material is opaque or masked: a Nanite mesh draws a translucent material,
+        # the cars' glass, as the default grey)
+        see_through = False
+        for sm in copy.get_editor_property("static_materials"):
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            try:
+                mode = base.get_editor_property("blend_mode") if base else None
+                see_through = see_through or mode in (unreal.BlendMode.BLEND_TRANSLUCENT, unreal.BlendMode.BLEND_ADDITIVE, unreal.BlendMode.BLEND_MODULATE)
+            except Exception:
+                pass
+        try:
+            ns = copy.get_editor_property("nanite_settings")
+            ns.set_editor_property("enabled", not see_through)
+            copy.set_editor_property("nanite_settings", ns)
+        except Exception as e:
+            unreal.log_warning("[Torque] parked cars: Nanite not set on %s (%s)" % (path, e))
+        unreal.EditorAssetLibrary.save_loaded_asset(copy)
+        add("SM_Prop_%s_%d" % (kind, n), copy, True, row)
+        made += 1
+        if not painted:
+            unreal.log_warning("[Torque] parked cars: %s has no paint slot (left in its own colour)" % mesh.get_name())
+    if reflagged:
+        unreal.log("[Torque] parked cars: flagged for instancing/Nanite: %s" % ", ".join(reflagged))
+    return "parked cars: %d (%d Fab models, %d colours; %d materials flagged for instancing)" % (made, len(models), len(colours), len(reflagged))
+
+
 def prop_kit(L):
     """The things by the road (OSM stage 2): Data/RideUK/Props/*.glb (Tools/make_ride_props.py)
     imported to /Game/RideUK/Props, no collision, and any static mesh under /Game whose path holds one
@@ -1312,11 +1756,27 @@ def prop_kit(L):
     if os.path.isdir(folder) and any(f.endswith(".glb") for f in os.listdir(folder)):
         ours = L.import_glbs(folder, PROP_DEST)
         sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-        for mesh in ours.values():
+        for name, mesh in ours.items():
             try:
                 sme.remove_collisions(mesh)
             except Exception:
                 pass
+            # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
+            # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
+            kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
+            lods = spec["kinds"].get(kind, {}).get("lods")
+            if lods:
+                try:
+                    settings = [unreal.EditorScriptingMeshReductionSettings(1.0, 1.0)]
+                    for keep, screen in zip((0.5, 0.25, 0.1), lods):
+                        settings.append(unreal.EditorScriptingMeshReductionSettings(keep, float(screen)))
+                    opts = unreal.EditorScriptingMeshReductionOptions()
+                    opts.set_editor_property("auto_compute_lod_screen_size", False)
+                    opts.set_editor_property("reduction_settings", settings)
+                    got = sme.set_lods_with_notification(mesh, opts, True)
+                    log("props: %s: %d LODs" % (name, got))
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: no LODs made for %s (%s)" % (name, e))
             unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # [fps plan step 2] The houses' facade kit, made by Tools/make_facade_kit.py: windows, their surrounds
     # and doors, a model per size, coloured per instance by M_RideFacade (always ours, never Fab's).
@@ -1416,6 +1876,8 @@ def prop_kit(L):
             unreal.EditorAssetLibrary.save_loaded_asset(mi)
             wall_tints.append(mi)
     for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            continue   # ([car parks] made below)
         if row.get("folder") == "Walls":
             names = sorted((n for n in walls if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit()), key=size_of)
             if len(names) != len(WALL_TINTS) * WALL_VARIANTS or [size_of(n) for n in names] != list(range(len(names))):
@@ -1439,6 +1901,10 @@ def prop_kit(L):
             for name, mesh in sorted(ours.items()):
                 if name.startswith("SM_Prop_%s_" % kind):
                     add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
+    cars_note = ""
+    for kind, row in spec["kinds"].items():
+        if row.get("folder") == "Cars":
+            cars_note = parked_cars(L, kind, row, add)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])
@@ -1450,9 +1916,9 @@ def prop_kit(L):
     a.set_editor_property("frame_scale", float(frame[2]))
     kinds = {str(e.get_editor_property("name")).rsplit("_", 1)[0][len("SM_Prop_"):] for e in species}
     none = [k for k in spec["kinds"] if k not in kinds]
-    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s" % (
+    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s%s" % (
         len(species), len(found), ", ".join("%s %s" % (k, v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or "none",
-        len(none), ", ".join(none) or "none")
+        len(none), ", ".join(none) or "none", "; " + cars_note if cars_note else "")
 
 
 def build():
@@ -1465,6 +1931,7 @@ def build():
     grass_materials(L, kit)
     scanned_trees(L, kit)
     hedge_kit(L, kit)
+    garden_kit(L, kit)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)

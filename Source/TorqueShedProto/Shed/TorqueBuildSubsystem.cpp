@@ -431,6 +431,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		int32 FurnNext = FurnitureNextId;
 		SerializeFurniture(FurnAr, false, List, FurnNext);
 		S.bFurnished = bFurnished;
+		S.bBrandPosters = true;   // [posters] (a fresh shed has them, an older one got them as it loaded)
 	}
 	S.bFluids = true;   // [fluids]
 	S.PumpLitres = PumpLitres;
@@ -479,6 +480,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MaskColour = It.MaskColour;
 		To.MaskMetal = It.MaskMetal;
 		To.MaskRough = It.MaskRough;
+		To.FadeAt = It.FadeAt;
+		To.FadeDir = It.FadeDir;
 		To.Badge = It.Badge;
 		To.Decals = It.Decals;
 		To.Tune = It.Tune;
@@ -559,6 +562,20 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 			}
 		}
 		if (!bRead) FurnishFresh();
+		// [posters] A shed saved before the makers' logo posters: hung once, where a new shed has them
+		// (one already up, ordered or moved, isn't hung twice; binned after this, they stay binned).
+		else if (!S.bBrandPosters)
+		{
+			int32 Hung = 0;
+			for (const TorqueFurniture::FPlaced& P : TorqueFurniture::BrandPosters())
+			{
+				if (Furnishings.ContainsByPredicate([&P](const FTorqueFurniture& X) { return X.Model == P.Model; })) continue;
+				Furnishings.Add({FurnitureNextId++, P.Model, P.Xf, 0, 0.0f});
+				++Hung;
+			}
+			if (Hung > 0) TorqueFurniture::Touch();
+			UE_LOG(LogTemp, Log, TEXT("Torque furniture: hung the makers' %d logo posters in an older shed"), Hung);
+		}
 	}
 	Paint = FTorquePaintBay::Starter();
 	if (S.PaintBay.Num() > 0)
@@ -610,6 +627,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MaskColour = From.MaskColour;
 		It.MaskMetal = From.MaskMetal;
 		It.MaskRough = From.MaskRough;
+		It.FadeAt = FMath::IsFinite(From.FadeAt) ? FMath::Clamp(From.FadeAt, -500.0f, 500.0f) : 0.0f;
+		It.FadeDir = From.FadeDir < 0.0f ? -1.0f : 1.0f;
 		It.Badge = From.Badge;
 		It.Decals = TorqueDecals::ToUe(TorqueFit::Decals::Sanitize(TorqueDecals::ToStd(From.Decals)));
 		It.Tune = From.Tune;
@@ -678,7 +697,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 22;   // bumped when the layout below changes (22: the TVs' YouTube video, 21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 23;   // bumped when the layout below changes (23: a fade's middle and way on a masked part, 22: the TVs' YouTube video, 21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -853,7 +872,8 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		uint8 Tape = (uint8)It.Tape, Mask = (uint8)It.Mask, MaskMetal = TBI::Quant(It.MaskMetal), MaskRough = TBI::Quant(It.MaskRough);
 		FColor MaskColour = It.MaskColour.QuantizeRound();
 		Ar << Tape << Mask;
-		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough;
+		float FadeAt = It.FadeAt, FadeDir = It.FadeDir;
+		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough << FadeAt << FadeDir;
 		// A tank's badge (bit 1), and decals placed on it (bit 2).
 		uint8 bBadge = uint8((It.Badge.IsEmpty() ? 0 : 1) | (It.Decals.IsEmpty() ? 0 : 2));
 		Ar << bBadge;
@@ -1071,7 +1091,10 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			{
 				uint8 MaskMetal = 0, MaskRough = 0;
 				FColor MaskColour;
-				Ar << MaskColour << MaskMetal << MaskRough;
+				float FadeAt = 0.0f, FadeDir = 1.0f;
+				Ar << MaskColour << MaskMetal << MaskRough << FadeAt << FadeDir;
+				It.FadeAt = FMath::IsFinite(FadeAt) ? FMath::Clamp(FadeAt, -500.0f, 500.0f) : 0.0f;
+				It.FadeDir = FadeDir < 0.0f ? -1.0f : 1.0f;
 				It.MaskColour = MaskColour.ReinterpretAsLinear();
 				It.MaskMetal = TBI::Unquant(MaskMetal);
 				It.MaskRough = TBI::Unquant(MaskRough);
@@ -1405,6 +1428,9 @@ FString UTorqueBuildSubsystem::NewOrderedBike(int32 Peer, int32 Bay, const FStri
 		if (!It) continue;
 		It->Colour = FLinearColor((float)KV.second.Colour[0], (float)KV.second.Colour[1], (float)KV.second.Colour[2]);
 		It->Finish = KV.second.Finish.empty() ? NAME_None : FName(*TBI::Ue(KV.second.Finish));
+		// [configurator, beenster in 160] A colour picked is painted on (gloss unless a finish was picked): a V2
+		// bike's bodywork shows its model's own colour only when it hasn't been repainted.
+		if (It->Finish.IsNone() && KV.second.Picked) It->Finish = FName(TEXT("gloss"));
 	}
 	// The badge on the tank (BikeShop.buy_new: the tank item carries it).
 	if (FTorqueItem* Tank = Items.Find(ItemOn(Bay, FName(TEXT("tank")))))
@@ -1706,6 +1732,14 @@ bool UTorqueBuildSubsystem::FreeDelivery(FName Part, FVector& Out) const
 
 // --- Reads ---------------------------------------------------------------------------------------
 
+int32 UTorqueBuildSubsystem::BikeNameIdeas() { return (int32)UE_ARRAY_COUNT(TBI::BikeNames); }
+
+FString UTorqueBuildSubsystem::BikeNameIdea(int32 Index)
+{
+	const int32 N = BikeNameIdeas();
+	return TBI::BikeNames[((Index % N) + N) % N];
+}
+
 const FTorqueShedBike& UTorqueBuildSubsystem::Bike(int32 Bay) const
 {
 	return Bikes.IsValidIndex(Bay) ? Bikes[Bay] : TBI::NoBike();
@@ -1943,7 +1977,11 @@ FString UTorqueBuildSubsystem::V2FitReason(int32 Bay, int32 Engine, FName Slot, 
 		if (!LayoutParts(Bay, Parts)) return FString();
 		for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	}
-	return TBI::Ue(Lay->V2FitReason(Map, TBI::Std(Slot.ToString()), TBI::Std(Part.ToString().ToLower())));
+	// (Lowered, as TBI::Id: the FName "head" can carry another spelling seen first, "HEAD", and the
+	// rule then read a head as not a head: beenster, Nov 19 "thats a head not a HEAD".)
+	const std::string SlotS = TBI::Id(Slot), PartS = TBI::Std(Part.ToString().ToLower());
+	const std::string Why = Lay->V2FitReason(Map, SlotS, PartS);
+	return TBI::Ue(Why.empty() && Engine == 0 ? Lay->V2NeedsReason(Map, SlotS, PartS) : Why);
 }
 
 FString UTorqueBuildSubsystem::TestReload()
@@ -2227,7 +2265,7 @@ FString UTorqueBuildSubsystem::TyreFitReason(FName Tyre, FName Wheel)
 	// PartsDB.tyre_fit_reason, on fitting's catalogue (TorqueFit::Shop::TyreFit).
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	if (!Lay) return FString();
-	const std::string T = TBI::Std(Tyre.ToString()), W = TBI::Std(Wheel.ToString());
+	const std::string T = TBI::Id(Tyre), W = TBI::Id(Wheel);
 	const int Fit = TorqueFit::Shop::TyreFit(*Lay, T, W);
 	if (Fit == 0) return FString();
 	const TorqueFit::Json* Tp = Lay->Part(T);
@@ -2262,7 +2300,7 @@ FString UTorqueBuildSubsystem::TyresThatFit(FName Wheel)
 {
 	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
 	if (!Lay) return FString();
-	const std::string W = TBI::Std(Wheel.ToString());
+	const std::string W = TBI::Id(Wheel);
 	const TorqueFit::Json* Wp = Lay->Part(W);
 	if (!Wp) return FString();
 	auto Inch = [](double D) { return FMath::IsNearlyEqual(D, FMath::RoundToDouble(D)) ? FString::Printf(TEXT("%d\""), (int32)FMath::RoundToDouble(D)) : FString::Printf(TEXT("%.1f\""), D); };
@@ -2288,6 +2326,139 @@ FString UTorqueBuildSubsystem::TyresThatFit(FName Wheel)
 	Text += TEXT(": ") + FString::Join(First, TEXT(", "));
 	if (Names.Num() > Shown) Text += FString::Printf(TEXT(" and %d more"), Names.Num() - Shown);
 	return Text;
+}
+
+// [shop bay]
+int32 UTorqueBuildSubsystem::TyreSides(FName Tyre)
+{
+	// (Every wheel the shop sells, looked at once per tyre: the catalogue doesn't change while the game runs.)
+	static TMap<FName, int32> Known;
+	if (const int32* Was = Known.Find(Tyre)) return *Was;
+	int32 Sides = 0;
+	for (const FName& W : TorqueShedParts::PartsOfKind(FName(TEXT("wheel"))))
+	{
+		const FName Own = TorqueShedParts::V2Slot(W);
+		const int32 Side = Own == FName(TEXT("front_wheel")) ? 1 : (Own == FName(TEXT("rear_wheel")) ? 2 : 3);
+		if ((Sides & Side) == Side) continue;
+		if (TyreFitReason(Tyre, W).IsEmpty()) Sides |= Side;
+	}
+	Known.Add(Tyre, Sides);
+	return Sides;
+}
+
+bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides, FName* OutEngine) const
+{
+	OutWhyNot.Reset();
+	OutSides.Reset();
+	if (OutEngine) *OutEngine = NAME_None;
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	TMap<FString, FString> Have;
+	if (!Lay || !LayoutParts(Bay, Have)) return false;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Have) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	auto On = [&Map](const char* Slot) {
+		const auto It = Map.find(Slot);
+		return It == Map.end() ? std::string("none") : It->second;
+	};
+	const bool bRig = On("frame") != "none" && On("engine") != "none";
+	// No engine in the frame yet: the loose engine being built up for it (on the engine stand first, else any
+	// loose one that goes in this frame). Its parts are judged on it and on the frame together.
+	TorqueFit::PartsMap WithEngine = Map;
+	if (On("frame") != "none" && On("engine") == "none")
+	{
+		int32 Best = 0;
+		bool bBestOnStand = false;
+		for (const TPair<int32, FTorqueItem>& KV : Items)
+		{
+			const FTorqueItem& It = KV.Value;
+			if (It.Kind != TBI::EngineKind() || It.bBoxed || It.At == ETorqueAt::Bike || It.At == ETorqueAt::Engine) continue;
+			if (!Lay->V2FitReason(Map, "engine", TBI::Id(It.Part)).empty()) continue;
+			const bool bOnStand = It.At == ETorqueAt::Spot && It.Spot == FName(TEXT("stand"));
+			if (Best == 0 || (bOnStand && !bBestOnStand) || (bOnStand == bBestOnStand && KV.Key < Best))
+			{
+				Best = KV.Key;
+				bBestOnStand = bOnStand;
+			}
+		}
+		if (const FTorqueItem* Loose = Best != 0 ? Items.Find(Best) : nullptr)
+		{
+			WithEngine["engine"] = TBI::Id(Loose->Part);
+			if (OutEngine) *OutEngine = Loose->Part;
+		}
+	}
+	const FName WheelKind(TEXT("wheel")), TyreKind(TEXT("tyre")), FrameKind(TEXT("frame"));
+
+	// The wheels a tyre can go on, each side: the one on the bike, or (none on yet) every wheel its frame takes.
+	TArray<FName> Wheels[2];
+	bool bWheelsDone = false;
+	auto WheelsFor = [&]() {
+		if (bWheelsDone) return;
+		bWheelsDone = true;
+		const char* WheelSlots[2] = {"front_wheel", "rear_wheel"};
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const std::string Fitted = On(WheelSlots[Side]);
+			if (Fitted != "none")
+			{
+				Wheels[Side].Add(FName(*TBI::Ue(Fitted)));
+				continue;
+			}
+			for (const FName& W : TorqueShedParts::PartsOfKind(WheelKind))
+			{
+				const FName Own = TorqueShedParts::V2Slot(W);
+				if (!Own.IsNone() && Own != FName(UTF8_TO_TCHAR(WheelSlots[Side]))) continue;
+				if (!Own.IsNone() && !Lay->V2FitReason(Map, WheelSlots[Side], TBI::Id(W)).empty()) continue;
+				Wheels[Side].Add(W);
+			}
+		}
+	};
+
+	for (const FName& P : Parts)
+	{
+		const FName Kind = TorqueShedParts::PartKind(P);
+		if (Kind == FrameKind) continue;
+		if (Kind == TyreKind)
+		{
+			WheelsFor();
+			int32 Sides = 0;
+			FString Why;
+			for (int32 Side = 0; Side < 2; ++Side)
+				for (const FName& W : Wheels[Side])
+				{
+					const FString WhyW = TyreFitReason(P, W);
+					if (WhyW.IsEmpty()) { Sides |= 1 << Side; break; }
+					if (Why.IsEmpty() && Wheels[Side].Num() == 1) Why = WhyW;
+				}
+			OutSides.Add(P, Sides);
+			if (Sides == 0)
+				OutWhyNot.Add(P, Why.IsEmpty() ? FString(TEXT("None of the wheels this bike can take carries that tyre.")) : Why);
+			continue;
+		}
+		const FName Own = TorqueShedParts::V2Slot(P);
+		if (Kind == WheelKind)
+			OutSides.Add(P, Own == FName(TEXT("front_wheel")) ? 1 : (Own == FName(TEXT("rear_wheel")) ? 2 : 3));
+		const FName Slot = Own.IsNone() ? TorqueShedParts::HomeSlot(P) : Own;
+		if (Slot.IsNone()) continue;
+		const std::string SlotS = TBI::Id(Slot), PartS = TBI::Id(P);
+		// A V2 bike's part: its family's mounting standard (the engine's layout, its parts' block, the rear end...).
+		const bool bOnEngine = SlotS != "engine" && TorqueShedParts::IsEngineSlot(Slot);
+		const std::string V2Why = Lay->V2FitReason(bOnEngine ? WithEngine : Map, SlotS, PartS);
+		if (!V2Why.empty())
+		{
+			OutWhyNot.Add(P, TBI::Ue(V2Why));
+			continue;
+		}
+		// The engine, tank and fork: the layout check fitting it does (BikeLayout::PartFit's, without the "needs a
+		// mount first" step: you can buy it before what it mounts on).
+		if (bRig && (SlotS == "engine" || SlotS == "tank" || SlotS == "fork"))
+		{
+			TorqueFit::PartsMap After = Map;
+			After[SlotS] = PartS;
+			const TorqueFit::FitReport R = Lay->Solve(After).Fit;
+			if (R.Tier == "won't fit") OutWhyNot.Add(P, R.Reason.empty() ? FString(TEXT("That won't fit this bike.")) : TBI::Ue(R.Reason));
+		}
+	}
+	return true;
 }
 
 FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
@@ -2468,6 +2639,8 @@ bool UTorqueBuildSubsystem::EffectLook(const FTorqueItem& It, TorquePaintMix::FP
 		Out.MaskColour = It.MaskColour;
 		Out.MaskMetal = It.MaskMetal;
 		Out.MaskRough = It.MaskRough;
+		Out.FadeAt = It.FadeAt;
+		Out.FadeDir = It.FadeDir;
 	}
 	if (bTaped)
 	{
@@ -2512,6 +2685,53 @@ FString UTorqueBuildSubsystem::PaintName(int32 Index)
 		TEXT("Black"), TEXT("Teal"), TEXT("Silver"), TEXT("Gold"), TEXT("Yellow"), TEXT("Pink"), TEXT("Burgundy"), TEXT("Brown"),
 		TEXT("Cream"), TEXT("Olive")};
 	return Index >= 0 && Index < (int32)UE_ARRAY_COUNT(Names) ? FString(Names[Index]) : FString(TEXT("Custom"));
+}
+
+TorquePaintMix::FPaintSpec UTorqueBuildSubsystem::PaletteSpec(int32 Colour, FName Finish)
+{
+	const int32 Idx = FMath::Clamp(Colour, 0, Paints().Num() - 1);
+	const FName F = Finishes().Contains(Finish) ? Finish : FName(TEXT("gloss"));
+	TorquePaintMix::FPaintSpec S;
+	S.Name = FinishName(F) + TEXT(" ") + PaintName(Idx).ToLower();
+	S.Code = FString::Printf(TEXT("P%d:%s"), Idx, *F.ToString());
+	S.Effect = F == FName(TEXT("gloss")) ? FName(TEXT("solid")) : F;   // (TorquePaintMix::FinishOf gives the finish back)
+	S.Colour = Paints()[Idx];
+	if (Colour < 0)
+	{
+		// Any colour (the picker's square): named after the nearest of the gun's own colours.
+		const uint32 Rgb = (uint32)(-(int64)Colour - 1) & 0xFFFFFFu;
+		S.Colour = FLinearColor::FromSRGBColor(FColor((uint8)((Rgb >> 16) & 0xFFu), (uint8)((Rgb >> 8) & 0xFFu), (uint8)(Rgb & 0xFFu), 255));
+		int32 Near = 0;
+		float NearD = TNumericLimits<float>::Max();
+		for (int32 I = 0; I < Paints().Num(); ++I)
+		{
+			const FLinearColor& Pc = Paints()[I];
+			const float D = FMath::Square(Pc.R - S.Colour.R) + FMath::Square(Pc.G - S.Colour.G) + FMath::Square(Pc.B - S.Colour.B);
+			if (D < NearD)
+			{
+				NearD = D;
+				Near = I;
+			}
+		}
+		S.Name = FinishName(F) + TEXT(" ") + PaintName(Near).ToLower() + (NearD < 0.0004f ? TEXT("") : TEXT(" (own shade)"));
+		S.Code = FString::Printf(TEXT("C%06X:%s"), Rgb, *F.ToString());
+	}
+	// The finish's shine and metal as FinishLook draws them, for the wet coat going on.
+	FTorqueItem Look;
+	Look.Colour = S.Colour;
+	Look.Finish = F;
+	Look.PaintQ = 1.0f;
+	FLinearColor Shown = S.Colour;
+	float Metal = 0.05f, Rough = 0.12f;
+	if (FinishLook(Look, Shown, Metal, Rough))
+	{
+		// (The colour stays as picked: the part's finish draws it, so it isn't done twice.)
+		S.Metal = Metal;
+		S.Rough = Rough;
+	}
+	S.Colour.A = 1.0f;
+	S.Need = 1;   // (ready-mixed: one good coat covers)
+	return S;
 }
 
 const TArray<FName>& UTorqueBuildSubsystem::Finishes()
@@ -3007,6 +3227,10 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!R.Text.IsEmpty() && TorqueFit::Decals::Parse(TorqueDecals::ToStd(R.Text)).empty()) return TEXT("Those decals didn't read.");
 		return FString();
 	}
+	case ETorqueShedAct::NameBike:
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		if (TorqueFurniture::CleanLabel(R.Text).IsEmpty()) return TEXT("Give it a name first.");
+		return FString();
 	case ETorqueShedAct::Tune:
 	{
 		// shed_state check "tune": the bike, the setting, the part that keeps it, what its parts allow.
@@ -3295,16 +3519,18 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		// dust settles in it, and over a good primer it keys on and comes out better.
 		FTorqueItem& It = Items[R.Item];
 		const bool bPrimed = It.bPrimerTop;
+		const float WasQ = It.PaintQ;   // (a fade's base coat counts as much as its second colour)
 		float CoatsQ = 1.0f;
 		FString What;
 		if (R.Finish == FadeFinish())
 		{
-			// A fade from the gun's two cups: cup 1 blending into cup 2 across it (TorquePaintBay.cpp).
-			CoatsQ = FadeFromCups(Peer, It, R.Colour);
-			const FTorquePaintCup* One = Paint.CupOf(Peer, 0);
+			// A fade: cup 2 over part of the base coat, blended in where it went (TorquePaintBay.cpp). The
+			// spray game sends the fade's middle and way as Place's X and Y.
+			const FString Base = It.MixName.IsEmpty() ? FString(TEXT("the base coat")) : It.MixName;
+			CoatsQ = FadeFromCups(Peer, It, R.Colour, (float)R.Place.GetLocation().X, (float)R.Place.GetLocation().Y);
 			const FTorquePaintCup* Two = Paint.CupOf(Peer, 1);
-			What = FString::Printf(TEXT("%s fading into %s (%s, coat %d)"), One ? *One->Spec.Name : TEXT("cup 1"), Two ? *Two->Spec.Name : TEXT("cup 2"),
-				*FString(TorquePaintMix::PatternName(R.Colour)).ToLower(), It.MixCoats);
+			What = FString::Printf(TEXT("%s fading into %s (%s)"), *Base, Two ? *Two->Spec.Name : TEXT("cup 2"),
+				*FString(TorquePaintMix::PatternName(R.Colour)).ToLower());
 		}
 		else if (IsCupFinish(R.Finish))
 		{
@@ -3336,6 +3562,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		if (bPrimed) Q = FMath::Min(1.0f, Q + PrimerBonus * It.Primer);
 		It.bPrimerTop = false;
 		Q *= CoatsQ;
+		if (R.Finish == FadeFinish() && WasQ >= 0.0f) Q = 0.5f * (Q + WasQ);
 		It.PaintQ = Q;
 		Text = FString::Printf(TEXT("Sprayed the %s %s"), *ItemTitle(R.Item), *What);
 		if (bPrimed) Text += TEXT(" over primer");
@@ -3657,6 +3884,14 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = N == 0 ? FString::Printf(TEXT("Took the decals off the %s"), *ItemTitle(R.Item))
 			: FString::Printf(TEXT("Saved %d decal%s on the %s"), N, N == 1 ? TEXT("") : TEXT("s"), *ItemTitle(R.Item));
 		Touch(R.Item);
+		break;
+	}
+	case ETorqueShedAct::NameBike:
+	{
+		const FString Was = Bikes[R.Bay].Name;
+		Bikes[R.Bay].Name = TorqueFurniture::CleanLabel(R.Text);
+		Text = FString::Printf(TEXT("%s is now called %s."), *Was, *Bikes[R.Bay].Name);
+		PartsOf.Add(R.Bay);
 		break;
 	}
 	case ETorqueShedAct::Tune:

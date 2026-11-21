@@ -289,7 +289,7 @@ def far_heights(region, xs, zs):
     return np.where(np.isnan(H), ext, H)
 
 
-def write_glb(path, pos, idx, nrm=None, col=None, name="mesh", uv=None, uv1=None):
+def write_glb(path, pos, idx, nrm=None, col=None, name="mesh", uv=None, uv1=None, uv2=None, uv3=None):
     """A minimal glTF 2.0 binary: one mesh, one primitive, float positions/normals, uint8 RGBA colour."""
     pos = np.ascontiguousarray(pos, np.float32)
     small = len(pos) < 65536
@@ -318,6 +318,11 @@ def write_glb(path, pos, idx, nrm=None, col=None, name="mesh", uv=None, uv1=None
         attrs["TEXCOORD_0"] = add(np.ascontiguousarray(uv, np.float32), 34962, 5126, "VEC2", len(pos))
     if uv1 is not None:
         attrs["TEXCOORD_1"] = add(np.ascontiguousarray(uv1, np.float32), 34962, 5126, "VEC2", len(pos))
+    # (the trees' season data: Tools/tree_models.py)
+    if uv2 is not None:
+        attrs["TEXCOORD_2"] = add(np.ascontiguousarray(uv2, np.float32), 34962, 5126, "VEC2", len(pos))
+    if uv3 is not None:
+        attrs["TEXCOORD_3"] = add(np.ascontiguousarray(uv3, np.float32), 34962, 5126, "VEC2", len(pos))
     if col is not None:
         attrs["COLOR_0"] = add(np.ascontiguousarray(col, np.uint8), 34962, 5121, "VEC4", len(pos), norm=True)
     ia = add(idx, 34963, 5123 if small else 5125, "SCALAR", len(idx))
