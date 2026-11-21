@@ -255,6 +255,25 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 			// (Britain's: two broken lines, 600 mm dashes, 300 mm gaps, 200 mm wide, 300 mm apart)
 			Broken(Before, 0.2, LaneHi, LaneLo, 0.6, 0.3, Made);
 			Broken(Before - Dir * 0.5, 0.2, LaneHi, LaneLo, 0.6, 0.3, Made);
+			// [junction priority 168] (and, where it is known which way it governs, the give-way triangle
+			// painted in the lane coming up to it, diagram 1023: an outline 3.75 m long, its base 1.25 m
+			// across nearer the line and its point towards the traffic, 15 m back)
+			const double Base = Before - Dir * 15.0, Tip = Base - Dir * 3.75;
+			const double Mid = (LaneHi + LaneLo) * 0.5, Wing = std::fmin(0.625, (LaneHi - LaneLo) * 0.5 - 0.15);
+			if (M.Dir != 0 && Wing > 0.4 && std::fmin(Base, Tip) > 1.0 && std::fmax(Base, Tip) < RoadLen - 1.0)
+			{
+				Made.push_back(Paint(Base - 0.075, Base + 0.075, Mid + Wing + 0.05, Mid - Wing - 0.05));
+				for (double Sd : {1.0, -1.0})
+				{
+					Mark Side = Paint(std::fmin(Base, Tip), std::fmax(Base, Tip), 0.0, 0.0);
+					// (from its point to its base corner, or back again: Left and Right at From)
+					const double C0 = Dir > 0 ? Mid : Mid + Sd * Wing, C1 = Dir > 0 ? Mid + Sd * Wing : Mid;
+					Side.Left = C0 + 0.06;
+					Side.Right = C0 - 0.06;
+					Side.Skew = (C1 - C0) / 3.75;
+					Made.push_back(Side);
+				}
+			}
 		}
 		else if (K == "stop" || K == "traffic_signals")
 		{

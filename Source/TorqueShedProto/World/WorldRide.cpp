@@ -2299,7 +2299,13 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	Out.OriginX = Pts[size_t(First)].At.X;
 	Out.OriginZ = Pts[size_t(First)].At.Z;
 	// (a side road's paint stops short of the junctions at its ends)
-	const double PaintFrom = Which == 0 ? -1.0 : 12.0, PaintTo = Which == 0 ? 1e18 : Mine->Length - 12.0;
+	// ([junction priority 168] but for a through road's arm at a junction where the ride gives way: on to its mouth)
+	const auto ThroughEnd = [this, Mine](int End)
+	{
+		const auto It = Mine != nullptr && Mine->Edge >= 0 ? ThroughEnds.find(static_cast<long long>(Mine->Edge) * 2 + End) : ThroughEnds.end();
+		return It == ThroughEnds.end() ? 12.0 : It->second;
+	};
+	const double PaintFrom = Which == 0 ? -1.0 : ThroughEnd(0), PaintTo = Which == 0 ? 1e18 : Mine->Length - ThroughEnd(1);
 	// (the Godot game's colours, linear: tarmac, the verge (worn grass and grit: the Godot gravel read as a pale
 	// band beside the road in build 140), paint)
 	// [build 147] (and the verge's grass: the shoulder runs from grit at the tarmac's edge to grass, which
@@ -3160,7 +3166,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			{
 				if (Mk.Kind != MarkPaint) continue;
 				const double Ta = std::clamp((Mk.From - A.Along) / (B.Along - A.Along), 0.0, 1.0), Tb = std::clamp((Mk.To - A.Along) / (B.Along - A.Along), 0.0, 1.0);
-				if (Tb - Ta >= 1e-4) Cut(Ta, Tb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Mk.Colour);
+				// ([junction priority 168] a slanting line's sides where this bit of it starts and ends)
+				const double Aa = A.Along + (B.Along - A.Along) * Ta, Ab = A.Along + (B.Along - A.Along) * Tb;
+				if (Tb - Ta >= 1e-4) Cut(Ta, Tb, Mk.LeftAt(Aa), Mk.RightAt(Aa), Mk.LeftAt(Ab), Mk.RightAt(Ab), Mk.Colour);
 			}
 		}
 		static constexpr float Grit[3] = {0.095f, 0.088f, 0.07f};

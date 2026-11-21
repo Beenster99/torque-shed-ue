@@ -1197,6 +1197,12 @@ public:
 	{
 		int Kind = MarkPatch;
 		double From = 0.0, To = 0.0, Left = 0.0, Right = 0.0, Lift = 0.0;
+		// ([junction priority 168] a line slanting across the road: Left and Right are at From, and move this
+		// far to the left for each metre along; LeftAt and RightAt give them anywhere)
+		double Skew = 0.0;
+		bool EdgeLine = false;   // ([junction priority 168] a through road's edge line: none along a town street's kerbs)
+		double LeftAt(double Along) const { return Left + Skew * (Along - From); }
+		double RightAt(double Along) const { return Right + Skew * (Along - From); }
 		float Colour[3] = {0.0f, 0.0f, 0.0f};
 		// ([OSM stage 5] a hump's rise: Peak m at its top, over Start..Start + Length along; Flat the
 		// share of it that is level on top, 0 a round hump, a table's most of it)
@@ -1235,6 +1241,7 @@ public:
 		int Exit = 0;   // [OSM stage 5B] at a roundabout, which exit (1 the first), 0 not a roundabout
 	};
 	static constexpr int Finish = 9;
+	static constexpr double GiveWayWarn = 160.0;   // [junction priority 168] (the sat nav says a give-way or stop line this far ahead)
 	std::vector<RideTurn> Turns;
 	std::vector<double> RingGiveWays;   // [OSM stage 5B] how far along the ride's road it gives way onto a roundabout
 	// [junction priority, Nov 19] (beenster: "Our routed road is THE road that everything else comes from.
@@ -1263,6 +1270,19 @@ public:
 	std::vector<std::pair<double, double>> JunctionNoLines;   // (stretches of the ride's road across a through road: none of its lines)
 	bool LinesStopAt(double Along) const;
 	int JunctionGiveWayCount = 0;   // (give-way lines the rule painted on the ride's own road)
+	// [junction priority 168] (beenster, build 167: "You are still creating a road from A to B (our road) which
+	// has priority. Make sure it feels like we have to respect the law of the road more".) Where the ride
+	// comes in or goes out by a road that gives way, the through road's own lines painted on across the
+	// ride's tarmac (its centre line as Britain's junction warning line, 6 m marks and 3 m gaps, and at a T
+	// its far edge line unbroken), so the through road visibly carries on and the ride's road meets it;
+	// sorted by From. RoadMarks adds them to the ride's road's own.
+	std::vector<RoadMark> JunctionPaint;
+	int JunctionThroughCount = 0;   // (junctions whose through road was painted across)
+	// (a through road's arm off the ride's road, by its edge * 2 + which end: its own lines run on to its
+	// mouth, this far along it from that end, not stopping 12 m short as a side road's do)
+	std::unordered_map<long long, double> ThroughEnds;
+	int JunctionSignCount = 0;      // (Give Way and Stop signs stood by the ride's own lines: IndexFurniture)
+	void PaintThrough(const JunctionRule& J, double& In, double& Out, double& GiveIn, double& GiveOut);
 	void FindPriorities(int From, const std::vector<int>& Path);
 	static bool NoJunctionPriority;   // (the tests' before-and-after: every junction as the ride's road had it)
 	void PlaceJunctions(double RawLength);
@@ -1645,6 +1665,10 @@ public:
 		double ToTurn = 0.0;
 		std::string Onto;
 		int Exit = 0;   // [OSM stage 5B] the next turn's roundabout exit, 0 none
+		// [junction priority 168] the next give-way or stop line across the ride's own lane: how far (-1 none
+		// within GiveWayWarn), and whether it is a stop
+		double ToGiveWay = -1.0;
+		bool GiveWayStop = false;
 		double ToStop[StopKinds] = {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};   // -1: none ahead
 		std::string StopCalled[StopKinds];
 		// [OSM stage 1] The road's facts here: its limit as a sign shows it (mph in Britain, rounded to

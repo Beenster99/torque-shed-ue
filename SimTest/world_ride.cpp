@@ -2847,6 +2847,12 @@ int main(int Argc, char** Argv)
 		}
 		std::printf("Junctions: %zu with a through road; the ride on it through %d, comes in giving way at %d, leaves by a lesser road at %d; %d give-way lines on its own road\n",
 			Plan->Junctions.size(), Through, CameMinor, OntoMinor, Plan->JunctionGiveWayCount);
+		// [junction priority 168]
+		int Ahead = 0, Stops = 0;
+		for (const RidePlan::MappedMark& M : Plan->MainMapped)
+			if (M.Dir > 0 && (M.Kind == "give_way" || M.Kind == "stop")) { ++Ahead; Stops += M.Kind == "stop" ? 1 : 0; }
+		std::printf("Junctions: the through road's lines painted across the ride's at %d (%zu pieces); %d Give Way and Stop signs; %d lines the sat nav warns of (%d stops)\n",
+			Plan->JunctionThroughCount, Plan->JunctionPaint.size(), Plan->JunctionSignCount, Ahead, Stops);
 	}
 	for (const std::string& Note : Plan->TakeOutlineNotes()) std::printf("Outlines: %s\n", Note.c_str());   // [LiDAR stage 2]
 	{

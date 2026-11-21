@@ -99,6 +99,10 @@ enum ESymbol
 	SymCrossroads, SymSideLeft, SymSideRight, SymTJunction,            // 504.1, 506.1, 505.1
 	SymRoundabout, SymSignals, SymSteepDown, SymSteepUp,              // 510, 543, 523.1, 524.1 (Figure the gradient)
 	SymHumps, SymNarrows, SymDanger,                                  // 557.1, 516, 562 (other danger: with a plate)
+	// [junction priority 168] Not warnings but orders, drawn by Warning in the same room so they stand on the
+	// same post: Give Way (602, the red-bordered triangle point down with GIVE WAY over its middle) and
+	// Stop (601.1, the red octagon with STOP in white)
+	SymGiveWay, SymStop,
 	SymKinds
 };
 // A warning sign: the red-bordered white triangle Side across with its symbol in black (and Figure,

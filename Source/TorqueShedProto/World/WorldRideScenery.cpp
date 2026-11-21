@@ -1009,6 +1009,7 @@ void RidePlan::FindLevelCrossing(int Line, int First, int Last)
 void RidePlan::IndexFurniture()
 {
 	Furniture.clear();
+	JunctionSignCount = 0;
 	BuiltUp.assign(Road.size(), 0);
 	if (!Scene || Road.size() < 2) return;
 	const Region& G = Area.Roads;
@@ -1493,6 +1494,37 @@ void RidePlan::IndexFurniture()
 				if (S.At.DistanceTo(At) < (S.Warning ? Apart : 10.0) && S.Face.X * Face.X + S.Face.Z * Face.Z > 0.5) return false;
 			return true;
 		};
+		// [junction priority 168] Before any other: a Give Way sign (diagram 602) or a Stop sign (601.1) beside
+		// each give-way or stop line across the ride's own road whose way is known (the map's, or the
+		// junction rule's where the ride's road meets a through road), on the traffic's side by the line, or
+		// up to 10 m back where the corner is road.
+		for (const MappedMark& M : MainMapped)
+		{
+			if ((M.Kind != "give_way" && M.Kind != "stop") || M.Dir == 0) continue;
+			const int Way = M.Dir > 0 ? 1 : -1;
+			const double Line = M.Along - Way * 1.0;
+			const int Mph = MphAt(Line - Way * 40.0);
+			for (double Back = 1.5; Back <= 10.0; Back += 1.5)
+			{
+				const double Along = Line - Way * Back;
+				if (Along < 0.0 || Along > Length) break;
+				const size_t K = PointAt(Along);
+				Furnish F;
+				F.Kind = WarnSign;
+				F.Mapped = false;
+				F.Size = M.Kind == "stop" ? SignPlate::SymStop : SignPlate::SymGiveWay;
+				F.Big = Mph > 0 && Mph <= 30 ? 0.75 : 0.9;
+				F.At = Verge(K, Way * Keep, 0.7 + F.Big * 0.5);
+				F.Face = Dir(K) * -double(Way);
+				F.Height = Ground(F.At.X, F.At.Z);
+				const P2 Across(F.Face.Z, -F.Face.X);
+				if (!OffAll(F.At, 0.6) || !OffAll(F.At + Across * (F.Big * 0.5), 0.5) || !OffAll(F.At - Across * (F.Big * 0.5), 0.5)) continue;
+				Signs.push_back({F.At, F.Face, false});
+				Put(F);
+				++JunctionSignCount;
+				break;
+			}
+		}
 		// [OSM stage 6C] The direction signs first: they matter most (none within 50 m of another the same
 		// way, and a warning keeps 40 m from them).
 		const std::vector<Furnish> Directions = DirectionSigns();
