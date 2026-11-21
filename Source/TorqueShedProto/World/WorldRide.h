@@ -413,6 +413,7 @@ public:
 	void IndexFerries();
 	std::shared_ptr<const Ferries::Layout> FerryLayOf(int Listed) const;
 	double FerryCut(double X, double Z, double Lie) const;
+	bool OnFerryWay(double X, double Z, double Margin) const;   // (on a slipway or its approach, or within Margin: no plants)
 	static constexpr double FerryCutBelow = 0.12, FerryCutVerge = 2.5, FerryCutBank = 1.5;
 
 	bool Ok = false;

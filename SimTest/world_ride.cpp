@@ -1730,6 +1730,17 @@ int main(int Argc, char** Argv)
 						{
 							const auto& A = N.Approach.front();
 							std::printf("    debug row %d approach0 %.2f %.3f %.2f uncut %.3f fine %.3f ground %.3f\n", F.Listed, A[0], A[1], A[2], Plan->GroundUncut(A[0], A[2], 0.0, false, false), Plan->GroundOf(A[0], A[2], 0.0, false), Plan->Ground(A[0], A[2]));
+							// (across the approach's middle and the slipway's head: the land laid either side)
+							const auto& M = N.Approach[N.Approach.size() / 2];
+							const auto& M1 = N.Approach[std::min(N.Approach.size() - 1, N.Approach.size() / 2 + 1)];
+							const P2 Dir = (P2(M1[0], M1[2]) - P2(M[0], M[2])) * (1.0 / std::max(1e-6, P2(M1[0], M1[2]).DistanceTo(P2(M[0], M[2]))));
+							std::printf("    debug across the approach (y %.2f):", M[1]);
+							for (double O = -14.0; O <= 14.0; O += 2.0)
+								std::printf(" %+.0f:%.2f/%.2f%s", O, Plan->GroundUncut(M[0] - Dir.Z * O, M[2] + Dir.X * O, 0.0, false, false), Plan->Ground(M[0] - Dir.Z * O, M[2] + Dir.X * O), Plan->OnFerryWay(M[0] - Dir.Z * O, M[2] + Dir.X * O, 0.8) ? "*" : "");
+							std::printf("\n    debug across the head (y %.2f):", N.HeadY);
+							for (double O = -14.0; O <= 14.0; O += 2.0)
+								std::printf(" %+.0f:%.2f/%.2f", O, Plan->GroundUncut(N.Head.X - N.Axis.Z * O, N.Head.Z + N.Axis.X * O, 0.0, false, false), Plan->Ground(N.Head.X - N.Axis.Z * O, N.Head.Z + N.Axis.X * O));
+							std::printf("\n");
 						}
 			std::printf("  %s (%s, %s): %.0f m%s, %zu points, from the map %d\n", C.Name.c_str(), C.Id.c_str(), Ferries::KindName(C.Kind), C.Length, C.Long ? " long" : "", C.Line.size(), int(C.FromMap));
 			if (!Ok)
