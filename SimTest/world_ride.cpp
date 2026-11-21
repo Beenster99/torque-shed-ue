@@ -2605,15 +2605,41 @@ int main(int Argc, char** Argv)
 				}
 			}
 		}
+		// [real water] (WORLD_RIDE_PROBE=x,z[;x,z..] metres from the place: the ground there raw, cut, troughed and
+		// drawn, and the nearest water's level, to see why a stream stands over its banks)
+		if (const char* Probe = std::getenv("WORLD_RIDE_PROBE"))
+		{
+			std::string Spec = Probe;
+			size_t At0 = 0;
+			while (At0 < Spec.size())
+			{
+				const size_t End = Spec.find(';', At0);
+				const std::string One = Spec.substr(At0, End == std::string::npos ? std::string::npos : End - At0);
+				At0 = End == std::string::npos ? Spec.size() : End + 1;
+				double Px = 0.0, Pz = 0.0;
+				if (std::sscanf(One.c_str(), "%lf,%lf", &Px, &Pz) != 2) continue;
+				const double X = Centre.X + Px, Z = Centre.Z + Pz;
+				double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+				int Wk = -1;
+				bool Beside = false;
+				const bool Wet = Plan->NearWater(X, Z, Wd, Ws, Wh, Wdp, &Wk, &Beside);
+				std::printf("probe %.1f,%.1f: raw %.2f uncut %.2f trough %.2f drawn %.2f | water %d kind %d dist %.2f half %.2f level %.2f depth %.2f beside %d\n", Px, Pz,
+					Plan->Land ? Plan->Land->Height(X, Z) : -1.0, Plan->GroundUncut(X, Z, 0.0, false, false), Plan->GroundUncut(X, Z, 4.0, false, true),
+					Plan->LandDrawnAt(X, Z), int(Wet), Wk, Wd, Wh, Ws, Wdp, int(Beside));
+			}
+		}
 		// With WORLD_RIDE_MESH_R (metres round the place): the ground's finest squares there and what stands on them.
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr)
 		{
 			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
-			for (double Tz = std::floor((Centre.Z - Round) / 256.0) * 256.0; Tz < Centre.Z + Round; Tz += 256.0)
-				for (double Tx = std::floor((Centre.X - Round) / 256.0) * 256.0; Tx < Centre.X + Round; Tx += 256.0)
+			// ([real water] WORLD_RIDE_MESH_TILE=1024: the game's next squares out instead, 8 m apart, 400 m to 1.5 km off)
+			const double TileM = std::getenv("WORLD_RIDE_MESH_TILE") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_TILE")) : 256.0;
+			const int TileCells = TileM > 300.0 ? 128 : 64;
+			for (double Tz = std::floor((Centre.Z - Round) / TileM) * TileM; Tz < Centre.Z + Round; Tz += TileM)
+				for (double Tx = std::floor((Centre.X - Round) / TileM) * TileM; Tx < Centre.X + Round; Tx += TileM)
 				{
 					RideMesh Land;
-					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
+					Plan->LandTile(Tx, Tz, TileM, TileCells, Land);
 					const RideMesh* Extra = Land.Extra.get();
 					const RideMesh* Walls = Extra ? Extra->Stone.get() : nullptr;
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
@@ -2717,11 +2743,14 @@ int main(int Argc, char** Argv)
 		{
 			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
 			std::string Uvs;
-			for (double Tz = std::floor((Centre.Z - Round) / 256.0) * 256.0; Tz < Centre.Z + Round; Tz += 256.0)
-				for (double Tx = std::floor((Centre.X - Round) / 256.0) * 256.0; Tx < Centre.X + Round; Tx += 256.0)
+			// ([real water] WORLD_RIDE_MESH_TILE=1024: the game's next squares out instead, 8 m apart, 400 m to 1.5 km off)
+			const double TileM = std::getenv("WORLD_RIDE_MESH_TILE") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_TILE")) : 256.0;
+			const int TileCells = TileM > 300.0 ? 128 : 64;
+			for (double Tz = std::floor((Centre.Z - Round) / TileM) * TileM; Tz < Centre.Z + Round; Tz += TileM)
+				for (double Tx = std::floor((Centre.X - Round) / TileM) * TileM; Tx < Centre.X + Round; Tx += TileM)
 				{
 					RideMesh Land;
-					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
+					Plan->LandTile(Tx, Tz, TileM, TileCells, Land);
 					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), static_cast<const RideMesh*>(Land.Water.get())})
 					{
 						if (Mesh == nullptr) continue;

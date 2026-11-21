@@ -638,8 +638,17 @@ def water_material(L, real=False):
             wxy = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(warp, wxy)
             swell_uv = g.op(unreal.MaterialExpressionAdd, swell_uv, g.op(unreal.MaterialExpressionMultiply, wxy, const_b=0.55))
         big = ripple(swell_uv, 0.010, 0.006, 0.7)                     # the swell of the wind waves
-        mid = ripple(turned(1.3, 12.0 / 13.0, -5.0 / 13.0), -0.021, 0.034, 0.6)   # 6 m, turned -23 degrees
-        small = ripple(turned(2.9, 20.0 / 29.0, 21.0 / 29.0), 0.055, -0.04, 0.5)  # 2.8 m, turned 46 degrees
+        mid_uv = turned(1.3, 12.0 / 13.0, -5.0 / 13.0)     # 6 m, turned -23 degrees
+        small_uv = turned(2.9, 20.0 / 29.0, 21.0 / 29.0)   # 2.8 m, turned 46 degrees
+        if nt is not None:
+            # [real water, beenster on 166: "I could see the tiling"] (the ripples' rows bent too, by the same
+            # noise read as the swell's, its broad channel only so they bend and never swirl, each its own
+            # way by a repeat or more: the 6 m and 2.8 m patterns wander instead of lying in a grid; no extra reads)
+            broad = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(warp, broad)
+            mid_uv = g.op(unreal.MaterialExpressionAdd, mid_uv, g.op(unreal.MaterialExpressionMultiply, broad, const_b=1.0))
+            small_uv = g.op(unreal.MaterialExpressionSubtract, small_uv, g.op(unreal.MaterialExpressionMultiply, broad, const_b=1.6))
+        mid = ripple(mid_uv, -0.021, 0.034, 0.6)
+        small = ripple(small_uv, 0.055, -0.04, 0.5)
         depth = g.node(unreal.MaterialExpressionPixelDepth)
         near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
                     g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=3000.0), const_b=25000.0)))
@@ -731,7 +740,15 @@ def water_material(L, real=False):
     rough = g.op(U.MaterialExpressionMultiply, rough, g.lerp(g.const(0.4), g.const(1.3), calm))
     rough = g.lerp(rough, g.const(0.6), foam)
     foam_colour = g.const((0.82, 0.85, 0.86))
-    base = g.lerp(g.op(U.MaterialExpressionMultiply, vc, g.const(1.0)), foam_colour, foam)
+    # [real water, beenster on 166: "it never really looked like water"] (the plain water, opaque, can't be
+    # seen into, so it is given what you'd see: its bed through the shallows, the sea's sand and a loch's or
+    # a river's peaty stones, going to the water's own deep colour by about 2 m down (UV1's depth); a
+    # little lighter where wind roughens it. Single layer water does this itself, by its absorption.)
+    bed = g.lerp(g.const((0.10, 0.085, 0.06)), g.const((0.20, 0.18, 0.13)), is_sea)
+    murk = sat(div(deep, 2.2))
+    murk = mul(murk, sub(2.0, murk))   # (quickly at first: the bed fades fast in the first metre)
+    water_c = g.lerp(bed, g.op(U.MaterialExpressionMultiply, vc, g.const(1.0)), murk)
+    base = g.lerp(water_c, foam_colour, foam)
     mel = L.mel
     if real:
         g.m.set_editor_property("shading_model", U.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
