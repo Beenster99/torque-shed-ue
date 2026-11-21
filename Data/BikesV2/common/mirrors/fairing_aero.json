@@ -26,12 +26,17 @@
     0.023
    ],
    "metallic": 0.0,
-   "roughness": 0.52,
-   "tag": "plastic"
+   "roughness": 0.52
   },
   "d3_mirrorglass": {
-   "ue": "mirror_glass",
-   "tag": "d3_mirrorglass"
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.01
   }
  }
 }

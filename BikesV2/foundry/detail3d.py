@@ -3521,11 +3521,28 @@ def shots(build3d, name, tags, samples=24):
     return out
 
 
+def mesh_now(name):
+    """The object as a mesh we can move point by point: a curve (a smooth_tube stem) is frozen into its mesh."""
+    ob = bpy.data.objects.get(name)
+    if not ob or ob.type == "MESH":
+        return ob
+    me = bpy.data.meshes.new_from_object(ob.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    new = bpy.data.objects.new(name + "_m", me)
+    new.matrix_world = ob.matrix_world.copy()
+    for col in ob.users_collection:
+        col.objects.link(new)
+    for poly in me.polygons:
+        poly.use_smooth = True
+    bpy.data.objects.remove(ob, do_unlink=True)
+    new.name = name
+    return new
+
+
 def aim_mirrors(model, c):
     """Each mirror head turned on its ball joint so the rider sees the road behind in it (beenster, build 155:
     the glass faced straight back, so from the saddle it showed the ground beside the bike). The glass's normal
     halves the angle between the line from the eye and the view wanted: back, a little down and a little out."""
-    from mathutils import Vector
+    from mathutils import Vector, Quaternion
     eye = Vector((c["model_hip"] + 80, 0, 1560)) * B.MM
     done = []
     for s in (-1, 1):
@@ -3554,9 +3571,74 @@ def aim_mirrors(model, c):
                 w = ob.matrix_world @ vt.co
                 vt.co = inv @ (mc + rot @ (w - mc))
             ob.data.update()
+        # the stem's head end turns with the head and its root stays on the bike: without this the head turned
+        # round a stem that stayed where it was, and the stem came out through the glass (beenster, build 166)
+        stalk = mesh_now(f"mstalk{s}")
+        if stalk:
+            quat = n0.rotation_difference(n1)
+            inv = stalk.matrix_world.inverted()
+            ws = [stalk.matrix_world @ vt.co for vt in stalk.data.vertices]
+            far = max((w - mc).length for w in ws) or 1.0
+            for vt, w in zip(stalk.data.vertices, ws):
+                t = min(1.0, max(0.0, 1.0 - ((w - mc).length - 0.03) / max(far - 0.03, 1e-6)))
+                t = t * t * (3 - 2 * t)
+                part = Quaternion().slerp(quat, t).to_matrix()
+                vt.co = inv @ (mc + part @ (w - mc))
+            stalk.data.update()
+        # nothing of the stem or its boss may stand nearer the rider than 3 mm behind the glass, anywhere under it
+        reach = max((mw @ v.co - mc).length for v in glass.data.vertices) + 0.004
+        for nm in (f"mstalk{s}", f"mirrorboss{s}", f"mstub{s}"):
+            ob = mesh_now(nm)
+            if not ob:
+                continue
+            inv = ob.matrix_world.inverted()
+            for vt in ob.data.vertices:
+                w = ob.matrix_world @ vt.co
+                dep = (w - mc).dot(n1)
+                if dep > -0.003 and ((w - mc) - n1 * dep).length < reach:
+                    vt.co = inv @ (w - n1 * (dep + 0.003))
+            ob.data.update()
         done.append(round(math.degrees(n0.angle(n1))))
     if done:
         print(f"mirrors aimed at the road behind: turned {done} degrees")
+    mirror_poke(model)
+
+
+def mirror_poke(model, quiet=False):
+    """Every piece of the bike that cuts through a mirror's glass (beenster, build 166: stems poking through
+    the mirror heads). Measured on the built meshes: any triangle of anything else that crosses the glass."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    bad = []
+    for s in (-1, 1):
+        glass = bpy.data.objects.get(f"mirrorglass{s}")
+        if not glass or not glass.data.polygons:
+            continue
+        gt = BVHTree.FromObject(glass, dg)
+        gpts = [glass.matrix_world @ v.co for v in glass.data.vertices]
+        lo = [min(q[i] for q in gpts) - 0.01 for i in range(3)]
+        hi = [max(q[i] for q in gpts) + 0.01 for i in range(3)]
+        for ob in bpy.data.objects:
+            if ob.type != "MESH" or ob is glass or not ob.data.polygons or ob.hide_render:
+                continue
+            bb = [ob.matrix_world @ B.V(*c_) if False else ob.matrix_world @ __import__("mathutils").Vector(c_) for c_ in ob.bound_box]
+            if any(max(q[i] for q in bb) < lo[i] or min(q[i] for q in bb) > hi[i] for i in range(3)):
+                continue
+            pairs = gt.overlap(BVHTree.FromObject(ob, dg))
+            if pairs:
+                bad.append(f"{ob.name} through mirrorglass{s}")
+                if os.environ.get("MIRROR_DEBUG"):
+                    gc = sum(gpts, __import__("mathutils").Vector()) / len(gpts)
+                    gn = (glass.matrix_world.to_3x3() @ glass.data.polygons[0].normal).normalized()
+                    ev = ob.evaluated_get(dg)
+                    for _, j in pairs[:6]:
+                        pc = ev.matrix_world @ ev.data.polygons[j].center
+                        print("  poke", ob.name, [round(x * 1000, 1) for x in (pc - gc)], "depth", round((pc - gc).dot(gn) * 1000, 1), "n", [round(x, 2) for x in gn])
+                    ds = [((ev.matrix_world @ v.co) - gc).dot(gn) * 1000 for v in ev.data.vertices]
+                    print("  depth range of", ob.name, round(min(ds), 1), round(max(ds), 1))
+    if not quiet:
+        print(f"MIRROR POKE {model.get('name', '')}: " + ("; ".join(bad) if bad else "none"))
+    return bad
 
 
 def bar_slant(model, c):

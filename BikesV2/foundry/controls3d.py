@@ -622,8 +622,30 @@ def mirror(fr, s, key, M, model, lines, hand):
             info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["plastic"], 22)
             bk = Vector(info["back"])
             D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 4 * s, 0))), tuple(root + Vector((-6, 40 * s, 10))), tuple(mc + bk * 16 + Vector((0, -30 * s, -4)))], [(26, 6), (22, 5), (18, 5)], M["plastic"])
+    behind_glass(tag, info)
     info["eye"] = eye
     return info
+
+
+def behind_glass(tag, info):
+    """Nothing of the arm or its boss may stand nearer the rider than 3 mm behind the glass, anywhere under it
+    (beenster, build 166: arms poking through the mirror heads; the wing mirror's wide arm came 24 mm through)."""
+    glass = bpy.data.objects.get(f"cmirror{tag}glass")
+    if not glass:
+        return
+    mc, n = Vector(info["centre"]) * B.MM, Vector(info["normal"]).normalized()
+    reach = max((glass.matrix_world @ v.co - mc).length for v in glass.data.vertices) + 0.004
+    for nm in (f"cmstalk{tag}", f"cmirrorboss{tag}"):
+        ob = D.mesh_now(nm)
+        if not ob:
+            continue
+        inv = ob.matrix_world.inverted()
+        for vt in ob.data.vertices:
+            w = ob.matrix_world @ vt.co
+            dep = (w - mc).dot(n)
+            if dep > -0.003 and ((w - mc) - n * dep).length < reach:
+                vt.co = inv @ (w - n * (dep + 0.003))
+        ob.data.update()
 
 
 # ---------------------------------------------------------------- fitting

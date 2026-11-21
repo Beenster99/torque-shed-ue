@@ -19,12 +19,17 @@
  "triangles": 3172,
  "surfaces": {
   "chrome": {
-   "ue": "chrome",
-   "tag": "chrome"
+   "ue": "chrome"
   },
   "d3_mirrorglass": {
-   "ue": "mirror_glass",
-   "tag": "d3_mirrorglass"
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.01
   }
  }
 }
