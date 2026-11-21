@@ -280,6 +280,7 @@ private:
 	ETorqueLook Target = ETorqueLook::None;
 	int32 TargetBay = INDEX_NONE;     // a bike's part (or a bay's floor)
 	FName TargetSlot;                 // its slot, or an engine part's
+	FName TargetCaliper;              // [brake pads] looking at the pads in it: that caliper, for the wrench's alt (bolt or unbolt the caliper itself)
 	int32 TargetItem = 0;             // the item looked at (a bike part's item too)
 	int32 TargetEngine = 0;           // an engine block whose part is looked at
 	const FTorquePlace* TargetPlace = nullptr;   // the place looked at, or the one an item is on
