@@ -36,6 +36,10 @@ bool Painted(const std::string& Slot);
 // PartsDB.by_kind: the catalogue's parts of Kind in its order, wheels by size (smallest rim first,
 // then the narrower rim, then by name: PartsDB.wheel_before).
 std::vector<std::string> KindIds(const BikeLayout& Lay, const std::string& Kind);
+// [shop bay] A wheel's kit ("" for a bike's own wheel), and the shop's order of two wheels of one size: the bikes'
+// own wheels first, then the kit wheels style by style (each style's makers together), each by name.
+std::string WheelKit(const BikeLayout& Lay, const std::string& Id);
+bool WheelBefore(const BikeLayout& Lay, const std::string& A, const std::string& B);
 // PartsDB.tyre_fit: 0 if the tyre suits the wheel's rim, 1 too wide, -1 too narrow, 2 made for
 // another rim diameter (0 when either isn't a part).
 int TyreFit(const BikeLayout& Lay, const std::string& Tyre, const std::string& Wheel);

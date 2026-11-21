@@ -106,6 +106,7 @@ private:
 	FString PopupKey;          // the slot (or "style")
 	FBox2D PopupAnchor = FBox2D(ForceInit);
 	int32 PopupScroll = 0;
+	int32 PopupShown = 14;   // the rows the open list shows (as the screen takes)
 	// The colour picker: hue (0..360), saturation and value as it shows them (on the screen's sRGB,
 	// so the square reads evenly, as Godot's ColorPicker does), the colour it opened on, what's being
 	// dragged (the square, the hue strip) and where, and the hex field as it's typed.

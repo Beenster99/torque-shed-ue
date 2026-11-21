@@ -9,6 +9,7 @@
 #include "Shed/TorqueShopPreview.h"
 #include "Coop/TorqueUi.h"
 #include "Fit/BikeLayout.h"
+#include "Fit/BikeShop.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -397,6 +398,21 @@ void FTorquePartsComputer::Relist()
 		}
 		for (const FName& P : Also) Rows.Add({P});
 	}
+	// [shop bay] Wheels: the bikes' own first, then the kit wheels style by style with each style's makers together
+	// (beenster on 167: by maker, the chopper list showed one maker's 21 wheels before the next maker's own).
+	if (TPCI::BaseKind(Kind) == FName(TEXT("wheel")))
+		if (const TorqueFit::BikeLayout* WheelLay = TorqueShedCatalogue::Layout())
+		{
+			const bool bByType = !TypeFilter.IsNone() && Filtered();
+			Rows.StableSort([WheelLay, bByType, this](const FRow& A, const FRow& B) {
+				if (bByType)
+				{
+					const bool bMadeA = TPCI::KeptBest(A.Part) == TypeFilter, bMadeB = TPCI::KeptBest(B.Part) == TypeFilter;
+					if (bMadeA != bMadeB) return bMadeA;
+				}
+				return TorqueFit::Shop::WheelBefore(*WheelLay, std::string(TCHAR_TO_UTF8(*A.Part.ToString().ToLower())), std::string(TCHAR_TO_UTF8(*B.Part.ToString().ToLower())));
+			});
+		}
 	// [shop bay] Cut to the side the list is for, then to what goes on the bay's bike.
 	bBayJudged = false;
 	BayHidden = 0;
