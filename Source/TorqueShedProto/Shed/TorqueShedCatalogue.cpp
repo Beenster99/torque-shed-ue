@@ -366,6 +366,12 @@ bool ParseV2Look(const std::string& Material, FV2Look& Out)
 	Out.Finish = Bits[1];
 	Out.Paint = Bits[2];
 	Out.Tag = Bits[3].IsEmpty() ? Bits[1] : Bits[3];
+	// The rims and the fork legs take a picked colour too (beenster after 166: "I changed the wheels and nothing
+	// changed in the preview"): 13 of the 34 models draw their rims in a named finish ("d3_wheel_carbon") and every
+	// fork's legs in one ("d3_forkcast"), none marked for paint. They start in the model's own look as before.
+	if (Out.Paint.IsEmpty() && (Out.Tag == TEXT("rim") || Out.Tag.StartsWith(TEXT("d3_wheel_")) || Out.Tag == TEXT("d3_forkcast") ||
+		Out.Tag == TEXT("d3_forkblack") || Out.Tag == TEXT("d3_forkgold")))
+		Out.Paint = TEXT("rim");
 	if (Bits.Num() >= 9)
 	{
 		Out.bTint = true;

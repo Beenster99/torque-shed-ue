@@ -117,6 +117,19 @@ const std::vector<std::string>& ConfigSlots()
 	return S;
 }
 
+std::vector<std::string> AllConfigSlots(const BikeLayout& Lay)
+{
+	std::vector<std::string> Out = ConfigSlots();
+	for (const std::string& S : Lay.Slots())
+	{
+		if (S == "toolbox" || std::find(Out.begin(), Out.end(), S) != Out.end()) continue;
+		const std::string Kind = Lay.KindOfSlot(S);
+		if (Kind.empty() || !Lay.Catalogue() || Lay.Catalogue()->Ids(Kind).empty()) continue;
+		Out.push_back(S);
+	}
+	return Out;
+}
+
 bool NoColour(const std::string& Slot) { return Slot == "front_tyre" || Slot == "rear_tyre"; }
 
 const std::vector<std::string>& ColourGroups()
@@ -480,13 +493,15 @@ std::string OrderText(const Order& O)
 	Json J = Json::MakeObject();
 	J.Set("style", Json::MakeString(O.Style));
 	J.Set("paint", BSI::ShopRgbJson(O.Paint));
-	// Only the configurator's slots (the rest follow from them as the host makes it whole).
+	// The configurator's slots, then every other slot picked (beenster after 166: every part is a choice now).
 	Json P = Json::MakeObject();
 	for (const std::string& S : ConfigSlots())
 	{
 		const std::string Id = BSI::ShopGet(O.Parts, S);
 		if (!Id.empty()) P.Set(S, Json::MakeString(Id));
 	}
+	for (const auto& KV : O.Parts)
+		if (!KV.second.empty() && !BSI::ShopHas(ConfigSlots(), KV.first)) P.Set(KV.first, Json::MakeString(KV.second));
 	J.Set("parts", P);
 	Json C = Json::MakeObject();
 	for (const auto& KV : O.Colours)
@@ -513,7 +528,7 @@ bool ParseOrder(const BikeLayout& Lay, const std::string& Text, Order& Out)
 	PartsMap Parts = StockBuild(Lay, Out.Style);
 	if (const Json* P = J.Get("parts"))
 		for (const auto& KV : P->O)
-			if (BSI::ShopHas(ConfigSlots(), KV.first) && KV.second.IsString()) Parts[KV.first] = KV.second.S;
+			if (!Lay.KindOfSlot(KV.first).empty() && KV.second.IsString()) Parts[KV.first] = KV.second.S;
 	Out.Parts = FitTyres(Lay, RideParts(Lay, Parts), Out.Style);
 	if (const Json* C = J.Get("colours"))
 		for (const auto& KV : C->O)

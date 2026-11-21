@@ -22,6 +22,10 @@ namespace Shop
 {
 // BikeShop.CONFIG_SLOTS: the slots the configurator offers a choice in, in its order.
 const std::vector<std::string>& ConfigSlots();
+// [configurator] Every slot the New bike page lists (beenster after 166: "add ALL possible parts in the picker"):
+// ConfigSlots first, then every other slot of the bike and its engine the catalogue has parts for, in the layout's
+// order (no toolbox).
+std::vector<std::string> AllConfigSlots(const BikeLayout& Lay);
 // BikeShop.NO_COLOUR: slots that don't take a colour of their own (tyres are black rubber).
 bool NoColour(const std::string& Slot);
 // BikeShop.COLOUR_GROUPS: "wheels", "mudguards".
