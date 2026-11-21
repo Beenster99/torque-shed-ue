@@ -202,6 +202,7 @@ void RidePlan::PlaceJunctions(double RawLength)
 	JunctionPaint.clear();
 	JunctionThroughCount = 0;
 	ThroughEnds.clear();
+	FarEdges.clear();
 	if (Road.size() < 2) return;
 	const double Scale = RawLength > 1.0 ? Length / RawLength : 1.0;
 	bool Added = false;
@@ -558,11 +559,45 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 	};
 	// (Britain's junction warning line down the middle: 6 m marks, 3 m gaps, a mark from the arm's mouth on)
 	if (Centre) PaintAlong(0.0, 0.0, 0.12, [](double S) { return std::fmod(S, 9.0) < 6.0; });
-	// (at a T, the far side's edge line unbroken: the side away from the ride's road that gives way)
+	// (at a T, the side away from the ride's road that gives way: the far side)
+	const P2 Tm = Tangent(0.5), MidLeft(Tm.Z, -Tm.X);
+	const double Sign = MidLeft.X * Minor.X + MidLeft.Z * Minor.Z > 0.0 ? -1.0 : 1.0;
+	// [true T] (its far edge, from the ride's road's edge to the arm's, for the mouth to draw in place of
+	// its rounded corner there; and none of the ride's own edge line along the ride's road under it)
+	if (HasMinor && ArmX.Sd != nullptr && ArmX.Sd->Edge >= 0)
+	{
+		FarEdge F;
+		for (int K = 0; K <= 32; ++K)
+		{
+			const double T = double(K) / 32.0;
+			const P2 Tn = Tangent(T), Left(Tn.Z, -Tn.X);
+			F.Pts.push_back(Curve(T) + Left * (Sign * (Half0 + (Half1 - Half0) * T)));
+		}
+		if (CameMinor) std::reverse(F.Pts.begin(), F.Pts.end());
+		double Lo2 = 1e18, Hi2 = -1e18, OffSum = 0.0;
+		bool Fits = true;
+		for (const P2& P : F.Pts)
+		{
+			double A = 0.0, C = 0.0, H = 0.0;
+			if (!OnRide(P, A, C, H)) { Fits = false; break; }
+			Lo2 = std::fmin(Lo2, A);
+			Hi2 = std::fmax(Hi2, A);
+			OffSum += C;
+		}
+		const P2 AwayLeft(ArmX.M->Away.Z, -ArmX.M->Away.X);
+		F.Sigma = (F.Pts.back().X - ArmX.M->At.X) * AwayLeft.X + (F.Pts.back().Z - ArmX.M->At.Z) * AwayLeft.Z >= 0.0 ? 1.0 : -1.0;
+		F.RideFrom = Lo2;
+		F.RideTo = Hi2;
+		if (Fits && Hi2 - Lo2 < 40.0)
+		{
+			const unsigned char Bit = OffSum >= 0.0 ? 1 : 2;
+			for (size_t I = PointNear(Lo2); I < Road.size() && I < MouthAt.size() && Road[I].Along <= Hi2 + 0.5; ++I) MouthAt[I] |= Bit;
+			FarEdges[static_cast<long long>(ArmX.Sd->Edge) * 2 + ArmX.End] = std::move(F);
+		}
+	}
+	// (at a T, the far side's edge line unbroken)
 	if (HasMinor && Half0 >= 2.95 && Half1 >= 2.95)
 	{
-		const P2 Tm = Tangent(0.5), Left(Tm.Z, -Tm.X);
-		const double Sign = Left.X * Minor.X + Left.Z * Minor.Z > 0.0 ? -1.0 : 1.0;
 		Edge = true;
 		PaintAlong(Sign * (Half0 - 0.3), Sign * (Half1 - 0.3), 0.13, [](double) { return true; });
 	}

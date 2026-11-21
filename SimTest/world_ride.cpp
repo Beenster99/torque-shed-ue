@@ -2045,6 +2045,42 @@ int main(int Argc, char** Argv)
 		for (const RoadPoint& P : Plan->Road)
 			if (P.At.DistanceTo(C) < Rr * 1.5) std::printf(" %.1f %.1f", P.At.X - C.X, P.At.Z - C.Z);
 		std::printf("\n");
+		// (debug: the laid roads with their half widths, "MAPL which x z half ...", and the far edges, "MAPF x z ...")
+		for (const int W : LaidRoads(*Plan))
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+			bool NearC = false;
+			for (const RoadPoint& P : Pts) NearC = NearC || P.At.DistanceTo(C) < Rr;
+			if (!NearC) continue;
+			std::printf("MAPL %d", W);
+			for (const RoadPoint& P : Pts) if (P.At.DistanceTo(C) < Rr * 1.5) std::printf(" %.2f %.2f %.2f", P.At.X - C.X, P.At.Z - C.Z, P.Half);
+			std::printf("\n");
+		}
+		for (const auto& F : Plan->FarEdges)
+		{
+			std::printf("MAPF");
+			for (const P2& P : F.second.Pts) std::printf(" %.2f %.2f", P.X - C.X, P.Z - C.Z);
+			std::printf("\n");
+		}
+	}
+	if (const char* GroundAt = std::getenv("WORLD_RIDE_GROUND_AT"))
+	{
+		// (debug: lat,lon,dx,dz: the ground and the roads by a point dx east and dz south of lat,lon)
+		double La = 0.0, Lo = 0.0, Dx = 0.0, Dz = 0.0;
+		std::sscanf(GroundAt, "%lf,%lf,%lf,%lf", &La, &Lo, &Dx, &Dz);
+		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
+		const P2 C = Fr.FromGeo(La, Lo) + P2(Dx, Dz);
+		for (const double Coarse : {1.0, 4.0, 8.0})
+			std::printf("GROUND coarse %.0f: %.3f (land %.3f)\n", Coarse, Plan->Ground(C.X, C.Z, Coarse), Plan->Land ? Plan->Land->Height(C.X, C.Z) : 0.0);
+		RidePlan::NearOpts Opts;
+		for (int Pass = 0; Pass < 4; ++Pass)
+		{
+			RidePlan::NearHit Hit;
+			if (!Plan->NearestOf(C.X, C.Z, Opts, Hit)) break;
+			std::printf("GROUND near road %d dist %.2f half %.2f height %.3f deck %d bore %d\n", Hit.Which, Hit.Dist, Hit.Half, Hit.Height + Hit.Cross, int(Hit.Deck), int(Hit.Bore));
+			Opts.NotRoad = Hit.Which;
+			if (Pass == 1) break;
+		}
 	}
 	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
 	{
@@ -2911,6 +2947,10 @@ int main(int Argc, char** Argv)
 			if (M.Dir > 0 && (M.Kind == "give_way" || M.Kind == "stop")) { ++Ahead; Stops += M.Kind == "stop" ? 1 : 0; }
 		std::printf("Junctions: the through road's lines painted across the ride's at %d (%zu pieces); %d Give Way and Stop signs; %d lines the sat nav warns of (%d stops)\n",
 			Plan->JunctionThroughCount, Plan->JunctionPaint.size(), Plan->JunctionSignCount, Ahead, Stops);
+		std::printf("Junctions: the through road's far edge drawn on across at %zu\n", Plan->FarEdges.size());
+		if (std::getenv("WORLD_RIDE_JUNCTIONS"))
+			for (const auto& F : Plan->FarEdges)
+				std::printf("  far edge of road %lld end %lld: corner %+.0f, along the ride %.1f to %.1f m, %zu points\n", F.first / 2, F.first % 2, F.second.Sigma, F.second.RideFrom, F.second.RideTo, F.second.Pts.size());
 	}
 	for (const std::string& Note : Plan->TakeOutlineNotes()) std::printf("Outlines: %s\n", Note.c_str());   // [LiDAR stage 2]
 	{

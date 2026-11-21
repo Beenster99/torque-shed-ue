@@ -1281,6 +1281,19 @@ public:
 	// (a through road's arm off the ride's road, by its edge * 2 + which end: its own lines run on to its
 	// mouth, this far along it from that end, not stopping 12 m short as a side road's do)
 	std::unordered_map<long long, double> ThroughEnds;
+	// [junction priority, true T] (beenster, Nov 21: the main road whole through the junction, the ride's road
+	// meeting it square.) At a T where the ride's road gives way, the through road's far edge as it runs from
+	// its arm's mouth on across to the ride's road again: drawn in place of that mouth's rounded corner on the
+	// far side, the tarmac out to it, and the ride's own kerb or verge between taken away. By the arm's edge
+	// * 2 + which end: which corner of its mouth (Sigma, as MouthCorner's), the line from the ride's road's
+	// edge (first) to the arm's (last), and how far along the ride's road its two ends lie.
+	struct FarEdge
+	{
+		double Sigma = 1.0;
+		double RideFrom = 0.0, RideTo = 0.0;
+		std::vector<P2> Pts;
+	};
+	std::unordered_map<long long, FarEdge> FarEdges;
 	int JunctionSignCount = 0;      // (Give Way and Stop signs stood by the ride's own lines: IndexFurniture)
 	void PaintThrough(const JunctionRule& J, double& In, double& Out, double& GiveIn, double& GiveOut);
 	void FindPriorities(int From, const std::vector<int>& Path);
@@ -1799,6 +1812,12 @@ private:
 	// A mouth's corner on the side road's left (Sigma +1) or right (-1): the corner itself, the way
 	// along the ride's road's edge from it, and how far along each edge the rounding starts.
 	static void MouthCorner(const Mouth& M, const P2& MainAt, double Half, double Sigma, P2& Corner, P2& AlongMain, double& Reach);
+	// [true T] (beenster, Nov 21: "messy junction".) Whether a point lies on the tarmac of a road laid off
+	// the ride's road near MainAlong, other than Which (Margin m past its edge counted in); and a mouth's
+	// corner drawn tighter (Reach smaller) where its curve would cross a neighbouring road's tarmac, false
+	// where even a tight one would (that corner then left open: tarmac, no kerb or verge across the other road).
+	bool OnOtherRoad(const P2& P, int Which, double MainAlong, double Margin) const;
+	bool FitCorner(const Mouth& M, int Which, const P2& Corner, const P2& AlongMain, double& Reach) const;
 	// By the ride's road's point: 1 a mouth or its corners on its left, 2 on its right (no edge line);
 	// 4 the mouth itself on its left, 8 on its right (no shoulder).
 	std::vector<unsigned char> MouthAt;
