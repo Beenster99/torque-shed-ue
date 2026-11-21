@@ -44,11 +44,12 @@ struct MapView
 	std::vector<TileKey> Tiles() const;
 };
 
-enum ELayer { Relief = 0, RoadMap = 1, TerrainMap = 2, Satellite = 3, Hybrid = 4, LayerCount = 5 };
+// [planner map] SatNav: the sat nav's own map (Dash/TftPlannerMap), the road map's look zoomed out past it.
+enum ELayer { Relief = 0, RoadMap = 1, TerrainMap = 2, Satellite = 3, Hybrid = 4, SatNav = 5, LayerCount = 6 };
 const char* LayerName(int Layer);
 // Whether a layer is drawn from the satellite's pictures; whether it draws roads.
 inline bool PhotoLayer(int Layer) { return Layer == Satellite || Layer == Hybrid; }
-inline bool RoadLayer(int Layer) { return Layer == RoadMap || Layer == Hybrid; }
+inline bool RoadLayer(int Layer) { return Layer == RoadMap || Layer == Hybrid || Layer == SatNav; }
 
 // [build 147] The main roads the map draws on its road map: each 5 degree block's sketch's motorways,
 // trunk roads and A roads (sketch_bake.py), read once. Safe from any thread.
@@ -155,6 +156,8 @@ private:
 // tile is on disk yet the land is a dark grey. Roads (null: none) are drawn on the road map, and zoomed in,
 // Streets' (null: none) on the road map and over the satellite's pictures. Returns the share of pixels it
 // had ground for.
+// [planner map] The ferry crossings' dashed lines over a picture drawn (DrawRelief draws them on every layer).
+void DrawFerryLines(const MapView& View, std::vector<uint8_t>& Bgra);
 double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads = nullptr, MapImagery* Imagery = nullptr,
 	MapStreets* Streets = nullptr);
 } // namespace Route

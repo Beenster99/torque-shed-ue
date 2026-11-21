@@ -121,7 +121,7 @@ std::vector<TileKey> MapView::Tiles() const
 
 const char* LayerName(int Layer)
 {
-	return Layer == RoadMap ? "Road map" : Layer == TerrainMap ? "Terrain" : Layer == Satellite ? "Satellite" : Layer == Hybrid ? "Sat + roads" : "Relief";
+	return Layer == RoadMap ? "Road map" : Layer == TerrainMap ? "Terrain" : Layer == Satellite ? "Satellite" : Layer == Hybrid ? "Sat + roads" : Layer == SatNav ? "Sat nav" : "Relief";
 }
 
 bool MapRoads::Claim(const std::string& Block)
@@ -510,6 +510,11 @@ std::vector<MapStreets::Label> MapStreets::Labels(const MapView& View, size_t Mo
 	return Out;
 }
 
+void DrawFerryLines(const MapView& View, std::vector<uint8_t>& Bgra)
+{
+	if (Bgra.size() == size_t(std::max(1, View.W)) * size_t(std::max(1, View.H)) * 4) DrawFerries(View, Bgra);
+}
+
 const char* MapImagery::Credit()
 {
 	return "Satellite: Sentinel-2 cloudless by EOX IT Services GmbH (s2maps.eu; contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0.";
@@ -599,6 +604,13 @@ int MapImagery::Fetch(const std::vector<TileKey>& Keys, const std::function<int(
 
 double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads, MapImagery* Imagery, MapStreets* Streets)
 {
+	if (View.Layer == SatNav)
+	{
+		// [planner map] (the sat nav's look is drawn over this by its own code: here, the road map)
+		MapView Road = View;
+		Road.Layer = RoadMap;
+		return DrawRelief(Heights, Road, Bgra, Roads, Imagery, Streets);
+	}
 	const int W = std::max(1, View.W), H = std::max(1, View.H);
 	Bgra.assign(size_t(W) * size_t(H) * 4, 255);
 	if (PhotoLayer(View.Layer) && Imagery != nullptr)
