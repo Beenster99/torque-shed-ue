@@ -4148,12 +4148,26 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 		bRiderShown = bShow;
 		if (RiderBody) RiderBody->SetVisibility(bShow);
 		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown, true);   // (its decal skins with it: build 154's helmet left floating)
+		// The helmet casts its shadow while hidden (for the first-person view from inside it); off the
+		// bike it mustn't (build 166, beenster: "a disembodied helmet shadow when i am not on the bike").
+		if (RiderHelmet)
+		{
+			TArray<USceneComponent*> Skins;
+			RiderHelmet->GetChildrenComponents(true, Skins);
+			Skins.Add(RiderHelmet);
+			for (USceneComponent* Sc : Skins)
+				if (UPrimitiveComponent* Pc = Cast<UPrimitiveComponent>(Sc)) Pc->SetCastHiddenShadow(bShow);
+		}
 		ShowRiderAvatar();
 		return;
 	}
 	if (RiderParts.Num() < RP_Count) return;
 	bRiderShown = bShow;
-	for (UStaticMeshComponent* C : RiderParts) C->SetVisibility(bShow);
+	for (UStaticMeshComponent* C : RiderParts)
+	{
+		C->SetVisibility(bShow);
+		C->SetCastHiddenShadow(bShow);   // (no shadow of a hidden head with nobody on the bike)
+	}
 	if (bShow)
 	{
 		// Every part is showing again, the head too: put the head back as the view wants it.
