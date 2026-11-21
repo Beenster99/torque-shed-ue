@@ -2075,12 +2075,36 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	Skirt(0, Cells, 1, 0, false);       // south
 	Skirt(0, 0, 0, 1, false);           // west
 	Skirt(Cells, 0, 0, 1, true);        // east
+	std::vector<float> Shore;   // [real water stage 2] (the land's UV1: its height over the water near it, the shore's kind)
 	{
 		std::shared_ptr<RideMesh> Wet = std::make_shared<RideMesh>();
-		WaterTile(X0, Z0, Size, Cells, Out, *Wet);
+		WaterTile(X0, Z0, Size, Cells, Out, *Wet, &Shore);
 		if (Wet->Vertices() > 0) Out.Water = Wet;
 	}
+	const size_t SheetPoints = Out.Vertices();
 	if (std::fabs(Step - LandGrid) < 0.1) BanksTile(X0, Z0, Size, Out);   // [build 155 feedback]
+	{
+		// [real water stage 4] The land's shore for its material (wet banks, beaches, the bed under the
+		// water): the sheet's points as WaterTile found them, a river's banks (BanksTile's strips and the
+		// sheet beside a run) by the run's own level.
+		const size_t Grid = size_t(Cells + 1) * size_t(Cells + 1);
+		bool AnyShore = !Shore.empty();
+		std::vector<float> Uv1(Out.Vertices() * 2, 0.0f);
+		if (!Shore.empty()) std::copy(Shore.begin(), Shore.begin() + std::min(Shore.size(), Grid * 2), Uv1.begin());
+		if (Step <= 8.5 && !WaterNear.empty())
+			for (size_t V = 0; V < Out.Vertices(); ++V)
+			{
+				if (V >= Grid && V < SheetPoints) continue;   // (the skirts, out of sight)
+				if (Uv1[V * 2] != 0.0f) continue;
+				const double X = Out.OriginX + Out.Pos[V * 3], Z = Out.OriginZ + Out.Pos[V * 3 + 2];
+				double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+				if (!NearWater(X, Z, Wd, Ws, Wh, Wdp) || Wd > Wh + 10.0) continue;
+				Uv1[V * 2] = float(ShoreZero - std::clamp(double(Out.Pos[V * 3 + 1]) - Ws, -ShoreZero + 1.0, ShoreZero));
+				Uv1[V * 2 + 1] = float(ShoreBank * 10);
+				AnyShore = true;
+			}
+		if (AnyShore) Out.Uv1 = std::move(Uv1);
+	}
 	if (Step <= 8.5 && Scene)
 	{
 		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();

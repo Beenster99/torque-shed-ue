@@ -48,6 +48,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Net/UnrealNetwork.h"
 #include "HAL/IConsoleManager.h"
+#include "World/WorldTide.h"
 
 bool ATorqueGameState::bRealClockTest = false;
 bool ATorqueGameState::bTestClockSet = false;
@@ -60,6 +61,13 @@ namespace
 // today's): fresh pale green from April, full summer leaf, turning from mid September, falling through
 // October and November, bare (but oak's and beech's dead leaves) from December to late March. Holly, the
 // pines and the spruces stay green; the larch turns gold and drops its needles. The switch forces one.)
+// [real water stages 5 and 9] The sea's tide (MPC_Weather Tide and TideHigh) and the water's moving waves.
+TAutoConsoleVariable<int32> CVarTides(TEXT("torque.RideTides"), 1,
+	TEXT("The sea's tide (made up, by the ride's date and clock): 1 on (default), 0 the sea at its mean level."));
+TAutoConsoleVariable<float> CVarTideShiftHours(TEXT("torque.RideTideShift"), 0.0f,
+	TEXT("Hours added to the ride's clock for the tide only (tests: 0 and 6.2 see high and low water)."));
+TAutoConsoleVariable<int32> CVarWaterWaves(TEXT("torque.RideWaterWaves"), 1,
+	TEXT("The sea's and lakes' moving waves near the rider (M_RideWater's world position offset): 1 on, 0 off (an A/B for their cost)."));
 TAutoConsoleVariable<int32> CVarTreeSeason(TEXT("torque.RideTreeSeason"), 0,
 	TEXT("The trees' season: 0 the ride's date (default), 1 spring, 2 summer, 3 autumn, 4 winter, 5 summer whatever the date."));
 
@@ -1372,6 +1380,19 @@ void ATorqueGameState::ApplyWeather()
 		const int32 Season = FMath::Clamp(CVarTreeSeason.GetValueOnGameThread(), 0, 5);
 		float Fresh = SeasonLeaves[Season][0], Turn = SeasonLeaves[Season][1], Drop = SeasonLeaves[Season][2];
 		if (Season == 0) LeavesOnDay(DayOfYearNow(), Fresh, Turn, Drop);
+		// ([real water stage 9] the tide here, by the ride's date and clock: the sea's water rises and falls
+		// by Tide times its own half range (M_RideWater's offset, UV1), the beach wet up to TideHigh's)
+		{
+			double TLat = 0.0, TLon = 0.0, TAsl = OriginAsl;
+			ViewGeo(TLat, TLon, TAsl);
+			const FDateTime Day = RideDate();
+			const double TideHours = Hour >= 0.0f ? double(Hour) : FDateTime::UtcNow().GetTimeOfDay().GetTotalHours();
+			const double When = TorqueWorld::Tide::UnixOf(Day.GetYear(), Day.GetDayOfYear(), TideHours) + CVarTideShiftHours.GetValueOnGameThread() * 3600.0;
+			const bool bTides = CVarTides.GetValueOnGameThread() != 0;
+			SetMpc(TEXT("Tide"), bTides ? (float)TorqueWorld::Tide::Height(TLat, TLon, When) : 0.0f);
+			SetMpc(TEXT("TideHigh"), bTides ? (float)TorqueWorld::Tide::LastHigh(TLat, TLon, When) : 0.0f);
+			SetMpc(TEXT("WaterWaves"), CVarWaterWaves.GetValueOnGameThread() != 0 ? 1.0f : 0.0f);
+		}
 		SetMpc(TEXT("LeafFresh"), Fresh);
 		SetMpc(TEXT("LeafTurn"), Turn);
 		SetMpc(TEXT("LeafDrop"), Drop);

@@ -10,6 +10,8 @@
 #include "WorldRideSigns.h"
 #include "WorldLevelCrossing.h"
 #include "WorldRoadLine.h"
+#include "WorldFerries.h"
+#include "WorldTide.h"
 
 #include <algorithm>
 #include <cmath>
@@ -2431,7 +2433,21 @@ namespace
 const Rgb SeaWater = {0.022f, 0.048f, 0.062f}, LakeWater = {0.026f, 0.040f, 0.044f}, RiverWater = {0.034f, 0.044f, 0.038f};
 }
 
-void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const
+double RidePlan::TideHalfAt(double X, double Z) const
+{
+	const Geo G = Area.Roads.FrameOf().ToGeo(X, Z);
+	double Half = Tide::HalfRange(G.Lat, G.Lon);
+	for (const FerryLaid& F : FerryLays)
+		if (F.Lay && F.Lay->Sea)
+			for (const Ferries::End& E : F.Lay->Ends)
+			{
+				const double D = std::hypot(X - E.Berth.X, Z - E.Berth.Z);
+				Half *= std::clamp((D - 250.0) / 350.0, 0.0, 1.0);
+			}
+	return Half;
+}
+
+void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out, std::vector<float>* Shore) const
 {
 	Out = RideMesh();
 	Out.OriginX = X0;
@@ -2535,8 +2551,11 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				if (Least < 1e8) Lake[size_t(J) * N + I] = Least + 0.1;
 			}
 	}
-	const auto Put = [&Out](double X, double Y, double Z, const Rgb& C)
+	// [real water stage 2] (UV1: the depth there and the flow or the tide; alpha: white water)
+	const auto Put = [&Out](double X, double Y, double Z, const Rgb& C, double DepthHere, double Second, double White)
 	{
+		Out.Uv1.push_back(float(DepthHere)); Out.Uv1.push_back(float(Second));
+		Out.Alpha.push_back(float(std::clamp(White, 0.0, 1.0)));
 		Out.Pos.push_back(float(X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z - Out.OriginZ));
 		Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
 		// (metres over 8 from a corner near the square, a whole 10 of M_RideWater's two ripples' repeats
@@ -2553,8 +2572,12 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 	// edge so the squares either side agree, and a dry corner stays at the water's level, under the
 	// land that rises out of it, so the land itself draws the shore.)
 	std::vector<double> LevelAt(size_t(N) * N, std::nan(""));
+	// ([real water stage 9] the sea's water is laid at its mean level and the tide lifts and lowers it (the
+	// material, by MPC_Weather's Tide): it lies under the beach up to the biggest springs' high water)
+	const double TideHalf = TideHalfAt(X0 + Size * 0.5, Z0 + Size * 0.5), TideTop = TideHalf * 1.25 + 0.2;
+	std::vector<float> ShoreHere;   // (two a point, as Shore)
 	bool Below = false;   // (ground under the sea's level: the sea's pressed down shore, from a square beside it)
-	for (size_t V = 0; V < size_t(N) * N && !Below; ++V) Below = Sheet.Pos[V * 3 + 1] < -0.02f;
+	for (size_t V = 0; V < size_t(N) * N && !Below; ++V) Below = Sheet.Pos[V * 3 + 1] < float(TideTop);
 	if (AnyWet || Below)
 	{
 		// (the sea over the whole pressed down shore; a lake only over the ring round its edge that the
@@ -2599,7 +2622,7 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				const int Ni = I + Di[K], Nj = J + Dj[K];
 				if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) continue;
 				const size_t Np = size_t(Nj) * M + Ni;
-				if (Kind[Np] != 0 || Gone[size_t(P)] + Step > (Kind[size_t(P)] == 2 ? FloodReach : LakeReach) || Gr[Np] >= Lv[size_t(P)] - 0.02) continue;
+				if (Kind[Np] != 0 || Gone[size_t(P)] + Step > (Kind[size_t(P)] == 2 ? FloodReach : LakeReach) || Gr[Np] >= Lv[size_t(P)] + (Kind[size_t(P)] == 2 ? TideTop : 0.0) - 0.02) continue;
 				Kind[Np] = Kind[size_t(P)];
 				Lv[Np] = Lv[size_t(P)];
 				Gone[Np] = Gone[size_t(P)] + Step;
@@ -2646,7 +2669,64 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				LevelAt[V] = Lv[P];
 				AnyWet = true;
 			}
+		// [real water stage 2] The shore: every point within ShoreSea (the sea) or ShoreLake m of water
+		// takes the level of the water nearest it, for the land's wet band, beach and bed (its UV1).
+		if (Shore)
+		{
+			const double ShoreSea = 44.0, ShoreLake = 14.0;
+			std::vector<double> ShLv(Lv), ShGone(size_t(M) * M, 1e9);
+			std::vector<unsigned char> ShKind(Kind);
+			std::vector<int> Ring;
+			for (int P = 0; P < M * M; ++P)
+				if (ShKind[size_t(P)] != 0) { ShGone[size_t(P)] = 0.0; Ring.push_back(P); }
+			const int Di[4] = {1, -1, 0, 0}, Dj[4] = {0, 0, 1, -1};
+			for (size_t Q = 0; Q < Ring.size(); ++Q)
+			{
+				const int P = Ring[Q];
+				const int I = P % M, J = P / M;
+				for (int K = 0; K < 4; ++K)
+				{
+					const int Ni = I + Di[K], Nj = J + Dj[K];
+					if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) continue;
+					const size_t Np = size_t(Nj) * M + Ni;
+					if (ShKind[Np] != 0 || ShGone[size_t(P)] + Step > (ShKind[size_t(P)] == 2 ? ShoreSea : ShoreLake)) continue;
+					ShKind[Np] = ShKind[size_t(P)];
+					ShLv[Np] = ShLv[size_t(P)];
+					ShGone[Np] = ShGone[size_t(P)] + Step;
+					Ring.push_back(int(Np));
+				}
+			}
+			ShoreHere.assign(size_t(N) * N * 2, 0.0f);
+			for (int J = 0; J < N; ++J)
+				for (int I = 0; I < N; ++I)
+				{
+					const size_t P = size_t(J + Rim) * M + I + Rim, V = size_t(J) * N + I;
+					if (ShKind[P] == 0 || std::isnan(ShLv[P])) continue;
+					const double H = std::clamp(Gr[P] - ShLv[P], -ShoreZero + 1.0, ShoreZero);
+					int Type = ShoreBank;
+					if (ShKind[P] == 2)
+					{
+						// (the sea's shore: the map's beach or mud flats, else by the slope: rock where it is
+						// steep, sand where it is all but flat, shingle between)
+						const double Gx = Gr[P + 1] < 1e8 && Gr[P - 1] < 1e8 ? (Gr[P + 1] - Gr[P - 1]) / (2.0 * Step) : 0.0;
+						const double Gz = Gr[P + size_t(M)] < 1e8 && Gr[P - size_t(M)] < 1e8 ? (Gr[P + size_t(M)] - Gr[P - size_t(M)]) / (2.0 * Step) : 0.0;
+						const double Slope = std::hypot(Gx, Gz);
+						Type = Slope > 0.55 ? ShoreRock : Slope < 0.06 ? ShoreSand : ShoreShingle;
+						const int Fa = FieldAt(X0 + I * Step, Z0 + J * Step);
+						if (Fa >= 0)
+						{
+							const int Fk = FieldAreas[size_t(Fa)].Kind;
+							if (Fk == FieldSand) Type = ShoreSand;
+							else if (Fk == FieldScree) Type = ShoreShingle;
+							else if (Fk == FieldMud) Type = ShoreMud;
+						}
+					}
+					ShoreHere[V * 2] = float(ShoreZero - H);   // (so a point with none, 0, reads as high over any water)
+					ShoreHere[V * 2 + 1] = float(Type * 10) + (ShKind[P] == 2 ? float(std::min(TideHalf, 9.0)) : 0.0f);
+				}
+		}
 	}
+	if (Shore) *Shore = std::move(ShoreHere);
 	if (AnyWet)
 	{
 		// A quad of water over every cell with a wet corner: a wet corner at its level, a dry one at the
@@ -2662,6 +2742,7 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					const size_t V = size_t(Cj[K]) * N + Ci[K];
 					Level[K] = std::nan("");
 					if (Wet[V] == 0 || std::isnan(LevelAt[V])) continue;
+					if (Wet[V] == 2 && double(Sheet.Pos[V * 3 + 1]) > LevelAt[V] + TideTop) continue;
 					Any = true;
 					Sea = Sea || Wet[V] == 2;
 					Level[K] = LevelAt[V];
@@ -2676,7 +2757,9 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					// pulled down to the ground: that drew the water's edge as a wall)
 					const double Dry = double(Sheet.Pos[(size_t(Cj[K]) * N + Ci[K]) * 3 + 1]);
 					const double Y = !std::isnan(Level[K]) ? Level[K] : Dry >= Lowest ? Lowest : std::fmax(Dry - 0.25, Lowest - 0.17 * Step);
-					Put(X0 + Ci[K] * Step, Y, Z0 + Cj[K] * Step, Sea ? SeaWater : LakeWater);
+					// (its depth: the water over the ground there, less than 0 under the bank, so the shore's
+					// foam lies where the land comes out of the water, between the points)
+					Put(X0 + Ci[K] * Step, Y, Z0 + Cj[K] * Step, Sea ? SeaWater : LakeWater, Y - Dry, Sea ? TideHalf : 0.0, 0.0);
 				}
 				// (A B across the top, C D below: as LandTile's own quads, facing up)
 				Out.Idx.insert(Out.Idx.end(), {Base, Base + 2, Base + 1, Base + 1, Base + 2, Base + 3});
@@ -2724,13 +2807,32 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				if (Ya <= 0.0 && Yb <= 0.0) continue;
 				const P2 La = LeftOf(Run, I), Lb = LeftOf(Run, I + 1);
 				const Rgb C = Run.Kind == 2 ? LakeWater : RiverWater;
+				// ([real water stage 6] a river flows: its UV0 metres across it and down it over 8, so the
+				// material's ripples run downstream, UV1's v its pace from the fall of its water, the alpha
+				// white water where it falls fast; three points across, so its depth (UV1's u) runs from
+				// under each bank to the middle, for the foam along its edges)
+				const double Len = std::fmax(A.DistanceTo(B), 0.01);
+				const double Fall = std::fmax(0.0, double(Run.Surface[I]) - double(Run.Surface[I + 1])) / Len;
+				const double Pace = Run.Kind == 2 ? 0.06 : std::clamp(0.35 + Fall * 25.0, 0.3, 2.6);
+				const double White = Run.Kind == 2 ? 0.0 : (Fall - 0.02) * 12.0;
+				const double Va = double(Run.Along[I]) / 8.0, Vb = Va + Len / 8.0;
+				const double Da = double(Run.Depth[I]), Db = double(Run.Depth[I + 1]);
 				const uint32_t Base = uint32_t(Out.Vertices());
-				Put(A.X + La.X * Ha, Ya, A.Z + La.Z * Ha, C);
-				Put(A.X - La.X * Ha, Ya, A.Z - La.Z * Ha, C);
-				Put(B.X + Lb.X * Hb, Yb, B.Z + Lb.Z * Hb, C);
-				Put(B.X - Lb.X * Hb, Yb, B.Z - Lb.Z * Hb, C);
-				// (left is the run's left going down it, so these face up)
-				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
+				const auto Flowing = [&](const P2& At, double Y, double Across, double V, double Deep)
+				{
+					Put(At.X, Y, At.Z, C, Deep, Pace, White);
+					const size_t U = (Out.Vertices() - 1) * 2;
+					Out.Uv[U] = float(Across / 8.0);
+					Out.Uv[U + 1] = float(V);
+				};
+				Flowing(A + La * Ha, Ya, -Ha, Va, -0.25);
+				Flowing(A, Ya, 0.0, Va, Da);
+				Flowing(A - La * Ha, Ya, Ha, Va, -0.25);
+				Flowing(B + Lb * Hb, Yb, -Hb, Vb, -0.25);
+				Flowing(B, Yb, 0.0, Vb, Db);
+				Flowing(B - Lb * Hb, Yb, Hb, Vb, -0.25);
+				// (left is the run's left going down it, so these face up: A's left, middle, right, then B's)
+				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 3, Base + 1, Base + 4, Base + 3, Base + 1, Base + 2, Base + 4, Base + 2, Base + 5, Base + 4});
 			}
 		}
 }

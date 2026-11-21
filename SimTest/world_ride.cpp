@@ -2700,6 +2700,35 @@ int main(int Argc, char** Argv)
 		}
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr) Text += TurfText;
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
+		// [real water] (with WORLD_RIDE_MESH_R: the land's and the water's vertices with their UV1 and alpha, to
+		// WORLD_RIDE_MESH.uv1: L|W x z y u0 v0 u1 v1 alpha, for the water's pictures)
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr)
+		{
+			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
+			std::string Uvs;
+			for (double Tz = std::floor((Centre.Z - Round) / 256.0) * 256.0; Tz < Centre.Z + Round; Tz += 256.0)
+				for (double Tx = std::floor((Centre.X - Round) / 256.0) * 256.0; Tx < Centre.X + Round; Tx += 256.0)
+				{
+					RideMesh Land;
+					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), static_cast<const RideMesh*>(Land.Water.get())})
+					{
+						if (Mesh == nullptr) continue;
+						for (size_t T = 0; T + 2 < Mesh->Idx.size(); T += 3)
+							for (int C = 0; C < 3; ++C)
+							{
+								const uint32_t V = Mesh->Idx[T + C];
+								const bool U1 = Mesh->Uv1.size() >= Mesh->Vertices() * 2, Al = Mesh->Alpha.size() >= Mesh->Vertices();
+								char Line[256];
+								std::snprintf(Line, sizeof(Line), "%c %.3f %.3f %.3f %.4f %.4f %.3f %.3f %.3f\n", Mesh == &Land ? 'L' : 'W', Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X,
+									Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]), double(Mesh->Uv[V * 2]), double(Mesh->Uv[V * 2 + 1]),
+									U1 ? double(Mesh->Uv1[V * 2]) : 0.0, U1 ? double(Mesh->Uv1[V * 2 + 1]) : 0.0, Al ? double(Mesh->Alpha[V]) : 1.0);
+								Uvs += Line;
+							}
+					}
+				}
+			Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".uv1", Uvs);
+		}
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
 		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);
 		// [circuits] (the circuits' trackside kit within WORLD_RIDE_MESH_R, to WORLD_RIDE_MESH.trackside: name variant x z y yaw pitch length)
