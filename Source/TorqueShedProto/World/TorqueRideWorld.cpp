@@ -1660,11 +1660,38 @@ UMaterialInterface* ATorqueRideWorld::WaterNow() const
 	return FTorqueSettings::Get().bRealWater && WaterMaterialReal ? WaterMaterialReal.Get() : WaterMaterial.Get();
 }
 
+void ATorqueRideWorld::TickTreeHandover(float DeltaSeconds)
+{
+	// [build 167] beenster on 166: "please please please get rid of the bubble trees everywhere forever".
+	// The near trees' patches and their far copies were handed over by draw distances (LDMaxDrawDistance
+	// and MinDrawDistance) that Nanite's instances didn't keep to, so the far copies' crowns stood over
+	// the near trees by every road. Now each 128 m patch shows its near models while the camera is within
+	// torque.RideNearTreeM of its trees, and its far copy only past that, a few times a second.
+	SinceHandover += DeltaSeconds;
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC || !PC->PlayerCameraManager) return;
+	LastCamera = PC->PlayerCameraManager->GetCameraLocation();
+	if (SinceHandover < 0.2) return;
+	SinceHandover = 0.0;
+	const float Reach = TRWI::CVarNearTreeM.GetValueOnGameThread() * 100.0f;
+	const FVector Cam = LastCamera.GetValue();
+	TreeHandover.RemoveAllSwap([](const FTreeHandover& H) { return !H.Ism.IsValid(); });
+	for (FTreeHandover& H : TreeHandover)
+	{
+		const bool bNear = Reach > 0.0f && H.Box.ComputeSquaredDistanceToPoint(Cam) < Reach * Reach;
+		const int8 Hide = int8(H.bNearModels ? !bNear : bNear);
+		if (Hide == H.Hidden) continue;
+		H.Hidden = Hide;
+		H.Ism->SetHiddenInGame(Hide != 0);
+	}
+}
+
 void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
 	TickWarmUp();
+	TickTreeHandover(DeltaSeconds);
 	if (Impostors) Impostors->Tick();   // [build 157] a few views of a far tree's impostor
 	// [build 156] (Settings > Graphics > Realistic water changed: the water already laid takes it too)
 	if (UMaterialInterface* WantWater = WaterNow(); WantWater != WaterShown)
@@ -2514,6 +2541,8 @@ void ATorqueRideWorld::DropPlants(const FIntVector& Key)
 			if (UInstancedStaticMeshComponent* Ism = Part.Get())
 			{
 				PlantsShown -= Ism->GetInstanceCount();
+				TreeHandover.RemoveAllSwap([Ism](const FTreeHandover& H) { return H.Ism.Get() == Ism; });
+				Ism->SetHiddenInGame(false);
 				// ([perf, build 150] kept to be used again, as the parts are: torque.RidePool)
 				if (TRWI::CVarPool.GetValueOnGameThread() != 0 && SparePlants.Num() < 2000 && !Ism->IsBeingDestroyed())
 				{
@@ -2693,8 +2722,7 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		Ism->LDMaxDrawDistance = Cull * 1.05f;
 		Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
 		// ([build 153] the scans' patches and their far copies hand over at the same distance, as whole patches)
-		if (bNearScan) Ism->LDMaxDrawDistance = FMath::Min(Ism->LDMaxDrawDistance, NearTreeM * 100.0f);
-		if (bFarCopy) Ism->MinDrawDistance = NearTreeM * 100.0f;
+		// ([build 167] no draw distances for the handover: TickTreeHandover shows one or the other)
 		if (bGarden) Ism->ComponentTags.Add(TEXT("RideGarden"));   // [gardens] (for the A/B run)
 		else if (bTree) Ism->ComponentTags.Add(TEXT("RideTree"));   // (for the 5 s scene count)
 		if (bFarTree) Ism->ComponentTags.Add(TEXT("RideTreeFar"));   // (for the A/B run)
@@ -2702,9 +2730,24 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 		// ([perf, build 165] the instances in before it registers: its render state made once, with them,
 		// not made empty and then rebuilt; 164's Brecbowie read "our worst job 19/8 OVER (plants)")
 		Ism->AddInstances(Group.Value, false, false);
+		Ism->SetHiddenInGame(false);
 		Ism->RegisterComponent();
 		if (!bReused) AddInstanceComponent(Ism);
 		Parts.Add(Ism);
+		if (bNearScan || bFarCopy)
+		{
+			FTreeHandover H;
+			H.Ism = Ism;
+			H.bNearModels = bNearScan;
+			const FTransform Xf = Ism->GetComponentTransform();
+			for (const FTransform& One : Group.Value) H.Box += Xf.TransformPosition(One.GetLocation());
+			// (shown as it should be from the first frame: the far copies hidden near the camera)
+			const float Reach = NearTreeM * 100.0f;
+			const bool bNear = LastCamera.IsSet() && H.Box.ComputeSquaredDistanceToPoint(LastCamera.GetValue()) < Reach * Reach;
+			H.Hidden = int8(bNearScan ? !bNear : bNear);
+			Ism->SetHiddenInGame(H.Hidden != 0);
+			TreeHandover.Add(H);
+		}
 		PlantsShown += Group.Value.Num();
 	}
 }

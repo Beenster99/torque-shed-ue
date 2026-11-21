@@ -1091,9 +1091,9 @@
   },
   "SM_TreeFar_ash_0": {
    "species": "ash",
-   "height": 13.43,
-   "triangles": 2660,
-   "radius": 5.87
+   "height": 13.14,
+   "triangles": 6916,
+   "radius": 5.55
   },
   "SM_Tree_ash_0_bare": {
    "species": "ash",
@@ -1109,9 +1109,9 @@
   },
   "SM_TreeFar_ash_1": {
    "species": "ash",
-   "height": 14.36,
-   "triangles": 3108,
-   "radius": 6.86
+   "height": 13.41,
+   "triangles": 7436,
+   "radius": 7.08
   },
   "SM_Tree_ash_1_bare": {
    "species": "ash",
@@ -1127,9 +1127,9 @@
   },
   "SM_TreeFar_ash_2": {
    "species": "ash",
-   "height": 13.54,
-   "triangles": 2852,
-   "radius": 7.84
+   "height": 13.3,
+   "triangles": 7100,
+   "radius": 8.3
   },
   "SM_Tree_ash_2_bare": {
    "species": "ash",
@@ -1145,9 +1145,9 @@
   },
   "SM_TreeFar_ash_3": {
    "species": "ash",
-   "height": 13.75,
-   "triangles": 2998,
-   "radius": 7.85
+   "height": 13.74,
+   "triangles": 7262,
+   "radius": 8.07
   },
   "SM_Tree_ash_3_bare": {
    "species": "ash",
@@ -1163,9 +1163,9 @@
   },
   "SM_TreeFar_ash_4": {
    "species": "ash",
-   "height": 21.77,
-   "triangles": 4226,
-   "radius": 13.84
+   "height": 20.75,
+   "triangles": 8474,
+   "radius": 13.98
   },
   "SM_Tree_ash_4_bare": {
    "species": "ash",
@@ -1181,9 +1181,9 @@
   },
   "SM_TreeFar_sycamore_0": {
    "species": "sycamore",
-   "height": 13.73,
-   "triangles": 2940,
-   "radius": 5.69
+   "height": 13.22,
+   "triangles": 7148,
+   "radius": 5.57
   },
   "SM_Tree_sycamore_0_bare": {
    "species": "sycamore",
@@ -1199,9 +1199,9 @@
   },
   "SM_TreeFar_sycamore_1": {
    "species": "sycamore",
-   "height": 13.18,
-   "triangles": 2798,
-   "radius": 6.09
+   "height": 13.05,
+   "triangles": 6958,
+   "radius": 5.94
   },
   "SM_Tree_sycamore_1_bare": {
    "species": "sycamore",
@@ -1217,9 +1217,9 @@
   },
   "SM_TreeFar_sycamore_2": {
    "species": "sycamore",
-   "height": 13.4,
-   "triangles": 3140,
-   "radius": 7.69
+   "height": 12.88,
+   "triangles": 7708,
+   "radius": 7.68
   },
   "SM_Tree_sycamore_2_bare": {
    "species": "sycamore",
@@ -1235,9 +1235,9 @@
   },
   "SM_TreeFar_sycamore_3": {
    "species": "sycamore",
-   "height": 13.24,
-   "triangles": 3130,
-   "radius": 5.8
+   "height": 13.23,
+   "triangles": 7322,
+   "radius": 6.02
   },
   "SM_Tree_sycamore_3_bare": {
    "species": "sycamore",
@@ -1253,9 +1253,9 @@
   },
   "SM_TreeFar_sycamore_4": {
    "species": "sycamore",
-   "height": 19.74,
-   "triangles": 3766,
-   "radius": 12.64
+   "height": 19.4,
+   "triangles": 7830,
+   "radius": 12.24
   },
   "SM_Tree_sycamore_4_bare": {
    "species": "sycamore",
@@ -1271,9 +1271,9 @@
   },
   "SM_TreeFar_alder_0": {
    "species": "alder",
-   "height": 10.36,
-   "triangles": 1742,
-   "radius": 3.35
+   "height": 10.08,
+   "triangles": 6334,
+   "radius": 3.11
   },
   "SM_Tree_alder_0_bare": {
    "species": "alder",
@@ -1289,9 +1289,9 @@
   },
   "SM_TreeFar_alder_1": {
    "species": "alder",
-   "height": 10.61,
-   "triangles": 2022,
-   "radius": 3.58
+   "height": 10.77,
+   "triangles": 6534,
+   "radius": 3.36
   },
   "SM_Tree_alder_1_bare": {
    "species": "alder",
@@ -1307,9 +1307,9 @@
   },
   "SM_TreeFar_alder_2": {
    "species": "alder",
-   "height": 10.06,
-   "triangles": 2078,
-   "radius": 3.69
+   "height": 9.87,
+   "triangles": 6518,
+   "radius": 3.58
   },
   "SM_Tree_alder_2_bare": {
    "species": "alder",
@@ -1325,9 +1325,9 @@
   },
   "SM_TreeFar_birch_0": {
    "species": "birch",
-   "height": 11.14,
-   "triangles": 1836,
-   "radius": 2.97
+   "height": 11.05,
+   "triangles": 6300,
+   "radius": 2.74
   },
   "SM_Tree_birch_0_bare": {
    "species": "birch",
@@ -1343,9 +1343,9 @@
   },
   "SM_TreeFar_birch_1": {
    "species": "birch",
-   "height": 11.27,
-   "triangles": 1990,
-   "radius": 3.43
+   "height": 11.57,
+   "triangles": 6598,
+   "radius": 3.14
   },
   "SM_Tree_birch_1_bare": {
    "species": "birch",
@@ -1361,9 +1361,9 @@
   },
   "SM_TreeFar_birch_2": {
    "species": "birch",
-   "height": 10.58,
-   "triangles": 2040,
-   "radius": 3.39
+   "height": 10.71,
+   "triangles": 6560,
+   "radius": 3.3
   },
   "SM_Tree_birch_2_bare": {
    "species": "birch",
@@ -1379,9 +1379,9 @@
   },
   "SM_TreeFar_hawthorn_0": {
    "species": "hawthorn",
-   "height": 4.43,
-   "triangles": 1450,
-   "radius": 2.49
+   "height": 4.46,
+   "triangles": 6266,
+   "radius": 2.4
   },
   "SM_Tree_hawthorn_0_bare": {
    "species": "hawthorn",
@@ -1398,8 +1398,8 @@
   "SM_TreeFar_hawthorn_1": {
    "species": "hawthorn",
    "height": 4.33,
-   "triangles": 1418,
-   "radius": 2.67
+   "triangles": 6282,
+   "radius": 2.53
   },
   "SM_Tree_hawthorn_1_bare": {
    "species": "hawthorn",
@@ -1415,9 +1415,9 @@
   },
   "SM_TreeFar_hawthorn_2": {
    "species": "hawthorn",
-   "height": 4.58,
-   "triangles": 1464,
-   "radius": 3.32
+   "height": 4.4,
+   "triangles": 6328,
+   "radius": 3.3
   },
   "SM_Tree_hawthorn_2_bare": {
    "species": "hawthorn",
@@ -1469,9 +1469,9 @@
   },
   "SM_TreeFar_oak_0": {
    "species": "oak",
-   "height": 14.43,
-   "triangles": 3148,
-   "radius": 7.75
+   "height": 13.98,
+   "triangles": 7220,
+   "radius": 7.68
   },
   "SM_Tree_oak_0_bare": {
    "species": "oak",
@@ -1487,9 +1487,9 @@
   },
   "SM_TreeFar_oak_1": {
    "species": "oak",
-   "height": 14.46,
-   "triangles": 4100,
-   "radius": 9.4
+   "height": 13.96,
+   "triangles": 8300,
+   "radius": 9.75
   },
   "SM_Tree_oak_1_bare": {
    "species": "oak",
@@ -1505,9 +1505,9 @@
   },
   "SM_TreeFar_oak_2": {
    "species": "oak",
-   "height": 14.55,
-   "triangles": 4120,
-   "radius": 11.39
+   "height": 13.56,
+   "triangles": 8296,
+   "radius": 11.66
   },
   "SM_Tree_oak_2_bare": {
    "species": "oak",
@@ -1523,9 +1523,9 @@
   },
   "SM_TreeFar_oak_3": {
    "species": "oak",
-   "height": 20.83,
-   "triangles": 5422,
-   "radius": 12.4
+   "height": 20.05,
+   "triangles": 9198,
+   "radius": 12.81
   },
   "SM_Tree_oak_3_bare": {
    "species": "oak",
@@ -1541,9 +1541,9 @@
   },
   "SM_TreeFar_beech_0": {
    "species": "beech",
-   "height": 16.92,
-   "triangles": 3026,
-   "radius": 7.04
+   "height": 15.89,
+   "triangles": 7354,
+   "radius": 7.31
   },
   "SM_Tree_beech_0_bare": {
    "species": "beech",
@@ -1559,9 +1559,9 @@
   },
   "SM_TreeFar_beech_1": {
    "species": "beech",
-   "height": 17.0,
-   "triangles": 3874,
-   "radius": 7.86
+   "height": 16.21,
+   "triangles": 8202,
+   "radius": 8.27
   },
   "SM_Tree_beech_1_bare": {
    "species": "beech",
@@ -1577,9 +1577,9 @@
   },
   "SM_TreeFar_beech_2": {
    "species": "beech",
-   "height": 15.8,
-   "triangles": 4110,
-   "radius": 8.4
+   "height": 15.98,
+   "triangles": 8518,
+   "radius": 8.5
   },
   "SM_Tree_beech_2_bare": {
    "species": "beech",
@@ -1595,9 +1595,9 @@
   },
   "SM_TreeFar_beech_3": {
    "species": "beech",
-   "height": 22.4,
-   "triangles": 4616,
-   "radius": 13.16
+   "height": 21.99,
+   "triangles": 9352,
+   "radius": 13.56
   },
   "SM_Tree_beech_3_bare": {
    "species": "beech",
@@ -1613,9 +1613,9 @@
   },
   "SM_TreeFar_willow_0": {
    "species": "willow",
-   "height": 11.38,
-   "triangles": 2096,
-   "radius": 4.59
+   "height": 10.88,
+   "triangles": 6608,
+   "radius": 4.36
   },
   "SM_Tree_willow_0_bare": {
    "species": "willow",
@@ -1631,9 +1631,9 @@
   },
   "SM_TreeFar_willow_1": {
    "species": "willow",
-   "height": 11.34,
-   "triangles": 2368,
-   "radius": 6.52
+   "height": 11.52,
+   "triangles": 7024,
+   "radius": 6.55
   },
   "SM_Tree_willow_1_bare": {
    "species": "willow",
@@ -1649,9 +1649,9 @@
   },
   "SM_TreeFar_willow_2": {
    "species": "willow",
-   "height": 10.78,
-   "triangles": 2578,
-   "radius": 6.6
+   "height": 10.3,
+   "triangles": 7322,
+   "radius": 7.09
   },
   "SM_Tree_willow_2_bare": {
    "species": "willow",
@@ -1667,9 +1667,9 @@
   },
   "SM_TreeFar_rowan_0": {
    "species": "rowan",
-   "height": 7.49,
-   "triangles": 1446,
-   "radius": 2.53
+   "height": 7.29,
+   "triangles": 6126,
+   "radius": 2.38
   },
   "SM_Tree_rowan_0_bare": {
    "species": "rowan",
@@ -1685,9 +1685,9 @@
   },
   "SM_TreeFar_rowan_1": {
    "species": "rowan",
-   "height": 7.69,
-   "triangles": 1410,
-   "radius": 2.91
+   "height": 7.58,
+   "triangles": 6194,
+   "radius": 2.56
   },
   "SM_Tree_rowan_1_bare": {
    "species": "rowan",
@@ -1703,9 +1703,9 @@
   },
   "SM_TreeFar_rowan_2": {
    "species": "rowan",
-   "height": 7.19,
-   "triangles": 1460,
-   "radius": 2.99
+   "height": 7.12,
+   "triangles": 6228,
+   "radius": 2.77
   },
   "SM_Tree_rowan_2_bare": {
    "species": "rowan",
@@ -1721,9 +1721,9 @@
   },
   "SM_TreeFar_pine_0": {
    "species": "pine",
-   "height": 17.04,
-   "triangles": 2006,
-   "radius": 5.76
+   "height": 16.83,
+   "triangles": 6718,
+   "radius": 5.8
   },
   "SM_Tree_pine_1": {
    "species": "pine",
@@ -1733,9 +1733,9 @@
   },
   "SM_TreeFar_pine_1": {
    "species": "pine",
-   "height": 17.0,
-   "triangles": 2116,
-   "radius": 5.72
+   "height": 16.53,
+   "triangles": 6860,
+   "radius": 5.82
   },
   "SM_Tree_pine_2": {
    "species": "pine",
@@ -1745,9 +1745,9 @@
   },
   "SM_TreeFar_pine_2": {
    "species": "pine",
-   "height": 17.12,
-   "triangles": 2178,
-   "radius": 5.36
+   "height": 16.9,
+   "triangles": 6898,
+   "radius": 5.43
   },
   "SM_Tree_hazel_0": {
    "species": "hazel",
@@ -1757,9 +1757,9 @@
   },
   "SM_TreeFar_hazel_0": {
    "species": "hazel",
-   "height": 5.13,
-   "triangles": 1114,
-   "radius": 2.68
+   "height": 5.32,
+   "triangles": 6138,
+   "radius": 2.52
   },
   "SM_Tree_hazel_0_bare": {
    "species": "hazel",
@@ -1775,9 +1775,9 @@
   },
   "SM_TreeFar_hazel_1": {
    "species": "hazel",
-   "height": 5.16,
-   "triangles": 1344,
-   "radius": 3.46
+   "height": 5.11,
+   "triangles": 6230,
+   "radius": 3.21
   },
   "SM_Tree_hazel_1_bare": {
    "species": "hazel",
@@ -1793,9 +1793,9 @@
   },
   "SM_TreeFar_hazel_2": {
    "species": "hazel",
-   "height": 5.49,
-   "triangles": 1224,
-   "radius": 3.06
+   "height": 5.33,
+   "triangles": 6152,
+   "radius": 2.87
   },
   "SM_Tree_hazel_2_bare": {
    "species": "hazel",
@@ -1811,9 +1811,9 @@
   },
   "SM_TreeFar_holly_0": {
    "species": "holly",
-   "height": 6.81,
-   "triangles": 1392,
-   "radius": 2.0
+   "height": 6.69,
+   "triangles": 6072,
+   "radius": 1.87
   },
   "SM_Tree_holly_1": {
    "species": "holly",
@@ -1823,9 +1823,9 @@
   },
   "SM_TreeFar_holly_1": {
    "species": "holly",
-   "height": 7.19,
-   "triangles": 1380,
-   "radius": 2.35
+   "height": 7.25,
+   "triangles": 6140,
+   "radius": 2.02
   },
   "SM_Tree_holly_2": {
    "species": "holly",
@@ -1835,9 +1835,9 @@
   },
   "SM_TreeFar_holly_2": {
    "species": "holly",
-   "height": 6.22,
-   "triangles": 1384,
-   "radius": 2.35
+   "height": 6.78,
+   "triangles": 6176,
+   "radius": 2.1
   },
   "SM_Tree_larch_0": {
    "species": "larch",
