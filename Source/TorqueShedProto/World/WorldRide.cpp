@@ -919,9 +919,10 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	// ground's at the junction (so every road that meets there agrees); near the ride's road, that road's.
 	std::vector<double> H(Line.size()), Along(Line.size(), 0.0);
 	double Last = Road.front().Height;
+	const bool Circuit = G.CircuitEdge(int(E));   // [circuits, build 168] (silk smooth: see CircuitGround)
 	for (size_t I = 0; I < Line.size(); ++I)
 	{
-		const double Y = Land->Height(Line[I].X, Line[I].Z);
+		const double Y = Circuit ? CircuitGround(Line[I].X, Line[I].Z) : Land->Height(Line[I].X, Line[I].Z);
 		if (!std::isnan(Y)) Last = Y;
 		H[I] = std::fmax(std::isnan(Y) ? Last : Y, 0.0);
 		if (I > 0) Along[I] = Along[I - 1] + Line[I].DistanceTo(Line[I - 1]);
@@ -931,6 +932,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	std::vector<char> Kind;
 	LevelSpans(Line, H, Kind, NBridges, NTunnels);
 	H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
+	if (Circuit) for (int Round = 0; Round < 4; ++Round) H = RoadLine::SmoothHeights(H, 15);   // [circuits] (no bumps at all)
 	Side.Length = Along.back();
 	Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
 	Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
@@ -2116,6 +2118,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
 		TownLifeTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [roads stage 7]
 		CarParksTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [car parks] (the finest squares only)
+		CircuitSandTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [circuits] (the gravel traps' sand)
 		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
@@ -2314,6 +2317,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	static constexpr float RedLine[3] = {0.55f, 0.04f, 0.03f};   // [OSM stage 5D] no stopping
 	static constexpr float KerbStone[3] = {0.16f, 0.16f, 0.15f}, Paving[3] = {0.12f, 0.118f, 0.11f};   // [OSM stage 5D]
 	static constexpr double BayDeepest = 2.0, BayLong = 6.0;       // marked parking bays (m)
+	// [circuits, build 168] (a race circuit's track and pit lane: M_RideRoad keys this colour to black tarmac, smooth as silk)
+	static constexpr float CircuitTarmac[3] = {0.010f, 0.010f, 0.011f};
+	const bool CircuitTrack = CircuitRoad(Which);
 	const int Count = int(Pts.size());
 	struct Row
 	{
@@ -3237,7 +3243,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		else
 		{
-			Lay(Gravel ? Grit : Setts ? SettsKey : Tarmac);
+			Lay(Gravel ? Grit : Setts ? SettsKey : CircuitTrack ? CircuitTarmac : Tarmac);   // [circuits] (M_RideRoad's silk black)
 		}
 		// (where the tarmac wasn't laid whole (a gravel road's tongue), its lines laid over it as before)
 		for (const PaintCut& C : PaintCuts)

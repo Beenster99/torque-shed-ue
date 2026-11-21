@@ -7,6 +7,8 @@
 #include "WorldRoadLine.h"
 
 #include <algorithm>
+#include <limits>
+#include <set>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -417,6 +419,98 @@ void RidePlan::IndexCircuits()
 	CircuitIx = Ix;
 }
 
+void RidePlan::CircuitSandTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
+{
+	if (!CircuitIx || Detail < 2) return;
+	const Region& G = Area.Roads;
+	// (M_RideRoad keys this colour to its sand; World/WorldRide's CircuitTint gives the land under it a sand tint)
+	static const RideShapes::Paint Sand = {0.205f, 0.152f, 0.083f};
+	constexpr double Lift = 0.06, Step = 2.0;
+	std::set<int> Here;
+	for (double Z = std::floor(Z0 / CircuitIndex::Square) * CircuitIndex::Square; Z < Z0 + Size; Z += CircuitIndex::Square)
+		for (double X = std::floor(X0 / CircuitIndex::Square) * CircuitIndex::Square; X < X0 + Size; X += CircuitIndex::Square)
+		{
+			const auto It = CircuitIx->Areas.find(CircuitIndex::KeyOf(X + 1.0, Z + 1.0));
+			if (It != CircuitIx->Areas.end()) Here.insert(It->second.begin(), It->second.end());
+		}
+	if (Here.empty()) return;
+	std::unordered_map<long long, double> Heights;
+	const auto At = [&](const P2& P)
+	{
+		const double Y = LandDrawnAt(P.X, P.Z, &Heights);
+		return RideShapes::Pt(P.X, (std::isnan(Y) ? 0.0 : Y) + Lift, P.Z);
+	};
+	const auto Up = [&](const P2& P)
+	{
+		const double Hx0 = LandDrawnAt(P.X - 1.0, P.Z, &Heights), Hx1 = LandDrawnAt(P.X + 1.0, P.Z, &Heights);
+		const double Hz0 = LandDrawnAt(P.X, P.Z - 1.0, &Heights), Hz1 = LandDrawnAt(P.X, P.Z + 1.0, &Heights);
+		if (std::isnan(Hx0) || std::isnan(Hx1) || std::isnan(Hz0) || std::isnan(Hz1)) return RideShapes::Pt(0.0, 1.0, 0.0);
+		const double Sx = (Hx1 - Hx0) * 0.5, Sz = (Hz1 - Hz0) * 0.5, L = std::sqrt(Sx * Sx + 1.0 + Sz * Sz);
+		return RideShapes::Pt(-Sx / L, 1.0 / L, -Sz / L);
+	};
+	const auto InTile = [&](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
+	// (a quad A B C D round its edge, facing up whichever way it was given)
+	const auto Quad = [&](const P2& A, const P2& B, const P2& C, const P2& D)
+	{
+		if (!InTile((A + B + C + D) * 0.25)) return;
+		const uint32_t First = uint32_t(Out.Vertices());
+		for (const P2* P : {&A, &B, &C, &D}) RideShapes::Vert(Out, At(*P), Up(*P), Sand, P->X / 8.0, P->Z / 8.0);
+		const double Turn = (B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X);
+		if (Turn > 0.0) Out.Idx.insert(Out.Idx.end(), {First, First + 2, First + 1, First, First + 3, First + 2});
+		else Out.Idx.insert(Out.Idx.end(), {First, First + 1, First + 2, First, First + 2, First + 3});
+	};
+	for (const int A : Here)
+	{
+		const CircuitArea& Ar = CircuitIx->AreaOf(G, A);
+		if (Ar.Kind != 5 && Ar.Kind != 6) continue;   // (gravel and sand; paved run-off is tarmac)
+		if (size_t(A) >= G.CircuitAreas.size())
+		{
+			// A trap the game shaped: a strip, its inner edge then its outer back; laid in 2 m steps across.
+			const size_t N = Ar.Ring.size() / 2;
+			for (size_t I = 0; I + 1 < N; ++I)
+			{
+				const P2 I0 = Ar.Ring[I], I1 = Ar.Ring[I + 1], O0 = Ar.Ring[Ar.Ring.size() - 1 - I], O1 = Ar.Ring[Ar.Ring.size() - 2 - I];
+				const int Across = std::max(1, int(std::ceil(std::fmax(I0.DistanceTo(O0), I1.DistanceTo(O1)) / Step)));
+				for (int K = 0; K < Across; ++K)
+				{
+					const double T0 = double(K) / Across, T1 = double(K + 1) / Across;
+					Quad(I0 + (O0 - I0) * T0, I1 + (O1 - I1) * T0, I1 + (O1 - I1) * T1, I0 + (O0 - I0) * T1);
+				}
+			}
+			continue;
+		}
+		// The map's own: 2 m squares wherever their middle is in it.
+		double Ax0 = 1e18, Ax1 = -1e18, Az0 = 1e18, Az1 = -1e18;
+		for (const P2& P : Ar.Ring) { Ax0 = std::fmin(Ax0, P.X); Ax1 = std::fmax(Ax1, P.X); Az0 = std::fmin(Az0, P.Z); Az1 = std::fmax(Az1, P.Z); }
+		Ax0 = std::fmax(Ax0, X0); Ax1 = std::fmin(Ax1, X0 + Size); Az0 = std::fmax(Az0, Z0); Az1 = std::fmin(Az1, Z0 + Size);
+		for (double Z = std::floor(Az0 / Step) * Step; Z < Az1; Z += Step)
+			for (double X = std::floor(Ax0 / Step) * Step; X < Ax1; X += Step)
+				if (RideShapes::InRing(Ar.Ring, X + Step * 0.5, Z + Step * 0.5))
+					Quad(P2(X, Z), P2(X + Step, Z), P2(X + Step, Z + Step), P2(X, Z + Step));
+	}
+}
+
+double RidePlan::CircuitGround(double X, double Z) const
+{
+	// (the point and two rings round it, 12 and 30 m out: a 25-point mean, NaN-free)
+	double Sum = 0.0, Weight = 0.0;
+	const auto Take = [&](double Px, double Pz, double W)
+	{
+		const double Y = Land->Height(Px, Pz);
+		if (std::isnan(Y)) return;
+		Sum += Y * W;
+		Weight += W;
+	};
+	Take(X, Z, 2.0);
+	for (int K = 0; K < 12; ++K)
+	{
+		const double A = double(K) * (3.14159265358979 / 6.0);
+		Take(X + std::cos(A) * 12.0, Z + std::sin(A) * 12.0, 1.0);
+		Take(X + std::cos(A + 0.26) * 30.0, Z + std::sin(A + 0.26) * 30.0, 0.6);
+	}
+	return Weight > 0.0 ? Sum / Weight : std::numeric_limits<double>::quiet_NaN();
+}
+
 void CircuitIndex::AddArea(const Region& G, CircuitArea&& Ar)
 {
 	double X0 = 1e18, X1 = -1e18, Z0 = 1e18, Z1 = -1e18;
@@ -436,8 +530,8 @@ bool RidePlan::CircuitTint(double X, double Z, float* Rgb) const
 {
 	const int Kind = CircuitGroundAt(X, Z);
 	if (Kind < 0) return false;
-	// (a gravel trap's pale washed stone; paved run-off a little lighter than the track)
-	static constexpr float Gravel[3] = {0.16f, 0.14f, 0.11f}, Paved[3] = {0.035f, 0.035f, 0.038f};
+	// (a gravel trap's sand (build 168: beenster wants them to look like sand); paved run-off a little lighter than the track)
+	static constexpr float Gravel[3] = {0.205f, 0.152f, 0.083f}, Paved[3] = {0.035f, 0.035f, 0.038f};
 	const float* C = Kind == 2 ? Gravel : Paved;
 	for (int I = 0; I < 3; ++I) Rgb[I] = C[I];
 	return true;
@@ -477,9 +571,14 @@ void RidePlan::CircuitMarks(int Which, double From, double To, std::vector<RoadM
 		}
 		return;
 	}
-	// Its corners: where it turns tighter than KerbRadius, a red and white kerb along the inside, and along
-	// the outside from the apex out to the exit. (Its heading's turn over 8 m either side of each point.)
-	constexpr double KerbRadius = 160.0, Reach = 8.0, Block = 1.5, KerbWide = 1.1;
+	// Its corners (build 168, beenster on 167: "Tidy up the red and white kerbs to match the really smooth
+	// corners"): its heading's turn over 15 m either side of each point, a corner where that is tighter than
+	// KerbRadius and on until it eases past LooseRadius (so a long bend is one corner, not a broken run),
+	// corners of the same hand under 25 m apart joined, and only those that turn 15 degrees or more kerbed:
+	// a red and white kerb along the inside from entry to exit, and along the outside from the apex out past the
+	// exit; the blocks counted from each kerb's own start, so every kerb begins and ends whole.
+	constexpr double KerbRadius = 160.0, LooseRadius = 260.0, Reach = 15.0, Block = 1.5, KerbWide = 1.1;
+	constexpr double LineWide = 0.12, LineIn = 0.15;   // the white edge line: 12 cm, 15 cm in from the edge (or the kerb)
 	std::vector<double> Turn(Pts.size(), 0.0);
 	for (size_t I = 0, J0 = 0, J1 = 0; I < Pts.size(); ++I)
 	{
@@ -491,40 +590,92 @@ void RidePlan::CircuitMarks(int Which, double From, double To, std::vector<RoadM
 		const double Over = Pts[J1].Along - Pts[J0].Along;
 		Turn[I] = Over > 1e-6 ? Angle / Over : 0.0;   // (radians a metre: + a right-hand bend as the points run)
 	}
-	const double Tight = 1.0 / KerbRadius;
+	struct Bend { double A0, A1, Apex, Sign, Total; };
+	std::vector<Bend> Bends;
+	for (size_t I = 0; I < Pts.size();)
+	{
+		if (std::fabs(Turn[I]) < 1.0 / KerbRadius) { ++I; continue; }
+		const double Sign = Turn[I] > 0.0 ? 1.0 : -1.0;
+		size_t J = I, Apex = I;
+		double Total = 0.0;
+		while (J < Pts.size() && Turn[J] * Sign >= 1.0 / LooseRadius)
+		{
+			if (std::fabs(Turn[J]) > std::fabs(Turn[Apex])) Apex = J;
+			if (J > I) Total += std::fabs(Turn[J]) * (Pts[J].Along - Pts[J - 1].Along);
+			++J;
+		}
+		const double A0 = Pts[I].Along, A1 = Pts[std::min(J, Pts.size() - 1)].Along;
+		if (!Bends.empty() && Bends.back().Sign == Sign && A0 - Bends.back().A1 < 25.0)
+		{
+			Bend& Prev = Bends.back();
+			if (std::fabs(Turn[Apex]) > 0.0 && Total > Prev.Total) Prev.Apex = Pts[Apex].Along;
+			Prev.A1 = A1;
+			Prev.Total += Total;
+		}
+		else Bends.push_back({A0, A1, Pts[Apex].Along, Sign, Total});
+		I = J;
+	}
+	// (each side's kerbs, as spans along, for the edge line to step in round them)
+	std::vector<std::pair<double, double>> Kerbed[2];
 	const auto Kerb = [&](double A0, double A1, double Side)
 	{
 		A0 = std::fmax(A0, 0.5);
 		A1 = std::fmin(A1, Len - 0.5);
-		for (double B = std::floor(A0 / Block) * Block; B < A1; B += Block)
+		if (A1 - A0 < Block * 2.0) return;
+		// (a whole number of blocks, so it ends as it began)
+		const int Blocks = std::max(2, int(std::lround((A1 - A0) / Block)));
+		const double Each = (A1 - A0) / Blocks;
+		Kerbed[Side > 0.0 ? 0 : 1].push_back({A0, A1});
+		for (int K = 0; K < Blocks; ++K)
 		{
-			const double U0 = std::fmax(B, A0), U1 = std::fmin(B + Block, A1);
-			if (U1 <= U0 || U1 < From || U0 > To) continue;
+			const double U0 = A0 + Each * K, U1 = U0 + Each;
+			if (U1 < From || U0 > To) continue;
 			const double Half = HalfOn(Pts, (U0 + U1) * 0.5);
 			const double Outer = Side * Half, Inner = Side * (Half - KerbWide);
-			const bool Red = (static_cast<long long>(std::floor(B / Block)) & 1) == 0;
-			Out.push_back(PaintMark(U0, U1, std::fmax(Outer, Inner), std::fmin(Outer, Inner), Red ? KerbRed : KerbWhite));
+			Out.push_back(PaintMark(U0, U1, std::fmax(Outer, Inner), std::fmin(Outer, Inner), (K & 1) == 0 ? KerbRed : KerbWhite));
 		}
 	};
-	for (size_t I = 0; I < Pts.size();)
+	for (const Bend& B : Bends)
 	{
-		if (std::fabs(Turn[I]) < Tight) { ++I; continue; }
-		const double Sign = Turn[I] > 0.0 ? 1.0 : -1.0;
-		size_t J = I, Apex = I;
-		while (J < Pts.size() && Turn[J] * Sign >= Tight)
+		if (B.Total < 15.0 * 3.14159265358979 / 180.0 || B.A1 - B.A0 < 8.0) continue;
+		// (+ offsets are the road's left as its points run: a right-hand bend's inside is its right)
+		const double Inside = B.Sign > 0.0 ? -1.0 : 1.0;
+		Kerb(B.A0 - 4.0, B.A1 + 4.0, Inside);
+		Kerb(B.Apex, B.A1 + 18.0, -Inside);
+	}
+	// The white edge line each side, the whole way: 15 cm in from the edge, or that in from a kerb's inner edge
+	// where there is one (stepping in and out square at the kerb's ends).
+	for (int Sd = 0; Sd < 2; ++Sd)
+	{
+		const double Side = Sd == 0 ? 1.0 : -1.0;
+		std::vector<std::pair<double, double>>& Ks = Kerbed[Sd];
+		std::sort(Ks.begin(), Ks.end());
+		// (the stretches with no kerb, and the kerbed ones)
+		std::vector<std::pair<std::pair<double, double>, bool>> Runs;
+		double At = 0.0;
+		for (const auto& K : Ks)
 		{
-			if (std::fabs(Turn[J]) > std::fabs(Turn[Apex])) Apex = J;
-			++J;
+			if (K.second <= At) continue;
+			if (K.first > At) Runs.push_back({{At, K.first}, false});
+			Runs.push_back({{std::fmax(At, K.first), K.second}, true});
+			At = K.second;
 		}
-		const double A0 = Pts[I].Along, A1 = Pts[std::min(J, Pts.size() - 1)].Along;
-		if (A1 - A0 >= 6.0)
+		if (At < Len) Runs.push_back({{At, Len}, false});
+		for (const auto& R : Runs)
 		{
-			// (+ offsets are the road's left as its points run: a right-hand bend's inside is its right)
-			const double Inside = Sign > 0.0 ? -1.0 : 1.0;
-			Kerb(A0 - 4.0, A1 + 4.0, Inside);
-			Kerb(Pts[Apex].Along, A1 + 18.0, -Inside);
+			const double U0 = std::fmax(R.first.first, From), U1 = std::fmin(R.first.second, To);
+			if (U1 - U0 < 0.05) continue;
+			const double In = LineIn + (R.second ? KerbWide : 0.0);
+			// (in pieces of up to 6 m, each at the track's own width there)
+			const int Pieces = std::max(1, int(std::ceil((U1 - U0) / 6.0)));
+			for (int K = 0; K < Pieces; ++K)
+			{
+				const double P0 = U0 + (U1 - U0) * K / Pieces, P1 = U0 + (U1 - U0) * (K + 1) / Pieces;
+				const double Half = HalfOn(Pts, (P0 + P1) * 0.5);
+				const double Outer = Side * (Half - In), Inner = Side * (Half - In - LineWide);
+				Out.push_back(PaintMark(P0, P1, std::fmax(Outer, Inner), std::fmin(Outer, Inner), KerbWhite));
+			}
 		}
-		I = J;
 	}
 	// The start and finish line across it, where the circuit's is on this piece.
 	if (CircuitIx)
