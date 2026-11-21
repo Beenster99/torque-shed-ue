@@ -12,7 +12,7 @@
 //
 // Everything runs off the ignition: a bike that isn't running is dark. The lamps are the bike's own
 // lenses as TorqueShedCatalogue::MakeBike drew them (its "Surf:lens_white / lens_amber / lens_red"
-// surfaces), lit through their material's Emissive, with Unreal lights at the headlight, the fog
+// surfaces), lit through their material's Emissive, with Unreal lights at each headlamp, the fog
 // lamps, each indicator and the rear light. Other riders' bikes show the same, from their snapshots
 // (NetBits / FromNet), the flash keeping its own time.
 #pragma once
@@ -113,7 +113,10 @@ private:
 	// DrlLenses: a headlamp's daytime running ring, lit whenever the engine runs (beenster Nov 17).
 	TArray<FLens> HeadLenses, FogLenses, TailLenses, Indicators, DrlLenses;
 	TArray<int8> IndicatorSide;   // -1 left, 1 right, per Indicators
-	TWeakObjectPtr<USpotLightComponent> Beam, Flood, StopGlow;
+	// One beam from each headlamp the bike really has: a single lamp's, or a twin's left and right (beenster,
+	// build 167: "front lights need to emit from the actual lights - either single or twin").
+	TArray<TWeakObjectPtr<USpotLightComponent>> Beams;
+	TWeakObjectPtr<USpotLightComponent> Flood, StopGlow;
 	TArray<TWeakObjectPtr<USpotLightComponent>> FogBeams;
 	TArray<TWeakObjectPtr<UPointLightComponent>> IndicatorGlow;   // per Indicators
 	int32 Shown = -1;         // the lamps' state last shown (a bit each), so a steady frame does nothing

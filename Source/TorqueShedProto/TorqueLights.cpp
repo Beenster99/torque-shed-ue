@@ -133,8 +133,11 @@ void FTorqueLights::Setup(const TMap<FString, FString>& Parts)
 
 void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Meshes, bool bShadows)
 {
-	for (TWeakObjectPtr<USpotLightComponent>* L : {&Beam, &Flood, &StopGlow})
+	for (TWeakObjectPtr<USpotLightComponent>* L : {&Flood, &StopGlow})
 		if (USpotLightComponent* Old = L->Get()) Old->DestroyComponent();
+	for (TWeakObjectPtr<USpotLightComponent>& L : Beams)
+		if (L.IsValid()) L->DestroyComponent();
+	Beams.Reset();
 	for (TWeakObjectPtr<USpotLightComponent>& L : FogBeams)
 		if (L.IsValid()) L->DestroyComponent();
 	for (TWeakObjectPtr<UPointLightComponent>& L : IndicatorGlow)
@@ -170,9 +173,10 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 		else if (C->ComponentHasTag(TLI::LensRed)) TailLenses.Add({C});
 	}
 	if (HeadLumens <= 0.0 && HeadLenses.Num() > 0) HeadLumens = TLI::DefaultLumens;
-	// The headlight's beam from just ahead of the lens (from inside it, the lamp's own shell would
-	// shadow it), on whichever part the biggest lens rides on: the bars' lamp turns with them, a
-	// frame-mounted fairing's doesn't. Twin or triple lamps share one beam from between them.
+	// A beam from each headlamp the bike really has (beenster, build 167: "front lights need to emit from the actual
+	// lights - either single or twin"). MakeBike says where each lit lens's lamps are (its Lamp: tags: one for a
+	// single lamp, a left and a right for a twin). The lamps ride on whichever part the biggest lens rides on:
+	// the bars' lamp turns with them, a frame-mounted fairing's doesn't.
 	if (HeadLenses.Num() > 0 && HeadLumens > 0.0)
 	{
 		UStaticMeshComponent* Main = nullptr;
@@ -183,11 +187,70 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 			if (V > Biggest) { Biggest = V; Main = L.Mesh.Get(); }
 		}
 		FBox Box(ForceInit);
+		TArray<FVector> Tagged;
 		for (const FLens& L : HeadLenses)
-			if (L.Mesh->GetAttachParent() == Main->GetAttachParent()) Box += TLI::BoxOf(L.Mesh.Get());
-		const FVector At(Box.Max.X + 3.0, Box.GetCenter().Y, Box.GetCenter().Z);
-		Beam = TLI::MakeSpot(Owner, Main, At, TLI::LowAim, BeamColour, bShadows);
-		Flood = TLI::MakeSpot(Owner, Main, At, TLI::LowAim + 4.0, BeamColour, false);
+		{
+			if (L.Mesh->GetAttachParent() != Main->GetAttachParent()) continue;
+			Box += TLI::BoxOf(L.Mesh.Get());
+			for (const FName& TagName : L.Mesh->ComponentTags)
+			{
+				const FString Text = TagName.ToString();
+				if (!Text.StartsWith(TEXT("Lamp:"))) continue;
+				TArray<FString> Bits;
+				Text.Mid(5).ParseIntoArray(Bits, TEXT(","), false);
+				if (Bits.Num() >= 3) Tagged.Add(FVector(FCString::Atod(*Bits[0]), FCString::Atod(*Bits[1]), FCString::Atod(*Bits[2])));
+			}
+		}
+		// A lamp on the centre line (a round lamp, with or without rows of LEDs either side of its middle) is one
+		// lamp; lenses only either side of the centre line are a twin: one lamp at the middle of each side's.
+		TArray<FVector> Lamps;
+		const bool bCentre = Tagged.ContainsByPredicate([](const FVector& P) { return FMath::Abs(P.Y) < 1.0; });
+		if (Tagged.Num() == 0) Lamps.Add(FVector(Box.Max.X, Box.GetCenter().Y, Box.GetCenter().Z));
+		else if (bCentre)
+		{
+			FVector Sum = FVector::ZeroVector;
+			int32 Count = 0;
+			double Front = -1.0e9;
+			for (const FVector& P : Tagged)
+			{
+				Front = FMath::Max(Front, P.X);
+				if (FMath::Abs(P.Y) < 1.0) { Sum += P; ++Count; }
+			}
+			Lamps.Add(FVector(Front, 0.0, Sum.Z / Count));
+		}
+		else
+			for (const double SideSign : {-1.0, 1.0})
+			{
+				FVector Sum = FVector::ZeroVector;
+				int32 Count = 0;
+				double Front = -1.0e9;
+				for (const FVector& P : Tagged)
+					if (P.Y * SideSign > 0.0) { Sum += P; ++Count; Front = FMath::Max(Front, P.X); }
+				if (Count > 0) Lamps.Add(FVector(Front, Sum.Y / Count, Sum.Z / Count));
+			}
+		FVector Middle = FVector::ZeroVector;
+		for (FVector& At : Lamps)
+		{
+			// From just ahead of the lamp's own glass and shell, not from the bulb inside them: a beam that starts
+			// inside the lamp is shadowed by it (build 167: "full beam does not work on some bikes": the level main
+			// beam lit the inside of the bowl; the dipped beam only seemed to work by its unshadowed flood). The
+			// shell is whatever of the lamp's own part stands round this lens.
+			double Front = At.X + 3.0;
+			for (UStaticMeshComponent* C : Meshes)
+			{
+				if (!C || !C->GetStaticMesh() || C->GetAttachParent() != Main->GetAttachParent()) continue;
+				if (!C->ComponentHasTag(TLI::HeadSlot) && !C->ComponentHasTag(TLI::BoardSlot)) continue;
+				const FBox Shell = TLI::BoxOf(C);
+				if (At.Y > Shell.Min.Y - 1.0 && At.Y < Shell.Max.Y + 1.0 && At.Z > Shell.Min.Z - 1.0 && At.Z < Shell.Max.Z + 1.0 && Shell.Max.X < At.X + 25.0)
+					Front = FMath::Max(Front, Shell.Max.X + 1.5);
+			}
+			At.X = Front;
+			Middle += At / (double)Lamps.Num();
+			// (Our own bike's beams cast shadows; a twin's two beams share the lamp's light between them.)
+			Beams.Add(TLI::MakeSpot(Owner, Main, At, TLI::LowAim, BeamColour, bShadows));
+			UE_LOG(LogTemp, Log, TEXT("Torque: headlamp %d of %d at %s (bike cm), %d lens points"), Beams.Num(), Lamps.Num(), *At.ToCompactString(), Tagged.Num());
+		}
+		Flood = TLI::MakeSpot(Owner, Main, Middle, TLI::LowAim + 4.0, BeamColour, false);
 		if (USpotLightComponent* F = Flood.Get())
 		{
 			F->SetOuterConeAngle(TLI::FloodCone);
@@ -252,7 +315,7 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 		StopGlow = S;
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: the bike's lamps: headlight %s (%.0f lm, %d lens surfaces), fog lights %s (%.0f lm, %d), %d indicators (%d left), %d rear light surfaces, %d DRL surfaces"),
-		Beam.IsValid() ? TEXT("lit") : TEXT("none"), HeadLumens, HeadLenses.Num(), FogBeams.Num() > 0 ? TEXT("lit") : TEXT("none"), FogLumens, FogLenses.Num(),
+		Beams.Num() == 1 ? TEXT("one beam") : Beams.Num() == 2 ? TEXT("twin beams") : TEXT("none"), HeadLumens, HeadLenses.Num(), FogBeams.Num() > 0 ? TEXT("lit") : TEXT("none"), FogLumens, FogLenses.Num(),
 		Indicators.Num(), IndicatorSide.FilterByPredicate([](int8 S) { return S < 0; }).Num(), TailLenses.Num(), DrlLenses.Num());
 }
 
@@ -428,8 +491,10 @@ void FTorqueLights::Show(float DayLight)
 		SetLens(Indicators[I], bOn ? TLI::IndicatorGlowLens * IndicatorLensK : 0.0f);
 		if (UPointLightComponent* P = IndicatorGlow.IsValidIndex(I) ? IndicatorGlow[I].Get() : nullptr) P->SetVisibility(bOn);
 	}
-	if (USpotLightComponent* B = Beam.Get())
+	for (TWeakObjectPtr<USpotLightComponent>& Lamp : Beams)
 	{
+		USpotLightComponent* B = Lamp.Get();
+		if (!B) continue;
 		B->SetVisibility(bHead);
 		if (bHead)
 		{
@@ -439,7 +504,8 @@ void FTorqueLights::Show(float DayLight)
 			B->SetOuterConeAngle(bMain ? TLI::HighCone : TLI::LowCone);
 			B->SetInnerConeAngle((bMain ? TLI::HighCone : TLI::LowCone) * (bMain ? 0.45f : 0.3f));
 			B->SetAttenuationRadius((float)((Reach[0] + HeadLumens * Reach[1]) * 100.0));
-			B->SetIntensity((float)(HeadLumens * (bMain ? TLI::HighCdPerLm : TLI::LowCdPerLm)));
+			// (A twin's two lamps share the light: together as bright as a single lamp's beam.)
+			B->SetIntensity((float)(HeadLumens * (bMain ? TLI::HighCdPerLm : TLI::LowCdPerLm) / FMath::Max(Beams.Num(), 1)));
 		}
 	}
 	if (USpotLightComponent* F = Flood.Get()) F->SetVisibility(bHead && !bMain);
@@ -475,8 +541,8 @@ FString FTorqueLights::Describe() const
 	int32 FogLit = 0, GlowLit = 0;
 	for (const TWeakObjectPtr<USpotLightComponent>& L : FogBeams) FogLit += L.IsValid() && L->IsVisible() ? 1 : 0;
 	for (const TWeakObjectPtr<UPointLightComponent>& L : IndicatorGlow) GlowLit += L.IsValid() && L->IsVisible() ? 1 : 0;
-	Out += FString::Printf(TEXT("; beam %s; flood %s; fog beams %d of %d shining; indicator glows %d of %d; stop glow %s"),
-		*Spot(Beam), *Spot(Flood), FogLit, FogBeams.Num(), GlowLit, IndicatorGlow.Num(), *Spot(StopGlow));
+	Out += FString::Printf(TEXT("; beam %s%s; flood %s; fog beams %d of %d shining; indicator glows %d of %d; stop glow %s"),
+		*Spot(Beams.Num() > 0 ? Beams[0] : TWeakObjectPtr<USpotLightComponent>()), Beams.Num() == 2 ? TEXT(" (one of twin beams)") : TEXT(""), *Spot(Flood), FogLit, FogBeams.Num(), GlowLit, IndicatorGlow.Num(), *Spot(StopGlow));
 	// The tell-tales (DrawTellTales): drawn while the headlight's on or the indicators are going.
 	TArray<FString> Tells;
 	if (HeadOn()) Tells.Add(MainOn() ? TEXT("main beam (blue)") : TEXT("dipped (green)"));

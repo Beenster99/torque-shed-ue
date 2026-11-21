@@ -744,6 +744,42 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorN:%.4f,%.4f,%.4f"), GlassFacing.X, GlassFacing.Y, GlassFacing.Z)));
 				}
 			}
+			// [lights] A headlamp's lit lens says where its lamps are (its own mesh, cm): one on the centre line, or a
+			// twin's left and right when nothing of it comes within a centimetre of the centre line. Each is the
+			// middle of that lamp's lit face and its front (FTorqueLights::Hook puts a beam at each).
+			if (Tag == TEXT("lens_white") && Tris.Num() >= 3)
+			{
+				double LensNearest = 1.0e9;
+				bool bLensLeft = false, bLensRight = false;
+				for (const FVector& LensV : Pos)
+				{
+					LensNearest = FMath::Min(LensNearest, FMath::Abs(LensV.Y));
+					bLensLeft |= LensV.Y < 0.0;
+					bLensRight |= LensV.Y > 0.0;
+				}
+				const bool bTwinLens = bLensLeft && bLensRight && LensNearest >= 1.0;
+				for (int32 LensSide = bTwinLens ? -1 : 0; LensSide <= (bTwinLens ? 1 : 0); LensSide += 2)
+				{
+					FVector LensMiddle = FVector::ZeroVector;
+					double LensArea = 0.0, LensFront = -1.0e9;
+					for (int32 TriAt = 0; TriAt + 2 < Tris.Num(); TriAt += 3)
+					{
+						const FVector& LensA = Pos[Tris[TriAt]];
+						const FVector& LensB = Pos[Tris[TriAt + 1]];
+						const FVector& LensC = Pos[Tris[TriAt + 2]];
+						if (LensSide != 0 && (LensA.Y + LensB.Y + LensC.Y) * LensSide <= 0.0) continue;
+						const double LensTwice = FVector::CrossProduct(LensB - LensA, LensC - LensA).Size();
+						LensMiddle += (LensA + LensB + LensC) * (LensTwice / 3.0);
+						LensArea += LensTwice;
+						LensFront = FMath::Max(LensFront, FMath::Max3(LensA.X, LensB.X, LensC.X));
+					}
+					if (LensArea > 1.0e-6)
+					{
+						LensMiddle /= LensArea;
+						C->ComponentTags.Add(FName(*FString::Printf(TEXT("Lamp:%.2f,%.2f,%.2f"), LensFront, LensSide == 0 ? 0.0 : LensMiddle.Y, LensMiddle.Z)));
+					}
+				}
+			}
 			if (LeverSide != INDEX_NONE) C->ComponentTags.Add(LeverSide == 0 ? FName(TEXT("Lever:0")) : FName(TEXT("Lever:1")));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
