@@ -131,9 +131,10 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 		if (M.To >= From && M.From <= To) Out.push_back(M);
 	}
 	// Grit down the middle of a single-track lane, where the tyres never go, out in the country.
+	// ([build 168] beenster on 167: "more sparse": on a little over half the lane's 30 m stretches, not 70%)
 	for (int B = int(std::floor(From / 30.0)); double(B) * 30.0 < To; ++B)
 	{
-		if (B < 0 || Dice(Which, B, 21) >= 0.7) continue;
+		if (B < 0 || Dice(Which, B, 21) >= 0.55) continue;
 		const double A0 = double(B) * 30.0, A1 = std::min(A0 + 30.0, RoadLen);
 		if (HalfAt(Pts, A0) >= 2.0 || HalfAt(Pts, A1) >= 2.0 || Built(A0) || Tunnel(A0)) continue;
 		RoadMark M;
@@ -144,7 +145,7 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 		M.Left = Wide * 0.5;
 		M.Right = -Wide * 0.5;
 		M.Lift = 0.002;
-		ColourMark(M, 0.085f, 0.08f, 0.062f);
+		ColourMark(M, 0.06f, 0.062f, 0.085f);   // (WorldRide's LaneGrit: M_RideRoad's key for the lane's grit)
 		if (M.To >= From && M.From <= To) Out.push_back(M);
 	}
 	// Iron covers in a town's road: the drains and the water mains, in the wheel tracks more than not.
