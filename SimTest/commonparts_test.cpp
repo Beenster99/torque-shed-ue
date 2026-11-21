@@ -116,7 +116,8 @@ int main()
 	std::map<std::string, int> Fits, ByAnchor, Lined;
 	int Bikes = 0, Pairs = 0;
 	int BarFits = 0;
-	double WorstHand = 0.0, WorstBar = 0.0, WorstBy = 0.0;
+	double WorstHand = 0.0, WorstBar = 0.0, WorstBy = 0.0, WorstCable = 0.0, WorstEnd = 0.0, WorstReach = 0.0;
+	int EndFits = 0;
 	for (const std::string& Frame : Db.Ids("frame"))
 	{
 		const Json* FramePart = Db.Find("frame", Frame);
@@ -221,6 +222,78 @@ int main()
 							WorstBy = std::max(WorstBy, Gap - OwnGap);
 							Expect(Gap < OwnGap + 0.012, Frame + ": " + E.Id + " the " + By + " are on the bar (" + std::to_string(Gap) + " m from it, " + std::to_string(OwnGap) + " on the bike's own bar)");
 						}
+						// The cables and the brake hose reach the levers, each side: as near them as on the bike's own bar
+						// (beenster, build 167: "for the ape bars you need to join up the cables").
+						auto HoseGap = [](const std::vector<FittedPart>& Fitted, double SideSign, bool Throttle) {
+							double Nearest = 1e9;
+							for (const FittedPart& A : Fitted)
+							{
+								// (the throttle cable runs to the twist grip)
+								if ((Throttle ? A.Sub != "grip" : A.Sub != "levers" && A.Sub != "switches") || A.Hidden || !A.Made) continue;
+								for (const FittedPart& B : Fitted)
+								{
+									if (B.Hidden || !B.Made || B.Glb.rfind("v2c/", 0) == 0) continue;
+									for (const PartSurface& Sb : B.Made->Surfaces)
+									{
+										// (the hoses and the clutch cable, or the throttle cable: the rubber in the bars' own piece)
+										if (Throttle ? !(B.Slot == "handlebars" && B.Sub.empty() && Sb.Material.find("/rubber") != std::string::npos) : Sb.Material.find("d3_hose") == std::string::npos) continue;
+										for (const PartSurface& Sa : A.Made->Surfaces)
+											for (size_t Ia = 0; Ia < Sa.Pos.size(); Ia += 2)
+											{
+												if (Sa.Pos[Ia].z * SideSign <= 0.0) continue;
+												for (size_t Ib = 0; Ib < Sb.Pos.size(); Ib += 2) Nearest = std::min(Nearest, Dist(Sa.Pos[Ia], Sb.Pos[Ib]));
+											}
+									}
+								}
+							}
+							return Nearest;
+						};
+						for (const double SideSign : {1.0, -1.0, 2.0})
+						{
+							const bool Throttle = SideSign > 1.5;
+							const double OwnGap = HoseGap(Before, SideSign, Throttle), Gap = HoseGap(After, SideSign, Throttle);
+							if (OwnGap > 0.08) continue;   // (no cable to this side's lever on the bike's own bar either)
+							WorstCable = std::max(WorstCable, Gap - OwnGap);
+							Expect(Gap < OwnGap + 0.02, Frame + ": " + E.Id + " the " + (Throttle ? "throttle" : SideSign > 0.0 ? "right" : "left") + " cables reach the lever (" + std::to_string(Gap) + " m short, " + std::to_string(OwnGap) + " on the bike's own bar)");
+						}
+						// Bar ends fitted with the bar sit on the bar's end ("when I tried to fit bar ends to them they hung in the air").
+						for (const Entry& End : Common)
+						{
+							if (End.Kind != Lay.KindOfSlot("bar_ends")) continue;
+							PartsMap WithEnd = Parts;
+							WithEnd["bar_ends"] = End.Id;
+							const std::vector<FittedPart> Ended = Placer.Fit(WithEnd, L);
+							double EndGap = 1e9;
+							for (const FittedPart& A : Ended)
+							{
+								if (A.Sub != "bar_end" || A.Hidden || !A.Made || A.Glb.rfind("v2c/", 0) != 0) continue;
+								for (const FittedPart& B : Ended)
+								{
+									if (B.Sub != "bar" || B.Hidden || !B.Made || B.Glb.rfind("v2c/", 0) != 0) continue;
+									for (const PartSurface& Sa : A.Made->Surfaces)
+										for (size_t Ia = 0; Ia < Sa.Pos.size(); Ia += 2)
+											for (const PartSurface& Sb : B.Made->Surfaces)
+												for (size_t Ib = 0; Ib < Sb.Pos.size(); Ib += 2) EndGap = std::min(EndGap, Dist(Sa.Pos[Ia], Sb.Pos[Ib]));
+								}
+							}
+							++EndFits;
+							WorstEnd = std::max(WorstEnd, EndGap);
+							Expect(EndGap < 0.012, Frame + ": " + E.Id + " with " + End.Id + ": the bar end is on the bar (" + std::to_string(EndGap) + " m off it)");
+						}
+						// The rider can reach the grips: with the back leant anywhere from 20 degrees back to 65 forward, a
+						// shoulder comes within an arm of the grip. A rider of ordinary build: hip joint to shoulder 0.47 m,
+						// shoulders 0.19 m either side, shoulder to the wrist 0.55 m (0.97 of it used, as the pose does) and the wrist 0.085 m short of the grip's middle.
+						{
+							double Needs = 1e9;
+							for (int Deg = -20; Deg <= 65; ++Deg)
+							{
+								const double A = Deg * 3.14159265 / 180.0;
+								const V3 Shoulder(Lb.Hip.x + 0.47 * std::sin(A), Lb.Hip.y + 0.47 * std::cos(A), 0.19);
+								Needs = std::min(Needs, Dist(Shoulder, GripMid));
+							}
+							WorstReach = std::max(WorstReach, Needs);
+							Expect(Needs < 0.55 * 0.97 + 0.085, Frame + ": " + E.Id + " the rider can reach the grips (needs an arm of " + std::to_string(Needs) + " m)");
+						}
 					}
 					else Expect(false, Frame + ": " + E.Id + " has no drawn grips");
 				}
@@ -316,6 +389,7 @@ int main()
 			Obj << "o " << P.Slot << "_" << (P.Sub.empty() ? "piece" : P.Sub) << (P.Glb.rfind("v2c/", 0) == 0 ? "_COMMON" : "") << "\n";
 			for (const PartSurface& S : Mesh->Surfaces)
 			{
+				if (std::getenv("COMMON_DUMP_NAMES") && (P.Slot == "handlebars" || S.Material.find("hose") != std::string::npos)) std::printf("  %s|%s|%s: %s (%zu points)\n", P.Slot.c_str(), P.Node.c_str(), P.Sub.c_str(), S.Material.c_str(), S.Pos.size());
 				for (const V3& Q : S.Pos) Obj << "v " << Q.x << " " << Q.y << " " << Q.z << "\n";
 				for (size_t T = 0; T + 2 < S.Idx.size(); T += 3) Obj << "f " << Base + S.Idx[T] << " " << Base + S.Idx[T + 1] << " " << Base + S.Idx[T + 2] << "\n";
 				Base += S.Pos.size();
@@ -326,6 +400,7 @@ int main()
 	for (const auto& KV : Fits)
 		std::printf("%-14s %4d fitted, %4d lined up on the bike's own, %4d by anchor\n", KV.first.c_str(), KV.second, Lined[KV.first], ByAnchor[KV.first]);
 	std::printf("%d bike-and-bar fits: layout grip to drawn grip at worst %.3f m, grip to bar at worst %.3f m, levers and switches further off the bar than on the bike's own by at worst %.3f m\n", BarFits, WorstHand, WorstBar, WorstBy);
+	std::printf("cables short of the levers by at worst %.3f m more than on the bike's own bar; %d bar-and-bar-end fits, a bar end at worst %.3f m off its bar; the longest reach to a grip needs an arm of %.3f m\n", WorstCable, EndFits, WorstEnd, WorstReach);
 	std::printf("%d V2 bikes, %d bike-and-part fits, %d failures\n", Bikes, Pairs, Failures);
 	return Failures ? 1 : 0;
 }

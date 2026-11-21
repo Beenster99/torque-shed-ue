@@ -5183,6 +5183,10 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 
 	V3 Grip;
 	const bool bGrip = Point("grip", Grip);
+	// (The bike's own grip, and how far a common bar moved what's on it: for the cables, at the end.)
+	const V3 OwnGrip = Grip;
+	V3 BarBy(0.0, 0.0, 0.0);
+	bool bBarMoved = false;
 	int Added = 0;
 	for (const auto& [Slot, Common] : Fitted)
 	{
@@ -5205,6 +5209,8 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				if (P.Made && !P.Code && Moves.count(P.Sub))
 					Moved(P, [By](const V3& M) { return V3(M.x + By.x, M.y + (M.y >= 0.0 ? By.y : -By.y), M.z + By.z); });
 			Grip = V3(To.x, Grip.y >= 0.0 ? To.y : -To.y, To.z);
+			BarBy = By;
+			bBarMoved = true;
 		}
 		for (const Json& Piece : Pieces->A)
 		{
@@ -5639,6 +5645,12 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 		};
 		// (each piece turned by the grip it was drawn round: the bike's own pieces by the bike's own grip, hidden
 		// or not, a shop grip and bar end by the shop grip)
+		// (a shop bar end with the bike's own grips was lined up on the bike's own bar end: it goes with that)
+		bool bShopGrip = false;
+		for (const FittedPart& P : Out) bShopGrip = bShopGrip || (P.Sub == "grip" && P.Made && !P.Hidden && P.Glb.rfind("v2c/", 0) == 0);
+		// How each side's own grip was turned and slid onto the bar's end (for the cables).
+		struct GripTurn { bool Ok = false; V3 To, Mid, Axis; double Ang = 0.0; };
+		GripTurn Turns[2];
 		for (int K = 0; K < 2; ++K)
 			for (int Shop = 0; Shop < 2; ++Shop)
 			{
@@ -5672,6 +5684,14 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				if (SinA < 1e-4 && (To - GMid).Length() < 0.5) continue;
 				const double Ang = std::atan2(SinA, CosA);
 				const V3 U = SinA > 1e-9 ? Ax / SinA : V3(0.0, 0.0, 1.0);
+				if (Shop == 0)
+				{
+					Turns[K].Ok = true;
+					Turns[K].To = To;
+					Turns[K].Mid = GMid;
+					Turns[K].Axis = U;
+					Turns[K].Ang = Ang;
+				}
 				// (a direction in ours to the drawings' mm and back: V2ToMm's turn)
 				auto DirToMm = [&F](const V3& D) { return V3(F.Cos * D.x - F.Sin * D.y, -D.z, F.Sin * D.x + F.Cos * D.y); };
 				auto DirFromMm = [&F](const V3& D) { return V3(F.Cos * D.x + F.Sin * D.z, -F.Sin * D.x + F.Cos * D.z, -D.y); };
@@ -5680,7 +5700,10 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					// (The levers, switches and bar mirrors sit by the grip, whoever made them: they go with the bike's own
 					// grip to the bar's real end, turned as it is. Beenster, build 167, ape bars: they were left where the
 					// bar's catalogue numbers put the grip, floating a few cm off the bar the grips had been laid on.)
-					const bool bByGrip = Shop == 0 && (P.Sub == "levers" || P.Sub == "switches" || (P.Sub == "mirrors" && P.Node == "steer"));
+					// (Beenster, build 167: "when I tried to fit bar ends to them they hung in the air": a shop bar end on
+					// the bike's own grips was left where the bar's catalogue numbers put the grip, off the bar's real end.)
+					const bool bByGrip = Shop == 0 && (P.Sub == "levers" || P.Sub == "switches" || (P.Sub == "mirrors" && P.Node == "steer") ||
+						(P.Sub == "bar_end" && IsShop(P) && !bShopGrip));
 					if (!bByGrip && ((P.Sub != "grip" && P.Sub != "bar_end") || IsShop(P) != (Shop == 1))) continue;
 					if (!P.Made || P.Code) continue;
 					auto Copy = std::make_shared<PartMesh>(*P.Made);
@@ -5698,6 +5721,71 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					if (bAny) P.Made = Copy;
 				}
 			}
+		// [cables, beenster build 167: "for the ape bars you need to join up the cables"] The clutch and throttle cables
+		// and the brake hose are the bike's own, run to where its own levers were. Their lever ends go with the levers
+		// (the whole move: the bar's, then the turn onto its end), the rest of each run less and less the further it is
+		// from the lever, down to nothing: the cable stretched up to the bar, its far end where it was.
+		if (bBarMoved)
+		{
+			struct CableEnd { V3 At, Moved; double Reach = 0.0; bool On = false; };
+			CableEnd Ends[2];
+			auto Whole = [&](int K, const V3& M) {
+				const double Side = K == 0 ? 1.0 : -1.0;
+				const V3 N(M.x + BarBy.x, M.y + Side * BarBy.y, M.z + BarBy.z);
+				return Turns[K].Ok ? Turns[K].To + (N - Turns[K].Mid).Rotated(Turns[K].Axis, Turns[K].Ang) : N;
+			};
+			for (int K = 0; K < 2; ++K)
+			{
+				const double Side = K == 0 ? 1.0 : -1.0;
+				// (where the cables leave the lever: inboard of the grip, a little ahead of it)
+				Ends[K].At = V3(OwnGrip.x + 50.0, Side * std::max(std::fabs(OwnGrip.y) - 130.0, 60.0), OwnGrip.z - 5.0);
+				Ends[K].Moved = Whole(K, Ends[K].At);
+				const double Far = (Ends[K].Moved - Ends[K].At).Length();
+				Ends[K].On = Far > 5.0;
+				Ends[K].Reach = 90.0 + std::min(std::max(Far * 1.2, 200.0), 380.0);
+			}
+			for (FittedPart& P : Out)
+			{
+				if (!P.Made || P.Code || P.Hidden || P.Glb.rfind("v2c/", 0) == 0) continue;
+				// (a hose or cable's finish; the throttle cable is the rubber in the bars' own piece)
+				const bool bBarsOwn = P.Slot == "handlebars" && P.Sub.empty();
+				auto IsCable = [bBarsOwn](const PartSurface& S) {
+					return S.Material.find("d3_hose") != std::string::npos || (bBarsOwn && (S.Material.find("/rubber/") != std::string::npos ||
+						(S.Material.size() >= 7 && S.Material.compare(S.Material.size() - 7, 7, "/rubber") == 0)));
+				};
+				bool bHose = false;
+				for (const PartSurface& S : P.Made->Surfaces) bHose = bHose || IsCable(S);
+				if (!bHose) continue;
+				auto Copy = std::make_shared<PartMesh>(*P.Made);
+				bool bAny = false;
+				for (PartSurface& S : Copy->Surfaces)
+				{
+					if (!IsCable(S)) continue;
+					for (V3& Q : S.Pos)
+					{
+						const V3 M = V2ToMm(F, Q);
+						V3 Pull(0.0, 0.0, 0.0);
+						double Sum = 0.0;
+						for (int K = 0; K < 2; ++K)
+						{
+							if (!Ends[K].On) continue;
+							const double D = (M - Ends[K].At).Length();
+							if (D >= Ends[K].Reach) continue;
+							const double T = std::max(D - 90.0, 0.0) / (Ends[K].Reach - 90.0);
+							const double W = 1.0 - T * T * (3.0 - 2.0 * T);
+							Pull += (Whole(K, M) - M) * W;
+							Sum += W;
+						}
+						if (Sum <= 0.0) continue;
+						if (Sum > 1.0) Pull = Pull / Sum;
+						const V3 N = M + Pull;
+						Q = F.Point(N.x, N.y, N.z);
+						bAny = true;
+					}
+				}
+				if (bAny) P.Made = Copy;
+			}
+		}
 	}
 	return Added;
 }
