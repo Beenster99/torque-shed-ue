@@ -133,14 +133,14 @@ def consist(parts, x, livery=0, night=False):
 
 
 SHOTS = [
-    ("Diesel unit, 2 cars", lambda: consist([("dmu_car", False), ("dmu_car", True)], 0), B(9, 3.2, 14), B(0, 1.8, -12)),
-    ("Electric unit, 4 cars", lambda: consist([("emu_cab", False), ("emu_mid", False), ("emu_mid", False), ("emu_cab", True)], 0), B(10, 3.4, 15), B(0, 2.0, -18)),
-    ("Intercity, power car leading", lambda: consist([("ic_power", False), ("ic_coach", False), ("ic_coach", False), ("ic_coach", False)], 0), B(9, 3.0, 13), B(0, 2.0, -14)),
+    ("Diesel unit, 2 cars", lambda: consist([("dmu_car", False), ("dmu_car", True)], 0), B(5.5, 2.6, 7.5), B(0, 2.0, -4)),
+    ("Electric unit, 4 cars", lambda: consist([("emu_cab", False), ("emu_mid", False), ("emu_mid", False), ("emu_cab", True)], 0), B(5.5, 2.7, 8.0), B(0, 2.1, -4)),
+    ("Intercity, power car leading", lambda: consist([("ic_power", False), ("ic_coach", False), ("ic_coach", False), ("ic_coach", False)], 0), B(6.0, 2.5, 7.5), B(0, 1.9, -5)),
     ("Intercity, power car at the back", lambda: consist([("ic_power", False), ("ic_coach", False), ("ic_coach", False), ("ic_power", True)], 0), B(-9, 3.0, -100), B(0, 2.0, -70)),
-    ("Freight loco, box, hopper, tank wagons", lambda: consist([("freight_loco", False), ("wagon_box", False), ("wagon_hopper", False), ("wagon_tank", False)], 0), B(12, 4.0, 12), B(0, 1.8, -22)),
+    ("Freight loco, box, hopper, tank wagons", lambda: consist([("freight_loco", False), ("wagon_box", False), ("wagon_hopper", False), ("wagon_tank", False)], 0), B(6.0, 2.8, 7.5), B(0, 2.2, -5)),
     ("Steam tank engine, old coaches", lambda: consist([("steam_tank", False), ("coach_old", False), ("coach_old", False)], 0, livery=0), B(8, 2.6, 10), B(0, 1.8, -8)),
     ("Steam express engine and tender", lambda: consist([("steam_big", False), ("steam_tender", False), ("coach_old", False)], 0, livery=1), B(-8, 2.6, 9), B(0, 1.8, -9)),
-    ("Heritage diesel, old coaches", lambda: consist([("diesel_old", False), ("coach_old", False)], 0, livery=2), B(8, 2.6, 10), B(0, 1.8, -9)),
+    ("Heritage diesel, old coaches", lambda: consist([("diesel_old", False), ("coach_old", False)], 0, livery=2), B(5.5, 2.4, 7.0), B(0, 2.2, -4)),
     ("Other liveries: unit, electric, intercity, freight", None, B(22, 7, 14), B(0, 1.5, -8)),
     ("Electric unit after dark", None, B(9, 2.6, 11), B(0, 1.8, -12)),
 ]
@@ -192,7 +192,7 @@ def main():
             sc.world.node_tree.nodes["Background"].inputs[1].default_value = 0.15
         cam.location = eye
         cam.rotation_euler = (look - eye).to_track_quat("-Z", "Y").to_euler()
-        cam.data.lens = 26
+        cam.data.lens = 30
         p = os.path.join(tmp, "%d.png" % i)
         sc.render.filepath = p
         bpy.ops.render.render(write_still=True)

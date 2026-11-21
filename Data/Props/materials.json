@@ -2248,14 +2248,14 @@
    "grime": 0.6
   },
   "train_window": {
-   "base": "glass",
+   "base": "plastic",
    "tint": [
-    0.05,
-    0.06,
-    0.07
+    0.03,
+    0.036,
+    0.042
    ],
-   "rough": 0.05,
-   "opacity": 0.55
+   "rough": 0.06,
+   "metal": 0.25
   },
   "train_window_lit": {
    "base": "emissive",
@@ -2268,14 +2268,14 @@
    "emissive": 1.5
   },
   "train_cab_glass": {
-   "base": "glass",
+   "base": "plastic",
    "tint": [
-    0.03,
-    0.04,
-    0.05
+    0.018,
+    0.022,
+    0.028
    ],
-   "rough": 0.03,
-   "opacity": 0.5
+   "rough": 0.04,
+   "metal": 0.35
   },
   "train_warning": {
    "base": "painted",
@@ -2823,6 +2823,26 @@
    "metal": 0.25,
    "tile": 2.0,
    "grime": 0.7
+  },
+  "train_dest": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.55,
+    0.08
+   ],
+   "rough": 0.3,
+   "emissive": 4.0
+  },
+  "train_headcode": {
+   "base": "emissive",
+   "tint": [
+    0.95,
+    0.95,
+    0.9
+   ],
+   "rough": 0.3,
+   "emissive": 1.5
   }
  }
 }
