@@ -12,16 +12,17 @@
  ],
  "moves_with": "steering",
  "size_mm": [
-  57.9,
+  87.8,
   797.7,
   167.5
  ],
- "triangles": 3172,
+ "triangles": 4452,
  "surfaces": {
-  "chrome": {
-   "ue": "chrome"
+  "chrome__mirror_head_r": {
+   "ue": "chrome",
+   "tag": "mirror_head"
   },
-  "d3_mirrorglass": {
+  "d3_mirrorglass__mirror_glass_r": {
    "ue": "cat_brushed_steel",
    "color": [
     0.9,
@@ -29,7 +30,26 @@
     0.95
    ],
    "metallic": 1.0,
-   "roughness": 0.01
+   "roughness": 0.01,
+   "tag": "d3_mirrorglass"
+  },
+  "chrome": {
+   "ue": "chrome"
+  },
+  "chrome__mirror_head_l": {
+   "ue": "chrome",
+   "tag": "mirror_head"
+  },
+  "d3_mirrorglass__mirror_glass_l": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.01,
+   "tag": "d3_mirrorglass"
   }
  }
 }

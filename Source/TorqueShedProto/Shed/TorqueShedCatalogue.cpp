@@ -712,6 +712,32 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
 			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
+			// [mirrors] A mirror's glass says where its middle is and which way it faces (its own mesh, cm), so the
+			// ridden bike can aim it from the rider's eyes (ATorqueBikePawn::AimMirrors).
+			if (Tag == TEXT("d3_mirrorglass") && Tris.Num() >= 3)
+			{
+				FVector GlassMiddle = FVector::ZeroVector, GlassFacing = FVector::ZeroVector;
+				double GlassArea = 0.0;
+				for (int32 TriAt = 0; TriAt + 2 < Tris.Num(); TriAt += 3)
+				{
+					const FVector& GlassA = Pos[Tris[TriAt]];
+					const FVector& GlassB = Pos[Tris[TriAt + 1]];
+					const FVector& GlassC = Pos[Tris[TriAt + 2]];
+					const FVector GlassCross = FVector::CrossProduct(GlassB - GlassA, GlassC - GlassA);
+					const double GlassTwice = GlassCross.Size();
+					GlassMiddle += (GlassA + GlassB + GlassC) * (GlassTwice / 3.0);
+					// (Triangles wound either way still add up: each one's normal on the first one's side.)
+					GlassFacing += FVector::DotProduct(GlassCross, GlassFacing) < 0.0 ? -GlassCross : GlassCross;
+					GlassArea += GlassTwice;
+				}
+				if (GlassArea > 1.0e-6 && !GlassFacing.IsNearlyZero())
+				{
+					GlassMiddle /= GlassArea;
+					GlassFacing.Normalize();
+					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorAt:%.3f,%.3f,%.3f"), GlassMiddle.X, GlassMiddle.Y, GlassMiddle.Z)));
+					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorN:%.4f,%.4f,%.4f"), GlassFacing.X, GlassFacing.Y, GlassFacing.Z)));
+				}
+			}
 			if (LeverSide != INDEX_NONE) C->ComponentTags.Add(LeverSide == 0 ? FName(TEXT("Lever:0")) : FName(TEXT("Lever:1")));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));

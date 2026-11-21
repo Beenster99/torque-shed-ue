@@ -506,9 +506,30 @@ def build_end(name, E, d, style, s, fin="satin_black"):
         root = vadd(E, d, 12)
         mc = vadd(root, (0, s * 26, 80), 1)
         mc = (mc[0] - 4, mc[1], mc[2])
-        B.smooth_tube(name + "stem", [vadd(root, (0, s * 6, 10)), vadd(root, (0, s * 14, 46)), vadd(mc, (14, -s * 6, -40)), vadd(mc, (14, 0, -6))], 5.6, dark)
+        # (the stem comes round behind the head to its ball joint, 14 mm behind the glass, and the head and glass are
+        # surfaces of their own a side at a time: the game turns each head on that ball to aim it from the rider's
+        # eyes, beenster build 166 "align all mirrors so they look back behind the rider")
+        B.smooth_tube(name + "stem", [vadd(root, (0, s * 6, 10)), vadd(root, (0, s * 14, 40)), vadd(mc, (48, -s * 4, -48)), vadd(mc, (42, 0, -20)),
+                                      vadd(mc, (42, 0, -2)), vadd(mc, (-2.2 + D.BALL, 0, 0))], 5.6, dark)
         D.lathe(name + "head", vadd(mc, (14, 0, 0)), (-1, 0, 0), [(0, 0), (0, 18), (5, 36), (10, 41), (14, 41), (14, 0)], dark, 48)
         D.lathe(name + "glass", vadd(mc, (-2.2, 0, 0)), (-1, 0, 0), [(0, 0), (0, 38.5), (0.4, 38.5), (0.4, 0)], D.surf("mirrorglass", (0.9, 0.92, 0.95), 1.0, 0.01, wear=0.0), 48)
+        # drawn already turned towards a rider's eyes (above, behind and inboard of the bar end), so the game's own
+        # aim is a small correction: the glass's normal halves the angle between the eye and the road behind
+        n0 = Vector((-1.0, 0.0, 0.0))
+        n1 = (Vector((-450.0, -s * 400.0, 350.0)).normalized() + Vector((-1.0, s * 0.14, -0.05)).normalized()).normalized()
+        rot = n0.rotation_difference(n1).to_matrix()
+        ball = Vector(vadd(mc, (-2.2 + D.BALL, 0, 0))) * D.B.MM
+        for part, what in (("head", "mirror_head"), ("glass", "mirror_glass")):
+            ob = bpy.data.objects.get(name + part)
+            if ob:
+                inv = ob.matrix_world.inverted()
+                for vt in ob.data.vertices:
+                    vt.co = inv @ (ball + rot @ (ob.matrix_world @ vt.co - ball))
+                ob.data.update()
+            if ob and ob.data.materials:
+                own = ob.data.materials[0].copy()
+                own.name = f"{ob.data.materials[0].name.split('.')[0].split('__')[0]}__{what}_{'l' if s > 0 else 'r'}"
+                ob.data.materials[0] = own
     else:
         raise KeyError(style)
 

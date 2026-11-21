@@ -6,7 +6,7 @@
  "wheelbase_mm": 1440,
  "seat_height_mm": 812,
  "format": 2,
- "triangles": 299168,
+ "triangles": 298959,
  "points_mm": {
   "front_axle": [
    1440,
@@ -1344,7 +1344,7 @@
    "slot": "mirrors",
    "node": "steer",
    "surface": "plastic",
-   "tag": "plastic",
+   "tag": "mirror_head",
    "ue": "cat_plastic",
    "sub": "mirrors",
    "color": [
@@ -1364,13 +1364,36 @@
    "sub": "mirrors"
   },
   "s090": {
+   "slot": "mirrors",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "mirror_head",
+   "ue": "cat_plastic",
+   "sub": "mirrors",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s091": {
+   "slot": "mirrors",
+   "node": "steer",
+   "surface": "d3_mirrorglass",
+   "tag": "d3_mirrorglass",
+   "ue": "mirror_glass",
+   "sub": "mirrors"
+  },
+  "s092": {
    "slot": "engine",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s091": {
+  "s093": {
    "slot": "spark_plugs",
    "node": "",
    "surface": "steel",
@@ -1384,7 +1407,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s092": {
+  "s094": {
    "slot": "spark_plugs",
    "node": "",
    "surface": "d3_ceramic",
@@ -1398,21 +1421,21 @@
    "metallic": 0.0,
    "roughness": 0.25
   },
-  "s093": {
+  "s095": {
    "slot": "spark_plugs",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s094": {
+  "s096": {
    "slot": "air_filter",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s095": {
+  "s097": {
    "slot": "air_filter",
    "node": "",
    "surface": "steel",
@@ -1426,7 +1449,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s096": {
+  "s098": {
    "slot": "handlebars",
    "node": "steer",
    "surface": "alu",
@@ -1440,7 +1463,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s097": {
+  "s099": {
    "slot": "fuel",
    "node": "",
    "surface": "d3_injgreen",
@@ -1454,7 +1477,7 @@
    "metallic": 0.0,
    "roughness": 0.5
   },
-  "s098": {
+  "s100": {
    "slot": "fuel",
    "node": "",
    "surface": "steel",
@@ -1468,7 +1491,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s099": {
+  "s101": {
    "slot": "fuel",
    "node": "",
    "surface": "alu_dark",
@@ -1482,7 +1505,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s100": {
+  "s102": {
    "slot": "fuel",
    "node": "",
    "surface": "alu",
@@ -1496,7 +1519,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s101": {
+  "s103": {
    "slot": "engine",
    "node": "",
    "surface": "d3_crinkle",
@@ -1510,14 +1533,14 @@
    "metallic": 0.3,
    "roughness": 0.62
   },
-  "s102": {
+  "s104": {
    "slot": "frame",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s103": {
+  "s105": {
    "slot": "engine",
    "node": "",
    "surface": "d3_sidecase",
@@ -1531,7 +1554,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s104": {
+  "s106": {
    "slot": "cooling",
    "node": "",
    "surface": "engine",
@@ -1545,7 +1568,7 @@
    "metallic": 0.9,
    "roughness": 0.5
   },
-  "s105": {
+  "s107": {
    "slot": "cooling",
    "node": "",
    "surface": "steel",
@@ -1559,14 +1582,14 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s106": {
+  "s108": {
    "slot": "cooling",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s107": {
+  "s109": {
    "slot": "engine",
    "node": "",
    "surface": "gold",
@@ -1580,7 +1603,7 @@
    "metallic": 1.0,
    "roughness": 0.32
   },
-  "s108": {
+  "s110": {
    "slot": "exhaust",
    "node": "",
    "surface": "exhaust_black",
@@ -1595,7 +1618,7 @@
    "metallic": 0.4,
    "roughness": 0.6
   },
-  "s109": {
+  "s111": {
    "slot": "exhaust",
    "node": "",
    "surface": "d3_soot",
@@ -1610,7 +1633,7 @@
    "metallic": 0.0,
    "roughness": 0.95
   },
-  "s110": {
+  "s112": {
    "slot": "cooling",
    "node": "",
    "surface": "d3_radcore",
@@ -1624,7 +1647,7 @@
    "metallic": 0.7,
    "roughness": 0.5
   },
-  "s111": {
+  "s113": {
    "slot": "cooling",
    "node": "",
    "surface": "alu_dark",
@@ -1638,7 +1661,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s112": {
+  "s114": {
    "slot": "cooling",
    "node": "",
    "surface": "plastic",
@@ -1652,7 +1675,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s113": {
+  "s115": {
    "slot": "cooling",
    "node": "",
    "surface": "alu",
@@ -1666,7 +1689,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s114": {
+  "s116": {
    "slot": "cooling",
    "node": "",
    "surface": "d3_coolhose",
@@ -1680,7 +1703,7 @@
    "metallic": 0.0,
    "roughness": 0.55
   },
-  "s115": {
+  "s117": {
    "slot": "oil_filter",
    "node": "",
    "surface": "engine",
@@ -1694,7 +1717,7 @@
    "metallic": 0.9,
    "roughness": 0.5
   },
-  "s116": {
+  "s118": {
    "slot": "oil_filter",
    "node": "",
    "surface": "d3_oilcan",
@@ -1708,7 +1731,7 @@
    "metallic": 0.6,
    "roughness": 0.28
   },
-  "s117": {
+  "s119": {
    "slot": "air_filter",
    "node": "",
    "surface": "d3_filterframe",
@@ -1722,7 +1745,7 @@
    "metallic": 0.0,
    "roughness": 0.6
   },
-  "s118": {
+  "s120": {
    "slot": "air_filter",
    "node": "",
    "surface": "d3_filterpaper",
@@ -1736,14 +1759,14 @@
    "metallic": 0.0,
    "roughness": 0.9
   },
-  "s119": {
+  "s121": {
    "slot": "fuel",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s120": {
+  "s122": {
    "slot": "fuel",
    "node": "",
    "surface": "d3_fuelfilter",
@@ -1757,7 +1780,7 @@
    "metallic": 1.0,
    "roughness": 0.3
   },
-  "s121": {
+  "s123": {
    "slot": "fuel",
    "node": "",
    "surface": "d3_fuelhose",
@@ -1771,7 +1794,7 @@
    "metallic": 0.0,
    "roughness": 0.5
   },
-  "s122": {
+  "s124": {
    "slot": "saddle",
    "node": "",
    "surface": "d3_thread",
@@ -1785,7 +1808,7 @@
    "metallic": 0.0,
    "roughness": 0.75
   },
-  "s123": {
+  "s125": {
    "slot": "tank",
    "node": "",
    "surface": "alu_dark",
@@ -1800,7 +1823,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s124": {
+  "s126": {
    "slot": "tank",
    "node": "",
    "surface": "d3_capring",
@@ -1815,7 +1838,7 @@
    "metallic": 1.0,
    "roughness": 0.25
   },
-  "s125": {
+  "s127": {
    "slot": "tank",
    "node": "",
    "surface": "d3_caplid",
@@ -1830,7 +1853,7 @@
    "metallic": 0.9,
    "roughness": 0.3
   },
-  "s126": {
+  "s128": {
    "slot": "tank",
    "node": "",
    "surface": "steel",
@@ -1845,7 +1868,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s127": {
+  "s129": {
    "slot": "tank",
    "node": "",
    "surface": "rubber",
@@ -1853,7 +1876,7 @@
    "ue": "cat_rubber",
    "sub": "filler_cap"
   },
-  "s128": {
+  "s130": {
    "slot": "rear_disc",
    "node": "rear_wheel",
    "surface": "d3_rotor",
@@ -1868,7 +1891,7 @@
    "metallic": 1.0,
    "roughness": 0.3
   },
-  "s129": {
+  "s131": {
    "slot": "rear_disc",
    "node": "rear_wheel",
    "surface": "d3_carrier",
@@ -1883,7 +1906,7 @@
    "metallic": 0.35,
    "roughness": 0.42
   },
-  "s130": {
+  "s132": {
    "slot": "rear_wheel",
    "node": "rear_wheel",
    "surface": "alu_dark",
@@ -1897,7 +1920,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s131": {
+  "s133": {
    "slot": "rear_caliper",
    "node": "swingarm",
    "surface": "d3_caliper",
@@ -1912,7 +1935,7 @@
    "metallic": 0.9,
    "roughness": 0.36
   },
-  "s132": {
+  "s134": {
    "slot": "rear_caliper",
    "node": "swingarm",
    "surface": "rubber",
@@ -1920,7 +1943,7 @@
    "ue": "cat_rubber",
    "sub": "caliper_rear"
   },
-  "s133": {
+  "s135": {
    "slot": "rear_caliper",
    "node": "swingarm",
    "surface": "steel",
@@ -1935,7 +1958,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s134": {
+  "s136": {
    "slot": "rear_caliper",
    "node": "swingarm",
    "surface": "steel",
@@ -1949,21 +1972,21 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s135": {
+  "s137": {
    "slot": "front_wheel",
    "node": "front_wheel",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s136": {
+  "s138": {
    "slot": "rear_wheel",
    "node": "rear_wheel",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s137": {
+  "s139": {
    "slot": "rearsets",
    "node": "",
    "surface": "alu",
@@ -1978,7 +2001,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s138": {
+  "s140": {
    "slot": "rearsets",
    "node": "",
    "surface": "steel",
@@ -1992,7 +2015,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s139": {
+  "s141": {
    "slot": "rearsets",
    "node": "",
    "surface": "alu_dark",
@@ -2007,7 +2030,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s140": {
+  "s142": {
    "slot": "rearsets",
    "node": "",
    "surface": "rubber",
@@ -2015,7 +2038,7 @@
    "ue": "cat_rubber",
    "sub": "foot_controls"
   },
-  "s141": {
+  "s143": {
    "slot": "rear_master",
    "node": "",
    "surface": "alu_dark",
@@ -2029,7 +2052,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s142": {
+  "s144": {
    "slot": "rear_master",
    "node": "",
    "surface": "steel",
@@ -2043,7 +2066,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s143": {
+  "s145": {
    "slot": "rear_master",
    "node": "",
    "surface": "d3_rescup",
@@ -2057,7 +2080,7 @@
    "metallic": 0.0,
    "roughness": 0.25
   },
-  "s144": {
+  "s146": {
    "slot": "rear_master",
    "node": "",
    "surface": "plastic",
@@ -2071,14 +2094,14 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s145": {
+  "s147": {
    "slot": "rear_master",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s146": {
+  "s148": {
    "slot": "rear_caliper",
    "node": "swingarm",
    "surface": "d3_hose",
@@ -2092,7 +2115,7 @@
    "metallic": 0.0,
    "roughness": 0.42
   },
-  "s147": {
+  "s149": {
    "slot": "rearsets",
    "node": "",
    "surface": "d3_brushed",
@@ -2107,7 +2130,7 @@
    "metallic": 1.0,
    "roughness": 0.5
   },
-  "s148": {
+  "s150": {
    "slot": "rearsets",
    "node": "",
    "surface": "steel",
@@ -2122,7 +2145,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s149": {
+  "s151": {
    "slot": "rearsets",
    "node": "",
    "surface": "rubber",
@@ -2130,7 +2153,7 @@
    "ue": "cat_rubber",
    "sub": "heel_plates"
   },
-  "s150": {
+  "s152": {
    "slot": "swingarm",
    "node": "swingarm",
    "surface": "d3_huggerplastic",
@@ -2144,14 +2167,14 @@
    "metallic": 0.0,
    "roughness": 0.42
   },
-  "s151": {
+  "s153": {
    "slot": "swingarm",
    "node": "swingarm",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s152": {
+  "s154": {
    "slot": "rearsets",
    "node": "",
    "surface": "d3_hangercast",
@@ -2165,14 +2188,14 @@
    "metallic": 0.9,
    "roughness": 0.42
   },
-  "s153": {
+  "s155": {
    "slot": "rearsets",
    "node": "",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s154": {
+  "s156": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -2187,7 +2210,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s155": {
+  "s157": {
    "slot": "tail",
    "node": "",
    "surface": "d3_taillens",
@@ -2195,7 +2218,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s156": {
+  "s158": {
    "slot": "tail",
    "node": "",
    "surface": "d3_tailred",
@@ -2203,7 +2226,7 @@
    "ue": "lens_red",
    "sub": "tail_light"
   },
-  "s157": {
+  "s159": {
    "slot": "shock",
    "node": "shock_top",
    "surface": "steel",
@@ -2217,7 +2240,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s158": {
+  "s160": {
    "slot": "shock",
    "node": "shock_top",
    "surface": "alu",
@@ -2231,14 +2254,14 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s159": {
+  "s161": {
    "slot": "shock",
    "node": "shock_top",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s160": {
+  "s162": {
    "slot": "shock",
    "node": "shock_top",
    "surface": "alu",
@@ -2253,7 +2276,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s161": {
+  "s163": {
    "slot": "shock",
    "node": "shock_top",
    "surface": "d3_shockblack",
@@ -2268,7 +2291,7 @@
    "metallic": 0.5,
    "roughness": 0.32
   },
-  "s162": {
+  "s164": {
    "slot": "shock",
    "node": "shock_bottom",
    "surface": "chrome",
@@ -2276,7 +2299,7 @@
    "ue": "chrome",
    "sub": "shock"
   },
-  "s163": {
+  "s165": {
    "slot": "shock",
    "node": "shock_top",
    "surface": "rubber",
@@ -2284,7 +2307,7 @@
    "ue": "cat_rubber",
    "sub": "shock"
   },
-  "s164": {
+  "s166": {
    "slot": "shock",
    "node": "shock_bottom",
    "surface": "alu",
@@ -2299,7 +2322,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s165": {
+  "s167": {
    "slot": "shock",
    "node": "shock_spring",
    "surface": "d3_shockblack",
@@ -2314,7 +2337,7 @@
    "metallic": 0.5,
    "roughness": 0.32
   },
-  "s166": {
+  "s168": {
    "slot": "shock",
    "node": "shock_bottom",
    "surface": "alu",
@@ -2328,7 +2351,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s167": {
+  "s169": {
    "slot": "shock",
    "node": "shock_bottom",
    "surface": "steel",
@@ -2342,14 +2365,14 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s168": {
+  "s170": {
    "slot": "shock",
    "node": "shock_bottom",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s169": {
+  "s171": {
    "slot": "tail",
    "node": "",
    "surface": "steel",
@@ -2364,7 +2387,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s170": {
+  "s172": {
    "slot": "tail",
    "node": "",
    "surface": "rubber",
@@ -2372,7 +2395,7 @@
    "ue": "cat_rubber",
    "sub": "plate_hanger"
   },
-  "s171": {
+  "s173": {
    "slot": "final_drive",
    "node": "rear_wheel",
    "surface": "steel",
@@ -2387,7 +2410,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s172": {
+  "s174": {
    "slot": "final_drive",
    "node": "rear_wheel",
    "surface": "steel",
@@ -2401,37 +2424,9 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s173": {
+  "s175": {
    "slot": "final_drive",
    "node": "",
-   "surface": "d3_chainplate",
-   "tag": "d3_chainplate",
-   "ue": "cat_brushed_steel",
-   "color": [
-    0.16,
-    0.16,
-    0.17
-   ],
-   "metallic": 1.0,
-   "roughness": 0.38
-  },
-  "s174": {
-   "slot": "chain",
-   "node": "swingarm",
-   "surface": "steel",
-   "tag": "steel",
-   "ue": "cat_brushed_steel",
-   "color": [
-    0.55,
-    0.56,
-    0.57
-   ],
-   "metallic": 1.0,
-   "roughness": 0.22
-  },
-  "s175": {
-   "slot": "chain",
-   "node": "swingarm",
    "surface": "d3_chainplate",
    "tag": "d3_chainplate",
    "ue": "cat_brushed_steel",
@@ -2446,6 +2441,34 @@
   "s176": {
    "slot": "chain",
    "node": "swingarm",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s177": {
+   "slot": "chain",
+   "node": "swingarm",
+   "surface": "d3_chainplate",
+   "tag": "d3_chainplate",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.16,
+    0.16,
+    0.17
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  },
+  "s178": {
+   "slot": "chain",
+   "node": "swingarm",
    "surface": "d3_chaingold",
    "tag": "d3_chaingold",
    "ue": "cat_anodised",
@@ -2457,7 +2480,7 @@
    "metallic": 1.0,
    "roughness": 0.3
   },
-  "s177": {
+  "s179": {
    "slot": "indicators",
    "node": "steer",
    "surface": "rubber",
@@ -2465,7 +2488,7 @@
    "ue": "cat_rubber",
    "sub": "ind_front"
   },
-  "s178": {
+  "s180": {
    "slot": "indicators",
    "node": "steer",
    "surface": "plastic",
@@ -2480,7 +2503,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s179": {
+  "s181": {
    "slot": "indicators",
    "node": "steer",
    "surface": "d3_clearglass",
@@ -2495,7 +2518,7 @@
    "metallic": 0.0,
    "roughness": 0.02
   },
-  "s180": {
+  "s182": {
    "slot": "indicators",
    "node": "steer",
    "surface": "chrome",
@@ -2503,7 +2526,7 @@
    "ue": "chrome",
    "sub": "ind_front"
   },
-  "s181": {
+  "s183": {
    "slot": "indicators",
    "node": "steer",
    "surface": "d3_amberled",
@@ -2511,7 +2534,7 @@
    "ue": "lens_amber",
    "sub": "ind_front"
   },
-  "s182": {
+  "s184": {
    "slot": "indicators",
    "node": "",
    "surface": "plastic",
@@ -2526,7 +2549,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s183": {
+  "s185": {
    "slot": "indicators",
    "node": "",
    "surface": "d3_amberled",
@@ -2534,7 +2557,7 @@
    "ue": "lens_amber",
    "sub": "ind_rear"
   },
-  "s184": {
+  "s186": {
    "slot": "frame",
    "node": "",
    "surface": "d3_hose",
@@ -2548,7 +2571,7 @@
    "metallic": 0.0,
    "roughness": 0.42
   },
-  "s185": {
+  "s187": {
    "slot": "frame",
    "node": "",
    "surface": "plastic",
@@ -2562,7 +2585,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s186": {
+  "s188": {
    "slot": "front_mudguard",
    "node": "front_hub",
    "surface": "steel",
@@ -2576,14 +2599,14 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s187": {
+  "s189": {
    "slot": "front_mudguard",
    "node": "front_hub",
    "surface": "rubber",
    "tag": "rubber",
    "ue": "cat_rubber"
   },
-  "s188": {
+  "s190": {
    "slot": "side_stand",
    "node": "",
    "surface": "d3_ss_black",
@@ -2598,7 +2621,7 @@
    "metallic": 0.8,
    "roughness": 0.42
   },
-  "s189": {
+  "s191": {
    "slot": "side_stand",
    "node": "",
    "surface": "steel",
@@ -2613,7 +2636,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s190": {
+  "s192": {
    "slot": "side_stand",
    "node": "",
    "surface": "d3_ss_spring",
@@ -2628,7 +2651,7 @@
    "metallic": 0.9,
    "roughness": 0.35
   },
-  "s191": {
+  "s193": {
    "slot": "frame",
    "node": "",
    "surface": "d3_ss_black",

@@ -246,6 +246,11 @@ def looks_of(ob, LIB):
             em = b.inputs.get("Emission Strength")
             if em is not None and em.default_value > 0:
                 look["glow"] = round(em.default_value, 3)
+        # a mirror's head and glass, a side each (controls3d.mirror_head): the game finds them by these tags
+        if "__mirror_head" in mt.name:
+            look["tag"] = "mirror_head"
+        elif "__mirror_glass" in mt.name:
+            look["tag"] = tag.split("__")[0]
         looks[mt.name] = look
     return looks
 
