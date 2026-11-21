@@ -11,7 +11,8 @@ and here and there a gap at the foot. Each model is one 4 m length of it, grown 
 grows its trees (space colonisation from a stem every half metre or so, the leaves clustered on the
 twig ends, opaque little polygons that Nanite draws quickly), so World/TorqueRideWorld can lay them
 end to end along the map's hedge lines (RidePlan::PlantsTile, kind "hedge"), each a little over 4 m
-apart's worth of overlap so no seam shows.
+apart's worth of overlap so no seam shows. Both ends are closed with twigs and leaves (Nov 21), so a run's
+last length is a proper hedge end.
 
 Frames as the trees': metres, x along the hedge (-2.1 to 2.1), y up, z across; the foot at y 0 with
 its stems 0.4 m below so it sits into a slope. Vertex colour and UVs as the trees' (M_Tree): RGB
@@ -30,6 +31,7 @@ from export_buttertubs import write_glb     # noqa: E402
 
 OUT = os.path.join(os.path.dirname(HERE), "Data", "RideUK", "Hedges")
 LENGTH = 4.2          # the model's length (m); planted every 3.9 m
+END_SHARE = 0.09      # ([Nov 21] the share of the leaves on the two ends, closing them)
 VARIANTS = 4
 
 # The hedge's shrubs (leaves drawn ~1.5x life size, so a light hedge still reads as solid): leaf (shape, size m, leaves per twig end, sRGB colour, spread), bark, share.
@@ -63,6 +65,16 @@ def envelope(rng, height, width, n):
     z = side * np.clip(hw - depth, 0, None)
     z = np.where(on_top, rng.uniform(-1, 1, n * 3) * hw * 0.8, z)
     y = np.where(on_top, top - depth * 0.8, y)
+    # ([Nov 21] beenster, build 166 at Gigha: "ALL hedges and walls need ends". A share of the points on
+    # each end too, across the whole section, its face a little rounded, so the twigs and leaves close the
+    # end: a hedge stopping at a gateway or a road shows a leafy end, not its hollow inside. Where two
+    # lengths meet the ends sit inside each other, out of sight.)
+    ends = rng.uniform(0, 1, n * 3) < END_SHARE
+    sgn_x = np.where(rng.uniform(0, 1, n * 3) < 0.5, -1.0, 1.0)
+    across = rng.uniform(-1, 1, n * 3) * hw * 0.92
+    round_off = 0.06 * (across / np.maximum(hw, 1e-6)) ** 2 + 0.06 * (y / top) ** 4
+    xs = np.where(ends, sgn_x * (LENGTH / 2 - np.abs(rng.normal(0, 0.12, n * 3)) - round_off), xs)
+    z = np.where(ends & ~on_top, across, z)
     P = np.stack([xs, y, z], 1)
     # Gaps at the foot where the stems show (the hedge isn't a wall down to the grass).
     keep = ~((P[:, 1] < 0.45) & (rng.uniform(0, 1, len(P)) < 0.55))
@@ -129,7 +141,8 @@ def colonise(rng, A, stems, step=0.06, infl=0.4, kill=0.075):
 
 def core(mesh, rng, height, width, ao_fn):
     nx, ny = 22, 7
-    xs = np.linspace(-LENGTH / 2 + 0.05, LENGTH / 2 - 0.05, nx)
+    # ([Nov 21] its ends 30 cm in from the model's, as its sides are from the cut face, under the end's leaves)
+    xs = np.linspace(-LENGTH / 2 + 0.3, LENGTH / 2 - 0.3, nx)
     ts = np.linspace(0, 1, ny)
     rows = []
     for t in ts:
@@ -154,6 +167,11 @@ def core(mesh, rng, height, width, ao_fn):
     for i in range(nx - 1):
         a = (ny - 1) * nx + i; b = a + 1; c = top + a; d = c + 1
         Tr += [[a, b, c], [b, d, c]]
+    # ([Nov 21] and closed at both ends, side to side, so no run of hedge shows its hollow inside)
+    for i in (0, nx - 1):
+        for j in range(ny - 1):
+            a = j * nx + i; b = a + nx; c = top + a; d = top + b
+            Tr += [[a, b, c], [b, d, c]] if i == 0 else [[a, c, b], [b, c, d]]
     P = np.array(P)
     col = TM.lin((40, 56, 26)) * np.exp(rng.normal(0, 0.06, (len(P), 3)))
     ao = np.clip(ao_fn(P) * 0.55, 0.08, 1)
@@ -182,12 +200,14 @@ def hedge(seed):
     # Which shrub each stem is: runs of one kind along the hedge, as they were planted and spread.
     names = list(SHRUBS)
     shares = np.array([SHRUBS[k][2] for k in names])
+    # ([Nov 21] drawn from a generator of their own, so the mix stays put when the shape's points change)
+    krng = np.random.default_rng(seed * 7 + 1)
     kind_of_root = {}
-    current = rng.choice(len(names), p=shares / shares.sum())
+    current = krng.choice(len(names), p=shares / shares.sum())
     for i in range(len(N)):
         if parent[i] < 0:
-            if rng.uniform() < 0.35:
-                current = rng.choice(len(names), p=shares / shares.sum())
+            if krng.uniform() < 0.35:
+                current = krng.choice(len(names), p=shares / shares.sum())
             kind_of_root[i] = current
     root = np.zeros(len(N), int)
     for i in range(len(N)):
@@ -200,7 +220,7 @@ def hedge(seed):
     def ao_fn(P):
         y = np.clip(P[:, 1] / height, 0, 1.4)
         hw = width / 2 * (1 - 0.32 * np.clip(y, 0, 1) ** 2)
-        face = np.clip(1 - (hw - np.abs(P[:, 2])) / 0.35, 0, 1)
+        face = np.clip(1 - np.minimum(hw - np.abs(P[:, 2]), LENGTH / 2 - np.abs(P[:, 0])) / 0.35, 0, 1)
         return np.clip(0.18 + 0.55 * face ** 1.5 + 0.3 * np.clip(y - 0.6, 0, 1), 0.12, 1.0)
 
     mesh = TM.Mesh()
@@ -220,10 +240,12 @@ def hedge(seed):
         sp = {"leaf": SHRUBS[name][0], "season": SHRUBS[name][3]}
         d = N[i] - N[parent[i]]
         d /= max(np.linalg.norm(d), 1e-9)
-        out = np.array([0.0, 0.5 if N[i][1] > height * 0.85 else 0.0, np.sign(N[i][2]) or 1.0])
+        at_end = abs(N[i][0]) > LENGTH / 2 - 0.3
+        out = np.array([(np.sign(N[i][0]) * 1.2) if at_end else 0.0, 0.5 if N[i][1] > height * 0.85 else 0.0,
+                        0.0 if at_end else (np.sign(N[i][2]) or 1.0)])
         out = out / np.linalg.norm(out) * 0.6 + d * 0.4
-        # (fewer leaves deep in, where no light gets)
-        if abs(N[i][2]) < width * 0.22 and N[i][1] < height * 0.8 and rng.uniform() < 0.6:
+        # (fewer leaves deep in, where no light gets; the ends' leaves are their face)
+        if not at_end and abs(N[i][2]) < width * 0.22 and N[i][1] < height * 0.8 and rng.uniform() < 0.6:
             continue
         TM.leaf_cluster(mesh, N[i], out, sp, rng, float(min(1.0, wind[i] + 0.2)), ao_fn)
     # The hedge's heart: a dark, lumpy core 20-30 cm in from the cut face, so it reads as a solid,

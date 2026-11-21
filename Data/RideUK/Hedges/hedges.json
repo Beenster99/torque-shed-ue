@@ -4,30 +4,30 @@
   "SM_Tree_hedge_0": {
    "height": 1.82,
    "width": 1.39,
-   "stems": 11,
-   "nodes": 4839,
-   "triangles": 86834
+   "stems": 9,
+   "nodes": 5052,
+   "triangles": 97430
   },
   "SM_Tree_hedge_1": {
    "height": 1.66,
    "width": 1.26,
    "stems": 9,
-   "nodes": 4551,
-   "triangles": 86046
+   "nodes": 4663,
+   "triangles": 86554
   },
   "SM_Tree_hedge_2": {
    "height": 1.58,
    "width": 1.41,
-   "stems": 9,
-   "nodes": 4531,
-   "triangles": 88464
+   "stems": 10,
+   "nodes": 4595,
+   "triangles": 88374
   },
   "SM_Tree_hedge_3": {
    "height": 1.78,
    "width": 1.16,
-   "stems": 10,
-   "nodes": 4615,
-   "triangles": 85834
+   "stems": 8,
+   "nodes": 4651,
+   "triangles": 85164
   }
  }
 }

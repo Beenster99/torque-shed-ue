@@ -453,11 +453,30 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const size_t LineN = F.Line.size();
 				const bool Closed = LineN > 2 && F.Line.front().DistanceTo(F.Line.back()) < 0.05;
 				const auto BitsOf = [&](size_t Si) { return std::max(1, int(std::ceil(F.Line[Si].DistanceTo(F.Line[Si + 1]) / Step))); };
+				// (how far clear of a road's edge it stops: a hedge further, a crash barrier right up to it)
+				const double Spare = Hedge ? 1.6 : Rail || Concrete ? 0.2 : 1.0;
 				const auto Standing = [&](const P2& Qa, const P2& Qb)
 				{
 					const P2 Qm = (Qa + Qb) * 0.5;
-					return RailClear(Qm.X, Qm.Z) >= 2.6 && OffRoad(Qm.X, Qm.Z, 1.0) && OffRoad(Qa.X, Qa.Z, 1.0) && OffRoad(Qb.X, Qb.Z, 1.0) &&
+					return RailClear(Qm.X, Qm.Z) >= 2.6 && OffRoad(Qm.X, Qm.Z, Spare) && OffRoad(Qa.X, Qa.Z, Spare) && OffRoad(Qb.X, Qb.Z, Spare) &&
 						!std::isnan(Ground(Qa.X, Qa.Z)) && !std::isnan(Ground(Qb.X, Qb.Z));
+				};
+				// ([Nov 21] beenster, build 166 at Gigha: "ALL hedges and walls need ends". Every wall, hedge, hedge
+				// bank and concrete barrier is closed where it stops (its end faced, a hedge's leafy end, a wall's
+				// head), and where its line turns a corner each piece runs on past the corner's point by as much as
+				// the turn opens its outside (its half width times the tangent of half the turn), so the two meet
+				// on the outside with no slot between them; on the inside they sit in each other, unseen.)
+				const double HalfWide = Bank ? 1.05 : Hedge ? 0.72 : Concrete ? 0.3 : 0.42;
+				const auto CornerRun = [&](const P2& Da, const P2& Db)
+				{
+					const double Cos = std::clamp(Da.X * Db.X + Da.Z * Db.Z, -1.0, 1.0);
+					if (Cos > 0.996 || Cos < -0.5) return 0.0;   // (straight on, or doubling back past 120 degrees: an end each)
+					return std::fmin(2.0, HalfWide * std::sqrt((1.0 - Cos) / (1.0 + Cos)));
+				};
+				const auto SegDir = [&](size_t Si)
+				{
+					const double Ls = F.Line[Si].DistanceTo(F.Line[Si + 1]);
+					return Ls > 1e-6 ? (F.Line[Si + 1] - F.Line[Si]) * (1.0 / Ls) : P2(0.0, 0.0);
 				};
 				// (whether the wall carries on through At, from bit Kn of the line's segment Sn: its first
 				// piece if FromStart, else its last)
@@ -490,13 +509,38 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						const int Count = CutGaps(A + (B - A) * (double(K) / Bits), A + (B - A) * (double(K + 1) / Bits), Pieces);
 						for (int Pc = 0; Pc < Count; ++Pc)
 						{
-						const P2 Pa = Pieces[Pc][0], Pb = Pieces[Pc][1];
+						P2 Pa = Pieces[Pc][0], Pb = Pieces[Pc][1];
 						const P2 Pm = (Pa + Pb) * 0.5;
 						if (RailClear(Pm.X, Pm.Z) < 2.6) continue;   // (nor across a railway)
-						const double Spare = Hedge ? 1.6 : Rail || Concrete ? 0.2 : 1.0;
 						if (!OffRoad(Pm.X, Pm.Z, Spare) || !OffRoad(Pa.X, Pa.Z, Spare) || !OffRoad(Pb.X, Pb.Z, Spare)) continue;
 						const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
 						if (std::isnan(Ga) || std::isnan(Gb)) continue;
+						// [Nov 21] (whether the line carries on from each end of this piece: no end there if so; and
+						// where it turns a corner, how far this piece runs on past the corner's point)
+						bool OnBefore = false, OnAfter = false;
+						double RunA = 0.0, RunB = 0.0;
+						if (!Fence && !Rail)
+						{
+							const P2 BitA = A + (B - A) * (double(K) / Bits), BitB = A + (B - A) * (double(K + 1) / Bits);
+							if (Pc == 0 && Pa.DistanceTo(BitA) < 0.05)
+							{
+								const bool Prior = I > 0 || Closed;
+								const size_t Ip = I > 0 ? I - 1 : LineN - 2;
+								if (K > 0) OnBefore = CarriesOn(Pa, I, K - 1, false);
+								else if (Prior) OnBefore = CarriesOn(Pa, Ip, BitsOf(Ip) - 1, false);
+								if (OnBefore && K == 0 && Prior) RunA = CornerRun(SegDir(Ip), Dir);
+							}
+							if (Pc == Count - 1 && Pb.DistanceTo(BitB) < 0.05)
+							{
+								const bool Next = I + 2 < LineN || Closed;
+								const size_t In = I + 2 < LineN ? I + 1 : 0;
+								if (K + 1 < Bits) OnAfter = CarriesOn(Pb, I, K + 1, true);
+								else if (Next) OnAfter = CarriesOn(Pb, In, 0, true);
+								if (OnAfter && K + 1 == Bits && Next) RunB = CornerRun(Dir, SegDir(In));
+							}
+							Pa = Pa - Dir * RunA;
+							Pb = Pb + Dir * RunB;
+						}
 						if (Rail || Concrete)
 						{
 							// [OSM stage 5C] A crash barrier: a steel beam on a post at each bit's start, a face each
@@ -515,6 +559,17 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								}
 								Quad(Out, At3(Pa.X + Side.X * 0.12, Ga + 0.9, Pa.Z + Side.Z * 0.12), At3(Pb.X + Side.X * 0.12, Gb + 0.9, Pb.Z + Side.Z * 0.12),
 									At3(Pb.X - Side.X * 0.12, Gb + 0.9, Pb.Z - Side.Z * 0.12), At3(Pa.X - Side.X * 0.12, Ga + 0.9, Pa.Z - Side.Z * 0.12), Sky, Shade(Cast, 1.1), false);
+								// [Nov 21] (its ends, where it stops: the step section's foot, step and top)
+								for (int End = 0; End < 2; ++End)
+								{
+									if (End == 0 ? OnBefore : OnAfter) continue;
+									const P2 E = End == 0 ? Pa : Pb;
+									const double Ge = End == 0 ? Ga : Gb, Outward = End == 0 ? -1.0 : 1.0;
+									const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.5, E.Z + Dir.Z * Outward * 50.0);
+									const auto Sec = [&](double Across, double Up) { return At3(E.X + Side.X * Across, Ge + Up, E.Z + Side.Z * Across); };
+									Quad(Out, Sec(0.3, -0.05), Sec(-0.3, -0.05), Sec(-0.2, 0.25), Sec(0.2, 0.25), Away, Shade(Cast, 0.9), false);
+									Quad(Out, Sec(0.2, 0.25), Sec(-0.2, 0.25), Sec(-0.12, 0.9), Sec(0.12, 0.9), Away, Shade(Cast, 0.9), false);
+								}
 								continue;
 							}
 							const P2 Along = Dir * 0.06, Across = Side * 0.06;
@@ -544,9 +599,21 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								Quad(Out, At3(Pa.X, Ga + High - 0.22, Pa.Z), At3(Pb.X, Gb + High - 0.22, Pb.Z), At3(Pb.X, Gb + High - 0.12, Pb.Z), At3(Pa.X, Ga + High - 0.12, Pa.Z), Out3, Colour, true);
 							continue;
 						}
-						// A length of it: two faces leaning in from Foot to Top, Lo to Hi over the ground, and its top.
+						// A length of it: two faces leaning in from Foot to Top, Lo to Hi over the ground, and its top; and
+						// ([build 147] and [Nov 21]) an end face across it wherever it stops.
 						const auto Stretch = [&](double FootW, double TopW, double Lo, double Hi, const Rgb& Col, bool Scanned)
 						{
+							for (int End = 0; End < 2; ++End)
+							{
+								if (End == 0 ? OnBefore : OnAfter) continue;
+								const P2 E = End == 0 ? Pa : Pb;
+								const double Ge = End == 0 ? Ga : Gb;
+								const double Outward = End == 0 ? -1.0 : 1.0;
+								const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.6, E.Z + Dir.Z * Outward * 50.0);
+								Quad(Into, At3(E.X + Side.X * FootW, Ge + Lo, E.Z + Side.Z * FootW), At3(E.X - Side.X * FootW, Ge + Lo, E.Z - Side.Z * FootW),
+									At3(E.X - Side.X * TopW, Ge + Hi, E.Z - Side.Z * TopW), At3(E.X + Side.X * TopW, Ge + Hi, E.Z + Side.Z * TopW), Away,
+									Scanned ? Mask : Shade(Col, 0.92), false, Scanned ? 0.22f : -1.0f);
+							}
 							for (double Sg : {1.0, -1.0})
 							{
 								const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
@@ -592,6 +659,20 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 										const Rgb Leaf = Chance(C.X, C.Z + Pk, 45) < 0.18 ? Rgb{0.05f, 0.07f, 0.022f} : HedgeGreen;
 										Quad(Out, Prev[Pk], Here[Pk], Here[Pk + 1], Prev[Pk + 1], Toward, Shade(Leaf, Lit));
 									}
+								// [Nov 21] (where it stops, its end closed: rounded off, a nose of leaves a third of its width out
+								// from the last cut, fanned from the foot over the top to the foot)
+								if ((Cut == 0 && !OnBefore) || (Cut == Cuts && !OnAfter))
+								{
+									const double Outward = Cut == 0 ? -1.0 : 1.0;
+									const P3 Nose = At3(C.X + Dir.X * Outward * Ww * 0.35, Gc + Lo + Hh * 0.45, C.Z + Dir.Z * Outward * Ww * 0.35);
+									const P3 Toward = At3(C.X + Dir.X * Outward * 50.0, Gc + Lo + Hh * 0.6, C.Z + Dir.Z * Outward * 50.0);
+									for (int Pk = 0; Pk < 7; ++Pk)
+									{
+										const int Pn = (Pk + 1) % 7;
+										const double Up = (Prof[Pk][1] + Prof[Pn][1]) * 0.5;
+										Quad(Out, Here[Pk], Here[Pn], Nose, Here[Pk], Toward, Shade(HedgeGreen, (0.62 + 0.45 * Up) * (0.8 + 0.4 * Chance(C.X + Pk, C.Z, 46))));
+									}
+								}
 								for (int Pk = 0; Pk < 7; ++Pk) Prev[Pk] = Here[Pk];
 							}
 						};
@@ -618,6 +699,17 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 									Quad(*Walls, Edge(Pa, Ga, 1.05, -0.4), Edge(Pb, Gb, 1.05, -0.4), Edge(Pb, Gb, 0.86, Hb * 0.55), Edge(Pa, Ga, 0.86, Ha * 0.55), Far, Faced, false, 0.3f);
 									Quad(*Walls, Edge(Pa, Ga, 0.86, Ha * 0.55), Edge(Pb, Gb, 0.86, Hb * 0.55), Edge(Pb, Gb, 0.55, Hb), Edge(Pa, Ga, 0.55, Ha), Far, Faced, false, 0.55f);
 								}
+								// [Nov 21] (where it stops, its end faced as its sides are: the stone foot, then the shoulder)
+								for (int End = 0; End < 2; ++End)
+								{
+									if (End == 0 ? OnBefore : OnAfter) continue;
+									const P2 E = End == 0 ? Pa : Pb;
+									const double Ge = End == 0 ? Ga : Gb, He = End == 0 ? Ha : Hb, Outward = End == 0 ? -1.0 : 1.0;
+									const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.5, E.Z + Dir.Z * Outward * 50.0);
+									const auto Sec = [&](double Across, double Up) { return At3(E.X + Side.X * Across, Ge + Up, E.Z + Side.Z * Across); };
+									Quad(*Walls, Sec(1.05, -0.4), Sec(-1.05, -0.4), Sec(-0.86, He * 0.55), Sec(0.86, He * 0.55), Away, Faced, false, 0.3f);
+									Quad(*Walls, Sec(0.86, He * 0.55), Sec(-0.86, He * 0.55), Sec(-0.55, He), Sec(0.55, He), Away, Faced, false, 0.55f);
+								}
 								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + Ha, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + Hb, Pb.Z + Side.Z * 0.55),
 									At3(Pb.X - Side.X * 0.55, Gb + Hb, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + Ha, Pa.Z - Side.Z * 0.55), Sky, Turf);
 								if (RealHedges) HedgePlants(Pa, Pb, Ga + Ha, Gb + Hb, -0.2, 0.9, Out);
@@ -643,20 +735,6 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						if (!Kitted) Stretch(Foot, Top, -0.4, High, Colour, IsWall);
 						if (IsWall && Fine)
 						{
-							const P2 BitA = A + (B - A) * (double(K) / Bits), BitB = A + (B - A) * (double(K + 1) / Bits);
-							bool OnBefore = false, OnAfter = false;
-							if (Pc == 0 && Pa.DistanceTo(BitA) < 0.05)
-							{
-								if (K > 0) OnBefore = CarriesOn(Pa, I, K - 1, false);
-								else if (I > 0) OnBefore = CarriesOn(Pa, I - 1, BitsOf(I - 1) - 1, false);
-								else if (Closed) OnBefore = CarriesOn(Pa, LineN - 2, BitsOf(LineN - 2) - 1, false);
-							}
-							if (Pc == Count - 1 && Pb.DistanceTo(BitB) < 0.05)
-							{
-								if (K + 1 < Bits) OnAfter = CarriesOn(Pb, I, K + 1, true);
-								else if (I + 2 < LineN) OnAfter = CarriesOn(Pb, I + 1, 0, true);
-								else if (Closed) OnAfter = CarriesOn(Pb, 0, 0, true);
-							}
 							if (Kitted)
 							{
 								// (its whole 2 m lengths, stretched to fit the piece, each pitched up the slope between its
@@ -678,11 +756,13 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 									Pr.Stretch = float(Run / (Model == PropWallEnd ? 1.0 : 2.0));
 									Out.Props.push_back(Pr);
 								};
+								// ([Nov 21] a short piece too: its head as long as the piece, or half each when it stops at both ends)
 								const double Run = Pa.DistanceTo(Pb);
-								const bool HeadA = !OnBefore && Run >= 1.6, HeadB = !OnAfter && Run >= (HeadA ? 2.6 : 1.6);
-								const P2 La = HeadA ? Pa + Dir * 1.0 : Pa, Lb = HeadB ? Pb - Dir * 1.0 : Pb;
+								const bool HeadA = !OnBefore, HeadB = !OnAfter;
+								const double HeadLen = std::fmin(1.0, Run / (HeadA && HeadB ? 2.0 : 1.0));
+								const P2 La = HeadA ? Pa + Dir * HeadLen : Pa, Lb = HeadB ? Pb - Dir * HeadLen : Pb;
 								const double Lr = La.DistanceTo(Lb);
-								const int Lengths = Lr > 0.4 ? std::max(1, int(std::ceil(Lr / 2.0 - 0.2))) : 0;   // (each 0.7 to 1.25 of its own length)
+								const int Lengths = Lr > 0.1 ? std::max(1, int(std::ceil(Lr / 2.0 - 0.2))) : 0;   // (each 0.7 to 1.25 of its own length; [Nov 21] a short one, so no slot)
 								for (int Ln = 0; Ln < Lengths; ++Ln)
 								{
 									const P2 Q0 = La + (Lb - La) * (double(Ln) / Lengths), Q1 = La + (Lb - La) * (double(Ln + 1) / Lengths);
@@ -691,17 +771,6 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								if (HeadA) Lay(PropWallEnd, WallKind * WallVariants + (int(Chance(Pa.X, Pa.Z, 52) * WallVariants) % WallVariants), La, Pa);
 								if (HeadB) Lay(PropWallEnd, WallKind * WallVariants + (int(Chance(Pb.X, Pb.Z, 52) * WallVariants) % WallVariants), Lb, Pb);
 								continue;
-							}
-							// (an end face: across the wall, its foot to its top, and the top stones' end above it)
-							for (int End = 0; End < 2; ++End)
-							{
-								if (End == 0 ? OnBefore : OnAfter) continue;
-								const P2 E = End == 0 ? Pa : Pb;
-								const double Ge = End == 0 ? Ga : Gb;
-								const double Outward = End == 0 ? -1.0 : 1.0;
-								const P3 Away = At3(E.X + Dir.X * Outward * 50.0, Ge + 0.6, E.Z + Dir.Z * Outward * 50.0);
-								Quad(Into, At3(E.X + Side.X * Foot, Ge - 0.4, E.Z + Side.Z * Foot), At3(E.X - Side.X * Foot, Ge - 0.4, E.Z - Side.Z * Foot),
-									At3(E.X - Side.X * Top, Ge + High, E.Z - Side.Z * Top), At3(E.X + Side.X * Top, Ge + High, E.Z + Side.Z * Top), Away, Mask, false, 0.22f);
 							}
 						}
 						// (beenster, build 141: walls "low def". Near a road on the finest squares, a dry stone wall

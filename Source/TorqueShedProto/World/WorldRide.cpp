@@ -4168,10 +4168,12 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					return Q;
 				};
 				const double Total = Dist.back();
-				const double HeadLen = std::fmin(1.0, Total * 0.3);
-				const bool HeadA = !OnBefore && Total >= 1.6, HeadB = !OnAfter && Total >= (HeadA ? 2.6 : 1.6);
+				// ([Nov 21] beenster, build 166: "ALL hedges and walls need ends": a short bridge's wall is headed too,
+				// its head as long as the wall when it stops at one end, half of it each when at both)
+				const bool HeadA = !OnBefore, HeadB = !OnAfter;
+				const double HeadLen = std::fmin(1.0, Total / (HeadA && HeadB ? 2.0 : 1.0));
 				const double From = HeadA ? HeadLen : 0.0, To = Total - (HeadB ? HeadLen : 0.0);
-				const int Lengths = To - From > 0.2 ? std::max(1, int(std::round((To - From) / (2.0 * Size)))) : 0;
+				const int Lengths = To - From > 0.1 ? std::max(1, int(std::round((To - From) / (2.0 * Size)))) : 0;
 				for (int Ln = 0; Ln < Lengths; ++Ln)
 				{
 					const RideSceneBits::P3 Q0 = PointAt(From + (To - From) * Ln / Lengths), Q1 = PointAt(From + (To - From) * (Ln + 1) / Lengths);

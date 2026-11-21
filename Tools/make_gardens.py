@@ -24,7 +24,9 @@ Kinds (World/WorldRideGardens.cpp plants them; the game picks one model a plant,
     garden_hedge    1.5 m lengths of clipped front hedge: privet, beech, laurel, box, leylandii
 
 Frames and vertex data as the trees' (Tools/tree_models.py): metres, y up, the foot at y 0 (stems 0.3 m
-below); a hedge along x, -0.75 to 0.75. Tools/ue_build_rideuk.py (garden_kit) imports them.
+below); a hedge along x, -0.75 to 0.75, closed at both ends. Tools/ue_build_rideuk.py (garden_kit) imports them.
+
+    python Tools/make_gardens.py --hedges   (only the hedge lengths made again)
 """
 import json, math, os, sys
 import numpy as np
@@ -36,6 +38,7 @@ from export_buttertubs import write_glb     # noqa: E402
 
 OUT = os.path.join(os.path.dirname(HERE), "Data", "RideUK", "Gardens")
 HEDGE_LEN = 1.5
+END_SHARE = 1.0    # (a clipped hedge's end faces: leaves as dense as its sides')
 
 
 def shrub_spec(height, crown, leaf, bark, season, stems=5, flowers=None, attract=2500, step=None, sparse=0.2,
@@ -177,7 +180,7 @@ def clipped(rng, surface, inside, leaf, season, area, core):
     return mesh
 
 
-def box_prism(hx, h, w_top, w_foot, inset, nx=10, ny=6):
+def box_prism(hx, h, w_top, w_foot, inset, nx=10, ny=6, cap=True):
     """A clipped hedge's heart: its section (narrower at the top, rounded shoulders) inset by `inset`,
     as a closed grid along x from -hx to hx."""
     P, T = [], []
@@ -199,6 +202,18 @@ def box_prism(hx, h, w_top, w_foot, inset, nx=10, ny=6):
         for j in range(m - 1):
             a = i * m + j; b = a + 1; c = a + m; d = c + 1
             T += [[a, b, c], [b, d, c]]
+    # ([Nov 21] beenster, build 166 at Gigha: "ALL hedges and walls need ends": the heart closed at both
+    # ends too, a fan from the section's middle, so a run's last length shows no hollow inside)
+    if cap:
+        cz = sum(z for z, _ in ring) / m; cy = sum(y for _, y in ring) / m
+        for i, sgn in ((0, -1), (nx - 1, 1)):
+            c = len(P); P.append([xs[i], cy, cz])
+            for j in range(m - 1):
+                a = i * m + j; b = a + 1
+                T += [[c, b, a]] if sgn < 0 else [[c, a, b]]
+            # (and the foot, from the last ring point back to the first)
+            a = i * m + m - 1; b = i * m
+            T += [[c, b, a]] if sgn < 0 else [[c, a, b]]
     return np.array(P), np.array(T)
 
 
@@ -207,9 +222,12 @@ def hedge_length(rng, name, leaf, season, h, w_top, w_foot):
     hx = HEDGE_LEN / 2
 
     def surface(n):
-        # The cut face: two sides (a slight A), the flat top, the ends left open (lengths meet end to end).
-        side_a = 2 * hx * h; top_a = 2 * hx * w_top
-        k_side = int(n * side_a / (2 * side_a + top_a))
+        # The cut face: two sides (a slight A), the flat top, and ([Nov 21] beenster at Gigha, build 166: the
+        # hedges' ends were open, the dark heart showing) both ends clipped square too, as a real clipped
+        # hedge's are; where two lengths meet the ends sit inside each other, out of sight.
+        side_a = 2 * hx * h; top_a = 2 * hx * w_top; end_a = END_SHARE * h * (w_top + w_foot) / 2
+        k_side = int(n * side_a / (2 * side_a + top_a + 2 * end_a))
+        k_end = int(n * end_a / (2 * side_a + top_a + 2 * end_a))
         pts, nrm = [], []
         for sgn in (-1, 1):
             x = rng.uniform(-hx, hx, k_side); y = rng.uniform(0.04, h, k_side) ** 1.0
@@ -217,20 +235,29 @@ def hedge_length(rng, name, leaf, season, h, w_top, w_foot):
             pts.append(np.stack([x, y, sgn * w], 1))
             nn = np.zeros((k_side, 3)); nn[:, 2] = sgn; nn[:, 1] = 0.08
             nrm.append(nn)
-        kt = n - 2 * k_side
+        kt = n - 2 * k_side - 2 * k_end
         x = rng.uniform(-hx, hx, kt); z = rng.uniform(-w_top / 2, w_top / 2, kt)
         y = h + 0.03 * np.sin(x * 3.1 + rng.uniform(0, 6)) - 0.05 * (2 * z / w_top) ** 4
         pts.append(np.stack([x, y, z], 1)); nn = np.zeros((kt, 3)); nn[:, 1] = 1; nrm.append(nn)
+        for sgn in (-1, 1):
+            # (the end: across the section, kept a leaf in from its edges so nothing pokes out of a joint)
+            y = rng.uniform(0.04, h - 0.03, k_end)
+            w = (w_foot + (w_top - w_foot) * (y / h)) / 2 - 0.03
+            z = rng.uniform(-1, 1, k_end) * w
+            pts.append(np.stack([np.full(k_end, sgn * hx), y, z], 1))
+            nn = np.zeros((k_end, 3)); nn[:, 0] = sgn; nn[:, 1] = 0.08
+            nrm.append(nn)
         P = np.concatenate(pts); Nn = np.concatenate(nrm)
         return P, Nn / np.linalg.norm(Nn, axis=1, keepdims=True)
 
     def inside(P):
         w = (w_foot + (w_top - w_foot) * np.clip(P[:, 1] / h, 0, 1)) / 2
-        face = np.clip(1 - (w - np.abs(P[:, 2])) / 0.2, 0, 1)
+        face = np.clip(1 - np.minimum(w - np.abs(P[:, 2]), hx - np.abs(P[:, 0])) / 0.2, 0, 1)
         return np.clip(0.2 + 0.5 * face + 0.3 * np.clip(P[:, 1] / h - 0.8, 0, 1) * 5, 0.12, 1.0)
 
-    area = 2 * HEDGE_LEN * h + HEDGE_LEN * w_top
-    core = box_prism(hx * 1.0, h, w_top, w_foot, 0.08 if leaf[1] < 0.06 else 0.14)
+    area = 2 * HEDGE_LEN * h + HEDGE_LEN * w_top + 2 * END_SHARE * h * (w_top + w_foot) / 2
+    inset = 0.08 if leaf[1] < 0.06 else 0.14
+    core = box_prism(hx - inset, h, w_top, w_foot, inset)   # ([Nov 21] its ends in from the cut end as its sides are)
     mesh = clipped(rng, surface, inside, leaf, season, area, core)
     # A few stems at the foot, seen under it.
     for x in np.arange(-hx + 0.15, hx, 0.35):
@@ -261,23 +288,28 @@ def box_ball(rng):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    # (--hedges: only the clipped hedge lengths made again, the other plants and gardens.json's rows for them kept)
+    only_hedges = "--hedges" in sys.argv
     for f in os.listdir(OUT):
-        if f.endswith(".glb"):
+        if f.endswith(".glb") and (not only_hedges or f.startswith("SM_Tree_garden_hedge_")):
             os.remove(os.path.join(OUT, f))
     info = {}
+    if only_hedges:
+        info = {k: v for k, v in json.load(open(os.path.join(OUT, "gardens.json")))["models"].items() if not k.startswith("SM_Tree_garden_hedge_")}
 
     def save(name, mesh, extra):
         P, T = mesh.write(os.path.join(OUT, name + ".glb"), name, write_glb)
         info[name] = dict(extra, triangles=int(len(T)), height=round(float(P[:, 1].max()), 2))
         print("%-28s %6d triangles, %.2f m" % (name, len(T), P[:, 1].max()), flush=True)
 
-    for kind, specs in GROWN.items():
+    for kind, specs in (GROWN.items() if not only_hedges else []):
         for k, spec in enumerate(specs):
             near, meta = grown(kind, k, spec)
             save("SM_Tree_%s_%d" % (kind, k), near, {"kind": kind})
     # The clipped box ball joins the shrubs.
-    rng = np.random.default_rng(77)
-    save("SM_Tree_garden_shrub_%d" % len(GROWN["garden_shrub"]), box_ball(rng), {"kind": "garden_shrub", "form": "box ball"})
+    if not only_hedges:
+        rng = np.random.default_rng(77)
+        save("SM_Tree_garden_shrub_%d" % len(GROWN["garden_shrub"]), box_ball(rng), {"kind": "garden_shrub", "form": "box ball"})
     for k, (name, leaf, season, h, wt, wf) in enumerate(HEDGES):
         rng = np.random.default_rng(500 + k)
         mesh, meta = hedge_length(rng, name, leaf, season, h, wt, wf)
