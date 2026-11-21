@@ -88,6 +88,30 @@ class Mesh:
         rgba = np.clip(np.round(C * 255), 0, 255).astype(np.uint8)
         return P, T, N, rgba, UV
 
+    def season_cut(self, upto):
+        """[build 167] This mesh with the leaves that have fallen by a leaf drop of upto taken out (a
+        deciduous leaf, UV0 x 1, whose turn to fall, UV2 y, is in (0, min(upto, 1 - its keep, UV3 y)]):
+        the game draws it in place of the full one while that many leaves are down, as Nanite's
+        simplified clusters, past a few tens of metres, can't drop a leaf by moving it. None when no
+        leaf falls."""
+        out = Mesh()
+        cut = False
+        base = 0
+        for P, T, C, UV, U1, U2, U3 in zip(self.P, self.T, self.C, self.UV, self.UV1, self.UV2, self.UV3):
+            t = T - base
+            base += len(P)
+            gone = (np.abs(UV[:, 0] - 1.0) < 0.5) & (U2[:, 1] > 0) & (U2[:, 1] <= np.minimum(upto, 1.0 - U3[:, 1]))
+            keep_t = ~gone[t].all(axis=1)
+            if not keep_t.all():
+                cut = True
+            t = t[keep_t]
+            if not len(t):
+                continue
+            used = np.unique(t)
+            remap = np.full(len(P), -1, np.int64); remap[used] = np.arange(len(used))
+            out.add(P[used], remap[t], C[used], UV[used], U1[used], U2[used], U3[used])
+        return out if cut and out.n else None
+
     def write(self, path, name, write_glb):
         P, T, N, C, UV = self.arrays(weld=True)
         write_glb(path, P, T, N, C, name, UV, self.uv1(), self.uv2(), self.uv3())
@@ -882,30 +906,39 @@ def kmeans(P, k, rng, iters=12):
 
 
 def far_tree(sp, rng, N, parent, r, kids, leaves, ao_fn, wind):
-    """The far version: the trunk and main limbs as thin tubes, the leaves as lumpy masses (more and
-    smaller than they were, so a far crown has a ragged edge, not a few big balls). A deciduous
-    tree's masses grey to bare twigs' colour in winter (the material) rather than falling."""
+    """The far version: the trunk and main limbs as thin tubes, and the leaves as a few hundred broad
+    ragged leaf cards where the leaves are ([build 167] beenster: "please please please get rid of the
+    bubble trees everywhere forever": the lumpy spheres these were read as bubbles on sticks). Each card
+    takes its turn to fall as the leaves do, so the bare model (SEASON_CUTS) is the limbs alone."""
     far = Mesh()
     h = sp["height"]
-    k = int(sp["far_blobs"] * 1.6)
-    sub = leaves[rng.choice(len(leaves), min(len(leaves), 6000), replace=False)]
-    C, lab = kmeans(sub, k, rng)
-    base = lin(sp["leaf"][3])
     kind, hue, keep = season_of(sp)
-    for j in range(k):
-        m = sub[lab == j]
-        if len(m) < 8:
-            continue
-        ext = np.percentile(np.linalg.norm(m - C[j], axis=1), 80)
-        P, T = lumpy_sphere(C[j], ext * 1.0, rng, 1)
-        ao = ao_fn(P) * 0.8
-        # Darker and greyer than a single leaf: a crown seen from afar is mostly its own shade.
-        col = base * np.exp(rng.normal(0, 0.05, 3))
-        col = (col * 0.7 + col.mean() * 0.3) * 0.62
+    base = lin(sp["leaf"][3])
+    R = max(sp["crown"][2] * h, 1.0)
+    n = int(np.clip(len(leaves) / 5, 300, 700))
+    at = leaves[rng.choice(len(leaves), min(len(leaves), n), replace=False)]
+    centre = np.median(leaves, axis=0)
+    size = math.sqrt(1.3 * math.pi * R * R / (0.62 * len(at)))
+    # (a card: a ragged eight-sided leaf mass, fanned from its middle)
+    ang = np.linspace(0, 2 * np.pi, 9)[:-1]
+    for p in at:
+        out = p - centre; out[1] *= 0.6
+        out = out / max(np.linalg.norm(out), 1e-6)
+        nrm = out * 0.7 + rng.normal(0, 0.45, 3); nrm[1] += 0.35
+        nrm /= max(np.linalg.norm(nrm), 1e-6)
+        u, v = ring_frame(nrm)
+        s_ = size * rng.uniform(0.7, 1.3)
+        rad = s_ * 0.5 * rng.uniform(0.55, 1.0, 8)
+        P = np.vstack([p, p + (np.cos(ang)[:, None] * u + np.sin(ang)[:, None] * v) * rad[:, None]])
+        T = np.array([[0, 1 + k, 1 + (k + 1) % 8] for k in range(8)])
+        ao = ao_fn(P) * 0.85
+        col = base * np.exp(rng.normal(0, 0.06, 3))
+        col = (col * 0.8 + col.mean() * 0.2) * 0.85
+        rank = float(np.clip(rng.uniform(0.02, 1.0), 0.01, 1.0))
         far.add(P, T, np.concatenate([np.repeat(col[None], len(P), 0), ao[:, None]], 1),
                 np.stack([np.full(len(P), float(kind)), np.full(len(P), 0.5)], 1),
-                None, np.tile([0.0, -1.0], (len(P), 1)), np.tile([hue, keep], (len(P), 1)))
-    tubes(far, N, parent, r, kids, sp["bark"], rng, wind * 0, ao_fn, min_r=min(0.06, sp["trunk_r"] * h * 0.4), flare=False,
+                None, np.tile([0.0, rank], (len(P), 1)), np.tile([hue, keep], (len(P), 1)))
+    tubes(far, N, parent, r, kids, sp["bark"], rng, wind * 0, ao_fn, min_r=min(0.04, sp["trunk_r"] * h * 0.3), flare=False,
           bark_top=sp.get("bark_top"), coarse=2)
     return far
 
