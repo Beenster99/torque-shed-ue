@@ -1765,7 +1765,16 @@ def prop_kit(L):
             # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
             kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
             lods = spec["kinds"].get(kind, {}).get("lods")
-            if lods:
+            if not lods:
+                # ([caravans, build 166] reduced LODs of these models break up: each triangle has its own corners,
+                # so the reducer cuts holes. A model without "lods" is drawn whole, its old LODs taken off.)
+                try:
+                    if sme.get_lod_count(mesh) > 1:
+                        sme.remove_lods(mesh)
+                        log("props: %s: LODs removed" % name)
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: LODs of %s not removed (%s)" % (name, e))
+            elif lods:
                 try:
                     settings = [unreal.EditorScriptingMeshReductionSettings(1.0, 1.0)]
                     for keep, screen in zip((0.5, 0.25, 0.1), lods):

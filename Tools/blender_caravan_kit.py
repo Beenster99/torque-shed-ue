@@ -17,8 +17,8 @@ y up in the file). World/WorldRideTownLife.cpp (RidePlan::TownLifeProps) puts th
 
 A kind's models are all the same height (the game scales a model's bounds to the kit's height), so each kind's
 roof line is shared. Every model is length along x: a tourer's A-frame at +x (the code-made caravan's), a
-static's door side to +y (the game's -z). Lean on triangles: the game draws each as instances with LODs made on
-import (Tools/ue_build_rideuk.py prop_kit, the kit's "lods").
+static's door side to +y (the game's -z). Lean on triangles: the game draws each as instances drawn whole (no
+reduced LODs: build 166 showed UE's reducer cutting holes in them).
 
 Needs Blender's Python module (pip install bpy):
 
@@ -396,8 +396,8 @@ def main():
         if min(y0 for y0, _ in spans) < -0.01:
             raise SystemExit("%s: a model reaches below its foot" % kind)
         # (lods: Tools/ue_build_rideuk.py prop_kit makes the model's LODs on import, at these screen sizes)
-        row = {"words": [], "reach": REACH[kind], "height": round(float(max(tall)), 3), "shadow": SHADOW[kind], "credit": "",
-               "lods": [0.35, 0.12, 0.04]}
+        # (no "lods": build 166 showed UE's reduced LODs of these cut holes in them; drawn whole, they are small)
+        row = {"words": [], "reach": REACH[kind], "height": round(float(max(tall)), 3), "shadow": SHADOW[kind], "credit": ""}
         head = '  "%s": ' % kind
         for i, ln in enumerate(lines):
             if ln.startswith(head):
