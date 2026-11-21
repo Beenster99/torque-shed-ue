@@ -173,6 +173,7 @@ void Prepare(const TorqueWorld::RideMesh* M, FRidePrepared& Out)
 		Pt.Position = FVector(double(M->Pos[V]) * 100.0, double(M->Pos[V + 2]) * 100.0, double(M->Pos[V + 1]) * 100.0);
 		Pt.Normal = FVector(double(M->Nrm[V]), double(M->Nrm[V + 2]), double(M->Nrm[V + 1]));
 		Pt.UV0 = FVector2D(double(M->Uv[size_t(I) * 2]), double(M->Uv[size_t(I) * 2 + 1]));
+		Pt.UV1 = M->Uv1.size() >= size_t(Count) * 2 ? FVector2D(double(M->Uv1[size_t(I) * 2]), double(M->Uv1[size_t(I) * 2 + 1])) : FVector2D::ZeroVector;   // [real water]
 		Pt.Color = bColoured ? FLinearColor(M->Col[V], M->Col[V + 1], M->Col[V + 2], bAlpha ? M->Alpha[size_t(I)] : 1.0f).ToFColor(false) : FColor(255, 255, 255);
 		Pt.Tangent = FProcMeshTangent();
 		Sec.SectionLocalBox += Pt.Position;
@@ -1054,11 +1055,12 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
 		TArray<FVector> Points;
 		TArray<FVector> Normals;
-		TArray<FVector2D> Uvs;
+		TArray<FVector2D> Uvs, Uvs1;
 		TArray<int32> Triangles;
 		TArray<FLinearColor> Colours;
 		const bool bColoured = Mesh->Col.size() == Mesh->Pos.size();
 		const bool bAlpha = Mesh->Alpha.size() == size_t(Count);
+		const bool bUv1 = Mesh->Uv1.size() >= size_t(Count) * 2;   // [real water] (the water's depth and flow, the land's shore)
 		if (bColoured) Colours.Reserve(Count);
 		Points.Reserve(Count);
 		Normals.Reserve(Count);
@@ -1070,6 +1072,7 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 			Points.Add(FVector(double(Mesh->Pos[V]) * 100.0, double(Mesh->Pos[V + 2]) * 100.0, double(Mesh->Pos[V + 1]) * 100.0));
 			Normals.Add(FVector(double(Mesh->Nrm[V]), double(Mesh->Nrm[V + 2]), double(Mesh->Nrm[V + 1])));
 			Uvs.Add(FVector2D(double(Mesh->Uv[size_t(I) * 2]), double(Mesh->Uv[size_t(I) * 2 + 1])));
+			if (bUv1) Uvs1.Add(FVector2D(double(Mesh->Uv1[size_t(I) * 2]), double(Mesh->Uv1[size_t(I) * 2 + 1])));
 			if (bColoured) Colours.Add(FLinearColor(Mesh->Col[V], Mesh->Col[V + 1], Mesh->Col[V + 2], bAlpha ? Mesh->Alpha[size_t(I)] : 1.0f));
 		}
 		// (the plan winds its triangles anticlockwise seen from above, which is Unreal's front face too:
@@ -1077,7 +1080,8 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 		for (uint32 Index : Mesh->Idx) Triangles.Add(int32(Index));
 		// (the colours are kept as they are, linear: M_RideRoad reads the vertex colour as the road's own,
 		// M_RideStone and M_RideMasonry as their masks)
-		Part->CreateMeshSection_LinearColor(Section, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
+		if (bUv1) Part->CreateMeshSection_LinearColor(Section, Points, Triangles, Normals, Uvs, Uvs1, TArray<FVector2D>(), TArray<FVector2D>(), Colours, TArray<FProcMeshTangent>(), bCollide, false);
+		else Part->CreateMeshSection_LinearColor(Section, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
 		if (Each.Value) Part->SetMaterial(Section, Each.Value);
 		++Section;
 	}
