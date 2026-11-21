@@ -149,6 +149,8 @@ public:
 	// and whether it's been put out (an older save hasn't: it gets the starting kit).
 	UPROPERTY() TArray<uint8> Furniture;
 	UPROPERTY() bool bFurnished = false;
+	// [posters] Whether the makers' logo posters have been hung (an older save's shed gets them once).
+	UPROPERTY() bool bBrandPosters = false;
 	// [fluids] Whether the shed keeps fluids (an older save doesn't: every bike's tank, oil and brake
 	// fluid are filled when it loads, so nobody loads in stranded), and the pump's last sale.
 	UPROPERTY() bool bFluids = false;

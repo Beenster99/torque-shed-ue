@@ -83,6 +83,7 @@ struct FData
 	TArray<TPair<FName, FString>> Kinds;
 	FYard Yard;
 	TArray<FPlaced> ShedStart;
+	TArray<FPlaced> BrandPosters;   // [posters]
 };
 
 static const FData& Data()
@@ -120,6 +121,9 @@ static const FData& Data()
 				O->TryGetBoolField(TEXT("solid"), M.bSolid);
 				O->TryGetBoolField(TEXT("sold"), M.bSold);
 				if (O->TryGetNumberField(TEXT("sit"), M.Sit)) M.Sit *= 100.0;   // a seat: how high you sit (m in the file)
+				FString MeshId;   // [posters]
+				if (O->TryGetStringField(TEXT("mesh"), MeshId) && !MeshId.IsEmpty()) M.MeshId = FName(*MeshId);
+				O->TryGetStringField(TEXT("picture"), M.Picture);
 				D.Models.Add(M.Id, M);
 			}
 	}
@@ -162,12 +166,31 @@ static const FData& Data()
 		FPlaced{FName(TEXT("seat_chair")), FTransform(FRotator(0.0, 90.0, 0.0), FVector(595.0, 75.0, 0.0))},
 		FPlaced{FName(TEXT("shelf_standard")), FTransform(FRotator(0.0, 90.0, 0.0), FVector(615.0, -220.0, 0.0))}})
 		if (D.Models.Contains(P.Model)) D.ShedStart.Add(P);
+	// [posters] The six makers' logo posters inside the front wall (its face at y 548), three either side
+	// of the roller door (x -230 .. 230, its yellow posts to 246), facing in, their middles 2.15 m up:
+	// over the bins on the west side, over the switch boxes (to 146 up), the repair bench (1.2 m) and the
+	// parts washer (1.6 m) on the east side, clear of the walls' corners (x +-648).
+	{
+		struct FBrandAt { const TCHAR* Model; double X; };
+		const FBrandAt Brands[] = {{TEXT("poster_brand_bsx_logo"), -330.0}, {TEXT("poster_brand_corvano_logo"), -440.0},
+			{TEXT("poster_brand_kazeda_logo"), -550.0}, {TEXT("poster_brand_varga_logo"), 330.0}, {TEXT("poster_brand_lodestar_logo"), 440.0},
+			{TEXT("poster_brand_rheinhart_logo"), 550.0}};
+		for (const FBrandAt& B : Brands)
+		{
+			const FPlaced P{FName(B.Model), FTransform(FRotator(0.0, 180.0, 0.0), FVector(B.X, 547.5, 215.0))};
+			if (!D.Models.Contains(P.Model)) continue;
+			D.BrandPosters.Add(P);
+			D.ShedStart.Add(P);
+		}
+	}
 	UE_LOG(LogTemp, Log, TEXT("Torque furniture: %d models, yard %d to start, %d fixed, %d marks, %d words"), D.Models.Num(),
 		D.Yard.Start.Num(), D.Yard.Fixed.Num(), D.Yard.Marks.Num(), D.Yard.Words.Num());
 	return D;
 }
 
 bool HasLabel(const FModel& M) { return M.Kind == FName(TEXT("shelf")); }
+bool IsPoster(const FModel& M) { return !M.Picture.IsEmpty(); }   // [posters]
+bool Binnable(const FModel& M) { return IsPhotoPrint(M) || IsPoster(M); }
 bool IsTv(const FModel& M) { return M.Kind == FName(TEXT("tv")); }
 bool IsPhotoPrint(const FModel& M)
 {
@@ -183,6 +206,46 @@ FName BinSpot()
 {
 	static const FName Bin(TEXT("bin"));
 	return Bin;
+}
+
+// [posters] The frame's paper (make_props.py poster_frame: 59 x 84 cm, its face 0.8 cm out from the
+// wall, the glass from 0.85): the picture card's back just on it, the card 0.02 cm thick.
+UStaticMeshComponent* AddPosterArt(UStaticMeshComponent* Frame, const FModel& M)
+{
+	UStaticMesh* Card = TorquePhotos::PrintMesh();
+	if (!Frame || !Card || !IsPoster(M)) return nullptr;
+	// The paper's size, scaled with the model when it isn't the 0.6 x 0.85 m frame.
+	const double PaperW = FMath::Max(M.Size.X - 1.0, 1.0), PaperH = FMath::Max(M.Size.Y - 1.0, 1.0);
+	UStaticMeshComponent* Art = NewObject<UStaticMeshComponent>(Frame->GetOwner());
+	Art->SetStaticMesh(Card);
+	Art->SetMobility(EComponentMobility::Movable);
+	Art->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Art->SetGenerateOverlapEvents(false);
+	Art->SetCastShadow(false);
+	Art->ComponentTags.Add(TEXT("FabLook"));   // (outlined with its frame, gone with it: Unmake)
+	if (UMaterialInterface* Paper = TorquePhotos::PaperMaterial())
+		for (int32 I = 0; I < Art->GetNumMaterials(); ++I) Art->SetMaterial(I, Paper);
+	Art->SetupAttachment(Frame);
+	Art->SetRelativeTransform(FTransform(FRotator::ZeroRotator, FVector(0.0, 0.81, 0.0),
+		FVector(PaperW / TorquePhotos::PrintW, 0.02 / TorquePhotos::PrintT, PaperH / TorquePhotos::PrintH)));
+	Art->RegisterComponent();
+	return Art;
+}
+
+bool DressPosterArt(UStaticMeshComponent* Art, const FModel& M)
+{
+	if (!Art || !IsPoster(M)) return true;
+	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), M.Picture));
+	// 1024 px tall at most (a poster seen across the shed: ~4 MB with its mips).
+	UTexture2D* Tex = TorquePhotos::Image(Path, 1024);
+	if (!Tex)
+	{
+		if (!TorquePhotos::Failed(Path)) return false;   // (still loading)
+		UE_LOG(LogTemp, Warning, TEXT("Torque furniture: %s's picture %s didn't load: blank paper"), *M.Id.ToString(), *Path);
+		return true;
+	}
+	if (UMaterialInterface* Mat = TorquePhotos::PrintMaterial(Art, Tex)) Art->SetMaterial(0, Mat);
+	return true;
 }
 
 FString NameOf(const FTorqueFurniture& F)
@@ -206,6 +269,7 @@ const FModel* Find(FName Model) { return Data().Models.Find(Model); }
 const TArray<TPair<FName, FString>>& Kinds() { return Data().Kinds; }
 const FYard& Yard() { return Data().Yard; }
 const TArray<FPlaced>& ShedStart() { return Data().ShedStart; }
+const TArray<FPlaced>& BrandPosters() { return Data().BrandPosters; }
 
 TArray<FName> SoldOfKind(FName Kind)
 {
@@ -228,7 +292,9 @@ UStaticMesh* Mesh(FName Model)
 	static TMap<FName, TWeakObjectPtr<UStaticMesh>> Cache;
 	if (const TWeakObjectPtr<UStaticMesh>* C = Cache.Find(Model))
 		if (C->IsValid()) return C->Get();
-	const FString Id = Model.ToString();
+	// [posters] A model drawn with another's mesh (every framed poster: poster_frame).
+	const FModel* Own = Find(Model);
+	const FString Id = (Own && !Own->MeshId.IsNone() ? Own->MeshId : Model).ToString();
 	UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Shed/Props/%s/SM_%s.SM_%s"), *Id, *Id, *Id));
 	Cache.Add(Model, M);
 	return M;
@@ -592,7 +658,7 @@ FString UTorqueBuildSubsystem::CheckFurniture(int32 Peer, const FTorqueShedReque
 		return F && F->Mover == Peer ? FString() : FString(TEXT("You're not moving that."));
 	case ETorqueShedAct::ReleaseFurniture:
 		if (!F || F->Mover != Peer) return TEXT("You're not moving that.");
-		if (R.Spot == TorqueFurniture::BinSpot()) return M && TorqueFurniture::IsPhotoPrint(*M) ? FString() : FString(TEXT("Only a photo print goes in the bin."));   // [drone]
+		if (R.Spot == TorqueFurniture::BinSpot()) return M && TorqueFurniture::Binnable(*M) ? FString() : FString(TEXT("Only a photo print or a poster goes in the bin."));   // [drone] [posters]
 		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("Not out there: keep it in the shed or the yard.");
 		return FString();
 	case ETorqueShedAct::OrderFurniture:
@@ -647,11 +713,13 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 	case ETorqueShedAct::ReleaseFurniture:
 	{
 		if (!F) return FString();
-		if (R.Spot == TorqueFurniture::BinSpot())   // [drone] a photo print in the bin
+		if (R.Spot == TorqueFurniture::BinSpot())   // [drone] a photo print in the bin, [posters] or a poster
 		{
 			const int32 Gone = F->Id;
+			const bool bPoster = M && TorqueFurniture::IsPoster(*M);
 			Furnishings.RemoveAll([Gone](const FTorqueFurniture& X) { return X.Id == Gone; });
-			return TEXT("The print's in the bin (the photo's still in your album).");
+			return bPoster ? TEXT("The poster's in the bin (the parts computer sells another: Shed equipment, Wall posters).")
+				: TEXT("The print's in the bin (the photo's still in your album).");
 		}
 		const FVector At = R.Place.GetLocation();
 		const bool bLifted = M && (M->bWall || M->Small());
@@ -1112,6 +1180,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 			TFI::Unmake(*Have);
 			Drawn.Remove(F.Id);
 			PrintsShown.Remove(F.Id);
+			PosterArtWaiting.Remove(F.Id);   // [posters]
 			Have = nullptr;
 		}
 		if (!Have)
@@ -1121,6 +1190,9 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 			Drawn.Add(F.Id, C);
 			DrawnModel.Add(F.Id, F.Model);
 			Have = Drawn.Find(F.Id);
+			// [posters] Its picture under the glass (blank paper till it's loaded: dressed below).
+			if (const TorqueFurniture::FModel* PM = TorqueFurniture::Find(F.Model); PM && TorqueFurniture::IsPoster(*PM))
+				if (UStaticMeshComponent* Art = TorqueFurniture::AddPosterArt(C, *PM)) PosterArtWaiting.Add(F.Id, Art);
 		}
 		UStaticMeshComponent* C = *Have;
 		FTransform Xf = F.Xf;
@@ -1134,6 +1206,11 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		const FTransform Draw = FTransform(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0)) * Xf;
 		if (!C->GetComponentTransform().Equals(Draw, 0.01)) C->SetWorldTransform(Draw);
 		if (F.Model == TorqueFurniture::PhotoPrintModel()) DressPrint(F.Id, C, F.Label);   // [drone] its photo on it
+		if (const TWeakObjectPtr<UStaticMeshComponent>* Art = PosterArtWaiting.Find(F.Id))   // [posters] its picture, once it's loaded
+		{
+			const TorqueFurniture::FModel* PM = TorqueFurniture::Find(F.Model);
+			if (!Art->IsValid() || !PM || TorqueFurniture::DressPosterArt(Art->Get(), *PM)) PosterArtWaiting.Remove(F.Id);
+		}
 		// A Fab look is outlined with its piece (the look outline marks the piece's own mesh, which
 		// isn't drawn: the Fab model in front of it would hide the outline's depth test).
 		for (USceneComponent* Kid : C->GetAttachChildren())
@@ -1151,6 +1228,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 			DrawnModel.Remove(It.Key());
 			PrintsShown.Remove(It.Key());
 			PrintTryAt.Remove(It.Key());
+			PosterArtWaiting.Remove(It.Key());   // [posters]
 			It.RemoveCurrent();
 		}
 	DrawLabels();

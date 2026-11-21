@@ -363,6 +363,8 @@ void ATorqueShopPreview::Clear()
 	bVessel = false;
 	Vessel = TorqueFluidModels::FVessel();
 	VesselPart = NAME_None;
+	PosterArt.Reset();   // [posters]
+	PosterModel = NAME_None;
 }
 
 void ATorqueShopPreview::Rebuild(const FString& NewKey, TFunctionRef<void()> Make)
@@ -441,6 +443,14 @@ void ATorqueShopPreview::ShowKit(FName Model)
 		C->SetRelativeRotation(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0));
 		C->RegisterComponent();
 		Shown.Add(C);
+		// [posters] A poster with its picture under the glass (dressed in Tick once it's loaded).
+		if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(Model); M && TorqueFurniture::IsPoster(*M))
+			if (UStaticMeshComponent* Art = TorqueFurniture::AddPosterArt(C, *M))
+			{
+				Shown.Add(Art);
+				PosterArt = Art;
+				PosterModel = Model;
+			}
 	});
 }
 
@@ -555,6 +565,11 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 	Capture->bCaptureEveryFrame = bOn;
 	SetActorHiddenInGame(!bOn);
 	if (!bOn) return;
+	if (PosterArt.IsValid())   // [posters] its picture, once it's loaded
+	{
+		const TorqueFurniture::FModel* M = TorqueFurniture::Find(PosterModel);
+		if (!M || TorqueFurniture::DressPosterArt(PosterArt.Get(), *M)) PosterArt.Reset();
+	}
 
 	if (bSpin && !bDrag) Yaw = FMath::Fmod(Yaw + TSPI::SpinRate * DeltaSeconds, 360.0);
 	Pivot->SetRelativeRotation(FRotator(0.0, Yaw, 0.0));

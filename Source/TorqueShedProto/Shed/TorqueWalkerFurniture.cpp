@@ -117,8 +117,8 @@ bool ATorqueWalker::FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust
 			R.Amount = bBack ? -TWFI::TurnStep : TWFI::TurnStep;
 			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 		}
-		// [drone] A photo print in the bin (its photo's still in the album).
-		if (bBinJust && M && TorqueFurniture::IsPhotoPrint(*M))
+		// [drone] A photo print in the bin (its photo's still in the album), [posters] or a poster.
+		if (bBinJust && M && TorqueFurniture::Binnable(*M))
 		{
 			FTorqueShedRequest R;
 			R.Kind = ETorqueShedAct::ReleaseFurniture;
@@ -197,6 +197,7 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 			F->Turn, F->Reach), Prompt, 0.65f});
 		if (!M->bWall && !M->Small()) Lines.Add({TEXT("Square to a wall, it snaps flush to it and lines up with the kit beside it."), Info, 0.55f});
 		if (TorqueFurniture::IsPhotoPrint(*M)) Lines.Add({TEXT("Delete / Circle: put it in the bin (print it again from the album, Y / D-pad down)"), Prompt, 0.65f});   // [drone]
+		else if (TorqueFurniture::IsPoster(*M)) Lines.Add({TEXT("Delete / Circle: put it in the bin (the parts computer sells it again)"), Prompt, 0.65f});   // [posters]
 		if (NoteFor > 0.0) Lines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
 		return true;
 	}

@@ -1554,6 +1554,10 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Distance = 260.0;
 		}
 		else if (What == TEXT("board")) { At = FVector(-643.0, 60.0, 255.0); Away = FVector(1.0, 0.0, 0.0); Distance = 300.0; }
+		// [posters] The makers' logo posters inside the front wall either side of the roller door
+		// (TorqueFurniture::BrandPosters): the west three, and the east three, from the bays' side.
+		else if (What == TEXT("posters")) { At = FVector(-440.0, 547.0, 215.0); Away = FVector(0.15, -1.0, 0.0).GetSafeNormal(); Distance = 330.0; }
+		else if (What == TEXT("posterseast")) { At = FVector(440.0, 547.0, 215.0); Away = FVector(-0.15, -1.0, 0.0).GetSafeNormal(); Distance = 330.0; }
 		else if (What == TEXT("monitor")) { At = FVector(613.5, 190.0, 110.0); Away = FVector(-1.0, 0.0, 0.0); Distance = 110.0; }
 		else if (What == TEXT("booth")) { At = FVector(1160.0, 0.0, 110.0); Away = FVector(-1.0, 0.25, 0.0).GetSafeNormal(); Distance = 430.0; }
 		// The hall from the back wall (between bays 2 and 3) to the open roller door: the daylight in

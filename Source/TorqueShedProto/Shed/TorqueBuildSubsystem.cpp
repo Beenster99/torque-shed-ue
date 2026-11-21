@@ -431,6 +431,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		int32 FurnNext = FurnitureNextId;
 		SerializeFurniture(FurnAr, false, List, FurnNext);
 		S.bFurnished = bFurnished;
+		S.bBrandPosters = true;   // [posters] (a fresh shed has them, an older one got them as it loaded)
 	}
 	S.bFluids = true;   // [fluids]
 	S.PumpLitres = PumpLitres;
@@ -561,6 +562,20 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 			}
 		}
 		if (!bRead) FurnishFresh();
+		// [posters] A shed saved before the makers' logo posters: hung once, where a new shed has them
+		// (one already up, ordered or moved, isn't hung twice; binned after this, they stay binned).
+		else if (!S.bBrandPosters)
+		{
+			int32 Hung = 0;
+			for (const TorqueFurniture::FPlaced& P : TorqueFurniture::BrandPosters())
+			{
+				if (Furnishings.ContainsByPredicate([&P](const FTorqueFurniture& X) { return X.Model == P.Model; })) continue;
+				Furnishings.Add({FurnitureNextId++, P.Model, P.Xf, 0, 0.0f});
+				++Hung;
+			}
+			if (Hung > 0) TorqueFurniture::Touch();
+			UE_LOG(LogTemp, Log, TEXT("Torque furniture: hung the makers' %d logo posters in an older shed"), Hung);
+		}
 	}
 	Paint = FTorquePaintBay::Starter();
 	if (S.PaintBay.Num() > 0)
