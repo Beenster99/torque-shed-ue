@@ -1172,6 +1172,7 @@ void ATorqueWalker::FindTarget()
 	Target = ETorqueLook::None;
 	TargetBay = INDEX_NONE;
 	TargetSlot = NAME_None;
+	TargetCaliper = NAME_None;
 	TargetItem = TargetEngine = 0;
 	TargetPlace = nullptr;
 	TargetMesh.Reset();
@@ -1271,33 +1272,24 @@ void ATorqueWalker::FindTarget()
 			TargetBay = Bike ? Bike->Bay : INDEX_NONE;
 			TargetSlot = TorqueShedModel::SlotTag(Pick->C.Get());
 			TargetItem = B->ItemOn(TargetBay, TargetSlot);
-			// [brake pads, beenster Nov 20] The pads sit inside the caliper, so the aim mostly lands on the caliper.
-			// Loose pads in a bolted caliper are looked at for the pads, so the wrench bolts them up (164 test). Bolted
-			// pads win only when you aim at the pads themselves (within a centimetre of them), so the caliper's own
-			// bolts can still be picked round the edge and on its bracket (165 test).
+			// [brake pads, beenster Nov 20] The pads sit inside the caliper, so the aim mostly lands on the caliper,
+			// and a centimetre either way picks the next part along. A bolted caliper with pads in it is looked at
+			// for the pads (work: bolt or unbolt them, 164 test), and the caliper itself is the wrench's alt (165
+			// test: it couldn't be unbolted with the pads in); aiming at the pads gives the same pair.
 			static const FName FrontCaliper(TEXT("front_caliper")), RearCaliper(TEXT("rear_caliper"));
-			if (Bike && (TargetSlot == FrontCaliper || TargetSlot == RearCaliper))
+			static const FName FrontPads(TEXT("front_pads")), RearPads(TEXT("rear_pads"));
+			const bool bOnCaliper = TargetSlot == FrontCaliper || TargetSlot == RearCaliper;
+			if (bOnCaliper || TargetSlot == FrontPads || TargetSlot == RearPads)
 			{
-				const FName PadsSlot(TargetSlot == FrontCaliper ? TEXT("front_pads") : TEXT("rear_pads"));
+				const bool bFrontBrake = TargetSlot == FrontCaliper || TargetSlot == FrontPads;
+				const FName PadsSlot = bFrontBrake ? FrontPads : RearPads, CaliperSlot = bFrontBrake ? FrontCaliper : RearCaliper;
 				const int32 PadsItem = B->ItemOn(TargetBay, PadsSlot);
-				const TArray<FName> LooseNow = B->LooseSlots(TargetBay);
-				bool bToPads = PadsItem != 0 && !LooseNow.Contains(TargetSlot) && LooseNow.Contains(PadsSlot);
-				if (!bToPads && PadsItem != 0)
-				{
-					TArray<UPrimitiveComponent*> Prims;
-					Bike->GetComponents<UPrimitiveComponent>(Prims);
-					for (const UPrimitiveComponent* Prim : Prims)
-						if (Prim && Prim->IsVisible() && TorqueShedModel::SlotTag(Prim) == PadsSlot
-							&& Prim->Bounds.GetBox().ExpandBy(1.0).IsInsideOrOn(TargetPoint))
-						{
-							bToPads = true;
-							break;
-						}
-				}
-				if (bToPads)
+				const bool bCaliperOn = B->ItemOn(TargetBay, CaliperSlot) != 0 && !B->LooseSlots(TargetBay).Contains(CaliperSlot);
+				if (PadsItem != 0 && bCaliperOn)
 				{
 					TargetSlot = PadsSlot;
 					TargetItem = PadsItem;
+					TargetCaliper = CaliperSlot;
 				}
 			}
 		}
@@ -1699,6 +1691,17 @@ void ATorqueWalker::MakePlan()
 			Plan.Request.Bay = OnBay;
 			Plan.Request.Engine = TargetEngine;
 			Plan.Request.Slot = TargetSlot;
+			// [brake pads] On the pads in a caliper: the work button does the pads, the alt the caliper's own bolts.
+			if (TargetCaliper != NAME_None && OnBay != INDEX_NONE)
+			{
+				Plan.Verb = bBolted ? TEXT("unbolt the brake pads") : TEXT("bolt the brake pads up");
+				const bool bCaliperBolted = B->IsBolted(OnBay, TargetCaliper, 0);
+				AltPlan = MakeOne(bCaliperBolted ? ETorqueShedAct::Unbolt : ETorqueShedAct::Bolt, 1.6,
+					bCaliperBolted ? TEXT("unbolt the caliper") : TEXT("bolt the caliper up"));
+				AltPlan.Request.Bay = OnBay;
+				AltPlan.Request.Engine = 0;
+				AltPlan.Request.Slot = TargetCaliper;
+			}
 		}
 		break;
 	case ETorqueTool::Brush:

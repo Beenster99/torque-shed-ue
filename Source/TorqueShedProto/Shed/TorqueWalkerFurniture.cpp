@@ -91,6 +91,7 @@ void ATorqueWalker::FindFurniture()
 	TargetItem = TargetEngine = 0;
 	TargetBay = INDEX_NONE;
 	TargetSlot = NAME_None;
+	TargetCaliper = NAME_None;
 	TargetPlace = nullptr;
 	TargetPoint = Start + Look * FurnDist;
 }
