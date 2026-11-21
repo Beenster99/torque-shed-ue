@@ -1988,6 +1988,64 @@ int main(int Argc, char** Argv)
 			std::printf("laps '%s': %d laps from a walk of %.0f m (once round %zu points)%s\n", Name.c_str(), Done, Clock * 40.0, Once.size(), Laps.Now().Spoilt ? " spoilt" : "");
 		}
 	}
+	if (std::getenv("WORLD_RIDE_OFFMAP"))
+	{
+		// [junction priority 168] (how far the ride's road as laid strays from the map's line of its route)
+		const Region& G = Plan->Area.Roads;
+		std::vector<P2> Raw;
+		for (const RidePlan::PathNode& N : Plan->PathNodes)
+			if (N.Next >= 0)
+				for (const P2& P : G.LineFrom(N.Next, N.Node)) Raw.push_back(P);
+		const Frame Fr(G.FrameLat, G.FrameLon);
+		double Worst = 0.0;
+		bool In = false;
+		double RunFrom = 0.0, RunWorst = 0.0;
+		P2 RunAt;
+		for (size_t I = 0; I < Plan->Road.size(); ++I)
+		{
+			const P2 Q = Plan->Road[I].At;
+			double Near = 1e18;
+			for (size_t K = 0; K + 1 < Raw.size(); ++K)
+			{
+				const P2 A = Raw[K], D = Raw[K + 1] - A, V = Q - A;
+				const double L2 = D.X * D.X + D.Z * D.Z, T = L2 > 1e-9 ? std::clamp((V.X * D.X + V.Z * D.Z) / L2, 0.0, 1.0) : 0.0;
+				Near = std::fmin(Near, Q.DistanceTo(A + D * T));
+			}
+			Worst = std::fmax(Worst, Near);
+			if (Near > 4.0 && !In) { In = true; RunFrom = Plan->Road[I].Along; RunWorst = 0.0; }
+			if (In && Near > RunWorst) { RunWorst = Near; RunAt = Q; }
+			if (In && (Near < 4.0 || I + 1 == Plan->Road.size()))
+			{
+				In = false;
+				const Geo W = Fr.ToGeo(RunAt.X, RunAt.Z);
+				std::printf("OFFMAP %.0f..%.0f m: up to %.1f m off the map at %.5f,%.5f (%s)\n", RunFrom, Plan->Road[I].Along, RunWorst, W.Lat, W.Lon, Plan->FactAt(RunFrom) ? Plan->FactAt(RunFrom)->Name.c_str() : "");
+			}
+		}
+		std::printf("OFFMAP worst %.1f m\n", Worst);
+	}
+	if (const char* MapDump = std::getenv("WORLD_RIDE_MAPDUMP"))
+	{
+		// [junction priority 168] (the map's roads within R m of lat,lon, for a plain map beside a picture:
+		// "E class|name x z x z ...", "R x z ..." the ride's road as laid, "J x z" the point; m east and south of it)
+		double La = 0.0, Lo = 0.0, Rr = 150.0;
+		std::sscanf(MapDump, "%lf,%lf,%lf", &La, &Lo, &Rr);
+		const Region& G = Plan->Area.Roads;
+		const Frame Fr(G.FrameLat, G.FrameLon);
+		const P2 C = Fr.FromGeo(La, Lo);
+		for (size_t E = 0; E < G.Edges.size(); ++E)
+		{
+			bool Near1 = false;
+			for (const P2& P : G.Edges[E].Line) Near1 = Near1 || P.DistanceTo(C) < Rr;
+			if (!Near1) continue;
+			std::printf("MAPE %s|%s", G.ClassOf(int(E)).c_str(), G.NameOf(int(E)).c_str());
+			for (const P2& P : G.Edges[E].Line) std::printf(" %.1f %.1f", P.X - C.X, P.Z - C.Z);
+			std::printf("\n");
+		}
+		std::printf("MAPR");
+		for (const RoadPoint& P : Plan->Road)
+			if (P.At.DistanceTo(C) < Rr * 1.5) std::printf(" %.1f %.1f", P.At.X - C.X, P.At.Z - C.Z);
+		std::printf("\n");
+	}
 	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
 	{
 		// (debug: the laid roads within R of a point X,Z off the ride's start, X,Z,R, with their setts flags)

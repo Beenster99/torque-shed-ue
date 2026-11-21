@@ -19,6 +19,11 @@
 
 namespace TorqueWorld
 {
+namespace RideNavBits   // [junction priority 168] (WorldRideNav.cpp's)
+{
+P2 HeadingOut(const Region& G, int Edge, int Node);
+double TurnOf(const P2& In, const P2& Out);
+} // namespace RideNavBits
 using TorqueFit::Json;
 
 // [ride anywhere] The network's state, shared by every thread that lays or reads it.
@@ -323,8 +328,31 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		if ((J.CameMinor || J.OntoMinor) && std::fabs(J.Turn) > JunctionTurn)
 			for (size_t I = 0; I < Raw.size(); ++I)
 				if (std::fabs(RawAlong[I] - J.RawAlong) < JunctionCorner) Fair[I] = std::fmin(Fair[I], JunctionFair);
+	// [junction priority 168] (beenster, 167: "The route that we plot should map exactly to the road". Where the
+	// ride turns from one road to another at a junction of the map (three roads or more, not a roundabout),
+	// a junction's corner: hardly faired and as tight as JunctionRadius, not the 10 m least of a bend. Whaley
+	// Bridge's Reservoir Road corners had the road 9 m off the map, through the pub.)
+	std::vector<double> Tight(Raw.size(), 0.0);
+	{
+		int Node = From;
+		double At = 0.0;
+		for (size_t I = 0; I + 1 < Path.size(); ++I)
+		{
+			Node = G.OtherEnd(Path[I], Node);
+			At += G.Edges[size_t(Path[I])].Length;
+			if (G.Adjacent[size_t(Node)].size() < 3 || R->RingAt(Node) >= 0 || R->OnRoundRing(Path[I]) || R->OnRoundRing(Path[I + 1])) continue;
+			const P2 Back = RideNavBits::HeadingOut(G, Path[I], Node);
+			if (std::fabs(RideNavBits::TurnOf(P2(-Back.X, -Back.Z), RideNavBits::HeadingOut(G, Path[I + 1], Node))) <= JunctionTurn) continue;
+			for (size_t K = 0; K < Raw.size(); ++K)
+				if (std::fabs(RawAlong[K] - At) < JunctionCorner)
+				{
+					Fair[K] = std::fmin(Fair[K], JunctionFair);
+					Tight[K] = RoadLine::JunctionRadius;
+				}
+		}
+	}
 	Tell("Smoothing the road");
-	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair);
+	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair, Tight);
 	// Each knot as wide as the road it is on (by how far along it is), eased where the width changes.
 	std::vector<double> Halves(Line.size(), 2.3), Speeds(Line.size(), 60.0);
 	std::vector<int> KnotLanes(Line.size(), 0);
@@ -904,6 +932,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			if (End == 0) Raw.insert(Raw.begin(), Mid);
 			else Raw.push_back(Mid);
 		}
+		else (End == 0 ? Raw.front() : Raw.back()) = Mid;   // ([junction priority 168] on it exactly: a junction's tight corner is banked)
 	}
 	const std::string& Class = G.ClassOf(int(E));
 	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, std::vector<double>(Raw.size(), OnRoundRing(E) ? 0.0 : RoadLine::FairOf(Class)));

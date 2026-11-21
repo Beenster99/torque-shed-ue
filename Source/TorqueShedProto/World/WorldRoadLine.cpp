@@ -65,11 +65,12 @@ double AngleBetween(double Ax, double Az, double Bx, double Bz)
 // Rounds each corner the map drew (a point where the line turns by more than FilletTurn) into an
 // arc, in place: as wide as the road's class would have (FilletRadius times its fairing, no tighter
 // than 1.2 MinR), or as wide as the line either side leaves room for, its points 2 m apart.
-void Fillet(Doubles& Rx, Doubles& Rz, Doubles& Fair, double MinR)
+// ([junction priority 168] MinR each point's own: a junction's corner tighter than a bend)
+void Fillet(Doubles& Rx, Doubles& Rz, Doubles& Fair, Doubles& MinR)
 {
 	const size_t N = Rx.size();
 	if (N < 3) return;
-	Doubles Ox{Rx[0]}, Oz{Rz[0]}, Of{Fair[0]};
+	Doubles Ox{Rx[0]}, Oz{Rz[0]}, Of{Fair[0]}, Om{MinR[0]};
 	for (size_t I = 1; I + 1 < N; ++I)
 	{
 		const double Px = Rx[I], Pz = Rz[I];
@@ -82,9 +83,10 @@ void Fillet(Doubles& Rx, Doubles& Rz, Doubles& Fair, double MinR)
 			Ox.push_back(Px);
 			Oz.push_back(Pz);
 			Of.push_back(Fair[I]);
+			Om.push_back(MinR[I]);
 			continue;
 		}
-		double R = std::fmax(MinR * 1.2, Fair[I] * FilletRadius);
+		double R = std::fmax(MinR[I] * 1.2, Fair[I] * FilletRadius);
 		const double Half = std::tan(std::fabs(Turn) * 0.5);
 		const double T = std::fmin(R * Half, std::fmin(La, Lb) * 0.5);
 		R = T / Half;
@@ -102,11 +104,14 @@ void Fillet(Doubles& Rx, Doubles& Rz, Doubles& Fair, double MinR)
 			Ox.push_back(Cx + Fx * Co - Fz * Si);
 			Oz.push_back(Cz + Fx * Si + Fz * Co);
 			Of.push_back(Fair[I]);
+			Om.push_back(MinR[I]);
 		}
 	}
 	Ox.push_back(Rx[N - 1]);
 	Oz.push_back(Rz[N - 1]);
 	Of.push_back(Fair[N - 1]);
+	Om.push_back(MinR[N - 1]);
+	MinR.swap(Om);
 	Rx.swap(Ox);
 	Rz.swap(Oz);
 	Fair.swap(Of);
@@ -195,7 +200,7 @@ void FairLine(Doubles& Px, Doubles& Pz, const Doubles& Fair, const Doubles& Cap)
 
 // Fairs the line in place, and where that leaves a bend tighter than Limit (1 / radius) fairs it
 // again from the line as it was, more widely there, until no bend is; FairRounds at most.
-void FairToRadius(Doubles& Px, Doubles& Pz, const Doubles& Fair, double Limit, const Doubles& Cap)
+void FairToRadius(Doubles& Px, Doubles& Pz, const Doubles& Fair, const Doubles& Limit, const Doubles& Cap)
 {
 	const size_t N = Px.size();
 	const Doubles Ox = Px, Oz = Pz;
@@ -209,7 +214,7 @@ void FairToRadius(Doubles& Px, Doubles& Pz, const Doubles& Fair, double Limit, c
 		bool Any = false;
 		for (size_t I = 2; I + 2 < N; ++I)
 		{
-			if (Bend(Px, Pz, I) > Limit)
+			if (Bend(Px, Pz, I) > Limit[I])
 			{
 				Any = true;
 				// Widen it over the bend and as far again either side, in points 2 m apart.
@@ -295,7 +300,7 @@ void OpenReversals(const Doubles& Px, const Doubles& Pz, double Radius, Doubles&
 
 // Rounds of pulling the points of any bend tighter than Limit, and Reach * 3 points either side,
 // towards the middle of their neighbours Reach points off, until no bend is; the ends stay put.
-void Relax(Doubles& Px, Doubles& Pz, double Limit, int Reach)
+void Relax(Doubles& Px, Doubles& Pz, const Doubles& Limit, int Reach)
 {
 	const int N = int(Px.size());
 	const int M = Reach * 3;
@@ -307,7 +312,7 @@ void Relax(Doubles& Px, Doubles& Pz, double Limit, int Reach)
 		++Rounds;
 		std::vector<int> Bad;
 		for (int I : Cand)
-			if (Bend(Px, Pz, size_t(I)) > Limit) Bad.push_back(I);
+			if (Bend(Px, Pz, size_t(I)) > Limit[size_t(I)]) Bad.push_back(I);
 		if (Bad.empty()) break;
 		std::vector<int> Idx;
 		int NextFrom = Reach + 1;
@@ -451,16 +456,17 @@ double Bend(const std::vector<double>& Px, const std::vector<double>& Pz, size_t
 	return 2.0 * Cross / std::fmax(Ab * Bc * Ac, 1e-9);
 }
 
-std::vector<P2> SmoothLine(const std::vector<P2>& Pts, double MinR, const std::vector<double>& Fair)
+std::vector<P2> SmoothLine(const std::vector<P2>& Pts, double MinR, const std::vector<double>& Fair, const std::vector<double>& Tight)
 {
-	Doubles Rx, Rz, Rf;
+	Doubles Rx, Rz, Rf, Rm;
 	for (size_t I = 0; I < Pts.size(); ++I)
 	{
 		Rx.push_back(Pts[I].X);
 		Rz.push_back(Pts[I].Z);
 		Rf.push_back(Fair.size() == Pts.size() ? Fair[I] : FairDefault);
+		Rm.push_back(Tight.size() == Pts.size() && Tight[I] > 0.0 ? std::fmin(Tight[I], MinR) : MinR);
 	}
-	Fillet(Rx, Rz, Rf, MinR);
+	Fillet(Rx, Rz, Rf, Rm);
 	Doubles FineX, FineZ;
 	double Total = 0.0;
 	ResampleXz(Rx, Rz, 2.0, false, FineX, FineZ, Total);
@@ -468,15 +474,17 @@ std::vector<P2> SmoothLine(const std::vector<P2>& Pts, double MinR, const std::v
 	std::vector<char> Turning;
 	OpenReversals(FineX, FineZ, MinR, Px, Pz, Turning);
 	const size_t N = Px.size();
-	const double Limit = 1.0 / MinR;
 	const Doubles Along = FairAlong(Rx, Rz, Rf, N);
+	// (each point's tightest: 1 / its least radius)
+	Doubles Limit = FairAlong(Rx, Rz, Rm, N), Limit3(N);
+	for (size_t I = 0; I < N; ++I) { Limit[I] = 1.0 / std::fmax(Limit[I], 1.0); Limit3[I] = Limit[I] * 3.0; }
 	// The most each point may be faired: not at all where it is to be kept as it is (fair 0), and
 	// only lightly round a turning place.
 	Doubles Cap(N);
 	for (size_t I = 0; I < N; ++I) Cap[I] = Along[I] <= 0.0 ? 0.0 : (Turning[I] != 0 ? FairLevels[0] : Inf);
 	FairToRadius(Px, Pz, Along, Limit, Cap);
 	// What is left too tight is pulled open.
-	Relax(Px, Pz, Limit * 3.0, 3);
+	Relax(Px, Pz, Limit3, 3);
 	Relax(Px, Pz, Limit, 2);
 	Relax(Px, Pz, Limit, 1);
 	// And faired lightly once more, so a bend that had to be pulled open flows like the rest.
