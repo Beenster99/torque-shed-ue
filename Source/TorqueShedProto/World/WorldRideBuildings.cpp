@@ -708,13 +708,21 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				// (cladding or boards: its foot darker, fading up it, in the roofing's own ribs)
 				if (GlassHouse) { WallQuad(Q0, Q1, Q2, Q3, Toward, By); return; }
 				const Rgb Dark = Shade(Wall, By * (1.0 - 0.4 * HouseBlend)), Clad = Shade(Wall, By);
+				// (its splits level along the wall, as M_RideRoof's courses want each face's lower edge: at the higher end's)
 				const float Ribs = Timber ? 0.75f : 1.0f;
-				RoofQuad(RoofOut, Q0, Q1, A1, A0, Toward, Dark, Ribs);
-				RoofQuad(RoofOut, A0, A1, B1, B0, Toward, Clad, Ribs, &Dark);
-				RoofQuad(RoofOut, B0, B1, Q2, Q3, Toward, Clad, Ribs);
+				const double Sl = std::fmin(std::fmax(S0, S1), std::fmin(Q3.Y, Q2.Y) - 0.6), Fl = std::fmin(std::fmax(F0, F1), std::fmin(Q3.Y, Q2.Y) - 0.3);
+				if (Fl <= Sl + 0.05 || Sl <= std::fmax(Q0.Y, Q1.Y) + 0.01)
+				{
+					RoofQuad(RoofOut, Q0, Q1, Q2, Q3, Toward, Clad, Ribs, &Dark);
+					return;
+				}
+				const P3 La0 = At3(Q0.X, Sl, Q0.Z), La1 = At3(Q1.X, Sl, Q1.Z), Lb0 = At3(Q0.X, Fl, Q0.Z), Lb1 = At3(Q1.X, Fl, Q1.Z);
+				RoofQuad(RoofOut, Q0, Q1, La1, La0, Toward, Dark, Ribs);
+				RoofQuad(RoofOut, La0, La1, Lb1, Lb0, Toward, Clad, Ribs, &Dark);
+				RoofQuad(RoofOut, Lb0, Lb1, Q2, Q3, Toward, Clad, Ribs);
 				return;
 			}
-			else { Mesh = &Houses; High = Mask; Low = Mask; Low.R = float(Mask.R * (1.0 - 0.4 * HouseBlend)); }
+			else { Mesh = &Houses; High = Mask; Low = Mask; Low.R = std::fmin(Mask.R, std::fmax(0.31f, float(Mask.R * (1.0 - 0.4 * HouseBlend)))); }   // (the masks' brightness kept within the scan's 0.3..0.7)
 			const float Foot = Clean < 0.0f ? -1.0f : std::fmax(Clean, Dirt), Top = Clean;
 			if (Course)
 			{
@@ -1626,7 +1634,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const bool SoftFront = FrontGap > 2.5 && !IsBarn && !IsIndustrial && !Garage;
 			const int Cover0 = Land->Cover(B.X, B.Z);
 			const bool Hard = InTown && (Cover0 == 5 || Bays > 1 || HouseKind == HouseTypes::Terrace);
+			const size_t PlantsBefore = Out.Plants.size();
 			HouseFootPlants(Fh, SoftFront, Hard, FootClearing, Out);
+			// (only those on this square: past its edge they'd stand on the next square's ground, which this one can't see)
+			Out.Plants.erase(std::remove_if(Out.Plants.begin() + std::ptrdiff_t(PlantsBefore), Out.Plants.end(), [&](const RidePlant& P)
+				{ return !Inside(Out.OriginX + P.X, Out.OriginZ + P.Z); }), Out.Plants.end());
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
 		// builds them; a terrace's on every other party wall), shops and now and then a civic building;
