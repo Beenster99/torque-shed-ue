@@ -5787,6 +5787,68 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 			}
 		}
 	}
+	// [mirrors on their perches, beenster build 168: "little gap on the mirrors for ape bars"] A bar mirror stands on
+	// the lever perch or the switch block, and those are whichever maker's are on the bike, on whichever bar: after
+	// everything else is placed, each side's mirror is set down on what is under its foot. (Its foot: the end of it
+	// nearest the levers and switches. Only ever a short way, 8 cm at most: a mirror somewhere else, on a fairing,
+	// is left alone.)
+	for (int K = 0; K < 2; ++K)
+	{
+		const double Side = K == 0 ? 1.0 : -1.0;
+		std::vector<V3> Under;
+		V3 Mid(0.0, 0.0, 0.0);
+		int MidN = 0;
+		for (const FittedPart& P : Out)
+		{
+			const bool bSeat = P.Sub == "levers" || P.Sub == "switches";
+			if (!P.Made || P.Code || P.Hidden || (!bSeat && P.Sub != "bar" && P.Sub != "grip" && P.Sub != "bar_end")) continue;
+			for (const PartSurface& S : P.Made->Surfaces)
+				for (const V3& Q : S.Pos)
+				{
+					const V3 M = V2ToMm(F, Q);
+					if (M.y * Side <= 0.0) continue;
+					Under.push_back(M);
+					if (bSeat) { Mid += M; ++MidN; }
+				}
+		}
+		if (Under.empty() || MidN == 0) continue;
+		Mid = Mid / double(MidN);
+		for (FittedPart& P : Out)
+		{
+			if (P.Sub != "mirrors" || !P.Made || P.Code || P.Hidden) continue;
+			// the foot: this side's points nearest the levers and switches
+			std::vector<std::pair<double, V3>> Foot;
+			for (const PartSurface& S : P.Made->Surfaces)
+				for (const V3& Q : S.Pos)
+				{
+					const V3 M = V2ToMm(F, Q);
+					if (M.y * Side > 0.0) Foot.push_back({(M - Mid).Length(), M});
+				}
+			if (Foot.empty()) continue;
+			const size_t Keep = std::min<size_t>(Foot.size(), 32);
+			std::partial_sort(Foot.begin(), Foot.begin() + Keep, Foot.end(), [](const std::pair<double, V3>& A, const std::pair<double, V3>& B) { return A.first < B.first; });
+			double Gap = 1e9;
+			V3 Down(0.0, 0.0, 0.0);
+			for (size_t I = 0; I < Keep; ++I)
+				for (const V3& U : Under)
+				{
+					const double D = (U - Foot[I].second).Length();
+					if (D < Gap) { Gap = D; Down = U - Foot[I].second; }
+				}
+			if (Gap < 1.5 || Gap > 80.0) continue;
+			const V3 By = Down * ((Gap + 0.5) / Gap);      // (set half a millimetre into it: no hairline of light under the foot)
+			auto Copy = std::make_shared<PartMesh>(*P.Made);
+			for (PartSurface& S : Copy->Surfaces)
+				for (V3& Q : S.Pos)
+				{
+					const V3 M = V2ToMm(F, Q);
+					if (M.y * Side <= 0.0) continue;
+					const V3 N = M + By;
+					Q = F.Point(N.x, N.y, N.z);
+				}
+			P.Made = Copy;
+		}
+	}
 	return Added;
 }
 
