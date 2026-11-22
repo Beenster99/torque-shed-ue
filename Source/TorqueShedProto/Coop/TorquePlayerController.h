@@ -114,11 +114,18 @@ private:
 	static constexpr int32 DecalPiece = 16 * 1024;
 	TMap<FString, TArray<uint8>> DecalPieces;   // pictures part way here
 	bool TakeDecalPiece(const FString& Id, int32 Total, int32 Offset, const TArray<uint8>& Bytes);
-	// [co-op] The bike picker for Buttertubs: a bay's name ("Bay 3: Simon's cruiser"), the other
+	// [co-op] The bike picker (Ride UK's WHICH BIKE?, the join page): a bay's name ("Bay 3: Simon's cruiser"), the other
 	// rider who has picked it (empty: free), and the next free bike from From in direction Dir.
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
+	// [ride bike] Why a bay's bike can't set off on a Ride UK journey ("" when it can): parts
+	// missing or loose, fabrication owed, up on the lift (the shed's own ride check).
+	FString RideBikeNotReady(int32 Bay) const;
+	// [ride bike] The WHICH BIKE? page: every bike in the shed's bays, ready or not. bForRide: opened
+	// by the Route planner's Ride, which sets off once one is picked; else it only picks yours.
+	void OpenRideBikes(bool bForRide);
+	bool bRideBikesForRide = false;
 	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets, JoinRide, Awards, HelmetDecals };
 	bool bChoosingRide = false;   // [co-op] the join page is this player's until they pick
 	int32 JoinBay = INDEX_NONE;

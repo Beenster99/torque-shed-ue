@@ -86,6 +86,7 @@ static const double KmSteps[] = {30.0, 45.0, 60.0, 80.0, 100.0, 150.0, 200.0};
 void FTorqueRoutePlanner::Open(UTorqueWorldSubsystem* InWorld)
 {
 	World = InWorld;
+	bBikePicked = false;   // [ride bike] asked afresh each time the planner opens
 	Tab = 0;
 	Search.Reset();
 	Searched.Reset();
@@ -371,6 +372,12 @@ void FTorqueRoutePlanner::Ride()
 			return;
 		}
 	}
+	if (PickBike && !bBikePicked)
+	{
+		// (which bike first: the owner calls Ride again once it's picked)
+		PickBike();
+		return;
+	}
 	W->KeepJourney(Want, Title);
 	bool bGoing = false;
 	if (PreviewGood())
@@ -389,6 +396,7 @@ void FTorqueRoutePlanner::Ride()
 			Say(W->IsPlanningRide() ? FString(TEXT("Still planning: Ride again in a moment.")) : W->RideNote());
 		return;
 	}
+	bBikePicked = false;   // (the next journey asks again)
 	if (OnRide) OnRide();
 }
 
