@@ -325,7 +325,12 @@ private:
 		FBox Box = FBox(ForceInit);   // (its trees' places, world cm)
 		bool bNearModels = true;      // (the near models, or the far copies)
 		int8 Hidden = -1;             // (as last set: -1 not yet)
+		// [chrome reflections, Nov 22] near trees with no far copy (shown always, never handed over), here only
+		// so they can go in the reflections like the handed-over near patches
+		bool bHandsOver = true;
+		int8 Traced = 0;              // (in the ray-tracing scene, as last set: made out of it)
 	};
+	int32 TreeGroupsTraced = 0;
 	TArray<FTreeHandover> TreeHandover;
 	double SinceHandover = 0.0;
 	TOptional<FVector> LastCamera;
