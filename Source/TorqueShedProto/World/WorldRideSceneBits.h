@@ -143,7 +143,50 @@ inline void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const 
 
 // [OSM stage 3] A roof's face for M_RideRoof: as Quad, its UVs metres along the eaves (Q0 to Q1) and
 // up the slope, so the courses run level along it; its alpha the roofing (see RideMesh::Roofing).
-inline void RoofQuad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& Colour, float Kind)
+// [house foot, Nov 22] A wall's quad whose colour and alpha (the wall materials' dirt or moss) run from
+// Bottom at Q0 and Q1 (its foot) to Top at Q2 and Q3: the splash, damp and grime at a wall's foot fading
+// up it, as Quad lays it (the same UVs, so the wall above carries on seamlessly).
+inline void QuadFade(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& Bottom, const Rgb& Top, float MossBottom, float MossTop)
+{
+	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
+	double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
+	const double Len = std::sqrt(Nx * Nx + Ny * Ny + Nz * Nz);
+	if (Len < 1e-9) return;
+	const bool Flip = Nx * (Toward.X - Q0.X) + Ny * (Toward.Y - Q0.Y) + Nz * (Toward.Z - Q0.Z) < 0.0;
+	const double Sign = (Flip ? -1.0 : 1.0) / Len;
+	Nx *= Sign; Ny *= Sign; Nz *= Sign;
+	const uint32_t V = uint32_t(Out.Vertices());
+	const double Hl = std::sqrt(Nx * Nx + Nz * Nz);
+	const double Tx = Hl > 1e-6 ? -Nz / Hl : 1.0, Tz = Hl > 1e-6 ? Nx / Hl : 0.0;
+	const auto UvOf = [&](const P3& Q, double& U, double& W)
+	{
+		U = (Q.X - Out.OriginX) * Tx + (Q.Z - Out.OriginZ) * Tz;
+		W = -Q.Y;
+	};
+	double U0, W0;
+	UvOf(Q0, U0, W0);
+	const double ShiftU = UvShift(U0), ShiftW = UvShift(W0);
+	const bool Mossed = MossBottom >= 0.0f;
+	if (Mossed && Out.Alpha.size() < size_t(V)) Out.Alpha.resize(size_t(V), 1.0f);
+	int K = 0;
+	for (const P3* Q : {&Q0, &Q1, &Q2, &Q3})
+	{
+		const bool Foot = K++ < 2;
+		const Rgb& C = Foot ? Bottom : Top;
+		Out.Pos.push_back(float(Q->X - Out.OriginX)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Q->Z - Out.OriginZ));
+		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
+		double U, W;
+		UvOf(*Q, U, W);
+		Out.Uv.push_back(float(U - ShiftU)); Out.Uv.push_back(float(W - ShiftW));
+		Out.Col.push_back(C.R); Out.Col.push_back(C.G); Out.Col.push_back(C.B);
+		if (Mossed || !Out.Alpha.empty()) Out.Alpha.push_back(Mossed ? (Foot ? MossBottom : MossTop) : 1.0f);
+	}
+	if (!Flip) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
+	else Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
+}
+
+// ([house foot, Nov 22] FootColour, where given, at Q0 and Q1: a clad wall's foot darker, fading up it)
+inline void RoofQuad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& Colour, float Kind, const Rgb* FootColour = nullptr)
 {
 	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
 	double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
@@ -166,7 +209,8 @@ inline void RoofQuad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, co
 		Out.Pos.push_back(float(Lx)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Lz));
 		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
 		Out.Uv.push_back(float(Lx * Tx + Lz * Tz - ShiftU)); Out.Uv.push_back(float(-(Lx * Sx + Q->Y * Sy + Lz * Sz) - ShiftW));
-		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
+		const Rgb& C = FootColour != nullptr && (Q == &Q0 || Q == &Q1) ? *FootColour : Colour;
+		Out.Col.push_back(C.R); Out.Col.push_back(C.G); Out.Col.push_back(C.B);
 		Out.Alpha.push_back(Kind);
 	}
 	if (!Flip) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
