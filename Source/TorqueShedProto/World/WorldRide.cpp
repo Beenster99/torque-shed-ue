@@ -2293,6 +2293,7 @@ void RidePlan::LandColourDrawnAt(double X, double Z, float* Out, std::unordered_
 		const double Sx = std::isnan(E) || std::isnan(W) ? 0.0 : (E - W) / (2.0 * LandGrid), Sz = std::isnan(Sn) || std::isnan(Nn) ? 0.0 : (Sn - Nn) / (2.0 * LandGrid);
 		std::array<float, 3> C{};
 		LandColour(Gx, Gz, 12.0, std::sqrt(Sx * Sx + Sz * Sz), C.data());
+		HouseFootTone(C.data(), HouseFootAt(Gx, Gz));   // [house foot] (as LandTile tones its finest points)
 		if (Cache != nullptr) (*Cache)[Key] = C;
 		return C;
 	};
@@ -2354,6 +2355,40 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 			LandColour(X0 + I * Step, Z0 + J * Step, std::fmax(12.0, Step), std::sqrt(Sx * Sx + Sz * Sz), Colour);
 			Put(I * Step, At(I, J), J * Step, -Sx / Len, 1.0 / Len, -Sz / Len, (X0 + I * Step) / 8.0, (Z0 + J * Step) / 8.0, Colour);
 		}
+	// [house foot, Nov 22] (beenster, Uig on 168: houses "dropped onto" the land) The ground round every building
+	// darker and lusher, fading out over HouseFootReach: each building's points near it toned, the strongest
+	// building's at each point (as HouseFootAt, which the land's shoulders read, so they match). The near
+	// squares only (8 m or finer): further out a point is too coarse for a building's foot.
+	if (Step <= 8.5 && Scene && HouseBlend > 0.0)
+	{
+		std::vector<Building> Feet;
+		HouseFootBoxes(X0, Z0, Size, Feet);
+		std::vector<float> Foot(size_t(N) * N, 0.0f);
+		bool AnyFoot = false;
+		for (const Building& B : Feet)
+		{
+			const double Span = 0.5 * (B.W + B.D) + HouseFootReach;
+			const int I0 = std::max(0, int(std::floor((B.X - Span - X0) / Step))), I1 = std::min(N - 1, int(std::ceil((B.X + Span - X0) / Step)));
+			const int J0 = std::max(0, int(std::floor((B.Z - Span - Z0) / Step))), J1 = std::min(N - 1, int(std::ceil((B.Z + Span - Z0) / Step)));
+			if (I0 > I1 || J0 > J1) continue;
+			const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+			for (int J = J0; J <= J1; ++J)
+				for (int I = I0; I <= I1; ++I)
+				{
+					const double Dx = X0 + I * Step - B.X, Dz = Z0 + J * Step - B.Z;
+					const double Ox = std::fmax(0.0, std::fabs(Dx * Cs - Dz * Sn) - B.W * 0.5), Oz = std::fmax(0.0, std::fabs(Dx * Sn + Dz * Cs) - B.D * 0.5);
+					const double Off = std::hypot(Ox, Oz);
+					if (Off >= HouseFootReach) continue;
+					const double T = 1.0 - Off / HouseFootReach;
+					float& F = Foot[size_t(J) * N + I];
+					F = std::fmax(F, float(T * T * (3.0 - 2.0 * T)));
+					AnyFoot = true;
+				}
+		}
+		if (AnyFoot)
+			for (size_t V = 0; V < Foot.size(); ++V)
+				if (Foot[V] > 0.0f) HouseFootTone(&Out.Col[V * 3], double(Foot[V]) * HouseBlend);
+	}
 	const auto Quad = [&Out](uint32_t A, uint32_t B, uint32_t C, uint32_t D)
 	{
 		// A B across the top (x growing), C D below them (z growing): up-facing seen from above.
