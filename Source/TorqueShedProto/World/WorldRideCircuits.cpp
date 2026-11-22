@@ -492,23 +492,58 @@ void RidePlan::CircuitSandTile(double X0, double Z0, double Size, int Detail, Ri
 
 double RidePlan::CircuitGround(double X, double Z) const
 {
-	// (the point and two rings round it, 12 and 30 m out: a 25-point mean, NaN-free)
+	// (build 169: the ground under a circuit as one smooth surface: a Gaussian-weighted mean of the land's height
+	// (sigma 24 m) over rings 5 m apart out to 70 m, each sampled every 6 m or so. Every piece of a circuit takes
+	// its height from it and nothing else, so two that meet or run side by side agree exactly, and moving along
+	// the track it rises and falls with no kinks of the map's grid)
+	static const struct Kernel
+	{
+		std::vector<double> Dx, Dz, W;
+		Kernel()
+		{
+			constexpr double Sigma = 24.0, Ring = 5.0;
+			Dx.push_back(0.0); Dz.push_back(0.0); W.push_back(Ring * Ring * 0.785);
+			for (int R = 1; R <= 14; ++R)
+			{
+				const double Rad = R * Ring;
+				const int Count = std::max(6, int(std::lround(6.283185307179586 * Rad / 6.0)));
+				for (int K = 0; K < Count; ++K)
+				{
+					const double A = (double(K) + (R & 1) * 0.5) * 6.283185307179586 / Count;
+					Dx.push_back(std::cos(A) * Rad);
+					Dz.push_back(std::sin(A) * Rad);
+					// (each sample stands for its ring's share of the area round it)
+					W.push_back(std::exp(-Rad * Rad / (2.0 * Sigma * Sigma)) * 6.283185307179586 * Rad * Ring / Count);
+				}
+			}
+		}
+	} Kern;
 	double Sum = 0.0, Weight = 0.0;
-	const auto Take = [&](double Px, double Pz, double W)
+	for (size_t K = 0; K < Kern.W.size(); ++K)
 	{
-		const double Y = Land->Height(Px, Pz);
-		if (std::isnan(Y)) return;
-		Sum += Y * W;
-		Weight += W;
-	};
-	Take(X, Z, 2.0);
-	for (int K = 0; K < 12; ++K)
-	{
-		const double A = double(K) * (3.14159265358979 / 6.0);
-		Take(X + std::cos(A) * 12.0, Z + std::sin(A) * 12.0, 1.0);
-		Take(X + std::cos(A + 0.26) * 30.0, Z + std::sin(A + 0.26) * 30.0, 0.6);
+		const double Y = Land->Height(X + Kern.Dx[K], Z + Kern.Dz[K]);
+		if (std::isnan(Y)) continue;
+		Sum += Y * Kern.W[K];
+		Weight += Kern.W[K];
 	}
 	return Weight > 0.0 ? Sum / Weight : std::numeric_limits<double>::quiet_NaN();
+}
+
+bool RidePlan::JoinsOnto(int Which, int Theirs) const
+{
+	// [circuits, build 169] (a circuit's track is the greater road wherever another meets it: the paddock's lanes
+	// and the car parks' roads settle onto it, not it onto them; beenster on 168: "so many bumps on the tracks")
+	if (Theirs == 0) return true;
+	const bool Mine = CircuitRoad(Which), Its = CircuitRoad(Theirs);
+	return Mine != Its ? Its : Theirs < Which;
+}
+
+double RidePlan::JoinLeanOf(int Which, int Theirs) const
+{
+	// [circuits, build 169] (two circuit pieces both follow CircuitGround, middles and tilts, so they already agree
+	// where they meet: neither settles onto the other, which took the last 6 m before each junction flat onto the
+	// next piece's end, a step of half a metre on Hailwood Hill)
+	return Which > 0 && Theirs > 0 && CircuitRoad(Which) && CircuitRoad(Theirs) ? -1e18 : JoinLean;
 }
 
 void CircuitIndex::AddArea(const Region& G, CircuitArea&& Ar)
@@ -703,6 +738,277 @@ void RidePlan::CircuitMarks(int Which, double From, double To, std::vector<RoadM
 	std::sort(Out.begin(), Out.end(), [](const RoadMark& A, const RoadMark& B) { return A.From < B.From; });
 }
 
+namespace
+{
+// (a circuit piece's way out of its end at node FromA's: the first point of its line at least 5 m from it, as a unit step)
+P2 CircuitWayOut(const RoadEdge& Ed, bool FromA)
+{
+	const P2 At = FromA ? Ed.Line.front() : Ed.Line.back();
+	const size_t N = Ed.Line.size();
+	for (size_t K = 1; K < N; ++K)
+	{
+		const P2& P = Ed.Line[FromA ? K : N - 1 - K];
+		const double D = P.DistanceTo(At);
+		if (D >= 5.0 || K + 1 == N) return D > 1e-6 ? (P - At) * (1.0 / D) : P2{};
+	}
+	return P2{};
+}
+}
+
+int RidePlan::CircuitOnFrom(int E, int Node) const
+{
+	const Region& G = Area.Roads;
+	if (E < 0 || Node < 0 || size_t(Node) >= G.Adjacent.size()) return -1;
+	const RoadEdge& Ed = G.Edges[size_t(E)];
+	const P2 In = CircuitWayOut(Ed, Ed.A == Node) * -1.0;
+	int Best = -1;
+	double BestDot = 0.5;   // (no further than 60 degrees round: the track's next piece, not a pit lane's)
+	for (int F : G.Adjacent[size_t(Node)])
+	{
+		if (F == E || !G.CircuitEdge(F) || G.ClassOf(F) != "raceway") continue;
+		const RoadEdge& Fe = G.Edges[size_t(F)];
+		if (Fe.Line.size() < 2 || Fe.A == Fe.B) continue;
+		const P2 Out = CircuitWayOut(Fe, Fe.A == Node);
+		const double Dot = In.X * Out.X + In.Z * Out.Z;
+		if (Dot > BestDot) { BestDot = Dot; Best = F; }
+	}
+	return Best;
+}
+
+void RidePlan::CircuitWalk(int E, int Node, double Reach, std::vector<P2>& Out) const
+{
+	const Region& G = Area.Roads;
+	double Gone = 0.0;
+	for (int Hops = 0; E >= 0 && Hops < 8 && Gone < Reach; ++Hops)
+	{
+		const RoadEdge& Ed = G.Edges[size_t(E)];
+		const bool FromA = Ed.A == Node;
+		// (its line as LaySide lays it, smoothed, so a corner on it reads as it does on its own piece)
+		std::vector<P2> Laid = RoadLine::SmoothLine(Ed.Line, RoadLine::MinRadius, std::vector<double>(Ed.Line.size(), RoadLine::FairOf(G.ClassOf(E))));
+		if (Laid.empty() || Laid.back().DistanceTo(Ed.Line.back()) > 0.3) Laid.push_back(Ed.Line.back());
+		const size_t N = Laid.size();
+		P2 Last = FromA ? Laid.front() : Laid.back();
+		for (size_t K = 1; K < N && Gone < Reach; ++K)
+		{
+			const P2& P = Laid[FromA ? K : N - 1 - K];
+			Gone += P.DistanceTo(Last);
+			Out.push_back(P);
+			Last = P;
+		}
+		const int Far = FromA ? Ed.B : Ed.A;
+		E = CircuitOnFrom(E, Far);
+		Node = Far;
+	}
+}
+
+void RidePlan::CircuitLine(int Which, std::vector<double>& Off, std::vector<double>& Brake) const
+{
+	const std::vector<RoadPoint>& Pts = RoadOf(Which);
+	const size_t N = Pts.size();
+	Off.assign(N, 0.0);
+	Brake.assign(N, 0.0);
+	const Region& G = Area.Roads;
+	if (N < 2 || Which < 1 || !CircuitRoad(Which) || G.ClassOf(Which - 1) != "raceway") { Off.assign(N, 1e3); return; }
+	// The track through this piece and on past each end along the pieces that run straightest on from it (the map's
+	// lines), so the line agrees where two pieces meet: points with their distance along (negative behind its start).
+	const RoadEdge& Ed = G.Edges[size_t(Which - 1)];
+	constexpr double Reach = 320.0;   // (enough to take in the corners either side of any piece, so both sides of a join agree)
+	std::vector<P2> Back, On;
+	// (the piece's points run from its node A unless a junction on the ride's road moved its start: by nearness)
+	const bool Forward = Pts.front().At.DistanceTo(Ed.Line.front()) <= Pts.front().At.DistanceTo(Ed.Line.back());
+	const int StartNode = Forward ? Ed.A : Ed.B, EndNode = Forward ? Ed.B : Ed.A;
+	CircuitWalk(CircuitOnFrom(Which - 1, StartNode), StartNode, Reach, Back);
+	CircuitWalk(CircuitOnFrom(Which - 1, EndNode), EndNode, Reach, On);
+	std::vector<P2> Ps;
+	std::vector<double> S;
+	{
+		double D = 0.0;
+		P2 Last = Pts.front().At;
+		std::vector<std::pair<P2, double>> Behind;
+		for (const P2& P : Back) { D += P.DistanceTo(Last); Last = P; Behind.push_back({P, -D}); }
+		for (size_t K = Behind.size(); K-- > 0;) { Ps.push_back(Behind[K].first); S.push_back(Behind[K].second); }
+	}
+	const size_t Own = Ps.size();
+	for (const RoadPoint& P : Pts) { Ps.push_back(P.At); S.push_back(P.Along); }
+	{
+		double D = Pts.back().Along;
+		P2 Last = Pts.back().At;
+		for (const P2& P : On) { D += P.DistanceTo(Last); Last = P; Ps.push_back(P); S.push_back(D); }
+	}
+	const size_t M = Ps.size();
+	// (its turn, radians a metre over 15 m either side: + a right-hand bend as the points run, as CircuitMarks has it)
+	std::vector<double> Turn(M, 0.0);
+	for (size_t I = 0, J0 = 0, J1 = 0; I < M; ++I)
+	{
+		while (J0 + 1 < I && S[I] - S[J0 + 1] >= 15.0) ++J0;
+		while (J1 + 1 < M && S[J1] - S[I] < 15.0) ++J1;
+		if (J0 >= I || J1 <= I) continue;
+		const P2 A = Ps[I] - Ps[J0], B = Ps[J1] - Ps[I];
+		const double Angle = std::atan2(A.X * B.Z - A.Z * B.X, A.X * B.X + A.Z * B.Z), Over = S[J1] - S[J0];
+		Turn[I] = Over > 1e-6 ? Angle / Over : 0.0;
+	}
+	const auto Gauss = [&S, M](const std::vector<double>& V, double Sigma)
+	{
+		std::vector<double> Outv(M, 0.0);
+		for (size_t I = 0; I < M; ++I)
+		{
+			double Sum = 0.0, Weight = 0.0;
+			for (size_t J = 0; J < M; ++J)
+			{
+				const double D = S[J] - S[I];
+				if (std::fabs(D) > Sigma * 3.0) continue;
+				const double W = std::exp(-D * D / (2.0 * Sigma * Sigma));
+				Sum += V[J] * W; Weight += W;
+			}
+			Outv[I] = Weight > 0.0 ? Sum / Weight : V[I];
+		}
+		return Outv;
+	};
+	// (how much of a corner each point is in: a 90 m radius or tighter all of one, + right-handed)
+	std::vector<double> Bend = Gauss(Turn, 12.0);
+	for (double& B : Bend) B = std::clamp(B * 90.0, -1.0, 1.0);
+	// The racing line (+ to the left): out wide into each corner, clipping the inside at its apex, out wide again on
+	// the way out, and straight from one corner's exit to the next's entry; its rubber laid down by every lap
+	// (M_RideRoad's rubbered line). Each corner where its bend passes 0.35 until it falls under 0.2, corners of the
+	// same hand under 20 m apart one corner; its apex where it bends most.
+	struct Corner { double S0, S1, Apex, Sign, Most; };
+	std::vector<Corner> Corners;
+	for (size_t I = 0; I < M;)
+	{
+		if (std::fabs(Bend[I]) < 0.35) { ++I; continue; }
+		const double Sign = Bend[I] > 0.0 ? 1.0 : -1.0;
+		size_t J = I, Apex = I;
+		while (J < M && Bend[J] * Sign >= 0.2)
+		{
+			if (std::fabs(Bend[J]) > std::fabs(Bend[Apex])) Apex = J;
+			++J;
+		}
+		const Corner C{S[I], S[std::min(J, M - 1)], S[Apex], Sign, std::fabs(Bend[Apex])};
+		if (!Corners.empty() && Corners.back().Sign == Sign && C.S0 - Corners.back().S1 < 20.0)
+		{
+			Corner& Prev = Corners.back();
+			if (C.Most > Prev.Most) { Prev.Apex = C.Apex; Prev.Most = C.Most; }
+			Prev.S1 = C.S1;
+		}
+		else Corners.push_back(C);
+		I = J;
+	}
+	// (a corner bending no more than a 160 m radius isn't one: the map's line and the laid line, each side of a
+	// junction, differ by that much, and two pieces' lines must agree where they meet)
+	Corners.erase(std::remove_if(Corners.begin(), Corners.end(), [](const Corner& C) { return C.Most < 0.56; }), Corners.end());
+	// (the line's knots: wide at each corner's entry and exit, 25 m out, inside at its apex)
+	std::vector<std::pair<double, double>> Knots;
+	// (two corners too close for the line to go wide between them, an S, go from one apex straight to the next)
+	for (size_t K = 0; K < Corners.size(); ++K)
+	{
+		const Corner& C = Corners[K];
+		const double Deep = 0.55 + 0.45 * C.Most;
+		const bool Wide0 = K == 0 || Corners[K - 1].S1 + 25.0 < C.S0 - 25.0, Wide1 = K + 1 == Corners.size() || C.S1 + 25.0 < Corners[K + 1].S0 - 25.0;
+		if (Wide0) Knots.push_back({C.S0 - 25.0, C.Sign * 0.85 * Deep});
+		Knots.push_back({C.Apex, -C.Sign * 0.95 * Deep});
+		if (Wide1) Knots.push_back({C.S1 + 25.0, C.Sign * 0.85 * Deep});
+	}
+	std::sort(Knots.begin(), Knots.end());
+	std::vector<double> Line(M, 0.0), Brakes(M, 0.0);
+	for (size_t I = 0; I < M; ++I)
+	{
+		if (Knots.empty()) break;
+		const auto It = std::upper_bound(Knots.begin(), Knots.end(), std::make_pair(S[I], 1e9));
+		if (It == Knots.begin()) { Line[I] = Knots.front().second; continue; }
+		if (It == Knots.end()) { Line[I] = Knots.back().second; continue; }
+		const auto& K0 = *(It - 1);
+		const auto& K1 = *It;
+		const double T = std::clamp((S[I] - K0.first) / std::fmax(1e-6, K1.first - K0.first), 0.0, 1.0);
+		Line[I] = K0.second + (K1.second - K0.second) * (T * T * (3.0 - 2.0 * T));
+	}
+	// (and where riders brake for each corner: the last 70 m before it turns in, hardest just before; a sharper corner harder)
+	for (const Corner& C : Corners)
+	{
+		const double Hard = std::clamp((C.Most - 0.4) / 0.5, 0.0, 1.0);
+		if (Hard <= 0.0) continue;
+		for (size_t I = 0; I < M; ++I)
+		{
+			const double Before = C.S0 - S[I];
+			if (Before < -5.0 || Before > 75.0) continue;
+			const double Fade = Before < 5.0 ? (Before + 5.0) / 10.0 : 1.0 - (Before - 5.0) / 70.0;
+			Brakes[I] = std::fmax(Brakes[I], Hard * std::clamp(Fade, 0.0, 1.0));
+		}
+	}
+	Line = Gauss(Line, 10.0);
+	for (size_t I = 0; I < N; ++I)
+	{
+		Off[I] = Line[Own + I] * Pts[I].Half * 0.8;
+		Brake[I] = Brakes[Own + I];
+	}
+}
+
+void RidePlan::CircuitTilts(int E, const std::vector<P2>& Line, double Half, std::vector<double>& Banks) const
+{
+	const size_t N = Line.size();
+	if (N < 2 || Banks.size() != N) return;
+	const Region& G = Area.Roads;
+	const RoadEdge& Ed = G.Edges[size_t(E)];
+	// (the way the track runs through each end's junction, the same for both pieces that meet there: from the way
+	// back into the one to the way on into the other, as the map draws them; none where no piece runs on)
+	P2 EndWay[2];
+	bool HaveEnd[2] = {false, false};
+	for (int End = 0; End < 2; ++End)
+	{
+		const P2 At = End == 0 ? Line.front() : Line.back();
+		const int Node = At.DistanceTo(Ed.Line.front()) <= At.DistanceTo(Ed.Line.back()) ? Ed.A : Ed.B;
+		const int Next = CircuitOnFrom(E, Node);
+		if (Next < 0) continue;
+		const RoadEdge& Ne = G.Edges[size_t(Next)];
+		const P2 Mine = CircuitWayOut(Ed, Ed.A == Node), Theirs = CircuitWayOut(Ne, Ne.A == Node);
+		const P2 Way = End == 0 ? Mine - Theirs : Theirs - Mine;
+		const double L = Way.Length();
+		if (L < 1e-6) continue;
+		EndWay[End] = Way * (1.0 / L);
+		HaveEnd[End] = true;
+	}
+	std::vector<double> Raw(N, 0.0), Along(N, 0.0);
+	for (size_t I = 1; I < N; ++I) Along[I] = Along[I - 1] + Line[I].DistanceTo(Line[I - 1]);
+	for (size_t I = 0; I < N; ++I)
+	{
+		// (its way over two points either side, so the line's own small wiggles don't swing it; turned to the
+		// junction's own way over the last 12 m to each end)
+		P2 Way = Line[std::min(I + 2, N - 1)] - Line[I >= 2 ? I - 2 : 0];
+		double Len = Way.Length();
+		if (Len < 1e-6) continue;
+		Way = Way * (1.0 / Len);
+		for (int End = 0; End < 2; ++End)
+		{
+			if (!HaveEnd[End]) continue;
+			const double T = std::clamp((End == 0 ? Along[I] : Along.back() - Along[I]) / 12.0, 0.0, 1.0);
+			const double W = 1.0 - T * T * (3.0 - 2.0 * T);
+			Way = Way + (EndWay[End] - Way) * W;
+		}
+		Len = Way.Length();
+		if (Len < 1e-6) continue;
+		// (left of a heading (dx, dz) is (dz, -dx); + the left the higher, as RoadLine::CrossHeight has it)
+		const P2 Left(Way.Z / Len, -Way.X / Len);
+		const P2 L = Line[I] + Left * Half, R = Line[I] - Left * Half;
+		const double Hl = CircuitGround(L.X, L.Z), Hr = CircuitGround(R.X, R.Z);
+		Raw[I] = std::isnan(Hl) || std::isnan(Hr) ? 0.0 : std::clamp((Hl - Hr) / std::fmax(1.0, 2.0 * Half), -0.1, 0.1);
+	}
+	// (then smoothed along it over 16 m, so the track rolls from one tilt to the next as gently as it climbs)
+	constexpr double Sigma = 16.0;
+	for (size_t I = 0; I < N; ++I)
+	{
+		double Sum = 0.0, Weight = 0.0;
+		for (size_t J = 0; J < N; ++J)
+		{
+			const double D = Along[J] - Along[I];
+			if (std::fabs(D) > Sigma * 3.0) continue;
+			const double W = std::exp(-D * D / (2.0 * Sigma * Sigma));
+			Sum += Raw[J] * W; Weight += W;
+		}
+		// (but at each end the tilt as it is there, eased in over 20 m: the next piece starts from the same tilt)
+		const double T = std::clamp(std::fmin(Along[I], Along.back() - Along[I]) / 20.0, 0.0, 1.0);
+		Banks[I] = Raw[I] + ((Weight > 0.0 ? Sum / Weight : Raw[I]) - Raw[I]) * (T * T * (3.0 - 2.0 * T));
+	}
+}
+
 void RidePlan::CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const
 {
 	const Region& G = Area.Roads;
@@ -717,14 +1023,22 @@ void RidePlan::CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<d
 	{
 		const P2 At = F.FromGeo(Note->Corners[K].Lat, Note->Corners[K].Lon);
 		const double Want = Note->CornerBank[K] / 100.0;
+		// (which way the corner bends, taken over all of it near its place: + right, so the outside, the left, is the
+		// higher for a bank. [build 169] Point by point it flipped where the line ran straight for a moment, so the
+		// bank rolled from one side to the other and back in a few metres: a bump at the track's edges, beenster on 168)
+		double Turned = 0.0;
 		for (size_t I = 2; I + 2 < Line.size(); ++I)
 		{
 			const double D = Line[I].DistanceTo(At);
 			if (D >= CircuitNote::CornerReach) continue;
-			// (which way it bends here: + right, so the outside, the left, is the higher for a bank)
 			const P2 A = Line[I - 2], B = Line[I], C = Line[I + 2];
-			const double Cross = (B.X - A.X) * (C.Z - B.Z) - (B.Z - A.Z) * (C.X - B.X);
-			const double Sign = Cross > 0.0 ? 1.0 : Cross < 0.0 ? -1.0 : (Banks[I] >= 0.0 ? 1.0 : -1.0);
+			Turned += ((B.X - A.X) * (C.Z - B.Z) - (B.Z - A.Z) * (C.X - B.X)) * (1.0 - D / CircuitNote::CornerReach);
+		}
+		const double Sign = Turned >= 0.0 ? 1.0 : -1.0;
+		for (size_t I = 2; I + 2 < Line.size(); ++I)
+		{
+			const double D = Line[I].DistanceTo(At);
+			if (D >= CircuitNote::CornerReach) continue;
 			const double U = 1.0 - D / CircuitNote::CornerReach;
 			const double W = U * U * (3.0 - 2.0 * U);
 			Banks[I] = Banks[I] * (1.0 - W) + Sign * Want * W;
