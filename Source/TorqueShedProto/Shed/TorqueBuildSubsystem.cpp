@@ -1818,7 +1818,19 @@ int32 UTorqueBuildSubsystem::ItemOn(int32 Bay, FName Slot, int32 Engine) const
 bool UTorqueBuildSubsystem::IsBolted(int32 Bay, FName Slot, int32 Engine) const
 {
 	const FHost H = HostOf(Bay, Slot, Engine);
+	// [rigid choppers, beenster after 168: the rear suspension "did not appear on the bike" and stayed loose, so it
+	// couldn't be ridden] A rigid chopper's shock is hidden inside its frame (the model draws none, nothing to aim
+	// the wrench at): fitted, it's held there.
+	static const FName ShockSlot(TEXT("shock"));
+	if (Engine == 0 && Slot == ShockSlot && H.Slots && H.Slots->FindRef(Slot) != 0 && RigidBay(Bay)) return true;
 	return H.Bolted ? H.Bolted->FindRef(Slot) : false;
+}
+
+bool UTorqueBuildSubsystem::RigidBay(int32 Bay) const
+{
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	const FTorqueItem* FrameOn = Lay && Exists(Bay) ? Items.Find(ItemOn(Bay, TBI::FrameSlot())) : nullptr;
+	return FrameOn && Lay->V2Rigid({{"frame", TBI::Id(FrameOn->Part)}});
 }
 
 TArray<FName> UTorqueBuildSubsystem::MissingSlots(int32 Bay) const
@@ -3458,6 +3470,8 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			Items[Held].Tyre = 0;
 		}
 		Text = FString::Printf(TEXT("Fitted the %s as the %s. Bolt it up with the wrench."), *ItemTitle(Held), *TorqueShedParts::SlotName(S).ToLower()) + Fab;
+		if (R.Engine == 0 && IsBolted(H.Bay, S, 0))   // ([rigid choppers] the hidden shock: held in the frame as it goes in)
+			Text = FString::Printf(TEXT("Fitted the %s as the %s, hidden inside the frame."), *ItemTitle(Held), *TorqueShedParts::SlotName(S).ToLower()) + Fab;
 		if (H.Bay != INDEX_NONE) PartsOf.Add(H.Bay);
 		bItems = true;
 		break;

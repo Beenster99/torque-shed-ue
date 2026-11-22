@@ -181,6 +181,7 @@ public:
 	// only a frame built round its layout; a shock only the same rear end; handlebars only their own model. On a
 	// loose engine (Parts has its engine and no frame) its parts go by the engine's layout.
 	std::string V2FitReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;
+	bool V2Rigid(const PartsMap& Parts) const;   // a rigid frame (its shock, hidden in the frame, needs no bolting)
 	// [engine parts] What the engine part needs fitted with it: an open intake drawn on one fuel system ("with_fuel"),
 	// a carb that needs the airbox off ("open_air"). Empty when it can go on now. (The shop lists them all the same.)
 	std::string V2NeedsReason(const PartsMap& Parts, const std::string& Slot, const std::string& Id) const;

@@ -1,3 +1,4 @@
+#include <algorithm>
 // GeoTest: geometry mode's fit (Fit/BikeGeometry, the port of the Godot game's GeoGizmo and
 // BikeModel.apply_geometry). Its maths is checked case by case against the real game
 // (SimTest/data/godot_geo.json, dumped from Godot by Tools/make_godot_reference.py --geo), then the
@@ -97,9 +98,12 @@ int main()
 	{
 		{
 			const Json* S = Ref.Get("slots");
-			bool Same = S && S->A.size() == Geo::Slots().size();
+			// (then the V2 common parts' own slots after them, as filler_cap: beenster after 168)
+			bool Same = S && S->A.size() <= Geo::Slots().size();
 			for (size_t I = 0; Same && I < S->A.size(); ++I) Same = S->A[I].S == Geo::Slots()[I];
-			Expect(Same, "the slots a fit can move are PartsDB.SLOTS");
+			Expect(Same, "the slots a fit can move start with PartsDB.SLOTS");
+			const auto& All = Geo::Slots();
+			Expect(std::find(All.begin(), All.end(), std::string("filler_cap")) != All.end(), "a common filler cap can be moved in geometry mode");
 		}
 		int Bad = 0, N = 0;
 		double Worst = 0.0;
