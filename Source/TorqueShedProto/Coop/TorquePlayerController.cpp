@@ -28,6 +28,7 @@
 #include "TorqueBikePawn.h"
 #include "TorqueReports.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
 #include "Shed/TorqueWalker.h"
@@ -516,6 +517,8 @@ void ATorquePlayerController::OpenPlanner()
 		Planner = MakeUnique<FTorqueRoutePlanner>();
 		// (the ride's level opens itself once the road is planned)
 		Planner->OnRide = [this]() { CloseMenu(); };
+		// [ride bike] Ride asks which of the shed's bikes first (beenster, Nov 22).
+		Planner->PickBike = [this]() { OpenRideBikes(true); };
 	}
 	// In co-op the journey is everyone's, and everyone plans it (beenster, build 141): any rider's pins
 	// go to the host and out to the others' planners, and each game plans its road as it changes.
@@ -875,9 +878,46 @@ int32 ATorquePlayerController::NextRideBike(int32 From, int32 Dir) const
 	for (int32 Step = 1; Step <= N; ++Step)
 	{
 		const int32 Bay = ((From + Dir * Step) % N + N) % N;
-		if (Shed->Exists(Bay) && RideBikeTakenBy(Bay).IsEmpty()) return Bay;
+		if (Shed->Exists(Bay) && RideBikeTakenBy(Bay).IsEmpty() && RideBikeNotReady(Bay).IsEmpty()) return Bay;   // [ride bike] ready ones only
 	}
 	return From;
+}
+
+FString ATorquePlayerController::RideBikeNotReady(int32 Bay) const
+{
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (!Shed || !Shed->Exists(Bay)) return TEXT("No bike in this bay");
+	auto List = [](const TArray<FName>& Slots) {
+		FString S;
+		for (int32 I = 0; I < Slots.Num() && I < 4; ++I) S += (I ? TEXT(", ") : TEXT("")) + TorqueShedParts::SlotName(Slots[I]).ToLower();
+		if (Slots.Num() > 4) S += FString::Printf(TEXT(" and %d more"), Slots.Num() - 4);
+		return S;
+	};
+	FString Why;
+	const TArray<FName> Missing = Shed->MissingSlots(Bay), Loose = Shed->LooseSlots(Bay);
+	if (Missing.Num() > 0) Why += TEXT("Fit the ") + List(Missing) + TEXT(". ");
+	if (Loose.Num() > 0) Why += TEXT("Bolt up the ") + List(Loose) + TEXT(". ");
+	const FString Fab = Shed->FabOwedText(Bay);
+	if (!Fab.IsEmpty()) Why += FString::Printf(TEXT("It needs fabrication first: %s. "), *Fab);
+	if (Why.IsEmpty() && Shed->LiftRaised(Bay)) Why = TEXT("It's up on the lift: lower the lift first. ");
+	return Why.TrimEnd();
+}
+
+void ATorquePlayerController::OpenRideBikes(bool bForRide)
+{
+	bRideBikesForRide = bForRide;
+	Open(EPage::RideBike);
+	// The list opens on your own bike when it's ready, else on the first bike that is.
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	const TArray<FRow> List = Rows();
+	int32 First = -1;
+	for (int32 I = 0; I < List.Num(); ++I)
+	{
+		if (List[I].bDisabled || !List[I].Choose || !List[I].Label.StartsWith(TEXT("Bay "))) continue;
+		if (First < 0) First = I;
+		if (Shed && List[I].Label.StartsWith(FString::Printf(TEXT("Bay %d:"), Shed->MyBike() + 1))) { First = I; break; }
+	}
+	if (First >= 0) Selected = First;
 }
 
 FString ATorquePlayerController::Title() const
@@ -1015,6 +1055,14 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					Add(FString(TEXT("Ride UK: ")) + (RideName.IsEmpty() ? FString(TEXT("the host's journey")) : RideName), FString(), State, nullptr);
 					R.Last().bDisabled = true;
 				}
+				// [ride bike] Each rider picks their own bike, before the host sets off.
+				{
+					const UTorqueBuildSubsystem* MyShed = UTorqueBuildSubsystem::Of(this);
+					const int32 Mine = MyShed ? MyShed->MyBike() : INDEX_NONE;
+					const bool bMineReady = MyShed && MyShed->Exists(Mine) && RideBikeNotReady(Mine).IsEmpty();
+					Add(TEXT("Your bike for the ride"), bMineReady ? RideBikeName(Mine) : FString(TEXT("pick one")),
+						TEXT("Which of the shed's bikes you ride when the host sets off"), [this]() { OpenRideBikes(false); });
+				}
 				// [co-op] Everyone plans the journey together; the host sets off on it.
 				Add(TEXT("Plan the ride together (Ride UK)"), FString(),
 					TEXT("The Route planner: pin the journey with the others, each of you on the same map; the host sets off"), [this]() { OpenPlanner(); });
@@ -1122,9 +1170,9 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		// [co-op] Joined while the host is out riding: pick a bike from the shed, then join them on
 		// it, or wait in your own shed and rejoin when you like.
 		UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
-		if (Shed && (!Shed->Exists(JoinBay) || !RideBikeTakenBy(JoinBay).IsEmpty())) JoinBay = NextRideBike(JoinBay < 0 ? -1 : JoinBay, 1);
-		const bool bHaveBike = Shed && Shed->Exists(JoinBay) && RideBikeTakenBy(JoinBay).IsEmpty();
-		Add(TEXT("Your bike"), bHaveBike ? RideBikeName(JoinBay) : FString(TEXT("none free in the shed")),
+		if (Shed && (!Shed->Exists(JoinBay) || !RideBikeTakenBy(JoinBay).IsEmpty() || !RideBikeNotReady(JoinBay).IsEmpty())) JoinBay = NextRideBike(JoinBay < 0 ? -1 : JoinBay, 1);
+		const bool bHaveBike = Shed && Shed->Exists(JoinBay) && RideBikeTakenBy(JoinBay).IsEmpty() && RideBikeNotReady(JoinBay).IsEmpty();
+		Add(TEXT("Your bike"), bHaveBike ? RideBikeName(JoinBay) : FString(TEXT("none free and ready in the shed")),
 			TEXT("Left / Right: which of the shed's bikes you ride (one nobody else is on)"),
 			[this]() { JoinBay = NextRideBike(JoinBay, 1); },
 			[this](int32 Dir) { JoinBay = NextRideBike(JoinBay, Dir); });
@@ -1143,26 +1191,58 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	}
 	case EPage::RideBike:
 	{
-		// [co-op] Which bike to ride over Buttertubs: every bike in the shed (one another rider has
-		// picked is theirs). Choosing it sets off, everyone with their own bike.
-		ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn());
-		ATorqueWalker* Walker = Cast<ATorqueWalker>(GetPawn());
+		// [ride bike] Before a Ride UK journey (beenster, Nov 22: "a list of the bikes I can ride before
+		// we set off, whats mine and in the garage"): every bike in the shed's bays, the ready ones to
+		// pick and the others shown with what they still need. In co-op each rider picks their own
+		// (the host's Ride asks the host; a joined rider picks from the pause menu before the host sets off).
 		UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		int32 Bikes = 0, Ready = 0;
 		if (Shed)
 			for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
 			{
 				if (!Shed->Exists(Bay)) continue;
+				++Bikes;
+				const FString NotReady = RideBikeNotReady(Bay);
 				const FString Taken = RideBikeTakenBy(Bay);
-				Add(RideBikeName(Bay), Bay == Shed->MyBike() ? FString(TEXT("your bike")) : Taken,
-					Taken.IsEmpty() ? FString(TEXT("Set off on this one")) : FString::Printf(TEXT("%s rides this one"), *Taken),
-					[this, Shed, Bay, Bike, Walker]() {
+				const bool bMine = Bay == Shed->MyBike();
+				FString Value = NotReady.IsEmpty() ? FString(TEXT("Ready")) : FString(TEXT("Not ready"));
+				if (bMine) Value = TEXT("Yours, ") + Value.ToLower();
+				FString Hint = NotReady;
+				if (NotReady.IsEmpty())
+					Hint = bRideBikesForRide ? FString(TEXT("Set off on this one")) : FString(TEXT("Ride this one when the host sets off"));
+				if (!Taken.IsEmpty()) Hint += FString::Printf(TEXT(" (%s has picked it too)"), *Taken);
+				if (NotReady.IsEmpty())
+				{
+					++Ready;
+					Add(RideBikeName(Bay), Value, Hint, [this, Shed, Bay]() {
 						Shed->SetMyBike(Bay);
-						CloseMenu();
-						if (Walker) Walker->StartAdventure();
-						else if (Bike) TorqueFlow::RideOut(this);
+						if (!bRideBikesForRide)
+						{
+							Back();
+							return;
+						}
+						// Back to the planner, which sets off on it.
+						Back();
+						if (Planner && Page == EPage::Route) Planner->RideOnPicked();
 					});
-				if (!Taken.IsEmpty()) R.Last().bDisabled = true;
+				}
+				else
+				{
+					// (still picked to read what it needs, but it can't be ridden yet)
+					Add(RideBikeName(Bay), Value, Hint, []() {});
+					R.Last().bDisabled = true;
+				}
 			}
+		if (Bikes == 0)
+		{
+			Add(TEXT("No bikes in the shed yet"), FString(), TEXT("Order one on the parts computer and build it in a bay"), nullptr);
+			R.Last().bDisabled = true;
+		}
+		else if (Ready == 0)
+		{
+			Add(TEXT("None of the shed's bikes is ready to ride"), FString(), TEXT("Finish one in the shed: everything fitted and bolted up"), nullptr);
+			R.Last().bDisabled = true;
+		}
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	}
