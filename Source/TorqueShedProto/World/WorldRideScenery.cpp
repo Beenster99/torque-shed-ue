@@ -2727,6 +2727,23 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 				if (Ni < 0 || Nj < 0 || Ni >= M || Nj >= M) continue;
 				const size_t Np = size_t(Nj) * M + Ni;
 				if (Kind[Np] != 0 || Gone[size_t(P)] + Step > (Kind[size_t(P)] == 2 ? FloodReach : LakeReach) || Gr[Np] >= Lv[size_t(P)] + (Kind[size_t(P)] == 2 ? TideTop : 0.0) - 0.02) continue;
+				// ([real water, beenster on 168 at Uig: cars standing in the sea] a pier's yard, a car park or a
+				// road is built above the highest tide: the sea's high water never spreads over one, only
+				// ground truly under the sea's mean level)
+				if (Kind[size_t(P)] == 2 && Gr[Np] >= Lv[size_t(P)] - 0.02)
+				{
+					const double Bx = X0 + double(Ni - Rim) * Step, Bz = Z0 + double(Nj - Rim) * Step;
+					const int Bf = FieldAt(Bx, Bz);
+					const int Bk = Bf >= 0 ? FieldAreas[size_t(Bf)].Kind : -1;
+					bool Built = Bk == FieldHard || Bk == FieldCarPark || Bk == FieldForecourt || Bk == FieldSite;
+					if (!Built)
+					{
+						NearOpts Opts;
+						NearHit Hit;
+						Built = NearestOf(Bx, Bz, Opts, Hit) && Hit.Dist <= Hit.Half + 3.0;
+					}
+					if (Built) continue;
+				}
 				Kind[Np] = Kind[size_t(P)];
 				Lv[Np] = Lv[size_t(P)];
 				Gone[Np] = Gone[size_t(P)] + Step;
@@ -2823,6 +2840,13 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 							if (Fk == FieldSand) Type = ShoreSand;
 							else if (Fk == FieldScree) Type = ShoreShingle;
 							else if (Fk == FieldMud) Type = ShoreMud;
+							// ([real water, beenster on 168 at Uig] a pier, a quay or a harbour's yard is no beach: its
+							// top stays the yard's own ground, only its foot under the water the sea's stone)
+							else if (Fk == FieldHard || Fk == FieldCarPark || Fk == FieldForecourt || Fk == FieldSite || Fk == FieldBrownfield)
+							{
+								if (H > 0.0) continue;
+								Type = ShoreRock;
+							}
 						}
 					}
 					ShoreHere[V * 2] = float(ShoreZero - H);   // (so a point with none, 0, reads as high over any water)

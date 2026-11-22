@@ -854,7 +854,10 @@ def water_material(L, real=False):
                      g.op(U.MaterialExpressionSubtract, vc, const_b=0.024, a_out="R"), const_b=80.0))
         # (per metre: the sea absorbs the red most, so it goes blue-green as it deepens; peaty water the
         # blue, so it goes brown; both scatter a little of their own colour back)
-        absorb = g.lerp(g.const((0.42, 0.075, 0.05)), g.const((0.32, 0.5, 1.1)), brown)
+        # ([real water, beenster's 168 shot at Uig: the sea a Caribbean turquoise over pale sand] British
+        # coastal water carries plankton and peat from the hills: it takes the blue nearly as fast as the
+        # green, so it goes a grey green with depth, not the clear tropics' cyan)
+        absorb = g.lerp(g.const((0.45, 0.15, 0.19)), g.const((0.32, 0.5, 1.1)), brown)
         scatter = g.op(U.MaterialExpressionMultiply, vc, const_b=0.9)
         pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
