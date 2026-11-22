@@ -272,11 +272,14 @@ double ViewMetres(double SpeedMs, double TurnInMetres, int Step)
 	return M * Zoom[std::min(std::max(Step + 2, 0), 4)];
 }
 
+Rgba MapLand(bool Night) { return LooksOf(Night).Land; }
+Rgba MapWater(bool Night) { return LooksOf(Night).Water; }
+
 void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene, float BikeDown)
 {
 	const Looks L = LooksOf(Scene.Night);
 	P.Clip(X, Y, W, H);
-	P.Rect(X, Y, W, H, L.Land);
+	if (!Scene.LandOnly) P.Rect(X, Y, W, H, L.Land);
 	if (!Scene.Data || W <= 4.0f || H <= 4.0f)
 	{
 		P.NoClip();
@@ -295,7 +298,7 @@ void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene
 	const double Reach = std::sqrt(double(W) * double(W) + double(H) * double(H)) / Scale;
 	std::vector<int> NearLines, NearAreas, NearLabels;
 	Scene.Data->Near(Scene.Bike.X, Scene.Bike.Z, Reach, NearLines, NearAreas, NearLabels);
-	const bool Close = Scene.Metres < 1500.0, Far = Scene.Metres > 5000.0;
+	const bool Close = Scene.Metres < Scene.CloseUnder, Far = Scene.Metres > Scene.FarOver;
 	// Declutter: "some" drops the food, drink and landmark pins and the paths; "clear" keeps the land, the roads, the
 	// ride's way and the towns' names only.
 	const bool Some = Scene.Declutter >= 1, Clear = Scene.Declutter >= 2;
@@ -343,6 +346,11 @@ void DrawMap(Paint& P, float X, float Y, float W, float H, const MapScene& Scene
 					: Ln.Kind == RoadKind::Motorway ? L.Motorway : Ln.Kind == RoadKind::Main ? L.Main : L.Road;
 				Stroke(Ln, Px, C);
 			}
+	if (Scene.LandOnly)
+	{
+		P.NoClip();
+		return;
+	}
 	// The ride's way.
 	if (Scene.Route.size() >= 2)
 	{

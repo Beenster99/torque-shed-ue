@@ -44,11 +44,12 @@ struct MapView
 	std::vector<TileKey> Tiles() const;
 };
 
-enum ELayer { Relief = 0, RoadMap = 1, TerrainMap = 2, Satellite = 3, Hybrid = 4, LayerCount = 5 };
+// [planner map] SatNav: the sat nav's own map (Dash/TftPlannerMap), the road map's look zoomed out past it.
+enum ELayer { Relief = 0, RoadMap = 1, TerrainMap = 2, Satellite = 3, Hybrid = 4, SatNav = 5, LayerCount = 6 };
 const char* LayerName(int Layer);
 // Whether a layer is drawn from the satellite's pictures; whether it draws roads.
 inline bool PhotoLayer(int Layer) { return Layer == Satellite || Layer == Hybrid; }
-inline bool RoadLayer(int Layer) { return Layer == RoadMap || Layer == Hybrid; }
+inline bool RoadLayer(int Layer) { return Layer == RoadMap || Layer == Hybrid || Layer == SatNav; }
 
 // [build 147] The main roads the map draws on its road map: each 5 degree block's sketch's motorways,
 // trunk roads and A roads (sketch_bake.py), read once. Safe from any thread.
@@ -93,6 +94,17 @@ struct MapStreets
 	{
 		std::vector<Line> Lines;
 		std::vector<std::string> Names;
+		// [map water] Its water (rivers' banks, lakes, docks: the cell's ground file) and its rivers, canals and
+		// streams as lines (Kind 0 river, 1 stream, 2 canal), all (lat, lon) (beenster, Nov 21: "why is there
+		// no River Thames in London").
+		std::vector<std::vector<std::pair<float, float>>> Water;
+		struct Flow
+		{
+			int Kind = 0;
+			std::vector<std::pair<float, float>> Pts;
+		};
+		std::vector<Flow> Flows;
+		static bool IsWater(const std::string& Kind, const std::string& Word);
 	};
 	// The roads' names, from this zoom: where each named road's longest stretch in view is, its middle,
 	// at most Most, the biggest roads (then the longest stretches) first.
@@ -107,7 +119,7 @@ struct MapStreets
 	// The cells a view draws streets from (empty when zoomed too far out), the middle's first.
 	static std::vector<CellId> CellsFor(const MapView& View);
 	// A cell's roads from its folder's roads.json and region.json (its frame); null if they won't read.
-	static std::shared_ptr<const Cell> Read(const std::string& Dir);
+	static std::shared_ptr<Cell> Read(const std::string& Dir);
 	bool Has(CellId C);
 	void Put(CellId C, std::shared_ptr<const Cell> Got);
 	// Those of Cells held (and so drawn), noted as just used.
@@ -155,6 +167,8 @@ private:
 // tile is on disk yet the land is a dark grey. Roads (null: none) are drawn on the road map, and zoomed in,
 // Streets' (null: none) on the road map and over the satellite's pictures. Returns the share of pixels it
 // had ground for.
+// [planner map] The ferry crossings' dashed lines over a picture drawn (DrawRelief draws them on every layer).
+void DrawFerryLines(const MapView& View, std::vector<uint8_t>& Bgra);
 double DrawRelief(HeightStore& Heights, const MapView& View, std::vector<uint8_t>& Bgra, MapRoads* Roads = nullptr, MapImagery* Imagery = nullptr,
 	MapStreets* Streets = nullptr);
 } // namespace Route

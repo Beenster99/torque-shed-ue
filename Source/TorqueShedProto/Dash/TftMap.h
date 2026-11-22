@@ -96,7 +96,16 @@ struct MapScene
 	MapPt Finish;
 	std::vector<MapRider> Riders;
 	std::vector<MapPt> Waypoints;
+	// [planner map] The route planner's own use of it (beenster, Nov 21: "can we have the satnav map as the
+	// planner map?"): the land and roads only (its names, pins and line are the planner's), on ground already
+	// drawn (the sea), with buildings and paths from CloseUnder metres across the view and tracks and streams
+	// up to FarOver.
+	bool LandOnly = false;
+	double CloseUnder = 1500.0, FarOver = 5000.0;
 };
+// The map's land and water colours.
+Rgba MapLand(bool Night);
+Rgba MapWater(bool Night);
 
 // The map in a box of a Paint. BikeDown is how far down the box the bike sits (0.5 the middle; 0.68
 // with the heading up, so more of the road ahead shows).

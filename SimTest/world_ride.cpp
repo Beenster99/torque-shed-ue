@@ -24,6 +24,7 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
+#include "Dash/TftPlannerMap.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -243,6 +244,21 @@ int main(int Argc, char** Argv)
 		const auto T1 = std::chrono::steady_clock::now();
 		std::vector<uint8_t> Px;
 		Route::DrawRelief(Heights, V, Px, &Roads, &Imagery, &Streets);
+		if (V.Layer == Route::SatNav)
+		{
+			// [planner map] (WORLD_RIDE_MAP_LAYER=5: the sat nav's map, as the game's planner draws it)
+			TorqueTft::PlannerMap SatNav;
+			const auto S0 = std::chrono::steady_clock::now();
+			const int NavMissing = SatNav.Know(Cells, V, TorqueTft::PlannerMap::MostCells);
+			const auto S1 = std::chrono::steady_clock::now();
+			Route::MapView Plain = V;
+			Plain.Layer = Route::RoadMap;
+			Route::DrawRelief(Heights, Plain, Px);
+			const bool Drew = SatNav.Draw(V, Px);
+			if (Drew) Route::DrawFerryLines(V, Px);
+			std::printf("sat nav map: %d cells, %d missing, read in %.0f ms; %s in %.0f ms\n", int(TorqueTft::PlannerMap::CellsFor(V).size()), NavMissing,
+				std::chrono::duration<double, std::milli>(S1 - S0).count(), Drew ? "drawn" : "NOT drawn", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - S1).count());
+		}
 		const auto T2 = std::chrono::steady_clock::now();
 		std::printf("streets: %d cells for the view, %d missing, read in %.0f ms; drawn in %.0f ms\n", int(Route::MapStreets::CellsFor(V).size()), Missing,
 			std::chrono::duration<double, std::milli>(T1 - T0).count(), std::chrono::duration<double, std::milli>(T2 - T1).count());
