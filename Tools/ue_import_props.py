@@ -98,6 +98,9 @@ def master():
     """M_PropMaster: Tint x (the scan's light and shade, by Detail), Rough x (the scan's roughness, by
     Detail), Metal, the scan's normal, Glow x Tint as light. UVs x Tile (the props' UVs are metres)."""
     m = new_asset("M_PropMaster", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    # [build 168 feedback] (beenster: "weird train texture!!") Trains, and the ride's props, are drawn instanced
+    # (ISMs): a master without this usage flag draws as the grey checker in a packaged game.
+    try_set(m, "used_with_instanced_static_meshes", True)
     # Its instances also paint the Fab vehicles (Data/Furniture/fab_looks.json), which are Nanite.
     try_set(m, "used_with_nanite", True)
     uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1600, 0)
@@ -248,6 +251,9 @@ def plain_master():
     """M_PropPlain: Tint, Rough, Metal, Glow x Tint. No textures at all, for a prop whose scan isn't
     downloaded yet (a texture parameter with nothing behind it shows UE's checkerboard)."""
     m = new_asset("M_PropPlain", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    # [build 168 feedback] (beenster: "weird train texture!!") Trains, and the ride's props, are drawn instanced
+    # (ISMs): a master without this usage flag draws as the grey checker in a packaged game.
+    try_set(m, "used_with_instanced_static_meshes", True)
     # Its instances also paint the Fab vehicles (Data/Furniture/fab_looks.json), which are Nanite.
     try_set(m, "used_with_nanite", True)
     tint = expr(m, unreal.MaterialExpressionVectorParameter, -500, -100, parameter_name="Tint", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0))
@@ -268,6 +274,9 @@ def plain_master():
 
 def glass_master():
     m = new_asset("M_PropGlass", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    # [build 168 feedback] (beenster: "weird train texture!!") Trains, and the ride's props, are drawn instanced
+    # (ISMs): a master without this usage flag draws as the grey checker in a packaged game.
+    try_set(m, "used_with_instanced_static_meshes", True)
     try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     try_set(m, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE)
     tint = expr(m, unreal.MaterialExpressionVectorParameter, -500, 0, parameter_name="Tint", default_value=unreal.LinearColor(0.85, 0.9, 0.9, 1.0))
@@ -287,6 +296,9 @@ def printed_master():
     """M_PropPrinted: a printed atlas (Atlas, Rows rows top to bottom) showing row Courier (the game
     sets it per box), unit UVs over the face; Rough as for the rest."""
     m = new_asset("M_PropPrinted", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    # [build 168 feedback] (beenster: "weird train texture!!") Trains, and the ride's props, are drawn instanced
+    # (ISMs): a master without this usage flag draws as the grey checker in a packaged game.
+    try_set(m, "used_with_instanced_static_meshes", True)
     uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1200, 0)
     u = expr(m, unreal.MaterialExpressionComponentMask, -1000, -100, r=True, g=False, b=False, a=False)
     v = expr(m, unreal.MaterialExpressionComponentMask, -1000, 100, r=False, g=True, b=False, a=False)
@@ -552,6 +564,33 @@ def mesh_path(pid):
     return "%s/%s/SM_%s" % (DEST, pid, pid)
 
 
+def instanced_ready(mesh, pid):
+    """The check that no prop (a train above all) draws as the checker: every slot has a material, not the
+    engine's default, and its base material is flagged for instanced static meshes (set here if the
+    project's own; an engine or plugin one is only reported). Returns how many slots are still wrong."""
+    bad = 0
+    for i, s in enumerate(mesh.get_editor_property("static_materials")):
+        slot = str(s.get_editor_property("material_slot_name"))
+        m = s.get_editor_property("material_interface")
+        base = m.get_base_material() if m else None
+        if base is None or base.get_path_name().startswith("/Engine/"):
+            warn("%s: slot %s has %s: it would draw as the checker" % (pid, slot, base.get_path_name() if base else "no material"))
+            bad += 1
+            continue
+        try:
+            if not base.get_editor_property("used_with_instanced_static_meshes"):
+                if not base.get_path_name().startswith("/Game/"):
+                    raise RuntimeError("not the project's own")
+                base.set_editor_property("used_with_instanced_static_meshes", True)
+                mel.recompile_material(base)
+                eal.save_loaded_asset(base)
+                log("%s: %s flagged for instanced meshes" % (pid, base.get_name()))
+        except Exception as e:
+            warn("%s: slot %s: %s has no instanced usage (%s): checker in a packaged game" % (pid, slot, base.get_name(), e))
+            bad += 1
+    return bad
+
+
 def give_materials(mesh, mats):
     """A Blender prop's slots are named by materials.json keys: put the matching instance in each."""
     slots = mesh.get_editor_property("static_materials")
@@ -622,7 +661,7 @@ def import_all(force=False, only=()):
     # over by its own shape, so its meshes collide by their triangles.
     furniture = set(json.load(open(os.path.join(ROOT, "Data", "Furniture", "models.json")))["models"])
     mats = materials(spec)
-    got, missing = 0, []
+    got, missing, bad = 0, [], 0
     for pid, p in sorted(props.items()):
         if p["source"] == "blender":
             src = os.path.join(DATA, "Blender", pid + ".glb")
@@ -652,10 +691,15 @@ def import_all(force=False, only=()):
         no_nanite(mesh, pid)
         if p["source"] == "blender":
             give_materials(mesh, mats)
+        bad += instanced_ready(mesh, pid)
         if pid in furniture:
             complex_collision(mesh, pid)
         got += 1
     log("%d props in %s%s" % (got, DEST, "; not there: " + ", ".join(missing) if missing else ""))
+    if bad:
+        warn("%d prop material slots would draw as the checker in a packaged game (above)" % bad)
+    else:
+        log("material check: every prop slot has a real material flagged for instanced meshes")
     if missing and any(props[m]["source"] == "polyhaven" for m in missing):
         warn("run python Tools/fetch_props.py for the Poly Haven ones")
 
