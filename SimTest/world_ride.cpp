@@ -349,8 +349,6 @@ int main(int Argc, char** Argv)
 	if (!R.Ok && !(Ferries::ListNow() && R.Why == "There is no way by road between them.")) return 1;   // ([ferries stage 5] a ferry may be the way)
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
-	// [house foot] WORLD_RIDE_HOUSEBLEND=0: the buildings without their weathered feet, darker ground and rank grass.
-	if (Plan && std::getenv("WORLD_RIDE_HOUSEBLEND") != nullptr) Plan->HouseBlend = std::clamp(std::atof(std::getenv("WORLD_RIDE_HOUSEBLEND")), 0.0, 1.0);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
 	// the game places them when it has them all.
 	if (Plan && std::getenv("WORLD_RIDE_FACADE") != nullptr)
@@ -2835,7 +2833,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText, WallText, TurfText, PlantText, RoadUvText;   // ([road edges, Nov 18] the turf with the land, after it)
+		std::string Text, PropText, WallText, TurfText, RoadUvText;   // ([road edges, Nov 18] the turf with the land, after it)
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -2915,14 +2913,6 @@ int main(int Argc, char** Argv)
 				{
 					RideMesh Land;
 					Plan->LandTile(Tx, Tz, TileM, TileCells, Land);
-					// ([house foot] the square's plants to WORLD_RIDE_MESH.plants: kind x z y scale height yaw)
-					for (const RidePlant& Pl : Land.Plants)
-					{
-						const double Px = Land.OriginX + Pl.X - Centre.X, Pz = Land.OriginZ + Pl.Z - Centre.Z;
-						if (std::hypot(Px, Pz) > Round) continue;
-						std::snprintf(Buf, sizeof(Buf), "%d %.3f %.3f %.3f %.3f %.3f %.3f\n", int(Pl.Kind), Px, Pz, double(Pl.Y), double(Pl.Scale), double(Pl.Height), double(Pl.Yaw));
-						PlantText += Buf;
-					}
 					const RideMesh* Extra = Land.Extra.get();
 					const RideMesh* Walls = Extra ? Extra->Stone.get() : nullptr;
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
@@ -2951,13 +2941,6 @@ int main(int Argc, char** Argv)
 									// ([towns stage 5] the houses' stone in the square's own tint)
 									if (Mesh == Houses && Extra) { Cr *= Extra->MasonryTint.R; Cg *= Extra->MasonryTint.G; Cb *= Extra->MasonryTint.B; }
 									else if (Mesh == Walls && Extra) { Cr *= Extra->StoneTint.R; Cg *= Extra->StoneTint.G; Cb *= Extra->StoneTint.B; }
-								}
-								// ([house foot] the walls' dirt as M_RideRender and M_RideBrick lay it from the alpha; a stone house's moss)
-								if ((Mesh == Washed || Mesh == Brick || Mesh == Houses) && Mesh->Alpha.size() > V)
-								{
-									const double A = Mesh->Alpha[V];
-									if (Mesh == Houses) { Cr += (0.045 - Cr) * A * 0.6; Cg += (0.055 - Cg) * A * 0.6; Cb += (0.025 - Cb) * A * 0.6; }
-									else { Cr *= 1.0 - 0.58 * A; Cg *= 1.0 - 0.58 * A; Cb *= 1.0 - 0.67 * A; }
 								}
 								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
 									Cr, Cg, Cb);
@@ -3027,7 +3010,6 @@ int main(int Argc, char** Argv)
 		}
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr) Text += TurfText;
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
-		if (!PlantText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".plants", PlantText);
 		if (!RoadUvText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".road", RoadUvText);
 		// [real water] (with WORLD_RIDE_MESH_R: the land's and the water's vertices with their UV1 and alpha, to
 		// WORLD_RIDE_MESH.uv1: L|W x z y u0 v0 u1 v1 alpha, for the water's pictures)

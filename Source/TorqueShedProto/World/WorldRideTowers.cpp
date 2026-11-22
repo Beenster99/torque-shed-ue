@@ -24,7 +24,6 @@ using RideSceneBits::Rgb;
 using RideSceneBits::Shade;
 using RideSceneBits::Chance;
 using RideSceneBits::Quad;
-using RideSceneBits::RoofQuad;
 using RideSceneBits::BuildingTagColour;
 constexpr double TowerCell = 256.0;
 
@@ -269,8 +268,7 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 				// Its walls' colour: the map's, else by what it is.
 				Rgb Wall;
 				static const Rgb StoneWall = {0.30f, 0.28f, 0.245f}, Panel = {0.36f, 0.35f, 0.33f}, GlassWall = {0.045f, 0.055f, 0.065f};
-				// ([Nov 22] beenster, Swanley on 168: big sheds read as bare pale shells: cladding in its real colours)
-				const Rgb Clad[3] = {{0.15f, 0.16f, 0.16f}, {0.07f, 0.09f, 0.11f}, {0.05f, 0.08f, 0.055f}};
+				const Rgb Clad[3] = {{0.30f, 0.31f, 0.30f}, {0.20f, 0.24f, 0.27f}, {0.38f, 0.35f, 0.29f}};
 				const Rgb Bricks = {Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
 				const Rgb Stone = {StoneWall.R * Look.HouseStone.R, StoneWall.G * Look.HouseStone.G, StoneWall.B * Look.HouseStone.B};
 				const bool Brick = T.WallMaterial == "brick" || (T.WallMaterial.empty() && !Glassy && !Shed && !Worship && !Parking && Salt < 0.55);
@@ -281,10 +279,6 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 				else if (Brick) Wall = Bricks;
 				else Wall = Panel;
 				Wall = Shade(Wall, 0.9 + 0.2 * Chance(T.Mid.X, T.Mid.Z, 82));
-				// ([Nov 22] which material its walls are drawn in: see WallFace)
-				const bool CladWall = !Glassy && !Worship && (Shed || T.WallMaterial == "metal") && T.WallMaterial != "brick";
-				const bool BrickWall = !Glassy && !CladWall && Brick;
-				const bool Rendered = !Glassy && !CladWall && !BrickWall && !Worship && !Parking && T.WallMaterial != "stone" && T.WallMaterial != "sandstone" && T.WallMaterial != "limestone";
 				const double Turn = Signed(T.Ring) > 0.0 ? 1.0 : -1.0;
 				// (a pitched roof: a church's or a mapped gable's, on a plain oblong only)
 				const bool Oblong = T.Ring.size() == 4;
@@ -312,23 +306,12 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 					const P2 Nout = P2(U.Z, -U.X) * Turn;   // (outward)
 					const P3 Away = At3((A.X + B.X) * 0.5 + Nout.X * 50.0, (Foot + Eaves) * 0.5, (A.Z + B.Z) * 0.5 + Nout.Z * 50.0);
 					const double By = 0.82 + 0.18 * std::fabs(Nout.X * 0.6 + Nout.Z * 0.8);
-					// ([Nov 22] beenster, Swanley on 168: "lots of houses with no textures": every tower's walls were in
-					// the road's plain material. Now a shed's or a metal wall's in profiled sheet (M_RideRoof's ribs), a
-					// brick one's in M_RideBrick, a panel or rendered one's in M_RideRender; glass and stone as before)
-					const auto WallFace = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3)
-					{
-						const Rgb Col = Shade(Wall, By);
-						if (CladWall) RoofQuad(Out.RoofingOf(), Q0, Q1, Q2, Q3, Away, Col, 1.0f);
-						else if (BrickWall) Quad(Out.BrickworkOf(), Q0, Q1, Q2, Q3, Away, Col, false, 0.06f);
-						else if (Rendered) Quad(Out.RenderOf(), Q0, Q1, Q2, Q3, Away, Col, false, 0.08f);
-						else Quad(Out, Q0, Q1, Q2, Q3, Away, Col);
-					};
-					WallFace(At3(A.X, Foot, A.Z), At3(B.X, Foot, B.Z), At3(B.X, Eaves, B.Z), At3(A.X, Eaves, A.Z));
+					Quad(Out, At3(A.X, Foot, A.Z), At3(B.X, Foot, B.Z), At3(B.X, Eaves, B.Z), At3(A.X, Eaves, A.Z), Away, Shade(Wall, By));
 					// (a church's gable ends up to its ridge)
 					if (Pitched && (int(K) % 2) != (LongSide % 2))
 					{
 						const P2 M = (A + B) * 0.5;
-						WallFace(At3(A.X, Eaves, A.Z), At3(B.X, Eaves, B.Z), At3(M.X, Top, M.Z), At3(A.X, Eaves, A.Z));
+						Quad(Out, At3(A.X, Eaves, A.Z), At3(B.X, Eaves, B.Z), At3(M.X, Top, M.Z), At3(A.X, Eaves, A.Z), Away, Shade(Wall, By));
 					}
 					if (!Fine || L < 2.5) continue;
 					// The openings on this wall, a little proud of it.
@@ -417,10 +400,8 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 				{
 					const size_t S0 = size_t(LongSide), S1 = (S0 + 1) % 4, S2 = (S0 + 2) % 4, S3 = (S0 + 3) % 4;
 					const P2 Ra = (T.Ring[S0] + T.Ring[S3]) * 0.5, Rb = (T.Ring[S1] + T.Ring[S2]) * 0.5;
-					// ([Nov 22] in M_RideRoof: a shed's in sheet, a church's in slate, else tiles)
-					const float Roofing = Shed ? 1.0f : Worship ? 0.0f : 0.5f;
-					RoofQuad(Out.RoofingOf(), At3(T.Ring[S0].X, Eaves, T.Ring[S0].Z), At3(T.Ring[S1].X, Eaves, T.Ring[S1].Z), At3(Rb.X, Top, Rb.Z), At3(Ra.X, Top, Ra.Z), Sky, RoofCol, Roofing);
-					RoofQuad(Out.RoofingOf(), At3(T.Ring[S2].X, Eaves, T.Ring[S2].Z), At3(T.Ring[S3].X, Eaves, T.Ring[S3].Z), At3(Ra.X, Top, Ra.Z), At3(Rb.X, Top, Rb.Z), Sky, Shade(RoofCol, 0.88), Roofing);
+					Quad(Out, At3(T.Ring[S0].X, Eaves, T.Ring[S0].Z), At3(T.Ring[S1].X, Eaves, T.Ring[S1].Z), At3(Rb.X, Top, Rb.Z), At3(Ra.X, Top, Ra.Z), Sky, RoofCol);
+					Quad(Out, At3(T.Ring[S2].X, Eaves, T.Ring[S2].Z), At3(T.Ring[S3].X, Eaves, T.Ring[S3].Z), At3(Ra.X, Top, Ra.Z), At3(Rb.X, Top, Rb.Z), Sky, Shade(RoofCol, 0.88));
 				}
 				else
 				{

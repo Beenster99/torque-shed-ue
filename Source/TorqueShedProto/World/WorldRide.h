@@ -176,20 +176,6 @@ struct RideMesh
 	// eyes with a piece of road (alpha 1: pale studs by day, catching the headlight near by at night).
 	// The vertex colour is the light's, brighter for more. Null for none.
 	std::shared_ptr<RideMesh> Night;
-	// [Nov 22] (a sub-mesh, made about this one's origin when it has none yet)
-	static RideMesh& SubOf(std::shared_ptr<RideMesh>& Sub, double X, double Z)
-	{
-		if (!Sub)
-		{
-			Sub = std::make_shared<RideMesh>();
-			Sub->OriginX = X;
-			Sub->OriginZ = Z;
-		}
-		return *Sub;
-	}
-	RideMesh& RoofingOf() { return SubOf(Roofing, OriginX, OriginZ); }
-	RideMesh& BrickworkOf() { return SubOf(Brickwork, OriginX, OriginZ); }
-	RideMesh& RenderOf() { return SubOf(Render, OriginX, OriginZ); }
 	RideMesh& NightOf()
 	{
 		if (!Night)
@@ -723,19 +709,6 @@ public:
 	// shrubs and flowers (PlantsTile). GardenShare (0..1, -TorqueRidePlanting=0.5) thins it out.
 	bool RealGardens = false;
 	double GardenShare = 1.0;
-	// [house foot, Nov 22] How strongly houses are settled into the land (0..1, -TorqueHouseBlend=0 off): their
-	// walls' weathered feet (BuildingsTile), the darker, lusher ground round them (LandTile, HouseFootAt) and
-	// rank grass along their walls' feet (HouseFootPlants, the grass's density too).
-	double HouseBlend = 1.0;
-	// (how far round a building's walls the ground darkens, m, and how much at the wall)
-	static constexpr double HouseFootReach = 6.0;
-	// [house foot] How much the ground at (X, Z) is a building's foot (0..1: 1 at its walls, fading out over
-	// HouseFootReach), and the land colour C toned for it by that much.
-	double HouseFootAt(double X, double Z) const;
-	// [house foot] The buildings (copies, as boxes) whose feet reach the square (X0, Z0)-(+Size): the outlines'
-	// pieces where the world has outlines, the cells' own boxes elsewhere, as BuildingsTile draws them.
-	void HouseFootBoxes(double X0, double Z0, double Size, std::vector<Building>& Out) const;
-	static void HouseFootTone(float* C, double Foot);
 	// [gardens] One house's garden as BuildingsTile builds it: its middle, its turn (Cs, Sn: as Local's),
 	// its length along (LongX: x) and depth; which side its front is on (FrontSide +1/-1, across), how far
 	// from 1 m out of the front to the road's edge (FrontGap); its door (along) and drive (DriveFrom..DriveTo
@@ -756,9 +729,6 @@ public:
 		bool Blocked(double X, double Z, double Gap) const;   // (Gap at most 2 m)
 	};
 	void GardenPlants(const GardenHouse& House, const GardenClear& Clear, RideMesh& Out) const;
-	// [house foot, Nov 22] Rank grass along a building's walls' feet (WorldRideHouseFoot.cpp), as the grass's own
-	// kinds: its front only when Front (soft ground before it), only a weed or two where Hard (a town's yards).
-	void HouseFootPlants(const GardenHouse& House, bool Front, bool Hard, const GardenClear& Clear, RideMesh& Out) const;
 	bool SeenFromRoad(const GardenClear& Clear, double X, double Z, const P2& Foot) const;   // [gardens] (a clear line to the road)
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
