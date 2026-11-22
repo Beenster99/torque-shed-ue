@@ -97,11 +97,13 @@ def road_material_scanned(L, tex, roles):
     g.link(road[0], flat)
     g.link(g.const(0.9), flat, "Fraction")
     road[0] = g.op(unreal.MaterialExpressionMultiply, flat, g.const((0.96, 0.99, 1.06)))
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], L.noise(g.m, 0.002, 0.6, 0.95, -1200, g.y + 200))
+    tone = L.noise(g.m, 0.002, 0.6, 0.95, -1200, g.y + 200)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], tone)
     g.y += 140
     # Patches of a fresher, darker surface dressing and paler, older tarmac, tens of metres long.
     patch = g.mask_noise(0.0012, -2.0, 3.0)
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.08), g.const(0.8), patch))
+    patch_tone = g.lerp(g.const(1.08), g.const(0.8), patch)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], patch_tone)
     tar_scan = list(road)   # (the tarmac's own scan: the verge's inner end, build 149)
     # Which strips are tarmac: the vertex colour within a hair of the tarmac's own (0.022, 0.022, 0.025),
     # so nothing else drawn in this material (dark glass, black paint) takes the scan.
@@ -270,8 +272,74 @@ def road_material_scanned(L, tex, roles):
                     g.op(unreal.MaterialExpressionSubtract, along, const_b=0.5), const_b=10.0))
         stones = g.op(unreal.MaterialExpressionMultiply, stones, gate)
         surface = g.mix(road, grav, stones)
+        lane_tar = list(road)
         road = g.mix(own, surface, near)
         hard = g.op(unreal.MaterialExpressionMultiply, near, g.op(unreal.MaterialExpressionOneMinus, stones))   # (the tarmac itself, for the wet)
+        # [build 168] The grit up a lane's middle (beenster on 167: "make gravel on the centre of the road more
+        # sparse, better colour matched to the road (it's made up of stones from the road itself), improve the
+        # blending, no edges"). Its own key now (World/WorldRide's LaneGrit: tarmac at the band's edges to
+        # (0.06, 0.062, 0.085) at its core, off the gravel tracks' line, so their approved look is unchanged).
+        # The stones are the gravel scan's shapes and shading in the tarmac's own colour: the asphalt scan's
+        # average (its smallest mip, so one tiny cached sample) graded exactly as the tarmac is, by the same
+        # slow tone and patch nodes. Only the tallest stones show, fewer and fewer from the core out, and in
+        # loose clumps along the lane (the gravel's metre-wide wobble, reused); at the band's edges none at
+        # all, so the tarmac runs on unbroken under it. Cloud preview: rideuk/lane_grit_168/.
+        lane_c = (0.06, 0.062, 0.085)
+        lspan = tuple(b - a for a, b in zip(tar_c, lane_c))
+        lrel = g.op(unreal.MaterialExpressionSubtract, vc, g.const(tar_c))
+        ldot = g.node(unreal.MaterialExpressionDotProduct, -600)
+        g.link(lrel, ldot, "A")
+        g.link(g.const(lspan), ldot, "B")
+        lalong = g.op(unreal.MaterialExpressionMultiply, ldot, const_b=1.0 / sum(v * v for v in lspan))
+        lon = g.op(unreal.MaterialExpressionAdd, g.const(tar_c), g.op(unreal.MaterialExpressionMultiply, g.const(lspan), lalong))
+        loff = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, loff, "A")
+        g.link(lon, loff, "B")
+        # (a tighter key than the gravel's: the older patches' grey (0.038, 0.037, 0.036) and the covers'
+        # lie 0.006 and 0.013 off this line; 8-bit rounding puts the band's own colours under 0.003 off)
+        lnear = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, g.const(0.0065), loff), const_b=400.0))
+        lends = g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, lalong, const_b=0.15), const_b=8.0)),
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), lalong), const_b=8.0)))
+        lnear = g.op(unreal.MaterialExpressionMultiply, lnear, lends)
+        # (how thick the grit lies: none at the band's edges, eased in to the core)
+        dens = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract,
+                    g.op(unreal.MaterialExpressionMultiply, lalong, const_b=1.15), const_b=0.1))
+        dens = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, dens, dens),
+                    g.op(unreal.MaterialExpressionSubtract, g.const(3.0), g.op(unreal.MaterialExpressionMultiply, dens, const_b=2.0)))
+        clump = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, wobble, const_b=1.2), const_b=0.6), g.const(0.25)))
+        cover = g.op(unreal.MaterialExpressionMultiply, dens, clump)
+        # (the height a stone must stand to show: at the core about one in six of the scan's stones,
+        # only the odd tallest towards the edges)
+        thr = g.op(unreal.MaterialExpressionSubtract, g.const(0.95), g.op(unreal.MaterialExpressionMultiply, cover, const_b=0.95))
+        chips = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, height, thr), const_b=8.0))
+        mean = g.node(unreal.MaterialExpressionTextureSample, -900, texture=tex["asphalt"]["color"],
+                      sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
+                      sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
+        g.link(g.world_uv(roles["asphalt"]["tile_m"]), mean, "UVs")
+        try:
+            mean.set_editor_property("mip_value_mode", unreal.TextureMipValueMode.TMVM_MIP_LEVEL)
+            mean.set_editor_property("const_mip_value", 14)   # (past the last mip: the scan's 1x1 average)
+        except Exception as e:
+            unreal.log_warning("[Torque] lane grit: no mip level on the tarmac's average (%s)" % e)
+        rmean = mean
+        if "ao" in tex["asphalt"]:
+            rmean = g.op(unreal.MaterialExpressionMultiply, rmean, const_b=0.92)   # (the tarmac's colour carries its AO)
+        rdull = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(rmean, rdull)
+        g.link(g.const(0.9), rdull, "Fraction")
+        rtone = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionMultiply, rdull, g.const((0.96, 0.99, 1.06))), tone), patch_tone)
+        chip_c = g.op(unreal.MaterialExpressionMultiply, rtone,
+                      g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, height, const_b=1.0), const_b=1.12))
+        lane = g.mix(lane_tar, [chip_c, grav[1], grav[2]], chips)
+        road = g.mix(road, lane, lnear)
+        hard = g.op(unreal.MaterialExpressionMax, hard,
+                    g.op(unreal.MaterialExpressionMultiply, lnear, g.op(unreal.MaterialExpressionOneMinus, chips)))
+        near = g.op(unreal.MaterialExpressionMax, near, lnear)
     else:
         road = g.mix(own, road, tar)
         hard = tar

@@ -3549,7 +3549,16 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					// through it, and M_RideRoad's gravel is greyed to the road's own tone)
 					// ([build 154] beenster, shown the gravel fade preview: "use this when there is gravel on the road":
 					// the core now three quarters of the way, M_RideRoad's gravel the preview's own scan and grade)
-					static constexpr float LaneGrit[3] = {0.022f + 0.75f * 0.073f, 0.022f + 0.75f * 0.066f, 0.025f + 0.75f * 0.045f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
+					// ([build 168] beenster on 167: "make gravel on the centre of the road more sparse, better colour
+					// matched to the road (it's made up of stones from the road itself), improve the blending, no
+					// edges". The band now has its own key, (0.06, 0.062, 0.085) at its core, off the gravel
+					// tracks' line, so M_RideRoad draws it as the road's own chippings: the gravel scan's stones
+					// in the tarmac's own colour, only the tallest of them, fewer and fewer out to the band's edges
+					// where there are none at all, so the tarmac runs on unbroken and no edge shows.
+					// The core is now also cut at the crown: drawn flat across it, the road's crown stood up
+					// through the band's middle (2.5% fall each side) and showed as a clean stripe between two
+					// dark streaks.)
+					static constexpr float LaneGrit[3] = {0.06f, 0.062f, 0.085f}, LaneTar[3] = {0.022f, 0.022f, 0.025f};
 					const auto Wob = [Which](double S, int Salt)
 					{
 						const double F = std::floor(S * 0.7), T = S * 0.7 - F, E = T * T * (3.0 - 2.0 * T);
@@ -3560,21 +3569,22 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					for (int St = 0; St < Steps; ++St)
 					{
 						const Row R0 = Between(Ma, Mb, double(St) / Steps), R1 = Between(Ma, Mb, double(St + 1) / Steps);
-						// (each row's core and outer edge each side, as the band thins to its ends)
+						// (each row's outer edge, core and crown, as the band thins to its ends)
 						const auto Edges = [&](const Row& R, double* E)
 						{
 							const double Ends = std::clamp(std::fmin(R.Along - Mk.From, Mk.To - R.Along) / 4.0, 0.0, 1.0);
 							const double Core = Half0 * (0.35 + 0.6 * Wob(R.Along, 81)) * Ends;
-							E[0] = Mid + Core + (0.25 + 0.5 * Wob(R.Along, 82)) * Ends;   // (left outer)
+							E[0] = Mid + Core + (0.35 + 0.5 * Wob(R.Along, 82)) * Ends;   // (left outer)
 							E[1] = Mid + Core * (0.7 + 0.5 * Wob(R.Along, 83));
-							E[2] = Mid - Core * (0.7 + 0.5 * Wob(R.Along, 84));
-							E[3] = Mid - Core - (0.25 + 0.5 * Wob(R.Along, 85)) * Ends;   // (right outer)
+							E[2] = Mid;                                                    // (the crown)
+							E[3] = Mid - Core * (0.7 + 0.5 * Wob(R.Along, 84));
+							E[4] = Mid - Core - (0.35 + 0.5 * Wob(R.Along, 85)) * Ends;   // (right outer)
 						};
-						double E0[4], E1[4];
+						double E0[5], E1[5];
 						Edges(R0, E0);
 						Edges(R1, E1);
-						const float* Cols[4] = {LaneTar, LaneGrit, LaneGrit, LaneTar};
-						for (int Band = 0; Band < 3; ++Band)
+						const float* Cols[5] = {LaneTar, LaneGrit, LaneGrit, LaneGrit, LaneTar};
+						for (int Band = 0; Band < 4; ++Band)
 						{
 							RideMesh& M = *Into;
 							const uint32_t V = uint32_t(M.Vertices());
