@@ -1295,6 +1295,16 @@ public:
 		std::vector<P2> Pts;
 	};
 	std::unordered_map<long long, FarEdge> FarEdges;
+	// [square T] (beenster, Nov 22: "build the A road first respecting its direction, then build the b road
+	// and DO NOT change the A road".) Where the ride turns at a T to or from a road that gives way, the
+	// through road as one straight line through the junction, fitted to the map's line of both its arms: the
+	// ride's road laid along it on its own side, and the through road's other arm (a side road), by its edge,
+	// laid along it into the junction (Hub, the junction on that line; Dir, along that arm, away).
+	struct ThroughStraight
+	{
+		P2 Hub, Dir;
+	};
+	std::unordered_map<int, ThroughStraight> ThroughLines;
 	int JunctionSignCount = 0;      // (Give Way and Stop signs stood by the ride's own lines: IndexFurniture)
 	void PaintThrough(const JunctionRule& J, double& In, double& Out, double& GiveIn, double& GiveOut);
 	void FindPriorities(int From, const std::vector<int>& Path);
