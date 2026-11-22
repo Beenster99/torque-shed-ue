@@ -3227,11 +3227,10 @@ void BikeParts::Rearsets(const PartsMap& Parts, const Layout& L, std::vector<Fit
 	}
 }
 
-void BikeParts::HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+void BikeParts::HornAt(const PartsMap& Parts, const V3& At, std::vector<FittedPart>& Out) const
 {
 	if (const Json* P = Lay.Part(PartIn(Parts, "horn")))
 	{
-		const V3 At = ToGodot(L.HeadBottom) + V3(0.0, -0.1, 0.07);
 		const std::string Style = P->Str("style", "disc");
 		auto Horn = [&](const std::string& Glb, const GAffine& Xf) { Put(Out, "horn", "horn/" + Glb + ".glb", Xf, ""); };
 		if (Style == "snail")
@@ -3256,6 +3255,11 @@ void BikeParts::HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<F
 		else if (Style == "klaxon" || Style == "bulb") Horn(Style, GAffine::At(At));
 		else Horn("disc", GAffine::At(At));
 	}
+}
+
+void BikeParts::HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	HornAt(Parts, ToGodot(L.HeadBottom) + V3(0.0, -0.1, 0.07), Out);
 	if (Lay.Part(PartIn(Parts, "ecu")))
 	{
 		const V3 SeatFront = ToGodot(L.SeatFront), Tail = ToGodot(L.Tail);
@@ -5028,6 +5032,35 @@ bool BikeParts::FitV2(const PartsMap& Parts, std::vector<FittedPart>& Out) const
 		const GAffine PadBasis = GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5);
 		Put(Out, Side + "_pads", "pads/" + PadsId + ".glb", AtWith(PadBasis, ToGodot(At)),
 			CalNode.empty() ? (Side == "front" ? std::string("front_hub") : std::string("swingarm")) : CalNode);
+	}
+	// [horn, beenster after 168: "neither the horn nor the rear suspension appeared on the bike", so it stayed loose
+	// and the bike couldn't be ridden] No V2 model draws a horn: the shop's own, under the steering head as on the
+	// older bikes.
+	// The first clear spot down the front of the frame from there (it mustn't sit in the air filter or a cylinder).
+	V3 SteerLow;
+	if (F.Named("steer_bottom", SteerLow) && !Fitted("horn").empty())
+	{
+		std::vector<V3> Drawn;
+		for (const FittedPart& P : Out)
+			if (P.Made && !P.Hidden)
+				for (const PartSurface& S : P.Made->Surfaces) Drawn.insert(Drawn.end(), S.Pos.begin(), S.Pos.end());
+		auto Clear = [&Drawn](const V3& C) {
+			for (const V3& Q : Drawn)
+				if (std::fabs(Q.x - C.x) < 0.035 && std::fabs(Q.y - C.y) < 0.05 && std::fabs(Q.z - C.z) < 0.045) return false;
+			return true;
+		};
+		V3 HornHere = SteerLow + V3(-0.07, -0.1, 0.0);
+		bool bFound = false;
+		for (double Down = 0.08; Down <= 0.4 && !bFound; Down += 0.03)
+			for (double Ahead : {0.02, -0.02, 0.06, -0.06, 0.1, 0.14})
+			{
+				const V3 C = SteerLow + V3(Ahead, -Down, 0.0);
+				if (!Clear(C)) continue;
+				HornHere = C;
+				bFound = true;
+				break;
+			}
+		HornAt(Parts, ToGodot(HornHere), Out);
 	}
 	V2Common(Parts, F, Out);
 	return true;

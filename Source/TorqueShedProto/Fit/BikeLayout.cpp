@@ -500,6 +500,12 @@ PartsMap BikeLayout::V2Dress(const PartsMap& Parts) const
 	return Out;
 }
 
+bool BikeLayout::V2Rigid(const PartsMap& Parts) const
+{
+	const Json* Rigid = Sub(Sub(Sub(Part(Get(Parts, "frame")), "v2"), "points_mm"), "rigid");
+	return Rigid && Rigid->B;
+}
+
 std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& SlotGiven, const std::string& IdGiven) const
 {
 	const std::string Slot = LowerId(SlotGiven), Id = LowerId(IdGiven);
