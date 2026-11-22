@@ -79,6 +79,7 @@ const double PADDLE_SPEED = 1.1;
 const double PADDLE_HOLD = 0.45;
 const double BURNOUT_SPEED = 2.5;
 const double DONUT_RATE = 2.2;
+const double SKID_LEAN_HOLD = 0.52;   // rad: past this, a locked-rear slide is held up (ApplyFeet)
 // Lean-angle traction control tightens to its leaned-over allowance by this lean (50 degrees), and
 // stability control damps the lean rate's departures from itself smoothed over STAB_SETTLE s.
 const double LEAN_TC_FULL = 0.873;
@@ -1408,9 +1409,32 @@ void BikeSim::ApplyFeet()
 			else ApplyCentralForce(Flat * ((-PADDLE_SPEED - V) * Build.TotalMass * 2.5));
 		}
 	}
+	if (!(Wheels[0].Contact || Wheels[1].Contact)) return;
+	// ([beenster, build 168: "can you make it a bit easier to do a skid turn?"] The back wheel locked
+	// (ABS off) and the bike leaned or steered: the back slides round, but past 25 mph a full lean went
+	// on over onto its side within a second (SimTest --skidturn: lean 78, down). The rider holds it up
+	// past 30 deg while it's sliding, a knee and a boot out as a flat-tracker does, so the back comes
+	// round and the bike stays up.)
+	{
+		const Wheel& Rw = Wheels[1];
+		const double Locked = Rw.Contact ? Clamp((-Rw.Kappa - 0.4) / 0.3, 0.0, 1.0) * Clamp((std::fabs(Speed) - 1.5) / 2.0, 0.0, 1.0) : 0.0;
+		const double Over = std::fabs(LeanAngle) - SKID_LEAN_HOLD;
+		if (Locked > 0.0 && Over > 0.0)
+		{
+			const V3 Ahead = -Basis.Z;
+			V3 Flat(Ahead.x, 0.0, Ahead.z);
+			if (Flat.Length() > 0.01)
+			{
+				Flat = Flat.Normalized();
+				const double K = Build.TotalMass * G * Build.ComHeight * 3.0;
+				const double C = 2.0 * std::sqrt(K * 60.0);
+				const double Outward = LeanRate * Sign(LeanAngle) > 0.0 ? LeanRate : 0.0;   // (only against it going further)
+				ApplyTorque(Flat * (-(K * Over * Sign(LeanAngle) + C * Outward) * Locked));
+			}
+		}
+	}
 	// Below walking pace the rider's feet hold the bike up: a stiff, damped roll spring that fades
 	// out by 2.5 m/s, where steering balances it again.
-	if (!(Wheels[0].Contact || Wheels[1].Contact)) return;
 	const double Fade = Clamp(1.0 - std::fabs(Speed) / 2.5, 0.0, 1.0);
 	if (Fade <= 0.0) return;
 	const V3 Fwd = -Basis.Z;
