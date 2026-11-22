@@ -58,6 +58,7 @@ struct Spot
 {
 	P2 Mid, Road, Rail;
 	double Half = 3.0;
+	double Spread = 0.0;   // [169] between the outermost tracks' middles (a double track drawn as two lines), m
 	uint32_t Key = 0;
 };
 

@@ -424,7 +424,9 @@ void ATorqueTrains::TellCrossings(const TorqueWorld::Trains::Clock& Now, bool bO
 	{
 		if (std::hypot(C.Mid.X - X, C.Mid.Z - Z) > TTI::CrossingReachM) continue;
 		// (trains off: every crossing open, and told so once, which also ends the crossings' own demo cycle)
-		const bool bShut = bOn && Net && Net->Closed(Now, C.Line, C.First, C.Last, ATorqueLevelCrossing::LeadSeconds(int32(C.Type)));
+		bool bShut = bOn && Net && Net->Closed(Now, C.Line, C.First, C.Last, ATorqueLevelCrossing::LeadSeconds(int32(C.Type)));
+		for (const TorqueWorld::RidePlan::LevelCrossing::Track& K : C.Also)   // ([169] every line a merged crossing crosses)
+			bShut = bShut || (bOn && Net && Net->Closed(Now, K.Line, K.First, K.Last, ATorqueLevelCrossing::LeadSeconds(int32(C.Type))));
 		if (bShut || bOn || !bCrossingsTold) ATorqueLevelCrossing::Warn(GetWorld(), C.Key, bShut);
 	}
 	bCrossingsTold = true;
@@ -547,13 +549,18 @@ FString ATorqueTrains::NextCrossing(const UWorld* InWorld, ATorqueBikePawn* Bike
 		if (FVector2D::Distance(FVector2D(C.Mid.X, C.Mid.Z), FVector2D(Me.X / 100.0, Me.Y / 100.0)) > 4000.0) continue;
 		++Tried;
 		const double Lead = ATorqueLevelCrossing::LeadSeconds(int32(C.Type));
-		if (T->Net->Closed(Now, C.Line, C.First, C.Last, Lead)) continue;   // (shut already: too late to watch it close)
+		if (T->Net->Closed(Now, C.Line, C.First, C.Last, Lead)) continue;
+		bool bAlso = false;
+		for (const TorqueWorld::RidePlan::LevelCrossing::Track& K : C.Also) bAlso = bAlso || T->Net->Closed(Now, K.Line, K.First, K.Last, Lead);
+		if (bAlso) continue;   // (shut already: too late to watch it close)
 		for (double Dt = 20.0; Dt <= 180.0 && Dt < BestIn; Dt += 5.0)
 		{
 			TT::Clock Later = Now;
 			Later.T += Dt;
 			Later.Hour += Dt / 3600.0;
-			if (T->Net->Closed(Later, C.Line, C.First, C.Last, Lead)) { Best = &C; BestIn = Dt; break; }
+			bool bLater = T->Net->Closed(Later, C.Line, C.First, C.Last, Lead);
+			for (const TorqueWorld::RidePlan::LevelCrossing::Track& K : C.Also) bLater = bLater || T->Net->Closed(Later, K.Line, K.First, K.Last, Lead);
+			if (bLater) { Best = &C; BestIn = Dt; break; }
 		}
 	}
 	if (!Best) return FString::Printf(TEXT("crossings:next: none of %d crossings within 4 km closes in the next 3 minutes; try again soon"), Tried);

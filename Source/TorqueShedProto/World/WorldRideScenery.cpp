@@ -964,28 +964,7 @@ void RidePlan::FindLevelCrossing(int Line, int First, int Last)
 	if (RailLen < 1e-6) return;
 	C.Rail = C.Rail * (1.0 / RailLen);
 	// (the nearest piece of the map's roads to the middle, within 15 m)
-	double Best = 15.0;
-	int BestEdge = -1;
-	const std::vector<RoadEdge>& Edges = Area.Roads.Edges;
-	for (size_t E = 0; E < Edges.size(); ++E)
-	{
-		const std::vector<P2>& L = Edges[E].Line;
-		for (size_t K = 0; K + 1 < L.size(); ++K)
-		{
-			const P2 P = L[K], Q = L[K + 1];
-			if (std::min(P.X, Q.X) > C.Mid.X + Best || std::max(P.X, Q.X) < C.Mid.X - Best || std::min(P.Z, Q.Z) > C.Mid.Z + Best || std::max(P.Z, Q.Z) < C.Mid.Z - Best) continue;
-			const P2 D = Q - P;
-			const double Len2 = D.X * D.X + D.Z * D.Z;
-			const double T = Len2 > 0.0 ? std::clamp(((C.Mid.X - P.X) * D.X + (C.Mid.Z - P.Z) * D.Z) / Len2, 0.0, 1.0) : 0.0;
-			const double Dist = (P + D * T - C.Mid).Length();
-			if (Dist < Best && Len2 > 1e-6)
-			{
-				Best = Dist;
-				BestEdge = int(E);
-				C.Road = D * (1.0 / std::sqrt(Len2));
-			}
-		}
-	}
+	const int BestEdge = NearestEdge(C.Mid, 15.0, &C.Road);
 	if (BestEdge < 0)
 	{
 		// (no mapped road that near: square across the line, a lane's width)
@@ -998,12 +977,83 @@ void RidePlan::FindLevelCrossing(int Line, int First, int Last)
 	C.Half = std::max(1.6, RoadLine::WidthOf(C.Class) * 0.5);
 	if (BestEdge >= 0)
 	{
-		const auto X = Area.Roads.Extras.find(Edges[size_t(BestEdge)].Gid);
+		const auto X = Area.Roads.Extras.find(Area.Roads.Edges[size_t(BestEdge)].Gid);
 		if (X != Area.Roads.Extras.end() && X->second.Width > 2.5) C.Half = std::clamp(X->second.Width * 0.5, 1.6, 7.0);
 	}
 	C.Key = static_cast<uint32_t>(std::lround(C.Mid.X * 2.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(C.Mid.Z * 2.0)) * 19349663u ^ 0x5bd1e995u;
 	C.Type = LevelX::TypeFor(C.Class, C.Half, C.Key);
 	LevelCrossings.push_back(C);
+}
+
+int RidePlan::NearestEdge(const P2& At, double Within, P2* Dir) const
+{
+	double Best = Within;
+	int BestEdge = -1;
+	const std::vector<RoadEdge>& Edges = Area.Roads.Edges;
+	for (size_t E = 0; E < Edges.size(); ++E)
+	{
+		const std::vector<P2>& L = Edges[E].Line;
+		for (size_t K = 0; K + 1 < L.size(); ++K)
+		{
+			const P2 P = L[K], Q = L[K + 1];
+			if (std::min(P.X, Q.X) > At.X + Best || std::max(P.X, Q.X) < At.X - Best || std::min(P.Z, Q.Z) > At.Z + Best || std::max(P.Z, Q.Z) < At.Z - Best) continue;
+			const P2 D = Q - P;
+			const double Len2 = D.X * D.X + D.Z * D.Z;
+			const double T = Len2 > 0.0 ? std::clamp(((At.X - P.X) * D.X + (At.Z - P.Z) * D.Z) / Len2, 0.0, 1.0) : 0.0;
+			const double Dist = (P + D * T - At).Length();
+			if (Dist < Best && Len2 > 1e-6)
+			{
+				Best = Dist;
+				BestEdge = int(E);
+				if (Dir) *Dir = D * (1.0 / std::sqrt(Len2));
+			}
+		}
+	}
+	return BestEdge;
+}
+
+bool RidePlan::TrunkRoad(const P2& At) const
+{
+	const int E = NearestEdge(At, 12.0, nullptr);
+	if (E < 0) return false;
+	const std::string& Class = Area.Roads.ClassOf(E);
+	return Class.rfind("motorway", 0) == 0 || Class.rfind("trunk", 0) == 0;
+}
+
+// [169] Crossings of two or more lines side by side (a double track the map draws as two lines) as one crossing:
+// its middle between the outer tracks, its barriers and lights clear of both (Spread).
+void RidePlan::MergeLevelCrossings()
+{
+	for (bool Merged = true; Merged;)
+	{
+		Merged = false;
+		for (size_t I = 0; I < LevelCrossings.size() && !Merged; ++I)
+			for (size_t J = I + 1; J < LevelCrossings.size() && !Merged; ++J)
+			{
+				LevelCrossing& A = LevelCrossings[I];
+				const LevelCrossing& B = LevelCrossings[J];
+				if (A.Mid.DistanceTo(B.Mid) > 18.0 || std::fabs(A.Rail.X * B.Rail.Z - A.Rail.Z * B.Rail.X) > 0.35) continue;
+				// (and the same road: B's middle on A's road's line)
+				if (std::fabs((B.Mid.X - A.Mid.X) * A.Road.Z - (B.Mid.Z - A.Mid.Z) * A.Road.X) > 3.0) continue;
+				// (each one's tracks, as offsets square across A's line: their outermost edges)
+				const P2 N(-A.Rail.Z, A.Rail.X);
+				const double Oa = 0.0, Ob = (B.Mid.X - A.Mid.X) * N.X + (B.Mid.Z - A.Mid.Z) * N.Z;
+				const double Lo = std::min(Oa - A.Spread * 0.5, Ob - B.Spread * 0.5), Hi = std::max(Oa + A.Spread * 0.5, Ob + B.Spread * 0.5);
+				// (the middle moved along the road, so it stays on the road's line)
+				const double Mo = (Lo + Hi) * 0.5;
+				const double Along = N.X * A.Road.X + N.Z * A.Road.Z;
+				const P2 Step = std::fabs(Along) > 0.2 ? A.Road * (Mo / Along) : N * Mo;
+				A.Mid = A.Mid + Step;
+				A.Spread = Hi - Lo;
+				A.Half = std::max(A.Half, B.Half);
+				A.Key = static_cast<uint32_t>(std::lround(A.Mid.X * 2.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(A.Mid.Z * 2.0)) * 19349663u ^ 0x5bd1e995u;
+				A.Type = LevelX::TypeFor(A.Class, A.Half, A.Key);
+				A.Also.push_back({B.Line, B.First, B.Last});
+				A.Also.insert(A.Also.end(), B.Also.begin(), B.Also.end());
+				LevelCrossings.erase(LevelCrossings.begin() + long(J));
+				Merged = true;
+			}
+	}
 }
 
 void RidePlan::IndexFurniture()
@@ -1360,6 +1410,7 @@ void RidePlan::IndexFurniture()
 			I = J;
 		}
 	}
+	MergeLevelCrossings();
 	// What the map has: cattle grids on the road, and beside it poles, boxes, stops, benches, milestones and gates.
 	for (size_t Pi = 0; Pi < G.Scenery.Points.size(); ++Pi)
 	{
@@ -3444,14 +3495,49 @@ void RidePlan::IndexRails()
 				Spans();
 				// The roads it meets: level with one it crosses, over one it bridges, under one that bridges it.
 				std::vector<double> Floor(Y.size(), -1e9), Ceiling(Y.size(), 1e9), Level(Y.size(), std::nan(""));
+				// ([169] beenster, build 168, Bartholomew Way, Swanley: "bit of a mess at this crossing". The B258 is mapped
+				// as a bridge over the Chatham main line, but its deck ends about where the rails pass under it, so the
+				// rail points just off the deck's end were read as level with the road: three crossings stood up on
+				// the bridge, the line hauled up to the road. A line near a deck (or a road's bridge or tunnel) within
+				// DeckNear either way is passing under or over it, never across it. And our map's railways keep no
+				// bridges of their own here (the Darent Valley line over the M20 and A20 came out as five full
+				// barriers on a motorway and a trunk road): Britain has no level crossings on those, so a line
+				// meeting one bridges it.)
+				std::vector<NearHit> Hits(Y.size());
+				std::vector<char> Got(Y.size(), 0);
 				for (size_t K = 0; K < Y.size(); ++K)
 				{
 					NearOpts Opts;
-					NearHit Hit;
-					if (Run.On[K] == 2 || !NearestOf(Run.At[K].X, Run.At[K].Z, Opts, Hit) || Hit.Dist > Hit.Half + 2.0 || Hit.Bore) continue;
+					Got[K] = Run.On[K] != 2 && NearestOf(Run.At[K].X, Run.At[K].Z, Opts, Hits[K]) && Hits[K].Dist <= Hits[K].Half + 2.0 && !Hits[K].Bore ? 1 : 0;
+				}
+				constexpr double DeckNear = 16.0;
+				const auto NearDeck = [this, &Run, &Hits, &Got](size_t K)
+				{
+					const size_t Reach = size_t(DeckNear / RailStep);
+					for (size_t J = K > Reach ? K - Reach : 0; J <= std::min(Run.At.size() - 1, K + Reach); ++J)
+						if (Got[J] && Hits[J].Deck) return true;
+					const std::vector<RoadPoint>& Way = RoadOf(Hits[K].Which);
+					const int Ri = std::clamp(Hits[K].Index, 0, int(Way.size()) - 1);
+					for (int Q = Ri; Q >= 0 && std::fabs(Way[size_t(Q)].Along - Hits[K].Along) <= DeckNear; --Q)
+						if (Way[size_t(Q)].Bridge || Way[size_t(Q)].Tunnel) return true;
+					for (int Q = Ri; Q < int(Way.size()) && std::fabs(Way[size_t(Q)].Along - Hits[K].Along) <= DeckNear; ++Q)
+						if (Way[size_t(Q)].Bridge || Way[size_t(Q)].Tunnel) return true;
+					return false;
+				};
+				std::vector<char> OverRoad(Y.size(), 0);
+				for (size_t K = 0; K < Y.size(); ++K)
+				{
+					if (!Got[K]) continue;
+					const NearHit& Hit = Hits[K];
 					const double Surface = Hit.Height + Hit.Cross;
 					if (Hit.Deck && Run.On[K] != 1) Ceiling[K] = Surface - 6.5;
 					else if (Run.On[K] == 1) Floor[K] = Surface + 6.0;
+					else if (NearDeck(K))
+					{
+						// (under the bridge's end, or over a road's own bridge or tunnel mouth: no crossing; it runs under
+						// a road on a deck, so keep it down)
+						if (Hit.Dist <= Hit.Half + 0.6) Ceiling[K] = Surface - 6.5;
+					}
 					else if (!Hit.Deck && Hit.Dist <= Hit.Half + 0.6)
 					{
 						// (beenster, build 147, Whaley Bridge: a line mapped alongside a road, within its width,
@@ -3463,10 +3549,20 @@ void RidePlan::IndexRails()
 						const double Lr = RoadDir.Length(), Ll = LineDir.Length();
 						const double Across = Lr > 1e-6 && Ll > 1e-6 ? std::fabs(RoadDir.X * LineDir.Z - RoadDir.Z * LineDir.X) / (Lr * Ll) : 1.0;
 						if (Across < 0.34) continue;
+						if (TrunkRoad(Run.At[K]))
+						{
+							Floor[K] = Surface + 6.0;
+							OverRoad[K] = 1;
+							continue;
+						}
 						Floor[K] = Ceiling[K] = Level[K] = Surface - 0.27;   // (the rails' tops flush with the road)
 						Run.On[K] = 3;
 					}
 				}
+				// (a line over a motorway or trunk road is a bridge, its abutments a little clear of the verges)
+				for (size_t K = 0; K < Y.size(); ++K)
+					for (size_t J = K > 2 ? K - 2 : 0; J <= std::min(Y.size() - 1, K + 2); ++J)
+						if (OverRoad[J] && (Run.On[K] == 0 || Run.On[K] == 3)) { Run.On[K] = 1; break; }
 				// (a railway's ramp to and from them: 1 in 40 too)
 				const double Ramp = Grade;
 				for (size_t K = 1; K < Y.size(); ++K) { Floor[K] = std::fmax(Floor[K], Floor[K - 1] - Ramp); Ceiling[K] = std::fmin(Ceiling[K], Ceiling[K - 1] + Ramp); }
