@@ -428,6 +428,7 @@ private:
 	// A word on the HUD for a moment: "Engine off", "Out of petrol!" (EngineNote, for EngineNoteFor s).
 	FString EngineNote;
 	double EngineNoteFor = 0.0;
+	int32 StallsSeen = 0;   // [build 167] the sim's stall count last shown (Sim->Stalls)
 	bool bEngineWas = true;   // the sim's engine running last frame (to hear it catch or stop)
 	// Performance: P shows frame, game, render and GPU times; O (or -TorqueProfile) logs them each
 	// second to Saved/Profiling/torque_perf_<time>.csv.
@@ -669,6 +670,7 @@ private:
 	FVector RiderKnee[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	TArray<FVector2D> RiderTankHalfW;
 	double RiderFeetDown = 0.0;
+	double RiderFeetGoal = 0.0;   // [build 167] the feet going down once stopped (UpdateRider), 0..1
 	// [rider pose] Stopped on a bike too tall to reach the road from (beenster, MX): the bike leant over
 	// onto the left foot about its tyres' contact line, deg (left side down), the right foot on its peg.
 	double StopLeanDeg = 0.0;

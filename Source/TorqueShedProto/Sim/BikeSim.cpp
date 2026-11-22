@@ -81,6 +81,16 @@ const double START_TIME = 0.7;
 // Paddling backwards (walking pace, after holding the front brake this long at a standstill), a
 // burnout (below this speed, front brake and throttle) and how fast a full-lock one swings round.
 const double PADDLE_SPEED = 1.1;
+// [build 167] "when my riders foot is down the bike shouldnt move": stopped (slower than this, m/s) with
+// the throttle shut, or nothing driving, the rider's feet are planted and hold the bike where it is, on a
+// hill too (the locked tyres alone let it slide downhill at about 0.1 m/s). Let go above FEET_LET_GO.
+const double FEET_HOLD_SPEED = 0.3;
+const double FEET_LET_GO = 0.6;
+// [build 167] "bikes should [not] pull away in 3rd gear or higher, they should stall": with the gears
+// changed by hand, the clutch all the way out in this gear or higher and the back wheel turning the engine
+// slower than this share of its tickover, it stalls (pulling away, or stopping without the clutch).
+const int STALL_GEAR = 3;
+const double STALL_SHARE = 0.7;
 const double PADDLE_HOLD = 0.45;
 const double BURNOUT_SPEED = 2.5;
 const double DONUT_RATE = 2.2;
@@ -209,6 +219,7 @@ void BikeSim::Place(const V3& Pos, double Heading)
 	HavePrev = false;
 	RoadPitch = 0.0;
 	Trim = LeanI = Hang = 0.0;
+	FeetHeld = false;
 	for (double& S : Seen) S = 0.0;
 	Gear = 1;
 	Rpm = Build.IdleRpm;
@@ -922,6 +933,15 @@ void BikeSim::UpdateEngine(double Delta)
 		Made = 0.0;
 		if (Starting <= 0.0) Rpm = Engaged ? WheelRpm : MoveToward(Rpm, 0.0, 3000.0 * Delta);
 	}
+	if (EngineOn && Starting <= 0.0 && !AutoShift && Gear >= STALL_GEAR && Clutch <= 0.0 && !Shifting && Rear.Contact && WheelRpm < IdleRpm * STALL_SHARE)
+	{
+		// Too tall a gear for the road speed with the clutch out: it stalls (see STALL_GEAR).
+		EngineOn = false;
+		++Stalls;
+		EngineNm = 0.0;
+		Made = 0.0;
+		Rpm = std::max(WheelRpm, 0.0);
+	}
 	EngineKw = Made * Rpm * TAU / 60.0 / 1000.0;
 	Overrun = EngineOn && Engaged && !Shifting && ThrottleEff < 0.02 && Rpm > IdleRpm * 1.3;
 	// Lighting a burnout the rider dumps the clutch on high revs: the flywheel's spin kicks the back
@@ -1420,6 +1440,30 @@ void BikeSim::ApplyFeet()
 				ApplyCentralForce(Flat * Hold);
 			}
 			else ApplyCentralForce(Flat * ((-PADDLE_SPEED - V) * Build.TotalMass * 2.5));
+		}
+	}
+	{
+		// Stopped with the feet down (FEET_HOLD_SPEED): they hold it on the spot, firm enough for a steep hill,
+		// until the rider pulls away (throttle open in gear, the clutch out) or walks it back or lights it up.
+		const V3 Fwd = -Basis.Z;
+		V3 Flat(Fwd.x, 0.0, Fwd.z);
+		const bool Down = Wheels[0].Contact && Wheels[1].Contact && !IsCrashed && !Paddling && Burnout <= 0.0 && Flat.Length() > 0.01;
+		const bool Driving = Throttle >= 0.05 && Gear != NEUTRAL && !ClutchIn && EngineOn;
+		if (!Down || Driving || std::fabs(Speed) > FEET_LET_GO) FeetHeld = false;
+		else if (!FeetHeld && std::fabs(Speed) < FEET_HOLD_SPEED)
+		{
+			FeetHeld = true;
+			FeetAt = Position;
+		}
+		if (FeetHeld)
+		{
+			Flat = Flat.Normalized();
+			const double V = LinearVelocity.Dot(Flat);
+			// Still coming to a stop, the feet just slow it (never pull it back to where they first touched).
+			if (std::fabs(V) > 0.05) FeetAt = Position;
+			const double Off = (Position - FeetAt).Dot(Flat);
+			const double Most = 0.6 * G * Build.TotalMass;
+			ApplyCentralForce(Flat * Clamp(-(Off * 400.0 + V * 80.0) * Build.TotalMass, -Most, Most));
 		}
 	}
 	// Below walking pace the rider's feet hold the bike up: a stiff, damped roll spring that fades

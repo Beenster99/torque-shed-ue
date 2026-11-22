@@ -112,6 +112,10 @@ public:
 	// + left). Paddling: walking the bike backwards with the rider's feet.
 	double Burnout = 0.0, BurnoutTime = 0.0, DonutTurn = 0.0;
 	bool Paddling = false;
+	// [build 167] Stopped with the rider's feet planted, holding the bike still (FEET_HOLD_SPEED); and how
+	// many times the engine has stalled (pulling away or stopping in too tall a gear, the clutch out).
+	bool FeetHeld = false;
+	int Stalls = 0;
 
 	// Rigid body state (world: +Y up). Position is the body origin (axle height, mid wheelbase).
 	V3 Position;
@@ -241,7 +245,7 @@ private:
 	bool HavePrev = false;
 	double Seen[4] = {0, 0, 0, 0};
 	double Starting = 0.0, StoppedBrake = 0.0;
-	V3 BurnoutAt;
+	V3 BurnoutAt, FeetAt;
 	double ShiftTimer = 0.0, SinceShift = 0.0, Traction = 1.0, ShiftFromRpm = 0.0, ThrottleEff = 0.0, ShiftLoad = 0.0;
 };
 } // namespace TorqueSim

@@ -13,6 +13,13 @@ else()
   target_compile_options(sim_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
 endif()
 
+add_executable(stop_test stop_test.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp)
+if(MSVC)
+  target_compile_options(stop_test PRIVATE /W4)
+else()
+  target_compile_options(stop_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
+endif()
+
 set(SOUND ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/TorqueAudio)
 add_executable(sound_test sound_test.cpp ${SOUND}/RideSound.cpp ${SOUND}/EngineSynth.cpp)
 target_include_directories(sound_test PRIVATE ${SOUND})

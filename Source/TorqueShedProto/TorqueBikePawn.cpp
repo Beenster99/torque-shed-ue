@@ -3474,6 +3474,16 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	if (!bRemote)
 	{
 		Dash.Step(*Sim, Throttle, Sim->EngineOn, DeltaSeconds);
+		// [build 167] Pulled away (or stopped) in 3rd or higher with the clutch out: it stalled.
+		if (Sim->Stalls != StallsSeen)
+		{
+			if (Sim->Stalls > StallsSeen)
+			{
+				EngineNote = TEXT("Stalled: too high a gear. Hold LB + RB (or press I) to start it, and pull away in 1st or 2nd");
+				EngineNoteFor = 4.0;
+			}
+			StallsSeen = Sim->Stalls;
+		}
 		TripSpeedKm += FMath::Abs(Sim->Speed) * DeltaSeconds / 1000.0;
 		TripLogTime += DeltaSeconds;
 		BrakeLogHeld[0] += FrontBrake > 0.02 ? DeltaSeconds : 0.0;
@@ -4379,7 +4389,15 @@ void ATorqueBikePawn::UpdateRider()
 			FMath::Cos(FMath::DegreesToRadians(Sim->Build.RakeDeg)));
 		In.BarTurn = FQuat(Axis, Sim->Steer);
 		// Feet go down as the bike stops: ankles a little forward of the pegs and out, on the road.
-		In.FeetDown = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 1.8, 0.0, 1.0);
+		// ([build 167] "when my riders foot is down the bike shouldnt move": they came down from 4 mph, so they
+		// slid along the road. Now only once it's stopped (where the sim's feet hold it still, FeetHeld), or
+		// walking it back or bracing a burnout, coming down over a quarter of a second and up as it pulls away.)
+		{
+			const bool bPlanted = Sim->FeetHeld || FMath::Abs(Sim->Speed) < 0.3 || Sim->Paddling || Sim->Burnout > 0.0;
+			const double FeetDt = GetWorld() ? FMath::Clamp((double)GetWorld()->GetDeltaSeconds(), 0.0, 0.1) : 1.0 / 60.0;
+			RiderFeetGoal = FMath::Clamp(RiderFeetGoal + (bPlanted ? FeetDt / 0.25 : -FeetDt / 0.2), 0.0, 1.0);
+		}
+		In.FeetDown = RiderFeetGoal;
 		In.FootDownL = FVector(-32.0, -36.0, -22.0);
 		In.FootDownR = FVector(-32.0, 36.0, -22.0);
 		if (bRiderOnLayout)
