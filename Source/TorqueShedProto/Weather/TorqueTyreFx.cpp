@@ -326,6 +326,7 @@ void ATorqueTyreFx::TickBikes(float Dt, double Wet, const FVector& Wind)
 			const double Sliding = In.bTarmac ? In.SlideMs : 0.0;
 			St.Heat = FMath::Clamp(St.Heat + (Sliding > 1.0 ? Sliding / 6.0 : -0.5) * Dt, 0.0, 1.0);
 			HottestTyre = FMath::Max(HottestTyre, St.Heat);
+			St.SpinFor = Sliding > 1.0 && In.SpinMs - In.RoadMs > 3.0 ? St.SpinFor + Dt : 0.0;
 			if (bSmoke && Sliding > 1.0) EmitSmoke(St, In, Dt, Wet, Wind);
 			else St.Debt = 0.0;
 			if (bMarks && Sliding > 1.2) LayMark(St, In, Dt, Wet, Bike);
@@ -359,13 +360,34 @@ void ATorqueTyreFx::EmitSmoke(FTyreState& St, const FScrub& In, float Dt, double
 	const bool bSpin = Tread > 3.0;
 	const double R = FMath::Max(In.RadiusCm, 20.0);
 	const FVector Axle = In.At + In.Up * R;
+	// ([beenster, build 168] "the smoke build up on a burn out should be started with a ring of smoke
+	// around the centre of the tyre") The first second of a burnout: a thin ring of smoke hugging the
+	// whole tread, carried round with it; over the next two the ring gives way to the ball and the fan.
+	const double RingShare = bSpin ? 1.0 - FMath::SmoothStep(1.0, 3.0, St.SpinFor) * 0.75 : 0.0;
 	while (St.Debt >= 1.0)
 	{
 		St.Debt -= 1.0;
 		FPuff P;
 		P.Seed = FMath::FRand();
 		const double Across = FMath::FRandRange(-1.0, 1.0) * In.HalfWidthCm;
-		if (bSpin && FMath::FRand() < 0.45f)
+		const double Pick = FMath::FRand();
+		if (bSpin && Pick < RingShare && (St.SpinFor < 1.0 || Pick < RingShare * 0.5))
+		{
+			// The ring: anywhere round the tread, just off it and across its middle, small and quick,
+			// swept round with the tyre and thrown a little outwards.
+			const double Theta = FMath::DegreesToRadians(FMath::FRandRange(0.0, 360.0));
+			const double Out = R + FMath::FRandRange(0.0, 6.0);
+			const FVector Radial = -In.Up * FMath::Cos(Theta) - In.Fwd * FMath::Sin(Theta);
+			P.Pos = Axle + Radial * Out + Side * Across * 0.7;
+			const FVector Round = -In.Fwd * FMath::Cos(Theta) + In.Up * FMath::Sin(Theta);
+			P.Vel = Round * (Tread * 100.0 * FMath::FRandRange(0.02, 0.05)) + Radial * FMath::FRandRange(5.0, 20.0) + Side * FMath::FRandRange(-15.0, 15.0);
+			P.Life = FMath::FRandRange(0.5f, 1.0f);
+			P.Size0 = FMath::FRandRange(8.0f, 14.0f);
+			P.Size1 = FMath::FRandRange(25.0f, 45.0f);
+			P.Alpha = FMath::FRandRange(0.45f, 0.65f);
+			P.Drag = 5.0f;
+		}
+		else if (bSpin && FMath::FRand() < 0.45f)
 		{
 			// Round the wheel: from the contact patch, round the back and over the top (Theta from the
 			// bottom), moving with the tread (back at the bottom, up the back, forward over the top) and

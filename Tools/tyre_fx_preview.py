@@ -46,7 +46,10 @@ def burnout(seconds, wind, radius=0.30):
     puffs, heat, debt = [], 0.0, 0.0
     slide, road, half = 20.0, 0.0, 0.08
     tread = slide - road
+    spin_for = 0.0
     for _ in range(int(seconds / DT)):
+        spin_for += DT
+        ring = 1.0 - float(smoothstep(1.0, 3.0, spin_for)) * 0.75
         heat = min(heat + slide / 6.0 * DT, 1.0)
         hot = float(smoothstep(0.03, 0.5, heat))
         debt = min(debt + 45.0 * hot * min(slide / 12.0, 1.6) * 1.6 * DT, 6.0)
@@ -55,7 +58,18 @@ def burnout(seconds, wind, radius=0.30):
             p = Puff()
             p.seed = RNG.random()
             across = frand(-1, 1) * half
-            if RNG.random() < 0.45:
+            pick = RNG.random()
+            if pick < ring and (spin_for < 1.0 or pick < ring * 0.5):
+                # [build 168] the ring round the tread a burnout starts with
+                th = math.radians(frand(0.0, 360.0))
+                out = radius + frand(0.0, 0.06)
+                radial = -up * math.cos(th) - fwd * math.sin(th)
+                p.pos = axle + radial * out + side * across * 0.7
+                rnd = -fwd * math.cos(th) + up * math.sin(th)
+                p.vel = rnd * tread * frand(0.02, 0.05) + radial * frand(0.05, 0.2) + side * frand(-0.15, 0.15)
+                p.life, p.s0, p.s1 = frand(0.5, 1.0), frand(0.08, 0.14), frand(0.25, 0.45)
+                p.alpha, p.drag = frand(0.45, 0.65), 5.0
+            elif RNG.random() < 0.45:
                 th = math.radians(frand(0.0, 200.0))
                 out = radius + frand(0.02, 0.14)
                 p.pos = axle - up * out * math.cos(th) - fwd * out * math.sin(th) + side * across * 1.4
@@ -134,6 +148,7 @@ def scene(w, h, eye, target, fov, puffs, label):
     dist_far = np.where(down, t, 1e9)
     # The bike: a dark box over the patch (x -0.3 .. 1.2, |y| < 0.35, z 0 .. 1.1), for scale.
     # (Drawn by projecting its corners and filling their screen box: enough to see where it is.)
+    close = np.linalg.norm(eye[:2] - np.array([-0.3, 0.0])) < 4.0
     corners = np.array([[x, y, z] for x in (-0.3, 1.2) for y in (-0.35, 0.35) for z in (0.0, 1.1)])
     rel = corners - eye
     zc = rel @ fwd
@@ -141,8 +156,19 @@ def scene(w, h, eye, target, fov, puffs, label):
         sx = w / 2 + f * (rel @ right) / zc
         sy = h / 2 - f * (rel @ upv) / zc
         x0, x1, y0, y1 = int(max(sx.min(), 0)), int(min(sx.max(), w)), int(max(sy.min(), 0)), int(min(sy.max(), h))
-        img[y0:y1, x0:x1] = np.array([0.08, 0.08, 0.09])
-        dist_far[y0:y1, x0:x1] = np.minimum(dist_far[y0:y1, x0:x1], np.linalg.norm(rel.mean(axis=0)))
+        img[y0:y1, x0:x1] = np.array([0.08, 0.08, 0.09]) if not close else img[y0:y1, x0:x1]
+        if not close:
+            dist_far[y0:y1, x0:x1] = np.minimum(dist_far[y0:y1, x0:x1], np.linalg.norm(rel.mean(axis=0)))
+    if close:
+        # (the back tyre's outline, 30 cm round its axle, for scale)
+        for k in range(180):
+            th = k * 2 * math.pi / 180
+            q = np.array([-0.0 - 0.30 * math.sin(th), 0.0, 0.30 - 0.30 * math.cos(th)]) - eye
+            zq = q @ fwd
+            if zq > 0.1:
+                sx, sy = int(w / 2 + f * (q @ right) / zq), int(h / 2 - f * (q @ upv) / zq)
+                if 0 <= sx < w - 2 and 0 <= sy < h - 2:
+                    img[sy:sy + 3, sx:sx + 3] = np.array([0.05, 0.05, 0.05])
     # The puffs, back to front, faded out where the camera is inside them; their thickness there is the veil.
     order = sorted(puffs, key=lambda p: -np.sum((p.pos - eye) ** 2))
     thick = 0.0
@@ -225,7 +251,9 @@ def main():
     sheet = Image.new("RGB", (w * 2, h * 2), (0, 0, 0))
     sheet.paste(side, (0, 0))
     sheet.paste(behind, (w, 0))
-    sheet.paste(chase, (0, h))
+    early = burnout(0.8, wind)
+    ring = scene(w, h, np.array([0.0, 2.2, 0.4]), np.array([0.0, 0.0, 0.3]), 55, early, "0.8 s into the burnout, close by the back wheel")
+    sheet.paste(ring, (0, h))
     sheet.paste(darkies(w, h), (w, h))
     sheet.save(out)
     print("wrote", out)

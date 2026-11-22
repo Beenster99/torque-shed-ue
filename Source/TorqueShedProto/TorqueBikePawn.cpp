@@ -1687,6 +1687,20 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Sim->Build.AbsRear = bAbs && bHasAbs[1];
 		GearNoteFor = 2.0;
 	}
+	// ([beenster, build 168: "i dont seem to be able to do skids and leave a smoking line"] The back
+	// wheel can't lock with the ABS on: it lets it off short of a skid, as a real one does. Off, a stamp on
+	// the back brake locks it, smokes and lays a black line. So the first hard stamp with it on says how.)
+	if (!bAbsHintShown && Sim->Build.AbsRear && RearBrake > 0.8 && FMath::Abs(Sim->Speed) > 8.0)
+	{
+		AbsHintHeld += Dt;
+		if (AbsHintHeld > 0.6)
+		{
+			bAbsHintShown = true;
+			EngineNote = TEXT("ABS on: the back wheel won't lock. D-pad down (or B) turns it off for skids");
+			EngineNoteFor = 5.0;
+		}
+	}
+	else if (RearBrake < 0.1) AbsHintHeld = 0.0;
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
