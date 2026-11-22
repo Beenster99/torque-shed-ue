@@ -442,13 +442,6 @@ void FTorqueSettings::Apply(UWorld* World) const
 		SetCVar(TEXT("r.DynamicGlobalIlluminationMethod"), bPerformance && GlobalIllumination < 0 ? 0 : 1, ECVF_SetByCode);
 		SetCVar(TEXT("r.ReflectionMethod"), bPerformance && Reflections < 0 ? 2 : 1, ECVF_SetByCode);
 		SetCVar(TEXT("r.DistanceFieldAO"), 1, ECVF_SetByCode);
-		// ([real water stage 7] the water mirrors the sky, the hills and the sun: single layer water's own
-		// reflections on (Lumen's on Epic, the screen's with the Performance preset), steadied over frames so
-		// they don't crawl, and the clouds' shadows on it. Names this engine doesn't know are passed over.)
-		SetCVar(TEXT("r.Water.SingleLayer.Reflection"), 1, ECVF_SetByCode);
-		SetCVar(TEXT("r.Water.SingleLayer.SSRTAA"), 1, ECVF_SetByCode);
-		SetCVar(TEXT("r.Water.SingleLayer.LumenReflections"), 1, ECVF_SetByCode);
-		SetCVar(TEXT("r.Water.SingleLayerWater.SupportCloudShadow"), 1, ECVF_SetByCode);
 	}
 	// [perf, build 150] Frame generation and Reflex (NVIDIA's plugin: Streamline). Frame generation needs
 	// DLSS (or at least a temporal upscaler) under it and Reflex on.

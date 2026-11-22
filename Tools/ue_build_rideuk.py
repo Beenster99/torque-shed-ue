@@ -844,8 +844,10 @@ def water_material(L, real=False):
     base = g.lerp(water_c, foam_colour, foam)
     mel = L.mel
     if real:
-        g.m.set_editor_property("shading_model", U.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
-        g.m.set_editor_property("blend_mode", U.BlendMode.BLEND_OPAQUE)
+        # (round 168: the output's 4 pins read back linked, yet the log said "requires the use of
+        # SingleLayerWaterMaterial output node" and "No inputs": the errors of the material compiled in
+        # between, when the shading model was set before the output was made and linked. So the output
+        # and its links come first and the shading model last, then one compile.)
         out = g.node(U.MaterialExpressionSingleLayerWaterMaterialOutput, 0)
         # (how brown the water is: the sea's colour is blue-grey, a lake's peaty, a river's brown, by the red)
         brown = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionMultiply,
@@ -882,12 +884,24 @@ def water_material(L, real=False):
         # over the water by the opacity)
         base = foam_colour
         mel.connect_material_property(foam, "", U.MaterialProperty.MP_OPACITY)
+        g.m.set_editor_property("blend_mode", U.BlendMode.BLEND_OPAQUE)
+        g.m.set_editor_property("shading_model", U.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
     mel.connect_material_property(base, "", U.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(rough, "", U.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(g.const(0.5), "", U.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(normal, "", U.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(wpo, "", U.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(g.m)
+    if real:
+        # (did the final material compile? a failed one has no pixel shader instructions)
+        try:
+            st = mel.get_statistics(g.m)
+            px = st.get_editor_property("num_pixel_shader_instructions")
+            unreal.log("[Torque] M_RideWaterReal compiled: %s pixel shader instructions" % px)
+            if not px:
+                unreal.log_error("[Torque] M_RideWaterReal: NO pixel shader after the final compile")
+        except Exception as e:
+            unreal.log_warning("[Torque] M_RideWaterReal: couldn't read its statistics (%s)" % e)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     return g.m
 
