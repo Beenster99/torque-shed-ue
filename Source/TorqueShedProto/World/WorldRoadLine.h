@@ -57,7 +57,9 @@ double CrossHeight(double Off, double Half, double Bank);
 
 // A smooth road through Pts: knots Step apart, the ends kept. Fair is how far to fair at each of
 // Pts (empty: FairDefault all along).
-std::vector<P2> SmoothLine(const std::vector<P2>& Pts, double MinR = MinRadius, const std::vector<double>& Fair = {});
+// [junction priority 168] Tight, if given: each point's own least radius (0 MinR), for a junction's corner.
+std::vector<P2> SmoothLine(const std::vector<P2>& Pts, double MinR = MinRadius, const std::vector<double>& Fair = {}, const std::vector<double>& Tight = {});
+constexpr double JunctionRadius = 6.0;   // [junction priority 168] (where the ride turns at a junction of the map)
 // The line as points StepM apart along it and its last point; Exact leaves a short last piece out
 // instead of stretching the last step. Total is its length.
 void ResampleXz(const std::vector<double>& Xs, const std::vector<double>& Zs, double StepM, bool Exact, std::vector<double>& Ox, std::vector<double>& Oz, double& Total);

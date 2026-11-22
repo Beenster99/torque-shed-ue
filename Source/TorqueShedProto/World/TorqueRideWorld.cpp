@@ -504,6 +504,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 				N.Road = Via.Road;
 				N.Limit = 0;
 				for (double& To : N.ToStop) To = -1.0;
+				N.ToGiveWay = -1.0;
 			}
 			else if (S.bDetourVia)
 			{
@@ -553,6 +554,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 			N.Road = Back.Road;
 			N.Limit = 0;
 			for (double& To : N.ToStop) To = -1.0;
+			N.ToGiveWay = -1.0;
 		}
 		else Dash.bNavRerouting = true;
 	}
@@ -562,6 +564,8 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.NavTo = N.ToTurn;
 	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
 	Dash.NavExit = N.Exit;   // [OSM stage 5B]
+	Dash.NavGiveWay = N.OffRoute ? -1.0 : N.ToGiveWay;   // [junction priority 168]
+	Dash.bNavGiveWayStop = N.GiveWayStop;
 	// [build 148] (the hub's robot rides look for it in the log: the HUD's words, once a roundabout)
 	if (N.Exit > 0 && N.Exit != Ride->LastNavExit)
 	{

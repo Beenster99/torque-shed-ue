@@ -448,6 +448,41 @@ void Warning(RideMesh& Into, RideMesh& Back, const Frame& At, double Side, int S
 {
 	static const float White[3] = {0.75f, 0.75f, 0.74f}, Red[3] = {0.45f, 0.012f, 0.01f}, Black[3] = {0.012f, 0.012f, 0.012f}, Grey[3] = {0.16f, 0.16f, 0.165f},
 		Amber[3] = {0.6f, 0.3f, 0.01f}, Green[3] = {0.01f, 0.35f, 0.12f};
+	// [junction priority 168] (the orders: within the warning's own room, its triangle's top at the warning's
+	// top and its point at the warning's foot; the octagon between)
+	if (Symbol == SymGiveWay || Symbol == SymStop)
+	{
+		Frame C = At;
+		const auto Words = [&](double V, double Cap, double Most, const char* Text, const float* Ink)
+		{
+			double Wide = 0.0;
+			if (SignText::Width(Text, Cap, Wide) && Wide > Most) Cap *= Most / Wide;
+			SignText::Set(Into, C.X + C.Fx * 0.004, C.Y + V, C.Z + C.Fz * 0.004, C.Fx, C.Fz, Cap, Text, Ink, 0);
+		};
+		if (Symbol == SymGiveWay)
+		{
+			C.Y += Side * 0.2887;
+			Plate(Into, Back, C, Triangle(Side, false), White, Side * 0.13, Red, Grey);
+			Words(Side * 0.06, Side * 0.085, Side * 0.5, "GIVE WAY", Black);
+		}
+		else
+		{
+			const double W = Side * 0.8, R = Side * 0.02;
+			C.Y += Side * 0.14;
+			Shape Oct;
+			Oct.Round = R;
+			const double Out = (W * 0.5 - R) / std::cos(Pi / 8.0);
+			for (int K = 0; K < 8; ++K)
+			{
+				const double A = Pi / 8.0 + K * Pi / 4.0;
+				Oct.Corners.push_back(Out * std::cos(A));
+				Oct.Corners.push_back(Out * std::sin(A));
+			}
+			Plate(Into, Back, C, Oct, Red, Side * 0.025, White, Grey);
+			Words(0.0, Side * 0.2, W * 0.72, "STOP", White);
+		}
+		return;
+	}
 	Plate(Into, Back, At, Triangle(Side, true), White, Side * 0.1, Red, Grey);
 	const double S = Side, Up = 0.004;   // (the symbol a little proud of the white)
 	const double Main = S * 0.05, Lesser = S * 0.034, Head = S * 0.07;
