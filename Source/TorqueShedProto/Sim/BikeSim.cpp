@@ -84,8 +84,11 @@ const double PADDLE_SPEED = 1.1;
 // [build 167] "when my riders foot is down the bike shouldnt move": stopped (slower than this, m/s) with
 // the throttle shut, or nothing driving, the rider's feet are planted and hold the bike where it is, on a
 // hill too (the locked tyres alone let it slide downhill at about 0.1 m/s). Let go above FEET_LET_GO.
+// ([168 robot] On Buttertubs it crept back at 0.4 m/s, the locked tyres' own creep on a steep hill, too quick
+// to plant them: rolling backwards, or braking, they go down from FEET_CATCH_SPEED.)
 const double FEET_HOLD_SPEED = 0.3;
-const double FEET_LET_GO = 0.6;
+const double FEET_CATCH_SPEED = 1.0;
+const double FEET_LET_GO = 1.5;
 // [build 167] "bikes should [not] pull away in 3rd gear or higher, they should stall": with the gears
 // changed by hand, the clutch all the way out in this gear or higher and the back wheel turning the engine
 // slower than this share of its tickover, it stalls (pulling away, or stopping without the clutch).
@@ -1368,11 +1371,13 @@ void BikeSim::UpdateFeet(double Delta)
 	// shut lets the rider walk the bike backwards with their feet, steering with the bars.
 	const bool Still = std::fabs(Speed) < 0.4;
 	const bool OnGround = Wheels[0].Contact && Wheels[1].Contact;
+	// ([168 robot, build 167] "when my riders foot is down the bike shouldnt move": the front brake held at a
+	// stop, as anyone does on a hill, walked it backwards. Now the rider also pulls the stick back for it.)
 	if (Paddling)
 	{
-		if (FrontBrake < 0.3 || Throttle > 0.1 || !OnGround) Paddling = false;
+		if (FrontBrake < 0.3 || Throttle > 0.1 || !OnGround || BodyShift > -0.3) Paddling = false;
 	}
-	else if (Still && OnGround && FrontBrake > 0.5 && Throttle < 0.05)
+	else if (Still && OnGround && FrontBrake > 0.5 && Throttle < 0.05 && BodyShift < -0.5)
 	{
 		StoppedBrake += Delta;
 		if (StoppedBrake >= PADDLE_HOLD) Paddling = true;
@@ -1450,7 +1455,8 @@ void BikeSim::ApplyFeet()
 		const bool Down = Wheels[0].Contact && Wheels[1].Contact && !IsCrashed && !Paddling && Burnout <= 0.0 && Flat.Length() > 0.01;
 		const bool Driving = Throttle >= 0.05 && Gear != NEUTRAL && !ClutchIn && EngineOn;
 		if (!Down || Driving || std::fabs(Speed) > FEET_LET_GO) FeetHeld = false;
-		else if (!FeetHeld && std::fabs(Speed) < FEET_HOLD_SPEED)
+		else if (!FeetHeld && (std::fabs(Speed) < FEET_HOLD_SPEED ||
+			(std::fabs(Speed) < FEET_CATCH_SPEED && (Speed < 0.0 || FrontBrake > 0.05 || RearBrake > 0.05))))
 		{
 			FeetHeld = true;
 			FeetAt = Position;
