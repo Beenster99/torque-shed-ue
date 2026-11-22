@@ -256,6 +256,7 @@ void RidePlan::IndexCarParks()
 	CarParks.clear();
 	CarParkGrid.clear();
 	ParkMemo = std::make_shared<CarParkMemo>();
+	ResetDriveCars();   // [driveways]
 	for (int& Count : CarParkCount) Count = 0;
 	const Region& G = Area.Roads;
 	// The roads cars take, by 64 m square, bit by bit: service roads apart (a car park's aisles).
@@ -634,6 +635,7 @@ void RidePlan::ParkedCarsNear(double X, double Z, double Reach, std::vector<Park
 				}
 			}
 		}
+	DriveCarsNear(X, Z, Reach, Out);   // [driveways] (and the cars on the houses' drives)
 }
 
 void RidePlan::CarParksTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const

@@ -805,6 +805,14 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: parked cars %s"), Plan->ParkedCars ? TEXT("on")
 			: bCarsAsked && CarsAsked == 0 ? TEXT("off (-TorqueRideParkedCars=0)") : TEXT("off (no parked_car models: Tools/ue_build_rideuk.py prop_kit)"));
 	}
+	{
+		// [driveways] (beenster, Nov 22) The houses' cars on their drives, with the car parks' cars (same models,
+		// same switch); -TorqueRideDriveCars=0 none (the hub's frame rate A/B), =0.3 a smaller share of the drives.
+		float DriveAsked = float(Plan->DriveCarShare);
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideDriveCars="), DriveAsked);
+		Plan->DriveCarShare = FMath::Clamp(double(DriveAsked), 0.0, 1.0);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: drive cars %s (share %.2f)"), Plan->ParkedCars && Plan->DriveCarShare > 0.0 ? TEXT("on") : TEXT("off"), Plan->DriveCarShare);
+	}
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::FirstGarden && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
 	Plan->RealTrees = bTreeModels;

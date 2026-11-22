@@ -1520,6 +1520,26 @@ public:
 	};
 	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
 	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
+	// [Nov 22] (beenster at Uig: car park cars sunk in the sea) Whether a parked car at (X, Z) would stand in
+	// water as the game draws it: the map's sea or the land cover's water there, ground under the sea's highest
+	// tide within the sea's flood reach of it (WaterTile spreads the sea over low shore), or ground under a
+	// river's, lake's or reservoir's level beside it. (Where the ground isn't known yet, the map's water only.)
+	bool CarSpotWet(double X, double Z) const;
+	// [driveways] (beenster, Nov 22: "add some of the fab cars onto driveways now to make the villages and
+	// towns come to life"; NOT at the roadside, Nov 22 15:22) A house's car on its drive, as BuildingsTile
+	// knows the house (GardenHouse): parked in its front garden in the gap its front wall leaves, nose to the
+	// house or reversed in, or where the front garden is too short, beside its free gable end; on a drive of
+	// its own (tarmac, gravel, block paving or concrete) out to the pavement. Only on level, dry, clear ground:
+	// off the road and pavement, clear of every building (Clear), of the rails, of water (CarSpotWet) and of
+	// the square's other drive cars (Taken). Solid to the bike (DriveCarsNear, via ParkedCarsNear). The share
+	// of drives with a car: DriveCarShare (-TorqueRideDriveCars=0 none, the hub's frame rate A/B).
+	double DriveCarShare = 0.65;
+	void DrivewayCar(const GardenHouse& House, const GardenClear& Clear, std::vector<ParkedCarBox>& Taken, RideMesh& Out) const;
+	void KeepDriveCars(double X0, double Z0, double Size, std::vector<ParkedCarBox>&& Cars) const;   // (the square's, for DriveCarsNear)
+	void DriveCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;   // (appends)
+	void ResetDriveCars();
+	struct DriveCarMemo;
+	std::shared_ptr<DriveCarMemo> DriveMemo;
 	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none or too steep)
 	// [build 157 feedback] (beenster: "strange carpark", Sandgate: bays and cars draped down an embankment) The
 	// land under and round a car park as built: within ParkCutMost of its level laid to it (cut or filled), the

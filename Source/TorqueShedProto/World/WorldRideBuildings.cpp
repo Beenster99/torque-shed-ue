@@ -404,9 +404,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	// [gardens] (what the gardens' plants keep clear of: every building on the square and its neighbours'
 	// within 16 m of its edges, the outlines' pieces and the cells' own boxes alike)
 	const bool Planting = Fine && RealGardens && GardenShare > 0.0;
+	// [driveways] (the houses' cars on their drives: the finest squares only, as the car parks')
+	const bool DriveCars = Fine && ParkedCars && DriveCarShare > 0.0;
+	std::vector<ParkedCarBox> DriveTaken;
 	GardenClear Clearing;
 	std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> ClearHeld;
-	if (Planting)
+	if (Planting || DriveCars)
 	{
 		constexpr double Margin = 16.0;
 		std::vector<const OutlinePiece*> ClearPieces;
@@ -1475,7 +1478,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// [gardens] (beenster, Nov 19: "a sparsity of planting" in the villages and towns) A house's garden
 		// planting: roses, shrubs and flowers in beds along its front and its gable ends, behind its front
 		// wall, at the back; now and then a small tree (GardenPlants). Not a shop, a barn or a ruin.
-		if (Planting && IsHouse && !Big && !ShopHere && !Ruin && !Plain && HouseKind >= 0 && HouseKind != HouseTypes::Tenement)
+		if ((Planting || DriveCars) && IsHouse && !Big && !ShopHere && !Ruin && !Plain && HouseKind >= 0 && HouseKind != HouseTypes::Tenement)
 		{
 			GardenHouse Gh;
 			Gh.X = B.X;
@@ -1507,7 +1510,8 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				if (Gh.DoorU < 0.0) { Gh.DriveFrom = HalfLong - 2.9; Gh.DriveTo = HalfLong + 1.0; }
 				else { Gh.DriveFrom = -HalfLong - 1.0; Gh.DriveTo = -HalfLong + 2.9; }
 			}
-			GardenPlants(Gh, Clearing, Out);
+			if (Planting) GardenPlants(Gh, Clearing, Out);
+			if (DriveCars) DrivewayCar(Gh, Clearing, DriveTaken, Out);   // [driveways]
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
 		// builds them; a terrace's on every other party wall), shops and now and then a civic building;
@@ -1654,6 +1658,8 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	}
 	// [churches stage 5] (the churchyards: walls, gates, paths, yews)
 	if (Fine) ChurchyardsTile(X0, Z0, Size, TileLook, Doors, Out, Washed, Houses, RoofOut, BrickOut);
+	// [driveways] (the square's drive cars kept for the bike to bump into: DriveCarsNear)
+	if (DriveCars) KeepDriveCars(X0, Z0, Size, std::move(DriveTaken));
 }
 // [build 141 feedback] Farther off (beenster: "increase the drawing of objects in the very far
 // distance"): the coarse squares had no buildings at all, so villages and towns vanished past a few
