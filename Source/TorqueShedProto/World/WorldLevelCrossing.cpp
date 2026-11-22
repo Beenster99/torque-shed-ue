@@ -39,7 +39,7 @@ double StandOff(const Spot& S)
 	// degrees is laid as if it were that)
 	const double Sin = std::max(0.45, std::fabs(Cross(Norm(S.Road), Norm(S.Rail))));
 	const double Cot = std::sqrt(std::max(0.0, 1.0 - Sin * Sin)) / Sin;
-	return Clear / Sin + S.Half * Cot;
+	return (Clear + S.Spread * 0.5) / Sin + S.Half * Cot;
 }
 
 int TypeFor(const std::string& Class, double Half, uint32_t Key)
@@ -194,7 +194,7 @@ std::vector<Piece> Layout(int Type, const Spot& S)
 			// (the side of the line the approach is on: across the line towards U = Sg * infinity)
 			P2 Away = LeftOf(Rail);
 			if (Dot(Away, Road) * Sg < 0.0) Away = Away * -1.0;
-			const double Dp = Clear - 1.0;
+			const double Dp = Clear + S.Spread * 0.5 - 1.0;
 			const P2 Line0 = S.Mid + Away * Dp;
 			const double Along = Dot(Rail, Lft);   // (how fast the fence line crosses the road's width)
 			for (double Way : {-1.0, 1.0})

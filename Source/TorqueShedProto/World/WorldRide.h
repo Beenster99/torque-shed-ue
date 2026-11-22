@@ -1196,6 +1196,9 @@ public:
 		int Line = 0, First = 0, Last = 0;
 		P2 Mid, Road, Rail;
 		double Half = 3.0;
+		double Spread = 0.0;   // [169] between the outermost tracks' middles, square across the line (m; 0 one track)
+		struct Track { int Line = 0, First = 0, Last = 0; };
+		std::vector<Track> Also;   // [169] the other lines it crosses (merged: a double track drawn as two lines)
 		int Type = 0;
 		std::string Class;
 	};
@@ -1942,6 +1945,10 @@ private:
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;
 	void IndexFurniture();
 	void FindLevelCrossing(int Line, int First, int Last);   // [level crossings] (one of LevelCrossings, from IndexFurniture)
+	void MergeLevelCrossings();   // [169] side-by-side lines' crossings of one road as one
+	// The map's road edge nearest At within Within m (-1 none), and its way there; whether that's a motorway's or a trunk road's.
+	int NearestEdge(const P2& At, double Within, P2* Dir) const;
+	bool TrunkRoad(const P2& At) const;
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
 	// [OSM stage 2] A bit of a wall, hedge or fence from A to B less the gateways in it: its pieces

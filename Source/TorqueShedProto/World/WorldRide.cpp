@@ -4710,14 +4710,40 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const double HeadLen = std::fmin(1.0, Total / (HeadA && HeadB ? 2.0 : 1.0));
 				const double From = HeadA ? HeadLen : 0.0, To = Total - (HeadB ? HeadLen : 0.0);
 				const int Lengths = To - From > 0.1 ? std::max(1, int(std::round((To - From) / (2.0 * Size)))) : 0;
+				// ([169] beenster, build 168, High Street, Swanley: "bit of a mess". Another road joins on the bridge (or
+				// its own deck lies alongside): no wall across its carriageway, the wall headed either side of the gap)
+				const auto Blocks = [&](const RideSceneBits::P3& Q)
+				{
+					NearOpts Others;
+					Others.NotRoad = Which;
+					NearHit Hit;
+					return NearestOf(Q.X, Q.Z, Others, Hit) && Hit.Dist < Hit.Half + 0.3 && std::fabs(Hit.Height - Q.Y) < 2.0;
+				};
+				std::vector<char> Gap(size_t(Lengths), 0);
 				for (int Ln = 0; Ln < Lengths; ++Ln)
 				{
 					const RideSceneBits::P3 Q0 = PointAt(From + (To - From) * Ln / Lengths), Q1 = PointAt(From + (To - From) * (Ln + 1) / Lengths);
+					RideSceneBits::P3 Qm = Q0;
+					Qm.X = (Q0.X + Q1.X) * 0.5;
+					Qm.Y = (Q0.Y + Q1.Y) * 0.5;
+					Qm.Z = (Q0.Z + Q1.Z) * 0.5;
+					Gap[size_t(Ln)] = Blocks(Q0) || Blocks(Qm) || Blocks(Q1) ? 1 : 0;
+				}
+				for (int Ln = 0; Ln < Lengths; ++Ln)
+				{
+					if (Gap[size_t(Ln)]) continue;
+					const RideSceneBits::P3 Q0 = PointAt(From + (To - From) * Ln / Lengths), Q1 = PointAt(From + (To - From) * (Ln + 1) / Lengths);
+					// (a length beside a gap is the wall's head there, finished towards the gap)
+					const bool GapAfter = Ln + 1 < Lengths && Gap[size_t(Ln) + 1], GapBefore = Ln > 0 && Gap[size_t(Ln) - 1];
+					if (GapAfter && !GapBefore) { LayWall(PropWallEnd, int(RideSceneBits::Chance(Q0.X, Q0.Z, 52) * WallVariants) % WallVariants, Q0, Q1); continue; }
+					if (GapBefore && !GapAfter) { LayWall(PropWallEnd, int(RideSceneBits::Chance(Q0.X, Q0.Z, 52) * WallVariants) % WallVariants, Q1, Q0); continue; }
+					if (GapBefore && GapAfter) continue;   // (a 2 m stub between two gaps: left out)
 					LayWall(PropWallStone, int(RideSceneBits::Chance(Q0.X, Q0.Z, 51) * WallVariants) % WallVariants, Q0, Q1);
 				}
 				// (a head is finished at its model's +x: laid from inside the wall out to the bridge's end)
-				if (HeadA) { const RideSceneBits::P3 E = PointAt(0.0), In2 = PointAt(HeadLen); LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
-				if (HeadB) { const RideSceneBits::P3 E = PointAt(Total), In2 = PointAt(Total - HeadLen); LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
+				const bool GapA = Lengths > 0 && Gap.front(), GapB = Lengths > 0 && Gap.back();
+				if (HeadA && !GapA) { const RideSceneBits::P3 E = PointAt(0.0), In2 = PointAt(HeadLen); if (!Blocks(E)) LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
+				if (HeadB && !GapB) { const RideSceneBits::P3 E = PointAt(Total), In2 = PointAt(Total - HeadLen); if (!Blocks(E)) LayWall(PropWallEnd, int(RideSceneBits::Chance(E.X, E.Z, 52) * WallVariants) % WallVariants, In2, E); }
 			}
 			S0 = S1;
 		}

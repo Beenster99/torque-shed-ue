@@ -152,6 +152,7 @@ void ATorqueLevelCrossing::Build(const TorqueWorld::RidePlan& Plan, int32 Index)
 	S.Road = C.Road;
 	S.Rail = C.Rail;
 	S.Half = C.Half;
+	S.Spread = C.Spread;
 	S.Key = C.Key;
 	const std::vector<LevelX::Piece> Pieces = LevelX::Layout(Type, S);
 	UMaterialInterface* PaintMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_CrossingPaint.M_CrossingPaint"));

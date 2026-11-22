@@ -469,7 +469,7 @@ int main(int Argc, char** Argv)
 		std::printf("  railways: deepest cutting %.1f m, highest bank %.1f m\n", Cut, Bank);
 		// [level crossings] Each one, its road and type (World/WorldLevelCrossing).
 		for (const RidePlan::LevelCrossing& X : Plan->LevelCrossings)
-			std::printf("  level crossing at %.0f, %.0f: %s road %.1f m wide, %s (key %u)\n", X.Mid.X, X.Mid.Z, X.Class.c_str(), X.Half * 2.0, LevelX::TypeName(X.Type), X.Key);
+			{ const Geo Gx = Plan->Area.Roads.FrameOf().ToGeo(X.Mid.X, X.Mid.Z); std::printf("  level crossing at %.0f, %.0f (%.5f N, %.5f E): %s road %.1f m wide, %s (key %u)\n", X.Mid.X, X.Mid.Z, Gx.Lat, Gx.Lon, X.Class.c_str(), X.Half * 2.0, LevelX::TypeName(X.Type), X.Key); }
 	}
 	double Steep = 0.0, Crest = 0.0, Off = 0.0;
 	for (size_t I = 1; I + 1 < Plan->Road.size(); ++I)
