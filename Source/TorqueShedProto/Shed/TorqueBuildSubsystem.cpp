@@ -556,6 +556,9 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 			SerializeFurniture(FurnAr, false, List, FurnNext);
 			if (!FurnAr.IsError())
 			{
+				// Wall pieces hung before build 169 on the main shed's walls were inside the plaster: out onto it.
+				for (FTorqueFurniture& F : List)
+					if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model); M && M->bWall && F.Mover == 0) F.Xf = TorqueFurniture::OffLining(F.Xf);
 				Furnishings = MoveTemp(List);
 				FurnitureNextId = FurnNext;
 				bFurnished = bRead = true;
