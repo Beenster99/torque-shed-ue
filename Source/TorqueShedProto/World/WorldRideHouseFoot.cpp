@@ -164,7 +164,8 @@ void RidePlan::HouseFootPlants(const GardenHouse& House, bool Front, bool Hard, 
 				|| Fk == FieldGraves) return;
 		}
 		if (CircuitGroundAt(X, Z) >= 0) return;
-		const double Y = Ground(X, Z);
+		// (on the ground as the square draws it, its 4 m grid, not the finer ground under it)
+		const double Drawn = LandDrawnAt(X, Z), Y = std::isnan(Drawn) ? Ground(X, Z) : Drawn;
 		if (std::isnan(Y)) return;
 		// (rank tussocks against the wall, lower tufts and mat grass further out; a town's foot only small tufts)
 		const double R = Roll(U, V, Salt + 1);
