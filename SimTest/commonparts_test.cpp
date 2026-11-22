@@ -118,6 +118,8 @@ int main()
 	int BarFits = 0;
 	double WorstHand = 0.0, WorstBar = 0.0, WorstBy = 0.0, WorstCable = 0.0, WorstEnd = 0.0, WorstReach = 0.0;
 	int EndFits = 0;
+	int MirFits = 0;
+	double WorstMir = 0.0;
 	for (const std::string& Frame : Db.Ids("frame"))
 	{
 		const Json* FramePart = Db.Find("frame", Frame);
@@ -255,6 +257,49 @@ int main()
 							if (OwnGap > 0.08) continue;   // (no cable to this side's lever on the bike's own bar either)
 							WorstCable = std::max(WorstCable, Gap - OwnGap);
 							Expect(Gap < OwnGap + 0.02, Frame + ": " + E.Id + " the " + (Throttle ? "throttle" : SideSign > 0.0 ? "right" : "left") + " cables reach the lever (" + std::to_string(Gap) + " m short, " + std::to_string(OwnGap) + " on the bike's own bar)");
+						}
+						// Mirrors sit on their perches with the bar fitted as they do on the bike's own bar, whatever mirrors
+						// and levers are on (beenster, build 168: "little gap on the mirrors for ape bars").
+						{
+							auto MirGap = [](const std::vector<FittedPart>& Fitted) {
+								double Worst = 0.0;
+								for (double SideSign : {-1.0, 1.0})
+								{
+									double Nearest = 1e9;
+									for (const FittedPart& A : Fitted)
+									{
+										if (A.Sub != "mirrors" || A.Hidden || !A.Made) continue;
+										for (const FittedPart& B : Fitted)
+										{
+											if ((B.Sub != "levers" && B.Sub != "switches" && B.Sub != "bar" && B.Sub != "grip" && B.Sub != "bar_end") || B.Hidden || !B.Made) continue;
+											for (const PartSurface& Sa : A.Made->Surfaces)
+												for (size_t Ia = 0; Ia < Sa.Pos.size(); Ia += 2)
+												{
+													if (Sa.Pos[Ia].z * SideSign <= 0.0) continue;
+													for (const PartSurface& Sb : B.Made->Surfaces)
+														for (size_t Ib = 0; Ib < Sb.Pos.size(); Ib += 2) Nearest = std::min(Nearest, Dist(Sa.Pos[Ia], Sb.Pos[Ib]));
+												}
+										}
+									}
+									if (Nearest < 1e8) Worst = std::max(Worst, Nearest);
+								}
+								return Worst;
+							};
+							std::vector<std::pair<std::string, std::string>> Tries = {{"", ""}, {"front_master", ""}};
+							for (const char* TrySlot : {"mirrors", "levers", "switchgear"})
+								for (const std::string& Opt : Shop::Options(Lay, TrySlot, Style, Stock))
+									if (!Opt.empty() && (!Stock.count(TrySlot) || Opt != Stock.at(TrySlot))) Tries.push_back({TrySlot, Opt});
+							for (const auto& Try : Tries)
+							{
+								PartsMap On = Parts, Off = Stock;
+								if (!Try.first.empty() && Try.second.empty()) { On.erase(Try.first); Off.erase(Try.first); }
+								else if (!Try.first.empty()) { On[Try.first] = Try.second; Off[Try.first] = Try.second; }
+								const double OwnGap = MirGap(Placer.Fit(Off, L)), Gap = MirGap(Placer.Fit(On, L));
+								if (std::getenv("MIRGAP")) std::printf("MIRGAP %s %s %s %.4f %.4f\n", Frame.c_str(), E.Id.c_str(), (Try.first + "=" + Try.second).c_str(), OwnGap, Gap);
+								++MirFits;
+								if (OwnGap <= 0.08) WorstMir = std::max(WorstMir, Gap);
+								Expect(Gap < 0.006 || OwnGap > 0.08, Frame + ": " + E.Id + " with " + (Try.first.empty() ? std::string("the bike's own mirrors") : Try.second.empty() ? "no " + Try.first : Try.second) + ": the mirrors sit on their perches (" + std::to_string(Gap) + " m off, " + std::to_string(OwnGap) + " on the bike's own bar)");
+							}
 						}
 						// Bar ends fitted with the bar sit on the bar's end ("when I tried to fit bar ends to them they hung in the air").
 						for (const Entry& End : Common)
@@ -401,6 +446,7 @@ int main()
 		std::printf("%-14s %4d fitted, %4d lined up on the bike's own, %4d by anchor\n", KV.first.c_str(), KV.second, Lined[KV.first], ByAnchor[KV.first]);
 	std::printf("%d bike-and-bar fits: layout grip to drawn grip at worst %.3f m, grip to bar at worst %.3f m, levers and switches further off the bar than on the bike's own by at worst %.3f m\n", BarFits, WorstHand, WorstBar, WorstBy);
 	std::printf("cables short of the levers by at worst %.3f m more than on the bike's own bar; %d bar-and-bar-end fits, a bar end at worst %.3f m off its bar; the longest reach to a grip needs an arm of %.3f m\n", WorstCable, EndFits, WorstEnd, WorstReach);
+	std::printf("%d bar, mirror and lever fits: bar mirrors at worst %.3f m off their perches\n", MirFits, WorstMir);
 	std::printf("%d V2 bikes, %d bike-and-part fits, %d failures\n", Bikes, Pairs, Failures);
 	return Failures ? 1 : 0;
 }

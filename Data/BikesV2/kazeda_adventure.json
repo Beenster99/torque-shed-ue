@@ -164,7 +164,7 @@
   "handlebars|steer",
   "headlight|",
   "indicators|",
-  "mirrors|",
+  "mirrors|steer",
   "oil_filter|",
   "rear_caliper|swingarm",
   "rear_disc|rear_wheel",
@@ -1523,7 +1523,7 @@
   },
   "s104": {
    "slot": "mirrors",
-   "node": "",
+   "node": "steer",
    "surface": "d3_leverblack",
    "tag": "d3_leverblack",
    "ue": "cat_black_metal",
@@ -1538,7 +1538,7 @@
   },
   "s105": {
    "slot": "mirrors",
-   "node": "",
+   "node": "steer",
    "surface": "plastic",
    "tag": "plastic",
    "ue": "cat_plastic",
@@ -1553,7 +1553,7 @@
   },
   "s106": {
    "slot": "mirrors",
-   "node": "",
+   "node": "steer",
    "surface": "plastic",
    "tag": "mirror_head",
    "ue": "cat_plastic",
@@ -1568,7 +1568,7 @@
   },
   "s107": {
    "slot": "mirrors",
-   "node": "",
+   "node": "steer",
    "surface": "d3_mirrorglass",
    "tag": "d3_mirrorglass",
    "ue": "mirror_glass",
@@ -1576,7 +1576,7 @@
   },
   "s108": {
    "slot": "mirrors",
-   "node": "",
+   "node": "steer",
    "surface": "plastic",
    "tag": "mirror_head",
    "ue": "cat_plastic",
@@ -1591,7 +1591,7 @@
   },
   "s109": {
    "slot": "mirrors",
-   "node": "",
+   "node": "steer",
    "surface": "d3_mirrorglass",
    "tag": "d3_mirrorglass",
    "ue": "mirror_glass",
