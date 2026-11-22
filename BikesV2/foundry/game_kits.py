@@ -173,7 +173,7 @@ def bespoke_jobs(models):
             continue
         for grp in BESPOKE:
             for d in pool.get(grp) or pool.get(grp + "s") or []:      # (the pool lists the dress kits as "engines")
-                for m in pool["metals"]:
+                for m in d.get("metals") or pool["metals"]:      # (a library wheel comes in its own finish: the shop recolours it)
                     jobs.append((model, grp, d, m))
     return jobs
 
@@ -197,9 +197,11 @@ def build_bespoke(model, grp, design, metal):
     base = slot_shapes(base_g, json.load(open(os.path.join(DATA, model + ".json"))))
     mine = slot_shapes(g, info)
     slots = sorted(s for s in mine if mine[s] != base.get(s) and s not in NOT_SOLD)
+    if grp == "wheels":
+        slots = [s for s in slots if s.endswith("_wheel")]      # (a wheel kit keeps the bike's own discs)
     lines = []
     if slots:
-        meta = {"bespoke": {"group": grp, "design": design["key"], "metal": metal["key"], "name": f"{design['name']} {BESPOKE_WORD[grp]}, {metal['name'].lower()}",
+        meta = {"bespoke": {"group": grp, "design": design["key"], "metal": metal["key"], "name": f"{design['name']} {design.get('word', BESPOKE_WORD[grp])}, {metal['name'].lower()}",
                             "note": design.get("note", "")}}
         tris = cut(g, blob, info, slots, os.path.join(KITS, out), meta)
         lines.append(f"bespoke {out}: {'+'.join(slots)}, {tris} triangles")
@@ -242,6 +244,9 @@ def bespoke_entries(parts, model, file, info):
         e["description"] = b.get("note") or e.get("description", "")
         if isinstance(e.get("price"), (int, float)):
             e["price"] = int(round(e["price"] * {"gold": 2.5, "brass": 1.8}.get(b["metal"], 1.6) / 5.0) * 5)
+        if b["group"] == "wheels" and not b["design"].startswith(("billet_", "wire_")):
+            e.update(type="Cast alloy", style="cast")      # (a library cast wheel on the chopper's rims: no spokes)
+            e.pop("spokes", None)
         vp.update(model=f"kits/{file}", frame=f"v2_{model}", slot=slot, kit=f"b_{b['group']}_{b['design']}_{b['metal']}", of=model, bespoke=True)
         parts[kind][f"{own_id}_b{b['group']}_{b['design']}_{b['metal']}"] = e
         n += 1

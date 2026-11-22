@@ -1114,7 +1114,9 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 				On = R.Picked;
 			}
 	const float IH = 26.0f * S;
-	const int32 Shown = FMath::Min(Labels.Num(), 14);
+	// (As many rows as the screen takes, up to 24: the chopper's 63 wheels were 14 at a time.)
+	const int32 Shown = FMath::Min(Labels.Num(), FMath::Clamp(FMath::FloorToInt((Canvas->ClipY * 0.8f - 48.0f * S) / IH), 14, 24));
+	PopupShown = Shown;
 	PopupScroll = FMath::Clamp(PopupScroll, 0, FMath::Max(0, Labels.Num() - Shown));
 	const float PW = FMath::Max(PopupAnchor.GetSize().X, 340.0f * S);
 	const float TipH = 40.0f * S;
@@ -1146,7 +1148,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		AddHit(PX + 4.0f * S, IY, PW - 8.0f * S, IH - 2.0f * S, EHit::PopupRow, I);
 	}
 	if (Labels.Num() > Shown)
-		Pen.Draw(PX + PW - 130.0f * S, PopY + PH - TipH - 2.0f * S, FString::Printf(TEXT("%d more (wheel)"), Labels.Num() - Shown), 11.0f * S, TBCI::Dim);
+		Pen.Draw(PX + PW - 190.0f * S, PopY + PH - TipH - 2.0f * S, FString::Printf(TEXT("%d of %d: scroll for more"), Shown, Labels.Num()), 11.0f * S, TBCI::Dim);
 	float TY = PopY + PH - TipH + 4.0f * S;
 	for (const FString& L : Pen.Wrap(HoverTip, 12.0f * S, PW - 20.0f * S))
 	{
@@ -1320,7 +1322,7 @@ bool FTorqueBikeConfigurator::Scroll(const FVector2D& Mouse, int32 Dir)
 {
 	if (Popup != EPopup::None && Popup != EPopup::Colour)
 	{
-		PopupScroll = FMath::Clamp(PopupScroll + Dir * 2, 0, FMath::Max(0, PopupCount() - 14));
+		PopupScroll = FMath::Clamp(PopupScroll + Dir * 2, 0, FMath::Max(0, PopupCount() - PopupShown));
 		return true;
 	}
 	for (const FHit& H : Hits)

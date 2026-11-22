@@ -1,0 +1,187 @@
+{
+ "name": "Lodestar chopper (working title H1)",
+ "format": 2,
+ "kit": true,
+ "triangles": 67032,
+ "surfaces": {
+  "s000": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_wheel_gloss_black",
+   "tag": "d3_wheel_gloss_black",
+   "ue": "cat_plastic",
+   "color": [
+    0.012,
+    0.012,
+    0.014
+   ],
+   "metallic": 0.0,
+   "roughness": 0.2
+  },
+  "s001": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s002": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_soot",
+   "tag": "d3_soot",
+   "ue": "cat_plastic",
+   "color": [
+    0.006,
+    0.006,
+    0.006
+   ],
+   "metallic": 0.0,
+   "roughness": 0.95
+  },
+  "s003": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "disc_front",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s004": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "disc_front"
+  },
+  "s005": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_wheel_gloss_black",
+   "tag": "d3_wheel_gloss_black",
+   "ue": "cat_plastic",
+   "color": [
+    0.012,
+    0.012,
+    0.014
+   ],
+   "metallic": 0.0,
+   "roughness": 0.2
+  },
+  "s006": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s007": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_soot",
+   "tag": "d3_soot",
+   "ue": "cat_plastic",
+   "color": [
+    0.006,
+    0.006,
+    0.006
+   ],
+   "metallic": 0.0,
+   "roughness": 0.95
+  },
+  "s008": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "disc_rear",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s009": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "disc_rear"
+  },
+  "s045": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s120": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s125": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s126": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  }
+ },
+ "bespoke": {
+  "group": "wheels",
+  "design": "web10",
+  "metal": "gloss_black",
+  "name": "Petal web cast wheel, gloss black",
+  "note": ""
+ }
+}
