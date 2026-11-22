@@ -400,12 +400,45 @@ bool OnTrolley(const FModel& M, const FTransform& TrolleyXf, const FVector& At)
 	return FMath::Abs(L.X) <= M.Size.X * 0.5 + 4.0 && FMath::Abs(L.Y) <= M.Size.Z * 0.5 + 4.0 && L.Z > 4.0 && L.Z < M.Size.Y + 250.0;
 }
 
+FTransform OffLining(const FTransform& Xf)
+{
+	// The main shed's inside faces are painted plaster (and the dark band under it) 2 cm proud of the
+	// cladding, drawn with no collision (ue_build_shed.py shell(): lining). A look's trace stops at the
+	// cladding behind it, so a piece hung "on the wall" there was 1.5 cm inside the plaster: a photo
+	// print (1.2 mm thick) out of sight, a poster half in it (beenster, build 168: "I can't hang my photos
+	// on the plaster wall in the shed but I can in the dyno room"). Out onto the plaster's face.
+	constexpr double HX = 650.0, HY = 550.0, Lining = 2.0, Proud = 0.5, Top = 450.0;
+	FVector At = Xf.GetLocation();
+	if (At.Z < 0.0 || At.Z > Top) return Xf;
+	const FVector Front = Xf.GetRotation().RotateVector(FVector(0.0, 1.0, 0.0));   // (a wall piece's front, +y, out of the wall)
+	if (FMath::Abs(Front.X) > 0.7 && FMath::Abs(At.Y) <= HY && FMath::Abs(FMath::Abs(At.X) - HX) < 1.5 && Front.X * At.X < 0.0)
+		At.X = FMath::Sign(At.X) * (HX - Lining - Proud);
+	else if (FMath::Abs(Front.Y) > 0.7 && FMath::Abs(At.X) <= HX && FMath::Abs(FMath::Abs(At.Y) - HY) < 1.5 && Front.Y * At.Y < 0.0)
+		At.Y = FMath::Sign(At.Y) * (HY - Lining - Proud);
+	else return Xf;
+	return FTransform(Xf.GetRotation(), At, Xf.GetScale3D());
+}
+
+FTransform HeldXf(const APawn* Mover, const FModel& M, double Turn, double Reach, int32 Self)
+{
+	// A wall piece looked at a wall within reach is shown on it, where it'd hang: it slides along the wall
+	// and up and down it with the look (beenster, build 168: "I can't move the pic about on the wall at
+	// different heights"); held up in front of you otherwise.
+	if (M.bWall && Mover)
+	{
+		FTransform Out;
+		FString WhyNot;
+		if (PutDownXf(Mover, M, Turn, Out, WhyNot, Reach, Self)) return Out;
+	}
+	return Snapped(Mover ? Mover->GetWorld() : nullptr, M, MovedXf(Mover, M, Turn, Reach), Self);
+}
+
 FTransform DrawnXf(const UObject* WorldContext, const FTorqueFurniture& F)
 {
 	const FModel* M = Find(F.Model);
 	const APawn* Mover = F.Mover != 0 ? TorqueShedKit::PawnOf(WorldContext, F.Mover) : nullptr;
 	if (!M || !Mover) return F.Xf;
-	return Snapped(Mover->GetWorld(), *M, MovedXf(Mover, *M, F.Turn, F.Reach), F.Id);
+	return HeldXf(Mover, *M, F.Turn, F.Reach, F.Id);
 }
 
 FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn, double Reach)
@@ -529,7 +562,7 @@ bool PutDownXf(const APawn* Pawn, const FModel& M, double Turn, FTransform& Out,
 		const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(N.Y, N.X)) - 90.0;
 		// Its middle where you look (its origin), its bottom clear of the floor.
 		const double Z = FMath::Clamp(Hit.ImpactPoint.Z, M.Size.Y * 0.5 + 20.0, FMath::Max(M.Size.Y * 0.5 + 20.0, 330.0 - M.Size.Y * 0.5));
-		Out = FTransform(FRotator(0.0, Yaw, 0.0), FVector(Hit.ImpactPoint.X, Hit.ImpactPoint.Y, Z) + N * 0.5);
+		Out = OffLining(FTransform(FRotator(0.0, Yaw, 0.0), FVector(Hit.ImpactPoint.X, Hit.ImpactPoint.Y, Z) + N * 0.5));
 		return true;
 	}
 	// A small one goes down on whatever's under the look (a bench, a shelf, the floor).
@@ -1199,7 +1232,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		const APawn* Mover = F.Mover != 0 ? TorqueShedKit::PawnOf(this, F.Mover) : nullptr;
 		if (Mover)
 			if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model))
-				Xf = TorqueFurniture::Snapped(GetWorld(), *M, TorqueFurniture::MovedXf(Mover, *M, F.Turn, F.Reach), F.Id);   // (where it goes down)
+				Xf = TorqueFurniture::HeldXf(Mover, *M, F.Turn, F.Reach, F.Id);   // (where it goes down: a wall piece on the wall looked at)
 		// Moved, it doesn't shove its mover about (nor anyone it's pushed into).
 		const ECollisionEnabled::Type Want = Mover ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics;
 		if (C->GetCollisionEnabled() != Want) C->SetCollisionEnabled(Want);

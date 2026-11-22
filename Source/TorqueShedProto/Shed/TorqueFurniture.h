@@ -178,6 +178,12 @@ bool ShelfDropFor(const FModel& M, const FTransform& Xf, const FVector& Eye, con
 	FTransform& Out, double& Ceiling, double& Dist, FString& WhyNot);
 // Where a trolley being moved is drawn now (its mover's, snapped), or where it stands.
 FTransform DrawnXf(const UObject* WorldContext, const FTorqueFurniture& F);
+// Where a piece held by Mover is drawn: a wall piece on the wall they look at (where F hangs it), else
+// MovedXf snapped.
+FTransform HeldXf(const APawn* Mover, const FModel& M, double Turn, double Reach, int32 Self);
+// A wall piece's transform brought out of the main shed's plaster lining (drawn with no collision, 2 cm
+// proud of the walls the look's trace stops at) onto its face; anything else as it was.
+FTransform OffLining(const FTransform& Xf);
 
 // The ridden bike's contact boxes for the solid pieces (sim frame: Sim/BikeContacts.h), and a
 // number that changes whenever they might have (the bike rebuilds its boxes then).
