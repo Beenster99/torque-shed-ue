@@ -1948,6 +1948,7 @@ int main(int Argc, char** Argv)
 			if (Dir.X * Fwd.X + Dir.Z * Fwd.Z < 0.0) { std::reverse(L0.begin(), L0.end()); Node = G.Edges[size_t(E0)].A; }
 			std::vector<P2> Walk = L0;
 			int Edge = E0;
+			std::vector<int> Walked = {E0};   // [circuits, build 169] (the pieces in lap order, for the smoothness below)
 			for (int Step = 0; Step < 600; ++Step)
 			{
 				const std::vector<P2> In = G.LineFrom(Edge, Node);
@@ -1965,6 +1966,7 @@ int main(int Argc, char** Argv)
 				if (Next < 0 || Next == E0) break;
 				const std::vector<P2> Lx = G.LineFrom(Next, Node);
 				Walk.insert(Walk.end(), Lx.begin() + 1, Lx.end());
+				Walked.push_back(Next);
 				Node = G.OtherEnd(Next, Node);
 				Edge = Next;
 			}
@@ -1996,6 +1998,142 @@ int main(int Argc, char** Argv)
 					const double Lap = Run.back() > 0.0 ? std::fmod(Run[K] - Start + Run.back(), Run.back()) : 0.0;
 					std::printf("  bend '%s' %.0f m round: %.5f,%.5f radius %.0f m %s, height %.1f\n", Name.c_str(), Lap, Ga.Lat, Ga.Lon, 1.0 / std::fabs(Curve[K]),
 						Curve[K] > 0.0 ? "right" : "left", Plan->Ground(Once[K].X, Once[K].Z));
+				}
+			}
+			{
+				// [circuits, build 169] How smooth it rides: the surface every metre round the lap (RoadHeight, and the
+				// land's drawn height where that stands over it, as the wheels' trace would find), against its own mean
+				// over 25 m: the worst steps, how many over 2 and 5 cm, and where the land comes up through.
+				std::vector<double> Hs, Runs;
+				std::vector<P2> Ps;
+				std::vector<char> Poke;
+				// (along each piece's own drawn points, in lap order, each turned to run the way the lap does)
+				double Run0 = 0.0;
+				P2 Prev(1e18, 1e18);
+				for (const int E : Walked)
+				{
+					std::vector<RoadPoint> Rp = Plan->RoadOf(1 + E);
+					if (std::getenv("WORLD_RIDE_PIECE") != nullptr && E == Walked.front())
+					{
+						// (one piece's own points: its height, the circuit field's there, and deck or bore)
+						const int Pc = std::atoi(std::getenv("WORLD_RIDE_PIECE"));
+						const std::vector<RoadPoint> Pp = Plan->RoadOf(Pc);
+						for (const RoadPoint& Q : Pp)
+							std::printf("    point %.0f: height %.3f field %.3f bank %.4f half %.2f%s%s\n", Q.Along, Q.Height, Plan->CircuitGround(Q.At.X, Q.At.Z), Q.Bank, Q.Half, Q.Bridge ? " bridge" : "", Q.Tunnel ? " tunnel" : "");
+					}
+					if (std::getenv("WORLD_RIDE_BUMP_AT") != nullptr && !Rp.empty())
+						std::printf("    piece %d (%s, circuit %d) from %.0f m: %zu points, %.3f to %.3f\n", 1 + E, G.ClassOf(E).c_str(), G.CircuitEdge(E) ? 1 : 0, Run0, Rp.size(), Rp.front().Height, Rp.back().Height);
+					if (Rp.size() < 2) continue;
+					if (Prev.X < 1e17 && Rp.back().At.DistanceTo(Prev) < Rp.front().At.DistanceTo(Prev)) std::reverse(Rp.begin(), Rp.end());
+					for (size_t K = 1; K < Rp.size(); ++K)
+					{
+						const double Seg = Rp[K].At.DistanceTo(Rp[K - 1].At);
+						for (double T = 0.0; T < Seg; T += 1.0)
+						{
+							// (WORLD_RIDE_ACROSS: that share of the half-width off the middle, + left, as the mesh's
+							// vertices settle onto any other road they meet: JoinedHeight)
+							static const double Across = std::getenv("WORLD_RIDE_ACROSS") != nullptr ? std::atof(std::getenv("WORLD_RIDE_ACROSS")) : 0.0;
+							const P2 Way = (Rp[K].At - Rp[K - 1].At) * (1.0 / std::fmax(1e-6, Seg));
+							const double HalfHere = Rp[K - 1].Half + (Rp[K].Half - Rp[K - 1].Half) * (T / Seg), Aside = Across * HalfHere;
+							const double BankHere = Rp[K - 1].Bank + (Rp[K].Bank - Rp[K - 1].Bank) * (T / Seg);
+							const P2 P = Rp[K - 1].At + (Rp[K].At - Rp[K - 1].At) * (T / Seg) + P2(Way.Z, -Way.X) * Aside;
+							const double Mid = Rp[K - 1].Height + (Rp[K].Height - Rp[K - 1].Height) * (T / Seg);
+							const double Rh = Plan->JoinedHeight(1 + E, P, Mid + RoadLine::CrossHeight(Aside, HalfHere, BankHere)), L = Plan->LandDrawnAt(P.X, P.Z);
+							Hs.push_back(std::isnan(L) ? Rh : std::fmax(Rh, L));
+							Poke.push_back(!std::isnan(L) && L > Rh + 0.005);
+							Ps.push_back(P);
+							Runs.push_back(Run0 + T);
+						}
+						Run0 += Seg;
+					}
+					Prev = Rp.back().At;
+				}
+				{
+					// [circuits, build 169] (its racing line and braking zones, CircuitLine's: how far off the middle on
+					// average, how far round it braking, and the line's biggest step from one point to the next)
+					double Wide = 0.0, Braking = 0.0, Total = 0.0, Step = 0.0;
+					for (const int E : Walked)
+					{
+						std::vector<double> Lo, Bk;
+						Plan->CircuitLine(1 + E, Lo, Bk);
+						const std::vector<RoadPoint> Rq = Plan->RoadOf(1 + E);
+						static FILE* Csv = std::getenv("WORLD_RIDE_LINE_CSV") != nullptr ? std::fopen(std::getenv("WORLD_RIDE_LINE_CSV"), "w") : nullptr;
+						for (size_t K = 0; Csv != nullptr && K < Rq.size() && K < Lo.size(); ++K)
+							std::fprintf(Csv, "%d,%.2f,%.2f,%.2f,%.3f,%.3f\n", 1 + E, Rq[K].At.X, Rq[K].At.Z, Rq[K].Half, Lo[K], Bk[K]);
+						if (Csv != nullptr) std::fflush(Csv);
+						for (size_t K = 1; K < Rq.size() && K < Lo.size(); ++K)
+						{
+							const double Seg = Rq[K].Along - Rq[K - 1].Along;
+							Total += Seg;
+							Wide += std::fabs(Lo[K]) * Seg;
+							Braking += Bk[K] > 0.5 ? Seg : 0.0;
+							Step = std::fmax(Step, std::fabs(Lo[K] - Lo[K - 1]));
+						}
+					}
+					std::printf("racing line '%s': %.1f m off the middle on average, braking hard over %.0f m of %.0f, biggest step %.2f m\n", Name.c_str(), Total > 0.0 ? Wide / Total : 0.0, Braking, Total, Step);
+				}
+				std::vector<std::pair<double, size_t>> Worst;
+				int Over2 = 0, Over5 = 0, Pokes = 0;
+				for (size_t K = 0; K < Hs.size(); ++K)
+				{
+					// (against a parabola fitted over 12 m either side: a hill's even curve is no bump)
+					double S0 = 0.0, S1 = 0.0, S2 = 0.0, S3 = 0.0, S4 = 0.0, Q0 = 0.0, Q1 = 0.0, Q2 = 0.0;
+					for (size_t J = K >= 12 ? K - 12 : 0; J < std::min(Hs.size(), K + 13); ++J)
+					{
+						const double X = Runs[J] - Runs[K], X2 = X * X;
+						S0 += 1.0; S1 += X; S2 += X2; S3 += X2 * X; S4 += X2 * X2;
+						Q0 += Hs[J]; Q1 += Hs[J] * X; Q2 += Hs[J] * X2;
+					}
+					// (solve the 3 x 3 normal equations for the fit's value at X = 0)
+					const double Det = S0 * (S2 * S4 - S3 * S3) - S1 * (S1 * S4 - S3 * S2) + S2 * (S1 * S3 - S2 * S2);
+					const double Fit = std::fabs(Det) < 1e-12 ? Hs[K] : (Q0 * (S2 * S4 - S3 * S3) - S1 * (Q1 * S4 - S3 * Q2) + S2 * (Q1 * S3 - S2 * Q2)) / Det;
+					const double Dev = std::fabs(Hs[K] - Fit);
+					Over2 += Dev > 0.01 ? 1 : 0;
+					Over5 += Dev > 0.03 ? 1 : 0;
+					Pokes += Poke[K] ? 1 : 0;
+					Worst.push_back({Dev, K});
+				}
+				if (std::getenv("WORLD_RIDE_BUMP_AT") != nullptr)
+				{
+					const double Want = std::atof(std::getenv("WORLD_RIDE_BUMP_AT"));
+					for (size_t K = 0; K < Hs.size(); ++K)
+					{
+						if (std::fabs(Runs[K] - Want) > 30.0) continue;
+						double Dd = 0.0, Hh = 0.0, Hf = 0.0, Cr = 0.0;
+						int Ix = -1, Wh = -1;
+						Plan->Nearest(Ps[K].X, Ps[K].Z, Dd, Hh, &Ix, &Hf, &Wh, false, nullptr, &Cr);
+						std::printf("    %.0f m: h %.3f road %d pt %d dist %.1f half %.1f height %.3f cross %.3f field %.3f\n", Runs[K], Hs[K], Wh, Ix, Dd, Hf, Hh, Cr, Plan->CircuitGround(Ps[K].X, Ps[K].Z));
+					}
+				}
+				{
+					// (and how hard the hills' curves push at 30 m/s: the bend up or down over 4 m either side, as g)
+					int Hard = 0;
+					double MaxG = 0.0, MaxCut = 0.0;
+					for (size_t K = 4; K + 4 < Hs.size(); ++K)
+					{
+						const double Curv = (Hs[K + 4] - 2.0 * Hs[K] + Hs[K - 4]) / 16.0, Gs = std::fabs(Curv) * 900.0 / 9.81;
+						MaxG = std::fmax(MaxG, Gs);
+						Hard += Gs > 0.5 ? 1 : 0;
+					}
+					for (size_t K = 0; K < Hs.size(); ++K)
+					{
+						const double L = Plan->Land ? Plan->Land->Height(Ps[K].X, Ps[K].Z) : std::nan("");
+						if (!std::isnan(L)) MaxCut = std::fmax(MaxCut, std::fabs(Hs[K] - L));
+					}
+					std::printf("smooth '%s': at 30 m/s the hills push up to %.2f g, over 0.5 g for %d m; most off the land %.2f m\n", Name.c_str(), MaxG, Hard, MaxCut);
+				}
+				std::sort(Worst.rbegin(), Worst.rend());
+				std::printf("smooth '%s': %zu m sampled, off a 25 m curve: over 1 cm %d m, over 3 cm %d m, land through %d m\n", Name.c_str(), Hs.size(), Over2, Over5, Pokes);
+				double LastRun = -1e9;
+				int Shown = 0;
+				for (const auto& W : Worst)
+				{
+					if (Shown >= 8 || W.first < 0.01) break;
+					if (std::fabs(Runs[W.second] - LastRun) < 20.0) continue;
+					LastRun = Runs[W.second];
+					const Geo Gw = G.FrameOf().ToGeo(Ps[W.second].X, Ps[W.second].Z);
+					std::printf("  bump %.0f m round: %.5f,%.5f off %.2f m%s\n", Runs[W.second], Gw.Lat, Gw.Lon, W.first, Poke[W.second] ? " (land through)" : "");
+					++Shown;
 				}
 			}
 			for (int Lap = 0; Lap < 2; ++Lap) Walk.insert(Walk.end(), Once.begin() + 1, Once.end());
@@ -2697,7 +2835,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText, WallText, TurfText, PlantText;   // ([road edges, Nov 18] the turf with the land, after it)
+		std::string Text, PropText, WallText, TurfText, PlantText, RoadUvText;   // ([road edges, Nov 18] the turf with the land, after it)
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -2728,6 +2866,15 @@ int main(int Argc, char** Argv)
 						std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh.OriginX + Mesh.Pos[V * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - Centre.Z, double(Mesh.Pos[V * 3 + 1]),
 							double(Mesh.Col[V * 3]), double(Mesh.Col[V * 3 + 1]), double(Mesh.Col[V * 3 + 2]));
 						Lines += Buf;
+						// ([circuits, build 169] a circuit track's vertices with their UVs too, to WORLD_RIDE_MESH.road:
+						// x z y r g b u0 v0 u1 v1, for the racing line's pictures)
+						if (Sub == &Piece && Mesh.Uv1.size() >= Mesh.Vertices() * 2)
+						{
+							std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.3f %.3f\n", Mesh.OriginX + Mesh.Pos[V * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - Centre.Z,
+								double(Mesh.Pos[V * 3 + 1]), double(Mesh.Col[V * 3]), double(Mesh.Col[V * 3 + 1]), double(Mesh.Col[V * 3 + 2]), double(Mesh.Uv[V * 2]), double(Mesh.Uv[V * 2 + 1]),
+								double(Mesh.Uv1[V * 2]), double(Mesh.Uv1[V * 2 + 1]));
+							RoadUvText += Buf;
+						}
 					}
 				}
 				}
@@ -2881,6 +3028,7 @@ int main(int Argc, char** Argv)
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr) Text += TurfText;
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 		if (!PlantText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".plants", PlantText);
+		if (!RoadUvText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".road", RoadUvText);
 		// [real water] (with WORLD_RIDE_MESH_R: the land's and the water's vertices with their UV1 and alpha, to
 		// WORLD_RIDE_MESH.uv1: L|W x z y u0 v0 u1 v1 alpha, for the water's pictures)
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr)

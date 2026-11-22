@@ -1201,16 +1201,19 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	// (its own bridges and tunnels, as the ride's road has its)
 	std::vector<char> Kind;
 	LevelSpans(Line, H, Kind, NBridges, NTunnels);
-	H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
-	if (Circuit) for (int Round = 0; Round < 4; ++Round) H = RoadLine::SmoothHeights(H, 15);   // [circuits] (no bumps at all)
+	// [circuits, build 169] (a circuit's track: CircuitGround's as it is, already smooth, with no grade limit's kinks)
+	if (!Circuit) H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
 	Side.Length = Along.back();
 	Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
 	Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
 	Side.Setts = SettsSurface(G.SurfaceOf(int(E))) || SettsStreet(Line);   // ([towns stage 8] or a famous street's)
-	std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
-	CircuitBanks(int(E), Line, Banks);   // [circuits stage 6] (a circuit's famous corners, banked by hand)
 	const RoadX::Across Ax = RoadX::Of(G, int(E), RoadLine::WidthOf(Class));   // [OSM stage 5]
 	const double Half = RingHalfOf(int(E), Ax.Half);   // [roundabouts] (round a ring, the ring's one width)
+	std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
+	// [circuits, build 169] (a circuit's tilted across only as CircuitGround is, not banked for its bends: no roll
+	// where pieces meet, and two side by side or crossing agree all across, not only down their middles)
+	if (Circuit) CircuitTilts(int(E), Line, Half, Banks);
+	CircuitBanks(int(E), Line, Banks);   // [circuits stage 6] (a circuit's famous corners, banked by hand)
 	// (each end eased to the ground's height at its junction over 30 m, or over half the road where it is
 	// shorter than 60 m: beenster, build 148, Brierley Green. A 10 m link between two junctions had its
 	// first end pulled three quarters of the way to the far end's height, a metre and more off the
@@ -1219,12 +1222,12 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	for (size_t I = 0; I < Line.size(); ++I)
 		for (int End = 0; End < 2; ++End)
 		{
-			if (Meets[End]) continue;
+			if (Meets[End] || Circuit) continue;   // ([circuits, build 169] CircuitGround's agrees at every junction: easing flattened each end)
 			const double From = End == 0 ? Along[I] : Side.Length - Along[I];
 			H[I] += (EndH[End] - H[I]) * (1.0 - Smooth01(From / EaseOver));
 		}
 	// (no ramp steeper than 1 in 5 from all that, then the ride's road's own height where it is near)
-	for (int Round = 0; Round < 3; ++Round)
+	for (int Round = 0; Round < (Circuit ? 0 : 3); ++Round)   // ([circuits] not a circuit's: its kinks were bumps)
 	{
 		for (size_t I = 1; I < H.size(); ++I)
 		{
@@ -1293,7 +1296,9 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
-		P.Bank = Banks[I] * (1.0 - Meeting) * Smooth01(std::fmin(Along[I], Side.Length - Along[I]) / 20.0);
+		// ([circuits, build 169] a circuit's track keeps its tilt to its ends: CircuitTilts' agrees with the next piece's
+		// there, and fading it out at every junction rolled the edges up and down)
+		P.Bank = Banks[I] * (1.0 - Meeting) * (Circuit ? 1.0 : Smooth01(std::fmin(Along[I], Side.Length - Along[I]) / 20.0));
 		Side.Pts.push_back(P);
 	}
 	// Its mouths: from each end on the ride's road, out to where its middle leaves that road's edge.
@@ -1707,9 +1712,15 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	const double Pi = 3.14159265358979323846;
 	const int Count = int(K.Arms.size());
 	if (Count < 2) return;
+	// [circuits, build 169] (where only a circuit's pieces meet, the junction's tarmac lies a centimetre under them in their
+	// own black, only filling any gap between their ends: over them, 12 mm up in a road's grey, it was a grey patch
+	// across the track and a little ramp at every join; beenster on 168: "so many bumps on the tracks")
+	bool AllCircuit = true;
+	for (const KnotArm& A : K.Arms) AllCircuit = AllCircuit && CircuitRoad(A.Which);
+	const double Lift = AllCircuit ? -0.01 : 0.012;
 	// The tarmac's height at a point: the surface of whichever of its roads it is on (or nearest the edge
 	// of), as drawn, a hair over it.
-	const auto Top = [this, &K](const P2& At)
+	const auto Top = [this, &K, Lift](const P2& At)
 	{
 		double Best = 1e18, Y = K.Height;
 		for (const KnotArm& A : K.Arms)
@@ -1724,9 +1735,11 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 			Best = Score;
 			Y = A.Which == 0 ? Hit.Height + Hit.Cross : JoinedHeight(A.Which, At, Hit.Height + Hit.Cross);
 		}
-		return Y + 0.012;
+		return Y + Lift;
 	};
-	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, VergeGrass[3] = {0.10f, 0.16f, 0.03f};
+	static constexpr float RoadTarmac[3] = {0.022f, 0.022f, 0.025f}, VergeGrass[3] = {0.10f, 0.16f, 0.03f};
+	static constexpr float CircuitTarmac[3] = {0.010f, 0.010f, 0.011f};   // ([circuits, build 169] RoadPiece's)
+	const float* const Tarmac = AllCircuit ? CircuitTarmac : RoadTarmac;
 	const auto Vertex = [&Out](const P2& At, double Y, const float* Colour)
 	{
 		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
@@ -1885,7 +1898,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		// [roundabouts 156] (where the rim runs across a road, level with that road, not the hair over it:
 		// that 12 mm step's edge drew a thin dark seam across every mouth in the game (PC check, build 155))
 		const bool Across = Edged[I] == 0 || (I > 0 && Edged[I - 1] == 0);
-		RimV[I] = Vertex(Rim[I], Across ? RimH[I] - 0.012 : RimH[I], Tarmac);
+		RimV[I] = Vertex(Rim[I], Across && !AllCircuit ? RimH[I] - Lift : RimH[I], Tarmac);
 	}
 	// [roundabouts] (in rings between the hub and the rim, each point on the roads' surface there: one fan
 	// from the middle out to a rim 20 m off rode up to 0.25 m over the roads between, a hump in the
@@ -1968,15 +1981,15 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 			for (int Ln = 0; Ln + 1 < Lines; ++Ln)
 			{
 				if (Looks[Ln] == nullptr) continue;
-				const uint32_t In0 = Vertex(Rim[I] + Outward[I] * Outs[Ln], RimH[I] - 0.012 + Lifts[Ln], Looks[Ln]), In1 = Vertex(Rim[J] + Outward[J] * Outs[Ln], RimH[J] - 0.012 + Lifts[Ln], Looks[Ln]);
+				const uint32_t In0 = Vertex(Rim[I] + Outward[I] * Outs[Ln], RimH[I] - Lift + Lifts[Ln], Looks[Ln]), In1 = Vertex(Rim[J] + Outward[J] * Outs[Ln], RimH[J] - Lift + Lifts[Ln], Looks[Ln]);
 				// ([build 155] the pavement's back down to just under the ground as drawn)
 				const auto OutY = [&](size_t V)
 				{
-					const double Y = RimH[V] - 0.012 + Lifts[Ln + 1];
+					const double Y = RimH[V] - Lift + Lifts[Ln + 1];
 					if (Ln + 2 != Lines) return Y;
 					const P2 P = Rim[V] + Outward[V] * Outs[Ln + 1];
 					const double Drawn = LandDrawnAt(P.X, P.Z);
-					return std::isnan(Drawn) ? Y : std::clamp(Drawn - MeetUnder, Y, RimH[V] - 0.012 + KerbHigh + 0.02);
+					return std::isnan(Drawn) ? Y : std::clamp(Drawn - MeetUnder, Y, RimH[V] - Lift + KerbHigh + 0.02);
 				};
 				const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Outs[Ln + 1], OutY(I), Looks[Ln]), Out1 = Vertex(Rim[J] + Outward[J] * Outs[Ln + 1], OutY(J), Looks[Ln]);
 				Tri(In0, In1, Out1); Tri(In0, Out1, Out0);
@@ -1995,9 +2008,9 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 			const P2 OutA = Rim[I] + Outward[I] * Shoulder, OutB = Rim[J] + Outward[J] * Shoulder;
 			if (OnTarmac(MidA, RimH[I]) || OnTarmac(MidB, RimH[J]) || OnTarmac((OutA + OutB) * 0.5, (RimH[I] + RimH[J]) * 0.5)) continue;
 		}
-		const uint32_t In0 = Vertex(Rim[I], RimH[I] - 0.012, VergeGrass), In1 = Vertex(Rim[J], RimH[J] - 0.012, VergeGrass);
-		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - 0.012 - ShoulderDip, VergeGrass), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - 0.012 - ShoulderDip, VergeGrass);
-		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - 0.012 - ShoulderDrop, VergeGrass), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - 0.012 - ShoulderDrop, VergeGrass);
+		const uint32_t In0 = Vertex(Rim[I], RimH[I] - Lift, VergeGrass), In1 = Vertex(Rim[J], RimH[J] - Lift, VergeGrass);
+		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - Lift - ShoulderDip, VergeGrass), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - Lift - ShoulderDip, VergeGrass);
+		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - Lift - ShoulderDrop, VergeGrass), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - Lift - ShoulderDrop, VergeGrass);
 		Tri(In0, In1, Mid1); Tri(In0, Mid1, Mid0); Tri(Mid0, Mid1, Out1); Tri(Mid0, Out1, Out0);
 	}
 }
@@ -2529,9 +2542,9 @@ double RidePlan::JoinedHeight(int Which, const P2& At, double Y) const
 		O.NoDecks = true;
 		O.NoBores = true;
 		NearHit Hit;
-		if (!NearestOf(At.X, At.Z, O, Hit) || Hit.Which > Which) continue;
+		if (!NearestOf(At.X, At.Z, O, Hit) || !JoinsOnto(Which, Hit.Which)) continue;   // ([circuits, build 169] JoinsOnto)
 		const double Out2 = Hit.Dist - Hit.Half;
-		if (Out2 > JoinLean) continue;
+		if (Out2 > JoinLeanOf(Which, Hit.Which)) continue;
 		const double Theirs = Hit.Height + Hit.Cross - JoinSink;
 		if (std::fabs(Theirs - Y) > 1.2) continue;   // (over or under it, not joining it)
 		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
@@ -2631,8 +2644,9 @@ double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, d
 	for (int Pass = 0; Pass < 2; ++Pass)
 	{
 		JoinHit Hit;
-		if (!NearestIn(Set, At, Pass == 0, Hit) || Hit.Which > Which) continue;
+		if (!NearestIn(Set, At, Pass == 0, Hit) || !JoinsOnto(Which, Hit.Which)) continue;   // ([circuits, build 169] JoinsOnto)
 		const double Out2 = Hit.Dist - Hit.Half;
+		if (Out2 > JoinLeanOf(Which, Hit.Which)) continue;
 		const double Theirs = Hit.Height + Hit.Cross - JoinSink;
 		if (std::fabs(Theirs - Y) > 1.2) continue;
 		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
@@ -2691,8 +2705,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		bool Deck = false;
 		double Bank = 0.0;
 		bool Bore = false, Mouth = false;   // in a tunnel; at one of its ends
+		double Line = 1e3, Brake = 0.0;     // [circuits, build 169] (CircuitLine's)
 	};
 	std::vector<Row> Rows;
+	std::vector<double> RaceLine, RaceBrake;
+	if (CircuitTrack) CircuitLine(Which, RaceLine, RaceBrake);
 	for (int I = First; I <= Last; ++I)
 	{
 		const RoadPoint& P = Pts[size_t(I)];
@@ -2726,6 +2743,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Nx = -Dir.X * Rise / Nl;
 		R.Ny = 1.0 / Nl;
 		R.Nz = -Dir.Z * Rise / Nl;
+		if (size_t(I) < RaceLine.size()) { R.Line = RaceLine[size_t(I)]; R.Brake = RaceBrake[size_t(I)]; }
 		Rows.push_back(R);
 	}
 	// ([build 150] the other roads' bits near this piece gathered once for all its points; a point
@@ -2815,7 +2833,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const double Inside = std::clamp(-Tilt / 0.03, 0.0, 1.0), Outside = std::clamp(Tilt / 0.03, 0.0, 1.0);
 		return float(0.9 * Edge * (0.8 + 0.2 * Inside - 0.3 * Outside));
 	};
-	const auto Put = [&Into, &Out, &Settle, &AlongBase, &StandsAt](const Row& R, double Off, double Lift, const float* Colour)
+	const auto Put = [&Into, &Out, &Settle, &AlongBase, &StandsAt, CircuitTrack](const Row& R, double Off, double Lift, const float* Colour)
 	{
 		// (Off is to the left of the middle)
 		RideMesh& M = *Into;
@@ -2823,6 +2841,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		{
 			M.Alpha.resize(M.Vertices(), 1.0f);
 			M.Alpha.push_back(StandsAt(R, Off));
+			// [circuits, build 169] (a circuit's track: its UV1 metres to the left of the racing line, and how hard
+			// riders brake there, for M_RideRoad's rubbered line and braking marks; 1000 where none)
+			if (CircuitTrack)
+			{
+				M.Uv1.resize(M.Vertices() * 2, 1e3f);
+				M.Uv1.push_back(float(std::clamp(Off - R.Line, -1e3, 1e3)));
+				M.Uv1.push_back(float(R.Brake));
+			}
 		}
 		const P2 At = R.At + R.Left * Off;
 		const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
@@ -4613,6 +4639,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	}
 	// (every vertex of the road's own mesh with its water, so the alpha reaches UE: 1, none, where not Put)
 	if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f);
+	if (!Out.Uv1.empty()) Out.Uv1.resize(Out.Vertices() * 2, 1e3f);   // ([circuits, build 169] and the racing line's, 1000 none)
 	// [road edges, Nov 18] The country shoulders' turf, as the land draws its own ground: the land's colour
 	// there, its UVs the world's metres over 8.
 	if (TurfMesh->Vertices() > 0)

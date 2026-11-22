@@ -199,6 +199,52 @@ def road_material_scanned(L, tex, roles):
     g.link(g.const(1.0), cgrey, "Fraction")
     silk = [g.lerp(g.const((0.016, 0.016, 0.017)), g.op(unreal.MaterialExpressionMultiply, cgrey, const_b=0.45), g.const(0.12)),
             g.const((0.0, 0.0, 1.0)), g.const(0.62)]
+    # [race tracks, build 169] Race-track character (beenster on 168: "the race track need a little more race track
+    # character to the surface"), still black and smooth, the normal still flat: the racing line rubbered in, a
+    # darker satin band where every lap's tyres run (out wide into each corner, the inside at its apex), streaked
+    # along the way the bikes go; tyre marks in the braking zones before each corner, darker and heavier; and
+    # patch repairs, crisp-edged squares of fresher or older asphalt. World/WorldRide's RoadPiece gives a circuit's
+    # track UV1: x metres to the left of the racing line (World/WorldRideCircuits.cpp's CircuitLine; 1000 off any
+    # line), y how hard riders brake there (0 .. 1); UV0 is metres across and along over 4.
+    U = unreal
+    def chan(src, r):
+        mk = g.node(U.MaterialExpressionComponentMask, r=r, g=not r, b=False, a=False)
+        g.link(src, mk)
+        return mk
+    def hump(x, w):   # 1 at 0 .. 0 by w either side, smooth: (1 - (x/w)^2)^2
+        q = g.op(U.MaterialExpressionDivide, x, const_b=w)
+        sq = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionOneMinus, g.op(U.MaterialExpressionMultiply, q, q)))
+        return g.op(U.MaterialExpressionMultiply, sq, sq)
+    def streaks(across, along, lo, hi):   # noise stretched along the track (UV0 is metres over 4)
+        uv0 = g.node(U.MaterialExpressionTextureCoordinate)
+        pos = g.op(U.MaterialExpressionAppendVector,
+                   g.op(U.MaterialExpressionAppendVector, g.op(U.MaterialExpressionMultiply, chan(uv0, True), const_b=4.0 * across),
+                        g.op(U.MaterialExpressionMultiply, chan(uv0, False), const_b=4.0 * along)), g.const(0.0))
+        n = g.node(U.MaterialExpressionNoise, scale=1.0, output_min=lo, output_max=hi, levels=3)
+        g.link(pos, n, "Position")
+        return g.op(U.MaterialExpressionSaturate, n)
+    uv1 = g.node(U.MaterialExpressionTextureCoordinate, coordinate_index=1)
+    off_line = chan(uv1, True)
+    brake_zone = g.op(U.MaterialExpressionSaturate, chan(uv1, False))
+    # (the rubbered band: a 2.2 m core and a fainter haze out to 2.6 m either side, streaked along)
+    rubber = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionAdd, hump(off_line, 1.1),
+                  g.op(U.MaterialExpressionMultiply, hump(off_line, 2.6), const_b=0.4)))
+    rubber = g.op(U.MaterialExpressionMultiply, rubber, g.lerp(g.const(0.6), g.const(1.0), streaks(9.0, 0.08, -0.4, 1.4)))
+    # (the braking marks: thin black streaks either side of the line, heaviest just before the turn in)
+    marks = g.op(U.MaterialExpressionMultiply, g.op(U.MaterialExpressionMultiply, brake_zone, hump(off_line, 1.5)),
+                 streaks(16.0, 0.05, -2.0, 2.0))
+    worn = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionAdd, g.op(U.MaterialExpressionMultiply, rubber, const_b=0.65),
+                g.op(U.MaterialExpressionMultiply, marks, const_b=0.85)))
+    # (patch repairs: crisp-edged patches tens of metres apart, a few fresher and blacker, a few older and greyer)
+    fresh = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionMultiply,
+                 g.op(U.MaterialExpressionSubtract, g.mask_noise(0.0035, 0.0, 1.0), const_b=0.74), const_b=40.0))
+    old = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionMultiply,
+               g.op(U.MaterialExpressionSubtract, g.mask_noise(0.0026, 0.0, 1.0), const_b=0.78), const_b=40.0))
+    patched = g.op(U.MaterialExpressionMultiply, g.lerp(g.const(1.0), g.const(0.8), fresh), g.lerp(g.const(1.0), g.const(1.22), old))
+    silk[0] = g.op(U.MaterialExpressionMultiply, g.op(U.MaterialExpressionMultiply, silk[0], patched),
+                   g.lerp(g.const(1.12), g.const(0.38), worn))   # (off the line a touch greyer, dusty)
+    # (rubber has a satin sheen, a fresh patch a little; an old one is drier)
+    silk[2] = g.lerp(g.lerp(g.lerp(g.const(0.62), g.const(0.55), fresh), g.const(0.7), old), g.const(0.5), rubber)
     own = g.mix(own, silk, circuit_key)
     # [race tracks, build 168] The circuits' gravel traps, as sand (beenster on 167: "Make the gravel traps look like
     # sand"): World/WorldRideCircuits.cpp's CircuitSandTile lays each trap's ground over in the key (0.205, 0.152,
