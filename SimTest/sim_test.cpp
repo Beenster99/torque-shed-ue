@@ -886,7 +886,15 @@ static void EngineTests()
 			S.FrontBrake = 1.0;
 			S.Step(Dt);
 		}
-		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "front brake held at a standstill: the rider walks it backwards (m/s)", S.Speed);
+		Check(!S.Paddling && std::fabs(S.Speed) < 0.05, "front brake held at a standstill: it stays put (m/s)", S.Speed);
+		for (int i = 0; i < 300; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.BodyShift = -1.0;
+			S.Step(Dt);
+		}
+		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "  and the stick pulled back: the rider walks it backwards (m/s)", S.Speed);
+		S.BodyShift = 0.0;
 	}
 	{
 		// ([beenster, build 160] "the bikes can do a burnout backward") Lit while still rolling on at
@@ -912,6 +920,28 @@ static void EngineTests()
 			Back = std::min(Back, S.Speed);
 		}
 		Check(S.Burnout > 0.4 && Back > -0.15 && !S.IsCrashed, "burnout lit while rolling on: never goes backwards (slowest m/s)", Back);
+	}
+	{
+		// ([beenster, build 168] "make it a bit easier to do a skid turn") No ABS, 29 mph, the back brake
+		// stamped on and leaned right over: the back slides round and the bike stays up.
+		BikeSim S;
+		BikeSpec Sp = BikeSpec::SpeedTwin1200();
+		Sp.AbsFront = Sp.AbsRear = false;
+		S.Setup(Sp);
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		for (int i = 0; i < 20 * 120 && S.Speed < 13.0; ++i) { S.Throttle = 0.6; S.Step(Dt); }
+		const V3 F0 = S.Basis.Z * -1.0;
+		for (int i = 0; i < 4 * 120 && S.Speed > 0.5 && !S.IsCrashed; ++i)
+		{
+			S.Throttle = 0.0;
+			S.RearBrake = 1.0;
+			S.LeanInput = i > 30 ? 1.0 : 0.0;
+			S.Step(Dt);
+		}
+		const V3 F1 = S.Basis.Z * -1.0;
+		const double Turned = std::acos(std::clamp(F0.x * F1.x + F0.z * F1.z, -1.0, 1.0)) * 57.2958;
+		Check(!S.IsCrashed && Turned > 30.0, "skid turn (locked back, full lean, 29 mph): stays up and comes round (deg)", Turned);
 	}
 	for (const bool Aid : {false, true})
 	{

@@ -60,6 +60,15 @@ SLOTS = {
 }
 # Slots a bike needs to ride that some models draw nothing in.
 HIDDEN_NEEDED = ("shock",)
+ENGINE_TYPES = {"vtwin45": "45° V-twin",
+                "vtwin90": "90° V-twin",
+                "parallel_twin": "Parallel twin",
+                "twin": "Parallel twin",
+                "triple": "Inline triple",
+                "inline4": "Inline four",
+                "boxer": "Boxer twin",
+                "single": "Single"}
+
 # The old Godot parts of these kinds are shapes the V2 bikes no longer draw: out of the shop (the common parts stay).
 RETIRE_KINDS = ("tank", "saddle", "tail", "side_panels", "front_mudguard", "fairing", "number_boards", "headlight",
                 "indicators", "mirrors", "handlebars", "guards", "wheel", "fork", "shock", "engine", "side_stand",
@@ -156,7 +165,9 @@ def main():
                      v2part={"model": name, "frame": fid, "slot": slot, "family": family, "brand": brand, "fits": fits,
                              "layout": eng["layout"], "twin_shock": bool(st.get("twin_shock"))})
             if kind == "engine":
-                p["type"] = model.get("engine_label", base.get("type", "")).capitalize()
+                # (the shop groups engines by this: from the block's own layout, not the stock engine it took its
+                # numbers from, which made a 45 degree twin a "V-twin" and a BSX parallel twin one too: beenster after 168)
+                p["type"] = ENGINE_TYPES.get(eng["layout"], model.get("engine_label", base.get("type", "")).capitalize())
                 # [sizes] The brand's sizes for this family: the lead keeps its reference block; another model's own
                 # block is its size nearest the reference, and every other size is a block of its own.
                 ref_cc = float(base.get("displacement", 0) or 0)

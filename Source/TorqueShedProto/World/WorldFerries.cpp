@@ -188,6 +188,7 @@ bool ReadList(const std::string& Text, std::vector<Listed>& Out)
 		const std::string Kind = R.Str("kind", "open");
 		L.Kind = Kind == "chain" ? EKind::Chain : Kind == "turntable" ? EKind::Turntable : EKind::Open;
 		L.Metres = R.Num("m");
+		L.Off = R.Str("off");
 		Out.push_back(std::move(L));
 	}
 	return !Out.empty();
@@ -200,6 +201,7 @@ std::vector<Crossing> InArea(const std::vector<Listed>& List, const std::vector<
 	for (size_t I = 0; I < List.size(); ++I)
 	{
 		const Listed& L = List[I];
+		if (!L.Off.empty()) continue;
 		const P2 A = F.FromGeo(L.LatA, L.LonA), B = F.FromGeo(L.LatB, L.LonB);
 		if (!Inside(A) || !Inside(B)) continue;
 		Crossing C;
@@ -372,7 +374,7 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 		End& S = Out.Ends[E];
 		const bool FromEnd = E == 1;
 		P2 Way;
-		const P2 At = AlongLine(C.Line, 0.0, FromEnd);
+		P2 At = AlongLine(C.Line, 0.0, FromEnd);
 		AlongLine(C.Line, std::min(40.0, C.Length * 0.3), FromEnd, &Way);
 		const P2 Far = AlongLine(C.Line, std::min(40.0, C.Length * 0.3), FromEnd);
 		S.Axis = Unit(Far - At);
@@ -381,25 +383,67 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 		// the route's end, looked for back up the land and out over the water.
 		const double Wet = W + 0.5;
 		bool Found = false, Unknown = false;
-		double ShoreD = 0.0, BestOff = std::numeric_limits<double>::max();
-		double WasH = std::numeric_limits<double>::quiet_NaN();
-		for (double D = -ShoreBack; D <= ShoreOut; D += 1.0)
+		double ShoreD = 0.0;
+		const auto Edge = [&](double Reach)
 		{
-			const P2 P = At + S.Axis * D;
-			const double H = Ask.Height(P.X, P.Z);
-			if (std::isnan(H))
+			double BestOff = std::numeric_limits<double>::max();
+			double WasH = std::numeric_limits<double>::quiet_NaN();
+			for (double D = -ShoreBack; D <= Reach; D += 1.0)
 			{
-				Unknown = true;
+				const P2 P = At + S.Axis * D;
+				const double H = Ask.Height(P.X, P.Z);
+				if (std::isnan(H))
+				{
+					Unknown = true;
+					WasH = H;
+					continue;
+				}
+				if (!std::isnan(WasH) && WasH > Wet && H <= Wet && std::fabs(D) < BestOff)
+				{
+					BestOff = std::fabs(D);
+					ShoreD = D;
+					Found = true;
+				}
 				WasH = H;
-				continue;
 			}
-			if (!std::isnan(WasH) && WasH > Wet && H <= Wet && std::fabs(D) < BestOff)
+		};
+		Edge(ShoreOut);
+		// [build 168 feedback] (beenster at Uig: no ferry. The route's end is out at the head of a long pier, the pier
+		// drawn as flat ground at the water's level, open water all round it along the route; the big harbours the map
+		// draws as land the other way about.) Then the nearest shore to the route's end: a slipway on the nearest beach,
+		// run out towards where the route ends (or from the land where the end is, out to the nearest open water).
+		if (!Found && !Unknown)
+		{
+			const double AtH = Ask.Height(At.X, At.Z);
+			const bool bWetEnd = !std::isnan(AtH) && AtH <= Wet;
+			P2 Other;
+			bool bOther = false;
+			for (double R = 10.0; R <= ShoreSeek && !bOther; R += 10.0)
 			{
-				BestOff = std::fabs(D);
-				ShoreD = D;
-				Found = true;
+				double BestR = std::numeric_limits<double>::max();
+				for (int K = 0; K < 72; ++K)
+				{
+					const double A = K * (3.14159265358979 / 36.0);
+					const P2 P = At + P2(std::cos(A), std::sin(A)) * R;
+					const double H = Ask.Height(P.X, P.Z);
+					if (std::isnan(H)) continue;
+					const bool bHit = bWetEnd ? H > Wet + 0.5 : (H <= Wet - 1.0 && Ask.Sea(P.X, P.Z) == Out.Sea);
+					// (nearest to the route's own way out, of the points this far off)
+					const double Lean = Dist(P, Far);
+					if (bHit && Lean < BestR) { BestR = Lean; Other = P; bOther = true; }
+				}
 			}
-			WasH = H;
+			if (bOther)
+			{
+				const double Gap = Dist(At, Other);
+				if (bWetEnd)
+				{
+					S.Axis = Unit(At - Other);
+					At = Other;
+				}
+				else S.Axis = Unit(Other - At);
+				Edge(Gap + ShoreOut);
+			}
 		}
 		if (!Found)
 		{
@@ -670,6 +714,7 @@ Link BestLink(const Region& G, const std::vector<double>& EdgeCost, int From, in
 	for (size_t Row = 0; Row < List.size(); ++Row)
 	{
 		const Listed& L = List[Row];
+		if (!L.Off.empty()) continue;   // [build 168 feedback] (none the game can't lay: the sat nav mustn't send a rider to it)
 		const P2 Ends[2] = {F.FromGeo(L.LatA, L.LonA), F.FromGeo(L.LatB, L.LonB)};
 		const double Across = Dist(Ends[0], Ends[1]);
 		if (Across + SailCost >= Best.Cost) continue;

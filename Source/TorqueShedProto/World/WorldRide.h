@@ -996,6 +996,8 @@ public:
 	// lie under its water, BanksTile's strips of bank reaching BankStrip squares out over them; a lake's and
 	// the sea's shore eased over ShoreReach m round its outline)
 	static constexpr double BankTrough = 0.9, BankStrip = 2.4, ShoreReach = 10.0;
+	// [real water, build 168 Totscore] (a stream's water lies no higher than the land this far past its banks)
+	static constexpr double BedReach = 5.0;
 	void IndexWater();   // (after IndexFields)
 	// The run nearest (X, Z) within its bank's reach: how far from its middle, its water's level, half
 	// width and depth there, and its kind.
@@ -1194,6 +1196,9 @@ public:
 		int Line = 0, First = 0, Last = 0;
 		P2 Mid, Road, Rail;
 		double Half = 3.0;
+		double Spread = 0.0;   // [169] between the outermost tracks' middles, square across the line (m; 0 one track)
+		struct Track { int Line = 0, First = 0, Last = 0; };
+		std::vector<Track> Also;   // [169] the other lines it crosses (merged: a double track drawn as two lines)
 		int Type = 0;
 		std::string Class;
 	};
@@ -1527,13 +1532,31 @@ public:
 	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
-	// [circuits, build 168] The ground under a circuit's track, smoothed: its height averaged over 30 m round (X, Z),
-	// so the track laid on it (smoothed again along its length) has no bumps at all, and each junction agrees.
+	// [circuits, build 168] The ground under a circuit's track, smoothed: its height averaged over 70 m round (X, Z)
+	// (build 169: the track's height itself, not smoothed again along it), so the track has no bumps at all, and
+	// every piece that meets or runs beside another agrees with it.
 	// [circuits, build 168] The circuits' gravel traps drawn as sand (beenster on 167: "Make the gravel traps look
 	// like sand"): each one's ground laid over in M_RideRoad's sand (its vertex colour the key CircuitSand), the
 	// finest squares only (further off, the land's own tint), into a square's standing things.
 	void CircuitSandTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	double CircuitGround(double X, double Z) const;
+	// [circuits, build 169] Whether road Which settles onto road Theirs where they meet (JoinedHeight): onto the ride's
+	// road always, a circuit's track onto another circuit's piece only, and any other road onto a circuit's.
+	bool JoinsOnto(int Which, int Theirs) const;
+	// (and how far out past Theirs' edge Which leans into it: JoinLean; between two circuit pieces, not at all)
+	double JoinLeanOf(int Which, int Theirs) const;
+	// [circuits, build 169] Banks (RoadLine::CrossHeight's) as CircuitGround tilts across road E's track (laid as
+	// Line), Half either side; at each end as the next piece's starts.
+	void CircuitTilts(int E, const std::vector<P2>& Line, double Half, std::vector<double>& Banks) const;
+	// [circuits, build 169] A circuit track's racing line (beenster on 168: "a little more race track character to the
+	// surface"): for each of road Which's points, how far to the left of its middle the line runs (out wide into each
+	// corner, the inside at its apex), and how hard riders brake there (0 .. 1, the last 70 m before a corner); for
+	// M_RideRoad's rubbered line and braking marks (RoadPiece's UV1). Not a raceway's track: Off 1000 (no line).
+	void CircuitLine(int Which, std::vector<double>& Off, std::vector<double>& Brake) const;
+	// (the raceway piece running on straightest from E through its end Node, or -1; and Reach metres of the map's
+	// track on from Node along E and on)
+	int CircuitOnFrom(int E, int Node) const;
+	void CircuitWalk(int E, int Node, double Reach, std::vector<P2>& Out) const;
 	void CircuitBanks(int Edge, const std::vector<P2>& Line, std::vector<double>& Banks) const;
 	bool CircuitStartNear(double X, double Z, double Within, double Back, P2& At, double& Heading, std::string& Name) const;
 	// A car park's bays (and its cars), the same wherever asked: clear of its roads (laid round it first),
@@ -1550,6 +1573,26 @@ public:
 	};
 	void ParkedCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;
 	bool InCarPark(double X, double Z) const;   // (in a tarmac or setts one: no path drawn over it)
+	// [Nov 22] (beenster at Uig: car park cars sunk in the sea) Whether a parked car at (X, Z) would stand in
+	// water as the game draws it: the map's sea or the land cover's water there, ground under the sea's highest
+	// tide within the sea's flood reach of it (WaterTile spreads the sea over low shore), or ground under a
+	// river's, lake's or reservoir's level beside it. (Where the ground isn't known yet, the map's water only.)
+	bool CarSpotWet(double X, double Z) const;
+	// [driveways] (beenster, Nov 22: "add some of the fab cars onto driveways now to make the villages and
+	// towns come to life"; NOT at the roadside, Nov 22 15:22) A house's car on its drive, as BuildingsTile
+	// knows the house (GardenHouse): parked in its front garden in the gap its front wall leaves, nose to the
+	// house or reversed in, or where the front garden is too short, beside its free gable end; on a drive of
+	// its own (tarmac, gravel, block paving or concrete) out to the pavement. Only on level, dry, clear ground:
+	// off the road and pavement, clear of every building (Clear), of the rails, of water (CarSpotWet) and of
+	// the square's other drive cars (Taken). Solid to the bike (DriveCarsNear, via ParkedCarsNear). The share
+	// of drives with a car: DriveCarShare (-TorqueRideDriveCars=0 none, the hub's frame rate A/B).
+	double DriveCarShare = 0.65;
+	void DrivewayCar(const GardenHouse& House, const GardenClear& Clear, std::vector<ParkedCarBox>& Taken, RideMesh& Out) const;
+	void KeepDriveCars(double X0, double Z0, double Size, std::vector<ParkedCarBox>&& Cars) const;   // (the square's, for DriveCarsNear)
+	void DriveCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;   // (appends)
+	void ResetDriveCars();
+	struct DriveCarMemo;
+	std::shared_ptr<DriveCarMemo> DriveMemo;
 	int CarParkSurfaceAt(double X, double Z) const;   // (ECarParkSurface of the one at (X, Z), -1 none or too steep)
 	// [build 157 feedback] (beenster: "strange carpark", Sandgate: bays and cars draped down an embankment) The
 	// land under and round a car park as built: within ParkCutMost of its level laid to it (cut or filled), the
@@ -1920,6 +1963,10 @@ private:
 	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;
 	void IndexFurniture();
 	void FindLevelCrossing(int Line, int First, int Last);   // [level crossings] (one of LevelCrossings, from IndexFurniture)
+	void MergeLevelCrossings();   // [169] side-by-side lines' crossings of one road as one
+	// The map's road edge nearest At within Within m (-1 none), and its way there; whether that's a motorway's or a trunk road's.
+	int NearestEdge(const P2& At, double Within, P2* Dir) const;
+	bool TrunkRoad(const P2& At) const;
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
 	// [OSM stage 2] A bit of a wall, hedge or fence from A to B less the gateways in it: its pieces

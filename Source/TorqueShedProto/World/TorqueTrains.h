@@ -88,6 +88,15 @@ private:
 	bool bNight = false;
 	void LoadModels();
 	UMaterialInterface* Mat(const FString& Key);
+	// [build 168 feedback] The material check: a slot whose material would draw as the grey checker (none, the
+	// engine's default, or a base not flagged for instanced meshes) is reported and painted a plain stand-in of
+	// its own colour instead. MatReport is what trains:materials says.
+	UPROPERTY(Transient) TMap<FName, TObjectPtr<UMaterialInterface>> StandIns;
+	FString MatReport;
+	int32 BadSlots = 0;
+	static FString Unfit(UMaterialInterface* M);
+	UMaterialInterface* StandIn(UMaterialInterface* M);
+	void FitMaterials(UInstancedStaticMeshComponent* C);
 	UInstancedStaticMeshComponent* PartFor(int32 Key);
 	void Draw(const std::vector<TorqueWorld::Trains::TrainNow>& Trains);
 	void HideAll();

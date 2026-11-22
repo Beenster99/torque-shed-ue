@@ -117,6 +117,32 @@ int main()
 	StopAndHold("flat", 0.0);
 	StopAndHold("facing up a 10% hill", 0.10);
 	StopAndHold("facing down a 10% hill", -0.10);
+	StopAndHold("facing up a 25% hill", 0.25);
+	StopAndHold("facing down a 25% hill", -0.25);
+	{
+		// [168 robot] Stopped on a steep hill holding the front brake (as anyone does): it stays put. (It used
+		// to start the rider walking it backwards; that now takes the stick pulled back as well.)
+		Grade = 0.25;
+		BikeSim S;
+		Settle(S);
+		S.FrontBrake = 1.0;
+		for (int I = 0; I < 120; ++I) S.Step(Dt);
+		const V3 At = S.Position;
+		for (int I = 0; I < 120 * 12; ++I) S.Step(Dt);
+		Check(!S.Paddling && (S.Position - At).Length() < 0.02, "front brake held 12 s on a 25% hill: stays put (moved, cm)", (S.Position - At).Length() * 100.0);
+	}
+	{
+		// [168 robot] Rolling back down a steep hill (as on Buttertubs) with nothing held: the locked tyres
+		// alone only slowed it to a creep of about 0.4 m/s, too quick for the feet to plant. They do now.
+		Grade = 0.25;
+		BikeSim S;
+		Settle(S);
+		S.LinearVelocity = S.LinearVelocity + V3(-1.0, 0.0, 0.0);
+		for (int I = 0; I < 120 * 3; ++I) S.Step(Dt);
+		const V3 At = S.Position;
+		for (int I = 0; I < 120 * 12; ++I) S.Step(Dt);
+		Check(S.FeetHeld && (S.Position - At).Length() < 0.02, "rolling back down a 25% hill: feet hold it (moved in 12 s, cm)", (S.Position - At).Length() * 100.0);
+	}
 
 	std::printf("Pulling away\n");
 	for (int Gear = 1; Gear <= 5; ++Gear)

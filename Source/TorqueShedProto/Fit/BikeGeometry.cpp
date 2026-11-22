@@ -125,7 +125,9 @@ const std::vector<std::string>& Slots()
 		"front_caliper", "rear_caliper", "front_pads", "rear_pads", "front_master", "rear_master", "tank", "saddle", "handlebars", "dashboard", "engine", "exhaust",
 		"final_drive", "chain", "side_stand", "centre_stand", "headlight", "horn", "ecu", "panniers", "top_box", "fog_lights", "tail", "fairing", "mirrors", "head",
 		"fuel", "air_filter", "oil_filter", "spark_plugs", "cooling", "gearbox", "front_mudguard", "indicators", "side_panels", "rearsets", "guards", "number_boards",
-		"swingarm", "steering_damper", "tank_bag", "aux_tank", "toolbox", "satnav", "lever_guards"};
+		"swingarm", "steering_damper", "tank_bag", "aux_tank", "toolbox", "satnav", "lever_guards",
+		// ([geometry, beenster after 168: "i cant find filler cap on geometry screen to rotate it"] the common parts' own slots)
+		"filler_cap", "grips", "bar_ends", "levers", "switchgear", "tail_light", "plate_hanger", "silencers", "heel_plates", "foot_controls"};
 	return List;
 }
 

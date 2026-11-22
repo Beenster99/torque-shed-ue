@@ -98,6 +98,7 @@ private:
 	struct FTyreState
 	{
 		double Heat = 0.0, Debt = 0.0;
+		double SpinFor = 0.0;   // seconds it's been spinning faster than the road (a burnout's build-up)
 		int32 Mark = INDEX_NONE;
 	};
 	struct FBikeTyres { FTyreState T[2]; };

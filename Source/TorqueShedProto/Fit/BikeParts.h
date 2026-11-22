@@ -182,6 +182,7 @@ private:
 	// The horn under the head stock (BikeModel._blender_horn) and the ECU under the seat's front
 	// (BikeModel._draw_ecu; its loom is code-drawn).
 	void HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void HornAt(const PartsMap& Parts, const V3& At, std::vector<FittedPart>& Out) const;   // (Godot space)
 	// The side panels under the seat's nose (BikeModel._blender_side_panel).
 	void SidePanels(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// Engine guards, bash and skid plates, crash bungs (BikeModel._draw_guards); number boards

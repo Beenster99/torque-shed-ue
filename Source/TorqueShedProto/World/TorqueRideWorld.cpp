@@ -116,6 +116,14 @@ TAutoConsoleVariable<float> CVarTreePatch(TEXT("torque.RideTreePatch"), 128.0f,
 // ([build 155] Round 154, Loch Brecbowie birch wood: the near scans cost ~10 ms GPU and ~21 ms of render
 // thread, from their draw count (1905 tree groups), not shadows, sway or pixels. Fewer models of each
 // kind make fewer groups; the far cards follow the same choice, so a tree keeps its look at the handover.)
+// [chrome reflections, Nov 22] beenster on 168 (Hargham forest road): "i am not sure the chrome parts of the
+// bike are reflecting its actual location". No tree was ever in the ray-tracing scene (build 150, for speed),
+// so Lumen's reflection rays went straight through the wood to the sky: chrome, mirrors and glass showed open
+// sky and bare ground in the middle of a forest. Now the near trees' patches within this many metres of the
+// camera go in (hysteresis 25% on the way out, so a patch at the edge doesn't flip). Their sway isn't traced
+// (a still copy is cheaper). 0: no trees in reflections, as until 168.
+TAutoConsoleVariable<float> CVarTreeReflectM(TEXT("torque.RideTreeReflectM"), 120.0f,
+	TEXT("Ride UK: near trees within this many metres of the camera are seen in reflections (chrome, mirrors, glass, water) and by Lumen's rays (0: none, as until build 168)."));
 TAutoConsoleVariable<int32> CVarTreeVariants(TEXT("torque.RideTreeVariants"), 3,
 	TEXT("Ride UK: at most this many models of each tree kind (6 until 154). For squares made after the change."));
 TAutoConsoleVariable<int32> CVarGardenVariants(TEXT("torque.RideGardenVariants"), 2,
@@ -805,6 +813,14 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: parked cars %s"), Plan->ParkedCars ? TEXT("on")
 			: bCarsAsked && CarsAsked == 0 ? TEXT("off (-TorqueRideParkedCars=0)") : TEXT("off (no parked_car models: Tools/ue_build_rideuk.py prop_kit)"));
 	}
+	{
+		// [driveways] (beenster, Nov 22) The houses' cars on their drives, with the car parks' cars (same models,
+		// same switch); -TorqueRideDriveCars=0 none (the hub's frame rate A/B), =0.3 a smaller share of the drives.
+		float DriveAsked = float(Plan->DriveCarShare);
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideDriveCars="), DriveAsked);
+		Plan->DriveCarShare = FMath::Clamp(double(DriveAsked), 0.0, 1.0);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: drive cars %s (share %.2f)"), Plan->ParkedCars && Plan->DriveCarShare > 0.0 ? TEXT("on") : TEXT("off"), Plan->DriveCarShare);
+	}
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::FirstGarden && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
 	Plan->RealTrees = bTreeModels;
@@ -1452,6 +1468,7 @@ const FABStep ABSteps[] = {
 	{TEXT("no near trees (far ring kept)"), TEXT(""), 64},
 	{TEXT("trees cast no shadows"), TEXT(""), 16},
 	{TEXT("trees don't sway"), TEXT(""), 32},
+	{TEXT("no trees in reflections (torque.RideTreeReflectM 0, as until 168)"), TEXT("torque.RideTreeReflectM=0"), 0},
 	{TEXT("no grass or small plants"), TEXT(""), 2},
 	{TEXT("no garden planting"), TEXT(""), 128},
 	{TEXT("no ground, roads, walls or buildings drawn"), TEXT(""), 4},
@@ -1716,11 +1733,34 @@ void ATorqueRideWorld::TickTreeHandover(float DeltaSeconds)
 	TreeHandover.RemoveAllSwap([](const FTreeHandover& H) { return !H.Ism.IsValid(); });
 	for (FTreeHandover& H : TreeHandover)
 	{
+		if (!H.bHandsOver) continue;
 		const bool bNear = Reach > 0.0f && H.Box.ComputeSquaredDistanceToPoint(Cam) < Reach * Reach;
 		const int8 Hide = int8(H.bNearModels ? !bNear : bNear);
 		if (Hide == H.Hidden) continue;
 		H.Hidden = Hide;
 		H.Ism->SetHiddenInGame(Hide != 0);
+	}
+	// [chrome reflections, Nov 22] the near trees round the camera in the ray-tracing scene, so Lumen's
+	// reflections (and its light) see the wood the bike stands in, not the sky through it
+	const float ReflectIn = FMath::Min(TRWI::CVarTreeReflectM.GetValueOnGameThread() * 100.0f, Reach > 0.0f ? Reach : 1e12f);
+	const float ReflectOut = ReflectIn * 1.25f;
+	TreeGroupsTraced = 0;
+	for (FTreeHandover& H : TreeHandover)
+	{
+		if (!H.bNearModels) continue;
+		UInstancedStaticMeshComponent* C = H.Ism.Get();
+		const double D2 = H.Box.ComputeSquaredDistanceToPoint(Cam);
+		const bool bShown = H.bHandsOver ? H.Hidden == 0 : true;
+		int8 TraceNow = H.Traced;
+		if (ReflectIn <= 0.0f || !bShown) TraceNow = 0;
+		else if (D2 < double(ReflectIn) * ReflectIn) TraceNow = 1;
+		else if (D2 > double(ReflectOut) * ReflectOut) TraceNow = 0;
+		if (TraceNow != H.Traced)
+		{
+			H.Traced = TraceNow;
+			C->SetVisibleInRayTracing(TraceNow != 0);   // (its render state made again: rare, as a patch crosses the line)
+		}
+		TreeGroupsTraced += H.Traced;
 	}
 }
 
@@ -1826,9 +1866,9 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				for (const auto& Square : TileWords) Words += Square.Value.Num();
 				for (const auto& Square : StreetLights) Lamps += Square.Value.Num();
 				for (const auto& Piece : RoadLights) Lamps += Piece.Value.Num();
-				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees), %d sign words, %d lamps"),
+				UE_LOG(LogTemp, Display, TEXT("Ride frame (5 s average): game %.1f ms, render %.1f ms, GPU %.1f ms; in the scene: %d squares, %d with standing parts, %d water, %d road pieces (%d drawn as static meshes, %d procedural kept hidden for collision), %d plant groups (%d casting shadows, %lld plants; of them %d groups of trees, %lld trees; %d near tree groups in reflections), %d sign words, %d lamps"),
 					FrameGameMs / CostFrames, FrameRenderMs / CostFrames, FrameGpuMs / CostFrames,
-					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, Words, Lamps);
+					Tiles.Num(), TileExtras.Num(), TileWater.Num(), RoadParts.Num(), Looks, Hidden, Ism, IsmShadow, Instances, TreeGroups, TreeCount, TreeGroupsTraced, Words, Lamps);
 				// ([build 157] the far trees' impostors: the robot gate's timed window should start after "all ready")
 				if (Impostors && Impostors->IsOn())
 					UE_LOG(LogTemp, Display, TEXT("Ride impostors: %d of %d ready%s"), Impostors->Baked(), Impostors->Queued(), UTorqueImpostors::bAllReady ? TEXT(" (all ready)") : TEXT(" (photographing)"));
@@ -2788,6 +2828,18 @@ void ATorqueRideWorld::PlacePlants(const FIntVector& Key, const TorqueWorld::Rid
 			const bool bNear = LastCamera.IsSet() && H.Box.ComputeSquaredDistanceToPoint(LastCamera.GetValue()) < Reach * Reach;
 			H.Hidden = int8(bNearScan ? !bNear : bNear);
 			Ism->SetHiddenInGame(H.Hidden != 0);
+			TreeHandover.Add(H);
+		}
+		else if (bTree && !bGarden && !bFarTree && !bImpostor)
+		{
+			// [chrome reflections, Nov 22] a near tree kind with no far copy: never handed over, but seen in
+			// reflections near the camera like the patches above (TickTreeHandover)
+			FTreeHandover H;
+			H.Ism = Ism;
+			H.bHandsOver = false;
+			H.Hidden = 0;
+			const FTransform Xf = Ism->GetComponentTransform();
+			for (const FTransform& One : Group.Value) H.Box += Xf.TransformPosition(One.GetLocation());
 			TreeHandover.Add(H);
 		}
 		PlantsShown += Group.Value.Num();

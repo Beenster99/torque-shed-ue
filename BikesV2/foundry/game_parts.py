@@ -31,7 +31,9 @@ RULES = [
     (r"(forkcap|forkadj|forkadjslot|forkwiper|yoke_|yokepinch_|yokeslot_|stemcap|stemnut|brakeline_up|brakesplit|gaiter)", "fork", "steer"),
     (r"(bar|barend|barendbolt|grip|clamp|barclamp|barclampbolt|riser|briser|bar_lib|bclip|bclamp|grip_lib|barend_lib|switch|switchsplit|sw(horn|ind|kill|lights|start)|perch|perchbolt|lever|leveradj|leveradjdot|levpivot|cut_lever|throttle|clutchadj|clutchadjlock|handguard|handguardbar|handguardend)$", "handlebars", "steer"),
     (r"(mastercyl|masterneck|brakeres|brakerescap)$", "front_master", "steer"),
-    (r"(mirror|mirrorboss|mirrorglass|mstalk|mstub)", "mirrors", "S?"),
+    # (only a sport bike's mirrors are on its fairing: an adventure bike's stand on the lever perches and turn with
+    # the bars. They were left on the bike itself: the mirrors stood still while the bars turned under them.)
+    (r"(mirror|mirrorboss|mirrorglass|mstalk|mstub)", "mirrors", "SPORT?"),
     (r"(clock|dash)", "dashboard", "S?"),
     (r"(lamp|lampunit|lens|lensrim|nacelle|maincup|mainled|proj(bulb|lens|ring))", "headlight", "S?"),
     (r"ind_f", "indicators", "S?"), (r"ind_r", "indicators", ""),
@@ -86,7 +88,9 @@ def classify(name, model):
     st = stem(name)
     for rx, slot, grp in RULES:
         if rx.match(st):
-            if grp == "S?":
+            if grp == "SPORT?":
+                grp = "" if model["family"].lower() == "sport" else "steer"
+            elif grp == "S?":
                 grp = "" if model["family"].lower() in FAIRED else "steer"
             elif grp == "FORK":
                 usd = model["fork"].get("usd")

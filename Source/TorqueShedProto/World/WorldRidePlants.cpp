@@ -323,6 +323,9 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 	bool Quarried = false;
 	for (int Fi : FieldsHere) Quarried = Quarried || FieldAreas[size_t(Fi)].Kind == FieldQuarry || FieldAreas[size_t(Fi)].Kind == FieldPullOff
 		|| FieldAreas[size_t(Fi)].Kind == FieldForecourt;   // [places stage 2] (nor on a pull-off)
+	// (the land's shore, UV1 from LandTile: Cells + 1 squared grid points first)
+	const int ShoreGrid = Mesh.Uv1.size() >= size_t(Cells + 1) * size_t(Cells + 1) * 2 ? Cells + 1 : 0;
+	const double ShoreStep = Size / Cells;
 	const auto Look = [&](double X, double Z)
 	{
 		const int I = std::min(F - 1, std::max(0, int(std::lround((X - X0) / Fg)))), J = std::min(F - 1, std::max(0, int(std::lround((Z - Z0) / Fg))));
@@ -339,6 +342,22 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		H.Speckle = Noise(X, Z, 3.0, 40u);
 		H.Wet = std::fmin(1.0, std::fmax(0.0, double(Fd.Wet) + (H.Slope < 0.05 ? 0.1 : 0.0)));
 		H.Ok = H.Cover != CWater && H.Cover != CSand && H.Cover != CRock && H.Cover != CUrban && H.Slope < 1.1;
+		// ([real water, beenster on 168 at Uig: fronds of bracken all along the pier's edge into the sea] the
+		// shore as the land's UV1 has it: nothing grows on a beach, on shingle or rock by the sea, nor on a
+		// bank under a loch's or a river's water line; the ground there reads as sand)
+		if (ShoreGrid > 0)
+		{
+			const int Si = std::min(Cells, std::max(0, int(std::lround((X - X0) / ShoreStep)))), Sj = std::min(Cells, std::max(0, int(std::lround((Z - Z0) / ShoreStep))));
+			const size_t Sv = (size_t(Sj) * size_t(Cells + 1) + size_t(Si)) * 2;
+			const double Su = double(Mesh.Uv1[Sv]);
+			if (Su != 0.0)
+			{
+				const double Above = ShoreZero - Su, Sv1 = double(Mesh.Uv1[Sv + 1]);
+				const double Sk = std::floor(Sv1 / 10.0 + 0.05);
+				const double Top = Sk >= double(ShoreSand) ? (Sv1 - Sk * 10.0) * 1.3 + 1.5 : 0.4;
+				if (Above < Top) { H.Ok = false; H.Cover = CSand; }
+			}
+		}
 		if (Quarried && H.Ok)
 		{
 			const int Fa = FieldAt(X, Z);

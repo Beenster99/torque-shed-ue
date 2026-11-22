@@ -723,7 +723,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
-		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
+		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") || Verb == TEXT("stall") ||
 		Verb == TEXT("ridepos") || Verb == TEXT("lights") || Verb == TEXT("tft") || Verb == TEXT("stop") || Verb == TEXT("climb") || Verb == TEXT("placestop") ||
 		Verb == TEXT("helmet") || Verb == TEXT("garage") || Verb == TEXT("ferry") || Verb == TEXT("trains") || Verb == TEXT("crossings"))
 	{
@@ -843,6 +843,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
 			Said(Bike->TestFoot(What));
+			return true;
+		}
+		// stall:test: manual, 3rd at a standstill, clutch out, throttle open; logs "Torque: stall test: PASS|FAIL".
+		if (Verb == TEXT("stall"))
+		{
+			Said(Bike->TestControl(TEXT("stall"), 1));
 			return true;
 		}
 		// gear:up|down, ignition, clutch:1|0 and bikestate: the stage 3 controls as their keys work them.

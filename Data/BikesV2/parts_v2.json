@@ -51931,7 +51931,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Adventure 1200 cc engine block",
    "description": "Off the Corvano adventure, bored out or down to 1200 cc: for a adventure frame built round a 90 degree V-twin.",
    "styles": [
@@ -51968,7 +51968,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Adventure 900 cc engine block",
    "description": "Off the Corvano adventure: for a adventure frame built round a 90 degree V-twin.",
    "styles": [
@@ -52004,7 +52004,7 @@
     0.18,
     0.2
    ],
-   "type": "Parallel twin",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Cafe 800 cc engine block",
    "description": "Off the Corvano cafe: for a cafe frame built round a 90 degree V-twin.",
    "styles": [
@@ -52040,7 +52040,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Classic 800 cc engine block",
    "description": "Off the Corvano classic: for a classic frame built round a 90 degree V-twin.",
    "styles": [
@@ -52076,7 +52076,7 @@
     0.73,
     0.75
    ],
-   "type": "60\u00b0 V-twin",
+   "type": "90\u00b0 V-twin",
    "breathing": 0.85,
    "v_angle": 60.0,
    "name": "Corvano Cruiser 1200 cc engine block",
@@ -52151,7 +52151,7 @@
     0.26,
     0.28
    ],
-   "type": "Inline triple",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Naked 1100 cc engine block",
    "description": "Off the Corvano naked, bored out or down to 1100 cc: for a naked frame built round a 90 degree V-twin.",
    "styles": [
@@ -52188,7 +52188,7 @@
     0.26,
     0.28
    ],
-   "type": "Inline triple",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Naked 850 cc engine block",
    "description": "Off the Corvano naked: for a naked frame built round a 90 degree V-twin.",
    "styles": [
@@ -52224,7 +52224,7 @@
     0.1,
     0.11
    ],
-   "type": "Inline four",
+   "type": "90\u00b0 V-twin",
    "name": "Corvano Sport 750 cc engine block",
    "description": "Off the Corvano sport: for a sport frame built round a 90 degree V-twin.",
    "styles": [
@@ -52260,7 +52260,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline triple",
    "name": "BSX Adventure 1200 cc engine block",
    "description": "Off the BSX adventure, bored out or down to 1200 cc: for a adventure frame built round a inline triple.",
    "styles": [
@@ -52297,7 +52297,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline triple",
    "name": "BSX Adventure 800 cc engine block",
    "description": "Off the BSX adventure: for a adventure frame built round a inline triple.",
    "styles": [
@@ -52369,7 +52369,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Chopper 1600 cc engine block",
    "description": "Off the BSX chopper: for a chopper frame built round a air-cooled look parallel twin.",
@@ -52406,7 +52406,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "Parallel twin",
    "name": "BSX Classic 450 cc engine block",
    "description": "Off the BSX classic, bored out or down to 450 cc: for a classic frame built round a air-cooled look parallel twin.",
    "styles": [
@@ -52443,7 +52443,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "Parallel twin",
    "name": "BSX Classic 750 cc engine block",
    "description": "Off the BSX classic: for a classic frame built round a air-cooled look parallel twin.",
    "styles": [
@@ -52552,7 +52552,7 @@
     0.1,
     0.11
    ],
-   "type": "Inline four",
+   "type": "Inline triple",
    "name": "BSX Sport 800 cc engine block",
    "description": "Off the BSX sport, bored out or down to 800 cc: for a sport frame built round a inline triple.",
    "styles": [
@@ -52589,7 +52589,7 @@
     0.1,
     0.11
    ],
-   "type": "Inline four",
+   "type": "Inline triple",
    "name": "BSX Sport 1200 cc engine block",
    "description": "Off the BSX sport, bored out or down to 1200 cc: for a sport frame built round a inline triple.",
    "styles": [
@@ -52626,7 +52626,7 @@
     0.1,
     0.11
    ],
-   "type": "Inline four",
+   "type": "Inline triple",
    "name": "BSX Sport 660 cc engine block",
    "description": "Off the BSX sport: for a sport frame built round a inline triple.",
    "styles": [
@@ -52662,7 +52662,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "name": "Kazeda Adventure 1000 cc engine block",
    "description": "Off the Kazeda adventure: for a adventure frame built round a inline four.",
    "styles": [
@@ -52698,7 +52698,7 @@
     0.18,
     0.2
    ],
-   "type": "Parallel twin",
+   "type": "Inline four",
    "name": "Kazeda Cafe 750 cc engine block",
    "description": "Off the Kazeda cafe: for a cafe frame built round a inline four.",
    "styles": [
@@ -52734,7 +52734,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Chopper 1300 cc engine block",
    "description": "Off the Kazeda chopper: for a chopper frame built round a air-cooled look inline four.",
@@ -52771,7 +52771,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "Inline four",
    "name": "Kazeda Classic 450 cc engine block",
    "description": "Off the Kazeda classic, bored out or down to 450 cc: for a classic frame built round a inline four.",
    "styles": [
@@ -52808,7 +52808,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "Inline four",
    "name": "Kazeda Classic 750 cc engine block",
    "description": "Off the Kazeda classic: for a classic frame built round a inline four.",
    "styles": [
@@ -52844,7 +52844,7 @@
     0.73,
     0.75
    ],
-   "type": "60\u00b0 V-twin",
+   "type": "Parallel twin",
    "breathing": 0.85,
    "v_angle": 60.0,
    "name": "Kazeda Cruiser 1100 cc engine block",
@@ -52918,7 +52918,7 @@
     0.26,
     0.28
    ],
-   "type": "Inline triple",
+   "type": "Inline four",
    "name": "Kazeda Naked 900 cc engine block",
    "description": "Off the Kazeda naked: for a naked frame built round a inline four.",
    "styles": [
@@ -53101,7 +53101,7 @@
     0.18,
     0.2
    ],
-   "type": "Parallel twin",
+   "type": "45\u00b0 V-twin",
    "name": "Lodestar Cafe 883 cc engine block",
    "description": "Off the Lodestar cafe: for a cafe frame built round a 45 degree V-twin.",
    "styles": [
@@ -53137,7 +53137,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Chopper 1500 cc engine block",
    "description": "Off the Lodestar chopper, bored out or down to 1500 cc: for a chopper frame built round a 45 degree V-twin.",
@@ -53175,7 +53175,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Chopper 1800 cc engine block",
    "description": "Off the Lodestar chopper: for a chopper frame built round a 45 degree V-twin.",
@@ -53212,7 +53212,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "45\u00b0 V-twin",
    "name": "Lodestar Classic 883 cc engine block",
    "description": "Off the Lodestar classic: for a classic frame built round a 45 degree V-twin.",
    "styles": [
@@ -53248,7 +53248,7 @@
     0.73,
     0.75
    ],
-   "type": "60\u00b0 V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.85,
    "v_angle": 60.0,
    "name": "Lodestar Cruiser 1200 cc engine block",
@@ -53286,7 +53286,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Boxer twin",
    "name": "Rheinhart Adventure 1100 cc engine block",
    "description": "Off the Rheinhart adventure: for a adventure frame built round a flat twin (boxer), shaft drive.",
    "styles": [
@@ -53322,7 +53322,7 @@
     0.18,
     0.2
    ],
-   "type": "Parallel twin",
+   "type": "Boxer twin",
    "name": "Rheinhart Cafe 800 cc engine block",
    "description": "Off the Rheinhart cafe: for a cafe frame built round a flat twin (boxer), shaft drive.",
    "styles": [
@@ -53358,7 +53358,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "Boxer twin",
    "name": "Rheinhart Classic 450 cc engine block",
    "description": "Off the Rheinhart classic, bored out or down to 450 cc: for a classic frame built round a flat twin (boxer), shaft drive.",
    "styles": [
@@ -53395,7 +53395,7 @@
     0.67,
     0.68
    ],
-   "type": "Twin",
+   "type": "Boxer twin",
    "name": "Rheinhart Classic 800 cc engine block",
    "description": "Off the Rheinhart classic: for a classic frame built round a flat twin (boxer), shaft drive.",
    "styles": [
@@ -53431,7 +53431,7 @@
     0.73,
     0.75
    ],
-   "type": "60\u00b0 V-twin",
+   "type": "Boxer twin",
    "breathing": 0.85,
    "v_angle": 60.0,
    "name": "Rheinhart Cruiser 1250 cc engine block",
@@ -53469,7 +53469,7 @@
     0.26,
     0.28
    ],
-   "type": "Inline triple",
+   "type": "Boxer twin",
    "name": "Rheinhart Naked 1000 cc engine block",
    "description": "Off the Rheinhart naked: for a naked frame built round a flat twin (boxer), shaft drive.",
    "styles": [
@@ -53505,7 +53505,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "name": "Varga Adventure 1200 cc engine block",
    "description": "Off the Varga adventure, bored out or down to 1200 cc: for a adventure frame built round a parallel twin.",
    "styles": [
@@ -53542,7 +53542,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "name": "Varga Adventure 900 cc engine block",
    "description": "Off the Varga adventure: for a adventure frame built round a parallel twin.",
    "styles": [
@@ -53614,7 +53614,7 @@
     0.26,
     0.28
    ],
-   "type": "Inline triple",
+   "type": "Parallel twin",
    "name": "Varga Naked 700 cc engine block",
    "description": "Off the Varga naked: for a naked frame built round a parallel twin.",
    "styles": [
@@ -53650,7 +53650,7 @@
     0.1,
     0.11
    ],
-   "type": "Inline four",
+   "type": "Parallel twin",
    "name": "Varga Sport 1000 cc engine block",
    "description": "Off the Varga sport, bored out or down to 1000 cc: for a sport frame built round a parallel twin.",
    "styles": [
@@ -53687,7 +53687,7 @@
     0.1,
     0.11
    ],
-   "type": "Inline four",
+   "type": "Parallel twin",
    "name": "Varga Sport 700 cc engine block",
    "description": "Off the Varga sport: for a sport frame built round a parallel twin.",
    "styles": [
@@ -53723,7 +53723,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned engine covers, brass (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -53763,7 +53763,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned engine covers, chrome (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -53803,7 +53803,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned engine covers, gold (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -53843,7 +53843,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned engine covers, brushed steel (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -53883,7 +53883,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Starburst engine covers, brass (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -53923,7 +53923,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Starburst engine covers, chrome (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -53963,7 +53963,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Starburst engine covers, gold (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -54003,7 +54003,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Starburst engine covers, brushed steel (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -54043,7 +54043,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Target engine covers, brass (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -54083,7 +54083,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Target engine covers, chrome (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -54123,7 +54123,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Target engine covers, gold (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -54163,7 +54163,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Target engine covers, brushed steel (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -54203,7 +54203,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned top engine dress kit, brass",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54243,7 +54243,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned top engine dress kit, chrome",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54283,7 +54283,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned top engine dress kit, gold",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54323,7 +54323,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Finned top engine dress kit, brushed steel",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54363,7 +54363,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Twin pot engine dress kit, brass",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54403,7 +54403,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Twin pot engine dress kit, chrome",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54443,7 +54443,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Twin pot engine dress kit, gold",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54483,7 +54483,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Parallel twin",
    "breathing": 0.65,
    "name": "BSX Twin pot engine dress kit, brushed steel",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54523,7 +54523,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Finned top engine dress kit, brass",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54563,7 +54563,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Finned top engine dress kit, chrome",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54603,7 +54603,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Finned top engine dress kit, gold",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54643,7 +54643,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Finned top engine dress kit, brushed steel",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -54683,7 +54683,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Twin pot engine dress kit, brass",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54723,7 +54723,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Twin pot engine dress kit, chrome",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54763,7 +54763,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Twin pot engine dress kit, gold",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54803,7 +54803,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "Inline four",
    "breathing": 0.65,
    "name": "Kazeda Twin pot engine dress kit, brushed steel",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -54843,7 +54843,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned engine covers, brass (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -54883,7 +54883,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned engine covers, chrome (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -54923,7 +54923,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned engine covers, gold (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -54963,7 +54963,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned engine covers, brushed steel (engine)",
    "description": "Straight cooling fins milled across the face, the tops polished, a plain rim.",
@@ -55003,7 +55003,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Starburst engine covers, brass (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -55043,7 +55043,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Starburst engine covers, chrome (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -55083,7 +55083,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Starburst engine covers, gold (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -55123,7 +55123,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Starburst engine covers, brushed steel (engine)",
    "description": "Tapered ribs fanning out from a domed centre boss to a stepped rim.",
@@ -55163,7 +55163,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Target engine covers, brass (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -55203,7 +55203,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Target engine covers, chrome (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -55243,7 +55243,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Target engine covers, gold (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -55283,7 +55283,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Target engine covers, brushed steel (engine)",
    "description": "Concentric turned steps down to a centre jewel, a ring of dome-head bolts round the edge.",
@@ -55323,7 +55323,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned top engine dress kit, brass",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -55363,7 +55363,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned top engine dress kit, chrome",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -55403,7 +55403,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned top engine dress kit, gold",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -55443,7 +55443,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Finned top engine dress kit, brushed steel",
    "description": "A deep-finned rocker cover on each head, squared with rounded corners, with a turned breather cap.",
@@ -55483,7 +55483,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Twin pot engine dress kit, brass",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -55523,7 +55523,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Twin pot engine dress kit, chrome",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -55563,7 +55563,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Twin pot engine dress kit, gold",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",
@@ -55603,7 +55603,7 @@
     0.12,
     0.13
    ],
-   "type": "V-twin",
+   "type": "45\u00b0 V-twin",
    "breathing": 0.65,
    "name": "Lodestar Twin pot engine dress kit, brushed steel",
    "description": "Two domed rocker pots on each head with acorn nuts, and polished pushrod tubes up the right side of each cylinder.",

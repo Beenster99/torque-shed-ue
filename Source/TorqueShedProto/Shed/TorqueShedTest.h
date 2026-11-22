@@ -128,6 +128,8 @@
 //   gear:up|down, ignition, clutch:1|0, bikestate   on the road: a click of the gear lever (the box goes
 //                         manual), the key (I), the clutch held or let go (Left Alt), or nothing; each logs the gear,
 //                         speed, engine, revs and clutch after it, e.g. "gear N at 0.0 mph, engine running"
+//   stall:test            on the road, stopped, engine running: manual gears, 3rd, clutch out, throttle 0.4 (over the
+//                         robot too); logs "Torque: stall test: PASS|FAIL ..." within 3.5 s (it must stall: build 167)
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   brakestop[:<mph>][:flat]  on the road: the robot holds mph (60) on a straight, then brakes as a road test
 //                         does (front full, rear 0.6, realism 0.5) to a stop; logs the distance, time, average g,

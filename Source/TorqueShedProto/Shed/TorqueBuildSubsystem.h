@@ -415,6 +415,7 @@ public:
 	// Empty slots that need a part, and parts fitted but not bolted: a bike rides with neither.
 	TArray<FName> MissingSlots(int32 Bay) const;
 	TArray<FName> LooseSlots(int32 Bay) const;
+	bool RigidBay(int32 Bay) const;   // [rigid choppers] the bay's frame has no rear suspension
 	bool IsComplete(int32 Bay) const;
 	// The fabrication the bike still owes, the next job first (only jobs its parts still need), and
 	// how long the grinder and welder take over one (shed_state fab_time: 4 s + its hours).

@@ -432,6 +432,8 @@ private:
 	int32 LastGear = 1;
 	bool bManual = false;            // gears changed by hand (the first press of a shift button)
 	bool bAbs = true;                // the ABS switched on; off lets the rear lock
+	bool bAbsHintShown = false;      // [build 168] said once a ride: ABS off for skids
+	double AbsHintHeld = 0.0;
 	bool bHasAbs[2] = {true, true};  // the bike has ABS at the front, the rear (a catalogue bike's ECU may not)
 	double GearNoteFor = 0.0;
 	// A word on the HUD for a moment: "Engine off", "Out of petrol!" (EngineNote, for EngineNoteFor s).
@@ -623,6 +625,8 @@ private:
 	double TestGripThrottleHold = -1.0;   // TestGripThrottle's roll (below 0: none)
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
 	bool bTestClutch = false;   // TestControl's clutch, held
+	double StallTestT = -1.0;   // [168 robot] stall:test running (s in), or -1
+	int32 StallTestStalls = 0;  // the sim's stall count as it began
 	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
 	double PadStartHeld = 0.0;
 	bool bPadStartDone = false;

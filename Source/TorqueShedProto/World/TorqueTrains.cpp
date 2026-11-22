@@ -207,6 +207,78 @@ void ATorqueTrains::LoadModels()
 		}
 	UE_LOG(LogTemp, Log, TEXT("Torque trains: %d of %d train models imported (plain boxes for the rest: Tools/props/make_trains.py, then Tools/ue_import_props.py)"),
 		Got, int32(TT::Model::Count));
+	// The material check: every slot of every model, and the game's own overrides (liveries, lamps, lit windows).
+	int32 Slots = 0;
+	TArray<FString> Wrong;
+	auto Check = [&](const FString& Where, UMaterialInterface* M)
+	{
+		++Slots;
+		const FString Why = Unfit(M);
+		if (Why.IsEmpty()) return;
+		++BadSlots;
+		if (Wrong.Num() < 12) Wrong.Add(Where + TEXT(": ") + Why);
+	};
+	for (int32 M = 0; M < int32(TT::Model::Count); ++M)
+		if (UStaticMesh* Mesh = Models[M].Get())
+			for (const FStaticMaterial& S : Mesh->GetStaticMaterials())
+				Check(Mesh->GetName() + TEXT(" ") + S.MaterialSlotName.ToString(), S.MaterialInterface);
+	for (int32 Fam = 0; Fam < 5; ++Fam)
+		for (int32 Liv = 0; Liv < 3; ++Liv)
+			for (const TCHAR* Ab : {TEXT("a"), TEXT("b")})
+			{
+				const FString Key = FString::Printf(TEXT("train_liv_%d_%d_%s"), Fam, Liv, Ab);
+				Check(Key, Mat(Key));
+			}
+	for (const TCHAR* Key : {TEXT("train_lamp_off"), TEXT("train_window_lit"), TEXT("train_window")})
+		Check(Key, Mat(Key));
+	MatReport = BadSlots == 0
+		? FString::Printf(TEXT("train materials: all %d slots real (none the checker)"), Slots)
+		: FString::Printf(TEXT("train materials: %d of %d slots would be the checker (painted plain stand-ins): %s"), BadSlots, Slots, *FString::Join(Wrong, TEXT("; ")));
+	if (BadSlots > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque trains: %s. Rerun Tools/ue_import_props.py (it flags the prop masters for instanced meshes)."), *MatReport);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque trains: %s"), *MatReport);
+	}
+}
+
+FString ATorqueTrains::Unfit(UMaterialInterface* M)
+{
+	if (!M) return TEXT("no material");
+	UMaterial* Base = M->GetMaterial();
+	if (!Base) return TEXT("no base material");
+	if (Base == UMaterial::GetDefaultMaterial(MD_Surface) || Base->GetName() == TEXT("WorldGridMaterial")) return TEXT("the engine's default (checker)");
+	if (!Base->GetUsageByFlag(MATUSAGE_InstancedStaticMeshes)) return Base->GetName() + TEXT(" not flagged for instanced meshes");
+	return FString();
+}
+
+UMaterialInterface* ATorqueTrains::StandIn(UMaterialInterface* M)
+{
+	const FName N = M ? M->GetFName() : FName(TEXT("None"));
+	if (const TObjectPtr<UMaterialInterface>* Got = StandIns.Find(N)) return Got->Get();
+	UMaterialInterface* Basic = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	UMaterialInterface* Out = nullptr;
+	if (Basic && Unfit(Basic).IsEmpty())
+	{
+		// Its own colour (the prop instance's Tint), plain.
+		FLinearColor Col(0.3f, 0.3f, 0.3f);
+		if (M) M->GetVectorParameterValue(FHashedMaterialParameterInfo(FName(TEXT("Tint"))), Col);
+		UMaterialInstanceDynamic* D = UMaterialInstanceDynamic::Create(Basic, this);
+		D->SetVectorParameterValue(TEXT("Color"), Col);
+		Out = D;
+	}
+	StandIns.Add(N, Out);
+	return Out;
+}
+
+void ATorqueTrains::FitMaterials(UInstancedStaticMeshComponent* C)
+{
+	if (BadSlots == 0 || !C) return;
+	for (int32 I = 0; I < C->GetNumMaterials(); ++I)
+		if (!Unfit(C->GetMaterial(I)).IsEmpty())
+			if (UMaterialInterface* S = StandIn(C->GetMaterial(I))) C->SetMaterial(I, S);
 }
 
 UInstancedStaticMeshComponent* ATorqueTrains::MakeIsm(const TCHAR* Name, UStaticMesh* Mesh, UMaterialInterface* M, bool bShadow)
@@ -260,6 +332,7 @@ UInstancedStaticMeshComponent* ATorqueTrains::PartFor(int32 Key)
 		}
 		if (bNight)
 			if (UMaterialInterface* Lit = Mat(TEXT("train_window_lit"))) C->SetMaterialByName(TEXT("train_window"), Lit);
+		FitMaterials(C);
 	}
 	Parts.Add(Key, C);
 	return C;
@@ -338,7 +411,11 @@ void ATorqueTrains::Tick(float DeltaSeconds)
 			bNight = bDark;
 			if (UMaterialInterface* Glass = Mat(bNight ? TEXT("train_window_lit") : TEXT("train_window")))
 				for (auto& P : Parts)
-					if (P.Value && (P.Key & (1 << 18)) == 0) P.Value->SetMaterialByName(TEXT("train_window"), Glass);
+					if (P.Value && (P.Key & (1 << 18)) == 0)
+					{
+						P.Value->SetMaterialByName(TEXT("train_window"), Glass);
+						FitMaterials(P.Value);
+					}
 		}
 	}
 	SinceCrossings += DeltaSeconds;
@@ -424,7 +501,9 @@ void ATorqueTrains::TellCrossings(const TorqueWorld::Trains::Clock& Now, bool bO
 	{
 		if (std::hypot(C.Mid.X - X, C.Mid.Z - Z) > TTI::CrossingReachM) continue;
 		// (trains off: every crossing open, and told so once, which also ends the crossings' own demo cycle)
-		const bool bShut = bOn && Net && Net->Closed(Now, C.Line, C.First, C.Last, ATorqueLevelCrossing::LeadSeconds(int32(C.Type)));
+		bool bShut = bOn && Net && Net->Closed(Now, C.Line, C.First, C.Last, ATorqueLevelCrossing::LeadSeconds(int32(C.Type)));
+		for (const TorqueWorld::RidePlan::LevelCrossing::Track& K : C.Also)   // ([169] every line a merged crossing crosses)
+			bShut = bShut || (bOn && Net && Net->Closed(Now, K.Line, K.First, K.Last, ATorqueLevelCrossing::LeadSeconds(int32(C.Type))));
 		if (bShut || bOn || !bCrossingsTold) ATorqueLevelCrossing::Warn(GetWorld(), C.Key, bShut);
 	}
 	bCrossingsTold = true;
@@ -474,6 +553,12 @@ FString ATorqueTrains::Test(const UWorld* InWorld, const FString& What, ATorqueB
 	if (!T) return TEXT("no trains (not on a Ride UK ride)");
 	if (!T->Net) return TEXT("trains: network not built yet");
 	if (What == TEXT("count")) return FString::Printf(TEXT("%d trains in sight"), int32(T->Shown.size()));
+	// materials: the check that no train draws as the grey checker (every model's slots and the game's overrides).
+	if (What == TEXT("materials"))
+	{
+		T->LoadModels();
+		return T->MatReport;
+	}
 	// draw: what's actually laid as instances (to tell a train not drawn from one not looked at)
 	if (What == TEXT("draw"))
 	{
@@ -492,7 +577,7 @@ FString ATorqueTrains::Test(const UWorld* InWorld, const FString& What, ATorqueB
 						P.Value->GetStaticMesh() ? *P.Value->GetStaticMesh()->GetName() : TEXT("none"), P.Value->Bounds.SphereRadius / 100.0);
 				}
 			}
-		return FString::Printf(TEXT("trains drawn: %d parts, %d vehicles; first %s; camera at %s"), NParts, Instances, *First, *T->Eye().ToCompactString());
+		return FString::Printf(TEXT("trains drawn: %d parts, %d vehicles; first %s; camera at %s; %s"), NParts, Instances, *First, *T->Eye().ToCompactString(), *T->MatReport);
 	}
 	// goto: our bike put 15 m beside the line ahead of the nearest moving train (within 2.5 km), facing the track,
 	// about 25 s before the train gets there.
@@ -547,13 +632,18 @@ FString ATorqueTrains::NextCrossing(const UWorld* InWorld, ATorqueBikePawn* Bike
 		if (FVector2D::Distance(FVector2D(C.Mid.X, C.Mid.Z), FVector2D(Me.X / 100.0, Me.Y / 100.0)) > 4000.0) continue;
 		++Tried;
 		const double Lead = ATorqueLevelCrossing::LeadSeconds(int32(C.Type));
-		if (T->Net->Closed(Now, C.Line, C.First, C.Last, Lead)) continue;   // (shut already: too late to watch it close)
+		if (T->Net->Closed(Now, C.Line, C.First, C.Last, Lead)) continue;
+		bool bAlso = false;
+		for (const TorqueWorld::RidePlan::LevelCrossing::Track& K : C.Also) bAlso = bAlso || T->Net->Closed(Now, K.Line, K.First, K.Last, Lead);
+		if (bAlso) continue;   // (shut already: too late to watch it close)
 		for (double Dt = 20.0; Dt <= 180.0 && Dt < BestIn; Dt += 5.0)
 		{
 			TT::Clock Later = Now;
 			Later.T += Dt;
 			Later.Hour += Dt / 3600.0;
-			if (T->Net->Closed(Later, C.Line, C.First, C.Last, Lead)) { Best = &C; BestIn = Dt; break; }
+			bool bLater = T->Net->Closed(Later, C.Line, C.First, C.Last, Lead);
+			for (const TorqueWorld::RidePlan::LevelCrossing::Track& K : C.Also) bLater = bLater || T->Net->Closed(Later, K.Line, K.First, K.Last, Lead);
+			if (bLater) { Best = &C; BestIn = Dt; break; }
 		}
 	}
 	if (!Best) return FString::Printf(TEXT("crossings:next: none of %d crossings within 4 km closes in the next 3 minutes; try again soon"), Tried);
@@ -803,7 +893,11 @@ void ATorqueTrains::LayLineside(const FVector2D& At)
 		UMaterialInterface* Green = Mat(TEXT("train_lamp_green"));
 		LampRed = MakeIsm(TEXT("TrainLampRed"), Ball, Red ? Red : Tint(FLinearColor(1.0f, 0.02f, 0.01f), 20.0f), false);
 		LampGreen = MakeIsm(TEXT("TrainLampGreen"), Ball, Green ? Green : Tint(FLinearColor(0.05f, 1.0f, 0.3f), 20.0f), false);
-		for (UInstancedStaticMeshComponent* C : {Masts.Get(), Wires.Get(), SignalPosts.Get(), LampRed.Get(), LampGreen.Get()}) C->SetCullDistances(0, 150000);
+		for (UInstancedStaticMeshComponent* C : {Masts.Get(), Wires.Get(), SignalPosts.Get(), LampRed.Get(), LampGreen.Get()})
+		{
+			C->SetCullDistances(0, 150000);
+			FitMaterials(C);
+		}
 	}
 	TArray<FTransform> MastXf, WireXf, PostXf;
 	Signals.Reset();

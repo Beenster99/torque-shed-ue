@@ -42,6 +42,13 @@ public:
 	void Draw(UCanvas* Canvas);
 	// Called when Ride is chosen, for the owner to close its menus (the ride's level opens itself).
 	TFunction<void()> OnRide;
+	// [ride bike] Asked when Ride is chosen, before setting off (beenster, Nov 22: "a list of the bikes
+	// I can ride before we set off"): the owner shows its bike list and, once one is picked, sets
+	// RideOnPicked. Unbound: off at once on the rider's bike as it stands.
+	TFunction<void()> PickBike;
+	bool bBikePicked = false;
+	// [ride bike] The bike picked: Ride again, on it.
+	void RideOnPicked() { bBikePicked = true; Ride(); }
 	// [co-op] A host's: told the journey's code and name as it changes (for everyone's game to plan
 	// the same road), and asked who is still planning it ("" when everyone is ready to set off).
 	TFunction<void(const FString& Code, const FString& Name)> OnJourneyChanged;

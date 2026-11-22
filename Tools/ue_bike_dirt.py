@@ -220,29 +220,33 @@ if (s > 0.004)
         // of thin brown road water dried to a pale stain with a darker rim, and a whitish bloom of
         // road salt where it's wettest; the paint shows through all of it. Heavier dirt is more of
         // them, not a thicker coat.
+        // (Build 168, "unusual swing arm graphic effect": a heavily dirty swingarm and silencer read as
+        // a dense yellow-green texture. So: thinner, never more than about half covered, and in neutral
+        // grey-browns that stay grey once they're turned from sRGB, not tan.)
+        float k = saturate(s) * 0.6;                         // how thick the spray is here
         float3 sp = mp0 * float3(1.0, 1.0, 0.5);              // drawn out fore and aft, the way it flew
         float far = smoothstep(0.002, 0.008, px);           // too small to draw one by one: a faint haze
-        float fine = F.Drop(sp * 420.0, s * 0.7, 1.0);
-        float speck = max(F.Drop(sp * 160.0, s * 0.55, 9.0), fine * 0.85);
-        speck = lerp(speck, s * 0.2, far);
+        float fine = F.Drop(sp * 420.0, k * 0.5, 1.0);
+        float speck = max(F.Drop(sp * 160.0, k * 0.35, 9.0), fine * 0.75);
+        speck = lerp(speck, k * 0.1, far);
         float3 c2 = sp * 38.0;
         float rag = (F.Noise(mp0 * 320.0) - 0.5) * 0.08;
-        float blot = max(F.Drop(c2, s * 0.5, 21.0), F.Drop(c2 * 2.3 + 0.37, s * 0.45, 33.0));
+        float blot = max(F.Drop(c2, k * 0.35, 21.0), F.Drop(c2 * 2.3 + 0.37, k * 0.3, 33.0));
         float rim = blot * (1.0 - smoothstep(0.2, 0.75, blot + rag * 4.0));
-        float stain = saturate(blot + rag) * 0.2 + rim * 0.28;
-        float salt = smoothstep(0.15, 0.9, s) * smoothstep(0.4, 0.8, F.Fbm(mp0 * float3(9.0, 3.0, 9.0))) * 0.38;
-        float wash = s * 0.12 * (0.6 + 0.8 * F.Noise(mp0 * 14.0));   // the thin brown road water's tint
-        float3 spk_c = lerp(float3(0.16, 0.14, 0.12), float3(0.3, 0.26, 0.2), F.Noise(mp0 * 90.0));
-        float3 stn_c = lerp(float3(0.46, 0.39, 0.3), float3(0.3, 0.24, 0.17), saturate(rim * 2.5));
-        float3 salt_c = float3(0.8, 0.79, 0.76);
+        float stain = (saturate(blot + rag) * 0.12 + rim * 0.16) * (1.0 - far * 0.6);
+        float salt = smoothstep(0.4, 1.0, s) * smoothstep(0.5, 0.85, F.Fbm(mp0 * float3(9.0, 3.0, 9.0))) * 0.18;
+        float wash = k * 0.08 * (0.6 + 0.8 * F.Noise(mp0 * 14.0));   // the thin road water's grey-brown film
+        float3 spk_c = lerp(float3(0.2, 0.19, 0.18), float3(0.3, 0.28, 0.26), F.Noise(mp0 * 90.0));
+        float3 stn_c = lerp(float3(0.42, 0.4, 0.37), float3(0.3, 0.28, 0.26), saturate(rim * 2.5));
+        float3 salt_c = float3(0.7, 0.7, 0.68);
         // laid one over another: salt, then the stains, then the specks on top
-        float3 c = lerp(float3(0.45, 0.4, 0.33), salt_c, salt / max(salt + wash, 0.001)) * max(salt, wash);
+        float3 c = lerp(float3(0.4, 0.38, 0.35), salt_c, salt / max(salt + wash, 0.001)) * max(salt, wash);
         float a = max(salt, wash);
         c = c * (1.0 - stain) + stn_c * stain;
         a = a + stain * (1.0 - a);
         c = c * (1.0 - speck) + spk_c * speck;
         a = a + speck * (1.0 - a);
-        float spray_a = saturate(a);
+        float spray_a = min(saturate(a), 0.5);
         float3 spray_c = c / max(a, 0.001);
         alpha += spray_a * mudw;
         col += spray_c * spray_a * mudw;
