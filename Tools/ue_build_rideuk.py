@@ -187,6 +187,29 @@ def road_material_scanned(L, tex, roles):
              g.lerp(g.const((0.0, 0.0, 1.0)), snrm, sett),
              g.lerp(g.const(0.95), g.const(0.55), sett)]
     own = g.mix(own, setts, keyed((0.09, 0.095, 0.11)))
+    # [race tracks, build 168] A race circuit's track (World/WorldRide's RoadPiece: its vertex colour the key
+    # (0.010, 0.010, 0.011)). beenster on 167: "make the tarmac on all tracks black and as smooth as silk, no
+    # bumps at all": the tarmac's scan taken to grey and almost all its contrast out, near black, its normal flat
+    # (no grain to catch the light), a faint satin sheen from fine aggregate; dark and glossy when wet as roads are.
+    circuit_key = keyed((0.010, 0.010, 0.011))
+    cgrey = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(tar_scan[0], cgrey)
+    g.link(g.const(1.0), cgrey, "Fraction")
+    silk = [g.lerp(g.const((0.016, 0.016, 0.017)), g.op(unreal.MaterialExpressionMultiply, cgrey, const_b=0.45), g.const(0.12)),
+            g.const((0.0, 0.0, 1.0)), g.const(0.62)]
+    own = g.mix(own, silk, circuit_key)
+    # [race tracks, build 168] The circuits' gravel traps, as sand (beenster on 167: "Make the gravel traps look like
+    # sand"): World/WorldRideCircuits.cpp's CircuitSandTile lays each trap's ground over in the key (0.205, 0.152,
+    # 0.083); the shore's sand scan, raked pale and dry (a circuit's trap is kept loose and clean), coarse grained.
+    sand_role = "sand" if "sand" in tex else ("gravel" if "gravel" in tex else None)
+    if sand_role:
+        trap = g.layer(tex[sand_role], roles[sand_role]["tile_m"] * 0.8)
+        tsand = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(trap[0], tsand)
+        g.link(g.const(0.35), tsand, "Fraction")
+        trap = [g.op(unreal.MaterialExpressionMultiply, tsand, g.const((0.95, 0.88, 0.72) if sand_role == "sand" else (1.9, 1.7, 1.25))),
+                trap[1], g.const(0.92)]
+        own = g.mix(own, trap, keyed((0.205, 0.152, 0.083)))
     # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
     # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
     # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near
@@ -321,8 +344,10 @@ def road_material_scanned(L, tex, roles):
     # Wet: the tarmac dark and glossy (as Buttertubs' road), the gravel darker but still rough; dry keeps a
     # floor so there's no white sheen.
     wet = L.wetness(g)
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), hard), near), wet))
-    road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), hard), wet))
+    whard = g.op(unreal.MaterialExpressionMax, hard, circuit_key)   # ([race tracks] a circuit's tarmac wets as a road's)
+    wnear = g.op(unreal.MaterialExpressionMax, near, circuit_key)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), whard), wnear), wet))
+    road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), whard), wet))
     # [weather, Nov 18] Standing water, as Buttertubs' M_Road (beenster on 156: "I am not seeing any puddles (we
     # had them on buttertubs)"). The camber drains rain to the edges, most on a bend's inside; only after long
     # rain does it reach across the middle; few puddles, now and then a bigger one. The road mesh's vertex
