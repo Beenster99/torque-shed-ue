@@ -435,6 +435,46 @@ def smooth_limbs(N, parent, kids, r, iters=6):
     return N
 
 
+def smooth_radii(N, parent, kids, r):
+    """[build 168] beenster on 167: "the trunks of the trees need to narrow much more smoothly with
+    height - I could see 'shoulders' in their profiles". The pipe model narrows a trunk in a step
+    wherever a big limb leaves it. Along each limb (the trunk first, then each limb before its own
+    limbs) each step down is spread into a ramp below it, longer the thicker the limb, kept narrowing
+    upwards, and a side limb starts no thicker than 85% of what it leaves."""
+    r = r.copy()
+    prim = primary_child(kids, r)
+    starts = [i for i in range(len(N)) if parent[i] < 0 or prim[parent[i]] != i]
+    depth = _depths(parent)
+    starts.sort(key=lambda i: depth[i])
+    for s0 in starts:
+        run = [s0]
+        while prim[run[-1]] >= 0:
+            run.append(prim[run[-1]])
+        if len(run) < 3:
+            continue
+        R = r[run]
+        L = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(N[run], axis=0), axis=1))])
+        # (each step down becomes a ramp: going back down the limb from its end, the radius may grow
+        # by at most a rate, in log per metre, that is gentler the thicker the limb, so the trunk starts
+        # narrowing well below where a big limb leaves it instead of stepping in at that point)
+        # and the same the other way, the radius narrowing at most at that rate going up, so a step
+        # is spread half below and half above where the limb leaves (the trunk keeps its girth)
+        k = np.clip(0.08 / np.maximum(R, 0.02), 0.1, 3.0)
+        dn = R.copy()
+        for a in range(len(run) - 2, -1, -1):
+            dn[a] = min(R[a], dn[a + 1] * math.exp(k[a] * (L[a + 1] - L[a])))
+        up = R.copy()
+        for a in range(1, len(run)):
+            up[a] = max(R[a], up[a - 1] * math.exp(-k[a] * (L[a] - L[a - 1])))
+        sm = np.sqrt(dn * up)
+        sm[-1] = R[-1]
+        if parent[s0] >= 0:
+            sm = np.minimum(sm, r[parent[s0]] * 0.85)
+        sm = np.minimum.accumulate(sm)    # (never thickening on the way out)
+        r[run] = sm
+    return r
+
+
 def ring_frame(d):
     d = d / max(np.linalg.norm(d), 1e-9)
     a = np.array([1.0, 0, 0]) if abs(d[0]) < 0.9 else np.array([0, 0, 1.0])
@@ -814,6 +854,7 @@ def broadleaf(name, seed, k=None, n=5):
     N, parent = colonise(sp, rng)
     r, kids = radii(N, parent, 0.004, sp["trunk_r"] * h)
     N = smooth_limbs(N, parent, kids, r)
+    r = smooth_radii(N, parent, kids, r)
     # Wind: 0 at the trunk, 1 at the outer twigs (by path length from the crown's base).
     plen = np.zeros(len(N))
     for i in range(len(N)):

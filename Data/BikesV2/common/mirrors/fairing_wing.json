@@ -12,13 +12,13 @@
  ],
  "moves_with": "steering",
  "size_mm": [
-  53.2,
-  666.2,
-  55.3
+  97.5,
+  718.0,
+  59.3
  ],
- "triangles": 1180,
+ "triangles": 1404,
  "surfaces": {
-  "plastic": {
+  "plastic__mirror_head_r": {
    "ue": "cat_plastic",
    "color": [
     0.02,
@@ -27,10 +27,49 @@
    ],
    "metallic": 0.0,
    "roughness": 0.52,
-   "tag": "plastic"
+   "tag": "mirror_head"
   },
-  "d3_mirrorglass": {
-   "ue": "mirror_glass",
+  "d3_mirrorglass__mirror_glass_r": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.01,
+   "tag": "d3_mirrorglass"
+  },
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "plastic__mirror_head_l": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52,
+   "tag": "mirror_head"
+  },
+  "d3_mirrorglass__mirror_glass_l": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "metallic": 1.0,
+   "roughness": 0.01,
    "tag": "d3_mirrorglass"
   }
  }

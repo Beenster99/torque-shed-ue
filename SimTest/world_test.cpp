@@ -1656,7 +1656,7 @@ int main()
 							{
 								const Geo Spot = F.ToGeo(Plan->Road[I].At.X, Plan->Road[I].At.Z);
 								Diary.Step(Spot.Lat, Spot.Lon, 20.0, 0.6, Clock++);
-								if (I == Plan->Road.size() / 2) Diary.AddPhoto("photo_1.png", Clock);
+								if (I / 3 == Plan->Road.size() / 6) Diary.AddPhoto("photo_1.png", Clock);
 							}
 							DiaryRide Again;
 							const bool Read = DiaryRide::FromJson(Diary.ToJson(), Again);
@@ -1918,6 +1918,7 @@ int main()
 								if (!Plan->Nearest(Tip.At.X, Tip.At.Z, Dn2, Hn2, nullptr, &Half2, nullptr, true) || Dn2 > Half2) continue;
 								++Meeting;
 								if (std::fabs(Tip.Height - Hn2) < 0.02) ++Level;
+								else if (std::getenv("WT_DBG_LEVEL")) std::printf("      DBG side end at %.1f,%.1f: %.3f, the ride's road %.3f (%.2f m off its middle, half %.2f)\n", Tip.At.X, Tip.At.Z, Tip.Height, Hn2, Dn2, Half2);
 							}
 							for (size_t I = 1; I < Sd.Pts.size(); ++I)
 							{

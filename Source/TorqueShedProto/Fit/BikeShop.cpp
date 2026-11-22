@@ -152,9 +152,30 @@ std::vector<std::string> KindIds(const BikeLayout& Lay, const std::string& Kind)
 			if (std::fabs(Da - Db) > 1e-5) return Da < Db;
 			const double Wa = Pa ? Pa->Num("rim_width", 0.0) : 0.0, Wb = Pb ? Pb->Num("rim_width", 0.0) : 0.0;
 			if (std::fabs(Wa - Wb) > 1e-5) return Wa < Wb;
-			return BSI::ShopNatural(Pa ? Pa->Str("name", A) : A, Pb ? Pb->Str("name", B) : B) < 0;
+			return WheelBefore(Lay, A, B);
 		});
 	return Out;
+}
+
+std::string WheelKit(const BikeLayout& Lay, const std::string& Id)
+{
+	const Json* P = Lay.Part(Id);
+	const Json* Vp = P ? P->Get("v2part") : nullptr;
+	return Vp && Vp->IsObject() ? Vp->Str("kit") : std::string();
+}
+
+bool WheelBefore(const BikeLayout& Lay, const std::string& A, const std::string& B)
+{
+	// [shop bay] (beenster on 167: "only one of the chopper ones was available") By name alone the 63 chopper
+	// wheels ran maker by maker (BSX's own and its 20 billet wheels, then Kazeda's...), so the other makers' own
+	// wheels sat far down the list. The bikes' own wheels come first, then the kit wheels style by style, each
+	// style's makers together.
+	const std::string Ka = WheelKit(Lay, A), Kb = WheelKit(Lay, B);
+	if (Ka.empty() != Kb.empty()) return Ka.empty();
+	if (Ka != Kb) return BSI::ShopNatural(Ka, Kb) < 0;
+	const Json* Pa = Lay.Part(A);
+	const Json* Pb = Lay.Part(B);
+	return BSI::ShopNatural(Pa ? Pa->Str("name", A) : A, Pb ? Pb->Str("name", B) : B) < 0;
 }
 
 int TyreFit(const BikeLayout& Lay, const std::string& Tyre, const std::string& Wheel)

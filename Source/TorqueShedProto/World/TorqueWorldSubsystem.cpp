@@ -32,6 +32,7 @@
 #include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
+#include "Dash/TftPlannerMap.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
 #include "Modules/ModuleManager.h"
@@ -48,6 +49,7 @@ struct FTorqueWorldShared
 	TorqueWorld::HeightStore Heights;
 	TorqueWorld::Route::MapRoads MapRoads;   // [build 147] the planner's road map's main roads
 	TorqueWorld::Route::MapStreets MapStreets;   // [map detail] and zoomed in, every road of the cells in view
+	TorqueTft::PlannerMap SatNavMap;   // [planner map] the sat nav's map of the cells in view, for the planner's "Sat nav" layer
 	TorqueWorld::Route::MapImagery Imagery;  // [build 147] the planner's satellite pictures
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
 	std::atomic<bool> bMapMoved{false};   // [map detail] the planner's map asked for again while one draws
@@ -596,7 +598,18 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		const auto Draw = [&Held, &View]()
 		{
 			std::vector<uint8_t> Px;
-			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery, &Held->MapStreets);
+			bool bDrawn = false;
+			if (View.Layer == TorqueWorld::Route::SatNav)
+			{
+				// [planner map] The sat nav's map on the relief's sea, once every cell in view is read; till then
+				// (and zoomed out past it) the road map.
+				TorqueWorld::Route::MapView Plain = View;
+				Plain.Layer = TorqueWorld::Route::RoadMap;
+				TorqueWorld::Route::DrawRelief(Held->Heights, Plain, Px);
+				bDrawn = Held->SatNavMap.Draw(View, Px);
+				if (bDrawn) TorqueWorld::Route::DrawFerryLines(View, Px);
+			}
+			if (!bDrawn) TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery, &Held->MapStreets);
 			FTorqueMapPicture Out;
 			Out.Pixels.Append(Px.data(), int32(Px.size()));
 			// [map detail] (and the roads' names to write over it, found here rather than on the game thread)
@@ -609,7 +622,15 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		const auto Moved = [&Held]() { return Held->bStop.load() || Held->bMapMoved.load(); };
 		const auto Streets = [&Held, &View, &Moved](int Load, int* Loaded)
 		{
-			return TorqueWorld::KnowStreets(Held->Cells, Held->MapStreets, View, Load, Moved, Loaded);
+			int Missing = TorqueWorld::KnowStreets(Held->Cells, Held->MapStreets, View, Load, Moved, Loaded);
+			if (View.Layer == TorqueWorld::Route::SatNav)
+			{
+				// [planner map] (and the sat nav's map of the same cells: they are on disk by now)
+				int MoreLoaded = 0;
+				Missing += Held->SatNavMap.Know(Held->Cells, View, Load, Moved, &MoreLoaded);
+				if (Loaded != nullptr) *Loaded += MoreLoaded;
+			}
+			return Missing;
 		};
 		// (a few cells at a time, the picture drawn again after each few, so the roads come in round the middle first)
 		const auto FetchStreets = [&]()

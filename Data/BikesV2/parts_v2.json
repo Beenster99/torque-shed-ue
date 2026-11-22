@@ -37782,6 +37782,1240 @@
     "bespoke": true
    }
   },
+  "v2_hartwell_chopper__front_wheel_bwheels_blade7_carbon": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Seven straight blades cast wheel, carbon (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_blade7_carbon",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_blade7_carbon",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_blade7_carbon": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Seven straight blades cast wheel, carbon (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_blade7_carbon",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_blade7_carbon",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_five_inlay_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five inlaid spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_five_inlay_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_five_inlay_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_five_inlay_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five inlaid spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_five_inlay_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_five_inlay_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_hex6_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Six hex web cast wheel, gloss black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_hex6_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_hex6_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_hex6_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Six hex web cast wheel, gloss black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_hex6_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_hex6_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_offset5_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five offset twin spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_offset5_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_offset5_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_offset5_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five offset twin spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_offset5_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_offset5_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_sickle5_chrome": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five sickle spokes cast wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_sickle5_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_sickle5_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_sickle5_chrome": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five sickle spokes cast wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_sickle5_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_sickle5_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_split6_bronze": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Six split spokes cast wheel, bronze (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_split6_bronze",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_split6_bronze",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_split6_bronze": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Six split spokes cast wheel, bronze (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_split6_bronze",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_split6_bronze",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_sweep7_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Seven swept spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_sweep7_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_sweep7_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_sweep7_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Seven swept spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_sweep7_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_sweep7_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_ten_matt_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Ten spokes in five pairs cast wheel, matt black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_ten_matt_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_ten_matt_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_ten_matt_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Ten spokes in five pairs cast wheel, matt black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_ten_matt_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_ten_matt_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_turbine10_chrome": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Ten turbine blades cast wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_turbine10_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_turbine10_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_turbine10_chrome": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Ten turbine blades cast wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_turbine10_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_turbine10_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_twin5_carbon": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five fine twin spokes cast wheel, carbon (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_twin5_carbon",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_twin5_carbon",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_twin5_carbon": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five fine twin spokes cast wheel, carbon (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_twin5_carbon",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_twin5_carbon",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_web10_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Petal web cast wheel, gloss black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_web10_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_web10_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_web10_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Petal web cast wheel, gloss black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_web10_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_web10_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_wire_cross40_gloss_black": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX 40 spoke tubeless wire wheel, gloss black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_cross40_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_cross40_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_wire_cross40_gloss_black": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX 40 spoke tubeless wire wheel, gloss black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_cross40_gloss_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_cross40_gloss_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_wire_enduro32_matt_black": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX 32 heavy spoke wire wheel, matt black (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_enduro32_matt_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_enduro32_matt_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_wire_enduro32_matt_black": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX 32 heavy spoke wire wheel, matt black (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_enduro32_matt_black",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_enduro32_matt_black",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_wire_mx36_anodised_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX 36 spoke flat rim wire wheel, anodised gold (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_mx36_anodised_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_mx36_anodised_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_wire_mx36_anodised_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX 36 spoke flat rim wire wheel, anodised gold (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_mx36_anodised_gold",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_mx36_anodised_gold",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_wire_rally36_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX 36 spoke deep rim wire wheel, chrome (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_rally36_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_rally36_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_wire_rally36_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX 36 spoke deep rim wire wheel, chrome (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_rally36_chrome",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_rally36_chrome",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_wire_spine32_gunmetal": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Centre rib 32 spoke wire wheel, gunmetal (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_spine32_gunmetal",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_spine32_gunmetal",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_wire_spine32_gunmetal": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Centre rib 32 spoke wire wheel, gunmetal (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_wire_spine32_gunmetal",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_spine32_gunmetal",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__front_wheel_bwheels_y5_gunmetal": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "BSX Five Y spokes cast wheel, gunmetal (front wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_y5_gunmetal",
+    "frame": "v2_hartwell_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_y5_gunmetal",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_hartwell_chopper__rear_wheel_bwheels_y5_gunmetal": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "BSX Five Y spokes cast wheel, gunmetal (rear wheel)",
+   "description": "Off the BSX chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/hartwell_chopper__b_wheels_y5_gunmetal",
+    "frame": "v2_hartwell_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "BSX",
+    "fits": "family",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "kit": "b_wheels_y5_gunmetal",
+    "of": "hartwell_chopper",
+    "bespoke": true
+   }
+  },
   "v2_kazeda_chopper__front_wheel_bwheels_billet_bloom8_brass": {
    "mass": 7.0,
    "type": "Spoked",
@@ -39262,6 +40496,1240 @@
     "bespoke": true
    }
   },
+  "v2_kazeda_chopper__front_wheel_bwheels_blade7_carbon": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Seven straight blades cast wheel, carbon (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_blade7_carbon",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_blade7_carbon",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_blade7_carbon": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Seven straight blades cast wheel, carbon (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_blade7_carbon",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_blade7_carbon",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_five_inlay_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Five inlaid spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_five_inlay_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_five_inlay_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_five_inlay_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Five inlaid spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_five_inlay_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_five_inlay_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_hex6_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Six hex web cast wheel, gloss black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_hex6_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_hex6_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_hex6_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Six hex web cast wheel, gloss black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_hex6_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_hex6_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_offset5_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Five offset twin spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_offset5_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_offset5_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_offset5_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Five offset twin spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_offset5_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_offset5_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_sickle5_chrome": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Five sickle spokes cast wheel, chrome (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_sickle5_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_sickle5_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_sickle5_chrome": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Five sickle spokes cast wheel, chrome (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_sickle5_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_sickle5_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_split6_bronze": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Six split spokes cast wheel, bronze (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_split6_bronze",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_split6_bronze",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_split6_bronze": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Six split spokes cast wheel, bronze (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_split6_bronze",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_split6_bronze",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_sweep7_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Seven swept spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_sweep7_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_sweep7_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_sweep7_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Seven swept spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_sweep7_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_sweep7_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_ten_matt_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Ten spokes in five pairs cast wheel, matt black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_ten_matt_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_ten_matt_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_ten_matt_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Ten spokes in five pairs cast wheel, matt black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_ten_matt_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_ten_matt_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_turbine10_chrome": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Ten turbine blades cast wheel, chrome (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_turbine10_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_turbine10_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_turbine10_chrome": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Ten turbine blades cast wheel, chrome (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_turbine10_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_turbine10_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_twin5_carbon": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Five fine twin spokes cast wheel, carbon (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_twin5_carbon",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_twin5_carbon",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_twin5_carbon": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Five fine twin spokes cast wheel, carbon (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_twin5_carbon",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_twin5_carbon",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_web10_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Petal web cast wheel, gloss black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_web10_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_web10_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_web10_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Petal web cast wheel, gloss black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_web10_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_web10_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_wire_cross40_gloss_black": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda 40 spoke tubeless wire wheel, gloss black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_cross40_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_cross40_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_wire_cross40_gloss_black": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda 40 spoke tubeless wire wheel, gloss black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_cross40_gloss_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_cross40_gloss_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_wire_enduro32_matt_black": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda 32 heavy spoke wire wheel, matt black (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_enduro32_matt_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_enduro32_matt_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_wire_enduro32_matt_black": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda 32 heavy spoke wire wheel, matt black (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_enduro32_matt_black",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_enduro32_matt_black",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_wire_mx36_anodised_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda 36 spoke flat rim wire wheel, anodised gold (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_mx36_anodised_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_mx36_anodised_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_wire_mx36_anodised_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda 36 spoke flat rim wire wheel, anodised gold (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_mx36_anodised_gold",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_mx36_anodised_gold",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_wire_rally36_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda 36 spoke deep rim wire wheel, chrome (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_rally36_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_rally36_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_wire_rally36_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda 36 spoke deep rim wire wheel, chrome (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_rally36_chrome",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_rally36_chrome",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_wire_spine32_gunmetal": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Centre rib 32 spoke wire wheel, gunmetal (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_spine32_gunmetal",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_spine32_gunmetal",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_wire_spine32_gunmetal": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Centre rib 32 spoke wire wheel, gunmetal (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_wire_spine32_gunmetal",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_spine32_gunmetal",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__front_wheel_bwheels_y5_gunmetal": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Kazeda Five Y spokes cast wheel, gunmetal (front wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_y5_gunmetal",
+    "frame": "v2_kazeda_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_y5_gunmetal",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_kazeda_chopper__rear_wheel_bwheels_y5_gunmetal": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Kazeda Five Y spokes cast wheel, gunmetal (rear wheel)",
+   "description": "Off the Kazeda chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/kazeda_chopper__b_wheels_y5_gunmetal",
+    "frame": "v2_kazeda_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Kazeda",
+    "fits": "family",
+    "layout": "inline4",
+    "twin_shock": false,
+    "kit": "b_wheels_y5_gunmetal",
+    "of": "kazeda_chopper",
+    "bespoke": true
+   }
+  },
   "v2_lodestar_chopper__front_wheel_bwheels_billet_bloom8_brass": {
    "mass": 7.0,
    "type": "Spoked",
@@ -40738,6 +43206,1240 @@
     "layout": "vtwin45",
     "twin_shock": false,
     "kit": "b_wheels_billet_twist7_steel",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_blade7_carbon": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Seven straight blades cast wheel, carbon (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_blade7_carbon",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_blade7_carbon",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_blade7_carbon": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Seven straight blades cast wheel, carbon (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_blade7_carbon",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_blade7_carbon",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_five_inlay_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Five inlaid spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_five_inlay_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_five_inlay_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_five_inlay_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Five inlaid spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_five_inlay_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_five_inlay_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_hex6_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Six hex web cast wheel, gloss black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_hex6_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_hex6_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_hex6_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Six hex web cast wheel, gloss black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_hex6_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_hex6_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_offset5_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Five offset twin spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_offset5_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_offset5_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_offset5_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Five offset twin spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_offset5_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_offset5_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_sickle5_chrome": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Five sickle spokes cast wheel, chrome (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_sickle5_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_sickle5_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_sickle5_chrome": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Five sickle spokes cast wheel, chrome (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_sickle5_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_sickle5_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_split6_bronze": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Six split spokes cast wheel, bronze (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_split6_bronze",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_split6_bronze",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_split6_bronze": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Six split spokes cast wheel, bronze (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_split6_bronze",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_split6_bronze",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_sweep7_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Seven swept spokes cast wheel, gloss black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_sweep7_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_sweep7_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_sweep7_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Seven swept spokes cast wheel, gloss black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_sweep7_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_sweep7_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_ten_matt_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Ten spokes in five pairs cast wheel, matt black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_ten_matt_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_ten_matt_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_ten_matt_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Ten spokes in five pairs cast wheel, matt black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_ten_matt_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_ten_matt_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_turbine10_chrome": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Ten turbine blades cast wheel, chrome (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_turbine10_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_turbine10_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_turbine10_chrome": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Ten turbine blades cast wheel, chrome (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_turbine10_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_turbine10_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_twin5_carbon": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Five fine twin spokes cast wheel, carbon (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_twin5_carbon",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_twin5_carbon",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_twin5_carbon": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Five fine twin spokes cast wheel, carbon (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_twin5_carbon",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_twin5_carbon",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_web10_gloss_black": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Petal web cast wheel, gloss black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_web10_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_web10_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_web10_gloss_black": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Petal web cast wheel, gloss black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_web10_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_web10_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_wire_cross40_gloss_black": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar 40 spoke tubeless wire wheel, gloss black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_cross40_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_cross40_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_wire_cross40_gloss_black": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar 40 spoke tubeless wire wheel, gloss black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_cross40_gloss_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_cross40_gloss_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_wire_enduro32_matt_black": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar 32 heavy spoke wire wheel, matt black (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_enduro32_matt_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_enduro32_matt_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_wire_enduro32_matt_black": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar 32 heavy spoke wire wheel, matt black (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_enduro32_matt_black",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_enduro32_matt_black",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_wire_mx36_anodised_gold": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar 36 spoke flat rim wire wheel, anodised gold (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_mx36_anodised_gold",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_mx36_anodised_gold",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_wire_mx36_anodised_gold": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar 36 spoke flat rim wire wheel, anodised gold (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_mx36_anodised_gold",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_mx36_anodised_gold",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_wire_rally36_chrome": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar 36 spoke deep rim wire wheel, chrome (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_rally36_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_rally36_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_wire_rally36_chrome": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar 36 spoke deep rim wire wheel, chrome (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_rally36_chrome",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_rally36_chrome",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_wire_spine32_gunmetal": {
+   "mass": 7.0,
+   "type": "Spoked",
+   "style": "wire",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "spokes": 40,
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Centre rib 32 spoke wire wheel, gunmetal (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_spine32_gunmetal",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_spine32_gunmetal",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_wire_spine32_gunmetal": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Centre rib 32 spoke wire wheel, gunmetal (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_wire_spine32_gunmetal",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_wire_spine32_gunmetal",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__front_wheel_bwheels_y5_gunmetal": {
+   "mass": 7.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 19,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Lodestar Five Y spokes cast wheel, gunmetal (front wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_y5_gunmetal",
+    "frame": "v2_lodestar_chopper",
+    "slot": "front_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_y5_gunmetal",
+    "of": "lodestar_chopper",
+    "bespoke": true
+   }
+  },
+  "v2_lodestar_chopper__rear_wheel_bwheels_y5_gunmetal": {
+   "mass": 8.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Lodestar Five Y spokes cast wheel, gunmetal (rear wheel)",
+   "description": "Off the Lodestar chopper. Bolts to any chopper frame on the hidden mounting standard.",
+   "styles": [
+    "chopper"
+   ],
+   "pack": "chopper",
+   "price": 560,
+   "v2part": {
+    "model": "kits/lodestar_chopper__b_wheels_y5_gunmetal",
+    "frame": "v2_lodestar_chopper",
+    "slot": "rear_wheel",
+    "family": "chopper",
+    "brand": "Lodestar",
+    "fits": "family",
+    "layout": "vtwin45",
+    "twin_shock": false,
+    "kit": "b_wheels_y5_gunmetal",
     "of": "lodestar_chopper",
     "bespoke": true
    }

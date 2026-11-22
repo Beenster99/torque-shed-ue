@@ -97,11 +97,13 @@ def road_material_scanned(L, tex, roles):
     g.link(road[0], flat)
     g.link(g.const(0.9), flat, "Fraction")
     road[0] = g.op(unreal.MaterialExpressionMultiply, flat, g.const((0.96, 0.99, 1.06)))
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], L.noise(g.m, 0.002, 0.6, 0.95, -1200, g.y + 200))
+    tone = L.noise(g.m, 0.002, 0.6, 0.95, -1200, g.y + 200)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], tone)
     g.y += 140
     # Patches of a fresher, darker surface dressing and paler, older tarmac, tens of metres long.
     patch = g.mask_noise(0.0012, -2.0, 3.0)
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.08), g.const(0.8), patch))
+    patch_tone = g.lerp(g.const(1.08), g.const(0.8), patch)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], patch_tone)
     tar_scan = list(road)   # (the tarmac's own scan: the verge's inner end, build 149)
     # Which strips are tarmac: the vertex colour within a hair of the tarmac's own (0.022, 0.022, 0.025),
     # so nothing else drawn in this material (dark glass, black paint) takes the scan.
@@ -316,8 +318,74 @@ def road_material_scanned(L, tex, roles):
                     g.op(unreal.MaterialExpressionSubtract, along, const_b=0.5), const_b=10.0))
         stones = g.op(unreal.MaterialExpressionMultiply, stones, gate)
         surface = g.mix(road, grav, stones)
+        lane_tar = list(road)
         road = g.mix(own, surface, near)
         hard = g.op(unreal.MaterialExpressionMultiply, near, g.op(unreal.MaterialExpressionOneMinus, stones))   # (the tarmac itself, for the wet)
+        # [build 168] The grit up a lane's middle (beenster on 167: "make gravel on the centre of the road more
+        # sparse, better colour matched to the road (it's made up of stones from the road itself), improve the
+        # blending, no edges"). Its own key now (World/WorldRide's LaneGrit: tarmac at the band's edges to
+        # (0.06, 0.062, 0.085) at its core, off the gravel tracks' line, so their approved look is unchanged).
+        # The stones are the gravel scan's shapes and shading in the tarmac's own colour: the asphalt scan's
+        # average (its smallest mip, so one tiny cached sample) graded exactly as the tarmac is, by the same
+        # slow tone and patch nodes. Only the tallest stones show, fewer and fewer from the core out, and in
+        # loose clumps along the lane (the gravel's metre-wide wobble, reused); at the band's edges none at
+        # all, so the tarmac runs on unbroken under it. Cloud preview: rideuk/lane_grit_168/.
+        lane_c = (0.06, 0.062, 0.085)
+        lspan = tuple(b - a for a, b in zip(tar_c, lane_c))
+        lrel = g.op(unreal.MaterialExpressionSubtract, vc, g.const(tar_c))
+        ldot = g.node(unreal.MaterialExpressionDotProduct, -600)
+        g.link(lrel, ldot, "A")
+        g.link(g.const(lspan), ldot, "B")
+        lalong = g.op(unreal.MaterialExpressionMultiply, ldot, const_b=1.0 / sum(v * v for v in lspan))
+        lon = g.op(unreal.MaterialExpressionAdd, g.const(tar_c), g.op(unreal.MaterialExpressionMultiply, g.const(lspan), lalong))
+        loff = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, loff, "A")
+        g.link(lon, loff, "B")
+        # (a tighter key than the gravel's: the older patches' grey (0.038, 0.037, 0.036) and the covers'
+        # lie 0.006 and 0.013 off this line; 8-bit rounding puts the band's own colours under 0.003 off)
+        lnear = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, g.const(0.0065), loff), const_b=400.0))
+        lends = g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, lalong, const_b=0.15), const_b=8.0)),
+                     g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), lalong), const_b=8.0)))
+        lnear = g.op(unreal.MaterialExpressionMultiply, lnear, lends)
+        # (how thick the grit lies: none at the band's edges, eased in to the core)
+        dens = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract,
+                    g.op(unreal.MaterialExpressionMultiply, lalong, const_b=1.15), const_b=0.1))
+        dens = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, dens, dens),
+                    g.op(unreal.MaterialExpressionSubtract, g.const(3.0), g.op(unreal.MaterialExpressionMultiply, dens, const_b=2.0)))
+        clump = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, wobble, const_b=1.2), const_b=0.6), g.const(0.25)))
+        cover = g.op(unreal.MaterialExpressionMultiply, dens, clump)
+        # (the height a stone must stand to show: at the core about one in six of the scan's stones,
+        # only the odd tallest towards the edges)
+        thr = g.op(unreal.MaterialExpressionSubtract, g.const(0.95), g.op(unreal.MaterialExpressionMultiply, cover, const_b=0.95))
+        chips = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionSubtract, height, thr), const_b=8.0))
+        mean = g.node(unreal.MaterialExpressionTextureSample, -900, texture=tex["asphalt"]["color"],
+                      sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
+                      sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
+        g.link(g.world_uv(roles["asphalt"]["tile_m"]), mean, "UVs")
+        try:
+            mean.set_editor_property("mip_value_mode", unreal.TextureMipValueMode.TMVM_MIP_LEVEL)
+            mean.set_editor_property("const_mip_value", 14)   # (past the last mip: the scan's 1x1 average)
+        except Exception as e:
+            unreal.log_warning("[Torque] lane grit: no mip level on the tarmac's average (%s)" % e)
+        rmean = mean
+        if "ao" in tex["asphalt"]:
+            rmean = g.op(unreal.MaterialExpressionMultiply, rmean, const_b=0.92)   # (the tarmac's colour carries its AO)
+        rdull = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(rmean, rdull)
+        g.link(g.const(0.9), rdull, "Fraction")
+        rtone = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply,
+                     g.op(unreal.MaterialExpressionMultiply, rdull, g.const((0.96, 0.99, 1.06))), tone), patch_tone)
+        chip_c = g.op(unreal.MaterialExpressionMultiply, rtone,
+                      g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, height, const_b=1.0), const_b=1.12))
+        lane = g.mix(lane_tar, [chip_c, grav[1], grav[2]], chips)
+        road = g.mix(road, lane, lnear)
+        hard = g.op(unreal.MaterialExpressionMax, hard,
+                    g.op(unreal.MaterialExpressionMultiply, lnear, g.op(unreal.MaterialExpressionOneMinus, chips)))
+        near = g.op(unreal.MaterialExpressionMax, near, lnear)
     else:
         road = g.mix(own, road, tar)
         hard = tar
@@ -709,8 +777,17 @@ def water_material(L, real=False):
             wxy = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False); g.link(warp, wxy)
             swell_uv = g.op(unreal.MaterialExpressionAdd, swell_uv, g.op(unreal.MaterialExpressionMultiply, wxy, const_b=0.55))
         big = ripple(swell_uv, 0.010, 0.006, 0.7)                     # the swell of the wind waves
-        mid = ripple(turned(1.3, 12.0 / 13.0, -5.0 / 13.0), -0.021, 0.034, 0.6)   # 6 m, turned -23 degrees
-        small = ripple(turned(2.9, 20.0 / 29.0, 21.0 / 29.0), 0.055, -0.04, 0.5)  # 2.8 m, turned 46 degrees
+        mid_uv = turned(1.3, 12.0 / 13.0, -5.0 / 13.0)     # 6 m, turned -23 degrees
+        small_uv = turned(2.9, 20.0 / 29.0, 21.0 / 29.0)   # 2.8 m, turned 46 degrees
+        if nt is not None:
+            # [real water, beenster on 166: "I could see the tiling"] (the ripples' rows bent too, by the same
+            # noise read as the swell's, its broad channel only so they bend and never swirl, each its own
+            # way by a repeat or more: the 6 m and 2.8 m patterns wander instead of lying in a grid; no extra reads)
+            broad = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(warp, broad)
+            mid_uv = g.op(unreal.MaterialExpressionAdd, mid_uv, g.op(unreal.MaterialExpressionMultiply, broad, const_b=1.0))
+            small_uv = g.op(unreal.MaterialExpressionSubtract, small_uv, g.op(unreal.MaterialExpressionMultiply, broad, const_b=1.6))
+        mid = ripple(mid_uv, -0.021, 0.034, 0.6)
+        small = ripple(small_uv, 0.055, -0.04, 0.5)
         depth = g.node(unreal.MaterialExpressionPixelDepth)
         near = g.op(unreal.MaterialExpressionOneMinus, g.op(unreal.MaterialExpressionSaturate,
                     g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionSubtract, depth, const_b=3000.0), const_b=25000.0)))
@@ -802,7 +879,15 @@ def water_material(L, real=False):
     rough = g.op(U.MaterialExpressionMultiply, rough, g.lerp(g.const(0.4), g.const(1.3), calm))
     rough = g.lerp(rough, g.const(0.6), foam)
     foam_colour = g.const((0.82, 0.85, 0.86))
-    base = g.lerp(g.op(U.MaterialExpressionMultiply, vc, g.const(1.0)), foam_colour, foam)
+    # [real water, beenster on 166: "it never really looked like water"] (the plain water, opaque, can't be
+    # seen into, so it is given what you'd see: its bed through the shallows, the sea's sand and a loch's or
+    # a river's peaty stones, going to the water's own deep colour by about 2 m down (UV1's depth); a
+    # little lighter where wind roughens it. Single layer water does this itself, by its absorption.)
+    bed = g.lerp(g.const((0.10, 0.085, 0.06)), g.const((0.20, 0.18, 0.13)), is_sea)
+    murk = sat(div(deep, 2.2))
+    murk = mul(murk, sub(2.0, murk))   # (quickly at first: the bed fades fast in the first metre)
+    water_c = g.lerp(bed, g.op(U.MaterialExpressionMultiply, vc, g.const(1.0)), murk)
+    base = g.lerp(water_c, foam_colour, foam)
     mel = L.mel
     if real:
         g.m.set_editor_property("shading_model", U.MaterialShadingModel.MSM_SINGLE_LAYER_WATER)
@@ -819,9 +904,26 @@ def water_material(L, real=False):
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
                 "phase": (g.const(0.15), ("PhaseG", "Phase G")),
                 "behind": (g.const(1.0), ("ColorScaleBehindWater", "Color Scale Behind Water"))}
+        # (round 167: the PC said "No inputs to Single Layer Water Material" though every link here said it
+        # worked. So the pins' names come from the node itself, and the links are read back afterwards.)
+        try:
+            have = [str(n_) for n_ in mel.get_material_expression_input_names(out)]
+        except Exception as e:
+            have = []
+            unreal.log_warning("[Torque] M_RideWaterReal: couldn't read the output's pin names (%s)" % e)
+        unreal.log("[Torque] M_RideWaterReal: single layer water output pins %s" % have)
+        squash = lambda t: t.lower().replace(" ", "").replace("_", "")
         for key, (node, names) in pins.items():
-            if not any(mel.connect_material_expressions(node, "", out, n_) for n_ in names):
+            tries = [n_ for n_ in have if squash(n_).startswith(squash(names[0]))] + list(names)
+            if not any(mel.connect_material_expressions(node, "", out, n_) for n_ in tries):
                 unreal.log_warning("[Torque] M_RideWaterReal: couldn't link its %s to the single layer water output" % key)
+        try:
+            got = [e_ for e_ in mel.get_inputs_for_material_expression(g.m, out) if e_ is not None]
+            unreal.log("[Torque] M_RideWaterReal: %d of the output's %d pins linked" % (len(got), len(have)))
+            if not got:
+                unreal.log_error("[Torque] M_RideWaterReal: the single layer water output has NO inputs after linking")
+        except Exception as e:
+            unreal.log_warning("[Torque] M_RideWaterReal: couldn't read the output's links back (%s)" % e)
         # (single layer water: its own colour is the depth's; the base colour is the foam on top of it, laid
         # over the water by the opacity)
         base = foam_colour

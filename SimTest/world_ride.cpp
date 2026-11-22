@@ -24,6 +24,7 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
+#include "Dash/TftPlannerMap.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -243,6 +244,21 @@ int main(int Argc, char** Argv)
 		const auto T1 = std::chrono::steady_clock::now();
 		std::vector<uint8_t> Px;
 		Route::DrawRelief(Heights, V, Px, &Roads, &Imagery, &Streets);
+		if (V.Layer == Route::SatNav)
+		{
+			// [planner map] (WORLD_RIDE_MAP_LAYER=5: the sat nav's map, as the game's planner draws it)
+			TorqueTft::PlannerMap SatNav;
+			const auto S0 = std::chrono::steady_clock::now();
+			const int NavMissing = SatNav.Know(Cells, V, TorqueTft::PlannerMap::MostCells);
+			const auto S1 = std::chrono::steady_clock::now();
+			Route::MapView Plain = V;
+			Plain.Layer = Route::RoadMap;
+			Route::DrawRelief(Heights, Plain, Px);
+			const bool Drew = SatNav.Draw(V, Px);
+			if (Drew) Route::DrawFerryLines(V, Px);
+			std::printf("sat nav map: %d cells, %d missing, read in %.0f ms; %s in %.0f ms\n", int(TorqueTft::PlannerMap::CellsFor(V).size()), NavMissing,
+				std::chrono::duration<double, std::milli>(S1 - S0).count(), Drew ? "drawn" : "NOT drawn", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - S1).count());
+		}
 		const auto T2 = std::chrono::steady_clock::now();
 		std::printf("streets: %d cells for the view, %d missing, read in %.0f ms; drawn in %.0f ms\n", int(Route::MapStreets::CellsFor(V).size()), Missing,
 			std::chrono::duration<double, std::milli>(T1 - T0).count(), std::chrono::duration<double, std::milli>(T2 - T1).count());
@@ -818,6 +834,8 @@ int main(int Argc, char** Argv)
 				if (Plan->Road[I].Along <= Mk.From && Plan->Road[I + 1].Along > Mk.From) { Half = std::fmin(Plan->Road[I].Half, Plan->Road[I + 1].Half); break; }
 			if (Mk.Left > Half + 0.01 || Mk.Right < -Half - 0.01) ++OffEdge;
 		}
+		if (std::getenv("WORLD_RIDE_MAPPED") != nullptr)
+			for (const RidePlan::MappedMark& Mm : Plan->MainMapped) std::printf("MAPPED %s at %.1f dir %d drawn %d slant %.2f\n", Mm.Kind.c_str(), Mm.Along, Mm.Dir, Mm.LinesDrawn ? 1 : 0, Mm.Slant);
 		std::printf("Mapped on the ride: %d;", int(Plan->MainMapped.size()));
 		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
 		std::printf("; marks: %d paint, %d hump slices, %d bay slices; paint off the road's edge: %d\n", Paint, Humps, Bays, OffEdge);
@@ -2126,6 +2144,100 @@ int main(int Argc, char** Argv)
 			std::printf("laps '%s': %d laps from a walk of %.0f m (once round %zu points)%s\n", Name.c_str(), Done, Clock * 40.0, Once.size(), Laps.Now().Spoilt ? " spoilt" : "");
 		}
 	}
+	if (std::getenv("WORLD_RIDE_OFFMAP"))
+	{
+		// [junction priority 168] (how far the ride's road as laid strays from the map's line of its route)
+		const Region& G = Plan->Area.Roads;
+		std::vector<P2> Raw;
+		for (const RidePlan::PathNode& N : Plan->PathNodes)
+			if (N.Next >= 0)
+				for (const P2& P : G.LineFrom(N.Next, N.Node)) Raw.push_back(P);
+		const Frame Fr(G.FrameLat, G.FrameLon);
+		double Worst = 0.0;
+		bool In = false;
+		double RunFrom = 0.0, RunWorst = 0.0;
+		P2 RunAt;
+		for (size_t I = 0; I < Plan->Road.size(); ++I)
+		{
+			const P2 Q = Plan->Road[I].At;
+			double Near = 1e18;
+			for (size_t K = 0; K + 1 < Raw.size(); ++K)
+			{
+				const P2 A = Raw[K], D = Raw[K + 1] - A, V = Q - A;
+				const double L2 = D.X * D.X + D.Z * D.Z, T = L2 > 1e-9 ? std::clamp((V.X * D.X + V.Z * D.Z) / L2, 0.0, 1.0) : 0.0;
+				Near = std::fmin(Near, Q.DistanceTo(A + D * T));
+			}
+			Worst = std::fmax(Worst, Near);
+			if (Near > 4.0 && !In) { In = true; RunFrom = Plan->Road[I].Along; RunWorst = 0.0; }
+			if (In && Near > RunWorst) { RunWorst = Near; RunAt = Q; }
+			if (In && (Near < 4.0 || I + 1 == Plan->Road.size()))
+			{
+				In = false;
+				const Geo W = Fr.ToGeo(RunAt.X, RunAt.Z);
+				std::printf("OFFMAP %.0f..%.0f m: up to %.1f m off the map at %.5f,%.5f (%s)\n", RunFrom, Plan->Road[I].Along, RunWorst, W.Lat, W.Lon, Plan->FactAt(RunFrom) ? Plan->FactAt(RunFrom)->Name.c_str() : "");
+			}
+		}
+		std::printf("OFFMAP worst %.1f m\n", Worst);
+	}
+	if (const char* MapDump = std::getenv("WORLD_RIDE_MAPDUMP"))
+	{
+		// [junction priority 168] (the map's roads within R m of lat,lon, for a plain map beside a picture:
+		// "E class|name x z x z ...", "R x z ..." the ride's road as laid, "J x z" the point; m east and south of it)
+		double La = 0.0, Lo = 0.0, Rr = 150.0;
+		std::sscanf(MapDump, "%lf,%lf,%lf", &La, &Lo, &Rr);
+		const Region& G = Plan->Area.Roads;
+		const Frame Fr(G.FrameLat, G.FrameLon);
+		const P2 C = Fr.FromGeo(La, Lo);
+		for (size_t E = 0; E < G.Edges.size(); ++E)
+		{
+			bool Near1 = false;
+			for (const P2& P : G.Edges[E].Line) Near1 = Near1 || P.DistanceTo(C) < Rr;
+			if (!Near1) continue;
+			std::printf("MAPE %s|%s", G.ClassOf(int(E)).c_str(), G.NameOf(int(E)).c_str());
+			for (const P2& P : G.Edges[E].Line) std::printf(" %.1f %.1f", P.X - C.X, P.Z - C.Z);
+			std::printf("\n");
+		}
+		std::printf("MAPR");
+		for (const RoadPoint& P : Plan->Road)
+			if (P.At.DistanceTo(C) < Rr * 1.5) std::printf(" %.1f %.1f", P.At.X - C.X, P.At.Z - C.Z);
+		std::printf("\n");
+		// (debug: the laid roads with their half widths, "MAPL which x z half ...", and the far edges, "MAPF x z ...")
+		for (const int W : LaidRoads(*Plan))
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+			bool NearC = false;
+			for (const RoadPoint& P : Pts) NearC = NearC || P.At.DistanceTo(C) < Rr;
+			if (!NearC) continue;
+			std::printf("MAPL %d", W);
+			for (const RoadPoint& P : Pts) if (P.At.DistanceTo(C) < Rr * 1.5) std::printf(" %.2f %.2f %.2f", P.At.X - C.X, P.At.Z - C.Z, P.Half);
+			std::printf("\n");
+		}
+		for (const auto& F : Plan->FarEdges)
+		{
+			std::printf("MAPF");
+			for (const P2& P : F.second.Pts) std::printf(" %.2f %.2f", P.X - C.X, P.Z - C.Z);
+			std::printf("\n");
+		}
+	}
+	if (const char* GroundAt = std::getenv("WORLD_RIDE_GROUND_AT"))
+	{
+		// (debug: lat,lon,dx,dz: the ground and the roads by a point dx east and dz south of lat,lon)
+		double La = 0.0, Lo = 0.0, Dx = 0.0, Dz = 0.0;
+		std::sscanf(GroundAt, "%lf,%lf,%lf,%lf", &La, &Lo, &Dx, &Dz);
+		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
+		const P2 C = Fr.FromGeo(La, Lo) + P2(Dx, Dz);
+		for (const double Coarse : {1.0, 4.0, 8.0})
+			std::printf("GROUND coarse %.0f: %.3f (land %.3f)\n", Coarse, Plan->Ground(C.X, C.Z, Coarse), Plan->Land ? Plan->Land->Height(C.X, C.Z) : 0.0);
+		RidePlan::NearOpts Opts;
+		for (int Pass = 0; Pass < 4; ++Pass)
+		{
+			RidePlan::NearHit Hit;
+			if (!Plan->NearestOf(C.X, C.Z, Opts, Hit)) break;
+			std::printf("GROUND near road %d dist %.2f half %.2f height %.3f deck %d bore %d\n", Hit.Which, Hit.Dist, Hit.Half, Hit.Height + Hit.Cross, int(Hit.Deck), int(Hit.Bore));
+			Opts.NotRoad = Hit.Which;
+			if (Pass == 1) break;
+		}
+	}
 	if (const char* RoadsAt = std::getenv("WORLD_RIDE_ROADS_AT"))
 	{
 		// (debug: the laid roads within R of a point X,Z off the ride's start, X,Z,R, with their setts flags)
@@ -2752,15 +2864,41 @@ int main(int Argc, char** Argv)
 				}
 			}
 		}
+		// [real water] (WORLD_RIDE_PROBE=x,z[;x,z..] metres from the place: the ground there raw, cut, troughed and
+		// drawn, and the nearest water's level, to see why a stream stands over its banks)
+		if (const char* Probe = std::getenv("WORLD_RIDE_PROBE"))
+		{
+			std::string Spec = Probe;
+			size_t At0 = 0;
+			while (At0 < Spec.size())
+			{
+				const size_t End = Spec.find(';', At0);
+				const std::string One = Spec.substr(At0, End == std::string::npos ? std::string::npos : End - At0);
+				At0 = End == std::string::npos ? Spec.size() : End + 1;
+				double Px = 0.0, Pz = 0.0;
+				if (std::sscanf(One.c_str(), "%lf,%lf", &Px, &Pz) != 2) continue;
+				const double X = Centre.X + Px, Z = Centre.Z + Pz;
+				double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+				int Wk = -1;
+				bool Beside = false;
+				const bool Wet = Plan->NearWater(X, Z, Wd, Ws, Wh, Wdp, &Wk, &Beside);
+				std::printf("probe %.1f,%.1f: raw %.2f uncut %.2f trough %.2f drawn %.2f | water %d kind %d dist %.2f half %.2f level %.2f depth %.2f beside %d\n", Px, Pz,
+					Plan->Land ? Plan->Land->Height(X, Z) : -1.0, Plan->GroundUncut(X, Z, 0.0, false, false), Plan->GroundUncut(X, Z, 4.0, false, true),
+					Plan->LandDrawnAt(X, Z), int(Wet), Wk, Wd, Wh, Ws, Wdp, int(Beside));
+			}
+		}
 		// With WORLD_RIDE_MESH_R (metres round the place): the ground's finest squares there and what stands on them.
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr)
 		{
 			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
-			for (double Tz = std::floor((Centre.Z - Round) / 256.0) * 256.0; Tz < Centre.Z + Round; Tz += 256.0)
-				for (double Tx = std::floor((Centre.X - Round) / 256.0) * 256.0; Tx < Centre.X + Round; Tx += 256.0)
+			// ([real water] WORLD_RIDE_MESH_TILE=1024: the game's next squares out instead, 8 m apart, 400 m to 1.5 km off)
+			const double TileM = std::getenv("WORLD_RIDE_MESH_TILE") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_TILE")) : 256.0;
+			const int TileCells = TileM > 300.0 ? 128 : 64;
+			for (double Tz = std::floor((Centre.Z - Round) / TileM) * TileM; Tz < Centre.Z + Round; Tz += TileM)
+				for (double Tx = std::floor((Centre.X - Round) / TileM) * TileM; Tx < Centre.X + Round; Tx += TileM)
 				{
 					RideMesh Land;
-					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
+					Plan->LandTile(Tx, Tz, TileM, TileCells, Land);
 					const RideMesh* Extra = Land.Extra.get();
 					const RideMesh* Walls = Extra ? Extra->Stone.get() : nullptr;
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
@@ -2865,11 +3003,14 @@ int main(int Argc, char** Argv)
 		{
 			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
 			std::string Uvs;
-			for (double Tz = std::floor((Centre.Z - Round) / 256.0) * 256.0; Tz < Centre.Z + Round; Tz += 256.0)
-				for (double Tx = std::floor((Centre.X - Round) / 256.0) * 256.0; Tx < Centre.X + Round; Tx += 256.0)
+			// ([real water] WORLD_RIDE_MESH_TILE=1024: the game's next squares out instead, 8 m apart, 400 m to 1.5 km off)
+			const double TileM = std::getenv("WORLD_RIDE_MESH_TILE") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_TILE")) : 256.0;
+			const int TileCells = TileM > 300.0 ? 128 : 64;
+			for (double Tz = std::floor((Centre.Z - Round) / TileM) * TileM; Tz < Centre.Z + Round; Tz += TileM)
+				for (double Tx = std::floor((Centre.X - Round) / TileM) * TileM; Tx < Centre.X + Round; Tx += TileM)
 				{
 					RideMesh Land;
-					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
+					Plan->LandTile(Tx, Tz, TileM, TileCells, Land);
 					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), static_cast<const RideMesh*>(Land.Water.get())})
 					{
 						if (Mesh == nullptr) continue;
@@ -2995,6 +3136,16 @@ int main(int Argc, char** Argv)
 		}
 		std::printf("Junctions: %zu with a through road; the ride on it through %d, comes in giving way at %d, leaves by a lesser road at %d; %d give-way lines on its own road\n",
 			Plan->Junctions.size(), Through, CameMinor, OntoMinor, Plan->JunctionGiveWayCount);
+		// [junction priority 168]
+		int Ahead = 0, Stops = 0;
+		for (const RidePlan::MappedMark& M : Plan->MainMapped)
+			if (M.Dir > 0 && (M.Kind == "give_way" || M.Kind == "stop")) { ++Ahead; Stops += M.Kind == "stop" ? 1 : 0; }
+		std::printf("Junctions: the through road's lines painted across the ride's at %d (%zu pieces); %d Give Way and Stop signs; %d lines the sat nav warns of (%d stops)\n",
+			Plan->JunctionThroughCount, Plan->JunctionPaint.size(), Plan->JunctionSignCount, Ahead, Stops);
+		std::printf("Junctions: the through road's far edge drawn on across at %zu\n", Plan->FarEdges.size());
+		if (std::getenv("WORLD_RIDE_JUNCTIONS"))
+			for (const auto& F : Plan->FarEdges)
+				std::printf("  far edge of road %lld end %lld: corner %+.0f, along the ride %.1f to %.1f m, %zu points\n", F.first / 2, F.first % 2, F.second.Sigma, F.second.RideFrom, F.second.RideTo, F.second.Pts.size());
 	}
 	for (const std::string& Note : Plan->TakeOutlineNotes()) std::printf("Outlines: %s\n", Note.c_str());   // [LiDAR stage 2]
 	{

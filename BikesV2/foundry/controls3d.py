@@ -555,46 +555,65 @@ def mirror_head(name, centre, eye, s, key, M, back_mat, depth=26.0):
             i2 = (i + 1) % m
             faces.append((j * m + i, j * m + i2, (j + 1) * m + i2, (j + 1) * m + i))
     faces += [tuple(range(m - 1, -1, -1)), tuple((len(back) - 1) * m + i for i in range(m))]
-    ob = B.mesh_obj(name, verts, faces, back_mat, True, 0, False)
+    # the head and the glass are surfaces of their own, a side at a time (the game finds and turns each one)
+    def own(mat, what):
+        c_ = mat.copy()
+        c_.name = f"{mat.name.split('.')[0].split('__')[0]}__{what}_{'l' if s > 0 else 'r'}"
+        return c_
+    ob = B.mesh_obj(name, verts, faces, own(back_mat, "mirror_head"), True, 0, False)
     B.bm_fix_normals(ob)
     gv = [B.V(*(c + n * 0.6 + side * (x * 0.93) + up * (z * 0.9))) for x, z in ol]
-    B.mesh_obj(name + "glass", gv, [tuple(range(m))], M["glass"], False)
+    B.mesh_obj(name + "glass", gv, [tuple(range(m))], own(M["glass"], "mirror_glass"), False)
     # the view this glass gives from the eye: the eye's ray reflected about the glass
     v = (c - Vector(eye)).normalized()
     r = v - 2 * v.dot(n) * n
-    return dict(centre=tuple(c), normal=tuple(n), back=tuple(-n), reflect=tuple(r), area=abs(sum(ol[i][0] * ol[(i + 1) % m][1] - ol[(i + 1) % m][0] * ol[i][1] for i in range(m)) / 2))
+    return dict(centre=tuple(c), normal=tuple(n), back=tuple(-n), reflect=tuple(r), reach=max(math.hypot(x, z) for x, z in ol), area=abs(sum(ol[i][0] * ol[(i + 1) % m][1] - ol[(i + 1) % m][0] * ol[i][1] for i in range(m)) / 2))
+
+
+def ball_path(first, mc, bk, reach=60.0):
+    """The stem's path to the head's ball joint: D.ball_path (one straight run into the back of the head)."""
+    return D.ball_path(first, mc, bk, reach)
+
+
+def W5(secs):
+    """A strap's sections for a ball_path from two first points: the root's two, one for the run and the ball's."""
+    return [secs[0], secs[1], secs[-2], secs[-1]]
 
 
 def mirror(fr, s, key, M, model, lines, hand):
     st = MIRRORS[key]
     eye = eye_point(model, hand)
     tag = s
+    # Every stem ends on the head's ball joint, D.BALL mm behind the middle of the glass, coming in from behind the
+    # head (ball_path): the game turns each head on that ball so the rider's own eyes see the road behind
+    # (beenster, build 166), and a stem that came in from the side came out through the glass.
     if st["kind"] == "stalk":
         root = fr.P(-70, 4, 18)
         mc = Vector(fr.P(60, -2, 150))
+        info = mirror_head(f"cmirror{tag}", mc, eye, s, key, M, M["chrome"] if key == "teardrop" else M["plastic"])
+        bk = Vector(info["back"])
         if key == "rect":
             B.cone(f"cmirrorboss{tag}", root, fr.P(-70, 4, 32), 12, 9.5, M["satin"], 16)
-            D.strap(f"cmstalk{tag}", [fr.P(-70, 4, 28), fr.P(-58, 16, 88), fr.P(10, 28, 118), fr.P(40, 18, 138)], [(9, 9), (9, 7), (11, 6.5), (16, 7.5)], M["plastic"])
+            D.strap(f"cmstalk{tag}", ball_path([fr.P(-70, 4, 28), fr.P(-58, 16, 88)], mc, bk, info["reach"]), W5([(9, 9), (9, 7), (10, 6.5), (9, 6), (7, 5.5)]), M["plastic"])
         else:
             B.cone(f"cmirrorboss{tag}", root, fr.P(-70, 4, 28), 8, 7, M["satin"] if key != "teardrop" else M["chrome"], 6)
             stalk = M["chrome"] if key == "teardrop" else M["satin"]
-            B.smooth_tube(f"cmstalk{tag}", [fr.P(-70, 4, 26), fr.P(-60, 12, 80), fr.P(18, 20, 120), fr.P(40, 18, 140)], 5.2, stalk)
-        info = mirror_head(f"cmirror{tag}", mc, eye, s, key, M, M["chrome"] if key == "teardrop" else M["plastic"])
+            B.smooth_tube(f"cmstalk{tag}", ball_path([fr.P(-70, 4, 26), fr.P(-60, 12, 80)], mc, bk, info["reach"]), 5.2, stalk)
     elif st["kind"] == "barend":
         g0, d, E, H = lines
         dv = Vector(d)
         e_ = Vector(E) + dv * 4
         D.lathe(f"cmirrorboss{tag}", tuple(e_ - dv * 21), tuple(dv), [(0, 0), (0, 9), (21, 9), (21, 15.5), (24, 17.5), (37, 17.5), (40, 15), (40, 0)], M["dark"], 40)
+        root = e_ + dv * 12
         if key == "barend_round":
-            root = e_ + dv * 12
             mc = root + Vector((-6, 26 * s, 86))
-            B.smooth_tube(f"cmstalk{tag}", [tuple(root + Vector((0, 6 * s, 10))), tuple(root + Vector((0, 14 * s, 42))), tuple(mc + Vector((14, -6 * s, -36))), tuple(mc + Vector((14, 0, -4)))], 5.6, M["dark"])
+            info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["dark"], 22)
+            B.smooth_tube(f"cmstalk{tag}", ball_path([tuple(root + Vector((0, 6 * s, 10))), tuple(root + Vector((0, 14 * s, 42)))], mc, Vector(info["back"]), info["reach"]), 5.6, M["dark"])
         else:
             # the teardrop head on a chrome arm that rises out and up from the bar end
-            root = e_ + dv * 12
             mc = root + Vector((-6, 44 * s, 80))
-            B.smooth_tube(f"cmstalk{tag}", [tuple(root + Vector((0, 6 * s, 10))), tuple(root + Vector((0, 18 * s, 40))), tuple(mc + Vector((14, -16 * s, -34))), tuple(mc + Vector((14, -6 * s, -4)))], 5.2, M["chrome"])
-        info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["chrome"] if key == "barend_teardrop" else M["dark"], 22)
+            info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["chrome"], 22)
+            B.smooth_tube(f"cmstalk{tag}", ball_path([tuple(root + Vector((0, 6 * s, 10))), tuple(root + Vector((0, 18 * s, 40)))], mc, Vector(info["back"]), info["reach"]), 5.2, M["chrome"])
     else:
         cowl = next((v for v in model["body"].get("panels", []) if v.get("cowl")), None)
         if not cowl:
@@ -610,20 +629,40 @@ def mirror(fr, s, key, M, model, lines, hand):
             return None
         root = Vector((hit[0], hit[1] - s * 6, hit[2]))
         if key == "fairing_aero":
-            mc = root + Vector((-34, 150 * s, 58))
+            mc = root + Vector((-52, 150 * s, 58))
             B.cone(f"cmirrorboss{tag}", tuple(root), tuple(root + Vector((0, 12 * s, 3))), 12, 9, M["plastic"], 16)
             info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["plastic"])
-            # the arm meets the BACK of the head (beenster, 16 Nov: it ran across the glass)
-            bk = Vector(info["back"])
-            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 8 * s, 2))), tuple(root + Vector((-6, 46 * s, 18))), tuple(mc + bk * 34 + Vector((0, -46 * s, -10))), tuple(mc + bk * 18 + Vector((0, -10 * s, -4)))],
-                    [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], M["plastic"])
+            D.strap(f"cmstalk{tag}", ball_path([tuple(root + Vector((0, 8 * s, 2))), tuple(root + Vector((-6, 46 * s, 18)))], mc, Vector(info["back"]), info["reach"]),
+                    W5([(16, 6), (14, 5.5), (11, 5.5), (9, 5.5), (7, 5.5)]), M["plastic"])
         else:
-            mc = root + Vector((-14, 96 * s, 22))
+            mc = root + Vector((-62, 122 * s, 26))
             info = mirror_head(f"cmirror{tag}", tuple(mc), eye, s, key, M, M["plastic"], 22)
-            bk = Vector(info["back"])
-            D.strap(f"cmstalk{tag}", [tuple(root + Vector((0, 4 * s, 0))), tuple(root + Vector((-6, 40 * s, 10))), tuple(mc + bk * 16 + Vector((0, -30 * s, -4)))], [(26, 6), (22, 5), (18, 5)], M["plastic"])
+            D.strap(f"cmstalk{tag}", ball_path([tuple(root + Vector((0, 4 * s, 0))), tuple(root + Vector((10, 24 * s, 5)))], mc, Vector(info["back"]), info["reach"]),
+                    W5([(20, 6), (12, 5), (8, 5), (7, 5), (7, 5)]), M["plastic"])
+    behind_glass(tag, info)
     info["eye"] = eye
     return info
+
+
+def behind_glass(tag, info):
+    """Nothing of the arm or its boss may stand nearer the rider than 3 mm behind the glass, anywhere under it
+    (beenster, build 166: arms poking through the mirror heads; the wing mirror's wide arm came 24 mm through)."""
+    glass = bpy.data.objects.get(f"cmirror{tag}glass")
+    if not glass:
+        return
+    mc, n = Vector(info["centre"]) * B.MM, Vector(info["normal"]).normalized()
+    reach = max((glass.matrix_world @ v.co - mc).length for v in glass.data.vertices) + 0.004
+    for nm in (f"cmstalk{tag}", f"cmirrorboss{tag}"):
+        ob = D.mesh_now(nm)
+        if not ob:
+            continue
+        inv = ob.matrix_world.inverted()
+        for vt in ob.data.vertices:
+            w = ob.matrix_world @ vt.co
+            dep = (w - mc).dot(n)
+            if dep > -0.003 and ((w - mc) - n * dep).length < reach:
+                vt.co = inv @ (w - n * (dep + 0.003))
+        ob.data.update()
 
 
 # ---------------------------------------------------------------- fitting

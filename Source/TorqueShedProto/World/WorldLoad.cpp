@@ -148,8 +148,37 @@ int KnowStreets(CellStore& Store, Route::MapStreets& Streets, const Route::MapVi
 		++Loaded;
 		if (LoadedOut != nullptr) *LoadedOut = Loaded;
 		if (D.empty() && (!Store.FetchCells({C}).empty() || (D = Region::CellDir(Roots, C)).empty())) { ++Missing; continue; }
-		std::shared_ptr<const Route::MapStreets::Cell> Got = Route::MapStreets::Read(D);
+		std::shared_ptr<Route::MapStreets::Cell> Got = Route::MapStreets::Read(D);
 		if (!Got) { ++Missing; continue; }
+		if (Idx)
+		{
+			// [map water] Its lakes and rivers' banks (its ground file) and its rivers, canals and streams.
+			Region Wet;
+			const Geo Mid = CellMiddle(C);
+			Wet.FrameLat = Mid.Lat;
+			Wet.FrameLon = Mid.Lon;
+			Json File;
+			if (Store.Kept(CellStore::EKind::Grounds, C.Name(), *Idx, File)) Wet.AddGround(File);
+			if (Store.Kept(CellStore::EKind::Streams, C.Name(), *Idx, File))
+				if (const Json* Rows = File.Get("streams"))
+					if (Rows->IsArray()) Wet.AddStreams(*Rows);
+			const Frame F = Wet.FrameOf();
+			const auto Geos = [&F](const std::vector<P2>& Pts)
+			{
+				std::vector<std::pair<float, float>> Out;
+				Out.reserve(Pts.size());
+				for (const P2& Q : Pts)
+				{
+					const Geo G = F.ToGeo(Q.X, Q.Z);
+					Out.emplace_back(float(G.Lat), float(G.Lon));
+				}
+				return Out;
+			};
+			for (const GroundShape& G : Wet.Ground.Areas)
+				if (G.Pts.size() >= 3 && Route::MapStreets::Cell::IsWater(G.Kind, G.Word)) Got->Water.push_back(Geos(G.Pts));
+			for (const Stream& S : Wet.Streams)
+				if (S.Line.size() >= 2) Got->Flows.push_back({S.Kind, Geos(S.Line)});
+		}
 		Streets.Put(C, std::move(Got));
 	}
 	return Missing;

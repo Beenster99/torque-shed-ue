@@ -2123,6 +2123,13 @@ def controls(model, c):
         # mirror: a stem from the perch, a ball joint, and a shaped head with the glass facing back
         root = (bx + 4, yc, bz + 18)
         mc = (bx - 2, s * 318, bz + 150)
+        def stem_path(first, mc_, reach):
+            # the head is turned on its ball afterwards (aim_mirrors): the stem is drawn for the head as aimed
+            from mathutils import Vector
+            ball = Vector((mc_[0] + BALL, mc_[1], mc_[2]))
+            v_ = (Vector(mc_) - Vector((c.get("model_hip", 0) + 80, 0, 1560))).normalized()
+            n1 = (Vector((-1.0, s * 0.14, -0.05)).normalized() - v_).normalized()
+            return ball_path(first, ball + n1 * BALL, -n1, reach)
         cowl = next((v for v in model["body"].get("panels", []) if v.get("cowl")), None) if model["family"].lower() == "sport" else None
         hit = None
         if cowl:
@@ -2135,28 +2142,32 @@ def controls(model, c):
                     break
         if hit:
             root = (hit[0], hit[1] - s * 6, hit[2])
-            mc = (root[0] - 34, root[1] + s * 150, root[2] + 58)
+            mc = (root[0] - 52, root[1] + s * 150, root[2] + 58)
             B.cone(f"mirrorboss{s}", root, (root[0], root[1] + s * 12, root[2] + 3), 12, 9, plastic, 16)
-            strap(f"mstalk{s}", [(root[0], root[1] + s * 8, root[2] + 2), (root[0] - 8, root[1] + s * 48, root[2] + 22), (mc[0] + 16, mc[1] - s * 52, mc[2] - 12), (mc[0] + 14, mc[1] - s * 8, mc[2] - 4)],
-                  [(16, 6), (14, 5.5), (15, 5.5), (18, 6)], plastic)
+            # (every stem ends on the head's ball joint, BALL mm behind the middle of the glass, coming in from
+            # behind the head: the game turns the head on that ball to aim the glass, and a stem that came in
+            # from the side came out through the glass. Under the wide glass the stem keeps deep behind it, so the
+            # glass's edge clears it when the head is turned 20 degrees: the same shape as controls3d.ball_path)
+            strap(f"mstalk{s}", stem_path([(root[0], root[1] + s * 8, root[2] + 2), (root[0] - 6, root[1] + s * 46, root[2] + 18)], mc, 86),
+                  [(16, 6), (14, 5.5), (10, 5.5), (7, 5.5)], plastic)
         elif barend:
             # bar-end mirrors (beenster, cafe round 2): a clamp on the end of the bar, a short stem standing up
             # and out from it, and a round head
             e_ = tuple(g0[i] + d[i] * (L_ + 24) for i in range(3))
             mc = (e_[0] - 6, e_[1] + s * 26, e_[2] + 104)
             lathe(f"mirrorboss{s}", e_, d, [(0, 0), (0, 15), (3, 17.5), (15, 17.5), (18, 15), (18, 0)], B.mat("alu_dark"), 28)
-            B.smooth_tube(f"mstalk{s}", [(e_[0], e_[1] + s * 9, e_[2] + 12), (e_[0] - 1, e_[1] + s * 12, e_[2] + 40), (mc[0] + 16, mc[1] - s * 4, mc[2] - 50), (mc[0] + 16, mc[1], mc[2] - 8)], 5.6, B.mat("alu_dark"))
+            B.smooth_tube(f"mstalk{s}", stem_path([(e_[0], e_[1] + s * 9, e_[2] + 12), (e_[0] - 1, e_[1] + s * 12, e_[2] + 40)], mc, 54), 5.6, B.mat("alu_dark"))
         else:
             if opt.get("mirrors") == "adv":
                 # substantial but stylish (beenster, adventure round 2): a cast aero stem, wide where it leaves
                 # the perch and at the head, and a bigger five-sided head
                 mc = (bx - 6, s * 336, bz + 158)
                 B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 14), 12, 9.5, satin, 16)
-                strap(f"mstalk{s}", [(root[0], root[1], root[2] + 10), (root[0] + 12, yc + s * 10, root[2] + 70), (mc[0] + 30, s * 262, mc[2] - 44), (mc[0] + 24, s * 300, mc[2] - 12), (mc[0] + 16, s * 318, mc[2] - 2)],
-                      [(9, 9), (9, 7), (10, 6.5), (13, 7), (20, 8)], plastic)
+                strap(f"mstalk{s}", stem_path([(root[0], root[1], root[2] + 10), (root[0] + 12, yc + s * 10, root[2] + 70)], mc, 92),
+                      [(9, 9), (9, 7), (9, 6), (7, 5.5)], plastic)
             else:
                 B.cone(f"mirrorboss{s}", root, (root[0], root[1], root[2] + 10), 8, 7, satin, 6)
-                B.smooth_tube(f"mstalk{s}", [(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62), (mc[0] + 22, s * 262, mc[2] - 30), (mc[0] + 20, s * 290, mc[2] - 6)], 5.2, satin)
+                B.smooth_tube(f"mstalk{s}", stem_path([(root[0], root[1], root[2] + 8), (root[0] + 10, yc + s * 8, root[2] + 62)], mc, 86), 5.2, satin)
         outline = chaikin([(s * -86, -10), (s * -64, 30), (s * 10, 44), (s * 76, 32), (s * 86, -4), (s * 58, -36), (s * -52, -40)], 3)
         if opt.get("mirrors") == "adv":
             outline = chaikin([(s * -86, -18), (s * -74, 30), (s * 8, 50), (s * 84, 35), (s * 92, -12), (s * 50, -44), (s * -52, -42)], 1)
@@ -3521,11 +3532,52 @@ def shots(build3d, name, tags, samples=24):
     return out
 
 
+BALL = 14.0     # a mirror head's ball joint: this far behind the middle of its glass (mm); the game's AimMirrors uses the same
+
+
+def ball_path(first, mc, bk, reach=60.0):
+    """A stem's path (beenster, build 167 sketch: no turning in towards the back of the head): its first points
+    from the root, then one straight run past the inner edge of the head and into its back, ending on the ball
+    joint BALL mm behind the middle of the glass. bk: the unit direction out of the back of the head; reach: how
+    far the glass spreads from its middle. The run stands off the glass by 0.40 mm for each mm out from the
+    ball (the game turns the head up to 20 degrees on that ball, tan 20 = 0.36), so the glass never meets it."""
+    from mathutils import Vector
+    mc, bk = Vector(mc), Vector(bk).normalized()
+    last = Vector(first[-1])
+    d = last - mc
+    d -= bk * d.dot(bk)                # across the back of the head, towards where the stem comes from
+    far = d.length
+    u = d / far if far > 1e-6 else Vector((0, 0, 0))
+    edge = min(far, reach + 10.0)      # where the stem passes the glass's edge
+    ball = mc + bk * BALL
+    outer = mc + bk * (BALL + 0.40 * edge) + u * edge
+    if far <= edge + 20.0 and (last - mc).dot(bk) >= BALL + 0.40 * far - 6.0:
+        outer = (last + ball) / 2      # (already behind the head and close: straight in)
+    return [tuple(q) for q in first] + [tuple(outer), tuple(ball)]
+
+
+def mesh_now(name):
+    """The object as a mesh we can move point by point: a curve (a smooth_tube stem) is frozen into its mesh."""
+    ob = bpy.data.objects.get(name)
+    if not ob or ob.type == "MESH":
+        return ob
+    me = bpy.data.meshes.new_from_object(ob.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    new = bpy.data.objects.new(name + "_m", me)
+    new.matrix_world = ob.matrix_world.copy()
+    for col in ob.users_collection:
+        col.objects.link(new)
+    for poly in me.polygons:
+        poly.use_smooth = True
+    bpy.data.objects.remove(ob, do_unlink=True)
+    new.name = name
+    return new
+
+
 def aim_mirrors(model, c):
     """Each mirror head turned on its ball joint so the rider sees the road behind in it (beenster, build 155:
     the glass faced straight back, so from the saddle it showed the ground beside the bike). The glass's normal
     halves the angle between the line from the eye and the view wanted: back, a little down and a little out."""
-    from mathutils import Vector
+    from mathutils import Vector, Quaternion
     eye = Vector((c["model_hip"] + 80, 0, 1560)) * B.MM
     done = []
     for s in (-1, 1):
@@ -3546,17 +3598,107 @@ def aim_mirrors(model, c):
         want = Vector((-1.0, side * 0.14, -0.05)).normalized()
         n1 = (want - v).normalized()
         rot = n0.rotation_difference(n1).to_matrix()
+        # the head turns on its ball joint, BALL mm behind the middle of the glass, where the stem ends: the stem
+        # stays where it is (the game turns the head the same way, from the rider's real eyes)
+        ball = mc - n0 * (BALL * B.MM)
         for ob in (glass, head):
             if not ob:
                 continue
             inv = ob.matrix_world.inverted()
             for vt in ob.data.vertices:
                 w = ob.matrix_world @ vt.co
-                vt.co = inv @ (mc + rot @ (w - mc))
+                vt.co = inv @ (ball + rot @ (w - ball))
             ob.data.update()
         done.append(round(math.degrees(n0.angle(n1))))
     if done:
         print(f"mirrors aimed at the road behind: turned {done} degrees")
+    mirror_poke(model)
+
+
+def mirror_poke(model, quiet=False):
+    """Every piece of the bike that cuts through a mirror's glass (beenster, build 166: stems poking through
+    the mirror heads). Measured on the built meshes: any triangle of anything else that crosses the glass."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    bad = []
+    for s in (-1, 1):
+        glass = bpy.data.objects.get(f"mirrorglass{s}")
+        if not glass or not glass.data.polygons:
+            continue
+        gt = BVHTree.FromObject(glass, dg)
+        gpts = [glass.matrix_world @ v.co for v in glass.data.vertices]
+        lo = [min(q[i] for q in gpts) - 0.01 for i in range(3)]
+        hi = [max(q[i] for q in gpts) + 0.01 for i in range(3)]
+        for ob in bpy.data.objects:
+            if ob.type != "MESH" or ob is glass or not ob.data.polygons or ob.hide_render:
+                continue
+            bb = [ob.matrix_world @ B.V(*c_) if False else ob.matrix_world @ __import__("mathutils").Vector(c_) for c_ in ob.bound_box]
+            if any(max(q[i] for q in bb) < lo[i] or min(q[i] for q in bb) > hi[i] for i in range(3)):
+                continue
+            pairs = gt.overlap(BVHTree.FromObject(ob, dg))
+            if pairs:
+                bad.append(f"{ob.name} through mirrorglass{s}")
+                if os.environ.get("MIRROR_DEBUG"):
+                    gc = sum(gpts, __import__("mathutils").Vector()) / len(gpts)
+                    gn = (glass.matrix_world.to_3x3() @ glass.data.polygons[0].normal).normalized()
+                    ev = ob.evaluated_get(dg)
+                    for _, j in pairs[:6]:
+                        pc = ev.matrix_world @ ev.data.polygons[j].center
+                        print("  poke", ob.name, [round(x * 1000, 1) for x in (pc - gc)], "depth", round((pc - gc).dot(gn) * 1000, 1), "n", [round(x, 2) for x in gn])
+                    ds = [((ev.matrix_world @ v.co) - gc).dot(gn) * 1000 for v in ev.data.vertices]
+                    print("  depth range of", ob.name, round(min(ds), 1), round(max(ds), 1))
+    bad += mirror_tilt()
+    if not quiet:
+        print(f"MIRROR POKE {model.get('name', '')}: " + ("; ".join(bad) if bad else "none"))
+    return bad
+
+
+def mirror_tilt(prefix="", tilt=20.0):
+    """The same check with each head turned on its ball joint every way the game may turn it (tilt degrees up,
+    down, in and out, and the diagonals): the glass must stay clear of the stem and boss throughout."""
+    from mathutils import Vector, Matrix
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    bad = []
+    for nm in [o.name for o in bpy.data.objects if o.type != "MESH" and o.name.startswith(
+            (prefix + "mstalk", prefix + "mirrorboss", prefix + "mstub"))]:
+        mesh_now(nm)                         # (freezing a curve stem replaces its object: do it before the walk)
+    for gname in [o.name for o in bpy.data.objects if o.type == "MESH" and o.name.startswith(prefix + "mirror") and "glass" in o.name]:
+        ob = bpy.data.objects[gname]
+        if not ob.data.polygons:
+            continue
+        key = ob.name.replace("glass", "")[len(prefix + "mirror"):]
+        mw = ob.matrix_world
+        pts = [mw @ v.co for v in ob.data.vertices]
+        mc = sum(pts, Vector()) / len(pts)
+        n = (mw.to_3x3() @ ob.data.polygons[0].normal).normalized()
+        head = bpy.data.objects.get(ob.name.replace("glass", ""))
+        if head:
+            hc = sum((head.matrix_world @ v.co for v in head.data.vertices), Vector()) / len(head.data.vertices)
+            if (hc - mc).dot(n) > 0:
+                n = -n                       # (the head is behind the glass)
+        ball = mc - n * (BALL * B.MM)
+        side = n.cross(Vector((0, 0, 1))).normalized()
+        up = side.cross(n).normalized()
+        others = []
+        for nm in ("mstalk", "mirrorboss", "mstub"):
+            o2 = mesh_now(prefix + nm + key)
+            if o2 and o2.type == "MESH" and o2.data.polygons:
+                w2 = o2.matrix_world
+                others.append((o2.name, BVHTree.FromPolygons([w2 @ v.co for v in o2.data.vertices],
+                                                             [tuple(p_.vertices) for p_ in o2.data.polygons], epsilon=0.0)))
+        faces = [tuple(p.vertices) for p in ob.data.polygons]
+        hit = set()
+        for k in range(8):
+            ax = (side * math.cos(k * math.pi / 4) + up * math.sin(k * math.pi / 4)).normalized()
+            rot = Matrix.Rotation(math.radians(tilt), 3, ax)
+            moved = [ball + rot @ (q - ball) for q in pts]
+            gt = BVHTree.FromPolygons(moved, faces, epsilon=0.0)
+            for nm, tr in others:
+                if gt.overlap(tr):
+                    hit.add(nm)
+        bad += [f"{nm} through {ob.name} when the head is turned {tilt:g} degrees" for nm in sorted(hit)]
+    return bad
 
 
 def bar_slant(model, c):

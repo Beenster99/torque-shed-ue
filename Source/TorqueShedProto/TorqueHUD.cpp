@@ -749,7 +749,12 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 			Say(What.Left(30), RX + 62.0f, NY + 50.0f, 13.0f, Dim(0.8f));
 			Say(FString::Printf(TEXT("%s to go"), *FTorqueDash::NavDistance(D.NavLeft, bMetric)), RX + 62.0f, NY + 66.0f, 12.0f, Dim(0.6f));
 		}
-		if (!D.NavStop.IsEmpty()) Say(D.NavStop.Left(36), RX + 12.0f, NY + 82.0f, 12.0f, FLinearColor(0.75f, 0.9f, 1.0f, 0.85f));
+		// [junction priority 168] (a give-way or stop line coming up across the rider's lane: said in its place,
+		// in the signs' red)
+		if (!D.bNavOff && D.NavGiveWay >= 0.0)
+			Say(FString::Printf(TEXT("%s  %s"), D.bNavGiveWayStop ? TEXT("STOP") : TEXT("GIVE WAY"), D.NavGiveWay < 8.0 ? TEXT("now") : *FTorqueDash::NavDistance(D.NavGiveWay, bMetric)),
+				RX + 12.0f, NY + 82.0f, 12.0f, FLinearColor(1.0f, 0.35f, 0.3f, 0.95f));
+		else if (!D.NavStop.IsEmpty()) Say(D.NavStop.Left(36), RX + 12.0f, NY + 82.0f, 12.0f, FLinearColor(0.75f, 0.9f, 1.0f, 0.85f));
 		// [OSM stage 1] The limit as a road sign, beside the sat nav: big for a few seconds when it
 		// changes, then small; a limit the map doesn't give (assumed) a little dimmer. The road's name
 		// under it. Nothing on a farm track (no limit shown).

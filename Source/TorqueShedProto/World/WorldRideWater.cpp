@@ -171,6 +171,11 @@ void RidePlan::IndexWater()
 				Level[I] = Sum / Count;
 			}
 		}
+		// ([real water, beenster on 166: "for streams it floated above the ground"] the easing spreads a fall
+		// over the points round it, which lifted the water below a step up over its own banks, up to a metre
+		// at Gayle's falls, the land beside it lower than the stream: now never above the lowest of the land
+		// across it, so a beck drops down its steps as they come, white where it falls)
+		for (size_t I = 0; I < N; ++I) Level[I] = std::fmin(Level[I], Low[I]);
 		for (size_t I = 1; I < N; ++I) Level[I] = std::fmin(Level[I], Level[I - 1]);
 		const double Under = Flow.Kind == 1 ? 0.12 : 0.25;
 		Run.Surface.resize(N);

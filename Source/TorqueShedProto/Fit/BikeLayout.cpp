@@ -766,7 +766,7 @@ void V2Stats(const Json* FramePart, BuildStats& S)
 
 // The V2 bike's own points over the solved ones (the rest of the layout, the engine's hard points
 // and the tank's lines, stays the catalogue's: only the bodywork the game no longer draws used them).
-void V2Layout(const Json* FramePart, Layout& R)
+void V2Layout(const Json* FramePart, const Json* BarPart, Layout& R)
 {
 	const V2Frame F = V2Frame::Of(FramePart);
 	if (!F.Valid) return;
@@ -793,6 +793,21 @@ void V2Layout(const Json* FramePart, Layout& R)
 	// (The right-hand peg and grip, as the solver gives them: the drawing's are the left ones.)
 	if (F.Named("peg", R.Peg)) R.Peg.z = std::fabs(R.Peg.z);
 	if (F.Named("grip", R.GripR)) R.GripR.z = std::fabs(R.GripR.z);
+	// [common parts] A common bar fitted (ape hangers, clip-ons...): the grips are where that bar puts them, as
+	// BikeParts::V2Common moves the drawn grips, levers and switches to (beenster, build 167: "ape bars dont
+	// seem to work": everything on the bar went up with it but the rider's hands stayed at the bike's own grips).
+	if (const Json* BarCommon = Sub(BarPart, "common"))
+	{
+		const Json* GripOff = Sub(BarCommon, "grip_offset_mm");
+		const Json* OwnGrip = Sub(F.Points, "grip");
+		const Json* SteerTop = Sub(F.Points, "steer_top");
+		if (GripOff && GripOff->A.size() >= 3 && OwnGrip && OwnGrip->A.size() >= 3 && SteerTop && SteerTop->A.size() >= 3)
+		{
+			const double OwnY = std::fabs(OwnGrip->A[1].N) > 50.0 ? std::fabs(OwnGrip->A[1].N) : Num(BarCommon, "grip_y_mm", 320.0);
+			R.GripR = F.Point(SteerTop->A[0].N + GripOff->A[0].N, Num(BarCommon, "grip_y_mm", OwnY), SteerTop->A[2].N + GripOff->A[2].N);
+			R.GripR.z = std::fabs(R.GripR.z);
+		}
+	}
 	R.BarBackM = 0.0;
 	R.BarUpM = 0.0;
 	// Built as one bike: nothing to fabricate between its frame and whatever engine is in it.
@@ -1141,7 +1156,7 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	R.EngineMax = V3(std::max(Bm.x, Bx.x), std::max(Bm.y, Bx.y), std::max(Bm.z, Bx.z));
 	R.FrontClear = Nearest;
 	R.Fit = FitOf(R, Engine, FrontClearWant, Notes);
-	if (Sub(Frame, "v2")) V2Layout(Frame, R);   // [bikes v2]
+	if (Sub(Frame, "v2")) V2Layout(Frame, Part(Get(Parts, "handlebars")), R);   // [bikes v2]
 	return R;
 }
 

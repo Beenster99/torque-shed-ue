@@ -73,7 +73,8 @@ private:
 
 	// The map: the view, where it is on the screen (and how many screen pixels a picture's pixel is),
 	// the picture shown and the view it was drawn for.
-	TorqueWorld::Route::MapView View;
+	TorqueWorld::Route::MapView View = SatNavFirst();   // [planner map] (opens on the sat nav's map: beenster, Nov 21)
+	static TorqueWorld::Route::MapView SatNavFirst() { TorqueWorld::Route::MapView V; V.Layer = TorqueWorld::Route::SatNav; return V; }
 	FVector2D MapPos = FVector2D::ZeroVector, MapSize = FVector2D(1.0, 1.0);
 	double PixelScale = 1.0;
 	float UiScale = 1.0f;

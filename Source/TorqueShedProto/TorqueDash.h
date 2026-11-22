@@ -56,6 +56,8 @@ struct FTorqueDash
 	static FString ExitWords(int32 Exit);   // "Roundabout, 2nd exit"
 	double NavLeft = 0.0;       // metres to the finish
 	FString NavStop;            // the next fuel or cafe ahead: "Cafe 2.1 mi: Penny Garth"
+	double NavGiveWay = -1.0;   // [junction priority 168] the next give-way or stop line across the rider's lane (m), -1 none near
+	bool bNavGiveWayStop = false;
 	bool bAtFuel = false;       // at a filling station by the road: stopped there, the tank fills
 	// [OSM stage 1] The road's facts: the limit as a sign shows it (0 none), in mph or km/h, Britain's
 	// national limit, assumed (no limit on the map here: shown dimmer); the road's name; the place.

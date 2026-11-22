@@ -13,6 +13,13 @@ else()
   target_compile_options(sim_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
 endif()
 
+add_executable(stop_test stop_test.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp)
+if(MSVC)
+  target_compile_options(stop_test PRIVATE /W4)
+else()
+  target_compile_options(stop_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
+endif()
+
 set(SOUND ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/TorqueAudio)
 add_executable(sound_test sound_test.cpp ${SOUND}/RideSound.cpp ${SOUND}/EngineSynth.cpp)
 target_include_directories(sound_test PRIVATE ${SOUND})
@@ -154,6 +161,7 @@ endif()
 # Reading the real world (Ride UK stage 1): the grid, the height tiles, cells stitched into a road
 # graph and the ground's height, against the Godot game's answers on the same files.
 set(WORLD ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/World)
+set(DASH ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Dash)
 add_executable(route_test route_test.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${FIT}/FitJson.cpp)
 target_include_directories(route_test PRIVATE ${WORLD} ${FIT})
 target_compile_definitions(route_test PRIVATE TORQUE_ROUTE_PLACES="${CMAKE_CURRENT_SOURCE_DIR}/../Data/World/uk_places.tsv" TORQUE_ROUTE_FAMOUS="${CMAKE_CURRENT_SOURCE_DIR}/../Data/RideUK/famous_roads.json")
@@ -179,8 +187,9 @@ endif()
 if(NOT WIN32)
   add_executable(world_ride world_ride.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
     ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldTide.cpp ${WORLD}/WorldLevelCrossing.cpp ${WORLD}/WorldTrains.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideTownLife.cpp ${WORLD}/WorldRideCarParks.cpp ${WORLD}/WorldCircuits.cpp ${WORLD}/WorldRideCircuits.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRideFerry.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideGardens.cpp ${WORLD}/WorldRideChurches.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${WORLD}/WorldFerries.cpp ${FIT}/FitJson.cpp)
-  target_include_directories(world_ride PRIVATE ${WORLD} ${FIT})
+    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldTide.cpp ${WORLD}/WorldLevelCrossing.cpp ${WORLD}/WorldTrains.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRideLife.cpp ${WORLD}/WorldRideSurface.cpp ${WORLD}/WorldRideRoadX.cpp ${WORLD}/WorldRidePlaces.cpp ${WORLD}/WorldRideTownLife.cpp ${WORLD}/WorldRideCarParks.cpp ${WORLD}/WorldCircuits.cpp ${WORLD}/WorldRideCircuits.cpp ${WORLD}/WorldRideRoundabout.cpp ${WORLD}/WorldRideDual.cpp ${WORLD}/WorldRideSigns.cpp ${WORLD}/WorldRideDirections.cpp ${WORLD}/WorldRideWater.cpp ${WORLD}/WorldRideSites.cpp ${WORLD}/WorldRideNav.cpp ${WORLD}/WorldRideFerry.cpp ${WORLD}/WorldRoam.cpp ${WORLD}/WorldRideDiary.cpp ${WORLD}/WorldCache.cpp ${WORLD}/WorldRideHero.cpp ${WORLD}/WorldRideFacts.cpp ${WORLD}/WorldRideProps.cpp ${WORLD}/WorldRideSkyline.cpp ${WORLD}/WorldRideFields.cpp ${WORLD}/WorldRideWild.cpp ${WORLD}/WorldRideBuildings.cpp ${WORLD}/WorldRideGardens.cpp ${WORLD}/WorldRideChurches.cpp ${WORLD}/WorldRideOutlines.cpp ${WORLD}/WorldRideTowns.cpp ${WORLD}/WorldRideTowers.cpp ${WORLD}/WorldRideStyle.cpp ${WORLD}/WorldRoute.cpp ${WORLD}/WorldRouteMap.cpp ${WORLD}/WorldRoadLine.cpp ${WORLD}/WorldFerries.cpp ${FIT}/FitJson.cpp
+    ${DASH}/TftMap.cpp ${DASH}/TftMapFill.cpp ${DASH}/TftPlannerMap.cpp)
+  target_include_directories(world_ride PRIVATE ${WORLD} ${FIT} ${WORLD}/..)
   target_compile_definitions(world_ride PRIVATE TORQUE_SIMTEST="${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(world_ride PRIVATE Threads::Threads)
   target_compile_options(world_ride PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
@@ -248,6 +257,13 @@ else()
 endif()
 
 # [common parts] every common part on every V2 bike it suits
+add_executable(mirror_test mirror_test.cpp)
+target_include_directories(mirror_test PRIVATE ${FIT})
+if(MSVC)
+  target_compile_options(mirror_test PRIVATE /W4)
+else()
+  target_compile_options(mirror_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
 add_executable(commonparts_test commonparts_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
 target_include_directories(commonparts_test PRIVATE ${FIT} ${SIM})
 if(MSVC)

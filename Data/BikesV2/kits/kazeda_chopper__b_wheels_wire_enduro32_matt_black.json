@@ -1,0 +1,271 @@
+{
+ "name": "Kazeda chopper (working title H3)",
+ "format": 2,
+ "kit": true,
+ "triangles": 13812,
+ "surfaces": {
+  "s000": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_wheel_matt_black",
+   "tag": "d3_wheel_matt_black",
+   "ue": "cat_plastic",
+   "color": [
+    0.022,
+    0.022,
+    0.024
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6
+  },
+  "s001": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_wheel_anodised_gold",
+   "tag": "d3_wheel_anodised_gold",
+   "ue": "cat_anodised",
+   "color": [
+    0.75,
+    0.46,
+    0.05
+   ],
+   "metallic": 1.0,
+   "roughness": 0.18
+  },
+  "s002": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s003": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_soot",
+   "tag": "d3_soot",
+   "ue": "cat_plastic",
+   "color": [
+    0.006,
+    0.006,
+    0.006
+   ],
+   "metallic": 0.0,
+   "roughness": 0.95
+  },
+  "s004": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_wheel_machined",
+   "tag": "d3_wheel_machined",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s005": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "d3_spoke_black",
+   "tag": "d3_spoke_black",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.6,
+   "roughness": 0.35
+  },
+  "s006": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_wheel_matt_black",
+   "tag": "d3_wheel_matt_black",
+   "ue": "cat_plastic",
+   "color": [
+    0.022,
+    0.022,
+    0.024
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6
+  },
+  "s007": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_wheel_anodised_gold",
+   "tag": "d3_wheel_anodised_gold",
+   "ue": "cat_anodised",
+   "color": [
+    0.75,
+    0.46,
+    0.05
+   ],
+   "metallic": 1.0,
+   "roughness": 0.18
+  },
+  "s008": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s009": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_soot",
+   "tag": "d3_soot",
+   "ue": "cat_plastic",
+   "color": [
+    0.006,
+    0.006,
+    0.006
+   ],
+   "metallic": 0.0,
+   "roughness": 0.95
+  },
+  "s010": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_wheel_machined",
+   "tag": "d3_wheel_machined",
+   "ue": "cat_polished_alloy",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metallic": 1.0,
+   "roughness": 0.16
+  },
+  "s011": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "d3_spoke_black",
+   "tag": "d3_spoke_black",
+   "ue": "cat_black_metal",
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "metallic": 0.6,
+   "roughness": 0.35
+  },
+  "s046": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "disc_front",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s047": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "disc_front"
+  },
+  "s050": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s125": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "disc_rear",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s126": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber",
+   "sub": "disc_rear"
+  },
+  "s127": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "alu_dark",
+   "tag": "alu_dark",
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "s132": {
+   "slot": "front_wheel",
+   "node": "front_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  },
+  "s133": {
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
+   "surface": "rubber",
+   "tag": "rubber",
+   "ue": "cat_rubber"
+  }
+ },
+ "bespoke": {
+  "group": "wheels",
+  "design": "wire_enduro32",
+  "metal": "matt_black",
+  "name": "32 heavy spoke wire wheel, matt black",
+  "note": ""
+ }
+}

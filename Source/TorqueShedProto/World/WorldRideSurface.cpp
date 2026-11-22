@@ -131,9 +131,10 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 		if (M.To >= From && M.From <= To) Out.push_back(M);
 	}
 	// Grit down the middle of a single-track lane, where the tyres never go, out in the country.
+	// ([build 168] beenster on 167: "more sparse": on a little over half the lane's 30 m stretches, not 70%)
 	for (int B = int(std::floor(From / 30.0)); double(B) * 30.0 < To; ++B)
 	{
-		if (B < 0 || Dice(Which, B, 21) >= 0.7) continue;
+		if (B < 0 || Dice(Which, B, 21) >= 0.55) continue;
 		const double A0 = double(B) * 30.0, A1 = std::min(A0 + 30.0, RoadLen);
 		if (HalfAt(Pts, A0) >= 2.0 || HalfAt(Pts, A1) >= 2.0 || Built(A0) || Tunnel(A0)) continue;
 		RoadMark M;
@@ -144,7 +145,7 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 		M.Left = Wide * 0.5;
 		M.Right = -Wide * 0.5;
 		M.Lift = 0.002;
-		ColourMark(M, 0.085f, 0.08f, 0.062f);
+		ColourMark(M, 0.06f, 0.062f, 0.085f);   // (WorldRide's LaneGrit: M_RideRoad's key for the lane's grit)
 		if (M.To >= From && M.From <= To) Out.push_back(M);
 	}
 	// Iron covers in a town's road: the drains and the water mains, in the wheel tracks more than not.
@@ -183,6 +184,13 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 	}
 	// [OSM stage 5] What the map puts on it: give-way and stop lines, crossings, humps, passing places.
 	MappedMarks(Which, From, To, Out);
+	// [junction priority 168] The through roads' lines painted on across the ride's road (none over 2 m long).
+	if (Main && !JunctionPaint.empty())
+	{
+		auto It = std::lower_bound(JunctionPaint.begin(), JunctionPaint.end(), From - 2.0, [](const RoadMark& M, double A) { return M.From < A; });
+		for (; It != JunctionPaint.end() && It->From <= To; ++It)
+			if (It->To >= From && !(It->EdgeLine && Built(It->From))) Out.push_back(*It);
+	}
 }
 
 double RidePlan::MarkUp(int Kind)
@@ -226,10 +234,11 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 	// (the last mark that covers the point wins, as RoadTile draws them over each other in turn)
 	for (const RoadMark& M : Marks)
 	{
-		if (Hit.Along < M.From || Hit.Along > M.To || Hit.Off > M.Left || Hit.Off < M.Right) continue;
+		const double MLeft = M.LeftAt(Hit.Along), MRight = M.RightAt(Hit.Along);   // ([junction priority 168] a slanting line's here)
+		if (Hit.Along < M.From || Hit.Along > M.To || Hit.Off > MLeft || Hit.Off < MRight) continue;
 		S.Kind = M.Kind == MarkTar || M.Kind == MarkPaint ? SurfSlick : M.Kind == MarkGrit ? SurfGrit : M.Kind == MarkCover || M.Kind == MarkJoint ? SurfSteel : SurfTarmac;
 		// (eased in over 3 cm from its edges, or a joint's hump over its width)
-		const double In = std::min({Hit.Along - M.From, M.To - Hit.Along, M.Left - Hit.Off, Hit.Off - M.Right});
+		const double In = std::min({Hit.Along - M.From, M.To - Hit.Along, MLeft - Hit.Off, Hit.Off - MRight});
 		S.Drawn = MarkUp(M.Kind);
 		S.Lift = M.Kind == MarkHump ? M.RiseAt(Hit.Along)
 			: M.Kind == MarkJoint ? M.Lift * std::sin(3.141592653589793 * (Hit.Along - M.From) / (M.To - M.From)) : M.Lift * std::clamp(In / 0.03, 0.0, 1.0);
