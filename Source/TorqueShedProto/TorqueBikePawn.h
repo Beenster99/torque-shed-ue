@@ -623,6 +623,8 @@ private:
 	double TestGripThrottleHold = -1.0;   // TestGripThrottle's roll (below 0: none)
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
 	bool bTestClutch = false;   // TestControl's clutch, held
+	double StallTestT = -1.0;   // [168 robot] stall:test running (s in), or -1
+	int32 StallTestStalls = 0;  // the sim's stall count as it began
 	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
 	double PadStartHeld = 0.0;
 	bool bPadStartDone = false;

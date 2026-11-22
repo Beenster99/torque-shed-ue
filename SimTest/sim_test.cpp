@@ -886,7 +886,15 @@ static void EngineTests()
 			S.FrontBrake = 1.0;
 			S.Step(Dt);
 		}
-		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "front brake held at a standstill: the rider walks it backwards (m/s)", S.Speed);
+		Check(!S.Paddling && std::fabs(S.Speed) < 0.05, "front brake held at a standstill: it stays put (m/s)", S.Speed);
+		for (int i = 0; i < 300; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.BodyShift = -1.0;
+			S.Step(Dt);
+		}
+		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "  and the stick pulled back: the rider walks it backwards (m/s)", S.Speed);
+		S.BodyShift = 0.0;
 	}
 	{
 		// ([beenster, build 160] "the bikes can do a burnout backward") Lit while still rolling on at

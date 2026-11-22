@@ -2647,6 +2647,19 @@ FString ATorqueBikePawn::TestControl(const FString& What, int32 Arg)
 		bTestClutch = Arg != 0;
 		Sim->ClutchIn = bTestClutch;
 	}
+	else if (What == TEXT("stall"))
+	{
+		// [168 robot] stall:test (StallTestT above): needs the bike stopped with the engine running.
+		if (FMath::Abs(Sim->Speed) > 0.5 || !Sim->EngineOn || Sim->IsCrashed)
+			return FString::Printf(TEXT("stall test refused: needs the bike stopped with the engine running (%.1f mph, engine %s)"),
+				Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"));
+		bManual = true;
+		Sim->AutoShift = false;
+		Sim->Gear = 3;
+		StallTestStalls = Sim->Stalls;
+		StallTestT = 0.0;
+		return TEXT("stall test started: 3rd at a standstill, clutch out, throttle 0.4; result in the log (Torque: stall test: PASS|FAIL) within 3.5 s");
+	}
 	const TCHAR* Engine = Sim->IsStarting() ? TEXT("cranking") : Sim->EngineOn ? TEXT("running") : TEXT("off");
 	return FString::Printf(TEXT("gear %s at %.1f mph, engine %s (%.0f rpm), clutch %s, %s gears; tyres %s (%.0f / %.0f C), engine %s (%.0f C); ghost %.1f s"),
 		Sim->Gear == BikeSim::NEUTRAL ? TEXT("N") : *FString::FromInt(Sim->Gear), Sim->Speed * 2.23694, Engine, Sim->Rpm,
@@ -3309,6 +3322,26 @@ void ATorqueBikePawn::StepSim()
 		return;
 	}
 	if (TestMove >= 0) TestMoveStep();
+	if (StallTestT >= 0.0)
+	{
+		// [168 robot] stall:test: manual gears, 3rd at a standstill, the clutch out and the throttle opened
+		// (half a second shut first): it must stall (beenster, build 167). Over everything else, robot included.
+		bManual = true;
+		bTestClutch = false;
+		Sim->ClutchIn = false;
+		Throttle = StallTestT < 0.5 ? 0.0 : 0.4;
+		FrontBrake = RearBrake = Lean = Shift = 0.0;
+		StallTestT += SimDt;
+		const bool bStalled = Sim->Stalls > StallTestStalls;
+		if (bStalled || StallTestT >= 3.5)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque: stall test: %s, %s after %.2f s in gear %d, %.1f mph, %.0f rpm, engine %s"),
+				bStalled ? TEXT("PASS") : TEXT("FAIL"), bStalled ? TEXT("stalled") : TEXT("did NOT stall"), StallTestT, Sim->Gear,
+				Sim->Speed * 2.23694, Sim->Rpm, Sim->EngineOn ? TEXT("running") : TEXT("off"));
+			Throttle = 0.0;
+			StallTestT = -1.0;
+		}
+	}
 	Sim->Throttle = Throttle;
 	// [tft] Cruise control holds its speed; more throttle than it's giving overrides it.
 	if (bCruise) Sim->Throttle = FMath::Max(Throttle, TorqueSim::CruiseThrottle(Sim->Speed, CruiseMs, CruiseHeld, SimDt));
