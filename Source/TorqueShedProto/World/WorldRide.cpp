@@ -583,7 +583,28 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		}
 	}
 	// (the tiles are chosen by the road as the map has it, a point every 30 m, as every rider's are)
-	R->Land = R->Area.Land->ForRoad(Resample(G.PathLine(From, Path), 30.0));
+	std::vector<P2> TilesFor = Resample(G.PathLine(From, Path), 30.0);
+	// [build 168 feedback] (beenster at Uig: "i dont see the ferry here": a long crossing's far side, 47 km off, had
+	// no ground, so the crossing never laid) The ground where a ferry lands and along the way on from it too.
+	if (R->Ferry)
+	{
+		TilesFor.push_back(R->Ferry->Land);
+		int On = G.NearestNode(R->Ferry->Land.X, R->Ferry->Land.Z, 30.0);
+		for (const P2& Pin : R->Ferry->Pins)
+		{
+			const int To = G.NearestNode(Pin.X, Pin.Z, 30.0);
+			if (On < 0 || To < 0) break;
+			if (To != On)
+			{
+				const std::vector<int> Onward = G.CheapestPath(On, To, nullptr);
+				const std::vector<P2> More = Resample(G.PathLine(On, Onward), 30.0);
+				TilesFor.insert(TilesFor.end(), More.begin(), More.end());
+			}
+			TilesFor.push_back(Pin);
+			On = To;
+		}
+	}
+	R->Land = R->Area.Land->ForRoad(TilesFor);
 	R->Land->SetRoam(true);   // [ride anywhere]
 	R->CellsFrom = &Store;
 	R->HeightsFrom = &Heights;
