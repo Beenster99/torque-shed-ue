@@ -191,9 +191,20 @@ void ZigZag(double A0, double A1, double Lat, std::vector<Mark>& Out)
 }
 
 // A broken line across Left..Right at Along, Wide along the road: Dash m of paint, Gap m between.
-void Broken(double Along, double Wide, double Left, double Right, double Dash, double Gap, std::vector<Mark>& Out)
+// ([square T] Slant: each mark that much further along per metre to the left, so the line lies along a road
+// met at an angle: a slanted mark as short pieces across, each at its own place along)
+void Broken(double Along, double Wide, double Left, double Right, double Dash, double Gap, std::vector<Mark>& Out, double Slant = 0.0)
 {
-	for (double U = Right; U < Left; U += Dash + Gap) Out.push_back(Paint(Along - Wide * 0.5, Along + Wide * 0.5, std::fmin(U + Dash, Left), U));
+	for (double U = Right; U < Left; U += Dash + Gap)
+	{
+		const double Hi = std::fmin(U + Dash, Left);
+		const int Bits = std::fabs(Slant) < 0.05 ? 1 : std::max(1, int(std::ceil((Hi - U) / 0.15)));
+		for (int B = 0; B < Bits; ++B)
+		{
+			const double U0 = U + (Hi - U) * B / Bits, U1 = U + (Hi - U) * (B + 1) / Bits, At = Along + Slant * 0.5 * (U0 + U1);
+			Out.push_back(Paint(At - Wide * 0.5, At + Wide * 0.5, U1, U0));
+		}
+	}
 }
 } // namespace
 
@@ -253,12 +264,16 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 		if (K == "give_way")
 		{
 			// (Britain's: two broken lines, 600 mm dashes, 300 mm gaps, 200 mm wide, 300 mm apart)
-			Broken(Before, 0.2, LaneHi, LaneLo, 0.6, 0.3, Made);
-			Broken(Before - Dir * 0.5, 0.2, LaneHi, LaneLo, 0.6, 0.3, Made);
+			if (!M.LinesDrawn)
+			{
+				Broken(Before, 0.2, LaneHi, LaneLo, 0.6, 0.3, Made, M.Slant);
+				Broken(Before - Dir * 0.5, 0.2, LaneHi, LaneLo, 0.6, 0.3, Made, M.Slant);
+			}
 			// [junction priority 168] (and, where it is known which way it governs, the give-way triangle
 			// painted in the lane coming up to it, diagram 1023: an outline 3.75 m long, its base 1.25 m
-			// across nearer the line and its point towards the traffic, 15 m back)
-			const double Base = Before - Dir * 15.0, Tip = Base - Dir * 3.75;
+			// across nearer the line and its point towards the traffic; [road rulebook] its leading edge
+			// 2.1 to 2.75 m from the line (Traffic Signs Manual chapter 3, 3.2.5; it was 15 m back))
+			const double Base = Before - Dir * 3.0, Tip = Base - Dir * 3.75;   // (2.4 m behind the further line's back edge)
 			const double Mid = (LaneHi + LaneLo) * 0.5, Wing = std::fmin(0.625, (LaneHi - LaneLo) * 0.5 - 0.15);
 			if (M.Dir != 0 && Wing > 0.4 && std::fmin(Base, Tip) > 1.0 && std::fmax(Base, Tip) < RoadLen - 1.0)
 			{

@@ -818,6 +818,8 @@ int main(int Argc, char** Argv)
 				if (Plan->Road[I].Along <= Mk.From && Plan->Road[I + 1].Along > Mk.From) { Half = std::fmin(Plan->Road[I].Half, Plan->Road[I + 1].Half); break; }
 			if (Mk.Left > Half + 0.01 || Mk.Right < -Half - 0.01) ++OffEdge;
 		}
+		if (std::getenv("WORLD_RIDE_MAPPED") != nullptr)
+			for (const RidePlan::MappedMark& Mm : Plan->MainMapped) std::printf("MAPPED %s at %.1f dir %d drawn %d slant %.2f\n", Mm.Kind.c_str(), Mm.Along, Mm.Dir, Mm.LinesDrawn ? 1 : 0, Mm.Slant);
 		std::printf("Mapped on the ride: %d;", int(Plan->MainMapped.size()));
 		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
 		std::printf("; marks: %d paint, %d hump slices, %d bay slices; paint off the road's edge: %d\n", Paint, Humps, Bays, OffEdge);

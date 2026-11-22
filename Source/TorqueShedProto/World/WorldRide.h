@@ -457,6 +457,8 @@ public:
 		double Along = 0.0, Off = 0.0;
 		int Dir = 0;
 		int Flags = 0;
+		bool LinesDrawn = false;   // [square T] (its lines painted with the junction's, along the through road's edge: only its triangle here)
+		double Slant = 0.0;   // [square T] (a line across: how far further along it lies per metre to the left, to lie along the road it meets)
 	};
 	struct SideRoad
 	{
@@ -1305,6 +1307,8 @@ public:
 		P2 Hub, Dir;
 	};
 	std::unordered_map<int, ThroughStraight> ThroughLines;
+	bool GiveDrawn[2] = {false, false};   // [square T] (PaintThrough's last: the give-way lines painted by it, coming in, going out)
+	double GiveSlant[2] = {0.0, 0.0};   // [square T] (PaintThrough's last: the give-way line's Slant coming in, going out)
 	int JunctionSignCount = 0;      // (Give Way and Stop signs stood by the ride's own lines: IndexFurniture)
 	void PaintThrough(const JunctionRule& J, double& In, double& Out, double& GiveIn, double& GiveOut);
 	void FindPriorities(int From, const std::vector<int>& Path);

@@ -1497,14 +1497,14 @@ void RidePlan::IndexFurniture()
 		// [junction priority 168] Before any other: a Give Way sign (diagram 602) or a Stop sign (601.1) beside
 		// each give-way or stop line across the ride's own road whose way is known (the map's, or the
 		// junction rule's where the ride's road meets a through road), on the traffic's side by the line, or
-		// up to 10 m back where the corner is road.
+		// up to 12 m back where the corner is road.
 		for (const MappedMark& M : MainMapped)
 		{
 			if ((M.Kind != "give_way" && M.Kind != "stop") || M.Dir == 0) continue;
 			const int Way = M.Dir > 0 ? 1 : -1;
 			const double Line = M.Along - Way * 1.0;
 			const int Mph = MphAt(Line - Way * 40.0);
-			for (double Back = 1.5; Back <= 10.0; Back += 1.5)
+			for (double Back = 1.5; Back <= 12.0; Back += 1.5)
 			{
 				const double Along = Line - Way * Back;
 				if (Along < 0.0 || Along > Length) break;
@@ -1513,7 +1513,10 @@ void RidePlan::IndexFurniture()
 				F.Kind = WarnSign;
 				F.Mapped = false;
 				F.Size = M.Kind == "stop" ? SignPlate::SymStop : SignPlate::SymGiveWay;
-				F.Big = Mph > 0 && Mph <= 30 ? 0.75 : 0.9;
+				// ([road rulebook] Traffic Signs Manual chapter 3, tables 2-2 and 3-1: by the speed on the
+				// minor road; about 1.5 m before the line, no more than 12 m)
+				const bool Stop = M.Kind == "stop";
+				F.Big = Mph > 0 && Mph <= 30 ? (Stop ? 0.75 : 0.6) : Mph > 0 && Mph <= 40 ? (Stop ? 0.9 : 0.75) : Mph > 0 && Mph <= 50 ? (Stop ? 1.2 : 0.9) : 1.2;
 				F.At = Verge(K, Way * Keep, 0.7 + F.Big * 0.5);
 				F.Face = Dir(K) * -double(Way);
 				F.Height = Ground(F.At.X, F.At.Z);

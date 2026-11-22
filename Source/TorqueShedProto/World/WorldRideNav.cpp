@@ -292,7 +292,10 @@ void RidePlan::PlaceJunctions(double RawLength)
 				for (MappedMark& M : MainMapped)
 					if ((M.Kind == "give_way" || M.Kind == "stop") && (J.Along - M.Along) * Way > -3.0 && (J.Along - M.Along) * Way < 30.0 && Line >= 5.0 && Line <= Length - 5.0)
 					{
-						M.Along = Line + Way * 0.8;
+						M.Along = Line + Way * 1.0;
+						M.Slant = GiveSlant[Way > 0 ? 0 : 1];
+						M.LinesDrawn = GiveDrawn[Way > 0 ? 0 : 1];
+						M.Dir = Way;   // (the lane coming up to the junction: the map's may not say, Buxworth)
 						Added = true;
 					}
 				continue;
@@ -301,7 +304,9 @@ void RidePlan::PlaceJunctions(double RawLength)
 			MappedMark M;
 			M.Kind = "give_way";
 			M.Dir = Way;
-			M.Along = Line + Way * 0.8;   // (MappedMarks draws it a metre before, as the traffic meets it)
+			M.Along = Line + Way * 1.0;   // (MappedMarks draws it a metre before, as the traffic meets it: on Line)
+			M.Slant = GiveSlant[Way > 0 ? 0 : 1];
+			M.LinesDrawn = GiveDrawn[Way > 0 ? 0 : 1];
 			MainMapped.push_back(M);
 			++JunctionGiveWayCount;
 			Added = true;
@@ -313,6 +318,10 @@ void RidePlan::PlaceJunctions(double RawLength)
 
 void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, double& GiveIn, double& GiveOut)
 {
+	GiveSlant[0] = GiveSlant[1] = 0.0;
+	GiveDrawn[0] = GiveDrawn[1] = false;
+	struct GiveRay { bool Have = false; P2 Hub, Dir, At; double Half = 0.0, Along = 0.0; };
+	GiveRay Give[2];
 	if (Road.size() < 2 || (!J.CameMinor && !J.OntoMinor)) return;
 	const bool CameMinor = J.CameMinor, OntoMinor = J.OntoMinor;
 	// (the ride's road's point nearest Along, and its heading there)
@@ -489,15 +498,63 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 			const P2 D = (MainB - MainA) * (1.0 / MainLen);
 			return std::fabs((P.X - MainA.X) * D.Z - (P.Z - MainA.Z) * D.X);
 		};
+		// ([square T] better, the through road as laid first, ThroughLines: from the junction a straight line
+		// along its arm and one along the ride's road on its side (one line where the map's road runs straight
+		// on); how far a point is clear of its tarmac, and which way the nearer of the two runs. Buxworth:
+		// Brookside's give-way line lies along New Road's edge, not Station Road's)
+		const auto Ts = HasMinor && ArmX.Sd != nullptr ? ThroughLines.find(ArmX.Sd->Edge) : ThroughLines.end();
+		const bool Rays = Ts != ThroughLines.end() && MainLen >= 1.0;
+		const double ArmHalf = CameMinor ? Half0 : Half1;
+		double NearHalf = 0.0;
+		const auto ClearOf = [&](const P2& P, P2& Along1)
+		{
+			const P2 Hub = Ts->second.Hub;
+			const P2 Dirs[2] = {Ts->second.Dir, (MainB - MainA) * (1.0 / MainLen)};
+			const double Halves[2] = {ArmHalf, MainHalf};
+			double Best = 1e18;
+			for (int Ry = 0; Ry < 2; ++Ry)
+			{
+				const P2 Q = P - Hub;
+				const double T = std::fmax(0.0, Q.X * Dirs[Ry].X + Q.Z * Dirs[Ry].Z);
+				const double C = P.DistanceTo(Hub + Dirs[Ry] * T) - Halves[Ry];
+				if (C < Best) { Best = C; Along1 = Dirs[Ry]; NearHalf = Halves[Ry]; }
+			}
+			return Best;
+		};
 		// (walked out from the junction a metre at a time, the first clear of it; left as the map's where none is)
 		for (int Way : {-1, 1})
 		{
 			if (Way < 0 ? !CameMinor : !OntoMinor) continue;
-			for (double Step = 0.0; Step <= 30.0; Step += 0.5)
+			// ([square T] the give-way line's nearer edge just off the through road's edge, its middle 0.15 m
+			// out; and lying along that edge, slanted across the ride's road where it meets it at an angle)
+			for (double Step = 0.0; Step <= 30.0; Step += 0.1)
 			{
 				const double A = J.Along + Way * Step;
 				if (A < 0.0 || A > Length) break;
-				if (OffMain(AtAlong(A)) > (HasMinor ? MainHalf : HalfT) + 0.3) { (Way < 0 ? GiveIn : GiveOut) = A; break; }
+				P2 Dm = MainLen >= 1.0 ? (MainB - MainA) * (1.0 / MainLen) : P2(1.0, 0.0);
+				const bool Clear = Rays ? ClearOf(AtAlong(A), Dm) > 0.15 : OffMain(AtAlong(A)) > (HasMinor ? MainHalf + 0.15 : HalfT + 0.3);
+				if (Clear)
+				{
+					(Way < 0 ? GiveIn : GiveOut) = A;
+					if (Rays)
+					{
+						// ([square T] the through road's edge it stops at, for the line to be painted along)
+						GiveRay& G = Give[Way < 0 ? 0 : 1];
+						G.Have = true;
+						G.Hub = Ts->second.Hub;
+						G.Dir = Dm;
+						G.Half = NearHalf;
+						G.At = AtAlong(A);
+						G.Along = A;
+					}
+					if (HasMinor && MainLen >= 1.0)
+					{
+						const P2 H = HeadingAt(A), Lf(H.Z, -H.X);
+						const double Across = Dm.X * Lf.X + Dm.Z * Lf.Z;
+						if (std::fabs(Across) > 0.3) GiveSlant[Way < 0 ? 0 : 1] = std::clamp((Dm.X * H.X + Dm.Z * H.Z) / Across, -2.0, 2.0);
+					}
+					break;
+				}
 			}
 		}
 	}
@@ -525,8 +582,95 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 		}
 		return Best < 1e17;
 	};
+	// ([square T] the same, exactly as the road's mesh lays its rows: across each point along the line
+	// between its neighbours, a piece's place between two rows found by Newton's method; for the give-way
+	// line, where the rows fan out round a corner's arc and the nearest piece's frame is not the mesh's)
+	const auto LeftOf = [this](size_t I)
+	{
+		const P2 D = Road[std::min(Road.size() - 1, I + 1)].At - Road[I > 0 ? I - 1 : 0].At;
+		const double L = D.Length();
+		return L > 1e-9 ? P2(D.Z / L, -D.X / L) : P2(1.0, 0.0);
+	};
+	const auto OnRows = [&](const P2& P, double& Along, double& Off, double& HalfHere)
+	{
+		double Best = 1e18;
+		for (size_t I = Lo; I < Hi; ++I)
+		{
+			const RoadPoint& A = Road[I];
+			const RoadPoint& B = Road[I + 1];
+			const P2 La = LeftOf(I), Lb = LeftOf(I + 1), Ab = B.At - A.At;
+			const double L2 = Ab.X * Ab.X + Ab.Z * Ab.Z;
+			if (L2 < 1e-12) continue;
+			double T = std::clamp(((P.X - A.At.X) * Ab.X + (P.Z - A.At.Z) * Ab.Z) / L2, 0.0, 1.0), C = (P.X - A.At.X) * La.X + (P.Z - A.At.Z) * La.Z;
+			for (int It = 0; It < 8; ++It)
+			{
+				const P2 Lt = La * (1.0 - T) + Lb * T;
+				const P2 Q = A.At + Ab * T + Lt * C, E = P - Q;
+				const P2 Dt = Ab + (Lb - La) * C;   // (d Q / d T; d Q / d C is Lt)
+				const double Det = Dt.X * Lt.Z - Dt.Z * Lt.X;
+				if (std::fabs(Det) < 1e-9) break;
+				T += (E.X * Lt.Z - E.Z * Lt.X) / Det;
+				C += (Dt.X * E.Z - Dt.Z * E.X) / Det;
+			}
+			if (T < -1e-6 || T > 1.0 + 1e-6) continue;
+			const double Score = std::fabs(C);
+			if (Score >= Best) continue;
+			Best = Score;
+			Along = A.Along + (B.Along - A.Along) * T;
+			Off = C;
+			HalfHere = A.Half + (B.Half - A.Half) * T;
+		}
+		return Best < 1e17;
+	};
 	static constexpr float White[3] = {0.83f, 0.83f, 0.75f};
 	bool Painted = false;
+	// ([square T] the give-way line, Britain's two broken lines (600 mm dashes, 300 mm gaps, 200 mm wide,
+	// 300 mm apart), lying along the through road's edge exactly, wherever the ride's road meets it)
+	for (int G = 0; G < 2; ++G)
+	{
+		const GiveRay& R = Give[G];
+		if (!R.Have) continue;
+		P2 N(R.Dir.Z, -R.Dir.X);
+		if ((R.At.X - R.Hub.X) * N.X + (R.At.Z - R.Hub.Z) * N.Z < 0.0) N = N * -1.0;
+		const double T0 = (R.At.X - R.Hub.X) * R.Dir.X + (R.At.Z - R.Hub.Z) * R.Dir.Z;
+		const double LaneSign = (G == 0) == KeepLeft() ? 1.0 : -1.0;   // (G 0: coming in, as MappedMarks' Dir > 0)
+		const P2 AtHead = HeadingAt(R.Along - (G == 0 ? 2.0 : -2.0)), AtLeft(AtHead.Z, -AtHead.X);
+		double AtA = 0.0, AtC = 0.0, AtHalf = 3.0;
+		OnRide(R.At, AtA, AtC, AtHalf);
+		// ([road rulebook] Traffic Signs Manual chapter 3, 3.2.2 to 3.2.3: the nearer line's edge continues
+		// the through road's edge; across the lane coming up to it, and the rest of the width a 100 mm
+		// broken line along that edge (diagram 1009A, 600 mm marks, 300 mm gaps); across the whole width
+		// where the lane would leave a line under 2.75 m)
+		const bool Whole = AtHalf < 2.75;
+		for (int Ln = 0; Ln < 3; ++Ln)
+			for (double T = -8.0; T <= 8.0; T += 0.04)
+			{
+				if (Ln == 2 && Whole) break;
+				const double OffBy = R.Half + (Ln == 0 ? 0.1 : Ln == 1 ? 0.6 : 0.05), Wide = Ln == 2 ? 0.1 : 0.2;
+				if (std::fmod(T + 80.0, 0.9) >= 0.6) continue;   // (a gap)
+				const P2 P = R.Hub + R.Dir * (T0 + T) + N * OffBy;
+				double A = 0.0, C = 0.0, H = 0.0;
+				if (!OnRows(P, A, C, H) || std::fabs(C) > H) continue;
+				// (which lane by the ride's road's own line coming up to the junction, not the frame there,
+				// which near a corner's arc may be the arc's: Buxworth)
+				const double Lane = ((P.X - R.At.X) * AtLeft.X + (P.Z - R.At.Z) * AtLeft.Z) * LaneSign;
+				if (Ln == 2 ? (Lane > -0.1 || Lane < -AtHalf) : Whole ? std::fabs(Lane) > AtHalf - 0.05 : (Lane < 0.1 || Lane > AtHalf - 0.05)) continue;
+				RoadMark M;
+				M.Kind = MarkPaint;
+				for (int K = 0; K < 3; ++K) M.Colour[K] = White[K];
+				// (a 4 cm piece of the line as a box on the ride's road)
+				const P2 Hd = HeadingAt(A), Lf(Hd.Z, -Hd.X);
+				const double Across = std::fabs(R.Dir.X * Lf.X + R.Dir.Z * Lf.Z), Ahead = std::fabs(R.Dir.X * Hd.X + R.Dir.Z * Hd.Z);
+				// (the piece's 4 cm along the line and its width across it, as they fall along and across the
+				// road here: the line's width across it along the road where the line runs across the road)
+				const double Long = Wide * 0.5 * Across + 0.02 * Ahead, Side = Wide * 0.5 * Ahead + 0.02 * Across + 0.005;
+				M.From = A - Long; M.To = A + Long;
+				M.Left = C + Side; M.Right = C - Side;
+				JunctionPaint.push_back(M);
+				Painted = true;
+				GiveDrawn[G] = true;
+			}
+	}
 	// (a piece of line Wide m across from (A0, C0) to (A1, C1) in the ride's road's frame: cut along the road
 	// where it slants along it, a box where it runs nearly square across)
 	bool Edge = false;

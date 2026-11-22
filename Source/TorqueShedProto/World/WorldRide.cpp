@@ -3084,6 +3084,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		{
 			Row R = From;
 			R.At = From.At + (To.At - From.At) * T;
+			// ([square T] its left between the two rows' too, so a line cut in part way along lies where it
+			// would on the undivided piece: where the rows fan round a junction's arc, the left as at From put
+			// the far side of a give-way line half a metre out of place, Cullingworth)
+			R.Left = From.Left + (To.Left - From.Left) * T;
 			R.Height += (To.Height - From.Height) * T;
 			R.Along += (To.Along - From.Along) * T;
 			R.Half += (To.Half - From.Half) * T;
@@ -3389,6 +3393,19 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const bool OnRing = std::fabs(Oa) < Rg->Half + 0.5 && std::fabs(Ob) < Rg->Half + 0.5;
 			YellowMouth = YellowMouth || (!OnRing && std::fmin(Oa, Ob) < Rg->Half + RingMouthClear + 3.0);
 		}
+		// ([square T] a side road's kerbside lines stop where its kerb does, where the corner's rounding
+		// starts: none out over the mouth where the side road runs on to the junction's middle (Buxworth,
+		// New Road's yellow lines across Brookside's mouth))
+		const double SideEnd = Which != 0 ? std::fmin(A.Along, RoadOf(Which).back().Along - B.Along) : 1e18;
+		const auto OnRideTarmac = [&](double Side)
+		{
+			if (SideEnd > 25.0) return false;
+			const P2 P = (A.At + A.Left * (Side * (A.Half - 0.36)) + B.At + B.Left * (Side * (B.Half - 0.36))) * 0.5;
+			NearOpts Opts;
+			Opts.MainOnly = true;
+			NearHit Hit;
+			return NearestOf(P.X, P.Z, Opts, Hit) && !Hit.Deck && !Hit.Bore && Hit.Dist < Hit.Half + 5.5;   // (a corner's 6 m radius)
+		};
 		if (!(A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel || Setts || OnRingTar))
 		{
 			const double Half = std::fmin(A.Half, B.Half);
@@ -3404,6 +3421,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					// (none across a junction's mouth)
 					const size_t At0 = size_t(First) + K;
 					if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
+					if (OnRideTarmac(Side)) continue;
 					// ([OSM stage 5C] on a motorway's nearside, between the lanes and the hard shoulder: 0.2 m wide)
 					const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
 					const double Ia = Hard ? A.Half - A.Shoulder : A.Half - 0.3, Ib = Hard ? B.Half - B.Shoulder : B.Half - 0.3, W = Hard ? 0.1 : 0.065;
@@ -3420,7 +3438,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				{
 					const int Code = (A.Park >> (Side > 0.0 ? 0 : 2)) & 3;
 					const size_t At0 = size_t(First) + K;
-					if (Code == 0 || (Code == 3 && Half < 2.9) || (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0)) continue;
+					if (Code == 0 || (Code == 3 && Half < 2.9) || (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) || OnRideTarmac(Side)) continue;
 					if (Code == 3)
 					{
 						// (as deep as a car, less on a narrow street: a lane's width left between)
@@ -3454,7 +3472,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				for (double Side : {1.0, -1.0})
 				{
 					if (!NearJunction && ((A.Park >> (Side > 0.0 ? 0 : 2)) & 3) != 1) continue;
-					if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
+					if ((Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) || OnRideTarmac(Side)) continue;
 					for (const double In : {0.29, 0.44})
 						Cut(0.0, 1.0, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, Yellow);
 				}
@@ -4201,9 +4219,6 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// corner between the two roads' edges (about a 6 m radius), and across the side road between
 		// them, a hair over both roads' own tarmac and the ride's road's shoulder. A shoulder round each curve.
 		const P2 Hub = M.At - M.Across * 0.5;
-		// (a hair over the ride's road there: the side road itself now lies just under it, so the fan needs
-		// no more than that to show, and stands no higher for a wheel running along the edge)
-		const P3 Hub3 = At3(Hub, Surface(0, Hub, MouthH) + 0.012);
 		// [true T] (a through road's arm: on its far side, the through road's far edge on across in place of
 		// a rounded corner, finer as it is longer)
 		const auto FarIt = Mine->Edge >= 0 ? FarEdges.find(static_cast<long long>(Mine->Edge) * 2 + End) : FarEdges.end();
@@ -4375,17 +4390,23 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// a hair over: one flat triangle from the hub to a corner far off sagged under the ground between,
 		// Buxworth, where the side road runs downhill from the junction)
 		static constexpr int Rings = 4;
+		const P3 FanHub = At3(Hub, Surface(0, Hub, MouthH) - 0.01);
 		const auto FanAt = [&](int S, int K)
 		{
-			if (K == 0) return Hub3;
+			if (K == 0) return FanHub;
 			if (K == Rings) return At3(Rim[S], RimH[S]);
 			const P2 P = Hub + (Rim[S] - Hub) * (double(K) / Rings);
-			const double Plane = Hub3.Y + (RimH[S] - Hub3.Y) * (double(K) / Rings);
-			// (on the ride's road, a hair over its surface only, as the hub is)
+			const double Plane = FanHub.Y + (RimH[S] - FanHub.Y) * (double(K) / Rings);
+			// ([square T] on the ride's road, just under it: its own tarmac shows there, with the lines painted
+			// into it (a give-way line under a fan, Whaley Bridge))
 			NearOpts OnMain;
 			OnMain.OnlyRoad = 0;
 			NearHit Hit;
-			if (NearestOf(P.X, P.Z, OnMain, Hit) && Hit.Dist < Hit.Half + 0.1) return At3(P, Surface(0, P, Plane) + 0.012);
+			if (NearestOf(P.X, P.Z, OnMain, Hit) && Hit.Dist < Hit.Half) return At3(P, Surface(0, P, Plane) - 0.01);
+			// (and on the side road's own tarmac, just under it too: its lines show on to its mouth)
+			NearOpts OnSide;
+			OnSide.OnlyRoad = Which;
+			if (NearestOf(P.X, P.Z, OnSide, Hit) && Hit.Dist < Hit.Half - 0.1) return At3(P, Surface(Which, P, Plane) - 0.01);
 			return At3(P, std::fmax(Plane, std::fmax(Surface(0, P, Plane), Surface(Which, P, Plane)) + 0.012));
 		};
 		for (int S = 0; S + 1 < 2 * (Segs + 1); ++S)
