@@ -432,6 +432,8 @@ private:
 	int32 LastGear = 1;
 	bool bManual = false;            // gears changed by hand (the first press of a shift button)
 	bool bAbs = true;                // the ABS switched on; off lets the rear lock
+	bool bAbsHintShown = false;      // [build 168] said once a ride: ABS off for skids
+	double AbsHintHeld = 0.0;
 	bool bHasAbs[2] = {true, true};  // the bike has ABS at the front, the rear (a catalogue bike's ECU may not)
 	double GearNoteFor = 0.0;
 	// A word on the HUD for a moment: "Engine off", "Out of petrol!" (EngineNote, for EngineNoteFor s).
