@@ -58,6 +58,15 @@ struct FTorqueShockPart
 	double A = 0.0, B = 0.0;  // the spring: where it starts and ends along the shock from the top mount (cm)
 };
 
+// [mirrors] A V2 mirror: its glass and its head, turned together on the head's ball joint so the rider's own eyes
+// see the road behind in it (Fit/MirrorAim.h; AimMirrors).
+struct FTorqueMirror
+{
+	TWeakObjectPtr<UStaticMeshComponent> Glass, Head;
+	FTransform GlassRest, HeadRest;   // as drawn, on what each hangs from
+	FVector At = FVector::ZeroVector, Normal = FVector::ForwardVector;   // the glass's middle and normal, in its own mesh (cm)
+};
+
 struct FHudLine
 {
 	FString Text;
@@ -699,6 +708,14 @@ private:
 	TArray<FTorqueShockPart> ShockParts;
 	FVector ShockTop = FVector::ZeroVector, ShockBottom = FVector::ZeroVector;
 	double ShockSwing = 1.0e9;
+	// [mirrors] The mirrors found on the bike, whether they still want aiming, the eye they were aimed for (pawn
+	// local cm) and when to aim them once more (the rider's pose settles over the first moments of a ride).
+	TArray<FTorqueMirror> Mirrors;
+	bool bMirrorsFound = false, bMirrorsAimed = false;
+	FVector MirrorEye = FVector::ZeroVector;
+	FVector2D MirrorSetFor = FVector2D::ZeroVector;   // the first person eye setting they were aimed for
+	double MirrorAgainAt = -1.0;
+	void AimMirrors();
 	FTransform LeverFit[2] = {FTransform::Identity, FTransform::Identity};
 	FTransform GripFitMove[2] = {FTransform::Identity, FTransform::Identity};
 	UStaticMeshComponent* GripParts[2] = {nullptr, nullptr};   // (in ModelParts)

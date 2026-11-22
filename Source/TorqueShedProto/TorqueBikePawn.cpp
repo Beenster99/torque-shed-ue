@@ -15,6 +15,7 @@
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Fit/ShockMove.h"
+#include "Fit/MirrorAim.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
 #include "Shed/TorqueFurniture.h"
@@ -823,6 +824,9 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		// [shocks] The rear shock's pieces stay on the bike and are worked each frame (UpdateVisuals).
 		static const FName ShockTopNode(TEXT("shock_top")), ShockBottomNode(TEXT("shock_bottom")), ShockSpringNode(TEXT("shock_spring"));
 		ShockParts.Reset();
+		// [mirrors] Found and aimed afresh once the parts are on their groups and the rider is on (AimMirrors).
+		Mirrors.Reset();
+		bMirrorsFound = bMirrorsAimed = false;
 		ShockTop = Frame.ShockTop;
 		ShockBottom = Frame.ShockBottom;
 		ShockSwing = 1.0e9;
@@ -3469,6 +3473,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	UpdateVisuals(bRemote ? 1.0 : Accum / SimDt);
 	ThrowRider(DeltaSeconds);
 	UpdateRider();
+	AimMirrors();
 	UpdateClock();
 	// [dash] The trip and the petrol (the rider's own bike), and the clocks on every bike.
 	if (!bRemote)
@@ -5163,6 +5168,103 @@ void ATorqueBikePawn::UpdateProgress()
 	}
 	Near = BestI;
 	if (!bFinished && Near >= Line.Num() - 1) bFinished = true;
+}
+
+// [mirrors] Each mirror's head turned on its ball joint so the rider's own eyes see the road behind in its glass
+// (beenster, build 166: "the mirrors just show your hands"). The bike files aim the glass at a guessed eye; here
+// it's the eye first person looks from, as this rider sits on this bike with these bars. Done once the bike's
+// parts are on (and once more as the pose settles), and again when the first person eye is moved; only while
+// the bars are straight, as the glass, the eye and the road behind are then all in the bike's own frame.
+void ATorqueBikePawn::AimMirrors()
+{
+	if (!bCatalogueModel || ModelParts.Num() == 0 || !SteerGroup) return;
+	UWorld* MirrorWorld = GetWorld();
+	const double NowS = MirrorWorld ? MirrorWorld->GetTimeSeconds() : 0.0;
+	if (!bMirrorsFound)
+	{
+		bMirrorsFound = true;
+		bMirrorsAimed = false;
+		MirrorAgainAt = NowS + 2.0;
+		Mirrors.Reset();
+		static const FName GlassTag(TEXT("Surf:d3_mirrorglass")), HeadTag(TEXT("Surf:mirror_head"));
+		TArray<UStaticMeshComponent*> Heads;
+		for (UStaticMeshComponent* C : ModelParts)
+			if (C && C->GetStaticMesh() && C->ComponentHasTag(HeadTag)) Heads.Add(C);
+		for (UStaticMeshComponent* C : ModelParts)
+		{
+			if (!C || !C->GetStaticMesh() || !C->ComponentHasTag(GlassTag)) continue;
+			FTorqueMirror M;
+			bool bAt = false, bNormal = false;
+			for (const FName& TagName : C->ComponentTags)
+			{
+				const FString Text = TagName.ToString();
+				const bool bIsAt = Text.StartsWith(TEXT("MirrorAt:")), bIsNormal = Text.StartsWith(TEXT("MirrorN:"));
+				if (!bIsAt && !bIsNormal) continue;
+				TArray<FString> Bits;
+				Text.Mid(bIsAt ? 9 : 8).ParseIntoArray(Bits, TEXT(","), false);
+				if (Bits.Num() < 3) continue;
+				const FVector Value(FCString::Atod(*Bits[0]), FCString::Atod(*Bits[1]), FCString::Atod(*Bits[2]));
+				if (bIsAt) { M.At = Value; bAt = true; }
+				else { M.Normal = Value; bNormal = true; }
+			}
+			if (!bAt || !bNormal) continue;
+			M.Glass = C;
+			M.GlassRest = C->GetRelativeTransform();
+			// Its head: the nearest one hanging from the same group, within a hand's width.
+			const FVector GlassAt = M.GlassRest.TransformPosition(M.At);
+			double Best = 12.0;
+			for (UStaticMeshComponent* H : Heads)
+			{
+				if (H->GetAttachParent() != C->GetAttachParent()) continue;
+				const double Away = FVector::Dist(H->GetStaticMesh()->GetBoundingBox().TransformBy(H->GetRelativeTransform()).GetCenter(), GlassAt);
+				if (Away < Best)
+				{
+					Best = Away;
+					M.Head = H;
+					M.HeadRest = H->GetRelativeTransform();
+				}
+			}
+			Mirrors.Add(M);
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque: mirrors found: %d glass, %d heads"), Mirrors.Num(), Heads.Num());
+	}
+	if (Mirrors.Num() == 0) return;
+	const FTorqueProfile& MirrorProf = FTorqueProfile::Mine();
+	const FVector EyeLocal = HeadLocal + FVector(-7.0 + (double)MirrorProf.FirstForward, 0.0, 3.5 + (double)MirrorProf.FirstHeight);
+	const bool bAgain = MirrorAgainAt >= 0.0 && NowS >= MirrorAgainAt;
+	// (The eye sways as the rider leans and shifts: only the player's own move of it re-aims.)
+	const bool bEyeMoved = (double)MirrorProf.FirstForward != MirrorSetFor.X || (double)MirrorProf.FirstHeight != MirrorSetFor.Y;
+	if (bMirrorsAimed && !bAgain && !bEyeMoved) return;
+	const FQuat BarsNow = SteerGroup->GetRelativeRotation().Quaternion();
+	if (2.0 * FMath::Acos(FMath::Min(1.0, FMath::Abs((double)BarsNow.W))) > 0.02) return;   // (wait for straight bars)
+	if (bAgain) MirrorAgainAt = -1.0;
+	const FTransform Me = GetActorTransform();
+	for (const FTorqueMirror& M : Mirrors)
+	{
+		UStaticMeshComponent* Glass = M.Glass.Get();
+		USceneComponent* Group = Glass ? Glass->GetAttachParent() : nullptr;
+		if (!Group) continue;
+		// The eye and the view wanted, in the frame the glass hangs in.
+		const FTransform GroupInMe = Group->GetComponentTransform().GetRelativeTransform(Me);
+		const FVector Eye = GroupInMe.InverseTransformPosition(EyeLocal);
+		const FVector GlassAt = M.GlassRest.TransformPosition(M.At);
+		const FVector GlassN = M.GlassRest.TransformVectorNoScale(M.Normal);
+		const double Side = GroupInMe.TransformPosition(GlassAt).Y < 0.0 ? -1.0 : 1.0;
+		// Straight back, a touch outboard (past the rider's own arm and shoulder) and a touch down (the road, not the sky).
+		const FVector Want = GroupInMe.InverseTransformVectorNoScale(FVector(-1.0, Side * 0.10, -0.03));
+		const TorqueFit::MirrorTurn Turn = TorqueFit::MirrorAim(GlassAt.X, GlassAt.Y, GlassAt.Z, GlassN.X, GlassN.Y, GlassN.Z,
+			Eye.X, Eye.Y, Eye.Z, Want.X, Want.Y, Want.Z, 1.4);
+		const FQuat Q(FVector(Turn.Ax, Turn.Ay, Turn.Az), Turn.Angle);
+		const FVector Pivot(Turn.PivotX, Turn.PivotY, Turn.PivotZ);
+		Glass->SetRelativeTransform(FTransform(Q * M.GlassRest.GetRotation(), Pivot + Q.RotateVector(M.GlassRest.GetLocation() - Pivot), M.GlassRest.GetScale3D()));
+		if (UStaticMeshComponent* Head = M.Head.Get())
+			Head->SetRelativeTransform(FTransform(Q * M.HeadRest.GetRotation(), Pivot + Q.RotateVector(M.HeadRest.GetLocation() - Pivot), M.HeadRest.GetScale3D()));
+		UE_LOG(LogTemp, Log, TEXT("Torque: mirror %s aimed: turned %.1f degrees for the eye at %s (pawn local cm), head %s"),
+			Side < 0.0 ? TEXT("left") : TEXT("right"), FMath::RadiansToDegrees(Turn.Angle), *EyeLocal.ToCompactString(), M.Head.IsValid() ? TEXT("found") : TEXT("NOT FOUND"));
+	}
+	bMirrorsAimed = true;
+	MirrorEye = EyeLocal;
+	MirrorSetFor = FVector2D((double)MirrorProf.FirstForward, (double)MirrorProf.FirstHeight);
 }
 
 void ATorqueBikePawn::UpdateCamera(float Dt)

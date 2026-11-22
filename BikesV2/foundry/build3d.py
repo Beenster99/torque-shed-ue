@@ -189,7 +189,12 @@ def export_game(name, model, model_file=None):
             # stop lamp's red from it (beenster, build 157: "the bikes tail light should not be mounted in the
             # registration plate it should emit from the actual tail light"). A surface of its own, tagged "reflector".
             reflector = game_parts.stem(o.name).startswith("platelamp")
-            key = (r[0], r[1], part_sub, m.name, reflector)
+            # each mirror's head and glass are surfaces of their own, a side at a time, the head tagged
+            # "mirror_head": the game turns each head on its ball joint so the rider's own eyes see the road
+            # behind in the glass (beenster, build 166: "the mirrors just show your hands")
+            mrole = re.fullmatch(r"(mirror|mirrorglass)(-?1)|cmirror(-?1)(glass)?", o.name)
+            mrole = mrole.group(0) if mrole else ""
+            key = (r[0], r[1], part_sub, m.name, reflector, mrole)
             if key not in tagged:
                 c = m.copy()
                 c.name = f"s{len(tagged):03d}"
@@ -210,6 +215,8 @@ def export_game(name, model, model_file=None):
                     tint = colour is not None
                 if reflector:
                     lens = "reflector"
+                if mrole and "glass" not in mrole:
+                    lens = "mirror_head"
                 look = {"slot": r[0], "node": r[1], "surface": tag, "tag": lens or tag.split("__")[0], "ue": ue}
                 if part_sub:
                     look["sub"] = part_sub

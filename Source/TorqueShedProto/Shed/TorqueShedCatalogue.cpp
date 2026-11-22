@@ -621,6 +621,8 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	int32 Made = 0;
 	TMap<FString, int32> Summary;   // what each surface's finish became, for the log
 	int32 Turned = 0, Kept = 0;     // surfaces wound the other way from their glb, or as it
+	// [rider pose] The right grip as drawn (a V2 bike's: on whatever bar is fitted), for the rider's hands.
+	FBox DrawnGrip(ForceInit);
 	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
 	{
 		if (P.Hidden) continue;   // inside a full fairing's shell (the plain headlight), as Godot hides it
@@ -705,6 +707,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (OutFrame && P.Slot == "tank")
 				for (const FVector& V : Pos)
 					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
+			if (bV2 && P.Sub == "grip")
+				for (const FVector& GripV : Pos)
+					if (GripV.Y > 2.0) DrawnGrip += GripV;
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			if (bSpring)
@@ -718,6 +723,68 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
 			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
+			// [mirrors] A mirror's glass says where its middle is and which way it faces (its own mesh, cm), so the
+			// ridden bike can aim it from the rider's eyes (ATorqueBikePawn::AimMirrors).
+			if (Tag == TEXT("d3_mirrorglass") && Tris.Num() >= 3)
+			{
+				FVector GlassMiddle = FVector::ZeroVector, GlassFacing = FVector::ZeroVector;
+				double GlassArea = 0.0;
+				for (int32 TriAt = 0; TriAt + 2 < Tris.Num(); TriAt += 3)
+				{
+					const FVector& GlassA = Pos[Tris[TriAt]];
+					const FVector& GlassB = Pos[Tris[TriAt + 1]];
+					const FVector& GlassC = Pos[Tris[TriAt + 2]];
+					const FVector GlassCross = FVector::CrossProduct(GlassB - GlassA, GlassC - GlassA);
+					const double GlassTwice = GlassCross.Size();
+					GlassMiddle += (GlassA + GlassB + GlassC) * (GlassTwice / 3.0);
+					// (Triangles wound either way still add up: each one's normal on the first one's side.)
+					GlassFacing += FVector::DotProduct(GlassCross, GlassFacing) < 0.0 ? -GlassCross : GlassCross;
+					GlassArea += GlassTwice;
+				}
+				if (GlassArea > 1.0e-6 && !GlassFacing.IsNearlyZero())
+				{
+					GlassMiddle /= GlassArea;
+					GlassFacing.Normalize();
+					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorAt:%.3f,%.3f,%.3f"), GlassMiddle.X, GlassMiddle.Y, GlassMiddle.Z)));
+					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorN:%.4f,%.4f,%.4f"), GlassFacing.X, GlassFacing.Y, GlassFacing.Z)));
+				}
+			}
+			// [lights] A headlamp's lit lens says where its lamps are (its own mesh, cm): one on the centre line, or a
+			// twin's left and right when nothing of it comes within a centimetre of the centre line. Each is the
+			// middle of that lamp's lit face and its front (FTorqueLights::Hook puts a beam at each).
+			if (Tag == TEXT("lens_white") && Tris.Num() >= 3)
+			{
+				double LensNearest = 1.0e9;
+				bool bLensLeft = false, bLensRight = false;
+				for (const FVector& LensV : Pos)
+				{
+					LensNearest = FMath::Min(LensNearest, FMath::Abs(LensV.Y));
+					bLensLeft |= LensV.Y < 0.0;
+					bLensRight |= LensV.Y > 0.0;
+				}
+				const bool bTwinLens = bLensLeft && bLensRight && LensNearest >= 1.0;
+				for (int32 LensSide = bTwinLens ? -1 : 0; LensSide <= (bTwinLens ? 1 : 0); LensSide += 2)
+				{
+					FVector LensMiddle = FVector::ZeroVector;
+					double LensArea = 0.0, LensFront = -1.0e9;
+					for (int32 TriAt = 0; TriAt + 2 < Tris.Num(); TriAt += 3)
+					{
+						const FVector& LensA = Pos[Tris[TriAt]];
+						const FVector& LensB = Pos[Tris[TriAt + 1]];
+						const FVector& LensC = Pos[Tris[TriAt + 2]];
+						if (LensSide != 0 && (LensA.Y + LensB.Y + LensC.Y) * LensSide <= 0.0) continue;
+						const double LensTwice = FVector::CrossProduct(LensB - LensA, LensC - LensA).Size();
+						LensMiddle += (LensA + LensB + LensC) * (LensTwice / 3.0);
+						LensArea += LensTwice;
+						LensFront = FMath::Max(LensFront, FMath::Max3(LensA.X, LensB.X, LensC.X));
+					}
+					if (LensArea > 1.0e-6)
+					{
+						LensMiddle /= LensArea;
+						C->ComponentTags.Add(FName(*FString::Printf(TEXT("Lamp:%.2f,%.2f,%.2f"), LensFront, LensSide == 0 ? 0.0 : LensMiddle.Y, LensMiddle.Z)));
+					}
+				}
+			}
 			if (LeverSide != INDEX_NONE) C->ComponentTags.Add(LeverSide == 0 ? FName(TEXT("Lever:0")) : FName(TEXT("Lever:1")));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
@@ -735,6 +802,14 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			}
 			++Made;
 		}
+	}
+	if (OutFrame && DrawnGrip.IsValid)
+	{
+		// (The hands go to the grip as drawn: a fitted bar's own end, not the bike's own bar's. Beenster, build 167,
+		// ape bars: the hands stayed down at the bike's own grips.)
+		const FVector DrawnAt = DrawnGrip.GetCenter();
+		UE_LOG(LogTemp, Log, TEXT("Torque: rider grip as drawn %s (the layout's %s, %.1f cm away)"), *DrawnAt.ToCompactString(), *OutFrame->Grip.ToCompactString(), FVector::Dist(DrawnAt, OutFrame->Grip));
+		OutFrame->Grip = FVector(DrawnAt.X, FMath::Abs(DrawnAt.Y), DrawnAt.Z);
 	}
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's %d surfaces (%d wound the other way from their glb, %d as it) by finish:"), Made, Turned, Kept);
