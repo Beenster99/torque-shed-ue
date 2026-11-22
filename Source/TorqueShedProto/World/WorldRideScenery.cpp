@@ -2880,6 +2880,23 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 		const double L = D.Length();
 		return L > 1e-9 ? P2(D.Z / L, -D.X / L) : P2(1.0, 0.0);
 	};
+	// (the ground as drawn: the finest squares' own with their bank strips, else this square's sheet)
+	std::unordered_map<long long, double> SurfCache;
+	const int SheetN = Cells + 1;
+	const auto DrawnAt = [&](const P2& P) -> double
+	{
+		if (Step <= LandGrid * 1.1)
+		{
+			const double Got = LandSurfaceAt(P.X, P.Z, &SurfCache);
+			return std::isnan(Got) ? 1e9 : Got;
+		}
+		if (Sheet.Pos.size() < size_t(SheetN) * size_t(SheetN) * 3) return 1e9;
+		const double Fx = std::clamp((P.X - X0) / Step, 0.0, double(Cells) - 1e-6), Fz = std::clamp((P.Z - Z0) / Step, 0.0, double(Cells) - 1e-6);
+		const int Gi = int(Fx), Gj = int(Fz);
+		const double Tx = Fx - Gi, Tz = Fz - Gj;
+		const auto H = [&](int Ii, int Jj) { return double(Sheet.Pos[(size_t(Jj) * size_t(SheetN) + size_t(Ii)) * 3 + 1]); };
+		return (H(Gi, Gj) * (1.0 - Tx) + H(Gi + 1, Gj) * Tx) * (1.0 - Tz) + (H(Gi, Gj + 1) * (1.0 - Tx) + H(Gi + 1, Gj + 1) * Tx) * Tz;
+	};
 	const int CellX0 = int(std::floor(X0 / WaterCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / WaterCell)), CellZ0 = int(std::floor(Z0 / WaterCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / WaterCell));
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
@@ -2929,12 +2946,18 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					Out.Uv[U] = float(Across / 8.0);
 					Out.Uv[U + 1] = float(V);
 				};
-				Flowing(A + La * Ha, Ya, -Ha, Va, -0.25);
-				Flowing(A, Ya, 0.0, Va, Da);
-				Flowing(A - La * Ha, Ya, Ha, Va, -0.25);
-				Flowing(B + Lb * Hb, Yb, -Hb, Vb, -0.25);
-				Flowing(B, Yb, 0.0, Vb, Db);
-				Flowing(B - Lb * Hb, Yb, Hb, Vb, -0.25);
+				// ([real water, build 168 at Totscore] never over the land: each edge no higher than the ground drawn
+				// there, the middle no higher than the higher edge, so wherever the land falls away from a stream
+				// its water goes down with it, never standing out over the hill)
+				const P2 Al = A + La * Ha, Ar = A - La * Ha, Bl = B + Lb * Hb, Br = B - Lb * Hb;
+				const double YaL = std::fmin(Ya, DrawnAt(Al) - 0.05), YaR = std::fmin(Ya, DrawnAt(Ar) - 0.05);
+				const double YbL = std::fmin(Yb, DrawnAt(Bl) - 0.05), YbR = std::fmin(Yb, DrawnAt(Br) - 0.05);
+				Flowing(Al, YaL, -Ha, Va, -0.25);
+				Flowing(A, std::fmin(Ya, std::fmax(YaL, YaR)), 0.0, Va, Da);
+				Flowing(Ar, YaR, Ha, Va, -0.25);
+				Flowing(Bl, YbL, -Hb, Vb, -0.25);
+				Flowing(B, std::fmin(Yb, std::fmax(YbL, YbR)), 0.0, Vb, Db);
+				Flowing(Br, YbR, Hb, Vb, -0.25);
 				// (left is the run's left going down it, so these face up: A's left, middle, right, then B's)
 				Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 3, Base + 1, Base + 4, Base + 3, Base + 1, Base + 2, Base + 4, Base + 2, Base + 5, Base + 4});
 			}

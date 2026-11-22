@@ -2393,7 +2393,11 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 				const double X = Out.OriginX + Out.Pos[V * 3], Z = Out.OriginZ + Out.Pos[V * 3 + 2];
 				double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
 				if (!NearWater(X, Z, Wd, Ws, Wh, Wdp) || Wd > Wh + 10.0) continue;
-				Uv1[V * 2] = float(ShoreZero - std::clamp(double(Out.Pos[V * 3 + 1]) - Ws, -ShoreZero + 1.0, ShoreZero));
+				// (past the water's edge the land is never under it, however far below the stream's level a
+				// hillside falls: it was drawn as wet bed, pale patches down the slope below a stream)
+				double Over = double(Out.Pos[V * 3 + 1]) - Ws;
+				if (Wd > Wh) Over = std::fmax(Over, Wd - Wh);
+				Uv1[V * 2] = float(ShoreZero - std::clamp(Over, -ShoreZero + 1.0, ShoreZero));
 				Uv1[V * 2 + 1] = float(ShoreBank * 10);
 				AnyShore = true;
 			}

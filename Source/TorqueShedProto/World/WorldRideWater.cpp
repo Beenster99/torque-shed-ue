@@ -145,9 +145,20 @@ void RidePlan::IndexWater()
 		{
 			const P2 L = LeftAt(I);
 			double Least = 1e9;
+			// ([real water, beenster on 168 at Totscore, Skye: "a stream hanging in the air"] and out past its
+			// banks, BedReach either side: a stream mapped across a hillside, where the heights have no gully
+			// for it, lay level with the slope's middle, the land falling away below its lower bank, so the
+			// water stood out over the hill as a shelf. Now it lies at the lowest of the land round it and
+			// cuts its own channel into the slope, its lower bank as high as its water.)
 			for (double U : {-1.0, -0.5, 0.0, 0.5, 1.0})
 			{
 				const double Y = Land->Height(Run.At[I].X + L.X * U * Half[I], Run.At[I].Z + L.Z * U * Half[I]);
+				if (!std::isnan(Y)) Least = std::fmin(Least, Y);
+			}
+			for (double U : {-1.0, -0.5, 0.5, 1.0})
+			{
+				const double Across = U * (Half[I] + BedReach);
+				const double Y = Land->Height(Run.At[I].X + L.X * Across, Run.At[I].Z + L.Z * Across);
 				if (!std::isnan(Y)) Least = std::fmin(Least, Y);
 			}
 			if (Least < 1e8) Low[I] = Least;

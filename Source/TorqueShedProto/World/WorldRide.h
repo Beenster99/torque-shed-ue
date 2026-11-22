@@ -966,6 +966,8 @@ public:
 	// lie under its water, BanksTile's strips of bank reaching BankStrip squares out over them; a lake's and
 	// the sea's shore eased over ShoreReach m round its outline)
 	static constexpr double BankTrough = 0.9, BankStrip = 2.4, ShoreReach = 10.0;
+	// [real water, build 168 Totscore] (a stream's water lies no higher than the land this far past its banks)
+	static constexpr double BedReach = 5.0;
 	void IndexWater();   // (after IndexFields)
 	// The run nearest (X, Z) within its bank's reach: how far from its middle, its water's level, half
 	// width and depth there, and its kind.
