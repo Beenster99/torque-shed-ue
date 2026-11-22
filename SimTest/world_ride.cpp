@@ -1776,6 +1776,20 @@ int main(int Argc, char** Argv)
 						std::printf(" %.0f:%.1f%s", D, Ask.Height(Q.X, Q.Z), Ask.Sea(Q.X, Q.Z) ? "s" : "");
 					}
 					std::printf("\n");
+					// (the nearest open water and dry land round the end)
+					double WetR = -1.0, DryR = -1.0, SeaR = -1.0, LowR = -1.0;
+					for (double Rr = 10.0; Rr <= 1500.0 && (WetR < 0.0 || DryR < 0.0 || SeaR < 0.0 || LowR < 0.0); Rr += 10.0)
+						for (int K = 0; K < 72; ++K)
+						{
+							const P2 Q = A0 + P2(std::cos(K * 0.0872665), std::sin(K * 0.0872665)) * Rr;
+							const double H = Ask.Height(Q.X, Q.Z);
+							if (std::isnan(H)) continue;
+							if (WetR < 0.0 && H <= -0.5 && Ask.Sea(Q.X, Q.Z)) WetR = Rr;
+							if (DryR < 0.0 && H > 1.0) DryR = Rr;
+							if (SeaR < 0.0 && Ask.Sea(Q.X, Q.Z)) SeaR = Rr;
+							if (LowR < 0.0 && H <= 0.2) LowR = Rr;
+						}
+					std::printf("    end %d: open sea (under -0.5) %.0f m off, any sea %.0f, ground under 0.2 %.0f, land (over 1) %.0f m off; the end's own ground %.1f%s\n", E, WetR, SeaR, LowR, DryR, Ask.Height(A0.X, A0.Z), Ask.Sea(A0.X, A0.Z) ? " sea" : "");
 				}
 				continue;
 			}

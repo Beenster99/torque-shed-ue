@@ -44,6 +44,7 @@ static constexpr double ToeOverWater = 0.15;  // the ramp's toe rests on the sli
 static constexpr double ApproachHalfW = 2.9;  // the approach road laid from the map's road to a slipway's head
 static constexpr double RoadReach = 220.0;    // a slipway's head finds the map's road within this (m)
 static constexpr double ShoreBack = 160.0, ShoreOut = 90.0;   // the water's edge looked for this far back and out along the route
+static constexpr double ShoreSeek = 1500.0;   // and, failing that, the nearest shore within this of the route's end
 static constexpr double LongFrom = 3000.0;    // a route this long or longer is a long one (stage 7: the open sea held short)
 
 enum class EKind { Open, Chain, Turntable };
@@ -56,6 +57,7 @@ struct Listed
 	std::string Places[2];
 	EKind Kind = EKind::Open;
 	double Metres = 0.0;
+	std::string Off;             // why the game runs no ferry here, empty when it does (the planner never takes it)
 };
 bool ReadList(const std::string& Text, std::vector<Listed>& Out);
 

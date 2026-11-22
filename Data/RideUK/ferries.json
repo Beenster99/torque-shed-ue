@@ -1,5 +1,5 @@
 {
- "about": "The UK's vehicle ferries Ride UK sails (ferries plan stage 1, Nov 2026). Each is a ferry route in the world's feature cells (kind 'ferry', Overture water segments, release 2026-10-21.0): its id there, its two ends as the map draws the line (lat, lon), the places at those ends as people know them (the order may not match: the game names each end by the nearer one), its length by the map (m), and what kind of small ferry the game sails on it. The game finds a route by its id, else by its ends within 400 m. Every ferry in the game is small (a couple of cars and a couple of bikes) and every crossing takes 1 to 3 minutes; routes longer than short_m are long routes (stage 7: the open sea passed in a short hold). Foot-only ferries, freight routes and routes to other countries are left out. The operators and the boats' names and colours are the game's own.",
+ "about": "The UK's vehicle ferries Ride UK sails (ferries plan stage 1, Nov 2026). Each is a ferry route in the world's feature cells (kind 'ferry', Overture water segments, release 2026-10-21.0): its id there, its two ends as the map draws the line (lat, lon), the places at those ends as people know them (the order may not match: the game names each end by the nearer one), its length by the map (m), and what kind of small ferry the game sails on it. The game finds a route by its id, else by its ends within 400 m. Every ferry in the game is small (a couple of cars and a couple of bikes) and every crossing takes 1 to 3 minutes; routes longer than short_m are long routes (stage 7: the open sea passed in a short hold). Foot-only ferries, freight routes and routes to other countries are left out. The operators and the boats' names and colours are the game's own. 'off': why the game runs no ferry on that crossing (the sat nav never takes it).",
  "short_m": 3000,
  "crossings": [
   {
@@ -20,7 +20,8 @@
    ],
    "kind": "chain",
    "m": 46,
-   "country": "en"
+   "country": "en",
+   "off": "the river is narrower than the boat"
   },
   {
    "id": "c0fd32c7900b",
@@ -880,7 +881,8 @@
    ],
    "kind": "open",
    "m": 108746,
-   "country": "en"
+   "country": "en",
+   "off": "the map draws Heysham's harbour and the bay round it as land: no shore to lay a slipway on"
   }
  ]
 }
