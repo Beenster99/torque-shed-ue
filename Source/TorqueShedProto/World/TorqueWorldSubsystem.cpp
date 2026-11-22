@@ -444,6 +444,29 @@ bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, 
 		Made->Title = TitleStd;
 		if (Made->Ok && bRide) TorqueWorld::Files::Write(RoutePath, Made->RouteJson());
 		UE_LOG(LogTemp, Display, TEXT("Torque ride UK: planned in %.1f s"), FPlatformTime::Seconds() - StartedAt);
+		// [junction priority 169] (where the ride's own road gives way, as SimTest's world_ride says it: for a
+		// robot check to find the junction it looks at; build 168's Buxworth check found no give-way)
+		if (Made->Ok)
+		{
+			int32 Gives = 0;
+			for (const TorqueWorld::RidePlan::JunctionRule& J : Made->Junctions)
+			{
+				if (!J.CameMinor && !J.OntoMinor) continue;
+				++Gives;
+				const TorqueWorld::Geo At = TorqueWorld::Frame(Made->Area.Roads.FrameLat, Made->Area.Roads.FrameLon).ToGeo(Made->Area.Roads.Nodes[size_t(J.Node)].X, Made->Area.Roads.Nodes[size_t(J.Node)].Z);
+				UE_LOG(LogTemp, Display, TEXT("Torque ride UK: junction at %.0f m (%.5f,%.5f): %s, %s -> %s"), J.Along, At.Lat, At.Lon,
+					J.CameMinor ? TEXT("the ride gives way coming in") : TEXT("the ride leaves by a road that gives way"),
+					UTF8_TO_TCHAR(Made->Area.Roads.ClassOf(J.Came).c_str()), UTF8_TO_TCHAR(Made->Area.Roads.ClassOf(J.Onto).c_str()));
+			}
+			int32 Lines = 0;
+			for (const TorqueWorld::RidePlan::MappedMark& M : Made->MainMapped)
+				if ((M.Kind == "give_way" || M.Kind == "stop") && M.Dir != 0)
+				{
+					++Lines;
+					UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s line at %.0f m%s"), UTF8_TO_TCHAR(M.Kind.c_str()), M.Along, M.LinesDrawn ? TEXT(" (along the through road's edge)") : TEXT(""));
+				}
+			UE_LOG(LogTemp, Display, TEXT("Torque ride UK: junctions: %d with a through road, the ride gives way at %d; %d give-way or stop lines facing it"), int32(Made->Junctions.size()), Gives, Lines);
+		}
 		AsyncTask(ENamedThreads::GameThread, [Self, Made, bRide]() { if (Self.IsValid()) Self->RidePlanned(Made, bRide); });
 	});
 	return true;
