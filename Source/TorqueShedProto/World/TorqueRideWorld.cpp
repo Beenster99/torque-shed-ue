@@ -838,6 +838,14 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: garden planting %s"), Plan->RealGardens ? *FString::Printf(TEXT("on (%.0f%%)"), Plan->GardenShare * 100.0)
 			: bPlantingAsked && PlantingAsked <= 0.0f ? TEXT("off (-TorqueRidePlanting=0)") : TEXT("off (no garden_* models in the kit: Data/RideUK/scanned_trees.json garden_kinds, Tools/ue_build_rideuk.py)"));
 	}
+	{
+		// [house foot, Nov 22] Buildings settled into the land (weathered wall feet, darker ground round them, rank
+		// grass at their walls: WorldRideHouseFoot.cpp); -TorqueHouseBlend=0 off (the frame rate A/B), 0.5 half.
+		float BlendAsked = 1.0f;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueHouseBlend="), BlendAsked);
+		Plan->HouseBlend = FMath::Clamp(BlendAsked, 0.0f, 1.0f);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: house foot blend %.0f%%"), Plan->HouseBlend * 100.0);
+	}
 	float Density = 1.0f;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliage="), Density)) Plan->GrassDensity = FMath::Clamp(Density, 0.0f, 1.0f);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliageCull="), CullScale)) CullScale = FMath::Clamp(CullScale, 0.05f, 4.0f);

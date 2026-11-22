@@ -407,16 +407,18 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	// [driveways] (the houses' cars on their drives: the finest squares only, as the car parks')
 	const bool DriveCars = Fine && ParkedCars && DriveCarShare > 0.0;
 	std::vector<ParkedCarBox> DriveTaken;
+	const bool FootGrass = Fine && HouseBlend > 0.0 && GrassDensity > 0.0;   // [house foot] (rank grass at the walls' feet)
 	GardenClear Clearing;
 	std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> ClearHeld;
-	if (Planting || DriveCars)
+	GardenClear FootClearing;   // [house foot] (as Clearing, but none of the cells' own boxes where outlines stand in for them)
+	if (Planting || DriveCars || FootGrass)
 	{
 		constexpr double Margin = 16.0;
 		std::vector<const OutlinePiece*> ClearPieces;
 		std::vector<CellId> ClearCovered;
 		OutlinesIn(X0 - Margin, Z0 - Margin, Size + 2.0 * Margin, ClearHeld, ClearPieces, ClearCovered);
-		for (const OutlinePiece* P : ClearPieces) Clearing.Add(P->B);
-		for (const Candidate& Each : Here) Clearing.Add(*Each.B);
+		for (const OutlinePiece* P : ClearPieces) { Clearing.Add(P->B); FootClearing.Add(P->B); }
+		for (const Candidate& Each : Here) { Clearing.Add(*Each.B); FootClearing.Add(*Each.B); }
 		const int Gx0 = int(std::floor((X0 - Margin) / SceneCell)), Gx1 = int(std::floor((X0 + Size + Margin) / SceneCell));
 		const int Gz0 = int(std::floor((Z0 - Margin) / SceneCell)), Gz1 = int(std::floor((Z0 + Size + Margin) / SceneCell));
 		for (int Cz = Gz0; Cz <= Gz1; ++Cz)
@@ -427,7 +429,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				for (int I : It->second)
 				{
 					const Building& Bi = G.Buildings[size_t(I)];
-					if (Bi.X > X0 - Margin - 60.0 && Bi.X < X0 + Size + Margin + 60.0 && Bi.Z > Z0 - Margin - 60.0 && Bi.Z < Z0 + Size + Margin + 60.0) Clearing.Add(Bi);
+					if (Bi.X > X0 - Margin - 60.0 && Bi.X < X0 + Size + Margin + 60.0 && Bi.Z > Z0 - Margin - 60.0 && Bi.Z < Z0 + Size + Margin + 60.0)
+					{
+						Clearing.Add(Bi);
+						if (FootGrass && (ClearCovered.empty() || std::find(ClearCovered.begin(), ClearCovered.end(), CellOf(Fr.ToGeo(Bi.X, Bi.Z).Lat, Fr.ToGeo(Bi.X, Bi.Z).Lon)) == ClearCovered.end()))
+							FootClearing.Add(Bi);
+					}
 				}
 			}
 	}
@@ -633,7 +640,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const Rgb Washes = HasWallColour ? TaggedWall : Painted ? Own
 			: Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B};
 		const Rgb Bricks = HasWallColour ? TaggedWall : Rgb{Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
-		static const Rgb GlassWall = {0.10f, 0.12f, 0.12f}, Planks = {0.16f, 0.11f, 0.07f}, Sheeting = {0.30f, 0.31f, 0.30f};
+		// ([Nov 22] beenster, Swanley on 168: "lots of houses with no textures": a works' cladding was a pale 0.3
+		// grey in the road's material, so big sheds read as bare white shells. Now profiled sheet in the colours
+		// it's sold in (goosewing and merlin grey, juniper green, slate blue, now and then off-white), ribbed by
+		// M_RideRoof's sheet as their roofs are; a timber shed's boards streaked as its grain)
+		static const Rgb GlassWall = {0.10f, 0.12f, 0.12f}, Planks = {0.16f, 0.11f, 0.07f};
+		static const Rgb Sheetings[5] = {{0.15f, 0.16f, 0.16f}, {0.095f, 0.1f, 0.105f}, {0.05f, 0.08f, 0.055f}, {0.07f, 0.09f, 0.11f}, {0.24f, 0.24f, 0.22f}};
+		const double SheetPick = Chance(B.X, B.Z, 505);
+		const Rgb Sheeting = Sheetings[SheetPick < 0.35 ? 0 : SheetPick < 0.55 ? 1 : SheetPick < 0.75 ? 2 : SheetPick < 0.9 ? 3 : 4];
 		const Rgb PlainWall = HasWallColour && !GlassHouse ? TaggedWall : GlassHouse ? GlassWall : Timber ? Planks : Sheeting;
 		const Rgb Wall = Plain ? Shade(PlainWall, 0.92 + 0.12 * Chance(B.X, B.Z, 4))
 			: Shade(Rendered ? Washes : Brick ? Bricks : Stone, (Rendered ? 0.92 : 0.85) + (Rendered ? 0.14 : 0.3) * (0.75 * Chance(StreetX, StreetZ, 4) + 0.25 * Chance(B.X, B.Z, 4)));
@@ -651,8 +665,75 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		{
 			if (Rendered) Quad(Washed, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.08f);
 			else if (Brick) Quad(BrickOut, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.06f);
-			else if (Plain) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
+			else if (GlassHouse) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
+			else if (Plain) RoofQuad(RoofOut, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), Timber ? 0.75f : 1.0f);   // [Nov 22] (cladding, boards)
 			else Quad(Houses, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
+		};
+		// [house foot, Nov 22] (beenster, Uig on 168: houses "dropped onto" the land) A wall's foot as a real
+		// one weathers: rain splash, damp and soil at the ground, fading up it over half a metre to a metre
+		// (the wall materials' own dirt, or a stone wall's moss, from the vertex alpha, and a little darker),
+		// following the ground at each end; a newer house cleaner. The wall above as before. No new parts:
+		// the same quads cut in three, so it costs nothing to draw. -TorqueHouseBlend=0 leaves it out.
+		const double FootRise = (Rendered ? 1.15 : Brick ? 0.9 : Plain ? 0.6 : 1.0) * (0.75 + 0.5 * Chance(B.X, B.Z, 501)) * (Modern ? 0.6 : 1.0);
+		const float FootDirt = float((Rendered ? 0.85 : Brick ? 0.7 : Plain ? 0.0 : 0.75) * (Modern ? 0.65 : 1.0));
+		// (a rendered or limewashed house's painted base course, as most Highland, island and West Country cottages
+		// have and many a town house: charcoal, black or slate grey, now and then a colour; a row's alike)
+		const double CourseRoll = Chance(InRow ? RowX : B.X, InRow ? RowZ : B.Z, 502);
+		const bool Course = Rendered && !Modern && (IsHouse || IsShop) && CourseRoll < (Scots || Seaside ? 0.6 : InTown ? 0.2 : 0.35);
+		const double CourseHigh = 0.3 + 0.25 * Chance(InRow ? RowX : B.X, InRow ? RowZ : B.Z, 503);
+		static const Rgb CoursePaints[5] = {{0.035f, 0.035f, 0.038f}, {0.015f, 0.015f, 0.016f}, {0.085f, 0.09f, 0.095f}, {0.02f, 0.045f, 0.03f}, {0.07f, 0.022f, 0.016f}};
+		const double CoursePick = Chance(InRow ? RowX : B.X, InRow ? RowZ : B.Z, 504);
+		const Rgb CoursePaint = CoursePaints[CoursePick < 0.4 ? 0 : CoursePick < 0.65 ? 1 : CoursePick < 0.88 ? 2 : CoursePick < 0.95 ? 3 : 4];
+		const auto FootWall = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, double By)
+		{
+			// (Q0 Q1 its foot, Q2 over Q1 and Q3 over Q0 its top, as WallQuad's walls are given)
+			const double G0 = Ground(Q0.X, Q0.Z), G1 = Ground(Q1.X, Q1.Z);
+			if (HouseBlend <= 0.0 || Ruin || std::isnan(G0) || std::isnan(G1) || Q3.Y - Q0.Y < 1.5 || Q2.Y - Q1.Y < 1.5)
+			{
+				WallQuad(Q0, Q1, Q2, Q3, Toward, By);
+				return;
+			}
+			// (the ground's line on the wall (or the base course's top), the fade's top, each end: never under
+			// the foot or over the top)
+			const double Up = Course ? CourseHigh : 0.12;
+			const double S0 = std::clamp(G0 + Up, Q0.Y + 0.02, Q3.Y - 0.6), S1 = std::clamp(G1 + Up, Q1.Y + 0.02, Q2.Y - 0.6);
+			const double FadeUp = Course ? 0.45 : FootRise;
+			const double F0 = std::clamp(G0 + Up + FadeUp, S0 + 0.1, Q3.Y - 0.3), F1 = std::clamp(G1 + Up + FadeUp, S1 + 0.1, Q2.Y - 0.3);
+			const P3 A0 = At3(Q0.X, S0, Q0.Z), A1 = At3(Q1.X, S1, Q1.Z), B0 = At3(Q0.X, F0, Q0.Z), B1 = At3(Q1.X, F1, Q1.Z);
+			const float Dirt = float(FootDirt * HouseBlend);
+			Rgb Low, High;
+			RideMesh* Mesh = nullptr;
+			float Clean = 0.06f;
+			if (Rendered) { Mesh = &Washed; High = Shade(Wall, By); Low = Shade(Wall, By * (1.0 - 0.25 * HouseBlend)); Clean = 0.08f; }
+			else if (Brick) { Mesh = &BrickOut; High = Shade(Wall, By); Low = Shade(Wall, By * (1.0 - 0.22 * HouseBlend)); }
+			else if (Plain)
+			{
+				// (cladding or boards: its foot darker, fading up it, in the roofing's own ribs)
+				if (GlassHouse) { WallQuad(Q0, Q1, Q2, Q3, Toward, By); return; }
+				const Rgb Dark = Shade(Wall, By * (1.0 - 0.4 * HouseBlend)), Clad = Shade(Wall, By);
+				const float Ribs = Timber ? 0.75f : 1.0f;
+				RoofQuad(RoofOut, Q0, Q1, A1, A0, Toward, Dark, Ribs);
+				RoofQuad(RoofOut, A0, A1, B1, B0, Toward, Clad, Ribs, &Dark);
+				RoofQuad(RoofOut, B0, B1, Q2, Q3, Toward, Clad, Ribs);
+				return;
+			}
+			else { Mesh = &Houses; High = Mask; Low = Mask; Low.R = float(Mask.R * (1.0 - 0.4 * HouseBlend)); }
+			const float Foot = Clean < 0.0f ? -1.0f : std::fmax(Clean, Dirt), Top = Clean;
+			if (Course)
+			{
+				// (the painted course, a little splashed; over it the render a little dirty, fading)
+				const Rgb Paint = Shade(CoursePaint, By);
+				const float Mid = std::fmax(Clean, Dirt * 0.5f);
+				QuadFade(*Mesh, Q0, Q1, A1, A0, Toward, Paint, Paint, std::fmax(Clean, Dirt * 0.35f), std::fmax(Clean, Dirt * 0.2f));
+				QuadFade(*Mesh, A0, A1, B1, B0, Toward, Shade(Wall, By * 0.9), High, Mid, Top);
+			}
+			else
+			{
+				// (under the ground's line: the dirtiest; the fade; then the wall's own)
+				QuadFade(*Mesh, Q0, Q1, A1, A0, Toward, Low, Low, Foot, Foot);
+				QuadFade(*Mesh, A0, A1, B1, B0, Toward, Low, High, Foot, Top);
+			}
+			WallQuad(B0, B1, Q2, Q3, Toward, By);
 		};
 		// (the roof: the map's material, else the local share of thatch, clay tiles or pantiles, stone slates, else slate)
 		const double RoofPick = IsHouse ? Chance(StreetX, StreetZ, 6) : Chance(B.X, B.Z, 6);
@@ -682,7 +763,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const bool Sheet = RoofMaterial == "metal" || RoofMaterial == "eternit" || RoofMaterial == "copper" || (!AnyRoofTag && PeriodRoof < 0 && (Works || (IsBarn && Chance(B.X, B.Z, 9) < 0.3)));
 		const bool Felt = RoofMaterial == "tar_paper" || RoofMaterial == "concrete" || (!AnyRoofTag && (Shape == ERoof::Flat || (Timber && IsShed)));
 		const bool GlassRoof = RoofMaterial == "glass" || (!AnyRoofTag && GlassHouse);
-		static const Rgb Straw = {0.27f, 0.21f, 0.11f}, RoofSheet = {0.20f, 0.21f, 0.21f}, RoofFelt = {0.06f, 0.06f, 0.065f}, Verdigris = {0.18f, 0.32f, 0.27f};
+		static const Rgb Straw = {0.27f, 0.21f, 0.11f}, RoofSheet = {0.12f, 0.125f, 0.125f}, RoofFelt = {0.06f, 0.06f, 0.065f}, Verdigris = {0.18f, 0.32f, 0.27f};
 		// ([towns stage 5] concrete tiles brown or grey; plain clay tiles red-brown where the place's own are pantiles)
 		static const Rgb ConcreteTiles[2] = {{0.10f, 0.075f, 0.06f}, {0.075f, 0.072f, 0.07f}};
 		const Rgb Tiles = PeriodRoof == 2 ? ConcreteTiles[Chance(RowX, RowZ, 97) < 0.6 ? 0 : 1] : PeriodRoof == 1 ? Rgb{0.24f, 0.09f, 0.055f}
@@ -809,9 +890,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			// The long walls (a skillion's high side up to its top), and the ends.
 			const double LongTop = Shape == ERoof::Skillion && Sg < 0.0 ? Eaves + Rise : Eaves;
 			const P3 L0 = Local(-HalfLong, Sg * HalfShort, Sunk), L1 = Local(HalfLong, Sg * HalfShort, Sunk), L2 = Local(HalfLong, Sg * HalfShort, LongTop), L3 = Local(-HalfLong, Sg * HalfShort, LongTop);
-			WallQuad(L0, L1, L2, L3, Outside(L0, L2), 1.0);
+			FootWall(L0, L1, L2, L3, Outside(L0, L2), 1.0);
 			const P3 E0 = Local(Sg * HalfLong, -HalfShort, Sunk), E1 = Local(Sg * HalfLong, HalfShort, Sunk), E2 = Local(Sg * HalfLong, HalfShort, Eaves), E3 = Local(Sg * HalfLong, -HalfShort, Eaves);
-			WallQuad(E0, E1, E2, E3, Outside(E0, E2), 0.93);
+			FootWall(E0, E1, E2, E3, Outside(E0, E2), 0.93);
 			// The roof, by its shape (a ruin has none).
 			if (Ruin) continue;
 			const double Low = Eaves - Drop, Top = Eaves + Rise;
@@ -1512,6 +1593,44 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			}
 			if (Planting) GardenPlants(Gh, Clearing, Out);
 			if (DriveCars) DrivewayCar(Gh, Clearing, DriveTaken, Out);   // [driveways]
+		}
+		// [house foot, Nov 22] (beenster, Uig on 168: "long grasses at the base of the house... to feel part of the
+		// landscape") Rank grass along its walls' feet, round every building but a glasshouse or a works: its front
+		// too where soft ground lies before it (not a shop's, nor straight onto a pavement), a town's yards only a
+		// weed or two; within 90 m of a road (the grass is out of sight further). HouseFootPlants.
+		if (FootGrass && !GlassHouse && !Works && !ShopHere && FrontGap < 90.0)
+		{
+			GardenHouse Fh;
+			Fh.X = B.X;
+			Fh.Z = B.Z;
+			Fh.Cs = Cs;
+			Fh.Sn = Sn;
+			Fh.LongX = LongX;
+			Fh.HalfLong = HalfLong;
+			Fh.HalfShort = HalfShort;
+			Fh.PartyPlus = PartyPlus;
+			Fh.PartyMinus = PartyMinus;
+			Fh.InTown = InTown;
+			Fh.FrontSide = DoorSide;
+			Fh.FrontGap = FrontGap;
+			Fh.Kind = HouseKind;
+			Fh.Bays = Bays;
+			if (InRow && Bays == 1) Fh.DoorU = DoorPlus ? HalfLong - 0.9 : -HalfLong + 0.9;
+			else
+			{
+				const int Along0 = std::max(1, int(HalfLong * 2.0 / 3.5));
+				Fh.DoorU = -HalfLong + (Along0 / 2 + 0.5) * (HalfLong * 2.0 / Along0);
+			}
+			if (IsHouse && Bays == 1 && HouseKind != HouseTypes::Terrace && HouseKind != HouseTypes::VillageRow && HalfLong * 2.0 >= 5.0)
+			{
+				if (Fh.DoorU < 0.0) { Fh.DriveFrom = HalfLong - 2.9; Fh.DriveTo = HalfLong + 1.0; }
+				else { Fh.DriveFrom = -HalfLong - 1.0; Fh.DriveTo = -HalfLong + 2.9; }
+			}
+			// (a barn's or a shed's whole front is its doors and yard: none there)
+			const bool SoftFront = FrontGap > 2.5 && !IsBarn && !IsIndustrial && !Garage;
+			const int Cover0 = Land->Cover(B.X, B.Z);
+			const bool Hard = InTown && (Cover0 == 5 || Bays > 1 || HouseKind == HouseTypes::Terrace);
+			HouseFootPlants(Fh, SoftFront, Hard, FootClearing, Out);
 		}
 		// [OSM stage 3] Chimneys: on houses (a stack at each gable end, or on the ridge, as the place
 		// builds them; a terrace's on every other party wall), shops and now and then a civic building;
