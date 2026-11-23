@@ -3474,7 +3474,10 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		}
 		Text = FString::Printf(TEXT("Fitted the %s as the %s. Bolt it up with the wrench."), *ItemTitle(Held), *TorqueShedParts::SlotName(S).ToLower()) + Fab;
 		if (R.Engine == 0 && IsBolted(H.Bay, S, 0))   // ([rigid choppers] the hidden shock: held in the frame as it goes in)
+		{
+			H.Bolted->Add(S, true);   // (stored so, too: the saved shed and every list read it bolted)
 			Text = FString::Printf(TEXT("Fitted the %s as the %s, hidden inside the frame."), *ItemTitle(Held), *TorqueShedParts::SlotName(S).ToLower()) + Fab;
+		}
 		if (H.Bay != INDEX_NONE) PartsOf.Add(H.Bay);
 		bItems = true;
 		break;

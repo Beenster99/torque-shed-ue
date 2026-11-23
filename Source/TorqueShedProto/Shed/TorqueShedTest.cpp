@@ -422,7 +422,7 @@ void UTorqueShedTest::LogBuild(const TCHAR* Where) const
 		{
 			if (KV.Value == 0) continue;
 			const FTorqueItem* It = B->Item(KV.Value);
-			Text += FString::Printf(TEXT(" %s=%s%s"), *KV.Key.ToString(), It ? *It->Part.ToString() : TEXT("?"), Bike.Bolted.FindRef(KV.Key) ? TEXT("") : TEXT("(loose)"));
+			Text += FString::Printf(TEXT(" %s=%s%s"), *KV.Key.ToString(), It ? *It->Part.ToString() : TEXT("?"), B->IsBolted(Bay, KV.Key, 0) ? TEXT("") : TEXT("(loose)"));   // (as the game reads it: a rigid chopper's hidden shock is held)
 		}
 		const TArray<FName> Missing = B->MissingSlots(Bay);
 		FString MissingText;
