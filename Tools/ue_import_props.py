@@ -564,10 +564,12 @@ def mesh_path(pid):
     return "%s/%s/SM_%s" % (DEST, pid, pid)
 
 
-def instanced_ready(mesh, pid):
+def instanced_ready(mesh, pid, instanced=True):
     """The check that no prop (a train above all) draws as the checker: every slot has a material, not the
     engine's default, and its base material is flagged for instanced static meshes (set here if the
-    project's own; an engine or plugin one is only reported). Returns how many slots are still wrong."""
+    project's own; an engine or plugin one is only reported). Returns how many slots are still wrong.
+    instanced False (the Poly Haven and Fab shed dressing, placed as plain components, never instanced):
+    only the first part; their importer's own M_Default needs no instanced usage."""
     bad = 0
     for i, s in enumerate(mesh.get_editor_property("static_materials")):
         slot = str(s.get_editor_property("material_slot_name"))
@@ -576,6 +578,8 @@ def instanced_ready(mesh, pid):
         if base is None or base.get_path_name().startswith("/Engine/"):
             warn("%s: slot %s has %s: it would draw as the checker" % (pid, slot, base.get_path_name() if base else "no material"))
             bad += 1
+            continue
+        if not instanced:
             continue
         try:
             if not base.get_editor_property("used_with_instanced_static_meshes"):
@@ -691,7 +695,7 @@ def import_all(force=False, only=()):
         no_nanite(mesh, pid)
         if p["source"] == "blender":
             give_materials(mesh, mats)
-        bad += instanced_ready(mesh, pid)
+        bad += instanced_ready(mesh, pid, p["source"] == "blender")
         if pid in furniture:
             complex_collision(mesh, pid)
         got += 1
