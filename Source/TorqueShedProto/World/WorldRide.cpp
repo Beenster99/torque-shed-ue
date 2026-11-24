@@ -284,6 +284,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	// [OSM stage 5B] The roundabouts found and the round ones made true circles, before any road is laid.
 	R->IndexRings();
 	if (R->RoundRings() > 0) R->IndexRings();
+	R->IndexJunctions();   // [smooth junctions stage 2] (the map's points tidied into whole junctions)
 	const Region& G = R->Area.Roads;
 	const std::vector<RideStep>& Steps = R->MadeSteps;
 	const int From = Steps.front().From;

@@ -1759,6 +1759,39 @@ public:
 	int RoundRings();   // the rings near a circle made true arcs (before any road is laid): how many
 	static constexpr double RingStep = 2.0;
 	int RingAt(int Node) const;   // the ring a node is on, -1 none
+	// [smooth junctions stage 2] The map tidied into whole junctions before anything is built: the map's points a few
+	// metres apart that are one junction on the ground merged into one (a node cluster: a short link, a slip's small
+	// triangle, the two crossings of a dual carriageway's gap), a ring's nodes one roundabout, a dual carriageway's two
+	// halves arriving paired as one road, stubs under StubLeast dropped. Each gets a kind from the catalogue and its
+	// through road (the best class, then the straightest pair). Built once with the plan (IndexJunctions); the builders
+	// of stage 3 on lay their junctions from it.
+	struct JunctionArm
+	{
+		int Edge = -1, Node = -1;   // the road out, from which of the junction's nodes
+		P2 Away;                    // its heading out (first 20 m)
+		double Cost = 0.0;          // a metre of it the quick way (RoadLine::MainCostOf: lower is greater)
+		bool In = true, Out = true; // traffic may come in along it, leave along it
+		int Pair = -1;              // the arm that is the other half of its dual carriageway, -1 none
+		bool Through = false;       // one of the through road's arms
+		bool Unpaved = false;       // gravel, a track or setts
+	};
+	enum class EJunction : unsigned char { None, Bend, T, Cross, Stagger, Fork, Slip, Multi, Ring, Mini, DualGap };
+	struct JunctionPlace
+	{
+		std::vector<int> Nodes, Inside;   // the map's points merged into it; the edges wholly within it
+		P2 At;
+		std::vector<JunctionArm> Arms;    // round it anticlockwise from east, seen from above
+		int Roads = 0;                    // arms, a dual's paired halves counted once
+		EJunction Kind = EJunction::None;
+		bool Lights = false, Dual = false, Unpaved = false;
+		int Ring = -1;                    // its roundabout in RoadRings
+		double Span = 0.0;                // the farthest two of its nodes are apart (m)
+	};
+	static constexpr double JunctionMerge = 12.0, JunctionSlip = 30.0, JunctionGap = 35.0, JunctionStub = 4.0, JunctionSpanMost = 45.0;
+	std::vector<JunctionPlace> JunctionPlaces;
+	std::vector<int> JunctionOfNode;   // by node: its place in JunctionPlaces, -1 none (fewer than three roads)
+	void IndexJunctions();
+	static const char* JunctionKindName(EJunction Kind);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
 	std::vector<unsigned char> RoundEdge;   // by edge: 1 on a ring drawn as a circle (IndexRings)

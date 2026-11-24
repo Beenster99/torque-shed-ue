@@ -2813,6 +2813,58 @@ int main(int Argc, char** Argv)
 	// height (steps over 8 cm, m2), tarmac standing steeper than 45 degrees over 5 cm (spikes, how many), the map's line of each road into it
 	// not under any surface (holes, m), the land drawn through the tarmac (m2) and verge grass laid over the
 	// tarmac (m2). WORLD_RIDE_JCHECK_DUMP=prefix: the worst few's meshes as WORLD_RIDE_MESH writes them.
+	// [smooth junctions stage 2] WORLD_RIDE_JINDEX=lat,lon,r: the map tidied into whole junctions round a place: how many
+	// of each kind, and how many map points went into them; WORLD_RIDE_JINDEX_DUMP=file: the raw map and the tidied
+	// junctions there, for the sheets (jindex_sheet.py).
+	if (const char* Jx = std::getenv("WORLD_RIDE_JINDEX"))
+	{
+		double La = 0.0, Lo = 0.0, Rr = 0.0;
+		if (std::sscanf(Jx, "%lf,%lf,%lf", &La, &Lo, &Rr) == 3)
+		{
+			const Region& G = Plan->Area.Roads;
+			const P2 Cn = G.FrameOf().FromGeo(La, Lo);
+			std::map<std::string, int> Count;
+			int Points = 0, Places = 0, Merged = 0;
+			std::string Dump;
+			char Buf[256];
+			for (int N = 0; N < int(G.Nodes.size()); ++N)
+			{
+				if (G.Nodes[size_t(N)].DistanceTo(Cn) > Rr) continue;
+				if (G.Adjacent[size_t(N)].size() >= 3) ++Points;
+				std::snprintf(Buf, sizeof(Buf), "N %.1f %.1f %zu\n", G.Nodes[size_t(N)].X - Cn.X, G.Nodes[size_t(N)].Z - Cn.Z, G.Adjacent[size_t(N)].size());
+				Dump += Buf;
+			}
+			for (int E = 0; E < int(G.Edges.size()); ++E)
+			{
+				const RoadEdge& Ed = G.Edges[size_t(E)];
+				if (G.Nodes[size_t(Ed.A)].DistanceTo(Cn) > Rr + 100.0 && G.Nodes[size_t(Ed.B)].DistanceTo(Cn) > Rr + 100.0) continue;
+				const RoadExtra* X = G.ExtraOf(E);
+				Dump += "E " + G.ClassOf(E) + (X != nullptr && !X->Half.empty() ? " dual" : " single");
+				for (const P2& P : Ed.Line) { std::snprintf(Buf, sizeof(Buf), " %.1f %.1f", P.X - Cn.X, P.Z - Cn.Z); Dump += Buf; }
+				Dump += "\n";
+			}
+			for (const RidePlan::JunctionPlace& J : Plan->JunctionPlaces)
+			{
+				if (J.At.DistanceTo(Cn) > Rr) continue;
+				++Places;
+				Merged += J.Nodes.size() > 1 ? 1 : 0;
+				++Count[RidePlan::JunctionKindName(J.Kind)];
+				std::snprintf(Buf, sizeof(Buf), "J %s %.1f %.1f %.1f %zu %d %d%s%s%s", RidePlan::JunctionKindName(J.Kind), J.At.X - Cn.X, J.At.Z - Cn.Z, J.Span, J.Nodes.size(), J.Roads, int(J.Arms.size()),
+					J.Dual ? " dual" : "", J.Lights ? " lights" : "", J.Unpaved ? " unpaved" : "");
+				Dump += Buf;
+				for (const RidePlan::JunctionArm& A : J.Arms)
+				{
+					const P2 Fr = G.Nodes[size_t(A.Node)];
+					std::snprintf(Buf, sizeof(Buf), " | %.1f %.1f %.2f %.2f %d %d", Fr.X - Cn.X, Fr.Z - Cn.Z, A.Away.X, A.Away.Z, A.Through ? 1 : 0, A.Pair);
+					Dump += Buf;
+				}
+				Dump += "\n";
+			}
+			std::printf("jindex: %d map junction points within %.0f m -> %d junctions (%d of them merged from several points)\n", Points, Rr, Places, Merged);
+			for (const auto& Kc : Count) std::printf("jindex kind %s: %d\n", Kc.first.c_str(), Kc.second);
+			if (const char* Df = std::getenv("WORLD_RIDE_JINDEX_DUMP")) Files::Write(Df, Dump);
+		}
+	}
 	if (std::getenv("WORLD_RIDE_JCHECK") != nullptr)
 	{
 		const Region& G = Plan->Area.Roads;
