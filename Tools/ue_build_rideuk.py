@@ -916,6 +916,9 @@ def water_material(L, real=False):
         lace = chan(g.sample(foam_t, g.lerp(drift_uv, river_uv, is_river), "linear"), "R")
         foam = sat(mul(mul(amount, lace), 1.8))
     rough = g.op(U.MaterialExpressionMultiply, rough, g.lerp(g.const(0.4), g.const(1.3), calm))
+    # ([171 at Aysgarth: the river blue-grey with the sky] a river's surface is never a clean mirror: its
+    # ripples and drift blur the sky's reflection, which leaves more of the water's own brown)
+    rough = g.lerp(rough, g.op(U.MaterialExpressionMax, rough, const_b=0.14), is_river)
     rough = g.lerp(rough, g.const(0.6), foam)
     foam_colour = g.const((0.82, 0.85, 0.86))
     # [real water, beenster on 166: "it never really looked like water"] (the plain water, opaque, can't be
@@ -949,7 +952,9 @@ def water_material(L, real=False):
         # tea-clear over its stones in the shallows, amber to brown as it deepens, a little of that brown
         # scattered back from the silt in it.)
         absorb = g.lerp(absorb, g.const((0.55, 1.1, 2.4)), is_river)
-        scatter = g.lerp(scatter, g.const((0.06, 0.05, 0.025)), is_river)
+        # ([171 on the PC at Aysgarth: no trees, no repeat, but still "blue-grey, not clearly brown"] twice the
+        # brown scattered back from the silt, so the body of the water outweighs the sky in it looking down)
+        scatter = g.lerp(scatter, g.const((0.13, 0.09, 0.04)), is_river)
         pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
                 "phase": (g.const(0.15), ("PhaseG", "Phase G")),
