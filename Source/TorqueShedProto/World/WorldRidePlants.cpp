@@ -229,6 +229,17 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		if (CircuitGroundAt(X, Z) >= 0) return;   // [circuits] (nothing grows in a gravel trap or on paved run-off)
 		double Y = 0.0, Nx = 0.0, Nz = 0.0;
 		Surface(X, Z, Y, Nx, Nz);
+		// ([real water, beenster on 170 at Aysgarth: trees standing in the Ure] the map's canopy reaches out
+		// over a river from the trees on its banks, and a tree was planted wherever it said, in the channel
+		// too. Now no tree stands in a river's, a stream's or a canal's water or within a metre of its edge,
+		// nor on a lake's bed.)
+		if (Height > 0.0)
+		{
+			double WDist = 0.0, WSurf = 0.0, WHalf = 0.0, WDepth = 0.0;
+			if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth) && WDist < WHalf + 1.0) return;
+			const double Still = StillLevel(X, Z);
+			if (!std::isnan(Still) && Y < Still + 0.2) return;
+		}
 		// ([road edges, build 155] the PC saw a see-through dark green band along every road's edges: the
 		// verge's grass mats stood on the field's 4 m grid, which lies a few centimetres under the road's
 		// own grass shoulder (and 10 under its tarmac), so only their blades' tips came through it. On the

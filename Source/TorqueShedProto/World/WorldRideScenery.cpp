@@ -849,6 +849,13 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				if (Tall < 3.0 || Chance(Jx, Jz, 13) > Share * 1.2 || !OffRoad(X, Z, 3.0) || RailClear(X, Z) < 5.0) continue;
 				const double Base = Ground(X, Z);
 				if (std::isnan(Base)) continue;
+				// ([real water, 170] not in a river or on a lake's bed: as WorldRidePlants' real trees)
+				{
+					double WDist = 0.0, WSurf = 0.0, WHalf = 0.0, WDepth = 0.0;
+					if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth) && WDist < WHalf + 1.0) continue;
+					const double Still = StillLevel(X, Z);
+					if (!std::isnan(Still) && Base < Still + 0.2) continue;
+				}
 				const bool Pointed = ((Trees >> 8) & 3) == 2 || (((Trees >> 8) & 3) == 3 && Chance(Jx, Jz, 14) < 0.5);
 				const double High = Tall * (0.8 + 0.35 * Chance(Jx, Jz, 15)) * (Fine ? 1.0 : 1.05);
 				const double Wide = (Pointed ? High * 0.19 : High * 0.33) * (Fine ? 1.0 : 1.5), Trunk = High * (Pointed ? 0.18 : 0.3);

@@ -865,8 +865,11 @@ def water_material(L, real=False):
     lap = sat(sub(mul(sine(sub(mul(deep, 30.0), mul(time, 2.2))), 2.0), 1.0))
     lap = mul(mul(lap, sat(sub(1.0, div(deep, 0.3)))), mul(is_lake, 0.6))
     caps = mul(mul(is_sea, sat(mul(sub(wind, 1.4), 0.9))), sat(sub(mul(wobble, 4.0), 2.6)))
-    rapids = mul(sat(add(white, mul(shore, 0.4))), is_river)
-    amount = g.op(U.MaterialExpressionMax, mul(shore, 0.85), surf)
+    # ([real water, beenster on 170 at Aysgarth: "is this realistic water?", the calm Ure blotched white along
+    # its banks] a slow river has no foam at its edge, only where it falls: a faint scum line at most, and the
+    # white water by its fall alone)
+    rapids = mul(white, is_river)
+    amount = g.op(U.MaterialExpressionMax, mul(shore, g.lerp(g.const(0.85), g.const(0.08), is_river)), surf)
     amount = g.op(U.MaterialExpressionMax, amount, lap)
     amount = g.op(U.MaterialExpressionMax, amount, caps)
     amount = g.op(U.MaterialExpressionMax, amount, rapids)
@@ -905,6 +908,12 @@ def water_material(L, real=False):
         # green, so it goes a grey green with depth, not the clear tropics' cyan)
         absorb = g.lerp(g.const((0.45, 0.15, 0.19)), g.const((0.32, 0.5, 1.1)), brown)
         scatter = g.op(U.MaterialExpressionMultiply, vc, const_b=0.9)
+        # ([real water, beenster on 170 at Aysgarth] the Ure came out a deep saturated blue: it absorbed so
+        # little that it was nearly clear glass, the summer sky all it showed. A Dales river is peat-stained:
+        # tea-clear over its stones in the shallows, amber to brown as it deepens, a little of that brown
+        # scattered back from the silt in it.)
+        absorb = g.lerp(absorb, g.const((0.55, 1.1, 2.4)), is_river)
+        scatter = g.lerp(scatter, g.const((0.06, 0.05, 0.025)), is_river)
         pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
                 "phase": (g.const(0.15), ("PhaseG", "Phase G")),
