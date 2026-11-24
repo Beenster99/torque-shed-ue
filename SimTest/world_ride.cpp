@@ -3323,6 +3323,10 @@ int main(int Argc, char** Argv)
 			++Kd[0]; Kd[1] += IsBad ? 1 : 0; Kd[2] += F.BadTurns > 0 ? 1 : 0; Kd[3] += F.Meets() ? 1 : 0;
 			Meet += F.Meets() ? 1 : 0; Sum.Over += F.Over;
 			const Geo Ll = G.FrameOf().ToGeo(G.Nodes[size_t(F.Node)].X, G.Nodes[size_t(F.Node)].Z);
+			{
+				const int Jw = size_t(F.Node) < Plan->JunctionOfNode.size() ? Plan->JunctionOfNode[size_t(F.Node)] : -1;
+				if (Jw >= 0 && size_t(Jw) < Plan->WholeWhy.size()) std::printf("jwhy %d %d\n", F.Node, int(Plan->WholeWhy[size_t(Jw)]));   // [smooth junctions stage 5]
+			}
 			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
 				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "",
 				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : ([&] { const int Rg = Plan->RingAt(F.Node); const auto It = Rg >= 0 ? Plan->WholeRingOf.find(Rg) : Plan->WholeRingOf.end(); return It != Plan->WholeRingOf.end() && Plan->WholeOf[size_t(It->second)].Ok; }() ? "  WHOLE" : ""),
