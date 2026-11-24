@@ -1759,6 +1759,23 @@ void RidePlan::KnotsOfBlock(long long Key) const
 		for (const KnotArm& Arm : K->Arms) Net->Knots[static_cast<long long>(Arm.Which) * 2 + Arm.End] = K;
 }
 
+bool RidePlan::KnotPaved(const Knot& K) const
+{
+	for (const KnotArm& A : K.Arms)
+	{
+		if (A.Which > 0)
+		{
+			const SideRoad* Sd = SideOf(A.Which);
+			if (Sd == nullptr || !Sd->Gravel) return true;
+			continue;
+		}
+		const std::vector<RoadPoint>& Pts = RoadOf(0);
+		const RoadFact* F = Pts.empty() ? nullptr : FactAt(A.End == 0 ? Pts.front().Along : Pts.back().Along);
+		if (F == nullptr || !F->Gravel) return true;
+	}
+	return false;
+}
+
 void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 {
 	const double Pi = 3.14159265358979323846;
@@ -1791,7 +1808,11 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	};
 	static constexpr float RoadTarmac[3] = {0.022f, 0.022f, 0.025f}, VergeGrass[3] = {0.10f, 0.16f, 0.03f};
 	static constexpr float CircuitTarmac[3] = {0.010f, 0.010f, 0.011f};   // ([circuits, build 169] RoadPiece's)
-	const float* const Tarmac = AllCircuit ? CircuitTarmac : RoadTarmac;
+	// ([build 170, Hartsop] beenster: torn, patchy pieces where three gravel lanes meet: their junction was laid in
+	// tarmac, and each lane grew a ragged tarmac tongue with loose stones out of it. Where only gravel lanes meet,
+	// the junction is their gravel (RoadPiece's Grit), and they run into it whole.)
+	static constexpr float KnotGrit[3] = {0.095f, 0.088f, 0.07f};
+	const float* const Tarmac = AllCircuit ? CircuitTarmac : KnotPaved(K) ? RoadTarmac : KnotGrit;
 	const auto Vertex = [&Out](const P2& At, double Y, const float* Colour)
 	{
 		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
@@ -3088,7 +3109,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const SideRoad& Sd = *Mine;
 		for (int End = 0; End < 2; ++End)
 		{
-			Joined[End] = Sd.Mouths[End].Is || KnotAt(Which, End) != nullptr;
+			// ([build 170, Hartsop] a junction of gravel lanes only is gravel: no tongue into it)
+			const Knot* JoinKnot = KnotAt(Which, End);
+			Joined[End] = Sd.Mouths[End].Is || (JoinKnot != nullptr && KnotPaved(*JoinKnot));
 			JoinAt[End] = Sd.Mouths[End].Is ? std::fmax(Sd.Mouths[End].Clear[0], Sd.Mouths[End].Clear[1]) : 0.0;   // (from where the mouth's tarmac ends)
 		}
 	}
@@ -4038,6 +4061,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const double Ta = std::clamp((Mk.From - A.Along) / (B.Along - A.Along), 0.0, 1.0), Tb = std::clamp((Mk.To - A.Along) / (B.Along - A.Along), 0.0, 1.0);
 				if (Tb - Ta < 1e-4) continue;
 				if (Setts && (Mk.Kind == MarkPatch || Mk.Kind == MarkTar || Mk.Kind == MarkGrit)) continue;   // ([towns stage 6] no tarmac patches on setts)
+				if (Gravel && (Mk.Kind == MarkPatch || Mk.Kind == MarkTar || Mk.Kind == MarkGrit)) continue;   // ([build 170, Hartsop] nor on gravel: grey and black tarmac patches lay over the lanes there)
 				if (Mk.Kind == MarkPaint) continue;   // ([paint, Nov 18] painted into the tarmac, by Lay)
 				const Row Ma = Between(A, B, Ta), Mb = Between(A, B, Tb);
 				const double Up = MarkUp(Mk.Kind);

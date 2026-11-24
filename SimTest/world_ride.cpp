@@ -2654,7 +2654,12 @@ int main(int Argc, char** Argv)
 		for (const auto& St : Plan->MadeSteps) OnRide.insert(St.Edge);
 		struct Fault { int Node = -1; double Fold = 0, Step = 0, Spike = 0, Hole = 0, Land = 0, Grass = 0; double Score() const { return Fold + Step + Spike + Hole * 3.0 + Land + Grass; } };
 		std::vector<Fault> All;
-		const auto Near = [&](const P2& Pn) { RidePlan::NearOpts O; O.MainOnly = true; RidePlan::NearHit H; return Plan->NearestOf(Pn.X, Pn.Z, O, H) && H.Dist < 60.0; };
+		// (WORLD_RIDE_JCHECK_AT=lat,lon,r: the junctions within r m of a place instead, as a teleport there lays them)
+		double AtLa = 0.0, AtLo = 0.0, AtR = 0.0;
+		P2 AtC;
+		const bool AtPlace = std::getenv("WORLD_RIDE_JCHECK_AT") != nullptr && std::sscanf(std::getenv("WORLD_RIDE_JCHECK_AT"), "%lf,%lf,%lf", &AtLa, &AtLo, &AtR) == 3;
+		if (AtPlace) AtC = Plan->Area.Roads.FrameOf().FromGeo(AtLa, AtLo);
+		const auto Near = [&](const P2& Pn) { if (AtPlace) return Pn.DistanceTo(AtC) < AtR; RidePlan::NearOpts O; O.MainOnly = true; RidePlan::NearHit H; return Plan->NearestOf(Pn.X, Pn.Z, O, H) && H.Dist < 60.0; };
 		const auto Colour = [](const float* Cv, float Rv, float Gv, float Bv) { return std::fabs(Cv[0] - Rv) < 0.004f && std::fabs(Cv[1] - Gv) < 0.004f && std::fabs(Cv[2] - Bv) < 0.004f; };
 		const double Reach = 25.0, Cell = 0.25;
 		const int JCells = int(2.0 * Reach / Cell);
