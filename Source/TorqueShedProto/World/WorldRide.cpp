@@ -4995,7 +4995,9 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				{
 					const P2 P = From + (To - From) * (double(K) / Steps);
 					NearHit Hit;
-					Poly.push_back(NearestOf(P.X, P.Z, OnMain, Hit) && Hit.Dist > 1e-6 ? Hit.Foot + (P - Hit.Foot) * (Hit.Half / Hit.Dist) : P);
+					// ([smooth junctions stage 5] a quarter metre in under the ride's road: its edge as drawn runs straight between
+					// its rows, inside the true curve on a bend's outside, and left a sliver open beside the piece, a 7 cm jolt, York)
+					Poly.push_back(NearestOf(P.X, P.Z, OnMain, Hit) && Hit.Dist > 1e-6 ? Hit.Foot + (P - Hit.Foot) * (std::fmax(0.0, Hit.Half - 0.25) / Hit.Dist) : P);
 				}
 			}
 			std::vector<P2> Pt;
