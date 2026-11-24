@@ -2471,7 +2471,7 @@ int main()
 		const std::vector<double> Graded = RoadLine::GradeLimit(Steps);
 		double Steepest = 0.0;
 		for (size_t I = 1; I < Graded.size(); ++I) Steepest = std::fmax(Steepest, std::fabs(Graded[I] - Graded[I - 1]) / RoadLine::Step);
-		Check(Steepest <= RoadLine::MaxGrade + 1e-9, "a step in the ground is graded to 15% at most");
+		Check(Steepest <= RoadLine::MaxGrade + 1e-9, "a step in the ground is graded to MaxGrade (30%) at most");
 	}
 
 	// ------------------------------------------------------------------ [towns stage 3] outlines as boxes
