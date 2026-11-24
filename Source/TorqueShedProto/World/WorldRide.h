@@ -776,6 +776,9 @@ public:
 	bool SeenFromRoad(const GardenClear& Clear, double X, double Z, const P2& Foot) const;   // [gardens] (a clear line to the road)
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
+	// [smooth junctions 4b] (RoadPiece's work, the ride's road kept to KeepFrom..KeepTo along, about the given origin)
+	void RoadPieceIn(int Which, int First, int Last, double KeepFrom, double KeepTo, double Ox, double Oz, RideMesh& Out) const;
+	std::vector<std::pair<double, int>> RideHides;   // [smooth junctions 4b] whole rings on the ride's road: (Hide[0], place), by along
 
 	// The route as the bike reads it (Data/Buttertubs/route.json's fields): line_sim, length_m,
 	// road_half_width_m, origin_geo, spawn, credits.
@@ -1787,6 +1790,9 @@ public:
 		int Ring = -1;                    // its roundabout in RoadRings
 		double Span = 0.0;                // the farthest two of its nodes are apart (m)
 		bool Made = false;                // [smooth junctions stage 4] a whole ring's own place, not the map's (PlanWholeJunctions)
+		// [smooth junctions 4b] a whole ring's: the other half of the ride's road where it divides for the ring (its first
+		// edge from the ring, that edge's node on the ring, the node out where it meets the ride's road again); inside
+		std::vector<std::array<int, 3>> RidePartners;
 	};
 	static constexpr double JunctionMerge = 12.0, JunctionSlip = 30.0, JunctionGap = 35.0, JunctionStub = 4.0, JunctionSpanMost = 45.0;
 	std::vector<JunctionPlace> JunctionPlaces;
@@ -1803,6 +1809,13 @@ public:
 		double Corner = 6.0, Reach = 0.0;   // the corners' radius; how far from its middle its roads keep their own heights
 		int Owner = 0, OwnerEnd = 0;
 		std::vector<double> Flare;   // [smooth junctions stage 4] a ring's: each arm's corners' reach along the ring's edge (m)
+		// [smooth junctions 4b] a ring the ride goes round: the ride's road in and out its arms too (after Arms in Flare),
+		// each its mouth line's along the ride's road and which way out is (+1 the way along grows); the ride's road not
+		// drawn from Hide[0] to Hide[1] (along), the ring's piece drawn with the piece of it where that starts
+		std::vector<double> Lo, Hi;   // [4b] a ring's: each arm's span of its outer edge (bearings, Lo the way they fall)
+		std::vector<double> RideAlong;
+		std::vector<int> RideOut;
+		double Hide[2] = {0.0, 0.0};
 	};
 	static bool WholeJunctions;
 	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;
@@ -1810,7 +1823,7 @@ public:
 	std::unordered_map<long long, std::pair<int, double>> WholeEnds;   // (road * 2 + end) -> its junction, its cut
 	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
 	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
-	void PlanWholeJunctions();
+	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
 	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
 	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
 	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
