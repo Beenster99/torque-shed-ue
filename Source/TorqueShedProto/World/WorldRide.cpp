@@ -2765,7 +2765,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const auto It = Mine != nullptr && Mine->Edge >= 0 ? ThroughEnds.find(static_cast<long long>(Mine->Edge) * 2 + End) : ThroughEnds.end();
 		return It == ThroughEnds.end() ? 12.0 : It->second;
 	};
-	const double PaintFrom = Which == 0 ? -1.0 : ThroughEnd(0), PaintTo = Which == 0 ? 1e18 : Mine->Length - ThroughEnd(1);
+	double PaintFrom = Which == 0 ? -1.0 : ThroughEnd(0), PaintTo = Which == 0 ? 1e18 : Mine->Length - ThroughEnd(1);
+	// [smooth junctions stage 3] (at a junction built whole, on to its mouth: its piece paints on from there)
+	if (Which > 0 && WholeCut(Which, 0) > 0.0) PaintFrom = WholeCut(Which, 0);
+	if (Which > 0 && WholeCut(Which, 1) > 0.0) PaintTo = Mine->Length - WholeCut(Which, 1);
 	// (the Godot game's colours, linear: tarmac, the verge (worn grass and grit: the Godot gravel read as a pale
 	// band beside the road in build 140), paint)
 	// [build 147] (and the verge's grass: the shoulder runs from grit at the tarmac's edge to grass, which

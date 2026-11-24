@@ -504,6 +504,80 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 		Tri(A1, A2, B2); Tri(A1, B2, B1);
 		Tri(A2, A3, B3); Tri(A2, B3, B2);
 	}
+	// [smooth junctions stage 3] The lines, a hair over the tarmac (they cannot be cut into a surface this shape as a
+	// road's are): the through road's centre line carried across, 3 m dashes, 3 m gaps, as a curve from mouth to mouth;
+	// each lesser road's give-way, two broken lines (600 mm marks, 300 mm gaps, 200 mm wide, 300 mm apart: Traffic
+	// Signs Manual 1003) across its way in, along the through road's edge.
+	if (!AnyPaved) { if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f); return; }
+	static constexpr float Paint[3] = {0.83f, 0.83f, 0.75f};
+	static constexpr double PaintLift = 0.004;
+	const auto Quad = [&](const P2& A0, const P2& A1, const P2& B1, const P2& B0)
+	{
+		const uint32_t V0 = Vertex(A0, Surface(A0) + PaintLift, Paint, P2(0.0, 0.0)), V1 = Vertex(A1, Surface(A1) + PaintLift, Paint, P2(0.0, 0.0));
+		const uint32_t V2 = Vertex(B1, Surface(B1) + PaintLift, Paint, P2(0.0, 0.0)), V3 = Vertex(B0, Surface(B0) + PaintLift, Paint, P2(0.0, 0.0));
+		Tri(V0, V1, V2); Tri(V0, V2, V3);
+	};
+	int Ta = -1, Tb = -1;
+	for (size_t A = 0; A < N; ++A)
+		if (J.Arms[A].Through) { if (Ta < 0) Ta = int(A); else if (Tb < 0) Tb = int(A); }
+	const auto Lined = [&](const MouthLine& M) { return RoadX::CentreLine(M.P.Lanes, M.P.OneWay, M.P.Half) && M.Paved && !SettsSurface(G.SurfaceOf(M.Which - 1)); };
+	if (Ta >= 0 && Tb >= 0 && Lined(Mouths[size_t(Ta)]) && Lined(Mouths[size_t(Tb)]))
+	{
+		const MouthLine& A = Mouths[size_t(Ta)];
+		const MouthLine& B = Mouths[size_t(Tb)];
+		P2 Ctl;
+		if (!Crossing(A.P.At, A.Out, B.P.At, B.Out, Ctl) || Ctl.DistanceTo(J.At) > 30.0) Ctl = (A.P.At + B.P.At) * 0.5;
+		std::vector<P2> Line;
+		for (int S = 0; S <= 40; ++S)
+		{
+			const double T = S / 40.0;
+			Line.push_back(A.P.At * ((1 - T) * (1 - T)) + Ctl * (2 * T * (1 - T)) + B.P.At * (T * T));
+		}
+		double Gone = 0.0;
+		for (size_t I = 1; I < Line.size(); ++I)
+		{
+			const double Seg = Line[I].DistanceTo(Line[I - 1]);
+			const double Mid = Gone + Seg * 0.5;
+			Gone += Seg;
+			if (std::fmod(Mid, 6.0) > 3.0 || Seg < 1e-6) continue;
+			const P2 D = (Line[I] - Line[I - 1]) * (1.0 / Seg);
+			const P2 Lf(D.Z * 0.06, -D.X * 0.06);
+			Quad(Line[I - 1] + Lf, Line[I] + Lf, Line[I] - Lf, Line[I - 1] - Lf);
+		}
+	}
+	if (Ta >= 0 && Tb >= 0)
+	{
+		const double ThroughHalf = std::fmax(Mouths[size_t(Ta)].P.Half, Mouths[size_t(Tb)].P.Half);
+		for (size_t A = 0; A < N; ++A)
+		{
+			if (J.Arms[A].Through || !J.Arms[A].In) continue;
+			const MouthLine& M = Mouths[A];
+			if (!M.Paved || SettsSurface(G.SurfaceOf(M.Which - 1))) continue;
+			// (along the through road's near edge: its middle line, Half and a little out, where this road's middle crosses it)
+			const MouthLine& T = Mouths[size_t(Ta)];
+			const P2 Mid = (T.P.At + Mouths[size_t(Tb)].P.At) * 0.5;
+			P2 ThroughDir = Mouths[size_t(Tb)].P.At - T.P.At;
+			const double Tl = ThroughDir.Length();
+			if (Tl < 1e-3) continue;
+			ThroughDir = ThroughDir * (1.0 / Tl);
+			P2 Normal(ThroughDir.Z, -ThroughDir.X);
+			if ((M.P.At - Mid).X * Normal.X + (M.P.At - Mid).Z * Normal.Z < 0.0) Normal = Normal * -1.0;
+			// (the line: the through road's edge, parallel to it, ThroughHalf + 0.3 out, across this road's way in: the
+			// half to the left of traffic coming in where traffic keeps left)
+			const P2 EdgeAt = Mid + Normal * (ThroughHalf + 0.3);
+			P2 Hit;
+			if (!Crossing(EdgeAt, ThroughDir, M.P.At, M.Out, Hit) || Hit.DistanceTo(J.At) > 30.0) continue;
+			const double Side = KeepLeft() ? -1.0 : 1.0;   // (traffic coming in runs -Out: its left is -Left)
+			const P2 Across = ThroughDir * ((ThroughDir.X * M.Left.X + ThroughDir.Z * M.Left.Z) >= 0.0 ? 1.0 : -1.0);   // (as M.Left, along the edge)
+			const double HalfIn = M.P.Half / std::fmax(0.3, std::fabs(M.Out.X * Normal.X + M.Out.Z * Normal.Z));
+			for (double Dep : {0.0, 0.5})
+				for (double U = 0.05; U + 0.6 <= HalfIn - 0.05; U += 0.9)
+				{
+					const P2 C0 = Hit + Normal * Dep + Across * (Side * U), C1 = Hit + Normal * Dep + Across * (Side * (U + 0.6));
+					Quad(C0, C1, C1 + Normal * 0.2, C0 + Normal * 0.2);
+				}
+		}
+	}
 	if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f);
 }
 } // namespace TorqueWorld
