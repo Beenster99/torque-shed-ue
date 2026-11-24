@@ -674,6 +674,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	Tell("Laying the roads that meet it");
 	// ([156] the facts first too: a side road's mouth asks the class of the road it meets, FactAt)
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
+	R->PlanWholeJunctions();   // [smooth junctions stage 3] (which junctions are built whole: before any side road is laid)
 	R->LaySides(Path);
 	R->PlaceJunctions(RawAlong.empty() ? 0.0 : RawAlong.back());   // [junction priority] (after the map's own marks)
 	{
@@ -1702,6 +1703,7 @@ void RidePlan::KnotsOfBlock(long long Key) const
 		for (int End = 0; End < 2; ++End)
 		{
 			if (Sd != nullptr && Sd->Mouths[End].Is) continue;
+			if (W > 0 && (WholeAt(W, End) >= 0 || WholeHidden(W))) continue;   // [smooth junctions stage 3] (its junction is built whole)
 			const size_t I0 = End == 0 ? 0 : Pts.size() - 1;
 			const RoadPoint& P = Pts[I0];
 			if (P.Bridge || P.Tunnel || !Inside(P.At)) continue;
@@ -2612,6 +2614,7 @@ double RidePlan::JoinedHeightDeep(int Which, const P2& At, double Y, int Depth) 
 	// surfaces at one place fought (the flicker at junctions in build 140), and a flat side road laid
 	// across a main road on a slope stood proud of it at one edge (the slight bump).
 	if (Which <= 0) return Y;
+	if (WholeNear(Which, At)) return Y;   // [smooth junctions stage 3] (its own heights up to its mouth: the junction meets them)
 	// (the ride's road first; then whichever side road made before it is nearest)
 	// ([crunched junctions, 169] the nearest road it settles onto: a lesser road nearer (one that settles onto
 	// it) stood in the way, and where three roads lie over each other at a junction this one kept its own
@@ -2725,6 +2728,7 @@ double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, d
 {
 	// (as JoinedHeight: the ride's road first, then whichever other road is nearest)
 	if (Which <= 0) return Y;
+	if (WholeNear(Which, At)) return Y;   // [smooth junctions stage 3]
 	if (!Set.Holds(At)) return JoinedHeight(Which, At, Y);
 	for (int Pass = 0; Pass < 2; ++Pass)
 	{
@@ -2747,6 +2751,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	if (Which < 0 || Which >= RoadCount()) return;
 	const SideRoad* Mine = Which > 0 ? SideOf(Which) : nullptr;
 	if (Which > 0 && Mine == nullptr) return;
+	if (WholeHidden(Which)) return;   // [smooth junctions stage 3] (wholly inside a junction built whole: its piece covers it)
 	const std::vector<RoadPoint>& Pts = RoadOf(Which);
 	First = std::max(0, First);
 	Last = std::min(int(Pts.size()) - 1, Last);
@@ -2831,6 +2836,51 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Nz = -Dir.Z * Rise / Nl;
 		if (size_t(I) < RaceLine.size()) { R.Line = RaceLine[size_t(I)]; R.Brake = RaceBrake[size_t(I)]; }
 		Rows.push_back(R);
+	}
+	// [smooth junctions stage 3] (an end at a junction built whole: the road stops at its mouth line, square across, Cut
+	// metres in from that end; the junction's piece is drawn from that same row (CutRow))
+	if (Which > 0 && !Rows.empty() && WholeJunctions)
+	{
+		const double Long = Pts.back().Along;
+		const auto CutRowOf = [&](double Along)
+		{
+			RoadPoint P;
+			P2 Dir;
+			double Rise = 0.0;
+			CutRow(Pts, Along, P, Dir, Rise);
+			const double Nl = std::sqrt(1.0 + Rise * Rise);
+			Row R;
+			R.At = P.At; R.Left = P2(Dir.Z, -Dir.X); R.Height = P.Height; R.Half = P.Half; R.Lanes = P.Lanes; R.OneWay = P.OneWay;
+			R.Shoulder = P.Shoulder; R.Near = P.Near; R.Park = P.Park; R.Along = P.Along; R.Deck = P.Bridge; R.Bank = P.Bank; R.Bore = P.Tunnel;
+			R.Nx = -Dir.X * Rise / Nl; R.Ny = 1.0 / Nl; R.Nz = -Dir.Z * Rise / Nl;
+			return R;
+		};
+		const double CutA = WholeCut(Which, 0), CutB = WholeCut(Which, 1);
+		if (CutA > 0.0 && Rows.front().Along < CutA)
+		{
+			size_t Drop = 0;
+			while (Drop < Rows.size() && Rows[Drop].Along <= CutA) ++Drop;
+			Rows.erase(Rows.begin(), Rows.begin() + long(Drop));
+			Rows.insert(Rows.begin(), CutRowOf(CutA));
+		}
+		if (CutB > 0.0 && Rows.back().Along > Long - CutB)
+		{
+			while (!Rows.empty() && Rows.back().Along >= Long - CutB) Rows.pop_back();
+			Rows.push_back(CutRowOf(Long - CutB));
+		}
+		// (a piece wholly within a junction's mouth: nothing of it)
+		if (Rows.size() < 2 || Rows.back().Along <= Rows.front().Along + 0.01)
+		{
+			Out = RideMesh();
+			Out.OriginX = Pts[size_t(First)].At.X;
+			Out.OriginZ = Pts[size_t(First)].At.Z;
+			for (int End = 0; End < 2; ++End)
+			{
+				const int Wj = (End == 0 ? First == 0 : Last == int(Pts.size()) - 1) ? WholeAt(Which, End) : -1;
+				if (Wj >= 0 && WholeOf[size_t(Wj)].Owner == Which && WholeOf[size_t(Wj)].OwnerEnd == End) WholePiece(Wj, Out);
+			}
+			return;
+		}
 	}
 	// ([build 150] the other roads' bits near this piece gathered once for all its points; a point
 	// outside the box they were gathered for asks NearestOf itself)
@@ -4376,6 +4426,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (End == 0 ? First != 0 : Last != Count - 1) continue;
 		const Knot* K = KnotAt(Which, End);
 		if (K != nullptr && K->Owner == Which && K->OwnerEnd == End) KnotPiece(*K, Out);
+		// [smooth junctions stage 3] (a junction built whole, drawn with its owner's end)
+		const int Wj = Which > 0 ? WholeAt(Which, End) : -1;
+		if (Wj >= 0 && WholeOf[size_t(Wj)].Owner == Which && WholeOf[size_t(Wj)].OwnerEnd == End) WholePiece(Wj, Out);
 	}
 	// A side road's mouths on the ride's road, each with the piece its end is in.
 	for (int End = 0; End < 2 && Which > 0; ++End)

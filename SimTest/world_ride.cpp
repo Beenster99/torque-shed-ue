@@ -181,6 +181,7 @@ int main(int Argc, char** Argv)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_heights.json"), HeightsText)) SetChurchHeights(HeightsText);
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
 		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
+		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "1") RidePlan::WholeJunctions = true;   // [smooth junctions stage 3]
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
 		std::string GlyphText;   // [OSM stage 6A]
@@ -2991,7 +2992,11 @@ int main(int Argc, char** Argv)
 						const double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
 						const double Slope = std::hypot(Nx, Nz) / std::fmax(1e-9, std::fabs(Ny));
 						const double Mx = (X[0] + X[1] + X[2]) / 3.0, Mz = (Z[0] + Z[1] + Z[2]) / 3.0;
-						if (Tar && std::hypot(Mx, Mz) < Reach && Slope > 1.0 && std::max({Y[0], Y[1], Y[2]}) - std::min({Y[0], Y[1], Y[2]}) > 0.05) F.Spike += 1.0;
+						if (Tar && std::hypot(Mx, Mz) < Reach && Slope > 1.0 && std::max({Y[0], Y[1], Y[2]}) - std::min({Y[0], Y[1], Y[2]}) > 0.05)
+						{
+							F.Spike += 1.0;
+							if (Only >= 0) std::printf("jspike road %d: (%.2f %.2f %.3f) (%.2f %.2f %.3f) (%.2f %.2f %.3f)\n", W, X[0], Z[0], Y[0], X[1], Z[1], Y[1], X[2], Z[2], Y[2]);
+						}
 						// (its cells)
 						const double Tx0 = std::min({X[0], X[1], X[2]}), X1 = std::max({X[0], X[1], X[2]}), Tz0 = std::min({Z[0], Z[1], Z[2]}), Z1 = std::max({Z[0], Z[1], Z[2]});
 						for (int Cz = std::max(0, int((Tz0 + Reach) / Cell)); Cz <= std::min(JCells - 1, int((Z1 + Reach) / Cell)); ++Cz)
@@ -3030,7 +3035,11 @@ int main(int Argc, char** Argv)
 					if ((Cx + Cz) % 2 == 0)
 					{
 						const double L = Plan->LandDrawnAt(C.X + Px, C.Z + Pz);
-						if (!std::isnan(L) && L > Hi[K] + 0.03) F.Land += 2.0 * A1;
+						if (!std::isnan(L) && L > Hi[K] + 0.03)
+						{
+							F.Land += 2.0 * A1;
+							if (Only >= 0 && F.Land < 0.6) std::printf("jland at %.1f, %.1f: land %.3f over tarmac %.3f\n", Px, Pz, L, double(Hi[K]));
+						}
 					}
 				}
 			// (each laid road's line from the map, 1 m to 12 m out of the junction, under some surface)
@@ -3246,8 +3255,9 @@ int main(int Argc, char** Argv)
 			++Kd[0]; Kd[1] += IsBad ? 1 : 0; Kd[2] += F.BadTurns > 0 ? 1 : 0; Kd[3] += F.Meets() ? 1 : 0;
 			Meet += F.Meets() ? 1 : 0; Sum.Over += F.Over;
 			const Geo Ll = G.FrameOf().ToGeo(G.Nodes[size_t(F.Node)].X, G.Nodes[size_t(F.Node)].Z);
-			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
-				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "");
+			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
+				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "",
+				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : "");
 		}
 		for (const auto& Kd : Kinds) std::printf("jcheck kind %s: %d junctions, %d bad, %d bad to ride, %d meet the standard\n", Kd.first.c_str(), Kd.second[0], Kd.second[1], Kd.second[2], Kd.second[3]);
 		std::printf("jcheck ride: %d turns, %d bad; %d junctions bad to ride; doubled tarmac %.1f m2; %d of %zu meet the standard\n", Turns, BadTurns, RideBad, Sum.Over, Meet, All.size());

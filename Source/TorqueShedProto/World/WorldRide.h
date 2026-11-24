@@ -1792,6 +1792,29 @@ public:
 	std::vector<int> JunctionOfNode;   // by node: its place in JunctionPlaces, -1 none (fewer than three roads)
 	void IndexJunctions();
 	static const char* JunctionKindName(EJunction Kind);
+	// [smooth junctions stage 3] A junction built whole (World/WorldRideWhole.cpp): its roads stop at mouth lines Cut
+	// metres in from their ends, and the junction between is one piece with one surface (WholePiece), drawn with its
+	// Owner road's piece at that end. Behind WholeJunctions (-TorqueJunctions=whole; SimTest WORLD_RIDE_WHOLE=1).
+	struct WholePlan
+	{
+		bool Ok = false;
+		std::vector<double> Cut;   // by arm (JunctionPlace::Arms)
+		double Corner = 6.0, Reach = 0.0;   // the corners' radius; how far from its middle its roads keep their own heights
+		int Owner = 0, OwnerEnd = 0;
+	};
+	static bool WholeJunctions;
+	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;
+	std::vector<WholePlan> WholeOf;   // by JunctionPlaces
+	std::unordered_map<long long, std::pair<int, double>> WholeEnds;   // (road * 2 + end) -> its junction, its cut
+	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
+	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
+	void PlanWholeJunctions();
+	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
+	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
+	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
+	bool WholeNear(int Which, const P2& At) const;   // a point of a road near a whole junction it is an arm of: its own heights, unsettled
+	void WholePiece(int Junction, RideMesh& Out) const;
+	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
 	std::vector<unsigned char> RoundEdge;   // by edge: 1 on a ring drawn as a circle (IndexRings)
