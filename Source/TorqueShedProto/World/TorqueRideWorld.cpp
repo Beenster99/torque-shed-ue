@@ -255,6 +255,12 @@ bool ATorqueRideWorld::PlaceHeard(double& Sea, double& Water, double& Town, doub
 	return true;
 }
 
+double ATorqueRideWorld::CircuitHeard()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride && Ride->Plan ? Ride->Heard[5] : 0.0;
+}
+
 void ATorqueRideWorld::DropStreetLights(const FIntVector& Key)
 {
 	if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lamps = StreetLights.Find(Key))
@@ -2018,7 +2024,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	{
 		SinceHeard = 0.0;
 		const TorqueWorld::RidePlace Place = Plan->SoundsAt(BirdsLookedAt.X, BirdsLookedAt.Y);
-		Heard[0] = Place.Sea; Heard[1] = Place.Water; Heard[2] = Place.Town; Heard[3] = Place.Sheep; Heard[4] = Place.Cattle;
+		Heard[0] = Place.Sea; Heard[1] = Place.Water; Heard[2] = Place.Town; Heard[3] = Place.Sheep; Heard[4] = Place.Cattle; Heard[5] = Place.Circuit;
 	}
 	SinceLook += DeltaSeconds;
 	if (SinceLook < 0.2) return;

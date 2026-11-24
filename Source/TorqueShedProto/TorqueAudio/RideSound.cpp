@@ -11,6 +11,8 @@ namespace
 constexpr double Pi = 3.14159265358979323846;
 // Torque Shed's engine (TorqueEngine::FVoice) to this mix: as loud as the made twin was.
 constexpr double EngineGain = 3.5;
+// [Sound Pack 1] A recorded squeal (its peak 1) to this mix, at a full slide.
+constexpr double SquealMix = 0.8;
 
 double Clamp01(double V) { return std::min(std::max(V, 0.0), 1.0); }
 double Smooth(double A, double B, double X)
@@ -132,6 +134,66 @@ void RideSound::SetAmbience(std::vector<float> Samples, int SampleRate)
 	const double R = Rms(Amb);
 	if (R > 1e-6)
 		for (float& V : Amb) V = (float)(V * 0.018 / R);
+}
+
+void RideSound::AddSqueal(std::vector<float> Samples, int SampleRate)
+{
+	std::vector<float> S = Resample(Samples, SampleRate);
+	float Peak = 0.0f;
+	for (float V : S) Peak = std::max(Peak, std::fabs(V));
+	if (S.size() < 1000 || Peak < 1e-6f) return;
+	for (float& V : S) V /= Peak;
+	SquealTakes.push_back(std::move(S));
+}
+
+void RideSound::AddDistant(EDistant Kind, std::vector<float> Samples, int SampleRate)
+{
+	if (Kind < 0 || Kind >= DistantKinds) return;
+	std::vector<float> S = Resample(Samples, SampleRate);
+	const double R = Rms(S);
+	if (S.size() < 1000 || R < 1e-6) return;
+	for (float& V : S) V = (float)(V * 0.12 / R);   // all the takes as loud as each other
+	DistantTakes[Kind].push_back(std::move(S));
+}
+
+double RideSound::DistantSample()
+{
+	const double Dt = 1.0 / Rate;
+	if (!Distant)
+	{
+		DistantWait -= Dt;
+		if (DistantWait > 0.0) return 0.0;
+		const bool Town = !DistantTakes[DistantTown].empty() && Now.Town > 0.15;
+		const bool Circ = !DistantTakes[DistantCircuit].empty() && Now.Circuit > 0.05;
+		if (!Town && !Circ) { DistantWait = 8.0 + 20.0 * PackUniform(); return 0.0; }
+		// Near a circuit its paddock mostly; in a town a bike started up a street or two off.
+		const int K = Circ && (!Town || PackUniform() < Now.Circuit / (Now.Circuit + 0.5 * Now.Town)) ? DistantCircuit : DistantTown;
+		const std::vector<std::vector<float>>& Pool = DistantTakes[K];
+		int I = (int)(PackUniform() * Pool.size()) % (int)Pool.size();
+		if (K * 100 + I == LastDistant && Pool.size() > 1) I = (I + 1) % (int)Pool.size();
+		LastDistant = K * 100 + I;
+		Distant = &Pool[I];
+		DistantPos = 0.0;
+		DistantStep = 0.95 + 0.1 * PackUniform();   // (not every bike the same)
+		const double Near = PackUniform();          // 0 well off .. 1 just over the wall
+		DistantGain = (K == DistantCircuit ? 0.55 * Now.Circuit : 0.4 * Now.Town) * Lerp(0.3, 1.0, Near);
+		// Further off, duller: the walls and the air take the top off it.
+		DistantCut = Lerp(900.0, 3200.0, Near);
+		DistantLp.LowPass(DistantCut, 0.7);
+		DistantLp2.LowPass(DistantCut * 1.3, 0.7);
+		++DistantBikes;
+	}
+	const double S = DistantLp2.Run(DistantLp.Run(Sample(*Distant, DistantPos)));
+	DistantPos += DistantStep;
+	if (DistantPos >= Distant->size() - 1)
+	{
+		const bool WasCircuit = LastDistant >= DistantCircuit * 100;
+		Distant = nullptr;
+		DistantWait = WasCircuit ? (4.0 + 12.0 * PackUniform()) / std::max(Now.Circuit, 0.3)
+			: (45.0 + 90.0 * PackUniform()) / std::max(Now.Town, 0.3);
+	}
+	// Fainter at speed, where the wind covers it anyway.
+	return S * DistantGain * (1.0 - 0.7 * Clamp01(Now.Speed / 20.0));
 }
 
 void RideSound::GearChange(bool Up)
@@ -311,6 +373,7 @@ void RideSound::Render(float* Out, int N)
 	const double BarRingFall = std::exp(-1.0 / (Rate * 0.03));
 	const double GrainFall = std::exp(-1.0 / (Rate * 0.0025));
 	const double StoneFall = std::exp(-1.0 / (Rate * 0.0012));
+	const double SquealFollow = 1.0 - std::exp(-1.0 / (Rate * 0.03));
 	for (int S = 0; S < N; ++S)
 	{
 		Now.Rpm += (Target.Rpm - Now.Rpm) * Kr;
@@ -330,6 +393,7 @@ void RideSound::Render(float* Out, int N)
 		Now.Sea += (Target.Sea - Now.Sea) * Ks * 0.05;
 		Now.Water += (Target.Water - Now.Water) * Ks * 0.05;
 		Now.Town += (Target.Town - Now.Town) * Ks * 0.05;
+		Now.Circuit += (Target.Circuit - Now.Circuit) * Ks * 0.05;
 		Now.Sheep = Target.Sheep;
 		Now.Cattle = Target.Cattle;
 		Now.OnTarmac = Target.OnTarmac;
@@ -450,6 +514,7 @@ void RideSound::Render(float* Out, int N)
 		// still, the tread doing 60 km/h) is heard as loud as a skid.
 		const double Roll = Clamp01(V / 4.0);
 		double Tyre = 0.0;
+		double SquealWant = 0.0;   // [Sound Pack 1] how much a squeal playing is heard: a sliding tyre on a dry road
 		if (!Now.Airborne)
 		{
 			const double Rub = Clamp01(Now.SlipSpeed / 8.0);
@@ -471,8 +536,28 @@ void RideSound::Render(float* Out, int N)
 					const double Friction = (SkidLo.Run(Noise()) * (0.9 - 0.25 * Fast) + SkidHi.Run(Noise()) * (0.35 + 0.55 * Fast)) * Rough;
 					const double Body = SkidBody.Run(Noise()) * Judder * 1.6;
 					// The chirp: only as the tyre lets go (the slide rising), rough, faint, gone on a wet road.
-					ChirpEnv += (Clamp01((Slide - SlideSlow) * 4.0) - ChirpEnv) * 0.002;
-					const double Chirp = SkidChirp.Run(Noise()) * ChirpEnv * (1.0 - Wet) * Rough * 0.7;
+					const double LetGo = Clamp01((Slide - SlideSlow) * 4.0);
+					ChirpEnv += (LetGo - ChirpEnv) * 0.002;
+					// [Sound Pack 1] A recorded squeal as the tyre lets go on a dry road, rubbing fast enough (a
+					// burnout's spin-up too); a long slide squeals on now and then. Never on a wet road.
+					SquealWant = Slide * (1.0 - Wet);
+					if (!SquealTakes.empty() && !Squeal && SquealRest <= 0.0 && Wet < 0.4 && Now.SlipSpeed > 3.0)
+					{
+						const bool Snap = LetGo > 0.3;
+						if (Snap || (Slide > 0.45 && PackUniform() < 0.7 / Rate))
+						{
+							int I = (int)(PackUniform() * SquealTakes.size()) % (int)SquealTakes.size();
+							if (I == LastSqueal && SquealTakes.size() > 1) I = (I + 1) % (int)SquealTakes.size();
+							LastSqueal = I;
+							Squeal = &SquealTakes[I];
+							SquealPos = 0.0;
+							SquealStep = (0.9 + 0.2 * Fast) * (0.97 + 0.06 * PackUniform());   // higher the faster it rubs
+							SquealGain = (Snap ? 1.0 : 0.6) * (0.8 + 0.2 * PackUniform());
+							++Squeals;
+						}
+					}
+					// (the made chirp mostly out of the way while a recorded squeal plays)
+					const double Chirp = SkidChirp.Run(Noise()) * ChirpEnv * (1.0 - Wet) * Rough * 0.7 * (Squeal ? 0.3 : 1.0);
 					const double Hiss = SkidWet.Run(Noise()) * Wet * (0.5 + 0.5 * Rough);
 					Tyre = ((Friction + Chirp) * (1.0 - 0.6 * Wet) + Body * (1.0 - 0.4 * Wet) + Hiss * 0.8) * Slide * 0.42;
 				}
@@ -492,6 +577,21 @@ void RideSound::Render(float* Out, int N)
 			// Rolling: the tyre's roar on tarmac, a scrub and rumble off it.
 			Tyre += Now.OnTarmac ? Scrub.Run(Noise()) * 0.02 * std::min(V / 25.0, 1.5)
 				: Scrub.Run(Noise()) * 0.12 * std::min(V / 15.0, 1.5);
+		}
+
+		// [Sound Pack 1] The squeal playing, following the slide (gone in a few hundredths once it grips,
+		// or leaves the tarmac, or the wheel leaves the ground).
+		if (SquealRest > 0.0) SquealRest -= 1.0 / Rate;
+		SquealLevel += (Clamp01(SquealWant * 1.6) - SquealLevel) * SquealFollow;
+		if (Squeal)
+		{
+			Tyre += Sample(*Squeal, SquealPos) * SquealGain * SquealLevel * SquealMix;
+			SquealPos += SquealStep;
+			if (SquealPos >= Squeal->size() - 1 || (SquealLevel < 1e-3 && SquealPos > Rate * 0.05))
+			{
+				Squeal = nullptr;
+				SquealRest = 0.25 + 0.5 * PackUniform();
+			}
 		}
 
 		// A cattle grid: a knock per bar the tyres cross (bars 0.16 m apart), a thud from the tyre
@@ -544,7 +644,7 @@ void RideSound::Render(float* Out, int N)
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
 
-		const double Place = Ambience ? PlaceSample() : 0.0;
+		const double Place = Ambience ? PlaceSample() + DistantSample() : 0.0;
 		double Mix = (EngineHeard * EngineLevel + (Wind + Bg + RainSound + Place) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
 		// DC block, then a soft limit.
 		const double Hpo = Mix - HpIn + 0.995 * Hp;

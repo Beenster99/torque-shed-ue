@@ -27,6 +27,13 @@ if(NOT MSVC)
   target_compile_options(sound_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
 endif()
 
+# [Sound Pack 1] The pack's squeals and distant bikes in the ride's sound, with before/after listening files.
+add_executable(pack1_test pack1_test.cpp ${SOUND}/RideSound.cpp ${SOUND}/EngineSynth.cpp)
+target_include_directories(pack1_test PRIVATE ${SOUND})
+if(NOT MSVC)
+  target_compile_options(pack1_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
+endif()
+
 set(COOP ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Coop)
 add_executable(net_test net_test.cpp)
 target_include_directories(net_test PRIVATE ${COOP})

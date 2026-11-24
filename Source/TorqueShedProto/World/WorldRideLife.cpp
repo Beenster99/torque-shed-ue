@@ -206,6 +206,15 @@ RidePlace RidePlan::SoundsAt(double X, double Z) const
 				if (std::hypot(G.Buildings[size_t(B)].X - X, G.Buildings[size_t(B)].Z - Z) < 150.0) ++Built;
 		}
 	P.Town = std::clamp((Built - 4) / 36.0, 0.0, 1.0);
+	// [Sound Pack 1] A race circuit: its track or run-off under you or the nearest of 8 ways out at 60 to 600 m.
+	if (CircuitGroundAt(X, Z) >= 0) P.Circuit = 1.0;
+	else
+		for (double R : {60.0, 150.0, 300.0, 600.0})
+		{
+			bool Found = false;
+			for (int K = 0; K < 8 && !Found; ++K) Found = CircuitGroundAt(X + std::cos(K * 0.7853981633974483) * R, Z + std::sin(K * 0.7853981633974483) * R) >= 0;
+			if (Found) { P.Circuit = std::clamp(1.1 - R / 600.0, 0.2, 1.0); break; }
+		}
 	// The flocks and herds: each animal near by counts, the nearer the more.
 	// (they keep their distance from the roads, so a bleat carries a few hundred metres)
 	const double X0 = std::floor((X - 352.0) / 64.0) * 64.0, Z0 = std::floor((Z - 352.0) / 64.0) * 64.0;

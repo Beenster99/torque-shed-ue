@@ -132,6 +132,8 @@ struct RideAnimal
 struct RidePlace
 {
 	double Sea = 0.0, Water = 0.0, Town = 0.0, Sheep = 0.0, Cattle = 0.0;
+	// [Sound Pack 1] A race circuit's ground within about 600 m, the nearer the more (its paddock's bikes heard).
+	double Circuit = 0.0;
 };
 
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.

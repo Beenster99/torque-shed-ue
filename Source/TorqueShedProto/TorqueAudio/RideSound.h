@@ -2,7 +2,8 @@
 // the engine as a 270-degree parallel twin (each firing rings the pipe's resonances, the uneven
 // 270/450 gaps give the twin its lope), the recorded idle under it at tickover, pops on the
 // overrun (deep, occasional, only from a hot exhaust), a gear lever clunk on every change, wind with speed, the rasp of rubber when a tyre
-// slides (by how fast it rubs, and the road: dry, wet, gravel, grass), the drum of the tyres over a cattle grid's bars, and moorland birds behind it all. Mono, 48 kHz.
+// slides (by how fast it rubs, and the road: dry, wet, gravel, grass) with a recorded squeal as it lets go on a dry road, the drum of the
+// tyres over a cattle grid's bars, and moorland birds behind it all, with now and then a bike heard off in a town or a circuit's paddock. Mono, 48 kHz.
 #pragma once
 
 #include "EngineSynth.h"
@@ -41,6 +42,8 @@ struct RideInputs
 	// The place round you on a ride (World/WorldRide's RidePlace), each 0 .. 1: waves on the shore, a
 	// beck running, a town's hum and its traffic, sheep bleating and cattle lowing in the fields.
 	double Sea = 0.0, Water = 0.0, Town = 0.0, Sheep = 0.0, Cattle = 0.0;
+	// [Sound Pack 1] A race circuit near, 0 .. 1 (World/WorldRide's RidePlace): bikes revving in its paddock.
+	double Circuit = 0.0;
 };
 
 class RideSound
@@ -62,6 +65,13 @@ public:
 	void SetIdle(std::vector<float> Samples, int SampleRate, double RecordedRpm);
 	void AddClunk(std::vector<float> Samples, int SampleRate);
 	void SetAmbience(std::vector<float> Samples, int SampleRate);
+	// [Sound Pack 1, beenster Nov 24] Recorded takes (Data/Audio/Pack1, Tools/sound_pack1.py): a tyre's
+	// squeal, played as a tyre lets go on a dry road over the made rasp; and bikes heard off in the
+	// distance, now and then: started up and ticking over a street or two away in a town (Town), revved
+	// in the paddock near a race circuit (Circuit). None loaded: none played, the sound as before.
+	enum EDistant { DistantTown, DistantCircuit, DistantKinds };
+	void AddSqueal(std::vector<float> Samples, int SampleRate);
+	void AddDistant(EDistant Kind, std::vector<float> Samples, int SampleRate);
 
 	// The bike's own engine (Torque Shed's EngineSynth, baked for its engine, exhaust, airbox and
 	// gearbox): played in place of the made 270 twin and its idle recording once it's set.
@@ -77,8 +87,8 @@ public:
 	// N samples into Out (float -1..1).
 	void Render(float* Out, int N);
 
-	// For tests: firings so far, pops so far.
-	int Firings = 0, Pops = 0;
+	// For tests: firings so far, pops so far, squeals and distant bikes played.
+	int Firings = 0, Pops = 0, Squeals = 0, DistantBikes = 0;
 
 private:
 	struct Biquad
@@ -159,6 +169,21 @@ private:
 	double CarT = -1.0, CarLen = 5.0, CarWait = 4.0;
 	double BleatT = -1.0, BleatLen = 0.0, BleatF = 400.0, BleatAmp = 0.0, BleatPhase = 0.0;
 	double MooT = -1.0, MooLen = 0.0, MooF = 110.0, MooAmp = 0.0, MooPhase = 0.0;
+
+	// [Sound Pack 1] The squeals (one plays at a time) and the distant bikes, on their own generator so
+	// the rest doesn't shift with whether they loaded.
+	std::vector<std::vector<float>> SquealTakes;
+	const std::vector<float>* Squeal = nullptr;
+	double SquealPos = 0.0, SquealStep = 1.0, SquealGain = 0.0, SquealRest = 0.0, SquealLevel = 0.0;
+	int LastSqueal = -1;
+	std::vector<std::vector<float>> DistantTakes[DistantKinds];
+	const std::vector<float>* Distant = nullptr;
+	double DistantPos = 0.0, DistantStep = 1.0, DistantGain = 0.0, DistantWait = 20.0, DistantCut = 2000.0;
+	int LastDistant = -1;
+	Biquad DistantLp, DistantLp2;
+	std::mt19937 PackRng{1124};
+	double PackUniform() { return std::uniform_real_distribution<double>(0.0, 1.0)(PackRng); }
+	double DistantSample();
 
 	std::unique_ptr<TorqueEngine::FVoice> EngineVoice;
 	std::vector<float> EngineBuf;

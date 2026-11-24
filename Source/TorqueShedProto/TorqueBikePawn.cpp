@@ -65,6 +65,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Sound/SoundWaveProcedural.h"
+#include "HAL/IConsoleManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "EngineUtils.h"
 #include "DrawDebugHelpers.h"
@@ -4699,6 +4700,10 @@ void ATorqueBikePawn::UpdateRider()
 	PlaceBlob(RiderParts[RP_Visor], Head + Look.RotateVector(FVector(9.5, 0.0, -0.5)), FVector(11.0, 21.0, 11.0), Look);
 }
 
+// [Sound Pack 1, beenster Nov 24] The pack's recorded takes in the ride's sound (Data/Audio/Pack1): read as a ride starts.
+static TAutoConsoleVariable<int32> CVarSoundPack1(TEXT("torque.SoundPack1"), 1,
+	TEXT("Sound Pack 1's recordings in the ride's sound (tyre squeals; bikes heard in towns and near circuits): 1 on, 0 off. Read as a ride starts."));
+
 void ATorqueBikePawn::StartSound()
 {
 	Sound = MakeUnique<TorqueSound::RideSound>();
@@ -4720,6 +4725,29 @@ void ATorqueBikePawn::StartSound()
 	}
 	std::vector<float> Amb = Wav(TEXT("birds_moor.wav"), Rate);
 	if (!Amb.empty()) { Sound->SetAmbience(std::move(Amb), Rate); ++Got; }
+	// [Sound Pack 1, beenster Nov 24] Recorded tyre squeals, and bikes heard off in towns and near circuits
+	// (Data/Audio/Pack1, made by Tools/sound_pack1.py). torque.SoundPack1 0 leaves them out (the sound as before).
+	if (CVarSoundPack1.GetValueOnGameThread() != 0)
+	{
+		for (int32 I = 1; I <= 3; ++I)
+		{
+			std::vector<float> S = Wav(*FString::Printf(TEXT("Pack1/tyre_squeal_%d.wav"), I), Rate);
+			if (!S.empty()) { Sound->AddSqueal(std::move(S), Rate); ++Got; }
+		}
+		for (int32 I = 1; I <= 4; ++I)
+		{
+			for (const TCHAR* Town : {TEXT("town_twin"), TEXT("town_vtwin")})
+			{
+				std::vector<float> T = Wav(*FString::Printf(TEXT("Pack1/%s_%d.wav"), Town, I), Rate);
+				if (!T.empty()) { Sound->AddDistant(TorqueSound::RideSound::DistantTown, std::move(T), Rate); ++Got; }
+			}
+			for (const TCHAR* Paddock : {TEXT("circuit_rev"), TEXT("circuit_v4")})
+			{
+				std::vector<float> C = Wav(*FString::Printf(TEXT("Pack1/%s_%d.wav"), Paddock, I), Rate);
+				if (!C.empty()) { Sound->AddDistant(TorqueSound::RideSound::DistantCircuit, std::move(C), Rate); ++Got; }
+			}
+		}
+	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: sound with %d recordings"), Got);
 
 	SoundWave = NewObject<USoundWaveProcedural>(this);
@@ -5110,6 +5138,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	}
 	// On a ride, the place round you (World/TorqueRideWorld): the sea, a beck, a town, the sheep and cattle.
 	ATorqueRideWorld::PlaceHeard(In.Sea, In.Water, In.Town, In.Sheep, In.Cattle);
+	In.Circuit = ATorqueRideWorld::CircuitHeard();
 	if (!bRideGridsSet)
 	{
 		TArray<TPair<FVector, FVector>> RideGrids;

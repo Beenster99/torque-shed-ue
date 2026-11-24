@@ -91,6 +91,8 @@ public:
 	// What the rider hears of the place round them (RidePlan::SoundsAt, each 0..1: the sea, running
 	// water, a town, sheep, cattle), from the ride being laid out now; false with no ride.
 	static bool PlaceHeard(double& Sea, double& Water, double& Town, double& Sheep, double& Cattle);
+	// [Sound Pack 1] How near a race circuit the rider is, 0 .. 1 (0 off a ride).
+	static double CircuitHeard();
 	// The road's surface at a point of the ride's road (Unreal cm; RidePlan::SurfaceAt): Kind 0 tarmac,
 	// 1 slick (paint, tar), 2 grit, 3 steel, 4 a gravel road, and how far it stands over the mark a ray hits there (m). False
 	// with no ride.
@@ -165,7 +167,7 @@ public:
 
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;
-	double Heard[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+	double Heard[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 	// [stage 7] This ride's diary (World/WorldRideDiary), stepped as the rider goes, saved now and then.
 	std::shared_ptr<TorqueWorld::DiaryRide> Diary;
 	double SinceDiary = 0.0, SinceDiarySaved = 0.0;
