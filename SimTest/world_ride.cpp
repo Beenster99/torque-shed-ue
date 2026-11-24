@@ -2982,7 +2982,11 @@ int main(int Argc, char** Argv)
 					for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
 					{
 						const float* Cl = &M.Col[size_t(M.Idx[T]) * 3];
-						const bool Tar = Colour(Cl, 0.022f, 0.022f, 0.025f) || Colour(Cl, 0.010f, 0.010f, 0.011f) || Colour(Cl, 0.06f, 0.062f, 0.085f)
+						// ([smooth junctions stage 5c] the fade from a mouth's tarmac into a gravel track, its colours between the two: cover,
+						// not a hole the robot rode off into on every track turn)
+						const float Fade = (Cl[0] - 0.022f) / (0.095f - 0.022f);
+						const bool Faded = Fade > 0.0f && Fade < 1.0f && std::fabs(Cl[1] - (0.022f + Fade * 0.066f)) < 0.004f && std::fabs(Cl[2] - (0.025f + Fade * 0.045f)) < 0.004f;
+						const bool Tar = Faded || Colour(Cl, 0.022f, 0.022f, 0.025f) || Colour(Cl, 0.010f, 0.010f, 0.011f) || Colour(Cl, 0.06f, 0.062f, 0.085f)
 							|| Colour(Cl, 0.095f, 0.088f, 0.07f) || Colour(Cl, 0.09f, 0.095f, 0.11f)   // ([smooth junctions stage 1] gravel and setts are its cover too)
 							|| Colour(Cl, 0.83f, 0.83f, 0.75f) || Colour(Cl, 0.78f, 0.52f, 0.03f);   // ([3b] and the lines painted in it: without them the robot read holes under every line and knocked on the grid)
 						const bool Grit = Colour(Cl, 0.095f, 0.088f, 0.07f);
@@ -3063,11 +3067,23 @@ int main(int Argc, char** Argv)
 						}
 					}
 				}
-			// (each laid road's line from the map, 1 m to 12 m out of the junction, under some surface)
+			// ([smooth junctions stage 5c] along a laid side road's own line, as a rider follows it, not the map's:
+			// a sharp map corner near the junction the laying rounds off read as riding off the road, Whaley Bridge)
+			const auto LaidFrom = [&](int E)
+			{
+				std::vector<P2> L = G.LineFrom(E, Nd);
+				const RidePlan::SideRoad* Sr = Plan->SideOf(E + 1);
+				if (Sr == nullptr || Sr->Pts.size() < 2 || std::getenv("WORLD_RIDE_MAPLINE") != nullptr) return L;
+				std::vector<P2> Own;
+				for (const RoadPoint& Rp : Sr->Pts) Own.push_back(Rp.At);
+				if (Own.back().DistanceTo(C) < Own.front().DistanceTo(C)) std::reverse(Own.begin(), Own.end());
+				return Own.front().DistanceTo(C) < 16.0 ? Own : L;
+			};
+			// (each laid road's line, 1 m to 12 m out of the junction, under some surface)
 			for (int E : G.Adjacent[size_t(Nd)])
 			{
 				if (Plan->SideOf(E + 1) == nullptr && OnRide.count(E) == 0) continue;
-				const std::vector<P2> Line = G.LineFrom(E, Nd);
+				const std::vector<P2> Line = LaidFrom(E);
 				double Gone = 0.0;
 				for (size_t I = 1; I < Line.size() && Gone < 12.0; ++I)
 				{
@@ -3169,7 +3185,7 @@ int main(int Argc, char** Argv)
 						if (Plan->SideOf(Eout + 1) == nullptr && OnRide.count(Eout) == 0) continue;
 						if (!Into(Ein) || !OutOf(Eout)) continue;
 						if (std::binary_search(G.Bans.begin(), G.Bans.end(), std::array<int, 3>{Ein, Nd, Eout})) continue;
-						const std::vector<P2> Lin = G.LineFrom(Ein, Nd), Lout = G.LineFrom(Eout, Nd);
+						const std::vector<P2> Lin = LaidFrom(Ein), Lout = LaidFrom(Eout);
 						if (Lin.size() < 2 || Lout.size() < 2) continue;
 						const double Corner = 5.0, Out = Reach - 3.0;
 						std::vector<P2> Path;
@@ -3256,7 +3272,7 @@ int main(int Argc, char** Argv)
 						size_t JoltAt = 0, PullAt = 0;
 						for (size_t I = 0; I < H.size(); ++I)
 						{
-							if (std::isnan(H[I])) { OffBy += 0.25; continue; }
+							if (std::isnan(H[I])) { OffBy += 0.25; if (Only >= 0 && std::getenv("JOFF_PTS")) std::printf("joff %d->%d at (%.1f, %.1f)\n", Ein, Eout, Even[I].X - C.X, Even[I].Z - C.Z); continue; }
 							if (I >= 1 && I + 2 < H.size() && !std::isnan(H[I - 1]) && !std::isnan(H[I + 1]) && !std::isnan(H[I + 2]) && !Bumpy[I] && !Bumpy[I + 1])
 							{
 								const double Jv = std::fabs((H[I + 1] - H[I]) - 0.5 * ((H[I] - H[I - 1]) + (H[I + 2] - H[I + 1])));   // (a step, not a crown's kink: half that)
