@@ -200,19 +200,26 @@ void RidePlan::IndexWater()
 		// across it, so a beck drops down its steps as they come, white where it falls)
 		for (size_t I = 0; I < N; ++I) Level[I] = std::fmin(Level[I], Low[I]);
 		for (size_t I = 1; I < N; ++I) Level[I] = std::fmin(Level[I], Level[I - 1]);
-		const double Under = Flow.Kind == 1 ? 0.12 : 0.25;
+		// ([real water, beenster on 170 at Aysgarth: "is this realistic water?"] the Ure lay 25 cm under the
+		// lowest land round it, level with its grassy banks as a flood is. A river runs between banks: now a
+		// river sits half a metre under its banks, more the wider it is (up to 0.9 m), a canal 0.35 m, a brook
+		// 0.2 m, and the channel's bank (GroundUncut) rises from the water's edge to the land at that height.)
+		const double Under = Flow.Kind == 1 ? 0.2 : Flow.Kind == 2 ? 0.35 : 0.5;
 		Run.Surface.resize(N);
 		Run.Half.resize(N);
 		Run.Depth.resize(N);
 		Run.Along.resize(N);
 		for (size_t I = 0; I < N; ++I)
 		{
-			Run.Surface[I] = float(std::fmax(Level[I], Low[I] - 2.0) - Under);
+			const double Sunk = Flow.Kind == 0 ? std::fmin(Under + Half[I] * 0.03, 0.9) : Under;
+			Run.Surface[I] = float(std::fmax(Level[I], Low[I] - 2.0) - Sunk);
 			Run.Half[I] = float(Half[I]);
 			Run.Depth[I] = float(std::fmin(Deep + Half[I] * 0.04, 2.5));
 			// (wrapped at whole 80 m, so the ripples meet, and short enough for the UVs' precision)
 			Run.Along[I] = I == 0 ? 0.0f : float(std::fmod(double(Run.Along[I - 1]) + Run.At[I].DistanceTo(Run.At[I - 1]), 4000.0));
 		}
+		// (a river sunk by its width: still never higher than upstream where it narrows)
+		for (size_t I = 1; I < N; ++I) Run.Surface[I] = std::fmin(Run.Surface[I], Run.Surface[I - 1]);
 		// Filed by every WaterCell square its banks reach.
 		const int Index = int(WaterRuns.size());
 		for (size_t I = 0; I + 1 < N; ++I)
