@@ -16,7 +16,7 @@ SIZE = 512          # pixels
 PATCH = 8.0         # metres the map covers (UV 1 = 8 m in M_RideWater)
 
 
-def heights(seed=11, wind=(1.0, 0.35), speed=4.0):
+def heights(seed=11, wind=(1.0, 0.35), speed=2.2):
     rng = np.random.default_rng(seed)
     k = np.fft.fftfreq(SIZE, d=PATCH / SIZE) * 2 * np.pi
     kx, ky = np.meshgrid(k, k)
@@ -27,6 +27,13 @@ def heights(seed=11, wind=(1.0, 0.35), speed=4.0):
     cos = (kx * w[0] + ky * w[1]) / kk
     # Phillips spectrum, most of it with the wind, a little across, the very short waves damped
     P = np.exp(-1.0 / (kk * Lw) ** 2) / kk ** 4 * (0.08 + 0.92 * cos ** 4) * np.exp(-(kk * 0.05) ** 2)
+    # ([real water, beenster on 170: "we never seem to get rid of the tiling on the water surface"] the
+    # spectrum put most of the slope in waves as long as the map itself: 38% of it at one or two waves
+    # across the 8 m, a few big diamonds that came round again every repeat, which is what the eye picks
+    # out as tiles however the samples were turned and bent. Now nothing longer than a sixth of the map
+    # (1.3 m) is in it, each repeat holds dozens of small waves and no big shape, and the long waves come
+    # from the material's own slow noise, which doesn't repeat for 80-160 m.)
+    P *= 1.0 - np.exp(-(kk / (2 * np.pi / (PATCH / 6.0))) ** 6)
     P[0, 0] = 0
     h = np.fft.ifft2((rng.normal(size=kk.shape) + 1j * rng.normal(size=kk.shape)) * np.sqrt(P)).real
     return h

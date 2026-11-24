@@ -819,8 +819,44 @@ def water_material(L, real=False):
             uv = g.op(U.MaterialExpressionMultiply, uv0, const_b=float(tiling))
             drift = append(mul(time, side), mul(mul(time, pace), -tiling * speed))
             return g.sample(wn, g.op(U.MaterialExpressionAdd, uv, drift), "normal")
-        river = g.op(U.MaterialExpressionAdd, mul(flowing(1.6, 1.0, 0.004), 0.8), mul(flowing(3.1, 1.15, -0.011), 0.55))
-        river = g.op(U.MaterialExpressionMultiply, river, append(append(add(mul(white, 0.8), 0.45), add(mul(white, 0.8), 0.45)), 0.0))
+        # ([real water, beenster on 170: "we never seem to get rid of the tiling on the water surface"] the
+        # river's two samples ran square down it at near-matching sizes, unbent, as strong everywhere and to
+        # any distance: a grid of the same cells down every river. Now a third, broad sample at 11 m turned
+        # 30 degrees off the flow, all three bent by the slow noise (its broad channel, so they wander and
+        # never swirl), the ripples stronger and calmer in slow patches as a river's surface is (smooth
+        # glides between rougher runs), and fading to a third by 300 m, where any repeat would show.)
+        def flowing_at(tiling, speed, side, bend):
+            uv = g.op(U.MaterialExpressionMultiply, uv0, const_b=float(tiling))
+            if bend is not None:
+                uv = g.op(U.MaterialExpressionAdd, uv, bend)
+            drift = append(mul(time, side), mul(mul(time, pace), -tiling * speed))
+            return g.sample(wn, g.op(U.MaterialExpressionAdd, uv, drift), "normal")
+        bend_a = bend_b = None
+        if nt is not None:
+            rwuv = g.node(U.MaterialExpressionTextureCoordinate, u_tiling=0.05, v_tiling=0.05)
+            rbroad = chan(g.sample(nt, rwuv, "linear"), "G")
+            bend_a = mul(rbroad, 1.3)
+            bend_b = mul(rbroad, -2.1)
+        layer_a = flowing_at(1.6, 1.0, 0.004, bend_a)
+        layer_b = flowing_at(3.1, 1.15, -0.011, bend_b)
+        # (the broad one, UV0 turned 30 degrees: cos 0.866, sin 0.5)
+        tu = g.node(U.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv0, tu)
+        tv = g.node(U.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(uv0, tv)
+        turned_uv = append(sub(mul(tu, 0.866 * 0.73), mul(tv, 0.5 * 0.73)), add(mul(tu, 0.5 * 0.73), mul(tv, 0.866 * 0.73)))
+        if bend_a is not None:
+            turned_uv = g.op(U.MaterialExpressionAdd, turned_uv, mul(rbroad, 0.7))
+        layer_c = g.sample(wn, g.op(U.MaterialExpressionAdd, turned_uv, append(mul(time, 0.003), mul(mul(time, pace), -0.73 * 0.8))), "normal")
+        river = g.op(U.MaterialExpressionAdd, g.op(U.MaterialExpressionAdd, mul(layer_a, 0.7), mul(layer_b, 0.45)), mul(layer_c, 0.5))
+        strength = add(mul(white, 0.9), 0.32)   # (calmer than before: a slow river's glides are near mirrors)
+        if nt is not None:
+            # (glides and runs: 0.35 .. 1.25 in patches 40 m or so long, drifting down with the water)
+            pguv = g.op(U.MaterialExpressionAdd, mul(uv0, 0.1), append(0.0, mul(mul(time, pace), -0.1)))
+            patch = chan(g.sample(nt, pguv, "linear"), "G")
+            strength = mul(strength, add(mul(patch, 0.9), 0.35))
+            far = g.op(U.MaterialExpressionSaturate, g.op(U.MaterialExpressionDivide,
+                       g.op(U.MaterialExpressionSubtract, g.node(U.MaterialExpressionPixelDepth), const_b=2000.0), const_b=28000.0))
+            strength = mul(strength, g.lerp(g.const(1.0), g.const(0.33), far))
+        river = g.op(U.MaterialExpressionMultiply, river, append(append(strength, strength), 0.0))
         n = g.lerp(n, river, is_river)
     if rain_t is not None:
         # Rain: a ring grows out from each drop in turn and fades (the texture: distance, when, which way).
