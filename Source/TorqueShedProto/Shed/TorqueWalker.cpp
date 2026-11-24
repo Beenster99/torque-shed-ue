@@ -47,6 +47,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Engine/World.h"
+#include "Engine/OverlapResult.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -547,6 +548,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		return;
 	}
 	UTorqueBuildSubsystem* B = Shed();
+	CheckStuck(DeltaSeconds);   // [co-op join] (build 169: a joined friend stood in the shed and couldn't move)
 	// -TorqueAvatarDemo: the MetaHuman avatars walking about 3 m in front of you (TorqueAvatarDemo.h).
 	if (!bAvatarDemo && FParse::Param(FCommandLine::Get(), TEXT("TorqueAvatarDemo")))
 	{
@@ -629,6 +631,108 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		if (DoingFor <= 0.0) Doing(FString(), 0.0);
 	}
 	UpdateHud();
+}
+
+// --- [co-op join] Why it won't walk ---------------------------------------------------------------------
+
+FString ATorqueWalker::WhyNoWalk() const
+{
+	TArray<FString> Why;
+	const AController* C = GetController();
+	if (!C) Why.Add(TEXT("no controller"));
+	else if (!IsLocallyControlled()) Why.Add(TEXT("another machine's walker"));
+	if (GetNetMode() == NM_Client && GetLocalRole() != ROLE_AutonomousProxy)
+		Why.Add(FString::Printf(TEXT("the host hasn't handed it over (role %s)"), *UEnum::GetValueAsString(GetLocalRole())));
+	if (const UWorld* World = GetWorld(); World && World->IsPaused()) Why.Add(TEXT("the game is paused"));
+	if (ATorquePlayerController::MenuUp(C)) Why.Add(TEXT("a menu is up"));
+	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
+	if (bNoInput) Why.Add(TEXT("-TorqueNoInput"));
+	if (bRidingOut) Why.Add(TEXT("riding out"));
+	if (bComputer) Why.Add(TEXT("at the parts computer"));
+	if (bBench) Why.Add(TEXT("at the mixing bench"));
+	if (SeatId != 0) Why.Add(TEXT("sat down"));
+	if (LabelBoxUp()) Why.Add(TEXT("a name box is up"));
+	if (CupPick != INDEX_NONE) Why.Add(TEXT("the cups picker is up"));
+	if (ATorqueGeometryMode::For(C) || ATorqueDecalMode::For(C)) Why.Add(TEXT("geometry or decal mode"));
+	if (ATorqueDrone::For(C) || ATorquePhotoAlbum::For(C)) Why.Add(TEXT("the drone or the photo album"));
+	if (const UCharacterMovementComponent* M = GetCharacterMovement(); M && M->MovementMode == MOVE_None) Why.Add(TEXT("movement off"));
+	return FString::Join(Why, TEXT(", "));
+}
+
+FString ATorqueWalker::StuckInside() const
+{
+	const UWorld* World = GetWorld();
+	const UCapsuleComponent* Cap = GetCapsuleComponent();
+	if (!World || !Cap) return FString();
+	// A little thinner than the capsule: standing against a wall isn't inside it.
+	const FCollisionShape Shape = FCollisionShape::MakeCapsule(FMath::Max(Cap->GetScaledCapsuleRadius() - 4.0f, 5.0f), FMath::Max(Cap->GetScaledCapsuleHalfHeight() - 6.0f, 10.0f));
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerStuck), false, this);
+	TArray<FOverlapResult> Hits;
+	World->OverlapMultiByChannel(Hits, GetActorLocation(), FQuat::Identity, Cap->GetCollisionObjectType(), Shape, Params);
+	for (const FOverlapResult& H : Hits)
+	{
+		const UPrimitiveComponent* P = H.GetComponent();
+		if (!H.bBlockingHit || !P || Cast<APawn>(H.GetActor())) continue;   // (another player isn't a wall)
+		return FString::Printf(TEXT("%s (%s)"), H.GetActor() ? *H.GetActor()->GetName() : TEXT("?"), *P->GetName());
+	}
+	return FString();
+}
+
+void ATorqueWalker::CheckStuck(float Dt)
+{
+	StuckLogIn = FMath::Max(StuckLogIn - Dt, 0.0);
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+	const FSonyPadState S = PadState();
+	const float PadX = S.bConnected ? S.LX : PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftX);
+	const float PadY = S.bConnected ? S.LY : PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+	const bool bPressing = FTorqueKeys::Down(PC, ETorqueKey::WalkForward) || FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ||
+		FTorqueKeys::Down(PC, ETorqueKey::WalkLeft) || FTorqueKeys::Down(PC, ETorqueKey::WalkRight) || FMath::Abs(PadX) > 0.5f || FMath::Abs(PadY) > 0.5f;
+	const FVector At = GetActorLocation();
+	if (!bPressing || FVector::Dist2D(At, StuckFrom) > 20.0)
+	{
+		StuckHeld = 0.0;
+		StuckFrom = At;
+		return;
+	}
+	StuckHeld += Dt;
+	if (StuckHeld < 2.0) return;
+	const FString Why = WhyNoWalk();
+	if (!Why.IsEmpty() && (bComputer || bBench || SeatId != 0 || LabelBoxUp() || CupPick != INDEX_NONE || ATorquePlayerController::MenuUp(PC))) return;   // (meant: they have the keys)
+	const FString Inside = StuckInside();
+	if (StuckLogIn <= 0.0)
+	{
+		StuckLogIn = 20.0;
+		const UCharacterMovementComponent* M = GetCharacterMovement();
+		const FString Line = FString::Printf(TEXT("Torque walker: walk keys held %.1f s without moving at %s (%s, %s, role %s, movement %s, speed %.0f cm/s)%s%s"),
+			StuckHeld, *At.ToCompactString(), GetNetMode() == NM_Client ? TEXT("joined") : (GetNetMode() == NM_ListenServer ? TEXT("hosting") : TEXT("solo")),
+			IsLocallyControlled() ? TEXT("ours") : TEXT("not ours"), *UEnum::GetValueAsString(GetLocalRole()),
+			M ? *UEnum::GetValueAsString(M->MovementMode.GetValue()) : TEXT("none"), GetVelocity().Size2D(),
+			Why.IsEmpty() ? TEXT("") : *(TEXT("; ") + Why), Inside.IsEmpty() ? TEXT("") : *(TEXT("; inside ") + Inside));
+		// (nothing found in the way of it: likely just walking into a wall or a bench)
+		if (Why.IsEmpty() && Inside.IsEmpty())
+		{
+			UE_LOG(LogTemp, Log, TEXT("%s"), *Line);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
+		}
+	}
+	// Inside something solid (a walker that arrived where a lift or a bench is): out to the nearest
+	// free spot, once, and the host told where.
+	if (!Inside.IsEmpty() && !bStuckFreed && IsLocallyControlled())
+	{
+		bStuckFreed = true;
+		FVector Free = At + FVector(0.0, 0.0, 40.0);
+		FRotator Facing = GetActorRotation();
+		if (UWorld* World = GetWorld(); World && World->FindTeleportSpot(this, Free, Facing))
+		{
+			SetActorLocation(Free, false, nullptr, ETeleportType::TeleportPhysics);
+			ATorquePlayerController::PlaceOnHost(this, Free, PC->GetControlRotation());
+			UE_LOG(LogTemp, Warning, TEXT("Torque walker: was inside %s: moved out to %s"), *Inside, *Free.ToCompactString());
+		}
+	}
 }
 
 // --- Input ------------------------------------------------------------------------------------------

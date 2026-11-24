@@ -10,6 +10,7 @@
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
+#include "TorqueNetVersion.h"
 #include "GameFramework/GameModeBase.h"
 #include "TorqueSettings.h"
 #include "TorqueKeys.h"
@@ -565,6 +566,39 @@ FString ATorquePlayerController::RideWaitingFor() const
 		if (TPS->RideReadyFor != Code) Names.Add(TPS->GetPlayerName());
 	}
 	return FString::Join(Names, TEXT(", "));
+}
+
+FString ATorquePlayerController::JoinState(FString* Problem) const
+{
+	const UWorld* World = GetWorld();
+	const APawn* Mine = GetPawn();
+	TArray<FString> Wrong;
+	const ATorqueWalker* Walker = Cast<ATorqueWalker>(Mine);
+	const ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(Mine);
+	if (!Mine) Wrong.Add(bChoosingRide ? FString(TEXT("no pawn yet (choosing a bike to join the ride)")) : FString(TEXT("no pawn")));
+	else if (!Walker && !Bike && !Cast<ATorqueMenuPawn>(Mine)) Wrong.Add(FString::Printf(TEXT("an unexpected pawn %s"), *Mine->GetClass()->GetName()));
+	if (Mine && !Mine->IsLocallyControlled()) Wrong.Add(TEXT("the pawn isn't ours to move"));
+	if (Mine && GetNetMode() == NM_Client && Mine->GetLocalRole() != ROLE_AutonomousProxy)
+		Wrong.Add(FString::Printf(TEXT("the host never handed the pawn over (role %s)"), *UEnum::GetValueAsString(Mine->GetLocalRole())));
+	if (World && World->IsPaused()) Wrong.Add(TEXT("the game is paused"));
+	if (Walker)
+	{
+		const FString Why = Walker->WhyNoWalk();
+		if (!Why.IsEmpty()) Wrong.Add(TEXT("walker: ") + Why);
+		const FString Inside = Walker->StuckInside();
+		if (!Inside.IsEmpty()) Wrong.Add(TEXT("walker inside ") + Inside);
+	}
+	const AActor* Viewing = GetViewTarget();
+	const ATorqueGameState* GS = World ? World->GetGameState<ATorqueGameState>() : nullptr;
+	const FString State = FString::Printf(TEXT("map %s, %s, pawn %s%s, view %s, page %d, cursor %s, %d players, %s"),
+		World ? *World->GetMapName() : TEXT("none"),
+		GetNetMode() == NM_Client ? TEXT("joined") : (GetNetMode() == NM_ListenServer ? TEXT("hosting") : TEXT("solo")),
+		Mine ? *Mine->GetName() : TEXT("none"), Mine ? *FString::Printf(TEXT(" (role %s, at %s)"), *UEnum::GetValueAsString(Mine->GetLocalRole()), *Mine->GetActorLocation().ToCompactString()) : TEXT(""),
+		Viewing ? *Viewing->GetName() : TEXT("none"), (int32)Page, bShowMouseCursor ? TEXT("shown") : TEXT("hidden"),
+		GS ? GS->PlayerArray.Num() : 0, *TorqueNetVersion::BuildName());
+	if (IsMenuUp() && !bChoosingRide) Wrong.Add(TEXT("a menu page is up"));
+	if (Problem) *Problem = FString::Join(Wrong, TEXT("; "));
+	return State;
 }
 
 void ATorquePlayerController::SyncRideJourney()
@@ -1988,6 +2022,26 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 	}
 	// [co-op] The join page stays up until a bike's picked (Esc doesn't leave a rider with nothing).
 	if (bChoosingRide && !IsMenuUp()) Open(EPage::JoinRide);
+	// [co-op join] On a joined machine, how we stand a few seconds into each map (in the log).
+	if (GetNetMode() == NM_Client)
+	{
+		if (JoinWorld.Get() != GetWorld())
+		{
+			JoinWorld = GetWorld();
+			JoinClock = 0.0;
+			JoinLogged = 0;
+		}
+		JoinClock += DeltaTime;
+		static const double JoinLogAt[] = {3.0, 10.0, 30.0};
+		if (JoinLogged < UE_ARRAY_COUNT(JoinLogAt) && JoinClock >= JoinLogAt[JoinLogged])
+		{
+			++JoinLogged;
+			FString Problem;
+			const FString State = JoinState(&Problem);
+			if (Problem.IsEmpty()) UE_LOG(LogTemp, Log, TEXT("Torque net: joined, %.0f s in: %s"), JoinClock, *State);
+			else UE_LOG(LogTemp, Warning, TEXT("Torque net: joined, %.0f s in: %s; PROBLEM: %s"), JoinClock, *State, *Problem);
+		}
+	}
 	UpdateCursor();
 	SyncRideJourney();
 	CheckAwards();   // [ride awards]
