@@ -53,6 +53,8 @@ struct FTorqueWorldShared
 	TorqueWorld::Route::MapImagery Imagery;  // [build 147] the planner's satellite pictures
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
 	std::atomic<bool> bMapMoved{false};   // [map detail] the planner's map asked for again while one draws
+	// [170] A ride being planned: the planner's map reads no more cells meanwhile (it gave way: drawn again after).
+	std::atomic<bool> bRidePlanning{false}, bMapGaveWay{false};
 	std::atomic<bool> bOffline{false};   // [stage 8] Settings' offline: nothing is fetched
 };
 
@@ -422,6 +424,7 @@ bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, 
 {
 	if (bPlanning || !Shared || Want.Pins.size() < 2) return false;
 	bPlanning = true;
+	Shared->bRidePlanning = true;
 	Note = TEXT("Ride UK: fetching the road...");
 	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s, %d pins, %s, from %.4f, %.4f to %.4f, %.4f (%s)"), *Title, int32(Want.Pins.size()), UTF8_TO_TCHAR(Want.Mode.c_str()),
 		Want.Pins.front().Lat, Want.Pins.front().Lon, Want.Pins.back().Lat, Want.Pins.back().Lon, bRide ? TEXT("to ride") : TEXT("to look at"));
@@ -475,6 +478,12 @@ bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, 
 void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made, bool bRide)
 {
 	bPlanning = false;
+	if (Shared)
+	{
+		// [170] (the planner's map, which stopped reading cells while the ride was planned, finished now)
+		Shared->bRidePlanning = false;
+		if (Shared->bMapGaveWay.exchange(false)) AskMap(MapBusyView());
+	}
 	if (LejogOn >= 0 && bLegAsked && bRide)
 	{
 		// [stage 8] (a leg of the robot's ride: how long it took to plan; one that can't be planned is passed)
@@ -611,6 +620,7 @@ void UTorqueWorldSubsystem::AskMap(const TorqueWorld::Route::MapView& View)
 void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 {
 	bMapBusy = true;
+	MapAsked = View;
 	bMapWaiting = false;
 	if (Shared) Shared->bMapMoved = false;
 	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
@@ -642,7 +652,13 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		// [map detail] Zoomed in, the roads of the cells in view: those on disk at once, the rest fetched
 		// (the middle's first) while the first picture shows, given up on once the view has moved on.
 		const bool bRoads = TorqueWorld::Route::RoadLayer(View.Layer);
-		const auto Moved = [&Held]() { return Held->bStop.load() || Held->bMapMoved.load(); };
+		// ([170] and while a ride is being planned, the map reads no more cells: the plan reads the same
+		// stores and wants the machine to itself; the map is drawn again once it is planned)
+		const auto Moved = [&Held]()
+		{
+			if (Held->bRidePlanning.load()) Held->bMapGaveWay = true;
+			return Held->bStop.load() || Held->bMapMoved.load() || Held->bRidePlanning.load();
+		};
 		const auto Streets = [&Held, &View, &Moved](int Load, int* Loaded)
 		{
 			int Missing = TorqueWorld::KnowStreets(Held->Cells, Held->MapStreets, View, Load, Moved, Loaded);
