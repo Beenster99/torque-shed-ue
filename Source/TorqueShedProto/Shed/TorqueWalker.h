@@ -81,6 +81,13 @@ public:
 	FSonyPadState PadState() const;
 	// Whether to draw the aiming dot (walking about, not at the computer).
 	bool ShowsCrosshair() const { return !bRidingOut && !bComputer && !bBench; }
+	// [co-op join] Why the walk keys wouldn't move this walker now ("" when they would): no controller,
+	// someone else's, a copy the host never handed over, the game paused, a menu or a box up, at the
+	// computer or the bench, sat down, movement off. Logged when the keys are held and it doesn't move,
+	// and by the co-op test steps (TorqueShedTest coop:check).
+	FString WhyNoWalk() const;
+	// [co-op join] Inside something solid (its name), as a walker that can't step out of it is.
+	FString StuckInside() const;
 	// For the HUD (Torque Shed's hud.gd): the crosshair lit over something, the work ring, the tool
 	// bar, the spray swatches and what you're carrying.
 	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
@@ -559,6 +566,11 @@ private:
 	void PasteTvVideo();    // [tv] Ctrl+V at a TV: the YouTube link copied
 	bool bRidingOut = false;
 	double RideOutIn = 0.0;
+	// [co-op join] The walk keys held without moving: how long, from where, and when it may log again.
+	void CheckStuck(float Dt);
+	double StuckHeld = 0.0, StuckLogIn = 0.0;
+	FVector StuckFrom = FVector::ZeroVector;
+	bool bStuckFreed = false;
 
 	// --- Input, HUD ------------------------------------------------------------------------------------
 	TUniquePtr<FSonyPad> Pad;

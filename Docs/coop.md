@@ -166,6 +166,30 @@ than the network.
     controls let go). Settings > Graphics changes apply at once and are kept after a restart;
     Character > Name and Colour change the name over you on the other copy.
 
+11. **A friend joins and rides** (build 169: a friend joined, saw the shed and couldn't move, so they never
+    rode together). `Tools/coop_join_test.ps1 -Game <the round's packaged TorqueShedProto.exe>` runs both
+    copies hands-off with the `coop:*` test steps (`Shed/TorqueShedTest.h`): the guest must be handed a
+    walker it can move (`coop:check`), walk 3 m (`coop:walk`) with the host seeing it (`coop:seen`), and
+    follow the host onto a Ride UK journey on its own bike (`coop:ride` on the host, `coop:onride` on the
+    guest). It prints every `COOP TEST PASS` / `COOP TEST FAILED` line and ends `COOP JOIN TEST: PASS` only
+    if all seven passed. Run it on the round's staged build, not the play folder (the host saves its shed).
+
+### Same build only, and what a joined game logs
+
+Every build used to say network version 1.0.0.0, so two different builds could join each other and then
+break in odd ways (things that don't line up between them). Now the network version is the build's own
+(`Coop/TorqueNetVersion.*`, from `Data/build.json`'s round and commit): a friend on another build is
+turned away at once, and their menu says "the host's game is a different build from yours (yours is
+Build N)". The host's join instructions say which build friends need. A dev build with no
+`Data/build.json` keeps Unreal's own check.
+
+A joined game logs how it stands 3, 10 and 30 s into each map (`Torque net: joined, N s in: map ...,
+pawn ... (role ...), page ..., Build N`, with `PROBLEM: ...` if something stops the player: no pawn, a
+pawn the host never handed over, the game paused, a menu up, the walker inside something). A walker whose
+walk keys are held for 2 s without it moving logs why (`Torque walker: walk keys held ...`), and one
+standing inside something solid is moved out to the nearest free spot. Those lines in a friend's
+`Saved/Logs/TorqueShedProto.log` say what went wrong on their side.
+
 The game starts in the shed (`GameDefaultMap`), with the menu over it; Ride solo just puts you on
 your feet there. Launched with a ride test switch (`-TorqueAutoRide`, `-TorqueStartKm=`,
 `-TorqueCamera=`, `-TorqueRide`), it goes straight on to Buttertubs as before.

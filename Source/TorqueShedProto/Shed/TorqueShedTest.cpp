@@ -10,6 +10,8 @@
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
+#include "Coop/TorquePlayerState.h"
+#include "GameFramework/GameStateBase.h"
 
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -32,6 +34,7 @@
 #include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRide.h"
+#include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -651,6 +654,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("off the bike, parked where it stands"));
 		return true;
 	}
+	if (Verb == TEXT("coop")) return RunCoopStep(P, S);   // [co-op join]
 	if (Verb == TEXT("rideuk"))
 	{
 		// [tests off Buttertubs] rideuk[:SPEC] (default "hawes"; "buttertubs", or four numbers as
@@ -2257,4 +2261,172 @@ void UTorqueShedTest::OutlineShotDone()
 	OutlineShotHandle.Reset();
 	bOutlineShot = false;
 	OutlineShotWaits = 0;
+}
+
+// --- [co-op join] Two copies, one hosting and one joined (Tools/coop_join_test.ps1) ----------------------
+// Build 169: a friend joined beenster's shed, saw it and couldn't move or do anything, so they never
+// rode together. These steps prove a joined player is handed their walker, can walk, is seen walking
+// by the host, and follows the host onto a Ride UK journey on a bike of their own.
+
+bool UTorqueShedTest::RunCoopStep(const TArray<FString>& P, const FString& S)
+{
+	UWorld* World = GetGameInstance()->GetWorld();
+	const FString What = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("check"));
+	auto Pass = [&S](const FString& Text) { UE_LOG(LogTemp, Log, TEXT("Torque test: %s: COOP TEST PASS: %s"), *S, *Text); };
+	auto Fail = [&S](const FString& Text) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: COOP TEST FAILED: %s"), *S, *Text); };
+	auto Done = [this]() { CoopWaited = 0; bCoopWalking = false; CoopSeen.Reset(); CoopRideStage = 0; return true; };
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC);
+	const AGameStateBase* GS = World ? World->GetGameState() : nullptr;
+	const int32 Players = GS ? GS->PlayerArray.Num() : 0;
+	// (each call that isn't done waits a second: Step tries again)
+	if (What == TEXT("players"))
+	{
+		const int32 Want = P.Num() > 2 ? FCString::Atoi(*P[2]) : 2;
+		const int32 Limit = P.Num() > 3 ? FCString::Atoi(*P[3]) : 180;
+		if (Players >= Want) { Pass(FString::Printf(TEXT("%d players in after %d s"), Players, CoopWaited)); return Done(); }
+		if (++CoopWaited > Limit) { Fail(FString::Printf(TEXT("only %d of %d players after %d s"), Players, Want, Limit)); return Done(); }
+		return false;
+	}
+	if (What == TEXT("check"))
+	{
+		// A joined copy starts in an empty world while it connects: wait to be in, with a pawn.
+		const bool bIn = World && World->GetNetMode() != NM_Standalone && PC && PC->GetPawn() && GS;
+		if (!bIn && ++CoopWaited <= 90) return false;
+		if (!TPC) { Fail(TEXT("no player controller")); return Done(); }
+		FString Problem;
+		const FString State = TPC->JoinState(&Problem);
+		if (!bIn) Problem = Problem.IsEmpty() ? FString(TEXT("never in a co-op game with a pawn after 90 s")) : Problem;
+		if (Problem.IsEmpty()) Pass(State);
+		else Fail(State + TEXT("; ") + Problem);
+		return Done();
+	}
+	if (What == TEXT("walk"))
+	{
+		ATorqueWalker* W = Walker();
+		if (!bCoopWalking)
+		{
+			if (!W)
+			{
+				if (++CoopWaited <= 60) return false;
+				Fail(TEXT("no walker of ours to walk"));
+				return Done();
+			}
+			CoopWant = P.Num() > 2 ? FCString::Atod(*P[2]) : 300.0;
+			CoopFrom = W->GetActorLocation();
+			const FVector To = CoopFrom + TSTI::TowardsMiddle(CoopFrom) * CoopWant;
+			W->TestWalkTo({FVector(To.X, To.Y, CoopFrom.Z)});
+			bCoopWalking = true;
+			CoopWaited = 0;
+			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: walking %.0f cm from %s"), *S, CoopWant, *CoopFrom.ToCompactString());
+			return false;
+		}
+		const double Moved = W ? FVector::Dist2D(W->GetActorLocation(), CoopFrom) : 0.0;
+		if (W && Moved >= CoopWant * 0.6) { Pass(FString::Printf(TEXT("walked %.0f cm in %d s"), Moved, CoopWaited)); return Done(); }
+		if (++CoopWaited > 20)
+		{
+			FString Problem;
+			const FString State = TPC ? TPC->JoinState(&Problem) : FString(TEXT("no player controller"));
+			Fail(FString::Printf(TEXT("only %.0f cm of %.0f in 20 s; %s%s"), Moved, CoopWant, *State, Problem.IsEmpty() ? TEXT("") : *(TEXT("; ") + Problem)));
+			return Done();
+		}
+		return false;
+	}
+	if (What == TEXT("seen"))
+	{
+		const double Want = P.Num() > 2 ? FCString::Atod(*P[2]) : 150.0;
+		if (!World) return false;
+		for (TActorIterator<APawn> It(World); It; ++It)
+		{
+			if (It->IsLocallyControlled() || !It->GetPlayerState()) continue;
+			const FString Who = It->GetPlayerState()->GetPlayerName();
+			const FVector* From = CoopSeen.Find(Who);
+			if (!From) { CoopSeen.Add(Who, It->GetActorLocation()); continue; }
+			const double Moved = FVector::Dist2D(*From, It->GetActorLocation());
+			if (Moved >= Want) { Pass(FString::Printf(TEXT("%s seen to move %.0f cm"), *Who, Moved)); return Done(); }
+		}
+		if (++CoopWaited > 90) { Fail(FString::Printf(TEXT("no other player seen to move %.0f cm in 90 s (%d seen)"), Want, CoopSeen.Num())); return Done(); }
+		return false;
+	}
+	if (What == TEXT("ride"))
+	{
+		UTorqueWorldSubsystem* WS = GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>();
+		if (!WS || !TPC || !World) { Fail(TEXT("no world subsystem or player controller")); return Done(); }
+		if (World->GetNetMode() != NM_ListenServer && CoopRideStage < 2) { Fail(TEXT("coop:ride is the host's step")); return Done(); }
+		++CoopWaited;
+		if (CoopRideStage == 0)
+		{
+			// The journey as rideuk's specs give it, shared as the Route planner shares it (everyone's game plans it).
+			TorqueWorld::RouteRequest Want;
+			Want.Pins = {{54.3040, -2.1965, "Hawes"}, {54.3103, -1.8290, "Leyburn"}};
+			FString Title = TEXT("Hawes to Leyburn");
+			const FString Spec = P.Num() > 2 ? P[2] : FString();
+			if (Spec.Equals(TEXT("buttertubs"), ESearchCase::IgnoreCase))
+			{
+				Want.Pins.back() = {54.3792, -2.1652, "Thwaite"};
+				Title = TEXT("Hawes to Thwaite over the Buttertubs");
+			}
+			else if (!Spec.IsEmpty() && TorqueWorld::Route::FromCode(TCHAR_TO_UTF8(*Spec), Want)) Title = TEXT("Ride UK");
+			if (!TorqueWorld::Route::IsStyle(Want.Mode)) Want.Mode = "main";
+			CoopRideCode = UTF8_TO_TCHAR(TorqueWorld::Route::CodeOf(Want).c_str());
+			if (ATorquePlayerState* PS = TPC->GetPlayerState<ATorquePlayerState>()) PS->ServerSetRideJourney(CoopRideCode, Title);
+			if (!WS->StartJourney(Want, Title, false)) { Fail(TEXT("the host couldn't start planning the journey")); return Done(); }
+			if (UTorqueBuildSubsystem* RB = UTorqueBuildSubsystem::Of(World); RB && RB->Exists(TestBay)) RB->SetMyBike(TestBay);
+			CoopRideStage = 1;
+			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: journey '%s' shared (%s); waiting for everyone to plan it"), *S, *Title, *CoopRideCode);
+			return false;
+		}
+		if (CoopRideStage == 1)
+		{
+			const FString Waiting = TPC->RideWaitingFor();
+			if (WS->IsPlanningRide() || !Waiting.IsEmpty())
+			{
+				if (CoopWaited > 600) { Fail(FString::Printf(TEXT("never ready to set off after 10 minutes (waiting for %s; %s)"), Waiting.IsEmpty() ? TEXT("the host's own plan") : *Waiting, *WS->RideNote())); return Done(); }
+				return false;
+			}
+			const std::shared_ptr<TorqueWorld::RidePlan> Made = WS->PreviewPlan();
+			if (!Made || !Made->Ok || CoopRideCode != UTF8_TO_TCHAR(TorqueWorld::Route::CodeOf(Made->Request).c_str()))
+			{
+				Fail(TEXT("the host's plan of the journey failed: ") + WS->RideNote());
+				return Done();
+			}
+			if (!WS->RidePreview()) { Fail(TEXT("the host couldn't set off: ") + WS->RideNote()); return Done(); }
+			CoopRideStage = 2;
+			CoopWaited = 0;
+			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: everyone planned it; the host sets off with %d players"), *S, Players);
+			return false;
+		}
+		// Set off: everyone on Ride UK, each on a bike of their own.
+		int32 Riders = 0;
+		if (World->GetMapName().Contains(TEXT("RideUK")))
+			for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+				if (It->GetPlayerState()) ++Riders;
+		if (Riders >= Players && Players > 0) { Pass(FString::Printf(TEXT("%d riders on Ride UK, %d s after setting off"), Riders, CoopWaited)); return Done(); }
+		if (CoopWaited > 300) { Fail(FString::Printf(TEXT("%d of %d players on a bike on Ride UK after 5 minutes (map %s)"), Riders, Players, *World->GetMapName())); return Done(); }
+		return false;
+	}
+	if (What == TEXT("onride"))
+	{
+		const int32 Limit = P.Num() > 2 ? FCString::Atoi(*P[2]) : 600;
+		const ATorqueBikePawn* Bike = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
+		const bool bOn = World && World->GetMapName().Contains(TEXT("RideUK")) && Bike && Bike->IsLocallyControlled();
+		if (bOn)
+		{
+			FString Problem;
+			const FString State = TPC ? TPC->JoinState(&Problem) : FString();
+			if (Problem.IsEmpty()) Pass(FString::Printf(TEXT("on Ride UK on our own bike after %d s: %s"), CoopWaited, *State));
+			else Fail(State + TEXT("; ") + Problem);
+			return Done();
+		}
+		if (++CoopWaited > Limit)
+		{
+			FString Problem;
+			const FString State = TPC ? TPC->JoinState(&Problem) : FString(TEXT("no player controller"));
+			Fail(FString::Printf(TEXT("never on Ride UK on our own bike in %d s: %s%s"), Limit, *State, Problem.IsEmpty() ? TEXT("") : *(TEXT("; ") + Problem)));
+			return Done();
+		}
+		return false;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: unknown co-op step (players, check, walk, seen, ride, onride)"), *S);
+	return true;
 }

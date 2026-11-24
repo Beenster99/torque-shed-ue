@@ -3,6 +3,7 @@
 #include "TorqueRouter.h"
 #include "TorqueSettings.h"
 #include "TorquePlayerState.h"
+#include "TorqueNetVersion.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "GameFramework/GameStateBase.h"
 #include "Engine/Engine.h"
@@ -443,6 +444,8 @@ TArray<FString> UTorqueSession::JoinInstructions() const
 		break;
 	}
 	if (!FriendCode.IsEmpty()) Lines.Add(FString::Printf(TEXT("Or anywhere, with the friend code:  %s"), *FriendCode));
+	// [co-op] Only the same build can join (TorqueNetVersion.h).
+	if (TorqueNetVersion::Round() > 0) Lines.Add(FString::Printf(TEXT("Friends need the same build as you: %s"), *TorqueNetVersion::BuildName()));
 	return Lines;
 }
 
@@ -512,6 +515,10 @@ void UTorqueSession::OnNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENet
 		Status = TEXT("Couldn't host: port 7777 is in use (is another copy of the game hosting?)");
 	else if (Failure == ENetworkFailure::ConnectionTimeout)
 		Status = bHost ? FString() : TEXT("The host stopped answering (timed out)");
+	else if (!bHost && (Failure == ENetworkFailure::OutdatedClient || Failure == ENetworkFailure::OutdatedServer))
+		// [co-op] A different build (TorqueNetVersion.h): turned away at once instead of joining a shed it can't work in.
+		Status = FString::Printf(TEXT("Couldn't join: the host's game is a different build from yours (yours is %s). Both of you need the same build, then join again."),
+			*TorqueNetVersion::BuildName());
 	else if (!bHost)
 		Status = FString(TEXT("Lost the connection to the host")) + (Error.IsEmpty() ? FString() : FString(TEXT(": ")) + Error);
 	UE_LOG(LogTemp, Warning, TEXT("Torque net: network failure %s: %s"), ENetworkFailure::ToString(Failure), *Error);

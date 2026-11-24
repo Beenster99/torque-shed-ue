@@ -146,6 +146,17 @@
 //                         steer input is held full for 6 s; logs the lean and sideways g it settles at, the
 //                         peaks, and whether it slid or stood up; then back on the road where it began.
 //                         Both wait until done (up to about two minutes); the bike's own log says the same
+//   coop:players:<n>[:<s>]  [co-op join] wait until n players are in the game (up to s seconds, 180)
+//   coop:check            [co-op join] (a joined copy waits up to 90 s to be in) our pawn is ours to move: the
+//                         controller's JoinState says nothing stops it (no menu, not paused, the walker handed over
+//                         and not inside anything); logs "COOP TEST PASS" or "COOP TEST FAILED"
+//   coop:walk[:<cm>]      [co-op join] the walker walks cm (300) towards the middle of the shed and must get most of
+//                         the way (proves a joined player can move: build 169's friend couldn't)
+//   coop:seen[:<cm>]      [co-op join] (the host) another player's pawn is seen to move cm (150) within 90 s
+//   coop:ride[:<spec>]    [co-op join] (the host) a Ride UK journey (rideuk's specs; hawes by default) shared as the
+//                         Route planner shares it, everyone's game planning it, the host setting off once all are
+//                         ready; passes when every player is on Ride UK on a bike of their own
+//   coop:onride[:<s>]     [co-op join] (a joined copy) followed the host onto Ride UK on our own bike within s (600)
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again
 //   quit
@@ -185,6 +196,16 @@ private:
 	bool bRideUkAsked = false;
 	int32 RideUkWaited = 0;
 	FString RideUkSpec;
+	// [co-op join] The coop:* steps: seconds waited, where the walk began, where the others were first
+	// seen, and the shared ride's code and stage (0 not asked, 1 planning, 2 set off).
+	int32 CoopWaited = 0;
+	bool bCoopWalking = false;
+	FVector CoopFrom = FVector::ZeroVector;
+	double CoopWant = 0.0;
+	TMap<FString, FVector> CoopSeen;
+	int32 CoopRideStage = 0;
+	FString CoopRideCode;
+	bool RunCoopStep(const TArray<FString>& P, const FString& S);
 	bool bMoveStarted = false;   // a brakestop or lean step has started its manoeuvre and is waiting for it
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	// [outline test] 'outlinecheck': the screen read with the look outline on, then off.

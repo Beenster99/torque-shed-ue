@@ -101,6 +101,13 @@ public:
 	bool bJoinWaiting = false;   // (the host's copy)
 	UFUNCTION(Client, Reliable) void ClientChooseRideBike(bool bChoose);
 	UFUNCTION(Server, Reliable) void ServerJoinRide(int32 Bay);
+	// [co-op join] How this machine's player stands (build 169: a friend joined, saw the shed and couldn't
+	// move): the map, the pawn and whether it's ours to move, the page up, the game paused, what the
+	// walker says stops it walking. Logged on a joined machine 3, 10 and 30 s into each map, and by
+	// the co-op test steps (TorqueShedTest coop:check). Empty Problem: it can be played.
+	FString JoinState(FString* Problem = nullptr) const;
+	// The host's: who hasn't planned the shared Ride UK journey yet ("" for everyone has).
+	FString RideWaitingFor() const;
 
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
 	// "pause", "profile", "settings", "credits" or "close" (the world isn't paused, so the test runs on), and a
@@ -182,8 +189,10 @@ private:
 	void SyncRideJourney();
 	FString RidePlanningFor, RideReadySent;
 	double RideReadyAt = 0.0;
-	// The host's: who hasn't planned the journey yet ("" for everyone has).
-	FString RideWaitingFor() const;
+	// [co-op join] Seconds into this map on a joined machine, for JoinState's log lines.
+	TWeakObjectPtr<UWorld> JoinWorld;
+	double JoinClock = 0.0;
+	int32 JoinLogged = 0;
 	int32 Selected = 0;
 	uint64 ClosedFrame = 0;
 	bool bPausedGame = false;
