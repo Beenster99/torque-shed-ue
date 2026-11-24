@@ -350,10 +350,10 @@ void RidePlan::RingsTile(double X0, double Z0, double Size, int Detail, RideMesh
 				// ([roundabouts] the ring is one width all round now: its inner edge is the rim; the roads onto
 				// it that reach in past that end under the island)
 				const P2 RimP = RimAt(K, 0.0), Tar = RimAt(K, -0.6);
-				double Y = std::nan("");
-				// (the road's surface at the rim)
+				// (the road's surface at the rim: [smooth junctions stage 4] the ring's own, built whole)
+				double Y = WholeRingTop(int(&R - RoadRings.data()), Tar);
 				NearHit Edge;
-				if (NearestOf(Tar.X, Tar.Z, Opts, Edge))
+				if (std::isnan(Y) && NearestOf(Tar.X, Tar.Z, Opts, Edge))
 				{
 					Y = Edge.Height + Edge.Cross;
 					if (Edge.Which > 0) Y = JoinedHeight(Edge.Which, Tar, Y);
@@ -552,8 +552,12 @@ void RidePlan::RingPaint(const RoadRing& R, RideMesh& Out) const
 		}
 	// (the tarmac's surface at a point: the highest of those roads' that it is on or by, so the paint is
 	// over every road's surface and the junctions' fans, a hair over theirs)
+	const int RingIndex = int(&R - RoadRings.data());
 	const auto Top = [&](const P2& At)
 	{
+		// ([smooth junctions stage 4] on a ring built whole, its own surface, a hair over it)
+		const double Whole = WholeRingTop(RingIndex, At);
+		if (!std::isnan(Whole)) return Whole + 0.004;
 		double Best = -1e18;
 		for (int W : Roads)
 		{

@@ -676,7 +676,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	Tell("Laying the roads that meet it");
 	// ([156] the facts first too: a side road's mouth asks the class of the road it meets, FactAt)
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
-	R->PlanWholeJunctions();   // [smooth junctions stage 3] (which junctions are built whole: before any side road is laid)
+	R->PlanWholeJunctions(Path);   // [smooth junctions stage 3] (which junctions are built whole: before any side road is laid)
 	R->LaySides(Path);
 	R->PlaceJunctions(RawAlong.empty() ? 0.0 : RawAlong.back());   // [junction priority] (after the map's own marks)
 	{
@@ -1450,6 +1450,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	for (int End = 0; End < 2; ++End)
 	{
 		if (!Meets[End]) continue;
+		if (WholeAt(E + 1, End) >= 0) continue;   // [smooth junctions 4b] (onto a ring the ride goes round, built whole: its piece has the mouth)
 		const int Count = int(Side.Pts.size()), Dir = End == 0 ? 1 : -1;
 		NearHit Last2, Here;
 		for (int Gone = 0, I = End == 0 ? 0 : Count - 1; Gone < Count; ++Gone, I += Dir)
@@ -2483,7 +2484,16 @@ std::shared_ptr<const RidePlan::WholeShape> RidePlan::WholeShapeOf(int Ji) const
 	std::shared_ptr<WholeShape> Made = std::make_shared<WholeShape>();
 	RideMesh Unused;
 	WholePiece(Ji, Unused, Made.get());
-	if (Made->Rim.size() < 3 || Made->H.empty()) return nullptr;
+	if (Made->Rim.size() < 3 || Made->H.empty())
+	{
+		// ([smooth junctions 4b] a ring's piece lays its own roads first: one that can't be drawn never will be)
+		if (size_t(Ji) < JunctionPlaces.size() && JunctionPlaces[size_t(Ji)].Made)
+		{
+			std::lock_guard<std::mutex> Hold(Net->Shaping);
+			Net->Shapes.emplace(Ji, nullptr);
+		}
+		return nullptr;
+	}
 	std::lock_guard<std::mutex> Hold(Net->Shaping);
 	return Net->Shapes.emplace(Ji, Made).first->second;
 }
@@ -2897,7 +2907,111 @@ double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, d
 	return Y;
 }
 
+namespace
+{
+// [smooth junctions 4b] One mesh added to another: its points moved to the other's origin, its sub-meshes into the
+// other's, its optional channels filled where only one of the two has them.
+void AppendMesh(RideMesh& To, const RideMesh& From)
+{
+	const size_t V0 = To.Vertices(), V1 = From.Vertices();
+	const float Dx = float(From.OriginX - To.OriginX), Dz = float(From.OriginZ - To.OriginZ);
+	if (V1 > 0)
+	{
+		if (V0 == 0) { To.OriginX = From.OriginX; To.OriginZ = From.OriginZ; }
+		const float Sx = V0 == 0 ? 0.0f : Dx, Sz = V0 == 0 ? 0.0f : Dz;
+		for (size_t I = 0; I < V1; ++I)
+		{
+			To.Pos.push_back(From.Pos[I * 3] + Sx);
+			To.Pos.push_back(From.Pos[I * 3 + 1]);
+			To.Pos.push_back(From.Pos[I * 3 + 2] + Sz);
+		}
+		To.Nrm.insert(To.Nrm.end(), From.Nrm.begin(), From.Nrm.end());
+		const auto Channel = [V0, V1](std::vector<float>& A, const std::vector<float>& B, size_t Per, float Else)
+		{
+			if (A.empty() && B.empty()) return;
+			A.resize(V0 * Per, Else);
+			A.insert(A.end(), B.begin(), B.begin() + static_cast<std::ptrdiff_t>(std::min(B.size(), V1 * Per)));
+			A.resize((V0 + V1) * Per, Else);
+		};
+		Channel(To.Uv, From.Uv, 2, 0.0f);
+		Channel(To.Col, From.Col, 3, 1.0f);
+		Channel(To.Alpha, From.Alpha, 1, 1.0f);
+		Channel(To.Uv1, From.Uv1, 2, 0.0f);
+		for (uint32_t I : From.Idx) To.Idx.push_back(I + uint32_t(V0));
+	}
+	std::shared_ptr<RideMesh> RideMesh::*const Subs[] = {&RideMesh::Extra, &RideMesh::Stone, &RideMesh::Masonry, &RideMesh::Render, &RideMesh::Roofing,
+		&RideMesh::Brickwork, &RideMesh::Water, &RideMesh::Night, &RideMesh::Signals, &RideMesh::Signs, &RideMesh::Glow, &RideMesh::Turf};
+	for (std::shared_ptr<RideMesh> RideMesh::*Sub : Subs)
+	{
+		const std::shared_ptr<RideMesh>& B = From.*Sub;
+		if (!B) continue;
+		std::shared_ptr<RideMesh>& A = To.*Sub;
+		if (!A) { A = std::make_shared<RideMesh>(); A->OriginX = B->OriginX; A->OriginZ = B->OriginZ; }
+		AppendMesh(*A, *B);
+	}
+	// (the rest kept in this mesh's own origin: both pieces are made about one)
+	for (RideMesh::Label L : From.Labels) { L.X += Dx; L.Z += Dz; To.Labels.push_back(L); }
+	for (size_t I = 0; I + 2 < From.Lights.size(); I += 3) { To.Lights.push_back(From.Lights[I] + Dx); To.Lights.push_back(From.Lights[I + 1]); To.Lights.push_back(From.Lights[I + 2] + Dz); }
+	To.Plants.insert(To.Plants.end(), From.Plants.begin(), From.Plants.end());
+	To.Animals.insert(To.Animals.end(), From.Animals.begin(), From.Animals.end());
+	To.Props.insert(To.Props.end(), From.Props.begin(), From.Props.end());
+}
+} // namespace
+
 void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
+{
+	Out = RideMesh();
+	// [smooth junctions 4b] (the ride's road round a ring built whole: not drawn there, the ring's piece in its place)
+	if (Which == 0 && WholeJunctions && !RideHides.empty())
+	{
+		const std::vector<RoadPoint>& Pts = RoadOf(0);
+		const int F = std::max(0, First), L = std::min(int(Pts.size()) - 1, Last);
+		if (L > F)
+		{
+			const double A0 = Pts[size_t(F)].Along, A1 = Pts[size_t(L)].Along;
+			std::vector<std::pair<double, double>> Keep = {{A0, A1}};
+			std::vector<int> Rings;
+			bool Any = false;
+			for (const std::pair<double, int>& Hd : RideHides)
+			{
+				const WholePlan& W = WholeOf[size_t(Hd.second)];
+				if (W.Hide[1] <= A0 || W.Hide[0] >= A1) continue;
+				if (W.Hide[0] >= A0 && W.Hide[0] < A1) Rings.push_back(Hd.second);
+				Any = true;
+				std::vector<std::pair<double, double>> Next;
+				for (const std::pair<double, double>& K : Keep)
+				{
+					if (K.first < W.Hide[0]) Next.emplace_back(K.first, std::fmin(K.second, W.Hide[0]));
+					if (K.second > W.Hide[1]) Next.emplace_back(std::fmax(K.first, W.Hide[1]), K.second);
+				}
+				Keep.swap(Next);
+			}
+			if (Any || !Rings.empty())
+			{
+				const double Ox = Pts[size_t(F)].At.X, Oz = Pts[size_t(F)].At.Z;
+				Out.OriginX = Ox;
+				Out.OriginZ = Oz;
+				for (const std::pair<double, double>& K : Keep)
+				{
+					if (K.second - K.first < 0.05) continue;
+					int Kf = F, Kl = L;
+					while (Kf + 1 < L && Pts[size_t(Kf) + 1].Along <= K.first) ++Kf;
+					while (Kl - 1 > Kf && Pts[size_t(Kl) - 1].Along >= K.second) --Kl;
+					RideMesh Part;
+					RoadPieceIn(0, Kf, Kl, K.first > A0 ? K.first : -1e18, K.second < A1 ? K.second : 1e18, Ox, Oz, Part);
+					AppendMesh(Out, Part);
+				}
+				Out.OriginX = Ox;   // (AppendMesh takes the first part's when this has none yet: the same)
+				Out.OriginZ = Oz;
+				for (int Ji : Rings) WholePiece(Ji, Out);
+				return;
+			}
+		}
+	}
+	RoadPieceIn(Which, First, Last, -1e18, 1e18, std::nan(""), std::nan(""), Out);
+}
+
+void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, double KeepTo, double Ox, double Oz, RideMesh& Out) const
 {
 	Out = RideMesh();
 	if (Which < 0 || Which >= RoadCount()) return;
@@ -2908,8 +3022,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	First = std::max(0, First);
 	Last = std::min(int(Pts.size()) - 1, Last);
 	if (Last <= First) return;
-	Out.OriginX = Pts[size_t(First)].At.X;
-	Out.OriginZ = Pts[size_t(First)].At.Z;
+	if (std::isnan(Ox)) { Ox = Pts[size_t(First)].At.X; Oz = Pts[size_t(First)].At.Z; }
+	Out.OriginX = Ox;
+	Out.OriginZ = Oz;
 	// (a side road's paint stops short of the junctions at its ends)
 	// ([junction priority 168] but for a through road's arm at a junction where the ride gives way: on to its mouth)
 	const auto ThroughEnd = [this, Mine](int End)
@@ -2994,7 +3109,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	}
 	// [smooth junctions stage 3] (an end at a junction built whole: the road stops at its mouth line, square across, Cut
 	// metres in from that end; the junction's piece is drawn from that same row (CutRow))
-	if (Which > 0 && !Rows.empty() && WholeJunctions)
+	if (!Rows.empty() && WholeJunctions && (Which > 0 || KeepFrom > -1e17 || KeepTo < 1e17))
 	{
 		const double Long = Pts.back().Along;
 		const auto CutRowOf = [&](double Along)
@@ -3010,7 +3125,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			R.Nx = -Dir.X * Rise / Nl; R.Ny = 1.0 / Nl; R.Nz = -Dir.Z * Rise / Nl;
 			return R;
 		};
-		const double CutA = WholeCut(Which, 0), CutB = WholeCut(Which, 1);
+		// ([smooth junctions 4b] the ride's road's the same way, round a ring built whole)
+		const double CutA = Which > 0 ? WholeCut(Which, 0) : (KeepFrom > -1e17 ? KeepFrom : 0.0), CutB = Which > 0 ? WholeCut(Which, 1) : (KeepTo < 1e17 ? Long - KeepTo : 0.0);
 		if (CutA > 0.0 && Rows.front().Along < CutA)
 		{
 			size_t Drop = 0;
@@ -3027,8 +3143,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (Rows.size() < 2 || Rows.back().Along <= Rows.front().Along + 0.01)
 		{
 			Out = RideMesh();
-			Out.OriginX = Pts[size_t(First)].At.X;
-			Out.OriginZ = Pts[size_t(First)].At.Z;
+			Out.OriginX = Ox;
+			Out.OriginZ = Oz;
 			for (int End = 0; End < 2; ++End)
 			{
 				const int Wj = (End == 0 ? First == 0 : Last == int(Pts.size()) - 1) ? WholeAt(Which, End) : -1;
