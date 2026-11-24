@@ -1812,7 +1812,9 @@ public:
 	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
 	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
 	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
-	static constexpr double WholeEase = 40.0;   // the last metres of a road into a junction built whole: knots by the metre and a half, its rise evened out
+	static constexpr double WholeEase = 40.0;
+	static constexpr double WholeRideClear = 12.0;   // [smooth junctions 3b] (m from the ride's road's middle)
+	static constexpr double MouthGroundReach = 9.0;   // [smooth junctions 3b] (a mouth's corner reaches 9 m at most: MouthCorner)   // the last metres of a road into a junction built whole: knots by the metre and a half, its rise evened out
 	bool WholeNear(int Which, const P2& At) const;   // a point of a road near a whole junction it is an arm of: its own heights, unsettled
 	struct WholeShape   // a whole junction's tarmac as the ground needs it: its rim, and its surface on a half-metre grid
 	{

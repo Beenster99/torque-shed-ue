@@ -159,10 +159,11 @@ void RidePlan::PlanWholeJunctions()
 		for (const Span& Sp : G.Spans)
 			if (Fits && WholeJunctionBits::ToSegment(J.At, Sp.A, Sp.B) < 40.0) Fits = false;
 		if (!Fits) continue;
-		// (none within 30 m of the ride's road: its mouths are the old code's until stage 3b)
+		// (none within WholeRideClear of the ride's road, whose own junctions are its mouths (stage 3b): 30 m left a lane's
+		// junction 30 m up from the ride's road on the old fan, torn down a 27% arm, Hartsop)
 		{
 			double D = 0.0, H = 0.0;
-			if (Nearest(J.At.X, J.At.Z, D, H, nullptr, nullptr, nullptr, true) && D < 30.0) continue;
+			if (Nearest(J.At.X, J.At.Z, D, H, nullptr, nullptr, nullptr, true) && D < WholeRideClear) continue;
 		}
 		// (an arm's own end twice at one junction, a loop: not yet)
 		bool Twice = false;

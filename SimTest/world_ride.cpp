@@ -2941,6 +2941,7 @@ int main(int Argc, char** Argv)
 			std::vector<float> Lo(size_t(JCells) * JCells, 1e9f), Hi(size_t(JCells) * JCells, -1e9f), Grass(size_t(JCells) * JCells, -1e9f), Any(size_t(JCells) * JCells, -1e9f);
 			std::vector<char> Back(size_t(JCells) * JCells, 0), Fore(size_t(JCells) * JCells, 0);
 			std::vector<char> Rough(size_t(JCells) * JCells, 0);   // ([smooth junctions stage 1] gravel there: bumpy on purpose)
+			std::vector<char> Painted(size_t(JCells) * JCells, 0);   // ([3b] a line painted there)
 			Fault F;
 			F.Node = Nd;
 			std::string Dump;
@@ -2972,6 +2973,7 @@ int main(int Argc, char** Argv)
 							|| Colour(Cl, 0.095f, 0.088f, 0.07f) || Colour(Cl, 0.09f, 0.095f, 0.11f)   // ([smooth junctions stage 1] gravel and setts are its cover too)
 							|| Colour(Cl, 0.83f, 0.83f, 0.75f) || Colour(Cl, 0.78f, 0.52f, 0.03f);   // ([3b] and the lines painted in it: without them the robot read holes under every line and knocked on the grid)
 						const bool Grit = Colour(Cl, 0.095f, 0.088f, 0.07f);
+						const bool Paint = Colour(Cl, 0.83f, 0.83f, 0.75f) || Colour(Cl, 0.78f, 0.52f, 0.03f);
 						const bool Gr = Colour(Cl, 0.10f, 0.16f, 0.03f) || Colour(Cl, 0.072f, 0.078f, 0.045f);
 						double X[3], Y[3], Z[3];
 						bool In = false;
@@ -3020,6 +3022,7 @@ int main(int Argc, char** Argv)
 								if (!Tar) continue;
 								Lo[K] = std::min(Lo[K], H); Hi[K] = std::max(Hi[K], H);
 								if (Grit) Rough[K] = 1;
+								if (Paint) Painted[K] = 1;   // (a line lies a few mm on its road: not doubled tarmac)
 								if (Reversed) Back[K] = 1;
 								else Fore[K] = 1;
 							}
@@ -3034,8 +3037,8 @@ int main(int Argc, char** Argv)
 					const double Px = -Reach + (Cx + 0.5) * Cell, Pz = -Reach + (Cz + 0.5) * Cell;
 					if (std::hypot(Px, Pz) > Reach || Hi[K] < -1e8f) continue;
 					if (Back[K] && !Fore[K]) F.Fold += A1;   // (only the backwards tarmac there: the game culls it, a hole)
-					if (Hi[K] - Lo[K] > 0.08f) F.Step += A1;
-					else if (Hi[K] - Lo[K] > 0.005f && Hi[K] - Lo[K] < 0.03f && !Rough[K]) F.Over += A1;
+					if (Hi[K] - Lo[K] > 0.08f) { F.Step += A1; if (Only >= 0 && std::getenv("JSTEP")) std::printf("jstep at %.1f, %.1f: %.3f to %.3f\n", Px, Pz, double(Lo[K]), double(Hi[K])); }
+					else if (Hi[K] - Lo[K] > 0.005f && Hi[K] - Lo[K] < 0.03f && !Rough[K] && !Painted[K]) F.Over += A1;
 					if (Grass[K] > Hi[K] + 0.005f) F.Grass += A1;
 					if ((Cx + Cz) % 2 == 0)
 					{

@@ -2440,6 +2440,32 @@ double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bo
 	// (beenster, build 147, Whaley Bridge: a road's bank cut away the bank a railway beside it stands on,
 	// leaving the line in the air. Off the road's bench the railway's own bank and cutting win.)
 	if (RailBed && Hit.Dist > Flat + 0.3) Out = std::fmax(Out, RailLevel - RailRise);
+	// [smooth junctions 3b] In a side road's mouth on the ride's road drawn whole (MouthCut), under the lower of the two
+	// roads: the piece's corners run between them at a blend of their heights, and the ground benched to the nearer one
+	// came up through it 5 cm in a fork's corner (Keswick; Hartsop's dirt patch where the lane meets the tarmac). By
+	// 30 cm at most, so the field beside a mouth is not dug out where the two roads lie far apart in height.
+	if (WholeJunctions && Wider <= 0.0 && !Hit.Deck && !Hit.Bore && Hit.Dist <= Hit.Half + MouthGroundReach && !std::isnan(Out))
+	{
+		NearHit H0, Hs;
+		bool Got0 = Hit.Which == 0, GotS = Hit.Which > 0;
+		if (Got0) H0 = Hit; else if (GotS) Hs = Hit;
+		NearOpts Other = Opts;
+		Other.NoDecks = true;
+		if (!Got0) { Other.OnlyRoad = 0; Got0 = NearestOf(X, Z, Other, H0) && !H0.Deck && !H0.Bore; }
+		else { Other.NotRoad = 0; GotS = NearestOf(X, Z, Other, Hs) && Hs.Which > 0 && !Hs.Deck && !Hs.Bore; }
+		const SideRoad* Sr = GotS ? SideOf(Hs.Which) : nullptr;
+		if (Got0 && Sr != nullptr && H0.Dist <= H0.Half + MouthGroundReach && Hs.Dist <= Hs.Half + MouthGroundReach)
+		{
+			const int End = Hs.Along < Sr->Length * 0.5 ? 0 : 1;
+			const double Cut = MouthCut(Hs.Which, End);
+			const double FromEnd = End == 0 ? Hs.Along : Sr->Length - Hs.Along;
+			if (Cut > 0.0 && FromEnd <= Cut + 1.0)
+			{
+				const double Low = std::fmin(H0.Height + H0.Cross, JoinedHeight(Hs.Which, P2(X, Z), Hs.Height + Hs.Cross)) - Sink;
+				Out = std::fmax(std::fmin(Out, Low), Out - 0.3);
+			}
+		}
+	}
 	Out = WholeGround(X, Z, Out);   // [smooth junctions stage 3]
 	return std::isnan(Clear) ? Out : std::fmin(Out, Clear);
 }
@@ -4616,7 +4642,20 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			MouthL = Mp.At + MouthLeft * Mp.Half;
 			MouthR = Mp.At - MouthLeft * Mp.Half;
 		}
-		const auto EdgeSurface = [this](int Of, const P2& At, double Else, double& Out2)
+		// (the ride's road's height read along the mouth's own line, not at its nearest point: inside a kink the nearest
+		// point skips a metre along, an 11 cm step up a 12% hill in the piece, Whaley)
+		const double MainAlong0 = Road[size_t(M.MainIndex)].Along;
+		const auto MainHeightAlong = [this](double AlongQ)
+		{
+			const auto Past = std::lower_bound(Road.begin(), Road.end(), AlongQ, [](const RoadPoint& Rp, double Vq) { return Rp.Along < Vq; });
+			if (Past == Road.begin()) return Road.front().Height;
+			if (Past == Road.end()) return Road.back().Height;
+			const RoadPoint& Pb = *Past;
+			const RoadPoint& Pa = *(Past - 1);
+			const double Gap = Pb.Along - Pa.Along;
+			return Gap > 1e-6 ? Pa.Height + (Pb.Height - Pa.Height) * ((AlongQ - Pa.Along) / Gap) : Pb.Height;
+		};
+		const auto EdgeSurface = [&, this](int Of, const P2& At, double Else, double& Out2)
 		{
 			NearOpts Opts;
 			Opts.OnlyRoad = Of;
@@ -4624,6 +4663,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			Out2 = 0.0;
 			if (!NearestOf(At.X, At.Z, Opts, Hit)) return Else;
 			Out2 = std::fmax(0.0, Hit.Dist - Hit.Half);
+			if (Of == 0 && !Hit.Deck && !Hit.Bore) Hit.Height = MainHeightAlong(MainAlong0 + Dot(At - MainAt, M.Along));
 			const double Y = Hit.Height + Hit.Cross;   // (Cross held at the edge beyond it)
 			return Of == 0 || Hit.Deck || Hit.Bore ? Y : JoinedHeight(Of, At, Y);
 		};
