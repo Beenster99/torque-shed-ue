@@ -1377,6 +1377,12 @@ int main(int Argc, char** Argv)
 				}
 				Gap = std::fmax(Gap, Behind);
 			}
+			if (std::getenv("WORLD_RIDE_PUBS_EACH"))
+			{
+				const Geo Bw = Gr.FrameOf().ToGeo(Wall.At.X, Wall.At.Z), Out10 = Gr.FrameOf().ToGeo(Wall.At.X + Wall.Face.X * 10.0, Wall.At.Z + Wall.Face.Z * 10.0);
+				const double Bearing = std::fmod(std::atan2((Out10.Lon - Bw.Lon) * std::cos(Bw.Lat * 0.0174533), Out10.Lat - Bw.Lat) * 57.29578 + 360.0, 360.0);
+				std::printf("    '%s': board at %.6f,%.6f, faces bearing %.0f deg (out of the wall)\n", F.Text.c_str(), Bw.Lat, Bw.Lon, Bearing);
+			}
 			if (std::getenv("WORLD_RIDE_PUBS_EACH")) std::printf("    '%s': gap %.3f, tilt %.2f, bow %.3f, board %.1f x %.2f m, its middle %.2f m up, wall %.1f m\n", F.Text.c_str(), Gap, Tilt, Bow, W, Hb, MidY - Wall.Foot, Wall.Wall);
 			WorstGap = std::fmax(WorstGap, Gap);
 			if (Gap <= 0.10) ++OnWall;
