@@ -4829,8 +4829,18 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.RearSlide = Lock(R);
 	In.FrontSlide = Lock(F);
 	In.SideSlide = FMath::Max(Side(F), Side(R));
+	// How fast the rubber is rubbing over the ground (m/s): the tread's speed against the road's, and
+	// sideways. A burnout's rear tread rubs at its full speed with the bike near still.
+	auto Rub = [this](const Wheel& W) {
+		if (!W.Contact) return 0.0;
+		const double Long = FMath::Abs(W.Omega * W.REff - Sim->Speed);
+		const double Lat = FMath::Abs(FMath::Tan(FMath::Clamp(W.Alpha, -1.2, 1.2))) * FMath::Max(FMath::Abs(Sim->Speed), 1.0);
+		return FMath::Sqrt(Long * Long + Lat * Lat);
+	};
+	In.SlipSpeed = FMath::Max(Rub(F), Rub(R));
 	const int32 Under = R.Contact ? R.Surf : F.Surf;
 	In.OnTarmac = Under == SURF_TARMAC || Under == SURF_GRID || Under == SURF_STEEL || Under == SURF_SLICK;
+	In.Surface = Under == SURF_GRAVEL ? 1 : Under == SURF_GRASS ? 2 : 0;
 	In.Grid = (F.Contact && F.Surf == SURF_GRID ? 1.0 : 0.0) + (R.Contact && R.Surf == SURF_GRID ? 1.0 : 0.0);
 	In.Airborne = !F.Contact && !R.Contact;
 	In.Inside = (CameraMode == 1 || CameraMode == 2) ? 1.0 : 0.0;
@@ -4843,6 +4853,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 		In.AirWind = Air.Wind * FMath::Lerp(0.3, 1.0, Open);
 		In.Gust = Air.Gust * FMath::Lerp(0.3, 1.0, Open);
 		In.Rain = TorqueWeather::RainShow(Air) * Open;
+		In.RoadWet = Air.RoadWet * Open;   // (indoors the floor's dry)
 	}
 	// On a ride, the place round you (World/TorqueRideWorld): the sea, a beck, a town, the sheep and cattle.
 	ATorqueRideWorld::PlaceHeard(In.Sea, In.Water, In.Town, In.Sheep, In.Cattle);

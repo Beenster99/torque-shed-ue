@@ -133,6 +133,40 @@ int main(int Argc, char** Argv)
 		}
 	}
 
+	// A sliding tyre (engine off, to hear it alone): rubber rubbing, heard in a skid and in a burnout (the
+	// bike still, the tread spinning), and on wet, gravel and grass. Not a whistle: no one pitch stands out
+	// (the strongest repeat of the waveform, 0.1 to 2 ms apart, stays weak).
+	{
+		auto Tyre = [](double Speed, double Slip, int Surface, double Wet, double& Tone) {
+			RideSound T;
+			RideInputs I; I.Rpm = 0; I.EngineOn = false; I.Speed = Speed; I.RearSlide = 1.0; I.SlipSpeed = Slip;
+			I.Surface = Surface; I.OnTarmac = Surface == 0; I.RoadWet = Wet; T.Set(I);
+			std::vector<float> Buf(RideSound::Rate);
+			T.Render(Buf.data(), (int)Buf.size());
+			const size_t From = Buf.size() / 2, Len = Buf.size() - From - 100;
+			double Sum = 0.0;
+			for (size_t K = From; K < From + Len; ++K) Sum += Buf[K] * Buf[K];
+			Tone = 0.0;
+			for (int Lag = 5; Lag <= 96; ++Lag)
+			{
+				double C = 0.0;
+				for (size_t K = From; K < From + Len; ++K) C += Buf[K] * Buf[K + Lag];
+				Tone = std::max(Tone, C / std::max(Sum, 1e-12));
+			}
+			return std::sqrt(Sum / Len);
+		};
+		struct Case { const char* Name; double Speed, Slip; int Surface; double Wet; };
+		for (const Case& C : {Case{"skid, dry", 12, 12, 0, 0}, Case{"burnout", 0.2, 18, 0, 0}, Case{"skid, wet", 12, 12, 0, 1},
+				Case{"skid, gravel", 10, 10, 1, 0}, Case{"wheelspin, grass", 4, 8, 2, 0}})
+		{
+			double Tone = 0.0;
+			const double Level = Tyre(C.Speed, C.Slip, C.Surface, C.Wet, Tone);
+			std::printf("  tyre %-18s rms %.3f, strongest repeat %.2f\n", C.Name, Level, Tone);
+			if (!(Level > 0.008 && Level < 0.2)) { std::printf("    the tyre's missing or too loud\n"); ++Fails; }
+			if (C.Surface == 0 && Tone > 0.5) { std::printf("    it whistles\n"); ++Fails; }
+		}
+	}
+
 	// The weather (stopped, engine off): a gusty wind and rain are heard; a calm dry day is near silent.
 	{
 		auto Level = [](double Wind, double Gust, double Rain, double Inside) {
