@@ -68,6 +68,13 @@ TAutoConsoleVariable<float> CVarTideShiftHours(TEXT("torque.RideTideShift"), 0.0
 	TEXT("Hours added to the ride's clock for the tide only (tests: 0 and 6.2 see high and low water)."));
 TAutoConsoleVariable<int32> CVarWaterWaves(TEXT("torque.RideWaterWaves"), 1,
 	TEXT("The sea's and lakes' moving waves near the rider (M_RideWater's world position offset): 1 on, 0 off (an A/B for their cost)."));
+// [lighting pass, build 170] beenster on 169: "during a ride the colour and brightness of the scene seems
+// to fade and change quite quickly". The weather here is the grid's at the rider, every frame, so riding
+// across the grid swung the cloud, the sunshine and the haze (and with them the sun, the sky light, the
+// camera's exposure and the fog) as fast as the bike moved. Those light figures now follow the place eased
+// over this many seconds (the shared weather's own fades and the rain, roads and grip are not slowed).
+TAutoConsoleVariable<float> CVarRideLightEaseS(TEXT("torque.RideLightEaseS"), 40.0f,
+	TEXT("Seconds the sky's light takes to follow the weather where you ride (cloud, sunshine, haze): 40 default, 0 at once (the old way)."));
 TAutoConsoleVariable<int32> CVarTreeSeason(TEXT("torque.RideTreeSeason"), 0,
 	TEXT("The trees' season: 0 the ride's date (default), 1 spring, 2 summer, 3 autumn, 4 winter, 5 summer whatever the date."));
 
@@ -1258,6 +1265,7 @@ void ATorqueGameState::UpdateHere()
 	{
 		Here = Fade.Now;
 		HereAt = World->GetRealTimeSeconds();
+		bHereLightEased = false;
 		return;
 	}
 	const double Now = World->GetRealTimeSeconds();
@@ -1271,6 +1279,38 @@ void ATorqueGameState::UpdateHere()
 		S = TorqueWeather::AddDifference(S, TorqueWeather::GridAt(GridBefore, Lat, Lon, Asl, Unix - (double)GridFetchedBefore), GridBefore.Centre(), 1.0 - W);
 	if (GridNow.Valid())
 		S = TorqueWeather::AddDifference(S, TorqueWeather::GridAt(GridNow, Lat, Lon, Asl, Unix - (double)GridFetchedNow), GridNow.Centre(), W);
+	// [build 170] The light figures eased: only their difference from the shared weather (Fade.Now), so a
+	// preset or the host's weather still fades in its own time. A jump (a new ride, a teleport, a pause)
+	// snaps.
+	{
+		const TorqueWeather::State& Base = Fade.Now;
+		double TorqueWeather::State::* const Fields[] = {&TorqueWeather::State::Cloud, &TorqueWeather::State::LowCloud,
+			&TorqueWeather::State::MidCloud, &TorqueWeather::State::HighCloud, &TorqueWeather::State::Humidity,
+			&TorqueWeather::State::Visibility, &TorqueWeather::State::DirectSun, &TorqueWeather::State::DiffuseSun};
+		const double EaseS = (double)FMath::Max(CVarRideLightEaseS.GetValueOnGameThread(), 0.0f);
+		const double Step = HereAt >= 0.0 ? Now - HereAt : -1.0;
+		const bool bSnap = !bHereLightEased || EaseS <= 0.0 || Step < 0.0 || Step > 2.0;
+		const double K = bSnap ? 1.0 : 1.0 - FMath::Exp(-Step / EaseS);
+		for (double TorqueWeather::State::* F : Fields)
+		{
+			// (the sunshine figures are below 0 where not known: those go straight through)
+			if ((F == &TorqueWeather::State::DirectSun || F == &TorqueWeather::State::DiffuseSun) && (S.*F < 0.0 || Base.*F < 0.0))
+			{
+				HereLightDiff.*F = 0.0;
+				continue;
+			}
+			const double Want = S.*F - Base.*F;
+			HereLightDiff.*F += (Want - HereLightDiff.*F) * K;
+			S.*F = Base.*F + HereLightDiff.*F;
+		}
+		S.Cloud = FMath::Clamp(S.Cloud, 0.0, 1.0);
+		S.LowCloud = FMath::Clamp(S.LowCloud, 0.0, 1.0);
+		S.MidCloud = FMath::Clamp(S.MidCloud, 0.0, 1.0);
+		S.HighCloud = FMath::Clamp(S.HighCloud, 0.0, 1.0);
+		S.Humidity = FMath::Clamp(S.Humidity, 0.0, 100.0);
+		S.Visibility = FMath::Max(S.Visibility, 20.0);
+		bHereLightEased = true;
+	}
 	Here = S;
 	HereAt = Now;
 }
@@ -1396,6 +1436,8 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("LeafFresh"), Fresh);
 		SetMpc(TEXT("LeafTurn"), Turn);
 		SetMpc(TEXT("LeafDrop"), Drop);
+		// [lighting pass, build 170] the light through the leaves, less under a dull sky (ATorqueSky)
+		SetMpc(TEXT("LeafGlow"), Sky ? (float)Sky->Now().LeafGlow : 1.0f);
 		TorqueLeafFall::SetDrop(Drop);   // ([build 165] near broadleaves keep their fallen leaves' offset further out)
 		if (Season != LoggedSeason || FMath::Abs(Drop - LoggedDrop) > 0.05f)
 		{

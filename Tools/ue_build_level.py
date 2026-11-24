@@ -213,6 +213,11 @@ WEATHER_PARAMS = (
     ("Tide", 0.0),           # [real water] the sea's height as a share of its tidal half range here (-1.25 .. 1.25)
     ("TideHigh", 0.0),       # the last high water's, as Tide (the beach is wet up to it)
     ("WaterWaves", 1.0),     # the water's moving waves near the rider: 1 on, 0 off (torque.RideWaterWaves)
+    # [lighting pass, build 170] how much of the leaves' glow (the light through them) is left: 1 under a
+    # bright sky, less as it dulls (the sky's LeafGlow: 1 - leaf_glow_dull x the dullness). Under a grey sky
+    # the glow lit near crowns lime green against the hills. (In MPC_Weather, which M_Tree already reads: a
+    # material may read only two collections.)
+    ("LeafGlow", 1.0),
 )
 _weather_mpc = None
 
@@ -2784,6 +2789,10 @@ def tree_material(tex=None, roles=None, frame=None):
     near = g.op(unreal.MaterialExpressionOneMinus, far)
     sss = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, base, g.const((0.7, 0.85, 0.3))), leaf)
     sss = g.op(unreal.MaterialExpressionMultiply, sss, near)
+    # [lighting pass, build 170] beenster on 169 (Hartsop, overcast): the trees near the houses "don't match
+    # the scene" while the far woods do. The light through the leaves is the sun's; under a grey sky there is
+    # little of it, but the glow stayed and lit near crowns lime green. It now follows the sky (MPC_Weather LeafGlow).
+    sss = g.op(unreal.MaterialExpressionMultiply, sss, weather_param(g, "LeafGlow"))
     rough = g.lerp(g.lerp(g.const(0.88), g.const(0.58), leaf), g.const(0.95), far)
     spec = g.lerp(g.const(0.32), g.const(0.12), far)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
@@ -3035,9 +3044,13 @@ def instanced_usage(m):
     try_set(m, "used_with_nanite", True)
 
 
-def far_dull(g, col, start_cm=30000.0, span_cm=150000.0, most=0.4):
+def far_dull(g, col, start_cm=15000.0, span_cm=135000.0, most=0.55):
     """Buildings and walls far off sit back into the dale (beenster: "a tiny bit more subtle"): from
-    start_cm out, lean towards a darker, greyer version of themselves, as the trees do."""
+    start_cm out, lean towards a darker, greyer version of themselves, as the trees do.
+    [lighting pass, build 170] beenster on 169 (Hartsop): houses a few hundred metres off "pop" while the
+    far woods blend. The trees start sitting back at 200 m; houses started at 300 m and only 40% of the way
+    by 1.8 km, so at 400 m a house was still its full near colour beside dulled trees. Now from 150 m,
+    55% by 1.5 km: a house at 500 m about an eighth of the way, as the trees round it."""
     depth = g.node(unreal.MaterialExpressionPixelDepth)
     far = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
                g.op(unreal.MaterialExpressionSubtract, depth, const_b=start_cm), const_b=span_cm))
@@ -3045,7 +3058,7 @@ def far_dull(g, col, start_cm=30000.0, span_cm=150000.0, most=0.4):
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)
     g.link(col, grey)
     g.link(g.const(0.5), grey, "Fraction")
-    return g.lerp(col, g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.75), far)
+    return g.lerp(col, g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.72), far)
 
 
 def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare", broad_moss=True, tint_param=False):

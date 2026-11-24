@@ -79,7 +79,8 @@ const NamedNumber Numbers[] = {
 	{"humid_from", &Looks::HumidFrom}, {"humid_swell", &Looks::HumidSwell},
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},
-	{"fog_dull", &Looks::FogDull}, {"fog_wet", &Looks::FogWet}, {"fog_night_glow", &Looks::FogNightGlow},
+	{"fog_dull", &Looks::FogDull}, {"fog_wet", &Looks::FogWet}, {"fog_night_glow", &Looks::FogNightGlow}, {"fog_follow_light", &Looks::FogFollowLight},
+	{"exposure_speed_up", &Looks::ExposureSpeedUp}, {"exposure_speed_down", &Looks::ExposureSpeedDown}, {"leaf_glow_dull", &Looks::LeafGlowDull},
 	{"low_heap_m", &Looks::LowHeapM}, {"cape_depth_per_100", &Looks::CapeDepthPer100},
 	{"cape_most_m", &Looks::CapeMostM}, {"mid_base_m", &Looks::MidBaseM},
 	{"low_base_least_m", &Looks::LowBaseLeastM}, {"low_base_most_m", &Looks::LowBaseMostM},
@@ -307,6 +308,10 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.FogScale = Lerp(1.0, Lerp(L.FogDull, L.FogWet, S.WetLook), S.Dull) * std::max(In.Haze, 0.0) * Air;
 	S.FogGlow = Lerp(L.FogNightGlow, 1.0, S.DayLight);
 	S.FogSunGlow = S.DayLight;
+	// [build 170] The haze is lit by the same dimmed light as the land: its glow down by part of the stops the
+	// camera opens for a dull sky (else it shows up to three times brighter and veils the near fields grey).
+	S.FogLight = std::pow(2.0, -std::max(S.ExposureStops, 0.0) * Clamp01(L.FogFollowLight));
+	S.LeafGlow = 1.0 - Clamp01(L.LeafGlowDull) * S.Dull;
 
 	// Stage 4: fog with a top, valley mist, a rainbow. Radiation fog and mist need a calm, clear night
 	// (or its morning); the sun climbing burns them off.

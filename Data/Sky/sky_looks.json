@@ -91,7 +91,10 @@
   "exposure_follow_sun": 0.0,
   "exposure_follow_most": 1.5,
   "local_shadow_contrast": 0.7,
-  "local_highlight_contrast": 0.75
+  "local_highlight_contrast": 0.75,
+  "_steady": "[lighting pass, build 170] beenster on 169: 'the colour and brightness of the scene seems to fade and change quite quickly'. exposure_speed_up/down: stops a second the camera adapts (the level's 2 and 1.5 pumped riding in and out of cloud shadow). The weather's light where you ride is also eased over torque.RideLightEaseS seconds (40; 0 = old).",
+  "exposure_speed_up": 0.8,
+  "exposure_speed_down": 0.6
  },
  "air": {
   "haze_by_km": [
@@ -124,7 +127,10 @@
   "dull_rayleigh_clouds": 0.06,
   "fog_dull": 2.0,
   "fog_wet": 3.0,
-  "fog_night_glow": 0.006
+  "fog_night_glow": 0.006,
+  "_haze_light": "[lighting pass, build 170] beenster on 169 (Hartsop, overcast): houses and near trees popped out of a grey veil. fog_follow_light: the haze's glow follows a dull sky's dimmer light by this share of the stops the camera opens for it (0 = the old fixed glow, 1 fully; 0.35 = overcast 0.68x, wet 0.63x). leaf_glow_dull: the light through the leaves left under a dull sky is 1 - this x the dullness (0 = old).",
+  "fog_follow_light": 0.35,
+  "leaf_glow_dull": 0.6
  },
  "cloud": {
   "cover_shown": [

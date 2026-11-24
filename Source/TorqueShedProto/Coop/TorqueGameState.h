@@ -270,6 +270,9 @@ private:
 	int64 GridFetchedNow = 0, GridFetchedBefore = 0;
 	TorqueWeather::State Here, HereApplied;
 	double HereAt = -1.0;
+	// [build 170] The light figures' eased difference from the shared weather (UpdateHere, torque.RideLightEaseS).
+	TorqueWeather::State HereLightDiff;
+	bool bHereLightEased = false;
 	double FetchLat = 0.0, FetchLon = 0.0, LastFetchAt = -1000.0;
 	static constexpr int32 GRID_N = 5;
 	static constexpr double GRID_STEP_M = 2500.0;

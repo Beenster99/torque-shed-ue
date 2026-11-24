@@ -1023,8 +1023,11 @@ def roof_material(L):
     shade = g.lerp(other, shade, coursed)
     col = g.op(unreal.MaterialExpressionMultiply, vc, shade)
     col = L.far_dull(g, col)
-    rough = g.lerp(g.const(0.88), g.const(0.62), g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, to_stone), coursed))   # (slate the glossiest)
-    return g.finish([col, g.const((0.0, 0.0, 1.0)), rough], specular=0.4)
+    # (slate the glossiest. [lighting pass, build 170] beenster on 169, Hartsop overcast: the slate roofs read
+    # pale lavender-blue, as bright as the fields: at roughness 0.62 and specular 0.4 they mirrored the grey
+    # sky. Real dry slate is a dull dark grey-green.)
+    rough = g.lerp(g.const(0.88), g.const(0.74), g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, to_stone), coursed))
+    return g.finish([col, g.const((0.0, 0.0, 1.0)), rough], specular=0.3)
 
 
 def brick_material(L):

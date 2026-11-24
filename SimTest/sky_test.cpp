@@ -186,6 +186,12 @@ int main()
 		State Damp = Base;
 		Damp.Humidity = 100.0;
 		Check(Near(At(Damp, 30.0).FogScale, 1.5 * B.FogScale, 1e-6), "saturated air swells the haze by half");
+		// [lighting pass, build 170] the haze's glow follows a dull sky's dimmer light; the leaves' glow too
+		const Sky Dull = At(TorqueWeather::Preset(TorqueWeather::Overcast), 30.0), Wet = At(TorqueWeather::Preset(TorqueWeather::Wet), 30.0);
+		std::printf("  haze glow: sunny %.2f, overcast %.2f, wet %.2f; leaf glow: sunny %.2f, overcast %.2f\n", B.FogLight, Dull.FogLight, Wet.FogLight, B.LeafGlow, Dull.LeafGlow);
+		Check(Near(B.FogLight, 1.0, 1e-9) && Near(B.LeafGlow, 1.0, 1e-9), "  a sunny sky keeps the level's haze glow and leaf glow");
+		Check(Dull.FogLight < 0.8 && Dull.FogLight > 0.5 && Wet.FogLight <= Dull.FogLight, "  under a dull sky the haze glows less (gently), a wet one a little less again");
+		Check(Dull.LeafGlow < 0.6, "  and the leaves glow less");
 	}
 
 	std::printf("\nThe cloud drawn (stage 2)\n");

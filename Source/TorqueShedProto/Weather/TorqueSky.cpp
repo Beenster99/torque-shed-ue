@@ -362,6 +362,12 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		Ppv->Settings.bOverride_LocalExposureHighlightContrastScale = true;
 		Ppv->Settings.LocalExposureShadowContrastScale = (float)FMath::Clamp(Looks.LocalShadowContrast, 0.0, 1.0);
 		Ppv->Settings.LocalExposureHighlightContrastScale = (float)FMath::Clamp(Looks.LocalHighlightContrast, 0.0, 1.0);
+		// [lighting pass, build 170] A steadier camera (beenster on 169: "the colour and brightness of the scene
+		// seems to fade and change quite quickly"): it adapts in a few seconds, not one (sky_looks.json).
+		Ppv->Settings.bOverride_AutoExposureSpeedUp = true;
+		Ppv->Settings.bOverride_AutoExposureSpeedDown = true;
+		Ppv->Settings.AutoExposureSpeedUp = (float)FMath::Clamp(Looks.ExposureSpeedUp, 0.05, 10.0);
+		Ppv->Settings.AutoExposureSpeedDown = (float)FMath::Clamp(Looks.ExposureSpeedDown, 0.05, 10.0);
 	}
 	if (Fog)
 	{
@@ -369,7 +375,8 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		// The haze's own glow is a fixed colour (the level's daylight grey): it has to go down with the
 		// sun, or at night (exposure opened five stops) the far hills glow flat grey against a black sky
 		// (beenster, Nov 10). A trace of it stays for moonlight and the glow of distant towns.
-		Fog->SetFogInscatteringColor(FogInscatter * FMath::Lerp((float)Looks.FogNightGlow, 1.0f, DayLight));
+		// [build 170] and with a dull sky's dimmer light (S.FogLight), as the land is lit.
+		Fog->SetFogInscatteringColor(FogInscatter * (FMath::Lerp((float)Looks.FogNightGlow, 1.0f, DayLight) * (float)S.FogLight));
 		Fog->SetDirectionalInscatteringColor(FogSunInscatter * DayLight);
 	}
 	if (Atmo)
