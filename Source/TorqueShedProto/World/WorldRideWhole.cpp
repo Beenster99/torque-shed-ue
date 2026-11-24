@@ -27,6 +27,80 @@ double Cross(const P2& A, const P2& B, const P2& C)
 {
 	return (B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X);
 }
+// The tarmac inside a rim (a simple polygon, either way round): ear clipping, the fullest ear first so no slivers, then each
+// triangle split in four Levels times, two sharing an edge sharing its points. Pt: the rim's points, then the new ones.
+void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears)
+{
+	Ears.clear();
+	const size_t R = Rim.size();
+	double Area2 = 0.0;
+	for (size_t I = 0; I < R; ++I) { const P2& A = Rim[I]; const P2& B = Rim[(I + 1) % R]; Area2 += A.X * B.Z - B.X * A.Z; }
+	const double Turn = Area2 > 0.0 ? 1.0 : -1.0;
+	{
+		std::vector<size_t> Left(R);
+		for (size_t I = 0; I < R; ++I) Left[I] = I;
+		size_t Guard = 0;
+		while (Left.size() > 3 && Guard++ < 4 * R * R)
+		{
+			// (of the ears, the fullest: its smallest angle the greatest, so no slivers; a corner on a straight run
+			// (a mouth's points) is no ear)
+			size_t BestK = Left.size();
+			double BestQ = -1.0;
+			for (size_t K = 0; K < Left.size(); ++K)
+			{
+				const size_t A = Left[(K + Left.size() - 1) % Left.size()], B = Left[K], C = Left[(K + 1) % Left.size()];
+				const double Ab = Rim[A].DistanceTo(Rim[B]), Bc = Rim[B].DistanceTo(Rim[C]), Ca = Rim[C].DistanceTo(Rim[A]);
+				const double Cr = Cross(Rim[A], Rim[B], Rim[C]) * Turn;
+				if (Cr <= 0.02 * Ab * Bc) continue;   // (reflex, or under about a degree from straight)
+				bool Inside = false;
+				for (size_t Q : Left)
+				{
+					if (Q == A || Q == B || Q == C) continue;
+					const double D1 = Cross(Rim[A], Rim[B], Rim[Q]) * Turn, D2 = Cross(Rim[B], Rim[C], Rim[Q]) * Turn, D3 = Cross(Rim[C], Rim[A], Rim[Q]) * Turn;
+					if (D1 >= -1e-9 && D2 >= -1e-9 && D3 >= -1e-9) { Inside = true; break; }
+				}
+				if (Inside) continue;
+				// (its smallest angle's sine: twice its area over the product of the two longest sides)
+				const double Longest = std::fmax(Ab, std::fmax(Bc, Ca)), Shortest = std::fmin(Ab, std::fmin(Bc, Ca));
+				const double Q = Cr / std::fmax(1e-9, Longest * (Ab + Bc + Ca - Longest - Shortest));
+				if (Q > BestQ) { BestQ = Q; BestK = K; }
+			}
+			if (BestK == Left.size()) break;   // (a rim that crosses itself: what is left goes as a fan)
+			Ears.push_back({Left[(BestK + Left.size() - 1) % Left.size()], Left[BestK], Left[(BestK + 1) % Left.size()]});
+			Left.erase(Left.begin() + long(BestK));
+		}
+		for (size_t K = 1; K + 1 < Left.size(); ++K) Ears.push_back({Left[0], Left[K], Left[K + 1]});
+	}
+	// (the points: the rim's, then the splits' midpoints, each made once)
+	Pt.assign(Rim.begin(), Rim.end());
+	std::unordered_map<long long, size_t> Mids;
+	const auto MidOf = [&Pt, &Mids](size_t A, size_t B)
+	{
+		const long long Key = static_cast<long long>(std::min(A, B)) * 1000003LL + static_cast<long long>(std::max(A, B));
+		const auto It = Mids.find(Key);
+		if (It != Mids.end()) return It->second;
+		Pt.push_back((Pt[A] + Pt[B]) * 0.5);
+		Mids[Key] = Pt.size() - 1;
+		return Pt.size() - 1;
+	};
+	for (int Level = 0; Level < Levels; ++Level)
+	{
+		std::vector<std::array<size_t, 3>> Finer;
+		for (const std::array<size_t, 3>& T : Ears)
+		{
+			const size_t Ab = MidOf(T[0], T[1]), Bc = MidOf(T[1], T[2]), Ca = MidOf(T[2], T[0]);
+			Finer.push_back({T[0], Ab, Ca}); Finer.push_back({Ab, T[1], Bc}); Finer.push_back({Ca, Bc, T[2]}); Finer.push_back({Ab, Bc, Ca});
+		}
+		Ears.swap(Finer);
+	}
+	// (slivers along a straight run of the rim, under a centimetre across: left out, no gap to see; drawn, they stood on
+	// edge as spikes)
+	Ears.erase(std::remove_if(Ears.begin(), Ears.end(), [&Pt](const std::array<size_t, 3>& T)
+	{
+		const double Longest = std::fmax(Pt[T[0]].DistanceTo(Pt[T[1]]), std::fmax(Pt[T[1]].DistanceTo(Pt[T[2]]), Pt[T[2]].DistanceTo(Pt[T[0]])));
+		return std::fabs(Cross(Pt[T[0]], Pt[T[1]], Pt[T[2]])) < 0.01 * Longest * Longest;
+	}), Ears.end());
+}
 double Ease01(double T)
 {
 	T = std::clamp(T, 0.0, 1.0);
@@ -605,64 +679,9 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	double Area2 = 0.0;
 	for (size_t I = 0; I < R; ++I) { const P2& A = Rim[I]; const P2& B = Rim[(I + 1) % R]; Area2 += A.X * B.Z - B.X * A.Z; }
 	const double Turn = Area2 > 0.0 ? 1.0 : -1.0;   // (which way round the rim runs)
+	std::vector<P2> Pt;
 	std::vector<std::array<size_t, 3>> Ears;
-	{
-		std::vector<size_t> Left(R);
-		for (size_t I = 0; I < R; ++I) Left[I] = I;
-		size_t Guard = 0;
-		while (Left.size() > 3 && Guard++ < 4 * R * R)
-		{
-			// (of the ears, the fullest: its smallest angle the greatest, so no slivers; a corner on a straight run
-			// (a mouth's points) is no ear)
-			size_t BestK = Left.size();
-			double BestQ = -1.0;
-			for (size_t K = 0; K < Left.size(); ++K)
-			{
-				const size_t A = Left[(K + Left.size() - 1) % Left.size()], B = Left[K], C = Left[(K + 1) % Left.size()];
-				const double Ab = Rim[A].DistanceTo(Rim[B]), Bc = Rim[B].DistanceTo(Rim[C]), Ca = Rim[C].DistanceTo(Rim[A]);
-				const double Cr = Cross(Rim[A], Rim[B], Rim[C]) * Turn;
-				if (Cr <= 0.02 * Ab * Bc) continue;   // (reflex, or under about a degree from straight)
-				bool Inside = false;
-				for (size_t Q : Left)
-				{
-					if (Q == A || Q == B || Q == C) continue;
-					const double D1 = Cross(Rim[A], Rim[B], Rim[Q]) * Turn, D2 = Cross(Rim[B], Rim[C], Rim[Q]) * Turn, D3 = Cross(Rim[C], Rim[A], Rim[Q]) * Turn;
-					if (D1 >= -1e-9 && D2 >= -1e-9 && D3 >= -1e-9) { Inside = true; break; }
-				}
-				if (Inside) continue;
-				// (its smallest angle's sine: twice its area over the product of the two longest sides)
-				const double Longest = std::fmax(Ab, std::fmax(Bc, Ca)), Shortest = std::fmin(Ab, std::fmin(Bc, Ca));
-				const double Q = Cr / std::fmax(1e-9, Longest * (Ab + Bc + Ca - Longest - Shortest));
-				if (Q > BestQ) { BestQ = Q; BestK = K; }
-			}
-			if (BestK == Left.size()) break;   // (a rim that crosses itself: what is left goes as a fan)
-			Ears.push_back({Left[(BestK + Left.size() - 1) % Left.size()], Left[BestK], Left[(BestK + 1) % Left.size()]});
-			Left.erase(Left.begin() + long(BestK));
-		}
-		for (size_t K = 1; K + 1 < Left.size(); ++K) Ears.push_back({Left[0], Left[K], Left[K + 1]});
-	}
-	// (the points: the rim's, then the splits' midpoints, each made once)
-	std::vector<P2> Pt(Rim.begin(), Rim.end());
-	std::unordered_map<long long, size_t> Mids;
-	const auto MidOf = [&Pt, &Mids](size_t A, size_t B)
-	{
-		const long long Key = static_cast<long long>(std::min(A, B)) * 1000003LL + static_cast<long long>(std::max(A, B));
-		const auto It = Mids.find(Key);
-		if (It != Mids.end()) return It->second;
-		Pt.push_back((Pt[A] + Pt[B]) * 0.5);
-		Mids[Key] = Pt.size() - 1;
-		return Pt.size() - 1;
-	};
-	for (int Level = 0; Level < 2; ++Level)
-	{
-		std::vector<std::array<size_t, 3>> Finer;
-		for (const std::array<size_t, 3>& T : Ears)
-		{
-			const size_t Ab = MidOf(T[0], T[1]), Bc = MidOf(T[1], T[2]), Ca = MidOf(T[2], T[0]);
-			Finer.push_back({T[0], Ab, Ca}); Finer.push_back({Ab, T[1], Bc}); Finer.push_back({Ca, Bc, T[2]}); Finer.push_back({Ab, Bc, Ca});
-		}
-		Ears.swap(Finer);
-	}
+	FillRim(Rim, 2, Pt, Ears);
 	std::vector<uint32_t> Vtx(Pt.size());
 	for (size_t I = 0; I < Pt.size(); ++I) Vtx[I] = Vertex(Pt[I], Surface(Pt[I]), Top, SlopeAt(Pt[I]));
 	for (const std::array<size_t, 3>& T : Ears) Tri(Vtx[T[0]], Vtx[T[1]], Vtx[T[2]]);

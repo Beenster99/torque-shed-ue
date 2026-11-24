@@ -2969,7 +2969,8 @@ int main(int Argc, char** Argv)
 					{
 						const float* Cl = &M.Col[size_t(M.Idx[T]) * 3];
 						const bool Tar = Colour(Cl, 0.022f, 0.022f, 0.025f) || Colour(Cl, 0.010f, 0.010f, 0.011f) || Colour(Cl, 0.06f, 0.062f, 0.085f)
-							|| Colour(Cl, 0.095f, 0.088f, 0.07f) || Colour(Cl, 0.09f, 0.095f, 0.11f);   // ([smooth junctions stage 1] gravel and setts are its cover too)
+							|| Colour(Cl, 0.095f, 0.088f, 0.07f) || Colour(Cl, 0.09f, 0.095f, 0.11f)   // ([smooth junctions stage 1] gravel and setts are its cover too)
+							|| Colour(Cl, 0.83f, 0.83f, 0.75f) || Colour(Cl, 0.78f, 0.52f, 0.03f);   // ([3b] and the lines painted in it: without them the robot read holes under every line and knocked on the grid)
 						const bool Grit = Colour(Cl, 0.095f, 0.088f, 0.07f);
 						const bool Gr = Colour(Cl, 0.10f, 0.16f, 0.03f) || Colour(Cl, 0.072f, 0.078f, 0.045f);
 						double X[3], Y[3], Z[3];
@@ -3181,9 +3182,23 @@ int main(int Argc, char** Argv)
 						const double Keep = Plan->KeepLeft() ? 1.0 : -1.0;
 						std::vector<double> H(Even.size());
 						std::vector<char> Bumpy(Even.size(), 0);
+						// (the line a rider takes: the map's, its kinks evened out over 2 m either way, as the road is laid; the
+						// map's own corners swung the 1 m offset across the crown, a 2 to 4 cm knock that was not there)
+						{
+							std::vector<P2> Smooth(Even.size());
+							for (size_t I = 0; I < Even.size(); ++I)
+							{
+								const size_t A = I >= 8 ? I - 8 : 0, B = std::min(Even.size() - 1, I + 8);
+								const size_t Half = std::min(I - A, B - I);
+								P2 Sum{0.0, 0.0};
+								for (size_t K = I - Half; K <= I + Half; ++K) Sum = Sum + Even[K];
+								Smooth[I] = Sum * (1.0 / double(2 * Half + 1));
+							}
+							Even.swap(Smooth);
+						}
 						for (size_t I = 0; I < Even.size(); ++I)
 						{
-							const P2 Dv = Even[std::min(I + 1, Even.size() - 1)] - Even[I > 0 ? I - 1 : 0];
+							const P2 Dv = Even[std::min(I + 4, Even.size() - 1)] - Even[I >= 4 ? I - 4 : 0];
 							const double Dl = std::fmax(1e-6, std::hypot(Dv.X, Dv.Z));
 							// (the rider steers onto the surface: none under the line, the nearest within 1.5 m either side)
 							const P2 Side{-Dv.Z / Dl, Dv.X / Dl};
@@ -3241,6 +3256,16 @@ int main(int Argc, char** Argv)
 						{
 							std::printf("jturn %d: %d -> %d: off %.1f jolt %.3f at %.1f m (%.1f, %.1f) pull %.1f |", Nd, Ein, Eout, OffBy, Jolt, JoltAt * 0.25, Even[JoltAt].X - C.X, Even[JoltAt].Z - C.Z, Pull);
 							for (size_t I = JoltAt >= 4 ? JoltAt - 4 : 0; I < std::min(H.size(), JoltAt + 6); ++I) std::printf(" %.3f", H[I]);
+							if (std::getenv("JTURN_PTS"))
+								for (size_t I = JoltAt >= 4 ? JoltAt - 4 : 0; I < std::min(H.size(), JoltAt + 6); ++I)
+								{
+									const P2 Dv = Even[std::min(I + 4, Even.size() - 1)] - Even[I >= 4 ? I - 4 : 0];
+									const double Dl = std::fmax(1e-6, std::hypot(Dv.X, Dv.Z));
+									const P2 Pp = Even[I] + P2{-Dv.Z / Dl, Dv.X / Dl} * Keep;
+									const double Fx = (Pp.X - C.X + Reach) / Cell - 0.5, Fz = (Pp.Z - C.Z + Reach) / Cell - 0.5;
+									const int Cx = int(std::floor(Fx)), Cz = int(std::floor(Fz));
+									std::printf("\n   at (%.2f,%.2f) cells %.3f %.3f %.3f %.3f lo %.3f", Pp.X - C.X, Pp.Z - C.Z, Hi[size_t(Cz) * JCells + Cx], Hi[size_t(Cz) * JCells + Cx + 1], Hi[size_t(Cz + 1) * JCells + Cx], Hi[size_t(Cz + 1) * JCells + Cx + 1], Lo[size_t(Cz) * JCells + Cx]);
+								}
 							std::printf(" | pull at %.1f m (%.1f, %.1f) from the middle %.1f m |", PullAt * 0.25, Even[PullAt].X - C.X, Even[PullAt].Z - C.Z, std::hypot(Even[PullAt].X - C.X, Even[PullAt].Z - C.Z));
 							for (size_t I = PullAt >= 12 ? PullAt - 12 : 0; I < std::min(H.size(), PullAt + 13); I += 2) std::printf(" %.3f", H[I]);
 							std::printf("\n");
@@ -3282,9 +3307,10 @@ int main(int Argc, char** Argv)
 			++Kd[0]; Kd[1] += IsBad ? 1 : 0; Kd[2] += F.BadTurns > 0 ? 1 : 0; Kd[3] += F.Meets() ? 1 : 0;
 			Meet += F.Meets() ? 1 : 0; Sum.Over += F.Over;
 			const Geo Ll = G.FrameOf().ToGeo(G.Nodes[size_t(F.Node)].X, G.Nodes[size_t(F.Node)].Z);
-			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
+			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
 				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "",
-				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : "");
+				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : "",
+				std::any_of(G.Adjacent[size_t(F.Node)].begin(), G.Adjacent[size_t(F.Node)].end(), [&OnRide](int E) { return OnRide.count(E) > 0; }) ? "  ONRIDE" : "");
 		}
 		for (const auto& Kd : Kinds) std::printf("jcheck kind %s: %d junctions, %d bad, %d bad to ride, %d meet the standard\n", Kd.first.c_str(), Kd.second[0], Kd.second[1], Kd.second[2], Kd.second[3]);
 		std::printf("jcheck ride: %d turns, %d bad; %d junctions bad to ride; doubled tarmac %.1f m2; %d of %zu meet the standard\n", Turns, BadTurns, RideBad, Sum.Over, Meet, All.size());

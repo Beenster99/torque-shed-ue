@@ -1826,6 +1826,7 @@ public:
 	static constexpr double WholeShapeCell = 0.5;
 	std::unordered_map<long long, std::vector<int>> WholeCells;   // whole junctions by 64 m cell of the ground they may lie on
 	void WholePiece(int Junction, RideMesh& Out, WholeShape* Shape = nullptr) const;
+	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
 	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
@@ -2100,4 +2101,10 @@ struct RideDetour
 	double ViaAlong = -1.0;
 	P2 Via;
 };
+// [smooth junctions stage 3] (WorldRideWhole.cpp's helpers, shared with the ride's road's mouths)
+namespace WholeJunctionBits
+{
+double ToSegment(const P2& P, const P2& A, const P2& B);
+void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears);
+}
 } // namespace TorqueWorld
