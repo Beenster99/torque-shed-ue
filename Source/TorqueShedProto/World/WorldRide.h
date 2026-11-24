@@ -800,9 +800,36 @@ public:
 		uint32_t Id = 0;     // [OSM stage 2] a hash of the map's own id (0 for one placed by rule): its variant
 		bool Mapped = true;  // the map put it there (not a rule)
 		double Big = 0.0;    // [OSM stage 6] a sign's size (WarnSign, StreetPlate)
+		int Home = -1;       // [pub signs] a PubSign's building (Area.Roads.Buildings): the map's rough box for the pub
 	};
 	std::vector<Furnish> Furniture;
 	int FurnitureCount(int Kind) const;
+	// [pub signs] Where a pub's name board hangs: on the front wall (the side towards its road) of the
+	// building the world actually draws for the pub (an outline's box where the world has outlines, else
+	// the map's rough box), only where BuildingsTile stands that building up. ([Nov 24] beenster, build
+	// 169 near Ambleside: "Lakes Brew Co Tap" hanging in the air, its pub not drawn.) At the wall's
+	// middle, Face out of it; Widest the board's most width, High the building's height, Foot its ground.
+	struct PubWall
+	{
+		P2 At, Face;
+		double Widest = 0.0, High = 0.0, Foot = 0.0, Wall = 0.0;
+		const Building* Pub = nullptr;
+	};
+	// Why a sign has no wall (0 it has one): 1 no building near enough, 2 the building isn't drawn, 3 its
+	// wall too short, 4 the wall on the road, 5 no ground.
+	int PubSignWall(const Furnish& F, PubWall& Out) const;
+	// [pub signs] Whether BuildingsTile draws this box as a building of its own (its tests: big enough,
+	// off the road and the railway, not inside a tower or a place's or a forecourt's stand-in, on ground).
+	bool BuildingStands(const Building& B) const;
+	// [pub signs] The pub sign whose board hangs on this box (PubSignWall's choice for a sign near it; the
+	// first, where two pubs pick one wall), its wall into Wall; or none.
+	const Furnish* PubSignOn(const Building& B, PubWall& Wall) const;
+	// [pub signs] The board's size and its middle's height, as it is drawn on Wall (its middle over Wall.At),
+	// under eaves Eaves m over Wall.Foot: W wide, Hb high.
+	static void PubBoard(const Furnish& F, const PubWall& Wall, double Eaves, double& W, double& Hb, double& MidY);
+	// [pub signs] The board itself, with its name, into Out: BuildingsTile draws it with its building, under
+	// that building's own eaves, so it never stands without its wall ([Nov 24] beenster, build 169).
+	static void DrawPubBoard(const Furnish& F, const PubWall& Wall, double Eaves, RideMesh& Out);
 	// [ride anywhere 4] The furniture of the network's roads (not the ride's own: that is Furniture),
 	// made the first time a square of them is drawn and kept: street lamps through the built-up
 	// stretches of each road laid, chevrons round its sharp bends, and the map's own boxes, stops,
