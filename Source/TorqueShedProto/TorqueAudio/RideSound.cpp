@@ -163,7 +163,14 @@ void RideSound::Retune()
 	WindBp.BandPass(500.0 + Air * 15.0, 0.7);
 	RainHiss.BandPass(2600.0, 0.6);
 	RainTick.BandPass(4200.0, 2.0);
-	Squeal.BandPass(1150.0, 6.0);
+	SkidLo.BandPass(520.0, 0.8);
+	SkidHi.BandPass(1700.0, 0.9);
+	SkidBody.LowPass(170.0, 0.8);
+	SkidChirp.BandPass(880.0 + 140.0 * std::sin(JudderPhase * 0.013), 2.2);
+	SkidWet.BandPass(3600.0, 0.7);
+	Crunch.BandPass(1500.0, 1.1);
+	CrunchLo.LowPass(320.0, 0.9);
+	Tear.BandPass(650.0, 0.7);
 	Scrub.LowPass(450.0, 0.7);
 	GridThud.LowPass(260.0, 0.9);
 	GridRing.BandPass(740.0, 9.0);
@@ -191,23 +198,23 @@ double RideSound::PlaceSample()
 		if (WavePhase >= 1.0)
 		{
 			WavePhase -= 1.0;
-			WavePeriod = 7.0 + 4.0 * Uniform();
-			WaveSize = 0.6 + 0.4 * Uniform();
+			WavePeriod = 7.0 + 4.0 * PlaceUniform();
+			WaveSize = 0.6 + 0.4 * PlaceUniform();
 		}
 		const double Build = WavePhase < 0.7 ? std::pow(WavePhase / 0.7, 2.0) : std::exp(-(WavePhase - 0.7) * 9.0);
 		const double Draw = WavePhase > 0.68 ? std::sin(Pi * Clamp01((WavePhase - 0.68) / 0.32)) : 0.0;
-		Out += (SeaLow.Run(Noise()) * (0.3 + Build) * 0.7 + SeaHiss.Run(Noise()) * (0.05 + Draw) * 0.35) * WaveSize * Now.Sea * 0.25;
+		Out += (SeaLow.Run(PlaceNoise()) * (0.3 + Build) * 0.7 + SeaHiss.Run(PlaceNoise()) * (0.05 + Draw) * 0.35) * WaveSize * Now.Sea * 0.25;
 	}
 	// A beck: water babbling over stones, its sound jumping every few hundredths of a second.
 	if (Now.Water > 0.002)
 	{
 		if (--GurgleIn <= 0)
 		{
-			GurgleTo = Uniform();
-			GurgleIn = int(Rate * (0.015 + 0.05 * Uniform()));
+			GurgleTo = PlaceUniform();
+			GurgleIn = int(Rate * (0.015 + 0.05 * PlaceUniform()));
 		}
 		Gurgle += (GurgleTo - Gurgle) * 0.004;
-		Out += (BeckHi.Run(Noise()) * (0.3 + Gurgle) + BeckLo.Run(Noise()) * 0.45) * Now.Water * 0.06;
+		Out += (BeckHi.Run(PlaceNoise()) * (0.3 + Gurgle) + BeckLo.Run(PlaceNoise()) * 0.45) * Now.Water * 0.06;
 	}
 	// A town: its low hum, and now and then a car going by a street or two off.
 	if (Now.Town > 0.002)
@@ -215,25 +222,25 @@ double RideSound::PlaceSample()
 		if (CarT < 0.0)
 		{
 			CarWait -= Dt;
-			if (CarWait <= 0.0) { CarT = 0.0; CarLen = 3.5 + 3.0 * Uniform(); }
+			if (CarWait <= 0.0) { CarT = 0.0; CarLen = 3.5 + 3.0 * PlaceUniform(); }
 		}
 		double Car = 0.0;
 		if (CarT >= 0.0)
 		{
 			CarT += Dt;
 			Car = std::pow(std::sin(Pi * Clamp01(CarT / CarLen)), 2.0);
-			if (CarT >= CarLen) { CarT = -1.0; CarWait = (2.0 + 10.0 * Uniform()) / std::max(Now.Town, 0.2); }
+			if (CarT >= CarLen) { CarT = -1.0; CarWait = (2.0 + 10.0 * PlaceUniform()) / std::max(Now.Town, 0.2); }
 		}
-		Out += (TownLow.Run(Noise()) * 0.6 + TownCar.Run(Noise()) * Car * 1.1) * Now.Town * 0.1;
+		Out += (TownLow.Run(PlaceNoise()) * 0.6 + TownCar.Run(PlaceNoise()) * Car * 1.1) * Now.Town * 0.1;
 	}
 	// Sheep: a bleat now and then (a lamb's higher), wavering as a sheep's does.
-	if (BleatT < 0.0 && Uniform() < Now.Sheep * 0.3 * Dt)
+	if (BleatT < 0.0 && PlaceUniform() < Now.Sheep * 0.3 * Dt)
 	{
-		const bool Lamb = Uniform() < 0.35;
+		const bool Lamb = PlaceUniform() < 0.35;
 		BleatT = 0.0;
-		BleatLen = (Lamb ? 0.4 : 0.55) + 0.5 * Uniform();
-		BleatF = (Lamb ? 560.0 : 330.0) + 160.0 * Uniform();
-		BleatAmp = 0.3 + 0.7 * Uniform();   // (some near, some across the field)
+		BleatLen = (Lamb ? 0.4 : 0.55) + 0.5 * PlaceUniform();
+		BleatF = (Lamb ? 560.0 : 330.0) + 160.0 * PlaceUniform();
+		BleatAmp = 0.3 + 0.7 * PlaceUniform();   // (some near, some across the field)
 	}
 	if (BleatT >= 0.0)
 	{
@@ -248,12 +255,12 @@ double RideSound::PlaceSample()
 		if (BleatT >= BleatLen) BleatT = -1.0;
 	}
 	// Cattle: a long low moo, falling at the end.
-	if (MooT < 0.0 && Uniform() < Now.Cattle * 0.08 * Dt)
+	if (MooT < 0.0 && PlaceUniform() < Now.Cattle * 0.08 * Dt)
 	{
 		MooT = 0.0;
-		MooLen = 1.2 + 1.0 * Uniform();
-		MooF = 95.0 + 35.0 * Uniform();
-		MooAmp = 0.3 + 0.7 * Uniform();
+		MooLen = 1.2 + 1.0 * PlaceUniform();
+		MooF = 95.0 + 35.0 * PlaceUniform();
+		MooAmp = 0.3 + 0.7 * PlaceUniform();
 	}
 	if (MooT >= 0.0)
 	{
@@ -302,6 +309,8 @@ void RideSound::Render(float* Out, int N)
 	const double BirdFade = 1.0 - std::exp(-1.0 / (Rate * 2.0));
 	const double BarFall = std::exp(-1.0 / (Rate * 0.004));
 	const double BarRingFall = std::exp(-1.0 / (Rate * 0.03));
+	const double GrainFall = std::exp(-1.0 / (Rate * 0.0025));
+	const double StoneFall = std::exp(-1.0 / (Rate * 0.0012));
 	for (int S = 0; S < N; ++S)
 	{
 		Now.Rpm += (Target.Rpm - Now.Rpm) * Kr;
@@ -310,6 +319,9 @@ void RideSound::Render(float* Out, int N)
 		Now.RearSlide += (Target.RearSlide - Now.RearSlide) * Ks;
 		Now.FrontSlide += (Target.FrontSlide - Now.FrontSlide) * Ks;
 		Now.SideSlide += (Target.SideSlide - Now.SideSlide) * Ks;
+		Now.SlipSpeed += (Target.SlipSpeed - Now.SlipSpeed) * Ks;
+		Now.RoadWet += (Target.RoadWet - Now.RoadWet) * Ks * 0.05;
+		Now.Surface = Target.Surface;
 		Now.Inside += (Target.Inside - Now.Inside) * Ks;
 		Now.Grid += (Target.Grid - Now.Grid) * Kt;
 		Now.AirWind += (Target.AirWind - Now.AirWind) * Ks * 0.05;   // (the weather changes over seconds)
@@ -430,23 +442,56 @@ void RideSound::Render(float* Out, int N)
 			RainSound += RainTick.Run(Noise() * TickEnv) * 0.18 * Now.Inside * Now.Rain;
 		}
 
-		// Tyres: a squeal when one slides on tarmac, a scrub and rumble on grass.
+		// Tyres. A sliding tyre is rubber rubbing over the road, not a whistle: broadband friction noise
+		// in two wide bands, roughened by stick-slip (the tread grabbing and letting go, many times a
+		// second and faster the faster it rubs), the carcass's low shudder, and on a dry road a short,
+		// rough chirp as it lets go. Wet: softer, a hiss with the water. Gravel: stones crunching and
+		// spitting. Grass: a soft tearing. All by how fast the rubber is rubbing, so a burnout (the bike
+		// still, the tread doing 60 km/h) is heard as loud as a skid.
 		const double Roll = Clamp01(V / 4.0);
 		double Tyre = 0.0;
 		if (!Now.Airborne)
 		{
-			if (Now.OnTarmac)
+			const double Rub = Clamp01(Now.SlipSpeed / 8.0);
+			const double Slide = Clamp01(std::max(std::max(Now.RearSlide, Now.FrontSlide), Now.SideSlide)) * std::max(Roll, Rub);
+			const double Fast = std::sqrt(Clamp01(Now.SlipSpeed / 20.0));   // how hard it's rubbing: brighter and rougher
+			SlideSlow += (Slide - SlideSlow) * (1.0 / (Rate * 0.35));
+			if (Slide > 0.002)
 			{
-				const double Slide = Clamp01(std::max(std::max(Now.RearSlide, Now.FrontSlide), Now.SideSlide)) * Roll;
-				SquealPhase += 2.0 * Pi * (1050.0 + 120.0 * std::sin(SquealPhase * 0.0007)) / Rate;
-				if (SquealPhase > 2e6) SquealPhase -= 2e6;
-				Tyre = (std::sin(SquealPhase) * 0.35 + Squeal.Run(Noise()) * 1.2) * Slide * 0.14
-					+ Scrub.Run(Noise()) * 0.02 * std::min(V / 25.0, 1.5);
+				// Stick-slip grains: a ragged envelope over the noise.
+				if (Uniform() < (90.0 + 70.0 * Now.SlipSpeed) / Rate) GrainEnv = 0.4 + 0.6 * Uniform();
+				GrainEnv *= GrainFall;
+				JudderPhase += 2.0 * Pi * (16.0 + 1.2 * Now.SlipSpeed) / Rate;
+				if (JudderPhase > 2e6) JudderPhase -= 2e6;
+				const double Judder = 0.7 + 0.3 * std::sin(JudderPhase) + 0.15 * std::sin(JudderPhase * 2.7);
+				const double Rough = 0.55 + GrainEnv * 1.1;
+				if (Now.OnTarmac)
+				{
+					const double Wet = Clamp01(Now.RoadWet);
+					const double Friction = (SkidLo.Run(Noise()) * (0.9 - 0.25 * Fast) + SkidHi.Run(Noise()) * (0.35 + 0.55 * Fast)) * Rough;
+					const double Body = SkidBody.Run(Noise()) * Judder * 1.6;
+					// The chirp: only as the tyre lets go (the slide rising), rough, faint, gone on a wet road.
+					ChirpEnv += (Clamp01((Slide - SlideSlow) * 4.0) - ChirpEnv) * 0.002;
+					const double Chirp = SkidChirp.Run(Noise()) * ChirpEnv * (1.0 - Wet) * Rough * 0.7;
+					const double Hiss = SkidWet.Run(Noise()) * Wet * (0.5 + 0.5 * Rough);
+					Tyre = ((Friction + Chirp) * (1.0 - 0.6 * Wet) + Body * (1.0 - 0.4 * Wet) + Hiss * 0.8) * Slide * 0.42;
+				}
+				else if (Now.Surface == 1)
+				{
+					// Gravel: stones knocked and spat out, a dense crunch over a low grind.
+					if (Uniform() < (250.0 + 120.0 * Now.SlipSpeed) / Rate) StoneEnv = 0.3 + 0.7 * Uniform();
+					StoneEnv *= StoneFall;
+					Tyre = (Crunch.Run(Noise() * StoneEnv) * 2.2 + CrunchLo.Run(Noise()) * Judder * 0.7 + Tear.Run(Noise()) * 0.25 * Rough) * Slide * 0.36;
+				}
+				else
+				{
+					// Grass and mud: a soft tearing and a low thrum.
+					Tyre = (Tear.Run(Noise()) * Rough * 0.5 + SkidBody.Run(Noise()) * Judder * 1.4) * Slide * 0.3;
+				}
 			}
-			else
-			{
-				Tyre = Scrub.Run(Noise()) * 0.12 * std::min(V / 15.0, 1.5);
-			}
+			// Rolling: the tyre's roar on tarmac, a scrub and rumble off it.
+			Tyre += Now.OnTarmac ? Scrub.Run(Noise()) * 0.02 * std::min(V / 25.0, 1.5)
+				: Scrub.Run(Noise()) * 0.12 * std::min(V / 15.0, 1.5);
 		}
 
 		// A cattle grid: a knock per bar the tyres cross (bars 0.16 m apart), a thud from the tyre

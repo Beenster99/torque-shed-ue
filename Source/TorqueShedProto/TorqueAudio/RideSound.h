@@ -1,8 +1,8 @@
 // The ride's sound, made sample by sample in plain C++ (no Unreal types, so SimTest can render it):
 // the engine as a 270-degree parallel twin (each firing rings the pipe's resonances, the uneven
 // 270/450 gaps give the twin its lope), the recorded idle under it at tickover, pops on the
-// overrun (deep, occasional, only from a hot exhaust), a gear lever clunk on every change, wind with speed, tyre squeal and scrub when a tyre
-// slides, the drum of the tyres over a cattle grid's bars, and moorland birds behind it all. Mono, 48 kHz.
+// overrun (deep, occasional, only from a hot exhaust), a gear lever clunk on every change, wind with speed, the rasp of rubber when a tyre
+// slides (by how fast it rubs, and the road: dry, wet, gravel, grass), the drum of the tyres over a cattle grid's bars, and moorland birds behind it all. Mono, 48 kHz.
 #pragma once
 
 #include "EngineSynth.h"
@@ -26,6 +26,9 @@ struct RideInputs
 	double RearSlide = 0.0;     // 0 gripping .. 1 locked or spinning hard (tarmac only)
 	double FrontSlide = 0.0;
 	double SideSlide = 0.0;     // sliding sideways, 0..1
+	double SlipSpeed = 0.0;     // m/s the rubber is rubbing over the ground (a burnout: the tread's speed, the bike near still)
+	int Surface = 0;            // under the tyres off tarmac: 1 gravel, 2 grass (BikeSpec's SURF_*)
+	double RoadWet = 0.0;       // the road's water, 0 dry .. 1 soaked (WeatherModel's RoadWet)
 	double Grid = 0.0;          // wheels on a cattle grid's bars, 0..2
 	bool OnTarmac = true;
 	bool Airborne = false;
@@ -99,6 +102,10 @@ private:
 	// The pops draw from their own generator, so they don't shift with which recordings loaded.
 	std::mt19937 PopRng{2701};
 	double PopDice() { return std::uniform_real_distribution<double>(0.0, 1.0)(PopRng); }
+	// And the place's sounds (the sea, sheep, cattle) from theirs, so they don't shift with the tyres.
+	std::mt19937 PlaceRng{7919};
+	double PlaceNoise() { return std::uniform_real_distribution<double>(-1.0, 1.0)(PlaceRng); }
+	double PlaceUniform() { return std::uniform_real_distribution<double>(0.0, 1.0)(PlaceRng); }
 
 	// Engine.
 	double Crank = 0.0;               // degrees, 0..720
@@ -130,7 +137,11 @@ private:
 	double BirdGain = 0.0, BirdTarget = 0.0, BirdTimer = 6.0;
 
 	// Wind and tyres.
-	Biquad WindLp, WindBp, Squeal, Scrub;
+	Biquad WindLp, WindBp, Scrub;
+	// A sliding tyre: the rubber's rasp (two wide bands), the carcass's shudder, a rough chirp as it lets
+	// go on a dry road, the water's hiss on a wet one, and stones crunching on gravel.
+	Biquad SkidLo, SkidHi, SkidBody, SkidChirp, SkidWet, Crunch, CrunchLo, Tear;
+	double GrainEnv = 0.0, StoneEnv = 0.0, JudderPhase = 0.0, SlideSlow = 0.0, ChirpEnv = 0.0;
 	// The weather's: gusts swelling and dying, rain's hiss and the drops on the helmet.
 	double GustPhase = 0.0;
 	Biquad RainHiss, RainTick;
@@ -148,7 +159,6 @@ private:
 	double CarT = -1.0, CarLen = 5.0, CarWait = 4.0;
 	double BleatT = -1.0, BleatLen = 0.0, BleatF = 400.0, BleatAmp = 0.0, BleatPhase = 0.0;
 	double MooT = -1.0, MooLen = 0.0, MooF = 110.0, MooAmp = 0.0, MooPhase = 0.0;
-	double SquealPhase = 0.0;
 
 	std::unique_ptr<TorqueEngine::FVoice> EngineVoice;
 	std::vector<float> EngineBuf;
