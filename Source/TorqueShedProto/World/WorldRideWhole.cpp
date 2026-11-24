@@ -302,7 +302,14 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 	const auto MouthEnds = [](const MouthLine& M, P2& A, P2& B) { A = M.P.At + M.Left * M.P.Half; B = M.P.At - M.Left * M.P.Half; };
 	// (weighted by nearness to each road's middle line, as the ground under them is cut to the nearest road: but on a
 	// mouth line that road's alone, every other's weight eased to nothing within 2 m of it)
-	const auto Surface = [&](const P2& At)
+	// [smooth junctions stage 3] The through road's own surface carried straight across, crown and all, as a real
+	// junction's is: a lesser road's crown, blended in up to the junction's middle, stood 3 to 6 cm proud of the
+	// through road's camber there, a knock straight across (Skipton). Lesser roads run onto its edge from their mouths.
+	int ThroughA = -1, ThroughB = -1;
+	for (size_t A = 0; A < J.Arms.size() && A < Mouths.size(); ++A)
+		if (J.Arms[A].Through) { if (ThroughA < 0) ThroughA = int(A); else if (ThroughB < 0) ThroughB = int(A); }
+	const double ThroughEdge = ThroughB >= 0 ? std::fmax(Mouths[size_t(ThroughA)].P.Half, Mouths[size_t(ThroughB)].P.Half) : 0.0;
+	const auto ArmsBlend = [&](const P2& At, bool OnlyThrough)
 	{
 		const size_t Count = Mouths.size();
 		double Dm[8], Dc[8];
@@ -311,7 +318,8 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 			P2 A, B;
 			MouthEnds(Mouths[I], A, B);
 			Dm[I] = ToSegment(At, A, B);
-			if (Dm[I] < 1e-4) return RoadSurface(Mouths[I], At);
+			const bool Counts = !OnlyThrough || int(I) == ThroughA || int(I) == ThroughB;
+			if (Dm[I] < 1e-4 && Counts) return RoadSurface(Mouths[I], At);
 			const std::vector<P2>& L = Mouths[I].Inner;
 			Dc[I] = 1e9;
 			for (size_t K = 0; K + 1 < L.size(); ++K) Dc[I] = std::fmin(Dc[I], ToSegment(At, L[K], L[K + 1]));
@@ -320,13 +328,41 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 		double Sum = 0.0, Weight = 0.0;
 		for (size_t I = 0; I < Count && I < 8; ++I)
 		{
+			if (OnlyThrough && int(I) != ThroughA && int(I) != ThroughB) continue;
 			double Wt = 1.0 / std::pow(Dc[I] + 0.25, 4.0);
 			for (size_t K = 0; K < Count && K < 8; ++K)
-				if (K != I) Wt *= Ease01(Dm[K] / 2.0);
+				if (K != I && (!OnlyThrough || int(K) == ThroughA || int(K) == ThroughB)) Wt *= Ease01(Dm[K] / 2.0);
 			Sum += Wt * RoadSurface(Mouths[I], At);
 			Weight += Wt;
 		}
 		return Weight > 1e-30 ? Sum / Weight : Mouths[0].P.Height;
+	};
+	const auto Surface = [&](const P2& At)
+	{
+		if (ThroughB >= 0)
+		{
+			double Dt = 1e9;
+			for (int T : {ThroughA, ThroughB})
+			{
+				const std::vector<P2>& L = Mouths[size_t(T)].Inner;
+				for (size_t K = 0; K + 1 < L.size(); ++K) Dt = std::fmin(Dt, ToSegment(At, L[K], L[K + 1]));
+			}
+			// (the lesser roads' own surfaces from 2.5 m off the through road's edge, or their mouths if nearer)
+			double Fade = 2.5;
+			for (size_t I = 0; I < Mouths.size(); ++I)
+				if (int(I) != ThroughA && int(I) != ThroughB)
+				{
+					P2 A, B;
+					MouthEnds(Mouths[I], A, B);
+					Fade = std::fmin(Fade, std::fmax(0.25, ToSegment(At, A, B) + (Dt - ThroughEdge)));
+				}
+			if (Dt <= ThroughEdge) return ArmsBlend(At, true);
+			const double Off = Ease01((Dt - ThroughEdge) / Fade);
+			if (Off >= 1.0) return ArmsBlend(At, false);
+			const double Ht = ArmsBlend(At, true);
+			return Ht + (ArmsBlend(At, false) - Ht) * Off;
+		}
+		return ArmsBlend(At, false);
 	};
 	// ([build 170] where only gravel lanes meet, the junction is their gravel)
 	const float* Top = AnyPaved ? Tarmac : Grit;

@@ -2893,11 +2893,15 @@ int main(int Argc, char** Argv)
 		const double Reach = 25.0, Cell = 0.25;
 		const int JCells = int(2.0 * Reach / Cell);
 		std::string DumpPrefix = std::getenv("WORLD_RIDE_JCHECK_DUMP") ? std::getenv("WORLD_RIDE_JCHECK_DUMP") : "";
-		const int Only = std::getenv("WORLD_RIDE_JCHECK_NODE") ? std::atoi(std::getenv("WORLD_RIDE_JCHECK_NODE")) : -1;
+		// (WORLD_RIDE_JCHECK_NODE=a,b,c: only those, each with its workings)
+		std::vector<int> OnlyNodes;
+		if (const char* On = std::getenv("WORLD_RIDE_JCHECK_NODE"))
+			for (const char* Q = On; *Q != 0;) { OnlyNodes.push_back(std::atoi(Q)); while (*Q != 0 && *Q != ',') ++Q; if (*Q == ',') ++Q; }
+		const int Only = OnlyNodes.empty() ? -1 : OnlyNodes.front();
 		std::map<int, std::string> Dumps;
 		for (int Nd = 0; Nd < int(G.Nodes.size()); ++Nd)
 		{
-			if (Only >= 0 && Nd != Only) continue;
+			if (Only >= 0 && std::find(OnlyNodes.begin(), OnlyNodes.end(), Nd) == OnlyNodes.end()) continue;
 			if (G.Adjacent[size_t(Nd)].size() < 3 || !Near(G.Nodes[size_t(Nd)])) continue;
 			const P2 C = G.Nodes[size_t(Nd)];
 			Rect Box{C.X - 60.0, C.Z - 60.0, C.X + 60.0, C.Z + 60.0};
@@ -3198,9 +3202,27 @@ int main(int Argc, char** Argv)
 						}
 						const P2 Hin = Along(Lin, 10.0) - C, Hout = Along(Lout, 10.0) - C;
 						const double Turn = std::acos(std::fmax(-1.0, std::fmin(1.0, -(Hin.X * Hout.X + Hin.Z * Hout.Z) / std::fmax(1e-6, std::hypot(Hin.X, Hin.Z) * std::hypot(Hout.X, Hout.Z)))));
-						const double V = Turn < 0.52 ? 13.0 : 6.0;
+						// (13 m/s straight on along the through road; 6 m/s turning, or coming out of a lesser road over or
+						// across it, given way as the law of the road has it: build 167, stop at Ts)
+						bool Minor = false;
+						{
+							const int Pi = size_t(Nd) < Plan->JunctionOfNode.size() ? Plan->JunctionOfNode[size_t(Nd)] : -1;
+							if (Pi >= 0)
+							{
+								const RidePlan::JunctionPlace& Jp = Plan->JunctionPlaces[size_t(Pi)];
+								bool AnyThrough = false, InThrough = false, OutThrough = false;
+								for (const RidePlan::JunctionArm& Ar : Jp.Arms)
+								{
+									AnyThrough = AnyThrough || Ar.Through;
+									if (Ar.Edge == Ein && Ar.Through) InThrough = true;
+									if (Ar.Edge == Eout && Ar.Through) OutThrough = true;
+								}
+								Minor = AnyThrough && !(InThrough && OutThrough);
+							}
+						}
+						const double V = Turn < 0.52 && !Minor ? 13.0 : 6.0;
 						double OffBy = 0.0, Jolt = 0.0, Pull = 0.0;
-						size_t JoltAt = 0;
+						size_t JoltAt = 0, PullAt = 0;
 						for (size_t I = 0; I < H.size(); ++I)
 						{
 							if (std::isnan(H[I])) { OffBy += 0.25; continue; }
@@ -3209,13 +3231,18 @@ int main(int Argc, char** Argv)
 								const double Jv = std::fabs((H[I + 1] - H[I]) - 0.5 * ((H[I] - H[I - 1]) + (H[I + 2] - H[I + 1])));   // (a step, not a crown's kink: half that)
 								if (Jv > Jolt) { Jolt = Jv; JoltAt = I; }
 							}
-							if (I >= 6 && I + 6 < H.size() && !std::isnan(H[I - 6]) && !std::isnan(H[I + 6])) Pull = std::fmax(Pull, V * V * std::fabs(H[I + 6] - 2.0 * H[I] + H[I - 6]) / (1.5 * 1.5));
+							if (I >= 6 && I + 6 < H.size() && !std::isnan(H[I - 6]) && !std::isnan(H[I + 6])) {
+								const double Pv = V * V * std::fabs(H[I + 6] - 2.0 * H[I] + H[I - 6]) / (1.5 * 1.5);
+								if (Pv > Pull) { Pull = Pv; PullAt = I; }
+							}
 						}
 						// (WORLD_RIDE_JCHECK_NODE: each turn, and where its worst step is)
 						if (Only >= 0)
 						{
-							std::printf("jturn %d -> %d: off %.1f jolt %.3f at %.1f m (%.1f, %.1f) pull %.1f |", Ein, Eout, OffBy, Jolt, JoltAt * 0.25, Even[JoltAt].X - C.X, Even[JoltAt].Z - C.Z, Pull);
+							std::printf("jturn %d: %d -> %d: off %.1f jolt %.3f at %.1f m (%.1f, %.1f) pull %.1f |", Nd, Ein, Eout, OffBy, Jolt, JoltAt * 0.25, Even[JoltAt].X - C.X, Even[JoltAt].Z - C.Z, Pull);
 							for (size_t I = JoltAt >= 4 ? JoltAt - 4 : 0; I < std::min(H.size(), JoltAt + 6); ++I) std::printf(" %.3f", H[I]);
+							std::printf(" | pull at %.1f m (%.1f, %.1f) from the middle %.1f m |", PullAt * 0.25, Even[PullAt].X - C.X, Even[PullAt].Z - C.Z, std::hypot(Even[PullAt].X - C.X, Even[PullAt].Z - C.Z));
+							for (size_t I = PullAt >= 12 ? PullAt - 12 : 0; I < std::min(H.size(), PullAt + 13); I += 2) std::printf(" %.3f", H[I]);
 							std::printf("\n");
 						}
 						++F.Turns;

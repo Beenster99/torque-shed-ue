@@ -1308,6 +1308,95 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			H[I] += Off * (1.0 - Smooth01(From / Over));
 		}
 	}
+	// [smooth junctions stage 3] (into a junction built whole, knots every metre and a half for its last 40 m, its
+	// height, tilt and kind straight between the knots it had: its rise evened out there by the metre, not bent at a
+	// knot every 4 m, the knocks a bike felt over a hill junction. After its heights are worked out on the knots it
+	// had, as every other road's are, so its evening out over 9 knots is no shorter)
+	const bool WholeEnd[2] = {!Circuit && WholeAt(E + 1, 0) >= 0, !Circuit && WholeAt(E + 1, 1) >= 0};
+	if (WholeEnd[0] || WholeEnd[1])
+	{
+		const double Total = Side.Length;
+		const double Reach0 = WholeEnd[1] ? WholeEase : std::fmin(WholeEase, std::fmax(Total * 0.5, Total - 10.0));
+		const double Reach1 = WholeEnd[0] ? WholeEase : std::fmin(WholeEase, std::fmax(Total * 0.5, Total - 10.0));
+		std::vector<P2> FineLine{Line.front()};
+		std::vector<double> FineH{H.front()}, FineAlong{Along.front()}, FineBanks{Banks.front()};
+		std::vector<char> FineKind{Kind.front()};
+		for (size_t I = 1; I < Line.size(); ++I)
+		{
+			const bool Near = (WholeEnd[0] && Along[I - 1] < Reach0) || (WholeEnd[1] && Along[I] > Total - Reach1);
+			const int Parts = Near ? std::max(1, int(std::ceil((Along[I] - Along[I - 1]) / 1.5))) : 1;
+			for (int K = 1; K < Parts; ++K)
+			{
+				const double T = double(K) / Parts;
+				FineLine.push_back(Line[I - 1] + (Line[I] - Line[I - 1]) * T);
+				FineH.push_back(H[I - 1] + (H[I] - H[I - 1]) * T);
+				FineAlong.push_back(Along[I - 1] + (Along[I] - Along[I - 1]) * T);
+				FineBanks.push_back(Banks[I - 1] + (Banks[I] - Banks[I - 1]) * T);
+				FineKind.push_back(Kind[I - 1] == Kind[I] ? Kind[I] : char(0));
+			}
+			FineLine.push_back(Line[I]); FineH.push_back(H[I]); FineAlong.push_back(Along[I]); FineBanks.push_back(Banks[I]); FineKind.push_back(Kind[I]);
+		}
+		Line.swap(FineLine); H.swap(FineH); Along.swap(FineAlong); Banks.swap(FineBanks); Kind.swap(FineKind);
+	}
+	// [smooth junctions stage 3] (into a junction built whole, its rise evened out over 12 m by the metre for its last
+	// 40 m, mirrored about its end so the end keeps its height and its slope: a grade's change spread over 12 m, not
+	// bent at one knot; twice, so no corner is left where the evening starts)
+	if (WholeEnd[0] || WholeEnd[1])
+		for (int Pass = 0; Pass < 2; ++Pass)
+		{
+			const std::vector<double> Was = H;
+			const auto HeightAt = [&Was, &Along](double A)
+			{
+				const auto It = std::lower_bound(Along.begin(), Along.end(), A);
+				if (It == Along.begin()) return Was.front();
+				if (It == Along.end()) return Was.back();
+				const size_t K = size_t(It - Along.begin());
+				const double Seg = std::fmax(1e-9, Along[K] - Along[K - 1]);
+				return Was[K - 1] + (Was[K] - Was[K - 1]) * ((A - Along[K - 1]) / Seg);
+			};
+			for (size_t I = 0; I < H.size(); ++I)
+				for (int End = 0; End < 2; ++End)
+				{
+					if (!WholeEnd[End]) continue;
+					const double From = End == 0 ? Along[I] : Side.Length - Along[I];
+					const double Reach = WholeEnd[1 - End] ? WholeEase : std::fmin(WholeEase, std::fmax(Side.Length * 0.5, Side.Length - 10.0));   // (a short road's other end, a junction of the old kind, left as it was)
+					if (From >= Reach) continue;
+					const double EndAt = End == 0 ? 0.0 : Side.Length, Sign = End == 0 ? 1.0 : -1.0;
+					const double H0 = End == 0 ? Was.front() : Was.back();
+					double Sum = 0.0;
+					int Count = 0;
+					for (double D = -6.0; D <= 6.001; D += 0.5)
+					{
+						const double S = From + D;   // (metres in from the end; past it, mirrored)
+						Sum += S >= 0.0 ? HeightAt(EndAt + Sign * S) : 2.0 * H0 - HeightAt(EndAt - Sign * S);
+						++Count;
+					}
+					const double Keep = Smooth01((From - Reach * 0.6) / (Reach * 0.4));
+					H[I] = Sum / Count + (H[I] - Sum / Count) * Keep;
+				}
+		}
+	// [smooth junctions stage 3] (a lesser road into a junction built whole: level with its end across the through
+	// road's width and half a metre more, rising to its own over 8 m beyond: the through road's surface is carried
+	// across the junction, and this road's own line, standing higher on a hill, brought the ground up through it)
+	for (int End = 0; End < 2; ++End)
+	{
+		if (!WholeEnd[End]) continue;
+		const int Ji = WholeAt(E + 1, End);
+		double Flat = -1.0;
+		bool Minor = false;
+		for (const JunctionArm& Arm : JunctionPlaces[size_t(Ji)].Arms)
+		{
+			if (Arm.Edge == int(E)) Minor = !Arm.Through;
+			if (Arm.Through) Flat = std::fmax(Flat, RoadX::Of(G, Arm.Edge, RoadLine::WidthOf(G.ClassOf(Arm.Edge))).Half + 0.5);
+		}
+		if (!Minor || Flat <= 0.0) continue;
+		const double H0 = End == 0 ? H.front() : H.back();
+		for (size_t I = 0; I < H.size(); ++I)
+		{
+			const double From = End == 0 ? Along[I] : Side.Length - Along[I];
+			if (From < Flat + 8.0) H[I] = H0 + (H[I] - H0) * Smooth01((From - Flat) / 8.0);
+		}
+	}
 	// Where it is by the ride's road. At a junction it has no deck of its own; where it goes over or
 	// under the ride's road with no junction (one of the two on a bridge or in a tunnel there), each
 	// keeps its own height.
