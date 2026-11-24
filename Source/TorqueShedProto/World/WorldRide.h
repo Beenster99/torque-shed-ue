@@ -1786,6 +1786,7 @@ public:
 		bool Lights = false, Dual = false, Unpaved = false;
 		int Ring = -1;                    // its roundabout in RoadRings
 		double Span = 0.0;                // the farthest two of its nodes are apart (m)
+		bool Made = false;                // [smooth junctions stage 4] a whole ring's own place, not the map's (PlanWholeJunctions)
 	};
 	static constexpr double JunctionMerge = 12.0, JunctionSlip = 30.0, JunctionGap = 35.0, JunctionStub = 4.0, JunctionSpanMost = 45.0;
 	std::vector<JunctionPlace> JunctionPlaces;
@@ -1801,6 +1802,7 @@ public:
 		std::vector<double> Cut;   // by arm (JunctionPlace::Arms)
 		double Corner = 6.0, Reach = 0.0;   // the corners' radius; how far from its middle its roads keep their own heights
 		int Owner = 0, OwnerEnd = 0;
+		std::vector<double> Flare;   // [smooth junctions stage 4] a ring's: each arm's corners' reach along the ring's edge (m)
 	};
 	static bool WholeJunctions;
 	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;
@@ -1828,6 +1830,15 @@ public:
 	static constexpr double WholeShapeCell = 0.5;
 	std::unordered_map<long long, std::vector<int>> WholeCells;   // whole junctions by 64 m cell of the ground they may lie on
 	void WholePiece(int Junction, RideMesh& Out, WholeShape* Shape = nullptr) const;
+	// [smooth junctions stage 4] A roundabout drawn as a circle built whole: one place (Made) whose inside is the ring's own
+	// edges (laid for their heights, not drawn) and whose arms are the roads onto it, cut WholeRingCut back; drawn as one
+	// band round the ring by bearing and a flared mouth to each arm, its surface the ring's own heights smoothed round,
+	// falling WholeRingFall outwards, blended into each arm's by its mouth.
+	void RingPiece(int Junction, RideMesh& Out, WholeShape* Shape) const;
+	void PlanWholeRing(size_t Junction, const std::vector<char>& OnRide);
+	std::unordered_map<int, int> WholeRingOf;   // a ring in RoadRings -> its whole place
+	double WholeRingTop(int Ring, const P2& At) const;   // its tarmac's surface at a point, NaN unless built whole
+	static constexpr double WholeRingFall = 0.015, WholeRingFlareLeast = 4.0, WholeRingPairLong = 40.0, WholeRingArmLeast = 25.0;
 	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here

@@ -2946,13 +2946,26 @@ int main(int Argc, char** Argv)
 			F.Node = Nd;
 			std::string Dump;
 			char Buf[160];
+			// ([smooth junctions stage 4] a road inside a junction built whole: that junction's piece, drawn with its owner's end,
+			// which may be across a roundabout from here)
+			std::vector<int> Owners;
 			for (int W : Roads)
 			{
+				const auto It = Plan->WholeInside.find(W);
+				if (It == Plan->WholeInside.end() || !Plan->WholeOf[size_t(It->second)].Ok) continue;
+				const int Ow = Plan->WholeOf[size_t(It->second)].Owner;
+				if (std::find(Owners.begin(), Owners.end(), Ow) == Owners.end()) Owners.push_back(Ow);
+			}
+			std::vector<int> Drawn = Roads;
+			for (int Ow : Owners) if (std::find(Roads.begin(), Roads.end(), Ow) == Roads.end()) Drawn.push_back(Ow);
+			for (int W : Drawn)
+			{
 				const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+				const bool Owner = std::find(Owners.begin(), Owners.end(), W) != Owners.end();
 				for (int First = 0; First < int(Pts.size()) - 1; First += 64)
 				{
 					const int Last = std::min(First + 64, int(Pts.size()) - 1);
-					bool Close = false;
+					bool Close = Owner;
 					for (int I = First; I <= Last && !Close; ++I) Close = Pts[size_t(I)].At.DistanceTo(C) < Reach + 20.0;
 					if (!Close) continue;
 					RideMesh M;
@@ -3111,7 +3124,7 @@ int main(int Argc, char** Argv)
 					for (size_t J = I + 1; J < Heads.size(); ++J)
 						Tightest = std::fmin(Tightest, std::acos(std::fmax(-1.0, std::fmin(1.0, Heads[I].X * Heads[J].X + Heads[I].Z * Heads[J].Z))));
 				const size_t N = G.Adjacent[size_t(Nd)].size();
-				F.Type = Mini ? "mini" : Ring >= 0 ? "ring" : Dual ? "dual" : Cluster ? "cluster" : Lights ? "lights" : Unpaved ? "unpaved"
+				F.Type = Mini ? "mini" : Ring >= 0 ? (Plan->RoadRings[size_t(Ring)].Circle ? "ring" : "ringmap") : Dual ? "dual" : Cluster ? "cluster" : Lights ? "lights" : Unpaved ? "unpaved"
 					: N >= 5 ? "multi" : N == 4 ? "cross" : Tightest < 0.87 ? "fork" : "T";
 			}
 			// [smooth junctions stage 1] The robot ride: every turn the rules allow, from 22 m out along one road to 22 m
@@ -3312,7 +3325,7 @@ int main(int Argc, char** Argv)
 			const Geo Ll = G.FrameOf().ToGeo(G.Nodes[size_t(F.Node)].X, G.Nodes[size_t(F.Node)].Z);
 			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
 				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "",
-				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : "",
+				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : ([&] { const int Rg = Plan->RingAt(F.Node); const auto It = Rg >= 0 ? Plan->WholeRingOf.find(Rg) : Plan->WholeRingOf.end(); return It != Plan->WholeRingOf.end() && Plan->WholeOf[size_t(It->second)].Ok; }() ? "  WHOLE" : ""),
 				std::any_of(G.Adjacent[size_t(F.Node)].begin(), G.Adjacent[size_t(F.Node)].end(), [&OnRide](int E) { return OnRide.count(E) > 0; }) ? "  ONRIDE" : "");
 		}
 		for (const auto& Kd : Kinds) std::printf("jcheck kind %s: %d junctions, %d bad, %d bad to ride, %d meet the standard\n", Kd.first.c_str(), Kd.second[0], Kd.second[1], Kd.second[2], Kd.second[3]);
