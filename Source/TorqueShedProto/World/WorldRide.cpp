@@ -1235,6 +1235,9 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, std::vector<double>(Raw.size(), OnRoundRing(E) ? 0.0 : RoadLine::FairOf(Class)));
 	// (the knots stop at the last whole step: on to the junction itself, so no road ends short of it)
 	if (Line.empty() || Line.back().DistanceTo(Raw.back()) > 0.3) Line.push_back(Raw.back());
+	// ([smooth junctions stage 5] a short piece the smoothing left as one point: as the map has it, not left out, a hole at its
+	// junction, York)
+	if (Line.size() < 2 && Raw.size() >= 2 && Raw.front().DistanceTo(Raw.back()) > 0.5) Line = Raw;
 	if (Line.size() < 2) return false;
 	// [OSM stage 5C] A motorway's half with its hard shoulder: laid that much further out on its nearside
 	// (the traffic's left in Britain), easing in over 30 m from an end on the ride's road.

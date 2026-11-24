@@ -1820,6 +1820,7 @@ public:
 	static bool WholeJunctions;
 	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;
 	std::vector<WholePlan> WholeOf;   // by JunctionPlaces
+	std::vector<unsigned char> WholeWhy;   // [smooth junctions stage 5] by JunctionPlaces: why not built whole (EWholeWhy), for the checker
 	std::unordered_map<long long, std::pair<int, double>> WholeEnds;   // (road * 2 + end) -> its junction, its cut
 	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
 	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
@@ -1828,6 +1829,7 @@ public:
 	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
 	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
 	static constexpr double WholeEase = 40.0;
+	static constexpr double WholeArmFollow = 25.0;   // [smooth junctions stage 5] an arm followed past plain map points until it is this long (m)
 	static constexpr double WholeRideClear = 12.0;   // [smooth junctions 3b] (m from the ride's road's middle)
 	static constexpr double MouthGroundReach = 9.0;   // [smooth junctions 3b] (a mouth's corner reaches 9 m at most: MouthCorner)   // the last metres of a road into a junction built whole: knots by the metre and a half, its rise evened out
 	bool WholeNear(int Which, const P2& At) const;   // a point of a road near a whole junction it is an arm of: its own heights, unsettled
