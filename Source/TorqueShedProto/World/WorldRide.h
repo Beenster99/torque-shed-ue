@@ -1759,6 +1759,79 @@ public:
 	int RoundRings();   // the rings near a circle made true arcs (before any road is laid): how many
 	static constexpr double RingStep = 2.0;
 	int RingAt(int Node) const;   // the ring a node is on, -1 none
+	// [smooth junctions stage 2] The map tidied into whole junctions before anything is built: the map's points a few
+	// metres apart that are one junction on the ground merged into one (a node cluster: a short link, a slip's small
+	// triangle, the two crossings of a dual carriageway's gap), a ring's nodes one roundabout, a dual carriageway's two
+	// halves arriving paired as one road, stubs under StubLeast dropped. Each gets a kind from the catalogue and its
+	// through road (the best class, then the straightest pair). Built once with the plan (IndexJunctions); the builders
+	// of stage 3 on lay their junctions from it.
+	struct JunctionArm
+	{
+		int Edge = -1, Node = -1;   // the road out, from which of the junction's nodes
+		P2 Away;                    // its heading out (first 20 m)
+		double Cost = 0.0;          // a metre of it the quick way (RoadLine::MainCostOf: lower is greater)
+		bool In = true, Out = true; // traffic may come in along it, leave along it
+		int Pair = -1;              // the arm that is the other half of its dual carriageway, -1 none
+		bool Through = false;       // one of the through road's arms
+		bool Unpaved = false;       // gravel, a track or setts
+	};
+	enum class EJunction : unsigned char { None, Bend, T, Cross, Stagger, Fork, Slip, Multi, Ring, Mini, DualGap };
+	struct JunctionPlace
+	{
+		std::vector<int> Nodes, Inside;   // the map's points merged into it; the edges wholly within it
+		P2 At;
+		std::vector<JunctionArm> Arms;    // round it anticlockwise from east, seen from above
+		int Roads = 0;                    // arms, a dual's paired halves counted once
+		EJunction Kind = EJunction::None;
+		bool Lights = false, Dual = false, Unpaved = false;
+		int Ring = -1;                    // its roundabout in RoadRings
+		double Span = 0.0;                // the farthest two of its nodes are apart (m)
+	};
+	static constexpr double JunctionMerge = 12.0, JunctionSlip = 30.0, JunctionGap = 35.0, JunctionStub = 4.0, JunctionSpanMost = 45.0;
+	std::vector<JunctionPlace> JunctionPlaces;
+	std::vector<int> JunctionOfNode;   // by node: its place in JunctionPlaces, -1 none (fewer than three roads)
+	void IndexJunctions();
+	static const char* JunctionKindName(EJunction Kind);
+	// [smooth junctions stage 3] A junction built whole (World/WorldRideWhole.cpp): its roads stop at mouth lines Cut
+	// metres in from their ends, and the junction between is one piece with one surface (WholePiece), drawn with its
+	// Owner road's piece at that end. Behind WholeJunctions (-TorqueJunctions=whole; SimTest WORLD_RIDE_WHOLE=1).
+	struct WholePlan
+	{
+		bool Ok = false;
+		std::vector<double> Cut;   // by arm (JunctionPlace::Arms)
+		double Corner = 6.0, Reach = 0.0;   // the corners' radius; how far from its middle its roads keep their own heights
+		int Owner = 0, OwnerEnd = 0;
+	};
+	static bool WholeJunctions;
+	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;
+	std::vector<WholePlan> WholeOf;   // by JunctionPlaces
+	std::unordered_map<long long, std::pair<int, double>> WholeEnds;   // (road * 2 + end) -> its junction, its cut
+	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
+	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
+	void PlanWholeJunctions();
+	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
+	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
+	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
+	static constexpr double WholeEase = 40.0;
+	static constexpr double WholeRideClear = 12.0;   // [smooth junctions 3b] (m from the ride's road's middle)
+	static constexpr double MouthGroundReach = 9.0;   // [smooth junctions 3b] (a mouth's corner reaches 9 m at most: MouthCorner)   // the last metres of a road into a junction built whole: knots by the metre and a half, its rise evened out
+	bool WholeNear(int Which, const P2& At) const;   // a point of a road near a whole junction it is an arm of: its own heights, unsettled
+	struct WholeShape   // a whole junction's tarmac as the ground needs it: its rim, and its surface on a half-metre grid
+	{
+		std::vector<P2> Rim;
+		double X0 = 0.0, Z0 = 0.0;
+		int Nx = 0, Nz = 0;
+		std::vector<float> H;
+		bool Inside(const P2& At) const;
+		double HeightAt(const P2& At) const;
+	};
+	static constexpr double WholeShapeCell = 0.5;
+	std::unordered_map<long long, std::vector<int>> WholeCells;   // whole junctions by 64 m cell of the ground they may lie on
+	void WholePiece(int Junction, RideMesh& Out, WholeShape* Shape = nullptr) const;
+	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
+	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
+	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
+	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
 	std::vector<unsigned char> RoundEdge;   // by edge: 1 on a ring drawn as a circle (IndexRings)
@@ -2030,4 +2103,10 @@ struct RideDetour
 	double ViaAlong = -1.0;
 	P2 Via;
 };
+// [smooth junctions stage 3] (WorldRideWhole.cpp's helpers, shared with the ride's road's mouths)
+namespace WholeJunctionBits
+{
+double ToSegment(const P2& P, const P2& A, const P2& B);
+void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears);
+}
 } // namespace TorqueWorld

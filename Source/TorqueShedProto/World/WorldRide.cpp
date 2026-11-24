@@ -43,7 +43,9 @@ struct RidePlan::Network
 	std::atomic<int> Blocks{0}, Bridges{0}, Tunnels{0};
 	std::mutex Fetching;                                          // one fetch of ground at a time
 	std::mutex Furnishing;                                        // Furnished
-	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;   // [ride anywhere 4] by (0 road | 1 block | 2 ring, its key)
+	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;
+	std::mutex Shaping;                                           // Shapes
+	std::unordered_map<int, std::shared_ptr<const RidePlan::WholeShape>> Shapes;   // [smooth junctions stage 3] by whole junction   // [ride anywhere 4] by (0 road | 1 block | 2 ring, its key)
 };
 
 namespace
@@ -284,6 +286,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	// [OSM stage 5B] The roundabouts found and the round ones made true circles, before any road is laid.
 	R->IndexRings();
 	if (R->RoundRings() > 0) R->IndexRings();
+	R->IndexJunctions();   // [smooth junctions stage 2] (the map's points tidied into whole junctions)
 	const Region& G = R->Area.Roads;
 	const std::vector<RideStep>& Steps = R->MadeSteps;
 	const int From = Steps.front().From;
@@ -673,6 +676,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	Tell("Laying the roads that meet it");
 	// ([156] the facts first too: a side road's mouth asks the class of the road it meets, FactAt)
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
+	R->PlanWholeJunctions();   // [smooth junctions stage 3] (which junctions are built whole: before any side road is laid)
 	R->LaySides(Path);
 	R->PlaceJunctions(RawAlong.empty() ? 0.0 : RawAlong.back());   // [junction priority] (after the map's own marks)
 	{
@@ -1306,6 +1310,95 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			H[I] += Off * (1.0 - Smooth01(From / Over));
 		}
 	}
+	// [smooth junctions stage 3] (into a junction built whole, knots every metre and a half for its last 40 m, its
+	// height, tilt and kind straight between the knots it had: its rise evened out there by the metre, not bent at a
+	// knot every 4 m, the knocks a bike felt over a hill junction. After its heights are worked out on the knots it
+	// had, as every other road's are, so its evening out over 9 knots is no shorter)
+	const bool WholeEnd[2] = {!Circuit && WholeAt(E + 1, 0) >= 0, !Circuit && WholeAt(E + 1, 1) >= 0};
+	if (WholeEnd[0] || WholeEnd[1])
+	{
+		const double Total = Side.Length;
+		const double Reach0 = WholeEnd[1] ? WholeEase : std::fmin(WholeEase, std::fmax(Total * 0.5, Total - 10.0));
+		const double Reach1 = WholeEnd[0] ? WholeEase : std::fmin(WholeEase, std::fmax(Total * 0.5, Total - 10.0));
+		std::vector<P2> FineLine{Line.front()};
+		std::vector<double> FineH{H.front()}, FineAlong{Along.front()}, FineBanks{Banks.front()};
+		std::vector<char> FineKind{Kind.front()};
+		for (size_t I = 1; I < Line.size(); ++I)
+		{
+			const bool Near = (WholeEnd[0] && Along[I - 1] < Reach0) || (WholeEnd[1] && Along[I] > Total - Reach1);
+			const int Parts = Near ? std::max(1, int(std::ceil((Along[I] - Along[I - 1]) / 1.5))) : 1;
+			for (int K = 1; K < Parts; ++K)
+			{
+				const double T = double(K) / Parts;
+				FineLine.push_back(Line[I - 1] + (Line[I] - Line[I - 1]) * T);
+				FineH.push_back(H[I - 1] + (H[I] - H[I - 1]) * T);
+				FineAlong.push_back(Along[I - 1] + (Along[I] - Along[I - 1]) * T);
+				FineBanks.push_back(Banks[I - 1] + (Banks[I] - Banks[I - 1]) * T);
+				FineKind.push_back(Kind[I - 1] == Kind[I] ? Kind[I] : char(0));
+			}
+			FineLine.push_back(Line[I]); FineH.push_back(H[I]); FineAlong.push_back(Along[I]); FineBanks.push_back(Banks[I]); FineKind.push_back(Kind[I]);
+		}
+		Line.swap(FineLine); H.swap(FineH); Along.swap(FineAlong); Banks.swap(FineBanks); Kind.swap(FineKind);
+	}
+	// [smooth junctions stage 3] (into a junction built whole, its rise evened out over 12 m by the metre for its last
+	// 40 m, mirrored about its end so the end keeps its height and its slope: a grade's change spread over 12 m, not
+	// bent at one knot; twice, so no corner is left where the evening starts)
+	if (WholeEnd[0] || WholeEnd[1])
+		for (int Pass = 0; Pass < 2; ++Pass)
+		{
+			const std::vector<double> Was = H;
+			const auto HeightAt = [&Was, &Along](double A)
+			{
+				const auto It = std::lower_bound(Along.begin(), Along.end(), A);
+				if (It == Along.begin()) return Was.front();
+				if (It == Along.end()) return Was.back();
+				const size_t K = size_t(It - Along.begin());
+				const double Seg = std::fmax(1e-9, Along[K] - Along[K - 1]);
+				return Was[K - 1] + (Was[K] - Was[K - 1]) * ((A - Along[K - 1]) / Seg);
+			};
+			for (size_t I = 0; I < H.size(); ++I)
+				for (int End = 0; End < 2; ++End)
+				{
+					if (!WholeEnd[End]) continue;
+					const double From = End == 0 ? Along[I] : Side.Length - Along[I];
+					const double Reach = WholeEnd[1 - End] ? WholeEase : std::fmin(WholeEase, std::fmax(Side.Length * 0.5, Side.Length - 10.0));   // (a short road's other end, a junction of the old kind, left as it was)
+					if (From >= Reach) continue;
+					const double EndAt = End == 0 ? 0.0 : Side.Length, Sign = End == 0 ? 1.0 : -1.0;
+					const double H0 = End == 0 ? Was.front() : Was.back();
+					double Sum = 0.0;
+					int Count = 0;
+					for (double D = -6.0; D <= 6.001; D += 0.5)
+					{
+						const double S = From + D;   // (metres in from the end; past it, mirrored)
+						Sum += S >= 0.0 ? HeightAt(EndAt + Sign * S) : 2.0 * H0 - HeightAt(EndAt - Sign * S);
+						++Count;
+					}
+					const double Keep = Smooth01((From - Reach * 0.6) / (Reach * 0.4));
+					H[I] = Sum / Count + (H[I] - Sum / Count) * Keep;
+				}
+		}
+	// [smooth junctions stage 3] (a lesser road into a junction built whole: level with its end across the through
+	// road's width and half a metre more, rising to its own over 8 m beyond: the through road's surface is carried
+	// across the junction, and this road's own line, standing higher on a hill, brought the ground up through it)
+	for (int End = 0; End < 2; ++End)
+	{
+		if (!WholeEnd[End]) continue;
+		const int Ji = WholeAt(E + 1, End);
+		double Flat = -1.0;
+		bool Minor = false;
+		for (const JunctionArm& Arm : JunctionPlaces[size_t(Ji)].Arms)
+		{
+			if (Arm.Edge == int(E)) Minor = !Arm.Through;
+			if (Arm.Through) Flat = std::fmax(Flat, RoadX::Of(G, Arm.Edge, RoadLine::WidthOf(G.ClassOf(Arm.Edge))).Half + 0.5);
+		}
+		if (!Minor || Flat <= 0.0) continue;
+		const double H0 = End == 0 ? H.front() : H.back();
+		for (size_t I = 0; I < H.size(); ++I)
+		{
+			const double From = End == 0 ? Along[I] : Side.Length - Along[I];
+			if (From < Flat + 8.0) H[I] = H0 + (H[I] - H0) * Smooth01((From - Flat) / 8.0);
+		}
+	}
 	// Where it is by the ride's road. At a junction it has no deck of its own; where it goes over or
 	// under the ride's road with no junction (one of the two on a bridge or in a tunnel there), each
 	// keeps its own height.
@@ -1701,6 +1794,7 @@ void RidePlan::KnotsOfBlock(long long Key) const
 		for (int End = 0; End < 2; ++End)
 		{
 			if (Sd != nullptr && Sd->Mouths[End].Is) continue;
+			if (W > 0 && (WholeAt(W, End) >= 0 || WholeHidden(W))) continue;   // [smooth junctions stage 3] (its junction is built whole)
 			const size_t I0 = End == 0 ? 0 : Pts.size() - 1;
 			const RoadPoint& P = Pts[I0];
 			if (P.Bridge || P.Tunnel || !Inside(P.At)) continue;
@@ -2088,6 +2182,22 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	}
 }
 
+double RidePlan::MouthCut(int Which, int End) const
+{
+	// [smooth junctions 3b] A side road's mouth on the ride's road drawn as one piece with its corners, from the ride's
+	// road's edge out to where both corners have met the side road's edges: no fan over the two roads, a hair above them
+	// (a 2 to 4 cm lip a tyre felt turning in or out, Hawes). Not a roundabout's, nor a through road's arm (a far edge).
+	if (!WholeJunctions || Which <= 0 || End < 0 || End > 1) return -1.0;
+	const SideRoad* Sd = SideOf(Which);
+	if (Sd == nullptr || Sd->Pts.size() < 2) return -1.0;
+	const Mouth& M = Sd->Mouths[End];
+	if (!M.Is || M.Ring || M.Flare || M.MainIndex < 0 || size_t(M.MainIndex) >= Road.size()) return -1.0;
+	if (Sd->Edge >= 0 && FarEdges.count(static_cast<long long>(Sd->Edge) * 2 + End) > 0) return -1.0;
+	const double Cut = std::fmax(M.Clear[0], M.Clear[1]) + 0.3;
+	if (Cut > Sd->Length * 0.45 || Cut > M.From + 25.0) return -1.0;
+	return Cut;
+}
+
 void RidePlan::MouthCorner(const Mouth& M, const P2& MainAt, double Half, double Sigma, P2& Corner, P2& AlongMain, double& Reach)
 {
 	// The side road's edge, followed back to the ride's road's edge (a line, near enough, by the mouth).
@@ -2330,7 +2440,52 @@ double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bo
 	// (beenster, build 147, Whaley Bridge: a road's bank cut away the bank a railway beside it stands on,
 	// leaving the line in the air. Off the road's bench the railway's own bank and cutting win.)
 	if (RailBed && Hit.Dist > Flat + 0.3) Out = std::fmax(Out, RailLevel - RailRise);
+	// [smooth junctions 3b] In a side road's mouth on the ride's road drawn whole (MouthCut), under the lower of the two
+	// roads: the piece's corners run between them at a blend of their heights, and the ground benched to the nearer one
+	// came up through it 5 cm in a fork's corner (Keswick; Hartsop's dirt patch where the lane meets the tarmac). By
+	// 30 cm at most, so the field beside a mouth is not dug out where the two roads lie far apart in height.
+	if (WholeJunctions && Wider <= 0.0 && !Hit.Deck && !Hit.Bore && Hit.Dist <= Hit.Half + MouthGroundReach && !std::isnan(Out))
+	{
+		NearHit H0, Hs;
+		bool Got0 = Hit.Which == 0, GotS = Hit.Which > 0;
+		if (Got0) H0 = Hit; else if (GotS) Hs = Hit;
+		NearOpts Other = Opts;
+		Other.NoDecks = true;
+		if (!Got0) { Other.OnlyRoad = 0; Got0 = NearestOf(X, Z, Other, H0) && !H0.Deck && !H0.Bore; }
+		else { Other.NotRoad = 0; GotS = NearestOf(X, Z, Other, Hs) && Hs.Which > 0 && !Hs.Deck && !Hs.Bore; }
+		const SideRoad* Sr = GotS ? SideOf(Hs.Which) : nullptr;
+		if (Got0 && Sr != nullptr && H0.Dist <= H0.Half + MouthGroundReach && Hs.Dist <= Hs.Half + MouthGroundReach)
+		{
+			const int End = Hs.Along < Sr->Length * 0.5 ? 0 : 1;
+			const double Cut = MouthCut(Hs.Which, End);
+			const double FromEnd = End == 0 ? Hs.Along : Sr->Length - Hs.Along;
+			if (Cut > 0.0 && FromEnd <= Cut + 1.0)
+			{
+				const double Low = std::fmin(H0.Height + H0.Cross, JoinedHeight(Hs.Which, P2(X, Z), Hs.Height + Hs.Cross)) - Sink;
+				Out = std::fmax(std::fmin(Out, Low), Out - 0.3);
+			}
+		}
+	}
+	Out = WholeGround(X, Z, Out);   // [smooth junctions stage 3]
 	return std::isnan(Clear) ? Out : std::fmin(Out, Clear);
+}
+
+// [smooth junctions stage 3] (WorldRideWhole.cpp's: here, where the network's insides are known)
+std::shared_ptr<const RidePlan::WholeShape> RidePlan::WholeShapeOf(int Ji) const
+{
+	if (Net == nullptr) return nullptr;
+	{
+		std::lock_guard<std::mutex> Hold(Net->Shaping);
+		const auto It = Net->Shapes.find(Ji);
+		if (It != Net->Shapes.end()) return It->second;
+	}
+	// (made outside the lock, from the roads as laid: none until every arm is laid, and then kept)
+	std::shared_ptr<WholeShape> Made = std::make_shared<WholeShape>();
+	RideMesh Unused;
+	WholePiece(Ji, Unused, Made.get());
+	if (Made->Rim.size() < 3 || Made->H.empty()) return nullptr;
+	std::lock_guard<std::mutex> Hold(Net->Shaping);
+	return Net->Shapes.emplace(Ji, Made).first->second;
 }
 
 double RidePlan::RoadHeight(double X, double Z) const
@@ -2611,6 +2766,7 @@ double RidePlan::JoinedHeightDeep(int Which, const P2& At, double Y, int Depth) 
 	// surfaces at one place fought (the flicker at junctions in build 140), and a flat side road laid
 	// across a main road on a slope stood proud of it at one edge (the slight bump).
 	if (Which <= 0) return Y;
+	if (WholeNear(Which, At)) return Y;   // [smooth junctions stage 3] (its own heights up to its mouth: the junction meets them)
 	// (the ride's road first; then whichever side road made before it is nearest)
 	// ([crunched junctions, 169] the nearest road it settles onto: a lesser road nearer (one that settles onto
 	// it) stood in the way, and where three roads lie over each other at a junction this one kept its own
@@ -2724,6 +2880,7 @@ double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, d
 {
 	// (as JoinedHeight: the ride's road first, then whichever other road is nearest)
 	if (Which <= 0) return Y;
+	if (WholeNear(Which, At)) return Y;   // [smooth junctions stage 3]
 	if (!Set.Holds(At)) return JoinedHeight(Which, At, Y);
 	for (int Pass = 0; Pass < 2; ++Pass)
 	{
@@ -2746,6 +2903,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	if (Which < 0 || Which >= RoadCount()) return;
 	const SideRoad* Mine = Which > 0 ? SideOf(Which) : nullptr;
 	if (Which > 0 && Mine == nullptr) return;
+	if (WholeHidden(Which)) return;   // [smooth junctions stage 3] (wholly inside a junction built whole: its piece covers it)
 	const std::vector<RoadPoint>& Pts = RoadOf(Which);
 	First = std::max(0, First);
 	Last = std::min(int(Pts.size()) - 1, Last);
@@ -2759,7 +2917,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const auto It = Mine != nullptr && Mine->Edge >= 0 ? ThroughEnds.find(static_cast<long long>(Mine->Edge) * 2 + End) : ThroughEnds.end();
 		return It == ThroughEnds.end() ? 12.0 : It->second;
 	};
-	const double PaintFrom = Which == 0 ? -1.0 : ThroughEnd(0), PaintTo = Which == 0 ? 1e18 : Mine->Length - ThroughEnd(1);
+	double PaintFrom = Which == 0 ? -1.0 : ThroughEnd(0), PaintTo = Which == 0 ? 1e18 : Mine->Length - ThroughEnd(1);
+	// [smooth junctions stage 3] (at a junction built whole, on to its mouth: its piece paints on from there)
+	if (Which > 0 && WholeCut(Which, 0) > 0.0) PaintFrom = WholeCut(Which, 0);
+	if (Which > 0 && WholeCut(Which, 1) > 0.0) PaintTo = Mine->Length - WholeCut(Which, 1);
 	// (the Godot game's colours, linear: tarmac, the verge (worn grass and grit: the Godot gravel read as a pale
 	// band beside the road in build 140), paint)
 	// [build 147] (and the verge's grass: the shoulder runs from grit at the tarmac's edge to grass, which
@@ -2830,6 +2991,51 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Nz = -Dir.Z * Rise / Nl;
 		if (size_t(I) < RaceLine.size()) { R.Line = RaceLine[size_t(I)]; R.Brake = RaceBrake[size_t(I)]; }
 		Rows.push_back(R);
+	}
+	// [smooth junctions stage 3] (an end at a junction built whole: the road stops at its mouth line, square across, Cut
+	// metres in from that end; the junction's piece is drawn from that same row (CutRow))
+	if (Which > 0 && !Rows.empty() && WholeJunctions)
+	{
+		const double Long = Pts.back().Along;
+		const auto CutRowOf = [&](double Along)
+		{
+			RoadPoint P;
+			P2 Dir;
+			double Rise = 0.0;
+			CutRow(Pts, Along, P, Dir, Rise);
+			const double Nl = std::sqrt(1.0 + Rise * Rise);
+			Row R;
+			R.At = P.At; R.Left = P2(Dir.Z, -Dir.X); R.Height = P.Height; R.Half = P.Half; R.Lanes = P.Lanes; R.OneWay = P.OneWay;
+			R.Shoulder = P.Shoulder; R.Near = P.Near; R.Park = P.Park; R.Along = P.Along; R.Deck = P.Bridge; R.Bank = P.Bank; R.Bore = P.Tunnel;
+			R.Nx = -Dir.X * Rise / Nl; R.Ny = 1.0 / Nl; R.Nz = -Dir.Z * Rise / Nl;
+			return R;
+		};
+		const double CutA = WholeCut(Which, 0), CutB = WholeCut(Which, 1);
+		if (CutA > 0.0 && Rows.front().Along < CutA)
+		{
+			size_t Drop = 0;
+			while (Drop < Rows.size() && Rows[Drop].Along <= CutA) ++Drop;
+			Rows.erase(Rows.begin(), Rows.begin() + long(Drop));
+			Rows.insert(Rows.begin(), CutRowOf(CutA));
+		}
+		if (CutB > 0.0 && Rows.back().Along > Long - CutB)
+		{
+			while (!Rows.empty() && Rows.back().Along >= Long - CutB) Rows.pop_back();
+			Rows.push_back(CutRowOf(Long - CutB));
+		}
+		// (a piece wholly within a junction's mouth: nothing of it)
+		if (Rows.size() < 2 || Rows.back().Along <= Rows.front().Along + 0.01)
+		{
+			Out = RideMesh();
+			Out.OriginX = Pts[size_t(First)].At.X;
+			Out.OriginZ = Pts[size_t(First)].At.Z;
+			for (int End = 0; End < 2; ++End)
+			{
+				const int Wj = (End == 0 ? First == 0 : Last == int(Pts.size()) - 1) ? WholeAt(Which, End) : -1;
+				if (Wj >= 0 && WholeOf[size_t(Wj)].Owner == Which && WholeOf[size_t(Wj)].OwnerEnd == End) WholePiece(Wj, Out);
+			}
+			return;
+		}
 	}
 	// ([build 150] the other roads' bits near this piece gathered once for all its points; a point
 	// outside the box they were gathered for asks NearestOf itself)
@@ -3284,12 +3490,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const Mouth& M = Side.Mouths[End];
 			if (!M.Is) continue;
 			double Fa = End == 0 ? RowA.Along : Side.Length - RowA.Along, Fb = End == 0 ? RowB.Along : Side.Length - RowB.Along;
-			if (std::fmax(Fa, Fb) <= M.From) { UnderMain = true; break; }
-			if (std::fmin(Fa, Fb) < M.From)
+			// ([smooth junctions 3b] a mouth drawn whole: its piece is the road up to where its corners end)
+			const double Hide = std::fmax(M.From, MouthCut(Which, End));
+			if (std::fmax(Fa, Fb) <= Hide) { UnderMain = true; break; }
+			if (std::fmin(Fa, Fb) < Hide)
 			{
-				const double T = (M.From - Fa) / (Fb - Fa);
-				if (Fa < Fb) { RowA = Between(RowA, RowB, T); Fa = M.From; }
-				else { RowB = Between(RowA, RowB, T); Fb = M.From; }
+				const double T = (Hide - Fa) / (Fb - Fa);
+				if (Fa < Fb) { RowA = Between(RowA, RowB, T); Fa = Hide; }
+				else { RowB = Between(RowA, RowB, T); Fb = Hide; }
 			}
 			// (the left as this road's points run is Away's left from its first end, its right from its last)
 			for (int Sd = 0; Sd < 2; ++Sd)
@@ -4375,6 +4583,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (End == 0 ? First != 0 : Last != Count - 1) continue;
 		const Knot* K = KnotAt(Which, End);
 		if (K != nullptr && K->Owner == Which && K->OwnerEnd == End) KnotPiece(*K, Out);
+		// [smooth junctions stage 3] (a junction built whole, drawn with its owner's end)
+		const int Wj = Which > 0 ? WholeAt(Which, End) : -1;
+		if (Wj >= 0 && WholeOf[size_t(Wj)].Owner == Which && WholeOf[size_t(Wj)].OwnerEnd == End) WholePiece(Wj, Out);
 	}
 	// A side road's mouths on the ride's road, each with the piece its end is in.
 	for (int End = 0; End < 2 && Which > 0; ++End)
@@ -4415,6 +4626,56 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const FarEdge* Far = FarIt != FarEdges.end() && FarIt->second.Pts.size() >= 2 ? &FarIt->second : nullptr;
 		static constexpr int MostSegs = 16;
 		const int Segs = Far != nullptr ? MostSegs : 6;
+		// [smooth junctions 3b] (drawn whole: the piece's surface, the ride's road's own at its edge, the side road's as
+		// drawn at the mouth line where its rows start, eased between by how far each is)
+		const double MCut = Far == nullptr ? MouthCut(Which, End) : -1.0;
+		const bool WholeMouth = MCut > 0.0;
+		P2 MouthL, MouthR, MouthLeft;
+		if (WholeMouth)
+		{
+			RoadPoint Mp;
+			P2 Md;
+			double Mr = 0.0;
+			CutRow(Pts, End == 0 ? MCut : Mine->Length - MCut, Mp, Md, Mr);
+			const P2 Aw = End == 0 ? Md : Md * -1.0;
+			MouthLeft = P2(Aw.Z, -Aw.X);
+			MouthL = Mp.At + MouthLeft * Mp.Half;
+			MouthR = Mp.At - MouthLeft * Mp.Half;
+		}
+		// (the ride's road's height read along the mouth's own line, not at its nearest point: inside a kink the nearest
+		// point skips a metre along, an 11 cm step up a 12% hill in the piece, Whaley)
+		const double MainAlong0 = Road[size_t(M.MainIndex)].Along;
+		const auto MainHeightAlong = [this](double AlongQ)
+		{
+			const auto Past = std::lower_bound(Road.begin(), Road.end(), AlongQ, [](const RoadPoint& Rp, double Vq) { return Rp.Along < Vq; });
+			if (Past == Road.begin()) return Road.front().Height;
+			if (Past == Road.end()) return Road.back().Height;
+			const RoadPoint& Pb = *Past;
+			const RoadPoint& Pa = *(Past - 1);
+			const double Gap = Pb.Along - Pa.Along;
+			return Gap > 1e-6 ? Pa.Height + (Pb.Height - Pa.Height) * ((AlongQ - Pa.Along) / Gap) : Pb.Height;
+		};
+		const auto EdgeSurface = [&, this](int Of, const P2& At, double Else, double& Out2)
+		{
+			NearOpts Opts;
+			Opts.OnlyRoad = Of;
+			NearHit Hit;
+			Out2 = 0.0;
+			if (!NearestOf(At.X, At.Z, Opts, Hit)) return Else;
+			Out2 = std::fmax(0.0, Hit.Dist - Hit.Half);
+			if (Of == 0 && !Hit.Deck && !Hit.Bore) Hit.Height = MainHeightAlong(MainAlong0 + Dot(At - MainAt, M.Along));
+			const double Y = Hit.Height + Hit.Cross;   // (Cross held at the edge beyond it)
+			return Of == 0 || Hit.Deck || Hit.Bore ? Y : JoinedHeight(Of, At, Y);
+		};
+		const auto PieceH = [&](const P2& At)
+		{
+			double Off0 = 0.0, OffS = 0.0;
+			const double R0 = EdgeSurface(0, At, MouthH, Off0);
+			const double Sv = EdgeSurface(Which, At, R0, OffS);
+			const double Dm = WholeJunctionBits::ToSegment(At, MouthL, MouthR);
+			const double T = std::clamp(Off0 / std::fmax(1e-3, Off0 + Dm), 0.0, 1.0);
+			return R0 + (Sv - R0) * (T * T * (3.0 - 2.0 * T));
+		};
 		P2 Rim[2 * (MostSegs + 1)];
 		double RimH[2 * (MostSegs + 1)];
 		for (int Sd = 0; Sd < 2; ++Sd)
@@ -4477,6 +4738,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Rim[At4] = CurveAt[S];
 				RimH[At4] = CurveH[S];
 			}
+			if (WholeMouth)
+				for (int S = 0; S <= Segs; ++S) CurveH[S] = PieceH(CurveAt[S]);   // [smooth junctions 3b] (kerbs and verges on the piece)
 			if (FarSide)
 			{
 				// [true T] (the fan on this side out to the arm's corner and back along the ride's road's edge; the
@@ -4579,6 +4842,50 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// ([square T] in rings out from the hub, each point on the higher of the two roads' surfaces there and
 		// a hair over: one flat triangle from the hub to a corner far off sagged under the ground between,
 		// Buxworth, where the side road runs downhill from the junction)
+		if (WholeMouth)
+		{
+			// [smooth junctions 3b] (the piece's rim: the left corner out to the side road, its left edge on to the mouth
+			// line, across it, the right edge back, the right corner in, and the ride's road's edge back between them)
+			std::vector<P2> Poly;
+			for (int S = 0; S <= Segs; ++S) Poly.push_back(Rim[S]);
+			const auto SideEdge = [&](double From, double To, double Sign)
+			{
+				const int Steps = std::max(1, int(std::ceil(std::fabs(To - From))));
+				for (int K = 1; K < Steps; ++K)
+				{
+					const double A = From + (To - From) * K / Steps;
+					RoadPoint Q;
+					P2 Qd;
+					double Qr = 0.0;
+					CutRow(Pts, End == 0 ? A : Mine->Length - A, Q, Qd, Qr);
+					const P2 Aw = End == 0 ? Qd : Qd * -1.0;
+					Poly.push_back(Q.At + P2(Aw.Z, -Aw.X) * (Sign * Q.Half));
+				}
+			};
+			SideEdge(M.Clear[0], MCut, 1.0);
+			const int AcrossSteps = std::max(2, int(std::ceil(MouthL.DistanceTo(MouthR) / 1.2)));
+			for (int K = 0; K <= AcrossSteps; ++K) Poly.push_back(MouthL + (MouthR - MouthL) * (double(K) / AcrossSteps));
+			SideEdge(MCut, M.Clear[1], -1.0);
+			for (int S = Segs + 1; S < 2 * (Segs + 1); ++S) Poly.push_back(Rim[S]);
+			{
+				const P2 From = Rim[2 * Segs + 1], To = Rim[0];
+				const int Steps = std::max(1, int(std::ceil(From.DistanceTo(To))));
+				NearOpts OnMain;
+				OnMain.OnlyRoad = 0;
+				for (int K = 1; K < Steps; ++K)
+				{
+					const P2 P = From + (To - From) * (double(K) / Steps);
+					NearHit Hit;
+					Poly.push_back(NearestOf(P.X, P.Z, OnMain, Hit) && Hit.Dist > 1e-6 ? Hit.Foot + (P - Hit.Foot) * (Hit.Half / Hit.Dist) : P);
+				}
+			}
+			std::vector<P2> Pt;
+			std::vector<std::array<size_t, 3>> Tris;
+			WholeJunctionBits::FillRim(Poly, 2, Pt, Tris);
+			std::vector<P3> V(Pt.size());
+			for (size_t I = 0; I < Pt.size(); ++I) V[I] = At3(Pt[I], PieceH(Pt[I]));
+			for (const std::array<size_t, 3>& T : Tris) Quad3(V[T[0]], V[T[1]], V[T[2]], V[T[0]], Sky, Tarmac, false);
+		}
 		static constexpr int Rings = 4;
 		const P3 FanHub = At3(Hub, Surface(0, Hub, MouthH) - 0.01);
 		const auto FanAt = [&](int S, int K)
@@ -4599,7 +4906,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			if (NearestOf(P.X, P.Z, OnSide, Hit) && Hit.Dist < Hit.Half - 0.1) return At3(P, Surface(Which, P, Plane) - 0.01);
 			return At3(P, std::fmax(Plane, std::fmax(Surface(0, P, Plane), Surface(Which, P, Plane)) + 0.012));
 		};
-		for (int S = 0; S + 1 < 2 * (Segs + 1); ++S)
+		for (int S = 0; S + 1 < 2 * (Segs + 1) && !WholeMouth; ++S)
 			for (int K = 0; K < Rings; ++K)
 			{
 				const P3 A0 = FanAt(S, K), B0 = FanAt(S + 1, K), A1 = FanAt(S, K + 1), B1 = FanAt(S + 1, K + 1);
@@ -4630,7 +4937,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const P2 A0 = M.At + M.Along * U + M.Across * (Back - 0.1), A1 = M.At + M.Along * (U + 0.6) + M.Across * (Back - 0.1);
 				const P2 B0 = A0 + M.Across * 0.2, B1 = A1 + M.Across * 0.2;
 				// (on whichever is the higher there: the side road's surface or the threshold's)
-				const auto Top = [&Surface, Which, MouthH](const P2& At) { return std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.025; };
+				const auto Top = [&](const P2& At) { return WholeMouth ? PieceH(At) + 0.004 : std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.025; };
 				Quad3(At3(A0, Top(A0)), At3(A1, Top(A1)), At3(B1, Top(B1)), At3(B0, Top(B0)), Sky, Paint, false);
 			}
 	}
