@@ -506,6 +506,9 @@ public:
 	static constexpr double KnotFork = 0.87, KnotNoseMost = 40.0;   // (a fork's tarmac between them reaches this far out at most)
 	// A knot's fan, its corners' shoulders, into Out (in Out's own origin).
 	void KnotPiece(const Knot& K, RideMesh& Out) const;
+	// [build 170, Hartsop] Whether a knot has a road of tarmac (or setts) among its arms; where only gravel
+	// lanes meet it is gravel too, with no tarmac tongues reaching out along them.
+	bool KnotPaved(const Knot& K) const;
 	// [ride anywhere] Every road: 0 is the ride's own; every other road of the area (its network) is
 	// 1 + its edge in Area.Roads, from junction to junction. Those near the ride's road (SideReach) are
 	// laid with the plan (their mouths are on it): PlanSides. Every other one is laid a block of
