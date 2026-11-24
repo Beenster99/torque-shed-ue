@@ -105,6 +105,17 @@ struct Looks
 	double FogDull = 2.0, FogWet = 3.0;
 	// The haze's own glow by night (a trace for the moon and the towns), as a share of the day's.
 	double FogNightGlow = 0.006;
+	// [lighting pass, build 170] beenster on 169 (Hartsop, overcast): "the whole scene doesn't feel properly
+	// lit". The haze's glow was a fixed grey while a dull sky dims the light and opens the camera
+	// ExposureDullStops: on screen the haze came out up to three times brighter and veiled the near fields
+	// grey, so anything brighter or greener (houses, near trees) stood out of the veil. The glow now follows
+	// the light down by this share of those stops (0 the old fixed glow, 1 fully).
+	double FogFollowLight = 0.35;
+	// The camera's adaptation, stops a second brightening and darkening (the level's were 2 and 1.5: riding in
+	// and out of a cloud's shadow or past a bright sky the whole scene pumped, beenster on 169).
+	double ExposureSpeedUp = 0.8, ExposureSpeedDown = 0.6;
+	// The light through the leaves (M_Tree's glow) left under a dull sky: 1 - this x the dullness.
+	double LeafGlowDull = 0.6;
 
 	// --- Cloud (stage 2) ---
 	// The cover as drawn, by the real cover: perspective bunches clouds towards the horizon, so half
@@ -337,6 +348,8 @@ struct Sky
 	double MieScale = 1.0, RayleighScale = 1.0;   // times the level's atmosphere
 	double FogScale = 1.0;       // times the level's height fog (the viewer's haze included)
 	double FogGlow = 1.0, FogSunGlow = 1.0;       // the fog's own glow and its glow towards the sun, times the level's
+	double FogLight = 1.0;       // [build 170] the haze's glow following a dull sky's dimmer light (times the above)
+	double LeafGlow = 1.0;       // [build 170] the light through the leaves left (MPC_Weather LeafGlow)
 	double ExposureStops = 0.0;  // added to the level's exposure bias
 	double ExposureOpenStops = 0.0;   // by day, how far below the level's lowest exposure the camera may open
 	double SkyFill = 1.0;        // the sky light in the shade, times the level's (on top of SkyLightScale)
