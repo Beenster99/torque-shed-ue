@@ -334,6 +334,10 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	{
 		P2 Hub, In, Out;   // the junction, and each road's line into it this far out
 		double Radius = 6.0;
+		// [crunched junctions, 169] (the map's line on out past In and Out, nearest first, up to 40 m: where the
+		// smoothed line has rejoined it, the turn is spliced in)
+		std::vector<P2> Back, On;
+		double RawAt = 0.0;   // (how far along the map's line of the ride it is)
 	};
 	std::vector<SquareTurn> Squares;
 	{
@@ -434,6 +438,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			}
 			SquareTurn Sq;
 			Sq.Hub = Raw[Mid];
+			Sq.RawAt = RawAlong[Mid];
 			Sq.Radius = std::clamp(J.MajorHalf + 2.5, 5.0, 9.0);
 			bool Both = true;
 			for (const int Way : {-1, 1})
@@ -445,6 +450,13 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 				if (EndA <= 0.0 || EndA >= RawAlong.back()) { Both = false; continue; }
 				const P2 Hub = Raw[Mid], Far = PointAt(EndA);
 				(Way < 0 ? Sq.In : Sq.Out) = Far;
+				std::vector<P2>& Beyond = Way < 0 ? Sq.Back : Sq.On;
+				for (double D = Span + 1.0; D <= Span + 40.0; D += 1.0)
+				{
+					const double At = RawAlong[Mid] + Way * D;
+					if (At <= 0.0 || At >= RawAlong.back()) break;
+					Beyond.push_back(PointAt(At));
+				}
 				for (size_t I = 0; I < Raw.size(); ++I)
 				{
 					const double D = (RawAlong[I] - RawAlong[Mid]) * Way;
@@ -494,20 +506,42 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		const P2 U0 = InD * (1.0 / Li), U1 = OutD * (1.0 / Lo);
 		const double Cos = std::clamp(U0.X * U1.X + U0.Z * U1.Z, -1.0, 1.0);
 		const double Theta = std::acos(Cos);
-		if (Theta < 0.3 || Theta > 2.6) continue;
+		// ([crunched junctions, 169] up to a hairpin of 160 degrees: past 150, as the A592 onto The Struggle at
+		// Kirkstone Pass, the turn was left to the smoothing, which swung the ride's road round in a loop 20 m
+		// inside the junction and left the other arm's end standing alone with a hole of grass between)
+		if (Theta < 0.3 || Theta > 2.8) continue;
 		double Radius = Sq.Radius;
 		double Cut = Radius * std::tan(Theta * 0.5);
 		const double Most = std::fmin(Li, Lo) - 2.0;
 		if (Cut > Most) { Cut = Most; Radius = Cut / std::tan(Theta * 0.5); }
 		const P2 T0 = Sq.Hub - U0 * Cut, T1 = Sq.Hub + U1 * Cut;
-		// (the knots nearest where the straight lines begin and end: In and Out)
-		size_t A = 0, B = 0;
-		for (size_t I = 0; I < Line.size(); ++I)
+		// (the knots nearest where the straight lines begin and end: In and Out; [crunched junctions, 169] or,
+		// where the smoothing pulled the line away there (a sharp turn opened into a loop), where it is back on
+		// the map's line further out, the map's line followed in from there)
+		// (only the knots within 100 m of the junction along the road: a ride up a dead end and back passes the
+		// same places twice)
+		std::vector<double> LineAt(Line.size(), 0.0);
+		for (size_t I = 1; I < Line.size(); ++I) LineAt[I] = LineAt[I - 1] + Line[I].DistanceTo(Line[I - 1]);
+		const double ToRaw = !LineAt.empty() && LineAt.back() > 0.0 && !RawAlong.empty() ? RawAlong.back() / LineAt.back() : 1.0;
+		const auto Rejoin = [&Line, &LineAt, ToRaw, &Sq](const P2& Start, const std::vector<P2>& Further, size_t& Index, std::vector<P2>& Lead)
 		{
-			if (Line[I].DistanceTo(Sq.In) < Line[A].DistanceTo(Sq.In)) A = I;
-			if (Line[I].DistanceTo(Sq.Out) < Line[B].DistanceTo(Sq.Out)) B = I;
-		}
-		if (B <= A + 1 || Line[A].DistanceTo(Sq.In) > 4.0 || Line[B].DistanceTo(Sq.Out) > 4.0) continue;
+			std::vector<P2> Chain = {Start};
+			Chain.insert(Chain.end(), Further.begin(), Further.end());
+			for (size_t C = 0; C < Chain.size(); ++C)
+			{
+				size_t Best = Line.size();
+				for (size_t I = 0; I < Line.size(); ++I)
+					if (std::fabs(LineAt[I] * ToRaw - Sq.RawAt) < 100.0 && (Best == Line.size() || Line[I].DistanceTo(Chain[C]) < Line[Best].DistanceTo(Chain[C]))) Best = I;
+				if (Best == Line.size() || Line[Best].DistanceTo(Chain[C]) > (C == 0 ? 4.0 : 1.0)) continue;
+				Index = Best;
+				Lead.assign(Chain.begin(), Chain.begin() + static_cast<long>(C));   // (nearest the hub first)
+				return true;
+			}
+			return false;
+		};
+		size_t A = 0, B = 0;
+		std::vector<P2> LeadIn, LeadOut;
+		if (!Rejoin(Sq.In, Sq.Back, A, LeadIn) || !Rejoin(Sq.Out, Sq.On, B, LeadOut) || B <= A + 1) continue;
 		std::vector<P2> Mid;
 		const auto Straight = [&Mid](const P2& P0, const P2& P1, double Each)
 		{
@@ -515,7 +549,12 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			const int N = std::max(1, int(std::ceil(L / Each)));
 			for (int K = 1; K < N; ++K) Mid.push_back(P0 + (P1 - P0) * (double(K) / N));
 		};
-		Straight(Line[A], T0, RoadLine::Step);
+		{
+			P2 Walk = Line[A];
+			for (size_t K = LeadIn.size(); K-- > 0;) { Straight(Walk, LeadIn[K], RoadLine::Step); Mid.push_back(LeadIn[K]); Walk = LeadIn[K]; }
+			if (!LeadIn.empty()) { Straight(Walk, Sq.In, RoadLine::Step); Mid.push_back(Sq.In); Walk = Sq.In; }
+			Straight(Walk, T0, RoadLine::Step);
+		}
 		Mid.push_back(T0);
 		// (the circle's middle, Radius to the inside of the turn)
 		const P2 Inside = P2(U0.Z, -U0.X) * (U1.X * U0.Z - U1.Z * U0.X >= 0.0 ? 1.0 : -1.0);
@@ -532,7 +571,12 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			Mid.push_back(Centre + P2(std::cos(Ang), std::sin(Ang)) * Radius);
 		}
 		Mid.push_back(T1);
-		Straight(T1, Line[B], RoadLine::Step);
+		{
+			P2 Walk = T1;
+			if (!LeadOut.empty()) { Straight(Walk, Sq.Out, RoadLine::Step); Mid.push_back(Sq.Out); Walk = Sq.Out; }
+			for (const P2& Pt : LeadOut) { Straight(Walk, Pt, RoadLine::Step); Mid.push_back(Pt); Walk = Pt; }
+			Straight(Walk, Line[B], RoadLine::Step);
+		}
 		std::vector<P2> Next(Line.begin(), Line.begin() + static_cast<long>(A) + 1);
 		Next.insert(Next.end(), Mid.begin(), Mid.end());
 		Next.insert(Next.end(), Line.begin() + static_cast<long>(B), Line.end());
@@ -929,29 +973,36 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 	std::vector<char> Kind;
 	LevelSpans(Line, H, Kind, Bridges, Tunnels);
 	// The road's own height: the ground's along its middle, evened out over 75 m three times, so it neither
-	// follows every hummock nor leaves the land far.
+	// follows every hummock nor leaves the land far. ([crunched junctions, 169] by the metre, not by the knot:
+	// a junction's turn is laid in knots a metre apart, and evened out over 9 of them either side and held to
+	// the grade per 4 m knot, its rise came in a quarter of the distance, a ramp of 35% across the junction
+	// and spikes where the side roads met it; Whaley Bridge, Kirkstone Pass)
+	std::vector<double> KnotAlong(Line.size(), 0.0);
+	for (size_t I = 1; I < Line.size(); ++I) KnotAlong[I] = KnotAlong[I - 1] + Line[I].DistanceTo(Line[I - 1]);
 	for (int Pass = 0; Pass < 3; ++Pass)
 	{
 		std::vector<double> S(H.size());
-		const int Reach = 9;
+		const double Reach = 10.0 * RoadLine::Step;   // (weights falling to nothing 40 m off, as 9 knots of 4 m either side)
+		size_t J0 = 0;
 		for (size_t I = 0; I < H.size(); ++I)
 		{
+			while (KnotAlong[J0] < KnotAlong[I] - Reach) ++J0;
 			double Sum = 0.0, Wt = 0.0;
-			for (int K = -Reach; K <= Reach; ++K)
+			for (size_t J = J0; J < H.size() && KnotAlong[J] < KnotAlong[I] + Reach; ++J)
 			{
-				const long long J = static_cast<long long>(I) + K;
-				if (J < 0 || J >= static_cast<long long>(H.size())) continue;
-				const double W = double(Reach + 1 - std::abs(K));
-				Sum += H[size_t(J)] * W;
+				// (each knot weighted by the stretch of road it stands for, so close knots count no more than far ones)
+				const double Span = 0.5 * (KnotAlong[std::min(J + 1, H.size() - 1)] - KnotAlong[J > 0 ? J - 1 : 0]);
+				const double W = (Reach - std::fabs(KnotAlong[J] - KnotAlong[I])) * std::fmax(Span, 0.05);
+				Sum += H[J] * W;
 				Wt += W;
 			}
-			S[I] = Sum / Wt;
+			S[I] = Wt > 0.0 ? Sum / Wt : H[I];
 		}
 		H.swap(S);
 	}
 	// (the Godot game averages over 9 knots once; three wider passes leave no crest a bike takes off
 	// from at speed. The grade's limit is its own.)
-	H = RoadLine::GradeLimit(H);
+	H = RoadLine::GradeLimit(H, RoadLine::MaxGrade, &KnotAlong);
 	WidestHalf = 0.0;
 	double Along = 0.0;
 	for (size_t I = 0; I < Line.size(); ++I)
@@ -1018,6 +1069,7 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 			for (const std::pair<int, int>& Entry : It->second)
 			{
 				if ((Opts.MainOnly && Entry.first != 0) || Entry.first == Opts.NotRoad || (Opts.OnlyRoad >= 0 && Entry.first != Opts.OnlyRoad)) continue;
+				if (Opts.Settles > 0 && (Entry.first == Opts.Settles || !JoinsOnto(Opts.Settles, Entry.first))) continue;
 				const std::vector<RoadPoint>& Pts = RoadOf(Entry.first);
 				// The bit of road from this point to the next (the last point's is filed under the one before).
 				const int S = Entry.second;
@@ -2528,15 +2580,24 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 
 double RidePlan::JoinedHeight(int Which, const P2& At, double Y) const
 {
+	return JoinedHeightDeep(Which, At, Y, JoinDepth);
+}
+
+double RidePlan::JoinedHeightDeep(int Which, const P2& At, double Y, int Depth) const
+{
 	// A side road where it lies on a greater road (the ride's, or a side road made before it) sinks just
 	// under that road's own surface, and for a few metres out from that road's edge leans into it: two
 	// surfaces at one place fought (the flicker at junctions in build 140), and a flat side road laid
 	// across a main road on a slope stood proud of it at one edge (the slight bump).
 	if (Which <= 0) return Y;
 	// (the ride's road first; then whichever side road made before it is nearest)
+	// ([crunched junctions, 169] the nearest road it settles onto: a lesser road nearer (one that settles onto
+	// it) stood in the way, and where three roads lie over each other at a junction this one kept its own
+	// height over the greater one, a step of up to 40 cm, the torn tarmac at Kirkstone Pass)
 	NearOpts Greater[2];
 	Greater[0].MainOnly = true;
 	Greater[1].NotRoad = Which;
+	Greater[1].Settles = Which;
 	for (NearOpts& O : Greater)
 	{
 		O.NoDecks = true;
@@ -2545,8 +2606,9 @@ double RidePlan::JoinedHeight(int Which, const P2& At, double Y) const
 		if (!NearestOf(At.X, At.Z, O, Hit) || !JoinsOnto(Which, Hit.Which)) continue;   // ([circuits, build 169] JoinsOnto)
 		const double Out2 = Hit.Dist - Hit.Half;
 		if (Out2 > JoinLeanOf(Which, Hit.Which)) continue;
-		const double Theirs = Hit.Height + Hit.Cross - JoinSink;
+		double Theirs = Hit.Height + Hit.Cross - JoinSink;
 		if (std::fabs(Theirs - Y) > 1.2) continue;   // (over or under it, not joining it)
+		if (Depth > 0 && Hit.Which > 0) Theirs = JoinedHeightDeep(Hit.Which, At, Theirs + JoinSink, Depth - 1) - JoinSink;
 		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
 		return Theirs + (Y - Theirs) * T;
 	}
@@ -2602,7 +2664,7 @@ void RidePlan::JoinSegs(int Which, double X0, double Z0, double X1, double Z1, J
 		}
 }
 
-bool RidePlan::NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const
+bool RidePlan::NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit, int Settles) const
 {
 	// (scored as NearestOf scores them, among the bits it would look at from here)
 	Hit = JoinHit();
@@ -2613,6 +2675,7 @@ bool RidePlan::NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHi
 	for (const int Index : Set.Cells[size_t(Gz) * size_t(Set.Nx) + size_t(Gx)])
 	{
 		const JoinSeg& J = Set.Segs[size_t(Index)];
+		if (Settles > 0 && (J.Which == Settles || !JoinsOnto(Settles, J.Which))) continue;   // [crunched junctions, 169]
 		if ((MainOnly && J.Which != 0) || J.Cx < Px0 - 3 || J.Cx > Px0 + 3 || J.Cz < Pz0 - 3 || J.Cz > Pz0 + 3) continue;
 		const P2 Ab = J.B - J.A;
 		const double L2 = Ab.X * Ab.X + Ab.Z * Ab.Z;
@@ -2644,11 +2707,12 @@ double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, d
 	for (int Pass = 0; Pass < 2; ++Pass)
 	{
 		JoinHit Hit;
-		if (!NearestIn(Set, At, Pass == 0, Hit) || !JoinsOnto(Which, Hit.Which)) continue;   // ([circuits, build 169] JoinsOnto)
+		if (!NearestIn(Set, At, Pass == 0, Hit, Which) || !JoinsOnto(Which, Hit.Which)) continue;   // ([circuits, build 169] JoinsOnto)
 		const double Out2 = Hit.Dist - Hit.Half;
 		if (Out2 > JoinLeanOf(Which, Hit.Which)) continue;
-		const double Theirs = Hit.Height + Hit.Cross - JoinSink;
+		double Theirs = Hit.Height + Hit.Cross - JoinSink;
 		if (std::fabs(Theirs - Y) > 1.2) continue;
+		if (Hit.Which > 0) Theirs = JoinedHeightDeep(Hit.Which, At, Theirs + JoinSink, JoinDepth - 1) - JoinSink;   // [crunched junctions, 169]
 		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
 		return Theirs + (Y - Theirs) * T;
 	}

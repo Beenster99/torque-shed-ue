@@ -511,15 +511,18 @@ std::vector<double> SmoothHeights(const std::vector<double>& H, int Window)
 	return Out;
 }
 
-std::vector<double> GradeLimit(const std::vector<double>& E, double Grade)
+std::vector<double> GradeLimit(const std::vector<double>& E, double Grade, const std::vector<double>* Along)
 {
-	Doubles Out = E;
-	const double Lim = Grade * Step;
-	for (int Round = 0; Round < 3; ++Round)
-	{
-		for (size_t I = 1; I < Out.size(); ++I) Out[I] = std::fmin(std::fmax(Out[I], Out[I - 1] - Lim), Out[I - 1] + Lim);
-		for (size_t I = Out.size(); I-- > 1;) Out[I - 1] = std::fmin(std::fmax(Out[I - 1], Out[I] - Lim), Out[I] + Lim);
-	}
+	// [crunched junctions, 169] The road no steeper than Grade, as near the ground as that lets it be: halfway
+	// between the lowest such line over it and the highest under it (clamping from the start on held the top
+	// of a steep hill all the way down, the road ever further over the land).
+	const bool ByAlong = Along != nullptr && Along->size() == E.size();
+	const auto Lim = [&](size_t I) { return Grade * (ByAlong ? std::fabs((*Along)[I] - (*Along)[I - 1]) : Step); };
+	Doubles Over = E, Under = E;
+	for (size_t I = 1; I < E.size(); ++I) { Over[I] = std::fmax(Over[I], Over[I - 1] - Lim(I)); Under[I] = std::fmin(Under[I], Under[I - 1] + Lim(I)); }
+	for (size_t I = E.size(); I-- > 1;) { Over[I - 1] = std::fmax(Over[I - 1], Over[I] - Lim(I)); Under[I - 1] = std::fmin(Under[I - 1], Under[I] + Lim(I)); }
+	Doubles Out(E.size());
+	for (size_t I = 0; I < E.size(); ++I) Out[I] = 0.5 * (Over[I] + Under[I]);
 	return Out;
 }
 } // namespace RoadLine

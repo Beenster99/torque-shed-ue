@@ -614,6 +614,7 @@ public:
 		bool NoBores = false;    // nor those in a tunnel
 		int NotRoad = -1;        // nor any of this road
 		int OnlyRoad = -1;       // this road alone
+		int Settles = -1;        // [crunched junctions, 169] only the roads this one settles onto (JoinsOnto)
 	};
 	struct NearHit
 	{
@@ -629,6 +630,11 @@ public:
 	bool NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit) const;
 	// A side road's surface height Y at a point, settled onto a greater road it lies on or joins there.
 	double JoinedHeight(int Which, const P2& At, double Y) const;
+	// [crunched junctions, 169] (with Depth: the greater road's own surface there as drawn, settled in turn onto
+	// the road it joins, up to Depth roads on; two roads lying over each other that each settled onto a third's
+	// raw height stood up to 40 cm apart, the lower one's edge showing through the other as torn tarmac)
+	double JoinedHeightDeep(int Which, const P2& At, double Y, int Depth) const;
+	static constexpr int JoinDepth = 2;
 	// [build 150] The same for every point of one piece of road at a time: the bits of other roads (but
 	// Which, none on a deck or in a bore) NearestOf would look at anywhere in a box and whose edge comes
 	// within JoinLean of it, gathered once into a little grid (JoinSegs); then NearestIn finds what
@@ -653,7 +659,7 @@ public:
 	struct JoinHit { int Which = -1; double Dist = 0.0, Half = 0.0, Height = 0.0, Cross = 0.0; };
 	void JoinSegs(int Which, double X0, double Z0, double X1, double Z1, JoinSet& Out) const;
 	// (false if no road's edge is within JoinLean, else NearestOf's best: MainOnly the ride's road alone)
-	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit) const;
+	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit, int Settles = -1) const;
 	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
 	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;

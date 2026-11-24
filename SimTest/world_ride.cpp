@@ -472,6 +472,9 @@ int main(int Argc, char** Argv)
 			{ const Geo Gx = Plan->Area.Roads.FrameOf().ToGeo(X.Mid.X, X.Mid.Z); std::printf("  level crossing at %.0f, %.0f (%.5f N, %.5f E): %s road %.1f m wide, %s (key %u)\n", X.Mid.X, X.Mid.Z, Gx.Lat, Gx.Lon, X.Class.c_str(), X.Half * 2.0, LevelX::TypeName(X.Type), X.Key); }
 	}
 	double Steep = 0.0, Crest = 0.0, Off = 0.0;
+	if (std::getenv("WORLD_RIDE_PROFILE") != nullptr)   // (debug: the ride's road's height against the land, every 4th point)
+		for (size_t I = 0; I < Plan->Road.size(); I += 4)
+			std::printf("profile %zu along %.0f y %.2f land %.2f%s%s\n", I, Plan->Road[I].Along, Plan->Road[I].Height, Plan->Land->Height(Plan->Road[I].At.X, Plan->Road[I].At.Z), Plan->Road[I].Bridge ? " bridge" : "", Plan->Road[I].Tunnel ? " tunnel" : "");
 	for (size_t I = 1; I + 1 < Plan->Road.size(); ++I)
 	{
 		const RoadPoint& P = Plan->Road[I];
@@ -2635,6 +2638,223 @@ int main(int Argc, char** Argv)
 				const Geo G = Plan->Area.Roads.FrameOf().ToGeo(WorstAt.X, WorstAt.Z);
 				std::printf("cover, %s level: %d of %d road points under the land (worst %.2f m at %.5f, %.5f)\n", Level == 0 ? "finest" : "middle", Over, Points, Worst, G.Lat, G.Lon);
 			}
+		}
+	}
+	// [junction check, build 169 feedback] (beenster at Kirkstone Pass, 169: "some odd crunched up junctions": road
+	// meshes folded over, torn edges, a grass hole in the middle.) WORLD_RIDE_JCHECK=1: every junction of the map
+	// (three roads or more) within 60 m of the ride's road, its roads laid round it and drawn, measured within
+	// 25 m: tarmac folded back on itself (a strip's triangles wound backwards, m2), tarmac over tarmac at another
+	// height (steps over 8 cm, m2), tarmac standing steeper than 45 degrees over 5 cm (spikes, how many), the map's line of each road into it
+	// not under any surface (holes, m), the land drawn through the tarmac (m2) and verge grass laid over the
+	// tarmac (m2). WORLD_RIDE_JCHECK_DUMP=prefix: the worst few's meshes as WORLD_RIDE_MESH writes them.
+	if (std::getenv("WORLD_RIDE_JCHECK") != nullptr)
+	{
+		const Region& G = Plan->Area.Roads;
+		std::set<int> OnRide;
+		for (const auto& St : Plan->MadeSteps) OnRide.insert(St.Edge);
+		struct Fault { int Node = -1; double Fold = 0, Step = 0, Spike = 0, Hole = 0, Land = 0, Grass = 0; double Score() const { return Fold + Step + Spike + Hole * 3.0 + Land + Grass; } };
+		std::vector<Fault> All;
+		const auto Near = [&](const P2& Pn) { RidePlan::NearOpts O; O.MainOnly = true; RidePlan::NearHit H; return Plan->NearestOf(Pn.X, Pn.Z, O, H) && H.Dist < 60.0; };
+		const auto Colour = [](const float* Cv, float Rv, float Gv, float Bv) { return std::fabs(Cv[0] - Rv) < 0.004f && std::fabs(Cv[1] - Gv) < 0.004f && std::fabs(Cv[2] - Bv) < 0.004f; };
+		const double Reach = 25.0, Cell = 0.25;
+		const int JCells = int(2.0 * Reach / Cell);
+		std::string DumpPrefix = std::getenv("WORLD_RIDE_JCHECK_DUMP") ? std::getenv("WORLD_RIDE_JCHECK_DUMP") : "";
+		const int Only = std::getenv("WORLD_RIDE_JCHECK_NODE") ? std::atoi(std::getenv("WORLD_RIDE_JCHECK_NODE")) : -1;
+		std::map<int, std::string> Dumps;
+		for (int Nd = 0; Nd < int(G.Nodes.size()); ++Nd)
+		{
+			if (Only >= 0 && Nd != Only) continue;
+			if (G.Adjacent[size_t(Nd)].size() < 3 || !Near(G.Nodes[size_t(Nd)])) continue;
+			const P2 C = G.Nodes[size_t(Nd)];
+			Rect Box{C.X - 60.0, C.Z - 60.0, C.X + 60.0, C.Z + 60.0};
+			Plan->LayBlocks(Box);
+			// (its roads: each laid, not a track, setts or gravel, no bridge or tunnel near it, as the junctions the game
+			// draws; a junction with a road not laid at all (a path the game leaves out) is measured on the rest)
+			bool Skip = false;
+			int Laid = 0;
+			for (int E : G.Adjacent[size_t(Nd)])
+			{
+				const RidePlan::SideRoad* Sd = Plan->SideOf(E + 1);
+				if (Sd == nullptr && OnRide.count(E) == 0) continue;
+				if (Sd != nullptr && (Sd->Track || Sd->Gravel || Sd->Setts)) { Skip = true; break; }
+				++Laid;
+			}
+			if (Skip || Laid < 2) continue;
+			Rect Round{C.X - Reach - 20.0, C.Z - Reach - 20.0, C.X + Reach + 20.0, C.Z + Reach + 20.0};
+			const std::vector<int> Roads = Plan->RoadsNear(Round, false);
+			for (int W : Roads)
+				for (const RoadPoint& P : Plan->RoadOf(W))
+					if ((P.Bridge || P.Tunnel) && P.At.DistanceTo(C) < Reach + 10.0) Skip = true;
+			if (Skip) continue;
+			// (WORLD_RIDE_JCHECK_NODE: its roads' points within 30 m, as laid, with the land there)
+			if (Only >= 0)
+				for (int W : Roads)
+				{
+					const RidePlan::SideRoad* Sd = W > 0 ? Plan->SideOf(W) : nullptr;
+					std::printf("jroad %d edge %d%s%s:", W, Sd ? Sd->Edge : -1, Sd && Sd->Mouths[0].Is ? " mouth0" : "", Sd && Sd->Mouths[1].Is ? " mouth1" : "");
+					const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+					for (size_t I = 0; I < Pts.size(); ++I)
+						if (Pts[I].At.DistanceTo(C) < 30.0)
+							std::printf(" [%zu %.1f,%.1f y%.2f land%.2f%s]", I, Pts[I].At.X - C.X, Pts[I].At.Z - C.Z, Pts[I].Height, Plan->Land ? Plan->Land->Height(Pts[I].At.X, Pts[I].At.Z) : -1.0, Pts[I].Bridge ? " B" : "");
+					std::printf("\n");
+				}
+			// (the tarmac's heights in each cell, and how many triangles of each kind cover it)
+			std::vector<float> Lo(size_t(JCells) * JCells, 1e9f), Hi(size_t(JCells) * JCells, -1e9f), Grass(size_t(JCells) * JCells, -1e9f), Any(size_t(JCells) * JCells, -1e9f);
+			std::vector<char> Back(size_t(JCells) * JCells, 0), Fore(size_t(JCells) * JCells, 0);
+			Fault F;
+			F.Node = Nd;
+			std::string Dump;
+			char Buf[160];
+			for (int W : Roads)
+			{
+				const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+				for (int First = 0; First < int(Pts.size()) - 1; First += 64)
+				{
+					const int Last = std::min(First + 64, int(Pts.size()) - 1);
+					bool Close = false;
+					for (int I = First; I <= Last && !Close; ++I) Close = Pts[size_t(I)].At.DistanceTo(C) < Reach + 20.0;
+					if (!Close) continue;
+					RideMesh M;
+					Plan->RoadPiece(W, First, Last, M);
+					// (which way round the piece's own strips are wound: most of its tarmac's area)
+					double Wound = 0.0;
+					std::vector<double> Signed(M.Idx.size() / 3, 0.0);
+					for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
+					{
+						const float* A = &M.Pos[size_t(M.Idx[T]) * 3], * B = &M.Pos[size_t(M.Idx[T + 1]) * 3], * Cc = &M.Pos[size_t(M.Idx[T + 2]) * 3];
+						Signed[T / 3] = 0.5 * (double(B[0] - A[0]) * double(Cc[2] - A[2]) - double(B[2] - A[2]) * double(Cc[0] - A[0]));
+						if (Colour(&M.Col[size_t(M.Idx[T]) * 3], 0.022f, 0.022f, 0.025f)) Wound += Signed[T / 3];
+					}
+					for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
+					{
+						const float* Cl = &M.Col[size_t(M.Idx[T]) * 3];
+						const bool Tar = Colour(Cl, 0.022f, 0.022f, 0.025f) || Colour(Cl, 0.010f, 0.010f, 0.011f) || Colour(Cl, 0.06f, 0.062f, 0.085f);
+						const bool Gr = Colour(Cl, 0.10f, 0.16f, 0.03f) || Colour(Cl, 0.072f, 0.078f, 0.045f);
+						double X[3], Y[3], Z[3];
+						bool In = false;
+						for (int K = 0; K < 3; ++K)
+						{
+							const uint32_t V = M.Idx[T + size_t(K)];
+							X[K] = M.OriginX + M.Pos[V * 3] - C.X; Y[K] = M.Pos[V * 3 + 1]; Z[K] = M.OriginZ + M.Pos[V * 3 + 2] - C.Z;
+							In = In || std::hypot(X[K], Z[K]) < Reach + 3.0;
+						}
+						if (!In) continue;
+						if (!DumpPrefix.empty())
+							for (int K = 0; K < 3; ++K)
+							{
+								const uint32_t V = M.Idx[T + size_t(K)];
+								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f %d\n", X[K], Z[K], Y[K], double(M.Col[V * 3]), double(M.Col[V * 3 + 1]), double(M.Col[V * 3 + 2]), W);
+								Dump += Buf;
+							}
+						const double Area = std::fabs(Signed[T / 3]);
+						if (Area < 1e-6) continue;
+						const bool Reversed = Tar && Signed[T / 3] * Wound < 0.0 && std::fabs(Wound) > 1.0;
+						// (steepness: the plane's rise per metre)
+						const double Ax = X[1] - X[0], Az = Z[1] - Z[0], Ay = Y[1] - Y[0], Bx = X[2] - X[0], Bz = Z[2] - Z[0], By = Y[2] - Y[0];
+						const double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
+						const double Slope = std::hypot(Nx, Nz) / std::fmax(1e-9, std::fabs(Ny));
+						const double Mx = (X[0] + X[1] + X[2]) / 3.0, Mz = (Z[0] + Z[1] + Z[2]) / 3.0;
+						if (Tar && std::hypot(Mx, Mz) < Reach && Slope > 1.0 && std::max({Y[0], Y[1], Y[2]}) - std::min({Y[0], Y[1], Y[2]}) > 0.05) F.Spike += 1.0;
+						// (its cells)
+						const double Tx0 = std::min({X[0], X[1], X[2]}), X1 = std::max({X[0], X[1], X[2]}), Tz0 = std::min({Z[0], Z[1], Z[2]}), Z1 = std::max({Z[0], Z[1], Z[2]});
+						for (int Cz = std::max(0, int((Tz0 + Reach) / Cell)); Cz <= std::min(JCells - 1, int((Z1 + Reach) / Cell)); ++Cz)
+							for (int Cx = std::max(0, int((Tx0 + Reach) / Cell)); Cx <= std::min(JCells - 1, int((X1 + Reach) / Cell)); ++Cx)
+							{
+								const double Px = -Reach + (Cx + 0.5) * Cell, Pz = -Reach + (Cz + 0.5) * Cell;
+								const double D = (X[1] - X[0]) * (Z[2] - Z[0]) - (X[2] - X[0]) * (Z[1] - Z[0]);
+								const double W0 = ((X[1] - Px) * (Z[2] - Pz) - (X[2] - Px) * (Z[1] - Pz)) / D;
+								const double W1 = ((X[2] - Px) * (Z[0] - Pz) - (X[0] - Px) * (Z[2] - Pz)) / D;
+								const double W2 = 1.0 - W0 - W1;
+								if (W0 < 0.0 || W1 < 0.0 || W2 < 0.0) continue;
+								const float H = float(W0 * Y[0] + W1 * Y[1] + W2 * Y[2]);
+								const size_t K = size_t(Cz) * JCells + Cx;
+								Any[K] = std::max(Any[K], H);
+								if (Gr) Grass[K] = std::max(Grass[K], H);
+								if (!Tar) continue;
+								Lo[K] = std::min(Lo[K], H); Hi[K] = std::max(Hi[K], H);
+								if (Reversed) Back[K] = 1;
+								else Fore[K] = 1;
+							}
+					}
+				}
+			}
+			const double A1 = Cell * Cell;
+			for (int Cz = 0; Cz < JCells; ++Cz)
+				for (int Cx = 0; Cx < JCells; ++Cx)
+				{
+					const size_t K = size_t(Cz) * JCells + Cx;
+					const double Px = -Reach + (Cx + 0.5) * Cell, Pz = -Reach + (Cz + 0.5) * Cell;
+					if (std::hypot(Px, Pz) > Reach || Hi[K] < -1e8f) continue;
+					if (Back[K] && !Fore[K]) F.Fold += A1;   // (only the backwards tarmac there: the game culls it, a hole)
+					if (Hi[K] - Lo[K] > 0.08f) F.Step += A1;
+					if (Grass[K] > Hi[K] + 0.005f) F.Grass += A1;
+					if ((Cx + Cz) % 2 == 0)
+					{
+						const double L = Plan->LandDrawnAt(C.X + Px, C.Z + Pz);
+						if (!std::isnan(L) && L > Hi[K] + 0.03) F.Land += 2.0 * A1;
+					}
+				}
+			// (each laid road's line from the map, 1 m to 12 m out of the junction, under some surface)
+			for (int E : G.Adjacent[size_t(Nd)])
+			{
+				if (Plan->SideOf(E + 1) == nullptr && OnRide.count(E) == 0) continue;
+				const std::vector<P2> Line = G.LineFrom(E, Nd);
+				double Gone = 0.0;
+				for (size_t I = 1; I < Line.size() && Gone < 12.0; ++I)
+				{
+					const double Seg = Line[I].DistanceTo(Line[I - 1]);
+					for (double S = 0.0; S < Seg && Gone + S < 12.0; S += 0.5)
+					{
+						if (Gone + S < 1.0) continue;
+						const P2 P = Line[I - 1] + (Line[I] - Line[I - 1]) * (S / std::fmax(Seg, 1e-9)) - C;
+						bool Covered = false;
+						for (int Dz = -2; Dz <= 2 && !Covered; ++Dz)
+							for (int Dx = -2; Dx <= 2 && !Covered; ++Dx)
+							{
+								const int Cx = int((P.X + Reach) / Cell) + Dx, Cz = int((P.Z + Reach) / Cell) + Dz;
+								if (Cx < 0 || Cz < 0 || Cx >= JCells || Cz >= JCells) continue;
+								Covered = Hi[size_t(Cz) * JCells + Cx] > -1e8f;
+							}
+						if (!Covered) F.Hole += 0.5;
+					}
+					Gone += Seg;
+				}
+			}
+			All.push_back(F);
+			if (!DumpPrefix.empty())
+			{
+				// (and the map's line of each of its roads, "#L x z x z ..." from the junction out, for the pictures)
+				for (int E : G.Adjacent[size_t(Nd)])
+				{
+					Dump += "#L";
+					for (const P2& P : G.LineFrom(E, Nd))
+					{
+						if (P.DistanceTo(C) > Reach + 10.0) break;
+						std::snprintf(Buf, sizeof(Buf), " %.2f %.2f", P.X - C.X, P.Z - C.Z);
+						Dump += Buf;
+					}
+					Dump += Plan->SideOf(E + 1) == nullptr && OnRide.count(E) == 0 ? " unlaid\n" : "\n";
+				}
+				Dumps[Nd] = Dump;
+			}
+		}
+		Fault Sum;
+		int Bad = 0;
+		for (const Fault& F : All)
+		{
+			Sum.Fold += F.Fold; Sum.Step += F.Step; Sum.Spike += F.Spike; Sum.Hole += F.Hole; Sum.Land += F.Land; Sum.Grass += F.Grass;
+			const bool IsBad = F.Fold > 0.5 || F.Step > 2.0 || F.Spike > 0.5 || F.Hole > 1.0 || F.Land > 2.0 || F.Grass > 2.0;
+			Bad += IsBad ? 1 : 0;
+			const Geo Ll = G.FrameOf().ToGeo(G.Nodes[size_t(F.Node)].X, G.Nodes[size_t(F.Node)].Z);
+			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
+				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "");
+		}
+		std::printf("jcheck total: %zu junctions, %d bad; fold %.1f m2, step %.1f m2, spikes %.0f, hole %.1f m, land %.1f m2, grass %.1f m2\n", All.size(), Bad, Sum.Fold, Sum.Step, Sum.Spike, Sum.Hole, Sum.Land, Sum.Grass);
+		if (!DumpPrefix.empty())
+		{
+			std::vector<Fault> Worst = All;
+			std::sort(Worst.begin(), Worst.end(), [](const Fault& A, const Fault& B) { return A.Score() > B.Score(); });
+			for (size_t I = 0; I < Worst.size() && I < 6; ++I) Files::Write(DumpPrefix + "_" + std::to_string(Worst[I].Node) + ".txt", Dumps[Worst[I].Node]);
 		}
 	}
 	if (std::getenv("WORLD_RIDE_MESH") != nullptr)

@@ -30,7 +30,10 @@ constexpr int FairLevelCount = 8;
 constexpr double FairLevels[FairLevelCount] = {3.0, 4.5, 6.5, 9.0, 13.0, 18.0, 24.0, 30.0};
 constexpr int FairEase = 10;
 constexpr int TurnMark = 40;
-constexpr double MaxGrade = 0.15;
+// [crunched junctions, 169] (was 15%: Britain's steepest roads are 25 to 33% (The Struggle, Hardknott), and
+// a road held to 15% down a 23% hill stood 30 m over the valley at its foot, its side roads' mouths walls
+// of tarmac up to it; Kirkstone Pass, build 169)
+constexpr double MaxGrade = 0.3;
 constexpr int MaxRounds = 3000;
 
 // By the road's class ("primary", "residential"...): the carriageway's full width (m), how far (m)
@@ -67,6 +70,7 @@ void ResampleXz(const std::vector<double>& Xs, const std::vector<double>& Zs, do
 double Bend(const std::vector<double>& Px, const std::vector<double>& Pz, size_t I);
 // Heights averaged over Window knots, and with no climb steeper than Grade between knots Step apart.
 std::vector<double> SmoothHeights(const std::vector<double>& H, int Window = 9);
-std::vector<double> GradeLimit(const std::vector<double>& E, double Grade = MaxGrade);
+// ([crunched junctions, 169] Along, if given: how far along each height is; else they are Step apart)
+std::vector<double> GradeLimit(const std::vector<double>& E, double Grade = MaxGrade, const std::vector<double>* Along = nullptr);
 } // namespace RoadLine
 } // namespace TorqueWorld
