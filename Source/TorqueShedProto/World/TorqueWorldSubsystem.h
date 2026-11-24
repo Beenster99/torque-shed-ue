@@ -181,5 +181,8 @@ private:
 	TArray<uint8> MapPixels;
 	std::vector<TorqueWorld::Route::MapStreets::Label> MapNames;
 	void DrawMap(const TorqueWorld::Route::MapView& View);
+	// [170] The view the map is drawing or drew last (to draw again).
+	TorqueWorld::Route::MapView MapBusyView() const { return bMapWaiting ? MapNext : MapAsked; }
+	TorqueWorld::Route::MapView MapAsked;
 	void MapDone(const TorqueWorld::Route::MapView& View, FTorqueMapPicture&& Picture, bool bFinal);
 };

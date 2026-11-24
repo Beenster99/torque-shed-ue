@@ -141,27 +141,39 @@ void RidePlan::IndexWater()
 		}
 		for (size_t I = 0; I < N; ++I) Run.At[I] = Run.At[I] + LeftAt(I) * Shift[I];
 		// Its bed's lie: the lowest of the land across it.
+		// ([170, beenster: the planner took far longer on "Laying the roads that meet it" in 169] this ran over
+		// every stream of the ride's area, about a million points round Kirkstone, and 169's look out past the
+		// banks made it nine heights a point, most of the plan's time. Now the land is read at every other
+		// point (and the last), five heights there: across the water at its banks and middle, and out past its
+		// banks; a point between takes the lower of its two neighbours, 3 m either side, so the water still
+		// never stands over the land.)
 		for (size_t I = 0; I < N; ++I)
 		{
+			if (I % 2 == 1 && I + 1 < N) continue;
 			const P2 L = LeftAt(I);
 			double Least = 1e9;
+			for (double U : {-1.0, 0.0, 1.0})
+			{
+				const double Y = Land->Height(Run.At[I].X + L.X * U * Half[I], Run.At[I].Z + L.Z * U * Half[I]);
+				if (!std::isnan(Y)) Least = std::fmin(Least, Y);
+			}
 			// ([real water, beenster on 168 at Totscore, Skye: "a stream hanging in the air"] and out past its
 			// banks, BedReach either side: a stream mapped across a hillside, where the heights have no gully
 			// for it, lay level with the slope's middle, the land falling away below its lower bank, so the
 			// water stood out over the hill as a shelf. Now it lies at the lowest of the land round it and
 			// cuts its own channel into the slope, its lower bank as high as its water.)
-			for (double U : {-1.0, -0.5, 0.0, 0.5, 1.0})
-			{
-				const double Y = Land->Height(Run.At[I].X + L.X * U * Half[I], Run.At[I].Z + L.Z * U * Half[I]);
-				if (!std::isnan(Y)) Least = std::fmin(Least, Y);
-			}
-			for (double U : {-1.0, -0.5, 0.5, 1.0})
+			for (double U : {-1.0, 1.0})
 			{
 				const double Across = U * (Half[I] + BedReach);
 				const double Y = Land->Height(Run.At[I].X + L.X * Across, Run.At[I].Z + L.Z * Across);
 				if (!std::isnan(Y)) Least = std::fmin(Least, Y);
 			}
 			if (Least < 1e8) Low[I] = Least;
+		}
+		for (size_t I = 1; I + 1 < N; I += 2)
+		{
+			const double A = Low[I - 1], B = Low[I + 1];
+			Low[I] = std::isnan(A) ? B : std::isnan(B) ? A : std::fmin(A, B);
 		}
 		// (a point with no ground: as its neighbour)
 		for (size_t I = 1; I < N; ++I) if (std::isnan(Low[I])) Low[I] = Low[I - 1];
