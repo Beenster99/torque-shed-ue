@@ -2038,8 +2038,8 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 			++JoinLogged;
 			FString Problem;
 			const FString State = JoinState(&Problem);
-			if (Problem.IsEmpty()) UE_LOG(LogTemp, Log, TEXT("Torque net: joined, %.0f s in: %s"), JoinClock, *State);
-			else UE_LOG(LogTemp, Warning, TEXT("Torque net: joined, %.0f s in: %s; PROBLEM: %s"), JoinClock, *State, *Problem);
+			if (Problem.IsEmpty()) { UE_LOG(LogTemp, Log, TEXT("Torque net: joined, %.0f s in: %s"), JoinClock, *State); }
+			else { UE_LOG(LogTemp, Warning, TEXT("Torque net: joined, %.0f s in: %s; PROBLEM: %s"), JoinClock, *State, *Problem); }
 		}
 	}
 	UpdateCursor();
