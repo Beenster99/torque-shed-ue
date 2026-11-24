@@ -3,6 +3,7 @@
 // the map or the local look gives it, windows a floor and a door near, a church's tower.
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideEaves.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRideSigns.h"
 
@@ -813,15 +814,31 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// (its walls go down to below the lowest ground at its corners, so none stands with a corner
 		// in the air on a slope: beenster, build 141; a metre under where the ground is level)
 		double Sunk = -1.0;
+		double CornerUp[2][2] = {{0.0, 0.0}, {0.0, 0.0}};   // ([eaves] the ground at each corner over Base: where its downpipes stand)
 		for (double Su : {-1.0, 1.0})
 			for (double Sv : {-1.0, 1.0})
 			{
 				const P3 Corner = Local(Su * (HalfLong + 0.3), Sv * (HalfShort + 0.3), 0.0);
 				const double Gc = Ground(Corner.X, Corner.Z);
 				if (!std::isnan(Gc)) Sunk = std::fmin(Sunk, Gc - Base - 0.5);
+				CornerUp[Su > 0.0 ? 1 : 0][Sv > 0.0 ? 1 : 0] = std::isnan(Gc) ? 0.0 : Gc - Base;
 			}
 		Sunk = std::fmax(Sunk, -8.0);
-		const double Over = Shape == ERoof::Flat ? 0.0 : Thatch ? 0.55 : double(Look.Overhang), Drop = Rise > 0.0 ? Over * Rise / HalfShort : 0.0;
+		// [eaves, Nov 24] How its roof's edges are finished (RideEaves::Choose): a boxed eaves' fascia and soffit,
+		// a stone eaves course, a moulded cornice, or a works' bare gutter; a post-war house's eaves 30 cm out
+		// at least (its boxed eaves, not the old cottages' flush ones).
+		int PeriodKind = -1;
+		if (Period) PeriodKind = Period->Name == "victorian" || Period->Name == "georgian" ? 0 : Period->Name == "interwar" ? 1 : Modern ? 2 : -1;
+		static const Rgb EavesJoinery[10] = {{0.62f, 0.62f, 0.60f}, {0.62f, 0.62f, 0.60f}, {0.64f, 0.64f, 0.62f}, {0.62f, 0.62f, 0.60f}, {0.60f, 0.60f, 0.58f},
+			{0.62f, 0.62f, 0.60f}, {0.60f, 0.58f, 0.50f}, {0.58f, 0.55f, 0.45f}, {0.34f, 0.22f, 0.12f}, {0.05f, 0.12f, 0.07f}};
+		const double EavesJoinPick = 0.6 * Chance(StreetX, StreetZ, 63) + 0.4 * Chance(B.X, B.Z, 63);   // (the windows' paint: as below)
+		const Rgb& EavesPaint = EavesJoinPick > 0.985 ? EavesJoinery[9] : EavesJoinery[std::min(8, int(EavesJoinPick * 9.0))];
+		const RideEaves::Pick EavesPick = Plain && !Works && !Timber ? RideEaves::Pick() : RideEaves::Choose(Shape != ERoof::Flat, Shape == ERoof::Flat, Thatch, Sheet, Ruin, GlassRoof || GlassHouse,
+			Big, Works, IsBarn, IsShed || Timber, Garage, IsHouse, IsShop, IsBlock, IsCivic, InTown, !Rendered && !Brick && !Plain, Rendered, double(Look.Overhang), PeriodKind,
+			EavesPaint, Chance(RowX, RowZ, 172), Chance(B.X, B.Z, 172));
+		const double Over0 = Shape == ERoof::Flat ? 0.0 : Thatch ? 0.55 : double(Look.Overhang);
+		const double Over = EavesPick.Style == RideEaves::EStyle::Boxed && EavesLevel > 0 ? std::fmax(Over0, EavesPick.MinOver) : Over0;
+		const double Drop = Rise > 0.0 ? Over * Rise / HalfShort : 0.0;
 		const double OverPlus = PartyPlus ? 0.0 : Over, OverMinus = PartyMinus ? 0.0 : Over;   // [towns stage 4] (none over a neighbour)
 		// (a hipped roof's ridge: shorter than the walls by the roof's depth each end, a point if it is square)
 		const double Ridge = std::fmax(0.0, HalfLong - HalfShort);
@@ -893,7 +910,6 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		PubWall PubFront;
 		const Furnish* PubOwn = Ruin ? nullptr : PubSignOn(B, PubFront);
 		const bool HasPub = PubOwn != nullptr;
-		if (HasPub) DrawPubBoard(*PubOwn, PubFront, Eaves, Out);
 		// ([Nov 24] not a pub carrying its own name board (PubSignWall): its board goes on a plain front, not
 		// buried in a shop front's pilasters and fascia. beenster, build 169, Ambleside)
 		const bool ShopHere = !Plain && !Big && !Ruin && HalfLong * 2.0 >= 3.5 && Eaves >= 3.2
@@ -901,6 +917,39 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			&& !HasPub;
 		const Rgb StoneTrim = Shade(Stone, Sooted ? 0.55 : 1.15);
 		const bool Surrounds = (Look.StoneSurrounds || (!Rendered && !Brick)) && !Plain;
+		// [eaves, Nov 24] Its fascia and soffit, bargeboards, eaves course or cornice, gutters and downpipes
+		// (WorldRideEaves.cpp), their soffit clear of the top floor's window heads; a pub's board under them.
+		RideEaves::House Trim;
+		{
+			Trim.X = B.X; Trim.Z = B.Z; Trim.Cs = Cs; Trim.Sn = Sn; Trim.Base = Base; Trim.LongX = LongX;
+			Trim.HalfLong = HalfLong; Trim.HalfShort = HalfShort; Trim.Eaves = Eaves; Trim.Rise = Rise; Trim.Over = Over;
+			Trim.OverPlus = OverPlus; Trim.OverMinus = OverMinus; Trim.Drop = Drop;
+			Trim.Shape = Shape == ERoof::Gabled ? 0 : Shape == ERoof::Hipped ? 1 : Shape == ERoof::Flat ? 2 : 3;
+			Trim.PartyPlus = PartyPlus; Trim.PartyMinus = PartyMinus;
+			Trim.Style = Ruin ? RideEaves::EStyle::None : EavesPick.Style;
+			const bool Windowed = !Plain && !IsBarn && !Works && !IsShed && !Garage && (IsHouse || IsShop || IsBlock || IsCivic || IsWorship);
+			if (Windowed)
+			{
+				const double WinH1 = WinKind == LocalLook::Mullion ? 0.9 : WinKind == LocalLook::Sash ? 1.45 : 1.0;
+				const int Floors1 = std::clamp(1 + int((Eaves - 1.15 - WinH1) / 2.7), 1, 12);
+				Trim.HeadTop = 1.0 + (Floors1 - 1) * 2.7 + (IsCivic ? 2.0 : WinH1) + (Surrounds ? 0.24 : Brick ? 0.22 : 0.1);
+			}
+			if (ShopHere) Trim.HeadTop = std::fmax(Trim.HeadTop, std::fmin(3.45, Eaves - 0.25));
+			Trim.Fascia = EavesPick.Fascia; Trim.Soffit = EavesPick.Soffit; Trim.Gutter = EavesPick.Gutter; Trim.Pipe = EavesPick.Pipe;
+			Trim.Trim = Rendered ? Shade(Wall, 1.06) : Brick ? StoneTrim : Shade(StoneTrim, 0.95);
+			Trim.Verge = Shade(Roof, 0.55);
+			Trim.Gutters = EavesPick.Gutters;
+			Trim.Course = EavesPick.Course;
+			Trim.FrontSide = DoorSide;
+			Trim.NoFrontPipe = ShopHere || HasPub;
+			Trim.DoorPlus = DoorPlus;
+			Trim.Bays = Bays;
+			for (int Ku = 0; Ku < 2; ++Ku)
+				for (int Kv = 0; Kv < 2; ++Kv) Trim.CornerUp[Ku][Kv] = CornerUp[Ku][Kv];
+			RideEaves::Draw(Trim, EavesLevel, Out);
+			if (Tally && Trim.Style != RideEaves::EStyle::None && EavesLevel > 0) ++Tally->EavesStyles[int(Trim.Style)];
+		}
+		if (HasPub) DrawPubBoard(*PubOwn, PubFront, EavesLevel > 0 ? std::fmin(Eaves, RideEaves::TrimUnder(Trim)) : Eaves, Out);
 		for (double Sg : {1.0, -1.0})
 		{
 			// The long walls (a skillion's high side up to its top), and the ends.
@@ -1868,8 +1917,11 @@ void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse
 					const P3 E0 = Local(Sg * HalfLong, -HalfShort, Sunk), E1 = Local(Sg * HalfLong, HalfShort, Sunk), E2 = Local(Sg * HalfLong, HalfShort, Eaves), E3 = Local(Sg * HalfLong, -HalfShort, Eaves);
 					Quad(Out, E0, E1, E2, E3, Away(E0, E2), Shade(Wall, 0.93));
 					Quad(Out, E3, E2, Local(Sg * HalfLong, 0.0, Eaves + Rise), E3, Away(E0, E2), Shade(Wall, 0.93));
-					Quad(Out, Local(-HalfLong, Sg * HalfShort, Eaves), Local(HalfLong, Sg * HalfShort, Eaves), Local(HalfLong, 0.0, Eaves + Rise), Local(-HalfLong, 0.0, Eaves + Rise), Sky,
-						Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
+					// ([eaves, Nov 24] its roof over its walls by the place's overhang, as the near squares draw it, so its
+					// eaves' shadow line is there from afar: no more triangles)
+					const double FarOver = EavesLevel > 0 ? std::fmin(double(Look.Overhang), HalfShort * 0.3) : 0.0, FarDrop = Rise > 0.0 ? FarOver * Rise / HalfShort : 0.0;
+					Quad(Out, Local(-HalfLong - FarOver, Sg * (HalfShort + FarOver), Eaves - FarDrop), Local(HalfLong + FarOver, Sg * (HalfShort + FarOver), Eaves - FarDrop),
+						Local(HalfLong + FarOver, 0.0, Eaves + Rise), Local(-HalfLong - FarOver, 0.0, Eaves + Rise), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
 				}
 			}
 		}
