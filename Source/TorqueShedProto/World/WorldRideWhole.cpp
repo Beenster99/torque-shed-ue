@@ -22,6 +22,11 @@ bool RidePlan::WholeJunctions = false;
 
 namespace WholeJunctionBits
 {
+// Twice the signed area of A, B, C (positive turning from x towards z).
+double Cross(const P2& A, const P2& B, const P2& C)
+{
+	return (B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X);
+}
 double Ease01(double T)
 {
 	T = std::clamp(T, 0.0, 1.0);
@@ -56,6 +61,7 @@ void RidePlan::PlanWholeJunctions()
 {
 	using namespace WholeJunctionBits;
 	WholeOf.assign(JunctionPlaces.size(), WholePlan());
+	WholeCells.clear();
 	WholeEnds.clear();
 	WholeInside.clear();
 	WholeArmsOf.clear();
@@ -160,6 +166,76 @@ void RidePlan::PlanWholeJunctions()
 		It = WholeOf[size_t(It->second)].Ok ? std::next(It) : WholeInside.erase(It);
 	for (auto& KV : WholeArmsOf)
 		KV.second.erase(std::remove_if(KV.second.begin(), KV.second.end(), [this](int Ji) { return !WholeOf[size_t(Ji)].Ok; }), KV.second.end());
+	WholeCells.clear();
+	for (size_t Ji = 0; Ji < WholeOf.size(); ++Ji)
+	{
+		if (!WholeOf[Ji].Ok) continue;
+		const P2 C = JunctionPlaces[Ji].At;
+		const double Pad = WholeOf[Ji].Reach + Bench + Blend + 4.0;
+		for (long long Cx = static_cast<long long>(std::floor((C.X - Pad) / 64.0)); Cx <= static_cast<long long>(std::floor((C.X + Pad) / 64.0)); ++Cx)
+			for (long long Cz = static_cast<long long>(std::floor((C.Z - Pad) / 64.0)); Cz <= static_cast<long long>(std::floor((C.Z + Pad) / 64.0)); ++Cz)
+				WholeCells[Cx * 4000037LL + Cz].push_back(int(Ji));
+	}
+}
+
+bool RidePlan::WholeShape::Inside(const P2& At) const
+{
+	bool In = false;
+	for (size_t I = 0, K = Rim.size() - 1; I < Rim.size(); K = I++)
+		if ((Rim[I].Z > At.Z) != (Rim[K].Z > At.Z) && At.X < (Rim[K].X - Rim[I].X) * (At.Z - Rim[I].Z) / (Rim[K].Z - Rim[I].Z) + Rim[I].X) In = !In;
+	return In;
+}
+
+double RidePlan::WholeShape::HeightAt(const P2& At) const
+{
+	const double Fx = std::clamp((At.X - X0) / WholeShapeCell, 0.0, double(Nx - 1)), Fz = std::clamp((At.Z - Z0) / WholeShapeCell, 0.0, double(Nz - 1));
+	const int Gx = std::min(Nx - 2, int(Fx)), Gz = std::min(Nz - 2, int(Fz));
+	if (Gx < 0 || Gz < 0) return H.empty() ? std::nan("") : double(H.front());
+	const double Ux = Fx - Gx, Uz = Fz - Gz;
+	const auto Q = [this](int X, int Z) { return double(H[size_t(Z) * size_t(Nx) + size_t(X)]); };
+	return (1 - Uz) * ((1 - Ux) * Q(Gx, Gz) + Ux * Q(Gx + 1, Gz)) + Uz * ((1 - Ux) * Q(Gx, Gz + 1) + Ux * Q(Gx + 1, Gz + 1));
+}
+
+double RidePlan::WholeGround(double X, double Z, double Out) const
+{
+	// (the ground under a whole junction's tarmac as under a road's: Sink under its surface, so a corner's curve,
+	// far from every road's own middle, keeps clear of a field rising beside it)
+	if (!WholeJunctions || WholeCells.empty() || std::isnan(Out)) return Out;
+	const auto It = WholeCells.find(static_cast<long long>(std::floor(X / 64.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 64.0)));
+	if (It == WholeCells.end()) return Out;
+	const P2 At(X, Z);
+	for (int Ji : It->second)
+	{
+		if (At.DistanceTo(JunctionPlaces[size_t(Ji)].At) > WholeOf[size_t(Ji)].Reach + Bench + Blend + 4.0) continue;
+		const std::shared_ptr<const WholeShape> Sh = WholeShapeOf(Ji);
+		if (Sh == nullptr) continue;
+		if (Sh->Inside(At))
+		{
+			const double Y = Sh->HeightAt(At);
+			if (!std::isnan(Y)) Out = std::fmin(Out, Y - Sink);
+			continue;
+		}
+		// (and a road's bench round it: level with its edge, just under the shoulder, for Bench; then back to the land
+		// over Blend. The land is drawn on a 4 m grid: kept down only under the tarmac, it rose through the rim between)
+		double Best = 1e18;
+		P2 Near;
+		for (size_t I = 0, K = Sh->Rim.size() - 1; I < Sh->Rim.size(); K = I++)
+		{
+			const P2 A = Sh->Rim[K], D = Sh->Rim[I] - A;
+			const double L2 = D.X * D.X + D.Z * D.Z;
+			const double T = L2 > 1e-12 ? std::clamp(((At.X - A.X) * D.X + (At.Z - A.Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+			const P2 Q = A + D * T;
+			const double Dq = At.DistanceTo(Q);
+			if (Dq < Best) { Best = Dq; Near = Q; }
+		}
+		if (Best >= Bench + Blend) continue;
+		const double Y = Sh->HeightAt(Near);
+		if (std::isnan(Y)) continue;
+		const double Edge = Y - (Sink + (FlushSink - Sink) * std::clamp(Best / 0.6, 0.0, 1.0));
+		if (Best <= Bench) Out = std::fmin(Out, Edge);
+		else if (Edge < Out) Out = Edge + (Out - Edge) * WholeJunctionBits::Ease01((Best - Bench) / Blend);
+	}
+	return Out;
 }
 
 double RidePlan::WholeCut(int Which, int End) const
@@ -214,7 +290,7 @@ bool RidePlan::CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint
 	return true;
 }
 
-void RidePlan::WholePiece(int Ji, RideMesh& Out) const
+void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 {
 	using namespace WholeJunctionBits;
 	if (Ji < 0 || size_t(Ji) >= JunctionPlaces.size() || !WholeOf[size_t(Ji)].Ok) return;
@@ -412,8 +488,90 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 			OnMouth.push_back(0);
 		}
 	}
+	// [smooth junctions stage 3] The safety net: a rim that crosses itself (arms meeting at a sharp angle, a corner's
+	// curve swinging out across the next road: Haworth's lanes, Fort William) is drawn as the plain apron round every
+	// mouth's ends instead, straight edged; crossed, its shoulders fell on its own tarmac and its middle went unfilled.
+	{
+		bool Crossed = false;
+		const size_t Rn = Rim.size();
+		for (size_t I = 0; I < Rn && !Crossed; ++I)
+			for (size_t K = I + 2; K < Rn && !Crossed; ++K)
+			{
+				if (I == 0 && K == Rn - 1) continue;
+				const P2 &A = Rim[I], &B = Rim[(I + 1) % Rn], &C = Rim[K], &D = Rim[(K + 1) % Rn];
+				const double D1 = Cross(C, D, A), D2 = Cross(C, D, B), D3 = Cross(A, B, C), D4 = Cross(A, B, D);
+				Crossed = ((D1 > 1e-9 && D2 < -1e-9) || (D1 < -1e-9 && D2 > 1e-9)) && ((D3 > 1e-9 && D4 < -1e-9) || (D3 < -1e-9 && D4 > 1e-9));
+			}
+		if (Crossed)
+		{
+			// (the hull of the mouths' points, each knowing its mouth: an edge between two of one mouth is that mouth)
+			std::vector<std::pair<P2, int>> Pts2;
+			for (size_t K = 0; K < N; ++K)
+			{
+				P2 A, B;
+				MouthEnds(Mouths[K], A, B);
+				const int Steps = std::max(2, int(std::ceil(2.0 * Mouths[K].P.Half / 1.2)));
+				for (int S = 0; S <= Steps; ++S) Pts2.push_back({A + (B - A) * (double(S) / Steps), int(K)});
+				// (and its road's own edges on in to the junction's middle, so the apron covers the way through it)
+				const MouthLine& M = Mouths[K];
+				for (size_t I = 1; I < M.Inner.size(); ++I)
+				{
+					const P2 D = M.Inner[I] - M.Inner[I - 1];
+					const double L = D.Length();
+					if (L < 1e-6) continue;
+					const P2 Side(D.Z / L * M.P.Half, -D.X / L * M.P.Half);
+					Pts2.push_back({M.Inner[I] + Side, -1 - int(K)});
+					Pts2.push_back({M.Inner[I] - Side, -1 - int(K)});
+				}
+			}
+			std::sort(Pts2.begin(), Pts2.end(), [](const std::pair<P2, int>& X, const std::pair<P2, int>& Y) { return X.first.X != Y.first.X ? X.first.X < Y.first.X : X.first.Z < Y.first.Z; });
+			std::vector<std::pair<P2, int>> Hull;
+			for (int Pass = 0; Pass < 2; ++Pass)
+			{
+				const size_t Base = Hull.size();
+				for (size_t I = 0; I < Pts2.size(); ++I)
+				{
+					const std::pair<P2, int>& Q = Pass == 0 ? Pts2[I] : Pts2[Pts2.size() - 1 - I];
+					while (Hull.size() >= Base + 2 && Cross(Hull[Hull.size() - 2].first, Hull.back().first, Q.first) <= 1e-9) Hull.pop_back();
+					Hull.push_back(Q);
+				}
+				Hull.pop_back();
+			}
+			if (Hull.size() < 3) return;
+			Rim.clear();
+			OnMouth.clear();
+			for (size_t I = 0; I < Hull.size(); ++I)
+			{
+				const std::pair<P2, int>& A = Hull[I];
+				const std::pair<P2, int>& B = Hull[(I + 1) % Hull.size()];
+				Rim.push_back(A.first);
+				OnMouth.push_back(A.second == B.second || A.second == Hull[(I + Hull.size() - 1) % Hull.size()].second ? 1 : 0);
+				if (A.second != B.second)
+				{
+					// (a straight edge, a point every 2 m, so its shoulder follows the ground)
+					const int Steps = std::max(1, int(std::ceil(A.first.DistanceTo(B.first) / 2.0)));
+					for (int S = 1; S < Steps; ++S) { Rim.push_back(A.first + (B.first - A.first) * (double(S) / Steps)); OnMouth.push_back(0); }
+				}
+			}
+		}
+	}
 	const size_t R = Rim.size();
 	if (R < 6) return;
+	// (for the ground: the rim and the surface on a grid, no tarmac)
+	if (Shape != nullptr)
+	{
+		Shape->Rim = Rim;
+		double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
+		for (const P2& Q : Rim) { X0 = std::fmin(X0, Q.X); Z0 = std::fmin(Z0, Q.Z); X1 = std::fmax(X1, Q.X); Z1 = std::fmax(Z1, Q.Z); }
+		Shape->X0 = X0; Shape->Z0 = Z0;
+		Shape->Nx = int(std::ceil((X1 - X0) / WholeShapeCell)) + 1;
+		Shape->Nz = int(std::ceil((Z1 - Z0) / WholeShapeCell)) + 1;
+		Shape->H.assign(size_t(Shape->Nx) * size_t(Shape->Nz), 0.0f);
+		for (int Gz = 0; Gz < Shape->Nz; ++Gz)
+			for (int Gx = 0; Gx < Shape->Nx; ++Gx)
+				Shape->H[size_t(Gz) * size_t(Shape->Nx) + size_t(Gx)] = float(Surface(P2(X0 + Gx * WholeShapeCell, Z0 + Gz * WholeShapeCell)));
+		return;
+	}
 	// (the tarmac: rings from the middle out to the rim, each point's height the surface's; a fan from the middle)
 	const auto Vertex = [&Out](const P2& At, double Y, const float* Colour, const P2& Slope)
 	{
@@ -428,7 +586,11 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 	{
 		const float* Pa = &Out.Pos[size_t(A) * 3], * Pb = &Out.Pos[size_t(B) * 3], * Pc = &Out.Pos[size_t(C) * 3];
 		const double Up = double(Pb[2] - Pa[2]) * double(Pc[0] - Pa[0]) - double(Pb[0] - Pa[0]) * double(Pc[2] - Pa[2]);
-		if (std::fabs(Up) < 1e-9) return;
+		// ([smooth junctions stage 3] a sliver along a straight run of the rim, under a centimetre across: left out, no
+		// gap to see, where drawn it stood on edge, a spike (A14 at Huntingdon, 41 of them))
+		const auto Len2 = [](const float* P, const float* Q) { return double(P[0] - Q[0]) * double(P[0] - Q[0]) + double(P[2] - Q[2]) * double(P[2] - Q[2]); };
+		const double Longest = std::fmax(Len2(Pa, Pb), std::fmax(Len2(Pb, Pc), Len2(Pc, Pa)));
+		if (std::fabs(Up) < 1e-9 || std::fabs(Up) < 0.01 * Longest) return;
 		if (Up > 0.0) Out.Idx.insert(Out.Idx.end(), {A, B, C});
 		else Out.Idx.insert(Out.Idx.end(), {A, C, B});
 	};
@@ -447,7 +609,6 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out) const
 	{
 		std::vector<size_t> Left(R);
 		for (size_t I = 0; I < R; ++I) Left[I] = I;
-		const auto Cross = [](const P2& A, const P2& B, const P2& C) { return (B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X); };
 		size_t Guard = 0;
 		while (Left.size() > 3 && Guard++ < 4 * R * R)
 		{

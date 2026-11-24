@@ -1814,7 +1814,20 @@ public:
 	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
 	static constexpr double WholeEase = 40.0;   // the last metres of a road into a junction built whole: knots by the metre and a half, its rise evened out
 	bool WholeNear(int Which, const P2& At) const;   // a point of a road near a whole junction it is an arm of: its own heights, unsettled
-	void WholePiece(int Junction, RideMesh& Out) const;
+	struct WholeShape   // a whole junction's tarmac as the ground needs it: its rim, and its surface on a half-metre grid
+	{
+		std::vector<P2> Rim;
+		double X0 = 0.0, Z0 = 0.0;
+		int Nx = 0, Nz = 0;
+		std::vector<float> H;
+		bool Inside(const P2& At) const;
+		double HeightAt(const P2& At) const;
+	};
+	static constexpr double WholeShapeCell = 0.5;
+	std::unordered_map<long long, std::vector<int>> WholeCells;   // whole junctions by 64 m cell of the ground they may lie on
+	void WholePiece(int Junction, RideMesh& Out, WholeShape* Shape = nullptr) const;
+	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
+	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
 	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle

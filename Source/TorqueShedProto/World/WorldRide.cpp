@@ -43,7 +43,9 @@ struct RidePlan::Network
 	std::atomic<int> Blocks{0}, Bridges{0}, Tunnels{0};
 	std::mutex Fetching;                                          // one fetch of ground at a time
 	std::mutex Furnishing;                                        // Furnished
-	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;   // [ride anywhere 4] by (0 road | 1 block | 2 ring, its key)
+	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;
+	std::mutex Shaping;                                           // Shapes
+	std::unordered_map<int, std::shared_ptr<const RidePlan::WholeShape>> Shapes;   // [smooth junctions stage 3] by whole junction   // [ride anywhere 4] by (0 road | 1 block | 2 ring, its key)
 };
 
 namespace
@@ -2422,7 +2424,26 @@ double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bo
 	// (beenster, build 147, Whaley Bridge: a road's bank cut away the bank a railway beside it stands on,
 	// leaving the line in the air. Off the road's bench the railway's own bank and cutting win.)
 	if (RailBed && Hit.Dist > Flat + 0.3) Out = std::fmax(Out, RailLevel - RailRise);
+	Out = WholeGround(X, Z, Out);   // [smooth junctions stage 3]
 	return std::isnan(Clear) ? Out : std::fmin(Out, Clear);
+}
+
+// [smooth junctions stage 3] (WorldRideWhole.cpp's: here, where the network's insides are known)
+std::shared_ptr<const RidePlan::WholeShape> RidePlan::WholeShapeOf(int Ji) const
+{
+	if (Net == nullptr) return nullptr;
+	{
+		std::lock_guard<std::mutex> Hold(Net->Shaping);
+		const auto It = Net->Shapes.find(Ji);
+		if (It != Net->Shapes.end()) return It->second;
+	}
+	// (made outside the lock, from the roads as laid: none until every arm is laid, and then kept)
+	std::shared_ptr<WholeShape> Made = std::make_shared<WholeShape>();
+	RideMesh Unused;
+	WholePiece(Ji, Unused, Made.get());
+	if (Made->Rim.size() < 3 || Made->H.empty()) return nullptr;
+	std::lock_guard<std::mutex> Hold(Net->Shaping);
+	return Net->Shapes.emplace(Ji, Made).first->second;
 }
 
 double RidePlan::RoadHeight(double X, double Z) const
