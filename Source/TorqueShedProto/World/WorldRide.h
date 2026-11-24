@@ -733,6 +733,9 @@ public:
 	// walls' weathered feet (BuildingsTile), the darker, lusher ground round them (LandTile, HouseFootAt) and
 	// rank grass along their walls' feet (HouseFootPlants, the grass's density too).
 	double HouseBlend = 1.0;
+	// [eaves, Nov 24] Buildings' roof edges (WorldRideEaves.cpp): 2 fascias, soffits, bargeboards, eaves courses and
+	// cornices with gutters and downpipes; 1 the trim without gutters or downpipes; 0 none (-TorqueEaves=, the A/B).
+	int EavesLevel = 2;
 	// (how far round a building's walls the ground darkens, m, and how much at the wall)
 	static constexpr double HouseFootReach = 6.0;
 	// [house foot] How much the ground at (X, Z) is a building's foot (0..1: 1 at its walls, fading out over
@@ -1189,6 +1192,7 @@ public:
 		int Sooted = 0, Painted = 0;
 		int ShopFronts = 0;   // [towns stage 6] shop units fronted
 		int FrontWalls = 0;   // [towns stage 6] houses with a front garden wall
+		int EavesStyles[6] = {};   // [eaves] buildings by RideEaves::EStyle (none, boxed, stone course, cornice, gutter only, felt trim)
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or

@@ -1264,7 +1264,9 @@ int main()
 						std::printf("      buildings: %d drawn in %d squares; %d terraces (%d houses), %d chimneys, %d barns, %d ruins, %d within 20 m of a road; at most %zu triangles in a square\n",
 							Tally.Drawn, Tiles, Tally.Terraces, Tally.TerraceHouses, Tally.Chimneys, Tally.Barns, Tally.Ruins, Tally.NearRoad, MostTris);
 						std::printf("      roofs: %zu triangles in M_RideRoof (%zu of %zu faces' courses level), %zu of brick in M_RideBrick\n", RoofTris, LevelFaces, RoofFaces, BrickTris);
-						Check(Tally.Drawn > 0 && Tally.Terraces > 0 && Tally.Chimneys > Tally.Drawn / 4 && MostTris < 150000, "buildings by kind: terraces split into houses, chimneys up, no square too heavy");
+						Check(Tally.Drawn > 0 && Tally.Terraces > 0 && Tally.Chimneys > Tally.Drawn / 4 && MostTris < 160000, "buildings by kind: terraces split into houses, chimneys up, no square too heavy");
+						// ([eaves, Nov 24] 150000 until 171: the fascias, soffits, gutters and downpipes add about 8000 to the
+						// heaviest square (147750 without them); -TorqueEaves=1 or 0 takes them back off)
 						Check(RoofTris > 0 && LevelFaces == RoofFaces, "roofs drawn for their own surface, the courses level along the eaves");
 					}
 					// [towns stage 1] The town looks: the table read, York brick under clay tiles and Leeds brick

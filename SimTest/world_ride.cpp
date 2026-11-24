@@ -350,6 +350,7 @@ int main(int Argc, char** Argv)
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	// [house foot] WORLD_RIDE_HOUSEBLEND=0: the buildings without their weathered feet, darker ground and rank grass.
+	if (Plan && std::getenv("WORLD_RIDE_EAVES") != nullptr) Plan->EavesLevel = std::clamp(std::atoi(std::getenv("WORLD_RIDE_EAVES")), 0, 2);   // [eaves]
 	if (Plan && std::getenv("WORLD_RIDE_HOUSEBLEND") != nullptr) Plan->HouseBlend = std::clamp(std::atof(std::getenv("WORLD_RIDE_HOUSEBLEND")), 0.0, 1.0);
 	// [fps plan step 2] WORLD_RIDE_FACADE=1: the houses' windows and doors as the facade kit's models, as
 	// the game places them when it has them all.
@@ -571,6 +572,8 @@ int main(int Argc, char** Argv)
 				Tally.HouseFloors[0], Tally.HouseMapped[0], Tally.HouseFloors[1], Tally.HouseMapped[1], Tally.HouseFloors[2], Tally.HouseMapped[2],
 				Tally.HousesByRoad, Tally.LongSideToRoad);
 			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
+			std::printf("Eaves (level %d): %d boxed, %d stone or flush, %d cornices, %d works gutters, %d felt trims\n", Plan->EavesLevel, Tally.EavesStyles[1], Tally.EavesStyles[2],
+				Tally.EavesStyles[3], Tally.EavesStyles[4], Tally.EavesStyles[5]);   // [eaves]
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
 			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]

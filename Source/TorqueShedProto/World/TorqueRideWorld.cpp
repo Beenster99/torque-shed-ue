@@ -846,6 +846,14 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		Plan->HouseBlend = FMath::Clamp(BlendAsked, 0.0f, 1.0f);
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: house foot blend %.0f%%"), Plan->HouseBlend * 100.0);
 	}
+	{
+		// [eaves, Nov 24] Roof edges: fascias, soffits, bargeboards, cornices, gutters and downpipes (WorldRideEaves.cpp);
+		// -TorqueEaves=0 none (the frame rate A/B), 1 without gutters and downpipes, 2 all (the default).
+		int32 EavesAsked = 2;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueEaves="), EavesAsked);
+		Plan->EavesLevel = FMath::Clamp(EavesAsked, 0, 2);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: eaves trim level %d"), Plan->EavesLevel);
+	}
 	float Density = 1.0f;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliage="), Density)) Plan->GrassDensity = FMath::Clamp(Density, 0.0f, 1.0f);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliageCull="), CullScale)) CullScale = FMath::Clamp(CullScale, 0.05f, 4.0f);
