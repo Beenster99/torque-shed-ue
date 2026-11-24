@@ -889,8 +889,16 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// [towns stage 6] A shop: one the map calls a shop, or in a town's shopping street (the map's retail
 		// area or a pedestrian street) a house or a block of two storeys or more with its front to the street:
 		// a shop front on its ground floor, its own windows above.
+		// [pub signs] (a pub's own name board on its front wall, under these eaves: PubSignOn, DrawPubBoard)
+		PubWall PubFront;
+		const Furnish* PubOwn = Ruin ? nullptr : PubSignOn(B, PubFront);
+		const bool HasPub = PubOwn != nullptr;
+		if (HasPub) DrawPubBoard(*PubOwn, PubFront, Eaves, Out);
+		// ([Nov 24] not a pub carrying its own name board (PubSignWall): its board goes on a plain front, not
+		// buried in a shop front's pilasters and fascia. beenster, build 169, Ambleside)
 		const bool ShopHere = !Plain && !Big && !Ruin && HalfLong * 2.0 >= 3.5 && Eaves >= 3.2
-			&& (IsShop || ((IsHouse || IsBlock) && (InTown || Look.Shops) && Eaves >= 5.0 && FrontGap < 12.0 && ShopStreetNear(B.X, B.Z, 6.0 + HalfShort)));
+			&& (IsShop || ((IsHouse || IsBlock) && (InTown || Look.Shops) && Eaves >= 5.0 && FrontGap < 12.0 && ShopStreetNear(B.X, B.Z, 6.0 + HalfShort)))
+			&& !HasPub;
 		const Rgb StoneTrim = Shade(Stone, Sooted ? 0.55 : 1.15);
 		const bool Surrounds = (Look.StoneSurrounds || (!Rendered && !Brick)) && !Plain;
 		for (double Sg : {1.0, -1.0})

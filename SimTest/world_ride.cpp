@@ -1231,6 +1231,169 @@ int main(int Argc, char** Argv)
 		}
 		std::printf("Rails near the start: %d samples, %d floating off a bridge\n", Looked, Floating);
 	}
+	// [pub signs] (WORLD_RIDE_PUBS=1: every pub sign of the ride measured in the buildings as they are drawn:
+	// BuildingsTile's square for the pub, which draws the board with the building. The board found among
+	// its triangles (its back plate, 3 cm out from the wall's plane); from half a metre in front of its
+	// middle and both its ends, at its top, middle and foot, a ray straight back at the wall: each must meet
+	// a drawn wall within 10 cm of the board's back. And the board upright: its ends' tops and feet level,
+	// every point of its back plate in the one plane. WORLD_RIDE_PUBS_EACH=1 lists each sign.)
+	if (std::getenv("WORLD_RIDE_PUBS") != nullptr)
+	{
+		const Region& Gr = Plan->Area.Roads;
+		int Signs = 0, Placed = 0, OnWall = 0, OffWall = 0, Upright = 0, Shared = 0, NoBoard = 0;
+		std::vector<const Building*> UsedWalls;
+		int Why[6] = {0, 0, 0, 0, 0, 0};
+		double WorstGap = 0.0, WorstTilt = 0.0, OldWorst = 0.0;
+		std::map<std::pair<long long, long long>, std::vector<std::array<double, 10>>> Drawn;   // (each square's buildings' triangles, world metres; [9] 1 for a pub board's back plate by its colour, 2 its face)
+		const double Sq = 256.0;
+		const auto DrawnIn = [&](double X, double Z) -> const std::vector<std::array<double, 10>>&
+		{
+			const long long Kx = (long long)std::floor(X / Sq), Kz = (long long)std::floor(Z / Sq);
+			auto It = Drawn.find({Kx, Kz});
+			if (It != Drawn.end()) return It->second;
+			std::vector<std::array<double, 10>>& Tris = Drawn[{Kx, Kz}];
+			RideMesh M, Washed, Houses, Roofs, Bricks;
+			for (RideMesh* Mm : {&M, &Washed, &Houses, &Roofs, &Bricks}) { Mm->OriginX = double(Kx) * Sq; Mm->OriginZ = double(Kz) * Sq; }
+			Plan->BuildingsTile(double(Kx) * Sq, double(Kz) * Sq, Sq, true, Plan->LookHere(double(Kx) * Sq + Sq * 0.5, double(Kz) * Sq + Sq * 0.5), M, Washed, Houses, Roofs, Bricks);
+			const std::function<void(const RideMesh*)> Take = [&](const RideMesh* Mm)
+			{
+				if (!Mm) return;
+				for (size_t T = 0; T + 2 < Mm->Idx.size(); T += 3)
+				{
+					std::array<double, 10> Tri;
+					Tri[9] = 0.0;
+					for (size_t K = 0; K < 3; ++K)
+					{
+						const size_t V = Mm->Idx[T + K];
+						// (DrawPubBoard's paints: its back plate each of them at 0.6)
+						static const float Paints[4][3] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
+						double Kind = 0.0;
+						if (Mm->Col.size() >= (V + 1) * 3)
+							for (const float* Pt : Paints)
+								for (double By : {0.6, 1.0})
+									if (std::fabs(double(Mm->Col[V * 3]) - double(float(Pt[0] * By))) < 1e-6 && std::fabs(double(Mm->Col[V * 3 + 1]) - double(float(Pt[1] * By))) < 1e-6
+										&& std::fabs(double(Mm->Col[V * 3 + 2]) - double(float(Pt[2] * By))) < 1e-6) Kind = By < 1.0 ? 1.0 : 2.0;
+						Tri[9] = K == 0 ? Kind : (Tri[9] == Kind ? Kind : 0.0);
+						Tri[K * 3] = double(Mm->Pos[V * 3]) + Mm->OriginX;
+						Tri[K * 3 + 1] = double(Mm->Pos[V * 3 + 1]);
+						Tri[K * 3 + 2] = double(Mm->Pos[V * 3 + 2]) + Mm->OriginZ;
+					}
+					Tris.push_back(Tri);
+				}
+				for (const RideMesh* Sub : {Mm->Extra.get(), Mm->Stone.get(), Mm->Masonry.get(), Mm->Render.get(), Mm->Roofing.get(), Mm->Brickwork.get(), Mm->Signs.get()}) Take(Sub);
+			};
+			for (const RideMesh* Mm : {&M, &Washed, &Houses, &Roofs, &Bricks}) Take(Mm);
+			return Tris;
+		};
+		for (const RidePlan::Furnish& F : Plan->Furniture)
+		{
+			if (F.Kind != RidePlan::PubSign) continue;
+			++Signs;
+			RidePlan::PubWall Wall;
+			const int Res = Plan->PubSignWall(F, Wall);
+			++Why[std::clamp(Res, 0, 5)];
+			// (where build 169 hung it: the wall's way out times the other side's half)
+			if (F.Home >= 0)
+			{
+				const Building& Hb0 = Gr.Buildings[size_t(F.Home)];
+				OldWorst = std::fmax(OldWorst, std::fabs(Hb0.W - Hb0.D) * 0.5);
+			}
+			if (Res != 0) continue;
+			// (one board to a wall: the first pub's)
+			if (std::find(UsedWalls.begin(), UsedWalls.end(), Wall.Pub) != UsedWalls.end()) { ++Shared; continue; }
+			UsedWalls.push_back(Wall.Pub);
+			++Placed;
+			const std::vector<std::array<double, 10>>& Tris = DrawnIn(Wall.Pub->X, Wall.Pub->Z);
+			const P2 U(Wall.Face.Z, -Wall.Face.X);
+			const auto DepthOf = [&](double X, double Z) { return (X - Wall.At.X) * Wall.Face.X + (Z - Wall.At.Z) * Wall.Face.Z; };
+			const auto AlongOf = [&](double X, double Z) { return (X - Wall.At.X) * U.X + (Z - Wall.At.Z) * U.Z; };
+			// (the board: the triangles standing within 2 to 10 cm of the wall's plane, within 4 m of its middle)
+			double TopL = -1e9, TopR = -1e9, BotL = 1e9, BotR = 1e9, Lo = 1e9, Hi = -1e9, Left = 1e9, Right = -1e9, Bow = 0.0;
+			std::vector<char> IsBoard(Tris.size(), 0);
+			for (size_t T = 0; T < Tris.size(); ++T)
+			{
+				bool In = true;
+				for (size_t K = 0; K < 3 && In; ++K)
+				{
+					const double Dp = DepthOf(Tris[T][K * 3], Tris[T][K * 3 + 2]);
+					In = Tris[T][9] > 0.0 && Dp > -0.2 && Dp < 0.3 && std::fabs(AlongOf(Tris[T][K * 3], Tris[T][K * 3 + 2])) < 4.0 && std::fabs(Tris[T][K * 3 + 1] - Wall.Foot) < 12.0;
+				}
+				if (!In) continue;
+				IsBoard[T] = 1;
+				if (Tris[T][9] != 1.0) continue;   // (the back plate)
+				for (size_t K = 0; K < 3; ++K)
+				{
+					const double X = Tris[T][K * 3], Y = Tris[T][K * 3 + 1], Z = Tris[T][K * 3 + 2];
+					const double Dp = DepthOf(X, Z), Su = AlongOf(X, Z);
+					Bow = std::fmax(Bow, std::fabs(Dp - 0.03));
+					Lo = std::fmin(Lo, Y); Hi = std::fmax(Hi, Y);
+					Left = std::fmin(Left, Su); Right = std::fmax(Right, Su);
+					if (Su > 0.0) { TopR = std::fmax(TopR, Y); BotR = std::fmin(BotR, Y); }
+					else { TopL = std::fmax(TopL, Y); BotL = std::fmin(BotL, Y); }
+				}
+			}
+			if (Hi < Lo || TopL < -1e8 || TopR < -1e8)
+			{
+				++NoBoard;
+				int Near = 0;
+				for (const std::array<double, 10>& Tr : Tris)
+					if (std::fabs(DepthOf(Tr[0], Tr[2])) < 0.5 && std::fabs(AlongOf(Tr[0], Tr[2])) < 3.0) ++Near;
+				std::printf("  pub sign not drawn: '%s' (%d of the square's triangles by its wall; building %.1f x %.1f m at %.1f,%.1f)\n", F.Text.c_str(), Near, Wall.Pub->W, Wall.Pub->D, Wall.Pub->X, Wall.Pub->Z);
+				continue;
+			}
+			const double W = Right - Left, MidY = (Lo + Hi) * 0.5, Hb = Hi - Lo;
+			const double Tilt = std::fmax(std::atan2(std::fabs(TopL - TopR), W), std::atan2(std::fabs(BotL - BotR), W)) * 57.29578;
+			if (Tilt < 0.5 && Bow < 0.005) ++Upright;
+			WorstTilt = std::fmax(WorstTilt, Tilt);
+			// (the wall behind the board, the board's own triangles left out: the nearest of its top, middle and
+			// foot at each of its middle and its ends, so a window's reveal behind it doesn't count as a gap)
+			double Gap = 0.0;
+			for (double Su : {(Left + Right) * 0.5, Left + 0.05, Right - 0.05})
+			{
+				double Behind = 1e9;
+				for (double Sv : {-0.4, 0.0, 0.4})
+				{
+					const double O[3] = {Wall.At.X + U.X * Su + Wall.Face.X * 0.53, MidY + Sv * Hb, Wall.At.Z + U.Z * Su + Wall.Face.Z * 0.53};
+					const double D[3] = {-Wall.Face.X, 0.0, -Wall.Face.Z};
+					double Best = 1e9;
+					for (size_t T = 0; T < Tris.size(); ++T)
+					{
+						if (IsBoard[T]) continue;
+						const std::array<double, 10>& Tr = Tris[T];
+						const double E1[3] = {Tr[3] - Tr[0], Tr[4] - Tr[1], Tr[5] - Tr[2]}, E2[3] = {Tr[6] - Tr[0], Tr[7] - Tr[1], Tr[8] - Tr[2]};
+						const double Pv[3] = {D[1] * E2[2] - D[2] * E2[1], D[2] * E2[0] - D[0] * E2[2], D[0] * E2[1] - D[1] * E2[0]};
+						const double Det = E1[0] * Pv[0] + E1[1] * Pv[1] + E1[2] * Pv[2];
+						if (std::fabs(Det) < 1e-12) continue;
+						const double Tv[3] = {O[0] - Tr[0], O[1] - Tr[1], O[2] - Tr[2]};
+						const double Uu = (Tv[0] * Pv[0] + Tv[1] * Pv[1] + Tv[2] * Pv[2]) / Det;
+						if (Uu < -1e-6 || Uu > 1.0 + 1e-6) continue;
+						const double Qv[3] = {Tv[1] * E1[2] - Tv[2] * E1[1], Tv[2] * E1[0] - Tv[0] * E1[2], Tv[0] * E1[1] - Tv[1] * E1[0]};
+						const double Vv = (D[0] * Qv[0] + D[1] * Qv[1] + D[2] * Qv[2]) / Det;
+						if (Vv < -1e-6 || Uu + Vv > 1.0 + 1e-6) continue;
+						const double Tt = (E2[0] * Qv[0] + E2[1] * Qv[1] + E2[2] * Qv[2]) / Det;
+						if (Tt > 0.0 && Tt < Best) Best = Tt;
+					}
+					Behind = std::fmin(Behind, std::fabs(Best - 0.5));
+				}
+				Gap = std::fmax(Gap, Behind);
+			}
+			if (std::getenv("WORLD_RIDE_PUBS_EACH")) std::printf("    '%s': gap %.3f, tilt %.2f, bow %.3f, board %.1f x %.2f m, its middle %.2f m up, wall %.1f m\n", F.Text.c_str(), Gap, Tilt, Bow, W, Hb, MidY - Wall.Foot, Wall.Wall);
+			WorstGap = std::fmax(WorstGap, Gap);
+			if (Gap <= 0.10) ++OnWall;
+			else
+			{
+				++OffWall;
+				const Geo Where = Gr.FrameOf().ToGeo(Wall.At.X, Wall.At.Z);
+				std::printf("  pub sign off its wall: '%s' at %.5f,%.5f, %.2f m from the drawn wall\n", F.Text.c_str(), Where.Lat, Where.Lon, Gap > 1e8 ? -1.0 : Gap);
+			}
+		}
+		std::printf("Pub signs: %d; drawn %d, on a drawn wall %d (%d off it, worst gap %.3f m), upright %d (worst tilt %.2f deg), %d not drawn; none where: no building %d, building not drawn %d, wall too short %d, on the road %d, no ground %d; %d share a wall with another pub's\n",
+			Signs, Placed - NoBoard, OnWall, OffWall, WorstGap, Upright, WorstTilt, NoBoard, Why[1], Why[2], Why[3], Why[4], Why[5], Shared);
+		std::printf("  (build 169's way: up to %.2f m out from the wall, and the signs whose buildings aren't drawn hung up anyway)\n", OldWorst);
+		// (a board not drawn can't hang in the air: BuildingsTile draws it only with its building. Those are
+		// listed above, as pubs whose building the square left out after all)
+		std::printf("Pub signs check: %s\n", OffWall == 0 && Upright == Placed - NoBoard ? "PASS" : "FAIL");
+	}
 	if (const char* TallNear = std::getenv("WORLD_RIDE_TALL"))
 	{
 		// (what stands more than 6 m over the ground within r m of the ride's start, by layer, in 8 m squares:
