@@ -1,0 +1,10 @@
+{
+ "_note": "Bought bikes (beenster's own 3D models, Nov 25). Their drawings are never in git: Tools/bought_bikes.py copies each one, scrambled, into Data/BikesV2/<model>.tsb before every PC build, so it ships inside the packaged game (friends get the real bike). 'source' is the game glb made from the bought .blend by BikesV2/foundry/bought_multistrada.py.",
+ "ducati_multistrada": {
+  "name": "Ducati Multistrada V4 S",
+  "blend": "G:\\CGTrader Models\\Ducati_Multistrada_V4_2024_Blender(4.2)\\ducati_multistrada_v4_2024.blend",
+  "source": "G:\\CGTrader Models\\Ducati_Multistrada_V4_2024_Blender(4.2)\\game\\ducati_multistrada.glb",
+  "sha256": "3295c2dc5071c33519ae38e33d1d92d3ab918c990f0b5ba033d93fd79b901082",
+  "triangles": 140343
+ }
+}

@@ -35,3 +35,8 @@ SimTest/sfx_test.wav
 Data/BikesV2/*_kit*_def.glb
 Data/BikesV2/*_kit*_def.json
 Data/BikesV2/_b_*
+
+# Bought bikes (beenster's own models, Nov 25): their drawings are never committed, plain or scrambled.
+# Tools/bought_bikes.py puts the scrambled copy in Data/BikesV2 before each PC build (Data/BikesV2/bought.json).
+/Data/BikesV2/ducati_multistrada.glb
+/Data/BikesV2/*.tsb

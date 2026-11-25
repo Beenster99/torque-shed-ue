@@ -9049,6 +9049,190 @@
      "exhaust": "v2_varga_sport__exhaust"
     }
    }
+  },
+  "v2_ducati_multistrada": {
+   "name": "Ducati Multistrada V4 S",
+   "description": "The Ducati Multistrada V4 S, bought whole: 1,158 cc V4 Granturismo, 170 hp, semi-active suspension. Ridden as it comes.",
+   "mass": 11.0,
+   "wheelbase": 1.5475,
+   "com_height": 0.68,
+   "rake_deg": 25.072,
+   "seat_height": 0.838,
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "cda": 0.52,
+   "style": "adv",
+   "type": "Ducati Multistrada V4 S",
+   "price": 4200,
+   "geo": {
+    "arm": 0.6337,
+    "pivot_y": 0.1355,
+    "engine_at": 0.47,
+    "engine_y": 0.12,
+    "seat_drop": 0.1,
+    "tail_back": 0.08,
+    "peg": [
+     0.04,
+     0.0
+    ],
+    "exhaust": "upswept",
+    "swingarm": "box"
+   },
+   "styles": [
+    "adventure"
+   ],
+   "rig": {
+    "gusset": true
+   },
+   "v2": {
+    "model": "ducati_multistrada",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "lead": false,
+    "body": [
+     0.55,
+     0.012,
+     0.01
+    ],
+    "points_mm": {
+     "front_axle": [
+      1547.4,
+      0.0,
+      322.1
+     ],
+     "rear_axle": [
+      0.0,
+      0.0,
+      305.4
+     ],
+     "steer_top": [
+      1153.4,
+      0.0,
+      987.1
+     ],
+     "steer_bottom": [
+      1242.3,
+      0.0,
+      802.3
+     ],
+     "fork_top": [
+      1184.3,
+      0.0,
+      1049.4
+     ],
+     "fork_dir": [
+      -0.43352,
+      0.0,
+      0.90114
+     ],
+     "swing_pivot": [
+      632.2,
+      0.0,
+      447.7
+     ],
+     "rigid": false,
+     "hip": [
+      483.7,
+      0.0,
+      838.1
+     ],
+     "stats": {
+      "wheelbase": 1547,
+      "rake_deg": 25.69,
+      "trail": 81,
+      "seat_height": 838,
+      "ground_clearance": 180,
+      "fork_length": 813,
+      "fork_usd": true,
+      "front_radius": 322,
+      "rear_radius": 308,
+      "front_rim": 241,
+      "rear_rim": 216,
+      "front_width": 120,
+      "rear_width": 170,
+      "shaft": false,
+      "twin_shock": false,
+      "tread_front": "trail",
+      "tread_rear": "trail"
+     },
+     "peg": [
+      566.6,
+      177.9,
+      304.8
+     ],
+     "grip": [
+      1010.0,
+      343.1,
+      1181.3
+     ],
+     "shock_top": [
+      627.8,
+      0.0,
+      580.1
+     ],
+     "shock_bottom": [
+      263.7,
+      0.0,
+      533.7
+     ],
+     "tank_cap": [
+      936.3,
+      0.0,
+      1100.7
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1290.6,
+        -0.0,
+        1185.8
+       ],
+       "axis": [
+        -0.82431,
+        0.0,
+        0.56614
+       ],
+       "up": [
+        0.56614,
+        0.0,
+        0.82431
+       ],
+       "w": 175.1,
+       "h": 98.1,
+       "node": ""
+      }
+     ]
+    },
+    "build": {
+     "tank": "v2_ducati_multistrada__tank",
+     "saddle": "v2_ducati_multistrada__saddle",
+     "tail": "v2_ducati_multistrada__tail",
+     "side_panels": "v2_ducati_multistrada__side_panels",
+     "front_mudguard": "v2_ducati_multistrada__front_mudguard",
+     "fairing": "v2_ducati_multistrada__fairing",
+     "headlight": "v2_ducati_multistrada__headlight",
+     "indicators": "v2_ducati_multistrada__indicators",
+     "mirrors": "v2_ducati_multistrada__mirrors",
+     "handlebars": "v2_ducati_multistrada__handlebars",
+     "fork": "v2_ducati_multistrada__fork",
+     "front_wheel": "v2_ducati_multistrada__front_wheel",
+     "rear_wheel": "v2_ducati_multistrada__rear_wheel",
+     "shock": "v2_ducati_multistrada__shock",
+     "swingarm": "v2_ducati_multistrada__swingarm",
+     "rearsets": "v2_ducati_multistrada__rearsets",
+     "front_caliper": "v2_ducati_multistrada__front_caliper",
+     "rear_caliper": "v2_ducati_multistrada__rear_caliper",
+     "engine": "v2_ducati_multistrada__engine",
+     "gearbox": "v2_ducati_multistrada__gearbox",
+     "cooling": "v2_ducati_multistrada__cooling",
+     "exhaust": "v2_ducati_multistrada__exhaust"
+    },
+    "bought": true
+   }
   }
  },
  "tank": {
@@ -12036,6 +12220,34 @@
     "twin_shock": false,
     "kit": "tank_seat2",
     "of": "varga_sport"
+   }
+  },
+  "v2_ducati_multistrada__tank": {
+   "mass": 7.8,
+   "capacity": 39,
+   "style": "touring",
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "name": "Ducati Multistrada V4 S fuel tank",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "tank",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -15420,6 +15632,35 @@
     "twin_shock": false,
     "kit": "tank_seat2",
     "of": "varga_sport"
+   }
+  },
+  "v2_ducati_multistrada__saddle": {
+   "mass": 4.0,
+   "style": "touring",
+   "height": 0.01,
+   "comfort": 1.0,
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Ducati Multistrada V4 S seat",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "saddle",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -21465,6 +21706,41 @@
     "kit": "tail2",
     "of": "varga_sport"
    }
+  },
+  "v2_ducati_multistrada__tail": {
+   "mass": 0.9,
+   "type": "Plastic high fender",
+   "style": "enduro",
+   "light": "led",
+   "light_at": [
+    -0.03,
+    0.4
+   ],
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "name": "Ducati Multistrada V4 S tail unit",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "tail",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "side_panels": {
@@ -23099,6 +23375,36 @@
     "kit": "extras2",
     "of": "varga_mx"
    }
+  },
+  "v2_ducati_multistrada__side_panels": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Ducati Multistrada V4 S side panels",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "side_panels",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "front_mudguard": {
@@ -24093,6 +24399,36 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__front_mudguard": {
+   "mass": 0.55,
+   "type": "Plastic, high mount, long",
+   "style": "enduro",
+   "cover": 0.7,
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "material": "plastic",
+   "name": "Ducati Multistrada V4 S front mudguard",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "front_mudguard",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -25994,6 +26330,38 @@
     "twin_shock": false,
     "kit": "front2",
     "of": "varga_sport"
+   }
+  },
+  "v2_ducati_multistrada__fairing": {
+   "mass": 5.0,
+   "type": "Frame-mounted, tall adjustable screen",
+   "style": "half",
+   "cda": -0.055,
+   "screen": 0.38,
+   "screen_adjust": 0.12,
+   "frame_mount": true,
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "name": "Ducati Multistrada V4 S fairing",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "fairing",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -29148,6 +29516,37 @@
     "kit": "front2",
     "of": "varga_naked"
    }
+  },
+  "v2_ducati_multistrada__headlight": {
+   "mass": 1.0,
+   "type": "LED",
+   "style": "projector",
+   "size": 0.08,
+   "lumens": 3000,
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "lightweight": true,
+   "name": "Ducati Multistrada V4 S headlight",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "headlight",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "indicators": {
@@ -30917,6 +31316,34 @@
     "kit": "tail2",
     "of": "varga_sport"
    }
+  },
+  "v2_ducati_multistrada__indicators": {
+   "mass": 0.9,
+   "type": "Large, square",
+   "style": "touring",
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "name": "Ducati Multistrada V4 S indicators",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "indicators",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "mirrors": {
@@ -31798,6 +32225,35 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__mirrors": {
+   "mass": 0.8,
+   "type": "Rectangular, tall stalks",
+   "style": "rect",
+   "cda": 0.007,
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Ducati Multistrada V4 S mirrors",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "mirrors",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -32791,6 +33247,36 @@
     "fits": "model",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__handlebars": {
+   "mass": 1.5,
+   "style": "MX braced",
+   "width": 800,
+   "rise": 0.14,
+   "cda": 0.02,
+   "color": [
+    0.8,
+    0.62,
+    0.18
+   ],
+   "name": "Ducati Multistrada V4 S handlebars",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "handlebars",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -33983,6 +34469,42 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__fork": {
+   "mass": 10.0,
+   "type": "Upside-down",
+   "travel": 0.27,
+   "spring": 16500.0,
+   "bump": 1600.0,
+   "rebound": 2500.0,
+   "adjust": 3,
+   "adjust_name": "2-way (preload, rebound)",
+   "length": 0.92,
+   "offset": 0.05,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "style": "usd",
+   "name": "Ducati Multistrada V4 S front fork",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "fork",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -44443,6 +44965,76 @@
     "of": "lodestar_chopper",
     "bespoke": true
    }
+  },
+  "v2_ducati_multistrada__front_wheel": {
+   "mass": 6.2,
+   "type": "Spoked (tubeless)",
+   "style": "spoked",
+   "spokes": 28,
+   "diameter": 19,
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Ducati Multistrada V4 S front wheel",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "front_wheel",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_multistrada__rear_wheel": {
+   "mass": 6.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 17,
+   "spokes": 5,
+   "rim_width": 4.25,
+   "tyres": [
+    140,
+    170
+   ],
+   "color": [
+    0.2,
+    0.21,
+    0.23
+   ],
+   "name": "Ducati Multistrada V4 S rear wheel",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "rear_wheel",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "shock": {
@@ -45567,6 +46159,40 @@
     "layout": "parallel_twin",
     "twin_shock": false
    }
+  },
+  "v2_ducati_multistrada__shock": {
+   "mass": 4.8,
+   "type": "Mono-shock",
+   "travel": 0.28,
+   "spring": 17500.0,
+   "bump": 1700.0,
+   "rebound": 2500.0,
+   "adjust": 2,
+   "adjust_name": "Preload and rebound",
+   "layout": "mono",
+   "color": [
+    0.15,
+    0.35,
+    0.8
+   ],
+   "name": "Ducati Multistrada V4 S rear shock",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "shock",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "swingarm": {
@@ -46588,6 +47214,37 @@
     "fits": "shock",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__swingarm": {
+   "mass": 5.9,
+   "type": "Braced aluminium, black",
+   "arm": "braced_mx",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "metal": 0.5,
+   "rough": 0.5,
+   "material": "metal",
+   "name": "Ducati Multistrada V4 S swingarm",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "swingarm",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -48875,6 +49532,35 @@
     "kit": "b_pegs_torpedo_steel",
     "of": "lodestar_chopper",
     "bespoke": true
+   }
+  },
+  "v2_ducati_multistrada__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Ducati Multistrada V4 S footrests and controls",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "rearsets",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -51769,6 +52455,64 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__front_caliper": {
+   "mass": 1.0,
+   "pistons": 4,
+   "force": 0.92,
+   "type": "Axial",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "name": "Ducati Multistrada V4 S front calipers",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "front_caliper",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_multistrada__rear_caliper": {
+   "mass": 0.9,
+   "pistons": 1,
+   "force": 0.6,
+   "type": "Sliding",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "name": "Ducati Multistrada V4 S rear caliper",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "rear_caliper",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
@@ -55626,6 +56370,44 @@
     "of": "lodestar_chopper",
     "bespoke": true
    }
+  },
+  "v2_ducati_multistrada__engine": {
+   "mass": 66.0,
+   "layout": "vtwin",
+   "cylinders": 4,
+   "displacement": 1158.0,
+   "bore": 83.0,
+   "stroke": 53.5,
+   "torque_per_cc": 0.108,
+   "peak_torque_rpm": 8750.0,
+   "redline": 11500.0,
+   "idle_rpm": 1300.0,
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "type": "V4 Granturismo",
+   "name": "Ducati Multistrada V4 S engine",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 6800,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "engine",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   },
+   "crank": "twinpulse",
+   "v_angle": 90.0
   }
  },
  "head": {
@@ -75073,6 +75855,47 @@
     "kit": "e_finned_polished",
     "of": "varga_sport"
    }
+  },
+  "v2_ducati_multistrada__gearbox": {
+   "mass": 7.5,
+   "primary": 2.064,
+   "ratios": [
+    2.6,
+    1.94,
+    1.57,
+    1.33,
+    1.15,
+    1.0
+   ],
+   "shift_time": 0.05,
+   "type": "Six-speed with quickshifter",
+   "color": [
+    0.3,
+    0.31,
+    0.33
+   ],
+   "whine": 0.3,
+   "shift_feel": "slick",
+   "name": "Ducati Multistrada V4 S gearbox",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 900,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "gearbox",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   },
+   "quickshifter": true,
+   "dry_clutch": false
   }
  },
  "fuel": {
@@ -87578,6 +88401,35 @@
     "layout": "parallel_twin",
     "twin_shock": false
    }
+  },
+  "v2_ducati_multistrada__cooling": {
+   "mass": 3.0,
+   "type": "Liquid",
+   "capacity": 1.3,
+   "style": "radiator",
+   "color": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "name": "Ducati Multistrada V4 S radiator",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "cooling",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "exhaust": {
@@ -93410,6 +94262,37 @@
     "twin_shock": false,
     "kit": "exhaust2",
     "of": "varga_sport"
+   }
+  },
+  "v2_ducati_multistrada__exhaust": {
+   "mass": 4.0,
+   "torque_mult": 1.05,
+   "loudness": 1.05,
+   "style": "full",
+   "color": [
+    0.75,
+    0.73,
+    0.68
+   ],
+   "route": "upswept",
+   "can": "oval",
+   "name": "Ducati Multistrada V4 S exhaust",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "exhaust",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },
