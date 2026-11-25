@@ -142,7 +142,7 @@ def tank_lines(D, lines, crisp):
         bv = tk.modifiers.new("crisp", "BEVEL")
         bv.limit_method, bv.angle_limit = "ANGLE", math.radians(crisp["angle"])
         bv.width, bv.segments = crisp["width"] * B.MM, 1 if _game(D) else 3
-        bv.harden_normals = True
+        bv.harden_normals = not _game(D)
 
 
 def vee(D, spec, name="advnose"):
@@ -281,7 +281,60 @@ def crisp(D, spec):
             bv = o.modifiers.new("crisp", "BEVEL")
             bv.limit_method, bv.angle_limit = "ANGLE", math.radians(spec["angle"])
             bv.width, bv.segments, bv.profile = spec["width"] * B.MM, 1 if _game(D) else 3, 0.5
-            bv.harden_normals = True
+            bv.harden_normals = not _game(D)
+
+
+def tidy(D, prefixes=("advnose", "advmask", "advbeak", "advgrey", "advblack", "tank")):
+    """Bake the panels' modifiers and clear the slivers the opening cuts, the V's cut lines and the radar pocket
+    leave behind: merged points, collapsed faces, consistent winding, and any face still shading against its own
+    direction drawn flat (build 172: dark triangles on the nose paint in the game, from slivers whose smoothed
+    normals pointed into the panel). Returns the corners still facing the wrong way (0)."""
+    left = 0
+    for o in list(bpy.data.objects):
+        if o.type != "MESH" or o.name != "tank" and not o.name.startswith(tuple(p for p in prefixes if p != "tank")):
+            continue
+        _apply_all(o)
+        if _game(D):
+            # thinned here, before the clean-up, and left alone by the export's own thinning (its collapse made new
+            # folded slivers on these cut panels)
+            n_ = sum(len(p.vertices) - 2 for p in o.data.polygons)
+            if n_ > 2500 and o.name == "tank":
+                bpy.context.view_layer.objects.active = o
+                md = o.modifiers.new("thin", "DECIMATE")
+                md.ratio = D.B.GAME_THIN[3]
+                _apply_all(o)
+            o["no_thin"] = True
+        if _game(D) and o.data.has_custom_normals:
+            # the game gets plain normals from the shape itself: a crease above the angle is an edge, the rest
+            # smooth (custom normals carried through the thinning came out bent: build 172's dark triangles)
+            bpy.context.view_layer.objects.active = o
+            with bpy.context.temp_override(object=o, active_object=o):
+                bpy.ops.mesh.customdata_custom_splitnormals_clear()
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00005)
+        bmesh.ops.dissolve_degenerate(bm, edges=bm.edges, dist=0.0002)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(o.data)
+        bm.free()
+        me = o.data
+        if _game(D):
+            me.polygons.foreach_set("use_smooth", [True] * len(me.polygons))
+            me.set_sharp_from_angle(angle=math.radians(30))
+        cn = me.corner_normals
+        bad = [p for p in me.polygons if any(cn[li].vector.dot(p.normal) < 0.0 for li in p.loop_indices)]
+        if bad:
+            # those faces shade flat: their corners take the face's own direction
+            ns = [cn[i].vector.copy() for i in range(len(me.loops))]
+            for p in bad:
+                for li in p.loop_indices:
+                    ns[li] = p.normal.copy()
+            me.normals_split_custom_set(ns)
+            me.update()
+            cn = me.corner_normals
+            left += sum(1 for p in me.polygons for li in p.loop_indices if cn[li].vector.dot(p.normal) < 0.0)
+    print("tidy: corners shading the wrong way", left)
+    return left
 
 
 def run(D, model, c):
@@ -315,4 +368,6 @@ def run(D, model, c):
         radar(D, W["radar"])
     if W.get("crisp"):
         crisp(D, W["crisp"])
+    bpy.context.view_layer.update()
+    tidy(D)
     bpy.context.view_layer.update()

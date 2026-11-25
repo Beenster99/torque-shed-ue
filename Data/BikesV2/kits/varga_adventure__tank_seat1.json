@@ -2,7 +2,7 @@
  "name": "Varga adventure (working title A1)",
  "format": 2,
  "kit": true,
- "triangles": 29155,
+ "triangles": 29145,
  "surfaces": {
   "s021": {
    "slot": "tank",
