@@ -44,7 +44,9 @@ const bool BothDown = WhyOn("WHOLE_BOTHDOWN");   // (the checker can turn both d
 const bool CornerOld = WhyOn("WHOLE_CORNEROLD");   // (the checker can turn down for room without trying tight corners)
 const bool GapOld = WhyOn("WHOLE_GAPOLD");   // (the checker can turn down a dual's gaps as before)
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
-const bool DualOld = WhyOn("WHOLE_DUALOLD");   // (the checker can turn down every junction on a dual's half as before)
+const bool DualOld = WhyOn("WHOLE_DUALOLD");
+const bool RingSpanOld = WhyOn("WHOLE_RINGSPANOLD");
+const bool PaintOld = WhyOn("WHOLE_PAINTOLD");   // (the checker can paint off the piece as before)   // (the checker can turn down a ring for any bridge within 40 m of it as before)   // (the checker can turn down every junction on a dual's half as before)
 } // namespace
 const bool RidePlan::WholeFirmOff = WhyOn("WHOLE_FIRMOFF");   // (the checker can compare without JoinedHeightFrom's Firm)
 
@@ -557,18 +559,16 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			const int Which = Arms[A].Edge + 1;
 			const int End = G.Edges[size_t(Arms[A].Edge)].A == Arms[A].Node ? 0 : 1;
 			{
-				// ([smooth junctions stage 5c] the same road end claimed by two (a ring's arm walked on to a junction's): both
-				// turned down below; the second's claim replaced the first's, and the first, kept, lost its mouth there)
+				// ([smooth junctions stage 5c] the same road end claimed by two (a ring's arm walked on to a junction's): the
+				// first turned down below; the second's claim replaced the first's, and the first, kept, lost its mouth there)
 				const auto Had = WholeEnds.find(static_cast<long long>(Which) * 2 + End);
-				if (Had != WholeEnds.end() && Had->second.first != int(Ji)) WholeEndClash.emplace_back(Had->second.first, int(Ji));
+				if (Had != WholeEnds.end() && Had->second.first != int(Ji)) WholeEndClash.push_back({Had->first, Had->second.first, Had->second.second, int(Ji)});
 				WholeEnds[static_cast<long long>(Which) * 2 + End] = {int(Ji), W.Cut[A]};
 			}
 			WholeArmsOf[Which].push_back(int(Ji));
 		}
 		for (int E : J.Inside) WholeInside[E + 1] = int(Ji);
 	}
-	for (const std::pair<int, int>& Two : WholeEndClash)
-		for (int Jx : {Two.first, Two.second}) { WholeOf[size_t(Jx)].Ok = false; WholeWhy[size_t(Jx)] = 12; }
 	// (a road both of whose ends are whole junctions: its two cuts must leave some of it between them)
 	for (auto& KV : WholeEnds)
 	{
@@ -597,8 +597,9 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		const auto Clash = [this](int Ja, int Jb, bool ArmOf)
 		{
 			if (!WholeOf[size_t(Ja)].Ok || !WholeOf[size_t(Jb)].Ok) return;
-			// (a ring's and a junction's: both, as before; a ring kept hid its short arm pieces up to the junction's old mouths,
-			// the road there under no tarmac, Fort William)
+			// (a ring's and a junction's: both, as before. Kept, the ring hid its entry and exit pair up to the junction's old
+			// mouth, the road there under no tarmac (Fort William): keeping rings took the UK sample's holes from 430 m to 744 m,
+			// and even where its arm was the road in the junction, to 489 m)
 			const bool Ring = JunctionPlaces[size_t(Ja)].Made || JunctionPlaces[size_t(Jb)].Made;
 			const int Lose = ArmOf ? Ja
 				: WholeOf[size_t(Ja)].Reach != WholeOf[size_t(Jb)].Reach ? (WholeOf[size_t(Ja)].Reach > WholeOf[size_t(Jb)].Reach ? Ja : Jb) : std::max(Ja, Jb);
@@ -621,6 +622,14 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			if (In != InsideOf.end() && In->second != KV.second.first) Clash(In->second, KV.second.first, true);
 		}
 	}
+	// (a road end claimed by two: the first claim, replaced by the second's (a ring's, planned last), turned down; or, the
+	// second turned down already, given back its claim. After the clashes above, which turn both down where a ring is one)
+	for (const EndClash& Two : WholeEndClash)
+		if (WholeOf[size_t(Two.First)].Ok)
+		{
+			if (WholeOf[size_t(Two.Second)].Ok) { WholeOf[size_t(Two.First)].Ok = false; WholeWhy[size_t(Two.First)] = 12; }
+			else WholeEnds[Two.Key] = {Two.First, Two.Cut};
+		}
 	// (those turned down on the way: their arms back to the old way)
 	for (auto It = WholeEnds.begin(); It != WholeEnds.end();)
 		It = WholeOf[size_t(It->second.first)].Ok ? std::next(It) : WholeEnds.erase(It);
@@ -1144,8 +1153,18 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	if (!AnyPaved) { if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f); return; }
 	static constexpr float Paint[3] = {0.83f, 0.83f, 0.75f};
 	static constexpr double PaintLift = 0.004;
+	// ([smooth junctions stage 6] paint only on the piece's own tarmac: a give-way line worked out from the through road's
+	// edge hung out over the verge where a dual's gap or a slip's island moved that edge, Penrith)
+	const auto OnTarmac = [&Rim](const P2& Q)
+	{
+		bool In = false;
+		for (size_t I = 0, K = Rim.size() - 1; I < Rim.size(); K = I++)
+			if ((Rim[I].Z > Q.Z) != (Rim[K].Z > Q.Z) && Q.X < (Rim[K].X - Rim[I].X) * (Q.Z - Rim[I].Z) / (Rim[K].Z - Rim[I].Z) + Rim[I].X) In = !In;
+		return In;
+	};
 	const auto Quad = [&](const P2& A0, const P2& A1, const P2& B1, const P2& B0)
 	{
+		if (!PaintOld && (!OnTarmac(A0) || !OnTarmac(A1) || !OnTarmac(B1) || !OnTarmac(B0))) return;
 		const uint32_t V0 = Vertex(A0, Surface(A0) + PaintLift, Paint, P2(0.0, 0.0)), V1 = Vertex(A1, Surface(A1) + PaintLift, Paint, P2(0.0, 0.0));
 		const uint32_t V2 = Vertex(B1, Surface(B1) + PaintLift, Paint, P2(0.0, 0.0)), V3 = Vertex(B0, Surface(B0) + PaintLift, Paint, P2(0.0, 0.0));
 		Tri(V0, V1, V2); Tri(V0, V2, V3);
@@ -1197,7 +1216,34 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			if ((M.P.At - Mid).X * Normal.X + (M.P.At - Mid).Z * Normal.Z < 0.0) Normal = Normal * -1.0;
 			// (the line: the through road's edge, parallel to it, ThroughHalf + 0.3 out, across this road's way in: the
 			// half to the left of traffic coming in where traffic keeps left)
-			const P2 EdgeAt = Mid + Normal * (ThroughHalf + 0.3);
+			P2 EdgeAt = Mid + Normal * (ThroughHalf + 0.3);
+			// ([smooth junctions stage 6] the through road's edge as its middle runs, curved from mouth to mouth as its centre
+			// line is, not the straight line between its mouths: on a bend the line stood out in the road or off it)
+			if (!PaintOld)
+			{
+				P2 Ctl;
+				if (!Crossing(T.P.At, T.Out, Mouths[size_t(Tb)].P.At, Mouths[size_t(Tb)].Out, Ctl) || Ctl.DistanceTo(J.At) > 30.0) Ctl = Mid;
+				double Best = 1e18;
+				for (int S = 0; S < 40; ++S)
+				{
+					const double T0 = S / 40.0, T1 = (S + 1) / 40.0;
+					const auto Bez = [&](double U) { return T.P.At * ((1 - U) * (1 - U)) + Ctl * (2 * U * (1 - U)) + Mouths[size_t(Tb)].P.At * (U * U); };
+					const P2 Q0 = Bez(T0), Q1 = Bez(T1);
+					P2 Dq = Q1 - Q0;
+					const double Lq = Dq.Length();
+					if (Lq < 1e-6) continue;
+					Dq = Dq * (1.0 / Lq);
+					P2 Nq(Dq.Z, -Dq.X);
+					if ((M.P.At - Q0).X * Nq.X + (M.P.At - Q0).Z * Nq.Z < 0.0) Nq = Nq * -1.0;
+					const P2 E0 = Q0 + Nq * (ThroughHalf + 0.3);
+					P2 Cut;
+					if (!Crossing(E0, Dq, M.P.At, M.Out, Cut)) continue;
+					const double Along = (Cut - E0).X * Dq.X + (Cut - E0).Z * Dq.Z;
+					if (Along < -0.01 || Along > Lq + 0.01) continue;
+					const double D = Cut.DistanceTo(M.P.At);
+					if (D < Best) { Best = D; EdgeAt = E0; ThroughDir = Dq; Normal = Nq; }
+				}
+			}
 			P2 Hit;
 			if (!Crossing(EdgeAt, ThroughDir, M.P.At, M.Out, Hit) || Hit.DistanceTo(J.At) > 30.0) continue;
 			const double Side = KeepLeft() ? -1.0 : 1.0;   // (traffic coming in runs -Out: its left is -Left)
@@ -1232,7 +1278,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 	for (int E : J.Inside)
 		if (OnRide[size_t(E)] || G.CircuitEdge(E)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
 	for (const Span& Sp : G.Spans)
-		if (ToSegment(J.At, Sp.A, Sp.B) < Outer + 40.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3\n", J.Ring); return; }
+		if (ToSegment(J.At, Sp.A, Sp.B) < Outer + (RingSpanOld ? 40.0 : 8.0)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3\n", J.Ring); return; }
 	{
 		double D = 0.0, H = 0.0;
 		if (!Ride && Nearest(J.At.X, J.At.Z, D, H, nullptr, nullptr, nullptr, true) && D < Outer + WholeRideClear) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 4\n", J.Ring); return; }
@@ -1508,6 +1554,11 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		double Rise = 0.0;
 		if (CutRow(Road, W.RideAlong[R], P, Dir, Rise)) W.Reach = std::fmax(W.Reach, P.At.DistanceTo(Rr.Mid) + P.Half + 2.0);
 	}
+	// ([smooth junctions stage 5c] no bridge or tunnel within its reach (its land is sunk only under the piece itself,
+	// WholeGround), not within 40 m of the ring's edge whatever its arms' reach: 80 of Milton Keynes' 135 rings were turned
+	// down for the underpasses near them)
+	for (const Span& Sp : G.Spans)
+		if (!RingSpanOld && ToSegment(J.At, Sp.A, Sp.B) < W.Reach + 1.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3 reach\n", J.Ring); return; }
 	WholeOf[Ji] = W;
 	if (Ride) RideHides.emplace_back(W.Hide[0], int(Ji));
 	WholeRingOf[J.Ring] = int(Ji);
@@ -1516,10 +1567,10 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		const int Which = J.Arms[A].Edge + 1;
 		const int End = G.Edges[size_t(J.Arms[A].Edge)].A == J.Arms[A].Node ? 0 : 1;
 		{
-				// ([smooth junctions stage 5c] the same road end claimed by two (a ring's arm walked on to a junction's): both
-				// turned down below; the second's claim replaced the first's, and the first, kept, lost its mouth there)
+				// ([smooth junctions stage 5c] the same road end claimed by two (a ring's arm walked on to a junction's): the
+				// first turned down below; the second's claim replaced the first's, and the first, kept, lost its mouth there)
 				const auto Had = WholeEnds.find(static_cast<long long>(Which) * 2 + End);
-				if (Had != WholeEnds.end() && Had->second.first != int(Ji)) WholeEndClash.emplace_back(Had->second.first, int(Ji));
+				if (Had != WholeEnds.end() && Had->second.first != int(Ji)) WholeEndClash.push_back({Had->first, Had->second.first, Had->second.second, int(Ji)});
 				WholeEnds[static_cast<long long>(Which) * 2 + End] = {int(Ji), W.Cut[A]};
 			}
 		WholeArmsOf[Which].push_back(int(Ji));

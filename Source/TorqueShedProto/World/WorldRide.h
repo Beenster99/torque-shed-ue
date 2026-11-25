@@ -1831,7 +1831,8 @@ public:
 	std::vector<WholePlan> WholeOf;   // by JunctionPlaces
 	std::vector<unsigned char> WholeWhy;   // [smooth junctions stage 5] by JunctionPlaces: why not built whole (EWholeWhy), for the checker
 	std::unordered_map<long long, std::pair<int, double>> WholeEnds;   // (road * 2 + end) -> its junction, its cut
-	std::vector<std::pair<int, int>> WholeEndClash;   // [smooth junctions stage 5c] (two junctions that claimed one road end: both turned down)
+	struct EndClash { long long Key = 0; int First = -1; double Cut = 0.0; int Second = -1; };
+	std::vector<EndClash> WholeEndClash;   // [smooth junctions stage 5c] (two junctions that claimed one road end, the first's claim)
 	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
 	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
 	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
