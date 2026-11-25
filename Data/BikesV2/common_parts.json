@@ -5655,19 +5655,20 @@
      {
       "file": "plate_hanger/side.glb",
       "looks": "plate_hanger/side.json",
-      "anchor": "hip",
+      "anchor": "rear_axle",
       "offset_mm": [
-       -590.0,
+       -75.0,
        215.0,
-       -426.0
+       78.0
       ],
-      "node": "",
+      "node": "swingarm",
       "sub": "plate_hanger",
       "mount_mm": [
        -75.0,
        215.0,
        394.0
-      ]
+      ],
+      "anchor_only": true
      }
     ],
     "finishes": []

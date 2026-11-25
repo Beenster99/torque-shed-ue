@@ -74,6 +74,66 @@ double Dist(const V3& A, const V3& B)
 	const V3 D = A - B;
 	return std::sqrt(D.x * D.x + D.y * D.y + D.z * D.z);
 }
+// How far off the line of the grip a piece on the end of the bar sits (beenster, build 171: "bar end mirrors don't
+// line up on beach bar handlebars"): each side, the grip's long axis and outer end, and the middle of the piece's
+// points within 30 mm of a point 15 mm beyond that end (its clamp or plug, which is round about the bar's line): how
+// far that middle is from the line. 1e9 when the piece has nothing there at all.
+double EndOffLine(const std::vector<FittedPart>& Fitted, const std::string& Sub)
+{
+	double Worst = 0.0;
+	for (double SideSign : {-1.0, 1.0})
+	{
+		std::vector<V3> Grip;
+		for (int Shop = 1; Shop >= 0 && Grip.empty(); --Shop)
+			for (const FittedPart& P : Fitted)
+				if (P.Sub == "grip" && P.Made && !P.Hidden && (P.Glb.rfind("v2c/", 0) == 0) == (Shop == 1))
+					for (const PartSurface& Sf : P.Made->Surfaces)
+						for (const V3& Q : Sf.Pos)
+							if (Q.z * SideSign > 0.0) Grip.push_back(Q);
+		if (Grip.size() < 8) return 1e9;
+		V3 Mid(0.0, 0.0, 0.0);
+		for (const V3& Q : Grip) Mid = Mid + Q;
+		Mid = Mid * (1.0 / double(Grip.size()));
+		double C[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+		for (const V3& Q : Grip)
+		{
+			const double D[3] = {Q.x - Mid.x, Q.y - Mid.y, Q.z - Mid.z};
+			for (int I = 0; I < 3; ++I)
+				for (int J = 0; J < 3; ++J) C[I][J] += D[I] * D[J];
+		}
+		V3 A(0.0, 0.0, 1.0);
+		for (int It = 0; It < 40; ++It)
+		{
+			A = V3(C[0][0] * A.x + C[0][1] * A.y + C[0][2] * A.z, C[1][0] * A.x + C[1][1] * A.y + C[1][2] * A.z, C[2][0] * A.x + C[2][1] * A.y + C[2][2] * A.z);
+			A = A * (1.0 / std::sqrt(A.x * A.x + A.y * A.y + A.z * A.z));
+		}
+		if (A.z * SideSign < 0.0) A = A * -1.0;
+		double Far = -1e9;
+		for (const V3& Q : Grip) Far = std::max(Far, (Q.x - Mid.x) * A.x + (Q.y - Mid.y) * A.y + (Q.z - Mid.z) * A.z);
+		const V3 At = Mid + A * (Far + 0.015);
+		V3 Sum(0.0, 0.0, 0.0);
+		int N = 0;
+		for (const FittedPart& P : Fitted)
+			if (P.Sub == Sub && P.Made && !P.Hidden && P.Glb.rfind("v2c/", 0) == 0)
+				for (const PartSurface& Sf : P.Made->Surfaces)
+					for (const V3& Q : Sf.Pos)
+						if (Q.z * SideSign > 0.0 && Dist(Q, At) < 0.030) { Sum = Sum + Q; ++N; }
+		if (N < 12 && std::getenv("ENDDBG2"))
+		{
+			double Nearest = 1e9; int All = 0;
+			for (const FittedPart& P : Fitted)
+				if (P.Sub == Sub && P.Made && P.Glb.rfind("v2c/", 0) == 0)
+					for (const PartSurface& Sf : P.Made->Surfaces)
+						for (const V3& Q : Sf.Pos) { ++All; if (Q.z * SideSign > 0.0) Nearest = std::min(Nearest, Dist(Q, At)); }
+			std::printf("ENDDBG2 side %.0f grip %zu axis %.2f %.2f %.2f far %.3f at %.3f %.3f %.3f piece pts %d nearest %.3f n %d\n", SideSign, Grip.size(), A.x, A.y, A.z, Far, At.x, At.y, At.z, All, Nearest, N);
+		}
+		if (N < 12) return 1e9;
+		const V3 Cen = Sum * (1.0 / double(N)), Rel = Cen - Mid;
+		const double Along = Rel.x * A.x + Rel.y * A.y + Rel.z * A.z;
+		Worst = std::max(Worst, Dist(Rel, A * Along));
+	}
+	return Worst;
+}
 } // namespace
 
 int main()
@@ -119,6 +179,9 @@ int main()
 	double WorstHand = 0.0, WorstBar = 0.0, WorstBy = 0.0, WorstCable = 0.0, WorstEnd = 0.0, WorstReach = 0.0;
 	int EndFits = 0;
 	int MirFits = 0;
+	int SideHangers = 0;
+	double WorstHanger = 0.0;
+	double WorstOffLine = 0.0;
 	double WorstMir = 0.0;
 	for (const std::string& Frame : Db.Ids("frame"))
 	{
@@ -285,20 +348,25 @@ int main()
 								}
 								return Worst;
 							};
-							std::vector<std::pair<std::string, std::string>> Tries = {{"", ""}, {"front_master", ""}};
+							std::vector<std::pair<std::string, std::string>> Tries = {{"", ""}, {"front_master", ""}, {"levers", ""}};
 							for (const char* TrySlot : {"mirrors", "levers", "switchgear"})
 								for (const std::string& Opt : Shop::Options(Lay, TrySlot, Style, Stock))
 									if (!Opt.empty() && (!Stock.count(TrySlot) || Opt != Stock.at(TrySlot))) Tries.push_back({TrySlot, Opt});
+							// (no clutch lever on at all, a scratch build part way: beenster, build 171, "misfit mirror", the left mirror
+							// standing in the air in front of the bar where the perch would be)
+							for (const std::string& Opt : Shop::Options(Lay, "mirrors", Style, Stock))
+								if (!Opt.empty()) Tries.push_back({"nolevers", Opt});
 							for (const auto& Try : Tries)
 							{
 								PartsMap On = Parts, Off = Stock;
-								if (!Try.first.empty() && Try.second.empty()) { On.erase(Try.first); Off.erase(Try.first); }
+								if (Try.first == "nolevers") { On.erase("levers"); Off.erase("levers"); On["mirrors"] = Try.second; Off["mirrors"] = Try.second; }
+								else if (!Try.first.empty() && Try.second.empty()) { On.erase(Try.first); Off.erase(Try.first); }
 								else if (!Try.first.empty()) { On[Try.first] = Try.second; Off[Try.first] = Try.second; }
 								const double OwnGap = MirGap(Placer.Fit(Off, L)), Gap = MirGap(Placer.Fit(On, L));
 								if (std::getenv("MIRGAP")) std::printf("MIRGAP %s %s %s %.4f %.4f\n", Frame.c_str(), E.Id.c_str(), (Try.first + "=" + Try.second).c_str(), OwnGap, Gap);
 								++MirFits;
-								if (OwnGap <= 0.08) WorstMir = std::max(WorstMir, Gap);
-								Expect(Gap < 0.006 || OwnGap > 0.08, Frame + ": " + E.Id + " with " + (Try.first.empty() ? std::string("the bike's own mirrors") : Try.second.empty() ? "no " + Try.first : Try.second) + ": the mirrors sit on their perches (" + std::to_string(Gap) + " m off, " + std::to_string(OwnGap) + " on the bike's own bar)");
+								if (Family != "sport") WorstMir = std::max(WorstMir, Gap);
+								Expect(Gap < 0.006 || (OwnGap > 0.08 && Family == "sport"), Frame + ": " + E.Id + " with " + (Try.first.empty() ? std::string("the bike's own mirrors") : Try.second.empty() ? "no " + Try.first : Try.second) + ": the mirrors sit on their perches (" + std::to_string(Gap) + " m off, " + std::to_string(OwnGap) + " on the bike's own bar)");
 							}
 						}
 						// Bar ends fitted with the bar sit on the bar's end ("when I tried to fit bar ends to them they hung in the air").
@@ -321,9 +389,25 @@ int main()
 												for (size_t Ib = 0; Ib < Sb.Pos.size(); Ib += 2) EndGap = std::min(EndGap, Dist(Sa.Pos[Ia], Sb.Pos[Ib]));
 								}
 							}
+							const double OffLine = EndOffLine(Ended, "bar_end");
+							if (std::getenv("ENDDBG")) std::printf("ENDOFF %s %s %s %.4f\n", Frame.c_str(), E.Id.c_str(), End.Id.c_str(), OffLine);
+							WorstOffLine = std::max(WorstOffLine, OffLine);
+							Expect(OffLine < 0.004, Frame + ": " + E.Id + " with " + End.Id + ": the bar end is in line with the grip (" + std::to_string(OffLine) + " m off its line)");
 							++EndFits;
 							WorstEnd = std::max(WorstEnd, EndGap);
 							Expect(EndGap < 0.012, Frame + ": " + E.Id + " with " + End.Id + ": the bar end is on the bar (" + std::to_string(EndGap) + " m off it)");
+						}
+						// Bar-end mirrors fitted with the bar stand on the bar's end, in line with it.
+						for (const Entry& Mir : Common)
+						{
+							if (Mir.Kind != Lay.KindOfSlot("mirrors") || Mir.Id.find("barend") == std::string::npos) continue;
+							PartsMap WithMir = Parts;
+							WithMir["mirrors"] = Mir.Id;
+							const double OffLine = EndOffLine(Placer.Fit(WithMir, L), "mirrors");
+							if (std::getenv("ENDDBG")) std::printf("ENDOFF %s %s %s %.4f\n", Frame.c_str(), E.Id.c_str(), Mir.Id.c_str(), OffLine);
+							++EndFits;
+							WorstOffLine = std::max(WorstOffLine, OffLine);
+							Expect(OffLine < 0.004, Frame + ": " + E.Id + " with " + Mir.Id + ": the bar-end mirror is in line with the grip (" + std::to_string(OffLine) + " m off its line)");
 						}
 						// The rider can reach the grips: with the back leant anywhere from 20 degrees back to 65 forward, a
 						// shoulder comes within an arm of the grip. A rider of ordinary build: hip joint to shoulder 0.47 m,
@@ -370,6 +454,30 @@ int main()
 								for (const PartSurface& S : P.Made->Surfaces) Lens = Lens || S.Material.find("/lens_white/") != std::string::npos || (S.Material.size() > 11 && S.Material.compare(S.Material.size() - 11, 11, "/lens_white") == 0);
 						Expect(Lens, Frame + ": " + E.Id + " has a lit white lens");
 					}
+					// A bar end or a bar-end mirror on the bike's own bar: in line with the grip, on its end.
+					if (Sub == "bar_end" || (Sub == "mirrors" && E.Id.find("barend") != std::string::npos))
+					{
+						const double OffLine = EndOffLine(After, Sub);
+						if (std::getenv("ENDDBG")) std::printf("ENDOFF %s own %s %.4f\n", Frame.c_str(), E.Id.c_str(), OffLine);
+						WorstOffLine = std::max(WorstOffLine, OffLine);
+						Expect(OffLine < 0.004, Frame + ": " + E.Id + " on the bike's own bar: in line with the grip (" + std::to_string(OffLine) + " m off its line)");
+					}
+					// A side plate hanger is on the left end of the rear axle (beenster, build 171: "the side reg plate fitment
+					// hangs in the air"): its boss within 2.5 cm of the rear wheel's middle, seen from the side.
+					if (E.Id == "v2c_plate_hanger_side")
+					{
+						Box Wheel;
+						for (const FittedPart& P : After)
+							if (P.Slot == "rear_tyre" || P.Slot == "rear_wheel") Wheel.Add(P);
+						double Nearest = 1e9;
+						for (const FittedPart& P : After)
+							if (P.Sub == "plate_hanger" && P.Made && !P.Hidden && P.Glb.rfind("v2c/", 0) == 0)
+								for (const PartSurface& Sf : P.Made->Surfaces)
+									for (const V3& Q : Sf.Pos) Nearest = std::min(Nearest, std::hypot(Q.x - Wheel.Mid().x, Q.y - Wheel.Mid().y));
+						++SideHangers;
+						WorstHanger = std::max(WorstHanger, Nearest);
+						Expect(Wheel.Any() && Nearest < 0.025, Frame + ": the side plate hanger is on the rear axle's end (" + std::to_string(Nearest) + " m from it)");
+					}
 					// On the bike: inside the bike as drawn (with room), above the ground.
 					const double Room = Sub == "silencer" ? 0.5 : 0.25;   // (a long can for a short one: drag pipes on a chopper)
 					Expect(New.Lo.x > Whole.Lo.x - Room && New.Hi.x < Whole.Hi.x + Room && New.Hi.y < Whole.Hi.y + Room && New.Lo.y > Whole.Lo.y - 0.01 &&
@@ -381,7 +489,9 @@ int main()
 						// (A long one, a classic's megaphone: the can at its rear end and a link pipe from its front, so both ends match.)
 						const double Ends = std::max(std::fabs(Old.Hi.x - New.Hi.x), std::fabs(Old.Lo.x - New.Lo.x));
 						const double Off = Sub == "silencer" ? std::min(Ends, Dist(V3(Old.Hi.x, Old.Mid().y, Old.Mid().z), V3(New.Hi.x, New.Mid().y, New.Mid().z))) : Dist(Old.Mid(), New.Mid());
-						Expect(Off < (Sub == "bar" ? 0.2 : Sub == "plate_hanger" ? 0.1 : 0.06), Frame + ": " + E.Id + " " + Sub + " where the bike's was (" + std::to_string(Off) + " m off)");
+						// (a piece for the end of the bar goes by the bar's end, not by where the bike's own mirrors or ends were)
+						const bool bOnBarEnd = E.Id.find("barend") != std::string::npos || E.Id == "v2c_bar_end_mirror";
+						Expect(bOnBarEnd || E.Id == "v2c_plate_hanger_side" || Off < (Sub == "bar" ? 0.2 : Sub == "plate_hanger" ? 0.1 : 0.06), Frame + ": " + E.Id + " " + Sub + " where the bike's was (" + std::to_string(Off) + " m off)");
 					}
 					else ++ByAnchor[Sub];
 				}
@@ -446,7 +556,8 @@ int main()
 		std::printf("%-14s %4d fitted, %4d lined up on the bike's own, %4d by anchor\n", KV.first.c_str(), KV.second, Lined[KV.first], ByAnchor[KV.first]);
 	std::printf("%d bike-and-bar fits: layout grip to drawn grip at worst %.3f m, grip to bar at worst %.3f m, levers and switches further off the bar than on the bike's own by at worst %.3f m\n", BarFits, WorstHand, WorstBar, WorstBy);
 	std::printf("cables short of the levers by at worst %.3f m more than on the bike's own bar; %d bar-and-bar-end fits, a bar end at worst %.3f m off its bar; the longest reach to a grip needs an arm of %.3f m\n", WorstCable, EndFits, WorstEnd, WorstReach);
-	std::printf("%d bar, mirror and lever fits: bar mirrors at worst %.3f m off their perches\n", MirFits, WorstMir);
+	std::printf("%d side plate hangers, at worst %.3f m from the rear axle's end\n", SideHangers, WorstHanger);
+	std::printf("%d bar, mirror and lever fits: bar mirrors at worst %.3f m off their perches; bar ends and bar-end mirrors at worst %.4f m off the line of the grip\n", MirFits, WorstMir, WorstOffLine);
 	std::printf("%d V2 bikes, %d bike-and-part fits, %d failures\n", Bikes, Pairs, Failures);
 	return Failures ? 1 : 0;
 }

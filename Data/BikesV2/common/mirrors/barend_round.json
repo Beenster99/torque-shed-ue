@@ -72,5 +72,18 @@
    "roughness": 0.01,
    "tag": "d3_mirrorglass"
   }
+ },
+ "bar_end": {
+  "at_mm": [
+   -54.22,
+   383.79,
+   45.85
+  ],
+  "dir": [
+   -0.04771,
+   0.99835,
+   -0.03181
+  ],
+  "note": "the bar's end on the rider's left (the grip's outer end) from the mount point, and the bar's line there; mirror y for the right"
  }
 }

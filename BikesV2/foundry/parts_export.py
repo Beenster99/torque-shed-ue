@@ -109,6 +109,9 @@ def lead_for(fits):
 
 
 # ---------------------------------------------------------------- the Blender side (one part per process)
+BAR_END = None
+
+
 def build_one(it):
     import bpy  # noqa: F401
     sys.path.insert(0, HERE)
@@ -156,6 +159,16 @@ def build_one(it):
         b3, m, cc, rep, made = LG.built(mn, key if g == "panniers" else None, key if g == "top_box" else None)
     else:
         raise ValueError(g)
+    # A piece that goes on the end of the bar says where that end is in its own drawing, and which way the bar runs
+    # there, so the game can lay it along any bar's end (beenster, build 171: "bar end mirrors don't line up on beach
+    # bar handlebars": they were turned as if drawn round the bike's own grip, and they are drawn round this one).
+    global BAR_END
+    BAR_END = None
+    if g == "bar_end" or (g == "mirrors" and key.startswith("barend")):
+        if g == "mirrors" and not locals().get("lines"):
+            lines = CT.grip_lines(m, cc)
+        g0, d, E, H = lines[1]
+        BAR_END = (tuple(E), tuple(d))
     return b3, m, cc, made
 
 
@@ -316,6 +329,9 @@ def export_one(it):
                 mount=it["mount"], mount_mm=[round(v, 1) for v in mp], moves_with=it["moves_with"],
                 size_mm=[round(hi[i] - lo[i], 1) for i in range(3)], triangles=sum(len(p.vertices) - 2 for p in ob.data.polygons),
                 surfaces=looks_of(ob, b3.LIB))
+    if BAR_END:
+        info["bar_end"] = dict(at_mm=[round(BAR_END[0][i] - mp[i], 2) for i in range(3)], dir=[round(v, 5) for v in BAR_END[1]],
+                               note="the bar's end on the rider's left (the grip's outer end) from the mount point, and the bar's line there; mirror y for the right")
     json.dump(info, open(os.path.join(dst, it["key"] + ".json"), "w"), indent=1)
     return dict(ok=True, info=info)
 

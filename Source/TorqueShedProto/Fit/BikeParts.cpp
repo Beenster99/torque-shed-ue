@@ -5219,6 +5219,17 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 	// (The bike's own grip, and how far a common bar moved what's on it: for the cables, at the end.)
 	const V3 OwnGrip = Grip;
 	V3 BarBy(0.0, 0.0, 0.0);
+	// [bar ends, beenster build 171: "bar end mirrors don't line up on beach bar handlebars"] A shop piece for the end
+	// of the bar (a bar end, a bar-end mirror) says in its file where the bar's end is in its own drawing and which way
+	// the bar runs there (bar_end: at_mm, dir). Kept here each side as the piece is placed and moved, then the piece
+	// is laid along the real end of whatever bar and grips are on, at the end of everything.
+	struct EndTag { std::string Slot, Glb; V3 At[2], Dir[2]; };
+	std::vector<EndTag> EndTags;
+	auto IsEndTagged = [&EndTags](const FittedPart& P) {
+		for (const EndTag& T : EndTags)
+			if (T.Slot == P.Slot && T.Glb == P.Glb) return true;
+		return false;
+	};
 	bool bBarMoved = false;
 	int Added = 0;
 	for (const auto& [Slot, Common] : Fitted)
@@ -5240,7 +5251,12 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				for (const Json& Each : M->A) Moves.insert(Each.S);
 			for (FittedPart& P : Out)
 				if (P.Made && !P.Code && Moves.count(P.Sub))
+				{
 					Moved(P, [By](const V3& M) { return V3(M.x + By.x, M.y + (M.y >= 0.0 ? By.y : -By.y), M.z + By.z); });
+					for (EndTag& T : EndTags)
+						if (T.Slot == P.Slot && T.Glb == P.Glb)
+							for (V3& E : T.At) E = V3(E.x + By.x, E.y + (E.y >= 0.0 ? By.y : -By.y), E.z + By.z);
+				}
 			Grip = V3(To.x, Grip.y >= 0.0 ? To.y : -To.y, To.z);
 			BarBy = By;
 			bBarMoved = true;
@@ -5273,6 +5289,10 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 			const V3 Base(At.x + Off.x, Off.y, At.z + Off.z);
 			std::string Node = Piece.Str("node");
 			if (Sub == "caliper_front") Node = "front_hub";
+			// (on a rigid frame there's no swingarm: what bolts to the rear axle is on the frame)
+			if (Node == "swingarm")
+				if (const Json* Rigid = F.Points->Get("rigid"))
+					if (Rigid->B) Node = "";
 			MmBox OwnSides[2];
 			const MmBox Own = OwnBox(Sub, &Node, OwnSides);
 			for (FittedPart& P : Out)
@@ -5512,7 +5532,7 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 				}
 			}
 			std::vector<Placing> Places;
-			if (bAligned) Places.push_back(Placing());
+			if (bAligned || Piece.Get("anchor_only")) Places.push_back(Placing());   // (anchor_only: a side plate hanger, on the axle's end whatever the bike had)
 			else if (!Own.Any() || Sub == "bar") Places.push_back(Placing());
 			else if (NewPair && Own.Pair())
 			{
@@ -5644,6 +5664,26 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 			P.Glb = "v2c/" + Piece.Str("file");
 			P.Name = Sub;
 			P.Made = Made;
+			if (const Json* BarEnd = File->Info.Get("bar_end"))
+				if (Places.size() == 1 && !Places[0].bMirror && Places[0].Keep == 0 && Places[0].Pitch == 0.0)
+				{
+					const V3 EndAt = MmOf(BarEnd->Get("at_mm")), EndDir = MmOf(BarEnd->Get("dir"));
+					if (EndDir.Length() > 0.5 && std::fabs(EndAt.y) > 20.0)
+					{
+						EndTag T;
+						T.Slot = P.Slot;
+						T.Glb = P.Glb;
+						for (int K = 0; K < 2; ++K)
+						{
+							const double TagSide = K == 0 ? 1.0 : -1.0;
+							V3 M = Base + V3(EndAt.x, TagSide * EndAt.y, EndAt.z) + Places[0].By;
+							if (Places[0].Spread != 0.0) M.y += M.y >= 0.0 ? Places[0].Spread : -Places[0].Spread;
+							T.At[K] = M;
+							T.Dir[K] = V3(EndDir.x, TagSide * EndDir.y, EndDir.z).Normalized();
+						}
+						EndTags.push_back(T);
+					}
+				}
 			Out.push_back(std::move(P));
 			++Added;
 		}
@@ -5738,6 +5778,7 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					const bool bByGrip = Shop == 0 && (P.Sub == "levers" || P.Sub == "switches" || (P.Sub == "mirrors" && P.Node == "steer") ||
 						(P.Sub == "bar_end" && IsShop(P) && !bShopGrip));
 					if (!bByGrip && ((P.Sub != "grip" && P.Sub != "bar_end") || IsShop(P) != (Shop == 1))) continue;
+					if (IsEndTagged(P)) continue;      // (laid along the bar's end by its own numbers, below)
 					if (!P.Made || P.Code) continue;
 					auto Copy = std::make_shared<PartMesh>(*P.Made);
 					bool bAny = false;
@@ -5820,11 +5861,100 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 			}
 		}
 	}
+	// [bar ends] Each tagged piece, each side: turned from the bar line it was drawn on to the line of the bar's end here
+	// (the bar's tube by the grip, else the grip's own long axis), its bar end put at the grip's outer end (the tube's
+	// tip when there's no grip).
+	for (const EndTag& T : EndTags)
+		for (int K = 0; K < 2; ++K)
+		{
+			const double TagSide = K == 0 ? 1.0 : -1.0;
+			auto AxisThrough = [TagSide](const std::vector<V3>& Pts, V3& Mid, V3& Axis) {
+				if (Pts.size() < 8) return false;
+				Mid = V3(0.0, 0.0, 0.0);
+				for (const V3& Q : Pts) Mid += Q;
+				Mid = Mid / double(Pts.size());
+				double C[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+				for (const V3& Q : Pts)
+				{
+					const double D[3] = {Q.x - Mid.x, Q.y - Mid.y, Q.z - Mid.z};
+					for (int I = 0; I < 3; ++I)
+						for (int J = 0; J < 3; ++J) C[I][J] += D[I] * D[J];
+				}
+				V3 A(0.0, 1.0, 0.0);
+				for (int It = 0; It < 40; ++It)
+					A = V3(C[0][0] * A.x + C[0][1] * A.y + C[0][2] * A.z, C[1][0] * A.x + C[1][1] * A.y + C[1][2] * A.z,
+						C[2][0] * A.x + C[2][1] * A.y + C[2][2] * A.z).Normalized();
+				if (A.Length() < 0.5) return false;
+				if (A.y * TagSide < 0.0) A = -A;      // (pointing out from the bike's middle)
+				Axis = A;
+				return true;
+			};
+			// the grip that's on (a shop grip before the bike's own), and the bar's tube
+			std::vector<V3> GripPts, BarPts;
+			for (int Shop = 1; Shop >= 0 && GripPts.empty(); --Shop)
+				for (const FittedPart& P : Out)
+					if (P.Sub == "grip" && P.Made && !P.Code && !P.Hidden && (P.Glb.rfind("v2c/", 0) == 0) == (Shop == 1))
+						for (const PartSurface& S : P.Made->Surfaces)
+							for (const V3& Q : S.Pos)
+							{
+								const V3 M = V2ToMm(F, Q);
+								if (M.y * TagSide > 0.0) GripPts.push_back(M);
+							}
+			V3 Line0 = T.At[K], LineAx = T.Dir[K], GripMid, GripAx;
+			const bool bHasGrip = AxisThrough(GripPts, GripMid, GripAx);
+			if (bHasGrip) { Line0 = GripMid; LineAx = GripAx; }
+			const V3 Near = bHasGrip ? GripMid : T.At[K];
+			for (const FittedPart& P : Out)
+				if (P.Sub == "bar" && P.Made && !P.Code && !P.Hidden)
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& Q : S.Pos)
+						{
+							const V3 M = V2ToMm(F, Q);
+							if (M.y * TagSide > 0.0 && (M - Near).Length() < 60.0) BarPts.push_back(M);
+						}
+			V3 BarMid, BarAx;
+			const bool bHasBar = BarPts.size() >= 16 && AxisThrough(BarPts, BarMid, BarAx);
+			if (bHasBar && !bHasGrip)
+			{
+				// (no grip on: the tube's own line, out to its tip. With a grip, the grip's line: it was laid on the tube,
+				// and the piece butts up to it)
+				Line0 = BarMid + BarAx * (Near - BarMid).Dot(BarAx);
+				LineAx = BarAx;
+			}
+			if (!bHasGrip && !bHasBar) continue;
+			double Out1 = -1.0e9;
+			for (const V3& M : bHasGrip ? GripPts : BarPts) Out1 = std::max(Out1, (M - Line0).Dot(LineAx));
+			const V3 EndAt = Line0 + LineAx * Out1;
+			const V3 TurnAx = T.Dir[K].Cross(LineAx);
+			const double SinT = TurnAx.Length(), CosT = T.Dir[K].Dot(LineAx);
+			const double TurnAng = std::atan2(SinT, CosT);
+			const V3 TurnU = SinT > 1e-9 ? TurnAx / SinT : V3(0.0, 0.0, 1.0);
+			if (TurnAng < 1e-4 && (EndAt - T.At[K]).Length() < 0.2) continue;
+			auto TagDirToMm = [&F](const V3& D) { return V3(F.Cos * D.x - F.Sin * D.y, -D.z, F.Sin * D.x + F.Cos * D.y); };
+			auto TagDirFromMm = [&F](const V3& D) { return V3(F.Cos * D.x + F.Sin * D.z, -F.Sin * D.x + F.Cos * D.z, -D.y); };
+			for (FittedPart& P : Out)
+			{
+				if (P.Slot != T.Slot || P.Glb != T.Glb || !P.Made || P.Code) continue;
+				auto Copy = std::make_shared<PartMesh>(*P.Made);
+				for (PartSurface& S : Copy->Surfaces)
+					for (size_t I = 0; I < S.Pos.size(); ++I)
+					{
+						const V3 M = V2ToMm(F, S.Pos[I]);
+						if (M.y * TagSide <= 0.0) continue;
+						const V3 N = EndAt + (M - T.At[K]).Rotated(TurnU, TurnAng);
+						S.Pos[I] = F.Point(N.x, N.y, N.z);
+						if (I < S.Nrm.size()) S.Nrm[I] = TagDirFromMm(TagDirToMm(S.Nrm[I]).Rotated(TurnU, TurnAng));
+					}
+				P.Made = Copy;
+			}
+		}
 	// [mirrors on their perches, beenster build 168: "little gap on the mirrors for ape bars"] A bar mirror stands on
 	// the lever perch or the switch block, and those are whichever maker's are on the bike, on whichever bar: after
 	// everything else is placed, each side's mirror is set down on what is under its foot. (Its foot: the end of it
 	// nearest the levers and switches. Only ever a short way, 8 cm at most: a mirror somewhere else, on a fairing,
 	// is left alone.)
+	const Json* SeatV2 = Lay.V2Of(Parts);
+	const bool bFairingMirrors = SeatV2 && SeatV2->Str("family") == "sport";
 	for (int K = 0; K < 2; ++K)
 	{
 		const double Side = K == 0 ? 1.0 : -1.0;
@@ -5848,7 +5978,7 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 		Mid = Mid / double(MidN);
 		for (FittedPart& P : Out)
 		{
-			if (P.Sub != "mirrors" || !P.Made || P.Code || P.Hidden) continue;
+			if (P.Sub != "mirrors" || !P.Made || P.Code || P.Hidden || IsEndTagged(P)) continue;
 			// the foot: this side's points nearest the levers and switches
 			std::vector<std::pair<double, V3>> Foot;
 			for (const PartSurface& S : P.Made->Surfaces)
@@ -5868,7 +5998,10 @@ int BikeParts::V2Common(const PartsMap& Parts, const V2Frame& F, std::vector<Fit
 					const double D = (U - Foot[I].second).Length();
 					if (D < Gap) { Gap = D; Down = U - Foot[I].second; }
 				}
-			if (Gap < 1.5 || Gap > 80.0) continue;
+			// (a mirror that turns with the bars belongs on them however far off its own maker's perch was: beenster,
+			// build 171, "misfit mirror", one chopper's mirrors 9 to 12 cm in front of another chopper's bar. On a sport
+			// bike the mirrors are the fairing's, and one near the fairing is left there.)
+			if (Gap < 1.5 || Gap > (P.Node == "steer" && !bFairingMirrors ? 250.0 : 80.0)) continue;
 			const V3 By = Down * ((Gap + 0.5) / Gap);      // (set half a millimetre into it: no hairline of light under the foot)
 			auto Copy = std::make_shared<PartMesh>(*P.Made);
 			for (PartSurface& S : Copy->Surfaces)
