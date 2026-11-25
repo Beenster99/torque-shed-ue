@@ -104,7 +104,8 @@ def cut_faces(ob, keep_far, along, at, name):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if a != "--"]
+    # (under blender.exe -b -P this.py -- <model> <blend> ..., only what comes after "--" is ours)
+    args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     out = args[args.index("--out") + 1] if "--out" in args else os.path.join(GAME, "build", "bought")
     model, blend = args[0], args[1]
     cfg = bought_models.MODELS[model]

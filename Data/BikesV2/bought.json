@@ -1,31 +1,27 @@
 {
- "_note": "Bought bikes (beenster's own 3D models, Nov 25). Their drawings are never in git: Tools/bought_bikes.py copies each one, scrambled, into Data/BikesV2/<model>.tsb before every PC build, so it ships inside the packaged game (friends get the real bike). 'source' is the game glb made from the bought .blend by BikesV2/foundry/bought_multistrada.py (the Multistrada) or bought_export.py (the rest).",
+ "_note": "Bought bikes (beenster's own 3D models, Nov 25). Their drawings are never in git: Tools/bought_bikes.py copies each one, scrambled, into Data/BikesV2/<model>.tsb before every PC build, so it ships inside the packaged game (friends get the real bike). 'source' is the game glb made from the bought .blend by BikesV2/foundry/bought_multistrada.py (the Multistrada) or bought_export.py (the rest). No sha256: the PC makes each glb with its own Blender, so the bytes differ from a cloud export; 'triangles' is what the export should report.",
  "ducati_multistrada": {
   "name": "Ducati Multistrada V4 S",
   "blend": "G:\\CGTrader Models\\Ducati_Multistrada_V4_2024_Blender(4.2)\\ducati_multistrada_v4_2024.blend",
   "source": "G:\\CGTrader Models\\Ducati_Multistrada_V4_2024_Blender(4.2)\\game\\ducati_multistrada.glb",
-  "sha256": "62272e079492fc92aa84558f7b8c7e413ad755127cb0a4af275ce37df91ac8a9",
   "triangles": 143483
  },
  "ducati_panigale": {
   "name": "Ducati Panigale V4 S",
   "blend": "G:\\CGTrader Models\\Ducati_Panigale_2025_Blender(4.2)\\ducati_panigale_2025.blend",
   "source": "G:\\CGTrader Models\\Ducati_Panigale_2025_Blender(4.2)\\game\\ducati_panigale.glb",
-  "sha256": "57ca6b896565ccda49711aa0efa3b59771a3bb3284f16e285eda10745ab69b30",
   "triangles": 122858
  },
  "indian_scout": {
   "name": "Indian Scout 101",
   "blend": "G:\\CGTrader Models\\Indian_Scout_101_2026_Blender(4.2)\\indian_scout_101_2026.blend",
   "source": "G:\\CGTrader Models\\Indian_Scout_101_2026_Blender(4.2)\\game\\indian_scout.glb",
-  "sha256": "6f37d82f021d9730196e2a94cb553be14bb89c8534fc972d73c5df0b5dc338bb",
   "triangles": 135913
  },
  "triumph_trident": {
   "name": "Triumph Trident 800",
   "blend": "G:\\CGTrader Models\\Triumph_Trident_800_2026_Blender(4.2)\\triumph_trident_800_2026.blend",
   "source": "G:\\CGTrader Models\\Triumph_Trident_800_2026_Blender(4.2)\\game\\triumph_trident.glb",
-  "sha256": "a1702ac7f981311c30822f9de18f7ea3efb0513a44cc39293eff18cc4b0e39d7",
   "triangles": 163920
  }
 }
