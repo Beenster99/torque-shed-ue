@@ -147,7 +147,7 @@
 //                         peaks, and whether it slid or stood up; then back on the road where it began.
 //                         Both wait until done (up to about two minutes); the bike's own log says the same
 //   coop:players:<n>[:<s>]  [co-op join] wait until n players are in the game (up to s seconds, 180)
-//   coop:check            [co-op join] (a joined copy waits up to 90 s to be in) our pawn is ours to move: the
+//   coop:check            [co-op join] (asked again each second for up to 90 s, while joining) our pawn is ours to move: the
 //                         controller's JoinState says nothing stops it (no menu, not paused, the walker handed over
 //                         and not inside anything); logs "COOP TEST PASS" or "COOP TEST FAILED"
 //   coop:walk[:<cm>]      [co-op join] the walker walks cm (300) towards the middle of the shed and must get most of
@@ -157,6 +157,8 @@
 //                         Route planner shares it, everyone's game planning it, the host setting off once all are
 //                         ready; passes when every player is on Ride UK on a bike of their own
 //   coop:onride[:<s>]     [co-op join] (a joined copy) followed the host onto Ride UK on our own bike within s (600)
+//   coop:stay[:<s>]       [co-op join] (the host) keep hosting until everyone else has left (up to s seconds, 900),
+//                         so a guest still loading or checking itself isn't cut off
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again
 //   quit
