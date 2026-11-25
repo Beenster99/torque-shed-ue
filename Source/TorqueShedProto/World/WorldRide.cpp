@@ -2198,7 +2198,10 @@ double RidePlan::MouthCut(int Which, int End) const
 	if (!M.Is || M.Ring || M.Flare || M.MainIndex < 0 || size_t(M.MainIndex) >= Road.size()) return -1.0;
 	if (Sd->Edge >= 0 && FarEdges.count(static_cast<long long>(Sd->Edge) * 2 + End) > 0) return -1.0;
 	const double Cut = std::fmax(M.Clear[0], M.Clear[1]) + 0.3;
-	if (Cut > Sd->Length * 0.45 || Cut > M.From + 25.0) return -1.0;
+	// ([smooth junctions stage 5c] up to half way where its other end has a mouth too; else up to 90% of it: a sharp
+	// corner's long clear on a short road left the old fan, mouth and road at odds by 2 to 9 cm, Hawes)
+	const double Most = Sd->Mouths[1 - End].Is ? 0.45 : 0.9;
+	if (Cut > Sd->Length * Most || Cut > M.From + 25.0) return -1.0;
 	return Cut;
 }
 

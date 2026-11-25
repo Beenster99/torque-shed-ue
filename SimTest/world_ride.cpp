@@ -2985,7 +2985,8 @@ int main(int Argc, char** Argv)
 						// ([smooth junctions stage 5c] the fade from a mouth's tarmac into a gravel track, its colours between the two: cover,
 						// not a hole the robot rode off into on every track turn)
 						const float Fade = (Cl[0] - 0.022f) / (0.095f - 0.022f);
-						const bool Faded = Fade > 0.0f && Fade < 1.0f && std::fabs(Cl[1] - (0.022f + Fade * 0.066f)) < 0.004f && std::fabs(Cl[2] - (0.025f + Fade * 0.045f)) < 0.004f;
+						const bool Faded = Fade > 0.0f && Fade < 1.0f && std::fabs(Cl[1] - (0.022f + Fade * 0.066f)) < 0.004f && std::fabs(Cl[2] - (0.025f + Fade * 0.045f)) < 0.004f
+							&& !Colour(Cl, 0.038f, 0.037f, 0.036f);   // (not an old patch's grey, which lies on top on purpose)
 						const bool Tar = Faded || Colour(Cl, 0.022f, 0.022f, 0.025f) || Colour(Cl, 0.010f, 0.010f, 0.011f) || Colour(Cl, 0.06f, 0.062f, 0.085f)
 							|| Colour(Cl, 0.095f, 0.088f, 0.07f) || Colour(Cl, 0.09f, 0.095f, 0.11f)   // ([smooth junctions stage 1] gravel and setts are its cover too)
 							|| Colour(Cl, 0.83f, 0.83f, 0.75f) || Colour(Cl, 0.78f, 0.52f, 0.03f);   // ([3b] and the lines painted in it: without them the robot read holes under every line and knocked on the grid)
