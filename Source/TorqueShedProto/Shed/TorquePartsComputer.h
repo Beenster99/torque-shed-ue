@@ -115,6 +115,7 @@ private:
 	uint32 BikeSig = 0;
 	double SigCheckAt = 0.0;
 	bool bBayJudged = false;          // the list is cut to the bay's bike
+	bool bStandJudged = false;        // ... or, with no bay's bike to go by, its engine parts to the engine on the stand
 	int32 BayHidden = 0;              // how many of the kind were left out
 	TMap<FName, FString> BayWhyNot;
 	TMap<FName, int32> PartSides;     // wheels and tyres: 1 front, 2 rear, 3 either

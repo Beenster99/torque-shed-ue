@@ -675,6 +675,11 @@ public:
 	// engine being built up for it (one that fits the frame, the one on the engine stand first) and the frame;
 	// OutEngine says which engine that was (NAME_None: none, they go by the frame's own engine layout).
 	bool ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, TMap<FName, int32>& OutSides, FName* OutEngine = nullptr) const;
+	// [shop bay] (beenster after 171: a gearbox "incompatible with the engine. Somehow this should have been captured
+	// before I bought it") With no bay's bike to judge by (Any bike, or an empty bay), the parts that bolt to an
+	// engine still go by the engine on the engine stand: those that won't go on it, with why. False (nothing judged)
+	// when there's no engine on the stand. OutEngine: the stand's engine.
+	bool StandFit(const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, FName& OutEngine) const;
 	// A tyre's sides on any bike in the game (every wheel the shop sells): 1 front, 2 rear, 3 either, 0 none.
 	static int32 TyreSides(FName Tyre);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).

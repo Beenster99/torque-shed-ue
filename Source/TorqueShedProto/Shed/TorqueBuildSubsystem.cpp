@@ -2483,6 +2483,32 @@ bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<
 	return true;
 }
 
+bool UTorqueBuildSubsystem::StandFit(const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, FName& OutEngine) const
+{
+	OutWhyNot.Reset();
+	OutEngine = NAME_None;
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay) return false;
+	for (const TPair<int32, FTorqueItem>& KV : Items)
+		if (KV.Value.Kind == TBI::EngineKind() && !KV.Value.bBoxed && KV.Value.At == ETorqueAt::Spot && KV.Value.Spot == FName(TEXT("stand")))
+		{
+			OutEngine = KV.Value.Part;
+			break;
+		}
+	if (OutEngine.IsNone()) return false;
+	TorqueFit::PartsMap OnStand;
+	OnStand["engine"] = TBI::Id(OutEngine);
+	for (const FName& P : Parts)
+	{
+		const FName Own = TorqueShedParts::V2Slot(P);
+		const FName Slot = Own.IsNone() ? TorqueShedParts::HomeSlot(P) : Own;
+		if (Slot.IsNone() || Slot == FName(TEXT("engine")) || !TorqueShedParts::IsEngineSlot(Slot)) continue;
+		const std::string Why = Lay->V2FitReason(OnStand, TBI::Id(Slot), TBI::Id(P));
+		if (!Why.empty()) OutWhyNot.Add(P, TBI::Ue(Why));
+	}
+	return true;
+}
+
 FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 {
 	// shed_state finish_text and coat_text.
