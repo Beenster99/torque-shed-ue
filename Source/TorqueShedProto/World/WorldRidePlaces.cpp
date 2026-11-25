@@ -939,9 +939,43 @@ RideMesh& Layer(RideMesh& Out, std::shared_ptr<RideMesh>& Field)
 }
 } // namespace
 
+double RidePlan::PlaceFootprint(const PlaceRecipe& R)
+{
+	if (R.Model) return 0.0;
+	switch (R.Kind)
+	{
+		case RecipeStone: return 1.2;
+		case RecipeCross:
+		case RecipeMemorial: return 2.8;   // (its bottom step up to 3.8 m square, corner to middle)
+		case RecipeObelisk:
+		{
+			const double Tall = R.Height > 4.0 ? R.Height : 14.0;
+			return std::fmax(1.2, Tall * 0.14) * 0.9 * 1.4142 + 0.2;
+		}
+		case RecipeTower:
+		case RecipeWindmill:
+		case RecipeChimney:
+		case RecipeLighthouse: return std::fmax(4.0, R.Radius);
+		case RecipeChurch: return 14.0;
+		default: return 0.0;
+	}
+}
+
+bool RidePlan::PlaceOnRoad(const PlaceRecipe& R) const
+{
+	const double Foot = PlaceFootprint(R);
+	if (Foot <= 0.0 || R.OnBuilding) return false;
+	NearOpts Opts;
+	Opts.NoBores = true;
+	NearHit Hit;
+	return NearestOf(R.At.X, R.At.Z, Opts, Hit) && Hit.Dist < Hit.Half + Foot;
+}
+
 void RidePlan::IndexPlaceRecipes()
 {
 	PlaceRecipes.clear();
+	PlacesMoved = PlacesDropped = 0;
+	PlacesDroppedSights.clear();
 	RecipeGrid.clear();
 	for (int& C : RecipeCount) C = 0;
 	ModelCount = 0;
@@ -975,6 +1009,51 @@ void RidePlan::IndexPlaceRecipes()
 		return -1;
 	};
 	TowerTaken.assign(TowerShapes.size(), 0);
+	// [build 171 cenotaph] The map's roads as lines with their drawn half widths, filed by square: every
+	// road of the area, laid yet or not (only the ride's own and those near it are laid by now; the rest
+	// a block at a time as the riders come near, too late to move a place off them).
+	std::unordered_map<long long, std::vector<std::pair<int, int>>> RoadBits;   // (edge, first point)
+	std::vector<double> RoadHalf(G.Edges.size(), 0.0);
+	for (size_t E = 0; E < G.Edges.size(); ++E)
+	{
+		const RoadEdge& Re = G.Edges[E];
+		RoadHalf[E] = RingHalfOf(int(E), RoadX::Of(G, int(E), RoadLine::WidthOf(G.ClassOf(int(E)))).Half);
+		for (size_t P = 0; P + 1 < Re.Line.size(); ++P)
+		{
+			const P2& A = Re.Line[P];
+			const P2& B = Re.Line[P + 1];
+			const int X0 = int(std::floor(std::fmin(A.X, B.X) / EdgeCell)), X1 = int(std::floor(std::fmax(A.X, B.X) / EdgeCell));
+			const int Z0 = int(std::floor(std::fmin(A.Z, B.Z) / EdgeCell)), Z1 = int(std::floor(std::fmax(A.Z, B.Z) / EdgeCell));
+			for (int Cz = Z0; Cz <= Z1; ++Cz)
+				for (int Cx = X0; Cx <= X1; ++Cx) RoadBits[static_cast<long long>(Cx) * 4000037LL + Cz].push_back({int(E), int(P)});
+		}
+	}
+	// (the road whose edge is nearest P, within a square either way: its middle's nearest point and half width;
+	// false if none)
+	const auto RoadEdgeNear = [&](const P2& P, P2& Mid, double& Half)
+	{
+		double Best = 1e18;
+		const int Cx0 = int(std::floor(P.X / EdgeCell)), Cz0 = int(std::floor(P.Z / EdgeCell));
+		for (int Dz = -1; Dz <= 1; ++Dz)
+			for (int Dx = -1; Dx <= 1; ++Dx)
+			{
+				const auto It = RoadBits.find(static_cast<long long>(Cx0 + Dx) * 4000037LL + (Cz0 + Dz));
+				if (It == RoadBits.end()) continue;
+				for (const std::pair<int, int>& Bt : It->second)
+				{
+					const std::vector<P2>& L = G.Edges[size_t(Bt.first)].Line;
+					double T = 0.0;
+					const double D = SegDist(P, L[size_t(Bt.second)], L[size_t(Bt.second) + 1], &T) - RoadHalf[size_t(Bt.first)];
+					if (D < Best)
+					{
+						Best = D;
+						Half = RoadHalf[size_t(Bt.first)];
+						Mid = L[size_t(Bt.second)] + (L[size_t(Bt.second) + 1] - L[size_t(Bt.second)]) * T;
+					}
+				}
+			}
+		return Best < 1e17;
+	};
 	for (size_t I = 0; I < G.Sights.size(); ++I)
 	{
 		const Sight& S = G.Sights[I];
@@ -1063,6 +1142,10 @@ void RidePlan::IndexPlaceRecipes()
 				continue;
 			}
 		}
+		// [build 171 cenotaph] A memorial the map has as a plaque on a wall or a bench, or a stone set in
+		// the pavement, has nothing to stand up; not a cenotaph on its steps.
+		if (Kind == RecipeMemorial && (S.Sub == "plaque" || S.Sub == "blue_plaque" || S.Sub == "stolperstein" || S.Sub == "bench"))
+			continue;
 		const double Y = Ground(R.At.X, R.At.Z);
 		if (std::isnan(Y)) continue;
 		// (facing the nearest road)
@@ -1086,6 +1169,7 @@ void RidePlan::IndexPlaceRecipes()
 			if (S.Outline.size() < 3 && B >= 0 && Foot >= 100.0) continue;
 			if (Kind == RecipeRuin && S.Outline.size() < 3) continue;
 		}
+		bool OnBuilding = false;   // (a tower or windmill standing in for the map's building: where that is)
 		if (Kind == RecipeChurch)
 		{
 			// A church the map has a building for is drawn as that building, with its tower (BuildingRole 1);
@@ -1115,11 +1199,49 @@ void RidePlan::IndexPlaceRecipes()
 					R.At = P2(H.X, H.Z);
 					R.Radius = std::fmax(R.Radius, 0.5 * std::sqrt(Foot));
 					R.Claim = std::fmax(H.W, H.D) * 0.6 + 1.0;
+					OnBuilding = true;
+					R.OnBuilding = true;
 				}
 				const int T = TowerAt(R.At);
 				if (T >= 0) TowerTaken[size_t(T)] = 1;
 				R.Claim = std::fmax(R.Claim, 3.0);
 			}
+		}
+		// [build 171 cenotaph] (beenster: a war memorial in the middle of the A686 by Gamblesby) Nothing
+		// small stands on the carriageway: moved to the nearest spot clear of every road by its own size and
+		// a margin (a tower or windmill that has taken the map's building under it stays on it); not drawn
+		// if there is none within 30 m.
+		if (const double Foot = PlaceFootprint(R); Foot > 0.0 && !OnBuilding)
+		{
+			// (clear of every road's edge by Foot and the margin; the drawn road strays a metre or so from
+			// the map's line)
+			const auto ClearAt = [&RoadEdgeNear, Foot](const P2& P)
+			{
+				P2 Mid;
+				double Half = 0.0;
+				return !RoadEdgeNear(P, Mid, Half) || P.DistanceTo(Mid) - Half >= Foot + 1.75;
+			};
+			bool Clear = ClearAt(R.At), Moved = false;
+			if (!Clear)
+			{
+				// the nearest clear spot: rings out from where the map has it, 1.5 m apart to 30 m, each
+				// tried all round from a seeded start
+				const double Start = Roll(R.Seed, 9) * 6.283185307;
+				for (int Ring = 1; Ring <= 20 && !Clear; ++Ring)
+					for (int Way = 0; Way < 24 && !Clear; ++Way)
+					{
+						const double A = Start + Way * (6.283185307 / 24.0);
+						const P2 Try = R.At + P2(std::cos(A), std::sin(A)) * (1.5 * Ring);
+						if (ClearAt(Try)) { R.At = Try; Clear = Moved = true; }
+					}
+			}
+			if (!Clear)
+			{
+				++PlacesDropped;
+				PlacesDroppedSights.push_back(int(I));
+				continue;
+			}
+			if (Moved) ++PlacesMoved;
 		}
 		R.Base = Ground(R.At.X, R.At.Z);
 		if (std::isnan(R.Base)) continue;

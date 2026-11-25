@@ -1684,6 +1684,7 @@ public:
 		// clockwise seen from above).
 		std::shared_ptr<const SiteModel> Model;
 		double Turn = 0.0;
+		bool OnBuilding = false;   // [build 171 cenotaph] a tower or windmill standing on the map's building for it
 	};
 	// [OSM stage 5B] The roundabouts: the map's roundabout edges joined into closed rings (IndexRings).
 	// [towns stage 7] Whether a model's own parts (not its windows or lights) stand over (X, Z), Spare m round.
@@ -1800,6 +1801,17 @@ public:
 	std::unordered_map<long long, std::vector<int>> RecipeGrid;   // by the scenery's 256 m squares
 	int RecipeCount[RecipeKinds] = {};
 	int ModelCount = 0;   // [places stage 6] the places drawn by their own model
+	// [build 171 cenotaph] (beenster: a war memorial in the middle of the A686 by Gamblesby) A small place
+	// (stone, cross, memorial, obelisk, tower...) the map puts on or at the edge of a road is moved out onto
+	// the verge, clear of the carriageway by its own size and a metre; one that can't be cleared (in a
+	// junction's middle, between roads) is not drawn. PlacesMoved/PlacesDropped count them;
+	// PlaceFootprint is a recipe's reach round its middle (m) as drawn, 0 for the big ones (circles,
+	// hillforts, castles), which aren't moved.
+	int PlacesMoved = 0, PlacesDropped = 0;
+	std::vector<int> PlacesDroppedSights;   // (the tests: which of Area.Roads.Sights)
+	static double PlaceFootprint(const PlaceRecipe& R);
+	// Whether a recipe's drawn footprint reaches onto a road's surface (not one in a tunnel).
+	bool PlaceOnRoad(const PlaceRecipe& R) const;
 	std::vector<unsigned char> TowerTaken;   // the towns' tall buildings a recipe stands in for (TowersTile leaves them out)
 	void IndexPlaceRecipes();   // (after IndexTowers)
 	bool UnderPlace(double X, double Z) const;
