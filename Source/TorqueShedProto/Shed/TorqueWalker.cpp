@@ -3317,7 +3317,9 @@ FString ATorqueWalker::TestComputerType(const FString& Type)
 			if (!Computer.SetShopBay(Shed(), bAny ? -1 : FCString::Atoi(*FilterValue) - 1)) return FString::Printf(TEXT("no bay %s on the computer"), *FilterValue);
 			return Computer.Describe();
 		}
-		if (!Computer.SetEngineFilter(FilterKey.ToLower(), FilterValue)) return FString::Printf(TEXT("no engine filter %s on the computer"), *FilterKey);
+		// [shop filters] "side=rear", "style=cast", "finish=chrome", "maker=BSX", "sort=1" on a part list.
+		if (Computer.SetListFilter(FilterKey.ToLower(), FilterValue)) return Computer.Describe();
+		if (!Computer.SetEngineFilter(FilterKey.ToLower(), FilterValue)) return FString::Printf(TEXT("no filter %s on the computer"), *FilterKey);
 		return Computer.Describe();
 	}
 	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);

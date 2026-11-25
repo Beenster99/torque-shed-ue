@@ -40,6 +40,18 @@ std::vector<std::string> KindIds(const BikeLayout& Lay, const std::string& Kind)
 // own wheels first, then the kit wheels style by style (each style's makers together), each by name.
 std::string WheelKit(const BikeLayout& Lay, const std::string& Id);
 bool WheelBefore(const BikeLayout& Lay, const std::string& A, const std::string& B);
+// [shop filters] (beenster after 171: "more filters for long lists ... front, back, finish, spoked type") What a
+// part is under a list filter: "style" (a wheel: "cast", "wire" or "billet"; else the part's own style, "usd",
+// "carb"...), "finish" (a kit or bespoke part's metal or paint, "gloss_black"; a bike's own wheel "own"; else "")
+// and "maker" (its brand, "BSX"; "" for none). The words shown for a value, and the filter's own name on a list.
+std::string FacetOf(const BikeLayout& Lay, const std::string& Id, const std::string& Facet);
+std::string FacetText(const std::string& Facet, const std::string& Value);
+std::string FacetTitle(const std::string& Facet, const std::string& Kind);
+// [shop details] (beenster after 171: the "Arrives boxed..." words "replaced with any more details we know about
+// the part") What the catalogue knows of a part, one "Label: value" line each, in plain words: its type, finish and
+// maker, then its kind's numbers (a caliper's pistons and bite, a wheel's rim size and the tyres it takes, an
+// engine's bore and stroke...) and what it has (lightweight, electronic adjustment...). Empty for no part.
+std::vector<std::string> PartDetails(const BikeLayout& Lay, const std::string& Id);
 // PartsDB.tyre_fit: 0 if the tyre suits the wheel's rim, 1 too wide, -1 too narrow, 2 made for
 // another rim diameter (0 when either isn't a part).
 int TyreFit(const BikeLayout& Lay, const std::string& Tyre, const std::string& Wheel);
