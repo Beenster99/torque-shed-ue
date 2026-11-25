@@ -1816,6 +1816,10 @@ public:
 		std::vector<double> RideAlong;
 		std::vector<int> RideOut;
 		double Hide[2] = {0.0, 0.0};
+		// [smooth junctions stage 5c] a T or crossroads the ride's road runs through or turns at: by arm, 0 a side road, else
+		// which way out along the ride's road it heads (+1 the way along grows), and its mouth line's along
+		std::vector<int> ArmSign;
+		std::vector<double> ArmAlong;
 	};
 	static bool WholeJunctions;
 	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;

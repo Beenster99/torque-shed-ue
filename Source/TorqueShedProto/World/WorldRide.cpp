@@ -11,6 +11,7 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
+#include <unordered_set>
 #include <cmath>
 #include <ctime>
 #include <functional>
@@ -30,6 +31,7 @@ using TorqueFit::Json;
 struct RidePlan::Network
 {
 	std::vector<char> OnRide;                                     // the edges the ride's own road is made of
+	std::unordered_set<int> RideNodes, StepNodes;                 // nodes on the ride's road; nodes one side edge off it
 	std::unordered_map<long long, std::vector<int>> BlockEdges;   // the edges through each block (set with the plan)
 	std::unique_ptr<std::atomic<const SideRoad*>[]> Side;         // by edge, once laid (null: not, or none)
 	std::mutex Lay;                                               // EdgeState, BlockState, Own
@@ -1125,6 +1127,16 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 	Network& N = *Net;
 	N.OnRide.assign(G.Edges.size(), 0);
 	for (int E : Path) N.OnRide[size_t(E)] = 1;
+	N.RideNodes.clear();
+	N.StepNodes.clear();
+	for (int E : Path) { N.RideNodes.insert(G.Edges[size_t(E)].A); N.RideNodes.insert(G.Edges[size_t(E)].B); }
+	for (size_t E = 0; E < G.Edges.size(); ++E)
+	{
+		if (N.OnRide[E] != 0) continue;
+		const RoadEdge& Edge = G.Edges[E];
+		if (N.RideNodes.count(Edge.A) != 0) N.StepNodes.insert(Edge.B);
+		if (N.RideNodes.count(Edge.B) != 0) N.StepNodes.insert(Edge.A);
+	}
 	MapPoints(Road, N.OnRide, MainMapped);   // [OSM stage 5]
 	N.Side = std::make_unique<std::atomic<const SideRoad*>[]>(G.Edges.size());
 	for (size_t E = 0; E < G.Edges.size(); ++E) N.Side[E].store(nullptr, std::memory_order_relaxed);
@@ -1190,6 +1202,11 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		double D = 0.0, H = 0.0;
 		int Index = -1;
 		if (!Nearest(At.X, At.Z, D, H, &Index, nullptr, nullptr, true) || D > 15.0) continue;
+		// ([smooth junctions stage 5c] a node a short side edge away from the ride's road meets it through that edge, not
+		// on it: pulled on, the next road ran straight onto the ride's road over the short one, and a junction built whole
+		// there put its mouth 2.5 m from the ride's road's middle, York)
+		const int Node = End == 0 ? Edge.A : Edge.B;
+		if (WholeJunctions && WholeArmsOf.count(E + 1) != 0 && Net->RideNodes.count(Node) == 0 && Net->StepNodes.count(Node) != 0) continue;
 		Meets[End] = true;
 		// [square T] (the through road's arm at a T the ride turns at: laid along the through road's one
 		// straight line into the junction, not bent onto the ride's road where it turns)
