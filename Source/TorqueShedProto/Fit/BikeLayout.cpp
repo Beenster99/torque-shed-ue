@@ -537,9 +537,11 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	{
 		// (Another engine's part goes on as this block's own version of it: any brand, the same family.)
 		if (Block->Str("family") != Family)
-			return "That's a " + Family + " engine part: it goes on " + Family + " engines only, and this is a " + Block->Str("family") + " engine.";
+			return "Won't fit this engine: that " + Noun(Own) + " is made for " + Family + " engines, and this is " + WithA(Block->Str("brand") + " " + Block->Str("family"))
+				+ " engine. Any brand's " + Block->Str("family") + " " + Noun(Own) + " fits it.";
 		if (V2EngineTwin(Parts, Slot, Id).empty())
-			return "That doesn't go on this engine: there's no " + Noun(Own) + " like it for the " + Block->Str("brand") + " " + Block->Str("family") + " engine.";
+			return "Won't fit this engine: that " + Noun(Own) + " isn't made in a version for the " + Block->Str("brand") + " " + Block->Str("family")
+				+ " engine. Pick one the parts computer lists for it.";
 	}
 	if (!V2 || !V2->IsObject()) return std::string();   // (a loose engine: only its block counts)
 	const std::string HostFamily = V2->Str("family");

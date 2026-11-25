@@ -2853,7 +2853,14 @@ FName UTorqueBuildSubsystem::InstallSlot(const FTorqueShedRequest& R, const FTor
 		if (bOk) return S;
 	}
 	if (!MissingMount.IsNone()) Error = FString::Printf(TEXT("Fit the %s first."), *TBI::Lower(TorqueShedParts::SlotName(MissingMount)));
-	else Error = FString::Printf(TEXT("There's already a %s fitted."), *TBI::Lower(TorqueShedParts::KindName(It.Kind)));
+	else
+	{
+		// (Which one, and what to do: beenster after 171.)
+		const int32 Already = Candidates.Num() > 0 ? H.Slots->FindRef(Candidates[0]) : 0;
+		Error = Already != 0 ? FString::Printf(TEXT("There's already a %s on %s: the %s. Unbolt it and take it off first."),
+			*TBI::Lower(TorqueShedParts::KindName(It.Kind)), R.Engine != 0 ? TEXT("this engine") : TEXT("this bike"), *ItemTitle(Already))
+			: FString::Printf(TEXT("There's already a %s fitted."), *TBI::Lower(TorqueShedParts::KindName(It.Kind)));
+	}
 	return NAME_None;
 }
 
@@ -2936,7 +2943,21 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 			return TEXT("Tyres go on at the tyre changer: take the wheel off and put it on the changer by the workbench.");
 		FString Error;
 		const FName Where = InstallSlot(R, *HeldIt, Error);
-		if (Where.IsNone()) return Error;
+		if (Where.IsNone())
+		{
+			// [engine stand, beenster after 171: a gearbox that was never going to fit the engine on the stand gave no
+			// clear reason there, only on the frame] Whether it goes on this engine or bike at all comes first: "there's
+			// already one fitted" only matters for a part that would fit.
+			const FName Own = TorqueShedParts::V2Slot(HeldIt->Part);
+			const TArray<FName> Kinds = TorqueShedParts::SlotsForKind(HeldIt->Kind);
+			const FName Would = !Own.IsNone() ? Own : (Kinds.Num() > 0 ? Kinds[0] : FName());
+			if (!Would.IsNone())
+			{
+				const FString V2Why = V2FitReason(R.Bay, R.Engine, Would, HeldIt->Part);
+				if (!V2Why.IsEmpty()) return V2Why;
+			}
+			return Error;
+		}
 		if (R.Engine == 0 && TorqueShedParts::IsLowSlot(Where) && !R.bCrouched) return TEXT("Crouch down to reach it (C).");
 		{
 			// [bare frame] A V2 bike's part bolts to its family's frames (its engine's parts to its engine block...).
