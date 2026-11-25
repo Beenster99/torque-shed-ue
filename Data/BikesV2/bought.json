@@ -1,31 +1,111 @@
 {
- "_note": "Bought bikes (beenster's own 3D models, Nov 25). Their drawings are never in git: Tools/bought_bikes.py copies each one, scrambled, into Data/BikesV2/<model>.tsb before every PC build, so it ships inside the packaged game (friends get the real bike). 'source' is the game glb made from the bought .blend by BikesV2/foundry/bought_multistrada.py (the Multistrada) or bought_export.py (the rest).",
+ "_note": "Bought bikes (beenster's own 3D models, Nov 25). Their drawings are never in git: Tools/bought_bikes.py copies each one, scrambled, into Data/BikesV2/<model>.tsb before every PC build, so it ships inside the packaged game (friends get the real bike). 'source' is the game glb made from the bought .blend by BikesV2/foundry/bought_multistrada.py (the Multistrada) or bought_export.py (the rest; the second batch of 14, from zips, all go in G:\\CGTrader Models\\game). No sha256: the PC makes each glb with its own Blender, so the bytes differ from a cloud export; 'triangles' is what the export should report.",
  "ducati_multistrada": {
   "name": "Ducati Multistrada V4 S",
   "blend": "G:\\CGTrader Models\\Ducati_Multistrada_V4_2024_Blender(4.2)\\ducati_multistrada_v4_2024.blend",
   "source": "G:\\CGTrader Models\\Ducati_Multistrada_V4_2024_Blender(4.2)\\game\\ducati_multistrada.glb",
-  "sha256": "62272e079492fc92aa84558f7b8c7e413ad755127cb0a4af275ce37df91ac8a9",
   "triangles": 143483
  },
  "ducati_panigale": {
   "name": "Ducati Panigale V4 S",
   "blend": "G:\\CGTrader Models\\Ducati_Panigale_2025_Blender(4.2)\\ducati_panigale_2025.blend",
   "source": "G:\\CGTrader Models\\Ducati_Panigale_2025_Blender(4.2)\\game\\ducati_panigale.glb",
-  "sha256": "57ca6b896565ccda49711aa0efa3b59771a3bb3284f16e285eda10745ab69b30",
   "triangles": 122858
  },
  "indian_scout": {
   "name": "Indian Scout 101",
   "blend": "G:\\CGTrader Models\\Indian_Scout_101_2026_Blender(4.2)\\indian_scout_101_2026.blend",
   "source": "G:\\CGTrader Models\\Indian_Scout_101_2026_Blender(4.2)\\game\\indian_scout.glb",
-  "sha256": "6f37d82f021d9730196e2a94cb553be14bb89c8534fc972d73c5df0b5dc338bb",
   "triangles": 135913
  },
  "triumph_trident": {
   "name": "Triumph Trident 800",
   "blend": "G:\\CGTrader Models\\Triumph_Trident_800_2026_Blender(4.2)\\triumph_trident_800_2026.blend",
   "source": "G:\\CGTrader Models\\Triumph_Trident_800_2026_Blender(4.2)\\game\\triumph_trident.glb",
-  "sha256": "a1702ac7f981311c30822f9de18f7ea3efb0513a44cc39293eff18cc4b0e39d7",
   "triangles": 163920
+ },
+ "ducati_monster": {
+  "name": "Ducati Monster 890",
+  "blend": "G:\\CGTrader Models\\Ducati_Monster_890_2026_Blender(4.2).zip (ducati_monster_890_2026.blend)",
+  "source": "G:\\CGTrader Models\\game\\ducati_monster.glb",
+  "triangles": 186736
+ },
+ "honda_cb1000gt": {
+  "name": "Honda CB1000 GT",
+  "blend": "G:\\CGTrader Models\\Honda_CB1000_GT_2026_Blender(4.2).zip (honda_cb1000_gt_2026.blend)",
+  "source": "G:\\CGTrader Models\\game\\honda_cb1000gt.glb",
+  "triangles": 153091
+ },
+ "kawasaki_eliminator": {
+  "name": "Kawasaki Eliminator 500",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-eliminator-500-2024\\Kawasaki_Eliminator_500_2024_Blender(4.2).zip (kawasaki_eliminator_500_2024.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_eliminator.glb",
+  "triangles": 140020
+ },
+ "kawasaki_kle500": {
+  "name": "Kawasaki KLE 500",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-kle-500-2026\\Kawasaki_KLE_500_2026_Blender(4.2).zip (kawasaki_kle_500_2026.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_kle500.glb",
+  "triangles": 139537
+ },
+ "kawasaki_klr650": {
+  "name": "Kawasaki KLR 650",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-klr-650-2023\\Kawasaki_KLR_650_2023_Blender(4.2).zip (kawasaki_klr_650_2023.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_klr650.glb",
+  "triangles": 139394
+ },
+ "kawasaki_ninja7": {
+  "name": "Kawasaki Ninja 7 Hybrid",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-ninja-7-hybrid-2024\\Kawasaki_Ninja_7_Hybrid_2024_Blender(4.2).zip (kawasaki_ninja_7_hybrid_2024.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_ninja7.glb",
+  "triangles": 146637
+ },
+ "kawasaki_z650s": {
+  "name": "Kawasaki Z650 S",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-z650-s-2026\\Kawasaki_Z650_S_2026_Blender(4.2).zip (kawasaki_z650_s_2026.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_z650s.glb",
+  "triangles": 124489
+ },
+ "kawasaki_z900": {
+  "name": "Kawasaki Z900",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-z900-2025\\Kawasaki_Z900_2025_Blender(4.2).zip (kawasaki_z900_2025.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_z900.glb",
+  "triangles": 191544
+ },
+ "kawasaki_z1100": {
+  "name": "Kawasaki Z1100",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-z-1100-2026\\Kawasaki_Z_1100_2026_Blender(4.2).zip (kawasaki_z_1100_2026.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_z1100.glb",
+  "triangles": 153866
+ },
+ "kawasaki_zh2": {
+  "name": "Kawasaki Z H2",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-z-h2-2021\\Kawasaki_Z_H2_2021_Blender(4.2).zip (kawasaki_z_h2_2021.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_zh2.glb",
+  "triangles": 148702
+ },
+ "kawasaki_zx4rr": {
+  "name": "Kawasaki ZX-4RR",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-zx4rr-2024\\Kawasaki_ZX4RR_2024_Blender(4.2).zip (kawasaki_zx_4rr_2024.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_zx4rr.glb",
+  "triangles": 147173
+ },
+ "kawasaki_zx6r": {
+  "name": "Kawasaki ZX-6R",
+  "blend": "G:\\CGTrader Models\\base-model-kawasaki-zx-6r-2024\\Kawasaki_ZX_6R_2024_Blender(4.2).zip (kawasaki_zx_6r_2024.blend)",
+  "source": "G:\\CGTrader Models\\game\\kawasaki_zx6r.glb",
+  "triangles": 143587
+ },
+ "ktm_1390sa": {
+  "name": "KTM 1390 Super Adventure S",
+  "blend": "G:\\CGTrader Models\\KTM_1390_Super_Adventure_2026_Blender(4.2).zip (ktm_1390 _super_adventure_2026.blend)",
+  "source": "G:\\CGTrader Models\\game\\ktm_1390sa.glb",
+  "triangles": 161908
+ },
+ "yamaha_tracer9": {
+  "name": "Yamaha Tracer 9 GT",
+  "blend": "G:\\CGTrader Models\\Yamaha_Tracer_9_GT_2025_Blender(4.2).zip (yamaha_tracer_9_2025.blend)",
+  "source": "G:\\CGTrader Models\\game\\yamaha_tracer9.glb",
+  "triangles": 222328
  }
 }

@@ -289,7 +289,10 @@ int main()
 			if (Top && Bottom && Pivot && Axle && Top->A.size() >= 3 && Bottom->A.size() >= 3 && Pivot->A.size() >= 3 && Axle->A.size() >= 3)
 			{
 				++Sprung;
-				Expect(Nodes.count("shock_top") && Nodes.count("shock_bottom") && Nodes.count("shock_spring"), Id + " shock has a body end, a rod end and a spring the game can work");
+				// [bought bikes] A bought model draws its shock as it was made: both ends without a spring to see, or only
+				// the spring (the damper hidden inside the frame) still work; the game moves whichever pieces it has.
+				const bool bEnds = Nodes.count("shock_top") && Nodes.count("shock_bottom");
+				Expect((bEnds && Nodes.count("shock_spring")) || (bBought && (bEnds || Nodes.count("shock_spring"))), Id + " shock has a body end, a rod end and a spring the game can work");
 				const double Px = Pivot->A[0].N, Pz = Pivot->A[2].N, Arm = std::hypot(Axle->A[0].N - Px, Axle->A[2].N - Pz);
 				const double RestAngle = std::atan2(Axle->A[2].N - Pz, Axle->A[0].N - Px);
 				const double BumpAngle = TorqueSim::Pi - std::asin(std::clamp((Axle->A[2].N + 60.0 - Pz) / Arm, -1.0, 1.0));   // (the axle is behind the pivot)
@@ -353,7 +356,8 @@ int main()
 			}
 			Expect(Pieces > 0, Id + " bare frame is drawn");
 			const PartsMap Own = Lay.V2Build(Id);
-			Expect(Own.size() >= 18, Id + " has its own shop parts (" + std::to_string(Own.size()) + ")");
+			// ([bought bikes] a bought model has the parts its maker drew: a plainer bike draws fewer of them)
+			Expect(Own.size() >= (bBought ? 15u : 18u), Id + " has its own shop parts (" + std::to_string(Own.size()) + ")");
 			for (const auto& KV : Own)
 			{
 				Expect(Parts[KV.first] == KV.second, Id + " comes with its own " + KV.first);

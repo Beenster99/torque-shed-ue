@@ -90,7 +90,91 @@ BIKES = {
                         "quickshifter": True, "dry_clutch": False, "type": "Six-speed with Shift Assist", "price": 900},
         },
     },
+    # beenster 25 Nov, the second batch: "Lots of Kawasaki bikes and others. I want exactly the same treatment"
+    # (bought_export.py with bought_auto.py makes their drawings). Engines: made-up close to the real figures.
 }
+
+
+def _eng(layout, cyl, cc, bore, stroke, tpc, peak, red, idle, mass, crank, kind, price, v_angle=None):
+    e = {"layout": layout, "cylinders": cyl, "displacement": cc, "bore": bore, "stroke": stroke, "torque_per_cc": tpc,
+         "peak_torque_rpm": peak, "redline": red, "idle_rpm": idle, "mass": mass, "crank": crank, "type": kind, "price": price}
+    if v_angle:
+        e["v_angle"] = v_angle
+    return e
+
+
+def _box(primary, ratios, qs, kind, price, shift=0.06):
+    return {"primary": primary, "ratios": ratios, "shift_time": 0.045 if qs else shift, "shift_feel": "slick" if qs else "smooth",
+            "quickshifter": qs, "dry_clutch": False, "type": kind, "price": price}
+
+
+def _bike(style, family, brand, name, desc, price, mass, body, layout, eng, box, cda=None, twin=False, frame_color=None):
+    f = {"price": price, "mass": mass, "color": frame_color or body}
+    if cda:
+        f["cda"] = cda
+    return {"style": style, "family": family, "brand": brand, "name": name, "description": desc + " Ridden as it comes.",
+            "frame": f, "body": body, "layout": layout, "twin_shock": twin, "own": {"engine": eng, "gearbox": box}}
+
+
+K_TWIN6 = [2.92, 2.06, 1.6, 1.36, 1.18, 1.04]
+BIKES.update({
+    "ducati_monster": _bike("naked", "monster", "Ducati", "Ducati Monster 890",
+        "The Ducati Monster, bought whole: 890 cc V2, 111 hp, trellis-free frame and a 179 kg dry weight.", 3400, 9.5, RED, "vtwin90",
+        _eng("vtwin", 2, 890.0, 96.0, 61.5, 0.1024, 7250.0, 10750.0, 1300.0, 52.0, "90v", "890 V2", 4400, 90.0),
+        _box(1.78, [2.69, 1.95, 1.58, 1.37, 1.22, 1.11], True, "Six-speed with quickshifter", 900), cda=0.46),
+    "honda_cb1000gt": _bike("adventure", "cb1000gt", "Honda", "Honda CB1000 GT",
+        "The Honda CB1000 GT, bought whole: 1,084 cc inline four, 150 hp, a sports tourer with a tall screen.", 4300, 12.0, [0.025, 0.026, 0.03], "inline4",
+        _eng("inline", 4, 1084.0, 81.0, 52.6, 0.094, 8750.0, 12000.0, 1200.0, 62.0, "flat", "1000 inline four", 5600),
+        _box(1.98, [2.6, 1.95, 1.58, 1.35, 1.19, 1.07], True, "Six-speed with quickshifter", 900), cda=0.5),
+    "kawasaki_eliminator": _bike("cruiser", "eliminator", "Kawasaki", "Kawasaki Eliminator 500",
+        "The Kawasaki Eliminator 500, bought whole: 451 cc parallel twin, 45 hp, a low-slung cruiser.", 1900, 13.0, [0.02, 0.02, 0.022], "parallel_twin",
+        _eng("parallel", 2, 451.0, 70.0, 58.6, 0.0945, 6000.0, 10500.0, 1200.0, 36.0, "180", "451 parallel twin", 1900),
+        _box(2.67, K_TWIN6, False, "Six-speed", 500), twin=True),
+    "kawasaki_kle500": _bike("adventure", "kle", "Kawasaki", "Kawasaki KLE 500",
+        "The Kawasaki KLE 500, bought whole: 451 cc parallel twin, 45 hp, 21-inch front wheel.", 2100, 11.0, [0.8, 0.8, 0.8], "parallel_twin",
+        _eng("parallel", 2, 451.0, 70.0, 58.6, 0.095, 6000.0, 10000.0, 1200.0, 36.0, "180", "451 parallel twin", 1900),
+        _box(2.59, K_TWIN6, False, "Six-speed", 500)),
+    "kawasaki_klr650": _bike("adventure", "klr", "Kawasaki", "Kawasaki KLR 650",
+        "The Kawasaki KLR 650, bought whole: 652 cc single, 40 hp, the go-anywhere workhorse.", 2000, 13.0, [0.424, 0.428, 0.027], "single",
+        _eng("single", 1, 652.0, 100.0, 83.0, 0.08, 4500.0, 7500.0, 1200.0, 44.0, "single", "652 single", 1800),
+        _box(2.43, [2.33, 1.63, 1.27, 1.04, 0.88], False, "Five-speed", 450, shift=0.09), cda=0.55),
+    "kawasaki_ninja7": _bike("sport", "ninja7", "Kawasaki", "Kawasaki Ninja 7 Hybrid",
+        "The Kawasaki Ninja 7 Hybrid, bought whole: 451 cc twin with an electric boost, 69 hp all in.", 2900, 10.0, [0.62, 0.63, 0.64], "parallel_twin",
+        _eng("parallel", 2, 451.0, 70.0, 58.6, 0.13, 5000.0, 10500.0, 1200.0, 48.0, "180", "451 twin hybrid", 3600),
+        _box(1.89, K_TWIN6, True, "Six-speed with electric shift", 900), cda=0.36),
+    "kawasaki_z650s": _bike("naked", "z650", "Kawasaki", "Kawasaki Z650 S",
+        "The Kawasaki Z650 S, bought whole: 649 cc parallel twin, 68 hp, light and easy.", 2300, 9.0, [0.014, 0.315, 0.039], "parallel_twin",
+        _eng("parallel", 2, 649.0, 83.0, 60.0, 0.0986, 6700.0, 10500.0, 1200.0, 42.0, "180", "649 parallel twin", 2400),
+        _box(2.34, [2.44, 1.78, 1.44, 1.24, 1.09, 0.96], False, "Six-speed", 500), cda=0.48),
+    "kawasaki_z900": _bike("naked", "z900", "Kawasaki", "Kawasaki Z900",
+        "The Kawasaki Z900, bought whole: 948 cc inline four, 123 hp, red trellis frame.", 3000, 10.5, [0.16, 0.165, 0.17], "inline4",
+        _eng("inline", 4, 948.0, 73.4, 56.0, 0.104, 7700.0, 11500.0, 1200.0, 58.0, "flat", "948 inline four", 4200),
+        _box(1.93, [2.69, 1.95, 1.6, 1.39, 1.22, 1.08], False, "Six-speed", 600), cda=0.46),
+    "kawasaki_z1100": _bike("naked", "z1100", "Kawasaki", "Kawasaki Z1100",
+        "The Kawasaki Z1100, bought whole: 1,099 cc inline four, 134 hp, the big supernaked.", 3500, 11.0, [0.02, 0.021, 0.024], "inline4",
+        _eng("inline", 4, 1099.0, 77.0, 59.0, 0.103, 7600.0, 10500.0, 1150.0, 64.0, "flat", "1099 inline four", 4800),
+        _box(1.79, [2.6, 1.95, 1.6, 1.37, 1.2, 1.06], True, "Six-speed with quickshifter", 800), cda=0.46),
+    "kawasaki_zh2": _bike("naked", "zh2", "Kawasaki", "Kawasaki Z H2",
+        "The Kawasaki Z H2, bought whole: 998 cc supercharged inline four, 200 hp.", 5000, 11.0, [0.03, 0.031, 0.034], "inline4",
+        _eng("inline", 4, 998.0, 76.0, 55.0, 0.137, 8500.0, 12000.0, 1200.0, 70.0, "flat", "998 supercharged inline four", 8500),
+        _box(1.85, [2.6, 1.95, 1.6, 1.37, 1.2, 1.06], True, "Six-speed with quickshifter", 1000), cda=0.46),
+    "kawasaki_zx4rr": _bike("sport", "zx4rr", "Kawasaki", "Kawasaki ZX-4RR",
+        "The Kawasaki ZX-4RR, bought whole: 399 cc inline four screaming to 16,000 rpm, 77 hp.", 3000, 8.5, [0.16, 0.6, 0.02], "inline4",
+        _eng("inline", 4, 399.0, 57.0, 39.1, 0.098, 13000.0, 16000.0, 1500.0, 40.0, "flat", "399 inline four", 4000),
+        _box(2.8, [2.92, 2.06, 1.62, 1.36, 1.18, 1.07], True, "Six-speed with quickshifter", 800), cda=0.32),
+    "kawasaki_zx6r": _bike("sport", "zx6r", "Kawasaki", "Kawasaki ZX-6R",
+        "The Kawasaki ZX-6R, bought whole: 636 cc inline four, 124 hp, a supersport.", 3800, 8.5, [0.12, 0.55, 0.02], "inline4",
+        _eng("inline", 4, 636.0, 67.0, 45.1, 0.108, 11000.0, 16000.0, 1400.0, 50.0, "flat", "636 inline four", 5200),
+        _box(2.13, [2.92, 2.06, 1.62, 1.36, 1.18, 1.07], True, "Six-speed with quickshifter", 900), cda=0.31),
+    "ktm_1390sa": _bike("adventure", "1390sa", "KTM", "KTM 1390 Super Adventure S",
+        "The KTM 1390 Super Adventure S, bought whole: 1,350 cc 75-degree V-twin, 173 hp.", 4800, 12.0, [0.835, 0.192, 0.0], "vtwin",
+        _eng("vtwin", 2, 1350.0, 110.0, 71.0, 0.107, 7000.0, 10200.0, 1300.0, 66.0, "75v", "LC8 75-degree V-twin", 7200, 75.0),
+        _box(1.9, [2.69, 1.95, 1.55, 1.3, 1.1, 0.95], True, "Six-speed with quickshifter", 1000), cda=0.5),
+    "yamaha_tracer9": _bike("adventure", "tracer9", "Yamaha", "Yamaha Tracer 9 GT",
+        "The Yamaha Tracer 9 GT, bought whole: 890 cc CP3 triple, 117 hp, cruise control and panniers.", 3700, 12.0, [0.045, 0.047, 0.05], "triple",
+        _eng("triple", 3, 890.0, 78.0, 62.1, 0.1045, 7000.0, 11000.0, 1250.0, 58.0, "240", "CP3 890 triple", 4900),
+        _box(2.07, [2.67, 1.95, 1.6, 1.36, 1.17, 1.04], True, "Six-speed with quickshifter", 900), cda=0.52),
+})
 NOUN = {"tank": "fuel tank", "saddle": "seat", "tail": "tail unit", "side_panels": "side panels", "front_mudguard": "front mudguard",
         "fairing": "fairing", "headlight": "headlight", "indicators": "indicators", "mirrors": "mirrors", "handlebars": "handlebars",
         "fork": "front fork", "front_wheel": "front wheel", "rear_wheel": "rear wheel", "shock": "rear shock", "swingarm": "swingarm",
