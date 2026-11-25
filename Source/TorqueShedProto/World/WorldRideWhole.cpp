@@ -9,6 +9,7 @@
 // roads, a shoulder round each corner. Nothing overlaps, so nothing settles or is patched.
 // Behind a switch (RidePlan::WholeJunctions, -TorqueJunctions=whole) until the plan's stage 7.
 #include "WorldRide.h"
+#include <functional>
 #include "WorldRoadLine.h"
 #include "WorldRideRoadX.h"
 
@@ -37,6 +38,7 @@ bool WhyOn(const char* Name)
 }
 // ([smooth junctions stage 5c] junctions on the ride's road built whole: the checker can turn it off to compare)
 const bool WholeRideTurns = !WhyOn("WHOLE_NORIDE");
+const bool LandOld = WhyOn("WHOLE_LANDOLD");   // (the checker can measure the land as before)
 } // namespace
 
 namespace WholeJunctionBits
@@ -48,7 +50,7 @@ double Cross(const P2& A, const P2& B, const P2& C)
 }
 // The tarmac inside a rim (a simple polygon, either way round): ear clipping, the fullest ear first so no slivers, then each
 // triangle split in four Levels times, two sharing an edge sharing its points. Pt: the rim's points, then the new ones.
-void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears)
+void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears, const std::function<double(const P2&)>* Height, double Tol)
 {
 	Ears.clear();
 	const size_t R = Rim.size();
@@ -109,6 +111,46 @@ void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::v
 		{
 			const size_t Ab = MidOf(T[0], T[1]), Bc = MidOf(T[1], T[2]), Ca = MidOf(T[2], T[0]);
 			Finer.push_back({T[0], Ab, Ca}); Finer.push_back({Ab, T[1], Bc}); Finer.push_back({Ca, Bc, T[2]}); Finer.push_back({Ab, Bc, Ca});
+		}
+		Ears.swap(Finer);
+	}
+	// ([smooth junctions stage 5c] once more where the surface bends: each edge whose middle stands off the straight line
+	// between its ends by more than Tol halved (chosen by the edge, so two triangles sharing it agree), each triangle
+	// cut by its halved edges; at two levels a whole piece's facets were 2-3 cm out where its arms' roads bend, a knock)
+	if (Height != nullptr)
+	{
+		std::unordered_map<long long, size_t> Split;
+		const auto Key = [](size_t A, size_t B) { return static_cast<long long>(std::min(A, B)) * 1000003LL + static_cast<long long>(std::max(A, B)); };
+		std::vector<double> H(Pt.size());
+		for (size_t I = 0; I < Pt.size(); ++I) H[I] = (*Height)(Pt[I]);
+		const auto Bent = [&](size_t A, size_t B)
+		{
+			const long long K = Key(A, B);
+			const auto It = Split.find(K);
+			if (It != Split.end()) return It->second;
+			const P2 Mid = (Pt[A] + Pt[B]) * 0.5;
+			const double Hm = (*Height)(Mid);
+			size_t Got = size_t(-1);
+			if (std::fabs(Hm - 0.5 * (H[A] + H[B])) > Tol && Pt[A].DistanceTo(Pt[B]) > 0.3) { Pt.push_back(Mid); H.push_back(Hm); Got = Pt.size() - 1; }
+			Split[K] = Got;
+			return Got;
+		};
+		std::vector<std::array<size_t, 3>> Finer;
+		Finer.reserve(Ears.size() * 2);
+		for (const std::array<size_t, 3>& T : Ears)
+		{
+			const size_t M[3] = {Bent(T[0], T[1]), Bent(T[1], T[2]), Bent(T[2], T[0])};
+			const int Count = (M[0] != size_t(-1)) + (M[1] != size_t(-1)) + (M[2] != size_t(-1));
+			if (Count == 0) { Finer.push_back(T); continue; }
+			if (Count == 3) { Finer.push_back({T[0], M[0], M[2]}); Finer.push_back({M[0], T[1], M[1]}); Finer.push_back({M[2], M[1], T[2]}); Finer.push_back({M[0], M[1], M[2]}); continue; }
+			// (one or two halved: turned so the first halved edge is T[0]-T[1])
+			int Rot = 0;
+			while (M[Rot] == size_t(-1)) ++Rot;
+			const size_t A = T[Rot], B = T[(Rot + 1) % 3], C = T[(Rot + 2) % 3];
+			const size_t Mab = M[Rot], Mbc = M[(Rot + 1) % 3], Mca = M[(Rot + 2) % 3];
+			if (Count == 1) { Finer.push_back({A, Mab, C}); Finer.push_back({Mab, B, C}); continue; }
+			if (Mbc != size_t(-1)) { Finer.push_back({A, Mab, C}); Finer.push_back({Mab, B, Mbc}); Finer.push_back({Mab, Mbc, C}); }
+			else { Finer.push_back({A, Mab, Mca}); Finer.push_back({Mab, B, C}); Finer.push_back({Mab, C, Mca}); }
 		}
 		Ears.swap(Finer);
 	}
@@ -570,7 +612,12 @@ double RidePlan::WholeGround(double X, double Z, double Out) const
 		if (Sh == nullptr) continue;
 		if (Sh->Inside(At))
 		{
-			const double Y = Sh->HeightAt(At);
+			double Y = Sh->HeightAt(At);
+			// ([smooth junctions stage 5c] the land runs straight between its points 4 m apart: under the lowest of the tarmac
+			// round this one, not just its own, or it stood through a dip between them)
+			if (!LandOld)
+				for (const P2& Off : {P2(2.0, 0.0), P2(-2.0, 0.0), P2(0.0, 2.0), P2(0.0, -2.0)})
+					if (Sh->Inside(At + Off)) { const double Yo = Sh->HeightAt(At + Off); if (!std::isnan(Yo)) Y = std::fmin(Y, Yo); }
 			if (!std::isnan(Y)) Out = std::fmin(Out, Y - Sink);
 			continue;
 		}
@@ -807,7 +854,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 				{
 					P2 A, B;
 					MouthEnds(Mouths[I], A, B);
-					Fade = std::fmin(Fade, std::fmax(0.25, ToSegment(At, A, B) + (Dt - ThroughEdge)));
+					Fade = std::fmin(Fade, std::fmax(WhyOn("WHOLE_FADE1") ? 1.0 : 0.25, ToSegment(At, A, B) + (Dt - ThroughEdge)));
 				}
 			if (Dt <= ThroughEdge) return ArmsBlend(At, true);
 			const double Off = Ease01((Dt - ThroughEdge) / Fade);
@@ -986,7 +1033,9 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	std::vector<std::array<size_t, 3>> Ears;
 	// ([5c] one on the ride's road split once more: its crown and banking under the arms' blend read as 2-3 cm facets)
 	const bool OnRideRoad = std::any_of(W.ArmSign.begin(), W.ArmSign.end(), [](int S) { return S != 0; });
-	FillRim(Rim, OnRideRoad ? 3 : 2, Pt, Ears);
+	const std::function<double(const P2&)> SurfaceAt = [&Surface](const P2& At) { return Surface(At); };
+	FillRim(Rim, OnRideRoad ? 3 : 2, Pt, Ears, WhyOn("WHOLE_NOBEND") ? nullptr : &SurfaceAt, 0.005);
+	if (WhyOn("WHOLE_TRIS")) std::printf("wholetris %zu\n", Ears.size());
 	std::vector<uint32_t> Vtx(Pt.size());
 	for (size_t I = 0; I < Pt.size(); ++I) Vtx[I] = Vertex(Pt[I], Surface(Pt[I]), Top, SlopeAt(Pt[I]));
 	for (const std::array<size_t, 3>& T : Ears) Tri(Vtx[T[0]], Vtx[T[1]], Vtx[T[2]]);

@@ -2137,6 +2137,7 @@ struct RideDetour
 namespace WholeJunctionBits
 {
 double ToSegment(const P2& P, const P2& A, const P2& B);
-void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears);
+void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::vector<std::array<size_t, 3>>& Ears,
+	const std::function<double(const P2&)>* Height = nullptr, double Tol = 0.005);
 }
 } // namespace TorqueWorld
