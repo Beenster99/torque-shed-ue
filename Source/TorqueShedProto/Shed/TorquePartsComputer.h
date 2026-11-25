@@ -69,7 +69,7 @@ private:
 	enum class ESection : uint8 { Bike, Shed, NewBike };
 	struct FKindRow { FName Kind; FString Heading; };   // a heading row has no Kind
 	struct FRow { FName Part; int32 Stock = INDEX_NONE; };
-	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type, EngineFilter, Bay };
+	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type, EngineFilter, Bay, ListFilter };
 	struct FHit { FBox2D Box; EHit What; int32 Arg; };
 
 	ESection Section = ESection::Bike;
@@ -124,6 +124,23 @@ private:
 	// Front and rear tyres (and wheels) are their own lists (beenster, Nov 20: "Its also not that obvious what
 	// the front and rear tyres are"): which side of the bike a part goes on (1 front, 2 rear, 3 either, 0 none).
 	int32 SideOf(FName Part) const;
+
+	// [shop filters] (beenster after 171: "more filters for long lists... front, back, finish, spoked type") Over a
+	// long part list, a row of buttons that each step on through what the list holds: which side (wheels and tyres:
+	// it swaps to the other side's list), the style or type ("Type" on wheels: cast, wire spoked, billet), the
+	// finish, the maker, and the order (0 the shop's, 1 cheapest, 2 dearest, 3 lightest). A filter shows only when
+	// the list holds two or more of it. Cleared when another kind of part is picked.
+	TMap<FString, FString> ListPicks;            // facet -> value picked ("style" -> "cast"); none: any
+	TMap<FString, TArray<FString>> ListChoices;  // facet -> the values the list holds (before these filters)
+	TArray<FString> ListChips;                   // the buttons drawn, in order ("side", "style", "finish", "maker", "sort")
+	int32 ListSort = 0;
+	FName ListKindSeen;                          // the base kind the picks are for
+	int32 ListUnfiltered = 0;                    // how many the list held before these filters
+	void StepListFilter(int32 Chip);
+public:
+	// For the test robot: "side=rear", "style=cast", "finish=chrome", "maker=BSX", "sort=1" ("" or "all" clears).
+	bool SetListFilter(const FString& Key, const FString& Value);
+private:
 
 	int32 BikeStyle = 0;         // the project bike's style shown (the one ordered is any of them)
 	FString StyleShown;          // ... and its reference bike's parts, looked up when it changes

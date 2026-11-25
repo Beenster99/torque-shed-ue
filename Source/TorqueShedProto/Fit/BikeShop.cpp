@@ -178,6 +178,288 @@ bool WheelBefore(const BikeLayout& Lay, const std::string& A, const std::string&
 	return BSI::ShopNatural(Pa ? Pa->Str("name", A) : A, Pb ? Pb->Str("name", B) : B) < 0;
 }
 
+namespace
+{
+// The finishes a kit or bespoke part comes in (its kit key ends with one), longest first so "gloss_black" beats "black".
+const std::vector<std::string>& FacetFinishes()
+{
+	static const std::vector<std::string> F = {"anodised_gold", "steel_brushed", "gold_bright", "gloss_black", "matt_black", "gunmetal", "chrome",
+		"carbon", "bronze", "brass", "steel", "gold"};
+	return F;
+}
+
+bool EndsWith(const std::string& S, const std::string& Tail)
+{
+	return S.size() >= Tail.size() && S.compare(S.size() - Tail.size(), Tail.size(), Tail) == 0;
+}
+}
+
+std::string FacetOf(const BikeLayout& Lay, const std::string& Id, const std::string& Facet)
+{
+	const Json* P = Lay.Part(Id);
+	if (!P || !P->IsObject()) return std::string();
+	const Json* Vp = P->Get("v2part");
+	if (Vp && !Vp->IsObject()) Vp = nullptr;
+	const std::string Kit = Vp ? Vp->Str("kit") : std::string();
+	const bool bWheel = Lay.Catalogue() && Lay.Catalogue()->Find("wheel", Id) != nullptr;
+	if (Facet == "maker")
+		return Vp && !Vp->Str("brand").empty() ? Vp->Str("brand") : P->Str("brand", P->Str("maker"));
+	if (Facet == "style")
+	{
+		if (bWheel)
+		{
+			if (Kit.rfind("b_wheels_billet_", 0) == 0) return "billet";
+			if (Kit.rfind("b_wheels_wire_", 0) == 0) return "wire";
+			if (Kit.rfind("b_wheels_", 0) == 0) return "cast";
+			const std::string St = P->Str("style");
+			return St == "cast" ? St : std::string("wire");      // ("spoked" and "wire" are both laced wheels)
+		}
+		return P->Str("style", P->Str("type"));     // (a caliper, a shock, a gearbox: its type, "Radial")
+	}
+	if (Facet == "finish")
+	{
+		if (Kit.rfind("b_", 0) == 0)
+			for (const std::string& F : FacetFinishes())
+				if (EndsWith(Kit, "_" + F)) return F;
+		return bWheel && Kit.empty() && Vp ? std::string("own") : std::string();
+	}
+	return std::string();
+}
+
+std::string FacetText(const std::string& Facet, const std::string& Value)
+{
+	static const std::map<std::string, std::string> Words = {
+		{"finish:", "standard"}, {"finish:own", "maker's own"}, {"finish:steel_brushed", "brushed steel"}, {"finish:gold_bright", "bright gold"},
+		{"maker:", "unbranded"}, {"style:", "other"},
+		{"style:cast", "cast"}, {"style:wire", "wire spoked"}, {"style:billet", "billet"}, {"style:usd", "upside-down"}, {"style:fi", "fuel injection"},
+		{"style:carb", "carburettor"}, {"style:carbs", "carburettors"}, {"style:rect", "rectangular"}, {"style:mx", "MX"}, {"style:bar_end", "bar-end"},
+		{"style:mx braced", "MX braced"}, {"style:offroad", "off-road"}, {"style:stock", "stock"}, {"style:slip", "slip-on"},
+		{"style:full", "full system"}};
+	const auto It = Words.find(Facet + ":" + Value);
+	if (It != Words.end()) return It->second;
+	if (Facet == "maker") return Value;
+	std::string Out = Value;
+	for (char& C : Out)
+		if (C == '_') C = ' ';
+	for (char& C : Out) C = (char)std::tolower((unsigned char)C);
+	return Out;
+}
+
+std::string FacetTitle(const std::string& Facet, const std::string& Kind)
+{
+	if (Facet == "maker") return "Maker";
+	if (Facet == "finish") return "Finish";
+	if (Kind == "wheel") return "Type";
+	if (Kind == "tyre") return "Use";
+	return "Style";
+}
+
+namespace
+{
+std::string Fmt(const char* Format, double A, double B = 0.0, double C = 0.0)
+{
+	char Buf[96];
+	std::snprintf(Buf, sizeof(Buf), Format, A, B, C);
+	return Buf;
+}
+
+std::string Upper1(std::string S)
+{
+	if (!S.empty()) S[0] = (char)std::toupper((unsigned char)S[0]);
+	return S;
+}
+
+// A 0..1 rating (a caliper's bite, a filter's protection) out of ten.
+std::string OutOfTen(double V) { return Fmt("%.0f/10", std::max(0.0, std::min(10.0, V * 10.0))); }
+}
+
+std::vector<std::string> PartDetails(const BikeLayout& Lay, const std::string& Id)
+{
+	std::vector<std::string> Out;
+	const Json* P = Lay.Part(Id);
+	if (!P || !P->IsObject()) return Out;
+	auto Has = [P](const char* Key) { const Json* J = P->Get(Key); return J && !J->IsNull(); };
+	auto Num = [P](const char* Key) { return P->Num(Key); };
+	auto Yes = [P](const char* Key) { const Json* J = P->Get(Key); return J && J->Kind == Json::Bool && J->B; };
+	auto Add = [&Out](const std::string& Label, const std::string& Value) { if (!Value.empty()) Out.push_back(Label + ": " + Value); };
+	auto List = [P](const char* Key) {
+		std::string L;
+		if (const Json* J = P->Get(Key))
+			for (const Json& E : J->A)
+			{
+				if (E.IsString()) L += (L.empty() ? "" : ", ") + E.S;
+				else if (E.IsNumber()) L += (L.empty() ? "" : ", ") + Fmt("%g", E.N);
+			}
+		return L;
+	};
+	std::string Kind;
+	if (Lay.Catalogue())
+		for (const std::string& K : Lay.Catalogue()->Kinds())
+			if (Lay.Catalogue()->Find(K, Id)) { Kind = K; break; }
+
+	Add("Type", P->Str("type"));
+	const std::string Finish = FacetOf(Lay, Id, "finish");
+	if (!Finish.empty()) Add("Finish", Upper1(FacetText("finish", Finish)));
+	Add("Material", Upper1(P->Str("material")));
+
+	if (Kind == "caliper")
+	{
+		if (Has("pistons")) Add("Pistons", Fmt("%.0f", Num("pistons")));
+		const std::string T = P->Str("type");
+		Add("Mounting", T.find("adial") != std::string::npos ? "radial" : (T.find("xial") != std::string::npos ? "axial (bolted on the side)" : "sliding pin"));
+		if (Has("force")) Add("Bite", OutOfTen(Num("force")));
+	}
+	else if (Kind == "disc")
+	{
+		if (Has("diameter")) Add("Diameter", Fmt("%.0f mm", Num("diameter")));
+		Add("Pattern", P->Str("style"));
+		if (Has("shoes")) Add("Drum shoes", P->Str("shoes") == "tls" ? "twin leading shoe" : "single leading shoe");
+	}
+	else if (Kind == "pads")
+	{
+		if (Has("mu")) Add("Friction", Fmt("%.2f", Num("mu")));
+	}
+	else if (Kind == "master")
+	{
+		if (Has("ratio")) Add("Lever ratio", Fmt("%.2f", Num("ratio")));
+	}
+	else if (Kind == "wheel")
+	{
+		if (Has("diameter")) Add("Rim", Has("rim_width") ? Fmt("%g x %g in", Num("diameter"), Num("rim_width")) : Fmt("%g in", Num("diameter")));
+		const Json* T = P->Get("tyres");
+		if (T && T->A.size() == 2) Add("Tyres", Fmt("%.0f to %.0f mm wide", T->A[0].N, T->A[1].N));
+		Add("Build", FacetText("style", FacetOf(Lay, Id, "style")));
+		if (Has("spokes") && FacetOf(Lay, Id, "style") == "wire") Add("Spokes", Fmt("%.0f", Num("spokes")));
+	}
+	else if (Kind == "tyre")
+	{
+		if (Has("width")) Add("Size", Has("aspect") ? Fmt("%.0f/%.0f", Num("width"), Num("aspect") * 100.0) : Fmt("%.0f mm", Num("width")));
+		Add("Fits rims (in)", List("rims"));
+		Add("Compound", P->Str("compound"));
+		Add("Construction", P->Str("construction"));
+		Add("Tread", P->Str("tread"));
+	}
+	else if (Kind == "engine")
+	{
+		if (Has("displacement")) Add("Capacity", Fmt("%.0f cc", Num("displacement")));
+		if (Has("cylinders")) Add("Cylinders", Fmt("%.0f", Num("cylinders")));
+		if (Has("bore") && Has("stroke")) Add("Bore x stroke", Fmt("%.0f x %.0f mm", Num("bore"), Num("stroke")));
+		if (Has("v_angle") && P->Str("layout").find('v') != std::string::npos) Add("V angle", Fmt("%.0f degrees", Num("v_angle")));
+		Add("Crank", P->Str("crank"));
+		if (Has("peak_torque_rpm")) Add("Peak torque", Fmt("%.0f rpm", Num("peak_torque_rpm")));
+		if (Has("redline")) Add("Redline", Fmt("%.0f rpm", Num("redline")));
+		if (Yes("two_stroke")) Add("Cycle", "two-stroke");
+	}
+	else if (Kind == "head")
+	{
+		if (Has("valves")) Add("Valves", Fmt("%.0f a cylinder", Num("valves")));
+		Add("Cam", P->Str("cam"));
+		if (Has("compression")) Add("Compression", Fmt("%.1f:1", Num("compression")));
+		if (Has("torque_mult") && std::fabs(Num("torque_mult") - 1.0) >= 0.005) Add("Torque", Fmt("%+.0f%%", (Num("torque_mult") - 1.0) * 100.0));
+		if (Has("redline_add") && Num("redline_add") != 0.0) Add("Redline", Fmt("%+.0f rpm", Num("redline_add")));
+	}
+	else if (Kind == "fuel")
+	{
+		if (Has("flow")) Add("Flow rating", Fmt("%.0f", Num("flow")));
+		if (Has("torque_mult") && std::fabs(Num("torque_mult") - 1.0) >= 0.005) Add("Torque", Fmt("%+.0f%%", (Num("torque_mult") - 1.0) * 100.0));
+	}
+	else if (Kind == "exhaust")
+	{
+		Add("Route", P->Str("route"));
+		Add("Silencer", P->Str("can"));
+		if (Has("torque_mult") && std::fabs(Num("torque_mult") - 1.0) >= 0.005) Add("Torque", Fmt("%+.0f%%", (Num("torque_mult") - 1.0) * 100.0));
+		if (Has("loudness")) Add("Loudness", OutOfTen(Num("loudness")));
+	}
+	else if (Kind == "air_filter")
+	{
+		if (Has("flow")) Add("Flow", OutOfTen(Num("flow")));
+		if (Has("dirt_sensitivity")) Add("Lets dirt in", OutOfTen(Num("dirt_sensitivity")));
+	}
+	else if (Kind == "oil_filter" || Kind == "oil")
+	{
+		if (Has("protection")) Add("Protection", OutOfTen(Num("protection")));
+	}
+	else if (Kind == "gearbox")
+	{
+		if (const Json* R = P->Get("ratios")) Add("Gears", Fmt("%.0f", (double)R->A.size()));
+		if (Has("primary")) Add("Primary ratio", Fmt("%.2f:1", Num("primary")));
+		if (Has("shift_time")) Add("Shift time", Fmt("%.2f s", Num("shift_time")));
+		Add("Shift feel", P->Str("shift_feel"));
+	}
+	else if (Kind == "fork" || Kind == "shock")
+	{
+		if (Has("travel")) Add("Travel", Fmt("%.0f mm", Num("travel") * 1000.0));
+		if (Has("spring")) Add("Spring rate", Fmt("%.0f N/mm", Num("spring") / 1000.0));
+		if (Has("adjust_name")) Add("Adjusts", P->Str("adjust_name"));
+		if (Kind == "fork" && Has("offset")) Add("Offset", Fmt("%.0f mm", Num("offset") * 1000.0));
+	}
+	else if (Kind == "frame")
+	{
+		if (Has("wheelbase")) Add("Wheelbase", Fmt("%.0f mm", Num("wheelbase") * 1000.0));
+		if (Has("rake_deg")) Add("Rake", Fmt("%.1f degrees", Num("rake_deg")));
+		if (Has("seat_height")) Add("Seat height", Fmt("%.0f mm", Num("seat_height") * 1000.0));
+	}
+	else if (Kind == "handlebars")
+	{
+		if (Has("width")) Add("Width", Fmt("%.0f mm", Num("width")));
+		if (Has("rise")) Add("Rise", Fmt("%+.0f mm", Num("rise") * 1000.0));
+	}
+	else if (Kind == "final_drive")
+	{
+		if (Has("front") && Has("rear")) Add("Sprockets", Fmt("%.0f front, %.0f rear (%.2f:1)", Num("front"), Num("rear"), Num("rear") / std::max(1.0, Num("front"))));
+	}
+	else if (Kind == "chain")
+	{
+		if (Has("lube_life")) Add("Lube lasts", Fmt("%.0f km", Num("lube_life")));
+	}
+	else if (Kind == "side_stand")
+	{
+		if (Has("lean")) Add("Lean", Fmt("%.0f degrees", Num("lean")));
+		if (Yes("auto_retract")) Add("Stand", "flicks up on its own");
+	}
+	else if (Kind == "headlight" || Kind == "fog_lights")
+	{
+		if (Has("lumens")) Add("Light", Fmt("%.0f lumens", Num("lumens")));
+	}
+	else if (Kind == "horn")
+	{
+		if (Has("loudness")) Add("Loudness", OutOfTen(Num("loudness")));
+	}
+	else if (Kind == "saddle")
+	{
+		if (Has("comfort")) Add("Comfort", OutOfTen(Num("comfort")));
+		if (Has("height") && Num("height") != 0.0) Add("Height", Fmt("%+.0f mm", Num("height") * 1000.0));
+	}
+	else if (Kind == "dashboard" || Kind == "satnav")
+	{
+		Add("Shows", List("features"));
+		Add("Rider aids", List("aids"));
+	}
+	else if (Kind == "steering_damper")
+	{
+		if (Has("damping")) Add("Damping", Fmt("%.1f", Num("damping")));
+	}
+	if (Kind == "tank" || Kind == "cooling" || Kind == "aux_tank")
+		if (Has("capacity")) Add("Capacity", Fmt("%g litres", Num("capacity")));
+	if (Kind == "panniers" || Kind == "top_box" || Kind == "tank_bag")
+		if (Has("litres")) Add("Holds", Fmt("%g litres", Num("litres")));
+	// What it has.
+	std::string Extras;
+	auto Extra = [&Extras](const char* Words) { Extras += (Extras.empty() ? "" : ", ") + std::string(Words); };
+	if (Yes("lightweight")) Extra("lightweight");
+	if (Yes("electronic")) Extra("electronic adjustment");
+	if (Yes("injected")) Extra("fuel injected");
+	if (Yes("quickshifter")) Extra("quickshifter");
+	if (Yes("dry_clutch")) Extra("dry clutch");
+	if (Yes("cassette")) Extra("cassette gearbox");
+	if (Yes("paint_match")) Extra("painted to match the bike");
+	if (Yes("frame_mount")) Extra("frame-mounted");
+	if (Yes("map")) Extra("map pocket");
+	if (!Extras.empty()) Add("Has", Extras);
+	Add("Maker", FacetOf(Lay, Id, "maker"));
+	return Out;
+}
+
 int TyreFit(const BikeLayout& Lay, const std::string& Tyre, const std::string& Wheel)
 {
 	const Json* T = Lay.Part(Tyre);
