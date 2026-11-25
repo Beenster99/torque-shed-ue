@@ -4,7 +4,8 @@
 #   1. is handed a walker that is theirs to move (coop:check: no menu, not paused, not inside anything),
 #   2. walks (coop:walk) and the host sees them walk (coop:seen),
 #   3. follows the host onto a Ride UK journey on a bike of their own (coop:ride on the host, coop:onride on the guest).
-# Each copy logs "COOP TEST PASS" or "COOP TEST FAILED" lines (Shed/TorqueShedTest.h, coop:*); this script
+# The host stays until the guest has quit (coop:stay), and every check retries while the guest is still
+# joining (round 173 failed on both timings). Each copy logs "COOP TEST PASS" or "COOP TEST FAILED" lines (Shed/TorqueShedTest.h, coop:*); this script
 # waits for both to quit (or kills them after -TimeoutMin) and prints those lines. Exit code 0 only if every
 # expected step passed on both copies.
 #
@@ -31,8 +32,8 @@ $GuestLog = "coop_guest.log"
 Remove-Item -ErrorAction SilentlyContinue (Join-Path $Logs $HostLog), (Join-Path $Logs $GuestLog)
 
 $Common = @("-windowed", "-ResX=1280", "-ResY=720", '-ExecCmds="t.MaxFPS 60"', "-log")
-$HostSteps = "coop:players:2:180,coop:check,coop:seen:150,coop:ride:$Ride,wait:10,coop:check,shot,quit"
-$GuestSteps = "coop:check,wait:15,coop:walk:300,wait:5,coop:onride:900,wait:5,coop:check,shot,wait:30,quit"
+$HostSteps = "coop:players:2:180,coop:check,coop:seen:150,coop:ride:$Ride,wait:10,coop:check,shot,coop:stay:900,quit"
+$GuestSteps = "coop:check,wait:15,coop:walk:300,wait:5,coop:onride:900,wait:5,coop:check,shot,wait:5,quit"
 
 Write-Host "Host: shed, listening on 7777"
 $HostArgs = @("/Game/Shed/Shed?listen?play?TorqueName=CoopHost", "-TorqueShedAction=$HostSteps", "-ABSLOG=$(Join-Path $Logs $HostLog)", "-WinX=0", "-WinY=40") + $Common
@@ -63,6 +64,6 @@ function Check([string]$Name, [string]$Log, [string[]]$Expect)
 	}
 	if ($Lines | Where-Object { $_ -match "COOP TEST FAILED" }) { $script:Ok = $false }
 }
-Check "Host" $HostLog @("coop:players", "coop:check", "coop:seen", "coop:ride")
+Check "Host" $HostLog @("coop:players", "coop:check", "coop:seen", "coop:ride", "coop:stay")
 Check "Guest" $GuestLog @("coop:check", "coop:walk", "coop:onride")
 if ($Ok) { Write-Host "COOP JOIN TEST: PASS"; exit 0 } else { Write-Host "COOP JOIN TEST: FAILED"; exit 1 }
