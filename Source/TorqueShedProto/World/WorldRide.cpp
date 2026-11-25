@@ -2905,11 +2905,30 @@ bool RidePlan::NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHi
 		const double Len = std::sqrt(L2);
 		const double Off = Len > 1e-9 ? ((At.X - Px) * Ab.Z - (At.Z - Pz) * Ab.X) / Len : 0.0;
 		Hit.Cross = RoadLine::CrossHeight(Off, HalfHere, J.BankA + (J.BankB - J.BankA) * T);
+		Hit.Dir = Len > 1e-9 ? Ab * (1.0 / Len) : P2(0.0, -1.0);
 	}
 	return Hit.Which >= 0 && Hit.Dist - Hit.Half <= JoinLean;
 }
 
-double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const
+int RidePlan::JoinedOn(const JoinSet& Set, int Which, const P2& At, const P2& Left, double& By) const
+{
+	// (the road whose tarmac At lies on or nearly, running alongside (Left across this road), as JoinedHeightFrom would
+	// settle it onto there, -1 none; By 1 on it, down to 0 JoinFirmEase out from its edge. Not a road leaving across
+	// another at a junction: its edges, carried on the other's fall past its edge, sank under the land there)
+	By = 0.0;
+	if (Which <= 0 || !Set.Holds(At)) return -1;
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		JoinHit Hit;
+		if (!NearestIn(Set, At, Pass == 0, Hit, Which) || !JoinsOnto(Which, Hit.Which)) continue;
+		if (Hit.Dist - Hit.Half > JoinLeanOf(Which, Hit.Which)) continue;
+		By = (1.0 - Smooth01((Hit.Dist - Hit.Half) / JoinFirmEase)) * (1.0 - Smooth01((std::fabs(Left.X * Hit.Dir.X + Left.Z * Hit.Dir.Z) - 0.2) / 0.2));
+		return By > 0.0 ? Hit.Which : -1;
+	}
+	return -1;
+}
+
+double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y, int Firm, double FirmBy) const
 {
 	// (as JoinedHeight: the ride's road first, then whichever other road is nearest)
 	if (Which <= 0) return Y;
@@ -2925,7 +2944,25 @@ double RidePlan::JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, d
 		if (std::fabs(Theirs - Y) > 1.2) continue;
 		if (Hit.Which > 0) Theirs = JoinedHeightDeep(Hit.Which, At, Theirs + JoinSink, JoinDepth - 1) - JoinSink;   // [crunched junctions, 169]
 		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
-		return Theirs + (Y - Theirs) * T;
+		const double Plain = Theirs + (Y - Theirs) * T;
+		// ([smooth junctions stage 5c] a road whose middle lies on the other's tarmac there, alongside it (Firm, FirmBy): its
+		// edge beyond that tarmac carried on the other's tilt, not eased back to its own height from the other's edge; the
+		// piece's one triangle from its middle to that edge sloped down under the other's edge, a lip of 15-25 cm along a
+		// dual's half laid alongside, Moseley. Only ever raised by it: lowered, the land came up through it, York; and not
+		// where it lies on a third road's tarmac: onto that road there)
+		double Firmly = WholeFirmOff || Firm != Hit.Which || Out2 <= 0.0 ? 0.0 : FirmBy * (1.0 - Smooth01((Out2 - JoinFirm) / 1.0));
+		JoinHit Other;
+		if (Firmly > 0.0 && NearestIn(Set, At, false, Other, Which) && Other.Which != Hit.Which && Other.Dist <= Other.Half)
+		{
+			if (!JoinsOnto(Which, Other.Which)) return Plain;
+			const double Its = Other.Height + Other.Cross;
+			return (Other.Which > 0 ? JoinedHeightDeep(Other.Which, At, Its, JoinDepth - 1) : Its) - JoinSink;
+		}
+		if (Firmly <= 0.0) return Plain;
+		double Carried = Hit.Height + Hit.Cross * (Hit.Half > 0.5 ? Hit.Dist / Hit.Half : 1.0) - JoinSink;
+		if (Hit.Which > 0) Carried = JoinedHeightDeep(Hit.Which, At, Carried + JoinSink, JoinDepth - 1) - JoinSink;
+		const double Firmed = Carried + (Y - Carried) * (T * (1.0 - Firmly));
+		return std::fmax(Plain, Firmed);
 	}
 	return Y;
 }
@@ -3190,7 +3227,20 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		Reach += 12.0;   // (the verge and the kerbs beyond the shoulder)
 		JoinSegs(Which, Jx0 - Reach, Jz0 - Reach, Jx1 + Reach, Jz1 + Reach, Joins);
 	}
-	const auto Settle = [this, Which, &Joins](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeightFrom(Joins, Which, At, Y); };
+	// ([smooth junctions stage 5c] the road the row's middle lies on, if any: see JoinedHeightFrom's Firm)
+	P2 FirmAt(1e18, 1e18);
+	int FirmOn = -1;
+	double FirmBy = 0.0;
+	const auto Settle = [this, Which, &Joins, &FirmAt, &FirmOn, &FirmBy](const Row& R, const P2& At, double Y)
+	{
+		if (R.Deck || R.Bore) return Y;
+		if (WholeJunctions && Which > 0 && (R.At.X != FirmAt.X || R.At.Z != FirmAt.Z))
+		{
+			FirmAt = R.At;
+			FirmOn = JoinedOn(Joins, Which, R.At, R.Left, FirmBy);
+		}
+		return JoinedHeightFrom(Joins, Which, At, Y, WholeJunctions ? FirmOn : -1, FirmBy);
+	};
 	// [places stage 2] The pull-offs made for places near this bit of road (drawn at its end; no grass
 	// shoulder where one runs along it).
 	// ([roads stage 7] and the petrol stations' forecourts the same way, in tarmac)
