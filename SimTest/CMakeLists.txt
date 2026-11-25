@@ -304,3 +304,15 @@ if(MSVC)
 else()
   target_compile_options(lx_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# The 3D preview windows' photo studio (Shed/TorqueStudioRig.h, TorqueStudio.cpp): the rig's lighting
+# ratios and exposure, the exposure meter, and that every preview capture is shut off from the game's
+# own lighting and post-processing (beenster, build 171: "should not be affected by exposure/daylight").
+add_executable(studio_test studio_test.cpp)
+target_include_directories(studio_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Shed)
+target_compile_definitions(studio_test PRIVATE TORQUE_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto")
+if(MSVC)
+  target_compile_options(studio_test PRIVATE /W4)
+else()
+  target_compile_options(studio_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
+endif()

@@ -1,7 +1,7 @@
 #include "Shed/TorqueProfilePreview.h"
 
 #include "CanvasItem.h"
-#include "Components/PointLightComponent.h"
+#include "Components/RectLightComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/SkinnedMeshComponent.h"
@@ -17,6 +17,8 @@
 #include "Misc/Parse.h"
 #include "RiderRig.h"
 #include "Shed/TorqueDecals.h"
+#include "Shed/TorqueStudio.h"
+#include "Shed/TorqueStudioRig.h"
 #include "Shed/TorqueToolModels.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -24,9 +26,10 @@ namespace TorqueProfilePreviewSpot
 {
 // High over the level's origin, in the open: nothing above to shade it, nothing near to film.
 const FVector Where(0.0, 0.0, 150000.0);
-// (Build 155, beenster: "the avatar screen is so dark". Lit now as the shop's studio is, with a fixed
-// exposure; -TorqueProfileExposure=N moves it, in stops.)
-constexpr float ExposureBias = -0.5f;
+// (Build 155, beenster: "the avatar screen is so dark". Lit as the shop's studio is, with a fixed
+// exposure; -TorqueProfileExposure=N moves it, in stops. Since build 172 the same rig and isolation as
+// every preview: TorqueStudio.)
+constexpr float ExposureBias = (float)TorqueStudioRig::ProfileExposureBias;
 constexpr double SpinRate = 20.0;           // degrees a second
 constexpr double MinZoom = 0.6, MaxZoom = 3.5;
 constexpr float Fov = 20.0f;
@@ -45,60 +48,21 @@ ATorqueProfilePreview::ATorqueProfilePreview()
 	Feet->SetupAttachment(Root);
 	Capture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("Capture"));
 	Capture->SetupAttachment(Root);
-	Capture->bCaptureEveryFrame = false;
-	Capture->bCaptureOnMovement = false;
-	Capture->bAlwaysPersistRenderingState = true;
-	Capture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
-	Capture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 	Capture->FOVAngle = TPPS::Fov;
-	Capture->ShowFlags.SetFog(false);
-	Capture->ShowFlags.SetVolumetricFog(false);
-	Capture->ShowFlags.SetAtmosphere(false);
-	Capture->ShowFlags.SetMotionBlur(false);
-	// No temporal anti-aliasing: its history blended each slider move in over many frames (beenster,
-	// build 160: "respond so slowly to my slider input"); the picture is drawn larger than shown instead.
-	Capture->ShowFlags.SetTemporalAA(false);
-	// Only its own lights (as the shop's studio): not the level's sky light, nor bounce from the level.
-	Capture->ShowFlags.SetSkyLighting(false);
-	Capture->ShowFlags.SetLensFlares(false);
+	// The studio's own camera (TorqueStudio): none of the level's sky light, air, clouds or
+	// post-processing, a fixed exposure (held by Meter), its own soft boxes on lighting channel 2.
 	{
 		float Bias = TPPS::ExposureBias;
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueProfileExposure="), Bias);
-		FPostProcessSettings& PP = Capture->PostProcessSettings;
-		PP.bOverride_AutoExposureMethod = true;
-		PP.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
-		PP.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
-		PP.AutoExposureApplyPhysicalCameraExposure = 0;
-		PP.bOverride_AutoExposureBias = true;
-		PP.AutoExposureBias = Bias;
-		PP.bOverride_DynamicGlobalIlluminationMethod = true;
-		PP.DynamicGlobalIlluminationMethod = EDynamicGlobalIlluminationMethod::None;
-		PP.bOverride_ReflectionMethod = true;
-		PP.ReflectionMethod = EReflectionMethod::ScreenSpace;
-		PP.bOverride_BloomIntensity = true;
-		PP.BloomIntensity = 0.15f;
-		PP.bOverride_VignetteIntensity = true;
-		PP.VignetteIntensity = 0.0f;
-		Capture->PostProcessBlendWeight = 1.0f;
+		BaseExposure = Bias;
+		TorqueStudio::Isolate(Capture, Bias);
 	}
-	Key = CreateDefaultSubobject<UPointLightComponent>(TEXT("Key"));
-	Fill = CreateDefaultSubobject<UPointLightComponent>(TEXT("Fill"));
-	Rim = CreateDefaultSubobject<UPointLightComponent>(TEXT("Rim"));
-	Bounce = CreateDefaultSubobject<UPointLightComponent>(TEXT("Bounce"));
-	for (UPointLightComponent* L : {Key, Fill, Rim, Bounce})
-	{
-		L->SetupAttachment(Root);
-		L->SetIntensityUnits(ELightUnits::Candelas);
-		L->SetCastShadows(L == Key);
-		// Only the studio: what it shows is on channel 2 and nothing else in the level is.
-		L->LightingChannels.bChannel0 = false;
-		L->LightingChannels.bChannel1 = false;
-		L->LightingChannels.bChannel2 = true;
-	}
-	Key->SetLightColor(FLinearColor(1.0f, 0.95f, 0.88f));
-	Fill->SetLightColor(FLinearColor(0.80f, 0.88f, 1.0f));
-	Rim->SetLightColor(FLinearColor(0.95f, 0.97f, 1.0f));
-	Bounce->SetLightColor(FLinearColor(1.0f, 0.98f, 0.95f));
+	// No temporal anti-aliasing: its history blended each slider move in over many frames (beenster,
+	// build 160: "respond so slowly to my slider input"); the picture is drawn larger than shown instead.
+	Capture->ShowFlags.SetTemporalAA(false);
+	TorqueStudio::MakeLights(this, Root, Lights);
+	Meter.Who = TEXT("profile");
+	Meter.Target = TorqueStudioRig::ProfileBackdropTarget;
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	Backdrop = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Backdrop"));
 	Backdrop->SetupAttachment(Root);
@@ -226,11 +190,7 @@ void ATorqueProfilePreview::Want(EView NewView, int32 Colour)
 	}
 	if (!Target)
 	{
-		Target = NewObject<UTextureRenderTarget2D>(this);
-		Target->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8_SRGB;
-		Target->ClearColor = FLinearColor(0.02f, 0.02f, 0.025f, 1.0f);
-		Target->InitAutoFormat(1152, 1536);   // (build 160: 768 x 1024 looked soft; drawn smaller, so smooth without TAA)
-		Target->UpdateResourceImmediate(true);
+		Target = TorqueStudio::MakeTarget(this, 1152, 1536);   // (build 160: 768 x 1024 looked soft; drawn smaller, so smooth without TAA)
 		Capture->TextureTarget = Target;
 	}
 }
@@ -242,6 +202,9 @@ void ATorqueProfilePreview::Tick(float DeltaSeconds)
 	const bool bOn = WantFor > 0.0 && Avatar.IsValid();
 	Capture->bCaptureEveryFrame = bOn;
 	SetActorHiddenInGame(!bOn);
+	// The exposure, held at the studio's: read in the whole-figure view only (the face and the helmet fill
+	// the picture's corners); the other views keep what it last found.
+	Meter.Tick(DeltaSeconds, bOn, View == EView::Body && Zoom <= 1.0 + 1e-3, Capture, Target, BaseExposure);
 	if (!bOn) return;
 
 	// The avatar, or the helmet on its own.
@@ -305,21 +268,8 @@ void ATorqueProfilePreview::Tick(float DeltaSeconds)
 		Backdrop->SetWorldScale3D(FVector(0.01, 2.0 * Back * TanH * 1.15 / 100.0, 2.0 * Back * TanH * 4.0 / 3.0 * 1.15 / 100.0));
 	}
 
-	// The lights stay with the camera, as the shop's: key high on the left, fill low on the right,
-	// rim behind and above, a little bounce from below. Brighter the further out they stand.
-	const double L = Radius * 2.4 + 60.0;
-	const double Gain = FMath::Square(L / 250.0);
-	auto Place = [&](UPointLightComponent* Light, const FVector& Dir, double Candelas)
-	{
-		Light->SetWorldLocation(Aim + Dir.GetSafeNormal() * L);
-		Light->SetIntensity((float)(Candelas * Gain));
-		Light->SetAttenuationRadius((float)(L * 4.0));
-		Light->SetSourceRadius((float)(L * 0.08));
-	};
-	Place(Key, -Fwd * 0.8 - Right * 0.75 + Up * 0.85, 120.0);
-	Place(Fill, -Fwd * 0.9 + Right * 0.85 - Up * 0.1, 55.0);
-	Place(Rim, Fwd * 0.9 + Right * 0.35 + Up * 0.95, 100.0);
-	Place(Bounce, -Fwd * 0.6 - Up * 0.8, 25.0);
+	// The soft boxes stay with the camera, as the shop's (TorqueStudioRig's product shoot).
+	TorqueStudio::PlaceLights(Lights, Aim, Fwd, Right, Up, Radius);
 }
 
 void ATorqueProfilePreview::Draw(UCanvas* Canvas, float X, float Y, float W, float H, bool bPortrait) const
