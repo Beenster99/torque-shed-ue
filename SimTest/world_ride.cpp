@@ -928,6 +928,61 @@ int main(int Argc, char** Argv)
 		std::printf("\n");
 	}
 	{
+		// [build 171 cenotaph] (beenster: a war memorial in the middle of the A686) No place drawn on a road's
+		// surface. (WORLD_RIDE_ONROAD=1: memorials, a cross, a stone and an obelisk mapped right on the ride's
+		// road's middle and at its edge as well; each must end up off it)
+		if (std::getenv("WORLD_RIDE_ONROAD") != nullptr)
+		{
+			Region& G = Plan->Area.Roads;
+			const char* OnRoad[] = {"memorial", "memorial", "cross", "standing_stone", "obelisk"};
+			for (int Q = 0; Q < 5; ++Q)
+			{
+				const double Want = 1600.0 + 90.0 * Q;
+				for (size_t I = 1; I < Plan->Road.size(); ++I)
+					if (Plan->Road[I].Along >= Want)
+					{
+						const P2 D = Plan->Road[I].At - Plan->Road[I - 1].At;
+						const double L = std::fmax(1e-6, D.Length());
+						Sight S;
+						S.Kind = OnRoad[Q];
+						S.Name = std::string("Test on the road ") + OnRoad[Q];
+						S.At = Plan->Road[I].At + P2(D.Z / L, -D.X / L) * (Q % 2 == 0 ? 0.0 : Plan->Road[I].Half * 0.9);
+						G.Sights.push_back(S);
+						std::printf("recipe test on the road %s at %.1f, %.1f\n", OnRoad[Q], S.At.X, S.At.Z);
+						break;
+					}
+			}
+			Plan->NoteSites();
+			Plan->IndexPlaceRecipes();
+		}
+		int OnRoad = 0;
+		for (const RidePlan::PlaceRecipe& Pr : Plan->PlaceRecipes)
+		{
+			if (RidePlan::PlaceFootprint(Pr) <= 0.0) continue;
+			// (against the roads as drawn: the blocks round it laid first, as when a rider comes near)
+			Rect Box;
+			Box.X0 = Pr.At.X - 40.0; Box.Z0 = Pr.At.Z - 40.0; Box.X1 = Pr.At.X + 40.0; Box.Z1 = Pr.At.Z + 40.0;
+			Plan->LayBlocks(Box);
+			if (Plan->PlaceOnRoad(Pr))
+			{
+				++OnRoad;
+				RidePlan::NearOpts No;
+				No.NoBores = true;
+				RidePlan::NearHit Nh;
+				Plan->NearestOf(Pr.At.X, Pr.At.Z, No, Nh);
+				const Sight& Ps = Plan->Area.Roads.Sights[size_t(Pr.Sight)];
+				std::printf("  PLACE ON ROAD: %s (%s %s) at %.1f, %.1f: %.1f m from road %d's middle, its half %.1f, reach %.1f%s\n", Ps.Name.c_str(), Ps.Kind.c_str(), Ps.Sub.c_str(),
+					Pr.At.X, Pr.At.Z, Nh.Dist, Nh.Which, Nh.Half, RidePlan::PlaceFootprint(Pr), Nh.Deck ? " (on a bridge)" : "");
+			}
+		}
+		for (int Ds : Plan->PlacesDroppedSights)
+		{
+			const Sight& Ps = Plan->Area.Roads.Sights[size_t(Ds)];
+			std::printf("  place not drawn (on a road all round): %s (%s %s) at %.1f, %.1f\n", Ps.Name.c_str(), Ps.Kind.c_str(), Ps.Sub.c_str(), Ps.At.X, Ps.At.Z);
+		}
+		std::printf("Places on a road: %d of %d drawn (moved off %d, dropped %d)%s\n", OnRoad, int(Plan->PlaceRecipes.size()), Plan->PlacesMoved, Plan->PlacesDropped, OnRoad > 0 ? "  FAIL" : "");
+	}
+	{
 		// [places stage 2] The stops made at the places worth riding to.
 		std::printf("Places: %d looked at (of %d mapped), %d too far from a road; stops: %d made pull-offs, %d car parks, %d lay-bys, %d boards in streets\n", Plan->PlacesSeen,
 			int(Plan->Area.Roads.Sights.size()), Plan->PlacesFar, Plan->PlaceStopCount[RidePlan::PlaceMade], Plan->PlaceStopCount[RidePlan::PlaceCarPark],
