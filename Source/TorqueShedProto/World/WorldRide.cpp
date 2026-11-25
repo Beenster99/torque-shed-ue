@@ -2177,7 +2177,9 @@ double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bo
 	{
 		double WDist = 0.0, WSurf = 0.0, WHalf = 0.0, WDepth = 0.0;
 		bool Beside = true;
-		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth, nullptr, &Beside))
+		// ([real water, Nov 25] not under a building: the map puts Blairgowrie's mills on Bank Street over the
+		// Ericht's outline, and the channel cut under them stood them in the river to their doors)
+		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth, nullptr, &Beside) && !WaterHouseAt(X, Z))
 		{
 			if (WDist < WHalf)
 			{

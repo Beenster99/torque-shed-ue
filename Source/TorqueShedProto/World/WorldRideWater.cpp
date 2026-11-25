@@ -7,6 +7,9 @@
 // A lake's bed lies under its own level, and the sea's under the sea's.
 #include "WorldRide.h"
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include <algorithm>
 #include <cmath>
 
@@ -26,6 +29,7 @@ void RidePlan::IndexWater()
 {
 	WaterRuns.clear();
 	WaterNear.clear();
+	WaterHouses.clear();
 	StillCells.clear();
 	if (!Land) return;
 	const Region& G = Area.Roads;
@@ -45,7 +49,34 @@ void RidePlan::IndexWater()
 		return Fa >= 0 && FieldAreas[size_t(Fa)].Kind == FieldReservoir && FieldAreas[size_t(Fa)].Flowing;
 	};
 	bool Outlined = false;
-	const auto WetAt = [&](double X, double Z) { return Outlined ? InOutline(X, Z) : Land->Cover(X, Z) == Terrain::CoverWater; };
+	// ([real water, beenster on 171 at Bank Street, Blairgowrie: "odd"] the Ericht's outline (or the land's
+	// cover) reached over the mill buildings on its bank, so the river was drawn 42 m wide with its bed cut
+	// under them and they stood in it to their doors. A building is never water: its walls end a river's
+	// width. The buildings round each 64 m square are fetched once.)
+	std::unordered_map<long long, std::vector<Building>> HousesBy;
+	std::unordered_set<long long> Filed;
+	const auto HousesNear = [&](double X, double Z) -> const std::vector<Building>&
+	{
+		const long long Key = WaterKey(X, Z, StillCellSize);
+		auto It = HousesBy.find(Key);
+		if (It == HousesBy.end())
+		{
+			std::vector<Building> Got;
+			HouseFootBoxes(std::floor(X / StillCellSize) * StillCellSize, std::floor(Z / StillCellSize) * StillCellSize, StillCellSize, Got);
+			It = HousesBy.emplace(Key, std::move(Got)).first;
+		}
+		return It->second;
+	};
+	const auto Housed = [&](double X, double Z)
+	{
+		for (const Building& B : HousesNear(X, Z))
+		{
+			const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw), Dx = X - B.X, Dz = Z - B.Z;
+			if (std::fabs(Dx * Cs - Dz * Sn) < B.W * 0.5 + 1.0 && std::fabs(Dx * Sn + Dz * Cs) < B.D * 0.5 + 1.0) return true;
+		}
+		return false;
+	};
+	const auto WetAt = [&](double X, double Z) { return (Outlined ? InOutline(X, Z) : Land->Cover(X, Z) == Terrain::CoverWater) && !Housed(X, Z); };
 	for (const Stream& Flow : G.Streams)
 	{
 		if (Flow.Line.size() < 2) continue;
@@ -100,7 +131,7 @@ void RidePlan::IndexWater()
 		}
 		const double Base = Flow.Kind == 0 ? 3.5 : Flow.Kind == 2 ? 3.0 : 1.1;
 		const double Deep = Flow.Kind == 0 ? 1.1 : Flow.Kind == 2 ? 1.2 : 0.4;
-		std::vector<double> Half(N, Base), Shift(N, 0.0), Low(N, std::nan(""));
+		std::vector<double> Half(N, Base), Shift(N, 0.0), Low(N, std::nan("")), LeftRoom(N, 1e9), RightRoom(N, 1e9);
 		Outlined = false;
 		for (size_t I = 0; I < N && !Outlined; I += 4) Outlined = InOutline(Run.At[I].X, Run.At[I].Z);
 		const auto LeftAt = [&Run, N](size_t I)
@@ -119,6 +150,9 @@ void RidePlan::IndexWater()
 				double Lw = 0.0, Rw = 0.0;
 				while (Lw < 40.0 && WetAt(Run.At[I].X + L.X * (Lw + 1.5), Run.At[I].Z + L.Z * (Lw + 1.5))) Lw += 1.5;
 				while (Rw < 40.0 && WetAt(Run.At[I].X - L.X * (Rw + 1.5), Run.At[I].Z - L.Z * (Rw + 1.5))) Rw += 1.5;
+				// (a building where it stopped: the water's edge may not pass it when the width is eased)
+				if (Lw < 40.0 && Housed(Run.At[I].X + L.X * (Lw + 1.5), Run.At[I].Z + L.Z * (Lw + 1.5))) LeftRoom[I] = Lw;
+				if (Rw < 40.0 && Housed(Run.At[I].X - L.X * (Rw + 1.5), Run.At[I].Z - L.Z * (Rw + 1.5))) RightRoom[I] = Rw;
 				const double Trim = Outlined ? 0.0 : 5.0;
 				if (Lw + Rw - Trim * 2.0 > Base * 2.0)
 				{
@@ -138,6 +172,12 @@ void RidePlan::IndexWater()
 				Half[I] = std::fmax(Base, Sh / Count);
 				Shift[I] = Ss / Count;
 			}
+		}
+		// (and never over a building beside it, however wide the water either side)
+		for (size_t I = 0; I < N; ++I)
+		{
+			if (LeftRoom[I] < 1e8) Half[I] = std::fmin(Half[I], std::fmax(1.0, LeftRoom[I] - Shift[I]));
+			if (RightRoom[I] < 1e8) Half[I] = std::fmin(Half[I], std::fmax(1.0, RightRoom[I] + Shift[I]));
 		}
 		for (size_t I = 0; I < N; ++I) Run.At[I] = Run.At[I] + LeftAt(I) * Shift[I];
 		// Its bed's lie: the lowest of the land across it.
@@ -229,7 +269,23 @@ void RidePlan::IndexWater()
 			const int X0 = int(std::floor((std::fmin(A.X, B.X) - Reach) / WaterCell)), X1 = int(std::floor((std::fmax(A.X, B.X) + Reach) / WaterCell));
 			const int Z0 = int(std::floor((std::fmin(A.Z, B.Z) - Reach) / WaterCell)), Z1 = int(std::floor((std::fmax(A.Z, B.Z) + Reach) / WaterCell));
 			for (int Cz = Z0; Cz <= Z1; ++Cz)
-				for (int Cx = X0; Cx <= X1; ++Cx) WaterNear[static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz)].emplace_back(Index, int(I));
+				for (int Cx = X0; Cx <= X1; ++Cx)
+				{
+					const long long Key = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
+					WaterNear[Key].emplace_back(Index, int(I));
+					// (the buildings over a river's or canal's reach of this square, filed once)
+					if (Run.Kind != 1 && Filed.insert(Key).second)
+					{
+						const double Cx0 = Cx * WaterCell, Cz0 = Cz * WaterCell;
+						if (const std::vector<Building>& Got = HousesNear(Cx0 + WaterCell * 0.5, Cz0 + WaterCell * 0.5); !Got.empty())
+							for (const Building& House : Got)
+							{
+								const double R = 0.5 * std::hypot(House.W, House.D) + 1.0;
+								if (House.X + R < Cx0 || House.X - R > Cx0 + WaterCell || House.Z + R < Cz0 || House.Z - R > Cz0 + WaterCell) continue;
+								WaterHouses[Key].push_back(House);
+							}
+					}
+				}
 		}
 		WaterRuns.push_back(std::move(Run));
 	}
@@ -266,6 +322,19 @@ bool RidePlan::NearWater(double X, double Z, double& Dist, double& Surface, doub
 		if (Beside) *Beside = !((I == 0 && Along < 0.0) || (I + 2 == Run.At.size() && Along > 1.0));
 	}
 	return Found;
+}
+
+bool RidePlan::WaterHouseAt(double X, double Z) const
+{
+	if (WaterHouses.empty()) return false;
+	const auto It = WaterHouses.find(WaterKey(X, Z, WaterCell));
+	if (It == WaterHouses.end()) return false;
+	for (const Building& B : It->second)
+	{
+		const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw), Dx = X - B.X, Dz = Z - B.Z;
+		if (std::fabs(Dx * Cs - Dz * Sn) < B.W * 0.5 + 1.0 && std::fabs(Dx * Sn + Dz * Cs) < B.D * 0.5 + 1.0) return true;
+	}
+	return false;
 }
 
 double RidePlan::StillLevel(double X, double Z) const
