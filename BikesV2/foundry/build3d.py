@@ -743,6 +743,10 @@ def loft(name, outline, spec, material, stations=96, ring=44, smooth_lines=True)
             e = 2.0 / (spec["nb"] if sn < 0 and spec.get("nb") else spec["n"])      # nb: a boxier underside
             y = w * math.copysign(abs(cs) ** e, cs)
             z = zc + h * math.copysign(abs(sn) ** e, sn)
+            if sn > 0 and spec.get("top"):
+                # top: the upper flanks lean in towards the crown along the part (an adventure tank's front corners
+                # stay clear of the bars at full lock: beenster's rule, reshape the outline, never dish it)
+                y *= 1 - (1 - shapes.lerp_table(spec["top"], u)) * sn ** 1.2
             if sn < 0:
                 y *= 1 - (1 - spec["bottom"]) * abs(sn)
                 if spec.get("base"):

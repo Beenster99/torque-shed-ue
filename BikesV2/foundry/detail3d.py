@@ -3888,6 +3888,9 @@ def run(build3d, model, c):
     tank_decal(model, c)
     bar_slant(model, c)
     aim_mirrors(model, c)
+    if (model.get("adv") or {}).get("wide"):
+        import adv_wide3d      # the wide adventure cockpit (beenster, Nov 25): bars, dash, lamps, V, radar, crisp edges
+        adv_wide3d.run(sys.modules[__name__], model, c)
     for i, sh in enumerate(model["body"].get("shrouds", [])):
         # radiator shrouds (motocross): a panel each side standing just proud of the tank's flank, over the radiator
         pp = B.shapes.dense(sh["pts"], True, sh.get("t", 0.7))
