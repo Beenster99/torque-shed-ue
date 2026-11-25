@@ -9257,6 +9257,630 @@
     },
     "bought": true
    }
+  },
+  "v2_ducati_panigale": {
+   "mass": 9.0,
+   "wheelbase": 1.4921,
+   "com_height": 0.66,
+   "rake_deg": 24.821,
+   "seat_height": 0.851,
+   "cda": 0.3,
+   "style": "perimeter",
+   "type": "Ducati Panigale V4 S",
+   "geo": {
+    "arm": 0.6024,
+    "pivot_y": 0.1264,
+    "engine_at": 0.45,
+    "engine_y": 0.1,
+    "seat_drop": 0.1,
+    "tail_back": 0.02,
+    "tail_y": 0.06,
+    "peg": [
+     0.12,
+     0.08
+    ],
+    "exhaust": "stubby",
+    "swingarm": "single"
+   },
+   "lightweight": true,
+   "name": "Ducati Panigale V4 S",
+   "description": "The Ducati Panigale V4 S, bought whole: 1,103 cc Desmosedici Stradale V4, 215 hp, single-sided swingarm. Ridden as it comes.",
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 5200,
+   "rig": {
+    "deep": 1.1,
+    "wide": 1.05
+   },
+   "v2": {
+    "model": "ducati_panigale",
+    "family": "panigale",
+    "brand": "Ducati",
+    "lead": false,
+    "body": [
+     0.55,
+     0.012,
+     0.01
+    ],
+    "points_mm": {
+     "front_axle": [
+      1491.8,
+      0.0,
+      290.2
+     ],
+     "rear_axle": [
+      0.0,
+      0.0,
+      319.4
+     ],
+     "steer_top": [
+      1176.1,
+      0.0,
+      924.1
+     ],
+     "steer_bottom": [
+      1276.7,
+      0.0,
+      695.0
+     ],
+     "fork_top": [
+      1207.1,
+      0.0,
+      938.6
+     ],
+     "fork_dir": [
+      -0.40198,
+      0.0,
+      0.91565
+     ],
+     "swing_pivot": [
+      604.8,
+      0.0,
+      434.0
+     ],
+     "rigid": false,
+     "hip": [
+      492.9,
+      0.0,
+      851.1
+     ],
+     "stats": {
+      "wheelbase": 1492,
+      "rake_deg": 23.7,
+      "trail": 90,
+      "seat_height": 851,
+      "ground_clearance": 135,
+      "fork_length": 708,
+      "front_radius": 300,
+      "rear_radius": 331,
+      "shaft": false,
+      "fork_usd": true,
+      "front_rim": 216,
+      "rear_rim": 216,
+      "front_width": 120,
+      "rear_width": 200,
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
+     },
+     "peg": [
+      452.3,
+      224.7,
+      395.6
+     ],
+     "grip": [
+      1180.4,
+      323.6,
+      840.6
+     ],
+     "shock_top": [
+      570.0,
+      0.0,
+      605.7
+     ],
+     "shock_bottom": [
+      446.5,
+      0.0,
+      369.0
+     ],
+     "tank_cap": [
+      836.6,
+      -0.0,
+      997.7
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1371.5,
+        0.0,
+        914.1
+       ],
+       "axis": [
+        -0.7619,
+        0.0,
+        0.6477
+       ],
+       "up": [
+        0.6477,
+        0.0,
+        0.7619
+       ],
+       "w": 145.9,
+       "h": 79.4,
+       "node": ""
+      }
+     ],
+     "stand": {
+      "pivot": [
+       641.6,
+       219.3,
+       285.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
+    },
+    "build": {
+     "tank": "v2_ducati_panigale__tank",
+     "saddle": "v2_ducati_panigale__saddle",
+     "tail": "v2_ducati_panigale__tail",
+     "front_mudguard": "v2_ducati_panigale__front_mudguard",
+     "fairing": "v2_ducati_panigale__fairing",
+     "headlight": "v2_ducati_panigale__headlight",
+     "indicators": "v2_ducati_panigale__indicators",
+     "mirrors": "v2_ducati_panigale__mirrors",
+     "handlebars": "v2_ducati_panigale__handlebars",
+     "fork": "v2_ducati_panigale__fork",
+     "front_wheel": "v2_ducati_panigale__front_wheel",
+     "rear_wheel": "v2_ducati_panigale__rear_wheel",
+     "shock": "v2_ducati_panigale__shock",
+     "swingarm": "v2_ducati_panigale__swingarm",
+     "rearsets": "v2_ducati_panigale__rearsets",
+     "front_caliper": "v2_ducati_panigale__front_caliper",
+     "rear_caliper": "v2_ducati_panigale__rear_caliper",
+     "engine": "v2_ducati_panigale__engine",
+     "gearbox": "v2_ducati_panigale__gearbox",
+     "cooling": "v2_ducati_panigale__cooling",
+     "exhaust": "v2_ducati_panigale__exhaust",
+     "side_stand": "v2_ducati_panigale__side_stand"
+    },
+    "bought": true
+   }
+  },
+  "v2_indian_scout": {
+   "name": "Indian Scout 101",
+   "description": "The Indian Scout 101, bought whole: 1,250 cc SpeedPlus 60-degree V-twin, 111 hp, belt drive. Ridden as it comes.",
+   "mass": 16.0,
+   "fixed_mass": 52.0,
+   "wheelbase": 1.5391,
+   "com_height": 0.6,
+   "rake_deg": 28.933,
+   "seat_height": 0.685,
+   "color": [
+    0.3,
+    0.012,
+    0.012
+   ],
+   "cda": 0.62,
+   "style": "cruiser",
+   "type": "Indian Scout 101",
+   "price": 3600,
+   "geo": {
+    "arm": 0.4589,
+    "pivot_y": 0.0041,
+    "engine_at": 0.5,
+    "engine_y": 0.07,
+    "seat_drop": 0.06,
+    "tail_back": 0.08,
+    "peg": [
+     0.08,
+     -0.44
+    ],
+    "exhaust": "shotgun",
+    "swingarm": "box",
+    "tank_slope": 6.0
+   },
+   "styles": [
+    "cruiser"
+   ],
+   "rig": {
+    "steady": true,
+    "slope": 16.0
+   },
+   "v2": {
+    "model": "indian_scout",
+    "family": "scout",
+    "brand": "Indian",
+    "lead": false,
+    "body": [
+     0.3,
+     0.012,
+     0.012
+    ],
+    "points_mm": {
+     "front_axle": [
+      1539.1,
+      0.0,
+      310.3
+     ],
+     "rear_axle": [
+      0.0,
+      0.0,
+      312.0
+     ],
+     "steer_top": [
+      1192.4,
+      0.0,
+      868.3
+     ],
+     "steer_bottom": [
+      1301.9,
+      0.0,
+      669.7
+     ],
+     "fork_top": [
+      1209.1,
+      0.0,
+      910.1
+     ],
+     "fork_dir": [
+      -0.48284,
+      0.0,
+      0.87571
+     ],
+     "swing_pivot": [
+      458.9,
+      0.0,
+      315.6
+     ],
+     "rigid": false,
+     "hip": [
+      318.3,
+      0.0,
+      685.3
+     ],
+     "stats": {
+      "wheelbase": 1539,
+      "rake_deg": 28.87,
+      "trail": 132,
+      "seat_height": 685,
+      "ground_clearance": 111,
+      "fork_length": 685,
+      "front_radius": 314,
+      "rear_radius": 321,
+      "shaft": false,
+      "fork_usd": false,
+      "front_rim": 241,
+      "rear_rim": 203,
+      "front_width": 130,
+      "rear_width": 150,
+      "twin_shock": true,
+      "tread_front": "cruiser",
+      "tread_rear": "cruiser"
+     },
+     "peg": [
+      1018.0,
+      300.4,
+      240.5
+     ],
+     "grip": [
+      1037.6,
+      303.9,
+      1044.7
+     ],
+     "shock_top": [
+      313.3,
+      0.0,
+      562.4
+     ],
+     "shock_bottom": [
+      111.0,
+      0.0,
+      346.1
+     ],
+     "tank_cap": [
+      1006.6,
+      -85.1,
+      893.0
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1031.6,
+        0.0,
+        992.5
+       ],
+       "axis": [
+        -0.79726,
+        0.0,
+        0.60363
+       ],
+       "up": [
+        0.60363,
+        0.0,
+        0.79726
+       ],
+       "w": 76.0,
+       "h": 76.0,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       661.8,
+       170.9,
+       245.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
+    },
+    "build": {
+     "tank": "v2_indian_scout__tank",
+     "saddle": "v2_indian_scout__saddle",
+     "tail": "v2_indian_scout__tail",
+     "side_panels": "v2_indian_scout__side_panels",
+     "front_mudguard": "v2_indian_scout__front_mudguard",
+     "fairing": "v2_indian_scout__fairing",
+     "headlight": "v2_indian_scout__headlight",
+     "indicators": "v2_indian_scout__indicators",
+     "mirrors": "v2_indian_scout__mirrors",
+     "handlebars": "v2_indian_scout__handlebars",
+     "fork": "v2_indian_scout__fork",
+     "front_wheel": "v2_indian_scout__front_wheel",
+     "rear_wheel": "v2_indian_scout__rear_wheel",
+     "shock": "v2_indian_scout__shock",
+     "swingarm": "v2_indian_scout__swingarm",
+     "rearsets": "v2_indian_scout__rearsets",
+     "front_caliper": "v2_indian_scout__front_caliper",
+     "engine": "v2_indian_scout__engine",
+     "gearbox": "v2_indian_scout__gearbox",
+     "cooling": "v2_indian_scout__cooling",
+     "exhaust": "v2_indian_scout__exhaust",
+     "side_stand": "v2_indian_scout__side_stand"
+    },
+    "bought": true
+   }
+  },
+  "v2_triumph_trident": {
+   "name": "Triumph Trident 800",
+   "description": "The Triumph Trident 800, bought whole: 798 cc triple, 115 hp, Showa forks. Ridden as it comes.",
+   "mass": 11.0,
+   "wheelbase": 1.4049,
+   "com_height": 0.63,
+   "rake_deg": 25.905,
+   "seat_height": 0.813,
+   "color": [
+    0.075,
+    0.078,
+    0.084
+   ],
+   "cda": 0.46,
+   "style": "trestle",
+   "type": "Triumph Trident 800",
+   "styles": [
+    "naked"
+   ],
+   "price": 3200,
+   "look": {
+    "cast": true
+   },
+   "lightweight": true,
+   "pack": "sport",
+   "rig": {
+    "gauge": 1.25
+   },
+   "geo": {
+    "pivot_y": 0.1033,
+    "arm": 0.5795
+   },
+   "v2": {
+    "model": "triumph_trident",
+    "family": "trident",
+    "brand": "Triumph",
+    "lead": false,
+    "body": [
+     0.075,
+     0.078,
+     0.084
+    ],
+    "points_mm": {
+     "front_axle": [
+      1404.8,
+      0.0,
+      292.9
+     ],
+     "rear_axle": [
+      0.0,
+      0.0,
+      311.9
+     ],
+     "steer_top": [
+      1057.6,
+      0.0,
+      969.4
+     ],
+     "steer_bottom": [
+      1198.0,
+      0.0,
+      670.0
+     ],
+     "fork_top": [
+      1092.3,
+      0.0,
+      959.0
+     ],
+     "fork_dir": [
+      -0.42469,
+      0.0,
+      0.90534
+     ],
+     "swing_pivot": [
+      580.8,
+      0.0,
+      407.4
+     ],
+     "rigid": false,
+     "hip": [
+      410.6,
+      0.0,
+      813.0
+     ],
+     "stats": {
+      "wheelbase": 1405,
+      "rake_deg": 25.13,
+      "trail": 108,
+      "seat_height": 813,
+      "ground_clearance": 147,
+      "fork_length": 736,
+      "front_radius": 297,
+      "rear_radius": 312,
+      "shaft": false,
+      "fork_usd": true,
+      "front_rim": 216,
+      "rear_rim": 216,
+      "front_width": 120,
+      "rear_width": 180,
+      "twin_shock": false,
+      "tread_front": "sport",
+      "tread_rear": "sport"
+     },
+     "peg": [
+      457.1,
+      239.7,
+      322.1
+     ],
+     "grip": [
+      993.3,
+      299.1,
+      1041.1
+     ],
+     "shock_top": [
+      608.8,
+      0.0,
+      655.1
+     ],
+     "shock_bottom": [
+      341.8,
+      0.0,
+      453.3
+     ],
+     "tank_cap": [
+      826.1,
+      0.0,
+      980.9
+     ],
+     "gauges": [
+      {
+       "what": "screen",
+       "at": [
+        1156.6,
+        1.8,
+        1020.9
+       ],
+       "axis": [
+        -0.77753,
+        0.0,
+        0.62884
+       ],
+       "up": [
+        0.62884,
+        0.0,
+        0.77753
+       ],
+       "w": 78.7,
+       "h": 71.4,
+       "node": "steer"
+      }
+     ],
+     "stand": {
+      "pivot": [
+       604.1,
+       265.3,
+       265.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
+    },
+    "build": {
+     "tank": "v2_triumph_trident__tank",
+     "saddle": "v2_triumph_trident__saddle",
+     "tail": "v2_triumph_trident__tail",
+     "side_panels": "v2_triumph_trident__side_panels",
+     "front_mudguard": "v2_triumph_trident__front_mudguard",
+     "fairing": "v2_triumph_trident__fairing",
+     "headlight": "v2_triumph_trident__headlight",
+     "indicators": "v2_triumph_trident__indicators",
+     "mirrors": "v2_triumph_trident__mirrors",
+     "handlebars": "v2_triumph_trident__handlebars",
+     "fork": "v2_triumph_trident__fork",
+     "front_wheel": "v2_triumph_trident__front_wheel",
+     "rear_wheel": "v2_triumph_trident__rear_wheel",
+     "shock": "v2_triumph_trident__shock",
+     "swingarm": "v2_triumph_trident__swingarm",
+     "rearsets": "v2_triumph_trident__rearsets",
+     "front_caliper": "v2_triumph_trident__front_caliper",
+     "rear_caliper": "v2_triumph_trident__rear_caliper",
+     "engine": "v2_triumph_trident__engine",
+     "gearbox": "v2_triumph_trident__gearbox",
+     "cooling": "v2_triumph_trident__cooling",
+     "exhaust": "v2_triumph_trident__exhaust",
+     "side_stand": "v2_triumph_trident__side_stand"
+    },
+    "bought": true
+   }
   }
  },
  "tank": {
@@ -12270,6 +12894,90 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__tank": {
+   "mass": 3.5,
+   "capacity": 17,
+   "style": "sport",
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "name": "Ducati Panigale V4 S fuel tank",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "tank",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__tank": {
+   "mass": 7.2,
+   "capacity": 30,
+   "style": "touring",
+   "color": [
+    0.3,
+    0.012,
+    0.012
+   ],
+   "name": "Indian Scout 101 fuel tank",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "tank",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__tank": {
+   "mass": 3.5,
+   "capacity": 17,
+   "style": "sport",
+   "color": [
+    0.075,
+    0.078,
+    0.084
+   ],
+   "name": "Triumph Trident 800 fuel tank",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "tank",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -15683,6 +16391,93 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__saddle": {
+   "mass": 1.4,
+   "style": "sport",
+   "height": 0.02,
+   "comfort": 0.4,
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "name": "Ducati Panigale V4 S seat",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "saddle",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__saddle": {
+   "mass": 4.0,
+   "style": "touring",
+   "height": 0.01,
+   "comfort": 1.0,
+   "color": [
+    0.12,
+    0.08,
+    0.05
+   ],
+   "name": "Indian Scout 101 seat",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "saddle",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__saddle": {
+   "mass": 1.4,
+   "style": "sport",
+   "height": 0.02,
+   "comfort": 0.4,
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Triumph Trident 800 seat",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "saddle",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -21765,6 +22560,110 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__tail": {
+   "mass": 1.1,
+   "type": "Plastic undertray, LED strip",
+   "style": "tidy",
+   "light": "strip",
+   "light_at": [
+    0.06,
+    0.35
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "name": "Ducati Panigale V4 S tail unit",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "tail",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__tail": {
+   "mass": 3.0,
+   "type": "Steel, full length",
+   "style": "classic",
+   "light": "lucas",
+   "light_at": [
+    -0.12,
+    0.3
+   ],
+   "color": [
+    0.3,
+    0.012,
+    0.012
+   ],
+   "material": "metal",
+   "name": "Indian Scout 101 tail unit",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "tail",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__tail": {
+   "mass": 1.1,
+   "type": "Plastic undertray, LED strip",
+   "style": "tidy",
+   "light": "strip",
+   "light_at": [
+    0.06,
+    0.35
+   ],
+   "material": "plastic",
+   "lightweight": true,
+   "color": [
+    0.075,
+    0.078,
+    0.084
+   ],
+   "name": "Triumph Trident 800 tail unit",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "tail",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "side_panels": {
@@ -23429,6 +24328,65 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_indian_scout__side_panels": {
+   "mass": 1.4,
+   "type": "Chrome steel",
+   "style": "chrome",
+   "color": [
+    0.3,
+    0.012,
+    0.012
+   ],
+   "material": "metal",
+   "name": "Indian Scout 101 side panels",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "side_panels",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__side_panels": {
+   "mass": 1.2,
+   "type": "Steel, painted",
+   "style": "triangle",
+   "color": [
+    0.075,
+    0.078,
+    0.084
+   ],
+   "paint_match": true,
+   "material": "metal",
+   "name": "Triumph Trident 800 side panels",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "side_panels",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "front_mudguard": {
@@ -24451,6 +25409,97 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__front_mudguard": {
+   "mass": 0.22,
+   "type": "Carbon fibre, short",
+   "style": "sport",
+   "cover": 0.8,
+   "lightweight": true,
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "material": "carbon",
+   "name": "Ducati Panigale V4 S front mudguard",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "front_mudguard",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__front_mudguard": {
+   "mass": 1.6,
+   "type": "Chromed steel, full length",
+   "style": "classic",
+   "cover": 1.0,
+   "color": [
+    0.3,
+    0.012,
+    0.012
+   ],
+   "material": "metal",
+   "name": "Indian Scout 101 front mudguard",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "front_mudguard",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__front_mudguard": {
+   "mass": 1.6,
+   "type": "Chromed steel, full length",
+   "style": "classic",
+   "cover": 1.0,
+   "color": [
+    0.075,
+    0.078,
+    0.084
+   ],
+   "material": "metal",
+   "name": "Triumph Trident 800 front mudguard",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "front_mudguard",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -26384,6 +27433,98 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__fairing": {
+   "mass": 6.5,
+   "type": "Fibreglass, full",
+   "style": "race",
+   "cda": -0.09,
+   "screen": 0.16,
+   "frame_mount": true,
+   "color": [
+    0.55,
+    0.012,
+    0.01
+   ],
+   "material": "mixed",
+   "name": "Ducati Panigale V4 S fairing",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "fairing",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__fairing": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.3,
+    0.012,
+    0.012
+   ],
+   "name": "Indian Scout 101 fairing",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "fairing",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__fairing": {
+   "mass": 0.8,
+   "type": "Headlight cowl",
+   "style": "flyscreen",
+   "cda": -0.01,
+   "screen": 0.12,
+   "color": [
+    0.075,
+    0.078,
+    0.084
+   ],
+   "name": "Triumph Trident 800 fairing",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "fairing",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -29571,6 +30712,97 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__headlight": {
+   "mass": 1.0,
+   "type": "LED",
+   "style": "projector",
+   "size": 0.08,
+   "lumens": 3000,
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "lightweight": true,
+   "name": "Ducati Panigale V4 S headlight",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "headlight",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__headlight": {
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 1000,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Indian Scout 101 headlight",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "headlight",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__headlight": {
+   "mass": 1.4,
+   "type": "Halogen",
+   "style": "round",
+   "size": 0.09,
+   "lumens": 2600,
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Triumph Trident 800 headlight",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "headlight",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "indicators": {
@@ -31368,6 +32600,90 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__indicators": {
+   "mass": 0.2,
+   "type": "LED, mini stalks",
+   "style": "mini",
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Ducati Panigale V4 S indicators",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "indicators",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__indicators": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Indian Scout 101 indicators",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "indicators",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__indicators": {
+   "mass": 0.6,
+   "type": "Amber, on stalks",
+   "style": "stalk",
+   "color": [
+    0.95,
+    0.55,
+    0.08
+   ],
+   "name": "Triumph Trident 800 indicators",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "indicators",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "mirrors": {
@@ -32276,6 +33592,96 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__mirrors": {
+   "mass": 0.5,
+   "type": "Fairing-mounted pods",
+   "style": "fairing",
+   "mounts_on": [
+    "fairing"
+   ],
+   "cda": 0.002,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Ducati Panigale V4 S mirrors",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "mirrors",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__mirrors": {
+   "mass": 0.6,
+   "type": "Round, on stalks",
+   "style": "round",
+   "cda": 0.004,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Indian Scout 101 mirrors",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "mirrors",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__mirrors": {
+   "mass": 0.4,
+   "type": "Angular, long stalks",
+   "style": "sport",
+   "cda": 0.004,
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Triumph Trident 800 mirrors",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "mirrors",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -33299,6 +34705,96 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__handlebars": {
+   "mass": 1.2,
+   "style": "Clip-ons",
+   "width": 600,
+   "rise": -0.1,
+   "cda": -0.04,
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "name": "Ducati Panigale V4 S handlebars",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "handlebars",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__handlebars": {
+   "mass": 1.3,
+   "style": "Drag",
+   "width": 680,
+   "rise": 0.02,
+   "cda": -0.01,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Indian Scout 101 handlebars",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "handlebars",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__handlebars": {
+   "mass": 1.4,
+   "style": "Flat",
+   "width": 760,
+   "rise": 0.07,
+   "cda": 0.0,
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Triumph Trident 800 handlebars",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "handlebars",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -34527,6 +36023,114 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__fork": {
+   "mass": 8.5,
+   "type": "Upside-down",
+   "travel": 0.12,
+   "spring": 34000.0,
+   "bump": 2700.0,
+   "rebound": 3800.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "length": 0.72,
+   "offset": 0.028,
+   "color": [
+    0.8,
+    0.62,
+    0.18
+   ],
+   "style": "usd",
+   "name": "Ducati Panigale V4 S front fork",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "fork",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__fork": {
+   "mass": 9.0,
+   "type": "Conventional telescopic",
+   "travel": 0.13,
+   "spring": 30000.0,
+   "bump": 2100.0,
+   "rebound": 3100.0,
+   "adjust": 1,
+   "adjust_name": "Preload",
+   "length": 0.74,
+   "offset": 0.045,
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "style": "conventional",
+   "name": "Indian Scout 101 front fork",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "fork",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__fork": {
+   "mass": 8.5,
+   "type": "Upside-down",
+   "travel": 0.12,
+   "spring": 34000.0,
+   "bump": 2700.0,
+   "rebound": 3800.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "length": 0.72,
+   "offset": 0.03,
+   "style": "usd",
+   "color": [
+    0.82,
+    0.66,
+    0.25
+   ],
+   "name": "Triumph Trident 800 front fork",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "fork",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -45059,6 +46663,216 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__front_wheel": {
+   "mass": 5.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 17,
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "spokes": 5,
+   "rim_width": 3.5,
+   "tyres": [
+    110,
+    130
+   ],
+   "name": "Ducati Panigale V4 S front wheel",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "front_wheel",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__rear_wheel": {
+   "mass": 6.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 17,
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "spokes": 5,
+   "rim_width": 4.5,
+   "tyres": [
+    140,
+    180
+   ],
+   "name": "Ducati Panigale V4 S rear wheel",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "rear_wheel",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__front_wheel": {
+   "mass": 6.5,
+   "type": "Cast alloy",
+   "style": "cast",
+   "spokes": 6,
+   "diameter": 19,
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "rim_width": 2.5,
+   "tyres": [
+    90,
+    130
+   ],
+   "name": "Indian Scout 101 front wheel",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "front_wheel",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__rear_wheel": {
+   "mass": 8.0,
+   "type": "Spoked",
+   "style": "wire",
+   "spokes": 40,
+   "diameter": 16,
+   "color": [
+    0.9,
+    0.9,
+    0.92
+   ],
+   "rim_width": 3.5,
+   "tyres": [
+    130,
+    160
+   ],
+   "name": "Indian Scout 101 rear wheel",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "rear_wheel",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__front_wheel": {
+   "mass": 5.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 17,
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "spokes": 5,
+   "rim_width": 3.5,
+   "tyres": [
+    110,
+    130
+   ],
+   "name": "Triumph Trident 800 front wheel",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "front_wheel",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__rear_wheel": {
+   "mass": 6.0,
+   "type": "Cast alloy",
+   "style": "cast",
+   "diameter": 17,
+   "color": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "spokes": 5,
+   "rim_width": 4.5,
+   "tyres": [
+    140,
+    180
+   ],
+   "name": "Triumph Trident 800 rear wheel",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "rear_wheel",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "shock": {
@@ -46217,6 +48031,108 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__shock": {
+   "mass": 4.2,
+   "type": "Mono-shock",
+   "travel": 0.13,
+   "spring": 38000.0,
+   "bump": 2900.0,
+   "rebound": 4100.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "layout": "mono",
+   "color": [
+    0.85,
+    0.12,
+    0.1
+   ],
+   "name": "Ducati Panigale V4 S rear shock",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "shock",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__shock": {
+   "mass": 4.0,
+   "type": "Twin shock",
+   "travel": 0.11,
+   "spring": 36000.0,
+   "bump": 2300.0,
+   "rebound": 3500.0,
+   "adjust": 1,
+   "adjust_name": "Preload",
+   "layout": "twin",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "name": "Indian Scout 101 rear shock",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "shock",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__shock": {
+   "mass": 4.2,
+   "type": "Mono-shock",
+   "travel": 0.13,
+   "spring": 38000.0,
+   "bump": 2900.0,
+   "rebound": 4100.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "layout": "mono",
+   "color": [
+    0.85,
+    0.12,
+    0.1
+   ],
+   "name": "Triumph Trident 800 rear shock",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "shock",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "swingarm": {
@@ -47267,6 +49183,99 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__swingarm": {
+   "mass": 4.6,
+   "type": "Box-section aluminium",
+   "arm": "box_section",
+   "color": [
+    0.82,
+    0.83,
+    0.85
+   ],
+   "metal": 1.0,
+   "rough": 0.18,
+   "material": "metal",
+   "name": "Ducati Panigale V4 S swingarm",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "swingarm",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__swingarm": {
+   "mass": 5.7,
+   "type": "Rigid steel tube",
+   "arm": "hardtail",
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "metal": 0.3,
+   "rough": 0.6,
+   "material": "metal",
+   "name": "Indian Scout 101 swingarm",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "swingarm",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__swingarm": {
+   "type": "Single-sided cast aluminium, gull-wing",
+   "arm": "single_gull",
+   "material": "metal",
+   "mass": 6.4,
+   "metal": 0.6,
+   "rough": 0.45,
+   "color": [
+    0.06,
+    0.06,
+    0.065
+   ],
+   "name": "Triumph Trident 800 swingarm",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "swingarm",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -49586,6 +51595,102 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__rearsets": {
+   "mass": 1.2,
+   "type": "Billet alloy, high and back",
+   "style": "rearset",
+   "color": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "peg": [
+    0.12,
+    0.08
+   ],
+   "lightweight": true,
+   "material": "metal",
+   "name": "Ducati Panigale V4 S footrests and controls",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "rearsets",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__rearsets": {
+   "mass": 2.6,
+   "type": "Chrome, forward mount",
+   "style": "forward",
+   "peg": [
+    0.08,
+    -0.32
+   ],
+   "material": "metal",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Indian Scout 101 footrests and controls",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "rearsets",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Triumph Trident 800 footrests and controls",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "rearsets",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "side_stand": {
@@ -50601,6 +52706,96 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__side_stand": {
+   "mass": 1.2,
+   "type": "Stamped steel",
+   "length": 0.3,
+   "lean": 12.0,
+   "auto_retract": false,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Ducati Panigale V4 S side stand",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "side_stand",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__side_stand": {
+   "mass": 1.2,
+   "type": "Stamped steel",
+   "length": 0.3,
+   "lean": 12.0,
+   "auto_retract": false,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Indian Scout 101 side stand",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "side_stand",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__side_stand": {
+   "mass": 1.2,
+   "type": "Stamped steel",
+   "length": 0.3,
+   "lean": 12.0,
+   "auto_retract": false,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Triumph Trident 800 side stand",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "side_stand",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -52565,6 +54760,151 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__front_caliper": {
+   "mass": 1.0,
+   "pistons": 4,
+   "force": 0.92,
+   "type": "Axial",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "name": "Ducati Panigale V4 S front calipers",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "front_caliper",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__rear_caliper": {
+   "mass": 0.9,
+   "pistons": 1,
+   "force": 0.6,
+   "type": "Sliding",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "name": "Ducati Panigale V4 S rear caliper",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "rear_caliper",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__front_caliper": {
+   "mass": 0.9,
+   "pistons": 2,
+   "force": 0.78,
+   "type": "Sliding",
+   "color": [
+    0.6,
+    0.61,
+    0.63
+   ],
+   "name": "Indian Scout 101 front calipers",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "front_caliper",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__front_caliper": {
+   "mass": 1.0,
+   "pistons": 4,
+   "force": 0.92,
+   "type": "Axial",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "name": "Triumph Trident 800 front calipers",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "front_caliper",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__rear_caliper": {
+   "mass": 0.9,
+   "pistons": 1,
+   "force": 0.6,
+   "type": "Sliding",
+   "color": [
+    0.15,
+    0.15,
+    0.16
+   ],
+   "name": "Triumph Trident 800 rear caliper",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "rear_caliper",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
@@ -56462,6 +58802,120 @@
    },
    "crank": "twinpulse",
    "v_angle": 90.0
+  },
+  "v2_ducati_panigale__engine": {
+   "mass": 64.0,
+   "layout": "vtwin",
+   "cylinders": 4,
+   "displacement": 1103.0,
+   "bore": 81.0,
+   "stroke": 53.5,
+   "torque_per_cc": 0.11,
+   "peak_torque_rpm": 11250.0,
+   "redline": 14500.0,
+   "idle_rpm": 1300.0,
+   "color": [
+    0.1,
+    0.1,
+    0.11
+   ],
+   "type": "Desmosedici Stradale V4",
+   "name": "Ducati Panigale V4 S engine",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 9500,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "engine",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   },
+   "crank": "twinpulse",
+   "v_angle": 90.0
+  },
+  "v2_indian_scout__engine": {
+   "mass": 78.0,
+   "layout": "vtwin",
+   "cylinders": 2,
+   "displacement": 1250.0,
+   "bore": 104.0,
+   "stroke": 73.6,
+   "torque_per_cc": 0.087,
+   "peak_torque_rpm": 6300.0,
+   "redline": 8300.0,
+   "idle_rpm": 1000.0,
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "type": "SpeedPlus 60-degree V-twin",
+   "breathing": 0.85,
+   "v_angle": 60.0,
+   "name": "Indian Scout 101 engine",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 5200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "engine",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   },
+   "crank": "60v"
+  },
+  "v2_triumph_trident__engine": {
+   "mass": 55.0,
+   "layout": "triple",
+   "cylinders": 3,
+   "displacement": 798.0,
+   "bore": 78.0,
+   "stroke": 55.7,
+   "torque_per_cc": 0.105,
+   "peak_torque_rpm": 8500.0,
+   "redline": 11500.0,
+   "idle_rpm": 1200.0,
+   "color": [
+    0.25,
+    0.26,
+    0.28
+   ],
+   "type": "800 triple",
+   "name": "Triumph Trident 800 engine",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 4600,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "engine",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   },
+   "crank": "240"
   }
  },
  "head": {
@@ -75950,6 +78404,131 @@
    },
    "quickshifter": true,
    "dry_clutch": false
+  },
+  "v2_ducati_panigale__gearbox": {
+   "mass": 8.0,
+   "primary": 1.62,
+   "ratios": [
+    2.714,
+    2.118,
+    1.737,
+    1.524,
+    1.364,
+    1.25
+   ],
+   "shift_time": 0.04,
+   "type": "Six-speed with quickshifter",
+   "color": [
+    0.3,
+    0.31,
+    0.33
+   ],
+   "whine": 0.35,
+   "cassette": true,
+   "shift_feel": "slick",
+   "name": "Ducati Panigale V4 S gearbox",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 1200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "gearbox",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   },
+   "quickshifter": true,
+   "dry_clutch": false
+  },
+  "v2_indian_scout__gearbox": {
+   "mass": 9.5,
+   "primary": 1.75,
+   "ratios": [
+    2.77,
+    1.88,
+    1.43,
+    1.18,
+    1.0,
+    0.88
+   ],
+   "shift_time": 0.1,
+   "type": "Six-speed",
+   "color": [
+    0.3,
+    0.31,
+    0.33
+   ],
+   "whine": 0.2,
+   "shift_feel": "clunky",
+   "name": "Indian Scout 101 gearbox",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 700,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "gearbox",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   },
+   "quickshifter": false,
+   "dry_clutch": false
+  },
+  "v2_triumph_trident__gearbox": {
+   "mass": 8.0,
+   "primary": 1.85,
+   "ratios": [
+    2.6,
+    1.9,
+    1.55,
+    1.32,
+    1.16,
+    1.04
+   ],
+   "shift_time": 0.05,
+   "type": "Six-speed with Shift Assist",
+   "color": [
+    0.3,
+    0.31,
+    0.33
+   ],
+   "whine": 0.35,
+   "cassette": true,
+   "shift_feel": "slick",
+   "name": "Triumph Trident 800 gearbox",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 900,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "gearbox",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   },
+   "quickshifter": true,
+   "dry_clutch": false
   }
  },
  "fuel": {
@@ -88484,6 +91063,93 @@
     "twin_shock": false,
     "bought": true
    }
+  },
+  "v2_ducati_panigale__cooling": {
+   "mass": 3.0,
+   "type": "Liquid",
+   "capacity": 1.3,
+   "style": "radiator",
+   "color": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "name": "Ducati Panigale V4 S radiator",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "cooling",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__cooling": {
+   "mass": 2.0,
+   "type": "Air and oil",
+   "capacity": 1.0,
+   "style": "oil",
+   "color": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "name": "Indian Scout 101 radiator",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "cooling",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__cooling": {
+   "mass": 3.0,
+   "type": "Liquid",
+   "capacity": 1.3,
+   "style": "radiator",
+   "color": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "name": "Triumph Trident 800 radiator",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "cooling",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
+    "twin_shock": false,
+    "bought": true
+   }
   }
  },
  "exhaust": {
@@ -94345,6 +97011,99 @@
     "brand": "Ducati",
     "fits": "model",
     "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_ducati_panigale__exhaust": {
+   "mass": 6.0,
+   "torque_mult": 1.05,
+   "loudness": 1.0,
+   "style": "full",
+   "route": "underseat",
+   "can": "round",
+   "color": [
+    0.74,
+    0.75,
+    0.77
+   ],
+   "name": "Ducati Panigale V4 S exhaust",
+   "description": "Off the Ducati Panigale V4 S, and made for it: fits the Ducati Panigale V4 S only.",
+   "styles": [
+    "sport"
+   ],
+   "pack": "sport",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_panigale",
+    "frame": "v2_ducati_panigale",
+    "slot": "exhaust",
+    "family": "panigale",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_indian_scout__exhaust": {
+   "mass": 7.5,
+   "torque_mult": 1.03,
+   "loudness": 1.15,
+   "style": "straight",
+   "color": [
+    0.85,
+    0.86,
+    0.88
+   ],
+   "route": "shotgun",
+   "can": "slash",
+   "name": "Indian Scout 101 exhaust",
+   "description": "Off the Indian Scout 101, and made for it: fits the Indian Scout 101 only.",
+   "styles": [
+    "cruiser"
+   ],
+   "pack": "cruiser",
+   "price": 200,
+   "v2part": {
+    "model": "indian_scout",
+    "frame": "v2_indian_scout",
+    "slot": "exhaust",
+    "family": "scout",
+    "brand": "Indian",
+    "fits": "model",
+    "layout": "vtwin",
+    "twin_shock": true,
+    "bought": true
+   }
+  },
+  "v2_triumph_trident__exhaust": {
+   "mass": 7.0,
+   "torque_mult": 1.02,
+   "loudness": 0.8,
+   "style": "slip",
+   "can": "oval",
+   "route": "stubby",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "name": "Triumph Trident 800 exhaust",
+   "description": "Off the Triumph Trident 800, and made for it: fits the Triumph Trident 800 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "triumph_trident",
+    "frame": "v2_triumph_trident",
+    "slot": "exhaust",
+    "family": "trident",
+    "brand": "Triumph",
+    "fits": "model",
+    "layout": "triple",
     "twin_shock": false,
     "bought": true
    }
