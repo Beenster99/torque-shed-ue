@@ -448,10 +448,17 @@ FString FTorqueBikeConfigurator::TestSetup(const FString& NewStyleId, const TArr
 {
 	Open();
 	if (!NewStyleId.IsEmpty()) NewStyle(TBCI::CfgStd(NewStyleId.ToLower()));
+	// "paint=own": nothing coloured, so the order keeps the bike's own colours (a V2 or bought bike's model's).
+	bool bOwnPaint = false;
 	for (const FString& Swap : Swaps)
 	{
 		FString Slot, Id;
 		if (!Swap.Split(TEXT("="), &Slot, &Id)) continue;
+		if (Slot.ToLower() == TEXT("paint") && Id.ToLower() == TEXT("own"))
+		{
+			bOwnPaint = true;
+			continue;
+		}
 		// The badge: logo=star, brand=Kestrel, font=bebas.
 		if (Slot.ToLower() == TEXT("logo")) B().Badge.Logo = TBCI::CfgStd(Id.ToLower());
 		else if (Slot.ToLower() == TEXT("brand")) B().Badge.Brand = TBCI::CfgStd(Id);
@@ -459,9 +466,12 @@ FString FTorqueBikeConfigurator::TestSetup(const FString& NewStyleId, const TArr
 		else SetPart(Slot.ToLower(), TBCI::CfgStd(Id.ToLower()));
 	}
 	// A colour of its own on the tank and the wheels, metallic, so the order shows it carries looks.
-	SetColour(TEXT("tank"), FLinearColor(0.1f, 0.35f, 0.8f));
-	SetColour(TEXT("wheels"), FLinearColor(0.06f, 0.06f, 0.06f));
-	SetFinish(TEXT("tank"), FName(TEXT("metallic")));
+	if (!bOwnPaint)
+	{
+		SetColour(TEXT("tank"), FLinearColor(0.1f, 0.35f, 0.8f));
+		SetColour(TEXT("wheels"), FLinearColor(0.06f, 0.06f, 0.06f));
+		SetFinish(TEXT("tank"), FName(TEXT("metallic")));
+	}
 	Relist();
 	return Describe();
 }
