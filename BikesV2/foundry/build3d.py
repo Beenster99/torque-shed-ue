@@ -141,7 +141,7 @@ def export_game(name, model, model_file=None):
     for o in obs:
         n = sum(len(p.vertices) - 2 for p in o.data.polygons)
         hist[min(4, 0 if n < 100 else 1 if n < 240 else 2 if n < 800 else 3 if n < 2500 else 4)] += n
-        if n < 100 or "tyre" in o.name or "rotor" in o.name:      # (a drilled disc is a flat face full of holes: left exactly as drawn)
+        if n < 100 or "tyre" in o.name or "rotor" in o.name or o.get("no_thin"):      # (a drilled disc is a flat face full of holes: left exactly as drawn; no_thin: thinned already, adv_wide3d.tidy)
             continue
         bpy.context.view_layer.objects.active = o
         if any(m and m.name.startswith(("paint", "accent")) for m in o.data.materials):

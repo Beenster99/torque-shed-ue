@@ -2,7 +2,7 @@
  "name": "Kazeda adventure (working title A1)",
  "format": 2,
  "kit": true,
- "triangles": 29696,
+ "triangles": 29656,
  "surfaces": {
   "s017": {
    "slot": "tank",
