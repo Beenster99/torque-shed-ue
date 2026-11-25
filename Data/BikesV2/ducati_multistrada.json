@@ -11,7 +11,7 @@
  "wheelbase_mm": 1547,
  "seat_height_mm": 838,
  "format": 2,
- "triangles": 140343,
+ "triangles": 143483,
  "points_mm": {
   "front_axle": [
    1547.4,
@@ -120,7 +120,30 @@
     "h": 98.1,
     "node": ""
    }
-  ]
+  ],
+  "stand": {
+   "pivot": [
+    665.2,
+    243.3,
+    330.0
+   ],
+   "axis": [
+    0.0926,
+    0.9339,
+    0.3453
+   ],
+   "folded_dir": [
+    -0.9927,
+    0.0599,
+    0.1043
+   ],
+   "down_dir": [
+    0.2732,
+    0.3097,
+    -0.9107
+   ],
+   "angle_down_deg": -110.35
+  }
  },
  "pieces": [
   "chain|swingarm",
@@ -151,6 +174,7 @@
   "shock|shock_spring",
   "shock|shock_top",
   "side_panels|",
+  "side_stand|",
   "swingarm|swingarm",
   "tail|",
   "tank|"
@@ -1069,6 +1093,51 @@
    ],
    "metallic": 1.0,
    "roughness": 0.38
+  },
+  "s072": {
+   "slot": "side_stand",
+   "node": "",
+   "surface": "d3_ss_black",
+   "tag": "d3_ss_black",
+   "ue": "cat_black_metal",
+   "sub": "side_stand",
+   "color": [
+    0.025,
+    0.025,
+    0.028
+   ],
+   "metallic": 0.8,
+   "roughness": 0.42
+  },
+  "s073": {
+   "slot": "side_stand",
+   "node": "",
+   "surface": "steel",
+   "tag": "steel",
+   "ue": "cat_brushed_steel",
+   "sub": "side_stand",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "s074": {
+   "slot": "side_stand",
+   "node": "",
+   "surface": "d3_ss_spring",
+   "tag": "d3_ss_spring",
+   "ue": "cat_black_metal",
+   "sub": "side_stand",
+   "color": [
+    0.05,
+    0.05,
+    0.055
+   ],
+   "metallic": 0.9,
+   "roughness": 0.35
   }
  }
 }

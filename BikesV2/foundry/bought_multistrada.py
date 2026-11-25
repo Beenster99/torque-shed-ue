@@ -365,6 +365,16 @@ def main():
     ob.name = ob.data.name = NAME
     ob.matrix_world = Matrix.Translation((REAR_Y, 0, 0)) @ Matrix.Rotation(math.radians(90), 4, "Z")
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    # it comes with a side stand (beenster on 172: a shop stand vanished when fitted): bought_stand.py
+    sys.path.insert(0, HERE)
+    import bought_stand
+
+    def new_material(look):
+        c = bpy.data.materials.new(f"s{len(looks):03d}")
+        looks[c.name] = look
+        return c
+    ob = bought_stand.add_stand(ob, "adventure", pts, looks, new_material)
+    ob.name = ob.data.name = NAME
     # (the model's custom split normals would be lost in the transform: shade by angle as drawn)
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     glb = os.path.join(out, NAME + ".glb")
