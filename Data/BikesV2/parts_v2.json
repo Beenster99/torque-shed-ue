@@ -9205,7 +9205,30 @@
        "h": 98.1,
        "node": ""
       }
-     ]
+     ],
+     "stand": {
+      "pivot": [
+       665.2,
+       243.3,
+       330.0
+      ],
+      "axis": [
+       0.0926,
+       0.9339,
+       0.3453
+      ],
+      "folded_dir": [
+       -0.9927,
+       0.0599,
+       0.1043
+      ],
+      "down_dir": [
+       0.2732,
+       0.3097,
+       -0.9107
+      ],
+      "angle_down_deg": -110.35
+     }
     },
     "build": {
      "tank": "v2_ducati_multistrada__tank",
@@ -9229,7 +9252,8 @@
      "engine": "v2_ducati_multistrada__engine",
      "gearbox": "v2_ducati_multistrada__gearbox",
      "cooling": "v2_ducati_multistrada__cooling",
-     "exhaust": "v2_ducati_multistrada__exhaust"
+     "exhaust": "v2_ducati_multistrada__exhaust",
+     "side_stand": "v2_ducati_multistrada__side_stand"
     },
     "bought": true
    }
@@ -50549,6 +50573,36 @@
     "fits": "family",
     "layout": "parallel_twin",
     "twin_shock": false
+   }
+  },
+  "v2_ducati_multistrada__side_stand": {
+   "mass": 1.2,
+   "type": "Stamped steel",
+   "length": 0.3,
+   "lean": 12.0,
+   "auto_retract": false,
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "name": "Ducati Multistrada V4 S side stand",
+   "description": "Off the Ducati Multistrada V4 S, and made for it: fits the Ducati Multistrada V4 S only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "ducati_multistrada",
+    "frame": "v2_ducati_multistrada",
+    "slot": "side_stand",
+    "family": "multistrada",
+    "brand": "Ducati",
+    "fits": "model",
+    "layout": "v4",
+    "twin_shock": false,
+    "bought": true
    }
   }
  },

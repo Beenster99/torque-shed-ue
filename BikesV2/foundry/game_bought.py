@@ -36,17 +36,17 @@ BIKES = {
             "gearbox": {"primary": 2.064, "ratios": [2.6, 1.94, 1.57, 1.33, 1.15, 1.0], "shift_time": 0.05, "shift_feel": "slick",
                         "quickshifter": True, "dry_clutch": False, "type": "Six-speed with quickshifter", "price": 900},
         },
-        # slots it is built with: what it draws, plus the gearbox and gearing it rides with
+        # slots it is built with: what it draws (with the side stand it comes with: bought_stand.py), plus the gearbox
         "slots": ["tank", "saddle", "tail", "side_panels", "front_mudguard", "fairing", "headlight", "indicators", "mirrors",
                   "handlebars", "fork", "front_wheel", "rear_wheel", "shock", "swingarm", "rearsets", "front_caliper",
-                  "rear_caliper", "engine", "gearbox", "cooling", "exhaust"],
+                  "rear_caliper", "engine", "gearbox", "cooling", "exhaust", "side_stand"],
     },
 }
 NOUN = {"tank": "fuel tank", "saddle": "seat", "tail": "tail unit", "side_panels": "side panels", "front_mudguard": "front mudguard",
         "fairing": "fairing", "headlight": "headlight", "indicators": "indicators", "mirrors": "mirrors", "handlebars": "handlebars",
         "fork": "front fork", "front_wheel": "front wheel", "rear_wheel": "rear wheel", "shock": "rear shock", "swingarm": "swingarm",
         "rearsets": "footrests and controls", "front_caliper": "front calipers", "rear_caliper": "rear caliper", "engine": "engine",
-        "gearbox": "gearbox", "final_drive": "sprockets", "cooling": "radiator", "exhaust": "exhaust"}
+        "gearbox": "gearbox", "final_drive": "sprockets", "side_stand": "side stand", "cooling": "radiator", "exhaust": "exhaust"}
 KIND = {"front_wheel": "wheel", "rear_wheel": "wheel", "front_caliper": "caliper", "rear_caliper": "caliper"}
 BODY = ("tank", "tail", "fairing", "side_panels", "front_mudguard")
 DROP = ("name", "description", "styles", "pack", "price", "look", "v2", "common", "v2part")
