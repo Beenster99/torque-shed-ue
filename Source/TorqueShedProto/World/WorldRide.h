@@ -661,11 +661,16 @@ public:
 		bool Holds(const P2& At) const { return At.X >= X0 && At.X <= X1 && At.Z >= Z0 && At.Z <= Z1; }
 	};
 	static constexpr double JoinCell = 8.0;
-	struct JoinHit { int Which = -1; double Dist = 0.0, Half = 0.0, Height = 0.0, Cross = 0.0; };
+	struct JoinHit { int Which = -1; double Dist = 0.0, Half = 0.0, Height = 0.0, Cross = 0.0; P2 Dir; };
 	void JoinSegs(int Which, double X0, double Z0, double X1, double Z1, JoinSet& Out) const;
 	// (false if no road's edge is within JoinLean, else NearestOf's best: MainOnly the ride's road alone)
 	bool NearestIn(const JoinSet& Set, const P2& At, bool MainOnly, JoinHit& Hit, int Settles = -1) const;
-	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y) const;
+	double JoinedHeightFrom(const JoinSet& Set, int Which, const P2& At, double Y, int Firm = -1, double FirmBy = 0.0) const;
+	// [smooth junctions stage 5c] (the road whose tarmac a point of road Which lies on, -1 none; a road whose middle lies
+	// on Firm's tarmac settles its edge onto it level out to JoinFirm beyond Firm's edge)
+	int JoinedOn(const JoinSet& Set, int Which, const P2& At, const P2& Left, double& By) const;
+	static constexpr double JoinFirm = 3.0, JoinFirmEase = 2.0;
+	static const bool WholeFirmOff;   // (WorldRideWhole.cpp)
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
 	double GroundOf(double X, double Z, double Coarse, bool NoBores, bool Trough = false) const;
 	double GroundUncut(double X, double Z, double Coarse, bool NoBores, bool Trough) const;   // [ferries] (GroundOf before FerryCut)
@@ -1827,10 +1832,12 @@ public:
 		std::vector<double> ArmAlong;
 	};
 	static bool WholeJunctions;
-	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeAcross = 2.6, WholeCutMost = 25.0;
+	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeCornerTight = 2.5, WholeAcross = 2.6, WholeCutMost = 25.0;
 	std::vector<WholePlan> WholeOf;   // by JunctionPlaces
 	std::vector<unsigned char> WholeWhy;   // [smooth junctions stage 5] by JunctionPlaces: why not built whole (EWholeWhy), for the checker
 	std::unordered_map<long long, std::pair<int, double>> WholeEnds;   // (road * 2 + end) -> its junction, its cut
+	struct EndClash { long long Key = 0; int First = -1; double Cut = 0.0; int Second = -1; };
+	std::vector<EndClash> WholeEndClash;   // [smooth junctions stage 5c] (two junctions that claimed one road end, the first's claim)
 	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
 	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
 	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
