@@ -214,6 +214,22 @@ void RidePlan::IndexTowers()
 		TowerShape& T = TowerShapes[I];
 		T.Ground = Lowest[T.Group.empty() ? T.Id : T.Group];
 		if (T.Ground > 1e8) continue;
+		// ([Nov 25, build 171] beenster at Balmoral Road, Blairgowrie: "what is this? a building?", a flat dark
+		// lid of 2 ha over the valley floor. The map has outlines there with a height but no name and no kind
+		// (the soft fruit country's polytunnel fields, or a site's edge drawn as a building): a flat roof the
+		// size of a field, as high over its lowest corner as mapped, came out a metre over the ground at its
+		// top and floated at its foot. A plain outline over a hectare whose ground falls by more than half
+		// its own height across it isn't drawn as one building.)
+		if (T.Floor > 10000.0 && T.Name.empty() && T.Class.empty())
+		{
+			double High = -1e9;
+			for (const P2& P : T.Ring)
+			{
+				const double Y = Ground(P.X, P.Z);
+				if (!std::isnan(Y)) High = std::fmax(High, Y);
+			}
+			if (High - T.Ground > 0.5 * (T.Top - T.Base)) { T.Outline = true; continue; }
+		}
 		double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
 		for (const P2& P : T.Ring) { X0 = std::fmin(X0, P.X); Z0 = std::fmin(Z0, P.Z); X1 = std::fmax(X1, P.X); Z1 = std::fmax(Z1, P.Z); }
 		for (int Cz = int(std::floor(Z0 / TowerCell)); Cz <= int(std::floor(Z1 / TowerCell)); ++Cz)

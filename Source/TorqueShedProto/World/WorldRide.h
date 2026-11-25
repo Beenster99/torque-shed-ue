@@ -1048,6 +1048,10 @@ public:
 	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr, bool* Beside = nullptr) const;   // (Beside: alongside it, not past either end)
 	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
 	double StillLevel(double X, double Z) const;
+	// ([real water, Nov 25] the buildings by a river or canal, by every WaterCell square: no channel is cut
+	// under one, so a mill or a house the map puts over a river's outline stands on its own ground)
+	std::unordered_map<long long, std::vector<Building>> WaterHouses;
+	bool WaterHouseAt(double X, double Z) const;
 	void IndexFields();
 	int FieldAt(double X, double Z) const;   // the field area here (FieldAreas), -1 none
 	void FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const;

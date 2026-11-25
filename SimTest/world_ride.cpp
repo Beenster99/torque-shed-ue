@@ -3603,6 +3603,36 @@ int main(int Argc, char** Argv)
 				}
 			}
 		}
+		// (WORLD_RIDE_WHO=x,z: which of the finest square's scenery makers draws its biggest flat triangle there)
+		if (const char* Who = std::getenv("WORLD_RIDE_WHO"))
+		{
+			double Wx = 0.0, Wz = 0.0;
+			std::sscanf(Who, "%lf,%lf", &Wx, &Wz);
+			const double Tx = std::floor((Centre.X + Wx) / 256.0) * 256.0, Tz = std::floor((Centre.Z + Wz) / 256.0) * 256.0;
+			const auto Biggest = [](const RideMesh& M)
+			{
+				double Best = 0.0;
+				for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
+				{
+					const float* A = &M.Pos[M.Idx[T] * 3]; const float* B = &M.Pos[M.Idx[T + 1] * 3]; const float* C = &M.Pos[M.Idx[T + 2] * 3];
+					Best = std::fmax(Best, std::fabs((B[0] - A[0]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[0] - A[0])) * 0.5);
+				}
+				return Best;
+			};
+			const auto Try = [&](const char* Name, auto&& Make) { RideMesh M; M.OriginX = Tx; M.OriginZ = Tz; Make(M); std::printf("who: %s biggest %.0f m2, %zu tris\n", Name, Biggest(M), M.Idx.size() / 3); };
+			Try("scenery", [&](RideMesh& M) { Plan->SceneryTile(Tx, Tz, 256.0, 4.0, M); });
+			Try("skyline", [&](RideMesh& M) { Plan->SkylineTile(Tx, Tz, 256.0, 2, M); });
+			Try("fields", [&](RideMesh& M) { Plan->FieldsTile(Tx, Tz, 256.0, 2, M); });
+			Try("wild", [&](RideMesh& M) { Plan->WildTile(Tx, Tz, 256.0, 2, M); });
+			Try("towers", [&](RideMesh& M) { Plan->TowersTile(Tx, Tz, 256.0, 2, M); });
+			Try("places", [&](RideMesh& M) { Plan->PlacesTile(Tx, Tz, 256.0, 2, M); });
+			Try("townlife", [&](RideMesh& M) { Plan->TownLifeTile(Tx, Tz, 256.0, 2, M); });
+			Try("carparks", [&](RideMesh& M) { Plan->CarParksTile(Tx, Tz, 256.0, 2, M); });
+			Try("rings", [&](RideMesh& M) { Plan->RingsTile(Tx, Tz, 256.0, 2, M); });
+			for (const auto& T : Plan->TowerShapes)
+				if (T.Floor > 5000.0 && std::hypot(T.Mid.X - Centre.X - Wx, T.Mid.Z - Centre.Z - Wz) < 400.0)
+					std::printf("who: tower '%s' id %s class '%s' floor %.0f m2 ground %.1f top %.1f guessed %d outline %d ring %zu\n", T.Name.c_str(), T.Id.c_str(), T.Class.c_str(), T.Floor, T.Ground, T.Top, int(T.Guessed), int(T.Outline), T.Ring.size());
+		}
 		// [real water] (WORLD_RIDE_PROBE=x,z[;x,z..] metres from the place: the ground there raw, cut, troughed and
 		// drawn, and the nearest water's level, to see why a stream stands over its banks)
 		if (const char* Probe = std::getenv("WORLD_RIDE_PROBE"))
@@ -3624,6 +3654,23 @@ int main(int Argc, char** Argv)
 				std::printf("probe %.1f,%.1f: raw %.2f uncut %.2f trough %.2f drawn %.2f | water %d kind %d dist %.2f half %.2f level %.2f depth %.2f beside %d\n", Px, Pz,
 					Plan->Land ? Plan->Land->Height(X, Z) : -1.0, Plan->GroundUncut(X, Z, 0.0, false, false), Plan->GroundUncut(X, Z, 4.0, false, true),
 					Plan->LandDrawnAt(X, Z), int(Wet), Wk, Wd, Wh, Ws, Wdp, int(Beside));
+				// ([real water, Blairgowrie] the buildings whose boxes reach it: what ends a river's width)
+				std::vector<Building> Near;
+				Plan->HouseFootBoxes(X - 1.0, Z - 1.0, 2.0, Near);
+				int Inside = 0;
+				for (const Building& B : Near)
+				{
+					const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw), Dx = X - B.X, Dz = Z - B.Z;
+					if (std::fabs(Dx * Cs - Dz * Sn) < B.W * 0.5 && std::fabs(Dx * Sn + Dz * Cs) < B.D * 0.5) ++Inside;
+				}
+				std::printf("    buildings near %zu, inside %d\n", Near.size(), Inside);
+				if (const int Fa = Plan->FieldAt(X, Z); Fa >= 0)
+				{
+					const auto& F = Plan->FieldAreas[size_t(Fa)];
+					std::printf("    field %d kind %d flowing %d level %.2f box %.0f,%.0f..%.0f,%.0f\n", Fa, int(F.Kind), int(F.Flowing), F.Level, F.MinX - Centre.X, F.MinZ - Centre.Z, F.MaxX - Centre.X, F.MaxZ - Centre.Z);
+				}
+				if (std::getenv("WORLD_RIDE_PROBE_BOXES") != nullptr)
+					for (const Building& B : Near) std::printf("      box at %.1f,%.1f %.1f x %.1f yaw %.2f\n", B.X - Centre.X, B.Z - Centre.Z, B.W, B.D, B.Yaw);
 			}
 		}
 		// With WORLD_RIDE_MESH_R (metres round the place): the ground's finest squares there and what stands on them.
@@ -3663,6 +3710,20 @@ int main(int Argc, char** Argv)
 							bool In = false;
 							for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh->OriginX + Mesh->Pos[Mesh->Idx[T + C] * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[Mesh->Idx[T + C] * 3 + 2] - Centre.Z) < Round;
 							if (!In) continue;
+							// (WORLD_RIDE_MESH_BIG=m2: which of the square's meshes a flat triangle bigger than that is in)
+							if (const char* BigAt = std::getenv("WORLD_RIDE_MESH_BIG"))
+							{
+								const float* A = &Mesh->Pos[Mesh->Idx[T] * 3]; const float* B = &Mesh->Pos[Mesh->Idx[T + 1] * 3]; const float* Cc = &Mesh->Pos[Mesh->Idx[T + 2] * 3];
+								const double Ux = B[0] - A[0], Uz = B[2] - A[2], Vx = Cc[0] - A[0], Vz = Cc[2] - A[2];
+								const double Area = std::fabs(Ux * Vz - Uz * Vx) * 0.5;
+								if (Area > std::atof(BigAt))
+								{
+									const char* Names[8] = {"land", "extra", "walls", "houses", "washed", "water", "roofs", "brick"};
+									int Which = 0;
+									for (const RideMesh* M2 : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet, Tops, Brick}) { if (M2 == Mesh) break; ++Which; }
+									std::printf("big triangle %.0f m2 in %s at %.0f,%.0f height %.1f\n", Area, Names[Which], Mesh->OriginX + A[0] - Centre.X, Mesh->OriginZ + A[2] - Centre.Z, double(A[1]));
+								}
+							}
 							for (int C = 0; C < 3; ++C)
 							{
 								const uint32_t V = Mesh->Idx[T + C];
