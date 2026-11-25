@@ -523,6 +523,52 @@ int main()
 		std::printf("%d V2 part name checks (own slot in any spelling, engine parts on every size of their block)\n", NameChecks);
 		Expect(NameChecks > 1000, "the V2 parts were name-checked");
 	}
+	{
+		// [engine stand, beenster after 171: "i should be able to wrench engine parts tight on the engine stand"] An
+		// engine on the stand is drawn as TorqueShedCatalogue::MakePart draws it (its style's shop bike, the block's
+		// own frame's build, then the block and what's on it): each engine part on it must draw pieces in its own
+		// slot, or there's nothing tagged with that slot for the wrench to aim at.
+		int StandChecks = 0, StandBad = 0;
+		BikeParts Placer(Lay, Index);
+		for (const std::string& Block : Db.Ids("engine"))
+		{
+			const Json* Bp = Db.Find("engine", Block);
+			const Json* Bv = Bp ? Bp->Get("v2part") : nullptr;
+			if (!Bv || !Bv->IsObject() || !Lay.Part(Bv->Str("frame")) || !Bv->Str("size_of").empty()) continue;
+			const std::vector<std::string> Styles = Lay.StylesOf(Block);
+			const std::string Style = Styles.empty() ? Lay.ShopStyles()[0] : Styles[0];
+			// (its own engine parts, and every engine part of any kind sold for its model: the kits' looks too)
+			std::vector<std::pair<std::string, std::string>> OnIt;
+			for (const auto& KV : Lay.V2Build(Bv->Str("frame"))) OnIt.push_back(KV);
+			for (const std::string& Kind : Db.Kinds())
+				for (const std::string& Pid : Db.Ids(Kind))
+				{
+					const Json* Pp = Db.Find(Kind, Pid);
+					const Json* Pv = Pp ? Pp->Get("v2part") : nullptr;
+					if (Pv && Pv->IsObject() && Pv->Str("fits") == "engine" && Pv->Str("slot") != "engine" && Lay.V2FitReason({{"engine", Block}}, Pv->Str("slot"), Pid).empty()
+						&& Lay.V2EngineTwin({{"engine", Block}}, Pv->Str("slot"), Pid) == Pid)
+						OnIt.push_back({Pv->Str("slot"), Pid});
+				}
+			for (const auto& Slot : OnIt)
+			{
+				const Json* Sp = Lay.Part(Slot.second);
+				const Json* Sv = Sp ? Sp->Get("v2part") : nullptr;
+				if (!Sv || Sv->Str("fits") != "engine" || Slot.first == "engine") continue;
+				PartsMap Map = Lay.ShopBuild(Style);
+				Map["frame"] = Bv->Str("frame");
+				for (const auto& KV : Lay.V2Build(Bv->Str("frame"))) Map[KV.first] = KV.second;
+				Map["engine"] = Block;
+				Map[Slot.first] = Slot.second;
+				bool Drawn = false;
+				for (const FittedPart& P : Placer.Fit(Map, Lay.Solve(Map)))
+					if (!P.Hidden && P.Slot == Slot.first) Drawn = true;
+				++StandChecks;
+				if (!Drawn) { ++StandBad; if (StandBad <= 12) std::printf("  on the stand: %s's %s (%s) draws nothing in its slot\n", Block.c_str(), Slot.first.c_str(), Slot.second.c_str()); }
+			}
+		}
+		std::printf("%d engine parts drawn on a stand engine, %d with nothing in their slot\n", StandChecks, StandBad);
+		Expect(StandBad == 0, "every engine part on a stand engine is drawn in its own slot (so the wrench can reach it)");
+	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
 	std::printf("%d plate reflectors left unlit\n", AllReflectors);
