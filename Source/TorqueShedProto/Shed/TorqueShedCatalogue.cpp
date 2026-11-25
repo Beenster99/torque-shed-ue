@@ -5,6 +5,7 @@
 #include "Fit/BikeLayout.h"
 #include "Fit/BikeParts.h"
 #include "Fit/FitJson.h"
+#include "Fit/BoughtFile.h"
 #include "Fit/PartMesh.h"
 #include "Fit/PartsDb.h"
 #include "Shed/TorqueShedParts.h"
@@ -43,6 +44,14 @@ bool ReadBytes(const FString& Rel, std::string& Out)
 	if (!FFileHelper::LoadFileToArray(B, *FPaths::Combine(FPaths::ProjectDir(), Rel), FILEREAD_Silent)) return false;
 	Out.assign(reinterpret_cast<const char*>(B.GetData()), B.Num());
 	return true;
+}
+
+// [bought bikes] A V2 bike's drawing: its glb, or a bought bike's scrambled copy of it (Fit/BoughtFile.h), which is
+// how a bought bike ships in the game folder.
+bool ReadV2Glb(const FString& Base, std::string& Out)
+{
+	if (ReadBytes(Base + TEXT(".glb"), Out)) return true;
+	return ReadBytes(Base + TEXT(".tsb"), Out) && TorqueFit::UnscrambleBought(Out);
 }
 
 // Data/Parts/Blender/index.json: which glbs there are, their shape keys, and each surface tag's finish.
@@ -490,7 +499,7 @@ const TorqueFit::BikeLayout* Layout()
 			{
 				const FString Base = TEXT("Data/BikesV2/") + TSCI::Ue(Model);
 				std::string Bytes, GlbError;
-				const bool bRead = TSCI::ReadBytes(Base + TEXT(".glb"), Bytes) && Mesh.LoadGlb(Bytes, GlbError) && TSCI::ReadBytes(Base + TEXT(".json"), Info);
+				const bool bRead = TSCI::ReadV2Glb(Base, Bytes) && Mesh.LoadGlb(Bytes, GlbError) && TSCI::ReadBytes(Base + TEXT(".json"), Info);
 				if (!bRead)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("Torque: Bike Models V2 bike %s didn't load (%s): drawn from its catalogue parts"), *TSCI::Ue(Model), *TSCI::Ue(GlbError));
@@ -933,7 +942,7 @@ int32 MakeV2Display(AActor* Owner, USceneComponent* Parent, const FString& Model
 	TorqueFit::PartMesh Glb;
 	TorqueFit::Json Info;
 	const FString Base = TEXT("Data/BikesV2/") + Model;
-	if (!TSCI::ReadBytes(Base + TEXT(".glb"), Bytes) || !Glb.LoadGlb(Bytes, Error) ||
+	if (!TSCI::ReadV2Glb(Base, Bytes) || !Glb.LoadGlb(Bytes, Error) ||
 		!TSCI::ReadBytes(Base + TEXT(".json"), Text) || !TorqueFit::Json::Parse(Text, Info, &Error))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque: Bike Models V2 model %s didn't load (%s)"), *Model, *TSCI::Ue(Error));

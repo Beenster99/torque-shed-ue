@@ -4,6 +4,7 @@
 // the front wheel, the hips over the bike), the fitted pieces must come from the V2 files (one for each
 // slot and moving group, standing on the ground, each wheel round its axle) and the spec must load and
 // agree with the layout. Plain C++, no engine.
+#include "BoughtFile.h"
 #include "BikeLayout.h"
 #include "BikeParts.h"
 #include "BikeRideSpec.h"
@@ -82,7 +83,10 @@ int main()
 	Json::Parse(LayoutText, LayoutJson);
 	BikeParts::SetV2Source([&R](const std::string& Model, PartMesh& Mesh, std::string& Info) {
 		std::string Bytes, Err;
-		return ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
+		// ([bought bikes] or its scrambled copy, as the game reads it: Fit/BoughtFile.h)
+		const bool bGot = ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) ||
+			(ReadFile(R + "/Data/BikesV2/" + Model + ".tsb", Bytes) && UnscrambleBought(Bytes));
+		return bGot && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
 	});
 	// The game's own part glbs (the tyres' tread sections, which a V2 bike's tyres are bent from).
 	Json Index = Json::MakeObject();
@@ -120,6 +124,19 @@ int main()
 		const Json* Frame = Db.Find("frame", Id);
 		const Json* V2 = Frame ? Frame->Get("v2") : nullptr;
 		if (!V2) continue;
+		// [bought bikes] A bought bike (beenster's own model, ridden whole) has its own numbers and no engine built up
+		// from parts; its drawing isn't in git (Tools/bought_bikes.py puts it in the build), so without it, it's skipped.
+		const bool bBought = V2->Flag("bought");
+		if (bBought)
+		{
+			std::string Probe;
+			const std::string Model = V2->Str("model");
+			if (!ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Probe) && !ReadFile(R + "/Data/BikesV2/" + Model + ".tsb", Probe))
+			{
+				std::printf("skip %s: a bought bike, its drawing isn't here (Data/BikesV2/%s.glb or .tsb)\n", Id.c_str(), Model.c_str());
+				continue;
+			}
+		}
 		++Bikes;
 		const Json* Styles = Frame->Get("styles");
 		const std::string Style = Styles && !Styles->A.empty() ? Styles->A[0].S : std::string("naked");
@@ -160,7 +177,7 @@ int main()
 						if (First.empty()) First = KV.first + " " + F.first + " " + Num2(New->Num(F.first, -1e9)) + " (was " + Num2(F.second.N) + ")";
 					}
 			}
-			Expect(Ref != nullptr && Off == 0, Id + " rides as the stock " + Style + " (" + std::to_string(Off) + " off: " + First + ")");
+			Expect(Ref != nullptr && (Off == 0 || bBought), Id + " rides as the stock " + Style + " (" + std::to_string(Off) + " off: " + First + ")");
 		}
 		const std::vector<std::string> Offered = Shop::Options(Lay, "frame", Style, Shop::StockBuild(Lay, Style));
 		Expect(std::find(Offered.begin(), Offered.end(), Id) != Offered.end(), Id + " is offered as a frame on a new " + Style);
@@ -342,8 +359,8 @@ int main()
 				Expect(Parts[KV.first] == KV.second, Id + " comes with its own " + KV.first);
 				Expect(Lay.V2FitReason(Parts, KV.first, KV.second).empty(), Id + " its own " + KV.first + " fits it: " + Lay.V2FitReason(Parts, KV.first, KV.second));
 			}
-			Expect(Slots.count("head") == 1, Id + " cylinder head pieces cut from the engine");
-			Expect(!Own.count("gearbox") || Slots.count("gearbox") == 1, Id + " gearbox pieces");
+			Expect(bBought || Slots.count("head") == 1, Id + " cylinder head pieces cut from the engine");
+			Expect(bBought || !Own.count("gearbox") || Slots.count("gearbox") == 1, Id + " gearbox pieces");
 			// One at a time, each own part drawn on the bare frame is only that part.
 			for (const char* One : {"engine", "head", "tank", "front_wheel", "fork"})
 			{

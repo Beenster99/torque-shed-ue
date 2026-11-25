@@ -770,6 +770,8 @@ std::vector<std::pair<double, int>> FiringEvents(const FSpec& S)
 	if (C == "flat") return {{0.0, 0}, {180.0, 0}, {360.0, 0}, {540.0, 0}};
 	if (C == "crossplane") return {{0.0, 0}, {270.0, 0}, {450.0, 0}, {540.0, 0}};
 	if (C == "bigbang") return {{0.0, 0}, {90.0, 0}, {360.0, 0}, {450.0, 0}};
+	// [bought bikes] Ducati's V4 "twin pulse": its two banks fire close together, 0, 90, 290 and 380 degrees (the Multistrada).
+	if (C == "twinpulse") return {{0.0, 0}, {90.0, 1}, {290.0, 0}, {380.0, 1}};
 	std::vector<std::pair<double, int>> Out;
 	if (C == "2stroke")
 	{

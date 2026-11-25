@@ -94,6 +94,9 @@ def main():
     # the kit variants cut by game_kits.py, as shop parts of their own
     import game_kits
     game_kits.catalogue()
+    # the bought bikes, whole and as they come (beenster, 25 Nov: the Multistrada)
+    import game_bought
+    game_bought.main()
 
 
 if __name__ == "__main__":
