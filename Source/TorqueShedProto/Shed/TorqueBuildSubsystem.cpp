@@ -1842,13 +1842,8 @@ TArray<FName> UTorqueBuildSubsystem::MissingSlots(int32 Bay) const
 	if (!Exists(Bay)) return Out;
 	for (const FName& S : TorqueShedParts::BikeSlots())
 		if (ItemOn(Bay, S) == 0 && !TorqueShedParts::MayBeEmpty(S)) Out.Add(S);
-	// [mirrors, 166 test: a kit fairing asked for the mirrors off and the bike then read ready to ride without
-	// them] A bike whose model comes with mirrors (every V2 one but the MX bikes) needs a pair on to be ready.
-	static const FName MirrorsSlot(TEXT("mirrors"));
-	if (ItemOn(Bay, MirrorsSlot) == 0)
-		if (const TorqueFit::BikeLayout* MirrorLay = TBI::FitLayout())
-			if (const FTorqueItem* FrameOn = Items.Find(ItemOn(Bay, TBI::FrameSlot())))
-				if (MirrorLay->V2Build(TBI::Id(FrameOn->Part)).count("mirrors") > 0) Out.Add(MirrorsSlot);
+	// ([mirrors] beenster Nov 25: "a bike should be able to be ridden without mirrors, they are non-essential": the
+	// 167 rule that a model's mirrors had to be on is gone; mirrors are optional like any other.)
 	if (ItemOn(Bay, TBI::EngineKind()) != 0)
 		for (const FName& S : TorqueShedParts::EngineSlots())
 			if (ItemOn(Bay, S) == 0) Out.Add(S);
