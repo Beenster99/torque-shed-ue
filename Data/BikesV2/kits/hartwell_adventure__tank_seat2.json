@@ -2,9 +2,9 @@
  "name": "BSX adventure (working title A1)",
  "format": 2,
  "kit": true,
- "triangles": 27930,
+ "triangles": 29696,
  "surfaces": {
-  "s024": {
+  "s025": {
    "slot": "tank",
    "node": "",
    "surface": "paint__body",
@@ -19,7 +19,7 @@
    "metallic": 0.55,
    "roughness": 0.34
   },
-  "s025": {
+  "s026": {
    "slot": "saddle",
    "node": "",
    "surface": "d3_leather",
@@ -33,7 +33,7 @@
    "metallic": 0.0,
    "roughness": 0.46
   },
-  "s146": {
+  "s148": {
    "slot": "saddle",
    "node": "",
    "surface": "d3_thread",
@@ -47,7 +47,7 @@
    "metallic": 0.0,
    "roughness": 0.75
   },
-  "s147": {
+  "s149": {
    "slot": "tank",
    "node": "",
    "surface": "alu_dark",
@@ -62,7 +62,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s148": {
+  "s150": {
    "slot": "tank",
    "node": "",
    "surface": "d3_capring",
@@ -77,7 +77,7 @@
    "metallic": 1.0,
    "roughness": 0.25
   },
-  "s149": {
+  "s151": {
    "slot": "tank",
    "node": "",
    "surface": "d3_caplid",
@@ -92,7 +92,7 @@
    "metallic": 0.9,
    "roughness": 0.3
   },
-  "s150": {
+  "s152": {
    "slot": "tank",
    "node": "",
    "surface": "steel",
@@ -107,7 +107,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s151": {
+  "s153": {
    "slot": "tank",
    "node": "",
    "surface": "rubber",
