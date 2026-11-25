@@ -10,10 +10,12 @@
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueStudio.h"
+#include "Shed/TorqueStudioRig.h"
 #include "Shed/TorqueToolModels.h"
 #include "Coop/TorqueUi.h"
 #include "CanvasItem.h"
-#include "Components/PointLightComponent.h"
+#include "Components/RectLightComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Canvas.h"
@@ -45,20 +47,17 @@ constexpr double SpinRate = 24.0;            // degrees a second
 constexpr double StartYaw = -145.0;          // a three-quarter view from the front left
 constexpr double StartPitch = 12.0;          // looking down a little
 constexpr double MinZoom = 0.6, MaxZoom = 3.5;
-// The studio's own fixed exposure (manual, EV100 0 and this compensation: a picture's value is a
-// surface's nits x 2^Bias / 1.2). The key gives ~19 lux at the item whatever its size (see Tick), so
-// a white part (albedo 0.8) in it is ~4.9 nits and lands just under 1.0 before the tone curve.
-// (Auto exposure metered the dim backdrop and the level's sky light lit the item as well: the
-// washed-out, cream and orange look of build 125.)
-// beenster (build 155): "the preview window in the shop is so dark": 1.2 stops up from -2.0, and the
-// fill and bounce lifted so the shadow side reads; the backdrop's glow cut to keep it about where it was.
-constexpr float ExposureBias = -0.8f;
-// The backdrop's glow (M_ShedScreenPage's Brightness, nits for a white page): the gradient's top
-// ~0.15 and the pool behind the item ~0.3 after exposure, well under the lit part.
-constexpr float BackdropBrightness = 2.0f;
+// The studio's own fixed exposure and its backdrop's glow: TorqueStudioRig.h (the product-shoot rig all
+// the previews share since build 172). History: build 125 washed out (auto exposure, the level's sky
+// light); build 155 "so dark" (1.2 stops up); build 171 near black again (beenster, Nov 25): the level's
+// post-processing (exposure range, local exposure, outline material) still blended into the capture.
+// Now every post-process setting is the studio's own and a meter holds the backdrop's grey (TorqueStudio).
+constexpr float ExposureBias = (float)TorqueStudioRig::ShopExposureBias;
+constexpr float BackdropBrightness = (float)TorqueStudioRig::ShopBackdropBrightness;
 
-// The backdrop's picture: a light grey at the top falling to a dark grey at the floor, a soft
-// pool of light behind the middle of the item, and the corners shaded off.
+// The backdrop's picture: a studio sweep, a light grey at the top falling to a mid grey at the floor, a
+// soft pool of light behind the middle of the item, and the corners shaded off a little. (Lighter since
+// build 172, so a black part stands out against it as on a product shot.)
 UTexture2D* MakeGradient()
 {
 	constexpr int32 N = 256;
@@ -71,7 +70,9 @@ UTexture2D* MakeGradient()
 	FTexture2DMipMap& Mip = T->GetPlatformData()->Mips[0];
 	FColor* Px = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_WRITE));
 	if (!Px) return nullptr;
-	const FLinearColor Top(0.46f, 0.46f, 0.47f), Bottom(0.11f, 0.11f, 0.115f), Glow(0.64f, 0.64f, 0.64f);   // greys (build 101)
+	namespace R = TorqueStudioRig;
+	const FLinearColor Top(R::SweepTop, R::SweepTop, R::SweepTop + 0.01f), Bottom(R::SweepFloor, R::SweepFloor, R::SweepFloor + 0.005f),
+		Glow(R::SweepGlow, R::SweepGlow, R::SweepGlow);
 	for (int32 Y = 0; Y < N; ++Y)
 		for (int32 X = 0; X < N; ++X)
 		{
@@ -85,7 +86,7 @@ UTexture2D* MakeGradient()
 			C = FMath::Lerp(C, Glow, Pool * 0.55f);
 			// The corners shaded.
 			const float Cx = U - 0.5f, Cy = V - 0.5f;
-			C *= 1.0f - 0.45f * FMath::Clamp((Cx * Cx + Cy * Cy) * 2.2f - 0.12f, 0.0f, 1.0f);
+			C *= 1.0f - R::SweepCorner * FMath::Clamp((Cx * Cx + Cy * Cy) * 2.2f - 0.12f, 0.0f, 1.0f);
 			C.A = 1.0f;
 			// Written as the colour it should look (the texture's sRGB), with a little dither against banding.
 			const float Dither = (((X * 7 + Y * 13) % 5) - 2) * 0.0015f;
@@ -218,58 +219,13 @@ ATorqueShopPreview::ATorqueShopPreview()
 	Holder->SetupAttachment(Pivot);
 	Capture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("Capture"));
 	Capture->SetupAttachment(Root);
-	Capture->bCaptureEveryFrame = false;
-	Capture->bCaptureOnMovement = false;
-	Capture->bAlwaysPersistRenderingState = true;
-	Capture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
-	Capture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 	Capture->FOVAngle = TSPI::Fov;
-	Capture->ShowFlags.SetFog(false);
-	Capture->ShowFlags.SetVolumetricFog(false);
-	Capture->ShowFlags.SetAtmosphere(false);
-	Capture->ShowFlags.SetMotionBlur(false);
-	// Only the studio's lights: not the level's sky light (it isn't held to lighting channels, and
-	// up here it lit the item from the whole sky and the ground) nor bounce light from the level.
-	Capture->ShowFlags.SetSkyLighting(false);
-	Capture->ShowFlags.SetLensFlares(false);
-	{
-		FPostProcessSettings& PP = Capture->PostProcessSettings;
-		PP.bOverride_AutoExposureMethod = true;
-		PP.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
-		PP.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
-		PP.AutoExposureApplyPhysicalCameraExposure = 0;
-		PP.bOverride_AutoExposureBias = true;
-		PP.AutoExposureBias = TorqueShopPreviewImpl::ExposureBias;
-		PP.bOverride_DynamicGlobalIlluminationMethod = true;
-		PP.DynamicGlobalIlluminationMethod = EDynamicGlobalIlluminationMethod::None;
-		PP.bOverride_ReflectionMethod = true;
-		PP.ReflectionMethod = EReflectionMethod::ScreenSpace;
-		PP.bOverride_BloomIntensity = true;
-		PP.BloomIntensity = 0.15f;
-		PP.bOverride_VignetteIntensity = true;
-		PP.VignetteIntensity = 0.0f;
-		PP.bOverride_LensFlareIntensity = true;
-		PP.LensFlareIntensity = 0.0f;
-		Capture->PostProcessBlendWeight = 1.0f;
-	}
-	KeyLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Key"));
-	FillLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Fill"));
-	RimLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Rim"));
-	BounceLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Bounce"));
-	for (UPointLightComponent* L : {KeyLight, FillLight, RimLight, BounceLight})
-	{
-		L->SetupAttachment(Root);
-		L->SetIntensityUnits(ELightUnits::Candelas);
-		L->SetCastShadows(L == KeyLight);
-		// Only the studio: its pieces are on channel 2 and nothing else in the level is.
-		L->LightingChannels.bChannel0 = false;
-		L->LightingChannels.bChannel1 = false;
-		L->LightingChannels.bChannel2 = true;
-	}
-	KeyLight->SetLightColor(FLinearColor(1.0f, 0.95f, 0.88f));
-	FillLight->SetLightColor(FLinearColor(0.80f, 0.88f, 1.0f));
-	RimLight->SetLightColor(FLinearColor(0.95f, 0.97f, 1.0f));
-	BounceLight->SetLightColor(FLinearColor(1.0f, 0.98f, 0.95f));   // a neutral floor bounce (no sky light now)
+	// The studio's own camera: none of the level's sky light, air, clouds or post-processing, a fixed
+	// exposure (held by Meter), and its own soft boxes on lighting channel 2 (TorqueStudio).
+	TorqueStudio::Isolate(Capture, TSPI::ExposureBias);
+	TorqueStudio::MakeLights(this, Root, Lights);
+	Meter.Who = TEXT("parts");
+	Meter.Target = TorqueStudioRig::ShopBackdropTarget;
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	Cube = CubeMesh.Object;
@@ -378,6 +334,7 @@ void ATorqueShopPreview::Rebuild(const FString& NewKey, TFunctionRef<void()> Mak
 	TorqueBikeBadge::Stamp(TArray<UStaticMeshComponent*>(), FString());   // (the last bike's badge goes with it)
 	Make();
 	for (UStaticMeshComponent* C : Shown) Studio(C);
+	TorqueStudio::Enrol(Holder);   // (and whatever the parts hang under them: badges, fluids, fittings)
 	Framed();
 	// A new item starts at the start view (turning on or paused as it was).
 	if (!bKeepView) ResetView();
@@ -564,7 +521,16 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 	const bool bOn = WantFor > 0.0 && Shown.Num() > 0 && Target;
 	Capture->bCaptureEveryFrame = bOn;
 	SetActorHiddenInGame(!bOn);
+	// The exposure: held at the studio's (the backdrop's top corners are clear of the item at the start
+	// zoom or further out).
+	Meter.Tick(DeltaSeconds, bOn, Zoom <= 1.0 + 1e-3, Capture, Target, TSPI::ExposureBias);
 	if (!bOn) return;
+	EnrolIn -= DeltaSeconds;
+	if (EnrolIn <= 0.0f)
+	{
+		EnrolIn = 0.5f;
+		TorqueStudio::Enrol(Holder);
+	}
 	if (PosterArt.IsValid())   // [posters] its picture, once it's loaded
 	{
 		const TorqueFurniture::FModel* M = TorqueFurniture::Find(PosterModel);
@@ -603,21 +569,9 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 		Backdrop->SetWorldScale3D(FVector(1.0, W / 100.0, H / 100.0));
 	}
 
-	// The lights stay with the camera (the item turns under them): key high on the left, fill low on
-	// the right, rim behind and above. Brighter the further out they stand, so it's lit the same at any size.
-	const double L = Radius * 2.4 + 60.0;
-	const double Gain = FMath::Square(L / 250.0);
-	auto Place = [&](UPointLightComponent* Light, const FVector& Dir, double Candelas)
-	{
-		Light->SetWorldLocation(Centre + Dir.GetSafeNormal() * L);
-		Light->SetIntensity((float)(Candelas * Gain));
-		Light->SetAttenuationRadius((float)(L * 4.0));
-		Light->SetSourceRadius((float)(L * 0.08));   // soft boxes: broad highlights on paint and chrome
-	};
-	Place(KeyLight, -Fwd * 0.8 - Right * 0.75 + Up * 0.85, 120.0);
-	Place(FillLight, -Fwd * 0.9 + Right * 0.85 - Up * 0.1, 70.0);
-	Place(RimLight, Fwd * 0.9 + Right * 0.35 + Up * 0.95, 100.0);
-	Place(BounceLight, -Fwd * 0.6 - Up * 0.8, 35.0);
+	// The soft boxes stay with the camera (the item turns under them): TorqueStudioRig's product shoot,
+	// further out and brighter for a bigger item, so it's lit the same at any size.
+	TorqueStudio::PlaceLights(Lights, Centre, Fwd, Right, Up, Radius);
 }
 
 void ATorqueShopPreview::Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, const FVector2D& Mouse)
@@ -637,12 +591,13 @@ void ATorqueShopPreview::Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, con
 	{
 		if (!Target)
 		{
-			Target = NewObject<UTextureRenderTarget2D>(this);
-			Target->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8_SRGB;
-			Target->ClearColor = FLinearColor(0.02f, 0.02f, 0.025f, 1.0f);
+			Target = TorqueStudio::MakeTarget(this, Want_W, Want_H);
 		}
-		Target->InitAutoFormat(Want_W, Want_H);
-		Target->UpdateResourceImmediate(true);
+		else
+		{
+			Target->InitAutoFormat(Want_W, Want_H);
+			Target->UpdateResourceImmediate(true);
+		}
 		Capture->TextureTarget = Target;
 	}
 	const float S = TorqueUi::Scale(Canvas);

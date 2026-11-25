@@ -15,6 +15,7 @@
 #include "GameFramework/Actor.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueProfile.h"
+#include "Shed/TorqueStudio.h"
 #include "TorqueProfilePreview.generated.h"
 
 class APlayerController;
@@ -23,7 +24,7 @@ class UMaterialInterface;
 class USceneCaptureComponent2D;
 class UStaticMeshComponent;
 class UTextureRenderTarget2D;
-class UPointLightComponent;
+class URectLightComponent;
 
 UCLASS(NotPlaceable, Transient)
 class ATorqueProfilePreview : public AActor
@@ -78,10 +79,7 @@ private:
 	UPROPERTY() USceneComponent* Feet = nullptr;
 	UPROPERTY() USceneCaptureComponent2D* Capture = nullptr;
 	UPROPERTY() UTextureRenderTarget2D* Target = nullptr;
-	UPROPERTY() UPointLightComponent* Key = nullptr;
-	UPROPERTY() UPointLightComponent* Fill = nullptr;
-	UPROPERTY() UPointLightComponent* Rim = nullptr;
-	UPROPERTY() UPointLightComponent* Bounce = nullptr;
+	UPROPERTY() TArray<URectLightComponent*> Lights;   // the studio's soft boxes (TorqueStudioRig's order)
 	UPROPERTY() UStaticMeshComponent* Backdrop = nullptr;
 	UPROPERTY() UStaticMeshComponent* Helmet = nullptr;     // your helmet on its own (the Helmet view)
 	UPROPERTY() UMaterialInterface* HelmetKitPaint = nullptr;
@@ -93,6 +91,8 @@ private:
 	bool bHelmetTried = false;
 	EView View = EView::Body;
 	EView Shown = EView::Body;   // what's showing now (the avatar or the helmet)
+	TorqueStudio::FMeter Meter;   // holds the exposure (TorqueStudio)
+	float BaseExposure = 0.0f;
 	double WantFor = 0.0;      // seconds left filming
 	// The view: turned round it (degrees, 0 from the front), tipped down, zoomed, turning by itself.
 	double Yaw = 0.0, Pitch = 6.0, Zoom = 1.0;

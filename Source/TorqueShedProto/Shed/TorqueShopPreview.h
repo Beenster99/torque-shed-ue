@@ -1,6 +1,7 @@
 // The shop's 3D preview (Torque Shed's PartPreview): whatever the parts computer has picked, on a
 // turntable in a little photo studio high over the level, filmed by a scene capture that sees only
-// the studio. A soft gradient backdrop behind it, its own key, fill and rim lights (lighting
+// the studio. A soft gradient backdrop behind it, its own soft boxes (TorqueStudio: key, fill, top, two
+// edge strips and a bounce card, lighting
 // channel 2, so the level's sun and lamps don't reach it). Drawn into a box on the computer's page
 // worked with the mouse alone (no buttons over the picture).
 //
@@ -12,13 +13,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Shed/TorqueFluidModels.h"
+#include "Shed/TorqueStudio.h"
 #include "TorqueShopPreview.generated.h"
 
 class AHUD;
 class APlayerController;
 class UCanvas;
 class UMaterialInterface;
-class UPointLightComponent;
+class URectLightComponent;
 class UPrimitiveComponent;
 class USceneCaptureComponent2D;
 class UStaticMesh;
@@ -78,10 +80,7 @@ private:
 	UPROPERTY() USceneComponent* Holder = nullptr;       // what's shown, centred on the pivot
 	UPROPERTY() USceneCaptureComponent2D* Capture = nullptr;
 	UPROPERTY() UStaticMeshComponent* Backdrop = nullptr;
-	UPROPERTY() UPointLightComponent* KeyLight = nullptr;
-	UPROPERTY() UPointLightComponent* FillLight = nullptr;
-	UPROPERTY() UPointLightComponent* RimLight = nullptr;
-	UPROPERTY() UPointLightComponent* BounceLight = nullptr;   // low and in front: lifts the shadows
+	UPROPERTY() TArray<URectLightComponent*> Lights;   // the studio's soft boxes (TorqueStudioRig's order)
 	UPROPERTY() UTextureRenderTarget2D* Target = nullptr;
 	UPROPERTY() UTexture2D* Gradient = nullptr;
 	UPROPERTY() UStaticMesh* Cube = nullptr;
@@ -89,6 +88,10 @@ private:
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Shown;
 
 	// A fluid's can or bottle: its fluid's level (TorqueFluidModels), kept up each Tick.
+	// The studio's exposure meter (TorqueStudio::FMeter), and when everything shown is next put on the
+	// studio's lighting channel again (parts that hang more on later).
+	TorqueStudio::FMeter Meter;
+	float EnrolIn = 0.0f;
 	TorqueFluidModels::FVessel Vessel;
 	FName VesselPart;
 	bool bVessel = false;
