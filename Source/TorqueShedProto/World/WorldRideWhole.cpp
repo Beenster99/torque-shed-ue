@@ -38,7 +38,9 @@ bool WhyOn(const char* Name)
 }
 // ([smooth junctions stage 5c] junctions on the ride's road built whole: the checker can turn it off to compare)
 const bool WholeRideTurns = !WhyOn("WHOLE_NORIDE");
-const bool LandOld = WhyOn("WHOLE_LANDOLD");   // (the checker can measure the land as before)
+const bool LandOld = WhyOn("WHOLE_LANDOLD");
+const bool RoomOld = WhyOn("WHOLE_ROOMOLD");   // (the checker can compare the arms' room as before)
+const bool BothDown = WhyOn("WHOLE_BOTHDOWN");   // (the checker can turn both down as before)
 } // namespace
 
 namespace WholeJunctionBits
@@ -429,7 +431,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// (each arm's mouth: far enough out that its tarmac is clear of every other arm's that isn't across from it,
 		// with room for the corner)
 		W.Cut.assign(Arms.size(), 0.0);
-		static const bool StubCut = !WhyOn("WHOLE_NOSTUB");   // TEMP A/B
+		static const bool StubCut = !WhyOn("WHOLE_NOSTUB");   // (the checker can compare without the stub cut)
 		for (size_t A = 0; A < Arms.size(); ++A)
 		{
 			double Need = Half[A] + 1.5;
@@ -446,7 +448,13 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			// (or to near its end where nothing goes on from there)
 			const RoadEdge& Own = G.Edges[size_t(Arms[A].Edge)];
 			const int FarNode = Own.A == Arms[A].Node ? Own.B : Own.A;
-			const double Room = (size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 1 ? 0.9 : 0.45) * Own.Length;
+			// ([smooth junctions stage 5c] to 7 m short of the junction at its far end, if that is more than half way; 10 m where
+			// that is on the ride's road, whose mouths need more (9 m2 of steps between two at 7, Hawes))
+			bool FarOnRide = false;
+			if (size_t(FarNode) < G.Adjacent.size())
+				for (int Ae : G.Adjacent[size_t(FarNode)]) FarOnRide = FarOnRide || OnRide[size_t(Ae)];
+			const double Room = size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 1 ? 0.9 * Own.Length
+				: std::fmax(0.45 * Own.Length, RoomOld ? 0.0 : Own.Length - (FarOnRide ? 10.0 : 7.0));
 			// ([smooth junctions stage 5c] a short dead end (a drive, a yard's way in): its mouth at its end, not the whole
 			// junction turned down for it; 2,859 of the refusals in a three-town sample were these)
 			if (OnRide[size_t(Arms[A].Edge)]) continue;   // (along the ride's road: room checked against its ends and other hides)
@@ -534,9 +542,14 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		const double Long = G.Edges[size_t(Which - 1)].Length;
 		if (KV.second.second + Other->second.second > Long * 0.9)
 		{
-			WholeOf[size_t(KV.second.first)].Ok = false;
-			WholeOf[size_t(Other->second.first)].Ok = false;
-			WholeWhy[size_t(KV.second.first)] = WholeWhy[size_t(Other->second.first)] = 11;
+			// ([smooth junctions stage 5c] the one wanting more of it turned down, the other kept: its cut leaves 7 m for the
+			// old junction there; both turned down lost 192 in the UK sample)
+			if (!WholeOf[size_t(KV.second.first)].Ok || !WholeOf[size_t(Other->second.first)].Ok) continue;
+			const bool Mine = KV.second.second != Other->second.second ? KV.second.second > Other->second.second : KV.second.first > Other->second.first;
+			const int Lose = BothDown || Mine ? KV.second.first : Other->second.first;
+			WholeOf[size_t(Lose)].Ok = false;
+			WholeWhy[size_t(Lose)] = 11;
+			if (BothDown) { WholeOf[size_t(Other->second.first)].Ok = false; WholeWhy[size_t(Other->second.first)] = 11; }
 		}
 	}
 	// ([smooth junctions stage 5] a road inside one whole junction and an arm of another, or inside two (arms followed on
