@@ -64,8 +64,38 @@ def gradient_image(sweep, n=256):
             c *= 1.0 - corner * min(max((cx * cx + cy * cy) * 2.2 - 0.12, 0.0), 1.0)
             px += [c, c, c, 1.0]
     img.pixels = px
-    img.colorspace_settings.name = "sRGB"
-    return img
+    # (Saved and loaded back: a generated image's pixels don't always reach Cycles in background mode.)
+    path = os.path.join(bpy.app.tempdir or "/tmp", "studio_sweep.png")
+    img.filepath_raw = path
+    img.file_format = "PNG"
+    img.save()
+    loaded = bpy.data.images.load(path, check_existing=False)
+    loaded.colorspace_settings.name = "sRGB"
+    return loaded
+
+
+def apply_finishes(glb, meshes):
+    """The kit's sidecar JSON holds each surface's finish (the game paints them by it): colour, metal, rough."""
+    side = os.path.splitext(glb)[0] + ".json"
+    if not os.path.exists(side):
+        return
+    import json
+    surfaces = json.load(open(side)).get("surfaces", {})
+    for o in meshes:
+        for slot in o.material_slots:
+            m = slot.material
+            if not m:
+                continue
+            s = surfaces.get(m.name.split(".")[0])
+            if not s or not m.use_nodes:
+                continue
+            p = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+            if not p:
+                continue
+            col = s.get("color", [0.03, 0.03, 0.03])   # (no colour: rubber)
+            p.inputs["Base Color"].default_value = (col[0], col[1], col[2], 1.0)
+            p.inputs["Metallic"].default_value = s.get("metallic", 0.0)
+            p.inputs["Roughness"].default_value = s.get("roughness", 0.8)
 
 
 def look_at(obj, target):
@@ -88,6 +118,7 @@ def render(out_png, glb, node, lights, bias, brightness, sweep, aspect=1.76, fov
         meshes = keep
     if not meshes:
         raise SystemExit("no meshes matching %r in %s" % (node, glb))
+    apply_finishes(glb, meshes)
     # Its box, centred on a turntable at the origin, turned to the start view.
     pivot = bpy.data.objects.new("Pivot", None)
     sc.collection.objects.link(pivot)
