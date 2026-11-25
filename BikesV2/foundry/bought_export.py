@@ -111,58 +111,87 @@ def main():
     cfg = bought_models.MODELS[model]
     os.makedirs(out, exist_ok=True)
     bpy.ops.wm.open_mainfile(filepath=blend)
-    table = cfg["objects"]
-    names = {o.name for o in bpy.data.objects if o.type == "MESH"}
-    unknown = sorted(names - set(table))
-    missing = sorted(n for n in table if n not in names)
-    if unknown or missing:
-        raise SystemExit(f"{model}: model changed: no rule for {unknown}, not found {missing}")
+    auto = cfg.get("auto", False)
+    if not auto:
+        table = cfg["objects"]
+        names = {o.name for o in bpy.data.objects if o.type == "MESH"}
+        unknown = sorted(names - set(table))
+        missing = sorted(n for n in table if n not in names)
+        if unknown or missing:
+            raise SystemExit(f"{model}: model changed: no rule for {unknown}, not found {missing}")
+    shown = set(bpy.context.view_layer.objects)
+    if auto:
+        # (unparented where they are first: some hang off a scaled empty)
+        for o in [o for o in bpy.data.objects if o.type == "MESH"]:
+            apply_all(o)
     for o in list(bpy.data.objects):
-        if o.type != "MESH":
+        if o.type != "MESH" or (auto and (o not in shown or o.hide_render)):     # (an auto model's hidden spares go too)
             bpy.data.objects.remove(o, do_unlink=True)
-    for o in list(bpy.data.objects):
-        apply_all(o)
-
-    # the axles (the rims' middles), the tyres' sizes (then the tyres go)
-    fr_rim, rr_rim = cfg["rims"]
-    fl, fh = bbox(bpy.data.objects[fr_rim])
-    rl, rh = bbox(bpy.data.objects[rr_rim])
-    F = Vector((0, (fl.y + fh.y) / 2, (fl.z + fh.z) / 2))
-    R = Vector((0, (rl.y + rh.y) / 2, (rl.z + rh.z) / 2))
-    rear_y = R.y
-    to_game = lambda v: Vector((rear_y - v.y, v.x, v.z))
-    tyre = {}
-    for end, nm in zip(("front", "rear"), cfg["tyres"]):
-        lo, hi = bbox(bpy.data.objects[nm])
-        tyre[end] = ((hi.z - lo.z) / 2, hi.x - lo.x)
-        bpy.data.objects.remove(bpy.data.objects[nm], do_unlink=True)
-    ctx = {"F": F, "R": R}
+    if not auto:
+        for o in list(bpy.data.objects):
+            apply_all(o)
 
     finish = dict(bought_models.FINISH, **cfg.get("finish", {}))
     named = bought_models.NAMED
+    ainfo = None
+    if auto:
+        # paint, plastic and leather in the model's own colours (bought_models.auto_finish)
+        own = {}
+        for m in bpy.data.materials:
+            b = m.node_tree.nodes.get("Principled BSDF") if m.use_nodes and m.node_tree else None
+            if b and not b.inputs["Base Color"].is_linked:
+                own[m.name.split(".")[0]] = (tuple(b.inputs["Base Color"].default_value)[:3], b.inputs["Metallic"].default_value)
+        for mn in {m.name.split(".")[0] for o in bpy.data.objects if o.type == "MESH" for m in o.data.materials if m}:
+            finish[mn] = bought_models.auto_finish(mn, own.get(mn), cfg)
+        # (bought_auto.py sorts every loose piece by where it is: these models' names aren't to be relied on)
+        import bought_auto
+        raw, ainfo = bought_auto.sort_pieces([o for o in bpy.data.objects if o.type == "MESH"], cfg, split_loose, cut_faces)
+        rear_y = ainfo["rear_y"]
+        Fg, Rg = ainfo["F"], ainfo["R"]
+        F = Vector((0, rear_y - Fg[0], Fg[2]))
+        R = Vector((0, rear_y - Rg[0], Rg[2]))
+        to_game = lambda v: Vector((rear_y - v.y, v.x, v.z))
+        tyre = {end: (t["r"], t["w"]) for end, t in ainfo["tyres"].items()}
+        placed = [(Piece(ob, base), slot, group, role or "", fin) for ob, base, slot, group, role, fin in raw]
+    else:
+        # the axles (the rims' middles), the tyres' sizes (then the tyres go)
+        fr_rim, rr_rim = cfg["rims"]
+        fl, fh = bbox(bpy.data.objects[fr_rim])
+        rl, rh = bbox(bpy.data.objects[rr_rim])
+        F = Vector((0, (fl.y + fh.y) / 2, (fl.z + fh.z) / 2))
+        R = Vector((0, (rl.y + rh.y) / 2, (rl.z + rh.z) / 2))
+        rear_y = R.y
+        to_game = lambda v: Vector((rear_y - v.y, v.x, v.z))
+        tyre = {}
+        for end, nm in zip(("front", "rear"), cfg["tyres"]):
+            lo, hi = bbox(bpy.data.objects[nm])
+            tyre[end] = ((hi.z - lo.z) / 2, hi.x - lo.x)
+            bpy.data.objects.remove(bpy.data.objects[nm], do_unlink=True)
+    ctx = {"F": F, "R": R}
 
     def tag_of(base, mat):
         f = cfg.get("obj_finish", {}).get(base)
         f = named[f] if isinstance(f, str) else f
         return (f or finish[mat.split(".")[0]])["tag"]
 
-    # split what holds pieces of more than one group, side or finish; place every piece
-    # (an object a key point is measured from a few of its pieces of is split too)
-    measured = {sp[0] for sp in (cfg[k] for k in ("fork_tubes", "stem", "peg", "grip", "screen", "cap", "seat")) if isinstance(sp, tuple)}
-    placed = []      # (piece, slot, group, role, finish name or None)
-    for o in list(bpy.data.objects):
-        base = o.name
-        rule = table[base]
-        if rule is None:
-            continue
-        sided = any(tag_of(base, m.name) in SIDE_TAGS for m in o.data.materials if m)
-        sided = sided or (not callable(rule) and len(rule) > 2 and rule[2] == "head")
-        obs = split_loose(o) if (callable(rule) or sided or base in measured) else [o]
-        for ob in obs:
-            p = Piece(ob, base)
-            r = rule(p, ctx) if callable(rule) else rule
-            r = tuple(r) + ("", None)[len(r) - 2:] if len(r) < 4 else tuple(r)
-            placed.append((p, r[0], r[1], r[2] or "", r[3]))
+    if not auto:
+        # split what holds pieces of more than one group, side or finish; place every piece
+        # (an object a key point is measured from a few of its pieces of is split too)
+        measured = {sp[0] for sp in (cfg[k] for k in ("fork_tubes", "stem", "peg", "grip", "screen", "cap", "seat")) if isinstance(sp, tuple)}
+        placed = []      # (piece, slot, group, role, finish name or None)
+        for o in list(bpy.data.objects):
+            base = o.name
+            rule = table[base]
+            if rule is None:
+                continue
+            sided = any(tag_of(base, m.name) in SIDE_TAGS for m in o.data.materials if m)
+            sided = sided or (not callable(rule) and len(rule) > 2 and rule[2] == "head")
+            obs = split_loose(o) if (callable(rule) or sided or base in measured) else [o]
+            for ob in obs:
+                p = Piece(ob, base)
+                r = rule(p, ctx) if callable(rule) else rule
+                r = tuple(r) + ("", None)[len(r) - 2:] if len(r) < 4 else tuple(r)
+                placed.append((p, r[0], r[1], r[2] or "", r[3]))
 
     # the mono-shock drawn as one damper: cut across its length into its two ends
     sh = [x for x in placed if x[2] == "shock"]
@@ -193,7 +222,10 @@ def main():
         nm, flt = spec if isinstance(spec, tuple) else (spec, None)
         return [p for p, *_ in placed if p.base == nm and (flt is None or flt(p))]
 
-    fork = gv(pick(cfg["fork_tubes"]))
+    def src(key, ckey=None):
+        """A key point's verts (game frame): measured by the sorter, or from the table's pieces."""
+        return list(ainfo[key]) if auto else gv(pick(cfg[ckey or key]))
+    fork = src("fork", "fork_tubes")
     fmid = sum(fork, Vector()) / len(fork)
     sxx = sum((p.x - fmid.x) ** 2 for p in fork); szz = sum((p.z - fmid.z) ** 2 for p in fork)
     sxz = sum((p.x - fmid.x) * (p.z - fmid.z) for p in fork)
@@ -204,12 +236,12 @@ def main():
     if abs(d.x) > abs(d.z):          # (the long axis came out across: the other one)
         d = Vector((-d.z, 0, d.x)) if d.x > 0 else Vector((d.z, 0, -d.x))
     rake = math.degrees(math.atan2(-d.x, d.z))
-    stem = gv(pick(cfg["stem"]))
+    stem = src("stem")
     smid = sum(stem, Vector()) / len(stem)
     smid.y = 0.0
     on_axis = lambda z: smid + d * ((z - smid.z) / d.z)
-    st_top = cfg.get("steer_top_z") or max(v.z for v in stem)
-    st_bot = cfg.get("steer_bottom_z") or min(v.z for v in stem)
+    st_top = cfg.get("steer_top_z") or (ainfo["steer_top_z"] if auto else max(v.z for v in stem))
+    st_bot = cfg.get("steer_bottom_z") or (ainfo["steer_bottom_z"] if auto else min(v.z for v in stem))
     steer_top, steer_bottom = on_axis(st_top), on_axis(st_bot)
     front_axle, rear_axle = to_game(F), to_game(R)
     trail = on_axis(0.0).x - front_axle.x
@@ -217,7 +249,9 @@ def main():
     fork_top = fork_line(max(v.z for v in fork))
     fork_len = (fork_top - front_axle).length
 
-    if "pivot" in cfg:
+    if auto:
+        pivot = Vector(ainfo["pivot"])
+    elif "pivot" in cfg:
         pivot = to_game(Vector((0, cfg["pivot"][0], cfg["pivot"][1])))
     else:
         arm = gv([p for p, s, g, *_ in placed if g == "swingarm" and s == "swingarm"])
@@ -226,31 +260,51 @@ def main():
     # shock ends: along the damper, top (frame) and bottom (swingarm)
     tops = gv([p for p, s, g, *_ in placed if g == "shock_top"])
     bots = gv([p for p, s, g, *_ in placed if g == "shock_bottom"])
-    sa = (sum(bots, Vector()) / len(bots) - sum(tops, Vector()) / len(tops))
-    sa.y = 0
-    sa.normalize()
-    allsh = tops + bots + gv([p for p, s, g, *_ in placed if g == "shock_spring"])
-    pr = [v.dot(sa) for v in allsh]
-    t_end = [v for v, q in zip(allsh, pr) if q < min(pr) + 0.012]
-    b_end = [v for v, q in zip(allsh, pr) if q > max(pr) - 0.012]
-    sh_top, sh_bot = sum(t_end, Vector()) / len(t_end), sum(b_end, Vector()) / len(b_end)
+    if tops and bots:
+        sa = (sum(bots, Vector()) / len(bots) - sum(tops, Vector()) / len(tops))
+        sa.y = 0
+        sa.normalize()
+        allsh = tops + bots + gv([p for p, s, g, *_ in placed if g == "shock_spring"])
+        pr = [v.dot(sa) for v in allsh]
+        t_end = [v for v, q in zip(allsh, pr) if q < min(pr) + 0.012]
+        b_end = [v for v, q in zip(allsh, pr) if q > max(pr) - 0.012]
+        sh_top, sh_bot = sum(t_end, Vector()) / len(t_end), sum(b_end, Vector()) / len(b_end)
+    else:
+        springs = gv([p for p, s, g, *_ in placed if g == "shock_spring"])
+        if springs:
+            # (only the spring drawn as the shock's own piece: its two ends)
+            smid = sum(springs, Vector()) / len(springs)
+            far = max(springs, key=lambda v: (v - smid).length)
+            sa = far - smid
+            sa.y = 0
+            sa.normalize()
+            if sa.z < 0:
+                sa = -sa
+            pr = [v.dot(sa) for v in springs]
+            sh_top = sum([v for v, q in zip(springs, pr) if q > max(pr) - 0.012], Vector()) / len([q for q in pr if q > max(pr) - 0.012])
+            sh_bot = sum([v for v, q in zip(springs, pr) if q < min(pr) + 0.012], Vector()) / len([q for q in pr if q < min(pr) + 0.012])
+            sh_bot = sh_bot - sa * ((sh_top - sh_bot).length * 0.6)    # (the damper's body and eye reach on past the spring)
+        else:
+            # (no shock found to move: none for the game to work; it rides on the stats' travel all the same)
+            print("bought export: no rear shock found: no shock points")
+            sh_top = sh_bot = None
 
     left = lambda vs: [v for v in vs if v.y > 0]
     avg = lambda vs: sum(vs, Vector()) / len(vs)
-    peg = avg(left(gv(pick(cfg["peg"]))))
-    grip = avg(left(gv(pick(cfg["grip"]))))
-    seat = gv(pick(cfg["seat"]))
-    h0, h1 = cfg["hip_band"]
+    peg = avg(left(src("peg")))
+    grip = avg(left(src("grip")))
+    seat = src("seat")
+    h0, h1 = cfg.get("hip_band") or ainfo["hip_band"]
     rider_seat = [v for v in seat if abs(v.y) < 0.04 and h0 < v.x < h1]
     hip_v = min(rider_seat, key=lambda v: v.z)
     seat_top = max((v for v in seat if abs(v.y) < 0.04 and abs(v.x - hip_v.x) < 0.04), key=lambda v: v.z, default=hip_v)
-    cap = avg(gv(pick(cfg["cap"])))
+    cap = avg(src("cap"))
     body = gv([p for p, s, g, *_ in placed if g == "" and s not in ("exhaust",)])
     clearance = min(v.z for v in body)
 
     # the dash's screen: the biggest flat face it has looking back (and not down) at the rider, all its coplanar polygons
     faces = []
-    for p in pick(cfg["screen"]):
+    for p in ([Piece(o, o.name) for o in ainfo["screen"]] if auto else pick(cfg["screen"])):
         m3 = p.ob.matrix_world.to_3x3()
         for poly in p.ob.data.polygons:
             nn = (m3 @ poly.normal).normalized()
@@ -261,9 +315,19 @@ def main():
 
     def plane_of(f0):
         return [f for f in faces if f[0].dot(f0[0]) > 0.985 and abs((f[2][0] - f0[2][0]).dot(f0[0])) < 0.003]
-    best = max(faces, key=lambda f: sum(x[1] for x in plane_of(f)) if f[1] > 1e-5 else 0)
-    flat = plane_of(best)
-    n_g = Vector(best[0])
+    if faces:
+        best = max(faces, key=lambda f: sum(x[1] for x in plane_of(f)) if f[1] > 1e-5 else 0)
+        flat = plane_of(best)
+        n_g = Vector(best[0])
+    else:
+        # (no screen found: a 5-inch one just above the top yoke, looking back up at the rider)
+        print("bought export: no dash screen found: one placed above the yoke")
+        n_g = Vector((-0.55, 0, 0.83)).normalized()
+        u_ = Vector((n_g.z, 0, -n_g.x))
+        u_ = u_ if u_.z > 0 else -u_
+        o_ = steer_top + Vector((-0.07, 0, 0.1))
+        flat = [(n_g, 1, [o_ + Vector((0, sy * 0.055, 0)) + u_ * (sz * 0.035) for sy in (-1, 1) for sz in (-1, 1)])]
+        best = flat[0]
     n_g.y = 0
     n_g.normalize()
     up = Vector((-n_g.z, 0, n_g.x))
@@ -289,18 +353,23 @@ def main():
                        "front_radius": round(tyre["front"][0] * 1000), "rear_radius": round(tyre["rear"][0] * 1000),
                        "shaft": False}, **st),
         "peg": mm(peg), "grip": mm(grip),
-        "shock_top": [round(sh_top.x * 1000, 1), 0.0, round(sh_top.z * 1000, 1)],
-        "shock_bottom": [round(sh_bot.x * 1000, 1), 0.0, round(sh_bot.z * 1000, 1)],
         "tank_cap": mm(cap),
         "gauges": [{"what": "screen", "at": mm(sc), "axis": [round(n_g.x, 5), 0.0, round(n_g.z, 5)], "up": [round(up.x, 5), 0.0, round(up.z, 5)],
                     "w": round(span_w * 1000 * cfg.get("screen_fill", (0.86, 0.82))[0], 1),
-                    "h": round(span_h * 1000 * cfg.get("screen_fill", (0.86, 0.82))[1], 1), "node": cfg.get("screen_node", "")}],
+                    "h": round(span_h * 1000 * cfg.get("screen_fill", (0.86, 0.82))[1], 1), "node": cfg.get("screen_node", "" if (not auto or cfg.get("faired")) else "steer")}],
     }
+
+    if sh_top is not None:
+        pts["shock_top"] = [round(sh_top.x * 1000, 1), 0.0, round(sh_top.z * 1000, 1)]
+        pts["shock_bottom"] = [round(sh_bot.x * 1000, 1), 0.0, round(sh_bot.z * 1000, 1)]
 
     # surfaces: one per slot + group + finish (+ side, for what the game lights or aims a side at a time)
     tagged, looks = {}, {}
     for p, slot, node, role, fin in placed:
         ob = p.ob
+        if not ob.data.materials or all(m is None for m in ob.data.materials):
+            ob.data.materials.clear()
+            ob.data.materials.append(bpy.data.materials.get("m_iron") or bpy.data.materials.new("m_iron"))   # (drawn with none)
         for i, m in enumerate(ob.data.materials):
             if m is None:
                 continue
@@ -337,6 +406,8 @@ def main():
     bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
     ob.name = ob.data.name = model
+    for a in list(ob.data.color_attributes):         # (some models carry vertex colours: the game's finishes are the colour)
+        ob.data.color_attributes.remove(a)
     ob.matrix_world = Matrix.Translation((rear_y, 0, 0)) @ Matrix.Rotation(math.radians(90), 4, "Z")
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     # (it comes with a side stand: bought_stand.py)

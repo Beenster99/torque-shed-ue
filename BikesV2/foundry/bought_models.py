@@ -63,6 +63,7 @@ NAMED = {
     "exhaust": {"ue": "cat_brushed_steel", "surface": "exhaust", "tag": "exhaust", "color": [0.5, 0.48, 0.45], "metallic": 1.0, "roughness": 0.3},
     "exhaust_black": {"ue": "cat_black_metal", "surface": "exhaust_black", "tag": "exhaust", "color": [0.03, 0.03, 0.032], "metallic": 0.8, "roughness": 0.5},
     "stripe_red": {"ue": "paint_silver", "surface": "stripe_red", "tag": "stripe", "color": [0.45, 0.01, 0.01], "metallic": 0.0, "roughness": 0.3},
+    "orange_reflector": {"ue": "lens_amber", "surface": "d3_amberglass", "tag": "reflector"},
     "spring_red": {"ue": "cat_anodised", "surface": "spring_red", "tag": "spring", "color": [0.5, 0.02, 0.015], "metallic": 0.6, "roughness": 0.35},
 }
 
@@ -373,3 +374,116 @@ MODELS = {"ducati_panigale": PANIGALE, "indian_scout": SCOUT, "triumph_trident":
 BLENDS = {"ducati_panigale": "Ducati_Panigale_2025_Blender(4.2)\\ducati_panigale_2025.blend",
           "indian_scout": "Indian_Scout_101_2026_Blender(4.2)\\indian_scout_101_2026.blend",
           "triumph_trident": "Triumph_Trident_800_2026_Blender(4.2)\\triumph_trident_800_2026.blend"}
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# beenster 25 Nov, the second batch: "Lots of Kawasaki bikes and others. I want exactly the same treatment". These are
+# sorted by bought_auto.py (by where each piece is: their object names vary, and three have none), each with a config:
+#   style, faired (headlight, fairing, screen and dash on the frame), body (its main paint material; its own colour unless
+#   given), stats (what the drawing can't say), and any fixes found from its pictures (boxes, pivot, drop, ...).
+# Paint, plastic and leather keep the model's own colours; metals, glass and lamps take the game's finishes.
+
+def _by_prefix(mat):
+    """A finish for a material the first four bikes didn't have, by its kind."""
+    m = mat.lower()
+    surface = m[2:] if m.startswith("m_") else m
+    if m.startswith("m_paint"):
+        return {"ue": "paint_silver", "surface": surface, "tag": surface, "color": [0.3, 0.3, 0.3], "metallic": 0.0, "roughness": 0.3}
+    if m.startswith("m_plastic") or m.startswith("pasted__m_paint"):
+        return {"ue": "cat_plastic", "surface": surface, "tag": surface, "color": [0.03, 0.03, 0.033], "metallic": 0.0, "roughness": 0.5}
+    if m.startswith("m_leather"):
+        return {"ue": "leather", "surface": "d3_" + surface, "tag": "d3_leather", "color": [0.03, 0.03, 0.03], "metallic": 0.0, "roughness": 0.6}
+    if "disk" in m or "disc" in m:
+        return dict(NAMED["rotor"])
+    if "golden" in m:
+        return dict(NAMED["gold"])
+    if "reflector" in m:
+        return {"ue": "chrome", "surface": "lamp_chrome", "tag": "chrome"}
+    if m.startswith("m_chrome"):
+        return {"ue": "chrome", "surface": surface, "tag": "chrome"}
+    if m.startswith("m_alumin"):
+        return dict(FINISH["m_aluminium_brushed"])
+    if m.startswith("m_iron") or m.startswith("m_metalic") or m.startswith("m_steel"):
+        return {"ue": "cat_brushed_steel", "surface": surface, "tag": "steel", "color": [0.35, 0.35, 0.36], "metallic": 1.0, "roughness": 0.4}
+    if m.startswith("m_rubber"):
+        return dict(FINISH["m_rubber"], surface=surface)
+    if m == "m_glass_dark":
+        return dict(FINISH["m_glass_black"])
+    if m == "m_light":
+        return dict(FINISH["m_light_white"])
+    return {"ue": "cat_plastic", "surface": surface, "tag": surface, "color": [0.1, 0.1, 0.1], "metallic": 0.0, "roughness": 0.5}
+
+
+def auto_finish(mat, own, cfg):
+    """The finish for one of an auto model's materials; own: its colour in the model ((r, g, b), metallic) or None."""
+    f = dict(FINISH.get(mat) or _by_prefix(mat))
+    if mat.startswith("m_glass_orange"):
+        f["tag"] = "reflector"
+    own_ok = own is not None and (mat.startswith(("m_paint", "m_plastic", "m_leather", "pasted__m_paint")))
+    if own_ok and "color" in f:
+        f["color"] = [round(c, 4) for c in own[0]]
+    body = cfg.get("body", {})
+    if mat != body.get("mat") and f.get("paint") == "body":
+        f.pop("paint")
+        f["surface"] = f["tag"] = mat[2:] if mat.startswith("m_") else mat
+    if mat == body.get("mat"):
+        f = dict(f, ue="paint_silver", paint="body", surface="paint__body", tag="paint")
+        f["color"] = body.get("color") or f.get("color")
+        f["metallic"], f["roughness"] = body.get("metallic", 0.3), body.get("roughness", 0.28)
+    return f
+
+
+def _std(front_rim_in, rear_rim_in, fw, rw, usd, tread, twin=False):
+    return {"fork_usd": usd, "front_rim": round(front_rim_in * 25.4 / 2), "rear_rim": round(rear_rim_in * 25.4 / 2),
+            "front_width": fw, "rear_width": rw, "twin_shock": twin, "tread_front": tread, "tread_rear": tread}
+
+
+AUTO = {
+    "ducati_monster": {"name": "Ducati Monster 890", "brand": "Ducati", "family_name": "Monster", "style": "naked",
+                       "blend": "Ducati_Monster_890_2026_Blender(4.2)\\ducati_monster_890_2026.blend",
+                       "body": {"mat": "m_paint_red", "color": RED}, "stats": _std(17, 17, 120, 180, True, "sport")},
+    "honda_cb1000gt": {"name": "Honda CB1000 GT", "brand": "Honda", "family_name": "CB1000 GT", "style": "adventure", "faired": True,
+                       "blend": "Honda_CB1000_GT_2026_Blender(4.2)\\honda_cb1000_gt_2026.blend",
+                       "body": {"mat": "m_paint_black", "color": [0.025, 0.026, 0.03], "metallic": 0.6}, "stats": _std(17, 17, 120, 180, True, "touring")},
+    "kawasaki_eliminator": {"name": "Kawasaki Eliminator 500", "brand": "Kawasaki", "family_name": "Eliminator", "style": "cruiser",
+                            "blend": "Kawasaki_Eliminator_500_2024_Blender(4.2)\\kawasaki_eliminator_500_2024.blend",
+                            "body": {"mat": "m_paint_black", "color": [0.02, 0.02, 0.022], "metallic": 0.5}, "stats": _std(18, 16, 130, 150, False, "cruiser", True)},
+    "kawasaki_kle500": {"name": "Kawasaki KLE 500", "brand": "Kawasaki", "family_name": "KLE", "style": "adventure", "faired": True,
+                        "blend": "Kawasaki_KLE_500_2026_Blender(4.2)\\kawasaki_kle_500_2026.blend",
+                        "body": {"mat": "m_paint_white", "metallic": 0.0}, "stats": _std(21, 17, 90, 130, True, "trail"),
+                        "drop_mats": ["m_skin", "m_plastic_black_helmet"]},
+    "kawasaki_klr650": {"name": "Kawasaki KLR 650", "brand": "Kawasaki", "family_name": "KLR", "style": "adventure", "faired": True,
+                        "blend": "Kawasaki_KLR_650_2023_Blender(4.2)\\kawasaki_klr_650_2023.blend",
+                        "body": {"mat": "m_paint_grey", "metallic": 0.1}, "stats": _std(21, 17, 90, 130, False, "trail")},
+    "kawasaki_ninja7": {"name": "Kawasaki Ninja 7 Hybrid", "brand": "Kawasaki", "family_name": "Ninja 7", "style": "sport", "faired": True,
+                        "blend": "Kawasaki_Ninja_7_Hybrid_2024_Blender(4.2)\\kawasaki_ninja_7_hybrid_2024.blend",
+                        "body": {"mat": "m_paint_white", "color": [0.62, 0.63, 0.64], "metallic": 0.4}, "stats": _std(17, 17, 110, 150, False, "sport")},
+    "kawasaki_z650s": {"name": "Kawasaki Z650 S", "brand": "Kawasaki", "family_name": "Z650", "style": "naked",
+                       "blend": "Kawasaki_Z650_S_2026_Blender(4.2)\\kawasaki_z650_s_2026.blend",
+                       "body": {"mat": "m_paint_green", "metallic": 0.2}, "stats": _std(17, 17, 120, 160, False, "sport")},
+    "kawasaki_z900": {"name": "Kawasaki Z900", "brand": "Kawasaki", "family_name": "Z900", "style": "naked",
+                      "blend": "Kawasaki_Z900_2025_Blender(4.2)\\kawasaki_z900_2025.blend",
+                      "body": {"mat": "m_paint_grey", "color": [0.16, 0.165, 0.17], "metallic": 0.6}, "stats": _std(17, 17, 120, 180, False, "sport")},
+    "kawasaki_z1100": {"name": "Kawasaki Z1100", "brand": "Kawasaki", "family_name": "Z1100", "style": "naked",
+                       "blend": "Kawasaki_Z_1100_2026_Blender(4.2)\\kawasaki_z_1100_2026.blend",
+                       "body": {"mat": "m_paint_black", "color": [0.02, 0.021, 0.024], "metallic": 0.5}, "stats": _std(17, 17, 120, 190, True, "sport")},
+    "kawasaki_zh2": {"name": "Kawasaki Z H2", "brand": "Kawasaki", "family_name": "Z H2", "style": "naked",
+                     "blend": "Kawasaki_Z_H2_2021_Blender(4.2)\\kawasaki_z_h2_2021.blend",
+                     "body": {"mat": "m_paint_black", "color": [0.03, 0.031, 0.034], "metallic": 0.6}, "stats": _std(17, 17, 120, 190, True, "sport")},
+    "kawasaki_zx4rr": {"name": "Kawasaki ZX-4RR", "brand": "Kawasaki", "family_name": "ZX-4RR", "style": "sport", "faired": True,
+                       "blend": "Kawasaki_ZX4RR_2024_Blender(4.2)\\kawasaki_zx_4rr_2024.blend",
+                       "body": {"mat": "m_paint_green", "color": [0.16, 0.6, 0.02], "metallic": 0.3}, "stats": _std(17, 17, 120, 160, True, "sport")},
+    "kawasaki_zx6r": {"name": "Kawasaki ZX-6R", "brand": "Kawasaki", "family_name": "ZX-6R", "style": "sport", "faired": True,
+                      "blend": "Kawasaki_ZX_6R_2024_Blender(4.2)\\kawasaki_zx_6r_2024.blend",
+                      "body": {"mat": "m_paint_green", "color": [0.12, 0.55, 0.02], "metallic": 0.3}, "stats": _std(17, 17, 120, 180, True, "sport")},
+    "ktm_1390sa": {"name": "KTM 1390 Super Adventure S", "brand": "KTM", "family_name": "1390 Super Adventure", "style": "adventure", "faired": True,
+                   "blend": "KTM_1390_Super_Adventure_2026_Blender(4.2)\\ktm_1390 _super_adventure_2026.blend",
+                   "body": {"mat": "m_paint_orange", "metallic": 0.1}, "stats": _std(19, 17, 120, 170, True, "trail")},
+    "yamaha_tracer9": {"name": "Yamaha Tracer 9 GT", "brand": "Yamaha", "family_name": "Tracer 9", "style": "adventure", "faired": True,
+                       "blend": "Yamaha_Tracer_9_GT_2025_Blender(4.2)\\yamaha_tracer_9_2025.blend",
+                       "body": {"mat": "m_paint_black", "color": [0.045, 0.047, 0.05], "metallic": 0.6}, "stats": _std(17, 17, 120, 180, True, "touring")},
+}
+for _k, _v in AUTO.items():
+    _v["auto"] = True
+    MODELS[_k] = _v
+    BLENDS[_k] = _v["blend"]
