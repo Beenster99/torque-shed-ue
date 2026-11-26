@@ -319,3 +319,12 @@ if(MSVC)
 else()
   target_compile_options(studio_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# [birds] Ride UK's wild birds (World/WorldRideBirds): out of the hedges now and then, none at night, the same on every co-op machine.
+add_executable(bird_test bird_test.cpp ${WORLD}/WorldRideBirds.cpp)
+target_include_directories(bird_test PRIVATE ${WORLD})
+if(MSVC)
+  target_compile_options(bird_test PRIVATE /W4)
+else()
+  target_compile_options(bird_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
