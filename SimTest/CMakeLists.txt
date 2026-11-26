@@ -199,6 +199,7 @@ if(NOT WIN32)
     ${DASH}/TftMap.cpp ${DASH}/TftMapFill.cpp ${DASH}/TftPlannerMap.cpp)
   target_include_directories(world_ride PRIVATE ${WORLD} ${FIT} ${WORLD}/..)
 target_sources(world_ride PRIVATE ${WORLD}/WorldRideForecourtKit.cpp)   # [forecourts]
+target_sources(world_ride PRIVATE rules_dump.cpp)   # [road rulebook stage 2]
   target_compile_definitions(world_ride PRIVATE TORQUE_SIMTEST="${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(world_ride PRIVATE Threads::Threads)
   target_compile_options(world_ride PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)

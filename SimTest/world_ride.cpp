@@ -69,6 +69,9 @@ static std::vector<int> LaidRoads(const RidePlan& P)
 
 static std::string GTmp;
 
+// [road rulebook stage 2] (rules_dump.cpp) WORLD_RIDE_RULES=<file>: what the road rules checker reads.
+void RulesDump(const RidePlan& Plan, const std::string& Path);
+
 // [stage 8] The landmark bridges a ride carries, made as hero pieces.
 static void SayHeroes(const RidePlan& Plan)
 {
@@ -3021,6 +3024,7 @@ int main(int Argc, char** Argv)
 			if (const char* Df = std::getenv("WORLD_RIDE_JINDEX_DUMP")) Files::Write(Df, Dump);
 		}
 	}
+	if (const char* RulesOut = std::getenv("WORLD_RIDE_RULES")) RulesDump(*Plan, RulesOut);   // [road rulebook stage 2]
 	if (std::getenv("WORLD_RIDE_JCHECK") != nullptr)
 	{
 		const Region& G = Plan->Area.Roads;
