@@ -677,13 +677,43 @@ bool ATorqueFerry::Follow()
 	return true;
 }
 
+int32 ATorqueFerry::DeckFrame(const UWorld* World, const FVector& At, FTransform& Out)
+{
+	if (!World) return 0;
+	for (TActorIterator<ATorqueFerry> It(const_cast<UWorld*>(World)); It; ++It)
+		if (It->Boat && It->ListRow >= 0 && It->IsSailing() && It->OnBoard(At, -60.0))
+		{
+			Out = It->Boat->GetComponentTransform();
+			return It->ListRow + 1;
+		}
+	return 0;
+}
+
+bool ATorqueFerry::DeckFrameOf(const UWorld* World, int32 Deck, FTransform& Out)
+{
+	if (!World || Deck <= 0) return false;
+	for (TActorIterator<ATorqueFerry> It(const_cast<UWorld*>(World)); It; ++It)
+		if (It->Boat && It->ListRow == Deck - 1)
+		{
+			Out = It->Boat->GetComponentTransform();
+			return true;
+		}
+	return false;
+}
+
 void ATorqueFerry::Carry(const FTransform& From, const FTransform& To)
 {
 	TArray<ATorqueBikePawn*> All;
 	Riders(All);
 	for (ATorqueBikePawn* P : All)
 	{
-		if (!P->IsLocallyControlled()) continue;   // (a mate's bike is drawn from their snapshots)
+		if (!P->IsLocallyControlled())
+		{
+			// (a mate's bike and feet are drawn from their snapshots, in the deck's frame out here: only where their
+			// body last stood goes with the deck, for its walk)
+			if (P->IsNetWalking() && OnBoard(P->NetWalkerAt(), -60.0)) P->CarryNetWalker(From, To);
+			continue;
+		}
 		const bool bFeet = P->IsOnFoot() && OnBoard(P->FeetAt());
 		const bool bBike = P->IsOnFoot() && OnBoard(P->GetActorLocation());
 		if (bFeet || bBike) P->FerryCarry(From, To, bFeet, bBike);

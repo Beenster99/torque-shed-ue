@@ -136,6 +136,10 @@ struct End
 	P2 DeckEnd;                  // the boat's deck's end over the water, the ramp's hinge, while tied up here
 	P2 Berth;                    // the boat's middle while tied up here
 	double RampDown = 0.0;       // how far down from level its ramp lies on the slipway (radians)
+	// [build 174 feedback] A long route's leg out from here (or in): its far end, out along the route's own line where
+	// that keeps the boat off the land better than straight out along the slipway (Mallaig, Armadale's bay).
+	P2 Offing;
+	bool bOffing = false;
 };
 struct Layout
 {

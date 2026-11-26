@@ -49,6 +49,10 @@ public:
 	static constexpr double SeaAbs = 0.4;
 	static constexpr int SeaMin = 400;
 	static constexpr double SeaDepth = 35.0;
+	// [build 174 feedback] (beenster, Ardrossan: the ferry through the ground. The fine survey there draws the sea flat
+	// at 1.4 m, over SeaAbs, a kilometre of grass where the harbour's water is.) Outside the coast's land rings, ground
+	// this low is the sea's top as the survey drew it: sea.
+	static constexpr double CoastSeaTop = 3.0;
 	// How far under the pixels round it (m) a pixel is a pit in the source, not the ground.
 	static constexpr double SpikeM = 40.0;
 	static constexpr int SeaCells = 16;
@@ -108,7 +112,7 @@ public:
 private:
 	std::string PathOf(const TileKey& Key, bool* InDisk) const;
 	std::string NonePath(const TileKey& Key, bool* InDisk) const;
-	std::vector<uint8_t> SeaMask(const HeightTile& T, const TileKey* Key) const;
+	std::vector<uint8_t> SeaMask(HeightTile& T, const TileKey* Key) const;
 	std::vector<uint8_t> SeaAllowed(int Size, const TileKey& Key) const;
 
 	struct Held
