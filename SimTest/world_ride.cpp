@@ -176,10 +176,10 @@ int main(int Argc, char** Argv)
 		const char* KitOff = std::getenv("WORLD_RIDE_CHURCHES");
 		if ((!KitOff || std::string(KitOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.json"), KitText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.bin"), KitBin)) SetChurchKit(KitText, KitBin);
-		std::string WhText, WhBin;   // [warehouses] (WORLD_RIDE_WAREHOUSES=0: the plain drawn sheds, to compare)
+		std::string WhText, WhBin;   // [warehouses] (WORLD_RIDE_WAREHOUSES=0: the plain drawn sheds, to compare; WORLD_RIDE_WAREHOUSE_YARDS=0: no yard props)
 		const char* WhOff = std::getenv("WORLD_RIDE_WAREHOUSES");
 		if ((!WhOff || std::string(WhOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.json"), WhText)
-			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.bin"), WhBin)) SetWarehouseKit(WhText, WhBin);
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.bin"), WhBin)) SetWarehouseKit(WhText, WhBin, !std::getenv("WORLD_RIDE_WAREHOUSE_YARDS") || std::string(std::getenv("WORLD_RIDE_WAREHOUSE_YARDS")) != "0");
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")

@@ -264,6 +264,29 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 	const double Tallest = Detail >= 1 ? 0.0 : Detail == 0 ? 40.0 : 80.0;
 	std::set<int> Done;
 	const std::shared_ptr<const WarehouseKit> Kit = WarehouseKitNow();   // [warehouses]
+	// [warehouses stage 3] The yards' and car parks' props: near squares only, and no more than this many
+	// triangles of them in a square (a big estate's trailers and fences stop there).
+	long long YardBudget = Detail >= 2 ? 160000 : 50000;
+	const auto YardClear = [this](double Px, double Pz)
+	{
+		if (UnderTower(Px, Pz)) return false;
+		NearOpts Opts;
+		NearHit Hit;
+		if (NearestOf(Px, Pz, Opts, Hit) && Hit.Dist < Hit.Half + 2.5) return false;
+		double Rd = 0.0, RTop = 0.0;
+		int ROn = 0;
+		if (NearRail(Px, Pz, Rd, RTop, ROn) && Rd < 6.0) return false;
+		double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+		if (NearWater(Px, Pz, Wd, Ws, Wh, Wdp) && Wd < Wh + 3.0) return false;
+		return std::isnan(StillLevel(Px, Pz));
+	};
+	const auto YardGround = [this](double Px, double Pz) { return Ground(Px, Pz); };
+	const auto YardRoad = [this](double Px, double Pz)
+	{
+		NearOpts Opts;
+		NearHit Hit;
+		return NearestOf(Px, Pz, Opts, Hit) ? Hit.Dist - Hit.Half : 1e9;
+	};
 	for (int Cz = int(std::floor(Z0 / TowerCell)); Cz <= int(std::floor((Z0 + Size - 0.001) / TowerCell)); ++Cz)
 		for (int Cx = int(std::floor(X0 / TowerCell)); Cx <= int(std::floor((X0 + Size - 0.001) / TowerCell)); ++Cx)
 		{
@@ -340,6 +363,8 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 						if (!std::isnan(Y0) && High - Low < 6.0)
 						{
 							BuildWarehouse(*Kit, Kit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Y0, Low, Detail, Out);
+							if (Inside(T.Mid))   // [warehouses stage 3] (its yard by the square its middle is in)
+								DressYard(*Kit, Kit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Detail, YardClear, YardGround, YardRoad, YardBudget, Out);
 							continue;
 						}
 					}

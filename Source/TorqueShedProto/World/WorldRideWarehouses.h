@@ -6,9 +6,12 @@
 // piece stretched to the outline, so one design fits any size of building. Built into the square's own
 // meshes (sheet walls and roofs in M_RideRoof, brick in M_RideBrick, concrete in M_RideRender), so it takes
 // the game's materials. The same shed for every rider (all from the map and a seed).
+// [stage 3, Nov 26: everyday kits plan] Ten designs now (a supermarket and a terrace of shop units for the
+// retail parks), every sign board given a made-up name, and the yards dressed round them (DressYard).
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -31,6 +34,24 @@ struct WarehousePiece
 	size_t Vertices() const { return PartOf.size(); }
 };
 
+// [warehouses stage 3] A sign board's face on a piece, in its frame: its middle, the way it faces (x, z), its
+// width and height (m), and the kind of made-up name it carries ("shop", "store", "firm", "trade", "estate").
+struct WarehouseSign
+{
+	double X = 0.0, Y = 0.0, Z = 0.0, Fx = 0.0, Fz = 1.0, W = 1.0, H = 0.5;
+	std::string Kind;
+};
+
+// [warehouses stage 3] A yard's or car park's prop (Tools/blender_estate_props.py): its piece, centred, x along
+// it, z towards its front; L long, D deep, H high (m).
+struct WarehouseProp
+{
+	std::string Name;
+	int Piece = -1;
+	double L = 1.0, D = 1.0, H = 1.0;
+	std::vector<WarehouseSign> Signs;
+};
+
 struct WarehouseDesign
 {
 	std::string Name, Label, Roof;   // Roof: "curve", "pitch", "multi" or "flat"
@@ -42,14 +63,19 @@ struct WarehouseDesign
 	std::vector<std::string> Classes;
 	double ShortLo = 0.0, ShortHi = 1e9, AreaLo = 0.0, AreaHi = 1e9, Ratio = 0.0, Weight = 1.0;
 	std::map<std::string, int> Pieces;      // its pieces ("long:D", "roof:L", ...) in the kit's list
+	std::map<std::string, std::vector<WarehouseSign>> Signs;   // [stage 3] the pieces' sign faces
 	int Piece(const std::string& Key) const { auto It = Pieces.find(Key); return It == Pieces.end() ? -1 : It->second; }
+	bool Retail() const;   // [stage 3] a shop's (S, M, U, G bays on its front): a car park before it, not a yard
 };
 
 struct WarehouseKit
 {
 	std::vector<WarehouseDesign> Designs;
 	std::vector<WarehousePiece> Pieces;
+	std::vector<WarehouseProp> Props;   // [stage 3]
 	double StretchLo = 0.55, StretchHi = 1.8;
+	bool Yards = true;                  // [stage 3] dress the yards and car parks (-TorqueWarehouseYards=0: not)
+	int Prop(const std::string& Name) const;
 	// The design for a building of the map's Class, Long by Short (m), Seed in [0, 1) its own; -1 if none suits.
 	int Pick(const std::string& Class, double Long, double Short, double Seed) const;
 };
@@ -59,7 +85,7 @@ std::string ExpandBays(const std::string& Pattern, int N);
 
 // Reads the designs (JSON) and the pieces (warehouse_kit.bin); false if either isn't one. Kept for every
 // ride after (thread safe); until then none (the drawn sheds stay).
-bool SetWarehouseKit(const std::string& Json, const std::string& Bin);
+bool SetWarehouseKit(const std::string& Json, const std::string& Bin, bool Yards = true);
 std::shared_ptr<const WarehouseKit> WarehouseKitNow();
 
 // One shed of design D on an oblong: Corner its front wall's left end (seen from outside) on the ground,
@@ -68,4 +94,18 @@ std::shared_ptr<const WarehouseKit> WarehouseKitNow();
 // Returns the triangles laid.
 size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
 	double Long, double Short, double Y, double Low, int Detail, RideMesh& Out);
+
+// [warehouses stage 3] A made-up name for a sign of the given kind ("shop", "store", "firm", "trade", "estate",
+// "retailpark"), from two rolls in [0, 1). Common family names and everyday words: no real firm's name.
+std::string WarehouseName(const std::string& Kind, double Roll, double Roll2);
+
+// [warehouses stage 3] What stands round a shed of design D laid as BuildWarehouse laid it: lorry trailers at its
+// docks, vans by its roller doors, skips, pallets, a container, a gas cage, bins, yard lamps, a palisade fence
+// with a sliding gate and the estate's name board before an industrial shed's yard; trolley shelters before a
+// supermarket. Clear says whether a point is free ground (no road, building, railway or water); Ground its
+// height; RoadDist how far a point is from the nearest road. Only at Detail 1 and 2; each prop only while
+// Budget (triangles) lasts. Returns the triangles laid.
+size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
+	double Long, double Short, int Detail, const std::function<bool(double, double)>& Clear, const std::function<double(double, double)>& Ground,
+	const std::function<double(double, double)>& RoadDist, long long& Budget, RideMesh& Out);
 } // namespace TorqueWorld
