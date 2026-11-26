@@ -388,6 +388,9 @@ int main(int Argc, char** Argv)
 		// ([everyday kits stage 6] WORLD_RIDE_VILLAGE=0: without the village set, to compare)
 		if (std::getenv("WORLD_RIDE_VILLAGE") != nullptr && std::string(std::getenv("WORLD_RIDE_VILLAGE")) == "0")
 			for (int K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign; ++K) Plan->PropModelled[K] = false;
+		// ([everyday kits stage 9] WORLD_RIDE_POWER=0: the skyline's code shapes, to compare)
+		if (std::getenv("WORLD_RIDE_POWER") != nullptr && std::string(std::getenv("WORLD_RIDE_POWER")) == "0")
+			for (int K = RidePlan::PropPowerPylon; K <= RidePlan::PropPowerPalisade; ++K) Plan->PropModelled[K] = false;
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -3887,6 +3890,17 @@ int main(int Argc, char** Argv)
 									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
 								KitPropText += Buf;
 							}
+						// ([everyday kits stage 9] the power set's models, which SkylineTile lays near: ... stretch scale)
+						RideMesh Sky;
+						Sky.OriginX = Tx;
+						Sky.OriginZ = Tz;
+						Plan->SkylineTile(Tx, Tz, 64.0, 2, Sky);
+						for (const RideProp& P : Sky.Props)
+						{
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Sky.OriginX + P.X - Centre.X,
+								Sky.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale));
+							KitPropText += Buf;
+						}
 					}
 					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
 					for (const RideProp& P : Stands.Props)

@@ -419,7 +419,7 @@ def write_kinds(out):
     # (each kind's height: its models' tallest; they must agree, or they'd be scaled to fit)
     kinds = {}
     for name, (nt, y0, y1) in out.items():
-        if name.endswith("_LOD1"):
+        if name.endswith("_LOD1") or name.endswith("_LOD2"):
             continue
         kind = name[len("SM_Prop_"):].rsplit("_", 1)[0]
         kinds.setdefault(kind, []).append(y1 - y0)
@@ -428,8 +428,10 @@ def write_kinds(out):
     for kind, hs in kinds.items():
         if max(hs) - min(hs) > 0.06:
             print("note: %s models differ in height %s: scaled to %.2f" % (kind, [round(h, 2) for h in hs], max(hs)))
-        reach, shadow = KINDS[kind]
-        row = {"words": [], "reach": reach, "height": round(float(max(hs)), 3), "shadow": shadow, "credit": "", "hand_lods": [0.12]}
+        # (a kind's row: reach, shadow, and its hand-made LODs' screen sizes when not the one at 0.12)
+        reach, shadow = KINDS[kind][:2]
+        hand = KINDS[kind][2] if len(KINDS[kind]) > 2 else [0.12]
+        row = {"words": [], "reach": reach, "height": round(float(max(hs)), 3), "shadow": shadow, "credit": "", "hand_lods": hand}
         head = '  "%s": ' % kind
         for i, ln in enumerate(lines):
             if ln.startswith(head):

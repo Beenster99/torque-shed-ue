@@ -1934,7 +1934,8 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "farm_diesel", "farm_muck",
                     "play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
                     "pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin",
-                    "village_sign")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "village_sign",
+                    "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
@@ -2162,7 +2163,7 @@ def prop_kit(L):
                 pass
             # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
             # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
-            if name.endswith("_LOD1"):
+            if name.endswith("_LOD1") or name.endswith("_LOD2"):
                 continue   # ([everyday kits] a hand-made distance version: set on its model below)
             kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
             lods = spec["kinds"].get(kind, {}).get("lods")
@@ -2174,8 +2175,14 @@ def prop_kit(L):
                     if sme.get_lod_count(mesh) > 1:
                         sme.remove_lods(mesh)
                     sme.set_lod_from_static_mesh(mesh, 1, ours[name + "_LOD1"], 0, True)
+                    screens = [1.0, float(hand[0])]
+                    # ([everyday kits stage 9] a second hand-made one, _LOD2, from hand_lods' second screen size:
+                    # the pylons and masts seen kilometres off)
+                    if len(hand) > 1 and (name + "_LOD2") in ours:
+                        sme.set_lod_from_static_mesh(mesh, 2, ours[name + "_LOD2"], 0, True)
+                        screens.append(float(hand[1]))
                     try:
-                        sme.set_lod_screen_sizes(mesh, [1.0, float(hand[0])])
+                        sme.set_lod_screen_sizes(mesh, screens)
                     except Exception as e:
                         unreal.log_warning("[Torque] props: %s: LOD screen size not set (%s)" % (name, e))
                     log("props: %s: hand-made LOD1" % name)

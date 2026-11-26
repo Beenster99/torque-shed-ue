@@ -116,13 +116,13 @@ def tinted(coll, rgb):
     return new
 
 
-def place(coll, x, z, y, yaw, pitch=0.0, sx=1.0):
+def place(coll, x, z, y, yaw, pitch=0.0, sx=1.0, sc=1.0):
     e = bpy.data.objects.new("i", None)
     e.instance_type = "COLLECTION"
     e.instance_collection = coll
     e.location = (x, -z, y)
     e.rotation_euler = (0.0, pitch, yaw)
-    e.scale = (sx, 1.0, 1.0)
+    e.scale = (sx * sc, sc, sc)
     bpy.context.scene.collection.objects.link(e)
 
 
@@ -165,7 +165,7 @@ def main(argv):
                 coll = load_glb(os.path.join(DATA, "Props", "SM_Prop_%s_0.glb" % p[0]))
             if coll is not None:
                 # (the ride's yaw turns x towards z, south: here towards -y; its pitch lifts the far end)
-                place(coll, float(p[2]), float(p[3]), float(p[4]), -float(p[5]), -float(p[6]), float(p[7]))
+                place(coll, float(p[2]), float(p[3]), float(p[4]), -float(p[5]), -float(p[6]), float(p[7]), float(p[8]) if len(p) > 8 else 1.0)
         for line in open(a.dump + ".walls") if os.path.exists(a.dump + ".walls") else []:
             p = line.split()
             coll = load_glb(os.path.join(DATA, "Walls", "SM_Prop_%s_%s.glb" % (p[0], p[1])))
