@@ -116,6 +116,8 @@ int main(int Argc, char** Argv)
 		{"zx6r", [&Make] { FSpec S = Make("inline", 4, 636, 1400, 16000, "full", "flat"); S.Own = "zx6r"; return S; }(), true},
 		{"ktm1390", [&Make] { FSpec S = Make("vtwin", 2, 1350, 1300, 10200, "stock", "75v"); S.Own = "ktm1390"; return S; }(), true},
 		{"tracer9", [&Make] { FSpec S = Make("triple", 3, 890, 1250, 11000, "stock", "240"); S.Own = "tracer9"; return S; }(), true},
+		{"kle500", [&Make] { FSpec S = Make("parallel", 2, 451, 1200, 10000, "stock", "180"); S.Own = "kle500"; return S; }(), true},
+		{"klr650", [&Make] { FSpec S = Make("single", 1, 652, 1200, 7500, "stock", "single"); S.Own = "klr650"; return S; }(), true},
 		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
 		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
@@ -131,7 +133,7 @@ int main(int Argc, char** Argv)
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
 		// (these recordings are only a tickover: the bike standing, its blips too quick to loop)
-		const double OwnIdle = C.S.Own == "panigale" ? 1350.0 : (C.S.Own == "ktm1390" ? 1550.0 : (C.S.Own == "tracer9" ? 1370.0 : 0.0));
+		const double OwnIdle = C.S.Own == "panigale" ? 1350.0 : (C.S.Own == "ktm1390" ? 1550.0 : (C.S.Own == "tracer9" ? 1370.0 : (C.S.Own == "kle500" ? 1300.0 : (C.S.Own == "klr650" ? 1540.0 : 0.0))));
 		if (OwnIdle > 0.0)
 			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - OwnIdle) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
 		if (!C.S.Own.empty() && OwnIdle == 0.0)
