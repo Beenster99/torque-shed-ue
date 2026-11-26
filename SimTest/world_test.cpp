@@ -3,6 +3,7 @@
 // one road graph, and the ground's height, each checked against what the Godot game answers on the
 // same files (data/world/godot_world.json, written by Tools/make_godot_reference.py --world).
 #include "WorldFerries.h"
+#include "WorldRideHouseKit.h"
 #include "CellStore.h"
 #include "FitJson.h"
 #include "HeightTiles.h"
@@ -328,6 +329,45 @@ int main()
 			Ok = Ok && Vk->Pick(C, 20.0, 9.0, 0.4) >= 0;
 		std::printf("      village kit: %d designs\n", Vk ? int(Vk->Designs.size()) : 0);
 		Check(Ok, "village kit: five school designs read; schools sorted into its classes, houses and tall schools left alone");
+	}
+	// [house kit] The detached house kit: read whole; a design picked for a footprint it fits and none for one it
+	// doesn't; the weatherboarded ones only where allowed; each design's look lighter further off; one laid into
+	// the meshes (instancing off) as many triangles as its finest look.
+	{
+		std::string HkText, HkBin;
+		const bool HkRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_kit.json"), HkText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_kit.bin"), HkBin)
+			&& SetHouseKit(HkText, HkBin);
+		const std::shared_ptr<const HouseKit> Hk = HouseKitNow();
+		bool Ok = HkRead && Hk && Hk->Designs.size() >= 24;
+		int Lighter = 0, Boarded = 0;
+		size_t Laid = 0, Look0 = 0;
+		if (Ok)
+		{
+			const HouseDesign& E0 = Hk->Designs[0];
+			Ok = Ok && Hk->Pick(E0.Set, E0.L, E0.W, 0.3, false) >= 0 && Hk->Pick("estate", 40.0, 30.0, 0.3, false) < 0;
+			for (int S = 0; S < 40; ++S)
+			{
+				const int P = Hk->Pick("render", 9.0, 8.0, S / 40.0, false);
+				Boarded += P >= 0 && Hk->Designs[size_t(P)].Boards() ? 1 : 0;
+			}
+			for (int D = 0; D < int(Hk->Designs.size()); ++D)
+			{
+				RideMesh M0, M1, M2;
+				const size_t T0 = HouseLookMesh(*Hk, D, 0, 0, M0), T1 = HouseLookMesh(*Hk, D, 0, 1, M1), T2 = HouseLookMesh(*Hk, D, 0, 2, M2);
+				Lighter += T0 > T1 && T1 > T2 && T2 > 0 ? 1 : 0;
+			}
+			SetHouseInstancing(false);
+			RideMesh A, B, C, Dm, E, F;
+			RideMesh* const Into[6] = {&A, &B, &C, &Dm, &E, &F};
+			RideMesh L0;
+			Look0 = HouseLookMesh(*Hk, 0, 0, 0, L0);
+			Laid = PlaceHouse(*Hk, 0, 0, 100.0, 50.0, 10.0, 1.0, 0.0, 0.0, -1.0, 1.0, 1.0, Into);
+		}
+		Ok = Ok && Boarded == 0 && Lighter == int(Hk->Designs.size()) && Laid == Look0 && Laid > 2000;
+		std::printf("      house kit: %d designs, %d lighter further off, %zu triangles laid (finest look %zu), %d weatherboarded where not allowed\n",
+			Hk ? int(Hk->Designs.size()) : 0, Lighter, Laid, Look0, Boarded);
+		Check(Ok, "house kit: designs read; picked by footprint; weatherboarding only where allowed; each look lighter further off; a house laid whole");
+		SetHouseInstancing(Ok);   // (from here on as in the game: the kit's houses handed over as instances, not in the square's meshes)
 	}
 	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
 	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.

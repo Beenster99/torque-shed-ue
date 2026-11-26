@@ -6,6 +6,7 @@
 #include "WorldRideEaves.h"
 #include "WorldRideFarms.h"
 #include "WorldRideVillage.h"
+#include "WorldRideHouseKit.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRideSigns.h"
 #include "WorldRideWarehouses.h"
@@ -95,6 +96,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	const std::shared_ptr<const HouseTypes> Types = HouseTypesNow();   // [towns stage 4]
 	const std::shared_ptr<const WarehouseKit> FarmKit = FarmKitNow();   // [everyday kits stage 4]
 	const std::shared_ptr<const WarehouseKit> VillageKit = VillageKitNow();   // [everyday kits stage 6]
+	const std::shared_ptr<const HouseKit> HouseSet = HouseKitNow();   // [house kit]
+	// [house kit] (how many boxes each outline was cut into here: only a house drawn as one box takes a kit house)
+	std::unordered_map<int, int> OutlineBoxes;
 	// [everyday kits stage 10] (the kits bake's beach huts near the square: a building on one is a hut, whatever its kind)
 	std::vector<P2> HutsHere;
 	if (PropModelled[PropCoastBeachHut])
@@ -457,6 +461,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 			}
 	}
+	if (HouseSet)
+		for (const Candidate& Each : Here)
+			if (Each.Piece != nullptr && Each.Piece->Outline >= 0) ++OutlineBoxes[Each.Piece->Outline];
 	for (const Candidate& Each : Here)
 	{
 		const Building& B = *Each.B;
@@ -686,6 +693,83 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const bool PlainGlazing = Period && Period->Window == 3;   // (modern: casements, no bars)
 		const LocalLook::EWindow WinKind = Period && Period->Window >= 0 ? (PlainGlazing ? LocalLook::Casement : LocalLook::EWindow(Period->Window)) : Look.Window;
 		if (Tally && HouseKind >= 0) ++Tally->HouseKinds[HouseKind];
+		// [house kit] A detached house the map draws as one box, a footprint one of the kit's designs fits: that
+		// design in place of the drawn house, fronting its road (beenster Nov 26: house packs as the look to aim for).
+		// The set by when it was built (new estates brick, older ones villas), rendered or boarded as the place is;
+		// a street's houses mostly of one set and colour, each its own design.
+		if (HouseSet && IsHouse && !Big && !Ruin && !GlassHouse && !InRow && !LongRow && Each.Floors < 4.0
+			&& (HouseKind == HouseTypes::Detached || Kind == "detached")
+			&& (Each.Piece == nullptr || Each.Piece->Outline < 0 || OutlineBoxes[Each.Piece->Outline] <= 1))
+		{
+			const P2 Al = LongX ? P2(Cs, -Sn) : P2(Sn, Cs), Ac = LongX ? P2(Sn, Cs) : P2(Cs, -Sn);
+			P2 Toward(B.X + Ac.X, B.Z + Ac.Z);
+			{
+				NearOpts Opts;
+				NearHit Hit;
+				if (NearestOf(B.X, B.Z, Opts, Hit)) Toward = Hit.Foot;
+			}
+			const double Tx = Toward.X - B.X, Tz = Toward.Z - B.Z;
+			const double OnAc = Tx * Ac.X + Tz * Ac.Z, OnAl = Tx * Al.X + Tz * Al.Z;
+			// (its front the side of the box towards the road: a long side, or an end where the road lies off it)
+			const bool EndOn = std::fabs(OnAl) > std::fabs(OnAc) * 1.6;
+			const P2 Nf = EndOn ? (OnAl >= 0.0 ? Al : Al * -1.0) : (OnAc >= 0.0 ? Ac : Ac * -1.0);
+			const P2 Uf(Nf.Z, -Nf.X);
+			const double Front = 2.0 * (EndOn ? HalfShort : HalfLong), Deep = 2.0 * (EndOn ? HalfLong : HalfShort);
+			const std::string PeriodName = Period ? Period->Name : std::string("modern");
+			const double SetRoll = Chance(StreetX, StreetZ, 1301);
+			const bool Villa = PeriodName == "victorian" || (PeriodName == "interwar" && SetRoll < 0.6) || (Front * Deep > 120.0 && SetRoll < 0.5);
+			const bool RenderSet = Chance(StreetX + 7.0, StreetZ, 1302) < std::fmin(0.85, double(Look.RenderShare) * 1.1 + (Seaside ? 0.25 : 0.0));
+			const char* First = RenderSet ? "render" : Villa ? "villa" : "estate";
+			const char* Second = RenderSet ? (Villa ? "villa" : "estate") : Villa ? "estate" : "render";
+			const double DesignRoll = Chance(B.X, B.Z, 1303);
+			int Design = HouseSet->Pick(First, Front, Deep, DesignRoll, Seaside);
+			if (Design < 0) Design = HouseSet->Pick(Second, Front, Deep, DesignRoll, Seaside);
+			double Low = Base, High = Base;
+			for (double Su : {-1.0, 1.0})
+				for (double Sv : {-1.0, 1.0})
+				{
+					const double Gy = Ground(B.X + Al.X * HalfLong * Su + Ac.X * HalfShort * Sv, B.Z + Al.Z * HalfLong * Su + Ac.Z * HalfShort * Sv);
+					if (std::isnan(Gy)) continue;
+					Low = std::fmin(Low, Gy);
+					High = std::fmax(High, Gy);
+				}
+			if (Design >= 0 && High - Low < 2.2)
+			{
+				const HouseDesign& Hd = HouseSet->Designs[size_t(Design)];
+				// (the colourway: buff where the place's brick is yellow, else mostly red, a street alike)
+				const double CwRoll = Chance(StreetX, StreetZ + 3.0, 1304);
+				const bool Yellow = Look.BrickColour.R > 0.01f && Look.BrickColour.G / Look.BrickColour.R > 0.55f;
+				int Cw = 0;
+				const int Cws = int(Hd.Colours.size());
+				if (Hd.Set == "estate") Cw = Yellow ? 1 : CwRoll < 0.62 ? 0 : CwRoll < 0.86 ? 2 : 1;
+				else Cw = int(CwRoll * Cws);
+				Cw = std::clamp(Cw, 0, std::max(0, Cws - 1));
+				const double Sx = std::clamp(Front / Hd.L, 0.82, 1.2), Sz = std::clamp(Deep / Hd.W, 0.82, 1.2);
+				RideMesh* const HouseInto[6] = {&Out, &Houses, &RoofOut, &BrickOut, &Washed, &Out.NightOf()};
+				PlaceHouse(*HouseSet, Design, Cw, B.X, B.Z, Base, Uf.X, Uf.Z, Nf.X, Nf.Z, Sx, Sz, HouseInto);
+				// (on a slope, a dark brick skirt from under its walls down to the ground at its low side)
+				if (Low < Base - 0.5)
+				{
+					const double Hx = Hd.L * Sx * 0.5, Hz = Hd.W * Sz * 0.5;
+					const P2 Cn[4] = {P2(B.X - Uf.X * Hx - Nf.X * Hz, B.Z - Uf.Z * Hx - Nf.Z * Hz), P2(B.X + Uf.X * Hx - Nf.X * Hz, B.Z + Uf.Z * Hx - Nf.Z * Hz),
+						P2(B.X + Uf.X * Hx + Nf.X * Hz, B.Z + Uf.Z * Hx + Nf.Z * Hz), P2(B.X - Uf.X * Hx + Nf.X * Hz, B.Z - Uf.Z * Hx + Nf.Z * Hz)};
+					static const Rgb Skirt = {0.035f, 0.032f, 0.034f};
+					for (int K = 0; K < 4; ++K)
+					{
+						const P2 A = Cn[K], C2 = Cn[(K + 1) % 4];
+						const double Ga = Ground(A.X, A.Z), Gc = Ground(C2.X, C2.Z);
+						const double Ya = std::isnan(Ga) ? Low : Ga, Yc = std::isnan(Gc) ? Low : Gc;
+						if (std::fmin(Ya, Yc) > Base - 0.55) continue;
+						const P2 Mid((A.X + C2.X) * 0.5, (A.Z + C2.Z) * 0.5);
+						const P3 Away = At3(Mid.X + (Mid.X - B.X) * 4.0, Base, Mid.Z + (Mid.Z - B.Z) * 4.0);
+						Quad(BrickOut, At3(A.X, std::fmin(Ya, Base - 0.55) - 0.3, A.Z), At3(C2.X, std::fmin(Yc, Base - 0.55) - 0.3, C2.Z),
+							At3(C2.X, Base - 0.5, C2.Z), At3(A.X, Base - 0.5, A.Z), Away, Skirt, false, 0.1f);
+					}
+				}
+				if (Tally) { ++Tally->Drawn; ++Tally->HouseKit; }
+				continue;
+			}
+		}
 		// The roof's shape: the map's, else gabled; a flat-roofed block where the map has tar paper
 		// or concrete on top.
 		enum class ERoof { Gabled, Hipped, Flat, Skillion };

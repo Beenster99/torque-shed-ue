@@ -316,6 +316,8 @@ private:
 	// laid into the squares as before, to compare.
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMesh>> KitLooks;
 	void BuildKitLooks();
+	// [house kit] (a house design's look among KitLooks: its design x 8 + colourway, past the warehouse pieces')
+	static int32 HouseLookKey(int32 DesignCw) { return 0x40000000 + DesignCw; }
 	void PlaceKitParts(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 	int32 PropsShown = 0;
 	FVector AnimalFrame = FVector(0.0, 1.0, 1.0);

@@ -15,6 +15,7 @@
 #include "WorldRideWarehouses.h"
 #include "WorldRideFarms.h"
 #include "WorldRideVillage.h"
+#include "WorldRideHouseKit.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
@@ -194,6 +195,11 @@ int main(int Argc, char** Argv)
 		const char* VkOff = std::getenv("WORLD_RIDE_VILLAGE");
 		if ((!VkOff || std::string(VkOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.json"), VkText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.bin"), VkBin)) SetVillageKit(VkText, VkBin);
+		std::string HkText, HkBin;   // [house kit] (WORLD_RIDE_HOUSE_KIT=0: the drawn houses, to compare)
+		const char* HkOff = std::getenv("WORLD_RIDE_HOUSE_KIT");
+		if ((!HkOff || std::string(HkOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_kit.json"), HkText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_kit.bin"), HkBin) && SetHouseKit(HkText, HkBin))
+			std::printf("house kit: %d designs\n", HouseKitNow() ? (int)HouseKitNow()->Designs.size() : 0);
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
@@ -642,6 +648,7 @@ int main(int Argc, char** Argv)
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
 			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]
+			std::printf("House kit: %d detached houses from the kit\n", Tally.HouseKit);   // [house kit]
 			{
 				// [towns stage 6] (the heritage lamps among the street lamps there, with WORLD_RIDE_FACADE)
 				int Heritage = 0;

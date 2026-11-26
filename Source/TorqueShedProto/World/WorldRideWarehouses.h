@@ -84,6 +84,10 @@ struct WarehouseKit
 // A pattern ("OO E D* R") filled out to N bays: the letter before a '*' repeated to fill.
 std::string ExpandBays(const std::string& Pattern, int N);
 
+// [house kit] The pieces of a kit file in this format ("TSWK"): into Pieces, each one's place by its name into
+// Named; false if it isn't one.
+bool ReadKitPieces(const std::string& Bin, std::vector<WarehousePiece>& Pieces, std::map<std::string, int>& Named);
+
 // Reads the designs (JSON) and the pieces (warehouse_kit.bin); false if either isn't one. Kept for every
 // ride after (thread safe); until then none (the drawn sheds stay).
 bool SetWarehouseKit(const std::string& Json, const std::string& Bin, bool Yards = true);

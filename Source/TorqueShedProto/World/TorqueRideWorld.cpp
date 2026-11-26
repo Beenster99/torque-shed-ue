@@ -34,6 +34,7 @@
 #include "World/WorldRide.h"
 #include "World/WorldRideCircuits.h"
 #include "World/WorldRideWarehouses.h"
+#include "World/WorldRideHouseKit.h"
 #include "World/WorldFiles.h"
 #include "Coop/TorqueAwards.h"
 #include "Coop/TorqueLaps.h"
@@ -2555,6 +2556,45 @@ void ATorqueRideWorld::BuildKitLooks()
 {
 	KitLooks.Reset();
 	TorqueWorld::SetWarehouseInstancing(false);
+	// [house kit] Each design of detached house in each of its colourways as one mesh with three levels of detail
+	// (close, middle, far: the parts tagged for each), drawn as instances wherever a square has one of them.
+	TorqueWorld::SetHouseInstancing(false);
+	if (const std::shared_ptr<const TorqueWorld::HouseKit> Hk = TorqueWorld::HouseKitNow(); Hk && URidePart::StaticLooks())
+	{
+		const double HouseStart = FPlatformTime::Seconds();
+		int32 HouseMeshes = 0, HouseTris = 0;
+		bool bHouses = true;
+		static const TArray<float> HouseScreens = {1.0f, 0.16f, 0.045f};
+		for (int32 D = 0; D < int32(Hk->Designs.size()) && bHouses; ++D)
+			for (int32 Cw = 0; Cw < int32(Hk->Designs[size_t(D)].Colours.size()) && Cw < 8; ++Cw)
+			{
+				TorqueWorld::RideMesh Levels[3];
+				TArray<TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>> Lods;
+				for (int32 L = 0; L < 3; ++L)
+				{
+					TorqueWorld::RideMesh& Look = Levels[L];
+					const size_t Tris = TorqueWorld::HouseLookMesh(*Hk, D, Cw, L, Look);
+					if (L == 0) HouseTris += int32(Tris);
+					TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Kinds = Lods.AddDefaulted_GetRef();
+					Kinds.Emplace(&Look, RoadMaterial.Get());
+					Kinds.Emplace(Look.Masonry.get(), MasonryMaterial ? MasonryMaterial.Get() : RoadMaterial.Get());
+					Kinds.Emplace(Look.Roofing.get(), RoofMaterial.Get());
+					Kinds.Emplace(Look.Brickwork.get(), BrickMaterial.Get());
+					Kinds.Emplace(Look.Render.get(), RenderMaterial.Get());
+					Kinds.Emplace(Look.Night.get(), NightMaterial.Get());
+				}
+				UStaticMesh* Built = URidePart::BuildLookLods(this, Lods, HouseScreens);
+				if (!Built) { bHouses = false; break; }
+				KitLooks.Add(HouseLookKey(D * 8 + Cw), Built);
+				++HouseMeshes;
+			}
+		TorqueWorld::SetHouseInstancing(bHouses && HouseMeshes > 0);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: house kit as instances: %s, %d meshes, %d close-up triangles, %.0f ms"),
+			bHouses && HouseMeshes > 0 ? TEXT("yes") : TEXT("no (a mesh failed: laid into the squares)"), HouseMeshes, HouseTris, (FPlatformTime::Seconds() - HouseStart) * 1000.0);
+		if (!bHouses)
+			for (auto It = KitLooks.CreateIterator(); It; ++It)
+				if (It.Key() >= HouseLookKey(0)) It.RemoveCurrent();
+	}
 	int32 InstancesAsked = 1;
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseInstances="), InstancesAsked);
 	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
@@ -2584,7 +2624,9 @@ void ATorqueRideWorld::BuildKitLooks()
 			++Made;
 			Triangles += int32(Tris);
 		}
-	if (!bAll) KitLooks.Reset();
+	if (!bAll)
+		for (auto It = KitLooks.CreateIterator(); It; ++It)
+			if (It.Key() < HouseLookKey(0)) It.RemoveCurrent();
 	TorqueWorld::SetWarehouseInstancing(bAll && Made > 0);
 	UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit as instances: %s, %d meshes, %d triangles, %.0f ms"), bAll && Made > 0 ? TEXT("yes") : TEXT("no (a piece's mesh failed: laid into the squares)"),
 		Made, Triangles, (FPlatformTime::Seconds() - Start) * 1000.0);
@@ -2598,7 +2640,7 @@ void ATorqueRideWorld::PlaceKitParts(const FIntVector& Key, const TorqueWorld::R
 	TMap<int32, TArray<FTransform>> Groups;
 	for (const TorqueWorld::RideKitPart& P : Mesh.KitParts)
 	{
-		const int32 Look = P.Piece * 2 + (P.Near ? 0 : 1);
+		const int32 Look = P.Kit == 1 ? HouseLookKey(P.Piece) : P.Piece * 2 + (P.Near ? 0 : 1);
 		if (!KitLooks.Contains(Look)) continue;
 		const FMatrix Turn(FVector(P.Ax, P.Az, 0.0), FVector(P.Nx, P.Nz, 0.0), FVector::UpVector, FVector::ZeroVector);
 		Groups.FindOrAdd(Look).Add(FTransform(FQuat(Turn), FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), FVector(P.Sx, P.Sz, P.Sy)));

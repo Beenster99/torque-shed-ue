@@ -30,6 +30,7 @@
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
 #include "World/WorldRideWarehouses.h"
+#include "World/WorldRideHouseKit.h"
 #include "World/WorldRideFarms.h"
 #include "World/WorldRideVillage.h"
 #include "World/WorldRideCircuits.h"
@@ -283,6 +284,17 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			const std::shared_ptr<const TorqueWorld::WarehouseKit> Vk = TorqueWorld::VillageKitNow();
 			UE_LOG(LogTemp, Display, TEXT("Torque world: village kit: %d designs%s"), Vk ? int32(Vk->Designs.size()) : 0,
 				bVk ? TEXT("") : VillageAsked == 0 ? TEXT(" (off: -TorqueVillage=0)") : TEXT(" (none: Data/RideUK/village_kit.json or .bin unreadable; the drawn schools stay)"));
+		}
+		// [house kit] The detailed detached houses: our own designs of estate, villa and rendered houses, laid on the
+		// map's detached houses whose footprint one fits (no switch: beenster Nov 26, "no more switches").
+		{
+			std::string HkText, HkBin;
+			const std::string HkPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_kit.json")));
+			const std::string HkBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_kit.bin")));
+			const bool bHk = TorqueWorld::Files::Read(HkPath, HkText) && TorqueWorld::Files::Read(HkBinPath, HkBin) && TorqueWorld::SetHouseKit(HkText, HkBin);
+			const std::shared_ptr<const TorqueWorld::HouseKit> Hk = TorqueWorld::HouseKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: house kit: %d designs%s"), Hk ? int32(Hk->Designs.size()) : 0,
+				bHk ? TEXT("") : TEXT(" (none: Data/RideUK/house_kit.json or .bin unreadable; the drawn houses stay)"));
 		}
 		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
 		std::string HeightsText;

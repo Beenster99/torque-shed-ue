@@ -113,6 +113,7 @@ struct RideProp
 // up stretched Sy. (Ax, Az, Nx, Nz) always a proper turn: x, up, out right-handed as the frame's.
 struct RideKitPart
 {
+	int32_t Kit = 0;   // [house kit] 0 the warehouse kit's piece, 1 a house of the house kit (Piece: its design x 8 + colourway)
 	int32_t Piece = -1;
 	bool Near = true;
 	float X = 0.0f, Y = 0.0f, Z = 0.0f, Ax = 1.0f, Az = 0.0f, Nx = 0.0f, Nz = 1.0f, Sx = 1.0f, Sy = 1.0f, Sz = 1.0f;
@@ -1264,6 +1265,7 @@ public:
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
 		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
+		int HouseKit = 0;   // [house kit] detached houses built from the house kit
 		int VillageKit = 0;   // [everyday kits stage 6] schools built from the village kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
