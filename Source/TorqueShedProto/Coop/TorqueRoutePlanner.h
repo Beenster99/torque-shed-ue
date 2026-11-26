@@ -47,6 +47,7 @@ public:
 	// RideOnPicked. Unbound: off at once on the rider's bike as it stands.
 	TFunction<void()> PickBike;
 	bool bBikePicked = false;
+	bool bRideWhenReady = false;   // [ride bike] picked, waiting on the others (guests picking theirs): Ride once WaitingFor is ""
 	// [ride bike] The bike picked: Ride again, on it.
 	void RideOnPicked() { bBikePicked = true; Ride(); }
 	// [co-op] A host's: told the journey's code and name as it changes (for everyone's game to plan

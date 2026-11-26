@@ -438,6 +438,7 @@ bool ATorquePlayerController::DropInput(TArray<FRow>& List, int32 MoveX, int32 M
 
 void ATorquePlayerController::Back()
 {
+	if (Page == EPage::RideBike) AnswerRideBikeAsk();   // [ride bike] (Esc: the bike they have)
 	DropRow = DropCell = -1;
 	if (Stack.Num() > 0)
 	{
@@ -519,7 +520,11 @@ void ATorquePlayerController::OpenPlanner()
 		// (the ride's level opens itself once the road is planned)
 		Planner->OnRide = [this]() { CloseMenu(); };
 		// [ride bike] Ride asks which of the shed's bikes first (beenster, Nov 22).
-		Planner->PickBike = [this]() { OpenRideBikes(true); };
+		Planner->PickBike = [this]()
+		{
+			AskGuestsForBikes();   // [ride bike] the guests pick theirs as the host picks
+			OpenRideBikes(true);
+		};
 	}
 	// In co-op the journey is everyone's, and everyone plans it (beenster, build 141): any rider's pins
 	// go to the host and out to the others' planners, and each game plans its road as it changes.
@@ -564,8 +569,53 @@ FString ATorquePlayerController::RideWaitingFor() const
 		const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS);
 		if (!TPS || TPS == GetPlayerState<ATorquePlayerState>()) continue;
 		if (TPS->RideReadyFor != Code) Names.Add(TPS->GetPlayerName());
+		// [ride bike] Asked for their bike and not answered yet (for a minute at most).
+		else if (RideBikeAsk > 0 && TPS->RideBikeAnswered != RideBikeAsk && FPlatformTime::Seconds() - RideBikeAskedAt < RideBikeWaitS)
+			Names.Add(TPS->GetPlayerName() + TEXT(" (picking a bike)"));
 	}
 	return FString::Join(Names, TEXT(", "));
+}
+
+void ATorquePlayerController::AskGuestsForBikes()
+{
+	UWorld* World = GetWorld();
+	if (!World || GetNetMode() != NM_ListenServer) return;
+	++RideBikeAsk;
+	RideBikeAskedAt = FPlatformTime::Seconds();
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		ATorquePlayerController* Guest = Cast<ATorquePlayerController>(It->Get());
+		if (!Guest || Guest == this || Guest->IsLocalController()) continue;
+		Guest->ClientPickRideBike(RideBikeAsk);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque net: ride bike ask %d sent to the guests"), RideBikeAsk);
+}
+
+void ATorquePlayerController::ClientPickRideBike_Implementation(int32 Ask)
+{
+	// The host is setting off: this rider's WHICH BIKE? list, over whatever's up (the host waits).
+	RideBikeAsk = Ask;
+	if (Page == EPage::RideBike) return;
+	if (Page == EPage::None) Stack.Reset();
+	OpenRideBikes(false);
+	ShowNote(TEXT("The host is setting off: pick your bike for the ride"), 5.0);
+}
+
+void ATorquePlayerController::AnswerRideBikeAsk()
+{
+	if (RideBikeAsk <= 0) return;
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	ServerRideBikePicked(RideBikeAsk, Shed ? Shed->MyBike() : INDEX_NONE);
+	RideBikeAsk = 0;
+}
+
+void ATorquePlayerController::ServerRideBikePicked_Implementation(int32 Ask, int32 Bay)
+{
+	ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	if (!PS) return;
+	PS->Bay = FMath::Clamp(Bay, -1, 63);   // (before the host sets off, whatever the bay sync's timing)
+	PS->RideBikeAnswered = Ask;
+	UE_LOG(LogTemp, Log, TEXT("Torque net: %s picked bay %d's bike for the ride (ask %d)"), *PS->GetPlayerName(), Bay + 1, Ask);
 }
 
 FString ATorquePlayerController::JoinState(FString* Problem) const
@@ -655,6 +705,7 @@ void ATorquePlayerController::OpenSettings()
 
 void ATorquePlayerController::CloseMenu()
 {
+	if (Page == EPage::RideBike) AnswerRideBikeAsk();   // [ride bike]
 	DropRow = DropCell = -1;
 	Page = EPage::None;
 	Stack.Reset();
@@ -1252,6 +1303,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 						Shed->SetMyBike(Bay);
 						if (!bRideBikesForRide)
 						{
+							AnswerRideBikeAsk();   // [ride bike] (a guest the host asked: this one)
 							Back();
 							return;
 						}
@@ -1277,7 +1329,10 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			Add(TEXT("None of the shed's bikes is ready to ride"), FString(), TEXT("Finish one in the shed: everything fitted and bolted up"), nullptr);
 			R.Last().bDisabled = true;
 		}
-		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
+		Add(TEXT("Back"), FString(), FString(), [this]() {
+			AnswerRideBikeAsk();   // [ride bike] (a guest the host asked: the bike they have)
+			Back();
+		});
 		break;
 	}
 	case EPage::Settings:
