@@ -1577,12 +1577,33 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			if (Side.Pts[I].Along >= Mk.Along) return PaintedRingNear(Side.Pts[I].At, 30.0) >= 0;
 		return false;
 	}), Side.Mapped.end());
+	// ([smooth junctions stage 6, the road rulebook B1/B2] a mapped give-way by a mouth is the junction's own: the map's
+	// point is often a few metres back up the road, so the rule's line is painted, on the through road's edge, and the
+	// map's point goes. A mapped stop line stays the map's)
 	for (int End = 0; End < 2; ++End)
 	{
 		Mouth& M = Side.Mouths[End];
-		if (!M.Is || !M.GiveWay) continue;
+		if (!M.Is) continue;
+		const auto Near = [&Side, End](const MappedMark& Mk)
+		{
+			return (End == 0 ? Mk.Along : Side.Length - Mk.Along) < 25.0;
+		};
+		const auto Ours = [End](const MappedMark& Mk) { return Mk.Dir == 0 || (End == 0 ? Mk.Dir < 0 : Mk.Dir > 0); };
+		if (!M.Ring && Half >= 1.6)
+		{
+			bool Had = false, Stop = false;
+			for (const MappedMark& Mk : Side.Mapped)
+				if (Near(Mk) && Ours(Mk)) { Had = Had || Mk.Kind == "give_way"; Stop = Stop || Mk.Kind == "stop"; }
+			if (Had && !Stop)
+			{
+				M.GiveWay = true;
+				Side.Mapped.erase(std::remove_if(Side.Mapped.begin(), Side.Mapped.end(), [&](const MappedMark& Mk) { return Mk.Kind == "give_way" && Near(Mk) && Ours(Mk); }), Side.Mapped.end());
+				continue;
+			}
+		}
+		if (!M.GiveWay) continue;
 		for (const MappedMark& Mk : Side.Mapped)
-			if ((Mk.Kind == "give_way" || Mk.Kind == "stop") && (End == 0 ? Mk.Along : Side.Length - Mk.Along) < 25.0) M.GiveWay = false;
+			if ((Mk.Kind == "give_way" || Mk.Kind == "stop") && Near(Mk)) M.GiveWay = false;
 	}
 	return true;
 }
@@ -5237,19 +5258,66 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		const double ToLeft = Half / Slant;
 		// (the lane coming up to the junction is on the right, looking away from it; on the left where
 		// the traffic keeps right)
-		const double U0 = Half >= 2.5 ? 0.0 : ToLeft, U1 = KeepLeft() || Half < 2.5 ? -ToLeft : ToLeft;
+		// ([smooth junctions stage 6, the road rulebook B4] across the whole road where its lane would be under 2.75 m or
+		// it is one way (TSM3 3.2.3-3.2.4); was under 2.5 m)
+		const bool WholeWidth = Half < 2.75 || Pts[size_t(End == 0 ? 0 : Count - 1)].OneWay;
+		const double U0 = !WholeWidth ? 0.0 : ToLeft, U1 = KeepLeft() || WholeWidth ? -ToLeft : ToLeft;
 		const double Lo = std::fmin(U0, U1) + 0.15, Hi = std::fmax(U0, U1) - 0.15;
 		static constexpr double Backs[2] = {0.2, 0.7};
+		// (on whichever is the higher there: the side road's surface or the threshold's)
+		const auto Top = [&](const P2& At) { return WholeMouth ? PieceH(At) + 0.004 : std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.025; };
 		for (int Bk = 0; Bk < (M.Ring ? 1 : 2); ++Bk)
 			for (double U = Lo; U + 0.6 <= Hi + 1e-9; U += 0.9)
 			{
 				const double Back = Backs[Bk];
 				const P2 A0 = M.At + M.Along * U + M.Across * (Back - 0.1), A1 = M.At + M.Along * (U + 0.6) + M.Across * (Back - 0.1);
 				const P2 B0 = A0 + M.Across * 0.2, B1 = A1 + M.Across * 0.2;
-				// (on whichever is the higher there: the side road's surface or the threshold's)
-				const auto Top = [&](const P2& At) { return WholeMouth ? PieceH(At) + 0.004 : std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.025; };
 				Quad3(At3(A0, Top(A0)), At3(A1, Top(A1)), At3(B1, Top(B1)), At3(B0, Top(B0)), Sky, Paint, false);
 			}
+		if (M.Ring) continue;
+		// ([smooth junctions stage 6, the road rulebook B3] the other half: a 1009A broken edge line on along the ride's
+		// road's edge, 0.6 m dashes, 0.3 m gaps, 0.1 m wide)
+		if (!WholeWidth)
+		{
+			const double Xo = std::fmin(0.0, KeepLeft() ? ToLeft : -ToLeft), Xi = std::fmax(0.0, KeepLeft() ? ToLeft : -ToLeft);
+			for (double U = Xo + 0.15; U + 0.6 <= Xi - 0.15 + 1e-9; U += 0.9)
+			{
+				const P2 A0 = M.At + M.Along * U + M.Across * 0.1, A1 = M.At + M.Along * (U + 0.6) + M.Across * 0.1;
+				const P2 B0 = A0 + M.Across * 0.1, B1 = A1 + M.Across * 0.1;
+				Quad3(At3(A0, Top(A0)), At3(A1, Top(A1)), At3(B1, Top(B1)), At3(B0, Top(B0)), Sky, Paint, false);
+			}
+		}
+		// ([smooth junctions stage 6, the road rulebook B5] the give-way triangle (diagram 1023), mid approach lane, its base
+		// 2.4 m behind the line, 3.75 m long and 1.25 m across, drawn as its outline 0.2 m wide)
+		{
+			const double LaneMid = WholeWidth && (Pts[size_t(End == 0 ? 0 : Count - 1)].OneWay || Half < 2.0) ? 0.0 : Half * 0.5;
+			const P2 Lat = Left * (KeepLeft() ? -1.0 : 1.0);
+			const double Base = std::fmin(1.25, std::fmax(0.6, Half - 0.4));
+			// (its nearer base corner 2.4 m from the line's far edge (0.8 m out), square to the line: on a slanted road the
+			// corner nearer the line, not the base's middle; 2.4 m along the road set it 0.5 to 1.8 m off)
+			const double Lead = (3.2 - LaneMid * Dot(Lat, M.Across) + Base * 0.5 * std::fabs(Dot(Left, M.Across))) / std::fmax(0.3, Dot(M.Away, M.Across));
+			const P2 Foot = M.At + M.Away * Lead + Lat * LaneMid;
+			const P2 Tip = Foot + M.Away * 3.75, Bl = Foot + Left * (Base * 0.5), Br = Foot - Left * (Base * 0.5);
+			const P2 Centre = (Bl + Br + Tip) * (1.0 / 3.0);
+			const auto TriTop = [&](const P2& At) { return WholeMouth ? PieceH(At) + 0.004 : Surface(Which, At, MouthH) + 0.01; };
+			// (none on a road steeper than 1 in 5 there: its outline stood in steps on the slope, Camden)
+			if (std::fabs(TriTop(Tip) - TriTop(Foot)) > 0.75 || std::fabs(TriTop(Bl) - TriTop(Br)) > 0.25) continue;
+			for (const std::pair<P2, P2>& E : {std::make_pair(Bl, Br), std::make_pair(Br, Tip), std::make_pair(Tip, Bl)})
+			{
+				const P2 D = E.second - E.first;
+				const double L = D.Length();
+				if (L < 1e-6) continue;
+				P2 In(D.Z / L, -D.X / L);
+				if (Dot(Centre - E.first, In) < 0.0) In = In * -1.0;
+				const int Steps = int(std::ceil(L / 0.5));
+				for (int S = 0; S < Steps; ++S)
+				{
+					const P2 P0 = E.first + D * (double(S) / Steps), P1 = E.first + D * (double(S + 1) / Steps);
+					const P2 Q0 = P0 + In * 0.2, Q1 = P1 + In * 0.2;
+					Quad3(At3(P0, TriTop(P0)), At3(P1, TriTop(P1)), At3(Q1, TriTop(Q1)), At3(Q0, TriTop(Q0)), Sky, Paint, false);
+				}
+			}
+		}
 	}
 	// [places stage 2] A pull-off made for a place beside this bit of road: gravel (the verge's grit, so
 	// M_RideRoad draws it in the gravel scan) from the road's edge out to its depth, tapering at its ends,
