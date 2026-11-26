@@ -49,6 +49,8 @@ public:
 	// [Ride UK] The journey code (the host's, ATorqueGameState::RideJourney) whose road this player's
 	// game has planned, ready to set off on it ("" for none).
 	UPROPERTY(Replicated) FString RideReadyFor;
+	// [ride bike] The host's own note (not sent): the host's bike ask this rider last answered.
+	int32 RideBikeAnswered = 0;
 	// [places stage 7] How many places this player has visited (their profile's list) and the last, for the
 	// others' info panels.
 	UPROPERTY(Replicated) int32 PlacesVisited = 0;

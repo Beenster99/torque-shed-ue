@@ -4842,6 +4842,7 @@ void ATorqueBikePawn::StepLights(float Dt, bool bRemote)
 	const float Day = LightGs ? LightGs->GetDayLight() : 1.0f;
 	const bool bRunning = bRemote ? Lights.bIgnition : Sim->EngineOn;
 	const double TurnRate = -Sim->AngularVelocity.y;   // (sim y is up: + turning right, as bike_lamps.gd)
+	Lights.SetOwnBike(!bRemote);   // [night lights]
 	const int32 Heard = Lights.Step(Dt, bRunning, FrontBrake, RearBrake, Sim->LeanAngle, TurnRate, !bRemote, Day);
 	if (Heard != 0 && !bRemote)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this))

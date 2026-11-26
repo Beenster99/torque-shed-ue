@@ -135,7 +135,9 @@ int main()
 		Sample C = Ride(10.0);
 		C.Crashed = true;
 		T.Step(C);
-		Check(std::fabs(T.V[Safest] - 35.0) < 0.5, "an off takes 15");
+		Check(std::fabs(T.V[Safest] - 45.0) < 0.5, "an off takes a tenth of what's left");
+		for (int I = 0; I < 6; ++I) { T.Step(C); C.Crashed = false; T.Step(Ride(10.0)); C.Crashed = true; }
+		Check(T.V[Safest] > 10.0, "seven offs still leave a score that tells riders apart");
 		Tracker Short;
 		Short.Step(Ride(10.0));
 		Check(Short.V[Safest] == 0.0, "no score for no ride");

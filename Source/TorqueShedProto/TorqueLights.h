@@ -53,6 +53,12 @@ struct FTorqueLights
 	// their groups (the headlight turns with the bars). bShadows: the headlight casts shadows (our own
 	// bike; others' bikes' lamps don't, to keep co-op cheap).
 	void Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Meshes, bool bShadows);
+	// [night lights] Whose bike this is, each frame (build 175 co-op at night: "a sort of speckled effect and
+	// shadow trails from others lights"). Hook always made shadowed beams, so every friend's moving lamps
+	// redrew their shadows and fed Lumen's bounce and the fog's haze each frame, which smear behind a
+	// moving light. Others' bikes: beams unshadowed, no bounce, no haze. Ours: shadows kept, a little bounce.
+	void SetOwnBike(bool bOwn);
+	int8 OwnShown = -1;
 
 	// The switches as the keys work them. Each returns what to say on the HUD ("Main beam on",
 	// "No fog lights on this bike"); bOk false when it couldn't.
