@@ -2555,12 +2555,10 @@ void ATorqueRideWorld::BuildKitLooks()
 {
 	KitLooks.Reset();
 	TorqueWorld::SetWarehouseInstancing(false);
-	int32 InstancesAsked = 1;
-	FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseInstances="), InstancesAsked);
 	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
-	if (!Wk || InstancesAsked == 0 || !URidePart::StaticLooks())
+	if (!Wk || !URidePart::StaticLooks())
 	{
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : InstancesAsked == 0 ? TEXT("laid into the squares (-TorqueWarehouseInstances=0)") : TEXT("laid into the squares (no static looks)"));
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : TEXT("laid into the squares (no static looks)"));
 		return;
 	}
 	const double Start = FPlatformTime::Seconds();

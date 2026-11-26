@@ -312,8 +312,8 @@ private:
 	void PlaceProps(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 	// [warehouses, round 175 fps] The warehouse kit's pieces as their own meshes, made once at the ride's start
 	// (piece * 2, +1 for the middle detail's), and each square's pieces drawn as their instances: building the
-	// kit's triangles into every square's mesh cost the game thread ~10 ms a frame at Swanley. -TorqueWarehouseInstances=0:
-	// laid into the squares as before, to compare.
+	// kit's triangles into every square's mesh cost the game thread ~10 ms a frame at Swanley. No switch
+	// (beenster Nov 26); laid into the squares only if the game's static looks are off.
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMesh>> KitLooks;
 	void BuildKitLooks();
 	void PlaceKitParts(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
