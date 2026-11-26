@@ -933,6 +933,10 @@ public:
 		// [everyday kits stage 10] The coast set (Tools/blender_coast_props.py, two hand-made distance versions each):
 		// beach huts, a sea wall's parapet, a promenade's railing and its lifebuoy housings, laid by CoastProps
 		PropCoastBeachHut, PropCoastSeaWall, PropCoastPromRail, PropCoastLifebuoy,
+		// [everyday kits stage 5b] The lay-by and roadside cafe set (Tools/blender_roadside_props.py, two hand-made
+		// distance versions each): catering trailers and their flags, the blue lay-by sign, a roadside cafe's board,
+		// laid by RoadsideProps (with the village set's litter bins and the OSM kit's picnic tables)
+		PropRoadBurgerVan, PropRoadFlag, PropRoadLaybySign, PropRoadCafeSign,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1539,6 +1543,36 @@ public:
 	std::unordered_map<long long, std::vector<int>> ForecourtGrid;   // by the 64 m square each's canopy is in
 	int FuelSeen = 0;                       // fuel stops looked at (Forecourts.size() of them made)
 	static constexpr double ForecourtDepth = 24.0, ForecourtLeast = 13.0;
+	// [everyday kits stage 5b] The lay-bys (World/WorldRideRoadside.cpp, IndexRoadside, from IndexTownLife): at each
+	// of the kits bake's lay-bys (the map's parking=layby, not a town's street_side) beside a road a forecourt may
+	// open off, a strip of tarmac LaybyLong along the road's edge and up to LaybyDeep out, its ends tapering in (a
+	// field area, FieldForecourt's), made where a forecourt would be (clear of buildings, walls, water and other
+	// roads, off bridges, straight and level enough). Its things (RoadsideThings): a litter bin at its far end, the
+	// blue P sign before it, a picnic table behind some, a catering trailer and its flag on some of the A roads';
+	// and at a roadside cafe (the map's cafe or fast food out of town, near an A or B road) its board before it
+	// each way on the left verge, pointing to it, and a trailer where the map says it's a van.
+	struct Layby
+	{
+		std::vector<P2> Ring;
+		P2 RoadMid, RoadDir, Out;   // (the road's middle beside its middle, the road's way there, out to it: unit)
+		double Half = 0.0, Depth = 0.0;
+		uint32_t Seed = 1;
+		bool Tarmac = false;        // (an A or B road's: tarmac; a lane's gravel, as a place's pull-off)
+	};
+	std::vector<Layby> RoadLaybys;
+	std::unordered_map<long long, std::vector<int>> LaybyGrid;   // by the 64 m square each's road middle is in
+	struct RoadsideThing
+	{
+		int Kind = 0;      // a prop kind (PropRoadBurgerVan, PropLitterBin, PropPicnicTable...)
+		P2 At, Front;      // where, and the way its front (+x) faces
+		int Variant = 0;
+		uint32_t Id = 1;
+	};
+	std::vector<RoadsideThing> RoadsideThings;
+	std::unordered_map<long long, std::vector<int>> RoadsideGrid;   // by the 64 m square each is in
+	int LaybysSeen = 0, RoadCafes = 0;   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
+	static constexpr double LaybyLong = 34.0, LaybyDeep = 3.2, LaybyLeast = 2.6;
+	void RoadsideProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its
 	// point on open level ground, fountains (a stone basin and its water, a pillar and bowl in the middle,

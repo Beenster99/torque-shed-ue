@@ -200,6 +200,10 @@ int main(int Argc, char** Argv)
 		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "1") RidePlan::WholeJunctions = true;   // [smooth junctions stage 3]
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
+		{
+			const char* RsOff = std::getenv("WORLD_RIDE_ROADSIDE");   // [everyday kits stage 5b] (=0: no lay-bys or roadside cafes)
+			SetRoadsideOn(!RsOff || std::string(RsOff) != "0");
+		}
 		std::string FcText, FcBin;   // [forecourts] (WORLD_RIDE_FORECOURTS=0: the plain drawn forecourts, to compare)
 		const char* FcOff = std::getenv("WORLD_RIDE_FORECOURTS");
 		if ((!FcOff || std::string(FcOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/forecourt_kit.json"), FcText)
@@ -400,6 +404,8 @@ int main(int Argc, char** Argv)
 		if (std::getenv("WORLD_RIDE_COAST") != nullptr && std::string(std::getenv("WORLD_RIDE_COAST")) == "0")
 			for (int K = RidePlan::PropCoastBeachHut; K <= RidePlan::PropCoastLifebuoy; ++K) Plan->PropModelled[K] = false;
 		std::printf("Coast things from the kits files: %d\n", int(Plan->Area.Roads.KitThings.size()));
+		std::printf("Lay-bys: %d made of %d mapped; roadside cafes signed: %d; roadside things: %d\n", int(Plan->RoadLaybys.size()), Plan->LaybysSeen, Plan->RoadCafes,
+			int(Plan->RoadsideThings.size()));
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -3701,6 +3707,40 @@ int main(int Argc, char** Argv)
 				break;
 			}
 		}
+		else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr || std::getenv("WORLD_RIDE_ROADTHING") != nullptr || std::getenv("WORLD_RIDE_SPOT") != nullptr)
+		{
+			// [everyday kits stage 5b] (or the nth lay-by made; or WORLD_RIDE_ROADTHING=kind,n: the nth roadside thing
+			// of that prop kind, RidePlan::PropRoadCafeSign's say)
+			P2 Spot(0.0, 0.0);
+			bool Got = false;
+			if (std::getenv("WORLD_RIDE_SPOT") != nullptr)   // (or WORLD_RIDE_SPOT=x,z: there, to compare with the set off)
+				Got = std::sscanf(std::getenv("WORLD_RIDE_SPOT"), "%lf,%lf", &Spot.X, &Spot.Z) == 2;
+			else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr)
+			{
+				const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_LAYBY")));
+				if (Nth < Plan->RoadLaybys.size())
+				{
+					const RidePlan::Layby& L = Plan->RoadLaybys[Nth];
+					Spot = L.RoadMid + L.Out * (L.Half + L.Depth * 0.5);
+					Got = true;
+					std::printf("lay-by %d of %d at %.1f, %.1f, %.1f m deep\n", int(Nth), int(Plan->RoadLaybys.size()), Spot.X, Spot.Z, L.Depth);
+				}
+			}
+			else
+			{
+				int Kind = 0, Nth = 0;
+				std::sscanf(std::getenv("WORLD_RIDE_ROADTHING"), "%d,%d", &Kind, &Nth);
+				for (const RidePlan::RoadsideThing& T : Plan->RoadsideThings)
+					if (T.Kind == Kind && Nth-- == 0) { Spot = T.At; Got = true; std::printf("%s at %.1f, %.1f\n", RidePlan::PropName(Kind), Spot.X, Spot.Z); break; }
+			}
+			if (Got)
+			{
+				Rect Round;
+				Round.X0 = Spot.X - 300.0; Round.Z0 = Spot.Z - 300.0; Round.X1 = Spot.X + 300.0; Round.Z1 = Spot.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = Spot;
+			}
+		}
 		else if (std::getenv("WORLD_RIDE_CHURCH") != nullptr)
 		{
 			// (or the nth church the map has, with its tower)
@@ -3952,7 +3992,7 @@ int main(int Argc, char** Argv)
 						std::vector<RideProp> Yard;
 						Plan->PropsTile(Tx, Tz, 64.0, Yard);
 						for (const RideProp& P : Yard)
-							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropCoastLifebuoy))
+							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropRoadCafeSign) || P.Kind == RidePlan::PropPicnicTable)
 							{
 								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
 									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
