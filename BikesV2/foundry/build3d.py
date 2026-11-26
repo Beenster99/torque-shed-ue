@@ -100,6 +100,45 @@ GAME_THIN = [float(v) for v in os.environ.get("BIKE_GAME_THIN", "2.0,0.3,0.6,0.5
 GAME_STAND = {}      # the fitted side stand's pivot and swing, for the game (points_mm "stand")
 
 
+def shell_normals(me, limit_deg):
+    """Custom corner normals for a thin shell: each corner is the area-weighted average of the faces round its
+    vertex whose normal is within limit_deg of the corner's own face (so the lip of a 4 mm shell stays a hard edge
+    and a corner never points away from its face)."""
+    import bmesh
+    import numpy as np
+    # in triangles first: a folded four-sided face's own normal is not that of either triangle the game gets
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+    nf, nl, nv = len(me.polygons), len(me.loops), len(me.vertices)
+    fn = np.zeros(nf * 3); me.polygons.foreach_get("normal", fn); fn = fn.reshape(-1, 3)
+    fa = np.zeros(nf); me.polygons.foreach_get("area", fa)
+    ls = np.zeros(nf, dtype=np.int64); me.polygons.foreach_get("loop_start", ls)
+    lt = np.zeros(nf, dtype=np.int64); me.polygons.foreach_get("loop_total", lt)
+    lv = np.zeros(nl, dtype=np.int64); me.loops.foreach_get("vertex_index", lv)
+    lf = np.repeat(np.arange(nf), lt)
+    order = np.argsort(lv, kind="stable")
+    starts = np.searchsorted(lv[order], np.arange(nv + 1))
+    c = math.cos(math.radians(limit_deg))
+    out = np.zeros((nl, 3))
+    for v in range(nv):
+        ring = order[starts[v]:starts[v + 1]]
+        if not len(ring):
+            continue
+        fs = lf[ring]
+        n_, w_ = fn[fs], fa[fs][:, None] + 1e-12
+        near = (n_ @ n_.T) >= c
+        acc = near.astype(float) @ (n_ * w_)
+        ln = np.linalg.norm(acc, axis=1, keepdims=True)
+        out[ring] = np.where(ln > 1e-12, acc / np.maximum(ln, 1e-12), n_)
+    if hasattr(me, "use_auto_smooth"):
+        me.use_auto_smooth = True
+    me.normals_split_custom_set([tuple(q) for q in out])
+
+
 def export_game(name, model, model_file=None):
     """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
     surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json. Every surface is one
@@ -115,6 +154,20 @@ def export_game(name, model, model_file=None):
     dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
     os.makedirs(dst, exist_ok=True)
     obs = [o for o in bpy.context.scene.objects if o.type in ("MESH", "CURVE")]
+    # A painted front mudguard drawn as one sheet and given its thickness by a Solidify is NOT thinned here:
+    # collapsing the finished 4 mm shell pulled its top and underside faces into each other, and the folded faces
+    # shaded black on the painted guard (build 174, 24 of 34 bikes); collapsing the sheet before it was thickened
+    # still crumpled the crown and spiked the tips. guard_blade draws the game's copy at half density instead.
+    sheet_thinned, guard_shells = set(), set()
+    for o in obs:
+        if o.type != "MESH" or not any(m and m.name.startswith(("paint", "accent")) for m in o.data.materials):
+            continue
+        if (game_parts.classify(o.name, model) or ("",))[0] != "front_mudguard":
+            continue      # only the mudguards for now: the fairing shells keep the look beenster passed
+        guard_shells.add(o.name)
+        if any(md.type == "SOLIDIFY" for md in o.modifiers):
+            sheet_thinned.add(o.name)
+    print("painted mudguards:", sorted(guard_shells) or "none", "left as drawn:", sorted(sheet_thinned) or "none")
     bpy.ops.object.select_all(action="DESELECT")
     for o in obs:
         o.select_set(True)
@@ -144,6 +197,8 @@ def export_game(name, model, model_file=None):
         if n < 100 or "tyre" in o.name or "rotor" in o.name or o.get("no_thin"):      # (a drilled disc is a flat face full of holes: left exactly as drawn; no_thin: thinned already, adv_wide3d.tidy)
             continue
         bpy.context.view_layer.objects.active = o
+        if o.name in sheet_thinned:
+            continue      # drawn at game density already (guard_blade)
         if any(m and m.name.startswith(("paint", "accent")) for m in o.data.materials):
             # paintwork shows every dent in its reflections: only halved, never flattened
             if n > 2500:
@@ -164,6 +219,13 @@ def export_game(name, model, model_file=None):
             md = o.modifiers.new("thin", "DECIMATE")
             md.ratio = ratio
             bpy.ops.object.modifier_apply(modifier=md.name)
+    # a mudguard shell's lip, its capped ends and its pinched nose tip (a few mm wide there and 4 mm thick) are hard
+    # edges: shading them smooth averaged the lip into the skins, so the skin's last faces each side faced away from
+    # their own normals and shaded black. Each corner of a painted mudguard gets the average of the faces round its
+    # vertex that lie within 60 degrees of its own face, so no corner can face away from its face.
+    for o in obs:
+        if o.name in guard_shells:
+            shell_normals(o.data, 60.0)
     bpy.context.view_layer.update()
     for o in obs:
         r = game_parts.classify(o.name, model)
@@ -809,6 +871,10 @@ def guard_blade(name, a, blade, hw, material, tight=False):
     down the side goes at each point round the wheel is read off the drawn blade outline, then faired
     so the blade grows out of the guard in a curve."""
     lo, hi, n, segs, K = a["r0"] - 14, a["r1"] + 4, 25 if DETAIL["on"] else 9, 80, 12
+    if "--game" in sys.argv:
+        # the game's copy is drawn at half the stations round the wheel rather than thinned afterwards: collapsing
+        # the finished shell folded it into black facets and spiked its tips (build 174)
+        segs = 40
     if tight and DETAIL["on"]:
         hi = tight + 11      # the crown a few mm off the tread, the edges following the tyre's shoulder down (beenster, sport round 2)
     c = tuple(a["c"])
