@@ -13,6 +13,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideWarehouses.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRideSigns.h"
@@ -169,6 +170,50 @@ int main()
 			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
 		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; towers, spires and bellcotes told apart, a tower stretched to its height; built with whole alpha");
 	}
+	// [warehouses] The warehouse kit: read; patterns filled out to any number of bays; a design picked for a big
+	// distribution shed, a trade terrace and a retail unit; a shed laid on an oblong 130 x 55 m turned 30 degrees,
+	// inside its outline (the roof's overhangs and the docks' shelters a little past it), whole alpha, fewer
+	// triangles at each step out.
+	{
+		std::string WhText, WhBin;
+		const bool WhRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.json"), WhText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.bin"), WhBin)
+			&& SetWarehouseKit(WhText, WhBin);
+		const std::shared_ptr<const WarehouseKit> Wk = WarehouseKitNow();
+		bool Ok = WhRead && Wk && Wk->Designs.size() == 10;
+		Ok = Ok && ExpandBays("OO E D* R", 9) == "OOEDDDDDR" && ExpandBays("OO E D* R", 4) == "OOED" && ExpandBays("T*", 3) == "TTT" && ExpandBays("R .", 4) == "R...";
+		const int Big = Ok ? Wk->Pick("warehouse", 130.0, 55.0, 0.4) : -1;
+		const int Terrace = Ok ? Wk->Pick("industrial", 70.0, 22.0, 0.2) : -1;
+		const int Shop = Ok ? Wk->Pick("retail", 60.0, 40.0, 0.5) : -1;
+		const int None = Ok ? Wk->Pick("school", 60.0, 40.0, 0.5) : -1;
+		Ok = Ok && Big >= 0 && Terrace >= 0 && Shop >= 0 && None < 0 && Wk->Designs[size_t(Shop)].Name == "WH_retail_park";
+		size_t Tris[3] = {0, 0, 0};
+		double Worst = 0.0;
+		const double A = 0.5235987755982988, Ux = std::cos(A), Uz = std::sin(A), Nx = Uz, Nz = -Ux;
+		for (int Detail = 2; Ok && Detail >= 0; --Detail)
+		{
+			RideMesh M;
+			M.OriginX = 1000.0;
+			M.OriginZ = 2000.0;
+			Tris[2 - Detail] = BuildWarehouse(*Wk, Wk->Designs[size_t(Big)], 1000.0, 2000.0, Ux, Uz, Nx, Nz, 130.0, 55.0, 50.0, 48.0, Detail, M);
+			for (const RideMesh* Mi : {&M, M.Roofing.get(), M.Brickwork.get(), M.Render.get()})
+			{
+				if (!Mi) continue;
+				Ok = Ok && Mi->Alpha.size() == Mi->Vertices() && Mi->Col.size() == Mi->Vertices() * 3 && Mi->Uv.size() == Mi->Vertices() * 2;
+				for (const uint32_t I : Mi->Idx) Ok = Ok && I < Mi->Vertices();
+				for (size_t V = 0; V < Mi->Vertices(); ++V)
+				{
+					const double Rx = Mi->Pos[V * 3] + Mi->OriginX - 1000.0, Rz = Mi->Pos[V * 3 + 2] + Mi->OriginZ - 2000.0;
+					const double Al = Rx * Ux + Rz * Uz, Out = Rx * Nx + Rz * Nz;
+					Worst = std::fmax(Worst, std::fmax(std::fmax(-Al, Al - 130.0), std::fmax(Out, -Out - 55.0)));
+				}
+			}
+		}
+		Ok = Ok && Worst < 3.5 && Tris[0] > Tris[1] && Tris[1] > Tris[2] && Tris[2] > 100;
+		std::printf("      warehouse kit: %s, %zu designs; picked %s, %s, %s; a 130 x 55 m shed %zu / %zu / %zu triangles, %.1f m at most past its outline\n", WhRead ? "read" : "unreadable",
+			Wk ? Wk->Designs.size() : size_t(0), Big >= 0 ? Wk->Designs[size_t(Big)].Name.c_str() : "-", Terrace >= 0 ? Wk->Designs[size_t(Terrace)].Name.c_str() : "-",
+			Shop >= 0 ? Wk->Designs[size_t(Shop)].Name.c_str() : "-", Tris[0], Tris[1], Tris[2], Worst);
+		Check(Ok, "warehouse kit: ten designs read; bay patterns filled; sheds, a terrace and a retail unit chosen by class and size; laid inside their outline, fewer triangles further off");
+	}
 	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
 	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.
 	{
@@ -192,6 +237,59 @@ int main()
 	std::string PlaceText;
 	const bool SignPlacesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "World/uk_places.tsv"), PlaceText) && SetSignPlaces(PlaceText);
 	(void)SignPlacesRead;
+	// [warehouses stage 3] The retail park and the yards: a supermarket chosen for a big supermarket outline, its
+	// signs given made-up names; a distribution shed's yard dressed (trailers at its docks, a fence, a gate) on
+	// open ground with a road 45 m off its front, nothing over the road or inside the shed, no more than the
+	// budget; none with the yards switched off, nor far off.
+	{
+		std::string WhText, WhBin;
+		const bool WhRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.json"), WhText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.bin"), WhBin)
+			&& SetWarehouseKit(WhText, WhBin);
+		std::shared_ptr<const WarehouseKit> Wk = WarehouseKitNow();
+		bool Ok = WhRead && Wk && Wk->Props.size() >= 20 && Wk->Prop("trailer_white") >= 0 && Wk->Prop("estate_board") >= 0;
+		const int Market = Ok ? Wk->Pick("supermarket", 100.0, 70.0, 0.5) : -1;
+		Ok = Ok && Market >= 0 && Wk->Designs[size_t(Market)].Name == "WH_supermarket" && Wk->Designs[size_t(Market)].Retail();
+		const std::string Shop = WarehouseName("shop", 0.31, 0.62), Store = WarehouseName("store", 0.7, 0.1), Estate = WarehouseName("estate", 0.2, 0.9);
+		Ok = Ok && !Shop.empty() && !Store.empty() && Estate.find(' ') != std::string::npos && WarehouseName("shop", 0.9, 0.1) != Shop;
+		size_t Letters = 0;
+		if (Ok)
+		{
+			RideMesh M;
+			BuildWarehouse(*Wk, Wk->Designs[size_t(Market)], 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 100.0, 70.0, 10.0, 10.0, 2, M);
+			Letters = M.Signs ? M.Signs->Idx.size() / 3 : 0;
+		}
+		// (a 130 x 55 m shed along x, its front facing -z at z = 0; the road 45 m off its front)
+		int Big = Ok ? Wk->Pick("warehouse", 130.0, 55.0, 0.4) : -1;
+		for (size_t I = 0; Ok && I < Wk->Designs.size(); ++I)
+			if (Wk->Designs[I].Name == "WH_big_box") Big = int(I);
+		const auto Clear = [](double X, double Z) { return Z > -43.0 && !(X > 0.0 && X < 130.0 && Z > 0.0 && Z < 55.0); };
+		const auto Flat = [](double, double) { return 20.0; };
+		const auto Road = [](double X, double Z) { return std::fabs(Z + 45.0) + std::fabs(X - 40.0) * 0.1; };
+		size_t Yard[3] = {0, 0, 0};
+		long long Spent = 0;
+		bool Inside = false;
+		for (int Way = 0; Ok && Way < 3; ++Way)
+		{
+			if (Way == 2) { SetWarehouseKit(WhText, WhBin, false); Wk = WarehouseKitNow(); }
+			RideMesh M;
+			long long Budget = 200000;
+			Yard[Way] = DressYard(*Wk, Wk->Designs[size_t(Big)], 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 130.0, 55.0, Way == 1 ? 0 : 2, Clear, Flat, Road, Budget, M);
+			if (Way == 0) Spent = 200000 - Budget;
+			for (size_t V = 0; V < M.Vertices(); ++V)
+			{
+				const double X = M.Pos[V * 3] + M.OriginX, Z = M.Pos[V * 3 + 2] + M.OriginZ;
+				Inside = Inside || Z < -44.0 || (X > 0.5 && X < 129.5 && Z > 0.5 && Z < 54.5);
+			}
+		}
+		SetWarehouseKit(WhText, WhBin);
+		long long Small = 900;
+		RideMesh Few;
+		const size_t Capped = Ok ? DressYard(*WarehouseKitNow(), WarehouseKitNow()->Designs[size_t(Big)], 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 130.0, 55.0, 2, Clear, Flat, Road, Small, Few) : 0;
+		std::printf("      retail park and yards: %s, %s and %s; a supermarket's signs %zu letter triangles; a big shed's yard %zu triangles (%zu far off, %zu yards off, %zu on a 900 budget)%s\n",
+			Shop.c_str(), Store.c_str(), Estate.c_str(), Letters, Yard[0], Yard[1], Yard[2], Capped, Inside ? ", SOME OVER THE ROAD OR IN THE SHED" : "");
+		Check(Ok && (Letters > 0 || !GlyphsRead) && Yard[0] > 3000 && size_t(Spent) == Yard[0] && Yard[1] == 0 && Yard[2] == 0 && Capped <= 900 && !Inside,
+			"retail park and yards: a supermarket for a supermarket, names on its signs; a shed's yard dressed clear of the road and the shed, within its budget; none far off or switched off");
+	}
 	if (!Files::Read(Files::Join(Data, "godot_world.json"), Text) || !Json::Parse(Text, Ref))
 	{
 		std::printf("FAIL  no godot_world.json in %s\n", Data.c_str());

@@ -7,6 +7,7 @@
 // The tall ones (40 m and more) stand far off too, plain. A box building under one is not drawn.
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
+#include "WorldRideWarehouses.h"
 
 #include <algorithm>
 #include <cmath>
@@ -262,6 +263,30 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 	// (far off only the tall ones: 40 m and over, then 80 m and over)
 	const double Tallest = Detail >= 1 ? 0.0 : Detail == 0 ? 40.0 : 80.0;
 	std::set<int> Done;
+	const std::shared_ptr<const WarehouseKit> Kit = WarehouseKitNow();   // [warehouses]
+	// [warehouses stage 3] The yards' and car parks' props: near squares only, and no more than this many
+	// triangles of them in a square (a big estate's trailers and fences stop there).
+	long long YardBudget = Detail >= 2 ? 160000 : 50000;
+	const auto YardClear = [this](double Px, double Pz)
+	{
+		if (UnderTower(Px, Pz)) return false;
+		NearOpts Opts;
+		NearHit Hit;
+		if (NearestOf(Px, Pz, Opts, Hit) && Hit.Dist < Hit.Half + 2.5) return false;
+		double Rd = 0.0, RTop = 0.0;
+		int ROn = 0;
+		if (NearRail(Px, Pz, Rd, RTop, ROn) && Rd < 6.0) return false;
+		double Wd = 0.0, Ws = 0.0, Wh = 0.0, Wdp = 0.0;
+		if (NearWater(Px, Pz, Wd, Ws, Wh, Wdp) && Wd < Wh + 3.0) return false;
+		return std::isnan(StillLevel(Px, Pz));
+	};
+	const auto YardGround = [this](double Px, double Pz) { return Ground(Px, Pz); };
+	const auto YardRoad = [this](double Px, double Pz)
+	{
+		NearOpts Opts;
+		NearHit Hit;
+		return NearestOf(Px, Pz, Opts, Hit) ? Hit.Dist - Hit.Half : 1e9;
+	};
 	for (int Cz = int(std::floor(Z0 / TowerCell)); Cz <= int(std::floor((Z0 + Size - 0.001) / TowerCell)); ++Cz)
 		for (int Cx = int(std::floor(X0 / TowerCell)); Cx <= int(std::floor((X0 + Size - 0.001) / TowerCell)); ++Cx)
 		{
@@ -279,6 +304,71 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 				const bool Worship = Among(C, {"church", "cathedral", "chapel", "mosque", "temple", "synagogue", "religious"});
 				const bool Shed = Among(C, {"industrial", "warehouse", "retail", "supermarket", "manufacture", "farm_auxiliary", "agricultural", "transportation", "garage", "sports_centre", "stadium", "grandstand"});
 				const bool Parking = C == "parking";
+				// [warehouses] A shed on an oblong outline: one of the warehouse kit's designs (WorldRideWarehouses.h),
+				// laid bay by bay along it, its front to the road, in place of the plain clad box below.
+				if (Shed && Kit && T.Base < 0.5 && T.Ring.size() >= 4 && T.Ring.size() <= 12)
+				{
+					// (the outline's tightest box, by each of its sides' directions: an oblong if it fills 85% of it)
+					double BestArea = 1e18, Bu0 = 0.0, Bu1 = 0.0, Bv0 = 0.0, Bv1 = 0.0;
+					P2 Dir(1.0, 0.0);
+					for (size_t K = 0; K < T.Ring.size(); ++K)
+					{
+						const P2 E = T.Ring[(K + 1) % T.Ring.size()] - T.Ring[K];
+						const double El = std::hypot(E.X, E.Z);
+						if (El < 1.0) continue;
+						const P2 Du = E * (1.0 / El), Dv(-Du.Z, Du.X);
+						double U0 = 1e18, U1 = -1e18, V0 = 1e18, V1 = -1e18;
+						for (const P2& Q : T.Ring)
+						{
+							const double Qu = Q.X * Du.X + Q.Z * Du.Z, Qv = Q.X * Dv.X + Q.Z * Dv.Z;
+							U0 = std::fmin(U0, Qu); U1 = std::fmax(U1, Qu); V0 = std::fmin(V0, Qv); V1 = std::fmax(V1, Qv);
+						}
+						if ((U1 - U0) * (V1 - V0) < BestArea) { BestArea = (U1 - U0) * (V1 - V0); Bu0 = U0; Bu1 = U1; Bv0 = V0; Bv1 = V1; Dir = Du; }
+					}
+					const P2 Dv(-Dir.Z, Dir.X);
+					const bool AlongU = Bu1 - Bu0 >= Bv1 - Bv0;
+					const double Long = std::fmax(Bu1 - Bu0, Bv1 - Bv0), Short = std::fmin(Bu1 - Bu0, Bv1 - Bv0);
+					const P2 Mid = Dir * ((Bu0 + Bu1) * 0.5) + Dv * ((Bv0 + Bv1) * 0.5);
+					const P2 Along = AlongU ? Dir : Dv;
+					const int Design = T.Floor >= 0.85 * BestArea && Short >= 6.0 ? Kit->Pick(C, Long, Short, Chance(Mid.X, Mid.Z, 131)) : -1;
+					if (Design >= 0)
+					{
+						// (its front, a long side, to the nearer road; the other way where none is near either)
+						P2 Out1(-Along.Z, Along.X);
+						double Near[2] = {1e9, 1e9};
+						for (int K = 0; K < 2; ++K)
+						{
+							const P2 Nk = Out1 * (K == 0 ? 1.0 : -1.0);
+							const P2 Probe = Mid + Nk * (Short * 0.5 + 20.0);
+							NearOpts Opts;
+							NearHit Hit;
+							if (NearestOf(Probe.X, Probe.Z, Opts, Hit)) Near[K] = Hit.Dist;
+						}
+						const bool Other = Near[1] < Near[0] || (Near[0] > 1e8 && Near[1] > 1e8 && Chance(Mid.X, Mid.Z, 132) < 0.5);
+						const P2 Nf = Out1 * (Other ? -1.0 : 1.0);
+						const P2 Uf(Nf.Z, -Nf.X);   // (along the front, left to right seen from outside)
+						const P2 Corner = Mid + Nf * (Short * 0.5) - Uf * (Long * 0.5);
+						// (on its ground at its middle, a plinth down to the lowest corner; none on a steep bank)
+						const double Y0 = Ground(Mid.X, Mid.Z);
+						double Low = Y0, High = Y0;
+						for (double Su : {-0.5, 0.5})
+							for (double Sv : {-0.5, 0.5})
+							{
+								const P2 Q = Mid + Uf * (Su * Long) + Nf * (Sv * Short);
+								const double Gy = Ground(Q.X, Q.Z);
+								if (std::isnan(Gy)) continue;
+								Low = std::fmin(Low, Gy);
+								High = std::fmax(High, Gy);
+							}
+						if (!std::isnan(Y0) && High - Low < 6.0)
+						{
+							BuildWarehouse(*Kit, Kit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Y0, Low, Detail, Out);
+							if (Inside(T.Mid))   // [warehouses stage 3] (its yard by the square its middle is in)
+								DressYard(*Kit, Kit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Detail, YardClear, YardGround, YardRoad, YardBudget, Out);
+							continue;
+						}
+					}
+				}
 				const bool Glassy = T.WallMaterial == "glass" || (!Worship && !Shed && !Parking && T.Top >= 40.0 && !Among(C, {"apartments", "residential", "dormitory"}) && Chance(T.Mid.X, T.Mid.Z, 81) < 0.7)
 					|| (Among(C, {"office", "commercial"}) && T.Top >= 25.0);
 				const double Salt = Chance(T.Mid.X, T.Mid.Z, 80);

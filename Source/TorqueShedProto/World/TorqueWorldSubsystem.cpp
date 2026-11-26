@@ -29,6 +29,7 @@
 #include "World/WorldFerries.h"
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
+#include "World/WorldRideWarehouses.h"
 #include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
@@ -238,6 +239,22 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const bool bKit = TorqueWorld::Files::Read(KitPath, KitText) && TorqueWorld::Files::Read(KitBinPath, KitBin) && TorqueWorld::SetChurchKit(KitText, KitBin);
 		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
+		// [warehouses] The warehouse kit: ten designs of shed and shop, laid on the map's big industrial and retail
+		// outlines (-TorqueWarehouses=0: the plain drawn sheds, to compare), and [stage 3] their yards' and car
+		// parks' props (-TorqueWarehouseYards=0: the sheds alone, to compare the frame rate).
+		{
+			int32 WarehousesAsked = 1, YardsAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouses="), WarehousesAsked);
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseYards="), YardsAsked);
+			std::string WhText, WhBin;
+			const std::string WhPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.json")));
+			const std::string WhBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.bin")));
+			const bool bWh = WarehousesAsked != 0 && TorqueWorld::Files::Read(WhPath, WhText) && TorqueWorld::Files::Read(WhBinPath, WhBin) && TorqueWorld::SetWarehouseKit(WhText, WhBin, YardsAsked != 0);
+			const std::shared_ptr<const TorqueWorld::WarehouseKit> Wh = TorqueWorld::WarehouseKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
+				YardsAsked == 0 ? TEXT(" (yards off: -TorqueWarehouseYards=0)") : TEXT(""),
+				bWh ? TEXT("") : WarehousesAsked == 0 ? TEXT(" (off: -TorqueWarehouses=0)") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
+		}
 		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
 		std::string HeightsText;
 		const std::string HeightsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_heights.json")));
