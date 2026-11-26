@@ -107,6 +107,8 @@ int main(int Argc, char** Argv)
 		{"inline4_1000", Make("inline", 4, 1000, 1300, 14000, "race"), true},
 		{"2stroke_250", Make("2stroke", 2, 250, 1400, 12000, "full"), false},
 		{"2stroke_125", Make("2stroke", 1, 125, 1500, 11500, "full"), false},
+		// [Bike V3 Sounds] beenster's own Multistrada recording (Data/Audio/Bikes/multistrada) up to 5,300 rpm, made above
+		{"multistrada", [&Make] { FSpec S = Make("vtwin", 4, 1158, 1300, 11500, "stock", "twinpulse"); S.Own = "multistrada"; return S; }(), false},
 	};
 	std::vector<double> IdleLoud, PullLoud;
 	for (FCase& C : Cases)
@@ -119,6 +121,24 @@ int main(int Argc, char** Argv)
 			B->IdleRec.empty() ? "" : ", idle recording", Ms);
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
+		if (!C.S.Own.empty())
+		{
+			// Its own loops up to the recording's top, the made sound above, no jump in level where they meet.
+			CHECK(B->bOwn && B->OwnTop > 4000.0, "%s: own recording not loaded (top %.0f rpm)", C.Name, B->OwnTop);
+			size_t Own = 0, Made = 0;
+			for (size_t I = 0; I < B->Rpms.size(); ++I) (B->Rpms[I] <= B->OwnTop ? Own : Made) += 1;
+			CHECK(Own >= 6 && Made >= 3, "%s: %zu own buckets, %zu made", C.Name, Own, Made);
+			for (size_t I = 0; I + 1 < B->Rpms.size(); ++I)
+				if (B->Rpms[I] == B->OwnTop)
+				{
+					const auto& A = B->Buckets[I]->Loop[ExOn];
+					const auto& N = B->Buckets[I + 1]->Loop[ExOn];
+					const double Db = 20.0 * std::log10(Rms(N.data(), N.size()) / std::max(Rms(A.data(), A.size()), 1e-9));
+					std::printf("  own top %.0f rpm, made from %.0f rpm: %+.1f dB\n", B->OwnTop, B->Rpms[I + 1], Db);
+					CHECK(std::fabs(Db) < 4.0, "%s: %.1f dB jump where the recording hands over", C.Name, Db);
+					CHECK(B->Buckets[I + 1]->Loop[InOn].empty(), "%s: made bucket still has an engine side", C.Name);
+				}
+		}
 		// Every loop finite, not silent, not pinned, and seamless (its end runs into its start).
 		for (size_t I = 0; I < B->Buckets.size(); ++I)
 			for (int L = 0; L < Layers; ++L)
