@@ -12,6 +12,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideForecourtKit.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
@@ -184,6 +185,10 @@ int main(int Argc, char** Argv)
 		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "1") RidePlan::WholeJunctions = true;   // [smooth junctions stage 3]
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
+		std::string FcText, FcBin;   // [forecourts] (WORLD_RIDE_FORECOURTS=0: the plain drawn forecourts, to compare)
+		const char* FcOff = std::getenv("WORLD_RIDE_FORECOURTS");
+		if ((!FcOff || std::string(FcOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/forecourt_kit.json"), FcText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/forecourt_kit.bin"), FcBin)) SetForecourtKit(FcText, FcBin);
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string PlaceText;   // [OSM stage 6C]

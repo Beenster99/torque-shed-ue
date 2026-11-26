@@ -27,6 +27,9 @@ the distance versions are made here by hand, never by Unreal's reducer. A part's
 (LIVERY_MAIN, LIVERY_ACCENT) that the game fills per station, and lit parts (NIGHT_*) glow after dark only.
 
     python Tools/blender_forecourt_kit.py --render DIR    # the review sheet in DIR
+    python Tools/blender_forecourt_kit.py --export        # Data/RideUK/forecourt_kit.bin and .json for the game
+
+Reviewed by beenster Nov 26 13:48 ("These look great").
 """
 import math
 import os
@@ -616,10 +619,103 @@ def build_stations(kit):
     return out
 
 
+# --- export for the game ------------------------------------------------------------------------------------
+
+SEC_PLAIN, SEC_ROOFING, SEC_BRICK, SEC_RENDER = 0, 2, 3, 4
+SLOTS = {LIVERY_MAIN: 1, LIVERY_ACCENT: 2, NIGHT_SOFFIT: 10, NIGHT_SHOP: 11, NIGHT_DIGITS: 12, NIGHT_SIGN: 13}
+
+
+def part_class(p):
+    """The mesh a part goes in (World/WorldRideChurches.h's sections) and its alpha: the roofing's kind on a roof
+    (0.5 clay tiles, 1 sheet or felt), dirt at the foot on brick and render, 1 on the plain mesh."""
+    s = p.surface
+    if s == "tile":
+        return SEC_ROOFING, 0.5
+    if s in ("roof", "roof_flat"):
+        return SEC_ROOFING, 1.0
+    if s == "brick":
+        return SEC_BRICK, 0.06
+    if s in ("render", "concrete"):
+        return SEC_RENDER, 0.08
+    return SEC_PLAIN, 1.0
+
+
+def piece_bytes(P):
+    import struct
+    import numpy as np
+    dg = bpy.context.evaluated_depsgraph_get()
+    pos, nrm, part_of = [], [], []
+    for i, part in enumerate(P.parts):
+        ev = part.obj.evaluated_get(dg)
+        me = ev.to_mesh()
+        me.calc_loop_triangles()
+        mw = part.obj.matrix_world
+        nw = mw.to_3x3().inverted().transposed()
+        flip = mw.to_3x3().determinant() < 0
+        co = [mw @ v.co for v in me.vertices]
+        cn = [None] * len(me.loops)
+        for k, l in enumerate(me.corner_normals):
+            n = nw @ l.vector
+            cn[k] = n.normalized() if n.length > 1e-9 else n
+        for lt in me.loop_triangles:
+            vs, ls = list(lt.vertices), list(lt.loops)
+            if flip:
+                vs, ls = [vs[0], vs[2], vs[1]], [ls[0], ls[2], ls[1]]
+            for v, l in zip(vs, ls):
+                pos.append(tuple(co[v])); nrm.append(tuple(cn[l])); part_of.append(i)
+        ev.to_mesh_clear()
+    pos, nrm, part_of = np.array(pos), np.array(nrm), np.array(part_of)
+    q = np.round(pos * 100.0).astype(np.int64)
+    qn = np.round(nrm * 127.0).astype(np.int64)
+    uniq, inv = np.unique(np.concatenate([q, qn, part_of[:, None]], 1), axis=0, return_inverse=True)
+    inv = inv.reshape(-1)
+    assert len(uniq) < 65536 and np.abs(q).max() < 32767, P.name
+    b = bytearray()
+    nm = P.name.encode()
+    b += struct.pack("<H", len(nm)) + nm
+    b += struct.pack("<H", len(P.parts))
+    for p in P.parts:
+        sec, code = part_class(p)
+        slot = SLOTS.get(p.rgb, 0) if isinstance(p.rgb, str) else 0
+        rgb = (1.0, 1.0, 1.0) if isinstance(p.rgb, str) else p.rgb
+        b += struct.pack("<7B", sec, *[int(round(max(0.0, min(1.0, c)) * 255)) for c in rgb], int(round(code * 255)), p.lod, slot)
+    b += struct.pack("<II", len(uniq), len(inv) // 3)
+    v = np.zeros(len(uniq), dtype=[("p", "<i2", 3), ("n", "i1", 3), ("k", "u1")])
+    v["p"] = uniq[:, 0:3]
+    v["n"] = np.clip(uniq[:, 3:6], -127, 127)
+    v["k"] = uniq[:, 6]
+    b += v.tobytes()
+    b += inv.astype("<u2").tobytes()
+    return bytes(b)
+
+
+def export(kit):
+    import json
+    import struct
+    data = os.path.join(os.path.dirname(HERE), "Data", "RideUK")
+    blob = b"".join(piece_bytes(P) for P in kit.values())
+    with open(os.path.join(data, "forecourt_kit.bin"), "wb") as f:
+        f.write(b"TSFK" + struct.pack("<II", 1, len(kit)) + blob)
+    about = ("Ride UK's petrol stations (the forecourt kit, everyday kits stage 5; beenster Nov 26: 'These look great'): "
+             "our own pieces modelled by Tools/blender_forecourt_kit.py (which writes this file and forecourt_kit.bin). "
+             "World/WorldRideForecourtKit.cpp lays them where World/WorldRideTownLife.cpp places each forecourt's parts. "
+             "Pieces are in the forecourt's frame: x along the road, y out from its edge, z up, cm. A part's slot: 1 the "
+             "livery's main colour, 2 its accent, 10-13 lit after dark only (soffit, shop, price digits, signs).")
+    rows = dict(_about=about, liveries=[dict(label=l, main=[round(c, 4) for c in m], accent=[round(c, 4) for c in a]) for l, m, a in LIVERIES],
+                styles=dict(glass=0.7, brick=0.3), kiosk_bay=KIOSK_BAY, kiosk_top=KIOSK_TOP,
+                pieces={P.name: dict(label=P.label, tris=P.tris) for P in kit.values()})
+    with open(os.path.join(data, "forecourt_kit.json"), "w") as f:
+        json.dump(rows, f, indent=1)
+    print("forecourt kit: %d pieces, %d KB" % (len(kit), (len(blob) + 12) // 1024))
+
+
 def main():
     args = sys.argv[1:]
     clear()
     kit = build_kit()
+    if "--export" in args:
+        export(kit)
+        return
     stations = build_stations(kit)
     if "--render" in args:
         out = args[args.index("--render") + 1]
