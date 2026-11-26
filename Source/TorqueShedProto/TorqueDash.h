@@ -49,6 +49,10 @@ struct FTorqueDash
 	bool bNavOff = false;       // more than 40 m off the ride's road
 	bool bNavRerouting = false; // [ride anywhere] off it, and the way back not found yet
 	bool bNavVia = false;       // [waypoint] the flag ahead (NavTurn 9) is the info panel's waypoint, not the finish
+	// [ferries, beenster Nov 26: "stop the 'you've finished your route' and scoreboard up when we arrive at the ferry"]
+	// A ride that crosses by ferry: 1 while the flag ahead is the ferry's slipway (not the finish), 2 once over it (the
+	// way on's end is the finish); 0 no ferry.
+	int32 NavFerry = 0;
 	int32 NavTurn = 9;          // RidePlan::RideTurn::Turn: -3 sharp left .. 3 sharp right, 9 the finish
 	double NavTo = 0.0;         // metres to it
 	FString NavOnto;            // the road it's onto (or where the ride finishes)

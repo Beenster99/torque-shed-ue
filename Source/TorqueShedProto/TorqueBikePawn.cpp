@@ -3571,6 +3571,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	if (!bRemote)
 	{
 		ATorqueRideWorld::NavFor(GetActorLocation(), Dash, NavWas);   // [Ride UK] the sat nav
+		// ([ferries] over the crossing, at the way on's end: the ride's finish)
+		if (!bFinished && Dash.NavFerry == 2 && !Dash.bNavOff && Dash.NavLeft < 30.0) bFinished = true;
 		if (bOnFoot) ATorqueRideWorld::ViewSpotFor(FootPos, Dash);   // [places stage 7] walked in to a place's view spot
 		// (stopped at the pumps: the tank fills, the shed pump's 2.5 litres a second: beenster, build 156, faster)
 		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 2.5 * DeltaSeconds);
@@ -5270,7 +5272,8 @@ void ATorqueBikePawn::UpdateProgress()
 		if (Whole < Best * 0.25) BestI = WholeI;
 	}
 	Near = BestI;
-	if (!bFinished && Near >= Line.Num() - 1) bFinished = true;
+	// ([ferries] beenster, Nov 26: "the end of our route is not the ferry": a ride by ferry finishes at the way on's end)
+	if (!bFinished && Near >= Line.Num() - 1 && Dash.NavFerry == 0) bFinished = true;
 }
 
 // [mirrors] Each mirror's head turned on its ball joint so the rider's own eyes see the road behind in its glass
