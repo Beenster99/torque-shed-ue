@@ -797,6 +797,12 @@ public:
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 	// [smooth junctions 4b] (RoadPiece's work, the ride's road kept to KeepFrom..KeepTo along, about the given origin)
 	void RoadPieceIn(int Which, int First, int Last, double KeepFrom, double KeepTo, double Ox, double Oz, RideMesh& Out) const;
+	// [road rulebook D1, C6] The limit a road's paint follows (mph): the ride's road's own, another road's as the rule
+	// assumes it (30 mph where it is a town street); and whether a road's end (0 its first point's) is one of the
+	// through road's arms at its junction, so its centre line turns to a warning line before it.
+	int PaintMph(int Which, double Along, bool Street) const;
+	std::vector<double> RideThroughAt;   // the ride's road's junctions where it is the through road: how far along, in order (LaySides)
+	bool ThroughAtEnd(int Which, int End) const;
 	std::vector<std::pair<double, int>> RideHides;   // [smooth junctions 4b] whole rings on the ride's road: (Hide[0], place), by along
 
 	// The route as the bike reads it (Data/Buttertubs/route.json's fields): line_sim, length_m,

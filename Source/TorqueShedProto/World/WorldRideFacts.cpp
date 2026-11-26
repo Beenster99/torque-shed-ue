@@ -88,6 +88,39 @@ const RidePlan::LimitStretch* RidePlan::LimitAt(double Along) const
 	return It == Limits.end() ? &Limits.back() : &*It;
 }
 
+// [road rulebook D1, C6] The limit a road's paint follows: the ride's road's own (60 mph where none is known), another
+// road's as the rule assumes it from its class, 30 mph along a town street.
+int RidePlan::PaintMph(int Which, double Along, bool Street) const
+{
+	if (Which == 0)
+	{
+		const LimitStretch* L = LimitAt(Along);
+		const int Mph = L != nullptr ? ShownLimit(L->Kmh) : 0;
+		return Mph > 0 ? Mph : 60;
+	}
+	const SideRoad* Sd = SideOf(Which);
+	if (Sd == nullptr || Sd->Edge < 0) return 30;
+	const int Posted = Area.Roads.Edges[size_t(Sd->Edge)].Limit;
+	const int Mph = ShownLimit(Posted > 0 ? Posted : AssumedKmh(Area.Roads.ClassOf(Sd->Edge), Street, Britain()));
+	return Mph > 0 ? Mph : 30;
+}
+
+bool RidePlan::ThroughAtEnd(int Which, int End) const
+{
+	const SideRoad* Sd = Which > 0 ? SideOf(Which) : nullptr;
+	if (Sd == nullptr || Sd->Edge < 0 || Sd->Pts.empty()) return false;
+	const Region& G = Area.Roads;
+	const RoadEdge& E = G.Edges[size_t(Sd->Edge)];
+	const P2 At = End == 0 ? Sd->Pts.front().At : Sd->Pts.back().At;
+	const int Node = G.Nodes[size_t(E.A)].DistanceTo(At) <= G.Nodes[size_t(E.B)].DistanceTo(At) ? E.A : E.B;
+	if (size_t(Node) >= JunctionOfNode.size() || JunctionOfNode[size_t(Node)] < 0) return false;
+	const JunctionPlace& J = JunctionPlaces[size_t(JunctionOfNode[size_t(Node)])];
+	if (J.Roads < 3 || J.Lights || J.Ring >= 0) return false;
+	for (const JunctionArm& A : J.Arms)
+		if (A.Edge == Sd->Edge) return A.Through;
+	return false;
+}
+
 void RidePlan::SettleLimits()
 {
 	using namespace RideFactsBits;
