@@ -29,7 +29,6 @@
 #include "World/WorldFerries.h"
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
-#include "World/WorldRideForecourtKit.h"
 #include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
@@ -40,6 +39,7 @@
 #include <set>
 #include "World/WorldRide.h"
 #include "World/WorldRideSigns.h"
+#include "World/WorldRideForecourtKit.h"
 #include "World/TorqueRideWorld.h"
 
 #include <atomic>
