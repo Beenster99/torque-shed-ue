@@ -12,6 +12,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideWarehouses.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
@@ -175,6 +176,10 @@ int main(int Argc, char** Argv)
 		const char* KitOff = std::getenv("WORLD_RIDE_CHURCHES");
 		if ((!KitOff || std::string(KitOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.json"), KitText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.bin"), KitBin)) SetChurchKit(KitText, KitBin);
+		std::string WhText, WhBin;   // [warehouses] (WORLD_RIDE_WAREHOUSES=0: the plain drawn sheds, to compare)
+		const char* WhOff = std::getenv("WORLD_RIDE_WAREHOUSES");
+		if ((!WhOff || std::string(WhOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.json"), WhText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.bin"), WhBin)) SetWarehouseKit(WhText, WhBin);
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
@@ -3466,6 +3471,28 @@ int main(int Argc, char** Argv)
 				Centre = Plan->PlaceRecipes[Nth].At;
 				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
 			}
+		}
+		else if (std::getenv("WORLD_RIDE_SHED") != nullptr)
+		{
+			// [warehouses] (or the nth big shed outline from the ride's start: industrial, warehouse or retail, 1500 m2 and more)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_SHED"));
+			std::vector<std::pair<double, size_t>> Sheds;
+			for (size_t I = 0; I < Plan->TowerShapes.size(); ++I)
+			{
+				const RidePlan::TowerShape& T = Plan->TowerShapes[I];
+				if ((T.Class == "industrial" || T.Class == "warehouse" || T.Class == "retail") && T.Floor >= 1500.0 && T.Ring.size() >= 4 && T.Ring.size() <= 12)
+					Sheds.push_back({T.Mid.DistanceTo(Plan->Road[0].At), I});
+			}
+			std::sort(Sheds.begin(), Sheds.end());
+			if (Nth >= 0 && size_t(Nth) < Sheds.size())
+			{
+				const RidePlan::TowerShape& T = Plan->TowerShapes[Sheds[size_t(Nth)].second];
+				Centre = T.Mid;
+				std::printf("shed %d of %zu: %s, %.0f m2, %zu corners, at %.0f, %.0f\n", Nth, Sheds.size(), T.Class.c_str(), T.Floor, T.Ring.size(), Centre.X, Centre.Z);
+			}
+			Rect Round;
+			Round.X0 = Centre.X - 300.0; Round.Z0 = Centre.Z - 300.0; Round.X1 = Centre.X + 300.0; Round.Z1 = Centre.Z + 300.0;
+			Plan->LayBlocks(Round);
 		}
 		else if (std::getenv("WORLD_RIDE_MESH_AT") != nullptr)
 		{

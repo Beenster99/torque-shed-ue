@@ -483,42 +483,48 @@ def build_wall(U, spec, w, pattern, bay, is_long):
                 w.face(U, "gable", outline, -0.15, 0.0, surf, spec.get("clad_rgb", GOOSEWING), 2)
         else:
             cladding(U, w, a, b, z0, top, spec)
-        if p:
-            w.box(U, "plinth", a, b, FOOT, p[0], 0.0, 0.04, p[1], p[2], 2)
-        floor = DOCK_FLOOR if spec.get("dock_floor") else 0.0
-        H = spec["H"]
-        s = (a + b) / 2
-        if t == "R":
-            if spec.get("dock_floor"):
-                dock_face(U, w, s - 2.4, s + 2.4, spec)
-            roller_door(U, w, s, min(4.8, bw * 0.65), min(5.0, H - floor - 2.0), floor)
-            if not spec.get("dock_floor"):
-                bollards(U, w, s - min(4.8, bw * 0.65) / 2, s + min(4.8, bw * 0.65) / 2)
-        elif t == "D":
-            dock_door(U, w, s, spec)
-        elif t == "P":
-            personnel_door(U, w, s, spec, z=floor)
-            if spec.get("dock_floor"):
-                stairs(U, w, s, DOCK_FLOOR, side=1)
-            louvre(U, w, s, H - 3.0)
-        elif t == "O":
-            office_bay(U, w, a, b, spec)
-        elif t == "E":
-            entrance(U, w, a, b, spec)
-        elif t == "T":
-            trade_counter(U, w, a, b, spec, i == 0, i == n - 1)
-        elif t == "S":
-            shopfront(U, w, a, b, spec)
-        elif t == "W":
-            ribbon(U, w, a + 0.6, b - 0.6, H - 2.6, H - 1.4, lod_glass=1)
-        elif t == "H":
-            roller_door(U, w, s, bw * 0.85, H - 1.0, 0.0)
-        elif t == "L":
-            louvre(U, w, s, H - 3.2, 2.2, 1.2)
-        if is_long and t in ".DRL" and spec.get("lights", True):
-            light(U, w, s - bw * 0.3 if t != "." else s, H - 1.2)
-        if is_long and t in "." and i % 2 == 0 and spec["roof"] in ("curve", "pitch"):
-            w.box(U, "downpipe", b - 0.08, b + 0.08, 0.0, H - 0.1, 0.0, 0.14, "metal", spec.get("trim", GOOSEWING), 0)
+        bay_features(U, spec, w, t, a, b, i, n, is_long, p)
+
+
+def bay_features(U, spec, w, t, a, b, i, n, is_long, p, every_pipe=False):
+    """A bay's plinth and what stands on it: doors, docks, windows, lights (see the pattern letters)."""
+    bw = b - a
+    if p:
+        w.box(U, "plinth", a, b, FOOT, p[0], 0.0, 0.04, p[1], p[2], 2)
+    floor = DOCK_FLOOR if spec.get("dock_floor") else 0.0
+    H = spec["H"]
+    s = (a + b) / 2
+    if t == "R":
+        if spec.get("dock_floor"):
+            dock_face(U, w, s - 2.4, s + 2.4, spec)
+        roller_door(U, w, s, min(4.8, bw * 0.65), min(5.0, H - floor - 2.0), floor)
+        if not spec.get("dock_floor"):
+            bollards(U, w, s - min(4.8, bw * 0.65) / 2, s + min(4.8, bw * 0.65) / 2)
+    elif t == "D":
+        dock_door(U, w, s, spec)
+    elif t == "P":
+        personnel_door(U, w, s, spec, z=floor)
+        if spec.get("dock_floor"):
+            stairs(U, w, s, DOCK_FLOOR, side=1)
+        louvre(U, w, s, H - 3.0)
+    elif t == "O":
+        office_bay(U, w, a, b, spec)
+    elif t == "E":
+        entrance(U, w, a, b, spec)
+    elif t == "T":
+        trade_counter(U, w, a, b, spec, i == 0, i == n - 1)
+    elif t == "S":
+        shopfront(U, w, a, b, spec)
+    elif t == "W":
+        ribbon(U, w, a + 0.6, b - 0.6, H - 2.6, H - 1.4, lod_glass=1)
+    elif t == "H":
+        roller_door(U, w, s, bw * 0.85, H - 1.0, 0.0)
+    elif t == "L":
+        louvre(U, w, s, H - 3.2, 2.2, 1.2)
+    if is_long and t in ".DRL" and spec.get("lights", True):
+        light(U, w, s - bw * 0.3 if t != "." else s, H - 1.2)
+    if is_long and t in "." and (every_pipe or i % 2 == 0) and spec["roof"] in ("curve", "pitch"):
+        w.box(U, "downpipe", b - 0.08, b + 0.08, 0.0, H - 0.1, 0.0, 0.14, "metal", spec.get("trim", GOOSEWING), 0)
 
 
 def _gable_breaks(spec, w):

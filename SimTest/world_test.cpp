@@ -13,6 +13,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideWarehouses.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRideSigns.h"
@@ -168,6 +169,50 @@ int main()
 		std::printf("      church kit: %s, %zu churches; church %s, chapel %s; %zu triangles built\n", KitRead ? "read" : "unreadable", Kit ? Kit->Models.size() : size_t(0),
 			Church >= 0 ? Kit->Models[size_t(Church)].Name.c_str() : "-", Chapel >= 0 ? Kit->Models[size_t(Chapel)].Name.c_str() : "-", Tris);
 		Check(Ok, "church kit: forty-eight read (four of them the churchyards'); a Dales church and a Welsh chapel chosen; names say chapel or no church; Catholic, Friends and cross-shaped ones chosen by their tags; towers, spires and bellcotes told apart, a tower stretched to its height; built with whole alpha");
+	}
+	// [warehouses] The warehouse kit: read; patterns filled out to any number of bays; a design picked for a big
+	// distribution shed, a trade terrace and a retail unit; a shed laid on an oblong 130 x 55 m turned 30 degrees,
+	// inside its outline (the roof's overhangs and the docks' shelters a little past it), whole alpha, fewer
+	// triangles at each step out.
+	{
+		std::string WhText, WhBin;
+		const bool WhRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.json"), WhText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.bin"), WhBin)
+			&& SetWarehouseKit(WhText, WhBin);
+		const std::shared_ptr<const WarehouseKit> Wk = WarehouseKitNow();
+		bool Ok = WhRead && Wk && Wk->Designs.size() == 8;
+		Ok = Ok && ExpandBays("OO E D* R", 9) == "OOEDDDDDR" && ExpandBays("OO E D* R", 4) == "OOED" && ExpandBays("T*", 3) == "TTT" && ExpandBays("R .", 4) == "R...";
+		const int Big = Ok ? Wk->Pick("warehouse", 130.0, 55.0, 0.4) : -1;
+		const int Terrace = Ok ? Wk->Pick("industrial", 70.0, 22.0, 0.2) : -1;
+		const int Shop = Ok ? Wk->Pick("retail", 60.0, 40.0, 0.5) : -1;
+		const int None = Ok ? Wk->Pick("school", 60.0, 40.0, 0.5) : -1;
+		Ok = Ok && Big >= 0 && Terrace >= 0 && Shop >= 0 && None < 0 && Wk->Designs[size_t(Shop)].Name == "WH_retail_park";
+		size_t Tris[3] = {0, 0, 0};
+		double Worst = 0.0;
+		const double A = 0.5235987755982988, Ux = std::cos(A), Uz = std::sin(A), Nx = Uz, Nz = -Ux;
+		for (int Detail = 2; Ok && Detail >= 0; --Detail)
+		{
+			RideMesh M;
+			M.OriginX = 1000.0;
+			M.OriginZ = 2000.0;
+			Tris[2 - Detail] = BuildWarehouse(*Wk, Wk->Designs[size_t(Big)], 1000.0, 2000.0, Ux, Uz, Nx, Nz, 130.0, 55.0, 50.0, 48.0, Detail, M);
+			for (const RideMesh* Mi : {&M, M.Roofing.get(), M.Brickwork.get(), M.Render.get()})
+			{
+				if (!Mi) continue;
+				Ok = Ok && Mi->Alpha.size() == Mi->Vertices() && Mi->Col.size() == Mi->Vertices() * 3 && Mi->Uv.size() == Mi->Vertices() * 2;
+				for (const uint32_t I : Mi->Idx) Ok = Ok && I < Mi->Vertices();
+				for (size_t V = 0; V < Mi->Vertices(); ++V)
+				{
+					const double Rx = Mi->Pos[V * 3] + Mi->OriginX - 1000.0, Rz = Mi->Pos[V * 3 + 2] + Mi->OriginZ - 2000.0;
+					const double Al = Rx * Ux + Rz * Uz, Out = Rx * Nx + Rz * Nz;
+					Worst = std::fmax(Worst, std::fmax(std::fmax(-Al, Al - 130.0), std::fmax(Out, -Out - 55.0)));
+				}
+			}
+		}
+		Ok = Ok && Worst < 3.5 && Tris[0] > Tris[1] && Tris[1] > Tris[2] && Tris[2] > 100;
+		std::printf("      warehouse kit: %s, %zu designs; picked %s, %s, %s; a 130 x 55 m shed %zu / %zu / %zu triangles, %.1f m at most past its outline\n", WhRead ? "read" : "unreadable",
+			Wk ? Wk->Designs.size() : size_t(0), Big >= 0 ? Wk->Designs[size_t(Big)].Name.c_str() : "-", Terrace >= 0 ? Wk->Designs[size_t(Terrace)].Name.c_str() : "-",
+			Shop >= 0 ? Wk->Designs[size_t(Shop)].Name.c_str() : "-", Tris[0], Tris[1], Tris[2], Worst);
+		Check(Ok, "warehouse kit: eight designs read; bay patterns filled; sheds, a terrace and a retail unit chosen by class and size; laid inside their outline, fewer triangles further off");
 	}
 	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
 	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.

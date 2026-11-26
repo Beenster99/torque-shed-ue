@@ -1,0 +1,428 @@
+{
+ "_about": "Ride UK's industrial estates (the warehouse kit, beenster Nov 25-26): eight original designs of UK sheds, cut into pieces by Tools/blender_warehouse_kit_export.py (which writes this file and warehouse_kit.bin). World/WorldRideWarehouses.cpp gives a big shed the map draws as an oblong outline (industrial, warehouse, retail...) the design that suits its class and size ('classes', 'short', 'area', 'ratio' the least long to short), lays its walls' bays from the patterns (front, back, right, left; '*' fills), and stretches each bay, its roof and its gables to the outline. Letters: . plain, R roller door, D dock, P door, O office, E entrance, T trade counter, S shopfront, W high windows, H hangar door, L louvres.",
+ "stretch": [
+  0.55,
+  1.8
+ ],
+ "designs": [
+  {
+   "name": "WH_big_box",
+   "label": "Big-box distribution shed: barrel roof, 14 docks, glazed office corner",
+   "L": 150,
+   "W": 70,
+   "H": 13.5,
+   "top": 13.5,
+   "gable_top": 13.5,
+   "bay": 7.5,
+   "gable_bay": 6.0,
+   "roof": "curve",
+   "spans": 1,
+   "front": "OO E D* R R",
+   "back": "P L* P",
+   "right": ". R R .",
+   "left": "O O O O",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.25,
+    0.085,
+    0.05
+   ],
+   "pieces": {
+    "long:.": 36,
+    "long:D": 172,
+    "long:E": 220,
+    "long:L": 36,
+    "long:O": 172,
+    "long:P": 52,
+    "long:R": 100,
+    "gable:.": 12,
+    "gable:O": 156,
+    "gable:R": 84,
+    "gabletop": 192,
+    "roof:P": 220,
+    "roof:L": 324,
+    "roofend": 220,
+    "corner": 12
+   },
+   "classes": [
+    "industrial",
+    "warehouse",
+    "transportation",
+    "manufacture"
+   ],
+   "short": [
+    42,
+    140
+   ],
+   "area": [
+    4500,
+    60000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_blue_depot",
+   "label": "Banded-cladding depot: dock-level floor, multi-span roof, stairs, office end",
+   "L": 120,
+   "W": 60,
+   "H": 14.0,
+   "top": 14.0,
+   "gable_top": 14.0,
+   "bay": 7.5,
+   "gable_bay": 7.5,
+   "roof": "multi",
+   "spans": 4,
+   "front": "O O P D D D D D P D* R P",
+   "back": ". L*",
+   "right": "P R R R P",
+   "left": "O O O O O",
+   "solar": false,
+   "dock_floor": true,
+   "skirt": [
+    0.62,
+    0.62,
+    0.6
+   ],
+   "pieces": {
+    "long:.": 44,
+    "long:D": 188,
+    "long:L": 52,
+    "long:O": 188,
+    "long:P": 172,
+    "long:R": 132,
+    "gable:.": 28,
+    "gable:O": 188,
+    "gable:P": 172,
+    "gable:R": 116,
+    "gabletop": 64,
+    "roof:P": 68,
+    "roof:L": 164,
+    "corner": 12
+   },
+   "classes": [
+    "industrial",
+    "warehouse",
+    "transportation"
+   ],
+   "short": [
+    34,
+    120
+   ],
+   "area": [
+    3000,
+    60000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_trade_terrace",
+   "label": "Trade-counter terrace: six units, roller doors, glazed counters, pitched roof",
+   "L": 72,
+   "W": 24,
+   "H": 7.5,
+   "top": 7.5,
+   "gable_top": 7.5,
+   "bay": 12,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "spans": 1,
+   "front": "T*",
+   "back": "P*",
+   "right": "P .",
+   "left": ". P",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.36,
+    0.35,
+    0.32
+   ],
+   "pieces": {
+    "long:.": 36,
+    "long:P": 52,
+    "long:T": 180,
+    "gable:.": 12,
+    "gable:P": 52,
+    "gabletop": 16,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "industrial",
+    "retail",
+    "commercial"
+   ],
+   "short": [
+    12,
+    30
+   ],
+   "area": [
+    450,
+    4500
+   ],
+   "weight": 1.0,
+   "ratio": 2.0
+  },
+  {
+   "name": "WH_office_annex",
+   "label": "Pitched warehouse with blue trim and a two-storey brick office annex",
+   "L": 80,
+   "W": 40,
+   "H": 9.0,
+   "top": 9.0,
+   "gable_top": 9.0,
+   "bay": 7.5,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "spans": 1,
+   "front": "P R R . . R .",
+   "back": ". .*",
+   "right": "R . R . R .",
+   "left": "R . . . . .",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.42,
+    0.28,
+    0.15
+   ],
+   "pieces": {
+    "long:.": 32,
+    "long:P": 48,
+    "long:R": 96,
+    "gable:.": 8,
+    "gable:R": 80,
+    "gabletop": 16,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12,
+    "annex": 2568
+   },
+   "classes": [
+    "industrial",
+    "warehouse",
+    "manufacture"
+   ],
+   "short": [
+    20,
+    55
+   ],
+   "area": [
+    1000,
+    9000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_solar_curve",
+   "label": "Barrel-roof unit with solar arrays, roller doors down the side",
+   "L": 100,
+   "W": 45,
+   "H": 11.0,
+   "top": 11.0,
+   "gable_top": 11.0,
+   "bay": 7.5,
+   "gable_bay": 6.0,
+   "roof": "curve",
+   "spans": 1,
+   "front": "O E R R R R R R O",
+   "back": ". *",
+   "right": ". R .",
+   "left": "O O W O",
+   "solar": true,
+   "dock_floor": false,
+   "skirt": [
+    0.25,
+    0.085,
+    0.05
+   ],
+   "pieces": {
+    "long:.": 36,
+    "long:E": 220,
+    "long:O": 172,
+    "long:R": 100,
+    "gable:.": 12,
+    "gable:O": 156,
+    "gable:R": 84,
+    "gable:W": 84,
+    "gabletop": 192,
+    "roof:P": 220,
+    "roof:L": 324,
+    "roof:S": 304,
+    "roof:SL": 304,
+    "roofend": 220,
+    "corner": 12
+   },
+   "classes": [
+    "industrial",
+    "warehouse",
+    "manufacture"
+   ],
+   "short": [
+    26,
+    70
+   ],
+   "area": [
+    1800,
+    14000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_workshop",
+   "label": "Small workshop unit: vertical cladding, one roller door, office windows",
+   "L": 24,
+   "W": 15,
+   "H": 6.0,
+   "top": 6.0,
+   "gable_top": 6.0,
+   "bay": 6,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "spans": 1,
+   "front": "O P R .",
+   "back": ". *",
+   "right": "R .",
+   "left": ". .",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.36,
+    0.35,
+    0.32
+   ],
+   "pieces": {
+    "long:.": 32,
+    "long:O": 80,
+    "long:P": 48,
+    "long:R": 96,
+    "gable:.": 8,
+    "gable:R": 80,
+    "gabletop": 16,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "industrial",
+    "warehouse",
+    "manufacture",
+    "garage"
+   ],
+   "short": [
+    7,
+    22
+   ],
+   "area": [
+    100,
+    1000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_retail_park",
+   "label": "Retail park unit: flat roof behind a parapet, glazed shopfront and canopy",
+   "L": 60,
+   "W": 45,
+   "H": 9.5,
+   "top": 11.0,
+   "gable_top": 11.0,
+   "bay": 10,
+   "gable_bay": 6.0,
+   "roof": "flat",
+   "spans": 1,
+   "front": "S*",
+   "back": "P D . D P",
+   "right": ". . . . . . .",
+   "left": "P . . . . .",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.36,
+    0.35,
+    0.32
+   ],
+   "pieces": {
+    "long:.": 32,
+    "long:D": 176,
+    "long:P": 56,
+    "long:S": 132,
+    "gable:.": 16,
+    "gable:P": 56,
+    "roof:P": 12,
+    "roof:L": 12,
+    "corner": 12
+   },
+   "classes": [
+    "retail",
+    "supermarket",
+    "commercial"
+   ],
+   "short": [
+    24,
+    90
+   ],
+   "area": [
+    1000,
+    16000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_hangar",
+   "label": "Hangar-style store: barrel roof, big doors in the gable, high windows",
+   "L": 60,
+   "W": 36,
+   "H": 10.0,
+   "top": 10.0,
+   "gable_top": 10.0,
+   "bay": 7.5,
+   "gable_bay": 36,
+   "roof": "curve",
+   "spans": 1,
+   "front": ". P W W P .",
+   "back": ". W W .",
+   "right": "H",
+   "left": "P . .",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.36,
+    0.35,
+    0.32
+   ],
+   "pieces": {
+    "long:.": 32,
+    "long:P": 48,
+    "long:W": 88,
+    "gable:.": 8,
+    "gable:H": 64,
+    "gable:P": 48,
+    "gabletop": 192,
+    "roof:P": 220,
+    "roof:L": 324,
+    "roofend": 220,
+    "corner": 12
+   },
+   "classes": [
+    "industrial",
+    "warehouse",
+    "transportation"
+   ],
+   "short": [
+    18,
+    45
+   ],
+   "area": [
+    700,
+    4500
+   ],
+   "weight": 0.6
+  }
+ ]
+}
