@@ -203,6 +203,8 @@ int main(int Argc, char** Argv)
 		{
 			const char* RsOff = std::getenv("WORLD_RIDE_ROADSIDE");   // [everyday kits stage 5b] (=0: no lay-bys or roadside cafes)
 			SetRoadsideOn(!RsOff || std::string(RsOff) != "0");
+			const char* BkOff = std::getenv("WORLD_RIDE_BRIDGEKIT");   // [everyday kits stage 7] (=0: no bridge set)
+			SetBridgeKitOn(!BkOff || std::string(BkOff) != "0");
 		}
 		std::string FcText, FcBin;   // [forecourts] (WORLD_RIDE_FORECOURTS=0: the plain drawn forecourts, to compare)
 		const char* FcOff = std::getenv("WORLD_RIDE_FORECOURTS");
@@ -3707,7 +3709,8 @@ int main(int Argc, char** Argv)
 				break;
 			}
 		}
-		else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr || std::getenv("WORLD_RIDE_ROADTHING") != nullptr || std::getenv("WORLD_RIDE_SPOT") != nullptr)
+		else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr || std::getenv("WORLD_RIDE_ROADTHING") != nullptr || std::getenv("WORLD_RIDE_SPOT") != nullptr
+			|| std::getenv("WORLD_RIDE_DECK") != nullptr)
 		{
 			// [everyday kits stage 5b] (or the nth lay-by made; or WORLD_RIDE_ROADTHING=kind,n: the nth roadside thing
 			// of that prop kind, RidePlan::PropRoadCafeSign's say)
@@ -3715,6 +3718,43 @@ int main(int Argc, char** Argv)
 			bool Got = false;
 			if (std::getenv("WORLD_RIDE_SPOT") != nullptr)   // (or WORLD_RIDE_SPOT=x,z: there, to compare with the set off)
 				Got = std::sscanf(std::getenv("WORLD_RIDE_SPOT"), "%lf,%lf", &Spot.X, &Spot.Z) == 2;
+			else if (std::getenv("WORLD_RIDE_DECK") != nullptr)
+			{
+				// ([everyday kits stage 7] or the nth bridge on the ride's own road: its deck's middle; "w,n": the nth wide
+				// one, more than 9 m across, on any road laid)
+				int Nth = std::atoi(std::getenv("WORLD_RIDE_DECK"));
+				if (std::getenv("WORLD_RIDE_DECK")[0] == 'w')
+				{
+					Nth = std::atoi(std::getenv("WORLD_RIDE_DECK") + 2);
+					for (const int W : LaidRoads(*Plan))
+					{
+						const std::vector<RoadPoint>& Rp = Plan->RoadOf(W);
+						for (size_t I = 0; I < Rp.size() && !Got; ++I)
+						{
+							if (!Rp[I].Bridge || (I > 0 && Rp[I - 1].Bridge) || Rp[I].Half <= 4.5) continue;
+							size_t J = I;
+							while (J + 1 < Rp.size() && Rp[J + 1].Bridge) ++J;
+							if (J == I || Nth-- > 0) continue;
+							Spot = Rp[(I + J) / 2].At;
+							Got = true;
+							std::printf("wide deck on road %d: %.0f m at %.1f, %.1f, half %.1f\n", W, Rp[J].Along - Rp[I].Along, Spot.X, Spot.Z, Rp[I].Half);
+						}
+						if (Got) break;
+					}
+					Nth = 1 << 30;
+				}
+				for (size_t I = 0; I < Plan->Road.size() && !Got; ++I)
+				{
+					if (!Plan->Road[I].Bridge || (I > 0 && Plan->Road[I - 1].Bridge)) continue;
+					size_t J = I;
+					while (J + 1 < Plan->Road.size() && Plan->Road[J + 1].Bridge) ++J;
+					if (Nth-- > 0) continue;
+					Spot = Plan->Road[(I + J) / 2].At;
+					Got = true;
+					std::printf("deck %d: %.0f m at %.1f, %.1f, half %.1f, %.1f km along\n", std::atoi(std::getenv("WORLD_RIDE_DECK")), Plan->Road[J].Along - Plan->Road[I].Along,
+						Spot.X, Spot.Z, Plan->Road[I].Half, Plan->Road[I].Along / 1000.0);
+				}
+			}
 			else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr)
 			{
 				const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_LAYBY")));
@@ -3798,6 +3838,16 @@ int main(int Argc, char** Argv)
 				if (!NearIt) continue;
 				RideMesh Piece;
 				Plan->RoadPiece(W, First, Last, Piece);
+				// ([everyday kits stage 7] the bridge set's models the piece lays, to WORLD_RIDE_MESH.kitprops: name variant
+				// x z y yaw pitch stretch scale across)
+				for (const RideProp& P : Piece.Props)
+				{
+					if (P.Kind < RidePlan::PropBridgeArch || P.Kind > RidePlan::PropBridgeRail) continue;
+					if (std::hypot(Piece.OriginX + P.X - Centre.X, Piece.OriginZ + P.Z - Centre.Z) > Reach2 + 40.0) continue;
+					std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Piece.OriginX + P.X - Centre.X,
+						Piece.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
+					KitPropText += Buf;
+				}
 				// ([road edges, Nov 18] with its country shoulders' turf, drawn as the land)
 				for (const RideMesh* Sub : {&Piece, Piece.Turf.get(), Piece.Stone.get()})   // ([Nov 18] and its bridge parapets, with the walls)
 				{

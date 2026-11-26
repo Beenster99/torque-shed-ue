@@ -940,6 +940,9 @@ public:
 		// distance versions each): catering trailers and their flags, the blue lay-by sign, a roadside cafe's board,
 		// laid by RoadsideProps (with the village set's litter bins and the OSM kit's picnic tables)
 		PropRoadBurgerVan, PropRoadFlag, PropRoadLaybySign, PropRoadCafeSign,
+		// [everyday kits stage 7] The bridge set (Tools/blender_bridge_props.py, two hand-made distance versions each):
+		// stone arches, concrete piers and abutments and the modern parapet, laid with a road's piece by BridgeKitProps
+		PropBridgeArch, PropBridgePier, PropBridgeAbutment, PropBridgeRail,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1576,6 +1579,11 @@ public:
 	int LaybysSeen = 0, RoadCafes = 0;   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
 	static constexpr double LaybyLong = 34.0, LaybyDeep = 3.2, LaybyLeast = 2.6;
 	void RoadsideProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 7] The bridge set under and along each bridge whose deck starts in road Which's piece First..Last
+	// (World/WorldRideBridgeKit.cpp), into Out.Props; and whether a wide road's bridge has the kit's parapet (the road
+	// build then leaves its plain slab parapet off).
+	void BridgeKitProps(int Which, int First, int Last, RideMesh& Out) const;
+	bool BridgeRailsOn() const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its
 	// point on open level ground, fountains (a stone basin and its water, a pillar and bowl in the middle,

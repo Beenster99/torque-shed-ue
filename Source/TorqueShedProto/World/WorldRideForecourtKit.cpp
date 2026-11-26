@@ -110,6 +110,17 @@ bool SetForecourtKit(const std::string& JsonText, const std::string& Bin)
 namespace
 {
 std::atomic<bool> RoadsideWanted{true};
+std::atomic<bool> BridgeKitWanted{true};
+}
+
+void SetBridgeKitOn(bool On)
+{
+	BridgeKitWanted.store(On);
+}
+
+bool BridgeKitOn()
+{
+	return BridgeKitWanted.load();
 }
 
 void SetRoadsideOn(bool On)

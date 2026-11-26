@@ -46,7 +46,8 @@ const char* RidePlan::PropName(int Kind)
 		"power_pylon", "power_mast", "power_monopole", "power_turbine", "power_rotor", "power_watertower", "power_kiosk",
 		"power_transformer", "power_gantry", "power_palisade",   // [everyday kits stage 9]
 		"coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",   // [everyday kits stage 10]
-		"road_burgervan", "road_flag", "road_laybysign", "road_cafesign"};   // [everyday kits stage 5b]
+		"road_burgervan", "road_flag", "road_laybysign", "road_cafesign",   // [everyday kits stage 5b]
+		"bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail"};   // [everyday kits stage 7]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
