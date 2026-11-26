@@ -113,6 +113,8 @@ int main(int Argc, char** Argv)
 		{"cb1000gt", [&Make] { FSpec S = Make("inline", 4, 1084, 1200, 12000, "stock", "flat"); S.Own = "cb1000gt"; return S; }(), true},
 		// (the Trident: the made triple, its tone matched by ear to a real one)
 		{"trident", [&Make] { FSpec S = Make("triple", 3, 798, 1200, 11500, "slip", "240"); S.ToneHigh = 3.0; S.ToneMid = -3.0; return S; }(), true},
+		{"ktm1390", [&Make] { FSpec S = Make("vtwin", 2, 1350, 1300, 10200, "stock", "75v"); S.Own = "ktm1390"; return S; }(), true},
+		{"tracer9", [&Make] { FSpec S = Make("triple", 3, 890, 1250, 11000, "stock", "240"); S.Own = "tracer9"; return S; }(), true},
 		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
 		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
@@ -127,9 +129,11 @@ int main(int Argc, char** Argv)
 			B->IdleRec.empty() ? "" : ", idle recording", Ms);
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
-		if (C.S.Own == "panigale")   // (its recording is only a tickover)
-			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - 1350.0) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
-		if (!C.S.Own.empty() && C.S.Own != "panigale")
+		// (these recordings are only a tickover: the bike standing, its blips too quick to loop)
+		const double OwnIdle = C.S.Own == "panigale" ? 1350.0 : (C.S.Own == "ktm1390" ? 1550.0 : (C.S.Own == "tracer9" ? 1370.0 : 0.0));
+		if (OwnIdle > 0.0)
+			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - OwnIdle) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
+		if (!C.S.Own.empty() && OwnIdle == 0.0)
 		{
 			// Its own loops over the revs recorded, the made sound either side, no jump in level where they meet.
 			CHECK(B->bOwn && B->OwnTop > B->OwnLo * 1.4, "%s: own recording not loaded (%.0f-%.0f rpm)", C.Name, B->OwnLo, B->OwnTop);
@@ -272,7 +276,10 @@ int main(int Argc, char** Argv)
 		TorqueSound::RideSound Old, New;
 		Old.Ambience = New.Ambience = false;
 		Old.IdleRpm = New.IdleRpm = 1100.0;
-		New.SetEngine(FBank::For(Cases[1].S, Read, List));
+		// (baked here: with more cases than the bank cache holds, its first bake may have been let go)
+		std::shared_ptr<FBank> Twin = FBank::For(Cases[1].S, Read, List);
+		if (Twin->Claim()) Twin->Bake();
+		New.SetEngine(Twin);
 		const double OldIdle = Ride(Old, 1100, 0), NewIdle = Ride(New, 1100, 0);
 		const double OldPull = Ride(Old, 6000, 1), NewPull = Ride(New, 6000, 1);
 		std::printf("ride mix: made twin idle %.3f pull %.3f; Torque Shed's parallel twin idle %.3f pull %.3f\n", OldIdle, OldPull, NewIdle, NewPull);

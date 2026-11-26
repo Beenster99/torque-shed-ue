@@ -69696,6 +69696,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "ktm1390",
    "crank": "75v",
    "v_angle": 75.0
   },
@@ -69734,6 +69735,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "tracer9",
    "crank": "240"
   }
  },
