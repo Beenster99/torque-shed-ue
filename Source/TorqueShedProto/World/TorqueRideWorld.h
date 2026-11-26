@@ -42,6 +42,7 @@ class UProceduralMeshComponent;
 struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
 class UTorqueImpostors;
+class UTorqueRideBirds;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -297,6 +298,11 @@ private:
 	FVector2D BirdsLookedAt = FVector2D(1e12, 1e12);
 	FVector2D BirdsGoing = FVector2D(1.0, 0.0);   // (the way the rider is going, for where to send a bird)
 	void TickBirds(float DeltaSeconds);
+	// [birds, Nov 26] The wild birds (World/TorqueRideBirds.h): out of the hedges and trees as a rider comes
+	// by, birds of prey perched and hovering, soaring birds and flocks, all drawn from the RideBirds kit. Without
+	// the kit the few code-made soaring birds above stay.
+	UPROPERTY(Transient) TObjectPtr<UTorqueRideBirds> WildBirds;
+	FString HeardRegion;   // (the region's name round the rider, with Heard)
 	void SendBird(FRideBird& Bird, const FVector2D& At, uint32 Salt);
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> AnimalKit;
 	TArray<TArray<int32>> AnimalModels;   // by RidePlan::EAnimal: indices into AnimalKit

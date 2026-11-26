@@ -1884,6 +1884,97 @@ def animal_kit(L):
     return "RideAnimals: %d models" % len(species)
 
 
+BIRD_DEST = "/Game/RideUK/Birds"
+
+
+def bird_material(L):
+    """[birds] M_RideBird: two-sided (thin feathers), the vertex colour the plumage, its alpha the surface (1
+    feathers, rough; 0.55 bill, cere and legs; 0.15 the wet eye, glossy). Tools/make_ride_birds.py."""
+    g = L.Graph(L.new_material("M_RideBird", MAT_DIR))
+    L.instanced_usage(g.m)
+    g.m.set_editor_property("two_sided", True)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    rough = g.lerp(g.const(0.12), g.const(0.86), vc, alpha_out="A")
+    spec = g.lerp(g.const(0.6), g.const(0.35), vc, alpha_out="A")
+    L.mel.connect_material_property(vc, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+def bird_kit(L):
+    """[birds, Nov 26] The wild birds: Data/RideUK/Birds/SM_Bird_<species>_<pose>.glb (Tools/make_ride_birds.py)
+    imported to /Game/RideUK/Birds, no collision, no Nanite (small, moving instances), each with its
+    hand-made _LOD1 and _LOD2 as its LODs (birds.json hand_lods: their screen sizes), listed in a
+    TorqueFoliage actor tagged RideBirds that plants nothing itself; World/TorqueRideBirds flies them.
+    Returns a short note for the log."""
+    if not hasattr(unreal, "TorqueFoliage"):
+        return "no birds (TorqueFoliage isn't built)"
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Birds")
+    spec_file = os.path.join(folder, "birds.json")
+    if not os.path.isdir(folder) or not os.path.exists(spec_file):
+        return "no birds (python Tools/make_ride_birds.py)"
+    hand = json.load(open(spec_file)).get("hand_lods", [0.08, 0.02])
+    meshes = L.import_glbs(folder, BIRD_DEST)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for name, mesh in meshes.items():
+        try:
+            sme.remove_collisions(mesh)
+        except Exception:
+            pass
+        try:
+            ns = mesh.get_editor_property("nanite_settings")
+            if ns.get_editor_property("enabled"):
+                ns.set_editor_property("enabled", False)
+                mesh.set_editor_property("nanite_settings", ns)
+        except Exception as e:
+            unreal.log_warning("[Torque] birds: Nanite of %s not turned off (%s)" % (name, e))
+        if name.endswith("_LOD1") or name.endswith("_LOD2"):
+            continue
+        if (name + "_LOD1") in meshes:
+            try:
+                if sme.get_lod_count(mesh) > 1:
+                    sme.remove_lods(mesh)
+                sme.set_lod_from_static_mesh(mesh, 1, meshes[name + "_LOD1"], 0, True)
+                screens = [1.0, float(hand[0])]
+                if (name + "_LOD2") in meshes:
+                    sme.set_lod_from_static_mesh(mesh, 2, meshes[name + "_LOD2"], 0, True)
+                    screens.append(float(hand[1]))
+                sme.set_lod_screen_sizes(mesh, screens)
+            except Exception as e:
+                unreal.log_warning("[Torque] birds: hand-made LODs of %s not set (%s)" % (name, e))
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    paint = bird_material(L)
+    models = sorted(n for n in meshes if not (n.endswith("_LOD1") or n.endswith("_LOD2")))
+    if not models:
+        return "no birds (nothing imported from Data/RideUK/Birds)"
+    frame = L.find_frame(meshes[models[0]], os.path.join(folder, models[0] + ".glb"))
+    species = []
+    for name in models:
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", name)
+        e.set_editor_property("mesh", meshes[name])
+        e.set_editor_property("material", paint)
+        for k, v in (("cast_shadow", True), ("scale_multiplier", 1.0), ("cull_distance", 150000.0)):
+            try:
+                e.set_editor_property(k, v)
+            except Exception:
+                pass
+        species.append(e)
+    a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
+    a.set_actor_label("RideBirds")
+    a.set_editor_property("tags", [unreal.Name("RideBirds")])
+    a.set_editor_property("instances_file", "")
+    a.set_editor_property("density", 0.0)
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    return "RideBirds: %d models" % len(species)
+
+
 PROP_DEST = "/Game/RideUK/Props"
 WALL_DEST = "/Game/RideUK/Walls"
 # [build 154] The walls' styles' stone tints, in Tools/make_wall_kit.py's WALL_STYLES order (dales, cotswold,
@@ -2387,6 +2478,7 @@ def build():
     L.spawn(unreal.PlayerStart, (0, 0, 100000.0))
     place_kit(kit)
     log(animal_kit(L))
+    log(bird_kit(L))   # [birds]
     log(prop_kit(L))
     L.save_fresh_level(MAP, before)
     log("built %s and %s/M_RideLand, M_RideRoad%s" % (MAP, MAT_DIR, "".join(", " + m for m in scanned)))

@@ -40,6 +40,7 @@
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
+#include "World/TorqueRideBirds.h"
 #include "World/TorqueForecourtGarage.h"
 #include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueFerry.h"
@@ -934,6 +935,7 @@ void ATorqueRideWorld::EndPlay(const EEndPlayReason::Type Reason)
 	if (Current.Get() == this) Current.Reset();
 	SaveDiary();   // [stage 7]
 	if (Impostors) Impostors->Stop();   // [build 157] (a closed ride is not a crashed bake)
+	if (WildBirds) WildBirds->Stop();   // [birds]
 	if (Jobs)
 	{
 		// (a worker part way through a square reads the world's stores: let it finish before they can go)
@@ -1237,6 +1239,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		RideCosts::FScope Cost(RideCosts::Plants);
 		DropPlants(Key);
 		PlacePlants(Key, Mesh);
+		if (WildBirds) WildBirds->AddPerches(Key, Mesh);   // [birds] (its hedges, bushes and trees, for the birds)
 	}
 	{
 		RideCosts::FScope Cost(RideCosts::Animals);
@@ -2028,7 +2031,9 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		}
 	}
 	RegisterWaiting();
-	TickBirds(DeltaSeconds);
+	// [birds] The wild birds from the kit; without it the old code-made soaring birds.
+	if (WildBirds && WildBirds->HasKit() && Plan) WildBirds->Tick(*Plan, Heard, HeardRegion);
+	else TickBirds(DeltaSeconds);
 	// [stage 7] The street lamps come on as the light goes, and off in the morning.
 	if (const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
 	{
@@ -2062,6 +2067,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		SinceHeard = 0.0;
 		const TorqueWorld::RidePlace Place = Plan->SoundsAt(BirdsLookedAt.X, BirdsLookedAt.Y);
 		Heard[0] = Place.Sea; Heard[1] = Place.Water; Heard[2] = Place.Town; Heard[3] = Place.Sheep; Heard[4] = Place.Cattle; Heard[5] = Place.Circuit;
+		HeardRegion = UTF8_TO_TCHAR(Plan->LookHere(BirdsLookedAt.X, BirdsLookedAt.Y).Name);   // [birds]
 	}
 	SinceLook += DeltaSeconds;
 	if (SinceLook < 0.2) return;
@@ -2732,6 +2738,9 @@ bool ATorqueRideWorld::FindKit()
 				AnimalKit.Add(S);
 			}
 		}
+	// [birds] The wild birds' models (the RideBirds kit).
+	if (!WildBirds) WildBirds = NewObject<UTorqueRideBirds>(this, NAME_None, RF_Transient);
+	WildBirds->Start(this);
 	UE_LOG(LogTemp, Display, TEXT("Torque ride world: livestock: %d models%s"), AnimalKit.Num(),
 		AnimalKit.Num() ? TEXT("") : TEXT(" (no RideAnimals actor in the level: python Tools/make_ride_animals.py, then Tools/ue_build_rideuk.py)"));
 	FString Missing;
@@ -2745,6 +2754,7 @@ bool ATorqueRideWorld::FindKit()
 
 void ATorqueRideWorld::DropPlants(const FIntVector& Key)
 {
+	if (WildBirds) WildBirds->DropPerches(Key);   // [birds]
 	if (TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>* Old = TilePlants.Find(Key))
 	{
 		for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Part : *Old)
