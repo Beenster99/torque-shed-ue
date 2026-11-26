@@ -945,6 +945,9 @@ public:
 		// each): steel barriers (0 one beam, 1 a central reservation's two), the concrete step barrier, sign gantries
 		// (0..2: 14, 20, 27 m spans), yellow speed cameras, emergency phones and marker posts (WorldRideFastRoads.cpp)
 		PropFastBarrier, PropFastConcrete, PropFastGantry, PropFastCamera, PropFastPhone, PropFastMarker,
+		// [everyday kits stage 8b] The motorway services set (Tools/blender_services_props.py): the main building, the
+		// name pylon, parked lorries (World/WorldRideServices.cpp)
+		PropServicesHall, PropServicesPylon, PropServicesLorry,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1596,6 +1599,28 @@ public:
 	bool FastBarriersOn() const;
 	static void LayBarrierRun(std::vector<RideProp>& Props, double OriginX, double OriginZ, int Kind, int Variant, const P2& A, double Ya, const P2& B, double Yb);
 	bool InWholeRim(const P2& At) const;
+	// [everyday kits stage 8b] The motorway service areas (World/WorldRideServices.cpp; found by IndexTownLife from the
+	// kits bake's services areas): each its made-up name, its main building (the map's biggest box in it, drawn as the
+	// set's hall with the name over its doors instead of the box), the name pylon facing the motorway, and a lorry park
+	// (a row of parked lorries on tarmac, the field's FieldForecourt) where there's room. ServicesTile lays a square's.
+	struct ServiceArea
+	{
+		std::vector<P2> Ring;
+		P2 Mid;
+		double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0;
+		std::string Name;
+		P2 MainAt;          // (the main road's nearest point)
+		int HallDesign = 0;
+		bool Pylon = false;
+		P2 PylonAt, PylonFront;
+		std::vector<P2> LorryAt, LorryFront;
+		std::vector<int> LorryVariant;
+		std::vector<P2> Park;   // (the lorry park's tarmac: empty, none)
+	};
+	std::vector<ServiceArea> ServiceAreas;
+	bool HallBuilding(const Building* B) const;
+	bool HallOf(size_t Which, Building& Hall) const;   // (the biggest box in it, 300 m2 or more, as the buildings draw them; kept once found)
+	void ServicesTile(double X0, double Z0, double Size, RideMesh& Out) const;
 	bool BridgeRailsOn() const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its

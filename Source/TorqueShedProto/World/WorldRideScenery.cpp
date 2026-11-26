@@ -390,6 +390,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 	Out.OriginX = X0;
 	Out.OriginZ = Z0;
 	if (!Scene || !Land) return;
+	ServicesTile(X0, Z0, Size, Out);   // [everyday kits stage 8b] (the motorway services' hall, pylon and lorries: World/WorldRideServices.cpp)
 	const Region& G = Area.Roads;
 	const bool Fine = Coarse <= 4.5;
 	const auto Inside = [X0, Z0, Size](double X, double Z) { return X >= X0 && X < X0 + Size && Z >= Z0 && Z < Z0 + Size; };

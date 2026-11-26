@@ -410,6 +410,12 @@ int main(int Argc, char** Argv)
 			int(Plan->RoadsideThings.size()));
 		std::printf("Fast road set: %d gantries, %d speed cameras, %d emergency phones, %d marker posts; barriers as models: %s\n", Plan->FastGantries, Plan->FastCameras,   // [everyday kits stage 8]
 			Plan->FastPhones, Plan->FastMarkers, Plan->FastBarriersOn() ? "yes" : "no");
+		{
+			int Halls = 0, Pylons = 0, Lorries = 0;   // [everyday kits stage 8b]
+			for (size_t Ai = 0; Ai < Plan->ServiceAreas.size(); ++Ai) { const RidePlan::ServiceArea& A = Plan->ServiceAreas[Ai]; Building H; Halls += Plan->HallOf(Ai, H) ? 1 : 0; Pylons += A.Pylon ? 1 : 0; Lorries += int(A.LorryAt.size()); }
+			std::printf("Motorway services: %d areas, %d main buildings, %d pylons, %d lorries\n", int(Plan->ServiceAreas.size()), Halls, Pylons, Lorries);
+			for (const RidePlan::ServiceArea& A : Plan->ServiceAreas) std::printf("  %s at %.1f, %.1f\n", A.Name.c_str(), A.Mid.X, A.Mid.Z);
+		}
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road

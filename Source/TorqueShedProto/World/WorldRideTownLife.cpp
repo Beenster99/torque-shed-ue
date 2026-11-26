@@ -794,6 +794,146 @@ void RidePlan::IndexTownLife()
 		}
 	}
 
+	// [everyday kits stage 8b] The motorway service areas (RidePlan::ServiceAreas: World/WorldRideServices.cpp lays them):
+	// each kits bake services area beside a motorway or a dual trunk road, its made-up name, its main building (the map's
+	// biggest box building in it, 300 m2 or more), the name pylon on the verge facing the main road, and a lorry park of
+	// three to eight lorries side by side where a clear, level patch of the area takes them.
+	ServiceAreas.clear();
+	{
+		static const char* const Firsts[] = {"Oakmere", "Kestrel", "Ridgeway", "Hartcliffe", "Fenwick", "Stonebridge", "Larkhill", "Ashby Moor",
+			"Copthorne Heath", "Wychwood", "Thornbury Cross", "Linwood", "Brackenfield", "Hollins Gate", "Redmoor", "Greystones", "Fairley",
+			"Highcross", "Elmsworth", "Marlow Down"};
+		static const char* const Lasts[] = {"Services", "Services", "Services", "Motorway Services", "Services", "Travel Plaza"};
+		const auto InsideRing = [](const std::vector<P2>& Ring, const P2& P)
+		{
+			bool In = false;
+			for (size_t I = 0, J = Ring.size() - 1; I < Ring.size(); J = I++)
+				if (((Ring[I].Z > P.Z) != (Ring[J].Z > P.Z)) && P.X < (Ring[J].X - Ring[I].X) * (P.Z - Ring[I].Z) / (Ring[J].Z - Ring[I].Z) + Ring[I].X) In = !In;
+			return In;
+		};
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Kind != "services" || T.Pts.size() < 3) continue;
+			ServiceArea A;
+			A.Ring = T.Pts;
+			A.MinX = A.MaxX = T.Pts[0].X;
+			A.MinZ = A.MaxZ = T.Pts[0].Z;
+			P2 Sum(0.0, 0.0);
+			for (const P2& P : T.Pts)
+			{
+				Sum = Sum + P;
+				A.MinX = std::fmin(A.MinX, P.X); A.MaxX = std::fmax(A.MaxX, P.X);
+				A.MinZ = std::fmin(A.MinZ, P.Z); A.MaxZ = std::fmax(A.MaxZ, P.Z);
+			}
+			A.Mid = Sum * (1.0 / double(T.Pts.size()));
+			if (A.MaxX - A.MinX > 1500.0 || A.MaxZ - A.MinZ > 1500.0) continue;
+			// (beside a motorway or a dual trunk road: its nearest, within 400 m)
+			Foot Main;
+			{
+				const int Cx0 = int(std::floor(A.Mid.X / BitCell)), Cz0 = int(std::floor(A.Mid.Z / BitCell)), Rings = int(std::ceil(400.0 / BitCell));
+				for (int Dz = -Rings; Dz <= Rings; ++Dz)
+					for (int Dx = -Rings; Dx <= Rings; ++Dx)
+					{
+						const auto It = Bits.find(static_cast<long long>(Cx0 + Dx) * 4000037LL + (Cz0 + Dz));
+						if (It == Bits.end()) continue;
+						for (const std::pair<int, int>& Bt : It->second)
+						{
+							const RoadEdge& R = G.Edges[size_t(Bt.first)];
+							const std::string& C = G.ClassOf(Bt.first);
+							if (!(C == "motorway" || (C == "trunk" && R.Oneway != 0))) continue;
+							double U = 0.0;
+							const double D = SegDistance(A.Mid, R.Line[size_t(Bt.second)], R.Line[size_t(Bt.second) + 1], &U);
+							if (D < Main.Dist)
+							{
+								Main.Dist = D; Main.Edge = Bt.first; Main.Bit = Bt.second; Main.T = U;
+								Main.At = R.Line[size_t(Bt.second)] + (R.Line[size_t(Bt.second) + 1] - R.Line[size_t(Bt.second)]) * U;
+							}
+						}
+					}
+			}
+			if (Main.Edge < 0 || Main.Dist > 400.0) continue;
+			const uint32_t Seed = ((uint32_t(int64_t(std::floor(A.Mid.X))) * 73856093u) ^ (uint32_t(int64_t(std::floor(A.Mid.Z))) * 19349663u)) | 1u;
+			A.Name = std::string(Firsts[int(Dice(Seed, 41) * 20.0) % 20]) + " " + Lasts[int(Dice(Seed, 42) * 6.0) % 6];
+			A.HallDesign = int(Dice(Seed, 43) * 2.0) % 2;
+			A.MainAt = Main.At;
+			// (the pylon: on the area's side of the main road, 12 m out from its edge, facing it)
+			{
+				P2 Out = A.Mid - Main.At;
+				const double Ol = Out.Length();
+				if (Ol > 1.0)
+				{
+					Out = Out * (1.0 / Ol);
+					const P2 At = Main.At + Out * (Halves[size_t(Main.Edge)] + 12.0);
+					const Foot Near = NearestRoad(At, 20.0, false);
+					if (!InBuilding(At, 2.0) && !Wet(At) && !OnSpan(At) && !std::isnan(Ground(At.X, At.Z)) && (Near.Edge < 0 || Near.Dist > Halves[size_t(Near.Edge)] + 3.0))
+					{
+						A.Pylon = true;
+						A.PylonAt = At;
+						A.PylonFront = Out * -1.0;
+					}
+				}
+			}
+			// (the lorry park: three to eight lorries side by side 4.6 m apart, square to the main road, on clear level
+			// ground inside the area, as far from the main building as can be)
+			{
+				P2 Way = G.Edges[size_t(Main.Edge)].Line[size_t(Main.Bit) + 1] - G.Edges[size_t(Main.Edge)].Line[size_t(Main.Bit)];
+				Way = Way * (1.0 / std::fmax(1e-6, Way.Length()));
+				const P2 Deep(Way.Z, -Way.X);
+				const auto Fits = [&](const P2& C, int N)
+				{
+					const double Run = (N - 1) * 4.6 * 0.5 + 4.0, Half = 12.0;
+					double Lo = 1e9, Hi = -1e9;
+					for (double U = -Run; U <= Run + 0.01; U += Run / 3.0)
+						for (double V = -Half; V <= Half + 0.01; V += Half / 2.0)
+						{
+							const P2 Q = C + Way * U + Deep * V;
+							if (!InsideRing(A.Ring, Q) || InBuilding(Q, 3.0) || Wet(Q) || OnForecourt(Q.X, Q.Z)) return false;
+							const Foot R0 = NearestRoad(Q, 20.0, false);
+							if (R0.Edge >= 0 && R0.Dist < Halves[size_t(R0.Edge)] + 2.5) return false;
+							const double Y = Ground(Q.X, Q.Z);
+							if (std::isnan(Y)) return false;
+							Lo = std::fmin(Lo, Y); Hi = std::fmax(Hi, Y);
+						}
+					return Hi - Lo < 1.6;
+				};
+				double Best = -1.0;
+				P2 BestAt;
+				int BestN = 0;
+				const P2 Away = A.Mid;
+				for (double Z = A.MinZ + 10.0; Z <= A.MaxZ - 10.0; Z += 10.0)
+					for (double X = A.MinX + 10.0; X <= A.MaxX - 10.0; X += 10.0)
+					{
+						const P2 C(X, Z);
+						if (!InsideRing(A.Ring, C)) continue;
+						for (const int N : {8, 5, 3})
+						{
+							const double Score = double(N) * 1000.0 + C.DistanceTo(Away);
+							if (Score <= Best) break;
+							if (!Fits(C, N)) continue;
+							Best = Score; BestAt = C; BestN = N;
+							break;
+						}
+					}
+				if (BestN > 0)
+				{
+					const double Run = (BestN - 1) * 4.6 * 0.5;
+					for (int K = 0; K < BestN; ++K)
+					{
+						if (Dice(Seed + uint32_t(K) * 31u, 44) < 0.2) continue;   // (a gap here and there)
+						A.LorryAt.push_back(BestAt + Way * (-Run + K * 4.6) + Deep * (Dice(Seed + uint32_t(K) * 31u, 45) - 0.5));
+						A.LorryFront.push_back(Dice(Seed + uint32_t(K) * 31u, 46) < 0.8 ? Deep * -1.0 : Deep);
+						A.LorryVariant.push_back(int(Dice(Seed + uint32_t(K) * 31u, 47) * 3.0) % 3);
+					}
+					const double Ru = Run + 4.0, Rv = 11.0;
+					A.Park = {BestAt - Way * Ru - Deep * Rv, BestAt + Way * Ru - Deep * Rv, BestAt + Way * Ru + Deep * Rv, BestAt - Way * Ru + Deep * Rv};
+				}
+			}
+			for (const ServiceArea& Other : ServiceAreas)   // (both sides of one services: one name)
+				if (Other.Mid.DistanceTo(A.Mid) < 700.0) { A.Name = Other.Name; break; }
+			ServiceAreas.push_back(std::move(A));
+		}
+	}
+
 	// The things. (a thing's square, and how it is filed)
 	TownThings.clear();
 	ThingGrid.clear();
