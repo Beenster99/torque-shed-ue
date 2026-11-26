@@ -17,6 +17,7 @@
 #include <cmath>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <string>
 #include <unordered_map>
 
@@ -665,6 +666,131 @@ void RidePlan::IndexTownLife()
 				AddRoadside(PropRoadBurgerVan, P, To * (1.0 / std::fmax(1e-6, To.Length())), int(Dice(Seed, 32) * 2.0), Seed * 5u + 3u);
 			}
 			RoadCafes += Any ? 1 : 0;
+		}
+	}
+
+	// [everyday kits stage 8] The fast road set's things beside and over the motorways and dual carriageways (laid by
+	// RoadsideProps with the lay-bys' things): the kits bake's sign gantries (lines across a carriageway), speed cameras
+	// and emergency phones where the map has them, and a marker post every 100 m along a motorway's or a dual trunk
+	// road's nearside verge.
+	FastGantries = FastCameras = FastPhones = FastMarkers = 0;
+	{
+		const auto AddFast = [this](int Kind, const P2& At, const P2& Front, int Variant, uint32_t Id, double Across, double Y)
+		{
+			RoadsideThing T;
+			T.Kind = Kind;
+			T.At = At;
+			T.Front = Front;
+			T.Variant = Variant;
+			T.Id = Id;
+			T.Across = float(Across);
+			T.Y = Y;
+			RoadsideGrid[CourtKey(At.X, At.Z)].push_back(int(RoadsideThings.size()));
+			RoadsideThings.push_back(T);
+		};
+		const auto Fast = [&](int Edge)
+		{
+			const std::string& C = G.ClassOf(Edge);
+			return Motorway[size_t(Edge)] != 0 || C == "trunk" || C == "primary" || C == "trunk_link";
+		};
+		// (a road's way at a foot, and the way the traffic beside it on the side Side (+1 its left as its line runs)
+		// goes: a one-way road's own way; on a two-way road the left side's along its line, Britain driving on the left)
+		const auto WayAt = [&](const Foot& F)
+		{
+			const std::vector<P2>& L = G.Edges[size_t(F.Edge)].Line;
+			P2 D = L[size_t(F.Bit) + 1] - L[size_t(F.Bit)];
+			return D * (1.0 / std::fmax(1e-6, D.Length()));
+		};
+		const auto Traffic = [&](const Foot& F, double Side)
+		{
+			const int One = G.Edges[size_t(F.Edge)].Oneway;
+			const P2 D = WayAt(F);
+			return One != 0 ? D * double(One) : D * Side;
+		};
+		const auto Standing = [&](const P2& Q, double Spare)
+		{
+			if (InBuilding(Q, Spare) || Wet(Q) || OnSpan(Q) || OnForecourt(Q.X, Q.Z) || std::isnan(Ground(Q.X, Q.Z))) return false;
+			const Foot R0 = NearestRoad(Q, 20.0, false);
+			return R0.Edge < 0 || R0.Dist > Halves[size_t(R0.Edge)] + Spare;
+		};
+		uint32_t Seq = 1;
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Pts.empty()) continue;
+			++Seq;
+			if (T.Kind == "gantry" && T.Pts.size() >= 2)
+			{
+				// (where the map has it, square across the carriageway under it (the map's line is often only part of
+				// the way across), its legs 1.5 m outside its edges; its front to the traffic coming)
+				const P2 A0 = T.Pts.front(), B0 = T.Pts.back(), Mid0 = (A0 + B0) * 0.5;
+				if (A0.DistanceTo(B0) > 60.0 || OnSpan(Mid0)) continue;
+				const Foot F = NearestRoad(Mid0, 15.0, false);
+				if (F.Edge < 0 || !Fast(F.Edge) || OnSpan(F.At)) continue;
+				const P2 Way = Traffic(F, 1.0);
+				const P2 Front = Way * -1.0;
+				const P2 Across(Way.Z, -Way.X);
+				const double Span = Halves[size_t(F.Edge)] * 2.0 + 3.0;
+				const P2 A = F.At + Across * (Span * 0.5), B = F.At - Across * (Span * 0.5);
+				static constexpr double Spans[3] = {14.0, 20.0, 27.0};
+				int V = 0;
+				for (int K = 1; K < 3; ++K) if (std::fabs(Spans[K] - Span) < std::fabs(Spans[V] - Span)) V = K;
+				const double Ya = Ground(A.X, A.Z), Yb = Ground(B.X, B.Z), Ym = Ground(F.At.X, F.At.Z);
+				if (std::isnan(Ya) || std::isnan(Yb) || std::isnan(Ym)) continue;
+				AddFast(PropFastGantry, F.At, Front, V, Seq * 11u + 1u, std::clamp(Span / Spans[V], 0.6, 1.5), std::fmin(Ym, std::fmin(Ya, Yb)));
+				++FastGantries;
+			}
+			else if ((T.Kind == "speed_camera" && T.Word != "traffic_signals") || T.Kind == "emergency_phone")
+			{
+				// (on the verge beside the road it watches or serves, on the side the map has it (a point in the road: the
+				// left as the traffic goes), the camera's lens to the traffic coming, the phone's door to the road)
+				const bool Phone = T.Kind == "emergency_phone";
+				const P2 P = T.Pts.front();
+				const Foot F = NearestRoad(P, Phone ? 30.0 : 25.0, false);
+				if (F.Edge < 0 || (Phone && !Fast(F.Edge))) continue;
+				const P2 D = WayAt(F);
+				const P2 Left(D.Z, -D.X);
+				const double Half = Halves[size_t(F.Edge)];
+				const double Off = (P.X - F.At.X) * Left.X + (P.Z - F.At.Z) * Left.Z;
+				double Side = Off >= 0.0 ? 1.0 : -1.0;
+				if (F.Dist < Half) Side = G.Edges[size_t(F.Edge)].Oneway < 0 ? -1.0 : 1.0;
+				const double Out = std::clamp(F.Dist, Half + (Phone ? 2.2 : 1.6), Half + 5.0);
+				const P2 At = F.At + Left * (Side * Out);
+				if (!Standing(At, 0.6)) continue;
+				const P2 Front = Phone ? Left * -Side : Traffic(F, Side) * -1.0;
+				AddFast(Phone ? PropFastPhone : PropFastCamera, At, Front, 0, Seq * 13u + 5u, 1.0, std::numeric_limits<double>::quiet_NaN());
+				++(Phone ? FastPhones : FastCameras);
+			}
+		}
+		// (the marker posts: every 100 m along each one-way motorway or dual trunk road, 1.2 m out from its nearside edge,
+		// none in its first or last 40 m (its junctions), on a bridge, or where something else stands)
+		for (size_t E = 0; E < G.Edges.size(); ++E)
+		{
+			const RoadEdge& R = G.Edges[E];
+			if (R.Oneway == 0 || R.Line.size() < 2) continue;
+			const std::string& C = G.ClassOf(int(E));
+			if (!(C == "motorway" || C == "trunk")) continue;
+			double Along = 0.0;
+			const double Total = R.Length > 0.0 ? R.Length : 0.0;
+			double Next = 100.0 - std::fmod(std::fabs(R.Line.front().X * 0.37 + R.Line.front().Z * 0.61), 100.0);
+			for (size_t I = 0; I + 1 < R.Line.size(); ++I)
+			{
+				const P2 A = R.Line[I], B = R.Line[I + 1];
+				const double L = A.DistanceTo(B);
+				while (L > 1e-6 && Next <= Along + L)
+				{
+					const double U = (Next - Along) / L;
+					Next += 100.0;
+					const double At0 = Along + U * L;
+					if (At0 < 40.0 || (Total > 0.0 && At0 > Total - 40.0)) continue;
+					const P2 Way = (B - A) * (double(R.Oneway) / L);
+					const P2 Near(Way.Z, -Way.X);   // (the traffic's left: its nearside)
+					const P2 Q = A + (B - A) * U + Near * (Halves[E] + 1.2);
+					if (!Standing(Q, 0.9)) continue;
+					AddFast(PropFastMarker, Q, Way * -1.0, 0, uint32_t(E) * 977u + uint32_t(Next), 1.0, std::numeric_limits<double>::quiet_NaN());
+					++FastMarkers;
+				}
+				Along += L;
+			}
 		}
 	}
 

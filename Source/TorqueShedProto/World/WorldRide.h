@@ -44,6 +44,7 @@
 #include <cstdint>
 #include <functional>
 #include <array>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -940,6 +941,10 @@ public:
 		// [everyday kits stage 7] The bridge set (Tools/blender_bridge_props.py, two hand-made distance versions each):
 		// stone arches, concrete piers and abutments and the modern parapet, laid with a road's piece by BridgeKitProps
 		PropBridgeArch, PropBridgePier, PropBridgeAbutment, PropBridgeRail,
+		// [everyday kits stage 8] The fast road set (Tools/blender_fastroad_props.py, two hand-made distance versions
+		// each): steel barriers (0 one beam, 1 a central reservation's two), the concrete step barrier, sign gantries
+		// (0..2: 14, 20, 27 m spans), yellow speed cameras, emergency phones and marker posts (WorldRideFastRoads.cpp)
+		PropFastBarrier, PropFastConcrete, PropFastGantry, PropFastCamera, PropFastPhone, PropFastMarker,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1570,16 +1575,27 @@ public:
 		P2 At, Front;      // where, and the way its front (+x) faces
 		int Variant = 0;
 		uint32_t Id = 1;
+		float Across = 1.0f;   // [everyday kits stage 8] (a gantry's: stretched across to its span)
+		double Y = std::numeric_limits<double>::quiet_NaN();   // [stage 8] (its foot's height: NaN the ground's)
 	};
 	std::vector<RoadsideThing> RoadsideThings;
 	std::unordered_map<long long, std::vector<int>> RoadsideGrid;   // by the 64 m square each is in
-	int LaybysSeen = 0, RoadCafes = 0;   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
+	int LaybysSeen = 0, RoadCafes = 0;
+	int FastGantries = 0, FastCameras = 0, FastPhones = 0, FastMarkers = 0;   // [everyday kits stage 8] (the fast road set's things made)   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
 	static constexpr double LaybyLong = 34.0, LaybyDeep = 3.2, LaybyLeast = 2.6;
 	void RoadsideProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	// [everyday kits stage 7] The bridge set under and along each bridge whose deck starts in road Which's piece First..Last
 	// (World/WorldRideBridgeKit.cpp), into Out.Props; and whether a wide road's bridge has the kit's parapet (the road
 	// build then leaves its plain slab parapet off).
 	void BridgeKitProps(int Which, int First, int Last, RideMesh& Out) const;
+	// [everyday kits stage 8] The fast road set (World/WorldRideFastRoads.cpp). FastBarriersOn: the steel and concrete
+	// barriers laid as models (the road build's and the scenery's drawn ones left off then). LayBarrierRun: a barrier's
+	// 4 m lengths from A to B (Ya, Yb its foot), stretched to fit, each pitched up the slope, into Props (about OriginX,
+	// OriginZ); a one-beam barrier's road on its right going from A to B. InWholeRim: a point on a whole junction's
+	// tarmac (no kit pieces there). The gantries, cameras, phones and marker posts are RoadsideThings (IndexTownLife).
+	bool FastBarriersOn() const;
+	static void LayBarrierRun(std::vector<RideProp>& Props, double OriginX, double OriginZ, int Kind, int Variant, const P2& A, double Ya, const P2& B, double Yb);
+	bool InWholeRim(const P2& At) const;
 	bool BridgeRailsOn() const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its

@@ -97,6 +97,12 @@
   "bridge_pier": {"words": [], "reach": 1000, "height": 1.05, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "bridge_abutment": {"words": [], "reach": 800, "height": 1.01, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "bridge_rail": {"words": [], "reach": 300, "height": 1.25, "shadow": false, "credit": "", "hand_lods": [0.12, 0.03]},
+  "fast_barrier": {"words": [], "reach": 250, "height": 0.98, "shadow": false, "credit": "", "hand_lods": [0.1, 0.025]},
+  "fast_concrete": {"words": [], "reach": 300, "height": 0.95, "shadow": true, "credit": "", "hand_lods": [0.1, 0.025]},
+  "fast_gantry": {"words": [], "reach": 1200, "height": 7.6, "shadow": true, "credit": "", "hand_lods": [0.2, 0.05]},
+  "fast_camera": {"words": [], "reach": 400, "height": 3.752, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
+  "fast_phone": {"words": [], "reach": 200, "height": 1.405, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
+  "fast_marker": {"words": [], "reach": 150, "height": 1.227, "shadow": false, "credit": "", "hand_lods": [0.12, 0.03]},
   "parked_car": {"words": [], "reach": 220, "height": 0, "shadow": true, "credit": "", "folder": "Cars", "variants": 12,
    "models": ["sm_hatchback", "sm_suv", "vehicle02_car", "vehicle03_car", "vehicle05_car"],
    "colours": [[0.55, 0.56, 0.57], [0.012, 0.03, 0.09], [0.8, 0.8, 0.78], [0.2, 0.012, 0.012], [0.08, 0.08, 0.085], [0.015, 0.07, 0.03], [0.32, 0.28, 0.2], [0.18, 0.3, 0.45], [0.006, 0.006, 0.007], [0.45, 0.45, 0.46]]}

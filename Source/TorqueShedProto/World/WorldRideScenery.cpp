@@ -549,6 +549,21 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							// side (0.45 to 0.78 m up), or a concrete step barrier (0.6 m at its foot, 0.24 m at
 							// its top, 0.9 m high).
 							static const Rgb Steel = {0.27f, 0.28f, 0.29f}, PostGrey = {0.2f, 0.2f, 0.21f}, Cast = {0.32f, 0.31f, 0.29f};
+							if (FastBarriersOn())
+							{
+								// [everyday kits stage 8] (the fast road set's models: World/WorldRideFastRoads.cpp; a steel barrier
+								// with its beam to the road where only one side has a road near, else a beam each side)
+								if (Concrete)
+								{
+									LayBarrierRun(Out.Props, Out.OriginX, Out.OriginZ, PropFastConcrete, 0, Pa, Ga, Pb, Gb);
+									continue;
+								}
+								const bool RoadLeft = !OffRoad(Pm.X + Side.X * 2.5, Pm.Z + Side.Z * 2.5, 0.0);
+								const bool RoadRight = !OffRoad(Pm.X - Side.X * 2.5, Pm.Z - Side.Z * 2.5, 0.0);
+								if (RoadLeft && !RoadRight) LayBarrierRun(Out.Props, Out.OriginX, Out.OriginZ, PropFastBarrier, 0, Pb, Gb, Pa, Ga);
+								else LayBarrierRun(Out.Props, Out.OriginX, Out.OriginZ, PropFastBarrier, RoadRight && !RoadLeft ? 0 : 1, Pa, Ga, Pb, Gb);
+								continue;
+							}
 							if (Concrete)
 							{
 								for (double Sg : {1.0, -1.0})

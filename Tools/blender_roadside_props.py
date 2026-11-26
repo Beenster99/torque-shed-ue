@@ -280,7 +280,7 @@ def render_sheet(models, out_dir, title, sheet_name, yaw=32.0, pitch=12.0, cols=
         R._show(sc, U, 0)
         lo, hi = R._bounds(U)
         lo.z = max(lo.z, 0.0)
-        R._shoot(sc, U, yaw, pitch, size, a, lens=50.0, focus=(lo + hi) * 0.5, zoom=(hi - lo).length * 0.6)
+        R._shoot(sc, U, yaw, pitch, size, a, lens=50.0, focus=(lo + hi) * 0.5, zoom=max((hi - lo).length * 0.6, (hi.z - lo.z) * 1.05))
         shots.append((U, a))
     pad, head = 8, 24
     rows = (len(shots) + cols - 1) // cols
