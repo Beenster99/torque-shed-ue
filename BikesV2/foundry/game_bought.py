@@ -73,7 +73,9 @@ BIKES = {
             # SpeedPlus: 1250 cc, 104 x 73.6 mm, 111 hp at 7,250, 109 N m at 6,300 (made-up close to the real figures)
             "engine": {"layout": "vtwin", "cylinders": 2, "displacement": 1250.0, "bore": 104.0, "stroke": 73.6, "torque_per_cc": 0.087,
                        "peak_torque_rpm": 6300.0, "redline": 8300.0, "idle_rpm": 1000.0, "mass": 78.0, "crank": "60v",
-                       "v_angle": 60.0, "type": "SpeedPlus 60-degree V-twin", "price": 5200},
+                       "v_angle": 60.0, "type": "SpeedPlus 60-degree V-twin", "price": 5200,
+                       # [Bike V3 Sounds] beenster's own recording of the Scout on tour (Data/Audio/Bikes/scout)
+                       "sound": "scout"},
             "gearbox": {"primary": 1.75, "ratios": [2.77, 1.88, 1.43, 1.18, 1.0, 0.88], "shift_time": 0.1, "shift_feel": "clunky",
                         "quickshifter": False, "dry_clutch": False, "type": "Six-speed", "price": 700},
         },

@@ -107,8 +107,9 @@ int main(int Argc, char** Argv)
 		{"inline4_1000", Make("inline", 4, 1000, 1300, 14000, "race"), true},
 		{"2stroke_250", Make("2stroke", 2, 250, 1400, 12000, "full"), false},
 		{"2stroke_125", Make("2stroke", 1, 125, 1500, 11500, "full"), false},
-		// [Bike V3 Sounds] beenster's own Multistrada recording (Data/Audio/Bikes/multistrada) up to 5,300 rpm, made above
+		// [Bike V3 Sounds] beenster's own recordings (Data/Audio/Bikes/<name>) over the revs recorded, made below and above
 		{"multistrada", [&Make] { FSpec S = Make("vtwin", 4, 1158, 1300, 11500, "stock", "twinpulse"); S.Own = "multistrada"; return S; }(), false},
+		{"scout", [&Make] { FSpec S = Make("vtwin", 2, 1250, 1000, 8300, "stock", "60v"); S.Own = "scout"; return S; }(), false},
 	};
 	std::vector<double> IdleLoud, PullLoud;
 	for (FCase& C : Cases)
@@ -123,21 +124,24 @@ int main(int Argc, char** Argv)
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
 		if (!C.S.Own.empty())
 		{
-			// Its own loops up to the recording's top, the made sound above, no jump in level where they meet.
-			CHECK(B->bOwn && B->OwnTop > 4000.0, "%s: own recording not loaded (top %.0f rpm)", C.Name, B->OwnTop);
-			size_t Own = 0, Made = 0;
-			for (size_t I = 0; I < B->Rpms.size(); ++I) (B->Rpms[I] <= B->OwnTop ? Own : Made) += 1;
-			CHECK(Own >= 6 && Made >= 3, "%s: %zu own buckets, %zu made", C.Name, Own, Made);
+			// Its own loops over the revs recorded, the made sound either side, no jump in level where they meet.
+			CHECK(B->bOwn && B->OwnTop > B->OwnLo * 1.4, "%s: own recording not loaded (%.0f-%.0f rpm)", C.Name, B->OwnLo, B->OwnTop);
+			size_t Own = 0, Below = 0, Above = 0;
+			for (double R : B->Rpms) (R < B->OwnLo ? Below : (R > B->OwnTop ? Above : Own)) += 1;
+			std::printf("  own %.0f-%.0f rpm: %zu own buckets, %zu made below, %zu above\n", B->OwnLo, B->OwnTop, Own, Below, Above);
+			CHECK(Own >= 4 && Below >= 1 && Above >= 1, "%s: %zu own buckets, %zu made below, %zu above", C.Name, Own, Below, Above);
 			for (size_t I = 0; I + 1 < B->Rpms.size(); ++I)
-				if (B->Rpms[I] == B->OwnTop)
-				{
-					const auto& A = B->Buckets[I]->Loop[ExOn];
-					const auto& N = B->Buckets[I + 1]->Loop[ExOn];
-					const double Db = 20.0 * std::log10(Rms(N.data(), N.size()) / std::max(Rms(A.data(), A.size()), 1e-9));
-					std::printf("  own top %.0f rpm, made from %.0f rpm: %+.1f dB\n", B->OwnTop, B->Rpms[I + 1], Db);
-					CHECK(std::fabs(Db) < 4.0, "%s: %.1f dB jump where the recording hands over", C.Name, Db);
-					CHECK(B->Buckets[I + 1]->Loop[InOn].empty(), "%s: made bucket still has an engine side", C.Name);
-				}
+			{
+				const bool bTop = B->Rpms[I] == B->OwnTop, bLo = B->Rpms[I + 1] == B->OwnLo;
+				if (!bTop && !bLo) continue;
+				const int L = bTop ? ExOn : ExOff;
+				const auto& A = B->Buckets[I]->Loop[L];
+				const auto& N = B->Buckets[I + 1]->Loop[L];
+				const double Db = 20.0 * std::log10(Rms(N.data(), N.size()) / std::max(Rms(A.data(), A.size()), 1e-9));
+				std::printf("  %.0f -> %.0f rpm (%s): %+.1f dB\n", B->Rpms[I], B->Rpms[I + 1], bTop ? "top, on" : "bottom, off", Db);
+				CHECK(std::fabs(Db) < 4.0, "%s: %.1f dB jump where the recording hands over", C.Name, Db);
+				CHECK(B->Buckets[bTop ? I + 1 : I]->Loop[InOn].empty(), "%s: made bucket still has an engine side", C.Name);
+			}
 		}
 		// Every loop finite, not silent, not pinned, and seamless (its end runs into its start).
 		for (size_t I = 0; I < B->Buckets.size(); ++I)

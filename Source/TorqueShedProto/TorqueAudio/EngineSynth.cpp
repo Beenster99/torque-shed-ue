@@ -1107,8 +1107,17 @@ void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& 
 		return;
 	}
 	const std::vector<double> Made = Rpms;
+	OwnLo = Found.begin()->first;
+	OwnTop = Found.rbegin()->first;
 	Rpms.clear();
 	Buckets.clear();
+	// The made buckets well clear of the recording at both ends (the end recorded ones carry the revs a way on).
+	for (double R : Made)
+		if (R < OwnLo / 1.12)
+		{
+			Rpms.push_back(R);
+			Buckets.push_back(std::make_unique<FBucket>());
+		}
 	for (auto& KV : Found)
 	{
 		Rpms.push_back(KV.first);
@@ -1117,14 +1126,32 @@ void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& 
 		B->bReady = true;
 		Buckets.push_back(std::move(B));
 	}
-	OwnTop = Rpms.back();
-	// The made buckets well clear of the recording, so the top recorded one carries the revs a way on.
 	for (double R : Made)
 		if (R > OwnTop * 1.12)
 		{
 			Rpms.push_back(R);
 			Buckets.push_back(std::make_unique<FBucket>());
 		}
+	// The recording as loud as the made sound at its top (on the throttle), so the bike sits in the game's
+	// mix like every other; the made buckets below it matched to its bottom (off the throttle).
+	auto Made1 = [this](double Rpm, int Ex, int In) {
+		std::vector<float> Ref = RenderLoop(Spec, Ex, Rpm, 1);
+		const std::vector<float> RefIn = RenderLoop(Spec, In, Rpm, 1);
+		for (size_t K = 0; K < Ref.size() && K < RefIn.size(); ++K) Ref[K] += (float)(OwnInFold * RefIn[K]);
+		return Rms(Ref);
+	};
+	auto Own1 = [this](double Rpm, int Layer) {
+		const int At = (int)std::distance(Rpms.begin(), std::find(Rpms.begin(), Rpms.end(), Rpm));
+		return Rms(Buckets[At]->Loop[Layer]);
+	};
+	const double TopOwn = Own1(OwnTop, ExOn);
+	const double RecGain = TopOwn > 1e-6 ? Made1(OwnTop, ExOn, InOn) / TopOwn : 1.0;
+	for (auto& B : Buckets)
+		for (auto& L : B->Loop)
+			for (float& V : L) V = (float)(V * RecGain);
+	const double LoMade = Made1(OwnLo, ExOff, InOff);
+	OwnGainLo = LoMade > 1e-6 ? Own1(OwnLo, ExOff) / LoMade : 1.0;
+	OwnGain = 1.0;
 	bExhaustOnly = true;
 	bOwn = true;
 }
@@ -1165,16 +1192,6 @@ void FBank::Bake()
 	bStarted = true;
 	const auto T0 = std::chrono::steady_clock::now();
 	int Done = 0;
-	if (bOwn && OwnTop > 0.0)
-	{
-		// The made sound at the top of the recording, as loud as the recording there.
-		std::vector<float> Ref = RenderLoop(Spec, ExOn, OwnTop, 1);
-		const std::vector<float> RefIn = RenderLoop(Spec, InOn, OwnTop, 1);
-		for (size_t K = 0; K < Ref.size() && K < RefIn.size(); ++K) Ref[K] += OwnInFold * RefIn[K];
-		const int Top = (int)std::distance(Rpms.begin(), std::find(Rpms.begin(), Rpms.end(), OwnTop));
-		const double Want = Rms(Buckets[Top]->Loop[ExOn]), Have = Rms(Ref);
-		OwnGain = Have > 1e-6 ? Want / Have : 1.0;
-	}
 	if (!bRecorded)
 		for (int I : BakeOrder())
 		{
@@ -1188,7 +1205,7 @@ void FBank::Bake()
 				{
 					std::vector<float>& Ex = B.Loop[Side == 0 ? ExOn : ExOff];
 					std::vector<float>& In = B.Loop[Side == 0 ? InOn : InOff];
-					for (size_t K = 0; K < Ex.size(); ++K) Ex[K] = (float)((Ex[K] + (K < In.size() ? OwnInFold * In[K] : 0.0)) * OwnGain);
+					for (size_t K = 0; K < Ex.size(); ++K) Ex[K] = (float)((Ex[K] + (K < In.size() ? OwnInFold * In[K] : 0.0)) * (Rpms[I] < OwnLo ? OwnGainLo : OwnGain));
 					In.clear();
 				}
 			}
