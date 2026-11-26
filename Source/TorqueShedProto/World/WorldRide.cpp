@@ -2772,6 +2772,14 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 			Out.Props.push_back(P);
 		}
 		Stands->Props.clear();
+		// [warehouses, round 175 fps] (the warehouse kit's pieces, drawn as instances of the pieces' meshes)
+		for (RideKitPart P : Stands->KitParts)
+		{
+			P.X += float(Stands->OriginX - Out.OriginX);
+			P.Z += float(Stands->OriginZ - Out.OriginZ);
+			Out.KitParts.push_back(P);
+		}
+		Stands->KitParts.clear();
 	}
 	else if (Scene)
 	{
