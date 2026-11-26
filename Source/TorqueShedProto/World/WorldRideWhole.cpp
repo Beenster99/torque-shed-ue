@@ -42,6 +42,8 @@ const bool WholeRideTurns = !WhyOn("WHOLE_NORIDE");
 const bool LandOld = WhyOn("WHOLE_LANDOLD");
 const bool RoomOld = WhyOn("WHOLE_ROOMOLD");   // (the checker can compare the arms' room as before)
 const bool BothDown = WhyOn("WHOLE_BOTHDOWN");   // (the checker can turn both down as before)
+const bool InnerOld = WhyOn("WHOLE_INNEROLD");
+const bool InsideOld = WhyOn("WHOLE_INSIDEOLD");
 const bool CornerOld = WhyOn("WHOLE_CORNEROLD");   // (the checker can turn down for room without trying tight corners)
 const bool GapOld = WhyOn("WHOLE_GAPOLD");   // (the checker can turn down a dual's gaps as before)
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
@@ -546,6 +548,20 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			if (!Fits) { if (WhyOn("WHOLE_WHY")) std::printf("ride14 %zu node %d signs/hide %.1f %.1f\n", Ji, J.Nodes.empty() ? -1 : J.Nodes[0], W.Hide[0], W.Hide[1]); Refuse(14); continue; }
 		}
 		// (and no arm whose other end is another whole junction close enough that the two would meet)
+		// ([smooth junctions] and no road inside it, not drawn, that comes to the ride's road at its other end: its mouth
+		// there had no road to it, no give-way lines, the piece 26 cm over the ride's road's edge. WHOLE_INSIDEOLD: as before)
+		if (!RideMode && !InsideOld)
+		{
+			const auto TouchesRide = [&](int E)
+			{
+				for (const int Nd : {G.Edges[size_t(E)].A, G.Edges[size_t(E)].B})
+					for (int Ea : G.Adjacent[size_t(Nd)]) if (OnRide[size_t(Ea)]) return true;
+				return false;
+			};
+			for (int E : J.Inside) Fits = Fits && !TouchesRide(E);
+			for (int E : Extra) Fits = Fits && !TouchesRide(E);
+			if (!Fits) { Refuse(8); continue; }
+		}
 		JunctionPlaces[Ji].Arms = Arms;
 		JunctionPlaces[Ji].Inside.insert(JunctionPlaces[Ji].Inside.end(), Extra.begin(), Extra.end());
 		W.Ok = true;
@@ -676,6 +692,20 @@ double RidePlan::WholeShape::HeightAt(const P2& At) const
 	const double Ux = Fx - Gx, Uz = Fz - Gz;
 	const auto Q = [this](int X, int Z) { return double(H[size_t(Z) * size_t(Nx) + size_t(X)]); };
 	return (1 - Uz) * ((1 - Ux) * Q(Gx, Gz) + Ux * Q(Gx + 1, Gz)) + Uz * ((1 - Ux) * Q(Gx, Gz + 1) + Ux * Q(Gx + 1, Gz + 1));
+}
+
+double RidePlan::WholeTop(double X, double Z) const
+{
+	if (!WholeJunctions || WholeCells.empty()) return std::nan("");
+	const auto It = WholeCells.find(static_cast<long long>(std::floor(X / 64.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 64.0)));
+	if (It == WholeCells.end()) return std::nan("");
+	const P2 At(X, Z);
+	for (int Ji : It->second)
+	{
+		const std::shared_ptr<const WholeShape> Sh = WholeShapeOf(Ji);
+		if (Sh != nullptr && Sh->Inside(At)) return Sh->HeightAt(At);
+	}
+	return std::nan("");
 }
 
 double RidePlan::WholeGround(double X, double Z, double Out) const
@@ -1010,6 +1040,25 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 				const double D1 = Cross(C, D, A), D2 = Cross(C, D, B), D3 = Cross(A, B, C), D4 = Cross(A, B, D);
 				Crossed = ((D1 > 1e-9 && D2 < -1e-9) || (D1 < -1e-9 && D2 > 1e-9)) && ((D3 > 1e-9 && D4 < -1e-9) || (D3 < -1e-9 && D4 > 1e-9));
 			}
+		// ([smooth junctions] and one whose corner cuts across an arm's own way in, from its mouth to the junction's
+		// middle: a road that bends just inside its mouth, or two roads meeting at a shallow angle; its way in fell
+		// on grass between the piece and the road, Milton Keynes. WHOLE_INNEROLD: as before)
+		if (!Crossed && !InnerOld)
+			for (size_t K = 0; K < N && !Crossed; ++K)
+				for (size_t I = 1; I < Mouths[K].Inner.size() && !Crossed; ++I)
+				{
+					// (each half metre along it: a long straight way in has few points)
+					const P2 P0 = Mouths[K].Inner[I - 1], P1 = Mouths[K].Inner[I];
+					const int Steps = std::max(1, int(std::ceil(P0.DistanceTo(P1) / 0.5)));
+					for (int S = 1; S <= Steps && !Crossed; ++S)
+					{
+						const P2 Q = P0 + (P1 - P0) * (double(S) / Steps);
+						bool In = false;
+						for (size_t A = 0, B = Rn - 1; A < Rn; B = A++)
+							if ((Rim[A].Z > Q.Z) != (Rim[B].Z > Q.Z) && Q.X < (Rim[B].X - Rim[A].X) * (Q.Z - Rim[A].Z) / (Rim[B].Z - Rim[A].Z) + Rim[A].X) In = !In;
+						Crossed = !In && [&] { for (size_t A = 0, B = Rn - 1; A < Rn; B = A++) if (ToSegment(Q, Rim[B], Rim[A]) < 0.25) return false; return true; }();
+					}
+				}
 		if (Crossed)
 		{
 			// (the hull of the mouths' points, each knowing its mouth: an edge between two of one mouth is that mouth)
@@ -1289,6 +1338,13 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		if (OnRide[size_t(A.Edge)] || G.CircuitEdge(A.Edge) || G.Edges[size_t(A.Edge)].A == G.Edges[size_t(A.Edge)].B) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 1\n", J.Ring); return; }
 	for (int E : J.Inside)
 		if (OnRide[size_t(E)] || G.CircuitEdge(E)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
+	// ([smooth junctions] nor, unless the ride goes round it, one of its own edges meeting the ride's road: drawn
+	// whole it is not drawn, its mouth there left with no road to it and the piece over the ride's road's edge)
+	if (!Ride && !InsideOld)
+		for (int E : J.Inside)
+			for (const int Nd : {G.Edges[size_t(E)].A, G.Edges[size_t(E)].B})
+				for (int Ea : G.Adjacent[size_t(Nd)])
+					if (OnRide[size_t(Ea)]) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
 	for (const Span& Sp : G.Spans)
 		if (ToSegment(J.At, Sp.A, Sp.B) < Outer + (RingSpanOld ? 40.0 : 8.0)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3\n", J.Ring); return; }
 	{

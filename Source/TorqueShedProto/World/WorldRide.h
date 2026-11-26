@@ -1979,6 +1979,7 @@ public:
 	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
+	double WholeTop(double X, double Z) const;   // [smooth junctions] a whole junction's tarmac surface here, NaN off every one
 	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle

@@ -97,6 +97,7 @@ static std::vector<TorqueWorld::RidePlan::Knot> LaidKnots(const TorqueWorld::Rid
 
 int main()
 {
+	if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "0") TorqueWorld::RidePlan::WholeJunctions = false;   // [smooth junctions] (the old drawing, to compare)
 	Json Ref;
 	std::string Text;
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
@@ -1806,8 +1807,16 @@ int main()
 						int OnRoad = 0, Labels = 0;
 						for (const RidePlan::Furnish& F : Plan->Furniture)
 						{
-							if (F.Kind == RidePlan::CattleGrid || F.Kind == RidePlan::FieldGate) continue;
+							// (gates and stiles stand in walls; one a road laid later runs through is not drawn: the prop layer's check)
+							if (F.Kind == RidePlan::CattleGrid || F.Kind == RidePlan::FieldGate || F.Kind == RidePlan::Stile || F.Kind == RidePlan::KissingGate) continue;
 							double H = Plan->RoadHeight(F.At.X, F.At.Z);
+							if (!std::isnan(H) && F.Kind == RidePlan::PowerPole)
+							{
+								// ([smooth junctions] a pole placed before a junction built whole laid its arm through it: not drawn)
+								double D0 = 0.0, H0 = 0.0, Hf0 = 0.0;
+								int W0 = 0;
+								if (Plan->Nearest(F.At.X, F.At.Z, D0, H0, nullptr, &Hf0, &W0) && Plan->WholeArmsOf.count(W0) != 0) continue;
+							}
 							if (!std::isnan(H)) ++OnRoad;
 						}
 						// (a square of ground with signs on it has their words: [OSM stage 6A] lettered in its signs'
@@ -2103,7 +2112,15 @@ int main()
 						Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
 						const double Rh = Plan->RoadHeight(P.At.X, P.At.Z);
 						if (!std::isnan(Rh) && std::fabs(Rh - P.Height) < 0.05) ++OnRoad;
-						if (!P.Bridge) Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
+						// ([smooth junctions] by a junction built whole the land is kept under the lowest of the tarmac near (its
+						// piece, a mouth's two roads, 30 cm under the lower), so with junctions built whole it may lie lower under
+						// the ride's road, by 80 cm at most, never higher)
+						if (!P.Bridge && RidePlan::WholeJunctions)
+						{
+							const double Below = Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink);
+							Under = std::fmax(Under, Below > 0.0 ? Below : std::fmax(0.0, -Below - 0.8));
+						}
+						else if (!P.Bridge) Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
 						else if (I > 0 && I + 1 < Plan->Road.size() && Plan->Road[I - 1].Bridge && Plan->Road[I + 1].Bridge && !(Plan->Ground(P.At.X, P.At.Z) <= Rh - 1.5 + 1e-9)) Under = 1e9;   // (under a deck the land is well clear of it)
 					}
 					std::printf("      the ride's road: %d points, %.2f m apart at most, steepest %.3f, sharpest crest %.3f m, %.2f m off the land at most\n",
@@ -2298,6 +2315,7 @@ int main()
 						for (size_t W = 0; W < Plan->PlanSides().size(); ++W)
 						{
 							const RidePlan::SideRoad& Sd = (*Plan->SideOf(Plan->PlanSides()[W]));
+							if (Plan->WholeHidden(Plan->PlanSides()[W])) continue;   // ([smooth junctions] inside a junction built whole: its mouths are the piece's)
 							bool Decked = false;
 							for (const RoadPoint& P : Sd.Pts) Decked = Decked || P.Bridge || P.Tunnel;
 							for (int End = 0; End < 2; ++End)
@@ -2338,7 +2356,8 @@ int main()
 							}
 						}
 						std::printf("      %d junction mouths; %d give way (%d marked, %d all facing up); the edge line broken at %d of %d on a wide road\n", Mouths, Tested, Painted, FacingUp, Broken, Wide);
-						Check(Mouths > 10 && Tested > 3 && Painted == Tested && FacingUp == Tested && Broken == Wide,
+						// ([smooth junctions] with junctions built whole most mouths on the ride's road are drawn in their pieces)
+						Check(Mouths > (RidePlan::WholeJunctions ? 5 : 10) && Tested > 3 && Painted == Tested && FacingUp == Tested && Broken == Wide,
 							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
 						(void)GiveWays;
 					}
@@ -2390,6 +2409,10 @@ int main()
 								if (!Plan->NearestOf(X, Z, MainOnly, Hit) || Hit.Deck || Hit.Bore) continue;
 								const double Theirs = Hit.Height + Hit.Cross;
 								if (std::fabs(Y - Theirs) > 1.0 || Mesh.Col[V * 3] > 0.05f) continue;   // (over or under it on a bridge; paint and the shoulder aside)
+								if (!std::isnan(Plan->WholeTop(X, Z))) continue;   // ([smooth junctions] a junction's piece, built whole: its own surface, the ride's road hidden under it)
+								// ([smooth junctions 3b] a mouth on the ride's road drawn whole: its corners blend the two roads' heights
+								// up to the ride's road's edge, a few cm either way in its last 30 cm)
+								if (RidePlan::WholeJunctions && Hit.Dist > Hit.Half - 0.3 && (Plan->MouthCut(Plan->PlanSides()[W], 0) > 0.0 || Plan->MouthCut(Plan->PlanSides()[W], 1) > 0.0)) continue;
 								if (Hit.Dist < Hit.Half - 0.05)
 								{
 									++OnMain;
@@ -2649,7 +2672,8 @@ int main()
 						const double Hl = Plan->RoadHeight(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3), Hr = Plan->RoadHeight(Pm.At.X - Lm.X * Out3, Pm.At.Z - Lm.Z * Out3);
 						std::printf("      its most banked knot: %.1f%%, the left edge %.2f m and the right %.2f m off the middle's height\n", Pm.Bank * 100.0, Hl - Pm.Height, Hr - Pm.Height);
 						Check(std::fabs(Pm.Bank) > 0.03 && std::fabs(Pm.Bank) <= RoadLine::MaxBank + 1e-9 && Near(Hl - Hr, 2.0 * Out3 * Pm.Bank, 0.03)
-							&& std::fabs(Plan->Ground(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3) - (Hl - RidePlan::Sink)) < 0.03,
+							&& [&] { const double Below = Plan->Ground(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3) - (Hl - RidePlan::Sink);
+								return RidePlan::WholeJunctions ? Below < 0.03 && Below > -0.8 : std::fabs(Below) < 0.03; }(),   // ([smooth junctions] lower by a mouth: as above)
 							"its bends are banked: the surface is tilted across and the ground lies just under it both sides");
 					}
 					std::printf("      its tightest bend: %.1f m radius\n", Tightest);
