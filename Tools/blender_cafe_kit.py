@@ -97,6 +97,35 @@ def prism_x(name, pts, x0, x1):
     return K._object(name, verts, faces, 30.0)
 
 
+GUTTER = (0.05, 0.05, 0.055)
+DETAIL = [0]   # (the lod being built: the roofs' gutters, ridges and bargeboards are the near model's alone)
+
+
+def gutters_y(M, D, W, ze, xe, length, pipes=True):
+    """Half-round gutters along y at x = +-xe, their top at ze, and a downpipe at each end of each to the ground."""
+    if DETAIL[0] > 0:
+        return
+    for s in (-1, 1):
+        M.add(box("gutter", (s * (xe + 0.06), 0.0, ze - 0.06), (0.12, length, 0.1)), "paint", GUTTER, 0.3)
+        if pipes:
+            for e in (-1, 1):
+                y = e * (W / 2 - 0.12)
+                M.add(box("downpipe", (s * (D / 2 + 0.06), y, (ze - 0.1) / 2), (0.07, 0.07, ze - 0.1)), "paint", GUTTER, 0.3)
+                M.add(box("swan", (s * (D / 2 + xe) / 2 + s * 0.06, y, ze - 0.12), (abs(xe - D / 2) + 0.07, 0.07, 0.07)), "paint", GUTTER, 0.3)
+
+
+def gutters_x(M, D, W, ze, ye, length, pipes=True):
+    if DETAIL[0] > 0:
+        return
+    for s in (-1, 1):
+        M.add(box("gutter", (0.0, s * (ye + 0.06), ze - 0.06), (length, 0.12, 0.1)), "paint", GUTTER, 0.3)
+        if pipes:
+            for e in (-1, 1):
+                x = e * (D / 2 - 0.12)
+                M.add(box("downpipe", (x, s * (W / 2 + 0.06), (ze - 0.1) / 2), (0.07, 0.07, ze - 0.1)), "paint", GUTTER, 0.3)
+                M.add(box("swan", (x, s * (W / 2 + ye) / 2 + s * 0.06, ze - 0.12), (0.07, abs(ye - W / 2) + 0.07, 0.07)), "paint", GUTTER, 0.3)
+
+
 def footing(M, D, W):
     M.add(box("footing", (0.0, 0.0, (0.2 - FOOT) / 2), (D + 0.1, W + 0.1, 0.2 + FOOT)), "concrete", CONCRETE, 0.5)
 
@@ -110,11 +139,27 @@ def gable_roof(M, D, W, z0, rise, over, surface, rgb, ridge_y=True, thick=0.18):
                (0.0, z0 + rise + thick), (-h, z0 - over * rise / (D / 2) + thick)]
         M.add(prism("roof", pts, -W / 2 - over, W / 2 + over), surface, rgb, 0.3)
         M.add(prism("gable", [(-D / 2, z0), (D / 2, z0), (0.0, z0 + rise)], -W / 2 + 0.01, W / 2 - 0.01), "paint", (0.3, 0.3, 0.3), 0.3)
+        if DETAIL[0] == 0 and over > 0.05:
+            ze, zt = z0 - over * rise / (D / 2) + thick, z0 + rise + thick
+            # the ridge's capping, the bargeboards up each gable, gutters and downpipes
+            M.add(box("ridge", (0.0, 0.0, zt + 0.04), (0.26, W + 2 * over, 0.1)), "concrete", tuple(c * 0.8 for c in rgb), 0.4)
+            for e in (-1, 1):
+                y = e * (W / 2 + over)
+                M.add(prism("barge", [(-h - 0.02, ze - 0.24), (0.0, zt - 0.24), (h + 0.02, ze - 0.24), (h + 0.02, ze + 0.02), (0.0, zt + 0.02), (-h - 0.02, ze + 0.02)],
+                            y - 0.025 * (1 - e), y + 0.025 * (1 + e)), "paint", FRAME_W if surface != "timber" else TIMBER, 0.3)
+            gutters_y(M, D, W, ze - thick, h, W + 2 * over)
     else:
         h = W / 2 + over
         pts = [(-h, z0 - over * rise / (W / 2)), (-h, z0 - over * rise / (W / 2) + thick), (0.0, z0 + rise + thick),
                (h, z0 - over * rise / (W / 2) + thick), (h, z0 - over * rise / (W / 2))]
         M.add(prism_x("roof", pts, -D / 2 - over, D / 2 + over), surface, rgb, 0.3)
+        if DETAIL[0] == 0 and over > 0.05:
+            ze, zt = z0 - over * rise / (W / 2) + thick, z0 + rise + thick
+            M.add(box("ridge", (0.0, 0.0, zt + 0.04), (D + 2 * over, 0.26, 0.1)), "concrete", tuple(c * 0.8 for c in rgb), 0.4)
+            x = D / 2 + over
+            M.add(prism_x("barge", [(-h - 0.02, ze - 0.24), (-h - 0.02, ze + 0.02), (0.0, zt + 0.02), (h + 0.02, ze + 0.02), (h + 0.02, ze - 0.24), (0.0, zt - 0.24)],
+                          x, x + 0.05), "paint", FRAME_W if surface != "timber" else TIMBER, 0.3)
+            gutters_x(M, D, W, ze - thick, h, D + 2 * over)
     return z0 + rise + thick
 
 
@@ -137,6 +182,10 @@ def hip_roof(M, D, W, z0, rise, over, surface, rgb):
         verts += [(-hx + r, 0.0, z0 + rise), (hx - r, 0.0, z0 + rise)]
         faces = [(0, 3, 2, 1), (0, 1, 5, 4), (1, 2, 5), (2, 3, 4, 5), (3, 0, 4)]
     M.add(K._object("roof", verts, faces, 20.0), surface, rgb, 0.3)
+    if DETAIL[0] == 0 and over > 0.05:
+        M.add(box("fasciaboard", (0.0, 0.0, z0 - 0.08), (2 * hx, 2 * hy, 0.16)), "paint", FRAME_W, 0.3)
+        gutters_y(M, D, W, z0 - 0.02, hx, 2 * hy)
+        gutters_x(M, D, W, z0 - 0.02, hy, 2 * hx, pipes=False)
     return z0 + rise
 
 
@@ -147,6 +196,12 @@ def mono_roof(M, D, W, z_front, z_back, over, surface, rgb, thick=0.2):
     zf, zb = z_front + k * over, z_back - k * over
     M.add(prism("roof", [(xb, zb), (xf, zf), (xf, zf + thick), (xb, zb + thick)], -W / 2 - over, W / 2 + over), surface, rgb, 0.3)
     M.add(prism("monofill", [(-D / 2, 0.0), (D / 2, 0.0), (D / 2, z_front), (-D / 2, z_back)], -W / 2 + 0.01, W / 2 - 0.01), "paint", (0.3, 0.3, 0.3), 0.3)
+    if DETAIL[0] == 0 and over > 0.05:
+        lo = 1 if zf < zb else -1
+        zl = min(zf, zb)
+        M.add(box("gutter", (lo * (D / 2 + over + 0.06), 0.0, zl - 0.04), (0.12, W + 2 * over, 0.1)), "paint", GUTTER, 0.3)
+        for e in (-1, 1):
+            M.add(box("downpipe", (lo * (D / 2 + 0.06), e * (W / 2 - 0.12), zl / 2), (0.07, 0.07, zl)), "paint", GUTTER, 0.3)
     return max(zf, zb) + thick
 
 
@@ -159,6 +214,11 @@ def flat_roof(M, D, W, z0, parapet, rgb, cap_rgb=None):
             M.add(box("parapetS", (0.0, s * (W / 2 - 0.12), z0 + parapet / 2), (D, 0.24, parapet)), "paint", rgb, 0.3)
         if cap_rgb:
             M.add(box("coping", (0.0, 0.0, z0 + parapet + 0.03), (D + 0.06, W + 0.06, 0.06)), "concrete", cap_rgb, 0.3)
+    if DETAIL[0] == 0:
+        M.add(box("drip", (0.0, 0.0, z0 - 0.05), (D + 0.08, W + 0.08, 0.1)), "concrete", CONCRETE, 0.4)   # (the roof's edge trim)
+        for e in (-1, 1):
+            M.add(box("hopper", (-D / 2 - 0.08, e * (W / 2 - 0.25), z0 - 0.2), (0.16, 0.2, 0.2)), "paint", GUTTER, 0.3)
+            M.add(box("downpipe", (-D / 2 - 0.06, e * (W / 2 - 0.25), (z0 - 0.3) / 2), (0.07, 0.07, z0 - 0.3)), "paint", GUTTER, 0.3)
     return z0 + max(parapet, 0.2) + 0.06
 
 
@@ -180,6 +240,10 @@ def window(M, lod, face, u, w, z0, h, frame=FRAME_W, bars=2, sill=True, D=0.0, W
             put("frame", su * (w / 2 + t / 2), z0 + h / 2, t, h, 0.02, 0.06, "paint", frame)
         for k in range(1, bars):
             put("bar", -w / 2 + k * w / bars, z0 + h / 2, 0.045, h, 0.025, 0.04, "paint", frame)
+        if h > 0.9:
+            put("transom", 0.0, z0 + h * 0.62, w, 0.06, 0.03, 0.05, "paint", frame)   # (the opening lights' rail)
+        put("reveal", 0.0, z0 + h + 0.005, w, 0.03, -0.04, 0.1, "paint", (0.12, 0.12, 0.12))   # (the shadowed head of its opening)
+        put("head", 0.0, z0 + h + 0.12, w + 0.3, 0.1, 0.035, 0.07, "concrete", (0.55, 0.54, 0.5))
         if sill:
             put("sill", 0.0, z0 - 0.04, w + 0.24, 0.08, 0.06, 0.14, "concrete", (0.55, 0.54, 0.5))
     elif lod == 1:
@@ -193,6 +257,15 @@ def door(M, lod, u, w, h, rgb, D, glazed=True, face="f", W=0.0):
         if glazed and lod < 2:
             M.add(box("doorglass", (s * (D / 2 + 0.05), u, h * 0.62 + 0.15), (0.02, w * 0.7, h * 0.55)), "lens", GLASS, 0.05)
         if lod == 0:
+            # its frame round it, raised panels below (all over, unglazed), a handle and a letter plate
+            for e in (-1, 1):
+                M.add(box("doorframe", (s * (D / 2 + 0.04), u + e * (w / 2 + 0.05), h / 2 + 0.15), (0.06, 0.1, h + 0.1)), "paint", FRAME_W, 0.3)
+            M.add(box("doorframe", (s * (D / 2 + 0.04), u, h + 0.2), (0.06, w + 0.2, 0.1)), "paint", FRAME_W, 0.3)
+            rows = [(0.35, 0.55)] if glazed else [(0.35, 0.75), (1.25, 0.75)]
+            for z, ph in rows:
+                for e in ((-1, 1) if w > 0.7 else (0,)):
+                    M.add(box("panel", (s * (D / 2 + 0.05), u + e * w * 0.22, z + ph / 2), (0.02, w * (0.34 if e else 0.7), ph)), "paint", tuple(c * 0.85 for c in rgb), 0.3)
+            M.add(box("handle", (s * (D / 2 + 0.07), u + s * (w / 2 - 0.1), 1.15), (0.05, 0.03, 0.16)), "steel", (0.55, 0.5, 0.4), 0.2)
             M.add(box("step", (s * (D / 2 + 0.3), u, 0.075), (0.6, w + 0.5, 0.15)), "concrete", CONCRETE, 0.5)
     else:
         sy = 1 if face == "l" else -1
@@ -805,7 +878,18 @@ def chair(name, v, lod):
         for k in range(3 if lod < 2 else 1):
             M.add(box("backslat", (-0.21, 0.0, back - 0.05 - k * 0.11), (0.025, 0.42, 0.08)), surf, col, 0.3)
     elif v == 3:
-        M.add(box("back", (-0.2, 0.0, (seat + back) / 2), (0.06, 0.46, back - seat), bevel=0.02 if lod == 0 else 0.0), surf, col, 0.3)
+        # a moulded garden armchair: the back raked, slots across it, arms on to the front legs
+        bk = box("back", (-0.21, 0.0, (seat + back) / 2), (0.04, 0.46, back - seat), bevel=0.015 if lod == 0 else 0.0,
+                 rot=Matrix.Rotation(math.radians(-10), 4, "Y"))
+        M.add(bk, surf, col, 0.3)
+        if lod < 2:
+            for e in (-1, 1):
+                M.add(box("arm", (-0.02, e * 0.25, seat + 0.2), (0.42, 0.06, 0.03), bevel=0.01 if lod == 0 else 0.0), surf, col, 0.3)
+                M.add(box("armpost", (0.17, e * 0.25, seat + 0.1), (0.04, 0.05, 0.2)), surf, col, 0.3)
+        if lod == 0:
+            for k in range(4):
+                M.add(box("slot", (-0.2 + 0.0, -0.12 + k * 0.08, seat + 0.24), (0.05, 0.025, 0.2), rot=Matrix.Rotation(math.radians(-10), 4, "Y")),
+                      "paint", tuple(c * 0.55 for c in col), 0.3)
     else:
         if lod < 2:
             pts = [(-0.2, -0.19 + 0.38 * t / 6, back - 0.03 + 0.03 * math.sin(math.pi * t / 6)) for t in range(7)]
@@ -824,10 +908,21 @@ def table(name, v, lod):
     col = [DARK, TIMBER_PALE, WHITE][v]
     surf = "timber" if v == 1 else "paint"
     if v == 1:
-        M.add(box("top", (0.0, 0.0, h - 0.02), (0.8, 0.8, 0.04)), surf, col, 0.3)
+        # a garden table: a slatted top with its breadboard ends, an apron under it, square legs
+        bev = 0.005 if lod == 0 else 0.0
+        if lod < 2:
+            for k in range(5):
+                M.add(box("slat", (-0.3 + k * 0.15, 0.0, h - 0.02), (0.135, 0.68, 0.035), bevel=bev), surf, col, 0.35)
+            for e in (-1, 1):
+                M.add(box("breadboard", (0.0, e * 0.37, h - 0.02), (0.8, 0.06, 0.035), bevel=bev), surf, col, 0.35)
+            for e in (-1, 1):
+                M.add(box("apron", (e * 0.33, 0.0, h - 0.09), (0.03, 0.62, 0.09)), surf, col, 0.35)
+                M.add(box("apron", (0.0, e * 0.33, h - 0.09), (0.62, 0.03, 0.09)), surf, col, 0.35)
+        else:
+            M.add(box("top", (0.0, 0.0, h - 0.02), (0.8, 0.8, 0.04)), surf, col, 0.3)
         for sx in (-1, 1):
             for sy in (-1, 1):
-                M.add(box("leg", (sx * 0.34, sy * 0.34, (h - 0.04) / 2), (0.05, 0.05, h - 0.04)), surf, col, 0.3)
+                M.add(box("leg", (sx * 0.33, sy * 0.33, (h - 0.04) / 2), (0.06, 0.06, h - 0.04), bevel=bev), surf, col, 0.35)
     else:
         r = 0.35 if v == 0 else 0.4
         seg = (20, 12, 8)[lod]
@@ -843,29 +938,52 @@ def table(name, v, lod):
 
 
 def picnic(name, v, lod):
-    """A picnic bench set: the table 1.8 m along y, 0.7 wide, 0.76 tall; benches at x = +-0.62, 0.45 tall."""
+    """A picnic bench set (beenster's pictures, Nov 26: the A-frame pub bench in dark weathered timber): the table 1.8 m
+    along y, six planks 0.75 wide, 0.76 tall; two-plank benches at x = +-0.62, 0.45 tall, on bearers through A-frame
+    legs, with braces from the bearers to the middle of the top."""
     M = K.Model(name)
     L = 1.8
-    top_col = TIMBER_PALE
-    frame_col = TIMBER if v == 0 else GREEN
-    fs = "timber" if v == 0 else "paint"
+    col = (0.075, 0.068, 0.06) if v == 0 else (0.12, 0.09, 0.065)   # (weathered near black; or old brown)
+    dirt = 0.75
+    bev = 0.006 if lod == 0 else 0.0
+
+    def plank(nm, c, size):
+        M.add(box(nm, c, size, bevel=bev), "timber", col, dirt)
+
     if lod < 2:
-        for k in range(5):
-            M.add(box("topslat", (-0.28 + k * 0.14, 0.0, 0.74), (0.12, L, 0.04)), "timber", top_col, 0.3)
+        for k in range(6):
+            plank("topslat", (-0.3125 + k * 0.125, 0.0, 0.74), (0.115, L, 0.04))
         for s in (-1, 1):
             for k in range(2):
-                M.add(box("seatslat", (s * (0.55 + k * 0.14), 0.0, 0.43), (0.12, L, 0.04)), "timber", top_col, 0.3)
+                plank("seatslat", (s * (0.555 + k * 0.13), 0.0, 0.43), (0.12, L, 0.04))
     else:
-        M.add(box("top", (0.0, 0.0, 0.74), (0.7, L, 0.04)), "timber", top_col, 0.3)
+        plank("top", (0.0, 0.0, 0.74), (0.75, L, 0.04))
         for s in (-1, 1):
-            M.add(box("seat", (s * 0.62, 0.0, 0.43), (0.26, L, 0.04)), "timber", top_col, 0.3)
-    for y in (-L / 2 + 0.25, L / 2 - 0.25):
+            plank("seat", (s * 0.62, 0.0, 0.43), (0.25, L, 0.04))
+    ends = (-L / 2 + 0.22, L / 2 - 0.22)
+    for y in ends:
+        out = 1.0 if y > 0 else -1.0
+        # the A-frame: two legs from under the top's edges out past the benches' inner planks to the ground
+        top_x, foot_x, top_z = 0.27, 0.70, 0.72
+        ln = math.hypot(foot_x - top_x, top_z)
+        ang = math.atan2(foot_x - top_x, top_z)
         for s in (-1, 1):
-            ang = math.atan2(0.6, 0.72)
-            ob = box("aleg", (s * 0.3, y, 0.36), (0.07, 0.07, 0.9), rot=Matrix.Rotation(s * ang, 4, "Y"))
-            M.add(ob, fs, frame_col, 0.35)
-        M.add(box("bearer", (0.0, y, 0.39), (1.5, 0.06, 0.07)), fs, frame_col, 0.35)
-        M.add(box("tbearer", (0.0, y, 0.70), (0.68, 0.06, 0.05)), fs, frame_col, 0.35)
+            M.add(box("aleg", (s * (top_x + foot_x) / 2, y, top_z / 2), (0.09, 0.045, ln), bevel=bev,
+                      rot=Matrix.Rotation(-s * ang, 4, "Y")), "timber", col, dirt)   # (top in, foot out)
+        # the cleat under the top and the bench bearer, each with its ends cut back, on the legs' outer face
+        y0, y1 = (y + 0.0225, y + 0.0675) if out > 0 else (y - 0.0675, y - 0.0225)
+        M.add(prism("cleat", [(-0.37, 0.72), (-0.30, 0.65), (0.30, 0.65), (0.37, 0.72)], y0, y1), "timber", col, dirt)
+        M.add(prism("bearer", [(-0.84, 0.41), (-0.76, 0.32), (0.76, 0.32), (0.84, 0.41)], y0, y1), "timber", col, dirt)
+        if lod < 2:
+            # a brace from the bearer's middle up to the middle of the top (the pictures' inner diagonals)
+            a = (0.0, y - out * 0.03, 0.36)
+            b = (0.0, y - out * 0.55, 0.715)
+            dy, dz = b[1] - a[1], b[2] - a[2]
+            M.add(box("brace", ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2), (0.07, 0.045, math.hypot(dy, dz)), bevel=bev,
+                      rot=Matrix.Rotation(math.atan2(-dy, dz), 4, "X")), "timber", col, dirt)
+    if lod < 2:
+        # the rail under the top's middle the braces meet
+        plank("rail", (0.0, 0.0, 0.69), (0.07, L - 0.44 - 2 * 0.53, 0.05))
     return M
 
 
@@ -878,6 +996,21 @@ def parasol(name, v, lod):
     if lod < 2:
         M.add(lathe("valance", [(1.3, 1.86), (1.31, 1.86), (1.31, 2.02), (1.3, 2.02)], seg, phase=math.pi / seg), "paint", col, 0.3)
         M.add(lathe("finial", [(0.0, 2.4), (0.04, 2.42), (0.0, 2.48)], 6), "paint", WHITE, 0.3)
+        # its base: a heavy round weight, or a cross of feet
+        if v % 2 == 0:
+            M.add(lathe("base", [(0.0, 0.0), (0.24, 0.0), (0.24, 0.06), (0.06, 0.1), (0.0, 0.1)], (16, 8)[lod]), "concrete", CONCRETE, 0.5)
+        else:
+            for k in range(2):
+                M.add(box("foot", (0.0, 0.0, 0.03), (0.75, 0.06, 0.06), rot_z=k * math.pi / 2), "paint", GUTTER, 0.4)
+    if lod == 0:
+        # the ribs under the canvas, their stretchers down to the runner, and the crank
+        for k in range(8):
+            a = 2 * math.pi * (k + 0.5) / 16 * 2
+            c, sn = math.cos(a), math.sin(a)
+            M.add(rod("rib", (0.04 * c, 0.04 * sn, 2.36), (1.28 * c, 1.28 * sn, 1.98), 0.008, 4), "paint", WHITE, 0.3)
+            M.add(rod("stretcher", (0.04 * c, 0.04 * sn, 1.62), (0.65 * c, 0.65 * sn, 2.16), 0.006, 4), "paint", WHITE, 0.3)
+        M.add(lathe("runner", [(0.035, 1.58), (0.035, 1.68)], 8), "paint", WHITE, 0.3)
+        M.add(box("crank", (0.06, 0.0, 1.2), (0.1, 0.03, 0.12)), "paint", GUTTER, 0.3)
     return M
 
 
@@ -886,11 +1019,22 @@ def aboard(name, v, lod):
     h, w = 1.0, 0.6
     ang = math.radians(12)
     col = TIMBER if v == 0 else (0.04, 0.12, 0.08)
+    if lod == 0:
+        M.add(rod("hinge", (0.0, -w / 2, h * math.cos(ang) - 0.01), (0.0, w / 2, h * math.cos(ang) - 0.01), 0.012, 6), "steel", (0.3, 0.3, 0.3), 0.3)
+        for e in (-1, 1):
+            z = 0.35
+            M.add(rod("stay", (-(h - z) * math.sin(ang), e * (w / 2 - 0.05), z * math.cos(ang)),
+                      ((h - z) * math.sin(ang), e * (w / 2 - 0.05), z * math.cos(ang)), 0.005, 4), "steel", (0.3, 0.3, 0.3), 0.3)
     for s in (-1, 1):
         R = Matrix.Rotation(-s * ang, 4, "Y")
         M.add(box("panel", (s * h / 2 * math.sin(ang), 0.0, h / 2 * math.cos(ang)), (0.03, w, h), rot=R), "timber" if v == 0 else "paint", col, 0.3)
         M.add(box("board", (s * (h / 2 * math.sin(ang) + 0.017), 0.0, h / 2 * math.cos(ang) + 0.04), (0.005, w - 0.08, h - 0.24), rot=R), "paint", BLACKBOARD, 0.1)
         if lod == 0:
+            # its frame round the blackboard, the hinge along the top and the stay between the legs
+            for e in (-1, 1):
+                M.add(box("rail", (s * (h / 2 * math.sin(ang) + 0.02), e * (w / 2 - 0.03), h / 2 * math.cos(ang)), (0.012, 0.06, h), rot=R),
+                      "timber" if v == 0 else "paint", tuple(c * 0.8 for c in col), 0.3)
+            M.add(box("handhole", (s * ((h - 0.08) * math.sin(ang) + 0.016), 0.0, (h - 0.08) * math.cos(ang)), (0.01, 0.14, 0.04), rot=R), "paint", DARK, 0.3)
             for k in range(5):
                 z = 0.3 + k * 0.11
                 wl = (0.32, 0.4, 0.22, 0.36, 0.28)[k]
@@ -899,6 +1043,7 @@ def aboard(name, v, lod):
 
 
 def build(lod):
+    DETAIL[0] = lod
     s = ("", "_LOD1", "_LOD2")[lod]
     out, facts = [], []
     for i, f in enumerate(DESIGNS):
