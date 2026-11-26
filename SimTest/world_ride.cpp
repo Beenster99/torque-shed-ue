@@ -396,6 +396,10 @@ int main(int Argc, char** Argv)
 		// ([everyday kits stage 9] WORLD_RIDE_POWER=0: the skyline's code shapes, to compare)
 		if (std::getenv("WORLD_RIDE_POWER") != nullptr && std::string(std::getenv("WORLD_RIDE_POWER")) == "0")
 			for (int K = RidePlan::PropPowerPylon; K <= RidePlan::PropPowerPalisade; ++K) Plan->PropModelled[K] = false;
+		// ([everyday kits stage 10] WORLD_RIDE_COAST=0: without the coast set)
+		if (std::getenv("WORLD_RIDE_COAST") != nullptr && std::string(std::getenv("WORLD_RIDE_COAST")) == "0")
+			for (int K = RidePlan::PropCoastBeachHut; K <= RidePlan::PropCoastLifebuoy; ++K) Plan->PropModelled[K] = false;
+		std::printf("Coast things from the kits files: %d\n", int(Plan->Area.Roads.KitThings.size()));
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -3948,7 +3952,7 @@ int main(int Argc, char** Argv)
 						std::vector<RideProp> Yard;
 						Plan->PropsTile(Tx, Tz, 64.0, Yard);
 						for (const RideProp& P : Yard)
-							if (P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign)
+							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropCoastLifebuoy))
 							{
 								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
 									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));

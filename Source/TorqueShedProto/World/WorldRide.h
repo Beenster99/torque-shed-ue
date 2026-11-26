@@ -930,6 +930,9 @@ public:
 		// and a substation's transformers, gantries and palisade, laid by SkylineTile near the road in place of its shapes
 		PropPowerPylon, PropPowerMast, PropPowerMonopole, PropPowerTurbine, PropPowerRotor, PropPowerWaterTower, PropPowerKiosk,
 		PropPowerTransformer, PropPowerGantry, PropPowerPalisade,
+		// [everyday kits stage 10] The coast set (Tools/blender_coast_props.py, two hand-made distance versions each):
+		// beach huts, a sea wall's parapet, a promenade's railing and its lifebuoy housings, laid by CoastProps
+		PropCoastBeachHut, PropCoastSeaWall, PropCoastPromRail, PropCoastLifebuoy,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1624,6 +1627,9 @@ public:
 	// [everyday kits stage 6] The village set in the square (World/WorldRideVillage.cpp): playgrounds' pieces and
 	// fences, pitches' goals and posts, courts' nets, fences and hoops, a village green's sign, board, seat and bin
 	void VillageProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 10] The coast set's models from the kits bake's coast things (WorldRideCoast.cpp).
+	void CoastProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	P2 HutFront(const P2& C) const;   // (a beach hut's doors: the way the ground falls to the sea, else to the road)
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
 	// [circuits, build 168] The ground under a circuit's track, smoothed: its height averaged over 70 m round (X, Z)

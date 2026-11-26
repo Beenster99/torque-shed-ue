@@ -43,7 +43,8 @@ const char* RidePlan::PropName(int Kind)
 		"play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
 		"pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin", "village_sign",   // [everyday kits stage 6]
 		"power_pylon", "power_mast", "power_monopole", "power_turbine", "power_rotor", "power_watertower", "power_kiosk",
-		"power_transformer", "power_gantry", "power_palisade"};   // [everyday kits stage 9]
+		"power_transformer", "power_gantry", "power_palisade",   // [everyday kits stage 9]
+		"coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy"};   // [everyday kits stage 10]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -121,6 +122,7 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 	TownLifeProps(X0, Z0, Size, Out);   // [caravans]
 	FarmYardProps(X0, Z0, Size, Out);   // [everyday kits stage 4]
 	VillageProps(X0, Z0, Size, Out);   // [everyday kits stage 6]
+	CoastProps(X0, Z0, Size, Out);   // [everyday kits stage 10]
 }
 
 bool RidePlan::ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out)

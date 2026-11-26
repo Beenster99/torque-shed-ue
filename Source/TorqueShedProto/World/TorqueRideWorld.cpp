@@ -794,6 +794,11 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueVillage="), VillageAsked);
 		FParse::Value(FCommandLine::Get(), TEXT("TorquePower="), PowerAsked);   // [everyday kits stage 9] (the power set: the code's shapes again)
+		int32 CoastAsked = 1;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueCoast="), CoastAsked);   // [everyday kits stage 10] (the coast set: huts drawn as buildings again)
+		for (int32 K = RidePlan::PropCoastBeachHut; K <= RidePlan::PropCoastLifebuoy && CoastAsked == 0; ++K) Plan->PropModelled[K] = false;
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: coast set %s (%d coast things in the kits files)"), CoastAsked == 0 ? TEXT("off (-TorqueCoast=0)")
+			: Plan->PropModelled[RidePlan::PropCoastBeachHut] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"), int32(Plan->Area.Roads.KitThings.size()));
 		for (int32 K = RidePlan::PropPowerPylon; K <= RidePlan::PropPowerPalisade && PowerAsked == 0; ++K) Plan->PropModelled[K] = false;
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: power and skyline set %s"), PowerAsked == 0 ? TEXT("off (-TorquePower=0)")
 			: Plan->PropModelled[RidePlan::PropPowerPylon] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));

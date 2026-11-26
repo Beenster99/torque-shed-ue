@@ -418,6 +418,45 @@ void Region::AddStreams(const Json& Rows)
 	}
 }
 
+void Region::AddKits(const Json& File)
+{
+	// (points: [kind, word, word2, lat, lon]; areas: [kind, word, word2, lat, lon, dlat, dlon...]; lines: [kind,
+	// word, word2, layer, under, lat, lon, dlat, dlon...]; only the kinds the game lays)
+	if (!File.IsObject() || int(File.Num("format")) != 1) return;
+	const Frame F = FrameOf();
+	const Json* Kinds = File.Get("kinds");
+	const Json* Words = File.Get("words");
+	const int KindCount = Kinds != nullptr ? int(Kinds->A.size()) : 0;
+	const auto Wanted = [&](const Json& Row, std::string& Kind)
+	{
+		if (Row.A.empty() || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) return false;
+		Kind = Word(Kinds, Row.A[0]);
+		return Kind == "beach_hut" || Kind == "sea_wall" || Kind == "promenade" || Kind == "slipway" || Kind == "lifeboat_station";
+	};
+	std::string Kind;
+	for (const char* Part : {"points", "areas"})
+		if (const Json* Rows = File.Get(Part))
+			for (const Json& Row : Rows->A)
+			{
+				if (Row.Size() < 5 || !Wanted(Row, Kind)) continue;
+				GroundShape G;
+				G.Kind = Kind;
+				G.Word = Word(Words, Row.A[1]);
+				G.Pts = Steps(F, Row, 3);
+				if (!G.Pts.empty()) KitThings.push_back(std::move(G));
+			}
+	if (const Json* Rows = File.Get("lines"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 9 || !Wanted(Row, Kind)) continue;
+			GroundShape G;
+			G.Kind = Kind;
+			G.Word = Word(Words, Row.A[1]);
+			G.Pts = Steps(F, Row, 5);
+			if (G.Pts.size() >= 2) KitThings.push_back(std::move(G));
+		}
+}
+
 void Region::AddGround(const Json& File)
 {
 	if (!File.IsObject() || int(File.Num("format")) != GroundFormat) return;

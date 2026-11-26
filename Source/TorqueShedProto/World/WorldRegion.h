@@ -208,6 +208,10 @@ public:
 	Features Scenery;
 	// [OSM stage 4] Its ground and paths, where the store has them (AddGround, AddPaths).
 	GroundData Ground;
+	// [everyday kits stage 10] The kits bake's things (a cell's kits file, torque-shed-world scripts/kits_bake.py) the
+	// game lays: the coast's for now (beach huts, sea walls, promenades, slipways), as GroundShapes (Kind, Word, its
+	// point, line or ring).
+	std::vector<GroundShape> KitThings;
 	// [OSM stage 5] The road itself, where the store has it (AddRoadX): extras by edge id, points, barriers.
 	std::unordered_map<std::string, RoadExtra> Extras;
 	std::vector<MappedPoint> RoadPoints;
@@ -285,6 +289,7 @@ public:
 	static constexpr int FeaturesFormat = 1;
 	// [OSM stage 4] A ground file and a paths file (a cell's) into the region's frame; another format is left out.
 	void AddGround(const TorqueFit::Json& File);
+	void AddKits(const TorqueFit::Json& File);   // [everyday kits stage 10]
 	void AddPaths(const TorqueFit::Json& File);
 	static constexpr int GroundFormat = 1, PathsFormat = 1;
 	// [OSM stage 5] A roadx file (a cell's) into the region; another format is left out.

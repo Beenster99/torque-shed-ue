@@ -42,6 +42,7 @@ struct WorldIndex
 	// [OSM stage 4] Each cell's ground (water shapes, land use, parks, car parks, single trees) and paths.
 	std::unordered_map<std::string, std::string> Grounds, Paths, RoadX, Sights;
 	std::unordered_map<std::string, std::string> Circuits;   // [circuits] ("circuits": circuit/cROW_COL.json)
+	std::unordered_map<std::string, std::string> Kits;       // [everyday kits stage 10] ("kits": kits/cROW_COL.json)
 	// [towns stage 3] Each cell's buildings (every one's outline and height): a zip of its own, a
 	// release asset, read a tile at a time (tools/building_bake.py in the Godot game's repository).
 	std::unordered_map<std::string, CellEntry> Buildings;
@@ -63,7 +64,7 @@ public:
 	// take it up in time): not a failure, asked again later.
 	static constexpr int NotNow = -1;
 	// A cell's own files beside the index.
-	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX, Sights, Circuits };
+	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX, Sights, Circuits, Kits };
 	enum class EState { Here, Baked, Sea, Unknown };
 
 	// Where fetched cells (and the index) are kept, and other folders cells are found in (the game's own).

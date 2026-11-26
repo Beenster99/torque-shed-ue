@@ -95,6 +95,17 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	const std::shared_ptr<const HouseTypes> Types = HouseTypesNow();   // [towns stage 4]
 	const std::shared_ptr<const WarehouseKit> FarmKit = FarmKitNow();   // [everyday kits stage 4]
 	const std::shared_ptr<const WarehouseKit> VillageKit = VillageKitNow();   // [everyday kits stage 6]
+	// [everyday kits stage 10] (the kits bake's beach huts near the square: a building on one is a hut, whatever its kind)
+	std::vector<P2> HutsHere;
+	if (PropModelled[PropCoastBeachHut])
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Kind != "beach_hut" || T.Pts.empty()) continue;
+			P2 C(0.0, 0.0);
+			for (const P2& P : T.Pts) C = C + P;
+			C = C * (1.0 / double(T.Pts.size()));
+			if (C.X >= X0 - 10.0 && C.X < X0 + Size + 10.0 && C.Z >= Z0 - 10.0 && C.Z < Z0 + Size + 10.0) HutsHere.push_back(C);
+		}
 	const bool Scots = std::strcmp(TileLook.Name, "lowlands") == 0 || std::strcmp(TileLook.Name, "highlands") == 0;
 	const auto Inside = [X0, Z0, Size](double X, double Z) { return X >= X0 && X < X0 + Size && Z >= Z0 && Z < Z0 + Size; };
 	const auto OffRoad = [this](double X, double Z, double Spare)
@@ -590,6 +601,31 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			BuildWarehouse(Kit, Kit.Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, HalfLong * 2.0, HalfShort * 2.0, Base, Low, Fine ? 2 : 0, Into);
 			return true;
 		};
+		// [everyday kits stage 10] A beach hut the map draws: the coast set's hut in place of the drawn box, its doors
+		// on a short side, the one towards the sea (HutFront), sized to its outline.
+		const auto HutHere = [&]()
+		{
+			for (const P2& H : HutsHere) if (std::fabs(H.X - B.X) < 2.0 && std::fabs(H.Z - B.Z) < 2.0) return true;
+			return false;
+		};
+		if (PropModelled[PropCoastBeachHut] && HalfLong <= 4.0 && (Kind == "beach_hut" || HutHere()))
+		{
+			const P2 Al = LongX ? P2(Cs, -Sn) : P2(Sn, Cs);
+			const P2 Way = HutFront(P2(B.X, B.Z));
+			const P2 Front = Way.X * Al.X + Way.Z * Al.Z < 0.0 ? Al * -1.0 : Al;
+			RideProp Pr;
+			Pr.Kind = uint16_t(PropCoastBeachHut);
+			Pr.Variant = uint8_t(Chance(B.X, B.Z, 901) * 6.0);
+			Pr.Mapped = true;
+			Pr.X = float(B.X - Out.OriginX);
+			Pr.Y = float(Base);
+			Pr.Z = float(B.Z - Out.OriginZ);
+			Pr.Yaw = float(std::atan2(Front.Z, Front.X));
+			Pr.Scale = float(std::clamp(HalfShort * 2.0 / 2.0, 0.75, 1.5));   // (the model 2 m across its doors)
+			Out.Props.push_back(Pr);
+			if (Tally) ++Tally->Drawn;
+			continue;
+		}
 		// [everyday kits stage 6] A school from the village kit (WorldRideVillage.h): a small one old, in the place's
 		// stone or brick, or a timber classroom; a big one post-war or new; its front (the entrance) to the road.
 		if (VillageKit && !Ruin && !GlassHouse)
