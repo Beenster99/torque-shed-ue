@@ -16,7 +16,7 @@ farmyards.
   farm_tank 0..1      a slurry store: a galvanised steel ring tank with its ladder; a concrete panel tank
   farm_feedbin 0..1   one galvanised hopper feed bin; two side by side
   farm_trough 0..1    a galvanised water trough on legs; a concrete one
-  farm_tractor 0..2   a made-up four-wheel-drive tractor with a cab: green, red, blue, a front loader on one
+  (the tractors: Tools/blender_tractor.py, farm_tractor, farm_tractor_utility and farm_tractor_compact)
   farm_trailer 0..1   a grain trailer, high sides; a flat bale trailer
   farm_diesel 0       a bunded diesel tank with its pump
   farm_muck 0..1      a muck heap; a heap of field stones and rubble
@@ -64,7 +64,7 @@ WATER = (0.03, 0.04, 0.04)
 
 # kind: (reach in m, casts a shadow)
 KINDS = {"farm_bales": (450, True), "farm_bale": (220, True), "farm_clamp": (400, True), "farm_tank": (700, True),
-         "farm_feedbin": (700, True), "farm_trough": (120, False), "farm_tractor": (300, True), "farm_trailer": (300, True),
+         "farm_feedbin": (700, True), "farm_trough": (120, False), "farm_trailer": (300, True),
          "farm_diesel": (150, True), "farm_muck": (300, True)}
 
 
@@ -272,39 +272,6 @@ def wheel(M, x, y, z, r, w, hub, lod, axis_y=True):
                       rot=Matrix.Rotation(-a, 4, "Y")), "paint", TYRE, 0.6)
 
 
-def tractor(name, rgb, loader, lod):
-    """A made-up four-wheel-drive tractor, 2.95 m to the cab roof: bonnet, cab, big rear wheels."""
-    M = M_(name)
-    # (front +x)
-    wheel(M, -1.05, 0.95, 0.85, 0.85, 0.6, HUB_YELLOW if rgb != GREEN else HUB_GREY, lod)
-    wheel(M, -1.05, -0.95, 0.85, 0.85, 0.6, HUB_YELLOW if rgb != GREEN else HUB_GREY, lod)
-    wheel(M, 1.55, 0.85, 0.6, 0.6, 0.45, HUB_YELLOW if rgb != GREEN else HUB_GREY, lod)
-    wheel(M, 1.55, -0.85, 0.6, 0.6, 0.45, HUB_YELLOW if rgb != GREEN else HUB_GREY, lod)
-    M.add(box("chassis", (0.3, 0.0, 0.75), (3.6, 0.7, 0.5)), "paint", GREY_DARK, 0.5)
-    M.add(box("bonnet", (1.25, 0.0, 1.35), (2.0, 0.85, 0.75), bevel=0.06 if lod == 0 else 0.0), "enamel", rgb, 0.2)
-    M.add(box("cabbase", (-0.85, 0.0, 1.3), (1.6, 1.3, 0.6)), "enamel", rgb, 0.3)
-    # (the cab: four posts, glass all round, a roof)
-    if lod == 0:
-        for x in (-1.6, -0.1):
-            for y in (-0.62, 0.62):
-                M.add(box("post", (x, y, 2.15), (0.07, 0.07, 1.6)), "paint", GREY_DARK, 0.2)
-        M.add(box("glass", (-0.85, 0.0, 2.15), (1.45, 1.2, 1.55)), "lens", GLASS, 0.0)
-        M.add(box("fender", (-1.05, 0.95, 1.75), (1.6, 0.62, 0.08)), "enamel", rgb, 0.3)
-        M.add(box("fender", (-1.05, -0.95, 1.75), (1.6, 0.62, 0.08)), "enamel", rgb, 0.3)
-        M.add(rod("exhaust", (0.55, 0.3, 1.6), (0.55, 0.3, 2.9), 0.05, 8), "steel", GREY_DARK, 0.3)
-        M.add(box("grille", (2.26, 0.0, 1.3), (0.04, 0.7, 0.55)), "paint", GREY_DARK, 0.3)
-        for y in (-0.3, 0.3):
-            M.add(box("lamp", (2.27, y, 1.55), (0.03, 0.18, 0.1)), "lens", (0.5, 0.5, 0.45), 0.0)
-    else:
-        M.add(box("glass", (-0.85, 0.0, 2.15), (1.5, 1.3, 1.55)), "lens", GLASS, 0.0)
-    M.add(box("roof", (-0.85, 0.0, 2.92), (1.75, 1.45, 0.06)), "enamel", rgb if rgb != GREEN else (0.3, 0.3, 0.28), 0.2)
-    if loader:
-        for y in (-0.7, 0.7):
-            M.add(sweep("boom", [(-0.4, y, 1.7), (0.9, y, 1.9), (2.4, y, 1.2), (2.9, y, 0.5)], 0.08, 6, square=True), "enamel", rgb, 0.4)
-        M.add(box("bucket", (3.1, 0.0, 0.4), (0.5, 2.0, 0.6)), "enamel", GREY_DARK, 0.6)
-    return M
-
-
 def trailer(name, bales, lod):
     """A twin-axle grain trailer with high sides (red), or a flat bale trailer loaded with square bales."""
     M = M_(name)
@@ -388,9 +355,6 @@ def build(lod):
         feedbin("SM_Prop_farm_feedbin_1" + s, True, lod),
         trough("SM_Prop_farm_trough_0" + s, False, lod),
         trough("SM_Prop_farm_trough_1" + s, True, lod),
-        tractor("SM_Prop_farm_tractor_0" + s, GREEN, False, lod),
-        tractor("SM_Prop_farm_tractor_1" + s, RED, False, lod),
-        tractor("SM_Prop_farm_tractor_2" + s, BLUE, True, lod),
         trailer("SM_Prop_farm_trailer_0" + s, False, lod),
         trailer("SM_Prop_farm_trailer_1" + s, True, lod),
         diesel("SM_Prop_farm_diesel_0" + s, lod),

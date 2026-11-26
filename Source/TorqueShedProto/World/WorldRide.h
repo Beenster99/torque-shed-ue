@@ -920,6 +920,9 @@ public:
 		// a diesel tank and a muck heap, laid about the map's farmyards by FarmYardProps
 		PropFarmBales, PropFarmBale, PropFarmClamp, PropFarmTank, PropFarmFeedbin, PropFarmTrough, PropFarmTractor, PropFarmTrailer,
 		PropFarmDiesel, PropFarmMuck,
+		// [farm pack tractors] The smaller utility tractor and the compact one with its roll bar and front loader
+		// (Tools/blender_tractor.py, as farm_tractor's own new models), parked in farmyards as the big one
+		PropFarmTractorUtility, PropFarmTractorCompact,
 		// [everyday kits stage 6] The village set (Tools/blender_village_props.py, each with a hand-made distance
 		// version): playground pieces and its bow-top fence, football goals, rugby posts, tennis nets, a court's
 		// wire fence, basketball hoops, the green's notice board, litter bins and village sign, laid by VillageProps
