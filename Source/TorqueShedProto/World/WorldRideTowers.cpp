@@ -7,10 +7,12 @@
 // The tall ones (40 m and more) stand far off too, plain. A box building under one is not drawn.
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
+#include "WorldRideFarms.h"
 #include "WorldRideWarehouses.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <initializer_list>
 #include <set>
 #include <string>
@@ -264,6 +266,7 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 	const double Tallest = Detail >= 1 ? 0.0 : Detail == 0 ? 40.0 : 80.0;
 	std::set<int> Done;
 	const std::shared_ptr<const WarehouseKit> Kit = WarehouseKitNow();   // [warehouses]
+	const std::shared_ptr<const WarehouseKit> Farms = FarmKitNow();   // [everyday kits stage 4]
 	// [warehouses stage 3] The yards' and car parks' props: near squares only, and no more than this many
 	// triangles of them in a square (a big estate's trailers and fences stop there).
 	long long YardBudget = Detail >= 2 ? 160000 : 50000;
@@ -306,7 +309,10 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 				const bool Parking = C == "parking";
 				// [warehouses] A shed on an oblong outline: one of the warehouse kit's designs (WorldRideWarehouses.h),
 				// laid bay by bay along it, its front to the road, in place of the plain clad box below.
-				if (Shed && Kit && T.Base < 0.5 && T.Ring.size() >= 4 && T.Ring.size() <= 12)
+				// [everyday kits stage 4] (a farm building's outline from the farm kit instead: WorldRideFarms.h)
+				const bool FarmShape = Farms && Among(C, {"farm_auxiliary", "agricultural", "barn", "cowshed", "sty", "stable"});
+				const WarehouseKit* const UseKit = FarmShape ? Farms.get() : Kit.get();
+				if ((Shed || FarmShape) && UseKit && T.Base < 0.5 && T.Ring.size() >= 4 && T.Ring.size() <= 12)
 				{
 					// (the outline's tightest box, by each of its sides' directions: an oblong if it fills 85% of it)
 					double BestArea = 1e18, Bu0 = 0.0, Bu1 = 0.0, Bv0 = 0.0, Bv1 = 0.0;
@@ -330,7 +336,9 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 					const double Long = std::fmax(Bu1 - Bu0, Bv1 - Bv0), Short = std::fmin(Bu1 - Bu0, Bv1 - Bv0);
 					const P2 Mid = Dir * ((Bu0 + Bu1) * 0.5) + Dv * ((Bv0 + Bv1) * 0.5);
 					const P2 Along = AlongU ? Dir : Dv;
-					const int Design = T.Floor >= 0.85 * BestArea && Short >= 6.0 ? Kit->Pick(C, Long, Short, Chance(Mid.X, Mid.Z, 131)) : -1;
+					const char* FarmClass = FarmShape ? FarmClassOf(C, 2, Long, Short, true, std::strcmp(Look.Name, "fens") == 0 ? 0.4 : std::strcmp(Look.Name, "lowland") == 0 ? 0.65 : 0.0,
+						Chance(Mid.X, Mid.Z, 701)) : "";
+					const int Design = T.Floor >= 0.85 * BestArea && Short >= (FarmShape ? 3.0 : 6.0) ? UseKit->Pick(FarmShape ? std::string(FarmClass) : C, Long, Short, Chance(Mid.X, Mid.Z, 131)) : -1;
 					if (Design >= 0)
 					{
 						// (its front, a long side, to the nearer road; the other way where none is near either)
@@ -362,8 +370,17 @@ void RidePlan::TowersTile(double X0, double Z0, double Size, int Detail, RideMes
 							}
 						if (!std::isnan(Y0) && High - Low < 6.0)
 						{
-							BuildWarehouse(*Kit, Kit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Y0, Low, Detail, Out);
-							if (Inside(T.Mid))   // [warehouses stage 3] (its yard by the square its middle is in)
+							// (stone in the houses' scanned masonry, tinted the place's stone)
+							if (FarmShape && !Out.Masonry)
+							{
+								Out.Masonry = std::make_shared<RideMesh>();
+								Out.Masonry->OriginX = Out.OriginX;
+								Out.Masonry->OriginZ = Out.OriginZ;
+								Out.MasonryTint = Look.HouseStone;
+							}
+							RideMesh* const Into[5] = {&Out, FarmShape ? Out.Masonry.get() : &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
+							BuildWarehouse(*UseKit, UseKit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Y0, Low, Detail, Into);
+							if (!FarmShape && Inside(T.Mid))   // [warehouses stage 3] (its yard by the square its middle is in)
 								DressYard(*Kit, Kit->Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, Long, Short, Detail, YardClear, YardGround, YardRoad, YardBudget, Out);
 							continue;
 						}

@@ -124,18 +124,18 @@ int WarehouseKit::Pick(const std::string& Class, double Long, double Short, doub
 	return Fits.empty() ? -1 : Fits.back().first;
 }
 
-bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
+std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
 {
 	TorqueFit::Json Root;
-	if (!TorqueFit::Json::Parse(JsonText, Root) || !Root.IsObject()) return false;
+	if (!TorqueFit::Json::Parse(JsonText, Root) || !Root.IsObject()) return nullptr;
 	auto Kit = std::make_shared<WarehouseKit>();
 	Kit->Yards = Yards;
 	if (const TorqueFit::Json* S = Root.Get("stretch"); S && S->IsArray() && S->A.size() == 2) { Kit->StretchLo = S->A[0].N; Kit->StretchHi = S->A[1].N; }
 	// (the pieces: "TSWK", version 1, a count, then each: its name, parts, vertices, triangles)
 	KitBytes R{Bin};
-	if (Bin.size() < 12 || Bin.compare(0, 4, "TSWK") != 0) return false;
+	if (Bin.size() < 12 || Bin.compare(0, 4, "TSWK") != 0) return nullptr;
 	R.At = 4;
-	if (R.Get<uint32_t>() != 1) return false;
+	if (R.Get<uint32_t>() != 1) return nullptr;
 	const uint32_t Count = R.Get<uint32_t>();
 	std::map<std::string, int> Named;
 	for (uint32_t I = 0; I < Count && !R.Bad; ++I)
@@ -168,9 +168,9 @@ bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Y
 		Named[Name] = int(Kit->Pieces.size());
 		Kit->Pieces.push_back(std::move(P));
 	}
-	if (R.Bad || Kit->Pieces.size() != Count) return false;
+	if (R.Bad || Kit->Pieces.size() != Count) return nullptr;
 	const TorqueFit::Json* Rows = Root.Get("designs");
-	if (!Rows || !Rows->IsArray()) return false;
+	if (!Rows || !Rows->IsArray()) return nullptr;
 	for (const TorqueFit::Json& Row : Rows->A)
 	{
 		WarehouseDesign D;
@@ -202,7 +202,7 @@ bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Y
 		if (D.W <= 1.0 || D.Bay <= 0.5 || D.GableBay <= 0.5 || D.Piece("long:.") < 0 || D.Piece("roof:P") < 0) continue;
 		Kit->Designs.push_back(std::move(D));
 	}
-	if (Kit->Designs.empty()) return false;
+	if (Kit->Designs.empty()) return nullptr;
 	if (const TorqueFit::Json* Ps = Root.Get("props"); Ps && Ps->IsArray())   // [stage 3]
 		for (const TorqueFit::Json& Row : Ps->A)
 		{
@@ -214,6 +214,13 @@ bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Y
 			P.Signs = SignsIn(Row.Get("signs"));
 			Kit->Props.push_back(std::move(P));
 		}
+	return Kit;
+}
+
+bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
+{
+	std::shared_ptr<WarehouseKit> Kit = ReadWarehouseKit(JsonText, Bin, Yards);
+	if (!Kit) return false;
 	std::lock_guard<std::mutex> Hold(WarehouseKitLock);
 	WarehouseKitTable() = std::move(Kit);
 	return true;
@@ -230,11 +237,10 @@ namespace
 // One piece laid on a wall: its x along (Ax, Az) from (Ox, Oz) stretched Sx, its z out along (Nx, Nz)
 // stretched Sz, its y up from Y, stretched SAbove above Pivot (a roof's or a gable's rise with its depth).
 size_t LayPiece(const WarehousePiece& P, double Ox, double Oz, double Ax, double Az, double Nx, double Nz, double Sx, double Sz, double Y,
-	double Pivot, double SAbove, int Need, RideMesh& Out)
+	double Pivot, double SAbove, int Need, RideMesh* const* Into)
 {
-	RideMesh* Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
-	for (RideMesh* Mi : Into)
-		if (Mi->Alpha.size() < Mi->Vertices()) Mi->Alpha.resize(Mi->Vertices(), 1.0f);
+	for (int K = 0; K < 5; ++K)
+		if (Into[K]->Alpha.size() < Into[K]->Vertices()) Into[K]->Alpha.resize(Into[K]->Vertices(), 1.0f);
 	std::vector<uint32_t> Where(P.Vertices(), UINT32_MAX);
 	std::vector<double> World(P.Vertices() * 3), Normal(P.Vertices() * 3);
 	for (size_t V = 0; V < P.Vertices(); ++V)
@@ -359,6 +365,13 @@ std::string WarehouseName(const std::string& Kind, double Roll, double Roll2)
 size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
 	double Long, double Short, double Y, double Low, int Detail, RideMesh& Out)
 {
+	RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
+	return BuildWarehouse(Kit, D, CornerX, CornerZ, Ux, Uz, Nx, Nz, Long, Short, Y, Low, Detail, Into);
+}
+
+size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
+	double Long, double Short, double Y, double Low, int Detail, RideMesh* const Into[5])
+{
 	using namespace RideSceneBits;
 	const int Need = Detail >= 2 ? 0 : Detail == 1 ? 1 : 2;
 	const double Rise = std::clamp(Short / D.W, 0.6, 1.6);   // (a roof's and a gable's rise, with the depth)
@@ -366,7 +379,7 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 	size_t Laid = 0;
 	const auto Lay = [&](int Piece, double Ox, double Oz, double Ax, double Az, double Mx, double Mz, double Sx, double Sz2, double Pivot, double SAbove)
 	{
-		if (Piece >= 0 && size_t(Piece) < Kit.Pieces.size()) Laid += LayPiece(Kit.Pieces[size_t(Piece)], Ox, Oz, Ax, Az, Mx, Mz, Sx, Sz2, Y, Pivot, SAbove, Need, Out);
+		if (Piece >= 0 && size_t(Piece) < Kit.Pieces.size()) Laid += LayPiece(Kit.Pieces[size_t(Piece)], Ox, Oz, Ax, Az, Mx, Mz, Sx, Sz2, Y, Pivot, SAbove, Need, Into);
 	};
 	// The four walls: each its start, its way along and its way out (the front's left end, seen from outside, first).
 	struct WallRun { double X, Z, Ax, Az, Nx, Nz, Len; bool IsLong; const std::string* Pattern; };
@@ -415,7 +428,7 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 		{
 			const bool Own = *S.Kind == "store" || *S.Kind == "firm";
 			const double Ra = Own ? Chance(CornerX, CornerZ, 153) : Chance(S.X, S.Z, 151), Rb = Own ? Chance(CornerX, CornerZ, 154) : Chance(S.X, S.Z, 152);
-			WriteSign(Out, S.X, S.Y, S.Z, S.Fx, S.Fz, S.W, S.H, WarehouseName(*S.Kind, Ra, Rb), Ink);
+			WriteSign(*Into[0], S.X, S.Y, S.Z, S.Fx, S.Fz, S.W, S.H, WarehouseName(*S.Kind, Ra, Rb), Ink);
 		}
 	}
 	// The roof, a long bay at a time: rooflights in every other bay, solar over the middle ones where it has them.
@@ -445,7 +458,7 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 		{
 			const double Ex = Wr.X + Wr.Ax * Wr.Len, Ez = Wr.Z + Wr.Az * Wr.Len;
 			const P3 Away = At3(Mx + (Wr.X + Ex - 2.0 * Mx) * 25.0, Y, Mz + (Wr.Z + Ez - 2.0 * Mz) * 25.0);
-			Quad(Out.RenderOf(), At3(Wr.X + Wr.Nx * 0.05, Low - 0.4, Wr.Z + Wr.Nz * 0.05), At3(Ex + Wr.Nx * 0.05, Low - 0.4, Ez + Wr.Nz * 0.05),
+			Quad(*Into[4], At3(Wr.X + Wr.Nx * 0.05, Low - 0.4, Wr.Z + Wr.Nz * 0.05), At3(Ex + Wr.Nx * 0.05, Low - 0.4, Ez + Wr.Nz * 0.05),
 				At3(Ex + Wr.Nx * 0.05, Y - 0.55, Ez + Wr.Nz * 0.05), At3(Wr.X + Wr.Nx * 0.05, Y - 0.55, Wr.Z + Wr.Nz * 0.05), Away, Skirt, false, 0.08f);
 			Laid += 2;
 		}
@@ -500,7 +513,8 @@ size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double Corne
 		const double Y = Ground(X, Z);
 		if (std::isnan(Y)) return false;
 		// (its local z, its front, is the way (Fx, Fz) goes: LayPiece's "out of the wall")
-		const size_t N = LayPiece(Pc, X, Z, Ax, Az, Fx, Fz, 1.0, 1.0, Y, 1e9, 1.0, Need, Out);
+		RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
+		const size_t N = LayPiece(Pc, X, Z, Ax, Az, Fx, Fz, 1.0, 1.0, Y, 1e9, 1.0, Need, Into);
 		Budget -= (long long)N;
 		Laid += N;
 		Taken.push_back(F);

@@ -1,0 +1,563 @@
+{
+ "_about": "Ride UK's farmyards (the everyday kits plan, stage 4): twelve original designs of UK farm buildings, cut into pieces by Tools/blender_farm_kit_export.py (which writes this file and farm_kit.bin) in the warehouse kit's format. World/WorldRideFarms.cpp gives a farm building the map draws (barn, farm_auxiliary, cowshed, stable, sty, or a big shed in a farmyard) the design that suits its class and size and lays it with the warehouse kit's BuildWarehouse. Classes: farm_shed, farm_store, farm_livestock, farm_small (modern), barn_stone, barn_brick, barn_boarded, farm_old (old). 'regions' is a note; the game picks old barns' walls by the place's own look.",
+ "stretch": [
+  0.55,
+  1.8
+ ],
+ "designs": [
+  {
+   "name": "FM_portal_store",
+   "label": "Steel portal general store: panels, juniper sheeting, sliding doors in the gable",
+   "L": 36,
+   "W": 18,
+   "H": 6.0,
+   "top": 6.0,
+   "gable_top": 6.0,
+   "bay": 6.0,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "front": ". . G . . .",
+   "back": ".*",
+   "right": ". G .",
+   "left": ". . .",
+   "skirt": [
+    0.4,
+    0.39,
+    0.36
+   ],
+   "pieces": {
+    "long:.": 16,
+    "long:G": 28,
+    "gable:.": 8,
+    "gable:G": 28,
+    "gabletop": 7,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_shed",
+    "farm_store"
+   ],
+   "short": [
+    11,
+    30
+   ],
+   "area": [
+    150,
+    2500
+   ],
+   "weight": 1.4
+  },
+  {
+   "name": "FM_grey_store",
+   "label": "Grain or machinery store: grey box-profile, roller doors, rooflights",
+   "L": 30,
+   "W": 20,
+   "H": 7.0,
+   "top": 7.0,
+   "gable_top": 7.0,
+   "bay": 6.0,
+   "gable_bay": 6.6667,
+   "roof": "pitch",
+   "front": ". R . R .",
+   "back": ".*",
+   "right": ". P .",
+   "left": ". . .",
+   "skirt": [
+    0.4,
+    0.39,
+    0.36
+   ],
+   "pieces": {
+    "long:.": 16,
+    "long:R": 64,
+    "gable:.": 8,
+    "gable:P": 16,
+    "gabletop": 7,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_shed",
+    "farm_store"
+   ],
+   "short": [
+    12,
+    32
+   ],
+   "area": [
+    200,
+    3000
+   ],
+   "weight": 0.8
+  },
+  {
+   "name": "FM_cattle_shed",
+   "label": "Cattle shed: feed barrier along the front, Yorkshire boarding, open ridge",
+   "L": 30,
+   "W": 24,
+   "H": 4.8,
+   "top": 4.8,
+   "gable_top": 4.8,
+   "bay": 4.8,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "front": "F*",
+   "back": "Y*",
+   "right": "Y G Y",
+   "left": "Y Y Y Y",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 112,
+    "long:F": 228,
+    "long:Y": 102,
+    "gable:.": 132,
+    "gable:G": 158,
+    "gable:Y": 132,
+    "gabletop": 10,
+    "roof:P": 96,
+    "roof:L": 120,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_livestock",
+    "farm_shed"
+   ],
+   "short": [
+    10,
+    36
+   ],
+   "area": [
+    150,
+    3000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "FM_open_implement",
+   "label": "Open-fronted implement shed: steel frame, sheeted back and ends",
+   "L": 30,
+   "W": 12,
+   "H": 5.0,
+   "top": 5.0,
+   "gable_top": 5.0,
+   "bay": 6.0,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "front": "A*",
+   "back": ".*",
+   "right": ". .",
+   "left": ". .",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 22,
+    "long:A": 36,
+    "gable:.": 12,
+    "gabletop": 10,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_shed",
+    "farm_store"
+   ],
+   "short": [
+    6,
+    16
+   ],
+   "area": [
+    60,
+    900
+   ],
+   "weight": 0.9,
+   "ratio": 1.6
+  },
+  {
+   "name": "FM_straw_barn",
+   "label": "Straw barn: push walls, open above, big bales stacked inside",
+   "L": 30,
+   "W": 18,
+   "H": 7.0,
+   "top": 7.0,
+   "gable_top": 7.0,
+   "bay": 6.0,
+   "gable_bay": 6.0,
+   "roof": "pitch",
+   "front": "B*",
+   "back": ".*",
+   "right": "B B B",
+   "left": "B B B",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 22,
+    "long:B": 98,
+    "gable:.": 12,
+    "gable:B": 98,
+    "roof:P": 60,
+    "roof:L": 84,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_store"
+   ],
+   "short": [
+    10,
+    26
+   ],
+   "area": [
+    150,
+    2000
+   ],
+   "weight": 0.7
+  },
+  {
+   "name": "FM_dutch_barn",
+   "label": "Dutch barn: curved roof on steel stanchions, open on every side, hay inside",
+   "L": 24,
+   "W": 10,
+   "H": 5.5,
+   "top": 5.5,
+   "gable_top": 5.5,
+   "bay": 4.8,
+   "gable_bay": 10,
+   "roof": "curve",
+   "front": "A*",
+   "back": "A*",
+   "right": "A",
+   "left": "A",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 12,
+    "long:A": 76,
+    "gable:.": 12,
+    "gable:A": 76,
+    "roof:P": 196,
+    "roofend": 196,
+    "corner": 12
+   },
+   "classes": [
+    "farm_store",
+    "farm_shed"
+   ],
+   "short": [
+    6,
+    14
+   ],
+   "area": [
+    50,
+    600
+   ],
+   "weight": 0.6
+  },
+  {
+   "name": "FM_lean_to",
+   "label": "Low open-fronted shed: a shallow roof, tin sheeted, three open bays",
+   "L": 18,
+   "W": 8,
+   "H": 3.4,
+   "top": 3.4,
+   "gable_top": 3.4,
+   "bay": 4.5,
+   "gable_bay": 8.0,
+   "roof": "pitch",
+   "front": "A A . A",
+   "back": ".*",
+   "right": ".",
+   "left": ".",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 12,
+    "long:A": 36,
+    "gable:.": 12,
+    "gabletop": 10,
+    "roof:P": 60,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_shed",
+    "farm_small"
+   ],
+   "short": [
+    3,
+    9
+   ],
+   "area": [
+    15,
+    250
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "FM_dales_barn",
+   "label": "Dales field barn: limestone, stone slate roof, cart arch, slit vents, byre doors",
+   "L": 14,
+   "W": 7.5,
+   "H": 4.0,
+   "top": 4.0,
+   "gable_top": 4.0,
+   "bay": 3.5,
+   "gable_bay": 7.5,
+   "roof": "pitch",
+   "front": "D C V D",
+   "back": "V*",
+   "right": "O",
+   "left": ".",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 4,
+    "long:C": 225,
+    "long:D": 52,
+    "long:V": 20,
+    "gable:.": 4,
+    "gable:O": 12,
+    "gabletop": 15,
+    "roof:P": 48,
+    "roofend": 36
+   },
+   "classes": [
+    "barn_stone",
+    "farm_old"
+   ],
+   "short": [
+    4,
+    12
+   ],
+   "area": [
+    25,
+    400
+   ],
+   "weight": 1.0,
+   "regions": [
+    "dales",
+    "north",
+    "scotland",
+    "wales"
+   ]
+  },
+  {
+   "name": "FM_bank_barn",
+   "label": "Northern bank barn: gritstone, slate roof, big cart arch and small doors",
+   "L": 22,
+   "W": 9,
+   "H": 5.0,
+   "top": 5.0,
+   "gable_top": 5.0,
+   "bay": 4.4,
+   "gable_bay": 9,
+   "roof": "pitch",
+   "front": "V D C D V",
+   "back": "V . V . V",
+   "right": "O",
+   "left": "D",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 4,
+    "long:C": 225,
+    "long:D": 52,
+    "long:V": 36,
+    "gable:.": 4,
+    "gable:D": 52,
+    "gable:O": 12,
+    "gabletop": 15,
+    "roof:P": 48,
+    "roofend": 36
+   },
+   "classes": [
+    "barn_stone",
+    "farm_old"
+   ],
+   "short": [
+    7.5,
+    14
+   ],
+   "area": [
+    80,
+    700
+   ],
+   "weight": 1.0,
+   "regions": [
+    "north",
+    "dales",
+    "west",
+    "wales",
+    "scotland"
+   ]
+  },
+  {
+   "name": "FM_brick_barn",
+   "label": "Threshing barn: red brick, clay tiles, tall double doors, diamond vents",
+   "L": 24,
+   "W": 9,
+   "H": 5.5,
+   "top": 5.5,
+   "gable_top": 5.5,
+   "bay": 4.8,
+   "gable_bay": 9,
+   "roof": "pitch",
+   "front": "V . K . V",
+   "back": "V . K . V",
+   "right": "O",
+   "left": "O",
+   "skirt": [
+    0.33,
+    0.14,
+    0.08
+   ],
+   "pieces": {
+    "long:.": 4,
+    "long:K": 52,
+    "long:V": 36,
+    "gable:.": 4,
+    "gable:O": 12,
+    "gabletop": 15,
+    "roof:P": 48,
+    "roofend": 36
+   },
+   "classes": [
+    "barn_brick",
+    "farm_old"
+   ],
+   "short": [
+    6,
+    14
+   ],
+   "area": [
+    80,
+    700
+   ],
+   "weight": 1.0,
+   "regions": [
+    "midlands",
+    "east",
+    "south"
+   ]
+  },
+  {
+   "name": "FM_black_barn",
+   "label": "Eastern black barn: tarred weatherboarding on a brick plinth, corrugated roof",
+   "L": 24,
+   "W": 10,
+   "H": 5.0,
+   "top": 5.0,
+   "gable_top": 5.0,
+   "bay": 4.8,
+   "gable_bay": 10,
+   "roof": "pitch",
+   "front": ". . K . .",
+   "back": ".*",
+   "right": "O",
+   "left": ".",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 8,
+    "long:K": 48,
+    "gable:.": 8,
+    "gable:O": 16,
+    "gabletop": 15,
+    "roof:P": 36,
+    "roofend": 36
+   },
+   "classes": [
+    "barn_boarded",
+    "farm_old"
+   ],
+   "short": [
+    6,
+    14
+   ],
+   "area": [
+    60,
+    700
+   ],
+   "weight": 1.0,
+   "regions": [
+    "east",
+    "south"
+   ]
+  },
+  {
+   "name": "FM_tin_shed",
+   "label": "Old corrugated iron shed: rusty, a pair of boarded doors",
+   "L": 10,
+   "W": 6,
+   "H": 3.2,
+   "top": 3.2,
+   "gable_top": 3.2,
+   "bay": 5.0,
+   "gable_bay": 6,
+   "roof": "pitch",
+   "front": ". .",
+   "back": ".*",
+   "right": "D",
+   "left": ".",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 4,
+    "gable:.": 4,
+    "gable:D": 44,
+    "gabletop": 7,
+    "roof:P": 60,
+    "roofend": 60,
+    "corner": 12
+   },
+   "classes": [
+    "farm_small",
+    "farm_old"
+   ],
+   "short": [
+    3,
+    8
+   ],
+   "area": [
+    12,
+    120
+   ],
+   "weight": 1.0
+  }
+ ]
+}

@@ -30,6 +30,7 @@
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
 #include "World/WorldRideWarehouses.h"
+#include "World/WorldRideFarms.h"
 #include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
@@ -254,6 +255,19 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
 				YardsAsked == 0 ? TEXT(" (yards off: -TorqueWarehouseYards=0)") : TEXT(""),
 				bWh ? TEXT("") : WarehousesAsked == 0 ? TEXT(" (off: -TorqueWarehouses=0)") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
+		}
+		// [everyday kits stage 4] The farm kit: twelve designs of farm building, laid on the map's barns and farmyard
+		// sheds (-TorqueFarms=0: the drawn barns, to compare).
+		{
+			int32 FarmsAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
+			std::string FmText, FmBin;
+			const std::string FmPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/farm_kit.json")));
+			const std::string FmBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/farm_kit.bin")));
+			const bool bFm = FarmsAsked != 0 && TorqueWorld::Files::Read(FmPath, FmText) && TorqueWorld::Files::Read(FmBinPath, FmBin) && TorqueWorld::SetFarmKit(FmText, FmBin);
+			const std::shared_ptr<const TorqueWorld::WarehouseKit> Fm = TorqueWorld::FarmKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: farm kit: %d designs%s"), Fm ? int32(Fm->Designs.size()) : 0,
+				bFm ? TEXT("") : FarmsAsked == 0 ? TEXT(" (off: -TorqueFarms=0)") : TEXT(" (none: Data/RideUK/farm_kit.json or .bin unreadable; the drawn barns stay)"));
 		}
 		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
 		std::string HeightsText;

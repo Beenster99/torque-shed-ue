@@ -901,6 +901,11 @@ public:
 		// [caravans] The campsites' touring caravans and static caravans (Tools/blender_caravan_kit.py), in place of
 		// TownLifeTile's boxes where they have models (TownLifeProps)
 		PropTouringCaravan, PropStaticCaravan,
+		// [everyday kits stage 4] A farmyard's things (Tools/blender_farm_props.py, each with a hand-made distance
+		// version): bale stacks, single bales, a silage clamp, a slurry tank, feed bins, troughs, a tractor, a trailer,
+		// a diesel tank and a muck heap, laid about the map's farmyards by FarmYardProps
+		PropFarmBales, PropFarmBale, PropFarmClamp, PropFarmTank, PropFarmFeedbin, PropFarmTrough, PropFarmTractor, PropFarmTrailer,
+		PropFarmDiesel, PropFarmMuck,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1196,6 +1201,7 @@ public:
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
+		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
@@ -1584,6 +1590,9 @@ public:
 	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	// [caravans] The campsites' caravans in the square, as models (when the kit has them: PropModelled).
 	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 4] A farmyard's things where the game has their models (World/WorldRideFarms.cpp): a few
+	// to each mapped farmyard by its size, along its edges, clear of its buildings and the road.
+	void FarmYardProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
 	// [circuits, build 168] The ground under a circuit's track, smoothed: its height averaged over 70 m round (X, Z)
