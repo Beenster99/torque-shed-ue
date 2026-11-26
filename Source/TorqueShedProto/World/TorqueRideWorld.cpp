@@ -33,6 +33,7 @@
 
 #include "World/WorldRide.h"
 #include "World/WorldRideCircuits.h"
+#include "World/WorldRideWarehouses.h"
 #include "World/WorldFiles.h"
 #include "Coop/TorqueAwards.h"
 #include "Coop/TorqueLaps.h"
@@ -781,6 +782,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	if (!BrickMaterial) BrickMaterial = RoadMaterial;
 	// (before any square is made: whether its trees come as real ones, and how much grass)
 	const bool bKit = FindKit();
+	BuildKitLooks();   // [warehouses, round 175 fps] (before any square is made: whether its sheds come as instances)
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
@@ -1225,6 +1227,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	{
 		RideCosts::FScope Cost(RideCosts::Props);
 		PlaceProps(Key, Mesh);   // [OSM stage 2]
+		PlaceKitParts(Key, Mesh);   // [warehouses, round 175 fps]
 	}
 	{
 		RideCosts::FScope Cost(RideCosts::Words);
@@ -2527,6 +2530,83 @@ void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::Ride
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.At.Num();   // (let go with the plants, which count them off)
 		PropsShown += Group.Value.At.Num();
+	}
+}
+
+void ATorqueRideWorld::BuildKitLooks()
+{
+	KitLooks.Reset();
+	TorqueWorld::SetWarehouseInstancing(false);
+	int32 InstancesAsked = 1;
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseInstances="), InstancesAsked);
+	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
+	if (!Wk || InstancesAsked == 0 || !URidePart::StaticLooks())
+	{
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : InstancesAsked == 0 ? TEXT("laid into the squares (-TorqueWarehouseInstances=0)") : TEXT("laid into the squares (no static looks)"));
+		return;
+	}
+	const double Start = FPlatformTime::Seconds();
+	int32 Made = 0, Triangles = 0;
+	bool bAll = true;
+	for (int32 Piece = 0; Piece < int32(Wk->Pieces.size()) && bAll; ++Piece)
+		for (int32 Near = 1; Near >= 0; --Near)
+		{
+			TorqueWorld::RideMesh Look;
+			const size_t Tris = TorqueWorld::WarehousePieceMesh(*Wk, Piece, Near != 0, Look);
+			if (Tris == 0) continue;   // (a piece with nothing at the middle detail: none drawn there)
+			// (in the square's materials, as the laid kit was: plain in the road's, sheets, brick and concrete in theirs)
+			TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Kinds;
+			Kinds.Emplace(&Look, RoadMaterial.Get());
+			Kinds.Emplace(Look.Roofing.get(), RoofMaterial.Get());
+			Kinds.Emplace(Look.Brickwork.get(), BrickMaterial.Get());
+			Kinds.Emplace(Look.Render.get(), RenderMaterial.Get());
+			UStaticMesh* Built = URidePart::BuildLook(this, Kinds);
+			if (!Built) { bAll = false; break; }
+			KitLooks.Add(Piece * 2 + (Near ? 0 : 1), Built);
+			++Made;
+			Triangles += int32(Tris);
+		}
+	if (!bAll) KitLooks.Reset();
+	TorqueWorld::SetWarehouseInstancing(bAll && Made > 0);
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit as instances: %s, %d meshes, %d triangles, %.0f ms"), bAll && Made > 0 ? TEXT("yes") : TEXT("no (a piece's mesh failed: laid into the squares)"),
+		Made, Triangles, (FPlatformTime::Seconds() - Start) * 1000.0);
+}
+
+void ATorqueRideWorld::PlaceKitParts(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh)
+{
+	if (Mesh.KitParts.empty() || KitLooks.Num() == 0) return;
+	// (by piece: the instances; the ride's frame is x east, y up, z south, Unreal's x east, y south, z up, so a
+	// piece's x along (Ax, Az) is Unreal's (Ax, Az, 0), its z out (Nx, Nz, 0), its y up Unreal's z)
+	TMap<int32, TArray<FTransform>> Groups;
+	for (const TorqueWorld::RideKitPart& P : Mesh.KitParts)
+	{
+		const int32 Look = P.Piece * 2 + (P.Near ? 0 : 1);
+		if (!KitLooks.Contains(Look)) continue;
+		const FMatrix Turn(FVector(P.Ax, P.Az, 0.0), FVector(P.Nx, P.Nz, 0.0), FVector::UpVector, FVector::ZeroVector);
+		Groups.FindOrAdd(Look).Add(FTransform(FQuat(Turn), FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), FVector(P.Sx, P.Sz, P.Sy)));
+	}
+	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
+	for (TPair<int32, TArray<FTransform>>& Group : Groups)
+	{
+		UStaticMesh* Model = KitLooks[Group.Key].Get();
+		if (!Model) continue;
+		// (as the square's own buildings were: shadows from the nearest squares, no collision, in ray tracing near by)
+		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
+		Ism->SetMobility(EComponentMobility::Movable);
+		Ism->SetupAttachment(RootComponent);
+		Ism->SetRelativeLocation(FVector(Mesh.OriginX * 100.0, Mesh.OriginZ * 100.0, 0.0));
+		Ism->SetStaticMesh(Model);
+		Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Ism->SetCollisionProfileName(TEXT("NoCollision"));
+		Ism->SetCanEverAffectNavigation(false);
+		Ism->SetGenerateOverlapEvents(false);
+		Ism->SetCastShadow(Key.X == 0);
+		Ism->bVisibleInRayTracing = Key.X <= TRWI::CVarRayTraceLevel.GetValueOnGameThread();
+		Ism->RegisterComponent();
+		Ism->AddInstances(Group.Value, false, false);
+		AddInstanceComponent(Ism);
+		Parts.Add(Ism);
+		PlantsShown += Group.Value.Num();   // (let go with the plants, which count them off)
 	}
 }
 

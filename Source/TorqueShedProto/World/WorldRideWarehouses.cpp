@@ -8,6 +8,7 @@
 #include "FitJson.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <initializer_list>
@@ -18,6 +19,7 @@ namespace TorqueWorld
 namespace
 {
 std::mutex WarehouseKitLock;
+std::atomic<bool> WarehouseInstancingOn{false};   // [round 175 fps]
 std::shared_ptr<const WarehouseKit>& WarehouseKitTable()
 {
 	static std::shared_ptr<const WarehouseKit> Table;
@@ -165,6 +167,11 @@ std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, cons
 		}
 		P.Idx.resize(size_t(Tris) * 3);
 		for (uint16_t& Ix : P.Idx) { Ix = R.Get<uint16_t>(); if (Ix >= Verts) Ix = 0; }
+		for (uint32_t V = 0; V < Verts; ++V)
+		{
+			P.MinX = std::fmin(P.MinX, P.Pos[size_t(V) * 3] * 0.01);
+			P.MaxX = std::fmax(P.MaxX, P.Pos[size_t(V) * 3] * 0.01);
+		}
 		Named[Name] = int(Kit->Pieces.size());
 		Kit->Pieces.push_back(std::move(P));
 	}
@@ -303,6 +310,40 @@ size_t LayPiece(const WarehousePiece& P, double Ox, double Oz, double Ax, double
 	return Laid;
 }
 
+// [round 175 fps] A piece put down: laid into the square's meshes, or, while the game draws the kit's pieces as
+// instances (SetWarehouseInstancing) and the kit is the warehouse kit itself (Instance; the farm kit's pieces
+// are always laid), handed over as one (Into[0]->KitParts). Its rise above Pivot stretched SAbove
+// becomes a stretch of the whole piece about Pivot (the few points of a roof below it move a hand's width at
+// most). A mirrored frame (x, up, out left-handed: a far end's corner flashing or roof overhang, a fence's far
+// side) can't be an instance's turn: the piece, symmetric along its x, is turned the other way about its middle.
+size_t PlacePiece(const WarehouseKit& Kit, int Piece, double Ox, double Oz, double Ax, double Az, double Nx, double Nz, double Sx, double Sz, double Y,
+	double Pivot, double SAbove, int Need, bool Instance, RideMesh* const* Into)
+{
+	if (Piece < 0 || size_t(Piece) >= Kit.Pieces.size()) return 0;
+	const WarehousePiece& P = Kit.Pieces[size_t(Piece)];
+	if (!Instance || Need >= 2) return LayPiece(P, Ox, Oz, Ax, Az, Nx, Nz, Sx, Sz, Y, Pivot, SAbove, Need, Into);
+	RideMesh& Out = *Into[0];
+	if (Ax * Nz - Az * Nx < 0.0)
+	{
+		const double Mid = (P.MinX + P.MaxX) * 0.5;
+		Ox += 2.0 * Mid * Sx * Ax;
+		Oz += 2.0 * Mid * Sx * Az;
+		Ax = -Ax;
+		Az = -Az;
+	}
+	RideKitPart K;
+	K.Piece = Piece;
+	K.Near = Need <= 0;
+	K.X = float(Ox - Out.OriginX);
+	K.Z = float(Oz - Out.OriginZ);
+	K.Y = float(Pivot < 1e8 ? Y + Pivot * (1.0 - SAbove) : Y);
+	K.Sy = float(Pivot < 1e8 ? SAbove : 1.0);
+	K.Ax = float(Ax); K.Az = float(Az); K.Nx = float(Nx); K.Nz = float(Nz);
+	K.Sx = float(Sx); K.Sz = float(Sz);
+	Out.KitParts.push_back(K);
+	return P.Idx.size() / 3;
+}
+
 // [stage 3] A sign's made-up name, as big as fits its board (no more than half its height), on its face.
 void WriteSign(RideMesh& Out, double X, double Y, double Z, double Fx, double Fz, double W, double H, const std::string& Name, const float Colour[3])
 {
@@ -377,9 +418,10 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 	const double Rise = std::clamp(Short / D.W, 0.6, 1.6);   // (a roof's and a gable's rise, with the depth)
 	const double Sz = Short / D.W;
 	size_t Laid = 0;
+	const bool Instance = WarehouseInstancingOn.load() && WarehouseKitNow().get() == &Kit;   // [round 175 fps]
 	const auto Lay = [&](int Piece, double Ox, double Oz, double Ax, double Az, double Mx, double Mz, double Sx, double Sz2, double Pivot, double SAbove)
 	{
-		if (Piece >= 0 && size_t(Piece) < Kit.Pieces.size()) Laid += LayPiece(Kit.Pieces[size_t(Piece)], Ox, Oz, Ax, Az, Mx, Mz, Sx, Sz2, Y, Pivot, SAbove, Need, Into);
+		if (Piece >= 0 && size_t(Piece) < Kit.Pieces.size()) Laid += PlacePiece(Kit, Piece, Ox, Oz, Ax, Az, Mx, Mz, Sx, Sz2, Y, Pivot, SAbove, Need, Instance, Into);
 	};
 	// The four walls: each its start, its way along and its way out (the front's left end, seen from outside, first).
 	struct WallRun { double X, Z, Ax, Az, Nx, Nz, Len; bool IsLong; const std::string* Pattern; };
@@ -494,6 +536,7 @@ size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double Corne
 	if (!Kit.Yards || Detail < 1 || Kit.Props.empty() || Budget <= 0) return 0;
 	const int Need = Detail >= 2 ? 0 : 1;
 	size_t Laid = 0;
+	const bool Instance = WarehouseInstancingOn.load() && WarehouseKitNow().get() == &Kit;   // [round 175 fps]
 	std::vector<Footprint> Taken;
 	// A prop by name, centred at (X, Z), its length along (Ax, Az), its front towards (Fx, Fz); none where its
 	// footprint isn't clear ground, overlaps one laid, or the budget is spent.
@@ -514,7 +557,7 @@ size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double Corne
 		if (std::isnan(Y)) return false;
 		// (its local z, its front, is the way (Fx, Fz) goes: LayPiece's "out of the wall")
 		RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
-		const size_t N = LayPiece(Pc, X, Z, Ax, Az, Fx, Fz, 1.0, 1.0, Y, 1e9, 1.0, Need, Into);
+		const size_t N = PlacePiece(Kit, P.Piece, X, Z, Ax, Az, Fx, Fz, 1.0, 1.0, Y, 1e9, 1.0, Need, Instance, Into);
 		Budget -= (long long)N;
 		Laid += N;
 		Taken.push_back(F);
@@ -754,5 +797,21 @@ size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double Corne
 			if (Put("bins", X, Z, Walls[P.first].Ax, Walls[P.first].Az, Walls[P.first].Nx, Walls[P.first].Nz)) break;
 		}
 	return Laid;
+}
+void SetWarehouseInstancing(bool On)
+{
+	WarehouseInstancingOn.store(On);
+}
+
+bool WarehouseInstancing()
+{
+	return WarehouseInstancingOn.load();
+}
+
+size_t WarehousePieceMesh(const WarehouseKit& Kit, int Piece, bool Near, RideMesh& Out)
+{
+	if (Piece < 0 || size_t(Piece) >= Kit.Pieces.size()) return 0;
+	RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
+	return LayPiece(Kit.Pieces[size_t(Piece)], Out.OriginX, Out.OriginZ, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1e9, 1.0, Near ? 0 : 1, Into);
 }
 } // namespace TorqueWorld

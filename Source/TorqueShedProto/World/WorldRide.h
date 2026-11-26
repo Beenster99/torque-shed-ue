@@ -105,6 +105,18 @@ struct RideProp
 	float Across = 1.0f;
 };
 
+// [warehouses, round 175 fps] One piece of the warehouse kit laid on a square (World/WorldRideWarehouses.h), for
+// the game to draw as an instance of the piece's own mesh instead of building its triangles into the square's:
+// Piece the kit's piece, Near its close-up detail (else the middle's), its local origin about the square's
+// origin (ride frame, m), its local x along (Ax, Az) stretched Sx, its z out along (Nx, Nz) stretched Sz, its y
+// up stretched Sy. (Ax, Az, Nx, Nz) always a proper turn: x, up, out right-handed as the frame's.
+struct RideKitPart
+{
+	int32_t Piece = -1;
+	bool Near = true;
+	float X = 0.0f, Y = 0.0f, Z = 0.0f, Ax = 1.0f, Az = 0.0f, Nx = 0.0f, Nz = 1.0f, Sx = 1.0f, Sy = 1.0f, Sz = 1.0f;
+};
+
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
 // hand-built ride's own meshes: Kind is RidePlan::PlantName's, the place is about the square's origin
 // like its mesh's points, Normal the ground's tilt (x, z; 0, 0 upright), Height a tree's in metres
@@ -246,6 +258,8 @@ struct RideMesh
 	std::vector<RideAnimal> Animals;
 	// [OSM stage 2] With a square of ground: its props (RidePlan::PropsTile), the kinds the kit has models for.
 	std::vector<RideProp> Props;
+	// [warehouses, round 175 fps] With a square of ground: the warehouse kit's pieces on it, drawn as instances.
+	std::vector<RideKitPart> KitParts;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
 	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).

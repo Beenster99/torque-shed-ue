@@ -31,6 +31,7 @@ struct WarehousePiece
 	std::vector<int8_t> Nrm;       // over 127
 	std::vector<uint8_t> PartOf;
 	std::vector<uint16_t> Idx;
+	double MinX = 1e9, MaxX = -1e9;   // (how far along its x it reaches, m)
 	size_t Vertices() const { return PartOf.size(); }
 };
 
@@ -89,6 +90,16 @@ bool SetWarehouseKit(const std::string& Json, const std::string& Bin, bool Yards
 std::shared_ptr<const WarehouseKit> WarehouseKitNow();
 // [everyday kits stage 4] The same reading for another kit in this format (the farm kit); null if it isn't one.
 std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& Json, const std::string& Bin, bool Yards = false);
+
+// [round 175 fps: building the kit's triangles into each square's mesh cost the game thread about 10 ms a frame
+// at Swanley] While on, BuildWarehouse and DressYard hand their pieces over as instances (RideMesh::KitParts)
+// for the game to draw from each piece's own mesh (WarehousePieceMesh, made once), not laid into the square's
+// meshes; the signs' names, the slope skirts and the aprons are still laid. Off (the default): all laid.
+void SetWarehouseInstancing(bool On);
+bool WarehouseInstancing();
+// A piece of the kit as its own mesh (Out's origin its own), its close-up detail (Near) or the middle's: in Out
+// and its sections, as BuildWarehouse would lay it. Returns its triangles.
+size_t WarehousePieceMesh(const WarehouseKit& Kit, int Piece, bool Near, RideMesh& Out);
 
 // One shed of design D on an oblong: Corner its front wall's left end (seen from outside) on the ground,
 // Ux, Uz along that front wall (unit), Nx, Nz out of it (unit); Long by Short (m); its floor at Y, the ground's

@@ -402,6 +402,66 @@ int main()
 		const size_t Capped = Ok ? DressYard(*WarehouseKitNow(), WarehouseKitNow()->Designs[size_t(Big)], 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 130.0, 55.0, 2, Clear, Flat, Road, Small, Few) : 0;
 		std::printf("      retail park and yards: %s, %s and %s; a supermarket's signs %zu letter triangles; a big shed's yard %zu triangles (%zu far off, %zu yards off, %zu on a 900 budget)%s\n",
 			Shop.c_str(), Store.c_str(), Estate.c_str(), Letters, Yard[0], Yard[1], Yard[2], Capped, Inside ? ", SOME OVER THE ROAD OR IN THE SHED" : "");
+		// [round 175 fps] The same shed and yard handed over as instances: every piece as an instance with a proper
+		// turn, little left laid, and the instances' points where the laid ones were (to a hand's width over a roof).
+		size_t Instances = 0, LeftLaid = 0;
+		double Apart = 0.0;
+		bool Proper = true;
+		if (Ok)
+		{
+			const auto Bounds = [](const RideMesh& M, double* Lo, double* Hi) {
+				const RideMesh* All[4] = {&M, M.Roofing.get(), M.Brickwork.get(), M.Render.get()};
+				for (const RideMesh* Mi : All)
+					if (Mi)
+						for (size_t V = 0; V < Mi->Vertices(); ++V)
+							for (int K = 0; K < 3; ++K)
+							{
+								const double Q = Mi->Pos[V * 3 + size_t(K)] + (K == 0 ? Mi->OriginX : K == 2 ? Mi->OriginZ : 0.0);
+								Lo[K] = std::fmin(Lo[K], Q); Hi[K] = std::fmax(Hi[K], Q);
+							}
+			};
+			double Lo0[3] = {1e9, 1e9, 1e9}, Hi0[3] = {-1e9, -1e9, -1e9}, Lo1[3] = {1e9, 1e9, 1e9}, Hi1[3] = {-1e9, -1e9, -1e9};
+			const std::shared_ptr<const WarehouseKit> Kk = WarehouseKitNow();
+			const WarehouseDesign& Bd = Kk->Designs[size_t(Big)];
+			RideMesh Laid0;
+			Laid0.OriginX = 10.0; Laid0.OriginZ = -20.0;
+			BuildWarehouse(*Kk, Bd, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 130.0, 55.0, 20.0, 20.0, 2, Laid0);
+			Bounds(Laid0, Lo0, Hi0);
+			SetWarehouseInstancing(true);
+			RideMesh Inst;
+			Inst.OriginX = 10.0; Inst.OriginZ = -20.0;
+			BuildWarehouse(*Kk, Bd, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 130.0, 55.0, 20.0, 20.0, 2, Inst);
+			long long Budget2 = 200000;
+			DressYard(*Kk, Bd, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 130.0, 55.0, 2, Clear, Flat, Road, Budget2, Inst);
+			SetWarehouseInstancing(false);
+			Instances = Inst.KitParts.size();
+			LeftLaid = Inst.Idx.size() / 3 + (Inst.Roofing ? Inst.Roofing->Idx.size() / 3 : 0) + (Inst.Brickwork ? Inst.Brickwork->Idx.size() / 3 : 0);
+			std::map<std::pair<int, bool>, RideMesh> Looks;
+			RideMesh Shed;   // (the shed's own instances only, laid out from their pieces' meshes)
+			for (const RideKitPart& Kp : Inst.KitParts)
+			{
+				Proper = Proper && Kp.Ax * Kp.Nz - Kp.Az * Kp.Nx > 0.99f;
+				if (Kk->Pieces[size_t(Kp.Piece)].Vertices() == 0) continue;
+				RideMesh& L = Looks[{Kp.Piece, Kp.Near}];
+				if (L.Vertices() == 0) WarehousePieceMesh(*Kk, Kp.Piece, Kp.Near, L);
+				bool IsProp = false;
+				for (const WarehouseProp& Pr : Kk->Props) IsProp = IsProp || Pr.Piece == Kp.Piece;
+				if (IsProp) continue;
+				const RideMesh* LookParts[4] = {&L, L.Roofing.get(), L.Brickwork.get(), L.Render.get()};
+				for (const RideMesh* Mi : LookParts)
+					if (Mi)
+						for (size_t V = 0; V < Mi->Vertices(); ++V)
+						{
+							const double Lx = Mi->Pos[V * 3], Ly = Mi->Pos[V * 3 + 1], Lz = Mi->Pos[V * 3 + 2];
+							const double Q[3] = {Inst.OriginX + Kp.X + Lx * Kp.Sx * Kp.Ax + Lz * Kp.Sz * Kp.Nx, Kp.Y + Ly * Kp.Sy, Inst.OriginZ + Kp.Z + Lx * Kp.Sx * Kp.Az + Lz * Kp.Sz * Kp.Nz};
+							for (int K = 0; K < 3; ++K) { Lo1[K] = std::fmin(Lo1[K], Q[K]); Hi1[K] = std::fmax(Hi1[K], Q[K]); }
+						}
+			}
+			for (int K = 0; K < 3; ++K) Apart = std::fmax(Apart, std::fmax(std::fabs(Lo0[K] - Lo1[K]), std::fabs(Hi0[K] - Hi1[K])));
+			if (std::getenv("WT_DEBUG")) for (int K = 0; K < 3; ++K) std::printf("        axis %d: laid %.2f..%.2f, instances %.2f..%.2f\n", K, Lo0[K], Hi0[K], Lo1[K], Hi1[K]);
+		}
+		std::printf("      as instances: %zu pieces, %zu triangles left laid, the shed's outer points %.2f m from the laid shed's%s\n", Instances, LeftLaid, Apart, Proper ? "" : ", A MIRRORED TURN");
+		Ok = Ok && Instances > 100 && LeftLaid < 200 && Apart < 0.3 && Proper;
 		Check(Ok && (Letters > 0 || !GlyphsRead) && Yard[0] > 3000 && size_t(Spent) == Yard[0] && Yard[1] == 0 && Yard[2] == 0 && Capped <= 900 && !Inside,
 			"retail park and yards: a supermarket for a supermarket, names on its signs; a shed's yard dressed clear of the road and the shed, within its budget; none far off or switched off");
 	}
