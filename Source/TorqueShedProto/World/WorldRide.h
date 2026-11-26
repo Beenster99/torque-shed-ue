@@ -911,6 +911,11 @@ public:
 		// wire fence, basketball hoops, the green's notice board, litter bins and village sign, laid by VillageProps
 		PropPlaySwings, PropPlaySlide, PropPlayClimber, PropPlaySpringer, PropPlayRoundabout, PropPlaySeesaw, PropPlayFence,
 		PropPitchGoal, PropPitchPosts, PropTennisNet, PropCourtFence, PropBasketHoop, PropNoticeBoard, PropLitterBin, PropVillageSign,
+		// [everyday kits stage 9] The power and skyline set (Tools/blender_power_props.py, each with two hand-made distance
+		// versions): pylons, lattice masts, phone masts, wind turbines and their rotors, water towers, substation kiosks,
+		// and a substation's transformers, gantries and palisade, laid by SkylineTile near the road in place of its shapes
+		PropPowerPylon, PropPowerMast, PropPowerMonopole, PropPowerTurbine, PropPowerRotor, PropPowerWaterTower, PropPowerKiosk,
+		PropPowerTransformer, PropPowerGantry, PropPowerPalisade,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'

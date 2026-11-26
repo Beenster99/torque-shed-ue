@@ -788,9 +788,13 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		// [everyday kits stages 4 and 6] The kits' off switches, for the hub's frame rate A/B: -TorqueFarms=0 (the farm
 		// kit's buildings, WorldSubsystem, and the farmyards' things here) and -TorqueVillage=0 (the village set).
 		using TorqueWorld::RidePlan;
-		int32 FarmsAsked = 1, VillageAsked = 1;
+		int32 FarmsAsked = 1, VillageAsked = 1, PowerAsked = 1;
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueVillage="), VillageAsked);
+		FParse::Value(FCommandLine::Get(), TEXT("TorquePower="), PowerAsked);   // [everyday kits stage 9] (the power set: the code's shapes again)
+		for (int32 K = RidePlan::PropPowerPylon; K <= RidePlan::PropPowerPalisade && PowerAsked == 0; ++K) Plan->PropModelled[K] = false;
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: power and skyline set %s"), PowerAsked == 0 ? TEXT("off (-TorquePower=0)")
+			: Plan->PropModelled[RidePlan::PropPowerPylon] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
 		for (int32 K = RidePlan::PropFarmBales; K <= RidePlan::PropFarmMuck && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;
 		for (int32 K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign && VillageAsked == 0; ++K) Plan->PropModelled[K] = false;
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farmyard things %s; village set %s"), FarmsAsked == 0 ? TEXT("off (-TorqueFarms=0)") : TEXT("on"),

@@ -1,81 +1,81 @@
 {
  "source": "src.wav",
  "recorded_rpm": [
-  2161,
-  5262
+  4323,
+  10525
  ],
  "loops": [
   {
-   "file": "ex_off_1647.wav",
+   "file": "ex_off_3309.wav",
    "from_s": 59.2,
    "to_s": 61.4,
-   "rpm": 1647,
-   "spacing_hz": 27.44,
+   "rpm": 3309,
+   "spacing_hz": 27.58,
    "slope_per_s": 0.0,
    "rms": 0.0264
   },
   {
-   "file": "ex_on_2291.wav",
+   "file": "ex_on_4582.wav",
    "from_s": 1.4,
    "to_s": 2.0,
-   "rpm": 2291,
+   "rpm": 4582,
    "spacing_hz": 38.18,
    "slope_per_s": 0.036,
    "rms": 0.1087
   },
   {
-   "file": "ex_on_2978.wav",
+   "file": "ex_on_5956.wav",
    "from_s": 44.5,
    "to_s": 45.1,
-   "rpm": 2978,
+   "rpm": 5956,
    "spacing_hz": 49.63,
    "slope_per_s": 0.091,
    "rms": 0.0634
   },
   {
-   "file": "ex_off_3017.wav",
+   "file": "ex_off_6033.wav",
    "from_s": 31.3,
    "to_s": 31.9,
-   "rpm": 3017,
+   "rpm": 6033,
    "spacing_hz": 50.28,
    "slope_per_s": -0.089,
-   "rms": 0.1411
+   "rms": 0.1407
   },
   {
-   "file": "ex_on_3293.wav",
+   "file": "ex_on_6586.wav",
    "from_s": 45.4,
    "to_s": 46.0,
-   "rpm": 3293,
+   "rpm": 6586,
    "spacing_hz": 54.88,
    "slope_per_s": 0.127,
-   "rms": 0.0851
+   "rms": 0.0853
   },
   {
-   "file": "ex_on_3882.wav",
+   "file": "ex_on_7763.wav",
    "from_s": 73.1,
    "to_s": 73.7,
-   "rpm": 3882,
+   "rpm": 7763,
    "spacing_hz": 64.7,
    "slope_per_s": 0.036,
-   "rms": 0.1308
+   "rms": 0.1307
   },
   {
-   "file": "ex_on_4565.wav",
+   "file": "ex_on_9130.wav",
    "from_s": 74.7,
    "to_s": 75.3,
-   "rpm": 4565,
+   "rpm": 9130,
    "spacing_hz": 76.09,
    "slope_per_s": 0.063,
    "rms": 0.1653
   },
   {
-   "file": "ex_on_4685.wav",
+   "file": "ex_on_9370.wav",
    "from_s": 34.8,
    "to_s": 35.4,
-   "rpm": 4685,
+   "rpm": 9370,
    "spacing_hz": 78.08,
    "slope_per_s": 0.223,
-   "rms": 0.1694
+   "rms": 0.1688
   }
  ]
 }

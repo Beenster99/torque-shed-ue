@@ -41,7 +41,9 @@ const char* RidePlan::PropName(int Kind)
 		"touring_caravan", "static_caravan",   // [caravans]
 		"farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer", "farm_diesel", "farm_muck",   // [everyday kits stage 4]
 		"play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
-		"pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin", "village_sign"};   // [everyday kits stage 6]
+		"pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin", "village_sign",   // [everyday kits stage 6]
+		"power_pylon", "power_mast", "power_monopole", "power_turbine", "power_rotor", "power_watertower", "power_kiosk",
+		"power_transformer", "power_gantry", "power_palisade"};   // [everyday kits stage 9]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 

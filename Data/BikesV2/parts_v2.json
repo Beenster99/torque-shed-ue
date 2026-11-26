@@ -70236,6 +70236,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "panigale",
    "crank": "twinpulse",
    "v_angle": 90.0
   },
@@ -70276,6 +70277,7 @@
     "twin_shock": true,
     "bought": true
    },
+   "sound": "scout",
    "crank": "60v"
   },
   "v2_triumph_trident__engine": {
@@ -70313,6 +70315,8 @@
     "twin_shock": false,
     "bought": true
    },
+   "tone_high": 3.0,
+   "tone_mid": -3.0,
    "crank": "240"
   },
   "v2_ducati_monster__engine": {
@@ -70388,6 +70392,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "cb1000gt",
    "crank": "flat"
   },
   "v2_kawasaki_eliminator__engine": {
@@ -70797,6 +70802,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "ktm1390",
    "crank": "75v",
    "v_angle": 75.0
   },
@@ -70835,6 +70841,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "tracer9",
    "crank": "240"
   }
  },

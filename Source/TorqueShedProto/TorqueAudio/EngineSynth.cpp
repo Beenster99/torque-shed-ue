@@ -754,7 +754,14 @@ std::string Signature(const FSpec& S)
 		S.DryClutch ? "true" : "false", RoundI(S.Rust * 4.0), RoundI(S.Misfire * 10.0), S.Kick ? "true" : "false", S.Shift.c_str(),
 		S.Quickshifter ? "true" : "false", S.Valves <= 1 ? "|1v" : "");
 	// (only a bike with its own recording says so: every other bike's signature, and so its made sound, stays as it was)
-	return S.Own.empty() ? std::string(Buf) : std::string(Buf) + "|own:" + S.Own;
+	std::string Out = S.Own.empty() ? std::string(Buf) : std::string(Buf) + "|own:" + S.Own;
+	if (S.ToneHigh != 0.0 || S.ToneMid != 0.0)
+	{
+		char Tone[64];
+		std::snprintf(Tone, sizeof(Tone), "|tone:%d:%d", RoundI(S.ToneHigh * 2.0), RoundI(S.ToneMid * 2.0));
+		Out += Tone;
+	}
+	return Out;
 }
 
 bool IsTwoStroke(const FSpec& S) { return S.Layout == "2stroke"; }
@@ -805,6 +812,34 @@ std::vector<double> BucketRpms(const FSpec& S)
 	return Out;
 }
 
+// [Bike V3 Sounds] A bike's tone (FSpec ToneHigh, ToneMid) over a seamless loop: two biquads (a high shelf at
+// 2 kHz, a bell at 800 Hz), run round the loop twice so the second lap, the one kept, starts settled and
+// still meets its own start.
+static void ApplyTone(std::vector<float>& L, double HighDb, double MidDb)
+{
+	if (L.empty()) return;
+	struct FBq { double B0, B1, B2, A1, A2, X1 = 0, X2 = 0, Y1 = 0, Y2 = 0; double Run(double X) {
+		const double Y = B0 * X + B1 * X1 + B2 * X2 - A1 * Y1 - A2 * Y2; X2 = X1; X1 = X; Y2 = Y1; Y1 = Y; return Y; } };
+	auto Shelf = [](double F, double Db) {
+		const double A = std::pow(10.0, Db / 40.0), W = 2.0 * Pi * F / Rate, Cw = std::cos(W), Al = std::sin(W) / 2.0 * std::sqrt(2.0);
+		const double Sq = 2.0 * std::sqrt(A) * Al, A0 = (A + 1) - (A - 1) * Cw + Sq;
+		return FBq{A * ((A + 1) + (A - 1) * Cw + Sq) / A0, -2 * A * ((A - 1) + (A + 1) * Cw) / A0, A * ((A + 1) + (A - 1) * Cw - Sq) / A0,
+			2 * ((A - 1) - (A + 1) * Cw) / A0, ((A + 1) - (A - 1) * Cw - Sq) / A0};
+	};
+	auto Bell = [](double F, double Db, double Q) {
+		const double A = std::pow(10.0, Db / 40.0), W = 2.0 * Pi * F / Rate, Al = std::sin(W) / (2.0 * Q), Cw = std::cos(W);
+		const double A0 = 1 + Al / A;
+		return FBq{(1 + Al * A) / A0, -2 * Cw / A0, (1 - Al * A) / A0, -2 * Cw / A0, (1 - Al / A) / A0};
+	};
+	FBq Hi = Shelf(2000.0, HighDb), Mid = Bell(800.0, MidDb, 0.8);
+	for (int Lap = 0; Lap < 2; ++Lap)
+		for (float& V : L)
+		{
+			const double Y = Mid.Run(Hi.Run(V));
+			if (Lap == 1) V = (float)Y;
+		}
+}
+
 std::vector<float> RenderLoop(const FSpec& S, int Layer, double Rpm, int Seed)
 {
 	const FLoopInfo Info = LoopInfo(S, Rpm);
@@ -813,8 +848,10 @@ std::vector<float> RenderLoop(const FSpec& S, int Layer, double Rpm, int Seed)
 	FRng Rng(Hash(Signature(S)) + Seed * 7919u + (bOn ? 0u : 31u) + (bEx ? 0u : 101u));
 	const std::vector<FFiring> Events = CycleEvents(S, Info, bOn, Rng);
 	const int Warm = IsTwoStroke(S) ? WarmupTwoStroke : Warmup;
-	if (bEx) return ExhaustSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng);
-	return IntakeSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng);
+	std::vector<float> Out = bEx ? ExhaustSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng)
+		: IntakeSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng);
+	if (S.ToneHigh != 0.0 || S.ToneMid != 0.0) ApplyTone(Out, S.ToneHigh, S.ToneMid);
+	return Out;
 }
 
 std::vector<float> RenderPop(const FSpec& S, double Strength, int Seed)
@@ -1021,7 +1058,8 @@ std::shared_ptr<FBank> FBank::For(const FSpec& S, const FReader& Read, const FLi
 				break;
 			}
 		}
-	if (!Bank->bRecorded && !Bank->bOwn) Bank->LoadIdle(Read, List);
+	// (a bike's own recording without a tickover of its own keeps its kind's recorded idle below it)
+	if (!Bank->bRecorded && Bank->IdleRec.empty()) Bank->LoadIdle(Read, List);
 	Banks[Key] = Bank;
 	return Bank;
 }
@@ -1099,6 +1137,22 @@ void FBank::LoadRecorded(const std::string& Dir, const FReader& Read, const FLis
 
 void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& List)
 {
+	// Its own tickover (idle_<rpm>.wav), played at tickover over the made sound as the kinds' recorded idles are.
+	for (const std::string& File : List(Dir))
+	{
+		if (File.size() < 10 || File.compare(0, 5, "idle_") != 0 || File.substr(File.size() - 4) != ".wav") continue;
+		const std::string Num = File.substr(5, File.size() - 9);
+		if (!IsNumber(Num)) continue;
+		int R = 44100;
+		std::vector<float> S = ReadWav(Read(Dir + "/" + File), R);
+		if (S.size() < 500) continue;
+		IdleRec = std::move(S);
+		IdleRecRate = R;
+		IdleRecRpm = std::atof(Num.c_str());
+		IdleRecRms = Rms(IdleRec);
+		IdleBucket = BakeOrder()[0];
+		break;
+	}
 	auto Found = ReadLoops(Dir, Read, List);
 	// (only loops at the made sound's rate: the voice plays every bucket at the one LoopRate)
 	if (Found.empty() || LoopRate != Rate)
@@ -1107,8 +1161,17 @@ void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& 
 		return;
 	}
 	const std::vector<double> Made = Rpms;
+	OwnLo = Found.begin()->first;
+	OwnTop = Found.rbegin()->first;
 	Rpms.clear();
 	Buckets.clear();
+	// The made buckets well clear of the recording at both ends (the end recorded ones carry the revs a way on).
+	for (double R : Made)
+		if (R < OwnLo / 1.12)
+		{
+			Rpms.push_back(R);
+			Buckets.push_back(std::make_unique<FBucket>());
+		}
 	for (auto& KV : Found)
 	{
 		Rpms.push_back(KV.first);
@@ -1117,16 +1180,43 @@ void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& 
 		B->bReady = true;
 		Buckets.push_back(std::move(B));
 	}
-	OwnTop = Rpms.back();
-	// The made buckets well clear of the recording, so the top recorded one carries the revs a way on.
 	for (double R : Made)
 		if (R > OwnTop * 1.12)
 		{
 			Rpms.push_back(R);
 			Buckets.push_back(std::make_unique<FBucket>());
 		}
+	// Each recorded loop as loud as the made sound at its revs, on or off the throttle: the bike sits in the
+	// game's mix like every other and rises with the revs as they do, whatever the wind and the throttle did
+	// in the recording (a ride's loops can be 20 dB apart), and the made buckets either side meet it level.
+	auto Made1 = [this](double Rpm, int Ex, int In) {
+		std::vector<float> Ref = RenderLoop(Spec, Ex, Rpm, 1);
+		const std::vector<float> RefIn = RenderLoop(Spec, In, Rpm, 1);
+		for (size_t K = 0; K < Ref.size() && K < RefIn.size(); ++K) Ref[K] += (float)(OwnInFold * RefIn[K]);
+		return Rms(Ref);
+	};
+	for (size_t I = 0; I < Rpms.size(); ++I)
+	{
+		if (!Buckets[I]->bReady) continue;
+		for (int Side = 0; Side < 2; ++Side)
+		{
+			std::vector<float>& L = Buckets[I]->Loop[Side == 0 ? ExOn : ExOff];
+			const double Have = Rms(L);
+			if (Have < 1e-6) continue;
+			const double G = Made1(Rpms[I], Side == 0 ? ExOn : ExOff, Side == 0 ? InOn : InOff) / Have;
+			for (float& V : L) V = (float)(V * G);
+		}
+	}
+	OwnGainLo = 1.0;
+	OwnGain = 1.0;
 	bExhaustOnly = true;
 	bOwn = true;
+	if (!IdleRec.empty())
+	{
+		// (the buckets changed: the tickover's level from the nearest one, now if it's a recorded one)
+		IdleBucket = BakeOrder()[0];
+		if (Buckets[IdleBucket]->bReady) IdleMadeEx = Rms(Buckets[IdleBucket]->Loop[ExOff]);
+	}
 }
 
 void FBank::LoadIdle(const FReader& Read, const FLister& List)
@@ -1165,16 +1255,6 @@ void FBank::Bake()
 	bStarted = true;
 	const auto T0 = std::chrono::steady_clock::now();
 	int Done = 0;
-	if (bOwn && OwnTop > 0.0)
-	{
-		// The made sound at the top of the recording, as loud as the recording there.
-		std::vector<float> Ref = RenderLoop(Spec, ExOn, OwnTop, 1);
-		const std::vector<float> RefIn = RenderLoop(Spec, InOn, OwnTop, 1);
-		for (size_t K = 0; K < Ref.size() && K < RefIn.size(); ++K) Ref[K] += OwnInFold * RefIn[K];
-		const int Top = (int)std::distance(Rpms.begin(), std::find(Rpms.begin(), Rpms.end(), OwnTop));
-		const double Want = Rms(Buckets[Top]->Loop[ExOn]), Have = Rms(Ref);
-		OwnGain = Have > 1e-6 ? Want / Have : 1.0;
-	}
 	if (!bRecorded)
 		for (int I : BakeOrder())
 		{
@@ -1188,7 +1268,7 @@ void FBank::Bake()
 				{
 					std::vector<float>& Ex = B.Loop[Side == 0 ? ExOn : ExOff];
 					std::vector<float>& In = B.Loop[Side == 0 ? InOn : InOff];
-					for (size_t K = 0; K < Ex.size(); ++K) Ex[K] = (float)((Ex[K] + (K < In.size() ? OwnInFold * In[K] : 0.0)) * OwnGain);
+					for (size_t K = 0; K < Ex.size(); ++K) Ex[K] = (float)((Ex[K] + (K < In.size() ? OwnInFold * In[K] : 0.0)) * (Rpms[I] < OwnLo ? OwnGainLo : OwnGain));
 					In.clear();
 				}
 			}
