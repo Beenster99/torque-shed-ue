@@ -307,6 +307,17 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			UE_LOG(LogTemp, Display, TEXT("Torque world: forecourt kit: %d pieces%s"), Fc ? int32(Fc->Pieces.size()) : 0,
 				bFc ? TEXT("") : ForecourtsAsked == 0 ? TEXT(" (off: -TorqueForecourts=0)") : TEXT(" (none: Data/RideUK/forecourt_kit.json or .bin unreadable; the drawn forecourts stay)"));
 		}
+		// [everyday kits stage 5b] The lay-bys and roadside cafes (-TorqueRoadside=0: none made, to compare).
+		{
+			int32 RoadsideAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueRoadside="), RoadsideAsked);
+			TorqueWorld::SetRoadsideOn(RoadsideAsked != 0);
+			int32 BridgesAsked = 1;   // [everyday kits stage 7] (the bridge set: -TorqueBridges=0, the plain decks as they were)
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueBridges="), BridgesAsked);
+			TorqueWorld::SetBridgeKitOn(BridgesAsked != 0);
+			UE_LOG(LogTemp, Display, TEXT("Torque world: bridge set %s"), BridgesAsked != 0 ? TEXT("on") : TEXT("off (-TorqueBridges=0)"));
+			UE_LOG(LogTemp, Display, TEXT("Torque world: lay-bys and roadside cafes %s"), RoadsideAsked != 0 ? TEXT("on") : TEXT("off (-TorqueRoadside=0)"));
+		}
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));

@@ -101,12 +101,24 @@ public:
 	bool bJoinWaiting = false;   // (the host's copy)
 	UFUNCTION(Client, Reliable) void ClientChooseRideBike(bool bChoose);
 	UFUNCTION(Server, Reliable) void ServerJoinRide(int32 Bay);
+	// [ride bike] Guests pick too (beenster, build 175: "my friends should also get the same choice as
+	// guests"): the host's Ride sends every joined rider the WHICH BIKE? list (Ask: the host's count of
+	// asks), and the host sets off once each has answered (a pick, or Back for the bike they have) or
+	// RideBikeWaitS has passed. Answers come back with the bay picked.
+	UFUNCTION(Client, Reliable) void ClientPickRideBike(int32 Ask);
+	UFUNCTION(Server, Reliable) void ServerRideBikePicked(int32 Ask, int32 Bay);
+	void AskGuestsForBikes();          // (the host's)
+	int32 RideBikeAsk = 0;             // the host's: its latest ask; a guest's: the ask being answered (0 none)
+	double RideBikeAskedAt = 0.0;
+	static constexpr double RideBikeWaitS = 60.0;
+	void AnswerRideBikeAsk();          // (a guest's: this ask answered, with the bike they have now)
 	// [co-op join] How this machine's player stands (build 169: a friend joined, saw the shed and couldn't
 	// move): the map, the pawn and whether it's ours to move, the page up, the game paused, what the
 	// walker says stops it walking. Logged on a joined machine 3, 10 and 30 s into each map, and by
 	// the co-op test steps (TorqueShedTest coop:check). Empty Problem: it can be played.
 	FString JoinState(FString* Problem = nullptr) const;
-	// The host's: who hasn't planned the shared Ride UK journey yet ("" for everyone has).
+	// The host's: who hasn't planned the shared Ride UK journey yet, or (once asked) picked their bike
+	// ("" for everyone has).
 	FString RideWaitingFor() const;
 
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):

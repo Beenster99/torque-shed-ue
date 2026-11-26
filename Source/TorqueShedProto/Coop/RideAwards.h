@@ -36,7 +36,7 @@ enum Stat : int
 	Air,            // seconds in the air (both wheels off, a quarter second or more)
 	Skid,           // the longest skid (a locked wheel), m
 	Burnout,        // the longest burnout, s
-	Safest,         // 0..100: within the limits, no offs
+	Safest,         // 0..100: % of miles within the limits, each off takes a tenth of what's left
 	BestLap,        // [race tracks] the best counted lap of any circuit, s (smaller is better; 0 none)
 	Count
 };
@@ -193,15 +193,17 @@ private:
 	}
 	void UpdateSafest()
 	{
-		// Nothing much ridden: no score. Else the share within the limits (all of it where no limit was
-		// known), less 15 for each off.
+		// Nothing much ridden: no score. Else the share of the miles ridden within the limits (no more
+		// than a tenth over; all of it where no limit was known), and each off takes a tenth of what's
+		// left. (Build 175 took 15 points an off: five offs on a 30-mile ride floored both riders at 1,
+		// so the tile said nothing, beenster Nov 26.)
 		if (V[Distance] < 200.0)
 		{
 			V[Safest] = 0.0;
 			return;
 		}
 		const double Within = LimitM > 100.0 ? 100.0 * LegalM / LimitM : 100.0;
-		V[Safest] = std::max(1.0, Within - 15.0 * V[Offs]);
+		V[Safest] = std::max(1.0, Within * std::pow(0.9, V[Offs]));
 	}
 };
 

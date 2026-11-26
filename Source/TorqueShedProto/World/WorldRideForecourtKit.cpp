@@ -4,6 +4,7 @@
 #include "WorldRide.h"
 #include "FitJson.h"
 
+#include <atomic>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -104,6 +105,32 @@ bool SetForecourtKit(const std::string& JsonText, const std::string& Bin)
 	std::lock_guard<std::mutex> Hold(ForecourtKitLock);
 	ForecourtKitTable() = std::move(Kit);
 	return true;
+}
+
+namespace
+{
+std::atomic<bool> RoadsideWanted{true};
+std::atomic<bool> BridgeKitWanted{true};
+}
+
+void SetBridgeKitOn(bool On)
+{
+	BridgeKitWanted.store(On);
+}
+
+bool BridgeKitOn()
+{
+	return BridgeKitWanted.load();
+}
+
+void SetRoadsideOn(bool On)
+{
+	RoadsideWanted.store(On);
+}
+
+bool RoadsideOn()
+{
+	return RoadsideWanted.load();
 }
 
 std::shared_ptr<const ForecourtKit> ForecourtKitNow()

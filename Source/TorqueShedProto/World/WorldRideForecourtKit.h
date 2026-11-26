@@ -47,6 +47,15 @@ struct ForecourtKit
 // Reads the kit (JSON and forecourt_kit.bin); false if either isn't one. Kept for every ride after (thread safe).
 bool SetForecourtKit(const std::string& Json, const std::string& Bin);
 std::shared_ptr<const ForecourtKit> ForecourtKitNow();
+// [everyday kits stage 5b] Whether the lay-bys and roadside cafes are made (IndexTownLife: the lay-bys' tarmac, burger
+// vans, signs, bins and tables; RoadsideProps lays them): on unless -TorqueRoadside=0 / WORLD_RIDE_ROADSIDE=0, set
+// before the ride is planned.
+void SetRoadsideOn(bool On);
+bool RoadsideOn();
+// [everyday kits stage 7] Whether the bridge set is laid (RidePlan::BridgeKitProps): on unless -TorqueBridges=0 /
+// WORLD_RIDE_BRIDGEKIT=0.
+void SetBridgeKitOn(bool On);
+bool BridgeKitOn();
 
 // Where a piece goes in a forecourt's frame: its point (Ou along, Ov out) and its plan turned and stretched
 // (along = Ou + Xu * x + Yu * y, out = Ov + Xv * x + Yv * y); its z above 0 from Base up, at 0 and below from
