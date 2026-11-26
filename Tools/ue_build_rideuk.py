@@ -1932,13 +1932,19 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "touring_caravan", "static_caravan", "post_box", "phone_box",
                     "farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer",
                     "farm_diesel", "farm_muck", "farm_tractor_utility", "farm_tractor_compact",
+                    "farm_combine", "farm_forager", "farm_sprayer", "farm_tractor4wd", "farm_tractortrack", "farm_crawler",   # [farm machinery]
+                    "farm_loader", "farm_mower", "farm_buggy", "farm_chaser", "farm_tipper", "farm_baler", "farm_drill", "farm_cultivator",
                     "play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
                     "pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin",
                     "village_sign",
                     "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry",
                     "power_turbine", "power_rotor", "power_palisade",
                     "coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",
-                    "parked_car")   # ([Nov 26] our own made-up cars, Tools/blender_car_kit.py, drawn among the Fab ones)   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "parked_car",   # ([Nov 26] our own made-up cars, Tools/blender_car_kit.py, drawn among the Fab ones)
+                    "road_burgervan", "road_flag", "road_laybysign", "road_cafesign",   # ([everyday kits stage 5b, 7, 8, 8b] the roadside,
+                    "bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail",     # bridge, fast road and services sets: the same material)
+                    "fast_barrier", "fast_concrete", "fast_gantry", "fast_camera", "fast_phone", "fast_marker",
+                    "services_hall", "services_pylon", "services_lorry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
