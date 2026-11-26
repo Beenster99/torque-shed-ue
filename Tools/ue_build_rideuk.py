@@ -1931,7 +1931,7 @@ def facade_material(L):
 STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
                     "touring_caravan", "static_caravan", "post_box", "phone_box",
                     "farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer",
-                    "farm_diesel", "farm_muck",
+                    "farm_diesel", "farm_muck", "farm_tractor_utility", "farm_tractor_compact",
                     "play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
                     "pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin",
                     "village_sign",

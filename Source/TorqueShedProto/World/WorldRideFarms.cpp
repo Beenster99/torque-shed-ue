@@ -82,7 +82,9 @@ const YardThing YardThings[] = {
 	{RidePlan::PropFarmTank, 0.25, 8.4, 8.4, 4000.0, 1},
 	{RidePlan::PropFarmFeedbin, 0.7, 3.8, 1.4, 900.0, 1},
 	{RidePlan::PropFarmTrough, 0.6, 1.2, 0.45, 0.0, 1},
-	{RidePlan::PropFarmTractor, 1.0, 2.7, 1.3, 0.0, 0},
+	{RidePlan::PropFarmTractor, 0.8, 3.0, 1.4, 0.0, 0},
+	{RidePlan::PropFarmTractorUtility, 0.7, 2.3, 1.2, 0.0, 1},
+	{RidePlan::PropFarmTractorCompact, 0.5, 2.75, 0.85, 0.0, 0},   // (its bucket well out in front)
 	{RidePlan::PropFarmTrailer, 0.8, 4.0, 1.3, 600.0, -1},
 	{RidePlan::PropFarmDiesel, 0.4, 1.3, 0.7, 0.0, 0},
 	{RidePlan::PropFarmMuck, 0.6, 3.1, 2.1, 900.0, 1},
