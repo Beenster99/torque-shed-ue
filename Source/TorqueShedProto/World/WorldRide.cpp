@@ -3261,7 +3261,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		bool Tarmac = false;
 	};
 	std::vector<Apron> PullNear;
-	if ((!PlaceStops.empty() || !Forecourts.empty()) && Rows.size() >= 2)
+	if ((!PlaceStops.empty() || !Forecourts.empty() || !RoadLaybys.empty()) && Rows.size() >= 2)
 	{
 		double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
 		for (const Row& R : Rows) { X0 = std::fmin(X0, R.At.X); X1 = std::fmax(X1, R.At.X); Z0 = std::fmin(Z0, R.At.Z); Z1 = std::fmax(Z1, R.At.Z); }
@@ -3289,6 +3289,18 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			const Forecourt& F = Forecourts[size_t(I)];
 			PullNear.push_back({F.RoadMid, F.RoadDir, F.Out, F.Depth, F.Length * 0.5, true});
 		}
+		// [everyday kits stage 5b] (the lay-bys: as a pull-off's, tarmac on an A or B road)
+		for (int Cz = int(std::floor((Z0 - 40.0) / 64.0)); Cz <= int(std::floor((Z1 + 40.0) / 64.0)); ++Cz)
+			for (int Cx = int(std::floor((X0 - 40.0) / 64.0)); Cx <= int(std::floor((X1 + 40.0) / 64.0)); ++Cx)
+			{
+				const auto It = LaybyGrid.find(static_cast<long long>(Cx) * 4000037LL + Cz);
+				if (It == LaybyGrid.end()) continue;
+				for (int I : It->second)
+				{
+					const Layby& L = RoadLaybys[size_t(I)];
+					PullNear.push_back({L.RoadMid, L.RoadDir, L.Out, L.Depth, LaybyLong * 0.5, L.Tarmac});
+				}
+			}
 	}
 	const auto PullSpot = [](const Apron& S, const P2& At, double& U, double& Off)
 	{
