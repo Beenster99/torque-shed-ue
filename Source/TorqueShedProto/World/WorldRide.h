@@ -113,6 +113,7 @@ struct RideProp
 // up stretched Sy. (Ax, Az, Nx, Nz) always a proper turn: x, up, out right-handed as the frame's.
 struct RideKitPart
 {
+	int32_t Kit = 0;   // [house kit] 0 the warehouse kit's piece, 1 a house of the house kit (Piece: its design x 8 + colourway)
 	int32_t Piece = -1;
 	bool Near = true;
 	float X = 0.0f, Y = 0.0f, Z = 0.0f, Ax = 1.0f, Az = 0.0f, Nx = 0.0f, Nz = 1.0f, Sx = 1.0f, Sy = 1.0f, Sz = 1.0f;
@@ -1267,6 +1268,7 @@ public:
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
 		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
+		int HouseKit = 0;   // [house kit] detached houses built from the house kit
 		int VillageKit = 0;   // [everyday kits stage 6] schools built from the village kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
@@ -2011,7 +2013,7 @@ public:
 	static const char* JunctionKindName(EJunction Kind);
 	// [smooth junctions stage 3] A junction built whole (World/WorldRideWhole.cpp): its roads stop at mouth lines Cut
 	// metres in from their ends, and the junction between is one piece with one surface (WholePiece), drawn with its
-	// Owner road's piece at that end. Behind WholeJunctions (-TorqueJunctions=whole; SimTest WORLD_RIDE_WHOLE=1).
+	// Owner road's piece at that end. WholeJunctions is on by default (off only by -TorqueJunctions=old; SimTest WORLD_RIDE_WHOLE=0).
 	struct WholePlan
 	{
 		bool Ok = false;
@@ -2073,6 +2075,7 @@ public:
 	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
+	double WholeTop(double X, double Z) const;   // [smooth junctions] a whole junction's tarmac surface here, NaN off every one
 	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle

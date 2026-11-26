@@ -42,6 +42,7 @@ class UProceduralMeshComponent;
 struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
 class UTorqueImpostors;
+class UTorqueRideBirds;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -300,6 +301,11 @@ private:
 	FVector2D BirdsLookedAt = FVector2D(1e12, 1e12);
 	FVector2D BirdsGoing = FVector2D(1.0, 0.0);   // (the way the rider is going, for where to send a bird)
 	void TickBirds(float DeltaSeconds);
+	// [birds, Nov 26] The wild birds (World/TorqueRideBirds.h): out of the hedges and trees as a rider comes
+	// by, birds of prey perched and hovering, soaring birds and flocks, all drawn from the RideBirds kit. Without
+	// the kit the few code-made soaring birds above stay.
+	UPROPERTY(Transient) TObjectPtr<UTorqueRideBirds> WildBirds;
+	FString HeardRegion;   // (the region's name round the rider, with Heard)
 	void SendBird(FRideBird& Bird, const FVector2D& At, uint32 Salt);
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> AnimalKit;
 	TArray<TArray<int32>> AnimalModels;   // by RidePlan::EAnimal: indices into AnimalKit
@@ -319,6 +325,8 @@ private:
 	// (beenster Nov 26); laid into the squares only if the game's static looks are off.
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMesh>> KitLooks;
 	void BuildKitLooks();
+	// [house kit] (a house design's look among KitLooks: its design x 8 + colourway, past the warehouse pieces')
+	static int32 HouseLookKey(int32 DesignCw) { return 0x40000000 + DesignCw; }
 	void PlaceKitParts(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 	int32 PropsShown = 0;
 	FVector AnimalFrame = FVector(0.0, 1.0, 1.0);

@@ -126,20 +126,14 @@ int WarehouseKit::Pick(const std::string& Class, double Long, double Short, doub
 	return Fits.empty() ? -1 : Fits.back().first;
 }
 
-std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
+bool ReadKitPieces(const std::string& Bin, std::vector<WarehousePiece>& Pieces, std::map<std::string, int>& Named)
 {
-	TorqueFit::Json Root;
-	if (!TorqueFit::Json::Parse(JsonText, Root) || !Root.IsObject()) return nullptr;
-	auto Kit = std::make_shared<WarehouseKit>();
-	Kit->Yards = Yards;
-	if (const TorqueFit::Json* S = Root.Get("stretch"); S && S->IsArray() && S->A.size() == 2) { Kit->StretchLo = S->A[0].N; Kit->StretchHi = S->A[1].N; }
 	// (the pieces: "TSWK", version 1, a count, then each: its name, parts, vertices, triangles)
 	KitBytes R{Bin};
-	if (Bin.size() < 12 || Bin.compare(0, 4, "TSWK") != 0) return nullptr;
+	if (Bin.size() < 12 || Bin.compare(0, 4, "TSWK") != 0) return false;
 	R.At = 4;
-	if (R.Get<uint32_t>() != 1) return nullptr;
+	if (R.Get<uint32_t>() != 1) return false;
 	const uint32_t Count = R.Get<uint32_t>();
-	std::map<std::string, int> Named;
 	for (uint32_t I = 0; I < Count && !R.Bad; ++I)
 	{
 		WarehousePiece P;
@@ -177,10 +171,22 @@ std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, cons
 			if (P.Parts[P.PartOf[P.Idx[T]]].Lod >= 1) ++P.MidTris;
 			else ++P.FineTris;
 		}
-		Named[Name] = int(Kit->Pieces.size());
-		Kit->Pieces.push_back(std::move(P));
+		Named[Name] = int(Pieces.size());
+		Pieces.push_back(std::move(P));
 	}
-	if (R.Bad || Kit->Pieces.size() != Count) return nullptr;
+	return !R.Bad && Pieces.size() == Count;
+}
+
+std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
+{
+	TorqueFit::Json Root;
+	if (!TorqueFit::Json::Parse(JsonText, Root) || !Root.IsObject()) return nullptr;
+	auto Kit = std::make_shared<WarehouseKit>();
+	Kit->Yards = Yards;
+	if (const TorqueFit::Json* S = Root.Get("stretch"); S && S->IsArray() && S->A.size() == 2) { Kit->StretchLo = S->A[0].N; Kit->StretchHi = S->A[1].N; }
+	std::map<std::string, int> Named;
+	if (!ReadKitPieces(Bin, Kit->Pieces, Named)) return nullptr;
+
 	const TorqueFit::Json* Rows = Root.Get("designs");
 	if (!Rows || !Rows->IsArray()) return nullptr;
 	for (const TorqueFit::Json& Row : Rows->A)

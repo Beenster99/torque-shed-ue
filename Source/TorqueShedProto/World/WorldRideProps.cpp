@@ -73,7 +73,7 @@ int RidePlan::PropOf(int FurnishKind)
 	case KissingGate: return PropKissingGate;
 	case LiftGate: return PropLiftGate;
 	case Bollard: return PropBollard;
-	case PicnicTable: return PropPicnicTable;
+	case PicnicTable: return PropCafePicnic;   // ([cafes] beenster Nov 26: every picnic table the A-frame pub bench)
 	case InfoBoard: return PropInfoBoard;
 	case TrafficSignal: return PropTrafficSignal;
 	default: return -1;   // (the signs, the cattle grids, the pubs' signs, the beacons and the crossings' barriers stay code-made)
@@ -108,6 +108,14 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 		int Kind = PropOf(F.Kind);
 		if (Kind == PropStreetLamp && HeritageLampAt(F.At.X, F.At.Z)) Kind = PropLampHeritage;   // [towns stage 6]
 		if (Kind < 0 || !PropModelled[Kind] || std::isnan(F.Height)) continue;
+		// ([smooth junctions] a gate, stile or pole placed by the roads laid then, and a road laid later, as a junction
+		// built whole lays its arms, runs through it: not drawn on that road)
+		if (F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate || F.Kind == PowerPole)
+		{
+			NearOpts Opts;
+			NearHit Hit;
+			if (NearestOf(F.At.X, F.At.Z, Opts, Hit) && !Hit.Deck && !Hit.Bore && Hit.Dist < Hit.Half + 0.3) continue;
+		}
 		RideProp P;
 		P.Kind = uint16_t(Kind);
 		P.Mapped = F.Mapped;
