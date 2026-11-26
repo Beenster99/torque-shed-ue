@@ -222,11 +222,11 @@ int main(int Argc, char** Argv)
 	Scene.Finish = MapPt(-880.0, -2340.0);
 	Scene.Riders.push_back({MapPt(-250.0, -120.0), Rgba(0.9f, 0.3f, 0.6f), "Kev"});
 
-	const Shape Shapes[] = {Shape::Wide, Shape::Ultra, Shape::Round, Shape::Phone};
-	const char* ShapeNames[] = {"wide", "ultra", "round", "phone"};
+	const Shape Shapes[] = {Shape::Wide, Shape::Ultra, Shape::Round, Shape::Phone, Shape::Tall};
+	const char* ShapeNames[] = {"wide", "ultra", "round", "phone", "tall"};
 	const char* ViewNames[] = {"ride", "map", "split", "modes", "settings"};
 	int Pictures = 0;
-	for (int Sh = 0; Sh < 4; ++Sh)
+	for (int Sh = 0; Sh < 5; ++Sh)
 		for (int V = 0; V < int(View::Count); ++V)
 			for (int D = 0; D < int(Design::Count); ++D)
 				for (int Night = 0; Night < 2; ++Night)

@@ -199,6 +199,12 @@ public:
 	// [ferries] Carried by a ferry (World/TorqueFerry.h) as its deck moves From To (world): our feet, our bike parked
 	// on its stand, or both. Getting back on is held until FerryHoldUntil (world seconds) while it's under way.
 	void FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike);
+	// [build 174 feedback] (beenster, co-op on the Arran ferry: "all of the characters seemed to run on the spot") A
+	// mate's body walking about on a moving deck: where it last stood carried with the deck, so its walk is its pace
+	// over the deck, not the boat's speed.
+	void CarryNetWalker(const FTransform& From, const FTransform& To) { NetWalkerWas = To.TransformPosition(From.InverseTransformPosition(NetWalkerWas)); }
+	bool IsNetWalking() const { return bNetWalkerShown; }
+	FVector NetWalkerAt() const { return NetWalkerWas; }
 	double FerryHoldUntil = -1.0;
 	double FeetYaw() const { return FootYaw; }
 	void TakeOver(const FVector& Feet, double Yaw, bool bRide);

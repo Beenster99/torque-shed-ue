@@ -9183,13 +9183,60 @@
       0.0,
       1100.7
      ],
+     "knee": [
+      843.7,
+      160.0,
+      838.1
+     ],
+     "tank_half_w": [
+      [
+       533.7,
+       105.9,
+       838.1
+      ],
+      [
+       583.7,
+       107.2,
+       838.1
+      ],
+      [
+       633.7,
+       107.0,
+       838.1
+      ],
+      [
+       683.7,
+       110.0,
+       838.1
+      ],
+      [
+       733.7,
+       110.0,
+       838.1
+      ],
+      [
+       783.7,
+       110.0,
+       838.1
+      ],
+      [
+       833.7,
+       110.0,
+       838.1
+      ],
+      [
+       883.7,
+       110.0,
+       838.1
+      ]
+     ],
      "gauges": [
       {
        "what": "screen",
        "at": [
-        1290.6,
+        1285.4,
         -0.0,
-        1185.8
+        1189.3
        ],
        "axis": [
         -0.82431,
@@ -9208,9 +9255,9 @@
      ],
      "stand": {
       "pivot": [
-       665.2,
-       243.3,
-       330.0
+       696.6,
+       141.3,
+       308.3
       ],
       "axis": [
        0.0926,
@@ -9380,15 +9427,52 @@
       323.6,
       840.6
      ],
-     "shock_top": [
-      570.0,
-      0.0,
-      605.7
+     "knee": [
+      852.9,
+      160.0,
+      851.1
      ],
-     "shock_bottom": [
-      446.5,
-      0.0,
-      369.0
+     "tank_half_w": [
+      [
+       542.9,
+       102.9,
+       851.1
+      ],
+      [
+       592.9,
+       110.0,
+       851.1
+      ],
+      [
+       642.9,
+       110.0,
+       851.1
+      ],
+      [
+       692.9,
+       110.0,
+       851.1
+      ],
+      [
+       742.9,
+       110.0,
+       851.1
+      ],
+      [
+       792.9,
+       110.0,
+       851.1
+      ],
+      [
+       842.9,
+       110.0,
+       851.1
+      ],
+      [
+       892.9,
+       110.0,
+       851.1
+      ]
      ],
      "tank_cap": [
       836.6,
@@ -9418,11 +9502,21 @@
        "node": ""
       }
      ],
+     "shock_top": [
+      570.0,
+      0.0,
+      605.7
+     ],
+     "shock_bottom": [
+      446.5,
+      0.0,
+      369.0
+     ],
      "stand": {
       "pivot": [
        641.6,
-       219.3,
-       285.0
+       170.9,
+       274.7
       ],
       "axis": [
        0.0926,
@@ -9590,15 +9684,52 @@
       303.9,
       1044.7
      ],
-     "shock_top": [
-      313.3,
-      0.0,
-      562.4
+     "knee": [
+      678.3,
+      125.5,
+      685.3
      ],
-     "shock_bottom": [
-      111.0,
-      0.0,
-      346.1
+     "tank_half_w": [
+      [
+       368.3,
+       75.5,
+       685.3
+      ],
+      [
+       418.3,
+       75.5,
+       685.3
+      ],
+      [
+       468.3,
+       75.5,
+       685.3
+      ],
+      [
+       518.3,
+       75.5,
+       685.3
+      ],
+      [
+       568.3,
+       65.8,
+       685.3
+      ],
+      [
+       618.3,
+       75.5,
+       685.3
+      ],
+      [
+       668.3,
+       75.5,
+       685.3
+      ],
+      [
+       718.3,
+       75.5,
+       685.3
+      ]
      ],
      "tank_cap": [
       1006.6,
@@ -9628,11 +9759,21 @@
        "node": "steer"
       }
      ],
+     "shock_top": [
+      313.3,
+      0.0,
+      562.4
+     ],
+     "shock_bottom": [
+      111.0,
+      0.0,
+      346.1
+     ],
      "stand": {
       "pivot": [
        661.8,
-       170.9,
-       245.0
+       165.2,
+       245.7
       ],
       "axis": [
        0.0926,
@@ -9792,15 +9933,52 @@
       299.1,
       1041.1
      ],
-     "shock_top": [
-      608.8,
-      0.0,
-      655.1
+     "knee": [
+      770.6,
+      160.0,
+      813.0
      ],
-     "shock_bottom": [
-      341.8,
-      0.0,
-      453.3
+     "tank_half_w": [
+      [
+       460.6,
+       110.0,
+       813.0
+      ],
+      [
+       510.6,
+       74.8,
+       813.0
+      ],
+      [
+       560.6,
+       89.0,
+       813.0
+      ],
+      [
+       610.6,
+       110.0,
+       813.0
+      ],
+      [
+       660.6,
+       110.0,
+       813.0
+      ],
+      [
+       710.6,
+       110.0,
+       813.0
+      ],
+      [
+       760.6,
+       110.0,
+       813.0
+      ],
+      [
+       810.6,
+       110.0,
+       813.0
+      ]
      ],
      "tank_cap": [
       826.1,
@@ -9830,11 +10008,21 @@
        "node": "steer"
       }
      ],
+     "shock_top": [
+      608.8,
+      0.0,
+      655.1
+     ],
+     "shock_bottom": [
+      341.8,
+      0.0,
+      453.3
+     ],
      "stand": {
       "pivot": [
        604.1,
-       265.3,
-       265.0
+       210.8,
+       263.2
       ],
       "axis": [
        0.0926,
@@ -9995,6 +10183,53 @@
       288.0,
       1049.5
      ],
+     "knee": [
+      876.7,
+      160.0,
+      828.8
+     ],
+     "tank_half_w": [
+      [
+       566.7,
+       95.2,
+       828.8
+      ],
+      [
+       616.7,
+       95.1,
+       828.8
+      ],
+      [
+       666.7,
+       110.0,
+       828.8
+      ],
+      [
+       716.7,
+       110.0,
+       828.8
+      ],
+      [
+       766.7,
+       110.0,
+       828.8
+      ],
+      [
+       816.7,
+       110.0,
+       828.8
+      ],
+      [
+       866.7,
+       110.0,
+       828.8
+      ],
+      [
+       916.7,
+       110.0,
+       828.8
+      ]
+     ],
      "tank_cap": [
       925.2,
       -0.0,
@@ -10036,8 +10271,8 @@
      "stand": {
       "pivot": [
        642.8,
-       223.8,
-       265.0
+       179.5,
+       256.5
       ],
       "axis": [
        0.0926,
@@ -10201,6 +10436,53 @@
       313.6,
       1101.0
      ],
+     "knee": [
+      701.1,
+      160.0,
+      840.5
+     ],
+     "tank_half_w": [
+      [
+       391.1,
+       110.0,
+       840.5
+      ],
+      [
+       441.1,
+       110.0,
+       840.5
+      ],
+      [
+       491.1,
+       109.4,
+       840.5
+      ],
+      [
+       541.1,
+       110.0,
+       840.5
+      ],
+      [
+       591.1,
+       100.8,
+       840.5
+      ],
+      [
+       641.1,
+       110.0,
+       840.5
+      ],
+      [
+       691.1,
+       110.0,
+       840.5
+      ],
+      [
+       741.1,
+       110.0,
+       840.5
+      ]
+     ],
      "tank_cap": [
       913.7,
       -0.0,
@@ -10210,22 +10492,22 @@
       {
        "what": "screen",
        "at": [
-        1229.2,
+        1251.9,
         0.0,
-        994.4
+        1098.3
        ],
        "axis": [
-        -0.90443,
+        -0.82932,
         0.0,
-        0.42663
+        0.55878
        ],
        "up": [
-        0.42663,
+        0.55878,
         0.0,
-        0.90443
+        0.82932
        ],
-       "w": 277.4,
-       "h": 62.4,
+       "w": 145.8,
+       "h": 83.4,
        "node": ""
       }
      ],
@@ -10241,9 +10523,9 @@
      ],
      "stand": {
       "pivot": [
-       632.5,
-       243.3,
-       330.0
+       796.2,
+       182.9,
+       317.2
       ],
       "axis": [
        0.0926,
@@ -10410,6 +10692,53 @@
       314.9,
       1044.0
      ],
+     "knee": [
+      718.8,
+      160.0,
+      740.2
+     ],
+     "tank_half_w": [
+      [
+       408.8,
+       110.0,
+       740.2
+      ],
+      [
+       458.8,
+       110.0,
+       740.2
+      ],
+      [
+       508.8,
+       103.2,
+       740.2
+      ],
+      [
+       558.8,
+       99.7,
+       740.2
+      ],
+      [
+       608.8,
+       110.0,
+       740.2
+      ],
+      [
+       658.8,
+       110.0,
+       740.2
+      ],
+      [
+       708.8,
+       110.0,
+       740.2
+      ],
+      [
+       758.8,
+       110.0,
+       740.2
+      ]
+     ],
      "tank_cap": [
       921.7,
       -0.0,
@@ -10450,9 +10779,9 @@
      ],
      "stand": {
       "pivot": [
-       656.2,
-       334.7,
-       245.0
+       778.3,
+       196.0,
+       252.2
       ],
       "axis": [
        0.0926,
@@ -10616,6 +10945,53 @@
       359.0,
       1178.6
      ],
+     "knee": [
+      785.7,
+      160.0,
+      861.1
+     ],
+     "tank_half_w": [
+      [
+       475.7,
+       110.0,
+       861.1
+      ],
+      [
+       525.7,
+       110.0,
+       861.1
+      ],
+      [
+       575.7,
+       94.9,
+       861.1
+      ],
+      [
+       625.7,
+       101.9,
+       861.1
+      ],
+      [
+       675.7,
+       108.1,
+       861.1
+      ],
+      [
+       725.7,
+       110.0,
+       861.1
+      ],
+      [
+       775.7,
+       110.0,
+       861.1
+      ],
+      [
+       825.7,
+       110.0,
+       861.1
+      ]
+     ],
      "tank_cap": [
       939.3,
       -0.0,
@@ -10625,30 +11001,30 @@
       {
        "what": "screen",
        "at": [
-        991.1,
+        1216.5,
         0.0,
-        1185.0
+        1203.6
        ],
        "axis": [
-        -0.55238,
+        -0.88697,
         0.0,
-        0.83359
+        0.46183
        ],
        "up": [
-        0.83359,
+        0.46183,
         0.0,
-        0.55238
+        0.88697
        ],
-       "w": 94.6,
-       "h": 57.4,
+       "w": 123.0,
+       "h": 54.6,
        "node": ""
       }
      ],
      "stand": {
       "pivot": [
-       655.3,
-       243.3,
-       330.0
+       710.0,
+       212.5,
+       323.5
       ],
       "axis": [
        0.0926,
@@ -10682,6 +11058,7 @@
      "fork": "v2_kawasaki_kle500__fork",
      "front_wheel": "v2_kawasaki_kle500__front_wheel",
      "rear_wheel": "v2_kawasaki_kle500__rear_wheel",
+     "shock": "v2_kawasaki_kle500__shock",
      "swingarm": "v2_kawasaki_kle500__swingarm",
      "rearsets": "v2_kawasaki_kle500__rearsets",
      "front_caliper": "v2_kawasaki_kle500__front_caliper",
@@ -10812,6 +11189,53 @@
       388.2,
       1181.9
      ],
+     "knee": [
+      859.5,
+      160.0,
+      898.1
+     ],
+     "tank_half_w": [
+      [
+       549.5,
+       110.0,
+       898.1
+      ],
+      [
+       599.5,
+       110.0,
+       898.1
+      ],
+      [
+       649.5,
+       102.0,
+       898.1
+      ],
+      [
+       699.5,
+       81.2,
+       898.1
+      ],
+      [
+       749.5,
+       110.0,
+       898.1
+      ],
+      [
+       799.5,
+       110.0,
+       898.1
+      ],
+      [
+       849.5,
+       110.0,
+       898.1
+      ],
+      [
+       899.5,
+       110.0,
+       898.1
+      ]
+     ],
      "tank_cap": [
       952.8,
       0.0,
@@ -10821,30 +11245,30 @@
       {
        "what": "screen",
        "at": [
-        974.5,
+        1210.0,
         0.0,
-        1206.0
+        1196.3
        ],
        "axis": [
-        -0.55238,
+        -0.87467,
         0.0,
-        0.83359
+        0.48472
        ],
        "up": [
-        0.83359,
+        0.48472,
         0.0,
-        0.55238
+        0.87467
        ],
-       "w": 94.6,
-       "h": 57.4,
+       "w": 154.1,
+       "h": 63.5,
        "node": ""
       }
      ],
      "stand": {
       "pivot": [
-       660.9,
-       296.4,
-       330.0
+       724.0,
+       212.0,
+       323.4
       ],
       "axis": [
        0.0926,
@@ -10872,11 +11296,14 @@
      "fairing": "v2_kawasaki_klr650__fairing",
      "headlight": "v2_kawasaki_klr650__headlight",
      "indicators": "v2_kawasaki_klr650__indicators",
+     "mirrors": "v2_kawasaki_klr650__mirrors",
      "handlebars": "v2_kawasaki_klr650__handlebars",
      "fork": "v2_kawasaki_klr650__fork",
      "front_wheel": "v2_kawasaki_klr650__front_wheel",
      "rear_wheel": "v2_kawasaki_klr650__rear_wheel",
+     "shock": "v2_kawasaki_klr650__shock",
      "swingarm": "v2_kawasaki_klr650__swingarm",
+     "rearsets": "v2_kawasaki_klr650__rearsets",
      "engine": "v2_kawasaki_klr650__engine",
      "gearbox": "v2_kawasaki_klr650__gearbox",
      "exhaust": "v2_kawasaki_klr650__exhaust",
@@ -11007,6 +11434,53 @@
       261.6,
       980.3
      ],
+     "knee": [
+      961.1,
+      160.0,
+      800.8
+     ],
+     "tank_half_w": [
+      [
+       651.1,
+       110.0,
+       800.8
+      ],
+      [
+       701.1,
+       110.0,
+       800.8
+      ],
+      [
+       751.1,
+       110.0,
+       800.8
+      ],
+      [
+       801.1,
+       110.0,
+       800.8
+      ],
+      [
+       851.1,
+       110.0,
+       800.8
+      ],
+      [
+       901.1,
+       110.0,
+       800.8
+      ],
+      [
+       951.1,
+       110.0,
+       800.8
+      ],
+      [
+       1001.1,
+       110.0,
+       800.8
+      ]
+     ],
      "tank_cap": [
       935.6,
       0.0,
@@ -11047,9 +11521,9 @@
      ],
      "stand": {
       "pivot": [
-       654.9,
-       219.3,
-       285.0
+       698.3,
+       159.9,
+       272.4
       ],
       "axis": [
        0.0926,
@@ -11209,6 +11683,53 @@
       353.1,
       1022.9
      ],
+     "knee": [
+      758.0,
+      160.0,
+      806.0
+     ],
+     "tank_half_w": [
+      [
+       448.0,
+       109.8,
+       806.0
+      ],
+      [
+       498.0,
+       78.0,
+       806.0
+      ],
+      [
+       548.0,
+       77.5,
+       806.0
+      ],
+      [
+       598.0,
+       110.0,
+       806.0
+      ],
+      [
+       648.0,
+       110.0,
+       806.0
+      ],
+      [
+       698.0,
+       110.0,
+       806.0
+      ],
+      [
+       748.0,
+       110.0,
+       806.0
+      ],
+      [
+       798.0,
+       110.0,
+       806.0
+      ]
+     ],
      "tank_cap": [
       760.7,
       0.0,
@@ -11218,30 +11739,30 @@
       {
        "what": "screen",
        "at": [
-        963.2,
+        1079.7,
         0.0,
-        1131.9
+        1042.2
        ],
        "axis": [
-        -0.55238,
+        -0.75781,
         0.0,
-        0.83359
+        0.65248
        ],
        "up": [
-        0.83359,
+        0.65248,
         0.0,
-        0.55238
+        0.75781
        ],
-       "w": 94.6,
-       "h": 57.4,
+       "w": 108.9,
+       "h": 66.1,
        "node": "steer"
       }
      ],
      "stand": {
       "pivot": [
-       605.0,
-       264.7,
-       265.0
+       726.2,
+       188.8,
+       258.5
       ],
       "axis": [
        0.0926,
@@ -11275,7 +11796,9 @@
      "fork": "v2_kawasaki_z650s__fork",
      "front_wheel": "v2_kawasaki_z650s__front_wheel",
      "rear_wheel": "v2_kawasaki_z650s__rear_wheel",
+     "shock": "v2_kawasaki_z650s__shock",
      "swingarm": "v2_kawasaki_z650s__swingarm",
+     "rearsets": "v2_kawasaki_z650s__rearsets",
      "engine": "v2_kawasaki_z650s__engine",
      "gearbox": "v2_kawasaki_z650s__gearbox",
      "exhaust": "v2_kawasaki_z650s__exhaust",
@@ -11397,6 +11920,53 @@
       271.7,
       986.7
      ],
+     "knee": [
+      692.2,
+      160.0,
+      821.9
+     ],
+     "tank_half_w": [
+      [
+       382.2,
+       110.0,
+       821.9
+      ],
+      [
+       432.2,
+       101.5,
+       821.9
+      ],
+      [
+       482.2,
+       109.2,
+       821.9
+      ],
+      [
+       532.2,
+       88.0,
+       821.9
+      ],
+      [
+       582.2,
+       102.6,
+       821.9
+      ],
+      [
+       632.2,
+       110.0,
+       821.9
+      ],
+      [
+       682.2,
+       110.0,
+       821.9
+      ],
+      [
+       732.2,
+       110.0,
+       821.9
+      ]
+     ],
      "tank_cap": [
       831.3,
       -0.0,
@@ -11438,8 +12008,8 @@
      "stand": {
       "pivot": [
        618.3,
-       257.7,
-       265.0
+       213.9,
+       263.9
       ],
       "axis": [
        0.0926,
@@ -11599,6 +12169,53 @@
       298.6,
       998.1
      ],
+     "knee": [
+      746.6,
+      160.0,
+      825.0
+     ],
+     "tank_half_w": [
+      [
+       436.6,
+       110.0,
+       825.0
+      ],
+      [
+       486.6,
+       110.0,
+       825.0
+      ],
+      [
+       536.6,
+       107.7,
+       825.0
+      ],
+      [
+       586.6,
+       110.0,
+       825.0
+      ],
+      [
+       636.6,
+       110.0,
+       825.0
+      ],
+      [
+       686.6,
+       110.0,
+       825.0
+      ],
+      [
+       736.6,
+       110.0,
+       825.0
+      ],
+      [
+       786.6,
+       110.0,
+       825.0
+      ]
+     ],
      "tank_cap": [
       947.8,
       0.0,
@@ -11640,8 +12257,8 @@
      "stand": {
       "pivot": [
        622.2,
-       233.1,
-       265.0
+       181.9,
+       257.0
       ],
       "axis": [
        0.0926,
@@ -11800,6 +12417,53 @@
       363.5,
       1207.4
      ],
+     "knee": [
+      813.8,
+      160.0,
+      827.2
+     ],
+     "tank_half_w": [
+      [
+       503.8,
+       110.0,
+       827.2
+      ],
+      [
+       553.8,
+       84.3,
+       827.2
+      ],
+      [
+       603.8,
+       110.0,
+       827.2
+      ],
+      [
+       653.8,
+       110.0,
+       827.2
+      ],
+      [
+       703.8,
+       110.0,
+       827.2
+      ],
+      [
+       753.8,
+       110.0,
+       827.2
+      ],
+      [
+       803.8,
+       110.0,
+       827.2
+      ],
+      [
+       853.8,
+       110.0,
+       827.2
+      ]
+     ],
      "tank_cap": [
       812.5,
       0.0,
@@ -11809,30 +12473,30 @@
       {
        "what": "screen",
        "at": [
-        1115.3,
-        -143.5,
-        1118.0
+        1145.3,
+        0.0,
+        1069.9
        ],
        "axis": [
-        -0.99992,
+        -0.87792,
         0.0,
-        0.01227
+        0.47881
        ],
        "up": [
-        0.01227,
+        0.47881,
         0.0,
-        0.99992
+        0.87792
        ],
-       "w": 13.3,
-       "h": 32.8,
+       "w": 127.6,
+       "h": 67.4,
        "node": "steer"
       }
      ],
      "stand": {
       "pivot": [
        635.1,
-       244.6,
-       265.0
+       175.5,
+       255.7
       ],
       "axis": [
        0.0926,
@@ -11864,7 +12528,9 @@
      "fork": "v2_kawasaki_zh2__fork",
      "front_wheel": "v2_kawasaki_zh2__front_wheel",
      "rear_wheel": "v2_kawasaki_zh2__rear_wheel",
+     "shock": "v2_kawasaki_zh2__shock",
      "swingarm": "v2_kawasaki_zh2__swingarm",
+     "rearsets": "v2_kawasaki_zh2__rearsets",
      "engine": "v2_kawasaki_zh2__engine",
      "gearbox": "v2_kawasaki_zh2__gearbox",
      "exhaust": "v2_kawasaki_zh2__exhaust",
@@ -11995,6 +12661,53 @@
       263.8,
       904.8
      ],
+     "knee": [
+      736.1,
+      160.0,
+      813.6
+     ],
+     "tank_half_w": [
+      [
+       426.1,
+       110.0,
+       813.6
+      ],
+      [
+       476.1,
+       110.0,
+       813.6
+      ],
+      [
+       526.1,
+       105.7,
+       813.6
+      ],
+      [
+       576.1,
+       110.0,
+       813.6
+      ],
+      [
+       626.1,
+       110.0,
+       813.6
+      ],
+      [
+       676.1,
+       110.0,
+       813.6
+      ],
+      [
+       726.1,
+       110.0,
+       813.6
+      ],
+      [
+       776.1,
+       110.0,
+       813.6
+      ]
+     ],
      "tank_cap": [
       810.1,
       -0.3,
@@ -12036,8 +12749,8 @@
      "stand": {
       "pivot": [
        597.7,
-       219.3,
-       285.0
+       156.3,
+       271.6
       ],
       "axis": [
        0.0926,
@@ -12207,6 +12920,53 @@
       262.0,
       855.2
      ],
+     "knee": [
+      819.3,
+      160.0,
+      814.9
+     ],
+     "tank_half_w": [
+      [
+       509.3,
+       110.0,
+       814.9
+      ],
+      [
+       559.3,
+       110.0,
+       814.9
+      ],
+      [
+       609.3,
+       110.0,
+       814.9
+      ],
+      [
+       659.3,
+       110.0,
+       814.9
+      ],
+      [
+       709.3,
+       110.0,
+       814.9
+      ],
+      [
+       759.3,
+       110.0,
+       814.9
+      ],
+      [
+       809.3,
+       110.0,
+       814.9
+      ],
+      [
+       859.3,
+       110.0,
+       814.9
+      ]
+     ],
      "tank_cap": [
       748.6,
       -0.0,
@@ -12248,8 +13008,8 @@
      "stand": {
       "pivot": [
        596.8,
-       219.3,
-       285.0
+       173.2,
+       275.2
       ],
       "axis": [
        0.0926,
@@ -12414,6 +13174,53 @@
       373.1,
       1164.9
      ],
+     "knee": [
+      942.9,
+      160.0,
+      848.3
+     ],
+     "tank_half_w": [
+      [
+       632.9,
+       110.0,
+       848.3
+      ],
+      [
+       682.9,
+       110.0,
+       848.3
+      ],
+      [
+       732.9,
+       110.0,
+       848.3
+      ],
+      [
+       782.9,
+       110.0,
+       848.3
+      ],
+      [
+       832.9,
+       110.0,
+       848.3
+      ],
+      [
+       882.9,
+       110.0,
+       848.3
+      ],
+      [
+       932.9,
+       110.0,
+       848.3
+      ],
+      [
+       982.9,
+       110.0,
+       848.3
+      ]
+     ],
      "tank_cap": [
       951.4,
       -0.0,
@@ -12454,9 +13261,9 @@
      ],
      "stand": {
       "pivot": [
-       678.1,
-       293.8,
-       330.0
+       745.1,
+       203.6,
+       321.6
       ],
       "axis": [
        0.0926,
@@ -12622,6 +13429,53 @@
       320.8,
       1120.2
      ],
+     "knee": [
+      851.3,
+      160.0,
+      850.4
+     ],
+     "tank_half_w": [
+      [
+       541.3,
+       106.5,
+       850.4
+      ],
+      [
+       591.3,
+       110.0,
+       850.4
+      ],
+      [
+       641.3,
+       110.0,
+       850.4
+      ],
+      [
+       691.3,
+       110.0,
+       850.4
+      ],
+      [
+       741.3,
+       110.0,
+       850.4
+      ],
+      [
+       791.3,
+       110.0,
+       850.4
+      ],
+      [
+       841.3,
+       110.0,
+       850.4
+      ],
+      [
+       891.3,
+       110.0,
+       850.4
+      ]
+     ],
      "tank_cap": [
       823.8,
       -0.0,
@@ -12663,8 +13517,8 @@
      "stand": {
       "pivot": [
        643.3,
-       243.3,
-       330.0
+       184.7,
+       317.5
       ],
       "axis": [
        0.0926,
@@ -39807,6 +40661,35 @@
     "bought": true
    }
   },
+  "v2_kawasaki_klr650__mirrors": {
+   "mass": 0.8,
+   "type": "Rectangular, tall stalks",
+   "style": "rect",
+   "cda": 0.007,
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "name": "Kawasaki KLR 650 mirrors",
+   "description": "Off the Kawasaki KLR 650, and made for it: fits the Kawasaki KLR 650 only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_klr650",
+    "frame": "v2_kawasaki_klr650",
+    "slot": "mirrors",
+    "family": "klr",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "single",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
   "v2_kawasaki_ninja7__mirrors": {
    "mass": 0.5,
    "type": "Fairing-mounted pods",
@@ -42776,10 +43659,10 @@
   "v2_ducati_multistrada__fork": {
    "mass": 10.0,
    "type": "Upside-down",
-   "travel": 0.27,
-   "spring": 16500.0,
-   "bump": 1600.0,
-   "rebound": 2500.0,
+   "travel": 0.17,
+   "spring": 25000.0,
+   "bump": 2100.0,
+   "rebound": 3100.0,
    "adjust": 3,
    "adjust_name": "2-way (preload, rebound)",
    "length": 0.92,
@@ -42956,10 +43839,10 @@
   "v2_honda_cb1000gt__fork": {
    "mass": 10.0,
    "type": "Upside-down",
-   "travel": 0.27,
-   "spring": 16500.0,
-   "bump": 1600.0,
-   "rebound": 2500.0,
+   "travel": 0.13,
+   "spring": 30000.0,
+   "bump": 2400.0,
+   "rebound": 3400.0,
    "adjust": 3,
    "adjust_name": "2-way (preload, rebound)",
    "length": 0.92,
@@ -43352,10 +44235,10 @@
   "v2_ktm_1390sa__fork": {
    "mass": 10.0,
    "type": "Upside-down",
-   "travel": 0.27,
-   "spring": 16500.0,
-   "bump": 1600.0,
-   "rebound": 2500.0,
+   "travel": 0.17,
+   "spring": 25000.0,
+   "bump": 2100.0,
+   "rebound": 3100.0,
    "adjust": 3,
    "adjust_name": "2-way (preload, rebound)",
    "length": 0.92,
@@ -43388,10 +44271,10 @@
   "v2_yamaha_tracer9__fork": {
    "mass": 10.0,
    "type": "Upside-down",
-   "travel": 0.27,
-   "spring": 16500.0,
-   "bump": 1600.0,
-   "rebound": 2500.0,
+   "travel": 0.13,
+   "spring": 30000.0,
+   "bump": 2400.0,
+   "rebound": 3400.0,
    "adjust": 3,
    "adjust_name": "2-way (preload, rebound)",
    "length": 0.92,
@@ -56502,6 +57385,74 @@
     "bought": true
    }
   },
+  "v2_kawasaki_kle500__shock": {
+   "mass": 4.8,
+   "type": "Mono-shock",
+   "travel": 0.28,
+   "spring": 17500.0,
+   "bump": 1700.0,
+   "rebound": 2500.0,
+   "adjust": 2,
+   "adjust_name": "Preload and rebound",
+   "layout": "mono",
+   "color": [
+    0.15,
+    0.35,
+    0.8
+   ],
+   "name": "Kawasaki KLE 500 rear shock",
+   "description": "Off the Kawasaki KLE 500, and made for it: fits the Kawasaki KLE 500 only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_kle500",
+    "frame": "v2_kawasaki_kle500",
+    "slot": "shock",
+    "family": "kle",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_kawasaki_klr650__shock": {
+   "mass": 4.8,
+   "type": "Mono-shock",
+   "travel": 0.28,
+   "spring": 17500.0,
+   "bump": 1700.0,
+   "rebound": 2500.0,
+   "adjust": 2,
+   "adjust_name": "Preload and rebound",
+   "layout": "mono",
+   "color": [
+    0.15,
+    0.35,
+    0.8
+   ],
+   "name": "Kawasaki KLR 650 rear shock",
+   "description": "Off the Kawasaki KLR 650, and made for it: fits the Kawasaki KLR 650 only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_klr650",
+    "frame": "v2_kawasaki_klr650",
+    "slot": "shock",
+    "family": "klr",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "single",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
   "v2_kawasaki_ninja7__shock": {
    "mass": 4.2,
    "type": "Mono-shock",
@@ -56529,6 +57480,40 @@
     "frame": "v2_kawasaki_ninja7",
     "slot": "shock",
     "family": "ninja7",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_kawasaki_z650s__shock": {
+   "mass": 4.2,
+   "type": "Mono-shock",
+   "travel": 0.13,
+   "spring": 38000.0,
+   "bump": 2900.0,
+   "rebound": 4100.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "layout": "mono",
+   "color": [
+    0.85,
+    0.12,
+    0.1
+   ],
+   "name": "Kawasaki Z650 S rear shock",
+   "description": "Off the Kawasaki Z650 S, and made for it: fits the Kawasaki Z650 S only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_z650s",
+    "frame": "v2_kawasaki_z650s",
+    "slot": "shock",
+    "family": "z650",
     "brand": "Kawasaki",
     "fits": "model",
     "layout": "parallel_twin",
@@ -56597,6 +57582,40 @@
     "frame": "v2_kawasaki_z1100",
     "slot": "shock",
     "family": "z1100",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "inline4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_kawasaki_zh2__shock": {
+   "mass": 4.2,
+   "type": "Mono-shock",
+   "travel": 0.13,
+   "spring": 38000.0,
+   "bump": 2900.0,
+   "rebound": 4100.0,
+   "adjust": 4,
+   "adjust_name": "3-way (preload, bump, rebound)",
+   "layout": "mono",
+   "color": [
+    0.85,
+    0.12,
+    0.1
+   ],
+   "name": "Kawasaki Z H2 rear shock",
+   "description": "Off the Kawasaki Z H2, and made for it: fits the Kawasaki Z H2 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_zh2",
+    "frame": "v2_kawasaki_zh2",
+    "slot": "shock",
+    "family": "zh2",
     "brand": "Kawasaki",
     "fits": "model",
     "layout": "inline4",
@@ -60852,6 +61871,35 @@
     "bought": true
    }
   },
+  "v2_kawasaki_klr650__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Kawasaki KLR 650 footrests and controls",
+   "description": "Off the Kawasaki KLR 650, and made for it: fits the Kawasaki KLR 650 only.",
+   "styles": [
+    "adventure"
+   ],
+   "pack": "adventure",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_klr650",
+    "frame": "v2_kawasaki_klr650",
+    "slot": "rearsets",
+    "family": "klr",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "single",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
   "v2_kawasaki_ninja7__rearsets": {
    "mass": 1.2,
    "type": "Billet alloy, high and back",
@@ -60879,6 +61927,35 @@
     "frame": "v2_kawasaki_ninja7",
     "slot": "rearsets",
     "family": "ninja7",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "parallel_twin",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_kawasaki_z650s__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Kawasaki Z650 S footrests and controls",
+   "description": "Off the Kawasaki Z650 S, and made for it: fits the Kawasaki Z650 S only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_z650s",
+    "frame": "v2_kawasaki_z650s",
+    "slot": "rearsets",
+    "family": "z650",
     "brand": "Kawasaki",
     "fits": "model",
     "layout": "parallel_twin",
@@ -60937,6 +62014,35 @@
     "frame": "v2_kawasaki_z1100",
     "slot": "rearsets",
     "family": "z1100",
+    "brand": "Kawasaki",
+    "fits": "model",
+    "layout": "inline4",
+    "twin_shock": false,
+    "bought": true
+   }
+  },
+  "v2_kawasaki_zh2__rearsets": {
+   "mass": 1.6,
+   "type": "Rubber pegs, stock position",
+   "style": "road",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "material": "metal",
+   "name": "Kawasaki Z H2 footrests and controls",
+   "description": "Off the Kawasaki Z H2, and made for it: fits the Kawasaki Z H2 only.",
+   "styles": [
+    "naked"
+   ],
+   "pack": "naked",
+   "price": 200,
+   "v2part": {
+    "model": "kawasaki_zh2",
+    "frame": "v2_kawasaki_zh2",
+    "slot": "rearsets",
+    "family": "zh2",
     "brand": "Kawasaki",
     "fits": "model",
     "layout": "inline4",
@@ -69091,6 +70197,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "multistrada",
    "crank": "twinpulse",
    "v_angle": 90.0
   },
@@ -69129,6 +70236,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "panigale",
    "crank": "twinpulse",
    "v_angle": 90.0
   },
@@ -69169,6 +70277,7 @@
     "twin_shock": true,
     "bought": true
    },
+   "sound": "scout",
    "crank": "60v"
   },
   "v2_triumph_trident__engine": {
@@ -69206,6 +70315,8 @@
     "twin_shock": false,
     "bought": true
    },
+   "tone_high": 3.0,
+   "tone_mid": -3.0,
    "crank": "240"
   },
   "v2_ducati_monster__engine": {
@@ -69244,7 +70355,8 @@
     "bought": true
    },
    "crank": "90v",
-   "v_angle": 90.0
+   "v_angle": 90.0,
+   "sound": "monster"
   },
   "v2_honda_cb1000gt__engine": {
    "mass": 62.0,
@@ -69281,6 +70393,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "cb1000gt",
    "crank": "flat"
   },
   "v2_kawasaki_eliminator__engine": {
@@ -69357,7 +70470,8 @@
     "twin_shock": false,
     "bought": true
    },
-   "crank": "180"
+   "crank": "180",
+   "sound": "kle500"
   },
   "v2_kawasaki_klr650__engine": {
    "mass": 44.0,
@@ -69394,7 +70508,8 @@
     "twin_shock": false,
     "bought": true
    },
-   "crank": "single"
+   "crank": "single",
+   "sound": "klr650"
   },
   "v2_kawasaki_ninja7__engine": {
    "mass": 48.0,
@@ -69653,6 +70768,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "zx6r",
    "crank": "flat"
   },
   "v2_ktm_1390sa__engine": {
@@ -69690,6 +70806,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "ktm1390",
    "crank": "75v",
    "v_angle": 75.0
   },
@@ -69728,6 +70845,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "tracer9",
    "crank": "240"
   }
  },

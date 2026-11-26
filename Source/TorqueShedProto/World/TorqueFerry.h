@@ -61,6 +61,12 @@ public:
 	// A place (Unreal cm) on this boat: on its deck, the stair or the upper deck (with a margin out from its sides).
 	bool OnBoard(const FVector& At, double Margin = 0.0) const;
 	bool IsSailing() const { return State != EState::Docked; }
+	// [build 174 feedback] (beenster, co-op: "the other players bikes shuffled back on the ferry") A mate's parked bike
+	// and their feet are sent in the boat's own frame while it's away from its slipway, so each machine draws them on
+	// its own deck as it moves, not a tenth of a second behind it. DeckFrame: the boat whose deck At (cm) is on, out
+	// from its slipway: its frame, and its crossing's row + 1 (0 when none). DeckFrameOf: that boat's frame here.
+	static int32 DeckFrame(const UWorld* World, const FVector& At, FTransform& Out);
+	static bool DeckFrameOf(const UWorld* World, int32 Deck, FTransform& Out);
 
 private:
 	enum class EState : uint8 { Docked, Raising, Sailing, Lowering };

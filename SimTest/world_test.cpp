@@ -14,12 +14,15 @@
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
 #include "WorldRideWarehouses.h"
+#include "WorldRideFarms.h"
+#include "WorldRideVillage.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRideSigns.h"
 #include "WorldRoadLine.h"
 #include "WorldRouteMap.h"
 #include "WorldRegion.h"
+#include "WorldRideForecourtKit.h"
 #include "WorldSha256.h"
 #include "WorldTerrain.h"
 #include "WorldZip.h"
@@ -105,6 +108,56 @@ int main()
 	// [towns stage 4] (the house types)
 	std::string TypesText;
 	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
+	// [forecourts] The forecourt kit: read; six liveries; a three-island canopy, a pump island and a mirrored
+	// kiosk end laid on a forecourt turned 40 degrees on a slope, inside where they belong, feet on the ground,
+	// fewer triangles at each step out, lit parts only in the night mesh.
+	{
+		std::string FcText, FcBin;
+		const bool FcRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/forecourt_kit.json"), FcText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/forecourt_kit.bin"), FcBin)
+			&& SetForecourtKit(FcText, FcBin);
+		const std::shared_ptr<const ForecourtKit> Fk = ForecourtKitNow();
+		bool Ok = FcRead && Fk && Fk->Liveries.size() == 6 && Fk->Piece("canopy_3") >= 0 && Fk->Piece("island") >= 0;
+		size_t Tris[3] = {0, 0, 0}, NightTris = 0;
+		double Worst = 0.0, WorstFoot = 0.0;
+		const double A = 0.6981317007977318;
+		ForecourtFrame Fr;
+		Fr.Ex = 500.0; Fr.Ez = -300.0; Fr.Ux = std::cos(A); Fr.Uz = std::sin(A); Fr.Vx = -std::sin(A); Fr.Vz = std::cos(A);
+		const std::function<double(double, double)> Slope = [](double U, double V) { return 100.0 + U * 0.05 + V * 0.03; };
+		for (int Need = 0; Ok && Need <= 2; ++Need)
+		{
+			RideMesh M;
+			M.OriginX = 480.0;
+			M.OriginZ = -290.0;
+			ForecourtPlace Canopy;
+			Canopy.Base = 100.0;
+			Tris[size_t(Need)] += LayForecourtPiece(Fk->Pieces[size_t(Fk->Piece("canopy_3"))], Fr, Canopy, Slope, Fk->Liveries[0], Need, M);
+			ForecourtPlace Isl;
+			Isl.Ou = 6.5; Isl.Ov = 9.5; Isl.Base = Slope(6.5, 9.5);
+			Tris[size_t(Need)] += LayForecourtPiece(Fk->Pieces[size_t(Fk->Piece("island"))], Fr, Isl, Slope, Fk->Liveries[1], Need, M);
+			ForecourtPlace End;
+			End.Ou = -5.0; End.Ov = 15.5; End.Xu = -1.0; End.Base = Slope(-5.0, 15.5);
+			Tris[size_t(Need)] += LayForecourtPiece(Fk->Pieces[size_t(Fk->Piece("kiosk_glass_end"))], Fr, End, Slope, Fk->Liveries[1], Need, M);
+			if (M.Night) NightTris = std::max(NightTris, M.Night->Idx.size() / 3);
+			for (const RideMesh* Mi : {&M, M.Roofing.get(), M.Brickwork.get(), M.Render.get(), M.Night.get()})
+			{
+				if (!Mi) continue;
+				Ok = Ok && Mi->Alpha.size() == Mi->Vertices() && Mi->Col.size() == Mi->Vertices() * 3 && Mi->Uv.size() == Mi->Vertices() * 2 && Mi->Nrm.size() == Mi->Pos.size();
+				for (const uint32_t I : Mi->Idx) Ok = Ok && I < Mi->Vertices();
+				for (size_t V = 0; V < Mi->Vertices(); ++V)
+				{
+					const double Rx = Mi->Pos[V * 3] + Mi->OriginX - Fr.Ex, Rz = Mi->Pos[V * 3 + 2] + Mi->OriginZ - Fr.Ez, Y = Mi->Pos[V * 3 + 1];
+					const double U = Rx * Fr.Ux + Rz * Fr.Uz, Vo = Rx * Fr.Vx + Rz * Fr.Vz;
+					// (all of it on the forecourt: 21.5 m along, 4 to 22.5 m out; nothing below the slope by more than a foot's run)
+					Worst = std::fmax(Worst, std::fmax(std::fmax(-11.0 - U, U - 11.0), std::fmax(3.9 - Vo, Vo - 22.5)));
+					WorstFoot = std::fmax(WorstFoot, Slope(U, Vo) - 0.62 - Y);
+				}
+			}
+		}
+		Ok = Ok && Worst < 0.05 && WorstFoot < 1.0 && Tris[0] > Tris[1] && Tris[1] > Tris[2] && Tris[2] > 100 && NightTris > 0;
+		std::printf("      forecourt kit: %s, %zu pieces, %zu liveries; canopy + island + kiosk end %zu / %zu / %zu triangles (%zu lit), %.2f m past the forecourt, %.2f m below the ground\n",
+			FcRead ? "read" : "unreadable", Fk ? Fk->Pieces.size() : size_t(0), Fk ? Fk->Liveries.size() : size_t(0), Tris[0], Tris[1], Tris[2], NightTris, Worst, WorstFoot);
+		Check(Ok, "forecourt kit: pieces and six liveries read; laid turned and on a slope inside the forecourt, feet on the ground, fewer triangles further off, lights in the night mesh");
+	}
 	// [churches stage 3] (the church kit: read, a church and a chapel chosen for a building, built whole into the meshes)
 	{
 		std::string KitText, KitBin;
@@ -213,6 +266,68 @@ int main()
 			Wk ? Wk->Designs.size() : size_t(0), Big >= 0 ? Wk->Designs[size_t(Big)].Name.c_str() : "-", Terrace >= 0 ? Wk->Designs[size_t(Terrace)].Name.c_str() : "-",
 			Shop >= 0 ? Wk->Designs[size_t(Shop)].Name.c_str() : "-", Tris[0], Tris[1], Tris[2], Worst);
 		Check(Ok, "warehouse kit: ten designs read; bay patterns filled; sheds, a terrace and a retail unit chosen by class and size; laid inside their outline, fewer triangles further off");
+	}
+	// [everyday kits stage 4] The farm kit: read; the map's farm buildings sorted into its classes (a farmhouse, a
+	// glasshouse and a house left alone; a big shed, a cattle shed, a stone barn in the Dales, a brick or black one in
+	// the lowlands); a stone barn laid in its five meshes (masonry in the houses', its roof in the roofing), inside
+	// its outline, fewer triangles further off.
+	{
+		std::string FmText, FmBin;
+		const bool FmRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/farm_kit.json"), FmText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/farm_kit.bin"), FmBin)
+			&& SetFarmKit(FmText, FmBin);
+		const std::shared_ptr<const WarehouseKit> Fk = FarmKitNow();
+		bool Ok = FmRead && Fk && Fk->Designs.size() == 12;
+		Ok = Ok && std::string(FarmClassOf("farm", 2, 14.0, 8.0, true, 0.0, 0.3)).empty() && std::string(FarmClassOf("greenhouse", 2, 14.0, 8.0, true, 0.0, 0.3)).empty()
+			&& std::string(FarmClassOf("house", 0, 12.0, 8.0, true, 0.0, 0.3)).empty() && std::string(FarmClassOf("", 0, 12.0, 8.0, false, 0.0, 0.3)).empty()
+			&& std::string(FarmClassOf("farm_auxiliary", 2, 40.0, 20.0, true, 0.0, 0.3)) == "farm_shed" && std::string(FarmClassOf("cowshed", 2, 40.0, 20.0, true, 0.0, 0.9)) == "farm_livestock"
+			&& std::string(FarmClassOf("barn", 2, 14.0, 7.0, false, 0.0, 0.7)) == "barn_stone" && std::string(FarmClassOf("barn", 2, 20.0, 9.0, false, 0.65, 0.7)).rfind("barn_", 0) == 0
+			&& std::string(FarmClassOf("barn", 2, 20.0, 9.0, false, 0.65, 0.7)) != "barn_stone";
+		const int Stone = Ok ? Fk->Pick("barn_stone", 14.0, 7.0, 0.3) : -1;
+		Ok = Ok && Stone >= 0 && Fk->Pick("farm_shed", 36.0, 18.0, 0.4) >= 0 && Fk->Pick("barn_brick", 24.0, 9.0, 0.4) >= 0 && Fk->Pick("barn_boarded", 24.0, 10.0, 0.4) >= 0;
+		size_t Tris[3] = {0, 0, 0};
+		double Worst = 0.0;
+		bool Masonry = false, Roofed = false;
+		const double A = 0.5235987755982988, Ux = std::cos(A), Uz = std::sin(A), Nx = Uz, Nz = -Ux;
+		for (int Detail = 2; Ok && Detail >= 0; --Detail)
+		{
+			RideMesh M, Houses, Roofs, Bricks, Washed;
+			for (RideMesh* Mi : {&M, &Houses, &Roofs, &Bricks, &Washed}) { Mi->OriginX = 1000.0; Mi->OriginZ = 2000.0; }
+			RideMesh* const Into[5] = {&M, &Houses, &Roofs, &Bricks, &Washed};
+			Tris[2 - Detail] = BuildWarehouse(*Fk, Fk->Designs[size_t(Stone)], 1000.0, 2000.0, Ux, Uz, Nx, Nz, 14.0, 7.0, 50.0, 49.5, Detail, Into);
+			Masonry = Masonry || Houses.Vertices() > 0;
+			Roofed = Roofed || Roofs.Vertices() > 0;
+			for (const RideMesh* Mi : {&M, &Houses, &Roofs, &Bricks, &Washed})
+			{
+				Ok = Ok && Mi->Alpha.size() == Mi->Vertices() && Mi->Col.size() == Mi->Vertices() * 3 && Mi->Uv.size() == Mi->Vertices() * 2;
+				for (const uint32_t I : Mi->Idx) Ok = Ok && I < Mi->Vertices();
+				for (size_t V = 0; V < Mi->Vertices(); ++V)
+				{
+					const double Rx = Mi->Pos[V * 3] + Mi->OriginX - 1000.0, Rz = Mi->Pos[V * 3 + 2] + Mi->OriginZ - 2000.0;
+					const double Al = Rx * Ux + Rz * Uz, Out = Rx * Nx + Rz * Nz;
+					Worst = std::fmax(Worst, std::fmax(std::fmax(-Al, Al - 14.0), std::fmax(Out, -Out - 7.0)));
+				}
+			}
+		}
+		Ok = Ok && Masonry && Roofed && Worst < 1.0 && Tris[0] > Tris[2] && Tris[2] > 20;
+		std::printf("      farm kit: %s, %zu designs; a 14 x 7 m stone barn %s: %zu / %zu / %zu triangles, %.1f m at most past its outline\n", FmRead ? "read" : "unreadable",
+			Fk ? Fk->Designs.size() : size_t(0), Stone >= 0 ? Fk->Designs[size_t(Stone)].Name.c_str() : "-", Tris[0], Tris[1], Tris[2], Worst);
+		Check(Ok, "farm kit: twelve designs read; farm buildings sorted into its classes, farmhouses and glasshouses left alone; a stone barn laid in its meshes inside its outline, fewer triangles further off");
+	}
+	// [everyday kits stage 6] The village kit: read; schools sorted into its classes (a house and a tall school left
+	// alone; a small one old, stone in stone country, brick elsewhere; a big one new); each class has a design.
+	{
+		std::string VkText, VkBin;
+		const bool VkRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/village_kit.json"), VkText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/village_kit.bin"), VkBin)
+			&& SetVillageKit(VkText, VkBin);
+		const std::shared_ptr<const WarehouseKit> Vk = VillageKitNow();
+		bool Ok = VkRead && Vk && Vk->Designs.size() == 5;
+		Ok = Ok && std::string(VillageClassOf("house", 20.0, 9.0, 1.0, true, 0.5)).empty() && std::string(VillageClassOf("school", 60.0, 20.0, 4.0, false, 0.5)).empty()
+			&& std::string(VillageClassOf("school", 20.0, 8.0, 1.0, true, 0.5)) == "school_old_stone" && std::string(VillageClassOf("school", 20.0, 8.0, 1.0, false, 0.5)) == "school_old_brick"
+			&& std::string(VillageClassOf("school", 50.0, 16.0, 1.0, false, 0.5)) == "school_new";
+		for (const char* C : {"school_old_stone", "school_old_brick", "school_new", "school_small"})
+			Ok = Ok && Vk->Pick(C, 20.0, 9.0, 0.4) >= 0;
+		std::printf("      village kit: %d designs\n", Vk ? int(Vk->Designs.size()) : 0);
+		Check(Ok, "village kit: five school designs read; schools sorted into its classes, houses and tall schools left alone");
 	}
 	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
 	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.
@@ -1406,13 +1521,14 @@ int main()
 							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
 							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
 							const int KitBefore = Tally.KitChurches;
+							const int FarmBefore = Tally.FarmKit;   // [everyday kits stage 4]
 							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Tally);
 							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size() + Tops.Idx.size() + Brick.Idx.size()) / 3);
 							RoofTris += Tops.Idx.size() / 3;
 							BrickTris += Brick.Idx.size() / 3;
 							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves; a
-							// square with a kit church left out, its roofs' triangles not in quads)
-							for (size_t Vq = 0; Tally.KitChurches == KitBefore && Vq + 3 < Tops.Vertices(); Vq += 4)
+							// square with a kit church or a farm kit building left out, its roofs' triangles not in quads)
+							for (size_t Vq = 0; Tally.KitChurches == KitBefore && Tally.FarmKit == FarmBefore && Vq + 3 < Tops.Vertices(); Vq += 4)
 							{
 								++RoofFaces;
 								if (std::fabs(Tops.Uv[Vq * 2 + 1] - Tops.Uv[(Vq + 1) * 2 + 1]) < 0.01f && Tops.Alpha.size() == Tops.Vertices()) ++LevelFaces;

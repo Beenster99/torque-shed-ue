@@ -1,0 +1,12 @@
+{
+ "source": "src.wav",
+ "loops": [
+  {
+   "file": "idle_1540.wav",
+   "from_s": 7.0,
+   "to_s": 14.0,
+   "rpm": 1540,
+   "seconds": 2.96
+  }
+ ]
+}

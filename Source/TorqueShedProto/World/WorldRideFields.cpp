@@ -68,6 +68,7 @@ void RidePlan::IndexFields()
 		const std::vector<P2>* Ring;
 		std::string Id;
 		bool Flowing = false;
+		uint8_t Sub = SubNone;   // [everyday kits stage 6]
 	};
 	std::vector<Shape> Shapes;
 	for (const FeatureArea& A : Area.Roads.Scenery.Areas)
@@ -103,7 +104,15 @@ void RidePlan::IndexFields()
 		else if (K == "heath") Kind = FieldHeath;
 		else if (K == "wetland") Kind = FieldWetland;
 		if (Kind < 0 || A.Pts.size() < 3) continue;
-		Shapes.push_back({Kind, &A.Pts, K + std::to_string(std::lround(A.Pts[0].X * 10.0)) + "_" + std::to_string(std::lround(A.Pts[0].Z * 10.0)), K == "river" || K == "canal"});
+		// [everyday kits stage 6] (what a park or pitch is for: the village set's furnishing)
+		uint8_t Sub = SubNone;
+		const std::string& W = A.Word;
+		if (K == "playground") Sub = SubPlayground;
+		else if (K == "village_green") Sub = SubGreen;
+		else if (K == "pitch")
+			Sub = W == "soccer" || W == "football" ? SubFootball : W == "rugby" || W == "rugby_union" || W == "rugby_league" ? SubRugby
+				: W == "tennis" ? SubTennis : W == "basketball" ? SubBasketball : W == "multi" ? SubMultiCourt : SubNone;
+		Shapes.push_back({Kind, &A.Pts, K + std::to_string(std::lround(A.Pts[0].X * 10.0)) + "_" + std::to_string(std::lround(A.Pts[0].Z * 10.0)), K == "river" || K == "canal", Sub});
 	}
 	// [places stage 2] The pull-offs made for places (IndexPlaces).
 	for (size_t I = 0; I < PlaceStops.size(); ++I)
@@ -120,6 +129,7 @@ void RidePlan::IndexFields()
 		FieldArea F;
 		F.Kind = Sh.Kind;
 		F.Flowing = Sh.Flowing;
+		F.Sub = Sh.Sub;
 		F.Ring = Ring;
 		F.MinX = F.MaxX = Ring[0].X;
 		F.MinZ = F.MaxZ = Ring[0].Z;

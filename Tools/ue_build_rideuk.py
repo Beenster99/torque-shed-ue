@@ -1929,7 +1929,13 @@ def facade_material(L):
 
 
 STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
-                    "touring_caravan", "static_caravan", "post_box", "phone_box")   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "touring_caravan", "static_caravan", "post_box", "phone_box",
+                    "farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer",
+                    "farm_diesel", "farm_muck",
+                    "play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
+                    "pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin",
+                    "village_sign",
+                    "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
@@ -2157,9 +2163,32 @@ def prop_kit(L):
                 pass
             # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
             # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
+            if name.endswith("_LOD1") or name.endswith("_LOD2"):
+                continue   # ([everyday kits] a hand-made distance version: set on its model below)
             kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
             lods = spec["kinds"].get(kind, {}).get("lods")
-            if not lods:
+            hand = spec["kinds"].get(kind, {}).get("hand_lods")
+            if hand and (name + "_LOD1") in ours:
+                # [everyday kits] Hand-made distance versions (never auto-reduced): the model's _LOD1 glb as its
+                # LOD 1, from the screen size in "hand_lods".
+                try:
+                    if sme.get_lod_count(mesh) > 1:
+                        sme.remove_lods(mesh)
+                    sme.set_lod_from_static_mesh(mesh, 1, ours[name + "_LOD1"], 0, True)
+                    screens = [1.0, float(hand[0])]
+                    # ([everyday kits stage 9] a second hand-made one, _LOD2, from hand_lods' second screen size:
+                    # the pylons and masts seen kilometres off)
+                    if len(hand) > 1 and (name + "_LOD2") in ours:
+                        sme.set_lod_from_static_mesh(mesh, 2, ours[name + "_LOD2"], 0, True)
+                        screens.append(float(hand[1]))
+                    try:
+                        sme.set_lod_screen_sizes(mesh, screens)
+                    except Exception as e:
+                        unreal.log_warning("[Torque] props: %s: LOD screen size not set (%s)" % (name, e))
+                    log("props: %s: hand-made LOD1" % name)
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: hand-made LOD of %s not set (%s)" % (name, e))
+            elif not lods:
                 # ([caravans, build 166] reduced LODs of these models break up: each triangle has its own corners,
                 # so the reducer cuts holes. A model without "lods" is drawn whole, its old LODs taken off.)
                 try:
@@ -2302,7 +2331,7 @@ def prop_kit(L):
                     add("SM_Prop_%s_fab%d" % (kind, n), m, True, row)
         else:
             for name, mesh in sorted(ours.items()):
-                if name.startswith("SM_Prop_%s_" % kind):
+                if name.startswith("SM_Prop_%s_" % kind) and not name.endswith("_LOD1"):
                     add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
     cars_note = ""
     for kind, row in spec["kinds"].items():

@@ -122,8 +122,11 @@ OBJ_FINISH = {
     "trasmision_cadena1": {"ue": "cat_brushed_steel", "surface": "chain", "tag": "chain", "color": [0.3, 0.3, 0.31], "metallic": 1.0, "roughness": 0.4},
     "escape": {"ue": "cat_brushed_steel", "surface": "exhaust", "tag": "exhaust", "color": [0.5, 0.48, 0.45], "metallic": 1.0, "roughness": 0.3},
     "suspencion_delantera": {"ue": "cat_anodised", "surface": "stanchion_gold", "tag": "stanchion_gold", "color": [0.75, 0.55, 0.2], "metallic": 1.0, "roughness": 0.15},
-    # the lit pieces: the headlamp's LED strip is its daytime running light, the indicators' inner reflectors are lit amber
-    "interior_luces_delanteras": {"ue": "lens_clear", "surface": "d3_drl", "tag": "lens_drl"},
+    # the lit pieces: the thin LED bar along each lamp's top edge is its daytime running light (beenster in 174: "the
+    # headlight LED bars should be set as DRL lights"), the lamps' inner reflectors are the headlamps, the indicators'
+    # inner reflectors are lit amber
+    "luz_delantera": {"ue": "lens_clear", "surface": "d3_drl", "tag": "lens_drl"},
+    "interior_luces_delanteras": {"ue": "lens_clear", "surface": "d3_lampdip", "tag": "lens_white"},
     "luz_intermitentes": {"ue": "lens_amber", "surface": "d3_amberled", "tag": "lens_amber"},
     "interior_indicador_tracero": {"ue": "lens_amber", "surface": "d3_amberled", "tag": "lens_amber"},
     "luz_tracera": {"ue": "lens_red", "surface": "d3_tailred", "tag": "lens_red"},
@@ -293,11 +296,30 @@ def main():
         n_g = -n_g
     sv = gv([scr])
     sc = sum(sv, Vector()) / len(sv)
+    # (on the face that looks back at the rider, not in the middle of the screen's slab, where the drawn screen hid it:
+    # beenster in 174, "please fit the TFT to the area marked in blue")
+    sc = sc + n_g * max((v - sc).dot(n_g) for v in sv)
     up = Vector((-n_g.z, 0, -n_g.x)) if n_g.z < 0 else Vector((n_g.z, 0, -n_g.x))
     if up.z < 0:
         up = -up
     span_w = max(v.y for v in sv) - min(v.y for v in sv)
     span_h = max((v - sc).dot(up) for v in sv) - min((v - sc).dot(up) for v in sv)
+
+    # the rider's knee and the width along the thighs, measured beside the frame's own pieces as bought_export.py does
+    # (beenster in 174: "avatar knees are too far out when riding")
+    def place_of(ob, base):
+        return piece_place(base, ob) if base in SPLIT else (*OBJECTS.get(base, ("frame", "")), "")
+    beside = gv([ob for ob, base in pieces if place_of(ob, base)[1] == "" and place_of(ob, base)[0] not in
+                 ("exhaust", "handlebars", "mirrors", "rearsets", "dashboard", "headlight", "indicators", "side_stand")])
+
+    def half_w(x0, x1, z0, z1, floor=0.06):
+        ys = sorted(abs(v.y) for v in beside if x0 < v.x < x1 and z0 < v.z < z1)
+        return ys[int(len(ys) * 0.9)] if ys else floor
+    kz = seat_top.z
+    knee_y = min(max(half_w(hip_v.x + 0.22, hip_v.x + 0.36, kz - 0.12, kz + 0.06) + 0.05, 0.11), 0.16)
+    tank_w = [[round((hip_v.x + 0.05 * i) * 1000, 1),
+               round(min(half_w(hip_v.x + 0.05 * i - 0.03, hip_v.x + 0.05 * i + 0.03, kz - 0.15, kz + 0.12), knee_y - 0.05) * 1000, 1),
+               round(kz * 1000, 1)] for i in range(1, 9)]
 
     mm = lambda v: [round(v.x * 1000, 1), round(v.y * 1000, 1), round(v.z * 1000, 1)]
     avg = lambda vs: sum(vs, Vector()) / len(vs)
@@ -316,6 +338,7 @@ def main():
         "shock_top": [round(sh_front.x * 1000, 1), 0.0, round(sh_front.z * 1000, 1)],
         "shock_bottom": [round(sh_rear.x * 1000, 1), 0.0, round(sh_rear.z * 1000, 1)],
         "tank_cap": mm(avg(cap)),
+        "knee": [round((hip_v.x + 0.36) * 1000, 1), round(knee_y * 1000, 1), round(kz * 1000, 1)], "tank_half_w": tank_w,
         "gauges": [{"what": "screen", "at": mm(sc), "axis": [round(n_g.x, 5), 0.0, round(n_g.z, 5)], "up": [round(up.x, 5), 0.0, round(up.z, 5)],
                     "w": round(span_w * 1000 * 0.86, 1), "h": round(span_h * 1000 * 0.82, 1), "node": ""}],
     }
@@ -332,6 +355,10 @@ def main():
             if role.startswith("head"):
                 lens = "mirror_head"
             side = role[-1:] if (role and (f["tag"] in ("lens_amber", "d3_mirrorglass") or role.startswith("head"))) else ""
+            if lens == "lens_amber":
+                # front and back indicators apart too (the game's glow sits beside each lens's own box)
+                lo, hi = bbox(ob)
+                side += "F" if (lo.y + hi.y) / 2 < REAR_Y - 0.7 else "B"
             key = (slot, node, f["surface"], lens, side)
             if key not in tagged:
                 c = bpy.data.materials.new(f"s{len(tagged):03d}")

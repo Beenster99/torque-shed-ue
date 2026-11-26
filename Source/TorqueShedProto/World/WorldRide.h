@@ -915,6 +915,21 @@ public:
 		// [caravans] The campsites' touring caravans and static caravans (Tools/blender_caravan_kit.py), in place of
 		// TownLifeTile's boxes where they have models (TownLifeProps)
 		PropTouringCaravan, PropStaticCaravan,
+		// [everyday kits stage 4] A farmyard's things (Tools/blender_farm_props.py, each with a hand-made distance
+		// version): bale stacks, single bales, a silage clamp, a slurry tank, feed bins, troughs, a tractor, a trailer,
+		// a diesel tank and a muck heap, laid about the map's farmyards by FarmYardProps
+		PropFarmBales, PropFarmBale, PropFarmClamp, PropFarmTank, PropFarmFeedbin, PropFarmTrough, PropFarmTractor, PropFarmTrailer,
+		PropFarmDiesel, PropFarmMuck,
+		// [everyday kits stage 6] The village set (Tools/blender_village_props.py, each with a hand-made distance
+		// version): playground pieces and its bow-top fence, football goals, rugby posts, tennis nets, a court's
+		// wire fence, basketball hoops, the green's notice board, litter bins and village sign, laid by VillageProps
+		PropPlaySwings, PropPlaySlide, PropPlayClimber, PropPlaySpringer, PropPlayRoundabout, PropPlaySeesaw, PropPlayFence,
+		PropPitchGoal, PropPitchPosts, PropTennisNet, PropCourtFence, PropBasketHoop, PropNoticeBoard, PropLitterBin, PropVillageSign,
+		// [everyday kits stage 9] The power and skyline set (Tools/blender_power_props.py, each with two hand-made distance
+		// versions): pylons, lattice masts, phone masts, wind turbines and their rotors, water towers, substation kiosks,
+		// and a substation's transformers, gantries and palisade, laid by SkylineTile near the road in place of its shapes
+		PropPowerPylon, PropPowerMast, PropPowerMonopole, PropPowerTurbine, PropPowerRotor, PropPowerWaterTower, PropPowerKiosk,
+		PropPowerTransformer, PropPowerGantry, PropPowerPalisade,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1009,7 +1024,10 @@ public:
 		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
 		bool Flowing = false;   // a river's or canal's own outline (its water runs: WaterRuns), not a lake's
 		int Yard = -1;          // [churches stage 5] a graveyard round a church: its Churchyards entry
+		// [everyday kits stage 6] What a park or pitch is for: VillageProps furnishes it (FieldSub)
+		uint8_t Sub = 0;
 	};
+	enum EFieldSub { SubNone, SubPlayground, SubGreen, SubFootball, SubRugby, SubTennis, SubBasketball, SubMultiCourt };
 	std::vector<FieldArea> FieldAreas;
 	// [churches stage 5] Each place of worship's churchyard (IndexChurchyards, World/WorldRideFields.cpp): the
 	// map's graveyard round it, else (out of a town) one made round it as far as its neighbours and roads
@@ -1210,6 +1228,8 @@ public:
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
+		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
+		int VillageKit = 0;   // [everyday kits stage 6] schools built from the village kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
@@ -1598,6 +1618,12 @@ public:
 	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	// [caravans] The campsites' caravans in the square, as models (when the kit has them: PropModelled).
 	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 4] A farmyard's things where the game has their models (World/WorldRideFarms.cpp): a few
+	// to each mapped farmyard by its size, along its edges, clear of its buildings and the road.
+	void FarmYardProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 6] The village set in the square (World/WorldRideVillage.cpp): playgrounds' pieces and
+	// fences, pitches' goals and posts, courts' nets, fences and hoops, a village green's sign, board, seat and bin
+	void VillageProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
 	// [circuits, build 168] The ground under a circuit's track, smoothed: its height averaged over 70 m round (X, Z)

@@ -2,6 +2,7 @@
 
 #include "TorqueSettings.h"
 #include "TorqueBikePawn.h"
+#include "World/TorqueFerry.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
@@ -29,7 +30,7 @@ enum ENetVal
 	NV_LookYaw, NV_LookPitch, NV_Count
 };
 static_assert(NV_Count <= TorqueNet::MaxVals, "more values than a snapshot holds");
-enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Sounds, NI_Count };
+enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Sounds, NI_Deck, NI_DeckWhat, NI_Count };
 static_assert(NI_Count <= TorqueNet::MaxInts, "more stepped values than a snapshot holds");
 
 constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16, FlagNod = 32, FlagWave = 64, FlagFeet = 128;
@@ -179,6 +180,36 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	// [build 155] Where they look, so their head turns on everyone's copy.
 	S.LookYaw = B->IsOnFoot() ? 0.f : (float)FMath::Clamp(B->LookYaw, -180.0, 180.0);
 	S.LookPitch = (float)FMath::Clamp(B->IsOnFoot() ? B->FootPitch : B->LookPitch, -80.0, 80.0);
+	// [build 174 feedback] (beenster, co-op on the Arran ferry: "the other players bikes shuffled back on the ferry")
+	// Drawn a tenth of a second behind, a parked bike sent where it is in the world was drawn where the deck was a
+	// tenth of a second ago: in the boat's frame it stays put on everyone's deck.
+	S.Deck = S.DeckWhat = 0;
+	if (B->IsOnFoot())
+	{
+		FTransform BikeDeck, FeetDeck;
+		const int32 OnDeck = ATorqueFerry::DeckFrame(B->GetWorld(), B->GetActorLocation(), BikeDeck);
+		const int32 FeetOn = ATorqueFerry::DeckFrame(B->GetWorld(), B->FootPos, FeetDeck);
+		const int32 Deck = OnDeck > 0 ? OnDeck : FeetOn;
+		if (Deck > 0 && Deck < 256)
+		{
+			S.Deck = (uint8)Deck;
+			const FTransform& Xf = OnDeck > 0 ? BikeDeck : FeetDeck;
+			if (OnDeck == Deck)
+			{
+				S.DeckWhat |= 1;
+				S.Pos = Xf.InverseTransformPosition(S.Pos);
+				S.Vel = Xf.InverseTransformVectorNoScale(S.Vel);
+				S.Rot = Xf.GetRotation().Inverse() * S.Rot;
+			}
+			if (FeetOn == Deck)
+			{
+				S.DeckWhat |= 2;
+				S.FootPos = Xf.InverseTransformPosition(S.FootPos);
+				const FVector Ahead = Xf.InverseTransformVectorNoScale(FRotator(0.0, (double)S.FootYaw, 0.0).Vector());
+				S.FootYaw = (float)FMath::RadiansToDegrees(FMath::Atan2(Ahead.Y, Ahead.X));
+			}
+		}
+	}
 }
 
 void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
@@ -192,6 +223,13 @@ void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 	}
 	if (S.Seq <= LastPushedSeq) return;   // already have it (the property carries the last few)
 	LastPushedSeq = S.Seq;
+	{
+		// [build 174 feedback] Into a boat's frame or out of it (it casts off, it ties up): the snapshots before are in
+		// the other frame, not to be blended with these.
+		const int32 Frame = int32(S.Deck) * 4 + int32(S.DeckWhat);
+		if (Frame != LastDeck) Smooth.Reset();
+		LastDeck = Frame;
+	}
 	TorqueNet::Snap N;
 	N.Time = S.Time;
 	N.Pos[0] = S.Pos.X; N.Pos[1] = S.Pos.Y; N.Pos[2] = S.Pos.Z;
@@ -222,6 +260,8 @@ void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 	N.Ints[NI_RearSurf] = S.RearSurf;
 	N.Ints[NI_Lamps] = S.Lamps;
 	N.Ints[NI_Sounds] = S.Sounds;
+	N.Ints[NI_Deck] = S.Deck;
+	N.Ints[NI_DeckWhat] = S.DeckWhat;
 	N.Val[NV_FootX] = S.FootPos.X; N.Val[NV_FootY] = S.FootPos.Y; N.Val[NV_FootZ] = S.FootPos.Z;
 	N.Val[NV_FootYawSin] = FMath::Sin(FMath::DegreesToRadians((double)S.FootYaw));
 	N.Val[NV_FootYawCos] = FMath::Cos(FMath::DegreesToRadians((double)S.FootYaw));
@@ -261,6 +301,31 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	if (!B || !B->Sim) return;
 	TorqueNet::Snap Out;
 	if (!Smooth.Sample(FPlatformTime::Seconds(), DeltaSeconds, Out)) return;   // nothing heard yet: stay put
+	if (Out.Ints[NI_Deck] > 0)
+	{
+		// [build 174 feedback] Sent in a boat's frame: out of it as our boat is now (a boat not stood up here: left
+		// where it was drawn).
+		FTransform Xf;
+		if (!ATorqueFerry::DeckFrameOf(B->GetWorld(), Out.Ints[NI_Deck], Xf)) return;
+		if ((Out.Ints[NI_DeckWhat] & 1) != 0)
+		{
+			const FVector P = Xf.TransformPosition(FVector(Out.Pos[0], Out.Pos[1], Out.Pos[2]));
+			const FVector V = Xf.TransformVectorNoScale(FVector(Out.Vel[0], Out.Vel[1], Out.Vel[2]));
+			const FQuat Q = (Xf.GetRotation() * FQuat(Out.Rot[0], Out.Rot[1], Out.Rot[2], Out.Rot[3])).GetNormalized();
+			Out.Pos[0] = P.X; Out.Pos[1] = P.Y; Out.Pos[2] = P.Z;
+			Out.Vel[0] = V.X; Out.Vel[1] = V.Y; Out.Vel[2] = V.Z;
+			Out.Rot[0] = Q.X; Out.Rot[1] = Q.Y; Out.Rot[2] = Q.Z; Out.Rot[3] = Q.W;
+		}
+		if ((Out.Ints[NI_DeckWhat] & 2) != 0)
+		{
+			const FVector F = Xf.TransformPosition(FVector(Out.Val[NV_FootX], Out.Val[NV_FootY], Out.Val[NV_FootZ]));
+			const FVector Ahead = Xf.TransformVectorNoScale(FVector(Out.Val[NV_FootYawCos], Out.Val[NV_FootYawSin], 0.0));
+			Out.Val[NV_FootX] = F.X; Out.Val[NV_FootY] = F.Y; Out.Val[NV_FootZ] = F.Z;
+			const double Flat = FMath::Max(1e-6, FVector2D(Ahead.X, Ahead.Y).Size());
+			Out.Val[NV_FootYawCos] = Ahead.X / Flat;
+			Out.Val[NV_FootYawSin] = Ahead.Y / Flat;
+		}
+	}
 
 	B->CurPos = B->PrevPos = FVector(Out.Pos[0], Out.Pos[1], Out.Pos[2]);
 	B->CurRot = B->PrevRot = FQuat(Out.Rot[0], Out.Rot[1], Out.Rot[2], Out.Rot[3]).GetNormalized();

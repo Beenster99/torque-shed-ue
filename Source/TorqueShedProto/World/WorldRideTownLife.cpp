@@ -6,6 +6,7 @@
 // colours anywhere: each canopy's band is one plain colour picked by hash. Stopped by a pump, the tank
 // fills (ForecourtAt; TorqueRideWorld's dash).
 #include "WorldRide.h"
+#include "WorldRideForecourtKit.h"
 #include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRoadLine.h"
@@ -14,6 +15,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
@@ -710,6 +712,68 @@ void RidePlan::GaragesNear(double X, double Z, double Reach, std::vector<GarageS
 		}
 }
 
+namespace
+{
+// [forecourts] One forecourt from the kit's pieces, laid where the boxes below go: the canopy over its islands,
+// a pump island at each, the kiosk's bays in its row behind (the garage unit at one end stays the game's own),
+// the price pole by the way in, and the rules plate, air and water machine, clutter and jet wash where there's
+// room. Floor(along, out) is the forecourt's surface (the ground and 5 cm).
+void DrawKitForecourt(const ForecourtKit& Kit, const RidePlan::Forecourt& F, const P2& Edge, const P2& Ua, const P2& Va,
+	const std::function<double(double, double)>& Floor, int Detail, RideMesh& Out)
+{
+	const int Need = Detail >= 2 ? 0 : Detail == 1 ? 1 : 2;
+	ForecourtFrame Fr;
+	Fr.Ex = Edge.X; Fr.Ez = Edge.Z; Fr.Ux = Ua.X; Fr.Uz = Ua.Z; Fr.Vx = Va.X; Fr.Vz = Va.Z;
+	const ForecourtKit::Livery& Lv = Kit.Liveries[size_t(Dice(F.Seed, 2) * double(Kit.Liveries.size())) % Kit.Liveries.size()];
+	const std::function<double(double, double)> Ground = [&Floor](double U, double V) { return Floor(U, V) - 0.05; };
+	const auto Lay = [&](const std::string& Name, double Ou, double Ov, double Base, double Xu = 1.0, double Yu = 0.0, double Xv = 0.0, double Yv = 1.0)
+	{
+		const int Pi = Kit.Piece(Name);
+		if (Pi < 0) return;
+		ForecourtPlace At;
+		At.Ou = Ou; At.Ov = Ov; At.Xu = Xu; At.Yu = Yu; At.Xv = Xv; At.Yv = Yv; At.Base = Base;
+		LayForecourtPiece(Kit.Pieces[size_t(Pi)], Fr, At, Ground, Lv, Need, Out);
+	};
+	const double A0 = -F.CanopyLong * 0.5, A1 = F.CanopyLong * 0.5, V0 = EntryLane, V1 = EntryLane + CanopyDeep, Vm = (V0 + V1) * 0.5;
+	Lay(F.Islands >= 3 ? "canopy_3" : "canopy_2", 0.0, 0.0, F.Base);
+	for (int K = 0; K < F.Islands; ++K)
+	{
+		const double U = (K - (F.Islands - 1) * 0.5) * IslandGap;
+		Lay("island", U, Vm, Floor(U, Vm) - 0.05);
+	}
+	// (the price pole by the road at the way in, its faces to the traffic either way)
+	Lay("price_pole", A1 + 4.0, 1.6, Floor(A1 + 4.0, 1.6) - 0.05, 0.0, -1.0, 1.0, 0.0);
+	Lay("rules", A0 + 1.2, V1 - 2.25, Floor(A0 + 1.2, V1 - 2.25) - 0.05);
+	if (F.Kiosk)
+	{
+		const bool Brick = Dice(F.Seed, 7) < Kit.BrickShare;
+		const std::string Style = Brick ? "kiosk_brick_" : "kiosk_glass_";
+		const double KV0 = V1 + 1.5;
+		const double Row = std::fmin(F.CanopyLong, KioskRow);
+		const double KU0 = F.Garage ? F.GarageU + RidePlan::GarageWide * 0.5 + 0.2 : -std::fmin(F.CanopyLong, 12.0) * 0.5;
+		const double KU1 = F.Garage ? Row * 0.5 : std::fmin(F.CanopyLong, 12.0) * 0.5;
+		const double KL = KU1 - KU0;
+		const double Kf = std::fmin(Floor(KU0, KV0), Floor(KU1, KV0)) - 0.05;
+		const int N = std::max(1, int(std::lround((KL - 0.6) / Kit.KioskBay)));
+		const double Bw = (KL - 0.6) / N;
+		for (int I = 0; I < N; ++I)
+		{
+			const char* Kind = I == N / 2 ? "door" : (N >= 3 && I == N - 1) ? "atm" : "glass";
+			Lay(Style + Kind, KU0 + 0.3 + I * Bw, KV0, Kf, Bw / Kit.KioskBay);
+		}
+		Lay(Style + "end", KU0 + 0.3, KV0, Kf, -1.0);
+		Lay(Style + "end", KU1 - 0.3, KV0, Kf);
+		// (in front of the shop: the gas cage, ice chest, logs and coal, A-board, planters and bin, squeezed to its length)
+		const double Squeeze = std::fmin(0.9, (KL - 0.6) / 9.7);
+		if (Squeeze >= 0.55) Lay("clutter", KU0 + 0.5, KV0 - 1.1, Floor(KU0 + 0.5, KV0 - 1.1) - 0.05, Squeeze);
+		Lay("air_water", A1 + 2.5, V1 + 1.0, Floor(A1 + 2.5, V1 + 1.0) - 0.05);
+	}
+	// (a jet wash past the canopy's far end, only where the forecourt runs on far enough and deep enough)
+	if (F.Length * 0.5 - A1 >= 11.0 && F.Depth >= V1 + 9.0 && !(F.Garage && F.GarageU > A1))
+		Lay("jet_wash", A1 + 2.0, V1 + 3.0, Floor(A1 + 6.0, V1 + 5.75) - 0.05);
+}
+} // namespace
+
 void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
 {
 	if (Detail < 0 || (Forecourts.empty() && TownThings.empty() && AirLines.empty())) return;
@@ -721,6 +785,8 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 	const Paint Light = {2.6f, 2.6f, 2.4f}, Shop = {2.2f, 1.9f, 1.5f}, Digits = {2.4f, 1.3f, 0.2f};
 	const auto Cx0 = static_cast<long long>(std::floor((X0 - 40.0) / CourtCell)), Cx1 = static_cast<long long>(std::floor((X0 + Size + 40.0) / CourtCell));
 	const auto Cz0 = static_cast<long long>(std::floor((Z0 - 40.0) / CourtCell)), Cz1 = static_cast<long long>(std::floor((Z0 + Size + 40.0) / CourtCell));
+	// [forecourts] The forecourt kit's pieces in place of the boxes below, when it's read (-TorqueForecourts=0: not).
+	const std::shared_ptr<const ForecourtKit> Kit = ForecourtKitNow();
 	for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
 		for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
 		{
@@ -739,6 +805,11 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 					const double Gy = Ground(Q.X, Q.Z);
 					return (std::isnan(Gy) ? 0.0 : Gy) + 0.05;
 				};
+				if (Kit)
+				{
+					DrawKitForecourt(*Kit, F, C.Edge, C.U, C.V, Floor, Detail, Out);
+					continue;
+				}
 				const double Roof = F.Base + 5.0;   // (the soffit: room for a lorry)
 				const double A0 = -F.CanopyLong * 0.5, A1 = F.CanopyLong * 0.5, V0 = EntryLane, V1 = EntryLane + CanopyDeep;
 				// The canopy: its band all round, white lid, the soffit under it; its posts.

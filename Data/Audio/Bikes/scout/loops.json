@@ -1,0 +1,54 @@
+{
+ "source": "src.wav",
+ "recorded_rpm": [
+  2876,
+  5234
+ ],
+ "loops": [
+  {
+   "file": "ex_on_3214.wav",
+   "from_s": 35.4,
+   "to_s": 36.0,
+   "rpm": 3214,
+   "spacing_hz": 26.78,
+   "slope_per_s": 0.183,
+   "rms": 0.1617
+  },
+  {
+   "file": "ex_on_3859.wav",
+   "from_s": 38.6,
+   "to_s": 39.2,
+   "rpm": 3859,
+   "spacing_hz": 32.16,
+   "slope_per_s": 0.092,
+   "rms": 0.1713
+  },
+  {
+   "file": "ex_off_3607.wav",
+   "from_s": 21.9,
+   "to_s": 22.5,
+   "rpm": 3607,
+   "spacing_hz": 30.06,
+   "slope_per_s": -0.112,
+   "rms": 0.1467
+  },
+  {
+   "file": "ex_on_4590.wav",
+   "from_s": 41.0,
+   "to_s": 41.6,
+   "rpm": 4590,
+   "spacing_hz": 38.25,
+   "slope_per_s": 0.072,
+   "rms": 0.1774
+  },
+  {
+   "file": "ex_on_5133.wav",
+   "from_s": 15.7,
+   "to_s": 16.3,
+   "rpm": 5133,
+   "spacing_hz": 42.78,
+   "slope_per_s": 0.052,
+   "rms": 0.2018
+  }
+ ]
+}

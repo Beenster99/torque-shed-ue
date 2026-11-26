@@ -2252,11 +2252,16 @@ void ATorqueBikePawn::HoldParked()
 	// Stood on its stand: leaned over about the line its tyres touch the ground along (side stand),
 	// or lifted (centre stand). No riding physics; the engine ticks over (or winds down, off).
 	const M3 Heading = M3::AxisAngle(V3(0.0, 1.0, 0.0), ParkHeading);
-	// (pitched along the slope first, about its own side axis: + nose up)
-	Sim->Basis = Heading * M3::AxisAngle(V3(1.0, 0.0, 0.0), ParkPitch) * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
 	// The wheels are drawn where the suspension left them (Centre, body space, up by its compression),
 	// so the body stands that much lower to keep the tyres on the road, not a sag's height above it.
-	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
+	const double UpF = Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y, UpR = Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y;
+	const double AxleUp = 0.5 * (UpF + UpR);
+	// [bought bikes] A bigger front wheel than the back (the KLE 500's 21-inch): nose up by the difference, so both
+	// tyres stand on the road (beenster in 174: "the KLE's front wheel sits below the ground when on side stand").
+	const double Base = std::fabs(Sim->Wheels[0].Centre.z - Sim->Wheels[1].Centre.z);
+	const double Tilt = Base > 0.3 ? std::atan2(UpF - UpR, Base) : 0.0;
+	// (pitched along the slope first, about its own side axis: + nose up)
+	Sim->Basis = Heading * M3::AxisAngle(V3(1.0, 0.0, 0.0), ParkPitch + Tilt) * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
 	Sim->Position = ParkGround + Sim->Basis * V3(0.0, AxleUp + ParkLift, 0.0);
 	Sim->LinearVelocity = Sim->AngularVelocity = V3();
 	Sim->Speed = 0.0;
@@ -4472,8 +4477,18 @@ void ATorqueBikePawn::UpdateRider()
 			// foot, about the tyres' contact line, as far as that leg needs, and keep the right on its peg.
 			// (The MetaHuman's own hip joint and leg, as last posed; leant left by A, a point y across and
 			// z up from the ground sits (z - Ground) cos A + y sin A up, so the ankle's mark rises by that.)
-			const double Ground = -Sim->Build.RearRadius * 100.0;
-			const double AnkleUp = In.FootDownL.Z - Ground;
+			// [bought bikes] The road where each foot goes down, from where the wheels touch it now (their axles as the
+			// springs hold them, less their radii), not the rear axle's height unladen: on soft long forks and a big
+			// front wheel the bike sits lower, and the feet went into the road (beenster on the Multistrada in 174).
+			const double AnkleUp = In.FootDownL.Z + Sim->Build.RearRadius * 100.0;
+			const FVector RoadF = BodyToLocal(Sim->Wheels[0].Centre) - FVector(0.0, 0.0, Sim->Wheels[0].Radius * 100.0);
+			const FVector RoadR = BodyToLocal(Sim->Wheels[1].Centre) - FVector(0.0, 0.0, Sim->Wheels[1].Radius * 100.0);
+			auto RoadAt = [&](double X) {
+				const double Run = RoadF.X - RoadR.X;
+				return FMath::Abs(Run) > 1.0 ? FMath::Lerp(RoadR.Z, RoadF.Z, FMath::Clamp((X - RoadR.X) / Run, 0.0, 1.0)) : RoadR.Z;
+			};
+			const double Ground = RoadAt(In.FootDownL.X);
+			In.FootDownR.Z = RoadAt(In.FootDownR.X) + AnkleUp;
 			// [rider pose] Up on the toes first (the heel up to 7 cm off the road), then, if that's not
 			// enough, the bike leant over onto the left foot (Toes: how far each ankle rises for it).
 			constexpr double ToesMax = 7.0;
