@@ -32,6 +32,10 @@ struct WarehousePiece
 	std::vector<uint8_t> PartOf;
 	std::vector<uint16_t> Idx;
 	double MinX = 1e9, MaxX = -1e9;   // (how far along its x it reaches, m)
+	// [detailed props, Nov 26] its triangles at the middle detail (parts 1 and 2) and its close-up detail alone
+	// (parts 0): instanced, the close-up detail goes after a short way (TorqueRideWorld's fine looks), so a
+	// square's yard budget pays the middle's whole and an eighth of the detail's
+	size_t MidTris = 0, FineTris = 0;
 	size_t Vertices() const { return PartOf.size(); }
 };
 
@@ -104,6 +108,10 @@ bool WarehouseInstancing();
 // A piece of the kit as its own mesh (Out's origin its own), its close-up detail (Near) or the middle's: in Out
 // and its sections, as BuildWarehouse would lay it. Returns its triangles.
 size_t WarehousePieceMesh(const WarehouseKit& Kit, int Piece, bool Near, RideMesh& Out);
+// [detailed props, Nov 26] The same with the detail asked for: 0 close-up (every part), 1 the middle's (parts 1
+// and 2), -1 the close-up detail alone (parts 0): the game draws a near square's pieces as the middle's look
+// plus this one, dropped a short way off (the middle's simple shapes sit just inside the detailed ones).
+size_t WarehousePieceLook(const WarehouseKit& Kit, int Piece, int Need, RideMesh& Out);
 
 // One shed of design D on an oblong: Corner its front wall's left end (seen from outside) on the ground,
 // Ux, Uz along that front wall (unit), Nx, Nz out of it (unit); Long by Short (m); its floor at Y, the ground's
