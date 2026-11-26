@@ -87,6 +87,7 @@ void FTorqueRoutePlanner::Open(UTorqueWorldSubsystem* InWorld)
 {
 	World = InWorld;
 	bBikePicked = false;   // [ride bike] asked afresh each time the planner opens
+	bRideWhenReady = false;
 	Tab = 0;
 	Search.Reset();
 	Searched.Reset();
@@ -130,6 +131,7 @@ void FTorqueRoutePlanner::Changed()
 {
 	++Serial;
 	bRideWhenPlanned = false;
+	bRideWhenReady = false;
 	ChangedAt = FPlatformTime::Seconds();
 	// (the journey as its code carries it, to the metre, so a friend's game plans the very same road)
 	TorqueWorld::RouteRequest AsCoded;
@@ -158,6 +160,7 @@ bool FTorqueRoutePlanner::TakeShared(bool bOpening)
 	LoopOn = -1;
 	++Serial;   // (planned afresh here, as any change; not sent back)
 	bRideWhenPlanned = false;
+	bRideWhenReady = false;
 	ChangedAt = FPlatformTime::Seconds();
 	if (bOpening)
 		FitTo(Want.Pins);
@@ -368,7 +371,10 @@ void FTorqueRoutePlanner::Ride()
 		const FString Who = WaitingFor();
 		if (!Who.IsEmpty())
 		{
-			Say(FString::Printf(TEXT("Waiting for %s to plan the road: Ride again once they're ready."), *Who));
+			// [ride bike] Once the host has picked, off by itself when everyone's ready.
+			bRideWhenReady = bBikePicked;
+			Say(bRideWhenReady ? FString::Printf(TEXT("Waiting for %s: setting off once they're ready."), *Who)
+				: FString::Printf(TEXT("Waiting for %s to plan the road: Ride again once they're ready."), *Who));
 			return;
 		}
 	}
@@ -615,6 +621,11 @@ bool FTorqueRoutePlanner::Tick(APlayerController* PC)
 			bHaveTex = true;
 			bStreetsStale = true;   // [map detail] (its cells' roads may have come in with it)
 		}
+	if (bRideWhenReady && (!WaitingFor || WaitingFor().IsEmpty()))
+	{
+		bRideWhenReady = false;
+		Ride();
+	}
 	if (bRideWhenPlanned && (PlanFor != Serial || !W->IsPlanningRide()))
 	{
 		bRideWhenPlanned = false;

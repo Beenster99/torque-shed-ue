@@ -163,6 +163,10 @@ def piece(p, lead):
     off = [round(p["mount_mm"][i] - base[i], 1) for i in range(3)]
     out = dict(file=f"{p['group']}/{p['key']}.glb", looks=f"{p['group']}/{p['key']}.json", anchor=anchor, offset_mm=off,
                node=NODE[p["moves_with"]], sub=GROUP_SUB[p["group"]], mount_mm=p["mount_mm"])
+    if p["group"] == "plate_hanger" and p["key"] == "side":
+        # (a side mount bolts to the left end of the rear axle, wherever the saddle is: by the hip it hung in the air
+        # by the tyre on a low chopper, beenster build 171. Never moved to where the bike's own hanger was.)
+        out.update(anchor="rear_axle", offset_mm=[round(p["mount_mm"][i] - pts["rear_axle"][i], 1) for i in range(3)], node="swingarm", anchor_only=True)
     if anchor == "steer_bottom":
         # (on the fork: the game turns the piece about its anchor by the change in rake, so its clamps stay on the legs)
         rake = math.radians(lead["geometry"]["rake"])

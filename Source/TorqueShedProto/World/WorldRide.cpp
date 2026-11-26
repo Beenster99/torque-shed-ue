@@ -2311,7 +2311,9 @@ double RidePlan::GroundUncut(double X, double Z, double Coarse, bool NoBores, bo
 	{
 		double WDist = 0.0, WSurf = 0.0, WHalf = 0.0, WDepth = 0.0;
 		bool Beside = true;
-		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth, nullptr, &Beside))
+		// ([real water, Nov 25] not under a building: the map puts Blairgowrie's mills on Bank Street over the
+		// Ericht's outline, and the channel cut under them stood them in the river to their doors)
+		if (NearWater(X, Z, WDist, WSurf, WHalf, WDepth, nullptr, &Beside) && !WaterHouseAt(X, Z))
 		{
 			if (WDist < WHalf)
 			{
@@ -2770,6 +2772,14 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 			Out.Props.push_back(P);
 		}
 		Stands->Props.clear();
+		// [warehouses, round 175 fps] (the warehouse kit's pieces, drawn as instances of the pieces' meshes)
+		for (RideKitPart P : Stands->KitParts)
+		{
+			P.X += float(Stands->OriginX - Out.OriginX);
+			P.Z += float(Stands->OriginZ - Out.OriginZ);
+			Out.KitParts.push_back(P);
+		}
+		Stands->KitParts.clear();
 	}
 	else if (Scene)
 	{
@@ -3251,7 +3261,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		bool Tarmac = false;
 	};
 	std::vector<Apron> PullNear;
-	if ((!PlaceStops.empty() || !Forecourts.empty()) && Rows.size() >= 2)
+	if ((!PlaceStops.empty() || !Forecourts.empty() || !RoadLaybys.empty()) && Rows.size() >= 2)
 	{
 		double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
 		for (const Row& R : Rows) { X0 = std::fmin(X0, R.At.X); X1 = std::fmax(X1, R.At.X); Z0 = std::fmin(Z0, R.At.Z); Z1 = std::fmax(Z1, R.At.Z); }
@@ -3279,6 +3289,18 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			const Forecourt& F = Forecourts[size_t(I)];
 			PullNear.push_back({F.RoadMid, F.RoadDir, F.Out, F.Depth, F.Length * 0.5, true});
 		}
+		// [everyday kits stage 5b] (the lay-bys: as a pull-off's, tarmac on an A or B road)
+		for (int Cz = int(std::floor((Z0 - 40.0) / 64.0)); Cz <= int(std::floor((Z1 + 40.0) / 64.0)); ++Cz)
+			for (int Cx = int(std::floor((X0 - 40.0) / 64.0)); Cx <= int(std::floor((X1 + 40.0) / 64.0)); ++Cx)
+			{
+				const auto It = LaybyGrid.find(static_cast<long long>(Cx) * 4000037LL + Cz);
+				if (It == LaybyGrid.end()) continue;
+				for (int I : It->second)
+				{
+					const Layby& L = RoadLaybys[size_t(I)];
+					PullNear.push_back({L.RoadMid, L.RoadDir, L.Out, L.Depth, LaybyLong * 0.5, L.Tarmac});
+				}
+			}
 	}
 	const auto PullSpot = [](const Apron& S, const P2& At, double& U, double& Off)
 	{
@@ -3297,6 +3319,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 	// (on a country road's bridge: a wide road's, a dual carriageway's or a motorway's keeps the plain parapet)
 	const bool BridgeWalls = PropModelled[PropWallStone] && PropModelled[PropWallEnd];
 	const auto StoneParapet = [BridgeWalls](double Half, int Lanes) { return BridgeWalls && Half <= 4.5 && Lanes <= 2; };
+	const bool RailsHere = BridgeRailsOn();   // [everyday kits stage 7] (a bridge with no stone walls: the bridge set's parapet)
 	static constexpr double ParapetFootHalf = 0.25, ParapetHigh = 1.15;   // (the walls laid on a deck: half their width at the foot, their height)
 	// ([build 154] UV0 is metres across and along over 4, the along counted from a whole 36 m behind this bit
 	// of road, so it stays small enough for the half-precision UVs UE draws (KEY GOTCHA 147) and the pavement's
@@ -3638,15 +3661,17 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		PaintCuts.push_back(C);
 	};
 	// ([Nov 20] which rows' bridge has the wall kit's walls: a whole run of deck or none of it)
-	std::vector<char> WallRow(Rows.size(), 0);
+	std::vector<char> WallRow(Rows.size(), 0), RailRow(Rows.size(), 0);
 	for (size_t S0 = 0; S0 < Rows.size(); ++S0)
 	{
 		if (!Rows[S0].Deck) continue;
 		size_t S1 = S0;
 		while (S1 + 1 < Rows.size() && Rows[S1 + 1].Deck) ++S1;
-		bool Country = true;
+		bool Country = true, Plain = true;
 		for (size_t J = S0; J <= S1; ++J) Country = Country && StoneParapet(Rows[J].Half, Rows[J].Lanes);
+		for (size_t J = S0; J <= S1; ++J) Plain = Plain && Rows[J].Half <= 4.5 && Rows[J].Lanes <= 2;   // [everyday kits stage 7]
 		for (size_t J = S0; J <= S1; ++J) WallRow[J] = Country ? 1 : 0;
+		for (size_t J = S0; J <= S1; ++J) RailRow[J] = RailsHere && !Plain ? 1 : 0;   // (a wide road's: the bridge set's parapet)
 		S0 = S1;
 	}
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
@@ -4197,7 +4222,8 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			// and thinner: see the pass after this loop); here only the kerb, the deck's outer face below them
 			// and the underside. Without the kit, the old slab, each face lit by its own side.)
 			const bool Kitted = WallRow[K] != 0 && WallRow[K + 1] != 0;
-			const double In = 0.15, Out2 = Kitted ? In + 2.0 * ParapetFootHalf : 0.55, Top = 1.0, Under = -1.2;
+			const bool Railed = !Kitted && RailRow[K] != 0 && RailRow[K + 1] != 0;   // [everyday kits stage 7] (the bridge set's parapet along it: BridgeKitProps)
+			const double In = 0.15, Out2 = Kitted || Railed ? In + 2.0 * ParapetFootHalf : 0.55, Top = 1.0, Under = -1.2;
 			const auto Corner = [&Settle](const Row& R, double Off, double Lift)
 			{
 				const P2 At = R.At + R.Left * Off;
@@ -4224,6 +4250,13 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				Face(Side * A0, Side * A.Half, Side * B0, Side * B.Half, 0.0, 0.0, Above, 0.4f, false);
 				if (Kitted)
 				{
+					Face(Side * A1, Side * A1, Side * B1, Side * B1, 0.0, Under, Away, 0.3f, false);
+					continue;
+				}
+				if (Railed)
+				{
+					// [everyday kits stage 7] (the edge beam's top and outer face; the parapet on it is the kit's)
+					Face(Side * A1, Side * A0, Side * B1, Side * B0, 0.0, 0.0, Above, 0.5f, false);
 					Face(Side * A1, Side * A1, Side * B1, Side * B1, 0.0, Under, Away, 0.3f, false);
 					continue;
 				}
@@ -5361,6 +5394,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			S0 = S1;
 		}
 	}
+	BridgeKitProps(Which, First, Last, Out);   // [everyday kits stage 7] (the bridge set: World/WorldRideBridgeKit.cpp)
 	if (StoneMesh && StoneMesh->Vertices() > 0) Out.Stone = StoneMesh;
 }
 

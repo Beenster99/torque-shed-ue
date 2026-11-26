@@ -4,12 +4,17 @@
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
 #include "WorldRideEaves.h"
+#include "WorldRideFarms.h"
+#include "WorldRideVillage.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRideSigns.h"
+#include "WorldRideWarehouses.h"
 
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -88,6 +93,19 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 	if (!Scene || !Land) return;
 	const Region& G = Area.Roads;
 	const std::shared_ptr<const HouseTypes> Types = HouseTypesNow();   // [towns stage 4]
+	const std::shared_ptr<const WarehouseKit> FarmKit = FarmKitNow();   // [everyday kits stage 4]
+	const std::shared_ptr<const WarehouseKit> VillageKit = VillageKitNow();   // [everyday kits stage 6]
+	// [everyday kits stage 10] (the kits bake's beach huts near the square: a building on one is a hut, whatever its kind)
+	std::vector<P2> HutsHere;
+	if (PropModelled[PropCoastBeachHut])
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Kind != "beach_hut" || T.Pts.empty()) continue;
+			P2 C(0.0, 0.0);
+			for (const P2& P : T.Pts) C = C + P;
+			C = C * (1.0 / double(T.Pts.size()));
+			if (C.X >= X0 - 10.0 && C.X < X0 + Size + 10.0 && C.Z >= Z0 - 10.0 && C.Z < Z0 + Size + 10.0) HutsHere.push_back(C);
+		}
 	const bool Scots = std::strcmp(TileLook.Name, "lowlands") == 0 || std::strcmp(TileLook.Name, "highlands") == 0;
 	const auto Inside = [X0, Z0, Size](double X, double Z) { return X >= X0 && X < X0 + Size && Z >= Z0 && Z < Z0 + Size; };
 	const auto OffRoad = [this](double X, double Z, double Spare)
@@ -546,6 +564,111 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const bool Works = Kind == "hangar" || Kind == "stadium" || Kind == "grandstand" || Kind == "industrial" || Kind == "warehouse" || Kind == "retail"
 			|| Kind == "commercial" || WallMaterial == "metal" || WallMaterial == "concrete" || WallMaterial == "cement_block" || (WallMaterial.empty() && (IsIndustrial || (IsShed && !Timber)));
 		const bool Big = HalfShort > 6.0 || Works || IsBarn;   // (a barn or a shed: a low roof)
+		// (old barns: brick or black boarded in the English lowlands and the fens, stone everywhere else)
+#if defined(_MSC_VER)
+		constexpr bool FarmLog = false;   // (the cloud checker's list of what the farm kit took: never in the game's own build)
+#else
+		static const bool FarmLog = std::getenv("WORLD_RIDE_FARM_LOG") != nullptr;
+#endif
+		const auto FarmBrick = [](const LocalLook& L) { return std::strcmp(L.Name, "fens") == 0 ? 0.4 : std::strcmp(L.Name, "lowland") == 0 ? 0.65 : 0.0; };
+		// [everyday kits stage 4] A farm building from the farm kit (WorldRideFarms.h): its design by what it is, its
+		// size and the place's walls, laid bay by bay on its box, its front (the doors) to the farmyard or the road;
+		// in place of the drawn barn. None on a bank (over 4 m across it), a ruin or a glasshouse.
+		// (a kit building laid on its box: its front the side towards Toward, else the nearest road; none on a bank,
+		// over 4 m across it)
+		const auto LayKit = [&](const WarehouseKit& Kit, int Design, P2 Toward)
+		{
+			const P2 Al = LongX ? P2(Cs, -Sn) : P2(Sn, Cs), Ac = LongX ? P2(Sn, Cs) : P2(Cs, -Sn);
+			NearOpts Opts;
+			NearHit Hit;
+			if ((Toward.X - B.X) * (Toward.X - B.X) + (Toward.Z - B.Z) * (Toward.Z - B.Z) < 4.0 && NearestOf(B.X, B.Z, Opts, Hit)) Toward = Hit.Foot;
+			double Side = (Toward.X - B.X) * Ac.X + (Toward.Z - B.Z) * Ac.Z;
+			if (std::fabs(Side) < 0.5) Side = Chance(B.X, B.Z, 703) < 0.5 ? -1.0 : 1.0;
+			const P2 Nf = Side >= 0.0 ? Ac : P2(-Ac.X, -Ac.Z);
+			const P2 Uf(Nf.Z, -Nf.X);   // (along the front, left to right seen from outside)
+			const P2 Corner(B.X + Nf.X * HalfShort - Uf.X * HalfLong, B.Z + Nf.Z * HalfShort - Uf.Z * HalfLong);
+			double Low = Base, High = Base;
+			for (double Su : {-1.0, 1.0})
+				for (double Sv : {-1.0, 1.0})
+				{
+					const double Gy = Ground(B.X + Al.X * HalfLong * Su + Ac.X * HalfShort * Sv, B.Z + Al.Z * HalfLong * Su + Ac.Z * HalfShort * Sv);
+					if (std::isnan(Gy)) continue;
+					Low = std::fmin(Low, Gy);
+					High = std::fmax(High, Gy);
+				}
+			if (High - Low >= 4.0) return false;
+			RideMesh* const Into[5] = {&Out, &Houses, &RoofOut, &BrickOut, &Washed};
+			BuildWarehouse(Kit, Kit.Designs[size_t(Design)], Corner.X, Corner.Z, Uf.X, Uf.Z, Nf.X, Nf.Z, HalfLong * 2.0, HalfShort * 2.0, Base, Low, Fine ? 2 : 0, Into);
+			return true;
+		};
+		// [everyday kits stage 10] A beach hut the map draws: the coast set's hut in place of the drawn box, its doors
+		// on a short side, the one towards the sea (HutFront), sized to its outline.
+		const auto HutHere = [&]()
+		{
+			for (const P2& H : HutsHere) if (std::fabs(H.X - B.X) < 2.0 && std::fabs(H.Z - B.Z) < 2.0) return true;
+			return false;
+		};
+		if (PropModelled[PropCoastBeachHut] && HalfLong <= 4.0 && (Kind == "beach_hut" || HutHere()))
+		{
+			const P2 Al = LongX ? P2(Cs, -Sn) : P2(Sn, Cs);
+			const P2 Way = HutFront(P2(B.X, B.Z));
+			const P2 Front = Way.X * Al.X + Way.Z * Al.Z < 0.0 ? Al * -1.0 : Al;
+			RideProp Pr;
+			Pr.Kind = uint16_t(PropCoastBeachHut);
+			Pr.Variant = uint8_t(Chance(B.X, B.Z, 901) * 6.0);
+			Pr.Mapped = true;
+			Pr.X = float(B.X - Out.OriginX);
+			Pr.Y = float(Base);
+			Pr.Z = float(B.Z - Out.OriginZ);
+			Pr.Yaw = float(std::atan2(Front.Z, Front.X));
+			Pr.Scale = float(std::clamp(HalfShort * 2.0 / 2.0, 0.75, 1.5));   // (the model 2 m across its doors)
+			Out.Props.push_back(Pr);
+			if (Tally) ++Tally->Drawn;
+			continue;
+		}
+		// [everyday kits stage 6] A school from the village kit (WorldRideVillage.h): a small one old, in the place's
+		// stone or brick, or a timber classroom; a big one post-war or new; its front (the entrance) to the road.
+		if (VillageKit && !Ruin && !GlassHouse)
+		{
+			const double Long = HalfLong * 2.0, Short = HalfShort * 2.0;
+			const char* Class = VillageClassOf(Kind, Long, Short, Each.Floors, FarmBrick(Look) <= 0.0, Chance(B.X, B.Z, 711));
+			int Design = *Class ? VillageKit->Pick(Class, Long, Short, Chance(B.X, B.Z, 712)) : -1;
+			if (Design < 0 && *Class) Design = VillageKit->Pick(std::strcmp(Class, "school_new") == 0 ? "school_small" : "school_new", Long, Short, Chance(B.X, B.Z, 712));
+			if (Design >= 0 && LayKit(*VillageKit, Design, P2(B.X, B.Z)))
+			{
+				if (FarmLog) std::printf("village kit: %s kind %s -> %s at %.1f %.1f, %.1f x %.1f m\n", Class, Kind.c_str(), VillageKit->Designs[size_t(Design)].Name.c_str(), B.X, B.Z, Long, Short);
+				if (Tally) { ++Tally->Drawn; ++Tally->VillageKit; }
+				continue;
+			}
+		}
+		// [everyday kits stage 4] A farm building from the farm kit (WorldRideFarms.h): its design by what it is, its
+		// size and the place's walls, laid bay by bay on its box, its front (the doors) to the farmyard or the road;
+		// in place of the drawn barn. None on a bank (over 4 m across it), a ruin or a glasshouse.
+		if (FarmKit && !Ruin && !GlassHouse && !IsWorship && !IsShop && !IsCivic && !IsBlock && Each.Floors < 3.0)
+		{
+			const int YardAt = FieldAt(B.X, B.Z);
+			const bool InYard = YardAt >= 0 && FieldAreas[size_t(YardAt)].Kind == FieldFarmyard;
+			const double Long = HalfLong * 2.0, Short = HalfShort * 2.0;
+			const char* Class = FarmClassOf(Kind, Baked, Long, Short, InYard, FarmBrick(Look), Chance(B.X, B.Z, 701));
+			int Design = *Class ? FarmKit->Pick(Class, Long, Short, Chance(B.X, B.Z, 702)) : -1;
+			if (Design < 0 && *Class && std::strncmp(Class, "farm_", 5) != 0) Design = FarmKit->Pick("farm_shed", Long, Short, Chance(B.X, B.Z, 702));
+			if (Design >= 0)
+			{
+				// (its front the side towards the yard's middle, else the road)
+				P2 Toward(B.X, B.Z);
+				if (InYard)
+				{
+					const FieldArea& Fa = FieldAreas[size_t(YardAt)];
+					Toward = P2((Fa.MinX + Fa.MaxX) * 0.5, (Fa.MinZ + Fa.MaxZ) * 0.5);
+				}
+				if (LayKit(*FarmKit, Design, Toward))
+				{
+					if (FarmLog) std::printf("farm kit: %s look %s brick %.2f kind %s baked %d yard %d -> %s at %.1f %.1f, %.1f x %.1f m\n", Class, Look.Name, double(Look.BrickShare), Kind.c_str(), Baked, int(InYard), FarmKit->Designs[size_t(Design)].Name.c_str(), B.X, B.Z, Long, Short);
+					if (Tally) { ++Tally->Drawn; ++Tally->FarmKit; }
+					continue;
+				}
+			}
+		}
 		// [towns stage 4] What kind of house it is and when it was built (Data/RideUK/house_types.json): a
 		// cottage or one of a village row out of town; in a town a detached house, a semi, one of a terrace,
 		// or a tenement (Scotland's flats, three floors and up). A row takes one period, a street mostly one.

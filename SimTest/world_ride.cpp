@@ -12,10 +12,14 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
+#include "WorldRideWarehouses.h"
+#include "WorldRideFarms.h"
+#include "WorldRideVillage.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
 #include "WorldTrains.h"
+#include "WorldRideForecourtKit.h"
 #include "WorldLevelCrossing.h"
 #include "WorldRoute.h"
 #include "WorldRouteMap.h"
@@ -175,6 +179,18 @@ int main(int Argc, char** Argv)
 		const char* KitOff = std::getenv("WORLD_RIDE_CHURCHES");
 		if ((!KitOff || std::string(KitOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.json"), KitText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_kit.bin"), KitBin)) SetChurchKit(KitText, KitBin);
+		std::string WhText, WhBin;   // [warehouses] (WORLD_RIDE_WAREHOUSES=0: the plain drawn sheds, to compare; WORLD_RIDE_WAREHOUSE_YARDS=0: no yard props)
+		const char* WhOff = std::getenv("WORLD_RIDE_WAREHOUSES");
+		if ((!WhOff || std::string(WhOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.json"), WhText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.bin"), WhBin)) SetWarehouseKit(WhText, WhBin, !std::getenv("WORLD_RIDE_WAREHOUSE_YARDS") || std::string(std::getenv("WORLD_RIDE_WAREHOUSE_YARDS")) != "0");
+		std::string FmText, FmBin;   // [everyday kits stage 4] (WORLD_RIDE_FARMS=0: the drawn barns, to compare)
+		const char* FmOff = std::getenv("WORLD_RIDE_FARMS");
+		if ((!FmOff || std::string(FmOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/farm_kit.json"), FmText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/farm_kit.bin"), FmBin)) SetFarmKit(FmText, FmBin);
+		std::string VkText, VkBin;   // [everyday kits stage 6] (WORLD_RIDE_VILLAGE=0: the drawn schools, and no village set props, to compare)
+		const char* VkOff = std::getenv("WORLD_RIDE_VILLAGE");
+		if ((!VkOff || std::string(VkOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.json"), VkText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.bin"), VkBin)) SetVillageKit(VkText, VkBin);
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
@@ -182,8 +198,19 @@ int main(int Argc, char** Argv)
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
 		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
 		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "0") RidePlan::WholeJunctions = false;   // [smooth junctions] the old drawing, for before/after totals
+		if (const char* Mo = std::getenv("WORLD_RIDE_MONTH")) RidePlan::SeasonMonth = std::atoi(Mo);   // [farm machinery] (the ride's month: the fields' machines by season)
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
+		{
+			const char* RsOff = std::getenv("WORLD_RIDE_ROADSIDE");   // [everyday kits stage 5b] (=0: no lay-bys or roadside cafes)
+			SetRoadsideOn(!RsOff || std::string(RsOff) != "0");
+			const char* BkOff = std::getenv("WORLD_RIDE_BRIDGEKIT");   // [everyday kits stage 7] (=0: no bridge set)
+			SetBridgeKitOn(!BkOff || std::string(BkOff) != "0");
+		}
+		std::string FcText, FcBin;   // [forecourts] (WORLD_RIDE_FORECOURTS=0: the plain drawn forecourts, to compare)
+		const char* FcOff = std::getenv("WORLD_RIDE_FORECOURTS");
+		if ((!FcOff || std::string(FcOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/forecourt_kit.json"), FcText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/forecourt_kit.bin"), FcBin)) SetForecourtKit(FcText, FcBin);
 		std::string GlyphText;   // [OSM stage 6A]
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/sign_glyphs.json"), GlyphText)) SetSignFont(GlyphText);
 		std::string PlaceText;   // [OSM stage 6C]
@@ -359,6 +386,32 @@ int main(int Argc, char** Argv)
 	{
 		Plan->FacadeKit = std::atoi(std::getenv("WORLD_RIDE_FACADE")) != 0;
 		for (int K = RidePlan::FirstFacade; K < RidePlan::PropKinds; ++K) Plan->PropModelled[K] = Plan->FacadeKit;
+	}
+	// [everyday kits stage 1] WORLD_RIDE_PROPKIT=1: the prop kit's kinds with a model in Data/RideUK/Props drawn as
+	// props (as the game does with them listed in its kit), for WORLD_RIDE_MESH.kitprops.
+	if (Plan && std::getenv("WORLD_RIDE_PROPKIT") != nullptr && std::string(std::getenv("WORLD_RIDE_PROPKIT")) == "1")
+	{
+		Plan->RealTrees = Plan->RealHedges = true;   // (trees and hedges as the game's own models: left out of the pictures)
+		for (int K = 0; K < RidePlan::PropKinds; ++K)
+		{
+			if (K >= RidePlan::FirstFacade && K <= RidePlan::PropWallEnd) continue;
+			if (Files::Exists(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), std::string("Data/RideUK/Props/SM_Prop_") + RidePlan::PropName(K) + "_0.glb"))) Plan->PropModelled[K] = true;
+		}
+		// ([everyday kits stage 6] WORLD_RIDE_VILLAGE=0: without the village set, to compare)
+		if (std::getenv("WORLD_RIDE_VILLAGE") != nullptr && std::string(std::getenv("WORLD_RIDE_VILLAGE")) == "0")
+			for (int K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign; ++K) Plan->PropModelled[K] = false;
+		// ([everyday kits stage 9] WORLD_RIDE_POWER=0: the skyline's code shapes, to compare)
+		if (std::getenv("WORLD_RIDE_POWER") != nullptr && std::string(std::getenv("WORLD_RIDE_POWER")) == "0")
+			for (int K = RidePlan::PropPowerPylon; K <= RidePlan::PropPowerPalisade; ++K) Plan->PropModelled[K] = false;
+		// ([everyday kits stage 10] WORLD_RIDE_COAST=0: without the coast set)
+		if (std::getenv("WORLD_RIDE_COAST") != nullptr && std::string(std::getenv("WORLD_RIDE_COAST")) == "0")
+			for (int K = RidePlan::PropCoastBeachHut; K <= RidePlan::PropCoastLifebuoy; ++K) Plan->PropModelled[K] = false;
+		// ([farm machinery] WORLD_RIDE_MACHINES=0: without the farm machines)
+		if (std::getenv("WORLD_RIDE_MACHINES") != nullptr && std::string(std::getenv("WORLD_RIDE_MACHINES")) == "0")
+			for (int K = RidePlan::PropMachCombine; K <= RidePlan::PropMachCultivator; ++K) Plan->PropModelled[K] = false;
+		std::printf("Coast things from the kits files: %d\n", int(Plan->Area.Roads.KitThings.size()));
+		std::printf("Lay-bys: %d made of %d mapped; roadside cafes signed: %d; roadside things: %d\n", int(Plan->RoadLaybys.size()), Plan->LaybysSeen, Plan->RoadCafes,
+			int(Plan->RoadsideThings.size()));
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -926,6 +979,61 @@ int main(int Argc, char** Argv)
 		std::printf("Models: %d; recipes:", Plan->ModelCount);
 		for (int Rk = 0; Rk < RidePlan::RecipeKinds; ++Rk) std::printf(" %d", Plan->RecipeCount[Rk]);
 		std::printf("\n");
+	}
+	{
+		// [build 171 cenotaph] (beenster: a war memorial in the middle of the A686) No place drawn on a road's
+		// surface. (WORLD_RIDE_ONROAD=1: memorials, a cross, a stone and an obelisk mapped right on the ride's
+		// road's middle and at its edge as well; each must end up off it)
+		if (std::getenv("WORLD_RIDE_ONROAD") != nullptr)
+		{
+			Region& G = Plan->Area.Roads;
+			const char* OnRoad[] = {"memorial", "memorial", "cross", "standing_stone", "obelisk"};
+			for (int Q = 0; Q < 5; ++Q)
+			{
+				const double Want = 1600.0 + 90.0 * Q;
+				for (size_t I = 1; I < Plan->Road.size(); ++I)
+					if (Plan->Road[I].Along >= Want)
+					{
+						const P2 D = Plan->Road[I].At - Plan->Road[I - 1].At;
+						const double L = std::fmax(1e-6, D.Length());
+						Sight S;
+						S.Kind = OnRoad[Q];
+						S.Name = std::string("Test on the road ") + OnRoad[Q];
+						S.At = Plan->Road[I].At + P2(D.Z / L, -D.X / L) * (Q % 2 == 0 ? 0.0 : Plan->Road[I].Half * 0.9);
+						G.Sights.push_back(S);
+						std::printf("recipe test on the road %s at %.1f, %.1f\n", OnRoad[Q], S.At.X, S.At.Z);
+						break;
+					}
+			}
+			Plan->NoteSites();
+			Plan->IndexPlaceRecipes();
+		}
+		int OnRoad = 0;
+		for (const RidePlan::PlaceRecipe& Pr : Plan->PlaceRecipes)
+		{
+			if (RidePlan::PlaceFootprint(Pr) <= 0.0) continue;
+			// (against the roads as drawn: the blocks round it laid first, as when a rider comes near)
+			Rect Box;
+			Box.X0 = Pr.At.X - 40.0; Box.Z0 = Pr.At.Z - 40.0; Box.X1 = Pr.At.X + 40.0; Box.Z1 = Pr.At.Z + 40.0;
+			Plan->LayBlocks(Box);
+			if (Plan->PlaceOnRoad(Pr))
+			{
+				++OnRoad;
+				RidePlan::NearOpts No;
+				No.NoBores = true;
+				RidePlan::NearHit Nh;
+				Plan->NearestOf(Pr.At.X, Pr.At.Z, No, Nh);
+				const Sight& Ps = Plan->Area.Roads.Sights[size_t(Pr.Sight)];
+				std::printf("  PLACE ON ROAD: %s (%s %s) at %.1f, %.1f: %.1f m from road %d's middle, its half %.1f, reach %.1f%s\n", Ps.Name.c_str(), Ps.Kind.c_str(), Ps.Sub.c_str(),
+					Pr.At.X, Pr.At.Z, Nh.Dist, Nh.Which, Nh.Half, RidePlan::PlaceFootprint(Pr), Nh.Deck ? " (on a bridge)" : "");
+			}
+		}
+		for (int Ds : Plan->PlacesDroppedSights)
+		{
+			const Sight& Ps = Plan->Area.Roads.Sights[size_t(Ds)];
+			std::printf("  place not drawn (on a road all round): %s (%s %s) at %.1f, %.1f\n", Ps.Name.c_str(), Ps.Kind.c_str(), Ps.Sub.c_str(), Ps.At.X, Ps.At.Z);
+		}
+		std::printf("Places on a road: %d of %d drawn (moved off %d, dropped %d)%s\n", OnRoad, int(Plan->PlaceRecipes.size()), Plan->PlacesMoved, Plan->PlacesDropped, OnRoad > 0 ? "  FAIL" : "");
 	}
 	{
 		// [places stage 2] The stops made at the places worth riding to.
@@ -1966,6 +2074,36 @@ int main(int Argc, char** Argv)
 				continue;
 			}
 			std::printf("    water %.2f (%s), path %.0f m, a sailing %.0f s\n", L.Water, L.Sea ? "sea" : "loch", L.PathLength, L.Seconds);
+			if (std::getenv("WORLD_RIDE_FERRY_MAP"))
+				for (int E = 0; E < 2 && C.Line.size() >= 2; ++E)
+				{
+					// (a map round each end of the route, 20 m squares: # land over 1, + land, ~ sea, - wet not sea, o the
+					// route's end, B the berth, H the head)
+					const P2 A0 = E == 0 ? C.Line.front() : C.Line.back();
+					std::printf("    end %d map round %.0f,%.0f (x across, z down):\n", E, A0.X, A0.Z);
+					for (int Zi = -20; Zi <= 20; ++Zi)
+					{
+						std::string Row = "      ";
+						for (int Xi = -30; Xi <= 30; ++Xi)
+						{
+							const double Sq = std::getenv("WORLD_RIDE_FERRY_MAP")[0] == '2' ? 100.0 : 20.0;
+							const P2 Q = A0 + P2(Xi * Sq, Zi * Sq);
+							const auto Near = [&Q, Sq](const P2& T) { return std::fabs(T.X - Q.X) <= 10.0 * Sq / 20.0 && std::fabs(T.Z - Q.Z) <= 10.0 * Sq / 20.0; };
+							const double H = Ask.Height(Q.X, Q.Z);
+							char Ch = std::isnan(H) ? '?' : Ask.Sea(Q.X, Q.Z) ? '~' : H <= L.Water + 0.2 ? '-' : H > 1.0 ? '#' : '+';
+							if (Near(L.Ends[E].Head)) Ch = 'H';
+							if (Near(L.Ends[E].Berth)) Ch = 'B';
+							if (Near(A0)) Ch = 'o';
+							Row += Ch;
+						}
+						std::printf("%s\n", Row.c_str());
+					}
+					std::printf("      across the end:");
+					for (int Xi = -30; Xi <= 30; Xi += 2) std::printf(" %.1f", Ask.Height(A0.X + Xi * 100.0, A0.Z));
+					std::printf("\n      up the end:");
+					for (int Zi = -20; Zi <= 20; Zi += 2) std::printf(" %.1f", Ask.Height(A0.X, A0.Z + Zi * 100.0));
+					std::printf("\n");
+				}
 			for (int E = 0; E < 2; ++E)
 			{
 				const Ferries::End& N = L.Ends[E];
@@ -1981,6 +2119,35 @@ int main(int Argc, char** Argv)
 					for (const auto& A : N.Approach) std::fprintf(Dump, "approach %s %d %.2f %.3f %.2f %.3f\n", C.Id.c_str(), E, A[0], A[1], A[2], Ask.Height(A[0], A[2]));
 					std::fprintf(Dump, "end %s %d %.2f %.2f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.2f %.2f %.3f\n", C.Id.c_str(), E, N.Axis.X, N.Axis.Z, N.Head.X, N.Head.Z, N.HeadY, N.Tip.X, N.Tip.Z, N.TipY, N.Foot.X, N.Foot.Z, N.FootY, N.Berth.X, N.Berth.Z, N.Shore.X, N.Shore.Z, L.Water);
 				}
+			}
+			// [build 174 feedback] (beenster, Ardrossan: no road joining the slipway, the boat through the ground) Each end
+			// joined to the map's road (the approach, or the road at the head), the boat's berth and deck over the water,
+			// the sailing off the land.
+			{
+				int OnLand = 0;
+				for (int I = 0; I <= 40; ++I)
+				{
+					P2 Pos, Bow;
+					Ferries::Sail(L, C.Long, I / 40.0, Pos, Bow);
+					for (double Hull : {-Ferries::HalfDeck, 0.0, Ferries::HalfDeck})
+					{
+						const P2 Q = Pos + Bow * Hull;
+						if (!Ask.Sea(Q.X, Q.Z) && Ask.Height(Q.X, Q.Z) > L.Water + Ferries::DeckY - 0.3) ++OnLand;
+					}
+				}
+				for (int E = 0; E < 2; ++E)
+				{
+					const Ferries::End& N = L.Ends[E];
+					const bool Joined = !N.Approach.empty() || ((N.Road.X != 0.0 || N.Road.Z != 0.0) && N.Road.DistanceTo(N.Head) < 6.0);
+					double Worst = -1e9;
+					for (double D = -Ferries::HalfDeck; D <= Ferries::HalfDeck; D += 2.0)
+					{
+						const P2 Q = N.Berth + N.Axis * D;
+						Worst = std::max(Worst, Ask.Height(Q.X, Q.Z));
+					}
+					std::printf("    ferry check %s end %d: road %s, deck %s (highest ground under the berth %.2f, the deck at %.2f)\n", C.Id.c_str(), E, Joined ? "joined" : "NOT JOINED", Worst > L.Water + Ferries::DeckY - 0.3 ? "OVER LAND" : "over water", Worst, L.Water + Ferries::DeckY);
+				}
+				std::printf("    ferry check %s sailing: %s (%d of 123 hull points over land)\n", C.Id.c_str(), OnLand > 0 ? "OVER LAND" : "clear", OnLand);
 			}
 			for (int I = 0; I <= 10; ++I)
 			{
@@ -3423,6 +3590,37 @@ int main(int Argc, char** Argv)
 				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
 			}
 		}
+		else if (std::getenv("WORLD_RIDE_SHED") != nullptr)
+		{
+			// [warehouses] (or the nth big shed outline from the ride's start: industrial, warehouse or retail, 1500 m2 and more)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_SHED"));
+			std::vector<std::pair<double, size_t>> Sheds;
+			for (size_t I = 0; I < Plan->TowerShapes.size(); ++I)
+			{
+				const RidePlan::TowerShape& T = Plan->TowerShapes[I];
+				if ((T.Class == "industrial" || T.Class == "warehouse" || T.Class == "retail") && T.Floor >= 1500.0 && T.Ring.size() >= 4 && T.Ring.size() <= (std::getenv("WORLD_RIDE_SHED_OBLONG") ? 5u : 12u))
+					Sheds.push_back({T.Mid.DistanceTo(Plan->Road[0].At), I});
+			}
+			std::sort(Sheds.begin(), Sheds.end());
+			{
+				const std::shared_ptr<const WarehouseKit> Wk = WarehouseKitNow();
+				std::printf("warehouse kit: %zu designs\n", Wk ? Wk->Designs.size() : size_t(0));
+				for (size_t K = 0; K < Sheds.size() && K < 12; ++K)
+				{
+					const RidePlan::TowerShape& T = Plan->TowerShapes[Sheds[K].second];
+					std::printf("  shed %zu: %s %.0f m2 base %.1f %zu corners at %.0f, %.0f\n", K, T.Class.c_str(), T.Floor, T.Base, T.Ring.size(), T.Mid.X, T.Mid.Z);
+				}
+			}
+			if (Nth >= 0 && size_t(Nth) < Sheds.size())
+			{
+				const RidePlan::TowerShape& T = Plan->TowerShapes[Sheds[size_t(Nth)].second];
+				Centre = T.Mid;
+				std::printf("shed %d of %zu: %s, %.0f m2, %zu corners, at %.0f, %.0f\n", Nth, Sheds.size(), T.Class.c_str(), T.Floor, T.Ring.size(), Centre.X, Centre.Z);
+			}
+			Rect Round;
+			Round.X0 = Centre.X - 300.0; Round.Z0 = Centre.Z - 300.0; Round.X1 = Centre.X + 300.0; Round.Z1 = Centre.Z + 300.0;
+			Plan->LayBlocks(Round);
+		}
 		else if (std::getenv("WORLD_RIDE_MESH_AT") != nullptr)
 		{
 			// (or a place: x,z in the ride's frame, its roads laid round it; "ll:lat,lon" a place on the map)
@@ -3526,6 +3724,78 @@ int main(int Argc, char** Argv)
 				break;
 			}
 		}
+		else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr || std::getenv("WORLD_RIDE_ROADTHING") != nullptr || std::getenv("WORLD_RIDE_SPOT") != nullptr
+			|| std::getenv("WORLD_RIDE_DECK") != nullptr)
+		{
+			// [everyday kits stage 5b] (or the nth lay-by made; or WORLD_RIDE_ROADTHING=kind,n: the nth roadside thing
+			// of that prop kind, RidePlan::PropRoadCafeSign's say)
+			P2 Spot(0.0, 0.0);
+			bool Got = false;
+			if (std::getenv("WORLD_RIDE_SPOT") != nullptr)   // (or WORLD_RIDE_SPOT=x,z: there, to compare with the set off)
+				Got = std::sscanf(std::getenv("WORLD_RIDE_SPOT"), "%lf,%lf", &Spot.X, &Spot.Z) == 2;
+			else if (std::getenv("WORLD_RIDE_DECK") != nullptr)
+			{
+				// ([everyday kits stage 7] or the nth bridge on the ride's own road: its deck's middle; "w,n": the nth wide
+				// one, more than 9 m across, on any road laid)
+				int Nth = std::atoi(std::getenv("WORLD_RIDE_DECK"));
+				if (std::getenv("WORLD_RIDE_DECK")[0] == 'w')
+				{
+					Nth = std::atoi(std::getenv("WORLD_RIDE_DECK") + 2);
+					for (const int W : LaidRoads(*Plan))
+					{
+						const std::vector<RoadPoint>& Rp = Plan->RoadOf(W);
+						for (size_t I = 0; I < Rp.size() && !Got; ++I)
+						{
+							if (!Rp[I].Bridge || (I > 0 && Rp[I - 1].Bridge) || Rp[I].Half <= 4.5) continue;
+							size_t J = I;
+							while (J + 1 < Rp.size() && Rp[J + 1].Bridge) ++J;
+							if (J == I || Nth-- > 0) continue;
+							Spot = Rp[(I + J) / 2].At;
+							Got = true;
+							std::printf("wide deck on road %d: %.0f m at %.1f, %.1f, half %.1f\n", W, Rp[J].Along - Rp[I].Along, Spot.X, Spot.Z, Rp[I].Half);
+						}
+						if (Got) break;
+					}
+					Nth = 1 << 30;
+				}
+				for (size_t I = 0; I < Plan->Road.size() && !Got; ++I)
+				{
+					if (!Plan->Road[I].Bridge || (I > 0 && Plan->Road[I - 1].Bridge)) continue;
+					size_t J = I;
+					while (J + 1 < Plan->Road.size() && Plan->Road[J + 1].Bridge) ++J;
+					if (Nth-- > 0) continue;
+					Spot = Plan->Road[(I + J) / 2].At;
+					Got = true;
+					std::printf("deck %d: %.0f m at %.1f, %.1f, half %.1f, %.1f km along\n", std::atoi(std::getenv("WORLD_RIDE_DECK")), Plan->Road[J].Along - Plan->Road[I].Along,
+						Spot.X, Spot.Z, Plan->Road[I].Half, Plan->Road[I].Along / 1000.0);
+				}
+			}
+			else if (std::getenv("WORLD_RIDE_LAYBY") != nullptr)
+			{
+				const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_LAYBY")));
+				if (Nth < Plan->RoadLaybys.size())
+				{
+					const RidePlan::Layby& L = Plan->RoadLaybys[Nth];
+					Spot = L.RoadMid + L.Out * (L.Half + L.Depth * 0.5);
+					Got = true;
+					std::printf("lay-by %d of %d at %.1f, %.1f, %.1f m deep\n", int(Nth), int(Plan->RoadLaybys.size()), Spot.X, Spot.Z, L.Depth);
+				}
+			}
+			else
+			{
+				int Kind = 0, Nth = 0;
+				std::sscanf(std::getenv("WORLD_RIDE_ROADTHING"), "%d,%d", &Kind, &Nth);
+				for (const RidePlan::RoadsideThing& T : Plan->RoadsideThings)
+					if (T.Kind == Kind && Nth-- == 0) { Spot = T.At; Got = true; std::printf("%s at %.1f, %.1f\n", RidePlan::PropName(Kind), Spot.X, Spot.Z); break; }
+			}
+			if (Got)
+			{
+				Rect Round;
+				Round.X0 = Spot.X - 300.0; Round.Z0 = Spot.Z - 300.0; Round.X1 = Spot.X + 300.0; Round.Z1 = Spot.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = Spot;
+			}
+		}
 		else if (std::getenv("WORLD_RIDE_CHURCH") != nullptr)
 		{
 			// (or the nth church the map has, with its tower)
@@ -3569,7 +3839,7 @@ int main(int Argc, char** Argv)
 		else
 			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
-		std::string Text, PropText, WallText, TurfText, PlantText, RoadUvText;   // ([road edges, Nov 18] the turf with the land, after it)
+		std::string Text, PropText, WallText, TurfText, PlantText, RoadUvText, KitPropText;   // ([road edges, Nov 18] the turf with the land, after it)
 		char Buf[128];
 		for (const int W : LaidRoads(*Plan))
 		{
@@ -3583,6 +3853,16 @@ int main(int Argc, char** Argv)
 				if (!NearIt) continue;
 				RideMesh Piece;
 				Plan->RoadPiece(W, First, Last, Piece);
+				// ([everyday kits stage 7] the bridge set's models the piece lays, to WORLD_RIDE_MESH.kitprops: name variant
+				// x z y yaw pitch stretch scale across)
+				for (const RideProp& P : Piece.Props)
+				{
+					if (P.Kind < RidePlan::PropBridgeArch || P.Kind > RidePlan::PropBridgeRail) continue;
+					if (std::hypot(Piece.OriginX + P.X - Centre.X, Piece.OriginZ + P.Z - Centre.Z) > Reach2 + 40.0) continue;
+					std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Piece.OriginX + P.X - Centre.X,
+						Piece.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
+					KitPropText += Buf;
+				}
 				// ([road edges, Nov 18] with its country shoulders' turf, drawn as the land)
 				for (const RideMesh* Sub : {&Piece, Piece.Turf.get(), Piece.Stone.get()})   // ([Nov 18] and its bridge parapets, with the walls)
 				{
@@ -3614,6 +3894,36 @@ int main(int Argc, char** Argv)
 				}
 			}
 		}
+		// (WORLD_RIDE_WHO=x,z: which of the finest square's scenery makers draws its biggest flat triangle there)
+		if (const char* Who = std::getenv("WORLD_RIDE_WHO"))
+		{
+			double Wx = 0.0, Wz = 0.0;
+			std::sscanf(Who, "%lf,%lf", &Wx, &Wz);
+			const double Tx = std::floor((Centre.X + Wx) / 256.0) * 256.0, Tz = std::floor((Centre.Z + Wz) / 256.0) * 256.0;
+			const auto Biggest = [](const RideMesh& M)
+			{
+				double Best = 0.0;
+				for (size_t T = 0; T + 2 < M.Idx.size(); T += 3)
+				{
+					const float* A = &M.Pos[M.Idx[T] * 3]; const float* B = &M.Pos[M.Idx[T + 1] * 3]; const float* C = &M.Pos[M.Idx[T + 2] * 3];
+					Best = std::fmax(Best, std::fabs((B[0] - A[0]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[0] - A[0])) * 0.5);
+				}
+				return Best;
+			};
+			const auto Try = [&](const char* Name, auto&& Make) { RideMesh M; M.OriginX = Tx; M.OriginZ = Tz; Make(M); std::printf("who: %s biggest %.0f m2, %zu tris\n", Name, Biggest(M), M.Idx.size() / 3); };
+			Try("scenery", [&](RideMesh& M) { Plan->SceneryTile(Tx, Tz, 256.0, 4.0, M); });
+			Try("skyline", [&](RideMesh& M) { Plan->SkylineTile(Tx, Tz, 256.0, 2, M); });
+			Try("fields", [&](RideMesh& M) { Plan->FieldsTile(Tx, Tz, 256.0, 2, M); });
+			Try("wild", [&](RideMesh& M) { Plan->WildTile(Tx, Tz, 256.0, 2, M); });
+			Try("towers", [&](RideMesh& M) { Plan->TowersTile(Tx, Tz, 256.0, 2, M); });
+			Try("places", [&](RideMesh& M) { Plan->PlacesTile(Tx, Tz, 256.0, 2, M); });
+			Try("townlife", [&](RideMesh& M) { Plan->TownLifeTile(Tx, Tz, 256.0, 2, M); });
+			Try("carparks", [&](RideMesh& M) { Plan->CarParksTile(Tx, Tz, 256.0, 2, M); });
+			Try("rings", [&](RideMesh& M) { Plan->RingsTile(Tx, Tz, 256.0, 2, M); });
+			for (const auto& T : Plan->TowerShapes)
+				if (T.Floor > 5000.0 && std::hypot(T.Mid.X - Centre.X - Wx, T.Mid.Z - Centre.Z - Wz) < 400.0)
+					std::printf("who: tower '%s' id %s class '%s' floor %.0f m2 ground %.1f top %.1f guessed %d outline %d ring %zu\n", T.Name.c_str(), T.Id.c_str(), T.Class.c_str(), T.Floor, T.Ground, T.Top, int(T.Guessed), int(T.Outline), T.Ring.size());
+		}
 		// [real water] (WORLD_RIDE_PROBE=x,z[;x,z..] metres from the place: the ground there raw, cut, troughed and
 		// drawn, and the nearest water's level, to see why a stream stands over its banks)
 		if (const char* Probe = std::getenv("WORLD_RIDE_PROBE"))
@@ -3635,6 +3945,23 @@ int main(int Argc, char** Argv)
 				std::printf("probe %.1f,%.1f: raw %.2f uncut %.2f trough %.2f drawn %.2f | water %d kind %d dist %.2f half %.2f level %.2f depth %.2f beside %d\n", Px, Pz,
 					Plan->Land ? Plan->Land->Height(X, Z) : -1.0, Plan->GroundUncut(X, Z, 0.0, false, false), Plan->GroundUncut(X, Z, 4.0, false, true),
 					Plan->LandDrawnAt(X, Z), int(Wet), Wk, Wd, Wh, Ws, Wdp, int(Beside));
+				// ([real water, Blairgowrie] the buildings whose boxes reach it: what ends a river's width)
+				std::vector<Building> Near;
+				Plan->HouseFootBoxes(X - 1.0, Z - 1.0, 2.0, Near);
+				int Inside = 0;
+				for (const Building& B : Near)
+				{
+					const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw), Dx = X - B.X, Dz = Z - B.Z;
+					if (std::fabs(Dx * Cs - Dz * Sn) < B.W * 0.5 && std::fabs(Dx * Sn + Dz * Cs) < B.D * 0.5) ++Inside;
+				}
+				std::printf("    buildings near %zu, inside %d\n", Near.size(), Inside);
+				if (const int Fa = Plan->FieldAt(X, Z); Fa >= 0)
+				{
+					const auto& F = Plan->FieldAreas[size_t(Fa)];
+					std::printf("    field %d kind %d flowing %d level %.2f box %.0f,%.0f..%.0f,%.0f\n", Fa, int(F.Kind), int(F.Flowing), F.Level, F.MinX - Centre.X, F.MinZ - Centre.Z, F.MaxX - Centre.X, F.MaxZ - Centre.Z);
+				}
+				if (std::getenv("WORLD_RIDE_PROBE_BOXES") != nullptr)
+					for (const Building& B : Near) std::printf("      box at %.1f,%.1f %.1f x %.1f yaw %.2f\n", B.X - Centre.X, B.Z - Centre.Z, B.W, B.D, B.Yaw);
 			}
 		}
 		// With WORLD_RIDE_MESH_R (metres round the place): the ground's finest squares there and what stands on them.
@@ -3674,6 +4001,20 @@ int main(int Argc, char** Argv)
 							bool In = false;
 							for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh->OriginX + Mesh->Pos[Mesh->Idx[T + C] * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[Mesh->Idx[T + C] * 3 + 2] - Centre.Z) < Round;
 							if (!In) continue;
+							// (WORLD_RIDE_MESH_BIG=m2: which of the square's meshes a flat triangle bigger than that is in)
+							if (const char* BigAt = std::getenv("WORLD_RIDE_MESH_BIG"))
+							{
+								const float* A = &Mesh->Pos[Mesh->Idx[T] * 3]; const float* B = &Mesh->Pos[Mesh->Idx[T + 1] * 3]; const float* Cc = &Mesh->Pos[Mesh->Idx[T + 2] * 3];
+								const double Ux = B[0] - A[0], Uz = B[2] - A[2], Vx = Cc[0] - A[0], Vz = Cc[2] - A[2];
+								const double Area = std::fabs(Ux * Vz - Uz * Vx) * 0.5;
+								if (Area > std::atof(BigAt))
+								{
+									const char* Names[8] = {"land", "extra", "walls", "houses", "washed", "water", "roofs", "brick"};
+									int Which = 0;
+									for (const RideMesh* M2 : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet, Tops, Brick}) { if (M2 == Mesh) break; ++Which; }
+									std::printf("big triangle %.0f m2 in %s at %.0f,%.0f height %.1f\n", Area, Names[Which], Mesh->OriginX + A[0] - Centre.X, Mesh->OriginZ + A[2] - Centre.Z, double(A[1]));
+								}
+							}
 							for (int C = 0; C < 3; ++C)
 							{
 								const uint32_t V = Mesh->Idx[T + C];
@@ -3711,6 +4052,29 @@ int main(int Argc, char** Argv)
 				{
 					RideMesh Stands;
 					Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Stands);
+					{
+						// ([everyday kits stage 4] the farmyards' things, which the game places with the road's props)
+						std::vector<RideProp> Yard;
+						Plan->PropsTile(Tx, Tz, 64.0, Yard);
+						for (const RideProp& P : Yard)
+							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropRoadCafeSign) || (P.Kind >= RidePlan::PropMachCombine && P.Kind <= RidePlan::PropMachCultivator) || P.Kind == RidePlan::PropPicnicTable)
+							{
+								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
+									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+								KitPropText += Buf;
+							}
+						// ([everyday kits stage 9] the power set's models, which SkylineTile lays near: ... stretch scale)
+						RideMesh Sky;
+						Sky.OriginX = Tx;
+						Sky.OriginZ = Tz;
+						Plan->SkylineTile(Tx, Tz, 64.0, 2, Sky);
+						for (const RideProp& P : Sky.Props)
+						{
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Sky.OriginX + P.X - Centre.X,
+								Sky.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale));
+							KitPropText += Buf;
+						}
+					}
 					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
 					for (const RideProp& P : Stands.Props)
 					{
@@ -3722,7 +4086,14 @@ int main(int Argc, char** Argv)
 							WallText += Buf;
 							continue;
 						}
-						if (!P.Facade) continue;
+						if (!P.Facade)
+						{
+							// ([everyday kits] the prop kit's other models, to WORLD_RIDE_MESH.kitprops: name variant x z y yaw pitch stretch)
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
+								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+							KitPropText += Buf;
+							continue;
+						}
 						std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X, Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw));
 						PropText += Buf;
 						for (const float Tc : P.Tint) { std::snprintf(Buf, sizeof(Buf), " %.3f", double(Tc)); PropText += Buf; }
@@ -3797,6 +4168,7 @@ int main(int Argc, char** Argv)
 		}
 		if (!PropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".props", PropText);
 		if (!WallText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".walls", WallText);
+		if (!KitPropText.empty()) Files::Write(std::string(std::getenv("WORLD_RIDE_MESH")) + ".kitprops", KitPropText);
 		// [circuits] (the circuits' trackside kit within WORLD_RIDE_MESH_R, to WORLD_RIDE_MESH.trackside: name variant x z y yaw pitch length)
 		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr && Plan->CircuitIx)
 		{

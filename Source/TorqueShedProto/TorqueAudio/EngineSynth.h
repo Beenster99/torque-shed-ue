@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -46,6 +47,12 @@ struct FSpec
 	double Rust = 0.0, Misfire = 0.0;
 	bool Kick = false;
 	int Valves = 4;
+	// [Bike V3 Sounds] The bike's own recorded engine (a folder under Data/Audio/Bikes, from the engine
+	// part's "sound"), or "": its loops play up to the revs recorded, the made sound above them.
+	std::string Own;
+	// [Bike V3 Sounds] A bike's tone, tuned by ear against a real one: dB of a shelf above 2 kHz (the rasp)
+	// and of a broad bell at 800 Hz (the honk). 0 leaves the made sound as it is.
+	double ToneHigh = 0.0, ToneMid = 0.0;
 };
 
 // Fills in what's missing the way make_spec does (the layout from the cylinders, its usual crank,
@@ -122,6 +129,11 @@ public:
 	// are no engine-side ones.
 	bool bRecorded = false, bExhaustOnly = false;
 	int LoopRate = Rate;
+	// [Bike V3 Sounds] The bike's own recording (Spec.Own): its buckets (OwnLo..OwnTop rpm) are ready from
+	// the start, each scaled to the made sound's level at its revs; the made ones below and above it bake as
+	// usual, their engine side folded into the exhaust (OwnGainLo and OwnGain stay 1: they meet level).
+	bool bOwn = false;
+	double OwnLo = 0.0, OwnTop = 0.0, OwnGainLo = 1.0, OwnGain = 1.0;
 	// A real bike of this kind ticking over, or empty: at its own rate, recorded at IdleRecRpm, its
 	// RMS; and the made idle's, exhaust and engine side, off the throttle (once that bucket's baked).
 	std::vector<float> IdleRec;
@@ -136,6 +148,9 @@ public:
 private:
 	std::atomic<bool> bStarted{false}, bFinished{false};
 	void LoadRecorded(const std::string& Dir, const FReader& Read, const FLister& List);
+	void LoadOwn(const std::string& Dir, const FReader& Read, const FLister& List);
+	// The recorded loops in a folder, by rpm: ex_on_<rpm>.wav and the like (their rate into LoopRate).
+	std::map<double, std::array<std::vector<float>, Layers>> ReadLoops(const std::string& Dir, const FReader& Read, const FLister& List);
 	void LoadIdle(const FReader& Read, const FLister& List);
 	void BakeShots();
 };

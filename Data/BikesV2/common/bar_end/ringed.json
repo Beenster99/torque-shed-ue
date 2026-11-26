@@ -26,8 +26,7 @@
     0.07
    ],
    "metallic": 0.9,
-   "roughness": 0.45,
-   "tag": "alu_dark"
+   "roughness": 0.45
   },
   "d3_knurlring": {
    "ue": "cat_brushed_steel",
@@ -37,19 +36,30 @@
     0.77
    ],
    "metallic": 1.0,
-   "roughness": 0.3,
-   "tag": "d3_knurlring"
+   "roughness": 0.3
   },
   "d3_bars_polished": {
-   "ue": "chrome",
+   "ue": "cat_brushed_steel",
    "color": [
     0.8,
     0.8,
     0.82
    ],
    "metallic": 1.0,
-   "roughness": 0.12,
-   "tag": "d3_bars_polished"
+   "roughness": 0.12
   }
+ },
+ "bar_end": {
+  "at_mm": [
+   -57.66,
+   383.38,
+   50.36
+  ],
+  "dir": [
+   -0.12158,
+   0.99016,
+   0.06924
+  ],
+  "note": "the bar's end on the rider's left (the grip's outer end) from the mount point, and the bar's line there; mirror y for the right"
  }
 }

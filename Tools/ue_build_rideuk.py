@@ -916,6 +916,9 @@ def water_material(L, real=False):
         lace = chan(g.sample(foam_t, g.lerp(drift_uv, river_uv, is_river), "linear"), "R")
         foam = sat(mul(mul(amount, lace), 1.8))
     rough = g.op(U.MaterialExpressionMultiply, rough, g.lerp(g.const(0.4), g.const(1.3), calm))
+    # ([171 at Aysgarth: the river blue-grey with the sky] a river's surface is never a clean mirror: its
+    # ripples and drift blur the sky's reflection, which leaves more of the water's own brown)
+    rough = g.lerp(rough, g.op(U.MaterialExpressionMax, rough, const_b=0.14), is_river)
     rough = g.lerp(rough, g.const(0.6), foam)
     foam_colour = g.const((0.82, 0.85, 0.86))
     # [real water, beenster on 166: "it never really looked like water"] (the plain water, opaque, can't be
@@ -949,7 +952,9 @@ def water_material(L, real=False):
         # tea-clear over its stones in the shallows, amber to brown as it deepens, a little of that brown
         # scattered back from the silt in it.)
         absorb = g.lerp(absorb, g.const((0.55, 1.1, 2.4)), is_river)
-        scatter = g.lerp(scatter, g.const((0.06, 0.05, 0.025)), is_river)
+        # ([171 on the PC at Aysgarth: no trees, no repeat, but still "blue-grey, not clearly brown"] twice the
+        # brown scattered back from the silt, so the body of the water outweighs the sky in it looking down)
+        scatter = g.lerp(scatter, g.const((0.13, 0.09, 0.04)), is_river)
         pins = {"scatter": (scatter, ("ScatteringCoefficients", "Scattering Coefficients")),
                 "absorb": (absorb, ("AbsorptionCoefficients", "Absorption Coefficients")),
                 "phase": (g.const(0.15), ("PhaseG", "Phase G")),
@@ -1924,7 +1929,16 @@ def facade_material(L):
 
 
 STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",
-                    "touring_caravan", "static_caravan", "post_box", "phone_box")   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "touring_caravan", "static_caravan", "post_box", "phone_box",
+                    "farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer",
+                    "farm_diesel", "farm_muck", "farm_tractor_utility", "farm_tractor_compact",
+                    "play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
+                    "pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin",
+                    "village_sign",
+                    "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry",
+                    "power_turbine", "power_rotor", "power_palisade",
+                    "coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",
+                    "parked_car")   # ([Nov 26] our own made-up cars, Tools/blender_car_kit.py, drawn among the Fab ones)   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 
@@ -2152,9 +2166,32 @@ def prop_kit(L):
                 pass
             # [caravans] A kind whose row has "lods" (screen sizes, nearest first) gets reduced LODs: half,
             # a quarter, a tenth of its triangles (the bigger models drawn many times over, as the caravans).
+            if name.endswith("_LOD1") or name.endswith("_LOD2"):
+                continue   # ([everyday kits] a hand-made distance version: set on its model below)
             kind = name[len("SM_Prop_"):].rsplit("_", 1)[0] if name.startswith("SM_Prop_") else ""
             lods = spec["kinds"].get(kind, {}).get("lods")
-            if not lods:
+            hand = spec["kinds"].get(kind, {}).get("hand_lods")
+            if hand and (name + "_LOD1") in ours:
+                # [everyday kits] Hand-made distance versions (never auto-reduced): the model's _LOD1 glb as its
+                # LOD 1, from the screen size in "hand_lods".
+                try:
+                    if sme.get_lod_count(mesh) > 1:
+                        sme.remove_lods(mesh)
+                    sme.set_lod_from_static_mesh(mesh, 1, ours[name + "_LOD1"], 0, True)
+                    screens = [1.0, float(hand[0])]
+                    # ([everyday kits stage 9] a second hand-made one, _LOD2, from hand_lods' second screen size:
+                    # the pylons and masts seen kilometres off)
+                    if len(hand) > 1 and (name + "_LOD2") in ours:
+                        sme.set_lod_from_static_mesh(mesh, 2, ours[name + "_LOD2"], 0, True)
+                        screens.append(float(hand[1]))
+                    try:
+                        sme.set_lod_screen_sizes(mesh, screens)
+                    except Exception as e:
+                        unreal.log_warning("[Torque] props: %s: LOD screen size not set (%s)" % (name, e))
+                    log("props: %s: hand-made LOD1" % name)
+                except Exception as e:
+                    unreal.log_warning("[Torque] props: hand-made LOD of %s not set (%s)" % (name, e))
+            elif not lods:
                 # ([caravans, build 166] reduced LODs of these models break up: each triangle has its own corners,
                 # so the reducer cuts holes. A model without "lods" is drawn whole, its old LODs taken off.)
                 try:
@@ -2297,12 +2334,20 @@ def prop_kit(L):
                     add("SM_Prop_%s_fab%d" % (kind, n), m, True, row)
         else:
             for name, mesh in sorted(ours.items()):
-                if name.startswith("SM_Prop_%s_" % kind):
+                if name.startswith("SM_Prop_%s_" % kind) and not name.endswith("_LOD1"):
                     add(name, mesh, False, row, kit_paint if kind in STREET_KIT_KINDS else None)
     cars_note = ""
     for kind, row in spec["kinds"].items():
         if row.get("folder") == "Cars":
             cars_note = parked_cars(L, kind, row, add)
+            # [Nov 26] Our own made-up cars (Tools/blender_car_kit.py: SM_Prop_parked_car_100.., each with its
+            # hand-made LOD1), listed with the Fab copies: a parked car's Variant picks among them all, so drives,
+            # car parks and ferries get ours mixed in. Kept even when no Fab cars are in the project.
+            own = sorted(n for n in ours if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit())
+            for name in own:
+                add(name, ours[name], False, row, kit_paint)
+            if own:
+                cars_note = (cars_note + "; " if cars_note else "") + "%d own cars" % len(own)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])

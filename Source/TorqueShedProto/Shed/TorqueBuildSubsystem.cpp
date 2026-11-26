@@ -1842,13 +1842,8 @@ TArray<FName> UTorqueBuildSubsystem::MissingSlots(int32 Bay) const
 	if (!Exists(Bay)) return Out;
 	for (const FName& S : TorqueShedParts::BikeSlots())
 		if (ItemOn(Bay, S) == 0 && !TorqueShedParts::MayBeEmpty(S)) Out.Add(S);
-	// [mirrors, 166 test: a kit fairing asked for the mirrors off and the bike then read ready to ride without
-	// them] A bike whose model comes with mirrors (every V2 one but the MX bikes) needs a pair on to be ready.
-	static const FName MirrorsSlot(TEXT("mirrors"));
-	if (ItemOn(Bay, MirrorsSlot) == 0)
-		if (const TorqueFit::BikeLayout* MirrorLay = TBI::FitLayout())
-			if (const FTorqueItem* FrameOn = Items.Find(ItemOn(Bay, TBI::FrameSlot())))
-				if (MirrorLay->V2Build(TBI::Id(FrameOn->Part)).count("mirrors") > 0) Out.Add(MirrorsSlot);
+	// ([mirrors] beenster Nov 25: "a bike should be able to be ridden without mirrors, they are non-essential": the
+	// 167 rule that a model's mirrors had to be on is gone; mirrors are optional like any other.)
 	if (ItemOn(Bay, TBI::EngineKind()) != 0)
 		for (const FName& S : TorqueShedParts::EngineSlots())
 			if (ItemOn(Bay, S) == 0) Out.Add(S);
@@ -2483,6 +2478,32 @@ bool UTorqueBuildSubsystem::ShopFit(int32 Bay, const TArray<FName>& Parts, TMap<
 	return true;
 }
 
+bool UTorqueBuildSubsystem::StandFit(const TArray<FName>& Parts, TMap<FName, FString>& OutWhyNot, FName& OutEngine) const
+{
+	OutWhyNot.Reset();
+	OutEngine = NAME_None;
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay) return false;
+	for (const TPair<int32, FTorqueItem>& KV : Items)
+		if (KV.Value.Kind == TBI::EngineKind() && !KV.Value.bBoxed && KV.Value.At == ETorqueAt::Spot && KV.Value.Spot == FName(TEXT("stand")))
+		{
+			OutEngine = KV.Value.Part;
+			break;
+		}
+	if (OutEngine.IsNone()) return false;
+	TorqueFit::PartsMap OnStand;
+	OnStand["engine"] = TBI::Id(OutEngine);
+	for (const FName& P : Parts)
+	{
+		const FName Own = TorqueShedParts::V2Slot(P);
+		const FName Slot = Own.IsNone() ? TorqueShedParts::HomeSlot(P) : Own;
+		if (Slot.IsNone() || Slot == FName(TEXT("engine")) || !TorqueShedParts::IsEngineSlot(Slot)) continue;
+		const std::string Why = Lay->V2FitReason(OnStand, TBI::Id(Slot), TBI::Id(P));
+		if (!Why.empty()) OutWhyNot.Add(P, TBI::Ue(Why));
+	}
+	return true;
+}
+
 FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 {
 	// shed_state finish_text and coat_text.
@@ -2853,7 +2874,14 @@ FName UTorqueBuildSubsystem::InstallSlot(const FTorqueShedRequest& R, const FTor
 		if (bOk) return S;
 	}
 	if (!MissingMount.IsNone()) Error = FString::Printf(TEXT("Fit the %s first."), *TBI::Lower(TorqueShedParts::SlotName(MissingMount)));
-	else Error = FString::Printf(TEXT("There's already a %s fitted."), *TBI::Lower(TorqueShedParts::KindName(It.Kind)));
+	else
+	{
+		// (Which one, and what to do: beenster after 171.)
+		const int32 Already = Candidates.Num() > 0 ? H.Slots->FindRef(Candidates[0]) : 0;
+		Error = Already != 0 ? FString::Printf(TEXT("There's already a %s on %s: the %s. Unbolt it and take it off first."),
+			*TBI::Lower(TorqueShedParts::KindName(It.Kind)), R.Engine != 0 ? TEXT("this engine") : TEXT("this bike"), *ItemTitle(Already))
+			: FString::Printf(TEXT("There's already a %s fitted."), *TBI::Lower(TorqueShedParts::KindName(It.Kind)));
+	}
 	return NAME_None;
 }
 
@@ -2936,7 +2964,21 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 			return TEXT("Tyres go on at the tyre changer: take the wheel off and put it on the changer by the workbench.");
 		FString Error;
 		const FName Where = InstallSlot(R, *HeldIt, Error);
-		if (Where.IsNone()) return Error;
+		if (Where.IsNone())
+		{
+			// [engine stand, beenster after 171: a gearbox that was never going to fit the engine on the stand gave no
+			// clear reason there, only on the frame] Whether it goes on this engine or bike at all comes first: "there's
+			// already one fitted" only matters for a part that would fit.
+			const FName Own = TorqueShedParts::V2Slot(HeldIt->Part);
+			const TArray<FName> Kinds = TorqueShedParts::SlotsForKind(HeldIt->Kind);
+			const FName Would = !Own.IsNone() ? Own : (Kinds.Num() > 0 ? Kinds[0] : FName());
+			if (!Would.IsNone())
+			{
+				const FString V2Why = V2FitReason(R.Bay, R.Engine, Would, HeldIt->Part);
+				if (!V2Why.IsEmpty()) return V2Why;
+			}
+			return Error;
+		}
 		if (R.Engine == 0 && TorqueShedParts::IsLowSlot(Where) && !R.bCrouched) return TEXT("Crouch down to reach it (C).");
 		{
 			// [bare frame] A V2 bike's part bolts to its family's frames (its engine's parts to its engine block...).

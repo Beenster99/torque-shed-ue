@@ -105,6 +105,18 @@ struct RideProp
 	float Across = 1.0f;
 };
 
+// [warehouses, round 175 fps] One piece of the warehouse kit laid on a square (World/WorldRideWarehouses.h), for
+// the game to draw as an instance of the piece's own mesh instead of building its triangles into the square's:
+// Piece the kit's piece, Near its close-up detail (else the middle's), its local origin about the square's
+// origin (ride frame, m), its local x along (Ax, Az) stretched Sx, its z out along (Nx, Nz) stretched Sz, its y
+// up stretched Sy. (Ax, Az, Nx, Nz) always a proper turn: x, up, out right-handed as the frame's.
+struct RideKitPart
+{
+	int32_t Piece = -1;
+	bool Near = true;
+	float X = 0.0f, Y = 0.0f, Z = 0.0f, Ax = 1.0f, Az = 0.0f, Nx = 0.0f, Nz = 1.0f, Sx = 1.0f, Sy = 1.0f, Sz = 1.0f;
+};
+
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
 // hand-built ride's own meshes: Kind is RidePlan::PlantName's, the place is about the square's origin
 // like its mesh's points, Normal the ground's tilt (x, z; 0, 0 upright), Height a tree's in metres
@@ -246,6 +258,8 @@ struct RideMesh
 	std::vector<RideAnimal> Animals;
 	// [OSM stage 2] With a square of ground: its props (RidePlan::PropsTile), the kinds the kit has models for.
 	std::vector<RideProp> Props;
+	// [warehouses, round 175 fps] With a square of ground: the warehouse kit's pieces on it, drawn as instances.
+	std::vector<RideKitPart> KitParts;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
 	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
@@ -901,6 +915,42 @@ public:
 		// [caravans] The campsites' touring caravans and static caravans (Tools/blender_caravan_kit.py), in place of
 		// TownLifeTile's boxes where they have models (TownLifeProps)
 		PropTouringCaravan, PropStaticCaravan,
+		// [everyday kits stage 4] A farmyard's things (Tools/blender_farm_props.py, each with a hand-made distance
+		// version): bale stacks, single bales, a silage clamp, a slurry tank, feed bins, troughs, a tractor, a trailer,
+		// a diesel tank and a muck heap, laid about the map's farmyards by FarmYardProps
+		PropFarmBales, PropFarmBale, PropFarmClamp, PropFarmTank, PropFarmFeedbin, PropFarmTrough, PropFarmTractor, PropFarmTrailer,
+		PropFarmDiesel, PropFarmMuck,
+		// [farm pack tractors] The smaller utility tractor and the compact one with its roll bar and front loader
+		// (Tools/blender_tractor.py, as farm_tractor's own new models), parked in farmyards as the big one
+		PropFarmTractorUtility, PropFarmTractorCompact,
+		// [everyday kits stage 6] The village set (Tools/blender_village_props.py, each with a hand-made distance
+		// version): playground pieces and its bow-top fence, football goals, rugby posts, tennis nets, a court's
+		// wire fence, basketball hoops, the green's notice board, litter bins and village sign, laid by VillageProps
+		PropPlaySwings, PropPlaySlide, PropPlayClimber, PropPlaySpringer, PropPlayRoundabout, PropPlaySeesaw, PropPlayFence,
+		PropPitchGoal, PropPitchPosts, PropTennisNet, PropCourtFence, PropBasketHoop, PropNoticeBoard, PropLitterBin, PropVillageSign,
+		// [everyday kits stage 9] The power and skyline set (Tools/blender_power_props.py, each with two hand-made distance
+		// versions): pylons, lattice masts, phone masts, wind turbines and their rotors, water towers, substation kiosks,
+		// and a substation's transformers, gantries and palisade, laid by SkylineTile near the road in place of its shapes
+		PropPowerPylon, PropPowerMast, PropPowerMonopole, PropPowerTurbine, PropPowerRotor, PropPowerWaterTower, PropPowerKiosk,
+		PropPowerTransformer, PropPowerGantry, PropPowerPalisade,
+		// [everyday kits stage 10] The coast set (Tools/blender_coast_props.py, two hand-made distance versions each):
+		// beach huts, a sea wall's parapet, a promenade's railing and its lifebuoy housings, laid by CoastProps
+		PropCoastBeachHut, PropCoastSeaWall, PropCoastPromRail, PropCoastLifebuoy,
+		// [everyday kits stage 5b] The lay-by and roadside cafe set (Tools/blender_roadside_props.py, two hand-made
+		// distance versions each): catering trailers and their flags, the blue lay-by sign, a roadside cafe's board,
+		// laid by RoadsideProps (with the village set's litter bins and the OSM kit's picnic tables)
+		PropRoadBurgerVan, PropRoadFlag, PropRoadLaybySign, PropRoadCafeSign,
+		// [everyday kits stage 7] The bridge set (Tools/blender_bridge_props.py, two hand-made distance versions each):
+		// stone arches, concrete piers and abutments and the modern parapet, laid with a road's piece by BridgeKitProps
+		PropBridgeArch, PropBridgePier, PropBridgeAbutment, PropBridgeRail,
+		// [farm machinery] The farm pack's machines (Tools/blender_farm_machines.py, two hand-made distance versions each;
+		// the self-propelled ones in the farm kit's three fleet liveries, Variant % 3): combines, a forage harvester, a
+		// sprayer, an articulated tractor, a tracked tractor, a small crawler, a telescopic loader, a gang mower, a
+		// buggy, a grain chaser, a tipping trailer, a baler, a drill and a cultivator, laid in the farmyards by
+		// FarmYardProps and in the fields by their gates by FieldGateProps
+		PropMachCombine, PropMachForager, PropMachSprayer, PropMachTractor4wd, PropMachTractorTrack, PropMachCrawler,
+		PropMachLoader, PropMachMower, PropMachBuggy, PropMachChaser, PropMachTipper, PropMachBaler, PropMachDrill,
+		PropMachCultivator,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -995,7 +1045,10 @@ public:
 		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
 		bool Flowing = false;   // a river's or canal's own outline (its water runs: WaterRuns), not a lake's
 		int Yard = -1;          // [churches stage 5] a graveyard round a church: its Churchyards entry
+		// [everyday kits stage 6] What a park or pitch is for: VillageProps furnishes it (FieldSub)
+		uint8_t Sub = 0;
 	};
+	enum EFieldSub { SubNone, SubPlayground, SubGreen, SubFootball, SubRugby, SubTennis, SubBasketball, SubMultiCourt };
 	std::vector<FieldArea> FieldAreas;
 	// [churches stage 5] Each place of worship's churchyard (IndexChurchyards, World/WorldRideFields.cpp): the
 	// map's graveyard round it, else (out of a town) one made round it as far as its neighbours and roads
@@ -1053,6 +1106,10 @@ public:
 	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr, bool* Beside = nullptr) const;   // (Beside: alongside it, not past either end)
 	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
 	double StillLevel(double X, double Z) const;
+	// ([real water, Nov 25] the buildings by a river or canal, by every WaterCell square: no channel is cut
+	// under one, so a mill or a house the map puts over a river's outline stands on its own ground)
+	std::unordered_map<long long, std::vector<Building>> WaterHouses;
+	bool WaterHouseAt(double X, double Z) const;
 	void IndexFields();
 	int FieldAt(double X, double Z) const;   // the field area here (FieldAreas), -1 none
 	void FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const;
@@ -1192,6 +1249,8 @@ public:
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
+		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
+		int VillageKit = 0;   // [everyday kits stage 6] schools built from the village kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
 		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
@@ -1498,6 +1557,41 @@ public:
 	std::unordered_map<long long, std::vector<int>> ForecourtGrid;   // by the 64 m square each's canopy is in
 	int FuelSeen = 0;                       // fuel stops looked at (Forecourts.size() of them made)
 	static constexpr double ForecourtDepth = 24.0, ForecourtLeast = 13.0;
+	// [everyday kits stage 5b] The lay-bys (World/WorldRideRoadside.cpp, IndexRoadside, from IndexTownLife): at each
+	// of the kits bake's lay-bys (the map's parking=layby, not a town's street_side) beside a road a forecourt may
+	// open off, a strip of tarmac LaybyLong along the road's edge and up to LaybyDeep out, its ends tapering in (a
+	// field area, FieldForecourt's), made where a forecourt would be (clear of buildings, walls, water and other
+	// roads, off bridges, straight and level enough). Its things (RoadsideThings): a litter bin at its far end, the
+	// blue P sign before it, a picnic table behind some, a catering trailer and its flag on some of the A roads';
+	// and at a roadside cafe (the map's cafe or fast food out of town, near an A or B road) its board before it
+	// each way on the left verge, pointing to it, and a trailer where the map says it's a van.
+	struct Layby
+	{
+		std::vector<P2> Ring;
+		P2 RoadMid, RoadDir, Out;   // (the road's middle beside its middle, the road's way there, out to it: unit)
+		double Half = 0.0, Depth = 0.0;
+		uint32_t Seed = 1;
+		bool Tarmac = false;        // (an A or B road's: tarmac; a lane's gravel, as a place's pull-off)
+	};
+	std::vector<Layby> RoadLaybys;
+	std::unordered_map<long long, std::vector<int>> LaybyGrid;   // by the 64 m square each's road middle is in
+	struct RoadsideThing
+	{
+		int Kind = 0;      // a prop kind (PropRoadBurgerVan, PropLitterBin, PropPicnicTable...)
+		P2 At, Front;      // where, and the way its front (+x) faces
+		int Variant = 0;
+		uint32_t Id = 1;
+	};
+	std::vector<RoadsideThing> RoadsideThings;
+	std::unordered_map<long long, std::vector<int>> RoadsideGrid;   // by the 64 m square each is in
+	int LaybysSeen = 0, RoadCafes = 0;   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
+	static constexpr double LaybyLong = 34.0, LaybyDeep = 3.2, LaybyLeast = 2.6;
+	void RoadsideProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 7] The bridge set under and along each bridge whose deck starts in road Which's piece First..Last
+	// (World/WorldRideBridgeKit.cpp), into Out.Props; and whether a wide road's bridge has the kit's parapet (the road
+	// build then leaves its plain slab parapet off).
+	void BridgeKitProps(int Which, int First, int Last, RideMesh& Out) const;
+	bool BridgeRailsOn() const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its
 	// point on open level ground, fountains (a stone basin and its water, a pillar and bowl in the middle,
@@ -1580,6 +1674,22 @@ public:
 	void CircuitProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	// [caravans] The campsites' caravans in the square, as models (when the kit has them: PropModelled).
 	void TownLifeProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 4] A farmyard's things where the game has their models (World/WorldRideFarms.cpp): a few
+	// to each mapped farmyard by its size, along its edges, clear of its buildings and the road.
+	void FarmYardProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [farm machinery] Machines parked in the fields: just inside some of the square's field gates (Here, PropsTile's
+	// furniture) and at a few spots in open fields seen from the roads, by the season (Month): the harvest's
+	// combines, chasers and balers in late summer, drills and cultivators at sowing, sprayers in spring; few in
+	// winter, fewer in the hills (World/WorldRideFarms.cpp)
+	void FieldGateProps(double X0, double Z0, double Size, const std::vector<const Furnish*>& Here, std::vector<RideProp>& Out) const;
+	// (whether a prop kind comes in the farm fleet liveries: its Variant % 3 the livery)
+	static bool FleetKind(int Kind);
+	// [everyday kits stage 6] The village set in the square (World/WorldRideVillage.cpp): playgrounds' pieces and
+	// fences, pitches' goals and posts, courts' nets, fences and hoops, a village green's sign, board, seat and bin
+	void VillageProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [everyday kits stage 10] The coast set's models from the kits bake's coast things (WorldRideCoast.cpp).
+	void CoastProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	P2 HutFront(const P2& C) const;   // (a beach hut's doors: the way the ground falls to the sea, else to the road)
 	void IndexTrackside(CircuitIndex& Ix) const;
 	// [circuits stage 6] A circuit's famous corners' banks (CircuitNote::Corners) into its track's Banks (RoadLine::BankOf's).
 	// [circuits, build 168] The ground under a circuit's track, smoothed: its height averaged over 70 m round (X, Z)
@@ -1692,6 +1802,7 @@ public:
 		// clockwise seen from above).
 		std::shared_ptr<const SiteModel> Model;
 		double Turn = 0.0;
+		bool OnBuilding = false;   // [build 171 cenotaph] a tower or windmill standing on the map's building for it
 	};
 	// [OSM stage 5B] The roundabouts: the map's roundabout edges joined into closed rings (IndexRings).
 	// [towns stage 7] Whether a model's own parts (not its windows or lights) stand over (X, Z), Spare m round.
@@ -1910,6 +2021,17 @@ public:
 	std::unordered_map<long long, std::vector<int>> RecipeGrid;   // by the scenery's 256 m squares
 	int RecipeCount[RecipeKinds] = {};
 	int ModelCount = 0;   // [places stage 6] the places drawn by their own model
+	// [build 171 cenotaph] (beenster: a war memorial in the middle of the A686 by Gamblesby) A small place
+	// (stone, cross, memorial, obelisk, tower...) the map puts on or at the edge of a road is moved out onto
+	// the verge, clear of the carriageway by its own size and a metre; one that can't be cleared (in a
+	// junction's middle, between roads) is not drawn. PlacesMoved/PlacesDropped count them;
+	// PlaceFootprint is a recipe's reach round its middle (m) as drawn, 0 for the big ones (circles,
+	// hillforts, castles), which aren't moved.
+	int PlacesMoved = 0, PlacesDropped = 0;
+	std::vector<int> PlacesDroppedSights;   // (the tests: which of Area.Roads.Sights)
+	static double PlaceFootprint(const PlaceRecipe& R);
+	// Whether a recipe's drawn footprint reaches onto a road's surface (not one in a tunnel).
+	bool PlaceOnRoad(const PlaceRecipe& R) const;
 	std::vector<unsigned char> TowerTaken;   // the towns' tall buildings a recipe stands in for (TowersTile leaves them out)
 	void IndexPlaceRecipes();   // (after IndexTowers)
 	bool UnderPlace(double X, double Z) const;

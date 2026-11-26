@@ -5,6 +5,7 @@
 #include "Fit/BikeLayout.h"
 #include "Fit/BikeParts.h"
 #include "Fit/FitJson.h"
+#include "Fit/BoughtFile.h"
 #include "Fit/PartMesh.h"
 #include "Fit/PartsDb.h"
 #include "Shed/TorqueShedParts.h"
@@ -43,6 +44,14 @@ bool ReadBytes(const FString& Rel, std::string& Out)
 	if (!FFileHelper::LoadFileToArray(B, *FPaths::Combine(FPaths::ProjectDir(), Rel), FILEREAD_Silent)) return false;
 	Out.assign(reinterpret_cast<const char*>(B.GetData()), B.Num());
 	return true;
+}
+
+// [bought bikes] A V2 bike's drawing: its glb, or a bought bike's scrambled copy of it (Fit/BoughtFile.h), which is
+// how a bought bike ships in the game folder.
+bool ReadV2Glb(const FString& Base, std::string& Out)
+{
+	if (ReadBytes(Base + TEXT(".glb"), Out)) return true;
+	return ReadBytes(Base + TEXT(".tsb"), Out) && TorqueFit::UnscrambleBought(Out);
 }
 
 // Data/Parts/Blender/index.json: which glbs there are, their shape keys, and each surface tag's finish.
@@ -490,7 +499,7 @@ const TorqueFit::BikeLayout* Layout()
 			{
 				const FString Base = TEXT("Data/BikesV2/") + TSCI::Ue(Model);
 				std::string Bytes, GlbError;
-				const bool bRead = TSCI::ReadBytes(Base + TEXT(".glb"), Bytes) && Mesh.LoadGlb(Bytes, GlbError) && TSCI::ReadBytes(Base + TEXT(".json"), Info);
+				const bool bRead = TSCI::ReadV2Glb(Base, Bytes) && Mesh.LoadGlb(Bytes, GlbError) && TSCI::ReadBytes(Base + TEXT(".json"), Info);
 				if (!bRead)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("Torque: Bike Models V2 bike %s didn't load (%s): drawn from its catalogue parts"), *TSCI::Ue(Model), *TSCI::Ue(GlbError));
@@ -577,12 +586,28 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		OutFrame->BackDeg = Lay->LineNumber(L.Style, "5_rider", "back_deg", -100.0);
 		OutFrame->Style = TSCI::Ue(L.Style);
 		OutFrame->TankHalfW.Reset();
-		const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
-		for (const TorqueFit::LoftSection& Sec : Work.TankSecs)
+		// [bought bikes] A bought model's own width along the rider's thighs ("tank_half_w": x, half width, z in mm),
+		// measured from its drawing; any other bike's, its tank's loft.
+		const TorqueFit::V2Frame V2W = TorqueFit::V2Frame::Of(FramePart);
+		const TorqueFit::Json* OwnW = V2W.Valid && V2W.Points ? V2W.Points->Get("tank_half_w") : nullptr;
+		if (OwnW && !OwnW->A.empty())
 		{
-			// The loft's sections are in Godot's frame (z back), metres.
-			const FVector At(TSCI::ToUe(TorqueFit::FromGodot(Sec.C)));
-			OutFrame->TankHalfW.Add(FVector2D(At.X, Sec.W * 100.0));
+			for (const TorqueFit::Json& E : OwnW->A)
+				if (E.A.size() >= 3)
+				{
+					const FVector At(TSCI::ToUe(V2W.Point(E.A[0].N, 0.0, E.A[2].N)));
+					OutFrame->TankHalfW.Add(FVector2D(At.X, E.A[1].N / 10.0));
+				}
+		}
+		else
+		{
+			const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
+			for (const TorqueFit::LoftSection& Sec : Work.TankSecs)
+			{
+				// The loft's sections are in Godot's frame (z back), metres.
+				const FVector At(TSCI::ToUe(TorqueFit::FromGodot(Sec.C)));
+				OutFrame->TankHalfW.Add(FVector2D(At.X, Sec.W * 100.0));
+			}
 		}
 		OutFrame->TankHalfW.Sort([](const FVector2D& A, const FVector2D& B) { return A.X > B.X; });
 	}
@@ -704,9 +729,13 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, bSpring ? Laid : S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
+			// (Only what's ahead of the seat point: a bought model's tank pieces can include trim on its tail.
+			// The Trident 800's tail badges are drawn as tank and put its "back edge" 8 cm behind the rear
+			// axle, so the rider was pushed back off the seat, hands short of the bars and feet off the pegs:
+			// beenster on build 175.)
 			if (OutFrame && P.Slot == "tank")
 				for (const FVector& V : Pos)
-					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
+					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0 && V.X > OutFrame->Seat.X) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
 			if (bV2 && P.Sub == "grip")
 				for (const FVector& GripV : Pos)
 					if (GripV.Y > 2.0) DrawnGrip += GripV;
@@ -745,6 +774,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 				{
 					GlassMiddle /= GlassArea;
 					GlassFacing.Normalize();
+					// (A glass drawn as a slab, front and back, adds up whichever way its first triangle faced: a mirror
+					// looks back at the rider, never ahead. Beenster on the KTM 1390 in 174: "mirrors dont work properly".)
+					if (GlassFacing.X > 0.0) GlassFacing = -GlassFacing;
 					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorAt:%.3f,%.3f,%.3f"), GlassMiddle.X, GlassMiddle.Y, GlassMiddle.Z)));
 					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorN:%.4f,%.4f,%.4f"), GlassFacing.X, GlassFacing.Y, GlassFacing.Z)));
 				}
@@ -933,7 +965,7 @@ int32 MakeV2Display(AActor* Owner, USceneComponent* Parent, const FString& Model
 	TorqueFit::PartMesh Glb;
 	TorqueFit::Json Info;
 	const FString Base = TEXT("Data/BikesV2/") + Model;
-	if (!TSCI::ReadBytes(Base + TEXT(".glb"), Bytes) || !Glb.LoadGlb(Bytes, Error) ||
+	if (!TSCI::ReadV2Glb(Base, Bytes) || !Glb.LoadGlb(Bytes, Error) ||
 		!TSCI::ReadBytes(Base + TEXT(".json"), Text) || !TorqueFit::Json::Parse(Text, Info, &Error))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque: Bike Models V2 model %s didn't load (%s)"), *Model, *TSCI::Ue(Error));

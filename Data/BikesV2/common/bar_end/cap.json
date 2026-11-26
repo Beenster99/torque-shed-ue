@@ -19,8 +19,20 @@
  "triangles": 1272,
  "surfaces": {
   "rubber": {
-   "ue": "cat_rubber",
-   "tag": "rubber"
+   "ue": "cat_rubber"
   }
+ },
+ "bar_end": {
+  "at_mm": [
+   -57.66,
+   383.38,
+   50.36
+  ],
+  "dir": [
+   -0.12158,
+   0.99016,
+   0.06924
+  ],
+  "note": "the bar's end on the rider's left (the grip's outer end) from the mount point, and the bar's line there; mirror y for the right"
  }
 }

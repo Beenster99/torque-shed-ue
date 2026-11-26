@@ -6,6 +6,7 @@
 // colours anywhere: each canopy's band is one plain colour picked by hash. Stopped by a pump, the tank
 // fills (ForecourtAt; TorqueRideWorld's dash).
 #include "WorldRide.h"
+#include "WorldRideForecourtKit.h"
 #include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRoadLine.h"
@@ -14,6 +15,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <functional>
+#include <initializer_list>
 #include <string>
 #include <unordered_map>
 
@@ -440,6 +443,231 @@ void RidePlan::IndexTownLife()
 		Forecourts.push_back(std::move(F));
 	}
 
+	// [everyday kits stage 5b] The lay-bys and roadside cafes (RidePlan::RoadLaybys, RoadsideThings: World/WorldRideRoadside.cpp
+	// lays their things), from the kits bake's things, made as the forecourts are.
+	RoadLaybys.clear();
+	LaybyGrid.clear();
+	RoadsideThings.clear();
+	RoadsideGrid.clear();
+	LaybysSeen = RoadCafes = 0;
+	if (RoadsideOn())
+	{
+		Own = P2(1e18, 1e18);
+		const auto AddRoadside = [this](int Kind, const P2& At, const P2& Front, int Variant, uint32_t Id)
+		{
+			RoadsideThing T;
+			T.Kind = Kind;
+			T.At = At;
+			T.Front = Front;
+			T.Variant = Variant;
+			T.Id = Id;
+			RoadsideGrid[CourtKey(At.X, At.Z)].push_back(int(RoadsideThings.size()));
+			RoadsideThings.push_back(T);
+		};
+		const auto NearLayby = [this](const P2& P, double Within)
+		{
+			for (const Layby& L : RoadLaybys)
+				if (L.RoadMid.DistanceTo(P) < Within) return true;
+			return false;
+		};
+		// (somewhere a thing may stand: no building, water or road's tarmac, the ground there)
+		const auto Clear = [&](const P2& Q, double Spare)
+		{
+			if (InBuilding(Q, Spare) || Wet(Q) || OnForecourt(Q.X, Q.Z) || std::isnan(Ground(Q.X, Q.Z))) return false;
+			const Foot R0 = NearestRoad(Q, 20.0, false);
+			return R0.Edge < 0 || R0.Dist > Halves[size_t(R0.Edge)] + Spare + 0.4;
+		};
+		const auto ClassIs = [&G](int Edge, std::initializer_list<const char*> Classes)
+		{
+			const std::string& C = G.ClassOf(Edge);
+			for (const char* K : Classes)
+				if (C == K) return true;
+			return false;
+		};
+		const auto MiddleOf = [](const GroundShape& T)
+		{
+			P2 C(0.0, 0.0);
+			for (const P2& P : T.Pts) C = C + P;
+			return C * (1.0 / double(T.Pts.size()));
+		};
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Kind != "layby" || T.Word != "layby" || T.Pts.empty()) continue;
+			++LaybysSeen;
+			const P2 P = MiddleOf(T);
+			if (NearLayby(P, 50.0) || OnForecourt(P.X, P.Z) || OnPullOff(P.X, P.Z)) continue;
+			const Foot Any = NearestRoad(P, 40.0, false);
+			if (Any.Edge < 0 || Motorway[size_t(Any.Edge)]) continue;
+			const Foot Foot0 = NearestRoad(P, 40.0, true);
+			if (Foot0.Edge < 0 || ClassIs(Foot0.Edge, {"residential", "road", "unknown"})) continue;
+			const RoadEdge& R = G.Edges[size_t(Foot0.Edge)];
+			const double Half = Halves[size_t(Foot0.Edge)];
+			std::vector<double> Alongs(R.Line.size(), 0.0);
+			for (size_t I = 1; I < R.Line.size(); ++I) Alongs[I] = Alongs[I - 1] + R.Line[I].DistanceTo(R.Line[I - 1]);
+			if (Alongs.back() < LaybyLong + 10.0) continue;
+			const double Along0 = Alongs[size_t(Foot0.Bit)] + Foot0.T * (Alongs[size_t(Foot0.Bit) + 1] - Alongs[size_t(Foot0.Bit)]);
+			const auto PointAt = [&](double A, P2& At, P2& D)
+			{
+				A = std::clamp(A, 0.0, Alongs.back());
+				size_t I = 0;
+				while (I + 2 < Alongs.size() && Alongs[I + 1] < A) ++I;
+				const double Seg = std::fmax(1e-6, Alongs[I + 1] - Alongs[I]);
+				const double U = std::clamp((A - Alongs[I]) / Seg, 0.0, 1.0);
+				At = R.Line[I] + (R.Line[I + 1] - R.Line[I]) * U;
+				D = (R.Line[I + 1] - R.Line[I]) * (1.0 / Seg);
+			};
+			P2 Mid0, Dir0;
+			PointAt(Along0, Mid0, Dir0);
+			const P2 Left0(Dir0.Z, -Dir0.X);
+			const double SideSign = ((P.X - Mid0.X) * Left0.X + (P.Z - Mid0.Z) * Left0.Z) >= 0.0 ? 1.0 : -1.0;
+			// (along the road from the foot, either way up to 15 m, as deep as it will go: as a forecourt's, but its
+			// ends 5 m clear of the road's own ends, its junctions)
+			double BestScore = 1e18, BestAlong = 0.0, BestDepth = 0.0;
+			for (double Shift = 0.0; Shift <= 15.0; Shift += 5.0)
+				for (double Way : {1.0, -1.0})
+				{
+					if (Shift == 0.0 && Way < 0.0) continue;
+					const double A = Along0 + Way * Shift;
+					if (A < LaybyLong * 0.5 + 5.0 || A > Alongs.back() - LaybyLong * 0.5 - 5.0) continue;
+					P2 Mid, D;
+					PointAt(A, Mid, D);
+					if (OnSpan(Mid)) continue;
+					const P2 Out = P2(D.Z, -D.X) * SideSign;
+					double Depth = LaybyDeep;
+					bool Bad = false;
+					for (double U = -LaybyLong * 0.5 + 1.0; U <= LaybyLong * 0.5 - 1.0 && !Bad; U += 3.0)
+					{
+						const P2 Q = Mid + D * U;
+						const Foot Along1 = NearestRoad(Q, 3.0, false);
+						if (Along1.Edge < 0 || Along1.Dist > 0.8) { Bad = true; break; }
+						for (double V = 0.5; V <= Depth + 0.01; V += 0.9)
+						{
+							const P2 S = Q + Out * (Half + V);
+							if (InBuilding(S, 0.5) || Walled(Q + Out * (Half + 0.2), S) || Wet(S)) { Depth = std::fmin(Depth, V - 0.6); break; }
+							const Foot Other = NearestRoad(S, 20.0, false, Foot0.Edge);
+							if (Other.Edge >= 0 && Other.Dist < Halves[size_t(Other.Edge)] + 1.0) { Depth = std::fmin(Depth, V - 0.6); break; }
+						}
+						if (Depth < LaybyLeast) Bad = true;
+					}
+					if (Bad) continue;
+					const double Y0 = Ground(Mid.X + Out.X * (Half + 0.5), Mid.Z + Out.Z * (Half + 0.5));
+					const double Y1 = Ground(Mid.X + Out.X * (Half + Depth), Mid.Z + Out.Z * (Half + Depth));
+					const P2 Ea = Mid + D * (-LaybyLong * 0.5 + 3.0), Eb = Mid + D * (LaybyLong * 0.5 - 3.0);
+					const double Ya = Ground(Ea.X + Out.X * (Half + Depth * 0.5), Ea.Z + Out.Z * (Half + Depth * 0.5));
+					const double Yb = Ground(Eb.X + Out.X * (Half + Depth * 0.5), Eb.Z + Out.Z * (Half + Depth * 0.5));
+					if (std::isnan(Y0) || std::isnan(Y1) || std::isnan(Ya) || std::isnan(Yb)) continue;
+					const double Fall = std::fmax(std::fabs(Y1 - Y0) / Depth, std::fabs(Yb - Ya) / (LaybyLong - 6.0));
+					if (Fall > 0.12) continue;
+					const double Score = Fall * 60.0 + Shift * 0.1 + (LaybyDeep - Depth);
+					if (Score < BestScore) { BestScore = Score; BestAlong = A; BestDepth = Depth; }
+				}
+			if (BestScore >= 1e17) continue;
+			Layby L;
+			L.Half = Half;
+			L.Depth = BestDepth;
+			L.Seed = static_cast<uint32_t>(std::lround(P.X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(P.Z * 3.0)) * 19349663u;
+			if (L.Seed == 0) L.Seed = 1;
+			P2 Mid, D;
+			PointAt(BestAlong, Mid, D);
+			L.RoadMid = Mid;
+			L.RoadDir = D;
+			L.Out = P2(D.Z, -D.X) * SideSign;
+			// (its outline: the road's edge, its ends tapering in over 8 m)
+			const double Taper = 8.0;
+			std::vector<P2> Inner, Outer;
+			for (int K = 0; K <= 12; ++K)
+			{
+				const double U = double(K) / 12.0, A = (U - 0.5) * LaybyLong;
+				const P2 Q = Mid + D * A;
+				const double FromEnd = std::fmin(U, 1.0 - U) * LaybyLong;
+				const double Deep = BestDepth * std::clamp(FromEnd / Taper, 0.12, 1.0);
+				Inner.push_back(Q + L.Out * (Half - 0.1));
+				Outer.push_back(Q + L.Out * (Half + Deep));
+			}
+			L.Ring = Inner;
+			for (auto It = Outer.rbegin(); It != Outer.rend(); ++It) L.Ring.push_back(*It);
+			// (its things: traffic on its side comes along Way, the left its side)
+			const P2 Way(-L.Out.Z, L.Out.X);
+			const P2 Back = L.Out * -1.0;
+			const P2 Bin = Mid + Way * (LaybyLong * 0.5 - Taper - 1.0) + L.Out * (Half + BestDepth + 0.6);
+			if (Clear(Bin, 0.2)) AddRoadside(PropLitterBin, Bin, Back, int(Dice(L.Seed, 21) * 2.0), L.Seed * 7u + 1u);
+			const P2 Sign = Mid - Way * (LaybyLong * 0.5 + 4.0) + L.Out * (Half + 1.0);
+			if (Clear(Sign, 0.2)) AddRoadside(PropRoadLaybySign, Sign, Way * -1.0, 0, L.Seed * 7u + 2u);
+			const bool ARoad = ClassIs(Foot0.Edge, {"trunk", "primary", "trunk_link", "primary_link"});
+			if (ARoad && Dice(L.Seed, 22) < 0.3)
+			{
+				// (a catering trailer on the verge behind its middle, its hatch to the lay-by, a flag at its end)
+				const P2 Van = Mid + Way * 3.0 + L.Out * (Half + BestDepth + 1.4);
+				bool Room = true;
+				for (double U = -2.6; U <= 2.6 && Room; U += 1.3)
+					Room = Clear(Van + Way * U, 0.3) && Clear(Van + Way * U + L.Out * 1.0, 0.3) && !Walled(Mid + Way * (3.0 + U) + L.Out * (Half + BestDepth - 0.2), Van + Way * U + L.Out * 1.2);
+				if (Room)
+				{
+					AddRoadside(PropRoadBurgerVan, Van, Back, int(Dice(L.Seed, 23) * 2.0), L.Seed * 7u + 3u);
+					const P2 Flag = Mid - Way * 2.0 + L.Out * (Half + BestDepth + 0.5);
+					if (Clear(Flag, 0.1)) AddRoadside(PropRoadFlag, Flag, Way, 0, L.Seed * 7u + 4u);
+				}
+			}
+			else if (Dice(L.Seed, 24) < 0.35)
+			{
+				const P2 Table = Mid - Way * 4.0 + L.Out * (Half + BestDepth + 2.2);
+				if (Clear(Table, 1.0) && Clear(Table + L.Out * 1.0, 0.5) && !Walled(Mid - Way * 4.0 + L.Out * (Half + BestDepth - 0.2), Table + L.Out * 1.2))
+					AddRoadside(PropPicnicTable, Table, Way, 0, L.Seed * 7u + 5u);
+			}
+			L.Tarmac = ClassIs(Foot0.Edge, {"trunk", "primary", "secondary", "trunk_link", "primary_link", "secondary_link"});
+			LaybyGrid[CourtKey(Mid.X, Mid.Z)].push_back(int(RoadLaybys.size()));
+			RoadLaybys.push_back(std::move(L));
+		}
+		// (the roadside cafes: out of town, by an A or B road; their boards 60 m before them each way on the left verge)
+		for (const GroundShape& T : G.KitThings)
+		{
+			if ((T.Kind != "cafe" && T.Kind != "fast_food") || T.Pts.empty()) continue;
+			const P2 P = MiddleOf(T);
+			const Foot Near = NearestRoad(P, 60.0, false);
+			if (Near.Edge < 0 || Motorway[size_t(Near.Edge)] || !ClassIs(Near.Edge, {"trunk", "primary", "secondary", "trunk_link", "primary_link", "secondary_link"})) continue;
+			int Houses = 0;
+			for (int Dz = -2; Dz <= 2; ++Dz)
+				for (int Dx = -2; Dx <= 2; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+						if (std::hypot(G.Buildings[size_t(B)].X - P.X, G.Buildings[size_t(B)].Z - P.Z) < 100.0) ++Houses;
+				}
+			if (Houses > 12) continue;
+			const RoadEdge& R = G.Edges[size_t(Near.Edge)];
+			const P2 D0 = R.Line[size_t(Near.Bit) + 1] - R.Line[size_t(Near.Bit)];
+			const double Dl = D0.Length();
+			if (Dl < 1e-6) continue;
+			const P2 D = D0 * (1.0 / Dl);
+			const uint32_t Seed = static_cast<uint32_t>(std::lround(P.X * 3.0)) * 83492791u ^ static_cast<uint32_t>(std::lround(P.Z * 3.0)) * 19349663u;
+			const double Half = Halves[size_t(Near.Edge)];
+			bool Any = false;
+			for (double S : {1.0, -1.0})
+			{
+				// (coming along Come: its left verge; the cafe to the left or right of it, the board's arrow that way)
+				const P2 Come = D * S, Left(Come.Z, -Come.X);
+				const P2 From = Near.At - Come * 60.0;
+				const Foot There = NearestRoad(From, 6.0, false);
+				if (There.Edge != Near.Edge) continue;
+				const P2 Board = There.At + Left * (Half + 1.6);
+				if (!Clear(Board, 0.4) || Walled(There.At + Left * (Half + 0.2), Board)) continue;
+				const bool ToLeft = (P.X - Near.At.X) * Left.X + (P.Z - Near.At.Z) * Left.Z > 0.0;
+				// (facing the traffic coming, turned a little to the road)
+				P2 Face = Come * -1.0 - Left * 0.35;
+				Face = Face * (1.0 / Face.Length());
+				AddRoadside(PropRoadCafeSign, Board, Face, (ToLeft ? 2 : 0) + int(Dice(Seed, 31) * 2.0), Seed * 5u + (S > 0.0 ? 1u : 2u));
+				Any = true;
+			}
+			if (T.Word == "van" && Near.Dist > Half + 2.5 && Clear(P, 0.5))
+			{
+				const P2 To = Near.At - P;
+				AddRoadside(PropRoadBurgerVan, P, To * (1.0 / std::fmax(1e-6, To.Length())), int(Dice(Seed, 32) * 2.0), Seed * 5u + 3u);
+			}
+			RoadCafes += Any ? 1 : 0;
+		}
+	}
+
 	// The things. (a thing's square, and how it is filed)
 	TownThings.clear();
 	ThingGrid.clear();
@@ -710,6 +938,68 @@ void RidePlan::GaragesNear(double X, double Z, double Reach, std::vector<GarageS
 		}
 }
 
+namespace
+{
+// [forecourts] One forecourt from the kit's pieces, laid where the boxes below go: the canopy over its islands,
+// a pump island at each, the kiosk's bays in its row behind (the garage unit at one end stays the game's own),
+// the price pole by the way in, and the rules plate, air and water machine, clutter and jet wash where there's
+// room. Floor(along, out) is the forecourt's surface (the ground and 5 cm).
+void DrawKitForecourt(const ForecourtKit& Kit, const RidePlan::Forecourt& F, const P2& Edge, const P2& Ua, const P2& Va,
+	const std::function<double(double, double)>& Floor, int Detail, RideMesh& Out)
+{
+	const int Need = Detail >= 2 ? 0 : Detail == 1 ? 1 : 2;
+	ForecourtFrame Fr;
+	Fr.Ex = Edge.X; Fr.Ez = Edge.Z; Fr.Ux = Ua.X; Fr.Uz = Ua.Z; Fr.Vx = Va.X; Fr.Vz = Va.Z;
+	const ForecourtKit::Livery& Lv = Kit.Liveries[size_t(Dice(F.Seed, 2) * double(Kit.Liveries.size())) % Kit.Liveries.size()];
+	const std::function<double(double, double)> Ground = [&Floor](double U, double V) { return Floor(U, V) - 0.05; };
+	const auto Lay = [&](const std::string& Name, double Ou, double Ov, double Base, double Xu = 1.0, double Yu = 0.0, double Xv = 0.0, double Yv = 1.0)
+	{
+		const int Pi = Kit.Piece(Name);
+		if (Pi < 0) return;
+		ForecourtPlace At;
+		At.Ou = Ou; At.Ov = Ov; At.Xu = Xu; At.Yu = Yu; At.Xv = Xv; At.Yv = Yv; At.Base = Base;
+		LayForecourtPiece(Kit.Pieces[size_t(Pi)], Fr, At, Ground, Lv, Need, Out);
+	};
+	const double A0 = -F.CanopyLong * 0.5, A1 = F.CanopyLong * 0.5, V0 = EntryLane, V1 = EntryLane + CanopyDeep, Vm = (V0 + V1) * 0.5;
+	Lay(F.Islands >= 3 ? "canopy_3" : "canopy_2", 0.0, 0.0, F.Base);
+	for (int K = 0; K < F.Islands; ++K)
+	{
+		const double U = (K - (F.Islands - 1) * 0.5) * IslandGap;
+		Lay("island", U, Vm, Floor(U, Vm) - 0.05);
+	}
+	// (the price pole by the road at the way in, its faces to the traffic either way)
+	Lay("price_pole", A1 + 4.0, 1.6, Floor(A1 + 4.0, 1.6) - 0.05, 0.0, -1.0, 1.0, 0.0);
+	Lay("rules", A0 + 1.2, V1 - 2.25, Floor(A0 + 1.2, V1 - 2.25) - 0.05);
+	if (F.Kiosk)
+	{
+		const bool Brick = Dice(F.Seed, 7) < Kit.BrickShare;
+		const std::string Style = Brick ? "kiosk_brick_" : "kiosk_glass_";
+		const double KV0 = V1 + 1.5;
+		const double Row = std::fmin(F.CanopyLong, KioskRow);
+		const double KU0 = F.Garage ? F.GarageU + RidePlan::GarageWide * 0.5 + 0.2 : -std::fmin(F.CanopyLong, 12.0) * 0.5;
+		const double KU1 = F.Garage ? Row * 0.5 : std::fmin(F.CanopyLong, 12.0) * 0.5;
+		const double KL = KU1 - KU0;
+		const double Kf = std::fmin(Floor(KU0, KV0), Floor(KU1, KV0)) - 0.05;
+		const int N = std::max(1, int(std::lround((KL - 0.6) / Kit.KioskBay)));
+		const double Bw = (KL - 0.6) / N;
+		for (int I = 0; I < N; ++I)
+		{
+			const char* Kind = I == N / 2 ? "door" : (N >= 3 && I == N - 1) ? "atm" : "glass";
+			Lay(Style + Kind, KU0 + 0.3 + I * Bw, KV0, Kf, Bw / Kit.KioskBay);
+		}
+		Lay(Style + "end", KU0 + 0.3, KV0, Kf, -1.0);
+		Lay(Style + "end", KU1 - 0.3, KV0, Kf);
+		// (in front of the shop: the gas cage, ice chest, logs and coal, A-board, planters and bin, squeezed to its length)
+		const double Squeeze = std::fmin(0.9, (KL - 0.6) / 9.7);
+		if (Squeeze >= 0.55) Lay("clutter", KU0 + 0.5, KV0 - 1.1, Floor(KU0 + 0.5, KV0 - 1.1) - 0.05, Squeeze);
+		Lay("air_water", A1 + 2.5, V1 + 1.0, Floor(A1 + 2.5, V1 + 1.0) - 0.05);
+	}
+	// (a jet wash past the canopy's far end, only where the forecourt runs on far enough and deep enough)
+	if (F.Length * 0.5 - A1 >= 11.0 && F.Depth >= V1 + 9.0 && !(F.Garage && F.GarageU > A1))
+		Lay("jet_wash", A1 + 2.0, V1 + 3.0, Floor(A1 + 6.0, V1 + 5.75) - 0.05);
+}
+} // namespace
+
 void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const
 {
 	if (Detail < 0 || (Forecourts.empty() && TownThings.empty() && AirLines.empty())) return;
@@ -721,6 +1011,8 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 	const Paint Light = {2.6f, 2.6f, 2.4f}, Shop = {2.2f, 1.9f, 1.5f}, Digits = {2.4f, 1.3f, 0.2f};
 	const auto Cx0 = static_cast<long long>(std::floor((X0 - 40.0) / CourtCell)), Cx1 = static_cast<long long>(std::floor((X0 + Size + 40.0) / CourtCell));
 	const auto Cz0 = static_cast<long long>(std::floor((Z0 - 40.0) / CourtCell)), Cz1 = static_cast<long long>(std::floor((Z0 + Size + 40.0) / CourtCell));
+	// [forecourts] The forecourt kit's pieces in place of the boxes below, when it's read (-TorqueForecourts=0: not).
+	const std::shared_ptr<const ForecourtKit> Kit = ForecourtKitNow();
 	for (long long Cz = Cz0; Cz <= Cz1; ++Cz)
 		for (long long Cx = Cx0; Cx <= Cx1; ++Cx)
 		{
@@ -739,6 +1031,11 @@ void RidePlan::TownLifeTile(double X0, double Z0, double Size, int Detail, RideM
 					const double Gy = Ground(Q.X, Q.Z);
 					return (std::isnan(Gy) ? 0.0 : Gy) + 0.05;
 				};
+				if (Kit)
+				{
+					DrawKitForecourt(*Kit, F, C.Edge, C.U, C.V, Floor, Detail, Out);
+					continue;
+				}
 				const double Roof = F.Base + 5.0;   // (the soffit: room for a lorry)
 				const double A0 = -F.CanopyLong * 0.5, A1 = F.CanopyLong * 0.5, V0 = EntryLane, V1 = EntryLane + CanopyDeep;
 				// The canopy: its band all round, white lid, the soffit under it; its posts.

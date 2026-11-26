@@ -29,6 +29,9 @@
 #include "World/WorldFerries.h"
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
+#include "World/WorldRideWarehouses.h"
+#include "World/WorldRideFarms.h"
+#include "World/WorldRideVillage.h"
 #include "World/WorldRideCircuits.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
@@ -39,6 +42,7 @@
 #include <set>
 #include "World/WorldRide.h"
 #include "World/WorldRideSigns.h"
+#include "World/WorldRideForecourtKit.h"
 #include "World/TorqueRideWorld.h"
 
 #include <atomic>
@@ -238,6 +242,48 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const bool bKit = TorqueWorld::Files::Read(KitPath, KitText) && TorqueWorld::Files::Read(KitBinPath, KitBin) && TorqueWorld::SetChurchKit(KitText, KitBin);
 		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
+		// [warehouses] The warehouse kit: ten designs of shed and shop, laid on the map's big industrial and retail
+		// outlines (-TorqueWarehouses=0: the plain drawn sheds, to compare), and [stage 3] their yards' and car
+		// parks' props (-TorqueWarehouseYards=0: the sheds alone, to compare the frame rate).
+		{
+			int32 WarehousesAsked = 1, YardsAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouses="), WarehousesAsked);
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseYards="), YardsAsked);
+			std::string WhText, WhBin;
+			const std::string WhPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.json")));
+			const std::string WhBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.bin")));
+			const bool bWh = WarehousesAsked != 0 && TorqueWorld::Files::Read(WhPath, WhText) && TorqueWorld::Files::Read(WhBinPath, WhBin) && TorqueWorld::SetWarehouseKit(WhText, WhBin, YardsAsked != 0);
+			const std::shared_ptr<const TorqueWorld::WarehouseKit> Wh = TorqueWorld::WarehouseKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
+				YardsAsked == 0 ? TEXT(" (yards off: -TorqueWarehouseYards=0)") : TEXT(""),
+				bWh ? TEXT("") : WarehousesAsked == 0 ? TEXT(" (off: -TorqueWarehouses=0)") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
+		}
+		// [everyday kits stage 4] The farm kit: twelve designs of farm building, laid on the map's barns and farmyard
+		// sheds (-TorqueFarms=0: the drawn barns, to compare).
+		{
+			int32 FarmsAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
+			std::string FmText, FmBin;
+			const std::string FmPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/farm_kit.json")));
+			const std::string FmBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/farm_kit.bin")));
+			const bool bFm = FarmsAsked != 0 && TorqueWorld::Files::Read(FmPath, FmText) && TorqueWorld::Files::Read(FmBinPath, FmBin) && TorqueWorld::SetFarmKit(FmText, FmBin);
+			const std::shared_ptr<const TorqueWorld::WarehouseKit> Fm = TorqueWorld::FarmKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: farm kit: %d designs%s"), Fm ? int32(Fm->Designs.size()) : 0,
+				bFm ? TEXT("") : FarmsAsked == 0 ? TEXT(" (off: -TorqueFarms=0)") : TEXT(" (none: Data/RideUK/farm_kit.json or .bin unreadable; the drawn barns stay)"));
+		}
+		// [everyday kits stage 6] The village kit: schools laid on the map's schools (-TorqueVillage=0: the drawn ones,
+		// and no village set props, to compare).
+		{
+			int32 VillageAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueVillage="), VillageAsked);
+			std::string VkText, VkBin;
+			const std::string VkPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/village_kit.json")));
+			const std::string VkBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/village_kit.bin")));
+			const bool bVk = VillageAsked != 0 && TorqueWorld::Files::Read(VkPath, VkText) && TorqueWorld::Files::Read(VkBinPath, VkBin) && TorqueWorld::SetVillageKit(VkText, VkBin);
+			const std::shared_ptr<const TorqueWorld::WarehouseKit> Vk = TorqueWorld::VillageKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: village kit: %d designs%s"), Vk ? int32(Vk->Designs.size()) : 0,
+				bVk ? TEXT("") : VillageAsked == 0 ? TEXT(" (off: -TorqueVillage=0)") : TEXT(" (none: Data/RideUK/village_kit.json or .bin unreadable; the drawn schools stay)"));
+		}
 		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
 		std::string HeightsText;
 		const std::string HeightsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/church_heights.json")));
@@ -248,6 +294,30 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideLidar="), LidarAsked);
 		if (LidarAsked != 0)
 			TorqueWorld::SetLidarDirs({TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/lidar")))});
+		// [forecourts] The forecourt kit: petrol stations' canopies, pumps, kiosks and price poles in place of the
+		// plain drawn ones (-TorqueForecourts=0: the plain ones, to compare).
+		{
+			int32 ForecourtsAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueForecourts="), ForecourtsAsked);
+			std::string FcText, FcBin;
+			const std::string FcPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/forecourt_kit.json")));
+			const std::string FcBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/forecourt_kit.bin")));
+			const bool bFc = ForecourtsAsked != 0 && TorqueWorld::Files::Read(FcPath, FcText) && TorqueWorld::Files::Read(FcBinPath, FcBin) && TorqueWorld::SetForecourtKit(FcText, FcBin);
+			const std::shared_ptr<const TorqueWorld::ForecourtKit> Fc = TorqueWorld::ForecourtKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: forecourt kit: %d pieces%s"), Fc ? int32(Fc->Pieces.size()) : 0,
+				bFc ? TEXT("") : ForecourtsAsked == 0 ? TEXT(" (off: -TorqueForecourts=0)") : TEXT(" (none: Data/RideUK/forecourt_kit.json or .bin unreadable; the drawn forecourts stay)"));
+		}
+		// [everyday kits stage 5b] The lay-bys and roadside cafes (-TorqueRoadside=0: none made, to compare).
+		{
+			int32 RoadsideAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueRoadside="), RoadsideAsked);
+			TorqueWorld::SetRoadsideOn(RoadsideAsked != 0);
+			int32 BridgesAsked = 1;   // [everyday kits stage 7] (the bridge set: -TorqueBridges=0, the plain decks as they were)
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueBridges="), BridgesAsked);
+			TorqueWorld::SetBridgeKitOn(BridgesAsked != 0);
+			UE_LOG(LogTemp, Display, TEXT("Torque world: bridge set %s"), BridgesAsked != 0 ? TEXT("on") : TEXT("off (-TorqueBridges=0)"));
+			UE_LOG(LogTemp, Display, TEXT("Torque world: lay-bys and roadside cafes %s"), RoadsideAsked != 0 ? TEXT("on") : TEXT("off (-TorqueRoadside=0)"));
+		}
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));

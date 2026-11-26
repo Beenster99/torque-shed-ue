@@ -21,22 +21,23 @@ def slots(x0, pitch, n, w=24, lean=38):
 # each brand's own face: beak (kx length, ky width, kz depth, lift, droop per mm), lamps, louvres, screen height, wings
 STYLE = {
     # British, classic and sculpted: a deep rounded stub of a beak, one big round lamp in a bright ring, a tall rounded screen
-    "hartwell": {"beak": (0.5, 1.05, 1.3, 0, 0.0), "eye": circle_half(47, 1046), "drl": circle_half(47, 1046, 4, 176) + circle_half(41, 1046, 4, 176)[::-1],
+    "hartwell": {"beak": (0.5, 1.05, 1.3, 0, 0.0), "lamps": dict(w0=92, w1=18, proj=[[0.24, 17, True]]), "eye": circle_half(47, 1046), "drl": circle_half(47, 1046, 4, 176) + circle_half(41, 1046, 4, 176)[::-1],
                  "proj": [[19, 1046]], "slots": slots(1096, 62, 2, 28), "screen": 1.25, "wing": 58, "louvre_paint": True},
     # Japanese, angular and layered: a long thin beak that droops to a point, a slit running light over a pair of projectors
-    "kazeda": {"beak": (1.32, 0.85, 0.7, 0, -0.12), "beak_carbon": True, "eye": [[12, 1058], [92, 1074], [99, 1090], [60, 1092], [12, 1074]],
+    "kazeda": {"beak": (1.32, 0.85, 0.7, 0, -0.12), "beak_carbon": True, "lamps": dict(w0=76, w1=10, bar=6, proj=[[0.14, 11], [0.34, 9], [0.54, 7]]), "eye": [[12, 1058], [92, 1074], [99, 1090], [60, 1092], [12, 1074]],
                "drl": [[12, 1074], [60, 1092], [99, 1090], [97, 1084], [60, 1085], [12, 1067]], "proj": [[38, 1028], [70, 1034]],
                "slots": slots(1072, 42, 4, 20), "screen": 0.88, "wing": 96,
                # its own cutaway: the black panel ends in a raked notch behind the louvres
                "black": [[958, 903, 1], [1290, 898, 1], [1345, 930, 1], [1318, 840], [1270, 740], [1230, 660, 1], [1150, 690, 1], [1060, 680, 1], [1040, 760], [1000, 830, 1]]},
     # German, functional and blocky: a broad flat duck bill, two big square lamps under a light bar, the tallest screen
-    "rheinhart": {"beak": (1.0, 1.35, 0.58, 0, 0.0), "beak_carbon": True, "eye": [[10, 1020], [96, 1024], [96, 1070], [10, 1070]],
+    "rheinhart": {"beak": (1.0, 1.35, 0.58, 0, 0.0), "beak_carbon": True, "lamps": dict(w0=96, w1=22, bar=9, proj=[[0.18, 14], [0.44, 11]]), "eye": [[10, 1020], [96, 1024], [96, 1070], [10, 1070]],
                   "drl": [[10, 1075], [96, 1075], [96, 1084], [10, 1084]], "proj": [[34, 1045], [72, 1046]],
                   "slots": slots(1090, 72, 2, 40), "screen": 1.42, "wing": 70},
     # Central European, tall and flat sided: a short rally beak set high with its tip turned up, a vertical lamp stack, a low screen
     "varga": {"beak": (0.7, 0.85, 1.0, 34, 0.14), "eye": [[0, 1042], [25, 1044], [29, 1090], [0, 1093]],
               "drl": [[34, 1044], [41, 1046], [47, 1088], [38, 1090]], "proj": [[0, 1055], [0, 1079]],
               "slots": slots(1100, 50, 3, 22, 22), "screen": 0.74, "wing": 46,
+              "lamps": dict(w0=72, w1=16, bar=10, proj=[[0.2, 12], [0.5, 8]]),
               # its own cutaway, and painted: the panel is scooped away behind the front wheel and carries the bike's colour
               "black": [[958, 903, 1], [1290, 898, 1], [1345, 930, 1], [1330, 860, 1], [1270, 800], [1250, 690, 1], [1196, 640, 1], [1096, 618, 1], [1024, 684], [978, 790]], "black_paint": True},
 }
@@ -86,6 +87,17 @@ def run():
             i1 = max(i for i, q in enumerate(own) if q[0] <= 404)
             m["body"]["seat"][0]["pts"] = own[:i0] + copy.deepcopy([q for q in ls[0]["pts"] if q[0] <= 404]) + own[i1 + 1:]
             m["body"]["seat"][2] = copy.deepcopy(ls[2])
+        # the wide cockpit (beenster, Nov 25, adventure fairing round 5): the lead's tank, wide only at the front, and
+        # its seat widths go with the nose they meet; each brand keeps its own lamp design inside the same opening line
+        if adv.get("wide"):
+            m["body"]["tank"] = copy.deepcopy(lead["body"]["tank"])
+            m["body"]["caps"] = copy.deepcopy(lead["body"]["caps"])
+            m.setdefault("widths", {})
+            for k in ("tank", "seat"):
+                m["widths"][k] = copy.deepcopy(lead["widths"][k])
+            m.setdefault("detail", {})["lamp_unit"] = lead["detail"].get("lamp_unit")
+            if st.get("lamps"):
+                adv["wide"]["headlights"].update(copy.deepcopy(st["lamps"]))
         m["adv"] = adv
         # the drawing: drop the old flat fairing, lamp and rack; carry the lead's shaped parts with this brand's beak and louvres
         keep = [s for s in m["body"]["panels"] if not s.get("adv") and ("pts" not in s or (bbox(s)[1] < 960 and not s.get("tube")))]

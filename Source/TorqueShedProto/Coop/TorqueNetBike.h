@@ -49,7 +49,7 @@ struct FTorqueBikeNetState
 	UPROPERTY() float FrontSlip = 0.f;
 	UPROPERTY() float RearSlip = 0.f;
 	UPROPERTY() uint8 Gear = 1;
-	UPROPERTY() uint8 Flags = 0;                // 1 crashed, 2 front on the ground, 4 rear on the ground, 8 a ghost, 16 parked (rider off), 32 nodding, 64 waving
+	UPROPERTY() uint8 Flags = 0;                // 1 crashed, 2 front on the ground, 4 rear on the ground, 8 a ghost, 16 parked (rider off), 32 nodding, 64 waving, 128 feet planted
 	UPROPERTY() uint8 FrontSurf = 0;
 	UPROPERTY() uint8 RearSurf = 0;
 	UPROPERTY() uint8 Lamps = 0;                // [lights] FTorqueLights::NetBits: headlight, main beam, fog, indicators, hazards, ignition
@@ -58,6 +58,11 @@ struct FTorqueBikeNetState
 	UPROPERTY() float FootYaw = 0.f;            // and the way they face, degrees
 	UPROPERTY() float LookYaw = 0.f;            // [build 155] where they look, degrees from ahead (riding: the camera's look; off: 0)
 	UPROPERTY() float LookPitch = 0.f;          // and up (+) or down: riding, the camera's; off the bike, their walking view's
+	// [build 174 feedback] On a ferry out from its slipway (World/TorqueFerry.h DeckFrame): the boat (its crossing's row
+	// + 1, 0 none) whose frame Pos, Vel and Rot are in (DeckWhat 1: the parked bike) and FootPos and FootYaw (2: the
+	// rider walking about aboard), so they're drawn on each machine's own deck as it moves.
+	UPROPERTY() uint8 Deck = 0;
+	UPROPERTY() uint8 DeckWhat = 0;
 	UPROPERTY() int32 Seq = 0;
 	UPROPERTY() int32 Sender = 0;               // [co-op] the sending machine (bikes can change hands): a new one starts afresh
 };
@@ -100,6 +105,7 @@ private:
 	int32 RecentNext = 0;
 	int32 LastPushedSeq = 0;
 	int32 LastSender = 0;
+	int32 LastDeck = 0;             // [build 174 feedback] the frame the last snapshot came in (Deck * 4 + DeckWhat)
 	bool bHandedOver = false;       // let go of here, before the possession's change has come back
 	void Keep(const FTorqueBikeNetState& S);
 

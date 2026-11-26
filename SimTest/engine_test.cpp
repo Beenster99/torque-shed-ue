@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -107,6 +108,20 @@ int main(int Argc, char** Argv)
 		{"inline4_1000", Make("inline", 4, 1000, 1300, 14000, "race"), true},
 		{"2stroke_250", Make("2stroke", 2, 250, 1400, 12000, "full"), false},
 		{"2stroke_125", Make("2stroke", 1, 125, 1500, 11500, "full"), false},
+		// [Bike V3 Sounds] beenster's own recordings (Data/Audio/Bikes/<name>) over the revs recorded, made below and above
+		{"multistrada", [&Make] { FSpec S = Make("vtwin", 4, 1158, 1300, 11500, "stock", "twinpulse"); S.Own = "multistrada"; return S; }(), false},
+		{"scout", [&Make] { FSpec S = Make("vtwin", 2, 1250, 1000, 8300, "stock", "60v"); S.Own = "scout"; return S; }(), true},
+		{"cb1000gt", [&Make] { FSpec S = Make("inline", 4, 1084, 1200, 12000, "stock", "flat"); S.Own = "cb1000gt"; return S; }(), true},
+		// (the Trident: the made triple, its tone matched by ear to a real one)
+		{"trident", [&Make] { FSpec S = Make("triple", 3, 798, 1200, 11500, "slip", "240"); S.ToneHigh = 3.0; S.ToneMid = -3.0; return S; }(), true},
+		{"zx6r", [&Make] { FSpec S = Make("inline", 4, 636, 1400, 16000, "full", "flat"); S.Own = "zx6r"; return S; }(), true},
+		{"ktm1390", [&Make] { FSpec S = Make("vtwin", 2, 1350, 1300, 10200, "stock", "75v"); S.Own = "ktm1390"; return S; }(), true},
+		{"tracer9", [&Make] { FSpec S = Make("triple", 3, 890, 1250, 11000, "stock", "240"); S.Own = "tracer9"; return S; }(), true},
+		{"kle500", [&Make] { FSpec S = Make("parallel", 2, 451, 1200, 10000, "stock", "180"); S.Own = "kle500"; return S; }(), true},
+		{"klr650", [&Make] { FSpec S = Make("single", 1, 652, 1200, 7500, "stock", "single"); S.Own = "klr650"; return S; }(), true},
+		{"monster", [&Make] { FSpec S = Make("vtwin", 2, 890, 1300, 10750, "stock", "90v"); S.Own = "monster"; return S; }(), true},
+		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
+		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
 	std::vector<double> IdleLoud, PullLoud;
 	for (FCase& C : Cases)
@@ -119,6 +134,33 @@ int main(int Argc, char** Argv)
 			B->IdleRec.empty() ? "" : ", idle recording", Ms);
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
+		// (these recordings are only a tickover: the bike standing, its blips too quick to loop)
+		static const std::map<std::string, double> OwnIdles = {{"panigale", 1350.0}, {"ktm1390", 1550.0}, {"tracer9", 1370.0}, {"kle500", 1300.0}, {"klr650", 1540.0}, {"monster", 1470.0}};
+		const auto OwnIt = OwnIdles.find(C.S.Own);
+		const double OwnIdle = OwnIt == OwnIdles.end() ? 0.0 : OwnIt->second;
+		if (OwnIdle > 0.0)
+			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - OwnIdle) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
+		if (!C.S.Own.empty() && OwnIdle == 0.0)
+		{
+			// Its own loops over the revs recorded, the made sound either side, no jump in level where they meet.
+			CHECK(B->bOwn && B->OwnTop > B->OwnLo * 1.4, "%s: own recording not loaded (%.0f-%.0f rpm)", C.Name, B->OwnLo, B->OwnTop);
+			size_t Own = 0, Below = 0, Above = 0;
+			for (double R : B->Rpms) (R < B->OwnLo ? Below : (R > B->OwnTop ? Above : Own)) += 1;
+			std::printf("  own %.0f-%.0f rpm: %zu own buckets, %zu made below, %zu above\n", B->OwnLo, B->OwnTop, Own, Below, Above);
+			CHECK(Own >= 4 && Below >= 1 && Above >= 1, "%s: %zu own buckets, %zu made below, %zu above", C.Name, Own, Below, Above);
+			for (size_t I = 0; I + 1 < B->Rpms.size(); ++I)
+			{
+				const bool bTop = B->Rpms[I] == B->OwnTop, bLo = B->Rpms[I + 1] == B->OwnLo;
+				if (!bTop && !bLo) continue;
+				const int L = bTop ? ExOn : ExOff;
+				const auto& A = B->Buckets[I]->Loop[L];
+				const auto& N = B->Buckets[I + 1]->Loop[L];
+				const double Db = 20.0 * std::log10(Rms(N.data(), N.size()) / std::max(Rms(A.data(), A.size()), 1e-9));
+				std::printf("  %.0f -> %.0f rpm (%s): %+.1f dB\n", B->Rpms[I], B->Rpms[I + 1], bTop ? "top, on" : "bottom, off", Db);
+				CHECK(std::fabs(Db) < 4.0, "%s: %.1f dB jump where the recording hands over", C.Name, Db);
+				CHECK(B->Buckets[bTop ? I + 1 : I]->Loop[InOn].empty(), "%s: made bucket still has an engine side", C.Name);
+			}
+		}
 		// Every loop finite, not silent, not pinned, and seamless (its end runs into its start).
 		for (size_t I = 0; I < B->Buckets.size(); ++I)
 			for (int L = 0; L < Layers; ++L)
@@ -172,8 +214,12 @@ int main(int Argc, char** Argv)
 		const double IdleRms = Rms(&All[IdleAt + OutRate], OutRate * 2);
 		const double PullRms = Rms(&All[PullAt + OutRate], OutRate * 2);
 		const double OverRms = Rms(&All[OverAt], OutRate * 3);
-		IdleLoud.push_back(IdleRms);
-		PullLoud.push_back(PullRms);
+		// (the made kinds' spread; a bike's own recording is checked against its own made sound above)
+		if (C.S.Own.empty())
+		{
+			IdleLoud.push_back(IdleRms);
+			PullLoud.push_back(PullRms);
+		}
 		std::printf("  idle rms %.3f (recorded share %.2f), pull %.3f, overrun %.3f (%d pops, %d bangs; flames on %.0f%% of pops), peak %.2f, catches %d\n", IdleRms, IdleShare, PullRms,
 			OverRms, V.Pops - Pops0, V.Bangs, 100.0 * FlameShare(V.Bank().Spec), Peak, V.Catches);
 		// ([build 160] the big bangs and the flames: sports engines only)
@@ -237,7 +283,10 @@ int main(int Argc, char** Argv)
 		TorqueSound::RideSound Old, New;
 		Old.Ambience = New.Ambience = false;
 		Old.IdleRpm = New.IdleRpm = 1100.0;
-		New.SetEngine(FBank::For(Cases[1].S, Read, List));
+		// (baked here: with more cases than the bank cache holds, its first bake may have been let go)
+		std::shared_ptr<FBank> Twin = FBank::For(Cases[1].S, Read, List);
+		if (Twin->Claim()) Twin->Bake();
+		New.SetEngine(Twin);
 		const double OldIdle = Ride(Old, 1100, 0), NewIdle = Ride(New, 1100, 0);
 		const double OldPull = Ride(Old, 6000, 1), NewPull = Ride(New, 6000, 1);
 		std::printf("ride mix: made twin idle %.3f pull %.3f; Torque Shed's parallel twin idle %.3f pull %.3f\n", OldIdle, OldPull, NewIdle, NewPull);

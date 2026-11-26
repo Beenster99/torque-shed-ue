@@ -300,7 +300,7 @@ void ScaleCubic(const std::vector<uint8_t>& Src, int SrcSize, std::vector<uint8_
 // a pond). Ground at or under SeaAbs is sea only in a cell that has sea (KnowSea); a pixel in one
 // that hasn't is 0 (land), and one of the sea at least 1. The smoothing shrinks the mask to SeaCells
 // a side and back.
-std::vector<uint8_t> HeightStore::SeaMask(const HeightTile& T, const TileKey* Key) const
+std::vector<uint8_t> HeightStore::SeaMask(HeightTile& T, const TileKey* Key) const
 {
 	const int S = T.Size;
 	const size_t N = size_t(S) * size_t(S);
@@ -309,12 +309,22 @@ std::vector<uint8_t> HeightStore::SeaMask(const HeightTile& T, const TileKey* Ke
 	std::vector<uint8_t> Mask(N, 0);
 	long long Count = 0;
 	const int Limit = int((SeaAbs + 32768.0) * 256.0);
+	const int CoastLimit = int((CoastSeaTop + 32768.0) * 256.0);
 	for (size_t P = 0; P < N; ++P)
+	{
+		// (outside the coast's land, the survey's flat sea a little over SeaAbs: put down to the sea's 0)
+		if (!Allowed.empty() && Allowed[P] == 2 && Raw24(&T.Rgb[P * 3]) > Limit && Raw24(&T.Rgb[P * 3]) <= CoastLimit)
+		{
+			T.Rgb[P * 3] = 128;
+			T.Rgb[P * 3 + 1] = 0;
+			T.Rgb[P * 3 + 2] = 0;
+		}
 		if (Raw24(&T.Rgb[P * 3]) <= Limit && (Allowed.empty() || Allowed[P] != 0))
 		{
 			Mask[P] = 255;
 			++Count;
 		}
+	}
 	if (Count <= (long long)(SeaMin) * S * S / (512 * 512)) return std::vector<uint8_t>();
 	std::vector<uint8_t> Small, Out;
 	ScaleBilinear(Mask, S, Small, SeaCells);
@@ -328,7 +338,7 @@ std::vector<uint8_t> HeightStore::SeaMask(const HeightTile& T, const TileKey* Ke
 }
 
 // Which pixels of a tile may be sea: empty when they all may, a single 0 when none may, else Size x
-// Size of 0 or 1. A pixel in a cell whose coast is known may be sea only outside its land; in a cell
+// Size of 0, 1 or 2 (2: outside a known coast's land, where ground up to CoastSeaTop is sea). A pixel in a cell whose coast is known may be sea only outside its land; in a cell
 // whose profile says it has no sea, never; elsewhere (not known) it may.
 std::vector<uint8_t> HeightStore::SeaAllowed(int Size, const TileKey& Key) const
 {
@@ -401,7 +411,7 @@ std::vector<uint8_t> HeightStore::SeaAllowed(int Size, const TileKey& Key) const
 			}
 			const std::vector<double>& Xs = Rc->second;
 			const size_t West = size_t(std::lower_bound(Xs.begin(), Xs.end(), Lons[size_t(I)]) - Xs.begin());
-			Out[At] = West % 2 == 1 ? 0 : 1;
+			Out[At] = West % 2 == 1 ? 0 : 2;   // (2: outside the coast's land: CoastSeaTop)
 		}
 	}
 	return Out;

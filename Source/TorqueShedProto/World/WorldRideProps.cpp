@@ -38,7 +38,19 @@ const char* RidePlan::PropName(int Kind)
 		"door_panel6", "door_victorian", "door_ledged", "door_ledged_light", "door_modern", "door_double", "door_hood",
 		"bay_canted", "bay_square", "wall_stone", "wall_end", "lamp_heritage", "parked_car", "traffic_signal",
 		"armco", "tyre_wall", "pit_wall", "marshal_post", "braking_board", "start_gantry", "grandstand",   // [circuits]
-		"touring_caravan", "static_caravan"};   // [caravans]
+		"touring_caravan", "static_caravan",   // [caravans]
+		"farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer", "farm_diesel", "farm_muck",   // [everyday kits stage 4]
+		"farm_tractor_utility", "farm_tractor_compact",   // [farm pack tractors]
+		"play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
+		"pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin", "village_sign",   // [everyday kits stage 6]
+		"power_pylon", "power_mast", "power_monopole", "power_turbine", "power_rotor", "power_watertower", "power_kiosk",
+		"power_transformer", "power_gantry", "power_palisade",   // [everyday kits stage 9]
+		"coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",   // [everyday kits stage 10]
+		"road_burgervan", "road_flag", "road_laybysign", "road_cafesign",   // [everyday kits stage 5b]
+		"bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail",   // [everyday kits stage 7]
+		"farm_combine", "farm_forager", "farm_sprayer", "farm_tractor4wd", "farm_tractortrack", "farm_crawler",
+		"farm_loader", "farm_mower", "farm_buggy", "farm_chaser", "farm_tipper", "farm_baler", "farm_drill",
+		"farm_cultivator"};   // [farm machinery]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -114,6 +126,11 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 	}
 	CircuitProps(X0, Z0, Size, Out);   // [circuits]
 	TownLifeProps(X0, Z0, Size, Out);   // [caravans]
+	FarmYardProps(X0, Z0, Size, Out);   // [everyday kits stage 4]
+	FieldGateProps(X0, Z0, Size, Here, Out);   // [farm machinery] (while Held keeps the network's gates)
+	VillageProps(X0, Z0, Size, Out);   // [everyday kits stage 6]
+	CoastProps(X0, Z0, Size, Out);   // [everyday kits stage 10]
+	RoadsideProps(X0, Z0, Size, Out);   // [everyday kits stage 5b]
 }
 
 bool RidePlan::ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out)

@@ -4,7 +4,7 @@
  "kit": true,
  "triangles": 1242,
  "surfaces": {
-  "s073": {
+  "s065": {
    "slot": "dashboard",
    "node": "",
    "surface": "plastic",
@@ -19,7 +19,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s074": {
+  "s066": {
    "slot": "dashboard",
    "node": "",
    "surface": "d3_screen",
@@ -34,7 +34,7 @@
    "metallic": 0.0,
    "roughness": 0.04
   },
-  "s075": {
+  "s067": {
    "slot": "dashboard",
    "node": "",
    "surface": "alu_dark",

@@ -1,0 +1,222 @@
+{
+ "_about": "Ride UK's petrol stations (the forecourt kit, everyday kits stage 5; beenster Nov 26: 'These look great'): our own pieces modelled by Tools/blender_forecourt_kit.py (which writes this file and forecourt_kit.bin). World/WorldRideForecourtKit.cpp lays them where World/WorldRideTownLife.cpp places each forecourt's parts. Pieces are in the forecourt's frame: x along the road, y out from its edge, z up, cm. A part's slot: 1 the livery's main colour, 2 its accent, 10-13 lit after dark only (soffit, shop, price digits, signs).",
+ "liveries": [
+  {
+   "label": "plum and silver",
+   "main": [
+    0.07,
+    0.01,
+    0.045
+   ],
+   "accent": [
+    0.55,
+    0.56,
+    0.57
+   ]
+  },
+  {
+   "label": "teal and coral",
+   "main": [
+    0.0,
+    0.16,
+    0.15
+   ],
+   "accent": [
+    0.75,
+    0.22,
+    0.13
+   ]
+  },
+  {
+   "label": "damson and cream",
+   "main": [
+    0.09,
+    0.012,
+    0.03
+   ],
+   "accent": [
+    0.72,
+    0.62,
+    0.42
+   ]
+  },
+  {
+   "label": "slate and copper",
+   "main": [
+    0.022,
+    0.026,
+    0.03
+   ],
+   "accent": [
+    0.5,
+    0.2,
+    0.07
+   ]
+  },
+  {
+   "label": "mustard and charcoal",
+   "main": [
+    0.3,
+    0.15,
+    0.015
+   ],
+   "accent": [
+    0.03,
+    0.03,
+    0.035
+   ]
+  },
+  {
+   "label": "midnight and sky",
+   "main": [
+    0.01,
+    0.02,
+    0.07
+   ],
+   "accent": [
+    0.3,
+    0.55,
+    0.8
+   ]
+  }
+ ],
+ "styles": {
+  "glass": 0.7,
+  "brick": 0.3
+ },
+ "kiosk_bay": 2.5,
+ "kiosk_top": {
+  "glass": 4.0,
+  "brick": 3.0
+ },
+ "pieces": {
+  "canopy_2": {
+   "label": "Canopy, 2 islands (14.5 x 9 m)",
+   "tris": [
+    1272,
+    1000,
+    680
+   ]
+  },
+  "canopy_3": {
+   "label": "Canopy, 3 islands (21.0 x 9 m)",
+   "tris": [
+    1632,
+    1276,
+    896
+   ]
+  },
+  "island": {
+   "label": "Pump island (4.4 m)",
+   "tris": [
+    2234,
+    748,
+    460
+   ]
+  },
+  "price_pole": {
+   "label": "Price pole (6 m)",
+   "tris": [
+    664,
+    344,
+    120
+   ]
+  },
+  "air_water": {
+   "label": "Air and water machine",
+   "tris": [
+    602,
+    228,
+    108
+   ]
+  },
+  "jet_wash": {
+   "label": "Two-bay jet wash (8 x 5.5 m)",
+   "tris": [
+    620,
+    432,
+    108
+   ]
+  },
+  "clutter": {
+   "label": "Forecourt clutter (by the kiosk)",
+   "tris": [
+    1710,
+    482,
+    0
+   ]
+  },
+  "rules": {
+   "label": "Rules plate and emergency stop",
+   "tris": [
+    70,
+    34,
+    0
+   ]
+  },
+  "kiosk_glass_glass": {
+   "label": "Kiosk glass: glass bay",
+   "tris": [
+    204,
+    168,
+    60
+   ]
+  },
+  "kiosk_glass_door": {
+   "label": "Kiosk glass: door bay",
+   "tris": [
+    264,
+    192,
+    60
+   ]
+  },
+  "kiosk_glass_atm": {
+   "label": "Kiosk glass: atm bay",
+   "tris": [
+    168,
+    120,
+    60
+   ]
+  },
+  "kiosk_glass_end": {
+   "label": "Kiosk glass: end bay",
+   "tris": [
+    72,
+    60,
+    24
+   ]
+  },
+  "kiosk_brick_glass": {
+   "label": "Kiosk brick: glass bay",
+   "tris": [
+    192,
+    192,
+    72
+   ]
+  },
+  "kiosk_brick_door": {
+   "label": "Kiosk brick: door bay",
+   "tris": [
+    228,
+    204,
+    72
+   ]
+  },
+  "kiosk_brick_atm": {
+   "label": "Kiosk brick: atm bay",
+   "tris": [
+    132,
+    120,
+    60
+   ]
+  },
+  "kiosk_brick_end": {
+   "label": "Kiosk brick: end bay",
+   "tris": [
+    44,
+    32,
+    20
+   ]
+  }
+ }
+}

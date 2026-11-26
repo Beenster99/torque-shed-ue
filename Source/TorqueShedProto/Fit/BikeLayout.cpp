@@ -537,9 +537,12 @@ std::string BikeLayout::V2FitReason(const PartsMap& Parts, const std::string& Sl
 	{
 		// (Another engine's part goes on as this block's own version of it: any brand, the same family.)
 		if (Block->Str("family") != Family)
-			return "That's a " + Family + " engine part: it goes on " + Family + " engines only, and this is a " + Block->Str("family") + " engine.";
+			// (Shown after "Can't fit the ... to the engine:", and alone in the shop: no "won't fit" of its own, 172 test.)
+			return "That's made for " + Family + " engines, and this is " + WithA(Block->Str("brand") + " " + Block->Str("family"))
+				+ " engine. Any brand's " + Block->Str("family") + " " + Noun(Own) + " fits it.";
 		if (V2EngineTwin(Parts, Slot, Id).empty())
-			return "That doesn't go on this engine: there's no " + Noun(Own) + " like it for the " + Block->Str("brand") + " " + Block->Str("family") + " engine.";
+			return "There's no version of it for the " + Block->Str("brand") + " " + Block->Str("family")
+				+ " engine. Pick one the parts computer lists for it.";
 	}
 	if (!V2 || !V2->IsObject()) return std::string();   // (a loose engine: only its block counts)
 	const std::string HostFamily = V2->Str("family");
@@ -795,6 +798,15 @@ void V2Layout(const Json* FramePart, const Json* BarPart, Layout& R)
 		R.KneeL = R.KneeL + Move;
 		R.KneeR = R.KneeR + Move;
 		R.SeatFront = R.SeatFront + Move;
+	}
+	// [bought bikes] A bought model's own knee, measured beside its tank (beenster on the KLE 500 in 174: "knees are
+	// out on the rider avatar"): the catalogue's knee is as wide as Torque Shed's tanks.
+	V3 KneeOwn;
+	if (F.Named("knee", KneeOwn))
+	{
+		KneeOwn.z = std::fabs(KneeOwn.z);
+		R.KneeR = KneeOwn;
+		R.KneeL = V3(KneeOwn.x, KneeOwn.y, -KneeOwn.z);
 	}
 	// (The right-hand peg and grip, as the solver gives them: the drawing's are the left ones.)
 	if (F.Named("peg", R.Peg)) R.Peg.z = std::fabs(R.Peg.z);

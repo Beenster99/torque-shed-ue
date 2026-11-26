@@ -44,7 +44,18 @@ void SkyQuad(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& 
 	N = Pt(-N.X / Len, -N.Y / Len, -N.Z / Len);
 	const uint32_t V = uint32_t(Out.Vertices());
 	const V3* Q[4] = {&Q0, &Q1, &Q2, &Q3};
-	for (int K = 0; K < 4; ++K) Vert(Out, *Q[K], N, C, Q[K]->X - Out.OriginX + Q[K]->Z - Out.OriginZ, -Q[K]->Y);
+	// UV0 in metres of the face itself (build 175, beenster at Herstmonceux: a castle smeared in long
+	// streaks). It was U = x + z, V = -y everywhere: on a wall running at 45 degrees one way x + z doesn't
+	// change along it, so the stone was one texel stretched the wall's length, and level tops had no V at
+	// all. Now a wall's U runs along it and V up it; a level face is mapped x by z.
+	const double Hn = std::sqrt(N.X * N.X + N.Z * N.Z);
+	const bool bLevel = std::fabs(N.Y) > 0.7 || Hn < 1e-6;
+	const double Tx = bLevel ? 1.0 : -N.Z / Hn, Tz = bLevel ? 0.0 : N.X / Hn;
+	for (int K = 0; K < 4; ++K)
+	{
+		const double Lx = Q[K]->X - Out.OriginX, Lz = Q[K]->Z - Out.OriginZ;
+		Vert(Out, *Q[K], N, C, Lx * Tx + Lz * Tz, bLevel ? Lz : -Q[K]->Y);
+	}
 	// (the side seen is the one (Q2 - Q0) x (Q3 - Q1) points away from: Q0..Q3 run clockwise as seen)
 	Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
 	if (Both) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
@@ -292,7 +303,7 @@ void RidePlan::IndexSkyline()
 				{
 					const P2 Q = L.Line[K + 1];
 					const double Ya = T.Ground + PylonHeight * 0.8, Yb = Ground(Q.X, Q.Z) + PylonHeight * 0.8;
-					Add(P, Ya, Q, Yb, true, 6, 11.0);
+					Add(P, Ya, Q, Yb, true, 6, 11.0 * PylonHeight / 26.0);   // ([everyday kits stage 9] spread with its size, to meet the model's strings)
 				}
 			}
 			continue;
@@ -516,7 +527,7 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 			{
 				// (a pylon's three each side at its arms' three heights; a pole's side by side)
 				const double Off = W.Strands == 1 ? 0.0 : W.High ? ((S % 2) * 2 - 1) * W.Spread * (0.5 + 0.12 * double(S / 2 == 1)) : (double(S) / (W.Strands - 1) - 0.5) * W.Spread;
-				const double Drop = W.High ? -double(S / 2) * 3.2 : 0.0;
+				const double Drop = W.High ? -double(S / 2) * 3.2 * W.Spread / 11.0 : 0.0;   // (3.2 m a level on a pylon 26 m high)
 				V3 Last;
 				for (int K = 0; K <= Steps; ++K)
 				{
@@ -528,6 +539,67 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 			}
 		});
 	}
+	// [everyday kits stage 9] Near, the power and skyline set's models where the game has them (Tools/blender_power_props.py:
+	// their sizes here as there), each scaled to the map's height; the code's shapes where it hasn't, and far off.
+	const auto Lay = [&](int Kind, double X, double Z, double Yg, const P2& Front, double Scale, uint32_t Id, int Variant, double Pitch = 0.0, double Stretch = 1.0)
+	{
+		RideProp P;
+		P.Kind = uint16_t(Kind);
+		P.Id = Id;
+		P.Variant = uint8_t(Variant & 0xff);
+		P.X = float(X - Out.OriginX);
+		P.Z = float(Z - Out.OriginZ);
+		P.Y = float(Yg);
+		P.Yaw = float(std::atan2(Front.Z, Front.X));
+		P.Scale = float(Scale);
+		P.Pitch = float(Pitch);
+		P.Stretch = float(Stretch);
+		Out.Props.push_back(P);
+	};
+	std::vector<P2> PylonsLaid;   // (where two lines share a tower, one)
+	const auto AsProp = [&](const TallThing& T)
+	{
+		const double H = T.Height;
+		switch (T.Kind)
+		{
+		case TallPylon:
+			// (26 m, its line along its front: the wires meet its strings, IndexSkyline's spread scaled the same)
+			if (!PropModelled[PropPowerPylon]) return false;
+			for (const P2& Q : PylonsLaid) if (Q.DistanceTo(T.At) < 2.0) return true;
+			PylonsLaid.push_back(T.At);
+			Lay(PropPowerPylon, T.At.X, T.At.Z, T.Ground, T.Face, H / 26.0, T.Id, 0);
+			return true;
+		case TallMast:
+			// (30 m to its rod; the great broadcast masts stay the code's)
+			if (!PropModelled[PropPowerMast] || H > 80.0) return false;
+			Lay(PropPowerMast, T.At.X, T.At.Z, T.Ground, T.Face, H / 30.0, T.Id, int(Unit(T.Id, 8) * 2.0));
+			return true;
+		case TallMonopole:
+			if (!PropModelled[PropPowerMonopole] || H > 40.0) return false;
+			Lay(PropPowerMonopole, T.At.X, T.At.Z, T.Ground, T.Face, H / 18.0, T.Id, int(Unit(T.Id, 8) * 2.0));
+			return true;
+		case TallTurbine:
+		{
+			// (the hub 45 m up and 3.6 m out in front; the rotor there, across the wind, its blades at their own angle)
+			if (!PropModelled[PropPowerTurbine] || !PropModelled[PropPowerRotor]) return false;
+			const double Sc = H / 45.0;
+			Lay(PropPowerTurbine, T.At.X, T.At.Z, T.Ground, T.Face, Sc, T.Id, 0);
+			Lay(PropPowerRotor, T.At.X + T.Face.X * 3.6 * Sc, T.At.Z + T.Face.Z * 3.6 * Sc, T.Ground + 45.0 * Sc, P2(T.Face.Z, -T.Face.X), Sc, T.Id, 0, Unit(T.Id, 5) * 2.0944);
+			return true;
+		}
+		case TallWaterTower:
+			// (its tank 4 m across for 18 m: an outline much wider or narrower keeps the code's)
+			if (!PropModelled[PropPowerWaterTower] || std::fabs(T.Radius - 4.0 * H / 18.0) > 1.5) return false;
+			Lay(PropPowerWaterTower, T.At.X, T.At.Z, T.Ground, T.Face, H / 18.0, T.Id, int(Unit(T.Id, 8) * 2.0));
+			return true;
+		case TallKiosk:
+			if (!PropModelled[PropPowerKiosk]) return false;
+			Lay(PropPowerKiosk, T.At.X, T.At.Z, T.Ground, T.Face, 1.0, T.Id, int(Unit(T.Id, 8) * 2.0));
+			return true;
+		default:
+			return false;
+		}
+	};
 	// The tall things: near, whole; far, plain.
 	const auto Draw = [&](const TallThing& T)
 	{
@@ -769,7 +841,7 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 		default: break;
 		}
 	};
-	if (Detail >= 1) Each(Scene->Talls, [&](int I) { if (Inside(Talls[size_t(I)].At)) Draw(Talls[size_t(I)]); });
+	if (Detail >= 1) Each(Scene->Talls, [&](int I) { if (Inside(Talls[size_t(I)].At) && !AsProp(Talls[size_t(I)])) Draw(Talls[size_t(I)]); });
 	else
 		for (const TallThing& T : Talls)
 		{
@@ -828,7 +900,24 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 			return;
 		}
 		// A substation: a palisade 2.4 m high round it, and transformers and gantries on a grid inside.
-		for (size_t K = 0; K < Y.Ring.size(); ++K)
+		const bool Palisade = PropModelled[PropPowerPalisade];
+		for (size_t K = 0; K < Y.Ring.size() && Palisade; ++K)
+		{
+			// ([everyday kits stage 9] the set's panels, 2.75 m, fitted to each edge and tipped up its slope)
+			const P2 A = Y.Ring[K], B = Y.Ring[(K + 1) % Y.Ring.size()];
+			const double L = A.DistanceTo(B);
+			if (L < 0.5) continue;
+			const int Panels = std::max(1, int(std::lround(L / 2.75)));
+			const P2 D = (B - A) * (1.0 / L);
+			for (int P = 0; P < Panels; ++P)
+			{
+				const P2 Pa = A + (B - A) * (double(P) / Panels), Pb = A + (B - A) * (double(P + 1) / Panels), Pm = (Pa + Pb) * 0.5;
+				const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
+				if (std::isnan(Ga) || std::isnan(Gb) || !Clear(Pm.X, Pm.Z)) continue;
+				Lay(PropPowerPalisade, Pm.X, Pm.Z, (Ga + Gb) * 0.5, D, 1.0, Y.Id + uint32_t(K * 131 + P), 0, std::atan2(Gb - Ga, L / Panels), L / Panels / 2.75);
+			}
+		}
+		for (size_t K = 0; K < Y.Ring.size() && !Palisade; ++K)
 		{
 			const P2 A = Y.Ring[K], B = Y.Ring[(K + 1) % Y.Ring.size()];
 			const double L = A.DistanceTo(B);
@@ -847,14 +936,23 @@ void RidePlan::SkylineTile(double X0, double Z0, double Size, int Detail, RideMe
 			// (the palisade's pales, close, seen as a dark screen)
 			SkyQuad(Out, Pt(A.X, Ga + 0.1, A.Z), Pt(B.X, Gb + 0.1, B.Z), Pt(B.X, Gb + 2.3, B.Z), Pt(A.X, Ga + 2.3, A.Z), Paint{0.035f, 0.04f, 0.038f}, true);
 		}
-		int N = 0;
-		for (double Z = MinZ + 4.0; Z < MaxZ - 3.0; Z += 7.0)
+		int N = 0, Row = 0;
+		for (double Z = MinZ + 4.0; Z < MaxZ - 3.0; Z += 7.0, ++Row)
 			for (double X = MinX + 4.0; X < MaxX - 3.0; X += 7.0)
 			{
 				if (!InRing(Y.Ring, X, Z) || !InRing(Y.Ring, X + 2.5, Z) || !InRing(Y.Ring, X - 2.5, Z)) continue;
 				const double G = Ground(X, Z);
 				if (std::isnan(G)) continue;
 				++N;
+				if (PropModelled[PropPowerTransformer] && PropModelled[PropPowerGantry])
+				{
+					// ([everyday kits stage 9] the set's, as a real yard has them: gantries in every other row, the
+					// odd transformer, open ground between; a transformer turned either way, a gantry's beam along x)
+					const double U = Unit(Y.Id, N);
+					const int Plant = U < 0.12 ? PropPowerTransformer : (Row % 2 == 0 && U < 0.75) ? PropPowerGantry : -1;
+					if (Plant >= 0) Lay(Plant, X, Z, G, Plant == PropPowerGantry || Unit(Y.Id, N + 500) < 0.5 ? P2(0.0, 1.0) : P2(1.0, 0.0), 1.0, Y.Id + uint32_t(N), 0);
+					continue;
+				}
 				if (Unit(Y.Id, N) < 0.55)
 				{
 					// (a transformer: a grey box with its fins and three bushings)

@@ -4,7 +4,7 @@
  "kit": true,
  "triangles": 18346,
  "surfaces": {
-  "s022": {
+  "s023": {
    "slot": "tail",
    "node": "",
    "surface": "paint__body",
@@ -19,7 +19,7 @@
    "metallic": 0.0,
    "roughness": 0.5
   },
-  "s025": {
+  "s026": {
    "slot": "tail",
    "node": "",
    "surface": "redlens",
@@ -27,7 +27,7 @@
    "ue": "lens_red",
    "sub": "plate_hanger"
   },
-  "s026": {
+  "s027": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -41,7 +41,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s027": {
+  "s028": {
    "slot": "tail",
    "node": "",
    "surface": "plastic",
@@ -56,7 +56,7 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s028": {
+  "s029": {
    "slot": "tail",
    "node": "",
    "surface": "plate",

@@ -127,6 +127,23 @@ double CurveLength(const P2& P0, const P2& P1, const P2& P2_, const P2& P3)
 	return L;
 }
 
+// A long route's leg from an end's berth out to its offing (or, with no offing, LongLeg straight out along its slipway).
+void LongLegOf(const End& E, P2 (&Out)[4])
+{
+	const double K = LongLeg / 3.0;
+	Out[0] = E.Berth;
+	Out[1] = E.Berth + E.Axis * K;
+	if (!E.bOffing)
+	{
+		Out[2] = E.Berth + E.Axis * (2.0 * K);
+		Out[3] = E.Berth + E.Axis * LongLeg;
+		return;
+	}
+	const P2 Back = Unit(E.Berth + E.Axis * K - E.Offing);
+	Out[2] = E.Offing + Back * K;
+	Out[3] = E.Offing;
+}
+
 // The two legs a sailing runs (end 0's berth out, and in to end 1's): one curve for a short route, its control
 // points along each end's slipway; a long route's leg out runs LongLeg m out along end 0's and its leg in the same
 // in along end 1's.
@@ -144,15 +161,14 @@ void Legs(const Layout& L, bool Long, P2 (&Out)[2][4])
 		for (int I = 0; I < 4; ++I) Out[1][I] = Out[0][I];
 		return;
 	}
-	const double K = LongLeg / 3.0;
-	Out[0][0] = A.Berth;
-	Out[0][1] = A.Berth + A.Axis * K;
-	Out[0][2] = A.Berth + A.Axis * (2.0 * K);
-	Out[0][3] = A.Berth + A.Axis * LongLeg;
-	Out[1][0] = B.Berth + B.Axis * LongLeg;
-	Out[1][1] = B.Berth + B.Axis * (2.0 * K);
-	Out[1][2] = B.Berth + B.Axis * K;
-	Out[1][3] = B.Berth;
+	P2 Leg0[4], Leg1[4];
+	LongLegOf(A, Leg0);
+	LongLegOf(B, Leg1);
+	for (int I = 0; I < 4; ++I)
+	{
+		Out[0][I] = Leg0[I];
+		Out[1][I] = Leg1[3 - I];
+	}
 }
 } // namespace
 
@@ -487,6 +503,33 @@ bool Lay(const Crossing& C, const WorldAsk& Ask, Layout& Out)
 		S.RampDown = std::atan2(Drop, Run);
 		S.DeckEnd = S.Tip + S.Axis * Run;
 		S.Berth = S.DeckEnd + S.Axis * HalfDeck;
+		// [build 174 feedback] A long route's leg out: along the route's own line where it's clearer of the land than
+		// straight out along the slipway (the line the map draws keeps to the water out of a bay).
+		if (C.Long)
+		{
+			const auto LandOn = [&Ask, W](const P2 (&Leg)[4])
+			{
+				int Hits = 0;
+				for (int K = 1; K <= 24; ++K)
+				{
+					const P2 Q = Bezier(Leg[0], Leg[1], Leg[2], Leg[3], K / 24.0, nullptr);
+					const double H = Ask.Height(Q.X, Q.Z);
+					if (!std::isnan(H) && H > W + 0.2 && !(Ask.Sea && Ask.Sea(Q.X, Q.Z))) ++Hits;
+				}
+				return Hits;
+			};
+			P2 Straight[4], ByLine[4];
+			S.bOffing = false;
+			LongLegOf(S, Straight);
+			const int StraightHits = LandOn(Straight);
+			if (StraightHits > 0)
+			{
+				S.Offing = AlongLine(C.Line, std::min(C.Length * 0.3, LongLeg + Dist(S.Berth, AlongLine(C.Line, 0.0, FromEnd))), FromEnd);
+				S.bOffing = true;
+				LongLegOf(S, ByLine);
+				if (LandOn(ByLine) >= StraightHits) S.bOffing = false;
+			}
+		}
 		// The approach from the map's nearest road, where it doesn't come to the head itself.
 		P2 RoadAt;
 		double RoadY = 0.0, Half = 2.5;

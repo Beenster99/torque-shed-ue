@@ -72,7 +72,7 @@ def cut(D, prefixes, poly, xmin):
         if fs:
             bmesh.ops.triangulate(bm, faces=fs)
         for _ in range(8):
-            es = list({e for f in bm.faces if near(f) for e in f.edges if e.calc_length() / MM > 4.0})
+            es = list({e for f in bm.faces if near(f) for e in f.edges if e.calc_length() / MM > (9.0 if D.B.TYRE_LOD.get("lod") == "lod1" else 4.0)})
             if not es:
                 break
             bmesh.ops.subdivide_edges(bm, edges=es, cuts=1)
@@ -177,6 +177,20 @@ def unit(D, name, s, spec, dz, prefixes=("cowl",), depth=64.0):
     if X(cy, cz) is None:
         return False
     ring = lambda k: [(cy + (y - cy) * k, cz + (z - cz) * k) for y, z in poly]
+    sp = spec.get("spine")
+    if sp:
+        # a long thin lamp shrinks and grows across its width, towards its own centre line O -> I, not its middle
+        (oy, oz), (iy, iz) = (s * sp[0][0] * spec.get("ky", 1.0), sp[0][1] + dz), (s * sp[1][0] * spec.get("ky", 1.0), sp[1][1] + dz)
+        dy_, dz_ = iy - oy, iz - oz
+        LL = dy_ * dy_ + dz_ * dz_
+
+        def ring(k):
+            out = []
+            for y, z in poly:
+                t = max(0.0, min(1.0, ((y - oy) * dy_ + (z - oz) * dz_) / LL))
+                c_ = (oy + dy_ * t, oz + dz_ * t)
+                out.append((c_[0] + (y - c_[0]) * k, c_[1] + (z - c_[1]) * k))
+            return out
     xs = [X(y, z) for y, z in poly]
     xb = min(xs) - depth
     m = len(poly)
@@ -184,6 +198,8 @@ def unit(D, name, s, spec, dz, prefixes=("cowl",), depth=64.0):
     gloss = D.surf("lampsurround", (0.012, 0.012, 0.014), 0.0, 0.12, coat=1.0, wear=0.0)
     satin = D.surf("lamphousing", (0.02, 0.02, 0.022), 0.0, 0.5, wear=0.0)
     chrome = D.surf("lampchrome", (0.9, 0.9, 0.92), 1.0, 0.05, wear=0.0)
+    # a dark-faced unit (the wide adventure lamps): the bowl behind the lenses is smoked black, not chrome
+    bowl_m = D.surf("lampinner", (0.03, 0.032, 0.036), 0.6, 0.22, wear=0.0) if spec.get("inner") == "dark" else chrome
 
     def band(nm, rings, material, close=False):
         """a skin through rings of m points [(x, y, z)]"""
@@ -198,7 +214,10 @@ def unit(D, name, s, spec, dz, prefixes=("cowl",), depth=64.0):
     # the bezel: a gloss frame lapped over the cut edge of the paint, turning in to a short throat
     band(f"{name}_bezel", [on(1.075, 0.6), on(1.05, 2.4), on(0.97, 2.6), on(0.93, 1.0), on(0.9, -14.0)], gloss)
     # the housing: a dark bucket from the opening back to a closed rear wall
-    band(f"{name}_housing", [on(1.0, -3.0), [(xb + 10, cy + (y - cy) * 0.92, cz + (z - cz) * 0.92) for y, z in poly], [(xb, cy + (y - cy) * 0.7, cz + (z - cz) * 0.7) for y, z in poly]], satin, close=True)
+    if sp:      # a lamp that sweeps back along the fairing: its bucket follows the surface, the same depth all along
+        band(f"{name}_housing", [on(1.0, -3.0), on(0.92, -depth + 10), on(0.7, -depth)], satin, close=True)
+    else:
+        band(f"{name}_housing", [on(1.0, -3.0), [(xb + 10, cy + (y - cy) * 0.92, cz + (z - cz) * 0.92) for y, z in poly], [(xb, cy + (y - cy) * 0.7, cz + (z - cz) * 0.7) for y, z in poly]], satin, close=True)
     # the reflector: a chrome bowl that deepens away from the rim, ribbed with flutes or stepped in facets
     inner = ring(0.9)
     step = 2.5
@@ -222,8 +241,8 @@ def unit(D, name, s, spec, dz, prefixes=("cowl",), depth=64.0):
     for (iy, iz), a in idx.items():
         if (iy + 1, iz) in idx and (iy, iz + 1) in idx and (iy + 1, iz + 1) in idx:
             faces.append((a, idx[(iy + 1, iz)], idx[(iy + 1, iz + 1)], idx[(iy, iz + 1)]))
-    B.mesh_obj(f"{name}_reflector", verts, faces, chrome, False, 0, False)
-    band(f"{name}_reflectorrim", [on(0.93, -8.0), on(0.86, -11.0)], chrome)
+    B.mesh_obj(f"{name}_reflector", verts, faces, bowl_m, False, 0, False)
+    band(f"{name}_reflectorrim", [on(0.93, -8.0), on(0.86, -11.0)], bowl_m)
     # projectors: a glass lens in a bright shroud on a dark barrel, a cut-off shield behind it, some with a halo ring
     glass = D.glass_mat("lampglassblue", (0.82, 0.9, 1.0))
     for n_, (py, pz, r, halo) in enumerate(spec.get("proj", [])):
@@ -240,7 +259,29 @@ def unit(D, name, s, spec, dz, prefixes=("cowl",), depth=64.0):
             D.lathe(f"{name}_halocarrier{n_}", o, ax, [(33, r + 7), (33, r + 9), (37, r + 9), (37, r + 7)], gloss, 64, caps=False)
     # the running light: a clear guide glowing along its length, ribbed with fine prisms, in a gloss carrier
     drl = [(s * y * spec.get("ky", 1.0), z + dz) for y, z in spec.get("drl", [])]
-    if len(drl) >= 2:
+    if len(drl) >= 2 and spec.get("bar"):
+        # an LED bar: a flat glowing blade of the given width along the line, in a gloss carrier a little wider
+        dense = []
+        for i in range(len(drl) - 1):
+            (y0, z0), (y1, z1) = drl[i], drl[i + 1]
+            n_ = max(2, int(math.hypot(y1 - y0, z1 - z0) / 4))
+            dense += [(y0 + (y1 - y0) * q / n_, z0 + (z1 - z0) * q / n_) for q in range(n_)]
+        dense.append(drl[-1])
+        nrm = []
+        for i in range(len(dense)):
+            (ya, za), (yb, zb) = dense[max(0, i - 1)], dense[min(len(dense) - 1, i + 1)]
+            L_ = math.hypot(yb - ya, zb - za) or 1.0
+            nrm.append((-(zb - za) / L_, (yb - ya) / L_))
+        for nm_, w_, back, mt in (("drlcarrier", spec["bar"] * 0.5 + 2.0, 6.0, gloss), ("drl", spec["bar"] * 0.5, 4.0, D.glow("drl", (0.9, 0.95, 1.0), 6.0))):
+            rows = [[(X(y + ny * o, z + nz * o) - back, y + ny * o, z + nz * o) for (y, z), (ny, nz) in zip(dense, nrm)] for o in (-w_, w_)]
+            k_ = len(dense)
+            vs = [B.V(*q) for r in rows for q in r]
+            fs = [(i, i + 1, k_ + i + 1, k_ + i) for i in range(k_ - 1)]
+            ob = B.mesh_obj(f"{name}_{nm_}", vs, fs, mt, True, 0, False)
+            B.bm_fix_normals(ob)
+            md = ob.modifiers.new("t", "SOLIDIFY")
+            md.thickness, md.offset = 1.5 * D.B.MM, 0
+    elif len(drl) >= 2:
         dense = []
         for i in range(len(drl) - 1):
             (y0, z0), (y1, z1) = drl[i], drl[i + 1]
@@ -274,4 +315,29 @@ def fit(D, model, c, dz=0.0, prefixes=("cowl",)):
         return False
     made = [unit(D, f"lampunit{s}", s, spec, dz, prefixes) for s in (-1, 1)]
     print("lamp units:", made)
+    return all(made)
+
+
+def strip(D, hl, prefixes=("advnose",)):
+    """The wide adventure headlights (beenster, Nov 25, adventure round 4: "wide at the back and narrow at the front
+    with a distinctive LED top bar and lenses underneath"): a long tapered lamp each side, from its outer (back) end
+    O high on the shoulder down to its inner tip I beside the V, w0 wide at O and w1 at I (front view, mm). Its own
+    part (headlight slot) behind an opening cut in the nose: bezel, dark housing, the LED bar along the top edge,
+    projector lenses under it, a clear outer lens. hl: O, I, w0, w1, proj [[t along O->I, lens radius], ...]."""
+    O, I, w0, w1 = hl["O"], hl["I"], hl["w0"], hl["w1"]
+    d = (I[0] - O[0], I[1] - O[1])
+    L = math.hypot(*d)
+    d = (d[0] / L, d[1] / L)
+    n = (d[1], -d[0])
+    if n[1] < 0:
+        n = (-n[0], -n[1])          # the side towards the top
+
+    def edge(t, off):
+        w = w0 + (w1 - w0) * t
+        return (O[0] + (I[0] - O[0]) * t + n[0] * off * w / 2, O[1] + (I[1] - O[1]) * t + n[1] * off * w / 2)
+    ts = [k / 12 for k in range(13)]
+    outline = [edge(t, 1.0) for t in ts] + [edge(t, -1.0) for t in ts[::-1]]
+    spec = dict(outline=outline, spine=(tuple(O), tuple(I)), drl=[edge(t, 0.72) for t in ts[:-1]], bar=hl.get("bar", 7.0), inner="dark", cells=[], flute=0,
+                proj=[edge(t, -0.25) + (r, bool(halo)) for t, r, *halo in hl.get("proj", [])])
+    made = [unit(D, f"lampunit{s}", s, spec, 0.0, prefixes, depth=hl.get("depth", 46.0)) for s in (-1, 1)]
     return all(made)

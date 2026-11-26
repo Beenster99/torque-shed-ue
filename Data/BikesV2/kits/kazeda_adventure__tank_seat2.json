@@ -2,9 +2,9 @@
  "name": "Kazeda adventure (working title A1)",
  "format": 2,
  "kit": true,
- "triangles": 27552,
+ "triangles": 29656,
  "surfaces": {
-  "s016": {
+  "s017": {
    "slot": "tank",
    "node": "",
    "surface": "paint__body",
@@ -19,7 +19,7 @@
    "metallic": 0.3,
    "roughness": 0.3
   },
-  "s017": {
+  "s018": {
    "slot": "saddle",
    "node": "",
    "surface": "d3_leather",
@@ -33,7 +33,7 @@
    "metallic": 0.0,
    "roughness": 0.46
   },
-  "s139": {
+  "s140": {
    "slot": "saddle",
    "node": "",
    "surface": "d3_thread",
@@ -47,7 +47,7 @@
    "metallic": 0.0,
    "roughness": 0.75
   },
-  "s140": {
+  "s141": {
    "slot": "tank",
    "node": "",
    "surface": "alu_dark",
@@ -62,7 +62,7 @@
    "metallic": 0.9,
    "roughness": 0.45
   },
-  "s141": {
+  "s142": {
    "slot": "tank",
    "node": "",
    "surface": "d3_capring",
@@ -77,7 +77,7 @@
    "metallic": 1.0,
    "roughness": 0.25
   },
-  "s142": {
+  "s143": {
    "slot": "tank",
    "node": "",
    "surface": "d3_caplid",
@@ -92,7 +92,7 @@
    "metallic": 0.9,
    "roughness": 0.3
   },
-  "s143": {
+  "s144": {
    "slot": "tank",
    "node": "",
    "surface": "steel",
@@ -107,7 +107,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s144": {
+  "s145": {
    "slot": "tank",
    "node": "",
    "surface": "rubber",

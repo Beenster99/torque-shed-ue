@@ -4,6 +4,7 @@
 // the front wheel, the hips over the bike), the fitted pieces must come from the V2 files (one for each
 // slot and moving group, standing on the ground, each wheel round its axle) and the spec must load and
 // agree with the layout. Plain C++, no engine.
+#include "BoughtFile.h"
 #include "BikeLayout.h"
 #include "BikeParts.h"
 #include "BikeRideSpec.h"
@@ -82,7 +83,10 @@ int main()
 	Json::Parse(LayoutText, LayoutJson);
 	BikeParts::SetV2Source([&R](const std::string& Model, PartMesh& Mesh, std::string& Info) {
 		std::string Bytes, Err;
-		return ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
+		// ([bought bikes] or its scrambled copy, as the game reads it: Fit/BoughtFile.h)
+		const bool bGot = ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Bytes) ||
+			(ReadFile(R + "/Data/BikesV2/" + Model + ".tsb", Bytes) && UnscrambleBought(Bytes));
+		return bGot && Mesh.LoadGlb(Bytes, Err) && ReadFile(R + "/Data/BikesV2/" + Model + ".json", Info);
 	});
 	// The game's own part glbs (the tyres' tread sections, which a V2 bike's tyres are bent from).
 	Json Index = Json::MakeObject();
@@ -120,6 +124,19 @@ int main()
 		const Json* Frame = Db.Find("frame", Id);
 		const Json* V2 = Frame ? Frame->Get("v2") : nullptr;
 		if (!V2) continue;
+		// [bought bikes] A bought bike (beenster's own model, ridden whole) has its own numbers and no engine built up
+		// from parts; its drawing isn't in git (Tools/bought_bikes.py puts it in the build), so without it, it's skipped.
+		const bool bBought = V2->Flag("bought");
+		if (bBought)
+		{
+			std::string Probe;
+			const std::string Model = V2->Str("model");
+			if (!ReadFile(R + "/Data/BikesV2/" + Model + ".glb", Probe) && !ReadFile(R + "/Data/BikesV2/" + Model + ".tsb", Probe))
+			{
+				std::printf("skip %s: a bought bike, its drawing isn't here (Data/BikesV2/%s.glb or .tsb)\n", Id.c_str(), Model.c_str());
+				continue;
+			}
+		}
 		++Bikes;
 		const Json* Styles = Frame->Get("styles");
 		const std::string Style = Styles && !Styles->A.empty() ? Styles->A[0].S : std::string("naked");
@@ -160,7 +177,7 @@ int main()
 						if (First.empty()) First = KV.first + " " + F.first + " " + Num2(New->Num(F.first, -1e9)) + " (was " + Num2(F.second.N) + ")";
 					}
 			}
-			Expect(Ref != nullptr && Off == 0, Id + " rides as the stock " + Style + " (" + std::to_string(Off) + " off: " + First + ")");
+			Expect(Ref != nullptr && (Off == 0 || bBought), Id + " rides as the stock " + Style + " (" + std::to_string(Off) + " off: " + First + ")");
 		}
 		const std::vector<std::string> Offered = Shop::Options(Lay, "frame", Style, Shop::StockBuild(Lay, Style));
 		Expect(std::find(Offered.begin(), Offered.end(), Id) != Offered.end(), Id + " is offered as a frame on a new " + Style);
@@ -272,7 +289,10 @@ int main()
 			if (Top && Bottom && Pivot && Axle && Top->A.size() >= 3 && Bottom->A.size() >= 3 && Pivot->A.size() >= 3 && Axle->A.size() >= 3)
 			{
 				++Sprung;
-				Expect(Nodes.count("shock_top") && Nodes.count("shock_bottom") && Nodes.count("shock_spring"), Id + " shock has a body end, a rod end and a spring the game can work");
+				// [bought bikes] A bought model draws its shock as it was made: both ends without a spring to see, or only
+				// the spring (the damper hidden inside the frame) still work; the game moves whichever pieces it has.
+				const bool bEnds = Nodes.count("shock_top") && Nodes.count("shock_bottom");
+				Expect((bEnds && Nodes.count("shock_spring")) || (bBought && (bEnds || Nodes.count("shock_spring"))), Id + " shock has a body end, a rod end and a spring the game can work");
 				const double Px = Pivot->A[0].N, Pz = Pivot->A[2].N, Arm = std::hypot(Axle->A[0].N - Px, Axle->A[2].N - Pz);
 				const double RestAngle = std::atan2(Axle->A[2].N - Pz, Axle->A[0].N - Px);
 				const double BumpAngle = TorqueSim::Pi - std::asin(std::clamp((Axle->A[2].N + 60.0 - Pz) / Arm, -1.0, 1.0));   // (the axle is behind the pivot)
@@ -336,14 +356,15 @@ int main()
 			}
 			Expect(Pieces > 0, Id + " bare frame is drawn");
 			const PartsMap Own = Lay.V2Build(Id);
-			Expect(Own.size() >= 18, Id + " has its own shop parts (" + std::to_string(Own.size()) + ")");
+			// ([bought bikes] a bought model has the parts its maker drew: a plainer bike draws fewer of them)
+			Expect(Own.size() >= (bBought ? 15u : 18u), Id + " has its own shop parts (" + std::to_string(Own.size()) + ")");
 			for (const auto& KV : Own)
 			{
 				Expect(Parts[KV.first] == KV.second, Id + " comes with its own " + KV.first);
 				Expect(Lay.V2FitReason(Parts, KV.first, KV.second).empty(), Id + " its own " + KV.first + " fits it: " + Lay.V2FitReason(Parts, KV.first, KV.second));
 			}
-			Expect(Slots.count("head") == 1, Id + " cylinder head pieces cut from the engine");
-			Expect(!Own.count("gearbox") || Slots.count("gearbox") == 1, Id + " gearbox pieces");
+			Expect(bBought || Slots.count("head") == 1, Id + " cylinder head pieces cut from the engine");
+			Expect(bBought || !Own.count("gearbox") || Slots.count("gearbox") == 1, Id + " gearbox pieces");
 			// One at a time, each own part drawn on the bare frame is only that part.
 			for (const char* One : {"engine", "head", "tank", "front_wheel", "fork"})
 			{
@@ -522,6 +543,52 @@ int main()
 			}
 		std::printf("%d V2 part name checks (own slot in any spelling, engine parts on every size of their block)\n", NameChecks);
 		Expect(NameChecks > 1000, "the V2 parts were name-checked");
+	}
+	{
+		// [engine stand, beenster after 171: "i should be able to wrench engine parts tight on the engine stand"] An
+		// engine on the stand is drawn as TorqueShedCatalogue::MakePart draws it (its style's shop bike, the block's
+		// own frame's build, then the block and what's on it): each engine part on it must draw pieces in its own
+		// slot, or there's nothing tagged with that slot for the wrench to aim at.
+		int StandChecks = 0, StandBad = 0;
+		BikeParts Placer(Lay, Index);
+		for (const std::string& Block : Db.Ids("engine"))
+		{
+			const Json* Bp = Db.Find("engine", Block);
+			const Json* Bv = Bp ? Bp->Get("v2part") : nullptr;
+			if (!Bv || !Bv->IsObject() || !Lay.Part(Bv->Str("frame")) || !Bv->Str("size_of").empty()) continue;
+			const std::vector<std::string> Styles = Lay.StylesOf(Block);
+			const std::string Style = Styles.empty() ? Lay.ShopStyles()[0] : Styles[0];
+			// (its own engine parts, and every engine part of any kind sold for its model: the kits' looks too)
+			std::vector<std::pair<std::string, std::string>> OnIt;
+			for (const auto& KV : Lay.V2Build(Bv->Str("frame"))) OnIt.push_back(KV);
+			for (const std::string& Kind : Db.Kinds())
+				for (const std::string& Pid : Db.Ids(Kind))
+				{
+					const Json* Pp = Db.Find(Kind, Pid);
+					const Json* Pv = Pp ? Pp->Get("v2part") : nullptr;
+					if (Pv && Pv->IsObject() && Pv->Str("fits") == "engine" && Pv->Str("slot") != "engine" && Lay.V2FitReason({{"engine", Block}}, Pv->Str("slot"), Pid).empty()
+						&& Lay.V2EngineTwin({{"engine", Block}}, Pv->Str("slot"), Pid) == Pid)
+						OnIt.push_back({Pv->Str("slot"), Pid});
+				}
+			for (const auto& Slot : OnIt)
+			{
+				const Json* Sp = Lay.Part(Slot.second);
+				const Json* Sv = Sp ? Sp->Get("v2part") : nullptr;
+				if (!Sv || Sv->Str("fits") != "engine" || Slot.first == "engine") continue;
+				PartsMap Map = Lay.ShopBuild(Style);
+				Map["frame"] = Bv->Str("frame");
+				for (const auto& KV : Lay.V2Build(Bv->Str("frame"))) Map[KV.first] = KV.second;
+				Map["engine"] = Block;
+				Map[Slot.first] = Slot.second;
+				bool Drawn = false;
+				for (const FittedPart& P : Placer.Fit(Map, Lay.Solve(Map)))
+					if (!P.Hidden && P.Slot == Slot.first) Drawn = true;
+				++StandChecks;
+				if (!Drawn) { ++StandBad; if (StandBad <= 12) std::printf("  on the stand: %s's %s (%s) draws nothing in its slot\n", Block.c_str(), Slot.first.c_str(), Slot.second.c_str()); }
+			}
+		}
+		std::printf("%d engine parts drawn on a stand engine, %d with nothing in their slot\n", StandChecks, StandBad);
+		Expect(StandBad == 0, "every engine part on a stand engine is drawn in its own slot (so the wrench can reach it)");
 	}
 	Expect(Bikes > 0, "there are V2 bikes in the catalogue");
 	std::printf("%d mixed-brand part fits, worst %.3f m from the bike's own\n", MixChecks, WorstMix);
