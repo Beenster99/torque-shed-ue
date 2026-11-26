@@ -922,7 +922,7 @@ void RidePlan::IndexTownLife()
 						if (Dice(Seed + uint32_t(K) * 31u, 44) < 0.2) continue;   // (a gap here and there)
 						A.LorryAt.push_back(BestAt + Way * (-Run + K * 4.6) + Deep * (Dice(Seed + uint32_t(K) * 31u, 45) - 0.5));
 						A.LorryFront.push_back(Dice(Seed + uint32_t(K) * 31u, 46) < 0.8 ? Deep * -1.0 : Deep);
-						A.LorryVariant.push_back(int(Dice(Seed + uint32_t(K) * 31u, 47) * 3.0) % 3);
+						A.LorryVariant.push_back(int(Dice(Seed + uint32_t(K) * 31u, 47) * 6.0) % 6);
 					}
 					const double Ru = Run + 4.0, Rv = 11.0;
 					A.Park = {BestAt - Way * Ru - Deep * Rv, BestAt + Way * Ru - Deep * Rv, BestAt + Way * Ru + Deep * Rv, BestAt - Way * Ru + Deep * Rv};
