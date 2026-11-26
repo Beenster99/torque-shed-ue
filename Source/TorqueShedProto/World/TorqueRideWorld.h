@@ -104,6 +104,9 @@ public:
 	// eight numbers each (RidePlan::ParkedCarBox: middle x, z; nose x, z; half length, half width; foot, roof).
 	// False with no ride.
 	static bool ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out);
+	// [cafes] The nearest free seat at a roadside cafe's outside tables within Reach (cm) of At (Unreal cm): Seat is the
+	// top of its seat (cm), Yaw the way a sitter faces (degrees), Cafe its name; Taken (cm) the seats others sit on.
+	static bool CafeSeatNear(const FVector& At, double Reach, const TArray<FVector>& Taken, FVector& Seat, double& Yaw, FString& Cafe);
 	// [ferries] One of the prop kit's models of a kind (RidePlan::EPropKind) stood as the ride stands its own: Variant
 	// picks among its models, Spot (Unreal cm) is its foot's middle, Yaw (radians, the ride's frame) its facing. False
 	// when the kit has none of that kind. The mesh and its transform (world: for a part of a moving actor, make it

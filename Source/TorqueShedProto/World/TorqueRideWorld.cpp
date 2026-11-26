@@ -367,6 +367,22 @@ bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<do
 	return true;
 }
 
+bool ATorqueRideWorld::CafeSeatNear(const FVector& At, double Reach, const TArray<FVector>& Taken, FVector& Seat, double& Yaw, FString& Cafe)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	std::vector<TorqueWorld::P2> Sat;
+	for (const FVector& T : Taken) Sat.push_back(TorqueWorld::P2(T.X / 100.0, T.Y / 100.0));
+	TorqueWorld::P2 Spot, Face;
+	double Y = 0.0;
+	std::string Name;
+	if (!Ride->Plan->CafeSeatNear(At.X / 100.0, At.Y / 100.0, Reach / 100.0, Spot, Y, Face, &Sat, &Name)) return false;
+	Seat = FVector(Spot.X * 100.0, Spot.Z * 100.0, Y * 100.0);
+	Yaw = FMath::RadiansToDegrees(FMath::Atan2(Face.Z, Face.X));
+	Cafe = UTF8_TO_TCHAR(Name.c_str());
+	return true;
+}
+
 bool ATorqueRideWorld::PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, UStaticMesh*& OutMesh, FTransform& OutAt)
 {
 	// (PlaceProps's own sums for one prop, level, at its own scale)

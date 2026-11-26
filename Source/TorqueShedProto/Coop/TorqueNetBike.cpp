@@ -34,7 +34,7 @@ enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Sounds
 static_assert(NI_Count <= TorqueNet::MaxInts, "more stepped values than a snapshot holds");
 
 constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16, FlagNod = 32, FlagWave = 64, FlagFeet = 128;
-constexpr uint8 SoundEngine = 1, SoundHorn = 2;   // FTorqueBikeNetState::Sounds
+constexpr uint8 SoundEngine = 1, SoundHorn = 2, SoundSat = 4;   // FTorqueBikeNetState::Sounds ([cafes] 4: sat at a cafe table)
 
 // This machine, as its snapshots say (a bike's sender changes when riders swap bikes).
 int32 MachineToken()
@@ -173,7 +173,7 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	S.FrontSurf = (uint8)FMath::Clamp(F.Surf, 0, 255);
 	S.RearSurf = (uint8)FMath::Clamp(R.Surf, 0, 255);
 	S.Lamps = B->Lights.NetBits();   // [lights]
-	S.Sounds = (Sim.EngineOn ? SoundEngine : 0) | (B->bHornDown ? SoundHorn : 0);
+	S.Sounds = (Sim.EngineOn ? SoundEngine : 0) | (B->bHornDown ? SoundHorn : 0) | (B->IsOnFoot() && B->IsSeated() ? SoundSat : 0);
 	// [foot] Off the bike: where they walk (else the bike's place, so the walk starts beside it).
 	S.FootPos = B->IsOnFoot() ? B->FootPos : B->GetActorLocation();
 	S.FootYaw = B->IsOnFoot() ? (float)B->FootYaw : (float)B->GetActorRotation().Yaw;
@@ -395,7 +395,7 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	B->bHornDown = bHorn;
 	// [foot] Off their bike: their body walking about beside it, where they are.
 	B->ShowNetWalker((Out.Ints[NI_Flags] & FlagParked) != 0, FVector(Out.Val[NV_FootX], Out.Val[NV_FootY], Out.Val[NV_FootZ]),
-		FMath::RadiansToDegrees(FMath::Atan2(Out.Val[NV_FootYawSin], Out.Val[NV_FootYawCos])), DeltaSeconds);
+		FMath::RadiansToDegrees(FMath::Atan2(Out.Val[NV_FootYawSin], Out.Val[NV_FootYawCos])), DeltaSeconds, (Out.Ints[NI_Sounds] & SoundSat) != 0);
 }
 
 void UTorqueNetBikeComponent::SetUpSound(bool bRemote)

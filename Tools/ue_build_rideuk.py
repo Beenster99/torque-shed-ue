@@ -1947,6 +1947,8 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "services_hall", "services_pylon", "services_lorry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
+# ([cafes] the roadside cafes and their outside tables, Tools/blender_cafe_kit.py, the same material)
+STREET_KIT_KINDS = STREET_KIT_KINDS + ("cafe_building", "cafe_chair", "cafe_table", "cafe_picnic", "cafe_parasol", "cafe_aboard")
 
 
 def street_kit_texture(L, file_name, asset, compression, nearest=False):

@@ -466,6 +466,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const LocalLook* OnStreet = StreetLookAt(B.X, B.Z);
 		const LocalLook& Look = OnStreet ? *OnStreet : TileLook;
 		if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || !OffRoad(B.X, B.Z, std::fmin(B.W, B.D) * 0.5) || RailClear(B.X, B.Z) < std::fmin(B.W, B.D) * 0.5 + 2.0) continue;
+		if (CafeBuilding(B.X, B.Z)) continue;   // [cafes] (a cafe's building: one of the cafe designs, World/WorldRideCafes.cpp)
 		if (HallBuilding(&B)) continue;   // [everyday kits stage 8b] (a services' main building: the set's hall, World/WorldRideServices.cpp)
 		// [towns stage 2] (a large or tall building is drawn at its true outline: WorldRideTowers.cpp)
 		if (UnderTower(B.X, B.Z))

@@ -423,6 +423,15 @@ int main(int Argc, char** Argv)
 			std::printf("Motorway services: %d areas, %d main buildings, %d pylons, %d lorries\n", int(Plan->ServiceAreas.size()), Halls, Pylons, Lorries);
 			for (const RidePlan::ServiceArea& A : Plan->ServiceAreas) std::printf("  %s at %.1f, %.1f\n", A.Name.c_str(), A.Mid.X, A.Mid.Z);
 		}
+		{
+			int Seats = 0, Things = 0;   // [cafes]
+			for (const RidePlan::CafeSite& C : Plan->Cafes) { Seats += int(C.Seats.size()); Things += int(C.Things.size()); }
+			std::printf("Cafes: %d of %d mapped out of town made (%d on the map's buildings), %d terrace things, %d seats\n", int(Plan->Cafes.size()), Plan->CafesSeen,
+				Plan->CafesOnBoxes, Things, Seats);
+			for (const RidePlan::CafeSite& C : Plan->Cafes)
+				std::printf("  %s: design %d at %.1f, %.1f facing %.2f, %.2f, %s, stretch %.2f x %.2f, %d seats\n", C.Name.c_str(), C.Design, C.At.X, C.At.Z, C.Front.X, C.Front.Z,
+					C.OnMapBox ? "on the map's box" : "set back from the road", C.Stretch, C.Across, int(C.Seats.size()));
+		}
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
