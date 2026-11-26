@@ -613,7 +613,7 @@ void RidePlan::IndexTownLife()
 			{
 				const P2 Table = Mid - Way * 4.0 + L.Out * (Half + BestDepth + 2.2);
 				if (Clear(Table, 1.0) && Clear(Table + L.Out * 1.0, 0.5) && !Walled(Mid - Way * 4.0 + L.Out * (Half + BestDepth - 0.2), Table + L.Out * 1.2))
-					AddRoadside(PropPicnicTable, Table, Way, 0, L.Seed * 7u + 5u);
+					AddRoadside(PropCafePicnic, Table, P2(Way.Z, -Way.X), int(L.Seed % 2u), L.Seed * 7u + 5u);   // ([cafes] beenster Nov 26: the A-frame pub bench, its length along the road)
 			}
 			L.Tarmac = ClassIs(Foot0.Edge, {"trunk", "primary", "secondary", "trunk_link", "primary_link", "secondary_link"});
 			LaybyGrid[CourtKey(Mid.X, Mid.Z)].push_back(int(RoadLaybys.size()));
