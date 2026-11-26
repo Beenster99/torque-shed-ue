@@ -438,6 +438,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.bAtFuel = false;
 	Dash.bNavRerouting = false;
 	Dash.bNavVia = false;
+	Dash.NavFerry = 0;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
 	const double X = At.X / 100.0, Z = At.Y / 100.0;
@@ -468,6 +469,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 			UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s the %s ferry"), bOver ? TEXT("over") : TEXT("back across"), UTF8_TO_TCHAR(Ferry->Name.c_str()));
 		}
 		if (S.bFerryOver) N.OffRoute = true;   // (the way on is all there is)
+		Dash.NavFerry = S.bFerryOver ? 2 : 1;
 	}
 	bool bViaNav = false;
 	if (S.bVia)
