@@ -66,10 +66,10 @@ def flatten(seg, sr, tr, t0, target):
     return np.interp(out_t, phase, seg)
 
 
-def make_loop(seg, sr, spacing):
+def make_loop(seg, sr, spacing, seconds=LOOP_S):
     """A seamless loop of whole cycles (the spacing is one per cycle), at OUT_RATE."""
     cyc = 1.0 / spacing
-    n_cyc = max(1, round(LOOP_S / cyc))
+    n_cyc = max(1, round(seconds / cyc))
     L = n_cyc * cyc
     X = XFADE_S
     if len(seg) / sr < L + X:
@@ -109,6 +109,11 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--idle", nargs=2, type=float, help="a stretch of tickover, seconds")
     ap.add_argument("--rpms", default="", help="bucket rpms (comma list); default a ladder over what's recorded")
+    ap.add_argument("--idle-rpm", type=float, default=0.0,
+                    help="the tickover's revs when its harmonics are too smeared to follow (found from the firing beat)")
+    ap.add_argument("--idle-only", action="store_true",
+                    help="no rev loops (a standing recording whose blips are too quick to loop): just the tickover, "
+                         "written as idle_<rpm>.wav, which the game plays at tickover over the made sound")
     ap.add_argument("--min-rpm", type=float, default=1200.0, help="lowest revs to look for")
     ap.add_argument("--max-rpm", type=float, default=12000.0, help="highest revs to look for (the redline)")
     ap.add_argument("--hp", type=float, default=28.0, help="high-pass (wind rumble), Hz")
@@ -132,6 +137,21 @@ def main():
                           "jump": float(jump), "slope": float(slope), "tr": tr})
         t += 0.1
     smooth = [c for c in cands if c["jump"] < 0.012 and a.min_rpm <= c["rpm"] <= a.max_rpm]
+    if a.idle_only:
+        # A tickover take: as it is (its own small wobble kept), a few seconds looped seamlessly.
+        rpm = a.idle_rpm
+        seg = x[int(a.idle[0] * sr):int(a.idle[1] * sr)]
+        loop = make_loop(seg, sr, rpm / RPM_PER_HZ, seconds=min(3.0, (a.idle[1] - a.idle[0]) - XFADE_S - 0.1))
+        loop *= 0.5 / np.abs(loop).max()
+        os.makedirs(a.out, exist_ok=True)
+        name = "idle_%d.wav" % int(round(rpm))
+        write(os.path.join(a.out, name), loop)
+        info = {"source": os.path.basename(a.src), "loops": [{"file": name, "from_s": a.idle[0], "to_s": a.idle[1],
+                "rpm": int(round(rpm)), "seconds": round(len(loop) / OUT_RATE, 2)}]}
+        with open(os.path.join(a.out, "loops.json"), "w") as f:
+            json.dump(info, f, indent=1)
+        print(info)
+        return
 
     def pick(lo, hi, kind):
         pool = [c for c in smooth if lo <= c["rpm"] <= hi and
@@ -169,8 +189,13 @@ def main():
 
     if a.idle:
         seg = x[int(a.idle[0] * sr):int(a.idle[1] * sr)]
-        sp, sc = comb_spacing(seg[:int(0.5 * sr)], sr, 8.0, 40.0, 0.02)
-        tr = track(x, sr, a.idle[0], a.idle[1], sp)
+        if a.idle_rpm > 0:
+            # (a steady tickover played as it is: a flat curve at the given revs)
+            sp = a.idle_rpm / RPM_PER_HZ
+            tr = np.array([[a.idle[0], sp, 0.0], [a.idle[1], sp, 0.0]])
+        else:
+            sp, sc = comb_spacing(seg[:int(0.5 * sr)], sr, 8.0, 40.0, 0.02)
+            tr = track(x, sr, a.idle[0], a.idle[1], sp)
         emit({"t": a.idle[0], "tr": tr, "slope": 0.0}, "off", span=a.idle[1] - a.idle[0])
     for r in ladder:
         for kind in ("on", "off"):

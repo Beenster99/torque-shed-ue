@@ -70236,6 +70236,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "panigale",
    "crank": "twinpulse",
    "v_angle": 90.0
   },
