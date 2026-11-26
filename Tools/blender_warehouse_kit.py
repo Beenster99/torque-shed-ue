@@ -17,6 +17,9 @@ size of building:
   E  glazed entrance block (curtain wall, doors, a blank sign band)
   T  trade-counter unit of a terrace (roller door, glazed counter, door, blank sign board, party flashing)
   S  retail shopfront (full-height glazing, canopy, a blank sign panel on the parapet)
+  G  supermarket glazing (tall glass and the canopy, no sign)
+  M  supermarket entrance lobby (a glazed box under a deep canopy, the store's name on top)
+  U  a shop unit of a retail terrace (brick piers, glazed front, its own fascia and name)
   W  high-level ribbon windows                H  a big hangar door
   L  high louvres and wall lights only
   *  repeats the letter before it to fill the bays left over
@@ -32,7 +35,7 @@ the ground at z = 0; walls run 0.6 m below the ground so they never stand proud 
 
     python Tools/blender_warehouse_kit.py --render DIR     # the review sheet of the designs in DIR
 
-(This is the design stage: nothing here is wired into the game yet.)
+Tools/blender_warehouse_kit_export.py cuts the units into pieces for the game (World/WorldRideWarehouses.cpp).
 """
 import math
 import os
@@ -74,6 +77,19 @@ STEEL = (0.25, 0.26, 0.27)
 SOLAR = (0.01, 0.015, 0.04)
 SIGN_WHITE = (0.75, 0.75, 0.73)
 LAMP = (0.9, 0.9, 0.85)
+
+
+# Where the made-up names go: every sign board's face as it is made (its middle, the way it faces, its width
+# and height, and what kind of name it carries), for the export to hand the game (World/WorldRideWarehouses.cpp
+# writes the names there). Emptied with the scene.
+SIGNS = []
+
+
+def sign(U, w, name, s0, s1, z0, z1, out0, out1, kind, lod=1, rgb=SIGN_WHITE):
+    """A blank sign board on the wall, its face kept for a name of the given kind (see SIGNS)."""
+    ob = w.box(U, name, s0, s1, z0, z1, out0, out1, "sign", rgb, lod)
+    SIGNS.append((w.at((s0 + s1) * 0.5, out1, (z0 + z1) * 0.5), Vector(w.n), abs(s1 - s0), abs(z1 - z0), kind, U))
+    return ob
 
 
 class Part:
@@ -364,7 +380,7 @@ def entrance(U, w, a, b, spec):
     w.box(U, "ent_shell", a, b, FOOT, top, 0.0, proj, "clad_v", trim, 2)
     curtain(U, w, a + 0.5, b - 0.5, 0.0, top - 1.6, 0.0, proj, (1.5, top / 6))
     w.box(U, "ent_band", a, b, top - 1.5, top, proj, proj + 0.04, "clad", trim, 1)
-    w.box(U, "ent_sign", (a + b) / 2 - 2.0, (a + b) / 2 + 2.0, top - 1.25, top - 0.25, proj + 0.04, proj + 0.08, "sign", SIGN_WHITE, 1)
+    sign(U, w, "ent_sign", (a + b) / 2 - 2.0, (a + b) / 2 + 2.0, top - 1.25, top - 0.25, proj + 0.04, proj + 0.08, "firm")
     s = (a + b) / 2
     w.box(U, "ent_door", s - 1.0, s + 1.0, 0.0, 2.4, proj, proj + 0.02, "glass", (0.04, 0.05, 0.06), 0)
     w.box(U, "ent_canopy", s - 2.0, s + 2.0, 2.9, 3.1, proj, proj + 2.0, "metal", ALUMINIUM, 1)
@@ -381,7 +397,7 @@ def trade_counter(U, w, a, b, spec, first, last):
     ca, cb = a + rd + 1.4, b - 0.6
     curtain(U, w, ca, cb, 0.0, min(3.6, H - 2.2), 0.0, 0.08, (1.2, 1.2))
     w.box(U, "counterdoor", cb - 1.6, cb - 0.4, 0.0, 2.3, 0.08, 0.1, "frame", FRAME_GREY, 0)
-    w.box(U, "signboard", ca - 0.2, cb + 0.2, min(3.9, H - 1.9), min(4.9, H - 0.9), 0.0, 0.06, "sign", SIGN_WHITE, 1)
+    sign(U, w, "signboard", ca - 0.2, cb + 0.2, min(3.9, H - 1.9), min(4.9, H - 0.9), 0.0, 0.06, "trade")
     if not last:
         w.box(U, "party", b - 0.12, b + 0.12, FOOT, H, 0.0, 0.1, "metal", spec.get("trim", MERLIN), 1)
 
@@ -393,7 +409,51 @@ def shopfront(U, w, a, b, spec):
     for x in (a + 0.3, b - 0.5):
         w.box(U, "col", x, x + 0.2, 0.0, 4.8, 2.0, 2.2, "metal", ALUMINIUM, 0)
     s = (a + b) / 2
-    w.box(U, "shopsign", s - (b - a) * 0.35, s + (b - a) * 0.35, H - 2.4, H - 0.6, 0.0, 0.1, "sign", SIGN_WHITE, 1)
+    sign(U, w, "shopsign", s - (b - a) * 0.35, s + (b - a) * 0.35, H - 2.4, H - 0.6, 0.0, 0.1, "shop")
+
+
+def glazing(U, w, a, b, spec):
+    """A supermarket's glazed front either side of its lobby: tall glass, the canopy run on, no sign."""
+    curtain(U, w, a + 0.2, b - 0.2, 0.0, 4.6, 0.0, 0.1, (1.6, 2.3))
+    w.box(U, "canopy", a, b, 4.8, 5.1, 0.0, 3.0, "metal", spec.get("trim", MERLIN), 1)
+    w.box(U, "col", a + 0.1, a + 0.3, 0.0, 4.8, 2.8, 3.0, "metal", ALUMINIUM, 0)
+
+
+def lobby(U, w, a, b, spec):
+    """A supermarket's entrance lobby: a glazed box standing out under a deep canopy, up past the parapet,
+    with the store's name across its top."""
+    H = spec["H"] + spec.get("parapet", 1.0)
+    top = H + 1.8
+    proj = 3.5
+    trim = spec.get("trim", MERLIN)
+    w.box(U, "lob_shell", a, b, FOOT, top, 0.0, proj, "clad", spec.get("lobby_rgb", trim), 2)
+    curtain(U, w, a + 0.4, b - 0.4, 0.0, 5.2, 0.0, proj, (1.5, 1.3))
+    w.box(U, "lob_band", a, b, 5.4, top, proj, proj + 0.04, "clad", trim, 1)
+    sign(U, w, "lob_sign", a + 0.6, b - 0.6, top - 2.6, top - 0.5, proj + 0.04, proj + 0.1, "store")
+    s = (a + b) / 2
+    for k in (-1, 1):   # (two pairs of sliding doors)
+        w.box(U, "lob_door", s + k * 1.6 - 1.0, s + k * 1.6 + 1.0, 0.0, 2.5, proj, proj + 0.02, "glass", (0.04, 0.05, 0.06), 0)
+    w.box(U, "lob_canopy", a - 1.0, b + 1.0, 5.2, 5.5, 0.0, proj + 3.5, "metal", trim, 1)
+    for x in (a - 0.6, b + 0.4):
+        w.box(U, "lob_col", x, x + 0.25, 0.0, 5.2, proj + 3.1, proj + 3.35, "metal", ALUMINIUM, 0)
+    side = Wall(tuple(w.at(b, proj, 0)), tuple(-w.n), proj, top)
+    curtain(U, side, 0.3, proj - 0.3, 0.0, 5.2, 0.0, 0.03, (1.2, 1.3))
+    side = Wall(tuple(w.at(a, 0.0, 0)), tuple(w.n), proj, top)
+    curtain(U, side, 0.3, proj - 0.3, 0.0, 5.2, 0.0, 0.03, (1.2, 1.3))
+
+
+def unit_front(U, w, a, b, spec, last):
+    """One shop of a retail terrace: brick piers each side, a glazed front, its own fascia board and name."""
+    H = spec["H"]
+    brick = spec.get("brick_rgb", BRICK_RED)
+    w.box(U, "pier", a, a + 0.6, FOOT, H + spec.get("parapet", 1.0) - 0.15, 0.0, 0.45, "brick", brick, 2)
+    if last:
+        w.box(U, "pier", b - 0.6, b, FOOT, H + spec.get("parapet", 1.0) - 0.15, 0.0, 0.45, "brick", brick, 2)
+    curtain(U, w, a + 0.6, b - (0.6 if last else 0.0), 0.0, 4.3, 0.0, 0.08, (1.8, 2.15))
+    w.box(U, "fascia", a + 0.6, b - (0.6 if last else 0.0), 4.5, 6.3, 0.0, 0.35, "clad", spec.get("trim", MERLIN), 1)
+    s = (a + b) / 2
+    sign(U, w, "unitsign", s - (b - a) * 0.36, s + (b - a) * 0.36, 4.75, 6.05, 0.35, 0.4, "shop")
+    w.box(U, "unitdoor", s - 1.0, s + 1.0, 0.0, 2.4, 0.08, 0.1, "frame", FRAME_GREY, 0)
 
 
 def office_bay(U, w, a, b, spec, tall=False):
@@ -515,6 +575,12 @@ def bay_features(U, spec, w, t, a, b, i, n, is_long, p, every_pipe=False):
         trade_counter(U, w, a, b, spec, i == 0, i == n - 1)
     elif t == "S":
         shopfront(U, w, a, b, spec)
+    elif t == "G":
+        glazing(U, w, a, b, spec)
+    elif t == "M":
+        lobby(U, w, a, b, spec)
+    elif t == "U":
+        unit_front(U, w, a, b, spec, i == n - 1)
     elif t == "W":
         ribbon(U, w, a + 0.6, b - 0.6, H - 2.6, H - 1.4, lod_glass=1)
     elif t == "H":
@@ -653,6 +719,14 @@ DESIGNS = [
     ("WH_retail_park", "Retail park unit: flat roof behind a parapet, glazed shopfront and canopy",
      dict(L=60, W=45, H=9.5, roof="flat", parapet=1.5, bay=10, front="S*", back="P D . D P", right=". . . . . . .", left="P . . . . .",
           clad_rgb=(0.55, 0.56, 0.55), trim=ANTHRACITE, plinth="block", plinth_h=0.9, top_band=(3.0, ANTHRACITE))),
+    # (stage 3, Nov 26: the retail park's other two, a supermarket and a terrace of shop units; made-up names)
+    ("WH_supermarket", "Supermarket: flat roof, glazed front, an entrance lobby under a deep canopy, its name on top",
+     dict(L=100, W=70, H=8.0, roof="flat", parapet=2.0, bay=10, front="P G M G* .", back="P D D . . D P", right="R . . . .", left=". . . P",
+          clad_rgb=(0.6, 0.61, 0.6), trim=(0.06, 0.065, 0.07), lobby_rgb=(0.22, 0.23, 0.24), plinth="brick", brick_rgb=BRICK_BUFF,
+          plinth_h=1.2, top_band=(2.6, (0.22, 0.23, 0.24)))),
+    ("WH_retail_row", "Retail park terrace: shop units between brick piers, each with its own fascia and name",
+     dict(L=90, W=36, H=7.5, roof="flat", parapet=1.4, bay=15, front="U*", back="P . D . P", right="P . .", left=". . P",
+          clad_rgb=(0.48, 0.49, 0.49), trim=(0.05, 0.055, 0.06), plinth="brick", brick_rgb=BRICK_RED, plinth_h=1.0)),
     ("WH_hangar", "Hangar-style store: barrel roof, big doors in the gable, high windows",
      dict(L=60, W=36, H=10.0, roof="curve", rise=3.6, front=". P W W P .", back=". W W .", right="H", left="P . .",
           gable_bay=36, clad_rgb=MERLIN, trim=ANTHRACITE, plinth="block", plinth_h=1.5, rooflights=True)),
@@ -660,6 +734,7 @@ DESIGNS = [
 
 
 def clear():
+    SIGNS.clear()
     for ob in list(bpy.data.objects):
         bpy.data.objects.remove(ob, do_unlink=True)
     for me in list(bpy.data.meshes):

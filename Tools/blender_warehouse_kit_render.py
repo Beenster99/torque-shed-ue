@@ -24,7 +24,7 @@ LOOK = {
     "rooflight": (0.6, 0.0, ("wave", "x", 0.33, 0.3)),
     "frame": (0.4, 0.5, None), "metal": (0.4, 0.4, None), "paint": (0.45, 0.0, None),
     "rubber": (0.8, 0.0, None), "concrete": (0.9, 0.0, ("noise", None, None, 0.1)),
-    "sign": (0.5, 0.0, None), "lamp": (0.2, 0.0, None),
+    "sign": (0.5, 0.0, None), "lamp": (0.2, 0.0, None), "pale": (0.45, 0.0, None), "trailer": (0.5, 0.0, None),
 }
 
 
@@ -224,6 +224,7 @@ def _font(n):
 
 def render_sheet(units, out_dir):
     os.makedirs(out_dir, exist_ok=True)
+    add_names(units)
     sc = _scene(units)
     for U in units:   # (a concrete yard round each unit; the units all sit at the origin, shown one at a time)
         L, W = U.spec["L"], U.spec["W"]
@@ -245,7 +246,7 @@ def render_sheet(units, out_dir):
     H = 60 + len(rows) * (size[1] + head + pad)
     sheet = Image.new("RGB", (W, H), (245, 245, 242))
     d = ImageDraw.Draw(sheet)
-    d.text((pad, 16), "Ride UK industrial estates: the warehouse kit's first eight units (Blender renders, our own designs)", fill=(20, 20, 20), font=font)
+    d.text((pad, 16), os.environ.get("KIT_TITLE", "Ride UK industrial estates: the warehouse kit's units (Blender renders, our own designs)"), fill=(20, 20, 20), font=font)
     y = 60
     for i, (U, a, b) in enumerate(rows):
         t = U.tris
@@ -299,3 +300,104 @@ def render_details(units, out_dir):
     sheet.save(path)
     print("details:", path)
     return path
+
+
+# --- stage 3 (Nov 26): names on the signs, the props ---------------------------------------------------------
+
+# Sample made-up names for the review pictures (the game makes its own the same way: World/WorldRideWarehouses.cpp).
+SAMPLE = {
+    "shop": ["Holroyd Furniture", "Kershaw Beds", "Pollard Pets", "Marsden Carpets", "Garside Sports", "Hirst Home Store", "Lumb Tiles"],
+    "store": ["Ashworth's Foodstore"],
+    "firm": ["Brookway Logistics", "Fairbairn Distribution"],
+    "trade": ["Dobson Plumbing", "Kitson Timber", "Haigh Tool Hire", "Ingham Electrical", "Calvert Tyres", "Nuttall Paints"],
+    "estate": ["Oakfield Business Park"],
+}
+
+
+def add_names(units):
+    """Each sign the units made (blender_warehouse_kit.SIGNS) given a sample name, as a part of its unit."""
+    import blender_warehouse_kit as K
+    used = {}
+    dg = bpy.context.evaluated_depsgraph_get()
+    for centre, n, w, h, kind, U in K.SIGNS:
+        names = SAMPLE.get(kind, ["Unit 4"])
+        k = used.get(kind, 0)
+        used[kind] = k + 1
+        cu = bpy.data.curves.new("txt", "FONT")
+        cu.body = names[k % len(names)]
+        cu.align_x, cu.align_y = "CENTER", "CENTER"
+        cu.size = 1.0
+        ob = bpy.data.objects.new("txt", cu)
+        bpy.context.scene.collection.objects.link(ob)
+        bpy.context.view_layer.update()
+        dims = ob.dimensions.copy()
+        size = min(h * 0.55 / 0.72, w * 0.88 / max(dims.x, 1e-3))
+        right = Vector(-n).cross(Vector((0, 0, 1))).normalized()
+        from mathutils import Matrix
+        R = Matrix((right, Vector((0, 0, 1)), Vector(n))).transposed().to_4x4()
+        ob.matrix_world = Matrix.Translation(Vector(centre) + Vector(n) * 0.02) @ R @ Matrix.Scale(size, 4)
+        bpy.context.view_layer.update()
+        me = bpy.data.meshes.new_from_object(ob.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+        mo = bpy.data.objects.new("txt_mesh", me)
+        mo.matrix_world = ob.matrix_world.copy()
+        bpy.context.scene.collection.objects.link(mo)
+        bpy.data.objects.remove(ob, do_unlink=True)
+        white = kind == "estate"
+        U.add(mo, "sign", (0.75, 0.75, 0.73) if white else (0.02, 0.025, 0.03), 1)
+
+
+def render_props(units, out_dir):
+    """The props, one picture each from a front corner, on a sheet with their triangle counts."""
+    os.makedirs(out_dir, exist_ok=True)
+    add_names(units)
+    sc = _scene(units)
+    _flat("yard_all", -40, -40, 40, 40, -0.01, (0.32, 0.32, 0.3), 0.85)
+    size = (480, 330)
+    shots = []
+    for U in units:
+        for ob in sc.collection.objects:
+            if ob.name == "yard_all":
+                ob.hide_render = False
+        p = os.path.join(out_dir, "prop_" + U.name + ".png")
+        _show(sc, U)
+        for ob in sc.collection.objects:
+            if ob.name == "yard_all":
+                ob.hide_render = False
+        lo, hi = _bounds(U)
+        rad = max((hi - lo).length * 0.5, 1.2)
+        focus = ((lo + hi) * 0.5)
+        focus.z = max(0.4, focus.z * 0.8)
+        _shoot_keep(sc, U, 245, 14, size, p, focus, rad * 1.05)
+        shots.append((U, p))
+    font, small = _font(22), _font(15)
+    pad, head, cols = 10, 26, 4
+    rows = (len(shots) + cols - 1) // cols
+    W = cols * size[0] + (cols + 1) * pad
+    H = 56 + rows * (size[1] + head + pad)
+    sheet = Image.new("RGB", (W, H), (245, 245, 242))
+    d = ImageDraw.Draw(sheet)
+    d.text((pad, 14), "Estate dressing: yard and car park props (Blender renders, our own models; triangles near / middle)", fill=(20, 20, 20), font=font)
+    for i, (U, p) in enumerate(shots):
+        x = pad + (i % cols) * (size[0] + pad)
+        y = 56 + (i // cols) * (size[1] + head + pad)
+        d.text((x, y + 4), "%s  (%s / %s)" % (U.label, f"{U.tris[0]:,}", f"{U.tris[1]:,}"), fill=(30, 30, 30), font=small)
+        sheet.paste(Image.open(p).convert("RGB"), (x, y + head))
+    path = os.path.join(out_dir, "estate_props_sheet.png")
+    sheet.save(path)
+    print("props:", path)
+    return path
+
+
+def _shoot_keep(sc, U, yaw_deg, pitch_deg, size, path, focus, radius, lens=35.0):
+    cam_data = bpy.data.cameras.new("cam"); cam_data.lens = lens; cam_data.clip_end = 5000.0
+    cam = bpy.data.objects.new("cam", cam_data)
+    sc.collection.objects.link(cam)
+    yaw, pitch = math.radians(yaw_deg), math.radians(pitch_deg)
+    dist = radius / math.tan(math.atan(18.0 / lens)) * 1.15
+    cam.location = Vector(focus) + Vector((math.cos(yaw) * math.cos(pitch), math.sin(yaw) * math.cos(pitch), math.sin(pitch))) * dist
+    cam.rotation_euler = (Vector(focus) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    sc.camera = cam
+    sc.render.resolution_x, sc.render.resolution_y = size
+    sc.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    bpy.data.objects.remove(cam, do_unlink=True)

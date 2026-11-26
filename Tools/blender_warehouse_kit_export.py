@@ -31,6 +31,7 @@ from mathutils import Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import blender_warehouse_kit as K  # noqa: E402
+import blender_estate_props as EP  # noqa: E402
 
 DATA = os.path.join(os.path.dirname(HERE), "Data", "RideUK")
 PLAIN, ROOFING, BRICKWORK, RENDER = 0, 2, 3, 4
@@ -45,6 +46,8 @@ SUITS = {
     "WH_trade_terrace": dict(classes=["industrial", "retail", "commercial"], short=[12, 30], area=[450, 4500], weight=1.0, ratio=2.0),
     "WH_workshop": dict(classes=["industrial", "warehouse", "manufacture", "garage"], short=[7, 22], area=[100, 1000], weight=1.0),
     "WH_retail_park": dict(classes=["retail", "supermarket", "commercial"], short=[24, 90], area=[1000, 16000], weight=1.0),
+    "WH_supermarket": dict(classes=["supermarket", "retail"], short=[40, 120], area=[3000, 25000], weight=1.0),
+    "WH_retail_row": dict(classes=["retail", "commercial"], short=[18, 50], area=[1100, 9000], weight=1.0, ratio=1.6),
 }
 
 
@@ -128,6 +131,14 @@ def piece_bytes(name, U, to_local, wall=None):
         pos, nrm, part_of = pos[keep], nrm[keep], part_of[keep]
         if not len(pos):
             return None, 0
+    # (a pale's thin edges: only its two faces kept, front and back; nobody sees a 2 cm edge)
+    thin = np.array([p.surface == "pale" for p in U.parts])
+    if thin.any():
+        t = pos.reshape(-1, 3, 3)
+        fn = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+        fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-9)
+        keep = np.repeat(~(thin[part_of[0::3]] & (np.abs(fn[:, 2]) < 0.7)), 3)
+        pos, nrm, part_of = pos[keep], nrm[keep], part_of[keep]
     parts = []
     for p in U.parts:
         sec, code = part_class(p)
@@ -268,6 +279,18 @@ def corner_unit(spec):
     return U
 
 
+def signs_local(to_local=wall_local):
+    """The sign faces made since the scene was cleared (K.SIGNS), in the piece's frame: x, y, z of the middle,
+    the way it faces (x, z), its width and height, the kind of name."""
+    out = []
+    for c, n, w, h, kind, _U in K.SIGNS:
+        p = to_local(np.array([[c.x, c.y, c.z]]), False)[0]
+        q = to_local(np.array([[n.x, n.y, n.z]]), True)[0]
+        out.append([round(float(p[0]), 3), round(float(p[1]), 3), round(float(p[2]), 3), round(float(q[0]), 3), round(float(q[2]), 3),
+                    round(w, 3), round(h, 3), kind])
+    return out
+
+
 def letters(spec, keys):
     out = set()
     for k in keys:
@@ -281,6 +304,7 @@ def main():
     rows = []
     for name, label, spec in K.DESIGNS:
         pieces = {}
+        signs = {}
 
         def put(key, U, to_local=wall_local, wall=None):
             nonlocal blob, count
@@ -291,6 +315,8 @@ def main():
                 blob += b
                 count += 1
                 pieces[key] = tris
+                if K.SIGNS:
+                    signs[key] = signs_local(to_local)
         for t in letters(spec, ("front", "back")):
             clear(); put("long:" + t, bay_unit(spec, t, True), wall=spec.get("bay", 7.5))
         for t in letters(spec, ("right", "left")):
@@ -314,10 +340,25 @@ def main():
                    right=spec.get("right", ".*"), left=spec.get("left", ".*"), solar=bool(spec.get("solar")),
                    dock_floor=bool(spec.get("dock_floor")),
                    skirt=[round(c, 4) for c in (K.CONCRETE_WHITE if spec.get("dock_floor") else spec.get("brick_rgb", K.BRICK_RED) if spec.get("plinth", "brick") == "brick" else K.BLOCK)],
-                   pieces=pieces)
+                   pieces=pieces, signs=signs)
         row.update(SUITS[name])
         rows.append(row)
         print("%-18s %2d pieces, a 7.5 m bay of wall %s triangles" % (name, len(pieces), pieces.get("long:.")))
+    # The yards' and car parks' props (Tools/blender_estate_props.py), each its own piece "prop/<name>".
+    props = []
+    for name, label, make in EP.PROPS:
+        clear()
+        U = make()
+        b, tris = piece_bytes("prop/" + name, U, wall_local)
+        lo, hi = np.full(3, 1e9), np.full(3, -1e9)
+        for p in U.parts:
+            for c in p.obj.bound_box:
+                v = p.obj.matrix_world @ Vector(c)
+                lo, hi = np.minimum(lo, v), np.maximum(hi, v)
+        blob += b
+        count += 1
+        props.append(dict(name=name, label=label, tris=tris, size=[round(float(hi[0] - lo[0]), 2), round(float(hi[1] - lo[1]), 2), round(float(hi[2] - max(lo[2], 0.0)), 2)],
+                          signs=signs_local()))
     head = b"TSWK" + struct.pack("<II", 1, count)
     with open(os.path.join(DATA, "warehouse_kit.bin"), "wb") as f:
         f.write(head + bytes(blob))
@@ -327,9 +368,12 @@ def main():
              "retail...) the design that suits its class and size ('classes', 'short', 'area', 'ratio' the least long "
              "to short), lays its walls' bays from the patterns (front, back, right, left; '*' fills), and stretches "
              "each bay, its roof and its gables to the outline. Letters: . plain, R roller door, D dock, P door, O office, "
-             "E entrance, T trade counter, S shopfront, W high windows, H hangar door, L louvres.")
+             "E entrance, T trade counter, S shopfront, G glazing, M supermarket lobby, U shop unit, W high windows, H hangar door, "
+             "L louvres. 'signs' per piece: x, y, z, facing x, z, width, height, kind of name (the game makes the names up). "
+             "'props': the yards' and car parks' things (Tools/blender_estate_props.py), pieces 'prop/<name>', centred, "
+             "x along, z towards the front, size [long, deep, high] m.")
     with open(os.path.join(DATA, "warehouse_kit.json"), "w") as f:
-        json.dump({"_about": about, "stretch": [0.55, 1.8], "designs": rows}, f, indent=1)
+        json.dump({"_about": about, "stretch": [0.55, 1.8], "designs": rows, "props": props}, f, indent=1)
     print("warehouse kit: %d pieces, %d KB" % (count, (len(blob) + len(head)) // 1024))
 
 

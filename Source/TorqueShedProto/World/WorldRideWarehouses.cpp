@@ -4,11 +4,13 @@
 
 #include "WorldRide.h"
 #include "WorldRideSceneBits.h"
+#include "WorldRideSigns.h"
 #include "FitJson.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <initializer_list>
 #include <mutex>
 
 namespace TorqueWorld
@@ -45,7 +47,33 @@ std::vector<std::string> WordsOf(const TorqueFit::Json* J)
 		for (const TorqueFit::Json& E : J->A) Out.push_back(E.S);
 	return Out;
 }
+
+std::vector<WarehouseSign> SignsIn(const TorqueFit::Json* J)
+{
+	std::vector<WarehouseSign> Out;
+	if (!J || !J->IsArray()) return Out;
+	for (const TorqueFit::Json& E : J->A)
+	{
+		if (!E.IsArray() || E.A.size() < 8) continue;
+		WarehouseSign S;
+		S.X = E.A[0].N; S.Y = E.A[1].N; S.Z = E.A[2].N; S.Fx = E.A[3].N; S.Fz = E.A[4].N; S.W = E.A[5].N; S.H = E.A[6].N; S.Kind = E.A[7].S;
+		Out.push_back(S);
+	}
+	return Out;
+}
 } // namespace
+
+bool WarehouseDesign::Retail() const
+{
+	return Front.find_first_of("SMUG") != std::string::npos;
+}
+
+int WarehouseKit::Prop(const std::string& Name) const
+{
+	for (size_t I = 0; I < Props.size(); ++I)
+		if (Props[I].Name == Name) return Props[I].Piece >= 0 ? int(I) : -1;
+	return -1;
+}
 
 std::string ExpandBays(const std::string& Pattern, int N)
 {
@@ -96,11 +124,12 @@ int WarehouseKit::Pick(const std::string& Class, double Long, double Short, doub
 	return Fits.empty() ? -1 : Fits.back().first;
 }
 
-std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, const std::string& Bin)
+std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
 {
 	TorqueFit::Json Root;
 	if (!TorqueFit::Json::Parse(JsonText, Root) || !Root.IsObject()) return nullptr;
 	auto Kit = std::make_shared<WarehouseKit>();
+	Kit->Yards = Yards;
 	if (const TorqueFit::Json* S = Root.Get("stretch"); S && S->IsArray() && S->A.size() == 2) { Kit->StretchLo = S->A[0].N; Kit->StretchHi = S->A[1].N; }
 	// (the pieces: "TSWK", version 1, a count, then each: its name, parts, vertices, triangles)
 	KitBytes R{Bin};
@@ -168,16 +197,29 @@ std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& JsonText, cons
 				const auto It = Named.find(D.Name + "/" + std::string(KV.first));
 				if (It != Named.end()) D.Pieces[std::string(KV.first)] = It->second;
 			}
+		if (const TorqueFit::Json* Ss = Row.Get("signs"); Ss && Ss->IsObject())   // [stage 3]
+			for (const auto& KV : Ss->O) D.Signs[std::string(KV.first)] = SignsIn(&KV.second);
 		if (D.W <= 1.0 || D.Bay <= 0.5 || D.GableBay <= 0.5 || D.Piece("long:.") < 0 || D.Piece("roof:P") < 0) continue;
 		Kit->Designs.push_back(std::move(D));
 	}
 	if (Kit->Designs.empty()) return nullptr;
+	if (const TorqueFit::Json* Ps = Root.Get("props"); Ps && Ps->IsArray())   // [stage 3]
+		for (const TorqueFit::Json& Row : Ps->A)
+		{
+			WarehouseProp P;
+			P.Name = Row.Str("name");
+			const auto It = Named.find("prop/" + P.Name);
+			P.Piece = It == Named.end() ? -1 : It->second;
+			if (const TorqueFit::Json* S = Row.Get("size"); S && S->IsArray() && S->A.size() == 3) { P.L = S->A[0].N; P.D = S->A[1].N; P.H = S->A[2].N; }
+			P.Signs = SignsIn(Row.Get("signs"));
+			Kit->Props.push_back(std::move(P));
+		}
 	return Kit;
 }
 
-bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin)
+bool SetWarehouseKit(const std::string& JsonText, const std::string& Bin, bool Yards)
 {
-	std::shared_ptr<WarehouseKit> Kit = ReadWarehouseKit(JsonText, Bin);
+	std::shared_ptr<WarehouseKit> Kit = ReadWarehouseKit(JsonText, Bin, Yards);
 	if (!Kit) return false;
 	std::lock_guard<std::mutex> Hold(WarehouseKitLock);
 	WarehouseKitTable() = std::move(Kit);
@@ -260,7 +302,65 @@ size_t LayPiece(const WarehousePiece& P, double Ox, double Oz, double Ax, double
 	}
 	return Laid;
 }
+
+// [stage 3] A sign's made-up name, as big as fits its board (no more than half its height), on its face.
+void WriteSign(RideMesh& Out, double X, double Y, double Z, double Fx, double Fz, double W, double H, const std::string& Name, const float Colour[3])
+{
+	double Wide = 0.0;
+	if (Name.empty() || !SignText::Width(Name, 1.0, Wide) || Wide <= 1e-6) return;
+	const double Cap = std::fmin(H * 0.5, W * 0.86 / Wide);
+	if (Cap < 0.12) return;
+	const double Fl = std::hypot(Fx, Fz);
+	if (Fl < 1e-6) return;
+	SignText::Set(Out.SignsOf(), X + Fx / Fl * 0.015, Y, Z + Fz / Fl * 0.015, Fx / Fl, Fz / Fl, Cap, Name, Colour, 0);
+}
+
+struct SignSpot { double X, Y, Z, Fx, Fz, W, H; const std::string* Kind; };
 } // namespace
+
+std::string WarehouseName(const std::string& Kind, double Roll, double Roll2)
+{
+	static const char* const Families[] = {"Ashworth", "Barraclough", "Brearley", "Calvert", "Crowther", "Dewhurst", "Dobson", "Fairbairn",
+		"Fawcett", "Garside", "Haigh", "Hepworth", "Hirst", "Holroyd", "Ingham", "Jowett", "Kershaw", "Kitson", "Lumb", "Mallinson",
+		"Marsden", "Metcalfe", "Nuttall", "Openshaw", "Ormerod", "Pollard", "Rushworth", "Sutcliffe", "Tillotson", "Whiteley", "Wainwright",
+		"Thornton", "Pickering", "Holdsworth", "Cockcroft", "Bramley", "Ackroyd", "Bairstow", "Greenwood", "Midgley"};
+	static const char* const Places[] = {"Oakfield", "Riverside", "Brookway", "Millbrook", "Kingsmead", "Westgate", "Ashgrove", "Fairfield",
+		"Moorside", "Northbank", "Stonebridge", "Larkfield", "Cherrywood", "Copperfield", "Greenacres", "Hawthorn", "Elmtree", "Beacon",
+		"Meadowbank", "Foxhills", "Heronsgate", "Willowbrook", "Station", "Canalside", "Ironbridge", "Southmead", "Eastfield", "Brindley"};
+	static const char* const Shops[] = {"Furniture", "Beds", "Carpets", "Pets", "Home Store", "Sports", "Outdoor", "Electricals", "Toys",
+		"Tiles", "Kitchens", "Bathrooms", "Lighting", "Garden Centre", "Discount Store", "Paints", "Baby & Nursery", "Office Supplies",
+		"Cycles", "Fabrics", "Flooring", "Sofas"};
+	static const char* const Trades[] = {"Plumbing", "Timber", "Tool Hire", "Electrical", "Tyres", "Paints", "Motor Factors",
+		"Building Supplies", "Tiles", "Fasteners", "Glass", "Roofing", "Heating", "Joinery"};
+	static const char* const Firms[] = {"Distribution", "Logistics", "Freight", "Haulage", "Cold Store", "Engineering", "Packaging",
+		"Storage", "Fabrications", "Print"};
+	static const char* const Estates[] = {"Business Park", "Industrial Estate", "Trade Park", "Enterprise Park", "Trading Estate"};
+	const auto Of = [](const char* const* List, int N, double R) { return std::string(List[std::min(N - 1, std::max(0, int(R * N)))]); };
+	const double R2 = std::fmod(Roll * 7.31 + Roll2, 1.0);
+	const std::string Family = Of(Families, 40, Roll), Place = Of(Places, 28, R2);
+	if (Kind == "shop")
+	{
+		const std::string Shop = Of(Shops, 22, Roll2);
+		if (R2 < 0.55) return Family + " " + Shop;
+		if (R2 < 0.8) return Family + "'s " + Shop;
+		return Of(Places, 28, Roll) + " " + Shop;
+	}
+	if (Kind == "store")
+	{
+		if (Roll2 < 0.35) return Family + "'s Foodstore";
+		if (Roll2 < 0.6) return Family + "'s Supermarket";
+		if (Roll2 < 0.8) return Family + " Fresh Market";
+		return Place + " Foodhall";
+	}
+	if (Kind == "trade") return Family + " " + Of(Trades, 14, Roll2);
+	if (Kind == "firm")
+	{
+		const std::string Firm = Of(Firms, 10, Roll2);
+		return R2 < 0.6 ? Family + " " + Firm : Place + " " + Firm;
+	}
+	if (Kind == "retailpark") return Place + (Roll2 < 0.6 ? " Retail Park" : " Shopping Park");
+	return Place + " " + Of(Estates, 5, Roll2);
+}
 
 size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
 	double Long, double Short, double Y, double Low, int Detail, RideMesh& Out)
@@ -283,6 +383,7 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 	};
 	// The four walls: each its start, its way along and its way out (the front's left end, seen from outside, first).
 	struct WallRun { double X, Z, Ax, Az, Nx, Nz, Len; bool IsLong; const std::string* Pattern; };
+	std::vector<SignSpot> Spots;
 	const WallRun Walls[4] = {
 		{CornerX, CornerZ, Ux, Uz, Nx, Nz, Long, true, &D.Front},
 		{CornerX + Ux * Long - Nx * Short, CornerZ + Uz * Long - Nz * Short, -Ux, -Uz, -Nx, -Nz, Long, true, &D.Back},
@@ -297,10 +398,21 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 		const std::string Kind = Wr.IsLong ? "long:" : "gable:";
 		for (int I = 0; I < N; ++I)
 		{
-			int Piece = D.Piece(Kind + Letters[size_t(I)]);
-			if (Piece < 0) Piece = D.Piece(Kind + ".");
-			if (Piece < 0) Piece = D.Piece("long:.");
-			Lay(Piece, Wr.X + Wr.Ax * Bw * I, Wr.Z + Wr.Az * Bw * I, Wr.Ax, Wr.Az, Wr.Nx, Wr.Nz, Bw / Bay, 1.0, 1e9, 1.0);
+			std::string Key = Kind + Letters[size_t(I)];
+			int Piece = D.Piece(Key);
+			if (Piece < 0) { Key = Kind + "."; Piece = D.Piece(Key); }
+			if (Piece < 0) { Key = "long:."; Piece = D.Piece(Key); }
+			const double Ox = Wr.X + Wr.Ax * Bw * I, Oz = Wr.Z + Wr.Az * Bw * I;
+			Lay(Piece, Ox, Oz, Wr.Ax, Wr.Az, Wr.Nx, Wr.Nz, Bw / Bay, 1.0, 1e9, 1.0);
+			// [stage 3] (its sign boards' faces, for their names; near only)
+			const auto Sg = D.Signs.find(Key);
+			if (Detail >= 2 && Sg != D.Signs.end())
+				for (const WarehouseSign& S : Sg->second)
+				{
+					const double Sx = Bw / Bay;
+					Spots.push_back({Ox + S.X * Sx * Wr.Ax + S.Z * Wr.Nx, Y + S.Y, Oz + S.X * Sx * Wr.Az + S.Z * Wr.Nz,
+						S.Fx * Wr.Ax + S.Fz * Wr.Nx, S.Fx * Wr.Az + S.Fz * Wr.Nz, S.W * Sx, S.H, &S.Kind});
+				}
 		}
 		// (its corner flashings, at both ends)
 		const int Corner = D.Piece("corner");
@@ -308,6 +420,16 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 		Lay(Corner, Wr.X + Wr.Ax * Wr.Len, Wr.Z + Wr.Az * Wr.Len, -Wr.Ax, -Wr.Az, Wr.Nx, Wr.Nz, 1.0, 1.0, 1e9, 1.0);
 		// (the gable above the eaves, right across)
 		if (!Wr.IsLong) Lay(D.Piece("gabletop"), Wr.X, Wr.Z, Wr.Ax, Wr.Az, Wr.Nx, Wr.Nz, Short / D.W, 1.0, D.GableTop, Rise);
+	}
+	// [stage 3] Its signs' made-up names: the store's or the firm's its own, each shop and trade counter its own.
+	{
+		static const float Ink[3] = {0.025f, 0.028f, 0.032f};
+		for (const SignSpot& S : Spots)
+		{
+			const bool Own = *S.Kind == "store" || *S.Kind == "firm";
+			const double Ra = Own ? Chance(CornerX, CornerZ, 153) : Chance(S.X, S.Z, 151), Rb = Own ? Chance(CornerX, CornerZ, 154) : Chance(S.X, S.Z, 152);
+			WriteSign(*Into[0], S.X, S.Y, S.Z, S.Fx, S.Fz, S.W, S.H, WarehouseName(*S.Kind, Ra, Rb), Ink);
+		}
 	}
 	// The roof, a long bay at a time: rooflights in every other bay, solar over the middle ones where it has them.
 	{
@@ -341,6 +463,296 @@ size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double 
 			Laid += 2;
 		}
 	}
+	return Laid;
+}
+
+namespace
+{
+// [stage 3] A prop's footprint on the ground: its middle, its long way (unit) and its half length and depth.
+struct Footprint { double X, Z, Ax, Az, Hl, Hd; };
+bool Overlap(const Footprint& A, const Footprint& B)
+{
+	// (two turned rectangles: apart if any of their four axes separates them)
+	const double Dx = B.X - A.X, Dz = B.Z - A.Z;
+	const double Axes[4][2] = {{A.Ax, A.Az}, {-A.Az, A.Ax}, {B.Ax, B.Az}, {-B.Az, B.Ax}};
+	for (const auto& Ax : Axes)
+	{
+		const auto Reach = [&](const Footprint& F) {
+			return F.Hl * std::fabs(F.Ax * Ax[0] + F.Az * Ax[1]) + F.Hd * std::fabs(-F.Az * Ax[0] + F.Ax * Ax[1]);
+		};
+		if (std::fabs(Dx * Ax[0] + Dz * Ax[1]) > Reach(A) + Reach(B)) return false;
+	}
+	return true;
+}
+} // namespace
+
+size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
+	double Long, double Short, int Detail, const std::function<bool(double, double)>& Clear, const std::function<double(double, double)>& Ground,
+	const std::function<double(double, double)>& RoadDist, long long& Budget, RideMesh& Out)
+{
+	using namespace RideSceneBits;
+	if (!Kit.Yards || Detail < 1 || Kit.Props.empty() || Budget <= 0) return 0;
+	const int Need = Detail >= 2 ? 0 : 1;
+	size_t Laid = 0;
+	std::vector<Footprint> Taken;
+	// A prop by name, centred at (X, Z), its length along (Ax, Az), its front towards (Fx, Fz); none where its
+	// footprint isn't clear ground, overlaps one laid, or the budget is spent.
+	const auto Put = [&](const std::string& Name, double X, double Z, double Ax, double Az, double Fx, double Fz, double Pad = 0.3) -> bool
+	{
+		const int Ix = Kit.Prop(Name);
+		if (Ix < 0) return false;
+		const WarehouseProp& P = Kit.Props[size_t(Ix)];
+		const WarehousePiece& Pc = Kit.Pieces[size_t(P.Piece)];
+		if (Budget < (long long)(Pc.Idx.size() / 3)) return false;
+		const Footprint F{X, Z, Ax, Az, P.L * 0.5 + Pad, std::fmax(0.05, P.D * 0.5 + Pad)};
+		for (const double Su : {-1.0, 0.0, 1.0})
+			for (const double Sd : {-1.0, 1.0})
+				if (!Clear(X + Ax * Su * F.Hl - Az * Sd * F.Hd, Z + Az * Su * F.Hl + Ax * Sd * F.Hd)) return false;
+		for (const Footprint& T : Taken)
+			if (Overlap(F, T)) return false;
+		const double Y = Ground(X, Z);
+		if (std::isnan(Y)) return false;
+		// (its local z, its front, is the way (Fx, Fz) goes: LayPiece's "out of the wall")
+		RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
+		const size_t N = LayPiece(Pc, X, Z, Ax, Az, Fx, Fz, 1.0, 1.0, Y, 1e9, 1.0, Need, Into);
+		Budget -= (long long)N;
+		Laid += N;
+		Taken.push_back(F);
+		if (Detail >= 2)
+			for (const WarehouseSign& S : P.Signs)
+			{
+				static const float Paper[3] = {0.78f, 0.78f, 0.76f};
+				const double Wx = X + S.X * Ax + S.Z * Fx, Wz = Z + S.X * Az + S.Z * Fz;
+				const int Cx = int(std::floor(X / 600.0)), Cz = int(std::floor(Z / 600.0));
+				WriteSign(Out, Wx, Y + S.Y, Wz, Fx, Fz, S.W, S.H,
+					WarehouseName(D.Retail() ? "retailpark" : "estate", Chance(Cx * 600.0, Cz * 600.0, 181), Chance(Cx * 600.0, Cz * 600.0, 182)), Paper);
+			}
+		return true;
+	};
+	struct WallRun { double X, Z, Ax, Az, Nx, Nz, Len; bool IsLong; const std::string* Pattern; };
+	const WallRun Walls[4] = {
+		{CornerX, CornerZ, Ux, Uz, Nx, Nz, Long, true, &D.Front},
+		{CornerX + Ux * Long - Nx * Short, CornerZ + Uz * Long - Nz * Short, -Ux, -Uz, -Nx, -Nz, Long, true, &D.Back},
+		{CornerX + Ux * Long, CornerZ + Uz * Long, -Nx, -Nz, Ux, Uz, Short, false, &D.Right},
+		{CornerX - Nx * Short, CornerZ - Nz * Short, Nx, Nz, -Ux, -Uz, Short, false, &D.Left}};
+	const auto At = [](const WallRun& W, double S, double V, double& X, double& Z) { X = W.X + W.Ax * S + W.Nx * V; Z = W.Z + W.Az * S + W.Nz * V; };
+	// Each wall's doors as laid (the same bays as BuildWarehouse's): trailers backed up to the docks, a van by a
+	// roller door now and then; the doors kept for what stands beside them.
+	std::vector<std::pair<int, double>> Rollers, Doors;   // (wall, along)
+	bool Docks = false;
+	double ApronFrom[4] = {1e9, 1e9, 1e9, 1e9}, ApronTo[4] = {-1e9, -1e9, -1e9, -1e9}, ApronDeep[4] = {0.0, 0.0, 0.0, 0.0};
+	for (int K = 0; K < 4; ++K)
+	{
+		const WallRun& W = Walls[K];
+		const double Bay = W.IsLong ? D.Bay : D.GableBay;
+		const int N = D.Roof == "multi" && !W.IsLong ? 2 * D.Spans : std::max(1, int(std::lround(W.Len / Bay)));
+		const double Bw = W.Len / N;
+		const std::string Letters = ExpandBays(*W.Pattern, N);
+		for (int I = 0; I < N; ++I)
+		{
+			const double S = Bw * (I + 0.5);
+			double X, Z;
+			const char Letter = Letters[size_t(I)];
+			if (Letter == 'D' || Letter == 'R' || Letter == 'H')
+			{
+				ApronFrom[K] = std::fmin(ApronFrom[K], S - Bw * 0.5 - 3.0);
+				ApronTo[K] = std::fmax(ApronTo[K], S + Bw * 0.5 + 3.0);
+				ApronDeep[K] = std::fmax(ApronDeep[K], Letter == 'D' ? 20.0 : 12.0);
+			}
+			switch (Letter)
+			{
+			case 'D':
+			{
+				Docks = true;
+				At(W, S, 0.95 + 6.82, X, Z);
+				if (Chance(X, Z, 171) < (K == 0 ? 0.6 : 0.45))
+				{
+					const double Pick = Chance(X, Z, 172);
+					const char* Trailer = Pick < 0.35 ? "trailer_white" : Pick < 0.6 ? "trailer_navy" : Pick < 0.8 ? "trailer_grey" : "trailer_fridge";
+					Put(Trailer, X, Z, -W.Nx, -W.Nz, W.Ax, W.Az);   // (its rear, +x, to the dock)
+				}
+				break;
+			}
+			case 'R':
+			case 'H':
+				Rollers.push_back({K, S});
+				At(W, S + Bw * 0.5 - 0.3, 4.2, X, Z);
+				if (Chance(X, Z, 173) < 0.35)
+				{
+					const double Pick = Chance(X, Z, 174);
+					Put(Pick < 0.5 ? "van_white" : Pick < 0.8 ? "van_silver" : "van_blue", X, Z, W.Ax, W.Az, W.Nx, W.Nz);
+				}
+				break;
+			case 'P':
+				Doors.push_back({K, S});
+				break;
+			default: break;
+			}
+		}
+	}
+	// A concrete apron before the loading doors, cell by cell where the ground is clear (concrete under the
+	// trailers and vans, not the grass), a little over the ground so it never sinks in.
+	for (int K = 0; K < 4; ++K)
+	{
+		if (ApronDeep[K] <= 0.0 || Budget < 400) continue;
+		const WallRun& W = Walls[K];
+		const double From = std::fmax(-2.0, ApronFrom[K]), To = std::fmin(W.Len + 2.0, ApronTo[K]);
+		const int Nu = std::max(1, int(std::ceil((To - From) / 8.0))), Nv = std::max(1, int(std::ceil(ApronDeep[K] / 5.0)));
+		static const Rgb Concrete = {0.34f, 0.335f, 0.32f};
+		const auto Corner = [&](int Iu, int Iv) {
+			const double S = From + (To - From) * Iu / Nu, V = 0.15 + (ApronDeep[K] - 0.15) * Iv / Nv;
+			const double Px = W.X + W.Ax * S + W.Nx * V, Pz = W.Z + W.Az * S + W.Nz * V;
+			// (over the highest of the ground round the corner, so the land never shows through between)
+			double Gy = Ground(Px, Pz);
+			for (const double Ox : {-2.0, 2.0})
+				for (const double Oz : {-2.0, 2.0}) Gy = std::fmax(Gy, Ground(Px + Ox, Pz + Oz));
+			return P3{Px, Gy + 0.1, Pz};
+		};
+		for (int Iv = 0; Iv < Nv; ++Iv)
+		{
+			bool Stop = true;
+			for (int Iu = 0; Iu < Nu; ++Iu)
+			{
+				const P3 A = Corner(Iu, Iv), B = Corner(Iu + 1, Iv), C = Corner(Iu + 1, Iv + 1), E = Corner(Iu, Iv + 1);
+				if (std::isnan(A.Y + B.Y + C.Y + E.Y) || !Clear(A.X, A.Z) || !Clear(B.X, B.Z) || !Clear(C.X, C.Z) || !Clear(E.X, E.Z)) continue;
+				Quad(Out.RenderOf(), A, B, C, E, P3{A.X, A.Y + 100.0, A.Z}, Concrete, false, 0.08f);
+				Laid += 2;
+				Budget -= 2;
+				Stop = false;
+			}
+			if (Stop) break;   // (a row with no room: the yard ends there)
+		}
+	}
+	const double Seed = Chance(CornerX, CornerZ, 161);
+	double X = 0.0, Z = 0.0;
+	if (D.Retail())
+	{
+		// A supermarket's trolley shelters out in its car park, either side of its lobby.
+		const size_t M = D.Front.find('M');
+		if (M != std::string::npos)
+		{
+			const WallRun& W = Walls[0];
+			const int N = std::max(1, int(std::lround(W.Len / D.Bay)));
+			const std::string Letters = ExpandBays(D.Front, N);
+			const size_t Lobby = Letters.find('M');
+			const double S = W.Len / N * (double(Lobby) + 0.5);
+			static const double Shelters[4][2] = {{-15.0, 24.0}, {16.0, 24.0}, {30.0, 40.0}, {-28.0, 40.0}};
+			for (const auto& Spot : Shelters)
+			{
+				At(W, S + Spot[0], Spot[1], X, Z);
+				Put("trolley_shelter", X, Z, W.Ax, W.Az, W.Nx, W.Nz);
+			}
+		}
+	}
+	else
+	{
+		// An industrial shed's yard before it: how deep the clear ground runs (to a road, a building, a railway);
+		// with room, a palisade fence across it and down its sides, a sliding gate where the road is nearest,
+		// the estate's name board by the gate and lamps in the yard.
+		const WallRun& F = Walls[0];
+		double Yard = 46.0;
+		for (double S = 0.0; S <= Long + 0.01; S += std::fmax(5.0, Long / 12.0))
+			for (double V = 4.0; V < Yard; V += 2.0)
+			{
+				At(F, S, V, X, Z);
+				if (!Clear(X, Z)) { Yard = V; break; }
+			}
+		const bool Fenced = (Docks || !Rollers.empty()) && Yard >= (Docks ? 22.0 : 16.0) && Seed < 0.7;
+		if (Fenced)
+		{
+			const double Fv = Yard - 3.0;
+			const bool Green = Chance(CornerX, CornerZ, 162) < 0.7;
+			const std::string Panel = Green ? "palisade_green" : "palisade_grey", Slide = Green ? "gate_green" : "gate_grey";
+			// (the gate: the front run's point nearest a road)
+			double GateS = Long * 0.5, Best = 1e18;
+			for (double S = 6.0; S <= Long - 6.0; S += 3.0)
+			{
+				At(F, S, Fv + 4.0, X, Z);
+				const double Rd = RoadDist(X, Z);
+				if (Rd < Best) { Best = Rd; GateS = S; }
+			}
+			At(F, GateS, Fv, X, Z);
+			const bool Gate = Put(Slide, X, Z, F.Ax, F.Az, F.Nx, F.Nz);
+			if (Gate && Chance(X, Z, 163) < 0.65)
+			{
+				At(F, GateS + 6.5, Fv + 2.0, X, Z);
+				Put("estate_board", X, Z, F.Ax, F.Az, F.Nx, F.Nz);
+			}
+			const double Run = 2.75;
+			// (the front run, then each side's back to the shed's corners)
+			const double From = -4.0, To = Long + 4.0;
+			const int Nf = std::max(1, int(std::ceil((To - From) / Run)));
+			for (int I = 0; I < Nf; ++I)
+			{
+				const double S = From + (I + 0.5) * (To - From) / Nf;
+				if (Gate && std::fabs(S - GateS) < 3.0 + Run * 0.5) continue;
+				At(F, S, Fv, X, Z);
+				Put(Panel, X, Z, F.Ax, F.Az, F.Nx, F.Nz, -0.06);
+			}
+			for (const double S : {From, To})
+			{
+				const int Ns = std::max(1, int(std::ceil(Fv / Run)));
+				for (int I = 0; I < Ns; ++I)
+				{
+					const double V = (I + 0.5) * Fv / Ns;
+					At(F, S, V, X, Z);
+					const double Side = S < 0.0 ? -1.0 : 1.0;   // (facing out of the yard)
+					Put(Panel, X, Z, F.Nx, F.Nz, F.Ax * Side, F.Az * Side, -0.06);
+				}
+			}
+			for (double S = 12.0; S < Long - 6.0; S += 36.0)
+			{
+				At(F, S, Fv - 1.5, X, Z);
+				Put("yard_lamp", X, Z, F.Ax, F.Az, -F.Nx, -F.Nz);   // (its head over the yard)
+			}
+		}
+		// Pallets by a roller door; a container down a gable; a gas cage by a side door.
+		if (!Rollers.empty() && Chance(CornerX, CornerZ, 164) < 0.6)
+		{
+			const auto& R = Rollers[size_t(Chance(CornerX, CornerZ, 165) * double(Rollers.size())) % Rollers.size()];
+			const WallRun& W = Walls[R.first];
+			At(W, R.second + 5.0, 1.3, X, Z);
+			if (!Put("pallets", X, Z, W.Ax, W.Az, W.Nx, W.Nz))
+			{
+				At(W, R.second - 5.0, 1.3, X, Z);
+				Put("pallets", X, Z, W.Ax, W.Az, W.Nx, W.Nz);
+			}
+		}
+		if (Chance(CornerX, CornerZ, 166) < 0.4)
+		{
+			const WallRun& W = Walls[2];
+			const double Pick = Chance(CornerX, CornerZ, 167);
+			const char* Box = Pick < 0.4 ? "container_red" : Pick < 0.7 ? "container_blue" : "container_green";
+			for (const double S : {W.Len * 0.3, W.Len * 0.7})
+			{
+				bool ByDoor = false;
+				for (const auto& R : Rollers) ByDoor = ByDoor || (R.first == 2 && std::fabs(R.second - S) < 7.0);
+				for (const auto& R : Doors) ByDoor = ByDoor || (R.first == 2 && std::fabs(R.second - S) < 5.0);
+				At(W, S, 2.2, X, Z);
+				if (!ByDoor && Put(Box, X, Z, W.Ax, W.Az, W.Nx, W.Nz)) break;
+			}
+		}
+		for (const auto& P : Doors)
+			if (P.first >= 2 && Chance(CornerX + P.second, CornerZ, 168) < 0.35)
+			{
+				At(Walls[P.first], P.second + 2.4, 0.95, X, Z);
+				if (Put("gascage", X, Z, Walls[P.first].Ax, Walls[P.first].Az, Walls[P.first].Nx, Walls[P.first].Nz)) break;
+			}
+	}
+	// A skip by the back corner, and big bins by a back or side door (shops and sheds alike).
+	if (Seed > 0.25)
+	{
+		const WallRun& W = Walls[1];
+		At(W, 6.0, 3.2, X, Z);
+		const double Pick = Chance(CornerX, CornerZ, 169);
+		Put(Pick < 0.6 ? "skip_yellow" : "skip_green", X, Z, W.Ax, W.Az, W.Nx, W.Nz);
+	}
+	for (const auto& P : Doors)
+		if (P.first >= 1)
+		{
+			At(Walls[P.first], P.second - 2.6, 0.9, X, Z);
+			if (Put("bins", X, Z, Walls[P.first].Ax, Walls[P.first].Az, Walls[P.first].Nx, Walls[P.first].Nz)) break;
+		}
 	return Laid;
 }
 } // namespace TorqueWorld

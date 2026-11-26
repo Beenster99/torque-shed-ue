@@ -1,5 +1,5 @@
 {
- "_about": "Ride UK's industrial estates (the warehouse kit, beenster Nov 25-26): eight original designs of UK sheds, cut into pieces by Tools/blender_warehouse_kit_export.py (which writes this file and warehouse_kit.bin). World/WorldRideWarehouses.cpp gives a big shed the map draws as an oblong outline (industrial, warehouse, retail...) the design that suits its class and size ('classes', 'short', 'area', 'ratio' the least long to short), lays its walls' bays from the patterns (front, back, right, left; '*' fills), and stretches each bay, its roof and its gables to the outline. Letters: . plain, R roller door, D dock, P door, O office, E entrance, T trade counter, S shopfront, W high windows, H hangar door, L louvres.",
+ "_about": "Ride UK's industrial estates (the warehouse kit, beenster Nov 25-26): eight original designs of UK sheds, cut into pieces by Tools/blender_warehouse_kit_export.py (which writes this file and warehouse_kit.bin). World/WorldRideWarehouses.cpp gives a big shed the map draws as an oblong outline (industrial, warehouse, retail...) the design that suits its class and size ('classes', 'short', 'area', 'ratio' the least long to short), lays its walls' bays from the patterns (front, back, right, left; '*' fills), and stretches each bay, its roof and its gables to the outline. Letters: . plain, R roller door, D dock, P door, O office, E entrance, T trade counter, S shopfront, G glazing, M supermarket lobby, U shop unit, W high windows, H hangar door, L louvres. 'signs' per piece: x, y, z, facing x, z, width, height, kind of name (the game makes the names up). 'props': the yards' and car parks' things (Tools/blender_estate_props.py), pieces 'prop/<name>', centred, x along, z towards the front, size [long, deep, high] m.",
  "stretch": [
   0.55,
   1.8
@@ -44,6 +44,20 @@
     "roof:L": 324,
     "roofend": 220,
     "corner": 12
+   },
+   "signs": {
+    "long:E": [
+     [
+      3.75,
+      13.95,
+      1.68,
+      0.0,
+      1.0,
+      4.0,
+      1.0,
+      "firm"
+     ]
+    ]
    },
    "classes": [
     "industrial",
@@ -100,6 +114,7 @@
     "roof:L": 164,
     "corner": 12
    },
+   "signs": {},
    "classes": [
     "industrial",
     "warehouse",
@@ -149,6 +164,20 @@
     "roof:L": 84,
     "roofend": 60,
     "corner": 12
+   },
+   "signs": {
+    "long:T": [
+     [
+      8.4,
+      4.4,
+      0.06,
+      0.0,
+      1.0,
+      6.4,
+      1.0,
+      "trade"
+     ]
+    ]
    },
    "classes": [
     "industrial",
@@ -202,6 +231,7 @@
     "corner": 12,
     "annex": 2568
    },
+   "signs": {},
    "classes": [
     "industrial",
     "warehouse",
@@ -257,6 +287,20 @@
     "roofend": 220,
     "corner": 12
    },
+   "signs": {
+    "long:E": [
+     [
+      3.75,
+      11.45,
+      1.68,
+      0.0,
+      1.0,
+      4.0,
+      1.0,
+      "firm"
+     ]
+    ]
+   },
    "classes": [
     "industrial",
     "warehouse",
@@ -308,6 +352,7 @@
     "roofend": 60,
     "corner": 12
    },
+   "signs": {},
    "classes": [
     "industrial",
     "warehouse",
@@ -358,6 +403,20 @@
     "roof:L": 12,
     "corner": 12
    },
+   "signs": {
+    "long:S": [
+     [
+      5.0,
+      8.0,
+      0.1,
+      0.0,
+      1.0,
+      7.0,
+      1.8,
+      "shop"
+     ]
+    ]
+   },
    "classes": [
     "retail",
     "supermarket",
@@ -372,6 +431,133 @@
     16000
    ],
    "weight": 1.0
+  },
+  {
+   "name": "WH_supermarket",
+   "label": "Supermarket: flat roof, glazed front, an entrance lobby under a deep canopy, its name on top",
+   "L": 100,
+   "W": 70,
+   "H": 8.0,
+   "top": 10.0,
+   "gable_top": 10.0,
+   "bay": 10,
+   "gable_bay": 6.0,
+   "roof": "flat",
+   "spans": 1,
+   "front": "P G M G* .",
+   "back": "P D D . . D P",
+   "right": "R . . . .",
+   "left": ". . . P",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.42,
+    0.28,
+    0.15
+   ],
+   "pieces": {
+    "long:.": 32,
+    "long:D": 176,
+    "long:G": 116,
+    "long:M": 316,
+    "long:P": 56,
+    "gable:.": 16,
+    "gable:P": 56,
+    "gable:R": 88,
+    "roof:P": 12,
+    "roof:L": 12,
+    "corner": 12
+   },
+   "signs": {
+    "long:M": [
+     [
+      5.0,
+      10.25,
+      3.6,
+      0.0,
+      1.0,
+      8.8,
+      2.1,
+      "store"
+     ]
+    ]
+   },
+   "classes": [
+    "supermarket",
+    "retail"
+   ],
+   "short": [
+    40,
+    120
+   ],
+   "area": [
+    3000,
+    25000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "WH_retail_row",
+   "label": "Retail park terrace: shop units between brick piers, each with its own fascia and name",
+   "L": 90,
+   "W": 36,
+   "H": 7.5,
+   "top": 8.9,
+   "gable_top": 8.9,
+   "bay": 15,
+   "gable_bay": 6.0,
+   "roof": "flat",
+   "spans": 1,
+   "front": "U*",
+   "back": "P . D . P",
+   "right": "P . .",
+   "left": ". . P",
+   "solar": false,
+   "dock_floor": false,
+   "skirt": [
+    0.25,
+    0.085,
+    0.05
+   ],
+   "pieces": {
+    "long:.": 28,
+    "long:D": 172,
+    "long:P": 52,
+    "long:U": 148,
+    "gable:.": 12,
+    "gable:P": 52,
+    "roof:P": 12,
+    "roof:L": 12,
+    "corner": 12
+   },
+   "signs": {
+    "long:U": [
+     [
+      7.5,
+      5.4,
+      0.4,
+      0.0,
+      1.0,
+      10.8,
+      1.3,
+      "shop"
+     ]
+    ]
+   },
+   "classes": [
+    "retail",
+    "commercial"
+   ],
+   "short": [
+    18,
+    50
+   ],
+   "area": [
+    1100,
+    9000
+   ],
+   "weight": 1.0,
+   "ratio": 1.6
   },
   {
    "name": "WH_hangar",
@@ -409,6 +595,7 @@
     "roofend": 220,
     "corner": 12
    },
+   "signs": {},
    "classes": [
     "industrial",
     "warehouse",
@@ -423,6 +610,261 @@
     4500
    ],
    "weight": 0.6
+  }
+ ],
+ "props": [
+  {
+   "name": "trailer_white",
+   "label": "Curtain-sided trailer, white",
+   "tris": 720,
+   "size": [
+    13.64,
+    2.6,
+    4.0
+   ],
+   "signs": []
+  },
+  {
+   "name": "trailer_navy",
+   "label": "Curtain-sided trailer, navy",
+   "tris": 720,
+   "size": [
+    13.64,
+    2.6,
+    4.0
+   ],
+   "signs": []
+  },
+  {
+   "name": "trailer_grey",
+   "label": "Curtain-sided trailer, grey",
+   "tris": 720,
+   "size": [
+    13.64,
+    2.6,
+    4.0
+   ],
+   "signs": []
+  },
+  {
+   "name": "trailer_fridge",
+   "label": "Fridge box trailer",
+   "tris": 504,
+   "size": [
+    14.2,
+    2.59,
+    4.0
+   ],
+   "signs": []
+  },
+  {
+   "name": "van_white",
+   "label": "Panel van, white",
+   "tris": 404,
+   "size": [
+    5.7,
+    2.42,
+    2.47
+   ],
+   "signs": []
+  },
+  {
+   "name": "van_silver",
+   "label": "Panel van, silver",
+   "tris": 404,
+   "size": [
+    5.7,
+    2.42,
+    2.47
+   ],
+   "signs": []
+  },
+  {
+   "name": "van_blue",
+   "label": "Panel van, dark blue",
+   "tris": 404,
+   "size": [
+    5.7,
+    2.42,
+    2.47
+   ],
+   "signs": []
+  },
+  {
+   "name": "skip_yellow",
+   "label": "Builders' skip, yellow",
+   "tris": 120,
+   "size": [
+    3.8,
+    1.9,
+    1.45
+   ],
+   "signs": []
+  },
+  {
+   "name": "skip_green",
+   "label": "Builders' skip, green",
+   "tris": 120,
+   "size": [
+    3.8,
+    1.9,
+    1.45
+   ],
+   "signs": []
+  },
+  {
+   "name": "pallets",
+   "label": "Stacks of pallets",
+   "tris": 372,
+   "size": [
+    4.8,
+    1.66,
+    1.73
+   ],
+   "signs": []
+  },
+  {
+   "name": "container_red",
+   "label": "20 ft container, rust red",
+   "tris": 504,
+   "size": [
+    6.11,
+    2.5,
+    2.59
+   ],
+   "signs": []
+  },
+  {
+   "name": "container_blue",
+   "label": "20 ft container, blue",
+   "tris": 504,
+   "size": [
+    6.11,
+    2.5,
+    2.59
+   ],
+   "signs": []
+  },
+  {
+   "name": "container_green",
+   "label": "20 ft container, green",
+   "tris": 504,
+   "size": [
+    6.11,
+    2.5,
+    2.59
+   ],
+   "signs": []
+  },
+  {
+   "name": "gascage",
+   "label": "Gas bottle cage",
+   "tris": 516,
+   "size": [
+    2.5,
+    1.2,
+    2.05
+   ],
+   "signs": []
+  },
+  {
+   "name": "palisade_green",
+   "label": "Palisade fence, green, 2.75 m",
+   "tris": 114,
+   "size": [
+    2.75,
+    0.14,
+    2.4
+   ],
+   "signs": []
+  },
+  {
+   "name": "palisade_grey",
+   "label": "Palisade fence, galvanised, 2.75 m",
+   "tris": 114,
+   "size": [
+    2.75,
+    0.14,
+    2.4
+   ],
+   "signs": []
+  },
+  {
+   "name": "gate_green",
+   "label": "Sliding gate, green, 6 m",
+   "tris": 260,
+   "size": [
+    7.15,
+    0.2,
+    2.5
+   ],
+   "signs": []
+  },
+  {
+   "name": "gate_grey",
+   "label": "Sliding gate, galvanised, 6 m",
+   "tris": 260,
+   "size": [
+    7.15,
+    0.2,
+    2.5
+   ],
+   "signs": []
+  },
+  {
+   "name": "estate_board",
+   "label": "Estate name board",
+   "tris": 108,
+   "size": [
+    3.2,
+    0.22,
+    3.2
+   ],
+   "signs": [
+    [
+     0.0,
+     2.42,
+     0.07,
+     0.0,
+     1.0,
+     2.8,
+     0.52,
+     "estate"
+    ]
+   ]
+  },
+  {
+   "name": "trolley_shelter",
+   "label": "Trolley shelter",
+   "tris": 168,
+   "size": [
+    5.2,
+    2.5,
+    2.51
+   ],
+   "signs": []
+  },
+  {
+   "name": "yard_lamp",
+   "label": "Yard lighting column",
+   "tris": 68,
+   "size": [
+    0.6,
+    1.6,
+    8.0
+   ],
+   "signs": []
+  },
+  {
+   "name": "bins",
+   "label": "Pair of big bins",
+   "tris": 272,
+   "size": [
+    2.72,
+    1.1,
+    1.39
+   ],
+   "signs": []
   }
  ]
 }
