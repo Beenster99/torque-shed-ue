@@ -44,7 +44,15 @@ from mathutils import Matrix, Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import blender_street_kit as K   # noqa: E402
-from blender_street_kit import box, lathe, rod, sweep   # noqa: E402
+from blender_street_kit import lathe, rod, sweep   # noqa: E402
+
+
+def box(name, centre, size, rot_z=0.0, bevel=0.0, rot=None, seg=3):
+    """The street kit's box, its bevels rounder (seg segments)."""
+    ob = K.box(name, centre, size, rot_z, bevel, rot)
+    if bevel > 0:
+        ob.modifiers["bevel"].segments = seg
+    return ob
 
 # (the farm kit's fleet liveries: body, wheel centres, cab roof)
 LIVERIES = [   # (Tools/blender_tractor.py's LIVERIES, linear: body, wheel centres, cab roof, stripe)
@@ -136,8 +144,11 @@ def beam(M, name, a, b, w, h, surface, rgb, dirt=0.3):
 
 
 def wheel(M, x, y, z, r, w, rim, lod, lugs=14, rim_frac=0.55, out=1, dual=False):
-    """A tyre on its axle along y, its wheel centre in rim colour on the outer face (out: +1 the left side)."""
-    seg = (20 if r > 0.6 else 16) if lod == 0 else (10 if lod == 1 else 6)
+    """A tyre on its axle along y, its wheel centre in rim colour on the outer face (out: +1 the left side).
+    Close up (wheel_hd): a rounded carcass, deep chevron lugs all round, a dished rim with its bolt circle."""
+    if lod == 0:
+        return wheel_hd(M, x, y, z, r, w, rim, lugs > 0, rim_frac, out, dual)
+    seg = 16 if lod == 1 else 7
     prof = [(0.0, -w / 2), (r * 0.62, -w / 2), (r * 0.9, -w / 2), (r, -w / 2 + w * 0.18), (r, w / 2 - w * 0.18), (r * 0.9, w / 2), (r * 0.62, w / 2), (0.0, w / 2)]
     if lod == 2:
         prof = [(0.0, -w / 2), (r * 0.95, -w / 2), (r, -w / 2 + w * 0.2), (r, w / 2 - w * 0.2), (r * 0.95, w / 2), (0.0, w / 2)]
@@ -147,89 +158,292 @@ def wheel(M, x, y, z, r, w, rim, lod, lugs=14, rim_frac=0.55, out=1, dual=False)
     if lod == 2:
         return
     rr = r * rim_frac
-    sides = (-1, 1) if lod == 0 and not dual else (out if not dual or dual == "outer" else -out,)
-    for s in sides:
-        dish = 0.035 if s == out else 0.01
-        h = lathe("rim", [(0.0, 0.0), (rr, 0.0), (rr, 0.02), (rr * 0.5, dish + 0.02), (0.0, dish + 0.03)], 14 if lod == 0 else 8)
-        h.matrix_world = Matrix.Translation((x, y + s * (w / 2 - 0.01), z)) @ Matrix.Rotation(-s * math.pi / 2, 4, "X")
-        M.add(h, "enamel", rim, 0.45)
-    if lod == 0 and lugs:
-        # (the tread: chevron bars across the crown)
-        for k in range(lugs):
-            a = 2 * math.pi * (k + 0.5) / lugs
+    s = out if not dual or dual == "outer" else -out
+    h = lathe("rim", [(0.0, 0.0), (rr, 0.0), (rr, 0.02), (rr * 0.5, 0.055), (0.0, 0.065)], 10)
+    h.matrix_world = Matrix.Translation((x, y + s * (w / 2 - 0.01), z)) @ Matrix.Rotation(-s * math.pi / 2, 4, "X")
+    M.add(h, "enamel", rim, 0.45)
+
+
+def _on_axle(ob, x, y, z, s):
+    """Stand a lathe (made about z, its +z outwards) on an axle along y at (x, y, z), facing side s."""
+    ob.matrix_world = Matrix.Translation((x, y, z)) @ Matrix.Rotation(-s * math.pi / 2, 4, "X")
+    return ob
+
+
+def wheel_hd(M, x, y, z, r, w, rim, lugs=True, rim_frac=0.55, out=1, dual=False):
+    """The close-up wheel: the tyre's carcass turned with rounded shoulders and a sidewall bulge, the tread's
+    chevron lugs (deep bars running in from each shoulder, staggered), the rim's well and dished centre, its
+    hub, the bolt circle and the valve."""
+    seg = 40 if r > 0.6 else 32
+    h = w / 2
+    # (the carcass: bead, sidewall bulge, shoulder, crown; the crown sits under the lugs)
+    rc = r - (0.045 if lugs else 0.0)
+    prof = [(r * rim_frac * 0.98, -h + 0.03), (r * (rim_frac + 0.08), -h), (r * 0.8, -h - 0.015), (rc * 0.95, -h + 0.005),
+            (rc * 0.99, -h + w * 0.04), (rc, -h + w * 0.09), (rc, h - w * 0.09), (rc * 0.99, h - w * 0.04), (rc * 0.95, h - 0.005),
+            (r * 0.8, h + 0.015), (r * (rim_frac + 0.08), h), (r * rim_frac * 0.98, h - 0.03)]
+    M.add(_on_axle(lathe("tyre", prof, seg), x, y, z, 1), "paint", TYRE, 0.7)
+    if lugs:
+        n = max(16, int(round(r * 26)))
+        d = 0.045
+        for k in range(n):
             for side in (-1, 1):
-                c = (x + math.cos(a) * r, y + side * w * 0.24, z + math.sin(a) * r)
-                M.add(box("lug", c, (0.05, w * 0.48, min(0.07, r * 0.09)), rot=Matrix.Rotation(-a, 4, "Y") @ Matrix.Rotation(side * 0.5, 4, "X")), "paint", TYRE, 0.7)
+                a = 2 * math.pi * (k + (0.5 if side > 0 else 0.0)) / n
+                # (a lug from the shoulder in towards the crown's middle, raked; its outer face a touch narrower)
+                ca, sa = math.cos(a), math.sin(a)
+                L = w * 0.5
+                pts = [(-0.05, -0.01), (0.05, -0.01), (0.04, d), (-0.04, d)]
+                lug = prism("lug", pts, "y", -L / 2, L / 2, 40.0)
+                lug.matrix_world = (Matrix.Translation((x + ca * rc, y + side * w * 0.24, z + sa * rc))
+                                    @ Matrix.Rotation(-a + math.pi / 2, 4, "Y") @ Matrix.Rotation(side * 0.38, 4, "Z"))
+                M.add(lug, "paint", TYRE, 0.75)
+    # (the rims: the outer face dished with the hub and bolts; the inner face a plain disc)
+    rr = r * rim_frac
+    faces = (out,) if dual == "outer" else (-out,) if dual == "inner" else (out, -out)
+    for s in faces:
+        outer = s == out
+        if outer:
+            pr = [(0.0, -0.04), (rr, -0.04), (rr, 0.015), (rr * 0.95, 0.03), (rr * 0.9, 0.0), (rr * 0.62, -0.02), (rr * 0.5, 0.03),
+                  (rr * 0.32, 0.05), (rr * 0.3, 0.09), (rr * 0.18, 0.1), (rr * 0.12, 0.16), (0.0, 0.17)]
+            M.add(_on_axle(lathe("rim", pr, 32), x, y + s * (w / 2 - 0.06), z, s), "enamel", rim, 0.45)
+            nb = 10 if r > 0.6 else 8
+            for b in range(nb):
+                t = 2 * math.pi * b / nb
+                bx, bz = x + math.cos(t) * rr * 0.24, z + math.sin(t) * rr * 0.24
+                bolt = lathe("bolt", [(0.0, 0.0), (0.022, 0.0), (0.022, 0.03), (0.012, 0.045), (0.0, 0.045)], 6)
+                M.add(_on_axle(bolt, bx, y + s * (w / 2 - 0.06 + 0.09), bz, s), "steel", STEEL, 0.5)
+            # (the windows pressed in the dish, dark)
+            for b in range(8):
+                t = 2 * math.pi * (b + 0.5) / 8
+                hole = lathe("window", [(0.0, 0.0), (rr * 0.07, 0.0), (rr * 0.07, 0.006), (0.0, 0.006)], 8)
+                M.add(_on_axle(hole, x + math.cos(t) * rr * 0.62, y + s * (w / 2 - 0.06 + 0.022), z + math.sin(t) * rr * 0.62, s), "paint", DARK, 0.6)
+            valve = rod("valve", (x + rr * 0.85, y + s * (w / 2 - 0.04), z + 0.02), (x + rr * 0.85, y + s * (w / 2 + 0.01), z + 0.03), 0.008, 5)
+            M.add(valve, "steel", STEEL, 0.4)
+        else:
+            M.add(_on_axle(lathe("rim", [(0.0, 0.0), (rr, 0.0), (rr, 0.02), (rr * 0.35, 0.05), (0.0, 0.06)], 24), x, y + s * (w / 2 - 0.04), z, s),
+                  "enamel", rim, 0.5)
 
 
 def track(M, name, circles, y, w, lod, rim, rollers=()):
     """A rubber (or steel) track round its wheels circles [(x, z, r)], centred at y, w wide; the wheels' faces in rim
-    colour, and road rollers (x, z, r) between."""
-    outline = hull_of_circles(circles, 20 if lod == 0 else 10 if lod == 1 else 6)
-    M.add(prism(name, outline, "y", y - w / 2, y + w / 2, 50.0), "paint", TYRE, 0.7)
+    colour, and road rollers (x, z, r) between. Close up: the belt with its guide ribs and lugs all the way round,
+    the wheels spoked and bolted."""
+    outline = hull_of_circles(circles, 36 if lod == 0 else 12 if lod == 1 else 6)
+    if lod == 0:
+        # (the belt as a ring: its outer run and the inner face held in by the belt's thickness)
+        inner = hull_of_circles([(cx, cz, r - 0.07) for cx, cz, r in circles], 36)
+        M.add(prism(name, outline, "y", y - w / 2, y + w / 2, 50.0), "paint", TYRE, 0.7)
+        M.add(prism("guide", inner, "y", y - 0.05, y + 0.05, 50.0), "paint", TYRE, 0.7)
+    else:
+        M.add(prism(name, outline, "y", y - w / 2, y + w / 2, 50.0), "paint", TYRE, 0.7)
     if lod == 2:
         return
     s = 1 if y > 0 else -1
     for cx, cz, r in list(circles) + list(rollers):
-        rr = r * 0.82
-        h = lathe("trackwheel", [(0.0, 0.0), (rr, 0.0), (rr, 0.02), (rr * 0.45, 0.05), (0.0, 0.06)], 14 if lod == 0 else 8)
-        h.matrix_world = Matrix.Translation((cx, y + s * (w / 2 - 0.005), cz)) @ Matrix.Rotation(-s * math.pi / 2, 4, "X")
-        M.add(h, "paint", GRAPHITE, 0.6)
-        if lod == 0 and r > 0.4:
-            c = lathe("trackhub", [(0.0, 0.0), (r * 0.3, 0.0), (r * 0.3, 0.03), (0.0, 0.05)], 10)
-            c.matrix_world = Matrix.Translation((cx, y + s * (w / 2 + 0.05), cz)) @ Matrix.Rotation(-s * math.pi / 2, 4, "X")
-            M.add(c, "enamel", rim, 0.4)
+        rr = r * 0.84
+        if lod == 0:
+            pr = [(0.0, 0.0), (rr, 0.0), (rr, 0.025), (rr * 0.9, 0.035), (rr * 0.55, 0.03), (rr * 0.45, 0.06), (rr * 0.25, 0.075), (0.0, 0.08)]
+            M.add(_on_axle(lathe("trackwheel", pr, 28), cx, y + s * (w / 2 - 0.01), cz, s), "paint", GRAPHITE, 0.6)
+            if r > 0.4:
+                M.add(_on_axle(lathe("trackhub", [(0.0, 0.0), (r * 0.3, 0.0), (r * 0.3, 0.04), (r * 0.2, 0.08), (0.0, 0.09)], 16),
+                               cx, y + s * (w / 2 + 0.06), cz, s), "enamel", rim, 0.4)
+                for b in range(8):
+                    t = 2 * math.pi * b / 8
+                    M.add(_on_axle(lathe("bolt", [(0.0, 0.0), (0.02, 0.0), (0.02, 0.035), (0.0, 0.035)], 6),
+                                   cx + math.cos(t) * r * 0.22, y + s * (w / 2 + 0.1), cz + math.sin(t) * r * 0.22, s), "steel", STEEL, 0.4)
+        else:
+            M.add(_on_axle(lathe("trackwheel", [(0.0, 0.0), (rr, 0.0), (rr, 0.02), (rr * 0.45, 0.05), (0.0, 0.06)], 10),
+                           cx, y + s * (w / 2 - 0.005), cz, s), "paint", GRAPHITE, 0.6)
     if lod == 0:
-        # (the lugs on the track's ground run)
-        x0 = min(c[0] for c in circles)
-        x1 = max(c[0] for c in circles)
-        n = int((x1 - x0) / 0.18)
-        for k in range(n + 1):
-            M.add(box("tlug", (x0 + k * (x1 - x0) / max(n, 1), y, 0.02), (0.06, w * 0.96, 0.04)), "paint", TYRE, 0.8)
+        # (the lugs all round the belt's outside, chevrons)
+        per = 0.2
+        L = 0.0
+        loop = outline + outline[:1]
+        segs = [(Vector((a[0], 0, a[1])), Vector((b[0], 0, b[1]))) for a, b in zip(loop, loop[1:])]
+        total = sum((b - a).length for a, b in segs)
+        n = int(total / per)
+        k = 0
+        acc = 0.0
+        for a, b in segs:
+            sl = (b - a).length
+            while k < n and acc + sl >= k * per:
+                t = (k * per - acc) / max(sl, 1e-9)
+                p = a + (b - a) * t
+                tang = (b - a).normalized()
+                ang = math.atan2(-tang.z, tang.x)
+                for side in (-1, 1):
+                    lug = box("tlug", (p.x, y + side * w * 0.24, p.z), (0.07, w * 0.44, 0.07),
+                              rot=Matrix.Rotation(ang, 4, "Y") @ Matrix.Rotation(side * 0.35, 4, "Z"))
+                    M.add(lug, "paint", TYRE, 0.8)
+                k += 1
+            acc += sl
 
 
 def cab(M, x0, x1, hw, z0, z1, liv, lod, beacon=True, lamps=True, posts=DARK, mirrors=True):
-    """A glass cab x0..x1 (front x1), hw half wide, z0..z1, its roof over in the livery's roof colour, a beacon."""
+    """A glass cab x0..x1 (front x1), hw half wide, z0..z1, its roof over in the livery's roof colour, a beacon.
+    Close up: rounded corner pillars, the glass in its panes, a door with its handle and hinges, wipers, a roof
+    with a curved edge and visor, the light bar, mirrors on arms, the steps up."""
     body, rim, roof, stripe = liv
-    M.add(box("glass", ((x0 + x1) / 2, 0.0, (z0 + z1) / 2), (x1 - x0, hw * 2, z1 - z0)), "lens", GLASS, 0.0)
-    M.add(box("roof", ((x0 + x1) / 2 - 0.03, 0.0, z1 + 0.05), (x1 - x0 + 0.2, hw * 2 + 0.16, 0.1), bevel=0.03 if lod == 0 else 0.0), "enamel", roof, 0.2)
-    if lod == 2:
-        return z1 + 0.1
-    for x in (x0 + 0.04, x1 - 0.04):
-        for y in (-hw + 0.03, hw - 0.03):
-            M.add(box("post", (x, y, (z0 + z1) / 2), (0.08, 0.08, z1 - z0)), "paint", posts, 0.2)
-    M.add(box("cabfloor", ((x0 + x1) / 2, 0.0, z0 + 0.12), (x1 - x0 + 0.02, hw * 2 + 0.02, 0.24)), "enamel", body, 0.35)
-    top = z1 + 0.1
-    if lod == 0:
-        if lamps:
-            for y in (-hw + 0.25, -hw + 0.55, hw - 0.55, hw - 0.25):
-                M.add(box("worklamp", (x1 + 0.1, y, z1 + 0.02), (0.06, 0.16, 0.1)), "lens", LAMP, 0.0)
-            for y in (-hw + 0.4, hw - 0.4):
-                M.add(box("worklamp", (x0 - 0.1, y, z1 + 0.02), (0.06, 0.16, 0.1)), "lens", LAMP, 0.0)
-        if mirrors:
-            for s in (-1, 1):
-                M.add(rod("mirrorarm", (x1 - 0.1, s * hw, z1 - 0.15), (x1 - 0.05, s * (hw + 0.4), z1 - 0.25), 0.015, 4), "paint", DARK, 0.2)
-                M.add(box("mirror", (x1 - 0.05, s * (hw + 0.42), z1 - 0.4), (0.04, 0.16, 0.26)), "paint", DARK, 0.2)
+    if lod > 0:
+        M.add(box("glass", ((x0 + x1) / 2, 0.0, (z0 + z1) / 2), (x1 - x0, hw * 2, z1 - z0)), "lens", GLASS, 0.0)
+        M.add(box("roof", ((x0 + x1) / 2 - 0.03, 0.0, z1 + 0.05), (x1 - x0 + 0.2, hw * 2 + 0.16, 0.1)), "enamel", roof, 0.2)
+        if lod == 1:
+            for x in (x0 + 0.04, x1 - 0.04):
+                for y in (-hw + 0.03, hw - 0.03):
+                    M.add(box("post", (x, y, (z0 + z1) / 2), (0.08, 0.08, z1 - z0)), "paint", posts, 0.2)
+            M.add(box("cabfloor", ((x0 + x1) / 2, 0.0, z0 + 0.12), (x1 - x0 + 0.02, hw * 2 + 0.02, 0.24)), "enamel", body, 0.35)
+        top = z1 + 0.1
+        if beacon:
+            M.add(box("beacon", (x0 + 0.25, hw - 0.2, top + 0.075), (0.12, 0.12, 0.15)), "lens", AMBER, 0.0)
+            top += 0.15
+        return top
+    L, H = x1 - x0, z1 - z0
+    xm = (x0 + x1) / 2
+    # (the glass: one rounded block slightly inside the frame, the front raked forward at the top a little)
+    g = box("glass", (xm, 0.0, (z0 + z1) / 2 + 0.05), (L - 0.04, hw * 2 - 0.04, H - 0.1), bevel=0.09)
+    M.add(g, "lens", GLASS, 0.0)
+    # (the lower panels in the body colour, rounded)
+    M.add(box("cabfloor", (xm, 0.0, z0 + 0.16), (L + 0.04, hw * 2 + 0.04, 0.32), bevel=0.05), "enamel", body, 0.35)
+    # (the pillars: round tubes at the corners, the B pillars at the door's back)
+    for x in (x0 + 0.03, x1 - 0.03, x0 + L * 0.38):
+        for yy in (-hw + 0.02, hw - 0.02):
+            M.add(sweep("pillar", [(x, yy, z0 + 0.3), (x, yy, z1 - 0.02)], 0.042, 10), "paint", posts, 0.2)
+    # (glazing bars: the waist rail and the top rail round the glass)
+    for zz in (z0 + 0.34, z1 - 0.04):
+        M.add(sweep("rail", [(x0 + 0.03, -hw + 0.02, zz), (x1 - 0.03, -hw + 0.02, zz), (x1 - 0.03, hw - 0.02, zz), (x0 + 0.03, hw - 0.02, zz), (x0 + 0.03, -hw + 0.02, zz)], 0.022, 6, cap=False), "paint", posts, 0.2)
+    # (the door on the left: its seal line, handle and hinges)
+    dx0, dx1 = x0 + L * 0.38, x1 - 0.06
+    M.add(box("doorline", ((dx0 + dx1) / 2, hw + 0.006, z0 + 0.34), (dx1 - dx0, 0.012, 0.02)), "paint", DARK, 0.3)
+    M.add(box("handle", (dx0 + 0.08, hw + 0.03, (z0 + z1) / 2), (0.03, 0.03, 0.2), bevel=0.01), "steel", STEEL, 0.3)
+    for zz in (z0 + 0.6, z1 - 0.3):
+        M.add(sweep("hinge", [(dx1, hw, zz), (dx1, hw + 0.03, zz)], 0.02, 6), "paint", DARK, 0.3)
+    # (the wipers on the windscreen)
+    for yy in (-hw * 0.4, hw * 0.4):
+        M.add(sweep("wiper", [(x1 + 0.01, yy, z0 + 0.42), (x1 + 0.01, yy + 0.15, z0 + 0.95)], 0.01, 4), "paint", DARK, 0.3)
+    # (the roof: a rounded shell over the edges, the visor over the windscreen, a hatch)
+    M.add(box("roof", (xm - 0.03, 0.0, z1 + 0.06), (L + 0.24, hw * 2 + 0.2, 0.14), bevel=0.06), "enamel", roof, 0.2)
+    M.add(box("roofcap", (xm - 0.06, 0.0, z1 + 0.15), (L * 0.75, hw * 1.5, 0.06), bevel=0.03), "enamel", roof, 0.2)
+    M.add(tilted("visor", (x1 + 0.12, 0.0, z1 - 0.02), (0.22, hw * 2 - 0.05, 0.02), pitch=0.25), "lens", GLASS, 0.0)
+    top = z1 + 0.18
+    if lamps:
+        for yy in (-hw + 0.22, -hw + 0.5, hw - 0.5, hw - 0.22):
+            lamp(M, x1 + 0.12, yy, z1 + 0.06, 0.06, face=(1, 0, 0))
+        for yy in (-hw + 0.35, hw - 0.35):
+            lamp(M, x0 - 0.12, yy, z1 + 0.06, 0.06, face=(-1, 0, 0))
+    if mirrors:
+        for s in (-1, 1):
+            M.add(sweep("mirrorarm", [(x1 - 0.05, s * hw, z1 - 0.1), (x1 + 0.05, s * (hw + 0.25), z1 - 0.05), (x1 + 0.02, s * (hw + 0.42), z1 - 0.2)], 0.014, 6), "paint", DARK, 0.2)
+            M.add(box("mirror", (x1 + 0.02, s * (hw + 0.44), z1 - 0.38), (0.05, 0.2, 0.3), bevel=0.02), "paint", DARK, 0.2)
+            M.add(box("mirrorglass", (x1 - 0.005, s * (hw + 0.44), z1 - 0.38), (0.006, 0.17, 0.26)), "lens", (0.3, 0.32, 0.34), 0.0)
     if beacon:
         bx, by = x0 + 0.25, hw - 0.2
-        if lod == 0:
-            b = lathe("beacon", [(0.0, 0.0), (0.07, 0.0), (0.07, 0.11), (0.05, 0.14), (0.0, 0.15)], 10, at=(bx, by, top))
-        else:
-            b = box("beacon", (bx, by, top + 0.075), (0.12, 0.12, 0.15))
-        M.add(b, "lens", AMBER, 0.0)
-        top += 0.15
+        M.add(lathe("beaconbase", [(0.0, 0.0), (0.075, 0.0), (0.075, 0.025), (0.0, 0.03)], 16, at=(bx, by, top - 0.03)), "paint", DARK, 0.2)
+        M.add(lathe("beacon", [(0.0, 0.0), (0.065, 0.0), (0.065, 0.1), (0.05, 0.13), (0.0, 0.14)], 16, at=(bx, by, top - 0.005)), "lens", AMBER, 0.0)
+        top += 0.135
     return top
 
 
+def lamp(M, x, y, z, r, face=(1, 0, 0), rgb=LAMP):
+    """A round lamp: its housing, chrome bezel and lens, facing face (+x forward, -x back, or (0, +-1, 0) sideways)."""
+    pr = [(0.0, -0.06), (r * 0.9, -0.06), (r, -0.02), (r, 0.0), (r * 1.05, 0.005), (r * 0.85, 0.01), (r * 0.8, 0.02), (0.0, 0.025)]
+    ob = lathe("lamp", pr, 16)
+    f = Vector(face).normalized()
+    R = Vector((0, 0, 1)).rotation_difference(f).to_matrix().to_4x4()
+    ob.matrix_world = Matrix.Translation((x, y, z)) @ R
+    M.add(ob, "lens", rgb, 0.0)
+
+
 def lights(M, x, ys, z, lod, size=(0.04, 0.2, 0.12), rgb=LAMP):
+    """Lamps across a face at x (the front if x > 0, else the back): close up a pair of round lamps in a bezel each."""
     if lod == 0:
+        face = (1, 0, 0) if x > 0 else (-1, 0, 0)
         for y in ys:
-            M.add(box("lamp", (x, y, z), size), "lens", rgb, 0.0)
+            M.add(box("lampbox", (x - face[0] * 0.03, y, z), (0.06, size[1] + 0.03, size[2] + 0.03), bevel=0.015), "paint", DARK, 0.3)
+            for dy in (-size[1] * 0.25, size[1] * 0.25):
+                lamp(M, x, y + dy, z, min(size[2], size[1]) * 0.42, face=face, rgb=rgb)
+
+
+LOFT_N = [28]   # (the lofts' points round: fewer for the distance version)
+
+
+def loft(name, sections, n=28, flat_bottom=True):
+    """A smooth shell lofted through cross-sections along x: each (x, half width, bottom z, top z, roundness) a
+    rounded rectangle (a superellipse of power roundness: 2 an ellipse, 6 nearly square), so bonnets, tanks and
+    bodies come out as pressed panels with soft crowns, not boxes. flat_bottom keeps the underside flat."""
+    v, f = [], []
+    for x, hw, zb, zt, pw in sections:
+        zc, hh = (zb + zt) / 2, (zt - zb) / 2
+        for k in range(n):
+            a = 2 * math.pi * k / n
+            c, si = math.cos(a), math.sin(a)
+            y = hw * math.copysign(abs(c) ** (2 / pw), c)
+            z = zc + hh * math.copysign(abs(si) ** (2 / pw), si)
+            if flat_bottom and si < 0:
+                z = zc + hh * math.copysign(abs(si) ** (2 / max(pw, 8)), si)
+            v.append((x, y, z))
+    m = len(sections)
+    for i in range(m - 1):
+        for k in range(n):
+            a, b = i * n + k, i * n + (k + 1) % n
+            f.append((a, b, b + n, a + n))
+    f.append(tuple(reversed(range(n))))
+    f.append(tuple(range((m - 1) * n, m * n)))
+    return K._object(name, v, f, 50.0)
+
+
+def fender(M, x, y, z, r, w, rgb, a0=0.15, a1=2.6, n=14, t=0.035):
+    """A curved mudguard over a wheel at (x, y, z) of radius r: a strip w wide bent round from angle a0 to a1
+    (0 forward, pi/2 the top)."""
+    pts = [(x + r * math.cos(a0 + (a1 - a0) * k / n), z + r * math.sin(a0 + (a1 - a0) * k / n)) for k in range(n + 1)]
+    v, f = [], []
+    for px, pz in pts:
+        dx, dz = px - x, pz - z
+        L = math.hypot(dx, dz)
+        for yy in (y - w / 2, y + w / 2):
+            v.append((px, yy, pz))
+            v.append((px + dx / L * t, yy, pz + dz / L * t))
+    for i in range(n):
+        a = i * 4
+        b = a + 4
+        f += [(a + 1, a + 3, b + 3, b + 1), (a, b, b + 2, a + 2), (a, a + 1, b + 1, b), (a + 2, b + 2, b + 3, a + 3)]
+    f += [(0, 2, 3, 1), (n * 4, n * 4 + 1, n * 4 + 3, n * 4 + 2)]
+    M.add(K._object("fender", v, f, 40.0), "enamel", rgb, 0.4)
 
 
 def rail(M, pts, r=0.02, lod=0, rgb=DARK):
     if lod == 0:
-        M.add(sweep("rail", pts, r, 6), "paint", rgb, 0.3)
+        M.add(sweep("rail", pts, r, 8), "paint", rgb, 0.3)
+
+
+def grille(M, x, y, z, w, h, face=1, slats=None, rgb=DARK):
+    """A slatted grille on a face across x (face +1 forward) or, with face 0, on a side wall at y (w along x)."""
+    n = slats or max(4, int(h / 0.045))
+    if face:
+        M.add(box("grilleback", (x - face * 0.02, y, z), (0.02, w, h)), "paint", (0.01, 0.01, 0.012), 0.4)
+        for k in range(n):
+            M.add(box("slat", (x, y, z - h / 2 + (k + 0.5) * h / n), (0.03, w, h / n * 0.45)), "paint", rgb, 0.4)
+    else:
+        sy = 1 if y > 0 else -1
+        M.add(box("grilleback", (x, y - sy * 0.01, z), (w, 0.01, h)), "paint", (0.01, 0.01, 0.012), 0.4)
+        for k in range(n):
+            M.add(box("slat", (x, y + sy * 0.005, z - h / 2 + (k + 0.5) * h / n), (w, 0.015, h / n * 0.45)), "paint", rgb, 0.4)
+
+
+def hose(M, pts, r=0.016):
+    M.add(sweep("hose", pts, r, 6), "paint", (0.012, 0.012, 0.014), 0.5)
+
+
+def steps(M, x, y, z0, z1, n=4, w=0.42, rake=0.0):
+    """A ladder of n treads from z0 to z1 at (x, y), its two stringers; rake runs it in x as it climbs."""
+    s = 1 if y > 0 else -1
+    for e in (-w / 2, w / 2):
+        M.add(sweep("stringer", [(x + e, y, z0), (x + e + rake, y, z1)], 0.018, 6), "paint", DARK, 0.4)
+    for k in range(n):
+        t = (k + 0.5) / n
+        zz = z0 + (z1 - z0) * t
+        M.add(box("tread", (x + rake * t, y - s * 0.06, zz), (w, 0.18, 0.025)), "galv", (0.35, 0.35, 0.34), 0.5)
+        if True:
+            for i in range(3):
+                M.add(box("treadhole", (x + rake * t - w / 3 + i * w / 3, y - s * 0.06, zz + 0.013), (0.06, 0.12, 0.004)), "paint", DARK, 0.5)
 
 
 # --- the machines ---------------------------------------------------------------------------------------
@@ -244,10 +458,12 @@ def combine(name, liv, maize, lod):
         wheel(M, 1.15, s * 1.45, 0.93, 0.93, 0.75, rim, lod, 18, out=s)
         wheel(M, -3.35, s * 1.3, 0.6, 0.6, 0.45, rim, lod, 12, out=s)
     bev = 0.05 if lod == 0 else 0.0
-    M.add(box("body", (-1.3, 0.0, 1.95), (5.8, 2.5, 2.1), bevel=bev), "enamel", body, 0.45)
+    M.add(loft("body", [(-4.2, 1.18, 0.9, 2.95, 7), (-4.05, 1.25, 0.9, 3.0, 8), (1.45, 1.25, 0.9, 3.0, 8), (1.6, 1.2, 0.95, 2.95, 7)], LOFT_N[0]) if lod <= 1
+          else box("body", (-1.3, 0.0, 1.95), (5.8, 2.5, 2.1)), "enamel", body, 0.45)
     # (the grain tank, flaring out over the body)
     M.add(prism("tank", [(-1.25, 3.0), (1.25, 3.0), (1.55, 3.55), (-1.55, 3.55)], "x", -2.5, 0.55), "enamel", body, 0.35)
-    M.add(box("engine", (-3.25, 0.0, 3.12), (1.7, 2.3, 0.26), bevel=bev), "enamel", body, 0.4)
+    M.add(loft("engine", [(-4.1, 1.05, 2.95, 3.22, 4), (-3.2, 1.15, 2.95, 3.3, 4), (-2.4, 1.15, 2.95, 3.3, 4)], LOFT_N[0]) if lod <= 1
+          else box("engine", (-3.25, 0.0, 3.12), (1.7, 2.3, 0.26)), "enamel", body, 0.4)
     M.add(tilted("chopper", (-4.35, 0.0, 1.55), (0.6, 2.2, 1.3), pitch=-0.25), "enamel", body, 0.5)
     M.add(box("belly", (-1.3, 0.0, 0.88), (5.4, 1.6, 0.12)), "paint", DARK, 0.6)
     # (the feeder house, sloping down to the header)
@@ -323,11 +539,14 @@ def forager(name, liv, lod):
         wheel(M, 0.85, s * 1.38, 0.95, 0.95, 0.75, rim, lod, 18, out=s)
         wheel(M, -2.95, s * 1.22, 0.68, 0.68, 0.55, rim, lod, 14, out=s)
     bev = 0.05 if lod == 0 else 0.0
-    M.add(box("body", (-1.4, 0.0, 1.8), (4.8, 2.3, 1.7), bevel=bev), "enamel", body, 0.45)
-    M.add(prism("engine", [(-1.1, 2.65), (1.1, 2.65), (0.9, 3.1), (-0.9, 3.1)], "x", -3.8, -1.2), "enamel", body, 0.4)
+    M.add(loft("body", [(-3.8, 1.08, 0.95, 2.6, 6), (-3.65, 1.15, 0.95, 2.65, 7), (0.85, 1.15, 0.95, 2.65, 7), (1.0, 1.1, 1.0, 2.6, 6)], LOFT_N[0]) if lod <= 1
+          else box("body", (-1.4, 0.0, 1.8), (4.8, 2.3, 1.7)), "enamel", body, 0.45)
+    M.add(loft("engine", [(-3.85, 0.95, 2.55, 3.0, 3), (-3.6, 1.1, 2.55, 3.15, 3.5), (-1.4, 1.1, 2.55, 3.15, 3.5), (-1.15, 1.0, 2.55, 3.05, 3)], LOFT_N[0]) if lod <= 1
+          else prism("engine", [(-1.1, 2.65), (1.1, 2.65), (0.9, 3.1), (-0.9, 3.1)], "x", -3.8, -1.2), "enamel", body, 0.4)
     M.add(box("belly", (-1.2, 0.0, 0.85), (4.6, 1.5, 0.2)), "paint", DARK, 0.6)
     top = cab(M, -0.2, 1.4, 0.9, 2.62, 3.5, liv, lod)
-    M.add(box("cabbase", (0.6, 0.0, 2.3), (1.7, 1.9, 0.65)), "enamel", body, 0.4)
+    M.add(loft("cabbase", [(-0.25, 0.95, 1.98, 2.66, 6), (1.3, 0.95, 1.98, 2.66, 6), (1.45, 0.9, 2.0, 2.6, 5)], LOFT_N[0]) if lod <= 1
+          else box("cabbase", (0.6, 0.0, 2.3), (1.7, 1.9, 0.65)), "enamel", body, 0.4)
     # (the feed rolls' housing down to the header)
     M.add(tilted("intake", (1.95, 0.0, 1.05), (1.4, 1.2, 0.85), pitch=0.3), "enamel", body, 0.5)
     # (the spout: up from the turret behind the cab, over, its deflector forward)
@@ -371,8 +590,10 @@ def sprayer(name, liv, lod):
             M.add(box("hub", (x, s * 0.92, 0.85), (0.3, 0.2, 0.3)), "paint", DARK, 0.5)
     M.add(box("chassis", (0.0, 0.0, 1.75), (5.4, 1.75, 0.3)), "paint", DARK, 0.5)
     bev = 0.08 if lod == 0 else 0.0
-    M.add(box("tank", (-1.2, 0.0, 2.55), (2.7, 1.9, 1.3), bevel=bev), "enamel", body, 0.35)
-    M.add(box("engine", (-2.9, 0.0, 2.3), (0.9, 1.6, 0.8), bevel=bev), "enamel", body, 0.4)
+    M.add(loft("tank", [(-2.55, 0.8, 1.95, 3.0, 2.6), (-2.45, 0.95, 1.9, 3.18, 3), (0.05, 0.95, 1.9, 3.18, 3), (0.15, 0.82, 1.95, 3.02, 2.6)], LOFT_N[0] + 4, False) if lod <= 1
+          else box("tank", (-1.2, 0.0, 2.55), (2.7, 1.9, 1.3)), "enamel", body, 0.35)
+    M.add(loft("engine", [(-3.35, 0.7, 1.9, 2.6, 4), (-3.2, 0.8, 1.9, 2.7, 5), (-2.45, 0.8, 1.9, 2.7, 5)], LOFT_N[0]) if lod <= 1
+          else box("engine", (-2.9, 0.0, 2.3), (0.9, 1.6, 0.8)), "enamel", body, 0.4)
     M.add(box("cabbase", (1.45, 0.0, 2.05), (1.8, 1.7, 0.3)), "enamel", body, 0.4)
     top = cab(M, 0.6, 2.3, 0.85, 2.2, 3.55, liv, lod)
     # (the folded boom: two rails and their lattice down each side, the centre frame at the back)
@@ -414,16 +635,19 @@ def tractor4wd(name, liv, lod):
                 M.add(box("axle", (x, s * 0.7, 1.0), (0.35, 0.5, 0.35)), "paint", DARK, 0.5)
     bev = 0.06 if lod == 0 else 0.0
     M.add(box("frontframe", (1.7, 0.0, 1.2), (3.0, 1.1, 0.55)), "paint", DARK, 0.5)
-    M.add(prism("bonnet", [(-0.62, 1.4), (0.62, 1.4), (0.6, 2.25), (0.45, 2.42), (-0.45, 2.42), (-0.6, 2.25)], "x", 0.3, 3.2), "enamel", body, 0.35)
+    M.add(loft("bonnet", [(0.3, 0.62, 1.4, 2.42, 5), (2.5, 0.62, 1.4, 2.42, 5), (3.05, 0.6, 1.42, 2.36, 4.5), (3.2, 0.55, 1.48, 2.26, 4)], LOFT_N[0]) if lod <= 1
+          else prism("bonnet", [(-0.62, 1.4), (0.62, 1.4), (0.6, 2.25), (0.45, 2.42), (-0.45, 2.42), (-0.6, 2.25)], "x", 0.3, 3.2), "enamel", body, 0.35)
     M.add(box("grille", (3.21, 0.0, 1.88), (0.04, 1.1, 0.85)), "paint", DARK, 0.3)
     M.add(box("weights", (3.45, 0.0, 1.15), (0.45, 1.4, 0.5), bevel=bev), "paint", DARK, 0.5)
     M.add(box("rearframe", (-1.6, 0.0, 1.25), (2.8, 1.2, 0.6)), "paint", DARK, 0.5)
     M.add(box("cabbase", (-0.75, 0.0, 1.8), (1.9, 1.7, 0.6)), "enamel", body, 0.4)
     top = cab(M, -1.7, 0.2, 0.9, 2.1, 3.5, liv, lod)
     for s in (-1, 1):
-        M.add(box("fender", (-1.6, s * 1.48, 2.15), (2.0, 1.55, 0.06)), "enamel", body, 0.4)
         if lod == 0:
-            M.add(box("fenderlip", (-0.6, s * 1.48, 2.0), (0.06, 1.55, 0.3)), "enamel", body, 0.4)
+            fender(M, -1.6, s * 1.47, 1.0, 1.12, 1.6, body, 0.35, 2.8)
+        else:
+            M.add(box("fender", (-1.6, s * 1.48, 2.15), (2.0, 1.55, 0.06)), "enamel", body, 0.4)
+
     if lod < 2:
         M.add(box("hitch", (-3.1, 0.0, 0.95), (0.35, 0.9, 0.6)), "paint", DARK, 0.5)
         M.add(rod("exhaust", (0.55, -0.35, 2.4), (0.55, -0.35, 3.4), 0.08, 8 if lod == 0 else 4), "steel", DARK, 0.4)
@@ -451,7 +675,8 @@ def tractortrack(name, liv, lod):
         M.add(box("trackfender", (0.1, s * 1.0, 1.75), (3.6, 0.72, 0.05)), "enamel", body, 0.4)
     bev = 0.06 if lod == 0 else 0.0
     M.add(box("belly", (0.2, 0.0, 1.05), (4.2, 1.1, 0.7)), "paint", DARK, 0.5)
-    M.add(prism("bonnet", [(-0.55, 1.35), (0.55, 1.35), (0.55, 2.15), (0.4, 2.32), (-0.4, 2.32), (-0.55, 2.15)], "x", 0.0, 2.7), "enamel", body, 0.35)
+    M.add(loft("bonnet", [(0.0, 0.56, 1.35, 2.32, 5), (2.1, 0.56, 1.35, 2.32, 5), (2.58, 0.54, 1.38, 2.26, 4.5), (2.72, 0.5, 1.43, 2.18, 4)], LOFT_N[0]) if lod <= 1
+          else prism("bonnet", [(-0.55, 1.35), (0.55, 1.35), (0.55, 2.15), (0.4, 2.32), (-0.4, 2.32), (-0.55, 2.15)], "x", 0.0, 2.7), "enamel", body, 0.35)
     M.add(box("grille", (2.71, 0.0, 1.85), (0.04, 0.95, 0.75)), "paint", DARK, 0.3)
     M.add(box("weights", (2.9, 0.0, 1.05), (0.4, 1.2, 0.55), bevel=bev), "paint", DARK, 0.5)
     M.add(box("cabbase", (-0.75, 0.0, 1.75), (1.8, 1.7, 0.4)), "enamel", body, 0.4)
@@ -481,7 +706,8 @@ def crawler(name, liv, lod):
         M.add(box("trackfender", (0.0, s * 0.5, 0.72), (1.75, 0.38, 0.04)), "enamel", body, 0.4)
     bev = 0.04 if lod == 0 else 0.0
     M.add(box("belly", (0.0, 0.0, 0.5), (1.7, 0.6, 0.45)), "paint", DARK, 0.5)
-    M.add(prism("bonnet", [(-0.38, 0.72), (0.38, 0.72), (0.38, 1.12), (0.28, 1.25), (-0.28, 1.25), (-0.38, 1.12)], "x", 0.05, 1.3), "enamel", body, 0.35)
+    M.add(loft("bonnet", [(0.05, 0.38, 0.72, 1.25, 5), (1.0, 0.38, 0.72, 1.25, 5), (1.24, 0.36, 0.74, 1.2, 4.5), (1.31, 0.33, 0.78, 1.14, 4)], LOFT_N[0]) if lod <= 1
+          else prism("bonnet", [(-0.38, 0.72), (0.38, 0.72), (0.38, 1.12), (0.28, 1.25), (-0.28, 1.25), (-0.38, 1.12)], "x", 0.05, 1.3), "enamel", body, 0.35)
     M.add(box("grille", (1.31, 0.0, 1.0), (0.03, 0.6, 0.38)), "paint", DARK, 0.3)
     M.add(box("platform", (-0.45, 0.0, 0.82), (0.9, 0.9, 0.08)), "paint", DARK, 0.4)
     M.add(box("seat", (-0.55, 0.0, 1.12), (0.42, 0.45, 0.12), bevel=bev), "paint", SEAT, 0.3)
@@ -514,7 +740,8 @@ def loader(name, liv, lod):
         for s in (-1, 1):
             wheel(M, x, s * 0.66, 0.48, 0.48, 0.36, rim, lod, 12, out=s)
     bev = 0.05 if lod == 0 else 0.0
-    M.add(box("rear", (-1.1, 0.0, 0.95), (1.5, 1.1, 0.85), bevel=bev), "enamel", body, 0.4)
+    M.add(loft("rear", [(-1.86, 0.5, 0.55, 1.25, 4), (-1.75, 0.55, 0.52, 1.36, 5), (-0.5, 0.55, 0.52, 1.38, 5), (-0.35, 0.52, 0.55, 1.3, 4)], LOFT_N[0]) if lod <= 1
+          else box("rear", (-1.1, 0.0, 0.95), (1.5, 1.1, 0.85)), "enamel", body, 0.4)
     M.add(box("front", (0.75, 0.0, 0.7), (1.4, 0.8, 0.45)), "enamel", body, 0.45)
     M.add(box("deck", (-0.35, 0.0, 1.32), (1.3, 1.2, 0.08)), "paint", DARK, 0.4)
     for s in (-1, 1):
@@ -557,8 +784,10 @@ def mower(name, liv, lod):
         wheel(M, 0.4, s * 0.58, 0.42, 0.42, 0.3, rim, lod, 10, out=s)
         wheel(M, -0.9, s * 0.45, 0.32, 0.32, 0.22, rim, lod, 10, out=s)
     bev = 0.04 if lod == 0 else 0.0
-    M.add(box("body", (-0.45, 0.0, 0.62), (1.6, 0.8, 0.5), bevel=bev), "enamel", body, 0.4)
-    M.add(box("engine", (-0.95, 0.0, 1.0), (0.8, 0.85, 0.35), bevel=bev), "enamel", body, 0.4)
+    M.add(loft("body", [(-1.25, 0.36, 0.38, 0.85, 4), (-1.15, 0.4, 0.37, 0.87, 5), (0.25, 0.4, 0.37, 0.87, 5), (0.35, 0.36, 0.4, 0.82, 4)], LOFT_N[0]) if lod <= 1
+          else box("body", (-0.45, 0.0, 0.62), (1.6, 0.8, 0.5)), "enamel", body, 0.4)
+    M.add(loft("engine", [(-1.36, 0.38, 0.84, 1.12, 3), (-1.25, 0.43, 0.83, 1.18, 3.5), (-0.6, 0.43, 0.83, 1.18, 3.5), (-0.55, 0.4, 0.84, 1.12, 3)], LOFT_N[0]) if lod <= 1
+          else box("engine", (-0.95, 0.0, 1.0), (0.8, 0.85, 0.35)), "enamel", body, 0.4)
     M.add(box("seat", (-0.35, 0.0, 1.0), (0.45, 0.48, 0.12)), "paint", SEAT, 0.3)
     M.add(box("seatback", (-0.56, 0.0, 1.25), (0.08, 0.46, 0.4)), "paint", SEAT, 0.3)
     M.add(box("console", (0.2, 0.0, 0.95), (0.3, 0.5, 0.25)), "enamel", body, 0.4)
@@ -596,7 +825,8 @@ def buggy(name, liv, lod):
             wheel(M, x, s * 0.62, 0.33, 0.33, 0.26, rim, lod, 10, rim_frac=0.6, out=s)
     bev = 0.04 if lod == 0 else 0.0
     M.add(box("chassis", (0.0, 0.0, 0.42), (3.0, 1.0, 0.18)), "paint", DARK, 0.5)
-    M.add(prism("bonnet", [(0.55, 0.5), (1.55, 0.5), (1.55, 0.82), (1.2, 0.98), (0.55, 1.02)], "y", -0.62, 0.62), "enamel", body, 0.35)
+    M.add(loft("bonnet", [(0.55, 0.6, 0.5, 1.02, 5), (1.1, 0.6, 0.5, 0.98, 5), (1.45, 0.58, 0.5, 0.86, 4), (1.57, 0.54, 0.52, 0.78, 3.5)], LOFT_N[0]) if lod <= 1
+          else prism("bonnet", [(0.55, 0.5), (1.55, 0.5), (1.55, 0.82), (1.2, 0.98), (0.55, 1.02)], "y", -0.62, 0.62), "enamel", body, 0.35)
     M.add(box("dash", (0.48, 0.0, 0.98), (0.2, 1.2, 0.25)), "paint", DARK, 0.3)
     M.add(box("seatbase", (-0.05, 0.0, 0.62), (0.6, 1.2, 0.3)), "paint", DARK, 0.4)
     M.add(box("seat", (-0.02, 0.0, 0.82), (0.5, 1.15, 0.12), bevel=bev), "paint", SEAT, 0.3)
@@ -706,7 +936,8 @@ def baler(name, lod):
         for s in (-1, 1):
             wheel(M, x, s * 1.35, 0.55, 0.55, 0.48, GRAPHITE, lod, 12, out=s)
     bev = 0.07 if lod == 0 else 0.0
-    M.add(box("body", (-0.8, 0.0, 1.8), (5.6, 2.2, 1.9), bevel=bev), "enamel", IMP_RED, 0.45)
+    M.add(loft("body", [(-3.6, 1.05, 0.85, 2.7, 6), (-3.45, 1.1, 0.85, 2.75, 7), (1.85, 1.1, 0.85, 2.75, 7), (2.0, 1.05, 0.9, 2.7, 6)], LOFT_N[0]) if lod <= 1
+          else box("body", (-0.8, 0.0, 1.8), (5.6, 2.2, 1.9)), "enamel", IMP_RED, 0.45)
     M.add(box("chamber", (-3.9, 0.0, 1.35), (0.8, 1.3, 1.0)), "enamel", IMP_RED, 0.5)
     M.add(box("belly", (-1.0, 0.0, 0.78), (4.4, 1.6, 0.22)), "paint", DARK, 0.6)
     M.add(box("pickup", (2.25, 0.0, 0.35), (0.9, 2.3, 0.45)), "paint", DARK, 0.6)
@@ -813,6 +1044,304 @@ def cultivator(name, lod):
     return M
 
 
+
+# --- the close-up details (LOD 0 only): what makes a machine read as a machine up close ----------------------
+
+CHROME = (0.62, 0.62, 0.6)
+
+
+def ram(M, a, b, r=0.045, rgb=GRAPHITE):
+    """A hydraulic ram from a to b: its barrel two thirds of the way, the bright rod out of it, the eyes."""
+    a, b = Vector(a), Vector(b)
+    m = a + (b - a) * 0.62
+    M.add(sweep("rambarrel", [a, m], r, 10), "paint", rgb, 0.4)
+    M.add(sweep("ramrod", [m, b], r * 0.5, 8), "steel", CHROME, 0.2)
+    for e in (a, b):
+        M.add(sweep("rameye", [e + Vector((0, -r, 0)), e + Vector((0, r, 0))], r * 0.8, 8), "paint", rgb, 0.4)
+
+
+def linkage(M, x, z, w, liv):
+    """A tractor's three-point linkage at its back (x the axle housing's back face): two lower links, the top
+    link, lift arms and rods, the drawbar and the PTO's guard."""
+    body = liv[0]
+    for s in (-1, 1):
+        M.add(sweep("lowerlink", [(x, s * w * 0.3, z - 0.25), (x - 0.85, s * w * 0.42, z - 0.45)], 0.035, 8), "paint", DARK, 0.5)
+        M.add(lathe("balljoint", [(0.0, -0.04), (0.06, -0.04), (0.06, 0.04), (0.0, 0.04)], 10, at=(x - 0.88, s * w * 0.42, z - 0.45)), "steel", STEEL, 0.5)
+        M.add(sweep("liftarm", [(x + 0.1, s * w * 0.28, z + 0.45), (x - 0.35, s * w * 0.3, z + 0.35)], 0.04, 8), "paint", DARK, 0.5)
+        M.add(sweep("liftrod", [(x - 0.33, s * w * 0.3, z + 0.33), (x - 0.5, s * w * 0.36, z - 0.33)], 0.022, 6), "paint", DARK, 0.5)
+        ram(M, (x + 0.05, s * w * 0.36, z - 0.2), (x - 0.25, s * w * 0.32, z + 0.38), 0.04)
+    M.add(sweep("toplink", [(x + 0.02, 0.0, z + 0.3), (x - 0.7, 0.0, z + 0.15)], 0.032, 8), "paint", DARK, 0.5)
+    M.add(box("drawbar", (x - 0.35, 0.0, z - 0.5), (0.7, 0.12, 0.06), bevel=0.01), "steel", STEEL, 0.5)
+    M.add(lathe("ptoguard", [(0.0, 0.0), (0.13, 0.0), (0.13, 0.12), (0.0, 0.14)], 14, at=(0, 0, 0)), "enamel", body, 0.4)
+    M.parts[-1].obj.matrix_world = Matrix.Translation((x + 0.02, 0.0, z - 0.15)) @ Matrix.Rotation(-math.pi / 2, 4, "Y")
+    for k, dy in enumerate((-0.25, -0.12, 0.12, 0.25)):
+        M.add(lathe("coupler", [(0.0, 0.0), (0.03, 0.0), (0.03, 0.06), (0.0, 0.06)], 8), "paint", (0.3, 0.02, 0.02) if k % 2 else (0.02, 0.06, 0.3), 0.3)
+        M.parts[-1].obj.matrix_world = Matrix.Translation((x + 0.03, dy, z + 0.12)) @ Matrix.Rotation(-math.pi / 2, 4, "Y")
+
+
+def handrail(M, pts):
+    M.add(sweep("handrail", pts, 0.02, 8, cap=True), "galv", (0.45, 0.45, 0.44), 0.4)
+
+
+def more_combine(M, liv, maize):
+    body, rim, roof, stripe = liv
+    for s in (-1, 1):
+        grille(M, -3.25, s * 1.17, 2.5, 1.3, 0.6, face=0)
+        # (side panels' louvres and latches, the hoses down to the header)
+        for k in range(4):
+            M.add(box("latch", (-0.5 - k * 1.05, s * 1.27, 2.35), (0.08, 0.02, 0.04)), "steel", STEEL, 0.3)
+        hose(M, [(1.6, s * 0.6, 1.55), (2.4, s * 0.72, 1.35), (3.3, s * 0.75, 0.95), (3.5, s * 0.8, 0.8)], 0.02)
+        hose(M, [(1.6, s * 0.55, 1.5), (2.4, s * 0.67, 1.3), (3.3, s * 0.7, 0.9), (3.5, s * 0.75, 0.75)], 0.016)
+        ram(M, (1.3, s * 0.5, 0.95), (2.6, s * 0.55, 1.12), 0.05)
+        # (mudflaps behind the drive wheels, the steering axle's rams)
+        M.add(box("mudflap", (0.1, s * 1.45, 0.55), (0.02, 0.7, 0.5)), "paint", TYRE, 0.6)
+        ram(M, (-3.0, s * 0.3, 0.6), (-3.2, s * 0.95, 0.6), 0.035)
+    # (the platform's handrails round the cab, the engine deck's ladder and rails)
+    handrail(M, [(1.2, -1.15, 2.94), (1.2, -1.15, 3.9), (2.35, -1.15, 3.9), (2.35, -1.15, 2.94)])
+    handrail(M, [(2.4, -1.1, 2.94), (2.4, -1.1, 3.5), (2.4, 1.1, 3.5), (2.4, 1.1, 2.94)])
+    steps(M, -4.1, -1.2, 1.2, 3.0, 5, 0.4, rake=0.15)
+    handrail(M, [(-4.1, -1.2, 3.25), (-4.1, -1.2, 3.75), (-2.4, -1.2, 3.75), (-2.4, -1.2, 3.25)])
+    # (the grain tank's folding covers, its sight window and the tank lamps)
+    for k in range(5):
+        M.add(box("tankrib", (-2.3 + k * 0.62, 0.0, 3.57), (0.05, 3.05, 0.04)), "enamel", body, 0.3)
+    M.add(box("sightglass", (-1.0, 1.52, 3.25), (0.5, 0.02, 0.22), bevel=0.01), "lens", GLASS, 0.0)
+    lights(M, 2.45, (-0.85, 0.85), 2.85, 0, size=(0.04, 0.22, 0.12))
+    # (the straw spreader's hood and its discs under the back)
+    for s in (-1, 1):
+        M.add(lathe("spreader", [(0.0, 0.0), (0.38, 0.0), (0.38, 0.05), (0.1, 0.12), (0.0, 0.12)], 20, at=(-4.45, s * 0.5, 0.95)), "paint", DARK, 0.6)
+    M.add(lathe("exhaustcap", [(0.0, 0.0), (0.075, 0.0), (0.085, 0.06), (0.0, 0.06)], 12, at=(-3.8, -0.7, 3.62)), "steel", DARK, 0.5)
+    M.add(lathe("aircleaner", [(0.0, 0.0), (0.18, 0.0), (0.18, 0.35), (0.12, 0.42), (0.0, 0.42)], 18, at=(-3.6, 0.6, 3.25)), "paint", DARK, 0.4)
+    if not maize:
+        # (the header: its skids, the knife's guards, the reel's tines, the side drives' shields)
+        for k in range(48):
+            y = -3.75 + k * 7.5 / 47
+            M.add(box("guard", (4.76, y, 0.12), (0.12, 0.03, 0.03)), "steel", STEEL, 0.5)
+        for k in range(6):
+            y = -3.0 + k * 1.2
+            M.add(box("skid", (4.0, y, 0.08), (1.2, 0.12, 0.04), bevel=0.01), "steel", STEEL, 0.6)
+        for s in (-1, 1):
+            M.add(box("driveshield", (3.6, s * 3.88, 0.7), (0.9, 0.08, 0.7), bevel=0.03), "enamel", body, 0.4)
+            ram(M, (3.4, s * 3.72, 0.95), (3.9, s * 3.72, 1.32), 0.035)
+        for k in range(6):
+            a = 2 * math.pi * k / 6
+            bx, bz = 4.2 + 0.55 * math.cos(a), 1.35 + 0.55 * math.sin(a)
+            for i in range(24):
+                y = -3.55 + i * 7.1 / 23
+                M.add(sweep("reeltine", [(bx, y, bz), (bx + 0.05, y, bz - 0.2)], 0.007, 4), "paint", (0.5, 0.48, 0.42), 0.4)
+
+
+def more_forager(M, liv):
+    body, rim, roof, stripe = liv
+    for s in (-1, 1):
+        grille(M, -2.5, s * 1.17, 2.2, 2.0, 0.8, face=0)
+        hose(M, [(1.4, s * 0.55, 1.5), (2.2, s * 0.62, 1.25), (2.8, s * 0.7, 0.95)], 0.02)
+        ram(M, (1.1, s * 0.45, 0.9), (2.1, s * 0.5, 1.05), 0.05)
+        M.add(box("mudflap", (-0.2, s * 1.38, 0.55), (0.02, 0.7, 0.5)), "paint", TYRE, 0.6)
+    # (rings round the spout, its lamp, the turret's ram)
+    sp = [(-0.75, 0.0, 2.65), (-0.8, 0.0, 3.5), (-0.55, 0.0, 4.15), (0.15, 0.0, 4.4), (1.0, 0.0, 4.32), (1.6, 0.0, 4.05)]
+    for (ax, ay, az), (bx, by, bz) in zip(sp, sp[1:]):
+        M.add(box("spoutflange", ((ax + bx) / 2, 0.0, (az + bz) / 2), (0.06, 0.5, 0.5), rot=Matrix.Rotation(math.atan2(bx - ax, bz - az), 4, "Y")), "paint", DARK, 0.4)
+    lamp(M, 1.3, 0.25, 4.25, 0.05)
+    ram(M, (-0.6, 0.3, 2.9), (-0.45, 0.25, 3.9), 0.04)
+    handrail(M, [(-0.25, -0.95, 2.65), (-0.25, -0.95, 3.4), (1.45, -0.95, 3.4)])
+    lights(M, 1.42, (-0.75, 0.75), 2.55, 0, size=(0.04, 0.22, 0.12))
+    M.add(lathe("aircleaner", [(0.0, 0.0), (0.2, 0.0), (0.2, 0.3), (0.0, 0.32)], 18, at=(-3.0, 0.55, 3.1)), "paint", DARK, 0.4)
+    M.add(box("counterweight", (-3.95, 0.0, 1.2), (0.3, 1.8, 0.7), bevel=0.06), "paint", DARK, 0.5)
+
+
+def more_sprayer(M, liv):
+    body, rim, roof, stripe = liv
+    for s in (-1, 1):
+        y = s * 1.35
+        # (the nozzle bodies hanging under the boom's lower rail, and the feed pipe along it)
+        for k in range(22):
+            x = -3.0 + k * 0.25
+            M.add(sweep("nozzle", [(x, y, 2.12), (x, y, 2.0)], 0.012, 5), "paint", (0.4, 0.04, 0.02) if k % 2 else (0.05, 0.05, 0.25), 0.3)
+        M.add(sweep("boompipe", [(-3.05, y + s * 0.04, 2.18), (2.4, y + s * 0.04, 2.18)], 0.015, 6), "steel", STEEL, 0.3)
+        hose(M, [(-3.1, s * 0.6, 2.1), (-3.0, s * 1.0, 2.2), (-2.9, y, 2.3)], 0.022)
+        for x in (1.75, -1.75):
+            hose(M, [(x, s * 0.8, 1.75), (x + 0.05, s * 0.85, 1.3), (x, s * 0.9, 1.0)], 0.018)
+    # (the tank's sight gauge, lid hinges, the chemical induction bowl and the clean water tank)
+    M.add(box("gauge", (-0.6, 0.96, 2.6), (0.04, 0.02, 0.9)), "lens", (0.3, 0.32, 0.3), 0.0)
+    for k in range(9):
+        M.add(box("gaugemark", (-0.6, 0.975, 2.2 + k * 0.1), (0.06, 0.004, 0.008)), "paint", DARK, 0.2)
+    M.add(lathe("induction", [(0.0, 0.0), (0.06, 0.0), (0.25, 0.3), (0.26, 0.34), (0.0, 0.34)], 20, at=(-0.2, -1.05, 2.25)), "paint", DARK, 0.4)
+    M.add(box("cleanwater", (-2.85, 0.0, 2.85), (0.6, 1.4, 0.3), bevel=0.08), "paint", (0.5, 0.5, 0.48), 0.3)
+    handrail(M, [(-2.4, -0.95, 3.25), (-2.4, -0.95, 3.6), (0.0, -0.95, 3.6), (0.0, -0.95, 3.25)])
+    lights(M, 2.32, (-0.6, 0.6), 2.0, 0, size=(0.04, 0.22, 0.12))
+
+
+def more_tractor4wd(M, liv):
+    body, rim, roof, stripe = liv
+    grille(M, 3.23, 0.0, 1.88, 1.0, 0.8)
+    lights(M, 3.22, (-0.42, 0.42), 2.17, 0, size=(0.04, 0.24, 0.12))
+    linkage(M, -2.95, 1.15, 1.3, liv)
+    # (the pivot's steering rams and the hoses across it)
+    for s in (-1, 1):
+        ram(M, (0.55, s * 0.45, 1.15), (-0.4, s * 0.5, 1.2), 0.05)
+        hose(M, [(0.6, s * 0.2, 1.45), (0.2, s * 0.3, 1.25), (-0.3, s * 0.2, 1.45)], 0.02)
+        for k in range(4):
+            M.add(box("louvre", (1.0 + k * 0.4, s * 0.615, 1.95), (0.3, 0.02, 0.05)), "paint", DARK, 0.3)
+    steps(M, -0.35, 1.3, 0.45, 1.8, 4, 0.42)
+    handrail(M, [(-0.15, 0.98, 1.85), (-0.15, 0.98, 3.1)])
+    M.add(box("toolbox", (-1.6, -0.75, 1.65), (0.6, 0.25, 0.3), bevel=0.03), "paint", DARK, 0.4)
+    M.add(box("battery", (-1.6, 0.75, 1.65), (0.6, 0.25, 0.3), bevel=0.03), "paint", DARK, 0.4)
+
+
+def more_tractortrack(M, liv):
+    body, rim, roof, stripe = liv
+    grille(M, 2.73, 0.0, 1.85, 0.9, 0.72)
+    lights(M, 2.72, (-0.38, 0.38), 2.1, 0, size=(0.04, 0.22, 0.12))
+    linkage(M, -2.1, 1.05, 1.2, liv)
+    for k in range(6):
+        M.add(box("weightplate", (2.75 + 0.0, -0.55 + k * 0.22, 1.05), (0.42, 0.18, 0.5), bevel=0.02), "paint", GRAPHITE, 0.5)
+    for s in (-1, 1):
+        for k in range(4):
+            M.add(box("louvre", (0.5 + k * 0.4, s * 0.56, 1.95), (0.3, 0.02, 0.05)), "paint", DARK, 0.3)
+        M.add(box("trackframe", (0.1, s * 1.0, 0.55), (2.6, 0.3, 0.25), bevel=0.04), "paint", GRAPHITE, 0.5)
+    steps(M, -0.3, 1.4, 0.85, 1.75, 3, 0.36)
+    handrail(M, [(-0.1, 0.92, 1.85), (-0.1, 0.92, 2.9)])
+
+
+def more_crawler(M, liv):
+    body, rim, roof, stripe = liv
+    grille(M, 1.32, 0.0, 1.0, 0.56, 0.34)
+    lamp(M, 1.33, -0.2, 1.15, 0.04)
+    lamp(M, 1.33, 0.2, 1.15, 0.04)
+    for s in (-1, 1):
+        M.add(sweep("lever", [(-0.35, s * 0.2, 0.86), (-0.3, s * 0.22, 1.3)], 0.012, 5), "paint", DARK, 0.3)
+        M.add(lathe("knob", [(0.0, 0.0), (0.025, 0.0), (0.025, 0.04), (0.0, 0.05)], 8, at=(-0.3, s * 0.22, 1.3)), "paint", (0.4, 0.03, 0.02), 0.2)
+        M.add(box("armrest", (-0.55, s * 0.26, 1.25), (0.35, 0.05, 0.05), bevel=0.015), "paint", SEAT, 0.3)
+    for k in range(4):
+        M.add(box("louvre", (0.4 + k * 0.2, 0.39, 1.0), (0.12, 0.02, 0.03)), "paint", DARK, 0.3)
+    linkage(M, -0.95, 0.55, 0.7, liv)
+
+
+def more_loader(M, liv):
+    body, rim, roof, stripe = liv
+    # (hoses along the boom to the carriage, the carriage's back rest, the steering pivot's ram)
+    for dz in (0.0, 0.05):
+        hose(M, [(-0.9, -0.48, 1.9 + dz), (0.4, -0.5, 1.45 + dz), (1.5, -0.5, 1.02 + dz), (1.8, -0.3, 0.9 + dz)], 0.016)
+    for k in range(5):
+        M.add(sweep("backrest", [(1.88, -0.45 + k * 0.225, 0.9), (1.88, -0.45 + k * 0.225, 1.45)], 0.015, 5), "paint", DARK, 0.4)
+    M.add(sweep("backresttop", [(1.88, -0.47, 1.45), (1.88, 0.47, 1.45)], 0.02, 6), "paint", DARK, 0.4)
+    ram(M, (-0.2, 0.3, 0.6), (0.4, 0.35, 0.6), 0.04)
+    grille(M, -1.87, 0.0, 0.95, 0.75, 0.45, face=-1)
+    lights(M, -1.86, (-0.42, 0.42), 1.25, 0, size=(0.04, 0.12, 0.1), rgb=REDLAMP)
+    steps(M, -0.1, 0.62, 0.35, 1.25, 2, 0.32)
+    for s in (-1, 1):
+        M.add(sweep("mirrorarm", [(0.2, s * 0.58, 2.2), (0.3, s * 0.8, 2.15)], 0.012, 5), "paint", DARK, 0.2)
+        M.add(box("mirror", (0.3, s * 0.82, 2.0), (0.04, 0.14, 0.22), bevel=0.015), "paint", DARK, 0.2)
+
+
+def more_mower(M, liv):
+    body, rim, roof, stripe = liv
+    units = [(1.25, -0.95), (1.25, 0.0), (1.25, 0.95), (-0.15, -1.15), (-0.15, 1.15)]
+    for ux, uy in units:
+        # (each reel a cage of helical blades round its shaft)
+        for b in range(6):
+            pts = []
+            for i in range(7):
+                t = i / 6
+                a = 2 * math.pi * b / 6 + t * 1.2
+                pts.append((ux + 0.13 * math.cos(a), uy - 0.38 + t * 0.76, 0.2 + 0.13 * math.sin(a)))
+            M.add(sweep("blade", pts, 0.01, 4), "steel", STEEL, 0.4)
+        hose(M, [(0.0 if ux > 0 else -0.3, uy * 0.3, 0.6), (ux - 0.2, uy * 0.9, 0.55), (ux, uy, 0.46)], 0.014)
+    grille(M, -1.36, 0.0, 1.0, 0.7, 0.3, face=-1)
+    M.add(box("fueltank", (-0.95, 0.38, 0.65), (0.5, 0.15, 0.3), bevel=0.04), "paint", DARK, 0.4)
+    M.add(lathe("fuelcap", [(0.0, 0.0), (0.04, 0.0), (0.04, 0.03), (0.0, 0.03)], 10, at=(-0.95, 0.38, 0.8)), "paint", (0.5, 0.4, 0.04), 0.3)
+    lamp(M, 0.38, -0.25, 1.02, 0.04)
+    lamp(M, 0.38, 0.25, 1.02, 0.04)
+
+
+def more_buggy(M, liv):
+    body, rim, roof, stripe = liv
+    for s in (-1, 1):
+        # (wheel arches over the front wheels, the rear wings, the mirrors on the cage)
+        arch = [(1.05 + 0.45 * math.cos(a), s * 0.62, 0.33 + 0.45 * math.sin(a)) for a in [math.pi * k / 10 for k in range(11)]]
+        M.add(sweep("arch", arch, 0.04, 6, square=True), "paint", DARK, 0.4)
+        M.add(box("wing", (-0.9, s * 0.66, 0.78), (0.8, 0.1, 0.06), bevel=0.02), "paint", DARK, 0.4)
+        M.add(box("mirror", (0.62, s * 0.72, 1.15), (0.04, 0.12, 0.09), bevel=0.015), "paint", DARK, 0.2)
+        M.add(box("seatbelt", (-0.24, s * 0.35, 1.0), (0.02, 0.04, 0.4)), "paint", (0.05, 0.05, 0.05), 0.3)
+    for y in (-0.38, 0.38):
+        lamp(M, 1.56, y, 0.8, 0.07)
+    M.add(box("dashpanel", (0.5, 0.25, 1.12), (0.1, 0.4, 0.06), bevel=0.02), "paint", (0.01, 0.01, 0.01), 0.2)
+    M.add(box("hitch", (-1.68, 0.0, 0.45), (0.2, 0.1, 0.08), bevel=0.01), "steel", STEEL, 0.5)
+    M.add(lathe("towball", [(0.0, 0.0), (0.025, 0.0), (0.025, 0.04), (0.025, 0.06), (0.0, 0.08)], 10, at=(-1.75, 0.0, 0.49)), "steel", STEEL, 0.5)
+    for k in range(6):
+        M.add(box("bedrib", (-1.5 + k * 0.2, 0.0, 0.745), (0.03, 1.25, 0.012)), "enamel", body, 0.4)
+
+
+def more_chaser(M):
+    for s in (-1, 1):
+        hose(M, [(2.9, s * 0.15, 1.05), (3.8, s * 0.12, 0.85), (4.7, s * 0.08, 0.75), (5.0, s * 0.2, 0.9)], 0.018)
+    steps(M, 2.95, -1.3, 0.5, 3.2, 7, 0.38)
+    handrail(M, [(2.95, -1.25, 3.3), (2.95, -1.25, 3.75), (2.4, -1.25, 3.75)])
+    M.add(box("window", (2.92, -0.5, 2.6), (0.02, 0.6, 0.35), bevel=0.01), "lens", GLASS, 0.0)
+    # (the auger's flights showing at its spout, its fold hinge and ram)
+    for k in range(8):
+        a = k * 0.8
+        M.add(box("flight", (3.25 + 0.1 * math.cos(a), -0.6 + 0.1 * math.sin(a), 3.3), (0.03, 0.18, 0.18), rot=Matrix.Rotation(a, 4, "X")), "galv", (0.4, 0.4, 0.38), 0.5)
+    ram(M, (2.95, 1.0, 1.4), (3.15, 1.2, 2.9), 0.05)
+    lights(M, -4.62, (-1.2, 1.2), 1.4, 0, size=(0.04, 0.2, 0.12), rgb=REDLAMP)
+    for x in (-4.2, -1.1, 2.0):
+        for s in (-1, 1):
+            M.add(box("reflector", (x, s * 1.62, 2.0), (0.12, 0.01, 0.06)), "lens", (0.6, 0.3, 0.02), 0.0)
+
+
+def more_tipper(M):
+    ram(M, (2.25, 0.0, 0.95), (2.25, 0.0, 1.6), 0.09, GRAPHITE)
+    for s in (-1, 1):
+        hose(M, [(2.4, s * 0.1, 1.0), (3.3, s * 0.1, 0.8), (4.1, s * 0.12, 0.7)], 0.016)
+        for z in (1.45, 2.4):
+            M.add(box("latch", (-3.13, s * 1.0, z), (0.06, 0.12, 0.1), bevel=0.01), "steel", STEEL, 0.4)
+        M.add(box("bracket", (-0.42, s * 0.92, 1.1), (0.06, 0.06, 0.2)), "paint", DARK, 0.4)
+    lights(M, -3.12, (-1.0, 1.0), 1.1, 0, size=(0.04, 0.2, 0.12), rgb=REDLAMP)
+
+
+def more_baler(M):
+    for k in range(30):
+        y = -1.05 + k * 2.1 / 29
+        M.add(sweep("pickuptine", [(2.68, y, 0.3), (2.85, y, 0.12), (2.95, y, 0.06)], 0.008, 4), "steel", STEEL, 0.5)
+    for x in (-2.9, -1.9, -0.9, 0.1, 1.1):
+        for s in (-1, 1):
+            M.add(box("doorhandle", (x + 0.35, s * 1.12, 1.85), (0.03, 0.03, 0.15), bevel=0.008), "steel", STEEL, 0.3)
+    M.add(lathe("ptoguard", [(0.0, 0.0), (0.09, 0.0), (0.12, 1.6), (0.0, 1.62)], 12), "paint", (0.55, 0.42, 0.04), 0.3)
+    M.parts[-1].obj.matrix_world = Matrix.Translation((2.4, 0.0, 1.4)) @ Matrix.Rotation(math.radians(110), 4, "Y")
+    for k in range(5):
+        M.add(sweep("roller", [(-4.3 - k * 0.25, -0.6, 0.9), (-4.3 - k * 0.25, 0.6, 0.9)], 0.035, 8), "steel", STEEL, 0.5)
+    for s in (-1, 1):
+        hose(M, [(1.9, s * 0.2, 2.0), (3.2, s * 0.15, 1.4), (4.3, s * 0.12, 0.95)], 0.016)
+    for k in range(4):
+        M.add(box("twinebox", (-1.4 + k * 0.5, 1.2, 1.25), (0.4, 0.08, 0.6), bevel=0.02), "paint", (0.2, 0.02, 0.015), 0.4)
+
+
+def more_drill(M):
+    # (the seed tubes from the hopper's metering down to every coulter)
+    for k in range(16):
+        y = (k - 7.5) * 0.25
+        for row, x in ((0, -1.1), (1, -1.5)):
+            yy = y + (0.125 if row else 0.0)
+            if abs(yy) > 1.95:
+                continue
+            M.add(sweep("seedtube", [(-0.9, yy * 0.95, 1.15), (-1.0 - 0.2 * row, yy, 0.8), (x + 0.05, yy, 0.35)], 0.012, 5), "paint", (0.08, 0.08, 0.08), 0.4)
+    for s in (-1, 1):
+        M.add(sweep("markerdisc", [(-0.45, s * 2.05, 2.35), (-0.45, s * 2.12, 2.35)], 0.22, 14), "steel", STEEL, 0.5)
+        ram(M, (-0.3, s * 1.85, 1.0), (-0.42, s * 2.0, 1.8), 0.03)
+    M.add(lathe("fan", [(0.0, 0.0), (0.22, 0.0), (0.22, 0.2), (0.0, 0.22)], 18, at=(1.25, 0.0, 1.05)), "paint", (0.4, 0.04, 0.03), 0.4)
+    M.add(sweep("airpipe", [(1.25, 0.0, 1.25), (0.6, 0.0, 1.5), (0.1, 0.0, 1.55)], 0.08, 10), "paint", (0.08, 0.08, 0.08), 0.4)
+    hose(M, [(1.5, 0.2, 1.2), (2.0, 0.25, 0.9)], 0.016)
+
+
+def more_cultivator(M):
+    for s in (-1, 1):
+        hose(M, [(3.6, s * 0.08, 0.65), (1.6, s * 0.5, 0.95), (0.2, s * 1.0, 1.15), (0.2, s * 2.3, 1.15)], 0.016)
+        ram(M, (0.2, s * 0.35, 1.05), (0.2, s * 2.35, 1.12), 0.045)
+        # (the levelling boards behind the tines)
+        M.add(box("leveller", (-1.45, s * 2.5, 0.3), (0.05, 4.9, 0.18), bevel=0.01), "steel", STEEL, 0.5)
+        ram(M, (-0.6, s * 0.75, 0.8), (-0.6, s * 0.75, 0.45), 0.04)
+
+
 # --- the list ------------------------------------------------------------------------------------------
 
 def build(lod, only=None):
@@ -828,14 +1357,23 @@ def build(lod, only=None):
     if want("farm_combine"):
         for d, maize in enumerate((False, True)):
             for i, liv in enumerate(LIVERIES):
-                out.append(combine("SM_Prop_farm_combine_%d%s" % (d * 3 + i, s), liv, maize, lod))
+                M = combine("SM_Prop_farm_combine_%d%s" % (d * 3 + i, s), liv, maize, lod)
+                if lod == 0:
+                    more_combine(M, liv, maize)
+                out.append(M)
     for kind, fn in fleet:
         if want(kind):
             for i, liv in enumerate(LIVERIES):
-                out.append(fn("SM_Prop_%s_%d%s" % (kind, i, s), liv, lod))
+                M = fn("SM_Prop_%s_%d%s" % (kind, i, s), liv, lod)
+                if lod == 0:
+                    globals()["more_" + kind[5:]](M, liv)
+                out.append(M)
     for kind, fn in (("farm_chaser", chaser), ("farm_tipper", tipper), ("farm_baler", baler), ("farm_drill", drill), ("farm_cultivator", cultivator)):
         if want(kind):
-            out.append(fn("SM_Prop_%s_0%s" % (kind, s), lod))
+            M = fn("SM_Prop_%s_0%s" % (kind, s), lod)
+            if lod == 0:
+                globals()["more_" + kind[5:]](M)
+            out.append(M)
     return out
 
 
@@ -856,7 +1394,7 @@ def render(models, out_dir, lod):
         models = [M for M in models if M.name.split("_LOD")[0][-1] == "0"]
     units = [_U(M) for M in models]
     sc = R._scene(units)
-    size = (560, 380)
+    size = tuple(int(v) for v in os.environ.get("FARM_SHOT", "560,380").split(","))
     for U in units:
         R._shoot(sc, U, 32, 14, size, os.path.join(out_dir, U.name + ".png"), lens=50.0)
         if lod == 0 and U.name[-1] == "0":
@@ -888,7 +1426,41 @@ def render(models, out_dir, lod):
         print("sheet:", os.path.join(out_dir, name))
 
 
+def write(M):
+    """The street kit's write, its corners shared where they are the same (position, normal, colour and UV), so
+    the detailed models stay small on disk and in memory."""
+    import numpy as np
+    pos, nrm, col, uv = K.triangles(M)
+    key = np.concatenate([np.round(pos, 4), np.round(nrm, 3), col.astype(np.float64), np.round(uv, 4)], 1)
+    uniq, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
+    tris = inv.reshape(-1).astype(np.int64).reshape(-1, 3)
+    K.write_glb(os.path.join(K.OUT, M.name + ".glb"), pos[first], tris, nrm[first], col[first], M.name, uv[first])
+    return len(tris), pos[:, 1].min(), pos[:, 1].max(), pos[:, 0].min(), pos[:, 0].max(), pos[:, 2].min(), pos[:, 2].max()
+
+
 OFFSETS = {}
+SOFT_SKIP = ("tyre", "rim", "lug", "tlug", "bolt", "window", "valve", "hose", "slat", "grilleback", "treadhole", "lamp", "glass",
+             "track", "guide", "trackwheel", "trackhub", "beacon", "stripe", "doorline", "panel", "board", "tine", "disc")
+
+
+def soften(models):
+    """Close up nothing is a hard box: every plain block and prism gets its edges rounded (a bevel in three steps, a
+    fifth of its thinnest side at most), so the panels read as pressed and folded steel."""
+    for M in models:
+        for p in M.parts:
+            ob = p.obj
+            if ob.modifiers or ob.name.split(".")[0] in SOFT_SKIP or len(ob.data.vertices) > 64:
+                continue
+            d = sorted(ob.dimensions)
+            w = min(0.045, d[0] * 0.22, d[1] * 0.12)
+            if w < 0.004:
+                continue
+            m = ob.modifiers.new("bevel", "BEVEL")
+            m.width = w
+            m.segments = 3
+            m.limit_method = "ANGLE"
+            m.angle_limit = math.radians(40)
+            m.harden_normals = True
 
 
 def centre(models):
@@ -914,10 +1486,13 @@ def main():
     out = {}
     for lod in (0, 1, 2):
         K.clear()
+        LOFT_N[0] = 28 if lod == 0 else 12
         models = build(lod, only)
+        if lod == 0:
+            soften(models)
         centre(models)
         for M in models:
-            nt, y0, y1, x0, x1, z0, z1 = K.write(M)
+            nt, y0, y1, x0, x1, z0, z1 = write(M)
             out[M.name] = (nt, y0, y1)
             print("%-34s %6d triangles, %.2f..%.2f m up, %.1f x %.1f m" % (M.name, nt, y0, y1, x1 - x0, z1 - z0))
         if "--render" in args:
