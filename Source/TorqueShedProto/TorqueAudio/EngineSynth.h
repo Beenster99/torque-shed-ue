@@ -50,6 +50,9 @@ struct FSpec
 	// [Bike V3 Sounds] The bike's own recorded engine (a folder under Data/Audio/Bikes, from the engine
 	// part's "sound"), or "": its loops play up to the revs recorded, the made sound above them.
 	std::string Own;
+	// [Bike V3 Sounds] A bike's tone, tuned by ear against a real one: dB of a shelf above 2 kHz (the rasp)
+	// and of a broad bell at 800 Hz (the honk). 0 leaves the made sound as it is.
+	double ToneHigh = 0.0, ToneMid = 0.0;
 };
 
 // Fills in what's missing the way make_spec does (the layout from the cylinders, its usual crank,

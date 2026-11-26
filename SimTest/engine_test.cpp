@@ -111,6 +111,8 @@ int main(int Argc, char** Argv)
 		{"multistrada", [&Make] { FSpec S = Make("vtwin", 4, 1158, 1300, 11500, "stock", "twinpulse"); S.Own = "multistrada"; return S; }(), false},
 		{"scout", [&Make] { FSpec S = Make("vtwin", 2, 1250, 1000, 8300, "stock", "60v"); S.Own = "scout"; return S; }(), true},
 		{"cb1000gt", [&Make] { FSpec S = Make("inline", 4, 1084, 1200, 12000, "stock", "flat"); S.Own = "cb1000gt"; return S; }(), true},
+		// (the Trident: the made triple, its tone matched by ear to a real one)
+		{"trident", [&Make] { FSpec S = Make("triple", 3, 798, 1200, 11500, "slip", "240"); S.ToneHigh = 3.0; S.ToneMid = -3.0; return S; }(), true},
 		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
 		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
