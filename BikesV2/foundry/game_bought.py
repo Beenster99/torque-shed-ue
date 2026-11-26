@@ -130,7 +130,8 @@ BIKES.update({
         _box(1.78, [2.69, 1.95, 1.58, 1.37, 1.22, 1.11], True, "Six-speed with quickshifter", 900), cda=0.46),
     "honda_cb1000gt": _bike("adventure", "cb1000gt", "Honda", "Honda CB1000 GT",
         "The Honda CB1000 GT, bought whole: 1,084 cc inline four, 150 hp, a sports tourer with a tall screen.", 4300, 12.0, [0.025, 0.026, 0.03], "inline4",
-        _eng("inline", 4, 1084.0, 81.0, 52.6, 0.094, 8750.0, 12000.0, 1200.0, 62.0, "flat", "1000 inline four", 5600),
+        # ([Bike V3 Sounds] beenster's own recording of the CB1000 GT on tour: Data/Audio/Bikes/cb1000gt)
+        dict(_eng("inline", 4, 1084.0, 81.0, 52.6, 0.094, 8750.0, 12000.0, 1200.0, 62.0, "flat", "1000 inline four", 5600), sound="cb1000gt"),
         _box(1.98, [2.6, 1.95, 1.58, 1.35, 1.19, 1.07], True, "Six-speed with quickshifter", 900), cda=0.5),
     "kawasaki_eliminator": _bike("cruiser", "eliminator", "Kawasaki", "Kawasaki Eliminator 500",
         "The Kawasaki Eliminator 500, bought whole: 451 cc parallel twin, 45 hp, a low-slung cruiser.", 1900, 13.0, [0.02, 0.02, 0.022], "parallel_twin",

@@ -127,9 +127,8 @@ public:
 	bool bRecorded = false, bExhaustOnly = false;
 	int LoopRate = Rate;
 	// [Bike V3 Sounds] The bike's own recording (Spec.Own): its buckets (OwnLo..OwnTop rpm) are ready from
-	// the start, scaled to the made sound's level at its top; the made ones below and above it bake as usual,
-	// their engine side folded into the exhaust, the ones below matched to the recording's bottom (OwnGainLo,
-	// off the throttle; OwnGain above stays 1) so the hand-overs don't jump.
+	// the start, each scaled to the made sound's level at its revs; the made ones below and above it bake as
+	// usual, their engine side folded into the exhaust (OwnGainLo and OwnGain stay 1: they meet level).
 	bool bOwn = false;
 	double OwnLo = 0.0, OwnTop = 0.0, OwnGainLo = 1.0, OwnGain = 1.0;
 	// A real bike of this kind ticking over, or empty: at its own rate, recorded at IdleRecRpm, its

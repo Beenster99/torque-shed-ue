@@ -57,6 +57,22 @@ def track(x, sr, a, b, seed):
     return np.array(out)
 
 
+def line_track(x, sr, lo, hi):
+    """The strongest line in [lo, hi] Hz every 20 ms (an even-firing four's firing note): [t, Hz, strength]."""
+    hop, n = int(0.02 * sr), 8192
+    win = np.hanning(n)
+    f = np.fft.rfftfreq(n, 1.0 / sr)
+    band = np.where((f >= lo) & (f <= hi))[0]
+    out = []
+    for i in range(0, len(x) - n, hop):
+        S = np.abs(np.fft.rfft(x[i:i + n] * win))
+        k = band[np.argmax(S[band])]
+        a, b, c = np.log(S[k - 1:k + 2] + 1e-9)
+        d = 0.5 * (a - c) / (a - 2 * b + c) if (a - 2 * b + c) != 0 else 0.0
+        out.append(((i + n / 2) / sr, (k + d) * sr / n, float(b - np.log(np.median(S[band]) + 1e-9))))
+    return np.array(out)
+
+
 def flatten(seg, sr, tr, t0, target):
     """Resamples seg (starting at t0) so its spacing curve tr becomes the steady target."""
     t = t0 + np.arange(len(seg)) / sr
@@ -114,10 +130,17 @@ def main():
     ap.add_argument("--idle-only", action="store_true",
                     help="no rev loops (a standing recording whose blips are too quick to loop): just the tickover, "
                          "written as idle_<rpm>.wav, which the game plays at tickover over the made sound")
+    ap.add_argument("--per-cycle", type=int, default=1,
+                    help="the harmonic to follow, per four-stroke cycle: 1 for odd-firing engines (V-twins, the twin-pulse "
+                         "V4); 4 for an even-firing flat-plane four, whose firing (every 180 degrees) rings far above the rest")
+    ap.add_argument("--line", action="store_true",
+                    help="follow the one strongest line (the firing note, --per-cycle 4) instead of the harmonic comb")
     ap.add_argument("--min-rpm", type=float, default=1200.0, help="lowest revs to look for")
     ap.add_argument("--max-rpm", type=float, default=12000.0, help="highest revs to look for (the redline)")
     ap.add_argument("--hp", type=float, default=28.0, help="high-pass (wind rumble), Hz")
     a = ap.parse_args()
+    global RPM_PER_HZ
+    RPM_PER_HZ = 120.0 / a.per_cycle
     x, sr = read(a.src)
     x = highpass(x, sr, a.hp)
     dur = len(x) / sr
@@ -125,6 +148,17 @@ def main():
     # Every stretch: its spacing curve, how clean (comb score) and how smooth it is.
     cands = []
     t = 0.0
+    if a.line:
+        full = line_track(x, sr, a.min_rpm / RPM_PER_HZ, a.max_rpm / RPM_PER_HZ)
+        while t + WIN + 0.2 < dur:
+            tr = full[(full[:, 0] >= t) & (full[:, 0] <= t + WIN + 0.2)]
+            if len(tr) > 5:
+                ratio = tr[1:, 1] / tr[:-1, 1]
+                slope = np.log(tr[-1, 1] / tr[0, 1]) / (tr[-1, 0] - tr[0, 0])
+                cands.append({"t": t, "rpm": float(np.median(tr[:, 1]) * RPM_PER_HZ), "score": float(tr[:, 2].mean()),
+                              "jump": float(np.abs(np.log(ratio)).max()), "slope": float(slope), "tr": tr})
+            t += 0.1
+        t = dur
     while t + WIN + 0.2 < dur:
         mid = x[int((t + WIN / 2 - 0.1) * sr):int((t + WIN / 2 + 0.1) * sr)]
         seed, score = comb_spacing(mid, sr, a.min_rpm / RPM_PER_HZ, a.max_rpm / RPM_PER_HZ, 0.05)

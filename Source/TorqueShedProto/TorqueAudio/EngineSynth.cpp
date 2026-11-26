@@ -1021,7 +1021,8 @@ std::shared_ptr<FBank> FBank::For(const FSpec& S, const FReader& Read, const FLi
 				break;
 			}
 		}
-	if (!Bank->bRecorded && !Bank->bOwn && Bank->IdleRec.empty()) Bank->LoadIdle(Read, List);
+	// (a bike's own recording without a tickover of its own keeps its kind's recorded idle below it)
+	if (!Bank->bRecorded && Bank->IdleRec.empty()) Bank->LoadIdle(Read, List);
 	Banks[Key] = Bank;
 	return Bank;
 }
@@ -1148,25 +1149,28 @@ void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& 
 			Rpms.push_back(R);
 			Buckets.push_back(std::make_unique<FBucket>());
 		}
-	// The recording as loud as the made sound at its top (on the throttle), so the bike sits in the game's
-	// mix like every other; the made buckets below it matched to its bottom (off the throttle).
+	// Each recorded loop as loud as the made sound at its revs, on or off the throttle: the bike sits in the
+	// game's mix like every other and rises with the revs as they do, whatever the wind and the throttle did
+	// in the recording (a ride's loops can be 20 dB apart), and the made buckets either side meet it level.
 	auto Made1 = [this](double Rpm, int Ex, int In) {
 		std::vector<float> Ref = RenderLoop(Spec, Ex, Rpm, 1);
 		const std::vector<float> RefIn = RenderLoop(Spec, In, Rpm, 1);
 		for (size_t K = 0; K < Ref.size() && K < RefIn.size(); ++K) Ref[K] += (float)(OwnInFold * RefIn[K]);
 		return Rms(Ref);
 	};
-	auto Own1 = [this](double Rpm, int Layer) {
-		const int At = (int)std::distance(Rpms.begin(), std::find(Rpms.begin(), Rpms.end(), Rpm));
-		return Rms(Buckets[At]->Loop[Layer]);
-	};
-	const double TopOwn = Own1(OwnTop, ExOn);
-	const double RecGain = TopOwn > 1e-6 ? Made1(OwnTop, ExOn, InOn) / TopOwn : 1.0;
-	for (auto& B : Buckets)
-		for (auto& L : B->Loop)
-			for (float& V : L) V = (float)(V * RecGain);
-	const double LoMade = Made1(OwnLo, ExOff, InOff);
-	OwnGainLo = LoMade > 1e-6 ? Own1(OwnLo, ExOff) / LoMade : 1.0;
+	for (size_t I = 0; I < Rpms.size(); ++I)
+	{
+		if (!Buckets[I]->bReady) continue;
+		for (int Side = 0; Side < 2; ++Side)
+		{
+			std::vector<float>& L = Buckets[I]->Loop[Side == 0 ? ExOn : ExOff];
+			const double Have = Rms(L);
+			if (Have < 1e-6) continue;
+			const double G = Made1(Rpms[I], Side == 0 ? ExOn : ExOff, Side == 0 ? InOn : InOff) / Have;
+			for (float& V : L) V = (float)(V * G);
+		}
+	}
+	OwnGainLo = 1.0;
 	OwnGain = 1.0;
 	bExhaustOnly = true;
 	bOwn = true;
