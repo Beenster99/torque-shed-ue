@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -118,6 +119,7 @@ int main(int Argc, char** Argv)
 		{"tracer9", [&Make] { FSpec S = Make("triple", 3, 890, 1250, 11000, "stock", "240"); S.Own = "tracer9"; return S; }(), true},
 		{"kle500", [&Make] { FSpec S = Make("parallel", 2, 451, 1200, 10000, "stock", "180"); S.Own = "kle500"; return S; }(), true},
 		{"klr650", [&Make] { FSpec S = Make("single", 1, 652, 1200, 7500, "stock", "single"); S.Own = "klr650"; return S; }(), true},
+		{"monster", [&Make] { FSpec S = Make("vtwin", 2, 890, 1300, 10750, "stock", "90v"); S.Own = "monster"; return S; }(), true},
 		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
 		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
@@ -133,7 +135,9 @@ int main(int Argc, char** Argv)
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
 		// (these recordings are only a tickover: the bike standing, its blips too quick to loop)
-		const double OwnIdle = C.S.Own == "panigale" ? 1350.0 : (C.S.Own == "ktm1390" ? 1550.0 : (C.S.Own == "tracer9" ? 1370.0 : (C.S.Own == "kle500" ? 1300.0 : (C.S.Own == "klr650" ? 1540.0 : 0.0))));
+		static const std::map<std::string, double> OwnIdles = {{"panigale", 1350.0}, {"ktm1390", 1550.0}, {"tracer9", 1370.0}, {"kle500", 1300.0}, {"klr650", 1540.0}, {"monster", 1470.0}};
+		const auto OwnIt = OwnIdles.find(C.S.Own);
+		const double OwnIdle = OwnIt == OwnIdles.end() ? 0.0 : OwnIt->second;
 		if (OwnIdle > 0.0)
 			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - OwnIdle) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
 		if (!C.S.Own.empty() && OwnIdle == 0.0)
