@@ -164,7 +164,8 @@ def main(argv):
             if coll is None:
                 coll = load_glb(os.path.join(DATA, "Props", "SM_Prop_%s_0.glb" % p[0]))
             if coll is not None:
-                place(coll, float(p[2]), float(p[3]), float(p[4]), float(p[5]), float(p[6]), float(p[7]))
+                # (the ride's yaw turns x towards z, south: here towards -y; its pitch lifts the far end)
+                place(coll, float(p[2]), float(p[3]), float(p[4]), -float(p[5]), -float(p[6]), float(p[7]))
         for line in open(a.dump + ".walls") if os.path.exists(a.dump + ".walls") else []:
             p = line.split()
             coll = load_glb(os.path.join(DATA, "Walls", "SM_Prop_%s_%s.glb" % (p[0], p[1])))

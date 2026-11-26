@@ -26,7 +26,7 @@ R.LOOK.update({
 })
 
 
-def render_sheet(units, out_dir, props=None):
+def render_sheet(units, out_dir, props=None, title="Ride UK farmyards: the farm kit's buildings (Blender renders, our own designs; each fits any outline)", sheet_name="farm_kit_buildings.png"):
     os.makedirs(out_dir, exist_ok=True)
     sc = R._scene(units)
     for U in units:
@@ -46,7 +46,7 @@ def render_sheet(units, out_dir, props=None):
     sheet = Image.new("RGB", (W, H), (245, 245, 242))
     d = ImageDraw.Draw(sheet)
     font, small, tiny = R._font(24), R._font(16), R._font(14)
-    d.text((pad, 18), "Ride UK farmyards: the farm kit's buildings (Blender renders, our own designs; each fits any outline)", fill=(20, 20, 20), font=font)
+    d.text((pad, 18), title, fill=(20, 20, 20), font=font)
     for i, (U, a) in enumerate(shots):
         x = pad + (i % cols) * (size[0] + pad)
         y = 70 + (i // cols) * (size[1] + head + pad)
@@ -55,13 +55,13 @@ def render_sheet(units, out_dir, props=None):
         d.text((x, y + 23), "%g x %g m as drawn;  LOD0 %s / LOD1 %s / LOD2 %s triangles" % (U.spec["L"], U.spec["W"], f"{t[0]:,}", f"{t[1]:,}", f"{t[2]:,}"),
                fill=(90, 90, 90), font=tiny)
         sheet.paste(Image.open(a).convert("RGB"), (x, y + head))
-    path = os.path.join(out_dir, "farm_kit_buildings.png")
+    path = os.path.join(out_dir, sheet_name)
     sheet.save(path)
     print("sheet:", path)
     return path
 
 
-def render_props(models, out_dir):
+def render_props(models, out_dir, title="Ride UK farmyards: the yard's pieces (our own models; each with a hand-made distance version)", sheet_name="farm_kit_yard.png"):
     """Each yard piece from its front corner, then a sheet of them."""
     os.makedirs(out_dir, exist_ok=True)
 
@@ -90,13 +90,13 @@ def render_props(models, out_dir):
     H = 70 + rows * (size[1] + head + pad)
     sheet = Image.new("RGB", (W, H), (245, 245, 242))
     d = ImageDraw.Draw(sheet)
-    d.text((pad, 18), "Ride UK farmyards: the yard's pieces (our own models; each with a hand-made distance version)", fill=(20, 20, 20), font=R._font(24))
+    d.text((pad, 18), title, fill=(20, 20, 20), font=R._font(24))
     for i, (U, a) in enumerate(shots):
         x = pad + (i % cols) * (size[0] + pad)
         y = 70 + (i // cols) * (size[1] + head + pad)
         d.text((x, y + 2), U.name.replace("SM_Prop_", ""), fill=(25, 25, 25), font=R._font(15))
         sheet.paste(Image.open(a).convert("RGB"), (x, y + head))
-    path = os.path.join(out_dir, "farm_kit_yard.png")
+    path = os.path.join(out_dir, sheet_name)
     sheet.save(path)
     print("sheet:", path)
     return path

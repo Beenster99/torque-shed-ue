@@ -1,0 +1,227 @@
+{
+ "_about": "Ride UK's village set (the everyday kits plan, stage 6): original designs of UK schools, modelled by Tools/blender_village_kit.py with the farm kit's bays and cut into pieces by Tools/blender_farm_kit_export.py (this file and village_kit.bin) in the warehouse kit's format. World/WorldRideBuildings.cpp gives a school the map draws the design that suits its size and the place's walls and lays it with BuildWarehouse. Classes: school_old_brick, school_old_stone, school_old (small, old), school_new, school_small.",
+ "stretch": [
+  0.55,
+  1.8
+ ],
+ "designs": [
+  {
+   "name": "VL_board_school_brick",
+   "label": "Victorian board school: red brick, slate roof, tall windows, gabled ends",
+   "L": 24,
+   "W": 9,
+   "H": 4.6,
+   "top": 4.6,
+   "gable_top": 4.6,
+   "bay": 3.0,
+   "gable_bay": 4.5,
+   "roof": "pitch",
+   "front": "H H E H H H H H",
+   "back": "H*",
+   "right": "H H",
+   "left": "H H",
+   "skirt": [
+    0.27,
+    0.09,
+    0.05
+   ],
+   "pieces": {
+    "long:.": 4,
+    "long:E": 56,
+    "long:H": 68,
+    "gable:.": 4,
+    "gable:H": 68,
+    "gabletop": 7,
+    "roof:P": 72,
+    "roofend": 60
+   },
+   "classes": [
+    "school_old_brick",
+    "school_old"
+   ],
+   "short": [
+    6,
+    11
+   ],
+   "area": [
+    60,
+    900
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "VL_board_school_stone",
+   "label": "Village school: stone, slate roof, tall windows with dressed heads",
+   "L": 20,
+   "W": 8,
+   "H": 4.4,
+   "top": 4.4,
+   "gable_top": 4.4,
+   "bay": 3.0,
+   "gable_bay": 4.0,
+   "roof": "pitch",
+   "front": "H E H H H H H",
+   "back": "H*",
+   "right": "H H",
+   "left": "H .",
+   "skirt": [
+    0.34,
+    0.335,
+    0.31
+   ],
+   "pieces": {
+    "long:.": 4,
+    "long:E": 56,
+    "long:H": 68,
+    "gable:.": 4,
+    "gable:H": 68,
+    "gabletop": 7,
+    "roof:P": 72,
+    "roofend": 60
+   },
+   "classes": [
+    "school_old_stone",
+    "school_old"
+   ],
+   "short": [
+    6,
+    11
+   ],
+   "area": [
+    60,
+    900
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "VL_sixties_school",
+   "label": "Post-war school: brick, a long window band, coloured panels, a shallow roof",
+   "L": 40,
+   "W": 14,
+   "H": 3.8,
+   "top": 3.8,
+   "gable_top": 3.8,
+   "bay": 3.6,
+   "gable_bay": 4.7,
+   "roof": "pitch",
+   "front": "W W W E W W W W W W W",
+   "back": "W*",
+   "right": ". S .",
+   "left": ". S .",
+   "skirt": [
+    0.3,
+    0.16,
+    0.1
+   ],
+   "pieces": {
+    "long:.": 4,
+    "long:E": 100,
+    "long:W": 68,
+    "gable:.": 4,
+    "gable:S": 84,
+    "gabletop": 7,
+    "roof:P": 60,
+    "roofend": 60
+   },
+   "classes": [
+    "school_new"
+   ],
+   "short": [
+    9,
+    40
+   ],
+   "area": [
+    200,
+    9000
+   ],
+   "weight": 1.0
+  },
+  {
+   "name": "VL_modern_school",
+   "label": "New primary school: white render and timber cladding, big windows, a grey roof",
+   "L": 36,
+   "W": 16,
+   "H": 4.2,
+   "top": 4.2,
+   "gable_top": 4.2,
+   "bay": 3.6,
+   "gable_bay": 5.3,
+   "roof": "pitch",
+   "front": "W W E W W W W W W W",
+   "back": "W*",
+   "right": ". S .",
+   "left": ". S .",
+   "skirt": [
+    0.38,
+    0.28,
+    0.16
+   ],
+   "pieces": {
+    "long:.": 8,
+    "long:E": 104,
+    "long:W": 64,
+    "gable:.": 8,
+    "gable:S": 88,
+    "gabletop": 7,
+    "roof:P": 60,
+    "roofend": 60
+   },
+   "classes": [
+    "school_new"
+   ],
+   "short": [
+    9,
+    40
+   ],
+   "area": [
+    200,
+    9000
+   ],
+   "weight": 0.9
+  },
+  {
+   "name": "VL_timber_school",
+   "label": "Timber-clad classroom block: vertical boarding, window band, a low roof",
+   "L": 24,
+   "W": 10,
+   "H": 3.6,
+   "top": 3.6,
+   "gable_top": 3.6,
+   "bay": 3.0,
+   "gable_bay": 5.0,
+   "roof": "pitch",
+   "front": "W W E W W W W W",
+   "back": "W*",
+   "right": ". S",
+   "left": "S .",
+   "skirt": [
+    0.27,
+    0.09,
+    0.05
+   ],
+   "pieces": {
+    "long:.": 56,
+    "long:E": 108,
+    "long:W": 104,
+    "gable:.": 88,
+    "gable:S": 168,
+    "gabletop": 7,
+    "roof:P": 60,
+    "roofend": 60
+   },
+   "classes": [
+    "school_new",
+    "school_small"
+   ],
+   "short": [
+    6,
+    14
+   ],
+   "area": [
+    50,
+    600
+   ],
+   "weight": 0.8
+  }
+ ]
+}
