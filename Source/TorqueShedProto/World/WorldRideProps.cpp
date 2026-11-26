@@ -73,7 +73,7 @@ int RidePlan::PropOf(int FurnishKind)
 	case KissingGate: return PropKissingGate;
 	case LiftGate: return PropLiftGate;
 	case Bollard: return PropBollard;
-	case PicnicTable: return PropPicnicTable;
+	case PicnicTable: return PropCafePicnic;   // ([cafes] beenster Nov 26: every picnic table the A-frame pub bench)
 	case InfoBoard: return PropInfoBoard;
 	case TrafficSignal: return PropTrafficSignal;
 	default: return -1;   // (the signs, the cattle grids, the pubs' signs, the beacons and the crossings' barriers stay code-made)
