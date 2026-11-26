@@ -2050,6 +2050,36 @@ int main(int Argc, char** Argv)
 				continue;
 			}
 			std::printf("    water %.2f (%s), path %.0f m, a sailing %.0f s\n", L.Water, L.Sea ? "sea" : "loch", L.PathLength, L.Seconds);
+			if (std::getenv("WORLD_RIDE_FERRY_MAP"))
+				for (int E = 0; E < 2 && C.Line.size() >= 2; ++E)
+				{
+					// (a map round each end of the route, 20 m squares: # land over 1, + land, ~ sea, - wet not sea, o the
+					// route's end, B the berth, H the head)
+					const P2 A0 = E == 0 ? C.Line.front() : C.Line.back();
+					std::printf("    end %d map round %.0f,%.0f (x across, z down):\n", E, A0.X, A0.Z);
+					for (int Zi = -20; Zi <= 20; ++Zi)
+					{
+						std::string Row = "      ";
+						for (int Xi = -30; Xi <= 30; ++Xi)
+						{
+							const double Sq = std::getenv("WORLD_RIDE_FERRY_MAP")[0] == '2' ? 100.0 : 20.0;
+							const P2 Q = A0 + P2(Xi * Sq, Zi * Sq);
+							const auto Near = [&Q, Sq](const P2& T) { return std::fabs(T.X - Q.X) <= 10.0 * Sq / 20.0 && std::fabs(T.Z - Q.Z) <= 10.0 * Sq / 20.0; };
+							const double H = Ask.Height(Q.X, Q.Z);
+							char Ch = std::isnan(H) ? '?' : Ask.Sea(Q.X, Q.Z) ? '~' : H <= L.Water + 0.2 ? '-' : H > 1.0 ? '#' : '+';
+							if (Near(L.Ends[E].Head)) Ch = 'H';
+							if (Near(L.Ends[E].Berth)) Ch = 'B';
+							if (Near(A0)) Ch = 'o';
+							Row += Ch;
+						}
+						std::printf("%s\n", Row.c_str());
+					}
+					std::printf("      across the end:");
+					for (int Xi = -30; Xi <= 30; Xi += 2) std::printf(" %.1f", Ask.Height(A0.X + Xi * 100.0, A0.Z));
+					std::printf("\n      up the end:");
+					for (int Zi = -20; Zi <= 20; Zi += 2) std::printf(" %.1f", Ask.Height(A0.X, A0.Z + Zi * 100.0));
+					std::printf("\n");
+				}
 			for (int E = 0; E < 2; ++E)
 			{
 				const Ferries::End& N = L.Ends[E];
@@ -2065,6 +2095,35 @@ int main(int Argc, char** Argv)
 					for (const auto& A : N.Approach) std::fprintf(Dump, "approach %s %d %.2f %.3f %.2f %.3f\n", C.Id.c_str(), E, A[0], A[1], A[2], Ask.Height(A[0], A[2]));
 					std::fprintf(Dump, "end %s %d %.2f %.2f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.3f %.2f %.2f %.2f %.2f %.3f\n", C.Id.c_str(), E, N.Axis.X, N.Axis.Z, N.Head.X, N.Head.Z, N.HeadY, N.Tip.X, N.Tip.Z, N.TipY, N.Foot.X, N.Foot.Z, N.FootY, N.Berth.X, N.Berth.Z, N.Shore.X, N.Shore.Z, L.Water);
 				}
+			}
+			// [build 174 feedback] (beenster, Ardrossan: no road joining the slipway, the boat through the ground) Each end
+			// joined to the map's road (the approach, or the road at the head), the boat's berth and deck over the water,
+			// the sailing off the land.
+			{
+				int OnLand = 0;
+				for (int I = 0; I <= 40; ++I)
+				{
+					P2 Pos, Bow;
+					Ferries::Sail(L, C.Long, I / 40.0, Pos, Bow);
+					for (double Hull : {-Ferries::HalfDeck, 0.0, Ferries::HalfDeck})
+					{
+						const P2 Q = Pos + Bow * Hull;
+						if (!Ask.Sea(Q.X, Q.Z) && Ask.Height(Q.X, Q.Z) > L.Water + Ferries::DeckY - 0.3) ++OnLand;
+					}
+				}
+				for (int E = 0; E < 2; ++E)
+				{
+					const Ferries::End& N = L.Ends[E];
+					const bool Joined = !N.Approach.empty() || ((N.Road.X != 0.0 || N.Road.Z != 0.0) && N.Road.DistanceTo(N.Head) < 6.0);
+					double Worst = -1e9;
+					for (double D = -Ferries::HalfDeck; D <= Ferries::HalfDeck; D += 2.0)
+					{
+						const P2 Q = N.Berth + N.Axis * D;
+						Worst = std::max(Worst, Ask.Height(Q.X, Q.Z));
+					}
+					std::printf("    ferry check %s end %d: road %s, deck %s (highest ground under the berth %.2f, the deck at %.2f)\n", C.Id.c_str(), E, Joined ? "joined" : "NOT JOINED", Worst > L.Water + Ferries::DeckY - 0.3 ? "OVER LAND" : "over water", Worst, L.Water + Ferries::DeckY);
+				}
+				std::printf("    ferry check %s sailing: %s (%d of 123 hull points over land)\n", C.Id.c_str(), OnLand > 0 ? "OVER LAND" : "clear", OnLand);
 			}
 			for (int I = 0; I <= 10; ++I)
 			{
