@@ -361,7 +361,7 @@ int main()
 		const bool WhRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.json"), WhText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/warehouse_kit.bin"), WhBin)
 			&& SetWarehouseKit(WhText, WhBin);
 		std::shared_ptr<const WarehouseKit> Wk = WarehouseKitNow();
-		bool Ok = WhRead && Wk && Wk->Props.size() >= 20 && Wk->Prop("trailer_white") >= 0 && Wk->Prop("estate_board") >= 0;
+		bool Ok = WhRead && Wk && Wk->Props.size() >= 19 && Wk->Prop("trailer_white") >= 0 && Wk->Prop("estate_board") >= 0;
 		const int Market = Ok ? Wk->Pick("supermarket", 100.0, 70.0, 0.5) : -1;
 		Ok = Ok && Market >= 0 && Wk->Designs[size_t(Market)].Name == "WH_supermarket" && Wk->Designs[size_t(Market)].Retail();
 		const std::string Shop = WarehouseName("shop", 0.31, 0.62), Store = WarehouseName("store", 0.7, 0.1), Estate = WarehouseName("estate", 0.2, 0.9);

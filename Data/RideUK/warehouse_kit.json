@@ -616,10 +616,10 @@
   {
    "name": "trailer_white",
    "label": "Curtain-sided trailer, white",
-   "tris": 720,
+   "tris": 4380,
    "size": [
-    13.64,
-    2.6,
+    13.7,
+    2.72,
     4.0
    ],
    "signs": []
@@ -627,10 +627,10 @@
   {
    "name": "trailer_navy",
    "label": "Curtain-sided trailer, navy",
-   "tris": 720,
+   "tris": 4380,
    "size": [
-    13.64,
-    2.6,
+    13.7,
+    2.72,
     4.0
    ],
    "signs": []
@@ -638,10 +638,10 @@
   {
    "name": "trailer_grey",
    "label": "Curtain-sided trailer, grey",
-   "tris": 720,
+   "tris": 4380,
    "size": [
-    13.64,
-    2.6,
+    13.7,
+    2.72,
     4.0
    ],
    "signs": []
@@ -649,76 +649,43 @@
   {
    "name": "trailer_fridge",
    "label": "Fridge box trailer",
-   "tris": 504,
+   "tris": 4132,
    "size": [
     14.2,
-    2.59,
+    2.72,
     4.0
-   ],
-   "signs": []
-  },
-  {
-   "name": "van_white",
-   "label": "Panel van, white",
-   "tris": 404,
-   "size": [
-    5.7,
-    2.42,
-    2.47
-   ],
-   "signs": []
-  },
-  {
-   "name": "van_silver",
-   "label": "Panel van, silver",
-   "tris": 404,
-   "size": [
-    5.7,
-    2.42,
-    2.47
-   ],
-   "signs": []
-  },
-  {
-   "name": "van_blue",
-   "label": "Panel van, dark blue",
-   "tris": 404,
-   "size": [
-    5.7,
-    2.42,
-    2.47
    ],
    "signs": []
   },
   {
    "name": "skip_yellow",
    "label": "Builders' skip, yellow",
-   "tris": 120,
+   "tris": 4784,
    "size": [
     3.8,
-    1.9,
-    1.45
+    2.11,
+    1.55
    ],
    "signs": []
   },
   {
    "name": "skip_green",
    "label": "Builders' skip, green",
-   "tris": 120,
+   "tris": 4784,
    "size": [
     3.8,
-    1.9,
-    1.45
+    2.11,
+    1.55
    ],
    "signs": []
   },
   {
    "name": "pallets",
    "label": "Stacks of pallets",
-   "tris": 372,
+   "tris": 6768,
    "size": [
-    4.8,
-    1.66,
+    4.85,
+    1.7,
     1.73
    ],
    "signs": []
@@ -726,10 +693,10 @@
   {
    "name": "container_red",
    "label": "20 ft container, rust red",
-   "tris": 504,
+   "tris": 10952,
    "size": [
-    6.11,
-    2.5,
+    6.15,
+    2.45,
     2.59
    ],
    "signs": []
@@ -737,10 +704,10 @@
   {
    "name": "container_blue",
    "label": "20 ft container, blue",
-   "tris": 504,
+   "tris": 10952,
    "size": [
-    6.11,
-    2.5,
+    6.15,
+    2.45,
     2.59
    ],
    "signs": []
@@ -748,10 +715,10 @@
   {
    "name": "container_green",
    "label": "20 ft container, green",
-   "tris": 504,
+   "tris": 10952,
    "size": [
-    6.11,
-    2.5,
+    6.15,
+    2.45,
     2.59
    ],
    "signs": []
@@ -759,7 +726,7 @@
   {
    "name": "gascage",
    "label": "Gas bottle cage",
-   "tris": 516,
+   "tris": 9904,
    "size": [
     2.5,
     1.2,
@@ -770,10 +737,10 @@
   {
    "name": "palisade_green",
    "label": "Palisade fence, green, 2.75 m",
-   "tris": 114,
+   "tris": 1228,
    "size": [
-    2.75,
-    0.14,
+    2.76,
+    0.16,
     2.4
    ],
    "signs": []
@@ -781,10 +748,10 @@
   {
    "name": "palisade_grey",
    "label": "Palisade fence, galvanised, 2.75 m",
-   "tris": 114,
+   "tris": 1228,
    "size": [
-    2.75,
-    0.14,
+    2.76,
+    0.16,
     2.4
    ],
    "signs": []
@@ -792,43 +759,43 @@
   {
    "name": "gate_green",
    "label": "Sliding gate, green, 6 m",
-   "tris": 260,
+   "tris": 3684,
    "size": [
-    7.15,
-    0.2,
-    2.5
+    7.16,
+    0.22,
+    2.52
    ],
    "signs": []
   },
   {
    "name": "gate_grey",
    "label": "Sliding gate, galvanised, 6 m",
-   "tris": 260,
+   "tris": 3684,
    "size": [
-    7.15,
-    0.2,
-    2.5
+    7.16,
+    0.22,
+    2.52
    ],
    "signs": []
   },
   {
    "name": "estate_board",
    "label": "Estate name board",
-   "tris": 108,
+   "tris": 1916,
    "size": [
-    3.2,
-    0.22,
-    3.2
+    3.26,
+    0.35,
+    3.24
    ],
    "signs": [
     [
      0.0,
-     2.42,
+     2.84,
      0.07,
      0.0,
      1.0,
      2.8,
-     0.52,
+     0.22,
      "estate"
     ]
    ]
@@ -836,21 +803,21 @@
   {
    "name": "trolley_shelter",
    "label": "Trolley shelter",
-   "tris": 168,
+   "tris": 23532,
    "size": [
-    5.2,
-    2.5,
-    2.51
+    5.24,
+    2.55,
+    2.55
    ],
    "signs": []
   },
   {
    "name": "yard_lamp",
    "label": "Yard lighting column",
-   "tris": 68,
+   "tris": 3176,
    "size": [
     0.6,
-    1.6,
+    1.7,
     8.0
    ],
    "signs": []
@@ -858,11 +825,11 @@
   {
    "name": "bins",
    "label": "Pair of big bins",
-   "tris": 272,
+   "tris": 6408,
    "size": [
-    2.72,
-    1.1,
-    1.39
+    2.83,
+    1.19,
+    1.38
    ],
    "signs": []
   }
