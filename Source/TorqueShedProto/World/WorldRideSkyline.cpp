@@ -44,7 +44,18 @@ void SkyQuad(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& 
 	N = Pt(-N.X / Len, -N.Y / Len, -N.Z / Len);
 	const uint32_t V = uint32_t(Out.Vertices());
 	const V3* Q[4] = {&Q0, &Q1, &Q2, &Q3};
-	for (int K = 0; K < 4; ++K) Vert(Out, *Q[K], N, C, Q[K]->X - Out.OriginX + Q[K]->Z - Out.OriginZ, -Q[K]->Y);
+	// UV0 in metres of the face itself (build 175, beenster at Herstmonceux: a castle smeared in long
+	// streaks). It was U = x + z, V = -y everywhere: on a wall running at 45 degrees one way x + z doesn't
+	// change along it, so the stone was one texel stretched the wall's length, and level tops had no V at
+	// all. Now a wall's U runs along it and V up it; a level face is mapped x by z.
+	const double Hn = std::sqrt(N.X * N.X + N.Z * N.Z);
+	const bool bLevel = std::fabs(N.Y) > 0.7 || Hn < 1e-6;
+	const double Tx = bLevel ? 1.0 : -N.Z / Hn, Tz = bLevel ? 0.0 : N.X / Hn;
+	for (int K = 0; K < 4; ++K)
+	{
+		const double Lx = Q[K]->X - Out.OriginX, Lz = Q[K]->Z - Out.OriginZ;
+		Vert(Out, *Q[K], N, C, Lx * Tx + Lz * Tz, bLevel ? Lz : -Q[K]->Y);
+	}
 	// (the side seen is the one (Q2 - Q0) x (Q3 - Q1) points away from: Q0..Q3 run clockwise as seen)
 	Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
 	if (Both) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
