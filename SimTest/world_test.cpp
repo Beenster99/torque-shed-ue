@@ -22,6 +22,7 @@
 #include "WorldRoadLine.h"
 #include "WorldRouteMap.h"
 #include "WorldRegion.h"
+#include "WorldRideForecourtKit.h"
 #include "WorldSha256.h"
 #include "WorldTerrain.h"
 #include "WorldZip.h"
@@ -107,6 +108,56 @@ int main()
 	// [towns stage 4] (the house types)
 	std::string TypesText;
 	const bool TypesRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/house_types.json"), TypesText) && SetHouseTypes(TypesText);
+	// [forecourts] The forecourt kit: read; six liveries; a three-island canopy, a pump island and a mirrored
+	// kiosk end laid on a forecourt turned 40 degrees on a slope, inside where they belong, feet on the ground,
+	// fewer triangles at each step out, lit parts only in the night mesh.
+	{
+		std::string FcText, FcBin;
+		const bool FcRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/forecourt_kit.json"), FcText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/forecourt_kit.bin"), FcBin)
+			&& SetForecourtKit(FcText, FcBin);
+		const std::shared_ptr<const ForecourtKit> Fk = ForecourtKitNow();
+		bool Ok = FcRead && Fk && Fk->Liveries.size() == 6 && Fk->Piece("canopy_3") >= 0 && Fk->Piece("island") >= 0;
+		size_t Tris[3] = {0, 0, 0}, NightTris = 0;
+		double Worst = 0.0, WorstFoot = 0.0;
+		const double A = 0.6981317007977318;
+		ForecourtFrame Fr;
+		Fr.Ex = 500.0; Fr.Ez = -300.0; Fr.Ux = std::cos(A); Fr.Uz = std::sin(A); Fr.Vx = -std::sin(A); Fr.Vz = std::cos(A);
+		const std::function<double(double, double)> Slope = [](double U, double V) { return 100.0 + U * 0.05 + V * 0.03; };
+		for (int Need = 0; Ok && Need <= 2; ++Need)
+		{
+			RideMesh M;
+			M.OriginX = 480.0;
+			M.OriginZ = -290.0;
+			ForecourtPlace Canopy;
+			Canopy.Base = 100.0;
+			Tris[size_t(Need)] += LayForecourtPiece(Fk->Pieces[size_t(Fk->Piece("canopy_3"))], Fr, Canopy, Slope, Fk->Liveries[0], Need, M);
+			ForecourtPlace Isl;
+			Isl.Ou = 6.5; Isl.Ov = 9.5; Isl.Base = Slope(6.5, 9.5);
+			Tris[size_t(Need)] += LayForecourtPiece(Fk->Pieces[size_t(Fk->Piece("island"))], Fr, Isl, Slope, Fk->Liveries[1], Need, M);
+			ForecourtPlace End;
+			End.Ou = -5.0; End.Ov = 15.5; End.Xu = -1.0; End.Base = Slope(-5.0, 15.5);
+			Tris[size_t(Need)] += LayForecourtPiece(Fk->Pieces[size_t(Fk->Piece("kiosk_glass_end"))], Fr, End, Slope, Fk->Liveries[1], Need, M);
+			if (M.Night) NightTris = std::max(NightTris, M.Night->Idx.size() / 3);
+			for (const RideMesh* Mi : {&M, M.Roofing.get(), M.Brickwork.get(), M.Render.get(), M.Night.get()})
+			{
+				if (!Mi) continue;
+				Ok = Ok && Mi->Alpha.size() == Mi->Vertices() && Mi->Col.size() == Mi->Vertices() * 3 && Mi->Uv.size() == Mi->Vertices() * 2 && Mi->Nrm.size() == Mi->Pos.size();
+				for (const uint32_t I : Mi->Idx) Ok = Ok && I < Mi->Vertices();
+				for (size_t V = 0; V < Mi->Vertices(); ++V)
+				{
+					const double Rx = Mi->Pos[V * 3] + Mi->OriginX - Fr.Ex, Rz = Mi->Pos[V * 3 + 2] + Mi->OriginZ - Fr.Ez, Y = Mi->Pos[V * 3 + 1];
+					const double U = Rx * Fr.Ux + Rz * Fr.Uz, Vo = Rx * Fr.Vx + Rz * Fr.Vz;
+					// (all of it on the forecourt: 21.5 m along, 4 to 22.5 m out; nothing below the slope by more than a foot's run)
+					Worst = std::fmax(Worst, std::fmax(std::fmax(-11.0 - U, U - 11.0), std::fmax(3.9 - Vo, Vo - 22.5)));
+					WorstFoot = std::fmax(WorstFoot, Slope(U, Vo) - 0.62 - Y);
+				}
+			}
+		}
+		Ok = Ok && Worst < 0.05 && WorstFoot < 1.0 && Tris[0] > Tris[1] && Tris[1] > Tris[2] && Tris[2] > 100 && NightTris > 0;
+		std::printf("      forecourt kit: %s, %zu pieces, %zu liveries; canopy + island + kiosk end %zu / %zu / %zu triangles (%zu lit), %.2f m past the forecourt, %.2f m below the ground\n",
+			FcRead ? "read" : "unreadable", Fk ? Fk->Pieces.size() : size_t(0), Fk ? Fk->Liveries.size() : size_t(0), Tris[0], Tris[1], Tris[2], NightTris, Worst, WorstFoot);
+		Check(Ok, "forecourt kit: pieces and six liveries read; laid turned and on a slope inside the forecourt, feet on the ground, fewer triangles further off, lights in the night mesh");
+	}
 	// [churches stage 3] (the church kit: read, a church and a chapel chosen for a building, built whole into the meshes)
 	{
 		std::string KitText, KitBin;

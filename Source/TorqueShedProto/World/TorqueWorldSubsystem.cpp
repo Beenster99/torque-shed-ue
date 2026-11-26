@@ -42,6 +42,7 @@
 #include <set>
 #include "World/WorldRide.h"
 #include "World/WorldRideSigns.h"
+#include "World/WorldRideForecourtKit.h"
 #include "World/TorqueRideWorld.h"
 
 #include <atomic>
@@ -293,6 +294,19 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueRideLidar="), LidarAsked);
 		if (LidarAsked != 0)
 			TorqueWorld::SetLidarDirs({TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/lidar")))});
+		// [forecourts] The forecourt kit: petrol stations' canopies, pumps, kiosks and price poles in place of the
+		// plain drawn ones (-TorqueForecourts=0: the plain ones, to compare).
+		{
+			int32 ForecourtsAsked = 1;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueForecourts="), ForecourtsAsked);
+			std::string FcText, FcBin;
+			const std::string FcPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/forecourt_kit.json")));
+			const std::string FcBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/forecourt_kit.bin")));
+			const bool bFc = ForecourtsAsked != 0 && TorqueWorld::Files::Read(FcPath, FcText) && TorqueWorld::Files::Read(FcBinPath, FcBin) && TorqueWorld::SetForecourtKit(FcText, FcBin);
+			const std::shared_ptr<const TorqueWorld::ForecourtKit> Fc = TorqueWorld::ForecourtKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: forecourt kit: %d pieces%s"), Fc ? int32(Fc->Pieces.size()) : 0,
+				bFc ? TEXT("") : ForecourtsAsked == 0 ? TEXT(" (off: -TorqueForecourts=0)") : TEXT(" (none: Data/RideUK/forecourt_kit.json or .bin unreadable; the drawn forecourts stay)"));
+		}
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
 		std::string GlyphText;
 		const std::string GlyphsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/sign_glyphs.json")));
