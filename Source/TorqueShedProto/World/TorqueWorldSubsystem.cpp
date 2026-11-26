@@ -312,6 +312,10 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			int32 RoadsideAsked = 1;
 			FParse::Value(FCommandLine::Get(), TEXT("TorqueRoadside="), RoadsideAsked);
 			TorqueWorld::SetRoadsideOn(RoadsideAsked != 0);
+			int32 BridgesAsked = 1;   // [everyday kits stage 7] (the bridge set: -TorqueBridges=0, the plain decks as they were)
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueBridges="), BridgesAsked);
+			TorqueWorld::SetBridgeKitOn(BridgesAsked != 0);
+			UE_LOG(LogTemp, Display, TEXT("Torque world: bridge set %s"), BridgesAsked != 0 ? TEXT("on") : TEXT("off (-TorqueBridges=0)"));
 			UE_LOG(LogTemp, Display, TEXT("Torque world: lay-bys and roadside cafes %s"), RoadsideAsked != 0 ? TEXT("on") : TEXT("off (-TorqueRoadside=0)"));
 		}
 		// [OSM stage 6A] The signs' alphabet: the words on road signs are set from it as triangles.
