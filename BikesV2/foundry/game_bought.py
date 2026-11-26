@@ -91,7 +91,9 @@ BIKES = {
             # 798 cc triple, 78 x 55.7 mm, 115 hp at 10,750, 84 N m at 8,500 (made-up close to the real figures); T-plane 240 degree crank
             "engine": {"layout": "triple", "cylinders": 3, "displacement": 798.0, "bore": 78.0, "stroke": 55.7, "torque_per_cc": 0.105,
                        "peak_torque_rpm": 8500.0, "redline": 11500.0, "idle_rpm": 1200.0, "mass": 55.0, "crank": "240",
-                       "type": "800 triple", "price": 4600},
+                       "type": "800 triple", "price": 4600,
+                       # [Bike V3 Sounds] the made triple's tone matched by ear to a real Trident 800 (measured, no audio used)
+                       "tone_high": 3.0, "tone_mid": -3.0},
             "gearbox": {"primary": 1.85, "ratios": [2.6, 1.9, 1.55, 1.32, 1.16, 1.04], "shift_time": 0.05, "shift_feel": "slick",
                         "quickshifter": True, "dry_clutch": False, "type": "Six-speed with Shift Assist", "price": 900},
         },

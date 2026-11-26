@@ -754,7 +754,14 @@ std::string Signature(const FSpec& S)
 		S.DryClutch ? "true" : "false", RoundI(S.Rust * 4.0), RoundI(S.Misfire * 10.0), S.Kick ? "true" : "false", S.Shift.c_str(),
 		S.Quickshifter ? "true" : "false", S.Valves <= 1 ? "|1v" : "");
 	// (only a bike with its own recording says so: every other bike's signature, and so its made sound, stays as it was)
-	return S.Own.empty() ? std::string(Buf) : std::string(Buf) + "|own:" + S.Own;
+	std::string Out = S.Own.empty() ? std::string(Buf) : std::string(Buf) + "|own:" + S.Own;
+	if (S.ToneHigh != 0.0 || S.ToneMid != 0.0)
+	{
+		char Tone[64];
+		std::snprintf(Tone, sizeof(Tone), "|tone:%d:%d", RoundI(S.ToneHigh * 2.0), RoundI(S.ToneMid * 2.0));
+		Out += Tone;
+	}
+	return Out;
 }
 
 bool IsTwoStroke(const FSpec& S) { return S.Layout == "2stroke"; }
@@ -805,6 +812,34 @@ std::vector<double> BucketRpms(const FSpec& S)
 	return Out;
 }
 
+// [Bike V3 Sounds] A bike's tone (FSpec ToneHigh, ToneMid) over a seamless loop: two biquads (a high shelf at
+// 2 kHz, a bell at 800 Hz), run round the loop twice so the second lap, the one kept, starts settled and
+// still meets its own start.
+static void ApplyTone(std::vector<float>& L, double HighDb, double MidDb)
+{
+	if (L.empty()) return;
+	struct FBq { double B0, B1, B2, A1, A2, X1 = 0, X2 = 0, Y1 = 0, Y2 = 0; double Run(double X) {
+		const double Y = B0 * X + B1 * X1 + B2 * X2 - A1 * Y1 - A2 * Y2; X2 = X1; X1 = X; Y2 = Y1; Y1 = Y; return Y; } };
+	auto Shelf = [](double F, double Db) {
+		const double A = std::pow(10.0, Db / 40.0), W = 2.0 * Pi * F / Rate, Cw = std::cos(W), Al = std::sin(W) / 2.0 * std::sqrt(2.0);
+		const double Sq = 2.0 * std::sqrt(A) * Al, A0 = (A + 1) - (A - 1) * Cw + Sq;
+		return FBq{A * ((A + 1) + (A - 1) * Cw + Sq) / A0, -2 * A * ((A - 1) + (A + 1) * Cw) / A0, A * ((A + 1) + (A - 1) * Cw - Sq) / A0,
+			2 * ((A - 1) - (A + 1) * Cw) / A0, ((A + 1) - (A - 1) * Cw - Sq) / A0};
+	};
+	auto Bell = [](double F, double Db, double Q) {
+		const double A = std::pow(10.0, Db / 40.0), W = 2.0 * Pi * F / Rate, Al = std::sin(W) / (2.0 * Q), Cw = std::cos(W);
+		const double A0 = 1 + Al / A;
+		return FBq{(1 + Al * A) / A0, -2 * Cw / A0, (1 - Al * A) / A0, -2 * Cw / A0, (1 - Al / A) / A0};
+	};
+	FBq Hi = Shelf(2000.0, HighDb), Mid = Bell(800.0, MidDb, 0.8);
+	for (int Lap = 0; Lap < 2; ++Lap)
+		for (float& V : L)
+		{
+			const double Y = Mid.Run(Hi.Run(V));
+			if (Lap == 1) V = (float)Y;
+		}
+}
+
 std::vector<float> RenderLoop(const FSpec& S, int Layer, double Rpm, int Seed)
 {
 	const FLoopInfo Info = LoopInfo(S, Rpm);
@@ -813,8 +848,10 @@ std::vector<float> RenderLoop(const FSpec& S, int Layer, double Rpm, int Seed)
 	FRng Rng(Hash(Signature(S)) + Seed * 7919u + (bOn ? 0u : 31u) + (bEx ? 0u : 101u));
 	const std::vector<FFiring> Events = CycleEvents(S, Info, bOn, Rng);
 	const int Warm = IsTwoStroke(S) ? WarmupTwoStroke : Warmup;
-	if (bEx) return ExhaustSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng);
-	return IntakeSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng);
+	std::vector<float> Out = bEx ? ExhaustSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng)
+		: IntakeSide(S, Info.Rpm, bOn ? 1.0 : 0.0, Events, Info.N, Warm, Rng);
+	if (S.ToneHigh != 0.0 || S.ToneMid != 0.0) ApplyTone(Out, S.ToneHigh, S.ToneMid);
+	return Out;
 }
 
 std::vector<float> RenderPop(const FSpec& S, double Strength, int Seed)

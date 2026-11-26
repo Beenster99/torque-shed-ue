@@ -69209,6 +69209,8 @@
     "twin_shock": false,
     "bought": true
    },
+   "tone_high": 3.0,
+   "tone_mid": -3.0,
    "crank": "240"
   },
   "v2_ducati_monster__engine": {
