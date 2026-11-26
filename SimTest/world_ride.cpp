@@ -14,6 +14,7 @@
 #include "WorldRideChurches.h"
 #include "WorldRideWarehouses.h"
 #include "WorldRideFarms.h"
+#include "WorldRideVillage.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
@@ -185,6 +186,10 @@ int main(int Argc, char** Argv)
 		const char* FmOff = std::getenv("WORLD_RIDE_FARMS");
 		if ((!FmOff || std::string(FmOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/farm_kit.json"), FmText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/farm_kit.bin"), FmBin)) SetFarmKit(FmText, FmBin);
+		std::string VkText, VkBin;   // [everyday kits stage 6] (WORLD_RIDE_VILLAGE=0: the drawn schools, and no village set props, to compare)
+		const char* VkOff = std::getenv("WORLD_RIDE_VILLAGE");
+		if ((!VkOff || std::string(VkOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.json"), VkText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.bin"), VkBin)) SetVillageKit(VkText, VkBin);
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
@@ -380,6 +385,9 @@ int main(int Argc, char** Argv)
 			if (K >= RidePlan::FirstFacade && K <= RidePlan::PropWallEnd) continue;
 			if (Files::Exists(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), std::string("Data/RideUK/Props/SM_Prop_") + RidePlan::PropName(K) + "_0.glb"))) Plan->PropModelled[K] = true;
 		}
+		// ([everyday kits stage 6] WORLD_RIDE_VILLAGE=0: without the village set, to compare)
+		if (std::getenv("WORLD_RIDE_VILLAGE") != nullptr && std::string(std::getenv("WORLD_RIDE_VILLAGE")) == "0")
+			for (int K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign; ++K) Plan->PropModelled[K] = false;
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -3873,7 +3881,7 @@ int main(int Argc, char** Argv)
 						std::vector<RideProp> Yard;
 						Plan->PropsTile(Tx, Tz, 64.0, Yard);
 						for (const RideProp& P : Yard)
-							if (P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropFarmMuck)
+							if (P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign)
 							{
 								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
 									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));

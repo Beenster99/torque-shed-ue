@@ -165,11 +165,22 @@ def letters(spec, keys):
     return sorted(out | {"."})
 
 
-def main():
+FARM_ABOUT = ("Ride UK's farmyards (the everyday kits plan, stage 4): twelve original designs of UK farm buildings, cut "
+              "into pieces by Tools/blender_farm_kit_export.py (which writes this file and farm_kit.bin) in the warehouse "
+              "kit's format. World/WorldRideFarms.cpp gives a farm building the map draws (barn, farm_auxiliary, cowshed, "
+              "stable, sty, or a big shed in a farmyard) the design that suits its class and size and lays it with the "
+              "warehouse kit's BuildWarehouse. Classes: farm_shed, farm_store, farm_livestock, farm_small (modern), "
+              "barn_stone, barn_brick, barn_boarded, farm_old (old). 'regions' is a note; the game picks old barns' "
+              "walls by the place's own look.")
+
+
+def main(designs=None, out="farm_kit", about=FARM_ABOUT):
+    """Cuts designs (the farm kit's, or another kit's built with the same bays: Tools/blender_village_kit.py) into
+    Data/RideUK/<out>.bin and .json."""
     blob = bytearray()
     count = 0
     rows = []
-    for name, label, spec, suits in F.DESIGNS:
+    for name, label, spec, suits in (designs if designs is not None else F.DESIGNS):
         pieces = {}
 
         def put(key, U, wall=None):
@@ -201,18 +212,11 @@ def main():
         rows.append(row)
         print("%-18s %2d pieces, a bay of wall %s triangles" % (name, len(pieces), pieces.get("long:.")))
     head = b"TSWK" + struct.pack("<II", 1, count)
-    with open(os.path.join(DATA, "farm_kit.bin"), "wb") as f:
+    with open(os.path.join(DATA, out + ".bin"), "wb") as f:
         f.write(head + bytes(blob))
-    about = ("Ride UK's farmyards (the everyday kits plan, stage 4): twelve original designs of UK farm buildings, cut "
-             "into pieces by Tools/blender_farm_kit_export.py (which writes this file and farm_kit.bin) in the warehouse "
-             "kit's format. World/WorldRideFarms.cpp gives a farm building the map draws (barn, farm_auxiliary, cowshed, "
-             "stable, sty, or a big shed in a farmyard) the design that suits its class and size and lays it with the "
-             "warehouse kit's BuildWarehouse. Classes: farm_shed, farm_store, farm_livestock, farm_small (modern), "
-             "barn_stone, barn_brick, barn_boarded, farm_old (old). 'regions' is a note; the game picks old barns' "
-             "walls by the place's own look.")
-    with open(os.path.join(DATA, "farm_kit.json"), "w") as f:
+    with open(os.path.join(DATA, out + ".json"), "w") as f:
         json.dump({"_about": about, "stretch": [0.55, 1.8], "designs": rows}, f, indent=1)
-    print("farm kit: %d pieces, %d KB" % (count, (len(blob) + len(head)) // 1024))
+    print("%s: %d pieces, %d KB" % (out, count, (len(blob) + len(head)) // 1024))
 
 
 if __name__ == "__main__":

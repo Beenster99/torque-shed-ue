@@ -784,6 +784,18 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
+	{
+		// [everyday kits stages 4 and 6] The kits' off switches, for the hub's frame rate A/B: -TorqueFarms=0 (the farm
+		// kit's buildings, WorldSubsystem, and the farmyards' things here) and -TorqueVillage=0 (the village set).
+		using TorqueWorld::RidePlan;
+		int32 FarmsAsked = 1, VillageAsked = 1;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueVillage="), VillageAsked);
+		for (int32 K = RidePlan::PropFarmBales; K <= RidePlan::PropFarmMuck && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;
+		for (int32 K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign && VillageAsked == 0; ++K) Plan->PropModelled[K] = false;
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farmyard things %s; village set %s"), FarmsAsked == 0 ? TEXT("off (-TorqueFarms=0)") : TEXT("on"),
+			VillageAsked == 0 ? TEXT("off (-TorqueVillage=0)") : Plan->PropModelled[RidePlan::PropPlaySwings] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
+	}
 	// [level crossings] The crossings' kit (Tools/props/make_level_crossing.py, imported with the props): with it the
 	// real crossings stand up near the rider (ATorqueLevelCrossing) in place of the code-made barrier.
 	Plan->CrossingKit = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Shed/Props/lx_unit/SM_lx_unit.SM_lx_unit")) != nullptr;

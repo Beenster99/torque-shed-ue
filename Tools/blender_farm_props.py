@@ -411,6 +411,11 @@ def main():
             print("%-28s %5d triangles, %.2f..%.2f m up, %.1f x %.1f m" % (M.name, nt, y0, y1, x1 - x0, z1 - z0))
         if lod == 0 and "--render" in args:
             render(models, args[args.index("--render") + 1])
+    write_kinds(out)
+
+
+def write_kinds(out):
+    """Each kind's row in prop_kit.json from its models' sizes: out {model name: (triangles, foot, top)}."""
     # (each kind's height: its models' tallest; they must agree, or they'd be scaled to fit)
     kinds = {}
     for name, (nt, y0, y1) in out.items():

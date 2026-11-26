@@ -15,6 +15,7 @@
 #include "WorldRideChurches.h"
 #include "WorldRideWarehouses.h"
 #include "WorldRideFarms.h"
+#include "WorldRideVillage.h"
 #include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRideSigns.h"
@@ -260,6 +261,22 @@ int main()
 		std::printf("      farm kit: %s, %zu designs; a 14 x 7 m stone barn %s: %zu / %zu / %zu triangles, %.1f m at most past its outline\n", FmRead ? "read" : "unreadable",
 			Fk ? Fk->Designs.size() : size_t(0), Stone >= 0 ? Fk->Designs[size_t(Stone)].Name.c_str() : "-", Tris[0], Tris[1], Tris[2], Worst);
 		Check(Ok, "farm kit: twelve designs read; farm buildings sorted into its classes, farmhouses and glasshouses left alone; a stone barn laid in its meshes inside its outline, fewer triangles further off");
+	}
+	// [everyday kits stage 6] The village kit: read; schools sorted into its classes (a house and a tall school left
+	// alone; a small one old, stone in stone country, brick elsewhere; a big one new); each class has a design.
+	{
+		std::string VkText, VkBin;
+		const bool VkRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/village_kit.json"), VkText) && Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/village_kit.bin"), VkBin)
+			&& SetVillageKit(VkText, VkBin);
+		const std::shared_ptr<const WarehouseKit> Vk = VillageKitNow();
+		bool Ok = VkRead && Vk && Vk->Designs.size() == 5;
+		Ok = Ok && std::string(VillageClassOf("house", 20.0, 9.0, 1.0, true, 0.5)).empty() && std::string(VillageClassOf("school", 60.0, 20.0, 4.0, false, 0.5)).empty()
+			&& std::string(VillageClassOf("school", 20.0, 8.0, 1.0, true, 0.5)) == "school_old_stone" && std::string(VillageClassOf("school", 20.0, 8.0, 1.0, false, 0.5)) == "school_old_brick"
+			&& std::string(VillageClassOf("school", 50.0, 16.0, 1.0, false, 0.5)) == "school_new";
+		for (const char* C : {"school_old_stone", "school_old_brick", "school_new", "school_small"})
+			Ok = Ok && Vk->Pick(C, 20.0, 9.0, 0.4) >= 0;
+		std::printf("      village kit: %d designs\n", Vk ? int(Vk->Designs.size()) : 0);
+		Check(Ok, "village kit: five school designs read; schools sorted into its classes, houses and tall schools left alone");
 	}
 	// [LiDAR stage 2] A cell's LiDAR file: rows kept for their release only, a row found by its tile, index and
 	// first latitude (one that has moved, or a nonsense height, left out); the repo's York file read whole.
