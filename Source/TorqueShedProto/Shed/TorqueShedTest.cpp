@@ -1690,7 +1690,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// The parts computer's New bike aisle: "newbike[:STYLE[:SLOT=PART]...][:order]" configures a
 		// style's bike (cafe to start), puts those parts on, colours it and orders it built
-		// (logo=ID, brand=NAME and font=ID put a badge on its tank).
+		// (logo=ID, brand=NAME and font=ID put a badge on its tank; paint=own leaves it uncoloured, in its own colours).
 		const FString Style = P.Num() >= 2 && !P[1].Contains(TEXT("=")) && P[1] != TEXT("order") ? P[1] : FString();
 		TArray<FString> Swaps;
 		bool bOrder = false;
@@ -2291,11 +2291,13 @@ bool UTorqueShedTest::RunCoopStep(const TArray<FString>& P, const FString& S)
 	if (What == TEXT("check"))
 	{
 		// A joined copy starts in an empty world while it connects: wait to be in, with a pawn.
+		// (round 173: a check straight after joining found the spectator, not yet our walker: asked
+		// again each second until nothing stops us, and only failed after 90 s of it)
 		const bool bIn = World && World->GetNetMode() != NM_Standalone && PC && PC->GetPawn() && GS;
-		if (!bIn && ++CoopWaited <= 90) return false;
-		if (!TPC) { Fail(TEXT("no player controller")); return Done(); }
 		FString Problem;
-		const FString State = TPC->JoinState(&Problem);
+		const FString State = TPC ? TPC->JoinState(&Problem) : FString(TEXT("no player controller"));
+		if ((!bIn || !TPC || !Problem.IsEmpty()) && ++CoopWaited <= 90) return false;
+		if (!TPC) { Fail(TEXT("no player controller")); return Done(); }
 		if (!bIn) Problem = Problem.IsEmpty() ? FString(TEXT("never in a co-op game with a pawn after 90 s")) : Problem;
 		if (Problem.IsEmpty()) Pass(State);
 		else Fail(State + TEXT("; ") + Problem);
@@ -2427,6 +2429,15 @@ bool UTorqueShedTest::RunCoopStep(const TArray<FString>& P, const FString& S)
 		}
 		return false;
 	}
-	UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: unknown co-op step (players, check, walk, seen, ride, onride)"), *S);
+	if (What == TEXT("stay"))
+	{
+		// [co-op join] (the host) carry on hosting while anyone else is still in, up to s seconds (900):
+		// round 173's host quit while the guest was still loading Ride UK and checking itself there.
+		const int32 Limit = P.Num() > 2 ? FCString::Atoi(*P[2]) : 900;
+		if (Players <= 1) { Pass(FString::Printf(TEXT("the others have left, after %d s"), CoopWaited)); return Done(); }
+		if (++CoopWaited > Limit) { Fail(FString::Printf(TEXT("%d players still in after %d s"), Players, Limit)); return Done(); }
+		return false;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: unknown co-op step (players, check, walk, seen, ride, onride, stay)"), *S);
 	return true;
 }

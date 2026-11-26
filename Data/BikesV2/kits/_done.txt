@@ -994,19 +994,25 @@ lodestar_chopper__b_wheels_wire_enduro32_matt_black
 lodestar_chopper__b_wheels_wire_cross40_gloss_black
 lodestar_chopper__b_wheels_wire_spine32_gunmetal
 lodestar_chopper__b_wheels_wire_rally36_chrome
-corvano_adventure tank_seat 2
 corvano_adventure tail 1
-corvano_adventure tank_seat 1
 corvano_adventure tail 2
+hartwell_adventure tail 1
+hartwell_adventure tail 2
+kazeda_adventure tail 1
+kazeda_adventure tail 2
+rheinhart_adventure tail 1
+rheinhart_adventure tail 2
+varga_adventure tail 1
+varga_adventure tail 2
 corvano_adventure front 1
+corvano_adventure tank_seat 1
+corvano_adventure tank_seat 2
 corvano_adventure front 2
 corvano_adventure extras 1
 corvano_adventure extras 2
-corvano_adventure extras 3
 hartwell_adventure tank_seat 1
 hartwell_adventure tank_seat 2
-hartwell_adventure tail 1
-hartwell_adventure tail 2
+corvano_adventure extras 3
 hartwell_adventure front 1
 hartwell_adventure front 2
 hartwell_adventure extras 1
@@ -1014,17 +1020,13 @@ hartwell_adventure extras 2
 hartwell_adventure extras 3
 kazeda_adventure tank_seat 1
 kazeda_adventure tank_seat 2
-kazeda_adventure tail 1
-kazeda_adventure tail 2
 kazeda_adventure front 1
 kazeda_adventure front 2
 kazeda_adventure extras 1
 kazeda_adventure extras 2
 kazeda_adventure extras 3
 rheinhart_adventure tank_seat 1
-rheinhart_adventure tail 1
 rheinhart_adventure tank_seat 2
-rheinhart_adventure tail 2
 rheinhart_adventure front 1
 rheinhart_adventure front 2
 rheinhart_adventure extras 1
@@ -1032,8 +1034,6 @@ rheinhart_adventure extras 2
 rheinhart_adventure extras 3
 varga_adventure tank_seat 1
 varga_adventure tank_seat 2
-varga_adventure tail 1
-varga_adventure tail 2
 varga_adventure front 1
 varga_adventure front 2
 varga_adventure extras 1

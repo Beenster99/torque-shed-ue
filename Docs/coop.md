@@ -172,7 +172,7 @@ than the network.
     walker it can move (`coop:check`), walk 3 m (`coop:walk`) with the host seeing it (`coop:seen`), and
     follow the host onto a Ride UK journey on its own bike (`coop:ride` on the host, `coop:onride` on the
     guest). It prints every `COOP TEST PASS` / `COOP TEST FAILED` line and ends `COOP JOIN TEST: PASS` only
-    if all seven passed. Run it on the round's staged build, not the play folder (the host saves its shed).
+    if all eight passed (the host stays until the guest has quit: `coop:stay`). Run it on the round's staged build, not the play folder (the host saves its shed).
 
 ### Same build only, and what a joined game logs
 
