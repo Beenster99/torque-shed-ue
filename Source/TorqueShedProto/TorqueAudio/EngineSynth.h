@@ -126,11 +126,12 @@ public:
 	// are no engine-side ones.
 	bool bRecorded = false, bExhaustOnly = false;
 	int LoopRate = Rate;
-	// [Bike V3 Sounds] The bike's own recording (Spec.Own): its buckets are ready from the start, the made
-	// ones above OwnTop bake as usual, their engine side folded into the exhaust and matched to the
-	// recording's level (OwnGain) so the hand-over doesn't jump.
+	// [Bike V3 Sounds] The bike's own recording (Spec.Own): its buckets (OwnLo..OwnTop rpm) are ready from
+	// the start, scaled to the made sound's level at its top; the made ones below and above it bake as usual,
+	// their engine side folded into the exhaust, the ones below matched to the recording's bottom (OwnGainLo,
+	// off the throttle; OwnGain above stays 1) so the hand-overs don't jump.
 	bool bOwn = false;
-	double OwnTop = 0.0, OwnGain = 1.0;
+	double OwnLo = 0.0, OwnTop = 0.0, OwnGainLo = 1.0, OwnGain = 1.0;
 	// A real bike of this kind ticking over, or empty: at its own rate, recorded at IdleRecRpm, its
 	// RMS; and the made idle's, exhaust and engine side, off the throttle (once that bucket's baked).
 	std::vector<float> IdleRec;

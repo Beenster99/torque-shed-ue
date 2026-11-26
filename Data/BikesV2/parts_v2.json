@@ -69170,6 +69170,7 @@
     "twin_shock": true,
     "bought": true
    },
+   "sound": "scout",
    "crank": "60v"
   },
   "v2_triumph_trident__engine": {
