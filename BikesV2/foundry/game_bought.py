@@ -175,6 +175,15 @@ BIKES.update({
         _eng("triple", 3, 890.0, 78.0, 62.1, 0.1045, 7000.0, 11000.0, 1250.0, 58.0, "240", "CP3 890 triple", 4900),
         _box(2.07, [2.67, 1.95, 1.6, 1.36, 1.17, 1.04], True, "Six-speed with quickshifter", 900), cda=0.52),
 })
+# (the adventure style's own fork is an enduro one: soft and long. The big road-going adventure and touring bikes have
+# firmer road forks: beenster on the CB1000 GT in 174, "too much fork dive on braking". The KLE and KLR keep the enduro one.)
+ROAD_FORK = {"spring": 30000.0, "bump": 2400.0, "rebound": 3400.0, "travel": 0.13, "style": "usd"}
+TALL_FORK = {"spring": 25000.0, "bump": 2100.0, "rebound": 3100.0, "travel": 0.17, "style": "usd"}
+for _m, _f in (("honda_cb1000gt", ROAD_FORK), ("yamaha_tracer9", ROAD_FORK), ("ktm_1390sa", TALL_FORK), ("ducati_multistrada", TALL_FORK)):
+    if _m in BIKES:
+        BIKES[_m]["own"].setdefault("fork", dict(_f))
+
+
 NOUN = {"tank": "fuel tank", "saddle": "seat", "tail": "tail unit", "side_panels": "side panels", "front_mudguard": "front mudguard",
         "fairing": "fairing", "headlight": "headlight", "indicators": "indicators", "mirrors": "mirrors", "handlebars": "handlebars",
         "fork": "front fork", "front_wheel": "front wheel", "rear_wheel": "rear wheel", "shock": "rear shock", "swingarm": "swingarm",
@@ -214,7 +223,9 @@ def main():
                      styles=[style], type=b["name"])
         build = {}
         drawn = {v["slot"] for v in info["surfaces"].values()}
-        for slot in [x for x in ORDER if x in drawn or x in ("engine", "gearbox")]:
+        # (its rear shock and swingarm always come with it, drawn as their own pieces or not: beenster in 174, "fit the rear
+        # suspension automatically when buying from the shop", and on the KLR 650 "footpegs and rearsets" too)
+        for slot in [x for x in ORDER if x in drawn or x in ("engine", "gearbox", "shock", "swingarm", "rearsets")]:
             kind = KIND.get(slot, slot)
             base = dict(parts.get(kind, {}).get(ref.get(slot) or "") or {})
             if not base:

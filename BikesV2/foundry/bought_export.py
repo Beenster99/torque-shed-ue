@@ -300,6 +300,23 @@ def main():
     seat_top = max((v for v in seat if abs(v.y) < 0.04 and abs(v.x - hip_v.x) < 0.04), key=lambda v: v.z, default=hip_v)
     cap = avg(src("cap"))
     body = gv([p for p, s, g, *_ in placed if g == "" and s not in ("exhaust",)])
+    # the rider's knees against the bike's own sides (beenster in 174: "knees are out on the rider avatar"): how wide it
+    # is along the thighs, and the knee just outside that
+    beside = gv([p for p, s, g, *_ in placed if g == "" and s not in ("exhaust", "handlebars", "mirrors", "rearsets", "dashboard",
+                                                                       "headlight", "indicators", "side_stand")])
+
+    def half_w(x0, x1, z0, z1, floor=0.06):
+        ys = sorted(abs(v.y) for v in beside if x0 < v.x < x1 and z0 < v.z < z1)
+        return ys[int(len(ys) * 0.9)] if ys else floor     # (most of it: not a bolt head or a lever standing out)
+    kz = seat_top.z
+    # (the thigh's last stretch before the knee, as the rider sits: not the shrouds further forward that the shins pass)
+    # (at most 16 cm out, a little inside our own bikes' 17: beenster on the KLE, KLR, Tracer and CB1000 GT in 174, "knees
+    # too wide"; the fairings' and shrouds' flanks measure wider than where a rider's knees really grip)
+    knee_y = min(max(half_w(hip_v.x + 0.22, hip_v.x + 0.36, kz - 0.12, kz + 0.06) + 0.05, 0.11), 0.16)
+    # (the game keeps a knee 5 cm, its half-thickness, outside these: never wider than the knee point itself)
+    tank_w = [[round((hip_v.x + 0.05 * i) * 1000, 1),
+               round(min(half_w(hip_v.x + 0.05 * i - 0.03, hip_v.x + 0.05 * i + 0.03, kz - 0.15, kz + 0.12), knee_y - 0.05) * 1000, 1),
+               round(kz * 1000, 1)] for i in range(1, 9)]
     clearance = min(v.z for v in body)
 
     # the dash's screen: the biggest flat face it has looking back (and not down) at the rider, all its coplanar polygons
@@ -353,6 +370,7 @@ def main():
                        "front_radius": round(tyre["front"][0] * 1000), "rear_radius": round(tyre["rear"][0] * 1000),
                        "shaft": False}, **st),
         "peg": mm(peg), "grip": mm(grip),
+        "knee": [round((hip_v.x + 0.36) * 1000, 1), round(knee_y * 1000, 1), round(kz * 1000, 1)], "tank_half_w": tank_w,
         "tank_cap": mm(cap),
         "gauges": [{"what": "screen", "at": mm(sc), "axis": [round(n_g.x, 5), 0.0, round(n_g.z, 5)], "up": [round(up.x, 5), 0.0, round(up.z, 5)],
                     "w": round(span_w * 1000 * cfg.get("screen_fill", (0.86, 0.82))[0], 1),
@@ -379,6 +397,10 @@ def main():
             if role == "head":
                 lens = "mirror_head"
             side = ("L" if p.c.x > 0 else "R") if lens in SIDE_TAGS else ""
+            if lens == "lens_amber":
+                # front and back apart too: the game puts each indicator's glow beside its own lens's box, and a box round
+                # a front and a back lens has its middle at the rider's leg (beenster on the Tracer 9 in 174)
+                side += "F" if p.c.y < (F.y + R.y) / 2 else "B"
             key = (slot, node, f["surface"], lens, side)
             if key not in tagged:
                 c = bpy.data.materials.new(f"s{len(tagged):03d}")

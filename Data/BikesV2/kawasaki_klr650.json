@@ -83,6 +83,53 @@
    388.2,
    1181.9
   ],
+  "knee": [
+   859.5,
+   160.0,
+   898.1
+  ],
+  "tank_half_w": [
+   [
+    549.5,
+    110.0,
+    898.1
+   ],
+   [
+    599.5,
+    110.0,
+    898.1
+   ],
+   [
+    649.5,
+    102.0,
+    898.1
+   ],
+   [
+    699.5,
+    81.2,
+    898.1
+   ],
+   [
+    749.5,
+    110.0,
+    898.1
+   ],
+   [
+    799.5,
+    110.0,
+    898.1
+   ],
+   [
+    849.5,
+    110.0,
+    898.1
+   ],
+   [
+    899.5,
+    110.0,
+    898.1
+   ]
+  ],
   "tank_cap": [
    952.8,
    0.0,
@@ -92,30 +139,30 @@
    {
     "what": "screen",
     "at": [
-     974.5,
+     1210.0,
      0.0,
-     1206.0
+     1196.3
     ],
     "axis": [
-     -0.55238,
+     -0.87467,
      0.0,
-     0.83359
+     0.48472
     ],
     "up": [
-     0.83359,
+     0.48472,
      0.0,
-     0.55238
+     0.87467
     ],
-    "w": 94.6,
-    "h": 57.4,
+    "w": 154.1,
+    "h": 63.5,
     "node": ""
    }
   ],
   "stand": {
    "pivot": [
-    660.9,
-    296.4,
-    330.0
+    724.0,
+    212.0,
+    323.4
    ],
    "axis": [
     0.0926,
@@ -136,6 +183,7 @@
   }
  },
  "pieces": [
+  "dashboard|",
   "engine|",
   "exhaust|",
   "fairing|",
@@ -148,6 +196,7 @@
   "headlight|",
   "headlight|steer",
   "indicators|",
+  "mirrors|steer",
   "rear_wheel|rear_wheel",
   "saddle|",
   "side_panels|",
@@ -172,15 +221,15 @@
    "ue": "chrome"
   },
   "s002": {
-   "slot": "rear_wheel",
-   "node": "rear_wheel",
+   "slot": "frame",
+   "node": "",
    "surface": "chrome_shiny",
    "tag": "chrome",
    "ue": "chrome"
   },
   "s003": {
-   "slot": "frame",
-   "node": "",
+   "slot": "rear_wheel",
+   "node": "rear_wheel",
    "surface": "chrome_shiny",
    "tag": "chrome",
    "ue": "chrome"
@@ -475,6 +524,21 @@
    "roughness": 0.52
   },
   "s027": {
+   "slot": "mirrors",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "mirror_head",
+   "ue": "cat_plastic",
+   "sub": "mirrors",
+   "color": [
+    0.0275,
+    0.0275,
+    0.0275
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s028": {
    "slot": "fairing",
    "node": "steer",
    "surface": "plastic",
@@ -488,7 +552,22 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s028": {
+  "s029": {
+   "slot": "mirrors",
+   "node": "steer",
+   "surface": "plastic",
+   "tag": "mirror_head",
+   "ue": "cat_plastic",
+   "sub": "mirrors",
+   "color": [
+    0.0275,
+    0.0275,
+    0.0275
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s030": {
    "slot": "fork",
    "node": "front_hub",
    "surface": "plastic",
@@ -502,7 +581,22 @@
    "metallic": 0.0,
    "roughness": 0.52
   },
-  "s029": {
+  "s031": {
+   "slot": "dashboard",
+   "node": "",
+   "surface": "plastic",
+   "tag": "plastic",
+   "ue": "cat_plastic",
+   "sub": "clocks",
+   "color": [
+    0.0275,
+    0.0275,
+    0.0275
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "s032": {
    "slot": "tail",
    "node": "",
    "surface": "gloss_black",
@@ -516,7 +610,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s030": {
+  "s033": {
    "slot": "fairing",
    "node": "",
    "surface": "gloss_black",
@@ -530,7 +624,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s031": {
+  "s034": {
    "slot": "rear_wheel",
    "node": "rear_wheel",
    "surface": "gloss_black",
@@ -544,7 +638,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s032": {
+  "s035": {
    "slot": "swingarm",
    "node": "swingarm",
    "surface": "gloss_black",
@@ -558,7 +652,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s033": {
+  "s036": {
    "slot": "front_wheel",
    "node": "front_wheel",
    "surface": "gloss_black",
@@ -572,7 +666,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s034": {
+  "s037": {
    "slot": "fairing",
    "node": "steer",
    "surface": "gloss_black",
@@ -586,7 +680,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s035": {
+  "s038": {
    "slot": "side_panels",
    "node": "",
    "surface": "gloss_black",
@@ -600,7 +694,7 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s036": {
+  "s039": {
    "slot": "frame",
    "node": "",
    "surface": "gloss_black",
@@ -614,14 +708,14 @@
    "metallic": 0.3,
    "roughness": 0.25
   },
-  "s037": {
+  "s040": {
    "slot": "headlight",
    "node": "",
    "surface": "d3_lampdip",
    "tag": "lens_white",
    "ue": "lens_clear"
   },
-  "s038": {
+  "s041": {
    "slot": "frame",
    "node": "",
    "surface": "d3_clearglass",
@@ -635,21 +729,35 @@
    "metallic": 0.0,
    "roughness": 0.02
   },
-  "s039": {
+  "s042": {
    "slot": "indicators",
    "node": "",
    "surface": "d3_amberled",
    "tag": "lens_amber",
    "ue": "lens_amber"
   },
-  "s040": {
+  "s043": {
    "slot": "indicators",
    "node": "",
    "surface": "d3_amberled",
    "tag": "lens_amber",
    "ue": "lens_amber"
   },
-  "s041": {
+  "s044": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber"
+  },
+  "s045": {
+   "slot": "indicators",
+   "node": "",
+   "surface": "d3_amberled",
+   "tag": "lens_amber",
+   "ue": "lens_amber"
+  },
+  "s046": {
    "slot": "handlebars",
    "node": "steer",
    "surface": "alu",
@@ -663,7 +771,7 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s042": {
+  "s047": {
    "slot": "frame",
    "node": "",
    "surface": "alu",
@@ -677,14 +785,14 @@
    "metallic": 1.0,
    "roughness": 0.38
   },
-  "s043": {
+  "s048": {
    "slot": "tail",
    "node": "",
    "surface": "d3_tailred",
    "tag": "lens_red",
    "ue": "lens_red"
   },
-  "s044": {
+  "s049": {
    "slot": "handlebars",
    "node": "steer",
    "surface": "plastic_red",
@@ -698,7 +806,7 @@
    "metallic": 0.0,
    "roughness": 0.45
   },
-  "s045": {
+  "s050": {
    "slot": "frame",
    "node": "",
    "surface": "bronze",
@@ -712,7 +820,37 @@
    "metallic": 1.0,
    "roughness": 0.3
   },
-  "s046": {
+  "s051": {
+   "slot": "mirrors",
+   "node": "steer",
+   "surface": "d3_mirrorglass",
+   "tag": "d3_mirrorglass",
+   "ue": "mirror_glass",
+   "sub": "mirrors"
+  },
+  "s052": {
+   "slot": "mirrors",
+   "node": "steer",
+   "surface": "d3_mirrorglass",
+   "tag": "d3_mirrorglass",
+   "ue": "mirror_glass",
+   "sub": "mirrors"
+  },
+  "s053": {
+   "slot": "exhaust",
+   "node": "",
+   "surface": "pipe_inside",
+   "tag": "exhaust",
+   "ue": "cat_black_metal",
+   "color": [
+    0.006,
+    0.006,
+    0.006
+   ],
+   "metallic": 0.2,
+   "roughness": 0.95
+  },
+  "s054": {
    "slot": "side_stand",
    "node": "",
    "surface": "d3_ss_black",
@@ -727,7 +865,7 @@
    "metallic": 0.8,
    "roughness": 0.42
   },
-  "s047": {
+  "s055": {
    "slot": "side_stand",
    "node": "",
    "surface": "steel",
@@ -742,7 +880,7 @@
    "metallic": 1.0,
    "roughness": 0.22
   },
-  "s048": {
+  "s056": {
    "slot": "side_stand",
    "node": "",
    "surface": "d3_ss_spring",

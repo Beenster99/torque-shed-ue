@@ -586,12 +586,28 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		OutFrame->BackDeg = Lay->LineNumber(L.Style, "5_rider", "back_deg", -100.0);
 		OutFrame->Style = TSCI::Ue(L.Style);
 		OutFrame->TankHalfW.Reset();
-		const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
-		for (const TorqueFit::LoftSection& Sec : Work.TankSecs)
+		// [bought bikes] A bought model's own width along the rider's thighs ("tank_half_w": x, half width, z in mm),
+		// measured from its drawing; any other bike's, its tank's loft.
+		const TorqueFit::V2Frame V2W = TorqueFit::V2Frame::Of(FramePart);
+		const TorqueFit::Json* OwnW = V2W.Valid && V2W.Points ? V2W.Points->Get("tank_half_w") : nullptr;
+		if (OwnW && !OwnW->A.empty())
 		{
-			// The loft's sections are in Godot's frame (z back), metres.
-			const FVector At(TSCI::ToUe(TorqueFit::FromGodot(Sec.C)));
-			OutFrame->TankHalfW.Add(FVector2D(At.X, Sec.W * 100.0));
+			for (const TorqueFit::Json& E : OwnW->A)
+				if (E.A.size() >= 3)
+				{
+					const FVector At(TSCI::ToUe(V2W.Point(E.A[0].N, 0.0, E.A[2].N)));
+					OutFrame->TankHalfW.Add(FVector2D(At.X, E.A[1].N / 10.0));
+				}
+		}
+		else
+		{
+			const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
+			for (const TorqueFit::LoftSection& Sec : Work.TankSecs)
+			{
+				// The loft's sections are in Godot's frame (z back), metres.
+				const FVector At(TSCI::ToUe(TorqueFit::FromGodot(Sec.C)));
+				OutFrame->TankHalfW.Add(FVector2D(At.X, Sec.W * 100.0));
+			}
 		}
 		OutFrame->TankHalfW.Sort([](const FVector2D& A, const FVector2D& B) { return A.X > B.X; });
 	}
@@ -754,6 +770,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 				{
 					GlassMiddle /= GlassArea;
 					GlassFacing.Normalize();
+					// (A glass drawn as a slab, front and back, adds up whichever way its first triangle faced: a mirror
+					// looks back at the rider, never ahead. Beenster on the KTM 1390 in 174: "mirrors dont work properly".)
+					if (GlassFacing.X > 0.0) GlassFacing = -GlassFacing;
 					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorAt:%.3f,%.3f,%.3f"), GlassMiddle.X, GlassMiddle.Y, GlassMiddle.Z)));
 					C->ComponentTags.Add(FName(*FString::Printf(TEXT("MirrorN:%.4f,%.4f,%.4f"), GlassFacing.X, GlassFacing.Y, GlassFacing.Z)));
 				}

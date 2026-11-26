@@ -789,6 +789,59 @@ void RoundMask(Paint& P)
 	P.Arc(240.0f, 240.0f, 238.0f, 360.0f, 0.0f, 360.0f, Rgba(0.0f, 0.0f, 0.0f));
 }
 
+// ---- The upright screen (480 x 760): the round screen's ride view on top, the trip computer (or the next turn)
+// under it; the map fills it; the lists sit in its middle.
+
+void TallScreen(Paint& P, const State& St, const MapScene* Map)
+{
+	const float W = 480.0f, H = 760.0f;
+	switch (St.Now)
+	{
+	case View::Map:
+	case View::Split:
+		if (Map && Map->Data) DrawMap(P, 0.0f, 0.0f, W, H, *Map, 0.7f);
+		else MapPanel(P, St, Map, 0.0f, 0.0f, W, H, false);
+		if (St.Nav && !St.NavOff) TurnBox(P, St, 16.0f, 16.0f, W - 32.0f, 84.0f, true);
+		P.RoundRect(W * 0.5f - 90.0f, H - 74.0f, 180.0f, 56.0f, 10.0f, Rgba(0.04f, 0.05f, 0.06f, 0.92f));
+		P.Text(Whole(St.Speed), W * 0.5f - 14.0f, H - 32.0f, 38.0f, Ink, Align::Right, true);
+		P.Text(GearText(St), W * 0.5f + 44.0f, H - 32.0f, 38.0f, GearColour(St), Align::Centre, true);
+		if (St.Limit > 0) LimitSign(P, St, W - 52.0f, H - 112.0f, 32.0f);
+		return;
+	case View::Modes:
+	case View::Settings:
+		P.Text(Clock(St), W * 0.5f, 64.0f, 30.0f, Dim, Align::Centre, true);
+		P.Rect(24.0f, 96.0f, W - 48.0f, 1.5f, Faint);
+		P.Rect(24.0f, H - 96.0f, W - 48.0f, 1.5f, Faint);
+		P.Origin(0.0f, 140.0f);
+		ListRound(P, St, St.Now == View::Modes);
+		P.Origin(0.0f, 0.0f);
+		if (St.Now == View::Settings && !St.SetHelp.empty()) P.Text(St.SetHelp, W * 0.5f, H - 56.0f, 15.0f, Dim, Align::Centre);
+		return;
+	default:
+		break;
+	}
+	RideRound(P, St);
+	P.Origin(0.0f, 480.0f);
+	P.Rect(24.0f, 6.0f, W - 48.0f, 1.5f, Faint);
+	if (St.Nav && !St.NavOff) TurnBox(P, St, 24.0f, 22.0f, W - 48.0f, 92.0f, false);
+	else
+	{
+		auto Pair = [&](float X, float Y, const std::string& Label, const std::string& Value, const std::string& Unit) {
+			P.Text(Label, X, Y, 16.0f, Dim);
+			P.Text(Value, X, Y + 36.0f, 34.0f, Ink, Align::Left, true);
+			P.Text(Unit, X + 100.0f, Y + 36.0f, 16.0f, Dim);
+		};
+		Pair(24.0f, 34.0f, "Trip", Distance(St, St.TripKm, 1), DistanceUnit(St));
+		Pair(176.0f, 34.0f, "Range", Distance(St, St.RangeKm, 0), DistanceUnit(St));
+		Pair(328.0f, 34.0f, "Economy", Economy(St), EconomyUnit(St));
+	}
+	P.Rect(24.0f, 130.0f, W - 48.0f, 1.5f, Faint);
+	P.Text(Clock(St), 24.0f, 178.0f, 30.0f, Ink, Align::Left, true);
+	P.Text(Whole(St.AirC) + std::string(Deg) + "C", W - 24.0f, 178.0f, 26.0f, Dim, Align::Right, true);
+	if (!St.Notice.empty()) P.Text(St.Notice, W * 0.5f, 258.0f, 16.0f, Amber, Align::Centre, true);
+	P.Origin(0.0f, 0.0f);
+}
+
 // ---- The phone: the map, upright.
 
 void PhoneScreen(Paint& P, const State& St, const MapScene* Map)
@@ -836,6 +889,7 @@ void SizeOf(Shape S, float& W, float& H)
 	case Shape::Ultra: W = 1280.0f; H = 480.0f; break;
 	case Shape::Round: W = 480.0f; H = 480.0f; break;
 	case Shape::Phone: W = 640.0f; H = 400.0f; break;
+	case Shape::Tall: W = 480.0f; H = 760.0f; break;
 	default: W = 800.0f; H = 480.0f; break;
 	}
 }
@@ -881,6 +935,11 @@ void Draw(Paint& P, Shape S, const State& St, const MapScene* Map)
 	if (S == Shape::Phone)
 	{
 		PhoneScreen(P, St, Map);
+		return;
+	}
+	if (S == Shape::Tall)
+	{
+		TallScreen(P, St, Map);
 		return;
 	}
 	if (S == Shape::Round)
