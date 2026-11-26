@@ -198,6 +198,7 @@ int main(int Argc, char** Argv)
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
 		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
 		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "1") RidePlan::WholeJunctions = true;   // [smooth junctions stage 3]
+		if (const char* Mo = std::getenv("WORLD_RIDE_MONTH")) RidePlan::SeasonMonth = std::atoi(Mo);   // [farm machinery] (the ride's month: the fields' machines by season)
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
 		std::string FcText, FcBin;   // [forecourts] (WORLD_RIDE_FORECOURTS=0: the plain drawn forecourts, to compare)
@@ -399,6 +400,9 @@ int main(int Argc, char** Argv)
 		// ([everyday kits stage 10] WORLD_RIDE_COAST=0: without the coast set)
 		if (std::getenv("WORLD_RIDE_COAST") != nullptr && std::string(std::getenv("WORLD_RIDE_COAST")) == "0")
 			for (int K = RidePlan::PropCoastBeachHut; K <= RidePlan::PropCoastLifebuoy; ++K) Plan->PropModelled[K] = false;
+		// ([farm machinery] WORLD_RIDE_MACHINES=0: without the farm machines)
+		if (std::getenv("WORLD_RIDE_MACHINES") != nullptr && std::string(std::getenv("WORLD_RIDE_MACHINES")) == "0")
+			for (int K = RidePlan::PropMachCombine; K <= RidePlan::PropMachCultivator; ++K) Plan->PropModelled[K] = false;
 		std::printf("Coast things from the kits files: %d\n", int(Plan->Area.Roads.KitThings.size()));
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
@@ -3952,7 +3956,7 @@ int main(int Argc, char** Argv)
 						std::vector<RideProp> Yard;
 						Plan->PropsTile(Tx, Tz, 64.0, Yard);
 						for (const RideProp& P : Yard)
-							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropCoastLifebuoy))
+							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropMachCultivator))
 							{
 								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
 									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));

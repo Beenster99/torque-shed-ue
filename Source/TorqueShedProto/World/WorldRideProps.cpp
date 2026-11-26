@@ -45,7 +45,10 @@ const char* RidePlan::PropName(int Kind)
 		"pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin", "village_sign",   // [everyday kits stage 6]
 		"power_pylon", "power_mast", "power_monopole", "power_turbine", "power_rotor", "power_watertower", "power_kiosk",
 		"power_transformer", "power_gantry", "power_palisade",   // [everyday kits stage 9]
-		"coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy"};   // [everyday kits stage 10]
+		"coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",   // [everyday kits stage 10]
+		"farm_combine", "farm_forager", "farm_sprayer", "farm_tractor4wd", "farm_tractortrack", "farm_crawler",
+		"farm_loader", "farm_mower", "farm_buggy", "farm_chaser", "farm_tipper", "farm_baler", "farm_drill",
+		"farm_cultivator"};   // [farm machinery]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -122,6 +125,7 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 	CircuitProps(X0, Z0, Size, Out);   // [circuits]
 	TownLifeProps(X0, Z0, Size, Out);   // [caravans]
 	FarmYardProps(X0, Z0, Size, Out);   // [everyday kits stage 4]
+	FieldGateProps(X0, Z0, Size, Here, Out);   // [farm machinery] (while Held keeps the network's gates)
 	VillageProps(X0, Z0, Size, Out);   // [everyday kits stage 6]
 	CoastProps(X0, Z0, Size, Out);   // [everyday kits stage 10]
 }
