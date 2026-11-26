@@ -125,7 +125,7 @@
   "cafe_building": {"words": [], "reach": 1200, "height": 10.0, "shadow": true, "credit": "", "hand_lods": [0.25, 0.06]},
   "cafe_chair": {"words": [], "reach": 120, "height": 0.863, "shadow": false, "credit": "", "hand_lods": [0.1, 0.03]},
   "cafe_table": {"words": [], "reach": 150, "height": 0.755, "shadow": true, "credit": "", "hand_lods": [0.1, 0.03]},
-  "cafe_picnic": {"words": [], "reach": 180, "height": 0.768, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
+  "cafe_picnic": {"words": [], "reach": 180, "height": 0.781, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
   "cafe_parasol": {"words": [], "reach": 300, "height": 2.48, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
   "cafe_aboard": {"words": [], "reach": 120, "height": 0.984, "shadow": false, "credit": "", "hand_lods": [0.1, 0.03]},
   "parked_car": {"words": [], "reach": 220, "height": 0, "shadow": true, "credit": "", "folder": "Cars", "variants": 12,
