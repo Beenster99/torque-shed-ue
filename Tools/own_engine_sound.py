@@ -64,12 +64,21 @@ def line_track(x, sr, lo, hi):
     f = np.fft.rfftfreq(n, 1.0 / sr)
     band = np.where((f >= lo) & (f <= hi))[0]
     out = []
+    prev = None
     for i in range(0, len(x) - n, hop):
         S = np.abs(np.fft.rfft(x[i:i + n] * win))
         k = band[np.argmax(S[band])]
+        if prev is not None:
+            # keep on the same line (not its octave) while it's within 8 dB of the loudest
+            near = band[(f[band] > prev * 0.9) & (f[band] < prev * 1.1)]
+            if len(near):
+                kn = near[np.argmax(S[near])]
+                if S[kn] > S[k] * 0.4:
+                    k = kn
         a, b, c = np.log(S[k - 1:k + 2] + 1e-9)
         d = 0.5 * (a - c) / (a - 2 * b + c) if (a - 2 * b + c) != 0 else 0.0
         out.append(((i + n / 2) / sr, (k + d) * sr / n, float(b - np.log(np.median(S[band]) + 1e-9))))
+        prev = (k + d) * sr / n
     return np.array(out)
 
 
