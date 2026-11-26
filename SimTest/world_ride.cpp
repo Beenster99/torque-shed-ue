@@ -13,6 +13,7 @@
 #include "WorldRide.h"
 #include "WorldRideChurches.h"
 #include "WorldRideWarehouses.h"
+#include "WorldRideFarms.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
@@ -180,6 +181,10 @@ int main(int Argc, char** Argv)
 		const char* WhOff = std::getenv("WORLD_RIDE_WAREHOUSES");
 		if ((!WhOff || std::string(WhOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.json"), WhText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/warehouse_kit.bin"), WhBin)) SetWarehouseKit(WhText, WhBin);
+		std::string FmText, FmBin;   // [everyday kits stage 4] (WORLD_RIDE_FARMS=0: the drawn barns, to compare)
+		const char* FmOff = std::getenv("WORLD_RIDE_FARMS");
+		if ((!FmOff || std::string(FmOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/farm_kit.json"), FmText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/farm_kit.bin"), FmBin)) SetFarmKit(FmText, FmBin);
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
@@ -3863,6 +3868,18 @@ int main(int Argc, char** Argv)
 				{
 					RideMesh Stands;
 					Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Stands);
+					{
+						// ([everyday kits stage 4] the farmyards' things, which the game places with the road's props)
+						std::vector<RideProp> Yard;
+						Plan->PropsTile(Tx, Tz, 64.0, Yard);
+						for (const RideProp& P : Yard)
+							if (P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropFarmMuck)
+							{
+								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
+									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+								KitPropText += Buf;
+							}
+					}
 					// (the facade kit's models there, a line each, to WORLD_RIDE_MESH.props: name size x z y yaw, 9 colours)
 					for (const RideProp& P : Stands.Props)
 					{

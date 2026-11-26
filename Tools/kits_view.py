@@ -157,7 +157,10 @@ def main(argv):
             p = line.split()
             if p[0] in SKIP_KIT:
                 continue
-            coll = load_glb(os.path.join(DATA, "Props", "SM_Prop_%s_%s.glb" % (p[0], p[1])))
+            n = 0
+            while os.path.exists(os.path.join(DATA, "Props", "SM_Prop_%s_%d.glb" % (p[0], n))):
+                n += 1
+            coll = load_glb(os.path.join(DATA, "Props", "SM_Prop_%s_%d.glb" % (p[0], int(p[1]) % max(1, n))))   # (the game's: its Variant over the kind's models)
             if coll is None:
                 coll = load_glb(os.path.join(DATA, "Props", "SM_Prop_%s_0.glb" % p[0]))
             if coll is not None:

@@ -61,6 +61,8 @@ std::string ExpandBays(const std::string& Pattern, int N);
 // ride after (thread safe); until then none (the drawn sheds stay).
 bool SetWarehouseKit(const std::string& Json, const std::string& Bin);
 std::shared_ptr<const WarehouseKit> WarehouseKitNow();
+// [everyday kits stage 4] The same reading for another kit in this format (the farm kit); null if it isn't one.
+std::shared_ptr<WarehouseKit> ReadWarehouseKit(const std::string& Json, const std::string& Bin);
 
 // One shed of design D on an oblong: Corner its front wall's left end (seen from outside) on the ground,
 // Ux, Uz along that front wall (unit), Nx, Nz out of it (unit); Long by Short (m); its floor at Y, the ground's
@@ -68,4 +70,8 @@ std::shared_ptr<const WarehouseKit> WarehouseKitNow();
 // Returns the triangles laid.
 size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
 	double Long, double Short, double Y, double Low, int Detail, RideMesh& Out);
+// [everyday kits stage 4] The same, each section into its own mesh: Into[0] plain, [1] masonry, [2] roofing,
+// [3] brick, [4] render (a building's meshes in BuildingsTile, as the church kit's).
+size_t BuildWarehouse(const WarehouseKit& Kit, const WarehouseDesign& D, double CornerX, double CornerZ, double Ux, double Uz, double Nx, double Nz,
+	double Long, double Short, double Y, double Low, int Detail, RideMesh* const Into[5]);
 } // namespace TorqueWorld
