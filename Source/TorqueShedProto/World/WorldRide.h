@@ -943,6 +943,14 @@ public:
 		// [everyday kits stage 7] The bridge set (Tools/blender_bridge_props.py, two hand-made distance versions each):
 		// stone arches, concrete piers and abutments and the modern parapet, laid with a road's piece by BridgeKitProps
 		PropBridgeArch, PropBridgePier, PropBridgeAbutment, PropBridgeRail,
+		// [farm machinery] The farm pack's machines (Tools/blender_farm_machines.py, two hand-made distance versions each;
+		// the self-propelled ones in the farm kit's three fleet liveries, Variant % 3): combines, a forage harvester, a
+		// sprayer, an articulated tractor, a tracked tractor, a small crawler, a telescopic loader, a gang mower, a
+		// buggy, a grain chaser, a tipping trailer, a baler, a drill and a cultivator, laid in the farmyards by
+		// FarmYardProps and in the fields by their gates by FieldGateProps
+		PropMachCombine, PropMachForager, PropMachSprayer, PropMachTractor4wd, PropMachTractorTrack, PropMachCrawler,
+		PropMachLoader, PropMachMower, PropMachBuggy, PropMachChaser, PropMachTipper, PropMachBaler, PropMachDrill,
+		PropMachCultivator,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1669,6 +1677,13 @@ public:
 	// [everyday kits stage 4] A farmyard's things where the game has their models (World/WorldRideFarms.cpp): a few
 	// to each mapped farmyard by its size, along its edges, clear of its buildings and the road.
 	void FarmYardProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// [farm machinery] Machines parked in the fields: just inside some of the square's field gates (Here, PropsTile's
+	// furniture) and at a few spots in open fields seen from the roads, by the season (Month): the harvest's
+	// combines, chasers and balers in late summer, drills and cultivators at sowing, sprayers in spring; few in
+	// winter, fewer in the hills (World/WorldRideFarms.cpp)
+	void FieldGateProps(double X0, double Z0, double Size, const std::vector<const Furnish*>& Here, std::vector<RideProp>& Out) const;
+	// (whether a prop kind comes in the farm fleet liveries: its Variant % 3 the livery)
+	static bool FleetKind(int Kind);
 	// [everyday kits stage 6] The village set in the square (World/WorldRideVillage.cpp): playgrounds' pieces and
 	// fences, pitches' goals and posts, courts' nets, fences and hoops, a village green's sign, board, seat and bin
 	void VillageProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;

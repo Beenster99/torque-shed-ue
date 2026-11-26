@@ -807,6 +807,9 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: power and skyline set %s"), PowerAsked == 0 ? TEXT("off (-TorquePower=0)")
 			: Plan->PropModelled[RidePlan::PropPowerPylon] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
 		for (int32 K = RidePlan::PropFarmBales; K <= RidePlan::PropFarmTractorCompact && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;
+		for (int32 K = RidePlan::PropMachCombine; K <= RidePlan::PropMachCultivator && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;   // [farm machinery]
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farm machinery %s"), FarmsAsked == 0 ? TEXT("off (-TorqueFarms=0)")
+			: Plan->PropModelled[RidePlan::PropMachCombine] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
 		for (int32 K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign && VillageAsked == 0; ++K) Plan->PropModelled[K] = false;
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farmyard things %s; village set %s"), FarmsAsked == 0 ? TEXT("off (-TorqueFarms=0)") : TEXT("on"),
 			VillageAsked == 0 ? TEXT("off (-TorqueVillage=0)") : Plan->PropModelled[RidePlan::PropPlaySwings] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));

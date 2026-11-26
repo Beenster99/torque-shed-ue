@@ -74,7 +74,8 @@ namespace
 {
 // A yard thing: its kind, how likely, its half length along its model's x and half width across, the least yard it
 // goes in (m2), and whether it belongs more to the hill farms' stock (1) or the lowland's crops (-1).
-struct YardThing { int Kind; double Weight, HalfX, HalfY, MinYard; int Leaning; };
+// ([farm machinery] Once: at most one to a yard, a farm's one big machine of its kind.)
+struct YardThing { int Kind; double Weight, HalfX, HalfY, MinYard; int Leaning; bool Once = false; };
 const YardThing YardThings[] = {
 	{RidePlan::PropFarmBales, 1.4, 3.7, 1.25, 0.0, -1},
 	{RidePlan::PropFarmBale, 1.0, 0.8, 0.65, 0.0, 1},
@@ -88,7 +89,48 @@ const YardThing YardThings[] = {
 	{RidePlan::PropFarmTrailer, 0.8, 4.0, 1.3, 600.0, -1},
 	{RidePlan::PropFarmDiesel, 0.4, 1.3, 0.7, 0.0, 0},
 	{RidePlan::PropFarmMuck, 0.6, 3.1, 2.1, 900.0, 1},
+	// [farm machinery] (sizes from Tools/blender_farm_machines.py, each model centred on its footprint)
+	{RidePlan::PropMachCombine, 0.3, 5.15, 3.85, 3000.0, -1, true},
+	{RidePlan::PropMachForager, 0.15, 4.1, 3.0, 3000.0, -1, true},
+	{RidePlan::PropMachSprayer, 0.2, 3.1, 1.45, 2500.0, -1, true},
+	{RidePlan::PropMachTractor4wd, 0.15, 3.45, 2.25, 2500.0, -1, true},
+	{RidePlan::PropMachTractorTrack, 0.2, 2.8, 1.45, 2000.0, -1, true},
+	{RidePlan::PropMachCrawler, 0.15, 1.2, 0.7, 0.0, 1, true},
+	{RidePlan::PropMachLoader, 0.35, 2.4, 0.9, 600.0, 0, true},
+	{RidePlan::PropMachMower, 0.06, 1.5, 1.6, 0.0, 0, true},
+	{RidePlan::PropMachBuggy, 0.4, 1.7, 0.8, 0.0, 1, true},
+	{RidePlan::PropMachChaser, 0.2, 4.9, 1.7, 2500.0, -1, true},
+	{RidePlan::PropMachTipper, 0.4, 3.65, 1.25, 900.0, -1},
+	{RidePlan::PropMachBaler, 0.25, 5.05, 2.25, 1500.0, -1, true},
+	{RidePlan::PropMachDrill, 0.25, 1.8, 2.1, 1500.0, -1, true},
 };
+
+// A field machine by the season: its kind and how likely (the month's work on the land).
+struct FieldThing { int Kind; double Weight; };
+void FieldThingsFor(int Month, bool Hills, std::vector<FieldThing>& Out)
+{
+	Out.clear();
+	if (Hills)
+	{
+		// (the hill farms: grass, stock, a trailer and the odd tracked tractor)
+		Out = {{RidePlan::PropMachTipper, 1.0}, {RidePlan::PropMachTractorTrack, 0.4}, {RidePlan::PropMachCrawler, 0.4}};
+		if (Month >= 5 && Month <= 8) Out.push_back({RidePlan::PropMachBaler, 0.8});
+		return;
+	}
+	if (Month >= 7 && Month <= 9)        // (harvest)
+		Out = {{RidePlan::PropMachCombine, 1.2}, {RidePlan::PropMachChaser, 1.0}, {RidePlan::PropMachBaler, 0.8}, {RidePlan::PropMachTipper, 0.6},
+			{RidePlan::PropMachTractor4wd, 0.3}, {RidePlan::PropMachCultivator, 0.3 * (Month - 6)}, {RidePlan::PropMachDrill, Month == 9 ? 0.6 : 0.0}};
+	else if (Month >= 10 && Month <= 11) // (autumn: sowing the winter crops, the maize in)
+		Out = {{RidePlan::PropMachDrill, 1.0}, {RidePlan::PropMachCultivator, 1.0}, {RidePlan::PropMachTractorTrack, 0.6}, {RidePlan::PropMachTractor4wd, 0.4},
+			{RidePlan::PropMachForager, Month == 10 ? 0.5 : 0.0}, {RidePlan::PropMachTipper, 0.6}};
+	else if (Month >= 3 && Month <= 4)   // (spring work and sowing)
+		Out = {{RidePlan::PropMachDrill, 1.0}, {RidePlan::PropMachCultivator, 0.8}, {RidePlan::PropMachSprayer, 0.8}, {RidePlan::PropMachTractorTrack, 0.5},
+			{RidePlan::PropMachTractor4wd, 0.3}};
+	else if (Month >= 5 && Month <= 6)   // (spraying, silage and hay)
+		Out = {{RidePlan::PropMachSprayer, 1.0}, {RidePlan::PropMachForager, 0.6}, {RidePlan::PropMachBaler, 0.6}, {RidePlan::PropMachTipper, 0.6}};
+	else                                 // (winter: the odd one left out)
+		Out = {{RidePlan::PropMachCultivator, 0.5}, {RidePlan::PropMachTipper, 0.5}};
+}
 } // namespace
 
 void RidePlan::FarmYardProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const
@@ -142,18 +184,21 @@ void RidePlan::FarmYardProps(double X0, double Z0, double Size, std::vector<Ride
 		if (Perimeter < 10.0) continue;
 		struct Placed { double X, Z, R; };
 		std::vector<Placed> Done;
+		std::vector<int> Had;   // [farm machinery] (the kinds placed, for the Once ones)
+		const int Livery = std::min(int(Chance(Sx, Sz, 703) * 3.0), 2);   // [farm machinery] (the farm's fleet colours)
 		for (int Try = 0; Try < Want * 6 && int(Done.size()) < Want; ++Try)
 		{
 			// (which thing: by weight, the hill farms' stock or the lowland's crops more)
 			double Sum = 0.0;
+			const auto Free = [&](const YardThing& T) { return PropModelled[T.Kind] && YardArea >= T.MinYard && !(T.Once && std::find(Had.begin(), Had.end(), T.Kind) != Had.end()); };
 			for (const YardThing& T : YardThings)
-				if (PropModelled[T.Kind] && YardArea >= T.MinYard) Sum += T.Weight * (T.Leaning == 0 ? 1.0 : (T.Leaning > 0) == Hills ? 1.4 : 0.6);
+				if (Free(T)) Sum += T.Weight * (T.Leaning == 0 ? 1.0 : (T.Leaning > 0) == Hills ? 1.4 : 0.6);
 			if (Sum <= 0.0) break;
 			double At = Chance(Sx, Sz, 711 + Try) * Sum;
 			const YardThing* Pick = nullptr;
 			for (const YardThing& T : YardThings)
 			{
-				if (!PropModelled[T.Kind] || YardArea < T.MinYard) continue;
+				if (!Free(T)) continue;
 				At -= T.Weight * (T.Leaning == 0 ? 1.0 : (T.Leaning > 0) == Hills ? 1.4 : 0.6);
 				if (At <= 0.0) { Pick = &T; break; }
 			}
@@ -198,12 +243,14 @@ void RidePlan::FarmYardProps(double X0, double Z0, double Size, std::vector<Ride
 			NearHit Hit;
 			if (NearestOf(C.X, C.Z, Opts, Hit) && Hit.Dist < Hit.Half + R + 1.5) continue;
 			Done.push_back({C.X, C.Z, R});
+			Had.push_back(Pick->Kind);
 			// (the whole yard is worked out alike from every square it touches; each places its own)
 			if (C.X < X0 || C.X >= X0 + Size || C.Z < Z0 || C.Z >= Z0 + Size) continue;
 			RideProp P;
 			P.Kind = uint16_t(Pick->Kind);
 			P.Id = F.Id * 31u + uint32_t(Try);
 			P.Variant = uint8_t(Chance(Sx, Sz, 791 + Try) * 255.0);
+			if (FleetKind(Pick->Kind)) P.Variant = uint8_t(Livery + 3 * int(Chance(Sx, Sz, 791 + Try) * 80.0));   // [farm machinery] (one farm, one fleet)
 			P.X = float(C.X - X0);
 			P.Z = float(C.Z - Z0);
 			P.Y = float(Lo);
@@ -214,4 +261,147 @@ void RidePlan::FarmYardProps(double X0, double Z0, double Size, std::vector<Ride
 		}
 	}
 }
+
+// [farm machinery]
+bool RidePlan::FleetKind(int Kind)
+{
+	return Kind == PropFarmTractor || Kind == PropFarmTractorUtility || Kind == PropFarmTractorCompact
+		|| (Kind >= PropMachCombine && Kind <= PropMachBuggy);
+}
+
+void RidePlan::FieldGateProps(double X0, double Z0, double Size, const std::vector<const Furnish*>& Here, std::vector<RideProp>& Out) const
+{
+	using namespace RideSceneBits;
+	if (!Scene || !PropModelled[PropMachCombine]) return;
+	const Region& G = Area.Roads;
+	std::vector<FieldThing> Things;
+	const bool Winter = Month == 12 || Month <= 2;
+	// (a machine's half length and half width, as its yard row has them; the cultivator's own)
+	const auto Halves = [](int Kind, double& Hx, double& Hy)
+	{
+		Hx = 2.95; Hy = 5.0;   // (the cultivator, opened out: 10 m across its x)
+		for (const YardThing& T : YardThings)
+			if (T.Kind == Kind) { Hx = T.HalfX; Hy = T.HalfY; }
+	};
+	const auto OnBuilding = [&](double X, double Z)
+	{
+		const auto It = Scene->Buildings.find(SceneKey(X, Z));
+		if (It != Scene->Buildings.end())
+			for (int I : It->second)
+			{
+				const Building& B = G.Buildings[size_t(I)];
+				const double Dx = X - B.X, Dz = Z - B.Z, Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+				if (std::fabs(Dx * Cs - Dz * Sn) < B.W * 0.5 + 3.0 && std::fabs(Dx * Sn + Dz * Cs) < B.D * 0.5 + 3.0) return true;
+			}
+		return UnderTower(X, Z);
+	};
+	// One machine at C (its long side along Dir, In into the field), seeded by (Sx, Sz), if it is in open fields:
+	// not in any mapped area (yard, wood, water, park...), off the buildings, fairly level, clear of every road.
+	const auto Place = [&](P2 C, const P2& Dir, const P2& In, double Sx, double Sz, double Share)
+	{
+		// (the grass country (the Dales, the Lakes, the Peak, Wales, the West Country, Ulster, the Highlands) and
+		// anywhere over 220 m: the hill farm's few; the arable country the harvest's and the sowing's)
+		const LocalLook& Look = LookHere(C.X, C.Z);
+		bool Hills = true;
+		for (const char* Arable : {"lowland", "fens", "cotswolds", "lowlands", "moors", "northumberland"})
+			Hills = Hills && std::strcmp(Look.Name, Arable) != 0;
+		const double GroundY = Ground(C.X, C.Z);
+		Hills = Hills || (!std::isnan(GroundY) && GroundY > 220.0);
+		if (Chance(Sx, Sz, 1301) >= Share * (Hills ? 0.4 : 1.0) * (Winter ? 0.35 : 1.0)) return;
+		FieldThingsFor(Month, Hills, Things);
+		double Sum = 0.0;
+		for (const FieldThing& T : Things)
+			if (PropModelled[T.Kind]) Sum += T.Weight;
+		if (Sum <= 0.0) return;
+		double At = Chance(Sx, Sz, 1303) * Sum;
+		int Kind = -1;
+		for (const FieldThing& T : Things)
+		{
+			if (!PropModelled[T.Kind]) continue;
+			At -= T.Weight;
+			if (At <= 0.0) { Kind = T.Kind; break; }
+		}
+		if (Kind < 0) return;
+		double Hx, Hy;
+		Halves(Kind, Hx, Hy);
+		C = C + In * Hy;
+		double Lo = 1e9, Hi = -1e9;
+		for (double Su : {-1.0, 0.0, 1.0})
+			for (double Sv : {-1.0, 0.0, 1.0})
+			{
+				const P2 Q = C + Dir * (Su * Hx) + In * (Sv * Hy);
+				if (FieldAt(Q.X, Q.Z) >= 0 || OnBuilding(Q.X, Q.Z)) return;
+				const double Gy = Ground(Q.X, Q.Z);
+				if (std::isnan(Gy)) return;
+				Lo = std::fmin(Lo, Gy); Hi = std::fmax(Hi, Gy);
+			}
+		if (Hi - Lo > 0.25 * (Hx + Hy)) return;
+		NearOpts Opts;
+		NearHit Hit;
+		if (NearestOf(C.X, C.Z, Opts, Hit) && Hit.Dist < Hit.Half + std::hypot(Hx, Hy) + 4.0) return;
+		if (C.X < X0 || C.X >= X0 + Size || C.Z < Z0 || C.Z >= Z0 + Size) return;
+		RideProp P;
+		P.Kind = uint16_t(Kind);
+		P.Id = uint32_t(std::lround(Sx * 7.0)) * 73856093u ^ uint32_t(std::lround(Sz * 7.0)) * 19349663u ^ 0x5f3759dfu;
+		// (the fields of one farm, about half a kilometre round, in its fleet's colours)
+		const double Fx = std::floor(C.X / 500.0) + 0.5, Fz = std::floor(C.Z / 500.0) + 0.5;
+		const int Livery = std::min(int(Chance(Fx, Fz, 703) * 3.0), 2);
+		const double Pick = Chance(Sx, Sz, 1311);
+		P.Variant = FleetKind(Kind) ? uint8_t(Livery + 3 * int(Pick * 80.0)) : uint8_t(Pick * 255.0);
+		P.X = float(C.X - X0);
+		P.Z = float(C.Z - Z0);
+		P.Y = float(Lo);
+		const P2 Front = Chance(Sx, Sz, 1313) < 0.5 ? Dir : Dir * -1.0;
+		P.Yaw = float(std::atan2(Front.Z, Front.X));
+		P.Scale = 1.0f;
+		Out.push_back(P);
+	};
+	// (by the map's field gates, one in about five: the field is the side away from the road; the machine just
+	// inside, a little along from the gateway, parallel to the hedge and clear of its trees)
+	for (const Furnish* Each : Here)
+	{
+		const Furnish& F = *Each;
+		if (F.Kind != FieldGate || F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
+		const double Fl = F.Face.Length();
+		if (Fl < 1e-6) continue;
+		const P2 Dir = F.Face * (1.0 / Fl);
+		P2 In(-Dir.Z, Dir.X);
+		NearOpts Opts;
+		NearHit HitA, HitB;
+		const bool A = NearestOf(F.At.X + In.X * 10.0, F.At.Z + In.Z * 10.0, Opts, HitA);
+		const bool B = NearestOf(F.At.X - In.X * 10.0, F.At.Z - In.Z * 10.0, Opts, HitB);
+		if (A && (!B || HitB.Dist > HitA.Dist)) In = In * -1.0;
+		const double Side = Chance(F.At.X, F.At.Z, 1307) < 0.5 ? -1.0 : 1.0;
+		Place(F.At + In * 5.5 + Dir * (Side * 10.0), Dir, In, F.At.X, F.At.Z, 0.2);
+	}
+	// (and out in the open fields: a spot in about one 200 m square in eight, at least 30 m off any road, the
+	// machine square to the way back to the road where one is near (NearestOf looks about 50 m round), else
+	// any way round)
+	constexpr double Cell = 200.0;
+	for (double Cz = std::floor(Z0 / Cell) * Cell; Cz < Z0 + Size; Cz += Cell)
+		for (double Cx = std::floor(X0 / Cell) * Cell; Cx < X0 + Size; Cx += Cell)
+		{
+			if (Chance(Cx + 1.0, Cz + 1.0, 1321) >= 0.35) continue;   // (before the costlier looks)
+			const P2 Q(Cx + Chance(Cx, Cz, 1323) * Cell, Cz + Chance(Cx, Cz, 1327) * Cell);
+			if (Q.X < X0 || Q.X >= X0 + Size || Q.Z < Z0 || Q.Z >= Z0 + Size) continue;
+			NearOpts Opts;
+			NearHit Hit;
+			P2 In;
+			if (NearestOf(Q.X, Q.Z, Opts, Hit))
+			{
+				if (Hit.Dist < 30.0) continue;
+				In = Q - Hit.Foot;
+				const double Il = In.Length();
+				if (Il < 1e-6) continue;
+				In = In * (1.0 / Il);
+			}
+			else
+			{
+				const double Yaw = Chance(Cx, Cz, 1329) * 2.0 * 3.14159265358979;
+				In = P2(std::cos(Yaw), std::sin(Yaw));
+			}
+			Place(Q, P2(-In.Z, In.X), In, Q.X, Q.Z, 0.35);
+		}
+}
+
 } // namespace TorqueWorld
