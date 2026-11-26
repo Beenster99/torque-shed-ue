@@ -251,11 +251,15 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 		const double RoadLen = Pts.empty() ? 0.0 : Pts.back().Along;
 		const bool Painted = Hit.Which == 0 || (Hit.Along > 12.0 && Hit.Along < RoadLen - 12.0);
 		const RoadPoint& Here = Pts[size_t(std::clamp(Hit.Index, 0, int(Pts.size()) - 1))];
-		if (Painted && RoadX::CentreLine(Here.Lanes, Here.OneWay, Hit.Half) && std::fmod(Hit.Along, RoadX::DashCycle) < RoadX::DashLength && std::fabs(Hit.Off) < 0.06) S.Kind = SurfSlick;
-		if (Painted && std::fmod(Hit.Along, RoadX::DashCycle) < RoadX::DashLength)
+		// ([road rulebook] the marks by the limit, as RoadPiece paints them; the warning line's longer marks read as the
+		// centre line's here: a few metres of slick either way)
+		const int Mph = PaintMph(Hit.Which, Hit.Along, false);
+		if (Painted && RoadX::CentreLine(Here.Lanes, Here.OneWay, Hit.Half) && RoadX::OnDash(Hit.Along, RoadX::CentreDash(Mph)) && std::fabs(Hit.Off) < RoadX::CentreHalfWidth(Hit.Half)) S.Kind = SurfSlick;
+		if (Painted && RoadX::OnDash(Hit.Along, RoadX::LaneDash(Mph)))
 			for (const double L : RoadX::LaneLines(Here.Lanes, Here.OneWay, Hit.Half))
-				if (std::fabs(Hit.Off - L) < 0.06) S.Kind = SurfSlick;
-		if (Painted && Hit.Half >= 2.95 && std::fabs(std::fabs(Hit.Off) - (Hit.Half - 0.3)) < 0.065) S.Kind = SurfSlick;
+				if (std::fabs(Hit.Off - L) < 0.05) S.Kind = SurfSlick;
+		const double EdgeAt = Hit.Half - RoadX::EdgeWorn - RoadX::EdgeLineIn - RoadX::EdgeLineHalfWidth;
+		if (Painted && Hit.Half >= 2.95 && std::fabs(std::fabs(Hit.Off) - EdgeAt) < RoadX::EdgeLineHalfWidth) S.Kind = SurfSlick;
 	}
 	return S;
 }

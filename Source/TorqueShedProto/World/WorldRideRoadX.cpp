@@ -58,8 +58,7 @@ bool CentreLine(int Lanes, bool OneWay, double Half)
 {
 	if (OneWay) return false;
 	if (Lanes == 1) return false;
-	if (Lanes >= 2) return Half >= 2.0;
-	return Half >= 2.5;
+	return Half >= 2.75 - 1e-9;
 }
 
 std::vector<double> LaneLines(int Lanes, bool OneWay, double Half)

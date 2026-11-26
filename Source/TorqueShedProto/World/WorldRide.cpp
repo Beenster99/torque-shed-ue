@@ -1123,6 +1123,26 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 	MouthAt.assign(Road.size(), 0);
 	StreetMouthAt.assign(Road.size(), 0);
 	SideBridges = SideTunnels = 0;
+	// [road rulebook C6] The junctions the ride goes straight through on the through road: its centre line turns to a
+	// warning line either side (a junction built whole has no mouth on the ride's road to say so).
+	RideThroughAt.clear();
+	for (size_t I = 0; I + 1 < MadeSteps.size() && !Road.empty(); ++I)
+	{
+		const int Node = MadeSteps[I].To;
+		if (Node < 0 || size_t(Node) >= JunctionOfNode.size() || JunctionOfNode[size_t(Node)] < 0) continue;
+		const JunctionPlace& J = JunctionPlaces[size_t(JunctionOfNode[size_t(Node)])];
+		if (J.Roads < 3 || J.Lights || J.Ring >= 0) continue;
+		int Through = 0;
+		for (const JunctionArm& A : J.Arms)
+			if (A.Through && (A.Edge == MadeSteps[I].Edge || A.Edge == MadeSteps[I + 1].Edge)) ++Through;
+		if (Through < 2) continue;
+		const P2 At = Area.Roads.Nodes[size_t(Node)];
+		size_t Best = 0;
+		for (size_t K = 1; K < Road.size(); ++K)
+			if (Road[K].At.DistanceTo(At) < Road[Best].At.DistanceTo(At)) Best = K;
+		if (Road[Best].At.DistanceTo(At) < 15.0) RideThroughAt.push_back(Road[Best].Along);
+	}
+	std::sort(RideThroughAt.begin(), RideThroughAt.end());
 	const Region& G = Area.Roads;
 	Network& N = *Net;
 	N.OnRide.assign(G.Edges.size(), 0);
@@ -3554,6 +3574,38 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		const std::vector<char> Whole = StreetsAlong(Which);
 		for (size_t K = 0; K < Rows.size(); ++K) StreetRow[K] = Whole[std::min(size_t(First) + K, Whole.size() - 1)];
 	}
+	// [road rulebook C6] Where its centre line is a warning line: either side of a side road's mouth on the ride's road,
+	// and before a junction at its own end where it is the through road, for as far as the limit there asks
+	// (RoadX::WarningReach).
+	std::vector<std::pair<double, double>> WarnZones;
+	if (Which == 0)
+	{
+		for (size_t I = size_t(std::max(0, First - 24)); I < MouthAt.size() && I <= size_t(Last) + 24 && I < Pts.size(); ++I)
+		{
+			if (MouthAt[I] == 0) continue;
+			const double Reach = RoadX::WarningReach(PaintMph(0, Pts[I].Along, false));
+			WarnZones.emplace_back(Pts[I].Along - Reach, Pts[I].Along + Reach);
+		}
+		const double A0 = Pts[size_t(First)].Along - 70.0, A1 = Pts[size_t(Last)].Along + 70.0;
+		for (const double T : RideThroughAt)
+			if (T > A0 && T < A1)
+			{
+				const double Reach = RoadX::WarningReach(PaintMph(0, T, false));
+				WarnZones.emplace_back(T - Reach, T + Reach);
+			}
+	}
+	else
+	{
+		const bool Street0 = !StreetRow.empty() && StreetRow.front() != 0, Street1 = !StreetRow.empty() && StreetRow.back() != 0;
+		if (ThroughAtEnd(Which, 0)) WarnZones.emplace_back(-1.0, RoadX::WarningReach(PaintMph(Which, 0.0, Street0)));
+		if (ThroughAtEnd(Which, 1)) WarnZones.emplace_back(Mine->Length - RoadX::WarningReach(PaintMph(Which, Mine->Length, Street1)), Mine->Length + 1.0);
+	}
+	const auto WarnAt = [&WarnZones](double Along)
+	{
+		for (const std::pair<double, double>& Z : WarnZones)
+			if (Along >= Z.first && Along <= Z.second) return true;
+		return false;
+	};
 	// [OSM stage 5D] Where a side road's mouth on the ride's road takes the shoulder (or the kerb and
 	// pavement) away: exactly between the two ends of its rounded corners on the ride's road's edge, as the
 	// mouth draws them, so the corner's own kerb carries straight on from the street's (beenster Nov 14:
@@ -4025,7 +4077,9 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 					if (OnRideTarmac(Side)) continue;
 					// ([OSM stage 5C] on a motorway's nearside, between the lanes and the hard shoulder: 0.2 m wide)
 					const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
-					const double Ia = Hard ? A.Half - A.Shoulder : A.Half - 0.3, Ib = Hard ? B.Half - B.Shoulder : B.Half - 0.3, W = Hard ? 0.1 : 0.065;
+					// ([road rulebook D6] 1012.1: 100 mm wide, its outer side 225 mm in from the edge as seen, past the worn grass)
+					const double In = RoadX::EdgeWorn + RoadX::EdgeLineIn + RoadX::EdgeLineHalfWidth;
+					const double Ia = Hard ? A.Half - A.Shoulder : A.Half - In, Ib = Hard ? B.Half - B.Shoulder : B.Half - In, W = Hard ? 0.1 : RoadX::EdgeLineHalfWidth;
 					Cut(0.0, 1.0, Side * Ia + W, Side * Ia - W, Side * Ib + W, Side * Ib - W, Paint);
 				}
 			}
@@ -4095,14 +4149,33 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				}
 			// ([OSM stage 5] a centre line where the map's lanes say, else by the rule; lane lines between a
 			// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
-			if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength && !AcrossThrough)
+			// ([road rulebook D1, D5, C6] marks and gaps by the limit, cut to their own lengths within this stretch: the
+			// road's points lie 4 m apart, and a dash per stretch made every line 4 m marks with 4 or 8 m gaps)
+			if (!AcrossThrough && B.Along > A.Along + 1e-6)
 			{
-				if (RoadX::CentreLine(A.Lanes, A.OneWay, Half)) Cut(0.0, 1.0, 0.06, -0.06, 0.06, -0.06, Paint);
+				const int Mph = PaintMph(Which, 0.5 * (A.Along + B.Along), StreetRow[K] != 0);
+				const auto Dashes = [&](const RoadX::DashPattern& P, const auto& Draw)
+				{
+					for (double S0 = std::floor(A.Along / P.Cycle) * P.Cycle; S0 < B.Along; S0 += P.Cycle)
+					{
+						const double T0 = std::clamp((S0 - A.Along) / (B.Along - A.Along), 0.0, 1.0), T1 = std::clamp((S0 + P.Mark - A.Along) / (B.Along - A.Along), 0.0, 1.0);
+						if (T1 - T0 > 1e-4) Draw(T0, T1);
+					}
+				};
+				if (RoadX::CentreLine(A.Lanes, A.OneWay, Half))
+				{
+					const double Cw = RoadX::CentreHalfWidth(Half);
+					Dashes(WarnAt(0.5 * (A.Along + B.Along)) ? RoadX::WarningDash(Mph) : RoadX::CentreDash(Mph), [&](double T0, double T1) { Cut(T0, T1, Cw, -Cw, Cw, -Cw, Paint); });
+				}
 				// ([OSM stage 5C] a motorway's lanes between its offside edge and its hard shoulder)
 				const double Ca = -double(A.Near) * A.Shoulder * 0.5, Cb = -double(B.Near) * B.Shoulder * 0.5;
 				const double Ha = A.Half - A.Shoulder * 0.5, Hb = B.Half - B.Shoulder * 0.5;
 				for (const double Off : RoadX::LaneLines(A.Lanes, A.OneWay, 1.0))
-					Cut(0.0, 1.0, Ca + Off * Ha + 0.06, Ca + Off * Ha - 0.06, Cb + Off * Hb + 0.06, Cb + Off * Hb - 0.06, Paint);
+					Dashes(RoadX::LaneDash(Mph), [&](double T0, double T1)
+					{
+						const double C0 = Ca + (Cb - Ca) * T0 + Off * (Ha + (Hb - Ha) * T0), C1 = Ca + (Cb - Ca) * T1 + Off * (Ha + (Hb - Ha) * T1);
+						Cut(T0, T1, C0 + 0.05, C0 - 0.05, C1 + 0.05, C1 - 0.05, Paint);
+					});
 			}
 		}
 		// ([paint, Nov 18] the map's own lines and crossings (WorldRideRoadX's marks) painted the same way)
