@@ -200,7 +200,7 @@ int main(int Argc, char** Argv)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_heights.json"), HeightsText)) SetChurchHeights(HeightsText);
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
 		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
-		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "1") RidePlan::WholeJunctions = true;   // [smooth junctions stage 3]
+		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "0") RidePlan::WholeJunctions = false;   // [smooth junctions] the old drawing, for before/after totals
 		if (const char* Mo = std::getenv("WORLD_RIDE_MONTH")) RidePlan::SeasonMonth = std::atoi(Mo);   // [farm machinery] (the ride's month: the fields' machines by season)
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
@@ -3263,6 +3263,17 @@ int main(int Argc, char** Argv)
 				std::vector<P2> L = G.LineFrom(E, Nd);
 				const RidePlan::SideRoad* Sr = Plan->SideOf(E + 1);
 				if (Sr == nullptr || Sr->Pts.size() < 2 || std::getenv("WORLD_RIDE_MAPLINE") != nullptr) return L;
+				// ([smooth junctions] a whole ring's own edges: the ring is drawn to its map line's shape, and the side
+				// road laid along that edge, cutting across the island, is hidden under it: Whitby)
+				{
+					const int Rg = Plan->RingAt(Nd);
+					const auto It = Rg >= 0 ? Plan->WholeRingOf.find(Rg) : Plan->WholeRingOf.end();
+					if (It != Plan->WholeRingOf.end() && Plan->WholeOf[size_t(It->second)].Ok)
+					{
+						const std::vector<int>& Es = Plan->RoadRings[size_t(Rg)].Edges;
+						if (std::find(Es.begin(), Es.end(), E) != Es.end()) return L;
+					}
+				}
 				std::vector<P2> Own;
 				for (const RoadPoint& Rp : Sr->Pts) Own.push_back(Rp.At);
 				if (Own.back().DistanceTo(C) < Own.front().DistanceTo(C)) std::reverse(Own.begin(), Own.end());

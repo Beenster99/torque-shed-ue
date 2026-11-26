@@ -2011,7 +2011,7 @@ public:
 	static const char* JunctionKindName(EJunction Kind);
 	// [smooth junctions stage 3] A junction built whole (World/WorldRideWhole.cpp): its roads stop at mouth lines Cut
 	// metres in from their ends, and the junction between is one piece with one surface (WholePiece), drawn with its
-	// Owner road's piece at that end. Behind WholeJunctions (-TorqueJunctions=whole; SimTest WORLD_RIDE_WHOLE=1).
+	// Owner road's piece at that end. WholeJunctions is on by default (off only by -TorqueJunctions=old; SimTest WORLD_RIDE_WHOLE=0).
 	struct WholePlan
 	{
 		bool Ok = false;
@@ -2073,6 +2073,7 @@ public:
 	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
+	double WholeTop(double X, double Z) const;   // [smooth junctions] a whole junction's tarmac surface here, NaN off every one
 	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
