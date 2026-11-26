@@ -91,6 +91,25 @@ def load_glb(path):
     return coll
 
 
+def coll_height(coll):
+    """A model's height, foot to top (as the game's bounds)."""
+    lo, hi = 1e18, -1e18
+    for o in coll.objects:
+        if o.type != "MESH":
+            continue
+        for v in o.data.vertices:
+            z = (o.matrix_world @ v.co).z
+            lo, hi = min(lo, z), max(hi, z)
+    return hi - lo if hi > lo else 0.0
+
+
+try:
+    import json as _json
+    KIT_HEIGHT = {k: float(r.get("height", 0.0)) for k, r in _json.load(open(os.path.join(DATA, "prop_kit.json")))["kinds"].items()}
+except Exception:
+    KIT_HEIGHT = {}
+
+
 def tinted(coll, rgb):
     """A copy of coll's materials' base colour multiplied by rgb (the facade kit's paint)."""
     key = (coll.name, tuple(round(v, 2) for v in rgb))
@@ -164,8 +183,14 @@ def main(argv):
             if coll is None:
                 coll = load_glb(os.path.join(DATA, "Props", "SM_Prop_%s_0.glb" % p[0]))
             if coll is not None:
+                # ([cafes] as the game draws it: every model of a kind scaled to the kind's height, times the prop's scale)
+                ks = float(p[8]) if len(p) > 8 else 1.0
+                tall = KIT_HEIGHT.get(p[0], 0.0)
+                own = coll_height(coll)
+                if tall > 0.0 and own > 0.01:
+                    ks *= tall / own
                 # (the ride's yaw turns x towards z, south: here towards -y; its pitch lifts the far end)
-                place(coll, float(p[2]), float(p[3]), float(p[4]), -float(p[5]), -float(p[6]), float(p[7]), float(p[8]) if len(p) > 8 else 1.0,
+                place(coll, float(p[2]), float(p[3]), float(p[4]), -float(p[5]), -float(p[6]), float(p[7]), ks,
                       float(p[9]) if len(p) > 9 else 1.0)   # ([everyday kits stage 7] and its scale across: the bridge set's)
         for line in open(a.dump + ".walls") if os.path.exists(a.dump + ".walls") else []:
             p = line.split()

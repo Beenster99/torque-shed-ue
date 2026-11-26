@@ -1199,7 +1199,7 @@ bool ATorqueBikePawn::ToCircuitStart(FString& Name)
 	if (!ATorqueRideWorld::CircuitStart(FVector(P.x, P.y, P.z), To, Heading, Name)) return false;
 	if (bOnFoot)
 	{
-		bOnFoot = bPushing = bUseArmed = false;
+		bOnFoot = bPushing = bUseArmed = bSeated = false;
 		SetParkedLook(false);
 	}
 	PlaceOnGround(V3(To.X, To.Y, To.Z), Heading);
@@ -1240,7 +1240,7 @@ void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
 {
 	if (bOnFoot)
 	{
-		bOnFoot = bPushing = bUseArmed = false;   // back on the bike (the pause menu's Restart, a test)
+		bOnFoot = bPushing = bUseArmed = bSeated = false;   // back on the bike (the pause menu's Restart, a test)
 		SetParkedLook(false);
 	}
 	V3 Pos(0, 0, 0);
@@ -1579,19 +1579,32 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		// The controller as the shed's walker has it: left stick walks, L3 hurries, right stick looks (the
 		// DualSense too, read over HID, which the engine's own gamepad axes never see).
 		const bool bPadRun = PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0;
-		StepFoot(PC, Dt, FMath::Abs(StickX) > FMath::Abs(KeyX) ? StickX : KeyX, FMath::Abs(StickY) > FMath::Abs(KeyY) ? StickY : KeyY,
-			LookX, LookY, bPadRun);
+		const double MoveX = FMath::Abs(StickX) > FMath::Abs(KeyX) ? StickX : KeyX, MoveY = FMath::Abs(StickY) > FMath::Abs(KeyY) ? StickY : KeyY;
 		// F: a tap by the bike gets back on; held, takes hold of its bars to wheel it (as the shed's
 		// walker: walker.gd HOLD_TO_PUSH); wheeling, F lets go and it goes back on its stand there.
 		const bool bUseDown = FTorqueKeys::Down(PC, ETorqueKey::Use) || PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle);
 		const bool bUseJust = FTorqueKeys::Just(PC, ETorqueKey::Use) || bPadUse;
+		// [cafes] Sat at a cafe's table: looking about from the seat; F or a step stands up.
+		const bool bWasSeated = bSeated;
+		if (bSeated)
+		{
+			StepFoot(PC, Dt, 0.0, 0.0, LookX, LookY, false);
+			if (bUseJust || FMath::Abs(MoveX) > 0.5 || FMath::Abs(MoveY) > 0.5) StandUp();
+		}
+		else StepFoot(PC, Dt, MoveX, MoveY, LookX, LookY, bPadRun);
 		if (bPushing)
 		{
 			if (bUseJust) LetGoBike();
 		}
-		else if (bUseJust && OnFootFor > 0.4)
+		else if (bUseJust && OnFootFor > 0.4 && !bWasSeated)
 		{
-			if (FVector::Dist2D(FootPos, GetActorLocation()) <= 250.0) { bUseArmed = true; UseHeld = 0.0; }
+			// [cafes] By a cafe's outside tables (and nearer a seat than the bike): sit down.
+			FVector Seat;
+			double SeatYaw = 0.0;
+			FString Cafe;
+			const double BikeAway = FVector::Dist2D(FootPos, GetActorLocation());
+			if (!bYard && FreeSeatNear(Seat, SeatYaw, Cafe) && (BikeAway > 250.0 || FVector::Dist2D(FootPos, Seat) < BikeAway)) SitDown(Seat, SeatYaw, Cafe);
+			else if (BikeAway <= 250.0) { bUseArmed = true; UseHeld = 0.0; }
 			else if (ATorqueBikePawn* Mate = MateBikeInReach())
 			{
 				// [co-op] A mate's bike parked up: the host swaps them over, and we get on theirs.
@@ -2054,6 +2067,42 @@ bool ATorqueBikePawn::GetOff()
 	return true;
 }
 
+bool ATorqueBikePawn::FreeSeatNear(FVector& Seat, double& Yaw, FString& Cafe) const
+{
+	// [cafes] (the seats mates sit on are taken)
+	TArray<FVector> Taken;
+	if (UWorld* World = GetWorld())
+		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+		{
+			FVector At;
+			if (*It != this && It->SatAt(At)) Taken.Add(At);
+		}
+	if (!ATorqueRideWorld::CafeSeatNear(FootPos, 150.0, Taken, Seat, Yaw, Cafe)) return false;
+	return FMath::Abs(Seat.Z - FootPos.Z) < 150.0;
+}
+
+void ATorqueBikePawn::SitDown(const FVector& Seat, double Yaw, const FString& Cafe)
+{
+	SitFrom = FootPos;
+	FootPos = Seat;
+	FootYaw = Yaw;
+	FootPitch = -12.0;   // (looking at the table)
+	SitCafe = Cafe;
+	bSeated = true;
+	FootNote = FString::Printf(TEXT("Sat at a table outside %s."), *Cafe);
+	FootNoteFor = 2.5;
+	UE_LOG(LogTemp, Log, TEXT("Torque: sat down at %s (%.0f, %.0f, %.0f), facing %.0f deg"), *Cafe, Seat.X, Seat.Y, Seat.Z, Yaw);
+}
+
+void ATorqueBikePawn::StandUp()
+{
+	if (!bSeated) return;
+	bSeated = false;
+	FootPos = SitFrom;   // (back where we stood to sit: ground we walked on)
+	FootPitch = 0.0;
+	UE_LOG(LogTemp, Log, TEXT("Torque: stood up from the table at %s"), *SitCafe);
+}
+
 ATorqueBikePawn* ATorqueBikePawn::MateBikeInReach() const
 {
 	UWorld* World = GetWorld();
@@ -2124,7 +2173,7 @@ void ATorqueBikePawn::LetOver()
 {
 	// Ridden by a mate now: drawn from their snapshots from here on (TorqueNetBike), as any of theirs.
 	if (bPushing) LetGoBike();
-	bOnFoot = false;
+	bOnFoot = bSeated = false;
 	bUseArmed = false;
 	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
 	if (NetBike) NetBike->HandedOver();
@@ -2181,7 +2230,7 @@ bool ATorqueBikePawn::GetOn()
 		FootNoteFor = 2.0;
 		return false;
 	}
-	bOnFoot = false;
+	bOnFoot = bSeated = false;
 	// Upright on its wheels where it stood, the stand up, the engine as it was.
 	const bool bRunning = Sim->EngineOn;
 	const double RpmWas = Sim->Rpm;
@@ -2503,7 +2552,16 @@ FString ATorqueBikePawn::TestFoot(const FString& What)
 	else if (What == TEXT("on")) GetOn();
 	else if (What == TEXT("push")) TakeHoldOfBike();
 	else if (What == TEXT("letgo")) LetGoBike();
-	else if (What.StartsWith(TEXT("walk:")) && bOnFoot)
+	else if (What == TEXT("stand")) StandUp();   // [cafes]
+	else if (What == TEXT("sit") && bOnFoot && !bSeated)
+	{
+		FVector Seat;
+		double SeatYaw = 0.0;
+		FString Cafe;
+		if (FreeSeatNear(Seat, SeatYaw, Cafe)) SitDown(Seat, SeatYaw, Cafe);
+		else return TEXT("no free cafe seat within 150 cm");
+	}
+	else if (What.StartsWith(TEXT("walk:")) && bOnFoot && !bSeated)
 	{
 		const double Cm = FCString::Atod(*What.Mid(5));
 		const int32 Steps = FMath::Max(1, FMath::CeilToInt(FMath::Abs(Cm) / 2.0));
@@ -4032,8 +4090,10 @@ void ATorqueBikePawn::ShowRiderAvatar()
 	RiderAvatar.SetShown(bRiderShown, bRiderShown && bHeadShown, false);
 }
 
-void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt)
+void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt, bool bSat)
 {
+	bNetSat = bOn && bSat;   // [cafes]
+	NetSatAt = Feet;
 	if (!bOn)
 	{
 		if (bNetWalkerShown && NetWalker && NetWalker->IsValid()) NetWalker->SetShown(false, false, false);
@@ -4089,7 +4149,27 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 	In.Velocity.Z = 0.0;
 	In.Facing = FRotator(0.0, Yaw, 0.0);
 	In.LookPitch = LookPitch;   // [build 155] their walking view's up and down (TorqueNetBike sets it)
-	NetWalker->Pose(In, Dt);
+	if (bNetSat)
+	{
+		// [cafes] Sat at a cafe table (Feet the seat's top): sat on it by the hips as the shed's seats (TorqueWalker),
+		// feet on the ground ahead, hands on the thighs.
+		FTorqueRideTargets T;
+		T.Seat = FVector(-4.0, 0.0, 0.0);
+		T.bSeat = true;
+		T.Hip = T.Seat + FVector(0.0, 0.0, 9.0);
+		T.Neck = T.Seat + FVector(-3.0, 0.0, 66.0);
+		T.Look = FRotator(FMath::Clamp((double)LookPitch, -45.0, 35.0), 0.0, 0.0).Quaternion();
+		for (int32 S = 0; S < 2; ++S)
+		{
+			const double Side = S == 0 ? -1.0 : 1.0;
+			T.Ankle[S] = FVector(40.0, Side * 12.0, -46.0 + 9.0);
+			T.Wrist[S] = T.WristUnrolled[S] = T.Seat + FVector(30.0, Side * 15.0, 20.0);
+			T.Grip[S] = T.Seat + FVector(36.0, Side * 13.0, 17.0);
+			T.HandOff[S] = 1.0;
+		}
+		NetWalker->PoseRiding(T);
+	}
+	else NetWalker->Pose(In, Dt);
 	NetWalkerWas = Feet;
 }
 
@@ -5376,7 +5456,7 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	{
 		// On foot, in first person at eye height (the shed walker's view).
 		// (FootPitch up is looking up: the mouse or stick pushed away, unless Invert look is on.)
-		Camera->SetWorldLocationAndRotation(FootPos + FVector(0.0, 0.0, 165.0), FRotator(FootPitch, FootYaw, 0.0));
+		Camera->SetWorldLocationAndRotation(FootPos + FVector(0.0, 0.0, bSeated ? 72.0 : 165.0), FRotator(FootPitch, FootYaw, 0.0));   // ([cafes] sat: the seated eye, 72 cm over the seat as the shed's)
 		Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(80.0f));
 		return;
 	}
@@ -5764,8 +5844,19 @@ void ATorqueBikePawn::DrawHud()
 		if (bPushing)
 			Add(FString::Printf(TEXT("Wheeling the bike: %s to walk, %s to let go (it goes on its stand), engine %s"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
 				*Use, Sim->EngineOn ? TEXT("ticking over") : TEXT("off")), FColor(200, 230, 200), 1.0f);
+		else if (bSeated)
+			Add(FString::Printf(TEXT("Sat at a table outside %s: look about; %s or a step to stand up"), *SitCafe, *Use), FColor(200, 230, 200), 1.0f);   // [cafes]
 		else
 		{
+			// [cafes] By a cafe's outside tables: a seat free to sit on (looked for four times a second).
+			if (OnFootFor - SeatLookAt > 0.25 || OnFootFor < SeatLookAt)
+			{
+				SeatLookAt = OnFootFor;
+				FVector Seat;
+				double SeatYaw = 0.0;
+				bSeatInReach = !bYard && FreeSeatNear(Seat, SeatYaw, SitCafe);
+			}
+			if (bSeatInReach) Add(FString::Printf(TEXT("%s: sit at the table (%s)"), *Use, *SitCafe), FColor(255, 230, 170), 1.0f);
 			// [co-op] By a mate's parked bike (and not our own): it's ours to ride.
 			const ATorqueBikePawn* Mate = Away > 250.0 ? MateBikeInReach() : nullptr;
 			const FString MateLine = Mate ? FString::Printf(TEXT("to ride %s's bike"), *Mate->GetPlayerState()->GetPlayerName()) : FString();

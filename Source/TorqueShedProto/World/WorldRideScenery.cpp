@@ -390,6 +390,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 	Out.OriginX = X0;
 	Out.OriginZ = Z0;
 	if (!Scene || !Land) return;
+	CafesTile(X0, Z0, Size, Out);   // [cafes] (the roadside cafes, their terraces and names: World/WorldRideCafes.cpp)
 	ServicesTile(X0, Z0, Size, Out);   // [everyday kits stage 8b] (the motorway services' hall, pylon and lorries: World/WorldRideServices.cpp)
 	const Region& G = Area.Roads;
 	const bool Fine = Coarse <= 4.5;
