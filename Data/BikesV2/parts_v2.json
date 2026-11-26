@@ -69091,6 +69091,7 @@
     "twin_shock": false,
     "bought": true
    },
+   "sound": "multistrada",
    "crank": "twinpulse",
    "v_angle": 90.0
   },

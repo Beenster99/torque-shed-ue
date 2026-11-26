@@ -40,7 +40,9 @@ BIKES = {
             # the twin-pulse firing order (0, 90, 290, 380 degrees) is its sound (TorqueAudio/EngineSynth "twinpulse")
             "engine": {"layout": "vtwin", "cylinders": 4, "displacement": 1158.0, "bore": 83.0, "stroke": 53.5, "torque_per_cc": 0.108,
                        "peak_torque_rpm": 8750.0, "redline": 11500.0, "idle_rpm": 1300.0, "mass": 66.0, "crank": "twinpulse",
-                       "v_angle": 90.0, "type": "V4 Granturismo", "price": 6800},
+                       "v_angle": 90.0, "type": "V4 Granturismo", "price": 6800,
+                       # [Bike V3 Sounds] beenster's own recording of their Multistrada (Data/Audio/Bikes/multistrada)
+                       "sound": "multistrada"},
             # (its 15/43 gearing folded into the primary: the stock 16/40 sprockets stay, as the shop's bikes all come with them)
             "gearbox": {"primary": 2.064, "ratios": [2.6, 1.94, 1.57, 1.33, 1.15, 1.0], "shift_time": 0.05, "shift_feel": "slick",
                         "quickshifter": True, "dry_clutch": False, "type": "Six-speed with quickshifter", "price": 900},

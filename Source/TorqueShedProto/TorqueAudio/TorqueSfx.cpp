@@ -608,6 +608,8 @@ std::shared_ptr<TorqueEngine::FBank> UTorqueSfx::BikeEngine(const UObject* World
 		Spec.Crank = Vee == 45 ? "45v" : (Vee == 60 ? "60v" : "90v");
 	}
 	Spec.Valves = (int)Num(Head, TEXT("valves"), 4.0);
+	// [Bike V3 Sounds] A bike's own recorded engine (Data/Audio/Bikes/<sound>), as the Multistrada's.
+	Spec.Own = TCHAR_TO_UTF8(*Str(Block, TEXT("sound"), TEXT("")));
 	Spec.Idle = E.IdleRpm;
 	Spec.Redline = E.Redline;
 	Spec.Peak = E.PeakTorqueRpm;

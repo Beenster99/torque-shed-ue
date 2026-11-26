@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -46,6 +47,9 @@ struct FSpec
 	double Rust = 0.0, Misfire = 0.0;
 	bool Kick = false;
 	int Valves = 4;
+	// [Bike V3 Sounds] The bike's own recorded engine (a folder under Data/Audio/Bikes, from the engine
+	// part's "sound"), or "": its loops play up to the revs recorded, the made sound above them.
+	std::string Own;
 };
 
 // Fills in what's missing the way make_spec does (the layout from the cylinders, its usual crank,
@@ -122,6 +126,11 @@ public:
 	// are no engine-side ones.
 	bool bRecorded = false, bExhaustOnly = false;
 	int LoopRate = Rate;
+	// [Bike V3 Sounds] The bike's own recording (Spec.Own): its buckets are ready from the start, the made
+	// ones above OwnTop bake as usual, their engine side folded into the exhaust and matched to the
+	// recording's level (OwnGain) so the hand-over doesn't jump.
+	bool bOwn = false;
+	double OwnTop = 0.0, OwnGain = 1.0;
 	// A real bike of this kind ticking over, or empty: at its own rate, recorded at IdleRecRpm, its
 	// RMS; and the made idle's, exhaust and engine side, off the throttle (once that bucket's baked).
 	std::vector<float> IdleRec;
@@ -136,6 +145,9 @@ public:
 private:
 	std::atomic<bool> bStarted{false}, bFinished{false};
 	void LoadRecorded(const std::string& Dir, const FReader& Read, const FLister& List);
+	void LoadOwn(const std::string& Dir, const FReader& Read, const FLister& List);
+	// The recorded loops in a folder, by rpm: ex_on_<rpm>.wav and the like (their rate into LoopRate).
+	std::map<double, std::array<std::vector<float>, Layers>> ReadLoops(const std::string& Dir, const FReader& Read, const FLister& List);
 	void LoadIdle(const FReader& Read, const FLister& List);
 	void BakeShots();
 };

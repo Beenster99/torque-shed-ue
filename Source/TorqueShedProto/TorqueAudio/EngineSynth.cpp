@@ -704,6 +704,9 @@ void KickOver(std::vector<float>& Out, const FSpec& S, FRng& Rng, std::vector<FF
 uint16_t U16(const uint8_t* P) { return (uint16_t)(P[0] | (P[1] << 8)); }
 uint32_t U32(const uint8_t* P) { return P[0] | (P[1] << 8) | (P[2] << 16) | ((uint32_t)P[3] << 24); }
 
+// [Bike V3 Sounds] How much of the made engine side goes into the exhaust for a bike with its own recording.
+constexpr double OwnInFold = 0.7;
+
 double Rms(const std::vector<float>& S)
 {
 	double E = 0.0;
@@ -750,7 +753,8 @@ std::string Signature(const FSpec& S)
 		S.Crank.c_str(), RoundI(S.Idle / 50.0), RoundI(S.Redline / 100.0), RoundI(S.Peak / 100.0), S.Exhaust.c_str(), S.Intake.c_str(),
 		S.DryClutch ? "true" : "false", RoundI(S.Rust * 4.0), RoundI(S.Misfire * 10.0), S.Kick ? "true" : "false", S.Shift.c_str(),
 		S.Quickshifter ? "true" : "false", S.Valves <= 1 ? "|1v" : "");
-	return Buf;
+	// (only a bike with its own recording says so: every other bike's signature, and so its made sound, stays as it was)
+	return S.Own.empty() ? std::string(Buf) : std::string(Buf) + "|own:" + S.Own;
 }
 
 bool IsTwoStroke(const FSpec& S) { return S.Layout == "2stroke"; }
@@ -1006,7 +1010,8 @@ std::shared_ptr<FBank> FBank::For(const FSpec& S, const FReader& Read, const FLi
 	// <layout>_<cylinders>, <layout>_<exhaust>, <layout>.
 	const std::string Keys[4] = {Full.Layout + "_" + std::to_string(Full.Cylinders) + "_" + Full.Exhaust,
 		Full.Layout + "_" + std::to_string(Full.Cylinders), Full.Layout + "_" + Full.Exhaust, Full.Layout};
-	if (List)
+	if (List && !Full.Own.empty() && !List("Audio/Bikes/" + Full.Own).empty()) Bank->LoadOwn("Audio/Bikes/" + Full.Own, Read, List);
+	if (List && !Bank->bOwn)
 		for (const std::string& K : Keys)
 		{
 			const std::string Dir = "Audio/TS/engines/" + K;
@@ -1016,7 +1021,7 @@ std::shared_ptr<FBank> FBank::For(const FSpec& S, const FReader& Read, const FLi
 				break;
 			}
 		}
-	if (!Bank->bRecorded) Bank->LoadIdle(Read, List);
+	if (!Bank->bRecorded && !Bank->bOwn) Bank->LoadIdle(Read, List);
 	Banks[Key] = Bank;
 	return Bank;
 }
@@ -1039,7 +1044,8 @@ std::vector<int> FBank::BakeOrder() const
 	return Order;
 }
 
-void FBank::LoadRecorded(const std::string& Dir, const FReader& Read, const FLister& List)
+std::map<double, std::array<std::vector<float>, Layers>> FBank::ReadLoops(const std::string& Dir, const FReader& Read,
+	const FLister& List)
 {
 	static const char* LayerNames[Layers] = {"ex_on", "ex_off", "in_on", "in_off"};
 	std::map<double, std::array<std::vector<float>, Layers>> Found;
@@ -1058,10 +1064,6 @@ void FBank::LoadRecorded(const std::string& Dir, const FReader& Read, const FLis
 			Found[std::atof(Base.substr(Prefix.size()).c_str())][L] = std::move(S);
 		}
 	}
-	if (Found.empty()) return;
-	Rpms.clear();
-	Buckets.clear();
-	bExhaustOnly = true;
 	for (auto& KV : Found)
 	{
 		auto& Lay = KV.second;
@@ -1072,14 +1074,59 @@ void FBank::LoadRecorded(const std::string& Dir, const FReader& Read, const FLis
 			if (On.empty() && !Off.empty()) On = Off;
 			else if (Off.empty() && !On.empty()) Off = On;
 		}
-		if (!Lay[InOn].empty()) bExhaustOnly = false;
+	}
+	return Found;
+}
+
+void FBank::LoadRecorded(const std::string& Dir, const FReader& Read, const FLister& List)
+{
+	auto Found = ReadLoops(Dir, Read, List);
+	if (Found.empty()) return;
+	Rpms.clear();
+	Buckets.clear();
+	bExhaustOnly = true;
+	for (auto& KV : Found)
+	{
+		if (!KV.second[InOn].empty()) bExhaustOnly = false;
 		Rpms.push_back(KV.first);
 		auto B = std::make_unique<FBucket>();
-		B->Loop = Lay;
+		B->Loop = KV.second;
 		B->bReady = true;
 		Buckets.push_back(std::move(B));
 	}
 	bRecorded = true;
+}
+
+void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& List)
+{
+	auto Found = ReadLoops(Dir, Read, List);
+	// (only loops at the made sound's rate: the voice plays every bucket at the one LoopRate)
+	if (Found.empty() || LoopRate != Rate)
+	{
+		LoopRate = Rate;
+		return;
+	}
+	const std::vector<double> Made = Rpms;
+	Rpms.clear();
+	Buckets.clear();
+	for (auto& KV : Found)
+	{
+		Rpms.push_back(KV.first);
+		auto B = std::make_unique<FBucket>();
+		B->Loop = KV.second;
+		B->bReady = true;
+		Buckets.push_back(std::move(B));
+	}
+	OwnTop = Rpms.back();
+	// The made buckets well clear of the recording, so the top recorded one carries the revs a way on.
+	for (double R : Made)
+		if (R > OwnTop * 1.12)
+		{
+			Rpms.push_back(R);
+			Buckets.push_back(std::make_unique<FBucket>());
+		}
+	bExhaustOnly = true;
+	bOwn = true;
 }
 
 void FBank::LoadIdle(const FReader& Read, const FLister& List)
@@ -1118,11 +1165,33 @@ void FBank::Bake()
 	bStarted = true;
 	const auto T0 = std::chrono::steady_clock::now();
 	int Done = 0;
+	if (bOwn && OwnTop > 0.0)
+	{
+		// The made sound at the top of the recording, as loud as the recording there.
+		std::vector<float> Ref = RenderLoop(Spec, ExOn, OwnTop, 1);
+		const std::vector<float> RefIn = RenderLoop(Spec, InOn, OwnTop, 1);
+		for (size_t K = 0; K < Ref.size() && K < RefIn.size(); ++K) Ref[K] += OwnInFold * RefIn[K];
+		const int Top = (int)std::distance(Rpms.begin(), std::find(Rpms.begin(), Rpms.end(), OwnTop));
+		const double Want = Rms(Buckets[Top]->Loop[ExOn]), Have = Rms(Ref);
+		OwnGain = Have > 1e-6 ? Want / Have : 1.0;
+	}
 	if (!bRecorded)
 		for (int I : BakeOrder())
 		{
 			FBucket& B = *Buckets[I];
+			if (B.bReady) continue;   // (a bike's own recorded bucket)
 			for (int L = 0; L < Layers; ++L) B.Loop[L] = RenderLoop(Spec, L, Rpms[I], I + 1);
+			if (bOwn)
+			{
+				// One exhaust-side sound, as the recording is: the engine side folded in, at the recording's level.
+				for (int Side = 0; Side < 2; ++Side)
+				{
+					std::vector<float>& Ex = B.Loop[Side == 0 ? ExOn : ExOff];
+					std::vector<float>& In = B.Loop[Side == 0 ? InOn : InOff];
+					for (size_t K = 0; K < Ex.size(); ++K) Ex[K] = (float)((Ex[K] + (K < In.size() ? OwnInFold * In[K] : 0.0)) * OwnGain);
+					In.clear();
+				}
+			}
 			if (I == IdleBucket)
 			{
 				IdleMadeEx = Rms(B.Loop[ExOff]);
