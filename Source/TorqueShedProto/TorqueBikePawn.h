@@ -196,6 +196,12 @@ public:
 	bool IsParkedUp() const { return !Sim->IsCrashed && (bOnFoot || bParkedLook) && !bPushing; }
 	ATorqueBikePawn* MateBikeInReach() const;
 	FVector FeetAt() const { return FootPos; }
+	// [cafes] (beenster Nov 26: "I also want to be able to sit at tables outside them") On foot by a roadside cafe's
+	// outside tables (World/WorldRideCafes.cpp), F sits on the nearest free chair or bench: the view drops to a sitter's
+	// eye, facing the table; F or a step stands up where you stood. Seen by mates sat down (FTorqueBikeNetState::Sounds 4).
+	bool IsSeated() const { return bSeated; }
+	// Where someone's sat (seat's top, world cm): ours, or a mate's as their snapshots say.
+	bool SatAt(FVector& Out) const { Out = bSeated ? FootPos : NetSatAt; return bSeated || bNetSat; }
 	// [ferries] Carried by a ferry (World/TorqueFerry.h) as its deck moves From To (world): our feet, our bike parked
 	// on its stand, or both. Getting back on is held until FerryHoldUntil (world seconds) while it's under way.
 	void FerryCarry(const FTransform& From, const FTransform& To, bool bFeet, bool bBike);
@@ -405,7 +411,9 @@ private:
 	TWeakObjectPtr<const APlayerState> NetWalkerFor;   // [co-op] whose body NetWalker is (bikes can be swapped)
 	FVector NetWalkerWas = FVector::ZeroVector;
 	bool bNetWalkerShown = false, bNetWalkerTried = false;
-	void ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt);
+	void ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt, bool bSat = false);
+	bool bNetSat = false;   // [cafes] their snapshot has them sat at a cafe table (Feet the seat's top)
+	FVector NetSatAt = FVector::ZeroVector;
 	void UpdateRiderAvatar();
 	// [helmet plan] The rider's helmet paint (this machine's profile, or the co-op rider's), put on
 	// again whenever it changes.
@@ -580,6 +588,15 @@ private:
 	// (sim frame: the ground under it, its heading, which stand, how far it leans or is lifted); the
 	// catalogue bike's stands (their parts, and each stand surface's place as drawn, folded).
 	bool bOnFoot = false, bParkedLook = false;
+	// [cafes] Sat at a cafe table: FootPos is the seat's top then, SitFrom where we stood to sit (stood back up there).
+	bool bSeated = false;
+	FVector SitFrom = FVector::ZeroVector;
+	FString SitCafe;
+	double SeatLookAt = -10.0;   // OnFootFor when the free seat in reach was last looked for (the hint)
+	bool bSeatInReach = false;
+	bool FreeSeatNear(FVector& Seat, double& Yaw, FString& Cafe) const;
+	void SitDown(const FVector& Seat, double Yaw, const FString& Cafe);
+	void StandUp();
 	FVector FootPos = FVector::ZeroVector;
 	double FootYaw = 0.0, FootPitch = 0.0, OnFootFor = 0.0, FootNoteFor = 0.0;
 	bool bMouseTaken = false;   // ReadInput has put the game in charge of the mouse (FInputModeGameOnly)

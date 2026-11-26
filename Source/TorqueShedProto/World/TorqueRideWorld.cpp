@@ -367,6 +367,22 @@ bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<do
 	return true;
 }
 
+bool ATorqueRideWorld::CafeSeatNear(const FVector& At, double Reach, const TArray<FVector>& Taken, FVector& Seat, double& Yaw, FString& Cafe)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	std::vector<TorqueWorld::P2> Sat;
+	for (const FVector& T : Taken) Sat.push_back(TorqueWorld::P2(T.X / 100.0, T.Y / 100.0));
+	TorqueWorld::P2 Spot, Face;
+	double Y = 0.0;
+	std::string Name;
+	if (!Ride->Plan->CafeSeatNear(At.X / 100.0, At.Y / 100.0, Reach / 100.0, Spot, Y, Face, &Sat, &Name)) return false;
+	Seat = FVector(Spot.X * 100.0, Spot.Z * 100.0, Y * 100.0);
+	Yaw = FMath::RadiansToDegrees(FMath::Atan2(Face.Z, Face.X));
+	Cafe = UTF8_TO_TCHAR(Name.c_str());
+	return true;
+}
+
 bool ATorqueRideWorld::PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, UStaticMesh*& OutMesh, FTransform& OutAt)
 {
 	// (PlaceProps's own sums for one prop, level, at its own scale)
@@ -438,6 +454,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.bAtFuel = false;
 	Dash.bNavRerouting = false;
 	Dash.bNavVia = false;
+	Dash.NavFerry = 0;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
 	const double X = At.X / 100.0, Z = At.Y / 100.0;
@@ -468,6 +485,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 			UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s the %s ferry"), bOver ? TEXT("over") : TEXT("back across"), UTF8_TO_TCHAR(Ferry->Name.c_str()));
 		}
 		if (S.bFerryOver) N.OffRoute = true;   // (the way on is all there is)
+		Dash.NavFerry = S.bFerryOver ? 2 : 1;
 	}
 	bool bViaNav = false;
 	if (S.bVia)

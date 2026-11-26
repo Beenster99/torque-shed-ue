@@ -1940,13 +1940,14 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry",
                     "power_turbine", "power_rotor", "power_palisade",
                     "coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",
-                    "parked_car",   # ([Nov 26] our own made-up cars, Tools/blender_car_kit.py, drawn among the Fab ones)
                     "road_burgervan", "road_flag", "road_laybysign", "road_cafesign",   # ([everyday kits stage 5b, 7, 8, 8b] the roadside,
                     "bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail",     # bridge, fast road and services sets: the same material)
                     "fast_barrier", "fast_concrete", "fast_gantry", "fast_camera", "fast_phone", "fast_marker",
                     "services_hall", "services_pylon", "services_lorry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
+# ([cafes] the roadside cafes and their outside tables, Tools/blender_cafe_kit.py, the same material)
+STREET_KIT_KINDS = STREET_KIT_KINDS + ("cafe_building", "cafe_chair", "cafe_table", "cafe_picnic", "cafe_parasol", "cafe_aboard")
 
 
 def street_kit_texture(L, file_name, asset, compression, nearest=False):
@@ -2346,14 +2347,6 @@ def prop_kit(L):
     for kind, row in spec["kinds"].items():
         if row.get("folder") == "Cars":
             cars_note = parked_cars(L, kind, row, add)
-            # [Nov 26] Our own made-up cars (Tools/blender_car_kit.py: SM_Prop_parked_car_100.., each with its
-            # hand-made LOD1), listed with the Fab copies: a parked car's Variant picks among them all, so drives,
-            # car parks and ferries get ours mixed in. Kept even when no Fab cars are in the project.
-            own = sorted(n for n in ours if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit())
-            for name in own:
-                add(name, ours[name], False, row, kit_paint)
-            if own:
-                cars_note = (cars_note + "; " if cars_note else "") + "%d own cars" % len(own)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])

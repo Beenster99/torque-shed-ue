@@ -107,7 +107,7 @@
   "fast_marker": {"words": [], "reach": 150, "height": 1.227, "shadow": false, "credit": "", "hand_lods": [0.12, 0.03]},
   "services_hall": {"words": [], "reach": 1500, "height": 7.4, "shadow": true, "credit": "", "hand_lods": [0.25, 0.06]},
   "services_pylon": {"words": [], "reach": 600, "height": 7.57, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
-  "services_lorry": {"words": [], "reach": 600, "height": 4.037, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
+  "services_lorry": {"words": [], "reach": 600, "height": 4.0, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "farm_combine": {"words": [], "reach": 600, "height": 4.055, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "farm_forager": {"words": [], "reach": 500, "height": 4.566, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "farm_sprayer": {"words": [], "reach": 500, "height": 3.825, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
@@ -122,7 +122,13 @@
   "farm_baler": {"words": [], "reach": 400, "height": 3.05, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "farm_drill": {"words": [], "reach": 350, "height": 2.332, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
   "farm_cultivator": {"words": [], "reach": 400, "height": 1.2, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
-  "parked_car": {"words": [], "reach": 220, "height": 0, "shadow": true, "credit": "", "folder": "Cars", "variants": 12, "hand_lods": [0.14],
+  "cafe_building": {"words": [], "reach": 1200, "height": 10.0, "shadow": true, "credit": "", "hand_lods": [0.25, 0.06]},
+  "cafe_chair": {"words": [], "reach": 120, "height": 0.863, "shadow": false, "credit": "", "hand_lods": [0.1, 0.03]},
+  "cafe_table": {"words": [], "reach": 150, "height": 0.755, "shadow": true, "credit": "", "hand_lods": [0.1, 0.03]},
+  "cafe_picnic": {"words": [], "reach": 180, "height": 0.768, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
+  "cafe_parasol": {"words": [], "reach": 300, "height": 2.48, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
+  "cafe_aboard": {"words": [], "reach": 120, "height": 0.984, "shadow": false, "credit": "", "hand_lods": [0.1, 0.03]},
+  "parked_car": {"words": [], "reach": 220, "height": 0, "shadow": true, "credit": "", "folder": "Cars", "variants": 12,
    "models": ["sm_hatchback", "sm_suv", "vehicle02_car", "vehicle03_car", "vehicle05_car"],
    "colours": [[0.55, 0.56, 0.57], [0.012, 0.03, 0.09], [0.8, 0.8, 0.78], [0.2, 0.012, 0.012], [0.08, 0.08, 0.085], [0.015, 0.07, 0.03], [0.32, 0.28, 0.2], [0.18, 0.3, 0.45], [0.006, 0.006, 0.007], [0.45, 0.45, 0.46]]}
  }
