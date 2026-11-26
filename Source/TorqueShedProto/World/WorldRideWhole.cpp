@@ -7,7 +7,8 @@
 // with one surface: on each mouth line exactly the road's own surface there, and between them the roads' surfaces
 // blended (each road's crown and tilt carried on in, weighted by nearness to its mouth), rounded corners between the
 // roads, a shoulder round each corner. Nothing overlaps, so nothing settles or is patched.
-// Behind a switch (RidePlan::WholeJunctions, -TorqueJunctions=whole) until the plan's stage 7.
+// On by default (Nov 26: no switch; new junctions are on as soon as they are made). A junction the builder turns
+// down keeps the old drawing. Developer only: -TorqueJunctions=old (SimTest WORLD_RIDE_WHOLE=0) draws every junction the old way.
 #include "WorldRide.h"
 #include <functional>
 #include "WorldRoadLine.h"
@@ -22,7 +23,7 @@
 
 namespace TorqueWorld
 {
-bool RidePlan::WholeJunctions = false;
+bool RidePlan::WholeJunctions = true;
 
 namespace
 {

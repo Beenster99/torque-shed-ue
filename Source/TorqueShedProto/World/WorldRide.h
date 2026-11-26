@@ -1806,7 +1806,7 @@ public:
 	static const char* JunctionKindName(EJunction Kind);
 	// [smooth junctions stage 3] A junction built whole (World/WorldRideWhole.cpp): its roads stop at mouth lines Cut
 	// metres in from their ends, and the junction between is one piece with one surface (WholePiece), drawn with its
-	// Owner road's piece at that end. Behind WholeJunctions (-TorqueJunctions=whole; SimTest WORLD_RIDE_WHOLE=1).
+	// Owner road's piece at that end. WholeJunctions is on by default (off only by -TorqueJunctions=old; SimTest WORLD_RIDE_WHOLE=0).
 	struct WholePlan
 	{
 		bool Ok = false;
