@@ -69249,7 +69249,8 @@
     "bought": true
    },
    "crank": "90v",
-   "v_angle": 90.0
+   "v_angle": 90.0,
+   "sound": "monster"
   },
   "v2_honda_cb1000gt__engine": {
    "mass": 62.0,

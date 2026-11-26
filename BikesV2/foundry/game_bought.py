@@ -128,7 +128,7 @@ K_TWIN6 = [2.92, 2.06, 1.6, 1.36, 1.18, 1.04]
 BIKES.update({
     "ducati_monster": _bike("naked", "monster", "Ducati", "Ducati Monster 890",
         "The Ducati Monster, bought whole: 890 cc V2, 111 hp, trellis-free frame and a 179 kg dry weight.", 3400, 9.5, RED, "vtwin90",
-        _eng("vtwin", 2, 890.0, 96.0, 61.5, 0.1024, 7250.0, 10750.0, 1300.0, 52.0, "90v", "890 V2", 4400, 90.0),
+        dict(_eng("vtwin", 2, 890.0, 96.0, 61.5, 0.1024, 7250.0, 10750.0, 1300.0, 52.0, "90v", "890 V2", 4400, 90.0), sound="monster"),
         _box(1.78, [2.69, 1.95, 1.58, 1.37, 1.22, 1.11], True, "Six-speed with quickshifter", 900), cda=0.46),
     "honda_cb1000gt": _bike("adventure", "cb1000gt", "Honda", "Honda CB1000 GT",
         "The Honda CB1000 GT, bought whole: 1,084 cc inline four, 150 hp, a sports tourer with a tall screen.", 4300, 12.0, [0.025, 0.026, 0.03], "inline4",
