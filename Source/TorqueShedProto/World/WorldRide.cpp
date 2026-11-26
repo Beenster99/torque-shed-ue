@@ -4751,6 +4751,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 	if (Rows.size() >= 2 && Pts[size_t(First)].OneWay + Pts[size_t(Last)].OneWay + Pts[size_t((First + Last) / 2)].OneWay > 0)
 	{
 		static constexpr float Steel[3] = {0.27f, 0.28f, 0.29f}, PostGrey[3] = {0.2f, 0.2f, 0.21f};
+		const bool FastKit = FastBarriersOn();
 		struct Mid
 		{
 			bool Is = false;
@@ -4788,6 +4789,11 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			const Mid& A = Mids[K];
 			const Mid& B = Mids[K + 1];
 			if (!A.Is || !B.Is || A.Of != B.Of || A.At.DistanceTo(B.At) > 12.0) continue;
+			if (FastKit)   // [everyday kits stage 8] (the fast road set's double-beam barrier: World/WorldRideFastRoads.cpp)
+			{
+				LayBarrierRun(Out.Props, Out.OriginX, Out.OriginZ, PropFastBarrier, 1, A.At, A.Y, B.At, B.Y);
+				continue;
+			}
 			// (the beams: a face each side, 0.45 to 0.78 m up, 0.18 m out from the posts, a lip over each)
 			for (double Sd : {1.0, -1.0})
 			{
@@ -4853,6 +4859,13 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			const Row& B = Rows[K + 1];
 			const P2 Ma = A.At + A.Left * (double(A.Near) * (A.Half + 1.0)), Mb = B.At + B.Left * (double(B.Near) * (B.Half + 1.0));
 			const double Ya = A.Height - ShoulderDip - 0.05, Yb = B.Height - ShoulderDip - 0.05;
+			if (FastBarriersOn())
+			{
+				// [everyday kits stage 8] (the fast road set's one-beam barrier, the road on its right as it runs: World/WorldRideFastRoads.cpp)
+				if (A.Near > 0) LayBarrierRun(Out.Props, Out.OriginX, Out.OriginZ, PropFastBarrier, 0, Ma, Ya, Mb, Yb);
+				else LayBarrierRun(Out.Props, Out.OriginX, Out.OriginZ, PropFastBarrier, 0, Mb, Yb, Ma, Ya);
+				continue;
+			}
 			const P2 Fa = Ma - A.Left * (double(A.Near) * 0.12), Fb = Mb - B.Left * (double(B.Near) * 0.12);
 			Quad3(At3(Fa, Ya + 0.45), At3(Fb, Yb + 0.45), At3(Fb, Yb + 0.78), At3(Fa, Ya + 0.78), At3(A.At, Ya + 0.6), Steel, true);
 			const double La = A.Along, Lb = B.Along;

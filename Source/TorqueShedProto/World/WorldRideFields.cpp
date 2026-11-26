@@ -124,6 +124,8 @@ void RidePlan::IndexFields()
 		if (Aprons[I].size() >= 3) Shapes.push_back({FieldForecourt, &Aprons[I], "apron" + std::to_string(I), false});
 	for (size_t I = 0; I < RoadLaybys.size(); ++I)   // [everyday kits stage 5b] (the lay-bys: tarmac as a forecourt's, a lane's gravel as a pull-off's)
 		if (RoadLaybys[I].Ring.size() >= 3) Shapes.push_back({RoadLaybys[I].Tarmac ? FieldForecourt : FieldPullOff, &RoadLaybys[I].Ring, "layby" + std::to_string(I), false});
+	for (size_t I = 0; I < ServiceAreas.size(); ++I)   // [everyday kits stage 8b] (a services' lorry park: no crops or trees on it; its tarmac drawn by ServicesTile)
+		if (ServiceAreas[I].Park.size() >= 3) Shapes.push_back({FieldForecourt, &ServiceAreas[I].Park, "lorrypark" + std::to_string(I), false});
 	for (const Shape& Sh : Shapes)
 	{
 		const std::vector<P2>& Ring = *Sh.Ring;

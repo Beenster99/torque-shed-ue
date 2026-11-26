@@ -804,6 +804,10 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: lay-bys %d made of %d mapped, %d roadside cafes signed, %d roadside things%s"), int32(Plan->RoadLaybys.size()),
 			int32(Plan->LaybysSeen), int32(Plan->RoadCafes), int32(Plan->RoadsideThings.size()),
 			Plan->PropModelled[RidePlan::PropRoadBurgerVan] ? TEXT("") : TEXT(" (no models: Tools/ue_build_rideuk.py prop_kit)"));
+		// [everyday kits stage 8] (the fast road set)
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: fast road set %s: %d gantries, %d speed cameras, %d emergency phones, %d marker posts"),
+			Plan->FastBarriersOn() ? TEXT("on") : TEXT("on, barriers drawn (no models: Tools/ue_build_rideuk.py prop_kit)"),
+			int32(Plan->FastGantries), int32(Plan->FastCameras), int32(Plan->FastPhones), int32(Plan->FastMarkers));
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: power and skyline set %s"), PowerAsked == 0 ? TEXT("off (-TorquePower=0)")
 			: Plan->PropModelled[RidePlan::PropPowerPylon] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
 		for (int32 K = RidePlan::PropFarmBales; K <= RidePlan::PropFarmTractorCompact && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;

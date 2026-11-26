@@ -415,6 +415,14 @@ int main(int Argc, char** Argv)
 		std::printf("Coast things from the kits files: %d\n", int(Plan->Area.Roads.KitThings.size()));
 		std::printf("Lay-bys: %d made of %d mapped; roadside cafes signed: %d; roadside things: %d\n", int(Plan->RoadLaybys.size()), Plan->LaybysSeen, Plan->RoadCafes,
 			int(Plan->RoadsideThings.size()));
+		std::printf("Fast road set: %d gantries, %d speed cameras, %d emergency phones, %d marker posts; barriers as models: %s\n", Plan->FastGantries, Plan->FastCameras,   // [everyday kits stage 8]
+			Plan->FastPhones, Plan->FastMarkers, Plan->FastBarriersOn() ? "yes" : "no");
+		{
+			int Halls = 0, Pylons = 0, Lorries = 0;   // [everyday kits stage 8b]
+			for (size_t Ai = 0; Ai < Plan->ServiceAreas.size(); ++Ai) { const RidePlan::ServiceArea& A = Plan->ServiceAreas[Ai]; Building H; Halls += Plan->HallOf(Ai, H) ? 1 : 0; Pylons += A.Pylon ? 1 : 0; Lorries += int(A.LorryAt.size()); }
+			std::printf("Motorway services: %d areas, %d main buildings, %d pylons, %d lorries\n", int(Plan->ServiceAreas.size()), Halls, Pylons, Lorries);
+			for (const RidePlan::ServiceArea& A : Plan->ServiceAreas) std::printf("  %s at %.1f, %.1f\n", A.Name.c_str(), A.Mid.X, A.Mid.Z);
+		}
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -3850,7 +3858,7 @@ int main(int Argc, char** Argv)
 				// x z y yaw pitch stretch scale across)
 				for (const RideProp& P : Piece.Props)
 				{
-					if (P.Kind < RidePlan::PropBridgeArch || P.Kind > RidePlan::PropBridgeRail) continue;
+					if (P.Kind < RidePlan::PropBridgeArch || P.Kind > RidePlan::PropFastMarker) continue;   // ([stage 8] and the fast road set's barriers)
 					if (std::hypot(Piece.OriginX + P.X - Centre.X, Piece.OriginZ + P.Z - Centre.Z) > Reach2 + 40.0) continue;
 					std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Piece.OriginX + P.X - Centre.X,
 						Piece.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
@@ -4050,10 +4058,11 @@ int main(int Argc, char** Argv)
 						std::vector<RideProp> Yard;
 						Plan->PropsTile(Tx, Tz, 64.0, Yard);
 						for (const RideProp& P : Yard)
-							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropRoadCafeSign) || (P.Kind >= RidePlan::PropMachCombine && P.Kind <= RidePlan::PropMachCultivator) || P.Kind == RidePlan::PropPicnicTable)
+							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropRoadCafeSign) || (P.Kind >= RidePlan::PropMachCombine && P.Kind <= RidePlan::PropMachCultivator) || P.Kind == RidePlan::PropPicnicTable
+								|| (P.Kind >= RidePlan::PropFastGantry && P.Kind <= RidePlan::PropFastMarker))   // ([stage 8] the fast road set's gantries and roadside things)
 							{
-								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
-									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
+									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
 								KitPropText += Buf;
 							}
 						// ([everyday kits stage 9] the power set's models, which SkylineTile lays near: ... stretch scale)
@@ -4081,9 +4090,10 @@ int main(int Argc, char** Argv)
 						}
 						if (!P.Facade)
 						{
-							// ([everyday kits] the prop kit's other models, to WORLD_RIDE_MESH.kitprops: name variant x z y yaw pitch stretch)
-							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
-								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+							// ([everyday kits] the prop kit's other models, to WORLD_RIDE_MESH.kitprops: name variant x z y yaw pitch stretch
+							// scale across)
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
+								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
 							KitPropText += Buf;
 							continue;
 						}
