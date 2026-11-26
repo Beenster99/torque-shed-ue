@@ -94,11 +94,32 @@ class Model:
 
 # --- geometry ---------------------------------------------------------------------------------------------
 
+def _edge_use(me):
+    """How many faces use each of the mesh's edges (2 for every edge of a closed piece)."""
+    use = {tuple(sorted(e.vertices)): 0 for e in me.edges}
+    for poly in me.polygons:
+        for e in poly.edge_keys:
+            use[tuple(sorted(e))] = use.get(tuple(sorted(e)), 0) + 1
+    return list(use.values())
+
+
 def _object(name, verts, faces, sharp_deg=35.0):
     me = bpy.data.meshes.new(name)
     me.from_pydata([tuple(map(float, v)) for v in verts], [], faces)
     me.validate()
     me.update()
+    # ([caravans, build 175] a closed piece's faces first made to agree with each other: prism()-style
+    # pieces came wound one way on their caps and the other on their sides, so the signed volume below was
+    # a guess and half of many a caravan showed its back faces, drawn as holes by the one-sided material.
+    # Tools/check_prop_faces.py measures it on the written models.)
+    if me.edges and all(n == 2 for n in _edge_use(me)):
+        import bmesh
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(me)
+        bm.free()
+        me.update()
     # (closed pieces always face out: flipped if their signed volume says they were wound inside out)
     vol = 0.0
     co = [v.co for v in me.vertices]
