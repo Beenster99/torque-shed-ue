@@ -729,9 +729,13 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, bSpring ? Laid : S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
+			// (Only what's ahead of the seat point: a bought model's tank pieces can include trim on its tail.
+			// The Trident 800's tail badges are drawn as tank and put its "back edge" 8 cm behind the rear
+			// axle, so the rider was pushed back off the seat, hands short of the bars and feet off the pegs:
+			// beenster on build 175.)
 			if (OutFrame && P.Slot == "tank")
 				for (const FVector& V : Pos)
-					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
+					if (FMath::Abs(V.Y) < 10.0 && V.Z > OutFrame->Seat.Z - 2.0 && V.X > OutFrame->Seat.X) OutFrame->TankRearX = FMath::Min(OutFrame->TankRearX, V.X);
 			if (bV2 && P.Sub == "grip")
 				for (const FVector& GripV : Pos)
 					if (GripV.Y > 2.0) DrawnGrip += GripV;
