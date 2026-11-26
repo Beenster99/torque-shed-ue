@@ -69363,7 +69363,8 @@
     "twin_shock": false,
     "bought": true
    },
-   "crank": "180"
+   "crank": "180",
+   "sound": "kle500"
   },
   "v2_kawasaki_klr650__engine": {
    "mass": 44.0,
@@ -69400,7 +69401,8 @@
     "twin_shock": false,
     "bought": true
    },
-   "crank": "single"
+   "crank": "single",
+   "sound": "klr650"
   },
   "v2_kawasaki_ninja7__engine": {
    "mass": 48.0,
