@@ -109,7 +109,8 @@ int main(int Argc, char** Argv)
 		{"2stroke_125", Make("2stroke", 1, 125, 1500, 11500, "full"), false},
 		// [Bike V3 Sounds] beenster's own recordings (Data/Audio/Bikes/<name>) over the revs recorded, made below and above
 		{"multistrada", [&Make] { FSpec S = Make("vtwin", 4, 1158, 1300, 11500, "stock", "twinpulse"); S.Own = "multistrada"; return S; }(), false},
-		{"scout", [&Make] { FSpec S = Make("vtwin", 2, 1250, 1000, 8300, "stock", "60v"); S.Own = "scout"; return S; }(), false},
+		{"scout", [&Make] { FSpec S = Make("vtwin", 2, 1250, 1000, 8300, "stock", "60v"); S.Own = "scout"; return S; }(), true},
+		{"cb1000gt", [&Make] { FSpec S = Make("inline", 4, 1084, 1200, 12000, "stock", "flat"); S.Own = "cb1000gt"; return S; }(), true},
 		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
 		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
@@ -124,9 +125,9 @@ int main(int Argc, char** Argv)
 			B->IdleRec.empty() ? "" : ", idle recording", Ms);
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
-		if (!C.S.Own.empty() && C.bIdleRec)
+		if (C.S.Own == "panigale")   // (its recording is only a tickover)
 			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - 1350.0) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
-		if (!C.S.Own.empty() && !C.bIdleRec)
+		if (!C.S.Own.empty() && C.S.Own != "panigale")
 		{
 			// Its own loops over the revs recorded, the made sound either side, no jump in level where they meet.
 			CHECK(B->bOwn && B->OwnTop > B->OwnLo * 1.4, "%s: own recording not loaded (%.0f-%.0f rpm)", C.Name, B->OwnLo, B->OwnTop);
@@ -200,8 +201,12 @@ int main(int Argc, char** Argv)
 		const double IdleRms = Rms(&All[IdleAt + OutRate], OutRate * 2);
 		const double PullRms = Rms(&All[PullAt + OutRate], OutRate * 2);
 		const double OverRms = Rms(&All[OverAt], OutRate * 3);
-		IdleLoud.push_back(IdleRms);
-		PullLoud.push_back(PullRms);
+		// (the made kinds' spread; a bike's own recording is checked against its own made sound above)
+		if (C.S.Own.empty())
+		{
+			IdleLoud.push_back(IdleRms);
+			PullLoud.push_back(PullRms);
+		}
 		std::printf("  idle rms %.3f (recorded share %.2f), pull %.3f, overrun %.3f (%d pops, %d bangs; flames on %.0f%% of pops), peak %.2f, catches %d\n", IdleRms, IdleShare, PullRms,
 			OverRms, V.Pops - Pops0, V.Bangs, 100.0 * FlameShare(V.Bank().Spec), Peak, V.Catches);
 		// ([build 160] the big bangs and the flames: sports engines only)
