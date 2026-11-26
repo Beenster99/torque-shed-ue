@@ -1021,7 +1021,7 @@ std::shared_ptr<FBank> FBank::For(const FSpec& S, const FReader& Read, const FLi
 				break;
 			}
 		}
-	if (!Bank->bRecorded && !Bank->bOwn) Bank->LoadIdle(Read, List);
+	if (!Bank->bRecorded && !Bank->bOwn && Bank->IdleRec.empty()) Bank->LoadIdle(Read, List);
 	Banks[Key] = Bank;
 	return Bank;
 }
@@ -1099,6 +1099,22 @@ void FBank::LoadRecorded(const std::string& Dir, const FReader& Read, const FLis
 
 void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& List)
 {
+	// Its own tickover (idle_<rpm>.wav), played at tickover over the made sound as the kinds' recorded idles are.
+	for (const std::string& File : List(Dir))
+	{
+		if (File.size() < 10 || File.compare(0, 5, "idle_") != 0 || File.substr(File.size() - 4) != ".wav") continue;
+		const std::string Num = File.substr(5, File.size() - 9);
+		if (!IsNumber(Num)) continue;
+		int R = 44100;
+		std::vector<float> S = ReadWav(Read(Dir + "/" + File), R);
+		if (S.size() < 500) continue;
+		IdleRec = std::move(S);
+		IdleRecRate = R;
+		IdleRecRpm = std::atof(Num.c_str());
+		IdleRecRms = Rms(IdleRec);
+		IdleBucket = BakeOrder()[0];
+		break;
+	}
 	auto Found = ReadLoops(Dir, Read, List);
 	// (only loops at the made sound's rate: the voice plays every bucket at the one LoopRate)
 	if (Found.empty() || LoopRate != Rate)
@@ -1154,6 +1170,12 @@ void FBank::LoadOwn(const std::string& Dir, const FReader& Read, const FLister& 
 	OwnGain = 1.0;
 	bExhaustOnly = true;
 	bOwn = true;
+	if (!IdleRec.empty())
+	{
+		// (the buckets changed: the tickover's level from the nearest one, now if it's a recorded one)
+		IdleBucket = BakeOrder()[0];
+		if (Buckets[IdleBucket]->bReady) IdleMadeEx = Rms(Buckets[IdleBucket]->Loop[ExOff]);
+	}
 }
 
 void FBank::LoadIdle(const FReader& Read, const FLister& List)

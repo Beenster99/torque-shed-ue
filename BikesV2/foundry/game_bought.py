@@ -58,7 +58,9 @@ BIKES = {
             # Desmosedici Stradale: 1103 cc, 81 x 53.5 mm, 215 hp at 13,500, 121 N m at 11,250 (made-up close to the real figures)
             "engine": {"layout": "vtwin", "cylinders": 4, "displacement": 1103.0, "bore": 81.0, "stroke": 53.5, "torque_per_cc": 0.11,
                        "peak_torque_rpm": 11250.0, "redline": 14500.0, "idle_rpm": 1300.0, "mass": 64.0, "crank": "twinpulse",
-                       "v_angle": 90.0, "type": "Desmosedici Stradale V4", "price": 9500},
+                       "v_angle": 90.0, "type": "Desmosedici Stradale V4", "price": 9500,
+                       # [Bike V3 Sounds] beenster's own recording of the Panigale on tour: its tickover (Data/Audio/Bikes/panigale)
+                       "sound": "panigale"},
             # (its 15/41 gearing folded into the primary over the sport stock 15/45, with a taller top end for its 186 mph)
             "gearbox": {"primary": 1.62, "ratios": [2.714, 2.118, 1.737, 1.524, 1.364, 1.25], "shift_time": 0.04, "shift_feel": "slick",
                         "quickshifter": True, "dry_clutch": False, "type": "Six-speed with quickshifter", "price": 1200},

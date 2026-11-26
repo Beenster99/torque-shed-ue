@@ -110,6 +110,8 @@ int main(int Argc, char** Argv)
 		// [Bike V3 Sounds] beenster's own recordings (Data/Audio/Bikes/<name>) over the revs recorded, made below and above
 		{"multistrada", [&Make] { FSpec S = Make("vtwin", 4, 1158, 1300, 11500, "stock", "twinpulse"); S.Own = "multistrada"; return S; }(), false},
 		{"scout", [&Make] { FSpec S = Make("vtwin", 2, 1250, 1000, 8300, "stock", "60v"); S.Own = "scout"; return S; }(), false},
+		// (the Panigale's recording gives only its tickover: its own idle over the made sound)
+		{"panigale", [&Make] { FSpec S = Make("vtwin", 4, 1103, 1300, 14500, "stock", "twinpulse"); S.Own = "panigale"; return S; }(), true},
 	};
 	std::vector<double> IdleLoud, PullLoud;
 	for (FCase& C : Cases)
@@ -122,7 +124,9 @@ int main(int Argc, char** Argv)
 			B->IdleRec.empty() ? "" : ", idle recording", Ms);
 		CHECK(B->Finished() && B->bShotsReady, "%s didn't finish", C.Name);
 		CHECK(C.bIdleRec == !B->IdleRec.empty(), "%s: idle recording %s", C.Name, B->IdleRec.empty() ? "missing" : "unexpected");
-		if (!C.S.Own.empty())
+		if (!C.S.Own.empty() && C.bIdleRec)
+			CHECK(!B->bOwn && std::fabs(B->IdleRecRpm - 1350.0) < 1.0, "%s: own tickover not loaded (%.0f rpm)", C.Name, B->IdleRecRpm);
+		if (!C.S.Own.empty() && !C.bIdleRec)
 		{
 			// Its own loops over the revs recorded, the made sound either side, no jump in level where they meet.
 			CHECK(B->bOwn && B->OwnTop > B->OwnLo * 1.4, "%s: own recording not loaded (%.0f-%.0f rpm)", C.Name, B->OwnLo, B->OwnTop);
