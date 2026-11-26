@@ -3480,10 +3480,19 @@ int main(int Argc, char** Argv)
 			for (size_t I = 0; I < Plan->TowerShapes.size(); ++I)
 			{
 				const RidePlan::TowerShape& T = Plan->TowerShapes[I];
-				if ((T.Class == "industrial" || T.Class == "warehouse" || T.Class == "retail") && T.Floor >= 1500.0 && T.Ring.size() >= 4 && T.Ring.size() <= 12)
+				if ((T.Class == "industrial" || T.Class == "warehouse" || T.Class == "retail") && T.Floor >= 1500.0 && T.Ring.size() >= 4 && T.Ring.size() <= (std::getenv("WORLD_RIDE_SHED_OBLONG") ? 5u : 12u))
 					Sheds.push_back({T.Mid.DistanceTo(Plan->Road[0].At), I});
 			}
 			std::sort(Sheds.begin(), Sheds.end());
+			{
+				const std::shared_ptr<const WarehouseKit> Wk = WarehouseKitNow();
+				std::printf("warehouse kit: %zu designs\n", Wk ? Wk->Designs.size() : size_t(0));
+				for (size_t K = 0; K < Sheds.size() && K < 12; ++K)
+				{
+					const RidePlan::TowerShape& T = Plan->TowerShapes[Sheds[K].second];
+					std::printf("  shed %zu: %s %.0f m2 base %.1f %zu corners at %.0f, %.0f\n", K, T.Class.c_str(), T.Floor, T.Base, T.Ring.size(), T.Mid.X, T.Mid.Z);
+				}
+			}
 			if (Nth >= 0 && size_t(Nth) < Sheds.size())
 			{
 				const RidePlan::TowerShape& T = Plan->TowerShapes[Sheds[size_t(Nth)].second];
