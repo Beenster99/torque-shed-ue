@@ -177,11 +177,13 @@ BIKES.update({
         _box(2.13, [2.92, 2.06, 1.62, 1.36, 1.18, 1.07], True, "Six-speed with quickshifter", 900), cda=0.31),
     "ktm_1390sa": _bike("adventure", "1390sa", "KTM", "KTM 1390 Super Adventure S",
         "The KTM 1390 Super Adventure S, bought whole: 1,350 cc 75-degree V-twin, 173 hp.", 4800, 12.0, [0.835, 0.192, 0.0], "vtwin",
-        _eng("vtwin", 2, 1350.0, 110.0, 71.0, 0.107, 7000.0, 10200.0, 1300.0, 66.0, "75v", "LC8 75-degree V-twin", 7200, 75.0),
+        # ([Bike V3 Sounds] beenster's own recording on tour, its tickover: Data/Audio/Bikes/ktm1390)
+        dict(_eng("vtwin", 2, 1350.0, 110.0, 71.0, 0.107, 7000.0, 10200.0, 1300.0, 66.0, "75v", "LC8 75-degree V-twin", 7200, 75.0), sound="ktm1390"),
         _box(1.9, [2.69, 1.95, 1.55, 1.3, 1.1, 0.95], True, "Six-speed with quickshifter", 1000), cda=0.5),
     "yamaha_tracer9": _bike("adventure", "tracer9", "Yamaha", "Yamaha Tracer 9 GT",
         "The Yamaha Tracer 9 GT, bought whole: 890 cc CP3 triple, 117 hp, cruise control and panniers.", 3700, 12.0, [0.045, 0.047, 0.05], "triple",
-        _eng("triple", 3, 890.0, 78.0, 62.1, 0.1045, 7000.0, 11000.0, 1250.0, 58.0, "240", "CP3 890 triple", 4900),
+        # ([Bike V3 Sounds] beenster's own recording on tour, its tickover: Data/Audio/Bikes/tracer9)
+        dict(_eng("triple", 3, 890.0, 78.0, 62.1, 0.1045, 7000.0, 11000.0, 1250.0, 58.0, "240", "CP3 890 triple", 4900), sound="tracer9"),
         _box(2.07, [2.67, 1.95, 1.6, 1.36, 1.17, 1.04], True, "Six-speed with quickshifter", 900), cda=0.52),
 })
 # (the adventure style's own fork is an enduro one: soft and long. The big road-going adventure and touring bikes have
