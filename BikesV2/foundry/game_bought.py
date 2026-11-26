@@ -173,7 +173,8 @@ BIKES.update({
         _box(2.8, [2.92, 2.06, 1.62, 1.36, 1.18, 1.07], True, "Six-speed with quickshifter", 800), cda=0.32),
     "kawasaki_zx6r": _bike("sport", "zx6r", "Kawasaki", "Kawasaki ZX-6R",
         "The Kawasaki ZX-6R, bought whole: 636 cc inline four, 124 hp, a supersport.", 3800, 8.5, [0.12, 0.55, 0.02], "inline4",
-        _eng("inline", 4, 636.0, 67.0, 45.1, 0.108, 11000.0, 16000.0, 1400.0, 50.0, "flat", "636 inline four", 5200),
+        # ([Bike V3 Sounds] beenster's own recording on tour: Data/Audio/Bikes/zx6r)
+        dict(_eng("inline", 4, 636.0, 67.0, 45.1, 0.108, 11000.0, 16000.0, 1400.0, 50.0, "flat", "636 inline four", 5200), sound="zx6r"),
         _box(2.13, [2.92, 2.06, 1.62, 1.36, 1.18, 1.07], True, "Six-speed with quickshifter", 900), cda=0.31),
     "ktm_1390sa": _bike("adventure", "1390sa", "KTM", "KTM 1390 Super Adventure S",
         "The KTM 1390 Super Adventure S, bought whole: 1,350 cc 75-degree V-twin, 173 hp.", 4800, 12.0, [0.835, 0.192, 0.0], "vtwin",
