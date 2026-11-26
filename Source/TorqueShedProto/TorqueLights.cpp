@@ -27,9 +27,15 @@ constexpr double StraightRate = 0.2;
 // how far below level it's aimed. Dipped is aimed well down so its hot spot lands on the road a short
 // way ahead; main beam is level and reaches to the horizon. The flood is the dipped beam's wide, dim
 // fill onto the near road and the verges.
-constexpr double LowReach[2] = {58.0, 1.0 / 80.0};
-constexpr double HighReach[2] = {150.0, 1.0 / 15.0};
-constexpr double LowAim = 5.0, HighAim = 0.6;
+// (Build 175, beenster: "Headlights should cast a little further into the distance". Dipped was aimed 5
+// degrees down, its hot spot on the road 11 m ahead, and the light's reach window ended at 70 m, dimming it
+// well before. Now aimed 3 down (hot spot about 19 m) with the window out to about 100 m dipped, 300 m main.)
+constexpr double LowReach[2] = {85.0, 1.0 / 60.0};
+constexpr double HighReach[2] = {220.0, 1.0 / 12.0};
+constexpr double LowAim = 3.0, HighAim = 0.4;
+// [night lights] Our own lamps' share in Lumen's bounce light (others' bikes none): enough to lift the verge
+// round the beam, little enough that the noisy bounce off a bright patch of road doesn't speckle.
+constexpr float OwnBounce = 0.35f;
 // (Main beam was 20 degrees: too narrow, beenster after build 135. Now nearly as wide as dipped, with a
 // broad bright middle, so the verges and the bends are lit too, not just a tunnel up the road.)
 constexpr float LowCone = 32.0f, HighCone = 30.0f;
@@ -151,6 +157,7 @@ void FTorqueLights::Hook(AActor* Owner, const TArray<UStaticMeshComponent*>& Mes
 	Indicators.Reset();
 	IndicatorSide.Reset();
 	Shown = -1;
+	OwnShown = -1;
 	if (!Owner) return;
 	// The lenses: white ones on the headlight or a fairing's lamps, and on the fog lights; amber the
 	// indicators; red the rear light (and a top box's or pannier's reflector strip). The clocks' shift
@@ -453,6 +460,26 @@ int32 FTorqueLights::Step(double Dt, bool bEngineRunning, double FrontBrake, dou
 	}
 	Show(DayLight);
 	return Heard;
+}
+
+void FTorqueLights::SetOwnBike(bool bOwn)
+{
+	if (OwnShown == (bOwn ? 1 : 0)) return;
+	OwnShown = bOwn ? 1 : 0;
+	for (TWeakObjectPtr<USpotLightComponent>& Lamp : Beams)
+		if (USpotLightComponent* B = Lamp.Get())
+		{
+			B->SetCastShadows(bOwn);
+			B->SetIndirectLightingIntensity(bOwn ? TLI::OwnBounce : 0.0f);
+		}
+	if (USpotLightComponent* F = Flood.Get())
+	{
+		F->SetVolumetricScatteringIntensity(bOwn ? 0.3f : 0.0f);
+		F->SetIndirectLightingIntensity(bOwn ? TLI::OwnBounce : 0.0f);
+	}
+	for (TWeakObjectPtr<USpotLightComponent>& L : FogBeams)
+		if (USpotLightComponent* F = L.Get()) F->SetIndirectLightingIntensity(bOwn ? TLI::OwnBounce : 0.0f);
+	UE_LOG(LogTemp, Log, TEXT("Torque: lamps set for %s bike"), bOwn ? TEXT("our own") : TEXT("someone else's"));
 }
 
 void FTorqueLights::SetLens(FLens& L, float Emissive)
