@@ -68,6 +68,23 @@ KINDS = {"farm_bales": (450, True), "farm_bale": (220, True), "farm_clamp": (400
          "farm_diesel": (150, True), "farm_muck": (300, True)}
 
 
+def ring_lathe(name, prof, seg, at=(0.0, 0.0, 0.0)):
+    """A closed profile [(radius, z)] turned about z with no caps: a ring's wall, open in the middle (a closed
+    piece, so Tools/check_prop_faces.py finds no faces wound inside out)."""
+    verts, faces = [], []
+    n = len(prof)
+    for r, z in prof:
+        for k in range(seg):
+            a = 2 * math.pi * k / seg
+            verts.append((at[0] + r * math.cos(a), at[1] + r * math.sin(a), at[2] + z))
+    for i in range(n):
+        j = (i + 1) % n
+        for k in range(seg):
+            k1 = (k + 1) % seg
+            faces.append((i * seg + k, i * seg + k1, j * seg + k1, j * seg + k))
+    return K._object(name, verts, faces, 40.0)
+
+
 def M_(name):
     return K.Model(name)
 
@@ -196,7 +213,7 @@ def tank(name, concrete, lod):
     R, H = 8.0, 4.0
     seg = 40 if lod == 0 else 16
     prof = [(R - 0.15, 0.0), (R, 0.0), (R, H), (R - 0.15, H)]
-    ob = lathe("tankwall", prof + [(R - 0.15, 0.0)], seg)
+    ob = ring_lathe("tankwall", prof, seg)
     M.add(ob, "concrete" if concrete else "galv", CONCRETE if concrete else GALV_DULL, 0.6)
     ob = lathe("slurry", [(0.0, H - 0.6), (R - 0.15, H - 0.6), (R - 0.15, H - 0.55), (0.0, H - 0.55)], seg)
     M.add(ob, "paint", (0.05, 0.045, 0.025), 0.3)
