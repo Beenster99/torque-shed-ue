@@ -52,7 +52,8 @@ const char* RidePlan::PropName(int Kind)
 		"farm_loader", "farm_mower", "farm_buggy", "farm_chaser", "farm_tipper", "farm_baler", "farm_drill",
 		"farm_cultivator",   // [farm machinery]
 		"fast_barrier", "fast_concrete", "fast_gantry", "fast_camera", "fast_phone", "fast_marker",   // [everyday kits stage 8]
-		"services_hall", "services_pylon", "services_lorry"};   // [everyday kits stage 8b]
+		"services_hall", "services_pylon", "services_lorry",   // [everyday kits stage 8b]
+		"cafe_building", "cafe_chair", "cafe_table", "cafe_picnic", "cafe_parasol", "cafe_aboard"};   // [cafes]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 

@@ -69,6 +69,10 @@ def wbeam(name, y, side, L, lod):
     k = 2 * m
     for i in range(m - 1):
         faces.append((k + i, k + m + i, k + m + i + 1, k + i + 1))
+    # (closed: its top and bottom edges and its ends, so it faces outward all round: Tools/check_prop_faces.py)
+    faces += [(m - 1, 2 * m - 1, 4 * m - 1, 3 * m - 1), (0, m, 3 * m, 2 * m)]
+    for e in (0, m):
+        faces += [(e + i, e + i + 1, k + e + i + 1, k + e + i) for i in range(m - 1)]
     return K._object(name, verts, faces, 50.0)
 
 
@@ -99,7 +103,7 @@ def concrete(name, lod):
     verts = [(x, y, z) for x in (-L / 2, L / 2) for (y, z) in sec]
     m = len(sec)
     faces = [(i, i + 1, m + i + 1, m + i) for i in range(m - 1)]
-    faces += [tuple(range(m - 1, -1, -1)), tuple(range(m, 2 * m))]
+    faces += [tuple(range(m - 1, -1, -1)), tuple(range(m, 2 * m)), (m - 1, 2 * m - 1, m, 0)]   # (and its underside: closed)
     M.add(K._object("body", verts, faces, 20.0), "concrete", CONCRETE, 0.55)
     if lod < 2:
         for sy in (-1, 1):

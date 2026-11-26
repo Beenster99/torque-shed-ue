@@ -9,8 +9,10 @@ the pylon is set by the game in the sign alphabet, World/WorldRideServices.cpp).
                        brick plinth; 1 a shallow barrel roof, timber cladding and a canopy the whole front
   services_pylon 0     the name pylon by the way in: a 7.5 m two-legged frame, a plain panel at its top each side for
                        the name, and a row of blank amenity tiles under it
-  services_lorry 0..2  an articulated lorry, 16.5 m long, its cab to +x: 0 a white box trailer, 1 a grey curtain-sider,
-                       2 a dark blue box trailer; cabs in three plain colours
+  services_lorry 0..5  a parked lorry, its cab's front at +8.25 and its roof 4.0 m up (Tools/blender_lorry_models.py):
+                       0 a grey tractor unit and a white fridge semi-trailer, 1 red with a grey curtain-sider, 2 white
+                       with a navy box, 5 navy with a white box (all 16.5 m); 3 a white 6x4 rigid box lorry with a
+                       tail-lift, 4 a grey 6x4 rigid fridge lorry, its fridge over the cab (10 m)
 
 Each with two hand-made distance versions (SM_Prop_<kind>_<n>_LOD1.glb and _LOD2.glb); each kind's height and reach in
 Data/RideUK/prop_kit.json. Same material and frame as the street kit (Tools/blender_street_kit.py).
@@ -29,6 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import blender_street_kit as K   # noqa: E402
 from blender_street_kit import box, lathe, rod   # noqa: E402
+import blender_lorry_models as L   # noqa: E402
 
 GLASS = (0.05, 0.07, 0.08)
 FRAME = (0.12, 0.13, 0.14)
@@ -43,8 +46,6 @@ CONCRETE = (0.4, 0.39, 0.36)
 TYRE = (0.02, 0.02, 0.02)
 DARK = (0.03, 0.03, 0.035)
 TILES = [(0.6, 0.35, 0.03), (0.05, 0.25, 0.45), (0.1, 0.35, 0.12), (0.5, 0.06, 0.05)]
-TRAILERS = [WHITE, (0.4, 0.41, 0.42), (0.04, 0.07, 0.2)]
-CABS = [(0.55, 0.05, 0.04), WHITE, (0.08, 0.12, 0.3)]
 TOP = 7.4
 
 # kind: (reach in m, casts a shadow, hand-made LODs' screen sizes)
@@ -135,52 +136,24 @@ def pylon(name, lod):
     return M
 
 
-def wheelset(M, x, lod, half=1.05):
-    seg = (14, 8, 5)[lod]
-    for sy in (-1, 1):
-        ob = lathe("tyre", [(0.0, -0.15), (0.5, -0.15), (0.5, 0.15), (0.0, 0.15)], seg)
-        ob.matrix_world = Matrix.Translation((x, sy * half, 0.5)) @ Matrix.Rotation(math.radians(90), 4, "X")
-        M.add(ob, "paint", TYRE, 0.5)
+# ([Nov 26] beenster's pictures: our own detailed lorries, Tools/blender_lorry_models.py, in place of the plain ones)
+LORRIES = [("artic", L.GREY_CAB, "reefer", L.WHITE), ("artic", (0.5, 0.05, 0.04), "curtain", L.CURTAIN_GREY),
+           ("artic", L.WHITE, "box", L.NAVY), ("rigid", L.WHITE, False, L.WHITE), ("rigid", L.GREY_CAB, True, L.WHITE),
+           ("artic", L.NAVY, "box", L.WHITE)]
 
 
 def lorry(name, v, lod):
-    """An articulated lorry along x, its cab's front at +8.25: a cab 2.5 m wide and 3.8 m tall, a box or curtain trailer
-    13.6 m long and 4 m tall behind it, its wheels under them."""
-    M = K.Model(name)
-    xf = 8.25
-    cab = CABS[v]
-    M.add(box("cab", (xf - 1.15, 0.0, 2.25), (2.3, 2.5, 2.9), bevel=0.08 if lod == 0 else 0.0), "paint", cab, 0.25)
-    M.add(box("chassis", (xf - 3.0, 0.0, 0.9), (6.0, 1.0, 0.4)), "paint", DARK, 0.5)
-    if lod < 2:
-        M.add(box("screen", (xf + 0.005, 0.0, 2.9), (0.02, 2.2, 1.1)), "glaze", GLASS, 0.05)
-        M.add(box("grille", (xf + 0.005, 0.0, 1.45), (0.02, 1.8, 0.7)), "paint", DARK, 0.3)
-        M.add(box("bumper", (xf - 0.05, 0.0, 0.7), (0.2, 2.5, 0.35)), "paint", (0.2, 0.2, 0.2), 0.4)
-        for sy in (-1, 1):
-            M.add(box("sidewin", (xf - 0.6, sy * 1.255, 2.9), (1.0, 0.02, 0.8)), "glaze", GLASS, 0.05)
-            M.add(box("mirror", (xf + 0.1, sy * 1.4, 2.8), (0.08, 0.2, 0.5)), "paint", DARK, 0.3)
-    trailer = TRAILERS[v]
-    tx0, tx1 = xf - 16.5, xf - 2.9
-    M.add(box("trailer", ((tx0 + tx1) / 2, 0.0, 2.6), (tx1 - tx0, 2.55, 2.9), bevel=0.04 if lod == 0 else 0.0), "paint", trailer, 0.3)
-    M.add(box("bed", ((tx0 + tx1) / 2, 0.0, 1.05), (tx1 - tx0, 2.4, 0.2)), "paint", DARK, 0.5)
-    if v == 1 and lod < 2:
-        for k in range(1, 9):
-            x = tx0 + k * (tx1 - tx0) / 9
-            for sy in (-1, 1):
-                M.add(box("strap", (x, sy * 1.282, 2.6), (0.05, 0.01, 2.8)), "paint", (0.3, 0.31, 0.32), 0.3)
-    if lod < 2:
-        M.add(box("rear", (tx0 - 0.01, 0.0, 2.6), (0.02, 2.5, 2.8)), "paint", tuple(c * 0.9 for c in trailer), 0.3)
-        for sy in (-1, 1):
-            M.add(box("lamp", (tx0 - 0.02, sy * 1.0, 0.9), (0.03, 0.3, 0.12)), "lens", (0.5, 0.03, 0.02), 0.1)
-        M.add(box("skirt", ((tx0 + tx1) / 2 + 2.0, 0.0, 0.75), (6.0, 2.45, 0.4)), "paint", DARK, 0.4)
-    for x in ([xf - 1.4, xf - 4.6, xf - 5.9] + [tx0 + 1.2, tx0 + 2.5, tx0 + 3.8]):
-        wheelset(M, x, lod)
-    return M
+    """A parked lorry, its front at +8.25 and its roof at 4.0 m (LORRIES)."""
+    form, cab, body, colour = LORRIES[v]
+    if form == "artic":
+        return L.artic_model(name, cab, body, colour, lod)
+    return L.rigid_model(name, cab, colour, lod, reefer=body)
 
 
 def build(lod):
     s = ("", "_LOD1", "_LOD2")[lod]
     return ([hall("SM_Prop_services_hall_%d" % d + s, d, lod) for d in (0, 1)] + [pylon("SM_Prop_services_pylon_0" + s, lod)]
-            + [lorry("SM_Prop_services_lorry_%d" % v + s, v, lod) for v in range(3)])
+            + [lorry("SM_Prop_services_lorry_%d" % v + s, v, lod) for v in range(len(LORRIES))])
 
 
 def main():

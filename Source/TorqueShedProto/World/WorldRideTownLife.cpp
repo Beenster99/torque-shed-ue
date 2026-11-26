@@ -922,7 +922,7 @@ void RidePlan::IndexTownLife()
 						if (Dice(Seed + uint32_t(K) * 31u, 44) < 0.2) continue;   // (a gap here and there)
 						A.LorryAt.push_back(BestAt + Way * (-Run + K * 4.6) + Deep * (Dice(Seed + uint32_t(K) * 31u, 45) - 0.5));
 						A.LorryFront.push_back(Dice(Seed + uint32_t(K) * 31u, 46) < 0.8 ? Deep * -1.0 : Deep);
-						A.LorryVariant.push_back(int(Dice(Seed + uint32_t(K) * 31u, 47) * 3.0) % 3);
+						A.LorryVariant.push_back(int(Dice(Seed + uint32_t(K) * 31u, 47) * 6.0) % 6);
 					}
 					const double Ru = Run + 4.0, Rv = 11.0;
 					A.Park = {BestAt - Way * Ru - Deep * Rv, BestAt + Way * Ru - Deep * Rv, BestAt + Way * Ru + Deep * Rv, BestAt - Way * Ru + Deep * Rv};
@@ -932,6 +932,70 @@ void RidePlan::IndexTownLife()
 				if (Other.Mid.DistanceTo(A.Mid) < 700.0) { A.Name = Other.Name; break; }
 			ServiceAreas.push_back(std::move(A));
 		}
+	}
+
+	// [cafes] The roadside cafes: each building, its name and terrace (World/WorldRideCafes.cpp), with these helpers.
+	{
+		CafeHelp Help;
+		Help.Clear = [&](const P2& Q, double Spare)
+		{
+			if (InBuilding(Q, Spare) || Wet(Q) || OnForecourt(Q.X, Q.Z) || OnSpan(Q) || std::isnan(Ground(Q.X, Q.Z))) return false;
+			double RailDist = 0.0, RailTop = 0.0;
+			int RailOn = 0;
+			if (NearRail(Q.X, Q.Z, RailDist, RailTop, RailOn) && RailOn != 2 && RailDist < Spare + 3.0) return false;   // (off the railway)
+			const Foot R0 = NearestRoad(Q, 25.0, false);
+			return R0.Edge < 0 || R0.Dist > Halves[size_t(R0.Edge)] + Spare + 1.0;
+		};
+		Help.Walled = [&](const P2& A, const P2& B) { return Walled(A, B); };
+		Help.Road = [&](const P2& P, double Reach, P2& At, P2& Way, double& Half)
+		{
+			const Foot F = NearestRoad(P, Reach, false);
+			if (F.Edge < 0 || Motorway[size_t(F.Edge)]) return false;
+			const std::vector<P2>& L = G.Edges[size_t(F.Edge)].Line;
+			const P2 D = L[size_t(F.Bit) + 1] - L[size_t(F.Bit)];
+			const double Dl = D.Length();
+			if (Dl < 1e-6) return false;
+			At = F.At;
+			Way = D * (1.0 / Dl);
+			Half = Halves[size_t(F.Edge)];
+			return true;
+		};
+		Help.Houses = [&](const P2& P)
+		{
+			int N = 0;
+			for (int Dz = -1; Dz <= 1; ++Dz)
+				for (int Dx = -1; Dx <= 1; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+						if (std::hypot(G.Buildings[size_t(B)].X - P.X, G.Buildings[size_t(B)].Z - P.Z) < 100.0) ++N;
+				}
+			return N;
+		};
+		Help.BoxAt = [&](const P2& P) -> const Building*
+		{
+			const Building* Best = nullptr;
+			double BestD = 6.0;
+			for (int Dz = -1; Dz <= 1; ++Dz)
+				for (int Dx = -1; Dx <= 1; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+					{
+						const Building& H = G.Buildings[size_t(B)];
+						const double C = std::cos(H.Yaw), S = std::sin(H.Yaw), Ex = P.X - H.X, Ez = P.Z - H.Z;
+						// (the distance from P to its box: 0 inside)
+						// (its own frame as the buildings lay it: x across along (C, -S), z deep along (S, C))
+						const double U = std::fmax(0.0, std::fabs(Ex * C - Ez * S) - H.W * 0.5), V = std::fmax(0.0, std::fabs(Ex * S + Ez * C) - H.D * 0.5);
+						const double D = std::hypot(U, V) - (U == 0.0 && V == 0.0 ? 1.0 : 0.0);
+						if (D < BestD) { BestD = D; Best = &H; }
+					}
+				}
+			return Best;
+		};
+		IndexCafes(Help);
 	}
 
 	// The things. (a thing's square, and how it is filed)

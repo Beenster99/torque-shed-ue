@@ -75,7 +75,7 @@ struct WarehouseKit
 	std::vector<WarehousePiece> Pieces;
 	std::vector<WarehouseProp> Props;   // [stage 3]
 	double StretchLo = 0.55, StretchHi = 1.8;
-	bool Yards = true;                  // [stage 3] dress the yards and car parks (-TorqueWarehouseYards=0: not)
+	bool Yards = true;                  // [stage 3] dress the yards and car parks
 	int Prop(const std::string& Name) const;
 	// The design for a building of the map's Class, Long by Short (m), Seed in [0, 1) its own; -1 if none suits.
 	int Pick(const std::string& Class, double Long, double Short, double Seed) const;

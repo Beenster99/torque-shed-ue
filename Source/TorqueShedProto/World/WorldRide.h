@@ -966,6 +966,9 @@ public:
 		// [everyday kits stage 8b] The motorway services set (Tools/blender_services_props.py): the main building, the
 		// name pylon, parked lorries (World/WorldRideServices.cpp)
 		PropServicesHall, PropServicesPylon, PropServicesLorry,
+		// [cafes] The roadside cafes (Tools/blender_cafe_kit.py): twenty buildings, and the terrace's chairs, tables,
+		// picnic benches, parasols and A-boards (World/WorldRideCafes.cpp)
+		PropCafeBuilding, PropCafeChair, PropCafeTable, PropCafePicnic, PropCafeParasol, PropCafeABoard,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1640,6 +1643,50 @@ public:
 	bool HallBuilding(const Building* B) const;
 	bool HallOf(size_t Which, Building& Hall) const;   // (the biggest box in it, 300 m2 or more, as the buildings draw them; kept once found)
 	void ServicesTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// [cafes] The roadside cafes (beenster Nov 26: "about 20 different cafes, from small to large ... sit at tables outside
+	// them"; World/WorldRideCafes.cpp). Each cafe the kits bake has out of town (12 houses or fewer within 100 m, a road
+	// within 80 m; not the burger vans' "van" ones) gets one of twenty designs of our own: on the map's box there, chosen
+	// to fit it and stretched to it (the box then undrawn: CafeBuilding), or where the map has none, set back from the
+	// road with room for its terrace. Its made-up name on its fascia; its terrace's tables and chairs, picnic benches,
+	// parasols and A-board in front, every chair and bench place a seat the rider on foot can sit at (CafeSeatNear).
+	struct CafeSeat
+	{
+		P2 At, Face;        // the seat's middle, and the way someone sat there faces (unit)
+		double High = 0.46; // the seat's height over the ground
+	};
+	struct CafeSite
+	{
+		P2 At, Front;       // the building's middle, and the way its front faces (unit, to the road)
+		int Design = 0;
+		double Stretch = 1.0, Across = 1.0;   // its depth and width as laid over the model's
+		double Y = 0.0;     // its floor's foot
+		bool OnMapBox = false;
+		double HalfD = 0.0, HalfW = 0.0;      // its footprint as laid (half depth along Front, half width)
+		std::string Name;
+		std::vector<RoadsideThing> Things;    // the terrace's things
+		std::vector<CafeSeat> Seats;
+		std::vector<P2> Ring;                 // its ground: the building and terrace's hardstanding (no crops or trees)
+	};
+	std::vector<CafeSite> Cafes;
+	std::unordered_map<long long, std::vector<int>> CafeGrid;   // by the 64 m square each's middle is in
+	int CafesSeen = 0, CafesOnBoxes = 0;
+	// (IndexTownLife's helpers: Clear(At, Spare) somewhere a thing may stand; Walled(A, B) a wall, fence or hedge between;
+	// Road(At, Reach, Foot, Way, Half) the nearest road but a motorway within Reach; Houses(At) the buildings within 100 m;
+	// BoxAt(At) the map's building at At (or within 6 m), null for none)
+	struct CafeHelp
+	{
+		std::function<bool(const P2&, double)> Clear;
+		std::function<bool(const P2&, const P2&)> Walled;
+		std::function<bool(const P2&, double, P2&, P2&, double&)> Road;
+		std::function<int(const P2&)> Houses;
+		std::function<const Building*(const P2&)> BoxAt;
+	};
+	void IndexCafes(const CafeHelp& Help);
+	bool CafeBuilding(double X, double Z) const;   // (a box drawn there would stand inside a cafe)
+	void CafesTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// The seat nearest (X, Z) within Reach m: its middle, its seat's top (Y) and the way to face; false for none.
+	// (Taken: seats someone's sat on already, skipped; Name: the cafe's own.)
+	bool CafeSeatNear(double X, double Z, double Reach, P2& At, double& Y, P2& Face, const std::vector<P2>* Taken = nullptr, std::string* Name = nullptr) const;
 	bool BridgeRailsOn() const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its

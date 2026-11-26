@@ -244,20 +244,15 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
 		// [warehouses] The warehouse kit: ten designs of shed and shop, laid on the map's big industrial and retail
-		// outlines (-TorqueWarehouses=0: the plain drawn sheds, to compare), and [stage 3] their yards' and car
-		// parks' props (-TorqueWarehouseYards=0: the sheds alone, to compare the frame rate).
+		// outlines, and [stage 3] their yards' and car parks' props. Always on (beenster Nov 26: "no more switches").
 		{
-			int32 WarehousesAsked = 1, YardsAsked = 1;
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouses="), WarehousesAsked);
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseYards="), YardsAsked);
 			std::string WhText, WhBin;
 			const std::string WhPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.json")));
 			const std::string WhBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.bin")));
-			const bool bWh = WarehousesAsked != 0 && TorqueWorld::Files::Read(WhPath, WhText) && TorqueWorld::Files::Read(WhBinPath, WhBin) && TorqueWorld::SetWarehouseKit(WhText, WhBin, YardsAsked != 0);
+			const bool bWh = TorqueWorld::Files::Read(WhPath, WhText) && TorqueWorld::Files::Read(WhBinPath, WhBin) && TorqueWorld::SetWarehouseKit(WhText, WhBin, true);
 			const std::shared_ptr<const TorqueWorld::WarehouseKit> Wh = TorqueWorld::WarehouseKitNow();
-			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
-				YardsAsked == 0 ? TEXT(" (yards off: -TorqueWarehouseYards=0)") : TEXT(""),
-				bWh ? TEXT("") : WarehousesAsked == 0 ? TEXT(" (off: -TorqueWarehouses=0)") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
+			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
+				bWh ? TEXT("") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
 		}
 		// [everyday kits stage 4] The farm kit: twelve designs of farm building, laid on the map's barns and farmyard
 		// sheds (-TorqueFarms=0: the drawn barns, to compare).
