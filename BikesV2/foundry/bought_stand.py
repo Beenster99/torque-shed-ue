@@ -27,9 +27,19 @@ def add_stand(host, style, pts, looks, new_material):
     # where it goes: the donor's pivot height, 43% of the way along the wheelbase, just outside the bike's own left side
     wb = pts["stats"]["wheelbase"] / 1000.0
     x, z = 0.43 * wb, dp.z
+    # (clear of the footpeg's hanger, ahead of it: beenster on the Eliminator 500 in 174, "sidestand should attach to the
+    # bike, not the footpeg")
+    if pts.get("peg") and abs(x - pts["peg"][0] / 1000.0) < 0.12:
+        x = pts["peg"][0] / 1000.0 + 0.13
     mw = host.matrix_world
+    # (against the frame there: what reaches further out at that spot, a footpeg or a lever, is not what it bolts to;
+    # beenster on the KLR 650 in 174: "sidestand doesnt meet bike properly" when it stood off at our own bike's width)
     near = [(mw @ v.co).y for v in host.data.vertices if abs((mw @ v.co).x - x) < 0.05 and abs((mw @ v.co).z - z) < 0.04]
-    y = max([dp.y] + [yy + 0.02 for yy in near if yy > 0])
+    near = sorted(yy for yy in near if 0 < yy < 0.2)
+    y = near[int(len(near) * 0.95)] + 0.015 if near else dp.y
+    # (in or out from where it was on our bike, up or down by as much, so its foot still meets the ground with the bike
+    # leant over the game's 12 degrees)
+    z = dp.z + (y - dp.y) * 0.2126
     hp = Vector((x, y, z))
     before = set(bpy.data.objects)
     mats_before = set(bpy.data.materials)

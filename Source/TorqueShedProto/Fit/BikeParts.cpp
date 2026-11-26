@@ -6133,7 +6133,8 @@ int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) con
 			if (G.Flag("case", false))
 				Code(CodeShapes::Box(V3(W + 0.012, 0.014, H + 0.012)), C - Tilt.Y * 0.0072, "black_metal");
 			Code(CodeShapes::ScreenFace(W, H, false), C + Tilt.Y * 0.0013, "glass");
-			Works("screen_wide_" + Size, C + Tilt.Y * 0.0013, 1.0);
+			// ([TFT] an upright screen, the KTM 1390's: the upright layout)
+			Works(std::string(H > W * 1.15 ? "screen_tall_" : "screen_wide_") + Size, C + Tilt.Y * 0.0013, 1.0);
 			++Made;
 		}
 	}

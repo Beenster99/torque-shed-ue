@@ -18,7 +18,8 @@ namespace TorqueTft
 {
 struct MapScene;   // TftMap.h
 
-enum class Shape { Wide, Ultra, Round, Phone };
+// Tall: an upright unit (the KTM 1390's, beenster in 174: "a new portrait version of our TFT dashboard").
+enum class Shape { Wide, Ultra, Round, Phone, Tall };
 // The screen's own pixels for a shape.
 void SizeOf(Shape S, float& W, float& H);
 

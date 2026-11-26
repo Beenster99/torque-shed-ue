@@ -32,8 +32,9 @@ namespace TorqueTftImpl
 const TCHAR* Section = TEXT("TorqueTft");
 // The HUD's map tile, in its own pixels.
 const float TileW = 480.0f, TileH = 360.0f;
-// A screen's glow (M_ShedScreenPage's Brightness): by night and in full day.
-const float GlowNight = 3.0f, GlowDay = 14.0f;
+// A screen's glow (M_ShedScreenPage's Brightness): by night and in full day (20 from build 175, beenster on the KLR
+// and KTM in 174: "screen not very visible").
+const float GlowNight = 3.0f, GlowDay = 20.0f;
 
 // The map of the ride's area, shared by every bike's screen: made on a worker whenever the ride
 // world publishes a new area. Game thread only.
@@ -78,6 +79,7 @@ bool ShapeOf(const FString& Word, TorqueTft::Shape& Out)
 	else if (Word == TEXT("ultra")) Out = TorqueTft::Shape::Ultra;
 	else if (Word == TEXT("round")) Out = TorqueTft::Shape::Round;
 	else if (Word == TEXT("phone")) Out = TorqueTft::Shape::Phone;
+	else if (Word == TEXT("tall")) Out = TorqueTft::Shape::Tall;
 	else return false;
 	return true;
 }
@@ -538,7 +540,8 @@ FBox2D UTorqueTftComponent::OverlayBox(const UCanvas* Canvas) const
 	float W = 0.0f, H = 0.0f;
 	TorqueTft::SizeOf(ScreenShape, W, H);
 	// At 1080p: the landscape screens 380 across, the widescreen 540, the round one 230.
-	const float K = ScreenShape == TorqueTft::Shape::Ultra ? 540.0f / W : ScreenShape == TorqueTft::Shape::Round ? 230.0f / W : 380.0f / W;
+	const float K = ScreenShape == TorqueTft::Shape::Ultra ? 540.0f / W : ScreenShape == TorqueTft::Shape::Round ? 230.0f / W
+		: ScreenShape == TorqueTft::Shape::Tall ? 260.0f / W : 380.0f / W;
 	const FVector2D Size(W * K * S, H * K * S);
 	const float Edge = 22.0f * TorqueUi::Scale(Canvas);
 	FVector2D Corner(Canvas->SizeX - Edge, Canvas->SizeY - Edge);

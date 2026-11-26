@@ -799,6 +799,15 @@ void V2Layout(const Json* FramePart, const Json* BarPart, Layout& R)
 		R.KneeR = R.KneeR + Move;
 		R.SeatFront = R.SeatFront + Move;
 	}
+	// [bought bikes] A bought model's own knee, measured beside its tank (beenster on the KLE 500 in 174: "knees are
+	// out on the rider avatar"): the catalogue's knee is as wide as Torque Shed's tanks.
+	V3 KneeOwn;
+	if (F.Named("knee", KneeOwn))
+	{
+		KneeOwn.z = std::fabs(KneeOwn.z);
+		R.KneeR = KneeOwn;
+		R.KneeL = V3(KneeOwn.x, KneeOwn.y, -KneeOwn.z);
+	}
 	// (The right-hand peg and grip, as the solver gives them: the drawing's are the left ones.)
 	if (F.Named("peg", R.Peg)) R.Peg.z = std::fabs(R.Peg.z);
 	if (F.Named("grip", R.GripR)) R.GripR.z = std::fabs(R.GripR.z);

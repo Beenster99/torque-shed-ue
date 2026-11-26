@@ -61,7 +61,7 @@ HINTS = [
     (r"a[cs]iento", "body", "saddle"),
     (r"colin|guardabarros?_tra|portamatricula|base_matricula|soporte_chapa|parrilla|maleta|chasis_trasero|cubierta_trasera",
      "body", "tail"),
-    (r"(faro|luz|luces|reflector(es)?|indicador(es)?)_?(tra[sc]ero|trasera|tracera)s?|interio_reflectores_traseros|luz_tracera|"
+    (r"(faro|luz|luces|reflector(es)?)_?(tra[sc]ero|trasera|tracera)s?|interio_reflectores_traseros|luz_tracera|"
      r"marco_luz_tra", "body", "tail"),
     (r"indicador|intermitente", "front_body", "indicators"),
     (r"faro|luz_delantera|luces_delanteras|reflector_delantero|cristal_luces|^luz$|^luces$", "front_body", "headlight"),
@@ -91,6 +91,77 @@ def hint_of(name):
         if re.search(pat, n):
             return kind, slot
     return None, None
+
+
+def split_facing(ob, look, cos, name):
+    """ob's faces looking along `look` (model frame) as a new object, or None if it has none."""
+    rot = ob.matrix_world.to_3x3()
+    return split_where(ob, lambda f: (rot @ f.normal).normalized().dot(look) > cos, name)
+
+
+def split_where(ob, keep, name):
+    """ob's faces for which keep(bmesh face) is true as a new object, or None if there are none."""
+    import bmesh
+    faces = lambda bm: [f for f in bm.faces if keep(f)]
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    if not faces(bm):
+        bm.free()
+        return None
+    bm2 = bm.copy()
+    bmesh.ops.delete(bm2, geom=[f for f in bm2.faces if f not in set(faces(bm2))], context="FACES")
+    bmesh.ops.delete(bm, geom=faces(bm), context="FACES")
+    me2 = bpy.data.meshes.new(name)
+    bm2.to_mesh(me2)
+    bm.to_mesh(ob.data)
+    bm.free()
+    bm2.free()
+    for m in ob.data.materials:
+        me2.materials.append(m)
+    ob2 = bpy.data.objects.new(name, me2)
+    ob2.matrix_world = ob.matrix_world.copy()
+    for c in ob.users_collection:
+        c.objects.link(ob2)
+    return ob2
+
+
+def split_outlet(ob, name):
+    """A silencer's outlet: the faces of its back end looking back, inside the end's rim, as a new object (None if none)."""
+    import bmesh
+    mw = ob.matrix_world
+    rot = mw.to_3x3()
+    back = Vector((0.0, 1.0, 0.0))                     # (the model's back: it faces -y)
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    ends = [(f, mw @ f.calc_center_median()) for f in bm.faces if (rot @ f.normal).normalized().dot(back) > 0.6]
+    if not ends:
+        bm.free()
+        return None
+    far = max(c.y for _, c in ends)
+    ends = [(f, c) for f, c in ends if c.y > far - 0.03]
+    mid = sum((c for _, c in ends), Vector()) / len(ends)
+    rim = max(Vector((c.x - mid.x, 0.0, c.z - mid.z)).length for _, c in ends)
+    inner = {f for f, c in ends if Vector((c.x - mid.x, 0.0, c.z - mid.z)).length < rim * 0.72}
+    if rim < 0.015 or not inner:
+        bm.free()
+        return None
+    bm2 = bm.copy()
+    keep = {i for i, f in enumerate(bm.faces) if f in inner}
+    bm2.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm2, geom=[f for i, f in enumerate(bm2.faces) if i not in keep], context="FACES")
+    bmesh.ops.delete(bm, geom=list(inner), context="FACES")
+    me2 = bpy.data.meshes.new(name)
+    bm2.to_mesh(me2)
+    bm.to_mesh(ob.data)
+    bm.free()
+    bm2.free()
+    for m in ob.data.materials:
+        me2.materials.append(m)
+    ob2 = bpy.data.objects.new(name, me2)
+    ob2.matrix_world = mw.copy()
+    for c in ob.users_collection:
+        c.objects.link(ob2)
+    return ob2
 
 
 class AP:
@@ -458,6 +529,19 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
             else:
                 p.group = ""
 
+    # --- on a faired bike, what stands well ahead of the steering axis above the top yoke is the fairing's: its sat nav
+    # bar, the dash's bracket (beenster on the KLE 500 in 174: "the GPS mounting frame is wrongly attached to the forks") ---
+    # (low down by the fork's foot, a faired bike's fork reflectors too: they ride on the fork, not the frame; beenster on
+    # the KTM 1390 in 174, "something unusual attached to the wheel/tyre")
+    for p in pieces:
+        if p.group == "" and p.kind != "mirror" and p.size.max() < 0.15 and near_fork_low(p):
+            p.group = "front_hub"
+    if faired:
+        for p in pieces:
+            if p.group == "steer" and p.kind != "mirror" and p.hslot not in ("handlebars", "mirrors") \
+                    and p.c[2] > y_top + 0.06 and p.c[0] > s_x(p.c[2]) + 0.18 and abs(p.c[1]) < 0.2:
+                p.group = ""
+
     # --- the mirrors: the glass, its head (what holds it), their stems; on the bars unless on a fairing ---
     glass = [p for p in pieces if p.mat == "m_mirror"]
     for g in glass:
@@ -495,6 +579,26 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
         if p.kind == "mirror" and p.group is None:
             p.slot = "mirrors"
             p.group = "steer" if (not faired and p.c[2] > y_low) else ""
+
+    # --- a model drawn with no mirror glass (the KLR 650's round heads): the face of each head looking back at the rider
+    # becomes its glass (beenster in 174: "mirrors dont work") ---
+    if not glass:
+        cand = [p for p in pieces if p.group == "steer" and p.mat.startswith("m_plastic") and abs(p.c[1]) > 0.28
+                and p.c[2] > y_top + 0.15 and p.size[0] < 0.07 and 0.07 < p.size[1] < 0.2 and 0.07 < p.size[2] < 0.2]
+        for side in (1, -1):
+            mine = [p for p in cand if p.c[1] * side > 0]
+            if not mine:
+                continue
+            h = max(mine, key=lambda p: p.c[2])
+            new_ob = split_facing(h.ob, Vector((0.0, 1.0, 0.0)), 0.6, h.ob.name + "_glass")
+            if new_ob is None:
+                continue
+            gp = AP(new_ob, h.base)
+            gp.to_game(rear_y)
+            gp.group, gp.slot, gp.role, gp.finish = h.group, "mirrors", "", "mirror_glass"
+            h.slot, h.role = "mirrors", "head"
+            pieces.append(gp)
+            log(f"auto: mirror glass made from the back of {h.base} at {h.c.round(2)}")
 
     # --- small and decal pieces: what they're fastened to ---
     big = [p for p in pieces if p.size.max() >= 0.05 and p.kind not in ("decal", "bits") and p.slot != "mirrors"]
@@ -534,6 +638,21 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
                 if "kind" in b:
                     p.kind = b["kind"]
     pieces = [p for p in pieces if p.kind != "drop" or bpy.data.objects.remove(p.ob, do_unlink=True)]
+
+    # --- what spins with a wheel sits round its axle: a small piece out of the spokes' plane, well off the axle, is held by
+    # the fork or the arm (beenster on the KLR 650 in 174: "there is something in the front wheel spokes") ---
+    for end, holder in (("front", "front_hub"), ("rear", "swingarm")):
+        A = ax[end]
+        for p in pieces:
+            if p.group != end + "_wheel":
+                continue
+            dist = float(np.hypot(p.c[0] - A[0], p.c[2] - A[2]))
+            # chain links and clips off the spokes' plane (Tracer 9 chain), or anything whose middle is outside the tyre
+            # (Tracer 9 brake-line clips above the front tyre: "objects attached to both front and back wheel")
+            if (p.size.max() < 0.12 and abs(p.c[1]) > 0.07 and 0.12 < dist < tyres[end]["r"] + 0.05) \
+                    or (p.size.max() < 0.12 and dist > tyres[end]["r"] + 0.01):
+                p.group = holder
+                p.slot = None
 
     # --- the seat, then each piece's slot ---
     seat = [p for p in pieces if p.hslot == "saddle" or ("leather" in p.mat and p.group == "" and p.size.max() > 0.15)]
@@ -590,13 +709,27 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
     # --- lights: by their glass and where they are ---
     def light_finish(p):
         mat, front = p.mat, p.c[0] > s_x(p.c[2]) - 0.3
+        # (the rear reflectors, red glass with a shiny back: never lit; beenster on the ZX-6R in 174, "two unusual red
+        # lights are attached at the rear and on when the headlights are switched on")
+        nm = clean(p.base)
+        if "reflector" in nm and re.search(r"tra[sc]er", nm):
+            if mat == "m_glass_red":
+                return "red_reflector", None
+            # (the shiny back behind a reflector's own red glass; the ZX-4RR's rear indicator and tail lamp bulbs are called
+            # reflectors too, behind other glass)
+            if mat in LIGHT_MATS and any(q.mat == "m_glass_red" and "reflector" in clean(q.base) and box_gap(p, q) < 0.01
+                                         for q in pieces):
+                return "back_chrome", None
         if p.group in ("front_hub", "front_wheel", "rear_wheel", "swingarm"):
             # (the fork legs' and wheels' reflectors: never lit)
             if mat == "m_glass_orange":
                 return "orange_reflector", None
             if mat == "m_glass_red":
                 return "red_reflector", None
-            if mat in LIGHT_MATS:
+            # (the shiny back behind a reflector's own red glass; the ZX-4RR's rear indicator and tail lamp bulbs are called
+            # reflectors too, behind other glass)
+            if mat in LIGHT_MATS and any(q.mat == "m_glass_red" and "reflector" in clean(q.base) and box_gap(p, q) < 0.01
+                                         for q in pieces):
                 return "back_chrome", None
             return None, None
         rear = p.c[0] < seat_back + 0.25
@@ -611,7 +744,7 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
                 return "amber", "indicators"
             return "orange_reflector", None
         if mat in ("m_light", "m_chrome_light", "m_chrome_reflector", "m_reflector_chrome"):
-            if ind or (side and p.size.max() < 0.07 and (p.c[0] > s_x(p.c[2]) + 0.0 or rear) and p.c[2] > 0.62 and abs(p.c[1]) > 0.1):
+            if ind or ((rear or not named_front or any(box_gap(p, q) < 0.01 for q in named_ind)) and side and p.size.max() < 0.07 and (p.c[0] > s_x(p.c[2]) + 0.0 or rear) and p.c[2] > 0.62 and abs(p.c[1]) > 0.1):
                 return "amber", "indicators"
             if front and p.c[2] > F[2] + 0.2:
                 return "lamp", "headlight"
@@ -620,6 +753,10 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
         if mat == "m_glass_clear" and ind:
             return "amber", "indicators"
         return None, None
+    # (a model that names its indicators: its other small lights out to the side are lamps, not indicators; the Tracer
+    # 9's LED rows under its headlamps flashed as indicators)
+    named_ind = [p for p in pieces if p.hslot == "indicators"]
+    named_front = any(p.c[0] > pivot[0] for p in named_ind)
     for p in pieces:
         if p.finish:
             continue
@@ -644,6 +781,55 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
             if p.mat == "m_glass_clear" and p.group in ("steer", "") and not p.finish and p.size.max() < 0.1 \
                     and abs(p.c[1]) > 0.1 and p.c[2] > 0.55 and (p.c[0] > s_x(p.c[2]) - 0.15 or p.c[0] < seat_back + 0.25):
                 p.finish, p.slot = "amber", "indicators"
+    # (the whole lens lights, not only the bulb drawn inside it: beenster in 174, "indicators are small pin lights, they
+    # need to light up the whole lens")
+    for fin, sl, most in (("amber", "indicators", 0.16), ("lamp", "headlight", 0.32)):
+        bulbs = [p for p in pieces if p.finish == fin]
+        for p in pieces:
+            if p.finish or not re.match(r"m_glass_(clear|orange)$", p.mat) or p.size.max() > most:
+                continue
+            near = [(box_gap(p, b), b) for b in bulbs]
+            near = [nb for nb in near if nb[0] < 0.012]
+            if near:
+                b = min(near, key=lambda nb: nb[0])[1]
+                p.finish, p.slot, p.group = fin, sl, b.group
+    # (a lamp tucked in against an indicator's lens is that indicator's bulb, not a headlamp: the KTM 1390's low ones)
+    ambers = [p for p in pieces if p.finish == "amber"]
+    for p in pieces:
+        if p.finish == "lamp" and abs(p.c[1]) > 0.1 and any(box_gap(p, a) < 0.01 for a in ambers):
+            p.finish, p.slot = "amber", "indicators"
+    # (the headlamp's LED strips, thin and long: the daytime running lights; beenster on the KTM 1390 in 174, "please make
+    # front headlight LED strips work as DRL lights")
+    for p in pieces:
+        dims = sorted(float(x) for x in p.size)
+        if p.finish == "lamp" and dims[0] < 0.008 and dims[2] > 0.05 and dims[2] >= 1.8 * dims[1]:
+            p.finish = "drl"
+    # (rows of small LEDs apart from the bigger headlamp emitters: the Tracer 9's strips under its lamps; then the glass
+    # over them)
+    emit = lambda p: p.finish == "lamp" and p.mat in ("m_light", "m_chrome_light")
+    big = [p for p in pieces if emit(p) and sorted(float(x) for x in p.size)[1] >= 0.07]
+    if big:
+        for p in pieces:
+            if emit(p) and p not in big and abs(p.c[1]) > 0.05 and all(box_gap(p, b) > 0.03 for b in big):
+                p.finish = "drl"
+        drl = [p for p in pieces if p.finish == "drl"]
+        for p in pieces:
+            if p.finish == "lamp" and p.mat.startswith("m_glass") and any(box_gap(p, q) < 0.012 for q in drl) \
+                    and not any(box_gap(p, b) < 0.012 for b in big):
+                p.finish = "drl"
+    # (a lamp whose LED bar is drawn in one piece with its projectors: the bar's big flat faces are the DRL; the
+    # projectors' rings are many small ones. Named per model: the CB1000 GT's brows, beenster in 174)
+    if cfg.get("drl_band") and not any(p.finish == "drl" for p in pieces):
+        for p in [q for q in pieces if emit(q) and q.size.max() >= 0.07]:
+            sc = abs(float(np.linalg.det(np.array(p.ob.matrix_world.to_3x3())))) ** (2.0 / 3.0)
+            ob2 = split_where(p.ob, lambda f: f.calc_area() * sc > cfg["drl_band"], p.ob.name + "_drl")
+            if ob2:
+                q = AP(ob2, p.base)
+                q.to_game(rear_y)
+                q.group, q.slot, q.role, q.finish = p.group, p.slot, "", "drl"
+                pieces.append(q)
+    if any(p.finish == "drl" for p in pieces):
+        log(f"auto: DRL strips {sorted({(p.base, tuple(p.c.round(2))) for p in pieces if p.finish == 'drl'})[:6]}")
     metal = re.compile("chrome|iron|steel|alu|metal|titan")
     loose = lambda p: p.group == "" and p.slot == "frame" and not p.hslot and not p.finish
     if not have("slot", "exhaust"):
@@ -679,6 +865,18 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
             t.slot = "tank"
             log(f"auto: tank by its place: {t.base} {t.mat}")
 
+    # --- the silencers' outlets hollow: their back ends, inside the rim, drawn as the dark inside of a pipe (beenster on
+    # the KTM 1390 in 174: "rear exhaust exits need to be hollow") ---
+    cans = [p for p in pieces if p.slot == "exhaust" and p.size.max() > 0.2 and p.c[0] < pivot[0]]
+    for p in cans:
+        o = split_outlet(p.ob, p.ob.name + "_outlet")
+        if o is not None:
+            q = AP(o, p.base)
+            q.to_game(rear_y)
+            q.group, q.slot, q.role, q.finish = p.group, "exhaust", "", "pipe_inside"
+            pieces.append(q)
+            log(f"auto: outlet hollowed on {p.base} at {q.c.round(2)}")
+
     # --- key point sources ---
     fork_pts = [Vector(v) for t in tubes for v in t.g[::max(1, len(t.g) // 400)]]
     stem_pts = [Vector((s_x(y_low), 0.0, y_low)), Vector((s_x(y_top), 0.0, y_top))]
@@ -709,6 +907,25 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
         cap_pts = [Vector(v) for p in caps for v in p.g]
     seat_pts = [Vector(v) for p in seat for v in p.g] if seat else []
     screens = [p for p in pieces if p.slot == "dashboard" or p.hslot == "dashboard" or p.mat == "m_glass_dark"]
+    # (a piece named as the screen itself wins over the dash's other panels: the CB1000 GT's TFT, beenster in 174,
+    # "adjust the TFT to fit the area marked red")
+    named_screen = [p for p in screens if re.search(r"pantalla|screen|display|tft", clean(p.base))]
+    screens = named_screen or screens
+    # (what came out a speck off to one side is not the dash: the Z H2's was 1 x 3 cm, 14 cm out)
+    if screens and (max(float(p.size.max()) for p in screens) < 0.06 or min(abs(float(p.c[1])) for p in screens) > 0.08):
+        screens = []
+    if not screens:
+        # (a clear glass over the clocks: thin, facing the rider, above the top yoke and behind the screen)
+        # (or, with no glass of its own, the clocks' black case there)
+        def clock_like(p, mats, thin):
+            return p.mat in mats and not p.finish and p.size[0] < thin and 0.08 < p.size[1] < 0.3 and 0.03 < p.size[2] < 0.2 \
+                and abs(p.c[1]) < 0.04 and y_top - 0.05 < p.c[2] < y_top + 0.35 and s_x(p.c[2]) - 0.1 < p.c[0] < s_x(p.c[2]) + 0.35
+        cl = [p for p in pieces if clock_like(p, ("m_glass_clear",), 0.06)] or \
+            [p for p in pieces if clock_like(p, ("m_plastic_black", "m_plastic"), 0.08)]
+        if cl:
+            sc_ = max(cl, key=lambda p: float(p.size[1] * p.size[2]))
+            sc_.slot = "dashboard"
+            screens = [sc_]
     hip_band = cfg.get("hip_band", (seat_front - 0.42, seat_front - 0.06))
     log(f"auto: peg {peg.base} {peg.c.round(3)}, grip {grip.base} {grip.c.round(3)}, seat {seat_back:.3f}..{seat_front:.3f}, "
         f"caps {sorted({p.base for p in caps})}, screens {sorted({p.base for p in screens})}")
@@ -729,8 +946,8 @@ def sort_pieces(objs, cfg, split_loose, cut_faces, log=print):
             log(f"  [{g or 'frame'}] {b} -> {sl}{' ' + f if f else ''} x{n}  lo {lo.round(2)} hi {hi.round(2)}")
     if os.environ.get("BOUGHT_AUTO_PIECES"):
         for p in sorted(pieces, key=lambda p: -float(p.size.max())):
-            if (p.group == "" and p.size.max() > 0.03) or re.search("glass|light|reflect|chrome", p.mat):
-                log(f"  piece {p.base} {p.mat} -> {p.slot} {p.finish or ''} c {p.c.round(2)} size {p.size.round(2)}")
+            if os.environ.get("BOUGHT_AUTO_PIECES") == "all" or (p.group == "" and p.size.max() > 0.03) or re.search("glass|light|reflect|chrome", p.mat):
+                log(f"  piece [{p.group}] {p.base} {p.mat} -> {p.slot} {p.finish or ''} c {p.c.round(2)} size {p.size.round(2)}")
     placed = [(p.ob, p.base, p.slot, p.group, p.role, p.finish) for p in pieces]
     info = {"F": F, "R": R, "rear_y": rear_y, "tyres": tyres, "fork": fork_pts, "stem": stem_pts, "peg": [Vector(v) for v in peg.g],
             "grip": [Vector(v) for v in grip.g], "seat": seat_pts, "cap": cap_pts, "screen": [p.ob for p in screens],
