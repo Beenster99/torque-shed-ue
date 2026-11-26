@@ -149,6 +149,12 @@ def flag(name, lod):
     for k in range(n):
         a = m + 2 * k
         faces.append((a, a + 1, a + 3, a + 2))
+    # (closed round its edges, so it faces outward both sides: Tools/check_prop_faces.py)
+    for k in range(n):
+        for o in (0, 1):
+            faces.append((2 * k + o, 2 * k + 2 + o, m + 2 * k + 2 + o, m + 2 * k + o))
+    for k in (0, n):
+        faces.append((2 * k, 2 * k + 1, m + 2 * k + 1, m + 2 * k))
     sail = K._object("sail", verts, faces, 30.0)
     M.add(sail, "paint", (0.62, 0.06, 0.03), 0.15)
     if lod < 2:
@@ -203,6 +209,8 @@ def laybysign(name, lod):
         for o in (0, 1):
             a, c = 2 * k + o, 2 * k + 2 + o
             faces.append((a, c, n + c, n + a) if o else (a, n + a, n + c, c))
+    for a in (0, 2 * seg):   # (and its two ends: closed, so it faces outward)
+        faces.append((a, a + 1, n + a + 1, n + a))
     bowl = K._object("bowl", verts, faces, 40.0)
     bowl.matrix_world = Matrix.Translation((0.01, 0.0, 0.0))
     M.add(bowl, "paint", WHITE, 0.1)

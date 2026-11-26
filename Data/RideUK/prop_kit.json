@@ -95,7 +95,7 @@
   "road_flag": {"words": [], "reach": 200, "height": 3.2, "shadow": false, "credit": "", "hand_lods": [0.12, 0.03]},
   "road_laybysign": {"words": [], "reach": 250, "height": 2.9, "shadow": false, "credit": "", "hand_lods": [0.12, 0.03]},
   "road_cafesign": {"words": [], "reach": 250, "height": 2.0, "shadow": true, "credit": "", "hand_lods": [0.12, 0.03]},
-  "bridge_arch": {"words": [], "reach": 1200, "height": 1.05, "shadow": true, "credit": "", "hand_lods": [0.2, 0.05]},
+  "bridge_arch": {"words": [], "reach": 1200, "height": 1.0, "shadow": true, "credit": "", "hand_lods": [0.2, 0.05]},
   "bridge_pier": {"words": [], "reach": 1000, "height": 1.05, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "bridge_abutment": {"words": [], "reach": 800, "height": 1.01, "shadow": true, "credit": "", "hand_lods": [0.15, 0.04]},
   "bridge_rail": {"words": [], "reach": 300, "height": 1.25, "shadow": false, "credit": "", "hand_lods": [0.12, 0.03]},
