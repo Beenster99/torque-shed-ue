@@ -2045,6 +2045,19 @@ public:
 	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
 	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
 	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
+	// [smooth junctions stage 6] The through road's centre line across a whole junction, as its warning line: from arm A's
+	// mouth (the ride's road's arm where there is one) to arm B's, a curve From-Ctl-To Length long, its dash pattern's
+	// along at S metres from A's mouth X0 + Rate * S (A's own along carried on, so it keeps step with A).
+	struct WholeDashLine
+	{
+		int AWhich = 0, AEnd = 0, BWhich = 0, BEnd = 0, A = -1, B = -1;
+		double ABase = 0.0, BBase = 0.0, X0 = 0.0, Rate = 1.0, Length = 0.0;
+		P2 From, Ctl, To;
+	};
+	bool WholeDashLineOf(int Ji, WholeDashLine& D) const;
+	// And for the road beyond arm B's mouth (a side road's end at a whole junction): its centre line's dash pattern there
+	// at OnDash(Sign * along + Shift), to keep step with the line across. False (Sign 1, Shift 0) where none.
+	bool WholeDashOf(int Which, int End, double& Sign, double& Shift) const;
 	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
 	static constexpr double WholeEase = 40.0;
 	static constexpr double WholeArmFollow = 25.0;   // [smooth junctions stage 5] an arm followed past plain map points until it is this long (m)
