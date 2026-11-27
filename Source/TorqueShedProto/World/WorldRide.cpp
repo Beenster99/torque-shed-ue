@@ -1389,8 +1389,10 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 	MouthAt.assign(Road.size(), 0);
 	StreetMouthAt.assign(Road.size(), 0);
 	SideBridges = SideTunnels = 0;
-	// [road rulebook C6] The junctions the ride goes straight through on the through road: its centre line turns to a
-	// warning line either side (a junction built whole has no mouth on the ride's road to say so).
+	// [road rulebook C6] The junctions where the ride's road is the through road: its centre line turns to a warning line
+	// either side (a junction built whole has no mouth on the ride's road to say so). ([road rulebook stage 3b] and
+	// where the ride turns off the through road or onto it, on the through road's side only: before, the major road's
+	// approach kept its plain centre line up to the junction)
 	RideThroughAt.clear();
 	for (size_t I = 0; I + 1 < MadeSteps.size() && !Road.empty(); ++I)
 	{
@@ -1398,10 +1400,15 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		if (Node < 0 || size_t(Node) >= JunctionOfNode.size() || JunctionOfNode[size_t(Node)] < 0) continue;
 		const JunctionPlace& J = JunctionPlaces[size_t(JunctionOfNode[size_t(Node)])];
 		if (J.Roads < 3 || J.Lights || J.Ring >= 0) continue;
-		int Through = 0;
+		bool InThrough = false, OutThrough = false;
 		for (const JunctionArm& A : J.Arms)
-			if (A.Through && (A.Edge == MadeSteps[I].Edge || A.Edge == MadeSteps[I + 1].Edge)) ++Through;
-		if (Through < 2) continue;
+			if (A.Through)
+			{
+				InThrough = InThrough || A.Edge == MadeSteps[I].Edge;
+				OutThrough = OutThrough || A.Edge == MadeSteps[I + 1].Edge;
+			}
+		if (!InThrough && !OutThrough) continue;
+		const int Side = InThrough && OutThrough ? 0 : InThrough ? -1 : 1;
 		const P2 At = Area.Roads.Nodes[size_t(Node)];
 		size_t Best = 0;
 		for (size_t K = 1; K < Road.size(); ++K)
@@ -1420,7 +1427,7 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 			const P2 On = Road[S].At + D * T;
 			if (On.DistanceTo(At) < Closest) { Closest = On.DistanceTo(At); AtAlong = Road[S].Along + (Road[S + 1].Along - Road[S].Along) * T; }
 		}
-		RideThroughAt.push_back(AtAlong);
+		RideThroughAt.push_back({AtAlong, Side});
 	}
 	std::sort(RideThroughAt.begin(), RideThroughAt.end());
 	const Region& G = Area.Roads;
@@ -3896,11 +3903,11 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 	{
 		// (the side roads' mouths: below, once their exact gaps are known)
 		const double A0 = Pts[size_t(First)].Along - 70.0, A1 = Pts[size_t(Last)].Along + 70.0;
-		for (const double T : RideThroughAt)
-			if (T > A0 && T < A1)
+		for (const std::pair<double, int>& Th : RideThroughAt)
+			if (Th.first > A0 && Th.first < A1)
 			{
-				const double Reach = RoadX::WarningReach(PaintMph(0, T, false));
-				WarnZones.emplace_back(T - Reach, T + Reach);
+				const double T = Th.first, Reach = RoadX::WarningReach(PaintMph(0, T, false));
+				WarnZones.emplace_back(Th.second > 0 ? T : T - Reach, Th.second < 0 ? T : T + Reach);
 			}
 	}
 	else

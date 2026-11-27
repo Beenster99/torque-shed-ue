@@ -805,7 +805,7 @@ public:
 	// assumes it (30 mph where it is a town street); and whether a road's end (0 its first point's) is one of the
 	// through road's arms at its junction, so its centre line turns to a warning line before it.
 	int PaintMph(int Which, double Along, bool Street) const;
-	std::vector<double> RideThroughAt;   // the ride's road's junctions where it is the through road: how far along, in order (LaySides)
+	std::vector<std::pair<double, int>> RideThroughAt;   // the ride's road's junctions where it is the through road: how far along, in order, and on which side (0 both, -1 before it only, +1 after) (LaySides)
 	bool ThroughAtEnd(int Which, int End) const;
 	std::vector<std::pair<double, int>> RideHides;   // [smooth junctions 4b] whole rings on the ride's road: (Hide[0], place), by along
 
