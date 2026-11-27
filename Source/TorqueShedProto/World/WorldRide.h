@@ -465,6 +465,8 @@ public:
 	bool KeepLeft() const { return Area.Roads.Country == "uk" || Area.Roads.Country == "jp"; }
 	std::shared_ptr<Terrain> Land;      // the ride's own view of the ground
 	std::vector<RoadPoint> Road;        // the ride's own road, a point every 4 m or closer
+	std::vector<double> RideU;          // [road rulebook stage 3a] by Road point: how far along the map's road it is from that road's own end, the same whichever way and wherever from it is ridden (its lines' dashes are laid by it); empty: by Along
+	double RideDashU(double Along, double& Sign) const;   // RideU at a place on the ride's road, and which way it runs as Along grows (+1 or -1); Along and +1 where none
 	// Where a side road's end runs out onto the ride's road: the junction's mouth.
 	struct Mouth
 	{
@@ -1447,6 +1449,7 @@ public:
 	// (a through road's arm off the ride's road, by its edge * 2 + which end: its own lines run on to its
 	// mouth, this far along it from that end, not stopping 12 m short as a side road's do)
 	std::unordered_map<long long, double> ThroughEnds;
+	std::unordered_map<long long, std::pair<double, double>> ThroughDash;   // [road rulebook C6] (a through road's arm off the ride's road, edge * 2 + end: the sign and shift its centre line's dashes take, OnDash(Sign * along + Shift), to keep step with the warning line across)
 	// [junction priority, true T] (beenster, Nov 21: the main road whole through the junction, the ride's road
 	// meeting it square.) At a T where the ride's road gives way, the through road's far edge as it runs from
 	// its arm's mouth on across to the ride's road again: drawn in place of that mouth's rounded corner on the
@@ -2034,6 +2037,7 @@ public:
 		std::vector<double> ArmAlong;
 	};
 	static bool WholeJunctions;
+	static bool EdgeTrueRide;   // [road rulebook stage 3a] the ride's road laid as the map's roads are, one run between junctions at a time, whatever the route (SimTest WORLD_RIDE_EDGETRUE=0: the old one-piece line)
 	static constexpr double WholeCornerGreat = 10.0, WholeCornerLeast = 6.0, WholeCornerTight = 2.5, WholeAcross = 2.6, WholeCutMost = 25.0;
 	std::vector<WholePlan> WholeOf;   // by JunctionPlaces
 	std::vector<unsigned char> WholeWhy;   // [smooth junctions stage 5] by JunctionPlaces: why not built whole (EWholeWhy), for the checker

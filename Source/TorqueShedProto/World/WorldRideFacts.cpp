@@ -90,6 +90,31 @@ const RidePlan::LimitStretch* RidePlan::LimitAt(double Along) const
 
 // [road rulebook D1, C6] The limit a road's paint follows: the ride's road's own (60 mph where none is known), another
 // road's as the rule assumes it from its class, 30 mph along a town street.
+double RidePlan::RideDashU(double Along, double& Sign) const
+{
+	Sign = 1.0;
+	if (RideU.size() != Road.size() || Road.size() < 2) return Along;
+	size_t Lo = 0, Hi = Road.size() - 1;
+	while (Hi - Lo > 1)
+	{
+		const size_t M = (Lo + Hi) / 2;
+		if (Road[M].Along <= Along) Lo = M;
+		else Hi = M;
+	}
+	const double Da = Road[Hi].Along - Road[Lo].Along, Du = RideU[Hi] - RideU[Lo];
+	// (where two runs meet between these points U jumps: the nearer one's, running its own way)
+	if (Da < 1e-9 || std::fabs(std::fabs(Du) - Da) > 0.5)
+	{
+		const size_t Near = Along - Road[Lo].Along < Road[Hi].Along - Along ? Lo : Hi;
+		const size_t Other = Near == Lo ? (Lo > 0 ? Lo - 1 : Hi) : (Hi + 1 < Road.size() ? Hi + 1 : Lo);
+		const double D2 = Road[Near].Along - Road[Other].Along, U2 = RideU[Near] - RideU[Other];
+		Sign = D2 * U2 < 0.0 ? -1.0 : 1.0;
+		return RideU[Near] + Sign * (Along - Road[Near].Along);
+	}
+	Sign = Du < 0.0 ? -1.0 : 1.0;
+	return RideU[Lo] + Du * (Along - Road[Lo].Along) / Da;
+}
+
 int RidePlan::PaintMph(int Which, double Along, bool Street) const
 {
 	if (Which == 0)
