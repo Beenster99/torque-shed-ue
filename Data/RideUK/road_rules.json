@@ -59,12 +59,12 @@
 		{"id": "F5", "text": "Signs face their traffic, on the left unless blocked.", "source": "TSM3 2.4.3, 3.4.3", "status": "partly"},
 		{"id": "F6", "text": "Speed limits change only at signs.", "source": "HC 124 (to read)", "status": "partly"},
 		{"id": "G1", "text": "Keep left.", "source": "HC 160", "status": "obeyed"},
-		{"id": "G2", "text": "Never against a one-way street.", "source": "HC 143", "status": "unchecked"},
-		{"id": "G3", "text": "Round roundabouts clockwise, leaving by an exit.", "source": "HC 185-186", "status": "partly"},
-		{"id": "G4", "text": "No banned turns, no roads closed to motorbikes.", "source": "HC 143; map restrictions", "status": "unchecked"},
+		{"id": "G2", "text": "Never against a one-way street.", "source": "HC 143", "status": "obeyed"},
+		{"id": "G3", "text": "Round roundabouts clockwise, leaving by an exit.", "source": "HC 185-186", "status": "obeyed"},
+		{"id": "G4", "text": "No banned turns, no roads closed to motorbikes.", "source": "HC 143; map restrictions", "status": "obeyed"},
 		{"id": "G5", "text": "Join a major road at the give-way line with a sharp turn; leave it from the correct side.", "source": "HC 172, 179-183; beenster", "status": "partly"},
 		{"id": "G6", "text": "Cross a dual carriageway in two halves where the reservation is deep enough.", "source": "HC 173", "status": "unchecked"},
-		{"id": "G7", "text": "Sat nav instructions describe the turn actually made.", "source": "plan stage 5", "status": "unchecked"}
+		{"id": "G7", "text": "Sat nav instructions describe the turn actually made.", "source": "plan stage 5", "status": "obeyed"}
 	],
 	"exceptions": [
 		{"id": "H1", "text": "No zigzag markings at crossings.", "source": "beenster"},
