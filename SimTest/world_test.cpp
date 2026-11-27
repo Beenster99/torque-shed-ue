@@ -99,6 +99,7 @@ static std::vector<TorqueWorld::RidePlan::Knot> LaidKnots(const TorqueWorld::Rid
 int main()
 {
 	if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "0") TorqueWorld::RidePlan::WholeJunctions = false;   // [smooth junctions] (the old drawing, to compare)
+	if (const char* Et = std::getenv("WORLD_RIDE_EDGETRUE"); Et && std::string(Et) == "0") TorqueWorld::RidePlan::EdgeTrueRide = false;   // [road rulebook stage 3a] (the old one-piece ride line, to compare)
 	Json Ref;
 	std::string Text;
 	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
@@ -2148,7 +2149,13 @@ int main()
 							if (D > 0.5) Step = std::fmax(Step, std::fabs(P.Height - Plan->Road[I - 1].Height) / D);
 						}
 						if (I > 0 && I + 1 < Plan->Road.size())
-							Kink = std::fmax(Kink, std::fabs(Plan->Road[I + 1].Height - 2.0 * P.Height + Plan->Road[I - 1].Height));
+						{
+							// (the change of grade from one stretch to the next, as over 4 m: points unevenly apart where a road's
+							// run ends (road rulebook stage 3a) read a steady grade as a crest when their heights were only differenced)
+							const double D0 = P.Along - Plan->Road[I - 1].Along, D1 = Plan->Road[I + 1].Along - P.Along;
+							if (D0 > 0.5 && D1 > 0.5)
+								Kink = std::fmax(Kink, 4.0 * std::fabs((Plan->Road[I + 1].Height - P.Height) / D1 - (P.Height - Plan->Road[I - 1].Height) / D0));
+						}
 						Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
 						const double Rh = Plan->RoadHeight(P.At.X, P.At.Z);
 						if (!std::isnan(Rh) && std::fabs(Rh - P.Height) < 0.05) ++OnRoad;

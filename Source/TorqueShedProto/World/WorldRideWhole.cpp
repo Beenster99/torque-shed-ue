@@ -24,6 +24,7 @@
 namespace TorqueWorld
 {
 bool RidePlan::WholeJunctions = true;
+bool RidePlan::EdgeTrueRide = true;
 
 namespace
 {
