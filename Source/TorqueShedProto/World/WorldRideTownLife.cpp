@@ -17,6 +17,7 @@
 #include <cmath>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <string>
 #include <unordered_map>
 
@@ -612,7 +613,7 @@ void RidePlan::IndexTownLife()
 			{
 				const P2 Table = Mid - Way * 4.0 + L.Out * (Half + BestDepth + 2.2);
 				if (Clear(Table, 1.0) && Clear(Table + L.Out * 1.0, 0.5) && !Walled(Mid - Way * 4.0 + L.Out * (Half + BestDepth - 0.2), Table + L.Out * 1.2))
-					AddRoadside(PropPicnicTable, Table, Way, 0, L.Seed * 7u + 5u);
+					AddRoadside(PropCafePicnic, Table, P2(Way.Z, -Way.X), int(L.Seed % 2u), L.Seed * 7u + 5u);   // ([cafes] beenster Nov 26: the A-frame pub bench, its length along the road)
 			}
 			L.Tarmac = ClassIs(Foot0.Edge, {"trunk", "primary", "secondary", "trunk_link", "primary_link", "secondary_link"});
 			LaybyGrid[CourtKey(Mid.X, Mid.Z)].push_back(int(RoadLaybys.size()));
@@ -666,6 +667,335 @@ void RidePlan::IndexTownLife()
 			}
 			RoadCafes += Any ? 1 : 0;
 		}
+	}
+
+	// [everyday kits stage 8] The fast road set's things beside and over the motorways and dual carriageways (laid by
+	// RoadsideProps with the lay-bys' things): the kits bake's sign gantries (lines across a carriageway), speed cameras
+	// and emergency phones where the map has them, and a marker post every 100 m along a motorway's or a dual trunk
+	// road's nearside verge.
+	FastGantries = FastCameras = FastPhones = FastMarkers = 0;
+	{
+		const auto AddFast = [this](int Kind, const P2& At, const P2& Front, int Variant, uint32_t Id, double Across, double Y)
+		{
+			RoadsideThing T;
+			T.Kind = Kind;
+			T.At = At;
+			T.Front = Front;
+			T.Variant = Variant;
+			T.Id = Id;
+			T.Across = float(Across);
+			T.Y = Y;
+			RoadsideGrid[CourtKey(At.X, At.Z)].push_back(int(RoadsideThings.size()));
+			RoadsideThings.push_back(T);
+		};
+		const auto Fast = [&](int Edge)
+		{
+			const std::string& C = G.ClassOf(Edge);
+			return Motorway[size_t(Edge)] != 0 || C == "trunk" || C == "primary" || C == "trunk_link";
+		};
+		// (a road's way at a foot, and the way the traffic beside it on the side Side (+1 its left as its line runs)
+		// goes: a one-way road's own way; on a two-way road the left side's along its line, Britain driving on the left)
+		const auto WayAt = [&](const Foot& F)
+		{
+			const std::vector<P2>& L = G.Edges[size_t(F.Edge)].Line;
+			P2 D = L[size_t(F.Bit) + 1] - L[size_t(F.Bit)];
+			return D * (1.0 / std::fmax(1e-6, D.Length()));
+		};
+		const auto Traffic = [&](const Foot& F, double Side)
+		{
+			const int One = G.Edges[size_t(F.Edge)].Oneway;
+			const P2 D = WayAt(F);
+			return One != 0 ? D * double(One) : D * Side;
+		};
+		const auto Standing = [&](const P2& Q, double Spare)
+		{
+			if (InBuilding(Q, Spare) || Wet(Q) || OnSpan(Q) || OnForecourt(Q.X, Q.Z) || std::isnan(Ground(Q.X, Q.Z))) return false;
+			const Foot R0 = NearestRoad(Q, 20.0, false);
+			return R0.Edge < 0 || R0.Dist > Halves[size_t(R0.Edge)] + Spare;
+		};
+		uint32_t Seq = 1;
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Pts.empty()) continue;
+			++Seq;
+			if (T.Kind == "gantry" && T.Pts.size() >= 2)
+			{
+				// (where the map has it, square across the carriageway under it (the map's line is often only part of
+				// the way across), its legs 1.5 m outside its edges; its front to the traffic coming)
+				const P2 A0 = T.Pts.front(), B0 = T.Pts.back(), Mid0 = (A0 + B0) * 0.5;
+				if (A0.DistanceTo(B0) > 60.0 || OnSpan(Mid0)) continue;
+				const Foot F = NearestRoad(Mid0, 15.0, false);
+				if (F.Edge < 0 || !Fast(F.Edge) || OnSpan(F.At)) continue;
+				const P2 Way = Traffic(F, 1.0);
+				const P2 Front = Way * -1.0;
+				const P2 Across(Way.Z, -Way.X);
+				const double Span = Halves[size_t(F.Edge)] * 2.0 + 3.0;
+				const P2 A = F.At + Across * (Span * 0.5), B = F.At - Across * (Span * 0.5);
+				static constexpr double Spans[3] = {14.0, 20.0, 27.0};
+				int V = 0;
+				for (int K = 1; K < 3; ++K) if (std::fabs(Spans[K] - Span) < std::fabs(Spans[V] - Span)) V = K;
+				const double Ya = Ground(A.X, A.Z), Yb = Ground(B.X, B.Z), Ym = Ground(F.At.X, F.At.Z);
+				if (std::isnan(Ya) || std::isnan(Yb) || std::isnan(Ym)) continue;
+				AddFast(PropFastGantry, F.At, Front, V, Seq * 11u + 1u, std::clamp(Span / Spans[V], 0.6, 1.5), std::fmin(Ym, std::fmin(Ya, Yb)));
+				++FastGantries;
+			}
+			else if ((T.Kind == "speed_camera" && T.Word != "traffic_signals") || T.Kind == "emergency_phone")
+			{
+				// (on the verge beside the road it watches or serves, on the side the map has it (a point in the road: the
+				// left as the traffic goes), the camera's lens to the traffic coming, the phone's door to the road)
+				const bool Phone = T.Kind == "emergency_phone";
+				const P2 P = T.Pts.front();
+				const Foot F = NearestRoad(P, Phone ? 30.0 : 25.0, false);
+				if (F.Edge < 0 || (Phone && !Fast(F.Edge))) continue;
+				const P2 D = WayAt(F);
+				const P2 Left(D.Z, -D.X);
+				const double Half = Halves[size_t(F.Edge)];
+				const double Off = (P.X - F.At.X) * Left.X + (P.Z - F.At.Z) * Left.Z;
+				double Side = Off >= 0.0 ? 1.0 : -1.0;
+				if (F.Dist < Half) Side = G.Edges[size_t(F.Edge)].Oneway < 0 ? -1.0 : 1.0;
+				const double Out = std::clamp(F.Dist, Half + (Phone ? 2.2 : 1.6), Half + 5.0);
+				const P2 At = F.At + Left * (Side * Out);
+				if (!Standing(At, 0.6)) continue;
+				const P2 Front = Phone ? Left * -Side : Traffic(F, Side) * -1.0;
+				AddFast(Phone ? PropFastPhone : PropFastCamera, At, Front, 0, Seq * 13u + 5u, 1.0, std::numeric_limits<double>::quiet_NaN());
+				++(Phone ? FastPhones : FastCameras);
+			}
+		}
+		// (the marker posts: every 100 m along each one-way motorway or dual trunk road, 1.2 m out from its nearside edge,
+		// none in its first or last 40 m (its junctions), on a bridge, or where something else stands)
+		for (size_t E = 0; E < G.Edges.size(); ++E)
+		{
+			const RoadEdge& R = G.Edges[E];
+			if (R.Oneway == 0 || R.Line.size() < 2) continue;
+			const std::string& C = G.ClassOf(int(E));
+			if (!(C == "motorway" || C == "trunk")) continue;
+			double Along = 0.0;
+			const double Total = R.Length > 0.0 ? R.Length : 0.0;
+			double Next = 100.0 - std::fmod(std::fabs(R.Line.front().X * 0.37 + R.Line.front().Z * 0.61), 100.0);
+			for (size_t I = 0; I + 1 < R.Line.size(); ++I)
+			{
+				const P2 A = R.Line[I], B = R.Line[I + 1];
+				const double L = A.DistanceTo(B);
+				while (L > 1e-6 && Next <= Along + L)
+				{
+					const double U = (Next - Along) / L;
+					Next += 100.0;
+					const double At0 = Along + U * L;
+					if (At0 < 40.0 || (Total > 0.0 && At0 > Total - 40.0)) continue;
+					const P2 Way = (B - A) * (double(R.Oneway) / L);
+					const P2 Near(Way.Z, -Way.X);   // (the traffic's left: its nearside)
+					const P2 Q = A + (B - A) * U + Near * (Halves[E] + 1.2);
+					if (!Standing(Q, 0.9)) continue;
+					AddFast(PropFastMarker, Q, Way * -1.0, 0, uint32_t(E) * 977u + uint32_t(Next), 1.0, std::numeric_limits<double>::quiet_NaN());
+					++FastMarkers;
+				}
+				Along += L;
+			}
+		}
+	}
+
+	// [everyday kits stage 8b] The motorway service areas (RidePlan::ServiceAreas: World/WorldRideServices.cpp lays them):
+	// each kits bake services area beside a motorway or a dual trunk road, its made-up name, its main building (the map's
+	// biggest box building in it, 300 m2 or more), the name pylon on the verge facing the main road, and a lorry park of
+	// three to eight lorries side by side where a clear, level patch of the area takes them.
+	ServiceAreas.clear();
+	{
+		static const char* const Firsts[] = {"Oakmere", "Kestrel", "Ridgeway", "Hartcliffe", "Fenwick", "Stonebridge", "Larkhill", "Ashby Moor",
+			"Copthorne Heath", "Wychwood", "Thornbury Cross", "Linwood", "Brackenfield", "Hollins Gate", "Redmoor", "Greystones", "Fairley",
+			"Highcross", "Elmsworth", "Marlow Down"};
+		static const char* const Lasts[] = {"Services", "Services", "Services", "Motorway Services", "Services", "Travel Plaza"};
+		const auto InsideRing = [](const std::vector<P2>& Ring, const P2& P)
+		{
+			bool In = false;
+			for (size_t I = 0, J = Ring.size() - 1; I < Ring.size(); J = I++)
+				if (((Ring[I].Z > P.Z) != (Ring[J].Z > P.Z)) && P.X < (Ring[J].X - Ring[I].X) * (P.Z - Ring[I].Z) / (Ring[J].Z - Ring[I].Z) + Ring[I].X) In = !In;
+			return In;
+		};
+		for (const GroundShape& T : G.KitThings)
+		{
+			if (T.Kind != "services" || T.Pts.size() < 3) continue;
+			ServiceArea A;
+			A.Ring = T.Pts;
+			A.MinX = A.MaxX = T.Pts[0].X;
+			A.MinZ = A.MaxZ = T.Pts[0].Z;
+			P2 Sum(0.0, 0.0);
+			for (const P2& P : T.Pts)
+			{
+				Sum = Sum + P;
+				A.MinX = std::fmin(A.MinX, P.X); A.MaxX = std::fmax(A.MaxX, P.X);
+				A.MinZ = std::fmin(A.MinZ, P.Z); A.MaxZ = std::fmax(A.MaxZ, P.Z);
+			}
+			A.Mid = Sum * (1.0 / double(T.Pts.size()));
+			if (A.MaxX - A.MinX > 1500.0 || A.MaxZ - A.MinZ > 1500.0) continue;
+			// (beside a motorway or a dual trunk road: its nearest, within 400 m)
+			Foot Main;
+			{
+				const int Cx0 = int(std::floor(A.Mid.X / BitCell)), Cz0 = int(std::floor(A.Mid.Z / BitCell)), Rings = int(std::ceil(400.0 / BitCell));
+				for (int Dz = -Rings; Dz <= Rings; ++Dz)
+					for (int Dx = -Rings; Dx <= Rings; ++Dx)
+					{
+						const auto It = Bits.find(static_cast<long long>(Cx0 + Dx) * 4000037LL + (Cz0 + Dz));
+						if (It == Bits.end()) continue;
+						for (const std::pair<int, int>& Bt : It->second)
+						{
+							const RoadEdge& R = G.Edges[size_t(Bt.first)];
+							const std::string& C = G.ClassOf(Bt.first);
+							if (!(C == "motorway" || (C == "trunk" && R.Oneway != 0))) continue;
+							double U = 0.0;
+							const double D = SegDistance(A.Mid, R.Line[size_t(Bt.second)], R.Line[size_t(Bt.second) + 1], &U);
+							if (D < Main.Dist)
+							{
+								Main.Dist = D; Main.Edge = Bt.first; Main.Bit = Bt.second; Main.T = U;
+								Main.At = R.Line[size_t(Bt.second)] + (R.Line[size_t(Bt.second) + 1] - R.Line[size_t(Bt.second)]) * U;
+							}
+						}
+					}
+			}
+			if (Main.Edge < 0 || Main.Dist > 400.0) continue;
+			const uint32_t Seed = ((uint32_t(int64_t(std::floor(A.Mid.X))) * 73856093u) ^ (uint32_t(int64_t(std::floor(A.Mid.Z))) * 19349663u)) | 1u;
+			A.Name = std::string(Firsts[int(Dice(Seed, 41) * 20.0) % 20]) + " " + Lasts[int(Dice(Seed, 42) * 6.0) % 6];
+			A.HallDesign = int(Dice(Seed, 43) * 2.0) % 2;
+			A.MainAt = Main.At;
+			// (the pylon: on the area's side of the main road, 12 m out from its edge, facing it)
+			{
+				P2 Out = A.Mid - Main.At;
+				const double Ol = Out.Length();
+				if (Ol > 1.0)
+				{
+					Out = Out * (1.0 / Ol);
+					const P2 At = Main.At + Out * (Halves[size_t(Main.Edge)] + 12.0);
+					const Foot Near = NearestRoad(At, 20.0, false);
+					if (!InBuilding(At, 2.0) && !Wet(At) && !OnSpan(At) && !std::isnan(Ground(At.X, At.Z)) && (Near.Edge < 0 || Near.Dist > Halves[size_t(Near.Edge)] + 3.0))
+					{
+						A.Pylon = true;
+						A.PylonAt = At;
+						A.PylonFront = Out * -1.0;
+					}
+				}
+			}
+			// (the lorry park: three to eight lorries side by side 4.6 m apart, square to the main road, on clear level
+			// ground inside the area, as far from the main building as can be)
+			{
+				P2 Way = G.Edges[size_t(Main.Edge)].Line[size_t(Main.Bit) + 1] - G.Edges[size_t(Main.Edge)].Line[size_t(Main.Bit)];
+				Way = Way * (1.0 / std::fmax(1e-6, Way.Length()));
+				const P2 Deep(Way.Z, -Way.X);
+				const auto Fits = [&](const P2& C, int N)
+				{
+					const double Run = (N - 1) * 4.6 * 0.5 + 4.0, Half = 12.0;
+					double Lo = 1e9, Hi = -1e9;
+					for (double U = -Run; U <= Run + 0.01; U += Run / 3.0)
+						for (double V = -Half; V <= Half + 0.01; V += Half / 2.0)
+						{
+							const P2 Q = C + Way * U + Deep * V;
+							if (!InsideRing(A.Ring, Q) || InBuilding(Q, 3.0) || Wet(Q) || OnForecourt(Q.X, Q.Z)) return false;
+							const Foot R0 = NearestRoad(Q, 20.0, false);
+							if (R0.Edge >= 0 && R0.Dist < Halves[size_t(R0.Edge)] + 2.5) return false;
+							const double Y = Ground(Q.X, Q.Z);
+							if (std::isnan(Y)) return false;
+							Lo = std::fmin(Lo, Y); Hi = std::fmax(Hi, Y);
+						}
+					return Hi - Lo < 1.6;
+				};
+				double Best = -1.0;
+				P2 BestAt;
+				int BestN = 0;
+				const P2 Away = A.Mid;
+				for (double Z = A.MinZ + 10.0; Z <= A.MaxZ - 10.0; Z += 10.0)
+					for (double X = A.MinX + 10.0; X <= A.MaxX - 10.0; X += 10.0)
+					{
+						const P2 C(X, Z);
+						if (!InsideRing(A.Ring, C)) continue;
+						for (const int N : {8, 5, 3})
+						{
+							const double Score = double(N) * 1000.0 + C.DistanceTo(Away);
+							if (Score <= Best) break;
+							if (!Fits(C, N)) continue;
+							Best = Score; BestAt = C; BestN = N;
+							break;
+						}
+					}
+				if (BestN > 0)
+				{
+					const double Run = (BestN - 1) * 4.6 * 0.5;
+					for (int K = 0; K < BestN; ++K)
+					{
+						if (Dice(Seed + uint32_t(K) * 31u, 44) < 0.2) continue;   // (a gap here and there)
+						A.LorryAt.push_back(BestAt + Way * (-Run + K * 4.6) + Deep * (Dice(Seed + uint32_t(K) * 31u, 45) - 0.5));
+						A.LorryFront.push_back(Dice(Seed + uint32_t(K) * 31u, 46) < 0.8 ? Deep * -1.0 : Deep);
+						A.LorryVariant.push_back(int(Dice(Seed + uint32_t(K) * 31u, 47) * 6.0) % 6);
+					}
+					const double Ru = Run + 4.0, Rv = 11.0;
+					A.Park = {BestAt - Way * Ru - Deep * Rv, BestAt + Way * Ru - Deep * Rv, BestAt + Way * Ru + Deep * Rv, BestAt - Way * Ru + Deep * Rv};
+				}
+			}
+			for (const ServiceArea& Other : ServiceAreas)   // (both sides of one services: one name)
+				if (Other.Mid.DistanceTo(A.Mid) < 700.0) { A.Name = Other.Name; break; }
+			ServiceAreas.push_back(std::move(A));
+		}
+	}
+
+	// [cafes] The roadside cafes: each building, its name and terrace (World/WorldRideCafes.cpp), with these helpers.
+	{
+		CafeHelp Help;
+		Help.Clear = [&](const P2& Q, double Spare)
+		{
+			if (InBuilding(Q, Spare) || Wet(Q) || OnForecourt(Q.X, Q.Z) || OnSpan(Q) || std::isnan(Ground(Q.X, Q.Z))) return false;
+			double RailDist = 0.0, RailTop = 0.0;
+			int RailOn = 0;
+			if (NearRail(Q.X, Q.Z, RailDist, RailTop, RailOn) && RailOn != 2 && RailDist < Spare + 3.0) return false;   // (off the railway)
+			const Foot R0 = NearestRoad(Q, 25.0, false);
+			return R0.Edge < 0 || R0.Dist > Halves[size_t(R0.Edge)] + Spare + 1.0;
+		};
+		Help.Walled = [&](const P2& A, const P2& B) { return Walled(A, B); };
+		Help.Road = [&](const P2& P, double Reach, P2& At, P2& Way, double& Half)
+		{
+			const Foot F = NearestRoad(P, Reach, false);
+			if (F.Edge < 0 || Motorway[size_t(F.Edge)]) return false;
+			const std::vector<P2>& L = G.Edges[size_t(F.Edge)].Line;
+			const P2 D = L[size_t(F.Bit) + 1] - L[size_t(F.Bit)];
+			const double Dl = D.Length();
+			if (Dl < 1e-6) return false;
+			At = F.At;
+			Way = D * (1.0 / Dl);
+			Half = Halves[size_t(F.Edge)];
+			return true;
+		};
+		Help.Houses = [&](const P2& P)
+		{
+			int N = 0;
+			for (int Dz = -1; Dz <= 1; ++Dz)
+				for (int Dx = -1; Dx <= 1; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+						if (std::hypot(G.Buildings[size_t(B)].X - P.X, G.Buildings[size_t(B)].Z - P.Z) < 100.0) ++N;
+				}
+			return N;
+		};
+		Help.BoxAt = [&](const P2& P) -> const Building*
+		{
+			const Building* Best = nullptr;
+			double BestD = 6.0;
+			for (int Dz = -1; Dz <= 1; ++Dz)
+				for (int Dx = -1; Dx <= 1; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+					{
+						const Building& H = G.Buildings[size_t(B)];
+						const double C = std::cos(H.Yaw), S = std::sin(H.Yaw), Ex = P.X - H.X, Ez = P.Z - H.Z;
+						// (the distance from P to its box: 0 inside)
+						// (its own frame as the buildings lay it: x across along (C, -S), z deep along (S, C))
+						const double U = std::fmax(0.0, std::fabs(Ex * C - Ez * S) - H.W * 0.5), V = std::fmax(0.0, std::fabs(Ex * S + Ez * C) - H.D * 0.5);
+						const double D = std::hypot(U, V) - (U == 0.0 && V == 0.0 ? 1.0 : 0.0);
+						if (D < BestD) { BestD = D; Best = &H; }
+					}
+				}
+			return Best;
+		};
+		IndexCafes(Help);
 	}
 
 	// The things. (a thing's square, and how it is filed)

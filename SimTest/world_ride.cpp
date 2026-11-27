@@ -15,6 +15,7 @@
 #include "WorldRideWarehouses.h"
 #include "WorldRideFarms.h"
 #include "WorldRideVillage.h"
+#include "WorldRideHouseKit.h"
 #include "WorldRideCircuits.h"
 #include "WorldRoadLine.h"
 #include "WorldFerries.h"
@@ -194,13 +195,18 @@ int main(int Argc, char** Argv)
 		const char* VkOff = std::getenv("WORLD_RIDE_VILLAGE");
 		if ((!VkOff || std::string(VkOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.json"), VkText)
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/village_kit.bin"), VkBin)) SetVillageKit(VkText, VkBin);
+		std::string HkText, HkBin;   // [house kit] (WORLD_RIDE_HOUSE_KIT=0: the drawn houses, to compare)
+		const char* HkOff = std::getenv("WORLD_RIDE_HOUSE_KIT");
+		if ((!HkOff || std::string(HkOff) != "0") && Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_kit.json"), HkText)
+			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/house_kit.bin"), HkBin) && SetHouseKit(HkText, HkBin))
+			std::printf("house kit: %d designs\n", HouseKitNow() ? (int)HouseKitNow()->Designs.size() : 0);
 		std::string HeightsText;   // [churches stage 6]
 		const char* HeightsOff = std::getenv("WORLD_RIDE_CHURCH_HEIGHTS");   // (=0: the kit's own towers, to compare)
 		if ((!KitOff || std::string(KitOff) != "0") && (!HeightsOff || std::string(HeightsOff) != "0")
 			&& Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/church_heights.json"), HeightsText)) SetChurchHeights(HeightsText);
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
 		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
-		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "1") RidePlan::WholeJunctions = true;   // [smooth junctions stage 3]
+		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "0") RidePlan::WholeJunctions = false;   // [smooth junctions] the old drawing, for before/after totals
 		if (const char* Mo = std::getenv("WORLD_RIDE_MONTH")) RidePlan::SeasonMonth = std::atoi(Mo);   // [farm machinery] (the ride's month: the fields' machines by season)
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});
@@ -415,6 +421,23 @@ int main(int Argc, char** Argv)
 		std::printf("Coast things from the kits files: %d\n", int(Plan->Area.Roads.KitThings.size()));
 		std::printf("Lay-bys: %d made of %d mapped; roadside cafes signed: %d; roadside things: %d\n", int(Plan->RoadLaybys.size()), Plan->LaybysSeen, Plan->RoadCafes,
 			int(Plan->RoadsideThings.size()));
+		std::printf("Fast road set: %d gantries, %d speed cameras, %d emergency phones, %d marker posts; barriers as models: %s\n", Plan->FastGantries, Plan->FastCameras,   // [everyday kits stage 8]
+			Plan->FastPhones, Plan->FastMarkers, Plan->FastBarriersOn() ? "yes" : "no");
+		{
+			int Halls = 0, Pylons = 0, Lorries = 0;   // [everyday kits stage 8b]
+			for (size_t Ai = 0; Ai < Plan->ServiceAreas.size(); ++Ai) { const RidePlan::ServiceArea& A = Plan->ServiceAreas[Ai]; Building H; Halls += Plan->HallOf(Ai, H) ? 1 : 0; Pylons += A.Pylon ? 1 : 0; Lorries += int(A.LorryAt.size()); }
+			std::printf("Motorway services: %d areas, %d main buildings, %d pylons, %d lorries\n", int(Plan->ServiceAreas.size()), Halls, Pylons, Lorries);
+			for (const RidePlan::ServiceArea& A : Plan->ServiceAreas) std::printf("  %s at %.1f, %.1f\n", A.Name.c_str(), A.Mid.X, A.Mid.Z);
+		}
+		{
+			int Seats = 0, Things = 0;   // [cafes]
+			for (const RidePlan::CafeSite& C : Plan->Cafes) { Seats += int(C.Seats.size()); Things += int(C.Things.size()); }
+			std::printf("Cafes: %d of %d mapped out of town made (%d on the map's buildings), %d terrace things, %d seats\n", int(Plan->Cafes.size()), Plan->CafesSeen,
+				Plan->CafesOnBoxes, Things, Seats);
+			for (const RidePlan::CafeSite& C : Plan->Cafes)
+				std::printf("  %s: design %d at %.1f, %.1f facing %.2f, %.2f, %s, stretch %.2f x %.2f, %d seats\n", C.Name.c_str(), C.Design, C.At.X, C.At.Z, C.Front.X, C.Front.Z,
+					C.OnMapBox ? "on the map's box" : "set back from the road", C.Stretch, C.Across, int(C.Seats.size()));
+		}
 	}
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	// [Nov 20] WORLD_RIDE_BRIDGES=<folder>: the bridges' walls as the game lays them with the wall kit in: every road
@@ -634,6 +657,7 @@ int main(int Argc, char** Argv)
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
 			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]
+			std::printf("House kit: %d detached houses from the kit\n", Tally.HouseKit);   // [house kit]
 			{
 				// [towns stage 6] (the heritage lamps among the street lamps there, with WORLD_RIDE_FACADE)
 				int Heritage = 0;
@@ -3246,6 +3270,17 @@ int main(int Argc, char** Argv)
 				std::vector<P2> L = G.LineFrom(E, Nd);
 				const RidePlan::SideRoad* Sr = Plan->SideOf(E + 1);
 				if (Sr == nullptr || Sr->Pts.size() < 2 || std::getenv("WORLD_RIDE_MAPLINE") != nullptr) return L;
+				// ([smooth junctions] a whole ring's own edges: the ring is drawn to its map line's shape, and the side
+				// road laid along that edge, cutting across the island, is hidden under it: Whitby)
+				{
+					const int Rg = Plan->RingAt(Nd);
+					const auto It = Rg >= 0 ? Plan->WholeRingOf.find(Rg) : Plan->WholeRingOf.end();
+					if (It != Plan->WholeRingOf.end() && Plan->WholeOf[size_t(It->second)].Ok)
+					{
+						const std::vector<int>& Es = Plan->RoadRings[size_t(Rg)].Edges;
+						if (std::find(Es.begin(), Es.end(), E) != Es.end()) return L;
+					}
+				}
 				std::vector<P2> Own;
 				for (const RoadPoint& Rp : Sr->Pts) Own.push_back(Rp.At);
 				if (Own.back().DistanceTo(C) < Own.front().DistanceTo(C)) std::reverse(Own.begin(), Own.end());
@@ -3850,7 +3885,7 @@ int main(int Argc, char** Argv)
 				// x z y yaw pitch stretch scale across)
 				for (const RideProp& P : Piece.Props)
 				{
-					if (P.Kind < RidePlan::PropBridgeArch || P.Kind > RidePlan::PropBridgeRail) continue;
+					if (P.Kind < RidePlan::PropBridgeArch || P.Kind > RidePlan::PropFastMarker) continue;   // ([stage 8] and the fast road set's barriers)
 					if (std::hypot(Piece.OriginX + P.X - Centre.X, Piece.OriginZ + P.Z - Centre.Z) > Reach2 + 40.0) continue;
 					std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Piece.OriginX + P.X - Centre.X,
 						Piece.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
@@ -4050,10 +4085,11 @@ int main(int Argc, char** Argv)
 						std::vector<RideProp> Yard;
 						Plan->PropsTile(Tx, Tz, 64.0, Yard);
 						for (const RideProp& P : Yard)
-							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropRoadCafeSign) || (P.Kind >= RidePlan::PropMachCombine && P.Kind <= RidePlan::PropMachCultivator) || P.Kind == RidePlan::PropPicnicTable)
+							if ((P.Kind >= RidePlan::PropFarmBales && P.Kind <= RidePlan::PropVillageSign) || (P.Kind >= RidePlan::PropCoastBeachHut && P.Kind <= RidePlan::PropRoadCafeSign) || (P.Kind >= RidePlan::PropMachCombine && P.Kind <= RidePlan::PropMachCultivator) || P.Kind == RidePlan::PropPicnicTable
+								|| (P.Kind >= RidePlan::PropFastGantry && P.Kind <= RidePlan::PropFastMarker))   // ([stage 8] the fast road set's gantries and roadside things)
 							{
-								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
-									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+								std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Tx + P.X - Centre.X,
+									Tz + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
 								KitPropText += Buf;
 							}
 						// ([everyday kits stage 9] the power set's models, which SkylineTile lays near: ... stretch scale)
@@ -4081,9 +4117,10 @@ int main(int Argc, char** Argv)
 						}
 						if (!P.Facade)
 						{
-							// ([everyday kits] the prop kit's other models, to WORLD_RIDE_MESH.kitprops: name variant x z y yaw pitch stretch)
-							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
-								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch));
+							// ([everyday kits] the prop kit's other models, to WORLD_RIDE_MESH.kitprops: name variant x z y yaw pitch stretch
+							// scale across)
+							std::snprintf(Buf, sizeof(Buf), "%s %d %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f\n", RidePlan::PropName(P.Kind), int(P.Variant), Stands.OriginX + P.X - Centre.X,
+								Stands.OriginZ + P.Z - Centre.Z, double(P.Y), double(P.Yaw), double(P.Pitch), double(P.Stretch), double(P.Scale), double(P.Across));
 							KitPropText += Buf;
 							continue;
 						}

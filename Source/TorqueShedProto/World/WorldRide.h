@@ -44,6 +44,7 @@
 #include <cstdint>
 #include <functional>
 #include <array>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -112,6 +113,7 @@ struct RideProp
 // up stretched Sy. (Ax, Az, Nx, Nz) always a proper turn: x, up, out right-handed as the frame's.
 struct RideKitPart
 {
+	int32_t Kit = 0;   // [house kit] 0 the warehouse kit's piece, 1 a house of the house kit (Piece: its design x 8 + colourway)
 	int32_t Piece = -1;
 	bool Near = true;
 	float X = 0.0f, Y = 0.0f, Z = 0.0f, Ax = 1.0f, Az = 0.0f, Nx = 0.0f, Nz = 1.0f, Sx = 1.0f, Sy = 1.0f, Sz = 1.0f;
@@ -957,6 +959,16 @@ public:
 		PropMachCombine, PropMachForager, PropMachSprayer, PropMachTractor4wd, PropMachTractorTrack, PropMachCrawler,
 		PropMachLoader, PropMachMower, PropMachBuggy, PropMachChaser, PropMachTipper, PropMachBaler, PropMachDrill,
 		PropMachCultivator,
+		// [everyday kits stage 8] The fast road set (Tools/blender_fastroad_props.py, two hand-made distance versions
+		// each): steel barriers (0 one beam, 1 a central reservation's two), the concrete step barrier, sign gantries
+		// (0..2: 14, 20, 27 m spans), yellow speed cameras, emergency phones and marker posts (WorldRideFastRoads.cpp)
+		PropFastBarrier, PropFastConcrete, PropFastGantry, PropFastCamera, PropFastPhone, PropFastMarker,
+		// [everyday kits stage 8b] The motorway services set (Tools/blender_services_props.py): the main building, the
+		// name pylon, parked lorries (World/WorldRideServices.cpp)
+		PropServicesHall, PropServicesPylon, PropServicesLorry,
+		// [cafes] The roadside cafes (Tools/blender_cafe_kit.py): twenty buildings, and the terrace's chairs, tables,
+		// picnic benches, parasols and A-boards (World/WorldRideCafes.cpp)
+		PropCafeBuilding, PropCafeChair, PropCafeTable, PropCafePicnic, PropCafeParasol, PropCafeABoard,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1256,6 +1268,7 @@ public:
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
 		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
+		int HouseKit = 0;   // [house kit] detached houses built from the house kit
 		int VillageKit = 0;   // [everyday kits stage 6] schools built from the village kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
@@ -1587,16 +1600,93 @@ public:
 		P2 At, Front;      // where, and the way its front (+x) faces
 		int Variant = 0;
 		uint32_t Id = 1;
+		float Across = 1.0f;   // [everyday kits stage 8] (a gantry's: stretched across to its span)
+		double Y = std::numeric_limits<double>::quiet_NaN();   // [stage 8] (its foot's height: NaN the ground's)
 	};
 	std::vector<RoadsideThing> RoadsideThings;
 	std::unordered_map<long long, std::vector<int>> RoadsideGrid;   // by the 64 m square each is in
-	int LaybysSeen = 0, RoadCafes = 0;   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
+	int LaybysSeen = 0, RoadCafes = 0;
+	int FastGantries = 0, FastCameras = 0, FastPhones = 0, FastMarkers = 0;   // [everyday kits stage 8] (the fast road set's things made)   // (the kits bake's true lay-bys looked at; the roadside cafes signed)
 	static constexpr double LaybyLong = 34.0, LaybyDeep = 3.2, LaybyLeast = 2.6;
 	void RoadsideProps(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
 	// [everyday kits stage 7] The bridge set under and along each bridge whose deck starts in road Which's piece First..Last
 	// (World/WorldRideBridgeKit.cpp), into Out.Props; and whether a wide road's bridge has the kit's parapet (the road
 	// build then leaves its plain slab parapet off).
 	void BridgeKitProps(int Which, int First, int Last, RideMesh& Out) const;
+	// [everyday kits stage 8] The fast road set (World/WorldRideFastRoads.cpp). FastBarriersOn: the steel and concrete
+	// barriers laid as models (the road build's and the scenery's drawn ones left off then). LayBarrierRun: a barrier's
+	// 4 m lengths from A to B (Ya, Yb its foot), stretched to fit, each pitched up the slope, into Props (about OriginX,
+	// OriginZ); a one-beam barrier's road on its right going from A to B. InWholeRim: a point on a whole junction's
+	// tarmac (no kit pieces there). The gantries, cameras, phones and marker posts are RoadsideThings (IndexTownLife).
+	bool FastBarriersOn() const;
+	static void LayBarrierRun(std::vector<RideProp>& Props, double OriginX, double OriginZ, int Kind, int Variant, const P2& A, double Ya, const P2& B, double Yb);
+	bool InWholeRim(const P2& At) const;
+	// [everyday kits stage 8b] The motorway service areas (World/WorldRideServices.cpp; found by IndexTownLife from the
+	// kits bake's services areas): each its made-up name, its main building (the map's biggest box in it, drawn as the
+	// set's hall with the name over its doors instead of the box), the name pylon facing the motorway, and a lorry park
+	// (a row of parked lorries on tarmac, the field's FieldForecourt) where there's room. ServicesTile lays a square's.
+	struct ServiceArea
+	{
+		std::vector<P2> Ring;
+		P2 Mid;
+		double MinX = 0.0, MaxX = 0.0, MinZ = 0.0, MaxZ = 0.0;
+		std::string Name;
+		P2 MainAt;          // (the main road's nearest point)
+		int HallDesign = 0;
+		bool Pylon = false;
+		P2 PylonAt, PylonFront;
+		std::vector<P2> LorryAt, LorryFront;
+		std::vector<int> LorryVariant;
+		std::vector<P2> Park;   // (the lorry park's tarmac: empty, none)
+	};
+	std::vector<ServiceArea> ServiceAreas;
+	bool HallBuilding(const Building* B) const;
+	bool HallOf(size_t Which, Building& Hall) const;   // (the biggest box in it, 300 m2 or more, as the buildings draw them; kept once found)
+	void ServicesTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// [cafes] The roadside cafes (beenster Nov 26: "about 20 different cafes, from small to large ... sit at tables outside
+	// them"; World/WorldRideCafes.cpp). Each cafe the kits bake has out of town (12 houses or fewer within 100 m, a road
+	// within 80 m; not the burger vans' "van" ones) gets one of twenty designs of our own: on the map's box there, chosen
+	// to fit it and stretched to it (the box then undrawn: CafeBuilding), or where the map has none, set back from the
+	// road with room for its terrace. Its made-up name on its fascia; its terrace's tables and chairs, picnic benches,
+	// parasols and A-board in front, every chair and bench place a seat the rider on foot can sit at (CafeSeatNear).
+	struct CafeSeat
+	{
+		P2 At, Face;        // the seat's middle, and the way someone sat there faces (unit)
+		double High = 0.46; // the seat's height over the ground
+	};
+	struct CafeSite
+	{
+		P2 At, Front;       // the building's middle, and the way its front faces (unit, to the road)
+		int Design = 0;
+		double Stretch = 1.0, Across = 1.0;   // its depth and width as laid over the model's
+		double Y = 0.0;     // its floor's foot
+		bool OnMapBox = false;
+		double HalfD = 0.0, HalfW = 0.0;      // its footprint as laid (half depth along Front, half width)
+		std::string Name;
+		std::vector<RoadsideThing> Things;    // the terrace's things
+		std::vector<CafeSeat> Seats;
+		std::vector<P2> Ring;                 // its ground: the building and terrace's hardstanding (no crops or trees)
+	};
+	std::vector<CafeSite> Cafes;
+	std::unordered_map<long long, std::vector<int>> CafeGrid;   // by the 64 m square each's middle is in
+	int CafesSeen = 0, CafesOnBoxes = 0;
+	// (IndexTownLife's helpers: Clear(At, Spare) somewhere a thing may stand; Walled(A, B) a wall, fence or hedge between;
+	// Road(At, Reach, Foot, Way, Half) the nearest road but a motorway within Reach; Houses(At) the buildings within 100 m;
+	// BoxAt(At) the map's building at At (or within 6 m), null for none)
+	struct CafeHelp
+	{
+		std::function<bool(const P2&, double)> Clear;
+		std::function<bool(const P2&, const P2&)> Walled;
+		std::function<bool(const P2&, double, P2&, P2&, double&)> Road;
+		std::function<int(const P2&)> Houses;
+		std::function<const Building*(const P2&)> BoxAt;
+	};
+	void IndexCafes(const CafeHelp& Help);
+	bool CafeBuilding(double X, double Z) const;   // (a box drawn there would stand inside a cafe)
+	void CafesTile(double X0, double Z0, double Size, RideMesh& Out) const;
+	// The seat nearest (X, Z) within Reach m: its middle, its seat's top (Y) and the way to face; false for none.
+	// (Taken: seats someone's sat on already, skipped; Name: the cafe's own.)
+	bool CafeSeatNear(double X, double Z, double Reach, P2& At, double& Y, P2& Face, const std::vector<P2>* Taken = nullptr, std::string* Name = nullptr) const;
 	bool BridgeRailsOn() const;
 	// [roads stage 7] The smaller things of town and country life from the map (OSM stage 7F, 7G): each
 	// campsite's pitches (touring caravans and tents, a static caravan or two on the bigger ones) round its
@@ -1923,7 +2013,7 @@ public:
 	static const char* JunctionKindName(EJunction Kind);
 	// [smooth junctions stage 3] A junction built whole (World/WorldRideWhole.cpp): its roads stop at mouth lines Cut
 	// metres in from their ends, and the junction between is one piece with one surface (WholePiece), drawn with its
-	// Owner road's piece at that end. Behind WholeJunctions (-TorqueJunctions=whole; SimTest WORLD_RIDE_WHOLE=1).
+	// Owner road's piece at that end. WholeJunctions is on by default (off only by -TorqueJunctions=old; SimTest WORLD_RIDE_WHOLE=0).
 	struct WholePlan
 	{
 		bool Ok = false;
@@ -1955,6 +2045,19 @@ public:
 	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
 	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
 	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
+	// [smooth junctions stage 6] The through road's centre line across a whole junction, as its warning line: from arm A's
+	// mouth (the ride's road's arm where there is one) to arm B's, a curve From-Ctl-To Length long, its dash pattern's
+	// along at S metres from A's mouth X0 + Rate * S (A's own along carried on, so it keeps step with A).
+	struct WholeDashLine
+	{
+		int AWhich = 0, AEnd = 0, BWhich = 0, BEnd = 0, A = -1, B = -1;
+		double ABase = 0.0, BBase = 0.0, X0 = 0.0, Rate = 1.0, Length = 0.0;
+		P2 From, Ctl, To;
+	};
+	bool WholeDashLineOf(int Ji, WholeDashLine& D) const;
+	// And for the road beyond arm B's mouth (a side road's end at a whole junction): its centre line's dash pattern there
+	// at OnDash(Sign * along + Shift), to keep step with the line across. False (Sign 1, Shift 0) where none.
+	bool WholeDashOf(int Which, int End, double& Sign, double& Shift) const;
 	bool WholeHidden(int Which) const;           // a road inside a whole junction: not drawn
 	static constexpr double WholeEase = 40.0;
 	static constexpr double WholeArmFollow = 25.0;   // [smooth junctions stage 5] an arm followed past plain map points until it is this long (m)
@@ -1985,6 +2088,7 @@ public:
 	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
+	double WholeTop(double X, double Z) const;   // [smooth junctions] a whole junction's tarmac surface here, NaN off every one
 	static bool CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise);
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle

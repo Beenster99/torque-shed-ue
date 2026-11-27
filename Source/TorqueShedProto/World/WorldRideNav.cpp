@@ -221,6 +221,18 @@ void RidePlan::PlaceJunctions(double RawLength)
 			if (D < Best) { Best = D; J.Along = P.Along; }
 		}
 		if (!J.CameMinor && !J.OntoMinor) continue;
+		// ([smooth junctions stage 6] a junction on the ride's road built whole: its piece draws the through road's lines
+		// and the give-way lines, the ride's road hidden under it; the ride's own lines stop only there, not for the
+		// through road's 40 m each way, which left 25 m of the road the ride turns onto with no centre line, Chatteris)
+		if (WholeJunctions && size_t(J.Node) < JunctionOfNode.size() && JunctionOfNode[size_t(J.Node)] >= 0)
+		{
+			const WholePlan& W = WholeOf[size_t(JunctionOfNode[size_t(J.Node)])];
+			if (W.Ok && W.Hide[1] > W.Hide[0])
+			{
+				JunctionNoLines.emplace_back(W.Hide[0], W.Hide[1]);
+				continue;
+			}
+		}
 		// (where the ride's road leaves the through road's carriageway each way: the map's line of the
 		// through road, its first 40 m each way from the junction, and the ride's road walked out from the
 		// junction till it is half that road's width and a little from it)

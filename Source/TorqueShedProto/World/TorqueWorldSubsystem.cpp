@@ -30,6 +30,7 @@
 #include "World/WorldFiles.h"
 #include "World/WorldRideChurches.h"
 #include "World/WorldRideWarehouses.h"
+#include "World/WorldRideHouseKit.h"
 #include "World/WorldRideFarms.h"
 #include "World/WorldRideVillage.h"
 #include "World/WorldRideCircuits.h"
@@ -243,46 +244,47 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::shared_ptr<const TorqueWorld::ChurchKit> Kit = TorqueWorld::ChurchKitNow();
 		UE_LOG(LogTemp, Display, TEXT("Torque world: church kit: %d churches%s"), Kit ? int32(Kit->Models.size()) : 0, bKit ? TEXT("") : TEXT(" (none: Data/RideUK/church_kit.json or .bin unreadable; the drawn churches stay)"));
 		// [warehouses] The warehouse kit: ten designs of shed and shop, laid on the map's big industrial and retail
-		// outlines (-TorqueWarehouses=0: the plain drawn sheds, to compare), and [stage 3] their yards' and car
-		// parks' props (-TorqueWarehouseYards=0: the sheds alone, to compare the frame rate).
+		// outlines, and [stage 3] their yards' and car parks' props. Always on (beenster Nov 26: "no more switches").
 		{
-			int32 WarehousesAsked = 1, YardsAsked = 1;
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouses="), WarehousesAsked);
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseYards="), YardsAsked);
 			std::string WhText, WhBin;
 			const std::string WhPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.json")));
 			const std::string WhBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/warehouse_kit.bin")));
-			const bool bWh = WarehousesAsked != 0 && TorqueWorld::Files::Read(WhPath, WhText) && TorqueWorld::Files::Read(WhBinPath, WhBin) && TorqueWorld::SetWarehouseKit(WhText, WhBin, YardsAsked != 0);
+			const bool bWh = TorqueWorld::Files::Read(WhPath, WhText) && TorqueWorld::Files::Read(WhBinPath, WhBin) && TorqueWorld::SetWarehouseKit(WhText, WhBin, true);
 			const std::shared_ptr<const TorqueWorld::WarehouseKit> Wh = TorqueWorld::WarehouseKitNow();
-			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
-				YardsAsked == 0 ? TEXT(" (yards off: -TorqueWarehouseYards=0)") : TEXT(""),
-				bWh ? TEXT("") : WarehousesAsked == 0 ? TEXT(" (off: -TorqueWarehouses=0)") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
+			UE_LOG(LogTemp, Display, TEXT("Torque world: warehouse kit: %d designs, %d yard props%s"), Wh ? int32(Wh->Designs.size()) : 0, Wh ? int32(Wh->Props.size()) : 0,
+				bWh ? TEXT("") : TEXT(" (none: Data/RideUK/warehouse_kit.json or .bin unreadable; the drawn sheds stay)"));
 		}
 		// [everyday kits stage 4] The farm kit: twelve designs of farm building, laid on the map's barns and farmyard
-		// sheds (-TorqueFarms=0: the drawn barns, to compare).
+		// sheds (always on: beenster Nov 26, no switches).
 		{
-			int32 FarmsAsked = 1;
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
 			std::string FmText, FmBin;
 			const std::string FmPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/farm_kit.json")));
 			const std::string FmBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/farm_kit.bin")));
-			const bool bFm = FarmsAsked != 0 && TorqueWorld::Files::Read(FmPath, FmText) && TorqueWorld::Files::Read(FmBinPath, FmBin) && TorqueWorld::SetFarmKit(FmText, FmBin);
+			const bool bFm = TorqueWorld::Files::Read(FmPath, FmText) && TorqueWorld::Files::Read(FmBinPath, FmBin) && TorqueWorld::SetFarmKit(FmText, FmBin);
 			const std::shared_ptr<const TorqueWorld::WarehouseKit> Fm = TorqueWorld::FarmKitNow();
 			UE_LOG(LogTemp, Display, TEXT("Torque world: farm kit: %d designs%s"), Fm ? int32(Fm->Designs.size()) : 0,
-				bFm ? TEXT("") : FarmsAsked == 0 ? TEXT(" (off: -TorqueFarms=0)") : TEXT(" (none: Data/RideUK/farm_kit.json or .bin unreadable; the drawn barns stay)"));
+				bFm ? TEXT("") : TEXT(" (none: Data/RideUK/farm_kit.json or .bin unreadable; the drawn barns stay)"));
 		}
-		// [everyday kits stage 6] The village kit: schools laid on the map's schools (-TorqueVillage=0: the drawn ones,
-		// and no village set props, to compare).
+		// [everyday kits stage 6] The village kit: schools laid on the map's schools (always on: no switches).
 		{
-			int32 VillageAsked = 1;
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueVillage="), VillageAsked);
 			std::string VkText, VkBin;
 			const std::string VkPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/village_kit.json")));
 			const std::string VkBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/village_kit.bin")));
-			const bool bVk = VillageAsked != 0 && TorqueWorld::Files::Read(VkPath, VkText) && TorqueWorld::Files::Read(VkBinPath, VkBin) && TorqueWorld::SetVillageKit(VkText, VkBin);
+			const bool bVk = TorqueWorld::Files::Read(VkPath, VkText) && TorqueWorld::Files::Read(VkBinPath, VkBin) && TorqueWorld::SetVillageKit(VkText, VkBin);
 			const std::shared_ptr<const TorqueWorld::WarehouseKit> Vk = TorqueWorld::VillageKitNow();
 			UE_LOG(LogTemp, Display, TEXT("Torque world: village kit: %d designs%s"), Vk ? int32(Vk->Designs.size()) : 0,
-				bVk ? TEXT("") : VillageAsked == 0 ? TEXT(" (off: -TorqueVillage=0)") : TEXT(" (none: Data/RideUK/village_kit.json or .bin unreadable; the drawn schools stay)"));
+				bVk ? TEXT("") : TEXT(" (none: Data/RideUK/village_kit.json or .bin unreadable; the drawn schools stay)"));
+		}
+		// [house kit] The detailed detached houses: our own designs of estate, villa and rendered houses, laid on the
+		// map's detached houses whose footprint one fits (no switch: beenster Nov 26, "no more switches").
+		{
+			std::string HkText, HkBin;
+			const std::string HkPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_kit.json")));
+			const std::string HkBinPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/house_kit.bin")));
+			const bool bHk = TorqueWorld::Files::Read(HkPath, HkText) && TorqueWorld::Files::Read(HkBinPath, HkBin) && TorqueWorld::SetHouseKit(HkText, HkBin);
+			const std::shared_ptr<const TorqueWorld::HouseKit> Hk = TorqueWorld::HouseKitNow();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: house kit: %d designs%s"), Hk ? int32(Hk->Designs.size()) : 0,
+				bHk ? TEXT("") : TEXT(" (none: Data/RideUK/house_kit.json or .bin unreadable; the drawn houses stay)"));
 		}
 		// [churches stage 6] Places of worship's highest points from the LiDAR: their towers and spires to height.
 		std::string HeightsText;
@@ -499,11 +501,11 @@ bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, 
 	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s, %d pins, %s, from %.4f, %.4f to %.4f, %.4f (%s)"), *Title, int32(Want.Pins.size()), UTF8_TO_TCHAR(Want.Mode.c_str()),
 		Want.Pins.front().Lat, Want.Pins.front().Lon, Want.Pins.back().Lat, Want.Pins.back().Lon, bRide ? TEXT("to ride") : TEXT("to look at"));
 	{
-		// [smooth junctions stage 3] -TorqueJunctions=whole: junctions the catalogue has a design for built whole, as one
-		// piece (World/WorldRideWhole.cpp); else (the default until the plan's stage 7) as before.
+		// [smooth junctions] junctions the catalogue has a design for are built whole, as one piece (World/WorldRideWhole.cpp),
+		// always; one the builder turns down keeps the old drawing. Developer only: -TorqueJunctions=old draws them all the old way.
 		FString JunctionsAsked;
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueJunctions="), JunctionsAsked);
-		TorqueWorld::RidePlan::WholeJunctions = JunctionsAsked.Equals(TEXT("whole"), ESearchCase::IgnoreCase);
+		TorqueWorld::RidePlan::WholeJunctions = !JunctionsAsked.Equals(TEXT("old"), ESearchCase::IgnoreCase);
 		UE_LOG(LogTemp, Display, TEXT("Torque ride UK: junctions %s"), TorqueWorld::RidePlan::WholeJunctions ? TEXT("built whole") : TEXT("as before"));
 	}
 	const std::shared_ptr<FTorqueWorldShared> Held = Shared;

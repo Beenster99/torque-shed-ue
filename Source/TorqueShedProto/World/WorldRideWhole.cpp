@@ -7,7 +7,8 @@
 // with one surface: on each mouth line exactly the road's own surface there, and between them the roads' surfaces
 // blended (each road's crown and tilt carried on in, weighted by nearness to its mouth), rounded corners between the
 // roads, a shoulder round each corner. Nothing overlaps, so nothing settles or is patched.
-// Behind a switch (RidePlan::WholeJunctions, -TorqueJunctions=whole) until the plan's stage 7.
+// On by default (Nov 26: no switch; new junctions are on as soon as they are made). A junction the builder turns
+// down keeps the old drawing. Developer only: -TorqueJunctions=old (SimTest WORLD_RIDE_WHOLE=0) draws every junction the old way.
 #include "WorldRide.h"
 #include <functional>
 #include "WorldRoadLine.h"
@@ -22,7 +23,7 @@
 
 namespace TorqueWorld
 {
-bool RidePlan::WholeJunctions = false;
+bool RidePlan::WholeJunctions = true;
 
 namespace
 {
@@ -41,6 +42,8 @@ const bool WholeRideTurns = !WhyOn("WHOLE_NORIDE");
 const bool LandOld = WhyOn("WHOLE_LANDOLD");
 const bool RoomOld = WhyOn("WHOLE_ROOMOLD");   // (the checker can compare the arms' room as before)
 const bool BothDown = WhyOn("WHOLE_BOTHDOWN");   // (the checker can turn both down as before)
+const bool InnerOld = WhyOn("WHOLE_INNEROLD");
+const bool InsideOld = WhyOn("WHOLE_INSIDEOLD");
 const bool CornerOld = WhyOn("WHOLE_CORNEROLD");   // (the checker can turn down for room without trying tight corners)
 const bool GapOld = WhyOn("WHOLE_GAPOLD");   // (the checker can turn down a dual's gaps as before)
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
@@ -545,6 +548,20 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			if (!Fits) { if (WhyOn("WHOLE_WHY")) std::printf("ride14 %zu node %d signs/hide %.1f %.1f\n", Ji, J.Nodes.empty() ? -1 : J.Nodes[0], W.Hide[0], W.Hide[1]); Refuse(14); continue; }
 		}
 		// (and no arm whose other end is another whole junction close enough that the two would meet)
+		// ([smooth junctions] and no road inside it, not drawn, that comes to the ride's road at its other end: its mouth
+		// there had no road to it, no give-way lines, the piece 26 cm over the ride's road's edge. WHOLE_INSIDEOLD: as before)
+		if (!RideMode && !InsideOld)
+		{
+			const auto TouchesRide = [&](int E)
+			{
+				for (const int Nd : {G.Edges[size_t(E)].A, G.Edges[size_t(E)].B})
+					for (int Ea : G.Adjacent[size_t(Nd)]) if (OnRide[size_t(Ea)]) return true;
+				return false;
+			};
+			for (int E : J.Inside) Fits = Fits && !TouchesRide(E);
+			for (int E : Extra) Fits = Fits && !TouchesRide(E);
+			if (!Fits) { Refuse(8); continue; }
+		}
 		JunctionPlaces[Ji].Arms = Arms;
 		JunctionPlaces[Ji].Inside.insert(JunctionPlaces[Ji].Inside.end(), Extra.begin(), Extra.end());
 		W.Ok = true;
@@ -677,6 +694,20 @@ double RidePlan::WholeShape::HeightAt(const P2& At) const
 	return (1 - Uz) * ((1 - Ux) * Q(Gx, Gz) + Ux * Q(Gx + 1, Gz)) + Uz * ((1 - Ux) * Q(Gx, Gz + 1) + Ux * Q(Gx + 1, Gz + 1));
 }
 
+double RidePlan::WholeTop(double X, double Z) const
+{
+	if (!WholeJunctions || WholeCells.empty()) return std::nan("");
+	const auto It = WholeCells.find(static_cast<long long>(std::floor(X / 64.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 64.0)));
+	if (It == WholeCells.end()) return std::nan("");
+	const P2 At(X, Z);
+	for (int Ji : It->second)
+	{
+		const std::shared_ptr<const WholeShape> Sh = WholeShapeOf(Ji);
+		if (Sh != nullptr && Sh->Inside(At)) return Sh->HeightAt(At);
+	}
+	return std::nan("");
+}
+
 double RidePlan::WholeGround(double X, double Z, double Out) const
 {
 	// (the ground under a whole junction's tarmac as under a road's: Sink under its surface, so a corner's curve,
@@ -751,6 +782,82 @@ int RidePlan::WholeAt(int Which, int End) const
 	if (!WholeJunctions) return -1;
 	const auto It = WholeEnds.find(static_cast<long long>(Which) * 2 + End);
 	return It == WholeEnds.end() ? -1 : It->second.first;
+}
+
+bool RidePlan::WholeDashLineOf(int Ji, WholeDashLine& D) const
+{
+	using namespace WholeJunctionBits;
+	if (Ji < 0 || size_t(Ji) >= JunctionPlaces.size() || !WholeOf[size_t(Ji)].Ok || JunctionPlaces[size_t(Ji)].Made) return false;
+	const JunctionPlace& J = JunctionPlaces[size_t(Ji)];
+	const WholePlan& W = WholeOf[size_t(Ji)];
+	const Region& G = Area.Roads;
+	int Th[2] = {-1, -1};
+	for (size_t A = 0; A < J.Arms.size(); ++A)
+		if (J.Arms[A].Through) { if (Th[0] < 0) Th[0] = int(A); else if (Th[1] < 0) Th[1] = int(A); }
+	if (Th[1] < 0) return false;
+	{
+		Rect Around;
+		const double Pad = W.Reach + 8.0;
+		Around.X0 = J.At.X - Pad; Around.Z0 = J.At.Z - Pad; Around.X1 = J.At.X + Pad; Around.Z1 = J.At.Z + Pad;
+		LayBlocks(Around);
+	}
+	int Which[2], End[2];
+	double Base[2];
+	P2 At[2], Out[2];
+	for (int K = 0; K < 2; ++K)
+	{
+		const size_t A = size_t(Th[K]);
+		const int Sign = A < W.ArmSign.size() ? W.ArmSign[A] : 0;
+		Which[K] = Sign != 0 ? 0 : J.Arms[A].Edge + 1;
+		End[K] = Sign != 0 ? (Sign > 0 ? 0 : 1) : G.Edges[size_t(J.Arms[A].Edge)].A == J.Arms[A].Node ? 0 : 1;
+		if (Which[K] > 0 && SideOf(Which[K]) == nullptr) return false;
+		const std::vector<RoadPoint>& Pts = RoadOf(Which[K]);
+		if (Pts.size() < 2) return false;
+		Base[K] = Sign != 0 ? W.ArmAlong[A] : End[K] == 0 ? W.Cut[A] : Pts.back().Along - W.Cut[A];
+		RoadPoint P;
+		P2 Dir;
+		double Rise = 0.0;
+		if (!CutRow(Pts, Base[K], P, Dir, Rise)) return false;
+		At[K] = P.At;
+		Out[K] = End[K] == 0 ? Dir : Dir * -1.0;
+	}
+	// (A the ride's road's arm where one is: the ride's own lines never shift)
+	const int Ka = Which[0] != 0 && Which[1] == 0 ? 1 : 0, Kb = 1 - Ka;
+	D.A = Th[Ka]; D.B = Th[Kb];
+	D.AWhich = Which[Ka]; D.AEnd = End[Ka]; D.ABase = Base[Ka];
+	D.BWhich = Which[Kb]; D.BEnd = End[Kb]; D.BBase = Base[Kb];
+	D.From = At[Ka]; D.To = At[Kb];
+	if (!Crossing(D.From, Out[Ka], D.To, Out[Kb], D.Ctl) || D.Ctl.DistanceTo(J.At) > 30.0) D.Ctl = (D.From + D.To) * 0.5;
+	D.Length = 0.0;
+	P2 Last = D.From;
+	for (int S = 1; S <= 40; ++S)
+	{
+		const double T = S / 40.0;
+		const P2 Q = D.From * ((1 - T) * (1 - T)) + D.Ctl * (2 * T * (1 - T)) + D.To * (T * T);
+		D.Length += Q.DistanceTo(Last);
+		Last = Q;
+	}
+	// (in along A from its mouth: its along falls heading in where its mouth is at its start; the ride's road through on
+	// both arms: its along from one mouth to the other, stretched a little to the curve, in step at both)
+	D.X0 = D.ABase;
+	D.Rate = D.AEnd == 0 ? -1.0 : 1.0;
+	if (D.AWhich == 0 && D.BWhich == 0 && D.Length > 1.0) D.Rate = (D.BBase - D.ABase) / D.Length;
+	return true;
+}
+
+bool RidePlan::WholeDashOf(int Which, int End, double& Sign, double& Shift) const
+{
+	Sign = 1.0;
+	Shift = 0.0;
+	if (Which <= 0 || PaintOld) return false;
+	WholeDashLine D;
+	if (!WholeDashLineOf(WholeAt(Which, End), D) || D.BWhich != Which || D.BEnd != End) return false;
+	// (heading out of B's mouth its along grows where its mouth is at its start; the line across reaches it at X0 + Rate *
+	// Length, running on the way Rate does)
+	const double Xl = D.X0 + D.Rate * D.Length;
+	Sign = (D.Rate > 0.0 ? 1.0 : -1.0) * (End == 0 ? 1.0 : -1.0);
+	Shift = Xl - Sign * D.BBase;
+	return true;
 }
 
 bool RidePlan::CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise)
@@ -882,6 +989,19 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 		const double V = Dp.X * Dir.Z - Dp.Z * Dir.X;
 		return P.Height + RoadLine::CrossHeight(V, P.Half, P.Bank);
 	};
+	// ([smooth junctions stage 6] an arm's own surface at a point, read off its laid points: paint run out past its mouth)
+	const auto ArmTop = [](const MouthLine& M, const P2& At)
+	{
+		const P2 D = At - M.P.At;
+		const double U = D.X * M.Out.X + D.Z * M.Out.Z;
+		const double Along = std::clamp(M.End == 0 ? M.Base + U : M.Base - U, 0.0, M.Pts->back().Along);
+		RoadPoint P;
+		P2 Dir;
+		double Rise = 0.0;
+		CutRow(*M.Pts, Along, P, Dir, Rise);
+		const P2 Dp = At - P.At;
+		return P.Height + RoadLine::CrossHeight(Dp.X * Dir.Z - Dp.Z * Dir.X, P.Half, P.Bank);
+	};
 	const auto MouthEnds = [](const MouthLine& M, P2& A, P2& B) { A = M.P.At + M.Left * M.P.Half; B = M.P.At - M.Left * M.P.Half; };
 	// (weighted by nearness to each road's middle line, as the ground under them is cut to the nearest road: but on a
 	// mouth line that road's alone, every other's weight eased to nothing within 2 m of it)
@@ -1009,6 +1129,25 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 				const double D1 = Cross(C, D, A), D2 = Cross(C, D, B), D3 = Cross(A, B, C), D4 = Cross(A, B, D);
 				Crossed = ((D1 > 1e-9 && D2 < -1e-9) || (D1 < -1e-9 && D2 > 1e-9)) && ((D3 > 1e-9 && D4 < -1e-9) || (D3 < -1e-9 && D4 > 1e-9));
 			}
+		// ([smooth junctions] and one whose corner cuts across an arm's own way in, from its mouth to the junction's
+		// middle: a road that bends just inside its mouth, or two roads meeting at a shallow angle; its way in fell
+		// on grass between the piece and the road, Milton Keynes. WHOLE_INNEROLD: as before)
+		if (!Crossed && !InnerOld)
+			for (size_t K = 0; K < N && !Crossed; ++K)
+				for (size_t I = 1; I < Mouths[K].Inner.size() && !Crossed; ++I)
+				{
+					// (each half metre along it: a long straight way in has few points)
+					const P2 P0 = Mouths[K].Inner[I - 1], P1 = Mouths[K].Inner[I];
+					const int Steps = std::max(1, int(std::ceil(P0.DistanceTo(P1) / 0.5)));
+					for (int S = 1; S <= Steps && !Crossed; ++S)
+					{
+						const P2 Q = P0 + (P1 - P0) * (double(S) / Steps);
+						bool In = false;
+						for (size_t A = 0, B = Rn - 1; A < Rn; B = A++)
+							if ((Rim[A].Z > Q.Z) != (Rim[B].Z > Q.Z) && Q.X < (Rim[B].X - Rim[A].X) * (Q.Z - Rim[A].Z) / (Rim[B].Z - Rim[A].Z) + Rim[A].X) In = !In;
+						Crossed = !In && [&] { for (size_t A = 0, B = Rn - 1; A < Rn; B = A++) if (ToSegment(Q, Rim[B], Rim[A]) < 0.25) return false; return true; }();
+					}
+				}
 		if (Crossed)
 		{
 			// (the hull of the mouths' points, each knowing its mouth: an edge between two of one mouth is that mouth)
@@ -1122,6 +1261,39 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	std::vector<uint32_t> Vtx(Pt.size());
 	for (size_t I = 0; I < Pt.size(); ++I) Vtx[I] = Vertex(Pt[I], Surface(Pt[I]), Top, SlopeAt(Pt[I]));
 	for (const std::array<size_t, 3>& T : Ears) Tri(Vtx[T[0]], Vtx[T[1]], Vtx[T[2]]);
+	// ([smooth junctions stage 6] the tarmac as drawn, its triangles flat between their points: the paint laid on that,
+	// not on the surface it was cut from, which bends up to 5 mm off it inside a triangle: paint on it stood 1-2 cm proud
+	// in places, a knock to ride over (A14 at Huntingdon). Its triangles by 2 m squares, to find each point's quickly)
+	std::vector<double> PtH(Pt.size());
+	for (size_t I = 0; I < Pt.size(); ++I) PtH[I] = Surface(Pt[I]);
+	double Bx0 = 1e18, Bz0 = 1e18, Bx1 = -1e18, Bz1 = -1e18;
+	for (const P2& Q : Pt) { Bx0 = std::fmin(Bx0, Q.X); Bz0 = std::fmin(Bz0, Q.Z); Bx1 = std::fmax(Bx1, Q.X); Bz1 = std::fmax(Bz1, Q.Z); }
+	const int Gnx = std::max(1, int((Bx1 - Bx0) / 2.0) + 1), Gnz = std::max(1, int((Bz1 - Bz0) / 2.0) + 1);
+	std::vector<std::vector<uint32_t>> EarGrid(size_t(Gnx) * size_t(Gnz));
+	for (size_t E = 0; E < Ears.size(); ++E)
+	{
+		const P2& A = Pt[Ears[E][0]]; const P2& B = Pt[Ears[E][1]]; const P2& C = Pt[Ears[E][2]];
+		const int X0 = std::clamp(int((std::fmin(A.X, std::fmin(B.X, C.X)) - Bx0) / 2.0), 0, Gnx - 1), X1 = std::clamp(int((std::fmax(A.X, std::fmax(B.X, C.X)) - Bx0) / 2.0), 0, Gnx - 1);
+		const int Z0 = std::clamp(int((std::fmin(A.Z, std::fmin(B.Z, C.Z)) - Bz0) / 2.0), 0, Gnz - 1), Z1 = std::clamp(int((std::fmax(A.Z, std::fmax(B.Z, C.Z)) - Bz0) / 2.0), 0, Gnz - 1);
+		for (int Gz = Z0; Gz <= Z1; ++Gz)
+			for (int Gx = X0; Gx <= X1; ++Gx) EarGrid[size_t(Gz) * size_t(Gnx) + size_t(Gx)].push_back(uint32_t(E));
+	}
+	const auto TarTop = [&](const P2& Q)
+	{
+		const int Gx = int((Q.X - Bx0) / 2.0), Gz = int((Q.Z - Bz0) / 2.0);
+		if (Gx >= 0 && Gz >= 0 && Gx < Gnx && Gz < Gnz)
+			for (const uint32_t E : EarGrid[size_t(Gz) * size_t(Gnx) + size_t(Gx)])
+			{
+				const P2& A = Pt[Ears[E][0]]; const P2& B = Pt[Ears[E][1]]; const P2& C = Pt[Ears[E][2]];
+				const double D = (B.X - A.X) * (C.Z - A.Z) - (C.X - A.X) * (B.Z - A.Z);
+				if (std::fabs(D) < 1e-12) continue;
+				const double Wb = ((Q.X - A.X) * (C.Z - A.Z) - (C.X - A.X) * (Q.Z - A.Z)) / D;
+				const double Wc = ((B.X - A.X) * (Q.Z - A.Z) - (Q.X - A.X) * (B.Z - A.Z)) / D;
+				if (Wb < -1e-6 || Wc < -1e-6 || Wb + Wc > 1.0 + 1e-6) continue;
+				return PtH[Ears[E][0]] * (1.0 - Wb - Wc) + PtH[Ears[E][1]] * Wb + PtH[Ears[E][2]] * Wc;
+			}
+		return Surface(Q);
+	};
 	// (round each corner, a shoulder out from the tarmac's edge down into the ground, as a road's: ShoulderFlat nearly
 	// level, then down to just under the land as drawn by Shoulder)
 	std::unordered_map<long long, double> LandCache;
@@ -1176,8 +1348,9 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	const auto Quad = [&](const P2& A0, const P2& A1, const P2& B1, const P2& B0)
 	{
 		if (!PaintOld && (!OnTarmac(A0) || !OnTarmac(A1) || !OnTarmac(B1) || !OnTarmac(B0))) return;
-		const uint32_t V0 = Vertex(A0, Surface(A0) + PaintLift, Paint, P2(0.0, 0.0)), V1 = Vertex(A1, Surface(A1) + PaintLift, Paint, P2(0.0, 0.0));
-		const uint32_t V2 = Vertex(B1, Surface(B1) + PaintLift, Paint, P2(0.0, 0.0)), V3 = Vertex(B0, Surface(B0) + PaintLift, Paint, P2(0.0, 0.0));
+		const auto Ht = [&](const P2& Q) { return (PaintOld ? Surface(Q) : TarTop(Q)) + PaintLift; };
+		const uint32_t V0 = Vertex(A0, Ht(A0), Paint, P2(0.0, 0.0)), V1 = Vertex(A1, Ht(A1), Paint, P2(0.0, 0.0));
+		const uint32_t V2 = Vertex(B1, Ht(B1), Paint, P2(0.0, 0.0)), V3 = Vertex(B0, Ht(B0), Paint, P2(0.0, 0.0));
 		Tri(V0, V1, V2); Tri(V0, V2, V3);
 	};
 	int Ta = -1, Tb = -1;
@@ -1186,8 +1359,13 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	const auto Lined = [&](const MouthLine& M) { return RoadX::CentreLine(M.P.Lanes, M.P.OneWay, M.P.Half) && M.Paved && !SettsSurface(G.SurfaceOf(M.Edge)); };
 	if (Ta >= 0 && Tb >= 0 && Lined(Mouths[size_t(Ta)]) && Lined(Mouths[size_t(Tb)]))
 	{
-		const MouthLine& A = Mouths[size_t(Ta)];
-		const MouthLine& B = Mouths[size_t(Tb)];
+		// ([smooth junctions stage 6] from the ride's road's arm where one is, its dash pattern's along as WholeDashLineOf has
+		// it: the road beyond the other mouth told the same (WholeDashOf), so the line keeps step at both mouths)
+		WholeDashLine Dl;
+		const bool Stepped = !PaintOld && WholeDashLineOf(Ji, Dl);
+		const bool Swap = Stepped && Dl.A == Tb;
+		const MouthLine& A = Mouths[size_t(Swap ? Tb : Ta)];
+		const MouthLine& B = Mouths[size_t(Swap ? Ta : Tb)];
 		P2 Ctl;
 		if (!Crossing(A.P.At, A.Out, B.P.At, B.Out, Ctl) || Ctl.DistanceTo(J.At) > 30.0) Ctl = (A.P.At + B.P.At) * 0.5;
 		std::vector<P2> Line;
@@ -1196,16 +1374,48 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			const double T = S / 40.0;
 			Line.push_back(A.P.At * ((1 - T) * (1 - T)) + Ctl * (2 * T * (1 - T)) + B.P.At * (T * T));
 		}
+		const double X0 = Stepped ? Dl.X0 : A.Base, Rate = Stepped ? Dl.Rate : A.End == 0 ? -1.0 : 1.0;
+		// ([smooth junctions stage 6, the road rulebook C2/C6] carried across as the junction warning line, 4 m marks with
+		// 2 m gaps, 6 with 3 above 40 mph (TSM5 table 5-1), in step with the road it comes in on (OnDash on that road's
+		// own along), the centre line's width. WHOLE_PAINTOLD: 3 m and 3 m from the mouth)
+		const RoadX::DashPattern Dash = RoadX::WarningDash(PaintMph(A.Which, A.Base, false));
+		const double Width = RoadX::CentreHalfWidth(std::fmax(A.P.Half, B.P.Half));
 		double Gone = 0.0;
 		for (size_t I = 1; I < Line.size(); ++I)
 		{
 			const double Seg = Line[I].DistanceTo(Line[I - 1]);
-			const double Mid = Gone + Seg * 0.5;
-			Gone += Seg;
-			if (std::fmod(Mid, 6.0) > 3.0 || Seg < 1e-6) continue;
+			if (Seg < 1e-6) continue;
 			const P2 D = (Line[I] - Line[I - 1]) * (1.0 / Seg);
-			const P2 Lf(D.Z * 0.06, -D.X * 0.06);
-			Quad(Line[I - 1] + Lf, Line[I] + Lf, Line[I] - Lf, Line[I - 1] - Lf);
+			if (PaintOld)
+			{
+				const double Mid = Gone + Seg * 0.5;
+				Gone += Seg;
+				if (std::fmod(Mid, 6.0) > 3.0) continue;
+				const P2 Lf(D.Z * 0.06, -D.X * 0.06);
+				Quad(Line[I - 1] + Lf, Line[I] + Lf, Line[I] - Lf, Line[I - 1] - Lf);
+				continue;
+			}
+			// (in 0.25 m steps, each on or off the pattern by its road's along; a run of them one quad)
+			const P2 Lf(D.Z * Width, -D.X * Width);
+			const int Steps = std::max(1, int(std::ceil(Seg / 0.25)));
+			int RunFrom = -1;
+			for (int S = 0; S <= Steps; ++S)
+			{
+				bool On = false;
+				if (S < Steps)
+				{
+					const double Mid = Gone + Seg * (S + 0.5) / Steps;
+					On = RoadX::OnDash(X0 + Rate * Mid, Dash);
+				}
+				if (On && RunFrom < 0) RunFrom = S;
+				if (!On && RunFrom >= 0)
+				{
+					const P2 P0 = Line[I - 1] + (Line[I] - Line[I - 1]) * (double(RunFrom) / Steps), P1 = Line[I - 1] + (Line[I] - Line[I - 1]) * (double(S) / Steps);
+					Quad(P0 + Lf, P1 + Lf, P1 - Lf, P0 - Lf);
+					RunFrom = -1;
+				}
+			}
+			Gone += Seg;
 		}
 	}
 	if (Ta >= 0 && Tb >= 0)
@@ -1259,13 +1469,97 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			if (!Crossing(EdgeAt, ThroughDir, M.P.At, M.Out, Hit) || Hit.DistanceTo(J.At) > 30.0) continue;
 			const double Side = KeepLeft() ? -1.0 : 1.0;   // (traffic coming in runs -Out: its left is -Left)
 			const P2 Across = ThroughDir * ((ThroughDir.X * M.Left.X + ThroughDir.Z * M.Left.Z) >= 0.0 ? 1.0 : -1.0);   // (as M.Left, along the edge)
-			const double HalfIn = M.P.Half / std::fmax(0.3, std::fabs(M.Out.X * Normal.X + M.Out.Z * Normal.Z));
+			const double Square = std::fmax(0.3, std::fabs(M.Out.X * Normal.X + M.Out.Z * Normal.Z));
+			const double HalfIn = M.P.Half / Square;
+			if (PaintOld)
+			{
+				for (double Dep : {0.0, 0.5})
+					for (double U = 0.05; U + 0.6 <= HalfIn - 0.05; U += 0.9)
+					{
+						const P2 C0 = Hit + Normal * Dep + Across * (Side * U), C1 = Hit + Normal * Dep + Across * (Side * (U + 0.6));
+						Quad(C0, C1, C1 + Normal * 0.2, C0 + Normal * 0.2);
+					}
+				continue;
+			}
+			// ([smooth junctions stage 6, the road rulebook] TSM3 3.2: the line's nearer edge on the through road's edge,
+			// never set back (B2); across the approach lane, the other half a 1009A broken edge line, 0.6 m dashes, 0.3 m
+			// gaps, 0.1 m wide (B3); across the whole road where its lane would be under 2.75 m or it is one way (B4); and
+			// the give-way triangle mid-lane, its base 2.4 m behind the line, 3.75 m long, 1.25 m across (B5))
+			const P2 EdgeLine = Hit - Normal * 0.3;   // (Hit: on ThroughHalf + 0.3)
+			const bool Whole = M.P.Half < 2.75 || M.P.OneWay || !J.Arms[A].Out;
+			const double From = Whole ? -HalfIn : 0.0;
+			// (each dash in 0.2 m squares: on the through road's edge the surface bends from its camber into
+			// the lesser road's, and a flat 0.6 m quad on it sank under the tarmac, the line shown only in scraps)
+			const auto Dash = [&](const P2& C0, const P2& C1, double Deep)
+			{
+				for (int S = 0; S < 3; ++S)
+				{
+					const P2 A0 = C0 + (C1 - C0) * (S / 3.0), A1 = C0 + (C1 - C0) * ((S + 1) / 3.0);
+					if (!OnTarmac(A0) || !OnTarmac(A1) || !OnTarmac(A1 + Normal * Deep) || !OnTarmac(A0 + Normal * Deep)) continue;
+					const P2 Q[4] = {A0, A1, A1 + Normal * Deep, A0 + Normal * Deep};
+					uint32_t V[4];
+					for (int K = 0; K < 4; ++K) V[K] = Vertex(Q[K], TarTop(Q[K]) + PaintLift, Paint, P2(0.0, 0.0));
+					Tri(V[0], V[1], V[2]); Tri(V[0], V[2], V[3]);
+				}
+			};
 			for (double Dep : {0.0, 0.5})
+				for (double U = From + 0.05; U + 0.6 <= HalfIn - 0.05; U += 0.9)
+				{
+					const P2 C0 = EdgeLine + Normal * Dep + Across * (Side * U), C1 = EdgeLine + Normal * Dep + Across * (Side * (U + 0.6));
+					Dash(C0, C1, 0.2);
+				}
+			if (!Whole)
 				for (double U = 0.05; U + 0.6 <= HalfIn - 0.05; U += 0.9)
 				{
-					const P2 C0 = Hit + Normal * Dep + Across * (Side * U), C1 = Hit + Normal * Dep + Across * (Side * (U + 0.6));
-					Quad(C0, C1, C1 + Normal * 0.2, C0 + Normal * 0.2);
+					const P2 C0 = EdgeLine - Across * (Side * U), C1 = EdgeLine - Across * (Side * (U + 0.6));
+					Dash(C0, C1, 0.1);
 				}
+			// (the triangle, along the road coming in: its lane's middle, or the road's where the line crosses it all)
+			{
+				const P2 In = M.Out;
+				const P2 Lat = M.Left * Side;   // (towards the approach lane: coming in, its own left where traffic keeps left)
+				const double LaneMid = Whole && (M.P.OneWay || M.P.Half < 2.0) ? 0.0 : M.P.Half * 0.5;
+				const double Base = std::fmin(1.25, std::fmax(0.6, M.P.Half - 0.4));
+				const P2 Line = EdgeLine + Normal * 0.7;   // (the far edge of the second line)
+				// (its nearer base corner 2.4 m from the line's far edge, square to the line: on a slanted road the corner
+				// nearer the line, not the base's middle; 2.4 m along the road set it 0.5 to 1.8 m off)
+				const P2 Lm = M.P.At + Lat * LaneMid - Line;
+				const double Lead = (2.4 - (Lm.X * Normal.X + Lm.Z * Normal.Z) + Base * 0.5 * std::fabs(M.Left.X * Normal.X + M.Left.Z * Normal.Z))
+					/ std::fmax(0.3, In.X * Normal.X + In.Z * Normal.Z);
+				const P2 Foot = M.P.At + In * Lead + Lat * LaneMid;
+				const P2 Tip = Foot + In * 3.75;
+				const P2 Bl = Foot + M.Left * (Base * 0.5), Br = Foot - M.Left * (Base * 0.5);
+				// (as a hollow triangle's outline, 0.2 m wide, over the arm's own surface where it runs out of the piece)
+				const auto TriTop = [&](const P2& Q) { return OnTarmac(Q) ? TarTop(Q) : ArmTop(M, Q); };
+				const auto Bar = [&](const P2& A0, const P2& B0, const P2& Into)
+				{
+					const P2 D = B0 - A0;
+					const double L = D.Length();
+					if (L < 1e-6) return;
+					for (int S = 0; S < int(std::ceil(L / 0.5)); ++S)
+					{
+						const double T0 = S * 0.5 / L, T1 = std::fmin(1.0, (S + 1) * 0.5 / L);
+						const P2 P0 = A0 + D * T0, P1 = A0 + D * T1, Q0 = P0 + Into * 0.2, Q1 = P1 + Into * 0.2;
+						const uint32_t V0 = Vertex(P0, TriTop(P0) + PaintLift, Paint, P2(0.0, 0.0)), V1 = Vertex(P1, TriTop(P1) + PaintLift, Paint, P2(0.0, 0.0));
+						const uint32_t V2 = Vertex(Q1, TriTop(Q1) + PaintLift, Paint, P2(0.0, 0.0)), V3 = Vertex(Q0, TriTop(Q0) + PaintLift, Paint, P2(0.0, 0.0));
+						Tri(V0, V1, V2); Tri(V0, V2, V3);
+					}
+				};
+				// (none on a road steeper than 1 in 5 there: its outline stood in steps on the slope, Camden)
+				if (std::fabs(TriTop(Tip) - TriTop(Foot)) > 0.75 || std::fabs(TriTop(Bl) - TriTop(Br)) > 0.25) continue;
+				const P2 Centre = (Bl + Br + Tip) * (1.0 / 3.0);
+				const auto Inward = [&](const P2& A0, const P2& B0)
+				{
+					const P2 D = B0 - A0;
+					P2 Nn(D.Z, -D.X);
+					const double L = Nn.Length();
+					Nn = Nn * (1.0 / std::fmax(L, 1e-9));
+					return (Centre - A0).X * Nn.X + (Centre - A0).Z * Nn.Z >= 0.0 ? Nn : Nn * -1.0;
+				};
+				Bar(Bl, Br, Inward(Bl, Br));
+				Bar(Br, Tip, Inward(Br, Tip));
+				Bar(Tip, Bl, Inward(Tip, Bl));
+			}
 		}
 	}
 	if (!Out.Alpha.empty()) Out.Alpha.resize(Out.Vertices(), 1.0f);
@@ -1288,6 +1582,13 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		if (OnRide[size_t(A.Edge)] || G.CircuitEdge(A.Edge) || G.Edges[size_t(A.Edge)].A == G.Edges[size_t(A.Edge)].B) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 1\n", J.Ring); return; }
 	for (int E : J.Inside)
 		if (OnRide[size_t(E)] || G.CircuitEdge(E)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
+	// ([smooth junctions] nor, unless the ride goes round it, one of its own edges meeting the ride's road: drawn
+	// whole it is not drawn, its mouth there left with no road to it and the piece over the ride's road's edge)
+	if (!Ride && !InsideOld)
+		for (int E : J.Inside)
+			for (const int Nd : {G.Edges[size_t(E)].A, G.Edges[size_t(E)].B})
+				for (int Ea : G.Adjacent[size_t(Nd)])
+					if (OnRide[size_t(Ea)]) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
 	for (const Span& Sp : G.Spans)
 		if (ToSegment(J.At, Sp.A, Sp.B) < Outer + (RingSpanOld ? 40.0 : 8.0)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3\n", J.Ring); return; }
 	{

@@ -114,7 +114,8 @@ void StepBike(UObject* Bike, const TorqueSim::BikeSim& Sim, const FTorqueDash& D
 
 	// Stopped at the planned ride's finish (not a waypoint's flag): the host is told once.
 	if (Dash.bNav && Dash.NavLeft > 1000.0) bAwardSawFar = true;
-	const bool bAtFinish = bAwardSawFar && Dash.bNav && !Dash.bNavVia && !Dash.bNavOff && Dash.NavLeft < 60.0 && FMath::Abs(Sim.Speed) < 2.0 && !Sim.IsCrashed;
+	// ([ferries] beenster, Nov 26: the ferry's slipway is a leg of the ride, not its end: no awards there)
+	const bool bAtFinish = bAwardSawFar && Dash.bNav && !Dash.bNavVia && !Dash.bNavOff && Dash.NavFerry != 1 && Dash.NavLeft < 60.0 && FMath::Abs(Sim.Speed) < 2.0 && !Sim.IsCrashed;
 	if (bAtFinish && !bAwardSaidFinished && GS->AwardsPhase != 1)
 	{
 		bAwardSaidFinished = true;

@@ -3,7 +3,8 @@
 // catering trailers, their flags, the blue lay-by signs and the cafes' boards (Tools/blender_roadside_props.py, each
 // with two hand-made distance versions), and the lay-bys' litter bins and picnic tables (the village set's and the
 // OSM kit's). Each square lays the ones standing in it, on the ground there. Off: -TorqueRoadside=0
-// (WORLD_RIDE_ROADSIDE=0), which leaves the lay-bys unmade too.
+// (WORLD_RIDE_ROADSIDE=0), which leaves the lay-bys unmade too. [everyday kits stage 8] And the fast road set's gantries,
+// speed cameras, emergency phones and marker posts (IndexTownLife; always on).
 #include "WorldRide.h"
 
 #include <cmath>
@@ -24,8 +25,10 @@ void RidePlan::RoadsideProps(double X0, double Z0, double Size, std::vector<Ride
 			{
 				const RoadsideThing& T = RoadsideThings[size_t(I)];
 				if (!PropModelled[T.Kind] || T.At.X < X0 || T.At.X >= X0 + Size || T.At.Z < Z0 || T.At.Z >= Z0 + Size) continue;
-				const double Y = Ground(T.At.X, T.At.Z);
+				// ([everyday kits stage 8] a fast road thing at its own height (a gantry's), and none inside a whole junction)
+				const double Y = std::isnan(T.Y) ? Ground(T.At.X, T.At.Z) : T.Y;
 				if (std::isnan(Y)) continue;
+				if (T.Kind >= PropFastBarrier && T.Kind <= PropFastMarker && InWholeRim(T.At)) continue;
 				RideProp P;
 				P.Kind = uint16_t(T.Kind);
 				P.Id = T.Id;
@@ -34,6 +37,7 @@ void RidePlan::RoadsideProps(double X0, double Z0, double Size, std::vector<Ride
 				P.Z = float(T.At.Z - Z0);
 				P.Y = float(Y);
 				P.Yaw = float(std::atan2(T.Front.Z, T.Front.X));
+				P.Across = T.Across;
 				Out.push_back(P);
 			}
 		}

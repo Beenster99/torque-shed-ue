@@ -151,7 +151,7 @@ def arch(name, style, lod):
     M.add(ob, "concrete", shade(stone, 0.7), 0.7)
     for sx in (-1, 1):
         x = sx * ARCH_HALF
-        v = [(x, -0.5, -0.05), (x, 0.5, -0.05), (x, 0.5, ARCH_SPRING), (x, -0.5, ARCH_SPRING)]
+        v = [(x, -0.5, 0.0), (x, 0.5, 0.0), (x, 0.5, ARCH_SPRING), (x, -0.5, ARCH_SPRING)]
         ob = K._object("jamb", v, [(0, 1, 2, 3)], 80.0)
         for poly in ob.data.polygons:
             if (poly.normal.x > 0) != (sx < 0):
@@ -166,6 +166,23 @@ def arch(name, style, lod):
                 poly.flip()
         ob.data.update()
         M.add(ob, "concrete", shade(stone, 0.9), 0.5)
+    # (the piers' undersides at the ground, facing down)
+    for sx in (-1, 1):
+        xa, xb = sorted((sx * 0.5, sx * ARCH_HALF))
+        ob = K._object("foot", [(xa, -0.5, 0.0), (xb, -0.5, 0.0), (xb, 0.5, 0.0), (xa, 0.5, 0.0)], [(0, 1, 2, 3)], 80.0)
+        for poly in ob.data.polygons:
+            if poly.normal.z > 0:
+                poly.flip()
+        ob.data.update()
+        M.add(ob, "concrete", shade(stone, 0.6), 0.8)
+    # (its top under the deck, facing up: closes the piece, so nothing seen from above, past or without the deck, is
+    # the faces' backs: Tools/check_prop_faces.py)
+    ob = K._object("top", [(-0.5, -0.5, 1.0), (0.5, -0.5, 1.0), (0.5, 0.5, 1.0), (-0.5, 0.5, 1.0)], [(0, 1, 2, 3)], 80.0)
+    for poly in ob.data.polygons:
+        if poly.normal.z < 0:
+            poly.flip()
+    ob.data.update()
+    M.add(ob, "concrete", shade(stone, 0.9), 0.5)
     return M
 
 

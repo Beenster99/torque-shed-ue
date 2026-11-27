@@ -38,6 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import blender_street_kit as K   # noqa: E402
 from blender_street_kit import box, lathe, rod, sweep   # noqa: E402
+import blender_farm_props as FP   # noqa: E402  (ring_lathe)
 
 GALV = (0.3, 0.315, 0.3)
 GALV_DARK = (0.22, 0.23, 0.22)
@@ -373,7 +374,7 @@ def watertower(name, cone, lod):
         M.add(box("leg", ((p0 + p1) / 2), (0.5, 0.5, tank0 + 0.3), rot_z=a), "concrete", CONCRETE, 0.5)
     if lod < 2:
         for zb in (4.4, 8.4):
-            M.add(lathe("ring", [(R - 0.15, zb), (R - 0.15, zb + 0.5), (R - 0.65, zb + 0.5), (R - 0.65, zb)], seg), "concrete", CONCRETE_DARK, 0.5)
+            M.add(FP.ring_lathe("ring", [(R - 0.15, zb), (R - 0.15, zb + 0.5), (R - 0.65, zb + 0.5), (R - 0.65, zb)][::-1], seg), "concrete", CONCRETE_DARK, 0.5)
         M.add(lathe("stair", [(0.9, -0.3), (0.9, tank0)], (12, 8)[lod]), "concrete", CONCRETE, 0.5)
     M.add(lathe("tank", [(R - 0.5, tank0 - 0.4), (R + 0.1, tank0), (R + 0.1, H - 0.6), (R - 0.3, H - 0.3), (0.0, H)], seg), "concrete", CONCRETE, 0.4)
     if lod < 2:

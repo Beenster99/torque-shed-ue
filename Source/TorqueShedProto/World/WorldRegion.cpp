@@ -432,7 +432,8 @@ void Region::AddKits(const Json& File)
 		if (Row.A.empty() || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) return false;
 		Kind = Word(Kinds, Row.A[0]);
 		return Kind == "beach_hut" || Kind == "sea_wall" || Kind == "promenade" || Kind == "slipway" || Kind == "lifeboat_station"
-			|| Kind == "layby" || Kind == "cafe" || Kind == "fast_food";   // [everyday kits stage 5b]
+			|| Kind == "layby" || Kind == "cafe" || Kind == "fast_food"   // [everyday kits stage 5b]
+			|| Kind == "gantry" || Kind == "speed_camera" || Kind == "emergency_phone" || Kind == "services";   // [everyday kits stage 8]
 	};
 	std::string Kind;
 	for (const char* Part : {"points", "areas"})

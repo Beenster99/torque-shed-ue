@@ -34,12 +34,14 @@
 #include "World/WorldRide.h"
 #include "World/WorldRideCircuits.h"
 #include "World/WorldRideWarehouses.h"
+#include "World/WorldRideHouseKit.h"
 #include "World/WorldFiles.h"
 #include "Coop/TorqueAwards.h"
 #include "Coop/TorqueLaps.h"
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/TorqueWorldSubsystem.h"
+#include "World/TorqueRideBirds.h"
 #include "World/TorqueForecourtGarage.h"
 #include "World/TorqueTrains.h"   // [trains]
 #include "World/TorqueFerry.h"
@@ -367,6 +369,22 @@ bool ATorqueRideWorld::ParkedCarBoxes(const FVector& At, double Reach, TArray<do
 	return true;
 }
 
+bool ATorqueRideWorld::CafeSeatNear(const FVector& At, double Reach, const TArray<FVector>& Taken, FVector& Seat, double& Yaw, FString& Cafe)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	std::vector<TorqueWorld::P2> Sat;
+	for (const FVector& T : Taken) Sat.push_back(TorqueWorld::P2(T.X / 100.0, T.Y / 100.0));
+	TorqueWorld::P2 Spot, Face;
+	double Y = 0.0;
+	std::string Name;
+	if (!Ride->Plan->CafeSeatNear(At.X / 100.0, At.Y / 100.0, Reach / 100.0, Spot, Y, Face, &Sat, &Name)) return false;
+	Seat = FVector(Spot.X * 100.0, Spot.Z * 100.0, Y * 100.0);
+	Yaw = FMath::RadiansToDegrees(FMath::Atan2(Face.Z, Face.X));
+	Cafe = UTF8_TO_TCHAR(Name.c_str());
+	return true;
+}
+
 bool ATorqueRideWorld::PropModel(int32 Kind, int32 Variant, const FVector& Spot, double Yaw, UStaticMesh*& OutMesh, FTransform& OutAt)
 {
 	// (PlaceProps's own sums for one prop, level, at its own scale)
@@ -438,6 +456,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.bAtFuel = false;
 	Dash.bNavRerouting = false;
 	Dash.bNavVia = false;
+	Dash.NavFerry = 0;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
 	const double X = At.X / 100.0, Z = At.Y / 100.0;
@@ -468,6 +487,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 			UE_LOG(LogTemp, Log, TEXT("Torque sat nav: %s the %s ferry"), bOver ? TEXT("over") : TEXT("back across"), UTF8_TO_TCHAR(Ferry->Name.c_str()));
 		}
 		if (S.bFerryOver) N.OffRoute = true;   // (the way on is all there is)
+		Dash.NavFerry = S.bFerryOver ? 2 : 1;
 	}
 	bool bViaNav = false;
 	if (S.bVia)
@@ -787,32 +807,21 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	FindProps();
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
 	{
-		// [everyday kits stages 4 and 6] The kits' off switches, for the hub's frame rate A/B: -TorqueFarms=0 (the farm
-		// kit's buildings, WorldSubsystem, and the farmyards' things here) and -TorqueVillage=0 (the village set).
+		// [everyday kits stages 4, 6, 9 and 10] The kits are always on (beenster Nov 26: no switches); what they lay, in the log.
 		using TorqueWorld::RidePlan;
-		int32 FarmsAsked = 1, VillageAsked = 1, PowerAsked = 1;
-		FParse::Value(FCommandLine::Get(), TEXT("TorqueFarms="), FarmsAsked);
-		FParse::Value(FCommandLine::Get(), TEXT("TorqueVillage="), VillageAsked);
-		FParse::Value(FCommandLine::Get(), TEXT("TorquePower="), PowerAsked);   // [everyday kits stage 9] (the power set: the code's shapes again)
-		int32 CoastAsked = 1;
-		FParse::Value(FCommandLine::Get(), TEXT("TorqueCoast="), CoastAsked);   // [everyday kits stage 10] (the coast set: huts drawn as buildings again)
-		for (int32 K = RidePlan::PropCoastBeachHut; K <= RidePlan::PropCoastLifebuoy && CoastAsked == 0; ++K) Plan->PropModelled[K] = false;
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: coast set %s (%d coast things in the kits files)"), CoastAsked == 0 ? TEXT("off (-TorqueCoast=0)")
-			: Plan->PropModelled[RidePlan::PropCoastBeachHut] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"), int32(Plan->Area.Roads.KitThings.size()));
-		for (int32 K = RidePlan::PropPowerPylon; K <= RidePlan::PropPowerPalisade && PowerAsked == 0; ++K) Plan->PropModelled[K] = false;
+		const auto OnOff = [&](int32 K) -> const TCHAR* { return Plan->PropModelled[K] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"); };
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: coast set %s (%d coast things in the kits files)"), OnOff(RidePlan::PropCoastBeachHut), int32(Plan->Area.Roads.KitThings.size()));
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: power and skyline set %s"), OnOff(RidePlan::PropPowerPylon));
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farm machinery %s"), OnOff(RidePlan::PropMachCombine));   // [farm machinery]
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farmyard things %s; village set %s"), OnOff(RidePlan::PropFarmBales), OnOff(RidePlan::PropPlaySwings));
 		// [everyday kits stage 5b] (the lay-bys and roadside cafes: -TorqueRoadside=0 is read before the ride is planned)
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: lay-bys %d made of %d mapped, %d roadside cafes signed, %d roadside things%s"), int32(Plan->RoadLaybys.size()),
 			int32(Plan->LaybysSeen), int32(Plan->RoadCafes), int32(Plan->RoadsideThings.size()),
 			Plan->PropModelled[RidePlan::PropRoadBurgerVan] ? TEXT("") : TEXT(" (no models: Tools/ue_build_rideuk.py prop_kit)"));
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: power and skyline set %s"), PowerAsked == 0 ? TEXT("off (-TorquePower=0)")
-			: Plan->PropModelled[RidePlan::PropPowerPylon] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
-		for (int32 K = RidePlan::PropFarmBales; K <= RidePlan::PropFarmTractorCompact && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;
-		for (int32 K = RidePlan::PropMachCombine; K <= RidePlan::PropMachCultivator && FarmsAsked == 0; ++K) Plan->PropModelled[K] = false;   // [farm machinery]
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farm machinery %s"), FarmsAsked == 0 ? TEXT("off (-TorqueFarms=0)")
-			: Plan->PropModelled[RidePlan::PropMachCombine] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
-		for (int32 K = RidePlan::PropPlaySwings; K <= RidePlan::PropVillageSign && VillageAsked == 0; ++K) Plan->PropModelled[K] = false;
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: farmyard things %s; village set %s"), FarmsAsked == 0 ? TEXT("off (-TorqueFarms=0)") : TEXT("on"),
-			VillageAsked == 0 ? TEXT("off (-TorqueVillage=0)") : Plan->PropModelled[RidePlan::PropPlaySwings] ? TEXT("on") : TEXT("off (no models: Tools/ue_build_rideuk.py prop_kit)"));
+		// [everyday kits stage 8] (the fast road set)
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: fast road set %s: %d gantries, %d speed cameras, %d emergency phones, %d marker posts"),
+			Plan->FastBarriersOn() ? TEXT("on") : TEXT("on, barriers drawn (no models: Tools/ue_build_rideuk.py prop_kit)"),
+			int32(Plan->FastGantries), int32(Plan->FastCameras), int32(Plan->FastPhones), int32(Plan->FastMarkers));
 	}
 	// [level crossings] The crossings' kit (Tools/props/make_level_crossing.py, imported with the props): with it the
 	// real crossings stand up near the rider (ATorqueLevelCrossing) in place of the code-made barrier.
@@ -928,6 +937,7 @@ void ATorqueRideWorld::EndPlay(const EEndPlayReason::Type Reason)
 	if (Current.Get() == this) Current.Reset();
 	SaveDiary();   // [stage 7]
 	if (Impostors) Impostors->Stop();   // [build 157] (a closed ride is not a crashed bake)
+	if (WildBirds) WildBirds->Stop();   // [birds]
 	if (Jobs)
 	{
 		// (a worker part way through a square reads the world's stores: let it finish before they can go)
@@ -1231,6 +1241,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		RideCosts::FScope Cost(RideCosts::Plants);
 		DropPlants(Key);
 		PlacePlants(Key, Mesh);
+		if (WildBirds) WildBirds->AddPerches(Key, Mesh);   // [birds] (its hedges, bushes and trees, for the birds)
 	}
 	{
 		RideCosts::FScope Cost(RideCosts::Animals);
@@ -2022,7 +2033,9 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		}
 	}
 	RegisterWaiting();
-	TickBirds(DeltaSeconds);
+	// [birds] The wild birds from the kit; without it the old code-made soaring birds.
+	if (WildBirds && WildBirds->HasKit() && Plan) WildBirds->Tick(*Plan, Heard, HeardRegion);
+	else TickBirds(DeltaSeconds);
 	// [stage 7] The street lamps come on as the light goes, and off in the morning.
 	if (const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
 	{
@@ -2056,6 +2069,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		SinceHeard = 0.0;
 		const TorqueWorld::RidePlace Place = Plan->SoundsAt(BirdsLookedAt.X, BirdsLookedAt.Y);
 		Heard[0] = Place.Sea; Heard[1] = Place.Water; Heard[2] = Place.Town; Heard[3] = Place.Sheep; Heard[4] = Place.Cattle; Heard[5] = Place.Circuit;
+		HeardRegion = UTF8_TO_TCHAR(Plan->LookHere(BirdsLookedAt.X, BirdsLookedAt.Y).Name);   // [birds]
 	}
 	SinceLook += DeltaSeconds;
 	if (SinceLook < 0.2) return;
@@ -2549,12 +2563,49 @@ void ATorqueRideWorld::BuildKitLooks()
 {
 	KitLooks.Reset();
 	TorqueWorld::SetWarehouseInstancing(false);
-	int32 InstancesAsked = 1;
-	FParse::Value(FCommandLine::Get(), TEXT("TorqueWarehouseInstances="), InstancesAsked);
-	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
-	if (!Wk || InstancesAsked == 0 || !URidePart::StaticLooks())
+	// [house kit] Each design of detached house in each of its colourways as one mesh with three levels of detail
+	// (close, middle, far: the parts tagged for each), drawn as instances wherever a square has one of them.
+	TorqueWorld::SetHouseInstancing(false);
+	if (const std::shared_ptr<const TorqueWorld::HouseKit> Hk = TorqueWorld::HouseKitNow(); Hk && URidePart::StaticLooks())
 	{
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : InstancesAsked == 0 ? TEXT("laid into the squares (-TorqueWarehouseInstances=0)") : TEXT("laid into the squares (no static looks)"));
+		const double HouseStart = FPlatformTime::Seconds();
+		int32 HouseMeshes = 0, HouseTris = 0;
+		bool bHouses = true;
+		static const TArray<float> HouseScreens = {1.0f, 0.16f, 0.045f};
+		for (int32 D = 0; D < int32(Hk->Designs.size()) && bHouses; ++D)
+			for (int32 Cw = 0; Cw < int32(Hk->Designs[size_t(D)].Colours.size()) && Cw < 8; ++Cw)
+			{
+				TorqueWorld::RideMesh Levels[3];
+				TArray<TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>> Lods;
+				for (int32 L = 0; L < 3; ++L)
+				{
+					TorqueWorld::RideMesh& Look = Levels[L];
+					const size_t Tris = TorqueWorld::HouseLookMesh(*Hk, D, Cw, L, Look);
+					if (L == 0) HouseTris += int32(Tris);
+					TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Kinds = Lods.AddDefaulted_GetRef();
+					Kinds.Emplace(&Look, RoadMaterial.Get());
+					Kinds.Emplace(Look.Masonry.get(), MasonryMaterial ? MasonryMaterial.Get() : RoadMaterial.Get());
+					Kinds.Emplace(Look.Roofing.get(), RoofMaterial.Get());
+					Kinds.Emplace(Look.Brickwork.get(), BrickMaterial.Get());
+					Kinds.Emplace(Look.Render.get(), RenderMaterial.Get());
+					Kinds.Emplace(Look.Night.get(), NightMaterial.Get());
+				}
+				UStaticMesh* Built = URidePart::BuildLookLods(this, Lods, HouseScreens);
+				if (!Built) { bHouses = false; break; }
+				KitLooks.Add(HouseLookKey(D * 8 + Cw), Built);
+				++HouseMeshes;
+			}
+		TorqueWorld::SetHouseInstancing(bHouses && HouseMeshes > 0);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: house kit as instances: %s, %d meshes, %d close-up triangles, %.0f ms"),
+			bHouses && HouseMeshes > 0 ? TEXT("yes") : TEXT("no (a mesh failed: laid into the squares)"), HouseMeshes, HouseTris, (FPlatformTime::Seconds() - HouseStart) * 1000.0);
+		if (!bHouses)
+			for (auto It = KitLooks.CreateIterator(); It; ++It)
+				if (It.Key() >= HouseLookKey(0)) It.RemoveCurrent();
+	}
+	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
+	if (!Wk || !URidePart::StaticLooks())
+	{
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : TEXT("laid into the squares (no static looks)"));
 		return;
 	}
 	const double Start = FPlatformTime::Seconds();
@@ -2578,7 +2629,9 @@ void ATorqueRideWorld::BuildKitLooks()
 			++Made;
 			Triangles += int32(Tris);
 		}
-	if (!bAll) KitLooks.Reset();
+	if (!bAll)
+		for (auto It = KitLooks.CreateIterator(); It; ++It)
+			if (It.Key() < HouseLookKey(0)) It.RemoveCurrent();
 	TorqueWorld::SetWarehouseInstancing(bAll && Made > 0);
 	UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit as instances: %s, %d meshes, %d triangles, %.0f ms"), bAll && Made > 0 ? TEXT("yes") : TEXT("no (a piece's mesh failed: laid into the squares)"),
 		Made, Triangles, (FPlatformTime::Seconds() - Start) * 1000.0);
@@ -2592,7 +2645,7 @@ void ATorqueRideWorld::PlaceKitParts(const FIntVector& Key, const TorqueWorld::R
 	TMap<int32, TArray<FTransform>> Groups;
 	for (const TorqueWorld::RideKitPart& P : Mesh.KitParts)
 	{
-		const int32 Look = P.Piece * 2 + (P.Near ? 0 : 1);
+		const int32 Look = P.Kit == 1 ? HouseLookKey(P.Piece) : P.Piece * 2 + (P.Near ? 0 : 1);
 		if (!KitLooks.Contains(Look)) continue;
 		const FMatrix Turn(FVector(P.Ax, P.Az, 0.0), FVector(P.Nx, P.Nz, 0.0), FVector::UpVector, FVector::ZeroVector);
 		Groups.FindOrAdd(Look).Add(FTransform(FQuat(Turn), FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), FVector(P.Sx, P.Sz, P.Sy)));
@@ -2726,6 +2779,9 @@ bool ATorqueRideWorld::FindKit()
 				AnimalKit.Add(S);
 			}
 		}
+	// [birds] The wild birds' models (the RideBirds kit).
+	if (!WildBirds) WildBirds = NewObject<UTorqueRideBirds>(this, NAME_None, RF_Transient);
+	WildBirds->Start(this);
 	UE_LOG(LogTemp, Display, TEXT("Torque ride world: livestock: %d models%s"), AnimalKit.Num(),
 		AnimalKit.Num() ? TEXT("") : TEXT(" (no RideAnimals actor in the level: python Tools/make_ride_animals.py, then Tools/ue_build_rideuk.py)"));
 	FString Missing;
@@ -2739,6 +2795,7 @@ bool ATorqueRideWorld::FindKit()
 
 void ATorqueRideWorld::DropPlants(const FIntVector& Key)
 {
+	if (WildBirds) WildBirds->DropPerches(Key);   // [birds]
 	if (TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>* Old = TilePlants.Find(Key))
 	{
 		for (const TWeakObjectPtr<UInstancedStaticMeshComponent>& Part : *Old)

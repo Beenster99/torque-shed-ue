@@ -53,4 +53,8 @@ public:
 	// if none is left or the build fails. Points are the part's own (metres, the ride's frame:
 	// x east, y up, z south), turned into Unreal's centimetres as MakePart turns them.
 	static UStaticMesh* BuildLook(UObject* Outer, const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections);
+	// [house kit] The same with levels of detail: Lods[0] the closest, each the same sections in the same order
+	// (a section empty at a level keeps its slot with one hidden speck of a triangle); ScreenSizes the screen
+	// size each level takes over at (one per level, the first 1). Null if the closest has nothing or the build fails.
+	static UStaticMesh* BuildLookLods(UObject* Outer, const TArray<TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>>& Lods, const TArray<float>& ScreenSizes);
 };

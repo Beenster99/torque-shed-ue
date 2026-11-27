@@ -1884,6 +1884,97 @@ def animal_kit(L):
     return "RideAnimals: %d models" % len(species)
 
 
+BIRD_DEST = "/Game/RideUK/Birds"
+
+
+def bird_material(L):
+    """[birds] M_RideBird: two-sided (thin feathers), the vertex colour the plumage, its alpha the surface (1
+    feathers, rough; 0.55 bill, cere and legs; 0.15 the wet eye, glossy). Tools/make_ride_birds.py."""
+    g = L.Graph(L.new_material("M_RideBird", MAT_DIR))
+    L.instanced_usage(g.m)
+    g.m.set_editor_property("two_sided", True)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    rough = g.lerp(g.const(0.12), g.const(0.86), vc, alpha_out="A")
+    spec = g.lerp(g.const(0.6), g.const(0.35), vc, alpha_out="A")
+    L.mel.connect_material_property(vc, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+def bird_kit(L):
+    """[birds, Nov 26] The wild birds: Data/RideUK/Birds/SM_Bird_<species>_<pose>.glb (Tools/make_ride_birds.py)
+    imported to /Game/RideUK/Birds, no collision, no Nanite (small, moving instances), each with its
+    hand-made _LOD1 and _LOD2 as its LODs (birds.json hand_lods: their screen sizes), listed in a
+    TorqueFoliage actor tagged RideBirds that plants nothing itself; World/TorqueRideBirds flies them.
+    Returns a short note for the log."""
+    if not hasattr(unreal, "TorqueFoliage"):
+        return "no birds (TorqueFoliage isn't built)"
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Birds")
+    spec_file = os.path.join(folder, "birds.json")
+    if not os.path.isdir(folder) or not os.path.exists(spec_file):
+        return "no birds (python Tools/make_ride_birds.py)"
+    hand = json.load(open(spec_file)).get("hand_lods", [0.08, 0.02])
+    meshes = L.import_glbs(folder, BIRD_DEST)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for name, mesh in meshes.items():
+        try:
+            sme.remove_collisions(mesh)
+        except Exception:
+            pass
+        try:
+            ns = mesh.get_editor_property("nanite_settings")
+            if ns.get_editor_property("enabled"):
+                ns.set_editor_property("enabled", False)
+                mesh.set_editor_property("nanite_settings", ns)
+        except Exception as e:
+            unreal.log_warning("[Torque] birds: Nanite of %s not turned off (%s)" % (name, e))
+        if name.endswith("_LOD1") or name.endswith("_LOD2"):
+            continue
+        if (name + "_LOD1") in meshes:
+            try:
+                if sme.get_lod_count(mesh) > 1:
+                    sme.remove_lods(mesh)
+                sme.set_lod_from_static_mesh(mesh, 1, meshes[name + "_LOD1"], 0, True)
+                screens = [1.0, float(hand[0])]
+                if (name + "_LOD2") in meshes:
+                    sme.set_lod_from_static_mesh(mesh, 2, meshes[name + "_LOD2"], 0, True)
+                    screens.append(float(hand[1]))
+                sme.set_lod_screen_sizes(mesh, screens)
+            except Exception as e:
+                unreal.log_warning("[Torque] birds: hand-made LODs of %s not set (%s)" % (name, e))
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    paint = bird_material(L)
+    models = sorted(n for n in meshes if not (n.endswith("_LOD1") or n.endswith("_LOD2")))
+    if not models:
+        return "no birds (nothing imported from Data/RideUK/Birds)"
+    frame = L.find_frame(meshes[models[0]], os.path.join(folder, models[0] + ".glb"))
+    species = []
+    for name in models:
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", name)
+        e.set_editor_property("mesh", meshes[name])
+        e.set_editor_property("material", paint)
+        for k, v in (("cast_shadow", True), ("scale_multiplier", 1.0), ("cull_distance", 150000.0)):
+            try:
+                e.set_editor_property(k, v)
+            except Exception:
+                pass
+        species.append(e)
+    a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
+    a.set_actor_label("RideBirds")
+    a.set_editor_property("tags", [unreal.Name("RideBirds")])
+    a.set_editor_property("instances_file", "")
+    a.set_editor_property("density", 0.0)
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    return "RideBirds: %d models" % len(species)
+
+
 PROP_DEST = "/Game/RideUK/Props"
 WALL_DEST = "/Game/RideUK/Walls"
 # [build 154] The walls' styles' stone tints, in Tools/make_wall_kit.py's WALL_STYLES order (dales, cotswold,
@@ -1932,15 +2023,22 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "touring_caravan", "static_caravan", "post_box", "phone_box",
                     "farm_bales", "farm_bale", "farm_clamp", "farm_tank", "farm_feedbin", "farm_trough", "farm_tractor", "farm_trailer",
                     "farm_diesel", "farm_muck", "farm_tractor_utility", "farm_tractor_compact",
+                    "farm_combine", "farm_forager", "farm_sprayer", "farm_tractor4wd", "farm_tractortrack", "farm_crawler",   # [farm machinery]
+                    "farm_loader", "farm_mower", "farm_buggy", "farm_chaser", "farm_tipper", "farm_baler", "farm_drill", "farm_cultivator",
                     "play_swings", "play_slide", "play_climber", "play_springer", "play_roundabout", "play_seesaw", "play_fence",
                     "pitch_goal", "pitch_posts", "tennis_net", "court_fence", "basket_hoop", "notice_board", "litter_bin",
                     "village_sign",
                     "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry",
                     "power_turbine", "power_rotor", "power_palisade",
                     "coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",
-                    "parked_car")   # ([Nov 26] our own made-up cars, Tools/blender_car_kit.py, drawn among the Fab ones)   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "road_burgervan", "road_flag", "road_laybysign", "road_cafesign",   # ([everyday kits stage 5b, 7, 8, 8b] the roadside,
+                    "bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail",     # bridge, fast road and services sets: the same material)
+                    "fast_barrier", "fast_concrete", "fast_gantry", "fast_camera", "fast_phone", "fast_marker",
+                    "services_hall", "services_pylon", "services_lorry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
+# ([cafes] the roadside cafes and their outside tables, Tools/blender_cafe_kit.py, the same material)
+STREET_KIT_KINDS = STREET_KIT_KINDS + ("cafe_building", "cafe_chair", "cafe_table", "cafe_picnic", "cafe_parasol", "cafe_aboard")
 
 
 def street_kit_texture(L, file_name, asset, compression, nearest=False):
@@ -2340,14 +2438,6 @@ def prop_kit(L):
     for kind, row in spec["kinds"].items():
         if row.get("folder") == "Cars":
             cars_note = parked_cars(L, kind, row, add)
-            # [Nov 26] Our own made-up cars (Tools/blender_car_kit.py: SM_Prop_parked_car_100.., each with its
-            # hand-made LOD1), listed with the Fab copies: a parked car's Variant picks among them all, so drives,
-            # car parks and ferries get ours mixed in. Kept even when no Fab cars are in the project.
-            own = sorted(n for n in ours if n.startswith("SM_Prop_%s_" % kind) and n.rsplit("_", 1)[1].isdigit())
-            for name in own:
-                add(name, ours[name], False, row, kit_paint)
-            if own:
-                cars_note = (cars_note + "; " if cars_note else "") + "%d own cars" % len(own)
     a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
     a.set_actor_label("RideProps")
     a.set_editor_property("tags", [unreal.Name("RideProps")])
@@ -2381,6 +2471,7 @@ def build():
     L.spawn(unreal.PlayerStart, (0, 0, 100000.0))
     place_kit(kit)
     log(animal_kit(L))
+    log(bird_kit(L))   # [birds]
     log(prop_kit(L))
     L.save_fresh_level(MAP, before)
     log("built %s and %s/M_RideLand, M_RideRoad%s" % (MAP, MAT_DIR, "".join(", " + m for m in scanned)))

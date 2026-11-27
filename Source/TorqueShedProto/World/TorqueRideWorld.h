@@ -42,6 +42,7 @@ class UProceduralMeshComponent;
 struct FProcMeshSection;
 class UInstancedStaticMeshComponent;
 class UTorqueImpostors;
+class UTorqueRideBirds;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -104,6 +105,9 @@ public:
 	// eight numbers each (RidePlan::ParkedCarBox: middle x, z; nose x, z; half length, half width; foot, roof).
 	// False with no ride.
 	static bool ParkedCarBoxes(const FVector& At, double Reach, TArray<double>& Out);
+	// [cafes] The nearest free seat at a roadside cafe's outside tables within Reach (cm) of At (Unreal cm): Seat is the
+	// top of its seat (cm), Yaw the way a sitter faces (degrees), Cafe its name; Taken (cm) the seats others sit on.
+	static bool CafeSeatNear(const FVector& At, double Reach, const TArray<FVector>& Taken, FVector& Seat, double& Yaw, FString& Cafe);
 	// [ferries] One of the prop kit's models of a kind (RidePlan::EPropKind) stood as the ride stands its own: Variant
 	// picks among its models, Spot (Unreal cm) is its foot's middle, Yaw (radians, the ride's frame) its facing. False
 	// when the kit has none of that kind. The mesh and its transform (world: for a part of a moving actor, make it
@@ -297,6 +301,11 @@ private:
 	FVector2D BirdsLookedAt = FVector2D(1e12, 1e12);
 	FVector2D BirdsGoing = FVector2D(1.0, 0.0);   // (the way the rider is going, for where to send a bird)
 	void TickBirds(float DeltaSeconds);
+	// [birds, Nov 26] The wild birds (World/TorqueRideBirds.h): out of the hedges and trees as a rider comes
+	// by, birds of prey perched and hovering, soaring birds and flocks, all drawn from the RideBirds kit. Without
+	// the kit the few code-made soaring birds above stay.
+	UPROPERTY(Transient) TObjectPtr<UTorqueRideBirds> WildBirds;
+	FString HeardRegion;   // (the region's name round the rider, with Heard)
 	void SendBird(FRideBird& Bird, const FVector2D& At, uint32 Salt);
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> AnimalKit;
 	TArray<TArray<int32>> AnimalModels;   // by RidePlan::EAnimal: indices into AnimalKit
@@ -312,10 +321,12 @@ private:
 	void PlaceProps(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 	// [warehouses, round 175 fps] The warehouse kit's pieces as their own meshes, made once at the ride's start
 	// (piece * 2, +1 for the middle detail's), and each square's pieces drawn as their instances: building the
-	// kit's triangles into every square's mesh cost the game thread ~10 ms a frame at Swanley. -TorqueWarehouseInstances=0:
-	// laid into the squares as before, to compare.
+	// kit's triangles into every square's mesh cost the game thread ~10 ms a frame at Swanley. No switch
+	// (beenster Nov 26); laid into the squares only if the game's static looks are off.
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMesh>> KitLooks;
 	void BuildKitLooks();
+	// [house kit] (a house design's look among KitLooks: its design x 8 + colourway, past the warehouse pieces')
+	static int32 HouseLookKey(int32 DesignCw) { return 0x40000000 + DesignCw; }
 	void PlaceKitParts(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 	int32 PropsShown = 0;
 	FVector AnimalFrame = FVector(0.0, 1.0, 1.0);

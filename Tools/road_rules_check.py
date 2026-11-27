@@ -143,6 +143,13 @@ def arm_lines(rec):
                 score = dot(norm((far[0] - run[0][0], far[1] - run[0][1])), away)
                 if score > best_score:
                     best_score, best = score, run
+        # (a road laid only from a whole junction's mouth out: carried straight back towards the junction's middle, so
+        # its give-way line on the through road's edge is looked for where it is)
+        if best is not None and len(best) >= 2:
+            d = norm((best[1][0] - best[0][0], best[1][1] - best[0][1]))
+            t = -dot((best[0][0], best[0][1]), d)
+            if -25.0 < t < -1.0:
+                best = [[best[0][0] + d[0] * t, best[0][1] + d[1] * t] + list(best[0][2:])] + best
         out.append(Line(best) if best is not None and best_score > 0.5 else None)
     return out
 
@@ -175,6 +182,26 @@ def band(pic, minor, major, v0, v1, e0, e1, kinds=(2,), step=0.1):
                 v += step
         s += step
     return painted, looked, es
+
+
+def straighten(ln, major):
+    """A minor arm's line where it crosses the major road's edge: its own heading there carried straight in, not the
+    map's line curving into the junction's node (where the lanes and the give-way line are judged)."""
+    s = 0.0
+    while s < ln.length():
+        p, _, _ = ln.at(s)
+        dm, hm, _, _ = major.nearest(p)
+        if dm - hm >= 1.5:
+            break
+        s += 0.2
+    if s <= 0.0 or s >= ln.length() - 1.0:
+        return ln
+    p, _, h = ln.at(s)
+    q, _, _ = ln.at(min(ln.length(), s + 3.0))
+    d = norm(sub(q, p))
+    keep = [i for i in range(len(ln.p)) if ln.s[i] > s]
+    start = add(p, mul(d, -(s + 3.0)))
+    return Line([[start[0], start[1], h], [p[0], p[1], h]] + [[ln.p[i][0], ln.p[i][1], ln.h[i]] for i in keep])
 
 
 def through_line(lines, arms):
@@ -379,7 +406,7 @@ def judge_junction(rec, rep, area):
             s += 0.1
         rep.check('A5', rows < 3, where, rows * 0.1, f"a line painted across the through road ({arms[i]['cls']}) {rows * 0.1:.1f} m deep")
     for i in minors:
-        arm, ln = arms[i], lines[i]
+        arm, ln = arms[i], straighten(lines[i], major)
         minor_road = next((r for r in rec['roads'] if r['w'] == arm['w']), None)
         if minor_road is None or minor_road.get('unpaved'):
             continue

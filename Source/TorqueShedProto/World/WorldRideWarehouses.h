@@ -75,7 +75,7 @@ struct WarehouseKit
 	std::vector<WarehousePiece> Pieces;
 	std::vector<WarehouseProp> Props;   // [stage 3]
 	double StretchLo = 0.55, StretchHi = 1.8;
-	bool Yards = true;                  // [stage 3] dress the yards and car parks (-TorqueWarehouseYards=0: not)
+	bool Yards = true;                  // [stage 3] dress the yards and car parks
 	int Prop(const std::string& Name) const;
 	// The design for a building of the map's Class, Long by Short (m), Seed in [0, 1) its own; -1 if none suits.
 	int Pick(const std::string& Class, double Long, double Short, double Seed) const;
@@ -83,6 +83,10 @@ struct WarehouseKit
 
 // A pattern ("OO E D* R") filled out to N bays: the letter before a '*' repeated to fill.
 std::string ExpandBays(const std::string& Pattern, int N);
+
+// [house kit] The pieces of a kit file in this format ("TSWK"): into Pieces, each one's place by its name into
+// Named; false if it isn't one.
+bool ReadKitPieces(const std::string& Bin, std::vector<WarehousePiece>& Pieces, std::map<std::string, int>& Named);
 
 // Reads the designs (JSON) and the pieces (warehouse_kit.bin); false if either isn't one. Kept for every
 // ride after (thread safe); until then none (the drawn sheds stay).

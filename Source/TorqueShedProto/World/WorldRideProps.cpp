@@ -50,7 +50,10 @@ const char* RidePlan::PropName(int Kind)
 		"bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail",   // [everyday kits stage 7]
 		"farm_combine", "farm_forager", "farm_sprayer", "farm_tractor4wd", "farm_tractortrack", "farm_crawler",
 		"farm_loader", "farm_mower", "farm_buggy", "farm_chaser", "farm_tipper", "farm_baler", "farm_drill",
-		"farm_cultivator"};   // [farm machinery]
+		"farm_cultivator",   // [farm machinery]
+		"fast_barrier", "fast_concrete", "fast_gantry", "fast_camera", "fast_phone", "fast_marker",   // [everyday kits stage 8]
+		"services_hall", "services_pylon", "services_lorry",   // [everyday kits stage 8b]
+		"cafe_building", "cafe_chair", "cafe_table", "cafe_picnic", "cafe_parasol", "cafe_aboard"};   // [cafes]
 	return Kind >= 0 && Kind < PropKinds ? Names[Kind] : "";
 }
 
@@ -70,7 +73,7 @@ int RidePlan::PropOf(int FurnishKind)
 	case KissingGate: return PropKissingGate;
 	case LiftGate: return PropLiftGate;
 	case Bollard: return PropBollard;
-	case PicnicTable: return PropPicnicTable;
+	case PicnicTable: return PropCafePicnic;   // ([cafes] beenster Nov 26: every picnic table the A-frame pub bench)
 	case InfoBoard: return PropInfoBoard;
 	case TrafficSignal: return PropTrafficSignal;
 	default: return -1;   // (the signs, the cattle grids, the pubs' signs, the beacons and the crossings' barriers stay code-made)
@@ -105,6 +108,14 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 		int Kind = PropOf(F.Kind);
 		if (Kind == PropStreetLamp && HeritageLampAt(F.At.X, F.At.Z)) Kind = PropLampHeritage;   // [towns stage 6]
 		if (Kind < 0 || !PropModelled[Kind] || std::isnan(F.Height)) continue;
+		// ([smooth junctions] a gate, stile or pole placed by the roads laid then, and a road laid later, as a junction
+		// built whole lays its arms, runs through it: not drawn on that road)
+		if (F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate || F.Kind == PowerPole)
+		{
+			NearOpts Opts;
+			NearHit Hit;
+			if (NearestOf(F.At.X, F.At.Z, Opts, Hit) && !Hit.Deck && !Hit.Bore && Hit.Dist < Hit.Half + 0.3) continue;
+		}
 		RideProp P;
 		P.Kind = uint16_t(Kind);
 		P.Mapped = F.Mapped;
