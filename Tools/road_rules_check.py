@@ -665,23 +665,63 @@ def draw_example(rec, ex, path, cache):
     both.save(path)
 
 
+def same_diff(pa, pb, off, within=25.0):
+    """A3's measure: m2 of paint, and of tarmac, one picture has and the other does not, within `within` m of the middle.
+    (A cell counts only where neither picture has its kind within a cell of it: the same line drawn a few cm over,
+    as each ride's own points put it, is the same line.)"""
+    cell2 = pa.cell * pa.cell
+    n, c = pa.n, pa.cell
+    paint = lambda k: k in (2, 3)
+    tar = lambda k: k in (1, 2, 3)
+
+    def near(pic, x, z, test, dx=0.0, dz=0.0):
+        for ox in (-c, 0.0, c):
+            for oz in (-c, 0.0, c):
+                if test(pic.at(x + ox - dx, z + oz - dz)):
+                    return True
+        return False
+
+    dpaint = dtar = 0.0
+    for i in range(n * n):
+        x, z = (i % n + 0.5) * c - pa.half, (i // n + 0.5) * c - pa.half
+        if x * x + z * z > within * within:
+            continue
+        ka, kb = pa.k[i], pb.at(x - off[0], z - off[1])
+        if paint(ka) != paint(kb):
+            if not (near(pb, x, z, paint, off[0], off[1]) if paint(ka) else near(pa, x, z, paint)):
+                dpaint += cell2
+        elif tar(ka) != tar(kb):
+            if not (near(pb, x, z, tar, off[0], off[1]) if tar(ka) else near(pa, x, z, tar)):
+                dtar += cell2
+    return dpaint, dtar
+
+
 def same_check(paths, out, pics):
     """A3: every junction more than one ride passes, drawn the same by each."""
     seen = defaultdict(list)   # (lat, lon rounded) -> [(ride, rec)]
+    ends = []                  # every ride's start and finish (lat, lon)
     for path in paths:
         ride = os.path.splitext(os.path.basename(path))[0]
         for line in open(path):
             rec = json.loads(line)
+            if rec['t'] == 'ends':
+                ends += [(rec['a']['lat'], rec['a']['lon']), (rec['b']['lat'], rec['b']['lon'])]
             if rec['t'] != 'jn':
                 continue
             seen[(round(rec['lat'] * 20000), round(rec['lon'] * 12000))].append((ride, rec))
+
+    def near_end(rec):
+        # (a ride starts and finishes differently, its run-out past the last pin, so a junction within 100 m of
+        # any ride's end is not a fair test of A3)
+        return any(math.hypot((rec['lon'] - lo) * 111320.0 * math.cos(math.radians(la)), (rec['lat'] - la) * 110574.0) < 100.0
+                   for la, lo in ends)
     rep = Report()
     shown = []
     for key, recs in sorted(seen.items()):
         rides = {}
         for ride, rec in recs:
             rides.setdefault(ride, rec)
-        if len(rides) < 2:
+        if len(rides) < 2 or near_end(next(iter(rides.values()))):
             continue
         names = sorted(rides)
         a = rides[names[0]]
@@ -693,17 +733,7 @@ def same_check(paths, out, pics):
             off = ((b['lon'] - a['lon']) * 111320.0 * math.cos(math.radians(a['lat'])), -(b['lat'] - a['lat']) * 110574.0)
             if math.hypot(*off) > 0.5:
                 continue
-            dpaint = dtar = 0.0
-            cell2 = pa.cell * pa.cell
-            for i in range(pa.n * pa.n):
-                x, z = (i % pa.n + 0.5) * pa.cell - pa.half, (i // pa.n + 0.5) * pa.cell - pa.half
-                if x * x + z * z > 25.0 * 25.0:
-                    continue
-                ka, kb = pa.k[i], pb.at(x - off[0], z - off[1])
-                if (ka in (2, 3)) != (kb in (2, 3)):
-                    dpaint += cell2
-                elif (ka in (1, 2, 3)) != (kb in (1, 2, 3)):
-                    dtar += cell2
+            dpaint, dtar = same_diff(pa, pb, off)
             sa = sorted((s['kind'], round(s['x']), round(s['z'])) for s in a['signs'] if s['kind'] in ('give_way', 'stop'))
             sb = sorted((s['kind'], round(s['x']), round(s['z'])) for s in b['signs'] if s['kind'] in ('give_way', 'stop'))
             where = {'area': names[0] + ' / ' + nb, 'id': a['id'], 'lat': a['lat'], 'lon': a['lon'], 'kind': a['kind'], 'ride': 'passed'}

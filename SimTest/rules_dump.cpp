@@ -275,6 +275,17 @@ void RulesDump(const RidePlan& Plan, const std::string& Path)
 	std::snprintf(Buf, sizeof(Buf), "{\"t\":\"meta\",\"whole\":%d,\"priority\":%d,\"length\":%.0f,\"uk\":%d}\n", RidePlan::WholeJunctions ? 1 : 0, RidePlan::NoJunctionPriority ? 0 : 1,
 		Plan.Road.empty() ? 0.0 : Plan.Road.back().Along, Plan.Britain() ? 1 : 0);
 	All += Buf;
+	// (the ride's two ends: a ride begins and finishes differently (its run-out past the last pin), so the checker's A3
+	// leaves the junctions by either end out)
+	if (!Plan.Road.empty())
+	{
+		std::string E = "{\"t\":\"ends\",\"a\":{";
+		Where(Plan, Plan.Road.front().At, E);
+		E += "},\"b\":{";
+		Where(Plan, Plan.Road.back().At, E);
+		E += "}}\n";
+		All += E;
+	}
 	int Junctions = 0, Stretches = 0, Rings = 0;
 	std::vector<unsigned char> Kind;
 	std::vector<P2> JunctionsAt;
