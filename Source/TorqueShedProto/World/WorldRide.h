@@ -1447,6 +1447,7 @@ public:
 	// (a through road's arm off the ride's road, by its edge * 2 + which end: its own lines run on to its
 	// mouth, this far along it from that end, not stopping 12 m short as a side road's do)
 	std::unordered_map<long long, double> ThroughEnds;
+	std::unordered_map<long long, std::pair<double, double>> ThroughDash;   // [road rulebook C6] (a through road's arm off the ride's road, edge * 2 + end: the sign and shift its centre line's dashes take, OnDash(Sign * along + Shift), to keep step with the warning line across)
 	// [junction priority, true T] (beenster, Nov 21: the main road whole through the junction, the ride's road
 	// meeting it square.) At a T where the ride's road gives way, the through road's far edge as it runs from
 	// its arm's mouth on across to the ride's road again: drawn in place of that mouth's rounded corner on the
