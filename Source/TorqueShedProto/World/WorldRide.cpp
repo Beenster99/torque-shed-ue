@@ -574,6 +574,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 				}
 			}
 			std::vector<std::pair<int, int>> Chain(Back.rbegin(), Back.rend());
+			std::vector<std::pair<double, P2>> Stops;
 			double RawFrom = 0.0, RawTo = 0.0, RawLen = 0.0;
 			for (const std::pair<int, int>& C : Chain) RawFrom += G.Edges[size_t(C.first)].Length;
 			{
@@ -599,10 +600,22 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 				const double Sc = EdgeSum > 1e-6 ? RawLen / EdgeSum : 1.0;
 				RawFrom *= Sc;
 				RawTo = RawFrom + Ridden * Sc;
+				// (the run's junctions of three roads or more, and its two ends, by how far along the run as ridden: the
+				// dashes are stepped from one of each two, so each stretch between junctions is in step however much of the
+				// run around it this ride has the map of)
+				double Walked = 0.0;
+				Stops.assign(1, {0.0, G.Nodes[size_t(Chain.front().second)]});
+				for (const std::pair<int, int>& C : Chain)
+				{
+					Walked += G.Edges[size_t(C.first)].Length * Sc;
+					const int To = G.OtherEnd(C.first, C.second);
+					if (&C == &Chain.back() || G.Adjacent[size_t(To)].size() >= 3) Stops.push_back({Walked, G.Nodes[size_t(To)]});
+				}
 			}
 			// (smoothed from the same end whichever way it is ridden: the end with the lower node number first)
 			const int FirstNode = Chain.front().second, LastNode = G.OtherEnd(Chain.back().first, Chain.back().second);
-			const bool Flip = FirstNode > LastNode;
+			const P2 FirstAt = G.Nodes[size_t(FirstNode)], LastAt = G.Nodes[size_t(LastNode)];
+			const bool Flip = FirstAt.X > LastAt.X + 1e-6 || (std::fabs(FirstAt.X - LastAt.X) <= 1e-6 && FirstAt.Z > LastAt.Z);   // (by where its ends are: the map's node numbers differ from ride to ride)
 			if (Flip) { std::reverse(RunRaw.begin(), RunRaw.end()); std::reverse(RunFair.begin(), RunFair.end()); }
 			std::vector<P2> Run = RunRaw.size() >= 2 ? RoadLine::SmoothLine(RunRaw, RoadLine::MinRadius, RunFair) : RunRaw;
 			if (Run.empty() || Run.front().DistanceTo(RunRaw.front()) > 0.3) Run.insert(Run.begin(), RunRaw.front());
@@ -634,13 +647,25 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			else { Part = Run; PartS = RunAt; }
 			// (U: from the run's first end as smoothed, so the same knot has the same U however the run is ridden; runs
 			// apart by a kilometre each, so no two meet in step by chance)
-			const double UBase = 1000.0 * double(std::min(FirstNode, LastNode) % 100000);
+			// (U: from one end of the stretch between the run's junctions it is on, the end further west (or south): the
+			// same whichever way and however far the run is ridden)
+			const auto UOf = [&](double S)
+			{
+				const double Ra = RunLen > 1e-6 ? S / RunLen * RawLen : S;
+				if (Stops.size() < 2) return Ra;
+				size_t Q = 0;
+				while (Q + 2 < Stops.size() && Stops[Q + 1].first <= Ra) ++Q;
+				const std::pair<double, P2>& A = Stops[Q];
+				const std::pair<double, P2>& B = Stops[Q + 1];
+				const bool FromA = A.second.X < B.second.X - 1e-6 || (std::fabs(A.second.X - B.second.X) <= 1e-6 && A.second.Z <= B.second.Z);
+				return FromA ? Ra - A.first : B.first - Ra;
+			};
 			if (!Edgy.empty()) Seams.push_back(Edgy.size() - 1);
 			for (size_t K = 0; K < Part.size(); ++K)
 				if (Edgy.empty() || Edgy.back().DistanceTo(Part[K]) > 0.05)
 				{
 					Edgy.push_back(Part[K]);
-					EdgyU.push_back(UBase + (Flip ? RunLen - PartS[K] : PartS[K]));
+					EdgyU.push_back(UOf(PartS[K]));
 				}
 			Node = End;
 			I = J + 1;
