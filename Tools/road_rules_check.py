@@ -605,7 +605,8 @@ def judge_stretch(rec, rep, area, others=()):
                       f"centre line {pattern(marks, gaps)} (should be {row['mark']:g} m marks, {row['gap']:g} m gaps at {road['mph'] or 30} mph)")
     else:
         rep.notes['two-way stretches 5.5 m or wider with no centre line'] += 1
-    # D6: an edge line's outer side about 0.225 m in from the road's edge, 0.1 m wide.
+    # D6: an edge line's outer side about 0.225 m in from the road's edge, 0.1 m wide (to within a cell of the
+    # picture: a line slanting across the 0.1 m cells reads up to half a cell wider).
     for sg in (1.0, -1.0):
         found = []
         s = s0 + 2.0
@@ -613,6 +614,8 @@ def judge_stretch(rec, rep, area, others=()):
             p, d, h = line.at(s)
             n = mul(left(d), sg)
             # (out from the middle: where the surface ends, and the paint nearest it)
+            # (the edge as seen: the first cell past the line that is not road. The grass comes in over the tarmac's
+            # own edge, raggedly, so islands of tar beyond it are not the edge.)
             edge, lo, hi = None, None, None
             v = h - 1.0
             while v < h + 1.0:
@@ -620,8 +623,9 @@ def judge_stretch(rec, rep, area, others=()):
                 if k == 2:
                     lo = v if lo is None else lo
                     hi = v
-                if k in (1, 2, 3):
-                    edge = v
+                elif hi is not None and k not in (1, 3):
+                    edge = v - 0.05
+                    break
                 v += 0.05
             if lo is not None and edge is not None and hi > h - 0.8:
                 found.append((edge + 0.05 - hi - 0.025, hi - lo + 0.05))
@@ -631,7 +635,7 @@ def judge_stretch(rec, rep, area, others=()):
             widths = sorted(f[1] for f in found)
             inset, width = insets[len(insets) // 2], widths[len(widths) // 2]
             want = RULE['D6']['inset']
-            rep.check('D6', abs(inset - want) <= 0.1 and abs(width - RULE['D6']['width']['ordinary']) <= 0.04, dict(where, side='left' if sg > 0 else 'right'), abs(inset - want),
+            rep.check('D6', abs(inset - want) <= 0.1 and abs(width - RULE['D6']['width']['ordinary']) <= 0.06, dict(where, side='left' if sg > 0 else 'right'), abs(inset - want),
                       f"edge line {inset:.2f} m in from the edge, {width:.2f} m wide (should be {want} in, {RULE['D6']['width']['ordinary']} wide)")
 
 
