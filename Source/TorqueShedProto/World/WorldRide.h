@@ -2035,6 +2035,9 @@ public:
 		// which way out along the ride's road it heads (+1 the way along grows), and its mouth line's along
 		std::vector<int> ArmSign;
 		std::vector<double> ArmAlong;
+		// [smooth junctions stage 7] the far ends of its arms cut past the old room (to 3 m short of the junction there, not
+		// 7): (road + 1) * 2 + end; kept only where a whole junction claims that end too (their cuts shared, code 11)
+		std::vector<long long> Tight;
 	};
 	static bool WholeJunctions;
 	static bool EdgeTrueRide;   // [road rulebook stage 3a] the ride's road laid as the map's roads are, one run between junctions at a time, whatever the route (SimTest WORLD_RIDE_EDGETRUE=0: the old one-piece line)
@@ -2056,6 +2059,10 @@ public:
 	{
 		int AWhich = 0, AEnd = 0, BWhich = 0, BEnd = 0, A = -1, B = -1;
 		double ABase = 0.0, BBase = 0.0, X0 = 0.0, Rate = 1.0, Length = 0.0;
+		// ([stage 7] the ride's road on both arms, its map road's way along (RideU) restarting at the node: its far half by
+		// B's own, U at along s on the line X1 + Rate1 * (s - Length), from Split on; else Split past Length)
+		double X1 = 0.0, Rate1 = 1.0, Split = 1e9;
+		double UAt(double S) const { return S >= Split ? X1 + Rate1 * (S - Length) : X0 + Rate * S; }
 		P2 From, Ctl, To;
 	};
 	bool WholeDashLineOf(int Ji, WholeDashLine& D) const;
