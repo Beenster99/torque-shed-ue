@@ -2062,6 +2062,10 @@ public:
 	{
 		int AWhich = 0, AEnd = 0, BWhich = 0, BEnd = 0, A = -1, B = -1;
 		double ABase = 0.0, BBase = 0.0, X0 = 0.0, Rate = 1.0, Length = 0.0;
+		// ([stage 7] the ride's road on both arms, its map road's way along (RideU) restarting at the node: its far half by
+		// B's own, U at along s on the line X1 + Rate1 * (s - Length), from Split on; else Split past Length)
+		double X1 = 0.0, Rate1 = 1.0, Split = 1e9;
+		double UAt(double S) const { return S >= Split ? X1 + Rate1 * (S - Length) : X0 + Rate * S; }
 		P2 From, Ctl, To;
 	};
 	bool WholeDashLineOf(int Ji, WholeDashLine& D) const;

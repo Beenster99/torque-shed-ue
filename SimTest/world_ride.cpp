@@ -3071,7 +3071,7 @@ int main(int Argc, char** Argv)
 		// off any surface, the worst kink under a wheel (m), the worst up/down pull at the turn's speed (m/s2))
 		struct Fault
 		{
-			int Node = -1; double Fold = 0, Step = 0, Spike = 0, Hole = 0, Land = 0, Grass = 0;
+			int Node = -1; double Fold = 0, Step = 0, Spike = 0, Hole = 0, Land = 0, Grass = 0, Extra = 0;
 			std::string Type; int Turns = 0, BadTurns = 0; double Off = 0, Jolt = 0, Pull = 0;
 			double Over = 0;   // (tarmac over tarmac 5 mm to 3 cm apart: two surfaces where there should be one, flickering far off, m2)
 			// (the plan's standard: nothing folded, stepped, doubled, spiked, holed or grassed over, and every turn rides clean)
@@ -3253,7 +3253,7 @@ int main(int Argc, char** Argv)
 					if (Back[K] && !Fore[K]) F.Fold += A1;   // (only the backwards tarmac there: the game culls it, a hole)
 					if (Hi[K] - Lo[K] > 0.08f) { F.Step += A1; if (Only >= 0 && std::getenv("JSTEP")) std::printf("jstep at %.1f, %.1f: %.3f to %.3f\n", Px, Pz, double(Lo[K]), double(Hi[K])); }
 					else if (Hi[K] - Lo[K] > 0.005f && Hi[K] - Lo[K] < 0.03f && !Rough[K] && !Painted[K]) F.Over += A1;
-					if (Grass[K] > Hi[K] + 0.005f) F.Grass += A1;
+					if (Grass[K] > Hi[K] + 0.005f) { F.Grass += A1; if (Only >= 0 && std::getenv("JGRASS") && (Cx + Cz) % 4 == 0) std::printf("jgrass at %.1f, %.1f: grass %.3f over tarmac %.3f\n", Px, Pz, double(Grass[K]), double(Hi[K])); }
 					if ((Cx + Cz) % 2 == 0)
 					{
 						const double L = Plan->LandDrawnAt(C.X + Px, C.Z + Pz);
@@ -3264,6 +3264,35 @@ int main(int Argc, char** Argv)
 						}
 					}
 				}
+			// ([smooth junctions stage 7] tarmac where no road is: further than 4 m beyond every laid road's edge (a corner's
+			// curve stays within 3), an island filled in; every third cell each way)
+			{
+				struct Seg { double Ax, Az, Bx, Bz, Half; };
+				std::vector<Seg> Segs;
+				for (int W : Roads)
+				{
+					const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+					for (size_t I = 1; I < Pts.size(); ++I)
+						if (Pts[I].At.DistanceTo(C) < Reach + 40.0 || Pts[I - 1].At.DistanceTo(C) < Reach + 40.0)
+							Segs.push_back({Pts[I - 1].At.X - C.X, Pts[I - 1].At.Z - C.Z, Pts[I].At.X - C.X, Pts[I].At.Z - C.Z, std::fmax(Pts[I - 1].Half, Pts[I].Half)});
+				}
+				const double Allow = 4.0;
+				for (int Cz = 1; Cz < JCells; Cz += 3)
+					for (int Cx = 1; Cx < JCells; Cx += 3)
+					{
+						const size_t K = size_t(Cz) * JCells + Cx;
+						const double Px = -Reach + (Cx + 0.5) * Cell, Pz = -Reach + (Cz + 0.5) * Cell;
+						if (std::hypot(Px, Pz) > Reach || Hi[K] < -1e8f || Rough[K]) continue;
+						bool Close = false;
+						for (const Seg& Sg : Segs)
+						{
+							const double Dx = Sg.Bx - Sg.Ax, Dz = Sg.Bz - Sg.Az, L2 = Dx * Dx + Dz * Dz;
+							const double T = L2 > 1e-9 ? std::clamp(((Px - Sg.Ax) * Dx + (Pz - Sg.Az) * Dz) / L2, 0.0, 1.0) : 0.0;
+							if (std::hypot(Px - Sg.Ax - T * Dx, Pz - Sg.Az - T * Dz) <= Sg.Half + Allow) { Close = true; break; }
+						}
+						if (!Close) { F.Extra += 9.0 * Cell * Cell; if (Only >= 0 && std::getenv("JEXTRA")) std::printf("jextra at %.1f, %.1f\n", Px, Pz); }
+					}
+			}
 			// ([smooth junctions stage 5c] along a laid side road's own line, as a rider follows it, not the map's:
 			// a sharp map corner near the junction the laying rounds off read as riding off the road, Whaley Bridge)
 			const auto LaidFrom = [&](int E)
@@ -3556,10 +3585,10 @@ int main(int Argc, char** Argv)
 						if (Plan->JunctionPlaces[Jm].Made && Plan->JunctionPlaces[Jm].Ring == Plan->JunctionPlaces[size_t(Jw)].Ring) { Why = Plan->WholeOf[Jm].Ok ? 0 : int(Plan->WholeWhy[Jm]); break; }
 				if (Why >= 0) std::printf("jwhy %d %d\n", F.Node, Why);   // [smooth junctions stage 5]
 			}
-			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
+			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s%s | extra %.1f\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
 				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "",
 				(size_t(F.Node) < Plan->JunctionOfNode.size() && Plan->JunctionOfNode[size_t(F.Node)] >= 0 && size_t(Plan->JunctionOfNode[size_t(F.Node)]) < Plan->WholeOf.size() && Plan->WholeOf[size_t(Plan->JunctionOfNode[size_t(F.Node)])].Ok) ? "  WHOLE" : ([&] { const int Rg = Plan->RingAt(F.Node); const auto It = Rg >= 0 ? Plan->WholeRingOf.find(Rg) : Plan->WholeRingOf.end(); return It != Plan->WholeRingOf.end() && Plan->WholeOf[size_t(It->second)].Ok; }() ? "  WHOLE" : ""),
-				std::any_of(G.Adjacent[size_t(F.Node)].begin(), G.Adjacent[size_t(F.Node)].end(), [&OnRide](int E) { return OnRide.count(E) > 0; }) ? "  ONRIDE" : "");
+				std::any_of(G.Adjacent[size_t(F.Node)].begin(), G.Adjacent[size_t(F.Node)].end(), [&OnRide](int E) { return OnRide.count(E) > 0; }) ? "  ONRIDE" : "", F.Extra);
 		}
 		for (const auto& Kd : Kinds) std::printf("jcheck kind %s: %d junctions, %d bad, %d bad to ride, %d meet the standard\n", Kd.first.c_str(), Kd.second[0], Kd.second[1], Kd.second[2], Kd.second[3]);
 		std::printf("jcheck ride: %d turns, %d bad; %d junctions bad to ride; doubled tarmac %.1f m2; %d of %zu meet the standard\n", Turns, BadTurns, RideBad, Sum.Over, Meet, All.size());
