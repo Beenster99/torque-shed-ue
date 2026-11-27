@@ -1937,7 +1937,8 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "village_sign",
                     "power_pylon", "power_mast", "power_monopole", "power_watertower", "power_kiosk", "power_transformer", "power_gantry",
                     "power_turbine", "power_rotor", "power_palisade",
-                    "coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "coast_beachhut", "coast_seawall", "coast_promrail", "coast_lifebuoy",
+                    "house_bike")   # ([Nov 26] our own V2 bikes parked outside houses, Tools/blender_house_bikes.py)   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 

@@ -951,6 +951,10 @@ public:
 		PropMachCombine, PropMachForager, PropMachSprayer, PropMachTractor4wd, PropMachTractorTrack, PropMachCrawler,
 		PropMachLoader, PropMachMower, PropMachBuggy, PropMachChaser, PropMachTipper, PropMachBaler, PropMachDrill,
 		PropMachCultivator,
+		// ([Nov 26] beenster: "park some of our bikes outside a house now and then") one of our own V2 bikes on its
+		// side stand, baked whole into one light model (Tools/blender_house_bikes.py, hand-made distance version), now
+		// and then beside a drive's car (DrivewayCar, HouseBikeShare of them), solid as the cars are
+		PropHouseBike,
 		PropKinds };
 	static constexpr int WallStyles = 6, WallVariants = 4;
 	// Which walling a region's dry stone walls are (Tools/make_wall_kit.py's WALL_STYLES): 0 the Dales'
@@ -1747,6 +1751,8 @@ public:
 	// the square's other drive cars (Taken). Solid to the bike (DriveCarsNear, via ParkedCarsNear). The share
 	// of drives with a car: DriveCarShare (-TorqueRideDriveCars=0 none, the hub's frame rate A/B).
 	double DriveCarShare = 0.65;
+	// ([Nov 26] own bikes outside houses) of the drives given a car, how many also get one of our bikes beside it
+	double HouseBikeShare = 0.12;
 	void DrivewayCar(const GardenHouse& House, const GardenClear& Clear, std::vector<ParkedCarBox>& Taken, RideMesh& Out) const;
 	void KeepDriveCars(double X0, double Z0, double Size, std::vector<ParkedCarBox>&& Cars) const;   // (the square's, for DriveCarsNear)
 	void DriveCarsNear(double X, double Z, double Reach, std::vector<ParkedCarBox>& Out) const;   // (appends)
