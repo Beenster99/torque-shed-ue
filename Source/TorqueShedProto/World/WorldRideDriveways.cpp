@@ -42,6 +42,7 @@ using RideShapes::V3;
 
 // A parked car's size (as the car parks', WorldRideCarParks.cpp) and the gaps it keeps.
 inline constexpr double CarLong = 4.3, CarWide = 1.8, CarHigh = 1.45;
+inline constexpr double BikeLong = 2.2, BikeWide = 0.9;   // ([Nov 26] a parked bike on its stand, leaning)
 inline constexpr double FromHouse = 0.8;      // its back (or nose) off the house's front wall
 inline constexpr double FromFront = 0.35;     // off the front wall or the pavement's back
 inline constexpr double FrontDeepLeast = FromHouse + CarLong + FromFront;   // a front garden a car fits in
@@ -243,6 +244,50 @@ void RidePlan::DrivewayCar(const GardenHouse& House, const GardenClear& Clear, s
 			P.Yaw = float(std::atan2(Facing.Z, Facing.X));
 			P.Pitch = float(std::atan2(Rise, CarLong));   // (as a wall's length up its slope: the nose end climbs Rise)
 			Out.Props.push_back(P);
+			// ([Nov 26] beenster: "park some of our bikes outside a house now and then") Now and then one of our own
+			// bikes on its side stand beside the car, a little forward of its middle, facing the same way or the other,
+			// on the garden's side clear of the house and the road; solid to the riding bike as the car is.
+			if (PropModelled[PropHouseBike] && Roll(910) < HouseBikeShare)
+				for (const double Side : {Roll(911) < 0.5 ? 1.0 : -1.0, Roll(911) < 0.5 ? -1.0 : 1.0})
+				{
+					const P2 BikeAt = Mid + Across * (Side * (CarWide * 0.5 + 0.75)) + Dir * ((Roll(912) - 0.5) * 1.2);
+					const bool BikeOut = Roll(913) < 0.5;
+					const P2 BikeDir = Dir * (BikeOut ? 1.0 : -1.0);
+					bool Fits = true;
+					for (const double A : {-1.0, 1.0})
+						for (const double C : {-1.0, 1.0})
+						{
+							const P2 Q = BikeAt + BikeDir * (A * BikeLong * 0.5) + Across * (C * BikeWide * 0.5);
+							if (Clear.Blocked(Q.X, Q.Z, 0.15) || Edge(Q, 1.2) || CarSpotWet(Q.X, Q.Z)) Fits = false;
+						}
+					const double By = LandDrawnAt(BikeAt.X, BikeAt.Z);
+					if (!Fits || std::isnan(By) || std::fabs(By - (Foot - DriveLift)) > 0.35) continue;
+					ParkedCarBox Bike;
+					Bike.X = BikeAt.X;
+					Bike.Z = BikeAt.Z;
+					Bike.Ux = BikeDir.X;
+					Bike.Uz = BikeDir.Z;
+					Bike.HalfLong = BikeLong * 0.5;
+					Bike.HalfWide = BikeWide * 0.5;
+					Bike.Y0 = By;
+					Bike.Y1 = By + 1.15;
+					bool Clash = false;
+					for (const ParkedCarBox& Other : Taken)
+						if (BoxesMeet(Bike, Other, 0.1)) Clash = true;
+					if (Clash) continue;
+					Taken.push_back(Bike);
+					RideProp B;
+					B.Kind = PropHouseBike;
+					B.Mapped = false;
+					B.Id = static_cast<uint32_t>(Roll(914) * 4294967295.0);
+					B.Variant = static_cast<uint8_t>(Roll(915) * 255.0);
+					B.X = float(BikeAt.X - Out.OriginX);
+					B.Z = float(BikeAt.Z - Out.OriginZ);
+					B.Y = float(By + 0.01);
+					B.Yaw = float(std::atan2(BikeDir.Z, BikeDir.X));
+					Out.Props.push_back(B);
+					break;
+				}
 		}
 		else
 		{

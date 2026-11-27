@@ -2034,7 +2034,8 @@ STREET_KIT_KINDS = ("street_lamp", "power_pole", "armco", "tyre_wall", "pit_wall
                     "road_burgervan", "road_flag", "road_laybysign", "road_cafesign",   # ([everyday kits stage 5b, 7, 8, 8b] the roadside,
                     "bridge_arch", "bridge_pier", "bridge_abutment", "bridge_rail",     # bridge, fast road and services sets: the same material)
                     "fast_barrier", "fast_concrete", "fast_gantry", "fast_camera", "fast_phone", "fast_marker",
-                    "services_hall", "services_pylon", "services_lorry")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
+                    "services_hall", "services_pylon", "services_lorry",
+                    "house_bike")   # ([everyday kits stage 4] Tools/blender_farm_props.py's, the same material)   # (Tools/blender_street_kit.py's models: M_RideStreetKit;
 # [Nov 21] the post boxes and telephone kiosks are Tools/blender_post_phone_kit.py's, the same material)
 # ([circuits] the race circuits' trackside kit, Tools/blender_circuit_kit.py, the same material)
 # ([cafes] the roadside cafes and their outside tables, Tools/blender_cafe_kit.py, the same material)
