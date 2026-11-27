@@ -537,7 +537,7 @@ def judge_junction(rec, rep, area, others=()):
     return sum(len(v) for v in rep.breach.values()) == faults_before
 
 
-def judge_stretch(rec, rep, area):
+def judge_stretch(rec, rep, area, others=()):
     pic = Picture(rec)
     road = None
     for r in rec['roads']:
@@ -567,7 +567,37 @@ def judge_stretch(rec, rep, area):
         return
     # D1: the centre line's marks and gaps by the limit.
     if has_centre:
-        marks, gaps = marks_of(runs)
+        # (none of it within a junction's warning line, C6's: a stretch is only 50 m from the nearest junction, and the
+        # warning line reaches up to 63 m)
+        mph = road['mph'] or 30
+        wl = next(r for r in RULE['C6']['warning_line'] if mph <= r['max_mph'])
+        mm = wl['min_marks']
+        reach = (mm.get(str(mph), max(mm.values())) if isinstance(mm, dict) else mm) * (wl['mark'] + wl['gap']) + 1.0
+        keep = [(s0, s1)]
+        for ox, oz in others:
+            q = (ox - rec['x'], oz - rec['z'])
+            if math.hypot(*q) > 130.0:
+                continue
+            dq, _, sj, _ = line.nearest(q)
+            if dq > 12.0:
+                continue
+            nxt = []
+            for a, b in keep:
+                if sj + reach <= a or sj - reach >= b:
+                    nxt.append((a, b))
+                    continue
+                if sj - reach > a:
+                    nxt.append((a, sj - reach))
+                if sj + reach < b:
+                    nxt.append((sj + reach, b))
+            keep = nxt
+        marks, gaps = [], []
+        for a, b in keep:
+            if b - a < 15.0:
+                continue
+            m_, g_ = marks_of([(max(x, a), min(y, b), pp) for x, y, pp in runs if y > a and x < b])
+            marks += m_
+            gaps += g_
         if marks and gaps:
             row = next(r for r in RULE['D1']['centre_line'] if (road['mph'] or 30) <= r['max_mph'])
             m, g = sorted(marks)[len(marks) // 2], sorted(gaps)[len(gaps) // 2]
@@ -808,7 +838,7 @@ def main(argv):
                     total += 1
                     good += ok
             elif t == 'stretch':
-                judge_stretch(rec, rep, area)
+                judge_stretch(rec, rep, area, others)
             elif t == 'ring':
                 judge_ring(rec, rep, area)
         per_area[area] = {'junctions': total, 'clean': good}
