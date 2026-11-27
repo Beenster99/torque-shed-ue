@@ -49,6 +49,8 @@ const bool GapOld = WhyOn("WHOLE_GAPOLD");   // (the checker can turn down a dua
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
 const bool DualOld = WhyOn("WHOLE_DUALOLD");
 const bool RingSpanOld = WhyOn("WHOLE_RINGSPANOLD");
+const bool RingClashOld = WhyOn("WHOLE_RINGCLASHOLD");
+const bool DivideOld = WhyOn("WHOLE_DIVIDEOLD");   // (the checker can carry a divide's arm straight in to the ring, as before)   // (the checker can turn both down where a ring's divide is a junction, as before)
 const bool PaintOld = WhyOn("WHOLE_PAINTOLD");
 const bool RideEndOld = WhyOn("WHOLE_RIDEENDOLD");   // (the checker can turn down a junction the ride starts or ends at as before)   // (the checker can paint off the piece as before)   // (the checker can turn down a ring for any bridge within 40 m of it as before)   // (the checker can turn down every junction on a dual's half as before)
 } // namespace
@@ -202,6 +204,108 @@ double ToSegment(const P2& P, const P2& A, const P2& B)
 	const double L2 = Ab.X * Ab.X + Ab.Z * Ab.Z;
 	const double T = L2 > 1e-12 ? std::clamp(((P.X - A.X) * Ab.X + (P.Z - A.Z) * Ab.Z) / L2, 0.0, 1.0) : 0.0;
 	return P.DistanceTo(A + Ab * T);
+}
+
+// ([smooth junctions stage 7] An arm out from where a ring's entry and exit divide (its node off the ring): each of the
+// two roads from there to the ring (inside it), its outer edge (half its width and 0.5 m) from the divide in to where
+// it meets the ring's outer edge; [0] the one whose end on the ring lies the way bearings fall from Aim. The ring's
+// piece is drawn out to these, the divide and the island between all one: carried straight in, the pair was left
+// hidden beside it, or the flare crossed the ring's own band, A14 Huntingdon)
+bool DivideEdges(const Region& G, const RidePlan::RoadRing& Rr, const std::vector<int>& Inside, int Node, double Aim, std::vector<P2> (&Edge)[2], const RidePlan* Laid = nullptr)
+{
+	// (each road's line from the divide and half its width: as laid, when drawing (a link's laid line bows out from its
+	// map line by metres, Swindon), else the map's)
+	const auto LineOf = [&G, &Rr, &Inside, Laid, Node](int E0, std::vector<P2>& L, double& Hf)
+	{
+		// (followed on through plain points, the ring's pieces of it inside, until it reaches the ring: Swindon's are two edges)
+		L.clear();
+		Hf = 0.0;
+		int E = E0, Nd = Node;
+		for (int Step = 0; Step < 6; ++Step)
+		{
+			std::vector<P2> Part = G.LineFrom(E, Nd);
+			double H = RoadX::Of(G, E, RoadLine::WidthOf(G.ClassOf(E))).Half;
+			if (Laid != nullptr)
+			{
+				const std::vector<RoadPoint>& Pts = Laid->RoadOf(E + 1);
+				if (Pts.size() >= 2)
+				{
+					Part.clear();
+					for (const RoadPoint& Q : Pts) { Part.push_back(Q.At); H = std::fmax(H, Q.Half); }
+					if (G.Edges[size_t(E)].A != Nd) std::reverse(Part.begin(), Part.end());
+				}
+			}
+			Hf = std::fmax(Hf, H);
+			L.insert(L.end(), Part.begin() + (L.empty() ? 0 : 1), Part.end());
+			const int Fn = G.Edges[size_t(E)].A == Nd ? G.Edges[size_t(E)].B : G.Edges[size_t(E)].A;
+			if (L.empty() || std::fabs(Rr.OffOf(L.back())) <= Rr.Half || size_t(Fn) >= G.Adjacent.size() || G.Adjacent[size_t(Fn)].size() != 2) break;
+			const int Next = G.Adjacent[size_t(Fn)][0] == E ? G.Adjacent[size_t(Fn)][1] : G.Adjacent[size_t(Fn)][0];
+			if (Next == E || std::find(Inside.begin(), Inside.end(), Next) == Inside.end()) break;
+			E = Next;
+			Nd = Fn;
+		}
+	};
+
+	const double TwoPi = 6.283185307179586;
+	std::vector<std::pair<double, int>> Links;
+	for (int E : Inside)
+	{
+		const auto& Ed = G.Edges[size_t(E)];
+		if ((Ed.A != Node && Ed.B != Node) || Ed.A == Ed.B) continue;
+		std::vector<P2> L;
+		double Hf = 0.0;
+		LineOf(E, L, Hf);
+		if (L.size() < 2) { if (WhyOn("WHOLE_DIV_DBG")) std::printf("divfail 1 node %d laid %d\n", Node, int(Laid != nullptr)); return false; }
+		const P2 End = L.back();
+		if (std::fabs(Rr.OffOf(End)) > Rr.Half) { if (WhyOn("WHOLE_DIV_DBG")) std::printf("divfail 2 node %d laid %d\n", Node, int(Laid != nullptr)); return false; }   // (not ending on the ring: a longer way in)
+		Links.emplace_back(std::remainder(std::atan2(End.Z - Rr.Mid.Z, End.X - Rr.Mid.X) - Aim, TwoPi), E);
+	}
+	if (Links.size() != 2) { if (WhyOn("WHOLE_DIV_DBG")) std::printf("divfail 3 node %d laid %d\n", Node, int(Laid != nullptr)); return false; }
+	std::sort(Links.begin(), Links.end());
+	const P2 Nd = G.Nodes[size_t(Node)];
+	P2 Cen = Nd;
+	for (const auto& Lk : Links) { std::vector<P2> L; double Hf = 0.0; LineOf(Lk.second, L, Hf); Cen = Cen + L.back(); }
+	Cen = Cen * (1.0 / 3.0);
+	for (int K = 0; K < 2; ++K)
+	{
+		const int E = Links[size_t(K)].second;
+		std::vector<P2> L;
+		double Hf = 0.0;
+		LineOf(E, L, Hf);
+		Hf += 0.5;
+		std::vector<P2> Off;
+		double Sign = 0.0;
+		for (size_t I = 0; I < L.size(); ++I)
+		{
+			const P2 D = L[std::min(I + 1, L.size() - 1)] - L[I > 0 ? I - 1 : 0];
+			const double Dl = D.Length();
+			if (Dl < 1e-6) continue;
+			const P2 Nm(D.Z / Dl, -D.X / Dl);
+			if (Sign == 0.0)
+			{
+				const P2 Hm = L[L.size() / 2] - Cen;
+				Sign = (Nm.X * Hm.X + Nm.Z * Hm.Z) >= 0.0 ? 1.0 : -1.0;
+			}
+			Off.push_back(L[I] + Nm * (Sign * Hf));
+		}
+		if (Off.size() < 2 || Rr.OffOf(Off.front()) <= Rr.Half) { if (WhyOn("WHOLE_DIV_DBG")) std::printf("divfail 4 node %d laid %d\n", Node, int(Laid != nullptr)); return false; }
+		Edge[K].clear();
+		Edge[K].push_back(Off.front());
+		for (size_t I = 1; I < Off.size(); ++I)
+		{
+			if (Rr.OffOf(Off[I]) > Rr.Half) { Edge[K].push_back(Off[I]); continue; }
+			double Lo = 0.0, Hi = 1.0;
+			for (int It = 0; It < 24; ++It)
+			{
+				const double Md = 0.5 * (Lo + Hi);
+				if (Rr.OffOf(Off[I - 1] + (Off[I] - Off[I - 1]) * Md) <= Rr.Half) Hi = Md; else Lo = Md;
+			}
+			Edge[K].push_back(Off[I - 1] + (Off[I] - Off[I - 1]) * Hi);
+			break;
+		}
+		if (Rr.OffOf(Edge[K].back()) > Rr.Half + 0.05) { if (WhyOn("WHOLE_DIV_DBG")) std::printf("divfail 5 node %d laid %d\n", Node, int(Laid != nullptr)); return false; }
+	}
+	return true;
 }
 } // namespace WholeJunctionBits
 
@@ -625,8 +729,48 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			// (a ring's and a junction's: both, as before. Kept, the ring hid its entry and exit pair up to the junction's old
 			// mouth, the road there under no tarmac (Fort William): keeping rings took the UK sample's holes from 430 m to 744 m,
 			// and even where its arm was the road in the junction, to 489 m)
-			const bool Ring = JunctionPlaces[size_t(Ja)].Made || JunctionPlaces[size_t(Jb)].Made;
-			const int Lose = ArmOf ? Ja
+			bool Ring = JunctionPlaces[size_t(Ja)].Made || JunctionPlaces[size_t(Jb)].Made;
+			// ([smooth junctions stage 7] the junction where a ring's entry and exit divide, out on the road to it: the ring's
+			// arm starts there and its piece draws the divide, the pair inside it; that junction alone turned down. Both
+			// turned down were 91 of the UK sample's bad rings)
+			int Absorbed = -1;
+			if (Ring && JunctionPlaces[size_t(Ja)].Made != JunctionPlaces[size_t(Jb)].Made && !RingClashOld)
+			{
+				const int Jr = JunctionPlaces[size_t(Ja)].Made ? Ja : Jb, Jt = Jr == Ja ? Jb : Ja;
+				bool Tried = false, AllFit = true;
+				int Ends = 0;
+				const JunctionPlace& Pr = JunctionPlaces[size_t(Jr)];
+				for (int Nd : JunctionPlaces[size_t(Jt)].Nodes)
+				{
+					// (only where its piece follows the two roads in from there (DivideEdges): carried straight in, the
+					// pair was left hidden beside it, holes, Telford)
+					for (const JunctionArm& A : Pr.Arms)
+						if (A.Node == Nd && Pr.Ring >= 0 && !DivideOld)
+						{
+							const RoadRing& Rr = RoadRings[size_t(Pr.Ring)];
+							const P2 At = Area.Roads.Nodes[size_t(Nd)];
+							std::vector<P2> Dv[2];
+							const bool Fits = WholeJunctionBits::DivideEdges(Area.Roads, Rr, Pr.Inside, Nd, std::atan2(At.Z - Rr.Mid.Z, At.X - Rr.Mid.X), Dv);
+							Tried = true;
+							AllFit = AllFit && Fits;
+						}
+					for (int E : JunctionPlaces[size_t(Jr)].Inside) Ends += (Area.Roads.Edges[size_t(E)].A == Nd || Area.Roads.Edges[size_t(E)].B == Nd) ? 1 : 0;
+				}
+				if (Tried && AllFit && Ends >= 1) { Absorbed = Jt; Ring = false; if (WhyOn("WHOLE_DIV_DBG")) std::printf("absorb ring %d place %d\n", Pr.Ring, Jt); }
+			}
+			if (Ring && WhyOn("WHOLE_RING_WHY"))
+				printf("ringclash %d %d absorbed %d made %d %d armof %d at %.1f %.1f / %.1f %.1f\n", Ja, Jb, [this, Ja, Jb]()
+					{
+						const int Jr = JunctionPlaces[size_t(Ja)].Made ? Ja : Jb, Jt = Jr == Ja ? Jb : Ja;
+						int Got = 0;
+						for (const JunctionArm& A : JunctionPlaces[size_t(Jr)].Arms)
+							for (int Nd : JunctionPlaces[size_t(Jt)].Nodes) Got += A.Node == Nd ? 1 : 0;
+						for (int E : JunctionPlaces[size_t(Jr)].Inside)
+							for (int Nd : JunctionPlaces[size_t(Jt)].Nodes) Got += (Area.Roads.Edges[size_t(E)].A == Nd || Area.Roads.Edges[size_t(E)].B == Nd) ? 10 : 0;
+						return Got;
+					}(), int(JunctionPlaces[size_t(Ja)].Made), int(JunctionPlaces[size_t(Jb)].Made), int(ArmOf),
+					JunctionPlaces[size_t(Ja)].At.X, JunctionPlaces[size_t(Ja)].At.Z, JunctionPlaces[size_t(Jb)].At.X, JunctionPlaces[size_t(Jb)].At.Z);
+			const int Lose = Absorbed >= 0 ? Absorbed : ArmOf ? Ja
 				: WholeOf[size_t(Ja)].Reach != WholeOf[size_t(Jb)].Reach ? (WholeOf[size_t(Ja)].Reach > WholeOf[size_t(Jb)].Reach ? Ja : Jb) : std::max(Ja, Jb);
 			for (int Jx : {Ja, Jb})
 				if (BothDown || Ring || Jx == Lose) { WholeOf[size_t(Jx)].Ok = false; WholeWhy[size_t(Jx)] = 12; }
@@ -652,7 +796,12 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 	for (const EndClash& Two : WholeEndClash)
 		if (WholeOf[size_t(Two.First)].Ok)
 		{
-			if (WholeOf[size_t(Two.Second)].Ok) { WholeOf[size_t(Two.First)].Ok = false; WholeWhy[size_t(Two.First)] = 12; }
+			if (WholeOf[size_t(Two.Second)].Ok)
+			{
+				if (WhyOn("WHOLE_RING_WHY") && (JunctionPlaces[size_t(Two.First)].Made || JunctionPlaces[size_t(Two.Second)].Made))
+					printf("ringendclash %d %d made %d %d\n", Two.First, Two.Second, int(JunctionPlaces[size_t(Two.First)].Made), int(JunctionPlaces[size_t(Two.Second)].Made));
+				WholeOf[size_t(Two.First)].Ok = false; WholeWhy[size_t(Two.First)] = 12;
+			}
 			else WholeEnds[Two.Key] = {Two.First, Two.Cut};
 		}
 	// (those turned down on the way: their arms back to the old way)
@@ -1579,21 +1728,21 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 	bool Ride = false;   // [smooth junctions 4b] (the ride goes round it)
 	for (int E : Rr.Edges) Ride = Ride || OnRide[size_t(E)];
 	for (const JunctionArm& A : J.Arms)
-		if (OnRide[size_t(A.Edge)] || G.CircuitEdge(A.Edge) || G.Edges[size_t(A.Edge)].A == G.Edges[size_t(A.Edge)].B) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 1\n", J.Ring); return; }
+		if (OnRide[size_t(A.Edge)] || G.CircuitEdge(A.Edge) || G.Edges[size_t(A.Edge)].A == G.Edges[size_t(A.Edge)].B) { WholeWhy[Ji] = static_cast<unsigned char>(21); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 1\n", J.Ring); return; }
 	for (int E : J.Inside)
-		if (OnRide[size_t(E)] || G.CircuitEdge(E)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
+		if (OnRide[size_t(E)] || G.CircuitEdge(E)) { WholeWhy[Ji] = static_cast<unsigned char>(22); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
 	// ([smooth junctions] nor, unless the ride goes round it, one of its own edges meeting the ride's road: drawn
 	// whole it is not drawn, its mouth there left with no road to it and the piece over the ride's road's edge)
 	if (!Ride && !InsideOld)
 		for (int E : J.Inside)
 			for (const int Nd : {G.Edges[size_t(E)].A, G.Edges[size_t(E)].B})
 				for (int Ea : G.Adjacent[size_t(Nd)])
-					if (OnRide[size_t(Ea)]) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
+					if (OnRide[size_t(Ea)]) { WholeWhy[Ji] = static_cast<unsigned char>(22); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 2\n", J.Ring); return; }
 	for (const Span& Sp : G.Spans)
-		if (ToSegment(J.At, Sp.A, Sp.B) < Outer + (RingSpanOld ? 40.0 : 8.0)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3\n", J.Ring); return; }
+		if (ToSegment(J.At, Sp.A, Sp.B) < Outer + (RingSpanOld ? 40.0 : 8.0)) { WholeWhy[Ji] = static_cast<unsigned char>(23); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3\n", J.Ring); return; }
 	{
 		double D = 0.0, H = 0.0;
-		if (!Ride && Nearest(J.At.X, J.At.Z, D, H, nullptr, nullptr, nullptr, true) && D < Outer + WholeRideClear) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 4\n", J.Ring); return; }
+		if (!Ride && Nearest(J.At.X, J.At.Z, D, H, nullptr, nullptr, nullptr, true) && D < Outer + WholeRideClear) { WholeWhy[Ji] = static_cast<unsigned char>(24); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 4\n", J.Ring); return; }
 	}
 	// ([4b] no arm out from the ring starting by the ride's road: laid, it is carried on to that road's middle (LaySide's
 	// Meets, 15 m), not from its map point, and its mouth line landed on the ring, Milton Keynes)
@@ -1601,11 +1750,11 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		{
 			const P2 Nd = G.Nodes[size_t(A.Node)];
 			double D = 0.0, H = 0.0;
-			if (std::find(Rr.Nodes.begin(), Rr.Nodes.end(), A.Node) == Rr.Nodes.end() && Nearest(Nd.X, Nd.Z, D, H, nullptr, nullptr, nullptr, true) && D <= 15.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 13\n", J.Ring); return; }
+			if (std::find(Rr.Nodes.begin(), Rr.Nodes.end(), A.Node) == Rr.Nodes.end() && Nearest(Nd.X, Nd.Z, D, H, nullptr, nullptr, nullptr, true) && D <= 15.0) { WholeWhy[Ji] = static_cast<unsigned char>(33); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 13\n", J.Ring); return; }
 		}
 	for (size_t A = 0; A < J.Arms.size(); ++A)
 		for (size_t B = A + 1; B < J.Arms.size(); ++B)
-			if (J.Arms[A].Edge == J.Arms[B].Edge) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 5\n", J.Ring); return; }
+			if (J.Arms[A].Edge == J.Arms[B].Edge) { WholeWhy[Ji] = static_cast<unsigned char>(25); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 5\n", J.Ring); return; }
 	// (each arm's span of the ring's edge, by bearing: where each of its edges, walked out along its map line, leaves
 	// the ring's outer edge; and how far out along it both have: an arm joining the ring near its tangent goes far)
 	const size_t N = J.Arms.size();
@@ -1643,7 +1792,15 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 			Run += L;
 		}
 		// (an arm from where an entry and an exit divide, out on its own: its edges carried straight in to the ring)
-		if (std::find(Rr.Nodes.begin(), Rr.Nodes.end(), Arm.Node) == Rr.Nodes.end())
+		std::vector<P2> Dv[2];
+		if (std::find(Rr.Nodes.begin(), Rr.Nodes.end(), Arm.Node) == Rr.Nodes.end() && !DivideOld && DivideEdges(G, Rr, J.Inside, Arm.Node, Mid[A], Dv))
+		{
+			// ([smooth junctions stage 7] its span of the ring's edge where the two roads in from its divide meet it)
+			Left = Right = 0.0;
+			Lo[A] = Mid[A] + std::remainder(std::atan2(Dv[0].back().Z - Rr.Mid.Z, Dv[0].back().X - Rr.Mid.X) - Mid[A], TwoPi);
+			Hi[A] = Mid[A] + std::remainder(std::atan2(Dv[1].back().Z - Rr.Mid.Z, Dv[1].back().X - Rr.Mid.X) - Mid[A], TwoPi);
+		}
+		else if (std::find(Rr.Nodes.begin(), Rr.Nodes.end(), Arm.Node) == Rr.Nodes.end())
 		{
 			// (towards the ring's middle: its own heading in can bend away past the ring, Glasgow)
 			const P2 Tc = Rr.Mid - Node;
@@ -1661,7 +1818,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 					break;
 				}
 		}
-		if (Left < 0.0 || Right < 0.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 8 arm %zu onring %d left %.1f right %.1f reach %.1f half %.1f armhalf %.1f node %.0f %.0f mid %.0f %.0f off %.2f\n", J.Ring, A, int(std::find(Rr.Nodes.begin(), Rr.Nodes.end(), Arm.Node) != Rr.Nodes.end()), Left, Right, Rr.Reach, Rr.Half, Half[A], Node.X, Node.Z, Rr.Mid.X, Rr.Mid.Z, Rr.OffOf(Node)); return; }
+		if (Left < 0.0 || Right < 0.0) { WholeWhy[Ji] = static_cast<unsigned char>(28); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 8 arm %zu onring %d left %.1f right %.1f reach %.1f half %.1f armhalf %.1f node %.0f %.0f mid %.0f %.0f off %.2f\n", J.Ring, A, int(std::find(Rr.Nodes.begin(), Rr.Nodes.end(), Arm.Node) != Rr.Nodes.end()), Left, Right, Rr.Reach, Rr.Half, Half[A], Node.X, Node.Z, Rr.Mid.X, Rr.Mid.Z, Rr.OffOf(Node)); return; }
 		if (Lo[A] > Hi[A]) std::swap(Lo[A], Hi[A]);
 		Gone[A] = std::fmax(Left, Right);
 	}
@@ -1681,7 +1838,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 			if (In && Runs == 1) Ib = int(I);
 			Was = In;
 		}
-		if (Runs != 1 || Ia <= 0 || Ib >= int(R0.size()) - 1) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 9 runs %d\n", J.Ring, Runs); return; }   // (round it twice, or starting or ending on it: not yet)
+		if (Runs != 1 || Ia <= 0 || Ib >= int(R0.size()) - 1) { WholeWhy[Ji] = static_cast<unsigned char>(29); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 9 runs %d\n", J.Ring, Runs); return; }   // (round it twice, or starting or ending on it: not yet)
 		for (const int Way : {-1, 1})
 		{
 			int I = Way < 0 ? Ia : Ib;
@@ -1711,7 +1868,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 				}
 				Walked += L;
 			}
-			if (Got[0] < 0.0 || Got[1] < 0.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 8 ride\n", J.Ring); return; }
+			if (Got[0] < 0.0 || Got[1] < 0.0) { WholeWhy[Ji] = static_cast<unsigned char>(28); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 8 ride\n", J.Ring); return; }
 			double Edge = Way < 0 ? std::fmin(Got[0], Got[1]) : std::fmax(Got[0], Got[1]);
 			const double M = Bear[0] + 0.5 * std::remainder(Bear[1] - Bear[0], TwoPi);
 			double L0 = M + std::remainder(Bear[0] - M, TwoPi), H0 = M + std::remainder(Bear[1] - M, TwoPi);
@@ -1773,7 +1930,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		double Gap = Nt == 1 ? TwoPi - (Hi[A] - Lo[A]) : std::remainder(Lo[B] - Hi[A], TwoPi);
 		if (Gap < -1.0) Gap += TwoPi;   // (more than half way round to the next: two arms across from each other)
 		const double Room = Gap * Outer * 0.5 - 0.25;
-		if (Room < -0.5) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 6 room %.1f\n", J.Ring, Room); return; }   // (two arms over each other at the edge; closer than a corner's room, an entry and an exit: the facing corners straight in, the splitter island between)
+		if (Room < -0.5) { WholeWhy[Ji] = static_cast<unsigned char>(26); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 6 room %.1f at %.0f %.0f arms %zu %zu pair %d %d in %d%d out %d%d\n", J.Ring, Room, J.At.X, J.At.Z, A, B, A < N ? J.Arms[A].Pair : -9, B < N ? J.Arms[B].Pair : -9, A < N ? int(J.Arms[A].In) : 9, B < N ? int(J.Arms[B].In) : 9, A < N ? int(J.Arms[A].Out) : 9, B < N ? int(J.Arms[B].Out) : 9); return; }   // (two arms over each other at the edge; closer than a corner's room, an entry and an exit: the facing corners straight in, the splitter island between)
 		W.Flare[2 * A + 1] = std::fmin(W.Flare[2 * A + 1], std::fmax(0.0, Room));
 		W.Flare[2 * B] = std::fmin(W.Flare[2 * B], std::fmax(0.0, Room));
 	}
@@ -1792,7 +1949,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 			W.Flare[2 * A + 1] = std::fmin(W.Flare[2 * A + 1], Fl);
 			W.Cut[A] = Gone[A] + Fl + 1.0;
 		}
-		if (W.Cut[A] > Most) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 7 cut %.1f long %.1f gone %.1f at %.0f %.0f\n", J.Ring, W.Cut[A], Long, Gone[A], J.At.X, J.At.Z); return; }
+		if (W.Cut[A] > Most) { WholeWhy[Ji] = static_cast<unsigned char>(27); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 7 cut %.1f long %.1f gone %.1f at %.0f %.0f\n", J.Ring, W.Cut[A], Long, Gone[A], J.At.X, J.At.Z); return; }
 	}
 	// ([smooth junctions 4b] the ride's road's mouths the same way past its corners; not drawn between them)
 	for (size_t R = 0; R < RideEdge.size(); ++R)
@@ -1806,9 +1963,9 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 	{
 		W.Hide[0] = std::fmin(W.RideAlong[0], W.RideAlong[1]);
 		W.Hide[1] = std::fmax(W.RideAlong[0], W.RideAlong[1]);
-		if (W.Hide[0] <= Road.front().Along + 1.0 || W.Hide[1] >= Road.back().Along - 1.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 10\n", J.Ring); return; }
+		if (W.Hide[0] <= Road.front().Along + 1.0 || W.Hide[1] >= Road.back().Along - 1.0) { WholeWhy[Ji] = static_cast<unsigned char>(30); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 10\n", J.Ring); return; }
 		for (const std::pair<double, int>& Hd : RideHides)
-			if (WholeOf[size_t(Hd.second)].Hide[0] < W.Hide[1] && WholeOf[size_t(Hd.second)].Hide[1] > W.Hide[0]) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 11\n", J.Ring); return; }
+			if (WholeOf[size_t(Hd.second)].Hide[0] < W.Hide[1] && WholeOf[size_t(Hd.second)].Hide[1] > W.Hide[0]) { WholeWhy[Ji] = static_cast<unsigned char>(31); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 11\n", J.Ring); return; }
 	}
 	// (each mouth line clear of the ring, as RingPiece needs it: its piece can't be drawn otherwise, its roads hidden: holes, Milton Keynes)
 	{
@@ -1836,14 +1993,14 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 				}
 				if (Fits) break;
 			}
-			if (!Fits) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 12\n", J.Ring); return; }
+			if (!Fits) { WholeWhy[Ji] = static_cast<unsigned char>(32); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 12\n", J.Ring); return; }
 		}
 		for (size_t R = 0; R < W.RideAlong.size(); ++R)
 		{
 			RoadPoint P;
 			P2 Dir;
 			double Rise = 0.0;
-			if (!CutRow(Road, W.RideAlong[R], P, Dir, Rise) || !Clear(P.At, Dir, P.Half)) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 12 ride\n", J.Ring); return; }
+			if (!CutRow(Road, W.RideAlong[R], P, Dir, Rise) || !Clear(P.At, Dir, P.Half)) { WholeWhy[Ji] = static_cast<unsigned char>(32); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 12 ride\n", J.Ring); return; }
 		}
 	}
 	W.Lo = Lo;
@@ -1870,7 +2027,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 	// WholeGround), not within 40 m of the ring's edge whatever its arms' reach: 80 of Milton Keynes' 135 rings were turned
 	// down for the underpasses near them)
 	for (const Span& Sp : G.Spans)
-		if (!RingSpanOld && ToSegment(J.At, Sp.A, Sp.B) < W.Reach + 1.0) { if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3 reach\n", J.Ring); return; }
+		if (!RingSpanOld && ToSegment(J.At, Sp.A, Sp.B) < W.Reach + 1.0) { WholeWhy[Ji] = static_cast<unsigned char>(23); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 3 reach\n", J.Ring); return; }
 	WholeOf[Ji] = W;
 	if (Ride) RideHides.emplace_back(W.Hide[0], int(Ji));
 	WholeRingOf[J.Ring] = int(Ji);
@@ -1990,6 +2147,8 @@ void RidePlan::RingPiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 		P2 E0[2];                  // its edges at the mouth line: [0] the side bearings fall to, [1] the side they grow to
 		std::vector<P2> Chain[2];  // from the ring's edge (its bin) out along the corner and the arm's edge to E0
 		int Bin[2] = {0, 0};
+		bool Divide = false;       // [stage 7] out from where an entry and an exit divide: its sides along theirs (DivideEdges)
+		std::vector<P2> Dv[2];
 	};
 	std::vector<RingMouth> Mouths;
 	const size_t Na = J.Arms.size();
@@ -2019,6 +2178,24 @@ void RidePlan::RingPiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			const bool AFalls = std::remainder(Bearing(Ea) - M.Aim, TwoPi) < 0.0;
 			const P2 E0 = (Sd == 0) == AFalls ? Ea : Eb;
 			M.E0[Sd] = E0;
+			if (Sd == 0 && !OnRide && !DivideOld && std::find(Rr.Nodes.begin(), Rr.Nodes.end(), J.Arms[A].Node) == Rr.Nodes.end())
+				M.Divide = DivideEdges(G, Rr, J.Inside, J.Arms[A].Node, M.Aim, M.Dv, this);
+			if (Sd == 0 && !OnRide && WhyOn("WHOLE_DIV_DBG") && std::find(Rr.Nodes.begin(), Rr.Nodes.end(), J.Arms[A].Node) == Rr.Nodes.end()) std::printf("divtry %d node %d ok %d\n", J.Ring, J.Arms[A].Node, int(M.Divide));
+			if (M.Divide)
+			{
+				// ([smooth junctions stage 7] out from a divide: along the outer edge of its road on to the ring, then on
+				// to the mouth's corner)
+				const std::vector<P2>& Dv = M.Dv[Sd];
+				if (WhyOn("WHOLE_DIV_DBG")) { std::printf("divdbg %d %d E0 %.1f %.1f |", J.Ring, Sd, E0.X, E0.Z); for (const P2& Q : Dv) std::printf(" %.1f,%.1f", Q.X, Q.Z); std::printf("\n"); }
+				M.Bin[Sd] = BinOf(Bearing(Dv.back()));
+				std::vector<P2>& Ch = M.Chain[Sd];
+				Ch.push_back(Rr.At(M.Bin[Sd] * Step, Half));
+				for (size_t I = Dv.size() - 1; I-- > 0;) Ch.push_back(Dv[I]);
+				const double Run = Dv.front().DistanceTo(E0);
+				const int Bits = std::max(1, int(std::ceil(Run / 2.0)));
+				for (int S = 1; S <= Bits; ++S) Ch.push_back(Dv.front() + (E0 - Dv.front()) * (double(S) / Bits));
+				continue;
+			}
 			if (Rr.OffOf(E0) <= Half + 0.5){ if (WhyOn("WHOLE_RING_WHY")) std::printf("ringpiece %d out: 6 arm %zu off %.2f half %.2f mhalf %.2f cut %.1f end %d first %.1f %.1f last %.1f %.1f len %.1f\n", J.Ring, A, Rr.OffOf(E0), Half, M.Half, A < Na ? W.Cut[A] : -1.0, End, Pts.front().At.X, Pts.front().At.Z, Pts.back().At.X, Pts.back().At.Z, Pts.back().Along); return; }   // (its mouth on the ring: no room)
 			// (where the edge, heading in, meets the ring's outer edge)
 			double Lo = 0.0, Hi = -1.0;
@@ -2071,6 +2248,7 @@ void RidePlan::RingPiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			std::swap(M.Bin[0], M.Bin[1]);
 			std::swap(M.E0[0], M.E0[1]);
 			std::swap(M.Chain[0], M.Chain[1]);
+			std::swap(M.Dv[0], M.Dv[1]);
 		}
 	const size_t N = Mouths.size();
 	std::vector<size_t> Order(N);
