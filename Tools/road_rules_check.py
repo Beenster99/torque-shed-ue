@@ -297,11 +297,11 @@ def runs_following(pic, line, s0, s1, kinds=(2, 3), step=0.1, reach=1.5, hold=0.
 
 
 def marks_of(runs):
-    """Whole marks and gaps (not cut by the ends): lengths. Breaks under 0.3 m in a mark are mended first, and specks
+    """Whole marks and gaps (not cut by the ends): lengths. Breaks under 0.6 m in a mark are mended first (a 10 cm line slanting across the picture's 10 cm cells comes out dotted), and specks
     under 0.5 m dropped, so a mark cut by a junction's piece reads as one."""
     merged = []
     for r in runs:
-        if merged and (not r[2] and r[1] - r[0] < 0.3 or r[2] == merged[-1][2]):
+        if merged and (not r[2] and r[1] - r[0] < 0.6 or r[2] == merged[-1][2]):
             merged[-1] = (merged[-1][0], r[1], merged[-1][2])
         else:
             merged.append(r)
@@ -361,7 +361,7 @@ class Report:
         return ok
 
 
-def judge_junction(rec, rep, area):
+def judge_junction(rec, rep, area, others=()):
     arms = rec['arms']
     lines = arm_lines(rec)
     pic = Picture(rec)
@@ -512,11 +512,21 @@ def judge_junction(rec, rep, area):
             near = runs_along(pic, major, max(0.0, mid - 8.0), min(major.length(), mid + 8.0), 0.0)
             cover = sum(r[1] - r[0] for r in near if r[2]) / max(1e-9, sum(r[1] - r[0] for r in near))
             rep.check('C2', cover > 0.25, dict(where, onto=major_cls), 1.0, f"no centre line across the junction ({cover:.0%} painted)")
-            # (the pattern starts afresh at the junction's middle, where the two stretches of the through road meet, as a
-            # painter starts it at a junction: each side judged on its own, the marks and gaps cut at the middle not)
+            # (the pattern starts afresh at a junction, where two stretches of the through road meet, as a painter starts it:
+            # at this one's middle and at any other junction on the line within reach (a stagger's partner), each piece
+            # judged on its own, the marks and gaps cut there not)
+            cuts = [mid]
+            for ox, oz in others:
+                q = (ox - rec['x'], oz - rec['z'])
+                if math.hypot(*q) < 30.0:
+                    d, _, s_o, _ = major.nearest(q)
+                    if d < 4.0 and abs(s_o - mid) < 25.0 and abs(s_o - mid) > 1.0:
+                        cuts.append(s_o)
+            cuts = sorted(cuts)
             marks, gaps = [], []
-            for side in ([(a, min(b, mid), p) for a, b, p in runs if a < mid], [(max(a, mid), b, p) for a, b, p in runs if b > mid]):
-                m_, g_ = marks_of(side)
+            for lo, hi in zip([-1e18] + cuts, cuts + [1e18]):
+                piece = [(max(a, lo), min(b, hi), p) for a, b, p in runs if b > lo and a < hi]
+                m_, g_ = marks_of(piece)
                 marks += m_
                 gaps += g_
             if marks and gaps:
@@ -782,13 +792,18 @@ def main(argv):
     for path in dumps:
         area = os.path.splitext(os.path.basename(path))[0]
         good = total = 0
+        others = []   # (every junction's middle in the area, for C6's cuts)
+        for line in open(path):
+            rec = json.loads(line)
+            if rec['t'] == 'jn':
+                others.append((rec['x'], rec['z']))
         for line in open(path):
             rec = json.loads(line)
             t = rec['t']
             if t == 'meta':
                 meta[area] = rec
             elif t == 'jn':
-                ok = judge_junction(rec, rep, area)
+                ok = judge_junction(rec, rep, area, others)
                 if ok is not None:
                     total += 1
                     good += ok
