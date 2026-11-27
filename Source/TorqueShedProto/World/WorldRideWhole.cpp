@@ -53,6 +53,7 @@ const bool RingSpanOld = WhyOn("WHOLE_RINGSPANOLD");
 const bool RingClashOld = WhyOn("WHOLE_RINGCLASHOLD");   // (the checker can turn both down where a ring's divide is a junction, as before)
 const bool DivideOld = WhyOn("WHOLE_DIVIDEOLD");   // (the checker can carry a divide's arm straight in to the ring, as before)
 const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");   // (the checker can turn down a ring whose divide has a junction just past it, as before)
+const bool ShareOld = WhyOn("WHOLE_SHAREOLD");   // (the checker can turn down one of two junctions too close for both cuts, as before)
 const bool PlainOld = WhyOn("WHOLE_PLAINOLD");   // (the checker can leave room for a junction at an arm's plain far point, as before)
 const bool RideAtOld = WhyOn("WHOLE_RIDEATOLD");   // (the checker can put a ride junction at its nearest point of the ride's road, as before)
 const bool PaintOld = WhyOn("WHOLE_PAINTOLD");
@@ -747,6 +748,44 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			// ([smooth junctions stage 5c] the one wanting more of it turned down, the other kept: its cut leaves 7 m for the
 			// old junction there; both turned down lost 192 in the UK sample)
 			if (!WholeOf[size_t(KV.second.first)].Ok || !WholeOf[size_t(Other->second.first)].Ok) continue;
+			// ([smooth junctions stage 7] where both can give a little, no more than a third of their cut and each keeping
+			// 3 m, the road shared between them: one turned down here was 1 in 9 of the bad T junctions left)
+			{
+				static const double Give = WhyOn("WHOLE_SHAREGIVE") ? std::atof(std::getenv("WHOLE_SHAREGIVE")) : 0.67;
+				const double F = Long * 0.9 / (KV.second.second + Other->second.second);
+				if (!ShareOld && F >= Give && std::fmin(KV.second.second, Other->second.second) * F >= 3.0)
+				{
+					bool Set = true;
+					for (const auto* Kv : {&KV.second, &Other->second})
+					{
+						const int Jx = Kv->first;
+						const int Ex = Kv == &KV.second ? End : 1 - End;
+						bool Got = false;
+						for (size_t A = 0; A < JunctionPlaces[size_t(Jx)].Arms.size() && A < WholeOf[size_t(Jx)].Cut.size(); ++A)
+						{
+							const JunctionArm& Am = JunctionPlaces[size_t(Jx)].Arms[A];
+							if (Am.Edge + 1 != Which || (G.Edges[size_t(Am.Edge)].A == Am.Node ? 0 : 1) != Ex) continue;
+							Got = true;
+						}
+						Set = Set && Got;
+					}
+					if (Set)
+					{
+						for (auto* Kv : {&KV.second, &Other->second})
+						{
+							const int Jx = Kv->first;
+							const int Ex = Kv == &KV.second ? End : 1 - End;
+							for (size_t A = 0; A < JunctionPlaces[size_t(Jx)].Arms.size() && A < WholeOf[size_t(Jx)].Cut.size(); ++A)
+							{
+								const JunctionArm& Am = JunctionPlaces[size_t(Jx)].Arms[A];
+								if (Am.Edge + 1 == Which && (G.Edges[size_t(Am.Edge)].A == Am.Node ? 0 : 1) == Ex) WholeOf[size_t(Jx)].Cut[A] *= F;
+							}
+							Kv->second *= F;
+						}
+						continue;
+					}
+				}
+			}
 			const bool Mine = KV.second.second != Other->second.second ? KV.second.second > Other->second.second : KV.second.first > Other->second.first;
 			const int Lose = BothDown || Mine ? KV.second.first : Other->second.first;
 			WholeOf[size_t(Lose)].Ok = false;
@@ -1028,6 +1067,21 @@ bool RidePlan::WholeDashLineOf(int Ji, WholeDashLine& D) const
 	D.X0 = D.ABase;
 	D.Rate = D.AEnd == 0 ? -1.0 : 1.0;
 	if (D.AWhich == 0 && D.BWhich == 0 && D.Length > 1.0) D.Rate = (D.BBase - D.ABase) / D.Length;
+	// ([road rulebook stage 3a] the ride's road's dashes by its map road's own way along (RideDashU), the same whichever
+	// way the ride runs: from A's mouth on in that way, or from one mouth's to the other's)
+	if (D.AWhich == 0)
+	{
+		double Sa = 1.0, Sb = 1.0;
+		const double Ua = RideDashU(D.ABase, Sa);
+		D.X0 = Ua;
+		D.Rate = Sa * (D.AEnd == 0 ? -1.0 : 1.0);
+		if (D.BWhich == 0 && D.Length > 1.0)
+		{
+			const double Ub = RideDashU(D.BBase, Sb);
+			const double Rt = (Ub - Ua) / D.Length;
+			if (std::fabs(Rt) > 0.5 && std::fabs(Rt) < 1.5) D.Rate = Rt;   // (else a new run of the map's roads begins inside it: on A's way)
+		}
+	}
 	return true;
 }
 
