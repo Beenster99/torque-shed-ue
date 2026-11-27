@@ -46,7 +46,8 @@ const bool BothDown = WhyOn("WHOLE_BOTHDOWN");   // (the checker can turn both d
 const bool InnerOld = WhyOn("WHOLE_INNEROLD");
 const bool InsideOld = WhyOn("WHOLE_INSIDEOLD");
 const bool CornerOld = WhyOn("WHOLE_CORNEROLD");   // (the checker can turn down for room without trying tight corners)
-const bool GapOld = WhyOn("WHOLE_GAPOLD");   // (the checker can turn down a dual's gaps as before)
+const bool GapOld = WhyOn("WHOLE_GAPOLD");
+const bool DualCrossOld = WhyOn("WHOLE_DUALCROSSOLD");   // (the checker can turn down two duals crossing as before)   // (the checker can turn down a dual's gaps as before)
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
 const bool DualOld = WhyOn("WHOLE_DUALOLD");
 const bool RingSpanOld = WhyOn("WHOLE_RINGSPANOLD");
@@ -476,7 +477,10 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// (or where a dual begins: one road splitting into its two halves, a "bend" of two roads, the pair as one)
 		int Pairs = 0;
 		for (const JunctionArm& A : J.Arms) Pairs += A.Pair >= 0 ? 1 : 0;
-		const bool Gap = !GapOld && (J.Kind == EJunction::DualGap || (J.Kind == EJunction::Bend && J.Dual && J.Arms.size() == 3 && Pairs == 2));
+		// ([stage 7] or two duals crossing, or a dual's gap with a dual side road: four or more of its arms in pairs, the
+		// carriageways' points a square 15-25 m across; turned down as too wide, their old pieces stepped 1-2 m2 each, Newcastle, Lincoln)
+		const bool DualCross = !DualCrossOld && J.Dual && Pairs >= 4 && (J.Kind == EJunction::Multi || J.Kind == EJunction::Cross || J.Kind == EJunction::DualGap);
+		const bool Gap = !GapOld && (J.Kind == EJunction::DualGap || DualCross || (J.Kind == EJunction::Bend && J.Dual && J.Arms.size() == 3 && Pairs == 2));
 		// ([smooth junctions stage 5c] and a slip's triangle at a T: the links round its little island one piece with the
 		// roads, the island tarmac (stage 6 paints it); its links' own pieces overlapped 10-20 cm apart, Penrith)
 		const bool Slip = !SlipOld && J.Kind == EJunction::Slip;
@@ -486,8 +490,8 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// built whole as any other; both halves there (an arm with a Pair) is still turned down below, code 6)
 		if (J.Dual && DualOld) { Refuse(2); continue; }
 		if (J.Ring >= 0) { Refuse(3); continue; }
-		if (J.Span > (Gap ? JunctionGap : Slip ? JunctionSlip : JunctionMerge)) { Refuse(4); continue; }
-		if (J.Arms.size() < 3 || J.Arms.size() > (Gap ? 6u : 5u)) { Refuse(5); continue; }
+		if (J.Span > (Gap ? JunctionGap : Slip ? JunctionSlip : JunctionMerge)) { if (WhyOn("WHOLE_WHY")) std::printf("span4 node %d kind %d span %.1f arms %zu pairs %d gap %d slip %d dual %d\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Span, J.Arms.size(), Pairs, int(Gap), int(Slip), int(J.Dual)); Refuse(4); continue; }
+		if (J.Arms.size() < 3 || J.Arms.size() > (DualCross ? 8u : Gap ? 6u : 5u)) { Refuse(5); continue; }
 		bool Fits = true;
 		// ([smooth junctions stage 5c] the ride's road through it or turning at it, two of its arms: built whole too, the ride's
 		// road not drawn between their mouth lines, as round a ring (4b); its old mouths and square turns knocked 2-9 cm)
@@ -848,6 +852,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 					JunctionPlaces[size_t(Ja)].At.X, JunctionPlaces[size_t(Ja)].At.Z, JunctionPlaces[size_t(Jb)].At.X, JunctionPlaces[size_t(Jb)].At.Z);
 			const int Lose = Absorbed >= 0 ? Absorbed : ArmOf ? Ja
 				: WholeOf[size_t(Ja)].Reach != WholeOf[size_t(Jb)].Reach ? (WholeOf[size_t(Ja)].Reach > WholeOf[size_t(Jb)].Reach ? Ja : Jb) : std::max(Ja, Jb);
+			if (WhyOn("WHOLE_WHY") && [&]() { const char* Nv = std::getenv("WHOLE_WHY_NODE"); if (!Nv) return true; const int Nn = std::atoi(Nv); for (int Jx : {Ja, Jb}) for (int Nd : JunctionPlaces[size_t(Jx)].Nodes) if (Nd == Nn) return true; return false; }()) std::printf("clash12 %d %d nodes %d %d armof %d lose %d reach %.1f %.1f\n", Ja, Jb, JunctionPlaces[size_t(Ja)].Nodes[0], JunctionPlaces[size_t(Jb)].Nodes[0], int(ArmOf), Lose, WholeOf[size_t(Ja)].Reach, WholeOf[size_t(Jb)].Reach);
 			for (int Jx : {Ja, Jb})
 				if (BothDown || Ring || Jx == Lose) { WholeOf[size_t(Jx)].Ok = false; WholeWhy[size_t(Jx)] = 12; }
 		};
