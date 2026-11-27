@@ -292,7 +292,12 @@ std::vector<double> EdgeCosts(const Region& G, const std::string& Mode)
 	for (const std::string& Class : G.Classes) ByClass.push_back(ClassCost(Mode, Class));
 	std::vector<double> Out(G.Edges.size(), 1.0);
 	for (size_t E = 0; E < G.Edges.size(); ++E)
+	{
 		Out[E] = size_t(G.Edges[E].Class) < ByClass.size() ? ByClass[size_t(G.Edges[E].Class)] : 1.5;
+		// [road rulebook G4] (a private road, access=private or no on the map: ridden only to start or finish a ride, or where
+		// there is no other way, never a short cut between public roads: one in twenty random rides in York took one)
+		if (const RoadExtra* X = G.ExtraOf(int(E)); X != nullptr && X->Has(RoadExtra::Private)) Out[E] = std::fmax(Out[E], 1000.0);
+	}
 	if (Mode != "curvy") return Out;
 	// Curvy: the buildings by 100 m square, to know a built-up stretch.
 	std::unordered_map<long long, int> Built;

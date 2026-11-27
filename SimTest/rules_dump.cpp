@@ -8,12 +8,17 @@
 //                         paint, 3 yellow paint, 4 anything else drawn with the road: verge, kerb, bank), as rows of runs.
 //   {"t":"stretch", ...}  the same picture of the ride's road every StretchEvery m, where no junction is within 50 m.
 //   {"t":"ring", ...}     a roundabout the ride's road goes round: its middle and the ride's points on it.
+//   {"t":"route", ...}    [road rulebook stage 5] a way the planner found over the area's roads (the ride's own, run-out
+//                         and all, and RoutesEach more between random junctions for each style): each step that goes
+//                         against a one-way road (G2, roundabouts too: G3), takes a banned turn or a private road
+//                         between public ones (G4), and how many service roads it uses between public ones.
 // Coordinates are metres east (x) and south (z) of the junction's or stretch's middle. The checker judges; this
 // only measures, so the rules can change without building again.
 
 #include "WorldRide.h"
 #include "WorldRideSigns.h"
 #include "WorldFiles.h"
+#include "WorldRoute.h"
 
 #include <algorithm>
 #include <cmath>
@@ -255,6 +260,96 @@ static void Where(const RidePlan& Plan, const P2& C, std::string& Out)
 	std::snprintf(Buf, sizeof(Buf), "\"lat\":%.6f,\"lon\":%.6f,\"x\":%.1f,\"z\":%.1f", G.Lat, G.Lon, C.X, C.Z);
 	Out += Buf;
 }
+
+// [road rulebook stage 5] One way over the area's roads, judged step by step.
+static void RouteRec(const Region& G, const std::vector<RidePlan::RideStep>& Steps, const char* Mode, int No, std::string& Out, const std::vector<double>* Costs = nullptr)
+{
+	char Buf[512];
+	if (Steps.empty()) return;
+	const auto Private = [&G](int E) { const RoadExtra* X = G.ExtraOf(E); return X != nullptr && X->Has(RoadExtra::Private); };
+	const auto Service = [&G](int E) { return G.ClassOf(E) == "service"; };
+	// (a private or service road between public ones: not where the way starts or ends on such roads)
+	const auto Between = [&Steps](size_t K, const auto& Is)
+	{
+		bool Before = false, After = false;
+		for (size_t J = 0; J < K; ++J) Before = Before || !Is(Steps[J].Edge);
+		for (size_t J = K + 1; J < Steps.size(); ++J) After = After || !Is(Steps[J].Edge);
+		return Before && After;
+	};
+	// (a private road where there is no other way, the planner made to refuse them all: not a breach, the map's roads)
+	bool Only = false;
+	for (size_t K = 0; K < Steps.size() && Costs != nullptr; ++K)
+		if (Private(Steps[K].Edge) && Between(K, Private))
+		{
+			std::vector<double> Refuse = *Costs;
+			for (size_t E = 0; E < Refuse.size(); ++E) if (Private(int(E))) Refuse[E] = 1e7;
+			for (int E : G.CheapestPath(Steps.front().From, Steps.back().To, &Refuse)) Only = Only || Private(E);
+			break;
+		}
+	double Km = 0.0;
+	int Services = 0, Rings = 0;
+	std::string Bad;
+	const auto Breach = [&](const char* Rule, const char* Say, int Node)
+	{
+		const P2 At = G.Nodes[size_t(Node)];
+		const Geo Gx = G.FrameOf().ToGeo(At.X, At.Z);
+		std::snprintf(Buf, sizeof(Buf), "%s{\"rule\":\"%s\",\"say\":\"%s\",\"lat\":%.6f,\"lon\":%.6f,\"node\":%d}", Bad.empty() ? "" : ",", Rule, Say, Gx.Lat, Gx.Lon, Node);
+		Bad += Buf;
+	};
+	for (size_t K = 0; K < Steps.size(); ++K)
+	{
+		const RidePlan::RideStep& S = Steps[K];
+		Km += G.Edges[size_t(S.Edge)].Length / 1000.0;
+		const RoadExtra* X = G.ExtraOf(S.Edge);
+		const bool Ring = X != nullptr && X->Has(RoadExtra::Roundabout);
+		Rings += Ring ? 1 : 0;
+		if (!G.Passable(S.Edge, S.From)) Breach(Ring ? "G3" : "G2", Ring ? "round a roundabout the wrong way" : "against a one-way road", S.From);
+		if (K > 0 && G.TurnBanned(Steps[K - 1].Edge, S.From, S.Edge)) Breach("G4", "a banned turn", S.From);
+		if (K > 0 && Steps[K - 1].Edge == S.Edge && G.Adjacent[size_t(S.From)].size() > 1) Breach("G4", "a U-turn in the road", S.From);
+		if (Private(S.Edge) && Between(K, Private)) Breach(Only ? "G4only" : "G4", Only ? "through a private road, the only way" : "through a private road", S.From);
+		if (Service(S.Edge) && Between(K, Service)) ++Services;
+	}
+	std::snprintf(Buf, sizeof(Buf), "{\"t\":\"route\",\"mode\":\"%s\",\"no\":%d,\"steps\":%zu,\"km\":%.2f,\"rings\":%d,\"services\":%d,\"bad\":[", Mode, No, Steps.size(), Km, Rings, Services);
+	Out += Buf;
+	Out += Bad + "]}\n";
+}
+
+static void Routes(const RidePlan& Plan, std::string& Out, int& Count)
+{
+	const Region& G = Plan.Area.Roads;
+	const std::vector<double> MainCosts = Route::EdgeCosts(G, "main");
+	RouteRec(G, Plan.MadeSteps, "ride", 0, Out, &MainCosts);
+	++Count;
+	const char* Each = std::getenv("WORLD_RIDE_RULES_ROUTES");
+	const int RoutesEach = Each != nullptr ? std::atoi(Each) : 60;
+	if (RoutesEach <= 0 || G.Nodes.empty() || G.Component.size() != G.Nodes.size()) return;
+	// (between junctions of the area's biggest piece of road, 0.5 to 6 km apart, the same each run)
+	int Big = 0;
+	for (size_t C = 0; C < G.ComponentSize.size(); ++C) if (G.ComponentSize[C] > G.ComponentSize[size_t(Big)]) Big = int(C);
+	std::vector<int> Ends;
+	for (size_t N = 0; N < G.Nodes.size(); ++N)
+		if (G.Component[N] == Big && G.Adjacent[N].size() >= 3) Ends.push_back(int(N));
+	if (Ends.size() < 2) return;
+	unsigned long long Seed = 88172645463325252ULL;
+	const auto Next = [&Seed]() { Seed ^= Seed << 13; Seed ^= Seed >> 7; Seed ^= Seed << 17; return Seed; };
+	for (const char* Mode : {"main", "scenic", "curvy", "tracks"})
+	{
+		const std::vector<double> Costs = Route::EdgeCosts(G, Mode);
+		for (int R = 0, Tries = 0; R < RoutesEach && Tries < RoutesEach * 20; ++Tries)
+		{
+			const int A = Ends[size_t(Next() % Ends.size())], B = Ends[size_t(Next() % Ends.size())];
+			const double D = G.Nodes[size_t(A)].DistanceTo(G.Nodes[size_t(B)]);
+			if (D < 500.0 || D > 6000.0) continue;
+			const std::vector<int> Path = G.CheapestPath(A, B, &Costs);
+			if (Path.empty()) continue;
+			std::vector<RidePlan::RideStep> Steps;
+			int Node = A;
+			for (int E : Path) { const int To = G.OtherEnd(E, Node); Steps.push_back({Node, E, To}); Node = To; }
+			RouteRec(G, Steps, Mode, ++R, Out, &Costs);
+			++Count;
+		}
+	}
+}
 } // namespace RulesDumpImpl
 
 void RulesDump(const RidePlan& Plan, const std::string& Path)
@@ -382,6 +477,8 @@ void RulesDump(const RidePlan& Plan, const std::string& Path)
 		All += L;
 		++Rings;
 	}
+	int RouteCount = 0;
+	Routes(Plan, All, RouteCount);
 	Files::Write(Path, All);
-	std::printf("rules dump: %d junctions, %d stretches, %d roundabouts to %s\n", Junctions, Stretches, Rings, Path.c_str());
+	std::printf("rules dump: %d junctions, %d stretches, %d roundabouts, %d routes to %s\n", Junctions, Stretches, Rings, RouteCount, Path.c_str());
 }

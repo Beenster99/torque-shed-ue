@@ -639,6 +639,22 @@ def judge_stretch(rec, rep, area, others=()):
                       f"edge line {inset:.2f} m in from the edge, {width:.2f} m wide (should be {want} in, {RULE['D6']['width']['ordinary']} wide)")
 
 
+def judge_route(rec, rep, area):
+    # G2 to G4: each way the planner found (the ride's own and random ones by style), judged once per rule; the dump says
+    # which steps broke which.
+    where = {'area': area, 'route': f"{rec['mode']} {rec['no']}", 'km': rec['km']}
+    for rid in ('G2', 'G3', 'G4'):
+        if rid == 'G3' and not rec['rings'] and not any(b['rule'] == 'G3' for b in rec['bad']):
+            continue
+        bad = [b for b in rec['bad'] if b['rule'] == rid]
+        w = dict(where, lat=bad[0]['lat'], lon=bad[0]['lon'], node=bad[0]['node']) if bad else where
+        rep.check(rid, not bad, w, float(len(bad)), '; '.join(sorted(set(b['say'] for b in bad))))
+    if any(b['rule'] == 'G4only' for b in rec['bad']):
+        rep.notes['routes through a private road with no other way'] += 1
+    if rec['services']:
+        rep.notes['routes using a service road between public ones'] += 1
+
+
 def judge_ring(rec, rep, area):
     pts = rec['ride']
     # (the turn the ride makes round the middle: x east, z south, so clockwise from above is + in x, z)
@@ -851,6 +867,8 @@ def main(argv):
                 judge_stretch(rec, rep, area, others)
             elif t == 'ring':
                 judge_ring(rec, rep, area)
+            elif t == 'route':
+                judge_route(rec, rep, area)
         per_area[area] = {'junctions': total, 'clean': good}
     summary = {'rules': {}, 'areas': per_area, 'notes': dict(rep.notes), 'meta': meta}
     for rid in sorted(set(rep.checked) | set(rep.breach)):
