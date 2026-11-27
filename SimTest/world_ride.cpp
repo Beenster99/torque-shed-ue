@@ -3253,7 +3253,7 @@ int main(int Argc, char** Argv)
 					if (Back[K] && !Fore[K]) F.Fold += A1;   // (only the backwards tarmac there: the game culls it, a hole)
 					if (Hi[K] - Lo[K] > 0.08f) { F.Step += A1; if (Only >= 0 && std::getenv("JSTEP")) std::printf("jstep at %.1f, %.1f: %.3f to %.3f\n", Px, Pz, double(Lo[K]), double(Hi[K])); }
 					else if (Hi[K] - Lo[K] > 0.005f && Hi[K] - Lo[K] < 0.03f && !Rough[K] && !Painted[K]) F.Over += A1;
-					if (Grass[K] > Hi[K] + 0.005f) F.Grass += A1;
+					if (Grass[K] > Hi[K] + 0.005f) { F.Grass += A1; if (Only >= 0 && std::getenv("JGRASS") && (Cx + Cz) % 4 == 0) std::printf("jgrass at %.1f, %.1f: grass %.3f over tarmac %.3f\n", Px, Pz, double(Grass[K]), double(Hi[K])); }
 					if ((Cx + Cz) % 2 == 0)
 					{
 						const double L = Plan->LandDrawnAt(C.X + Px, C.Z + Pz);
