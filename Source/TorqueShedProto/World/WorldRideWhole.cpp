@@ -57,6 +57,7 @@ const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");   // (the checker can
 const bool ShareOld = WhyOn("WHOLE_SHAREOLD");   // (the checker can turn down one of two junctions too close for both cuts, as before)
 const bool FollowInOld = WhyOn("WHOLE_FOLLOWINOLD");   // (the checker can follow an arm into another junction's inside roads, as before)
 const bool PlainOld = WhyOn("WHOLE_PLAINOLD");
+const bool DualPairOld = WhyOn("WHOLE_DUALPAIROLD");   // (the checker can turn down junctions with a dual's pair of arms as before)
 const bool SpanOld = WhyOn("WHOLE_SPANOLD");   // (the checker can turn down clusters over JunctionMerge across, as before)
 const bool CrossoverOld = WhyOn("WHOLE_CROSSOVEROLD");   // (the checker can turn down a dual's lone gap as before)
 const bool BandOld = WhyOn("WHOLE_BANDOLD");   // (the checker can leave a corner's grass band over the piece's tarmac, as before)
@@ -491,10 +492,13 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// ([stage 7] or two duals crossing, or a dual's gap with a dual side road: four or more of its arms in pairs, the
 		// carriageways' points a square 15-25 m across; turned down as too wide, their old pieces stepped 1-2 m2 each, Newcastle, Lincoln)
 		const bool DualCross = !DualCrossOld && J.Dual && Pairs >= 4 && (J.Kind == EJunction::Multi || J.Kind == EJunction::Cross || J.Kind == EJunction::DualGap);
+		// ([stage 7] or any T, crossroads, fork or five ways where a dual arrives as its two halves side by side: its pair
+		// the reservation's nose between, as a gap's; turned down for the pair (code 6) or its arms (5), Lincoln, Penrith)
+		const bool DualPair = !DualPairOld && J.Dual && Pairs >= 2 && (J.Kind == EJunction::T || J.Kind == EJunction::Cross || J.Kind == EJunction::Fork || J.Kind == EJunction::Multi || J.Kind == EJunction::Stagger);
 		// ([stage 7] or a dual's reservation crossed by a gap alone, no road off: its two halves' four arms in pairs, a "bend"
 		// of the map's; turned down as no kind, its old pieces stepped 2-4 m2, Milton Keynes)
 		const bool Crossover = !CrossoverOld && J.Kind == EJunction::Bend && J.Dual && J.Arms.size() == 4 && Pairs == 4;
-		const bool Gap = !GapOld && (J.Kind == EJunction::DualGap || DualCross || Crossover || (J.Kind == EJunction::Bend && J.Dual && J.Arms.size() == 3 && Pairs == 2));
+		const bool Gap = !GapOld && (J.Kind == EJunction::DualGap || DualCross || DualPair || Crossover || (J.Kind == EJunction::Bend && J.Dual && J.Arms.size() == 3 && Pairs == 2));
 		// ([smooth junctions stage 5c] and a slip's triangle at a T: the links round its little island one piece with the
 		// roads, the island tarmac (stage 6 paints it); its links' own pieces overlapped 10-20 cm apart, Penrith)
 		const bool Slip = !SlipOld && J.Kind == EJunction::Slip;
@@ -508,7 +512,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// JunctionMerge, turned down, their old pieces stepped 25-70 m2 each, Grassington, Ambleside)
 		static const double SpanMost = WhyOn("WHOLE_SPANMOST") ? std::atof(std::getenv("WHOLE_SPANMOST")) : 20.0;
 		if (J.Span > (Gap ? JunctionGap : Slip ? JunctionSlip : SpanOld ? JunctionMerge : SpanMost)) { if (WhyOn("WHOLE_WHY")) std::printf("span4 node %d kind %d span %.1f arms %zu pairs %d gap %d slip %d dual %d\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Span, J.Arms.size(), Pairs, int(Gap), int(Slip), int(J.Dual)); Refuse(4); continue; }
-		if (J.Arms.size() < 3 || J.Arms.size() > (DualCross ? 8u : Gap ? 6u : 5u)) { Refuse(5); continue; }
+		if (J.Arms.size() < 3 || J.Arms.size() > (DualCross || DualPair ? 8u : Gap ? 6u : 5u)) { Refuse(5); continue; }
 		bool Fits = true;
 		// ([smooth junctions stage 5c] the ride's road through it or turning at it, two of its arms: built whole too, the ride's
 		// road not drawn between their mouth lines, as round a ring (4b); its old mouths and square turns knocked 2-9 cm)
