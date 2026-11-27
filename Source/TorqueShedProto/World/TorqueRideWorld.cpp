@@ -2614,8 +2614,10 @@ void ATorqueRideWorld::BuildKitLooks()
 	for (int32 Piece = 0; Piece < int32(Wk->Pieces.size()) && bAll; ++Piece)
 		for (int32 Near = 1; Near >= 0; --Near)
 		{
+			// [detailed props, Nov 26] (each piece's middle look, and its close-up detail alone: a near square
+			// draws both, the detail dropped a short way off, PlaceKitParts)
 			TorqueWorld::RideMesh Look;
-			const size_t Tris = TorqueWorld::WarehousePieceMesh(*Wk, Piece, Near != 0, Look);
+			const size_t Tris = TorqueWorld::WarehousePieceLook(*Wk, Piece, Near != 0 ? -1 : 1, Look);
 			if (Tris == 0) continue;   // (a piece with nothing at the middle detail: none drawn there)
 			// (in the square's materials, as the laid kit was: plain in the road's, sheets, brick and concrete in theirs)
 			TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Kinds;
@@ -2642,13 +2644,24 @@ void ATorqueRideWorld::PlaceKitParts(const FIntVector& Key, const TorqueWorld::R
 	if (Mesh.KitParts.empty() || KitLooks.Num() == 0) return;
 	// (by piece: the instances; the ride's frame is x east, y up, z south, Unreal's x east, y south, z up, so a
 	// piece's x along (Ax, Az) is Unreal's (Ax, Az, 0), its z out (Nx, Nz, 0), its y up Unreal's z)
+	// [detailed props, Nov 26] (every piece as its middle look; a near square's also as its close-up detail,
+	// which a yard prop drops 180 m off and a shed's wall 400 m off: the middle's simple shapes sit just inside
+	// the detailed ones, so up close the detail covers them and further off they are all there is)
 	TMap<int32, TArray<FTransform>> Groups;
+	TSet<int32> PropPieces;
+	if (const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow())
+		for (const TorqueWorld::WarehouseProp& Pr : Wk->Props) PropPieces.Add(Pr.Piece);
 	for (const TorqueWorld::RideKitPart& P : Mesh.KitParts)
 	{
-		const int32 Look = P.Kit == 1 ? HouseLookKey(P.Piece) : P.Piece * 2 + (P.Near ? 0 : 1);
-		if (!KitLooks.Contains(Look)) continue;
 		const FMatrix Turn(FVector(P.Ax, P.Az, 0.0), FVector(P.Nx, P.Nz, 0.0), FVector::UpVector, FVector::ZeroVector);
-		Groups.FindOrAdd(Look).Add(FTransform(FQuat(Turn), FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), FVector(P.Sx, P.Sz, P.Sy)));
+		const FTransform Where(FQuat(Turn), FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0), FVector(P.Sx, P.Sz, P.Sy));
+		if (P.Kit == 1)   // [house kit] (one mesh with its own levels of detail)
+		{
+			if (KitLooks.Contains(HouseLookKey(P.Piece))) Groups.FindOrAdd(HouseLookKey(P.Piece)).Add(Where);
+			continue;
+		}
+		if (KitLooks.Contains(P.Piece * 2 + 1)) Groups.FindOrAdd(P.Piece * 2 + 1).Add(Where);
+		if (P.Near && KitLooks.Contains(P.Piece * 2)) Groups.FindOrAdd(P.Piece * 2).Add(Where);
 	}
 	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
 	for (TPair<int32, TArray<FTransform>>& Group : Groups)
@@ -2666,6 +2679,8 @@ void ATorqueRideWorld::PlaceKitParts(const FIntVector& Key, const TorqueWorld::R
 		Ism->SetCanEverAffectNavigation(false);
 		Ism->SetGenerateOverlapEvents(false);
 		Ism->SetCastShadow(Key.X == 0);
+		if (Group.Key < HouseLookKey(0) && (Group.Key & 1) == 0)   // (the warehouse kit's close-up detail)
+			Ism->SetCullDistances(0, PropPieces.Contains(Group.Key / 2) ? 18000 : 40000);
 		Ism->bVisibleInRayTracing = Key.X <= TRWI::CVarRayTraceLevel.GetValueOnGameThread();
 		Ism->RegisterComponent();
 		Ism->AddInstances(Group.Value, false, false);

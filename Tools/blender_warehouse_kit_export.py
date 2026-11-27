@@ -139,10 +139,18 @@ def piece_bytes(name, U, to_local, wall=None):
         fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-9)
         keep = np.repeat(~(thin[part_of[0::3]] & (np.abs(fn[:, 2]) < 0.7)), 3)
         pos, nrm, part_of = pos[keep], nrm[keep], part_of[keep]
-    parts = []
+    # (parts alike, the same mesh, colour, code and detail, as one: a detailed prop has hundreds of pieces and
+    # the game keeps a part's number in a byte)
+    parts, index, remap = [], {}, []
     for p in U.parts:
         sec, code = part_class(p)
-        parts.append((sec, p.rgb, code, p.lod))
+        key = (sec, tuple(int(round(max(0.0, min(1.0, c)) * 255)) for c in p.rgb), int(round(code * 255)), p.lod)
+        if key not in index:
+            index[key] = len(parts)
+            parts.append((sec, p.rgb, code, p.lod))
+        remap.append(index[key])
+    part_of = np.array(remap, np.int64)[part_of]
+    assert len(parts) < 256, name
     q = np.round(pos * 100.0).astype(np.int64)
     qn = np.round(nrm * 127.0).astype(np.int64)
     key = np.concatenate([q, qn, part_of[:, None]], 1)

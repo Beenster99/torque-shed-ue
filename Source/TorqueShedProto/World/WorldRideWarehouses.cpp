@@ -166,6 +166,11 @@ bool ReadKitPieces(const std::string& Bin, std::vector<WarehousePiece>& Pieces, 
 			P.MinX = std::fmin(P.MinX, P.Pos[size_t(V) * 3] * 0.01);
 			P.MaxX = std::fmax(P.MaxX, P.Pos[size_t(V) * 3] * 0.01);
 		}
+		for (size_t T = 0; T + 2 < P.Idx.size(); T += 3)
+		{
+			if (P.Parts[P.PartOf[P.Idx[T]]].Lod >= 1) ++P.MidTris;
+			else ++P.FineTris;
+		}
 		Named[Name] = int(Pieces.size());
 		Pieces.push_back(std::move(P));
 	}
@@ -259,7 +264,7 @@ size_t LayPiece(const WarehousePiece& P, double Ox, double Oz, double Ax, double
 	for (size_t V = 0; V < P.Vertices(); ++V)
 	{
 		const WarehousePiece::Part& Pt = P.Parts[P.PartOf[V]];
-		if (Pt.Lod < Need) continue;
+		if (Need < 0 ? Pt.Lod != 0 : Pt.Lod < Need) continue;   // (-1: the close-up detail alone)
 		const int S = Pt.Section < 5 ? Pt.Section : 0;
 		RideMesh& Mi = *Into[S];
 		const double Lx = P.Pos[V * 3] * 0.01, Ly0 = P.Pos[V * 3 + 1] * 0.01, Lz = P.Pos[V * 3 + 2] * 0.01;
@@ -347,7 +352,7 @@ size_t PlacePiece(const WarehouseKit& Kit, int Piece, double Ox, double Oz, doub
 	K.Ax = float(Ax); K.Az = float(Az); K.Nx = float(Nx); K.Nz = float(Nz);
 	K.Sx = float(Sx); K.Sz = float(Sz);
 	Out.KitParts.push_back(K);
-	return P.Idx.size() / 3;
+	return K.Near ? P.MidTris + P.FineTris / 8 : P.MidTris;   // (the detail goes a short way off: see MidTris)
 }
 
 // [stage 3] A sign's made-up name, as big as fits its board (no more than half its height), on its face.
@@ -552,7 +557,7 @@ size_t DressYard(const WarehouseKit& Kit, const WarehouseDesign& D, double Corne
 		if (Ix < 0) return false;
 		const WarehouseProp& P = Kit.Props[size_t(Ix)];
 		const WarehousePiece& Pc = Kit.Pieces[size_t(P.Piece)];
-		if (Budget < (long long)(Pc.Idx.size() / 3)) return false;
+		if (Budget < (long long)(Instance && Need >= 1 ? Pc.MidTris : Instance ? Pc.MidTris + Pc.FineTris / 8 : Pc.Idx.size() / 3)) return false;
 		const Footprint F{X, Z, Ax, Az, P.L * 0.5 + Pad, std::fmax(0.05, P.D * 0.5 + Pad)};
 		for (const double Su : {-1.0, 0.0, 1.0})
 			for (const double Sd : {-1.0, 1.0})
@@ -819,5 +824,12 @@ size_t WarehousePieceMesh(const WarehouseKit& Kit, int Piece, bool Near, RideMes
 	if (Piece < 0 || size_t(Piece) >= Kit.Pieces.size()) return 0;
 	RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
 	return LayPiece(Kit.Pieces[size_t(Piece)], Out.OriginX, Out.OriginZ, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1e9, 1.0, Near ? 0 : 1, Into);
+}
+
+size_t WarehousePieceLook(const WarehouseKit& Kit, int Piece, int Need, RideMesh& Out)
+{
+	if (Piece < 0 || size_t(Piece) >= Kit.Pieces.size()) return 0;
+	RideMesh* const Into[5] = {&Out, &Out, &Out.RoofingOf(), &Out.BrickworkOf(), &Out.RenderOf()};
+	return LayPiece(Kit.Pieces[size_t(Piece)], Out.OriginX, Out.OriginZ, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1e9, 1.0, Need, Into);
 }
 } // namespace TorqueWorld

@@ -1463,7 +1463,20 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 				continue;
 			}
 		}
-		const P2 Mid = Road[size_t(Index)].At;
+		// ([smooth junctions stage 7] square onto the ride's road's line between its points, not its nearest point: by the
+		// point the side road met it up to half a point's spacing along, one way round and the other, Whaley Bridge)
+		P2 Mid = Road[size_t(Index)].At;
+		{
+			double Best = 1e18;
+			for (int K = std::max(0, Index - 1); K <= Index && K + 1 < int(Road.size()); ++K)
+			{
+				const P2 Pa = Road[size_t(K)].At, Dv = Road[size_t(K) + 1].At - Pa;
+				const double L2 = Dv.X * Dv.X + Dv.Z * Dv.Z;
+				const double T = L2 > 1e-9 ? std::clamp(((At.X - Pa.X) * Dv.X + (At.Z - Pa.Z) * Dv.Z) / L2, 0.0, 1.0) : 0.0;
+				const P2 Q = Pa + Dv * T;
+				if (Q.DistanceTo(At) < Best) { Best = Q.DistanceTo(At); Mid = Q; }
+			}
+		}
 		if (Mid.DistanceTo(At) > 0.5)
 		{
 			if (End == 0) Raw.insert(Raw.begin(), Mid);
