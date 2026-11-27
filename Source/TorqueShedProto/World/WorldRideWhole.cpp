@@ -51,8 +51,9 @@ const bool DualOld = WhyOn("WHOLE_DUALOLD");
 const bool RingSpanOld = WhyOn("WHOLE_RINGSPANOLD");
 const bool RingClashOld = WhyOn("WHOLE_RINGCLASHOLD");   // (the checker can turn both down where a ring's divide is a junction, as before)
 const bool DivideOld = WhyOn("WHOLE_DIVIDEOLD");   // (the checker can carry a divide's arm straight in to the ring, as before)
-const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");
-const bool RideAtOld = WhyOn("WHOLE_RIDEATOLD");   // (the checker can put a ride junction at its nearest point of the ride's road, as before)   // (the checker can turn down a ring whose divide has a junction just past it, as before)
+const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");   // (the checker can turn down a ring whose divide has a junction just past it, as before)
+const bool PlainOld = WhyOn("WHOLE_PLAINOLD");   // (the checker can leave room for a junction at an arm's plain far point, as before)
+const bool RideAtOld = WhyOn("WHOLE_RIDEATOLD");   // (the checker can put a ride junction at its nearest point of the ride's road, as before)
 const bool PaintOld = WhyOn("WHOLE_PAINTOLD");
 const bool RideEndOld = WhyOn("WHOLE_RIDEENDOLD");   // (the checker can turn down a junction the ride starts or ends at as before)   // (the checker can paint off the piece as before)   // (the checker can turn down a ring for any bridge within 40 m of it as before)   // (the checker can turn down every junction on a dual's half as before)
 } // namespace
@@ -535,10 +536,14 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 				const int Fn = Ed.A == Arm.Node ? Ed.B : Ed.A;
 				if (size_t(Fn) >= G.Adjacent.size() || G.Adjacent[size_t(Fn)].size() != 2) break;
 				const int Next = G.Adjacent[size_t(Fn)][0] == Arm.Edge ? G.Adjacent[size_t(Fn)][1] : G.Adjacent[size_t(Fn)][0];
-				if (Next == Arm.Edge || OnRide[size_t(Next)] || RingRoads.count(Next) != 0 || Eaten(Next) || G.CircuitEdge(Next) || RingOfEdge.count(Next) != 0 || G.Edges[size_t(Next)].A == G.Edges[size_t(Next)].B) break;
+				if (Next == Arm.Edge || OnRide[size_t(Next)] || RingRoads.count(Next) != 0 || Eaten(Next) || G.CircuitEdge(Next) || RingOfEdge.count(Next) != 0 || G.Edges[size_t(Next)].A == G.Edges[size_t(Next)].B)
+				{
+					if (WhyOn("WHOLE_WHY")) std::printf("followstop %zu why %d%d%d%d%d%d%d\n", Ji, int(Next == Arm.Edge), int(OnRide[size_t(Next)]), int(RingRoads.count(Next) != 0), int(Eaten(Next)), int(G.CircuitEdge(Next)), int(RingOfEdge.count(Next) != 0), int(G.Edges[size_t(Next)].A == G.Edges[size_t(Next)].B));
+					break;
+				}
 				bool Used = std::find(J.Inside.begin(), J.Inside.end(), Next) != J.Inside.end() || std::find(Extra.begin(), Extra.end(), Next) != Extra.end();
 				for (const JunctionArm& Other : Arms) Used = Used || Other.Edge == Next;
-				if (Used) break;
+				if (Used) { if (WhyOn("WHOLE_WHY")) std::printf("followstop %zu why used\n", Ji); break; }
 				Run += Ed.Length;
 				Extra.push_back(Arm.Edge);
 				Arm.Edge = Next;
@@ -601,7 +606,16 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			bool FarOnRide = false;
 			if (size_t(FarNode) < G.Adjacent.size())
 				for (int Ae : G.Adjacent[size_t(FarNode)]) FarOnRide = FarOnRide || OnRide[size_t(Ae)];
+			// ([smooth junctions stage 7] a plain point at its far end, the road going on as it is (followed as far as an arm
+			// goes, 25 m): no junction there to leave room for, its mouth to near that point)
+			bool Plain = !PlainOld && size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 2 && !FarOnRide;
+			if (Plain)
+			{
+				const int Next = G.Adjacent[size_t(FarNode)][0] == Arms[A].Edge ? G.Adjacent[size_t(FarNode)][1] : G.Adjacent[size_t(FarNode)][0];
+				Plain = Next != Arms[A].Edge && RingRoads.count(Next) == 0 && RingOfEdge.count(Next) == 0 && !G.CircuitEdge(Next) && G.Edges[size_t(Next)].A != G.Edges[size_t(Next)].B;
+			}
 			const double Room = size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 1 ? 0.9 * Own.Length
+				: Plain ? std::fmax(0.45 * Own.Length, Own.Length - 1.0)
 				: std::fmax(0.45 * Own.Length, RoomOld ? 0.0 : Own.Length - (FarOnRide ? 10.0 : 7.0));
 			// ([smooth junctions stage 5c] a short dead end (a drive, a yard's way in): its mouth at its end, not the whole
 			// junction turned down for it; 2,859 of the refusals in a three-town sample were these)
