@@ -650,6 +650,12 @@ def judge_ring(rec, rep, area):
         while d < -math.pi: d += 2 * math.pi
         turn += d
     where = {'area': area, 'id': rec['id'], 'lat': rec['lat'], 'lon': rec['lon'], 'ring': 1}
+    # (only where the ride goes round it, near its rim: a ride past a ring that is not round, a triangle of one-way
+    # roads its middle well off to one side, passes close by that middle and swings through a great angle about it
+    # while running straight on, Bradford's Haworth Road: none ridden round comes within 0.4 of its radius of the middle)
+    if pts and min(math.hypot(p[0], p[1]) for p in pts) < 0.4 * rec['radius']:
+        rep.notes['rings passed by, not ridden round'] += 1
+        return
     if abs(turn) > 0.5:
         rep.check('E1', turn > 0, where, 1.0, f"ridden anticlockwise ({math.degrees(turn):.0f} degrees)")
 
