@@ -3548,7 +3548,12 @@ int main(int Argc, char** Argv)
 			const Geo Ll = G.FrameOf().ToGeo(G.Nodes[size_t(F.Node)].X, G.Nodes[size_t(F.Node)].Z);
 			{
 				const int Jw = size_t(F.Node) < Plan->JunctionOfNode.size() ? Plan->JunctionOfNode[size_t(F.Node)] : -1;
-				if (Jw >= 0 && size_t(Jw) < Plan->WholeWhy.size()) std::printf("jwhy %d %d\n", F.Node, int(Plan->WholeWhy[size_t(Jw)]));   // [smooth junctions stage 5]
+				int Why = Jw >= 0 && size_t(Jw) < Plan->WholeWhy.size() ? int(Plan->WholeWhy[size_t(Jw)]) : -1;
+				// ([smooth junctions stage 7] a ring's node: why its ring, a place of its own, was not built whole (20 + code))
+				if (Jw >= 0 && Plan->JunctionPlaces[size_t(Jw)].Ring >= 0)
+					for (size_t Jm = 0; Jm < Plan->JunctionPlaces.size(); ++Jm)
+						if (Plan->JunctionPlaces[Jm].Made && Plan->JunctionPlaces[Jm].Ring == Plan->JunctionPlaces[size_t(Jw)].Ring) { Why = Plan->WholeOf[Jm].Ok ? 0 : int(Plan->WholeWhy[Jm]); break; }
+				if (Why >= 0) std::printf("jwhy %d %d\n", F.Node, Why);   // [smooth junctions stage 5]
 			}
 			std::printf("jcheck node %d (%.5f, %.5f) %zu roads: fold %.1f step %.1f spike %.1f hole %.1f land %.1f grass %.1f%s | %s over %.1f ride %d/%d bad off %.1f jolt %.3f pull %.1f%s%s%s%s\n", F.Node, Ll.Lat, Ll.Lon, G.Adjacent[size_t(F.Node)].size(),
 				F.Fold, F.Step, F.Spike, F.Hole, F.Land, F.Grass, IsBad ? "  BAD" : "", F.Type.c_str(), F.Over, F.BadTurns, F.Turns, F.Off, F.Jolt, F.Pull, F.BadTurns > 0 ? "  RIDEBAD" : "", F.Meets() ? "  MEETS" : "",
