@@ -71,101 +71,207 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 	};
 	const auto Tunnel = [&](double Along) { return Pts[PointAt(Pts, Along)].Tunnel; };
 
+	// [road rulebook stage 3b] (on the ride's road, the stretches counted along its map road's own way, RideU, and each
+	// stretch's dice keyed by where it starts, not by the ride's number or how far along the ride it is: the same
+	// patches, seams, grit and covers whichever way and from wherever the road is ridden. A Piece is a run of the
+	// road where U = Sign * Along + Off; a mark is cut at a piece's ends, where the map's road meets another)
+	struct Piece { double A0, A1, Sign, Off; };
+	std::vector<Piece> Pieces;
+	const bool ByU = Main && RideU.size() == Pts.size();
+	if (ByU)
+	{
+		const size_t P0 = PointAt(Pts, std::max(From - 70.0, 0.0));
+		size_t P1 = PointAt(Pts, To + 70.0);
+		P1 = std::min(P1 + 1, Pts.size() - 1);
+		Piece Cur{Pts[P0].Along, Pts[P0].Along, 1.0, 0.0};
+		bool Open = false;
+		for (size_t P = P0; P < P1; ++P)
+		{
+			const double Da = Pts[P + 1].Along - Pts[P].Along, Du = RideU[P + 1] - RideU[P];
+			if (Da < 1e-9) continue;
+			const bool Same = std::fabs(std::fabs(Du) - Da) < 0.5;
+			if (Same)
+			{
+				const double Sg = Du < 0.0 ? -1.0 : 1.0, Off = RideU[P] - Sg * Pts[P].Along;
+				if (Open && Cur.Sign == Sg && std::fabs(Cur.Off - Off) < 0.5) { Cur.A1 = Pts[P + 1].Along; continue; }
+				if (Open) Pieces.push_back(Cur);
+				Cur = Piece{Pts[P].Along, Pts[P + 1].Along, Sg, Off};
+				Open = true;
+			}
+			else if (Open)
+			{
+				// (two map roads meet between these points: each piece runs to the middle)
+				Cur.A1 = Pts[P].Along + 0.5 * Da;
+				Pieces.push_back(Cur);
+				Open = false;
+				// (the next piece takes up from that middle on its own U, found from the point after)
+				if (P + 2 <= P1 && Pts[P + 2].Along - Pts[P + 1].Along > 1e-9)
+				{
+					const double Du2 = RideU[P + 2] - RideU[P + 1];
+					const double Sg = Du2 < 0.0 ? -1.0 : 1.0;
+					Cur = Piece{Pts[P].Along + 0.5 * Da, Pts[P + 1].Along, Sg, RideU[P + 1] - Sg * Pts[P + 1].Along};
+					Open = true;
+				}
+			}
+		}
+		if (Open) Pieces.push_back(Cur);
+	}
+	else Pieces.push_back(Piece{-1e18, 1e18, 1.0, 0.0});
+	// (where on the road a piece's U is: the ride's road's point there, for the key)
+	const auto KeyAt = [&](const Piece& Pc, double U)
+	{
+		if (!ByU) return Which;
+		const double A = std::clamp((U - Pc.Off) / Pc.Sign, Pts.front().Along, Pts.back().Along);
+		const size_t I = PointAt(Pts, A);
+		const size_t J = std::min(I + 1, Pts.size() - 1);
+		const double Sp = Pts[J].Along - Pts[I].Along;
+		const double T = Sp > 1e-9 ? std::clamp((A - Pts[I].Along) / Sp, 0.0, 1.0) : 0.0;
+		const P2 At = Pts[I].At + (Pts[J].At - Pts[I].At) * T;
+		// (a 4 m square: the same for both ways of laying the road, the road's own line being the same within mm)
+		const uint32_t Kx = static_cast<uint32_t>(static_cast<int32_t>(std::floor(At.X / 4.0))), Kz = static_cast<uint32_t>(static_cast<int32_t>(std::floor(At.Z / 4.0)));
+		uint32_t H = Kx * 73856093u ^ Kz * 19349663u ^ 0x5bd1e995u;
+		H ^= H >> 13;
+		H *= 0x85ebca6bu;
+		H ^= H >> 16;
+		return static_cast<int>(H & 0x3fffffffu) + 1;
+	};
+	// (each bucket of Step m of U over From to To, less Pre before: its piece, number and key; Put turns a mark from U
+	// across the piece's own left into the road's along and left, cut to the piece, and keeps it if it reaches From..To)
+	const auto Buckets = [&](double Step, double Pre, const auto& Body)
+	{
+		for (const Piece& Pc : Pieces)
+		{
+			const double C0 = std::max(Pc.A0, From - Pre - 30.0), C1 = std::min(Pc.A1, To + 30.0);
+			if (C1 <= C0) continue;
+			const double Ua = Pc.Sign * C0 + Pc.Off, Ub = Pc.Sign * C1 + Pc.Off;
+			const double U0 = std::min(Ua, Ub), U1 = std::max(Ua, Ub);
+			for (int B = int(std::floor((U0 - Pre) / Step)); double(B) * Step < U1; ++B) Body(Pc, B, KeyAt(Pc, double(B) * Step));
+		}
+	};
+	const auto Put = [&](const Piece& Pc, RoadMark M)
+	{
+		double A0 = (M.From - Pc.Off) / Pc.Sign, A1 = (M.To - Pc.Off) / Pc.Sign;
+		if (A1 < A0) std::swap(A0, A1);
+		if (Pc.Sign < 0.0) { const double L = M.Left; M.Left = -M.Right; M.Right = -L; }
+		M.From = std::max(A0, Pc.A0);
+		M.To = std::min(A1, Pc.A1);
+		if (M.To <= M.From || M.To < From || M.From > To) return false;
+		Out.push_back(M);
+		return true;
+	};
+	const auto AlongOf = [](const Piece& Pc, double U) { return (U - Pc.Off) / Pc.Sign; };
+
 	// Patches in the wheel tracks, one in a 40 m stretch now and then (more on the lanes, which the
 	// council patches and never resurfaces), each ringed with tar where it was sealed.
-	for (int B = int(std::floor((From - 41.0) / 40.0)); double(B) * 40.0 < To; ++B)
+	Buckets(40.0, 41.0, [&](const Piece& Pc, int B, int Key)
 	{
-		if (B < 0 || Dice(Which, B, 1) >= (Main ? 0.3 : 0.45)) continue;
+		if (B < 0 || Dice(Key, B, 1) >= (Main ? 0.3 : 0.45)) return;
 		RoadMark M;
 		M.Kind = MarkPatch;
-		M.From = double(B) * 40.0 + Dice(Which, B, 2) * 28.0;
-		M.To = M.From + 3.0 + Dice(Which, B, 3) * 9.0;
-		if (M.To > RoadLen - 2.0 || M.From < 2.0 || Tunnel(M.From)) continue;
-		const double Half = std::min(HalfAt(Pts, M.From), HalfAt(Pts, M.To));
-		if (Half < 1.2) continue;
-		const double Wide = std::min(1.2 + Dice(Which, B, 4) * 2.0, Half * 2.0 - 0.4);
-		const double Mid = std::clamp((Dice(Which, B, 5) - 0.5) * Half * 1.2, -Half + 0.2 + Wide * 0.5, Half - 0.2 - Wide * 0.5);
+		M.From = double(B) * 40.0 + Dice(Key, B, 2) * 28.0;
+		M.To = M.From + 3.0 + Dice(Key, B, 3) * 9.0;
+		const double F = std::min(AlongOf(Pc, M.From), AlongOf(Pc, M.To)), T = std::max(AlongOf(Pc, M.From), AlongOf(Pc, M.To));
+		if (T > RoadLen - 2.0 || F < 2.0 || Tunnel(AlongOf(Pc, M.From))) return;
+		const double Half = std::min(HalfAt(Pts, F), HalfAt(Pts, T));
+		if (Half < 1.2) return;
+		const double Wide = std::min(1.2 + Dice(Key, B, 4) * 2.0, Half * 2.0 - 0.4);
+		const double Mid = std::clamp((Dice(Key, B, 5) - 0.5) * Half * 1.2, -Half + 0.2 + Wide * 0.5, Half - 0.2 - Wide * 0.5);
 		M.Left = Mid + Wide * 0.5;
 		M.Right = Mid - Wide * 0.5;
 		M.Lift = 0.004;
-		if (Dice(Which, B, 6) < 0.5) ColourMark(M, 0.013f, 0.013f, 0.015f);   // (newer: blacker than the road)
+		if (Dice(Key, B, 6) < 0.5) ColourMark(M, 0.013f, 0.013f, 0.015f);   // (newer: blacker than the road)
 		else ColourMark(M, 0.038f, 0.037f, 0.036f);                           // (older: grey, the stone showing)
-		if (M.To < From || M.From > To) continue;
-		Out.push_back(M);
+		const RoadMark Patch = M;
+		if (!Put(Pc, M)) return;
 		RoadMark Ring;
 		Ring.Kind = MarkTar;
 		Ring.Lift = 0.005;
 		ColourMark(Ring, 0.006f, 0.006f, 0.007f);
 		const double Band = 0.09;
-		for (double Edge : {M.Left, M.Right})
+		for (double Edge : {Patch.Left, Patch.Right})
 		{
-			Ring.From = M.From - Band;
-			Ring.To = M.To + Band;
+			Ring.From = Patch.From - Band;
+			Ring.To = Patch.To + Band;
 			Ring.Left = Edge + Band * 0.5;
 			Ring.Right = Edge - Band * 0.5;
-			Out.push_back(Ring);
+			Put(Pc, Ring);
 		}
-		for (double End : {M.From, M.To})
+		for (double End : {Patch.From, Patch.To})
 		{
 			Ring.From = End - Band * 0.5;
 			Ring.To = End + Band * 0.5;
-			Ring.Left = M.Left + Band * 0.5;
-			Ring.Right = M.Right - Band * 0.5;
-			Out.push_back(Ring);
+			Ring.Left = Patch.Left + Band * 0.5;
+			Ring.Right = Patch.Right - Band * 0.5;
+			Put(Pc, Ring);
 		}
-	}
+	});
 	// Old seams sealed with a long line of tar, a little off the middle, on roads wide enough for two.
-	for (int B = int(std::floor((From - 61.0) / 60.0)); double(B) * 60.0 < To; ++B)
+	Buckets(60.0, 61.0, [&](const Piece& Pc, int B, int Key)
 	{
-		if (B < 0 || Dice(Which, B, 11) >= 0.3) continue;
+		if (B < 0 || Dice(Key, B, 11) >= 0.3) return;
 		RoadMark M;
 		M.Kind = MarkTar;
-		M.From = double(B) * 60.0 + Dice(Which, B, 12) * 10.0;
-		M.To = std::min(M.From + 25.0 + Dice(Which, B, 13) * 25.0, RoadLen - 1.0);
-		if (M.To <= M.From || HalfAt(Pts, M.From) < 2.5 || Tunnel(M.From)) continue;
-		const double At = (Dice(Which, B, 14) < 0.5 ? 1.0 : -1.0) * (0.3 + 0.3 * Dice(Which, B, 15));
+		M.From = double(B) * 60.0 + Dice(Key, B, 12) * 10.0;
+		M.To = M.From + 25.0 + Dice(Key, B, 13) * 25.0;
+		const double F = std::clamp(AlongOf(Pc, M.From), 0.0, RoadLen);   // (where it starts, by U: the same place either way)
+		if (HalfAt(Pts, F) < 2.5 || Tunnel(F)) return;
+		const double At = (Dice(Key, B, 14) < 0.5 ? 1.0 : -1.0) * (0.3 + 0.3 * Dice(Key, B, 15));
 		M.Left = At + 0.06;
 		M.Right = At - 0.06;
 		M.Lift = 0.003;
 		ColourMark(M, 0.006f, 0.006f, 0.007f);
-		if (M.To >= From && M.From <= To) Out.push_back(M);
-	}
+		// (none past the road's last metre)
+		const double Fa = (M.From - Pc.Off) / Pc.Sign, Ta = (M.To - Pc.Off) / Pc.Sign;
+		if (std::max(Fa, Ta) > RoadLen - 1.0)
+		{
+			const double Cut = Pc.Sign * (RoadLen - 1.0) + Pc.Off;
+			if (Pc.Sign > 0.0) M.To = std::min(M.To, Cut); else M.From = std::max(M.From, Cut);
+		}
+		if (M.To > M.From) Put(Pc, M);
+	});
 	// Grit down the middle of a single-track lane, where the tyres never go, out in the country.
 	// ([build 168] beenster on 167: "more sparse": on a little over half the lane's 30 m stretches, not 70%)
-	for (int B = int(std::floor(From / 30.0)); double(B) * 30.0 < To; ++B)
+	Buckets(30.0, 0.0, [&](const Piece& Pc, int B, int Key)
 	{
-		if (B < 0 || Dice(Which, B, 21) >= 0.55) continue;
-		const double A0 = double(B) * 30.0, A1 = std::min(A0 + 30.0, RoadLen);
-		if (HalfAt(Pts, A0) >= 2.0 || HalfAt(Pts, A1) >= 2.0 || Built(A0) || Tunnel(A0)) continue;
+		if (B < 0 || Dice(Key, B, 21) >= 0.55) return;
+		const double U0 = double(B) * 30.0;
+		const double A0 = std::clamp(std::min(AlongOf(Pc, U0), AlongOf(Pc, U0 + 30.0)), 0.0, RoadLen), A1 = std::clamp(std::max(AlongOf(Pc, U0), AlongOf(Pc, U0 + 30.0)), 0.0, RoadLen);
+		const double Start = std::clamp(AlongOf(Pc, U0), 0.0, RoadLen);
+		if (HalfAt(Pts, A0) >= 2.0 || HalfAt(Pts, A1) >= 2.0 || Built(Start) || Tunnel(Start)) return;
 		RoadMark M;
 		M.Kind = MarkGrit;
-		M.From = A0;
-		M.To = A1;
-		const double Wide = 0.35 + 0.25 * Dice(Which, B, 22);
+		M.From = U0;
+		M.To = U0 + 30.0;
+		const double Wide = 0.35 + 0.25 * Dice(Key, B, 22);
 		M.Left = Wide * 0.5;
 		M.Right = -Wide * 0.5;
 		M.Lift = 0.002;
 		ColourMark(M, 0.06f, 0.062f, 0.085f);   // (WorldRide's LaneGrit: M_RideRoad's key for the lane's grit)
-		if (M.To >= From && M.From <= To) Out.push_back(M);
-	}
+		// (cut to the road)
+		const double Fa = AlongOf(Pc, M.From), Ta = AlongOf(Pc, M.To);
+		if (Pc.Sign > 0.0) { if (Ta > RoadLen) M.To = Pc.Sign * RoadLen + Pc.Off; if (Fa < 0.0) M.From = Pc.Off; }
+		else { if (Fa > RoadLen) M.From = Pc.Sign * RoadLen + Pc.Off; if (Ta < 0.0) M.To = Pc.Off; }
+		if (M.To > M.From) Put(Pc, M);
+	});
 	// Iron covers in a town's road: the drains and the water mains, in the wheel tracks more than not.
-	for (int B = int(std::floor((From - 22.0) / 22.0)); double(B) * 22.0 < To; ++B)
+	Buckets(22.0, 22.0, [&](const Piece& Pc, int B, int Key)
 	{
-		const double A0 = double(B) * 22.0 + Dice(Which, B, 31) * 15.0;
-		if (B < 0 || Dice(Which, B, 32) >= 0.55 || !Built(A0) || Tunnel(A0)) continue;
+		const double U0 = double(B) * 22.0 + Dice(Key, B, 31) * 15.0;
+		const double A0 = AlongOf(Pc, U0);
+		if (B < 0 || Dice(Key, B, 32) >= 0.55 || A0 < 0.0 || A0 > RoadLen || !Built(A0) || Tunnel(A0)) return;
 		const double Half = HalfAt(Pts, A0);
-		const double Size = Dice(Which, B, 33) < 0.6 ? 0.6 : 0.45;
-		const double At = (Dice(Which, B, 34) < 0.5 ? 1.0 : -1.0) * std::min(Half * (0.3 + 0.35 * Dice(Which, B, 35)), Half - 0.5);
+		const double Size = Dice(Key, B, 33) < 0.6 ? 0.6 : 0.45;
+		const double At = (Dice(Key, B, 34) < 0.5 ? 1.0 : -1.0) * std::min(Half * (0.3 + 0.35 * Dice(Key, B, 35)), Half - 0.5);
 		RoadMark M;
 		M.Kind = MarkCover;
-		M.From = A0;
-		M.To = A0 + Size;
+		M.From = U0;
+		M.To = U0 + Size;
 		M.Left = At + Size * 0.5;
 		M.Right = At - Size * 0.5;
 		M.Lift = -0.008;
 		ColourMark(M, 0.045f, 0.043f, 0.04f);
-		if (M.To >= From && M.From <= To) Out.push_back(M);
-	}
+		Put(Pc, M);
+	});
 	// A steel joint across the road where it goes onto a bridge and off it again.
 	for (size_t I = PointAt(Pts, std::max(From - 4.0, 0.0)); I + 1 < Pts.size() && Pts[I].Along <= To + 4.0; ++I)
 	{

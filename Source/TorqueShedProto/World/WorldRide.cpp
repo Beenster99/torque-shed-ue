@@ -502,6 +502,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair, Tight);
 	std::vector<P2> RideLineU;   // [road rulebook stage 3a] (the run-true line's knots and their U, for RideU once laid)
 	std::vector<double> RideLineUs;
+	std::vector<int> RideLineId;   // [road rulebook stage 3b] (each knot's stretch: its run's number and the stretch's within it)
 	// [road rulebook stage 3a] (roads first, route second: the ride's road laid as the map's road is, whatever the route
 	// and whichever way it is ridden. Each run of the map's road between two junctions (through its plain points, the
 	// whole run even where the ride joins or leaves it partway) smoothed on its own, always from the same end, and the
@@ -531,6 +532,8 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		};
 		std::vector<P2> Edgy;
 		std::vector<double> EdgyU;   // (each knot's way along its run from the run's own first end)
+		std::vector<int> EdgyId;     // (and which stretch it is on)
+		int RunNo = 0;
 		std::vector<size_t> Seams;   // (the knots where one run meets the next: a junction's node)
 		int Node = From;
 		size_t I = 0;
@@ -645,16 +648,17 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 				PartS.push_back(S1);
 			}
 			else { Part = Run; PartS = RunAt; }
-			// (U: from the run's first end as smoothed, so the same knot has the same U however the run is ridden; runs
-			// apart by a kilometre each, so no two meet in step by chance)
 			// (U: from one end of the stretch between the run's junctions it is on, the end further west (or south): the
 			// same whichever way and however far the run is ridden)
+			int StretchNo = 0;
 			const auto UOf = [&](double S)
 			{
 				const double Ra = RunLen > 1e-6 ? S / RunLen * RawLen : S;
+				StretchNo = 0;
 				if (Stops.size() < 2) return Ra;
 				size_t Q = 0;
 				while (Q + 2 < Stops.size() && Stops[Q + 1].first <= Ra) ++Q;
+				StretchNo = int(Q);
 				const std::pair<double, P2>& A = Stops[Q];
 				const std::pair<double, P2>& B = Stops[Q + 1];
 				const bool FromA = A.second.X < B.second.X - 1e-6 || (std::fabs(A.second.X - B.second.X) <= 1e-6 && A.second.Z <= B.second.Z);
@@ -666,7 +670,9 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 				{
 					Edgy.push_back(Part[K]);
 					EdgyU.push_back(UOf(PartS[K]));
+					EdgyId.push_back(RunNo * 4096 + StretchNo);
 				}
+			++RunNo;
 			Node = End;
 			I = J + 1;
 		}
@@ -674,6 +680,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		{
 			RideLineU.assign(Edgy.begin(), Edgy.end());
 			RideLineUs.swap(EdgyU);
+			RideLineId.swap(EdgyId);
 			// (where the ride turns from one run to the next at a junction, its own way round: 20 m either side smoothed as
 			// a junction's corner is, tight where it turns hard; the rest of each run as the map's road. Within a junction
 			// built whole the piece is drawn over it; at one not, the turn rides as it did. Highland and York turns jolted
@@ -888,9 +895,10 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	// [road rulebook stage 3a] (each laid point's U, from the run-true knot it lies by: the knots and the points are the
 	// same but where a square turn was spliced in, so a walk along both finds it)
 	R->RideU.clear();
-	if (RideLineU.size() >= 2 && RideLineUs.size() == RideLineU.size())
+	if (RideLineU.size() >= 2 && RideLineUs.size() == RideLineU.size() && RideLineId.size() == RideLineU.size())
 	{
 		R->RideU.resize(R->Road.size(), 0.0);
+		std::vector<int> Stretch(R->Road.size(), 0);
 		size_t K = 0;
 		for (size_t P = 0; P < R->Road.size(); ++P)
 		{
@@ -903,6 +911,31 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			const double L2 = D.X * D.X + D.Z * D.Z;
 			const double T = L2 > 1e-12 ? std::clamp(((At.X - RideLineU[K0].X) * D.X + (At.Z - RideLineU[K0].Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
 			R->RideU[P] = RideLineUs[K0] + (RideLineUs[K1] - RideLineUs[K0]) * T;
+			Stretch[P] = RideLineId[T < 0.5 ? K0 : K1];
+		}
+		// ([road rulebook stage 3b] the knots are the line before its corners were smoothed, and a point's nearest knot
+		// wandered round a bend, so U ran faster or slower than the road, or jumped, and the dashes came out doubled or
+		// with 10 m gaps (D1, C6). Now each piece of one map road's stretch between junctions runs at exactly a metre
+		// of U a metre, from the U its middle point has: a middle well clear of the corners at its ends, so the same
+		// whichever way it is ridden)
+		std::vector<double>& U = R->RideU;
+		const std::vector<RoadPoint>& Rd = R->Road;
+		size_t S0 = 0;
+		for (size_t P = 1; P <= Rd.size(); ++P)
+		{
+			const bool Break = P == Rd.size() || Stretch[P] != Stretch[P - 1];
+			if (!Break) continue;
+			const size_t S1 = P - 1;   // (the piece S0..S1)
+			if (S1 > S0)
+			{
+				const double Mid = 0.5 * (Rd[S0].Along + Rd[S1].Along);
+				size_t M = S0;
+				for (size_t Q = S0; Q <= S1; ++Q)
+					if (std::fabs(Rd[Q].Along - Mid) < std::fabs(Rd[M].Along - Mid)) M = Q;
+				const double Sg = U[S1] >= U[S0] ? 1.0 : -1.0, Um = U[M], Am = Rd[M].Along;
+				for (size_t Q = S0; Q <= S1; ++Q) U[Q] = Um + Sg * (Rd[Q].Along - Am);
+			}
+			S0 = P;
 		}
 	}
 	// (where the last pin is on the road as laid: the run-out is past it)
@@ -1373,7 +1406,21 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		size_t Best = 0;
 		for (size_t K = 1; K < Road.size(); ++K)
 			if (Road[K].At.DistanceTo(At) < Road[Best].At.DistanceTo(At)) Best = K;
-		if (Road[Best].At.DistanceTo(At) < 15.0) RideThroughAt.push_back(Road[Best].Along);
+		if (Road[Best].At.DistanceTo(At) >= 15.0) continue;
+		// ([road rulebook stage 3b] where the node lies along the road between its points, not the nearest point:
+		// the same whichever way the ride passes)
+		double AtAlong = Road[Best].Along, Closest = Road[Best].At.DistanceTo(At);
+		for (const size_t S : {Best > 0 ? Best - 1 : Best, Best})
+		{
+			if (S + 1 >= Road.size()) continue;
+			const P2 D = Road[S + 1].At - Road[S].At;
+			const double L2 = D.X * D.X + D.Z * D.Z;
+			if (L2 < 1e-9) continue;
+			const double T = std::clamp(((At.X - Road[S].At.X) * D.X + (At.Z - Road[S].At.Z) * D.Z) / L2, 0.0, 1.0);
+			const P2 On = Road[S].At + D * T;
+			if (On.DistanceTo(At) < Closest) { Closest = On.DistanceTo(At); AtAlong = Road[S].Along + (Road[S + 1].Along - Road[S].Along) * T; }
+		}
+		RideThroughAt.push_back(AtAlong);
 	}
 	std::sort(RideThroughAt.begin(), RideThroughAt.end());
 	const Region& G = Area.Roads;
@@ -3847,12 +3894,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 	std::vector<std::pair<double, double>> WarnZones;
 	if (Which == 0)
 	{
-		for (size_t I = size_t(std::max(0, First - 24)); I < MouthAt.size() && I <= size_t(Last) + 24 && I < Pts.size(); ++I)
-		{
-			if (MouthAt[I] == 0) continue;
-			const double Reach = RoadX::WarningReach(PaintMph(0, Pts[I].Along, false));
-			WarnZones.emplace_back(Pts[I].Along - Reach, Pts[I].Along + Reach);
-		}
+		// (the side roads' mouths: below, once their exact gaps are known)
 		const double A0 = Pts[size_t(First)].Along - 70.0, A1 = Pts[size_t(Last)].Along + 70.0;
 		for (const double T : RideThroughAt)
 			if (T > A0 && T < A1)
@@ -3897,9 +3939,12 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 	// mouth draws them, so the corner's own kerb carries straight on from the street's (beenster Nov 14:
 	// "the pavements need to curve round, not just stop"). By side (0 left, 1 right), from and to along.
 	std::vector<std::pair<double, double>> MouthGap[2];
+	std::vector<std::pair<double, double>> StreetGap;   // ([road rulebook stage 3b] those of roads that can be town streets, either side)
 	if (Which == 0 && Rows.size() >= 2)
 	{
-		const double Lo = Rows.front().Along - 20.0, Hi = Rows.back().Along + 20.0;
+		// (as far as a warning line reaches, and as far as the road's points looked at for one below)
+		const double Lo = std::fmin(Rows.front().Along - 70.0, Pts[size_t(std::max(0, First - 24))].Along - 10.0);
+		const double Hi = std::fmax(Rows.back().Along + 70.0, Pts[std::min(size_t(Last) + 24, Pts.size() - 1)].Along + 10.0);
 		for (const int Sw : Planned)
 		{
 			const SideRoad* Sr = SideOf(Sw);
@@ -3937,8 +3982,30 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 					Ends[FarSg] = Ends[FarSg] >= Ends[1 - FarSg] ? std::fmax(Ends[FarSg], Far->second.RideTo) : std::fmin(Ends[FarSg], Far->second.RideFrom);
 				}
 				if (Good && OnSide >= 0 && std::fabs(Ends[1] - Ends[0]) < 60.0)
+				{
 					MouthGap[OnSide].push_back({std::fmin(Ends[0], Ends[1]), std::fmax(Ends[0], Ends[1])});
+					if (Sr->Edge >= 0 && StreetClass(Area.Roads.ClassOf(Sr->Edge))) StreetGap.push_back(MouthGap[OnSide].back());
+				}
 			}
+		}
+		// [road rulebook C6] (the warning line either side of a mouth: from its corners' ends where those are known,
+		// [road rulebook stage 3b] so it starts in the same place whichever way the ride passes; else from the
+		// road's points beside the mouth)
+		for (int Sd = 0; Sd < 2; ++Sd)
+			for (const std::pair<double, double>& Gp : MouthGap[Sd])
+			{
+				const double Reach = RoadX::WarningReach(PaintMph(0, 0.5 * (Gp.first + Gp.second), false));
+				WarnZones.emplace_back(Gp.first - 0.5 - Reach, Gp.second + 0.5 + Reach);
+			}
+		for (size_t I = size_t(std::max(0, First - 24)); I < MouthAt.size() && I <= size_t(Last) + 24 && I < Pts.size(); ++I)
+		{
+			if (MouthAt[I] == 0) continue;
+			bool Known = false;
+			for (int Sd = 0; Sd < 2 && !Known; ++Sd)
+				for (const std::pair<double, double>& Gp : MouthGap[Sd]) Known = Known || (Pts[I].Along > Gp.first - 6.0 && Pts[I].Along < Gp.second + 6.0);
+			if (Known) continue;
+			const double Reach = RoadX::WarningReach(PaintMph(0, Pts[I].Along, false));
+			WarnZones.emplace_back(Pts[I].Along - Reach, Pts[I].Along + Reach);
 		}
 	}
 	const int LidArch = 4;   // (the lid's first point over the arch)
@@ -4348,6 +4415,53 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		if (!(A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel || Setts || OnRingTar))
 		{
 			const double Half = std::fmin(A.Half, B.Half);
+			// ([road rulebook stage 3b] the lines along the ride's road's edges stop at a side road's mouth exactly where its
+			// corners end (MouthGap, 0.5 m short), not at the nearest of the road's points: the same whichever way the ride
+			// passes. A side of the row is barred whole (MouthAt) only where a mouth there has no exact gap known.)
+			const size_t At0 = size_t(First) + K;
+			const double RowLen = B.Along - A.Along;
+			const auto Explained = [&](size_t P, int Sd)
+			{
+				for (const std::pair<double, double>& Gp : MouthGap[Sd])
+					if (Pts[P].Along > Gp.first - 6.0 && Pts[P].Along < Gp.second + 6.0) return true;
+				return false;
+			};
+			const auto MouthBars = [&](double Side)
+			{
+				if (Which != 0 || At0 + 1 >= MouthAt.size() || At0 + 1 >= Pts.size()) return false;
+				const int Sd = Side > 0.0 ? 0 : 1;
+				const unsigned char Bit = Side > 0.0 ? 1 : 2;
+				return ((MouthAt[At0] & Bit) != 0 && !Explained(At0, Sd)) || ((MouthAt[At0 + 1] & Bit) != 0 && !Explained(At0 + 1, Sd));
+			};
+			// (the parts of [T0, T1] of the row clear of this side's mouths)
+			const auto ClearOfMouths = [&](double Side, double T0, double T1)
+			{
+				std::vector<std::pair<double, double>> Keep, Next;
+				if (T1 > T0) Keep.push_back({T0, T1});
+				if (Which != 0 || RowLen < 1e-6) return Keep;
+				for (const std::pair<double, double>& Gp : MouthGap[Side > 0.0 ? 0 : 1])
+				{
+					const double G0 = (Gp.first - 0.5 - A.Along) / RowLen, G1 = (Gp.second + 0.5 - A.Along) / RowLen;
+					Next.clear();
+					for (const std::pair<double, double>& Kp : Keep)
+					{
+						if (G1 <= Kp.first || G0 >= Kp.second) { Next.push_back(Kp); continue; }
+						if (G0 > Kp.first) Next.push_back({Kp.first, G0});
+						if (G1 < Kp.second) Next.push_back({G1, Kp.second});
+					}
+					Keep.swap(Next);
+				}
+				return Keep;
+			};
+			// (a line Off m out from the middle on this side, W m either side of it, over those parts)
+			const auto AlongEdge = [&](double Side, double T0, double T1, double OffA, double OffB, double W, const float* Colour)
+			{
+				for (const std::pair<double, double>& Kp : ClearOfMouths(Side, T0, T1))
+				{
+					const double Ja = OffA + (OffB - OffA) * Kp.first, Jb = OffA + (OffB - OffA) * Kp.second;
+					Cut(Kp.first, Kp.second, Side * Ja + W, Side * Ja - W, Side * Jb + W, Side * Jb - W, Colour);
+				}
+			};
 			// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
 			// 3 m dashes with 6 m gaps.
 			// ([OSM stage 5D] none along a town street's kerbs)
@@ -4358,15 +4472,13 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				for (double Side : {1.0, -1.0})
 				{
 					// (none across a junction's mouth)
-					const size_t At0 = size_t(First) + K;
-					if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
-					if (OnRideTarmac(Side)) continue;
+					if (MouthBars(Side) || OnRideTarmac(Side)) continue;
 					// ([OSM stage 5C] on a motorway's nearside, between the lanes and the hard shoulder: 0.2 m wide)
 					const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
 					// ([road rulebook D6] 1012.1: 100 mm wide, its outer side 225 mm in from the edge as seen, past the worn grass)
 					const double In = RoadX::EdgeWorn + RoadX::EdgeLineIn + RoadX::EdgeLineHalfWidth;
 					const double Ia = Hard ? A.Half - A.Shoulder : A.Half - In, Ib = Hard ? B.Half - B.Shoulder : B.Half - In, W = Hard ? 0.1 : RoadX::EdgeLineHalfWidth;
-					Cut(0.0, 1.0, Side * Ia + W, Side * Ia - W, Side * Ib + W, Side * Ib - W, Paint);
+					AlongEdge(Side, 0.0, 1.0, Ia, Ib, W, Paint);
 				}
 			}
 			// [OSM stage 5D] Double yellow lines along a town street's kerbs near a junction (no parking
@@ -4378,8 +4490,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				for (double Side : {1.0, -1.0})
 				{
 					const int Code = (A.Park >> (Side > 0.0 ? 0 : 2)) & 3;
-					const size_t At0 = size_t(First) + K;
-					if (Code == 0 || (Code == 3 && Half < 2.9) || (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) || OnRideTarmac(Side)) continue;
+					if (Code == 0 || (Code == 3 && Half < 2.9) || MouthBars(Side) || OnRideTarmac(Side)) continue;
 					if (Code == 3)
 					{
 						// (as deep as a car, less on a narrow street: a lane's width left between)
@@ -4396,26 +4507,49 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 					}
 					// (no-parking's lines from the junction rule below are drawn there instead)
 					if (Code == 1 && StreetRow[K] != 0 && StreetRow[K + 1] != 0) continue;
-					for (const double In : {0.29, 0.44})
-						Cut(0.0, 1.0, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, Code == 2 ? RedLine : Yellow);
+					for (const double In : {0.29, 0.44}) AlongEdge(Side, 0.0, 1.0, A.Half - In, B.Half - In, 0.0375, Code == 2 ? RedLine : Yellow);
 				}
 			if (StreetRow[K] != 0 && StreetRow[K + 1] != 0 && Half >= 2.4 && !YellowMouth)
 			{
-				const size_t At0 = size_t(First) + K;
+				// ([road rulebook stage 3b] on the ride's road, YellowReach m out from the ends of a street mouth's corners
+				// (StreetGap), cut there exactly; whole rows by StreetMouthAt's points only for a mouth with no exact gap)
 				bool NearJunction = false;
+				std::vector<std::pair<double, double>> Near;
 				if (Which == 0)
 				{
-					for (size_t P = At0; P < StreetMouthAt.size() && P < Pts.size() && Pts[P].Along - A.Along < YellowReach && !NearJunction; ++P) NearJunction = StreetMouthAt[P] != 0;
-					for (size_t P = At0 + 1; P-- > 0 && P < StreetMouthAt.size() && A.Along - Pts[P].Along < YellowReach && !NearJunction;) NearJunction = StreetMouthAt[P] != 0;
+					const auto Known = [&](size_t P)
+					{
+						for (const std::pair<double, double>& Gp : StreetGap)
+							if (Pts[P].Along > Gp.first - 6.0 && Pts[P].Along < Gp.second + 6.0) return true;
+						return false;
+					};
+					for (size_t P = At0; P < StreetMouthAt.size() && P < Pts.size() && Pts[P].Along - A.Along < YellowReach && !NearJunction; ++P) NearJunction = StreetMouthAt[P] != 0 && !Known(P);
+					for (size_t P = At0 + 1; P-- > 0 && P < StreetMouthAt.size() && P < Pts.size() && A.Along - Pts[P].Along < YellowReach && !NearJunction;) NearJunction = StreetMouthAt[P] != 0 && !Known(P);
+					if (RowLen > 1e-6)
+						for (const std::pair<double, double>& Gp : StreetGap)
+						{
+							const double T0 = std::fmax(0.0, (Gp.first - 0.5 - YellowReach - A.Along) / RowLen), T1 = std::fmin(1.0, (Gp.second + 0.5 + YellowReach - A.Along) / RowLen);
+							if (T1 > T0) Near.push_back({T0, T1});
+						}
+					std::sort(Near.begin(), Near.end());
+					std::vector<std::pair<double, double>> Merged;
+					for (const std::pair<double, double>& Nr : Near)
+					{
+						if (!Merged.empty() && Nr.first <= Merged.back().second) Merged.back().second = std::fmax(Merged.back().second, Nr.second);
+						else Merged.push_back(Nr);
+					}
+					Near.swap(Merged);
 				}
 				else
 					NearJunction = A.Along < YellowReach || Pts.back().Along - B.Along < YellowReach;
+				if (NearJunction) Near.assign(1, {0.0, 1.0});
 				for (double Side : {1.0, -1.0})
 				{
-					if (!NearJunction && ((A.Park >> (Side > 0.0 ? 0 : 2)) & 3) != 1) continue;
-					if ((Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) || OnRideTarmac(Side)) continue;
-					for (const double In : {0.29, 0.44})
-						Cut(0.0, 1.0, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, Yellow);
+					const bool NoParking = ((A.Park >> (Side > 0.0 ? 0 : 2)) & 3) == 1;
+					if ((!NoParking && Near.empty()) || MouthBars(Side) || OnRideTarmac(Side)) continue;
+					const std::vector<std::pair<double, double>> Spans = NoParking ? std::vector<std::pair<double, double>>{{0.0, 1.0}} : Near;
+					for (const std::pair<double, double>& Sp : Spans)
+						for (const double In : {0.29, 0.44}) AlongEdge(Side, Sp.first, Sp.second, A.Half - In, B.Half - In, 0.0375, Yellow);
 				}
 			}
 			// [OSM stage 5B] Where the ride's road comes onto a roundabout: one broken line across its own lane
@@ -4448,7 +4582,7 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				const double DashMid = 0.5 * (A.Along + B.Along);
 				const bool NearStart = Which == 0 || DashMid < 0.5 * Mine->Length;
 				const double DashSign = NearStart ? DashSign0 : DashSign1, DashShift = NearStart ? DashShift0 : DashShift1;
-				const auto Dashes = [&](const RoadX::DashPattern& P, const auto& Draw)
+				const auto Dashes = [&](const RoadX::DashPattern& P, const auto& Draw, double TLo = 0.0, double THi = 1.0)
 				{
 					// (in the pattern's own along U = Sign * along + Shift: marks [k * Cycle, k * Cycle + Mark))
 					double Ua = DashSign * A.Along + DashShift, Ub = DashSign * B.Along + DashShift;
@@ -4466,6 +4600,8 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 					{
 						double T0 = std::clamp((S0 - Ua) / (Ub - Ua), 0.0, 1.0), T1 = std::clamp((S0 + P.Mark - Ua) / (Ub - Ua), 0.0, 1.0);
 						if (T0 > T1) std::swap(T0, T1);
+						T0 = std::fmax(T0, TLo);
+						T1 = std::fmin(T1, THi);
 						if (AcrossThrough)
 						{
 							// (cut back to where the ride's own lines stop, a 0.1 m step at a time)
@@ -4479,7 +4615,19 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				if (RoadX::CentreLine(A.Lanes, A.OneWay, Half))
 				{
 					const double Cw = RoadX::CentreHalfWidth(Half);
-					Dashes(WarnAt(0.5 * (A.Along + B.Along)) ? RoadX::WarningDash(Mph) : RoadX::CentreDash(Mph), [&](double T0, double T1) { Cut(T0, T1, Cw, -Cw, Cw, -Cw, Paint); });
+					// ([road rulebook stage 3b] split where a warning line starts or ends inside the row, not the whole
+					// row one or the other)
+					std::vector<double> WarnCuts{0.0, 1.0};
+					for (const std::pair<double, double>& Z : WarnZones)
+						for (const double E : {Z.first, Z.second})
+							if (E > A.Along && E < B.Along) WarnCuts.push_back((E - A.Along) / (B.Along - A.Along));
+					std::sort(WarnCuts.begin(), WarnCuts.end());
+					for (size_t Sp = 0; Sp + 1 < WarnCuts.size(); ++Sp)
+					{
+						if (WarnCuts[Sp + 1] - WarnCuts[Sp] < 1e-6) continue;
+						const double Mid = A.Along + (B.Along - A.Along) * 0.5 * (WarnCuts[Sp] + WarnCuts[Sp + 1]);
+						Dashes(WarnAt(Mid) ? RoadX::WarningDash(Mph) : RoadX::CentreDash(Mph), [&](double T0, double T1) { Cut(T0, T1, Cw, -Cw, Cw, -Cw, Paint); }, WarnCuts[Sp], WarnCuts[Sp + 1]);
+					}
 				}
 				// ([OSM stage 5C] a motorway's lanes between its offside edge and its hard shoulder)
 				const double Ca = -double(A.Near) * A.Shoulder * 0.5, Cb = -double(B.Near) * B.Shoulder * 0.5;
@@ -4918,12 +5066,17 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 						const auto Edges = [&](const Row& R, double* E)
 						{
 							const double Ends = std::clamp(std::fmin(R.Along - Mk.From, Mk.To - R.Along) / 4.0, 0.0, 1.0);
-							const double Core = Half0 * (0.35 + 0.6 * Wob(R.Along, 81)) * Ends;
-							E[0] = Mid + Core + (0.35 + 0.5 * Wob(R.Along, 82)) * Ends;   // (left outer)
-							E[1] = Mid + Core * (0.7 + 0.5 * Wob(R.Along, 83));
+							// ([road rulebook stage 3b] on the ride's road by its map road's U, and its left as the map's road runs:
+							// the same band whichever way it is ridden)
+							double Sg = 1.0;
+							const double S = Which == 0 ? RideDashU(R.Along, Sg) : R.Along;
+							const int SaltL1 = Sg > 0.0 ? 82 : 85, SaltL2 = Sg > 0.0 ? 83 : 84, SaltR2 = Sg > 0.0 ? 84 : 83, SaltR1 = Sg > 0.0 ? 85 : 82;
+							const double Core = Half0 * (0.35 + 0.6 * Wob(S, 81)) * Ends;
+							E[0] = Mid + Core + (0.35 + 0.5 * Wob(S, SaltL1)) * Ends;   // (left outer)
+							E[1] = Mid + Core * (0.7 + 0.5 * Wob(S, SaltL2));
 							E[2] = Mid;                                                    // (the crown)
-							E[3] = Mid - Core * (0.7 + 0.5 * Wob(R.Along, 84));
-							E[4] = Mid - Core - (0.35 + 0.5 * Wob(R.Along, 85)) * Ends;   // (right outer)
+							E[3] = Mid - Core * (0.7 + 0.5 * Wob(S, SaltR2));
+							E[4] = Mid - Core - (0.35 + 0.5 * Wob(S, SaltR1)) * Ends;   // (right outer)
 						};
 						double E0[5], E1[5];
 						Edges(R0, E0);
@@ -4954,9 +5107,21 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		{
 			const bool Town = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
 			const double Stud = 18.288;
-			for (double S = std::ceil(A.Along / Stud) * Stud; S < B.Along && !Town; S += Stud)
+			// ([road rulebook stage 3b] on the ride's road at its map road's U, each stud centred there: the same studs
+			// whichever way it is ridden)
+			double StudUa = A.Along, StudUb = B.Along;
+			if (Which == 0 && !RideU.empty())
 			{
-				const double T0 = (S - A.Along) / (B.Along - A.Along), T1 = std::min((S + 0.1 - A.Along) / (B.Along - A.Along), 1.0);
+				double Sa = 1.0, Sb = 1.0;
+				const double Va = RideDashU(A.Along, Sa), Vb = RideDashU(B.Along, Sb);
+				StudUa = Va;
+				StudUb = std::fabs(std::fabs(Vb - Va) - (B.Along - A.Along)) < 0.3 ? Vb : Va + Sa * (B.Along - A.Along);
+			}
+			const double StudHalf = 0.05 / (B.Along - A.Along);
+			for (double S = std::ceil(std::fmin(StudUa, StudUb) / Stud) * Stud; S < std::fmax(StudUa, StudUb) && !Town; S += Stud)
+			{
+				const double Tc = (S - StudUa) / (StudUb - StudUa);
+				const double T0 = std::fmax(Tc - StudHalf, 0.0), T1 = std::fmin(Tc + StudHalf, 1.0);
 				const Row Sa = Between(A, B, T0), Sb = Between(A, B, T1);
 				static constexpr float WhiteEye[3] = {1.0f, 1.0f, 0.9f}, RedEye[3] = {1.0f, 0.04f, 0.03f};
 				Into = &Out.NightOf();
@@ -4981,9 +5146,21 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			const double Goes = Edge >= 0 && Edge < int(Area.Roads.Edges.size()) && Area.Roads.Edges[size_t(Edge)].Oneway < 0 ? -1.0 : 1.0;
 			const double Near = A.Near != 0 ? double(A.Near) : Goes * (KeepLeft() ? 1.0 : -1.0);
 			const double Stud = 18.288;
-			for (double S = std::ceil(A.Along / Stud) * Stud; S < B.Along && !Town; S += Stud)
+			// ([road rulebook stage 3b] on the ride's road at its map road's U, each stud centred there: the same studs
+			// whichever way it is ridden)
+			double StudUa = A.Along, StudUb = B.Along;
+			if (Which == 0 && !RideU.empty())
 			{
-				const double T0 = (S - A.Along) / (B.Along - A.Along), T1 = std::min((S + 0.1 - A.Along) / (B.Along - A.Along), 1.0);
+				double Sa = 1.0, Sb = 1.0;
+				const double Va = RideDashU(A.Along, Sa), Vb = RideDashU(B.Along, Sb);
+				StudUa = Va;
+				StudUb = std::fabs(std::fabs(Vb - Va) - (B.Along - A.Along)) < 0.3 ? Vb : Va + Sa * (B.Along - A.Along);
+			}
+			const double StudHalf = 0.05 / (B.Along - A.Along);
+			for (double S = std::ceil(std::fmin(StudUa, StudUb) / Stud) * Stud; S < std::fmax(StudUa, StudUb) && !Town; S += Stud)
+			{
+				const double Tc = (S - StudUa) / (StudUb - StudUa);
+				const double T0 = std::fmax(Tc - StudHalf, 0.0), T1 = std::fmin(Tc + StudHalf, 1.0);
 				const Row Sa = Between(A, B, T0), Sb = Between(A, B, T1);
 				static constexpr float WhiteEye[3] = {1.0f, 1.0f, 0.9f}, RedEye[3] = {1.0f, 0.04f, 0.03f}, AmberEye[3] = {1.0f, 0.42f, 0.0f};
 				Into = &Out.NightOf();
