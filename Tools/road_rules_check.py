@@ -252,6 +252,50 @@ def runs_along(pic, line, s0, s1, v, kinds=(2,), step=0.1, slack=0.3):
     return out
 
 
+def runs_following(pic, line, s0, s1, kinds=(2, 3), step=0.1, reach=1.5, hold=0.4):
+    """Painted runs along a middle line, following the paint where it sits a little to one side (a whole junction's
+    piece carries its line across on its own curve, and the map's line, joined straight across the middle, cuts the
+    corner): the first paint within reach across sets where the line is, and from there each step looks within hold
+    of where it was last seen. List of (start, end, painted)."""
+    out = []
+    u0 = None
+    s = s0
+    while s <= s1 and u0 is None:
+        p, d, h = line.at(s)
+        best = None
+        u = -reach
+        while u <= reach + 1e-9:
+            if pic.at(*add(p, mul(left(d), u))) in kinds and (best is None or abs(u) < abs(best)):
+                best = u
+            u += 0.05
+        u0 = best
+        s += step
+    if u0 is None:
+        return [(s0, s1, False)]
+    cur, start = None, s0
+    s = s0
+    while s <= s1:
+        p, d, h = line.at(s)
+        on, found = False, []
+        u = u0 - hold
+        while u <= u0 + hold + 1e-9:
+            if pic.at(*add(p, mul(left(d), u))) in kinds:
+                found.append(u)
+            u += 0.05
+        if found:
+            on = True
+            u0 = 0.5 * u0 + 0.5 * (sum(found) / len(found))
+        if cur is None:
+            cur, start = on, s
+        elif on != cur:
+            out.append((start, s, cur))
+            cur, start = on, s
+        s += step
+    if cur is not None:
+        out.append((start, s1, cur))
+    return out
+
+
 def marks_of(runs):
     """Whole marks and gaps (not cut by the ends): lengths. Breaks under 0.3 m in a mark are mended first, and specks
     under 0.5 m dropped, so a mark cut by a junction's piece reads as one."""
@@ -461,7 +505,7 @@ def judge_junction(rec, rep, area):
     # C2 / C6: the major road's centre line runs on through the junction as a warning line.
     if major is not None and major_road is not None:
         mid = major.nearest((0.0, 0.0))[2]
-        runs = runs_along(pic, major, max(0.0, mid - 25.0), min(major.length(), mid + 25.0), 0.0)
+        runs = runs_following(pic, major, max(0.0, mid - 25.0), min(major.length(), mid + 25.0))
         two_way = all(arms[i]['in'] and arms[i]['out'] for i in th)
         hmaj = major.at(mid)[2]
         if two_way and hmaj * 2 >= RULE['D2']['min_width'] and arms[th[0]]['cls'] not in QUIET:
