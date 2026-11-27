@@ -57,6 +57,7 @@ const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");   // (the checker can
 const bool ShareOld = WhyOn("WHOLE_SHAREOLD");   // (the checker can turn down one of two junctions too close for both cuts, as before)
 const bool FollowInOld = WhyOn("WHOLE_FOLLOWINOLD");   // (the checker can follow an arm into another junction's inside roads, as before)
 const bool PlainOld = WhyOn("WHOLE_PLAINOLD");
+const bool DashSplitOld = WhyOn("WHOLE_DASHSPLITOLD");   // (the checker can run the ride's dashes across on A's way, as before)
 const bool RoomShare = WhyOn("WHOLE_ROOMSHARE");   // (the checker can leave room for a junction at an arm's plain far point, as before)
 const bool RideAtOld = WhyOn("WHOLE_RIDEATOLD");   // (the checker can put a ride junction at its nearest point of the ride's road, as before)
 const bool PaintOld = WhyOn("WHOLE_PAINTOLD");
@@ -603,6 +604,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			W.Corner = std::fmin(W.Corner, WholeCornerTight);
 		}
 		W.Cut.assign(Arms.size(), 0.0);
+		W.Tight.clear();
 		for (size_t A = 0; A < Arms.size(); ++A)
 		{
 			double Need = Half[A] + 1.5;
@@ -632,9 +634,13 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 				const int Next = G.Adjacent[size_t(FarNode)][0] == Arms[A].Edge ? G.Adjacent[size_t(FarNode)][1] : G.Adjacent[size_t(FarNode)][0];
 				Plain = Next != Arms[A].Edge && RingRoads.count(Next) == 0 && RingOfEdge.count(Next) == 0 && !G.CircuitEdge(Next) && G.Edges[size_t(Next)].A != G.Edges[size_t(Next)].B;
 			}
+			const bool Far = !(size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 1) && !Plain;
 			const double Room = size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 1 ? 0.9 * Own.Length
 				: Plain ? std::fmax(0.45 * Own.Length, Own.Length - 1.0)
 				: std::fmax(0.45 * Own.Length, RoomOld ? 0.0 : Own.Length - (FarOnRide ? 10.0 : RoomShare ? 3.0 : 7.0));
+			// ([stage 7] to 3 m short of a junction at its far end, past the old 7: kept only if that junction is whole too, below)
+			if (Far && RoomShare && !FarOnRide && !RoomOld && W.Cut[A] <= Room && W.Cut[A] > std::fmax(0.45 * Own.Length, Own.Length - 7.0))
+				W.Tight.push_back(static_cast<long long>(Arms[A].Edge + 1) * 2 + (Own.A == Arms[A].Node ? 1 : 0));
 			// ([smooth junctions stage 5c] a short dead end (a drive, a yard's way in): its mouth at its end, not the whole
 			// junction turned down for it; 2,859 of the refusals in a three-town sample were these)
 			if (OnRide[size_t(Arms[A].Edge)]) continue;   // (along the ride's road: room checked against its ends and other hides)
@@ -904,6 +910,23 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			}
 			else WholeEnds[Two.Key] = {Two.First, Two.Cut};
 		}
+	// ([stage 7] an arm cut past the old room toward a junction left the old way: turned down, its pieces overlapped the
+	// old one's mouth (steps); and again for any whose far junction that turned down)
+	for (bool Again = true; Again;)
+	{
+		Again = false;
+		for (size_t Ji = 0; Ji < WholeOf.size(); ++Ji)
+		{
+			if (!WholeOf[Ji].Ok) continue;
+			for (const long long Key : WholeOf[Ji].Tight)
+			{
+				const auto Far = WholeEnds.find(Key);
+				if (Far != WholeEnds.end() && Far->second.first != int(Ji) && WholeOf[size_t(Far->second.first)].Ok) continue;
+				WholeOf[Ji].Ok = false; WholeWhy[Ji] = 10; Again = true;
+				break;
+			}
+		}
+	}
 	// (those turned down on the way: their arms back to the old way)
 	for (auto It = WholeEnds.begin(); It != WholeEnds.end();)
 		It = WholeOf[size_t(It->second.first)].Ok ? std::next(It) : WholeEnds.erase(It);
@@ -1103,7 +1126,15 @@ bool RidePlan::WholeDashLineOf(int Ji, WholeDashLine& D) const
 		{
 			const double Ub = RideDashU(D.BBase, Sb);
 			const double Rt = (Ub - Ua) / D.Length;
-			if (std::fabs(Rt) > 0.5 && std::fabs(Rt) < 1.5) D.Rate = Rt;   // (else a new run of the map's roads begins inside it: on A's way)
+			if (std::fabs(Rt) > 0.5 && std::fabs(Rt) < 1.5) D.Rate = Rt;
+			else if (!DashSplitOld)
+			{
+				// ([stage 7] else a new run of the map's roads begins at the node: each half from its own mouth, as a painter starts
+				// afresh at the junction; on A's way across, the line met the road beyond B 0.5-0.7 m out of step, York)
+				D.X1 = Ub;
+				D.Rate1 = Sb * (D.BEnd == 0 ? 1.0 : -1.0);
+				D.Split = D.Length * 0.5;
+			}
 		}
 	}
 	return true;
@@ -1118,8 +1149,8 @@ bool RidePlan::WholeDashOf(int Which, int End, double& Sign, double& Shift) cons
 	if (!WholeDashLineOf(WholeAt(Which, End), D) || D.BWhich != Which || D.BEnd != End) return false;
 	// (heading out of B's mouth its along grows where its mouth is at its start; the line across reaches it at X0 + Rate *
 	// Length, running on the way Rate does)
-	const double Xl = D.X0 + D.Rate * D.Length;
-	Sign = (D.Rate > 0.0 ? 1.0 : -1.0) * (End == 0 ? 1.0 : -1.0);
+	const double Xl = D.UAt(D.Length);
+	Sign = ((D.Split <= D.Length ? D.Rate1 : D.Rate) > 0.0 ? 1.0 : -1.0) * (End == 0 ? 1.0 : -1.0);
 	Shift = Xl - Sign * D.BBase;
 	return true;
 }
@@ -1672,7 +1703,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 				if (S < Steps)
 				{
 					const double Mid = Gone + Seg * (S + 0.5) / Steps;
-					On = RoadX::OnDash(X0 + Rate * Mid, Dash);
+					On = RoadX::OnDash(Stepped ? Dl.UAt(Mid) : X0 + Rate * Mid, Dash);
 				}
 				if (On && RunFrom < 0) RunFrom = S;
 				if (!On && RunFrom >= 0)
