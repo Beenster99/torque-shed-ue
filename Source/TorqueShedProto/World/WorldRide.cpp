@@ -3621,6 +3621,15 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		if (ThroughAtEnd(Which, 0)) WarnZones.emplace_back(-1.0, RoadX::WarningReach(PaintMph(Which, 0.0, Street0)));
 		if (ThroughAtEnd(Which, 1)) WarnZones.emplace_back(Mine->Length - RoadX::WarningReach(PaintMph(Which, Mine->Length, Street1)), Mine->Length + 1.0);
 	}
+	// [road rulebook C6] (the dash step a whole junction's piece hands this road at either end: 1 and 0 where none)
+	double DashSign0 = 1.0, DashShift0 = 0.0, DashSign1 = 1.0, DashShift1 = 0.0;
+	if (Which > 0)
+	{
+		// (where only one end hands one on, the whole road keeps that step; where both do, each half the nearer end's)
+		const bool Has0 = WholeDashOf(Which, 0, DashSign0, DashShift0), Has1 = WholeDashOf(Which, 1, DashSign1, DashShift1);
+		if (Has0 && !Has1) { DashSign1 = DashSign0; DashShift1 = DashShift0; }
+		if (Has1 && !Has0) { DashSign0 = DashSign1; DashShift0 = DashShift1; }
+	}
 	const auto WarnAt = [&WarnZones](double Along)
 	{
 		for (const std::pair<double, double>& Z : WarnZones)
@@ -4175,11 +4184,20 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			if (!AcrossThrough && B.Along > A.Along + 1e-6)
 			{
 				const int Mph = PaintMph(Which, 0.5 * (A.Along + B.Along), StreetRow[K] != 0);
+				// ([road rulebook C6] in step with a whole junction's line across at the nearer end where its piece
+				// carries the pattern on: OnDash(Sign * along + Shift), WholeDashOf)
+				const double DashMid = 0.5 * (A.Along + B.Along);
+				const bool NearStart = Which == 0 || DashMid < 0.5 * Mine->Length;
+				const double DashSign = NearStart ? DashSign0 : DashSign1, DashShift = NearStart ? DashShift0 : DashShift1;
 				const auto Dashes = [&](const RoadX::DashPattern& P, const auto& Draw)
 				{
-					for (double S0 = std::floor(A.Along / P.Cycle) * P.Cycle; S0 < B.Along; S0 += P.Cycle)
+					// (in the pattern's own along U = Sign * along + Shift: marks [k * Cycle, k * Cycle + Mark))
+					const double Ua = DashSign * A.Along + DashShift, Ub = DashSign * B.Along + DashShift;
+					const double U0 = std::fmin(Ua, Ub), U1 = std::fmax(Ua, Ub);
+					for (double S0 = std::floor(U0 / P.Cycle) * P.Cycle; S0 < U1; S0 += P.Cycle)
 					{
-						const double T0 = std::clamp((S0 - A.Along) / (B.Along - A.Along), 0.0, 1.0), T1 = std::clamp((S0 + P.Mark - A.Along) / (B.Along - A.Along), 0.0, 1.0);
+						double T0 = std::clamp((S0 - Ua) / (Ub - Ua), 0.0, 1.0), T1 = std::clamp((S0 + P.Mark - Ua) / (Ub - Ua), 0.0, 1.0);
+						if (T0 > T1) std::swap(T0, T1);
 						if (T1 - T0 > 1e-4) Draw(T0, T1);
 					}
 				};
