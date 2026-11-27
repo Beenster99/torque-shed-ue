@@ -1067,6 +1067,21 @@ bool RidePlan::WholeDashLineOf(int Ji, WholeDashLine& D) const
 	D.X0 = D.ABase;
 	D.Rate = D.AEnd == 0 ? -1.0 : 1.0;
 	if (D.AWhich == 0 && D.BWhich == 0 && D.Length > 1.0) D.Rate = (D.BBase - D.ABase) / D.Length;
+	// ([road rulebook stage 3a] the ride's road's dashes by its map road's own way along (RideDashU), the same whichever
+	// way the ride runs: from A's mouth on in that way, or from one mouth's to the other's)
+	if (D.AWhich == 0)
+	{
+		double Sa = 1.0, Sb = 1.0;
+		const double Ua = RideDashU(D.ABase, Sa);
+		D.X0 = Ua;
+		D.Rate = Sa * (D.AEnd == 0 ? -1.0 : 1.0);
+		if (D.BWhich == 0 && D.Length > 1.0)
+		{
+			const double Ub = RideDashU(D.BBase, Sb);
+			const double Rt = (Ub - Ua) / D.Length;
+			if (std::fabs(Rt) > 0.5 && std::fabs(Rt) < 1.5) D.Rate = Rt;   // (else a new run of the map's roads begins inside it: on A's way)
+		}
+	}
 	return true;
 }
 
