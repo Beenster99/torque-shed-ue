@@ -57,6 +57,7 @@ const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");   // (the checker can
 const bool ShareOld = WhyOn("WHOLE_SHAREOLD");   // (the checker can turn down one of two junctions too close for both cuts, as before)
 const bool FollowInOld = WhyOn("WHOLE_FOLLOWINOLD");   // (the checker can follow an arm into another junction's inside roads, as before)
 const bool PlainOld = WhyOn("WHOLE_PLAINOLD");
+const bool SpanOld = WhyOn("WHOLE_SPANOLD");   // (the checker can turn down clusters over JunctionMerge across, as before)
 const bool CrossoverOld = WhyOn("WHOLE_CROSSOVEROLD");   // (the checker can turn down a dual's lone gap as before)
 const bool BandOld = WhyOn("WHOLE_BANDOLD");   // (the checker can leave a corner's grass band over the piece's tarmac, as before)
 const bool DashSplitOld = WhyOn("WHOLE_DASHSPLITOLD");   // (the checker can run the ride's dashes across on A's way, as before)   // (the checker can leave room for a junction at an arm's plain far point, as before)
@@ -503,7 +504,10 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// built whole as any other; both halves there (an arm with a Pair) is still turned down below, code 6)
 		if (J.Dual && DualOld) { Refuse(2); continue; }
 		if (J.Ring >= 0) { Refuse(3); continue; }
-		if (J.Span > (Gap ? JunctionGap : Slip ? JunctionSlip : JunctionMerge)) { if (WhyOn("WHOLE_WHY")) std::printf("span4 node %d kind %d span %.1f arms %zu pairs %d gap %d slip %d dual %d\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Span, J.Arms.size(), Pairs, int(Gap), int(Slip), int(J.Dual)); Refuse(4); continue; }
+		// ([stage 7] a cluster up to 20 m across too, a small triangle at a T or a crossroads of three or four points: just over
+		// JunctionMerge, turned down, their old pieces stepped 25-70 m2 each, Grassington, Ambleside)
+		static const double SpanMost = WhyOn("WHOLE_SPANMOST") ? std::atof(std::getenv("WHOLE_SPANMOST")) : 20.0;
+		if (J.Span > (Gap ? JunctionGap : Slip ? JunctionSlip : SpanOld ? JunctionMerge : SpanMost)) { if (WhyOn("WHOLE_WHY")) std::printf("span4 node %d kind %d span %.1f arms %zu pairs %d gap %d slip %d dual %d\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Span, J.Arms.size(), Pairs, int(Gap), int(Slip), int(J.Dual)); Refuse(4); continue; }
 		if (J.Arms.size() < 3 || J.Arms.size() > (DualCross ? 8u : Gap ? 6u : 5u)) { Refuse(5); continue; }
 		bool Fits = true;
 		// ([smooth junctions stage 5c] the ride's road through it or turning at it, two of its arms: built whole too, the ride's
