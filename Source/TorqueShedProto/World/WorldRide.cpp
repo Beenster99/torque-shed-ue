@@ -667,7 +667,12 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 				const double Li = In.Length(), Lo = Out.Length();
 				if (Li < 1.0 || Lo < 1.0) continue;
 				const double Turn = std::acos(std::clamp((In.X * Out.X + In.Z * Out.Z) / (Li * Lo), -1.0, 1.0));
-				if (Turn < 0.05) continue;
+				// (nor round a hairpin: smoothed, it swung out in a loop through the junction's other roads, Highland jn 1307)
+				if (Turn < 0.05 || Turn > 2.0) continue;
+				// (a square turn is spliced in there after: the corner is its, not smoothed first as well)
+				bool Squared = false;
+				for (const SquareTurn& Sq : Squares) Squared = Squared || Sq.Hub.DistanceTo(Edgy[B]) < 12.0;
+				if (Squared) continue;
 				std::vector<P2> Win(Edgy.begin() + long(W0), Edgy.begin() + long(W1) + 1);
 				std::vector<double> WinFair(Win.size(), JunctionFair), WinTight(Win.size(), Turn > JunctionTurn ? RoadLine::JunctionRadius : 0.0);
 				WinFair.front() = WinFair.back() = 0.0;
