@@ -49,8 +49,10 @@ const bool GapOld = WhyOn("WHOLE_GAPOLD");   // (the checker can turn down a dua
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
 const bool DualOld = WhyOn("WHOLE_DUALOLD");
 const bool RingSpanOld = WhyOn("WHOLE_RINGSPANOLD");
-const bool RingClashOld = WhyOn("WHOLE_RINGCLASHOLD");
-const bool DivideOld = WhyOn("WHOLE_DIVIDEOLD");   // (the checker can carry a divide's arm straight in to the ring, as before)   // (the checker can turn both down where a ring's divide is a junction, as before)
+const bool RingClashOld = WhyOn("WHOLE_RINGCLASHOLD");   // (the checker can turn both down where a ring's divide is a junction, as before)
+const bool DivideOld = WhyOn("WHOLE_DIVIDEOLD");   // (the checker can carry a divide's arm straight in to the ring, as before)
+const bool ShortDivideOld = WhyOn("WHOLE_SHORTDIVIDEOLD");
+const bool RideAtOld = WhyOn("WHOLE_RIDEATOLD");   // (the checker can put a ride junction at its nearest point of the ride's road, as before)   // (the checker can turn down a ring whose divide has a junction just past it, as before)
 const bool PaintOld = WhyOn("WHOLE_PAINTOLD");
 const bool RideEndOld = WhyOn("WHOLE_RIDEENDOLD");   // (the checker can turn down a junction the ride starts or ends at as before)   // (the checker can paint off the piece as before)   // (the checker can turn down a ring for any bridge within 40 m of it as before)   // (the checker can turn down every junction on a dual's half as before)
 } // namespace
@@ -302,6 +304,12 @@ bool DivideEdges(const Region& G, const RidePlan::RoadRing& Rr, const std::vecto
 			}
 			Edge[K].push_back(Off[I - 1] + (Off[I] - Off[I - 1]) * Hi);
 			break;
+		}
+		// (a road joining the ring along it: its outer edge beside the ring's to the last, carried square on to it)
+		if (Rr.OffOf(Edge[K].back()) > Rr.Half + 0.05 && Rr.OffOf(Edge[K].back()) <= Rr.Half + Hf + 1.5)
+		{
+			const P2 Q = Edge[K].back();
+			Edge[K].push_back(Rr.At(std::atan2(Q.Z - Rr.Mid.Z, Q.X - Rr.Mid.X), Rr.Half));
 		}
 		if (Rr.OffOf(Edge[K].back()) > Rr.Half + 0.05) { if (WhyOn("WHOLE_DIV_DBG")) std::printf("divfail 5 node %d laid %d\n", Node, int(Laid != nullptr)); return false; }
 	}
@@ -616,7 +624,21 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			double D = 0.0, H = 0.0;
 			int Index = -1;
 			if (!Nearest(J.At.X, J.At.Z, D, H, &Index, nullptr, nullptr, true) || Index < 0 || D > 8.0) { if (WhyOn("WHOLE_WHY")) std::printf("ride14 %zu node %d d %.1f\n", Ji, J.Nodes.empty() ? -1 : J.Nodes[0], D); Refuse(14); continue; }
-			const double At = Road[size_t(Index)].Along;
+			// ([smooth junctions stage 7] its along square off the road's line between its points, not its nearest point's: by
+			// the point the ride's mouths were up to a point's spacing apart, one way round and the other, Whaley Bridge)
+			double At = Road[size_t(Index)].Along;
+			if (!RideAtOld)
+			{
+				double Best = 1e18;
+				for (int K = std::max(0, Index - 1); K <= Index && K + 1 < int(Road.size()); ++K)
+				{
+					const P2 Pa = Road[size_t(K)].At, Dv = Road[size_t(K) + 1].At - Pa;
+					const double L2 = Dv.X * Dv.X + Dv.Z * Dv.Z;
+					const double T = L2 > 1e-9 ? std::clamp(((J.At.X - Pa.X) * Dv.X + (J.At.Z - Pa.Z) * Dv.Z) / L2, 0.0, 1.0) : 0.0;
+					const double Dd = J.At.DistanceTo(Pa + Dv * T);
+					if (Dd < Best) { Best = Dd; At = Road[size_t(K)].Along + (Road[size_t(K) + 1].Along - Road[size_t(K)].Along) * T; }
+				}
+			}
 			for (size_t A = 0; A < Arms.size() && Fits; ++A)
 			{
 				if (!OnRide[size_t(Arms[A].Edge)]) continue;
@@ -1105,6 +1127,9 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 		Mouths.push_back(M);
 	}
 	const size_t N = Mouths.size();
+	if (WhyOn("WHOLE_PIECE_DBG"))
+		for (size_t A = 0; A < N; ++A)
+			std::printf("piecedbg %d arm %zu which %d end %d sign %d cut %.2f at %.2f %.2f out %.3f %.3f half %.2f paved %d\n", Ji, A, Mouths[A].Which, Mouths[A].End, A < W.ArmSign.size() ? W.ArmSign[A] : 0, W.Cut[A], Mouths[A].P.At.X - J.At.X, Mouths[A].P.At.Z - J.At.Z, Mouths[A].Out.X, Mouths[A].Out.Z, Mouths[A].P.Half, int(Mouths[A].Paved));
 	// (round the junction in order of the heading out)
 	std::vector<size_t> Order(N);
 	for (size_t I = 0; I < N; ++I) Order[I] = I;
@@ -1949,6 +1974,9 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 			W.Flare[2 * A + 1] = std::fmin(W.Flare[2 * A + 1], Fl);
 			W.Cut[A] = Gone[A] + Fl + 1.0;
 		}
+		// ([smooth junctions stage 7] an arm out from a divide, the junction just past it (two metres on, A14): its mouth
+		// line between the two, the piece drawn out along the divide's roads to it)
+		if (W.Cut[A] > Most && !ShortDivideOld && Gone[A] <= 0.0 && Most >= 0.4 && std::find(Rr.Nodes.begin(), Rr.Nodes.end(), J.Arms[A].Node) == Rr.Nodes.end()) W.Cut[A] = Most;
 		if (W.Cut[A] > Most) { WholeWhy[Ji] = static_cast<unsigned char>(27); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 7 cut %.1f long %.1f gone %.1f at %.0f %.0f\n", J.Ring, W.Cut[A], Long, Gone[A], J.At.X, J.At.Z); return; }
 	}
 	// ([smooth junctions 4b] the ride's road's mouths the same way past its corners; not drawn between them)
@@ -2179,7 +2207,7 @@ void RidePlan::RingPiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			const P2 E0 = (Sd == 0) == AFalls ? Ea : Eb;
 			M.E0[Sd] = E0;
 			if (Sd == 0 && !OnRide && !DivideOld && std::find(Rr.Nodes.begin(), Rr.Nodes.end(), J.Arms[A].Node) == Rr.Nodes.end())
-				M.Divide = DivideEdges(G, Rr, J.Inside, J.Arms[A].Node, M.Aim, M.Dv, this);
+				M.Divide = DivideEdges(G, Rr, J.Inside, J.Arms[A].Node, M.Aim, M.Dv, this) || DivideEdges(G, Rr, J.Inside, J.Arms[A].Node, M.Aim, M.Dv);   // (as laid, else as mapped)
 			if (Sd == 0 && !OnRide && WhyOn("WHOLE_DIV_DBG") && std::find(Rr.Nodes.begin(), Rr.Nodes.end(), J.Arms[A].Node) == Rr.Nodes.end()) std::printf("divtry %d node %d ok %d\n", J.Ring, J.Arms[A].Node, int(M.Divide));
 			if (M.Divide)
 			{
